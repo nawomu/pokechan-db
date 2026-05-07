@@ -1,0 +1,1125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>手持ちわざチェッカー v3</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#0d1117;color:#e6edf3;font-size:11px;display:flex;flex-direction:column;overflow:hidden}
+h1{text-align:center;padding:14px;font-size:1.2rem;color:#79c0ff;border-bottom:1px solid #21262d}
+
+/* パーティバー */
+#party-bar{background:#161b22;padding:8px 14px;border-bottom:1px solid #21262d;display:flex;gap:8px;align-items:flex-start;overflow-x:auto}
+#party-bar h2{font-size:.8rem;color:#8b949e;white-space:nowrap;margin-right:4px}
+.slot-card{width:90px;padding:5px 4px;border-radius:8px;cursor:grab;border:2px solid #30363d;background:#0d1117;text-align:center;transition:.15s;user-select:none}
+.slot-card.active{border-color:#79c0ff;background:#1c2a3a}
+.slot-card.drag-over{border-color:#f0883e;opacity:.7}
+.slot-card .s-label{font-size:.6rem;color:#8b949e}
+.slot-card .s-name{font-size:.8rem;font-weight:bold;margin-top:2px;min-height:1.1em}
+.slot-card .s-name.empty{color:#484f58}
+
+/* ポケモン選択モーダル */
+#modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center}
+#modal-ov.vis{display:flex}
+#modal-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;max-width:460px;width:92vw;max-height:82vh;display:flex;flex-direction:column;gap:10px}
+#modal-search{padding:8px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:13px;width:100%}
+#modal-list{overflow-y:auto;flex:1}
+.m-item{padding:7px 12px;cursor:pointer;border-radius:6px;transition:.1s}
+.m-item:hover{background:#1c2a3a}
+.m-btns{display:flex;gap:8px;justify-content:flex-end}
+.m-btns button{padding:5px 14px;border-radius:6px;border:none;cursor:pointer;font-size:13px}
+#modal-clear{background:#da3633;color:#fff}
+#modal-close{background:#30363d;color:#e6edf3}
+
+/* わざチェックリストモーダル */
+
+/* メインテーブル */
+#main-wrap{overflow:auto;flex:1;min-height:0}
+table.cmp{border-collapse:collapse;min-width:100%}
+table.cmp th,table.cmp td{padding:2px 5px;border:1px solid #21262d;vertical-align:top;white-space:nowrap;line-height:1.25}
+table.cmp .row-label{background:#161b22;color:#8b949e;font-weight:bold;font-size:.72rem;width:80px;min-width:80px;position:sticky;left:0;z-index:10;white-space:normal}
+table.cmp tr.sec-hdr td{background:#21262d;color:#79c0ff;font-weight:bold;font-size:.8rem;text-align:center;padding:7px 8px}
+.poke-name-cell{text-align:center;min-width:120px;max-width:160px;user-select:none}
+/* ドラッグ中の列ハイライト (ポケ名上の全セル共通) */
+td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !important}
+.poke-filter-btn{display:inline-block;margin-top:4px;padding:2px 8px;font-size:.65rem;background:#21262d;color:#79c0ff;border:1px solid #30363d;border-radius:10px;cursor:pointer;user-select:none}
+.poke-filter-btn:hover{background:#1c2a3a;border-color:#79c0ff}
+.poke-filter-btn.active{background:#1f4a1f;color:#56d364;border-color:#2ea043}
+
+/* ポケモン別わざ選択モーダル (大きめ) */
+#pf-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;align-items:center;justify-content:center}
+#pf-ov.vis{display:flex}
+#pf-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:14px;max-width:1400px;width:96vw;max-height:90vh;display:flex;flex-direction:column;gap:8px}
+#pf-title{font-size:1rem;font-weight:bold;color:#e6edf3}
+#pf-search{padding:6px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:12px;width:100%}
+#pf-list{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:3px}
+.pf-item{display:flex;align-items:flex-start;gap:6px;padding:5px 7px;border-radius:6px;cursor:pointer;border:1px solid transparent}
+.pf-item:hover{background:#1c2a3a;border-color:#30363d}
+.pf-item.checked{background:#1f4a1f;border-color:#2ea043}
+.pf-item input[type=checkbox]{accent-color:#79c0ff;width:14px;height:14px;cursor:pointer;flex-shrink:0;margin-top:2px}
+.pf-item-body{flex:1;min-width:0}
+#pf-btns{display:flex;gap:8px;justify-content:space-between;align-items:center;border-top:1px solid #21262d;padding-top:8px}
+#pf-btns .left{display:flex;gap:6px;align-items:center}
+#pf-btns button{padding:5px 12px;border-radius:6px;border:1px solid #30363d;background:transparent;color:#8b949e;cursor:pointer;font-size:.78rem}
+#pf-done{background:#238636 !important;color:#fff !important;border:none !important}
+#pf-reset{background:#30363d !important;color:#e6edf3 !important;border:none !important}
+#pf-count{color:#8b949e;font-size:.73rem}
+.poke-no{font-size:.62rem;color:#8b949e}
+.poke-name-big{font-size:.85rem;font-weight:bold;color:#e6edf3;display:block}
+.type-row{display:flex;gap:3px;justify-content:center;margin-top:2px;flex-wrap:wrap}
+.tbadge{display:inline-block;padding:1px 7px;border-radius:10px;font-size:.7rem;font-weight:bold;color:#fff}
+.stat-cell{text-align:right;font-size:.74rem;white-space:nowrap;font-variant-numeric:tabular-nums}
+.stat-total{font-weight:bold}
+.stat-rank{font-size:.7rem;color:#e6edf3;display:inline-block;min-width:3.2em;text-align:right;margin-left:4px}
+/* 値1個分の固定幅セル (縦揃え用) */
+.sv{display:inline-block;min-width:3em;text-align:right;padding-right:2px;font-variant-numeric:tabular-nums}
+/* 略号 (H/A/B/C/D/S) — 値の左に小さく表示 */
+.stat-letter{display:inline-block;min-width:1.2em;text-align:right;color:#79c0ff;font-weight:bold;font-size:.7rem;margin-right:3px}
+/* 各モード値のカラー */
+.sm-base{color:#e6edf3}              /* 種族 = 白 */
+.sm-v6{color:#79c0ff}                 /* V6 = 水色 */
+.sm-c{color:#56d364}                  /* 性補 = 緑 */
+.sm-a{color:#f8d030}                  /* 準速 = 黄色 */
+.sm-b{color:#ff7b9d;font-weight:bold} /* 最速 = ピンク */
+
+/* 種族値表示モード切替ボタン */
+.sv-btn{padding:2px 8px;border:1px solid #30363d;background:transparent;border-radius:4px;cursor:pointer;font-size:.7rem;margin:0 1px;color:#6e7681;font-weight:normal}
+.sv-btn:hover{background:#21262d}
+.sv-btn.on{background:#1c2a3a;border-color:#58a6ff}
+.sv-btn.on.sv-base{color:#e6edf3}
+.sv-btn.on.sv-v6{color:#79c0ff}
+.sv-btn.on.sv-c{color:#56d364}
+.sv-btn.on.sv-a{color:#f8d030}
+.sv-btn.on.sv-b{color:#ff7b9d;font-weight:bold}
+.sv-btn.on.sv-rank{color:#e6edf3}
+/* 種族値表示モード切替ボタン群 */
+.stat-mode-group{display:inline-flex;gap:0;border:1px solid #30363d;border-radius:6px;overflow:hidden;font-size:.7rem;margin-left:8px}
+.stat-mode-btn{padding:3px 9px;background:transparent;color:#8b949e;border:none;cursor:pointer;border-right:1px solid #30363d}
+.stat-mode-btn:last-child{border-right:none}
+.stat-mode-btn.on{background:#1c2a3a;color:#e6edf3;font-weight:bold}
+.stat-mode-btn:hover{background:#21262d}
+.ab-cell{font-size:.78rem;color:#d2a8ff;text-align:center;white-space:normal !important;max-width:140px;line-height:1.5;word-break:break-word}
+.ab-name{cursor:help;border-bottom:1px dotted #d2a8ff;padding:0 2px;display:inline-block}
+.ab-name:hover{color:#fff;background:#1c2a3a;border-radius:3px}
+.resist-cell{white-space:normal;max-width:150px;font-size:.73rem;line-height:1.4;overflow:hidden;padding:5px 6px !important}
+.resist-cell > div{display:flex;align-items:flex-start;gap:3px;margin-bottom:2px}
+.resist-cell .tbadge{padding:1px 5px;font-size:.62rem;border-radius:8px}
+.resist-cell .r-mul{display:inline-block;min-width:2em;text-align:right;flex-shrink:0}
+.resist-cell .r-badges{display:flex;flex-wrap:wrap;gap:3px;flex:1;min-width:0}
+.r4{color:#ff66c4;font-weight:bold}
+.r2{color:#f0883e;font-weight:bold}
+.r05{color:#56d364}
+.r025{color:#3fb950;font-weight:bold}
+.r0{color:#58a6ff;font-weight:bold}
+.r-none{color:#484f58}
+.waza-cell{white-space:nowrap;max-width:140px;min-width:90px;vertical-align:top}
+.waza-cell-clickable{cursor:pointer;transition:background .1s}
+.waza-cell-clickable:hover{background:#1c2a3a}
+/* 表セル内 わざ1個 (1行表示: 技名 / 分類 / 威力 / 命中 / 接触) */
+.waza-item{display:flex;align-items:center;gap:4px;font-size:.7rem;padding:1px 2px;line-height:1.4;overflow:hidden}
+.waza-item .w-name{font-weight:bold;color:#e6edf3;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
+/* 分類による技名の文字色 (物=橙 / 特=青 / 変=灰) */
+.waza-item .w-name.wn-phys{color:#f0883e}
+.waza-item .w-name.wn-spec{color:#79c0ff}
+.waza-item .w-name.wn-stat{color:#a6a8ad}
+.waza-item .w-cat{flex-shrink:0}
+.waza-item .w-pow,.waza-item .w-acc,.waza-item .w-contact{color:#8b949e;font-size:.62rem;flex-shrink:0}
+/* モーダル内 わざ1個 (1行表示: 技名 / タイプ / 分類 / 威力 / 命中 / PP / 接触 / 優先度 / 説明) */
+.waza-row{display:grid;grid-template-columns:8em 3.5em 2em 3.5em 3.5em 3.5em 2em 3em 1fr;align-items:center;gap:6px;padding:4px 6px;font-size:.74rem;white-space:nowrap;border-bottom:1px dotted #21262d;position:relative}
+.waza-row > *:not(.desc-popup){overflow:hidden;text-overflow:ellipsis;min-width:0}
+.waza-row .w-name{font-weight:bold;color:#e6edf3}
+.waza-row .w-pow,.waza-row .w-acc,.waza-row .w-pp,.waza-row .w-contact{color:#8b949e;font-size:.7rem}
+.waza-row .w-desc-inline{color:#a6a8ad;font-size:.65rem;cursor:help}
+.waza-row:hover{background:#161f2c}
+/* グローバル説明ツールチップ (カーソル追従、画面外にもみ出さない) */
+#hover-tip{
+  display:none;
+  position:fixed;
+  background:#1c2a3a;
+  border:1px solid #79c0ff;
+  padding:9px 13px;
+  border-radius:6px;
+  font-size:.85rem;
+  line-height:1.55;
+  color:#e6edf3;
+  max-width:520px;
+  z-index:9999;
+  pointer-events:none;
+  box-shadow:0 8px 22px rgba(0,0,0,.7);
+  white-space:normal;
+  word-break:break-word;
+}
+.w-pri{font-size:.7rem;font-weight:bold;text-align:center}
+.w-pri.pri-pos{color:#56d364}
+.w-pri.pri-neg{color:#ff7b72}
+.w-pri.pri-zero{color:#6e7681}
+/* ソート対応ヘッダ行 */
+.waza-row-header{display:grid;grid-template-columns:8em 3.5em 2em 3.5em 3.5em 3.5em 2em 3em 1fr;align-items:center;gap:6px;padding:5px 6px;font-size:.7rem;background:#21262d;color:#8b949e;font-weight:bold;border-radius:4px;position:sticky;top:0;z-index:5}
+.waza-row-header > span{cursor:pointer;user-select:none;padding:2px 0}
+.waza-row-header > span:hover{color:#79c0ff}
+.waza-row-header .sort-active{color:#79c0ff}
+/* フィルタバー */
+.modal-filter-bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:6px 8px;background:#0d1117;border:1px solid #21262d;border-radius:6px;font-size:.72rem}
+.modal-filter-bar label{color:#8b949e;display:inline-flex;align-items:center;gap:3px}
+.modal-filter-bar input[type=number]{width:55px;padding:2px 4px;border-radius:4px;border:1px solid #30363d;background:#161b22;color:#e6edf3;font-size:.72rem}
+.modal-filter-bar input[type=checkbox]{accent-color:#79c0ff;cursor:pointer}
+.modal-filter-bar .fb-cat-btn{padding:2px 8px;border:1px solid #30363d;border-radius:10px;background:#161b22;color:#8b949e;cursor:pointer;font-size:.7rem}
+.modal-filter-bar .fb-cat-btn.on{background:#1c2a3a;color:#e6edf3;border-color:#79c0ff}
+/* 共通バッジ */
+.w-cat{display:inline-block;padding:0 4px;border-radius:3px;font-size:.62rem;font-weight:bold;color:#fff;line-height:1.4}
+.w-cat.phys{background:#f0883e}
+.w-cat.spec{background:#79c0ff}
+.w-cat.stat{background:#8b949e}
+.w-type{display:inline-block;padding:0 5px;border-radius:8px;font-size:.62rem;font-weight:bold;color:#fff;line-height:1.5}
+.w-stat-key{color:#6e7681}
+.waza-more{font-size:.65rem;padding:2px 0;cursor:pointer;text-align:center}
+.waza-more span{margin:0 4px}
+.bd-phys{color:#f0883e}
+.bd-spec{color:#79c0ff}
+.bd-stat{color:#a6a8ad}
+/* 件数のみのセルは縦方向も中央揃え */
+.waza-cell-count{vertical-align:middle;text-align:center}
+.waza-empty{color:#30363d;font-size:.73rem}
+.empty-slot-cell{text-align:center;color:#30363d;font-size:.78rem;min-width:120px}
+
+/* タイプ行ラベル */
+.type-label-cell{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;align-items:center;gap:2px 5px}
+.type-label-cell .drag-handle{grid-row:1;grid-column:1}
+.type-label-cell .tbadge{grid-row:1;grid-column:2;justify-self:start}
+.type-label-cell .type-cnt,
+.type-label-cell .filter-badge,
+.type-label-cell .type-stats{grid-row:2;grid-column:1/3;justify-self:center}
+.type-cnt{font-size:.62rem;color:#8b949e}
+.filter-badge{font-size:.62rem;background:#1f4a1f;color:#56d364;border-radius:8px;padding:1px 5px;border:1px solid #2ea043}
+.type-stats{font-size:.62rem;display:flex;gap:5px;justify-content:center}
+.type-stats .ts-good{color:#56d364;font-weight:bold}
+.type-stats .ts-bad{color:#f0883e}
+.type-stats .ts-zero{color:#8b949e}
+.drag-handle{color:#484f58;cursor:grab;font-size:.9rem;flex-shrink:0;line-height:1}
+.drag-handle:active{cursor:grabbing}
+tr.type-data-row{cursor:default}
+tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
+
+/* フィルタバー */
+#filter-bar{background:#161b22;padding:7px 14px;border-bottom:1px solid #21262d;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0}
+#filter-bar input{padding:5px 10px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:12px;width:130px}
+.fcat-btn{padding:2px 9px;border:1px solid #30363d;border-radius:10px;background:transparent;color:#8b949e;cursor:pointer;font-size:.73rem}
+.fcat-btn.on{background:#21262d;color:#e6edf3;border-color:#8b949e}
+#filter-bar label{font-size:.73rem;color:#8b949e}
+</style>
+</head>
+<body>
+
+<div id="filter-bar">
+  <label>わざ検索:</label>
+  <input id="waza-filter" type="text" placeholder="わざ名…">
+  <label>分類:</label>
+  <button class="fcat-btn on" data-cat="変化">変化</button>
+  <button class="fcat-btn on" data-cat="物理">物理</button>
+  <button class="fcat-btn on" data-cat="特殊">特殊</button>
+  <label style="font-size:.7rem">種族値:
+    <button class="sv-btn sv-base on" data-sv="base">種族</button>
+    <button class="sv-btn sv-v6"      data-sv="v6">６V</button>
+    <button class="sv-btn sv-c"       data-sv="c">性補</button>
+    <button class="sv-btn sv-a on"    data-sv="a">準速</button>
+    <button class="sv-btn sv-b on"    data-sv="b">最速</button>
+    <button class="sv-btn sv-rank on" data-sv="rank">順位</button>
+  </label>
+</div>
+
+<div id="main-wrap">
+  <table class="cmp" id="cmp-table"></table>
+</div>
+
+<!-- ポケモン選択モーダル -->
+<div id="modal-ov">
+  <div id="modal-box">
+    <h3 id="modal-title">ポケモンを選択</h3>
+    <input id="modal-search" type="text" placeholder="名前 / 番号で検索…">
+    <div id="modal-list"></div>
+    <div class="m-btns">
+      <button id="modal-clear">クリア</button>
+      <button id="modal-close">キャンセル</button>
+    </div>
+  </div>
+</div>
+
+<!-- グローバル説明ツールチップ -->
+<div id="hover-tip"></div>
+
+<!-- ポケモン別 わざ選択モーダル -->
+<div id="pf-ov">
+  <div id="pf-box">
+    <div id="pf-title">技を選択</div>
+    <input id="pf-search" type="text" placeholder="技名 または 説明文 で絞り込み…">
+    <div id="pf-list"></div>
+    <div id="pf-btns">
+      <div class="left">
+        <button id="pf-none">全解除</button>
+        <span id="pf-count"></span>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button id="pf-reset">このポケモンのフィルタ解除</button>
+        <button id="pf-done">確定</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="pokechan_data.js"></script>
+<script>
+
+
+
+
+
+
+
+// ── 表示用短縮名 ───────────────────────────────────────────────────────────
+// バッジ表示時のみ短縮（内部のタイプ名は変更しない）
+// 3文字統一: 4〜5文字のタイプは先頭3文字に短縮、3文字以下はそのまま
+
+const tDisp = t => TYPE_DISPLAY[t] || t;
+
+// ── 特性説明文（後でスクレイピングで埋める） ────────────────────────────────
+
+
+
+
+// ── タイプ攻撃時の有利不利カウント（◯=ばつぐん ▲=いまひとつ ✗=無効） ───────
+// 出典: ◯相性表 ポケモン　全技網羅.xlsx (Sheet ◯相性表) を集計
+
+
+// ── 定数 ─────────────────────────────────────────────────────────────────────
+const PARTY_SIZE = 24;
+const LS_PARTY        = "pokechan_party_v3";
+const LS_ORDER        = "pokechan_type_order_v4";  // v4: あべ指定の戦術順をデフォルト化
+
+// あべ指定のデフォルトタイプ順 (戦術的優先順、強い攻撃タイプ先頭)
+
+const LS_SLOT_FILTERS = "pokechan_slot_filters_v2";  // v2: per-slot×per-type 構造に変更
+const LS_STAT_VIS     = "pokechan_stat_vis_v1";   // {base,v6,c,a,b,rank} の表示ON/OFF
+
+// ── 状態 ─────────────────────────────────────────────────────────────────────
+let party = JSON.parse(localStorage.getItem(LS_PARTY) || "[]");
+while (party.length < PARTY_SIZE) party.push(null);
+party = party.slice(0, PARTY_SIZE);
+
+// タイプ表示順（ドラッグで変更可）
+let typeOrder = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_ORDER) || "null");
+    if (Array.isArray(saved) && saved.length === TYPES.length) return saved;
+  } catch(e) {}
+  return [...DEFAULT_TYPE_ORDER];
+})();
+
+// ポケモン別わざ選択フィルタ {pokemonName: [moveKey, ...]}
+// スロット別わざ選択フィルタ {slotIdx(0..PARTY_SIZE-1): [moveKey, ...]}
+// {slotIdx: {type: [moveKey,...]}} - per slot × per type
+// 値が undefined: 設定無し (タイプフィルタを適用)
+// 値が [] (空配列): ユーザー明示的に「このタイプは何も表示しない」
+let slotFilters = (() => {
+  try { return JSON.parse(localStorage.getItem(LS_SLOT_FILTERS) || "{}"); }
+  catch(e) { return {}; }
+})();
+
+let filterWaza = "";
+let filterCats = new Set(["変化","物理","特殊"]);
+let activeSlot = 0;
+let pfSlot     = null;  // ポケモン別フィルタで開いてるスロット番号
+let pfPoke     = null;  // ポケモン別フィルタで開いてるポケモン名 (party[pfSlot])
+let pfType     = null;  // クリックされたタイプ行 (null=全タイプ表示)
+let pfTempSel  = null;
+let pfVisibleKeys = [];  // モーダル現在表示中の技キー (全解除のスコープ限定用)
+
+// モーダル内ソート/フィルタ state (cl/pf 共通形式)
+function makeFilterSortState() {
+  return {
+    sort: { col: null, dir: 1 },           // dir: 1=asc, -1=desc
+    cat:  new Set(["物理","特殊","変化"]),
+    powMin: null, accMin: null, ppMin: null, priMin: null
+  };
+}
+let pfFS = makeFilterSortState();
+
+// ポケモン名→オブジェクト
+const POKE_MAP = {};
+POKEMON_LIST.forEach(p => POKE_MAP[p.name] = p);
+
+// マイグレーション: 既にパーティに居るポケモンのスロットフィルタが未初期化なら {} で初期化
+// (タイプフィルタの影響をデフォルトで受けないようにする)
+party.forEach((name, idx) => {
+  if (name && slotFilters[idx] === undefined) {
+    slotFilters[idx] = {};
+  }
+});
+
+function saveParty()         { localStorage.setItem(LS_PARTY,        JSON.stringify(party)); }
+function saveTypeOrder()     { localStorage.setItem(LS_ORDER,        JSON.stringify(typeOrder)); }
+function saveSlotFilters()   { localStorage.setItem(LS_SLOT_FILTERS, JSON.stringify(slotFilters)); }
+
+// 種族値表示モード (各ボタン独立 ON/OFF)
+//   base : 種族値そのまま
+//   v6   : 6V個体 (IV=31, EV=0, 性格補正なし) Lv50実数値
+//   c    : 性補   (IV=31, EV=0, 性格補正1.1)  無振り性格補正のみ
+//   a    : 準速   (IV=31, EV=252, 性格補正なし)
+//   b    : 最速   (IV=31, EV=252, 性格補正1.1)
+//   rank : 順位 (a/base値の全国図鑑内順位)
+const STAT_VIS_DEFAULT = { base:true, v6:false, c:false, a:true, b:true, rank:true };
+let statVis = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LS_STAT_VIS) || "null");
+    if (saved && typeof saved === 'object') return Object.assign({}, STAT_VIS_DEFAULT, saved);
+  } catch(e) {}
+  return Object.assign({}, STAT_VIS_DEFAULT);
+})();
+function saveStatVis() { localStorage.setItem(LS_STAT_VIS, JSON.stringify(statVis)); }
+
+// POKEMON_LIST の name + form を STAT_RANK のキー形式に変換
+// 例: name="フシギバナ", form="通常"     → "フシギバナ"
+//     name="メガフシギバナ", form="メガ進化" → "メガフシギバナ(メガ進化)"
+function statRankKey(p) {
+  if (!p) return null;
+  const form = p.form || '通常';
+  return form === '通常' ? p.name : `${p.name}(${form})`;
+}
+
+// Lv50 実数値計算 (IV=31 固定)
+//   HP   : floor((B*2 + IV + EV/4)/2) + 60
+//   他    : floor((floor((B*2 + IV + EV/4)/2) + 5) * nature)
+function computeStat(base, key, ev, natureMul) {
+  if (base == null) return null;
+  if (key === 'hp') return Math.floor((base * 2 + 31 + Math.floor(ev/4)) / 2) + 60;
+  const inner = Math.floor((base * 2 + 31 + Math.floor(ev/4)) / 2) + 5;
+  return Math.floor(inner * natureMul);
+}
+
+// V6/C モードの値+ランキングをキャッシュ (suffix='v6' or 'c')
+//   V6: IV=31, EV=0, 性格補正なし   (=性格無視 6V個体の実数値)
+//   C : IV=31, EV=0, 性格補正1.1    (HP・合計は補正対象外)
+function buildStatCache(suffix) {
+  const natureMul = (suffix === 'c') ? 1.1 : 1.0;
+  const cache = {};
+  const STAT_KEYS_NATURE = ['atk','def','spatk','spdef','spd'];   // 性格補正対象
+  const allNames = Object.keys(STAT_RANK);
+
+  // 値計算
+  for (const name of allNames) {
+    const e = STAT_RANK[name];
+    cache[name] = {};
+    for (const k of STAT_KEYS_NATURE) {
+      cache[name][`${k}_${suffix}`] = computeStat(e[`${k}_base`], k, 0, natureMul);
+    }
+    cache[name][`hp_${suffix}`]    = computeStat(e.hp_base, 'hp', 0, 1.0);
+    cache[name][`total_${suffix}`] = STAT_KEYS_NATURE.reduce((s,k) => s + cache[name][`${k}_${suffix}`], 0) + cache[name][`hp_${suffix}`];
+  }
+
+  // ランキング (降順、同値は同順位)
+  for (const k of [...STAT_KEYS_NATURE, 'hp', 'total']) {
+    const sorted = allNames.map(n => ({n, v: cache[n][`${k}_${suffix}`]})).sort((a,b) => b.v - a.v);
+    let prev = null, prevRank = 0;
+    sorted.forEach((row, i) => {
+      const rank = (row.v === prev) ? prevRank : i + 1;
+      cache[row.n][`${k}_${suffix}_rank`] = rank;
+      prev = row.v; prevRank = rank;
+    });
+  }
+  return cache;
+}
+
+let _statCacheC  = null;
+let _statCacheV6 = null;
+function ensureStatCaches() {
+  if (statVis.c  && !_statCacheC)  _statCacheC  = buildStatCache('c');
+  if (statVis.v6 && !_statCacheV6) _statCacheV6 = buildStatCache('v6');
+}
+
+// 説明文から「優先度:+N」「優先度:-N」を抽出 → 数値
+// 説明に書いてない場合はデフォルト 0 (通常技)
+function extractPriority(desc) {
+  if (!desc) return 0;
+  const m = desc.match(/優先度[:：]\s*([+\-]?\d+)/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+// 検索用カナ正規化: カタカナ → ひらがな統一 (大文字小文字も統一)
+// 例: "フシギバナ" と "ふしぎばな" を同一視できる
+function normalizeKana(s) {
+  if (!s) return "";
+  return s.toLowerCase().replace(/[ァ-ヶ]/g, ch =>
+    String.fromCharCode(ch.charCodeAt(0) - 0x60)
+  );
+}
+// 部分一致(カナ正規化済み)
+function fuzzyIncludes(haystack, needle) {
+  if (!needle) return true;
+  return normalizeKana(haystack || "").includes(normalizeKana(needle));
+}
+
+// ── タイプ相性 ────────────────────────────────────────────────────────────────
+// section: 'weak' (×4, ×2) | 'resist' (½, ¼, ×0)
+function resistHtml(resist, section) {
+  const g = {4:[],2:[],0.5:[],0.25:[],0:[]};
+  (resist||[]).forEach((v,i) => { if (g[v] !== undefined) g[v].push(TYPES[i]); });
+  const badge = t => `<span class="tbadge" style="background:${TYPE_COLORS[t]}">${tDisp(t)}</span>`;
+  const row = (mulCls, mulText, types) =>
+    `<div><span class="r-mul ${mulCls}">${mulText}</span><span class="r-badges">${types.map(badge).join("")}</span></div>`;
+  let html = "";
+  if (section === 'weak') {
+    if (g[4].length)    html += row("r4",  "×4", g[4]);
+    if (g[2].length)    html += row("r2",  "×2", g[2]);
+  } else {
+    if (g[0.5].length)  html += row("r05",  "½", g[0.5]);
+    if (g[0.25].length) html += row("r025", "¼", g[0.25]);
+    if (g[0].length)    html += row("r0",  "×0", g[0]);
+  }
+  return html || `<span class="r-none">—</span>`;
+}
+
+// ── わざカバレッジセル ────────────────────────────────────────────────────────
+function catClass(cat) {
+  if (cat === "物理") return "phys";
+  if (cat === "特殊") return "spec";
+  return "stat";
+}
+
+// 分類を1文字に: 物理→物 特殊→特 変化→変
+function catShortChar(cat) {
+  if (cat === "物理") return "物";
+  if (cat === "特殊") return "特";
+  return "変";
+}
+
+// テーブルセル用: 1行 (技名 / 分類 / 威力 / 命中 / 接触)
+// 説明はホバーtitleで表示
+function wazaItemTableHtml(m) {
+  // テーブルセル内は技名のみ、分類は文字色で示す (物=橙 / 特=青 / 変=灰)
+  // 詳細はホバー(title)とモーダルで確認
+  const descTip = (m.description || "").replace(/"/g, '&quot;');
+  const catCls  = catClass(m.category);  // phys / spec / stat
+  return `<div class="waza-item" title="${descTip}">
+    <span class="w-name wn-${catCls}">${m.name}</span>
+  </div>`;
+}
+
+// モーダル用: 1行 grid (技名 / タイプ / 分類 / 威力 / 命中 / PP / 接触 / 優先度 / 説明)
+function wazaItemModalHtml(m) {
+  const power    = m.power    != null ? m.power    : "—";
+  const accuracy = m.accuracy != null ? m.accuracy : "—";
+  const pp       = m.pp       != null ? m.pp       : "—";
+  const contact  = m.contact === true ? "●" : (m.contact === false ? "○" : "—");
+  const desc     = (m.description || "").trim();
+  const descTip  = desc.replace(/"/g, '&quot;');
+  const pri      = extractPriority(desc);
+  const priStr   = pri > 0 ? `+${pri}` : `${pri}`;
+  const priCls   = pri > 0 ? "w-pri pri-pos" : pri < 0 ? "w-pri pri-neg" : "w-pri pri-zero";
+  const descAttr = desc.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return `<div class="waza-row" data-desc="${descAttr}">
+    <span class="w-name">${m.name}</span>
+    <span class="w-type" style="background:${TYPE_COLORS[m.type]}">${tDisp(m.type)}</span>
+    <span class="w-cat ${catClass(m.category)}">${catShortChar(m.category)}</span>
+    <span class="w-pow">威${power}</span>
+    <span class="w-acc">命${accuracy}</span>
+    <span class="w-pp">PP${pp}</span>
+    <span class="w-contact">接${contact}</span>
+    <span class="${priCls}">${priStr}</span>
+    <span class="w-desc-inline">${desc}</span>
+  </div>`;
+}
+
+function wazaCellHtml(pokeName, type, slotIdx) {
+  const keys = POKEMON_WAZA[pokeName] || [];
+  let moves = keys
+    .map(k => WAZA_MAP[k])
+    .filter(m => m && m.type === type && filterCats.has(m.category))
+    .filter(m => fuzzyIncludes(m.name, filterWaza));
+
+  // ポケモンがこのタイプの技を1個も持ってない → 完全空 + 非クリック
+  if (moves.length === 0) return { html: "", clickable: false };
+
+  // スロット×タイプ別フィルタ (per-type 構造 v2)
+  const slotData = slotFilters[slotIdx];                       // undefined or {type: [...]}
+  const pokeSel  = slotData && slotData[type];                  // undefined / [] / [keys]
+  let displayMoves;
+  let moreCount = 0;
+
+  if (pokeSel !== undefined) {
+    // 明示的にこのタイプを設定 (空配列でも honor)
+    displayMoves = moves.filter(m => pokeSel.includes(m.key));
+    if (displayMoves.length === 0) moreCount = moves.length;
+  } else {
+    // 未設定 → カウント表示のみ
+    displayMoves = [];
+    moreCount = moves.length;
+  }
+
+  let html = displayMoves.map(wazaItemTableHtml).join("");
+  const isCountOnly = (moreCount > 0 && displayMoves.length === 0);
+  if (isCountOnly) {
+    // 分類別件数 (物理/特殊/変化) でブレイクダウン
+    const bd = { 物理: 0, 特殊: 0, 変化: 0 };
+    moves.forEach(m => { if (bd[m.category] !== undefined) bd[m.category]++; });
+    const parts = [];
+    if (bd.物理 > 0) parts.push(`<span class="bd-phys">物${bd.物理}</span>`);
+    if (bd.特殊 > 0) parts.push(`<span class="bd-spec">特${bd.特殊}</span>`);
+    if (bd.変化 > 0) parts.push(`<span class="bd-stat">変${bd.変化}</span>`);
+    html += `<div class="waza-more">${parts.join(" ")}</div>`;
+  }
+  return { html, clickable: true, isCountOnly };
+}
+
+// ── テーブル描画 ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const table = document.getElementById("cmp-table");
+  const rows = [];
+
+  // 種族値 (各ボタンのON/OFFで列を選択表示)
+  // 略号: H=HP, A=こうげき, B=ぼうぎょ, C=とくこう, D=とくぼう, S=すばやさ (合計は記号なし)
+  const STAT_LETTER = { hp:"H", atk:"A", def:"B", spatk:"C", spdef:"D", spd:"S", total:"" };
+  // ドラッグ用属性 (列移動可能セル共通)
+  const dragAttrs = (i) => `draggable="true" ondragstart="onSlotDragStart(event,${i})" ondragover="onSlotDragOver(event,${i})" ondragleave="this.classList.remove('drag-over')" ondrop="onSlotDrop(event,${i})"`;
+  ensureStatCaches();
+  [["HP","hp"],["こうげき","atk"],["ぼうぎょ","def"],["とくこう","spatk"],["とくぼう","spdef"],["すばやさ","spd"],["合計","total"]].forEach(([label,key]) => {
+    rows.push(`<tr>
+      <td class="row-label">${label}</td>
+      ${party.map((name, slotIdx) => {
+        const p = name && POKE_MAP[name];
+        if (!p) return `<td class="stat-cell empty-slot-cell" ${dragAttrs(slotIdx)}></td>`;
+        const srKey = statRankKey(p);
+        const e = STAT_RANK[srKey];
+        const letter = `<span class="stat-letter">${STAT_LETTER[key] || ""}</span>`;
+        if (!e) {
+          return `<td class="${key==="total"?"stat-cell stat-total":"stat-cell"}">${letter}<span class="sv">${p[key] ?? "—"}</span></td>`;
+        }
+        const isHpOrTotal = (key === "hp" || key === "total");
+        const isTotal     = (key === "total");
+        const cell = (cls, val, tip) => `<span class="sv ${cls}"${tip?` title="${tip}"`:''}>${val ?? ""}</span>`;
+        let html = letter;
+        if (statVis.base) {
+          html += cell("sm-base", e[`${key}_base`], "種族値");
+        }
+        if (statVis.v6) {
+          const v = (_statCacheV6 && _statCacheV6[srKey]) ? _statCacheV6[srKey][`${key}_v6`] : null;
+          html += cell("sm-v6", v, "V6 (IV=31, EV=0, 性格補正なし)");
+        }
+        if (statVis.c) {
+          // 性補: HP・合計は補正対象外なので、表示しない (空セル)
+          if (isTotal) {
+            html += cell("sm-c", "", "");
+          } else {
+            const v = (_statCacheC && _statCacheC[srKey]) ? _statCacheC[srKey][`${key}_c`] : null;
+            html += cell("sm-c", v, "性補 (IV=31, EV=0, 性格1.1)");
+          }
+        }
+        if (statVis.a) {
+          if (isTotal) {
+            html += cell("sm-a", "", "");
+          } else {
+            html += cell("sm-a", e[`${key}_a`], "準速 (EV252・補正なし) — 準速/準火力/準耐久 等");
+          }
+        }
+        if (statVis.b) {
+          if (isTotal || isHpOrTotal) {
+            html += cell("sm-b", "", "");
+          } else {
+            html += cell("sm-b", e[`${key}_b`], "最速 (EV252・性格1.1) — 最速/最火力/最耐久 等");
+          }
+        }
+        if (statVis.rank) {
+          const rank = e[`${key}_a_rank`];
+          html += `<span class="stat-rank">${rank ? `(${rank})` : ""}</span>`;
+        }
+        return `<td class="${key==="total"?"stat-cell stat-total":"stat-cell"}" ${dragAttrs(slotIdx)}>${html}</td>`;
+      }).join("")}
+    </tr>`);
+  });
+
+  // 特性
+  rows.push(`<tr>
+    <td class="row-label">特性</td>
+    ${party.map((name, slotIdx) => {
+      const p = name && POKE_MAP[name];
+      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)}></td>`;
+      const abs = [p.ab1,p.ab2,p.ab3].filter(Boolean);
+      if (abs.length === 0) return `<td class="ab-cell" ${dragAttrs(slotIdx)}>—</td>`;
+      return `<td class="ab-cell" ${dragAttrs(slotIdx)}>${abs.map(a => {
+        const desc = ABILITY_DESC[a] || "（説明データ未取得）";
+        const descAttr = desc.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return `<span class="ab-name" data-desc="${descAttr}">${a}</span>`;
+      }).join(" / ")}</td>`;
+    }).join("")}
+  </tr>`);
+
+  // タイプ相性 — 弱点 (×4, ×2)
+  rows.push(`<tr>
+    <td class="row-label" style="white-space:normal;font-size:.68rem">弱点</td>
+    ${party.map((name, slotIdx) => {
+      const p = name && POKE_MAP[name];
+      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)}></td>`;
+      return `<td class="resist-cell" ${dragAttrs(slotIdx)}>${resistHtml(p.resist||[], 'weak')}</td>`;
+    }).join("")}
+  </tr>`);
+  // タイプ相性 — 耐性 (½, ¼, ×0)
+  rows.push(`<tr>
+    <td class="row-label" style="white-space:normal;font-size:.68rem">耐性</td>
+    ${party.map((name, slotIdx) => {
+      const p = name && POKE_MAP[name];
+      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)}></td>`;
+      return `<td class="resist-cell" ${dragAttrs(slotIdx)}>${resistHtml(p.resist||[], 'resist')}</td>`;
+    }).join("")}
+  </tr>`);
+
+  // 手持ち (ポケモン名)
+  rows.push(`<tr>
+    <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem">手持ち</td>
+    ${party.map((name, slotIdx) => {
+      if (!name) return `<td class="poke-name-cell empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})" style="cursor:pointer">スロット${slotIdx+1}<br><span style="font-size:.73rem">＋ 選択</span></td>`;
+      const p = POKE_MAP[name];
+      if (!p)   return `<td class="poke-name-cell" ${dragAttrs(slotIdx)}><span class="poke-name-big">${name}</span></td>`;
+      const types = [p.type1, p.type2].filter(Boolean);
+      return `<td class="poke-name-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})" style="cursor:grab">
+        <span class="poke-name-big">${name}</span>
+        <div class="type-row">${types.map(t=>`<span class="tbadge" style="background:${TYPE_COLORS[t]}">${tDisp(t)}</span>`).join("")}</div>
+      </td>`;
+    }).join("")}
+  </tr>`);
+
+  // タイプ別わざカバレッジ
+  typeOrder.forEach(t => {
+    const allMoves = Object.values(WAZA_MAP).filter(m => m.type === t && filterCats.has(m.category));
+    if (allMoves.length === 0) return;
+    const color  = TYPE_COLORS[t];
+    const stats  = TYPE_OFFENSIVE_STATS[t] || {p:0,m:0,x:0};
+    const statsBadge = `<span class="type-stats">
+      <span class="ts-good" title="ばつぐん">◯${stats.p}</span>
+      <span class="ts-bad" title="いまひとつ">▲${stats.m}</span>
+      <span class="ts-zero" title="無効">✗${stats.x}</span>
+    </span>`;
+
+    // タイプ色を半透明で行背景に適用 (視認性UP)
+    const hex = TYPE_COLORS[t] || "#888";
+    const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+    const rowBg = `rgba(${r},${g},${b},0.10)`;     // データセル用、薄い
+    const labelBg = `rgba(${r},${g},${b},0.18)`;   // 行ラベル用、やや濃いめ
+    rows.push(`<tr class="type-data-row" data-type="${t}" style="background:${rowBg}"
+        draggable="true"
+        ondragstart="onTypeDragStart(event,'${t}')"
+        ondragover="onTypeDragOver(event,'${t}')"
+        ondragleave="onTypeDragLeave(event)"
+        ondrop="onTypeDrop(event,'${t}')">
+      <td class="row-label" style="background:${labelBg}">
+        <div class="type-label-cell">
+          <span class="drag-handle" title="ドラッグで並び替え">⠿</span>
+          <span class="tbadge" style="background:${color}">${tDisp(t)}</span>
+          ${statsBadge}
+        </div>
+      </td>
+      ${party.map((name, slotIdx) => {
+        if (!name) return `<td class="empty-slot-cell"></td>`;
+        const info = wazaCellHtml(name, t, slotIdx);
+        if (!info.clickable) {
+          return `<td class="waza-cell"></td>`;
+        }
+        const cntCls = info.isCountOnly ? " waza-cell-count" : "";
+        return `<td class="waza-cell waza-cell-clickable${cntCls}" onclick="openPokemonFilter(${slotIdx},'${t}')">${info.html}</td>`;
+      }).join("")}
+    </tr>`);
+  });
+
+  table.innerHTML = rows.join("");
+}
+
+// ── スロット描画 ──────────────────────────────────────────────────────────────
+function renderSlots() {
+  const container = document.getElementById("party-slots");
+  container.innerHTML = "";
+  party.forEach((name, i) => {
+    const div = document.createElement("div");
+    div.className = "slot-card" + (name ? " active" : "");
+    div.draggable = true;
+    const p = name && POKE_MAP[name];
+    const type1 = p?.type1;
+    div.innerHTML = `
+      <div class="s-label">スロット${i+1}</div>
+      <div class="s-name ${name?"":"empty"}" style="color:${type1?TYPE_COLORS[type1]:''}">${name||"（空き）"}</div>`;
+    div.addEventListener("click", () => openModal(i));
+    div.addEventListener("dragstart", e => onSlotDragStart(e, i));
+    div.addEventListener("dragover",  e => onSlotDragOver(e, i));
+    div.addEventListener("dragleave", () => div.classList.remove("drag-over"));
+    div.addEventListener("drop",      e => onSlotDrop(e, i));
+    container.appendChild(div);
+  });
+}
+
+// ── スロット ドラッグ ─────────────────────────────────────────────────────────
+let dragSlotIdx = null;
+function onSlotDragStart(e, idx) {
+  dragSlotIdx = idx;
+  e.dataTransfer.effectAllowed = "move";
+}
+function onSlotDragOver(e, idx) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".slot-card").forEach((c,i) => c.classList.toggle("drag-over", i===idx));
+}
+function onSlotDrop(e, idx) {
+  e.preventDefault();
+  document.querySelectorAll(".slot-card").forEach(c => c.classList.remove("drag-over"));
+  if (dragSlotIdx !== null && dragSlotIdx !== idx) {
+    // ポケモンを入れ替え
+    const tmp = party[dragSlotIdx];
+    party[dragSlotIdx] = party[idx];
+    party[idx] = tmp;
+    // スロットフィルタも一緒にスワップ (ポケモンに追従)
+    const tmpF = slotFilters[dragSlotIdx];
+    if (slotFilters[idx] !== undefined) slotFilters[dragSlotIdx] = slotFilters[idx];
+    else delete slotFilters[dragSlotIdx];
+    if (tmpF !== undefined) slotFilters[idx] = tmpF;
+    else delete slotFilters[idx];
+    dragSlotIdx = null;
+    saveParty(); saveSlotFilters(); renderTable();
+  }
+}
+
+// ── タイプ行 ドラッグ ─────────────────────────────────────────────────────────
+let dragTypeVal = null;
+function onTypeDragStart(e, type) {
+  dragTypeVal = type;
+  e.dataTransfer.effectAllowed = "move";
+  e.stopPropagation();
+}
+function onTypeDragOver(e, type) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = "move";
+  document.querySelectorAll("tr.type-data-row").forEach(tr =>
+    tr.classList.toggle("drag-target", tr.dataset.type === type));
+}
+function onTypeDragLeave(e) {
+  document.querySelectorAll("tr.type-data-row").forEach(tr => tr.classList.remove("drag-target"));
+}
+function onTypeDrop(e, type) {
+  e.preventDefault();
+  document.querySelectorAll("tr.type-data-row").forEach(tr => tr.classList.remove("drag-target"));
+  if (dragTypeVal && dragTypeVal !== type) {
+    const fi = typeOrder.indexOf(dragTypeVal);
+    const ti = typeOrder.indexOf(type);
+    typeOrder.splice(fi, 1);
+    typeOrder.splice(ti, 0, dragTypeVal);
+    dragTypeVal = null;
+    saveTypeOrder(); renderTable();
+  }
+}
+
+// ── ポケモン選択モーダル ──────────────────────────────────────────────────────
+function openModal(slot) {
+  activeSlot = slot;
+  document.getElementById("modal-title").textContent = `スロット${slot+1} のポケモンを選択`;
+  const searchInput = document.getElementById("modal-search");
+  searchInput.value = "";
+  document.getElementById("modal-ov").classList.add("vis");
+  renderModalList("");
+  // モーダル表示直後にフォーカス (ブラウザ描画後に確実に当てるため次フレームで)
+  requestAnimationFrame(() => searchInput.focus());
+}
+function closeModal() { document.getElementById("modal-ov").classList.remove("vis"); }
+function renderModalList(q) {
+  document.getElementById("modal-list").innerHTML = POKEMON_LIST
+    .filter(p => !q || fuzzyIncludes(p.name, q) || p.no.includes(q))
+    .map(p => `<div class="m-item" onclick="selectPoke('${p.name}')">No.${p.no.padStart(3,'0')}  ${p.name}${p.form&&p.form!=='通常'?' ('+p.form+')':''}</div>`)
+    .join("");
+}
+function selectPoke(name) {
+  // ポケモンが変わる時はそのスロットのフィルタを「空オブジェクト」で初期化
+  // → グローバルタイプフィルタの影響を受けず、まっさらな状態に
+  if (party[activeSlot] !== name) {
+    slotFilters[activeSlot] = {};
+  }
+  party[activeSlot] = name;
+  saveParty(); saveSlotFilters(); renderTable(); closeModal();
+}
+// IME 入力中(変換確定前)もリアルタイム反映するヘルパ
+function bindSearch(id, cb) {
+  const el = document.getElementById(id);
+  const fire = () => cb(el.value);
+  el.addEventListener("input", fire);
+  el.addEventListener("compositionupdate", () => setTimeout(fire, 0));
+}
+bindSearch("modal-search", v => renderModalList(v));
+document.getElementById("modal-close").addEventListener("click", closeModal);
+document.getElementById("modal-clear").addEventListener("click", () => {
+  party[activeSlot] = null;
+  delete slotFilters[activeSlot];
+  saveParty(); saveSlotFilters(); renderTable(); closeModal();
+});
+document.getElementById("modal-ov").addEventListener("click", e => {
+  if (e.target === document.getElementById("modal-ov")) closeModal();
+});
+
+// ── モーダル共通: ソート/フィルタ適用 + ヘッダ生成 ────────────────────────────
+const SORT_GETTERS = {
+  name: m => m.name,
+  type: m => TYPES.indexOf(m.type),
+  category: m => ({"物理":0,"特殊":1,"変化":2}[m.category] ?? 99),
+  power:    m => m.power    ?? -1,
+  accuracy: m => m.accuracy ?? -1,
+  pp:       m => m.pp       ?? -1,
+  contact:  m => m.contact === true ? 1 : (m.contact === false ? 0 : -1),
+  priority: m => extractPriority(m.description),
+};
+const SORT_LABELS = {
+  name:"技名", type:"タイプ", category:"分類", power:"威力",
+  accuracy:"命中", pp:"PP", contact:"接触", priority:"優先度"
+};
+
+function applyFilterSort(moves, fs, query) {
+  let arr = moves
+    .filter(m => filterCats.has(m.category))
+    .filter(m => fs.cat.has(m.category))
+    .filter(m => !query || fuzzyIncludes(m.name, query) || fuzzyIncludes(m.description, query) || fuzzyIncludes(m.type, query))
+    .filter(m => fs.powMin == null || (m.power    ?? 0) >= fs.powMin)
+    .filter(m => fs.accMin == null || (m.accuracy ?? 0) >= fs.accMin)
+    .filter(m => fs.ppMin  == null || (m.pp       ?? 0) >= fs.ppMin)
+    .filter(m => fs.priMin == null || extractPriority(m.description) >= fs.priMin);
+  if (fs.sort.col && SORT_GETTERS[fs.sort.col]) {
+    const get = SORT_GETTERS[fs.sort.col];
+    arr.sort((a,b) => {
+      const va = get(a), vb = get(b);
+      if (typeof va === "string") return fs.sort.dir * va.localeCompare(vb);
+      return fs.sort.dir * (va - vb);
+    });
+  }
+  return arr;
+}
+
+function renderHeaderRow(prefix, fs, onSortClick) {
+  const cols = ["name","type","category","power","accuracy","pp","contact","priority"];
+  const arrow = (col) => {
+    if (fs.sort.col !== col) return " ↕";
+    return fs.sort.dir > 0 ? " ▲" : " ▼";
+  };
+  const headerHtml = cols.map(c =>
+    `<span class="${fs.sort.col===c?'sort-active':''}" onclick="${onSortClick}('${c}')">${SORT_LABELS[c]}${arrow(c)}</span>`
+  ).join("") + "<span>説明</span>";
+  return `<div class="waza-row-header">${headerHtml}</div>`;
+}
+
+function renderFilterBar(prefix, fs, onChange) {
+  const catBtn = (lbl, key) => `<button class="fb-cat-btn ${fs.cat.has(key)?'on':''}" onclick="${onChange}('cat','${key}')">${lbl}</button>`;
+  return `<div class="modal-filter-bar">
+    分類:
+    ${catBtn("物理","物理")}${catBtn("特殊","特殊")}${catBtn("変化","変化")}
+    <label>威力≥<input type="number" min="0" id="${prefix}-pow-min" value="${fs.powMin ?? ''}" oninput="${onChange}('powMin', this.value)"></label>
+    <label>命中≥<input type="number" min="0" id="${prefix}-acc-min" value="${fs.accMin ?? ''}" oninput="${onChange}('accMin', this.value)"></label>
+    <label>PP≥<input type="number" min="0" id="${prefix}-pp-min" value="${fs.ppMin ?? ''}" oninput="${onChange}('ppMin', this.value)"></label>
+    <label>優先度≥<input type="number" id="${prefix}-pri-min" value="${fs.priMin ?? ''}" oninput="${onChange}('priMin', this.value)"></label>
+    <span style="color:#6e7681;font-size:.68rem">(空欄=条件なし)</span>
+  </div>`;
+}
+
+// ── ポケモン別わざフィルタモーダル ─────────────────────────────────────────────
+function openPokemonFilter(slotIdx, type) {
+  pfSlot = slotIdx;
+  pfPoke = party[slotIdx];
+  pfType = type || null;
+  if (!pfPoke) return;
+  // 該当スロット×該当タイプの選択をロード
+  // type 指定無しの場合は全タイプの選択を結合
+  const slotData = slotFilters[slotIdx] || {};
+  if (pfType) {
+    pfTempSel = new Set(slotData[pfType] || []);
+  } else {
+    const allKeys = [];
+    Object.values(slotData).forEach(arr => { if (Array.isArray(arr)) arr.forEach(k => allKeys.push(k)); });
+    pfTempSel = new Set(allKeys);
+  }
+  updatePfTitle();
+  document.getElementById("pf-search").value = "";
+  document.getElementById("pf-ov").classList.add("vis");
+  renderPfList("");
+}
+function updatePfTitle() {
+  const typeMsg = pfType ? `｜${pfType}タイプのみ` : `｜全タイプ`;
+  document.getElementById("pf-title").innerHTML =
+    `【スロット${pfSlot+1} ${pfPoke}】 技を選択 <span style="font-size:.8rem;color:#79c0ff">${typeMsg}</span>` +
+    (pfType ? ` <button id="pf-clear-type" style="margin-left:8px;padding:2px 8px;font-size:.7rem;background:#30363d;color:#e6edf3;border:none;border-radius:8px;cursor:pointer">全タイプ表示</button>` : '');
+  // 「全タイプ表示」ボタンをイベント付与
+  const btn = document.getElementById("pf-clear-type");
+  if (btn) btn.onclick = () => { pfType = null; updatePfTitle(); renderPfList(document.getElementById("pf-search").value); };
+}
+function closePokemonFilter() { document.getElementById("pf-ov").classList.remove("vis"); }
+
+function getPokemonAllMoves(pokeName) {
+  return (POKEMON_WAZA[pokeName] || [])
+    .map(k => WAZA_MAP[k])
+    .filter(Boolean);
+}
+
+function renderPfList(q) {
+  let baseList = getPokemonAllMoves(pfPoke);
+  // セルクリックで開いた場合はそのタイプだけに絞る
+  if (pfType) baseList = baseList.filter(m => m.type === pfType);
+  const moves = applyFilterSort(baseList, pfFS, q);
+  // デフォルトソートが未指定ならタイプ順にしておく
+  if (!pfFS.sort.col) {
+    moves.sort((a,b) => {
+      if (a.type !== b.type) return TYPES.indexOf(a.type) - TYPES.indexOf(b.type);
+      return (b.power ?? b.pp ?? 0) - (a.power ?? a.pp ?? 0);
+    });
+  }
+
+  const filterBar = renderFilterBar('pf', pfFS, 'pfFilterChange');
+  const header    = renderHeaderRow('pf', pfFS, 'pfSortClick');
+  const items = moves.map(m => {
+    const checkedAttr = pfTempSel.has(m.key) ? "checked" : "";
+    const checkedCls  = pfTempSel.has(m.key) ? " checked" : "";
+    return `<div class="pf-item${checkedCls}" id="pf_row_${m.key}" onclick="togglePf('${m.key}')">
+      <input type="checkbox" id="pf_${m.key}" ${checkedAttr} onclick="event.stopPropagation();togglePf('${m.key}')">
+      <div class="pf-item-body">${wazaItemModalHtml(m)}</div>
+    </div>`;
+  }).join("");
+  document.getElementById("pf-list").innerHTML = filterBar + header + items;
+  // 「全解除」が現在表示されてる技のみを対象にするため、表示中の moves を最新状態として保持
+  pfVisibleKeys = moves.map(m => m.key);
+  document.getElementById("pf-count").textContent = `${pfTempSel.size}件選択中 / 表示中 ${moves.length}件`;
+}
+
+function pfSortClick(col) {
+  if (pfFS.sort.col === col) pfFS.sort.dir = -pfFS.sort.dir;
+  else { pfFS.sort.col = col; pfFS.sort.dir = 1; }
+  renderPfList(document.getElementById("pf-search").value);
+}
+function pfFilterChange(field, val) {
+  if (field === "cat") {
+    if (pfFS.cat.has(val)) pfFS.cat.delete(val); else pfFS.cat.add(val);
+  } else {
+    pfFS[field] = val === "" ? null : Number(val);
+  }
+  renderPfList(document.getElementById("pf-search").value);
+}
+
+function togglePf(key) {
+  if (pfTempSel.has(key)) pfTempSel.delete(key); else pfTempSel.add(key);
+  const cb  = document.getElementById(`pf_${key}`);
+  const row = document.getElementById(`pf_row_${key}`);
+  if (cb)  cb.checked = pfTempSel.has(key);
+  if (row) row.classList.toggle("checked", pfTempSel.has(key));
+  document.getElementById("pf-count").textContent = `${pfTempSel.size}件選択中`;
+}
+
+bindSearch("pf-search", v => renderPfList(v));
+document.getElementById("pf-none").addEventListener("click", () => {
+  // 現在モーダルに表示中の技だけを対象に解除 (他タイプの選択は維持)
+  pfVisibleKeys.forEach(k => pfTempSel.delete(k));
+  renderPfList(document.getElementById("pf-search").value);
+});
+// pfTempSel を slotFilters[slot][type] に commit
+function commitPfChanges() {
+  if (!slotFilters[pfSlot]) slotFilters[pfSlot] = {};
+  if (pfType) {
+    // タイプ指定モーダル: そのタイプのみ更新 (空でも明示記録)
+    slotFilters[pfSlot][pfType] = Array.from(pfTempSel);
+  } else {
+    // 全タイプモーダル: 選択技をタイプ毎に振り分けて上書き
+    const grouped = {};
+    pfTempSel.forEach(key => {
+      const m = WAZA_MAP[key];
+      if (m) {
+        if (!grouped[m.type]) grouped[m.type] = [];
+        grouped[m.type].push(key);
+      }
+    });
+    slotFilters[pfSlot] = grouped;
+  }
+  // スロットの全タイプ未設定なら entry 自体削除
+  if (Object.keys(slotFilters[pfSlot]).length === 0) delete slotFilters[pfSlot];
+  saveSlotFilters();
+}
+
+document.getElementById("pf-reset").addEventListener("click", () => {
+  // タイプ指定モーダルならそのタイプだけリセット、全タイプモーダルならスロット全体
+  if (pfType && slotFilters[pfSlot]) {
+    delete slotFilters[pfSlot][pfType];
+    if (Object.keys(slotFilters[pfSlot]).length === 0) delete slotFilters[pfSlot];
+  } else {
+    delete slotFilters[pfSlot];
+  }
+  saveSlotFilters(); closePokemonFilter(); renderTable();
+});
+document.getElementById("pf-done").addEventListener("click", () => {
+  commitPfChanges(); closePokemonFilter(); renderTable();
+});
+document.getElementById("pf-ov").addEventListener("click", e => {
+  if (e.target === document.getElementById("pf-ov")) {
+    commitPfChanges();
+    closePokemonFilter();
+    renderTable();
+  }
+});
+
+// ── フィルタバー ──────────────────────────────────────────────────────────────
+bindSearch("waza-filter", v => { filterWaza = v; renderTable(); });
+document.querySelectorAll(".fcat-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const c = btn.dataset.cat;
+    if (filterCats.has(c)) { filterCats.delete(c); btn.classList.remove("on"); }
+    else { filterCats.add(c); btn.classList.add("on"); }
+    renderTable();
+  });
+});
+// 種族値表示モード切替ボタン (各ボタン独立 ON/OFF)
+document.querySelectorAll(".sv-btn").forEach(btn => {
+  const key = btn.dataset.sv;
+  // 初期状態を statVis から復元
+  if (statVis[key]) btn.classList.add("on");
+  else              btn.classList.remove("on");
+  btn.addEventListener("click", () => {
+    statVis[key] = !statVis[key];
+    btn.classList.toggle("on", statVis[key]);
+    saveStatVis();
+    renderTable();
+  });
+});
+
+// ── グローバル ホバー説明ツールチップ ───────────────────────────────────────
+(function setupHoverTip() {
+  const tip = document.getElementById("hover-tip");
+  let curRow = null;
+  document.addEventListener("mouseover", e => {
+    // .waza-row (技モーダル) または .ab-name (特性セル) どちらでも対応
+    const row = e.target.closest(".waza-row, .ab-name");
+    if (!row) { tip.style.display = "none"; curRow = null; return; }
+    if (row === curRow) return;
+    curRow = row;
+    const desc = row.getAttribute("data-desc") || "";
+    if (!desc) { tip.style.display = "none"; return; }
+    tip.textContent = desc;
+    tip.style.display = "block";
+  });
+  document.addEventListener("mousemove", e => {
+    if (tip.style.display === "none") return;
+    const pad = 18;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + tw > window.innerWidth - 5)  x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight - 5) y = e.clientY - th - pad;
+    tip.style.left = Math.max(4, x) + "px";
+    tip.style.top  = Math.max(4, y) + "px";
+  });
+  document.addEventListener("mouseout", e => {
+    if (!e.relatedTarget) { tip.style.display = "none"; curRow = null; return; }
+    const fromTarget = e.target.closest && e.target.closest(".waza-row, .ab-name");
+    const toTarget   = e.relatedTarget.closest && e.relatedTarget.closest(".waza-row, .ab-name");
+    if (fromTarget && fromTarget === toTarget) return;
+    tip.style.display = "none";
+    curRow = null;
+  });
+})();
+
+// ── 初期化 ────────────────────────────────────────────────────────────────────
+renderTable();
+</script>
+</body>
+</html>

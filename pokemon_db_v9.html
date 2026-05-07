@@ -1,0 +1,3407 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>ポケモンチャンピオンズDB</title>
+<style>* { box-sizing: border-box; }
+html { height: 100%; }
+body {
+  font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+  background: #DDE3EC;
+  margin: 0; padding: 0;
+  color: #1F4E79;
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+:root {
+  --hdr: #1F4E79;
+  --hdr2: #2A5A89;
+  --font: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
+}
+
+/* ==== TOOLBAR ==== */
+/* タブバー（v7h_12準拠）*/
+.tab-bar {
+  background: #0F2940;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 3px 8px 0;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 400;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+.tab {
+  padding: 4px 10px;
+  font-size: 10px;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.6);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-bottom: none;
+  margin-right: 2px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 140px;
+}
+.tab.active {
+  background: #1F4E79;
+  color: #fff;
+  border-color: #2E86C1;
+  font-weight: 700;
+}
+.tab:hover:not(.active) { background: rgba(255,255,255,0.15); color: #fff; }
+.tab-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 80px;
+}
+.tab-close {
+  font-size: 10px;
+  color: rgba(255,255,255,0.5);
+  cursor: pointer;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0 2px;
+}
+.tab-close:hover { color: #fff; }
+.tab-add {
+  padding: 3px 8px;
+  font-size: 14px;
+  cursor: pointer;
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.7);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 4px 4px 0 0;
+  margin-right: 2px;
+}
+.tab-add:hover { background: rgba(255,255,255,0.25); color: #fff; }
+
+.tb {
+  background: #1F4E79;
+  color: white;
+  padding: 6px 10px;
+  display: flex; align-items: center; gap: 8px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #0F2940;
+}
+.tb-title { font-weight: 700; font-size: 13px; white-space: nowrap; }
+.tb-title small { font-size: 10px; opacity: 0.7; margin-left: 4px; }
+.tb-sep { width: 1px; height: 20px; background: rgba(255,255,255,0.3); margin: 0 4px; }
+
+.sw {
+  position: relative;
+  display: flex; align-items: center;
+}
+.sw input {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  padding: 4px 26px 4px 24px;
+  font-size: 11px;
+  width: 220px;
+}
+.sw input::placeholder { color: rgba(255,255,255,0.5); }
+.sw .si {
+  position: absolute; left: 6px; top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255,255,255,0.6);
+  font-size: 11px;
+}
+.sw-clr {
+  position: absolute; right: 4px; top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255,255,255,0.5);
+  background: none; border: none;
+  cursor: pointer; padding: 2px 4px;
+  font-size: 10px;
+}
+
+.tbs {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 10px;
+  font-family: var(--font);
+}
+.tbs option { background: #1F4E79; }
+
+.btn {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 10px;
+  cursor: pointer;
+  font-family: var(--font);
+  white-space: nowrap;
+}
+.btn:hover { background: rgba(255,255,255,0.25); }
+.btn-reset { background: rgba(220,80,80,0.3); }
+.btn-copy { background: rgba(100,180,100,0.3); }
+.btn-compat {
+  background: rgba(150,80,220,0.3);
+  border-color: rgba(180,120,255,0.5);
+}
+
+.clbl { font-size: 10px; color: rgba(255,255,255,0.7); margin-left: 4px; }
+
+/* ==== 列表示トグルバー ==== */
+.grp-bar {
+  background: #2A5A89;
+  color: white;
+  padding: 3px 8px;
+  display: flex; align-items: center; gap: 3px;
+  flex-wrap: wrap;
+  font-size: 9px;
+  border-bottom: 1px solid #1F4E79;
+}
+.grp-lbl { font-size: 9px; opacity: 0.8; margin-right: 3px; }
+.grp-btn {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  padding: 1px 4px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: var(--font);
+  white-space: nowrap;
+}
+.grp-btn.off {
+  background: rgba(50,50,50,0.5);
+  opacity: 0.5;
+  text-decoration: line-through;
+}
+.grp-btn:hover { background: rgba(255,255,255,0.25); }
+
+/* タイプチップ */
+.tc {
+  display: inline-block;
+  padding: 1px 3px;
+  margin: 1px;
+  border-radius: 2px;
+  color: white;
+  font-size: 9px;
+  cursor: pointer;
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+  opacity: 0.5;
+  border: 1px solid transparent;
+}
+.tc.on { opacity: 1; border-color: white; }
+.tc-clr {
+  background: none; border: 1px solid rgba(255,255,255,0.3);
+  color: white; border-radius: 3px;
+  padding: 2px 6px; font-size: 10px; cursor: pointer;
+}
+
+/* ==== TABLE ==== */
+.wrap {
+  flex: 1;
+  min-height: 0;        /* flex子要素はmin-heightが必要 */
+  overflow-x: scroll;   /* 横スクロールバーを常時表示 */
+  overflow-y: auto;
+}
+table {
+  border-collapse: collapse;
+  font-size: 10px;
+  table-layout: fixed;
+  background: white;
+}
+thead tr th {
+  background: var(--hdr) !important;
+  color: white;
+  font-weight: 700;
+  font-size: 10px;
+  padding: 0;
+  white-space: nowrap;
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  border: 1px solid #0a2040;
+  box-sizing: border-box;
+  /* overflow:hidden は ms-dropdown を切ってしまうため指定しない */
+}
+/* hdr2-top は中身が溢れないよう内部でoverflow制御 */
+.hdr2-top { overflow: visible; }
+thead tr th.th-resist {
+  border-color: rgba(0,0,0,0.25);
+}
+tbody td {
+  padding: 2px 4px;
+  border: 1px solid #D5DCE4;
+  text-align: center;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10px;
+}
+tbody tr.bt-norm1 { background: #FFFFFF; }
+tbody tr.bt-norm2 { background: #F0F5FA; }
+tbody tr.bt-mega { background: #FCF3E6; }
+tbody tr.bt-region { background: #F0E6FC; }
+tbody tr.bt-team { background: #E8F4D6 !important; }
+
+/* マウスオーバー */
+tbody tr:hover {
+  background: #FFF3C4 !important;
+  box-shadow: inset 0 0 0 1px #F5A623;
+}
+tbody tr:hover td { background: #FFF3C4 !important; }
+
+
+/* ヒートマップ（v7h_12と同じ色）*/
+.hs-top1 { background: #FF69B4 !important; color: #7a003a; font-weight: 900; }
+.hs-top2 { background: #FF9EC0 !important; color: #6a0030; font-weight: 700; }
+.hs-top3 { background: #FFB8D0 !important; color: #5a0025; }
+.hs-high { background: #FFD8E8 !important; color: #333; }
+.hs-mid  { background: #FFFFFF !important; color: #333; }
+.hs-low  { background: #DDEEFF !important; color: #333; }
+.hs-bot3 { background: #AACFF5 !important; color: #003060; }
+.hs-bot2 { background: #7AB8F0 !important; color: #002050; font-weight: 700; }
+.hs-bot1 { background: #4499E0 !important; color: #fff; font-weight: 900; }
+/* 集計用: 弱点（高いほど悪） */
+.ch-hi1 { background: #FF6B6B !important; color: #fff !important; font-weight: 900 !important; }
+.ch-hi2 { background: #FF9999 !important; color: #7a0000 !important; font-weight: 700 !important; }
+.ch-hi3 { background: #FFBBBB !important; color: #5a0000 !important; }
+.ch-lo1 { background: #4499E0 !important; color: #fff !important; font-weight: 900 !important; }
+.ch-lo2 { background: #7AB8F0 !important; color: #001a3a !important; font-weight: 700 !important; }
+.ch-lo3 { background: #AACFF5 !important; color: #002244 !important; }
+
+/* 個別列 */
+.th-chk, .td-chk { width: 32px !important; min-width: 32px !important; max-width: 32px !important; }
+.th-no, .td-no { width: 34px !important; min-width: 34px !important; max-width: 34px !important; font-size: 10px; }
+.th-name, .td-name {
+  width: 108px !important; min-width: 108px !important; max-width: 108px !important;
+  font-weight: 700;
+  text-align: center !important;
+}
+.mega-name { color: #B8860B; }
+.region-name { color: #8B3FC0; }
+.mega-mark {
+  color: #B8860B; font-weight: 700;
+  background: #FFEECC; padding: 0 2px;
+  border-radius: 2px; font-size: 9px;
+}
+.th-mega, .td-mega { width: 24px !important; min-width: 24px !important; max-width: 24px !important; }
+.th-ty, .td-ty { width: 34px !important; min-width: 34px !important; max-width: 34px !important; }
+.td-ty { padding: 2px 1px !important; }
+.th-st, .td-st { width: 32px !important; min-width: 32px !important; max-width: 32px !important; }
+.td-st { padding: 2px 1px !important; }
+.th-tot, .td-tot { width: 36px !important; min-width: 36px !important; max-width: 36px !important; font-weight: 700; }
+.th-ab, .td-ab {
+  width: 58px !important; min-width: 58px !important; max-width: 58px !important;
+  font-size: 9px;
+}
+
+/* わざ列カテゴリタグ */
+.waza-cat-tag {
+  font-size: 6px;
+  color: white;
+  text-align: center;
+  padding: 1px 2px;
+  border-radius: 2px 2px 0 0;
+  white-space: nowrap;
+  overflow: hidden;
+  letter-spacing: -0.2px;
+  line-height: 1.2;
+  margin: -2px -2px 2px -2px;
+}
+/* とくせい ポップアップ tooltip */
+.ab-tip {
+  cursor: default;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* フローティングtooltip (JS制御、overflow:hiddenにクリップされない) */
+#ab-tooltip-float {
+  position: fixed;
+  display: none;
+  background: rgba(30,30,30,0.92);
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: normal;
+  max-width: 300px;
+  z-index: 99999;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  line-height: 1.4;
+}
+.th-res, .td-res {
+  width: 28px !important; min-width: 28px !important; max-width: 28px !important;
+  font-size: 9px;
+}
+.td-res.rv-x4 { background: #8B0000 !important; color: white !important; }
+.td-res.rv-x2 { background: #CC5555 !important; color: white !important; }
+.td-res.rv-x1 { color: #888; }
+.td-res.rv-hf { background: #80C080 !important; }
+.td-res.rv-qf { background: #40A040 !important; color: white !important; }
+.td-res.rv-x0 { background: #205020 !important; color: white !important; }
+.th-rc, .td-rc { width: 28px !important; min-width: 28px !important; max-width: 28px !important; }
+.th-cnt { background: var(--hdr) !important; }
+.th-sc, .td-sc-col { width: 32px !important; min-width: 32px !important; max-width: 32px !important; }
+.th-compat-sc, .td-compat-sc {
+  width: 200px !important;
+  min-width: 200px !important;
+  max-width: 200px !important;
+  font-size: 10px;
+  white-space: normal !important;
+  overflow: visible !important;
+}
+.td-compat-sc > div { flex-wrap: wrap !important; }
+.th-ch, .td-ch {
+  width: 40px !important; min-width: 40px !important; max-width: 40px !important;
+  background: #2A1A4A;
+  color: white;
+  font-size: 10px;
+}
+/* ちょうはつヘッダー: 狭い幅でも折り返して全部見える */
+.th-ch {
+  white-space: normal !important;
+}
+.th-ch .hdr2-bot {
+  white-space: normal !important;
+  line-height: 1.1;
+  word-break: break-all;
+  overflow: visible;
+}
+.th-ch { border-color: #1A0A3A !important; }
+
+.col-hidden { display: none !important; }
+
+/* ==== MULTI-SELECT ==== */
+.ms-wrap {
+  position: relative;
+  display: inline-block;
+}
+.ms-btn {
+  background: rgba(255,255,255,0.18);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 2px;
+  padding: 1px 1px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: var(--font);
+  height: 16px;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: clip;
+  white-space: nowrap;
+  width: 26px;
+}
+.ms-btn.active {
+  background: rgba(255,200,100,0.5);
+  border-color: rgba(255,200,100,0.8);
+}
+.ms-dropdown {
+  display: none;
+  position: fixed;
+  background: #1A3A5A;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  z-index: 2147483647;
+  min-width: 80px;
+  max-height: 360px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.ms-dropdown.open { display: flex; flex-direction: column; }
+.ms-body {
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 2px 0;
+}
+.ms-item {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 6px;
+  cursor: pointer;
+  font-size: 10px;
+  color: white;
+  white-space: nowrap;
+}
+.ms-item:hover { background: rgba(255,255,255,0.15); }
+.ms-item.disabled { opacity: 0.4; pointer-events: none; }
+.ms-item input[type=checkbox] { margin: 0; cursor: pointer; }
+.ms-footer {
+  padding: 3px;
+  border-top: 1px solid rgba(255,255,255,0.2);
+  display: flex; gap: 3px;
+}
+.ms-foot-btn {
+  flex: 1;
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 2px;
+  padding: 2px 4px;
+  font-size: 9px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+
+/* ==== HEADER 2段 ==== */
+.hdr2 {
+  display: flex;
+  flex-direction: column;
+}
+.hdr2-top {
+  padding: 2px;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 22px;
+}
+.hdr2-bot {
+  padding: 3px 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 22px;
+}
+.hdr2-bot:hover { background: rgba(255,255,255,0.1); }
+.si2 {
+  display: inline-block;
+  font-size: 9px;
+  opacity: 0.7;
+}
+.si2.asc::after { content: '▲'; }
+.si2.desc::after { content: '▼'; }
+
+.h-sel, .h-num {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 2px;
+  padding: 1px 2px;
+  font-size: 9px;
+  font-family: var(--font);
+  height: 16px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+}
+.h-sel option { background: #1F4E79; }
+.h-clr {
+  background: none;
+  color: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 2px;
+  padding: 0 3px;
+  font-size: 9px;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+/* 能力値フィルター2段 */
+.st-filter-wrap { display: flex; flex-direction: column; gap: 1px; }
+.st-filter-row { display: flex; gap: 1px; align-items: center; justify-content: center; }
+.st-op {
+  width: 26px;
+  min-width: 0;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 2px;
+  padding: 0 1px;
+  font-size: 9px;
+  font-family: var(--font);
+  height: 14px;
+}
+.st-op option { background: #1F4E79; }
+.st-clr {
+  background: none;
+  color: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 2px;
+  padding: 0 3px;
+  font-size: 9px;
+  cursor: pointer;
+}
+.st-num {
+  width: 26px;
+  min-width: 0;
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 2px;
+  padding: 1px 1px;
+  font-size: 9px;
+  height: 14px;
+  font-family: var(--font);
+  box-sizing: border-box;
+}
+/* number inputのspinner非表示（幅節約） */
+.st-num::-webkit-inner-spin-button,
+.st-num::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.st-num { -moz-appearance: textfield; }
+
+/* チェック列 */
+.cm-chk {
+  width: 26px;
+  background: white;
+  border: 1px solid #9EBBCF;
+  border-radius: 2px;
+  padding: 0 2px;
+  font-size: 10px;
+  color: #1F4E79;
+  font-family: var(--font);
+}
+.cm-chk.has-val { background: #FFEECC; font-weight: 700; }
+
+/* 自動補完 */
+.ac-list {
+  position: absolute;
+  top: 100%; left: 0;
+  background: white;
+  border: 1px solid #9EBBCF;
+  border-radius: 3px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  z-index: 9999;
+  max-height: 240px;
+  overflow-y: auto;
+  min-width: 260px;
+  margin-top: 2px;
+}
+.ac-item {
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #1F4E79;
+  border-bottom: 1px solid #E5EAF0;
+}
+.ac-item:last-child { border-bottom: none; }
+.ac-item:hover { background: #DDE8F0; }
+.ac-item.sel { background: #1F4E79; color: white; }
+
+
+/* モーダルヘッダー拡張 */
+.modal-zoom-btn {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: var(--font);
+}
+.modal-zoom-btn:hover { background: rgba(255,255,255,0.25); }
+
+.modal-header {
+  position: relative;
+}
+
+/* メインツールバーのズーム群 */
+.main-zoom-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0,0,0,0.2);
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+
+.modal-zoom-group {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0,0,0,0.2);
+  padding: 3px 6px;
+  border-radius: 4px;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+.modal-close-x {
+  background: rgba(255,100,100,0.3);
+  color: white;
+  border: 1px solid rgba(255,150,150,0.5);
+  border-radius: 3px;
+  padding: 3px 10px;
+  font-size: 14px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.modal-close-x:hover {
+  background: rgba(255,80,80,0.6);
+}
+
+.modal-zoom-close {
+  background: rgba(220,80,80,0.5) !important;
+  border-color: rgba(255,150,150,0.5) !important;
+  margin-left: 4px !important;
+  font-weight: 700;
+}
+.modal-zoom-close:hover {
+  background: rgba(255,80,80,0.8) !important;
+}
+
+
+.modal-zoom-lbl {
+  color: #fff;
+  font-size: 11px;
+  padding: 0 6px;
+  min-width: 44px;
+  text-align: center;
+  font-weight: 700;
+}
+.modal-header .spacer { flex: 1; }
+
+/* ==== MODAL ==== */
+.modal-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0;
+  width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.5);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: #DDE3EC;
+  border: 1px solid #9EBBCF;
+  border-radius: 4px;
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+}
+.modal-header {
+  background: #1F4E79;
+  color: white;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 4px 4px 0 0;
+  font-weight: 700;
+}
+.modal-header h3 {
+  margin: 0;
+  font-size: 13px;
+  flex: 1;
+}
+.modal-close {
+  background: rgba(255,255,255,0.15);
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  padding: 3px 10px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.modal-body {
+  padding: 4px 0;
+  overflow: auto;  /* 縦横両方スクロール可能（元リストの.wrapと同じパターン）*/
+  flex: 1;
+  background: #DDE3EC;
+}
+/* 補完モーダル内のテーブル: modal-body が全体スクロールを担当 */
+.modal-body .compat-tbl-wrap {
+  /* overflow指定なし - modal-bodyが縦横スクロール */
+  padding-bottom: 4px;
+}
+.modal-section {
+  background: white;
+  border: 1px solid #9EBBCF;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+}
+.modal-section h4 {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  color: #1F4E79;
+  border-bottom: 1px solid #9EBBCF;
+  padding-bottom: 4px;
+}
+.modal-info {
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.weak-badge {
+  display: inline-block;
+  padding: 0 4px;
+  margin: 1px;
+  border-radius: 2px;
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.3);
+}
+.weak-badge.w4 { background: #8B0000; }
+.weak-badge.w2 { background: #CC5555; }
+.weak-badge.wh { background: #80C080; color: #1a3a1a; text-shadow: none; }
+.weak-badge.wq { background: #40A040; }
+.weak-badge.w0 { background: #205020; }
+
+.compat-label {
+  background: #D5E8F5;
+  padding: 4px 8px;
+  font-weight: 700;
+  font-size: 11px;
+  color: #1F4E79;
+  border-bottom: 2px solid #1F4E79;
+  margin-top: 8px;
+}
+
+/* リセットボタン群 */
+.reset-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: rgba(0,0,0,0.2);
+  padding: 2px 5px;
+  border-radius: 3px;
+}
+.reset-lbl {
+  font-size: 9px;
+  color: white;
+  font-weight: 700;
+  margin-right: 2px;
+}
+.btn-reset-s {
+  background: #D26A4B;
+  color: white;
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: 10px;
+  cursor: pointer;
+  font-family: var(--font);
+  font-weight: 700;
+}
+.btn-reset-s:hover { background: #E27A5B; }
+
+.btn-compat:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+.btn-compat:disabled:hover { background: inherit; }
+
+/* モーダルリサイズハンドル */
+.modal-resize-r, .modal-resize-b, .modal-resize-br {
+  position: absolute;
+  background: transparent;
+  z-index: 100;
+  display: none;  /* 最大化中は非表示、解除時にJSで表示 */
+}
+.modal-resize-r {
+  right: 0; top: 0;
+  width: 6px; height: 100%;
+  cursor: ew-resize;
+}
+.modal-resize-b {
+  left: 0; bottom: 0;
+  width: 100%; height: 6px;
+  cursor: ns-resize;
+}
+.modal-resize-br {
+  right: 0; bottom: 0;
+  width: 14px; height: 14px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, rgba(31,78,121,0.5) 50%, rgba(31,78,121,0.8) 100%);
+  border-radius: 0 0 6px 0;
+}
+.modal.resize-enabled .modal-resize-r,
+.modal.resize-enabled .modal-resize-b,
+.modal.resize-enabled .modal-resize-br { display: block; }
+
+.modal {
+  position: relative;  /* ハンドルの絶対配置のため */
+}
+
+/* 補完モーダルの2テーブルで列幅を完全一致させる */
+/* table-layout:fixed で CSS width指定通りの列幅を厳守 */
+/* width:max-content だとテーブルごとに内容最大で変わるので使わない */
+#compat-team-tbl, #compat-cand-tbl {
+  table-layout: fixed;
+  width: auto;  /* 内容（列幅CSS）で自然に決まる */
+}
+
+/* 補完Sc列内レイアウト: ネストテーブルで絶対に横並びを保証 */
+.td-compat-sc table.compat-sc-inner {
+  width: 100%;
+  height: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  margin: 0;
+  padding: 0;
+}
+.td-compat-sc table.compat-sc-inner td {
+  border: none !important;
+  padding: 0;
+  vertical-align: middle;
+}
+.td-compat-sc .compat-sc-score {
+  width: 34px !important;
+  min-width: 34px !important;
+  max-width: 34px !important;
+  text-align: center;
+  font-size: 10px;
+  color: #1F4E79;
+  background: #FFF9E6 !important;
+  border-right: 2px solid #7AA4C7 !important;
+  padding: 0 2px !important;
+  white-space: nowrap;
+}
+.td-compat-sc .compat-sc-badges {
+  text-align: left;
+  padding: 2px 3px !important;
+  font-size: 9px;
+  line-height: 1.3;
+  white-space: normal !important;
+  background: #FFF9E6 !important;
+}
+
+/* わざ列のチェックボックス式フィルタ */
+.waza-chk {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  margin: 0;
+  accent-color: #2E86C1;
+  vertical-align: middle;
+}
+
+/* タブバー右端: わざリストボタン */
+.tab-waza-btn {
+  padding: 3px 10px;
+  background: #F39C12;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  align-self: center;
+}
+.tab-waza-btn:hover {
+  background: #D68910;
+}
+
+/* タブバーのバージョン表示 */
+.tab-version {
+  margin-left: auto;
+  padding: 3px 8px;
+  font-size: 10px;
+  color: #999;
+  font-weight: 400;
+  align-self: center;
+}
+</style>
+</head>
+<body>
+
+<!-- TAB BAR -->
+<div class="tab-bar" id="tab-bar"></div>
+
+<!-- TOOLBAR -->
+<div class="tb">
+  <div class="tb-title">⚔ ポケモンチャンピオンズ<small>DB</small></div>
+  <div class="tb-sep"></div>
+  <div class="sw">
+    <span class="si">🔍</span>
+    <input type="text" id="srch" placeholder="名前・とくせい検索…" oninput="onSrchInput()" onkeydown="onSrchKey(event)" autocomplete="off">
+    <button class="sw-clr" onclick="clearSrch()">✕</button>
+  </div>
+  <div class="tb-sep"></div>
+  <div class="reset-group">
+    <span class="reset-lbl">リセット</span>
+    <button class="btn-reset-s" onclick="resetAllFilters()" title="全フィルタをリセット（チェック値は保持）">All</button>
+    <button class="btn-reset-s" onclick="resetChecks(0)" title="C1のチェックを全クリア">C1</button>
+    <button class="btn-reset-s" onclick="resetChecks(1)" title="C2のチェックを全クリア">C2</button>
+    <button class="btn-reset-s" onclick="resetChecks(2)" title="C3のチェックを全クリア">C3</button>
+  </div>
+  <button class="btn btn-copy" onclick="copyVisible()">📋 コピー</button>
+  <div class="tb-sep"></div>
+  <!-- ズームバー -->
+  <div class="main-zoom-group">
+    <button class="modal-zoom-btn" onclick="mainZoom(-10)" title="縮小">−</button>
+    <span class="modal-zoom-lbl" id="main-zoom-lbl">100%</span>
+    <button class="modal-zoom-btn" onclick="mainZoom(10)" title="拡大">＋</button>
+    <button class="modal-zoom-btn" onclick="mainZoomReset()" title="100%に戻す">100</button>
+  </div>
+  <div class="tb-sep"></div>
+  <button class="btn btn-compat" onclick="openCompatSearch(0)">🔍 補完①</button>
+  <button class="btn btn-compat" onclick="openCompatSearch(1)">🔍 補完②</button>
+  <button class="btn btn-compat" onclick="openCompatSearch(2)">🔍 補完③</button>
+  <div class="tb-sep"></div>
+  <span class="clbl" id="clbl">0 / 0</span>
+</div>
+
+<!-- 列表示トグル + タイプチップ -->
+<div class="grp-bar" id="main-grp-bar">
+  <span class="grp-lbl">列表示:</span>
+  <button class="grp-btn" data-grp="chk">チェック</button>
+  <button class="grp-btn" data-grp="type">タイプ</button>
+  <button class="grp-btn" data-grp="stat">能力値</button>
+  <button class="grp-btn" data-grp="ab">とくせい</button>
+  <button class="grp-btn" data-grp="resist">相性18</button>
+  <button class="grp-btn" data-grp="cnt">集計+スコア</button>
+  <button class="grp-btn" data-grp="waza">わざ</button>
+  <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
+  <span class="grp-lbl">絞込:</span>
+  <div id="tychips-sel" style="display:inline-block"></div>
+  <button class="tc-clr" onclick="clearSelTy()">✕</button>
+  <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
+  <span class="grp-lbl" style="color:#FF9999">除外:</span>
+  <div id="tychips-exc" style="display:inline-block"></div>
+  <button class="tc-clr" onclick="clearExcTy()" style="color:#FF9999">✕</button>
+</div>
+
+<!-- メインテーブル -->
+<div class="wrap">
+  <table id="main-tbl"></table>
+</div>
+
+<!-- 補完検索モーダル -->
+<div class="modal-overlay" id="compat-modal" onclick="if(event.target===this)closeCompatSearch()">
+  <div class="modal" id="compat-modal-inner">
+    <div class="modal-header">
+      <h3 id="compat-title">🔍 補完検索</h3>
+      <div class="spacer"></div>
+      <!-- 画面中央: ズーム操作 -->
+      <div class="modal-zoom-group">
+        <button class="modal-zoom-btn" onclick="compatZoom(-10)" title="縮小">−</button>
+        <span class="modal-zoom-lbl" id="compat-zoom-lbl">100%</span>
+        <button class="modal-zoom-btn" onclick="compatZoom(10)" title="拡大">＋</button>
+        <button class="modal-zoom-btn" onclick="compatZoomReset()" title="100%に戻す">100</button>
+        <button class="modal-zoom-btn" onclick="compatMaximize()" id="compat-max-btn" title="最大化/元に戻す">⛶</button>
+        <button class="modal-zoom-btn modal-zoom-close" onclick="closeCompatSearch()" title="閉じる">✕ 閉じる</button>
+      </div>
+      <div class="spacer"></div>
+      <!-- 右端: 閉じるボタン（Xのみ） -->
+      <button class="modal-close-x" onclick="closeCompatSearch()" title="閉じる">✕</button>
+    </div>
+    <div class="modal-body" id="compat-body"></div>
+    <div class="modal-resize-r" id="compat-resize-r" title="右端: 幅を調整"></div>
+    <div class="modal-resize-b" id="compat-resize-b" title="下端: 高さを調整"></div>
+    <div class="modal-resize-br" id="compat-resize-br" title="右下: 両方を調整"></div>
+  </div>
+</div>
+
+<script src="pokechan_data.js"></script>
+<script>const TYPES = ["ノーマル","ほのお","みず","でんき","くさ","こおり","かくとう","どく","じめん","ひこう","エスパー","むし","いわ","ゴースト","ドラゴン","あく","はがね","フェアリー"];
+
+
+
+</script>
+<script>// ==========================================================================
+// WAZA_MASTER: pokechan_data.js の WAZA_MAP から派生
+// ==========================================================================
+// マスターデータは pokechan_data.js (共通) に統合済み。
+// pokemon_db_v9 既存ロジックの互換性のために旧 WAZA_MASTER 形式に
+// 変換するアダプタを通して供給する。
+//
+// 変換対象: WAZA_MAP の中で subcategory が定義されている 170 技のみ
+// (party_checker 用に追加した技 320 件は pokemon_db_v9 では非表示)
+// ==========================================================================
+
+const WAZA_MASTER = (function () {
+  const out = [];
+  for (const k in WAZA_MAP) {
+    const m = WAZA_MAP[k];
+    if (!m.subcategory) continue;   // 170件にだけ subcategory が付与されている
+    out.push({
+      key:      m.key,
+      name:     m.name,
+      type:     m.type,
+      class:    m.category,                                 // 物理/特殊/変化
+      power:    m.power == null ? "-" : String(m.power),
+      acc:      m.accuracy == null ? "-" : String(m.accuracy),
+      pp:       m.pp == null ? "" : String(m.pp),
+      contact:  m.contact ? "接○" : "接×",
+      guard:    m.protect ? "守○" : "守×",
+      target:   m.target,
+      mode:     m.mode,
+      category: m.subcategory,                              // 回復/状態異常/etc
+      effect:   m.description,
+      added:    m.added,
+    });
+  }
+  return out;
+})();
+
+
+// ============================================================
+// CORE: 定数・ユーティリティ
+// ============================================================
+
+const RLBL = {4:'×4', 2:'×2', 1:'-', 0.5:'½', 0.25:'¼', 0:'×0'};
+const RCLS = {4:'rv-x4', 2:'rv-x2', 1:'rv-x1', 0.5:'rv-hf', 0.25:'rv-qf', 0:'rv-x0'};
+const CHK_VALS = [1,2,3,4,5,6,7];
+
+// チェックデータ (C1/C2/C3)
+let checks = [{}, {}, {}];
+
+// タブ
+// ビルドバージョン (v9 04/19 08:44 はビルド時に置換される)
+const BUILD_VERSION = 'v9 04/19 08:44';
+
+let tabs = [{ id: 1, name: 'メイン', checks: [{},{},{}], filters: {} }];
+let activeTab = 1;
+let nextTabId = 2;
+
+// 元リスト状態
+let sortKey = 'no';
+let sortDir = 1;
+let selTypes = new Set();      // 絞込
+let excludeTypes = new Set();  // 除外
+let grpVisible = { chk:true, type:true, stat:true, ab:true, resist:true, cnt:true, waza:true };
+let typeOrderSorted = false;   // false=整理順（冒険順）, true=あいうえお順
+
+// 補完状態
+let compatCiNum = 0;
+let compatTeam = [];
+let compatCandidates = [];
+let compatTeamSortKey = 'total';
+let compatTeamSortDir = -1;
+let compatCandSortKey = 'score';
+let compatCandSortDir = -1;
+let compatSelTypes = new Set();
+let compatExcludeTypes = new Set();
+let compatGrpVisible = { chk:true, type:true, stat:true, ab:true, resist:true, cnt:true, waza:true };
+let _compatAlt = 0;
+
+// ヒアカナ変換
+function hiraToKata(s) { return s.replace(/[\u3041-\u3096]/g, ch => String.fromCharCode(ch.charCodeAt(0)+0x60)); }
+function kataToHira(s) { return s.replace(/[\u30a1-\u30f6]/g, ch => String.fromCharCode(ch.charCodeAt(0)-0x60)); }
+function nameMatches(name, q) {
+  if (!q) return true;
+  const lo = name.toLowerCase();
+  const ql = q.toLowerCase();
+  return lo.includes(ql) || hiraToKata(name).includes(hiraToKata(q)) || kataToHira(name).includes(kataToHira(q));
+}
+
+// タイプ関連
+function typeKanji(t) { return TYPE_KANJI[t] || t.slice(0,3); }
+function type3(t) { return t ? t.slice(0,3) : ''; }
+
+function getT1(p) {
+  if (!p.type2 || !typeOrderSorted) return p.type1;
+  const i1 = TYPES.indexOf(p.type1), i2 = TYPES.indexOf(p.type2);
+  return i1 <= i2 ? p.type1 : p.type2;
+}
+function getT2(p) {
+  if (!p.type2 || !typeOrderSorted) return p.type2;
+  const i1 = TYPES.indexOf(p.type1), i2 = TYPES.indexOf(p.type2);
+  return i1 <= i2 ? p.type2 : p.type1;
+}
+
+// チェックデータ
+function saveChecks() {
+  try { localStorage.setItem('pkmn_checks_v8', JSON.stringify(checks)); } catch(e) {}
+}
+function loadChecks() {
+  try {
+    const s = localStorage.getItem('pkmn_checks_v8');
+    if (s) checks = JSON.parse(s);
+  } catch(e) {}
+}
+function setChk(ci, idx, val) {
+  if (!val) delete checks[ci][idx];
+  else checks[ci][idx] = val;
+  saveChecks();
+}
+
+// スコア計算（DATA全件に対して初期化時）
+function initScores() {
+  DATA.forEach(p => {
+    p._idx = DATA.indexOf(p); // 固定インデックス
+    p.weakScore = -(p.cnt4 * 3 + p.cnt2 * 1);
+    p.resScore  = p.cnthf * 1 + p.cntqf * 2 + p.cnt0 * 3;
+    p.totalScore = p.weakScore + p.resScore;
+  });
+}
+
+// とくせい一覧取得（重複除外、ソート済み）
+function buildAbilityList() {
+  const set = new Set();
+  DATA.forEach(p => {
+    if (p.ab1) set.add(p.ab1);
+    if (p.ab2) set.add(p.ab2);
+    if (p.ab3) set.add(p.ab3);
+  });
+  return [...set].sort((a,b) => a.localeCompare(b, 'ja'));
+}
+
+// ヒートマップ
+let _globalHM = null;
+function getGlobalHM() {
+  if (_globalHM) return _globalHM;
+  const hm = {};
+  const statKeys = ['hp','atk','def','spatk','spdef','spd','total'];
+  const cntKeysLow = ['cnt4','cnt2']; // 低いほど良い
+  const cntKeysHigh = ['cnthf','cntqf','cnt0','cnthfqf']; // 高いほど良い
+  const scKeys = ['weakScore','resScore','totalScore']; // 高いほど良い
+
+  function makeHM(key, higherBetter) {
+    const sorted = [...DATA].map(p => p[key]).sort((a,b) => a-b);
+    const ranks = {};
+    sorted.forEach((v,i) => { if (!(v in ranks)) ranks[v] = i; });
+    hm[key] = [];
+    DATA.forEach((p, idx) => {
+      const pct = ranks[p[key]] / DATA.length;
+      let cls;
+      if (higherBetter) {
+        if (pct >= 0.97) cls = 'hs-top1';
+        else if (pct >= 0.90) cls = 'hs-top2';
+        else if (pct >= 0.80) cls = 'hs-top3';
+        else if (pct >= 0.65) cls = 'hs-high';
+        else if (pct >= 0.35) cls = 'hs-mid';
+        else if (pct >= 0.20) cls = 'hs-low';
+        else if (pct >= 0.10) cls = 'hs-bot3';
+        else if (pct >= 0.03) cls = 'hs-bot2';
+        else cls = 'hs-bot1';
+      } else {
+        // 低いほど良い（cnt4等）
+        if (pct <= 0.05) cls = 'ch-lo1';
+        else if (pct <= 0.25) cls = 'ch-lo2';
+        else if (pct <= 0.45) cls = 'ch-lo3';
+        else if (pct >= 0.95) cls = 'ch-hi1';
+        else if (pct >= 0.75) cls = 'ch-hi2';
+        else if (pct >= 0.55) cls = 'ch-hi3';
+        else cls = '';
+      }
+      hm[key][p._idx] = cls;
+    });
+  }
+
+  statKeys.forEach(k => makeHM(k, true));
+  cntKeysLow.forEach(k => makeHM(k, false));
+  cntKeysHigh.forEach(k => makeHM(k, true));
+  scKeys.forEach(k => makeHM(k, true));
+  // cnt1, cnt42 はニュートラル
+  hm.cnt1 = DATA.map(() => '');
+  hm.cnt42 = DATA.map(() => '');
+
+  _globalHM = hm;
+  return hm;
+}
+
+// ============================================================
+// MULTI-SELECT: 冪等版（addEventListener禁止、dataset.msInited='1'）
+// ============================================================
+
+// ms-dropdown は document.body 直下に移動する
+// 理由: .modal-overlay や他のstacking contextに閉じ込められないようにするため
+// wrap._dd で参照保持。dd.dataset.msId で親wrapを追跡
+
+function msInit(msId, values, onchange) {
+  const wrap = document.getElementById(msId);
+  if (!wrap) return;
+
+  const btn = wrap.querySelector('.ms-btn');
+
+  // 既に初期化済みなら、onchangeだけ更新（ddは既にbody直下に移動済み）
+  if (wrap.dataset.msInited === '1') {
+    wrap._msOnchange = onchange;
+    return;
+  }
+
+  // 初回: ddを取得し、body直下に移動
+  const dd = wrap.querySelector('.ms-dropdown');
+  if (!dd) return;
+  const body = dd.querySelector('.ms-body');
+
+  // ★ ddをbody直下に移動（stacking context問題の根本解決）
+  dd.dataset.msId = msId;
+  document.body.appendChild(dd);
+
+  // wrap -> dd参照、dd -> wrap参照
+  wrap._dd = dd;
+  dd._msWrap = wrap;
+
+  wrap._msOnchange = onchange;
+  body.innerHTML = '';
+
+  // ボタンクリック
+  btn.onclick = e => {
+    e.stopPropagation();
+    document.querySelectorAll('.ms-dropdown.open').forEach(el => {
+      if (el !== dd) el.classList.remove('open');
+    });
+    if (!dd.classList.contains('open')) {
+      const rect = btn.getBoundingClientRect();
+      dd.style.left = rect.left + 'px';
+      dd.style.top = (rect.bottom + 2) + 'px';
+      dd.style.minWidth = Math.max(rect.width, 80) + 'px';
+    }
+    dd.classList.toggle('open');
+  };
+
+  values.forEach(({val, lbl}) => {
+    const item = document.createElement('div');
+    item.className = 'ms-item';
+    item.dataset.val = val;
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = val;
+
+    cb.onchange = (e) => {
+      if (e) e.stopPropagation();
+      handleCheck(cb, val, body);
+      wrap._msOnchange && wrap._msOnchange();
+      updateMsBtn(msId);
+    };
+
+    item.appendChild(cb);
+    item.appendChild(document.createTextNode(' ' + lbl));
+
+    item.onclick = e => {
+      e.stopPropagation();
+      if (e.target === cb) return;
+      cb.checked = !cb.checked;
+      handleCheck(cb, val, body);
+      wrap._msOnchange && wrap._msOnchange();
+      updateMsBtn(msId);
+    };
+
+    body.appendChild(item);
+  });
+
+  // ドロップダウン内クリックはバブリングを止める
+  dd.onclick = e => e.stopPropagation();
+
+  wrap.dataset.msInited = '1';
+}
+
+function handleCheck(cb, val, body) {
+  if (val === 'has') {
+    const others = body.querySelectorAll('input[type=checkbox]:not([value="has"])');
+    others.forEach(o => o.checked = cb.checked);
+  } else {
+    if (!cb.checked) {
+      const hasCb = body.querySelector('input[value="has"]');
+      if (hasCb) hasCb.checked = false;
+    } else {
+      const others = body.querySelectorAll('input[type=checkbox]:not([value="has"])');
+      const all = [...others].every(o => o.checked);
+      const hasCb = body.querySelector('input[value="has"]');
+      if (hasCb) hasCb.checked = all;
+    }
+  }
+}
+
+function msGetChecked(msId) {
+  const wrap = document.getElementById(msId);
+  if (!wrap) return new Set();
+  // ddはbody直下に移動しているのでwrap._ddで参照
+  const dd = wrap._dd || wrap.querySelector('.ms-dropdown');
+  if (!dd) return new Set();
+  return new Set(
+    [...dd.querySelectorAll('input[type=checkbox]:checked')]
+      .map(c => c.value)
+      .filter(v => v !== 'has')
+  );
+}
+
+function msClear(msId) {
+  const wrap = document.getElementById(msId);
+  if (!wrap) return;
+  const dd = wrap._dd || wrap.querySelector('.ms-dropdown');
+  if (dd) {
+    dd.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+  }
+  updateMsBtn(msId);
+}
+
+function updateMsBtn(msId) {
+  const wrap = document.getElementById(msId);
+  if (!wrap) return;
+  const btn = wrap.querySelector('.ms-btn');
+  const dd = wrap._dd || wrap.querySelector('.ms-dropdown');
+  const checked = dd
+    ? [...dd.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value).filter(v => v !== 'has')
+    : [];
+  const def = btn.dataset.default || '全▾';
+  if (checked.length === 0) {
+    btn.textContent = def;
+    btn.classList.remove('active');
+  } else {
+    btn.textContent = checked.length + '件▾';
+    btn.classList.add('active');
+  }
+}
+
+// 外側クリックで閉じる
+document.onclick = () => {
+  document.querySelectorAll('.ms-dropdown.open').forEach(el => el.classList.remove('open'));
+};
+
+
+// ============================================================
+// タブ機能（v7h_12準拠）
+// ============================================================
+
+// 状態キャプチャ・復元
+function captureState() {
+  const state = {
+    checks: JSON.parse(JSON.stringify(checks)),
+    sortKey, sortDir,
+    selTypes: [...selTypes],
+    excludeTypes: [...excludeTypes],
+    srch: document.getElementById('srch')?.value || '',
+    ff: document.getElementById('ff')?.value || '',
+    msStates: {}, statFilters: {}, selStates: {}
+  };
+  document.querySelectorAll('#main-tbl .ms-wrap').forEach(w => {
+    state.msStates[w.id] = [...w.querySelectorAll('input[type=checkbox]:checked')].map(c => c.value);
+  });
+  document.querySelectorAll('#main-tbl .st-op').forEach(el => state.statFilters[el.id] = el.value);
+  document.querySelectorAll('#main-tbl .st-num').forEach(el => state.statFilters[el.id] = el.value);
+  document.querySelectorAll('#main-tbl .h-sel').forEach(el => state.selStates[el.id] = el.value);
+  return state;
+}
+
+function restoreState(state) {
+  if (!state) return;
+  checks = JSON.parse(JSON.stringify(state.checks || [{},{},{}]));
+  sortKey = state.sortKey || 'no';
+  sortDir = state.sortDir || 1;
+  selTypes = new Set(state.selTypes || []);
+  excludeTypes = new Set(state.excludeTypes || []);
+  const srch = document.getElementById('srch'); if (srch) srch.value = state.srch || '';
+  const ff = document.getElementById('ff'); if (ff) ff.value = state.ff || '';
+  if (state.msStates) {
+    Object.entries(state.msStates).forEach(([id, vals]) => {
+      const wrap = document.getElementById(id);
+      if (!wrap) return;
+      wrap.querySelectorAll('input[type=checkbox]').forEach(cb => {
+        cb.checked = vals.includes(cb.value);
+      });
+      updateMsBtn(id);
+    });
+  }
+  if (state.statFilters) {
+    Object.entries(state.statFilters).forEach(([id, v]) => {
+      const el = document.getElementById(id);
+      if (el) el.value = v;
+    });
+  }
+  if (state.selStates) {
+    Object.entries(state.selStates).forEach(([id, v]) => {
+      const el = document.getElementById(id);
+      if (el) el.value = v;
+    });
+  }
+}
+
+function saveTabState() {
+  const idx = tabs.findIndex(t => t.id === activeTab);
+  if (idx < 0) return;
+  tabs[idx].state = captureState();
+}
+
+function renderTabs() {
+  const bar = document.getElementById('tab-bar');
+  if (!bar) return;
+  bar.innerHTML = '';
+  tabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = 'tab' + (tab.id === activeTab ? ' active' : '');
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'tab-name';
+    nameSpan.title = 'ダブルクリックで名前変更';
+    nameSpan.textContent = tab.name;
+    nameSpan.ondblclick = e => { e.stopPropagation(); renameTab(tab.id, nameSpan); };
+    el.appendChild(nameSpan);
+
+    el.onclick = e => { if (e.target === nameSpan || e.target === el) switchTab(tab.id); };
+
+    if (tabs.length > 1) {
+      const closeBtn = document.createElement('span');
+      closeBtn.className = 'tab-close';
+      closeBtn.textContent = '✕';
+      closeBtn.onclick = e => { e.stopPropagation(); removeTab(tab.id); };
+      el.appendChild(closeBtn);
+    }
+
+    bar.appendChild(el);
+  });
+
+  const addBtn = document.createElement('button');
+  addBtn.className = 'tab-add';
+  addBtn.textContent = '＋';
+  addBtn.title = 'タブ追加';
+  addBtn.onclick = addTab;
+  bar.appendChild(addBtn);
+
+  // バージョン表示 (タブバー右端)
+  const verSpan = document.createElement('span');
+  verSpan.className = 'tab-version';
+  verSpan.textContent = BUILD_VERSION;
+  verSpan.title = 'ビルド日時';
+  bar.appendChild(verSpan);
+
+  // わざリストボタン (タブバーの最右端)
+  const wazaBtn = document.createElement('button');
+  wazaBtn.className = 'tab-waza-btn';
+  wazaBtn.textContent = '📋 わざリスト';
+  wazaBtn.title = '別タブでわざリストを開く';
+  wazaBtn.onclick = (e) => { e.stopPropagation(); openWazaList(); };
+  bar.appendChild(wazaBtn);
+}
+
+function addTab() {
+  saveTabState();
+  tabs.push({ id: nextTabId, name: 'タブ' + nextTabId, state: null });
+  activeTab = nextTabId;
+  nextTabId++;
+  renderTabs();
+  resetAllFiltersNoSave();
+  applyF();
+}
+
+function switchTab(id) {
+  if (id === activeTab) return;
+  saveTabState();
+  activeTab = id;
+  renderTabs();
+  const tab = tabs.find(t => t.id === id);
+  if (tab && tab.state) {
+    restoreState(tab.state);
+  } else {
+    resetAllFiltersNoSave();
+  }
+  applyF();
+}
+
+function removeTab(id) {
+  if (tabs.length <= 1) return;
+  const idx = tabs.findIndex(t => t.id === id);
+  if (idx < 0) return;
+  tabs.splice(idx, 1);
+  if (activeTab === id) {
+    activeTab = tabs[Math.min(idx, tabs.length - 1)].id;
+    const tab = tabs.find(t => t.id === activeTab);
+    if (tab && tab.state) restoreState(tab.state);
+    else resetAllFiltersNoSave();
+  }
+  renderTabs();
+  applyF();
+}
+
+function renameTab(id, span) {
+  const old = span.textContent;
+  const inp = document.createElement('input');
+  inp.value = old;
+  inp.style.cssText = 'width:80px;font-size:10px;border:1px solid #fff;border-radius:2px;padding:0 2px;background:#2E86C1;color:#fff;outline:none;';
+  span.replaceWith(inp);
+  inp.focus();
+  inp.select();
+  const done = () => {
+    const tab = tabs.find(t => t.id === id);
+    if (tab) tab.name = inp.value || old;
+    renderTabs();
+  };
+  inp.onblur = done;
+  inp.onkeydown = e => { if (e.key === 'Enter' || e.key === 'Escape') inp.blur(); };
+}
+
+// resetAllFiltersNoSave: タブ切替時の初期化
+function resetAllFiltersNoSave() {
+  selTypes.clear(); excludeTypes.clear();
+  document.querySelectorAll('#main-tbl .ms-wrap').forEach(w => msClear(w.id));
+  document.querySelectorAll('#main-tbl .st-op').forEach(el => el.value = '');
+  document.querySelectorAll('#main-tbl .st-num').forEach(el => el.value = '');
+  document.querySelectorAll('#main-tbl .h-sel').forEach(el => el.value = '');
+  const srch = document.getElementById('srch');
+  if (srch) srch.value = '';
+  const ff = document.getElementById('ff');
+  if (ff) ff.value = '';
+  sortKey = 'no'; sortDir = 1;
+  checks = [{}, {}, {}];
+  saveChecks();
+  if (typeof buildTyChips === 'function') buildTyChips();
+}
+
+
+// わざフィルタ状態 (チェックボックス式)
+// キー = わざ名 (chouhatsu, jikosaisei, ...), 値 = true(絞込ON) / false(絞込OFF)
+// prefix(main/compat-team/compat-cand)ごとに独立管理
+const wazaFilter = { main: {}, 'compat-team': {}, 'compat-cand': {} };
+function wazaFilterGet(prefix, key) {
+  return wazaFilter[prefix] && wazaFilter[prefix][key] === true;
+}
+function wazaFilterSet(prefix, key, val) {
+  if (!wazaFilter[prefix]) wazaFilter[prefix] = {};
+  wazaFilter[prefix][key] = !!val;
+}
+function wazaFilterReset(prefix) {
+  wazaFilter[prefix] = {};
+}
+</script>
+<script>// ============================================================
+// COLUMNS: 列定義（1つの配列から元リスト・補完両方を駆動）
+// ============================================================
+// ctx = {
+//   prefix: 'main' | 'team' | 'cand',   // msId用
+//   isTeam: boolean,
+//   mode: 'main' | 'compat',
+//   onFilter: () => void,                // フィルター変更時
+//   onSort: (key) => void,               // ソート
+//   onChk: (ci, idx, val) => void,       // チェック列変更
+// }
+
+const COLUMNS = [];
+
+// -------- チェック列 C1/C2/C3 --------
+for (let ci = 0; ci < 3; ci++) {
+  COLUMNS.push({
+    key: 'chk' + ci,
+    grp: 'chk',
+    buildTh: (ctx) => {
+      const th = document.createElement('th');
+      th.className = 'th-chk';
+      th.dataset.grp = 'chk';
+      const msId = `ms-${ctx.prefix}-chk${ci}`;
+      th.innerHTML = `
+        <div class="hdr2">
+          <div class="hdr2-top">
+            <div class="ms-wrap" id="${msId}">
+              <button class="ms-btn">全▾</button>
+              <div class="ms-dropdown">
+                <div class="ms-body"></div>
+                <div class="ms-footer">
+                  <button class="ms-foot-btn" data-act="clear">全解除</button>
+                  <button class="ms-foot-btn" data-act="close">閉じ</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="hdr2-bot" data-sort="chk${ci}">C${ci+1}<span class="si2" data-skey="chk${ci}"></span></div>
+        </div>`;
+      const wrap = th.querySelector('.ms-wrap');
+      wrap.querySelector('[data-act="clear"]').onclick = e => {
+        e.stopPropagation();
+        msClear(msId);
+        ctx.onFilter();
+      };
+      wrap.querySelector('[data-act="close"]').onclick = e => {
+        e.stopPropagation();
+        const dd = wrap._dd || wrap.querySelector('.ms-dropdown'); if (dd) dd.classList.remove('open');
+      };
+      // msInitはヘッダーがDOMに追加された後に呼ぶ
+      setTimeout(() => {
+        const vals = [{val:'has', lbl:'全て'}, ...CHK_VALS.map(n => ({val:String(n), lbl:String(n)}))];
+        msInit(msId, vals, ctx.onFilter);
+        updateChkCounts(ci, msId, ctx);
+      }, 0);
+      return th;
+    },
+    buildTd: (p, ctx) => {
+      const idx = p._idx;
+      const v = checks[ci][idx] || '';
+      const opts = ['', ...CHK_VALS].map(n =>
+        `<option value="${n}"${String(v) === String(n) ? ' selected' : ''}>${n}</option>`
+      ).join('');
+      const hl = (ctx.mode === 'compat' && ci === compatCiNum) ? 'border:2px solid #2E86C1;' : '';
+      return `<td class="td-chk" data-grp="chk"><select class="cm-chk${v ? ' has-val' : ''}" style="${hl}" data-chk="${ci}" data-idx="${idx}">${opts}</select></td>`;
+    },
+    getVal: (p) => {
+      const v = checks[ci][p._idx];
+      // 未チェックを 0 にすることで、初回クリック(降順)でチェック値(1-7)が上に来る
+      return v !== undefined ? parseInt(v) : 0;
+    },
+    applyFilter: (arr, ctx) => {
+      const msId = `ms-${ctx.prefix}-chk${ci}`;
+      const sel = msGetChecked(msId);
+      if (sel.size === 0) return arr;
+      return arr.filter(p => {
+        const v = checks[ci][p._idx];
+        if (v === undefined) return false;
+        return sel.has(String(v));
+      });
+    }
+  });
+}
+
+// -------- No. --------
+COLUMNS.push({
+  key: 'no',
+  buildTh: (ctx) => {
+    const th = document.createElement('th');
+    th.className = 'th-no';
+    th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" data-sort="no">No.<span class="si2" data-skey="no"></span></div></div>`;
+    return th;
+  },
+  buildTd: (p) => `<td class="td-no">${p.no}</td>`,
+  getVal: (p) => parseInt(p.no) || 0,
+});
+
+// -------- ポケモン名 --------
+COLUMNS.push({
+  key: 'name',
+  buildTh: (ctx) => {
+    const th = document.createElement('th');
+    th.className = 'th-name';
+    th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" data-sort="name" style="justify-content:center">ポケモン名<span class="si2" data-skey="name"></span></div></div>`;
+    return th;
+  },
+  buildTd: (p) => {
+    const cls = p.form === 'メガ進化' ? 'mega-name' : p.form === 'リージョン' ? 'region-name' : '';
+    return `<td class="td-name ${cls}" title="${p.name}">${p.name}</td>`;
+  },
+  getVal: (p) => p.name,
+});
+
+// -------- 型 (フォルム絞込 ms式チェックボックス) --------
+COLUMNS.push({
+  key: 'mega',
+  grp: 'type',
+  buildTh: (ctx) => {
+    const th = document.createElement('th');
+    th.className = 'th-mega';
+    th.dataset.grp = 'type';
+    const msId = `ms-${ctx.prefix}-form`;
+    th.innerHTML = `<div class="hdr2">
+      <div class="hdr2-top">
+        <div class="ms-wrap" id="${msId}">
+          <button class="ms-btn" style="background:rgba(255,255,255,0.2)">全▾</button>
+          <div class="ms-dropdown">
+            <div class="ms-body"></div>
+            <div class="ms-footer">
+              <button class="ms-foot-btn" data-act="clear">全解除</button>
+              <button class="ms-foot-btn" data-act="close">閉じ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hdr2-bot" data-sort="mega">型</div>
+    </div>`;
+    const wrap = th.querySelector('.ms-wrap');
+    wrap.querySelector('[data-act="clear"]').onclick = e => {
+      e.stopPropagation();
+      msClear(msId);
+      ctx.onFilter();
+    };
+    wrap.querySelector('[data-act="close"]').onclick = e => {
+      e.stopPropagation();
+      const dd = wrap._dd || wrap.querySelector('.ms-dropdown'); if (dd) dd.classList.remove('open');
+    };
+    setTimeout(() => {
+      msInit(msId, [
+        {val: '通常', lbl: '通常'},
+        {val: 'リージョン', lbl: 'リージョン'},
+        {val: 'メガ進化', lbl: 'メガ進化'}
+      ], ctx.onFilter);
+    }, 0);
+    return th;
+  },
+  buildTd: (p) => `<td class="td-mega" data-grp="type">${p.mega ? '<span class="mega-mark">M</span>' : ''}</td>`,
+  applyFilter: (arr, ctx) => {
+    const msId = `ms-${ctx.prefix}-form`;
+    const sel = msGetChecked(msId);
+    if (sel.size === 0) return arr;
+    return arr.filter(p => sel.has(p.form));
+  }
+});
+
+// -------- T1 (除外フィルター) --------
+COLUMNS.push({
+  key: 'type1',
+  grp: 'type',
+  buildTh: (ctx) => {
+    const th = document.createElement('th');
+    th.className = 'th-ty';
+    th.dataset.grp = 'type';
+    const msId = `ms-${ctx.prefix}-tyex`;
+    th.innerHTML = `<div class="hdr2">
+      <div class="hdr2-top">
+        <div class="ms-wrap" id="${msId}">
+          <button class="ms-btn" data-default="除外▾">除外▾</button>
+          <div class="ms-dropdown">
+            <div class="ms-body"></div>
+            <div class="ms-footer">
+              <button class="ms-foot-btn" data-act="clear">全解除</button>
+              <button class="ms-foot-btn" data-act="close">閉じ</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="hdr2-bot" data-sort="type1">T1<span class="si2" data-skey="type1"></span></div>
+    </div>`;
+    const wrap = th.querySelector('.ms-wrap');
+    wrap.querySelector('[data-act="clear"]').onclick = e => {
+      e.stopPropagation();
+      msClear(msId);
+      ctx.onFilter();
+    };
+    wrap.querySelector('[data-act="close"]').onclick = e => {
+      e.stopPropagation();
+      const dd = wrap._dd || wrap.querySelector('.ms-dropdown'); if (dd) dd.classList.remove('open');
+    };
+    setTimeout(() => {
+      msInit(msId, TYPES.map(t => ({val: t, lbl: type3(t)})), ctx.onFilter);
+    }, 0);
+    return th;
+  },
+  buildTd: (p) => {
+    const t = getT1(p);
+    const bg = t ? (TYPE_COLORS[t] || '#999') : 'transparent';
+    return `<td class="td-ty" data-grp="type" style="background:${bg};color:#fff;font-size:9px;font-weight:700;text-shadow:0 1px 1px rgba(0,0,0,0.3)">${t ? type3(t) : ''}</td>`;
+  },
+  getVal: (p) => getT1(p) || '',
+  applyFilter: (arr, ctx) => {
+    const msId = `ms-${ctx.prefix}-tyex`;
+    const ex = msGetChecked(msId);
+    if (ex.size === 0) return arr;
+    return arr.filter(p => !ex.has(p.type1) && !ex.has(p.type2));
+  }
+});
+
+// -------- T2 (ソートのみ) --------
+COLUMNS.push({
+  key: 'type2',
+  grp: 'type',
+  buildTh: (ctx) => {
+    const th = document.createElement('th');
+    th.className = 'th-ty';
+    th.dataset.grp = 'type';
+    th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" data-sort="type2">T2<span class="si2" data-skey="type2"></span></div></div>`;
+    return th;
+  },
+  buildTd: (p) => {
+    const t = getT2(p);
+    const bg = t ? (TYPE_COLORS[t] || '#999') : 'transparent';
+    return `<td class="td-ty" data-grp="type" style="background:${bg};color:#fff;font-size:9px;font-weight:700;text-shadow:0 1px 1px rgba(0,0,0,0.3)">${t ? type3(t) : ''}</td>`;
+  },
+  getVal: (p) => getT2(p) || '',
+});
+
+// -------- 能力値 --------
+const STAT_COLS = [
+  ['hp', 'HP'], ['atk', '攻'], ['def', '防'],
+  ['spatk', '特攻'], ['spdef', '特防'], ['spd', '速'],
+  ['total', '合計']
+];
+STAT_COLS.forEach(([k, lbl]) => {
+  COLUMNS.push({
+    key: k,
+    grp: 'stat',
+    buildTh: (ctx) => {
+      const th = document.createElement('th');
+      th.className = k === 'total' ? 'th-tot' : 'th-st';
+      th.dataset.grp = 'stat';
+      const opId = `stop-${ctx.prefix}-${k}`;
+      const vId = `stv-${ctx.prefix}-${k}`;
+      th.innerHTML = `<div class="hdr2">
+        <div class="hdr2-top">
+          <div class="st-filter-wrap">
+            <div class="st-filter-row">
+              <select class="st-op" id="${opId}">
+                <option value="">-</option>
+                <option value="ge">≥</option>
+                <option value="le">≤</option>
+              </select>
+            </div>
+            <div class="st-filter-row">
+              <input class="st-num" id="${vId}" type="number" min="0" max="999" step="10" placeholder="数値">
+            </div>
+          </div>
+        </div>
+        <div class="hdr2-bot" data-sort="${k}">${lbl}<span class="si2" data-skey="${k}"></span></div>
+      </div>`;
+      th.querySelector('.st-op').onchange = () => ctx.onFilter();
+      th.querySelector('.st-num').oninput = () => ctx.onFilter();
+      return th;
+    },
+    buildTd: (p) => {
+      const ghm = getGlobalHM();
+      const hm = (ghm[k] && ghm[k][p._idx]) || '';
+      const cls = k === 'total' ? 'td-tot' : 'td-st';
+      return `<td class="${cls} ${hm}" data-grp="stat">${p[k]}</td>`;
+    },
+    getVal: (p) => p[k],
+    applyFilter: (arr, ctx) => {
+      const op = document.getElementById(`stop-${ctx.prefix}-${k}`)?.value || '';
+      const vStr = document.getElementById(`stv-${ctx.prefix}-${k}`)?.value || '';
+      if (!op || vStr === '') return arr;
+      const v = parseInt(vStr);
+      if (isNaN(v)) return arr;
+      return arr.filter(p => op === 'ge' ? p[k] >= v : p[k] <= v);
+    }
+  });
+});
+
+// -------- とくせい --------
+for (let ai = 0; ai < 3; ai++) {
+  const k = 'ab' + (ai + 1);
+  const lbl = 'とくせい' + ['①','②','③'][ai];
+  COLUMNS.push({
+    key: k,
+    grp: 'ab',
+    buildTh: (ctx) => {
+      const th = document.createElement('th');
+      th.className = 'th-ab';
+      th.dataset.grp = 'ab';
+      const msId = `ms-${ctx.prefix}-ab${ai}`;
+      th.innerHTML = `<div class="hdr2">
+        <div class="hdr2-top">
+          <div class="ms-wrap" id="${msId}">
+            <button class="ms-btn">全▾</button>
+            <div class="ms-dropdown">
+              <div class="ms-body"></div>
+              <div class="ms-footer">
+                <button class="ms-foot-btn" data-act="clear">全解除</button>
+                <button class="ms-foot-btn" data-act="close">閉じ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hdr2-bot" data-sort="${k}">${lbl}<span class="si2" data-skey="${k}"></span></div>
+      </div>`;
+      const wrap = th.querySelector('.ms-wrap');
+      wrap.querySelector('[data-act="clear"]').onclick = e => {
+        e.stopPropagation();
+        msClear(msId);
+        ctx.onFilter();
+      };
+      wrap.querySelector('[data-act="close"]').onclick = e => {
+        e.stopPropagation();
+        const dd = wrap._dd || wrap.querySelector('.ms-dropdown'); if (dd) dd.classList.remove('open');
+      };
+      setTimeout(() => {
+        const abList = buildAbilityList();
+        msInit(msId, abList.map(a => ({val: a, lbl: a})), ctx.onFilter);
+      }, 0);
+      return th;
+    },
+    buildTd: (p) => {
+      const v = p[k] || '';
+      return `<td class="td-ab" data-grp="ab"><span class="ab-tip" title="${v}">${v}</span></td>`;
+    },
+    getVal: (p) => p[k] || '',
+    applyFilter: (arr, ctx) => {
+      const msId = `ms-${ctx.prefix}-ab${ai}`;
+      const sel = msGetChecked(msId);
+      if (sel.size === 0) return arr;
+      return arr.filter(p => sel.has(p[k]));
+    }
+  });
+}
+
+// -------- 相性18列 --------
+TYPES.forEach((t, ri) => {
+  const rk = 'r' + ri;
+  COLUMNS.push({
+    key: rk,
+    grp: 'resist',
+    buildTh: (ctx) => {
+      const th = document.createElement('th');
+      th.className = 'th-res th-resist';
+      th.dataset.grp = 'resist';
+      const msId = `ms-${ctx.prefix}-res${ri}`;
+      th.innerHTML = `<div class="hdr2">
+        <div class="hdr2-top">
+          <div class="ms-wrap" id="${msId}">
+            <button class="ms-btn" data-default="除外▾" style="background:rgba(0,0,0,0.3);color:#fff">除外▾</button>
+            <div class="ms-dropdown">
+              <div class="ms-body"></div>
+              <div class="ms-footer">
+                <button class="ms-foot-btn" data-act="clear">全解除</button>
+                <button class="ms-foot-btn" data-act="close">閉じ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hdr2-bot" data-sort="${rk}">
+          <span style="font-size:9px;font-weight:900;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,0.6)">${type3(t)}</span>
+          <span class="si2" data-skey="${rk}"></span>
+        </div>
+      </div>`;
+      th.style.setProperty('background', TYPE_COLORS[t] || '#666', 'important');
+      th.style.setProperty('border-color', 'rgba(0,0,0,0.25)', 'important');
+      const wrap = th.querySelector('.ms-wrap');
+      wrap.querySelector('[data-act="clear"]').onclick = e => {
+        e.stopPropagation();
+        msClear(msId);
+        ctx.onFilter();
+      };
+      wrap.querySelector('[data-act="close"]').onclick = e => {
+        e.stopPropagation();
+        const dd = wrap._dd || wrap.querySelector('.ms-dropdown'); if (dd) dd.classList.remove('open');
+      };
+      setTimeout(() => {
+        const vals = [
+          {val:'4',    lbl:'×4'},
+          {val:'2',    lbl:'×2'},
+          {val:'1',    lbl:'×1'},
+          {val:'0.5',  lbl:'½'},
+          {val:'0.25', lbl:'¼'},
+          {val:'0',    lbl:'×0'}
+        ];
+        msInit(msId, vals, ctx.onFilter);
+      }, 0);
+      return th;
+    },
+    buildTd: (p) => {
+      const v = p.resist[ri];
+      const lbl = RLBL[v] ?? v;
+      const cls = RCLS[v] || '';
+      return `<td class="td-res ${cls}" data-grp="resist">${lbl}</td>`;
+    },
+    getVal: (p) => p.resist[ri],
+    applyFilter: (arr, ctx) => {
+      const msId = `ms-${ctx.prefix}-res${ri}`;
+      const sel = msGetChecked(msId);
+      if (sel.size === 0) return arr;
+      // チェックした相性値を「除外」する（集計・スコアと統一）
+      return arr.filter(p => !sel.has(String(p.resist[ri])));
+    }
+  });
+});
+
+// -------- 集計8列 --------
+const CNT_COLS = [
+  ['cnt4', '×4'], ['cnt2', '×2'], ['cnt1', '×1'],
+  ['cnthf', '/2'], ['cntqf', '/4'], ['cnt0', '×0'],
+  ['cnt42', '弱計'], ['cnthfqf', '耐計']
+];
+CNT_COLS.forEach(([k, lbl]) => {
+  COLUMNS.push({
+    key: k,
+    grp: 'cnt',
+    buildTh: (ctx) => {
+      const th = document.createElement('th');
+      th.className = 'th-rc th-cnt';
+      th.dataset.grp = 'cnt';
+      const msId = `ms-${ctx.prefix}-cnt-${k}`;
+      th.innerHTML = `<div class="hdr2">
+        <div class="hdr2-top">
+          <div class="ms-wrap" id="${msId}">
+            <button class="ms-btn" data-default="除外▾">除外▾</button>
+            <div class="ms-dropdown">
+              <div class="ms-body"></div>
+              <div class="ms-footer">
+                <button class="ms-foot-btn" data-act="clear">全解除</button>
+                <button class="ms-foot-btn" data-act="close">閉じ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hdr2-bot" data-sort="${k}">${lbl}<span class="si2" data-skey="${k}"></span></div>
+      </div>`;
+      const wrap = th.querySelector('.ms-wrap');
+      wrap.querySelector('[data-act="clear"]').onclick = e => {
+        e.stopPropagation();
+        msClear(msId);
+        ctx.onFilter();
+      };
+      wrap.querySelector('[data-act="close"]').onclick = e => {
+        e.stopPropagation();
+        const dd = wrap._dd || wrap.querySelector('.ms-dropdown'); if (dd) dd.classList.remove('open');
+      };
+      setTimeout(() => {
+        const vals = [...new Set(DATA.map(p => p[k]))].sort((a,b) => a-b);
+        msInit(msId, vals.map(v => ({val: String(v), lbl: String(v)})), ctx.onFilter);
+      }, 0);
+      return th;
+    },
+    buildTd: (p) => {
+      const ghm = getGlobalHM();
+      const hm = (ghm[k] && ghm[k][p._idx]) || '';
+      return `<td class="td-rc td-sc-col ${hm}" data-grp="cnt">${p[k]}</td>`;
+    },
+    getVal: (p) => p[k],
+    applyFilter: (arr, ctx) => {
+      const msId = `ms-${ctx.prefix}-cnt-${k}`;
+      const sel = msGetChecked(msId);
+      if (sel.size === 0) return arr;
+      // チェックした値を「除外」する（残すのはチェックされていない値の行）
+      return arr.filter(p => !sel.has(String(p[k])));
+    }
+  });
+});
+
+// -------- スコア3列（cntグループに所属） --------
+const SC_COLS = [
+  ['weakScore', '弱Sc'], ['resScore', '耐Sc'], ['totalScore', '総Sc']
+];
+SC_COLS.forEach(([k, lbl]) => {
+  COLUMNS.push({
+    key: k,
+    grp: 'cnt',
+    buildTh: (ctx) => {
+      const th = document.createElement('th');
+      th.className = 'th-rc th-cnt';
+      th.dataset.grp = 'cnt';
+      const msId = `ms-${ctx.prefix}-sc-${k}`;
+      th.innerHTML = `<div class="hdr2">
+        <div class="hdr2-top">
+          <div class="ms-wrap" id="${msId}">
+            <button class="ms-btn" data-default="除外▾">除外▾</button>
+            <div class="ms-dropdown">
+              <div class="ms-body"></div>
+              <div class="ms-footer">
+                <button class="ms-foot-btn" data-act="clear">全解除</button>
+                <button class="ms-foot-btn" data-act="close">閉じ</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="hdr2-bot" data-sort="${k}">${lbl}<span class="si2" data-skey="${k}"></span></div>
+      </div>`;
+      const wrap = th.querySelector('.ms-wrap');
+      wrap.querySelector('[data-act="clear"]').onclick = e => {
+        e.stopPropagation();
+        msClear(msId);
+        ctx.onFilter();
+      };
+      wrap.querySelector('[data-act="close"]').onclick = e => {
+        e.stopPropagation();
+        const dd = wrap._dd || wrap.querySelector('.ms-dropdown'); if (dd) dd.classList.remove('open');
+      };
+      setTimeout(() => {
+        const vals = [...new Set(DATA.map(p => p[k]))].sort((a,b) => a-b);
+        msInit(msId, vals.map(v => ({val: String(v), lbl: String(v)})), ctx.onFilter);
+      }, 0);
+      return th;
+    },
+    buildTd: (p) => {
+      const ghm = getGlobalHM();
+      const hm = (ghm[k] && ghm[k][p._idx]) || '';
+      return `<td class="td-rc td-sc-col ${hm}" data-grp="cnt">${p[k]}</td>`;
+    },
+    getVal: (p) => p[k],
+    applyFilter: (arr, ctx) => {
+      const msId = `ms-${ctx.prefix}-sc-${k}`;
+      const sel = msGetChecked(msId);
+      if (sel.size === 0) return arr;
+      // チェックした値を「除外」する
+      return arr.filter(p => !sel.has(String(p[k])));
+    }
+  });
+});
+
+// -------- 補完Sc（mode=compatのみ表示、team/candで見た目違う） --------
+COLUMNS.push({
+  key: 'compatSc',
+  grp: 'waza',
+  onlyCompat: true,
+  buildTh: (ctx) => {
+    const th = document.createElement('th');
+    th.className = 'th-compat-sc';
+    th.dataset.grp = 'waza';
+    if (ctx.isTeam) {
+      th.style.opacity = '0.4';
+      th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" style="cursor:default;font-size:9px">補完Sc</div></div>`;
+    } else {
+      th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" data-sort="score" style="font-size:9px;cursor:pointer">補完Sc<span class="si2" data-skey="score"></span></div></div>`;
+    }
+    return th;
+  },
+  buildTd: (p, ctx) => {
+    if (ctx.isTeam) {
+      return `<td class="td-compat-sc" data-grp="waza" style="text-align:center;color:#bbb;font-size:10px">-</td>`;
+    }
+    // 候補: ctx.cand にスコア情報あり
+    const cand = ctx.cand;
+    if (!cand) return `<td class="td-compat-sc" data-grp="waza"></td>`;
+    const coverHtml = Object.entries(cand.coverDetail || {}).map(([t, r]) => {
+      const cls = r === 0 ? 'w0' : r <= 0.25 ? 'wq' : 'wh';
+      const rLbl = r === 0 ? '０' : r <= 0.25 ? '¼' : '½';
+      return `<span class="weak-badge ${cls}">${type3(t)}${rLbl}</span>`;
+    }).join('');
+    return `<td class="td-compat-sc" data-grp="waza" style="padding:0;background:#FFF9E6">
+      <table class="compat-sc-inner"><tr>
+        <td class="compat-sc-score">${cand.score.toFixed(1)}</td>
+        <td class="compat-sc-badges">${coverHtml}</td>
+      </tr></table>
+    </td>`;
+  },
+  getVal: (p, ctx) => ctx.cand ? ctx.cand.score : 0,
+});
+
+// わざ列共通ヘッダービルダー: チェックボックス式フィルタ
+// key = わざのフィールド名 (chouhatsu, jikosaisei等)
+// label = ヘッダーに表示するわざ名 (ちょうはつ, じこさいせい等)
+function buildWazaTh(ctx, key, label) {
+  const th = document.createElement('th');
+  th.className = 'th-ch';
+  th.dataset.grp = 'waza';
+  const chkId = `waza-chk-${ctx.prefix}-${key}`;
+  const isChecked = wazaFilterGet(ctx.prefix, key);
+  th.innerHTML = `<div class="hdr2">
+    <div class="hdr2-top" style="display:flex;align-items:center;justify-content:center">
+      <input type="checkbox" class="waza-chk" id="${chkId}" data-waza-key="${key}" ${isChecked ? 'checked' : ''} title="○を覚えるポケモンのみ表示">
+    </div>
+    <div class="hdr2-bot" data-sort="${key}" style="font-size:9px">${label}<span class="si2" data-skey="${key}"></span></div>
+  </div>`;
+  const chk = th.querySelector('.waza-chk');
+  chk.addEventListener('change', (e) => {
+    e.stopPropagation();
+    wazaFilterSet(ctx.prefix, key, chk.checked);
+    ctx.onFilter();
+  });
+  chk.addEventListener('click', (e) => e.stopPropagation());
+  return th;
+}
+
+// ========== わざ列 全170件 カテゴリ順 WAZA_MASTERから動的生成 ==========
+{
+  const CAT_ORDER = ['回復','防御','積み防','積み攻','積み速',
+    '能力下','状態異常','混乱メロ','壁','天候','フィールド','ルーム',
+    '技封じ','捕縛','交代','サポート','特性変','タイプ変','道具','設置','その他'];
+  const CAT_COLOR = {
+    '回復':'#1E8449','防御':'#154360','積み防':'#1A5276','積み攻':'#922B21',
+    '積み速':'#784212','能力下':'#6C3483','状態異常':'#5B2C6F','混乱メロ':'#A93226',
+    '壁':'#0E6655','天候':'#1F618D','フィールド':'#196F3D','ルーム':'#566573',
+    '技封じ':'#BA6A00','捕縛':'#6E2F1A','交代':'#5D4037','サポート':'#1A4F72',
+    '特性変':'#424949','タイプ変':'#7D6608','道具':'#4A235A','設置':'#2E4053','その他':'#4D5656'
+  };
+  const catIdx = c => { const i = CAT_ORDER.indexOf(c); return i < 0 ? 99 : i; };
+  const wazaSorted = WAZA_MASTER.filter(w => w.key)
+    .sort((a,b) => { const ci = catIdx(a.category)-catIdx(b.category); return ci!==0?ci:a.name.localeCompare(b.name,'ja'); });
+
+  wazaSorted.forEach(w => {
+    const key = w.key, label = w.name, catColor = CAT_COLOR[w.category] || '#555';
+    COLUMNS.push({
+      key,
+      grp: 'waza',
+      buildTh: (ctx) => {
+        const th = document.createElement('th');
+        th.className = 'th-ch';
+        th.dataset.grp = 'waza';
+        th.dataset.wazaCat = w.category;
+        const chkId = `waza-chk-${ctx.prefix}-${key}`;
+        const isChecked = wazaFilterGet(ctx.prefix, key);
+        th.innerHTML = `<div class="hdr2">
+          <div class="waza-cat-tag" style="background:${catColor}">${w.category}</div>
+          <div class="hdr2-top" style="display:flex;align-items:center;justify-content:center">
+            <input type="checkbox" class="waza-chk" id="${chkId}" data-waza-key="${key}" ${isChecked?'checked':''} title="${label}（${w.category}）を覚えるポケモンのみ表示">
+          </div>
+          <div class="hdr2-bot" data-sort="${key}" style="font-size:9px">${label}<span class="si2" data-skey="${key}"></span></div>
+        </div>`;
+        const chk = th.querySelector('.waza-chk');
+        chk.addEventListener('change', e => { e.stopPropagation(); wazaFilterSet(ctx.prefix,key,chk.checked); ctx.onFilter(); });
+        chk.addEventListener('click', e => e.stopPropagation());
+        return th;
+      },
+      buildTd: (p) => `<td class="td-ch" data-grp="waza">${p[key] ? '○' : ''}</td>`,
+      getVal: (p) => p[key] ? 1 : 0,
+      applyFilter: (arr, ctx) => wazaFilterGet(ctx.prefix, key) ? arr.filter(p => p[key]) : arr
+    });
+  });
+}
+
+
+// チェック列件数更新
+function updateChkCounts(ci, msId, ctx) {
+  const wrap = document.getElementById(msId);
+  if (!wrap) return;
+  const dd = wrap._dd || wrap.querySelector('.ms-dropdown');
+  if (!dd) return;
+  const cnt = {'has':0, '1':0,'2':0,'3':0,'4':0,'5':0,'6':0,'7':0};
+  Object.values(checks[ci]).forEach(v => {
+    if (v) { cnt[v] = (cnt[v]||0) + 1; cnt.has++; }
+  });
+  dd.querySelectorAll('.ms-item').forEach(item => {
+    const cb = item.querySelector('input[type=checkbox]');
+    if (!cb) return;
+    const val = cb.value;
+    const count = val === 'has' ? cnt.has : (cnt[val] || 0);
+    const baseLbl = val === 'has' ? '全て' : val;
+    const tn = [...item.childNodes].find(n => n.nodeType === 3);
+    if (tn) tn.textContent = ` ${baseLbl}(${count})`;
+    if (val === 'has' && count === 0) {
+      item.classList.add('disabled');
+      cb.disabled = true;
+    } else {
+      item.classList.remove('disabled');
+      cb.disabled = false;
+    }
+  });
+}
+
+// 全チェック列件数更新
+function updateAllChkCounts(prefix) {
+  for (let ci = 0; ci < 3; ci++) {
+    const msId = `ms-${prefix}-chk${ci}`;
+    if (document.getElementById(msId)) {
+      updateChkCounts(ci, msId, {});
+    }
+  }
+}
+
+// 相性18列: 件数0のvalを自動disabled化
+function updateResCounts(prefix, dataArr) {
+  TYPES.forEach((t, ri) => {
+    const msId = `ms-${prefix}-res${ri}`;
+    const wrap = document.getElementById(msId);
+    if (!wrap) return;
+    const dd = wrap._dd || wrap.querySelector('.ms-dropdown');
+    if (!dd) return;
+    // val別の件数集計
+    const cnt = {'4':0,'2':0,'1':0,'0.5':0,'0.25':0,'0':0};
+    dataArr.forEach(p => {
+      const v = p.resist[ri];
+      const k = String(v);
+      if (k in cnt) cnt[k]++;
+    });
+    dd.querySelectorAll('.ms-item').forEach(item => {
+      const cb = item.querySelector('input[type=checkbox]');
+      if (!cb) return;
+      const val = cb.value;
+      const count = cnt[val] || 0;
+      const tn = [...item.childNodes].find(n => n.nodeType === 3);
+      // ラベル基本部分（×4 / ×2 / ×1 / ½ / ¼ / ×0）
+      const baseLbl = {'4':'×4','2':'×2','1':'×1','0.5':'½','0.25':'¼','0':'×0'}[val] || val;
+      if (tn) tn.textContent = ` ${baseLbl}(${count})`;
+      if (count === 0) {
+        item.classList.add('disabled');
+        cb.disabled = true;
+        cb.checked = false;
+      } else {
+        item.classList.remove('disabled');
+        cb.disabled = false;
+      }
+    });
+  });
+}
+</script>
+<script>// ============================================================
+// RENDER: ヘッダー1回構築・tbodyだけ再描画
+// ============================================================
+
+// テーブル描画
+// opts = {
+//   tableEl: <table>,
+//   prefix: string,
+//   isTeam: boolean,
+//   mode: 'main' | 'compat',
+//   rows: array of {p, cand?} objects,   // candは補完候補の時のみ
+//   grpVisible: object,
+//   sortKey, sortDir,
+//   onFilter, onSort, onChk
+// }
+function renderTable(opts) {
+  const tbl = opts.tableEl;
+  const ctx = {
+    prefix: opts.prefix,
+    isTeam: opts.isTeam,
+    mode: opts.mode,
+    onFilter: opts.onFilter,
+    onSort: opts.onSort,
+    onChk: opts.onChk,
+  };
+
+  // ---- ヘッダー: 初回のみ構築 ----
+  let thead = tbl.querySelector('thead');
+  if (!thead) {
+    thead = document.createElement('thead');
+    const hdr = document.createElement('tr');
+    COLUMNS.forEach(col => {
+      // onlyCompatの列はmode='main'ではスキップ
+      if (col.onlyCompat && opts.mode !== 'compat') return;
+      const th = col.buildTh(ctx);
+      if (col.grp && opts.grpVisible && !opts.grpVisible[col.grp]) {
+        th.classList.add('col-hidden');
+      }
+      hdr.appendChild(th);
+    });
+    thead.appendChild(hdr);
+    tbl.appendChild(thead);
+
+    // ソート: theadレベルでevent delegation（個別onclickより確実）
+    thead.onclick = (e) => {
+      // ms-wrap内のクリックは除外（ドロップダウン操作）
+      if (e.target.closest('.ms-wrap')) return;
+      // ms-dropdownはbody直下に移動しているが念のため
+      if (e.target.closest('.ms-dropdown')) return;
+      if (e.target.closest('.st-filter-wrap')) return;
+      if (e.target.closest('.h-sel')) return;
+      const bot = e.target.closest('[data-sort]');
+      if (!bot) return;
+      const key = bot.dataset.sort;
+      if (key) ctx.onSort(key);
+    };
+  } else {
+    // 既存thead: 列表示状態だけ更新
+    COLUMNS.forEach((col, colIdx) => {
+      if (col.onlyCompat && opts.mode !== 'compat') return;
+      const ths = thead.querySelectorAll('tr > th');
+      const th = ths[findThIndex(col, opts.mode)];
+      if (!th) return;
+      if (col.grp && opts.grpVisible && !opts.grpVisible[col.grp]) {
+        th.classList.add('col-hidden');
+      } else {
+        th.classList.remove('col-hidden');
+      }
+    });
+  }
+
+  // ---- tbody: 毎回再構築 ----
+  let tbody = tbl.querySelector('tbody');
+  if (!tbody) {
+    tbody = document.createElement('tbody');
+    tbl.appendChild(tbody);
+  }
+
+  let html = '';
+  let alt = 0;
+  opts.rows.forEach(rowData => {
+    const p = rowData.p || rowData;
+    const cand = rowData.cand || null;
+
+    // 行クラス
+    let rCls;
+    if (opts.isTeam) {
+      rCls = 'bt-team';
+    } else {
+      if (p.form === 'メガ進化') rCls = 'bt-mega';
+      else if (p.form === 'リージョン') rCls = 'bt-region';
+      else rCls = (alt++ % 2 === 0 ? 'bt-norm1' : 'bt-norm2');
+    }
+
+    // 各列のtd生成
+    const rowCtx = { ...ctx, cand };
+    const cellsHtml = COLUMNS.map(col => {
+      if (col.onlyCompat && opts.mode !== 'compat') return '';
+      let td = col.buildTd(p, rowCtx);
+      // 列表示制御
+      if (col.grp && opts.grpVisible && !opts.grpVisible[col.grp]) {
+        td = td.replace(/^<td/, '<td class="col-hidden"').replace(/class="col-hidden" class="/, 'class="col-hidden ');
+      }
+      return td;
+    }).join('');
+
+    html += `<tr class="${rCls}" data-idx="${p._idx}">${cellsHtml}</tr>`;
+  });
+
+  tbody.innerHTML = html;
+
+  // ソートインジケーター
+  updateSortIndicators(tbl, opts.sortKey, opts.sortDir);
+
+  // チェック列selectのイベント委譲（一度だけ）
+  if (!tbody.dataset.chkBound) {
+    tbody.onchange = (e) => {
+      const sel = e.target.closest('.cm-chk');
+      if (!sel) return;
+      const ci = parseInt(sel.dataset.chk);
+      const idx = parseInt(sel.dataset.idx);
+      setChk(ci, idx, sel.value);
+      sel.classList.toggle('has-val', !!sel.value);
+      if (ctx.onChk) ctx.onChk(ci, idx, sel.value);
+    };
+    tbody.dataset.chkBound = '1';
+  }
+}
+
+function findThIndex(col, mode) {
+  let idx = 0;
+  for (const c of COLUMNS) {
+    if (c.onlyCompat && mode !== 'compat') continue;
+    if (c === col) return idx;
+    idx++;
+  }
+  return -1;
+}
+
+function updateSortIndicators(tbl, sortKey, sortDir) {
+  tbl.querySelectorAll('.si2').forEach(el => {
+    const k = el.dataset.skey;
+    el.className = 'si2';
+    if (k === sortKey) {
+      el.classList.add(sortDir === 1 ? 'asc' : 'desc');
+    }
+  });
+}
+
+// フィルター&ソート適用
+// data: ポケモン配列 (p形式) または {p, cand} 形式のどちらか（ctx.modeで判別せず、要素を見て判別）
+function applyFilterSort(data, ctx, sortKey, sortDir, extraFilters) {
+  let d = [...data];
+
+  // 要素が {p, cand} 形式かどうかを判定
+  const isPair = d.length > 0 && d[0] && typeof d[0] === 'object' && 'p' in d[0] && 'cand' in d[0];
+
+  // 列ごとのapplyFilter
+  // applyFilterは元ポケモン配列を期待するので、pair形式ならp抽出して適用後戻す
+  COLUMNS.forEach(col => {
+    if (col.onlyCompat && ctx.mode !== 'compat') return;
+    if (col.applyFilter) {
+      if (isPair) {
+        const pArr = d.map(x => x.p);
+        const filteredP = col.applyFilter(pArr, ctx);
+        const allowIdx = new Set(filteredP.map(p => p._idx));
+        d = d.filter(x => allowIdx.has(x.p._idx));
+      } else {
+        d = col.applyFilter(d, ctx);
+      }
+    }
+  });
+
+  // 追加フィルター（検索、フォルム等）
+  if (extraFilters) {
+    if (isPair) {
+      const pArr = d.map(x => x.p);
+      const filteredP = extraFilters(pArr);
+      const allowIdx = new Set(filteredP.map(p => p._idx));
+      d = d.filter(x => allowIdx.has(x.p._idx));
+    } else {
+      d = extraFilters(d);
+    }
+  }
+
+  // ソート
+  d.sort((a, b) => {
+    const aP = isPair ? a.p : a;
+    const bP = isPair ? b.p : b;
+    const aCtx = isPair ? { cand: a.cand } : {};
+    const bCtx = isPair ? { cand: b.cand } : {};
+
+    let va, vb;
+    // sortKey='score' は補完候補のスコア
+    if (sortKey === 'score') {
+      va = aCtx.cand ? aCtx.cand.score : 0;
+      vb = bCtx.cand ? bCtx.cand.score : 0;
+    } else {
+      const col = COLUMNS.find(c => c.key === sortKey);
+      if (col && col.getVal) {
+        va = col.getVal(aP, aCtx);
+        vb = col.getVal(bP, bCtx);
+      } else {
+        va = aP[sortKey];
+        vb = bP[sortKey];
+      }
+    }
+
+    // 文字列比較
+    if (typeof va === 'string' && typeof vb === 'string') {
+      if (va === '' && vb === '') return 0;
+      if (va === '') return 1;  // 空は後ろ
+      if (vb === '') return -1;
+      return va.localeCompare(vb, 'ja') * sortDir;
+    }
+    // null/undefined
+    if (va == null || va === undefined) return 1;
+    if (vb == null || vb === undefined) return -1;
+    // 数値比較
+    return (va - vb) * sortDir;
+  });
+
+  return d;
+}
+
+// 列表示トグル
+function toggleGrp(grp, btn, visState, tbls) {
+  visState[grp] = !visState[grp];
+  btn.classList.toggle('off', !visState[grp]);
+  // 各テーブルで該当列を表示/非表示
+  tbls.forEach(tbl => {
+    if (!tbl) return;
+    tbl.querySelectorAll(`[data-grp="${grp}"]`).forEach(el => {
+      el.classList.toggle('col-hidden', !visState[grp]);
+    });
+  });
+}
+</script>
+<script>// ============================================================
+// APP: 元リスト & 補完検索 のアプリケーションロジック
+// ============================================================
+
+// 元リストの適用
+function applyF() {
+  const tbl = document.getElementById('main-tbl');
+  if (!tbl) return;
+
+  const ctx = {
+    prefix: 'main',
+    mode: 'main',
+    onFilter: applyF,
+    onSort: sortBy,
+    onChk: (ci, idx, val) => {
+      saveChecks();
+      updateAllChkCounts('main');
+      applyF();
+    }
+  };
+
+  // 追加フィルター（検索、フォルム、タイプチップ）
+  const extraFilters = (d) => {
+    // 検索
+    const q = document.getElementById('srch')?.value.trim() || '';
+    if (q) {
+      d = d.filter(p =>
+        nameMatches(p.name, q) ||
+        (p.ab1 + p.ab2 + p.ab3).toLowerCase().includes(q.toLowerCase())
+      );
+    }
+    // タイプ絞込
+    if (selTypes.size > 0) {
+      d = d.filter(p => {
+        const ts = new Set([p.type1, p.type2].filter(Boolean));
+        return [...selTypes].every(t => ts.has(t));
+      });
+    }
+    // タイプ除外
+    if (excludeTypes.size > 0) {
+      d = d.filter(p => {
+        const ts = new Set([p.type1, p.type2].filter(Boolean));
+        return ![...excludeTypes].some(t => ts.has(t));
+      });
+    }
+    return d;
+  };
+
+  const rows = applyFilterSort(DATA, ctx, sortKey, sortDir, extraFilters);
+
+  renderTable({
+    tableEl: tbl,
+    prefix: 'main',
+    isTeam: false,
+    mode: 'main',
+    rows,
+    grpVisible,
+    sortKey,
+    sortDir,
+    onFilter: applyF,
+    onSort: sortBy,
+    onChk: ctx.onChk
+  });
+
+  // 件数表示
+  const lbl = document.getElementById('clbl');
+  if (lbl) lbl.textContent = `${rows.length} / ${DATA.length}`;
+  updateCompatBtns();
+}
+
+function sortBy(key) {
+  if (sortKey === key) sortDir *= -1;
+  else { sortKey = key; sortDir = -1; }
+  applyF();
+}
+
+// ============================================================
+// 補完検索
+// ============================================================
+
+function openCompatSearch(ci) {
+  compatCiNum = ci;
+  const modal = document.getElementById('compat-modal');
+  const body = document.getElementById('compat-body');
+  modal.classList.add('open');
+
+  // ズーム/最大化リセット
+  compatZoomLevel = 100;
+  const zlbl = document.getElementById('compat-zoom-lbl');
+  if (zlbl) zlbl.textContent = '100%';
+  // zoomリセット（テーブルに対して後でapplyCompatZoom実行される）
+  compatMaximized = true;
+  const mi = document.getElementById('compat-modal-inner');
+  if (mi) {
+    mi.style.width = '100vw';
+    mi.style.height = '100vh';
+    mi.style.borderRadius = '0';
+  }
+
+  const titleEl = document.getElementById('compat-title');
+  if (titleEl) titleEl.textContent = `🔍 補完検索（チェック${ci+1}）`;
+
+  const team = DATA.filter(p => checks[ci][p._idx] !== undefined);
+  if (team.length === 0) {
+    body.innerHTML = `<div class="modal-info" style="color:#cc0000">⚠ チェック${ci+1}に値が入っているポケモンがありません。<br>チェック${ci+1}の欄に値を入れてから再度お試しください。</div>`;
+    return;
+  }
+
+  buildCompatResult(team, ci);
+}
+
+function closeCompatSearch() {
+  document.getElementById('compat-modal').classList.remove('open');
+}
+
+function buildCompatResult(team, ci) {
+  compatTeam = team;
+
+  // チーム弱点計算
+  const teamWeakness = {};
+  TYPES.forEach((t, ti) => {
+    const x4 = team.filter(p => p.resist[ti] === 4).map(p => p.name);
+    const x2 = team.filter(p => p.resist[ti] === 2).map(p => p.name);
+    teamWeakness[t] = { x4, x2, count: x4.length * 2 + x2.length };
+  });
+  const sortedWeak = Object.entries(teamWeakness)
+    .sort((a, b) => b[1].count - a[1].count)
+    .filter(([t, w]) => w.count > 0);
+
+  // 補完候補算出
+  compatCandidates = DATA.map(p => {
+    if (team.some(t => t.name === p.name)) return null;
+    let score = 0;
+    const coverDetail = {};
+    sortedWeak.forEach(([t, w]) => {
+      const ti = TYPES.indexOf(t);
+      const res = p.resist[ti];
+      if (res <= 0.5) {
+        score += res === 0 ? w.count * 3 : res === 0.25 ? w.count * 2 : w.count;
+        coverDetail[t] = res;
+      }
+      if (res < 2) score += w.count * 0.2;
+    });
+    TYPES.forEach((t, ti) => {
+      if (p.resist[ti] === 4) score -= 0.6;
+      else if (p.resist[ti] === 2) score -= 0.3;
+    });
+    return { p, score, coverDetail };
+  }).filter(Boolean).sort((a, b) => b.score - a.score).slice(0, 50);
+
+  // 弱点サマリー
+  let weakHtml = '';
+  if (sortedWeak.length === 0) {
+    weakHtml = '弱点なし！素晴らしいチーム構成です。';
+  } else {
+    sortedWeak.slice(0, 12).forEach(([t, w]) => {
+      if (w.x4.length) weakHtml += `<span class="weak-badge w4">${t}×4×${w.x4.length}</span>`;
+      else if (w.x2.length) weakHtml += `<span class="weak-badge w2">${t}×2×${w.x2.length}</span>`;
+    });
+  }
+
+  // HTML組み立て
+  const body = document.getElementById('compat-body');
+  body.innerHTML = `
+    <div class="modal-section" style="padding:4px 8px">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <h4 style="margin:0;border:none;padding:0;white-space:nowrap;font-size:11px">📊 チームの弱点分析（チェック${ci+1}・${team.length}体）</h4>
+        <div class="modal-info" style="font-size:10px">${weakHtml}</div>
+      </div>
+    </div>
+    <div class="grp-bar">
+      <span class="grp-lbl">列表示:</span>
+      <button class="grp-btn" data-cgrp="chk">チェック</button>
+      <button class="grp-btn" data-cgrp="type">タイプ</button>
+      <button class="grp-btn" data-cgrp="stat">能力値</button>
+      <button class="grp-btn" data-cgrp="ab">とくせい</button>
+      <button class="grp-btn" data-cgrp="resist">相性18</button>
+      <button class="grp-btn" data-cgrp="cnt">集計+スコア</button>
+      <button class="grp-btn" data-cgrp="waza">補完Sc/わざ</button>
+      <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
+      <span class="grp-lbl">絞込:</span>
+      <div id="compat-tychips" style="display:inline-block"></div>
+      <button class="tc-clr" id="compat-clr-sel">✕</button>
+      <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
+      <span class="grp-lbl" style="color:#FF9999">除外:</span>
+      <div id="compat-tychips-exc" style="display:inline-block"></div>
+      <button class="tc-clr" id="compat-clr-exc" style="color:#FF9999">✕</button>
+      <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
+      <button class="btn btn-reset" id="compat-reset">🔄 リセット</button>
+    </div>
+    <div class="compat-label" style="display:flex;align-items:center;gap:8px">
+      <span>▶ チームポケモン（${team.length}体）</span>
+      <button class="btn btn-copy" style="padding:2px 8px;font-size:10px" onclick="copyCompatTeam(this)">📋 チームコピー</button>
+    </div>
+    <div class="compat-tbl-wrap"><table id="compat-team-tbl"></table></div>
+    <div class="compat-label" id="compat-cand-label" style="margin-top:8px;display:flex;align-items:center;gap:8px">
+      <span>▶ 補完候補（${compatCandidates.length}件 / Top50）</span>
+      <button class="btn btn-copy" style="padding:2px 8px;font-size:10px" onclick="copyCompatCand(this)">📋 候補コピー</button>
+    </div>
+    <div class="compat-tbl-wrap"><table id="compat-cand-tbl"></table></div>
+  `;
+
+  // イベントバインド
+  body.querySelectorAll('.grp-btn[data-cgrp]').forEach(btn => {
+    btn.onclick = () => {
+      const g = btn.dataset.cgrp;
+      toggleGrp(g, btn, compatGrpVisible, [
+        document.getElementById('compat-team-tbl'),
+        document.getElementById('compat-cand-tbl')
+      ]);
+    };
+  });
+  document.getElementById('compat-clr-sel').onclick = () => {
+    compatSelTypes.clear();
+    buildCompatTyChips();
+    compatApply();
+  };
+  document.getElementById('compat-clr-exc').onclick = () => {
+    compatExcludeTypes.clear();
+    buildCompatTyChips();
+    compatApply();
+  };
+  document.getElementById('compat-reset').onclick = resetCompatFilters;
+
+  buildCompatTyChips();
+
+  // ソート初期化
+  compatTeamSortKey = 'total';
+  compatTeamSortDir = -1;
+  compatCandSortKey = 'score';
+  compatCandSortDir = -1;
+
+  // レンダー
+  renderCompatTeam();
+  compatApply();
+
+  // 相性18の件数0をdisabled化
+  setTimeout(() => {
+    updateResCounts('team', compatTeam);
+    updateResCounts('cand', compatCandidates.map(c => c.p));
+  }, 100);
+}
+
+function buildCompatTyChips() {
+  const tyList = typeOrderSorted
+    ? [...TYPES].sort((a, b) => a.localeCompare(b, 'ja'))
+    : TYPES;
+
+  // 絞込
+  const w1 = document.getElementById('compat-tychips');
+  if (w1) {
+    w1.innerHTML = '';
+    tyList.forEach(t => {
+      const col = TYPE_COLORS[t] || '#999';
+      const btn = document.createElement('span');
+      btn.className = 'tc' + (compatSelTypes.has(t) ? ' on' : '');
+      btn.style.background = col;
+      btn.textContent = type3(t);
+      btn.onclick = () => {
+        if (compatSelTypes.has(t)) {
+          compatSelTypes.delete(t);
+          btn.classList.remove('on');
+        } else {
+          compatSelTypes.add(t);
+          btn.classList.add('on');
+        }
+        compatApply();
+      };
+      w1.appendChild(btn);
+    });
+  }
+
+  // 除外
+  const w2 = document.getElementById('compat-tychips-exc');
+  if (w2) {
+    w2.innerHTML = '';
+    tyList.forEach(t => {
+      const col = TYPE_COLORS[t] || '#999';
+      const btn = document.createElement('span');
+      btn.className = 'tc' + (compatExcludeTypes.has(t) ? ' on' : '');
+      btn.style.background = col;
+      btn.textContent = type3(t);
+      btn.onclick = () => {
+        if (compatExcludeTypes.has(t)) {
+          compatExcludeTypes.delete(t);
+          btn.classList.remove('on');
+        } else {
+          compatExcludeTypes.add(t);
+          btn.classList.add('on');
+        }
+        compatApply();
+      };
+      w2.appendChild(btn);
+    });
+  }
+}
+
+function renderCompatTeam() {
+  const tbl = document.getElementById('compat-team-tbl');
+  if (!tbl) return;
+
+  const ctx = {
+    prefix: 'team',
+    mode: 'compat',
+    onFilter: renderCompatTeam,
+    onSort: (key) => {
+      if (compatTeamSortKey === key) compatTeamSortDir *= -1;
+      else { compatTeamSortKey = key; compatTeamSortDir = -1; }
+      renderCompatTeam();
+    },
+    onChk: (ci, idx, val) => {
+      saveChecks();
+      updateAllChkCounts('team');
+      updateAllChkCounts('cand');
+      updateAllChkCounts('main');
+      renderCompatTeam();
+      compatApply();
+    }
+  };
+
+  // チームは常時全件表示（タイプフィルター非適用）
+  const extraFilters = (d) => d;
+
+  const rows = applyFilterSort(compatTeam, ctx, compatTeamSortKey, compatTeamSortDir, extraFilters);
+
+  renderTable({
+    tableEl: tbl,
+    prefix: 'team',
+    isTeam: true,
+    mode: 'compat',
+    rows,
+    grpVisible: compatGrpVisible,
+    sortKey: compatTeamSortKey,
+    sortDir: compatTeamSortDir,
+    onFilter: renderCompatTeam,
+    onSort: ctx.onSort,
+    onChk: ctx.onChk
+  });
+}
+
+function compatApply() {
+  const tbl = document.getElementById('compat-cand-tbl');
+  if (!tbl) return;
+
+  const ctx = {
+    prefix: 'cand',
+    mode: 'compat',
+    onFilter: compatApply,
+    onSort: (key) => {
+      if (compatCandSortKey === key) compatCandSortDir *= -1;
+      else { compatCandSortKey = key; compatCandSortDir = -1; }
+      compatApply();
+    },
+    onChk: (ci, idx, val) => {
+      saveChecks();
+      updateAllChkCounts('team');
+      updateAllChkCounts('cand');
+      updateAllChkCounts('main');
+      renderCompatTeam();
+      compatApply();
+    }
+  };
+
+  const extraFilters = (d) => {
+    if (compatSelTypes.size > 0) {
+      d = d.filter(p => {
+        const ts = new Set([p.type1, p.type2].filter(Boolean));
+        return [...compatSelTypes].every(t => ts.has(t));
+      });
+    }
+    if (compatExcludeTypes.size > 0) {
+      d = d.filter(p => {
+        const ts = new Set([p.type1, p.type2].filter(Boolean));
+        return ![...compatExcludeTypes].some(t => ts.has(t));
+      });
+    }
+    return d;
+  };
+
+  // candidatesはオブジェクト形式なので、p抽出してフィルター、その後ペアを復元
+  let pairs = compatCandidates.map(cand => ({ p: cand.p, cand }));
+  // フィルター適用（pに対して）
+  // applyFilterSortはp配列を期待するので、p部分で処理してからpairsに戻す
+  const pArr = pairs.map(pair => pair.p);
+  const filteredP = applyFilterSort(pArr, ctx, compatCandSortKey, compatCandSortDir, extraFilters);
+  // filteredPに対応するpairを抽出
+  const pMap = new Map(pairs.map(pr => [pr.p._idx, pr]));
+  pairs = filteredP.map(p => pMap.get(p._idx));
+
+  // スコアソートの場合はcand.scoreでソート
+  if (compatCandSortKey === 'score') {
+    pairs.sort((a, b) => (a.cand.score - b.cand.score) * compatCandSortDir);
+  }
+
+  renderTable({
+    tableEl: tbl,
+    prefix: 'cand',
+    isTeam: false,
+    mode: 'compat',
+    rows: pairs,
+    grpVisible: compatGrpVisible,
+    sortKey: compatCandSortKey,
+    sortDir: compatCandSortDir,
+    onFilter: compatApply,
+    onSort: ctx.onSort,
+    onChk: ctx.onChk
+  });
+
+  const lbl = document.getElementById('compat-cand-label');
+  if (lbl) {
+    const span = lbl.querySelector('span');
+    if (span) span.textContent = `▶ 補完候補（${pairs.length}件 / ${compatCandidates.length}中）`;
+    else lbl.textContent = `▶ 補完候補（${pairs.length}件 / ${compatCandidates.length}中）`;
+  }
+}
+
+function resetCompatFilters() {
+  compatSelTypes.clear();
+  compatExcludeTypes.clear();
+  buildCompatTyChips();
+  // 全msClear
+  document.querySelectorAll('#compat-body .ms-wrap').forEach(w => {
+    msClear(w.id);
+  });
+  // 能力値
+  document.querySelectorAll('#compat-body .st-op').forEach(el => el.value = '');
+  document.querySelectorAll('#compat-body .st-num').forEach(el => el.value = '');
+  // メガ
+  document.querySelectorAll('#compat-body .h-sel').forEach(el => el.value = '');
+  compatCandSortKey = 'score'; compatCandSortDir = -1;
+  compatTeamSortKey = 'total'; compatTeamSortDir = -1;
+  renderCompatTeam();
+  compatApply();
+}
+
+// ============================================================
+// タイプチップ（元リスト）
+// ============================================================
+function buildTyChips() {
+  const tyList = typeOrderSorted
+    ? [...TYPES].sort((a, b) => a.localeCompare(b, 'ja'))
+    : TYPES;
+
+  // 絞込
+  const w1 = document.getElementById('tychips-sel');
+  if (w1) {
+    w1.innerHTML = '';
+    tyList.forEach(t => {
+      const btn = document.createElement('span');
+      btn.className = 'tc' + (selTypes.has(t) ? ' on' : '');
+      btn.style.background = TYPE_COLORS[t] || '#999';
+      btn.textContent = type3(t);
+      btn.onclick = () => {
+        if (selTypes.has(t)) { selTypes.delete(t); btn.classList.remove('on'); }
+        else {
+          if (selTypes.size >= 2) {
+            // 2個目（最後にaddされたもの）を削除、1個目は保持
+            const arr = [...selTypes];
+            const lastAdded = arr[arr.length - 1];
+            selTypes.delete(lastAdded);
+            document.querySelectorAll('#tychips-sel .tc').forEach(el => {
+              if (el.textContent === type3(lastAdded)) el.classList.remove('on');
+            });
+          }
+          selTypes.add(t);
+          btn.classList.add('on');
+        }
+        applyF();
+      };
+      w1.appendChild(btn);
+    });
+  }
+  // 除外
+  const w2 = document.getElementById('tychips-exc');
+  if (w2) {
+    w2.innerHTML = '';
+    tyList.forEach(t => {
+      const btn = document.createElement('span');
+      btn.className = 'tc' + (excludeTypes.has(t) ? ' on' : '');
+      btn.style.background = TYPE_COLORS[t] || '#999';
+      btn.textContent = type3(t);
+      btn.onclick = () => {
+        if (excludeTypes.has(t)) { excludeTypes.delete(t); btn.classList.remove('on'); }
+        else { excludeTypes.add(t); btn.classList.add('on'); }
+        applyF();
+      };
+      w2.appendChild(btn);
+    });
+  }
+}
+
+function clearSelTy() { selTypes.clear(); buildTyChips(); applyF(); }
+function clearExcTy() { excludeTypes.clear(); buildTyChips(); applyF(); }
+function toggleTypeOrder() {
+  typeOrderSorted = !typeOrderSorted;
+  const btn = document.getElementById('type-order-btn');
+  if (btn) btn.textContent = typeOrderSorted ? '🔤 タイプ:五十音' : '🔤 タイプ:整理順';
+  buildTyChips();
+  applyF();
+}
+
+
+
+
+// 補完①②③ボタンの有効/無効を制御
+function updateCompatBtns() {
+  for (let ci = 0; ci < 3; ci++) {
+    // checks[ci] に1つでも値があれば有効
+    const cnt = Object.values(checks[ci]).filter(v => v).length;
+    const btn = document.querySelector(`button.btn-compat[onclick="openCompatSearch(${ci})"]`);
+    if (btn) {
+      btn.disabled = (cnt === 0);
+      btn.title = cnt === 0 ? `C${ci+1}にチェックされたポケモンがありません` : `C${ci+1}の${cnt}体で補完検索`;
+    }
+  }
+}
+
+// 特定チェック列(C1/C2/C3)の値を全クリア
+function resetChecks(ci) {
+  if (ci < 0 || ci > 2) return;
+  if (!confirm(`C${ci+1}のチェックを全てクリアしますか？`)) return;
+  checks[ci] = {};
+  // C列フィルタの選択もクリア（ボタンの「◯件▾」表示をリセット）
+  msClear(`ms-main-chk${ci}`);
+  // ms-item 内の件数表示 「1(3)」「2(5)」等もリセット（checks[ci]が空になったので全て(0)になる）
+  updateAllChkCounts('main');
+  saveChecks();
+  applyF();
+}
+
+function resetAllFilters() {
+  // 全フィルタをリセット（checks値=各ポケモンのC1/C2/C3は保持）
+  selTypes.clear(); excludeTypes.clear();
+  document.querySelectorAll('#main-tbl .ms-wrap').forEach(w => msClear(w.id));
+  document.querySelectorAll('#main-tbl .st-op').forEach(el => el.value = '');
+  document.querySelectorAll('#main-tbl .st-num').forEach(el => el.value = '');
+  document.querySelectorAll('#main-tbl .h-sel').forEach(el => el.value = '');
+  // わざチェックボックスもリセット
+  wazaFilterReset('main');
+  document.querySelectorAll('#main-tbl .waza-chk').forEach(chk => chk.checked = false);
+  const srch = document.getElementById('srch');
+  if (srch) srch.value = '';
+  sortKey = 'no'; sortDir = 1;
+  buildTyChips();
+  // checksは触らない（各ポケモンのチェック値は保持される）
+  applyF();
+}
+
+// td内容を正しく取得（selectは.valueを取得）
+function getCellText(td) {
+  const sel = td.querySelector('select');
+  if (sel) return sel.value || '';
+  const inp = td.querySelector('input');
+  if (inp) return inp.value || '';
+  return td.textContent.trim();
+}
+
+function copyTable(tblId, btnEl) {
+  const tbl = document.getElementById(tblId);
+  if (!tbl) return;
+  const rows = tbl.querySelectorAll('tbody tr');
+  const data = [];
+  // ヘッダー
+  const headers = [...tbl.querySelectorAll('thead th:not(.col-hidden)')].map(th => {
+    return (th.querySelector('.hdr2-bot')?.textContent.replace(/[▲▼]/g, '').trim()) || th.textContent.trim();
+  });
+  data.push(headers.join('\t'));
+  rows.forEach(tr => {
+    const cells = [...tr.querySelectorAll('td:not(.col-hidden)')].map(td => getCellText(td));
+    data.push(cells.join('\t'));
+  });
+  navigator.clipboard.writeText(data.join('\n')).then(() => {
+    if (btnEl) {
+      const orig = btnEl.textContent;
+      btnEl.textContent = '✓ コピー済み';
+      setTimeout(() => btnEl.textContent = orig, 1500);
+    }
+  });
+}
+
+function copyVisible() {
+  const btn = document.querySelector('.tb .btn-copy');
+  copyTable('main-tbl', btn);
+}
+
+function copyCompatTeam(btnEl) { copyTable('compat-team-tbl', btnEl); }
+function copyCompatCand(btnEl) { copyTable('compat-cand-tbl', btnEl); }
+
+// ============================================================
+// 検索
+// ============================================================
+function onSrchInput() { applyF(); }
+function onSrchKey(e) { if (e.key === 'Enter') applyF(); }
+function clearSrch() {
+  const el = document.getElementById('srch');
+  if (el) { el.value = ''; applyF(); }
+}
+
+
+// ============================================================
+// 補完モーダル: ズーム・最大化
+// ============================================================
+let compatZoomLevel = 100;
+let compatMaximized = true; // 初期は最大化
+
+function compatZoom(delta) {
+  compatZoomLevel = Math.max(50, Math.min(200, compatZoomLevel + delta));
+  applyCompatZoom();
+}
+function applyCompatZoom() {
+  const lbl = document.getElementById('compat-zoom-lbl');
+  if (lbl) lbl.textContent = compatZoomLevel + '%';
+  // 両テーブルにだけzoom適用（modal-body自体のサイズは保つ）
+  const teamTbl = document.getElementById('compat-team-tbl');
+  const candTbl = document.getElementById('compat-cand-tbl');
+  if (teamTbl) teamTbl.style.zoom = compatZoomLevel / 100;
+  if (candTbl) candTbl.style.zoom = compatZoomLevel / 100;
+}
+
+function compatZoomReset() {
+  compatZoomLevel = 100;
+  applyCompatZoom();
+}
+
+function compatMaximize() {
+  const mi = document.getElementById('compat-modal-inner');
+  if (!mi) return;
+  compatMaximized = !compatMaximized;
+  if (compatMaximized) {
+    // 最大化: 位置リセット&フル画面&リサイズ無効
+    mi.style.width = '100vw';
+    mi.style.height = '100vh';
+    mi.style.borderRadius = '0';
+    mi.style.transform = '';
+    mi.dataset.tx = '0';
+    mi.dataset.ty = '0';
+    enableCompatDrag(false);
+    mi.classList.remove('resize-enabled');
+    enableCompatResize(false);
+  } else {
+    // 解除: サイズ縮小&ドラッグ&リサイズ有効
+    mi.style.width = '90vw';
+    mi.style.height = '88vh';
+    mi.style.borderRadius = '6px';
+    mi.style.transform = '';
+    mi.dataset.tx = '0';
+    mi.dataset.ty = '0';
+    enableCompatDrag(true);
+    mi.classList.add('resize-enabled');
+    enableCompatResize(true);
+  }
+}
+
+
+
+// モーダルリサイズ機能
+function enableCompatResize(enable) {
+  const r = document.getElementById('compat-resize-r');
+  const b = document.getElementById('compat-resize-b');
+  const br = document.getElementById('compat-resize-br');
+  if (!r || !b || !br) return;
+  if (enable) {
+    r.onmousedown = (e) => startCompatResize(e, 'r');
+    b.onmousedown = (e) => startCompatResize(e, 'b');
+    br.onmousedown = (e) => startCompatResize(e, 'br');
+  } else {
+    r.onmousedown = null;
+    b.onmousedown = null;
+    br.onmousedown = null;
+  }
+}
+
+function startCompatResize(e, dir) {
+  e.preventDefault();
+  e.stopPropagation();
+  const mi = document.getElementById('compat-modal-inner');
+  if (!mi) return;
+  const rect = mi.getBoundingClientRect();
+  const startW = rect.width;
+  const startH = rect.height;
+  const startX = e.clientX;
+  const startY = e.clientY;
+
+  function onMove(ev) {
+    if (dir === 'r' || dir === 'br') {
+      const w = Math.max(400, startW + (ev.clientX - startX));
+      mi.style.width = w + 'px';
+    }
+    if (dir === 'b' || dir === 'br') {
+      const h = Math.max(300, startH + (ev.clientY - startY));
+      mi.style.height = h + 'px';
+    }
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+// モーダルドラッグ機能
+function enableCompatDrag(enable) {
+  const mi = document.getElementById('compat-modal-inner');
+  const hdr = mi?.querySelector('.modal-header');
+  if (!mi || !hdr) return;
+  if (enable) {
+    hdr.style.cursor = 'move';
+    hdr.onmousedown = startCompatDrag;
+  } else {
+    hdr.style.cursor = '';
+    hdr.onmousedown = null;
+  }
+}
+
+function startCompatDrag(e) {
+  // ボタン・リンクの上では発動しない
+  if (e.target.closest('button, input, select, a')) return;
+  const mi = document.getElementById('compat-modal-inner');
+  if (!mi) return;
+  const tx0 = parseFloat(mi.dataset.tx || '0');
+  const ty0 = parseFloat(mi.dataset.ty || '0');
+  const sx = e.clientX;
+  const sy = e.clientY;
+  e.preventDefault();
+
+  function onMove(ev) {
+    const tx = tx0 + (ev.clientX - sx);
+    const ty = ty0 + (ev.clientY - sy);
+    mi.style.transform = `translate(${tx}px, ${ty}px)`;
+    mi.dataset.tx = String(tx);
+    mi.dataset.ty = String(ty);
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
+
+// ============================================================
+// 元リストのズーム機能
+// ============================================================
+let mainZoomLevel = 100;
+
+function mainZoom(delta) {
+  mainZoomLevel = Math.max(50, Math.min(200, mainZoomLevel + delta));
+  applyMainZoom();
+}
+
+function mainZoomReset() {
+  mainZoomLevel = 100;
+  applyMainZoom();
+}
+
+function applyMainZoom() {
+  // wrap内部のtableにzoom適用（wrap自体のサイズは保つ → スクロールバーが正しい位置に残る）
+  const tbl = document.getElementById('main-tbl');
+  if (tbl) {
+    tbl.style.zoom = mainZoomLevel / 100;
+  }
+  const lbl = document.getElementById('main-zoom-lbl');
+  if (lbl) lbl.textContent = mainZoomLevel + '%';
+}
+
+// ============================================================
+// 初期化
+// ============================================================
+function init() {
+  initScores();
+  loadChecks();
+
+  // タブ初期化
+  renderTabs();
+
+  // 元リストタイプチップ
+  buildTyChips();
+
+  // 元リスト描画
+  applyF();
+
+  // 列表示トグル
+  document.querySelectorAll('#main-grp-bar .grp-btn[data-grp]').forEach(btn => {
+    btn.onclick = () => {
+      const g = btn.dataset.grp;
+      toggleGrp(g, btn, grpVisible, [document.getElementById('main-tbl')]);
+    };
+  });
+
+  // 相性18の件数0をdisabled化（描画後に実行）
+  setTimeout(() => updateResCounts('main', DATA), 100);
+}
+
+window.addEventListener('DOMContentLoaded', init);
+
+// ========== とくせい フローティングtooltip ==========
+// CSS ::after は overflow:hidden にクリップされるため JS で body 直下に配置
+(function() {
+  const tip = document.createElement('div');
+  tip.id = 'ab-tooltip-float';
+  document.body.appendChild(tip);
+
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('.ab-tip');
+    if (el && el.title) {
+      tip.textContent = el.title;
+      tip.style.display = 'block';
+    }
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (tip.style.display !== 'block') return;
+    let x = e.clientX + 14;
+    let y = e.clientY + 14;
+    // 画面端からはみ出し防止
+    const w = tip.offsetWidth, h = tip.offsetHeight;
+    if (x + w > window.innerWidth  - 8) x = e.clientX - w - 8;
+    if (y + h > window.innerHeight - 8) y = e.clientY - h - 8;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  });
+
+  document.addEventListener('mouseout', e => {
+    if (e.target.closest('.ab-tip')) tip.style.display = 'none';
+  });
+})();
+
+// ========== わざリスト別タブ表示 ==========
+// 追加済みわざキー (新しいわざを追加したらここに追加)
+// ADDED_WAZA_KEYS: WAZA_MASTER.added=true のキーを動的抽出
+// → 追加済みわざの管理は waza_master.js の added フラグで一元化
+const ADDED_WAZA_KEYS = WAZA_MASTER.filter(w => w.added).map(w => w.key);
+
+// base64 (UTF-8対応) デコード
+function b64DecodeUnicode(b64) {
+  return decodeURIComponent(Array.prototype.map.call(atob(b64), c =>
+    '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)
+  ).join(''));
+}
+
+function openWazaList() {
+  const tpl = document.getElementById('waza-list-template');
+  if (!tpl) { alert('わざリストテンプレートが見つかりません'); return; }
+  const b64 = tpl.textContent.trim();
+  let html;
+  try {
+    html = b64DecodeUnicode(b64);
+  } catch (e) {
+    alert('わざリストの読み込みに失敗: ' + e.message); return;
+  }
+  // ★ WAZA_MASTER を moves として注入 (マスターデータ一元化)
+  html = html.replace('__MOVES_PLACEHOLDER__', JSON.stringify(WAZA_MASTER));
+  // addedKeys を動的に注入 (DB連動)
+  html = html.replace(/const addedKeys = \[[^\]]*\];/, 'const addedKeys = ' + JSON.stringify(ADDED_WAZA_KEYS) + ';');
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  // 別タブで開く
+  const w = window.open(url, '_blank');
+  if (!w) { alert('ポップアップがブロックされました。別タブ表示を許可してください'); }
+}
+
+</script>
+
+
+<script id="waza-list-template" type="text/plain">PCFET0NUWVBFIGh0bWw+CjxodG1sIGxhbmc9ImphIj48aGVhZD48bWV0YSBjaGFyc2V0PSJ1dGYtOCI+CjwhLS0gdjkgYnVpbGQ6IDIwMjYtMDQtMTkgMDg6NDQgV0FaQV9NQVNURVIgLS0+Cjx0aXRsZT7jg53jgrHjg4Hjg6Pjg7Mg44KP44GW44Oq44K544OIPC90aXRsZT4KPHN0eWxlPgoqIHsgYm94LXNpemluZzogYm9yZGVyLWJveDsgfQpib2R5IHsgZm9udC1mYW1pbHk6IC1hcHBsZS1zeXN0ZW0sICJIaXJhZ2lubyBLYWt1IEdvdGhpYyBQcm9OIiwgTWVpcnlvLCBzYW5zLXNlcmlmOyBiYWNrZ3JvdW5kOiAjRjVGNUY1OyBwYWRkaW5nOiA0cHg7IG1hcmdpbjogMDsgY29sb3I6ICMyMjI7IGZvbnQtc2l6ZTogMTFweDsgfQoKLnRvcC1iYXIgeyBwb3NpdGlvbjogc3RpY2t5OyB0b3A6IDA7IHotaW5kZXg6IDEwMDsgYmFja2dyb3VuZDogI0Y1RjVGNTsgcGFkZGluZzogNHB4OyBib3JkZXItYm90dG9tOiAycHggc29saWQgIzFGNEU3OTsgZGlzcGxheTogZmxleDsgZ2FwOiA4cHg7IGFsaWduLWl0ZW1zOiBjZW50ZXI7IGZsZXgtd3JhcDogd3JhcDsgfQoudG9wLWJhciBoMSB7IG1hcmdpbjogMDsgZm9udC1zaXplOiAxNHB4OyBjb2xvcjogIzFGNEU3OTsgfQoudG9wLWJhciBpbnB1dFt0eXBlPXNlYXJjaF0geyBwYWRkaW5nOiAycHggNnB4OyBmb250LXNpemU6IDExcHg7IGJvcmRlcjogMXB4IHNvbGlkICM5OTk7IGJvcmRlci1yYWRpdXM6IDNweDsgd2lkdGg6IDE4MHB4OyB9Ci50b3AtYmFyIGJ1dHRvbiB7IHBhZGRpbmc6IDJweCA4cHg7IGZvbnQtc2l6ZTogMTFweDsgYmFja2dyb3VuZDogI0YzOUMxMjsgY29sb3I6IHdoaXRlOyBib3JkZXI6IG5vbmU7IGJvcmRlci1yYWRpdXM6IDNweDsgY3Vyc29yOiBwb2ludGVyOyBmb250LXdlaWdodDogNzAwOyB9Ci50b3AtYmFyIGJ1dHRvbi5zZWNvbmRhcnkgeyBiYWNrZ3JvdW5kOiAjN0Y4QzhEOyB9Ci50b3AtYmFyIC5jb3VudCB7IGZvbnQtd2VpZ2h0OiA3MDA7IGNvbG9yOiAjMUY0RTc5OyB9Cgp0YWJsZSB7IGJvcmRlci1jb2xsYXBzZTogY29sbGFwc2U7IHdpZHRoOiAxMDAlOyBmb250LXNpemU6IDExcHg7IGJhY2tncm91bmQ6IHdoaXRlOyB9CnRoZWFkIHsgcG9zaXRpb246IHN0aWNreTsgdG9wOiA0MnB4OyB6LWluZGV4OiA1MDsgfQp0aGVhZCB0ci5oZWFkLXJvdyB0aCB7IGJhY2tncm91bmQ6ICMxRjRFNzk7IGNvbG9yOiB3aGl0ZTsgcGFkZGluZzogM3B4IDRweDsgdGV4dC1hbGlnbjogY2VudGVyOyBib3JkZXI6IDFweCBzb2xpZCAjMGEyMDQwOyBjdXJzb3I6IHBvaW50ZXI7IHVzZXItc2VsZWN0OiBub25lOyB3aGl0ZS1zcGFjZTogbm93cmFwOyBmb250LXdlaWdodDogNzAwOyBmb250LXNpemU6IDExcHg7IH0KdGhlYWQgdHIuaGVhZC1yb3cgdGguY29sLW5hbWUsIHRoZWFkIHRyLmhlYWQtcm93IHRoLmNvbC1lZmZlY3QgeyB0ZXh0LWFsaWduOiBsZWZ0OyB9CnRoZWFkIHRyLmhlYWQtcm93IHRoLmNvbC1jaGsgeyBmb250LXNpemU6IDE2cHg7IHBhZGRpbmc6IDJweDsgfQp0aGVhZCB0ci5oZWFkLXJvdyB0aDpob3ZlciB7IGJhY2tncm91bmQ6ICMyQTYwOTE7IH0KdGhlYWQgdHIuaGVhZC1yb3cgdGguc29ydGVkOjphZnRlciB7IGNvbnRlbnQ6ICIg4pa8IjsgZm9udC1zaXplOiA5cHg7IH0KdGhlYWQgdHIuaGVhZC1yb3cgdGguc29ydGVkLmFzYzo6YWZ0ZXIgeyBjb250ZW50OiAiIOKWsiI7IH0KdGhlYWQgdHIuZmlsdGVyLXJvdyB0aCB7IGJhY2tncm91bmQ6ICNFOEVDRjI7IHBhZGRpbmc6IDFweDsgYm9yZGVyOiAxcHggc29saWQgIzk5OTsgfQp0aGVhZCB0ci5maWx0ZXItcm93IGlucHV0LCB0aGVhZCB0ci5maWx0ZXItcm93IHNlbGVjdCB7IHdpZHRoOiAxMDAlOyBmb250LXNpemU6IDEwcHg7IHBhZGRpbmc6IDFweCAzcHg7IGJvcmRlcjogMXB4IHNvbGlkICNDQ0M7IGJvcmRlci1yYWRpdXM6IDJweDsgfQp0Ym9keSB0ZCB7IHBhZGRpbmc6IDJweCA0cHg7IGJvcmRlcjogMXB4IHNvbGlkICNEREQ7IHZlcnRpY2FsLWFsaWduOiBtaWRkbGU7IH0KdGJvZHkgdHI6bnRoLWNoaWxkKGV2ZW4pIHsgYmFja2dyb3VuZDogI0Y5RjlGOTsgfQp0Ym9keSB0cjpob3ZlciB7IGJhY2tncm91bmQ6ICNFM0YyRkQgIWltcG9ydGFudDsgfQp0Ym9keSB0ci5hZGRlZCB7IGJhY2tncm91bmQ6ICNFOEY1RTggIWltcG9ydGFudDsgfQp0Ym9keSB0ci5hZGRlZDpob3ZlciB7IGJhY2tncm91bmQ6ICNDNUUxQzUgIWltcG9ydGFudDsgfQp0Ym9keSB0ci5jaGVja2VkIHsgYmFja2dyb3VuZDogI0Q0RTdGNSAhaW1wb3J0YW50OyB9Cgouc3QtYWRkZWQgeyBjb2xvcjogIzJFN0QzMjsgZm9udC13ZWlnaHQ6IDcwMDsgZm9udC1zaXplOiAxMXB4OyB9Ci5zdC10b2RvIHsgY29sb3I6ICM5OTk7IGZvbnQtc2l6ZTogMTFweDsgfQoudHlwZS1jZWxsIHsgY29sb3I6IHdoaXRlOyB0ZXh0LWFsaWduOiBjZW50ZXI7IHBhZGRpbmc6IDFweCA0cHg7IGJvcmRlci1yYWRpdXM6IDJweDsgZm9udC13ZWlnaHQ6IDcwMDsgZm9udC1zaXplOiAxMHB4OyB3aGl0ZS1zcGFjZTogbm93cmFwOyB9Ci5uYW1lLWNlbGwgeyBmb250LXdlaWdodDogNzAwOyBjb2xvcjogIzFGNEU3OTsgfQouY2F0LWNlbGwgeyBiYWNrZ3JvdW5kOiAjRThFQ0YyOyBwYWRkaW5nOiAxcHggNHB4OyBib3JkZXItcmFkaXVzOiAycHg7IGZvbnQtc2l6ZTogMTBweDsgd2hpdGUtc3BhY2U6IG5vd3JhcDsgfQoubW9kZS1ib3RoIHsgY29sb3I6ICM2NjY7IGZvbnQtc2l6ZTogMTBweDsgfQoubW9kZS1kb3VibGUgeyBjb2xvcjogI0QzMkYyRjsgZm9udC13ZWlnaHQ6IDcwMDsgZm9udC1zaXplOiAxMHB4OyBiYWNrZ3JvdW5kOiAjRkZFQkVFOyBwYWRkaW5nOiAxcHggNHB4OyBib3JkZXItcmFkaXVzOiAycHg7IH0KLmVmZmVjdC1jZWxsIHsgZm9udC1zaXplOiAxMHB4OyBjb2xvcjogIzU1NTsgbGluZS1oZWlnaHQ6IDEuMzsgfQoubnVtLWNlbGwgeyB0ZXh0LWFsaWduOiBjZW50ZXI7IGZvbnQtZmFtaWx5OiBtb25vc3BhY2U7IH0KLmNoay1jZWxsIHsgdGV4dC1hbGlnbjogY2VudGVyOyB9Ci5jaGstY2VsbCBpbnB1dCB7IGN1cnNvcjogcG9pbnRlcjsgYWNjZW50LWNvbG9yOiAjMkU4NkMxOyB9Cgp0aC5jb2wtc3QsIHRkLmNvbC1zdCB7IHdpZHRoOiA1MnB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7IH0KdGguY29sLWNoaywgdGQuY29sLWNoayB7IHdpZHRoOiAzMHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7IH0KdGguY29sLW5hbWUsIHRkLmNvbC1uYW1lIHsgd2lkdGg6IDExMHB4OyB9CnRoLmNvbC10eXBlLCB0ZC5jb2wtdHlwZSB7IHdpZHRoOiA2MHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7IH0KdGguY29sLWNsYXNzLCB0ZC5jb2wtY2xhc3MgeyB3aWR0aDogNDBweDsgdGV4dC1hbGlnbjogY2VudGVyOyB9CnRoLmNvbC1wb3dlciwgdGQuY29sLXBvd2VyIHsgd2lkdGg6IDQwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsgfQp0aC5jb2wtYWNjLCB0ZC5jb2wtYWNjIHsgd2lkdGg6IDQwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsgfQp0aC5jb2wtcHAsIHRkLmNvbC1wcCB7IHdpZHRoOiAzMnB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7IH0KdGguY29sLXRhcmdldCwgdGQuY29sLXRhcmdldCB7IHdpZHRoOiA4NXB4OyB3aGl0ZS1zcGFjZTogbm93cmFwOyBmb250LXNpemU6IDEwcHg7IHRleHQtYWxpZ246IGNlbnRlcjsgfQp0aC5jb2wtbW9kZSwgdGQuY29sLW1vZGUgeyB3aWR0aDogNjBweDsgdGV4dC1hbGlnbjogY2VudGVyOyB9CnRoLmNvbC1jb250YWN0LCB0ZC5jb2wtY29udGFjdCB7IHdpZHRoOiAzNHB4OyB0ZXh0LWFsaWduOiBjZW50ZXI7IH0KdGguY29sLWd1YXJkLCB0ZC5jb2wtZ3VhcmQgeyB3aWR0aDogMzRweDsgdGV4dC1hbGlnbjogY2VudGVyOyB9CnRoLmNvbC1jYXQsIHRkLmNvbC1jYXQgeyB3aWR0aDogNjJweDsgdGV4dC1hbGlnbjogY2VudGVyOyB9CnRoLmNvbC1lZmZlY3QsIHRkLmNvbC1lZmZlY3QgeyBtaW4td2lkdGg6IDI4MHB4OyB9CgojZXhwb3J0QXJlYSB7IGRpc3BsYXk6IG5vbmU7IHBvc2l0aW9uOiBmaXhlZDsgdG9wOiAxMCU7IGxlZnQ6IDUwJTsgdHJhbnNmb3JtOiB0cmFuc2xhdGVYKC01MCUpOyBiYWNrZ3JvdW5kOiB3aGl0ZTsgcGFkZGluZzogMTZweDsgYm9yZGVyLXJhZGl1czogNnB4OyBib3gtc2hhZG93OiAwIDVweCAzMHB4IHJnYmEoMCwwLDAsMC4zKTsgei1pbmRleDogMjAwMDsgbWF4LXdpZHRoOiA3MDBweDsgd2lkdGg6IDkwJTsgYm9yZGVyOiAycHggc29saWQgIzFGNEU3OTsgfQojZXhwb3J0QXJlYSB0ZXh0YXJlYSB7IHdpZHRoOiAxMDAlOyBoZWlnaHQ6IDI1MHB4OyBmb250LWZhbWlseTogbW9ub3NwYWNlOyBmb250LXNpemU6IDExcHg7IGJvcmRlcjogMXB4IHNvbGlkICM5OTk7IGJvcmRlci1yYWRpdXM6IDNweDsgcGFkZGluZzogNnB4OyB9CiNleHBvcnRBcmVhIC5jbG9zZS1idG4geyBmbG9hdDogcmlnaHQ7IGN1cnNvcjogcG9pbnRlcjsgZm9udC1zaXplOiAyMnB4OyBmb250LXdlaWdodDogNzAwOyBjb2xvcjogIzk5OTsgfQojZXhwb3J0QXJlYSBoMyB7IG1hcmdpbjogMCAwIDhweCAwOyBjb2xvcjogIzFGNEU3OTsgZm9udC1zaXplOiAxNHB4OyB9Cjwvc3R5bGU+PC9oZWFkPjxib2R5PgoKPGRpdiBjbGFzcz0idG9wLWJhciI+CiAgPGgxPvCfk4sg44Od44Kx44OB44Oj44OzIOOCj+OBluODquOCueODiCA8c3BhbiBzdHlsZT0iZm9udC1zaXplOjEwcHg7Y29sb3I6Izk5OTtmb250LXdlaWdodDo0MDAiPnY5ICgwNC8xOSAwODo0NCk8L3NwYW4+PC9oMT4KICA8aW5wdXQgdHlwZT0ic2VhcmNoIiBpZD0ic2VhcmNoIiBwbGFjZWhvbGRlcj0i8J+UjSDjgo/jgZblkI3mpJzntKIgKOOCq+ODii/jgbLjgonkuKHlr77lv5wpIj4KICA8c3BhbiBjbGFzcz0iY291bnQiIGlkPSJjb3VudCIgc3R5bGU9ImRpc3BsYXk6aW5saW5lLWJsb2NrO21pbi13aWR0aDoxODBweDt0ZXh0LWFsaWduOmxlZnQiPuWFqDE3MOaKgCAvIOmBuOaKnjA8L3NwYW4+CiAgPGJ1dHRvbiBvbmNsaWNrPSJzZWxlY3RWaXNpYmxlKCkiPuKYkSDooajnpLrkuK3pgbjmip48L2J1dHRvbj4KICA8YnV0dG9uIGNsYXNzPSJzZWNvbmRhcnkiIG9uY2xpY2s9ImRlc2VsZWN0VmlzaWJsZSgpIj7imJAg6KGo56S65Lit6Kej6ZmkPC9idXR0b24+CiAgPGJ1dHRvbiBvbmNsaWNrPSJleHBvcnRTZWxlY3Rpb24oKSI+8J+TiyDpgbjmip7jgpLlh7rlips8L2J1dHRvbj4KICA8YnV0dG9uIGNsYXNzPSJzZWNvbmRhcnkiIG9uY2xpY2s9InJlc2V0QWxsKCkiPvCflIQg44Oq44K744OD44OIPC9idXR0b24+CiAgPHNwYW4gc3R5bGU9ImZvbnQtc2l6ZToxMHB4O2NvbG9yOiM2NjYiPuKAu+ODmOODg+ODgOODvOOCkuOCr+ODquODg+OCr+OBp+OCveODvOODiOOAgeOBneOBruS4i+OBp+ODleOCo+ODq+OCv+e1nui+vDwvc3Bhbj4KPC9kaXY+Cgo8dGFibGUgaWQ9Im1haW5UYWJsZSI+Cjx0aGVhZD4KICA8dHIgY2xhc3M9ImhlYWQtcm93Ij4KICAgIDx0aCBjbGFzcz0iY29sLXN0IiBkYXRhLXNvcnQ9InN0YXR1cyI+54q25rOBPC90aD4KICAgIDx0aCBjbGFzcz0iY29sLWNoayIgaWQ9ImhlYWQtY2hrIiBvbmNsaWNrPSJ0b2dnbGVWaXNpYmxlKCkiIHRpdGxlPSLooajnpLrkuK3jgpLlhajjg4Hjgqfjg4Pjgq8v6Kej6ZmkIiBzdHlsZT0iY3Vyc29yOnBvaW50ZXI7dXNlci1zZWxlY3Q6bm9uZSI+4piRPC90aD4KICAgIDx0aCBjbGFzcz0iY29sLW5hbWUgc29ydGVkIGFzYyIgZGF0YS1zb3J0PSJuYW1lIj7jgo/jgZblkI08L3RoPgogICAgPHRoIGNsYXNzPSJjb2wtdHlwZSIgZGF0YS1zb3J0PSJ0eXBlIj7jgr/jgqTjg5c8L3RoPgogICAgPHRoIGNsYXNzPSJjb2wtY2xhc3MiIGRhdGEtc29ydD0iY2xhc3MiPuWIhumhnjwvdGg+CiAgICA8dGggY2xhc3M9ImNvbC1wb3dlciIgZGF0YS1zb3J0PSJwb3dlciI+5aiB5YqbPC90aD4KICAgIDx0aCBjbGFzcz0iY29sLWFjYyIgZGF0YS1zb3J0PSJhY2MiPuWRveS4rTwvdGg+CiAgICA8dGggY2xhc3M9ImNvbC1wcCIgZGF0YS1zb3J0PSJwcCI+UFA8L3RoPgogICAgPHRoIGNsYXNzPSJjb2wtdGFyZ2V0IiBkYXRhLXNvcnQ9InRhcmdldCI+5a++6LGhPC90aD4KICAgIDx0aCBjbGFzcz0iY29sLW1vZGUiIGRhdGEtc29ydD0ibW9kZSI+5a++5oimPC90aD4KICAgIDx0aCBjbGFzcz0iY29sLWNvbnRhY3QiIGRhdGEtc29ydD0iY29udGFjdCI+5o6l6KemPC90aD4KICAgIDx0aCBjbGFzcz0iY29sLWd1YXJkIiBkYXRhLXNvcnQ9Imd1YXJkIj7lrojosqs8L3RoPgogICAgPHRoIGNsYXNzPSJjb2wtY2F0IiBkYXRhLXNvcnQ9ImNhdGVnb3J5Ij7jgqvjg4bjgrTjg6o8L3RoPgogICAgPHRoIGNsYXNzPSJjb2wtZWZmZWN0Ij7lirnmnpw8L3RoPgogIDwvdHI+CiAgPHRyIGNsYXNzPSJmaWx0ZXItcm93Ij4KICAgIDx0aD48c2VsZWN0IGlkPSJmLXN0YXR1cyI+PG9wdGlvbiB2YWx1ZT0iIj7lhajjgaY8L29wdGlvbj48b3B0aW9uIHZhbHVlPSJhZGRlZCI+6L+95Yqg5riIPC9vcHRpb24+PG9wdGlvbiB2YWx1ZT0idG9kbyI+5pyq6L+95YqgPC9vcHRpb24+PC9zZWxlY3Q+PC90aD4KICAgIDx0aD48L3RoPgogICAgPHRoPjwvdGg+CiAgICA8dGg+PHNlbGVjdCBpZD0iZi10eXBlIj48b3B0aW9uIHZhbHVlPSIiPuWFqOOCv+OCpOODlzwvb3B0aW9uPjwvc2VsZWN0PjwvdGg+CiAgICA8dGg+PC90aD4KICAgIDx0aD48L3RoPgogICAgPHRoPjwvdGg+CiAgICA8dGg+PC90aD4KICAgIDx0aD48c2VsZWN0IGlkPSJmLXRhcmdldCI+PG9wdGlvbiB2YWx1ZT0iIj7lhajlr77osaE8L29wdGlvbj48L3NlbGVjdD48L3RoPgogICAgPHRoPjxzZWxlY3QgaWQ9ImYtbW9kZSI+PG9wdGlvbiB2YWx1ZT0iIj7lhajjgaY8L29wdGlvbj48b3B0aW9uIHZhbHVlPSLkuKHmlrkiPuS4oeaWuTwvb3B0aW9uPjxvcHRpb24gdmFsdWU9IuODgOODluODqyI+44OA44OW44OrPC9vcHRpb24+PC9zZWxlY3Q+PC90aD4KICAgIDx0aD48c2VsZWN0IGlkPSJmLWNvbnRhY3QiPjxvcHRpb24gdmFsdWU9IiI+5YWo44GmPC9vcHRpb24+PG9wdGlvbiB2YWx1ZT0i5o6l4peLIj7mjqXil4s8L29wdGlvbj48b3B0aW9uIHZhbHVlPSLmjqXDlyI+5o6lw5c8L29wdGlvbj48L3NlbGVjdD48L3RoPgogICAgPHRoPjxzZWxlY3QgaWQ9ImYtZ3VhcmQiPjxvcHRpb24gdmFsdWU9IiI+5YWo44GmPC9vcHRpb24+PG9wdGlvbiB2YWx1ZT0i5a6I4peLIj7lrojil4s8L29wdGlvbj48b3B0aW9uIHZhbHVlPSLlrojDlyI+5a6Iw5c8L29wdGlvbj48L3NlbGVjdD48L3RoPgogICAgPHRoPjxzZWxlY3QgaWQ9ImYtY2F0Ij48b3B0aW9uIHZhbHVlPSIiPuWFqOOCq+ODhuOCtOODqjwvb3B0aW9uPjwvc2VsZWN0PjwvdGg+CiAgICA8dGg+PC90aD4KICA8L3RyPgo8L3RoZWFkPgo8dGJvZHkgaWQ9InRib2R5Ij48L3Rib2R5Pgo8L3RhYmxlPgoKPGRpdiBpZD0iZXhwb3J0QXJlYSI+CiAgPHNwYW4gY2xhc3M9ImNsb3NlLWJ0biIgb25jbGljaz0iZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2V4cG9ydEFyZWEnKS5zdHlsZS5kaXNwbGF5PSdub25lJyI+w5c8L3NwYW4+CiAgPGgzPvCfk4sg6YG45oqe44GX44Gf44KP44GW5LiA6KanPC9oMz4KICA8cCBzdHlsZT0iZm9udC1zaXplOjExcHg7bWFyZ2luOjAgMCA2cHggMDsiPuS4i+iomOOCkuOCs+ODlOODvCDihpIgQ2xhdWRl44OB44Oj44OD44OI44Gr6LK844KK5LuY44GRPC9wPgogIDx0ZXh0YXJlYSBpZD0iZXhwb3J0VGV4dCIgcmVhZG9ubHk+PC90ZXh0YXJlYT4KICA8YnV0dG9uIG9uY2xpY2s9ImNvcHlFeHBvcnQoKSIgc3R5bGU9Im1hcmdpbi10b3A6NnB4O3BhZGRpbmc6NHB4IDEwcHg7YmFja2dyb3VuZDojRjM5QzEyO2NvbG9yOndoaXRlO2JvcmRlcjpub25lO2JvcmRlci1yYWRpdXM6M3B4O2N1cnNvcjpwb2ludGVyOyI+8J+TiyDjgrPjg5Tjg7w8L2J1dHRvbj4KPC9kaXY+Cgo8c2NyaXB0Pgpjb25zdCBtb3ZlcyA9IF9fTU9WRVNfUExBQ0VIT0xERVJfXzsKY29uc3QgYWRkZWRLZXlzID0gWyJjaG91aGF0c3UiLCAiamlrb3NhaXNlaSJdOwpjb25zdCB0eXBlQ29sb3JzID0geyLjg47jg7zjg57jg6siOiAiI0E4QTg3OCIsICLjgbvjga7jgYoiOiAiI0YwODAzMCIsICLjgb/jgZoiOiAiIzY4OTBGMCIsICLjgafjgpPjgY0iOiAiI0Y4RDAzMCIsICLjgY/jgZUiOiAiIzc4Qzg1MCIsICLjgZPjgYrjgooiOiAiIzk4RDhEOCIsICLjgYvjgY/jgajjgYYiOiAiI0MwMzAyOCIsICLjganjgY8iOiAiI0EwNDBBMCIsICLjgZjjgoHjgpMiOiAiI0UwQzA2OCIsICLjgbLjgZPjgYYiOiAiI0E4OTBGMCIsICLjgqjjgrnjg5Hjg7wiOiAiI0Y4NTg4OCIsICLjgoDjgZciOiAiI0E4QjgyMCIsICLjgYTjgo8iOiAiI0I4QTAzOCIsICLjgrTjg7zjgrnjg4giOiAiIzcwNTg5OCIsICLjg4njg6njgrTjg7MiOiAiIzcwMzhGOCIsICLjgYLjgY8iOiAiIzcwNTg0OCIsICLjga/jgYzjga0iOiAiI0I4QjhEMCIsICLjg5XjgqfjgqLjg6rjg7wiOiAiI0VFOTlBQyJ9OwoKLy8g44Kr44K/44Kr44OKIOKHlCDjgbLjgonjgYzjgaog55u45LqS5aSJ5o+b77yI44Gp44Gh44KJ44Gn5qSc57Si44GX44Gm44KC44OS44OD44OI77yJCmZ1bmN0aW9uIHRvSGlyYShzKSB7CiAgcmV0dXJuIChzIHx8ICcnKS50b0xvd2VyQ2FzZSgpLnJlcGxhY2UoL1tcdTMwQTEtXHUzMEY2XS9nLCBjaCA9PgogICAgU3RyaW5nLmZyb21DaGFyQ29kZShjaC5jaGFyQ29kZUF0KDApIC0gMHg2MCkKICApOwp9CgovLyBVUkzjg5Hjg6njg6Hjg7zjgr/jgafov73liqDmuIjjgb/mg4XloLHjgpLlj5fjgZHlj5bjgovvvIhEQumAo+WLleeUqO+8iQpjb25zdCB1cmxBZGRlZCA9IG5ldyBVUkxTZWFyY2hQYXJhbXMobG9jYXRpb24uc2VhcmNoKS5nZXQoJ2FkZGVkJyk7CmxldCBhZGRlZE1vdmVOYW1lcyA9IG5ldyBTZXQoKTsKaWYgKHVybEFkZGVkKSB7CiAgY29uc3Qga2V5cyA9IHVybEFkZGVkLnNwbGl0KCcsJykubWFwKHMgPT4gcy50cmltKCkpLmZpbHRlcihCb29sZWFuKTsKICBtb3Zlcy5mb3JFYWNoKG0gPT4geyBpZiAoa2V5cy5pbmNsdWRlcyhtLmtleSkpIGFkZGVkTW92ZU5hbWVzLmFkZChtLm5hbWUpOyB9KTsKfSBlbHNlIHsKICBtb3Zlcy5mb3JFYWNoKG0gPT4geyBpZiAoYWRkZWRLZXlzLmluY2x1ZGVzKG0ua2V5KSkgYWRkZWRNb3ZlTmFtZXMuYWRkKG0ubmFtZSk7IH0pOwp9Cgpjb25zdCBzZWxlY3RlZCA9IG5ldyBTZXQoKTsKbGV0IHNvcnRLZXkgPSAnbmFtZSc7CmxldCBzb3J0RGlyID0gMTsKCmZ1bmN0aW9uIHRvTnVtKHYpIHsKICBpZiAodiA9PT0gJy0nIHx8IHYgPT09ICcnIHx8IHYgPT0gbnVsbCkgcmV0dXJuIC0xOwogIGNvbnN0IG4gPSBwYXJzZUludCh2KTsKICByZXR1cm4gaXNOYU4obikgPyAtMSA6IG47Cn0KCmZ1bmN0aW9uIHN0YXR1c09mKG0pIHsgcmV0dXJuIGFkZGVkTW92ZU5hbWVzLmhhcyhtLm5hbWUpID8gJ2FkZGVkJyA6ICd0b2RvJzsgfQoKZnVuY3Rpb24gcmVuZGVyKCkgewogIGNvbnN0IHRib2R5ID0gZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3Rib2R5Jyk7CiAgdGJvZHkuaW5uZXJIVE1MID0gJyc7CiAgY29uc3Qgc2VhcmNoUSA9IHRvSGlyYShkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnc2VhcmNoJykudmFsdWUpOwogIGNvbnN0IGZTdGF0dXMgPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnZi1zdGF0dXMnKS52YWx1ZTsKICBjb25zdCBmVHlwZSA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdmLXR5cGUnKS52YWx1ZTsKICBjb25zdCBmVGFyZ2V0ID0gZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2YtdGFyZ2V0JykudmFsdWU7CiAgY29uc3QgZk1vZGUgPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnZi1tb2RlJykudmFsdWU7CiAgY29uc3QgZkNvbnRhY3QgPSBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnZi1jb250YWN0JykudmFsdWU7CiAgY29uc3QgZkd1YXJkID0gZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2YtZ3VhcmQnKS52YWx1ZTsKICBjb25zdCBmQ2F0ID0gZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2YtY2F0JykudmFsdWU7CiAgCiAgbGV0IHJvd3MgPSBtb3Zlcy5zbGljZSgpOwogIHJvd3Muc29ydCgoYSwgYikgPT4gewogICAgbGV0IGF2LCBidjsKICAgIGlmIChzb3J0S2V5ID09PSAnc3RhdHVzJykgeyBhdiA9IHN0YXR1c09mKGEpOyBidiA9IHN0YXR1c09mKGIpOyB9CiAgICBlbHNlIGlmIChbJ3Bvd2VyJywnYWNjJywncHAnXS5pbmNsdWRlcyhzb3J0S2V5KSkgeyBhdiA9IHRvTnVtKGFbc29ydEtleV0pOyBidiA9IHRvTnVtKGJbc29ydEtleV0pOyB9CiAgICBlbHNlIHsgYXYgPSBhW3NvcnRLZXldIHx8ICcnOyBidiA9IGJbc29ydEtleV0gfHwgJyc7IH0KICAgIGlmIChhdiA8IGJ2KSByZXR1cm4gLTEgKiBzb3J0RGlyOwogICAgaWYgKGF2ID4gYnYpIHJldHVybiAxICogc29ydERpcjsKICAgIHJldHVybiAwOwogIH0pOwogIAogIGxldCB2aXNpYmxlQ291bnQgPSAwOwogIHJvd3MuZm9yRWFjaChtID0+IHsKICAgIGNvbnN0IHN0ID0gc3RhdHVzT2YobSk7CiAgICBpZiAoc2VhcmNoUSAmJiAhdG9IaXJhKG0ubmFtZSkuaW5jbHVkZXMoc2VhcmNoUSkpIHJldHVybjsKICAgIGlmIChmU3RhdHVzICYmIGZTdGF0dXMgIT09IHN0KSByZXR1cm47CiAgICBpZiAoZlR5cGUgJiYgbS50eXBlICE9PSBmVHlwZSkgcmV0dXJuOwogICAgaWYgKGZUYXJnZXQgJiYgbS50YXJnZXQgIT09IGZUYXJnZXQpIHJldHVybjsKICAgIGlmIChmTW9kZSAmJiBtLm1vZGUgIT09IGZNb2RlKSByZXR1cm47CiAgICBpZiAoZkNvbnRhY3QgJiYgbS5jb250YWN0ICE9PSBmQ29udGFjdCkgcmV0dXJuOwogICAgaWYgKGZHdWFyZCAmJiBtLmd1YXJkICE9PSBmR3VhcmQpIHJldHVybjsKICAgIGlmIChmQ2F0ICYmIG0uY2F0ZWdvcnkgIT09IGZDYXQpIHJldHVybjsKICAgIAogICAgY29uc3QgdHIgPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCd0cicpOwogICAgdHIuY2xhc3NOYW1lID0gc3QgPT09ICdhZGRlZCcgPyAnYWRkZWQnIDogJyc7CiAgICBpZiAoc2VsZWN0ZWQuaGFzKG0ubmFtZSkpIHRyLmNsYXNzTGlzdC5hZGQoJ2NoZWNrZWQnKTsKICAgIAogICAgY29uc3QgY29sb3IgPSB0eXBlQ29sb3JzW20udHlwZV0gfHwgJyM5OTknOwogICAgY29uc3QgaXNBZGRlZCA9IHN0ID09PSAnYWRkZWQnOwogICAgY29uc3QgbW9kZUh0bWwgPSBtLm1vZGUgPT09ICfjg4Djg5bjg6snIAogICAgICA/ICc8c3BhbiBjbGFzcz0ibW9kZS1kb3VibGUiPuODgOODluODqzwvc3Bhbj4nIAogICAgICA6ICc8c3BhbiBjbGFzcz0ibW9kZS1ib3RoIj7kuKHmlrk8L3NwYW4+JzsKICAgIAogICAgdHIuaW5uZXJIVE1MID0gYAogICAgICA8dGQgY2xhc3M9ImNvbC1zdCI+JHtpc0FkZGVkID8gJzxzcGFuIGNsYXNzPSJzdC1hZGRlZCI+4pyT6L+95Yqg5riIPC9zcGFuPicgOiAnPHNwYW4gY2xhc3M9InN0LXRvZG8iPuacqjwvc3Bhbj4nfTwvdGQ+CiAgICAgIDx0ZCBjbGFzcz0iY29sLWNoayBjaGstY2VsbCI+PGlucHV0IHR5cGU9ImNoZWNrYm94IiAke3NlbGVjdGVkLmhhcyhtLm5hbWUpPydjaGVja2VkJzonJ30gJHtpc0FkZGVkPydkaXNhYmxlZCc6Jyd9IGRhdGEtbmFtZT0iJHttLm5hbWV9Ij48L3RkPgogICAgICA8dGQgY2xhc3M9ImNvbC1uYW1lIG5hbWUtY2VsbCI+JHttLm5hbWV9PC90ZD4KICAgICAgPHRkIGNsYXNzPSJjb2wtdHlwZSI+PHNwYW4gY2xhc3M9InR5cGUtY2VsbCIgc3R5bGU9ImJhY2tncm91bmQ6JHtjb2xvcn0iPiR7bS50eXBlfTwvc3Bhbj48L3RkPgogICAgICA8dGQgY2xhc3M9ImNvbC1jbGFzcyI+JHttLmNsYXNzfTwvdGQ+CiAgICAgIDx0ZCBjbGFzcz0iY29sLXBvd2VyIG51bS1jZWxsIj4ke20ucG93ZXJ9PC90ZD4KICAgICAgPHRkIGNsYXNzPSJjb2wtYWNjIG51bS1jZWxsIj4ke20uYWNjfTwvdGQ+CiAgICAgIDx0ZCBjbGFzcz0iY29sLXBwIG51bS1jZWxsIj4ke20ucHB9PC90ZD4KICAgICAgPHRkIGNsYXNzPSJjb2wtdGFyZ2V0Ij4ke20udGFyZ2V0fTwvdGQ+CiAgICAgIDx0ZCBjbGFzcz0iY29sLW1vZGUiPiR7bW9kZUh0bWx9PC90ZD4KICAgICAgPHRkIGNsYXNzPSJjb2wtY29udGFjdCI+JHttLmNvbnRhY3R9PC90ZD4KICAgICAgPHRkIGNsYXNzPSJjb2wtZ3VhcmQiPiR7bS5ndWFyZH08L3RkPgogICAgICA8dGQgY2xhc3M9ImNvbC1jYXQiPjxzcGFuIGNsYXNzPSJjYXQtY2VsbCI+JHttLmNhdGVnb3J5fTwvc3Bhbj48L3RkPgogICAgICA8dGQgY2xhc3M9ImNvbC1lZmZlY3QgZWZmZWN0LWNlbGwiPiR7bS5lZmZlY3R9PC90ZD4KICAgIGA7CiAgICB0Ym9keS5hcHBlbmRDaGlsZCh0cik7CiAgICB2aXNpYmxlQ291bnQrKzsKICB9KTsKICAKICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnY291bnQnKS50ZXh0Q29udGVudCA9IGDooajnpLoke3Zpc2libGVDb3VudH0v5YWoJHttb3Zlcy5sZW5ndGh95oqAIC8g6YG45oqeJHtzZWxlY3RlZC5zaXplfWA7CiAgdXBkYXRlSGVhZENoaygpOwp9Cgpkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCd0aFtkYXRhLXNvcnRdJykuZm9yRWFjaCh0aCA9PiB7CiAgdGgub25jbGljayA9ICgpID0+IHsKICAgIGNvbnN0IGsgPSB0aC5kYXRhc2V0LnNvcnQ7CiAgICBpZiAoc29ydEtleSA9PT0gaykgc29ydERpciAqPSAtMTsKICAgIGVsc2UgeyBzb3J0S2V5ID0gazsgc29ydERpciA9IDE7IH0KICAgIGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3JBbGwoJ3RoW2RhdGEtc29ydF0nKS5mb3JFYWNoKHggPT4geyB4LmNsYXNzTGlzdC5yZW1vdmUoJ3NvcnRlZCcsJ2FzYycpOyB9KTsKICAgIHRoLmNsYXNzTGlzdC5hZGQoJ3NvcnRlZCcpOwogICAgaWYgKHNvcnREaXIgPT09IDEpIHRoLmNsYXNzTGlzdC5hZGQoJ2FzYycpOwogICAgcmVuZGVyKCk7CiAgfTsKfSk7CgpbJ3NlYXJjaCcsJ2Ytc3RhdHVzJywnZi10eXBlJywnZi10YXJnZXQnLCdmLW1vZGUnLCdmLWNvbnRhY3QnLCdmLWd1YXJkJywnZi1jYXQnXS5mb3JFYWNoKGlkID0+IHsKICBkb2N1bWVudC5nZXRFbGVtZW50QnlJZChpZCkuYWRkRXZlbnRMaXN0ZW5lcignaW5wdXQnLCByZW5kZXIpOwogIGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKGlkKS5hZGRFdmVudExpc3RlbmVyKCdjaGFuZ2UnLCByZW5kZXIpOwp9KTsKCmRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCd0Ym9keScpLmFkZEV2ZW50TGlzdGVuZXIoJ2NoYW5nZScsIGUgPT4gewogIGlmIChlLnRhcmdldC50eXBlID09PSAnY2hlY2tib3gnKSB7CiAgICBjb25zdCBuYW1lID0gZS50YXJnZXQuZGF0YXNldC5uYW1lOwogICAgaWYgKGUudGFyZ2V0LmNoZWNrZWQpIHNlbGVjdGVkLmFkZChuYW1lKTsKICAgIGVsc2Ugc2VsZWN0ZWQuZGVsZXRlKG5hbWUpOwogICAgcmVuZGVyKCk7CiAgfQp9KTsKCmNvbnN0IHR5cGVzID0gWy4uLm5ldyBTZXQobW92ZXMubWFwKG0gPT4gbS50eXBlKSldLnNvcnQoKTsKY29uc3QgdGFyZ2V0cyA9IFsuLi5uZXcgU2V0KG1vdmVzLm1hcChtID0+IG0udGFyZ2V0KSldLnNvcnQoKTsKY29uc3QgY2F0cyA9IFsuLi5uZXcgU2V0KG1vdmVzLm1hcChtID0+IG0uY2F0ZWdvcnkpKV0uc29ydCgpOwp0eXBlcy5mb3JFYWNoKHQgPT4geyBjb25zdCBvID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnb3B0aW9uJyk7IG8udmFsdWU9dDsgby50ZXh0Q29udGVudD10OyBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnZi10eXBlJykuYXBwZW5kQ2hpbGQobyk7IH0pOwp0YXJnZXRzLmZvckVhY2godCA9PiB7IGNvbnN0IG8gPSBkb2N1bWVudC5jcmVhdGVFbGVtZW50KCdvcHRpb24nKTsgby52YWx1ZT10OyBvLnRleHRDb250ZW50PXQ7IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdmLXRhcmdldCcpLmFwcGVuZENoaWxkKG8pOyB9KTsKY2F0cy5mb3JFYWNoKGMgPT4geyBjb25zdCBvID0gZG9jdW1lbnQuY3JlYXRlRWxlbWVudCgnb3B0aW9uJyk7IG8udmFsdWU9Yzsgby50ZXh0Q29udGVudD1jOyBkb2N1bWVudC5nZXRFbGVtZW50QnlJZCgnZi1jYXQnKS5hcHBlbmRDaGlsZChvKTsgfSk7CgovLyDnlLvpnaLnirbmhYvjg6rjgrvjg4Pjg4ggKOaknOe0ouODu+ODleOCo+ODq+OCv+ODu+OCveODvOODiOOBruOBv+WIneacn+WMluOAgemBuOaKnueKtuaFi+OBr+S/neaMgSkKZnVuY3Rpb24gcmVzZXRBbGwoKSB7CiAgLy8g5qSc57Si44Oc44OD44Kv44K544Kv44Oq44KiCiAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ3NlYXJjaCcpLnZhbHVlID0gJyc7CiAgLy8g5YWo44OV44Kj44Or44K/44K744Os44Kv44OI44KS5Yid5pyf5YCk44GrCiAgWydmLXN0YXR1cycsICdmLXR5cGUnLCAnZi10YXJnZXQnLCAnZi1tb2RlJywgJ2YtY29udGFjdCcsICdmLWd1YXJkJywgJ2YtY2F0J10uZm9yRWFjaChpZCA9PiB7CiAgICBjb25zdCBlbCA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKGlkKTsKICAgIGlmIChlbCkgZWwudmFsdWUgPSAnJzsKICB9KTsKICAvLyDjgr3jg7zjg4jnirbmhYvjgpLliJ3mnJ/lgKTjgasgKOOCj+OBluWQjeaYh+mghikKICBzb3J0S2V5ID0gJ25hbWUnOwogIHNvcnREaXIgPSAxOwogIGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3JBbGwoJ3RoW2RhdGEtc29ydF0nKS5mb3JFYWNoKHggPT4geyB4LmNsYXNzTGlzdC5yZW1vdmUoJ3NvcnRlZCcsJ2FzYycpOyB9KTsKICBjb25zdCBuYW1lVGggPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yKCd0aFtkYXRhLXNvcnQ9Im5hbWUiXScpOwogIGlmIChuYW1lVGgpIHsgbmFtZVRoLmNsYXNzTGlzdC5hZGQoJ3NvcnRlZCcpOyBuYW1lVGguY2xhc3NMaXN0LmFkZCgnYXNjJyk7IH0KICAvLyDlho3mj4/nlLsKICByZW5kZXIoKTsKfQoKLy8g6KGo56S65Lit44Gu5oqA44KS5YWo44OB44Kn44OD44KvCmZ1bmN0aW9uIHNlbGVjdFZpc2libGUoKSB7CiAgZG9jdW1lbnQucXVlcnlTZWxlY3RvckFsbCgnI3Rib2R5IGlucHV0W3R5cGU9Y2hlY2tib3hdOm5vdCg6ZGlzYWJsZWQpJykuZm9yRWFjaChjID0+IHsKICAgIGlmICghYy5jaGVja2VkKSB7IGMuY2hlY2tlZCA9IHRydWU7IHNlbGVjdGVkLmFkZChjLmRhdGFzZXQubmFtZSk7IH0KICB9KTsKICByZW5kZXIoKTsKfQovLyDooajnpLrkuK3jga7mioDjgpLlhajop6PpmaQKZnVuY3Rpb24gZGVzZWxlY3RWaXNpYmxlKCkgewogIGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3JBbGwoJyN0Ym9keSBpbnB1dFt0eXBlPWNoZWNrYm94XTpub3QoOmRpc2FibGVkKScpLmZvckVhY2goYyA9PiB7CiAgICBpZiAoYy5jaGVja2VkKSB7IGMuY2hlY2tlZCA9IGZhbHNlOyBzZWxlY3RlZC5kZWxldGUoYy5kYXRhc2V0Lm5hbWUpOyB9CiAgfSk7CiAgcmVuZGVyKCk7Cn0KLy8g44OY44OD44OA44O84piR44Kv44Oq44OD44KvOiDooajnpLrkuK3jga7nirbmhYvjgafjg4jjgrDjg6sKZnVuY3Rpb24gdG9nZ2xlVmlzaWJsZSgpIHsKICBjb25zdCBjaGVja3MgPSBkb2N1bWVudC5xdWVyeVNlbGVjdG9yQWxsKCcjdGJvZHkgaW5wdXRbdHlwZT1jaGVja2JveF06bm90KDpkaXNhYmxlZCknKTsKICBpZiAoY2hlY2tzLmxlbmd0aCA9PT0gMCkgcmV0dXJuOwogIC8vIDHjgaTjgafjgoLmnKrjg4Hjgqfjg4Pjgq/jgYzjgYLjgozjgbDlhahPTuOAgeWFqOODgeOCp+ODg+OCr+a4iOOBv+OBquOCieWFqE9GRgogIGNvbnN0IGhhc1VuY2hlY2tlZCA9IEFycmF5LmZyb20oY2hlY2tzKS5zb21lKGMgPT4gIWMuY2hlY2tlZCk7CiAgaWYgKGhhc1VuY2hlY2tlZCkgc2VsZWN0VmlzaWJsZSgpOwogIGVsc2UgZGVzZWxlY3RWaXNpYmxlKCk7Cn0KLy8g44OY44OD44OA44O84piR44Gu54q25oWL5pu05pawICjooajnpLrkuK3jga7pgbjmip7nirbmhYvjgpLlj43mmKApCmZ1bmN0aW9uIHVwZGF0ZUhlYWRDaGsoKSB7CiAgY29uc3QgaGVhZCA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdoZWFkLWNoaycpOwogIGlmICghaGVhZCkgcmV0dXJuOwogIGNvbnN0IGNoZWNrcyA9IGRvY3VtZW50LnF1ZXJ5U2VsZWN0b3JBbGwoJyN0Ym9keSBpbnB1dFt0eXBlPWNoZWNrYm94XTpub3QoOmRpc2FibGVkKScpOwogIGlmIChjaGVja3MubGVuZ3RoID09PSAwKSB7IGhlYWQudGV4dENvbnRlbnQgPSAn4piRJzsgaGVhZC5zdHlsZS5jb2xvciA9ICcnOyByZXR1cm47IH0KICBjb25zdCBjaGVja2VkQ291bnQgPSBBcnJheS5mcm9tKGNoZWNrcykuZmlsdGVyKGMgPT4gYy5jaGVja2VkKS5sZW5ndGg7CiAgaWYgKGNoZWNrZWRDb3VudCA9PT0gMCkgeyBoZWFkLnRleHRDb250ZW50ID0gJ+KYkCc7IGhlYWQuc3R5bGUuY29sb3IgPSAnI0NDQyc7IH0KICBlbHNlIGlmIChjaGVja2VkQ291bnQgPT09IGNoZWNrcy5sZW5ndGgpIHsgaGVhZC50ZXh0Q29udGVudCA9ICfimJEnOyBoZWFkLnN0eWxlLmNvbG9yID0gJyc7IH0KICBlbHNlIHsgaGVhZC50ZXh0Q29udGVudCA9ICfilqMnOyBoZWFkLnN0eWxlLmNvbG9yID0gJyNGMzlDMTInOyB9Cn0KCmZ1bmN0aW9uIGV4cG9ydFNlbGVjdGlvbigpIHsKICBpZiAoc2VsZWN0ZWQuc2l6ZSA9PT0gMCkgeyBhbGVydCgn44KP44GW44KSMeOBpOS7peS4iumBuOaKnuOBl+OBpuOBj+OBoOOBleOBhCcpOyByZXR1cm47IH0KICBjb25zdCBzZWxNb3ZlcyA9IG1vdmVzLmZpbHRlcihtID0+IHNlbGVjdGVkLmhhcyhtLm5hbWUpKTsKICBjb25zdCBieUNhdCA9IHt9OwogIHNlbE1vdmVzLmZvckVhY2gobSA9PiB7IChieUNhdFttLmNhdGVnb3J5XSA9IGJ5Q2F0W20uY2F0ZWdvcnldfHxbXSkucHVzaChtKTsgfSk7CiAgbGV0IHRleHQgPSBg44CQ5Y+W44KK6L6844G/44Gf44GE44KP44GWOiAke3NlbGVjdGVkLnNpemV95oqA44CRXG5gOwogIHRleHQgKz0gYOeUn+aIkOaXpTogJHtuZXcgRGF0ZSgpLnRvTG9jYWxlU3RyaW5nKCdqYS1KUCcpfVxuXG5gOwogIE9iamVjdC5lbnRyaWVzKGJ5Q2F0KS5mb3JFYWNoKChbY2F0LCBtc10pID0+IHsKICAgIHRleHQgKz0gYOKWoCAke2NhdH0gKCR7bXMubGVuZ3RofeaKgClcbmA7CiAgICBtcy5mb3JFYWNoKG0gPT4geyB0ZXh0ICs9IGAgIC0gJHttLm5hbWV9ICgke20udHlwZX0sICR7bS50YXJnZXR9LCAke20ubW9kZX0pXG5gOyB9KTsKICAgIHRleHQgKz0gJ1xuJzsKICB9KTsKICB0ZXh0ICs9ICctLS1cbuWFqOaKgOWQjTogJyArIHNlbE1vdmVzLm1hcChtID0+IG0ubmFtZSkuam9pbignLCAnKSArICdcbic7CiAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2V4cG9ydFRleHQnKS52YWx1ZSA9IHRleHQ7CiAgZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2V4cG9ydEFyZWEnKS5zdHlsZS5kaXNwbGF5ID0gJ2Jsb2NrJzsKfQoKZnVuY3Rpb24gY29weUV4cG9ydCgpIHsKICBjb25zdCB0YSA9IGRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdleHBvcnRUZXh0Jyk7CiAgdGEuc2VsZWN0KCk7CiAgZG9jdW1lbnQuZXhlY0NvbW1hbmQoJ2NvcHknKTsKICBhbGVydCgn44Kz44OU44O844GX44G+44GX44Gf77yBQ2xhdWRl44OB44Oj44OD44OI44Gr6LK844KK5LuY44GR44Gm44GP44Gg44GV44GE44CCJyk7Cn0KCnJlbmRlcigpOwo8L3NjcmlwdD4KPC9ib2R5PjwvaHRtbD4K</script>
+</body>
+</html>
