@@ -2241,12 +2241,45 @@ function buildWazaTh(ctx, key, label) {
     '物理':'#B03A2E','特殊':'#2874A6'
   };
   const catIdx = c => { const i = CAT_ORDER.indexOf(c); return i < 0 ? 99 : i; };
+
+  // 回復技 専用順序: 単発回復 (回復量降順) → 毎ターン回復 (右側)
+  const HEAL_ORDER = [
+    // 単発回復 (回復量降順)
+    'nemuru',          // 全回復 + 状態異常治癒
+    'iyashinonegai',   // 全回復 + 状態異常治癒 (自分ひんし)
+    'nomikomu',        // 全回復可 (たくわえる3つで)
+    'jikosaisei',      // 1/2
+    'namakeru',        // 1/2
+    'haneyasume',      // 1/2 (ひこう一時喪失)
+    'asanohizashi',    // 1/2 (天候依存、晴れで2/3)
+    'kougousei',       // 同上
+    'tsukinohikari',   // 同上
+    'iyashinohadou',   // 1/2 (味方)
+    'negaigoto',       // 1/2 (次ターン)
+    'inochinoshizuku', // 1/4 (味方全体)
+    'itamiwake',       // 平均値 (相手依存)
+    'chikarawosuitoru',// 攻撃値ぶん (相手依存)
+    'iyashinosuzu',    // 状態異常のみ (HP回復なし)
+    // 毎ターン回復 (右側にまとめる)
+    'aquaring',
+    'newoharu',
+    'yadorigi',
+  ];
+  const healIdx = (k) => {
+    const i = HEAL_ORDER.indexOf(k);
+    return i < 0 ? 999 : i;
+  };
+
   // 物理/特殊は威力降順 + 名前昇順、変化はカテゴリ順 + 名前昇順
   const wazaSorted = WAZA_MASTER.filter(w => w.key)
     .sort((a,b) => {
       const ci = catIdx(a.category) - catIdx(b.category);
       if (ci !== 0) return ci;
-      // 同カテゴリ内: 物理/特殊は威力降順、それ以外は名前順
+      // 同カテゴリ内
+      if (a.category === '回復' && b.category === '回復') {
+        return healIdx(a.key) - healIdx(b.key);
+      }
+      // 物理/特殊は威力降順
       if (a.class !== '変化' && b.class !== '変化') {
         const ap = parseInt(a.power) || 0, bp = parseInt(b.power) || 0;
         if (ap !== bp) return bp - ap;
