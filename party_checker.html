@@ -182,7 +182,8 @@ td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !i
 /* 件数のみのセルは縦方向も中央揃え */
 .waza-cell-count{vertical-align:middle;text-align:center}
 .waza-empty{color:#30363d;font-size:.73rem}
-.empty-slot-cell{text-align:center;color:#30363d;font-size:.78rem;min-width:120px}
+.empty-slot-cell{text-align:center;color:#30363d;font-size:.78rem;min-width:120px;cursor:pointer}
+.empty-slot-cell:hover{background:#1c2a3a}
 
 /* タイプ行ラベル */
 .type-label-cell{display:grid;grid-template-columns:auto 1fr;grid-template-rows:auto auto;align-items:center;gap:2px 5px}
@@ -587,7 +588,7 @@ function renderTable() {
       <td class="row-label">${label}</td>
       ${party.map((name, slotIdx) => {
         const p = name && POKE_MAP[name];
-        if (!p) return `<td class="stat-cell empty-slot-cell" ${dragAttrs(slotIdx)}></td>`;
+        if (!p) return `<td class="stat-cell empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
         const srKey = statRankKey(p);
         const e = STAT_RANK[srKey];
         const letter = `<span class="stat-letter">${STAT_LETTER[key] || ""}</span>`;
@@ -642,7 +643,7 @@ function renderTable() {
     <td class="row-label">特性</td>
     ${party.map((name, slotIdx) => {
       const p = name && POKE_MAP[name];
-      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)}></td>`;
+      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
       const abs = [p.ab1,p.ab2,p.ab3].filter(Boolean);
       if (abs.length === 0) return `<td class="ab-cell" ${dragAttrs(slotIdx)}>—</td>`;
       return `<td class="ab-cell" ${dragAttrs(slotIdx)}>${abs.map(a => {
@@ -658,7 +659,7 @@ function renderTable() {
     <td class="row-label" style="white-space:normal;font-size:.68rem">弱点</td>
     ${party.map((name, slotIdx) => {
       const p = name && POKE_MAP[name];
-      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)}></td>`;
+      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
       return `<td class="resist-cell" ${dragAttrs(slotIdx)}>${resistHtml(p.resist||[], 'weak')}</td>`;
     }).join("")}
   </tr>`);
@@ -667,7 +668,7 @@ function renderTable() {
     <td class="row-label" style="white-space:normal;font-size:.68rem">耐性</td>
     ${party.map((name, slotIdx) => {
       const p = name && POKE_MAP[name];
-      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)}></td>`;
+      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
       return `<td class="resist-cell" ${dragAttrs(slotIdx)}>${resistHtml(p.resist||[], 'resist')}</td>`;
     }).join("")}
   </tr>`);
@@ -718,7 +719,7 @@ function renderTable() {
         </div>
       </td>
       ${party.map((name, slotIdx) => {
-        if (!name) return `<td class="empty-slot-cell"></td>`;
+        if (!name) return `<td class="empty-slot-cell" onclick="openModal(${slotIdx})"></td>`;
         const info = wazaCellHtml(name, t, slotIdx);
         if (!info.clickable) {
           return `<td class="waza-cell"></td>`;
