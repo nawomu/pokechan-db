@@ -928,7 +928,7 @@ tbody tr:hover td { background: #FFF3C4 !important; }
 #waza-tip {
   position: fixed; display: none; z-index: 9999;
   background: #161b22; border: 1px solid #58a6ff; border-radius: 6px;
-  padding: 8px 10px; max-width: 360px; pointer-events: none;
+  padding: 8px 10px; max-width: 480px; pointer-events: none;
   box-shadow: 0 4px 16px rgba(0,0,0,0.6);
   font-size: 11px; line-height: 1.5; color: #e6edf3;
   font-family: "Hiragino Kaku Gothic ProN", sans-serif;
@@ -939,6 +939,12 @@ tbody tr:hover td { background: #FFF3C4 !important; }
 #waza-tip .wt-row { margin-top: 4px; color: #c9d1d9; }
 #waza-tip .wt-row b { color: #f0883e; }
 #waza-tip .wt-effect { margin-top: 6px; padding-top: 6px; border-top: 1px solid #30363d; color: #b1bac4; font-size: 10.5px; }
+#waza-tip .wt-learners { margin-top: 6px; padding-top: 6px; border-top: 1px solid #30363d; font-size: 10.5px; }
+#waza-tip .wt-learners-title { color: #79c0ff; font-weight: bold; margin-bottom: 3px; font-size: 10.5px; }
+#waza-tip .wt-learners-list { line-height: 1.6; color: #c9d1d9; }
+#waza-tip .wt-learner { display: inline-block; padding: 0 6px 0 0; }
+#waza-tip .wt-tot { color: #f0883e; font-size: 9.5px; margin-left: 2px; }
+#waza-tip .wt-more { color: #8b949e; font-style: italic; }
 .hdr2-bot[data-waza-key] { cursor: help; }
 
 /* わざ列の class 別 表示制御 (body にクラス付与で一括非表示) */
@@ -3512,10 +3518,33 @@ function openWazaList() {
   const wazaByKey = Object.fromEntries(WAZA_MASTER.map(w => [w.key, w]));
   const tip = document.getElementById('waza-tip');
   if (!tip) return;
+  // ポケモン名 → 種族値合計のマップ (習得ポケ並び替え用)
+  const pokeTotal = {};
+  if (typeof POKEMON_LIST !== 'undefined') {
+    POKEMON_LIST.forEach(p => { pokeTotal[p.name] = p.total || 0; });
+  }
+  const MAX_LEARNERS_SHOWN = 30;
 
   function fmtNum(v) { return (v === '-' || v == null || v === '') ? '—' : v; }
   function buildTipHtml(w) {
     const typeColor = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[w.type]) || '#666';
+    // 習得ポケモン: WAZA_MAP[key].learners → 種族値合計の降順 → 先頭30匹
+    const allLearners = (WAZA_MAP[w.key] && WAZA_MAP[w.key].learners) || [];
+    const sortedLearners = allLearners
+      .map(name => ({ name, total: pokeTotal[name] || 0 }))
+      .sort((a,b) => b.total - a.total);
+    const top = sortedLearners.slice(0, MAX_LEARNERS_SHOWN);
+    const more = sortedLearners.length - top.length;
+    const listHtml = top.map(l =>
+      `<span class="wt-learner">${l.name}<span class="wt-tot">${l.total}</span></span>`
+    ).join('');
+    const moreHtml = more > 0 ? `<span class="wt-more">…他 ${more} 匹</span>` : '';
+    const learnersBlock = sortedLearners.length
+      ? `<div class="wt-learners">
+           <div class="wt-learners-title">習得ポケモン ${sortedLearners.length} 匹 (種族値合計順、上位 ${top.length})</div>
+           <div class="wt-learners-list">${listHtml}${moreHtml}</div>
+         </div>`
+      : '';
     return `
       <div>
         <span class="wt-name">${w.name}</span>
@@ -3526,6 +3555,7 @@ function openWazaList() {
       <div class="wt-row">${w.contact} / ${w.guard} / 対戦: ${w.mode}</div>
       <div class="wt-row">対象: ${w.target} / カテゴリ: ${w.category}</div>
       <div class="wt-effect">${w.effect}</div>
+      ${learnersBlock}
     `;
   }
 
