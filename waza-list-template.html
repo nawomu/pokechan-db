@@ -348,12 +348,16 @@ function matchesEffectFilter(m) {
   if (activeEfFilters.status.size > 0) {
     const STATUS_PAT = {
       'まひ':   /まひ/,
-      'ねむり': /ねむり/,
+      // 「相手を〜ねむり状態〜」にのみマッチ（を=目的語で「与える」文脈を特定）。
+      // ふいうちの「相手が〜ねむり状態でも」は「相手が」なので除外。
+      // 「自分が〜ねむり状態」「ねむり状態にならない」等も除外。
+      'ねむり': /相手を.*ねむり.*状態/,
       'こおり': /こおり/,
       'やけど': /やけど/,
       'どく':   /もうどく|(?<!も)どく/,
       'こんらん': /こんらん/,
-      'ひるみ': /ひるませ|ひるみ/,
+      // 「ひるませ」（使役形）のみ。「ひるみ状態で行動できなかった」等の名詞形は除外。
+      'ひるみ': /ひるませ/,
     };
     const hasStatus = [...activeEfFilters.status].some(s => STATUS_PAT[s] && STATUS_PAT[s].test(eff));
     if (!hasStatus) return false;
@@ -658,3 +662,4 @@ document.addEventListener('keydown', e => {
 render();
 </script>
 </body></html>
+
