@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- v9 build: 2026-04-19 08:44 WAZA_MASTER -->
+<title>ポケチャン わざリスト</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; background: #F5F5F5; padding: 4px; margin: 0; color: #222; font-size: 11px; }
+
+.top-bar { position: sticky; top: 0; z-index: 100; background: #F5F5F5; padding: 4px; border-bottom: 2px solid #1F4E79; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.top-bar h1 { margin: 0; font-size: 14px; color: #1F4E79; }
+.top-bar input[type=search] { padding: 2px 6px; font-size: 11px; border: 1px solid #999; border-radius: 3px; width: 180px; }
+.top-bar button { padding: 2px 8px; font-size: 11px; background: #F39C12; color: white; border: none; border-radius: 3px; cursor: pointer; font-weight: 700; }
+.top-bar button.secondary { background: #7F8C8D; }
+.top-bar .count { font-weight: 700; color: #1F4E79; }
+
+table { border-collapse: collapse; width: 100%; font-size: 11px; background: white; }
+thead { position: sticky; top: 42px; z-index: 50; }
+thead tr.head-row th { background: #1F4E79; color: white; padding: 3px 4px; text-align: center; border: 1px solid #0a2040; cursor: pointer; user-select: none; white-space: nowrap; font-weight: 700; font-size: 11px; }
+thead tr.head-row th.col-name, thead tr.head-row th.col-effect { text-align: left; }
+thead tr.head-row th.col-chk { font-size: 16px; padding: 2px; }
+thead tr.head-row th:hover { background: #2A6091; }
+thead tr.head-row th.sorted::after { content: " ▼"; font-size: 9px; }
+thead tr.head-row th.sorted.asc::after { content: " ▲"; }
+thead tr.filter-row th { background: #E8ECF2; padding: 1px; border: 1px solid #999; }
+thead tr.filter-row input, thead tr.filter-row select { width: 100%; font-size: 10px; padding: 1px 3px; border: 1px solid #CCC; border-radius: 2px; }
+tbody td { padding: 2px 4px; border: 1px solid #DDD; vertical-align: middle; }
+tbody tr:nth-child(even) { background: #F9F9F9; }
+tbody tr:hover { background: #E3F2FD !important; }
+tbody tr.added { background: #E8F5E8 !important; }
+tbody tr.added:hover { background: #C5E1C5 !important; }
+tbody tr.checked { background: #D4E7F5 !important; }
+
+.st-added { color: #2E7D32; font-weight: 700; font-size: 11px; }
+.st-todo { color: #999; font-size: 11px; }
+.type-cell { color: white; text-align: center; padding: 1px 4px; border-radius: 2px; font-weight: 700; font-size: 10px; white-space: nowrap; }
+.name-cell { font-weight: 700; color: #1F4E79; }
+.cat-cell { background: #E8ECF2; padding: 1px 4px; border-radius: 2px; font-size: 10px; white-space: nowrap; }
+.mode-both { color: #666; font-size: 10px; }
+.mode-double { color: #D32F2F; font-weight: 700; font-size: 10px; background: #FFEBEE; padding: 1px 4px; border-radius: 2px; }
+.effect-cell { font-size: 10px; color: #555; line-height: 1.3; }
+.num-cell { text-align: center; font-family: monospace; }
+.chk-cell { text-align: center; }
+.chk-cell input { cursor: pointer; accent-color: #2E86C1; }
+
+th.col-st, td.col-st { width: 52px; text-align: center; }
+th.col-chk, td.col-chk { width: 30px; text-align: center; }
+th.col-name, td.col-name { width: 110px; }
+th.col-type, td.col-type { width: 60px; text-align: center; }
+th.col-class, td.col-class { width: 40px; text-align: center; }
+th.col-power, td.col-power { width: 40px; text-align: center; }
+th.col-acc, td.col-acc { width: 40px; text-align: center; }
+th.col-pp, td.col-pp { width: 32px; text-align: center; }
+th.col-target, td.col-target { width: 85px; white-space: nowrap; font-size: 10px; text-align: center; }
+th.col-mode, td.col-mode { width: 60px; text-align: center; }
+th.col-contact, td.col-contact { width: 34px; text-align: center; }
+th.col-guard, td.col-guard { width: 34px; text-align: center; }
+th.col-cat, td.col-cat { width: 62px; text-align: center; }
+th.col-effect, td.col-effect { min-width: 280px; }
+th.col-learners, td.col-learners { width: 60px; text-align: center; }
+
+/* 習得列 (件数クリックで全リスト表示) */
+.learners-cell { cursor: pointer; color: #1F4E79; font-weight: 700; }
+.learners-cell:hover { text-decoration: underline; background: #FFF8E1; }
+.learners-cell-zero { color: #999; font-weight: 400; cursor: default; }
+
+/* わざ名ホバー (上位50匹を表示) */
+td.col-name { cursor: help; }
+#waza-tip {
+  position: fixed; display: none; z-index: 9999;
+  background: white; border: 2px solid #1F4E79; border-radius: 6px;
+  padding: 8px 10px; max-width: 520px; pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  font-size: 11px; line-height: 1.5; color: #222;
+}
+#waza-tip .wt-title { font-weight: bold; color: #1F4E79; margin-bottom: 4px; font-size: 12px; }
+#waza-tip .wt-list { line-height: 1.7; color: #555; }
+#waza-tip .wt-learner { display: inline-block; padding: 0 6px 0 0; }
+#waza-tip .wt-tot { color: #F39C12; font-size: 10px; margin-left: 2px; }
+#waza-tip .wt-more { color: #999; font-style: italic; }
+
+/* 全リスト表示モーダル */
+#learnerModal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55); z-index: 9000;
+  align-items: center; justify-content: center;
+}
+#learnerModal.vis { display: flex; }
+#learnerModalBox {
+  background: white; border-radius: 8px; padding: 16px;
+  max-width: 760px; width: 94%; max-height: 84vh;
+  overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  border: 2px solid #1F4E79;
+}
+#learnerModalBox .lm-close {
+  float: right; cursor: pointer; font-size: 22px; color: #999;
+  font-weight: 700; line-height: 1;
+}
+#learnerModalBox .lm-close:hover { color: #333; }
+#learnerModalBox h3 {
+  margin: 0 0 10px 0; color: #1F4E79; font-size: 15px;
+  border-bottom: 1px solid #DDD; padding-bottom: 8px;
+}
+#learnerModalBox .lm-list { line-height: 2; font-size: 12px; }
+#learnerModalBox .lm-learner {
+  display: inline-block; margin: 2px 4px 2px 0;
+  padding: 2px 8px; background: #F0F5FA; border-radius: 4px;
+  color: #222;
+}
+#learnerModalBox .lm-tot { color: #F39C12; font-size: 10px; margin-left: 4px; }
+
+#exportArea { display: none; position: fixed; top: 10%; left: 50%; transform: translateX(-50%); background: white; padding: 16px; border-radius: 6px; box-shadow: 0 5px 30px rgba(0,0,0,0.3); z-index: 2000; max-width: 700px; width: 90%; border: 2px solid #1F4E79; }
+#exportArea textarea { width: 100%; height: 250px; font-family: monospace; font-size: 11px; border: 1px solid #999; border-radius: 3px; padding: 6px; }
+#exportArea .close-btn { float: right; cursor: pointer; font-size: 22px; font-weight: 700; color: #999; }
+#exportArea h3 { margin: 0 0 8px 0; color: #1F4E79; font-size: 14px; }
+</style></head><body>
+
+<div class="top-bar">
+  <h1>📋 ポケチャン わざリスト <span style="font-size:10px;color:#999;font-weight:400">v9 (04/19 08:44)</span></h1>
+  <input type="search" id="search" placeholder="🔍 わざ名検索 (カナ/ひら両対応)">
+  <span class="count" id="count" style="display:inline-block;min-width:180px;text-align:left">全170技 / 選択0</span>
+  <button onclick="selectVisible()">☑ 表示中選択</button>
+  <button class="secondary" onclick="deselectVisible()">☐ 表示中解除</button>
+  <button onclick="exportSelection()">📋 選択を出力</button>
+  <button class="secondary" onclick="resetAll()">🔄 リセット</button>
+  <span style="font-size:10px;color:#666">※ヘッダーをクリックでソート、その下でフィルタ絞込</span>
+</div>
+
+<table id="mainTable">
+<thead>
+  <tr class="head-row">
+    <th class="col-st" data-sort="status">状況</th>
+    <th class="col-chk" id="head-chk" onclick="toggleVisible()" title="表示中を全チェック/解除" style="cursor:pointer;user-select:none">☑</th>
+    <th class="col-name sorted asc" data-sort="name">わざ名</th>
+    <th class="col-type" data-sort="type">タイプ</th>
+    <th class="col-class" data-sort="class">分類</th>
+    <th class="col-power" data-sort="power">威力</th>
+    <th class="col-acc" data-sort="acc">命中</th>
+    <th class="col-pp" data-sort="pp">PP</th>
+    <th class="col-target" data-sort="target">対象</th>
+    <th class="col-mode" data-sort="mode">対戦</th>
+    <th class="col-contact" data-sort="contact">接触</th>
+    <th class="col-guard" data-sort="guard">守貫</th>
+    <th class="col-cat" data-sort="category">カテゴリ</th>
+    <th class="col-effect">効果</th>
+    <th class="col-learners" data-sort="learnersCount" title="習得ポケモン数 (クリックでソート、件数クリックで全リスト)">習得</th>
+  </tr>
+  <tr class="filter-row">
+    <th><select id="f-status"><option value="">全て</option><option value="added">追加済</option><option value="todo">未追加</option></select></th>
+    <th></th>
+    <th></th>
+    <th><select id="f-type"><option value="">全タイプ</option></select></th>
+    <th></th>
+    <th></th>
+    <th></th>
+    <th></th>
+    <th><select id="f-target"><option value="">全対象</option></select></th>
+    <th><select id="f-mode"><option value="">全て</option><option value="両方">両方</option><option value="ダブル">ダブル</option></select></th>
+    <th><select id="f-contact"><option value="">全て</option><option value="接○">接○</option><option value="接×">接×</option></select></th>
+    <th><select id="f-guard"><option value="">全て</option><option value="守○">守○</option><option value="守×">守×</option></select></th>
+    <th><select id="f-cat"><option value="">全カテゴリ</option></select></th>
+    <th></th>
+    <th></th>
+  </tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+
+<div id="exportArea">
+  <span class="close-btn" onclick="document.getElementById('exportArea').style.display='none'">×</span>
+  <h3>📋 選択したわざ一覧</h3>
+  <p style="font-size:11px;margin:0 0 6px 0;">下記をコピー → Claudeチャットに貼り付け</p>
+  <textarea id="exportText" readonly></textarea>
+  <button onclick="copyExport()" style="margin-top:6px;padding:4px 10px;background:#F39C12;color:white;border:none;border-radius:3px;cursor:pointer;">📋 コピー</button>
+</div>
+
+<!-- 習得ポケモン全リスト用モーダル -->
+<div id="learnerModal" onclick="if(event.target===this)closeLearnerModal()">
+  <div id="learnerModalBox">
+    <span class="lm-close" onclick="closeLearnerModal()">×</span>
+    <h3 id="lmTitle">習得ポケモン</h3>
+    <div class="lm-list" id="lmList"></div>
+  </div>
+</div>
+
+<!-- わざ名ホバー用 tooltip -->
+<div id="waza-tip"></div>
+
+<script>
+const moves = __MOVES_PLACEHOLDER__;
+const addedKeys = ["chouhatsu", "jikosaisei"];
+const typeColors = {"ノーマル": "#A8A878", "ほのお": "#F08030", "みず": "#6890F0", "でんき": "#F8D030", "くさ": "#78C850", "こおり": "#98D8D8", "かくとう": "#C03028", "どく": "#A040A0", "じめん": "#E0C068", "ひこう": "#A890F0", "エスパー": "#F85888", "むし": "#A8B820", "いわ": "#B8A038", "ゴースト": "#705898", "ドラゴン": "#7038F8", "あく": "#705848", "はがね": "#B8B8D0", "フェアリー": "#EE99AC"};
+
+// カタカナ ⇔ ひらがな 相互変換（どちらで検索してもヒット）
+function toHira(s) {
+  return (s || '').toLowerCase().replace(/[\u30A1-\u30F6]/g, ch =>
+    String.fromCharCode(ch.charCodeAt(0) - 0x60)
+  );
+}
+
+// URLパラメータで追加済み情報を受け取る（DB連動用）
+const urlAdded = new URLSearchParams(location.search).get('added');
+let addedMoveNames = new Set();
+if (urlAdded) {
+  const keys = urlAdded.split(',').map(s => s.trim()).filter(Boolean);
+  moves.forEach(m => { if (keys.includes(m.key)) addedMoveNames.add(m.name); });
+} else {
+  moves.forEach(m => { if (addedKeys.includes(m.key)) addedMoveNames.add(m.name); });
+}
+
+const selected = new Set();
+let sortKey = 'name';
+let sortDir = 1;
+
+function toNum(v) {
+  if (v === '-' || v === '' || v == null) return -1;
+  const n = parseInt(v);
+  return isNaN(n) ? -1 : n;
+}
+
+function statusOf(m) { return addedMoveNames.has(m.name) ? 'added' : 'todo'; }
+
+function render() {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  const searchQ = toHira(document.getElementById('search').value);
+  const fStatus = document.getElementById('f-status').value;
+  const fType = document.getElementById('f-type').value;
+  const fTarget = document.getElementById('f-target').value;
+  const fMode = document.getElementById('f-mode').value;
+  const fContact = document.getElementById('f-contact').value;
+  const fGuard = document.getElementById('f-guard').value;
+  const fCat = document.getElementById('f-cat').value;
+  
+  let rows = moves.slice();
+  rows.sort((a, b) => {
+    let av, bv;
+    if (sortKey === 'status') { av = statusOf(a); bv = statusOf(b); }
+    else if (sortKey === 'learnersCount') { av = (a.learners||[]).length; bv = (b.learners||[]).length; }
+    else if (['power','acc','pp'].includes(sortKey)) { av = toNum(a[sortKey]); bv = toNum(b[sortKey]); }
+    else { av = a[sortKey] || ''; bv = b[sortKey] || ''; }
+    if (av < bv) return -1 * sortDir;
+    if (av > bv) return 1 * sortDir;
+    return 0;
+  });
+  
+  let visibleCount = 0;
+  rows.forEach(m => {
+    const st = statusOf(m);
+    if (searchQ && !toHira(m.name).includes(searchQ)) return;
+    if (fStatus && fStatus !== st) return;
+    if (fType && m.type !== fType) return;
+    if (fTarget && m.target !== fTarget) return;
+    if (fMode && m.mode !== fMode) return;
+    if (fContact && m.contact !== fContact) return;
+    if (fGuard && m.guard !== fGuard) return;
+    if (fCat && m.category !== fCat) return;
+    
+    const tr = document.createElement('tr');
+    tr.className = st === 'added' ? 'added' : '';
+    if (selected.has(m.name)) tr.classList.add('checked');
+    
+    const color = typeColors[m.type] || '#999';
+    const isAdded = st === 'added';
+    const modeHtml = m.mode === 'ダブル' 
+      ? '<span class="mode-double">ダブル</span>' 
+      : '<span class="mode-both">両方</span>';
+    
+    const learnerCount = (m.learners || []).length;
+    const learnersHtml = learnerCount > 0
+      ? `<td class="col-learners learners-cell" data-key="${m.key}" onclick="showLearners('${m.key}')">${learnerCount}匹</td>`
+      : `<td class="col-learners learners-cell-zero">—</td>`;
+    tr.innerHTML = `
+      <td class="col-st">${isAdded ? '<span class="st-added">✓追加済</span>' : '<span class="st-todo">未</span>'}</td>
+      <td class="col-chk chk-cell"><input type="checkbox" ${selected.has(m.name)?'checked':''} ${isAdded?'disabled':''} data-name="${m.name}"></td>
+      <td class="col-name name-cell" data-key="${m.key}">${m.name}</td>
+      <td class="col-type"><span class="type-cell" style="background:${color}">${m.type}</span></td>
+      <td class="col-class">${m.class}</td>
+      <td class="col-power num-cell">${m.power}</td>
+      <td class="col-acc num-cell">${m.acc}</td>
+      <td class="col-pp num-cell">${m.pp}</td>
+      <td class="col-target">${m.target}</td>
+      <td class="col-mode">${modeHtml}</td>
+      <td class="col-contact">${m.contact}</td>
+      <td class="col-guard">${m.guard}</td>
+      <td class="col-cat"><span class="cat-cell">${m.category}</span></td>
+      <td class="col-effect effect-cell">${m.effect}</td>
+      ${learnersHtml}
+    `;
+    tbody.appendChild(tr);
+    visibleCount++;
+  });
+  
+  document.getElementById('count').textContent = `表示${visibleCount}/全${moves.length}技 / 選択${selected.size}`;
+  updateHeadChk();
+}
+
+document.querySelectorAll('th[data-sort]').forEach(th => {
+  th.onclick = () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir *= -1;
+    else { sortKey = k; sortDir = 1; }
+    document.querySelectorAll('th[data-sort]').forEach(x => { x.classList.remove('sorted','asc'); });
+    th.classList.add('sorted');
+    if (sortDir === 1) th.classList.add('asc');
+    render();
+  };
+});
+
+['search','f-status','f-type','f-target','f-mode','f-contact','f-guard','f-cat'].forEach(id => {
+  document.getElementById(id).addEventListener('input', render);
+  document.getElementById(id).addEventListener('change', render);
+});
+
+document.getElementById('tbody').addEventListener('change', e => {
+  if (e.target.type === 'checkbox') {
+    const name = e.target.dataset.name;
+    if (e.target.checked) selected.add(name);
+    else selected.delete(name);
+    render();
+  }
+});
+
+const types = [...new Set(moves.map(m => m.type))].sort();
+const targets = [...new Set(moves.map(m => m.target))].sort();
+const cats = [...new Set(moves.map(m => m.category))].sort();
+types.forEach(t => { const o = document.createElement('option'); o.value=t; o.textContent=t; document.getElementById('f-type').appendChild(o); });
+targets.forEach(t => { const o = document.createElement('option'); o.value=t; o.textContent=t; document.getElementById('f-target').appendChild(o); });
+cats.forEach(c => { const o = document.createElement('option'); o.value=c; o.textContent=c; document.getElementById('f-cat').appendChild(o); });
+
+// 画面状態リセット (検索・フィルタ・ソートのみ初期化、選択状態は保持)
+function resetAll() {
+  // 検索ボックスクリア
+  document.getElementById('search').value = '';
+  // 全フィルタセレクトを初期値に
+  ['f-status', 'f-type', 'f-target', 'f-mode', 'f-contact', 'f-guard', 'f-cat'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // ソート状態を初期値に (わざ名昇順)
+  sortKey = 'name';
+  sortDir = 1;
+  document.querySelectorAll('th[data-sort]').forEach(x => { x.classList.remove('sorted','asc'); });
+  const nameTh = document.querySelector('th[data-sort="name"]');
+  if (nameTh) { nameTh.classList.add('sorted'); nameTh.classList.add('asc'); }
+  // 再描画
+  render();
+}
+
+// 表示中の技を全チェック
+function selectVisible() {
+  document.querySelectorAll('#tbody input[type=checkbox]:not(:disabled)').forEach(c => {
+    if (!c.checked) { c.checked = true; selected.add(c.dataset.name); }
+  });
+  render();
+}
+// 表示中の技を全解除
+function deselectVisible() {
+  document.querySelectorAll('#tbody input[type=checkbox]:not(:disabled)').forEach(c => {
+    if (c.checked) { c.checked = false; selected.delete(c.dataset.name); }
+  });
+  render();
+}
+// ヘッダー☑クリック: 表示中の状態でトグル
+function toggleVisible() {
+  const checks = document.querySelectorAll('#tbody input[type=checkbox]:not(:disabled)');
+  if (checks.length === 0) return;
+  // 1つでも未チェックがあれば全ON、全チェック済みなら全OFF
+  const hasUnchecked = Array.from(checks).some(c => !c.checked);
+  if (hasUnchecked) selectVisible();
+  else deselectVisible();
+}
+// ヘッダー☑の状態更新 (表示中の選択状態を反映)
+function updateHeadChk() {
+  const head = document.getElementById('head-chk');
+  if (!head) return;
+  const checks = document.querySelectorAll('#tbody input[type=checkbox]:not(:disabled)');
+  if (checks.length === 0) { head.textContent = '☑'; head.style.color = ''; return; }
+  const checkedCount = Array.from(checks).filter(c => c.checked).length;
+  if (checkedCount === 0) { head.textContent = '☐'; head.style.color = '#CCC'; }
+  else if (checkedCount === checks.length) { head.textContent = '☑'; head.style.color = ''; }
+  else { head.textContent = '▣'; head.style.color = '#F39C12'; }
+}
+
+function exportSelection() {
+  if (selected.size === 0) { alert('わざを1つ以上選択してください'); return; }
+  const selMoves = moves.filter(m => selected.has(m.name));
+  const byCat = {};
+  selMoves.forEach(m => { (byCat[m.category] = byCat[m.category]||[]).push(m); });
+  let text = `【取り込みたいわざ: ${selected.size}技】\n`;
+  text += `生成日: ${new Date().toLocaleString('ja-JP')}\n\n`;
+  Object.entries(byCat).forEach(([cat, ms]) => {
+    text += `■ ${cat} (${ms.length}技)\n`;
+    ms.forEach(m => { text += `  - ${m.name} (${m.type}, ${m.target}, ${m.mode})\n`; });
+    text += '\n';
+  });
+  text += '---\n全技名: ' + selMoves.map(m => m.name).join(', ') + '\n';
+  document.getElementById('exportText').value = text;
+  document.getElementById('exportArea').style.display = 'block';
+}
+
+function copyExport() {
+  const ta = document.getElementById('exportText');
+  ta.select();
+  document.execCommand('copy');
+  alert('コピーしました！Claudeチャットに貼り付けてください。');
+}
+
+// ===== 習得ポケモン表示 =====
+// モーダル: 件数セルクリックで全習得ポケを表示
+function showLearners(key) {
+  const m = moves.find(x => x.key === key);
+  if (!m || !m.learners || m.learners.length === 0) return;
+  document.getElementById('lmTitle').textContent =
+    `${m.name} を習得 ${m.learners.length}匹 (種族値合計の降順)`;
+  document.getElementById('lmList').innerHTML = m.learners.map(l =>
+    `<span class="lm-learner">${l.name}<span class="lm-tot">${l.total}</span></span>`
+  ).join('');
+  document.getElementById('learnerModal').classList.add('vis');
+}
+function closeLearnerModal() {
+  document.getElementById('learnerModal').classList.remove('vis');
+}
+// Esc で閉じる
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLearnerModal();
+});
+
+// ホバー: わざ名にマウスオーバーで上位50匹を表示
+(function setupNameHover() {
+  const tip = document.getElementById('waza-tip');
+  if (!tip) return;
+  let curKey = null;
+  document.addEventListener('mouseover', e => {
+    const cell = e.target.closest('td.col-name[data-key]');
+    if (!cell) {
+      if (curKey) { tip.style.display = 'none'; curKey = null; }
+      return;
+    }
+    const key = cell.dataset.key;
+    if (key === curKey) return;
+    curKey = key;
+    const m = moves.find(x => x.key === key);
+    if (!m || !m.learners || m.learners.length === 0) {
+      tip.style.display = 'none';
+      return;
+    }
+    const top = m.learners.slice(0, 50);
+    const more = m.learners.length - top.length;
+    const list = top.map(l =>
+      `<span class="wt-learner">${l.name}<span class="wt-tot">${l.total}</span></span>`
+    ).join('');
+    const moreHtml = more > 0 ? `<span class="wt-more">…他 ${more} 匹</span>` : '';
+    tip.innerHTML = `
+      <div class="wt-title">${m.name} を習得 ${m.learners.length}匹 (種族値順、上位${top.length})</div>
+      <div class="wt-list">${list}${moreHtml}</div>
+    `;
+    tip.style.display = 'block';
+  });
+  document.addEventListener('mousemove', e => {
+    if (tip.style.display === 'none') return;
+    const pad = 14;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + tw > window.innerWidth - 5) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight - 5) y = e.clientY - th - pad;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  });
+  document.addEventListener('mouseout', e => {
+    if (!e.relatedTarget || !e.relatedTarget.closest('td.col-name[data-key]')) {
+      tip.style.display = 'none';
+      curKey = null;
+    }
+  });
+})();
+
+render();
+</script>
+</body></html>
