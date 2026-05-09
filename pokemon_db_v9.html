@@ -1147,6 +1147,7 @@ let compatSelTypes = new Set();
 let compatExcludeTypes = new Set();
 let compatGrpVisible = { chk:true, type:true, stat:true, ab:true, resist:true, cnt:true, waza:true };
 let _compatAlt = 0;
+let _learnsFilter = null;  // ?learns=KEY 用 (URL から)
 
 // ヒアカナ変換
 function hiraToKata(s) { return s.replace(/[\u3041-\u3096]/g, ch => String.fromCharCode(ch.charCodeAt(0)+0x60)); }
@@ -2657,8 +2658,12 @@ function applyF() {
     }
   };
 
-  // 追加フィルター（検索、フォルム、タイプチップ）
+  // 追加フィルター（検索、フォルム、タイプチップ、学習絞込）
   const extraFilters = (d) => {
+    // ?learns=KEY 絞込 (該当技を覚えるポケのみ)
+    if (_learnsFilter) {
+      d = d.filter(p => p[_learnsFilter] === true);
+    }
     // 検索
     const q = document.getElementById('srch')?.value.trim() || '';
     if (q) {
@@ -3441,20 +3446,18 @@ function init() {
 
   // ?learns=KEY URLパラメータ対応: 該当技を覚えるポケのみに絞り込み
   // (waza-list-template.html の iframe から呼ばれる用途)
+  // ★重要: DATA を書き換えない (p._idx の整合性を保つため、checks の idx キーが本DBと同じ意味になる)
   const learnsKey = new URLSearchParams(location.search).get('learns');
   if (learnsKey) {
-    const filtered = DATA.filter(p => p[learnsKey] === true);
-    if (filtered.length > 0) {
-      const orig = DATA.length;
-      DATA.length = 0;
-      DATA.push(...filtered);
+    const filteredCount = DATA.filter(p => p[learnsKey] === true).length;
+    if (filteredCount > 0) {
+      _learnsFilter = learnsKey;
       const wazaName = (typeof WAZA_MAP !== 'undefined' && WAZA_MAP[learnsKey])
         ? WAZA_MAP[learnsKey].name : learnsKey;
       document.title = '習得: ' + wazaName + ' - ポケチャンDB';
-      // 上部にバナー表示
       const banner = document.createElement('div');
       banner.style.cssText = 'background:#1F4E79;color:white;padding:6px 12px;text-align:center;font-weight:700;font-size:13px;';
-      banner.innerHTML = '🔍 <span style="background:#F39C12;padding:2px 8px;border-radius:3px;margin:0 6px;">' + wazaName + '</span> を習得するポケモンのみ表示中 (' + filtered.length + '匹 / 元 ' + orig + ' 匹)';
+      banner.innerHTML = '🔍 <span style="background:#F39C12;padding:2px 8px;border-radius:3px;margin:0 6px;">' + wazaName + '</span> を習得するポケモンのみ表示中 (' + filteredCount + '匹 / 元 ' + DATA.length + ' 匹)';
       document.body.insertBefore(banner, document.body.firstChild);
     }
   }
