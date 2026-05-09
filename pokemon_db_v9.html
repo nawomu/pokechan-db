@@ -3510,6 +3510,19 @@ function openWazaList() {
         return Object.assign({}, w, { learners });
       });
       html = html.replace('__MOVES_PLACEHOLDER__', JSON.stringify(movesWithLearners));
+      // ポケモン詳細データを注入 (modal で DB と同期するC1/C2/C3を表示するため)
+      const pokeData = {};
+      DATA.forEach((p, idx) => {
+        pokeData[p.name] = {
+          no: p.no, form: p.form,
+          type1: p.type1, type2: p.type2,
+          hp: p.hp, atk: p.atk, def: p.def,
+          spatk: p.spatk, spdef: p.spdef, spd: p.spd, total: p.total,
+          ab1: p.ab1, ab2: p.ab2, ab3: p.ab3,
+          _idx: idx,
+        };
+      });
+      html = html.replace('__POKE_DATA_PLACEHOLDER__', JSON.stringify(pokeData));
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const w = window.open(url, '_blank');
