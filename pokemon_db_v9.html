@@ -1898,7 +1898,17 @@ STAT_COLS.forEach(([k, lbl]) => {
       const ghm = getGlobalHM();
       const hm = (ghm[k] && ghm[k][p._idx]) || '';
       const cls = k === 'total' ? 'td-tot' : 'td-st';
-      return `<td class="${cls} ${hm}" data-grp="stat">${p[k]}</td>`;
+      // ランク (全国図鑑内の順位) をホバー title に表示
+      let titleAttr = '';
+      if (typeof STAT_RANK !== 'undefined') {
+        const sk = (p.form && p.form !== '通常') ? `${p.name}(${p.form})` : p.name;
+        const e = STAT_RANK[sk];
+        const rk = e && e[`${k}_base_rank`];
+        if (rk != null) {
+          titleAttr = ` title="${lbl}: ${p[k]} (全国 第${rk}位)"`;
+        }
+      }
+      return `<td class="${cls} ${hm}" data-grp="stat"${titleAttr}>${p[k]}</td>`;
     },
     getVal: (p) => p[k],
     applyFilter: (arr, ctx) => {
