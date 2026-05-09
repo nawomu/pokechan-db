@@ -64,6 +64,7 @@ th.col-class, td.col-class { width: 40px; text-align: center; }
 th.col-power, td.col-power { width: 40px; text-align: center; }
 th.col-acc, td.col-acc { width: 40px; text-align: center; }
 th.col-pp, td.col-pp { width: 32px; text-align: center; }
+th.col-prob, td.col-prob { width: 42px; text-align: center; font-family: monospace; }
 th.col-target, td.col-target { width: 85px; white-space: nowrap; font-size: 10px; text-align: center; }
 th.col-mode, td.col-mode { width: 60px; text-align: center; }
 th.col-contact, td.col-contact { width: 34px; text-align: center; }
@@ -261,6 +262,7 @@ td.col-name { cursor: help; }
     <th class="col-power" data-sort="power">威力</th>
     <th class="col-acc" data-sort="acc">命中</th>
     <th class="col-pp" data-sort="pp">PP</th>
+    <th class="col-prob" data-sort="prob" title="効果発動確率 (説明文から抽出)">確率</th>
     <th class="col-target" data-sort="target">対象</th>
     <th class="col-mode" data-sort="mode">対戦</th>
     <th class="col-contact" data-sort="contact">接触</th>
@@ -275,6 +277,7 @@ td.col-name { cursor: help; }
     <th><select id="f-c3" class="c-filter"><option value="">全</option><option value="empty">空</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></th>
     <th></th>
     <th><select id="f-type"><option value="">全タイプ</option></select></th>
+    <th></th>
     <th></th>
     <th></th>
     <th></th>
@@ -479,12 +482,24 @@ function toNum(v) {
 
 
 // 数値列ソート用のキー集合 (これらの列は1回目=降順、2回目=解除)
-const NUMERIC_SORT_KEYS = new Set(['power', 'acc', 'pp', 'learnersCount', 'c1', 'c2', 'c3']);
+const NUMERIC_SORT_KEYS = new Set(['power', 'acc', 'pp', 'prob', 'learnersCount', 'c1', 'c2', 'c3']);
 function toNumNull(v) {
   if (v === '-' || v === '' || v == null) return null;
   const n = parseInt(v);
   return isNaN(n) ? null : n;
 }
+
+// 効果文から発動確率を抽出 (例: "10%の確率で..." → 10)
+// 複数ある場合は最大値を採用、見つからなければ null
+function extractProbability(desc) {
+  if (!desc) return null;
+  const matches = [...desc.matchAll(/(\d+)\s*%の確率/g)];
+  if (matches.length === 0) return null;
+  const probs = matches.map(m => parseInt(m[1])).filter(n => n >= 0 && n <= 100);
+  return probs.length > 0 ? Math.max(...probs) : null;
+}
+// 起動時に各 move に _prob を計算済みで持たせる
+moves.forEach(m => { m._prob = extractProbability(m.effect || ''); });
 
 // C列フィルタの判定
 function matchCFilter(key, ci, fVal) {
@@ -532,6 +547,13 @@ function render() {
       if (av === null && bv === null) return 0;
       if (av === null) return 1;   // 空(—)は常に下
       if (bv === null) return -1;
+    }
+    else if (sortKey === 'prob') {
+      av = a._prob;
+      bv = b._prob;
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;    // 確率なし(—)は常に下
+      if (bv == null) return -1;
     }
     else { av = a[sortKey] || ''; bv = b[sortKey] || ''; }
     if (av < bv) return -1 * sortDir;
@@ -585,6 +607,7 @@ function render() {
       <td class="col-power num-cell">${m.power}</td>
       <td class="col-acc num-cell">${m.acc}</td>
       <td class="col-pp num-cell">${m.pp}</td>
+      <td class="col-prob">${m._prob != null ? m._prob + '%' : '<span class="lmt-na" style="color:#BBB">—</span>'}</td>
       <td class="col-target">${m.target}</td>
       <td class="col-mode">${modeHtml}</td>
       <td class="col-contact">${m.contact}</td>
