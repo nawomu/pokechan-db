@@ -153,6 +153,9 @@ td.col-name { cursor: help; }
 .ef-chip.active-up { background: #E53935; color: white; border-color: #E53935; }
 .ef-chip.active-down { background: #1E88E5; color: white; border-color: #1E88E5; }
 .ef-chip.active-misc { background: #2E7D32; color: white; border-color: #2E7D32; }
+.ef-chip.ef-exclude-chip { border-color: #C0392B; color: #C0392B; }
+.ef-chip.ef-exclude-chip:hover { background: #FADBD8; }
+.ef-chip.active-exclude { background: #C0392B; color: white; border-color: #C0392B; }
 #ef-toggle-btn { background: #3A6EA5; color: white; font-size: 10px; padding: 1px 7px; border-radius: 3px; border: none; cursor: pointer; font-weight: 700; }
 #ef-toggle-btn:hover { background: #2A5E90; }
 .ef-divider { width: 1px; height: 14px; background: #CCC; margin: 0 2px; }
@@ -237,6 +240,13 @@ td.col-name { cursor: help; }
     <span class="ef-chip" data-ef-type="opp_down1" data-ef-val="とくこう" onclick="toggleEfChip(this)">特攻↓</span>
     <span class="ef-chip" data-ef-type="opp_down1" data-ef-val="とくぼう" onclick="toggleEfChip(this)">特防↓</span>
     <span class="ef-chip" data-ef-type="opp_down1" data-ef-val="すばやさ" onclick="toggleEfChip(this)">素早↓</span>
+  </div>
+  <!-- 除外 (該当する技を非表示) -->
+  <div class="ef-row">
+    <span class="ef-label">除外:</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="charge" onclick="toggleEfChip(this)" title="1ターン目待機 / 2ターン目攻撃の技を非表示">🚫 溜め技 (1ターン待機)</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="recharge" onclick="toggleEfChip(this)" title="使用後1ターン動けなくなる技を非表示">🚫 リチャージ</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="ohko" onclick="toggleEfChip(this)" title="一撃必殺技を非表示">🚫 一撃必殺</span>
   </div>
   <!-- その他 -->
   <div class="ef-row">
@@ -355,6 +365,7 @@ const activeEfFilters = {
   opp_down2: new Set(),  // 相手のランク 2段階以上ダウン
   opp_down1: new Set(),  // 相手のランク 1段階ダウン
   misc: new Set(),
+  exclude: new Set(),    // 除外: フラグキー (charge/recharge/ohko 等)
 };
 
 function toggleEffectFilter() {
@@ -371,13 +382,14 @@ function toggleEfChip(el) {
   const val = el.dataset.efVal;
   if (activeEfFilters[type].has(val)) {
     activeEfFilters[type].delete(val);
-    el.classList.remove('active', 'active-status', 'active-up', 'active-down', 'active-misc');
+    el.classList.remove('active', 'active-status', 'active-up', 'active-down', 'active-misc', 'active-exclude');
   } else {
     activeEfFilters[type].add(val);
     const cls = type === 'status' ? 'active-status'
                : (type === 'self_up2' || type === 'self_up1') ? 'active-up'
                : (type === 'opp_down2' || type === 'opp_down1') ? 'active-down'
                : type === 'misc' ? 'active-misc'
+               : type === 'exclude' ? 'active-exclude'
                : 'active';
     el.classList.add(cls);
   }
@@ -388,6 +400,13 @@ function toggleEfChip(el) {
 function matchesEffectFilter(m) {
   const eff = m.effect || '';
   const flags = m.flags || {};
+
+  // 除外フィルター: 該当フラグを持つ技は非表示
+  if (activeEfFilters.exclude.size > 0) {
+    for (const f of activeEfFilters.exclude) {
+      if (flags[f]) return false;
+    }
+  }
 
   // フラグフィルター (OR)
   if (activeEfFilters.flag.size > 0) {
@@ -414,47 +433,37 @@ function matchesEffectFilter(m) {
     if (!hasStatus) return false;
   }
 
-  // 自分のランク上昇 2段階以上 (OR)
+  // 自分↑↑ (2段階以上) - 厳密判定
   if (activeEfFilters.self_up2.size > 0) {
-    const hasUp2 = [...activeEfFilters.self_up2].some(stat => {
-      const baseRe = new RegExp("自分.*『" + stat + "』.*ランク.*上|自分.*" + stat + ".*ランクが.*上|自分.*" + stat + ".*段階.*上");
-      if (!baseRe.test(eff)) return false;
-      return /[2-9]段階|最大/.test(eff);
+    const ok = [...activeEfFilters.self_up2].some(stat => {
+      const sc = m._statSelf && m._statSelf[stat];
+      return sc && [...sc.upStages].some(s => s >= 2);
     });
-    if (!hasUp2) return false;
+    if (!ok) return false;
   }
-
-  // 自分のランク上昇 1段階 (OR)
+  // 自分↑ (1段階) - 厳密判定
   if (activeEfFilters.self_up1.size > 0) {
-    const hasUp1 = [...activeEfFilters.self_up1].some(stat => {
-      const baseRe = new RegExp("自分.*『" + stat + "』.*ランク.*上|自分.*" + stat + ".*ランクが.*上|自分.*" + stat + ".*段階.*上");
-      if (!baseRe.test(eff)) return false;
-      // 1段階明示 OR 段階表記なし(=1段階扱い)
-      if (/1段階/.test(eff)) return true;
-      return !/[2-9]段階|最大/.test(eff);
+    const ok = [...activeEfFilters.self_up1].some(stat => {
+      const sc = m._statSelf && m._statSelf[stat];
+      return sc && sc.upStages.has(1);
     });
-    if (!hasUp1) return false;
+    if (!ok) return false;
   }
-
-  // 相手のランク下降 2段階以上 (OR)
+  // 相手↓↓ (2段階以上) - 厳密判定
   if (activeEfFilters.opp_down2.size > 0) {
-    const hasDown2 = [...activeEfFilters.opp_down2].some(stat => {
-      const baseRe = new RegExp("相手.*『" + stat + "』.*ランク.*下|相手.*" + stat + ".*ランクが.*下|相手.*" + stat + ".*段階.*下");
-      if (!baseRe.test(eff)) return false;
-      return /[2-9]段階|最大/.test(eff);
+    const ok = [...activeEfFilters.opp_down2].some(stat => {
+      const sc = m._statOpp && m._statOpp[stat];
+      return sc && [...sc.downStages].some(s => s >= 2);
     });
-    if (!hasDown2) return false;
+    if (!ok) return false;
   }
-
-  // 相手のランク下降 1段階 (OR)
+  // 相手↓ (1段階) - 厳密判定
   if (activeEfFilters.opp_down1.size > 0) {
-    const hasDown1 = [...activeEfFilters.opp_down1].some(stat => {
-      const baseRe = new RegExp("相手.*『" + stat + "』.*ランク.*下|相手.*" + stat + ".*ランクが.*下|相手.*" + stat + ".*段階.*下");
-      if (!baseRe.test(eff)) return false;
-      if (/1段階/.test(eff)) return true;
-      return !/[2-9]段階|最大/.test(eff);
+    const ok = [...activeEfFilters.opp_down1].some(stat => {
+      const sc = m._statOpp && m._statOpp[stat];
+      return sc && sc.downStages.has(1);
     });
-    if (!hasDown1) return false;
+    if (!ok) return false;
   }
 
   // その他フィルター (OR)
@@ -498,8 +507,79 @@ function extractProbability(desc) {
   const probs = matches.map(m => parseInt(m[1])).filter(n => n >= 0 && n <= 100);
   return probs.length > 0 ? Math.max(...probs) : null;
 }
-// 起動時に各 move に _prob を計算済みで持たせる
-moves.forEach(m => { m._prob = extractProbability(m.effect || ''); });
+
+// === 厳密ランク変動判定 ===
+// description を文 → 節 に分けて、stat ごとに 自分/相手 の up/down 段階を抽出
+// 「自分のXが下がるかわりにYが上がる」のような複合文も正しく処理
+function analyzeStatChange(desc, stat, subject) {
+  const upStages = new Set();
+  const downStages = new Set();
+  if (!desc) return { upStages, downStages };
+  const statTok = '『' + stat + '』';
+
+  const sentences = desc.split('。');
+  for (const sentence of sentences) {
+    if (!sentence) continue;
+    // 文全体の subject (最初に現れた 自分/相手 がフォールバック)
+    const sentenceSubjMatch = sentence.match(/(自分|相手)/);
+    const sentenceSubj = sentenceSubjMatch ? sentenceSubjMatch[1] : null;
+    // 「かわりに」「反対に」で節分割
+    const clauses = sentence.split(/(?:かわりに|反対に)/);
+
+    for (const clause of clauses) {
+      if (!clause.includes(statTok)) continue;
+      // 節レベルの subject (なければ文全体の subject)
+      const localSubjMatch = clause.match(/(自分|相手)/);
+      const effectiveSubj = localSubjMatch ? localSubjMatch[1] : sentenceSubj;
+      if (effectiveSubj !== subject) continue;
+      // stat 後ろの up/下 を見る
+      const idx = clause.indexOf(statTok);
+      const afterStat = clause.substring(idx);
+      const upMatch = afterStat.match(/上[がげ]/);
+      const downMatch = afterStat.match(/下[がげ]/);
+      const upPos = upMatch ? upMatch.index : Infinity;
+      const downPos = downMatch ? downMatch.index : Infinity;
+      if (upPos === Infinity && downPos === Infinity) continue;
+      const direction = upPos < downPos ? 'up' : 'down';
+      const stageMatch = afterStat.match(/(\d+)\s*段階/);
+      const isMax = /最大/.test(afterStat);
+      const stage = isMax ? 6 : (stageMatch ? parseInt(stageMatch[1]) : 1);
+      if (direction === 'up') upStages.add(stage);
+      else downStages.add(stage);
+    }
+  }
+  // 補完: 別文に「N段階...上がる」(stat 名なし) がある場合、既に up があれば追加
+  // 例: せいちょう「天気が『にほんばれ』の時は、2段階ずつ上がる」
+  if (upStages.size > 0) {
+    for (const sentence of sentences) {
+      if (!sentence || sentence.includes(statTok)) continue;
+      const subjMatch = sentence.match(/(自分|相手)/);
+      const subj = subjMatch ? subjMatch[1] : subject;
+      if (subj !== subject) continue;
+      const stageMatch = sentence.match(/(\d+)\s*段階/);
+      const hasUp = /上[がげ]/.test(sentence);
+      const hasDown = /下[がげ]/.test(sentence);
+      if (stageMatch && hasUp && !hasDown) {
+        upStages.add(parseInt(stageMatch[1]));
+      } else if (/最大/.test(sentence) && hasUp && !hasDown) {
+        upStages.add(6);
+      }
+    }
+  }
+  return { upStages, downStages };
+}
+
+const STATS_LIST = ['こうげき', 'ぼうぎょ', 'とくこう', 'とくぼう', 'すばやさ'];
+// 起動時に各 move に確率 + ランク変動を計算済みで持たせる
+moves.forEach(m => {
+  m._prob = extractProbability(m.effect || '');
+  m._statSelf = {};
+  m._statOpp = {};
+  STATS_LIST.forEach(stat => {
+    m._statSelf[stat] = analyzeStatChange(m.effect || '', stat, '自分');
+    m._statOpp[stat]  = analyzeStatChange(m.effect || '', stat, '相手');
+  });
+});
 
 // C列フィルタの判定
 function matchCFilter(key, ci, fVal) {
