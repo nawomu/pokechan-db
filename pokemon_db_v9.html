@@ -3681,12 +3681,18 @@ function buildWazaListBlobUrl(initialPokemonFilter) {
       if (typeof POKEMON_LIST !== 'undefined') {
         POKEMON_LIST.forEach(p => { pokeTotal[p.name] = p.total || 0; });
       }
+      // 優先度抽出: 効果文中の "(優先度:+N)" "(優先度:-N)" を拾う。なければ 0。
+      const extractPriority = (desc) => {
+        if (!desc) return 0;
+        const m = desc.match(/優先度[:：]\s*([+-]?\d+)/);
+        return m ? parseInt(m[1], 10) : 0;
+      };
       const movesWithLearners = WAZA_MASTER.map(w => {
         const learnerNames = (typeof WAZA_MAP !== 'undefined' && WAZA_MAP[w.key] && WAZA_MAP[w.key].learners) || [];
         const learners = learnerNames
           .map(name => ({ name, total: pokeTotal[name] || 0 }))
           .sort((a, b) => b.total - a.total);
-        return Object.assign({}, w, { learners });
+        return Object.assign({}, w, { learners, priority: extractPriority(w.effect) });
       });
       html = html.replace('__MOVES_PLACEHOLDER__', JSON.stringify(movesWithLearners));
       const dbUrl = location.href.split('?')[0].split('#')[0];

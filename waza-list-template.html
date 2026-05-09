@@ -101,6 +101,10 @@ th.col-power, td.col-power { width: 40px; text-align: center; }
 th.col-acc, td.col-acc { width: 40px; text-align: center; }
 th.col-pp, td.col-pp { width: 32px; text-align: center; }
 th.col-prob, td.col-prob { width: 42px; text-align: center; font-family: monospace; }
+th.col-prio, td.col-prio { width: 44px; text-align: center; font-family: monospace; font-size: 11px; }
+td.col-prio.prio-pos { color: #1F4E79; font-weight: 700; }
+td.col-prio.prio-neg { color: #C0392B; font-weight: 700; }
+td.col-prio.prio-zero { color: #BBB; }
 th.col-target, td.col-target { width: 85px; white-space: nowrap; font-size: 10px; text-align: center; }
 th.col-mode, td.col-mode { width: 60px; text-align: center; }
 th.col-contact, td.col-contact { width: 34px; text-align: center; }
@@ -310,6 +314,7 @@ td.col-name:hover { background: #FFF8E1; text-decoration: underline; }
     <th class="col-acc" data-sort="acc">命中</th>
     <th class="col-pp" data-sort="pp">PP</th>
     <th class="col-prob" data-sort="prob" title="効果発動確率 (説明文から抽出)">確率</th>
+    <th class="col-prio" data-sort="priority" title="技優先度 (+ 先制 / − 後攻 / 0 通常)">優先</th>
     <th class="col-target" data-sort="target">対象</th>
     <th class="col-mode" data-sort="mode">対戦</th>
     <th class="col-contact" data-sort="contact">接触</th>
@@ -334,6 +339,22 @@ td.col-name:hover { background: #FFF8E1; text-decoration: underline; }
     <th></th>
     <th></th>
     <th></th>
+    <th><select id="f-prio">
+      <option value="">全て</option>
+      <option value="hi">先制(&gt;0)</option>
+      <option value="0">通常(0)</option>
+      <option value="lo">後攻(&lt;0)</option>
+      <option value="5">+5</option>
+      <option value="4">+4</option>
+      <option value="3">+3</option>
+      <option value="2">+2</option>
+      <option value="1">+1</option>
+      <option value="-3">-3</option>
+      <option value="-4">-4</option>
+      <option value="-5">-5</option>
+      <option value="-6">-6</option>
+      <option value="-7">-7</option>
+    </select></th>
     <th><select id="f-target"><option value="">全対象</option></select></th>
     <th><select id="f-mode"><option value="">全て</option><option value="両方">両方</option><option value="ダブル">ダブル</option></select></th>
     <th><select id="f-contact"><option value="">全て</option><option value="接○">接○</option><option value="接×">接×</option></select></th>
@@ -538,7 +559,7 @@ function toNum(v) {
 
 
 // 数値列ソート用のキー集合 (これらの列は1回目=降順、2回目=解除)
-const NUMERIC_SORT_KEYS = new Set(['power', 'acc', 'pp', 'prob', 'learnersCount', 'c1', 'c2', 'c3']);
+const NUMERIC_SORT_KEYS = new Set(['power', 'acc', 'pp', 'prob', 'priority', 'learnersCount', 'c1', 'c2', 'c3']);
 function toNumNull(v) {
   if (v === '-' || v === '' || v == null) return null;
   const n = parseInt(v);
@@ -645,6 +666,7 @@ function render() {
   const fContact = document.getElementById('f-contact').value;
   const fGuard = document.getElementById('f-guard').value;
   const fCat = document.getElementById('f-cat').value;
+  const fPrio = document.getElementById('f-prio').value;
   const fC1 = document.getElementById('f-c1').value;
   const fC2 = document.getElementById('f-c2').value;
   const fC3 = document.getElementById('f-c3').value;
@@ -685,6 +707,11 @@ function render() {
       if (av == null) return 1;    // 確率なし(—)は常に下
       if (bv == null) return -1;
     }
+    else if (sortKey === 'priority') {
+      av = a.priority || 0;
+      bv = b.priority || 0;
+      // 0は実値として比較 (大きい順=先制が上)
+    }
     else { av = a[sortKey] || ''; bv = b[sortKey] || ''; }
     if (av < bv) return -1 * sortDir;
     if (av > bv) return 1 * sortDir;
@@ -700,6 +727,13 @@ function render() {
     if (fContact && m.contact !== fContact) return;
     if (fGuard && m.guard !== fGuard) return;
     if (fCat && m.category !== fCat) return;
+    if (fPrio) {
+      const pv = m.priority || 0;
+      if (fPrio === 'hi' && !(pv > 0)) return;
+      else if (fPrio === 'lo' && !(pv < 0)) return;
+      else if (fPrio === '0' && pv !== 0) return;
+      else if (!['hi','lo','0'].includes(fPrio) && pv !== parseInt(fPrio,10)) return;
+    }
     if (!matchCFilter(m.key, 0, fC1)) return;
     if (!matchCFilter(m.key, 1, fC2)) return;
     if (!matchCFilter(m.key, 2, fC3)) return;
@@ -738,6 +772,12 @@ function render() {
       <td class="col-acc num-cell">${m.acc}</td>
       <td class="col-pp num-cell">${m.pp}</td>
       <td class="col-prob">${m._prob != null ? m._prob + '%' : '<span class="lmt-na" style="color:#BBB">—</span>'}</td>
+      ${(() => {
+        const p = m.priority || 0;
+        if (p > 0) return `<td class="col-prio prio-pos">+${p}</td>`;
+        if (p < 0) return `<td class="col-prio prio-neg">${p}</td>`;
+        return `<td class="col-prio prio-zero">—</td>`;
+      })()}
       <td class="col-target">${m.target}</td>
       <td class="col-mode">${modeHtml}</td>
       <td class="col-contact">${m.contact}</td>
@@ -780,7 +820,7 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
   };
 });
 
-['search','f-target','f-mode','f-contact','f-guard','f-cat','f-c1','f-c2','f-c3'].forEach(id => {
+['search','f-target','f-mode','f-contact','f-guard','f-cat','f-prio','f-c1','f-c2','f-c3'].forEach(id => {
   document.getElementById(id).addEventListener('input', render);
   document.getElementById(id).addEventListener('change', render);
 });
@@ -872,7 +912,7 @@ updateTypeBtnLabel();
 // 画面状態リセット (検索・フィルタ・ソートのみ初期化、C1/C2/C3は保持)
 function resetAll() {
   document.getElementById('search').value = '';
-  ['f-target', 'f-mode', 'f-contact', 'f-guard', 'f-cat', 'f-c1', 'f-c2', 'f-c3'].forEach(id => {
+  ['f-target', 'f-mode', 'f-contact', 'f-guard', 'f-cat', 'f-prio', 'f-c1', 'f-c2', 'f-c3'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
