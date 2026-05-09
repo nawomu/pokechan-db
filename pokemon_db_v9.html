@@ -980,6 +980,37 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
 
 /* 列ヘッダ技名部分: 3行分の高さに固定 (短い名前でも揃う) */
 .th-ch .hdr2-bot { height: 36px; align-items: flex-start; padding-top: 2px; }
+
+/* ポケモン名クリック時: 使えるわざ一覧モーダル */
+.td-name { cursor: pointer; }
+.td-name:hover { background: #FFF8E1 !important; text-decoration: underline; }
+#pmModal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55); z-index: 9000;
+  align-items: center; justify-content: center;
+}
+#pmModal.vis { display: flex; }
+#pmModalBox {
+  background: white; border-radius: 8px; padding: 12px;
+  max-width: 96vw; width: 1280px; max-height: 92vh;
+  display: flex; flex-direction: column; gap: 6px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  border: 2px solid #1F4E79;
+}
+#pmModalHead {
+  display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid #DDD; padding-bottom: 6px;
+}
+#pmModalTitle { font-weight: 700; color: #1F4E79; font-size: 14px; flex: 1; }
+#pmModalClose {
+  cursor: pointer; font-size: 22px; color: #999;
+  font-weight: 700; line-height: 1; padding: 0 6px;
+}
+#pmModalClose:hover { color: #333; }
+#pmModalIframe {
+  width: 100%; flex: 1; min-height: 80vh;
+  border: 1px solid #1F4E79; border-radius: 4px; background: white;
+}
 </style>
 </head>
 <body>
@@ -1759,7 +1790,7 @@ COLUMNS.push({
   },
   buildTd: (p) => {
     const cls = p.form === 'メガ進化' ? 'mega-name' : p.form === 'リージョン' ? 'region-name' : '';
-    return `<td class="td-name ${cls}" title="${p.name}">${p.name}</td>`;
+    return `<td class="td-name ${cls}" title="クリックで使えるわざ一覧" data-pokemon-name="${p.name}" style="cursor:pointer">${p.name}</td>`;
   },
   getVal: (p) => p.name,
 });
@@ -3629,20 +3660,18 @@ window.addEventListener('DOMContentLoaded', init);
 const ADDED_WAZA_KEYS = WAZA_MASTER.filter(w => w.added).map(w => w.key);
 
 // base64 (UTF-8対応) デコード
-function openWazaList() {
-  // 外部テンプレートをfetch (Pages/同一オリジン環境用)
-  fetch('waza-list-template.html?t=' + Date.now())
+// 共通ヘルパー: わざリスト用の Blob URL を生成
+function buildWazaListBlobUrl(initialPokemonFilter) {
+  return fetch('waza-list-template.html?t=' + Date.now())
     .then(r => {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.text();
     })
     .then(html => {
-      // POKEMON_LIST から名前→種族値合計マップ
       const pokeTotal = {};
       if (typeof POKEMON_LIST !== 'undefined') {
         POKEMON_LIST.forEach(p => { pokeTotal[p.name] = p.total || 0; });
       }
-      // WAZA_MASTER に learners 付加 (種族値合計 降順)
       const movesWithLearners = WAZA_MASTER.map(w => {
         const learnerNames = (typeof WAZA_MAP !== 'undefined' && WAZA_MAP[w.key] && WAZA_MAP[w.key].learners) || [];
         const learners = learnerNames
@@ -3651,18 +3680,45 @@ function openWazaList() {
         return Object.assign({}, w, { learners });
       });
       html = html.replace('__MOVES_PLACEHOLDER__', JSON.stringify(movesWithLearners));
-      // pokemon_db_v9.html の URL を注入 (modal の iframe src に使う)
       const dbUrl = location.href.split('?')[0].split('#')[0];
       html = html.replace('__POKEMON_DB_URL_PLACEHOLDER__', JSON.stringify(dbUrl));
+      html = html.replace('__INITIAL_POKEMON_FILTER__', JSON.stringify(initialPokemonFilter || null));
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
+      return URL.createObjectURL(blob);
+    });
+}
+
+function openWazaList() {
+  buildWazaListBlobUrl(null)
+    .then(url => {
       const w = window.open(url, '_blank');
-      if (!w) { alert('ポップアップがブロックされました。別タブ表示を許可してください'); }
+      if (!w) alert('ポップアップがブロックされました。別タブ表示を許可してください');
     })
     .catch(err => {
       alert('わざリスト テンプレート読み込み失敗: ' + err.message
             + '\n(GitHub Pages または同一オリジンでの起動が必要です)');
     });
+}
+
+// ポケモン名クリック → そのポケが習得するわざ一覧をモーダルで表示
+function openMovesForPokemon(pokemonName) {
+  if (!pokemonName) return;
+  buildWazaListBlobUrl(pokemonName)
+    .then(url => {
+      const titleEl = document.getElementById('pmModalTitle');
+      const ifr = document.getElementById('pmModalIframe');
+      if (titleEl) titleEl.textContent = pokemonName + ' が習得するわざ一覧';
+      if (ifr) ifr.src = url;
+      const modal = document.getElementById('pmModal');
+      if (modal) modal.classList.add('vis');
+    })
+    .catch(err => alert('わざリスト読み込み失敗: ' + err.message));
+}
+function closePmModal() {
+  const modal = document.getElementById('pmModal');
+  if (modal) modal.classList.remove('vis');
+  const ifr = document.getElementById('pmModalIframe');
+  if (ifr) ifr.src = 'about:blank';
 }
 
 </script>
@@ -3785,6 +3841,32 @@ function openWazaList() {
     }
   });
 })();
+
+// ポケモン名クリック → そのポケが使えるわざ一覧モーダル
+document.addEventListener('click', e => {
+  const cell = e.target.closest('td.td-name[data-pokemon-name]');
+  if (!cell) return;
+  const name = cell.dataset.pokemonName;
+  if (name) openMovesForPokemon(name);
+});
+// Esc で閉じる
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && typeof closePmModal === 'function') {
+    const m = document.getElementById('pmModal');
+    if (m && m.classList.contains('vis')) closePmModal();
+  }
+});
 </script>
+
+<!-- ポケモン → わざ一覧モーダル -->
+<div id="pmModal" onclick="if(event.target===this)closePmModal()">
+  <div id="pmModalBox">
+    <div id="pmModalHead">
+      <div id="pmModalTitle">わざ一覧</div>
+      <span id="pmModalClose" onclick="closePmModal()">×</span>
+    </div>
+    <iframe id="pmModalIframe" src="about:blank" title="わざ一覧"></iframe>
+  </div>
+</div>
 </body>
 </html>

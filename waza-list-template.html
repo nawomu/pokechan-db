@@ -165,6 +165,7 @@ td.col-name { cursor: help; }
   <h1>📋 ポケチャン わざリスト <span style="font-size:10px;color:#999;font-weight:400">v9 (04/19 08:44)</span></h1>
   <input type="search" id="search" placeholder="🔍 わざ名検索 (カナ/ひら両対応)">
   <span class="count" id="count" style="display:inline-block;min-width:140px;text-align:left">全0技</span>
+  <span id="pokemonFilterBanner" style="display:none;background:#F39C12;color:white;padding:3px 10px;border-radius:4px;font-weight:700;font-size:11px"></span>
   <button class="secondary" onclick="resetAll()">🔄 リセット</button>
   <button id="ef-toggle-btn" onclick="toggleEffectFilter()">🔍 効果フィルター ▲</button>
   <span class="ef-divider"></span>
@@ -319,6 +320,8 @@ td.col-name { cursor: help; }
 const moves = __MOVES_PLACEHOLDER__;
 // pokemon_db_v9.html の URL (modal の iframe で使う)
 const POKEMON_DB_URL = __POKEMON_DB_URL_PLACEHOLDER__;
+// 初期ポケモンフィルタ (例: 'ピカチュウ' → そのポケが習得する技のみ表示)
+const INITIAL_POKEMON_FILTER = __INITIAL_POKEMON_FILTER__;
 const typeColors ={"ノーマル": "#A8A878", "ほのお": "#F08030", "みず": "#6890F0", "でんき": "#F8D030", "くさ": "#78C850", "こおり": "#98D8D8", "かくとう": "#C03028", "どく": "#A040A0", "じめん": "#E0C068", "ひこう": "#A890F0", "エスパー": "#F85888", "むし": "#A8B820", "いわ": "#B8A038", "ゴースト": "#705898", "ドラゴン": "#7038F8", "あく": "#705848", "はがね": "#B8B8D0", "フェアリー": "#EE99AC"};
 
 // カタカナ ⇔ ひらがな 相互変換（どちらで検索してもヒット）
@@ -603,6 +606,10 @@ function render() {
   const fC3 = document.getElementById('f-c3').value;
 
   let rows = moves.slice();
+  // 初期ポケモンフィルタ: そのポケが習得する技のみに絞る
+  if (INITIAL_POKEMON_FILTER) {
+    rows = rows.filter(m => (m.learners || []).some(l => l.name === INITIAL_POKEMON_FILTER));
+  }
   rows.sort((a, b) => {
     let av, bv;
     if (['c1','c2','c3'].includes(sortKey)) {
@@ -840,6 +847,17 @@ document.addEventListener('keydown', e => {
     }
   });
 })();
+
+// 初期ポケモンフィルタが指定されてたらバナー表示
+if (INITIAL_POKEMON_FILTER) {
+  const b = document.getElementById('pokemonFilterBanner');
+  if (b) {
+    const cnt = moves.filter(m => (m.learners || []).some(l => l.name === INITIAL_POKEMON_FILTER)).length;
+    b.style.display = 'inline-block';
+    b.textContent = '🔍 ' + INITIAL_POKEMON_FILTER + ' が習得する技のみ (' + cnt + '件)';
+    document.title = INITIAL_POKEMON_FILTER + ' のわざ - ポケチャン';
+  }
+}
 
 render();
 </script>
