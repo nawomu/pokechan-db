@@ -105,41 +105,16 @@ td.col-name { cursor: help; }
   overflow: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
   border: 2px solid #1F4E79;
 }
-/* DB風 学習ポケテーブル */
+/* DB iframe 表示用 */
 .lmt-hint {
-  font-size: 10px; color: #777; margin-bottom: 6px;
-  background: #FFF8E1; padding: 4px 8px; border-radius: 3px;
+  font-size: 10px; color: #555; margin-bottom: 6px;
+  background: #FFF8E1; padding: 5px 10px; border-radius: 3px;
 }
-.lmt {
-  border-collapse: collapse; font-size: 11px;
-  width: 100%; background: white;
+.lm-iframe {
+  width: 100%; height: 78vh;
+  border: 1px solid #1F4E79; border-radius: 4px;
+  background: white;
 }
-.lmt th, .lmt td {
-  border: 1px solid #DDD; padding: 2px 4px;
-  text-align: center; white-space: nowrap;
-}
-.lmt th {
-  background: #1F4E79; color: white; font-size: 10px;
-  position: sticky; top: 0; z-index: 5;
-}
-.lmt tbody tr:nth-child(even) { background: #F7F9FC; }
-.lmt tbody tr:hover { background: #FFF8E1 !important; }
-.lmt-c { width: 38px; padding: 1px !important; }
-.lmt-no { color: #888; font-family: monospace; }
-.lmt-name { text-align: left; font-weight: 700; color: #1F4E79; }
-.lmt-form-mark {
-  display: inline-block; background: #F39C12; color: white;
-  font-size: 9px; padding: 0 4px; border-radius: 3px;
-  margin-right: 3px; font-weight: 700;
-}
-.lmt-type {
-  display: inline-block; padding: 1px 6px; border-radius: 3px;
-  color: white; font-weight: 700; font-size: 10px;
-}
-.lmt-na { color: #BBB; }
-.lmt-stat { font-family: monospace; }
-.lmt-total { font-weight: 700; color: #1F4E79; background: #E8ECF2; }
-.lmt-ab { font-size: 10px; max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
 #learnerModalBox .lm-close {
   float: right; cursor: pointer; font-size: 22px; color: #999;
   font-weight: 700; line-height: 1;
@@ -330,8 +305,8 @@ td.col-name { cursor: help; }
 
 <script>
 const moves = __MOVES_PLACEHOLDER__;
-// ポケモン詳細データ (pokemon_db_v9 から注入される、modal用)
-const pokeData = __POKE_DATA_PLACEHOLDER__;
+// pokemon_db_v9.html の URL (modal の iframe で使う)
+const POKEMON_DB_URL = __POKEMON_DB_URL_PLACEHOLDER__;
 const typeColors ={"ノーマル": "#A8A878", "ほのお": "#F08030", "みず": "#6890F0", "でんき": "#F8D030", "くさ": "#78C850", "こおり": "#98D8D8", "かくとう": "#C03028", "どく": "#A040A0", "じめん": "#E0C068", "ひこう": "#A890F0", "エスパー": "#F85888", "むし": "#A8B820", "いわ": "#B8A038", "ゴースト": "#705898", "ドラゴン": "#7038F8", "あく": "#705848", "はがね": "#B8B8D0", "フェアリー": "#EE99AC"};
 
 // カタカナ ⇔ ひらがな 相互変換（どちらで検索してもヒット）
@@ -656,93 +631,22 @@ function resetAll() {
   render();
 }
 
-// ===== 習得ポケモン表示 (DB風テーブル + C1/C2/C3 同期) =====
-const PKMN_CHECKS_LS_KEY = 'pkmn_checks_v8';  // pokemon_db_v9 と共有
-
-function loadPkmnChecks() {
-  try {
-    const s = localStorage.getItem(PKMN_CHECKS_LS_KEY);
-    if (s) return JSON.parse(s);
-  } catch(e) {}
-  return [{}, {}, {}];
-}
-function savePkmnChecks(checks) {
-  try { localStorage.setItem(PKMN_CHECKS_LS_KEY, JSON.stringify(checks)); } catch(e) {}
-}
-
+// ===== 習得ポケモン表示 (実DBをiframe埋め込み) =====
 function showLearners(key) {
   const m = moves.find(x => x.key === key);
   if (!m || !m.learners || m.learners.length === 0) return;
-  const checks = loadPkmnChecks();
-
-  const buildChk = (ci, idx) => {
-    const v = checks[ci][idx] || '';
-    const cls = v ? 'cm-chk has-val' : 'cm-chk';
-    const opts = ['','1','2','3','4','5','6','7'].map(x =>
-      `<option value="${x}"${x === v ? ' selected' : ''}>${x || '-'}</option>`
-    ).join('');
-    return `<td class="lmt-c"><select class="${cls}" data-chk="${ci}" data-idx="${idx}">${opts}</select></td>`;
-  };
-  const tCell = (t) => t ? `<span class="lmt-type" style="background:${typeColors[t]||'#999'}">${t}</span>` : '<span class="lmt-na">—</span>';
-  const ab = (a) => a ? a : '<span class="lmt-na">—</span>';
-
-  const rows = m.learners.map(l => {
-    const p = pokeData && pokeData[l.name];
-    if (!p) {
-      return `<tr><td colspan="17" class="lmt-na">(データ不明: ${l.name})</td></tr>`;
-    }
-    const idx = p._idx;
-    const formMark = p.form === 'メガ進化' ? '<span class="lmt-form-mark">M</span>' : '';
-    return `<tr>
-      ${buildChk(0, idx)}${buildChk(1, idx)}${buildChk(2, idx)}
-      <td class="lmt-no">${p.no}</td>
-      <td class="lmt-name">${formMark}${l.name}</td>
-      <td>${tCell(p.type1)}</td>
-      <td>${p.type2 ? tCell(p.type2) : '<span class="lmt-na">—</span>'}</td>
-      <td class="lmt-stat">${p.hp}</td>
-      <td class="lmt-stat">${p.atk}</td>
-      <td class="lmt-stat">${p.def}</td>
-      <td class="lmt-stat">${p.spatk}</td>
-      <td class="lmt-stat">${p.spdef}</td>
-      <td class="lmt-stat">${p.spd}</td>
-      <td class="lmt-stat lmt-total">${p.total}</td>
-      <td class="lmt-ab">${ab(p.ab1)}</td>
-      <td class="lmt-ab">${ab(p.ab2)}</td>
-      <td class="lmt-ab">${ab(p.ab3)}</td>
-    </tr>`;
-  }).join('');
-
-  const tableHtml = `
-    <div class="lmt-hint">※ C1/C2/C3 は pokemon_db_v9 の設定と同期。変更は即保存されます。</div>
-    <table class="lmt">
-      <thead><tr>
-        <th>C1</th><th>C2</th><th>C3</th>
-        <th>No.</th><th>名前</th>
-        <th>T1</th><th>T2</th>
-        <th>HP</th><th>攻</th><th>防</th><th>特攻</th><th>特防</th><th>速</th><th>合計</th>
-        <th>とくせい①</th><th>とくせい②</th><th>とくせい③</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-
+  const url = POKEMON_DB_URL + '?learns=' + encodeURIComponent(key);
   document.getElementById('lmTitle').textContent =
-    `${m.name} を習得 ${m.learners.length}匹 (種族値合計の降順)`;
-  document.getElementById('lmList').innerHTML = tableHtml;
+    `${m.name} を習得 ${m.learners.length}匹 (DB全機能利用可)`;
+  document.getElementById('lmList').innerHTML = `
+    <div class="lmt-hint">
+      🔗 <a href="${url}" target="_blank" rel="noopener" style="color:#1F4E79;font-weight:700">別タブで開く (より広く表示)</a>
+      &nbsp;/&nbsp; C1/C2/C3 は本DBと同期 (LocalStorage 経由)
+    </div>
+    <iframe src="${url}" class="lm-iframe" title="${m.name} 習得ポケDB"></iframe>
+  `;
   document.getElementById('learnerModal').classList.add('vis');
 }
-
-// modal 内の C1/C2/C3 セレクト変更 → pkmn_checks_v8 (DB と共有) を更新
-document.getElementById('learnerModal').addEventListener('change', e => {
-  if (!e.target.classList || !e.target.classList.contains('cm-chk')) return;
-  const ci  = parseInt(e.target.dataset.chk);
-  const idx = parseInt(e.target.dataset.idx);
-  const val = e.target.value;
-  const checks = loadPkmnChecks();
-  if (!val) delete checks[ci][idx];
-  else checks[ci][idx] = val;
-  savePkmnChecks(checks);
-  e.target.classList.toggle('has-val', !!val);
-});
 function closeLearnerModal() {
   document.getElementById('learnerModal').classList.remove('vis');
 }

@@ -3423,6 +3423,27 @@ function init() {
       moveKeys.forEach(k => { p[k] = true; });
     });
   }
+
+  // ?learns=KEY URLパラメータ対応: 該当技を覚えるポケのみに絞り込み
+  // (waza-list-template.html の iframe から呼ばれる用途)
+  const learnsKey = new URLSearchParams(location.search).get('learns');
+  if (learnsKey) {
+    const filtered = DATA.filter(p => p[learnsKey] === true);
+    if (filtered.length > 0) {
+      const orig = DATA.length;
+      DATA.length = 0;
+      DATA.push(...filtered);
+      const wazaName = (typeof WAZA_MAP !== 'undefined' && WAZA_MAP[learnsKey])
+        ? WAZA_MAP[learnsKey].name : learnsKey;
+      document.title = '習得: ' + wazaName + ' - ポケチャンDB';
+      // 上部にバナー表示
+      const banner = document.createElement('div');
+      banner.style.cssText = 'background:#1F4E79;color:white;padding:6px 12px;text-align:center;font-weight:700;font-size:13px;';
+      banner.innerHTML = '🔍 <span style="background:#F39C12;padding:2px 8px;border-radius:3px;margin:0 6px;">' + wazaName + '</span> を習得するポケモンのみ表示中 (' + filtered.length + '匹 / 元 ' + orig + ' 匹)';
+      document.body.insertBefore(banner, document.body.firstChild);
+    }
+  }
+
   initScores();
   loadChecks();
 
@@ -3510,19 +3531,9 @@ function openWazaList() {
         return Object.assign({}, w, { learners });
       });
       html = html.replace('__MOVES_PLACEHOLDER__', JSON.stringify(movesWithLearners));
-      // ポケモン詳細データを注入 (modal で DB と同期するC1/C2/C3を表示するため)
-      const pokeData = {};
-      DATA.forEach((p, idx) => {
-        pokeData[p.name] = {
-          no: p.no, form: p.form,
-          type1: p.type1, type2: p.type2,
-          hp: p.hp, atk: p.atk, def: p.def,
-          spatk: p.spatk, spdef: p.spdef, spd: p.spd, total: p.total,
-          ab1: p.ab1, ab2: p.ab2, ab3: p.ab3,
-          _idx: idx,
-        };
-      });
-      html = html.replace('__POKE_DATA_PLACEHOLDER__', JSON.stringify(pokeData));
+      // pokemon_db_v9.html の URL を注入 (modal の iframe src に使う)
+      const dbUrl = location.href.split('?')[0].split('#')[0];
+      html = html.replace('__POKEMON_DB_URL_PLACEHOLDER__', JSON.stringify(dbUrl));
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
       const url = URL.createObjectURL(blob);
       const w = window.open(url, '_blank');
