@@ -478,6 +478,14 @@ function toNum(v) {
 }
 
 
+// 数値列ソート用のキー集合 (これらの列は1回目=降順、2回目=解除)
+const NUMERIC_SORT_KEYS = new Set(['power', 'acc', 'pp', 'learnersCount', 'c1', 'c2', 'c3']);
+function toNumNull(v) {
+  if (v === '-' || v === '' || v == null) return null;
+  const n = parseInt(v);
+  return isNaN(n) ? null : n;
+}
+
 // C列フィルタの判定
 function matchCFilter(key, ci, fVal) {
   if (!fVal) return true;
@@ -505,11 +513,26 @@ function render() {
     let av, bv;
     if (['c1','c2','c3'].includes(sortKey)) {
       const ci = parseInt(sortKey.slice(1)) - 1;
-      av = parseInt(wazaChecks[ci][a.key] || '0');
-      bv = parseInt(wazaChecks[ci][b.key] || '0');
+      av = parseInt(wazaChecks[ci][a.key] || '0') || null;
+      bv = parseInt(wazaChecks[ci][b.key] || '0') || null;
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;   // 空は常に下
+      if (bv === null) return -1;
     }
-    else if (sortKey === 'learnersCount') { av = (a.learners||[]).length; bv = (b.learners||[]).length; }
-    else if (['power','acc','pp'].includes(sortKey)) { av = toNum(a[sortKey]); bv = toNum(b[sortKey]); }
+    else if (sortKey === 'learnersCount') {
+      av = (a.learners||[]).length || null;
+      bv = (b.learners||[]).length || null;
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+    }
+    else if (['power','acc','pp'].includes(sortKey)) {
+      av = toNumNull(a[sortKey]);
+      bv = toNumNull(b[sortKey]);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;   // 空(—)は常に下
+      if (bv === null) return -1;
+    }
     else { av = a[sortKey] || ''; bv = b[sortKey] || ''; }
     if (av < bv) return -1 * sortDir;
     if (av > bv) return 1 * sortDir;
@@ -580,11 +603,26 @@ function render() {
 document.querySelectorAll('th[data-sort]').forEach(th => {
   th.onclick = () => {
     const k = th.dataset.sort;
-    if (sortKey === k) sortDir *= -1;
-    else { sortKey = k; sortDir = 1; }
+    const isNumeric = NUMERIC_SORT_KEYS.has(k);
+    if (sortKey === k) {
+      if (isNumeric) {
+        // 数値列の2回目 → ソート解除 (デフォルトのわざ名昇順に戻る)
+        sortKey = 'name';
+        sortDir = 1;
+      } else {
+        // 文字列列の2回目 → 方向反転
+        sortDir *= -1;
+      }
+    } else {
+      sortKey = k;
+      sortDir = isNumeric ? -1 : 1;   // 数値列はデフォルトで降順 (大きい順)
+    }
     document.querySelectorAll('th[data-sort]').forEach(x => { x.classList.remove('sorted','asc'); });
-    th.classList.add('sorted');
-    if (sortDir === 1) th.classList.add('asc');
+    const activeTh = document.querySelector('th[data-sort="' + sortKey + '"]');
+    if (activeTh) {
+      activeTh.classList.add('sorted');
+      if (sortDir === 1) activeTh.classList.add('asc');
+    }
     render();
   };
 });
