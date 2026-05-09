@@ -58,9 +58,9 @@ th.col-cat, td.col-cat { width: 62px; text-align: center; }
 th.col-effect, td.col-effect { min-width: 280px; }
 th.col-learners, td.col-learners { width: 60px; text-align: center; }
 
-/* 習得列 (件数クリックで全リスト表示) */
-.learners-cell { cursor: pointer; color: #1F4E79; font-weight: 700; }
-.learners-cell:hover { text-decoration: underline; background: #FFF8E1; }
+/* 習得列 (件数ホバーで上位50匹をポップアップ表示) */
+.learners-cell { cursor: help; color: #1F4E79; font-weight: 700; }
+.learners-cell:hover { background: #FFF8E1; }
 .learners-cell-zero { color: #999; font-weight: 400; cursor: default; }
 
 /* わざ名ホバー (上位50匹を表示) */
@@ -501,7 +501,7 @@ function render() {
     
     const learnerCount = (m.learners || []).length;
     const learnersHtml = learnerCount > 0
-      ? `<td class="col-learners learners-cell" data-key="${m.key}" onclick="showLearners('${m.key}')">${learnerCount}匹</td>`
+      ? `<td class="col-learners learners-cell" data-key="${m.key}">${learnerCount}匹</td>`
       : `<td class="col-learners learners-cell-zero">—</td>`;
     tr.innerHTML = `
       <td class="col-st">${isAdded ? '<span class="st-added">✓追加済</span>' : '<span class="st-todo">未</span>'}</td>
@@ -657,13 +657,14 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeLearnerModal();
 });
 
-// ホバー: わざ名にマウスオーバーで上位50匹を表示
+// ホバー: わざ名 or 習得列のマウスオーバーで上位50匹を表示
 (function setupNameHover() {
   const tip = document.getElementById('waza-tip');
   if (!tip) return;
+  const HOVER_SELECTOR = 'td.col-name[data-key], td.col-learners[data-key]';
   let curKey = null;
   document.addEventListener('mouseover', e => {
-    const cell = e.target.closest('td.col-name[data-key]');
+    const cell = e.target.closest(HOVER_SELECTOR);
     if (!cell) {
       if (curKey) { tip.style.display = 'none'; curKey = null; }
       return;
@@ -699,7 +700,7 @@ document.addEventListener('keydown', e => {
     tip.style.top  = y + 'px';
   });
   document.addEventListener('mouseout', e => {
-    if (!e.relatedTarget || !e.relatedTarget.closest('td.col-name[data-key]')) {
+    if (!e.relatedTarget || !e.relatedTarget.closest(HOVER_SELECTOR)) {
       tip.style.display = 'none';
       curKey = null;
     }
