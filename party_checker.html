@@ -204,6 +204,17 @@ tr.type-data-row{cursor:default}
 tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 
 /* フィルタバー */
+/* タブバー */
+#pc-tab-bar{background:#0d1117;padding:5px 10px;display:flex;gap:4px;align-items:center;border-bottom:1px solid #21262d;flex-shrink:0;flex-wrap:wrap}
+.pc-tab{display:inline-flex;align-items:center;gap:5px;padding:4px 10px 4px 12px;background:#161b22;border:1px solid #30363d;border-radius:6px 6px 0 0;cursor:pointer;color:#8b949e;font-size:.78rem;user-select:none;transition:.1s}
+.pc-tab:hover{background:#1c2a3a;color:#e6edf3}
+.pc-tab.active{background:#1c2a3a;color:#e6edf3;border-color:#58a6ff;border-bottom-color:transparent}
+.pc-tab-name{padding:1px 0}
+.pc-tab-close{color:#6e7681;padding:0 2px;font-size:.85rem;line-height:1;border-radius:3px}
+.pc-tab-close:hover{background:#21262d;color:#f85149}
+.pc-tab-add{padding:4px 9px;background:transparent;border:1px dashed #30363d;border-radius:6px;color:#8b949e;cursor:pointer;font-size:.85rem}
+.pc-tab-add:hover{background:#161b22;color:#e6edf3;border-color:#58a6ff}
+
 #filter-bar{background:#161b22;padding:7px 14px;border-bottom:1px solid #21262d;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0}
 #filter-bar input{padding:5px 10px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:12px;width:130px}
 .fcat-btn{padding:2px 9px;border:1px solid #30363d;border-radius:10px;background:transparent;color:#8b949e;cursor:pointer;font-size:.73rem}
@@ -212,6 +223,8 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 </style>
 </head>
 <body>
+
+<div id="pc-tab-bar"></div>
 
 <div id="filter-bar">
   <label>わざ検索:</label>
@@ -358,9 +371,155 @@ party.forEach((name, idx) => {
   }
 });
 
-function saveParty()         { localStorage.setItem(LS_PARTY,        JSON.stringify(party)); }
-function saveTypeOrder()     { localStorage.setItem(LS_ORDER,        JSON.stringify(typeOrder)); }
-function saveSlotFilters()   { localStorage.setItem(LS_SLOT_FILTERS, JSON.stringify(slotFilters)); }
+function saveParty()         { localStorage.setItem(LS_PARTY,        JSON.stringify(party));        savePcTabs(); }
+function saveTypeOrder()     { localStorage.setItem(LS_ORDER,        JSON.stringify(typeOrder));    savePcTabs(); }
+function saveSlotFilters()   { localStorage.setItem(LS_SLOT_FILTERS, JSON.stringify(slotFilters));  savePcTabs(); }
+
+// ===== タブ機能 (パーティを複数保持して切替) =====
+const LS_PC_TABS = "pokechan_pc_tabs_v1";
+let pcTabs = [];
+let pcActiveId = 1;
+let pcNextId = 2;
+
+function captureCurrentPcState() {
+  return {
+    party: party.slice(),
+    typeOrder: typeOrder.slice(),
+    slotFilters: JSON.parse(JSON.stringify(slotFilters)),
+    statVis: Object.assign({}, statVis),
+  };
+}
+function applyPcState(s) {
+  if (!s) return;
+  party = (s.party || []).slice();
+  while (party.length < PARTY_SIZE) party.push(null);
+  party = party.slice(0, PARTY_SIZE);
+  typeOrder = (s.typeOrder && s.typeOrder.length === TYPES.length)
+    ? s.typeOrder.slice() : [...DEFAULT_TYPE_ORDER];
+  slotFilters = JSON.parse(JSON.stringify(s.slotFilters || {}));
+  statVis = Object.assign({}, STAT_VIS_DEFAULT, s.statVis || {});
+  // 既存LSキーにも反映 (リロード時の整合性)
+  localStorage.setItem(LS_PARTY,        JSON.stringify(party));
+  localStorage.setItem(LS_ORDER,        JSON.stringify(typeOrder));
+  localStorage.setItem(LS_SLOT_FILTERS, JSON.stringify(slotFilters));
+  localStorage.setItem(LS_STAT_VIS,     JSON.stringify(statVis));
+}
+function savePcTabs() {
+  // 現在の active タブの state を最新化
+  const t = pcTabs.find(x => x.id === pcActiveId);
+  if (t) t.state = captureCurrentPcState();
+  try {
+    localStorage.setItem(LS_PC_TABS, JSON.stringify({ tabs: pcTabs, activeId: pcActiveId, nextId: pcNextId }));
+  } catch(e) {}
+}
+function loadPcTabs() {
+  try {
+    const s = localStorage.getItem(LS_PC_TABS);
+    if (s) {
+      const obj = JSON.parse(s);
+      if (Array.isArray(obj.tabs) && obj.tabs.length > 0) {
+        pcTabs = obj.tabs;
+        pcActiveId = obj.activeId || pcTabs[0].id;
+        pcNextId = obj.nextId || (Math.max(...pcTabs.map(t => t.id)) + 1);
+        // active の state を現グローバルに反映
+        const at = pcTabs.find(t => t.id === pcActiveId);
+        if (at && at.state) applyPcState(at.state);
+        return;
+      }
+    }
+  } catch(e) {}
+  // 初回起動 → 既存の単一データから初期タブ生成
+  pcTabs = [{ id: 1, name: 'メイン', state: captureCurrentPcState() }];
+  pcActiveId = 1;
+  pcNextId = 2;
+  savePcTabs();
+}
+
+function renderPcTabs() {
+  const bar = document.getElementById('pc-tab-bar');
+  if (!bar) return;
+  bar.innerHTML = '';
+  pcTabs.forEach(tab => {
+    const el = document.createElement('div');
+    el.className = 'pc-tab' + (tab.id === pcActiveId ? ' active' : '');
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'pc-tab-name';
+    nameSpan.textContent = tab.name;
+    nameSpan.title = 'ダブルクリックで名前変更';
+    nameSpan.ondblclick = (e) => {
+      e.stopPropagation();
+      const nv = prompt('タブ名を変更:', tab.name);
+      if (nv !== null && nv.trim()) { tab.name = nv.trim(); savePcTabs(); renderPcTabs(); }
+    };
+    el.appendChild(nameSpan);
+    el.onclick = (e) => { if (e.target === nameSpan || e.target === el) switchPcTab(tab.id); };
+    if (pcTabs.length > 1) {
+      const cb = document.createElement('span');
+      cb.className = 'pc-tab-close';
+      cb.textContent = '×';
+      cb.title = 'タブを削除';
+      cb.onclick = (e) => { e.stopPropagation(); removePcTab(tab.id); };
+      el.appendChild(cb);
+    }
+    bar.appendChild(el);
+  });
+  const addBtn = document.createElement('button');
+  addBtn.className = 'pc-tab-add';
+  addBtn.textContent = '＋';
+  addBtn.title = '新規タブ';
+  addBtn.onclick = addPcTab;
+  bar.appendChild(addBtn);
+}
+function switchPcTab(id) {
+  if (id === pcActiveId) return;
+  // 現在の状態を保存
+  const cur = pcTabs.find(t => t.id === pcActiveId);
+  if (cur) cur.state = captureCurrentPcState();
+  pcActiveId = id;
+  const next = pcTabs.find(t => t.id === id);
+  if (next && next.state) applyPcState(next.state);
+  savePcTabs();
+  renderPcTabs();
+  if (typeof renderTable === 'function') renderTable();
+}
+function addPcTab() {
+  // 現タブ保存
+  const cur = pcTabs.find(t => t.id === pcActiveId);
+  if (cur) cur.state = captureCurrentPcState();
+  const newId = pcNextId++;
+  const newTab = {
+    id: newId,
+    name: 'タブ' + newId,
+    state: {
+      party: Array(PARTY_SIZE).fill(null),
+      typeOrder: [...DEFAULT_TYPE_ORDER],
+      slotFilters: {},
+      statVis: Object.assign({}, STAT_VIS_DEFAULT),
+    }
+  };
+  pcTabs.push(newTab);
+  pcActiveId = newId;
+  applyPcState(newTab.state);
+  savePcTabs();
+  renderPcTabs();
+  if (typeof renderTable === 'function') renderTable();
+}
+function removePcTab(id) {
+  if (pcTabs.length <= 1) { alert('タブは1個以上必要です'); return; }
+  const t = pcTabs.find(t => t.id === id);
+  if (!t) return;
+  if (!confirm(`タブ「${t.name}」を削除しますか？\n(中身のパーティ・設定も全て消えます)`)) return;
+  const idx = pcTabs.findIndex(x => x.id === id);
+  pcTabs.splice(idx, 1);
+  if (pcActiveId === id) {
+    pcActiveId = pcTabs[Math.min(idx, pcTabs.length - 1)].id;
+    const next = pcTabs.find(t => t.id === pcActiveId);
+    if (next && next.state) applyPcState(next.state);
+  }
+  savePcTabs();
+  renderPcTabs();
+  if (typeof renderTable === 'function') renderTable();
+}
 
 // 種族値表示モード (各ボタン独立 ON/OFF)
 //   base : 種族値そのまま
@@ -377,7 +536,7 @@ let statVis = (() => {
   } catch(e) {}
   return Object.assign({}, STAT_VIS_DEFAULT);
 })();
-function saveStatVis() { localStorage.setItem(LS_STAT_VIS, JSON.stringify(statVis)); }
+function saveStatVis() { localStorage.setItem(LS_STAT_VIS, JSON.stringify(statVis)); savePcTabs(); }
 
 // POKEMON_LIST の name + form を STAT_RANK のキー形式に変換
 // 例: name="フシギバナ", form="通常"     → "フシギバナ"
@@ -1120,6 +1279,8 @@ document.querySelectorAll(".sv-btn").forEach(btn => {
 })();
 
 // ── 初期化 ────────────────────────────────────────────────────────────────────
+loadPcTabs();
+renderPcTabs();
 renderTable();
 </script>
 </body>
