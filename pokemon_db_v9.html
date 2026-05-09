@@ -496,6 +496,13 @@ tbody tr:hover td { background: #FFF3C4 !important; }
 }
 .si2.asc::after { content: '▲'; }
 .si2.desc::after { content: '▼'; }
+/* 複数列ソートの順序表示 (data-order が付いてたら 2, 3, ... と添字) */
+.si2[data-order]::before {
+  content: attr(data-order);
+  font-size: 7px; vertical-align: super;
+  margin-right: 1px; opacity: 0.7;
+  background: rgba(255,255,255,0.2); padding: 0 2px; border-radius: 2px;
+}
 
 .h-sel, .h-num {
   background: rgba(255,255,255,0.15);
@@ -1134,8 +1141,18 @@ let activeTab = 1;
 let nextTabId = 2;
 
 // 元リスト状態
-let sortKey = 'no';
+// 複数列ソート対応: 配列の先頭が主ソート、後続が副ソート
+// 例: [{key:'total', dir:-1}, {key:'name', dir:1}] → 合計降順 → 同値時は名前昇順
+let sortStack = [{ key: 'no', dir: 1 }];
+// 主ソートを返す getter (既存コードとの互換用)
+function getSortKey() { return sortStack[0]?.key || 'no'; }
+function getSortDir() { return sortStack[0]?.dir || 1; }
+let sortKey = 'no';   // 同期用 (毎回 sortStack から書き戻す)
 let sortDir = 1;
+function syncSortPrimary() {
+  sortKey = getSortKey();
+  sortDir = getSortDir();
+}
 let selTypes = new Set();      // 絞込
 let excludeTypes = new Set();  // 除外
 let grpVisible = { chk:true, type:true, stat:true, ab:true, resist:true, cnt:true, waza:true };
@@ -1431,7 +1448,7 @@ document.onclick = () => {
 function captureState() {
   // C1/C2/C3 (checks) はタブ間で共有するため state には含めない
   const state = {
-    sortKey, sortDir,
+    sortStack: JSON.parse(JSON.stringify(sortStack)),
     selTypes: [...selTypes],
     excludeTypes: [...excludeTypes],
     srch: document.getElementById('srch')?.value || '',
@@ -1450,8 +1467,15 @@ function captureState() {
 function restoreState(state) {
   if (!state) return;
   // C1/C2/C3 はタブ間で共有 (state からの復元はしない)
-  sortKey = state.sortKey || 'no';
-  sortDir = state.sortDir || 1;
+  if (Array.isArray(state.sortStack) && state.sortStack.length > 0) {
+    sortStack = JSON.parse(JSON.stringify(state.sortStack));
+  } else if (state.sortKey) {
+    // 旧形式 (sortKey/sortDir) からのマイグレーション
+    sortStack = [{ key: state.sortKey, dir: state.sortDir || 1 }];
+  } else {
+    sortStack = [{ key: 'no', dir: 1 }];
+  }
+  syncSortPrimary();
   selTypes = new Set(state.selTypes || []);
   excludeTypes = new Set(state.excludeTypes || []);
   const srch = document.getElementById('srch'); if (srch) srch.value = state.srch || '';
@@ -1605,7 +1629,8 @@ function resetAllFiltersNoSave() {
   if (srch) srch.value = '';
   const ff = document.getElementById('ff');
   if (ff) ff.value = '';
-  sortKey = 'no'; sortDir = 1;
+  sortStack = [{ key: 'no', dir: 1 }];
+  syncSortPrimary();
   if (typeof buildTyChips === 'function') buildTyChips();
 }
 
@@ -2473,7 +2498,7 @@ function renderTable(opts) {
       const bot = e.target.closest('[data-sort]');
       if (!bot) return;
       const key = bot.dataset.sort;
-      if (key) ctx.onSort(key);
+      if (key) ctx.onSort(key, e.shiftKey);
     };
   } else {
     // 既存thead: 列表示状態だけ更新
@@ -2531,7 +2556,7 @@ function renderTable(opts) {
   tbody.innerHTML = html;
 
   // ソートインジケーター
-  updateSortIndicators(tbl, opts.sortKey, opts.sortDir);
+  updateSortIndicators(tbl, opts.sortKey, opts.sortDir, opts.sortStack);
 
   // チェック列selectのイベント委譲（一度だけ）
   if (!tbody.dataset.chkBound) {
@@ -2562,11 +2587,22 @@ function findThIndex(col, mode) {
   return -1;
 }
 
-function updateSortIndicators(tbl, sortKey, sortDir) {
+function updateSortIndicators(tbl, sortKey, sortDir, stack) {
+  // 複数列ソート対応: stack 引数があればそちらを優先 (主ソート + 副ソート全部表示)
+  const useStack = Array.isArray(stack) && stack.length > 0;
   tbl.querySelectorAll('.si2').forEach(el => {
     const k = el.dataset.skey;
     el.className = 'si2';
-    if (k === sortKey) {
+    el.removeAttribute('data-order');
+    if (useStack) {
+      const idx = stack.findIndex(s => s.key === k);
+      if (idx >= 0) {
+        el.classList.add(stack[idx].dir === 1 ? 'asc' : 'desc');
+        if (stack.length > 1) {
+          el.setAttribute('data-order', String(idx + 1));
+        }
+      }
+    } else if (k === sortKey) {
       el.classList.add(sortDir === 1 ? 'asc' : 'desc');
     }
   });
@@ -2574,7 +2610,17 @@ function updateSortIndicators(tbl, sortKey, sortDir) {
 
 // フィルター&ソート適用
 // data: ポケモン配列 (p形式) または {p, cand} 形式のどちらか（ctx.modeで判別せず、要素を見て判別）
-function applyFilterSort(data, ctx, sortKey, sortDir, extraFilters) {
+// 第3引数: sortStack (配列) または sortKey (文字列) — 後者は旧シグネチャ
+function applyFilterSort(data, ctx, arg3, arg4, arg5) {
+  let stack, extraFilters;
+  if (Array.isArray(arg3)) {
+    stack = arg3;
+    extraFilters = arg4;
+  } else {
+    // 旧シグネチャ: (data, ctx, sortKey, sortDir, extraFilters)
+    stack = [{ key: arg3, dir: arg4 || 1 }];
+    extraFilters = arg5;
+  }
   let d = [...data];
 
   // 要素が {p, cand} 形式かどうかを判定
@@ -2608,41 +2654,42 @@ function applyFilterSort(data, ctx, sortKey, sortDir, extraFilters) {
     }
   }
 
-  // ソート
+  // ソート (複数列対応: stack の先頭から順に比較、同値で次へ)
+  function compareOne(aP, bP, aCtx, bCtx, key, dir) {
+    let va, vb;
+    if (key === 'score') {
+      va = aCtx.cand ? aCtx.cand.score : 0;
+      vb = bCtx.cand ? bCtx.cand.score : 0;
+    } else {
+      const col = COLUMNS.find(c => c.key === key);
+      if (col && col.getVal) {
+        va = col.getVal(aP, aCtx);
+        vb = col.getVal(bP, bCtx);
+      } else {
+        va = aP[key];
+        vb = bP[key];
+      }
+    }
+    if (typeof va === 'string' && typeof vb === 'string') {
+      if (va === '' && vb === '') return 0;
+      if (va === '') return 1;
+      if (vb === '') return -1;
+      return va.localeCompare(vb, 'ja') * dir;
+    }
+    if (va == null) return vb == null ? 0 : 1;
+    if (vb == null) return -1;
+    return (va - vb) * dir;
+  }
   d.sort((a, b) => {
     const aP = isPair ? a.p : a;
     const bP = isPair ? b.p : b;
     const aCtx = isPair ? { cand: a.cand } : {};
     const bCtx = isPair ? { cand: b.cand } : {};
-
-    let va, vb;
-    // sortKey='score' は補完候補のスコア
-    if (sortKey === 'score') {
-      va = aCtx.cand ? aCtx.cand.score : 0;
-      vb = bCtx.cand ? bCtx.cand.score : 0;
-    } else {
-      const col = COLUMNS.find(c => c.key === sortKey);
-      if (col && col.getVal) {
-        va = col.getVal(aP, aCtx);
-        vb = col.getVal(bP, bCtx);
-      } else {
-        va = aP[sortKey];
-        vb = bP[sortKey];
-      }
+    for (const s of stack) {
+      const cmp = compareOne(aP, bP, aCtx, bCtx, s.key, s.dir);
+      if (cmp !== 0) return cmp;
     }
-
-    // 文字列比較
-    if (typeof va === 'string' && typeof vb === 'string') {
-      if (va === '' && vb === '') return 0;
-      if (va === '') return 1;  // 空は後ろ
-      if (vb === '') return -1;
-      return va.localeCompare(vb, 'ja') * sortDir;
-    }
-    // null/undefined
-    if (va == null || va === undefined) return 1;
-    if (vb == null || vb === undefined) return -1;
-    // 数値比較
-    return (va - vb) * sortDir;
+    return 0;
   });
 
   return d;
@@ -2713,7 +2760,7 @@ function applyF() {
     return d;
   };
 
-  const rows = applyFilterSort(DATA, ctx, sortKey, sortDir, extraFilters);
+  const rows = applyFilterSort(DATA, ctx, sortStack, extraFilters);
 
   renderTable({
     tableEl: tbl,
@@ -2722,8 +2769,9 @@ function applyF() {
     mode: 'main',
     rows,
     grpVisible,
-    sortKey,
-    sortDir,
+    sortKey: getSortKey(),
+    sortDir: getSortDir(),
+    sortStack,
     onFilter: applyF,
     onSort: sortBy,
     onChk: ctx.onChk
@@ -2735,16 +2783,40 @@ function applyF() {
   updateCompatBtns();
 }
 
-function sortBy(key) {
-  // わざ列の場合: 2回目クリックで逆順ではなく「ソート解除 (No.順に戻す)」
+function sortBy(key, withShift) {
   const isWazaKey = (typeof WAZA_MAP !== 'undefined') && WAZA_MAP[key];
-  if (isWazaKey) {
-    if (sortKey === key) { sortKey = 'no'; sortDir = 1; }   // ソート解除
-    else                 { sortKey = key; sortDir = -1; }   // ○ありを上に
+  // 数値系列 (デフォルト降順)
+  const numericKeys = new Set(['hp','atk','def','spatk','spdef','spd','total','score']);
+  const defaultDir = (isWazaKey || numericKeys.has(key)) ? -1 : 1;
+  const idx = sortStack.findIndex(s => s.key === key);
+
+  if (withShift) {
+    // Shift+クリック: 既存ソートを保ちつつ追加 / 反転 / 削除
+    if (idx >= 0) {
+      // 既にスタック内にある → 方向反転 (わざキー or 主ソートだったら削除)
+      if (isWazaKey) {
+        sortStack.splice(idx, 1);
+      } else {
+        sortStack[idx].dir *= -1;
+      }
+    } else {
+      sortStack.push({ key, dir: defaultDir });
+    }
+    if (sortStack.length === 0) sortStack = [{ key: 'no', dir: 1 }];
   } else {
-    if (sortKey === key) sortDir *= -1;
-    else { sortKey = key; sortDir = -1; }
+    // 通常クリック: 主ソートを置換
+    if (idx === 0 && sortStack.length === 1) {
+      // 同じ列を再クリック
+      if (isWazaKey) {
+        sortStack = [{ key: 'no', dir: 1 }];   // 解除
+      } else {
+        sortStack[0].dir *= -1;                 // 方向反転
+      }
+    } else {
+      sortStack = [{ key, dir: defaultDir }];   // 完全置換
+    }
   }
+  syncSortPrimary();
   applyF();
 }
 
