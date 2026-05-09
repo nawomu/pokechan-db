@@ -1422,8 +1422,8 @@ document.onclick = () => {
 
 // 状態キャプチャ・復元
 function captureState() {
+  // C1/C2/C3 (checks) はタブ間で共有するため state には含めない
   const state = {
-    checks: JSON.parse(JSON.stringify(checks)),
     sortKey, sortDir,
     selTypes: [...selTypes],
     excludeTypes: [...excludeTypes],
@@ -1442,7 +1442,7 @@ function captureState() {
 
 function restoreState(state) {
   if (!state) return;
-  checks = JSON.parse(JSON.stringify(state.checks || [{},{},{}]));
+  // C1/C2/C3 はタブ間で共有 (state からの復元はしない)
   sortKey = state.sortKey || 'no';
   sortDir = state.sortDir || 1;
   selTypes = new Set(state.selTypes || []);
@@ -1586,7 +1586,8 @@ function renameTab(id, span) {
   inp.onkeydown = e => { if (e.key === 'Enter' || e.key === 'Escape') inp.blur(); };
 }
 
-// resetAllFiltersNoSave: タブ切替時の初期化
+// resetAllFiltersNoSave: タブ切替/新規タブ時のフィルタ・ソートだけ初期化
+// C1/C2/C3 (checks) はタブ間で共有のためここでは触らない
 function resetAllFiltersNoSave() {
   selTypes.clear(); excludeTypes.clear();
   document.querySelectorAll('#main-tbl .ms-wrap').forEach(w => msClear(w.id));
@@ -1598,8 +1599,6 @@ function resetAllFiltersNoSave() {
   const ff = document.getElementById('ff');
   if (ff) ff.value = '';
   sortKey = 'no'; sortDir = 1;
-  checks = [{}, {}, {}];
-  saveChecks();
   if (typeof buildTyChips === 'function') buildTyChips();
 }
 
@@ -3423,6 +3422,22 @@ function init() {
       moveKeys.forEach(k => { p[k] = true; });
     });
   }
+
+  // 別ウィンドウ/iframe から checks が変更された時の自動同期
+  // (例: わざリストの DB iframe で C1/C2/C3 を変更 → 親DBに即反映)
+  window.addEventListener('storage', e => {
+    if (e.key === 'pkmn_checks_v8') {
+      try {
+        const newChecks = JSON.parse(e.newValue || '[{},{},{}]');
+        if (Array.isArray(newChecks) && newChecks.length === 3) {
+          checks = newChecks;
+          // フィルタ/ドロップダウン件数表示を更新
+          if (typeof updateAllChkCounts === 'function') updateAllChkCounts('main');
+          if (typeof applyF === 'function') applyF();
+        }
+      } catch(err) {}
+    }
+  });
 
   // ?learns=KEY URLパラメータ対応: 該当技を覚えるポケのみに絞り込み
   // (waza-list-template.html の iframe から呼ばれる用途)
