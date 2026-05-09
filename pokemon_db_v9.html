@@ -343,16 +343,18 @@ tbody tr:hover td { background: #FFF3C4 !important; }
   display: none;
   background: rgba(30,30,30,0.92);
   color: #fff;
-  padding: 4px 10px;
+  padding: 6px 10px;
   border-radius: 4px;
   font-size: 12px;
-  white-space: normal;
-  max-width: 300px;
+  white-space: pre-line;
+  max-width: 320px;
   z-index: 99999;
   pointer-events: none;
   box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-  line-height: 1.4;
+  line-height: 1.5;
 }
+#ab-tooltip-float .abt-name { font-weight: 700; color: #FFE082; display: block; margin-bottom: 2px; }
+#ab-tooltip-float .abt-desc { color: #fff; }
 .th-res, .td-res {
   width: 28px !important; min-width: 28px !important; max-width: 28px !important;
   font-size: 9px;
@@ -2037,7 +2039,9 @@ for (let ai = 0; ai < 3; ai++) {
     },
     buildTd: (p) => {
       const v = p[k] || '';
-      return `<td class="td-ab" data-grp="ab"><span class="ab-tip" title="${v}">${v}</span></td>`;
+      const desc = (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[v]) ? ABILITY_DESC[v] : '';
+      const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+      return `<td class="td-ab" data-grp="ab"><span class="ab-tip" data-ab-name="${escAttr(v)}" data-ab-desc="${escAttr(desc)}">${v}</span></td>`;
     },
     getVal: (p) => p[k] || '',
     applyFilter: (arr, ctx) => {
@@ -3628,12 +3632,17 @@ window.addEventListener('DOMContentLoaded', init);
   tip.id = 'ab-tooltip-float';
   document.body.appendChild(tip);
 
+  const escHtml = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   document.addEventListener('mouseover', e => {
     const el = e.target.closest('.ab-tip');
-    if (el && el.title) {
-      tip.textContent = el.title;
-      tip.style.display = 'block';
-    }
+    if (!el) return;
+    const name = el.dataset.abName || el.textContent || el.title || '';
+    const desc = el.dataset.abDesc || '';
+    if (!name && !desc) return;
+    tip.innerHTML = desc
+      ? `<span class="abt-name">${escHtml(name)}</span><span class="abt-desc">${escHtml(desc)}</span>`
+      : escHtml(name);
+    tip.style.display = 'block';
   });
 
   document.addEventListener('mousemove', e => {
