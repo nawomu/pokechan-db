@@ -52,6 +52,42 @@ th.col-c1, td.col-c1, th.col-c2, td.col-c2, th.col-c3, td.col-c3 {
 }
 .cm-chk.has-val { background: #FFEECC; font-weight: 700; color: #C0392B; }
 .c-filter { font-size: 10px; }
+
+/* タイプ多重選択ドロップダウン */
+.ms-wrap { position: relative; display: inline-block; width: 100%; }
+.ms-btn {
+  width: 100%; padding: 2px 4px; font-size: 10px;
+  border: 1px solid #BBB; border-radius: 2px; background: white;
+  cursor: pointer; text-align: left; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.ms-btn.has-val { background: #FFEECC; font-weight: 700; color: #C0392B; }
+.ms-dd {
+  display: none; position: absolute; top: 100%; left: 0; z-index: 5000;
+  background: white; border: 1px solid #888; border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  padding: 4px 6px; min-width: 130px; max-height: 320px; overflow-y: auto;
+}
+.ms-wrap.open .ms-dd { display: block; }
+.ms-dd label {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 4px; font-size: 11px; cursor: pointer;
+  border-radius: 2px; user-select: none;
+}
+.ms-dd label:hover { background: #F0F4F8; }
+.ms-dd input[type=checkbox] { cursor: pointer; margin: 0; }
+.ms-dd .ms-color {
+  display: inline-block; width: 10px; height: 10px;
+  border-radius: 2px; border: 1px solid rgba(0,0,0,0.15);
+}
+.ms-dd .ms-actions {
+  display: flex; gap: 4px; padding: 4px 0 6px; border-bottom: 1px solid #DDD; margin-bottom: 4px;
+}
+.ms-dd .ms-act-btn {
+  flex: 1; padding: 2px 4px; font-size: 10px;
+  border: 1px solid #BBB; border-radius: 2px; background: #F8F8F8; cursor: pointer;
+}
+.ms-dd .ms-act-btn:hover { background: #E8E8E8; }
 .c-reset-btn {
   padding: 2px 8px; font-size: 11px; background: #E67E22; color: white;
   border: none; border-radius: 3px; cursor: pointer; font-weight: 700;
@@ -286,7 +322,12 @@ td.col-name { cursor: help; }
     <th><select id="f-c2" class="c-filter"><option value="">全</option><option value="empty">空</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></th>
     <th><select id="f-c3" class="c-filter"><option value="">全</option><option value="empty">空</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></th>
     <th></th>
-    <th><select id="f-type"><option value="">全タイプ</option></select></th>
+    <th>
+      <div class="ms-wrap" id="f-type-wrap">
+        <button type="button" class="ms-btn" id="f-type-btn" onclick="toggleTypeDropdown(event)">全タイプ ▾</button>
+        <div class="ms-dd" id="f-type-dd"></div>
+      </div>
+    </th>
     <th></th>
     <th></th>
     <th></th>
@@ -357,6 +398,9 @@ function resetWazaChecks(ci) {
 
 let sortKey = 'name';
 let sortDir = 1;
+
+// ===== タイプ複数選択フィルター =====
+let selectedTypes = new Set();
 
 // ===== 効果フィルター状態管理 =====
 const activeEfFilters = {
@@ -595,7 +639,6 @@ function render() {
   const tbody = document.getElementById('tbody');
   tbody.innerHTML = '';
   const searchQ = toHira(document.getElementById('search').value);
-  const fType = document.getElementById('f-type').value;
   const fTarget = document.getElementById('f-target').value;
   const fMode = document.getElementById('f-mode').value;
   const fContact = document.getElementById('f-contact').value;
@@ -650,7 +693,7 @@ function render() {
   let visibleCount = 0;
   rows.forEach(m => {
     if (searchQ && !toHira(m.name).includes(searchQ)) return;
-    if (fType && m.type !== fType) return;
+    if (selectedTypes.size > 0 && !selectedTypes.has(m.type)) return;
     if (fTarget && m.target !== fTarget) return;
     if (fMode && m.mode !== fMode) return;
     if (fContact && m.contact !== fContact) return;
@@ -736,7 +779,7 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
   };
 });
 
-['search','f-type','f-target','f-mode','f-contact','f-guard','f-cat','f-c1','f-c2','f-c3'].forEach(id => {
+['search','f-target','f-mode','f-contact','f-guard','f-cat','f-c1','f-c2','f-c3'].forEach(id => {
   document.getElementById(id).addEventListener('input', render);
   document.getElementById(id).addEventListener('change', render);
 });
@@ -754,17 +797,88 @@ document.getElementById('tbody').addEventListener('change', e => {
 const types = [...new Set(moves.map(m => m.type))].sort();
 const targets = [...new Set(moves.map(m => m.target))].sort();
 const cats = [...new Set(moves.map(m => m.category))].sort();
-types.forEach(t => { const o = document.createElement('option'); o.value=t; o.textContent=t; document.getElementById('f-type').appendChild(o); });
 targets.forEach(t => { const o = document.createElement('option'); o.value=t; o.textContent=t; document.getElementById('f-target').appendChild(o); });
 cats.forEach(c => { const o = document.createElement('option'); o.value=c; o.textContent=c; document.getElementById('f-cat').appendChild(o); });
+
+// ===== タイプ多重選択ドロップダウンの構築 =====
+function buildTypeDropdown() {
+  const dd = document.getElementById('f-type-dd');
+  dd.innerHTML = '';
+  // 全選択 / 全解除アクション
+  const actions = document.createElement('div');
+  actions.className = 'ms-actions';
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button'; allBtn.className = 'ms-act-btn'; allBtn.textContent = '全選択';
+  allBtn.onclick = (e) => { e.stopPropagation(); types.forEach(t => selectedTypes.add(t)); syncTypeCheckboxes(); updateTypeBtnLabel(); render(); };
+  const clrBtn = document.createElement('button');
+  clrBtn.type = 'button'; clrBtn.className = 'ms-act-btn'; clrBtn.textContent = '全解除';
+  clrBtn.onclick = (e) => { e.stopPropagation(); selectedTypes.clear(); syncTypeCheckboxes(); updateTypeBtnLabel(); render(); };
+  actions.appendChild(allBtn);
+  actions.appendChild(clrBtn);
+  dd.appendChild(actions);
+  // 各タイプのチェックボックス
+  types.forEach(t => {
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.value = t; cb.dataset.type = t;
+    cb.checked = selectedTypes.has(t);
+    cb.addEventListener('change', () => {
+      if (cb.checked) selectedTypes.add(t); else selectedTypes.delete(t);
+      updateTypeBtnLabel();
+      render();
+    });
+    const sw = document.createElement('span');
+    sw.className = 'ms-color';
+    sw.style.background = typeColors[t] || '#999';
+    const txt = document.createElement('span');
+    txt.textContent = t;
+    lbl.appendChild(cb);
+    lbl.appendChild(sw);
+    lbl.appendChild(txt);
+    dd.appendChild(lbl);
+  });
+}
+function syncTypeCheckboxes() {
+  document.querySelectorAll('#f-type-dd input[type=checkbox]').forEach(cb => {
+    cb.checked = selectedTypes.has(cb.value);
+  });
+}
+function updateTypeBtnLabel() {
+  const btn = document.getElementById('f-type-btn');
+  if (selectedTypes.size === 0) {
+    btn.textContent = '全タイプ ▾';
+    btn.classList.remove('has-val');
+  } else if (selectedTypes.size === 1) {
+    btn.textContent = [...selectedTypes][0] + ' ▾';
+    btn.classList.add('has-val');
+  } else {
+    btn.textContent = `${selectedTypes.size}タイプ ▾`;
+    btn.classList.add('has-val');
+  }
+}
+function toggleTypeDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('f-type-wrap').classList.toggle('open');
+}
+// 外側クリックで閉じる
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('f-type-wrap');
+  if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+});
+buildTypeDropdown();
+updateTypeBtnLabel();
 
 // 画面状態リセット (検索・フィルタ・ソートのみ初期化、C1/C2/C3は保持)
 function resetAll() {
   document.getElementById('search').value = '';
-  ['f-type', 'f-target', 'f-mode', 'f-contact', 'f-guard', 'f-cat', 'f-c1', 'f-c2', 'f-c3'].forEach(id => {
+  ['f-target', 'f-mode', 'f-contact', 'f-guard', 'f-cat', 'f-c1', 'f-c2', 'f-c3'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
+  // タイプ多重選択をクリア
+  selectedTypes.clear();
+  syncTypeCheckboxes();
+  updateTypeBtnLabel();
   // 効果フィルターリセット
   Object.values(activeEfFilters).forEach(s => s.clear());
   document.querySelectorAll('.ef-chip').forEach(el => {
