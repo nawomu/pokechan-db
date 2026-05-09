@@ -299,6 +299,12 @@ tbody tr:hover td { background: #FFF3C4 !important; }
   background: #FFEECC; padding: 0 2px;
   border-radius: 2px; font-size: 9px;
 }
+.mega-mark-possible {
+  color: #888; font-weight: 700;
+  background: #E0E0E0; padding: 0 2px;
+  border-radius: 2px; font-size: 9px;
+  opacity: 0.7;
+}
 .th-mega, .td-mega { width: 24px !important; min-width: 24px !important; max-width: 24px !important; }
 .th-ty, .td-ty { width: 34px !important; min-width: 34px !important; max-width: 34px !important; }
 .td-ty { padding: 2px 1px !important; }
@@ -1776,7 +1782,15 @@ COLUMNS.push({
     }, 0);
     return th;
   },
-  buildTd: (p) => `<td class="td-mega" data-grp="type">${p.mega ? '<span class="mega-mark">M</span>' : ''}</td>`,
+  buildTd: (p) => {
+    if (p.mega) {
+      return `<td class="td-mega" data-grp="type" title="メガ進化形態"><span class="mega-mark">M</span></td>`;
+    }
+    if (p.form === '通常' && MEGA_CAPABLE_NOS.has(p.no)) {
+      return `<td class="td-mega" data-grp="type" title="メガ進化可能"><span class="mega-mark-possible">M</span></td>`;
+    }
+    return `<td class="td-mega" data-grp="type"></td>`;
+  },
   applyFilter: (arr, ctx) => {
     const msId = `ms-${ctx.prefix}-form`;
     const sel = msGetChecked(msId);
@@ -3428,6 +3442,12 @@ function applyMainZoom() {
 // ============================================================
 // 初期化
 // ============================================================
+// メガ進化可能なポケモンの No 集合 (通常フォームに同 No のメガ進化が存在するか判定用)
+const MEGA_CAPABLE_NOS = new Set();
+if (typeof DATA !== 'undefined') {
+  DATA.forEach(p => { if (p.form === 'メガ進化') MEGA_CAPABLE_NOS.add(p.no); });
+}
+
 function init() {
   // POKEMON_WAZA から技フラグを各ポケモンに展開 (490技全て)
   // (POKEMON_LIST には変化170技のみ p[key]=true 済み、物理/特殊320件は未展開)
