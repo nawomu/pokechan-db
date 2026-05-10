@@ -56,8 +56,25 @@ td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !i
   padding:10px;width:90vw;height:92vh;display:flex;flex-direction:column;gap:6px;
   font-family:-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;font-size:11px;
 }
-#pf-title-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-shrink:0}
-#pf-title{font-size:14px;font-weight:bold;color:#79c0ff}
+#pf-title-row{display:flex;align-items:center;gap:8px;flex-shrink:0;flex-wrap:wrap}
+#pf-title{font-size:14px;font-weight:bold;color:#79c0ff;flex-shrink:0}
+#pf-type-toggle{
+  padding:3px 10px;border-radius:3px;border:1px solid #30363d;
+  background:#21262d;color:#e6edf3;cursor:pointer;font-size:11px;
+  flex-shrink:0;white-space:nowrap;font-weight:700;
+}
+#pf-type-toggle:hover{background:#1c2a3a}
+#pf-type-toggle.has-filter{background:#1c2a3a;color:#79c0ff;border-color:#58a6ff}
+#pf-type-buttons{display:flex;gap:3px;flex-wrap:wrap;flex:1;min-width:0}
+#pf-type-buttons .pf-type-btn{
+  padding:3px 8px;border-radius:3px;border:1px solid rgba(255,255,255,0.2);
+  color:#fff;cursor:pointer;font-size:10px;font-weight:700;
+  white-space:nowrap;opacity:0.5;transition:opacity .12s;
+}
+#pf-type-buttons .pf-type-btn:hover{opacity:0.9}
+#pf-type-buttons .pf-type-btn.active{
+  opacity:1;border:1px solid #fff;box-shadow:0 0 0 2px rgba(255,255,255,0.3);
+}
 #pf-search{padding:4px 8px;border-radius:4px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:12px;width:100%;flex-shrink:0}
 
 /* 効果フィルターパネル */
@@ -374,6 +391,8 @@ tr.all-waza-row td.all-waza-cell:hover{background:#243447}
     <div id="pf-title-row">
       <div id="pf-title">技を選択</div>
       <button id="pf-ef-toggle-btn" type="button" onclick="togglePfEffectFilter()">🔍 効果フィルター ▲</button>
+      <button id="pf-type-toggle" type="button" onclick="togglePfTypeMode()" style="display:none">全タイプ表示</button>
+      <div id="pf-type-buttons"></div>
     </div>
     <input id="pf-search" type="text" placeholder="技名 または 説明文 で絞り込み…">
     <div id="pf-effect-filter-panel"></div>
@@ -459,7 +478,8 @@ let filterCats = new Set(["変化","物理","特殊"]);
 let activeSlot = 0;
 let pfSlot     = null;  // ポケモン別フィルタで開いてるスロット番号
 let pfPoke     = null;  // ポケモン別フィルタで開いてるポケモン名 (party[pfSlot])
-let pfType     = null;  // クリックされたタイプ行 (null=全タイプ表示)
+let pfType     = null;  // 現在選択中のタイプフィルタ (null=全タイプ表示)
+let pfLastType = null;  // 直近に選択された具体的なタイプ (トグル復帰用)
 let pfTempSel  = null;
 let pfVisibleKeys = [];  // モーダル現在表示中の技キー (全解除のスコープ限定用)
 
@@ -1217,6 +1237,7 @@ function openPokemonFilter(slotIdx, type) {
   pfSlot = slotIdx;
   pfPoke = party[slotIdx];
   pfType = type || null;
+  pfLastType = type || null;  // 新ポケモン開くたびリセット (旧ポケモンのタイプは無効)
   if (!pfPoke) return;
   // 該当スロット×該当タイプの選択をロード
   // type 指定無しの場合は全タイプの選択を結合
@@ -1234,6 +1255,8 @@ function openPokemonFilter(slotIdx, type) {
   renderPfList("");
   // 静的構築後にフィルタ状態をリセット (モーダル再オープンごと)
   pfResetFilterState();
+  buildPfTypeButtons();
+  updatePfTypeToggle();
   pfRender();
 }
 
@@ -1256,15 +1279,77 @@ function pfResetFilterState() {
   pfSortKey = 'type'; pfSortDir = 1;
 }
 function updatePfTitle() {
-  const typeMsg = pfType ? `｜${pfType}タイプのみ` : `｜全タイプ`;
+  const typeMsg = pfType ? `｜${tDisp(pfType)}タイプ` : `｜全タイプ`;
   document.getElementById("pf-title").innerHTML =
-    `【スロット${pfSlot+1} ${pfPoke}】 技を選択 <span style="font-size:.8rem;color:#79c0ff">${typeMsg}</span>` +
-    (pfType ? ` <button id="pf-clear-type" style="margin-left:8px;padding:2px 8px;font-size:.7rem;background:#30363d;color:#e6edf3;border:none;border-radius:8px;cursor:pointer">全タイプ表示</button>` : '');
-  // 「全タイプ表示」ボタンをイベント付与
-  const btn = document.getElementById("pf-clear-type");
-  if (btn) btn.onclick = () => { pfType = null; updatePfTitle(); renderPfList(document.getElementById("pf-search").value); };
+    `【スロット${pfSlot+1} ${pfPoke}】 技を選択 <span style="font-size:.8rem;color:#79c0ff">${typeMsg}</span>`;
 }
 function closePokemonFilter() { document.getElementById("pf-ov").classList.remove("vis"); }
+
+// ── タイプフィルタ切替 (トグル + タイプ別ボタン) ─────────────────────────────
+function togglePfTypeMode() {
+  if (pfType) { pfType = null; }
+  else if (pfLastType) { pfType = pfLastType; }
+  else return;
+  updatePfTitle();
+  updatePfTypeToggle();
+  updatePfTypeButtonsActive();
+  pfRender();
+}
+
+function selectPfType(t) {
+  pfType = t;
+  pfLastType = t;
+  updatePfTitle();
+  updatePfTypeToggle();
+  updatePfTypeButtonsActive();
+  pfRender();
+}
+
+function buildPfTypeButtons() {
+  const cont = document.getElementById('pf-type-buttons');
+  if (!cont) return;
+  cont.innerHTML = '';
+  if (!pfPoke) return;
+  const moves = getPokemonAllMoves(pfPoke);
+  const types = [...new Set(moves.map(m => m.type))];
+  types.sort((a, b) => TYPES.indexOf(a) - TYPES.indexOf(b));
+  types.forEach(t => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pf-type-btn';
+    btn.dataset.type = t;
+    btn.textContent = tDisp(t);
+    btn.style.background = TYPE_COLORS[t] || '#888';
+    btn.onclick = () => selectPfType(t);
+    if (pfType === t) btn.classList.add('active');
+    cont.appendChild(btn);
+  });
+}
+
+function updatePfTypeButtonsActive() {
+  document.querySelectorAll('#pf-type-buttons .pf-type-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.type === pfType);
+  });
+}
+
+function updatePfTypeToggle() {
+  const btn = document.getElementById('pf-type-toggle');
+  if (!btn) return;
+  if (pfType) {
+    // 現在タイプ絞り中 → クリックで全タイプに戻す
+    btn.textContent = `全タイプ表示`;
+    btn.classList.remove('has-filter');
+    btn.style.display = '';
+  } else if (pfLastType) {
+    // 全タイプ中 + 復帰先あり → クリックで前回タイプへ
+    btn.textContent = `${tDisp(pfLastType)}タイプのみ`;
+    btn.classList.add('has-filter');
+    btn.style.display = '';
+  } else {
+    // 復帰先なし (全技から開いた) → トグル非表示
+    btn.style.display = 'none';
+  }
+}
 
 function getPokemonAllMoves(pokeName) {
   return (POKEMON_WAZA[pokeName] || [])
