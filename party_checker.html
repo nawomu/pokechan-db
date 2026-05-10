@@ -156,8 +156,25 @@ td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !i
 #pf-table td.col-name{font-weight:700;color:#79c0ff}
 #pf-table .col-type{width:60px;text-align:center}
 #pf-table .col-type .type-cell-i{color:#fff;text-align:center;padding:1px 5px;border-radius:2px;font-weight:700;font-size:10px;white-space:nowrap;display:inline-block}
-#pf-table .col-class{width:36px;text-align:center}
-#pf-table .col-class .cat-cell{background:#21262d;padding:1px 5px;border-radius:2px;font-size:10px;color:#e6edf3}
+#pf-table .col-class{width:96px;text-align:center}
+#pf-table .col-class .cat-cell{padding:2px 8px;border-radius:3px;font-size:11px;color:#fff;font-weight:700;display:inline-block;min-width:24px}
+#pf-table .col-class .cat-cell.phys{background:#f0883e}
+#pf-table .col-class .cat-cell.spec{background:#58a6ff}
+#pf-table .col-class .cat-cell.stat{background:#6e7681}
+.pf-class-btns{display:flex;gap:2px;justify-content:center;padding:1px}
+.pf-class-btns button{
+  flex:1;padding:3px 0;border:1px solid #30363d;border-radius:3px;
+  background:transparent;color:#8b949e;cursor:pointer;
+  font-size:11px;font-weight:700;
+  transition:all .12s;font-family:inherit;
+}
+.pf-class-btns button.phys{color:#f0883e;border-color:#5a3719}
+.pf-class-btns button.spec{color:#58a6ff;border-color:#1f3a5a}
+.pf-class-btns button.stat{color:#a6a8ad;border-color:#3a3f47}
+.pf-class-btns button:hover{filter:brightness(1.3)}
+.pf-class-btns button.phys.active{background:#f0883e;color:#fff;border-color:#f0883e;box-shadow:0 0 0 2px rgba(240,136,62,0.3)}
+.pf-class-btns button.spec.active{background:#58a6ff;color:#fff;border-color:#58a6ff;box-shadow:0 0 0 2px rgba(88,166,255,0.3)}
+.pf-class-btns button.stat.active{background:#6e7681;color:#fff;border-color:#6e7681;box-shadow:0 0 0 2px rgba(110,118,129,0.3)}
 #pf-table .col-power,#pf-table .col-acc,#pf-table .col-pp,#pf-table .col-prob{width:42px;text-align:center;font-family:monospace}
 #pf-table .col-prio{width:42px;text-align:center;font-family:monospace}
 #pf-table td.col-prio.prio-pos{color:#56d364;font-weight:700}
@@ -314,16 +331,6 @@ td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !i
 .drag-handle:active{cursor:grabbing}
 tr.type-data-row{cursor:default}
 tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
-
-/* 全技行 (最下段) */
-tr.all-waza-row td{border-top:2px solid #58a6ff !important;background:#161f2c}
-tr.all-waza-row td.row-label.all-waza-label{background:#1c2a3a}
-tr.all-waza-row td.all-waza-cell{cursor:pointer;transition:background .1s;text-align:center;vertical-align:middle}
-tr.all-waza-row td.all-waza-cell:hover{background:#243447}
-.all-waza-summary{font-size:.85rem;font-weight:bold;color:#79c0ff;line-height:1.2;text-align:center;padding:6px 0}
-.all-waza-summary .aw-sel{color:#56d364;font-size:1rem}
-.all-waza-summary .aw-sep{color:#484f58;margin:0 2px}
-.all-waza-summary .aw-tot{color:#8b949e;font-size:.78rem}
 
 /* フィルタバー */
 /* タブバー */
@@ -981,25 +988,6 @@ function renderTable() {
     }).join("")}
   </tr>`);
 
-  // 全技行 (手持ち直下: クリックで全タイプの技を一括選択するポップアップ)
-  rows.push(`<tr class="all-waza-row">
-    <td class="row-label all-waza-label">
-      <div class="type-label-cell" style="grid-template-rows:auto">
-        <span class="tbadge" style="background:#3A6EA5">全技</span>
-      </div>
-    </td>
-    ${party.map((name, slotIdx) => {
-      if (!name) return `<td class="empty-slot-cell" onclick="openModal(${slotIdx})"></td>`;
-      const allKeys = POKEMON_WAZA[name] || [];
-      const totalCount = allKeys.length;
-      const slotData = slotFilters[slotIdx] || {};
-      let selectedCount = 0;
-      Object.values(slotData).forEach(arr => { if (Array.isArray(arr)) selectedCount += arr.length; });
-      const summary = `<div class="all-waza-summary"><span class="aw-sel">${selectedCount}</span><span class="aw-sep">/</span><span class="aw-tot">${totalCount}</span></div>`;
-      return `<td class="waza-cell waza-cell-clickable waza-cell-count all-waza-cell" onclick="openPokemonFilter(${slotIdx},null)" title="クリックで全技ポップアップ (タイプを問わず選択 → 各タイプ行に反映)">${summary}</td>`;
-    }).join("")}
-  </tr>`);
-
   // タイプ別わざカバレッジ
   typeOrder.forEach(t => {
     const allMoves = Object.values(WAZA_MAP).filter(m => m.type === t && filterCats.has(m.category));
@@ -1270,8 +1258,11 @@ function pfResetFilterState() {
   pfSelectedTypes.clear();
   pfSyncTypeCb();
   pfUpdateTypeBtnLabel();
+  // 分類ボタン解除
+  pfClassFilter = '';
+  document.querySelectorAll('#pf-f-class-btns button').forEach(b => b.classList.remove('active'));
   // 列フィルタ入力クリア
-  ['pf-f-class','pf-f-power','pf-f-acc','pf-f-pp','pf-f-prob','pf-f-prio','pf-f-target','pf-f-contact','pf-f-guard'].forEach(id => {
+  ['pf-f-power','pf-f-acc','pf-f-pp','pf-f-prob','pf-f-prio','pf-f-target','pf-f-contact','pf-f-guard'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
@@ -1431,8 +1422,17 @@ const pfActiveEf = {
   misc: new Set(), exclude: new Set(),
 };
 let pfSelectedTypes = new Set();
+let pfClassFilter = '';   // '' / '物理' / '特殊' / '変化'
 let pfSortKey = 'name';
 let pfSortDir = 1;
+
+function togglePfClass(c) {
+  pfClassFilter = (pfClassFilter === c) ? '' : c;
+  document.querySelectorAll('#pf-f-class-btns button').forEach(b => {
+    b.classList.toggle('active', b.dataset.class === pfClassFilter);
+  });
+  pfRender();
+}
 const PF_NUMERIC_SORT = new Set(['power','accuracy','pp','prob','priority']);
 
 function pfMatchesEffect(m) {
@@ -1515,7 +1515,11 @@ function buildPfTableHead() {
           <div class="ms-dd" id="pf-f-type-dd"></div>
         </div>
       </th>
-      <th><select id="pf-f-class"><option value="">全</option><option value="物理">物</option><option value="特殊">特</option><option value="変化">変</option></select></th>
+      <th><div class="pf-class-btns" id="pf-f-class-btns">
+        <button type="button" class="phys" data-class="物理" onclick="togglePfClass('物理')">物</button>
+        <button type="button" class="spec" data-class="特殊" onclick="togglePfClass('特殊')">特</button>
+        <button type="button" class="stat" data-class="変化" onclick="togglePfClass('変化')">変</button>
+      </div></th>
       <th><input type="number" id="pf-f-power" placeholder="≥" min="0"></th>
       <th><input type="number" id="pf-f-acc" placeholder="≥" min="0" max="100"></th>
       <th><input type="number" id="pf-f-pp" placeholder="≥" min="0"></th>
@@ -1596,7 +1600,7 @@ function pfEnsureStaticBuilt() {
   buildPfTableHead();
   buildPfTypeDropdown();
   pfBuildTargetFilter();
-  ['pf-f-class','pf-f-power','pf-f-acc','pf-f-pp','pf-f-prob','pf-f-prio','pf-f-target','pf-f-contact','pf-f-guard'].forEach(id => {
+  ['pf-f-power','pf-f-acc','pf-f-pp','pf-f-prob','pf-f-prio','pf-f-target','pf-f-contact','pf-f-guard'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
       el.addEventListener('change', pfRender);
@@ -1639,7 +1643,7 @@ function pfRender() {
   if (!tbody) return;
   tbody.innerHTML = '';
   const searchQ = (document.getElementById('pf-search').value || '').trim();
-  const fClass = document.getElementById('pf-f-class').value;
+  const fClass = pfClassFilter;
   const fPower = document.getElementById('pf-f-power').value;
   const fAcc = document.getElementById('pf-f-acc').value;
   const fPp = document.getElementById('pf-f-pp').value;
@@ -1721,7 +1725,7 @@ function pfRender() {
       <td class="col-chk"><input type="checkbox" data-key="${m.key}" ${checked ? 'checked' : ''}></td>
       <td class="col-name">${m.name}</td>
       <td class="col-type"><span class="type-cell-i" style="background:${color}">${tDisp(m.type)}</span></td>
-      <td class="col-class"><span class="cat-cell">${catShortChar(m.category)}</span></td>
+      <td class="col-class"><span class="cat-cell ${catClass(m.category)}">${catShortChar(m.category)}</span></td>
       <td class="col-power">${power}</td>
       <td class="col-acc">${accuracy}</td>
       <td class="col-pp">${pp}</td>
