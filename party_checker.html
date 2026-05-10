@@ -48,24 +48,116 @@ td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !i
 .poke-filter-btn:hover{background:#1c2a3a;border-color:#79c0ff}
 .poke-filter-btn.active{background:#1f4a1f;color:#56d364;border-color:#2ea043}
 
-/* ポケモン別わざ選択モーダル (大きめ) */
+/* ポケモン別わざ選択モーダル (わざリスト風) */
 #pf-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;align-items:center;justify-content:center}
 #pf-ov.vis{display:flex}
-#pf-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:14px;max-width:1400px;width:96vw;max-height:90vh;display:flex;flex-direction:column;gap:8px}
-#pf-title{font-size:1rem;font-weight:bold;color:#e6edf3}
-#pf-search{padding:6px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:12px;width:100%}
-#pf-list{overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:3px}
-.pf-item{display:flex;align-items:flex-start;gap:6px;padding:5px 7px;border-radius:6px;cursor:pointer;border:1px solid transparent}
-.pf-item:hover{background:#1c2a3a;border-color:#30363d}
-.pf-item.checked{background:#1f4a1f;border-color:#2ea043}
-.pf-item input[type=checkbox]{accent-color:#79c0ff;width:14px;height:14px;cursor:pointer;flex-shrink:0;margin-top:2px}
-.pf-item-body{flex:1;min-width:0}
-#pf-btns{display:flex;gap:8px;justify-content:space-between;align-items:center;border-top:1px solid #21262d;padding-top:8px}
+#pf-box{
+  background:#F5F5F5;color:#222;border:2px solid #1F4E79;border-radius:8px;
+  padding:10px;width:90vw;height:92vh;display:flex;flex-direction:column;gap:6px;
+  font-family:-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;font-size:11px;
+}
+#pf-title-row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-shrink:0}
+#pf-title{font-size:14px;font-weight:bold;color:#1F4E79}
+#pf-search{padding:4px 8px;border-radius:4px;border:1px solid #999;background:#fff;color:#222;font-size:12px;width:100%;flex-shrink:0}
+
+/* 効果フィルターパネル */
+#pf-effect-filter-panel{
+  background:#EEF2F8;border:1px solid #C5D0E0;border-radius:4px;
+  padding:4px 6px;font-size:11px;flex-shrink:0;
+}
+#pf-effect-filter-panel.collapsed{display:none}
+#pf-box .ef-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:3px}
+#pf-box .ef-row:last-child{margin-bottom:0}
+#pf-box .ef-label{font-weight:700;color:#1F4E79;min-width:70px;font-size:10px;white-space:nowrap}
+#pf-box .ef-chip{
+  display:inline-block;padding:1px 7px;border-radius:10px;
+  border:1px solid #AAA;background:#fff;cursor:pointer;
+  font-size:10px;color:#555;user-select:none;transition:all .1s;
+}
+#pf-box .ef-chip:hover{border-color:#1F4E79;color:#1F4E79}
+#pf-box .ef-chip.active{background:#1F4E79;color:#fff;border-color:#1F4E79;font-weight:700}
+#pf-box .ef-chip.active-status{background:#8E24AA;color:#fff;border-color:#8E24AA}
+#pf-box .ef-chip.active-up{background:#E53935;color:#fff;border-color:#E53935}
+#pf-box .ef-chip.active-down{background:#1E88E5;color:#fff;border-color:#1E88E5}
+#pf-box .ef-chip.active-misc{background:#2E7D32;color:#fff;border-color:#2E7D32}
+#pf-box .ef-chip.ef-exclude-chip{border-color:#C0392B;color:#C0392B}
+#pf-box .ef-chip.ef-exclude-chip:hover{background:#FADBD8}
+#pf-box .ef-chip.active-exclude{background:#C0392B;color:#fff;border-color:#C0392B}
+#pf-box .ef-divider{width:1px;height:14px;background:#CCC;margin:0 2px}
+#pf-ef-toggle-btn{background:#3A6EA5;color:#fff;font-size:10px;padding:3px 10px;border-radius:3px;border:none;cursor:pointer;font-weight:700;flex-shrink:0;white-space:nowrap}
+#pf-ef-toggle-btn:hover{background:#2A5E90}
+
+/* タイプ多重選択ドロップダウン (ライト) */
+#pf-box .ms-wrap{position:relative;display:inline-block;width:100%}
+#pf-box .ms-btn{
+  width:100%;padding:2px 4px;font-size:10px;
+  border:1px solid #BBB;border-radius:2px;background:#fff;color:#222;
+  cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+#pf-box .ms-btn.has-val{background:#FFEECC;font-weight:700;color:#C0392B}
+#pf-box .ms-dd{
+  display:none;position:absolute;top:100%;left:0;z-index:5000;
+  background:#fff;border:1px solid #888;border-radius:4px;
+  box-shadow:0 4px 12px rgba(0,0,0,.18);
+  padding:4px 6px;width:160px;max-height:280px;overflow-y:auto;overflow-x:hidden;
+  text-align:left;
+}
+#pf-box .ms-wrap.open .ms-dd{display:block}
+#pf-box .ms-dd label{
+  display:flex;align-items:center;justify-content:flex-start;gap:6px;
+  padding:3px 4px;font-size:12px;cursor:pointer;border-radius:2px;
+  user-select:none;white-space:nowrap;text-align:left;
+  width:100%;box-sizing:border-box;color:#222;
+}
+#pf-box .ms-dd label:hover{background:#F0F4F8}
+#pf-box .ms-dd input[type=checkbox]{cursor:pointer;margin:0;flex-shrink:0;width:14px;height:14px}
+#pf-box .ms-dd .ms-color{display:inline-block;width:10px;height:10px;border-radius:2px;border:1px solid rgba(0,0,0,.15);flex-shrink:0}
+#pf-box .ms-dd .ms-name{flex:0 0 auto}
+#pf-box .ms-dd .ms-actions{display:flex;gap:4px;padding:4px 0 6px;border-bottom:1px solid #DDD;margin-bottom:4px}
+#pf-box .ms-dd .ms-act-btn{flex:1;padding:2px 4px;font-size:10px;border:1px solid #BBB;border-radius:2px;background:#F8F8F8;color:#222;cursor:pointer}
+#pf-box .ms-dd .ms-act-btn:hover{background:#E8E8E8}
+
+/* テーブル */
+#pf-table-wrap{flex:1;overflow:auto;background:#fff;border:1px solid #999;border-radius:4px;min-height:0}
+#pf-table{border-collapse:collapse;width:100%;font-size:11px;background:#fff;color:#222}
+#pf-table thead{position:sticky;top:0;z-index:50}
+#pf-table thead tr.head-row th{background:#1F4E79;color:#fff;padding:3px 4px;text-align:center;border:1px solid #0a2040;cursor:pointer;user-select:none;white-space:nowrap;font-weight:700;font-size:11px}
+#pf-table thead tr.head-row th.col-name,#pf-table thead tr.head-row th.col-effect{text-align:left}
+#pf-table thead tr.head-row th.col-chk{cursor:default;padding:2px}
+#pf-table thead tr.head-row th:not(.col-chk):hover{background:#2A6091}
+#pf-table thead tr.head-row th.sorted::after{content:" ▼";font-size:9px}
+#pf-table thead tr.head-row th.sorted.asc::after{content:" ▲"}
+#pf-table thead tr.filter-row th{background:#E8ECF2;padding:1px;border:1px solid #999}
+#pf-table thead tr.filter-row input,#pf-table thead tr.filter-row select{width:100%;font-size:10px;padding:1px 3px;border:1px solid #CCC;border-radius:2px;background:#fff;color:#222;font-family:inherit}
+#pf-table tbody td{padding:2px 4px;border:1px solid #DDD;vertical-align:middle;color:#222}
+#pf-table tbody tr:nth-child(even){background:#F9F9F9}
+#pf-table tbody tr:hover{background:#E3F2FD !important}
+#pf-table tbody tr.row-checked{background:#D4E7F5 !important}
+#pf-table .col-chk{width:32px;text-align:center}
+#pf-table .col-chk input[type=checkbox]{cursor:pointer;accent-color:#1F4E79;width:14px;height:14px;margin:0}
+#pf-table .col-name{width:120px}
+#pf-table td.col-name{font-weight:700;color:#1F4E79}
+#pf-table .col-type{width:60px;text-align:center}
+#pf-table .col-type .type-cell-i{color:#fff;text-align:center;padding:1px 5px;border-radius:2px;font-weight:700;font-size:10px;white-space:nowrap;display:inline-block}
+#pf-table .col-class{width:36px;text-align:center}
+#pf-table .col-class .cat-cell{background:#E8ECF2;padding:1px 5px;border-radius:2px;font-size:10px;color:#222}
+#pf-table .col-power,#pf-table .col-acc,#pf-table .col-pp,#pf-table .col-prob{width:42px;text-align:center;font-family:monospace}
+#pf-table .col-prio{width:42px;text-align:center;font-family:monospace}
+#pf-table td.col-prio.prio-pos{color:#1F4E79;font-weight:700}
+#pf-table td.col-prio.prio-neg{color:#C0392B;font-weight:700}
+#pf-table td.col-prio.prio-zero{color:#BBB}
+#pf-table .col-target{width:80px;text-align:center;font-size:10px;white-space:nowrap}
+#pf-table .col-contact,#pf-table .col-guard{width:38px;text-align:center;font-size:10px}
+#pf-table .col-effect{min-width:280px;font-size:10px;color:#555;line-height:1.3}
+
+/* ボタン (ライト) */
+#pf-btns{display:flex;gap:8px;justify-content:space-between;align-items:center;border-top:1px solid #CCC;padding-top:6px;flex-shrink:0;color:#444}
 #pf-btns .left{display:flex;gap:6px;align-items:center}
-#pf-btns button{padding:5px 12px;border-radius:6px;border:1px solid #30363d;background:transparent;color:#8b949e;cursor:pointer;font-size:.78rem}
+#pf-btns button{padding:5px 12px;border-radius:6px;border:1px solid #999;background:#fff;color:#444;cursor:pointer;font-size:.78rem}
+#pf-btns button:hover{background:#F0F0F0}
 #pf-done{background:#238636 !important;color:#fff !important;border:none !important}
-#pf-reset{background:#30363d !important;color:#e6edf3 !important;border:none !important}
-#pf-count{color:#8b949e;font-size:.73rem}
+#pf-reset{background:#7F8C8D !important;color:#fff !important;border:none !important}
+#pf-count{color:#666;font-size:.73rem}
 .poke-no{font-size:.62rem;color:#8b949e}
 .poke-name-big{font-size:.85rem;font-weight:bold;color:#e6edf3;display:block}
 .type-row{display:flex;gap:3px;justify-content:center;margin-top:2px;flex-wrap:wrap}
@@ -264,12 +356,21 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 <!-- グローバル説明ツールチップ -->
 <div id="hover-tip"></div>
 
-<!-- ポケモン別 わざ選択モーダル -->
+<!-- ポケモン別 わざ選択モーダル (わざリスト風) -->
 <div id="pf-ov">
   <div id="pf-box">
-    <div id="pf-title">技を選択</div>
+    <div id="pf-title-row">
+      <div id="pf-title">技を選択</div>
+      <button id="pf-ef-toggle-btn" type="button" onclick="togglePfEffectFilter()">🔍 効果フィルター ▲</button>
+    </div>
     <input id="pf-search" type="text" placeholder="技名 または 説明文 で絞り込み…">
-    <div id="pf-list"></div>
+    <div id="pf-effect-filter-panel"></div>
+    <div id="pf-table-wrap">
+      <table id="pf-table">
+        <thead></thead>
+        <tbody id="pf-tbody"></tbody>
+      </table>
+    </div>
     <div id="pf-btns">
       <div class="left">
         <button id="pf-none">全解除</button>
@@ -1100,6 +1201,28 @@ function openPokemonFilter(slotIdx, type) {
   document.getElementById("pf-search").value = "";
   document.getElementById("pf-ov").classList.add("vis");
   renderPfList("");
+  // 静的構築後にフィルタ状態をリセット (モーダル再オープンごと)
+  pfResetFilterState();
+  pfRender();
+}
+
+function pfResetFilterState() {
+  // 効果フィルター解除
+  Object.values(pfActiveEf).forEach(s => s.clear());
+  document.querySelectorAll('#pf-effect-filter-panel .ef-chip').forEach(el => {
+    el.classList.remove('active','active-status','active-up','active-down','active-misc','active-exclude');
+  });
+  // タイプ複数選択解除
+  pfSelectedTypes.clear();
+  pfSyncTypeCb();
+  pfUpdateTypeBtnLabel();
+  // 列フィルタ入力クリア
+  ['pf-f-class','pf-f-power','pf-f-acc','pf-f-pp','pf-f-prob','pf-f-prio','pf-f-target','pf-f-contact','pf-f-guard'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // ソート初期化
+  pfSortKey = 'name'; pfSortDir = 1;
 }
 function updatePfTitle() {
   const typeMsg = pfType ? `｜${pfType}タイプのみ` : `｜全タイプ`;
@@ -1118,47 +1241,396 @@ function getPokemonAllMoves(pokeName) {
     .filter(Boolean);
 }
 
-function renderPfList(q) {
-  let baseList = getPokemonAllMoves(pfPoke);
-  // セルクリックで開いた場合はそのタイプだけに絞る
-  if (pfType) baseList = baseList.filter(m => m.type === pfType);
-  const moves = applyFilterSort(baseList, pfFS, q);
-  // デフォルトソートが未指定ならタイプ順にしておく
-  if (!pfFS.sort.col) {
-    moves.sort((a,b) => {
-      if (a.type !== b.type) return TYPES.indexOf(a.type) - TYPES.indexOf(b.type);
-      return (b.power ?? b.pp ?? 0) - (a.power ?? a.pp ?? 0);
+// ────────────────────────────────────────────────
+// pf モーダル: わざリスト風テーブル実装
+// ────────────────────────────────────────────────
+
+// 効果文から最大%確率抽出
+function pfExtractProb(desc) {
+  if (!desc) return null;
+  const matches = [...desc.matchAll(/(\d+)\s*%の確率/g)];
+  if (matches.length === 0) return null;
+  const probs = matches.map(m => parseInt(m[1])).filter(n => n >= 0 && n <= 100);
+  return probs.length > 0 ? Math.max(...probs) : null;
+}
+
+// ランク変動分析 (waza-list-template と同ロジック)
+function pfAnalyzeStat(desc, stat, subject) {
+  const upStages = new Set(), downStages = new Set();
+  if (!desc) return { upStages, downStages };
+  const statTok = '『' + stat + '』';
+  const sentences = desc.split('。');
+  for (const sentence of sentences) {
+    if (!sentence) continue;
+    const sentSubj = (sentence.match(/(自分|相手)/) || [])[1] || null;
+    const clauses = sentence.split(/(?:かわりに|反対に)/);
+    for (const clause of clauses) {
+      if (!clause.includes(statTok)) continue;
+      const lSubj = (clause.match(/(自分|相手)/) || [])[1] || sentSubj;
+      if (lSubj !== subject) continue;
+      const after = clause.substring(clause.indexOf(statTok));
+      const u = after.match(/上[がげ]/), d = after.match(/下[がげ]/);
+      const upPos = u ? u.index : Infinity, dnPos = d ? d.index : Infinity;
+      if (upPos === Infinity && dnPos === Infinity) continue;
+      const dir = upPos < dnPos ? 'up' : 'down';
+      const sm = after.match(/(\d+)\s*段階/);
+      const stage = /最大/.test(after) ? 6 : (sm ? parseInt(sm[1]) : 1);
+      (dir === 'up' ? upStages : downStages).add(stage);
+    }
+  }
+  if (upStages.size > 0) {
+    for (const sentence of sentences) {
+      if (!sentence || sentence.includes(statTok)) continue;
+      const subj = (sentence.match(/(自分|相手)/) || [])[1] || subject;
+      if (subj !== subject) continue;
+      const sm = sentence.match(/(\d+)\s*段階/);
+      const hu = /上[がげ]/.test(sentence), hd = /下[がげ]/.test(sentence);
+      if (sm && hu && !hd) upStages.add(parseInt(sm[1]));
+      else if (/最大/.test(sentence) && hu && !hd) upStages.add(6);
+    }
+  }
+  return { upStages, downStages };
+}
+
+const PF_STATS = ['こうげき','ぼうぎょ','とくこう','とくぼう','すばやさ'];
+let pfPrecomputed = false;
+function pfPrecomputeWaza() {
+  if (pfPrecomputed) return;
+  Object.values(WAZA_MAP).forEach(m => {
+    m._prob = pfExtractProb(m.description || '');
+    m._priority = extractPriority(m.description || '');
+    m._statSelf = {}; m._statOpp = {};
+    PF_STATS.forEach(stat => {
+      m._statSelf[stat] = pfAnalyzeStat(m.description || '', stat, '自分');
+      m._statOpp[stat]  = pfAnalyzeStat(m.description || '', stat, '相手');
     });
+  });
+  pfPrecomputed = true;
+}
+
+const pfActiveEf = {
+  flag: new Set(), status: new Set(),
+  self_up2: new Set(), self_up1: new Set(),
+  opp_down2: new Set(), opp_down1: new Set(),
+  misc: new Set(), exclude: new Set(),
+};
+let pfSelectedTypes = new Set();
+let pfSortKey = 'name';
+let pfSortDir = 1;
+const PF_NUMERIC_SORT = new Set(['power','accuracy','pp','prob','priority']);
+
+function pfMatchesEffect(m) {
+  const eff = m.description || '', flags = m.flags || {};
+  if (pfActiveEf.exclude.size > 0) for (const f of pfActiveEf.exclude) if (flags[f]) return false;
+  if (pfActiveEf.flag.size > 0 && ![...pfActiveEf.flag].some(f => flags[f])) return false;
+  if (pfActiveEf.status.size > 0) {
+    const PAT = {'まひ':/まひ/,'ねむり':/相手を.*ねむり.*状態/,'こおり':/こおり/,'やけど':/やけど/,'どく':/もうどく|(?<!も)どく/,'こんらん':/こんらん/,'ひるみ':/ひるませ/};
+    if (![...pfActiveEf.status].some(s => PAT[s] && PAT[s].test(eff))) return false;
   }
-
-  const filterBar = renderFilterBar('pf', pfFS, 'pfFilterChange');
-  const header    = renderHeaderRow('pf', pfFS, 'pfSortClick');
-  const items = moves.map(m => {
-    const checkedAttr = pfTempSel.has(m.key) ? "checked" : "";
-    const checkedCls  = pfTempSel.has(m.key) ? " checked" : "";
-    return `<div class="pf-item${checkedCls}" id="pf_row_${m.key}" onclick="togglePf('${m.key}')">
-      <input type="checkbox" id="pf_${m.key}" ${checkedAttr} onclick="event.stopPropagation();togglePf('${m.key}')">
-      <div class="pf-item-body">${wazaItemModalHtml(m)}</div>
-    </div>`;
-  }).join("");
-  document.getElementById("pf-list").innerHTML = filterBar + header + items;
-  // 「全解除」が現在表示されてる技のみを対象にするため、表示中の moves を最新状態として保持
-  pfVisibleKeys = moves.map(m => m.key);
-  document.getElementById("pf-count").textContent = `${pfTempSel.size}件選択中 / 表示中 ${moves.length}件`;
+  if (pfActiveEf.self_up2.size > 0 && ![...pfActiveEf.self_up2].some(s => { const sc = m._statSelf?.[s]; return sc && [...sc.upStages].some(x => x >= 2); })) return false;
+  if (pfActiveEf.self_up1.size > 0 && ![...pfActiveEf.self_up1].some(s => { const sc = m._statSelf?.[s]; return sc && sc.upStages.has(1); })) return false;
+  if (pfActiveEf.opp_down2.size > 0 && ![...pfActiveEf.opp_down2].some(s => { const sc = m._statOpp?.[s]; return sc && [...sc.downStages].some(x => x >= 2); })) return false;
+  if (pfActiveEf.opp_down1.size > 0 && ![...pfActiveEf.opp_down1].some(s => { const sc = m._statOpp?.[s]; return sc && sc.downStages.has(1); })) return false;
+  if (pfActiveEf.misc.size > 0) {
+    const PAT = {'回復':/HP.*回復|回復する/,'急所':/急所.*当たりやすい|急所ランク/,'連続':/連続して|複数回|回連続/,'先制':/必ず先制|優先度:[+＋][1-9]/,'バインド':/バインド|束縛|まとわりつく|ほのおのうず|うずしお/,'交代':/強制的に交代/};
+    if (![...pfActiveEf.misc].some(k => PAT[k] && PAT[k].test(eff))) return false;
+  }
+  return true;
 }
 
-function pfSortClick(col) {
-  if (pfFS.sort.col === col) pfFS.sort.dir = -pfFS.sort.dir;
-  else { pfFS.sort.col = col; pfFS.sort.dir = 1; }
-  renderPfList(document.getElementById("pf-search").value);
-}
-function pfFilterChange(field, val) {
-  if (field === "cat") {
-    if (pfFS.cat.has(val)) pfFS.cat.delete(val); else pfFS.cat.add(val);
+function togglePfEfChip(el) {
+  const t = el.dataset.efType, v = el.dataset.efVal;
+  if (pfActiveEf[t].has(v)) {
+    pfActiveEf[t].delete(v);
+    el.classList.remove('active','active-status','active-up','active-down','active-misc','active-exclude');
   } else {
-    pfFS[field] = val === "" ? null : Number(val);
+    pfActiveEf[t].add(v);
+    const cls = t === 'status' ? 'active-status' : (t==='self_up2'||t==='self_up1') ? 'active-up' : (t==='opp_down2'||t==='opp_down1') ? 'active-down' : t==='misc' ? 'active-misc' : t==='exclude' ? 'active-exclude' : 'active';
+    el.classList.add(cls);
   }
-  renderPfList(document.getElementById("pf-search").value);
+  pfRender();
+}
+
+function togglePfEffectFilter() {
+  const p = document.getElementById('pf-effect-filter-panel');
+  const b = document.getElementById('pf-ef-toggle-btn');
+  p.classList.toggle('collapsed');
+  b.textContent = p.classList.contains('collapsed') ? '🔍 効果フィルター ▼' : '🔍 効果フィルター ▲';
+}
+
+function buildPfEffectFilterPanel() {
+  const ef = (t,v,lbl) => `<span class="ef-chip" data-ef-type="${t}" data-ef-val="${v}" onclick="togglePfEfChip(this)">${lbl}</span>`;
+  const ex = (v,lbl) => `<span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="${v}" onclick="togglePfEfChip(this)">${lbl}</span>`;
+  document.getElementById('pf-effect-filter-panel').innerHTML = `
+    <div class="ef-row"><span class="ef-label">技フラグ:</span>${ef('flag','punch','👊 パンチ系')}${ef('flag','sound','🔊 音技')}${ef('flag','dance','💃 踊り系')}${ef('flag','slice','⚔ 切る技')}${ef('flag','wind','🌀 風技')}${ef('flag','ball','🔵 弾技')}${ef('flag','pulse','〰️ 波動技')}${ef('flag','ohko','💀 一撃必殺')}${ef('flag','charge','⏳ 溜め技')}${ef('flag','recharge','🔁 2ターン目動けない')}</div>
+    <div class="ef-row"><span class="ef-label">状態異常:</span>${ef('status','まひ','⚡ まひ')}${ef('status','ねむり','💤 ねむり')}${ef('status','こおり','❄️ こおり')}${ef('status','やけど','🔥 やけど')}${ef('status','どく','☠️ どく')}${ef('status','こんらん','🌀 こんらん')}${ef('status','ひるみ','😵 ひるみ')}</div>
+    <div class="ef-row"><span class="ef-label">自分↑↑:</span>${ef('self_up2','こうげき','攻撃↑↑')}${ef('self_up2','ぼうぎょ','防御↑↑')}${ef('self_up2','とくこう','特攻↑↑')}${ef('self_up2','とくぼう','特防↑↑')}${ef('self_up2','すばやさ','素早↑↑')}</div>
+    <div class="ef-row"><span class="ef-label">自分↑:</span>${ef('self_up1','こうげき','攻撃↑')}${ef('self_up1','ぼうぎょ','防御↑')}${ef('self_up1','とくこう','特攻↑')}${ef('self_up1','とくぼう','特防↑')}${ef('self_up1','すばやさ','素早↑')}</div>
+    <div class="ef-row"><span class="ef-label">相手↓↓:</span>${ef('opp_down2','こうげき','攻撃↓↓')}${ef('opp_down2','ぼうぎょ','防御↓↓')}${ef('opp_down2','とくこう','特攻↓↓')}${ef('opp_down2','とくぼう','特防↓↓')}${ef('opp_down2','すばやさ','素早↓↓')}</div>
+    <div class="ef-row"><span class="ef-label">相手↓:</span>${ef('opp_down1','こうげき','攻撃↓')}${ef('opp_down1','ぼうぎょ','防御↓')}${ef('opp_down1','とくこう','特攻↓')}${ef('opp_down1','とくぼう','特防↓')}${ef('opp_down1','すばやさ','素早↓')}</div>
+    <div class="ef-row"><span class="ef-label">除外:</span>${ex('charge','🚫 溜め技 (1ターン待機)')}${ex('recharge','🚫 2ターン目動けない')}</div>
+    <div class="ef-row"><span class="ef-label">その他:</span>${ef('misc','回復','💚 回復技')}${ef('misc','急所','🎯 急所率高')}${ef('misc','連続','⚡ 連続攻撃')}${ef('misc','先制','⚡ 先制技')}${ef('misc','バインド','🔗 バインド')}${ef('misc','交代','🔄 相手交代')}</div>
+  `;
+}
+
+function buildPfTableHead() {
+  document.querySelector('#pf-table thead').innerHTML = `
+    <tr class="head-row">
+      <th class="col-chk" title="選択">☑</th>
+      <th class="col-name" data-pfsort="name">わざ名</th>
+      <th class="col-type" data-pfsort="type">タイプ</th>
+      <th class="col-class" data-pfsort="category">分類</th>
+      <th class="col-power" data-pfsort="power">威力</th>
+      <th class="col-acc" data-pfsort="accuracy">命中</th>
+      <th class="col-pp" data-pfsort="pp">PP</th>
+      <th class="col-prob" data-pfsort="prob">確率</th>
+      <th class="col-prio" data-pfsort="priority">優先</th>
+      <th class="col-target" data-pfsort="target">対象</th>
+      <th class="col-contact" data-pfsort="contact">接触</th>
+      <th class="col-guard" data-pfsort="protect">守貫</th>
+      <th class="col-effect">効果</th>
+    </tr>
+    <tr class="filter-row">
+      <th></th>
+      <th></th>
+      <th>
+        <div class="ms-wrap" id="pf-f-type-wrap">
+          <button type="button" class="ms-btn" id="pf-f-type-btn" onclick="togglePfTypeDropdown(event)">全タイプ ▾</button>
+          <div class="ms-dd" id="pf-f-type-dd"></div>
+        </div>
+      </th>
+      <th><select id="pf-f-class"><option value="">全</option><option value="物理">物</option><option value="特殊">特</option><option value="変化">変</option></select></th>
+      <th><input type="number" id="pf-f-power" placeholder="≥" min="0"></th>
+      <th><input type="number" id="pf-f-acc" placeholder="≥" min="0" max="100"></th>
+      <th><input type="number" id="pf-f-pp" placeholder="≥" min="0"></th>
+      <th><input type="number" id="pf-f-prob" placeholder="≥%" min="0" max="100"></th>
+      <th><select id="pf-f-prio"><option value="">全</option><option value="hi">先制</option><option value="0">通常</option><option value="lo">後攻</option></select></th>
+      <th><select id="pf-f-target"><option value="">全対象</option></select></th>
+      <th><select id="pf-f-contact"><option value="">全</option><option value="●">接●</option><option value="○">接○</option></select></th>
+      <th><select id="pf-f-guard"><option value="">全</option><option value="○">守○</option><option value="×">守×</option></select></th>
+      <th></th>
+    </tr>
+  `;
+}
+
+function togglePfTypeDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('pf-f-type-wrap').classList.toggle('open');
+}
+
+function buildPfTypeDropdown() {
+  const dd = document.getElementById('pf-f-type-dd');
+  if (!dd) return;
+  dd.innerHTML = '';
+  const types = [...new Set(Object.values(WAZA_MAP).map(m => m.type))].sort();
+  const actions = document.createElement('div');
+  actions.className = 'ms-actions';
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button'; allBtn.className = 'ms-act-btn'; allBtn.textContent = '全選択';
+  allBtn.onclick = e => { e.stopPropagation(); types.forEach(t => pfSelectedTypes.add(t)); pfSyncTypeCb(); pfUpdateTypeBtnLabel(); pfRender(); };
+  const clrBtn = document.createElement('button');
+  clrBtn.type = 'button'; clrBtn.className = 'ms-act-btn'; clrBtn.textContent = '全解除';
+  clrBtn.onclick = e => { e.stopPropagation(); pfSelectedTypes.clear(); pfSyncTypeCb(); pfUpdateTypeBtnLabel(); pfRender(); };
+  actions.appendChild(allBtn); actions.appendChild(clrBtn);
+  dd.appendChild(actions);
+  types.forEach(t => {
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.value = t; cb.checked = pfSelectedTypes.has(t);
+    cb.addEventListener('change', () => {
+      if (cb.checked) pfSelectedTypes.add(t); else pfSelectedTypes.delete(t);
+      pfUpdateTypeBtnLabel();
+      pfRender();
+    });
+    const sw = document.createElement('span');
+    sw.className = 'ms-color';
+    sw.style.background = TYPE_COLORS[t] || '#999';
+    const txt = document.createElement('span');
+    txt.className = 'ms-name'; txt.textContent = t;
+    lbl.appendChild(cb); lbl.appendChild(sw); lbl.appendChild(txt);
+    dd.appendChild(lbl);
+  });
+}
+
+function pfSyncTypeCb() {
+  document.querySelectorAll('#pf-f-type-dd input[type=checkbox]').forEach(cb => cb.checked = pfSelectedTypes.has(cb.value));
+}
+
+function pfUpdateTypeBtnLabel() {
+  const btn = document.getElementById('pf-f-type-btn');
+  if (!btn) return;
+  if (pfSelectedTypes.size === 0) { btn.textContent = '全タイプ ▾'; btn.classList.remove('has-val'); }
+  else if (pfSelectedTypes.size === 1) { btn.textContent = [...pfSelectedTypes][0] + ' ▾'; btn.classList.add('has-val'); }
+  else { btn.textContent = pfSelectedTypes.size + 'タイプ ▾'; btn.classList.add('has-val'); }
+}
+
+function pfBuildTargetFilter() {
+  const sel = document.getElementById('pf-f-target');
+  if (!sel) return;
+  const targets = [...new Set(Object.values(WAZA_MAP).map(m => m.target).filter(Boolean))].sort();
+  sel.innerHTML = '<option value="">全対象</option>';
+  targets.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
+}
+
+let pfStaticBuilt = false;
+function pfEnsureStaticBuilt() {
+  if (pfStaticBuilt) return;
+  pfPrecomputeWaza();
+  buildPfEffectFilterPanel();
+  buildPfTableHead();
+  buildPfTypeDropdown();
+  pfBuildTargetFilter();
+  ['pf-f-class','pf-f-power','pf-f-acc','pf-f-pp','pf-f-prob','pf-f-prio','pf-f-target','pf-f-contact','pf-f-guard'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('change', pfRender);
+      el.addEventListener('input', pfRender);
+    }
+  });
+  document.querySelector('#pf-table thead').addEventListener('click', e => {
+    const th = e.target.closest('th[data-pfsort]');
+    if (!th) return;
+    const k = th.dataset.pfsort;
+    const isNum = PF_NUMERIC_SORT.has(k);
+    if (pfSortKey === k) { if (isNum) { pfSortKey = 'name'; pfSortDir = 1; } else { pfSortDir *= -1; } }
+    else { pfSortKey = k; pfSortDir = isNum ? -1 : 1; }
+    pfRender();
+  });
+  document.getElementById('pf-tbody').addEventListener('change', e => {
+    const cb = e.target.closest('input[type=checkbox]');
+    if (!cb) return;
+    const key = cb.dataset.key;
+    if (cb.checked) pfTempSel.add(key); else pfTempSel.delete(key);
+    cb.closest('tr').classList.toggle('row-checked', cb.checked);
+    document.getElementById('pf-count').textContent = `${pfTempSel.size}件選択中 / 表示中 ${pfVisibleKeys.length}件`;
+  });
+  document.getElementById('pf-tbody').addEventListener('click', e => {
+    if (e.target.matches('input[type=checkbox]') || e.target.closest('.col-chk')) return;
+    const tr = e.target.closest('tr');
+    if (!tr) return;
+    const cb = tr.querySelector('input[type=checkbox]');
+    if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change', {bubbles: true})); }
+  });
+  document.addEventListener('click', e => {
+    const wrap = document.getElementById('pf-f-type-wrap');
+    if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+  });
+  pfStaticBuilt = true;
+}
+
+function pfRender() {
+  const tbody = document.getElementById('pf-tbody');
+  if (!tbody) return;
+  tbody.innerHTML = '';
+  const searchQ = (document.getElementById('pf-search').value || '').trim();
+  const fClass = document.getElementById('pf-f-class').value;
+  const fPower = document.getElementById('pf-f-power').value;
+  const fAcc = document.getElementById('pf-f-acc').value;
+  const fPp = document.getElementById('pf-f-pp').value;
+  const fProb = document.getElementById('pf-f-prob').value;
+  const fPrio = document.getElementById('pf-f-prio').value;
+  const fTarget = document.getElementById('pf-f-target').value;
+  const fContact = document.getElementById('pf-f-contact').value;
+  const fGuard = document.getElementById('pf-f-guard').value;
+
+  let baseList = getPokemonAllMoves(pfPoke);
+  if (pfType) baseList = baseList.filter(m => m.type === pfType);
+  let rows = baseList.slice();
+
+  rows.sort((a, b) => {
+    const k = pfSortKey, dir = pfSortDir;
+    let av, bv;
+    if (k === 'prob') { av = a._prob; bv = b._prob; }
+    else if (k === 'priority') { av = a._priority || 0; bv = b._priority || 0; }
+    else if (['power','accuracy','pp'].includes(k)) {
+      av = (a[k] != null) ? a[k] : null; bv = (b[k] != null) ? b[k] : null;
+    }
+    else if (k === 'contact' || k === 'protect') {
+      av = a[k] === true ? 1 : (a[k] === false ? 0 : -1);
+      bv = b[k] === true ? 1 : (b[k] === false ? 0 : -1);
+    }
+    else if (k === 'type') { av = TYPES.indexOf(a.type); bv = TYPES.indexOf(b.type); }
+    else if (k === 'category') { const ord = {"物理":0,"特殊":1,"変化":2}; av = ord[a.category] ?? 99; bv = ord[b.category] ?? 99; }
+    else { av = a[k] || ''; bv = b[k] || ''; }
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === 'string') return av.localeCompare(bv) * dir;
+    return (av - bv) * dir;
+  });
+
+  let visible = 0;
+  const visibleKeys = [];
+  rows.forEach(m => {
+    if (searchQ && !fuzzyIncludes(m.name, searchQ) && !fuzzyIncludes(m.description || '', searchQ)) return;
+    if (pfSelectedTypes.size > 0 && !pfSelectedTypes.has(m.type)) return;
+    if (fClass && m.category !== fClass) return;
+    if (fPower !== '' && (m.power == null || m.power < parseInt(fPower, 10))) return;
+    if (fAcc !== '' && (m.accuracy == null || m.accuracy < parseInt(fAcc, 10))) return;
+    if (fPp !== '' && (m.pp == null || m.pp < parseInt(fPp, 10))) return;
+    if (fProb !== '' && (m._prob == null || m._prob < parseInt(fProb, 10))) return;
+    if (fPrio) {
+      const p = m._priority || 0;
+      if (fPrio === 'hi' && !(p > 0)) return;
+      else if (fPrio === 'lo' && !(p < 0)) return;
+      else if (fPrio === '0' && p !== 0) return;
+    }
+    if (fTarget && m.target !== fTarget) return;
+    if (fContact) {
+      const cv = m.contact === true ? '●' : (m.contact === false ? '○' : '');
+      if (cv !== fContact) return;
+    }
+    if (fGuard) {
+      const gv = m.protect === true ? '○' : (m.protect === false ? '×' : '');
+      if (gv !== fGuard) return;
+    }
+    if (!pfMatchesEffect(m)) return;
+
+    const checked = pfTempSel.has(m.key);
+    const tr = document.createElement('tr');
+    if (checked) tr.classList.add('row-checked');
+    const color = TYPE_COLORS[m.type] || '#999';
+    const power = m.power != null ? m.power : '—';
+    const accuracy = m.accuracy != null ? m.accuracy : '—';
+    const pp = m.pp != null ? m.pp : '—';
+    const probStr = m._prob != null ? m._prob + '%' : '—';
+    const pri = m._priority || 0;
+    const priStr = pri > 0 ? '+' + pri : (pri < 0 ? String(pri) : '—');
+    const priCls = pri > 0 ? 'prio-pos' : (pri < 0 ? 'prio-neg' : 'prio-zero');
+    const contactStr = m.contact === true ? '接●' : (m.contact === false ? '接○' : '—');
+    const guardStr = m.protect === true ? '守○' : (m.protect === false ? '守×' : '—');
+    const escEff = (m.description || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+    tr.innerHTML = `
+      <td class="col-chk"><input type="checkbox" data-key="${m.key}" ${checked ? 'checked' : ''}></td>
+      <td class="col-name">${m.name}</td>
+      <td class="col-type"><span class="type-cell-i" style="background:${color}">${tDisp(m.type)}</span></td>
+      <td class="col-class"><span class="cat-cell">${catShortChar(m.category)}</span></td>
+      <td class="col-power">${power}</td>
+      <td class="col-acc">${accuracy}</td>
+      <td class="col-pp">${pp}</td>
+      <td class="col-prob">${probStr}</td>
+      <td class="col-prio ${priCls}">${priStr}</td>
+      <td class="col-target">${m.target || '—'}</td>
+      <td class="col-contact">${contactStr}</td>
+      <td class="col-guard">${guardStr}</td>
+      <td class="col-effect">${escEff}</td>
+    `;
+    tbody.appendChild(tr);
+    visible++;
+    visibleKeys.push(m.key);
+  });
+
+  pfVisibleKeys = visibleKeys;
+  document.getElementById('pf-count').textContent = `${pfTempSel.size}件選択中 / 表示中 ${visible}件`;
+  document.querySelectorAll('#pf-table th[data-pfsort]').forEach(th => th.classList.remove('sorted','asc'));
+  const activeTh = document.querySelector(`#pf-table th[data-pfsort="${pfSortKey}"]`);
+  if (activeTh) { activeTh.classList.add('sorted'); if (pfSortDir === 1) activeTh.classList.add('asc'); }
+}
+
+function renderPfList(_q) {
+  pfEnsureStaticBuilt();
+  pfRender();
 }
 
 function togglePf(key) {
