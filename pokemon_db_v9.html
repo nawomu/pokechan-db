@@ -986,6 +986,22 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
 /* ポケモン名クリック時: 使えるわざ一覧モーダル */
 .td-name { cursor: pointer; }
 .td-name:hover { background: #FFF8E1 !important; text-decoration: underline; }
+
+/* ポケモン名ホバー用 ツールチップ */
+#pokemon-tip {
+  position: fixed; display: none; z-index: 9999;
+  background: #fff; border: 2px solid #1F4E79; border-radius: 6px;
+  padding: 8px 10px; max-width: 560px; pointer-events: none;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.3);
+  font-size: 11px; line-height: 1.7; color: #222;
+}
+#pokemon-tip .pt-title { font-weight: bold; color: #1F4E79; margin-bottom: 4px; font-size: 12px; border-bottom: 1px solid #DDD; padding-bottom: 3px; }
+#pokemon-tip .pt-list { word-wrap: break-word; }
+#pokemon-tip .pt-move {
+  display: inline-block; padding: 1px 6px; margin: 1px 2px 1px 0;
+  border-radius: 3px; color: #fff; font-size: 10px; font-weight: 600;
+  white-space: nowrap;
+}
 #pmModal {
   display: none; position: fixed; inset: 0;
   background: rgba(0,0,0,0.55); z-index: 9000;
@@ -1792,7 +1808,7 @@ COLUMNS.push({
   },
   buildTd: (p) => {
     const cls = p.form === 'メガ進化' ? 'mega-name' : p.form === 'リージョン' ? 'region-name' : '';
-    return `<td class="td-name ${cls}" title="クリックで使えるわざ一覧" data-pokemon-name="${p.name}" style="cursor:pointer">${p.name}</td>`;
+    return `<td class="td-name ${cls}" title="ホバー: わざ一覧 / クリック: モーダル" data-pokemon-name="${p.name}" style="cursor:pointer">${p.name}</td>`;
   },
   getVal: (p) => p.name,
 });
@@ -3863,6 +3879,56 @@ function closePmModal() {
   });
 })();
 
+// ポケモン名ホバー → 覚えるわざ一覧をポップアップ表示
+(function setupPokemonHover() {
+  const tip = document.getElementById('pokemon-tip');
+  if (!tip) return;
+  let curName = null;
+  document.addEventListener('mouseover', e => {
+    const cell = e.target.closest('td.td-name[data-pokemon-name]');
+    if (!cell) {
+      if (curName) { tip.style.display = 'none'; curName = null; }
+      return;
+    }
+    const name = cell.dataset.pokemonName;
+    if (name === curName) return;
+    curName = name;
+    const moveKeys = (typeof POKEMON_WAZA !== 'undefined' && POKEMON_WAZA[name]) || [];
+    if (moveKeys.length === 0) { tip.style.display = 'none'; return; }
+    const moves = moveKeys.map(k => WAZA_MAP[k]).filter(Boolean);
+    // タイプ順 (TYPES) → 威力降順 → 名前
+    moves.sort((a, b) => {
+      const ta = TYPES.indexOf(a.type), tb = TYPES.indexOf(b.type);
+      if (ta !== tb) return ta - tb;
+      const ap = a.power || 0, bp = b.power || 0;
+      if (ap !== bp) return bp - ap;
+      return (a.name || '').localeCompare(b.name || '', 'ja');
+    });
+    const list = moves.map(m => {
+      const c = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[m.type]) || '#666';
+      return `<span class="pt-move" style="background:${c}">${m.name}</span>`;
+    }).join('');
+    tip.innerHTML = `<div class="pt-title">${name} の覚えるわざ (${moves.length}件)</div><div class="pt-list">${list}</div>`;
+    tip.style.display = 'block';
+  });
+  document.addEventListener('mousemove', e => {
+    if (tip.style.display === 'none') return;
+    const pad = 14;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + tw > window.innerWidth - 5)  x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight - 5) y = e.clientY - th - pad;
+    tip.style.left = Math.max(4, x) + 'px';
+    tip.style.top  = Math.max(4, y) + 'px';
+  });
+  document.addEventListener('mouseout', e => {
+    if (!e.relatedTarget || !e.relatedTarget.closest('td.td-name[data-pokemon-name]')) {
+      tip.style.display = 'none';
+      curName = null;
+    }
+  });
+})();
+
 // ポケモン名クリック → そのポケが使えるわざ一覧モーダル
 document.addEventListener('click', e => {
   const cell = e.target.closest('td.td-name[data-pokemon-name]');
@@ -3889,5 +3955,8 @@ document.addEventListener('keydown', e => {
     <iframe id="pmModalIframe" src="about:blank" title="わざ一覧"></iframe>
   </div>
 </div>
+
+<!-- ポケモン名ホバー用 ツールチップ -->
+<div id="pokemon-tip"></div>
 </body>
 </html>
