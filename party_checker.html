@@ -230,19 +230,21 @@ td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !i
   display:none;
   position:fixed;
   background:#1c2a3a;
-  border:1px solid #79c0ff;
-  padding:9px 13px;
+  border:2px solid #79c0ff;
+  padding:12px 16px;
   border-radius:6px;
-  font-size:.85rem;
-  line-height:1.55;
+  font-size:1rem;
+  line-height:1.65;
   color:#e6edf3;
-  max-width:520px;
+  max-width:600px;
   z-index:9999;
   pointer-events:none;
   box-shadow:0 8px 22px rgba(0,0,0,.7);
   white-space:normal;
   word-break:break-word;
 }
+#pf-table td.col-effect{cursor:help}
+#pf-table td.col-effect:hover{background:#243447 !important}
 .w-pri{font-size:.7rem;font-weight:bold;text-align:center}
 .w-pri.pri-pos{color:#56d364}
 .w-pri.pri-neg{color:#ff7b72}
@@ -1748,14 +1750,16 @@ document.querySelectorAll(".sv-btn").forEach(btn => {
 // ── グローバル ホバー説明ツールチップ ───────────────────────────────────────
 (function setupHoverTip() {
   const tip = document.getElementById("hover-tip");
+  const SEL = ".waza-row, .ab-name, #pf-table td.col-effect";
   let curRow = null;
   document.addEventListener("mouseover", e => {
-    // .waza-row (技モーダル) または .ab-name (特性セル) どちらでも対応
-    const row = e.target.closest(".waza-row, .ab-name");
+    // .waza-row (旧モーダル) / .ab-name (特性セル) / pf-table の効果列 を拾う
+    const row = e.target.closest(SEL);
     if (!row) { tip.style.display = "none"; curRow = null; return; }
     if (row === curRow) return;
     curRow = row;
-    const desc = row.getAttribute("data-desc") || "";
+    // data-desc 属性があればそれを優先、なければ textContent (pf-table 効果列はこちら)
+    const desc = row.getAttribute("data-desc") || (row.textContent || "").trim();
     if (!desc) { tip.style.display = "none"; return; }
     tip.textContent = desc;
     tip.style.display = "block";
@@ -1772,8 +1776,8 @@ document.querySelectorAll(".sv-btn").forEach(btn => {
   });
   document.addEventListener("mouseout", e => {
     if (!e.relatedTarget) { tip.style.display = "none"; curRow = null; return; }
-    const fromTarget = e.target.closest && e.target.closest(".waza-row, .ab-name");
-    const toTarget   = e.relatedTarget.closest && e.relatedTarget.closest(".waza-row, .ab-name");
+    const fromTarget = e.target.closest && e.target.closest(SEL);
+    const toTarget   = e.relatedTarget.closest && e.relatedTarget.closest(SEL);
     if (fromTarget && fromTarget === toTarget) return;
     tip.style.display = "none";
     curRow = null;
