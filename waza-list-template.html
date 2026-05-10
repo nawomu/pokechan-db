@@ -153,10 +153,36 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
 #desc-tip {
   position: fixed; display: none; z-index: 9999;
   background: white; border: 2px solid #1F4E79; border-radius: 6px;
-  padding: 12px 16px; max-width: 600px; pointer-events: none;
+  padding: 12px 16px; max-width: 640px; pointer-events: none;
   box-shadow: 0 4px 16px rgba(0,0,0,0.3);
   font-size: 1rem; line-height: 1.65; color: #222;
   white-space: normal; word-break: break-word;
+}
+#desc-tip .dt-title {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;
+  border-bottom: 1px solid #DDD; padding-bottom: 6px;
+}
+#desc-tip .dt-name { color: #1F4E79; font-size: 1.15rem; }
+#desc-tip .dt-type, #desc-tip .dt-cls {
+  display: inline-block; padding: 2px 10px; border-radius: 3px;
+  color: #fff; font-size: .85rem; font-weight: 700;
+}
+#desc-tip .dt-cls.cls-phys { background: #f0883e; }
+#desc-tip .dt-cls.cls-spec { background: #58a6ff; }
+#desc-tip .dt-cls.cls-stat { background: #6e7681; }
+#desc-tip .dt-stats, #desc-tip .dt-meta {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  font-size: .9rem; color: #444; margin-bottom: 4px;
+}
+#desc-tip .dt-stats span, #desc-tip .dt-meta span { white-space: nowrap; }
+#desc-tip .dt-stats b, #desc-tip .dt-meta b {
+  color: #1F4E79; margin-right: 4px; font-weight: 700; font-size: .8rem;
+}
+#desc-tip .dt-desc {
+  margin-top: 8px; padding-top: 6px;
+  border-top: 1px solid #DDD;
+  font-size: 1rem; line-height: 1.65;
 }
 
 /* 全リスト表示モーダル */
@@ -832,7 +858,7 @@ function render() {
       <td class="col-contact">${m.contact}</td>
       <td class="col-guard">${m.guard}</td>
       <td class="col-cat"><span class="cat-cell">${m.category}</span></td>
-      <td class="col-effect effect-cell">${m.effect}</td>
+      <td class="col-effect effect-cell" data-key="${m.key}">${m.effect}</td>
       ${learnersHtml}
     `;
     tbody.appendChild(tr);
@@ -1053,12 +1079,15 @@ document.addEventListener('keydown', e => {
   });
 })();
 
-// 効果列ホバー: 大きな文字で説明をポップアップ表示
+// 効果列ホバー: 技の全項目をリッチにポップアップ表示
 (function setupDescHover() {
   const tip = document.getElementById('desc-tip');
   if (!tip) return;
   const SEL = 'td.col-effect.effect-cell';
   let curCell = null;
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
   document.addEventListener('mouseover', e => {
     const cell = e.target.closest(SEL);
     if (!cell) {
@@ -1067,9 +1096,52 @@ document.addEventListener('keydown', e => {
     }
     if (cell === curCell) return;
     curCell = cell;
-    const desc = (cell.textContent || '').trim();
-    if (!desc) { tip.style.display = 'none'; return; }
-    tip.textContent = desc;
+    const key = cell.dataset.key;
+    const m = key ? moves.find(x => x.key === key) : null;
+    if (!m) {
+      // フォールバック: 説明文だけ
+      const desc = (cell.textContent || '').trim();
+      if (!desc) { tip.style.display = 'none'; return; }
+      tip.textContent = desc;
+      tip.style.display = 'block';
+      return;
+    }
+    const typeColor = typeColors[m.type] || '#999';
+    const clsKey = m.class === '物理' ? 'phys' : m.class === '特殊' ? 'spec' : 'stat';
+    const power = (m.power != null && m.power !== '') ? m.power : '—';
+    const acc = (m.acc != null && m.acc !== '') ? m.acc : '—';
+    const pp = (m.pp != null && m.pp !== '') ? m.pp : '—';
+    const prob = m._prob != null ? m._prob + '%' : '—';
+    const prio = m.priority || 0;
+    const prioStr = prio > 0 ? '+' + prio : (prio < 0 ? String(prio) : '0');
+    const target = m.target || '—';
+    const mode = m.mode || '—';
+    const contact = m.contact || '—';
+    const guard = m.guard || '—';
+    const category = m.category || '—';
+    const effect = m.effect || '';
+    tip.innerHTML = `
+      <div class="dt-title">
+        <span class="dt-name">${escHtml(m.name)}</span>
+        <span class="dt-type" style="background:${typeColor}">${escHtml(m.type)}</span>
+        <span class="dt-cls cls-${clsKey}">${escHtml(m.class)}</span>
+      </div>
+      <div class="dt-stats">
+        <span><b>威力</b>${escHtml(power)}</span>
+        <span><b>命中</b>${escHtml(acc)}</span>
+        <span><b>PP</b>${escHtml(pp)}</span>
+        <span><b>確率</b>${escHtml(prob)}</span>
+        <span><b>優先度</b>${escHtml(prioStr)}</span>
+      </div>
+      <div class="dt-meta">
+        <span><b>対象</b>${escHtml(target)}</span>
+        <span><b>対戦</b>${escHtml(mode)}</span>
+        <span><b>接触</b>${escHtml(contact)}</span>
+        <span><b>守備</b>${escHtml(guard)}</span>
+        <span><b>カテゴリ</b>${escHtml(category)}</span>
+      </div>
+      <div class="dt-desc">${escHtml(effect)}</div>
+    `;
     tip.style.display = 'block';
   });
   document.addEventListener('mousemove', e => {
