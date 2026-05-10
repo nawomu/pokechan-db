@@ -296,6 +296,16 @@ td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !i
 tr.type-data-row{cursor:default}
 tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 
+/* 全技行 (最下段) */
+tr.all-waza-row td{border-top:2px solid #58a6ff !important;background:#161f2c}
+tr.all-waza-row td.row-label.all-waza-label{background:#1c2a3a}
+tr.all-waza-row td.all-waza-cell{cursor:pointer;transition:background .1s;text-align:center;vertical-align:middle}
+tr.all-waza-row td.all-waza-cell:hover{background:#243447}
+.all-waza-summary{font-size:.85rem;font-weight:bold;color:#79c0ff;line-height:1.2;text-align:center;padding:6px 0}
+.all-waza-summary .aw-sel{color:#56d364;font-size:1rem}
+.all-waza-summary .aw-sep{color:#484f58;margin:0 2px}
+.all-waza-summary .aw-tot{color:#8b949e;font-size:.78rem}
+
 /* フィルタバー */
 /* タブバー */
 #pc-tab-bar{background:#0d1117;padding:5px 10px;display:flex;gap:4px;align-items:center;border-bottom:1px solid #21262d;flex-shrink:0;flex-wrap:wrap}
@@ -990,6 +1000,25 @@ function renderTable() {
       }).join("")}
     </tr>`);
   });
+
+  // 全技行 (最下段: クリックで全タイプの技を一括選択するポップアップ)
+  rows.push(`<tr class="all-waza-row">
+    <td class="row-label all-waza-label">
+      <div class="type-label-cell" style="grid-template-rows:auto">
+        <span class="tbadge" style="background:#3A6EA5">全技</span>
+      </div>
+    </td>
+    ${party.map((name, slotIdx) => {
+      if (!name) return `<td class="empty-slot-cell" onclick="openModal(${slotIdx})"></td>`;
+      const allKeys = POKEMON_WAZA[name] || [];
+      const totalCount = allKeys.length;
+      const slotData = slotFilters[slotIdx] || {};
+      let selectedCount = 0;
+      Object.values(slotData).forEach(arr => { if (Array.isArray(arr)) selectedCount += arr.length; });
+      const summary = `<div class="all-waza-summary"><span class="aw-sel">${selectedCount}</span><span class="aw-sep">/</span><span class="aw-tot">${totalCount}</span></div>`;
+      return `<td class="waza-cell waza-cell-clickable waza-cell-count all-waza-cell" onclick="openPokemonFilter(${slotIdx},null)" title="クリックで全技ポップアップ (タイプを問わず選択 → 各タイプ行に反映)">${summary}</td>`;
+    }).join("")}
+  </tr>`);
 
   table.innerHTML = rows.join("");
 }
