@@ -216,7 +216,9 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
 #learnerModalBox h3 {
   margin: 0 0 10px 0; color: #1F4E79; font-size: 15px;
   border-bottom: 1px solid #DDD; padding-bottom: 8px;
+  cursor: move; user-select: none;
 }
+#learnerModalBox h3.dragging { cursor: grabbing; }
 #learnerModalBox .lm-list { line-height: 2; font-size: 12px; }
 #learnerModalBox .lm-learner {
   display: inline-block; margin: 2px 4px 2px 0;
@@ -1027,10 +1029,48 @@ function showLearners(key) {
 }
 function closeLearnerModal() {
   document.getElementById('learnerModal').classList.remove('vis');
+  // ドラッグ位置リセット (再オープン時は中央表示に戻す)
+  lmDragX = 0; lmDragY = 0;
+  const box = document.getElementById('learnerModalBox');
+  if (box) box.style.transform = '';
 }
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeLearnerModal();
 });
+
+// learnerModal をタイトル(h3)ドラッグで移動可能に
+let lmDragX = 0, lmDragY = 0;
+(function setupLearnerModalDrag() {
+  let isDragging = false;
+  let startX = 0, startY = 0;
+  let dragHandle = null;
+  document.addEventListener('mousedown', e => {
+    const handle = e.target.closest('#lmTitle');
+    if (!handle) return;
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    dragHandle = handle;
+    handle.classList.add('dragging');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const box = document.getElementById('learnerModalBox');
+    if (box) box.style.transform = `translate(${lmDragX + dx}px, ${lmDragY + dy}px)`;
+  });
+  document.addEventListener('mouseup', e => {
+    if (!isDragging) return;
+    isDragging = false;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    lmDragX += dx;
+    lmDragY += dy;
+    if (dragHandle) { dragHandle.classList.remove('dragging'); dragHandle = null; }
+  });
+})();
 
 // ホバー: わざ名 or 習得列のマウスオーバーで上位50匹を表示
 (function setupNameHover() {
