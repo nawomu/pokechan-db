@@ -340,11 +340,11 @@ td.col-name:hover { background: #FFF8E1; text-decoration: underline; }
         <div class="ms-dd" id="f-type-dd"></div>
       </div>
     </th>
-    <th></th>
-    <th></th>
-    <th></th>
-    <th></th>
-    <th></th>
+    <th><select id="f-class"><option value="">全</option><option value="物理">物</option><option value="特殊">特</option><option value="変化">変</option></select></th>
+    <th><input type="number" id="f-power" placeholder="≥" min="0" title="威力 ≥ N"></th>
+    <th><input type="number" id="f-acc" placeholder="≥" min="0" max="100" title="命中 ≥ N"></th>
+    <th><input type="number" id="f-pp" placeholder="≥" min="0" title="PP ≥ N"></th>
+    <th><input type="number" id="f-prob-min" placeholder="≥%" min="0" max="100" title="効果発動確率 ≥ N%"></th>
     <th><select id="f-prio">
       <option value="">全て</option>
       <option value="hi">先制(&gt;0)</option>
@@ -676,6 +676,11 @@ function render() {
   const fC1 = document.getElementById('f-c1').value;
   const fC2 = document.getElementById('f-c2').value;
   const fC3 = document.getElementById('f-c3').value;
+  const fClass = document.getElementById('f-class').value;
+  const fPower = document.getElementById('f-power').value;
+  const fAcc = document.getElementById('f-acc').value;
+  const fPp = document.getElementById('f-pp').value;
+  const fProbMin = document.getElementById('f-prob-min').value;
 
   let rows = moves.slice();
   // 初期ポケモンフィルタ: そのポケが習得する技のみに絞る
@@ -733,6 +738,22 @@ function render() {
     if (fContact && m.contact !== fContact) return;
     if (fGuard && m.guard !== fGuard) return;
     if (fCat && m.category !== fCat) return;
+    if (fClass && m.class !== fClass) return;
+    if (fPower !== '') {
+      const v = toNumNull(m.power);
+      if (v == null || v < parseInt(fPower, 10)) return;
+    }
+    if (fAcc !== '') {
+      const v = toNumNull(m.acc);
+      if (v == null || v < parseInt(fAcc, 10)) return;
+    }
+    if (fPp !== '') {
+      const v = toNumNull(m.pp);
+      if (v == null || v < parseInt(fPp, 10)) return;
+    }
+    if (fProbMin !== '') {
+      if (m._prob == null || m._prob < parseInt(fProbMin, 10)) return;
+    }
     if (fPrio) {
       const pv = m.priority || 0;
       if (fPrio === 'hi' && !(pv > 0)) return;
@@ -826,7 +847,7 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
   };
 });
 
-['search','f-target','f-mode','f-contact','f-guard','f-cat','f-prio','f-c1','f-c2','f-c3'].forEach(id => {
+['search','f-target','f-mode','f-contact','f-guard','f-cat','f-prio','f-c1','f-c2','f-c3','f-class','f-power','f-acc','f-pp','f-prob-min'].forEach(id => {
   document.getElementById(id).addEventListener('input', render);
   document.getElementById(id).addEventListener('change', render);
 });
@@ -919,7 +940,7 @@ updateTypeBtnLabel();
 // 画面状態リセット (検索・フィルタ・ソートのみ初期化、C1/C2/C3は保持)
 function resetAll() {
   document.getElementById('search').value = '';
-  ['f-target', 'f-mode', 'f-contact', 'f-guard', 'f-cat', 'f-prio', 'f-c1', 'f-c2', 'f-c3'].forEach(id => {
+  ['f-target', 'f-mode', 'f-contact', 'f-guard', 'f-cat', 'f-prio', 'f-c1', 'f-c2', 'f-c3', 'f-class', 'f-power', 'f-acc', 'f-pp', 'f-prob-min'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
