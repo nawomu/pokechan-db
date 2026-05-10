@@ -1026,7 +1026,9 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
 #pmModalHead {
   display: flex; align-items: center; gap: 8px;
   border-bottom: 1px solid #DDD; padding-bottom: 6px;
+  cursor: move; user-select: none;
 }
+#pmModalHead.dragging { cursor: grabbing; }
 #pmModalTitle { font-weight: 700; color: #1F4E79; font-size: 14px; flex: 1; }
 #pmModalClose {
   cursor: pointer; font-size: 22px; color: #999;
@@ -3764,7 +3766,46 @@ function closePmModal() {
   if (modal) modal.classList.remove('vis');
   const ifr = document.getElementById('pmModalIframe');
   if (ifr) ifr.src = 'about:blank';
+  // ドラッグ位置リセット (再オープン時は中央表示に戻す)
+  pmDragOffsetX = 0; pmDragOffsetY = 0;
+  const box = document.getElementById('pmModalBox');
+  if (box) box.style.transform = '';
 }
+
+// pmModal をヘッダドラッグで移動可能に
+let pmDragOffsetX = 0, pmDragOffsetY = 0;
+(function setupPmModalDrag() {
+  let isDragging = false;
+  let startX = 0, startY = 0;
+  let dragHead = null;
+  document.addEventListener('mousedown', e => {
+    const head = e.target.closest('#pmModalHead');
+    if (!head) return;
+    if (e.target.id === 'pmModalClose') return;
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    dragHead = head;
+    head.classList.add('dragging');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const box = document.getElementById('pmModalBox');
+    if (box) box.style.transform = `translate(${pmDragOffsetX + dx}px, ${pmDragOffsetY + dy}px)`;
+  });
+  document.addEventListener('mouseup', e => {
+    if (!isDragging) return;
+    isDragging = false;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    pmDragOffsetX += dx;
+    pmDragOffsetY += dy;
+    if (dragHead) { dragHead.classList.remove('dragging'); dragHead = null; }
+  });
+})();
 
 </script>
 <script>
