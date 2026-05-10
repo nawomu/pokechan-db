@@ -2355,7 +2355,7 @@ function buildWazaTh(ctx, key, label) {
     return i < 0 ? 999 : i;
   };
 
-  // 物理/特殊は威力降順 + 名前昇順、変化はカテゴリ順 + 名前昇順
+  // 物理/特殊はタイプ順 → 威力降順 → 名前、変化はカテゴリ順 + 名前昇順
   const wazaSorted = WAZA_MASTER.filter(w => w.key)
     .sort((a,b) => {
       const ci = catIdx(a.category) - catIdx(b.category);
@@ -2364,8 +2364,10 @@ function buildWazaTh(ctx, key, label) {
       if (a.category === '回復' && b.category === '回復') {
         return healIdx(a.key) - healIdx(b.key);
       }
-      // 物理/特殊は威力降順
+      // 物理/特殊: タイプ順 (TYPES 配列順) → 威力降順
       if (a.class !== '変化' && b.class !== '変化') {
+        const ta = TYPES.indexOf(a.type), tb = TYPES.indexOf(b.type);
+        if (ta !== tb) return ta - tb;
         const ap = parseInt(a.power) || 0, bp = parseInt(b.power) || 0;
         if (ap !== bp) return bp - ap;
       }
@@ -2373,7 +2375,11 @@ function buildWazaTh(ctx, key, label) {
     });
 
   wazaSorted.forEach(w => {
-    const key = w.key, label = w.name, catColor = CAT_COLOR[w.category] || '#555';
+    const key = w.key, label = w.name;
+    // 物理/特殊はタイプ色 + タイプ名、変化はカテゴリ色 + カテゴリ名
+    const isAtk = w.class !== '変化';
+    const tagColor = isAtk ? (TYPE_COLORS[w.type] || '#666') : (CAT_COLOR[w.category] || '#555');
+    const tagText  = isAtk ? w.type : w.category;
     COLUMNS.push({
       key,
       grp: 'waza',
@@ -2386,7 +2392,7 @@ function buildWazaTh(ctx, key, label) {
         const chkId = `waza-chk-${ctx.prefix}-${key}`;
         const isChecked = wazaFilterGet(ctx.prefix, key);
         th.innerHTML = `<div class="hdr2">
-          <div class="waza-cat-tag" style="background:${catColor}">${w.category}</div>
+          <div class="waza-cat-tag" style="background:${tagColor}">${tagText}</div>
           <div class="hdr2-top" style="display:flex;align-items:center;justify-content:center">
             <input type="checkbox" class="waza-chk" id="${chkId}" data-waza-key="${key}" ${isChecked?'checked':''} title="${label}（${w.category}）を覚えるポケモンのみ表示">
           </div>
