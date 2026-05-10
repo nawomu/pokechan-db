@@ -3880,11 +3880,13 @@ function closePmModal() {
 })();
 
 // ポケモン名ホバー → 覚えるわざ一覧をポップアップ表示
+// (tip 要素は </script> 後の body 末尾にあるため、毎回 lazy 取得する)
 (function setupPokemonHover() {
-  const tip = document.getElementById('pokemon-tip');
-  if (!tip) return;
   let curName = null;
+  function getTip() { return document.getElementById('pokemon-tip'); }
   document.addEventListener('mouseover', e => {
+    const tip = getTip();
+    if (!tip) return;
     const cell = e.target.closest('td.td-name[data-pokemon-name]');
     if (!cell) {
       if (curName) { tip.style.display = 'none'; curName = null; }
@@ -3912,7 +3914,8 @@ function closePmModal() {
     tip.style.display = 'block';
   });
   document.addEventListener('mousemove', e => {
-    if (tip.style.display === 'none') return;
+    const tip = getTip();
+    if (!tip || tip.style.display === 'none') return;
     const pad = 14;
     const tw = tip.offsetWidth, th = tip.offsetHeight;
     let x = e.clientX + pad, y = e.clientY + pad;
@@ -3922,6 +3925,8 @@ function closePmModal() {
     tip.style.top  = Math.max(4, y) + 'px';
   });
   document.addEventListener('mouseout', e => {
+    const tip = getTip();
+    if (!tip) return;
     if (!e.relatedTarget || !e.relatedTarget.closest('td.td-name[data-pokemon-name]')) {
       tip.style.display = 'none';
       curName = null;
