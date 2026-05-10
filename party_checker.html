@@ -959,6 +959,25 @@ function renderTable() {
     }).join("")}
   </tr>`);
 
+  // 全技行 (手持ち直下: クリックで全タイプの技を一括選択するポップアップ)
+  rows.push(`<tr class="all-waza-row">
+    <td class="row-label all-waza-label">
+      <div class="type-label-cell" style="grid-template-rows:auto">
+        <span class="tbadge" style="background:#3A6EA5">全技</span>
+      </div>
+    </td>
+    ${party.map((name, slotIdx) => {
+      if (!name) return `<td class="empty-slot-cell" onclick="openModal(${slotIdx})"></td>`;
+      const allKeys = POKEMON_WAZA[name] || [];
+      const totalCount = allKeys.length;
+      const slotData = slotFilters[slotIdx] || {};
+      let selectedCount = 0;
+      Object.values(slotData).forEach(arr => { if (Array.isArray(arr)) selectedCount += arr.length; });
+      const summary = `<div class="all-waza-summary"><span class="aw-sel">${selectedCount}</span><span class="aw-sep">/</span><span class="aw-tot">${totalCount}</span></div>`;
+      return `<td class="waza-cell waza-cell-clickable waza-cell-count all-waza-cell" onclick="openPokemonFilter(${slotIdx},null)" title="クリックで全技ポップアップ (タイプを問わず選択 → 各タイプ行に反映)">${summary}</td>`;
+    }).join("")}
+  </tr>`);
+
   // タイプ別わざカバレッジ
   typeOrder.forEach(t => {
     const allMoves = Object.values(WAZA_MAP).filter(m => m.type === t && filterCats.has(m.category));
@@ -1000,25 +1019,6 @@ function renderTable() {
       }).join("")}
     </tr>`);
   });
-
-  // 全技行 (最下段: クリックで全タイプの技を一括選択するポップアップ)
-  rows.push(`<tr class="all-waza-row">
-    <td class="row-label all-waza-label">
-      <div class="type-label-cell" style="grid-template-rows:auto">
-        <span class="tbadge" style="background:#3A6EA5">全技</span>
-      </div>
-    </td>
-    ${party.map((name, slotIdx) => {
-      if (!name) return `<td class="empty-slot-cell" onclick="openModal(${slotIdx})"></td>`;
-      const allKeys = POKEMON_WAZA[name] || [];
-      const totalCount = allKeys.length;
-      const slotData = slotFilters[slotIdx] || {};
-      let selectedCount = 0;
-      Object.values(slotData).forEach(arr => { if (Array.isArray(arr)) selectedCount += arr.length; });
-      const summary = `<div class="all-waza-summary"><span class="aw-sel">${selectedCount}</span><span class="aw-sep">/</span><span class="aw-tot">${totalCount}</span></div>`;
-      return `<td class="waza-cell waza-cell-clickable waza-cell-count all-waza-cell" onclick="openPokemonFilter(${slotIdx},null)" title="クリックで全技ポップアップ (タイプを問わず選択 → 各タイプ行に反映)">${summary}</td>`;
-    }).join("")}
-  </tr>`);
 
   table.innerHTML = rows.join("");
 }
@@ -1250,8 +1250,8 @@ function pfResetFilterState() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  // ソート初期化
-  pfSortKey = 'name'; pfSortDir = 1;
+  // ソート初期化 (タイプ順: TYPES 配列順=ノーマル先頭)
+  pfSortKey = 'type'; pfSortDir = 1;
 }
 function updatePfTitle() {
   const typeMsg = pfType ? `｜${pfType}タイプのみ` : `｜全タイプ`;
