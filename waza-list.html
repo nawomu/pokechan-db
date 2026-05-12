@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- v9 build: 2026-04-19 08:44 WAZA_MASTER -->
+<title>ポケチャン わざリスト</title>
+<style>
+* { box-sizing: border-box; }
+body { font-family: -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; background: #F5F5F5; padding: 4px; margin: 0; color: #222; font-size: 11px; }
+
+.top-bar { position: sticky; top: 0; z-index: 100; background: #F5F5F5; padding: 4px; border-bottom: 2px solid #1F4E79; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.top-bar h1 { margin: 0; font-size: 14px; color: #1F4E79; }
+.top-bar input[type=search] { padding: 2px 6px; font-size: 11px; border: 1px solid #999; border-radius: 3px; width: 180px; }
+.top-bar button { padding: 2px 8px; font-size: 11px; background: #F39C12; color: white; border: none; border-radius: 3px; cursor: pointer; font-weight: 700; }
+.top-bar button.secondary { background: #7F8C8D; }
+.top-bar .count { font-weight: 700; color: #1F4E79; }
+
+table { border-collapse: collapse; width: 100%; font-size: 11px; background: white; }
+thead { position: sticky; top: 42px; z-index: 50; }
+thead tr.head-row th { background: #1F4E79; color: white; padding: 3px 4px; text-align: center; border: 1px solid #0a2040; cursor: pointer; user-select: none; white-space: nowrap; font-weight: 700; font-size: 11px; }
+thead tr.head-row th.col-name, thead tr.head-row th.col-effect { text-align: left; }
+thead tr.head-row th.col-chk { font-size: 16px; padding: 2px; }
+thead tr.head-row th:hover { background: #2A6091; }
+thead tr.head-row th.sorted::after { content: " ▼"; font-size: 9px; }
+thead tr.head-row th.sorted.asc::after { content: " ▲"; }
+thead tr.filter-row th { background: #E8ECF2; padding: 1px; border: 1px solid #999; }
+thead tr.filter-row input, thead tr.filter-row select { width: 100%; font-size: 10px; padding: 1px 3px; border: 1px solid #CCC; border-radius: 2px; }
+tbody td { padding: 2px 4px; border: 1px solid #DDD; vertical-align: middle; }
+tbody tr:nth-child(even) { background: #F9F9F9; }
+tbody tr:hover { background: #E3F2FD !important; }
+tbody tr.added { background: #E8F5E8 !important; }
+tbody tr.added:hover { background: #C5E1C5 !important; }
+tbody tr.checked { background: #D4E7F5 !important; }
+
+.st-added { color: #2E7D32; font-weight: 700; font-size: 11px; }
+.st-todo { color: #999; font-size: 11px; }
+.type-cell { color: white; text-align: center; padding: 1px 4px; border-radius: 2px; font-weight: 700; font-size: 10px; white-space: nowrap; }
+.name-cell { font-weight: 700; color: #1F4E79; }
+.cat-cell { background: #E8ECF2; padding: 1px 4px; border-radius: 2px; font-size: 10px; white-space: nowrap; }
+.mode-both { color: #666; font-size: 10px; }
+.mode-double { color: #D32F2F; font-weight: 700; font-size: 10px; background: #FFEBEE; padding: 1px 4px; border-radius: 2px; }
+.effect-cell { font-size: 10px; color: #555; line-height: 1.3; }
+.num-cell { text-align: center; font-family: monospace; }
+.chk-cell { text-align: center; }
+.chk-cell input { cursor: pointer; accent-color: #2E86C1; }
+
+th.col-c1, td.col-c1, th.col-c2, td.col-c2, th.col-c3, td.col-c3 {
+  width: 38px; text-align: center; padding: 1px;
+}
+.cm-chk {
+  width: 100%; padding: 1px 2px; font-size: 11px;
+  border: 1px solid #BBB; border-radius: 2px; background: white;
+  cursor: pointer;
+}
+.cm-chk.has-val { background: #FFEECC; font-weight: 700; color: #C0392B; }
+.c-filter { font-size: 10px; }
+
+/* タイプ多重選択ドロップダウン */
+.ms-wrap { position: relative; display: inline-block; width: 100%; }
+.ms-btn {
+  width: 100%; padding: 2px 4px; font-size: 10px;
+  border: 1px solid #BBB; border-radius: 2px; background: white;
+  cursor: pointer; text-align: left; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.ms-btn.has-val { background: #FFEECC; font-weight: 700; color: #C0392B; }
+.ms-dd {
+  display: none; position: absolute; top: 100%; left: 0; z-index: 5000;
+  background: white; border: 1px solid #888; border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+  padding: 4px 6px; width: 160px;
+  max-height: 320px; overflow-y: auto; overflow-x: hidden;
+  text-align: left;
+}
+.ms-wrap.open .ms-dd { display: block; }
+.ms-dd label {
+  display: flex; align-items: center; justify-content: flex-start; gap: 6px;
+  padding: 3px 4px; font-size: 12px; cursor: pointer;
+  border-radius: 2px; user-select: none;
+  white-space: nowrap; text-align: left;
+  width: 100%; box-sizing: border-box;
+}
+.ms-dd label > .ms-name { flex: 0 0 auto; text-align: left; }
+.ms-dd label:hover { background: #F0F4F8; }
+.ms-dd input[type=checkbox] { cursor: pointer; margin: 0; flex-shrink: 0; width: 14px; height: 14px; }
+.ms-dd .ms-color {
+  display: inline-block; width: 10px; height: 10px;
+  border-radius: 2px; border: 1px solid rgba(0,0,0,0.15);
+  flex-shrink: 0;
+}
+.ms-dd .ms-actions {
+  display: flex; gap: 4px; padding: 4px 0 6px; border-bottom: 1px solid #DDD; margin-bottom: 4px;
+}
+.ms-dd .ms-act-btn {
+  flex: 1; padding: 2px 4px; font-size: 10px;
+  border: 1px solid #BBB; border-radius: 2px; background: #F8F8F8; cursor: pointer;
+}
+.ms-dd .ms-act-btn:hover { background: #E8E8E8; }
+.c-reset-btn {
+  padding: 2px 8px; font-size: 11px; background: #E67E22; color: white;
+  border: none; border-radius: 3px; cursor: pointer; font-weight: 700;
+  margin-left: 2px;
+}
+.c-reset-btn:hover { background: #CA6F1E; }
+th.col-name, td.col-name { width: 110px; }
+th.col-type, td.col-type { width: 60px; text-align: center; }
+th.col-class, td.col-class { width: 50px; text-align: center; }
+.cls-badge {
+  display: inline-block; padding: 1px 6px; border-radius: 3px;
+  color: #fff; font-size: 10px; font-weight: 700;
+}
+.cls-badge.cls-phys { background: #f0883e; }
+.cls-badge.cls-spec { background: #58a6ff; }
+.cls-badge.cls-stat { background: #6e7681; }
+th.col-power, td.col-power { width: 40px; text-align: center; }
+th.col-acc, td.col-acc { width: 40px; text-align: center; }
+th.col-pp, td.col-pp { width: 32px; text-align: center; }
+th.col-prob, td.col-prob { width: 42px; text-align: center; font-family: monospace; }
+th.col-prio, td.col-prio { width: 44px; text-align: center; font-family: monospace; font-size: 11px; }
+td.col-prio.prio-pos { color: #1F4E79; font-weight: 700; }
+td.col-prio.prio-neg { color: #C0392B; font-weight: 700; }
+td.col-prio.prio-zero { color: #BBB; }
+th.col-target, td.col-target { width: 85px; white-space: nowrap; font-size: 10px; text-align: center; }
+th.col-mode, td.col-mode { width: 60px; text-align: center; }
+th.col-contact, td.col-contact { width: 34px; text-align: center; }
+th.col-guard, td.col-guard { width: 34px; text-align: center; }
+th.col-cat, td.col-cat { width: 62px; text-align: center; }
+th.col-effect, td.col-effect { min-width: 280px; }
+th.col-learners, td.col-learners { width: 60px; text-align: center; }
+
+/* 習得列 (ホバー: ポップアップ / クリック: 中央モーダル) */
+.learners-cell { cursor: pointer; color: #1F4E79; font-weight: 700; }
+.learners-cell:hover { background: #FFF8E1; text-decoration: underline; }
+.learners-cell-zero { color: #999; font-weight: 400; cursor: default; }
+
+/* わざ名ホバー (上位50匹を表示) / クリックで習得ポケ一覧モーダル */
+td.col-name { cursor: pointer; }
+td.col-name:hover { background: #FFF8E1; text-decoration: underline; }
+#waza-tip {
+  position: fixed; display: none; z-index: 9999;
+  background: white; border: 2px solid #1F4E79; border-radius: 6px;
+  padding: 8px 10px; max-width: 520px; pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+  font-size: 11px; line-height: 1.5; color: #222;
+}
+#waza-tip .wt-title { font-weight: bold; color: #1F4E79; margin-bottom: 4px; font-size: 12px; }
+#waza-tip .wt-list { line-height: 1.7; color: #555; }
+#waza-tip .wt-learner { display: inline-block; padding: 0 6px 0 0; }
+#waza-tip .wt-tot { color: #F39C12; font-size: 10px; margin-left: 2px; }
+#waza-tip .wt-more { color: #999; font-style: italic; }
+
+/* 効果列ホバー: 大きな文字で説明を表示 */
+td.col-effect.effect-cell { cursor: help; }
+td.col-effect.effect-cell:hover { background: #FFF8E1; }
+#desc-tip {
+  position: fixed; display: none; z-index: 9999;
+  background: white; border: 2px solid #1F4E79; border-radius: 6px;
+  padding: 12px 16px; max-width: 640px; pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  font-size: 1rem; line-height: 1.65; color: #222;
+  white-space: normal; word-break: break-word;
+}
+#desc-tip .dt-title {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  font-size: 1.1rem; font-weight: 700; margin-bottom: 8px;
+  border-bottom: 1px solid #DDD; padding-bottom: 6px;
+}
+#desc-tip .dt-name { color: #1F4E79; font-size: 1.15rem; }
+#desc-tip .dt-type, #desc-tip .dt-cls {
+  display: inline-block; padding: 2px 10px; border-radius: 3px;
+  color: #fff; font-size: .85rem; font-weight: 700;
+}
+#desc-tip .dt-cls.cls-phys { background: #f0883e; }
+#desc-tip .dt-cls.cls-spec { background: #58a6ff; }
+#desc-tip .dt-cls.cls-stat { background: #6e7681; }
+#desc-tip .dt-stats, #desc-tip .dt-meta {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  font-size: .9rem; color: #444; margin-bottom: 4px;
+}
+#desc-tip .dt-stats span, #desc-tip .dt-meta span { white-space: nowrap; }
+#desc-tip .dt-stats b, #desc-tip .dt-meta b {
+  color: #1F4E79; margin-right: 4px; font-weight: 700; font-size: .8rem;
+}
+#desc-tip .dt-desc {
+  margin-top: 8px; padding-top: 6px;
+  border-top: 1px solid #DDD;
+  font-size: 1rem; line-height: 1.65;
+}
+#desc-tip .dt-learners-title {
+  margin-top: 8px; padding-top: 6px;
+  border-top: 1px solid #DDD;
+  font-size: .82rem; color: #1F4E79; font-weight: 700; margin-bottom: 4px;
+}
+#desc-tip .dt-learners {
+  display: flex; flex-wrap: wrap; gap: 3px 6px;
+  font-size: .85rem; line-height: 1.4;
+  max-width: 620px;
+}
+#desc-tip .dt-learner {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: #F0F4FA; border: 1px solid #D6E0EE; border-radius: 3px;
+  padding: 1px 6px; white-space: nowrap;
+}
+#desc-tip .dt-learner-tot {
+  font-size: .72rem; color: #1F4E79; font-weight: 700;
+  background: #fff; border-radius: 2px; padding: 0 4px;
+}
+#desc-tip .dt-no-learner { color: #888; font-style: italic; }
+#desc-tip .dt-bd-row {
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin-top: 6px; padding-top: 6px;
+  border-top: 1px dashed #DDD;
+}
+#desc-tip .dt-bd {
+  display: inline-block; padding: 2px 8px; border-radius: 3px;
+  font-size: .8rem; font-weight: 700;
+  background: #F0F4FA; border: 1px solid #C5D2E5; color: #1F4E79;
+}
+#desc-tip .dt-bd.crit-must { background: #FFE6E6; border-color: #FF5252; color: #c00; }
+#desc-tip .dt-bd.crit      { background: #FFF8E1; border-color: #FFC107; color: #B86E00; }
+#desc-tip .dt-bd.multi     { background: #FFF3E0; border-color: #FFA726; color: #A35200; }
+#desc-tip .dt-bd.recoil    { background: #FFEBE9; border-color: #E66666; color: #B33A33; }
+#desc-tip .dt-bd.drain     { background: #FFE0EC; border-color: #E64A8C; color: #B12C66; }
+#desc-tip .dt-bd.recov     { background: #E6F5E6; border-color: #4CAF50; color: #2E7D32; }
+#desc-tip .dt-bd.charge    { background: #EDE7F6; border-color: #7E57C2; color: #4527A0; }
+#desc-tip .dt-bd.field     { background: #E0F7FA; border-color: #26C6DA; color: #006978; }
+#desc-tip .dt-bd.hazard    { background: #FFF9C4; border-color: #FBC02D; color: #6F4E00; }
+
+/* 全リスト表示モーダル */
+#learnerModal {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.55); z-index: 9000;
+  align-items: center; justify-content: center;
+}
+#learnerModal.vis { display: flex; }
+#learnerModalBox {
+  background: white; border-radius: 8px; padding: 12px;
+  max-width: 96vw; width: 1280px; max-height: 90vh;
+  overflow: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  border: 2px solid #1F4E79;
+}
+/* DB iframe 表示用 */
+.lmt-hint {
+  font-size: 10px; color: #555; margin-bottom: 6px;
+  background: #FFF8E1; padding: 5px 10px; border-radius: 3px;
+}
+.lm-iframe {
+  width: 100%; height: 78vh;
+  border: 1px solid #1F4E79; border-radius: 4px;
+  background: white;
+}
+#learnerModalBox .lm-close {
+  float: right; cursor: pointer; font-size: 22px; color: #999;
+  font-weight: 700; line-height: 1;
+}
+#learnerModalBox .lm-close:hover { color: #333; }
+#learnerModalBox h3 {
+  margin: 0 0 10px 0; color: #1F4E79; font-size: 15px;
+  border-bottom: 1px solid #DDD; padding-bottom: 8px;
+  cursor: move; user-select: none;
+}
+#learnerModalBox h3.dragging { cursor: grabbing; }
+#learnerModalBox .lm-list { line-height: 2; font-size: 12px; }
+#learnerModalBox .lm-learner {
+  display: inline-block; margin: 2px 4px 2px 0;
+  padding: 2px 8px; background: #F0F5FA; border-radius: 4px;
+  color: #222;
+}
+#learnerModalBox .lm-tot { color: #F39C12; font-size: 10px; margin-left: 4px; }
+
+/* ===== 効果・種類フィルターパネル ===== */
+#effectFilterPanel {
+  background: #EEF2F8; border-bottom: 1px solid #C5D0E0;
+  padding: 4px 6px; font-size: 11px;
+}
+#effectFilterPanel.collapsed { display: none; }
+.ef-row { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin-bottom: 3px; }
+.ef-row:last-child { margin-bottom: 0; }
+.ef-label { font-weight: 700; color: #1F4E79; min-width: 70px; font-size: 10px; white-space: nowrap; }
+.ef-chip {
+  display: inline-block; padding: 1px 7px; border-radius: 10px;
+  border: 1px solid #AAA; background: white; cursor: pointer;
+  font-size: 10px; color: #555; user-select: none; transition: all 0.1s;
+}
+.ef-chip:hover { border-color: #1F4E79; color: #1F4E79; }
+.ef-chip.active { background: #1F4E79; color: white; border-color: #1F4E79; font-weight: 700; }
+.ef-chip.active-status { background: #8E24AA; color: white; border-color: #8E24AA; }
+.ef-chip.active-up { background: #E53935; color: white; border-color: #E53935; }
+.ef-chip.active-down { background: #1E88E5; color: white; border-color: #1E88E5; }
+.ef-chip.active-misc { background: #2E7D32; color: white; border-color: #2E7D32; }
+.ef-chip.ef-exclude-chip { border-color: #C0392B; color: #C0392B; }
+.ef-chip.ef-exclude-chip:hover { background: #FADBD8; }
+.ef-chip.active-exclude { background: #C0392B; color: white; border-color: #C0392B; }
+#ef-toggle-btn { background: #3A6EA5; color: white; font-size: 10px; padding: 1px 7px; border-radius: 3px; border: none; cursor: pointer; font-weight: 700; }
+#ef-toggle-btn:hover { background: #2A5E90; }
+.ef-divider { width: 1px; height: 14px; background: #CCC; margin: 0 2px; }
+</style></head><body>
+
+<div class="top-bar">
+  <h1>📋 ポケチャン わざリスト <span style="font-size:10px;color:#999;font-weight:400">v9 (04/19 08:44)</span></h1>
+  <input type="search" id="search" placeholder="🔍 わざ名検索 (カナ/ひら両対応)">
+  <span class="count" id="count" style="display:inline-block;min-width:140px;text-align:left">全0技</span>
+  <span id="pokemonFilterBanner" style="display:none;background:#F39C12;color:white;padding:3px 10px;border-radius:4px;font-weight:700;font-size:11px"></span>
+  <button class="secondary" onclick="resetAll()">🔄 リセット</button>
+  <button id="ef-toggle-btn" onclick="toggleEffectFilter()">🔍 効果フィルター ▲</button>
+  <span class="ef-divider"></span>
+  <button class="c-reset-btn" data-ci="0" onclick="resetWazaChecks(0)" title="C1のチェックを全クリア">C1</button>
+  <button class="c-reset-btn" data-ci="1" onclick="resetWazaChecks(1)" title="C2のチェックを全クリア">C2</button>
+  <button class="c-reset-btn" data-ci="2" onclick="resetWazaChecks(2)" title="C3のチェックを全クリア">C3</button>
+  <span style="font-size:10px;color:#666">※ヘッダーでソート、その下でフィルタ</span>
+</div>
+
+<!-- ===== 効果・種類フィルターパネル ===== -->
+<div id="effectFilterPanel">
+  <!-- 技フラグ系 -->
+  <div class="ef-row">
+    <span class="ef-label">技フラグ:</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="punch" onclick="toggleEfChip(this)">👊 パンチ系</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="sound" onclick="toggleEfChip(this)">🔊 音技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="dance" onclick="toggleEfChip(this)">💃 踊り系</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="slice" onclick="toggleEfChip(this)">⚔️ 切る技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="wind" onclick="toggleEfChip(this)">🌀 風技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="ball" onclick="toggleEfChip(this)">🔵 弾技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="pulse" onclick="toggleEfChip(this)">〰️ 波動技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="ohko" onclick="toggleEfChip(this)">💀 一撃必殺</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="charge" onclick="toggleEfChip(this)">⏳ 溜め技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="recharge" onclick="toggleEfChip(this)" title="使用後の次ターンに動けなくなる技 (はかいこうせん等)">🔁 2ターン目動けない</span>
+    <span class="ef-divider"></span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="change_type" onclick="toggleEfChip(this)">🎭 タイプ変更</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="change_ability" onclick="toggleEfChip(this)">✨ 特性変更</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="change_item" onclick="toggleEfChip(this)">🎁 道具変更</span>
+  </div>
+  <!-- 状態異常付与 -->
+  <div class="ef-row">
+    <span class="ef-label">状態異常:</span>
+    <span class="ef-chip" data-ef-type="status" data-ef-val="まひ" onclick="toggleEfChip(this)">⚡ まひ</span>
+    <span class="ef-chip" data-ef-type="status" data-ef-val="ねむり" onclick="toggleEfChip(this)">💤 ねむり</span>
+    <span class="ef-chip" data-ef-type="status" data-ef-val="こおり" onclick="toggleEfChip(this)">❄️ こおり</span>
+    <span class="ef-chip" data-ef-type="status" data-ef-val="やけど" onclick="toggleEfChip(this)">🔥 やけど</span>
+    <span class="ef-chip" data-ef-type="status" data-ef-val="どく" onclick="toggleEfChip(this)">☠️ どく</span>
+    <span class="ef-chip" data-ef-type="status" data-ef-val="こんらん" onclick="toggleEfChip(this)">🌀 こんらん</span>
+    <span class="ef-chip" data-ef-type="status" data-ef-val="ひるみ" onclick="toggleEfChip(this)">😵 ひるみ</span>
+  </div>
+  <!-- 自分のランク上昇 (2段階以上) -->
+  <div class="ef-row">
+    <span class="ef-label">自分↑↑:</span>
+    <span class="ef-chip" data-ef-type="self_up2" data-ef-val="こうげき" onclick="toggleEfChip(this)">攻撃↑↑</span>
+    <span class="ef-chip" data-ef-type="self_up2" data-ef-val="ぼうぎょ" onclick="toggleEfChip(this)">防御↑↑</span>
+    <span class="ef-chip" data-ef-type="self_up2" data-ef-val="とくこう" onclick="toggleEfChip(this)">特攻↑↑</span>
+    <span class="ef-chip" data-ef-type="self_up2" data-ef-val="とくぼう" onclick="toggleEfChip(this)">特防↑↑</span>
+    <span class="ef-chip" data-ef-type="self_up2" data-ef-val="すばやさ" onclick="toggleEfChip(this)">素早↑↑</span>
+  </div>
+  <!-- 自分のランク上昇 (1段階) -->
+  <div class="ef-row">
+    <span class="ef-label">自分↑:</span>
+    <span class="ef-chip" data-ef-type="self_up1" data-ef-val="こうげき" onclick="toggleEfChip(this)">攻撃↑</span>
+    <span class="ef-chip" data-ef-type="self_up1" data-ef-val="ぼうぎょ" onclick="toggleEfChip(this)">防御↑</span>
+    <span class="ef-chip" data-ef-type="self_up1" data-ef-val="とくこう" onclick="toggleEfChip(this)">特攻↑</span>
+    <span class="ef-chip" data-ef-type="self_up1" data-ef-val="とくぼう" onclick="toggleEfChip(this)">特防↑</span>
+    <span class="ef-chip" data-ef-type="self_up1" data-ef-val="すばやさ" onclick="toggleEfChip(this)">素早↑</span>
+  </div>
+  <!-- 相手のランク下降 (2段階以上) -->
+  <div class="ef-row">
+    <span class="ef-label">相手↓↓:</span>
+    <span class="ef-chip" data-ef-type="opp_down2" data-ef-val="こうげき" onclick="toggleEfChip(this)">攻撃↓↓</span>
+    <span class="ef-chip" data-ef-type="opp_down2" data-ef-val="ぼうぎょ" onclick="toggleEfChip(this)">防御↓↓</span>
+    <span class="ef-chip" data-ef-type="opp_down2" data-ef-val="とくこう" onclick="toggleEfChip(this)">特攻↓↓</span>
+    <span class="ef-chip" data-ef-type="opp_down2" data-ef-val="とくぼう" onclick="toggleEfChip(this)">特防↓↓</span>
+    <span class="ef-chip" data-ef-type="opp_down2" data-ef-val="すばやさ" onclick="toggleEfChip(this)">素早↓↓</span>
+  </div>
+  <!-- 相手のランク下降 (1段階) -->
+  <div class="ef-row">
+    <span class="ef-label">相手↓:</span>
+    <span class="ef-chip" data-ef-type="opp_down1" data-ef-val="こうげき" onclick="toggleEfChip(this)">攻撃↓</span>
+    <span class="ef-chip" data-ef-type="opp_down1" data-ef-val="ぼうぎょ" onclick="toggleEfChip(this)">防御↓</span>
+    <span class="ef-chip" data-ef-type="opp_down1" data-ef-val="とくこう" onclick="toggleEfChip(this)">特攻↓</span>
+    <span class="ef-chip" data-ef-type="opp_down1" data-ef-val="とくぼう" onclick="toggleEfChip(this)">特防↓</span>
+    <span class="ef-chip" data-ef-type="opp_down1" data-ef-val="すばやさ" onclick="toggleEfChip(this)">素早↓</span>
+  </div>
+  <!-- 自分のランク下降 (2段階) -->
+  <div class="ef-row">
+    <span class="ef-label">自分↓↓:</span>
+    <span class="ef-chip" data-ef-type="self_down2" data-ef-val="こうげき" onclick="toggleEfChip(this)">攻撃↓↓</span>
+    <span class="ef-chip" data-ef-type="self_down2" data-ef-val="ぼうぎょ" onclick="toggleEfChip(this)">防御↓↓</span>
+    <span class="ef-chip" data-ef-type="self_down2" data-ef-val="とくこう" onclick="toggleEfChip(this)">特攻↓↓</span>
+    <span class="ef-chip" data-ef-type="self_down2" data-ef-val="とくぼう" onclick="toggleEfChip(this)">特防↓↓</span>
+    <span class="ef-chip" data-ef-type="self_down2" data-ef-val="すばやさ" onclick="toggleEfChip(this)">素早↓↓</span>
+  </div>
+  <!-- 自分のランク下降 (1段階) -->
+  <div class="ef-row">
+    <span class="ef-label">自分↓:</span>
+    <span class="ef-chip" data-ef-type="self_down1" data-ef-val="こうげき" onclick="toggleEfChip(this)">攻撃↓</span>
+    <span class="ef-chip" data-ef-type="self_down1" data-ef-val="ぼうぎょ" onclick="toggleEfChip(this)">防御↓</span>
+    <span class="ef-chip" data-ef-type="self_down1" data-ef-val="とくこう" onclick="toggleEfChip(this)">特攻↓</span>
+    <span class="ef-chip" data-ef-type="self_down1" data-ef-val="とくぼう" onclick="toggleEfChip(this)">特防↓</span>
+    <span class="ef-chip" data-ef-type="self_down1" data-ef-val="すばやさ" onclick="toggleEfChip(this)">素早↓</span>
+  </div>
+  <!-- 対象 (NEW) -->
+  <div class="ef-row">
+    <span class="ef-label">対象:</span>
+    <span class="ef-chip" data-ef-type="target" data-ef-val="相手全体" onclick="toggleEfChip(this)">🎯 相手全体</span>
+    <span class="ef-chip" data-ef-type="target" data-ef-val="自分以外" onclick="toggleEfChip(this)">🎯 自分以外</span>
+    <span class="ef-chip" data-ef-type="target" data-ef-val="味方" onclick="toggleEfChip(this)">🤝 味方</span>
+    <span class="ef-chip" data-ef-type="target" data-ef-val="場" onclick="toggleEfChip(this)">🌐 場</span>
+  </div>
+  <!-- 除外 (該当する技を非表示) -->
+  <div class="ef-row">
+    <span class="ef-label">除外:</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="charge" onclick="toggleEfChip(this)" title="1ターン目待機 / 2ターン目攻撃の技を非表示">🚫 溜め技 (1ターン待機)</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="recharge" onclick="toggleEfChip(this)" title="使用後の次ターンに動けなくなる技を非表示">🚫 2ターン目動けない</span>
+  </div>
+  <!-- その他 -->
+  <div class="ef-row">
+    <span class="ef-label">その他:</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="回復のみ" onclick="toggleEfChip(this)" title="自身・味方・対象のHPを直接回復する技 (与ダメ回復は除く)">💚 回復のみ</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="ダメージ回復" onclick="toggleEfChip(this)" title="与えたダメージの一部を自分のHPとして吸収する攻撃技">🩸 ダメージ回復</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="急所" onclick="toggleEfChip(this)">🎯 急所率高</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="必中急所" onclick="toggleEfChip(this)" title="必ず急所に当たる技">💥 必中急所</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="連続" onclick="toggleEfChip(this)">⚡ 連続攻撃</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="先制" onclick="toggleEfChip(this)">⚡ 先制技</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="後攻" onclick="toggleEfChip(this)" title="優先度がマイナス、必ず後攻になる">🐢 後攻技</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="バインド" onclick="toggleEfChip(this)">🔗 バインド</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="交代" onclick="toggleEfChip(this)">🔄 相手交代</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="自交代" onclick="toggleEfChip(this)" title="使用後に自分が交代する (とんぼがえり等)">↩️ 自分交代</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="交代不可" onclick="toggleEfChip(this)" title="相手の交代/逃走を封じる">🪤 交代不可</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="自爆" onclick="toggleEfChip(this)" title="使用後に自分がひんしになる">💥 自爆</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="反動" onclick="toggleEfChip(this)" title="ダメージの一部を自分が受ける">💢 反動</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="天候変更" onclick="toggleEfChip(this)" title="天候 (晴/雨/砂/雪) を変更">☀️ 天候変更</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="フィールド変更" onclick="toggleEfChip(this)" title="フィールド (エレキ/グラス/サイコ/ミスト) を変更">🌐 フィールド変更</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="まきびし系" onclick="toggleEfChip(this)" title="相手の場にまきびし/ステルスロック/どくびし類を設置">📌 設置技</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="みがわり貫通" onclick="toggleEfChip(this)" title="みがわりを無視して効果が通る">👻 みがわり貫通</span>
+  </div>
+</div>
+
+<table id="mainTable">
+<thead>
+  <tr class="head-row">
+    <th class="col-c1" data-sort="c1">C1</th>
+    <th class="col-c2" data-sort="c2">C2</th>
+    <th class="col-c3" data-sort="c3">C3</th>
+    <th class="col-learners" data-sort="learnersCount" title="習得ポケモン数 (列ヘッダでソート、件数ホバーで全リスト)">習得</th>
+    <th class="col-name sorted asc" data-sort="name">わざ名</th>
+    <th class="col-type" data-sort="type">タイプ</th>
+    <th class="col-class" data-sort="class">分類</th>
+    <th class="col-power" data-sort="power">威力</th>
+    <th class="col-acc" data-sort="acc">命中</th>
+    <th class="col-pp" data-sort="pp">PP</th>
+    <th class="col-prob" data-sort="prob" title="効果発動確率 (説明文から抽出)">確率</th>
+    <th class="col-prio" data-sort="priority" title="技優先度 (+ 先制 / − 後攻 / 0 通常)">優先</th>
+    <th class="col-target" data-sort="target">対象</th>
+    <th class="col-mode" data-sort="mode">対戦</th>
+    <th class="col-contact" data-sort="contact">接触</th>
+    <th class="col-guard" data-sort="guard">守貫</th>
+    <th class="col-cat" data-sort="category">カテゴリ</th>
+    <th class="col-effect">効果</th>
+  </tr>
+  <tr class="filter-row">
+    <th><select id="f-c1" class="c-filter"><option value="">全</option><option value="empty">空</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></th>
+    <th><select id="f-c2" class="c-filter"><option value="">全</option><option value="empty">空</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></th>
+    <th><select id="f-c3" class="c-filter"><option value="">全</option><option value="empty">空</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option></select></th>
+    <th></th>
+    <th></th>
+    <th>
+      <div class="ms-wrap" id="f-type-wrap">
+        <button type="button" class="ms-btn" id="f-type-btn" onclick="toggleTypeDropdown(event)">全タイプ ▾</button>
+        <div class="ms-dd" id="f-type-dd"></div>
+      </div>
+    </th>
+    <th><select id="f-class"><option value="">全</option><option value="物理">物</option><option value="特殊">特</option><option value="変化">変</option></select></th>
+    <th><input type="number" id="f-power" placeholder="≥" min="0" title="威力 ≥ N"></th>
+    <th><input type="number" id="f-acc" placeholder="≥" min="0" max="100" title="命中 ≥ N"></th>
+    <th><input type="number" id="f-pp" placeholder="≥" min="0" title="PP ≥ N"></th>
+    <th><input type="number" id="f-prob-min" placeholder="≥%" min="0" max="100" title="効果発動確率 ≥ N%"></th>
+    <th><select id="f-prio">
+      <option value="">全て</option>
+      <option value="hi">先制(&gt;0)</option>
+      <option value="0">通常(0)</option>
+      <option value="lo">後攻(&lt;0)</option>
+      <option value="5">+5</option>
+      <option value="4">+4</option>
+      <option value="3">+3</option>
+      <option value="2">+2</option>
+      <option value="1">+1</option>
+      <option value="-3">-3</option>
+      <option value="-4">-4</option>
+      <option value="-5">-5</option>
+      <option value="-6">-6</option>
+      <option value="-7">-7</option>
+    </select></th>
+    <th><select id="f-target"><option value="">全対象</option></select></th>
+    <th><select id="f-mode"><option value="">全て</option><option value="両方">両方</option><option value="ダブル">ダブル</option></select></th>
+    <th><select id="f-contact"><option value="">全て</option><option value="接○">接○</option><option value="接×">接×</option></select></th>
+    <th><select id="f-guard"><option value="">全て</option><option value="守○">守○</option><option value="守×">守×</option></select></th>
+    <th><select id="f-cat"><option value="">全カテゴリ</option></select></th>
+    <th></th>
+  </tr>
+</thead>
+<tbody id="tbody"></tbody>
+</table>
+
+<!-- 習得ポケモン全リスト用モーダル -->
+<div id="learnerModal" onclick="if(event.target===this)closeLearnerModal()">
+  <div id="learnerModalBox">
+    <span class="lm-close" onclick="closeLearnerModal()">×</span>
+    <h3 id="lmTitle">習得ポケモン</h3>
+    <div class="lm-list" id="lmList"></div>
+  </div>
+</div>
+
+<!-- わざ名ホバー用 tooltip -->
+<div id="waza-tip"></div>
+
+<!-- 効果ホバー用 大きな文字 tooltip -->
+<div id="desc-tip"></div>
+
+<script src="pokechan_data.js"></script>
+<script>
+// 独立アクセス版: pokechan_data.js から動的にデータ構築
+const POKEMON_DB_URL = 'pokemon_db_v9.html';
+const INITIAL_POKEMON_FILTER = null;
+
+// WAZA_MAP → WAZA_MASTER 変換 (pokemon_db_v9.html と同じアダプタ)
+const WAZA_MASTER_BUILT = (function () {
+  const out = [];
+  for (const k in WAZA_MAP) {
+    const m = WAZA_MAP[k];
+    const cls = m.category;
+    out.push({
+      key: m.key, name: m.name, type: m.type, class: cls,
+      power: m.power == null ? "-" : String(m.power),
+      acc: m.accuracy == null ? "-" : String(m.accuracy),
+      pp: m.pp == null ? "" : String(m.pp),
+      contact: m.contact ? "接○" : "接×",
+      guard: m.protect ? "守○" : "守×",
+      target: m.target,
+      mode: m.mode || "両方",
+      category: m.subcategory || cls,
+      effect: m.description,
+      added: m.added !== undefined ? m.added : true,
+      flags: m.flags || {},
+    });
+  }
+  return out;
+})();
+
+// learners + priority を付与
+const _pokeTotal = {};
+POKEMON_LIST.forEach(p => { _pokeTotal[p.name] = p.total || 0; });
+const _extractPriority = (desc) => {
+  if (!desc) return 0;
+  const m = desc.match(/優先度[:：]\s*([+-]?\d+)/);
+  return m ? parseInt(m[1], 10) : 0;
+};
+const moves = WAZA_MASTER_BUILT.map(w => {
+  const learnerNames = (WAZA_MAP[w.key] && WAZA_MAP[w.key].learners) || [];
+  const learners = learnerNames
+    .map(name => ({ name, total: _pokeTotal[name] || 0 }))
+    .sort((a, b) => b.total - a.total);
+  const legacy = (WAZA_MAP[w.key] && WAZA_MAP[w.key].description_legacy) || '';
+  const tags = (WAZA_MAP[w.key] && WAZA_MAP[w.key].tags) || [];
+  const battle_data = (WAZA_MAP[w.key] && WAZA_MAP[w.key].battle_data) || null;
+  return Object.assign({}, w, { learners, priority: _extractPriority(w.effect), _legacy_desc: legacy, tags, battle_data });
+});
+const typeColors ={"ノーマル": "#A8A878", "ほのお": "#F08030", "みず": "#6890F0", "でんき": "#F8D030", "くさ": "#78C850", "こおり": "#98D8D8", "かくとう": "#C03028", "どく": "#A040A0", "じめん": "#E0C068", "ひこう": "#A890F0", "エスパー": "#F85888", "むし": "#A8B820", "いわ": "#B8A038", "ゴースト": "#705898", "ドラゴン": "#7038F8", "あく": "#705848", "はがね": "#B8B8D0", "フェアリー": "#EE99AC"};
+
+// カタカナ ⇔ ひらがな 相互変換（どちらで検索してもヒット）
+function toHira(s) {
+  return (s || '').toLowerCase().replace(/[\u30A1-\u30F6]/g, ch =>
+    String.fromCharCode(ch.charCodeAt(0) - 0x60)
+  );
+}
+
+// ===== チェック列 (C1/C2/C3) =====
+// 構造: [ {wazaKey: "1"|"2"|...|"7"}, {...}, {...} ]
+const WAZA_CHECKS_LS_KEY = 'wazalist_checks_v1';
+let wazaChecks = [{}, {}, {}];
+try {
+  const saved = JSON.parse(localStorage.getItem(WAZA_CHECKS_LS_KEY) || 'null');
+  if (Array.isArray(saved) && saved.length === 3) wazaChecks = saved;
+} catch(e) {}
+function saveWazaChecks() {
+  try { localStorage.setItem(WAZA_CHECKS_LS_KEY, JSON.stringify(wazaChecks)); } catch(e) {}
+}
+function setWazaChk(ci, key, val) {
+  if (!val) delete wazaChecks[ci][key];
+  else wazaChecks[ci][key] = val;
+  saveWazaChecks();
+}
+function resetWazaChecks(ci) {
+  if (ci < 0 || ci > 2) return;
+  if (!confirm('C' + (ci+1) + ' のチェックを全てクリアしますか？')) return;
+  wazaChecks[ci] = {};
+  saveWazaChecks();
+  render();
+}
+
+let sortKey = 'name';
+let sortDir = 1;
+
+// ===== タイプ複数選択フィルター =====
+let selectedTypes = new Set();
+
+// ===== 効果フィルター状態管理 =====
+const activeEfFilters = {
+  flag: new Set(),
+  status: new Set(),
+  self_up2: new Set(),   // 自分のランク 2段階以上アップ
+  self_up1: new Set(),   // 自分のランク 1段階アップ
+  opp_down2: new Set(),  // 相手のランク 2段階以上ダウン
+  opp_down1: new Set(),  // 相手のランク 1段階ダウン
+  self_down2: new Set(), // 自分のランク 2段階以上ダウン (副作用)
+  self_down1: new Set(), // 自分のランク 1段階ダウン (副作用)
+  target: new Set(),     // 対象 (相手全体/自分以外/味方/場)
+  misc: new Set(),
+  exclude: new Set(),    // 除外: フラグキー (charge/recharge/ohko 等)
+};
+
+function toggleEffectFilter() {
+  const panel = document.getElementById('effectFilterPanel');
+  const btn = document.getElementById('ef-toggle-btn');
+  panel.classList.toggle('collapsed');
+  btn.textContent = panel.classList.contains('collapsed') 
+    ? '🔍 効果フィルター ▼' 
+    : '🔍 効果フィルター ▲';
+}
+
+function toggleEfChip(el) {
+  const type = el.dataset.efType;
+  const val = el.dataset.efVal;
+  if (activeEfFilters[type].has(val)) {
+    activeEfFilters[type].delete(val);
+    el.classList.remove('active', 'active-status', 'active-up', 'active-down', 'active-misc', 'active-exclude');
+  } else {
+    activeEfFilters[type].add(val);
+    const cls = type === 'status' ? 'active-status'
+               : (type === 'self_up2' || type === 'self_up1') ? 'active-up'
+               : (type === 'opp_down2' || type === 'opp_down1') ? 'active-down'
+               : (type === 'self_down2' || type === 'self_down1') ? 'active-down'
+               : type === 'target' ? 'active'
+               : type === 'misc' ? 'active-misc'
+               : type === 'exclude' ? 'active-exclude'
+               : 'active';
+    el.classList.add(cls);
+  }
+  render();
+}
+
+// 効果フィルターのマッチ判定
+function matchesEffectFilter(m) {
+  const eff = m.effect || '';
+  const flags = m.flags || {};
+
+  // 除外フィルター: 該当フラグを持つ技は非表示
+  if (activeEfFilters.exclude.size > 0) {
+    for (const f of activeEfFilters.exclude) {
+      if (flags[f]) return false;
+    }
+  }
+
+  // フラグフィルター (OR)
+  if (activeEfFilters.flag.size > 0) {
+    const hasFlag = [...activeEfFilters.flag].some(f => flags[f]);
+    if (!hasFlag) return false;
+  }
+
+  // 状態異常フィルター (OR)
+  if (activeEfFilters.status.size > 0) {
+    const STATUS_PAT = {
+      'まひ':   /まひ/,
+      // 「相手を〜ねむり状態〜」にのみマッチ（を=目的語で「与える」文脈を特定）。
+      // ふいうちの「相手が〜ねむり状態でも」は「相手が」なので除外。
+      // 「自分が〜ねむり状態」「ねむり状態にならない」等も除外。
+      'ねむり': /相手を.*ねむり.*状態/,
+      'こおり': /こおり/,
+      'やけど': /やけど/,
+      'どく':   /もうどく|(?<!も)どく/,
+      'こんらん': /こんらん/,
+      // 「ひるませ」（使役形）のみ。「ひるみ状態で行動できなかった」等の名詞形は除外。
+      'ひるみ': /ひるませ/,
+    };
+    const hasStatus = [...activeEfFilters.status].some(s => STATUS_PAT[s] && STATUS_PAT[s].test(eff));
+    if (!hasStatus) return false;
+  }
+
+  // 自分↑↑ (2段階以上) - 厳密判定
+  if (activeEfFilters.self_up2.size > 0) {
+    const ok = [...activeEfFilters.self_up2].some(stat => {
+      const sc = m._statSelf && m._statSelf[stat];
+      return sc && [...sc.upStages].some(s => s >= 2);
+    });
+    if (!ok) return false;
+  }
+  // 自分↑ (1段階) - 厳密判定
+  if (activeEfFilters.self_up1.size > 0) {
+    const ok = [...activeEfFilters.self_up1].some(stat => {
+      const sc = m._statSelf && m._statSelf[stat];
+      return sc && sc.upStages.has(1);
+    });
+    if (!ok) return false;
+  }
+  // 相手↓↓ (2段階以上) - 厳密判定
+  if (activeEfFilters.opp_down2.size > 0) {
+    const ok = [...activeEfFilters.opp_down2].some(stat => {
+      const sc = m._statOpp && m._statOpp[stat];
+      return sc && [...sc.downStages].some(s => s >= 2);
+    });
+    if (!ok) return false;
+  }
+  // 相手↓ (1段階) - 厳密判定
+  if (activeEfFilters.opp_down1.size > 0) {
+    const ok = [...activeEfFilters.opp_down1].some(stat => {
+      const sc = m._statOpp && m._statOpp[stat];
+      return sc && sc.downStages.has(1);
+    });
+    if (!ok) return false;
+  }
+  // 自分↓↓ (2段階以上) - 厳密判定
+  if (activeEfFilters.self_down2.size > 0) {
+    const ok = [...activeEfFilters.self_down2].some(stat => {
+      const sc = m._statSelf && m._statSelf[stat];
+      return sc && [...sc.downStages].some(s => s >= 2);
+    });
+    if (!ok) return false;
+  }
+  // 自分↓ (1段階) - 厳密判定
+  if (activeEfFilters.self_down1.size > 0) {
+    const ok = [...activeEfFilters.self_down1].some(stat => {
+      const sc = m._statSelf && m._statSelf[stat];
+      return sc && sc.downStages.has(1);
+    });
+    if (!ok) return false;
+  }
+
+  // 対象フィルター (OR) - m.target を照合
+  if (activeEfFilters.target.size > 0) {
+    const tgt = m.target || '';
+    const TARGET_PAT = {
+      '相手全体':   ['相手全体', '全体', '自分以外全体'],
+      '自分以外':   ['自分以外全体', '相手全体', '全体'],
+      '味方':       ['味方1体', '味方全体', '味方の場', '自分か味方'],
+      '場':         ['全体の場', '相手の場', '味方の場'],
+    };
+    const ok = [...activeEfFilters.target].some(k => {
+      const pats = TARGET_PAT[k] || [];
+      return pats.some(p => tgt === p);
+    });
+    if (!ok) return false;
+  }
+
+  // その他フィルター (OR) - 効果文 + タグ複合判定
+  if (activeEfFilters.misc.size > 0) {
+    const MISC_PAT = {
+      '連続':   /連続して|〜.*回.*攻撃|複数回|回連続/,
+      '先制':   /必ず先制|優先度:[+＋][1-9]|先制で攻撃/,
+      'バインド': /バインド|束縛|まとわりつく|ほのおのうず|うずしお/,
+      '交代':   /強制的に交代|相手を.*交代/,
+    };
+    // タグベース判定 (m.tags にあるタグID群を見る)
+    const tags = m.tags || [];
+    const hasTag = (id) => tags.includes(id);
+    const hasTagPrefix = (prefix) => tags.some(t => t.startsWith(prefix));
+    const prio = (typeof m.priority === 'number') ? m.priority : null;
+    const MISC_TAG = {
+      // 回復のみ = 自身/味方/対象のHPを直接回復するだけの技。
+      // 状態異常治療のみ (recovery_status_only) と やどりぎ式 (recovery_drain_seed) は除く。
+      '回復のみ':       () => tags.some(t => t.startsWith('recovery_')
+                                            && t !== 'recovery_drain_seed'
+                                            && t !== 'recovery_status_only'),
+      // ダメージ回復 = 与えたダメージで自分のHPが回復する攻撃技。
+      // hp_drain_self は「HP差分攻撃 (がむしゃら等)」なので含めない。
+      'ダメージ回復':   () => hasTagPrefix('drain_') || hasTag('recovery_drain_seed'),
+      // 急所系: battle_data ベース (Phase A で構造化)
+      '急所':           () => (m.battle_data && m.battle_data.crit_stage >= 1),
+      '必中急所':       () => (m.battle_data && m.battle_data.must_crit === true),
+      '後攻':           () => hasTagPrefix('priority_minus_') || (prio !== null && prio < 0),
+      '自交代':         () => hasTag('self_switch'),
+      '交代不可':       () => hasTag('trap_no_switch'),
+      '自爆':           () => hasTag('self_faint'),
+      '反動':           () => hasTagPrefix('recoil_'),
+      '天候変更':       () => hasTag('weather_change') || hasTagPrefix('weather_'),
+      'フィールド変更': () => hasTag('field_change') || hasTagPrefix('field_'),
+      'まきびし系':     () => hasTagPrefix('setup_') || /まきびし|ステルスロック|どくびし/.test(eff),
+      'みがわり貫通':   () => hasTag('substitute_pierce'),
+    };
+    const hasMisc = [...activeEfFilters.misc].some(k => {
+      if (MISC_TAG[k]) return MISC_TAG[k]();
+      // 先制は priority も併用
+      if (k === '先制' && prio !== null && prio > 0) return true;
+      return MISC_PAT[k] && MISC_PAT[k].test(eff);
+    });
+    if (!hasMisc) return false;
+  }
+
+  return true;
+}
+
+function toNum(v) {
+  if (v === '-' || v === '' || v == null) return -1;
+  const n = parseInt(v);
+  return isNaN(n) ? -1 : n;
+}
+
+
+// 数値列ソート用のキー集合 (これらの列は1回目=降順、2回目=解除)
+const NUMERIC_SORT_KEYS = new Set(['power', 'acc', 'pp', 'prob', 'priority', 'learnersCount', 'c1', 'c2', 'c3']);
+function toNumNull(v) {
+  if (v === '-' || v === '' || v == null) return null;
+  const n = parseInt(v);
+  return isNaN(n) ? null : n;
+}
+
+// 効果文から発動確率を抽出 (例: "10%の確率で..." → 10)
+// 複数ある場合は最大値を採用、見つからなければ null
+function extractProbability(desc) {
+  if (!desc) return null;
+  const matches = [...desc.matchAll(/(\d+)\s*%の確率/g)];
+  if (matches.length === 0) return null;
+  const probs = matches.map(m => parseInt(m[1])).filter(n => n >= 0 && n <= 100);
+  return probs.length > 0 ? Math.max(...probs) : null;
+}
+
+// === 厳密ランク変動判定 ===
+// description を文 → 節 に分けて、stat ごとに 自分/相手 の up/down 段階を抽出
+// 「自分のXが下がるかわりにYが上がる」のような複合文も正しく処理
+function analyzeStatChange(desc, stat, subject) {
+  const upStages = new Set();
+  const downStages = new Set();
+  if (!desc) return { upStages, downStages };
+  const statTok = '『' + stat + '』';
+
+  const sentences = desc.split('。');
+  for (const sentence of sentences) {
+    if (!sentence) continue;
+    // 文全体の subject (最初に現れた 自分/相手 がフォールバック)
+    const sentenceSubjMatch = sentence.match(/(自分|相手)/);
+    const sentenceSubj = sentenceSubjMatch ? sentenceSubjMatch[1] : null;
+    // 「かわりに」「反対に」で節分割
+    const clauses = sentence.split(/(?:かわりに|反対に)/);
+
+    for (const clause of clauses) {
+      if (!clause.includes(statTok)) continue;
+      // 節レベルの subject (なければ文全体の subject)
+      const localSubjMatch = clause.match(/(自分|相手)/);
+      const effectiveSubj = localSubjMatch ? localSubjMatch[1] : sentenceSubj;
+      if (effectiveSubj !== subject) continue;
+      // stat 後ろの up/下 を見る
+      const idx = clause.indexOf(statTok);
+      const afterStat = clause.substring(idx);
+      const upMatch = afterStat.match(/上[がげ]/);
+      const downMatch = afterStat.match(/下[がげ]/);
+      const upPos = upMatch ? upMatch.index : Infinity;
+      const downPos = downMatch ? downMatch.index : Infinity;
+      if (upPos === Infinity && downPos === Infinity) continue;
+      const direction = upPos < downPos ? 'up' : 'down';
+      const stageMatch = afterStat.match(/(\d+)\s*段階/);
+      const isMax = /最大/.test(afterStat);
+      const stage = isMax ? 6 : (stageMatch ? parseInt(stageMatch[1]) : 1);
+      if (direction === 'up') upStages.add(stage);
+      else downStages.add(stage);
+    }
+  }
+  // 補完: 別文に「N段階...上がる」(stat 名なし) がある場合、既に up があれば追加
+  // 例: せいちょう「天気が『にほんばれ』の時は、2段階ずつ上がる」
+  if (upStages.size > 0) {
+    for (const sentence of sentences) {
+      if (!sentence || sentence.includes(statTok)) continue;
+      const subjMatch = sentence.match(/(自分|相手)/);
+      const subj = subjMatch ? subjMatch[1] : subject;
+      if (subj !== subject) continue;
+      const stageMatch = sentence.match(/(\d+)\s*段階/);
+      const hasUp = /上[がげ]/.test(sentence);
+      const hasDown = /下[がげ]/.test(sentence);
+      if (stageMatch && hasUp && !hasDown) {
+        upStages.add(parseInt(stageMatch[1]));
+      } else if (/最大/.test(sentence) && hasUp && !hasDown) {
+        upStages.add(6);
+      }
+    }
+  }
+  return { upStages, downStages };
+}
+
+const STATS_LIST = ['こうげき', 'ぼうぎょ', 'とくこう', 'とくぼう', 'すばやさ'];
+// 起動時に各 move に確率 + ランク変動を計算済みで持たせる
+moves.forEach(m => {
+  m._prob = extractProbability(m.effect || '');
+  m._statSelf = {};
+  m._statOpp = {};
+  STATS_LIST.forEach(stat => {
+    m._statSelf[stat] = analyzeStatChange(m._legacy_desc || m.effect || '', stat, '自分');
+    m._statOpp[stat]  = analyzeStatChange(m._legacy_desc || m.effect || '', stat, '相手');
+  });
+});
+
+// C列フィルタの判定
+function matchCFilter(key, ci, fVal) {
+  if (!fVal) return true;
+  const v = wazaChecks[ci][key];
+  if (fVal === 'empty') return !v;
+  return v === fVal;
+}
+
+function render() {
+  const tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  const searchQ = toHira(document.getElementById('search').value);
+  const fTarget = document.getElementById('f-target').value;
+  const fMode = document.getElementById('f-mode').value;
+  const fContact = document.getElementById('f-contact').value;
+  const fGuard = document.getElementById('f-guard').value;
+  const fCat = document.getElementById('f-cat').value;
+  const fPrio = document.getElementById('f-prio').value;
+  const fC1 = document.getElementById('f-c1').value;
+  const fC2 = document.getElementById('f-c2').value;
+  const fC3 = document.getElementById('f-c3').value;
+  const fClass = document.getElementById('f-class').value;
+  const fPower = document.getElementById('f-power').value;
+  const fAcc = document.getElementById('f-acc').value;
+  const fPp = document.getElementById('f-pp').value;
+  const fProbMin = document.getElementById('f-prob-min').value;
+
+  let rows = moves.slice();
+  // 初期ポケモンフィルタ: そのポケが習得する技のみに絞る
+  if (INITIAL_POKEMON_FILTER) {
+    rows = rows.filter(m => (m.learners || []).some(l => l.name === INITIAL_POKEMON_FILTER));
+  }
+  rows.sort((a, b) => {
+    let av, bv;
+    if (['c1','c2','c3'].includes(sortKey)) {
+      const ci = parseInt(sortKey.slice(1)) - 1;
+      av = parseInt(wazaChecks[ci][a.key] || '0') || null;
+      bv = parseInt(wazaChecks[ci][b.key] || '0') || null;
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;   // 空は常に下
+      if (bv === null) return -1;
+    }
+    else if (sortKey === 'learnersCount') {
+      av = (a.learners||[]).length || null;
+      bv = (b.learners||[]).length || null;
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;
+      if (bv === null) return -1;
+    }
+    else if (['power','acc','pp'].includes(sortKey)) {
+      av = toNumNull(a[sortKey]);
+      bv = toNumNull(b[sortKey]);
+      if (av === null && bv === null) return 0;
+      if (av === null) return 1;   // 空(—)は常に下
+      if (bv === null) return -1;
+    }
+    else if (sortKey === 'prob') {
+      av = a._prob;
+      bv = b._prob;
+      if (av == null && bv == null) return 0;
+      if (av == null) return 1;    // 確率なし(—)は常に下
+      if (bv == null) return -1;
+    }
+    else if (sortKey === 'priority') {
+      av = a.priority || 0;
+      bv = b.priority || 0;
+      // 0は実値として比較 (大きい順=先制が上)
+    }
+    else { av = a[sortKey] || ''; bv = b[sortKey] || ''; }
+    if (av < bv) return -1 * sortDir;
+    if (av > bv) return 1 * sortDir;
+    return 0;
+  });
+
+  let visibleCount = 0;
+  rows.forEach(m => {
+    if (searchQ && !toHira(m.name).includes(searchQ)) return;
+    if (selectedTypes.size > 0 && !selectedTypes.has(m.type)) return;
+    if (fTarget && m.target !== fTarget) return;
+    if (fMode && m.mode !== fMode) return;
+    if (fContact && m.contact !== fContact) return;
+    if (fGuard && m.guard !== fGuard) return;
+    if (fCat && m.category !== fCat) return;
+    if (fClass && m.class !== fClass) return;
+    if (fPower !== '') {
+      const v = toNumNull(m.power);
+      if (v == null || v < parseInt(fPower, 10)) return;
+    }
+    if (fAcc !== '') {
+      const v = toNumNull(m.acc);
+      if (v == null || v < parseInt(fAcc, 10)) return;
+    }
+    if (fPp !== '') {
+      const v = toNumNull(m.pp);
+      if (v == null || v < parseInt(fPp, 10)) return;
+    }
+    if (fProbMin !== '') {
+      if (m._prob == null || m._prob < parseInt(fProbMin, 10)) return;
+    }
+    if (fPrio) {
+      const pv = m.priority || 0;
+      if (fPrio === 'hi' && !(pv > 0)) return;
+      else if (fPrio === 'lo' && !(pv < 0)) return;
+      else if (fPrio === '0' && pv !== 0) return;
+      else if (!['hi','lo','0'].includes(fPrio) && pv !== parseInt(fPrio,10)) return;
+    }
+    if (!matchCFilter(m.key, 0, fC1)) return;
+    if (!matchCFilter(m.key, 1, fC2)) return;
+    if (!matchCFilter(m.key, 2, fC3)) return;
+    // 効果フィルター
+    if (!matchesEffectFilter(m)) return;
+
+    const tr = document.createElement('tr');
+    const color = typeColors[m.type] || '#999';
+    const modeHtml = m.mode === 'ダブル'
+      ? '<span class="mode-double">ダブル</span>'
+      : '<span class="mode-both">両方</span>';
+
+    const learnerCount = (m.learners || []).length;
+    const learnersHtml = learnerCount > 0
+      ? `<td class="col-learners learners-cell" data-key="${m.key}" onclick="showLearners('${m.key}')" title="クリックで中央モーダル / ホバーで右下ポップアップ">${learnerCount}匹</td>`
+      : `<td class="col-learners learners-cell-zero">—</td>`;
+
+    // C1/C2/C3 セレクトセル
+    const buildChkCell = (ci) => {
+      const v = wazaChecks[ci][m.key] || '';
+      const opts = ['', '1', '2', '3', '4', '5', '6', '7'].map(x =>
+        `<option value="${x}"${x === v ? ' selected' : ''}>${x || '-'}</option>`
+      ).join('');
+      const cls = v ? 'cm-chk has-val' : 'cm-chk';
+      return `<td class="col-c${ci+1}"><select class="${cls}" data-chk="${ci}" data-key="${m.key}">${opts}</select></td>`;
+    };
+
+    tr.innerHTML = `
+      ${buildChkCell(0)}
+      ${buildChkCell(1)}
+      ${buildChkCell(2)}
+      ${learnersHtml}
+      <td class="col-name name-cell" data-key="${m.key}" onclick="showLearners('${m.key}')" title="クリックで習得ポケ一覧 (DB全機能)/ ホバーで技詳細">${m.name}</td>
+      <td class="col-type"><span class="type-cell" style="background:${color}">${m.type}</span></td>
+      <td class="col-class"><span class="cls-badge cls-${m.class === '物理' ? 'phys' : m.class === '特殊' ? 'spec' : 'stat'}">${m.class}</span></td>
+      <td class="col-power num-cell">${m.power}</td>
+      <td class="col-acc num-cell">${m.acc}</td>
+      <td class="col-pp num-cell">${m.pp}</td>
+      <td class="col-prob">${m._prob != null ? m._prob + '%' : '<span class="lmt-na" style="color:#BBB">—</span>'}</td>
+      ${(() => {
+        const p = m.priority || 0;
+        if (p > 0) return `<td class="col-prio prio-pos">+${p}</td>`;
+        if (p < 0) return `<td class="col-prio prio-neg">${p}</td>`;
+        return `<td class="col-prio prio-zero">—</td>`;
+      })()}
+      <td class="col-target">${m.target}</td>
+      <td class="col-mode">${modeHtml}</td>
+      <td class="col-contact">${m.contact}</td>
+      <td class="col-guard">${m.guard}</td>
+      <td class="col-cat"><span class="cat-cell">${m.category}</span></td>
+      <td class="col-effect effect-cell" data-key="${m.key}">${m.effect}</td>
+    `;
+    tbody.appendChild(tr);
+    visibleCount++;
+  });
+
+  document.getElementById('count').textContent = `表示${visibleCount}/全${moves.length}技`;
+}
+
+document.querySelectorAll('th[data-sort]').forEach(th => {
+  th.onclick = () => {
+    const k = th.dataset.sort;
+    const isNumeric = NUMERIC_SORT_KEYS.has(k);
+    if (sortKey === k) {
+      if (isNumeric) {
+        // 数値列の2回目 → ソート解除 (デフォルトのわざ名昇順に戻る)
+        sortKey = 'name';
+        sortDir = 1;
+      } else {
+        // 文字列列の2回目 → 方向反転
+        sortDir *= -1;
+      }
+    } else {
+      sortKey = k;
+      sortDir = isNumeric ? -1 : 1;   // 数値列はデフォルトで降順 (大きい順)
+    }
+    document.querySelectorAll('th[data-sort]').forEach(x => { x.classList.remove('sorted','asc'); });
+    const activeTh = document.querySelector('th[data-sort="' + sortKey + '"]');
+    if (activeTh) {
+      activeTh.classList.add('sorted');
+      if (sortDir === 1) activeTh.classList.add('asc');
+    }
+    render();
+  };
+});
+
+['search','f-target','f-mode','f-contact','f-guard','f-cat','f-prio','f-c1','f-c2','f-c3','f-class','f-power','f-acc','f-pp','f-prob-min'].forEach(id => {
+  document.getElementById(id).addEventListener('input', render);
+  document.getElementById(id).addEventListener('change', render);
+});
+
+// チェック列セレクト変更
+document.getElementById('tbody').addEventListener('change', e => {
+  if (e.target.classList && e.target.classList.contains('cm-chk')) {
+    const ci  = parseInt(e.target.dataset.chk);
+    const key = e.target.dataset.key;
+    setWazaChk(ci, key, e.target.value);
+    e.target.classList.toggle('has-val', !!e.target.value);
+  }
+});
+
+const types = [...new Set(moves.map(m => m.type))].sort();
+const targets = [...new Set(moves.map(m => m.target))].sort();
+const cats = [...new Set(moves.map(m => m.category))].sort();
+targets.forEach(t => { const o = document.createElement('option'); o.value=t; o.textContent=t; document.getElementById('f-target').appendChild(o); });
+cats.forEach(c => { const o = document.createElement('option'); o.value=c; o.textContent=c; document.getElementById('f-cat').appendChild(o); });
+
+// ===== タイプ多重選択ドロップダウンの構築 =====
+function buildTypeDropdown() {
+  const dd = document.getElementById('f-type-dd');
+  dd.innerHTML = '';
+  // 全選択 / 全解除アクション
+  const actions = document.createElement('div');
+  actions.className = 'ms-actions';
+  const allBtn = document.createElement('button');
+  allBtn.type = 'button'; allBtn.className = 'ms-act-btn'; allBtn.textContent = '全選択';
+  allBtn.onclick = (e) => { e.stopPropagation(); types.forEach(t => selectedTypes.add(t)); syncTypeCheckboxes(); updateTypeBtnLabel(); render(); };
+  const clrBtn = document.createElement('button');
+  clrBtn.type = 'button'; clrBtn.className = 'ms-act-btn'; clrBtn.textContent = '全解除';
+  clrBtn.onclick = (e) => { e.stopPropagation(); selectedTypes.clear(); syncTypeCheckboxes(); updateTypeBtnLabel(); render(); };
+  actions.appendChild(allBtn);
+  actions.appendChild(clrBtn);
+  dd.appendChild(actions);
+  // 各タイプのチェックボックス
+  types.forEach(t => {
+    const lbl = document.createElement('label');
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.value = t; cb.dataset.type = t;
+    cb.checked = selectedTypes.has(t);
+    cb.addEventListener('change', () => {
+      if (cb.checked) selectedTypes.add(t); else selectedTypes.delete(t);
+      updateTypeBtnLabel();
+      render();
+    });
+    const sw = document.createElement('span');
+    sw.className = 'ms-color';
+    sw.style.background = typeColors[t] || '#999';
+    const txt = document.createElement('span');
+    txt.className = 'ms-name';
+    txt.textContent = t;
+    lbl.appendChild(cb);
+    lbl.appendChild(sw);
+    lbl.appendChild(txt);
+    dd.appendChild(lbl);
+  });
+}
+function syncTypeCheckboxes() {
+  document.querySelectorAll('#f-type-dd input[type=checkbox]').forEach(cb => {
+    cb.checked = selectedTypes.has(cb.value);
+  });
+}
+function updateTypeBtnLabel() {
+  const btn = document.getElementById('f-type-btn');
+  if (selectedTypes.size === 0) {
+    btn.textContent = '全タイプ ▾';
+    btn.classList.remove('has-val');
+  } else if (selectedTypes.size === 1) {
+    btn.textContent = [...selectedTypes][0] + ' ▾';
+    btn.classList.add('has-val');
+  } else {
+    btn.textContent = `${selectedTypes.size}タイプ ▾`;
+    btn.classList.add('has-val');
+  }
+}
+function toggleTypeDropdown(e) {
+  e.stopPropagation();
+  document.getElementById('f-type-wrap').classList.toggle('open');
+}
+// 外側クリックで閉じる
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('f-type-wrap');
+  if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
+});
+buildTypeDropdown();
+updateTypeBtnLabel();
+
+// 画面状態リセット (検索・フィルタ・ソートのみ初期化、C1/C2/C3は保持)
+function resetAll() {
+  document.getElementById('search').value = '';
+  ['f-target', 'f-mode', 'f-contact', 'f-guard', 'f-cat', 'f-prio', 'f-c1', 'f-c2', 'f-c3', 'f-class', 'f-power', 'f-acc', 'f-pp', 'f-prob-min'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  // タイプ多重選択をクリア
+  selectedTypes.clear();
+  syncTypeCheckboxes();
+  updateTypeBtnLabel();
+  // 効果フィルターリセット
+  Object.values(activeEfFilters).forEach(s => s.clear());
+  document.querySelectorAll('.ef-chip').forEach(el => {
+    el.classList.remove('active', 'active-status', 'active-up', 'active-down', 'active-misc');
+  });
+  sortKey = 'name';
+  sortDir = 1;
+  document.querySelectorAll('th[data-sort]').forEach(x => { x.classList.remove('sorted','asc'); });
+  const nameTh = document.querySelector('th[data-sort="name"]');
+  if (nameTh) { nameTh.classList.add('sorted'); nameTh.classList.add('asc'); }
+  render();
+}
+
+// ===== 習得ポケモン表示 (実DBをiframe埋め込み) =====
+function showLearners(key) {
+  const m = moves.find(x => x.key === key);
+  if (!m || !m.learners || m.learners.length === 0) return;
+  const url = POKEMON_DB_URL + '?learns=' + encodeURIComponent(key);
+  document.getElementById('lmTitle').textContent =
+    `${m.name} を習得 ${m.learners.length}匹 (DB全機能利用可)`;
+  document.getElementById('lmList').innerHTML = `
+    <div class="lmt-hint">
+      🔗 <a href="${url}" target="_blank" rel="noopener" style="color:#1F4E79;font-weight:700">別タブで開く (より広く表示)</a>
+      &nbsp;/&nbsp; C1/C2/C3 は本DBと同期 (LocalStorage 経由)
+    </div>
+    <iframe src="${url}" class="lm-iframe" title="${m.name} 習得ポケDB"></iframe>
+  `;
+  document.getElementById('learnerModal').classList.add('vis');
+}
+function closeLearnerModal() {
+  document.getElementById('learnerModal').classList.remove('vis');
+  // ドラッグ位置リセット (再オープン時は中央表示に戻す)
+  lmDragX = 0; lmDragY = 0;
+  const box = document.getElementById('learnerModalBox');
+  if (box) box.style.transform = '';
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLearnerModal();
+});
+
+// learnerModal をタイトル(h3)ドラッグで移動可能に
+let lmDragX = 0, lmDragY = 0;
+(function setupLearnerModalDrag() {
+  let isDragging = false;
+  let startX = 0, startY = 0;
+  let dragHandle = null;
+  document.addEventListener('mousedown', e => {
+    const handle = e.target.closest('#lmTitle');
+    if (!handle) return;
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+    dragHandle = handle;
+    handle.classList.add('dragging');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    const box = document.getElementById('learnerModalBox');
+    if (box) box.style.transform = `translate(${lmDragX + dx}px, ${lmDragY + dy}px)`;
+  });
+  document.addEventListener('mouseup', e => {
+    if (!isDragging) return;
+    isDragging = false;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    lmDragX += dx;
+    lmDragY += dy;
+    if (dragHandle) { dragHandle.classList.remove('dragging'); dragHandle = null; }
+  });
+})();
+
+// ホバー: 習得列のマウスオーバーで上位50匹を表示
+// (わざ名hoverは下の setupDescHover に統合: 効果列と同じリッチ表示)
+(function setupNameHover() {
+  const tip = document.getElementById('waza-tip');
+  if (!tip) return;
+  const HOVER_SELECTOR = 'td.col-learners[data-key]';
+  let curKey = null;
+  document.addEventListener('mouseover', e => {
+    const cell = e.target.closest(HOVER_SELECTOR);
+    if (!cell) {
+      if (curKey) { tip.style.display = 'none'; curKey = null; }
+      return;
+    }
+    const key = cell.dataset.key;
+    if (key === curKey) return;
+    curKey = key;
+    const m = moves.find(x => x.key === key);
+    if (!m || !m.learners || m.learners.length === 0) {
+      tip.style.display = 'none';
+      return;
+    }
+    const list = m.learners.map(l =>
+      `<span class="wt-learner">${l.name}<span class="wt-tot">${l.total}</span></span>`
+    ).join('');
+    tip.innerHTML = `
+      <div class="wt-title">${m.name} を習得 ${m.learners.length}匹 (種族値合計の降順)</div>
+      <div class="wt-list">${list}</div>
+    `;
+    tip.style.display = 'block';
+  });
+  document.addEventListener('mousemove', e => {
+    if (tip.style.display === 'none') return;
+    const pad = 14;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + tw > window.innerWidth - 5) x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight - 5) y = e.clientY - th - pad;
+    tip.style.left = x + 'px';
+    tip.style.top  = y + 'px';
+  });
+  document.addEventListener('mouseout', e => {
+    if (!e.relatedTarget || !e.relatedTarget.closest(HOVER_SELECTOR)) {
+      tip.style.display = 'none';
+      curKey = null;
+    }
+  });
+})();
+
+// 効果列 or わざ名ホバー: 技の全項目をリッチにポップアップ表示
+(function setupDescHover() {
+  const tip = document.getElementById('desc-tip');
+  if (!tip) return;
+  const SEL = 'td.col-effect.effect-cell, td.col-name[data-key]';
+  let curCell = null;
+  function escHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  document.addEventListener('mouseover', e => {
+    const cell = e.target.closest(SEL);
+    if (!cell) {
+      if (curCell) { tip.style.display = 'none'; curCell = null; }
+      return;
+    }
+    if (cell === curCell) return;
+    curCell = cell;
+    const key = cell.dataset.key;
+    const m = key ? moves.find(x => x.key === key) : null;
+    if (!m) {
+      // フォールバック: 説明文だけ
+      const desc = (cell.textContent || '').trim();
+      if (!desc) { tip.style.display = 'none'; return; }
+      tip.textContent = desc;
+      tip.style.display = 'block';
+      return;
+    }
+    const typeColor = typeColors[m.type] || '#999';
+    const clsKey = m.class === '物理' ? 'phys' : m.class === '特殊' ? 'spec' : 'stat';
+    const power = (m.power != null && m.power !== '') ? m.power : '—';
+    const acc = (m.acc != null && m.acc !== '') ? m.acc : '—';
+    const pp = (m.pp != null && m.pp !== '') ? m.pp : '—';
+    const prob = m._prob != null ? m._prob + '%' : '—';
+    const prio = m.priority || 0;
+    const prioStr = prio > 0 ? '+' + prio : (prio < 0 ? String(prio) : '0');
+    const target = m.target || '—';
+    const mode = m.mode || '—';
+    const contact = m.contact || '—';
+    const guard = m.guard || '—';
+    const category = m.category || '—';
+    const effect = m.effect || '';
+
+    // battle_data の構造化情報をバッジ表示
+    const bdBadges = (() => {
+      const bd = m.battle_data;
+      if (!bd) return '';
+      const out = [];
+      // 急所
+      if (bd.must_crit) out.push(`<span class="dt-bd crit-must">💥 必中急所</span>`);
+      else if (bd.crit_stage > 0) out.push(`<span class="dt-bd crit">🎯 急所+${bd.crit_stage}</span>`);
+      if (bd.crit_changes && bd.crit_changes.length > 0) {
+        bd.crit_changes.forEach(c => {
+          const tgt = c.target === 'self' ? '自分' : c.target === 'ally' ? '味方' : '相手';
+          out.push(`<span class="dt-bd crit">🎯 ${tgt}急所+${c.delta}</span>`);
+        });
+      }
+      // 連続技
+      if (bd.multi_hit) {
+        const label = bd.multi_hit === 'thrash' ? '2-3T暴れ' : bd.multi_hit + '回';
+        out.push(`<span class="dt-bd multi">⚡ ${label}</span>`);
+      }
+      // 反動
+      if (bd.recoil) {
+        const label = bd.recoil === 'on_miss' ? '外し時HP半減' : '反動 ' + bd.recoil;
+        out.push(`<span class="dt-bd recoil">💢 ${label}</span>`);
+      }
+      // 吸収
+      if (bd.drain) {
+        const label = bd.drain === 'seed' ? 'やどりぎ式' : '吸収 ' + bd.drain;
+        out.push(`<span class="dt-bd drain">🩸 ${label}</span>`);
+      }
+      // 回復
+      if (bd.recovery) {
+        const labels = {'1/2':'HP1/2回復','weather':'天候依存回復','per_turn':'毎ターン回復','status_only':'状態異常治癒','swap':'自身犠牲回復','takuwaeru':'たくわえる連動'};
+        out.push(`<span class="dt-bd recov">💚 ${labels[bd.recovery] || bd.recovery}</span>`);
+      }
+      // ため
+      if (bd.charge) {
+        const labels = {'normal':'1T待機','invulnerable':'半無敵化','with_stat_up':'1T能力UP'};
+        const skip = bd.charge_skip_in_weather ? ' (天候で省略)' : '';
+        out.push(`<span class="dt-bd charge">⏳ ${labels[bd.charge] || bd.charge}${skip}</span>`);
+      }
+      // 再使用不可
+      if (bd.recharge) out.push(`<span class="dt-bd charge">🔁 使用後動けない</span>`);
+      // 天候設定
+      if (bd.weather_set) {
+        const labels = {'sunny':'☀️ 晴れに','rain':'🌧️ あめに','snow':'❄️ ゆきに','sand':'🌪️ すなあらしに'};
+        out.push(`<span class="dt-bd field">${labels[bd.weather_set] || bd.weather_set}</span>`);
+      }
+      // フィールド設定
+      if (bd.field_set) {
+        const labels = {'electric':'⚡ エレキフィールド','grass':'🌿 グラスフィールド','psychic':'🔮 サイコフィールド','misty':'🌫️ ミストフィールド'};
+        out.push(`<span class="dt-bd field">${labels[bd.field_set] || bd.field_set}</span>`);
+      }
+      // 設置
+      if (bd.hazard_set) {
+        const labels = {'spikes':'📌 まきびし','toxic_spikes':'☠️ どくびし','stealth_rock':'🪨 ステルスロック','sticky_web':'🕸️ ねばねばネット'};
+        out.push(`<span class="dt-bd hazard">${labels[bd.hazard_set] || bd.hazard_set}</span>`);
+      }
+      if (bd.remove_hazards) out.push(`<span class="dt-bd field">🧹 設置解除</span>`);
+      if (bd.field_remove) out.push(`<span class="dt-bd field">🧹 フィールド破壊</span>`);
+      return out.length > 0 ? `<div class="dt-bd-row">${out.join('')}</div>` : '';
+    })();
+
+    // 習得ポケモン上位20匹 (種族値合計順、moves構築時にソート済み)
+    const learners = m.learners || [];
+    const top20 = learners.slice(0, 20);
+    const learnerListHtml = top20.length > 0
+      ? top20.map(l =>
+          `<span class="dt-learner">${escHtml(l.name)}<span class="dt-learner-tot">${l.total}</span></span>`
+        ).join('')
+      : '<span class="dt-no-learner">習得ポケモンなし</span>';
+    const learnerTitleHtml = learners.length > 0
+      ? `習得 ${learners.length}匹 中 上位${Math.min(20, learners.length)}匹 (種族値合計の降順)`
+      : '習得ポケモンなし';
+
+    tip.innerHTML = `
+      <div class="dt-title">
+        <span class="dt-name">${escHtml(m.name)}</span>
+        <span class="dt-type" style="background:${typeColor}">${escHtml(m.type)}</span>
+        <span class="dt-cls cls-${clsKey}">${escHtml(m.class)}</span>
+      </div>
+      <div class="dt-stats">
+        <span><b>威力</b>${escHtml(power)}</span>
+        <span><b>命中</b>${escHtml(acc)}</span>
+        <span><b>PP</b>${escHtml(pp)}</span>
+        <span><b>確率</b>${escHtml(prob)}</span>
+        <span><b>優先度</b>${escHtml(prioStr)}</span>
+      </div>
+      <div class="dt-meta">
+        <span><b>対象</b>${escHtml(target)}</span>
+        <span><b>対戦</b>${escHtml(mode)}</span>
+        <span><b>接触</b>${escHtml(contact)}</span>
+        <span><b>守備</b>${escHtml(guard)}</span>
+        <span><b>カテゴリ</b>${escHtml(category)}</span>
+        ${(() => {
+          const bd = m.battle_data;
+          if (!bd) return '';
+          const parts = [];
+          if (bd.must_crit) parts.push('<span style="color:#c00;font-weight:700">必中急所</span>');
+          else if (bd.crit_stage > 0) parts.push(`<span><b>急所</b>+${bd.crit_stage}</span>`);
+          if (bd.crit_changes && bd.crit_changes.length > 0) {
+            const cc = bd.crit_changes.map(c => `${c.target==='self'?'自分':c.target==='ally'?'味方':'相手'}急所+${c.delta}`).join(',');
+            parts.push(`<span><b>急変</b>${cc}</span>`);
+          }
+          return parts.join('');
+        })()}
+      </div>
+      <div class="dt-desc">${escHtml(effect)}</div>
+      ${bdBadges}
+      <div class="dt-learners-title">${learnerTitleHtml}</div>
+      <div class="dt-learners">${learnerListHtml}</div>
+    `;
+    tip.style.display = 'block';
+  });
+  document.addEventListener('mousemove', e => {
+    if (tip.style.display === 'none') return;
+    const pad = 16;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if (x + tw > window.innerWidth - 5)  x = e.clientX - tw - pad;
+    if (y + th > window.innerHeight - 5) y = e.clientY - th - pad;
+    tip.style.left = Math.max(4, x) + 'px';
+    tip.style.top  = Math.max(4, y) + 'px';
+  });
+  document.addEventListener('mouseout', e => {
+    if (!e.relatedTarget || !e.relatedTarget.closest(SEL)) {
+      tip.style.display = 'none';
+      curCell = null;
+    }
+  });
+})();
+
+// 初期ポケモンフィルタが指定されてたらバナー表示
+if (INITIAL_POKEMON_FILTER) {
+  const b = document.getElementById('pokemonFilterBanner');
+  if (b) {
+    const cnt = moves.filter(m => (m.learners || []).some(l => l.name === INITIAL_POKEMON_FILTER)).length;
+    b.style.display = 'inline-block';
+    b.textContent = '🔍 ' + INITIAL_POKEMON_FILTER + ' が習得する技のみ (' + cnt + '件)';
+    document.title = INITIAL_POKEMON_FILTER + ' のわざ - ポケチャン';
+  }
+}
+
+render();
+</script>
+
+<!--
+  ===========================================
+  広告セクション (Amazon アソシエイト承認後に埋込)
+  ===========================================
+-->
+<!--
+<link rel="stylesheet" href="ad-section.css">
+<section class="ad-section">
+  <div class="ad-header">
+    <span class="ad-title">ゲーミングおすすめ</span>
+    <span class="ad-label-pr">PR / Amazon</span>
+  </div>
+  <div class="ad-grid">
+    <a href="[商品URL]?tag=[ASSOCIATE_ID]" target="_blank" rel="noopener noreferrer sponsored" class="ad-card">
+      <img src="[商品画像URL]" alt="[商品名]"><div class="ad-card-title">[商品名]</div>
+    </a>
+    <a href="[商品URL]?tag=[ASSOCIATE_ID]" target="_blank" rel="noopener noreferrer sponsored" class="ad-card">
+      <img src="[商品画像URL]" alt="[商品名]"><div class="ad-card-title">[商品名]</div>
+    </a>
+    <a href="[商品URL]?tag=[ASSOCIATE_ID]" target="_blank" rel="noopener noreferrer sponsored" class="ad-card">
+      <img src="[商品画像URL]" alt="[商品名]"><div class="ad-card-title">[商品名]</div>
+    </a>
+  </div>
+  <p class="ad-disclosure">
+    ※ Amazon のアソシエイトとして、PchamDB は適格販売により収入を得ています。
+    詳しくは <a href="/privacy.html">プライバシーポリシー</a> をご覧ください。
+  </p>
+</section>
+-->
+
+<!-- 法的フッター (PchamDB 共通) -->
+<footer style="background:#1a1a1a;color:#aaa;padding:20px;text-align:center;font-size:11px;line-height:1.7;margin-top:24px">
+  <div style="color:#FFCB05;font-weight:700;margin-bottom:6px">⚠️ 当サイトは非公式ファンサイトです</div>
+  <div style="margin:8px 0">
+    <a href="/" style="color:#FFB347;margin:0 6px;text-decoration:none">ホーム</a>·
+    <a href="/terms.html" style="color:#FFB347;margin:0 6px;text-decoration:none">利用規約</a>·
+    <a href="/privacy.html" style="color:#FFB347;margin:0 6px;text-decoration:none">プライバシー</a>·
+    <a href="/disclaimer.html" style="color:#FFB347;margin:0 6px;text-decoration:none">免責事項</a>·
+    <a href="/contact.html" style="color:#FFB347;margin:0 6px;text-decoration:none">お問い合わせ</a>
+  </div>
+  <div style="color:#888;font-size:10px;margin-top:6px">
+    ポケモン・Pokémon・ポケモンチャンピオンズ等の商標および著作権は、任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズに帰属します。<br>
+    © 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc. &nbsp;|&nbsp; © 2026 PchamDB
+  </div>
+</footer>
+</body></html>
+
