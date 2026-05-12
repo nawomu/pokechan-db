@@ -350,8 +350,160 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 .fcat-btn.on{background:#21262d;color:#e6edf3;border-color:#8b949e}
 #filter-bar label{font-size:.73rem;color:#8b949e}
 </style>
+<style>
+/* ===== 入室時ポップアップ広告 (楽天) ===== */
+.entry-popup {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.78);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: entryFadeIn .25s ease-out;
+}
+@keyframes entryFadeIn { from { opacity: 0 } to { opacity: 1 } }
+.entry-popup-card {
+  background: #1c1418;
+  border: 1px solid #4a2020;
+  border-radius: 12px;
+  padding: 14px 14px 12px;
+  max-width: 340px;
+  width: 100%;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.6);
+}
+.entry-popup-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.entry-popup-pr {
+  color: #ff9999;
+  font-size: 11px;
+  font-weight: 700;
+}
+.entry-popup-close {
+  background: #2a1a1a;
+  border: 1px solid #4a2020;
+  color: #ff9999;
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 14px;
+  cursor: not-allowed;
+  font-family: inherit;
+  min-width: 90px;
+}
+.entry-popup-close:not(:disabled) {
+  cursor: pointer;
+  background: #ff7b7b;
+  color: #1c1418;
+  border-color: #ff7b7b;
+}
+.entry-popup-product { display: block; text-align: center; text-decoration: none; }
+.entry-popup-product img {
+  max-width: 100%;
+  max-height: 260px;
+  border-radius: 8px;
+  background: #fff;
+}
+.entry-popup-foot {
+  color: #8b949e;
+  font-size: 10px;
+  text-align: center;
+  margin: 10px 0 0;
+  line-height: 1.5;
+}
+.entry-popup-foot a { color: #8b949e; }
+</style>
 </head>
 <body>
+
+<!-- 入室時 PR ポップアップ (セッションごとに1回のみ表示) -->
+<div id="entry-popup" class="entry-popup" hidden>
+  <div class="entry-popup-card" role="dialog" aria-modal="true" aria-labelledby="entry-popup-label">
+    <div class="entry-popup-head">
+      <span id="entry-popup-label" class="entry-popup-pr">📣 PR / 楽天市場</span>
+      <button id="entry-popup-close" class="entry-popup-close" disabled>3秒…</button>
+    </div>
+    <a id="entry-popup-product" href="#" target="_blank" rel="nofollow sponsored noopener" class="entry-popup-product">
+      <img id="entry-popup-img" src="" alt="">
+    </a>
+    <p class="entry-popup-foot">
+      ※ PchamDB は楽天アフィリエイトの参加者です<br>
+      ページ下部にも商品があります
+    </p>
+  </div>
+</div>
+<script>
+(function(){
+  // セッション中(タブが開いてる間)1回のみ表示
+  if (sessionStorage.getItem('pchamdb_entry_popup_shown')) return;
+  // ?nopop でデバッグ無効化、?forcepop で強制表示
+  var qs = location.search;
+  if (qs.indexOf('nopop') >= 0) return;
+  if (qs.indexOf('forcepop') >= 0) sessionStorage.removeItem('pchamdb_entry_popup_shown');
+
+  var products = [
+    {h:'https://hb.afl.rakuten.co.jp/ichiba/53b80f6e.8c5584d0.53b80f6f.ffc45287/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fterada-ya%2Fmk-12d-14-321%2F&link_type=picttext', i:'https://thumbnail.image.rakuten.co.jp/@0_mall/terada-ya/cabinet/biiino/item/main-image-14/20260508163453_1.jpg?_ex=240x240'},
+    {h:'https://hb.afl.rakuten.co.jp/ichiba/53b836fd.c6155541.53b836fe.00d578fa/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fbansyuselect%2Fex293948219%2F&link_type=picttext', i:'https://thumbnail.image.rakuten.co.jp/@0_mall/bansyuselect/cabinet/09256555/10620272/imgrc0129824024.jpg?_ex=240x240'},
+    {h:'https://hb.afl.rakuten.co.jp/ichiba/53b84091.60741eb5.53b84092.2a672223/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fcellutane%2Fa905-gangar%2F&link_type=pict', i:'https://hbb.afl.rakuten.co.jp/hgb/53b84091.60741eb5.53b84092.2a672223/?me_id=1350591&item_id=10000694&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fcellutane%2Fcabinet%2Fcharacter%2Fa905-gangar_ar_thum.jpg%3F_ex%3D240x240&s=240x240&t=pict'},
+    {h:'https://hb.afl.rakuten.co.jp/ichiba/53b84053.f0b2b8e6.53b84054.9113b791/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fdixel%2Fpokemon0005%2F&link_type=pict', i:'https://hbb.afl.rakuten.co.jp/hgb/53b84053.f0b2b8e6.53b84054.9113b791/?me_id=1287589&item_id=10002897&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fdixel%2Fcabinet%2Frucksack01%2Fpokemon0005.jpg%3F_ex%3D240x240&s=240x240&t=pict'},
+    {h:'https://hb.afl.rakuten.co.jp/ichiba/53b83eb4.45d1d8ac.53b83eb5.a67bcc49/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fokagesama-market%2F10000634%2F&link_type=pict', i:'https://hbb.afl.rakuten.co.jp/hgb/53b83eb4.45d1d8ac.53b83eb5.a67bcc49/?me_id=1344295&item_id=10000634&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fokagesama-market%2Fcabinet%2F07167076%2Fimgrc0111783131.jpg%3F_ex%3D240x240&s=240x240&t=pict'}
+  ];
+  var pick = products[Math.floor(Math.random() * products.length)];
+
+  var $ = function(id){ return document.getElementById(id); };
+  var popup = $('entry-popup');
+  var product = $('entry-popup-product');
+  var img = $('entry-popup-img');
+  var btn = $('entry-popup-close');
+
+  product.href = pick.h;
+  img.src = pick.i;
+
+  // ページ描画後 800ms 経ってから表示 (体感的に「ページが見えてから」感)
+  setTimeout(function(){
+    sessionStorage.setItem('pchamdb_entry_popup_shown', '1');
+    popup.hidden = false;
+    document.body.style.overflow = 'hidden';
+
+    var sec = 3;
+    var timer = setInterval(function(){
+      sec--;
+      if (sec > 0) {
+        btn.textContent = sec + '秒…';
+      } else {
+        clearInterval(timer);
+        btn.disabled = false;
+        btn.textContent = '✕ 閉じる';
+      }
+    }, 1000);
+
+    var close = function(){
+      if (btn.disabled) return;
+      popup.hidden = true;
+      document.body.style.overflow = '';
+    };
+    btn.addEventListener('click', close);
+    // 商品クリック時もポップアップを閉じる (新タブで広告先が開く)
+    product.addEventListener('click', function(){
+      popup.hidden = true;
+      document.body.style.overflow = '';
+    });
+    // 背景クリックでも閉じる (カウントダウン終了後のみ)
+    popup.addEventListener('click', function(e){
+      if (e.target === popup) close();
+    });
+    // ESC キー
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape') close();
+    });
+  }, 800);
+})();
+</script>
 
 <div id="pc-tab-bar"></div>
 
@@ -1912,12 +2064,12 @@ renderTable();
 </section>
 -->
 
-<!-- 楽天アフィリエイト広告 (2026-05-12 稼働、ダークテーマ) -->
+<!-- 楽天アフィリエイト広告 (2026-05-12 稼働、ダークテーマ・スリム帯) -->
 <link rel="stylesheet" href="ad-section.css">
-<section class="ad-section dark rakuten">
+<section class="ad-section dark rakuten slim">
   <div class="ad-header">
-    <span class="ad-title">ポケモングッズ・関連商品</span>
-    <span class="ad-label-pr">PR / 楽天市場</span>
+    <span class="ad-title">ポケモングッズ</span>
+    <span class="ad-label-pr">PR / 楽天</span>
   </div>
   <div class="ad-grid">
     <a href="https://hb.afl.rakuten.co.jp/ichiba/53b80f6e.8c5584d0.53b80f6f.ffc45287/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fterada-ya%2Fmk-12d-14-321%2F&link_type=picttext" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://thumbnail.image.rakuten.co.jp/@0_mall/terada-ya/cabinet/biiino/item/main-image-14/20260508163453_1.jpg?_ex=240x240" alt=""></a>
