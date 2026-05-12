@@ -155,6 +155,7 @@ td.col-tags { display: flex; flex-wrap: wrap; gap: 2px; padding: 4px; align-cont
 .mw-tag.tag-rankop  { background: #E1F5FE; border-color: #29B6F6; color: #01579B; }
 .mw-tag.tag-unlock  { background: #FFF3E0; border-color: #FB8C00; color: #E65100; }
 .mw-tag.tag-other   { background: #F5F5F5; border-color: #9E9E9E; color: #424242; }
+.mw-tag.tag-cure    { background: #DCEDC8; border-color: #689F38; color: #33691E; }
 
 /* 習得列 (ホバー: ポップアップ / クリック: 中央モーダル) */
 .learners-cell { cursor: pointer; color: #1F4E79; font-weight: 700; }
@@ -323,6 +324,9 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
 .ef-chip.active-exclude { background: #C0392B; color: white; border-color: #C0392B; }
 #ef-toggle-btn { background: #3A6EA5; color: white; font-size: 10px; padding: 1px 7px; border-radius: 3px; border: none; cursor: pointer; font-weight: 700; }
 #ef-toggle-btn:hover { background: #2A5E90; }
+#ef-mode-btn { background: #607D8B; color: white; font-size: 10px; padding: 1px 7px; border-radius: 3px; border: none; cursor: pointer; font-weight: 700; margin-left: 4px; }
+#ef-mode-btn:hover { background: #455A64; }
+#ef-mode-btn.and-on { background: #E65100; }
 .ef-divider { width: 1px; height: 14px; background: #CCC; margin: 0 2px; }
 </style></head><body>
 
@@ -333,6 +337,7 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
   <span id="pokemonFilterBanner" style="display:none;background:#F39C12;color:white;padding:3px 10px;border-radius:4px;font-weight:700;font-size:11px"></span>
   <button class="secondary" onclick="resetAll()">🔄 リセット</button>
   <button id="ef-toggle-btn" onclick="toggleEffectFilter()">🔍 効果フィルター ▲</button>
+  <button id="ef-mode-btn" onclick="toggleFilterMode()" title="複数チップを選んだ時の検索モード切替。OR = どれかに該当、AND = 全部に該当">🔀 検索: OR</button>
   <span class="ef-divider"></span>
   <button class="c-reset-btn" data-ci="0" onclick="resetWazaChecks(0)" title="C1のチェックを全クリア">C1</button>
   <button class="c-reset-btn" data-ci="1" onclick="resetWazaChecks(1)" title="C2のチェックを全クリア">C2</button>
@@ -345,13 +350,10 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
   <!-- 技フラグ系 -->
   <div class="ef-row">
     <span class="ef-label">技フラグ:</span>
-    <span class="ef-chip" data-ef-type="flag" data-ef-val="punch" onclick="toggleEfChip(this)">👊 パンチ系</span>
-    <span class="ef-chip" data-ef-type="flag" data-ef-val="sound" onclick="toggleEfChip(this)">🔊 音技</span>
-    <span class="ef-chip" data-ef-type="flag" data-ef-val="dance" onclick="toggleEfChip(this)">💃 踊り系</span>
-    <span class="ef-chip" data-ef-type="flag" data-ef-val="slice" onclick="toggleEfChip(this)">⚔️ 切る技</span>
-    <span class="ef-chip" data-ef-type="flag" data-ef-val="wind" onclick="toggleEfChip(this)">🌀 風技</span>
-    <span class="ef-chip" data-ef-type="flag" data-ef-val="ball" onclick="toggleEfChip(this)">🔵 弾技</span>
-    <span class="ef-chip" data-ef-type="flag" data-ef-val="pulse" onclick="toggleEfChip(this)">〰️ 波動技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="punch" onclick="toggleEfChip(this)" title="特性「てつのこぶし」で威力1.2倍">👊 パンチ系</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="sound" onclick="toggleEfChip(this)" title="みがわり貫通など特殊効果">🔊 音技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="ball" onclick="toggleEfChip(this)" title="特性「ぼうだん」で無効化される弾・爆弾系">🔵 弾技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="pulse" onclick="toggleEfChip(this)" title="特性「メガランチャー」で威力1.5倍">〰️ 波動技</span>
     <span class="ef-chip" data-ef-type="flag" data-ef-val="ohko" onclick="toggleEfChip(this)">💀 一撃必殺</span>
     <span class="ef-chip" data-ef-type="flag" data-ef-val="charge" onclick="toggleEfChip(this)">⏳ 溜め技</span>
     <span class="ef-chip" data-ef-type="flag" data-ef-val="recharge" onclick="toggleEfChip(this)" title="使用後の次ターンに動けなくなる技 (はかいこうせん等)">🔁 2ターン目動けない</span>
@@ -466,6 +468,7 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
     <span class="ef-chip" data-ef-type="misc" data-ef-val="サポート" onclick="toggleEfChip(this)" title="味方を補助する変化技 (てだすけ/このゆびとまれ等)">🤝 サポート</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="ランク操作" onclick="toggleEfChip(this)" title="ランクのコピー/入れ替え (じこあんじ/パワースワップ等)">🔄 ランク操作</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="解除系" onclick="toggleEfChip(this)" title="壁破壊/防御貫通/ランクリセット (かわらわり/くろいきり等)">🧹 解除系</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="状態異常回復" onclick="toggleEfChip(this)" title="自分/味方/相手の状態異常を治す (いやしのすず/ねむる/うたかたのアリア等)">💊 状態異常回復</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="その他" onclick="toggleEfChip(this)" title="みがわり貫通/変身/うらみ など特殊効果">🔮 その他</span>
   </div>
 </div>
@@ -660,9 +663,24 @@ function toggleEffectFilter() {
   const panel = document.getElementById('effectFilterPanel');
   const btn = document.getElementById('ef-toggle-btn');
   panel.classList.toggle('collapsed');
-  btn.textContent = panel.classList.contains('collapsed') 
-    ? '🔍 効果フィルター ▼' 
+  btn.textContent = panel.classList.contains('collapsed')
+    ? '🔍 効果フィルター ▼'
     : '🔍 効果フィルター ▲';
+}
+
+// 検索モード (OR デフォルト / AND オプション)
+let filterMode = 'OR';
+function toggleFilterMode() {
+  filterMode = (filterMode === 'OR') ? 'AND' : 'OR';
+  const btn = document.getElementById('ef-mode-btn');
+  if (filterMode === 'AND') {
+    btn.textContent = '🔗 検索: AND';
+    btn.classList.add('and-on');
+  } else {
+    btn.textContent = '🔀 検索: OR';
+    btn.classList.remove('and-on');
+  }
+  render();
 }
 
 function toggleEfChip(el) {
@@ -686,117 +704,117 @@ function toggleEfChip(el) {
   render();
 }
 
-// 効果フィルターのマッチ判定
+// MISC_TAG: 技 → bool 判定関数群 (battle_data ベース)
+function _miscTagJudges(m) {
+  const bd = m.battle_data || {};
+  const prio = (typeof m.priority === 'number') ? m.priority : null;
+  return {
+    '回復のみ':       () => bd.recovery && bd.recovery !== 'status_only',
+    'ダメージ回復':   () => !!bd.drain,
+    '急所':           () => bd.crit_stage >= 1,
+    '必中急所':       () => bd.must_crit === true,
+    '連続':           () => !!bd.multi_hit,
+    '先制':           () => prio !== null && prio > 0,
+    '後攻':           () => prio !== null && prio < 0,
+    'バインド':       () => bd.bind === true,
+    '交代':           () => bd.force_switch_opp === true,
+    '自交代':         () => bd.self_switch === true,
+    '交代不可':       () => bd.trap_no_switch === true,
+    '反動':           () => !!bd.recoil,
+    '天候変更':       () => !!bd.weather_set,
+    'フィールド変更': () => !!bd.field_set,
+    'まきびし系':     () => !!bd.hazard_set,
+    '瀕死技':         () => bd.self_faint === true,
+    'ため技':         () => !!bd.charge,
+    '再使用不可':     () => bd.recharge === true,
+    '壁':             () => !!bd.screen,
+    'ルーム':         () => !!bd.room,
+    '技封じ':         () => !!bd.move_block,
+    'サポート':       () => bd.support === true,
+    'ランク操作':     () => !!bd.rank_op,
+    '解除系':         () => (Array.isArray(bd.unlock) && bd.unlock.length > 0) || bd.remove_hazards || bd.field_remove,
+    '状態異常回復':   () => Array.isArray(bd.cure_status) && bd.cure_status.length > 0,
+    'その他':         () => bd.substitute_pierce === true,
+  };
+}
+const TARGET_PAT_MAP = {
+  '相手全体':   ['相手全体', '全体', '自分以外全体'],
+  '自分以外':   ['自分以外全体', '相手全体', '全体'],
+  '味方':       ['味方1体', '味方全体', '味方の場', '自分か味方'],
+  '場':         ['全体の場', '相手の場', '味方の場'],
+};
+const STAT_KEY_MAP = {'こうげき':'atk','ぼうぎょ':'def','とくこう':'spa','とくぼう':'spd','すばやさ':'spe','命中率':'acc','回避率':'eva'};
+
+// 各フィルタが m にマッチするか個別判定。aggregateMode で OR/AND 切替。
+function _filterCatHit(m, catKey, aggregateMode) {
+  const set = activeEfFilters[catKey];
+  if (!set || set.size === 0) return false;
+  const flags = m.flags || {};
+  const bd = m.battle_data || {};
+  // 個別チップ→単独判定関数を返す
+  let chipFn = null;
+  if (catKey === 'flag')      chipFn = (f) => !!flags[f];
+  else if (catKey === 'status') {
+    const effects = bd.effects || [];
+    chipFn = (s) => {
+      if (s === 'ひるみ') return effects.some(e => e.kind === 'flinch');
+      if (s === 'どく')   return effects.some(e => e.kind === 'status' && (e.value === 'どく' || e.value === 'もうどく'));
+      return effects.some(e => e.kind === 'status' && e.value === s);
+    };
+  }
+  else if (catKey === 'target') {
+    const tgt = m.target || '';
+    chipFn = (k) => (TARGET_PAT_MAP[k] || []).some(p => tgt === p);
+  }
+  else if (catKey === 'misc') {
+    const judges = _miscTagJudges(m);
+    chipFn = (k) => !!(judges[k] && judges[k]());
+  }
+  else {
+    // ランク変動カテゴリ
+    const RANK_CHECKS = {
+      self_up2:   ['self', d => d >= 2],
+      self_up1:   ['self', d => d === 1],
+      opp_down2:  ['opp',  d => d <= -2],
+      opp_down1:  ['opp',  d => d === -1],
+      self_down2: ['self', d => d <= -2],
+      self_down1: ['self', d => d === -1],
+    };
+    if (!RANK_CHECKS[catKey]) return false;
+    const [tgtKey, check] = RANK_CHECKS[catKey];
+    const ranks = bd.rank_changes || [];
+    chipFn = (stat) => {
+      const key = STAT_KEY_MAP[stat];
+      return ranks.some(r => r.target === tgtKey && r.stat === key && check(r.delta));
+    };
+  }
+  // OR: 1つでも該当 / AND: 全部該当
+  if (aggregateMode === 'AND') return [...set].every(chipFn);
+  return [...set].some(chipFn);
+}
+
+// 効果フィルターのマッチ判定 (AND/OR 切替対応)
 function matchesEffectFilter(m) {
-  const eff = m.effect || '';
   const flags = m.flags || {};
 
-  // 除外フィルター: 該当フラグを持つ技は非表示
+  // 除外フィルター: 常にAND動作 (該当フラグを持つ技は非表示)
   if (activeEfFilters.exclude.size > 0) {
     for (const f of activeEfFilters.exclude) {
       if (flags[f]) return false;
     }
   }
 
-  // フラグフィルター (OR)
-  if (activeEfFilters.flag.size > 0) {
-    const hasFlag = [...activeEfFilters.flag].some(f => flags[f]);
-    if (!hasFlag) return false;
+  const FILTER_CATS = ['flag','status','self_up2','self_up1','opp_down2','opp_down1','self_down2','self_down1','target','misc'];
+  const activeCats = FILTER_CATS.filter(k => activeEfFilters[k].size > 0);
+  if (activeCats.length === 0) return true; // 何も選んでなければ全表示
+
+  if (filterMode === 'AND') {
+    // 全カテゴリで条件を満たす + カテゴリ内も全選択肢に該当
+    return activeCats.every(k => _filterCatHit(m, k, 'AND'));
+  } else {
+    // OR: どこかのチップに該当すれば表示 (カテゴリ内もカテゴリ間もOR)
+    return activeCats.some(k => _filterCatHit(m, k, 'OR'));
   }
-
-  // 状態異常フィルター (OR) - battle_data.effects ベース
-  if (activeEfFilters.status.size > 0) {
-    const effects = (m.battle_data && m.battle_data.effects) || [];
-    const hasStatus = [...activeEfFilters.status].some(s => {
-      if (s === 'ひるみ') return effects.some(e => e.kind === 'flinch');
-      if (s === 'どく')   return effects.some(e => e.kind === 'status' && (e.value === 'どく' || e.value === 'もうどく'));
-      return effects.some(e => e.kind === 'status' && e.value === s);
-    });
-    if (!hasStatus) return false;
-  }
-
-  // ランク変動フィルター - battle_data.rank_changes ベース (説明文依存を排除)
-  // 「↑↑」「↓↓」は2段階以上、「↑」「↓」はちょうど1段階
-  const _rankFilter = (filterSet, targetKey, deltaCheck) => {
-    if (filterSet.size === 0) return true;
-    const ranks = (m.battle_data && m.battle_data.rank_changes) || [];
-    const STAT_KEY = {'こうげき':'atk','ぼうぎょ':'def','とくこう':'spa','とくぼう':'spd','すばやさ':'spe','命中率':'acc','回避率':'eva'};
-    return [...filterSet].some(stat => {
-      const key = STAT_KEY[stat];
-      return ranks.some(r => r.target === targetKey && r.stat === key && deltaCheck(r.delta));
-    });
-  };
-  if (!_rankFilter(activeEfFilters.self_up2,   'self', d => d >= 2))   return false;
-  if (!_rankFilter(activeEfFilters.self_up1,   'self', d => d === 1))  return false;
-  if (!_rankFilter(activeEfFilters.opp_down2,  'opp',  d => d <= -2))  return false;
-  if (!_rankFilter(activeEfFilters.opp_down1,  'opp',  d => d === -1)) return false;
-  if (!_rankFilter(activeEfFilters.self_down2, 'self', d => d <= -2))  return false;
-  if (!_rankFilter(activeEfFilters.self_down1, 'self', d => d === -1)) return false;
-
-  // 対象フィルター (OR) - m.target を照合
-  if (activeEfFilters.target.size > 0) {
-    const tgt = m.target || '';
-    const TARGET_PAT = {
-      '相手全体':   ['相手全体', '全体', '自分以外全体'],
-      '自分以外':   ['自分以外全体', '相手全体', '全体'],
-      '味方':       ['味方1体', '味方全体', '味方の場', '自分か味方'],
-      '場':         ['全体の場', '相手の場', '味方の場'],
-    };
-    const ok = [...activeEfFilters.target].some(k => {
-      const pats = TARGET_PAT[k] || [];
-      return pats.some(p => tgt === p);
-    });
-    if (!ok) return false;
-  }
-
-  // その他フィルター (OR) - battle_data 構造化データのみで判定 (説明文テキスト依存を排除)
-  if (activeEfFilters.misc.size > 0) {
-    const bd = m.battle_data || {};
-    const prio = (typeof m.priority === 'number') ? m.priority : null;
-    const MISC_TAG = {
-      // 回復のみ = 自身/味方/対象のHPを直接回復する技 (状態異常治癒のみは除く)
-      '回復のみ':       () => bd.recovery && bd.recovery !== 'status_only',
-      // ダメージ回復 = 与えたダメージで自分HPが回復 (drain系 + やどりぎ式)
-      'ダメージ回復':   () => !!bd.drain,
-      // 急所系
-      '急所':           () => bd.crit_stage >= 1,
-      '必中急所':       () => bd.must_crit === true,
-      // 連続技
-      '連続':           () => !!bd.multi_hit,
-      // 先制/後攻
-      '先制':           () => prio !== null && prio > 0,
-      '後攻':           () => prio !== null && prio < 0,
-      // 交代系
-      'バインド':       () => bd.bind === true,
-      '交代':           () => bd.force_switch_opp === true,
-      '自交代':         () => bd.self_switch === true,
-      '交代不可':       () => bd.trap_no_switch === true,
-      // ダメージ系
-      '反動':           () => !!bd.recoil,
-      // 場・設置
-      '天候変更':       () => !!bd.weather_set,
-      'フィールド変更': () => !!bd.field_set,
-      'まきびし系':     () => !!bd.hazard_set,
-      // 瀕死技
-      '瀕死技':         () => bd.self_faint === true,
-      // ため/再不可 (分離)
-      'ため技':         () => !!bd.charge,
-      '再使用不可':     () => bd.recharge === true,
-      // 新カテゴリ
-      '壁':             () => !!bd.screen,
-      'ルーム':         () => !!bd.room,
-      '技封じ':         () => !!bd.move_block,
-      'サポート':       () => bd.support === true,
-      'ランク操作':     () => !!bd.rank_op,
-      '解除系':         () => Array.isArray(bd.unlock) && bd.unlock.length > 0 || bd.remove_hazards || bd.field_remove,
-      // その他 = みがわり貫通など特殊効果の総括
-      'その他':         () => bd.substitute_pierce === true,
-    };
-    const hasMisc = [...activeEfFilters.misc].some(k => MISC_TAG[k] && MISC_TAG[k]());
-    if (!hasMisc) return false;
-  }
-
-  return true;
 }
 
 function toNum(v) {
@@ -915,9 +933,6 @@ function getMoveFilterTags(m) {
   // 技フラグ
   if (flags.punch)          out.push({cls:'tag-flag',  text:'👊 パンチ'});
   if (flags.sound)          out.push({cls:'tag-flag',  text:'🔊 音'});
-  if (flags.dance)          out.push({cls:'tag-flag',  text:'💃 踊り'});
-  if (flags.slice)          out.push({cls:'tag-flag',  text:'⚔️ 切'});
-  if (flags.wind)           out.push({cls:'tag-flag',  text:'🌀 風'});
   if (flags.ball)           out.push({cls:'tag-flag',  text:'🔵 弾'});
   if (flags.pulse)          out.push({cls:'tag-flag',  text:'〰️ 波動'});
   if (flags.ohko)           out.push({cls:'tag-flag',  text:'💀 一撃必殺'});
@@ -1034,6 +1049,16 @@ function getMoveFilterTags(m) {
   if (Array.isArray(bd.unlock)) {
     const UN = {'screen':'壁破壊','protect':'防御貫通','rank_reset_all':'ランクリセット(全)','rank_reset_opp':'ランクリセット(敵)'};
     bd.unlock.forEach(u => out.push({cls:'tag-unlock', text:`🧹 ${UN[u]||u}`}));
+  }
+
+  // 状態異常回復
+  if (Array.isArray(bd.cure_status)) {
+    const TGT_CURE = {'self':'自','ally':'味','opp':'相','next_ally':'次味'};
+    bd.cure_status.forEach(c => {
+      const tg = TGT_CURE[c.target] || c.target;
+      const val = c.value === 'all' ? '全状態異常' : c.value;
+      out.push({cls:'tag-cure', text:`💊 ${tg}${val}治す`});
+    });
   }
 
   // その他特殊効果
@@ -1691,12 +1716,12 @@ render();
 </section>
 -->
 
-<!-- 楽天アフィリエイト広告 (2026-05-12 稼働) -->
+<!-- 楽天アフィリエイト広告 (2026-05-12 稼働、リスト主体ページ用スリム帯) -->
 <link rel="stylesheet" href="ad-section.css">
-<section class="ad-section rakuten">
+<section class="ad-section rakuten slim">
   <div class="ad-header">
-    <span class="ad-title">ポケモングッズ・関連商品</span>
-    <span class="ad-label-pr">PR / 楽天市場</span>
+    <span class="ad-title">ポケモングッズ</span>
+    <span class="ad-label-pr">PR / 楽天</span>
   </div>
   <div class="ad-grid">
     <a href="https://hb.afl.rakuten.co.jp/ichiba/53b80f6e.8c5584d0.53b80f6f.ffc45287/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fterada-ya%2Fmk-12d-14-321%2F&link_type=picttext" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://thumbnail.image.rakuten.co.jp/@0_mall/terada-ya/cabinet/biiino/item/main-image-14/20260508163453_1.jpg?_ex=240x240" alt=""></a>
