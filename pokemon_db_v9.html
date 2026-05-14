@@ -2,9 +2,18 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>ポケモンチャンピオンズDB</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ポケモンDB - PchamDB (非公式)</title>
+<meta name="description" content="ポケモンチャンピオンズ向けの非公式ポケモンデータベース。タイプ、種族値、特性、習得わざを一覧で確認できます。">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="ポケモンDB - PchamDB">
+<meta property="og:description" content="ポケモンチャンピオンズ向けの非公式ポケモンデータベース。タイプ、種族値、特性、習得わざを一覧で確認できます。">
+<meta property="og:url" content="https://pchamdb.com/pokemon_db_v9.html">
+<meta property="og:image" content="https://pchamdb.com/branding/logo/logo_main_transparent.png">
+<link rel="icon" href="favicon.png" type="image/png">
 <style>* { box-sizing: border-box; }
-html { height: 100%; }
+html { min-height: 100%; }
 body {
   font-family: "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif;
   background: #DDE3EC;
@@ -13,8 +22,8 @@ body {
   font-size: 11px;
   display: flex;
   flex-direction: column;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-x: hidden;
 }
 
 :root {
@@ -1043,7 +1052,7 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
 </head>
 <body>
 
-<!-- TAB BAR -->
+<!-- TAB BAR (ブレッドクラム統合) -->
 <div class="tab-bar" id="tab-bar"></div>
 
 <!-- TOOLBAR -->
@@ -1136,11 +1145,6 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
 </div>
 
 <script src="pokechan_data.js"></script>
-<script>const TYPES = ["ノーマル","ほのお","みず","でんき","くさ","こおり","かくとう","どく","じめん","ひこう","エスパー","むし","いわ","ゴースト","ドラゴン","あく","はがね","フェアリー"];
-
-
-
-</script>
 <script>// ==========================================================================
 // WAZA_MASTER: pokechan_data.js の WAZA_MAP から派生
 // ==========================================================================
@@ -1192,8 +1196,8 @@ const CHK_VALS = [1,2,3,4,5,6,7];
 let checks = [{}, {}, {}];
 
 // タブ
-// ビルドバージョン (v9 04/19 08:44 はビルド時に置換される)
-const BUILD_VERSION = 'v9 04/19 08:44';
+// ビルドバージョン (各ページ独立管理)
+const BUILD_VERSION = 'DB: 04/19更新';
 
 let tabs = [{ id: 1, name: 'タブ1', checks: [{},{},{}], filters: {} }];
 let activeTab = 1;
@@ -1573,6 +1577,16 @@ function renderTabs() {
   const bar = document.getElementById('tab-bar');
   if (!bar) return;
   bar.innerHTML = '';
+
+  // ブレッドクラム + バージョン
+  const bc = document.createElement('div');
+  bc.style.cssText = 'display:flex;align-items:center;gap:5px;flex-shrink:0;margin-right:8px;padding-right:10px;border-right:1px solid rgba(255,255,255,0.15)';
+  bc.innerHTML = '<a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:12px" title="PchamDB トップに戻る">🏠 PchamDB</a>'
+    + '<span style="color:#666;font-size:11px">›</span>'
+    + '<span style="color:#ccc;font-size:11px">ポケモンDB</span>'
+    + '<span style="color:#888;font-size:10px;margin-left:2px">' + BUILD_VERSION + '</span>';
+  bar.appendChild(bc);
+
   tabs.forEach(tab => {
     const el = document.createElement('div');
     el.className = 'tab' + (tab.id === activeTab ? ' active' : '');
@@ -1604,14 +1618,16 @@ function renderTabs() {
   addBtn.onclick = addTab;
   bar.appendChild(addBtn);
 
-  // バージョン表示 (タブバー右端)
-  const verSpan = document.createElement('span');
-  verSpan.className = 'tab-version';
-  verSpan.textContent = BUILD_VERSION;
-  verSpan.title = 'ビルド日時';
-  bar.appendChild(verSpan);
 
-  // わざリストボタン (タブバーの最右端)
+  // ナビゲーションボタン群 (タブバー最右端)
+  const pcBtn = document.createElement('button');
+  pcBtn.className = 'tab-waza-btn';
+  pcBtn.textContent = '🎯 チェッカー';
+  pcBtn.title = '手持ちわざチェッカーを別タブで開く';
+  pcBtn.onclick = (e) => { e.stopPropagation(); window.open('party_checker.html', '_blank'); };
+  pcBtn.style.marginLeft = 'auto';
+  bar.appendChild(pcBtn);
+
   const wazaBtn = document.createElement('button');
   wazaBtn.className = 'tab-waza-btn';
   wazaBtn.textContent = '📋 わざリスト';
@@ -3742,9 +3758,8 @@ function openWazaList() {
       const w = window.open(url, '_blank');
       if (!w) alert('ポップアップがブロックされました。別タブ表示を許可してください');
     })
-    .catch(err => {
-      alert('わざリスト テンプレート読み込み失敗: ' + err.message
-            + '\n(GitHub Pages または同一オリジンでの起動が必要です)');
+    .catch(() => {
+      window.open('waza-list.html', '_blank');
     });
 }
 
@@ -3760,7 +3775,14 @@ function openMovesForPokemon(pokemonName) {
       const modal = document.getElementById('pmModal');
       if (modal) modal.classList.add('vis');
     })
-    .catch(err => alert('わざリスト読み込み失敗: ' + err.message));
+    .catch(() => {
+      const titleEl = document.getElementById('pmModalTitle');
+      const ifr = document.getElementById('pmModalIframe');
+      if (titleEl) titleEl.textContent = pokemonName + ' が習得するわざ一覧';
+      if (ifr) ifr.src = 'waza-list.html?pokemon=' + encodeURIComponent(pokemonName);
+      const modal = document.getElementById('pmModal');
+      if (modal) modal.classList.add('vis');
+    });
 }
 function closePmModal() {
   const modal = document.getElementById('pmModal');
@@ -4047,41 +4069,56 @@ document.addEventListener('keydown', e => {
 </section>
 -->
 
-<!-- 楽天アフィリエイト広告 (2026-05-12 稼働、リスト主体ページ用スリム帯) -->
-<link rel="stylesheet" href="ad-section.css">
-<section class="ad-section rakuten slim">
-  <div class="ad-header">
-    <span class="ad-title">ポケモングッズ</span>
-    <span class="ad-label-pr">PR / 楽天</span>
-  </div>
-  <div class="ad-grid">
-    <!-- 5商品厳選 / 1行表示 (カテゴリ別: バッグ・TCG・家具・ぬいぐるみ・アパレル) -->
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b80f6e.8c5584d0.53b80f6f.ffc45287/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fterada-ya%2Fmk-12d-14-321%2F&link_type=picttext" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://thumbnail.image.rakuten.co.jp/@0_mall/terada-ya/cabinet/biiino/item/main-image-14/20260508163453_1.jpg?_ex=240x240" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b836fd.c6155541.53b836fe.00d578fa/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fbansyuselect%2Fex293948219%2F&link_type=picttext" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://thumbnail.image.rakuten.co.jp/@0_mall/bansyuselect/cabinet/09256555/10620272/imgrc0129824024.jpg?_ex=240x240" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b84091.60741eb5.53b84092.2a672223/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fcellutane%2Fa905-gangar%2F&link_type=pict" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://hbb.afl.rakuten.co.jp/hgb/53b84091.60741eb5.53b84092.2a672223/?me_id=1350591&item_id=10000694&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fcellutane%2Fcabinet%2Fcharacter%2Fa905-gangar_ar_thum.jpg%3F_ex%3D240x240&s=240x240&t=pict" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b83ee8.2f9f4cc9.53b83ee9.7feb8467/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fbenebox%2Fr-ty-004%2F&link_type=pict" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://hbb.afl.rakuten.co.jp/hgb/53b83ee8.2f9f4cc9.53b83ee9.7feb8467/?me_id=1414570&item_id=10000143&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fbenebox%2Fcabinet%2Fkataban%2F09718838%2Fr-ty-004%2Fimgrc0099967505.jpg%3F_ex%3D240x240&s=240x240&t=pict" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b83e1e.db22d291.53b83e1f.1fb9e945/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fhoneys-online%2F4400139902%2F&link_type=pict" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://hbb.afl.rakuten.co.jp/hgb/53b83e1e.db22d291.53b83e1f.1fb9e945/?me_id=1239494&item_id=10038978&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fhoneys-online%2Fcabinet%2Fgoods%2F4400139902%2F4400139902.jpg%3F_ex%3D240x240&s=240x240&t=pict" alt=""></a>
-  </div>
-  <p class="ad-disclosure">
-    ※ PchamDB は楽天アフィリエイトの参加者です。リンク経由のお買い物により紹介料を受け取ることがあります。
-    詳しくは <a href="/privacy.html">プライバシーポリシー</a> をご覧ください。
-  </p>
-</section>
 
-<!-- 法的フッター (PchamDB 共通) -->
-<footer style="background:#1a1a1a;color:#aaa;padding:20px;text-align:center;font-size:11px;line-height:1.7;margin-top:24px">
-  <div style="color:#FFCB05;font-weight:700;margin-bottom:6px">⚠️ 当サイトは非公式ファンサイトです</div>
-  <div style="margin:8px 0">
-    <a href="/" style="color:#FFB347;margin:0 6px;text-decoration:none">ホーム</a>·
-    <a href="/terms.html" style="color:#FFB347;margin:0 6px;text-decoration:none">利用規約</a>·
-    <a href="/privacy.html" style="color:#FFB347;margin:0 6px;text-decoration:none">プライバシー</a>·
-    <a href="/disclaimer.html" style="color:#FFB347;margin:0 6px;text-decoration:none">免責事項</a>·
-    <a href="/contact.html" style="color:#FFB347;margin:0 6px;text-decoration:none">お問い合わせ</a>
-  </div>
-  <div style="color:#888;font-size:10px;margin-top:6px">
-    ポケモン・Pokémon・ポケモンチャンピオンズ等の商標および著作権は、任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズに帰属します。<br>
-    © 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc. &nbsp;|&nbsp; © 2026 PchamDB
-  </div>
-</footer>
+<!-- ページトップへ戻るボタン -->
+<button id="back-to-top" style="position:fixed;right:20px;bottom:210px;width:42px;height:42px;border-radius:50%;background:rgba(243,156,18,0.92);color:white;border:none;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.35);z-index:9997;display:none;align-items:center;justify-content:center" title="ページトップへ戻る">▲</button>
+<script>
+(function(){
+  const btn = document.getElementById('back-to-top');
+  if (!btn) return;
+  const wrap = document.querySelector('.wrap');
+  function getScroll() {
+    const ws = wrap ? wrap.scrollTop : 0;
+    const bs = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    return Math.max(ws, bs);
+  }
+  function update() { btn.style.display = getScroll() > 200 ? 'flex' : 'none'; }
+  window.addEventListener('scroll', update);
+  if (wrap) wrap.addEventListener('scroll', update);
+  btn.addEventListener('click', () => {
+    if (wrap) wrap.scrollTo({top: 0, behavior: 'smooth'});
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  });
+})();
+</script>
+
+<!-- 横スクロールミラーバー (広告バーの上に固定) -->
+<div id="h-mirror-scroll" style="position:fixed;bottom:180px;left:0;right:0;height:14px;overflow-x:scroll;overflow-y:hidden;z-index:9998;background:#2a2a2a;border-top:1px solid #555;">
+  <div id="h-mirror-inner" style="height:1px;"></div>
+</div>
+<script>
+(function(){
+  function initMirror() {
+    const wrap = document.querySelector('.wrap');
+    const mirror = document.getElementById('h-mirror-scroll');
+    const inner = document.getElementById('h-mirror-inner');
+    if (!wrap || !mirror || !inner) return;
+    function syncWidth() { inner.style.width = wrap.scrollWidth + 'px'; }
+    syncWidth();
+    if (window.ResizeObserver) new ResizeObserver(syncWidth).observe(wrap);
+    let busy = false;
+    wrap.addEventListener('scroll', () => { if (!busy) { busy=true; mirror.scrollLeft=wrap.scrollLeft; busy=false; } });
+    mirror.addEventListener('scroll', () => { if (!busy) { busy=true; wrap.scrollLeft=mirror.scrollLeft; busy=false; } });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMirror);
+  else initMirror();
+})();
+</script>
+
+<!-- 楽天モーションウィジェット (レコメンド型・画面下部固定) -->
+<div id="rakuten-motion-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1a1a1a;text-align:center;padding:6px 0;border-top:1px solid #333;">
+  <script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="094cc83a.45f5f4d6.094cc83b.9462ef1e";rakuten_items="ctsmatch";rakuten_genreId="0";rakuten_size="468x160";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="1778740840797";</script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"></script>
+</div>
+<script>document.body.style.paddingBottom = '180px';</script>
 </body>
 </html>

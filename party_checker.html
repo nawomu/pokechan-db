@@ -3,11 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>手持ちわざチェッカー v3</title>
+<title>手持ちわざチェッカー - PchamDB (非公式)</title>
+<meta name="description" content="ポケモンチャンピオンズ向けの非公式パーティ確認ツール。手持ち6匹の習得わざ、タイプ補完、攻撃範囲をまとめて確認できます。">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="手持ちわざチェッカー - PchamDB">
+<meta property="og:description" content="手持ち6匹の習得わざ、タイプ補完、攻撃範囲をまとめて確認できます。">
+<meta property="og:url" content="https://pchamdb.com/party_checker.html">
+<meta property="og:image" content="https://pchamdb.com/branding/logo/logo_main_transparent.png">
+<link rel="icon" href="favicon.png" type="image/png">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
-body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#0d1117;color:#e6edf3;font-size:11px;display:flex;flex-direction:column;overflow:hidden}
+html,body{min-height:100%}
+body{font-family:"Hiragino Kaku Gothic ProN",sans-serif;background:#0d1117;color:#e6edf3;font-size:11px;display:flex;flex-direction:column;overflow-x:hidden}
 h1{text-align:center;padding:14px;font-size:1.2rem;color:#79c0ff;border-bottom:1px solid #21262d}
 
 /* パーティバー */
@@ -343,6 +351,8 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 .pc-tab-close:hover{background:#21262d;color:#f85149}
 .pc-tab-add{padding:4px 9px;background:transparent;border:1px dashed #30363d;border-radius:6px;color:#8b949e;cursor:pointer;font-size:.85rem}
 .pc-tab-add:hover{background:#161b22;color:#e6edf3;border-color:#58a6ff}
+.pc-nav-btn{padding:3px 9px;background:#21262d;border:1px solid #30363d;border-radius:4px;color:#79c0ff;cursor:pointer;font-size:11px;font-weight:700}
+.pc-nav-btn:hover{background:#1c6ab7;color:#fff;border-color:#1c6ab7}
 
 #filter-bar{background:#161b22;padding:7px 14px;border-bottom:1px solid #21262d;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0}
 #filter-bar input{padding:5px 10px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:12px;width:130px}
@@ -422,6 +432,8 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 </style>
 </head>
 <body>
+
+<!-- SITE HEADER -->
 
 <!-- 入室時 PR ポップアップ (セッションごとに1回のみ表示) -->
 <div id="entry-popup" class="entry-popup" hidden>
@@ -604,6 +616,7 @@ const tDisp = t => TYPE_DISPLAY[t] || t;
 
 
 // ── 定数 ─────────────────────────────────────────────────────────────────────
+const CHECKER_VERSION = 'チェッカー: 05/12更新';
 const PARTY_SIZE = 24;
 const LS_PARTY        = "pokechan_party_v3";
 const LS_ORDER        = "pokechan_type_order_v4";  // v4: あべ指定の戦術順をデフォルト化
@@ -739,6 +752,16 @@ function renderPcTabs() {
   const bar = document.getElementById('pc-tab-bar');
   if (!bar) return;
   bar.innerHTML = '';
+
+  // ブレッドクラム + バージョン
+  const bc = document.createElement('div');
+  bc.style.cssText = 'display:flex;align-items:center;gap:5px;flex-shrink:0;margin-right:8px;padding-right:10px;border-right:1px solid #30363d';
+  bc.innerHTML = '<a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:12px" title="PchamDB トップに戻る">🏠 PchamDB</a>'
+    + '<span style="color:#666;font-size:11px">›</span>'
+    + '<span style="color:#8b949e;font-size:11px">手持ちわざチェッカー</span>'
+    + '<span style="color:#666;font-size:10px;margin-left:2px">' + CHECKER_VERSION + '</span>';
+  bar.appendChild(bc);
+
   pcTabs.forEach(tab => {
     const el = document.createElement('div');
     el.className = 'pc-tab' + (tab.id === pcActiveId ? ' active' : '');
@@ -769,6 +792,22 @@ function renderPcTabs() {
   addBtn.title = '新規タブ';
   addBtn.onclick = addPcTab;
   bar.appendChild(addBtn);
+
+  // ナビゲーションボタン (右端)
+  const dbBtn = document.createElement('button');
+  dbBtn.className = 'pc-nav-btn';
+  dbBtn.textContent = '🗄️ DB';
+  dbBtn.title = 'ポケモンDBを別タブで開く';
+  dbBtn.onclick = () => window.open('pokemon_db_v9.html', '_blank');
+  dbBtn.style.marginLeft = 'auto';
+  bar.appendChild(dbBtn);
+
+  const wzBtn = document.createElement('button');
+  wzBtn.className = 'pc-nav-btn';
+  wzBtn.textContent = '📋 わざリスト';
+  wzBtn.title = 'わざリストを別タブで開く';
+  wzBtn.onclick = () => window.open('waza-list.html', '_blank');
+  bar.appendChild(wzBtn);
 }
 function switchPcTab(id) {
   if (id === pcActiveId) return;
@@ -2069,41 +2108,34 @@ renderTable();
 </section>
 -->
 
-<!-- 楽天アフィリエイト広告 (2026-05-12 稼働、ダークテーマ・スリム帯) -->
-<link rel="stylesheet" href="ad-section.css">
-<section class="ad-section dark rakuten slim">
-  <div class="ad-header">
-    <span class="ad-title">ポケモングッズ</span>
-    <span class="ad-label-pr">PR / 楽天</span>
-  </div>
-  <div class="ad-grid">
-    <!-- 5商品厳選 / 1行表示 (カテゴリ別: バッグ・TCG・家具・ぬいぐるみ・アパレル) -->
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b80f6e.8c5584d0.53b80f6f.ffc45287/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fterada-ya%2Fmk-12d-14-321%2F&link_type=picttext" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://thumbnail.image.rakuten.co.jp/@0_mall/terada-ya/cabinet/biiino/item/main-image-14/20260508163453_1.jpg?_ex=240x240" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b836fd.c6155541.53b836fe.00d578fa/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fbansyuselect%2Fex293948219%2F&link_type=picttext" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://thumbnail.image.rakuten.co.jp/@0_mall/bansyuselect/cabinet/09256555/10620272/imgrc0129824024.jpg?_ex=240x240" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b84091.60741eb5.53b84092.2a672223/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fcellutane%2Fa905-gangar%2F&link_type=pict" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://hbb.afl.rakuten.co.jp/hgb/53b84091.60741eb5.53b84092.2a672223/?me_id=1350591&item_id=10000694&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fcellutane%2Fcabinet%2Fcharacter%2Fa905-gangar_ar_thum.jpg%3F_ex%3D240x240&s=240x240&t=pict" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b83ee8.2f9f4cc9.53b83ee9.7feb8467/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fbenebox%2Fr-ty-004%2F&link_type=pict" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://hbb.afl.rakuten.co.jp/hgb/53b83ee8.2f9f4cc9.53b83ee9.7feb8467/?me_id=1414570&item_id=10000143&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fbenebox%2Fcabinet%2Fkataban%2F09718838%2Fr-ty-004%2Fimgrc0099967505.jpg%3F_ex%3D240x240&s=240x240&t=pict" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b83e1e.db22d291.53b83e1f.1fb9e945/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fhoneys-online%2F4400139902%2F&link_type=pict" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://hbb.afl.rakuten.co.jp/hgb/53b83e1e.db22d291.53b83e1f.1fb9e945/?me_id=1239494&item_id=10038978&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fhoneys-online%2Fcabinet%2Fgoods%2F4400139902%2F4400139902.jpg%3F_ex%3D240x240&s=240x240&t=pict" alt=""></a>
-  </div>
-  <p class="ad-disclosure">
-    ※ PchamDB は楽天アフィリエイトの参加者です。リンク経由のお買い物により紹介料を受け取ることがあります。
-    詳しくは <a href="/privacy.html">プライバシーポリシー</a> をご覧ください。
-  </p>
-</section>
 
-<!-- 法的フッター (PchamDB 共通) -->
-<footer style="background:#1a1a1a;color:#aaa;padding:20px;text-align:center;font-size:11px;line-height:1.7;margin-top:24px">
-  <div style="color:#FFCB05;font-weight:700;margin-bottom:6px">⚠️ 当サイトは非公式ファンサイトです</div>
-  <div style="margin:8px 0">
-    <a href="/" style="color:#FFB347;margin:0 6px;text-decoration:none">ホーム</a>·
-    <a href="/terms.html" style="color:#FFB347;margin:0 6px;text-decoration:none">利用規約</a>·
-    <a href="/privacy.html" style="color:#FFB347;margin:0 6px;text-decoration:none">プライバシー</a>·
-    <a href="/disclaimer.html" style="color:#FFB347;margin:0 6px;text-decoration:none">免責事項</a>·
-    <a href="/contact.html" style="color:#FFB347;margin:0 6px;text-decoration:none">お問い合わせ</a>
-  </div>
-  <div style="color:#888;font-size:10px;margin-top:6px">
-    ポケモン・Pokémon・ポケモンチャンピオンズ等の商標および著作権は、任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズに帰属します。<br>
-    © 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc. &nbsp;|&nbsp; © 2026 PchamDB
-  </div>
-</footer>
+<!-- 横スクロールミラーバー (広告バーの上に固定) -->
+<div id="h-mirror-scroll" style="position:fixed;bottom:180px;left:0;right:0;height:14px;overflow-x:scroll;overflow-y:hidden;z-index:9998;background:#2a2a2a;border-top:1px solid #555;">
+  <div id="h-mirror-inner" style="height:1px;"></div>
+</div>
+<script>
+(function(){
+  function initMirror() {
+    const wrap = document.getElementById('main-wrap');
+    const mirror = document.getElementById('h-mirror-scroll');
+    const inner = document.getElementById('h-mirror-inner');
+    if (!wrap || !mirror || !inner) return;
+    function syncWidth() { inner.style.width = wrap.scrollWidth + 'px'; }
+    syncWidth();
+    if (window.ResizeObserver) new ResizeObserver(syncWidth).observe(wrap);
+    let busy = false;
+    wrap.addEventListener('scroll', () => { if (!busy) { busy=true; mirror.scrollLeft=wrap.scrollLeft; busy=false; } });
+    mirror.addEventListener('scroll', () => { if (!busy) { busy=true; wrap.scrollLeft=mirror.scrollLeft; busy=false; } });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initMirror);
+  else initMirror();
+})();
+</script>
+
+<!-- 楽天モーションウィジェット (レコメンド型・画面下部固定) -->
+<div id="rakuten-motion-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1a1a1a;text-align:center;padding:6px 0;border-top:1px solid #333;">
+  <script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="094cc83a.45f5f4d6.094cc83b.9462ef1e";rakuten_items="ctsmatch";rakuten_genreId="0";rakuten_size="468x160";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="1778740840797";</script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"></script>
+</div>
+<script>document.body.style.paddingBottom = '180px';</script>
 </body>
 </html>

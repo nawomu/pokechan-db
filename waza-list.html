@@ -1,13 +1,24 @@
 <!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8">
 <!-- v9 build: 2026-04-19 08:44 WAZA_MASTER -->
-<title>ポケチャン わざリスト</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>わざリスト - PchamDB (非公式)</title>
+<meta name="description" content="ポケモンチャンピオンズ向けの非公式わざリスト。威力、命中、優先度、効果、習得ポケモンを検索・フィルタできます。">
+<meta name="robots" content="index, follow">
+<meta property="og:type" content="website">
+<meta property="og:title" content="わざリスト - PchamDB">
+<meta property="og:description" content="威力、命中、優先度、効果、習得ポケモンを検索・フィルタできます。">
+<meta property="og:url" content="https://pchamdb.com/waza-list.html">
+<meta property="og:image" content="https://pchamdb.com/branding/logo/logo_main_transparent.png">
+<link rel="icon" href="favicon.png" type="image/png">
 <style>
 * { box-sizing: border-box; }
 body { font-family: -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; background: #F5F5F5; padding: 4px; margin: 0; color: #222; font-size: 11px; }
 
 .top-bar { position: sticky; top: 0; z-index: 100; background: #F5F5F5; padding: 4px; border-bottom: 2px solid #1F4E79; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .top-bar h1 { margin: 0; font-size: 14px; color: #1F4E79; }
+.site-home-link { color: #1F4E79; text-decoration: none; padding: 2px 6px; border-radius: 3px; transition: background 0.15s; }
+.site-home-link:hover { background: #E3F2FD; text-decoration: underline; }
 .top-bar input[type=search] { padding: 2px 6px; font-size: 11px; border: 1px solid #999; border-radius: 3px; width: 180px; }
 .top-bar button { padding: 2px 8px; font-size: 11px; background: #F39C12; color: white; border: none; border-radius: 3px; cursor: pointer; font-weight: 700; }
 .top-bar button.secondary { background: #7F8C8D; }
@@ -319,30 +330,38 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
 .ef-chip.active-up { background: #E53935; color: white; border-color: #E53935; }
 .ef-chip.active-down { background: #1E88E5; color: white; border-color: #1E88E5; }
 .ef-chip.active-misc { background: #2E7D32; color: white; border-color: #2E7D32; }
-.ef-chip.ef-exclude-chip { border-color: #C0392B; color: #C0392B; }
-.ef-chip.ef-exclude-chip:hover { background: #FADBD8; }
-.ef-chip.active-exclude { background: #C0392B; color: white; border-color: #C0392B; }
+.ef-chip.ef-exclude-chip { border-color: #BBB; color: #777; background: #F5F5F5; }
+.ef-chip.ef-exclude-chip:hover { background: #FADBD8; border-color: #C0392B; color: #C0392B; }
+.ef-chip.active-exclude { background: #C0392B !important; color: white !important; border-color: #C0392B !important; }
 #ef-toggle-btn { background: #3A6EA5; color: white; font-size: 10px; padding: 1px 7px; border-radius: 3px; border: none; cursor: pointer; font-weight: 700; }
 #ef-toggle-btn:hover { background: #2A5E90; }
 #ef-mode-btn { background: #607D8B; color: white; font-size: 10px; padding: 1px 7px; border-radius: 3px; border: none; cursor: pointer; font-weight: 700; margin-left: 4px; }
 #ef-mode-btn:hover { background: #455A64; }
 #ef-mode-btn.and-on { background: #E65100; }
+#ef-select-mode-btn { background: #607D8B; color: white; font-size: 10px; padding: 1px 7px; border-radius: 3px; border: none; cursor: pointer; font-weight: 700; margin-left: 4px; }
+#ef-select-mode-btn:hover { background: #455A64; }
+#ef-select-mode-btn.single-on { background: #1976D2; }
 .ef-divider { width: 1px; height: 14px; background: #CCC; margin: 0 2px; }
 </style></head><body>
 
 <div class="top-bar">
-  <h1>📋 ポケチャン わざリスト <span style="font-size:10px;color:#999;font-weight:400">v9 (04/19 08:44)</span></h1>
+  <h1><a href="index.html" class="site-home-link" title="PchamDB トップに戻る">🏠 PchamDB</a> <span style="color:#999;font-weight:400">›</span> 📋 わざリスト <span style="font-size:10px;color:#999;font-weight:400">リスト: 04/19更新</span></h1>
   <input type="search" id="search" placeholder="🔍 わざ名検索 (カナ/ひら両対応)">
   <span class="count" id="count" style="display:inline-block;min-width:140px;text-align:left">全0技</span>
   <span id="pokemonFilterBanner" style="display:none;background:#F39C12;color:white;padding:3px 10px;border-radius:4px;font-weight:700;font-size:11px"></span>
   <button class="secondary" onclick="resetAll()">🔄 リセット</button>
   <button id="ef-toggle-btn" onclick="toggleEffectFilter()">🔍 効果フィルター ▲</button>
   <button id="ef-mode-btn" onclick="toggleFilterMode()" title="複数チップを選んだ時の検索モード切替。OR = どれかに該当、AND = 全部に該当">🔀 検索: OR</button>
+  <button id="ef-select-mode-btn" class="single-on" onclick="toggleSelectMode()" title="チップ選択モード切替。シングル=クリックで1つだけ選択 (他を解除)、複数=クリックで追加">📌 シングル選択</button>
   <span class="ef-divider"></span>
   <button class="c-reset-btn" data-ci="0" onclick="resetWazaChecks(0)" title="C1のチェックを全クリア">C1</button>
   <button class="c-reset-btn" data-ci="1" onclick="resetWazaChecks(1)" title="C2のチェックを全クリア">C2</button>
   <button class="c-reset-btn" data-ci="2" onclick="resetWazaChecks(2)" title="C3のチェックを全クリア">C3</button>
   <span style="font-size:10px;color:#666">※ヘッダーでソート、その下でフィルタ</span>
+  <span style="margin-left:auto;display:flex;gap:4px;align-items:center">
+    <button onclick="window.open('pokemon_db_v9.html','_blank')" style="padding:2px 8px;background:#2E86AB;color:white;border:none;border-radius:3px;font-size:11px;font-weight:700;cursor:pointer" title="ポケモンDBを別タブで開く">🗄️ DB</button>
+    <button onclick="window.open('party_checker.html','_blank')" style="padding:2px 8px;background:#27AE60;color:white;border:none;border-radius:3px;font-size:11px;font-weight:700;cursor:pointer" title="手持ちわざチェッカーを別タブで開く">🎯 チェッカー</button>
+  </span>
 </div>
 
 <!-- ===== 効果・種類フィルターパネル ===== -->
@@ -355,7 +374,7 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
     <span class="ef-chip" data-ef-type="flag" data-ef-val="ball" onclick="toggleEfChip(this)" title="特性「ぼうだん」で無効化される弾・爆弾系">🔵 弾技</span>
     <span class="ef-chip" data-ef-type="flag" data-ef-val="pulse" onclick="toggleEfChip(this)" title="特性「メガランチャー」で威力1.5倍">〰️ 波動技</span>
     <span class="ef-chip" data-ef-type="flag" data-ef-val="ohko" onclick="toggleEfChip(this)">💀 一撃必殺</span>
-    <span class="ef-chip" data-ef-type="flag" data-ef-val="charge" onclick="toggleEfChip(this)">⏳ 溜め技</span>
+    <span class="ef-chip" data-ef-type="flag" data-ef-val="charge" onclick="toggleEfChip(this)" title="1ターン目に準備、2ターン目に攻撃する技">⏳ 2ターン目に攻撃</span>
     <span class="ef-chip" data-ef-type="flag" data-ef-val="recharge" onclick="toggleEfChip(this)" title="使用後の次ターンに動けなくなる技 (はかいこうせん等)">🔁 2ターン目動けない</span>
     <span class="ef-divider"></span>
     <span class="ef-chip" data-ef-type="flag" data-ef-val="change_type" onclick="toggleEfChip(this)">🎭 タイプ変更</span>
@@ -438,15 +457,19 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
   <!-- 除外 (該当する技を非表示) -->
   <div class="ef-row">
     <span class="ef-label">除外:</span>
-    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="charge" onclick="toggleEfChip(this)" title="1ターン目待機 / 2ターン目攻撃の技を非表示">🚫 溜め技 (1ターン待機)</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="charge" onclick="toggleEfChip(this)" title="1ターン目準備 / 2ターン目に攻撃する技を非表示">🚫 2ターン目に攻撃</span>
     <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="recharge" onclick="toggleEfChip(this)" title="使用後の次ターンに動けなくなる技を非表示">🚫 2ターン目動けない</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="self_rank_down" onclick="toggleEfChip(this)" title="使用後に自分の能力ランクが下がる技を非表示 (ばかぢから/インファイト/からをやぶる等)">🚫 自分能力下降</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="recoil" onclick="toggleEfChip(this)" title="与えダメから反動を受ける技を非表示 (すてみタックル等)">🚫 反動</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="fail_damage" onclick="toggleEfChip(this)" title="技が外れたら自分が大ダメージを受ける技を非表示 (とびひざげり等)">🚫 失敗ダメージ</span>
+    <span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="self_faint" onclick="toggleEfChip(this)" title="自分がひんし化する技を非表示 (自爆/おきみやげ等)">🚫 瀕死技</span>
   </div>
   <!-- 順番/タイミング -->
   <div class="ef-row">
     <span class="ef-label">順番:</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="先制" onclick="toggleEfChip(this)" title="優先度+で先に攻撃できる技">⚡ 先制技</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="後攻" onclick="toggleEfChip(this)" title="優先度-で必ず後攻になる技">🐢 後攻技</span>
-    <span class="ef-chip" data-ef-type="misc" data-ef-val="ため技" onclick="toggleEfChip(this)" title="1ターン目に準備し、2ターン目に発動する技">⏳ ため技</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="ため技" onclick="toggleEfChip(this)" title="1ターン目に準備し、2ターン目に攻撃する技">⏳ 2ターン目に攻撃</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="再使用不可" onclick="toggleEfChip(this)" title="使用後の次ターン動けなくなる技 (はかいこうせん等)">🔁 使用後不動</span>
   </div>
   <!-- ダメージ補正 -->
@@ -454,7 +477,9 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
     <span class="ef-label">ダメ補正:</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="急所" onclick="toggleEfChip(this)" title="急所ランク+1以上の技 (急所判定が当たりやすい)">🎯 急所率高</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="必中急所" onclick="toggleEfChip(this)" title="必ず急所に当たる技">💥 必中急所</span>
-    <span class="ef-chip" data-ef-type="misc" data-ef-val="連続" onclick="toggleEfChip(this)" title="2回固定 / 2-5回ランダム / あばれ系">⚡ 連続攻撃</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="必中" onclick="toggleEfChip(this)" title="命中・回避を無視して必ず当たる技 (シャドーパンチ/つばめがえし等)">🎯 必中</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="連続" onclick="toggleEfChip(this)" title="1ターンで複数回攻撃 (2回固定 / 2-5回ランダム)">⚡ 連続攻撃</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="あばれ状態" onclick="toggleEfChip(this)" title="2-3ターン同じ技を連発 + 終了後こんらん (あばれる/げきりん等)">🌀 あばれ状態</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="反動" onclick="toggleEfChip(this)" title="与えたダメージの一部を自分が受ける (1/2, 1/3, 1/4)">💢 反動</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="失敗ダメージ" onclick="toggleEfChip(this)" title="技が外れたり防がれたら自分がHP1/2ダメージ (とびひざげり等)">💔 失敗ダメージ</span>
   </div>
@@ -475,22 +500,38 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
     <span class="ef-chip" data-ef-type="misc" data-ef-val="交代不可" onclick="toggleEfChip(this)" title="相手の交代/逃走を封じる">🪤 交代不可</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="技封じ" onclick="toggleEfChip(this)" title="相手の技使用を制限 (かなしばり/アンコール/いちゃもん/音技封印)">🔒 技封じ</span>
   </div>
-  <!-- 場・設置 -->
+  <!-- 場の効果 (持続系) -->
   <div class="ef-row">
-    <span class="ef-label">場/設置:</span>
+    <span class="ef-label">場の効果:</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="天候変更" onclick="toggleEfChip(this)" title="天候 (晴/雨/砂/雪) を変更">☀️ 天候変更</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="フィールド変更" onclick="toggleEfChip(this)" title="フィールド (エレキ/グラス/サイコ/ミスト) を変更">🌐 フィールド変更</span>
-    <span class="ef-chip" data-ef-type="misc" data-ef-val="まきびし系" onclick="toggleEfChip(this)" title="相手の場にまきびし/ステルスロック/どくびし類を設置">📌 設置技</span>
-    <span class="ef-chip" data-ef-type="misc" data-ef-val="壁" onclick="toggleEfChip(this)" title="光の壁/リフレクター/オーロラベール/しんぴのまもり">🛡️ 壁</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="ルーム" onclick="toggleEfChip(this)" title="トリックルーム/ワンダールーム/マジックルーム">🌀 ルーム</span>
-    <span class="ef-chip" data-ef-type="misc" data-ef-val="解除系" onclick="toggleEfChip(this)" title="壁破壊/防御貫通/ランクリセット (かわらわり/くろいきり等)">🧹 解除系</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="追い風" onclick="toggleEfChip(this)" title="味方全体のすばやさ2倍化 4ターン (おいかぜ)">🌬️ 追い風</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="重力" onclick="toggleEfChip(this)" title="5ターン 浮遊無効/命中UP (じゅうりょく)">🌌 重力</span>
+  </div>
+  <!-- 設置/守る -->
+  <div class="ef-row">
+    <span class="ef-label">設置/守る:</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="まきびし系" onclick="toggleEfChip(this)" title="相手の場にまきびし/ステルスロック/どくびし類を設置">📌 設置技</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="壁" onclick="toggleEfChip(this)" title="光の壁/リフレクター/オーロラベール/しんぴのまもり (5T継続)">🛡️ 壁</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="ワイガファガ" onclick="toggleEfChip(this)" title="1ターン味方を守る (ワイドガード/ファストガード、優先度+3)">🚧 ワイガ/ファガ</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="まもる貫通" onclick="toggleEfChip(this)" title="まもる/みきり等の防御技を貫通して効果が通る (ふきとばし/ほえる/ゴーストダイブ/なみだめ)">🛡️ まもる貫通</span>
+  </div>
+  <!-- 解除系 -->
+  <div class="ef-row">
+    <span class="ef-label">解除系:</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="設置解除" onclick="toggleEfChip(this)" title="場の設置技を解除 (きりばらい/こうそくスピン/キラースピン/おかたづけ)">🧹 設置解除</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="フィールド破壊" onclick="toggleEfChip(this)" title="場のフィールドを破壊 (アイアンローラー/アイススピナー)">🌐 フィールド破壊</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="壁破壊" onclick="toggleEfChip(this)" title="壁 (光の壁/リフレクター/オーロラベール) を破壊して攻撃 (かわらわり/サイコファング/レイジングブル)">🧱 壁破壊</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="防御貫通" onclick="toggleEfChip(this)" title="まもる/みきり等の防御技を貫通 (フェイント)">🥷 防御貫通</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="ランクリセット" onclick="toggleEfChip(this)" title="能力ランクをリセット (くろいきり/クリアスモッグ)">📊 ランクリセット</span>
   </div>
   <!-- 援護/特殊 -->
   <div class="ef-row">
     <span class="ef-label">援護/特殊:</span>
-    <span class="ef-chip" data-ef-type="misc" data-ef-val="サポート" onclick="toggleEfChip(this)" title="味方を補助する変化技 (てだすけ/このゆびとまれ等)">🤝 サポート</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="サポート" onclick="toggleEfChip(this)" title="変化技かつダブル用 (てだすけ/このゆびとまれ等)。W = ダブル">🤝 サポートW</span>
     <span class="ef-chip" data-ef-type="misc" data-ef-val="ランク操作" onclick="toggleEfChip(this)" title="ランクのコピー/入れ替え (じこあんじ/パワースワップ等)">🔄 ランク操作</span>
-    <span class="ef-chip" data-ef-type="misc" data-ef-val="その他" onclick="toggleEfChip(this)" title="みがわり貫通/変身/うらみ など特殊効果">🔮 その他</span>
+    <span class="ef-chip" data-ef-type="misc" data-ef-val="みがわり貫通" onclick="toggleEfChip(this)" title="みがわりを無視して効果が通る技 (21件)">👻 みがわり貫通</span>
   </div>
 </div>
 
@@ -581,7 +622,7 @@ td.col-effect.effect-cell:hover { background: #FFF8E1; }
 <script>
 // 独立アクセス版: pokechan_data.js から動的にデータ構築
 const POKEMON_DB_URL = 'pokemon_db_v9.html';
-const INITIAL_POKEMON_FILTER = null;
+const INITIAL_POKEMON_FILTER = new URLSearchParams(location.search).get('pokemon') || null;
 
 // WAZA_MAP → WAZA_MASTER 変換 (pokemon_db_v9.html と同じアダプタ)
 const WAZA_MASTER_BUILT = (function () {
@@ -704,23 +745,75 @@ function toggleFilterMode() {
   render();
 }
 
+// 選択モード (single デフォルト / multi オプション)
+let selectMode = 'single';
+function toggleSelectMode() {
+  selectMode = (selectMode === 'single') ? 'multi' : 'single';
+  const btn = document.getElementById('ef-select-mode-btn');
+  if (selectMode === 'single') {
+    btn.textContent = '📌 シングル選択';
+    btn.classList.add('single-on');
+  } else {
+    btn.textContent = '📚 複数選択';
+    btn.classList.remove('single-on');
+  }
+  // シングルモードに切り替えた時、現在選択中のチップが2個以上あるなら全部クリアする
+  // (シングル動作の整合性のため)
+  if (selectMode === 'single') {
+    let total = 0;
+    Object.values(activeEfFilters).forEach(s => total += s.size);
+    if (total > 1) {
+      Object.values(activeEfFilters).forEach(s => s.clear());
+      document.querySelectorAll('.ef-chip').forEach(c => {
+        c.classList.remove('active', 'active-status', 'active-up', 'active-down', 'active-misc', 'active-exclude');
+      });
+    }
+  }
+  render();
+}
+
 function toggleEfChip(el) {
   const type = el.dataset.efType;
   const val = el.dataset.efVal;
-  if (activeEfFilters[type].has(val)) {
-    activeEfFilters[type].delete(val);
-    el.classList.remove('active', 'active-status', 'active-up', 'active-down', 'active-misc', 'active-exclude');
+  const wasActive = activeEfFilters[type].has(val);
+
+  // シングルモード: 既に他のチップがアクティブなら全部クリアしてから今のだけ立てる
+  if (selectMode === 'single') {
+    // まず全クリア
+    Object.values(activeEfFilters).forEach(s => s.clear());
+    document.querySelectorAll('.ef-chip').forEach(c => {
+      c.classList.remove('active', 'active-status', 'active-up', 'active-down', 'active-misc', 'active-exclude');
+    });
+    if (!wasActive) {
+      // 今クリックしたものをアクティブ化
+      activeEfFilters[type].add(val);
+      const cls = type === 'status' ? 'active-status'
+                 : (type === 'self_up2' || type === 'self_up1') ? 'active-up'
+                 : (type === 'opp_down2' || type === 'opp_down1') ? 'active-down'
+                 : (type === 'self_down2' || type === 'self_down1') ? 'active-down'
+                 : type === 'target' ? 'active'
+                 : type === 'misc' ? 'active-misc'
+                 : type === 'exclude' ? 'active-exclude'
+                 : 'active';
+      el.classList.add(cls);
+    }
   } else {
-    activeEfFilters[type].add(val);
-    const cls = type === 'status' ? 'active-status'
-               : (type === 'self_up2' || type === 'self_up1') ? 'active-up'
-               : (type === 'opp_down2' || type === 'opp_down1') ? 'active-down'
-               : (type === 'self_down2' || type === 'self_down1') ? 'active-down'
-               : type === 'target' ? 'active'
-               : type === 'misc' ? 'active-misc'
-               : type === 'exclude' ? 'active-exclude'
-               : 'active';
-    el.classList.add(cls);
+    // 複数選択モード (デフォルト): トグル
+    if (wasActive) {
+      activeEfFilters[type].delete(val);
+      el.classList.remove('active', 'active-status', 'active-up', 'active-down', 'active-misc', 'active-exclude');
+    } else {
+      activeEfFilters[type].add(val);
+      const cls = type === 'status' ? 'active-status'
+                 : (type === 'self_up2' || type === 'self_up1') ? 'active-up'
+                 : (type === 'opp_down2' || type === 'opp_down1') ? 'active-down'
+                 : (type === 'self_down2' || type === 'self_down1') ? 'active-down'
+                 : type === 'target' ? 'active'
+                 : type === 'misc' ? 'active-misc'
+                 : type === 'exclude' ? 'active-exclude'
+                 : 'active';
+      el.classList.add(cls);
+    }
   }
   render();
 }
@@ -734,7 +827,9 @@ function _miscTagJudges(m) {
     'ダメージ回復':   () => !!bd.drain,
     '急所':           () => bd.crit_stage >= 1,
     '必中急所':       () => bd.must_crit === true,
-    '連続':           () => !!bd.multi_hit,
+    '必中':           () => bd.must_hit === true,
+    '連続':           () => !!bd.multi_hit && bd.multi_hit !== 'thrash',
+    'あばれ状態':     () => bd.multi_hit === 'thrash',
     '先制':           () => prio !== null && prio > 0,
     '後攻':           () => prio !== null && prio < 0,
     'バインド':       () => bd.bind === true,
@@ -746,6 +841,10 @@ function _miscTagJudges(m) {
     '天候変更':       () => !!bd.weather_set,
     'フィールド変更': () => !!bd.field_set,
     'まきびし系':     () => !!bd.hazard_set,
+    '追い風':         () => bd.tailwind === true,
+    '重力':           () => bd.gravity === true,
+    'ワイガファガ':   () => bd.protect_wide === true || bd.protect_fast === true,
+    'まもる貫通':     () => bd.protect_pierce === true,
     '瀕死技':         () => bd.self_faint === true,
     'ため技':         () => !!bd.charge,
     '再使用不可':     () => bd.recharge === true,
@@ -754,9 +853,13 @@ function _miscTagJudges(m) {
     '技封じ':         () => !!bd.move_block,
     'サポート':       () => bd.support === true,
     'ランク操作':     () => !!bd.rank_op,
-    '解除系':         () => (Array.isArray(bd.unlock) && bd.unlock.length > 0) || bd.remove_hazards || bd.field_remove,
+    '設置解除':       () => bd.remove_hazards === true,
+    'フィールド破壊': () => bd.field_remove === true,
+    '壁破壊':         () => Array.isArray(bd.unlock) && bd.unlock.includes('screen'),
+    '防御貫通':       () => Array.isArray(bd.unlock) && bd.unlock.includes('protect'),
+    'ランクリセット': () => Array.isArray(bd.unlock) && (bd.unlock.includes('rank_reset_all') || bd.unlock.includes('rank_reset_opp')),
     '状態異常回復':   () => Array.isArray(bd.cure_status) && bd.cure_status.length > 0,
-    'その他':         () => bd.substitute_pierce === true,
+    'みがわり貫通':   () => bd.substitute_pierce === true,
   };
 }
 const TARGET_PAT_MAP = {
@@ -819,10 +922,20 @@ function _filterCatHit(m, catKey, aggregateMode) {
 function matchesEffectFilter(m) {
   const flags = m.flags || {};
 
-  // 除外フィルター: 常にAND動作 (該当フラグを持つ技は非表示)
+  // 除外フィルター: 常にAND動作 (該当する技は非表示)
   if (activeEfFilters.exclude.size > 0) {
+    const bd = m.battle_data || {};
+    const EXCLUDE_CHECKS = {
+      'charge':         () => flags.charge,
+      'recharge':       () => flags.recharge,
+      'self_rank_down': () => (bd.rank_changes || []).some(r => r.target === 'self' && r.delta < 0),
+      'recoil':         () => bd.recoil && bd.recoil !== 'on_miss',
+      'fail_damage':    () => bd.recoil === 'on_miss',
+      'self_faint':     () => bd.self_faint === true,
+    };
     for (const f of activeEfFilters.exclude) {
-      if (flags[f]) return false;
+      const check = EXCLUDE_CHECKS[f];
+      if (check && check()) return false;
     }
   }
 
@@ -967,8 +1080,9 @@ function getMoveFilterTags(m) {
   // 副作用 (状態異常 / ひるみ)
   const STATUS_ICON = {'まひ':'⚡','やけど':'🔥','こおり':'❄️','ねむり':'💤','どく':'☠️','もうどく':'💀','こんらん':'🌀','メロメロ':'💕'};
   for (const e of (bd.effects || [])) {
-    if (e.kind === 'flinch') out.push({cls:'tag-status', text:`😵 ${e.prob}%ひるみ`});
-    else if (e.kind === 'status') out.push({cls:'tag-status', text:`${STATUS_ICON[e.value]||'🩻'} ${e.prob}%${e.value}`});
+    const tgt = e.target === 'self' ? '(自)' : '';
+    if (e.kind === 'flinch') out.push({cls:'tag-status', text:`😵 ${e.prob}%ひるみ${tgt}`});
+    else if (e.kind === 'status') out.push({cls:'tag-status', text:`${STATUS_ICON[e.value]||'🩻'} ${e.prob}%${e.value}${tgt}`});
   }
 
   // ランク変動
@@ -983,15 +1097,17 @@ function getMoveFilterTags(m) {
   // 急所
   if (bd.must_crit)         out.push({cls:'tag-crit', text:'💥 必中急所'});
   else if (bd.crit_stage >= 1) out.push({cls:'tag-crit', text:`🎯 急所+${bd.crit_stage}`});
+  if (bd.must_hit)          out.push({cls:'tag-crit', text:'🎯 必中'});
   for (const c of (bd.crit_changes || [])) {
     const tg = c.target === 'self' ? '自' : c.target === 'ally' ? '味' : '相';
     out.push({cls:'tag-crit', text:`🎯 ${tg}急所+${c.delta}`});
   }
 
-  // 連続技
-  if (bd.multi_hit) {
-    const lbl = bd.multi_hit === 'thrash' ? '2-3T暴れ' : bd.multi_hit + '回';
-    out.push({cls:'tag-misc', text:`⚡ 連続(${lbl})`});
+  // 連続技 / あばれ状態 (別カテゴリ)
+  if (bd.multi_hit === 'thrash') {
+    out.push({cls:'tag-misc', text:'🌀 あばれ状態(2-3T)'});
+  } else if (bd.multi_hit) {
+    out.push({cls:'tag-misc', text:`⚡ 連続${bd.multi_hit}回`});
   }
 
   // 反動 / 失敗ダメージ
@@ -1015,7 +1131,7 @@ function getMoveFilterTags(m) {
 
   // ため / 再不可
   if (bd.charge) {
-    const CHARGE_LBL = {'normal':'1T待機','invulnerable':'半無敵','with_stat_up':'1T能力UP'};
+    const CHARGE_LBL = {'normal':'2ターン目に攻撃','invulnerable':'半無敵化','with_stat_up':'1T能力UP+2T攻撃'};
     out.push({cls:'tag-charge', text:`⏳ ${CHARGE_LBL[bd.charge]||bd.charge}`});
   }
   if (bd.charge_skip_in_weather) out.push({cls:'tag-charge', text:'☀️ 天候で省略'});
@@ -1034,6 +1150,10 @@ function getMoveFilterTags(m) {
     const H = {'spikes':'📌 まきびし','toxic_spikes':'☠️ どくびし','stealth_rock':'🪨 ステルスロック','sticky_web':'🕸️ ねばねばネット'};
     out.push({cls:'tag-hazard', text:H[bd.hazard_set]||bd.hazard_set});
   }
+  if (bd.tailwind)       out.push({cls:'tag-field', text:'🌬️ 追い風'});
+  if (bd.gravity)        out.push({cls:'tag-field', text:'🌌 重力'});
+  if (bd.protect_wide)   out.push({cls:'tag-field', text:'🚧 ワイドガード'});
+  if (bd.protect_fast)   out.push({cls:'tag-field', text:'🚧 ファストガード'});
   if (bd.remove_hazards) out.push({cls:'tag-field', text:'🧹 設置解除'});
   if (bd.field_remove)   out.push({cls:'tag-field', text:'🧹 フィールド破壊'});
 
@@ -1056,13 +1176,20 @@ function getMoveFilterTags(m) {
     const R = {'trick_room':'トリックルーム','wonder_room':'ワンダールーム','magic_room':'マジックルーム'};
     out.push({cls:'tag-room', text:`🌀 ${R[bd.room]||bd.room}`});
   }
-  // 技封じ
+  // 技封じ (効果別に簡潔表示)
   if (bd.move_block) {
-    const MB = {'disable':'かなしばり','encore':'アンコール','taunt':'いちゃもん','heal_block':'かいふくふうじ','sound_block':'音技封印'};
+    const MB = {
+      'disable':     '直前技封じ',
+      'encore':      '直前技繰返強制',
+      'taunt':       '変化技封じ',
+      'torment':     '同技連続封じ',
+      'heal_block':  '回復封じ',
+      'sound_block': '音技封じ',
+    };
     out.push({cls:'tag-block', text:`🔒 ${MB[bd.move_block]||bd.move_block}`});
   }
   // サポート
-  if (bd.support)          out.push({cls:'tag-support', text:'🤝 サポート'});
+  if (bd.support)          out.push({cls:'tag-support', text:'🤝 サポートW'});
   // ランク操作
   if (bd.rank_op) {
     const RO = {'copy':'ランクコピー','swap_atk_spa':'攻特攻入替','swap_def_spd':'防特防入替','swap_atk_def_self':'自攻防入替'};
@@ -1084,8 +1211,10 @@ function getMoveFilterTags(m) {
     });
   }
 
-  // その他特殊効果
+  // みがわり/防御技関連 (独立タグ)
   if (bd.substitute_pierce) out.push({cls:'tag-other', text:'👻 みがわり貫通'});
+  if (bd.substitute_remove) out.push({cls:'tag-other', text:'🪬 みがわり解除'});
+  if (bd.protect_pierce)    out.push({cls:'tag-other', text:'🛡️ まもる貫通'});
 
   return out;
 }
@@ -1576,7 +1705,7 @@ let lmDragX = 0, lmDragY = 0;
       }
       // ため
       if (bd.charge) {
-        const labels = {'normal':'1T待機','invulnerable':'半無敵化','with_stat_up':'1T能力UP'};
+        const labels = {'normal':'2ターン目に攻撃','invulnerable':'半無敵化','with_stat_up':'1T能力UP+2T攻撃'};
         const skip = bd.charge_skip_in_weather ? ' (天候で省略)' : '';
         out.push(`<span class="dt-bd charge">⏳ ${labels[bd.charge] || bd.charge}${skip}</span>`);
       }
@@ -1739,41 +1868,22 @@ render();
 </section>
 -->
 
-<!-- 楽天アフィリエイト広告 (2026-05-12 稼働、リスト主体ページ用スリム帯) -->
-<link rel="stylesheet" href="ad-section.css">
-<section class="ad-section rakuten slim">
-  <div class="ad-header">
-    <span class="ad-title">ポケモングッズ</span>
-    <span class="ad-label-pr">PR / 楽天</span>
-  </div>
-  <div class="ad-grid">
-    <!-- 5商品厳選 / 1行表示 (カテゴリ別: バッグ・TCG・家具・ぬいぐるみ・アパレル) -->
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b80f6e.8c5584d0.53b80f6f.ffc45287/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fterada-ya%2Fmk-12d-14-321%2F&link_type=picttext" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://thumbnail.image.rakuten.co.jp/@0_mall/terada-ya/cabinet/biiino/item/main-image-14/20260508163453_1.jpg?_ex=240x240" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b836fd.c6155541.53b836fe.00d578fa/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fbansyuselect%2Fex293948219%2F&link_type=picttext" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://thumbnail.image.rakuten.co.jp/@0_mall/bansyuselect/cabinet/09256555/10620272/imgrc0129824024.jpg?_ex=240x240" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b84091.60741eb5.53b84092.2a672223/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fcellutane%2Fa905-gangar%2F&link_type=pict" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://hbb.afl.rakuten.co.jp/hgb/53b84091.60741eb5.53b84092.2a672223/?me_id=1350591&item_id=10000694&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fcellutane%2Fcabinet%2Fcharacter%2Fa905-gangar_ar_thum.jpg%3F_ex%3D240x240&s=240x240&t=pict" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b83ee8.2f9f4cc9.53b83ee9.7feb8467/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fbenebox%2Fr-ty-004%2F&link_type=pict" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://hbb.afl.rakuten.co.jp/hgb/53b83ee8.2f9f4cc9.53b83ee9.7feb8467/?me_id=1414570&item_id=10000143&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fbenebox%2Fcabinet%2Fkataban%2F09718838%2Fr-ty-004%2Fimgrc0099967505.jpg%3F_ex%3D240x240&s=240x240&t=pict" alt=""></a>
-    <a href="https://hb.afl.rakuten.co.jp/ichiba/53b83e1e.db22d291.53b83e1f.1fb9e945/?pc=https%3A%2F%2Fitem.rakuten.co.jp%2Fhoneys-online%2F4400139902%2F&link_type=pict" target="_blank" rel="nofollow sponsored noopener" class="ad-card"><img src="https://hbb.afl.rakuten.co.jp/hgb/53b83e1e.db22d291.53b83e1f.1fb9e945/?me_id=1239494&item_id=10038978&pc=https%3A%2F%2Fthumbnail.image.rakuten.co.jp%2F%400_mall%2Fhoneys-online%2Fcabinet%2Fgoods%2F4400139902%2F4400139902.jpg%3F_ex%3D240x240&s=240x240&t=pict" alt=""></a>
-  </div>
-  <p class="ad-disclosure">
-    ※ PchamDB は楽天アフィリエイトの参加者です。リンク経由のお買い物により紹介料を受け取ることがあります。
-    詳しくは <a href="/privacy.html">プライバシーポリシー</a> をご覧ください。
-  </p>
-</section>
+<!-- ページトップへ戻るボタン -->
+<button id="back-to-top" style="position:fixed;right:20px;bottom:195px;width:42px;height:42px;border-radius:50%;background:rgba(243,156,18,0.92);color:white;border:none;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.35);z-index:9997;display:none;align-items:center;justify-content:center" title="ページトップへ戻る">▲</button>
+<script>
+(function(){
+  const btn = document.getElementById('back-to-top');
+  if (!btn) return;
+  function update() { btn.style.display = (window.scrollY || document.documentElement.scrollTop) > 200 ? 'flex' : 'none'; }
+  window.addEventListener('scroll', update);
+  btn.addEventListener('click', () => window.scrollTo({top: 0, behavior: 'smooth'}));
+})();
+</script>
 
-<!-- 法的フッター (PchamDB 共通) -->
-<footer style="background:#1a1a1a;color:#aaa;padding:20px;text-align:center;font-size:11px;line-height:1.7;margin-top:24px">
-  <div style="color:#FFCB05;font-weight:700;margin-bottom:6px">⚠️ 当サイトは非公式ファンサイトです</div>
-  <div style="margin:8px 0">
-    <a href="/" style="color:#FFB347;margin:0 6px;text-decoration:none">ホーム</a>·
-    <a href="/terms.html" style="color:#FFB347;margin:0 6px;text-decoration:none">利用規約</a>·
-    <a href="/privacy.html" style="color:#FFB347;margin:0 6px;text-decoration:none">プライバシー</a>·
-    <a href="/disclaimer.html" style="color:#FFB347;margin:0 6px;text-decoration:none">免責事項</a>·
-    <a href="/contact.html" style="color:#FFB347;margin:0 6px;text-decoration:none">お問い合わせ</a>
-  </div>
-  <div style="color:#888;font-size:10px;margin-top:6px">
-    ポケモン・Pokémon・ポケモンチャンピオンズ等の商標および著作権は、任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズに帰属します。<br>
-    © 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc. &nbsp;|&nbsp; © 2026 PchamDB
-  </div>
-</footer>
+<!-- 楽天モーションウィジェット (レコメンド型・画面下部固定) -->
+<div id="rakuten-motion-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1a1a1a;text-align:center;padding:6px 0;border-top:1px solid #333;">
+  <script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="094cc83a.45f5f4d6.094cc83b.9462ef1e";rakuten_items="ctsmatch";rakuten_genreId="0";rakuten_size="468x160";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="1778740840797";</script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"></script>
+</div>
+<script>document.body.style.paddingBottom = '180px';</script>
+
 </body></html>
-
