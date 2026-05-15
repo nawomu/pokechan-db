@@ -209,13 +209,56 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 
 /* 持ち物セレクタ */
 .item-wrap{display:flex;flex-direction:column;gap:3px}
-.item-select{font-family:inherit}
-.item-effect{
-  font-size:11px;color:#8b949e;background:#0d1117;
-  border:1px solid #21262d;border-radius:4px;padding:4px 7px;
-  line-height:1.4;
+.item-pick-btn{
+  background:#0d1117;border:1px solid #30363d;border-radius:4px;
+  padding:6px 8px;cursor:pointer;font-family:inherit;text-align:left;
+  display:flex;align-items:center;gap:6px;
 }
-.item-effect.empty{color:#484f58;font-style:italic}
+.item-pick-btn:hover{border-color:#58a6ff;background:#1c2a3a}
+.item-pill{
+  display:inline-block;padding:2px 8px;font-size:12px;
+  background:#0a0f15;color:#e6edf3;border:1px solid #30363d;border-radius:12px;
+  max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.item-pill.empty{color:#6e7681;font-style:italic;border-style:dashed}
+
+/* 持ち物選択モーダル */
+#item-modal-ov{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
+  z-index:300;align-items:center;justify-content:center;
+}
+#item-modal-ov.vis{display:flex}
+#item-modal-box{
+  background:#161b22;border:1px solid #30363d;border-radius:12px;
+  padding:14px;max-width:640px;width:92vw;max-height:85vh;
+  display:flex;flex-direction:column;gap:10px;color:#e6edf3;
+  font-family:'Helvetica Neue',-apple-system,'Hiragino Sans',sans-serif;
+}
+#item-modal-head{display:flex;align-items:center;justify-content:space-between}
+#item-modal-head h3{margin:0;font-size:14px;color:#e6edf3}
+#item-modal-close-x{
+  background:transparent;border:1px solid #30363d;color:#e6edf3;
+  width:32px;height:32px;border-radius:6px;font-size:18px;line-height:1;
+  cursor:pointer;
+}
+#item-modal-close-x:hover{background:#21262d;border-color:#58a6ff;color:#fff}
+#item-modal-list{overflow-y:auto;flex:1;padding-right:4px}
+.item-cat-head{
+  font-size:11px;color:#79c0ff;font-weight:700;
+  padding:6px 4px 3px;border-bottom:1px solid #21262d;margin-top:6px;
+}
+.item-cat-head:first-child{margin-top:0}
+.item-row{
+  padding:6px 10px;border-radius:6px;cursor:pointer;transition:.1s;
+  display:grid;grid-template-columns:minmax(110px,150px) 1fr;
+  gap:10px;align-items:baseline;
+}
+.item-row:hover{background:#1c2a3a}
+.item-row.selected{background:#1f4a1f;border:1px solid #2ea043}
+.item-row .item-row-name{font-size:13px;color:#e6edf3;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item-row .item-row-desc{font-size:11px;color:#8b949e;line-height:1.35}
+.item-row.none-row{grid-template-columns:1fr}
+.item-row.none-row .item-row-name{color:#6e7681;font-style:italic}
 
 /* 弱点・耐性ボックス枠 */
 .type-eff.weakness,.type-eff.resist{
@@ -490,8 +533,9 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
     </div>
 
     <div class="item-wrap">
-      <select class="item-select"><option value="">— 持ち物なし —</option></select>
-      <div class="item-effect empty">—</div>
+      <button type="button" class="item-pick-btn" data-action="pick-item">
+        <span class="item-pill empty">＋ 持ち物を選択</span>
+      </button>
     </div>
 
     <div class="type-eff weakness"></div>
@@ -623,8 +667,9 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
     </div>
 
     <div class="item-wrap">
-      <select class="item-select"><option value="">— 持ち物なし —</option></select>
-      <div class="item-effect empty">—</div>
+      <button type="button" class="item-pick-btn" data-action="pick-item">
+        <span class="item-pill empty">＋ 持ち物を選択</span>
+      </button>
     </div>
 
     <div class="type-eff weakness"></div>
@@ -638,6 +683,17 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 <section id="battle-panel">
   <div id="battle-log"></div>
 </section>
+
+<!-- 持ち物選択モーダル -->
+<div id="item-modal-ov">
+  <div id="item-modal-box">
+    <div id="item-modal-head">
+      <h3 id="item-modal-title">持ち物を選択</h3>
+      <button id="item-modal-close-x" type="button" aria-label="閉じる" title="閉じる">×</button>
+    </div>
+    <div id="item-modal-list"></div>
+  </div>
+</div>
 
 <!-- ポケモン選択モーダル -->
 <div class="modal-ov" id="poke-modal">
@@ -1688,52 +1744,86 @@ function renderAbilitySelect(root, st){
   descEl.classList.toggle('empty', !ABILITY_DESC || !ABILITY_DESC[st.ability]);
 }
 
-// 持ち物セレクトの populate (一度だけ呼ぶ。カテゴリ別 optgroup)
-function populateItemSelect(sel){
-  if (!window.ITEMS_DATABASE) return;
-  sel.innerHTML = '<option value="">— 持ち物なし —</option>';
+// 持ち物 pill ボタンの再描画（ポケカ下に表示）
+function renderItemSelect(root, st){
+  const btn = root.querySelector('.item-pick-btn');
+  if (!btn) return;
+  const pill = btn.querySelector('.item-pill');
+  if (!st.item){
+    pill.textContent = '＋ 持ち物を選択';
+    pill.classList.add('empty');
+    btn.title = 'クリックで持ち物を選ぶ';
+    return;
+  }
+  const it = ITEM_BY_KEY[st.item];
+  if (it){
+    pill.textContent = it.name;
+    pill.classList.remove('empty');
+    btn.title = it.effect || it.name;
+  } else {
+    pill.textContent = '（未知のアイテム）';
+    pill.classList.add('empty');
+    btn.title = '';
+  }
+}
+
+// === 持ち物選択モーダル ===
+const _ITEM_CAT_ORDER = ['attack_boost','speed_boost','defense_boost','type_boost','berry_resist','berry_status_cure','berry_hp_cure','hp_drain','survival','status_inflict','misc','mega_stone'];
+let _itemModalSide = null;
+
+function _escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function openItemModal(side){
+  _itemModalSide = side;
+  const st = sides[side];
+  const titleEl = document.getElementById('item-modal-title');
+  const label = (st && st.poke) ? st.poke.name : (side === 'self' ? '自分側' : '相手側');
+  if (titleEl) titleEl.textContent = `${label} の持ち物を選択`;
+  _renderItemModalList(st ? (st.item || '') : '');
+  document.getElementById('item-modal-ov').classList.add('vis');
+}
+
+function closeItemModal(){
+  _itemModalSide = null;
+  document.getElementById('item-modal-ov').classList.remove('vis');
+}
+
+function _renderItemModalList(selectedKey){
+  const listEl = document.getElementById('item-modal-list');
+  if (!listEl) return;
+  if (!window.ITEMS_DATABASE){
+    listEl.innerHTML = '<div style="color:#ff7b72;padding:10px">items_database.js が読み込めません</div>';
+    return;
+  }
   const cats = window.ITEMS_DATABASE.categories || {};
   const byCat = {};
   for (const it of window.ITEMS_DATABASE.items){
     (byCat[it.category] = byCat[it.category] || []).push(it);
   }
-  // 表示順を固定
-  const order = ['attack_boost','speed_boost','defense_boost','type_boost','berry_resist','berry_status_cure','berry_hp_cure','hp_drain','survival','status_inflict','misc','mega_stone'];
-  for (const cat of order){
+  let html = `<div class="item-row none-row ${!selectedKey?'selected':''}" data-key="">
+    <span class="item-row-name">— 持ち物なし —</span>
+  </div>`;
+  for (const cat of _ITEM_CAT_ORDER){
     if (!byCat[cat]) continue;
-    const og = document.createElement('optgroup');
-    og.label = cats[cat] || cat;
+    html += `<div class="item-cat-head">${_escHtml(cats[cat]||cat)}</div>`;
     for (const it of byCat[cat]){
-      const opt = document.createElement('option');
-      opt.value = it.key;
-      opt.textContent = it.name;
-      opt.title = it.effect || '';
-      og.appendChild(opt);
+      const sel = (selectedKey === it.key) ? ' selected' : '';
+      html += `<div class="item-row${sel}" data-key="${_escHtml(it.key)}">
+        <span class="item-row-name">${_escHtml(it.name)}</span>
+        <span class="item-row-desc">${_escHtml(it.effect||'')}</span>
+      </div>`;
     }
-    sel.appendChild(og);
   }
+  listEl.innerHTML = html;
+  const sel = listEl.querySelector('.item-row.selected');
+  if (sel) sel.scrollIntoView({block:'center'});
 }
 
-function renderItemSelect(root, st){
-  const sel = root.querySelector('.item-select');
-  const fxEl = root.querySelector('.item-effect');
-  if (!sel) return;
-  // optgroup が空なら一度だけ埋める
-  if (!sel.querySelector('optgroup')) populateItemSelect(sel);
-  sel.value = st.item || '';
-  if (!st.item){
-    fxEl.textContent = '—';
-    fxEl.classList.add('empty');
-    return;
-  }
-  const item = ITEM_BY_KEY[st.item];
-  if (item){
-    fxEl.textContent = item.effect || item.name;
-    fxEl.classList.remove('empty');
-  } else {
-    fxEl.textContent = '（未知のアイテム）';
-    fxEl.classList.add('empty');
-  }
+function _pickItemFromModal(key){
+  if (!_itemModalSide) return;
+  sides[_itemModalSide].item = key || '';
+  closeItemModal();
+  renderBoth();
 }
 
 function renderTypeEff(root, st){
@@ -1875,14 +1965,31 @@ function attachAbilityChange(){
 }
 
 function attachItemChange(){
+  // ポケカ下の「持ち物を選択」pill ボタン → モーダルを開く
   document.querySelectorAll('.side').forEach(sideEl=>{
     const side = sideEl.dataset.side;
-    const sel = sideEl.querySelector('.item-select');
-    if (!sel) return;
-    sel.addEventListener('change', e=>{
-      sides[side].item = e.target.value;
-      renderBoth();  // 両側のダメ計算結果が変わる可能性 (相手の半減きのみ等)
+    const btn = sideEl.querySelector('.item-pick-btn');
+    if (!btn) return;
+    btn.addEventListener('click', ()=>openItemModal(side));
+  });
+  // モーダル内のアイテム行クリック (イベント委譲)
+  const listEl = document.getElementById('item-modal-list');
+  if (listEl){
+    listEl.addEventListener('click', e=>{
+      const row = e.target.closest('.item-row');
+      if (!row) return;
+      _pickItemFromModal(row.dataset.key);
     });
+  }
+  // 閉じるボタン / 背景クリック / Esc
+  const closeBtn = document.getElementById('item-modal-close-x');
+  if (closeBtn) closeBtn.addEventListener('click', closeItemModal);
+  const ov = document.getElementById('item-modal-ov');
+  if (ov) ov.addEventListener('click', e=>{
+    if (e.target === ov) closeItemModal();
+  });
+  document.addEventListener('keydown', e=>{
+    if (e.key === 'Escape' && ov && ov.classList.contains('vis')) closeItemModal();
   });
 }
 
