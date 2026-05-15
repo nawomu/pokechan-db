@@ -99,18 +99,46 @@ td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !i
 .poke-filter-btn:hover{background:#1c2a3a;border-color:#79c0ff}
 .poke-filter-btn.active{background:#1f4a1f;color:#56d364;border-color:#2ea043}
 
-/* 持ち物セル */
-table.cmp td.item-cell{text-align:center;padding:3px 4px;background:#0d1117}
-table.cmp td.item-cell select.item-select{
-  width:100%;max-width:150px;padding:2px 4px;font-size:.7rem;
-  background:#0a0f15;color:#e6edf3;border:1px solid #30363d;border-radius:3px;
-  font-family:inherit;cursor:pointer;
+/* 持ち物セル (クリックでモーダル) */
+table.cmp td.item-cell{text-align:center;padding:3px 4px;background:#0d1117;cursor:pointer}
+table.cmp td.item-cell:hover{background:#1c2a3a}
+table.cmp td.item-cell .item-pill{
+  display:inline-block;padding:3px 8px;font-size:.72rem;
+  background:#0a0f15;color:#e6edf3;border:1px solid #30363d;border-radius:12px;
+  max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
-table.cmp td.item-cell .item-effect-mini{
-  font-size:.6rem;color:#8b949e;margin-top:2px;line-height:1.2;
-  overflow:hidden;text-overflow:ellipsis;display:-webkit-box;
-  -webkit-line-clamp:2;-webkit-box-orient:vertical;
+table.cmp td.item-cell .item-pill.empty{color:#6e7681;font-style:italic;border-style:dashed}
+
+/* 持ち物選択モーダル */
+#item-modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:250;align-items:center;justify-content:center}
+#item-modal-ov.vis{display:flex}
+#item-modal-box{
+  background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;
+  max-width:560px;width:92vw;max-height:85vh;display:flex;flex-direction:column;gap:10px;
 }
+#item-modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#item-modal-head h3{margin:0;font-size:1rem;color:#e6edf3}
+#item-modal-close-x{
+  background:transparent;border:1px solid #30363d;color:#e6edf3;
+  width:34px;height:34px;border-radius:8px;font-size:1.3rem;line-height:1;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0;
+}
+#item-modal-close-x:hover{background:#21262d;border-color:#79c0ff;color:#fff}
+#item-modal-list{overflow-y:auto;flex:1;padding-right:4px}
+.item-cat-head{
+  font-size:.75rem;color:#79c0ff;font-weight:bold;
+  padding:6px 4px 3px;border-bottom:1px solid #21262d;margin-top:6px;
+}
+.item-cat-head:first-child{margin-top:0}
+.item-row{
+  padding:8px 10px;border-radius:6px;cursor:pointer;transition:.1s;
+  display:flex;flex-direction:column;gap:2px;
+}
+.item-row:hover{background:#1c2a3a}
+.item-row.selected{background:#1f4a1f;border:1px solid #2ea043}
+.item-row .item-row-name{font-size:.85rem;color:#e6edf3;font-weight:bold}
+.item-row .item-row-desc{font-size:.7rem;color:#8b949e;line-height:1.4}
+.item-row.none-row .item-row-name{color:#6e7681;font-style:italic}
 
 /* ポケモン別わざ選択モーダル (わざリスト風) */
 #pf-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:300;align-items:center;justify-content:center}
@@ -740,6 +768,17 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
   </div>
 </div>
 
+<!-- 持ち物選択モーダル -->
+<div id="item-modal-ov">
+  <div id="item-modal-box">
+    <div id="item-modal-head">
+      <h3 id="item-modal-title">持ち物を選択</h3>
+      <button id="item-modal-close-x" aria-label="閉じる" title="閉じる" onclick="closeItemModal()">×</button>
+    </div>
+    <div id="item-modal-list"></div>
+  </div>
+</div>
+
 <!-- グローバル説明ツールチップ -->
 <div id="hover-tip"></div>
 
@@ -869,40 +908,79 @@ if (window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){
 
 function saveItems(){ localStorage.setItem(LS_PARTY_ITEMS, JSON.stringify(partyItems)); }
 
-// 持ち物セレクト用 <option> HTML を返す (カテゴリ別 optgroup 付き)
-function itemOptionsHtml(selectedKey){
-  if (!window.ITEMS_DATABASE) return '<option value="">— 持ち物なし —</option>';
+// 持ち物選択モーダルで現在開いているスロット
+let _itemModalSlot = null;
+
+const _ITEM_CAT_ORDER = ['attack_boost','speed_boost','defense_boost','type_boost','berry_resist','berry_status_cure','berry_hp_cure','hp_drain','survival','status_inflict','misc','mega_stone'];
+
+function _escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// グローバル: スロット用持ち物モーダルを開く
+window.openItemModal = function(slotIdx){
+  _itemModalSlot = slotIdx;
+  const cur = partyItems[slotIdx] || "";
+  const titleEl = document.getElementById('item-modal-title');
+  const slotLabel = (typeof party !== 'undefined' && party[slotIdx]) ? party[slotIdx] : `スロット${slotIdx+1}`;
+  if (titleEl) titleEl.textContent = `${slotLabel} の持ち物を選択`;
+  _renderItemModalList(cur);
+  document.getElementById('item-modal-ov').classList.add('vis');
+};
+
+window.closeItemModal = function(){
+  _itemModalSlot = null;
+  document.getElementById('item-modal-ov').classList.remove('vis');
+};
+
+function _renderItemModalList(selectedKey){
+  const listEl = document.getElementById('item-modal-list');
+  if (!listEl) return;
+  if (!window.ITEMS_DATABASE){
+    listEl.innerHTML = '<div style="color:#ff7b72;padding:10px">items_database.js が読み込めません</div>';
+    return;
+  }
   const cats = window.ITEMS_DATABASE.categories || {};
   const byCat = {};
   for (const it of window.ITEMS_DATABASE.items){
     (byCat[it.category] = byCat[it.category] || []).push(it);
   }
-  const order = ['attack_boost','speed_boost','defense_boost','type_boost','berry_resist','berry_status_cure','berry_hp_cure','hp_drain','survival','status_inflict','misc','mega_stone'];
-  const escAttr = s => String(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
-  let html = `<option value="">— 持ち物なし —</option>`;
-  for (const cat of order){
+  let html = `<div class="item-row none-row ${!selectedKey?'selected':''}" onclick="_pickItemFromModal('')">
+    <span class="item-row-name">— 持ち物なし —</span>
+  </div>`;
+  for (const cat of _ITEM_CAT_ORDER){
     if (!byCat[cat]) continue;
-    html += `<optgroup label="${escAttr(cats[cat]||cat)}">`;
+    html += `<div class="item-cat-head">${_escHtml(cats[cat]||cat)}</div>`;
     for (const it of byCat[cat]){
       const sel = (selectedKey === it.key) ? ' selected' : '';
-      html += `<option value="${escAttr(it.key)}" title="${escAttr(it.effect||'')}"${sel}>${escAttr(it.name)}</option>`;
+      html += `<div class="item-row${sel}" onclick="_pickItemFromModal('${_escHtml(it.key)}')">
+        <span class="item-row-name">${_escHtml(it.name)}</span>
+        <span class="item-row-desc">${_escHtml(it.effect||'')}</span>
+      </div>`;
     }
-    html += `</optgroup>`;
   }
-  return html;
+  listEl.innerHTML = html;
+  // 選択中の行までスクロール
+  const sel = listEl.querySelector('.item-row.selected');
+  if (sel) sel.scrollIntoView({block:'center'});
 }
 
-// グローバル: 持ち物変更ハンドラ (onchange から呼ぶ)
-window.setPartyItem = function(slotIdx, key){
+// モーダル内のアイテム行クリック
+window._pickItemFromModal = function(key){
+  if (_itemModalSlot === null) return;
+  const slotIdx = _itemModalSlot;
   partyItems[slotIdx] = key || "";
   saveItems();
-  // 該当 td 内の説明だけ更新（フル再描画はコスト高）
+  // 該当 td の pill だけ更新（フル再描画はコスト高）
   const td = document.querySelector(`td.item-cell[data-slot="${slotIdx}"]`);
   if (td){
-    const fxEl = td.querySelector('.item-effect-mini');
+    const pill = td.querySelector('.item-pill');
     const it = key && ITEM_BY_KEY[key];
-    if (fxEl) fxEl.textContent = it ? (it.effect||it.name) : '';
+    if (pill){
+      pill.textContent = it ? it.name : '＋ 選択';
+      pill.classList.toggle('empty', !it);
+    }
+    td.setAttribute('title', it ? (it.effect||it.name) : 'クリックで持ち物を選ぶ');
   }
+  closeItemModal();
 };
 
 // ── 性格データ (25種) ───────────────────────────────────────────────────────
@@ -2066,17 +2144,18 @@ function renderTable() {
     }).join("")}
   </tr>`);
 
-  // 持ち物 (スロット毎にプルダウン)
+  // 持ち物 (スロット毎にクリックでモーダル)
   rows.push(`<tr>
     <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem">持ち物</td>
     ${party.map((name, slotIdx) => {
       if (!name) return `<td class="item-cell empty-slot-cell"></td>`;
       const cur = partyItems[slotIdx] || "";
       const curItem = cur ? ITEM_BY_KEY[cur] : null;
-      const effText = curItem ? (curItem.effect || curItem.name) : '';
-      return `<td class="item-cell" data-slot="${slotIdx}">
-        <select class="item-select" onchange="setPartyItem(${slotIdx}, this.value)">${itemOptionsHtml(cur)}</select>
-        <div class="item-effect-mini">${effText}</div>
+      const label = curItem ? curItem.name : '＋ 選択';
+      const cls = curItem ? '' : 'empty';
+      const title = curItem ? (curItem.effect || curItem.name) : 'クリックで持ち物を選ぶ';
+      return `<td class="item-cell" data-slot="${slotIdx}" onclick="openItemModal(${slotIdx})" title="${title.replace(/"/g,'&quot;')}">
+        <span class="item-pill ${cls}">${label}</span>
       </td>`;
     }).join("")}
   </tr>`);
@@ -2255,6 +2334,16 @@ document.getElementById("modal-clear").addEventListener("click", () => {
 });
 document.getElementById("modal-ov").addEventListener("click", e => {
   if (e.target === document.getElementById("modal-ov")) closeModal();
+});
+
+// 持ち物モーダル: 背景クリックと Esc で閉じる
+document.getElementById("item-modal-ov").addEventListener("click", e => {
+  if (e.target === document.getElementById("item-modal-ov")) closeItemModal();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.getElementById("item-modal-ov").classList.contains("vis")){
+    closeItemModal();
+  }
 });
 
 // ── モーダル共通: ソート/フィルタ適用 + ヘッダ生成 ────────────────────────────
