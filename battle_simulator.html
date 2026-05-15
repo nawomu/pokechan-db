@@ -1,0 +1,2006 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ポケチャン バトルシミュレーター</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100%}
+body{
+  font-family:-apple-system,"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+  background:#0d1117;color:#e6edf3;font-size:12px;
+  display:flex;flex-direction:column;min-height:100vh;
+}
+header{padding:10px 16px;background:#161b22;border-bottom:1px solid #21262d;display:flex;align-items:center;gap:14px}
+h1{font-size:15px;color:#79c0ff;font-weight:700}
+.head-note{font-size:11px;color:#8b949e}
+
+#arena{
+  display:grid;grid-template-columns:1fr 210px 1fr;gap:10px;
+  padding:12px;flex:1;min-height:0;
+}
+@media (max-width:1100px){
+  #arena{grid-template-columns:1fr 1fr;}
+  #env-panel{grid-column:1 / -1;order:-1;}
+}
+.side{
+  background:#161b22;border:1px solid #21262d;border-radius:8px;
+  padding:8px;display:flex;flex-direction:column;gap:4px;
+  overflow-y:auto;
+}
+.side.self{border-left:4px solid #58a6ff}
+.side.opp{border-left:4px solid #f85149}
+
+/* ポケモン名カード（最上部・ヘッダー兼用） */
+.poke-card{
+  background:#0d1117;border:1px solid #30363d;border-radius:6px;
+  padding:8px 10px;cursor:pointer;transition:.15s;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  margin-bottom:2px;
+}
+.poke-card:hover{border-color:#58a6ff;background:#1c2a3a}
+.poke-name-wrap{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.poke-name{font-size:15px;font-weight:700;color:#e6edf3}
+.poke-name.empty{color:#8b949e;font-weight:400;font-style:italic}
+.poke-types{display:flex;gap:4px;flex-wrap:wrap}
+.t-badge{
+  display:inline-block;padding:1px 7px;border-radius:10px;
+  font-size:10px;font-weight:700;color:#fff;
+  border:1px solid rgba(255,255,255,.15);
+}
+.poke-card .change-btn{font-size:10px;color:#8b949e;flex-shrink:0}
+
+/* セクション見出しは非表示（色とレイアウトで判別） */
+.sec-head, .side-label{display:none}
+
+/* 種族値・能力P・実数値テーブル */
+.stat-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:2px}
+.stat-table th{
+  text-align:left;color:#8b949e;font-weight:400;
+  padding:3px 6px;border-bottom:1px solid #21262d;
+}
+.stat-table td{
+  padding:2px 6px;border-bottom:1px solid #21262d;text-align:right;
+}
+.stat-table thead th{
+  font-weight:700;text-align:center;color:#79c0ff;font-size:10px;
+  border-bottom:1px solid #30363d;background:#0d1117;
+}
+.stat-table thead th:first-child{text-align:left}
+.stat-key{color:#8b949e;text-align:left !important}
+.stat-base{color:#e6edf3;width:36px}
+.stat-effort{width:54px}
+.stat-rank{width:62px;text-align:center;padding:0 !important}
+.stat-rank-ctrl{
+  display:inline-flex;align-items:center;gap:2px;
+  font-size:10px;color:#8b949e;
+}
+.stat-rank-ctrl button{
+  width:14px;height:16px;padding:0;border:1px solid #30363d;border-radius:2px;
+  background:#0d1117;color:#8b949e;font-size:10px;line-height:1;cursor:pointer;
+  font-family:inherit;
+}
+.stat-rank-ctrl button:hover{border-color:#58a6ff;color:#fff}
+.stat-rank-ctrl button:disabled{opacity:0.3;cursor:not-allowed}
+.stat-rank-ctrl .rank-val{min-width:18px;display:inline-block;text-align:center;font-variant-numeric:tabular-nums}
+.stat-rank-ctrl .rank-val.up{color:#ff9c9c;font-weight:700}
+.stat-rank-ctrl .rank-val.down{color:#9cc8ff;font-weight:700}
+.stat-effort input{
+  width:46px;padding:2px 4px;border:1px solid #30363d;border-radius:3px;
+  background:#0d1117;color:#e6edf3;font-size:12px;text-align:right;
+  font-family:inherit;
+}
+.stat-effort input:focus{outline:none;border-color:#58a6ff;background:#1c2a3a}
+.stat-effort input.over{border-color:#da3633;background:#3a1212}
+.stat-final{
+  font-weight:700;color:#fff;width:50px;
+  font-variant-numeric:tabular-nums;
+}
+.stat-final.nature-up{color:#ff9c9c}
+.stat-final.nature-down{color:#9cc8ff}
+
+/* 性格セレクタ */
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row label{font-size:11px;color:#8b949e;font-weight:700;min-width:42px}
+select,.styled-input{
+  padding:4px 8px;border:1px solid #30363d;border-radius:4px;
+  background:#0d1117;color:#e6edf3;font-size:12px;
+  font-family:inherit;
+}
+select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1c2a3a}
+
+/* 能力Pサマリ */
+.ep-summary{
+  font-size:11px;color:#8b949e;padding:3px 8px;
+  background:#0d1117;border:1px solid #21262d;border-radius:4px;
+  display:flex;justify-content:space-between;align-items:center;
+}
+.ep-summary.over{color:#ff7b72;border-color:#da3633}
+.ep-summary b{color:#79c0ff;font-variant-numeric:tabular-nums}
+.ep-summary.over b{color:#ff7b72}
+
+/* タイプ相性表 */
+.type-eff{display:flex;flex-direction:column;gap:4px;font-size:11px}
+.te-row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.te-mult{
+  font-weight:700;min-width:34px;font-size:10px;
+  padding:2px 6px;border-radius:3px;text-align:center;
+}
+.te-mult.x4{background:#5a1212;color:#ff7b72}
+.te-mult.x2{background:#3a1f1f;color:#ffa39e}
+.te-mult.x05{background:#1f3a5a;color:#9cc8ff}
+.te-mult.x025{background:#0f2a4a;color:#79c0ff}
+.te-mult.x0{background:#2d2d2d;color:#8b949e}
+
+/* タイプカラー */
+.t-ノーマル{background:#A8A77A}
+.t-ほのお{background:#EE8130}
+.t-みず{background:#6390F0}
+.t-でんき{background:#F7D02C;color:#222 !important}
+.t-くさ{background:#7AC74C}
+.t-こおり{background:#96D9D6;color:#222 !important}
+.t-かくとう{background:#C22E28}
+.t-どく{background:#A33EA1}
+.t-じめん{background:#E2BF65;color:#222 !important}
+.t-ひこう{background:#A98FF3}
+.t-エスパー{background:#F95587}
+.t-むし{background:#A6B91A}
+.t-いわ{background:#B6A136}
+.t-ゴースト{background:#735797}
+.t-ドラゴン{background:#6F35FC}
+.t-あく{background:#705746}
+.t-はがね{background:#B7B7CE;color:#222 !important}
+.t-フェアリー{background:#D685AD}
+
+/* モーダル共通 */
+.modal-ov{
+  display:none;position:fixed;inset:0;
+  background:rgba(0,0,0,.78);z-index:200;
+  align-items:center;justify-content:center;
+}
+.modal-ov.vis{display:flex}
+.modal-box{
+  background:#161b22;border:1px solid #30363d;border-radius:10px;
+  padding:14px;width:90vw;max-width:480px;max-height:84vh;
+  display:flex;flex-direction:column;gap:10px;
+}
+.modal-head{
+  display:flex;align-items:center;justify-content:space-between;
+  border-bottom:1px solid #21262d;padding-bottom:8px;
+}
+.modal-head h3{font-size:14px;color:#79c0ff}
+.modal-head .who{font-size:11px;color:#8b949e;margin-left:8px}
+.modal-close{
+  background:transparent;border:1px solid #30363d;color:#e6edf3;
+  width:32px;height:32px;border-radius:6px;font-size:18px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.modal-close:hover{background:#21262d;border-color:#79c0ff}
+.modal-search{
+  padding:7px 10px;border-radius:5px;border:1px solid #30363d;
+  background:#0d1117;color:#e6edf3;font-size:13px;width:100%;
+}
+.modal-list{overflow-y:auto;flex:1;min-height:200px;max-height:54vh}
+.m-item{
+  padding:7px 10px;cursor:pointer;border-radius:5px;transition:.1s;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+}
+.m-item:hover{background:#1c2a3a}
+.m-item .m-name{font-size:13px;color:#e6edf3}
+.m-item .m-types{display:flex;gap:3px}
+
+/* 合計行 */
+.stat-table tfoot td{
+  background:#0d1117;color:#79c0ff;font-weight:700;
+  border-top:1px solid #30363d;
+  padding:5px 6px;
+}
+.stat-table tfoot .stat-key{color:#79c0ff !important}
+
+/* 特性セレクタ */
+.ability-wrap{display:flex;flex-direction:column;gap:3px}
+.ability-desc{
+  font-size:11px;color:#8b949e;background:#0d1117;
+  border:1px solid #21262d;border-radius:4px;padding:4px 7px;
+  line-height:1.4;
+}
+.ability-desc.empty{color:#484f58;font-style:italic}
+
+/* 弱点・耐性ボックス枠 */
+.type-eff.weakness,.type-eff.resist{
+  background:#0d1117;border:1px solid #21262d;border-radius:5px;
+  padding:4px 7px;
+}
+.type-eff.empty{color:#484f58;font-style:italic;font-size:11px}
+
+/* 受信パーティバー */
+#handoff-bar{
+  display:none;background:#1a1f2e;border:1px solid #30363d;border-radius:6px;
+  margin:8px 12px 0;padding:8px 12px;flex-shrink:0;
+}
+#handoff-bar.vis{display:block}
+#handoff-bar .hf-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+#handoff-bar h3{font-size:12px;color:#79c0ff;font-weight:700}
+#handoff-bar .hf-clear{
+  background:transparent;border:1px solid #30363d;color:#8b949e;
+  padding:2px 8px;border-radius:4px;cursor:pointer;font-size:10px;
+}
+#handoff-bar .hf-clear:hover{border-color:#da3633;color:#ff7b72}
+#handoff-bar .hf-row{display:flex;gap:6px;flex-wrap:wrap}
+.hf-chip{
+  background:#0d1117;border:1px solid #30363d;border-radius:5px;
+  padding:6px 8px;display:flex;flex-direction:column;gap:5px;min-width:140px;
+}
+.hf-chip-name{font-size:12px;font-weight:700;color:#e6edf3}
+.hf-chip-types{display:flex;gap:3px}
+.hf-chip-meta{font-size:10px;color:#8b949e}
+.hf-chip-btns{display:flex;gap:4px;margin-top:2px}
+.hf-chip-btns button{
+  flex:1;padding:3px 6px;border-radius:3px;font-size:10px;cursor:pointer;
+  border:1px solid #30363d;background:#21262d;color:#e6edf3;font-weight:700;
+}
+.hf-chip-btns .hf-self{border-color:#58a6ff;color:#79c0ff}
+.hf-chip-btns .hf-self:hover{background:#1c2a3a}
+.hf-chip-btns .hf-opp{border-color:#f85149;color:#ff7b72}
+.hf-chip-btns .hf-opp:hover{background:#2a1313}
+
+/* 技スロット表示 */
+.moves-list{display:flex;flex-direction:column;gap:4px}
+.move-row{
+  display:flex;flex-direction:column;gap:3px;
+  padding:5px 7px;background:#0d1117;border:1px solid #21262d;
+  border-radius:4px;font-size:11px;
+}
+.move-head{
+  display:grid;grid-template-columns:auto 1fr 44px 40px 36px;
+  gap:6px;align-items:center;
+}
+.move-row .m-type{padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;color:#fff}
+.move-row .m-name{color:#e6edf3;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.move-row .m-cat{font-size:10px;padding:1px 5px;border-radius:8px;text-align:center}
+.move-row .m-cat.物理{background:#5a1212;color:#ff9c9c}
+.move-row .m-cat.特殊{background:#1f3a5a;color:#9cc8ff}
+.move-row .m-cat.変化{background:#3a3a3a;color:#c0c0c0}
+.move-row .m-pow,.move-row .m-acc,.move-row .m-pp{
+  color:#e6edf3;text-align:center;font-variant-numeric:tabular-nums;font-size:10px;
+}
+.moves-empty{color:#484f58;font-style:italic;font-size:11px;padding:6px}
+
+/* ダメ結果（3段） */
+.dmg-result{
+  display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px;
+  margin-top:2px;padding:3px 0;border-top:1px dashed #21262d;
+  font-size:10px;font-variant-numeric:tabular-nums;
+}
+.dmg-cell{text-align:center;padding:2px 3px;border-radius:3px;background:#0a0f15}
+.dmg-cell .dmg-label{color:#6e7681;font-size:9px;display:block;margin-bottom:1px}
+.dmg-cell .dmg-val{color:#e6edf3;font-weight:700;font-size:11px}
+.dmg-cell.dmg-range .dmg-val{color:#79c0ff}
+.dmg-cell.dmg-pct .dmg-val{color:#ffa657}
+.dmg-cell.dmg-ko .dmg-val{color:#a5d6a7}
+.dmg-cell.dmg-ko.guaranteed-1 .dmg-val{color:#ff7b72}
+.dmg-cell.dmg-ko.guaranteed-2 .dmg-val{color:#ffa657}
+.dmg-side-tag{
+  font-size:9px;color:#8b949e;padding:1px 5px;
+  background:#21262d;border-radius:3px;
+}
+.move-recoil{font-size:9px;color:#8b949e;text-align:right;margin-top:1px}
+.move-immune{color:#484f58;font-style:italic;font-size:10px;text-align:center;padding:2px 0}
+
+/* 選択中の技ハイライト */
+.move-row.selected{
+  background:linear-gradient(90deg,rgba(88,166,255,.15),rgba(255,144,184,.10));
+  border-left:3px solid #58a6ff;padding-left:5px;
+}
+
+/* バトル進行パネル */
+#battle-panel{
+  border-top:1px solid #21262d;background:#0d1117;
+  padding:8px 12px;display:flex;flex-direction:column;gap:6px;
+}
+.battle-ctrl{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.battle-ctrl button{
+  padding:6px 12px;border:1px solid #30363d;border-radius:4px;
+  background:#161b22;color:#e6edf3;font-size:12px;font-weight:700;cursor:pointer;
+  font-family:inherit;transition:.15s;
+}
+.battle-ctrl button:hover{border-color:#58a6ff;background:#1c2a3a;color:#fff}
+.battle-ctrl button#btn-run-turn{background:linear-gradient(90deg,#1c2a3a,#2a1c3a);}
+.battle-ctrl button#btn-run-turn:hover{background:linear-gradient(90deg,#22354a,#341d4a);}
+.battle-ctrl button:active{transform:translateY(1px)}
+.battle-hint{font-size:10px;color:#8b949e;margin-left:8px}
+#battle-log{
+  max-height:200px;overflow-y:auto;
+  background:#000;border:1px solid #21262d;border-radius:4px;
+  padding:6px 8px;font-size:11px;font-family:Menlo,Consolas,monospace;
+}
+#battle-log .log-line{display:flex;gap:8px;padding:1px 0;color:#c9d1d9}
+#battle-log .log-phase{
+  flex-shrink:0;min-width:48px;color:#79c0ff;font-weight:700;font-size:10px;
+}
+#battle-log .log-msg{color:#e6edf3}
+
+/* 現在HP バー（ポケモンカード下） */
+.battle-hp{
+  margin-top:2px;font-size:10px;color:#8b949e;
+  display:flex;align-items:center;gap:4px;
+}
+.battle-hp-bar{
+  flex:1;height:6px;background:#21262d;border-radius:3px;overflow:hidden;
+}
+.battle-hp-fill{
+  height:100%;background:linear-gradient(90deg,#3fb950,#7ee787);transition:width .2s;
+}
+.battle-hp-fill.mid{background:linear-gradient(90deg,#d29922,#f0b232)}
+.battle-hp-fill.low{background:linear-gradient(90deg,#da3633,#ff7b72)}
+.battle-fainted{color:#da3633;font-weight:700}
+
+/* 適用補正チップ列 */
+.dmg-chips{
+  display:flex;flex-wrap:wrap;gap:3px;margin-top:2px;
+}
+.dmg-chip{
+  display:inline-block;padding:1px 6px;border-radius:8px;
+  font-size:9px;line-height:1.4;font-weight:600;
+  border:1px solid rgba(255,255,255,.08);
+  background:#21262d;color:#c9d1d9;
+  white-space:nowrap;
+}
+.dmg-chip.chip-env{background:#1f3a2a;color:#7ee787;border-color:#2ea04344}
+.dmg-chip.chip-env-down{background:#3a1f1f;color:#ffa198;border-color:#da363344}
+.dmg-chip.chip-stab{background:#28304a;color:#a5b4fc;border-color:#5e5fd944}
+.dmg-chip.chip-eff-up{background:#3b2a4a;color:#d8b4fe;border-color:#a855f744}
+.dmg-chip.chip-eff-down{background:#2a2a2a;color:#8b949e}
+.dmg-chip.chip-crit{background:#4a3a1a;color:#fbbf24;border-color:#facc1544}
+.dmg-chip.chip-wall{background:#1f2a3a;color:#93c5fd;border-color:#3b82f644}
+.dmg-chip.chip-item{background:#3a1f2a;color:#fda4af;border-color:#f43f5e44}
+.dmg-chip.chip-ability{background:#1f3a3a;color:#5eead4;border-color:#14b8a644}
+
+/* 環境パネル */
+#env-panel{
+  background:#161b22;border:1px solid #21262d;border-radius:8px;
+  padding:10px;display:flex;flex-direction:column;gap:8px;
+  overflow-y:auto;font-size:11px;
+}
+#env-panel h3{
+  font-size:12px;color:#79c0ff;font-weight:700;
+  border-bottom:1px solid #21262d;padding-bottom:4px;
+}
+#env-swap-btn{
+  padding:6px 8px;border:1px solid #30363d;border-radius:4px;
+  background:linear-gradient(90deg,#1c2a3a 0%,#2a1c3a 100%);
+  color:#e6edf3;font-size:11px;font-weight:700;cursor:pointer;
+  font-family:inherit;transition:.15s;
+}
+#env-swap-btn:hover{
+  border-color:#58a6ff;background:linear-gradient(90deg,#22354a 0%,#341d4a 100%);
+  color:#fff;
+}
+#env-swap-btn:active{transform:translateY(1px)}
+.env-block{display:flex;flex-direction:column;gap:4px}
+.env-block label{color:#8b949e;font-size:10px}
+.env-block select{
+  padding:3px 6px;border:1px solid #30363d;border-radius:3px;
+  background:#0d1117;color:#e6edf3;font-size:11px;font-family:inherit;width:100%;
+}
+.env-block select:focus{outline:none;border-color:#58a6ff}
+
+.env-toggle-grid{
+  display:grid;grid-template-columns:1fr 1fr;gap:4px;
+  font-size:10px;
+}
+.env-toggle-grid .side-col{
+  background:#0d1117;border:1px solid #21262d;border-radius:4px;
+  padding:5px 6px;display:flex;flex-direction:column;gap:3px;
+}
+.env-toggle-grid .side-col.self-col{border-left:2px solid #58a6ff}
+.env-toggle-grid .side-col.opp-col{border-left:2px solid #f85149}
+.env-toggle-grid .side-head{
+  font-size:9px;color:#8b949e;font-weight:700;
+  text-transform:uppercase;letter-spacing:0.5px;
+}
+.env-toggle-grid label.chk{
+  display:flex;align-items:center;gap:4px;cursor:pointer;
+  color:#e6edf3;font-size:10px;
+}
+.env-toggle-grid .status-select{
+  margin-top:3px;padding:2px 4px;border:1px solid #30363d;border-radius:3px;
+  background:#0d1117;color:#e6edf3;font-size:10px;font-family:inherit;width:100%;
+}
+.env-toggle-grid .status-select:focus{outline:none;border-color:#58a6ff}
+.env-toggle-grid label.chk input{
+  margin:0;width:11px;height:11px;cursor:pointer;
+}
+
+.env-crit-row{display:flex;gap:6px;justify-content:space-between}
+.env-crit-row label{
+  display:flex;align-items:center;gap:3px;cursor:pointer;
+  font-size:10px;color:#e6edf3;
+}
+.env-crit-row label input{width:11px;height:11px;cursor:pointer}
+
+.tera-block{
+  display:flex;flex-direction:column;gap:3px;
+  padding:5px 6px;background:#0d1117;border:1px solid #21262d;border-radius:4px;
+}
+.tera-block.tera-on{border-color:#bc8cff}
+.tera-block .tera-head{display:flex;align-items:center;gap:4px;font-size:10px;color:#8b949e}
+.tera-block select{
+  padding:2px 5px;border:1px solid #30363d;border-radius:3px;
+  background:#0a0f15;color:#e6edf3;font-size:10px;font-family:inherit;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚔️ ポケチャン バトルシミュレーター</h1>
+  <span class="head-note">Lv50固定 / 個体値31固定 / 能力P最大66（各32）</span>
+</header>
+
+<div id="handoff-bar">
+  <div class="hf-head">
+    <h3>📥 技チェッカーから受信したパーティ</h3>
+    <button class="hf-clear" id="handoff-clear" title="受信データをクリアします">クリア</button>
+  </div>
+  <div class="hf-row" id="handoff-chips"></div>
+</div>
+
+<main id="arena">
+  <!-- 自分側 -->
+  <section class="side self" id="side-self" data-side="self">
+    <div class="poke-card" data-action="pick-poke">
+      <div class="poke-name-wrap">
+        <span class="poke-name empty">ポケモンを選択</span>
+        <span class="poke-types"></span>
+      </div>
+      <span class="change-btn">▾ 選択</span>
+    </div>
+
+    <table class="stat-table">
+      <thead><tr><th>能力</th><th>種族</th><th>能力P</th><th>ランク</th><th>実数値</th></tr></thead>
+      <tbody class="stat-tbody"></tbody>
+      <tfoot>
+        <tr><td class="stat-key">合計</td><td class="stat-total-base">—</td><td class="stat-total-ep">0</td><td class="stat-rank-blank"></td><td class="stat-total-real">—</td></tr>
+      </tfoot>
+    </table>
+    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span></div>
+
+    <select class="nature-select"></select>
+
+    <div class="ability-wrap">
+      <select class="ability-select"></select>
+      <div class="ability-desc empty">—</div>
+    </div>
+
+    <div class="type-eff weakness"></div>
+    <div class="type-eff resist"></div>
+
+    <div class="moves-list"></div>
+  </section>
+
+  <!-- 中央：環境パネル -->
+  <aside id="env-panel">
+    <h3>🌐 環境</h3>
+
+    <button id="env-swap-btn" type="button" title="自分側 ⇄ 相手側 を入れ替えます">⇄ 自分 / 相手を入れ替え</button>
+
+    <div class="env-block">
+      <label>天候</label>
+      <select id="env-weather">
+        <option value="none">なし</option>
+        <option value="sunny">はれ</option>
+        <option value="rain">あめ</option>
+        <option value="sand">すなあらし</option>
+        <option value="snow">ゆき</option>
+      </select>
+    </div>
+
+    <div class="env-block">
+      <label>フィールド</label>
+      <select id="env-field">
+        <option value="none">なし</option>
+        <option value="electric">エレキ</option>
+        <option value="grassy">グラス</option>
+        <option value="misty">ミスト</option>
+        <option value="psychic">サイコ</option>
+      </select>
+    </div>
+
+    <div class="env-block">
+      <label class="chk"><input type="checkbox" id="env-double">ダブルバトル (範囲技 ×0.75)</label>
+      <label class="chk"><input type="checkbox" id="env-trickroom">トリックルーム (素早さ逆転)</label>
+    </div>
+
+    <h3 style="margin-top:4px">⚔️ 攻撃側設定</h3>
+    <div class="env-toggle-grid">
+      <div class="side-col self-col">
+        <span class="side-head">自分が攻撃</span>
+        <label class="chk"><input type="checkbox" data-side="self" data-flag="critical">急所</label>
+        <label class="chk"><input type="checkbox" data-side="self" data-flag="lifeOrb">いのちのたま</label>
+        <select class="status-select" data-side="self">
+          <option value="none">状態異常なし</option>
+          <option value="burn">やけど</option>
+          <option value="paralysis">まひ</option>
+          <option value="poison">どく</option>
+          <option value="badpoison">もうどく</option>
+          <option value="sleep">ねむり</option>
+          <option value="freeze">こおり</option>
+        </select>
+      </div>
+      <div class="side-col opp-col">
+        <span class="side-head">相手が攻撃</span>
+        <label class="chk"><input type="checkbox" data-side="opp" data-flag="critical">急所</label>
+        <label class="chk"><input type="checkbox" data-side="opp" data-flag="lifeOrb">いのちのたま</label>
+        <select class="status-select" data-side="opp">
+          <option value="none">状態異常なし</option>
+          <option value="burn">やけど</option>
+          <option value="paralysis">まひ</option>
+          <option value="poison">どく</option>
+          <option value="badpoison">もうどく</option>
+          <option value="sleep">ねむり</option>
+          <option value="freeze">こおり</option>
+        </select>
+      </div>
+    </div>
+
+    <h3 style="margin-top:4px">🛡️ 防御側設定</h3>
+    <div class="env-toggle-grid">
+      <div class="side-col self-col">
+        <span class="side-head">自分側の場</span>
+        <label class="chk"><input type="checkbox" data-side="self" data-flag="reflect">リフレクター</label>
+        <label class="chk"><input type="checkbox" data-side="self" data-flag="lightScreen">ひかりのかべ</label>
+        <label class="chk"><input type="checkbox" data-side="self" data-flag="stealthRock">ステルスロック</label>
+        <label class="chk"><input type="checkbox" data-side="self" data-flag="rockyHelmet">ゴツゴツメット</label>
+        <label class="chk"><input type="checkbox" data-side="self" data-flag="disguise">ばけのかわ</label>
+      </div>
+      <div class="side-col opp-col">
+        <span class="side-head">相手側の場</span>
+        <label class="chk"><input type="checkbox" data-side="opp" data-flag="reflect">リフレクター</label>
+        <label class="chk"><input type="checkbox" data-side="opp" data-flag="lightScreen">ひかりのかべ</label>
+        <label class="chk"><input type="checkbox" data-side="opp" data-flag="stealthRock">ステルスロック</label>
+        <label class="chk"><input type="checkbox" data-side="opp" data-flag="rockyHelmet">ゴツゴツメット</label>
+        <label class="chk"><input type="checkbox" data-side="opp" data-flag="disguise">ばけのかわ</label>
+      </div>
+    </div>
+
+    <h3 style="margin-top:4px">💎 テラスタル</h3>
+    <div class="tera-block" id="tera-self">
+      <div class="tera-head">
+        <label class="chk"><input type="checkbox" data-side="self" data-flag="terastal">自分</label>
+      </div>
+      <select id="tera-self-type" disabled>
+        <option value="">タイプ選択</option>
+      </select>
+    </div>
+    <div class="tera-block" id="tera-opp">
+      <div class="tera-head">
+        <label class="chk"><input type="checkbox" data-side="opp" data-flag="terastal">相手</label>
+      </div>
+      <select id="tera-opp-type" disabled>
+        <option value="">タイプ選択</option>
+      </select>
+    </div>
+  </aside>
+
+  <!-- 相手側 -->
+  <section class="side opp" id="side-opp" data-side="opp">
+    <div class="poke-card" data-action="pick-poke">
+      <div class="poke-name-wrap">
+        <span class="poke-name empty">ポケモンを選択</span>
+        <span class="poke-types"></span>
+      </div>
+      <span class="change-btn">▾ 選択</span>
+    </div>
+
+    <table class="stat-table">
+      <thead><tr><th>能力</th><th>種族</th><th>能力P</th><th>ランク</th><th>実数値</th></tr></thead>
+      <tbody class="stat-tbody"></tbody>
+      <tfoot>
+        <tr><td class="stat-key">合計</td><td class="stat-total-base">—</td><td class="stat-total-ep">0</td><td class="stat-rank-blank"></td><td class="stat-total-real">—</td></tr>
+      </tfoot>
+    </table>
+    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span></div>
+
+    <select class="nature-select"></select>
+
+    <div class="ability-wrap">
+      <select class="ability-select"></select>
+      <div class="ability-desc empty">—</div>
+    </div>
+
+    <div class="type-eff weakness"></div>
+    <div class="type-eff resist"></div>
+
+    <div class="moves-list"></div>
+  </section>
+</main>
+
+<!-- バトル進行パネル -->
+<section id="battle-panel">
+  <div class="battle-ctrl">
+    <button id="btn-start-battle" type="button">▶︎ バトル開始 (Init-A)</button>
+    <button id="btn-run-turn" type="button">⚔️ ターン実行</button>
+    <button id="btn-reset-battle" type="button">↺ リセット</button>
+    <span class="battle-hint">技スロットをクリックで「使う技」を選択。両側ともポケモン＋技選択でターン実行できます。</span>
+  </div>
+  <div id="battle-log"></div>
+</section>
+
+<!-- ポケモン選択モーダル -->
+<div class="modal-ov" id="poke-modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <div><h3 style="display:inline">ポケモンを選択</h3><span class="who"></span></div>
+      <button class="modal-close" data-action="close-modal">×</button>
+    </div>
+    <input type="text" class="modal-search" id="poke-search" placeholder="名前で検索...">
+    <div class="modal-list" id="poke-list"></div>
+  </div>
+</div>
+
+<script src="pokechan_data.js"></script>
+<script>
+'use strict';
+
+// =========================================================================
+// 定数
+// =========================================================================
+const LEVEL = 50;
+
+const STAT_KEYS = ['hp','atk','def','spatk','spdef','spd'];
+const STAT_LABELS = {hp:'HP',atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
+
+// 性格 [name, up, down]（— は補正なし）
+const NATURES = [
+  ['がんばりや','—','—'], ['さみしがり','atk','def'], ['ゆうかん','atk','spd'],
+  ['いじっぱり','atk','spatk'], ['やんちゃ','atk','spdef'],
+  ['ずぶとい','def','atk'], ['すなお','—','—'], ['のんき','def','spd'],
+  ['わんぱく','def','spatk'], ['のうてんき','def','spdef'],
+  ['おくびょう','spd','atk'], ['せっかち','spd','def'], ['まじめ','—','—'],
+  ['ようき','spd','spatk'], ['むじゃき','spd','spdef'],
+  ['ひかえめ','spatk','atk'], ['おっとり','spatk','def'], ['れいせい','spatk','spd'],
+  ['てれや','—','—'], ['うっかりや','spatk','spdef'],
+  ['おだやか','spdef','atk'], ['おとなしい','spdef','def'], ['なまいき','spdef','spd'],
+  ['しんちょう','spdef','spatk'], ['きまぐれ','—','—'],
+];
+
+// pokechan_data.js の TYPES と同じ順
+// ["ノーマル","ほのお","みず","でんき","くさ","こおり","かくとう","どく","じめん","ひこう","エスパー","むし","いわ","ゴースト","ドラゴン","あく","はがね","フェアリー"]
+
+// =========================================================================
+// 状態
+// =========================================================================
+const sides = {
+  self: makeSideState(),
+  opp:  makeSideState(),
+};
+
+// 環境（両側共通）
+const env = {
+  weather: 'none',       // none / sunny / rain / sand / snow
+  field:   'none',       // none / electric / grassy / misty / psychic
+  doubleBattle: false,   // ダブルバトル（範囲技 ×0.75）
+  trickRoom: false,      // トリックルーム（素早さ逆転）
+};
+
+// 範囲技判定（ダブルで ×0.75 が乗る対象）
+function isSpreadMove(move){
+  if (!move) return false;
+  const t = move.target;
+  return t === '相手全体' || t === '自分以外全体' || t === '全体';
+}
+
+function makeSideState(){
+  return {
+    poke: null,                              // POKEMON_LIST の1要素 or null
+    effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0},
+    natureIdx: 0,
+    ability: '',                             // 選択中の特性名
+    moves: [],                               // [{key,name,type,category,power,accuracy,pp,...}, ...]
+    // 能力ランク補正 (-6..+6)
+    rank: {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0},
+    // 状態異常
+    status: 'none',                          // none / burn / paralysis / poison / badpoison / sleep / freeze
+    // この側が攻撃するときのオプション
+    critical: false,
+    lifeOrb: false,
+    // この側に張られた／撒かれた状態（被ダメ計算で使う）
+    reflect: false,
+    lightScreen: false,
+    stealthRock: false,
+    rockyHelmet: false,
+    disguise: false,
+    // テラスタル
+    terastal: false,
+    teraType: '',
+  };
+}
+
+// ランク段階倍率: +n -> (2+n)/2, -n -> 2/(2-n)
+function rankMult(n){
+  if (n === 0) return 1;
+  return n > 0 ? (2 + n) / 2 : 2 / (2 - n);
+}
+
+// 名前→ポケモンオブジェクトの逆引き（フォルム違いは最後勝ち、運用上は最初のヒットで十分）
+const POKE_MAP_BY_NAME = {};
+// 起動時に作る（POKEMON_LIST 定義後）
+
+// =========================================================================
+// 計算ロジック（純関数）
+// =========================================================================
+
+// ポケチャン仕様（Champions 段階反映方式）: 個体値31固定、能力P = 実数値+1（1:1）
+// HP: floor((B*2+31)/2) + 60 + P     ※Lv50専用簡略式 = floor((B*2+31)*50/100) + 50+10 + P
+// 他: floor( (floor((B*2+31)/2) + 5 + P) * 性格補正 )
+//   → 性格補正は「能力P加算後の値」全体にかかる（gamerch.com/pokemonchampions/970094 準拠）
+//   → party_checker.html L880-883 と同じ式
+function calcRealStat(key, base, ep, natureMult){
+  if (key === 'hp'){
+    return Math.floor((base * 2 + 31) / 2) + 60 + ep;
+  }
+  const inner = Math.floor((base * 2 + 31) / 2) + 5;
+  return Math.floor((inner + ep) * natureMult);
+}
+
+function getNatureMult(natureIdx, key){
+  const [, up, down] = NATURES[natureIdx];
+  if (up === key && down !== key) return 1.1;
+  if (down === key && up !== key) return 0.9;
+  return 1.0;
+}
+
+function sumEffort(effort){
+  return STAT_KEYS.reduce((s,k)=>s+(effort[k]||0), 0);
+}
+
+// =========================================================================
+// タイプ相性表（攻撃タイプ → 防御タイプ単体への倍率）
+// 行・列とも TYPES と同じ順序。SV準拠。
+// =========================================================================
+const TYPE_CHART = [
+//   ノ  ほ   み   で  く   こ   か   ど   じ   ひ   エ   む   い   ゴ   ド   あ   は   フ
+  [1,   1,   1,   1,  1,   1,   1,   1,   1,   1,   1,   1,   0.5, 0,   1,   1,   0.5, 1  ], // ノーマル
+  [1,   0.5, 0.5, 1,  2,   2,   1,   1,   1,   1,   1,   2,   0.5, 1,   0.5, 1,   2,   1  ], // ほのお
+  [1,   2,   0.5, 1,  0.5, 1,   1,   1,   2,   1,   1,   1,   2,   1,   0.5, 1,   1,   1  ], // みず
+  [1,   1,   2,   0.5,0.5, 1,   1,   1,   0,   2,   1,   1,   1,   1,   0.5, 1,   1,   1  ], // でんき
+  [1,   0.5, 2,   1,  0.5, 1,   1,   0.5, 2,   0.5, 1,   0.5, 2,   1,   0.5, 1,   0.5, 1  ], // くさ
+  [1,   0.5, 0.5, 1,  2,   0.5, 1,   1,   2,   2,   1,   1,   1,   1,   2,   1,   0.5, 1  ], // こおり
+  [2,   1,   1,   1,  1,   2,   1,   0.5, 1,   0.5, 0.5, 0.5, 2,   0,   1,   2,   2,   0.5], // かくとう
+  [1,   1,   1,   1,  2,   1,   1,   0.5, 0.5, 1,   1,   1,   0.5, 0.5, 1,   1,   0,   2  ], // どく
+  [1,   2,   1,   2,  0.5, 1,   1,   2,   1,   0,   1,   0.5, 2,   1,   1,   1,   2,   1  ], // じめん
+  [1,   1,   1,   0.5,2,   1,   2,   1,   1,   1,   1,   2,   0.5, 1,   1,   1,   0.5, 1  ], // ひこう
+  [1,   1,   1,   1,  1,   1,   2,   2,   1,   1,   0.5, 1,   1,   1,   1,   0,   0.5, 1  ], // エスパー
+  [1,   0.5, 1,   1,  2,   1,   0.5, 0.5, 1,   0.5, 2,   1,   1,   0.5, 1,   2,   0.5, 0.5], // むし
+  [1,   2,   1,   1,  1,   2,   0.5, 1,   0.5, 2,   1,   2,   1,   1,   1,   1,   0.5, 1  ], // いわ
+  [0,   1,   1,   1,  1,   1,   1,   1,   1,   1,   2,   1,   1,   2,   1,   0.5, 1,   1  ], // ゴースト
+  [1,   1,   1,   1,  1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   2,   1,   0.5, 0  ], // ドラゴン
+  [1,   1,   1,   1,  1,   1,   0.5, 1,   1,   1,   2,   1,   1,   2,   1,   0.5, 1,   0.5], // あく
+  [1,   0.5, 0.5, 0.5,1,   2,   1,   1,   1,   1,   1,   1,   2,   1,   1,   1,   0.5, 2  ], // はがね
+  [1,   0.5, 1,   1,  1,   1,   2,   0.5, 1,   1,   1,   1,   1,   1,   2,   2,   0.5, 1  ], // フェアリー
+];
+
+// =========================================================================
+// ダメージ計算エンジン（SV準拠、簡略版）
+// =========================================================================
+
+// Q12 整数パイプライン: 5/4096 単位の五捨五超入
+// pokeRound(num, q12) = floor(num*q12/4096) + (剰余 > 2048 ? 1 : 0)
+// 倍率は 4096 単位の Q12 で渡す: ×1.5=6144, ×1.3=5324, ×1.2=4915, ×0.75=3072, ×0.5=2048
+function pokeRound(num, q12){
+  const t = num * q12;
+  return Math.floor(t / 4096) + ((t % 4096) > 2048 ? 1 : 0);
+}
+
+// 攻撃側 atkSide が防御側 defSide に move を撃った時のダメージを計算
+// 戻り値: null (計算不可) / {min,max,variations,hp,koHits,koType,immune,reason}
+function calcDamage(atkSide, defSide, move){
+  if (!move) return null;
+  if (move.category === '変化') return null;
+  const power = (move.power == null || move.power === 0 || move.power === '—') ? 0 : Number(move.power);
+  if (!power) return null;
+
+  const atk = sides[atkSide];
+  const def = sides[defSide];
+  if (!atk.poke || !def.poke) return null;
+
+  // 攻撃側は STAB 判定のために「元タイプ + (テラ中の teraType)」を分けて持つ
+  // 防御側はテラ中なら相性計算もテラタイプで上書き（仕様）
+  const atkOrigTypes = [atk.poke.type1, atk.poke.type2].filter(Boolean);
+  const atkTypes = atkOrigTypes;  // フィールド接地判定など「元タイプ基準」で十分
+  const defTypes = def.terastal && def.teraType
+    ? [def.teraType]
+    : [def.poke.type1, def.poke.type2].filter(Boolean);
+
+  // ばけのかわ無効化
+  if (def.disguise){
+    const hp = realStat(def, 'hp');
+    return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
+            immune:true, reason:'ばけのかわで無効化', recoil:0};
+  }
+
+  // タイプ相性
+  const moveTypeIdx = TYPES.indexOf(move.type);
+  let eff = 1;
+  if (moveTypeIdx >= 0){
+    defTypes.forEach(dt=>{
+      const dtIdx = TYPES.indexOf(dt);
+      if (dtIdx >= 0) eff *= TYPE_CHART[moveTypeIdx][dtIdx];
+    });
+  }
+  if (eff === 0){
+    const hp = realStat(def, 'hp');
+    return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
+            immune:true, reason:'こうかなし', recoil:0};
+  }
+
+  // 攻撃側・防御側の能力値（ランク補正反映、急所時は攻撃-/防御+ を無視）
+  const isPhys = move.category === '物理';
+  const crit   = atk.critical;
+  const aKey = isPhys ? 'atk'  : 'spatk';
+  const dKey = isPhys ? 'def'  : 'spdef';
+  const aStat = rankedStat(atk, aKey, {crit, role:'atk'});
+  const dStat = rankedStat(def, dKey, {crit, role:'def'});
+  const hp = realStat(def, 'hp');
+
+  // ベースダメ（SVの内部式）
+  // base = floor( floor( floor( (2L/5+2) * P * A / D ) / 50 ) ) + 2
+  let base = Math.floor((2 * LEVEL / 5 + 2) * power * aStat / dStat / 50) + 2;
+
+  // 適用された補正をチップ表示用に記録
+  const chips = [];
+
+  // === 補正適用（pokeRound 段階） ===
+  // 1) 天候
+  if (env.weather === 'sunny'){
+    if (move.type === 'ほのお'){ base = pokeRound(base, 6144); chips.push({label:'はれ', factor:1.5, kind:'env'}); }
+    else if (move.type === 'みず'){ base = pokeRound(base, 2048); chips.push({label:'はれ', factor:0.5, kind:'env-down'}); }
+  } else if (env.weather === 'rain'){
+    if (move.type === 'みず'){ base = pokeRound(base, 6144); chips.push({label:'あめ', factor:1.5, kind:'env'}); }
+    else if (move.type === 'ほのお'){ base = pokeRound(base, 2048); chips.push({label:'あめ', factor:0.5, kind:'env-down'}); }
+  }
+  if (env.weather === 'sand' && !isPhys && defTypes.includes('いわ')){
+    base = pokeRound(base, 2731);
+    chips.push({label:'すなあらし いわ特防', factor:2/3, kind:'env-down'});
+  }
+  if (env.weather === 'snow' && isPhys && defTypes.includes('こおり')){
+    base = pokeRound(base, 2731);
+    chips.push({label:'ゆき こおり防御', factor:2/3, kind:'env-down'});
+  }
+
+  // 2) フィールド
+  const flyingAtk = atkTypes.includes('ひこう');
+  if (env.field === 'electric' && move.type === 'でんき' && !flyingAtk){
+    base = pokeRound(base, 5325); chips.push({label:'エレキF', factor:1.3, kind:'env'});
+  } else if (env.field === 'grassy'){
+    if (move.type === 'くさ' && !flyingAtk){ base = pokeRound(base, 5325); chips.push({label:'グラスF', factor:1.3, kind:'env'}); }
+    if (['じしん','じならし','マグニチュード'].includes(move.name)){ base = pokeRound(base, 2048); chips.push({label:'グラスF 地震系', factor:0.5, kind:'env-down'}); }
+  } else if (env.field === 'psychic' && move.type === 'エスパー' && !flyingAtk){
+    base = pokeRound(base, 5325); chips.push({label:'サイコF', factor:1.3, kind:'env'});
+  } else if (env.field === 'misty' && move.type === 'ドラゴン'){
+    const defFlying = defTypes.includes('ひこう');
+    if (!defFlying){ base = pokeRound(base, 2048); chips.push({label:'ミストF ドラゴン', factor:0.5, kind:'env-down'}); }
+  }
+
+  // 3) 急所 ×1.5（crit は上で宣言済み）
+  if (crit){ base = pokeRound(base, 6144); chips.push({label:'急所', factor:1.5, kind:'crit'}); }
+
+  // 3.5) ダブル範囲技 ×0.75
+  if (env.doubleBattle && isSpreadMove(move)){
+    base = pokeRound(base, 3072);
+    chips.push({label:'ダブル範囲', factor:0.75, kind:'env-down'});
+  }
+
+  // 3.6) やけど物理 ×0.5（こんじょう除外）
+  if (atk.status === 'burn' && isPhys && atk.ability !== 'こんじょう'){
+    base = pokeRound(base, 2048);
+    chips.push({label:'やけど', factor:0.5, kind:'env-down'});
+  }
+
+  // 3.7) 攻撃側 特性補正（vgc-champions-calc 準拠の Q12 値）
+  const ab = atk.ability;
+  // てつのこぶし: パンチ技 ×1.2
+  if (ab === 'てつのこぶし' && move.flags && move.flags.punch){
+    base = pokeRound(base, 4915);
+    chips.push({label:'てつのこぶし', factor:1.2, kind:'ability'});
+  }
+  // ちからずく: 追加効果あり技 ×1.3（追加効果が発動しなくなる代わりに）
+  const hasSecondaryEffect = !!(move.battle_data && move.battle_data.effects && move.battle_data.effects.length);
+  if (ab === 'ちからずく' && hasSecondaryEffect){
+    base = pokeRound(base, 5325);
+    chips.push({label:'ちからずく', factor:1.3, kind:'ability'});
+  }
+  // テクニシャン: 威力 60 以下の技 ×1.5
+  if (ab === 'テクニシャン' && power <= 60){
+    base = pokeRound(base, 6144);
+    chips.push({label:'テクニシャン', factor:1.5, kind:'ability'});
+  }
+  // もらいび: ほのお技 ×1.5（発動中と仮定する近似）
+  if (ab === 'もらいび' && move.type === 'ほのお'){
+    base = pokeRound(base, 6144);
+    chips.push({label:'もらいび', factor:1.5, kind:'ability'});
+  }
+  // すなのちから: 砂嵐中 いわ/じめん/はがね ×1.3
+  if (ab === 'すなのちから' && env.weather === 'sand' && ['いわ','じめん','はがね'].includes(move.type)){
+    base = pokeRound(base, 5325);
+    chips.push({label:'すなのちから', factor:1.3, kind:'ability'});
+  }
+
+  // 4) 16通り乱数 [85..100] / 100（ここから先は variation 毎に）
+  const variations = [];
+  for (let r = 85; r <= 100; r++){
+    let v = Math.floor(base * r / 100);
+
+    // 5) STAB（テラスタル考慮）
+    const isOrigStab  = atkOrigTypes.includes(move.type);
+    const isTeraMatch = atk.terastal && atk.teraType === move.type;
+    if (isOrigStab || isTeraMatch){
+      const stab = (isTeraMatch && isOrigStab) ? 2.0 : 1.5;
+      v = pokeRound(v, Math.round(stab * 4096));
+      if (r === 85){
+        const label = (isTeraMatch && isOrigStab) ? 'テラ一致 STAB' : (isTeraMatch ? 'テラ STAB' : 'STAB');
+        chips.push({label, factor:stab, kind:'stab'});
+      }
+    }
+
+    // 6) タイプ相性
+    v = Math.floor(v * eff);
+    if (r === 85 && eff !== 1){
+      let effLabel;
+      if (eff >= 4) effLabel = '4倍弱点';
+      else if (eff === 2) effLabel = '効果抜群';
+      else if (eff === 0.5) effLabel = 'いまひとつ';
+      else if (eff <= 0.25) effLabel = '1/4 軽減';
+      else effLabel = `相性 ×${eff}`;
+      chips.push({label:effLabel, factor:eff, kind: eff > 1 ? 'eff-up' : 'eff-down'});
+    }
+
+    // 7) 壁
+    if (!crit && (def.reflect || def.lightScreen)){
+      const wallActive = isPhys ? def.reflect : def.lightScreen;
+      if (wallActive){
+        v = pokeRound(v, 2048);
+        if (r === 85) chips.push({label: isPhys ? 'リフレクター' : 'ひかりのかべ', factor:0.5, kind:'wall'});
+      }
+    }
+
+    // 8) いのちのたま ×1.3
+    if (atk.lifeOrb){
+      v = pokeRound(v, 5324);
+      if (r === 85) chips.push({label:'いのちのたま', factor:1.3, kind:'item'});
+    }
+
+    // 最終 +2 は base にすでに含まないので「最低1ダメ」保証だけ
+    if (v < 1 && eff > 0) v = 1;
+
+    variations.push(v);
+  }
+
+  const minD = variations[0];
+  const maxD = variations[variations.length - 1];
+
+  // ステロ込みの確定数判定（防御側がステロ踏み済みなら最初の登場で 1発分受けているが、
+  // ここではバトル開始時の判定として「ステロ被ダメ分 HP を減らした」扱いで N 発判定）
+  const stealthHp = def.stealthRock ? Math.floor(hp * stealthRockMult(defTypes) / 8) : 0;
+  const effectiveHp = Math.max(1, hp - stealthHp);
+
+  const ko = calcKoNum(minD, maxD, effectiveHp);
+
+  // ゴツゴツメット反動（接触技という属性は持っていないので、物理技 = 接触に近似）
+  const helmetRecoil = (def.rockyHelmet && isPhys) ? Math.floor(realStat(atk,'hp') / 6) : 0;
+  // いのちのたま反動
+  const orbRecoil = atk.lifeOrb ? Math.floor(realStat(atk,'hp') / 10) : 0;
+
+  return {
+    min:minD, max:maxD, variations, hp, effectiveHp, stealthHp,
+    koHits:ko.n, koType:ko.type, immune:false,
+    recoil: helmetRecoil + orbRecoil,
+    helmetRecoil, orbRecoil, chips,
+  };
+}
+
+// 防御側のステロ被ダメ倍率（はがね耐性は無い、ひこうは2倍など）
+function stealthRockMult(defTypes){
+  const idx = TYPES.indexOf('いわ');
+  if (idx < 0) return 1;
+  let m = 1;
+  defTypes.forEach(dt=>{
+    const dtIdx = TYPES.indexOf(dt);
+    if (dtIdx >= 0) m *= TYPE_CHART[idx][dtIdx];
+  });
+  return m;  // 1/8 にこの倍率を掛けたものがステロ被ダメ
+}
+
+// side 内のステータスを実数値で返す（natureMult のみ、ランクは含まない）
+function realStat(st, key){
+  if (!st.poke) return 0;
+  const ep = st.effort[key] || 0;
+  const mult = getNatureMult(st.natureIdx, key);
+  return calcRealStat(key, st.poke[key], ep, mult);
+}
+
+// ランク補正適用後の能力値（攻撃・防御・特攻・特防・素早さ用）
+// 急所時は攻撃側のマイナスランク / 防御側のプラスランクは無視するためのフラグ付き
+function rankedStat(st, key, opts){
+  const raw = realStat(st, key);
+  if (key === 'hp') return raw;
+  const r = st.rank ? (st.rank[key] || 0) : 0;
+  let useR = r;
+  if (opts && opts.crit){
+    if (opts.role === 'atk' && r < 0) useR = 0;   // 急所時の攻撃ランク低下を無視
+    if (opts.role === 'def' && r > 0) useR = 0;   // 急所時の防御ランク上昇を無視
+  }
+  return Math.floor(raw * rankMult(useR));
+}
+
+// 確定数（min*N >= hp なら確定N、max*N >= hp なら乱数N）
+function calcKoNum(minD, maxD, hp){
+  if (minD <= 0 && maxD <= 0) return {n:'∞', type:'immune'};
+  for (let n = 1; n <= 16; n++){
+    if (minD * n >= hp) return {n, type:'guaranteed'};
+    if (maxD * n >= hp) return {n, type:'random'};
+  }
+  return {n:'17+', type:'long'};
+}
+
+// =========================================================================
+// バトル進行エンジン（フェーズ駆動）
+// =========================================================================
+// HANDOFF_PHASE3_SIMULATOR.md の Phase 構造 v7 を実装。
+// MVP: Init-A → 0a → 0b → 0c → ダメ計算 → 9 (状態異常付与) → 10a (スリップダメ)
+// 1ターンに両側1技ずつ撃つ前提（ダブル拡張は将来）。
+
+const PHASES = [
+  'Init-A',  // 場に出た時の特性発動 (いかく/天候特性等、速度順)
+  'Init-B',  // メガ進化/フォルムチェンジ (未実装)
+  'Pre',     // 追加効果あり/なし判定
+  '0a',      // 先制技優先度
+  '0b',      // 素早さ比較
+  '0c',      // 使用条件・命中判定
+  'Atk-Base',// 攻撃側ステータス取得
+  '1','2','3','4','5','6','7','8',  // 威力→ダメージの 8 フェーズ
+  '9',       // 適用後 (状態異常付与・能力変動・反動)
+  '10a','10b','10c','10d','10e','10f','10g','10h',  // ターン終了処理
+];
+
+// 技の優先度を取得 (tags から)
+function movePriority(move){
+  if (!move || !move.tags) return 0;
+  for (const tag of move.tags){
+    const m = tag.match(/^priority_(plus|minus)_(\d)/);
+    if (m) return (m[1]==='plus'?1:-1) * parseInt(m[2],10);
+  }
+  return 0;
+}
+
+// 素早さ実数値（ランク+ステ補正+トリックルーム反映、状態異常まひ ×0.5）
+function effectiveSpeed(st){
+  if (!st.poke) return 0;
+  let s = rankedStat(st, 'spd');
+  if (st.status === 'paralysis' && st.ability !== 'はやあし') s = Math.floor(s / 2);
+  return s;
+}
+
+// 行動順を判定: 優先度 → 素早さ (トリックルームで逆転) → 同速ランダム
+// 戻り値: 先手の side を 'self' or 'opp' で返す
+function decideOrder(move1, move2){
+  const p1 = movePriority(move1);
+  const p2 = movePriority(move2);
+  if (p1 !== p2) return p1 > p2 ? 'self' : 'opp';
+  const s1 = effectiveSpeed(sides.self);
+  const s2 = effectiveSpeed(sides.opp);
+  if (s1 !== s2){
+    const selfFaster = env.trickRoom ? (s1 < s2) : (s1 > s2);
+    return selfFaster ? 'self' : 'opp';
+  }
+  return Math.random() < 0.5 ? 'self' : 'opp';
+}
+
+// ターン状態 (HP・付与済みステータス等の揮発状態を sides に注入)
+function ensureBattleState(){
+  ['self','opp'].forEach(s=>{
+    const st = sides[s];
+    if (st.currentHp == null && st.poke){
+      st.currentHp = realStat(st, 'hp');
+    }
+    if (st.selectedMoveIdx == null) st.selectedMoveIdx = 0;
+    if (st.fainted == null) st.fainted = false;
+  });
+}
+
+// バトルログ
+const battleLog = [];
+function log(phase, msg){
+  battleLog.push({phase, msg});
+}
+
+// === フェーズ: Init-A 場に出た時の特性発動 ===
+function phaseInitA(){
+  const order = (effectiveSpeed(sides.self) >= effectiveSpeed(sides.opp))
+    ? ['self','opp'] : ['opp','self'];
+  // 各側を速度順に発動
+  for (const s of order){
+    const st = sides[s];
+    if (!st.poke) continue;
+    const other = s === 'self' ? sides.opp : sides.self;
+    const ab = st.ability;
+    if (ab === 'いかく' && other.poke){
+      other.rank.atk = Math.max(-6, (other.rank.atk||0) - 1);
+      log('Init-A', `${st.poke.name} の いかくで ${other.poke.name} のこうげきがさがった！`);
+    } else if (ab === 'ひでり'){
+      env.weather = 'sunny';
+      log('Init-A', `${st.poke.name} の ひでりで 日差しが強くなった！`);
+    } else if (ab === 'あめふらし'){
+      env.weather = 'rain';
+      log('Init-A', `${st.poke.name} の あめふらしで あめが降り始めた！`);
+    } else if (ab === 'すなおこし'){
+      env.weather = 'sand';
+      log('Init-A', `${st.poke.name} の すなおこしで すなあらしが舞い始めた！`);
+    } else if (ab === 'ゆきふらし' || ab === 'ゆきふらし'){
+      env.weather = 'snow';
+      log('Init-A', `${st.poke.name} の ${ab}で ゆきが降り始めた！`);
+    } else if (ab === 'エレキメイカー'){
+      env.field = 'electric';
+      log('Init-A', `${st.poke.name} の エレキメイカーで 足下に電気が満ちた！`);
+    } else if (ab === 'グラスメイカー'){
+      env.field = 'grassy';
+      log('Init-A', `${st.poke.name} の グラスメイカーで 足下に草が生えた！`);
+    } else if (ab === 'ミストメイカー'){
+      env.field = 'misty';
+      log('Init-A', `${st.poke.name} の ミストメイカーで 足下に霧が満ちた！`);
+    } else if (ab === 'サイコメイカー'){
+      env.field = 'psychic';
+      log('Init-A', `${st.poke.name} の サイコメイカーで 足下に不思議な空間が広がった！`);
+    }
+  }
+}
+
+// === フェーズ: 0c 命中判定 (一撃必殺・必中・追加効果は別計算) ===
+function phaseHitCheck(move, atk, def){
+  if (!move) return {hit:false, reason:'技が選択されていない'};
+  // 必中タグ
+  if (move.tags && move.tags.includes('must_hit')) return {hit:true};
+  if (move.accuracy == null || move.accuracy === '—' || move.accuracy === 0) return {hit:true};
+  // 命中率 ×ランク（acc - eva）— 簡易: ランク 0 前提
+  const acc = Number(move.accuracy);
+  const roll = Math.random() * 100;
+  return {hit: roll < acc, reason: roll < acc ? null : `${move.name} は外れた！`};
+}
+
+// === フェーズ: ダメ計算 → HP 反映 (Atk-Base 〜 8) ===
+function phaseDealDamage(atkSide, defSide, move){
+  const result = calcDamage(atkSide, defSide, move);
+  if (!result) return null;
+  if (result.immune){
+    log('8', `${result.reason}！`);
+    return result;
+  }
+  // 乱数1つ選択
+  const variation = result.variations[Math.floor(Math.random() * result.variations.length)];
+  const def = sides[defSide];
+  def.currentHp = Math.max(0, def.currentHp - variation);
+  log('8', `${sides[atkSide].poke.name} の ${move.name}！ ${def.poke.name} に ${variation} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
+  // 反動ダメージ (ゴツメ・たま)
+  if (result.recoil > 0){
+    const atk = sides[atkSide];
+    atk.currentHp = Math.max(0, atk.currentHp - result.recoil);
+    log('9', `${atk.poke.name} は反動で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
+  }
+  // ひんし判定
+  if (def.currentHp <= 0){
+    def.fainted = true;
+    log('8', `${def.poke.name} は ひんしになった！`);
+  }
+  return {...result, variation};
+}
+
+// === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
+function phaseApplyEffects(atkSide, defSide, move){
+  if (!move || !move.battle_data || !move.battle_data.effects) return;
+  const atk = sides[atkSide];
+  const def = sides[defSide];
+  // ちからずく時は追加効果が発動しない
+  if (atk.ability === 'ちからずく') return;
+  // 防御側ひんし時は付与しない
+  if (def.fainted) return;
+  for (const ef of move.battle_data.effects){
+    const target = ef.target === 'self' ? atk : def;
+    if (target.fainted) continue;
+    const prob = ef.prob != null ? ef.prob : 100;
+    if (Math.random() * 100 >= prob) continue;
+    if (ef.kind === 'status'){
+      // 既に状態異常持ち or テラ中の特定条件で無効。シンプルに「none 以外なら付与しない」
+      if (target.status && target.status !== 'none') continue;
+      const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
+      const code = map[ef.value];
+      if (!code) continue;
+      target.status = code;
+      log('9', `${target.poke.name} は ${ef.value} 状態になった！`);
+    }
+  }
+}
+
+// === フェーズ: 10a スリップダメ（やけど 1/16 / どく 1/8 / もうどく カウンタ式）===
+function phaseEndOfTurnSlip(){
+  for (const s of ['self','opp']){
+    const st = sides[s];
+    if (!st.poke || st.fainted) continue;
+    const max = realStat(st, 'hp');
+    if (st.status === 'burn'){
+      const d = Math.max(1, Math.floor(max / 16));
+      st.currentHp = Math.max(0, st.currentHp - d);
+      log('10a', `${st.poke.name} は やけどで ${d} ダメージ！ (残HP ${st.currentHp})`);
+    } else if (st.status === 'poison'){
+      const d = Math.max(1, Math.floor(max / 8));
+      st.currentHp = Math.max(0, st.currentHp - d);
+      log('10a', `${st.poke.name} は どくで ${d} ダメージ！ (残HP ${st.currentHp})`);
+    } else if (st.status === 'badpoison'){
+      st.badpoisonCounter = (st.badpoisonCounter || 0) + 1;
+      const d = Math.max(1, Math.floor(max * st.badpoisonCounter / 16));
+      st.currentHp = Math.max(0, st.currentHp - d);
+      log('10a', `${st.poke.name} は もうどくで ${d} ダメージ！ (残HP ${st.currentHp})`);
+    }
+    if (st.currentHp <= 0){
+      st.fainted = true;
+      log('10a', `${st.poke.name} は ひんしになった！`);
+    }
+  }
+  // 砂嵐継続ダメ (いわ/じめん/はがね/ふゆう除外)
+  if (env.weather === 'sand'){
+    for (const s of ['self','opp']){
+      const st = sides[s];
+      if (!st.poke || st.fainted) continue;
+      const t1 = st.poke.type1, t2 = st.poke.type2;
+      if ([t1,t2].some(t => ['いわ','じめん','はがね'].includes(t))) continue;
+      if (st.ability === 'ふゆう' || st.ability === 'すなのちから' || st.ability === 'すながくれ' || st.ability === 'マジックガード') continue;
+      const max = realStat(st, 'hp');
+      const d = Math.max(1, Math.floor(max / 16));
+      st.currentHp = Math.max(0, st.currentHp - d);
+      log('10c', `${st.poke.name} は すなあらしで ${d} ダメージ！`);
+      if (st.currentHp <= 0){ st.fainted = true; log('10c', `${st.poke.name} は ひんしになった！`); }
+    }
+  }
+}
+
+// === 1ターン実行 ===
+function runTurn(){
+  ensureBattleState();
+  battleLog.length = 0;
+  log('Turn', '─── ターン開始 ───');
+  const selfMove = sides.self.moves[sides.self.selectedMoveIdx];
+  const oppMove  = sides.opp.moves[sides.opp.selectedMoveIdx];
+  // 行動順
+  const firstSide = decideOrder(selfMove, oppMove);
+  const secondSide = firstSide === 'self' ? 'opp' : 'self';
+  const order = [
+    {side:firstSide, move: firstSide==='self'?selfMove:oppMove, opp:secondSide},
+    {side:secondSide, move: secondSide==='self'?selfMove:oppMove, opp:firstSide},
+  ];
+  log('0b', `先攻: ${sides[firstSide].poke ? sides[firstSide].poke.name : '?'}`);
+
+  for (const a of order){
+    const atk = sides[a.side];
+    const def = sides[a.opp];
+    if (atk.fainted){ log(a.side, `${atk.poke.name} は ひんし状態のため行動できない`); continue; }
+    if (!a.move){ log(a.side, `${atk.poke.name} は技を選択していない`); continue; }
+    // ねむり・こおり等
+    if (atk.status === 'sleep'){ log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); continue; }
+    if (atk.status === 'freeze' && Math.random() > 0.2){ log('0c', `${atk.poke.name} は こおっていて うごけない！`); continue; }
+    if (atk.status === 'paralysis' && Math.random() < 0.25){ log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); continue; }
+    // 命中判定
+    const hit = phaseHitCheck(a.move, atk, def);
+    if (!hit.hit){ log('0c', hit.reason); continue; }
+    if (a.move.category === '変化'){
+      log('9', `${atk.poke.name} は ${a.move.name} を使った！ (変化技は MVP では効果未実装)`);
+      // 変化技でも状態異常付与だけは適用（おにび等）
+      phaseApplyEffects(a.side, a.opp, a.move);
+      continue;
+    }
+    // ダメ計算とHP適用
+    phaseDealDamage(a.side, a.opp, a.move);
+    if (!def.fainted) phaseApplyEffects(a.side, a.opp, a.move);
+  }
+  // ターン終了処理
+  phaseEndOfTurnSlip();
+  log('Turn', '─── ターン終了 ───');
+  renderBattleLog();
+  renderBoth();
+}
+
+// === HP リセット / バトルリセット ===
+function resetBattle(){
+  ['self','opp'].forEach(s=>{
+    const st = sides[s];
+    if (st.poke) st.currentHp = realStat(st, 'hp');
+    st.fainted = false;
+    st.badpoisonCounter = 0;
+    st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
+  });
+  battleLog.length = 0;
+  log('Reset', 'バトルをリセットしました');
+  renderBattleLog();
+  renderBoth();
+}
+
+// バトル開始時 (Init-A) を実行
+function startBattle(){
+  ensureBattleState();
+  battleLog.length = 0;
+  log('Start', '─── バトル開始 ───');
+  phaseInitA();
+  renderBattleLog();
+  renderBoth();
+}
+
+function renderBattleLog(){
+  const el = document.getElementById('battle-log');
+  if (!el) return;
+  el.innerHTML = battleLog.map(e =>
+    `<div class="log-line"><span class="log-phase">${e.phase}</span><span class="log-msg">${e.msg}</span></div>`
+  ).join('');
+  el.scrollTop = el.scrollHeight;
+}
+
+// =========================================================================
+// 描画
+// =========================================================================
+
+function render(side){
+  const root = document.getElementById('side-'+side);
+  const st = sides[side];
+
+  // バトル状態の初期化（ポケモン変更後の初回描画で currentHp をセット）
+  if (st.poke && st.currentHp == null){
+    st.currentHp = realStat(st, 'hp');
+  }
+
+  // ポケモン名・タイプ
+  const nameEl = root.querySelector('.poke-name');
+  const typesEl = root.querySelector('.poke-types');
+  if (!st.poke){
+    nameEl.textContent = 'ポケモンを選択';
+    nameEl.classList.add('empty');
+    typesEl.innerHTML = '';
+  } else {
+    nameEl.textContent = st.poke.name + (st.poke.form && st.poke.form !== '通常' ? '('+st.poke.form+')' : '');
+    nameEl.classList.remove('empty');
+    typesEl.innerHTML = '';
+    [st.poke.type1, st.poke.type2].filter(Boolean).forEach(t=>{
+      const b = document.createElement('span');
+      b.className = 't-badge t-'+t;
+      b.textContent = t;
+      typesEl.appendChild(b);
+    });
+  }
+
+  // バトル中の HP バー（ポケモンカード直下）
+  let hpEl = root.querySelector('.battle-hp');
+  if (st.poke && st.currentHp != null){
+    const maxHp = realStat(st, 'hp');
+    const pct = Math.max(0, Math.min(100, (st.currentHp / maxHp) * 100));
+    const fillCls = pct < 25 ? 'low' : pct < 50 ? 'mid' : '';
+    const html = `
+      <span>HP</span>
+      <div class="battle-hp-bar"><div class="battle-hp-fill ${fillCls}" style="width:${pct}%"></div></div>
+      <span>${st.currentHp}/${maxHp}${st.fainted?' <span class="battle-fainted">ひんし</span>':''}</span>
+    `;
+    if (!hpEl){
+      hpEl = document.createElement('div');
+      hpEl.className = 'battle-hp';
+      root.querySelector('.poke-card').after(hpEl);
+    }
+    hpEl.innerHTML = html;
+  } else if (hpEl){
+    hpEl.remove();
+  }
+
+  // ステータス表
+  const tbody = root.querySelector('.stat-tbody');
+  tbody.innerHTML = '';
+  let baseSum = 0, realSum = 0;
+  STAT_KEYS.forEach(k=>{
+    const base = st.poke ? st.poke[k] : 0;
+    const ep = st.effort[k] || 0;
+    const mult = getNatureMult(st.natureIdx, k);
+    const real = st.poke ? calcRealStat(k, base, ep, mult) : 0;
+    baseSum += base;
+    realSum += real;
+    // ランク補正セル（HP はランクなし）
+    const rankCell = (k === 'hp') ? '<td class="stat-rank"></td>' : (()=>{
+      const r = st.rank ? (st.rank[k] || 0) : 0;
+      const cls = r > 0 ? 'up' : (r < 0 ? 'down' : '');
+      const sign = r > 0 ? '+' : '';
+      return `<td class="stat-rank"><span class="stat-rank-ctrl">
+        <button type="button" class="rank-dec" data-key="${k}" ${r<=-6?'disabled':''}>−</button>
+        <span class="rank-val ${cls}">${sign}${r}</span>
+        <button type="button" class="rank-inc" data-key="${k}" ${r>=6?'disabled':''}>＋</button>
+      </span></td>`;
+    })();
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="stat-key">${STAT_LABELS[k]}</td>
+      <td class="stat-base">${base || '—'}</td>
+      <td class="stat-effort"><input type="number" min="0" max="32" data-key="${k}" value="${ep}"></td>
+      ${rankCell}
+      <td class="stat-final ${mult>1?'nature-up':mult<1?'nature-down':''}">${st.poke ? real : '—'}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+  // 合計行
+  const totalEp = sumEffort(st.effort);
+  root.querySelector('.stat-total-base').textContent = st.poke ? baseSum : '—';
+  root.querySelector('.stat-total-ep').textContent = totalEp;
+  root.querySelector('.stat-total-real').textContent = st.poke ? realSum : '—';
+
+  // EP合計
+  const sum = root.querySelector('.ep-summary');
+  sum.querySelector('b').textContent = totalEp;
+  sum.classList.toggle('over', totalEp > 66);
+
+  // 各セルの over フラグ
+  root.querySelectorAll('.stat-effort input').forEach(inp=>{
+    const v = parseInt(inp.value,10)||0;
+    inp.classList.toggle('over', v > 32);
+  });
+
+  // 特性セレクタ
+  renderAbilitySelect(root, st);
+
+  // 弱点・耐性
+  renderTypeEff(root, st);
+
+  // 技スロット
+  renderMoves(root, st);
+}
+
+function renderMoves(root, st){
+  const wrap = root.querySelector('.moves-list');
+  const sideId = root.dataset.side;
+  const oppId = sideId === 'self' ? 'opp' : 'self';
+  wrap.innerHTML = '';
+  if (!st.moves || !st.moves.length){
+    wrap.innerHTML = '<div class="moves-empty">（技未受信）技チェッカーから「⚔️ バトルへ送る」してください</div>';
+    return;
+  }
+  st.moves.forEach((m, idx)=>{
+    const row = document.createElement('div');
+    row.className = 'move-row' + (st.selectedMoveIdx === idx ? ' selected' : '');
+    row.dataset.moveIdx = idx;
+    const acc = (m.accuracy == null || m.accuracy === '—') ? '—' : m.accuracy;
+    const pow = (m.power == null || m.power === 0) ? '—' : m.power;
+    const head = `
+      <div class="move-head">
+        <span class="m-type t-${m.type}">${m.type}</span>
+        <span class="m-name" title="${m.description||''}">${m.name}</span>
+        <span class="m-cat ${m.category}">${m.category}</span>
+        <span class="m-pow">${pow}</span>
+        <span class="m-acc">${acc}</span>
+      </div>`;
+
+    // ダメ計算（この side が攻撃側、反対 side が防御側）
+    const result = calcDamage(sideId, oppId, m);
+    let body = '';
+    if (result === null){
+      // 変化技 or 威力なし or どちらか未選択
+      body = '';
+    } else if (result.immune){
+      body = `<div class="move-immune">${result.reason}</div>`;
+    } else {
+      const pctMin = (result.min / result.hp * 100).toFixed(1);
+      const pctMax = (result.max / result.hp * 100).toFixed(1);
+      const koClass = (result.koType === 'guaranteed' && result.koHits === 1) ? 'guaranteed-1'
+                    : (result.koType === 'guaranteed' && result.koHits === 2) ? 'guaranteed-2' : '';
+      const koLabel = result.koType === 'guaranteed' ? `確定${result.koHits}発`
+                    : result.koType === 'random' ? `乱数${result.koHits}発`
+                    : `${result.koHits}発`;
+      const recoilLine = result.recoil > 0
+        ? `<div class="move-recoil">反動 ${result.recoil}${result.helmetRecoil ? ` (ゴツメ ${result.helmetRecoil})` : ''}${result.orbRecoil ? ` (たま ${result.orbRecoil})` : ''}</div>`
+        : '';
+      const stealthNote = (result.stealthHp > 0) ? `<span class="dmg-side-tag" title="ステロで HP-${result.stealthHp}">ｽﾃﾛ-${result.stealthHp}</span>` : '';
+      const chipsHtml = (result.chips && result.chips.length)
+        ? `<div class="dmg-chips">${result.chips.map(c=>{
+            const fStr = (c.factor === 2/3) ? '×2/3' : `×${(+c.factor.toFixed(3))}`;
+            return `<span class="dmg-chip chip-${c.kind}">${c.label} ${fStr}</span>`;
+          }).join('')}</div>`
+        : '';
+      body = `
+        <div class="dmg-result">
+          <div class="dmg-cell dmg-range"><span class="dmg-label">ダメ</span><span class="dmg-val">${result.min}〜${result.max}</span></div>
+          <div class="dmg-cell dmg-pct"><span class="dmg-label">HP%</span><span class="dmg-val">${pctMin}〜${pctMax}%</span></div>
+          <div class="dmg-cell dmg-ko ${koClass}"><span class="dmg-label">確定${stealthNote ? ' '+stealthNote : ''}</span><span class="dmg-val">${koLabel}</span></div>
+        </div>
+        ${chipsHtml}
+        ${recoilLine}
+      `;
+    }
+    row.innerHTML = head + body;
+    wrap.appendChild(row);
+  });
+}
+
+function renderAbilitySelect(root, st){
+  const sel = root.querySelector('.ability-select');
+  const descEl = root.querySelector('.ability-desc');
+  sel.innerHTML = '';
+  if (!st.poke){
+    sel.disabled = true;
+    sel.innerHTML = '<option value="">—</option>';
+    descEl.textContent = '—';
+    descEl.classList.add('empty');
+    return;
+  }
+  sel.disabled = false;
+  const abilities = [st.poke.ab1, st.poke.ab2, st.poke.ab3].filter(a=>a && a.trim() !== '');
+  if (!abilities.length){
+    sel.innerHTML = '<option value="">特性なし</option>';
+    descEl.textContent = '特性データがありません';
+    descEl.classList.add('empty');
+    return;
+  }
+  // 既存選択が新ポケモンの特性候補にない場合は1番目を選択
+  if (!abilities.includes(st.ability)){
+    st.ability = abilities[0];
+  }
+  abilities.forEach(a=>{
+    const opt = document.createElement('option');
+    opt.value = a;
+    opt.textContent = a;
+    if (a === st.ability) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  const desc = (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[st.ability]) ? ABILITY_DESC[st.ability] : '（説明データなし）';
+  descEl.textContent = desc;
+  descEl.classList.toggle('empty', !ABILITY_DESC || !ABILITY_DESC[st.ability]);
+}
+
+function renderTypeEff(root, st){
+  const weakWrap = root.querySelector('.type-eff.weakness');
+  const resWrap = root.querySelector('.type-eff.resist');
+  weakWrap.innerHTML = '';
+  resWrap.innerHTML = '';
+  if (!st.poke || !st.poke.resist){
+    weakWrap.innerHTML = '<span class="empty">—</span>';
+    resWrap.innerHTML = '<span class="empty">—</span>';
+    weakWrap.classList.add('empty');
+    resWrap.classList.add('empty');
+    return;
+  }
+  weakWrap.classList.remove('empty');
+  resWrap.classList.remove('empty');
+
+  const groups = {x0:[], x025:[], x05:[], x2:[], x4:[]};
+  st.poke.resist.forEach((mult, i)=>{
+    const type = TYPES[i];
+    if (mult === 0) groups.x0.push(type);
+    else if (mult === 0.25) groups.x025.push(type);
+    else if (mult === 0.5) groups.x05.push(type);
+    else if (mult === 2) groups.x2.push(type);
+    else if (mult === 4) groups.x4.push(type);
+  });
+
+  // 弱点（×2, ×4）
+  const weakRows = [
+    ['x4','×4',groups.x4],
+    ['x2','×2',groups.x2],
+  ];
+  let weakHas = false;
+  weakRows.forEach(([cls,label,types])=>{
+    if (!types.length) return;
+    weakHas = true;
+    appendTeRow(weakWrap, cls, label, types);
+  });
+  if (!weakHas) weakWrap.innerHTML = '<span class="empty">弱点なし</span>';
+
+  // 耐性（×0.5, ×0.25, ×0）
+  const resRows = [
+    ['x05','½',groups.x05],
+    ['x025','¼',groups.x025],
+    ['x0','×0',groups.x0],
+  ];
+  let resHas = false;
+  resRows.forEach(([cls,label,types])=>{
+    if (!types.length) return;
+    resHas = true;
+    appendTeRow(resWrap, cls, label, types);
+  });
+  if (!resHas) resWrap.innerHTML = '<span class="empty">耐性なし</span>';
+}
+
+function appendTeRow(wrap, cls, label, types){
+  const row = document.createElement('div');
+  row.className = 'te-row';
+  row.innerHTML = `<span class="te-mult ${cls}">${label}</span>`;
+  types.forEach(t=>{
+    const b = document.createElement('span');
+    b.className = 't-badge t-'+t;
+    b.textContent = t;
+    row.appendChild(b);
+  });
+  wrap.appendChild(row);
+}
+
+// =========================================================================
+// 初期化
+// =========================================================================
+
+function initNatureSelects(){
+  document.querySelectorAll('.nature-select').forEach((sel,i)=>{
+    const side = i === 0 ? 'self' : 'opp';
+    NATURES.forEach(([name,up,down],idx)=>{
+      const opt = document.createElement('option');
+      opt.value = idx;
+      const tag = up === '—' ? '' : ` (${STAT_LABELS[up]}↑/${STAT_LABELS[down]}↓)`;
+      opt.textContent = name + tag;
+      sel.appendChild(opt);
+    });
+    sel.value = sides[side].natureIdx;
+    sel.addEventListener('change', e=>{
+      sides[side].natureIdx = parseInt(e.target.value, 10);
+      render(side);
+    });
+  });
+}
+
+function attachEpInput(){
+  document.querySelectorAll('.side').forEach(sideEl=>{
+    const side = sideEl.dataset.side;
+    sideEl.addEventListener('input', e=>{
+      if (!e.target.matches('.stat-effort input')) return;
+      const key = e.target.dataset.key;
+      let v = parseInt(e.target.value, 10);
+      if (isNaN(v) || v < 0) v = 0;
+      // 自動的に32でクランプはしない（オーバー表示で気付かせる）
+      sides[side].effort[key] = v;
+      render(side);
+    });
+    // ランク ± ボタン（クリック委譲）
+    sideEl.addEventListener('click', e=>{
+      const btn = e.target.closest('.rank-inc, .rank-dec');
+      if (!btn) return;
+      const key = btn.dataset.key;
+      const st = sides[side];
+      st.rank = st.rank || {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
+      const cur = st.rank[key] || 0;
+      const delta = btn.classList.contains('rank-inc') ? 1 : -1;
+      const next = Math.max(-6, Math.min(6, cur + delta));
+      if (next === cur) return;
+      st.rank[key] = next;
+      render(side);
+      // 反対側のダメ計にも影響するので両側再描画
+      render(side === 'self' ? 'opp' : 'self');
+    });
+  });
+}
+
+function attachCardClick(){
+  document.querySelectorAll('.poke-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const side = card.closest('.side').dataset.side;
+      openPokeModal(side);
+    });
+  });
+}
+
+function attachAbilityChange(){
+  document.querySelectorAll('.side').forEach(sideEl=>{
+    const side = sideEl.dataset.side;
+    sideEl.querySelector('.ability-select').addEventListener('change', e=>{
+      sides[side].ability = e.target.value;
+      render(side);
+    });
+  });
+}
+
+// =========================================================================
+// 環境パネルのイベント
+// =========================================================================
+function attachEnvPanel(){
+  // 天候・フィールド select
+  document.getElementById('env-weather').addEventListener('change', e=>{
+    env.weather = e.target.value;
+    renderBoth();
+  });
+  document.getElementById('env-field').addEventListener('change', e=>{
+    env.field = e.target.value;
+    renderBoth();
+  });
+  document.getElementById('env-double').addEventListener('change', e=>{
+    env.doubleBattle = e.target.checked;
+    renderBoth();
+  });
+  document.getElementById('env-trickroom').addEventListener('change', e=>{
+    env.trickRoom = e.target.checked;
+    renderBoth();
+  });
+  // 攻撃側 状態異常 select
+  document.querySelectorAll('.status-select').forEach(sel=>{
+    sel.addEventListener('change', e=>{
+      const side = e.target.dataset.side;
+      sides[side].status = e.target.value;
+      renderBoth();
+    });
+  });
+
+  // 各種チェックボックス（critical / lifeOrb / reflect / lightScreen / stealthRock / rockyHelmet / disguise / terastal）
+  document.querySelectorAll('#env-panel input[type="checkbox"]').forEach(cb=>{
+    cb.addEventListener('change', e=>{
+      const side = e.target.dataset.side;
+      const flag = e.target.dataset.flag;
+      if (!side || !flag) return;
+      sides[side][flag] = e.target.checked;
+      // テラスタルのトグル時に select の有効/無効を切替
+      if (flag === 'terastal'){
+        const sel = document.getElementById('tera-' + side + '-type');
+        sel.disabled = !e.target.checked;
+        document.getElementById('tera-' + side).classList.toggle('tera-on', e.target.checked);
+        if (!e.target.checked) sides[side].teraType = '';
+      }
+      renderBoth();
+    });
+  });
+
+  // テラタイプ select
+  ['self','opp'].forEach(side=>{
+    const sel = document.getElementById('tera-' + side + '-type');
+    // option を埋める
+    TYPES.forEach(t=>{
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', e=>{
+      sides[side].teraType = e.target.value;
+      renderBoth();
+    });
+  });
+
+  // 左右入れ替えボタン
+  const swapBtn = document.getElementById('env-swap-btn');
+  if (swapBtn) swapBtn.addEventListener('click', swapSides);
+}
+
+// 自分側 ⇄ 相手側 を入れ替え
+function swapSides(){
+  const tmp = sides.self;
+  sides.self = sides.opp;
+  sides.opp = tmp;
+
+  // 環境パネルの checkbox を再同期
+  document.querySelectorAll('#env-panel input[type="checkbox"]').forEach(cb=>{
+    const side = cb.dataset.side;
+    const flag = cb.dataset.flag;
+    if (side && flag) cb.checked = !!sides[side][flag];
+  });
+  // テラ select の値と有効/無効を再同期
+  ['self','opp'].forEach(s=>{
+    const sel = document.getElementById('tera-' + s + '-type');
+    if (sel){
+      sel.value = sides[s].teraType || '';
+      sel.disabled = !sides[s].terastal;
+      document.getElementById('tera-' + s).classList.toggle('tera-on', !!sides[s].terastal);
+    }
+    // 状態異常 select も同期
+    const statSel = document.querySelector(`.status-select[data-side="${s}"]`);
+    if (statSel) statSel.value = sides[s].status || 'none';
+  });
+
+  renderBoth();
+}
+
+function renderBoth(){
+  render('self');
+  render('opp');
+}
+
+// =========================================================================
+// ポケモン選択モーダル
+// =========================================================================
+
+let currentModalSide = null;
+
+function openPokeModal(side){
+  currentModalSide = side;
+  const modal = document.getElementById('poke-modal');
+  modal.querySelector('.who').textContent = side === 'self' ? '（自分側）' : '（相手側）';
+  document.getElementById('poke-search').value = '';
+  renderPokeList('');
+  modal.classList.add('vis');
+  setTimeout(()=>document.getElementById('poke-search').focus(), 50);
+}
+
+function closePokeModal(){
+  document.getElementById('poke-modal').classList.remove('vis');
+  currentModalSide = null;
+}
+
+function renderPokeList(q){
+  const list = document.getElementById('poke-list');
+  list.innerHTML = '';
+  const ql = q.trim().toLowerCase();
+  const filtered = POKEMON_LIST.filter(p=>{
+    if (!ql) return true;
+    const label = (p.name + (p.form && p.form !== '通常' ? p.form : '')).toLowerCase();
+    return label.includes(ql);
+  }).slice(0, 200);   // 表示は上位200件まで
+
+  filtered.forEach(p=>{
+    const item = document.createElement('div');
+    item.className = 'm-item';
+    const formTag = p.form && p.form !== '通常' ? `<span style="color:#8b949e;font-size:10px">(${p.form})</span>` : '';
+    item.innerHTML = `
+      <span class="m-name">${p.name} ${formTag}</span>
+      <span class="m-types">
+        ${[p.type1, p.type2].filter(Boolean).map(t=>`<span class="t-badge t-${t}">${t}</span>`).join('')}
+      </span>
+    `;
+    item.addEventListener('click', ()=>{
+      if (currentModalSide){
+        const st = sides[currentModalSide];
+        st.poke = p;
+        // ポケモン変更時はバトル状態をリセット
+        st.currentHp = null;
+        st.fainted = false;
+        st.badpoisonCounter = 0;
+        st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
+        st.selectedMoveIdx = 0;
+        render(currentModalSide);
+      }
+      closePokeModal();
+    });
+    list.appendChild(item);
+  });
+
+  if (!filtered.length){
+    list.innerHTML = '<div style="padding:20px;color:#8b949e;text-align:center">該当なし</div>';
+  }
+}
+
+document.getElementById('poke-search').addEventListener('input', e=>{
+  renderPokeList(e.target.value);
+});
+document.querySelector('#poke-modal .modal-close').addEventListener('click', closePokeModal);
+document.getElementById('poke-modal').addEventListener('click', e=>{
+  if (e.target.id === 'poke-modal') closePokeModal();
+});
+document.addEventListener('keydown', e=>{
+  if (e.key === 'Escape') closePokeModal();
+});
+
+// =========================================================================
+// 技チェッカーからの受信パーティ
+// =========================================================================
+const HANDOFF_KEY = 'pokechan_battle_handoff_v1';
+
+function loadHandoff(){
+  try{
+    const raw = localStorage.getItem(HANDOFF_KEY);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.party)) return null;
+    return data;
+  }catch(e){
+    console.warn('handoff parse error', e);
+    return null;
+  }
+}
+
+function renderHandoffBar(){
+  const data = loadHandoff();
+  const bar = document.getElementById('handoff-bar');
+  const chipsEl = document.getElementById('handoff-chips');
+  bar.classList.remove('vis');
+  if (!data) return;
+  const valid = data.party.filter(p=>p);
+  if (!valid.length) return;
+  bar.classList.add('vis');
+  chipsEl.innerHTML = '';
+  data.party.forEach(p=>{
+    if (!p) return;
+    const poke = POKE_MAP_BY_NAME[p.name];
+    const types = poke ? [poke.type1, poke.type2].filter(Boolean) : [];
+    const moveCount = (p.moves || []).length;
+    const chip = document.createElement('div');
+    chip.className = 'hf-chip';
+    chip.innerHTML = `
+      <div class="hf-chip-name">${p.name}${poke ? '' : ' ⚠️'}</div>
+      <div class="hf-chip-types">${types.map(t=>`<span class="t-badge t-${t}">${t}</span>`).join('')}</div>
+      <div class="hf-chip-meta">${p.nature || 'まじめ'} / 技${moveCount}</div>
+      <div class="hf-chip-btns">
+        <button class="hf-self" data-side="self">▶ 自分</button>
+        <button class="hf-opp" data-side="opp">相手 ◀</button>
+      </div>
+    `;
+    chip.querySelectorAll('button').forEach(b=>{
+      b.addEventListener('click', ()=>applyHandoffToSide(b.dataset.side, p));
+    });
+    chipsEl.appendChild(chip);
+  });
+}
+
+function applyHandoffToSide(side, p){
+  const poke = POKE_MAP_BY_NAME[p.name];
+  if (!poke){
+    alert('「' + p.name + '」が POKEMON_LIST に見つかりません。pokechan_data.js を確認してください。');
+    return;
+  }
+  const st = sides[side];
+  st.poke = poke;
+  // バトル状態リセット
+  st.currentHp = null;
+  st.fainted = false;
+  st.badpoisonCounter = 0;
+  st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
+  st.selectedMoveIdx = 0;
+  st.effort = {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0, ...(p.effort||{})};
+  const natIdx = NATURES.findIndex(([n])=>n === p.nature);
+  st.natureIdx = natIdx >= 0 ? natIdx : 0;
+  document.getElementById('side-'+side).querySelector('.nature-select').value = st.natureIdx;
+  st.ability = '';   // render内で1番目が自動選択される
+  st.moves = (p.moves || []).map(key => {
+    if (typeof WAZA_MAP === 'undefined' || !WAZA_MAP[key]) return null;
+    return WAZA_MAP[key];
+  }).filter(Boolean);
+  render(side);
+}
+
+function clearHandoff(){
+  if (!confirm('受信したパーティデータを削除しますか？\n（自分/相手にセット済みのデータには影響しません）')) return;
+  localStorage.removeItem(HANDOFF_KEY);
+  renderHandoffBar();
+}
+
+// =========================================================================
+// 起動
+// =========================================================================
+window.addEventListener('DOMContentLoaded', ()=>{
+  if (typeof POKEMON_LIST === 'undefined'){
+    document.body.innerHTML = '<div style="padding:40px;color:#ff7b72">エラー: pokechan_data.js が読み込めません。このHTMLは ~/Documents/ポケモンDB/ 内に配置してください。</div>';
+    return;
+  }
+  // 名前→ポケモンの逆引き
+  POKEMON_LIST.forEach(p=>{ POKE_MAP_BY_NAME[p.name] = p; });
+
+  initNatureSelects();
+  attachEpInput();
+  attachCardClick();
+  attachAbilityChange();
+  attachEnvPanel();
+  attachMoveSelect();
+  attachBattleControl();
+  document.getElementById('handoff-clear').addEventListener('click', clearHandoff);
+  renderHandoffBar();
+  render('self');
+  render('opp');
+});
+
+// 技スロットをクリックして「使う技」を選択
+function attachMoveSelect(){
+  document.querySelectorAll('.side').forEach(sideEl=>{
+    const side = sideEl.dataset.side;
+    sideEl.addEventListener('click', e=>{
+      const row = e.target.closest('.move-row');
+      if (!row) return;
+      const idx = parseInt(row.dataset.moveIdx, 10);
+      if (isNaN(idx)) return;
+      sides[side].selectedMoveIdx = idx;
+      render(side);
+    });
+  });
+}
+
+// バトル進行ボタン
+function attachBattleControl(){
+  const start = document.getElementById('btn-start-battle');
+  const turn  = document.getElementById('btn-run-turn');
+  const reset = document.getElementById('btn-reset-battle');
+  if (start) start.addEventListener('click', startBattle);
+  if (turn)  turn.addEventListener('click', runTurn);
+  if (reset) reset.addEventListener('click', resetBattle);
+}
+</script>
+
+</body>
+</html>
