@@ -9,11 +9,15 @@
  */
 
 window.PCHAMDB_AFFILIATE = {
+  // 全広告枠で共通利用する PR 表記文言
+  prLabel: '広告 / PR',
+
   // Amazon アソシエイト (申請待ち・サポート問い合わせ中)
   amazon: {
     enabled: false,       // 承認後に true へ
     associateId: 'pchamdb-22', // 仮 / 申請後に確定
     baseLinkParam: 'tag=pchamdb-22',
+    oneLink: null,        // OneLink ID (海外 Amazon 自動分岐) — Step 2 で設定
   },
 
   // 楽天アフィリエイト (2026-05-12 設定完了)
@@ -21,6 +25,20 @@ window.PCHAMDB_AFFILIATE = {
     enabled: true,
     affiliateId: '53b80f6e.8c5584d0.53b80f6f.ffc45287',
     linkBase: 'https://hb.afl.rakuten.co.jp/ichiba/',
+  },
+
+  // Google AdSense (PV 育成後に申請予定)
+  adsense: {
+    enabled: false,       // 承認後に true へ
+    client: null,         // 例: 'ca-pub-XXXXXXXXXXXXXXXX'
+    slots: {              // data-ad-slot 単位の slot ID
+      'index-hero-below':    null,
+      'making-incontent-1':  null,
+      'terms-incontent-1':   null,
+      'privacy-incontent-1': null,
+      'disclaimer-incontent-1': null,
+      'contact-incontent-1': null,
+    },
   },
 
   /**
