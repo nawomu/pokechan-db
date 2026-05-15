@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>制作の裏側 — Claude Code と1ヶ月で作った話 - PchamDB</title>
+<meta name="description" content="ポケモンチャンピオンズ非公式DB「PchamDB」を Claude Code と二人三脚で1ヶ月で作った制作秘話。使ったツール、苦労した点、楽しかった点を公開。">
+<meta name="theme-color" content="#FF7A00">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://pchamdb.com/making.html">
+<link rel="alternate" hreflang="ja" href="https://pchamdb.com/making.html">
+<link rel="alternate" hreflang="en" href="https://pchamdb.com/making_en.html">
+<link rel="alternate" hreflang="x-default" href="https://pchamdb.com/making.html">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="stylesheet" href="legal-shared.css">
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PchamDB">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="制作の裏側 — Claude Code と1ヶ月で作った話">
+<meta property="og:description" content="ポケモンチャンピオンズ非公式DB「PchamDB」を Claude Code と二人三脚で1ヶ月で作った制作秘話。">
+<meta property="og:url" content="https://pchamdb.com/making.html">
+<meta property="og:image" content="https://pchamdb.com/branding/logo/logo_main_transparent.png">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="制作の裏側 — Claude Code と1ヶ月で作った話">
+<meta name="twitter:description" content="ポケモンチャンピオンズ非公式DB「PchamDB」を Claude Code と二人三脚で1ヶ月で作った制作秘話。">
+<meta name="twitter:image" content="https://pchamdb.com/branding/logo/logo_main_transparent.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "制作の裏側 — Claude Code と1ヶ月で作った話",
+  "description": "ポケモンチャンピオンズ非公式DB「PchamDB」を Claude Code と二人三脚で1ヶ月で作った制作秘話。使ったツール、苦労した点、楽しかった点を公開。",
+  "image": "https://pchamdb.com/branding/logo/logo_main_transparent.png",
+  "datePublished": "2026-05-14",
+  "dateModified": "2026-05-14",
+  "author": {
+    "@type": "Organization",
+    "name": "PchamDB",
+    "url": "https://pchamdb.com/"
+  },
+  "publisher": {
+    "@type": "Organization",
+    "name": "PchamDB",
+    "logo": {
+      "@type": "ImageObject",
+      "url": "https://pchamdb.com/branding/logo/logo_main_transparent.png"
+    }
+  },
+  "mainEntityOfPage": {
+    "@type": "WebPage",
+    "@id": "https://pchamdb.com/making.html"
+  },
+  "inLanguage": "ja"
+}
+</script>
+
+<style>
+  .making-hero {
+    text-align: center;
+    margin: 24px 0 32px;
+  }
+  .making-hero img {
+    max-width: 180px;
+    width: 50%;
+    height: auto;
+  }
+  .making-hero h1 {
+    color: var(--blue);
+    font-size: 28px;
+    margin: 12px 0 8px;
+    line-height: 1.4;
+  }
+  .making-hero .sub {
+    color: var(--muted);
+    font-size: 14px;
+    margin: 0;
+  }
+
+  .timeline {
+    border-left: 3px solid var(--orange-light);
+    padding-left: 20px;
+    margin: 24px 0;
+  }
+  .timeline-item {
+    margin-bottom: 24px;
+    position: relative;
+  }
+  .timeline-item::before {
+    content: "";
+    width: 12px;
+    height: 12px;
+    background: var(--orange);
+    border-radius: 50%;
+    position: absolute;
+    left: -27px;
+    top: 6px;
+  }
+  .timeline-week {
+    color: var(--orange);
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 4px;
+  }
+  .timeline-title {
+    font-weight: 700;
+    color: var(--blue-dark);
+    margin-bottom: 6px;
+    font-size: 16px;
+  }
+  .timeline-desc {
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .stack-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+  }
+  .stack-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+  }
+  .stack-card .stack-name {
+    font-weight: 700;
+    color: var(--blue);
+    margin-bottom: 4px;
+    font-size: 15px;
+  }
+  .stack-card .stack-role {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .quote-box {
+    background: #fff8e1;
+    border-left: 4px solid var(--yellow);
+    padding: 14px 18px;
+    margin: 20px 0;
+    border-radius: 0 8px 8px 0;
+    font-style: italic;
+    color: #5d4a00;
+  }
+
+  .cta-back {
+    display: inline-block;
+    margin: 24px auto;
+    padding: 12px 28px;
+    background: var(--orange);
+    color: white !important;
+    border-radius: 99px;
+    font-weight: 700;
+    text-decoration: none;
+    font-size: 15px;
+  }
+  .cta-back:hover {
+    background: var(--orange-light);
+  }
+  .cta-wrap {
+    text-align: center;
+    margin: 32px 0 24px;
+  }
+</style>
+</head>
+<body>
+
+<div class="lang-switcher"><a href="making_en.html" hreflang="en">🇬🇧 English</a></div>
+
+<header class="legal-header">
+  <a href="index.html">
+    <img src="branding/logo/logo_main_clean.png" alt="PchamDB">
+  </a>
+  <p class="sub">UNOFFICIAL POKEMON CHAMPIONS DATABASE <span class="beta-badge">BETA</span></p>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">ホーム</a> &gt; 制作の裏側
+</nav>
+
+<main class="legal-main">
+  <div class="making-hero">
+    <img src="branding/characters/pchan_main.png" alt="ぴ〜ちゃん">
+    <h1>制作の裏側 — Claude Code と1ヶ月で作った話</h1>
+    <p class="sub">PchamDB がどうやって生まれたか、ぴ〜ちゃんがお話しします 🐉</p>
+  </div>
+
+  <h2>🌱 きっかけ</h2>
+  <p>
+    ポケモンチャンピオンズが発表されて、「対戦準備をもっと楽にできるツールがほしい」と思ったのが始まりでした。
+    既存の攻略サイトは情報量こそ豊富ですが、対戦に直結する情報（タイプ相性・パーティ補完・わざの効果フィルタ）を
+    <strong>一画面で横並びに見られるツール</strong> がなかなか見つかりませんでした。
+  </p>
+  <p>
+    「ないなら、自分で作るしかない」── そう思って動き始めたのが2026年4月のことです。
+  </p>
+
+  <div class="quote-box">
+    でも、自分はバリバリのエンジニアではない。プログラミングは少しかじった程度。
+    1人で全部作るのは正直しんどい。そこで頼ったのが <strong>Claude Code</strong> でした。
+  </div>
+
+  <h2>🛠 使ったツール・スタック</h2>
+  <div class="stack-list">
+    <div class="stack-card">
+      <div class="stack-name">Claude Code</div>
+      <div class="stack-role">コーディングのメインパートナー。CLI でファイル編集・実行まで一気通貫</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-name">HTML / CSS / Vanilla JS</div>
+      <div class="stack-role">フレームワークは使わず、素のHTML+JSで実装。静的ホスティングしやすい</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-name">GitHub Pages + Cloudflare</div>
+      <div class="stack-role">無料で独自ドメイン (pchamdb.com) で公開。CDN もついてくる</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-name">PokeAPI</div>
+      <div class="stack-role">多言語化のための公式翻訳データ取得元</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-name">楽天アフィリエイト</div>
+      <div class="stack-role">運営費の足しに、レコメンド型ウィジェットを設置</div>
+    </div>
+    <div class="stack-card">
+      <div class="stack-name">Google Forms</div>
+      <div class="stack-role">問い合わせフォーム。スパム対策で reCAPTCHA 込み</div>
+    </div>
+  </div>
+
+  <h2>📅 1ヶ月の歩み</h2>
+  <div class="timeline">
+    <div class="timeline-item">
+      <div class="timeline-week">Week 1 — データ収集と検証</div>
+      <div class="timeline-title">マスターDBを作るところから</div>
+      <div class="timeline-desc">
+        ポケモンの種族値・タイプ・特性・習得わざを、公式情報源と複数の攻略サイトを突き合わせて検証。
+        ここは <strong>地道に手作業</strong>。AIに任せると幻覚が混ざるので、データの正は必ず人間が決める方針に。
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-week">Week 2 — ポケモンDB & わざリスト</div>
+      <div class="timeline-title">巨大テーブルを表計算ライクに</div>
+      <div class="timeline-desc">
+        全ポケモンを一覧で横スクロールできる UI を Claude Code と一緒に実装。
+        フィルター・ソート・タイプ相性の色分けまで、毎日触りながら少しずつ改善。
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-week">Week 3 — パーティチェッカー</div>
+      <div class="timeline-title">タイプ補完を瞬時に</div>
+      <div class="timeline-desc">
+        手持ち6匹を入れると、タイプ相性・攻撃範囲・補完すべき弱点が一目で分かるツール。
+        対戦勢が「最後の詰め」に使えるよう、表示密度をかなり詰め込んだ。
+      </div>
+    </div>
+    <div class="timeline-item">
+      <div class="timeline-week">Week 4 — 公開とブラッシュアップ</div>
+      <div class="timeline-title">SEO・ナビ・UX改善</div>
+      <div class="timeline-desc">
+        OGP、Twitter Card、JSON-LD 構造化データ、sitemap.xml、canonical URL ──
+        Claude Code に手伝ってもらいながら、SEO の足元を整備。
+        ページ間ナビ、トップに戻るボタン、横スクロールミラーバーなど、細部の UX も詰めた。
+      </div>
+    </div>
+  </div>
+
+  <h2>💪 こだわった点</h2>
+  <ul>
+    <li><strong>データの正確性</strong>：マスターDBは公式情報源との突合せを必ず人間が実施。AIに丸投げしない。</li>
+    <li><strong>非公式の明示</strong>：全ページに「⚠️ 当サイトは非公式ファンサイトです」を明記。商標・著作権は権利者に帰属。</li>
+    <li><strong>軽量・無依存</strong>：フレームワーク不使用。素のHTML/CSS/JSで、表示は爆速。</li>
+    <li><strong>モバイル対応</strong>：スマホでも横スクロールで全データ見られる作り。</li>
+  </ul>
+
+  <h2>😅 苦労した点</h2>
+  <ul>
+    <li>巨大テーブルの横スクロールが画面下まで隠れる問題 → ミラーバーで解決</li>
+    <li>ローカルファイルで <code>fetch()</code> が動かない問題 → フォールバック実装</li>
+    <li>JSON-LD を validate hook が JS としてエラー判定する問題 → hook を拡張</li>
+    <li>「AIで作ったってどう発信するか」── これは今もまさに考え中</li>
+  </ul>
+
+  <h2>🌍 これから</h2>
+  <p>
+    現在は日本語のみですが、 <strong>多言語化（英語・中国語・韓国語等）</strong> を進めています。
+    PokeAPI から公式翻訳データを取得して、9言語対応を準備中。
+  </p>
+  <p>
+    将来的には <strong>バトルシミュレータ</strong> や、ユーザー投稿型のパーティ共有機能なども構想中。
+    1人 + AI で、どこまで作れるか挑戦は続きます。
+  </p>
+
+  <div class="quote-box">
+    PchamDB は、ポケモンチャンピオンズの対戦準備が少しでも楽になればいいなと思って作っています。
+    使ってみて感想や要望があれば、ぜひ <a href="contact.html">お問い合わせフォーム</a> から教えてください。
+  </div>
+
+  <div class="cta-wrap">
+    <a href="index.html" class="cta-back">🏠 ホームに戻る</a>
+  </div>
+</main>
+
+</body>
+</html>

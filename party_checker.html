@@ -5,13 +5,44 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>手持ちわざチェッカー - PchamDB (非公式)</title>
 <meta name="description" content="ポケモンチャンピオンズ向けの非公式パーティ確認ツール。手持ち6匹の習得わざ、タイプ補完、攻撃範囲をまとめて確認できます。">
+<meta name="theme-color" content="#0d1117">
 <meta name="robots" content="index, follow">
+<link rel="canonical" href="https://pchamdb.com/party_checker.html">
+<link rel="alternate" hreflang="ja" href="https://pchamdb.com/party_checker.html">
+<link rel="alternate" hreflang="x-default" href="https://pchamdb.com/party_checker.html">
+<link rel="icon" href="favicon.png" type="image/png">
+<script defer src="i18n/runtime.js"></script>
+
 <meta property="og:type" content="website">
+<meta property="og:site_name" content="PchamDB">
+<meta property="og:locale" content="ja_JP">
 <meta property="og:title" content="手持ちわざチェッカー - PchamDB">
 <meta property="og:description" content="手持ち6匹の習得わざ、タイプ補完、攻撃範囲をまとめて確認できます。">
 <meta property="og:url" content="https://pchamdb.com/party_checker.html">
 <meta property="og:image" content="https://pchamdb.com/branding/logo/logo_main_transparent.png">
-<link rel="icon" href="favicon.png" type="image/png">
+<meta property="og:image:alt" content="PchamDB ロゴ">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="手持ちわざチェッカー - PchamDB">
+<meta name="twitter:description" content="手持ち6匹の習得わざ、タイプ補完、攻撃範囲をまとめて確認できます。">
+<meta name="twitter:image" content="https://pchamdb.com/branding/logo/logo_main_transparent.png">
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "手持ちわざチェッカー",
+  "url": "https://pchamdb.com/party_checker.html",
+  "description": "ポケモンチャンピオンズ向けの非公式パーティ確認ツール。手持ち6匹の習得わざ、タイプ補完、攻撃範囲をまとめて確認できます。",
+  "applicationCategory": "GameApplication",
+  "operatingSystem": "Web",
+  "browserRequirements": "Requires JavaScript",
+  "isPartOf": { "@type": "WebSite", "name": "PchamDB", "url": "https://pchamdb.com/" },
+  "inLanguage": "ja",
+  "offers": { "@type": "Offer", "price": "0", "priceCurrency": "JPY" }
+}
+</script>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{min-height:100%}
@@ -32,6 +63,11 @@ h1{text-align:center;padding:14px;font-size:1.2rem;color:#79c0ff;border-bottom:1
 #modal-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center}
 #modal-ov.vis{display:flex}
 #modal-box{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;max-width:460px;width:92vw;max-height:82vh;display:flex;flex-direction:column;gap:10px}
+#modal-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+#modal-head h3{margin:0;font-size:1rem;color:#e6edf3}
+#modal-close-x{background:transparent;border:1px solid #30363d;color:#e6edf3;width:34px;height:34px;border-radius:8px;font-size:1.3rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;flex-shrink:0}
+#modal-close-x:hover{background:#21262d;border-color:#79c0ff;color:#fff}
+#modal-close-x:active{background:#30363d}
 #modal-search{padding:8px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:13px;width:100%}
 #modal-list{overflow-y:auto;flex:1}
 .m-item{padding:7px 12px;cursor:pointer;border-radius:6px;transition:.1s}
@@ -44,7 +80,14 @@ h1{text-align:center;padding:14px;font-size:1.2rem;color:#79c0ff;border-bottom:1
 /* わざチェックリストモーダル */
 
 /* メインテーブル */
-#main-wrap{overflow:auto;flex:1;min-height:0}
+#main-wrap{overflow:auto;flex:1;min-height:0;scrollbar-width:none;-ms-overflow-style:none}
+/* オリジナルスクロールバーは完全非表示 (画面下部のミラーバーで代替)
+   横は ::horizontal セレクタが Chrome で効かない事があるので全消し、
+   縦はマウスホイール / トラックパッドで操作してもらう前提 */
+#main-wrap::-webkit-scrollbar{display:none !important;width:0 !important;height:0 !important;-webkit-appearance:none !important}
+#main-wrap::-webkit-scrollbar-track{display:none !important}
+#main-wrap::-webkit-scrollbar-thumb{display:none !important}
+#main-wrap::-webkit-scrollbar-corner{display:none !important}
 table.cmp{border-collapse:collapse;min-width:100%}
 table.cmp th,table.cmp td{padding:2px 5px;border:1px solid #21262d;vertical-align:top;white-space:nowrap;line-height:1.25}
 table.cmp .row-label{background:#161b22;color:#8b949e;font-weight:bold;font-size:.72rem;width:80px;min-width:80px;position:sticky;left:0;z-index:10;white-space:normal}
@@ -210,7 +253,8 @@ td.drag-over{outline:2px solid #f0883e;outline-offset:-2px;background:#1c2a3a !i
 /* 値1個分の固定幅セル (縦揃え用) */
 .sv{display:inline-block;min-width:3em;text-align:right;padding-right:2px;font-variant-numeric:tabular-nums}
 /* 略号 (H/A/B/C/D/S) — 値の左に小さく表示 */
-.stat-letter{display:inline-block;min-width:1.2em;text-align:right;color:#79c0ff;font-weight:bold;font-size:.7rem;margin-right:3px}
+/* デフォルト: 白 / 性格補正で上がる: 赤 (.nature-up) / 下がる: 青 (.nature-down) */
+.stat-letter{display:inline-block;min-width:1.2em;text-align:right;color:#e6edf3;font-weight:bold;font-size:.7rem;margin-right:3px}
 /* 各モード値のカラー */
 .sm-base{color:#e6edf3}              /* 種族 = 白 */
 .sm-v6{color:#79c0ff}                 /* V6 = 水色 */
@@ -351,14 +395,135 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 .pc-tab-close:hover{background:#21262d;color:#f85149}
 .pc-tab-add{padding:4px 9px;background:transparent;border:1px dashed #30363d;border-radius:6px;color:#8b949e;cursor:pointer;font-size:.85rem}
 .pc-tab-add:hover{background:#161b22;color:#e6edf3;border-color:#58a6ff}
-.pc-nav-btn{padding:3px 9px;background:#21262d;border:1px solid #30363d;border-radius:4px;color:#79c0ff;cursor:pointer;font-size:11px;font-weight:700}
+/* ナビボタン共通サイズ (色は modifier で) */
+.pc-nav-btn{padding:3px 10px;background:#21262d;border:1px solid #30363d;border-radius:4px;color:#79c0ff;cursor:pointer;font-size:11px;font-weight:700;line-height:1.4}
 .pc-nav-btn:hover{background:#1c6ab7;color:#fff;border-color:#1c6ab7}
+/* ナビボタン: 相手ページのテーマ色 */
+.pc-nav-btn.nav-db{background:#2E86AB;color:#fff;border-color:#2E86AB}
+.pc-nav-btn.nav-db:hover{background:#246B89;border-color:#246B89}
+.pc-nav-btn.nav-checker{background:#27AE60;color:#fff;border-color:#27AE60}
+.pc-nav-btn.nav-checker:hover{background:#1E8449;border-color:#1E8449}
+.pc-nav-btn.nav-waza{background:#F39C12;color:#fff;border-color:#F39C12}
+.pc-nav-btn.nav-waza:hover{background:#D68910;border-color:#D68910}
 
 #filter-bar{background:#161b22;padding:7px 14px;border-bottom:1px solid #21262d;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0}
 #filter-bar input{padding:5px 10px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:12px;width:130px}
 .fcat-btn{padding:2px 9px;border:1px solid #30363d;border-radius:10px;background:transparent;color:#8b949e;cursor:pointer;font-size:.73rem}
 .fcat-btn.on{background:#21262d;color:#e6edf3;border-color:#8b949e}
 #filter-bar label{font-size:.73rem;color:#8b949e}
+#send-to-battle{display:none;margin-left:auto;padding:5px 12px;background:#8a3a00;color:#fff;border:1px solid #c66e00;border-radius:5px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap}
+#send-to-battle:hover{background:#c66e00;border-color:#f59e0b}
+#send-to-battle:active{background:#6e2e00}
+
+/* ── ステータス調整ポップアップ (Pokemon Champions 完全再現) ── */
+#ev-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:600;align-items:center;justify-content:center;padding:16px}
+#ev-ov.vis{display:flex}
+#ev-box{background:linear-gradient(180deg,#1f2a4d,#16223e);border:2px solid #4a5a90;border-radius:14px;padding:18px 22px;width:600px;max-width:96vw;max-height:92vh;overflow:auto;display:flex;flex-direction:column;gap:14px;box-shadow:0 24px 60px rgba(0,0,0,.95)}
+#ev-head{display:flex;justify-content:space-between;align-items:center;padding-bottom:8px;border-bottom:1px solid #4a5a90;gap:12px}
+#ev-pokemon-name{font-weight:bold;font-size:1.1rem;color:#fff}
+#ev-subhead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+#ev-head-right{display:flex;align-items:center;gap:10px}
+#ev-budget{font-size:.95rem;color:#cfd9ea;font-variant-numeric:tabular-nums}
+#ev-budget #ev-used{color:#ffe066;font-weight:bold;font-size:1.1em}
+#ev-budget.budget-full #ev-used{color:#ff5ee0}
+#ev-reset{padding:5px 12px;border-radius:6px;border:1px solid #4a5a90;background:#22305a;color:#cfd9ea;font-size:.78rem;cursor:pointer;font-weight:bold;letter-spacing:.04em}
+#ev-reset:hover{background:#2e406e;border-color:#79c0ff;color:#fff}
+#ev-body{display:flex;flex-direction:column;gap:8px}
+#ev-rows{display:flex;flex-direction:column;gap:6px}
+.ev-row{display:grid;grid-template-columns:5.5em 3em 2.3em 1.7em 1fr 1.7em 1.7em 2.3em;gap:5px;align-items:center;padding:7px 10px;border-radius:9px;background:#1a2540;border:2px solid transparent;transition:.1s}
+.ev-row:hover{background:#22305a;border-color:#3a4a7a}
+.ev-row.selected{background:#3a4a7a;border-color:#ffd633;box-shadow:0 0 0 1px rgba(255,214,51,.3)}
+.ev-row-icon{font-size:1.1rem;text-align:center;line-height:1}
+.ev-row-label{font-size:.85rem;color:#e6edf3;display:flex;align-items:center;gap:4px;white-space:nowrap}
+/* 性格補正に応じてラベル自体を着色 (矢印は使わない) */
+.ev-row.nat-up .ev-row-label{color:#ff5c5c;font-weight:bold}
+.ev-row.nat-down .ev-row-label{color:#5cb0ff;font-weight:bold}
+.ev-row-actual{font-weight:bold;font-size:1.05rem;text-align:right;color:#e6edf3;font-variant-numeric:tabular-nums}
+/* 実数値の色は性格・pt 状況によらず常に固定 (要望) */
+/* バー: 32分割表示 */
+.ev-row-bar{height:22px;background:#0d1117;border-radius:4px;overflow:hidden;position:relative;border:1px solid #4a5a90;cursor:pointer;touch-action:none;user-select:none}
+.ev-row-bar:hover{border-color:#79c0ff}
+.ev-row-bar::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0,transparent calc(3.125% - 1px),rgba(255,255,255,.18) calc(3.125% - 1px),rgba(255,255,255,.18) 3.125%);pointer-events:none;z-index:3}
+/* 通常時: 薄い黄色 → ベージュ */
+.ev-bar-fill{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#ffe680,#c9b878);transition:width .08s,background .2s;pointer-events:none;z-index:1}
+/* 合計 66/66 (能力ポイント満タン) になったら全バーをオレンジに */
+#ev-box.budget-full .ev-bar-fill{background:linear-gradient(90deg,#ffb84d,#ff7733)}
+/* ホバー時のプレビュー (色は本体と同じグラデ) */
+.ev-bar-preview{position:absolute;left:0;top:0;height:100%;width:0;background:linear-gradient(90deg,#ffe680,#c9b878);opacity:0;pointer-events:none;z-index:2;transition:width .04s,opacity .1s,background .2s}
+#ev-box.budget-full .ev-bar-preview{background:linear-gradient(90deg,#ffb84d,#ff7733)}
+.ev-row-bar:hover .ev-bar-preview{opacity:.45}
+/* 動的ボーナス目盛り (性格↑で +2 になる位置、性格↓で +0 になる位置) */
+.ev-bonus-mark{position:absolute;top:0;bottom:0;width:3px;pointer-events:none;z-index:4;transform:translateX(-50%)}
+.ev-bonus-mark.bonus{background:rgba(255,215,80,.85);box-shadow:0 0 3px rgba(255,215,80,.6)}
+.ev-bonus-mark.waste{background:rgba(80,100,140,.7)}
+.ev-row-pts{font-weight:bold;color:#e6edf3;text-align:center;font-variant-numeric:tabular-nums;font-size:.95rem}
+.ev-row.has-pts .ev-row-pts{color:#ffe066}
+.ev-row.max-pts .ev-row-pts{color:#ff4d4d}
+/* 行内 ボタン: MIN / ◀ / ▶ / MAX */
+.ev-row-min,.ev-row-max,.ev-row-dec,.ev-row-inc{height:22px;border-radius:4px;border:1px solid #4a5a90;background:#22305a;color:#fff;cursor:pointer;font-weight:bold;padding:0}
+.ev-row-dec,.ev-row-inc{font-size:.85rem;line-height:1}
+.ev-row-min,.ev-row-max{font-size:.62rem;letter-spacing:.04em}
+.ev-row-min:hover:not(:disabled),.ev-row-max:hover:not(:disabled),
+.ev-row-dec:hover:not(:disabled),.ev-row-inc:hover:not(:disabled){background:#2e406e;border-color:#79c0ff}
+.ev-row-min:disabled,.ev-row-max:disabled,.ev-row-dec:disabled,.ev-row-inc:disabled{opacity:.3;cursor:not-allowed}
+#ev-help{font-size:.72rem;color:#a0b8e0;text-align:center;padding:6px 8px;line-height:1.55;background:rgba(255,255,255,.03);border-radius:6px;border:1px solid #2a3868}
+#ev-nature-pick{display:flex;align-items:center;gap:8px;font-size:.85rem;color:#cfd9ea;flex-wrap:wrap;position:relative}
+/* カスタム性格ドロップダウン */
+.nat-dd{position:relative;display:inline-block}
+.nat-dd-trigger{background:#0d1117;color:#e6edf3;border:1px solid #4a5a90;border-radius:5px;font-size:.82rem;padding:4px 22px 4px 8px;cursor:pointer;min-width:7em;text-align:left;font-weight:bold;position:relative}
+.nat-dd-trigger::after{content:'▼';position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:.6rem;color:#a0b8e0}
+.nat-dd-trigger:hover{border-color:#79c0ff}
+/* 性格パネル: ev-box の overflow:auto に切られないよう fixed 配置 */
+.nat-dd-panel{position:fixed;top:0;left:0;background:#1a2540;border:1px solid #4a5a90;border-radius:6px;padding:3px;max-height:560px;overflow-y:auto;z-index:900;display:none;min-width:18em;box-shadow:0 6px 16px rgba(0,0,0,.6)}
+.nat-dd-panel.open{display:block}
+.nat-dd-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 9px;cursor:pointer;border-radius:4px;font-size:.78rem;color:#e6edf3;white-space:nowrap}
+.nat-dd-item:hover{background:#22305a}
+.nat-dd-item.selected{background:#3a4a7a}
+.nat-dd-name{font-weight:bold}
+.nat-dd-item .nat-eff{font-size:.74rem;font-variant-numeric:tabular-nums}
+.nat-dd-item .nat-eff-up{color:#ff5c5c;font-weight:bold}
+.nat-dd-item .nat-eff-down{color:#5cb0ff;font-weight:bold}
+.nat-dd-item .nat-eff-neutral{color:#8b949e;font-style:italic;font-size:.7rem}
+#ev-nature-effect{font-size:.78rem}
+#ev-nature-effect .nat-eff-up{color:#ff7b72;font-weight:bold}
+#ev-nature-effect .nat-eff-down{color:#79c0ff;font-weight:bold}
+#ev-nature-effect .nat-eff-neutral{color:#8b949e}
+#ev-actions{display:flex;justify-content:flex-end;gap:8px;padding-top:4px}
+#ev-cancel{padding:7px 16px;border-radius:7px;border:1px solid #4a5a90;background:transparent;color:#cfd9ea;font-size:14px;cursor:pointer}
+#ev-ok{padding:8px 26px;border-radius:7px;border:none;background:#3a82f0;color:#fff;font-size:14px;cursor:pointer;font-weight:bold}
+#ev-ok:hover{background:#4a92ff}
+/* メイン表での性格色・ポイント色 */
+.nature-up.stat-letter{color:#ff7b72 !important;font-weight:bold}
+.nature-down.stat-letter{color:#79c0ff !important;font-weight:bold}
+.sv-base-nat-up{color:#ff7b72 !important;font-weight:bold}
+.sv-base-nat-down{color:#79c0ff !important}
+.sv-pt-has{color:#ffe066 !important}
+.sv-pt-max{color:#ff5ee0 !important;font-weight:bold}
+.sv-base-click{cursor:pointer;border-radius:3px;padding:0 2px;transition:background .1s}
+.sv-base-click:hover{background:#2a3f5a;outline:1px solid #3a82f0}
+/* 性格表示セル (メイン表クリック領域) */
+.nature-cell{display:inline-block;padding:3px 8px;border-radius:5px;background:#0d1117;border:1px solid #30363d;color:#e6edf3;font-size:.72rem;cursor:pointer;min-width:5.5em;text-align:center;transition:.1s}
+.nature-cell:hover{background:#1c2a3a;border-color:#79c0ff}
+/* ── 性格選択グリッドポップアップ ── */
+#nat-ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:700;align-items:center;justify-content:center}
+#nat-ov.vis{display:flex}
+#nat-box{background:#1a2540;border:2px solid #3a5090;border-radius:14px;padding:18px 20px;display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 48px rgba(0,0,0,.9);width:22em;max-height:88vh}
+#nat-head{display:flex;justify-content:space-between;align-items:center;font-weight:bold;color:#e6edf3;font-size:.95rem;padding-bottom:6px;border-bottom:1px solid #30363d}
+#nat-close{background:transparent;border:none;color:#8b949e;font-size:1.2rem;cursor:pointer;padding:0 8px}
+#nat-close:hover{color:#fff}
+/* 縦並び性格リスト */
+#nat-list{display:flex;flex-direction:column;gap:2px;overflow-y:auto;max-height:62vh}
+.nat-list-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:7px 10px;cursor:pointer;border-radius:5px;font-size:.82rem;color:#e6edf3;white-space:nowrap}
+.nat-list-item:hover{background:#22305a}
+.nat-list-item.selected{background:#ffd633;color:#1a2540;font-weight:bold}
+.nat-list-item.selected .nat-eff-up,.nat-list-item.selected .nat-eff-down{color:#1a2540}
+.nat-list-item.selected .nat-eff-neutral{color:#3a4060;font-style:italic}
+.nat-list-name{font-weight:bold}
+.nat-list-item .nat-eff{font-size:.78rem;font-variant-numeric:tabular-nums}
+.nat-list-item .nat-eff-up{color:#ff5c5c;font-weight:bold}
+.nat-list-item .nat-eff-down{color:#5cb0ff;font-weight:bold}
+.nat-list-item .nat-eff-neutral{color:#8b949e;font-style:italic;font-size:.74rem}
+#nat-info{font-size:.75rem;color:#a0b8e0;text-align:center;padding-top:4px;border-top:1px solid #30363d}
 </style>
 <style>
 /* ===== 入室時ポップアップ広告 (楽天) ===== */
@@ -539,6 +704,7 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
     <button class="sv-btn sv-b on"    data-sv="b">最速</button>
     <button class="sv-btn sv-rank on" data-sv="rank">順位</button>
   </label>
+  <button id="send-to-battle" type="button" title="現在のパーティ・性格・能力P・選択中の技をバトルシミュレーターに送ります">⚔️ バトルへ送る</button>
 </div>
 
 <div id="main-wrap">
@@ -548,7 +714,10 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 <!-- ポケモン選択モーダル -->
 <div id="modal-ov">
   <div id="modal-box">
-    <h3 id="modal-title">ポケモンを選択</h3>
+    <div id="modal-head">
+      <h3 id="modal-title">ポケモンを選択</h3>
+      <button id="modal-close-x" aria-label="閉じる" title="閉じる">×</button>
+    </div>
     <input id="modal-search" type="text" placeholder="名前 / 番号で検索…">
     <div id="modal-list"></div>
     <div class="m-btns">
@@ -587,6 +756,48 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
         <button id="pf-reset">このポケモンのフィルタ解除</button>
         <button id="pf-done">確定</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 性格選択グリッドポップアップ (Pokemon Champions 方式: 5x5) -->
+<div id="nat-ov">
+  <div id="nat-box">
+    <div id="nat-head">
+      <span>性格を選択</span>
+      <button id="nat-close">×</button>
+    </div>
+    <div id="nat-list"></div>
+    <div id="nat-info"></div>
+  </div>
+</div>
+
+<!-- ステータス調整ポップアップ (Pokemon Champions 完全再現: 6行概要 + 選択ステ編集) -->
+<div id="ev-ov">
+  <div id="ev-box">
+    <div id="ev-head">
+      <span id="ev-pokemon-name">ポケモン</span>
+    </div>
+    <div id="ev-subhead">
+      <div id="ev-nature-pick">
+        <div class="nat-dd" id="ev-nature-dd">
+          <button type="button" class="nat-dd-trigger" id="ev-nature-trigger">まじめ</button>
+          <div class="nat-dd-panel" id="ev-nature-panel"></div>
+        </div>
+        <span id="ev-nature-effect"></span>
+      </div>
+      <div id="ev-head-right">
+        <span id="ev-budget"><span id="ev-used">0</span> / 66</span>
+        <button id="ev-reset" title="全 6 ステを 0 にリセット">Reset</button>
+      </div>
+    </div>
+    <div id="ev-body">
+      <div id="ev-rows"></div>
+      <div id="ev-help"><b style="color:#ffd750">黄色いライン</b> = 性格補正で通常より実数値が 1 ポイント多く上がる</div>
+    </div>
+    <div id="ev-actions">
+      <button id="ev-cancel">キャンセル</button>
+      <button id="ev-ok">決定</button>
     </div>
   </div>
 </div>
@@ -630,6 +841,542 @@ const LS_STAT_VIS     = "pokechan_stat_vis_v1";   // {base,v6,c,a,b,rank} の表
 let party = JSON.parse(localStorage.getItem(LS_PARTY) || "[]");
 while (party.length < PARTY_SIZE) party.push(null);
 party = party.slice(0, PARTY_SIZE);
+
+// ── 性格データ (25種) ───────────────────────────────────────────────────────
+// 中性 (up===down) は 5種、各能力の対角位置に配置
+// Champions の画面に合わせ、まじめ = ATK 中性位置
+const NATURES = {
+  // ATK行
+  'まじめ':    { up: 'atk',   down: 'atk'   },   // 中性 (ATK/ATK)
+  'さみしがり': { up: 'atk',   down: 'def'   },
+  'いじっぱり': { up: 'atk',   down: 'spatk' },
+  'やんちゃ':  { up: 'atk',   down: 'spdef' },
+  'ゆうかん':  { up: 'atk',   down: 'spd'   },
+  // DEF行
+  'ずぶとい':  { up: 'def',   down: 'atk'   },
+  'どんかん':  { up: 'def',   down: 'def'   },   // 中性 (DEF/DEF)
+  'わんぱく':  { up: 'def',   down: 'spatk' },
+  'のうてんき': { up: 'def',   down: 'spdef' },
+  'のんき':   { up: 'def',   down: 'spd'   },
+  // SPATK行
+  'ひかえめ':  { up: 'spatk', down: 'atk'   },
+  'おとなしい': { up: 'spatk', down: 'def'   },
+  'てれや':   { up: 'spatk', down: 'spatk' },   // 中性 (SPATK/SPATK)
+  'うっかりや': { up: 'spatk', down: 'spdef' },
+  'れいせい':  { up: 'spatk', down: 'spd'   },
+  // SPDEF行
+  'おだやか':  { up: 'spdef', down: 'atk'   },
+  'やさしい':  { up: 'spdef', down: 'def'   },
+  'しんちょう': { up: 'spdef', down: 'spatk' },
+  'きまぐれ':  { up: 'spdef', down: 'spdef' },   // 中性 (SPDEF/SPDEF)
+  'なまいき':  { up: 'spdef', down: 'spd'   },
+  // SPD行
+  'おくびょう': { up: 'spd',  down: 'atk'   },
+  'せっかち':  { up: 'spd',  down: 'def'   },
+  'ようき':   { up: 'spd',  down: 'spatk' },
+  'むじゃき':  { up: 'spd',  down: 'spdef' },
+  'がんばりや': { up: 'spd',  down: 'spd'   },   // 中性 (SPD/SPD)
+};
+const NATURE_NAMES = Object.keys(NATURES);
+const STAT_KEYS_5 = ['atk','def','spatk','spdef','spd'];
+const STAT_FULL_LABEL = {atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
+
+// 能力ポイント (Champions 方式: 1pt = 実数値+1, 各 0-32, 合計 0-66)
+const PT_MAX_PER_STAT = 32;
+const PT_MAX_TOTAL = 66;
+const STAT_KEYS_6 = ['hp','atk','def','spatk','spdef','spd'];
+const EV_STAT_LABEL = {hp:'HP',atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
+const EV_STAT_LETTER = {hp:'H',atk:'A',def:'B',spatk:'C',spdef:'D',spd:'S'};
+
+// PC タブごとに保存される (captureCurrentPcState / applyPcState 参照)
+let partyNatures = Array.from({length: PARTY_SIZE}, () => 'まじめ');
+let partyEvs = Array.from({length: PARTY_SIZE}, () =>
+  ({hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0}));
+
+function getNatureMul(natureName, statKey) {
+  if (!natureName || statKey === 'hp' || statKey === 'total') return 1.0;
+  const n = NATURES[natureName];
+  if (!n) return 1.0;
+  if (n.up === n.down) return 1.0;   // 中性 (up == down)
+  if (n.up === statKey) return 1.1;
+  if (n.down === statKey) return 0.9;
+  return 1.0;
+}
+function isNatureNeutral(natureName) {
+  const n = NATURES[natureName];
+  return !n || n.up === n.down;
+}
+
+// Lv50・IV=31 想定の実数値
+// Champions 方式 (段階的反映): 性格補正は (inner + pts) 全体に乗ずる
+//   actual = floor((inner + pts) * nature)
+// これにより補正ありステータスでは「色の濃い目盛り」(10ptごと付近) に当てると
+// 通常の目盛りより +1 多く実数値が上がる挙動になる。
+// 参考: https://gamerch.com/pokemonchampions/970094
+function computeActualStat(base, statKey, pts, natureName) {
+  if (base == null) return null;
+  if (statKey === 'hp') return Math.floor((base * 2 + 31) / 2) + 60 + pts;
+  const inner = Math.floor((base * 2 + 31) / 2) + 5;
+  return Math.floor((inner + pts) * getNatureMul(natureName, statKey));
+}
+
+// あるステータスについて pt を +1 した時に実数値が増える量を返す
+//   性格 ×1.1 の場合: 1 or 2 (10pt毎付近で 2)
+//   性格 ×0.9 の場合: 0 or 1 (10pt毎付近で 0)
+//   性格 ×1.0 の場合: 常に 1
+function statGainFor(base, statKey, pts, natureName) {
+  const cur = computeActualStat(base, statKey, pts, natureName);
+  const nxt = computeActualStat(base, statKey, pts + 1, natureName);
+  if (cur == null || nxt == null) return 0;
+  return nxt - cur;
+}
+
+function getTotalEv(slotIdx) {
+  const e = partyEvs[slotIdx];
+  return e.hp + e.atk + e.def + e.spatk + e.spdef + e.spd;
+}
+
+// ── ステータス調整ポップアップ (Champions 完全再現) ────────────────────────
+let _evSlot = null;
+let _evTemp = null;
+let _evTempNature = 'まじめ';
+let _evSelected = 'hp';   // 右パネルで編集中のステ
+
+const STAT_ICONS = {
+  hp: '♥',         // ♥
+  atk: '⚔',        // ⚔
+  def: '\u{1F6E1}',     // 🛡
+  spatk: '✨',      // ✨
+  spdef: '❇',      // ❇
+  spd: '⚡',        // ⚡
+};
+const STAT_ICON_COLORS = {
+  hp: '#ff5e7e', atk: '#ff9b3d', def: '#5e9eff',
+  spatk: '#c878ff', spdef: '#5dd98f', spd: '#f7d348',
+};
+
+function _evBaseFor(statKey) {
+  const name = party[_evSlot];
+  const p = name && POKE_MAP[name];
+  if (!p) return null;
+  const srKey = statRankKey(p);
+  const e = STAT_RANK[srKey];
+  return e ? e[`${statKey}_base`] : (p[statKey] ?? null);
+}
+
+function _evRefresh() {
+  const total = STAT_KEYS_6.reduce((s,k) => s + _evTemp[k], 0);
+  document.getElementById('ev-used').textContent = total;
+  document.getElementById('ev-budget').classList.toggle('budget-full', total >= PT_MAX_TOTAL);
+  // 合計 66/66 になったら #ev-box にも budget-full を付与 (バー全体をオレンジ化)
+  document.getElementById('ev-box').classList.toggle('budget-full', total >= PT_MAX_TOTAL);
+
+  // 性格ドロップダウンのトリガー表示更新 & 選択中ハイライト
+  const trigger = document.getElementById('ev-nature-trigger');
+  if (trigger) trigger.textContent = _evTempNature;
+  const panel = document.getElementById('ev-nature-panel');
+  if (panel) {
+    panel.querySelectorAll('.nat-dd-item').forEach(it => {
+      it.classList.toggle('selected', it.dataset.n === _evTempNature);
+    });
+  }
+
+  const nat = NATURES[_evTempNature] || {};
+  const natIsNeutral = nat.up === nat.down;
+
+  // 性格効果テキスト
+  const effEl = document.getElementById('ev-nature-effect');
+  if (natIsNeutral || !nat.up || !nat.down) {
+    effEl.innerHTML = '<span class="nat-eff-neutral">(補正なし)</span>';
+  } else {
+    effEl.innerHTML =
+      `<span class="nat-eff-up">${STAT_FULL_LABEL[nat.up]}↑</span> / ` +
+      `<span class="nat-eff-down">${STAT_FULL_LABEL[nat.down]}↓</span>`;
+  }
+
+  // 6行 (直接バー操作 + 行内 MIN/MAX + 動的ボーナス目盛り)
+  document.getElementById('ev-rows').innerHTML = STAT_KEYS_6.map(k => {
+    const pts = _evTemp[k];
+    const base = _evBaseFor(k);
+    const actual = computeActualStat(base, k, pts, _evTempNature);
+    const natUp   = !natIsNeutral && nat.up   === k;
+    const natDown = !natIsNeutral && nat.down === k;
+    const hasPts  = pts > 0;
+    const maxPts  = pts >= PT_MAX_PER_STAT;
+    const cls = ['ev-row',
+      _evSelected === k ? 'selected' : '',
+      natUp ? 'nat-up' : '', natDown ? 'nat-down' : '',
+      hasPts ? 'has-pts' : 'no-pts', maxPts ? 'max-pts' : ''
+    ].filter(Boolean).join(' ');
+    const pct = (pts / PT_MAX_PER_STAT) * 100;
+
+    // ボーナス/無駄目盛り (調査中: ↓ の青ラインは公式に存在するか要検証)
+    //   ↑ ステ: gain=+2 の位置に黄ライン (ボーナス pt)
+    //   ↓ ステ: gain=0  の位置に青ライン (無駄 pt — 公式仕様は要確認)
+    let marksHtml = '';
+    if (base != null && (natUp || natDown)) {
+      for (let p = 0; p < PT_MAX_PER_STAT; p++) {
+        const gain = statGainFor(base, k, p, _evTempNature);
+        if (gain >= 2) {
+          const left = ((p + 1) / PT_MAX_PER_STAT) * 100;
+          marksHtml += `<span class="ev-bonus-mark bonus" style="left:${left}%" title="+2 ボーナス pt"></span>`;
+        } else if (gain === 0) {
+          const left = ((p + 1) / PT_MAX_PER_STAT) * 100;
+          marksHtml += `<span class="ev-bonus-mark waste" style="left:${left}%" title="+0 無駄 pt — 計算式上ここに振っても実数値は上がらない"></span>`;
+        }
+      }
+    }
+
+    const maxHere = (function(){
+      const t = STAT_KEYS_6.reduce((s,kk) => s + _evTemp[kk], 0);
+      return Math.min(PT_MAX_PER_STAT, PT_MAX_TOTAL - (t - pts));
+    })();
+    const canInc = pts < maxHere;
+    const canDec = pts > 0;
+    return `<div class="${cls}" data-k="${k}">
+      <span class="ev-row-label">${EV_STAT_LABEL[k]}</span>
+      <span class="ev-row-actual">${actual ?? '—'}</span>
+      <button class="ev-row-min" data-k="${k}" ${canDec?'':'disabled'} title="ミニマム (0)">MIN</button>
+      <button class="ev-row-dec" data-k="${k}" ${canDec?'':'disabled'} title="-1">◀</button>
+      <span class="ev-row-bar" data-k="${k}"><span class="ev-bar-fill" style="width:${pct}%"></span><span class="ev-bar-preview"></span>${marksHtml}</span>
+      <span class="ev-row-pts">${pts}</span>
+      <button class="ev-row-inc" data-k="${k}" ${canInc?'':'disabled'} title="+1">▶</button>
+      <button class="ev-row-max" data-k="${k}" ${canInc?'':'disabled'} title="マックス (最大)">MAX</button>
+    </div>`;
+  }).join('');
+}
+
+function openStatPopup(slotIdx) {
+  const name = party[slotIdx];
+  const p = name && POKE_MAP[name];
+  if (!p) return;
+  _evSlot = slotIdx;
+  _evTemp = { ...partyEvs[slotIdx] };
+  _evTempNature = partyNatures[slotIdx];
+  _evSelected = 'hp';
+  document.getElementById('ev-pokemon-name').textContent = name;
+  _buildNatureDropdownPanel();
+  _evRefresh();
+  document.getElementById('ev-ov').classList.add('vis');
+}
+
+// 性格ドロップダウン: 各候補に「○○↑/○○↓」を併記。中性5種は最下部にまとめる
+function _buildNatureDropdownPanel() {
+  const panel = document.getElementById('ev-nature-panel');
+  if (!panel) return;
+  // 非中性 → 中性 の順に並べ替え
+  const nonNeutral = NATURE_NAMES.filter(n => {
+    const nat = NATURES[n];
+    return nat && nat.up !== nat.down;
+  });
+  const neutral = NATURE_NAMES.filter(n => {
+    const nat = NATURES[n];
+    return !nat || nat.up === nat.down;
+  });
+  const ordered = [...nonNeutral, ...neutral];
+
+  panel.innerHTML = ordered.map(n => {
+    const nat = NATURES[n];
+    const isNeutral = !nat || nat.up === nat.down;
+    const effHtml = isNeutral
+      ? '<span class="nat-eff-neutral">(補正なし)</span>'
+      : `<span class="nat-eff">` +
+          `<span class="nat-eff-up">${STAT_FULL_LABEL[nat.up]}↑</span> / ` +
+          `<span class="nat-eff-down">${STAT_FULL_LABEL[nat.down]}↓</span>` +
+        `</span>`;
+    const isSel = (n === _evTempNature) ? ' selected' : '';
+    return `<div class="nat-dd-item${isSel}" data-n="${n}"><span class="nat-dd-name">${n}</span>${effHtml}</div>`;
+  }).join('');
+}
+
+function _closeEv() { document.getElementById('ev-ov').classList.remove('vis'); }
+
+(function() {
+  function totalNow() { return STAT_KEYS_6.reduce((s,k) => s + _evTemp[k], 0); }
+  function maxFor(k) {
+    return Math.min(PT_MAX_PER_STAT, PT_MAX_TOTAL - (totalNow() - _evTemp[k]));
+  }
+  function adjustSelected(d) {
+    const k = _evSelected;
+    let next = Math.max(0, Math.min(maxFor(k), _evTemp[k] + d));
+    _evTemp[k] = next;
+    _evRefresh();
+  }
+
+  // 各行のバーをクリック / ドラッグで pt 設定
+  //   ※ _evRefresh で #ev-rows の innerHTML が毎回書き換わり、
+  //     mousedown 時に取得した barEl が detached になる → getBoundingClientRect が 0 を返し
+  //     ratio=1 で誤って MAX 化していたので、毎回 DOM から再取得する
+  function setPtsFromX(k, clientX) {
+    const bar = document.querySelector(`.ev-row-bar[data-k="${k}"]`);
+    if (!bar) return;
+    const r = bar.getBoundingClientRect();
+    if (!r.width) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    const target = Math.round(ratio * PT_MAX_PER_STAT);
+    _evTemp[k] = Math.max(0, Math.min(maxFor(k), target));
+    _evSelected = k;
+    _evRefresh();
+  }
+
+  function findBar(target) {
+    return target && target.closest && target.closest('.ev-row-bar[data-k]');
+  }
+
+  const rowsEl = document.getElementById('ev-rows');
+
+  // 行内ボタン: MIN / ◀ (-1), ▶ (+1) / MAX
+  rowsEl.addEventListener('click', e => {
+    const minBtn = e.target.closest('.ev-row-min[data-k]');
+    if (minBtn) {
+      const k = minBtn.dataset.k;
+      _evTemp[k] = 0;
+      _evSelected = k;
+      _evRefresh();
+      return;
+    }
+    const decBtn = e.target.closest('.ev-row-dec[data-k]');
+    if (decBtn) {
+      const k = decBtn.dataset.k;
+      _evTemp[k] = Math.max(0, _evTemp[k] - 1);
+      _evSelected = k;
+      _evRefresh();
+      return;
+    }
+    const incBtn = e.target.closest('.ev-row-inc[data-k]');
+    if (incBtn) {
+      const k = incBtn.dataset.k;
+      _evTemp[k] = Math.min(maxFor(k), _evTemp[k] + 1);
+      _evSelected = k;
+      _evRefresh();
+      return;
+    }
+    const maxBtn = e.target.closest('.ev-row-max[data-k]');
+    if (maxBtn) {
+      const k = maxBtn.dataset.k;
+      _evTemp[k] = maxFor(k);
+      _evSelected = k;
+      _evRefresh();
+      return;
+    }
+  });
+
+  // mousedown → クリック開始: そのまま mousemove で連続更新
+  rowsEl.addEventListener('mousedown', e => {
+    // 行内ボタンの mousedown は click ハンドラに任せる (再描画でボタン消失を防ぐ)
+    if (e.target.closest('.ev-row-min, .ev-row-dec, .ev-row-inc, .ev-row-max')) return;
+    const bar = findBar(e.target);
+    if (bar) {
+      const k = bar.dataset.k;
+      // 初回クリック位置を反映
+      setPtsFromX(k, e.clientX);
+      // ドラッグ中: 連続更新 (バー要素は内部で毎回再取得)
+      const onMove = (ev) => setPtsFromX(k, ev.clientX);
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      e.preventDefault();
+      return;
+    }
+    // バー以外のクリック: 行選択のみ
+    const row = e.target.closest('.ev-row[data-k]');
+    if (row) {
+      _evSelected = row.dataset.k;
+      _evRefresh();
+    }
+  });
+
+  // ホバー時にプレビューを表示
+  rowsEl.addEventListener('mousemove', e => {
+    const bar = findBar(e.target);
+    if (!bar) return;
+    const preview = bar.querySelector('.ev-bar-preview');
+    if (!preview) return;
+    const r = bar.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    // 32 マスにスナップして表示 (1マス = 3.125%)
+    const snappedPt = Math.round(ratio * PT_MAX_PER_STAT);
+    const snappedPct = (snappedPt / PT_MAX_PER_STAT) * 100;
+    preview.style.width = snappedPct + '%';
+  });
+  rowsEl.addEventListener('mouseleave', e => {
+    // 行を離れたらプレビュー消す
+    rowsEl.querySelectorAll('.ev-bar-preview').forEach(p => p.style.width = '0');
+  }, true);
+
+  // タッチ対応 (iPad / iPhone)
+  rowsEl.addEventListener('touchstart', e => {
+    const bar = findBar(e.target);
+    if (!bar) return;
+    const k = bar.dataset.k;
+    const touch = e.touches[0];
+    setPtsFromX(k, touch.clientX);
+    const onMove = (ev) => {
+      const t = ev.touches[0];
+      if (t) setPtsFromX(k, t.clientX);
+    };
+    const onEnd = () => {
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onEnd);
+      document.removeEventListener('touchcancel', onEnd);
+    };
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('touchcancel', onEnd);
+    e.preventDefault();
+  }, { passive: false });
+
+  // 性格ドロップダウン: トリガー = 開閉、パネル項目 = 選択
+  const trigger = document.getElementById('ev-nature-trigger');
+  const panel   = document.getElementById('ev-nature-panel');
+  function positionPanel() {
+    const r = trigger.getBoundingClientRect();
+    panel.style.top = (r.bottom + 3) + 'px';
+    panel.style.left = r.left + 'px';
+  }
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    const willOpen = !panel.classList.contains('open');
+    if (willOpen) positionPanel();
+    panel.classList.toggle('open');
+  });
+  panel.addEventListener('click', e => {
+    const item = e.target.closest('.nat-dd-item[data-n]');
+    if (!item) return;
+    _evTempNature = item.dataset.n;
+    panel.classList.remove('open');
+    _evRefresh();
+  });
+  // パネル外クリックで閉じる
+  document.addEventListener('click', e => {
+    if (!document.getElementById('ev-ov').classList.contains('vis')) return;
+    if (!e.target.closest('#ev-nature-dd, #ev-nature-panel')) panel.classList.remove('open');
+  });
+
+  document.getElementById('ev-reset').addEventListener('click', () => {
+    STAT_KEYS_6.forEach(k => _evTemp[k] = 0); _evRefresh();
+  });
+
+  document.getElementById('ev-ok').addEventListener('click', () => {
+    partyEvs[_evSlot] = { ..._evTemp };
+    partyNatures[_evSlot] = _evTempNature;
+    savePcTabs();
+    _closeEv();
+    renderTable();
+  });
+
+  document.getElementById('ev-cancel').addEventListener('click', _closeEv);
+  document.getElementById('ev-ov').addEventListener('click', e => {
+    if (e.target.id === 'ev-ov') _closeEv();
+  });
+
+  // キーボード: ←/→ で ±1, ↑/↓ で行移動, Esc で閉じる
+  document.addEventListener('keydown', e => {
+    if (!document.getElementById('ev-ov').classList.contains('vis')) return;
+    if (e.target.tagName === 'SELECT') return;
+    if      (e.key === 'ArrowLeft')  { adjustSelected(-1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight') { adjustSelected(+1); e.preventDefault(); }
+    else if (e.key === 'ArrowUp')    {
+      const i = STAT_KEYS_6.indexOf(_evSelected);
+      _evSelected = STAT_KEYS_6[(i - 1 + 6) % 6]; _evRefresh(); e.preventDefault();
+    }
+    else if (e.key === 'ArrowDown')  {
+      const i = STAT_KEYS_6.indexOf(_evSelected);
+      _evSelected = STAT_KEYS_6[(i + 1) % 6]; _evRefresh(); e.preventDefault();
+    }
+    else if (e.key === 'Escape') { _closeEv(); }
+  });
+})();
+
+// ── 性格選択グリッドポップアップ (Pokemon Champions 方式 5x5) ──────────────
+let _natSlot = null;
+
+function _buildNatureIndex() {
+  // 5x5 のマス目: row = up stat, col = down stat
+  const idx = {};
+  for (const [name, n] of Object.entries(NATURES)) {
+    const up = n.up, down = n.down;
+    if (!up || !down) continue;
+    idx[`${up}|${down}`] = name;
+  }
+  return idx;
+}
+const NATURE_GRID_INDEX = _buildNatureIndex();
+
+function openNaturePicker(slotIdx) {
+  const name = party[slotIdx];
+  if (!name) return;
+  _natSlot = slotIdx;
+  const current = partyNatures[slotIdx];
+
+  // 非中性 → 中性 の順に並べる (EV ポップアップと同じルール)
+  const nonNeutral = NATURE_NAMES.filter(n => {
+    const nat = NATURES[n];
+    return nat && nat.up !== nat.down;
+  });
+  const neutral = NATURE_NAMES.filter(n => {
+    const nat = NATURES[n];
+    return !nat || nat.up === nat.down;
+  });
+  const ordered = [...nonNeutral, ...neutral];
+
+  const html = ordered.map(n => {
+    const nat = NATURES[n];
+    const isNeutral = !nat || nat.up === nat.down;
+    const effHtml = isNeutral
+      ? '<span class="nat-eff-neutral">(補正なし)</span>'
+      : `<span class="nat-eff">` +
+          `<span class="nat-eff-up">${STAT_FULL_LABEL[nat.up]}↑</span> / ` +
+          `<span class="nat-eff-down">${STAT_FULL_LABEL[nat.down]}↓</span>` +
+        `</span>`;
+    const sel = (n === current) ? ' selected' : '';
+    return `<div class="nat-list-item${sel}" data-n="${n}"><span class="nat-list-name">${n}</span>${effHtml}</div>`;
+  }).join('');
+
+  document.getElementById('nat-list').innerHTML = html;
+
+  const nat = NATURES[current] || {};
+  const info = isNatureNeutral(current)
+    ? `選択中: ${current} (補正なし)`
+    : `選択中: ${current} (${STAT_FULL_LABEL[nat.up]}↑ / ${STAT_FULL_LABEL[nat.down]}↓)`;
+  document.getElementById('nat-info').textContent = info;
+  document.getElementById('nat-ov').classList.add('vis');
+}
+
+function _closeNat() { document.getElementById('nat-ov').classList.remove('vis'); }
+
+(function() {
+  document.getElementById('nat-close').addEventListener('click', _closeNat);
+  document.getElementById('nat-ov').addEventListener('click', e => {
+    if (e.target.id === 'nat-ov') _closeNat();
+  });
+  const list = document.getElementById('nat-list');
+  list.addEventListener('click', e => {
+    const item = e.target.closest('.nat-list-item[data-n]');
+    if (!item) return;
+    partyNatures[_natSlot] = item.dataset.n;
+    savePcTabs();
+    _closeNat();
+    renderTable();
+  });
+  // ホバーで下部の info を更新
+  list.addEventListener('mouseover', e => {
+    const item = e.target.closest('.nat-list-item[data-n]');
+    if (!item) return;
+    const n = NATURES[item.dataset.n] || {};
+    const info = document.getElementById('nat-info');
+    if (n.up === n.down || !n.up || !n.down) {
+      info.innerHTML = `<b style="color:#fff">${item.dataset.n}</b> <span style="color:#8b949e">(補正なし・中性)</span>`;
+    } else {
+      info.innerHTML = `<b style="color:#fff">${item.dataset.n}</b> ` +
+        `<span style="color:#ff5c5c">${STAT_FULL_LABEL[n.up]}↑</span> / ` +
+        `<span style="color:#5cb0ff">${STAT_FULL_LABEL[n.down]}↓</span>`;
+    }
+  });
+})();
 
 // タイプ表示順（ドラッグで変更可）
 let typeOrder = (() => {
@@ -698,6 +1445,8 @@ function captureCurrentPcState() {
     typeOrder: typeOrder.slice(),
     slotFilters: JSON.parse(JSON.stringify(slotFilters)),
     statVis: Object.assign({}, statVis),
+    partyNatures: partyNatures.slice(),
+    partyEvs: partyEvs.map(e => ({...e})),
   };
 }
 function applyPcState(s) {
@@ -709,6 +1458,15 @@ function applyPcState(s) {
     ? s.typeOrder.slice() : [...DEFAULT_TYPE_ORDER];
   slotFilters = JSON.parse(JSON.stringify(s.slotFilters || {}));
   statVis = Object.assign({}, STAT_VIS_DEFAULT, s.statVis || {});
+
+  // 性格・ポイント (タブごとに保存)
+  partyNatures = (s.partyNatures || []).slice();
+  while (partyNatures.length < PARTY_SIZE) partyNatures.push('まじめ');
+  partyNatures = partyNatures.slice(0, PARTY_SIZE);
+  partyEvs = (s.partyEvs || []).map(e => ({hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0,...(e||{})}));
+  while (partyEvs.length < PARTY_SIZE) partyEvs.push({hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0});
+  partyEvs = partyEvs.slice(0, PARTY_SIZE);
+
   // 既存LSキーにも反映 (リロード時の整合性)
   localStorage.setItem(LS_PARTY,        JSON.stringify(party));
   localStorage.setItem(LS_ORDER,        JSON.stringify(typeOrder));
@@ -757,6 +1515,7 @@ function renderPcTabs() {
   const bc = document.createElement('div');
   bc.style.cssText = 'display:flex;align-items:center;gap:5px;flex-shrink:0;margin-right:8px;padding-right:10px;border-right:1px solid #30363d';
   bc.innerHTML = '<a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:12px" title="PchamDB トップに戻る">🏠 PchamDB</a>'
+    + '<span style="color:#79c0ff;font-size:11px;font-weight:600;letter-spacing:0.5px;margin:0 4px">BETA</span>'
     + '<span style="color:#666;font-size:11px">›</span>'
     + '<span style="color:#8b949e;font-size:11px">手持ちわざチェッカー</span>'
     + '<span style="color:#666;font-size:10px;margin-left:2px">' + CHECKER_VERSION + '</span>';
@@ -793,21 +1552,28 @@ function renderPcTabs() {
   addBtn.onclick = addPcTab;
   bar.appendChild(addBtn);
 
-  // ナビゲーションボタン (右端)
+  // ナビゲーションボタン (右端): 相手ページのテーマ色
   const dbBtn = document.createElement('button');
-  dbBtn.className = 'pc-nav-btn';
+  dbBtn.className = 'pc-nav-btn nav-db';
   dbBtn.textContent = '🗄️ DB';
   dbBtn.title = 'ポケモンDBを別タブで開く';
   dbBtn.onclick = () => window.open('pokemon_db_v9.html', '_blank');
   dbBtn.style.marginLeft = 'auto';
+  dbBtn.style.marginRight = '6px';
   bar.appendChild(dbBtn);
 
   const wzBtn = document.createElement('button');
-  wzBtn.className = 'pc-nav-btn';
+  wzBtn.className = 'pc-nav-btn nav-waza';
   wzBtn.textContent = '📋 わざリスト';
   wzBtn.title = 'わざリストを別タブで開く';
   wzBtn.onclick = () => window.open('waza-list.html', '_blank');
   bar.appendChild(wzBtn);
+
+  // i18n 言語スイッチャー マウントポイント
+  const i18nMount = document.createElement('span');
+  i18nMount.id = 'i18n-switcher-mount';
+  i18nMount.style.cssText = 'margin-left:8px;display:inline-flex;align-items:center;';
+  bar.appendChild(i18nMount);
 }
 function switchPcTab(id) {
   if (id === pcActiveId) return;
@@ -1081,6 +1847,7 @@ function renderTable() {
   // ドラッグ用属性 (列移動可能セル共通)
   const dragAttrs = (i) => `draggable="true" ondragstart="onSlotDragStart(event,${i})" ondragover="onSlotDragOver(event,${i})" ondragleave="this.classList.remove('drag-over')" ondrop="onSlotDrop(event,${i})"`;
   ensureStatCaches();
+
   [["HP","hp"],["こうげき","atk"],["ぼうぎょ","def"],["とくこう","spatk"],["とくぼう","spdef"],["すばやさ","spd"],["合計","total"]].forEach(([label,key]) => {
     rows.push(`<tr>
       <td class="row-label">${label}</td>
@@ -1089,7 +1856,15 @@ function renderTable() {
         if (!p) return `<td class="stat-cell empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
         const srKey = statRankKey(p);
         const e = STAT_RANK[srKey];
-        const letter = `<span class="stat-letter">${STAT_LETTER[key] || ""}</span>`;
+
+        // 性格補正 (略号と base の色付け用)
+        const nat = NATURES[partyNatures[slotIdx]] || {};
+        const natIsNeutral = nat.up === nat.down;
+        const natUp   = !natIsNeutral && key !== 'total' && nat.up   === key;
+        const natDown = !natIsNeutral && key !== 'total' && nat.down === key;
+        const letterCls = natUp ? ' nature-up' : natDown ? ' nature-down' : '';
+        const letter = `<span class="stat-letter${letterCls}">${STAT_LETTER[key] || ""}</span>`;
+
         if (!e) {
           return `<td class="${key==="total"?"stat-cell stat-total":"stat-cell"}">${letter}<span class="sv">${p[key] ?? "—"}</span></td>`;
         }
@@ -1097,12 +1872,38 @@ function renderTable() {
         const isTotal     = (key === "total");
         const cell = (cls, val, tip) => `<span class="sv ${cls}"${tip?` title="${tip}"`:''}>${val ?? ""}</span>`;
         let html = letter;
+        const pts = (!isTotal) ? (partyEvs[slotIdx][key] || 0) : 0;
+
         if (statVis.base) {
-          html += cell("sm-base", e[`${key}_base`], "種族値");
+          if (isTotal) {
+            html += cell("sm-base", e[`${key}_base`], "種族値");
+          } else {
+            // クリックでステータス調整ポップアップ
+            const baseV = e[`${key}_base`];
+            const baseCls = ['sv','sm-base','sv-base-click',
+              pts >= PT_MAX_PER_STAT ? 'sv-pt-max' : pts > 0 ? 'sv-pt-has' : '',
+              !pts && natUp ? 'sv-base-nat-up' : !pts && natDown ? 'sv-base-nat-down' : ''
+            ].filter(Boolean).join(' ');
+            html += `<span class="${baseCls}" onclick="openStatPopup(${slotIdx})" title="クリックしてポイント割り振り (+${pts})">${baseV ?? ""}</span>`;
+          }
         }
         if (statVis.v6) {
-          const v = (_statCacheV6 && _statCacheV6[srKey]) ? _statCacheV6[srKey][`${key}_v6`] : null;
-          html += cell("sm-v6", v, "V6 (IV=31, EV=0, 性格補正なし)");
+          if (isTotal) {
+            const t = STAT_KEYS_6.reduce((s,k) => {
+              const b = e[`${k}_base`];
+              const ptsK = (partyEvs[slotIdx][k] || 0);
+              return s + (computeActualStat(b, k, ptsK, partyNatures[slotIdx]) ?? 0);
+            }, 0);
+            html += cell("sm-v6", t, "現値合計 (Lv50・IV31・性格・pt込み)");
+          } else {
+            // 現値: V6 ベースに性格1.1/0.9 と +pts を反映 (Champions 方式)
+            const actual = computeActualStat(e[`${key}_base`], key, pts, partyNatures[slotIdx]);
+            const v6Cls = ['sv','sm-v6','sv-base-click',
+              pts >= PT_MAX_PER_STAT ? 'sv-pt-max' : pts > 0 ? 'sv-pt-has' : '',
+              !pts && natUp ? 'sv-base-nat-up' : !pts && natDown ? 'sv-base-nat-down' : ''
+            ].filter(Boolean).join(' ');
+            html += `<span class="${v6Cls}" onclick="openStatPopup(${slotIdx})" title="現値 (V6 × ${partyNatures[slotIdx]} + ${pts}pt) — クリックで割り振り">${actual ?? ""}</span>`;
+          }
         }
         if (statVis.c) {
           // 性補: HP・合計は補正対象外なので、表示しない (空セル)
@@ -1127,14 +1928,29 @@ function renderTable() {
             html += cell("sm-b", e[`${key}_b`], "最速 (EV252・性格1.1) — 最速/最火力/最耐久 等");
           }
         }
+
         if (statVis.rank) {
           const rank = e[`${key}_a_rank`];
           html += `<span class="stat-rank">${rank ? `(${rank})` : ""}</span>`;
         }
-        return `<td class="${key==="total"?"stat-cell stat-total":"stat-cell"}" ${dragAttrs(slotIdx)}>${html}</td>`;
+        const tdClick = (!isTotal) ? ` onclick="openStatPopup(${slotIdx})"` : '';
+        const tdStyle = (!isTotal) ? ` style="cursor:pointer"` : '';
+        return `<td class="${key==="total"?"stat-cell stat-total":"stat-cell"}" ${dragAttrs(slotIdx)}${tdClick}${tdStyle}>${html}</td>`;
       }).join("")}
     </tr>`);
   });
+
+  // 性格選択行 (合計の下・特性の上) — クリックでグリッドポップアップを開く
+  rows.push(`<tr>
+    <td class="row-label">性格</td>
+    ${party.map((name, slotIdx) => {
+      const p = name && POKE_MAP[name];
+      if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
+      return `<td style="text-align:center;padding:2px 3px" ${dragAttrs(slotIdx)}>
+        <span class="nature-cell" onclick="openNaturePicker(${slotIdx})" title="クリックして性格を選ぶ">${partyNatures[slotIdx]}</span>
+      </td>`;
+    }).join("")}
+  </tr>`);
 
   // 特性
   rows.push(`<tr>
@@ -1348,6 +2164,7 @@ function bindSearch(id, cb) {
 }
 bindSearch("modal-search", v => renderModalList(v));
 document.getElementById("modal-close").addEventListener("click", closeModal);
+document.getElementById("modal-close-x").addEventListener("click", closeModal);
 document.getElementById("modal-clear").addEventListener("click", () => {
   party[activeSlot] = null;
   delete slotFilters[activeSlot];
@@ -2109,6 +2926,28 @@ renderTable();
 -->
 
 
+<!-- ページトップへ戻るボタン -->
+<button id="back-to-top" style="position:fixed;right:20px;bottom:210px;width:42px;height:42px;border-radius:50%;background:rgba(243,156,18,0.92);color:white;border:none;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.35);z-index:9997;display:none;align-items:center;justify-content:center" title="ページトップへ戻る">▲</button>
+<script>
+(function(){
+  const btn = document.getElementById('back-to-top');
+  if (!btn) return;
+  const wrap = document.getElementById('main-wrap');
+  function getScroll() {
+    const ws = wrap ? wrap.scrollTop : 0;
+    const bs = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+    return Math.max(ws, bs);
+  }
+  function update() { btn.style.display = getScroll() > 200 ? 'flex' : 'none'; }
+  window.addEventListener('scroll', update);
+  if (wrap) wrap.addEventListener('scroll', update);
+  btn.addEventListener('click', () => {
+    if (wrap) wrap.scrollTo({top: 0, behavior: 'smooth'});
+    window.scrollTo({top: 0, behavior: 'smooth'});
+  });
+})();
+</script>
+
 <!-- 横スクロールミラーバー (広告バーの上に固定) -->
 <div id="h-mirror-scroll" style="position:fixed;bottom:180px;left:0;right:0;height:14px;overflow-x:scroll;overflow-y:hidden;z-index:9998;background:#2a2a2a;border-top:1px solid #555;">
   <div id="h-mirror-inner" style="height:1px;"></div>
@@ -2132,10 +2971,52 @@ renderTable();
 })();
 </script>
 
+<!-- バトルシミュレーターへの送信機能（ローカル開発専用、file:// でのみ有効） -->
+<script>
+(function(){
+  if (location.protocol !== 'file:') return;  // 公開サイトでは無効
+  const btn = document.getElementById('send-to-battle');
+  if (!btn) return;
+  btn.style.display = 'inline-block';
+  btn.addEventListener('click', function(){
+    const handoff = { version: 1, timestamp: Date.now(), party: [] };
+    let sent = 0;
+    for (let i = 0; i < PARTY_SIZE; i++){
+      const name = party[i];
+      if (!name){ handoff.party.push(null); continue; }
+      const moves = [];
+      const sf = slotFilters[i];
+      if (sf && typeof sf === 'object'){
+        Object.values(sf).forEach(arr=>{
+          if (Array.isArray(arr)) moves.push(...arr);
+        });
+      }
+      handoff.party.push({
+        name: name,
+        nature: partyNatures[i] || 'まじめ',
+        effort: { ...(partyEvs[i] || {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0}) },
+        moves: [...new Set(moves)],
+      });
+      sent++;
+    }
+    if (sent === 0){
+      alert('パーティが空です。先にポケモンを選択してください。');
+      return;
+    }
+    localStorage.setItem('pokechan_battle_handoff_v1', JSON.stringify(handoff));
+    window.open('battle_simulator.html', '_blank');
+  });
+})();
+</script>
+
 <!-- 楽天モーションウィジェット (レコメンド型・画面下部固定) -->
-<div id="rakuten-motion-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1a1a1a;text-align:center;padding:6px 0;border-top:1px solid #333;">
+<div id="rakuten-motion-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1a1a1a;text-align:center;padding:6px 0;border-top:1px solid #333;"><button id="ad-hide-btn" style="position:absolute;top:4px;right:8px;width:26px;height:26px;background:rgba(0,0,0,0.85);color:#fff;border:1px solid #888;border-radius:50%;cursor:pointer;font-size:14px;font-weight:700;line-height:1;padding:0;z-index:10000;box-shadow:0 2px 6px rgba(0,0,0,0.5)" title="広告を閉じる" aria-label="広告を閉じる">×</button>
   <script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="094cc83a.45f5f4d6.094cc83b.9462ef1e";rakuten_items="ctsmatch";rakuten_genreId="0";rakuten_size="468x160";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="1778740840797";</script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"></script>
 </div>
-<script>document.body.style.paddingBottom = '180px';</script>
+
+<!-- 広告再表示ボタン (広告を閉じた後に表示される、全ページ共通テキスト) -->
+<button id="ad-show-btn" title="Show ad" aria-label="Show ad"
+  style="display:none;position:fixed;bottom:8px;right:8px;z-index:9998;background:rgba(40,40,40,0.9);color:#cfd9ea;border:1px solid #555;border-radius:20px;padding:6px 12px;cursor:pointer;font-size:12px;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,0.5)">📣 Ad</button>
+<script src="ad-toggle.js" defer></script>
 </body>
 </html>
