@@ -253,9 +253,16 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
   border-radius:4px;font-size:11px;
 }
 .move-head{
-  display:grid;grid-template-columns:auto 1fr 44px 40px 36px;
+  display:grid;grid-template-columns:auto 1fr 44px 40px 36px auto;
   gap:6px;align-items:center;
 }
+.m-attack-btn{
+  padding:2px 8px;border:1px solid #d18616;border-radius:3px;
+  background:#3a2310;color:#ffd18a;font-size:10px;font-weight:700;
+  cursor:pointer;white-space:nowrap;font-family:inherit;
+}
+.m-attack-btn:hover{background:#5a3818;color:#ffe1b0}
+.m-attack-btn:disabled{opacity:.4;cursor:not-allowed;background:#1c1c1c;color:#6e7681;border-color:#30363d}
 .move-row .m-type{padding:1px 6px;border-radius:8px;font-size:10px;font-weight:700;color:#fff}
 .move-row .m-name{color:#e6edf3;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .move-row .m-cat{font-size:10px;padding:1px 5px;border-radius:8px;text-align:center}
@@ -420,16 +427,6 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 }
 .env-crit-row label input{width:11px;height:11px;cursor:pointer}
 
-.tera-block{
-  display:flex;flex-direction:column;gap:3px;
-  padding:5px 6px;background:#0d1117;border:1px solid #21262d;border-radius:4px;
-}
-.tera-block.tera-on{border-color:#bc8cff}
-.tera-block .tera-head{display:flex;align-items:center;gap:4px;font-size:10px;color:#8b949e}
-.tera-block select{
-  padding:2px 5px;border:1px solid #30363d;border-radius:3px;
-  background:#0a0f15;color:#e6edf3;font-size:10px;font-family:inherit;
-}
 </style>
 </head>
 <body>
@@ -565,23 +562,6 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       </div>
     </div>
 
-    <h3 style="margin-top:4px">💎 テラスタル</h3>
-    <div class="tera-block" id="tera-self">
-      <div class="tera-head">
-        <label class="chk"><input type="checkbox" data-side="self" data-flag="terastal">自分</label>
-      </div>
-      <select id="tera-self-type" disabled>
-        <option value="">タイプ選択</option>
-      </select>
-    </div>
-    <div class="tera-block" id="tera-opp">
-      <div class="tera-head">
-        <label class="chk"><input type="checkbox" data-side="opp" data-flag="terastal">相手</label>
-      </div>
-      <select id="tera-opp-type" disabled>
-        <option value="">タイプ選択</option>
-      </select>
-    </div>
   </aside>
 
   <!-- 相手側 -->
@@ -621,9 +601,10 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 <section id="battle-panel">
   <div class="battle-ctrl">
     <button id="btn-start-battle" type="button">▶︎ バトル開始 (Init-A)</button>
-    <button id="btn-run-turn" type="button">⚔️ ターン実行</button>
-    <button id="btn-reset-battle" type="button">↺ リセット</button>
-    <span class="battle-hint">技スロットをクリックで「使う技」を選択。両側ともポケモン＋技選択でターン実行できます。</span>
+    <button id="btn-run-turn" type="button">⚔️ ターン実行 (両側同時)</button>
+    <button id="btn-undo-battle" type="button" disabled>↩︎ 一手戻す</button>
+    <button id="btn-reset-battle" type="button">↺ HP全回復</button>
+    <span class="battle-hint">技をクリックで選択、技横の <b>⚔ 実行</b> で片側攻撃。両側選択して「ターン実行」で同時。</span>
   </div>
   <div id="battle-log"></div>
 </section>
@@ -712,9 +693,6 @@ function makeSideState(){
     stealthRock: false,
     rockyHelmet: false,
     disguise: false,
-    // テラスタル
-    terastal: false,
-    teraType: '',
   };
 }
 
@@ -806,13 +784,9 @@ function calcDamage(atkSide, defSide, move){
   const def = sides[defSide];
   if (!atk.poke || !def.poke) return null;
 
-  // 攻撃側は STAB 判定のために「元タイプ + (テラ中の teraType)」を分けて持つ
-  // 防御側はテラ中なら相性計算もテラタイプで上書き（仕様）
   const atkOrigTypes = [atk.poke.type1, atk.poke.type2].filter(Boolean);
-  const atkTypes = atkOrigTypes;  // フィールド接地判定など「元タイプ基準」で十分
-  const defTypes = def.terastal && def.teraType
-    ? [def.teraType]
-    : [def.poke.type1, def.poke.type2].filter(Boolean);
+  const atkTypes = atkOrigTypes;
+  const defTypes = [def.poke.type1, def.poke.type2].filter(Boolean);
 
   // ばけのかわ無効化
   if (def.disguise){
@@ -933,16 +907,10 @@ function calcDamage(atkSide, defSide, move){
   for (let r = 85; r <= 100; r++){
     let v = Math.floor(base * r / 100);
 
-    // 5) STAB（テラスタル考慮）
-    const isOrigStab  = atkOrigTypes.includes(move.type);
-    const isTeraMatch = atk.terastal && atk.teraType === move.type;
-    if (isOrigStab || isTeraMatch){
-      const stab = (isTeraMatch && isOrigStab) ? 2.0 : 1.5;
-      v = pokeRound(v, Math.round(stab * 4096));
-      if (r === 85){
-        const label = (isTeraMatch && isOrigStab) ? 'テラ一致 STAB' : (isTeraMatch ? 'テラ STAB' : 'STAB');
-        chips.push({label, factor:stab, kind:'stab'});
-      }
+    // 5) STAB
+    if (atkOrigTypes.includes(move.type)){
+      v = pokeRound(v, 6144);
+      if (r === 85) chips.push({label:'STAB', factor:1.5, kind:'stab'});
     }
 
     // 6) タイプ相性
@@ -1223,39 +1191,34 @@ function phaseApplyEffects(atkSide, defSide, move){
 }
 
 // === フェーズ: 10a スリップダメ（やけど 1/16 / どく 1/8 / もうどく カウンタ式）===
-function phaseEndOfTurnSlip(){
-  for (const s of ['self','opp']){
-    const st = sides[s];
-    if (!st.poke || st.fainted) continue;
-    const max = realStat(st, 'hp');
-    if (st.status === 'burn'){
-      const d = Math.max(1, Math.floor(max / 16));
-      st.currentHp = Math.max(0, st.currentHp - d);
-      log('10a', `${st.poke.name} は やけどで ${d} ダメージ！ (残HP ${st.currentHp})`);
-    } else if (st.status === 'poison'){
-      const d = Math.max(1, Math.floor(max / 8));
-      st.currentHp = Math.max(0, st.currentHp - d);
-      log('10a', `${st.poke.name} は どくで ${d} ダメージ！ (残HP ${st.currentHp})`);
-    } else if (st.status === 'badpoison'){
-      st.badpoisonCounter = (st.badpoisonCounter || 0) + 1;
-      const d = Math.max(1, Math.floor(max * st.badpoisonCounter / 16));
-      st.currentHp = Math.max(0, st.currentHp - d);
-      log('10a', `${st.poke.name} は もうどくで ${d} ダメージ！ (残HP ${st.currentHp})`);
-    }
-    if (st.currentHp <= 0){
-      st.fainted = true;
-      log('10a', `${st.poke.name} は ひんしになった！`);
-    }
+// 片側分のスリップダメージ (やけど/どく/もうどく + 砂嵐)
+function phaseSlipFor(s){
+  const st = sides[s];
+  if (!st.poke || st.fainted) return;
+  const max = realStat(st, 'hp');
+  if (st.status === 'burn'){
+    const d = Math.max(1, Math.floor(max / 16));
+    st.currentHp = Math.max(0, st.currentHp - d);
+    log('10a', `${st.poke.name} は やけどで ${d} ダメージ！ (残HP ${st.currentHp})`);
+  } else if (st.status === 'poison'){
+    const d = Math.max(1, Math.floor(max / 8));
+    st.currentHp = Math.max(0, st.currentHp - d);
+    log('10a', `${st.poke.name} は どくで ${d} ダメージ！ (残HP ${st.currentHp})`);
+  } else if (st.status === 'badpoison'){
+    st.badpoisonCounter = (st.badpoisonCounter || 0) + 1;
+    const d = Math.max(1, Math.floor(max * st.badpoisonCounter / 16));
+    st.currentHp = Math.max(0, st.currentHp - d);
+    log('10a', `${st.poke.name} は もうどくで ${d} ダメージ！ (残HP ${st.currentHp})`);
   }
-  // 砂嵐継続ダメ (いわ/じめん/はがね/ふゆう除外)
-  if (env.weather === 'sand'){
-    for (const s of ['self','opp']){
-      const st = sides[s];
-      if (!st.poke || st.fainted) continue;
-      const t1 = st.poke.type1, t2 = st.poke.type2;
-      if ([t1,t2].some(t => ['いわ','じめん','はがね'].includes(t))) continue;
-      if (st.ability === 'ふゆう' || st.ability === 'すなのちから' || st.ability === 'すながくれ' || st.ability === 'マジックガード') continue;
-      const max = realStat(st, 'hp');
+  if (st.currentHp <= 0){
+    st.fainted = true;
+    log('10a', `${st.poke.name} は ひんしになった！`);
+  }
+  // 砂嵐継続ダメ (いわ/じめん/はがね/ふゆう/すながくれ/すなのちから/マジックガード除外)
+  if (env.weather === 'sand' && !st.fainted){
+    const t1 = st.poke.type1, t2 = st.poke.type2;
+    if (![t1,t2].some(t => ['いわ','じめん','はがね'].includes(t)) &&
+        !['ふゆう','すなのちから','すながくれ','マジックガード'].includes(st.ability)){
       const d = Math.max(1, Math.floor(max / 16));
       st.currentHp = Math.max(0, st.currentHp - d);
       log('10c', `${st.poke.name} は すなあらしで ${d} ダメージ！`);
@@ -1264,10 +1227,109 @@ function phaseEndOfTurnSlip(){
   }
 }
 
-// === 1ターン実行 ===
+function phaseEndOfTurnSlip(){
+  for (const s of ['self','opp']) phaseSlipFor(s);
+}
+
+// === 履歴スタック (Undo 用) ===
+const battleHistory = [];
+const HISTORY_MAX = 50;
+
+function snapshotBattleState(){
+  const snap = (st)=>({
+    currentHp: st.currentHp,
+    fainted: st.fainted,
+    status: st.status,
+    rank: {...st.rank},
+    badpoisonCounter: st.badpoisonCounter || 0,
+  });
+  return {
+    self: snap(sides.self),
+    opp: snap(sides.opp),
+    log: battleLog.map(e=>({phase:e.phase, msg:e.msg})),
+  };
+}
+
+function pushHistory(){
+  battleHistory.push(snapshotBattleState());
+  if (battleHistory.length > HISTORY_MAX) battleHistory.shift();
+  updateUndoButton();
+}
+
+function updateUndoButton(){
+  const btn = document.getElementById('btn-undo-battle');
+  if (btn) btn.disabled = battleHistory.length === 0;
+}
+
+function undoBattle(){
+  const s = battleHistory.pop();
+  if (!s){
+    log('Undo', 'これ以上戻せません');
+    renderBattleLog();
+    updateUndoButton();
+    return;
+  }
+  const restore = (st, src)=>{
+    st.currentHp = src.currentHp;
+    st.fainted = src.fainted;
+    st.status = src.status;
+    st.rank = {...src.rank};
+    st.badpoisonCounter = src.badpoisonCounter;
+  };
+  restore(sides.self, s.self);
+  restore(sides.opp, s.opp);
+  battleLog.length = 0;
+  s.log.forEach(e=>battleLog.push(e));
+  log('Undo', '一手戻しました');
+  // status select / rank UI を再同期
+  ['self','opp'].forEach(side=>{
+    const sel = document.querySelector(`.status-select[data-side="${side}"]`);
+    if (sel) sel.value = sides[side].status || 'none';
+  });
+  renderBattleLog();
+  renderBoth();
+  updateUndoButton();
+}
+
+// === 片側攻撃 (技横の ⚔ 実行ボタン) ===
+function runSingleAttack(atkSide, moveIdx){
+  ensureBattleState();
+  const defSide = atkSide === 'self' ? 'opp' : 'self';
+  const atk = sides[atkSide];
+  const def = sides[defSide];
+  const move = atk.moves[moveIdx];
+  if (!atk.poke || !def.poke || !move) return;
+  if (atk.fainted){
+    log(atkSide, `${atk.poke.name} は ひんし状態のため行動できない`);
+    renderBattleLog();
+    return;
+  }
+  pushHistory();
+  log('Attack', `${atk.poke.name} が ${move.name} を選んだ！`);
+  // 行動阻害（ねむり/こおり/まひ）
+  if (atk.status === 'sleep'){ log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'freeze' && Math.random() > 0.2){ log('0c', `${atk.poke.name} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'paralysis' && Math.random() < 0.25){ log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  // 命中判定
+  const hit = phaseHitCheck(move, atk, def);
+  if (!hit.hit){ log('0c', hit.reason); renderBattleLog(); renderBoth(); return; }
+  if (move.category === '変化'){
+    log('9', `${atk.poke.name} は ${move.name} を使った！ (変化技は MVP では効果未実装)`);
+    phaseApplyEffects(atkSide, defSide, move);
+  } else {
+    phaseDealDamage(atkSide, defSide, move);
+    if (!def.fainted) phaseApplyEffects(atkSide, defSide, move);
+  }
+  // 攻撃側のターン終了スリップ（片側攻撃でも自分側のみ処理）
+  phaseSlipFor(atkSide);
+  renderBattleLog();
+  renderBoth();
+}
+
+// === 1ターン実行 (両側同時) ===
 function runTurn(){
   ensureBattleState();
-  battleLog.length = 0;
+  pushHistory();
   log('Turn', '─── ターン開始 ───');
   const selfMove = sides.self.moves[sides.self.selectedMoveIdx];
   const oppMove  = sides.opp.moves[sides.opp.selectedMoveIdx];
@@ -1317,17 +1379,25 @@ function resetBattle(){
     st.fainted = false;
     st.badpoisonCounter = 0;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
+    st.status = 'none';
   });
   battleLog.length = 0;
-  log('Reset', 'バトルをリセットしました');
+  battleHistory.length = 0;
+  log('Reset', 'HP全回復・履歴クリア');
+  // status select も再同期
+  ['self','opp'].forEach(side=>{
+    const sel = document.querySelector(`.status-select[data-side="${side}"]`);
+    if (sel) sel.value = 'none';
+  });
   renderBattleLog();
   renderBoth();
+  updateUndoButton();
 }
 
 // バトル開始時 (Init-A) を実行
 function startBattle(){
   ensureBattleState();
-  battleLog.length = 0;
+  pushHistory();
   log('Start', '─── バトル開始 ───');
   phaseInitA();
   renderBattleLog();
@@ -1470,6 +1540,7 @@ function renderMoves(root, st){
     row.dataset.moveIdx = idx;
     const acc = (m.accuracy == null || m.accuracy === '—') ? '—' : m.accuracy;
     const pow = (m.power == null || m.power === 0) ? '—' : m.power;
+    const canAttack = !!sides[sideId].poke && !!sides[oppId].poke && !sides[sideId].fainted;
     const head = `
       <div class="move-head">
         <span class="m-type t-${m.type}">${m.type}</span>
@@ -1477,6 +1548,7 @@ function renderMoves(root, st){
         <span class="m-cat ${m.category}">${m.category}</span>
         <span class="m-pow">${pow}</span>
         <span class="m-acc">${acc}</span>
+        <button class="m-attack-btn" data-action="attack" data-move-idx="${idx}" ${canAttack ? '' : 'disabled'}>⚔ 実行</button>
       </div>`;
 
     // ダメ計算（この side が攻撃側、反対 side が防御側）
@@ -1723,36 +1795,13 @@ function attachEnvPanel(){
     });
   });
 
-  // 各種チェックボックス（critical / lifeOrb / reflect / lightScreen / stealthRock / rockyHelmet / disguise / terastal）
+  // 各種チェックボックス（critical / lifeOrb / reflect / lightScreen / stealthRock / rockyHelmet / disguise）
   document.querySelectorAll('#env-panel input[type="checkbox"]').forEach(cb=>{
     cb.addEventListener('change', e=>{
       const side = e.target.dataset.side;
       const flag = e.target.dataset.flag;
       if (!side || !flag) return;
       sides[side][flag] = e.target.checked;
-      // テラスタルのトグル時に select の有効/無効を切替
-      if (flag === 'terastal'){
-        const sel = document.getElementById('tera-' + side + '-type');
-        sel.disabled = !e.target.checked;
-        document.getElementById('tera-' + side).classList.toggle('tera-on', e.target.checked);
-        if (!e.target.checked) sides[side].teraType = '';
-      }
-      renderBoth();
-    });
-  });
-
-  // テラタイプ select
-  ['self','opp'].forEach(side=>{
-    const sel = document.getElementById('tera-' + side + '-type');
-    // option を埋める
-    TYPES.forEach(t=>{
-      const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = t;
-      sel.appendChild(opt);
-    });
-    sel.addEventListener('change', e=>{
-      sides[side].teraType = e.target.value;
       renderBoth();
     });
   });
@@ -1774,15 +1823,8 @@ function swapSides(){
     const flag = cb.dataset.flag;
     if (side && flag) cb.checked = !!sides[side][flag];
   });
-  // テラ select の値と有効/無効を再同期
+  // 状態異常 select を再同期
   ['self','opp'].forEach(s=>{
-    const sel = document.getElementById('tera-' + s + '-type');
-    if (sel){
-      sel.value = sides[s].teraType || '';
-      sel.disabled = !sides[s].terastal;
-      document.getElementById('tera-' + s).classList.toggle('tera-on', !!sides[s].terastal);
-    }
-    // 状態異常 select も同期
     const statSel = document.querySelector(`.status-select[data-side="${s}"]`);
     if (statSel) statSel.value = sides[s].status || 'none';
   });
@@ -1976,11 +2018,22 @@ window.addEventListener('DOMContentLoaded', ()=>{
   render('opp');
 });
 
-// 技スロットをクリックして「使う技」を選択
+// 技スロットをクリックして「使う技」を選択、または ⚔ 実行ボタンで片側攻撃
 function attachMoveSelect(){
   document.querySelectorAll('.side').forEach(sideEl=>{
     const side = sideEl.dataset.side;
     sideEl.addEventListener('click', e=>{
+      // ⚔ 実行ボタン → 片側攻撃
+      const btn = e.target.closest('.m-attack-btn');
+      if (btn){
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.moveIdx, 10);
+        if (isNaN(idx)) return;
+        sides[side].selectedMoveIdx = idx;
+        runSingleAttack(side, idx);
+        return;
+      }
+      // それ以外は技選択
       const row = e.target.closest('.move-row');
       if (!row) return;
       const idx = parseInt(row.dataset.moveIdx, 10);
@@ -1995,9 +2048,11 @@ function attachMoveSelect(){
 function attachBattleControl(){
   const start = document.getElementById('btn-start-battle');
   const turn  = document.getElementById('btn-run-turn');
+  const undo  = document.getElementById('btn-undo-battle');
   const reset = document.getElementById('btn-reset-battle');
   if (start) start.addEventListener('click', startBattle);
   if (turn)  turn.addEventListener('click', runTurn);
+  if (undo)  undo.addEventListener('click', undoBattle);
   if (reset) reset.addEventListener('click', resetBattle);
 }
 </script>
