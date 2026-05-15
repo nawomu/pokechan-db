@@ -207,6 +207,16 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 }
 .ability-desc.empty{color:#484f58;font-style:italic}
 
+/* 持ち物セレクタ */
+.item-wrap{display:flex;flex-direction:column;gap:3px}
+.item-select{font-family:inherit}
+.item-effect{
+  font-size:11px;color:#8b949e;background:#0d1117;
+  border:1px solid #21262d;border-radius:4px;padding:4px 7px;
+  line-height:1.4;
+}
+.item-effect.empty{color:#484f58;font-style:italic}
+
 /* 弱点・耐性ボックス枠 */
 .type-eff.weakness,.type-eff.resist{
   background:#0d1117;border:1px solid #21262d;border-radius:5px;
@@ -316,7 +326,15 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 .battle-ctrl button#btn-run-turn{background:linear-gradient(90deg,#1c2a3a,#2a1c3a);}
 .battle-ctrl button#btn-run-turn:hover{background:linear-gradient(90deg,#22354a,#341d4a);}
 .battle-ctrl button:active{transform:translateY(1px)}
-.battle-hint{font-size:10px;color:#8b949e;margin-left:8px}
+.battle-hint{font-size:10px;color:#8b949e;margin-top:4px;line-height:1.4}
+
+/* aside (環境パネル) 内の操作ボタンは 2×2 グリッド */
+.battle-ctrl-aside{
+  display:grid;grid-template-columns:1fr 1fr;gap:5px;width:100%;
+}
+.battle-ctrl-aside button{
+  padding:6px 6px;font-size:11px;width:100%;
+}
 #battle-log{
   max-height:200px;overflow-y:auto;
   background:#000;border:1px solid #21262d;border-radius:4px;
@@ -471,6 +489,11 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <div class="ability-desc empty">—</div>
     </div>
 
+    <div class="item-wrap">
+      <select class="item-select"><option value="">— 持ち物なし —</option></select>
+      <div class="item-effect empty">—</div>
+    </div>
+
     <div class="type-eff weakness"></div>
     <div class="type-eff resist"></div>
 
@@ -562,6 +585,15 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       </div>
     </div>
 
+    <h3 style="margin-top:4px">⚔️ バトル操作</h3>
+    <div class="battle-ctrl battle-ctrl-aside">
+      <button id="btn-start-battle" type="button">▶︎ バトル開始</button>
+      <button id="btn-run-turn" type="button">⚔️ ターン実行</button>
+      <button id="btn-undo-battle" type="button" disabled>↩︎ 一手戻す</button>
+      <button id="btn-reset-battle" type="button">↺ HP全回復</button>
+    </div>
+    <div class="battle-hint">技横の <b>⚔ 実行</b> で片側攻撃。両側選択して「ターン実行」で同時。</div>
+
   </aside>
 
   <!-- 相手側 -->
@@ -590,6 +622,11 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <div class="ability-desc empty">—</div>
     </div>
 
+    <div class="item-wrap">
+      <select class="item-select"><option value="">— 持ち物なし —</option></select>
+      <div class="item-effect empty">—</div>
+    </div>
+
     <div class="type-eff weakness"></div>
     <div class="type-eff resist"></div>
 
@@ -597,15 +634,8 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
   </section>
 </main>
 
-<!-- バトル進行パネル -->
+<!-- バトルログ -->
 <section id="battle-panel">
-  <div class="battle-ctrl">
-    <button id="btn-start-battle" type="button">▶︎ バトル開始 (Init-A)</button>
-    <button id="btn-run-turn" type="button">⚔️ ターン実行 (両側同時)</button>
-    <button id="btn-undo-battle" type="button" disabled>↩︎ 一手戻す</button>
-    <button id="btn-reset-battle" type="button">↺ HP全回復</button>
-    <span class="battle-hint">技をクリックで選択、技横の <b>⚔ 実行</b> で片側攻撃。両側選択して「ターン実行」で同時。</span>
-  </div>
   <div id="battle-log"></div>
 </section>
 
@@ -622,6 +652,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 </div>
 
 <script src="pokechan_data.js"></script>
+<script src="items_database.js"></script>
 <script>
 'use strict';
 
@@ -679,6 +710,7 @@ function makeSideState(){
     effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0},
     natureIdx: 0,
     ability: '',                             // 選択中の特性名
+    item: '',                                // 持ち物 (ITEMS_DATABASE.items[].key、空文字でなし)
     moves: [],                               // [{key,name,type,category,power,accuracy,pp,...}, ...]
     // 能力ランク補正 (-6..+6)
     rank: {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0},
@@ -705,6 +737,9 @@ function rankMult(n){
 // 名前→ポケモンオブジェクトの逆引き（フォルム違いは最後勝ち、運用上は最初のヒットで十分）
 const POKE_MAP_BY_NAME = {};
 // 起動時に作る（POKEMON_LIST 定義後）
+
+// 持ち物 key → アイテム情報の逆引き（items_database.js 読み込み後に構築）
+const ITEM_BY_KEY = {};
 
 // =========================================================================
 // 計算ロジック（純関数）
@@ -902,6 +937,18 @@ function calcDamage(atkSide, defSide, move){
     chips.push({label:'すなのちから', factor:1.3, kind:'ability'});
   }
 
+  // 3.8) 攻撃側 持ち物（タイプ強化系: もくたん等 ×1.2）
+  const atkItem = atk.item ? ITEM_BY_KEY[atk.item] : null;
+  if (atkItem && atkItem.category === 'type_boost' && atkItem.poke_type === move.type){
+    base = pokeRound(base, atkItem.q12 || 4915);
+    chips.push({label:atkItem.name, factor:atkItem.factor || 1.2, kind:'item'});
+  }
+  // 3.9) でんきだま（ピカチュウのみ 攻撃 ×2）
+  if (atkItem && atkItem.key === 'light_ball' && atk.poke && (atk.poke.name||'').includes('ピカチュウ')){
+    base = pokeRound(base, 8192);
+    chips.push({label:'でんきだま', factor:2.0, kind:'item'});
+  }
+
   // 4) 16通り乱数 [85..100] / 100（ここから先は variation 毎に）
   const variations = [];
   for (let r = 85; r <= 100; r++){
@@ -938,6 +985,15 @@ function calcDamage(atkSide, defSide, move){
     if (atk.lifeOrb){
       v = pokeRound(v, 5324);
       if (r === 85) chips.push({label:'いのちのたま', factor:1.3, kind:'item'});
+    }
+
+    // 8.5) 半減きのみ（防御側 item、効果バツグン時のみ ×0.5）
+    if (eff > 1){
+      const defItem = def.item ? ITEM_BY_KEY[def.item] : null;
+      if (defItem && defItem.category === 'berry_resist' && defItem.poke_type === move.type){
+        v = pokeRound(v, 2048);
+        if (r === 85) chips.push({label:defItem.name, factor:0.5, kind:'item'});
+      }
     }
 
     // 最終 +2 は base にすでに含まないので「最低1ダメ」保証だけ
@@ -1043,11 +1099,13 @@ function movePriority(move){
   return 0;
 }
 
-// 素早さ実数値（ランク+ステ補正+トリックルーム反映、状態異常まひ ×0.5）
+// 素早さ実数値（ランク+ステ補正+トリックルーム反映、状態異常まひ ×0.5、こだわりスカーフ ×1.5）
 function effectiveSpeed(st){
   if (!st.poke) return 0;
   let s = rankedStat(st, 'spd');
   if (st.status === 'paralysis' && st.ability !== 'はやあし') s = Math.floor(s / 2);
+  const item = st.item ? ITEM_BY_KEY[st.item] : null;
+  if (item && item.key === 'kodawari_scarf') s = Math.floor(s * 1.5);
   return s;
 }
 
@@ -1518,6 +1576,9 @@ function render(side){
   // 特性セレクタ
   renderAbilitySelect(root, st);
 
+  // 持ち物セレクタ
+  renderItemSelect(root, st);
+
   // 弱点・耐性
   renderTypeEff(root, st);
 
@@ -1625,6 +1686,54 @@ function renderAbilitySelect(root, st){
   const desc = (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[st.ability]) ? ABILITY_DESC[st.ability] : '（説明データなし）';
   descEl.textContent = desc;
   descEl.classList.toggle('empty', !ABILITY_DESC || !ABILITY_DESC[st.ability]);
+}
+
+// 持ち物セレクトの populate (一度だけ呼ぶ。カテゴリ別 optgroup)
+function populateItemSelect(sel){
+  if (!window.ITEMS_DATABASE) return;
+  sel.innerHTML = '<option value="">— 持ち物なし —</option>';
+  const cats = window.ITEMS_DATABASE.categories || {};
+  const byCat = {};
+  for (const it of window.ITEMS_DATABASE.items){
+    (byCat[it.category] = byCat[it.category] || []).push(it);
+  }
+  // 表示順を固定
+  const order = ['attack_boost','speed_boost','defense_boost','type_boost','berry_resist','berry_status_cure','berry_hp_cure','hp_drain','survival','status_inflict','misc','mega_stone'];
+  for (const cat of order){
+    if (!byCat[cat]) continue;
+    const og = document.createElement('optgroup');
+    og.label = cats[cat] || cat;
+    for (const it of byCat[cat]){
+      const opt = document.createElement('option');
+      opt.value = it.key;
+      opt.textContent = it.name;
+      opt.title = it.effect || '';
+      og.appendChild(opt);
+    }
+    sel.appendChild(og);
+  }
+}
+
+function renderItemSelect(root, st){
+  const sel = root.querySelector('.item-select');
+  const fxEl = root.querySelector('.item-effect');
+  if (!sel) return;
+  // optgroup が空なら一度だけ埋める
+  if (!sel.querySelector('optgroup')) populateItemSelect(sel);
+  sel.value = st.item || '';
+  if (!st.item){
+    fxEl.textContent = '—';
+    fxEl.classList.add('empty');
+    return;
+  }
+  const item = ITEM_BY_KEY[st.item];
+  if (item){
+    fxEl.textContent = item.effect || item.name;
+    fxEl.classList.remove('empty');
+  } else {
+    fxEl.textContent = '（未知のアイテム）';
+    fxEl.classList.add('empty');
+  }
 }
 
 function renderTypeEff(root, st){
@@ -1761,6 +1870,18 @@ function attachAbilityChange(){
     sideEl.querySelector('.ability-select').addEventListener('change', e=>{
       sides[side].ability = e.target.value;
       render(side);
+    });
+  });
+}
+
+function attachItemChange(){
+  document.querySelectorAll('.side').forEach(sideEl=>{
+    const side = sideEl.dataset.side;
+    const sel = sideEl.querySelector('.item-select');
+    if (!sel) return;
+    sel.addEventListener('change', e=>{
+      sides[side].item = e.target.value;
+      renderBoth();  // 両側のダメ計算結果が変わる可能性 (相手の半減きのみ等)
     });
   });
 }
@@ -2005,10 +2126,16 @@ window.addEventListener('DOMContentLoaded', ()=>{
   // 名前→ポケモンの逆引き
   POKEMON_LIST.forEach(p=>{ POKE_MAP_BY_NAME[p.name] = p; });
 
+  // 持ち物 key→アイテム情報の逆引き
+  if (window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){
+    window.ITEMS_DATABASE.items.forEach(it=>{ ITEM_BY_KEY[it.key] = it; });
+  }
+
   initNatureSelects();
   attachEpInput();
   attachCardClick();
   attachAbilityChange();
+  attachItemChange();
   attachEnvPanel();
   attachMoveSelect();
   attachBattleControl();
