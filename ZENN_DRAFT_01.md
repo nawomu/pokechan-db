@@ -189,8 +189,8 @@ const INITIAL_POKEMON_FILTER = new URLSearchParams(location.search).get('pokemon
 
 ## 数字で振り返る1ヶ月
 
-- 総ファイル数: HTML 9個、JSON翻訳ファイル 9言語分、画像数十枚
-- データ規模: ポケモン1000種以上、わざ900種以上
+- 総ファイル数: HTML 17ページ（日本語版9 / 英語版7 / その他1）、JSON翻訳ファイル 9言語分、画像数十枚
+- データ規模: ポケモンチャンピオンズ収録186種（フォーム違い込みで275レコード）、わざ約490種
 - コミット数: 数十回（小さく頻繁に）
 - 私の役割: 設計・データ検証・最終確認
 - Claude Code の役割: 実装・整形・ドキュメント生成
@@ -210,7 +210,7 @@ const INITIAL_POKEMON_FILTER = new URLSearchParams(location.search).get('pokemon
 
 ## おわりに
 
-PchamDB は公開中で、これから多言語化（9言語対応）と機能拡張を進めていきます。
+PchamDB は公開中で、9言語対応（PokeAPI 連携）も最近実装完了。これからも機能拡張を進めていきます。
 
 - 🔗 サイト: https://pchamdb.com
 - 🔗 制作の裏側: https://pchamdb.com/making.html
