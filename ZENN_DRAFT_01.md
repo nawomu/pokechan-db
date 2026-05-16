@@ -38,8 +38,8 @@
 | ホスティング | GitHub Pages + Cloudflare (独自ドメイン) |
 | 開発支援 | Claude Code (CLI版) |
 | データ取得 | PokeAPI (多言語化用) |
-| 解析 | Google Analytics + Search Console |
-| 収益 | 楽天アフィリエイト + Amazon Associates |
+| 解析 | Cloudflare Web Analytics (Google Analytics 4 は導入予定) |
+| 収益 | 楽天アフィリエイト + Amazon Associates (申請中) + Google AdSense (申請中) |
 
 **ビルドツールなし、npm install なし、package.json なし。** ファイルを開いて編集して保存するだけ。GitHub に push したら反映される。これが意外と快適でした。
 
