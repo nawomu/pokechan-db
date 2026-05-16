@@ -2,6 +2,7 @@
 <html lang="ja"><head><meta charset="utf-8">
 <!-- v9 build: 2026-04-19 08:44 WAZA_MASTER -->
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8021399778265482" crossorigin="anonymous"></script>
 <title>わざリスト - PchamDB (非公式)</title>
 <meta name="description" content="ポケモンチャンピオンズ向けの非公式わざリスト。威力、命中、優先度、効果、習得ポケモンを検索・フィルタできます。">
 <meta name="theme-color" content="#1F4E79">
@@ -1653,8 +1654,9 @@ let lmDragX = 0, lmDragY = 0;
       tip.style.display = 'none';
       return;
     }
+    const i18nPoke = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon : (n) => n;
     const list = m.learners.map(l =>
-      `<span class="wt-learner">${l.name}<span class="wt-tot">${l.total}</span></span>`
+      `<span class="wt-learner">${i18nPoke(l.name)}<span class="wt-tot">${l.total}</span></span>`
     ).join('');
     tip.innerHTML = `
       <div class="wt-title">${m.name} を習得 ${m.learners.length}匹 (種族値合計の降順)</div>
@@ -1811,9 +1813,10 @@ let lmDragX = 0, lmDragY = 0;
     // 習得ポケモン上位20匹 (種族値合計順、moves構築時にソート済み)
     const learners = m.learners || [];
     const top20 = learners.slice(0, 20);
+    const i18nPoke = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon : (n) => n;
     const learnerListHtml = top20.length > 0
       ? top20.map(l =>
-          `<span class="dt-learner">${escHtml(l.name)}<span class="dt-learner-tot">${l.total}</span></span>`
+          `<span class="dt-learner">${escHtml(i18nPoke(l.name))}<span class="dt-learner-tot">${l.total}</span></span>`
         ).join('')
       : '<span class="dt-no-learner">習得ポケモンなし</span>';
     const learnerTitleHtml = learners.length > 0
@@ -1939,5 +1942,14 @@ render();
 </div>
 <button id="ad-show-btn" title="Show ad" aria-label="Show ad" style="display:none;position:fixed;bottom:8px;right:8px;z-index:9998;background:rgba(40,40,40,0.9);color:#cfd9ea;border:1px solid #555;border-radius:20px;padding:6px 12px;cursor:pointer;font-size:12px;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,0.5)">📣 Ad</button>
 <script src="ad-toggle.js" defer></script>
+<!-- i18n: 言語切替時にテーブル再描画 (ホバーツールチップ内のポケモン名翻訳のため) -->
+<script>
+  document.addEventListener('i18n:changed', () => {
+    if (typeof render === 'function') render();
+  });
+  document.addEventListener('i18n:ready', () => {
+    if (window.I18N && window.I18N.lang !== 'ja' && typeof render === 'function') render();
+  });
+</script>
 
 </body></html>
