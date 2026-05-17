@@ -1833,12 +1833,12 @@ for (let ci = 0; ci < 3; ci++) {
         <div class="hdr2">
           <div class="hdr2-top">
             <div class="ms-wrap" id="${msId}">
-              <button class="ms-btn">全▾</button>
+              <button class="ms-btn" data-i18n="db.ms_all">全▾</button>
               <div class="ms-dropdown">
                 <div class="ms-body"></div>
                 <div class="ms-footer">
-                  <button class="ms-foot-btn" data-act="clear">全解除</button>
-                  <button class="ms-foot-btn" data-act="close">閉じ</button>
+                  <button class="ms-foot-btn" data-act="clear" data-i18n="db.ms_clear">全解除</button>
+                  <button class="ms-foot-btn" data-act="close" data-i18n="db.ms_close">閉じ</button>
                 </div>
               </div>
             </div>
@@ -1909,7 +1909,7 @@ COLUMNS.push({
   buildTh: (ctx) => {
     const th = document.createElement('th');
     th.className = 'th-name';
-    th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" data-sort="name" style="justify-content:center">ポケモン名<span class="si2" data-skey="name"></span></div></div>`;
+    th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" data-sort="name" style="justify-content:center">${_tDB('db.col_pokemon', 'ポケモン名')}<span class="si2" data-skey="name"></span></div></div>`;
     return th;
   },
   buildTd: (p) => {
@@ -1932,12 +1932,12 @@ COLUMNS.push({
     th.innerHTML = `<div class="hdr2">
       <div class="hdr2-top">
         <div class="ms-wrap" id="${msId}">
-          <button class="ms-btn" style="background:rgba(255,255,255,0.2)">全▾</button>
+          <button class="ms-btn" style="background:rgba(255,255,255,0.2)" data-i18n="db.ms_all">全▾</button>
           <div class="ms-dropdown">
             <div class="ms-body"></div>
             <div class="ms-footer">
-              <button class="ms-foot-btn" data-act="clear">全解除</button>
-              <button class="ms-foot-btn" data-act="close">閉じ</button>
+              <button class="ms-foot-btn" data-act="clear" data-i18n="db.ms_clear">全解除</button>
+              <button class="ms-foot-btn" data-act="close" data-i18n="db.ms_close">閉じ</button>
             </div>
           </div>
         </div>
@@ -1992,12 +1992,12 @@ COLUMNS.push({
     th.innerHTML = `<div class="hdr2">
       <div class="hdr2-top">
         <div class="ms-wrap" id="${msId}">
-          <button class="ms-btn" data-default="除外▾">除外▾</button>
+          <button class="ms-btn" data-default="除外▾" data-i18n="db.ms_exclude" data-i18n-attr="data-default:db.ms_exclude">除外▾</button>
           <div class="ms-dropdown">
             <div class="ms-body"></div>
             <div class="ms-footer">
-              <button class="ms-foot-btn" data-act="clear">全解除</button>
-              <button class="ms-foot-btn" data-act="close">閉じ</button>
+              <button class="ms-foot-btn" data-act="clear" data-i18n="db.ms_clear">全解除</button>
+              <button class="ms-foot-btn" data-act="close" data-i18n="db.ms_close">閉じ</button>
             </div>
           </div>
         </div>
@@ -2053,12 +2053,15 @@ COLUMNS.push({
 });
 
 // -------- 能力値 --------
+// i18n: 各列の表示ラベルは I18N.t() で動的取得 (i18n:changed で再描画)
+function _tDB(key, fb) { return (window.I18N && I18N.t) ? I18N.t(key, fb) : fb; }
 const STAT_COLS = [
-  ['hp', 'HP'], ['atk', '攻'], ['def', '防'],
-  ['spatk', '特攻'], ['spdef', '特防'], ['spd', '速'],
-  ['total', '合計']
+  ['hp', 'db.stat_hp', 'HP'], ['atk', 'db.stat_atk', '攻'], ['def', 'db.stat_def', '防'],
+  ['spatk', 'db.stat_spatk', '特攻'], ['spdef', 'db.stat_spdef', '特防'], ['spd', 'db.stat_spd', '速'],
+  ['total', 'db.stat_total', '合計']
 ];
-STAT_COLS.forEach(([k, lbl]) => {
+STAT_COLS.forEach(([k, lblKey, lblFb]) => {
+  const lbl = () => _tDB(lblKey, lblFb);
   COLUMNS.push({
     key: k,
     grp: 'stat',
@@ -2083,7 +2086,7 @@ STAT_COLS.forEach(([k, lbl]) => {
             </div>
           </div>
         </div>
-        <div class="hdr2-bot" data-sort="${k}">${lbl}<span class="si2" data-skey="${k}"></span></div>
+        <div class="hdr2-bot" data-sort="${k}">${lbl()}<span class="si2" data-skey="${k}"></span></div>
       </div>`;
       th.querySelector('.st-op').onchange = () => ctx.onFilter();
       th.querySelector('.st-num').oninput = () => ctx.onFilter();
@@ -2100,7 +2103,7 @@ STAT_COLS.forEach(([k, lbl]) => {
         const e = STAT_RANK[sk];
         const rk = e && e[`${k}_base_rank`];
         if (rk != null) {
-          titleAttr = ` title="${lbl}: ${p[k]} (全国 第${rk}位)"`;
+          titleAttr = ` title="${_tDB('db.national_rank', '{lbl}: {v} (全国 第{rk}位)').replace('{lbl}', lbl()).replace('{v}', p[k]).replace('{rk}', rk)}"`;
         }
       }
       return `<td class="${cls} ${hm}" data-grp="stat"${titleAttr}>${p[k]}</td>`;
@@ -2120,7 +2123,9 @@ STAT_COLS.forEach(([k, lbl]) => {
 // -------- とくせい --------
 for (let ai = 0; ai < 3; ai++) {
   const k = 'ab' + (ai + 1);
-  const lbl = 'とくせい' + ['①','②','③'][ai];
+  const suffix = ['①','②','③'][ai];
+  // i18n: 「とくせい①」「Ability ①」等を動的に組み立て
+  const lbl = () => _tDB('db.col_ab_label', 'とくせい') + suffix;
   COLUMNS.push({
     key: k,
     grp: 'ab',
@@ -2132,17 +2137,17 @@ for (let ai = 0; ai < 3; ai++) {
       th.innerHTML = `<div class="hdr2">
         <div class="hdr2-top">
           <div class="ms-wrap" id="${msId}">
-            <button class="ms-btn">全▾</button>
+            <button class="ms-btn" data-i18n="db.ms_all">全▾</button>
             <div class="ms-dropdown">
               <div class="ms-body"></div>
               <div class="ms-footer">
-                <button class="ms-foot-btn" data-act="clear">全解除</button>
-                <button class="ms-foot-btn" data-act="close">閉じ</button>
+                <button class="ms-foot-btn" data-act="clear" data-i18n="db.ms_clear">全解除</button>
+                <button class="ms-foot-btn" data-act="close" data-i18n="db.ms_close">閉じ</button>
               </div>
             </div>
           </div>
         </div>
-        <div class="hdr2-bot" data-sort="${k}">${lbl}<span class="si2" data-skey="${k}"></span></div>
+        <div class="hdr2-bot" data-sort="${k}">${lbl()}<span class="si2" data-skey="${k}"></span></div>
       </div>`;
       const wrap = th.querySelector('.ms-wrap');
       wrap.querySelector('[data-act="clear"]').onclick = e => {
@@ -2190,12 +2195,12 @@ TYPES.forEach((t, ri) => {
       th.innerHTML = `<div class="hdr2">
         <div class="hdr2-top">
           <div class="ms-wrap" id="${msId}">
-            <button class="ms-btn" data-default="除外▾" style="background:rgba(0,0,0,0.3);color:#fff">除外▾</button>
+            <button class="ms-btn" data-default="除外▾" style="background:rgba(0,0,0,0.3);color:#fff" data-i18n="db.ms_exclude" data-i18n-attr="data-default:db.ms_exclude">除外▾</button>
             <div class="ms-dropdown">
               <div class="ms-body"></div>
               <div class="ms-footer">
-                <button class="ms-foot-btn" data-act="clear">全解除</button>
-                <button class="ms-foot-btn" data-act="close">閉じ</button>
+                <button class="ms-foot-btn" data-act="clear" data-i18n="db.ms_clear">全解除</button>
+                <button class="ms-foot-btn" data-act="close" data-i18n="db.ms_close">閉じ</button>
               </div>
             </div>
           </div>
@@ -2265,17 +2270,17 @@ CNT_COLS.forEach(([k, lbl]) => {
       th.innerHTML = `<div class="hdr2">
         <div class="hdr2-top">
           <div class="ms-wrap" id="${msId}">
-            <button class="ms-btn" data-default="除外▾">除外▾</button>
+            <button class="ms-btn" data-default="除外▾" data-i18n="db.ms_exclude" data-i18n-attr="data-default:db.ms_exclude">除外▾</button>
             <div class="ms-dropdown">
               <div class="ms-body"></div>
               <div class="ms-footer">
-                <button class="ms-foot-btn" data-act="clear">全解除</button>
-                <button class="ms-foot-btn" data-act="close">閉じ</button>
+                <button class="ms-foot-btn" data-act="clear" data-i18n="db.ms_clear">全解除</button>
+                <button class="ms-foot-btn" data-act="close" data-i18n="db.ms_close">閉じ</button>
               </div>
             </div>
           </div>
         </div>
-        <div class="hdr2-bot" data-sort="${k}">${lbl}<span class="si2" data-skey="${k}"></span></div>
+        <div class="hdr2-bot" data-sort="${k}">${lbl()}<span class="si2" data-skey="${k}"></span></div>
       </div>`;
       const wrap = th.querySelector('.ms-wrap');
       wrap.querySelector('[data-act="clear"]').onclick = e => {
@@ -2325,17 +2330,17 @@ SC_COLS.forEach(([k, lbl]) => {
       th.innerHTML = `<div class="hdr2">
         <div class="hdr2-top">
           <div class="ms-wrap" id="${msId}">
-            <button class="ms-btn" data-default="除外▾">除外▾</button>
+            <button class="ms-btn" data-default="除外▾" data-i18n="db.ms_exclude" data-i18n-attr="data-default:db.ms_exclude">除外▾</button>
             <div class="ms-dropdown">
               <div class="ms-body"></div>
               <div class="ms-footer">
-                <button class="ms-foot-btn" data-act="clear">全解除</button>
-                <button class="ms-foot-btn" data-act="close">閉じ</button>
+                <button class="ms-foot-btn" data-act="clear" data-i18n="db.ms_clear">全解除</button>
+                <button class="ms-foot-btn" data-act="close" data-i18n="db.ms_close">閉じ</button>
               </div>
             </div>
           </div>
         </div>
-        <div class="hdr2-bot" data-sort="${k}">${lbl}<span class="si2" data-skey="${k}"></span></div>
+        <div class="hdr2-bot" data-sort="${k}">${lbl()}<span class="si2" data-skey="${k}"></span></div>
       </div>`;
       const wrap = th.querySelector('.ms-wrap');
       wrap.querySelector('[data-act="clear"]').onclick = e => {
@@ -2380,9 +2385,9 @@ COLUMNS.push({
     th.dataset.grp = 'waza';
     if (ctx.isTeam) {
       th.style.opacity = '0.4';
-      th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" style="cursor:default;font-size:9px">補完Sc</div></div>`;
+      th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" style="cursor:default;font-size:9px">${_tDB('db.matchup_score', '補完Sc')}</div></div>`;
     } else {
-      th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" data-sort="score" style="font-size:9px;cursor:pointer">補完Sc<span class="si2" data-skey="score"></span></div></div>`;
+      th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" data-sort="score" style="font-size:9px;cursor:pointer">${_tDB('db.matchup_score', '補完Sc')}<span class="si2" data-skey="score"></span></div></div>`;
     }
     return th;
   },
