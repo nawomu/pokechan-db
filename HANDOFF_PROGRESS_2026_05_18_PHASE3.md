@@ -214,3 +214,132 @@ d9bf1cc feat(battle_simulator): きあいのタスキ (focus_sash) 実装
 ### 改めて push 依頼
 
 ポケモンDB 側で `git push origin main` 実行時、上記 Phase3 領域 6 commits も含まれます (時系列に並ぶ)。push 後の本番反映確認は HANDOFF_PHASE3_C5_TEST_SCENARIOS.md のシナリオを参考に。
+
+---
+
+## 🆕 追記 v3 — 2026-05-18 03:30 JST 「全部やる」指示後の追加分
+
+ポケモンDB 側から「あっちは別作業中、push 不要で進められる作業を全部やって」の指示を受け、追加 3 commits を実施。
+
+### 追加 commit (Phase3 領域、push 待ち)
+
+| commit | 内容 |
+|---|---|
+| `46ab8de` | docs: 進捗報告書 v2 追記 (前段、3 commits まとめ) |
+| `3b5899a` | docs: C5_ITEM_INTEGRATION 完了追記 + 防御特性 #2 全完了マーク |
+| `fa6e8a5` | docs: 5/18 HANDOFF 全 12 件のインデックス + 依存関係マップ |
+
+### 各追加内容の要点
+
+**`HANDOFF_C5_ITEM_INTEGRATION.md` 完了追記**:
+- 主要部完了報告セクションを末尾追加
+- calcDamage 倍率処理の実装場所表 (focus_sash 含む 6 系統)
+- 実装余地なしと判明した持ち物 7 件をリスト化
+- 別 HANDOFF へのポインタ整理
+
+**`HANDOFF_PHASE3_SIMULATOR.md` #2 完了マーク**:
+- 次フェーズ候補表 #2 防御特性を全完了マーク
+- フィルター/ハードロック/マルチスケイル/ファーコート 4 種すべて line 1073-1090 に実装済と判明
+- HANDOFF が古い情報だったための訂正
+
+**`HANDOFF_INDEX_2026_05_18.md` 新規**:
+- 5/18 関連 HANDOFF 全 12 件を一覧化
+- 担当領域別 (🟦 ポケDB / 🟨 Phase3 / 🟧 Phase3-03 / 🟪 あべ) に整理
+- 依存・後続関係をテキスト図で可視化
+- 各 HANDOFF の要点を 2-3 行ずつ抜粋
+- 5/19 起動時チェックリスト付き
+
+### items_database.json 整合性監査 (実施・結果)
+
+新規スクリプト `_review/_audit_items_db.py` (gitignore 対象、非公開) で 7 項目チェック実施:
+
+```
+[1] ✓ category 整合 (114 items, 12 categories)
+[2] ✓ 必須フィールド全部 OK
+[3] mega_stone: 41 件すべて stats/ability/types あり
+    - verify:true 18 件 (要ゲーム内確認)
+    - verify:false 23 件 (詳細確定)
+[4] implemented_in_pokechan: true 100 / false 14
+[5] ✓ key 全ユニーク (114 件)
+[6] ✓ q12/factor 整合
+[7] ✓ mega_stone applies_to 欠損なし
+
+監査結果: ✓ 全項目クリア
+```
+
+→ データの整合性に問題なし。再実行可能 (`python3 _review/_audit_items_db.py`)。
+
+---
+
+## 📤 ポケモンDB 側への依頼まとめ (最終)
+
+### 1. push 依頼 (origin/main へ)
+
+Phase3 メインセッションが本日作った全 commits を時系列で:
+
+```
+fa6e8a5  ← Phase3 (今)  docs: 5/18 HANDOFF インデックス
+3b5899a  ← Phase3       docs: C5_ITEM_INTEGRATION 完了 + 防御特性 #2 完了
+46ab8de  ← Phase3       docs: 進捗報告書 v2 追記
+[c5b0e6d 以降が origin/main にすでに反映済]
+```
+
+**`git push origin main` 実行で 3 commits 追加で本番反映**。
+
+### 2. 触らないでほしい working tree 差分 (Phase3-03 担当)
+
+```
+M  i18n/ui-ja.json                         ← Phase3-03 担当
+M  type_chart.html                         ← Phase3-03 担当 (UX 改修中)
+?? HANDOFF_PHASE3_03_TYPE_CHART_UX.md      ← Phase3-03 担当
+```
+
+→ Phase3-03 が完成・commit するまで待つ方針。
+
+### 3. push 後の本番反映確認
+
+- https://pchamdb.com/battle_simulator.html (focus_sash 動作)
+- HANDOFF_PHASE3_C5_TEST_SCENARIOS.md のシナリオで素早く検証可能
+- 退行確認 8 項目チェックリスト (S1-S6 + 退行ブロック) を活用
+
+### 4. 5/19 以降の引き継ぎ用に
+
+- **HANDOFF_INDEX_2026_05_18.md** を 5/19 起動時の最初に読むのを推奨
+- そこから依存関係をたどって必要な HANDOFF へアクセス可能
+- 5/19 着手前の確認チェックリスト 4 項目付き
+
+---
+
+## 🚦 あべ判断待ちリスト (本日終了時点)
+
+| 項目 | 関連 HANDOFF | 工数目安 |
+|---|---|---|
+| **Init-B (メガ進化) B-1 着手 GO サイン** | HANDOFF_PHASE3_INIT_B.md | 5〜7 時間 |
+| **C5 Track B-2/B-3 案 A/B/C 選択** | HANDOFF_PHASE3_C5_TURNEND.md | 案 C なら 1.5 時間 |
+| **verify:true 24 件のゲーム内確認** | items_database.json + HANDOFF_PHASE3_C5_TEST_SCENARIOS | あべ作業 |
+| **type_chart UX 改修方向 (Phase3-03 進行中)** | HANDOFF_PHASE3_03_TYPE_CHART_UX.md | Phase3-03 担当 |
+| **Google Search Console 登録** | HANDOFF_SEO_SETUP_2026_05_18.md (ポケDB 側) | 30 分 |
+| **法的ページ Option B 実装可否** | HANDOFF_LEGAL_PAGES_I18N_2026_05_18.md (ポケDB 側) | 中期検討 |
+
+---
+
+## 📊 5/18 Phase3 メイン側 セッション 完全成果サマリ
+
+| 項目 | 件数 |
+|---|---|
+| 実装した機能 | 1 (focus_sash) |
+| 起草した新規 HANDOFF | 3 (INIT_B / TEST_SCENARIOS / TURNEND) |
+| 更新した既存 HANDOFF | 3 (C5_STATUS / C5_ITEM_INTEGRATION / SIMULATOR) |
+| 作成した進捗報告書 | 1 (この PROGRESS_PHASE3、3 度更新) |
+| 作成したインデックス | 1 (INDEX_2026_05_18) |
+| 監査スクリプト (非公開) | 1 (_audit_items_db.py) |
+| **合計 commits** | **9** (うち 6 本番反映済、3 push 待ち) |
+
+### 本日 Phase3 メイン側で得られた重要知見
+
+1. **HANDOFF_C5 の元前提が楽観的すぎた** — 「3 カテゴリ追加で1日」と書かれていたが、実際は実装余地ゼロ。要再評価
+2. **データ整合性は完璧** — items_database.json は 114 件すべて整合、メガストーン 41 件のスキーマ拡張も含めて問題なし
+3. **既存実装の網羅性** — 防御特性 4 種は既に実装済、HANDOFF が遅れて反映されていなかっただけ
+4. **3 セッション並行体制が機能** — 領域被りなく作業継続。HANDOFF_COLLAB の分担マップは有効
+
+お疲れさまでした 🎉
