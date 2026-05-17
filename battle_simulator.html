@@ -139,6 +139,12 @@ select,.styled-input{
 select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1c2a3a}
 
 /* 能力Pサマリ */
+.stats-edit-btn{
+  margin-left:8px;padding:2px 8px;border-radius:3px;border:1px solid #58a6ff;
+  background:#1c2a3a;color:#79c0ff;cursor:pointer;font-size:10px;font-weight:700;
+  font-family:inherit;
+}
+.stats-edit-btn:hover{background:#264a6e;color:#fff}
 .ep-summary{
   font-size:11px;color:#8b949e;padding:3px 8px;
   background:#0d1117;border:1px solid #21262d;border-radius:4px;
@@ -565,7 +571,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
         <tr><td class="stat-key">合計</td><td class="stat-total-ep">0</td><td class="stat-rank-blank"></td><td class="stat-total-real">—</td></tr>
       </tfoot>
     </table>
-    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span></div>
+    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span> <button type="button" class="stats-edit-btn" title="スライダーUIで能力P・性格を編集">✏️ スライダーで編集</button></div>
 
     <select class="nature-select"></select>
 
@@ -700,7 +706,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
         <tr><td class="stat-key">合計</td><td class="stat-total-ep">0</td><td class="stat-rank-blank"></td><td class="stat-total-real">—</td></tr>
       </tfoot>
     </table>
-    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span></div>
+    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span> <button type="button" class="stats-edit-btn" title="スライダーUIで能力P・性格を編集">✏️ スライダーで編集</button></div>
 
     <select class="nature-select"></select>
 
@@ -735,6 +741,28 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <button id="item-modal-close-x" type="button" aria-label="閉じる" title="閉じる">×</button>
     </div>
     <div id="item-modal-list"></div>
+  </div>
+</div>
+
+<!-- ステータス編集モーダル (party_checker iframe / stats_only モード) -->
+<div class="modal-ov" id="stats-picker-modal" style="z-index:600">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;width:90vw;max-width:760px;height:auto;max-height:94vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#0F2940;color:#fff;flex-shrink:0">
+      <span id="stats-picker-title" style="font-weight:700;font-size:13px">能力値を編集</span>
+      <button id="stats-picker-close" style="background:#30363d;color:#fff;border:none;border-radius:3px;padding:4px 10px;cursor:pointer;font-weight:700">× 閉じる</button>
+    </div>
+    <iframe id="stats-picker-iframe" src="about:blank" style="width:100%;height:560px;border:none;background:transparent"></iframe>
+  </div>
+</div>
+
+<!-- 技選択モーダル (waza-list iframe / single モード) -->
+<div class="modal-ov" id="move-picker-modal" style="z-index:600">
+  <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;width:96vw;height:94vh;display:flex;flex-direction:column;overflow:hidden">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#0F2940;color:#fff;flex-shrink:0">
+      <span id="move-picker-title" style="font-weight:700;font-size:13px">技を選択</span>
+      <button id="move-picker-close" style="background:#30363d;color:#fff;border:none;border-radius:3px;padding:4px 10px;cursor:pointer;font-weight:700">× 閉じる</button>
+    </div>
+    <iframe id="move-picker-iframe" src="about:blank" style="flex:1;width:100%;border:none;background:#fff"></iframe>
   </div>
 </div>
 
@@ -1744,16 +1772,18 @@ function renderMoves(root, st){
   const oppId = sideId === 'self' ? 'opp' : 'self';
   wrap.innerHTML = '';
   if (!st.moves || !st.moves.length){
-    // 空でも 4 つのプレースホルダー枠を表示
+    // 空でも 4 つのプレースホルダー枠を表示 (クリックで技選択モーダル)
     for (let i = 0; i < 4; i++){
       const row = document.createElement('div');
       row.className = 'move-row move-row-empty';
-      row.innerHTML = `<div class="move-head"><span class="m-empty">技スロット ${i+1} — 未設定</span></div>`;
+      row.dataset.moveIdx = i;
+      row.dataset.empty = '1';
+      row.innerHTML = `<div class="move-head"><span class="m-empty">＋ 技スロット ${i+1} (クリックで選択)</span></div>`;
       wrap.appendChild(row);
     }
     const hint = document.createElement('div');
     hint.className = 'moves-empty';
-    hint.innerHTML = '技チェッカーから「⚔️ バトルへ送る」で受信できます';
+    hint.innerHTML = 'ポケモン選択後、技スロットをクリックして技を選んでください';
     wrap.appendChild(hint);
     return;
   }
@@ -2080,6 +2110,15 @@ function attachCardClick(){
   });
 }
 
+function attachStatsEditButton(){
+  document.querySelectorAll('.stats-edit-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const side = btn.closest('.side').dataset.side;
+      openStatsPickerModal(side);
+    });
+  });
+}
+
 function attachAbilityChange(){
   document.querySelectorAll('.side').forEach(sideEl=>{
     const side = sideEl.dataset.side;
@@ -2367,6 +2406,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   initNatureSelects();
   attachEpInput();
   attachCardClick();
+  attachStatsEditButton();
   attachAbilityChange();
   attachItemChange();
   attachEnvPanel();
@@ -2393,7 +2433,15 @@ function attachMoveSelect(){
         runSingleAttack(side, idx);
         return;
       }
-      // それ以外は技選択
+      // 空スロット (move-row-empty) クリック → 技選択モーダル (iframe)
+      const emptyRow = e.target.closest('.move-row-empty');
+      if (emptyRow){
+        const idx = parseInt(emptyRow.dataset.moveIdx, 10);
+        if (isNaN(idx)) return;
+        openMovePickerModal(side, idx);
+        return;
+      }
+      // 既存スロットクリックは selectedMoveIdx 更新 (将来は再選択モーダルにする予定)
       const row = e.target.closest('.move-row');
       if (!row) return;
       const idx = parseInt(row.dataset.moveIdx, 10);
@@ -2403,6 +2451,133 @@ function attachMoveSelect(){
     });
   });
 }
+
+// === ステータス編集モーダル (party_checker iframe / stats_only モード) ===
+let _statsPickerSide = null;
+function openStatsPickerModal(side) {
+  const st = sides[side];
+  if (!st.poke) { openPokeModal(side); return; }
+  _statsPickerSide = side;
+  const pokeName = pokeFullName(st.poke);
+  const eff = st.effort || {};
+  const effStr = ['hp','atk','def','spatk','spdef','spd']
+    .map(k => `${k}:${eff[k] || 0}`).join(',');
+  const natureName = (NATURES[st.natureIdx] && NATURES[st.natureIdx][0]) || 'まじめ';
+  const params = new URLSearchParams();
+  params.set('stats_only', 'true');
+  params.set('poke', pokeName);
+  params.set('effort', effStr);
+  params.set('nature', natureName);
+  params.set('slot', side);
+  const url = 'party_checker.html?' + params.toString();
+  const iframe = document.getElementById('stats-picker-iframe');
+  const title = document.getElementById('stats-picker-title');
+  const modal = document.getElementById('stats-picker-modal');
+  if (title) title.textContent = `${side === 'self' ? '自分' : '相手'}側 ${pokeName} — 能力値を編集`;
+  if (iframe) iframe.src = url;
+  if (modal) modal.classList.add('vis');
+}
+function closeStatsPickerModal() {
+  const modal = document.getElementById('stats-picker-modal');
+  const iframe = document.getElementById('stats-picker-iframe');
+  if (modal) modal.classList.remove('vis');
+  if (iframe) iframe.src = 'about:blank';
+  _statsPickerSide = null;
+}
+(function setupStatsPickerCloseHandlers() {
+  const closeBtn = document.getElementById('stats-picker-close');
+  if (closeBtn) closeBtn.addEventListener('click', closeStatsPickerModal);
+  const modal = document.getElementById('stats-picker-modal');
+  if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeStatsPickerModal(); });
+})();
+
+// === 技選択モーダル (waza-list iframe / single モード) ===
+let _movePickerSide = null;
+let _movePickerSlot = null;
+function pokeFullName(p){
+  if (!p) return '';
+  return (p.form && p.form !== '通常') ? `${p.name}(${p.form})` : p.name;
+}
+function openMovePickerModal(side, slotIdx){
+  const st = sides[side];
+  if (!st.poke){
+    // ポケモン未選択時はポケモン選択モーダルを直接開く
+    openPokeModal(side);
+    return;
+  }
+  _movePickerSide = side;
+  _movePickerSlot = slotIdx;
+  const pokeName = pokeFullName(st.poke);
+  const params = new URLSearchParams();
+  params.set('mode', 'single');
+  params.set('pokemon', pokeName);
+  params.set('lock', '1');
+  params.set('slot', String(slotIdx + 1));
+  const url = 'waza-list.html?' + params.toString();
+  const iframe = document.getElementById('move-picker-iframe');
+  const title = document.getElementById('move-picker-title');
+  const modal = document.getElementById('move-picker-modal');
+  if (title) title.textContent = `${side === 'self' ? '自分' : '相手'}側 ${pokeName} — スロット${slotIdx + 1} 技を選択`;
+  if (iframe) iframe.src = url;
+  if (modal) modal.classList.add('vis');
+}
+function closeMovePickerModal(){
+  const modal = document.getElementById('move-picker-modal');
+  const iframe = document.getElementById('move-picker-iframe');
+  if (modal) modal.classList.remove('vis');
+  if (iframe) iframe.src = 'about:blank';
+  _movePickerSide = null;
+  _movePickerSlot = null;
+}
+// 閉じるボタンとオーバーレイクリック
+(function setupMovePickerCloseHandlers(){
+  const closeBtn = document.getElementById('move-picker-close');
+  if (closeBtn) closeBtn.addEventListener('click', closeMovePickerModal);
+  const modal = document.getElementById('move-picker-modal');
+  if (modal) modal.addEventListener('click', e => {
+    if (e.target === modal) closeMovePickerModal();
+  });
+})();
+// iframe からの postMessage (waza-picker / stats-picker 両対応)
+window.addEventListener('message', (e) => {
+  const d = e.data || {};
+  // 技選択 (waza-list iframe)
+  if (d.type === 'waza-picker:pick') {
+    if (_movePickerSide != null && _movePickerSlot != null && d.key) {
+      const move = (typeof WAZA_MAP !== 'undefined') ? WAZA_MAP[d.key] : null;
+      if (move) {
+        const st = sides[_movePickerSide];
+        st.moves = st.moves || [];
+        st.moves[_movePickerSlot] = move;
+        render(_movePickerSide);
+      }
+    }
+    closeMovePickerModal();
+  } else if (d.type === 'waza-picker:cancel') {
+    closeMovePickerModal();
+  }
+  // ステータス編集 (party_checker iframe)
+  else if (d.type === 'stats-picker:confirm') {
+    if (_statsPickerSide != null) {
+      const st = sides[_statsPickerSide];
+      if (d.effort) st.effort = { ...d.effort };
+      if (d.nature) {
+        const idx = NATURES.findIndex(([n]) => n === d.nature);
+        if (idx >= 0) st.natureIdx = idx;
+      }
+      // HP 変更による currentHp 連動
+      if (st.poke) {
+        st.currentHp = realStat(st, 'hp');
+        st.fainted = false;
+      }
+      render(_statsPickerSide);
+      render(_statsPickerSide === 'self' ? 'opp' : 'self');
+    }
+    closeStatsPickerModal();
+  } else if (d.type === 'stats-picker:cancel') {
+    closeStatsPickerModal();
+  }
+});
 
 // バトル進行ボタン
 function attachBattleControl(){
