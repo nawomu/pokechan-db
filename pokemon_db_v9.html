@@ -2510,12 +2510,34 @@ function buildWazaTh(ctx, key, label) {
       return a.name.localeCompare(b.name,'ja');
     });
 
+  // JP カテゴリ名 → i18n キー対応表
+  const CAT_TO_KEY = {
+    '回復':'cat_recover', '防御':'cat_defense', '積み防':'cat_setup_def',
+    '積み攻':'cat_setup_atk', '積み速':'cat_setup_spd', '能力下':'cat_lower',
+    '状態異常':'cat_status', '混乱メロ':'cat_charm', '壁':'cat_wall',
+    '天候':'cat_weather', 'フィールド':'cat_field', 'ルーム':'cat_room',
+    '技封じ':'cat_lock', '捕縛':'cat_trap', '交代':'cat_switch',
+    'サポート':'cat_support', '特性変':'cat_ability', 'タイプ変':'cat_type',
+    '道具':'cat_item', '設置':'cat_hazard', 'その他':'cat_misc',
+    '物理':'cat_phys', '特殊':'cat_spec',
+  };
+  const tCat = (jpCat) => {
+    const k = CAT_TO_KEY[jpCat];
+    return k && window.I18N && I18N.t ? I18N.t('db.' + k, jpCat) : jpCat;
+  };
   wazaSorted.forEach(w => {
-    const key = w.key, label = w.name;
-    // 物理/特殊はタイプ色 + タイプ名、変化はカテゴリ色 + カテゴリ名
+    const key = w.key;
+    // i18n: ラベル(わざ名)・カテゴリ・タイプを動的取得
+    const label = () => (window.I18N && I18N.move) ? I18N.move(w.key, w.name) : w.name;
     const isAtk = w.class !== '変化';
     const tagColor = isAtk ? (TYPE_COLORS[w.type] || '#666') : (CAT_COLOR[w.category] || '#555');
-    const tagText  = isAtk ? w.type : w.category;
+    const tagText = () => isAtk
+      ? ((window.I18N && I18N.type) ? I18N.type(w.type) : w.type)
+      : tCat(w.category);
+    const titleTmpl = () => (window.I18N && I18N.t)
+      ? I18N.t('db.tt_learn_filter', '{name}（{cat}）を覚えるポケモンのみ表示')
+          .replace('{name}', label()).replace('{cat}', tCat(w.category))
+      : `${w.name}（${w.category}）を覚えるポケモンのみ表示`;
     COLUMNS.push({
       key,
       grp: 'waza',
@@ -2530,11 +2552,11 @@ function buildWazaTh(ctx, key, label) {
         const chkId = `waza-chk-${ctx.prefix}-${key}`;
         const isChecked = wazaFilterGet(ctx.prefix, key);
         th.innerHTML = `<div class="hdr2">
-          <div class="waza-cat-tag" style="background:${tagColor}">${tagText}</div>
+          <div class="waza-cat-tag" style="background:${tagColor}">${tagText()}</div>
           <div class="hdr2-top" style="display:flex;align-items:center;justify-content:center">
-            <input type="checkbox" class="waza-chk" id="${chkId}" data-waza-key="${key}" ${isChecked?'checked':''} title="${label}（${w.category}）を覚えるポケモンのみ表示">
+            <input type="checkbox" class="waza-chk" id="${chkId}" data-waza-key="${key}" ${isChecked?'checked':''} title="${titleTmpl()}">
           </div>
-          <div class="hdr2-bot" data-sort="${key}" style="font-size:9px">${label}<span class="si2" data-skey="${key}"></span></div>
+          <div class="hdr2-bot" data-sort="${key}" style="font-size:9px">${label()}<span class="si2" data-skey="${key}"></span></div>
         </div>`;
         const chk = th.querySelector('.waza-chk');
         chk.addEventListener('change', e => { e.stopPropagation(); wazaFilterSet(ctx.prefix,key,chk.checked); ctx.onFilter(); });
