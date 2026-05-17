@@ -145,6 +145,16 @@
     return jaName;
   }
 
+  function tAbilityDesc(jaName) {
+    // 特性の説明文 (ポップアップ用)。ja は null を返し、呼び出し側で ABILITY_DESC をフォールバックに使う
+    if (currentLang === 'ja' || !jaName) return null;
+    const d = cache[currentLang];
+    if (!d) return null;
+    const entry = d.abilities[jaName];
+    if (entry && entry.short_effect) return entry.short_effect;
+    return null;
+  }
+
   function tType(jaName) {
     if (currentLang === 'ja' || !jaName) return jaName;
     const d = cache[currentLang];
@@ -386,6 +396,7 @@
     move: tMove,
     moveDesc: tMoveDesc,
     ability: tAbility,
+    abilityDesc: tAbilityDesc,
     type: tType,
     apply: applyDOM,
     onReady,

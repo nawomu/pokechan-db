@@ -1319,7 +1319,12 @@ function nameMatches(name, q) {
 
 // タイプ関連
 function typeKanji(t) { return TYPE_KANJI[t] || t.slice(0,3); }
-function type3(t) { return t ? t.slice(0,3) : ''; }
+function type3(t) {
+  if (!t) return '';
+  // i18n: 言語に応じてタイプ名を翻訳→短縮形(3文字)
+  const tr = (window.I18N && I18N.type) ? I18N.type(t) : t;
+  return tr.slice(0, 3);
+}
 
 function getT1(p) {
   if (!p.type2 || !typeOrderSorted) return p.type1;
@@ -2167,9 +2172,12 @@ for (let ai = 0; ai < 3; ai++) {
     },
     buildTd: (p) => {
       const v = p[k] || '';
-      const desc = (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[v]) ? ABILITY_DESC[v] : '';
+      // i18n: 言語に応じて特性名と説明文を翻訳 (ja の場合は ABILITY_DESC をフォールバック)
+      const displayName = (window.I18N && I18N.ability) ? I18N.ability(v) : v;
+      const i18nDesc = (window.I18N && I18N.abilityDesc) ? I18N.abilityDesc(v) : null;
+      const desc = i18nDesc || ((typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[v]) ? ABILITY_DESC[v] : '');
       const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      return `<td class="td-ab" data-grp="ab"><span class="ab-tip" data-ab-name="${escAttr(v)}" data-ab-desc="${escAttr(desc)}">${v}</span></td>`;
+      return `<td class="td-ab" data-grp="ab"><span class="ab-tip" data-ab-name="${escAttr(displayName)}" data-ab-desc="${escAttr(desc)}">${displayName}</span></td>`;
     },
     getVal: (p) => p[k] || '',
     applyFilter: (arr, ctx) => {
