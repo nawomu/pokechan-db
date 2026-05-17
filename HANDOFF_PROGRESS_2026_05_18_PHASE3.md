@@ -403,3 +403,51 @@ fa6e8a5   docs: 5/18 HANDOFF インデックス
 ```
 
 → 計 **4 commits** push 待ち。次のポケモンDB セッション push で全部本番反映可。
+
+---
+
+## 🔧 v5 訂正 — 2026-05-18 07:50 JST 「v4 の誤認 + 本対応」
+
+### v4 で「既に実装済」と書いたが誤りでした
+
+確認直後に `git status` をもう一度見たところ、`waza-list.html` と `waza_picker.css` に **未 commit のローカル編集** が残っていることを発見。HEAD (`fc2212d` 時点) のファイル内容を見て「既に実装済」と判断したが、実際は:
+
+- **HEAD**: タイプ相性ナビなし
+- **working tree**: タイプ相性ナビあり (未 commit)
+
+つまり Phase3-03 または別ルートで先に編集していて、commit していなかった状態。
+
+### 本対応: `2fcba45` で正式に実装を commit
+
+- `waza-list.html` line 66: タイプ相性ナビボタン要素を追加 (data-i18n="nav.type_chart" 付き)
+- `waza_picker.css` line 42-43: `.top-bar button.nav-type-chart` CSS 定義 (#2E8B57 / hover #246B45)
+- バックアップ: `bak/waza-list.20260518_075127.bak.html` / `bak/waza_picker.20260518_075127.bak.css`
+
+これで姉妹 4 ページ (party_checker / pokemon_db_v9 / battle_simulator / waza-list) すべてに type_chart ナビが統一実装。
+
+### Phase3-03 セッションへの訂正お願い
+
+v4 で「fc2212d で既に実装済」と書きましたが、実態は **v5 で commit `2fcba45` を打って本対応** が正解です。
+HANDOFF_PHASE3_03_TYPE_CHART_UX.md の依頼セクションは:
+
+```markdown
+- → ✅ **完了 (確認済 2026-05-18 04:00 JST)**: fc2212d で既に実装済と判明、新規作業なし
+```
+
+を以下に修正してください:
+
+```markdown
+- → ✅ **完了 (Phase3 メイン 2026-05-18 07:50 JST)**: commit 2fcba45 で本対応 (waza-list.html / waza_picker.css に追加)
+```
+
+### push 待ち commits (最新)
+
+```
+2fcba45 feat(nav): waza-list に タイプ相性 ナビボタンを追加 (Phase3-03 依頼)
+f3f5344 docs(handoff): Phase3-03 依頼確認結果 (v4 誤認版)
+46531db docs: 進捗報告書 v3
+fa6e8a5 docs: 5/18 HANDOFF インデックス
+3b5899a docs: C5_ITEM_INTEGRATION 完了追記 + 防御特性 #2 完了マーク
+```
+
+計 **5 commits** push 待ち (v4 の f3f5344 は実装漏れ訂正のため残置、v5 で正しい状態を上書き)。
