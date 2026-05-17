@@ -937,8 +937,9 @@ window.openItemModal = function(slotIdx){
   _itemModalSlot = slotIdx;
   const cur = partyItems[slotIdx] || "";
   const titleEl = document.getElementById('item-modal-title');
-  const slotLabel = (typeof party !== 'undefined' && party[slotIdx]) ? party[slotIdx] : `スロット${slotIdx+1}`;
-  if (titleEl) titleEl.textContent = `${slotLabel} の持ち物を選択`;
+  const slotFb = _tCK('checker.slot_placeholder', `スロット${slotIdx+1}`).replace('{n}', slotIdx+1);
+  const slotLabel = (typeof party !== 'undefined' && party[slotIdx]) ? party[slotIdx] : slotFb;
+  if (titleEl) titleEl.textContent = _tCK('checker.item_modal_title_with_slot', `${slotLabel} の持ち物を選択`).replace('{label}', slotLabel);
   _renderItemModalList(cur);
   document.getElementById('item-modal-ov').classList.add('vis');
 };
@@ -952,7 +953,7 @@ function _renderItemModalList(selectedKey){
   const listEl = document.getElementById('item-modal-list');
   if (!listEl) return;
   if (!window.ITEMS_DATABASE){
-    listEl.innerHTML = '<div style="color:#ff7b72;padding:10px">items_database.js が読み込めません</div>';
+    listEl.innerHTML = `<div style="color:#ff7b72;padding:10px">${_tCK('checker.items_db_load_error','items_database.js が読み込めません')}</div>`;
     return;
   }
   const cats = window.ITEMS_DATABASE.categories || {};
@@ -992,7 +993,7 @@ window._pickItemFromModal = function(key){
     const pill = td.querySelector('.item-pill');
     const it = key && ITEM_BY_KEY[key];
     if (pill){
-      pill.textContent = it ? it.name : '＋ 選択';
+      pill.textContent = it ? it.name : _tCK('checker.slot_select','＋ 選択');
       pill.classList.toggle('empty', !it);
     }
     td.setAttribute('title', it ? (it.effect||it.name) : 'クリックで持ち物を選ぶ');
@@ -1145,7 +1146,7 @@ function _evRefresh() {
   // 性格効果テキスト
   const effEl = document.getElementById('ev-nature-effect');
   if (natIsNeutral || !nat.up || !nat.down) {
-    effEl.innerHTML = '<span class="nat-eff-neutral">(補正なし)</span>';
+    effEl.innerHTML = `<span class="nat-eff-neutral">${_tCK('checker.nat_neutral','(補正なし)')}</span>`;
   } else {
     effEl.innerHTML =
       `<span class="nat-eff-up">${STAT_FULL_LABEL[nat.up]}↑</span> / ` +
@@ -1527,7 +1528,7 @@ function _closeNat() { document.getElementById('nat-ov').classList.remove('vis')
     const n = NATURES[item.dataset.n] || {};
     const info = document.getElementById('nat-info');
     if (n.up === n.down || !n.up || !n.down) {
-      info.innerHTML = `<b style="color:#fff">${item.dataset.n}</b> <span style="color:#8b949e">(補正なし・中性)</span>`;
+      info.innerHTML = `<b style="color:#fff">${item.dataset.n}</b> <span style="color:#8b949e">${_tCK('checker.nat_neutral_mid','(補正なし・中性)')}</span>`;
     } else {
       info.innerHTML = `<b style="color:#fff">${item.dataset.n}</b> ` +
         `<span style="color:#ff5c5c">${STAT_FULL_LABEL[n.up]}↑</span> / ` +
@@ -1672,7 +1673,7 @@ function renderPcTabs() {
   // ブレッドクラム + バージョン
   const bc = document.createElement('div');
   bc.style.cssText = 'display:flex;align-items:center;gap:5px;flex-shrink:0;margin-right:8px;padding-right:10px;border-right:1px solid #30363d';
-  bc.innerHTML = '<a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:12px" title="PchamDB トップに戻る">🏠 PchamDB</a>'
+  bc.innerHTML = `<a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:12px" title="${_tCK('checker.nav_pchamdb_home_title','PchamDB トップに戻る')}">${_tCK('checker.nav_pchamdb_home','🏠 PchamDB')}</a>`
     + '<span style="color:#79c0ff;font-size:11px;font-weight:600;letter-spacing:0.5px;margin:0 4px">BETA</span>'
     + '<span style="color:#666;font-size:11px">›</span>'
     + '<span style="color:#8b949e;font-size:11px">手持ちわざチェッカー</span>'
@@ -1722,14 +1723,14 @@ function renderPcTabs() {
 
   const wzBtn = document.createElement('button');
   wzBtn.className = 'pc-nav-btn nav-waza';
-  wzBtn.textContent = '📋 わざリスト';
+  wzBtn.textContent = _tCK('checker.nav_waza_list', '📋 わざリスト');
   wzBtn.title = 'わざリストを別タブで開く';
   wzBtn.onclick = () => window.open('waza-list.html', '_blank');
   bar.appendChild(wzBtn);
 
   const tcBtn = document.createElement('button');
   tcBtn.className = 'pc-nav-btn nav-type-chart';
-  tcBtn.textContent = '📊 タイプ相性';
+  tcBtn.textContent = _tCK('checker.nav_type_chart', '📊 タイプ相性');
   tcBtn.title = 'タイプ相性表を別タブで開く';
   tcBtn.onclick = () => window.open('type_chart.html', '_blank');
   bar.appendChild(tcBtn);
@@ -2156,7 +2157,11 @@ function renderTable() {
   rows.push(`<tr>
     <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem" data-i18n="checker.row_team">手持ち</td>
     ${party.map((name, slotIdx) => {
-      if (!name) return `<td class="poke-name-cell empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})" style="cursor:pointer">スロット${slotIdx+1}<br><span style="font-size:.73rem">＋ 選択</span></td>`;
+      if (!name) {
+        const slotTxt = _tCK('checker.slot_placeholder',`スロット${slotIdx+1}`).replace('{n}', slotIdx+1);
+        const selTxt = _tCK('checker.slot_select','＋ 選択');
+        return `<td class="poke-name-cell empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})" style="cursor:pointer">${slotTxt}<br><span style="font-size:.73rem">${selTxt}</span></td>`;
+      }
       const p = POKE_MAP[name];
       const displayName = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(name) : name;
       if (!p)   return `<td class="poke-name-cell" ${dragAttrs(slotIdx)}><span class="poke-name-big">${displayName}</span></td>`;
@@ -2175,7 +2180,7 @@ function renderTable() {
       if (!name) return `<td class="item-cell empty-slot-cell"></td>`;
       const cur = partyItems[slotIdx] || "";
       const curItem = cur ? ITEM_BY_KEY[cur] : null;
-      const label = curItem ? curItem.name : '＋ 選択';
+      const label = curItem ? curItem.name : _tCK('checker.slot_select','＋ 選択');
       const cls = curItem ? '' : 'empty';
       const title = curItem ? (curItem.effect || curItem.name) : 'クリックで持ち物を選ぶ';
       return `<td class="item-cell" data-slot="${slotIdx}" onclick="openItemModal(${slotIdx})" title="${title.replace(/"/g,'&quot;')}">
@@ -2240,8 +2245,8 @@ function renderSlots() {
     const p = name && POKE_MAP[name];
     const type1 = p?.type1;
     div.innerHTML = `
-      <div class="s-label">スロット${i+1}</div>
-      <div class="s-name ${name?"":"empty"}" style="color:${type1?TYPE_COLORS[type1]:''}">${name||"（空き）"}</div>`;
+      <div class="s-label">${_tCK('checker.slot_placeholder',`スロット${i+1}`).replace('{n}', i+1)}</div>
+      <div class="s-name ${name?"":"empty"}" style="color:${type1?TYPE_COLORS[type1]:''}">${name||_tCK('checker.empty_slot','（空き）')}</div>`;
     div.addEventListener("click", () => openModal(i));
     div.addEventListener("dragstart", e => onSlotDragStart(e, i));
     div.addEventListener("dragover",  e => onSlotDragOver(e, i));
@@ -2313,7 +2318,7 @@ function onTypeDrop(e, type) {
 // ── ポケモン選択モーダル ──────────────────────────────────────────────────────
 function openModal(slot) {
   activeSlot = slot;
-  document.getElementById("modal-title").textContent = `スロット${slot+1} のポケモンを選択`;
+  document.getElementById("modal-title").textContent = _tCK('checker.modal_title_select_pokemon_slot',`スロット${slot+1} のポケモンを選択`).replace('{n}', slot+1);
   const searchInput = document.getElementById("modal-search");
   searchInput.value = "";
   document.getElementById("modal-ov").classList.add("vis");
@@ -2484,7 +2489,7 @@ function pfResetFilterState() {
 function updatePfTitle() {
   const typeMsg = pfType ? `｜${tDisp(pfType)}タイプ` : `｜全タイプ`;
   document.getElementById("pf-title").innerHTML =
-    `【スロット${pfSlot+1} ${pfPoke}】 技を選択 <span style="font-size:.8rem;color:#79c0ff">${typeMsg}</span>`;
+    `${_tCK('checker.pf_title_with_slot_poke',`【スロット${pfSlot+1} ${pfPoke}】 技を選択`).replace('{n}', pfSlot+1).replace('{poke}', pfPoke)} <span style="font-size:.8rem;color:#79c0ff">${typeMsg}</span>`;
 }
 function closePokemonFilter() {
   document.getElementById("pf-ov").classList.remove("vis");
@@ -2562,12 +2567,12 @@ function updatePfTypeToggle() {
   if (!btn) return;
   if (pfType) {
     // 現在タイプ絞り中 → クリックで全タイプに戻す
-    btn.textContent = `全タイプ表示`;
+    btn.textContent = _tCK('checker.show_all_types','全タイプ表示');
     btn.classList.remove('has-filter');
     btn.style.display = '';
   } else if (pfLastType) {
     // 全タイプ中 + 復帰先あり → クリックで前回タイプへ
-    btn.textContent = `${tDisp(pfLastType)}タイプのみ`;
+    btn.textContent = _tCK('checker.only_type',`${tDisp(pfLastType)}タイプのみ`).replace('{type}', tDisp(pfLastType));
     btn.classList.add('has-filter');
     btn.style.display = '';
   } else {
@@ -2807,10 +2812,10 @@ function buildPfTypeDropdown() {
   const actions = document.createElement('div');
   actions.className = 'ms-actions';
   const allBtn = document.createElement('button');
-  allBtn.type = 'button'; allBtn.className = 'ms-act-btn'; allBtn.textContent = '全選択';
+  allBtn.type = 'button'; allBtn.className = 'ms-act-btn'; allBtn.textContent = _tCK('checker.select_all','全選択');
   allBtn.onclick = e => { e.stopPropagation(); types.forEach(t => pfSelectedTypes.add(t)); pfSyncTypeCb(); pfUpdateTypeBtnLabel(); pfRender(); };
   const clrBtn = document.createElement('button');
-  clrBtn.type = 'button'; clrBtn.className = 'ms-act-btn'; clrBtn.textContent = '全解除';
+  clrBtn.type = 'button'; clrBtn.className = 'ms-act-btn'; clrBtn.textContent = _tCK('checker.deselect_all','全解除');
   clrBtn.onclick = e => { e.stopPropagation(); pfSelectedTypes.clear(); pfSyncTypeCb(); pfUpdateTypeBtnLabel(); pfRender(); };
   actions.appendChild(allBtn); actions.appendChild(clrBtn);
   dd.appendChild(actions);
@@ -2840,16 +2845,16 @@ function pfSyncTypeCb() {
 function pfUpdateTypeBtnLabel() {
   const btn = document.getElementById('pf-f-type-btn');
   if (!btn) return;
-  if (pfSelectedTypes.size === 0) { btn.textContent = '全タイプ ▾'; btn.classList.remove('has-val'); }
+  if (pfSelectedTypes.size === 0) { btn.textContent = _tCK('checker.all_types','全タイプ ▾'); btn.classList.remove('has-val'); }
   else if (pfSelectedTypes.size === 1) { btn.textContent = [...pfSelectedTypes][0] + ' ▾'; btn.classList.add('has-val'); }
-  else { btn.textContent = pfSelectedTypes.size + 'タイプ ▾'; btn.classList.add('has-val'); }
+  else { btn.textContent = _tCK('checker.n_types',`${pfSelectedTypes.size}タイプ ▾`).replace('{n}', pfSelectedTypes.size); btn.classList.add('has-val'); }
 }
 
 function pfBuildTargetFilter() {
   const sel = document.getElementById('pf-f-target');
   if (!sel) return;
   const targets = [...new Set(Object.values(WAZA_MAP).map(m => m.target).filter(Boolean))].sort();
-  sel.innerHTML = '<option value="">全対象</option>';
+  sel.innerHTML = `<option value="">${_tCK('checker.opt_target_all','全対象')}</option>`;
   targets.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; sel.appendChild(o); });
 }
 
@@ -2883,7 +2888,7 @@ function pfEnsureStaticBuilt() {
     const key = cb.dataset.key;
     if (cb.checked) pfTempSel.add(key); else pfTempSel.delete(key);
     cb.closest('tr').classList.toggle('row-checked', cb.checked);
-    document.getElementById('pf-count').textContent = `${pfTempSel.size}件選択中 / 表示中 ${pfVisibleKeys.length}件`;
+    document.getElementById('pf-count').textContent = _tCK('checker.count_selected_of_total',`${pfTempSel.size}件選択中 / 表示中 ${pfVisibleKeys.length}件`).replace('{n}', pfTempSel.size).replace('{total}', pfVisibleKeys.length);
   });
   document.getElementById('pf-tbody').addEventListener('click', e => {
     if (e.target.matches('input[type=checkbox]') || e.target.closest('.col-chk')) return;
@@ -3003,7 +3008,7 @@ function pfRender() {
   });
 
   pfVisibleKeys = visibleKeys;
-  document.getElementById('pf-count').textContent = `${pfTempSel.size}件選択中 / 表示中 ${visible}件`;
+  document.getElementById('pf-count').textContent = _tCK('checker.count_selected_of_total',`${pfTempSel.size}件選択中 / 表示中 ${visible}件`).replace('{n}', pfTempSel.size).replace('{total}', visible);
   document.querySelectorAll('#pf-table th[data-pfsort]').forEach(th => th.classList.remove('sorted','asc'));
   const activeTh = document.querySelector(`#pf-table th[data-pfsort="${pfSortKey}"]`);
   if (activeTh) { activeTh.classList.add('sorted'); if (pfSortDir === 1) activeTh.classList.add('asc'); }
@@ -3020,7 +3025,7 @@ function togglePf(key) {
   const row = document.getElementById(`pf_row_${key}`);
   if (cb)  cb.checked = pfTempSel.has(key);
   if (row) row.classList.toggle("checked", pfTempSel.has(key));
-  document.getElementById("pf-count").textContent = `${pfTempSel.size}件選択中`;
+  document.getElementById("pf-count").textContent = _tCK('checker.count_selected',`${pfTempSel.size}件選択中`).replace('{n}', pfTempSel.size);
 }
 
 bindSearch("pf-search", v => renderPfList(v));
@@ -3153,7 +3158,7 @@ renderTable();
 
   const pokeName = q.get('poke');
   if (!pokeName || typeof POKE_MAP === 'undefined' || !POKE_MAP[pokeName]) {
-    document.body.innerHTML = '<div style="padding:30px;color:#fff;font-family:sans-serif">ポケモンが見つかりません: ' + (pokeName || '(未指定)') + '</div>';
+    document.body.innerHTML = `<div style="padding:30px;color:#fff;font-family:sans-serif">${_tCK('checker.error_pokemon_not_found',`ポケモンが見つかりません: ${pokeName || '(未指定)'}`).replace('{name}', pokeName || _tCK('checker.unspecified','(未指定)'))}</div>`;
     return;
   }
 
