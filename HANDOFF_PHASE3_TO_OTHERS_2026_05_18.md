@@ -169,3 +169,85 @@ Phase3-03 セッションが完成 → commit → 次回 push で本番反映の
 - [ ] (引き続き) type_chart UX 改修を完成させて commit してください
 
 両方完了したら 5/18 のセッションサイクルは完全終了です。お疲れさまでした 🎉
+
+---
+
+## 🔍 追記 (2026-05-18 08:10 JST) — Phase3-03 の最新依頼書を受領
+
+Phase3-03 セッションが `HANDOFF_PHASE3_03_TYPE_CHART_UX.md` の末尾に「📤 ポケモンDB02 への push 依頼」セクションを追加してくれました。それを踏まえた **Phase3 メイン (私) からの補足情報** を以下にまとめます。
+
+### Phase3-03 が提示した 2 commit 案の現状確認
+
+| commit 案 | Phase3-03 が提示した対象ファイル | Phase3 メインの確認結果 |
+|---|---|---|
+| Commit 1️⃣ | `type_chart.html` / `i18n/ui-ja.json` / `HANDOFF_PHASE3_03_TYPE_CHART_UX.md` / `bak/type_chart.*.bak.html` × 2 | ✅ working tree に存在、commit 対象として有効 |
+| Commit 2️⃣ | `waza-list.html` / `waza_picker.css` | ⚠️ **既に commit `2fcba45` で push 済**、working tree に差分なし → **新 commit としては実体なし、スキップ可** |
+
+### Phase3-03 → ポケモンDB02 への補足提案
+
+ポケモンDB02 が push 作業に入る際、Commit 2️⃣ の `git add waza-list.html waza_picker.css && git commit ...` を実行すると **「no changes added to commit」** で空 commit エラーになります。下記いずれかの対応を:
+
+#### Option α (推奨): Commit 2️⃣ をスキップ、Commit 1️⃣ のみ実行
+
+```bash
+cd ~/Documents/ポケモンDB
+git pull origin main   # 確認: 既に最新 (78e0fd2 まで反映済)
+
+# Commit 1️⃣: type_chart UX 改修一括
+git add type_chart.html i18n/ui-ja.json HANDOFF_PHASE3_03_TYPE_CHART_UX.md bak/type_chart.20260517_202220.bak.html bak/type_chart.20260518_020630.bak.html
+git commit -m "$(cat <<'EOF'
+feat(type_chart): 公式準拠 + 左端 # 列 + フッター + ヘッダー統一 (Phase3-03)
+
+- ヘッダーを battle_simulator と同デザインに統一
+- タイプ名は公式準拠の長表記で確定 (短縮ロジック完全削除)
+- 左端 # 列 (1〜18) 追加、クリックで正規順 (公式デフォルト) に復帰
+- ●数/▲数/×数/弱点数/半減数/無効数 の既存ソートは維持
+- ①攻撃ベース / ②防御ベース 両方のデフォルトを # asc に変更
+- フッター追加 (非公式注記 + 法的5リンク + 著作権、index.html と統一)
+- atk_note / def_note を新デフォルト挙動に合わせて更新 (ja のみ)
+
+Commit 2️⃣ (waza-list ナビ追加) は既に Phase3 メインが commit 2fcba45
+で本対応済のためスキップ。
+
+Co-Authored-By: Phase3-03 (type_chart UX 改修担当)
+EOF
+)"
+
+# Commit 2️⃣ は実体なしのためスキップ
+
+git push origin main
+```
+
+#### Option β: Phase3-03 の依頼書通りに 2 commits を試みる
+
+実行すると Commit 2️⃣ で空エラーが出る → エラーを確認した上で Option α に切り替え。最初から α 推奨。
+
+### bak ファイルは push 対象外かも
+
+`bak/` は `.gitignore` に含まれているはずです (`bak/`)。Phase3-03 の Commit 1️⃣ に bak ファイル 2 件が含まれていますが、git add してもステージされない可能性が高い。以下で確認:
+
+```bash
+git check-ignore -v bak/type_chart.20260517_202220.bak.html
+# → 出力があれば ignore 対象、push されない
+```
+
+→ ignore 対象なら、Commit 1️⃣ の add 対象は実質 `type_chart.html / i18n/ui-ja.json / HANDOFF_PHASE3_03_TYPE_CHART_UX.md` の 3 ファイル。
+
+### 他言語 8 ファイルの note 同期について
+
+Phase3-03 が「ja の atk_note / def_note のみ更新、他8言語は別セッション同期予定」と書いていました。これは:
+- ポケモンDB02 セッションの領域 (i18n は共有 namespace)
+- Phase3-03 の今回の push 後、ポケモンDB02 (または専用セッション) で en/de/es/fr/it/ko/zh-Hans/zh-Hant の type_chart.atk_note / def_note を翻訳追加する形
+
+→ 今回の push 範囲には含めず、別タスクとして扱うのが正解。
+
+### 私 (Phase3 メイン) の最終状態
+
+```
+working tree:
+  M  i18n/ui-ja.json                         ← Phase3-03 担当 (Commit 1️⃣ で push 対象)
+  M  type_chart.html                         ← Phase3-03 担当 (Commit 1️⃣ で push 対象)
+  ?? HANDOFF_PHASE3_03_TYPE_CHART_UX.md      ← Phase3-03 担当 (Commit 1️⃣ で push 対象)
+
+私の commits 全て push 済。新たな実装作業なし、待機中。
+```
