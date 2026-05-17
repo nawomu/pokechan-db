@@ -1164,6 +1164,19 @@ function calcDamage(atkSide, defSide, move){
 
   const ko = calcKoNum(minD, maxD, effectiveHp);
 
+  // きあいのタスキ判定: HP満タン時に致命傷を受けると HP1 残す (1回限り)
+  // - 全乱数で致命 ('all'): 確定撃破がタスキで防がれる
+  // - 一部乱数で致命 ('partial'): 致命する乱数のみタスキ発動、それ以外は通常ダメージ
+  let focusSashSaved = null;
+  const defItemForSash = def.item ? ITEM_BY_KEY[def.item] : null;
+  if (defItemForSash && defItemForSash.key === 'focus_sash'){
+    const isFullHp = def.currentHp == null || def.currentHp >= hp;
+    if (isFullHp && maxD >= effectiveHp){
+      focusSashSaved = (minD >= effectiveHp) ? 'all' : 'partial';
+      chips.push({label:'きあいのタスキ', factor:1, kind:'item'});
+    }
+  }
+
   // ゴツゴツメット反動（接触技という属性は持っていないので、物理技 = 接触に近似）
   const helmetRecoil = (def.rockyHelmet && isPhys) ? Math.floor(realStat(atk,'hp') / 6) : 0;
   // いのちのたま反動
@@ -1172,6 +1185,7 @@ function calcDamage(atkSide, defSide, move){
   return {
     min:minD, max:maxD, variations, hp, effectiveHp, stealthHp,
     koHits:ko.n, koType:ko.type, immune:false,
+    focusSashSaved,
     recoil: helmetRecoil + orbRecoil,
     helmetRecoil, orbRecoil, chips,
   };
@@ -1820,17 +1834,19 @@ function renderMoves(root, st){
       const pctMax = (result.max / result.hp * 100).toFixed(1);
       const koClass = (result.koType === 'guaranteed' && result.koHits === 1) ? 'guaranteed-1'
                     : (result.koType === 'guaranteed' && result.koHits === 2) ? 'guaranteed-2' : '';
-      const koLabel = result.koType === 'guaranteed' ? `確定${result.koHits}発`
-                    : result.koType === 'random' ? `乱数${result.koHits}発`
-                    : `${result.koHits}発`;
+      const sashNote = result.focusSashSaved === 'all' ? ' (タスキ耐え)'
+                    : result.focusSashSaved === 'partial' ? ' (一部タスキ耐え)' : '';
+      const koLabel = result.koType === 'guaranteed' ? `確定${result.koHits}発${sashNote}`
+                    : result.koType === 'random' ? `乱数${result.koHits}発${sashNote}`
+                    : `${result.koHits}発${sashNote}`;
       const recoilLine = result.recoil > 0
         ? `<div class="move-recoil">反動 ${result.recoil}${result.helmetRecoil ? ` (ゴツメ ${result.helmetRecoil})` : ''}${result.orbRecoil ? ` (たま ${result.orbRecoil})` : ''}</div>`
         : '';
       const stealthNote = (result.stealthHp > 0) ? `<span class="dmg-side-tag" title="ステロで HP-${result.stealthHp}">ｽﾃﾛ-${result.stealthHp}</span>` : '';
       const chipsHtml = (result.chips && result.chips.length)
         ? `<div class="dmg-chips">${result.chips.map(c=>{
-            const fStr = (c.factor === 2/3) ? '×2/3' : `×${(+c.factor.toFixed(3))}`;
-            return `<span class="dmg-chip chip-${c.kind}">${c.label} ${fStr}</span>`;
+            const fStr = (c.factor === 1) ? '' : (c.factor === 2/3) ? ' ×2/3' : ` ×${(+c.factor.toFixed(3))}`;
+            return `<span class="dmg-chip chip-${c.kind}">${c.label}${fStr}</span>`;
           }).join('')}</div>`
         : '';
       body = `
