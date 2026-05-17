@@ -165,6 +165,16 @@
       const v = tUI(key, def);
       el.textContent = v;
     });
+    // data-i18n-html="key" → innerHTML 置換 (リンク・strong・br など HTML タグを含む翻訳に対応)
+    root.querySelectorAll('[data-i18n-html]').forEach((el) => {
+      const key = el.getAttribute('data-i18n-html');
+      const def = el.getAttribute('data-i18n-html-default') || el.innerHTML.trim();
+      if (!el.hasAttribute('data-i18n-html-default')) {
+        el.setAttribute('data-i18n-html-default', def);
+      }
+      const v = tUI(key, def);
+      el.innerHTML = v;
+    });
     // data-i18n-attr="title:tooltip.search,placeholder:input.search" → 属性翻訳
     root.querySelectorAll('[data-i18n-attr]').forEach((el) => {
       const spec = el.getAttribute('data-i18n-attr');
