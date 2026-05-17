@@ -72,21 +72,31 @@ h1{font-size:15px;color:#79c0ff;font-weight:700}
 /* セクション見出しは非表示（色とレイアウトで判別） */
 .sec-head, .side-label{display:none}
 
-/* 種族値・能力P・実数値テーブル */
-.stat-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:2px}
+/* 能力P・ランク・実数値テーブル (チェッカー風 / バーなし) */
+.stat-table{width:100%;border-collapse:separate;border-spacing:0 3px;font-size:12px;margin-top:2px}
 .stat-table th{
   text-align:left;color:#8b949e;font-weight:400;
-  padding:3px 6px;border-bottom:1px solid #21262d;
+  padding:3px 6px;
 }
-.stat-table td{
-  padding:2px 6px;border-bottom:1px solid #21262d;text-align:right;
+.stat-table tbody td{
+  padding:5px 6px;background:#1a2540;text-align:right;
+  border-top:1px solid transparent;border-bottom:1px solid transparent;
+  transition:.1s;
 }
+.stat-table tbody td:first-child{border-left:1px solid #2a3a5e;border-top-left-radius:6px;border-bottom-left-radius:6px}
+.stat-table tbody td:last-child{border-right:1px solid #2a3a5e;border-top-right-radius:6px;border-bottom-right-radius:6px}
+.stat-table tbody tr:hover td{background:#22305a}
 .stat-table thead th{
   font-weight:700;text-align:center;color:#79c0ff;font-size:10px;
-  border-bottom:1px solid #30363d;background:#0d1117;
+  border-bottom:1px solid #30363d;background:#0d1117;padding:3px 6px;
 }
 .stat-table thead th:first-child{text-align:left}
-.stat-key{color:#8b949e;text-align:left !important}
+.stat-key{color:#e6edf3;text-align:left !important;white-space:nowrap}
+.stat-letter{display:inline-block;min-width:1.2em;text-align:center;font-weight:700;font-size:1.05em;margin-right:3px}
+.stat-jp{color:#8b949e;font-size:.82em;font-weight:normal}
+.stat-table tbody tr.nat-up .stat-key{color:#ff5c5c;font-weight:700}
+.stat-table tbody tr.nat-down .stat-key{color:#5cb0ff;font-weight:700}
+.stat-table tbody tr.nat-up .stat-jp,.stat-table tbody tr.nat-down .stat-jp{color:inherit;opacity:.8}
 .stat-effort{width:54px}
 .stat-rank{width:62px;text-align:center;padding:0 !important}
 .stat-rank-ctrl{
@@ -114,8 +124,9 @@ h1{font-size:15px;color:#79c0ff;font-weight:700}
   font-weight:700;color:#fff;width:50px;
   font-variant-numeric:tabular-nums;
 }
-.stat-final.nature-up{color:#ff9c9c}
-.stat-final.nature-down{color:#9cc8ff}
+/* 実数値の色: 性格よりも能力P 振り優先 (チェッカーと同ルール) */
+.stat-table tbody tr.has-pts .stat-final{color:#ffe066}
+.stat-table tbody tr.max-pts .stat-final{color:#ff7b9d}
 
 /* 性格セレクタ */
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -343,6 +354,8 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
   color:#e6edf3;text-align:center;font-variant-numeric:tabular-nums;font-size:10px;
 }
 .moves-empty{color:#484f58;font-style:italic;font-size:11px;padding:6px}
+.move-row-empty{opacity:.55;background:#0a0d12;border-style:dashed}
+.move-row-empty .m-empty{color:#6e7681;font-style:italic;font-size:11px}
 
 /* ダメ結果（3段） */
 .dmg-result{
@@ -517,7 +530,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 <body>
 
 <header>
-  <h1>⚔️ ポケチャン バトルシミュレーター</h1>
+  <h1><a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:15px" title="PchamDB トップに戻る">🏠 PchamDB</a> <span style="color:#79c0ff;font-size:11px;font-weight:600;letter-spacing:0.5px;vertical-align:middle">BETA</span> <span style="color:#8aa3bb;font-size:11px;font-weight:400">›</span> <span style="color:#ccc;font-size:13px;font-weight:600">⚔️ バトルシミュレーター</span></h1>
   <span class="head-note">Lv50固定 / 個体値31固定 / 能力P最大66（各32）</span>
   <nav class="bs-nav">
     <a class="bs-nav-btn nav-db" href="pokemon_db_v9.html" target="_blank" rel="noopener" title="ポケモンDBを別タブで開く">🗄️ DB</a>
@@ -749,6 +762,7 @@ const LEVEL = 50;
 
 const STAT_KEYS = ['hp','atk','def','spatk','spdef','spd'];
 const STAT_LABELS = {hp:'HP',atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
+const STAT_LETTER = {hp:'H',atk:'A',def:'B',spatk:'C',spdef:'D',spd:'S'};
 
 // 性格 [name, up, down]（— は補正なし）
 const NATURES = [
@@ -1680,11 +1694,18 @@ function render(side){
       </span></td>`;
     })();
     const tr = document.createElement('tr');
+    const trCls = [
+      mult > 1 ? 'nat-up' : '',
+      mult < 1 ? 'nat-down' : '',
+      ep > 0  ? 'has-pts' : '',
+      ep >= 32 ? 'max-pts' : '',
+    ].filter(Boolean).join(' ');
+    if (trCls) tr.className = trCls;
     tr.innerHTML = `
-      <td class="stat-key">${STAT_LABELS[k]}</td>
+      <td class="stat-key"><b class="stat-letter">${STAT_LETTER[k]}</b><span class="stat-jp">${STAT_LABELS[k]}</span></td>
       <td class="stat-effort"><input type="number" min="0" max="32" data-key="${k}" value="${ep}"></td>
       ${rankCell}
-      <td class="stat-final ${mult>1?'nature-up':mult<1?'nature-down':''}">${st.poke ? real : '—'}</td>
+      <td class="stat-final">${st.poke ? real : '—'}</td>
     `;
     tbody.appendChild(tr);
   });
@@ -1723,7 +1744,17 @@ function renderMoves(root, st){
   const oppId = sideId === 'self' ? 'opp' : 'self';
   wrap.innerHTML = '';
   if (!st.moves || !st.moves.length){
-    wrap.innerHTML = '<div class="moves-empty">（技未受信）技チェッカーから「⚔️ バトルへ送る」してください</div>';
+    // 空でも 4 つのプレースホルダー枠を表示
+    for (let i = 0; i < 4; i++){
+      const row = document.createElement('div');
+      row.className = 'move-row move-row-empty';
+      row.innerHTML = `<div class="move-head"><span class="m-empty">技スロット ${i+1} — 未設定</span></div>`;
+      wrap.appendChild(row);
+    }
+    const hint = document.createElement('div');
+    hint.className = 'moves-empty';
+    hint.innerHTML = '技チェッカーから「⚔️ バトルへ送る」で受信できます';
+    wrap.appendChild(hint);
     return;
   }
   st.moves.forEach((m, idx)=>{
