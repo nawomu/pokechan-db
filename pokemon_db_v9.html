@@ -3045,11 +3045,11 @@ function openCompatSearch(ci) {
   }
 
   const titleEl = document.getElementById('compat-title');
-  if (titleEl) titleEl.textContent = `🔍 補完検索（チェック${ci+1}）`;
+  if (titleEl) titleEl.textContent = _tDB('db.compat_modal_title_n', '🔍 補完検索（チェック {n}）').replace('{n}', ci+1);
 
   const team = DATA.filter(p => checks[ci][p._idx] !== undefined);
   if (team.length === 0) {
-    body.innerHTML = `<div class="modal-info" style="color:#cc0000">⚠ チェック${ci+1}に値が入っているポケモンがありません。<br>チェック${ci+1}の欄に値を入れてから再度お試しください。</div>`;
+    body.innerHTML = `<div class="modal-info" style="color:#cc0000">${_tDB('db.no_check_target', '⚠ チェック {n} に値が入っているポケモンがありません。').replace('{n}', ci+1)}<br>${_tDB('db.no_check_target_sub', 'チェック {n} の欄に値を入れてから再度お試しください。').replace('{n}', ci+1)}</div>`;
     return;
   }
 
@@ -3354,8 +3354,8 @@ function compatApply() {
   const lbl = document.getElementById('compat-cand-label');
   if (lbl) {
     const span = lbl.querySelector('span');
-    if (span) span.textContent = `▶ 補完候補（${pairs.length}件 / ${compatCandidates.length}中）`;
-    else lbl.textContent = `▶ 補完候補（${pairs.length}件 / ${compatCandidates.length}中）`;
+    if (span) span.textContent = _tDB('db.compat_candidates', '▶ 補完候補（{pairs}件 / {cand}中）').replace('{pairs}', pairs.length).replace('{cand}', compatCandidates.length);
+    else lbl.textContent = _tDB('db.compat_candidates', '▶ 補完候補（{pairs}件 / {cand}中）').replace('{pairs}', pairs.length).replace('{cand}', compatCandidates.length);
   }
 }
 
@@ -3455,7 +3455,9 @@ function updateCompatBtns() {
     const btn = document.querySelector(`button.btn-compat[onclick="openCompatSearch(${ci})"]`);
     if (btn) {
       btn.disabled = (cnt === 0);
-      btn.title = cnt === 0 ? `C${ci+1}にチェックされたポケモンがありません` : `C${ci+1}の${cnt}体で補完検索`;
+      btn.title = cnt === 0
+        ? _tDB('db.tip_no_check', 'C{n} にチェックされたポケモンがありません').replace('{n}', ci+1)
+        : _tDB('db.tip_n_compat', 'C{n} の {cnt} 体で補完検索').replace('{n}', ci+1).replace('{cnt}', cnt);
     }
   }
 }
@@ -3463,7 +3465,7 @@ function updateCompatBtns() {
 // 特定チェック列(C1/C2/C3)の値を全クリア
 function resetChecks(ci) {
   if (ci < 0 || ci > 2) return;
-  if (!confirm(`C${ci+1}のチェックを全てクリアしますか？`)) return;
+  if (!confirm(_tDB('db.confirm_clear_check', 'C{n} のチェックを全てクリアしますか？').replace('{n}', ci+1))) return;
   checks[ci] = {};
   // C列フィルタの選択もクリア（ボタンの「◯件▾」表示をリセット）
   msClear(`ms-main-chk${ci}`);
@@ -4060,7 +4062,7 @@ let pmDragOffsetX = 0, pmDragOffsetY = 0;
       const clsLbl = m.category === '物理' ? '物' : m.category === '特殊' ? '特' : '変';
       return `<span class="pt-move" style="background:${c}">${m.name}<span class="pt-cls cls-${clsKey}">${clsLbl}</span></span>`;
     }).join('');
-    tip.innerHTML = `<div class="pt-title">${name} の覚えるわざ (${moves.length}件)</div><div class="pt-list">${list}</div>`;
+    tip.innerHTML = `<div class="pt-title">${_tDB('db.pokemon_move_tip', '{name} の覚えるわざ ({n}件)').replace('{name}', name).replace('{n}', moves.length)}</div><div class="pt-list">${list}</div>`;
     tip.style.display = 'block';
   });
   document.addEventListener('mousemove', e => {
