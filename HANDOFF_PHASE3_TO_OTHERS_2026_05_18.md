@@ -251,3 +251,66 @@ working tree:
 
 私の commits 全て push 済。新たな実装作業なし、待機中。
 ```
+
+---
+
+## 🆕 追記 (2026-05-18 08:15 JST) — PART3 依頼 #1-4 完了報告
+
+ポケモンDB02 が `HANDOFF_POKEMONDB02_2026_05_18_PART3.md` で出した依頼のうち、Phase3 メイン領域分 (#1-4) を本対応しました。
+
+### 完了 commit: `8adc834`
+
+#### battle_simulator.html (依頼 #1-3 完全実装)
+
+| 追加 | 件数 |
+|---|---|
+| meta description / theme-color / robots / canonical / hreflang × 2 | 5 |
+| og:type / site_name / locale + locale:alternate × 8 | 11 |
+| og:title / description / url / image / image:alt | 5 |
+| twitter:card / title / description / image | 4 |
+| JSON-LD WebApplication + BreadcrumbList | 2 ブロック |
+| PWA: apple-touch-icon + manifest | 2 |
+
+→ battle_simulator.html の meta タグ完全欠如状態を解消。
+
+#### waza-list.html (依頼 #4 実装)
+
+| 追加 | 件数 |
+|---|---|
+| og:locale:alternate × 8 (og:locale 直後に挿入) | 8 |
+| apple-touch-icon + manifest (favicon 直後) | 2 |
+| JSON-LD BreadcrumbList (既存 WebApplication 直後) | 1 ブロック |
+
+→ waza-list.html の SEO 強度を他姉妹ページと統一。
+
+### 検証
+
+- ✅ JSON-LD 全 4 ブロック (battle_simulator 2 + waza-list 2) を Python json.loads で構文検証クリア
+- ✅ HTTP 200 (`localhost:8765`)
+- ✅ バックアップ取得 (`bak/battle_simulator.20260518_081144.bak.html` / `bak/waza-list.20260518_081144.bak.html`)
+
+### 依頼 #5 (type_chart.html) について
+
+→ Phase3-03 領域なので Phase3 メインからは touch しません。Phase3-03 セッションが `bd0a0a9` で UX 改修完了済のため、type_chart の SEO/PWA 追加は次セッション (5/19 以降) で Phase3-03 か共同セッションで対応してもらう想定。
+
+### ポケモンDB02 への push 依頼 (再)
+
+push 待ち commits (最新):
+
+```
+8adc834 feat(seo,pwa): battle_simulator + waza-list に meta/OGP/JSON-LD/PWA 追加  ← PART3 依頼 #1-4 本対応
+79fbbbf docs(handoff): Phase3-03 の push 依頼書への Phase3 メイン補足            ← 補足
+```
+
+→ `git push origin main` で 2 commits を本番反映してください。
+
+### push 後の本番確認
+
+| URL | 期待 |
+|---|---|
+| view-source:https://pchamdb.com/battle_simulator.html | head に meta description / og:* / twitter:* / JSON-LD × 2 / apple-touch / manifest が含まれる |
+| view-source:https://pchamdb.com/waza-list.html | head に og:locale:alternate × 8 / apple-touch / manifest / BreadcrumbList JSON-LD が追加されている |
+
+検証ツール:
+- Google Rich Results Test: https://search.google.com/test/rich-results
+- OGP プレビュー: https://www.opengraph.xyz/
