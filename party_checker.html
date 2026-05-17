@@ -457,6 +457,8 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 .pc-nav-btn.nav-checker:hover{background:#1E8449;border-color:#1E8449}
 .pc-nav-btn.nav-waza{background:#F39C12;color:#fff;border-color:#F39C12}
 .pc-nav-btn.nav-waza:hover{background:#D68910;border-color:#D68910}
+.pc-nav-btn.nav-type-chart{background:#2E8B57;color:#fff;border-color:#2E8B57}
+.pc-nav-btn.nav-type-chart:hover{background:#246B45;border-color:#246B45}
 
 #filter-bar{background:#161b22;padding:7px 14px;border-bottom:1px solid #21262d;display:flex;gap:6px;flex-wrap:wrap;align-items:center;flex-shrink:0}
 #filter-bar input{padding:5px 10px;border-radius:6px;border:1px solid #30363d;background:#0d1117;color:#e6edf3;font-size:12px;width:130px}
@@ -1725,6 +1727,13 @@ function renderPcTabs() {
   wzBtn.onclick = () => window.open('waza-list.html', '_blank');
   bar.appendChild(wzBtn);
 
+  const tcBtn = document.createElement('button');
+  tcBtn.className = 'pc-nav-btn nav-type-chart';
+  tcBtn.textContent = '📊 タイプ相性';
+  tcBtn.title = 'タイプ相性表を別タブで開く';
+  tcBtn.onclick = () => window.open('type_chart.html', '_blank');
+  bar.appendChild(tcBtn);
+
   // i18n 言語スイッチャー マウントポイント
   const i18nMount = document.createElement('span');
   i18nMount.id = 'i18n-switcher-mount';
@@ -2692,26 +2701,53 @@ function togglePfEfChip(el) {
   pfRender();
 }
 
+function _tCK(key, fallback) {
+  return (window.I18N && window.I18N.t) ? window.I18N.t(key, fallback) : fallback;
+}
+
 function togglePfEffectFilter() {
   const p = document.getElementById('pf-effect-filter-panel');
   const b = document.getElementById('pf-ef-toggle-btn');
   p.classList.toggle('collapsed');
-  b.textContent = p.classList.contains('collapsed') ? '🔍 効果フィルター ▼' : '🔍 効果フィルター ▲';
+  b.textContent = p.classList.contains('collapsed')
+    ? _tCK('checker.effect_filter_toggle_closed', '🔍 効果フィルター ▼')
+    : _tCK('checker.effect_filter_toggle', '🔍 効果フィルター ▲');
 }
 
 function buildPfEffectFilterPanel() {
   const ef = (t,v,lbl) => `<span class="ef-chip" data-ef-type="${t}" data-ef-val="${v}" onclick="togglePfEfChip(this)">${lbl}</span>`;
   const ex = (v,lbl) => `<span class="ef-chip ef-exclude-chip" data-ef-type="exclude" data-ef-val="${v}" onclick="togglePfEfChip(this)">${lbl}</span>`;
+  const sAtk = _tCK('checker.ef_stat_atk', '攻撃');
+  const sDef = _tCK('checker.ef_stat_def', '防御');
+  const sSpA = _tCK('checker.ef_stat_spa', '特攻');
+  const sSpD = _tCK('checker.ef_stat_spd', '特防');
+  const sSpe = _tCK('checker.ef_stat_spe', '素早');
   document.getElementById('pf-effect-filter-panel').innerHTML = `
-    <div class="ef-row"><span class="ef-label">技フラグ:</span>${ef('flag','punch','👊 パンチ系')}${ef('flag','sound','🔊 音技')}${ef('flag','dance','💃 踊り系')}${ef('flag','slice','⚔ 切る技')}${ef('flag','wind','🌀 風技')}${ef('flag','ball','🔵 弾技')}${ef('flag','pulse','〰️ 波動技')}${ef('flag','ohko','💀 一撃必殺')}${ef('flag','charge','⏳ 溜め技')}${ef('flag','recharge','🔁 2ターン目動けない')}</div>
-    <div class="ef-row"><span class="ef-label">状態異常:</span>${ef('status','まひ','⚡ まひ')}${ef('status','ねむり','💤 ねむり')}${ef('status','こおり','❄️ こおり')}${ef('status','やけど','🔥 やけど')}${ef('status','どく','☠️ どく')}${ef('status','こんらん','🌀 こんらん')}${ef('status','ひるみ','😵 ひるみ')}</div>
-    <div class="ef-row"><span class="ef-label">自分↑↑:</span>${ef('self_up2','こうげき','攻撃↑↑')}${ef('self_up2','ぼうぎょ','防御↑↑')}${ef('self_up2','とくこう','特攻↑↑')}${ef('self_up2','とくぼう','特防↑↑')}${ef('self_up2','すばやさ','素早↑↑')}</div>
-    <div class="ef-row"><span class="ef-label">自分↑:</span>${ef('self_up1','こうげき','攻撃↑')}${ef('self_up1','ぼうぎょ','防御↑')}${ef('self_up1','とくこう','特攻↑')}${ef('self_up1','とくぼう','特防↑')}${ef('self_up1','すばやさ','素早↑')}</div>
-    <div class="ef-row"><span class="ef-label">相手↓↓:</span>${ef('opp_down2','こうげき','攻撃↓↓')}${ef('opp_down2','ぼうぎょ','防御↓↓')}${ef('opp_down2','とくこう','特攻↓↓')}${ef('opp_down2','とくぼう','特防↓↓')}${ef('opp_down2','すばやさ','素早↓↓')}</div>
-    <div class="ef-row"><span class="ef-label">相手↓:</span>${ef('opp_down1','こうげき','攻撃↓')}${ef('opp_down1','ぼうぎょ','防御↓')}${ef('opp_down1','とくこう','特攻↓')}${ef('opp_down1','とくぼう','特防↓')}${ef('opp_down1','すばやさ','素早↓')}</div>
-    <div class="ef-row"><span class="ef-label">除外:</span>${ex('charge','🚫 溜め技 (1ターン待機)')}${ex('recharge','🚫 2ターン目動けない')}</div>
-    <div class="ef-row"><span class="ef-label">その他:</span>${ef('misc','回復','💚 回復技')}${ef('misc','急所','🎯 急所率高')}${ef('misc','連続','⚡ 連続攻撃')}${ef('misc','先制','⚡ 先制技')}${ef('misc','バインド','🔗 バインド')}${ef('misc','交代','🔄 相手交代')}</div>
+    <div class="ef-row"><span class="ef-label">${_tCK('checker.ef_label_flag','技フラグ:')}</span>${ef('flag','punch',_tCK('checker.ef_flag_punch','👊 パンチ系'))}${ef('flag','sound',_tCK('checker.ef_flag_sound','🔊 音技'))}${ef('flag','dance',_tCK('checker.ef_flag_dance','💃 踊り系'))}${ef('flag','slice',_tCK('checker.ef_flag_slice','⚔ 切る技'))}${ef('flag','wind',_tCK('checker.ef_flag_wind','🌀 風技'))}${ef('flag','ball',_tCK('checker.ef_flag_ball','🔵 弾技'))}${ef('flag','pulse',_tCK('checker.ef_flag_pulse','〰️ 波動技'))}${ef('flag','ohko',_tCK('checker.ef_flag_ohko','💀 一撃必殺'))}${ef('flag','charge',_tCK('checker.ef_flag_charge','⏳ 溜め技'))}${ef('flag','recharge',_tCK('checker.ef_flag_recharge','🔁 2ターン目動けない'))}</div>
+    <div class="ef-row"><span class="ef-label">${_tCK('checker.ef_label_status','状態異常:')}</span>${ef('status','まひ',_tCK('checker.ef_status_para','⚡ まひ'))}${ef('status','ねむり',_tCK('checker.ef_status_sleep','💤 ねむり'))}${ef('status','こおり',_tCK('checker.ef_status_freeze','❄️ こおり'))}${ef('status','やけど',_tCK('checker.ef_status_burn','🔥 やけど'))}${ef('status','どく',_tCK('checker.ef_status_poison','☠️ どく'))}${ef('status','こんらん',_tCK('checker.ef_status_confuse','🌀 こんらん'))}${ef('status','ひるみ',_tCK('checker.ef_status_flinch','😵 ひるみ'))}</div>
+    <div class="ef-row"><span class="ef-label">${_tCK('checker.ef_label_self_up2','自分↑↑:')}</span>${ef('self_up2','こうげき',sAtk+'↑↑')}${ef('self_up2','ぼうぎょ',sDef+'↑↑')}${ef('self_up2','とくこう',sSpA+'↑↑')}${ef('self_up2','とくぼう',sSpD+'↑↑')}${ef('self_up2','すばやさ',sSpe+'↑↑')}</div>
+    <div class="ef-row"><span class="ef-label">${_tCK('checker.ef_label_self_up1','自分↑:')}</span>${ef('self_up1','こうげき',sAtk+'↑')}${ef('self_up1','ぼうぎょ',sDef+'↑')}${ef('self_up1','とくこう',sSpA+'↑')}${ef('self_up1','とくぼう',sSpD+'↑')}${ef('self_up1','すばやさ',sSpe+'↑')}</div>
+    <div class="ef-row"><span class="ef-label">${_tCK('checker.ef_label_opp_down2','相手↓↓:')}</span>${ef('opp_down2','こうげき',sAtk+'↓↓')}${ef('opp_down2','ぼうぎょ',sDef+'↓↓')}${ef('opp_down2','とくこう',sSpA+'↓↓')}${ef('opp_down2','とくぼう',sSpD+'↓↓')}${ef('opp_down2','すばやさ',sSpe+'↓↓')}</div>
+    <div class="ef-row"><span class="ef-label">${_tCK('checker.ef_label_opp_down1','相手↓:')}</span>${ef('opp_down1','こうげき',sAtk+'↓')}${ef('opp_down1','ぼうぎょ',sDef+'↓')}${ef('opp_down1','とくこう',sSpA+'↓')}${ef('opp_down1','とくぼう',sSpD+'↓')}${ef('opp_down1','すばやさ',sSpe+'↓')}</div>
+    <div class="ef-row"><span class="ef-label">${_tCK('checker.ef_label_exclude','除外:')}</span>${ex('charge',_tCK('checker.ef_exclude_charge','🚫 溜め技 (1ターン待機)'))}${ex('recharge',_tCK('checker.ef_exclude_recharge','🚫 2ターン目動けない'))}</div>
+    <div class="ef-row"><span class="ef-label">${_tCK('checker.ef_label_misc','その他:')}</span>${ef('misc','回復',_tCK('checker.ef_misc_heal','💚 回復技'))}${ef('misc','急所',_tCK('checker.ef_misc_crit','🎯 急所率高'))}${ef('misc','連続',_tCK('checker.ef_misc_multi','⚡ 連続攻撃'))}${ef('misc','先制',_tCK('checker.ef_misc_priority','⚡ 先制技'))}${ef('misc','バインド',_tCK('checker.ef_misc_bind','🔗 バインド'))}${ef('misc','交代',_tCK('checker.ef_misc_switch','🔄 相手交代'))}</div>
   `;
+  restorePfEfChipStates();
+}
+
+function restorePfEfChipStates() {
+  document.querySelectorAll('#pf-effect-filter-panel .ef-chip').forEach(el => {
+    const t = el.dataset.efType, v = el.dataset.efVal;
+    if (pfActiveEf[t] && pfActiveEf[t].has(v)) {
+      const cls = t === 'status' ? 'active-status'
+        : (t === 'self_up2' || t === 'self_up1') ? 'active-up'
+        : (t === 'opp_down2' || t === 'opp_down1') ? 'active-down'
+        : t === 'misc' ? 'active-misc'
+        : t === 'exclude' ? 'active-exclude'
+        : 'active';
+      el.classList.add(cls);
+    }
+  });
 }
 
 function buildPfTableHead() {
@@ -3290,6 +3326,19 @@ renderTable();
     const modal = document.getElementById('modal-ov');
     if (modal && modal.classList.contains('vis') && typeof renderModalList === 'function') {
       renderModalList(document.getElementById('modal-search')?.value || '');
+    }
+    // 効果フィルタパネル: 開いていれば再描画 (chip 選択状態は復元される)
+    const pfPanel = document.getElementById('pf-effect-filter-panel');
+    if (pfPanel && typeof buildPfEffectFilterPanel === 'function') {
+      buildPfEffectFilterPanel();
+    }
+    // 効果フィルタ開閉ボタンのテキスト更新 (collapsed 状態は data-i18n では追従しない)
+    const pfBtn = document.getElementById('pf-ef-toggle-btn');
+    if (pfBtn && pfPanel) {
+      const _t = (k, f) => (window.I18N && window.I18N.t) ? window.I18N.t(k, f) : f;
+      pfBtn.textContent = pfPanel.classList.contains('collapsed')
+        ? _t('checker.effect_filter_toggle_closed', '🔍 効果フィルター ▼')
+        : _t('checker.effect_filter_toggle', '🔍 効果フィルター ▲');
     }
   });
   document.addEventListener('i18n:ready', () => {
