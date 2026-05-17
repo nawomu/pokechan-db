@@ -148,3 +148,69 @@ type_chart.html | 25 +++++++++++--------------
 - `HANDOFF_PHASE3_INIT_B.md` — メガ進化統合の起草 (今回追加)
 - `HANDOFF_DEPLOY_2026_05_17.md` — 5/17 セッションのデプロイ引き継ぎ (push 済)
 - memory: `project_pokechan_items_db.md` / `project_battle_simulator_status.md`
+
+---
+
+## 🆕 追記 — 2026-05-18 03:00 JST 以降の進展
+
+ポケモンDB 側から「push しなくても進められる作業があるならどんどん」の指示を受け、Phase3 領域でドキュメント整備 3 commit を追加実施。
+
+### 追加 commit (Phase3 領域、push 待ち)
+
+| commit | 内容 | ファイル |
+|---|---|---|
+| `89ee83c` | docs: PHASE3_SIMULATOR 次フェーズ候補表の最新化 | HANDOFF_PHASE3_SIMULATOR.md |
+| `8d67bf0` | docs: C5 持ち物統合の動作確認シナリオ整備 | HANDOFF_PHASE3_C5_TEST_SCENARIOS.md (新規 197 行) |
+| `1f62b29` | docs: C5 ターン終了処理 Track B-2/B-3 設計検討 | HANDOFF_PHASE3_C5_TURNEND.md (新規 217 行) |
+
+### 各 HANDOFF の要点
+
+**HANDOFF_PHASE3_SIMULATOR.md (更新)**:
+- 次フェーズ候補表 #1 持ち物プルダウン を「主要部完了」マーク
+- #5 Init-B メガ進化 を「別 HANDOFF 化済」マーク
+- 進捗サマリ (2026-05-18 時点) を追記
+
+**HANDOFF_PHASE3_C5_TEST_SCENARIOS.md (新規)**:
+- type_boost / berry_resist / でんきだま / focus_sash の動作確認シナリオを 6 セクション (S1〜S6)
+- タスキ実装による退行確認チェックリスト 8 件
+- 未実装で残った 8 アイテムを別 HANDOFF へのポインタとして列挙
+
+**HANDOFF_PHASE3_C5_TURNEND.md (新規)**:
+- berry_status_cure (7) + berry_hp_cure (3) + hp_drain (2) = 12 アイテムを「ダメージ後/ターン終了時発動」として整理
+- 3 案比較 (A: フル機能化 / B: 部分シミュ / C: 注釈のみ) → **C 案推奨**
+- 案 C の実装プラン (calcDamage に `itemEffectNote` 追加、約 1.5 時間)
+- あべ判断要事項 3 件
+
+### 全体 push 待ち commits (5 本、Phase3 領域)
+
+```
+1f62b29 docs(handoff): C5 ターン終了処理 (Track B-2/B-3) を設計検討
+8d67bf0 docs(handoff): C5 持ち物統合の動作確認シナリオを整備
+89ee83c docs(handoff): PHASE3_SIMULATOR の次フェーズ候補表を最新化
+1ce6d45 docs(handoff): Phase3 側 5/18 深夜枠の進捗報告書を追加
+e5804bc docs(handoff): Phase3 Init-B (メガ進化統合) を起草
+d9bf1cc feat(battle_simulator): きあいのタスキ (focus_sash) 実装
+```
+
+ポケモンDB 側からの 5 commit と合わせて計 **11 commits** が origin/main へ push 待ち。
+
+### 並行稼働中の Phase3-03 セッション (検出)
+
+ポケモンDB 側 HANDOFF (`HANDOFF_POKEMONDB_FINAL_2026_05_18.md`) で判明:
+- **Phase3-03 セッション** が type_chart UX 改修を独立進行中
+- 触っているファイル: `type_chart.html` / `i18n/ui-ja.json` (type_chart namespace 2 キー)
+- 独自 HANDOFF: `HANDOFF_PHASE3_03_TYPE_CHART_UX.md` (新規・未 commit)
+- 私 (Phase3 メイン) と Phase3-03 / ポケモンDB は領域被らない (battle_simulator vs type_chart vs party_checker)
+
+### 私 (Phase3 メイン) からの追加メッセージ
+
+1. **type_chart.html の差分は Phase3-03 担当と判明** — 私の 1ce6d45 で「身に覚えのない」と書いた件は、Phase3-03 セッションの作業中である状態。私は touch しない方針継続。
+2. **私の追加 3 commits** はすべて HANDOFF ドキュメント整備、退行リスクなし。
+3. **次は Phase3 メイン側であべ判断待ち**:
+   - Init-B (メガ進化) B-1 着手の GO サイン
+   - C5 Track B-2/B-3 (ターン終了処理) の 3 案からの選択
+   - あべがゲーム内で verify:true 24 件を確認するタイミング
+
+### 改めて push 依頼
+
+ポケモンDB 側で `git push origin main` 実行時、上記 Phase3 領域 6 commits も含まれます (時系列に並ぶ)。push 後の本番反映確認は HANDOFF_PHASE3_C5_TEST_SCENARIOS.md のシナリオを参考に。
