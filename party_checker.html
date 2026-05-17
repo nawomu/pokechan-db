@@ -581,6 +581,12 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 .nat-list-item .nat-eff-down{color:#5cb0ff;font-weight:bold}
 .nat-list-item .nat-eff-neutral{color:#8b949e;font-style:italic;font-size:.74rem}
 #nat-info{font-size:.75rem;color:#a0b8e0;text-align:center;padding-top:4px;border-top:1px solid #30363d}
+
+/* === stats_only モード (iframe で能力値編集だけ使う時、他 UI を全部非表示) === */
+body.stats-only-mode > *:not(#ev-ov):not(#hover-tip):not(#waza-tip):not(#nat-ov) { display: none !important; }
+body.stats-only-mode { background: transparent; padding: 0; }
+body.stats-only-mode #ev-ov { background: rgba(0,0,0,0.5); display: flex !important; }
+body.stats-only-mode #ev-ov.vis { display: flex !important; }
 </style>
 <style>
 /* ===== 入室時ポップアップ広告 (楽天) ===== */
@@ -775,7 +781,7 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 <div id="item-modal-ov">
   <div id="item-modal-box">
     <div id="item-modal-head">
-      <h3 id="item-modal-title">持ち物を選択</h3>
+      <h3 id="item-modal-title" data-i18n="checker.item_select_modal_title">持ち物を選択</h3>
       <button id="item-modal-close-x" aria-label="閉じる" title="閉じる" onclick="closeItemModal()">×</button>
     </div>
     <div id="item-modal-list"></div>
@@ -785,9 +791,13 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 <!-- グローバル説明ツールチップ -->
 <div id="hover-tip"></div>
 
-<!-- ポケモン別 わざ選択モーダル (わざリスト風) -->
+<!-- ポケモン別 わざ選択モーダル (waza-list.html を iframe で埋め込み) -->
 <div id="pf-ov">
   <div id="pf-box">
+    <!-- iframe 版: 共通モジュール経由 (mode=multi) -->
+    <iframe id="pf-iframe" src="about:blank" style="width:100%;height:100%;border:none;border-radius:6px;background:#fff;display:none"></iframe>
+    <!-- 旧 DOM (iframe 移行で未使用、削除前提だが一旦残置) -->
+    <div id="pf-box-legacy" style="display:none;width:100%;height:100%;flex-direction:column;gap:6px">
     <div id="pf-title-row">
       <div id="pf-title" data-i18n="checker.select_move">技を選択</div>
       <button id="pf-ef-toggle-btn" type="button" onclick="togglePfEffectFilter()" data-i18n="checker.effect_filter_toggle">🔍 効果フィルター ▲</button>
@@ -812,6 +822,8 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
         <button id="pf-done" data-i18n="buttons.apply">確定</button>
       </div>
     </div>
+    </div>
+    <!-- /#pf-box-legacy -->
   </div>
 </div>
 
@@ -831,12 +843,12 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 <div id="ev-ov">
   <div id="ev-box">
     <div id="ev-head">
-      <span id="ev-pokemon-name">ポケモン</span>
+      <span id="ev-pokemon-name" data-i18n="checker.pokemon_placeholder">ポケモン</span>
     </div>
     <div id="ev-subhead">
       <div id="ev-nature-pick">
         <div class="nat-dd" id="ev-nature-dd">
-          <button type="button" class="nat-dd-trigger" id="ev-nature-trigger">まじめ</button>
+          <button type="button" class="nat-dd-trigger" id="ev-nature-trigger" data-i18n="checker.default_nature">まじめ</button>
           <div class="nat-dd-panel" id="ev-nature-panel"></div>
         </div>
         <span id="ev-nature-effect"></span>
@@ -848,7 +860,7 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
     </div>
     <div id="ev-body">
       <div id="ev-rows"></div>
-      <div id="ev-help"><b style="color:#ffd750">黄色いライン</b> = 性格補正で通常より実数値が 1 ポイント多く上がる</div>
+      <div id="ev-help" data-i18n-html="checker.nature_help"><b style="color:#ffd750">黄色いライン</b> = 性格補正で通常より実数値が 1 ポイント多く上がる</div>
     </div>
     <div id="ev-actions">
       <button id="ev-cancel" data-i18n="buttons.cancel">キャンセル</button>
@@ -2086,7 +2098,7 @@ function renderTable() {
 
   // 性格選択行 (合計の下・特性の上) — クリックでグリッドポップアップを開く
   rows.push(`<tr>
-    <td class="row-label">性格</td>
+    <td class="row-label" data-i18n="checker.row_nature">性格</td>
     ${party.map((name, slotIdx) => {
       const p = name && POKE_MAP[name];
       if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
@@ -2098,7 +2110,7 @@ function renderTable() {
 
   // 特性
   rows.push(`<tr>
-    <td class="row-label">特性</td>
+    <td class="row-label" data-i18n="checker.row_ability">特性</td>
     ${party.map((name, slotIdx) => {
       const p = name && POKE_MAP[name];
       if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
@@ -2114,7 +2126,7 @@ function renderTable() {
 
   // タイプ相性 — 弱点 (×4, ×2)
   rows.push(`<tr>
-    <td class="row-label" style="white-space:normal;font-size:.68rem">弱点</td>
+    <td class="row-label" style="white-space:normal;font-size:.68rem" data-i18n="checker.row_weak">弱点</td>
     ${party.map((name, slotIdx) => {
       const p = name && POKE_MAP[name];
       if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
@@ -2123,7 +2135,7 @@ function renderTable() {
   </tr>`);
   // タイプ相性 — 耐性 (½, ¼, ×0)
   rows.push(`<tr>
-    <td class="row-label" style="white-space:normal;font-size:.68rem">耐性</td>
+    <td class="row-label" style="white-space:normal;font-size:.68rem" data-i18n="checker.row_resist">耐性</td>
     ${party.map((name, slotIdx) => {
       const p = name && POKE_MAP[name];
       if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
@@ -2133,7 +2145,7 @@ function renderTable() {
 
   // 手持ち (ポケモン名)
   rows.push(`<tr>
-    <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem">手持ち</td>
+    <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem" data-i18n="checker.row_team">手持ち</td>
     ${party.map((name, slotIdx) => {
       if (!name) return `<td class="poke-name-cell empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})" style="cursor:pointer">スロット${slotIdx+1}<br><span style="font-size:.73rem">＋ 選択</span></td>`;
       const p = POKE_MAP[name];
@@ -2149,7 +2161,7 @@ function renderTable() {
 
   // 持ち物 (スロット毎にクリックでモーダル)
   rows.push(`<tr>
-    <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem">持ち物</td>
+    <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem" data-i18n="checker.row_item">持ち物</td>
     ${party.map((name, slotIdx) => {
       if (!name) return `<td class="item-cell empty-slot-cell"></td>`;
       const cur = partyItems[slotIdx] || "";
@@ -2410,32 +2422,33 @@ function renderFilterBar(prefix, fs, onChange) {
   </div>`;
 }
 
-// ── ポケモン別わざフィルタモーダル ─────────────────────────────────────────────
+// ── ポケモン別わざフィルタモーダル (iframe で共通モジュール呼び出し) ───────────
 function openPokemonFilter(slotIdx, type) {
   pfSlot = slotIdx;
   pfPoke = party[slotIdx];
   pfType = type || null;
-  pfLastType = type || null;  // 新ポケモン開くたびリセット (旧ポケモンのタイプは無効)
+  pfLastType = type || null;
   if (!pfPoke) return;
-  // 該当スロット×該当タイプの選択をロード
-  // type 指定無しの場合は全タイプの選択を結合
+  // 既存選択をフラット配列に
   const slotData = slotFilters[slotIdx] || {};
-  if (pfType) {
-    pfTempSel = new Set(slotData[pfType] || []);
-  } else {
-    const allKeys = [];
-    Object.values(slotData).forEach(arr => { if (Array.isArray(arr)) arr.forEach(k => allKeys.push(k)); });
-    pfTempSel = new Set(allKeys);
+  const allKeys = [];
+  Object.values(slotData).forEach(arr => { if (Array.isArray(arr)) arr.forEach(k => { if (!allKeys.includes(k)) allKeys.push(k); }); });
+  // iframe URL 組み立て
+  const params = new URLSearchParams();
+  params.set('mode', 'multi');
+  params.set('pokemon', pfPoke);
+  params.set('lock', '1');
+  params.set('slot', String(slotIdx + 1));
+  if (allKeys.length) params.set('initial', allKeys.join(','));
+  const url = 'waza-list.html?' + params.toString();
+  const iframe = document.getElementById('pf-iframe');
+  const legacy = document.getElementById('pf-box-legacy');
+  if (iframe) {
+    iframe.style.display = 'block';
+    iframe.src = url;
   }
-  updatePfTitle();
-  document.getElementById("pf-search").value = "";
+  if (legacy) legacy.style.display = 'none';
   document.getElementById("pf-ov").classList.add("vis");
-  renderPfList("");
-  // 静的構築後にフィルタ状態をリセット (モーダル再オープンごと)
-  pfResetFilterState();
-  buildPfTypeButtons();
-  updatePfTypeToggle();
-  pfRender();
 }
 
 function pfResetFilterState() {
@@ -2464,7 +2477,29 @@ function updatePfTitle() {
   document.getElementById("pf-title").innerHTML =
     `【スロット${pfSlot+1} ${pfPoke}】 技を選択 <span style="font-size:.8rem;color:#79c0ff">${typeMsg}</span>`;
 }
-function closePokemonFilter() { document.getElementById("pf-ov").classList.remove("vis"); }
+function closePokemonFilter() {
+  document.getElementById("pf-ov").classList.remove("vis");
+  // iframe を解放 (メモリ + 次回 src 設定で確実に再ロードされるように)
+  const iframe = document.getElementById('pf-iframe');
+  if (iframe) { iframe.src = 'about:blank'; iframe.style.display = 'none'; }
+}
+
+// === iframe (waza-list mode=multi) からの postMessage を受信 ===
+window.addEventListener('message', (e) => {
+  const d = e.data || {};
+  if (d.type === 'waza-picker:confirm') {
+    // 選択された技 key を pfSlot に反映
+    // 既存の slotFilters は「タイプ別」だが、iframe では「全タイプ統合」で扱うので '_all' キーに保存
+    if (pfSlot != null) {
+      slotFilters[pfSlot] = { _all: d.keys || [] };
+      if (typeof saveSlotFilters === 'function') saveSlotFilters();
+      if (typeof renderTable === 'function') renderTable();
+    }
+    closePokemonFilter();
+  } else if (d.type === 'waza-picker:cancel') {
+    closePokemonFilter();
+  }
+});
 
 // ── タイプフィルタ切替 (トグル + タイプ別ボタン) ─────────────────────────────
 function togglePfTypeMode() {
@@ -2683,32 +2718,32 @@ function buildPfTableHead() {
   document.querySelector('#pf-table thead').innerHTML = `
     <tr class="head-row">
       <th class="col-chk" title="選択">☑</th>
-      <th class="col-name" data-pfsort="name">わざ名</th>
-      <th class="col-type" data-pfsort="type">タイプ</th>
-      <th class="col-class" data-pfsort="category">分類</th>
-      <th class="col-power" data-pfsort="power">威力</th>
-      <th class="col-acc" data-pfsort="accuracy">命中</th>
+      <th class="col-name" data-pfsort="name" data-i18n="checker.col_move_name">わざ名</th>
+      <th class="col-type" data-pfsort="type" data-i18n="checker.col_move_type">タイプ</th>
+      <th class="col-class" data-pfsort="category" data-i18n="checker.col_move_class">分類</th>
+      <th class="col-power" data-pfsort="power" data-i18n="checker.col_move_power">威力</th>
+      <th class="col-acc" data-pfsort="accuracy" data-i18n="checker.col_move_acc">命中</th>
       <th class="col-pp" data-pfsort="pp">PP</th>
-      <th class="col-prob" data-pfsort="prob">確率</th>
-      <th class="col-prio" data-pfsort="priority">優先</th>
-      <th class="col-target" data-pfsort="target">対象</th>
-      <th class="col-contact" data-pfsort="contact">接触</th>
-      <th class="col-guard" data-pfsort="protect">守貫</th>
-      <th class="col-effect">効果</th>
+      <th class="col-prob" data-pfsort="prob" data-i18n="checker.col_move_prob">確率</th>
+      <th class="col-prio" data-pfsort="priority" data-i18n="checker.col_move_prio">優先</th>
+      <th class="col-target" data-pfsort="target" data-i18n="checker.col_move_target">対象</th>
+      <th class="col-contact" data-pfsort="contact" data-i18n="checker.col_move_contact">接触</th>
+      <th class="col-guard" data-pfsort="protect" data-i18n="checker.col_move_guard">守貫</th>
+      <th class="col-effect" data-i18n="checker.col_move_effect">効果</th>
     </tr>
     <tr class="filter-row">
       <th></th>
       <th></th>
       <th>
         <div class="ms-wrap" id="pf-f-type-wrap">
-          <button type="button" class="ms-btn" id="pf-f-type-btn" onclick="togglePfTypeDropdown(event)">全タイプ ▾</button>
+          <button type="button" class="ms-btn" id="pf-f-type-btn" onclick="togglePfTypeDropdown(event)" data-i18n="checker.all_types">全タイプ ▾</button>
           <div class="ms-dd" id="pf-f-type-dd"></div>
         </div>
       </th>
       <th><div class="pf-class-btns" id="pf-f-class-btns">
-        <button type="button" class="phys" data-class="物理" onclick="togglePfClass('物理')">物</button>
-        <button type="button" class="spec" data-class="特殊" onclick="togglePfClass('特殊')">特</button>
-        <button type="button" class="stat" data-class="変化" onclick="togglePfClass('変化')">変</button>
+        <button type="button" class="phys" data-class="物理" onclick="togglePfClass('物理')" data-i18n="checker.cls_phys">物</button>
+        <button type="button" class="spec" data-class="特殊" onclick="togglePfClass('特殊')" data-i18n="checker.cls_spec">特</button>
+        <button type="button" class="stat" data-class="変化" onclick="togglePfClass('変化')" data-i18n="checker.cls_stat">変</button>
       </div></th>
       <th><input type="number" id="pf-f-power" placeholder="≥" min="0"></th>
       <th><input type="number" id="pf-f-acc" placeholder="≥" min="0" max="100"></th>
@@ -3067,6 +3102,61 @@ document.querySelectorAll(".sv-btn").forEach(btn => {
 loadPcTabs();
 renderPcTabs();
 renderTable();
+
+// === stats_only モード (battle_simulator など外部から iframe で開かれる時) ===
+// URL クエリ:
+//   stats_only=true   このモード起動
+//   poke=<name>       ポケモン名 (POKE_MAP のキー)
+//   effort=hp:0,atk:32,...  初期努力値
+//   nature=ひかえめ   初期性格
+//   slot=1            スロット番号 (postMessage で返す)
+(function setupStatsOnlyMode() {
+  const q = new URLSearchParams(location.search);
+  if (q.get('stats_only') !== 'true') return;
+  document.body.classList.add('stats-only-mode');
+
+  const pokeName = q.get('poke');
+  if (!pokeName || typeof POKE_MAP === 'undefined' || !POKE_MAP[pokeName]) {
+    document.body.innerHTML = '<div style="padding:30px;color:#fff;font-family:sans-serif">ポケモンが見つかりません: ' + (pokeName || '(未指定)') + '</div>';
+    return;
+  }
+
+  // 仮想スロット 0 にデータをセット
+  party[0] = pokeName;
+  const eff = { hp:0, atk:0, def:0, spatk:0, spdef:0, spd:0 };
+  (q.get('effort') || '').split(',').forEach(pair => {
+    const [k, v] = pair.split(':');
+    if (k && eff.hasOwnProperty(k.trim())) eff[k.trim()] = parseInt(v, 10) || 0;
+  });
+  partyEvs[0] = eff;
+  partyNatures[0] = q.get('nature') || 'まじめ';
+
+  // ポップアップを開く
+  openStatPopup(0);
+
+  // OK/Cancel ハンドラを差し替え (元のハンドラは partyEvs/renderTable を呼ぶので不要)
+  const okBtn = document.getElementById('ev-ok');
+  const cancelBtn = document.getElementById('ev-cancel');
+  const slotNo = q.get('slot') || '';
+  const newOk = okBtn.cloneNode(true);
+  okBtn.parentNode.replaceChild(newOk, okBtn);
+  newOk.addEventListener('click', () => {
+    const payload = {
+      type: 'stats-picker:confirm',
+      slot: slotNo,
+      poke: pokeName,
+      effort: { ..._evTemp },
+      nature: _evTempNature,
+    };
+    if (window.parent && window.parent !== window) window.parent.postMessage(payload, '*');
+    else { console.log('[stats-picker confirm]', payload); alert(JSON.stringify(payload)); }
+  });
+  const newCancel = cancelBtn.cloneNode(true);
+  cancelBtn.parentNode.replaceChild(newCancel, cancelBtn);
+  newCancel.addEventListener('click', () => {
+    if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'stats-picker:cancel' }, '*');
+  });
+})();
 </script>
 
 <!--
