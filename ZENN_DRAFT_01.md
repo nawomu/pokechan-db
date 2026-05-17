@@ -26,6 +26,13 @@
 - 個人開発で SEO まで意識したい方
 - 素のHTML/JSで動的なテーブルアプリを作ってみたい方
 
+:::message
+**ストーリー寄りの内容(なぜ作ったか、Sora 終了から Claude にたどり着いた経緯など)** は、note にも書いています。あわせてどうぞ:
+[プログラム1行も書かずに、Claude AIとポケモン対戦DBを1ヶ月で公開した話 - note](https://note.com/pchamdb/n/n7dc3db04f750)
+
+本記事は note 版より **技術寄り** (フロントエンド構成、ハマった点、解決方法) に振り切った内容です。
+:::
+
 ---
 
 ## 技術スタック
@@ -38,7 +45,7 @@
 | ホスティング | GitHub Pages + Cloudflare (独自ドメイン) |
 | 開発支援 | Claude Code (CLI版) |
 | データ取得 | PokeAPI (多言語化用) |
-| 解析 | Cloudflare Web Analytics (Google Analytics 4 は導入予定) |
+| 解析 | Cloudflare Web Analytics + Google Analytics 4 (GA4) |
 | 収益 | 楽天アフィリエイト + Amazon Associates (申請中) + Google AdSense (申請中) |
 
 **ビルドツールなし、npm install なし、package.json なし。** ファイルを開いて編集して保存するだけ。GitHub に push したら反映される。これが意外と快適でした。
@@ -214,6 +221,7 @@ PchamDB は公開中で、9言語対応（PokeAPI 連携）も最近実装完了
 
 - 🔗 サイト: https://pchamdb.com
 - 🔗 制作の裏側: https://pchamdb.com/making.html
+- 🔗 note 連載: [プログラム1行も書かずに、Claude AIとポケモン対戦DBを1ヶ月で公開した話](https://note.com/pchamdb/n/n7dc3db04f750)(ストーリー寄り)
 
 ご意見・指摘などあればぜひ。次回は **「Claude Code で多言語化と PokeAPI 連携をした話」** を書く予定です。
 
