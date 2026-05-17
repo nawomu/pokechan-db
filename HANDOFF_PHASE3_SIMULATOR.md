@@ -243,12 +243,14 @@ party_checker と完全に同じ式をシミュレータでも使うこと。
 
 | 優先 | 機能 | 工数 | ソース | 状態 |
 |---|---|---|---|---|
-| 1 | **持ち物プルダウン** — こだわり鉢巻 6144 / メガネ 6144 / おび 4915 / たま 5324 / 半減きのみ 2048 | 1日 | vgc-c | 📦 **データ準備完了** → `HANDOFF_C5_ITEM_INTEGRATION.md` 参照 |
-| 2 | **防御特性** — フィルター 3072 / ハードロック 3072 / マルチスケイル 2048 / ファーコート 2048 | 半日 | vgc-c | |
+| 1 | **持ち物プルダウン** | — | vgc-c | ✅ **主要部完了 (2026-05-17〜18)**: UI骨組み + items_database.js 99件版 + type_boost / berry_resist / でんきだま / **focus_sash** が calcDamage 統合済。Track B-2/B-3 (きのみターン終了処理) は別 HANDOFF: `HANDOFF_PHASE3_C5_TURNEND.md` (起草中) |
+| 2 | **防御特性** — フィルター 3072 / ハードロック 3072 / マルチスケイル 2048 / ファーコート 2048 | 半日 | vgc-c | マルチスケイル / ファーコート は実装済 (battle_simulator line 1083-1090)、残 2 種要追加 |
 | 3 | **HP 残量入力** — ゴツメ/たま/ステロ連動の確定数精度↑ | 小 | pokesol | |
 | 4 | **0c 変化技効果** — 能力変動 self_atk_up_1 等の即時適用 | 1日 | tag DB | |
-| 5 | **Init-B メガ進化** | 中 | tag DB | ⚠️ **メガ石60種実装済が判明** (旧前提「メガ無し」訂正) |
-| 6 | **10b〜10h ターン終了処理** — バインド/天候カウンタ/壁/ルーム/recharge/lock | 大 | tag DB | |
+| 5 | **Init-B メガ進化** | 中→大 | tag DB | 🟡 **別 HANDOFF 化済**: `HANDOFF_PHASE3_INIT_B.md` (起草、Step 1-5 + B-1~B-5 フェーズ分割) |
+| 6 | **10b〜10h ターン終了処理** — バインド/天候カウンタ/壁/ルーム/recharge/lock | 大 | tag DB | C5 の Track B-2/B-3 と統合検討 |
 | 7 | **4技×3耐久マトリクス** (選出会議用) | 中 | pamo3 | |
 
-**#1 持ち物プルダウン**: `_review/items_database.json` (73件・Q12付き) と `HANDOFF_C5_ITEM_INTEGRATION.md` (実装フロー詳述) を渡してある。次セッションは `HANDOFF_C5_ITEM_INTEGRATION.md` から読み始めるのがおすすめ。
+**進捗 (2026-05-18 03:00 JST 時点)**:
+- **#1 持ち物プルダウン**: 主要部完了。残: タスキ以外の survival 3 件は実装余地なし、berry_status_cure/hp_cure/hp_drain はターン終了処理が必要 (別 HANDOFF へ)
+- **#5 Init-B メガ進化**: 別 HANDOFF 化完了 (`HANDOFF_PHASE3_INIT_B.md`)。あべ判断後に B-1 着手予定
