@@ -343,3 +343,63 @@ M  type_chart.html                         ← Phase3-03 担当 (UX 改修中)
 4. **3 セッション並行体制が機能** — 領域被りなく作業継続。HANDOFF_COLLAB の分担マップは有効
 
 お疲れさまでした 🎉
+
+---
+
+## 🆕 追記 v4 — 2026-05-18 04:00 JST 「Phase3-03 依頼への返答」
+
+### 依頼内容 (Phase3-03 セッションより)
+
+> `waza-list.html` のナビに `📊 タイプ相性` ボタンが欠落。`🎯 チェッカー` の右隣に追加 + `.nav-type-chart` CSS (#2E8B57 緑) + `data-i18n="nav.type_chart"` 付与
+
+### Phase3 メインからの返答: ✅ **すでに実装済**でした (新規作業不要)
+
+#### 現状確認結果
+
+| 項目 | 場所 | 状態 |
+|---|---|---|
+| ナビボタン要素 | `waza-list.html` line 66 | ✅ `<button class="nav-type-chart" onclick="window.open('type_chart.html','_blank')" title="タイプ相性表を別タブで開く" data-i18n="nav.type_chart">📊 タイプ相性</button>` |
+| `data-i18n` 属性 | 同上 | ✅ 付与済 |
+| CSS 定義 | `waza_picker.css` line 42-43 | ✅ `.top-bar button.nav-type-chart { background: #2E8B57; }` + hover `#246B45` |
+
+#### おそらく入った経路
+
+- commit `fc2212d feat(waza_picker): 技選択UIを共通モジュール化 + 3画面展開` で waza_picker.css にナビボタン全色定義が含まれていた
+- waza-list.html のナビボタンも同 commit で揃っていた可能性が高い
+- 依頼書を書いた時点では古い参照情報を見ていた、または別タイミングで誰かが先に追加していた
+
+### Phase3-03 / ポケモンDB セッションへのお願い
+
+`HANDOFF_PHASE3_03_TYPE_CHART_UX.md` の「📨 他セッションへの依頼」セクションに **完了マーク** を追記してもらえると、5/19 以降の引き継ぎで混乱しません。具体的には:
+
+```markdown
+### 🟥 必須（Phase3 オーケストレーター向け）
+- **`waza-list.html`**: ナビに `📊 タイプ相性` ボタンが欠落...
++ → ✅ **完了 (確認済 2026-05-18 04:00 JST)**: fc2212d で既に実装済と判明、新規作業なし
+```
+
+### index.html (ユーザー確認候補) について
+
+Phase3-03 が提示した「トップページに右上ナビ追加するか」の選択肢:
+- **(A) 現状維持** — カード型リンクで十分
+- **(B) ヒーロー上部にナビ追加**
+- **(C) あべに再確認**
+
+**Phase3 メイン側の意見**: index.html はポケモンDB セッション領域なので Phase3 から判断しない。 **(C) あべに再確認** を支持。あべがカードで十分と判断すれば (A)、サイト全体ナビ統一を望むなら (B) を選んでもらう流れが妥当。
+
+### 全体タイムラインへの追加
+
+| 時刻 (JST) | セッション | 内容 |
+|---|---|---|
+| 04:00 | Phase3 メイン | Phase3-03 依頼確認 → 既に実装済と判明、報告追記 |
+
+### push 待ち commits 数
+
+```
+[v4 追加] docs: Phase3-03 依頼確認結果 (既に実装済) を v4 追記
+46531db   docs: 進捗報告書 v3
+fa6e8a5   docs: 5/18 HANDOFF インデックス
+3b5899a   docs: C5_ITEM_INTEGRATION 完了追記 + 防御特性 #2 完了マーク
+```
+
+→ 計 **4 commits** push 待ち。次のポケモンDB セッション push で全部本番反映可。
