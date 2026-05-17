@@ -265,6 +265,44 @@ JSON の `todo` フィールドにも記載:
 - [ ] battle_simulator.html の既存 `data-flag="lifeOrb"` 等 (~520行) との関係を確認
 
 完了時:
-- [ ] このHANDOFFの末尾に ✅完了マーク追記
-- [ ] `project_battle_simulator_status.md` を更新
-- [ ] HANDOFF_PHASE3_SIMULATOR.md の「次フェーズ候補」表を更新 (#1完了マーク)
+- [x] このHANDOFFの末尾に ✅完了マーク追記 (2026-05-18)
+- [ ] `project_battle_simulator_status.md` を更新 (memory、別タスク)
+- [x] HANDOFF_PHASE3_SIMULATOR.md の「次フェーズ候補」表を更新 (#1完了マーク, 2026-05-18)
+
+---
+
+## ✅ 主要部完了報告 (2026-05-18 追記)
+
+### 実装済の calcDamage 倍率処理 (持ち物経由)
+
+| 持ち物 / 系統 | 実装場所 (battle_simulator.html) | 倍率 / 効果 |
+|---|---|---|
+| `type_boost` (もくたん等 18 件) | line 1092-1096 | ×1.2 (Q12=4915) タイプ一致時 |
+| `light_ball` (でんきだま) | line 1099-1102 | ×2.0 (Q12=8192) ピカチュウ専用 |
+| `berry_resist` (オッカのみ等 18 件) | line 1144-1150 | ×0.5 (Q12=2048) ばつぐん時のみ |
+| `focus_sash` (きあいのタスキ) | line 1166-1178 (2026-05-18 追加) | HP満タン+致命傷で HP1 残し |
+| 既存 `data-flag="lifeOrb"` | line 1137-1140 | ×1.3 (Q12=5324) 旧 UI、items 側は未実装フラグ |
+| 既存 `data-flag="rockyHelmet"` | line 1168 | 接触反動 HP/6 旧 UI |
+
+### 実装余地なし (HANDOFF 元前提が楽観的すぎた)
+
+| 持ち物 | 理由 |
+|---|---|
+| ピントレンズ | 急所率+1 = 確率、シミュレータは bool 選択 |
+| ひかりのこな | 命中率 ×0.9 = damage 計算外 |
+| こだわりスカーフ | 素早さ ×1.5 = 別関数 |
+| せんせいのつめ | 優先度判定 = シミュレータ範囲外 |
+| きあいのハチマキ | 確率 10% = 確定数判定と相性悪い |
+| しろいハーブ | ランク下降復活 = 状態遷移ロジックなし |
+| メンタルハーブ | アンコール等回復 = 該当ステータスなし |
+
+### 別 HANDOFF へ移行した残課題
+
+- **`HANDOFF_PHASE3_C5_TURNEND.md`** — berry_status_cure (7) / berry_hp_cure (3) / hp_drain (2) のターン終了処理 (案 A/B/C 比較、推奨は C 注釈のみ)
+- **`HANDOFF_PHASE3_INIT_B.md`** — メガストーン 41 種統合 (B-1〜B-5、5〜7 時間)
+- **`HANDOFF_PHASE3_C5_TEST_SCENARIOS.md`** — 既存実装の動作確認シナリオ集
+
+### items_database.js のステータス
+
+- 99 件版に更新済 (`6281723`)。`_review/items_database.json` 114 件版から `implemented_in_pokechan: true` を抽出、`mega_stone_marker` を除外
+- カテゴリ別: mega_stone 41 / type_boost 18 / berry_resist 18 / berry_status_cure 7 / survival 4 / berry_hp_cure 3 / speed_boost 2 / hp_drain 2 / attack_boost 2 / misc 1 / defense_boost 1
