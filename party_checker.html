@@ -487,11 +487,16 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 .ev-row.selected{background:#3a4a7a;border-color:#ffd633;box-shadow:0 0 0 1px rgba(255,214,51,.3)}
 .ev-row-icon{font-size:1.1rem;text-align:center;line-height:1}
 .ev-row-label{font-size:.85rem;color:#e6edf3;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.ev-row-letter{display:inline-block;min-width:1.1em;text-align:center;font-size:1.05em;font-weight:bold}
+.ev-row-jp{font-size:.78em;color:#8b949e;font-weight:normal}
+.ev-row.nat-up .ev-row-jp,.ev-row.nat-down .ev-row-jp{color:inherit;opacity:.85}
 /* 性格補正に応じてラベル自体を着色 (矢印は使わない) */
 .ev-row.nat-up .ev-row-label{color:#ff5c5c;font-weight:bold}
 .ev-row.nat-down .ev-row-label{color:#5cb0ff;font-weight:bold}
 .ev-row-actual{font-weight:bold;font-size:1.05rem;text-align:right;color:#e6edf3;font-variant-numeric:tabular-nums}
-/* 実数値の色は性格・pt 状況によらず常に固定 (要望) */
+/* 努力値振りで実数値を色分け: MAX→ピンク / 1以上→黄 */
+.ev-row.has-pts .ev-row-actual{color:#ffe066}
+.ev-row.max-pts .ev-row-actual{color:#ff7b9d}
 /* バー: 32分割表示 */
 .ev-row-bar{height:22px;background:#0d1117;border-radius:4px;overflow:hidden;position:relative;border:1px solid #4a5a90;cursor:pointer;touch-action:none;user-select:none}
 .ev-row-bar:hover{border-color:#79c0ff}
@@ -1173,7 +1178,7 @@ function _evRefresh() {
     const canInc = pts < maxHere;
     const canDec = pts > 0;
     return `<div class="${cls}" data-k="${k}">
-      <span class="ev-row-label">${EV_STAT_LABEL[k]}</span>
+      <span class="ev-row-label"><b class="ev-row-letter">${EV_STAT_LETTER[k]}</b> <span class="ev-row-jp">${EV_STAT_LABEL[k]}</span></span>
       <span class="ev-row-actual">${actual ?? '—'}</span>
       <button class="ev-row-min" data-k="${k}" ${canDec?'':'disabled'} title="ミニマム (0)">MIN</button>
       <button class="ev-row-dec" data-k="${k}" ${canDec?'':'disabled'} title="-1">◀</button>
@@ -2086,7 +2091,7 @@ function renderTable() {
       const p = name && POKE_MAP[name];
       if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
       return `<td style="text-align:center;padding:2px 3px" ${dragAttrs(slotIdx)}>
-        <span class="nature-cell" onclick="openNaturePicker(${slotIdx})" title="クリックして性格を選ぶ">${partyNatures[slotIdx]}</span>
+        <span class="nature-cell" onclick="openStatPopup(${slotIdx})" title="クリックして性格・能力Pを編集">${partyNatures[slotIdx]}</span>
       </td>`;
     }).join("")}
   </tr>`);
