@@ -201,7 +201,6 @@ body {
 }
 .btn:hover { background: rgba(255,255,255,0.25); }
 .btn-reset { background: rgba(220,80,80,0.3); }
-.btn-copy { background: rgba(100,180,100,0.3); }
 .btn-compat {
   background: rgba(150,80,220,0.3);
   border-color: rgba(180,120,255,0.5);
@@ -1146,7 +1145,6 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
     <button class="btn-reset-s" onclick="resetChecks(1)" title="C2のチェックを全クリア">C2</button>
     <button class="btn-reset-s" onclick="resetChecks(2)" title="C3のチェックを全クリア">C3</button>
   </div>
-  <button class="btn btn-copy" onclick="copyVisible()">📋 コピー</button>
   <div class="tb-sep"></div>
   <!-- ズームバー -->
   <div class="main-zoom-group">
@@ -3102,14 +3100,12 @@ function buildCompatResult(team, ci) {
       <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
       <button class="btn btn-reset" id="compat-reset">🔄 リセット</button>
     </div>
-    <div class="compat-label" style="display:flex;align-items:center;gap:8px">
+    <div class="compat-label">
       <span>▶ チームポケモン（${team.length}体）</span>
-      <button class="btn btn-copy" style="padding:2px 8px;font-size:10px" onclick="copyCompatTeam(this)">📋 チームコピー</button>
     </div>
     <div class="compat-tbl-wrap"><table id="compat-team-tbl"></table></div>
-    <div class="compat-label" id="compat-cand-label" style="margin-top:8px;display:flex;align-items:center;gap:8px">
+    <div class="compat-label" id="compat-cand-label" style="margin-top:8px">
       <span>▶ 補完候補（${compatCandidates.length}件 / Top50）</span>
-      <button class="btn btn-copy" style="padding:2px 8px;font-size:10px" onclick="copyCompatCand(this)">📋 候補コピー</button>
     </div>
     <div class="compat-tbl-wrap"><table id="compat-cand-tbl"></table></div>
   `;
@@ -3459,46 +3455,6 @@ function resetAllFilters() {
   // checksは触らない（各ポケモンのチェック値は保持される）
   applyF();
 }
-
-// td内容を正しく取得（selectは.valueを取得）
-function getCellText(td) {
-  const sel = td.querySelector('select');
-  if (sel) return sel.value || '';
-  const inp = td.querySelector('input');
-  if (inp) return inp.value || '';
-  return td.textContent.trim();
-}
-
-function copyTable(tblId, btnEl) {
-  const tbl = document.getElementById(tblId);
-  if (!tbl) return;
-  const rows = tbl.querySelectorAll('tbody tr');
-  const data = [];
-  // ヘッダー
-  const headers = [...tbl.querySelectorAll('thead th:not(.col-hidden)')].map(th => {
-    return (th.querySelector('.hdr2-bot')?.textContent.replace(/[▲▼]/g, '').trim()) || th.textContent.trim();
-  });
-  data.push(headers.join('\t'));
-  rows.forEach(tr => {
-    const cells = [...tr.querySelectorAll('td:not(.col-hidden)')].map(td => getCellText(td));
-    data.push(cells.join('\t'));
-  });
-  navigator.clipboard.writeText(data.join('\n')).then(() => {
-    if (btnEl) {
-      const orig = btnEl.textContent;
-      btnEl.textContent = '✓ コピー済み';
-      setTimeout(() => btnEl.textContent = orig, 1500);
-    }
-  });
-}
-
-function copyVisible() {
-  const btn = document.querySelector('.tb .btn-copy');
-  copyTable('main-tbl', btn);
-}
-
-function copyCompatTeam(btnEl) { copyTable('compat-team-tbl', btnEl); }
-function copyCompatCand(btnEl) { copyTable('compat-cand-tbl', btnEl); }
 
 // ============================================================
 // 検索
