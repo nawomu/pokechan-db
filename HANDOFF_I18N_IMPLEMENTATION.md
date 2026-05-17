@@ -145,7 +145,7 @@ document.addEventListener('i18n:changed', () => {
 **現状** (index.html line 330-331):
 
 ```html
-<p class="cheer-text">管理人 <a href="making.html" class="pchan-link" title="制作の裏側を読む"><strong>ぴ〜ちゃん。</strong></a>みんなの対戦準備を応援しています！</p>
+<p class="cheer-text">管理人 <a href="making.html" class="pchan-link" title="制作の裏側を読む"><strong>ぴ〜ちゃん</strong></a>みんなの対戦準備を応援しています！</p>
 <p class="cheer-desc"><strong>PchamDB</strong> (ピーチャンディービー) は、ポケモンチャンピオンズの<br>対戦・パーティ構築に役立つ <strong>非公式ファンデータベース</strong> です。</p>
 ```
 
@@ -157,7 +157,7 @@ document.addEventListener('i18n:changed', () => {
 <p class="cheer-text">
   <span data-i18n="cheer.admin_label">管理人</span>
   <a href="making.html" class="pchan-link" title="制作の裏側を読む">
-    <strong data-i18n="cheer.admin_name">ぴ〜ちゃん。</strong>
+    <strong data-i18n="cheer.admin_name">ぴ〜ちゃん</strong>
   </a>
   <span data-i18n="cheer.admin_message">みんなの対戦準備を応援しています！</span>
 </p>
