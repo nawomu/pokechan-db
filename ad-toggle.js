@@ -43,6 +43,54 @@
     window.dispatchEvent(new Event('resize'));
   }
 
+  // a11y: 楽天 iframe に title 属性を動的付与 (スクリーンリーダ対応)
+  // 楽天 widget は外部スクリプトで iframe を後から DOM 挿入するため、MutationObserver で検出
+  const DEFAULT_RAKUTEN_TITLE = '広告: 楽天モーションウィジェット (PR)';
+  function rakutenTitle() {
+    return (window.I18N && window.I18N.t)
+      ? window.I18N.t('common.rakuten_widget_title', DEFAULT_RAKUTEN_TITLE)
+      : DEFAULT_RAKUTEN_TITLE;
+  }
+  function tagRakutenIframe(iframe) {
+    if (!iframe || iframe.getAttribute('data-a11y-titled') === '1') return;
+    if (!iframe.title) iframe.title = rakutenTitle();
+    iframe.setAttribute('data-a11y-titled', '1');
+  }
+  function scanRakutenIframes() {
+    const bar = $('rakuten-motion-bar');
+    if (!bar) return;
+    bar.querySelectorAll('iframe').forEach(tagRakutenIframe);
+  }
+  function initRakutenA11y() {
+    scanRakutenIframes();
+    const bar = $('rakuten-motion-bar');
+    if (!bar) return;
+    try {
+      const obs = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          for (const node of m.addedNodes) {
+            if (node.nodeType !== 1) continue;
+            if (node.tagName === 'IFRAME') {
+              tagRakutenIframe(node);
+            } else if (node.querySelectorAll) {
+              node.querySelectorAll('iframe').forEach(tagRakutenIframe);
+            }
+          }
+        }
+      });
+      obs.observe(bar, { childList: true, subtree: true });
+    } catch (e) { /* 古いブラウザ無視 */ }
+    // 言語切替時に title を更新 (新しい言語の翻訳に置き換え)
+    document.addEventListener('i18n:changed', () => {
+      const bar2 = $('rakuten-motion-bar');
+      if (!bar2) return;
+      bar2.querySelectorAll('iframe').forEach((f) => {
+        // 既に付与済の場合も title を上書き (言語切替対応)
+        if (f.getAttribute('data-a11y-titled') === '1') f.title = rakutenTitle();
+      });
+    });
+  }
+
   function init() {
     injectStyles();
 
@@ -62,6 +110,8 @@
       applyHidden(false);
       localStorage.removeItem(LS_AD_HIDDEN);
     });
+
+    initRakutenA11y();
   }
 
   if (document.readyState === 'loading') {
