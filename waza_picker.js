@@ -29,6 +29,19 @@ const WP_SLOT_NO = WP_QUERY.get('slot') || '';
 const WP_INITIAL_SELECTED = (WP_QUERY.get('initial') || '').split(',').filter(Boolean);
 let WP_SELECTED = new Set(WP_INITIAL_SELECTED);
 
+// i18n: タイプ名 3 文字短縮表記 (types-master.json の short3 を優先、未ロード時は full → slice(0,3))
+// pokemon_db_v9.html の type3() と同パターン
+function wpType3(t) {
+  if (!t) return '';
+  if (window.I18N && I18N.type) {
+    const s = I18N.type(t, 'short3');
+    if (s && s !== t) return s;
+    const tr = I18N.type(t);
+    if (tr && tr !== t) return tr.slice(0, 3);
+  }
+  return t;
+}
+
 // WAZA_MAP → WAZA_MASTER 変換 (pokemon_db_v9.html と同じアダプタ)
 const WAZA_MASTER_BUILT = (function () {
   const out = [];
@@ -702,7 +715,7 @@ function render() {
       ${chkCell}
       ${learnersHtml}
       <td class="col-name name-cell" data-key="${m.key}" onclick="showLearners('${m.key}')">${m.name}</td>
-      <td class="col-type" title="${m.type}"><span class="type-cell" style="background:${color}">${(typeof TYPE_DISPLAY !== 'undefined' && TYPE_DISPLAY[m.type]) || m.type}</span></td>
+      <td class="col-type" title="${m.type}"><span class="type-cell" style="background:${color}">${wpType3(m.type)}</span></td>
       <td class="col-class"><span class="cls-badge cls-${m.class === '物理' ? 'phys' : m.class === '特殊' ? 'spec' : 'stat'}">${m.class}</span></td>
       <td class="col-power num-cell">${m.power}</td>
       <td class="col-acc num-cell">${m.acc}</td>
@@ -1217,7 +1230,7 @@ function buildWpTypeBar() {
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'wp-type-btn';
-    btn.textContent = (typeof TYPE_DISPLAY !== 'undefined' && TYPE_DISPLAY[t]) || t;
+    btn.textContent = wpType3(t);
     btn.style.background = (typeof typeColors !== 'undefined' && typeColors[t]) || '#888';
     btn.dataset.type = t;
     btn.title = t;
