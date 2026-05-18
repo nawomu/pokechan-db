@@ -97,4 +97,4 @@ npx lighthouse@13.3.0 <URL> \
 - 参考: `HANDOFF_PHASE3_03_TYPE_CHART_LIGHTHOUSE_2026_05_18.md` (P303 既存 audit)
 - commit ルール: `HANDOFF_COMMIT_RULES_2026_05_18.md`
 
-local commit: (次行で記録)
+local commit: `f0e4c57` (push 済、本番反映済)
