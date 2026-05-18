@@ -1343,9 +1343,15 @@ function nameMatches(name, q) {
 function typeKanji(t) { return TYPE_KANJI[t] || t.slice(0,3); }
 function type3(t) {
   if (!t) return '';
-  // i18n: 言語に応じてタイプ名を翻訳→短縮形(3文字)
-  const tr = (window.I18N && I18N.type) ? I18N.type(t) : t;
-  return tr.slice(0, 3);
+  // i18n: types-master.json の short3 を優先。未ロード時は full → slice(0,3) にフォールバック
+  if (window.I18N && I18N.type) {
+    const s = I18N.type(t, 'short3');
+    if (s && s !== t) return s;
+    // master 未ロード時は full を 3 文字に切る (旧挙動)
+    const tr = I18N.type(t);
+    return tr.slice(0, 3);
+  }
+  return t.slice(0, 3);
 }
 
 function getT1(p) {
@@ -4233,10 +4239,20 @@ document.addEventListener('keydown', e => {
 <!-- i18n: 言語切替時にテーブル再描画 -->
 <script>
   document.addEventListener('i18n:changed', () => {
+    // 上部フィルター chip (絞込 / 除外) と補完検索内 chip も短縮表記を切り替えるため再描画
+    if (typeof buildTyChips === 'function') buildTyChips();
+    if (typeof buildCompatTyChips === 'function') buildCompatTyChips();
     if (typeof applyF === 'function') applyF();
   });
   document.addEventListener('i18n:ready', () => {
-    if (window.I18N && window.I18N.lang !== 'ja' && typeof applyF === 'function') applyF();
+    if (window.I18N && window.I18N.lang !== 'ja') {
+      if (typeof buildTyChips === 'function') buildTyChips();
+      if (typeof buildCompatTyChips === 'function') buildCompatTyChips();
+      if (typeof applyF === 'function') applyF();
+    } else {
+      // ja でも types-master 経由で再描画して短縮表記を反映
+      if (typeof buildTyChips === 'function') buildTyChips();
+    }
   });
 </script>
 </body>

@@ -9,7 +9,7 @@
  *   I18N.pokemon(jaName)       : ポケモン名 (日本語 → 現在言語)
  *   I18N.move(keyOrJa)         : わざ名 (ローマ字キー or 日本語名 → 現在言語)
  *   I18N.ability(jaName)       : 特性名
- *   I18N.type(jaName)          : タイプ名
+ *   I18N.type(jaName, format?) : タイプ名 (format: 'full' [既定] | 'short3')
  *   I18N.apply()               : DOMの data-i18n="key" 属性を全部翻訳
  *   I18N.onReady(callback)     : 辞書ロード完了時の callback
  *
@@ -41,6 +41,11 @@
 
   // 辞書キャッシュ: { 'ja': {pokemon, moves, abilities, types, ui}, 'en': {...} }
   const cache = {};
+  // タイプ多言語マスター (types-master.json, 言語非依存で 1 度だけロード)
+  // 構造: { types: { normal: { official_ja, en_full, full:{lang:str}, short3:{lang:str} }, ... } }
+  let typesMaster = null;
+  // ja name -> key 逆引き (例: 'ノーマル' -> 'normal')。loadTypesMaster() で構築
+  let typesJaToKey = null;
   const readyCallbacks = [];
   let currentLang = (() => {
     try {
@@ -86,7 +91,26 @@
       moves: main ? main.moves || {} : {},
       ui: ui,
     };
+    // タイプ多言語マスターは言語非依存で 1 度だけロード (lang 切替時の再フェッチ不要)
+    if (!typesMaster) await loadTypesMaster();
     return cache[lang];
+  }
+
+  async function loadTypesMaster() {
+    if (typesMaster) return typesMaster;
+    const m = await fetchJson(BASE + 'types-master.json');
+    if (!m || !m.types) {
+      typesMaster = { types: {} };
+      typesJaToKey = {};
+      return typesMaster;
+    }
+    typesMaster = m;
+    typesJaToKey = {};
+    for (const key in m.types) {
+      const e = m.types[key];
+      if (e && e.official_ja) typesJaToKey[e.official_ja] = key;
+    }
+    return typesMaster;
   }
 
   function getNested(obj, dottedKey) {
@@ -155,8 +179,27 @@
     return null;
   }
 
-  function tType(jaName) {
-    if (currentLang === 'ja' || !jaName) return jaName;
+  function tType(jaName, format) {
+    if (!jaName) return jaName;
+    format = format || 'full';
+    // types-master.json が利用可能なら、そちらを優先 (full / short3 両対応)
+    if (typesMaster && typesJaToKey) {
+      const key = typesJaToKey[jaName];
+      if (key) {
+        const entry = typesMaster.types[key];
+        if (entry) {
+          const dict = entry[format];
+          if (dict) {
+            const v = dict[currentLang];
+            if (v) return v;
+            // 該当言語に値がない場合は en にフォールバック
+            if (dict.en) return dict.en;
+          }
+        }
+      }
+    }
+    // フォールバック: 旧来の lang.json の types 参照 (full のみ)
+    if (currentLang === 'ja') return jaName;
     const d = cache[currentLang];
     if (!d) return jaName;
     return d.types[jaName] || jaName;
