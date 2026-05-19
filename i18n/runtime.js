@@ -7,7 +7,8 @@
  *   I18N.setLang(lang)         : 言語切替 (localStorage 保存 + ページリロードなしで全要素再翻訳)
  *   I18N.t(key, fallback)      : UI 文言取得 (例: I18N.t('header.search'))
  *   I18N.pokemon(jaName)       : ポケモン名 (日本語 → 現在言語)
- *   I18N.move(keyOrJa)         : わざ名 (ローマ字キー or 日本語名 → 現在言語)
+ *   I18N.move(key, jaFallback) : わざ名 (ローマ字キー + 日本語名 → 現在言語)
+ *                                 ja モード or 未登録時は jaFallback を返す
  *   I18N.ability(jaName)       : 特性名
  *   I18N.type(jaName, format?) : タイプ名 (format: 'full' [既定] | 'short3')
  *   I18N.apply()               : DOMの data-i18n="key" 属性を全部翻訳
@@ -142,22 +143,23 @@
     return d.pokemon[jaName] || jaName;
   }
 
-  function tMove(keyOrJa) {
-    if (currentLang === 'ja' || !keyOrJa) return keyOrJa;
+  function tMove(keyOrJa, jaFallback) {
+    const fallback = (jaFallback != null) ? jaFallback : keyOrJa;
+    if (currentLang === 'ja' || !keyOrJa) return fallback;
     const d = cache[currentLang];
-    if (!d) return keyOrJa;
+    if (!d) return fallback;
     const entry = d.moves[keyOrJa];
     if (entry && entry.name) return entry.name;
-    return keyOrJa;
+    return fallback;
   }
 
-  function tMoveDesc(keyOrJa) {
-    if (currentLang === 'ja' || !keyOrJa) return null;
+  function tMoveDesc(keyOrJa, jaFallback) {
+    if (currentLang === 'ja' || !keyOrJa) return (jaFallback != null) ? jaFallback : null;
     const d = cache[currentLang];
-    if (!d) return null;
+    if (!d) return (jaFallback != null) ? jaFallback : null;
     const entry = d.moves[keyOrJa];
     if (entry && entry.desc) return entry.desc;
-    return null;
+    return (jaFallback != null) ? jaFallback : null;
   }
 
   function tAbility(jaName) {

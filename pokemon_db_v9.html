@@ -1156,7 +1156,7 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
   <div class="tb-sep"></div>
   <div class="sw">
     <span class="si">🔍</span>
-    <input type="text" id="srch" placeholder="名前・とくせい検索…" oninput="onSrchInput()" onkeydown="onSrchKey(event)" autocomplete="off">
+    <input type="text" id="srch" placeholder="名前・とくせい検索…" data-i18n-attr="placeholder:db.search_placeholder" oninput="onSrchInput()" onkeydown="onSrchKey(event)" autocomplete="off">
     <button class="sw-clr" onclick="clearSrch()">✕</button>
   </div>
   <div class="tb-sep"></div>
@@ -1686,21 +1686,27 @@ function renderTabs() {
   // ブレッドクラム + バージョン
   const bc = document.createElement('div');
   bc.style.cssText = 'display:flex;align-items:center;gap:5px;flex-shrink:0;margin-right:8px;padding-right:10px;border-right:1px solid rgba(255,255,255,0.15)';
-  bc.innerHTML = '<a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:12px" title="PchamDB トップに戻る">🏠 PchamDB</a>'
+  const tipHome = _tDB('db.tip_home', 'PchamDB トップに戻る');
+  const bcDbLabel = _tDB('db.breadcrumb_db', 'ポケモンDB');
+  // BUILD_VERSION (例: 'DB: 04/19更新') の末尾「更新」を言語切替
+  const versionDisplay = BUILD_VERSION.replace(/更新$/, _tDB('db.updated_suffix', '更新'));
+  bc.innerHTML = '<a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:12px" title="' + tipHome + '">🏠 PchamDB</a>'
     + '<span style="color:#79c0ff;font-size:11px;font-weight:600;letter-spacing:0.5px;margin:0 4px">BETA</span>'
     + '<span style="color:#666;font-size:11px">›</span>'
-    + '<span style="color:#ccc;font-size:11px">ポケモンDB</span>'
-    + '<span style="color:#888;font-size:10px;margin-left:2px">' + BUILD_VERSION + '</span>';
+    + '<span style="color:#ccc;font-size:11px">' + bcDbLabel + '</span>'
+    + '<span style="color:#888;font-size:10px;margin-left:2px">' + versionDisplay + '</span>';
   bar.appendChild(bc);
 
+  // タブ名表示: 内部値は 'タブN' で固定保持し、表示時に先頭 'タブ' のみ言語切替
+  const tabLabel = _tDB('db.tab_label', 'タブ');
   tabs.forEach(tab => {
     const el = document.createElement('div');
     el.className = 'tab' + (tab.id === activeTab ? ' active' : '');
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'tab-name';
-    nameSpan.title = 'ダブルクリックで名前変更';
-    nameSpan.textContent = tab.name;
+    nameSpan.title = _tDB('db.tip_rename', 'ダブルクリックで名前変更');
+    nameSpan.textContent = tab.name.replace(/^タブ/, tabLabel);
     nameSpan.ondblclick = e => { e.stopPropagation(); renameTab(tab.id, nameSpan); };
     el.appendChild(nameSpan);
 
@@ -1720,7 +1726,7 @@ function renderTabs() {
   const addBtn = document.createElement('button');
   addBtn.className = 'tab-add';
   addBtn.textContent = '＋';
-  addBtn.title = 'タブ追加';
+  addBtn.title = _tDB('db.tip_add_tab', 'タブ追加');
   addBtn.onclick = addTab;
   bar.appendChild(addBtn);
 
@@ -1728,8 +1734,8 @@ function renderTabs() {
   // ナビゲーションボタン群 (タブバー最右端): 相手ページのテーマ色
   const pcBtn = document.createElement('button');
   pcBtn.className = 'tab-waza-btn nav-checker';
-  pcBtn.textContent = '🎯 チェッカー';
-  pcBtn.title = '手持ちわざチェッカーを別タブで開く';
+  pcBtn.textContent = '🎯 ' + _tDB('db.nav_checker', 'チェッカー');
+  pcBtn.title = _tDB('db.nav_checker_tip', '手持ちわざチェッカーを別タブで開く');
   pcBtn.onclick = (e) => { e.stopPropagation(); window.open('party_checker.html', '_blank'); };
   pcBtn.style.marginLeft = 'auto';
   pcBtn.style.marginRight = '6px';
@@ -1737,15 +1743,15 @@ function renderTabs() {
 
   const wazaBtn = document.createElement('button');
   wazaBtn.className = 'tab-waza-btn nav-waza';
-  wazaBtn.textContent = '📋 わざリスト';
-  wazaBtn.title = '別タブでわざリストを開く';
+  wazaBtn.textContent = '📋 ' + _tDB('db.nav_waza', 'わざリスト');
+  wazaBtn.title = _tDB('db.nav_waza_tip', '別タブでわざリストを開く');
   wazaBtn.onclick = (e) => { e.stopPropagation(); openWazaList(); };
   bar.appendChild(wazaBtn);
 
   const tcBtn = document.createElement('button');
   tcBtn.className = 'tab-waza-btn nav-type-chart';
-  tcBtn.textContent = '📊 タイプ相性';
-  tcBtn.title = '別タブでタイプ相性表を開く';
+  tcBtn.textContent = '📊 ' + _tDB('db.nav_type_chart', 'タイプ相性');
+  tcBtn.title = _tDB('db.nav_type_chart_tip', '別タブでタイプ相性表を開く');
   tcBtn.onclick = (e) => { e.stopPropagation(); window.open('type_chart.html', '_blank'); };
   bar.appendChild(tcBtn);
 
@@ -1982,7 +1988,7 @@ COLUMNS.push({
           </div>
         </div>
       </div>
-      <div class="hdr2-bot" data-sort="mega">型</div>
+      <div class="hdr2-bot" data-sort="mega">${_tDB('db.col_form', '型')}</div>
     </div>`;
     const wrap = th.querySelector('.ms-wrap');
     wrap.querySelector('[data-act="clear"]').onclick = e => {
@@ -1996,9 +2002,9 @@ COLUMNS.push({
     };
     setTimeout(() => {
       msInit(msId, [
-        {val: '通常', lbl: '通常'},
-        {val: 'リージョン', lbl: 'リージョン'},
-        {val: 'メガ進化', lbl: 'メガ進化'}
+        {val: '通常', lbl: _tDB('db.form_normal', '通常')},
+        {val: 'リージョン', lbl: _tDB('db.form_region', 'リージョン')},
+        {val: 'メガ進化', lbl: _tDB('db.form_mega', 'メガ進化')}
       ], ctx.onFilter);
     }, 0);
     return th;
@@ -3135,49 +3141,58 @@ function buildCompatResult(team, ci) {
   // 弱点サマリー
   let weakHtml = '';
   if (sortedWeak.length === 0) {
-    weakHtml = '弱点なし！素晴らしいチーム構成です。';
+    weakHtml = _tDB('db.compat_no_weakness', '弱点なし！素晴らしいチーム構成です。');
   } else {
     sortedWeak.slice(0, 12).forEach(([t, w]) => {
-      if (w.x4.length) weakHtml += `<span class="weak-badge w4">${t}×4×${w.x4.length}</span>`;
-      else if (w.x2.length) weakHtml += `<span class="weak-badge w2">${t}×2×${w.x2.length}</span>`;
+      const tLabel = (window.I18N && I18N.type) ? I18N.type(t, 'short3') : t;
+      if (w.x4.length) weakHtml += `<span class="weak-badge w4">${tLabel}×4×${w.x4.length}</span>`;
+      else if (w.x2.length) weakHtml += `<span class="weak-badge w2">${tLabel}×2×${w.x2.length}</span>`;
     });
   }
+
+  // i18n: 補完モーダル内のラベル群
+  const titleTmpl = _tDB('db.compat_team_weakness', 'チームの弱点分析（チェック{ci}・{n}体）');
+  const compatTitle = titleTmpl.replace('{ci}', ci+1).replace('{n}', team.length);
+  const teamLabelTmpl = _tDB('db.compat_team_label', '▶ チームポケモン（{n}体）');
+  const teamLabel = teamLabelTmpl.replace('{n}', team.length);
+  const candInitialTmpl = _tDB('db.compat_cand_initial', '▶ 補完候補（{n}件 / Top50）');
+  const candInitial = candInitialTmpl.replace('{n}', compatCandidates.length);
 
   // HTML組み立て
   const body = document.getElementById('compat-body');
   body.innerHTML = `
     <div class="modal-section" style="padding:4px 8px">
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-        <h4 style="margin:0;border:none;padding:0;white-space:nowrap;font-size:11px">📊 チームの弱点分析（チェック${ci+1}・${team.length}体）</h4>
+        <h4 style="margin:0;border:none;padding:0;white-space:nowrap;font-size:11px">📊 ${compatTitle}</h4>
         <div class="modal-info" style="font-size:10px">${weakHtml}</div>
       </div>
     </div>
     <div class="grp-bar">
-      <span class="grp-lbl">列表示:</span>
-      <button class="grp-btn" data-cgrp="chk">チェック</button>
-      <button class="grp-btn" data-cgrp="type">タイプ</button>
-      <button class="grp-btn" data-cgrp="stat">能力値</button>
-      <button class="grp-btn" data-cgrp="ab">とくせい</button>
-      <button class="grp-btn" data-cgrp="resist">相性18</button>
-      <button class="grp-btn" data-cgrp="cnt">集計+スコア</button>
-      <button class="grp-btn" data-cgrp="waza">補完Sc/わざ</button>
+      <span class="grp-lbl">${_tDB('db.col_show', '列表示:')}</span>
+      <button class="grp-btn" data-cgrp="chk">${_tDB('db.col_check', 'チェック')}</button>
+      <button class="grp-btn" data-cgrp="type">${_tDB('db.col_type', 'タイプ')}</button>
+      <button class="grp-btn" data-cgrp="stat">${_tDB('db.col_stat', '能力値')}</button>
+      <button class="grp-btn" data-cgrp="ab">${_tDB('db.col_ab', 'とくせい')}</button>
+      <button class="grp-btn" data-cgrp="resist">${_tDB('db.col_resist', '相性18')}</button>
+      <button class="grp-btn" data-cgrp="cnt">${_tDB('db.col_cnt', '集計+スコア')}</button>
+      <button class="grp-btn" data-cgrp="waza">${_tDB('db.col_compat_waza', '補完Sc/わざ')}</button>
       <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
-      <span class="grp-lbl">絞込:</span>
+      <span class="grp-lbl">${_tDB('db.filter_label', '絞込:')}</span>
       <div id="compat-tychips" style="display:inline-block"></div>
       <button class="tc-clr" id="compat-clr-sel">✕</button>
       <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
-      <span class="grp-lbl" style="color:#FF9999">除外:</span>
+      <span class="grp-lbl" style="color:#FF9999">${_tDB('db.exclude_label', '除外:')}</span>
       <div id="compat-tychips-exc" style="display:inline-block"></div>
       <button class="tc-clr" id="compat-clr-exc" style="color:#FF9999">✕</button>
       <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
-      <button class="btn btn-reset" id="compat-reset">🔄 リセット</button>
+      <button class="btn btn-reset" id="compat-reset">🔄 ${_tDB('db.reset', 'リセット')}</button>
     </div>
     <div class="compat-label">
-      <span>▶ チームポケモン（${team.length}体）</span>
+      <span>${teamLabel}</span>
     </div>
     <div class="compat-tbl-wrap"><table id="compat-team-tbl"></table></div>
     <div class="compat-label" id="compat-cand-label" style="margin-top:8px">
-      <span>▶ 補完候補（${compatCandidates.length}件 / Top50）</span>
+      <span>${candInitial}</span>
     </div>
     <div class="compat-tbl-wrap"><table id="compat-cand-tbl"></table></div>
   `;
@@ -4239,10 +4254,29 @@ document.addEventListener('keydown', e => {
 <!-- i18n: 言語切替時にテーブル再描画 -->
 <script>
   document.addEventListener('i18n:changed', () => {
+    // ヘッダーは renderTable 内で初回のみ構築されるので、言語切替時はラベル再翻訳のため強制削除して再生成させる
+    document.querySelectorAll('#main-tbl thead, #compat-team-tbl thead, #compat-cand-tbl thead').forEach(el => el.remove());
+    // body 直下に移動された ms-dropdown は新しい thead 構築時に再生成されるので、古い参照は破棄する
+    document.querySelectorAll('body > .ms-dropdown').forEach(el => el.remove());
+
+    // タブバー (ナビボタン: チェッカー / わざリスト / タイプ相性) を再描画
+    if (typeof renderTabs === 'function') renderTabs();
     // 上部フィルター chip (絞込 / 除外) と補完検索内 chip も短縮表記を切り替えるため再描画
     if (typeof buildTyChips === 'function') buildTyChips();
     if (typeof buildCompatTyChips === 'function') buildCompatTyChips();
     if (typeof applyF === 'function') applyF();
+
+    // 補完モーダルが開いている場合は openCompatSearch でラベル含めて全体再構築
+    const compatModal = document.getElementById('compat-modal');
+    if (compatModal && compatModal.classList.contains('open') &&
+        typeof openCompatSearch === 'function' && typeof compatCiNum !== 'undefined') {
+      openCompatSearch(compatCiNum);
+    } else {
+      if (typeof renderCompatTeam === 'function') renderCompatTeam();
+      if (typeof compatApply === 'function') compatApply();
+    }
+    // 再構築された要素に含まれる data-i18n 属性を翻訳適用 (msボタン: 全▾, 全解除, 閉じ など)
+    if (window.I18N && I18N.apply) I18N.apply();
   });
   document.addEventListener('i18n:ready', () => {
     if (window.I18N && window.I18N.lang !== 'ja') {
