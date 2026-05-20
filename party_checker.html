@@ -3346,8 +3346,19 @@ renderTable();
 <script src="ad-toggle.js" defer></script>
 <!-- i18n: 言語切替時にテーブル再描画 -->
 <script>
-  document.addEventListener('i18n:changed', () => {
+  // i18n: 言語切替時/初回ロード時の再描画処理 (refreshAllI18nContent で共通化)
+  // 構造的取りこぼし防止 (HANDOFF パターン B 対策):
+  //   旧コードでは i18n:ready が renderTable のみ呼び、 i18n:changed の処理 (renderModalList /
+  //   buildPfEffectFilterPanel / pfBtn 更新) を呼んでいなかった → 初回ロード時にモーダルや
+  //   フィルタパネルが日本語のまま残るバグの温床。
+  //   今後新しい再描画を追加するときは関数内に追記すれば両方に反映される。
+  function refreshAllI18nContent() {
     if (typeof renderTable === 'function') renderTable();
+    // タブバー (DB/わざリスト/タイプ相性 ボタン) 再描画
+    if (typeof renderPcTabs === 'function') renderPcTabs();
+    // パーティスロット表示
+    if (typeof renderSlots === 'function') renderSlots();
+    // ポケモン選択モーダルが開いていれば再描画
     const modal = document.getElementById('modal-ov');
     if (modal && modal.classList.contains('vis') && typeof renderModalList === 'function') {
       renderModalList(document.getElementById('modal-search')?.value || '');
@@ -3365,10 +3376,11 @@ renderTable();
         ? _t('checker.effect_filter_toggle_closed', '🔍 効果フィルター ▼')
         : _t('checker.effect_filter_toggle', '🔍 効果フィルター ▲');
     }
-  });
-  document.addEventListener('i18n:ready', () => {
-    if (window.I18N && window.I18N.lang !== 'ja' && typeof renderTable === 'function') renderTable();
-  });
+    // data-i18n 属性付き要素の再翻訳
+    if (window.I18N && I18N.apply) I18N.apply();
+  }
+  document.addEventListener('i18n:ready', refreshAllI18nContent);
+  document.addEventListener('i18n:changed', refreshAllI18nContent);
 </script>
 </body>
 </html>

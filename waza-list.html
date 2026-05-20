@@ -428,16 +428,16 @@
 </div>
 <button id="ad-show-btn" title="Show ad" aria-label="Show ad" style="display:none;position:fixed;bottom:8px;right:8px;z-index:9998;background:rgba(40,40,40,0.9);color:#cfd9ea;border:1px solid #555;border-radius:20px;padding:6px 12px;cursor:pointer;font-size:12px;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,0.5)">📣 Ad</button>
 <script src="ad-toggle.js" defer></script>
-<!-- i18n: 言語切替時にテーブル再描画 + タイプ短縮表記 (short3) 切替のため再描画 -->
+<!-- i18n: 言語切替時/初回ロード時の再描画処理 (refreshAllI18nContent で共通化)
+     構造的取りこぼし防止 (HANDOFF パターン B 対策): i18n:ready と i18n:changed で
+     同じ処理を呼ぶ。今後新しい再描画を追加するときは関数内に追記すれば両方に反映される。 -->
 <script>
-  document.addEventListener('i18n:changed', () => {
+  function refreshAllI18nContent() {
     if (typeof render === 'function') render();
     if (typeof buildWpTypeBar === 'function') buildWpTypeBar();
-  });
-  document.addEventListener('i18n:ready', () => {
-    if (typeof render === 'function') render();
-    if (typeof buildWpTypeBar === 'function') buildWpTypeBar();
-  });
+  }
+  document.addEventListener('i18n:ready', refreshAllI18nContent);
+  document.addEventListener('i18n:changed', refreshAllI18nContent);
 </script>
 
 </body></html>
