@@ -4306,10 +4306,14 @@ document.addEventListener('keydown', e => {
 <script src="ad-toggle.js" defer></script>
 <!-- i18n: 言語切替時にテーブル再描画 -->
 <script>
-  document.addEventListener('i18n:changed', () => {
-    // ヘッダーは renderTable 内で初回のみ構築されるので、言語切替時はラベル再翻訳のため強制削除して再生成させる
+  // i18n 言語が確定/切替した時の共通再描画処理。
+  // 構造的取りこぼし防止: i18n:ready (初回ロード時) と i18n:changed (切替時) で
+  // 同じ処理を実行する。片方だけ thead 再構築や renderTabs を呼ぶと、
+  // iframe 内初回ロード等で「列ヘッダ・タブが日本語のまま」になるバグの温床に。
+  function refreshAllI18nContent() {
+    // ヘッダーは renderTable 内で初回のみ構築されるので、ラベル再翻訳のため強制削除
     document.querySelectorAll('#main-tbl thead, #compat-team-tbl thead, #compat-cand-tbl thead').forEach(el => el.remove());
-    // body 直下に移動された ms-dropdown は新しい thead 構築時に再生成されるので、古い参照は破棄する
+    // body 直下に移動された ms-dropdown は新しい thead 構築時に再生成されるので、古い参照は破棄
     document.querySelectorAll('body > .ms-dropdown').forEach(el => el.remove());
 
     // タブバー (ナビボタン: チェッカー / わざリスト / タイプ相性) を再描画
@@ -4330,17 +4334,9 @@ document.addEventListener('keydown', e => {
     }
     // 再構築された要素に含まれる data-i18n 属性を翻訳適用 (msボタン: 全▾, 全解除, 閉じ など)
     if (window.I18N && I18N.apply) I18N.apply();
-  });
-  document.addEventListener('i18n:ready', () => {
-    if (window.I18N && window.I18N.lang !== 'ja') {
-      if (typeof buildTyChips === 'function') buildTyChips();
-      if (typeof buildCompatTyChips === 'function') buildCompatTyChips();
-      if (typeof applyF === 'function') applyF();
-    } else {
-      // ja でも types-master 経由で再描画して短縮表記を反映
-      if (typeof buildTyChips === 'function') buildTyChips();
-    }
-  });
+  }
+  document.addEventListener('i18n:ready', refreshAllI18nContent);
+  document.addEventListener('i18n:changed', refreshAllI18nContent);
 </script>
 </body>
 </html>
