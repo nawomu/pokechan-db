@@ -129,13 +129,11 @@ let filterMode = 'OR';
 function toggleFilterMode() {
   filterMode = (filterMode === 'OR') ? 'AND' : 'OR';
   const btn = document.getElementById('ef-mode-btn');
-  if (filterMode === 'AND') {
-    btn.textContent = '🔗 検索: AND';
-    btn.classList.add('and-on');
-  } else {
-    btn.textContent = '🔀 検索: OR';
-    btn.classList.remove('and-on');
-  }
+  const key = (filterMode === 'AND') ? 'waza.search_mode_and' : 'waza.search_mode_or';
+  const fb = (filterMode === 'AND') ? '🔗 検索: AND' : '🔀 検索: OR';
+  btn.setAttribute('data-i18n', key);
+  btn.textContent = (window.I18N ? I18N.t(key, fb) : fb);
+  btn.classList.toggle('and-on', filterMode === 'AND');
   render();
 }
 
@@ -144,13 +142,11 @@ let selectMode = 'single';
 function toggleSelectMode() {
   selectMode = (selectMode === 'single') ? 'multi' : 'single';
   const btn = document.getElementById('ef-select-mode-btn');
-  if (selectMode === 'single') {
-    btn.textContent = '📌 シングル選択';
-    btn.classList.add('single-on');
-  } else {
-    btn.textContent = '📚 複数選択';
-    btn.classList.remove('single-on');
-  }
+  const key = (selectMode === 'single') ? 'waza.select_mode_single' : 'waza.select_mode_multi';
+  const fb = (selectMode === 'single') ? '📌 シングル選択' : '📚 複数選択';
+  btn.setAttribute('data-i18n', key);
+  btn.textContent = (window.I18N ? I18N.t(key, fb) : fb);
+  btn.classList.toggle('single-on', selectMode === 'single');
   // シングルモードに切り替えた時、現在選択中のチップが2個以上あるなら全部クリアする
   // (シングル動作の整合性のため)
   if (selectMode === 'single') {
@@ -739,7 +735,10 @@ function render() {
     visibleCount++;
   });
 
-  document.getElementById('count').textContent = `表示${visibleCount}/全${moves.length}技`;
+  const cntFb = `表示${visibleCount}/全${moves.length}技`;
+  const cntTmpl = (window.I18N ? I18N.t('waza.count_format', cntFb) : cntFb);
+  document.getElementById('count').textContent = cntTmpl
+    .replace('{visible}', visibleCount).replace('{total}', moves.length);
 }
 
 document.querySelectorAll('th[data-sort]').forEach(th => {
@@ -1215,7 +1214,7 @@ function buildWpTypeBar() {
   const allBtn = document.createElement('button');
   allBtn.type = 'button';
   allBtn.className = 'wp-type-btn all-types';
-  allBtn.textContent = '全タイプ表示';
+  allBtn.textContent = (window.I18N ? I18N.t('checker.show_all_types', '全タイプ表示') : '全タイプ表示');
   allBtn.onclick = () => {
     selectedTypes.clear();
     syncWpTypeBar();
