@@ -1992,8 +1992,10 @@ function wazaCellHtml(pokeName, type, slotIdx) {
   if (moves.length === 0) return { html: "", clickable: false };
 
   // スロット×タイプ別フィルタ (per-type 構造 v2)
-  const slotData = slotFilters[slotIdx];                       // undefined or {type: [...]}
-  const pokeSel  = slotData && slotData[type];                  // undefined / [] / [keys]
+  // 構造は 2 種混在: 旧 UI = {type名: [keys]} / 新 UI (iframe mode=multi) = {_all: [keys]}
+  // 新 UI 経由で書かれた場合 _all を全タイプ共通に適用 (waza_picker.js confirmSelection 経由)
+  const slotData = slotFilters[slotIdx];                       // undefined or {type: [...]} or {_all: [...]}
+  const pokeSel  = slotData && (slotData[type] !== undefined ? slotData[type] : slotData._all);
   let displayMoves;
   let moreCount = 0;
 
