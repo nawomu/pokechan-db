@@ -94,6 +94,12 @@
   function init() {
     injectStyles();
 
+    // iframe 経由 (親モーダル内) では Ad bar が確定バー等を覆ってしまうため自動非表示
+    if (window.parent !== window) {
+      document.body.classList.add('ad-closed');
+      return;
+    }
+
     // 初期: localStorage 状態を復元
     if (localStorage.getItem(LS_AD_HIDDEN) === '1') {
       applyHidden(true);
