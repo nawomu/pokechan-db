@@ -1961,7 +1961,7 @@ COLUMNS.push({
   buildTd: (p) => {
     const cls = p.form === 'メガ進化' ? 'mega-name' : p.form === 'リージョン' ? 'region-name' : '';
     const display = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(p.name) : p.name;
-    return `<td class="td-name ${cls}" title="ホバー: わざ一覧 / クリック: モーダル" data-pokemon-name="${p.name}" style="cursor:pointer">${display}</td>`;
+    return `<td class="td-name ${cls}" title="${_tDB('db.tt_pokemon_hover', 'ホバー: わざ一覧 / クリック: モーダル')}" data-pokemon-name="${p.name}" style="cursor:pointer">${display}</td>`;
   },
   getVal: (p) => p.name,
 });
@@ -3883,36 +3883,23 @@ function buildWazaListBlobUrl(initialPokemonFilter) {
 }
 
 function openWazaList() {
-  buildWazaListBlobUrl(null)
-    .then(url => {
-      const w = window.open(url, '_blank');
-      if (!w) alert('ポップアップがブロックされました。別タブ表示を許可してください');
-    })
-    .catch(() => {
-      window.open('waza-list.html', '_blank');
-    });
+  // 最新の i18n 化済み waza-list.html を直接開く
+  // (旧 Blob URL 経由の waza-list-template.html は 5/17 以降更新停止のため非推奨)
+  const w = window.open('waza-list.html', '_blank');
+  if (!w) alert('ポップアップがブロックされました。別タブ表示を許可してください');
 }
 
 // ポケモン名クリック → そのポケが習得するわざ一覧をモーダルで表示
 function openMovesForPokemon(pokemonName) {
   if (!pokemonName) return;
-  buildWazaListBlobUrl(pokemonName)
-    .then(url => {
-      const titleEl = document.getElementById('pmModalTitle');
-      const ifr = document.getElementById('pmModalIframe');
-      if (titleEl) titleEl.textContent = pokemonName + ' が習得するわざ一覧';
-      if (ifr) ifr.src = url;
-      const modal = document.getElementById('pmModal');
-      if (modal) modal.classList.add('vis');
-    })
-    .catch(() => {
-      const titleEl = document.getElementById('pmModalTitle');
-      const ifr = document.getElementById('pmModalIframe');
-      if (titleEl) titleEl.textContent = pokemonName + ' が習得するわざ一覧';
-      if (ifr) ifr.src = 'waza-list.html?pokemon=' + encodeURIComponent(pokemonName);
-      const modal = document.getElementById('pmModal');
-      if (modal) modal.classList.add('vis');
-    });
+  const titleEl = document.getElementById('pmModalTitle');
+  const ifr = document.getElementById('pmModalIframe');
+  const i18nName = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(pokemonName) : pokemonName;
+  const tmpl = _tDB('db.modal_movelist_title', '{name} が習得するわざ一覧');
+  if (titleEl) titleEl.textContent = tmpl.replace('{name}', i18nName);
+  if (ifr) ifr.src = 'waza-list.html?pokemon=' + encodeURIComponent(pokemonName) + '&v=' + Date.now();
+  const modal = document.getElementById('pmModal');
+  if (modal) modal.classList.add('vis');
 }
 function closePmModal() {
   const modal = document.getElementById('pmModal');
@@ -4111,10 +4098,14 @@ let pmDragOffsetX = 0, pmDragOffsetY = 0;
     const list = moves.map(m => {
       const c = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[m.type]) || '#666';
       const clsKey = m.category === '物理' ? 'phys' : m.category === '特殊' ? 'spec' : 'stat';
-      const clsLbl = m.category === '物理' ? '物' : m.category === '特殊' ? '特' : '変';
-      return `<span class="pt-move" style="background:${c}">${m.name}<span class="pt-cls cls-${clsKey}">${clsLbl}</span></span>`;
+      const clsLblJa = m.category === '物理' ? '物' : m.category === '特殊' ? '特' : '変';
+      const clsLblKey = m.category === '物理' ? 'checker.cls_phys' : m.category === '特殊' ? 'checker.cls_spec' : 'checker.cls_stat';
+      const clsLbl = _tDB(clsLblKey, clsLblJa);
+      const moveName = (window.I18N && window.I18N.move) ? window.I18N.move(m.key, m.name) : m.name;
+      return `<span class="pt-move" style="background:${c}">${moveName}<span class="pt-cls cls-${clsKey}">${clsLbl}</span></span>`;
     }).join('');
-    tip.innerHTML = `<div class="pt-title">${_tDB('db.pokemon_move_tip', '{name} の覚えるわざ ({n}件)').replace('{name}', name).replace('{n}', moves.length)}</div><div class="pt-list">${list}</div>`;
+    const pokeI18nName = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(name) : name;
+    tip.innerHTML = `<div class="pt-title">${_tDB('db.pokemon_move_tip', '{name} の覚えるわざ ({n}件)').replace('{name}', pokeI18nName).replace('{n}', moves.length)}</div><div class="pt-list">${list}</div>`;
     tip.style.display = 'block';
   });
   document.addEventListener('mousemove', e => {

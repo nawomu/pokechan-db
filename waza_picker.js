@@ -899,14 +899,16 @@ function resetAll() {
 function showLearners(key) {
   const m = moves.find(x => x.key === key);
   if (!m || !m.learners || m.learners.length === 0) return;
-  const url = POKEMON_DB_URL + '?learns=' + encodeURIComponent(key);
+  const url = POKEMON_DB_URL + '?learns=' + encodeURIComponent(key) + '&v=' + Date.now();
+  const moveName = (window.I18N && I18N.move) ? I18N.move(m.key, m.name) : m.name;
   document.getElementById('lmTitle').textContent =
-    `${m.name} を習得 ${m.learners.length}匹 (DB全機能利用可)`;
+    _t('waza.learners_title_full', `${m.name} を習得 ${m.learners.length}匹 (DB全機能利用可)`)
+      .replace('{name}', moveName).replace('{n}', m.learners.length);
   document.getElementById('lmList').innerHTML = `
     <div class="lmt-hint">
       🔗 <a href="${url}" target="_blank" rel="noopener" style="color:#1F4E79;font-weight:700">別タブで開く (より広く表示)</a>
     </div>
-    <iframe src="${url}" class="lm-iframe" title="${m.name} 習得ポケDB"></iframe>
+    <iframe src="${url}" class="lm-iframe" title="${moveName}"></iframe>
   `;
   document.getElementById('learnerModal').classList.add('vis');
 }
@@ -980,8 +982,11 @@ let lmDragX = 0, lmDragY = 0;
     const list = m.learners.map(l =>
       `<span class="wt-learner">${i18nPoke(l.name)}<span class="wt-tot">${l.total}</span></span>`
     ).join('');
+    const wtMoveName = (window.I18N && I18N.move) ? I18N.move(m.key, m.name) : m.name;
+    const wtTitle = _t('waza.learners_title_hover', `${m.name} を習得 ${m.learners.length}匹 (種族値合計の降順)`)
+      .replace('{name}', wtMoveName).replace('{n}', m.learners.length);
     tip.innerHTML = `
-      <div class="wt-title">${m.name} を習得 ${m.learners.length}匹 (種族値合計の降順)</div>
+      <div class="wt-title">${wtTitle}</div>
       <div class="wt-list">${list}</div>
     `;
     tip.style.display = 'block';
@@ -1136,43 +1141,52 @@ let lmDragX = 0, lmDragY = 0;
     const learners = m.learners || [];
     const top20 = learners.slice(0, 20);
     const i18nPoke = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon : (n) => n;
+    const noLearnersTxt = _t('waza.no_learners', '習得ポケモンなし');
     const learnerListHtml = top20.length > 0
       ? top20.map(l =>
           `<span class="dt-learner">${escHtml(i18nPoke(l.name))}<span class="dt-learner-tot">${l.total}</span></span>`
         ).join('')
-      : '<span class="dt-no-learner">習得ポケモンなし</span>';
+      : `<span class="dt-no-learner">${noLearnersTxt}</span>`;
     const learnerTitleHtml = learners.length > 0
-      ? `習得 ${learners.length}匹 中 上位${Math.min(20, learners.length)}匹 (種族値合計の降順)`
-      : '習得ポケモンなし';
+      ? _t('waza.learners_top_n', `習得 ${learners.length}匹 中 上位${Math.min(20, learners.length)}匹 (種族値合計の降順)`)
+          .replace('{total}', learners.length).replace('{top}', Math.min(20, learners.length))
+      : noLearnersTxt;
+    const dtMoveName = (window.I18N && I18N.move) ? I18N.move(m.key, m.name) : m.name;
+    const dtTypeName = (window.I18N && I18N.type) ? I18N.type(m.type) : m.type;
 
     tip.innerHTML = `
       <div class="dt-title">
-        <span class="dt-name">${escHtml(m.name)}</span>
-        <span class="dt-type" style="background:${typeColor}">${escHtml(m.type)}</span>
-        <span class="dt-cls cls-${clsKey}">${escHtml(m.class)}</span>
+        <span class="dt-name">${escHtml(dtMoveName)}</span>
+        <span class="dt-type" style="background:${typeColor}">${escHtml(dtTypeName)}</span>
+        <span class="dt-cls cls-${clsKey}">${escHtml(tClass(m.class))}</span>
       </div>
       <div class="dt-stats">
-        <span><b>威力</b>${escHtml(power)}</span>
-        <span><b>命中</b>${escHtml(acc)}</span>
-        <span><b>PP</b>${escHtml(pp)}</span>
-        <span><b>確率</b>${escHtml(prob)}</span>
-        <span><b>優先度</b>${escHtml(prioStr)}</span>
+        <span><b>${_t('table.move_power', '威力')}</b>${escHtml(power)}</span>
+        <span><b>${_t('table.move_accuracy', '命中')}</b>${escHtml(acc)}</span>
+        <span><b>${_t('table.move_pp', 'PP')}</b>${escHtml(pp)}</span>
+        <span><b>${_t('checker.col_move_prob', '確率')}</b>${escHtml(prob)}</span>
+        <span><b>${_t('table.move_priority', '優先度')}</b>${escHtml(prioStr)}</span>
       </div>
       <div class="dt-meta">
-        <span><b>対象</b>${escHtml(target)}</span>
-        <span><b>対戦</b>${escHtml(mode)}</span>
-        <span><b>接触</b>${escHtml(contact)}</span>
-        <span><b>守備</b>${escHtml(guard)}</span>
-        <span><b>カテゴリ</b>${escHtml(category)}</span>
+        <span><b>${_t('checker.col_move_target', '対象')}</b>${escHtml(tTarget(target))}</span>
+        <span><b>${_t('waza.col_mode', '対戦')}</b>${escHtml(tMode(mode))}</span>
+        <span><b>${_t('checker.col_move_contact', '接触')}</b>${escHtml(tContact(contact))}</span>
+        <span><b>${_t('checker.col_move_guard', '守貫')}</b>${escHtml(tGuard(guard))}</span>
+        <span><b>${_t('waza.col_category', 'カテゴリ')}</b>${escHtml(tCategory(category))}</span>
         ${(() => {
           const bd = m.battle_data;
           if (!bd) return '';
           const parts = [];
-          if (bd.must_crit) parts.push('<span style="color:#c00;font-weight:700">必中急所</span>');
-          else if (bd.crit_stage > 0) parts.push(`<span><b>急所</b>+${bd.crit_stage}</span>`);
+          if (bd.must_crit) parts.push(`<span style="color:#c00;font-weight:700">${_t('waza.label_crit_must', '必中急所')}</span>`);
+          else if (bd.crit_stage > 0) parts.push(`<span><b>${_t('waza.label_crit_stage', '急所')}</b>+${bd.crit_stage}</span>`);
           if (bd.crit_changes && bd.crit_changes.length > 0) {
-            const cc = bd.crit_changes.map(c => `${c.target==='self'?'自分':c.target==='ally'?'味方':'相手'}急所+${c.delta}`).join(',');
-            parts.push(`<span><b>急変</b>${cc}</span>`);
+            const cc = bd.crit_changes.map(c => {
+              const tgtLbl = c.target === 'self' ? _t('waza.tgt_short_self', '自分')
+                            : c.target === 'ally' ? _t('waza.tgt_short_ally', '味方')
+                            : _t('waza.tgt_short_opp', '相手');
+              return `${tgtLbl}${_t('waza.label_crit_stage', '急所')}+${c.delta}`;
+            }).join(',');
+            parts.push(`<span><b>${_t('waza.label_crit_change', '急変')}</b>${cc}</span>`);
           }
           return parts.join('');
         })()}
