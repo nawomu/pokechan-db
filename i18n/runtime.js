@@ -408,6 +408,56 @@
     }
   }
 
+  // === 開発用: 未翻訳検出 audit ツール (?audit=1 で有効化) ===
+  // ja 以外の言語に切り替えたとき、DOM 内に残った日本語テキストを検出して
+  // コンソールにリスト出力 + 該当要素を赤枠ハイライトする。
+  // 動的に生成された要素も MutationObserver と i18n:changed で再走査する。
+  function setupAuditTool() {
+    const params = new URLSearchParams(location.search);
+    if (params.get('audit') !== '1') return;
+    const JA_RE = /[ぁ-んァ-ヶ一-龯]/;
+    // ハイライト用 CSS
+    const style = document.createElement('style');
+    style.id = 'i18n-audit-style';
+    style.textContent = '.i18n-untranslated{outline:2px solid #ff3b30 !important;outline-offset:1px;background:rgba(255,59,48,0.08) !important;}';
+    document.head.appendChild(style);
+    function detect() {
+      if (currentLang === 'ja') {
+        console.info('[i18n-audit] ja モードでは検出対象なし。スイッチャーで他言語に切替えてください。');
+        return;
+      }
+      const seen = new Set();
+      const results = [];
+      // 既存のハイライトをクリア
+      document.querySelectorAll('.i18n-untranslated').forEach(el => el.classList.remove('i18n-untranslated'));
+      document.querySelectorAll('body *').forEach(el => {
+        const tag = el.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return;
+        // audit-skip 属性が付いた要素はスキップ (固有名詞やブランド名)
+        if (el.hasAttribute('data-i18n-audit-skip')) return;
+        for (const n of el.childNodes) {
+          if (n.nodeType !== 3) continue;
+          const t = n.textContent.trim();
+          if (!t || !JA_RE.test(t)) continue;
+          const key = t.slice(0, 80);
+          if (seen.has(key)) continue;
+          seen.add(key);
+          results.push({ text: key, element: el });
+          el.classList.add('i18n-untranslated');
+        }
+      });
+      console.group(`%c[i18n-audit] ${results.length} unique untranslated (lang=${currentLang})`,
+                    'color:#ff3b30;font-weight:700');
+      results.forEach(r => console.log(`%c"${r.text}"`, 'color:#c00', r.element));
+      console.groupEnd();
+    }
+    // 初回 + 動的レンダリング待ち + 言語切替時
+    setTimeout(detect, 500);
+    setTimeout(detect, 2000);
+    document.addEventListener('i18n:changed', () => setTimeout(detect, 600));
+    window.I18N_AUDIT = { detect };  // 手動再実行用
+  }
+
   // 初期化: 現在の言語の辞書をロード → DOM 適用 → スイッチャー挿入
   function init() {
     loadLang(currentLang).then(() => {
@@ -423,6 +473,7 @@
       } catch (e) { /* 古いブラウザは無視 */ }
       document.dispatchEvent(new CustomEvent('i18n:ready', { detail: { lang: currentLang } }));
       readyCallbacks.forEach((cb) => { try { cb(); } catch (e) {} });
+      setupAuditTool();
     });
   }
   if (document.readyState === 'loading') {
