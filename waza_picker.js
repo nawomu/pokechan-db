@@ -124,6 +124,29 @@ function toggleEffectFilter() {
     : '🔍 効果フィルター ▲';
 }
 
+// ===== i18n ヘルパー (テーブル列データの言語化) =====
+const I18N_CLASS_MAP = {'物理':'category.physical','特殊':'category.special','変化':'category.status'};
+const I18N_CONTACT_MAP = {'接○':'waza.opt_contact_yes','接×':'waza.opt_contact_no'};
+const I18N_GUARD_MAP = {'守○':'waza.opt_guard_yes','守×':'waza.opt_guard_no'};
+const I18N_CATEGORY_MAP = {
+  '物理':'db.cat_phys','特殊':'db.cat_spec','状態異常':'db.cat_status',
+  '回復':'db.cat_recover','能力下':'db.cat_lower','天候':'db.cat_weather',
+  '混乱メロ':'db.cat_charm','特性変':'db.cat_ability','サポート':'db.cat_support',
+  '防御':'db.cat_defense','積み防':'db.cat_setup_def','積み攻':'db.cat_setup_atk',
+  '積み速':'db.cat_setup_spd','壁':'db.cat_wall','フィールド':'db.cat_field',
+  'ルーム':'db.cat_room','技封じ':'db.cat_lock','捕縛':'db.cat_trap',
+  '交代':'db.cat_switch','タイプ変':'db.cat_type','道具':'db.cat_item',
+  '設置':'db.cat_hazard','その他':'db.cat_misc',
+};
+function _t(key, fb) { return (window.I18N) ? I18N.t(key, fb) : fb; }
+function tClass(c) { return c && I18N_CLASS_MAP[c] ? _t(I18N_CLASS_MAP[c], c) : c; }
+function tTarget(t) { return t ? _t('targets.' + t, t) : t; }
+function tMode(m) { return (m === 'ダブル') ? _t('waza.opt_double', 'ダブル') : m; }
+function tContact(c) { return c && I18N_CONTACT_MAP[c] ? _t(I18N_CONTACT_MAP[c], c) : c; }
+function tGuard(g) { return g && I18N_GUARD_MAP[g] ? _t(I18N_GUARD_MAP[g], g) : g; }
+function tCategory(c) { return c && I18N_CATEGORY_MAP[c] ? _t(I18N_CATEGORY_MAP[c], c) : c; }
+function tLearnersCount(n) { return _t('waza.learners_count', `${n}匹`).replace('{n}', n); }
+
 // 検索モード (OR デフォルト / AND オプション)
 let filterMode = 'OR';
 function toggleFilterMode() {
@@ -694,12 +717,12 @@ function render() {
     const tr = document.createElement('tr');
     const color = typeColors[m.type] || '#999';
     const modeHtml = m.mode === 'ダブル'
-      ? '<span class="mode-double">ダブル</span>'
+      ? `<span class="mode-double">${tMode(m.mode)}</span>`
       : '<span class="mode-both">—</span>';
 
     const learnerCount = (m.learners || []).length;
     const learnersHtml = learnerCount > 0
-      ? `<td class="col-learners learners-cell" data-key="${m.key}" onclick="showLearners('${m.key}')">${learnerCount}匹</td>`
+      ? `<td class="col-learners learners-cell" data-key="${m.key}" onclick="showLearners('${m.key}')">${tLearnersCount(learnerCount)}</td>`
       : `<td class="col-learners learners-cell-zero">—</td>`;
 
     const isSel = (WP_MODE === 'multi' || WP_MODE === 'single');
@@ -712,22 +735,22 @@ function render() {
       ${learnersHtml}
       <td class="col-name name-cell" data-key="${m.key}" onclick="showLearners('${m.key}')">${m.name}</td>
       <td class="col-type" title="${m.type}"><span class="type-cell" style="background:${color}">${wpType3(m.type)}</span></td>
-      <td class="col-class"><span class="cls-badge cls-${m.class === '物理' ? 'phys' : m.class === '特殊' ? 'spec' : 'stat'}">${m.class}</span></td>
+      <td class="col-class"><span class="cls-badge cls-${m.class === '物理' ? 'phys' : m.class === '特殊' ? 'spec' : 'stat'}">${tClass(m.class)}</span></td>
       <td class="col-power num-cell">${m.power}</td>
       <td class="col-acc num-cell">${m.acc}</td>
       <td class="col-pp num-cell">${m.pp}</td>
       <td class="col-prob">${m._prob != null ? m._prob + '%' : '<span class="lmt-na" style="color:#BBB">—</span>'}</td>
-      <td class="col-target">${m.target}</td>
+      <td class="col-target">${tTarget(m.target)}</td>
       <td class="col-mode">${modeHtml}</td>
-      <td class="col-contact">${m.contact}</td>
-      <td class="col-guard">${m.guard}</td>
+      <td class="col-contact">${tContact(m.contact)}</td>
+      <td class="col-guard">${tGuard(m.guard)}</td>
       ${(() => {
         const p = m.priority || 0;
         if (p > 0) return `<td class="col-prio prio-pos">+${p}</td>`;
         if (p < 0) return `<td class="col-prio prio-neg">${p}</td>`;
         return `<td class="col-prio prio-zero">—</td>`;
       })()}
-      <td class="col-cat"><span class="cat-cell">${m.category}</span></td>
+      <td class="col-cat"><span class="cat-cell">${tCategory(m.category)}</span></td>
       <td class="col-effect effect-cell" data-key="${m.key}">${m.effect}</td>
       <td class="col-tags">${getMoveFilterTags(m).map(t => `<span class="mw-tag ${t.cls}">${t.text}</span>`).join('')}</td>
     `;
