@@ -896,14 +896,24 @@ function resetAll() {
 }
 
 // ===== 習得ポケモン表示 (実DBをiframe埋め込み) =====
+// 案 B (入れ子モーダル削減): iframe 内で呼ばれた場合は親に postMessage で
+// URL 切替依頼し、独自の learnerModal は開かない。
 function showLearners(key) {
   const m = moves.find(x => x.key === key);
   if (!m || !m.learners || m.learners.length === 0) return;
   const url = POKEMON_DB_URL + '?learns=' + encodeURIComponent(key) + '&v=' + Date.now();
   const moveName = (window.I18N && I18N.move) ? I18N.move(m.key, m.name) : m.name;
-  document.getElementById('lmTitle').textContent =
-    _t('waza.learners_title_full', `${m.name} を習得 ${m.learners.length}匹 (DB全機能利用可)`)
-      .replace('{name}', moveName).replace('{n}', m.learners.length);
+  const title = _t('waza.learners_title_full', `${m.name} を習得 ${m.learners.length}匹 (DB全機能利用可)`)
+    .replace('{name}', moveName).replace('{n}', m.learners.length);
+
+  // iframe 内なら親 (pokemon_db_v9.html) に切替依頼 (入れ子モーダル防止)
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'pchamdb:openInModal', url, title }, '*');
+    return;
+  }
+
+  // 通常 (単独表示): 自身の learnerModal を開く
+  document.getElementById('lmTitle').textContent = title;
   document.getElementById('lmList').innerHTML = `
     <div class="lmt-hint">
       🔗 <a href="${url}" target="_blank" rel="noopener" style="color:#1F4E79;font-weight:700">${_t('waza.open_new_tab', '別タブで開く (より広く表示)')}</a>

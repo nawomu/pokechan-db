@@ -1134,6 +1134,12 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
 }
 #pmModalHead.dragging { cursor: grabbing; }
 #pmModalTitle { font-weight: 700; color: #1F4E79; font-size: 14px; flex: 1; }
+#pmModalBack {
+  background: #fff; border: 1px solid #1F4E79; color: #1F4E79;
+  border-radius: 4px; padding: 3px 9px; font-size: 12px; font-weight: 600;
+  cursor: pointer; line-height: 1.2;
+}
+#pmModalBack:hover { background: #1F4E79; color: #fff; }
 #pmModalClose {
   cursor: pointer; font-size: 22px; color: #999;
   font-weight: 700; line-height: 1; padding: 0 6px;
@@ -3892,23 +3898,74 @@ function openWazaList() {
   if (!w) alert('ポップアップがブロックされました。別タブ表示を許可してください');
 }
 
+// ===== モーダル履歴スタック (案 B 入れ子モーダル削減) =====
+// pmModal は 1 個だけ使い回し、中身 (iframe.src + title) を履歴で push/pop する。
+// iframe 内 (waza-list / pokemon_db?learns=X) からは postMessage で親に切替依頼する。
+const modalHistoryStack = [];
+function pushModalLocation(url, title) {
+  const ifr = document.getElementById('pmModalIframe');
+  const titleEl = document.getElementById('pmModalTitle');
+  if (ifr && ifr.src && ifr.src !== 'about:blank') {
+    modalHistoryStack.push({ url: ifr.src, title: titleEl ? titleEl.textContent : '' });
+  }
+  if (ifr) ifr.src = url;
+  if (titleEl && title) titleEl.textContent = title;
+  const modal = document.getElementById('pmModal');
+  if (modal) modal.classList.add('vis');
+  updateModalBackBtn();
+}
+function modalGoBack() {
+  if (modalHistoryStack.length === 0) { closePmModal(); return; }
+  const prev = modalHistoryStack.pop();
+  const ifr = document.getElementById('pmModalIframe');
+  const titleEl = document.getElementById('pmModalTitle');
+  if (ifr) ifr.src = prev.url;
+  if (titleEl) titleEl.textContent = prev.title;
+  updateModalBackBtn();
+}
+function updateModalBackBtn() {
+  const btn = document.getElementById('pmModalBack');
+  if (btn) btn.style.display = modalHistoryStack.length > 0 ? 'inline-block' : 'none';
+}
+// iframe (waza-list / pokemon_db?learns=X) からの URL 切替依頼を受け取る
+window.addEventListener('message', (e) => {
+  if (!e.data || typeof e.data !== 'object') return;
+  if (e.data.type !== 'pchamdb:openInModal') return;
+  // 自身が iframe (= 別の親の中) なら無視 (親が処理する)
+  if (window.parent !== window) return;
+  pushModalLocation(e.data.url, e.data.title);
+});
+
 // ポケモン名クリック → そのポケが習得するわざ一覧をモーダルで表示
 function openMovesForPokemon(pokemonName) {
   if (!pokemonName) return;
-  const titleEl = document.getElementById('pmModalTitle');
-  const ifr = document.getElementById('pmModalIframe');
   const i18nName = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(pokemonName) : pokemonName;
   const tmpl = _tDB('db.modal_movelist_title', '{name} が習得するわざ一覧');
-  if (titleEl) titleEl.textContent = tmpl.replace('{name}', i18nName);
-  if (ifr) ifr.src = 'waza-list.html?pokemon=' + encodeURIComponent(pokemonName) + '&v=' + Date.now();
+  const title = tmpl.replace('{name}', i18nName);
+  const url = 'waza-list.html?pokemon=' + encodeURIComponent(pokemonName) + '&v=' + Date.now();
+  // 自身が iframe 内なら親に切替依頼 (入れ子モーダルにしない)
+  if (window.parent !== window) {
+    window.parent.postMessage({ type: 'pchamdb:openInModal', url, title }, '*');
+    return;
+  }
+  // 親 (単独表示): モーダルを新規に開く (履歴リセット)
+  modalHistoryStack.length = 0;
+  const titleEl = document.getElementById('pmModalTitle');
+  const ifr = document.getElementById('pmModalIframe');
+  if (titleEl) titleEl.textContent = title;
+  if (ifr) ifr.src = url;
   const modal = document.getElementById('pmModal');
   if (modal) modal.classList.add('vis');
+  updateModalBackBtn();
 }
 function closePmModal() {
   const modal = document.getElementById('pmModal');
   if (modal) modal.classList.remove('vis');
   const ifr = document.getElementById('pmModalIframe');
   if (ifr) ifr.src = 'about:blank';
+  // 履歴クリア (次回開いた時は新規に始まる)
+  modalHistoryStack.length = 0;
+  updateModalBackBtn();
   // ドラッグ位置リセット (再オープン時は中央表示に戻す)
   pmDragOffsetX = 0; pmDragOffsetY = 0;
   const box = document.getElementById('pmModalBox');
@@ -4148,10 +4205,12 @@ document.addEventListener('keydown', e => {
 });
 </script>
 
-<!-- ポケモン → わざ一覧モーダル -->
+<!-- ポケモン → わざ一覧モーダル (履歴スタック式: 入れ子にせず内容差し替え + 戻るボタン) -->
 <div id="pmModal" onclick="if(event.target===this)closePmModal()">
   <div id="pmModalBox">
     <div id="pmModalHead">
+      <button id="pmModalBack" onclick="modalGoBack()" style="display:none"
+              data-i18n="db.modal_back" data-i18n-audit-skip>← 戻る</button>
       <div id="pmModalTitle">わざ一覧</div>
       <span id="pmModalClose" onclick="closePmModal()">×</span>
     </div>
