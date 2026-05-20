@@ -733,7 +733,7 @@ function render() {
     tr.innerHTML = `
       ${chkCell}
       ${learnersHtml}
-      <td class="col-name name-cell" data-key="${m.key}" onclick="showLearners('${m.key}')">${m.name}</td>
+      <td class="col-name name-cell" data-key="${m.key}" onclick="showLearners('${m.key}')">${window.I18N ? I18N.move(m.key, m.name) : m.name}</td>
       <td class="col-type" title="${m.type}"><span class="type-cell" style="background:${color}">${wpType3(m.type)}</span></td>
       <td class="col-class"><span class="cls-badge cls-${m.class === '物理' ? 'phys' : m.class === '特殊' ? 'spec' : 'stat'}">${tClass(m.class)}</span></td>
       <td class="col-power num-cell">${m.power}</td>
