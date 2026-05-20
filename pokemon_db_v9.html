@@ -3768,21 +3768,32 @@ function init() {
   // ?learns=KEY URLパラメータ対応: 該当技を覚えるポケのみに絞り込み
   // (waza-list-template.html の iframe から呼ばれる用途)
   // ★重要: DATA を書き換えない (p._idx の整合性を保つため、checks の idx キーが本DBと同じ意味になる)
+  // ?learns=KEY 絞込バナー: 関数化して i18n:ready/changed でも再描画されるように
+  // (初回は I18N 未準備で日本語 fallback になるため、必ず refreshAllI18nContent から再呼出が必要)
+  function buildLearnsBanner() {
+    const oldBanner = document.getElementById('learns-filter-banner');
+    if (oldBanner) oldBanner.remove();
+    if (!_learnsFilter) return;
+    const filteredCount = DATA.filter(p => p[_learnsFilter] === true).length;
+    if (filteredCount === 0) return;
+    const wazaJa = (typeof WAZA_MAP !== 'undefined' && WAZA_MAP[_learnsFilter])
+      ? WAZA_MAP[_learnsFilter].name : _learnsFilter;
+    const wazaName = (window.I18N && I18N.move) ? I18N.move(_learnsFilter, wazaJa) : wazaJa;
+    document.title = _tDB('db.learns_filter_title', '習得: {name} - PchamDB').replace('{name}', wazaName);
+    const banner = document.createElement('div');
+    banner.id = 'learns-filter-banner';
+    banner.style.cssText = 'background:#1F4E79;color:white;padding:6px 12px;text-align:center;font-weight:700;font-size:13px;';
+    const wazaTag = '<span style="background:#F39C12;padding:2px 8px;border-radius:3px;margin:0 6px;">' + wazaName + '</span>';
+    banner.innerHTML = _tDB('db.learns_filter_banner', '🔍 {wazaTag} を習得するポケモンのみ表示中 ({n}匹 / 元 {total} 匹)')
+      .replace('{wazaTag}', wazaTag).replace('{n}', filteredCount).replace('{total}', DATA.length);
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
   const learnsKey = new URLSearchParams(location.search).get('learns');
   if (learnsKey) {
     const filteredCount = DATA.filter(p => p[learnsKey] === true).length;
     if (filteredCount > 0) {
       _learnsFilter = learnsKey;
-      const wazaJa = (typeof WAZA_MAP !== 'undefined' && WAZA_MAP[learnsKey])
-        ? WAZA_MAP[learnsKey].name : learnsKey;
-      const wazaName = (window.I18N && I18N.move) ? I18N.move(learnsKey, wazaJa) : wazaJa;
-      document.title = _tDB('db.learns_filter_title', '習得: {name} - PchamDB').replace('{name}', wazaName);
-      const banner = document.createElement('div');
-      banner.style.cssText = 'background:#1F4E79;color:white;padding:6px 12px;text-align:center;font-weight:700;font-size:13px;';
-      const wazaTag = '<span style="background:#F39C12;padding:2px 8px;border-radius:3px;margin:0 6px;">' + wazaName + '</span>';
-      banner.innerHTML = _tDB('db.learns_filter_banner', '🔍 {wazaTag} を習得するポケモンのみ表示中 ({n}匹 / 元 {total} 匹)')
-        .replace('{wazaTag}', wazaTag).replace('{n}', filteredCount).replace('{total}', DATA.length);
-      document.body.insertBefore(banner, document.body.firstChild);
+      buildLearnsBanner();
     }
   }
 
@@ -4332,6 +4343,8 @@ document.addEventListener('keydown', e => {
       if (typeof renderCompatTeam === 'function') renderCompatTeam();
       if (typeof compatApply === 'function') compatApply();
     }
+    // ?learns=X 絞込バナーを再描画 (初回は I18N 未準備で日本語のまま残るため)
+    if (typeof buildLearnsBanner === 'function') buildLearnsBanner();
     // 再構築された要素に含まれる data-i18n 属性を翻訳適用 (msボタン: 全▾, 全解除, 閉じ など)
     if (window.I18N && I18N.apply) I18N.apply();
   }
