@@ -3770,7 +3770,9 @@ function init() {
   // ★重要: DATA を書き換えない (p._idx の整合性を保つため、checks の idx キーが本DBと同じ意味になる)
   // ?learns=KEY 絞込バナー: 関数化して i18n:ready/changed でも再描画されるように
   // (初回は I18N 未準備で日本語 fallback になるため、必ず refreshAllI18nContent から再呼出が必要)
-  function buildLearnsBanner() {
+  // ★スコープ注意: init() 内で定義しているため、別 <script> ブロックの
+  //   refreshAllI18nContent から見えるよう window に公開する。
+  window.buildLearnsBanner = function buildLearnsBanner() {
     const oldBanner = document.getElementById('learns-filter-banner');
     if (oldBanner) oldBanner.remove();
     if (!_learnsFilter) return;
@@ -3787,13 +3789,13 @@ function init() {
     banner.innerHTML = _tDB('db.learns_filter_banner', '🔍 {wazaTag} を習得するポケモンのみ表示中 ({n}匹 / 元 {total} 匹)')
       .replace('{wazaTag}', wazaTag).replace('{n}', filteredCount).replace('{total}', DATA.length);
     document.body.insertBefore(banner, document.body.firstChild);
-  }
+  };
   const learnsKey = new URLSearchParams(location.search).get('learns');
   if (learnsKey) {
     const filteredCount = DATA.filter(p => p[learnsKey] === true).length;
     if (filteredCount > 0) {
       _learnsFilter = learnsKey;
-      buildLearnsBanner();
+      window.buildLearnsBanner();
     }
   }
 
@@ -4344,7 +4346,8 @@ document.addEventListener('keydown', e => {
       if (typeof compatApply === 'function') compatApply();
     }
     // ?learns=X 絞込バナーを再描画 (初回は I18N 未準備で日本語のまま残るため)
-    if (typeof buildLearnsBanner === 'function') buildLearnsBanner();
+    // ★scope: buildLearnsBanner は init() 内で window に公開しているため window 経由で参照する
+    if (typeof window.buildLearnsBanner === 'function') window.buildLearnsBanner();
     // 再構築された要素に含まれる data-i18n 属性を翻訳適用 (msボタン: 全▾, 全解除, 閉じ など)
     if (window.I18N && I18N.apply) I18N.apply();
   }
