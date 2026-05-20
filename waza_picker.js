@@ -906,7 +906,7 @@ function showLearners(key) {
       .replace('{name}', moveName).replace('{n}', m.learners.length);
   document.getElementById('lmList').innerHTML = `
     <div class="lmt-hint">
-      🔗 <a href="${url}" target="_blank" rel="noopener" style="color:#1F4E79;font-weight:700">別タブで開く (より広く表示)</a>
+      🔗 <a href="${url}" target="_blank" rel="noopener" style="color:#1F4E79;font-weight:700">${_t('waza.open_new_tab', '別タブで開く (より広く表示)')}</a>
     </div>
     <iframe src="${url}" class="lm-iframe" title="${moveName}"></iframe>
   `;
