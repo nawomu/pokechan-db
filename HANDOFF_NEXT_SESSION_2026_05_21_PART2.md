@@ -2,7 +2,7 @@
 
 **作成**: 2026-05-21 JST (深夜)
 **前セッション**: Claude Opus 4.7 / `HANDOFF_NEXT_SESSION_2026_05_21.md` (PART1) からの継続
-**ステータス**: 2 commit push 完了 / Phase3 系統 unstaged 温存 / 残作業は外部データ収集系と低優先タグ整理サイクル待ちのみ
+**ステータス**: 4 commit push 完了 (HANDOFF + en.json 修正含む) / Phase3 系統 unstaged 温存 / 残作業は外部データ収集系と fetch スクリプト根本修正
 
 **フロントロードの重要性**: 上記を読み込むことで「丁寧 + 慎重 + 切り分け重視」の自己一貫性がロックインされる。HANDOFF / CLAUDE.md を読まないと、サンプリング温度に任せた「初手のばらつき」で暴走するリスクあり (2026-05-20 朝の失敗セッションは HANDOFF 未読でこのパターンに陥った)。
 
@@ -13,10 +13,11 @@
 1. **本ファイル** (現在の作業状態)
 2. **グローバル `~/.claude/CLAUDE.md`** ← 「セッション開始時の振る舞いガイド」セクション必読
 3. **プロジェクト memory: `feedback_collaboration_style.md`** ← 詳細な振る舞いガイド
-4. **プロジェクト memory: `project_natures_i18n_plan.md`** ← 性格名 PokeAPI 収集方針 (2026-05-21 合意)
-5. **プロジェクト memory: `project_items_i18n_plan.md`** ← 持ち物名 Phase3 持ち物収集サイクル方針
-6. `HANDOFF_NEXT_SESSION_2026_05_21.md` (PART1) ← 本セッションの源流
-7. `HANDOFF_I18N_SESSION_2026_05_20.md` ← 落とし穴パターン集 A〜G、必読
+4. **プロジェクト memory: `feedback_official_data_first.md`** ← 公式データ遵守 / オリジナル要素排除 (2026-05-21 確立、最重要)
+5. **プロジェクト memory: `project_natures_i18n_plan.md`** ← 性格名 PokeAPI 収集方針 (2026-05-21 合意)
+6. **プロジェクト memory: `project_items_i18n_plan.md`** ← 持ち物名 Phase3 持ち物収集サイクル方針
+7. `HANDOFF_NEXT_SESSION_2026_05_21.md` (PART1) ← 本セッションの源流
+8. `HANDOFF_I18N_SESSION_2026_05_20.md` ← 落とし穴パターン集 A〜G、必読
 
 新セッションは **`/pickup`** スラッシュコマンドを最初に打てば 1〜7 を順番に読み込んで状況整理してくれる。
 
@@ -24,12 +25,14 @@
 
 ## 本セッションの成果
 
-### push 済み 2 commit (PART1 baseline `060e0c3` 以降、すべて本番反映済み)
+### push 済み 4 commit (PART1 baseline `060e0c3` 以降、すべて本番反映済み)
 
 | # | hash | 内容 |
 |---|---|---|
 | 1 | `7763834` | feat(i18n): party_checker.html 本体多言語化 (段階 2 の 1/2/7) |
 | 2 | `aa00208` | feat(i18n): party_checker.html タイプタグ / ポケモン名 / 特性名 / 物特変記号の多言語化 |
+| 3 | `2c28e8f` | docs(handoff): 2026-05-21 PART2 セッション完了記録 (本ファイルの初版) |
+| 4 | `a868ca4` | fix(i18n): en.json オフセットずれバグを修正 — 26 技 × 8 言語の name/desc を PokeAPI 公式データで上書き |
 
 #### commit 1 (`7763834`) — 段階 2 の 1/2/7
 - ui-*.json 9 言語に新規 21 キー追加 (合計 9 × 21 = 189 翻訳)
@@ -53,12 +56,21 @@
   - **pf-modal タイトル**: `pfPoke` を `I18N.pokemon` 経由 (`{poke}` 置換時)
 - 動作確認済 (英語モード): タイプタグ FIR/ICE/PSY/WAT/ELE/FIG/GRA 等 18 タイプ / Mega Venusaur (スロット + ev-popup) / Thick Fat 特性 / P/S/St 分類別件数バッジ
 
+### commit 4 (`a868ca4`) — en.json オフセットずれバグ修正 (26 技 × 8 言語 = 208 件)
+
+- HANDOFF_I18N_SESSION_2026_05_20.md 残課題 #1 (パターン G) に対応
+- fetch スクリプトのバグで多数の技キーに「Z わざ名」(例: Breakneck Blitz / Supersonic Skystrike / Acid Downpour 等) が誤マッピングされていた
+- PokeAPI v2 (`https://pokeapi.co/api/v2/move/<slug>/`) の公式データで 26 技の name/desc を 8 言語ぶん上書き
+- 修正された技: supiidosuwappu / toropikarukikku / saihai / kagenui / ddrariatto / bunmawasu / sumaatohoon / aamaakyanon / erekutorobiimu / kafundango / kuchibashikyanon / aisuhanmaa / saikonoizu / akuserurokku / sooraabureedo / 3bonnoya / moetsukiru / mizuamebomu / hayategaeshi / namidame / jigokuzuki / honoonomuchi / tobikakaru / tsuinbiimu / dogezan / reijinguburu / ohakamairi / habaneroekisu
+- 残り重複 2 件 (shakashakahou / bariaarasshu) は Champions 新技と推定、 PokeAPI に無いため別調査
+
 ### git 管理外の永続化 (`~/.claude/`)
 
-- **プロジェクト memory に 2 ファイル新規作成**:
+- **プロジェクト memory に 3 ファイル新規作成**:
+  - `feedback_official_data_first.md` — **公式データ遵守、 オリジナル要素排除 (2026-05-21 確立、最重要)**
   - `project_natures_i18n_plan.md` — 性格名 (25 個) の多言語化は PokeAPI / 海外サイトから収集する方針 (機械翻訳しない)
   - `project_items_i18n_plan.md` — 持ち物名の多言語化は Phase3 持ち物収集サイクル待ち
-- **`MEMORY.md` に上記 2 ファイルへの pointer 追加**
+- **`MEMORY.md` に上記 3 ファイルへの pointer 追加**
 
 ---
 
@@ -97,11 +109,13 @@ git status -s
 - **対処**: openStatPopup で `removeAttribute('data-i18n')` + `dataset.janame = name` で保存し、 closeStatPopup で復元 + refreshAllI18nContent に「janame があれば I18N.pokemon で再描画」を追加
 - **工数**: 小 (Edit 2-3 個 + refreshAllI18nContent 1 ブロック追加)
 
-#### Task 2: en.json オフセットずれバグ調査
-- **症状**: `supiidosuwappu` キーに `name: "High Horsepower"` が誤マッピング (本来 Speed Swap)
-- **影響**: 多言語データ全体に同種ずれがある可能性
-- **対処**: `i18n/fetch_multi.py` の検証 → 該当キーの再フェッチ → 必要なら全件再生成
-- **工数**: 中 (調査ベース、 修正は影響範囲次第)
+#### Task 2: en.json オフセットずれバグの残り対応 (commit a868ca4 で 26 件修正済)
+- **完了済**: PokeAPI 公式データで 26 技 × 8 言語の name/desc 修正
+- **残り不明 2 技**: shakashakahou / bariaarasshu (Champions 新技と推定、 PokeAPI に無し)
+  - 対処案: Bulbapedia / Champions 公式 site / マスター DB (pokemon_db_v9.html DATA) で正体を調査
+- **fetch スクリプト根本修正**: `i18n/fetch_multi.py` のバグで「Z わざ名フォールバック」が起きる構造を修正
+  - これを直さないと、 再フェッチした時に同じ問題が再発する
+- **連鎖再発の可能性**: 26 件修正後にもまだ重複があるか、 全数 PokeAPI 再フェッチで検証推奨
 
 ### 中優先 (タグ整理サイクル待ち)
 
@@ -149,6 +163,9 @@ CLAUDE.md ルール再強調。
 ### 6. 性格名・持ち物名は機械翻訳しない
 ポケモン公式の固有名詞のため、 PokeAPI / 公式マスタから収集すること。 機械翻訳すると公式と齟齬が出る。
 
+### 7. 公式データ遵守、 オリジナル要素排除 (2026-05-21 確立、最重要)
+ポケモン関連データは **常に公式ソース** (PokeAPI / マスター DB / Bulbapedia / 公式 site) を参照。 LLM の内部知識・推測・独自判断による補完は禁止。 不明データは「保留」として記録。 詳細は `memory/feedback_official_data_first.md`。
+
 ---
 
 ## 本セッションで学んだこと (再発防止メモ)
@@ -180,6 +197,12 @@ checker.* キーが前セッションまでに約 80 個存在 (`row_*` / `col_m
 
 ### Edit で Phase3 系統 hunks を一時的に削除 → stage → 書き戻す方式
 対話式 `git add -p` が Claude Code から不可な制約下で、 混在 hunk の確実な分離方法。 本セッションで 2 回成功 (commit 7763834 / aa00208)。 手順は「重要な注意事項 2」参照。
+
+### PokeAPI v2 で 9 言語 name + desc を一括取得できる
+`curl -s 'https://pokeapi.co/api/v2/move/<slug>/'` で 1 技ぶんの JSON 取得 → `names[]` / `flavor_text_entries[]` から 9 言語を抽出。 Python ワンライナーで 8 言語の .json ファイルを直接書き換え可能。 PokeAPI は **ポケモン公式マスター辞書** で、 機械翻訳ではない。 ただし SV 新技の一部 (Armor Cannon / Electro Shot / Psychic Noise 等) は es/de/it/ko/zh-Hans/zh-Hant の `flavor_text` が未収録 → name のみ更新、 desc は元値保持。
+
+### renderSlots の console エラー (既存バグ、 今回スコープ外)
+party_checker.html で `getElementById("party-slots")` を呼ぶが、 HTML 内に該当要素が存在せず null。 `null.innerHTML = ""` で `Uncaught TypeError` が console に出る。 致命的ではない (後続処理がスキップ) ため放置。 次セッションで「renderSlots 関数を削除」or 「`#party-slots` 要素を復活」のどちらかで対応。
 
 ---
 
