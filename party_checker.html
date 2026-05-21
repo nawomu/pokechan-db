@@ -905,7 +905,14 @@ body.stats-only-mode #ev-ov.vis { display: flex !important; }
 // バッジ表示時のみ短縮（内部のタイプ名は変更しない）
 // 3文字統一: 4〜5文字のタイプは先頭3文字に短縮、3文字以下はそのまま
 
-const tDisp = t => TYPE_DISPLAY[t] || t;
+const tDisp = t => {
+  // 他言語モードでは types-master.json の short3 を優先 (ja モードは既存の TYPE_DISPLAY を維持)
+  if (window.I18N && window.I18N.type && window.I18N.lang !== 'ja') {
+    const v = window.I18N.type(t, 'short3');
+    if (v && v !== t) return v;
+  }
+  return TYPE_DISPLAY[t] || t;
+};
 
 // ── 特性説明文（後でスクレイピングで埋める） ────────────────────────────────
 
@@ -1233,7 +1240,7 @@ function openStatPopup(slotIdx) {
   _evTemp = { ...partyEvs[slotIdx] };
   _evTempNature = partyNatures[slotIdx];
   _evSelected = 'hp';
-  document.getElementById('ev-pokemon-name').textContent = name;
+  document.getElementById('ev-pokemon-name').textContent = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(name) : name;
   _buildNatureDropdownPanel();
   _evRefresh();
   document.getElementById('ev-ov').classList.add('vis');
@@ -2017,9 +2024,9 @@ function wazaCellHtml(pokeName, type, slotIdx) {
     const bd = { 物理: 0, 特殊: 0, 変化: 0 };
     moves.forEach(m => { if (bd[m.category] !== undefined) bd[m.category]++; });
     const parts = [];
-    if (bd.物理 > 0) parts.push(`<span class="bd-phys">物${bd.物理}</span>`);
-    if (bd.特殊 > 0) parts.push(`<span class="bd-spec">特${bd.特殊}</span>`);
-    if (bd.変化 > 0) parts.push(`<span class="bd-stat">変${bd.変化}</span>`);
+    if (bd.物理 > 0) parts.push(`<span class="bd-phys">${_tCK('checker.cls_phys','物')}${bd.物理}</span>`);
+    if (bd.特殊 > 0) parts.push(`<span class="bd-spec">${_tCK('checker.cls_spec','特')}${bd.特殊}</span>`);
+    if (bd.変化 > 0) parts.push(`<span class="bd-stat">${_tCK('checker.cls_stat','変')}${bd.変化}</span>`);
     html += `<div class="waza-more">${parts.join(" ")}</div>`;
   }
   return { html, clickable: true, isCountOnly };
@@ -2153,7 +2160,7 @@ function renderTable() {
       return `<td class="ab-cell" ${dragAttrs(slotIdx)}>${abs.map(a => {
         const desc = ABILITY_DESC[a] || _tCK('checker.ability_no_desc','（説明データ未取得）');
         const descAttr = desc.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        return `<span class="ab-name" data-desc="${descAttr}">${a}</span>`;
+        return `<span class="ab-name" data-desc="${descAttr}">${(window.I18N && window.I18N.ability) ? window.I18N.ability(a) : a}</span>`;
       }).join(" / ")}</td>`;
     }).join("")}
   </tr>`);
@@ -2271,7 +2278,7 @@ function renderSlots() {
     const type1 = p?.type1;
     div.innerHTML = `
       <div class="s-label">${_tCK('checker.slot_placeholder',`スロット${i+1}`).replace('{n}', i+1)}</div>
-      <div class="s-name ${name?"":"empty"}" style="color:${type1?TYPE_COLORS[type1]:''}">${name||_tCK('checker.empty_slot','（空き）')}</div>`;
+      <div class="s-name ${name?"":"empty"}" style="color:${type1?TYPE_COLORS[type1]:''}">${name ? ((window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(name) : name) : _tCK('checker.empty_slot','（空き）')}</div>`;
     div.addEventListener("click", () => openModal(i));
     div.addEventListener("dragstart", e => onSlotDragStart(e, i));
     div.addEventListener("dragover",  e => onSlotDragOver(e, i));
@@ -2518,7 +2525,7 @@ function updatePfTitle() {
     ? _tCK('checker.pf_title_type_suffix','｜{type}タイプ').replace('{type}', tDisp(pfType))
     : _tCK('checker.pf_title_all_types_suffix','｜全タイプ');
   document.getElementById("pf-title").innerHTML =
-    `${_tCK('checker.pf_title_with_slot_poke',`【スロット${pfSlot+1} ${pfPoke}】 技を選択`).replace('{n}', pfSlot+1).replace('{poke}', pfPoke)} <span style="font-size:.8rem;color:#79c0ff">${typeMsg}</span>`;
+    `${_tCK('checker.pf_title_with_slot_poke',`【スロット${pfSlot+1} ${pfPoke}】 技を選択`).replace('{n}', pfSlot+1).replace('{poke}', (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(pfPoke) : pfPoke)} <span style="font-size:.8rem;color:#79c0ff">${typeMsg}</span>`;
 }
 function closePokemonFilter() {
   document.getElementById("pf-ov").classList.remove("vis");
