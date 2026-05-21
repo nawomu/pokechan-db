@@ -12,7 +12,7 @@
   gtag('config', 'G-3Y3S9N1K7H');
 </script>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8021399778265482" crossorigin="anonymous"></script>
-<title>手持ちわざチェッカー - PchamDB (非公式)</title>
+<title data-i18n="checker.page_title">手持ちわざチェッカー - PchamDB (非公式)</title>
 <meta name="description" content="ポケモンチャンピオンズ向けの非公式パーティ確認ツール。手持ち6匹の習得わざ、タイプ補完、攻撃範囲をまとめて確認できます。">
 <meta name="theme-color" content="#0d1117">
 <meta name="robots" content="index, follow">
@@ -689,13 +689,13 @@ body.stats-only-mode #ev-ov.vis { display: flex !important; }
 <div id="entry-popup" class="entry-popup" hidden>
   <div class="entry-popup-card" role="dialog" aria-modal="true" aria-labelledby="entry-popup-label">
     <div class="entry-popup-head">
-      <span id="entry-popup-label" class="entry-popup-pr">📣 PR / 楽天市場</span>
-      <button id="entry-popup-close" class="entry-popup-close">✕ 閉じる</button>
+      <span id="entry-popup-label" class="entry-popup-pr" data-i18n="checker.entry_popup_label">📣 PR / 楽天市場</span>
+      <button id="entry-popup-close" class="entry-popup-close" data-i18n="checker.entry_popup_close_btn">✕ 閉じる</button>
     </div>
     <a id="entry-popup-product" href="#" target="_blank" rel="nofollow sponsored noopener" class="entry-popup-product">
       <img id="entry-popup-img" src="" alt="">
     </a>
-    <p class="entry-popup-foot">
+    <p class="entry-popup-foot" data-i18n-html="checker.entry_popup_foot">
       ※ PchamDB は楽天アフィリエイトの参加者です<br>
       ページ下部にも商品があります
     </p>
@@ -1213,7 +1213,7 @@ function _evRefresh() {
     const canInc = pts < maxHere;
     const canDec = pts > 0;
     return `<div class="${cls}" data-k="${k}">
-      <span class="ev-row-label"><b class="ev-row-letter">${EV_STAT_LETTER[k]}</b> <span class="ev-row-jp">${EV_STAT_LABEL[k]}</span></span>
+      <span class="ev-row-label"><b class="ev-row-letter">${EV_STAT_LETTER[k]}</b> <span class="ev-row-jp">${_tCK('stats.'+({hp:'hp_full',atk:'atk_full',def:'def_full',spatk:'sp_atk_full',spdef:'sp_def_full',spd:'spd_full'})[k], EV_STAT_LABEL[k])}</span></span>
       <span class="ev-row-actual">${actual ?? '—'}</span>
       <button class="ev-row-min" data-k="${k}" ${canDec?'':'disabled'} title="ミニマム (0)">MIN</button>
       <button class="ev-row-dec" data-k="${k}" ${canDec?'':'disabled'} title="-1">◀</button>
@@ -1696,8 +1696,8 @@ function renderPcTabs() {
   bc.innerHTML = `<a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:12px" title="${_tCK('checker.nav_pchamdb_home_title','PchamDB トップに戻る')}">${_tCK('checker.nav_pchamdb_home','🏠 PchamDB')}</a>`
     + '<span style="color:#79c0ff;font-size:11px;font-weight:600;letter-spacing:0.5px;margin:0 4px">BETA</span>'
     + '<span style="color:#666;font-size:11px">›</span>'
-    + '<span style="color:#8b949e;font-size:11px">手持ちわざチェッカー</span>'
-    + '<span style="color:#666;font-size:10px;margin-left:2px">' + CHECKER_VERSION + '</span>';
+    + `<span style="color:#8b949e;font-size:11px">${_tCK('checker.breadcrumb_title','手持ちわざチェッカー')}</span>`
+    + `<span style="color:#666;font-size:10px;margin-left:2px">${_tCK('checker.version_label', CHECKER_VERSION)}</span>`;
   bar.appendChild(bc);
 
   pcTabs.forEach(tab => {
@@ -1760,6 +1760,7 @@ function renderPcTabs() {
   i18nMount.id = 'i18n-switcher-mount';
   i18nMount.style.cssText = 'margin-left:8px;display:inline-flex;align-items:center;';
   bar.appendChild(i18nMount);
+  if (window.I18N && I18N.apply) I18N.apply();
 }
 function switchPcTab(id) {
   if (id === pcActiveId) return;
@@ -2036,9 +2037,10 @@ function renderTable() {
   const dragAttrs = (i) => `draggable="true" ondragstart="onSlotDragStart(event,${i})" ondragover="onSlotDragOver(event,${i})" ondragleave="this.classList.remove('drag-over')" ondrop="onSlotDrop(event,${i})"`;
   ensureStatCaches();
 
+  const _STAT_I18N = {hp:'stats.hp_full', atk:'stats.atk_full', def:'stats.def_full', spatk:'stats.sp_atk_full', spdef:'stats.sp_def_full', spd:'stats.spd_full', total:'stats.total'};
   [["HP","hp"],["こうげき","atk"],["ぼうぎょ","def"],["とくこう","spatk"],["とくぼう","spdef"],["すばやさ","spd"],["合計","total"]].forEach(([label,key]) => {
     rows.push(`<tr>
-      <td class="row-label">${label}</td>
+      <td class="row-label">${_tCK(_STAT_I18N[key], label)}</td>
       ${party.map((name, slotIdx) => {
         const p = name && POKE_MAP[name];
         if (!p) return `<td class="stat-cell empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
@@ -2072,7 +2074,7 @@ function renderTable() {
               pts >= PT_MAX_PER_STAT ? 'sv-pt-max' : pts > 0 ? 'sv-pt-has' : '',
               !pts && natUp ? 'sv-base-nat-up' : !pts && natDown ? 'sv-base-nat-down' : ''
             ].filter(Boolean).join(' ');
-            html += `<span class="${baseCls}" onclick="openStatPopup(${slotIdx})" title="クリックしてポイント割り振り (+${pts})">${baseV ?? ""}</span>`;
+            html += `<span class="${baseCls}" onclick="openStatPopup(${slotIdx})" title="${_tCK('checker.tip_stat_assign','クリックしてポイント割り振り (+{pts})').replace('{pts}', pts)}">${baseV ?? ""}</span>`;
           }
         }
         if (statVis.v6) {
@@ -2090,7 +2092,7 @@ function renderTable() {
               pts >= PT_MAX_PER_STAT ? 'sv-pt-max' : pts > 0 ? 'sv-pt-has' : '',
               !pts && natUp ? 'sv-base-nat-up' : !pts && natDown ? 'sv-base-nat-down' : ''
             ].filter(Boolean).join(' ');
-            html += `<span class="${v6Cls}" onclick="openStatPopup(${slotIdx})" title="現値 (V6 × ${partyNatures[slotIdx]} + ${pts}pt) — クリックで割り振り">${actual ?? ""}</span>`;
+            html += `<span class="${v6Cls}" onclick="openStatPopup(${slotIdx})" title="${_tCK('checker.tip_stat_v6','現値 (V6 × {nature} + {pts}pt) — クリックで割り振り').replace('{nature}', partyNatures[slotIdx]).replace('{pts}', pts)}">${actual ?? ""}</span>`;
           }
         }
         if (statVis.c) {
@@ -2099,21 +2101,21 @@ function renderTable() {
             html += cell("sm-c", "", "");
           } else {
             const v = (_statCacheC && _statCacheC[srKey]) ? _statCacheC[srKey][`${key}_c`] : null;
-            html += cell("sm-c", v, "性補 (IV=31, EV=0, 性格1.1)");
+            html += cell("sm-c", v, _tCK('checker.tip_sv_c_full','性補 (IV=31, EV=0, 性格1.1)'));
           }
         }
         if (statVis.a) {
           if (isTotal) {
             html += cell("sm-a", "", "");
           } else {
-            html += cell("sm-a", e[`${key}_a`], "準振 (EV252・性格補正なし)");
+            html += cell("sm-a", e[`${key}_a`], _tCK('checker.tip_sv_a','準振 (EV252・性格補正なし)'));
           }
         }
         if (statVis.b) {
           if (isTotal || isHpOrTotal) {
             html += cell("sm-b", "", "");
           } else {
-            html += cell("sm-b", e[`${key}_b`], "最大 (EV252・性格1.1)");
+            html += cell("sm-b", e[`${key}_b`], _tCK('checker.tip_sv_b','最大 (EV252・性格1.1)'));
           }
         }
 
@@ -2135,7 +2137,7 @@ function renderTable() {
       const p = name && POKE_MAP[name];
       if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
       return `<td style="text-align:center;padding:2px 3px" ${dragAttrs(slotIdx)}>
-        <span class="nature-cell" onclick="openStatPopup(${slotIdx})" title="クリックして性格・能力Pを編集">${partyNatures[slotIdx]}</span>
+        <span class="nature-cell" onclick="openStatPopup(${slotIdx})" title="${_tCK('checker.tip_nature_edit','クリックして性格・能力Pを編集')}">${partyNatures[slotIdx]}</span>
       </td>`;
     }).join("")}
   </tr>`);
@@ -2149,7 +2151,7 @@ function renderTable() {
       const abs = [p.ab1,p.ab2,p.ab3].filter(Boolean);
       if (abs.length === 0) return `<td class="ab-cell" ${dragAttrs(slotIdx)}>—</td>`;
       return `<td class="ab-cell" ${dragAttrs(slotIdx)}>${abs.map(a => {
-        const desc = ABILITY_DESC[a] || "（説明データ未取得）";
+        const desc = ABILITY_DESC[a] || _tCK('checker.ability_no_desc','（説明データ未取得）');
         const descAttr = desc.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         return `<span class="ab-name" data-desc="${descAttr}">${a}</span>`;
       }).join(" / ")}</td>`;
@@ -2218,9 +2220,9 @@ function renderTable() {
     const color  = TYPE_COLORS[t];
     const stats  = TYPE_OFFENSIVE_STATS[t] || {p:0,m:0,x:0};
     const statsBadge = `<span class="type-stats">
-      <span class="ts-good" title="ばつぐん">◯${stats.p}</span>
-      <span class="ts-bad" title="いまひとつ">▲${stats.m}</span>
-      <span class="ts-zero" title="無効">✗${stats.x}</span>
+      <span class="ts-good" title="${_tCK('checker.tip_type_super','ばつぐん')}">◯${stats.p}</span>
+      <span class="ts-bad" title="${_tCK('checker.tip_type_weak','いまひとつ')}">▲${stats.m}</span>
+      <span class="ts-zero" title="${_tCK('checker.tip_type_immune','無効')}">✗${stats.x}</span>
     </span>`;
 
     // タイプ色を半透明で行背景に適用 (視認性UP)
@@ -2236,7 +2238,7 @@ function renderTable() {
         ondrop="onTypeDrop(event,'${t}')">
       <td class="row-label" style="background:${labelBg}">
         <div class="type-label-cell">
-          <span class="drag-handle" title="ドラッグで並び替え">⠿</span>
+          <span class="drag-handle" title="${_tCK('checker.tip_drag_reorder','ドラッグで並び替え')}">⠿</span>
           <span class="tbadge" style="background:${color}">${tDisp(t)}</span>
           ${statsBadge}
         </div>
@@ -2254,6 +2256,7 @@ function renderTable() {
   });
 
   table.innerHTML = rows.join("");
+  if (window.I18N && I18N.apply) I18N.apply();
 }
 
 // ── スロット描画 ──────────────────────────────────────────────────────────────
@@ -2276,6 +2279,7 @@ function renderSlots() {
     div.addEventListener("drop",      e => onSlotDrop(e, i));
     container.appendChild(div);
   });
+  if (window.I18N && I18N.apply) I18N.apply();
 }
 
 // ── スロット ドラッグ ─────────────────────────────────────────────────────────
@@ -2358,6 +2362,7 @@ function renderModalList(q) {
       return `<div class="m-item" onclick="selectPoke('${p.name}')">No.${p.no.padStart(3,'0')}  ${disp}${p.form&&p.form!=='通常'?' ('+p.form+')':''}</div>`;
     })
     .join("");
+  if (window.I18N && I18N.apply) I18N.apply();
 }
 function selectPoke(name) {
   // ポケモンが変わる時はそのスロットのフィルタを「空オブジェクト」で初期化
@@ -2441,7 +2446,7 @@ function renderHeaderRow(prefix, fs, onSortClick) {
   };
   const headerHtml = cols.map(c =>
     `<span class="${fs.sort.col===c?'sort-active':''}" onclick="${onSortClick}('${c}')">${SORT_LABELS[c]}${arrow(c)}</span>`
-  ).join("") + "<span>説明</span>";
+  ).join("") + `<span>${_tCK('checker.col_pf_desc','説明')}</span>`;
   return `<div class="waza-row-header">${headerHtml}</div>`;
 }
 
@@ -2509,7 +2514,9 @@ function pfResetFilterState() {
   pfSortKey = 'type'; pfSortDir = 1;
 }
 function updatePfTitle() {
-  const typeMsg = pfType ? `｜${tDisp(pfType)}タイプ` : `｜全タイプ`;
+  const typeMsg = pfType
+    ? _tCK('checker.pf_title_type_suffix','｜{type}タイプ').replace('{type}', tDisp(pfType))
+    : _tCK('checker.pf_title_all_types_suffix','｜全タイプ');
   document.getElementById("pf-title").innerHTML =
     `${_tCK('checker.pf_title_with_slot_poke',`【スロット${pfSlot+1} ${pfPoke}】 技を選択`).replace('{n}', pfSlot+1).replace('{poke}', pfPoke)} <span style="font-size:.8rem;color:#79c0ff">${typeMsg}</span>`;
 }
@@ -2780,7 +2787,7 @@ function restorePfEfChipStates() {
 function buildPfTableHead() {
   document.querySelector('#pf-table thead').innerHTML = `
     <tr class="head-row">
-      <th class="col-chk" title="選択">☑</th>
+      <th class="col-chk" title="${_tCK('checker.pf_chk_title','選択')}">☑</th>
       <th class="col-name" data-pfsort="name" data-i18n="checker.col_move_name">わざ名</th>
       <th class="col-type" data-pfsort="type" data-i18n="checker.col_move_type">タイプ</th>
       <th class="col-class" data-pfsort="category" data-i18n="checker.col_move_class">分類</th>
@@ -2819,6 +2826,7 @@ function buildPfTableHead() {
       <th></th>
     </tr>
   `;
+  if (window.I18N && I18N.apply) I18N.apply();
 }
 
 function togglePfTypeDropdown(e) {
@@ -3328,7 +3336,7 @@ renderTable();
       sent++;
     }
     if (sent === 0){
-      alert('パーティが空です。先にポケモンを選択してください。');
+      alert(_tCK('checker.alert_empty_party','パーティが空です。先にポケモンを選択してください。'));
       return;
     }
     localStorage.setItem('pokechan_battle_handoff_v1', JSON.stringify(handoff));
