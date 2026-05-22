@@ -1206,7 +1206,13 @@ function openStatPopup(slotIdx) {
   _evTemp = { ...partyEvs[slotIdx] };
   _evTempNature = partyNatures[slotIdx];
   _evSelected = 'hp';
-  document.getElementById('ev-pokemon-name').textContent = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(name) : name;
+  const _evNameEl = document.getElementById('ev-pokemon-name');
+  _evNameEl.textContent = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(name) : name;
+  // ev-popup 表示中は data-i18n="checker.pokemon_placeholder" を一時的に外し、
+  // 言語切替時の I18N.apply() で「ポケモン」placeholder に上書きされるのを防ぐ。
+  // janame を残しておけば refreshAllI18nContent 側で新言語で再描画できる。
+  _evNameEl.removeAttribute('data-i18n');
+  _evNameEl.dataset.janame = name;
   _buildNatureDropdownPanel();
   _evRefresh();
   document.getElementById('ev-ov').classList.add('vis');
@@ -1241,7 +1247,16 @@ function _buildNatureDropdownPanel() {
   }).join('');
 }
 
-function _closeEv() { document.getElementById('ev-ov').classList.remove('vis'); }
+function _closeEv() {
+  document.getElementById('ev-ov').classList.remove('vis');
+  // openStatPopup で外した data-i18n を復元し、 dataset.janame をクリア。
+  // 次回オーバーレイが閉じている間は通常の i18n 翻訳 (placeholder) が機能する。
+  const _evNameEl = document.getElementById('ev-pokemon-name');
+  if (_evNameEl) {
+    _evNameEl.setAttribute('data-i18n', 'checker.pokemon_placeholder');
+    delete _evNameEl.dataset.janame;
+  }
+}
 
 (function() {
   function totalNow() { return STAT_KEYS_6.reduce((s,k) => s + _evTemp[k], 0); }
@@ -3361,6 +3376,12 @@ renderTable();
     }
     // data-i18n 属性付き要素の再翻訳
     if (window.I18N && I18N.apply) I18N.apply();
+    // ev-popup 開いている時のポケモン名再描画 (openStatPopup で data-i18n を外す代わりに
+    // dataset.janame を残しているので、 言語切替時はそれを使って新言語で再描画)
+    const _evName = document.getElementById('ev-pokemon-name');
+    if (_evName && _evName.dataset.janame && window.I18N && window.I18N.pokemon) {
+      _evName.textContent = window.I18N.pokemon(_evName.dataset.janame);
+    }
   }
   document.addEventListener('i18n:ready', refreshAllI18nContent);
   document.addEventListener('i18n:changed', refreshAllI18nContent);
