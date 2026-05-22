@@ -10,6 +10,7 @@
  *   I18N.move(key, jaFallback) : わざ名 (ローマ字キー + 日本語名 → 現在言語)
  *                                 ja モード or 未登録時は jaFallback を返す
  *   I18N.ability(jaName)       : 特性名
+ *   I18N.nature(jaName)        : 性格名 (日本語 → 現在言語、 ja モード or 未登録時は jaName)
  *   I18N.type(jaName, format?) : タイプ名 (format: 'full' [既定] | 'short3')
  *   I18N.apply()               : DOMの data-i18n="key" 属性を全部翻訳
  *   I18N.onReady(callback)     : 辞書ロード完了時の callback
@@ -40,7 +41,7 @@
     return 'i18n/';
   })();
 
-  // 辞書キャッシュ: { 'ja': {pokemon, moves, abilities, types, ui}, 'en': {...} }
+  // 辞書キャッシュ: { 'ja': {pokemon, moves, abilities, types, natures, ui}, 'en': {...} }
   const cache = {};
   // タイプ多言語マスター (types-master.json, 言語非依存で 1 度だけロード)
   // 構造: { types: { normal: { official_ja, en_full, full:{lang:str}, short3:{lang:str} }, ... } }
@@ -90,6 +91,7 @@
       abilities: main ? main.abilities || {} : {},
       pokemon: main ? main.pokemon || {} : {},
       moves: main ? main.moves || {} : {},
+      natures: main ? main.natures || {} : {},
       ui: ui,
     };
     // タイプ多言語マスターは言語非依存で 1 度だけロード (lang 切替時の再フェッチ不要)
@@ -179,6 +181,14 @@
     const entry = d.abilities[jaName];
     if (entry && entry.short_effect) return entry.short_effect;
     return null;
+  }
+
+  function tNature(jaName) {
+    if (currentLang === 'ja' || !jaName) return jaName;
+    const d = cache[currentLang];
+    if (!d) return jaName;
+    const entry = d.natures && d.natures[jaName];
+    return entry || jaName;
   }
 
   function tType(jaName, format) {
@@ -493,6 +503,7 @@
     moveDesc: tMoveDesc,
     ability: tAbility,
     abilityDesc: tAbilityDesc,
+    nature: tNature,
     type: tType,
     apply: applyDOM,
     onReady,
