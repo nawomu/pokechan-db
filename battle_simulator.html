@@ -93,6 +93,8 @@ h1{font-size:15px;color:#79c0ff;font-weight:700}
 .bs-nav-btn.nav-waza:hover{background:#D68910;border-color:#D68910}
 .bs-nav-btn.nav-type-chart{background:#2E8B57;color:#fff;border-color:#2E8B57}
 .bs-nav-btn.nav-type-chart:hover{background:#246B45;border-color:#246B45}
+.bs-nav-btn.nav-real-battle{background:#9B59B6;color:#fff;border-color:#9B59B6}
+.bs-nav-btn.nav-real-battle:hover{background:#7D3C98;border-color:#7D3C98}
 
 #arena{
   display:grid;grid-template-columns:1fr 210px 1fr;gap:10px;
@@ -132,39 +134,112 @@ h1{font-size:15px;color:#79c0ff;font-weight:700}
 /* セクション見出しは非表示（色とレイアウトで判別） */
 .sec-head, .side-label{display:none}
 
-/* 能力P・ランク・実数値テーブル (チェッカー風 / バーなし) */
-.stat-table{width:100%;border-collapse:separate;border-spacing:0 3px;font-size:12px;margin-top:2px}
-.stat-table th{
-  text-align:left;color:#8b949e;font-weight:400;
-  padding:3px 6px;
+/* 能力値編集 (チェッカーの数値入力 UI をインラインに移植) */
+.stat-rows{display:flex;flex-direction:column;gap:4px;font-size:12px;margin-top:2px}
+.stat-row{
+  display:grid;
+  grid-template-columns: 4em 2.6em 2em 1.4em minmax(50px,1fr) 1.7em 1.4em 2em 4em;
+  align-items:center;gap:4px;
+  padding:5px 7px;background:#1a2540;border-radius:8px;
+  border:2px solid transparent;transition:.1s;
 }
-.stat-table tbody td{
-  padding:5px 6px;background:#1a2540;text-align:right;
-  border-top:1px solid transparent;border-bottom:1px solid transparent;
-  transition:.1s;
+.stat-row:hover{background:#22305a;border-color:#3a4a7a}
+.stat-row.selected{background:#3a4a7a;border-color:#ffd633;box-shadow:0 0 0 1px rgba(255,214,51,.3)}
+
+.stat-row.foot{
+  display:flex;justify-content:space-between;align-items:center;
+  background:#0d1117;color:#79c0ff;font-weight:700;
+  padding:5px 9px;border-radius:6px;border:1px solid #21262d;
 }
-.stat-table tbody td:first-child{border-left:1px solid #2a3a5e;border-top-left-radius:6px;border-bottom-left-radius:6px}
-.stat-table tbody td:last-child{border-right:1px solid #2a3a5e;border-top-right-radius:6px;border-bottom-right-radius:6px}
-.stat-table tbody tr:hover td{background:#22305a}
-.stat-table thead th{
-  font-weight:700;text-align:center;color:#79c0ff;font-size:10px;
-  border-bottom:1px solid #30363d;background:#0d1117;padding:3px 6px;
+.stat-row.foot:hover{background:#0d1117;border-color:#21262d}
+.stat-row.foot b{color:#79c0ff;font-variant-numeric:tabular-nums}
+
+.stat-row.nat-up .stat-key{color:#ff5c5c;font-weight:700}
+.stat-row.nat-down .stat-key{color:#5cb0ff;font-weight:700}
+.stat-row.nat-up .stat-jp,.stat-row.nat-down .stat-jp{color:inherit;opacity:.85}
+
+.stat-key{
+  color:#e6edf3;white-space:nowrap;text-align:left;
+  display:flex;align-items:center;gap:3px;font-size:.85em;
 }
-.stat-table thead th:first-child{text-align:left}
-.stat-key{color:#e6edf3;text-align:left !important;white-space:nowrap}
-.stat-letter{display:inline-block;min-width:1.2em;text-align:center;font-weight:700;font-size:1.05em;margin-right:3px}
-.stat-jp{color:#8b949e;font-size:.82em;font-weight:normal}
-.stat-table tbody tr.nat-up .stat-key{color:#ff5c5c;font-weight:700}
-.stat-table tbody tr.nat-down .stat-key{color:#5cb0ff;font-weight:700}
-.stat-table tbody tr.nat-up .stat-jp,.stat-table tbody tr.nat-down .stat-jp{color:inherit;opacity:.8}
-.stat-effort{width:54px}
-.stat-rank{width:62px;text-align:center;padding:0 !important}
+.stat-letter{display:inline-block;min-width:1.1em;text-align:center;font-weight:700;font-size:1.05em}
+.stat-jp{color:#8b949e;font-size:.78em;font-weight:normal}
+
+/* 実数値 (左側、大きめ) */
+.stat-actual{
+  font-weight:700;font-size:1em;text-align:right;color:#e6edf3;
+  font-variant-numeric:tabular-nums;
+}
+.stat-row.has-pts .stat-actual{color:#ffe066}
+.stat-row.max-pts .stat-actual{color:#ff7b9d}
+
+/* スライダーバー本体 (32分割の縦線) */
+.stat-bar{
+  position:relative;height:22px;background:#0d1117;
+  border:1px solid #4a5a90;border-radius:4px;
+  overflow:hidden;cursor:pointer;touch-action:none;user-select:none;
+}
+.stat-bar:hover{border-color:#79c0ff}
+.stat-bar::after{
+  content:'';position:absolute;inset:0;z-index:3;pointer-events:none;
+  background:repeating-linear-gradient(90deg, transparent 0, transparent calc(3.125% - 1px), rgba(255,255,255,.18) calc(3.125% - 1px), rgba(255,255,255,.18) 3.125%);
+}
+.stat-bar-fill{
+  position:absolute;left:0;top:0;height:100%;
+  background:linear-gradient(90deg,#ffe680,#c9b878);
+  transition:width .08s,background .2s;pointer-events:none;z-index:1;
+}
+.stat-bar-preview{
+  position:absolute;left:0;top:0;height:100%;width:0;
+  background:linear-gradient(90deg,#ffe680,#c9b878);
+  opacity:0;pointer-events:none;z-index:2;
+  transition:width .04s,opacity .1s,background .2s;
+}
+.stat-bar:hover .stat-bar-preview{opacity:.45}
+.stat-rows.budget-full .stat-bar-fill,
+.stat-rows.budget-full .stat-bar-preview{
+  background:linear-gradient(90deg,#ffb84d,#ff7733);
+}
+
+/* 性格 ↑/↓ 行: ボーナス pt 位置・無駄 pt 位置の縦ライン */
+.stat-bonus-mark{
+  position:absolute;top:0;bottom:0;width:3px;
+  pointer-events:none;z-index:4;transform:translateX(-50%);
+}
+.stat-bonus-mark.bonus{background:rgba(255,215,80,.85);box-shadow:0 0 3px rgba(255,215,80,.6)}
+.stat-bonus-mark.waste{background:rgba(80,100,140,.7)}
+
+.stat-pts{
+  font-weight:700;color:#e6edf3;text-align:center;
+  font-variant-numeric:tabular-nums;font-size:.95em;
+}
+.stat-row.has-pts .stat-pts{color:#ffe066}
+.stat-row.max-pts .stat-pts{color:#ff4d4d}
+
+/* MIN / MAX / ◀ / ▶ */
+.stat-row .stat-min,.stat-row .stat-max,
+.stat-row .stat-dec,.stat-row .stat-inc{
+  height:22px;border-radius:4px;border:1px solid #4a5a90;
+  background:#22305a;color:#fff;cursor:pointer;font-weight:700;
+  padding:0;line-height:1;font-family:inherit;
+}
+.stat-row .stat-dec,.stat-row .stat-inc{font-size:.85em}
+.stat-row .stat-min,.stat-row .stat-max{font-size:.62em;letter-spacing:.04em}
+.stat-row .stat-min:hover:not(:disabled),
+.stat-row .stat-max:hover:not(:disabled),
+.stat-row .stat-dec:hover:not(:disabled),
+.stat-row .stat-inc:hover:not(:disabled){background:#2e406e;border-color:#79c0ff}
+.stat-row .stat-min:disabled,.stat-row .stat-max:disabled,
+.stat-row .stat-dec:disabled,.stat-row .stat-inc:disabled{opacity:.3;cursor:not-allowed}
+
+/* ランク補正 ± (HP 以外) */
+.stat-rank{text-align:center}
 .stat-rank-ctrl{
   display:inline-flex;align-items:center;gap:2px;
   font-size:10px;color:#8b949e;
 }
 .stat-rank-ctrl button{
-  width:14px;height:16px;padding:0;border:1px solid #30363d;border-radius:2px;
+  width:14px;height:18px;padding:0;border:1px solid #30363d;border-radius:2px;
   background:#0d1117;color:#8b949e;font-size:10px;line-height:1;cursor:pointer;
   font-family:inherit;
 }
@@ -173,20 +248,6 @@ h1{font-size:15px;color:#79c0ff;font-weight:700}
 .stat-rank-ctrl .rank-val{min-width:18px;display:inline-block;text-align:center;font-variant-numeric:tabular-nums}
 .stat-rank-ctrl .rank-val.up{color:#ff9c9c;font-weight:700}
 .stat-rank-ctrl .rank-val.down{color:#9cc8ff;font-weight:700}
-.stat-effort input{
-  width:46px;padding:2px 4px;border:1px solid #30363d;border-radius:3px;
-  background:#0d1117;color:#e6edf3;font-size:12px;text-align:right;
-  font-family:inherit;
-}
-.stat-effort input:focus{outline:none;border-color:#58a6ff;background:#1c2a3a}
-.stat-effort input.over{border-color:#da3633;background:#3a1212}
-.stat-final{
-  font-weight:700;color:#fff;width:50px;
-  font-variant-numeric:tabular-nums;
-}
-/* 実数値の色: 性格よりも能力P 振り優先 (チェッカーと同ルール) */
-.stat-table tbody tr.has-pts .stat-final{color:#ffe066}
-.stat-table tbody tr.max-pts .stat-final{color:#ff7b9d}
 
 /* 性格セレクタ */
 .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -199,12 +260,6 @@ select,.styled-input{
 select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1c2a3a}
 
 /* 能力Pサマリ */
-.stats-edit-btn{
-  margin-left:8px;padding:2px 8px;border-radius:3px;border:1px solid #58a6ff;
-  background:#1c2a3a;color:#79c0ff;cursor:pointer;font-size:10px;font-weight:700;
-  font-family:inherit;
-}
-.stats-edit-btn:hover{background:#264a6e;color:#fff}
 .ep-summary{
   font-size:11px;color:#8b949e;padding:3px 8px;
   background:#0d1117;border:1px solid #21262d;border-radius:4px;
@@ -283,14 +338,6 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 .m-item:hover{background:#1c2a3a}
 .m-item .m-name{font-size:13px;color:#e6edf3}
 .m-item .m-types{display:flex;gap:3px}
-
-/* 合計行 */
-.stat-table tfoot td{
-  background:#0d1117;color:#79c0ff;font-weight:700;
-  border-top:1px solid #30363d;
-  padding:5px 6px;
-}
-.stat-table tfoot .stat-key{color:#79c0ff !important}
 
 /* 特性セレクタ */
 .ability-wrap{display:flex;flex-direction:column;gap:3px}
@@ -603,6 +650,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
     <a class="bs-nav-btn nav-checker" href="party_checker.html" target="_blank" rel="noopener" title="チェッカーを別タブで開く">👥 チェッカー</a>
     <a class="bs-nav-btn nav-waza" href="waza-list.html" target="_blank" rel="noopener" title="わざリストを別タブで開く">📋 わざリスト</a>
     <a class="bs-nav-btn nav-type-chart" href="type_chart.html" target="_blank" rel="noopener" title="タイプ相性表を別タブで開く">📊 タイプ相性</a>
+    <a class="bs-nav-btn nav-real-battle" href="real_battle_simulator.html" target="_blank" rel="noopener" title="リアルバトルシミュレータを別タブで開く (ターン進行・フル機能)">⚡ リアルバトル</a>
   </nav>
 </header>
 
@@ -625,14 +673,8 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <span class="change-btn">▾ 選択</span>
     </div>
 
-    <table class="stat-table">
-      <thead><tr><th>能力</th><th>能力P</th><th>ランク</th><th>実数値</th></tr></thead>
-      <tbody class="stat-tbody"></tbody>
-      <tfoot>
-        <tr><td class="stat-key">合計</td><td class="stat-total-ep">0</td><td class="stat-rank-blank"></td><td class="stat-total-real">—</td></tr>
-      </tfoot>
-    </table>
-    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span> <button type="button" class="stats-edit-btn" title="スライダーUIで能力P・性格を編集">✏️ スライダーで編集</button></div>
+    <div class="stat-rows"></div>
+    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span></div>
 
     <select class="nature-select"></select>
 
@@ -743,7 +785,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <button id="btn-start-battle" type="button">▶︎ バトル開始</button>
       <button id="btn-run-turn" type="button">⚔️ ターン実行</button>
       <button id="btn-undo-battle" type="button" disabled>↩︎ 一手戻す</button>
-      <button id="btn-reset-battle" type="button">↺ HP全回復</button>
+      <button id="btn-reset-battle" type="button" title="バトル開始前の状態に戻す (HP回復・壁/設置/状態/ランクをクリア、わざ・ポケモン・能力Pは保持)">↺ バトルリセット</button>
       <button id="btn-full-reset" type="button">🔄 全リセット</button>
     </div>
     <div class="battle-hint">技横の <b>⚔ 実行</b> で片側攻撃。両側選択して「ターン実行」で同時。</div>
@@ -760,14 +802,8 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <span class="change-btn">▾ 選択</span>
     </div>
 
-    <table class="stat-table">
-      <thead><tr><th>能力</th><th>能力P</th><th>ランク</th><th>実数値</th></tr></thead>
-      <tbody class="stat-tbody"></tbody>
-      <tfoot>
-        <tr><td class="stat-key">合計</td><td class="stat-total-ep">0</td><td class="stat-rank-blank"></td><td class="stat-total-real">—</td></tr>
-      </tfoot>
-    </table>
-    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span> <button type="button" class="stats-edit-btn" title="スライダーUIで能力P・性格を編集">✏️ スライダーで編集</button></div>
+    <div class="stat-rows"></div>
+    <div class="ep-summary"><span>能力P合計</span><span><b>0</b> / 66</span></div>
 
     <select class="nature-select"></select>
 
@@ -802,17 +838,6 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <button id="item-modal-close-x" type="button" aria-label="閉じる" title="閉じる">×</button>
     </div>
     <div id="item-modal-list"></div>
-  </div>
-</div>
-
-<!-- ステータス編集モーダル (party_checker iframe / stats_only モード) -->
-<div class="modal-ov" id="stats-picker-modal" style="z-index:600">
-  <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;width:90vw;max-width:760px;height:auto;max-height:94vh;display:flex;flex-direction:column;overflow:hidden">
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 12px;background:#0F2940;color:#fff;flex-shrink:0">
-      <span id="stats-picker-title" style="font-weight:700;font-size:13px">能力値を編集</span>
-      <button id="stats-picker-close" style="background:#30363d;color:#fff;border:none;border-radius:3px;padding:4px 10px;cursor:pointer;font-weight:700">× 閉じる</button>
-    </div>
-    <iframe id="stats-picker-iframe" src="about:blank" style="width:100%;height:560px;border:none;background:transparent"></iframe>
   </div>
 </div>
 
@@ -914,6 +939,8 @@ function makeSideState(){
     stealthRock: false,
     rockyHelmet: false,
     disguise: false,
+    // 能力値編集 UI で現在ハイライト中の行
+    selectedStatKey: 'hp',
   };
 }
 
@@ -956,6 +983,17 @@ function getNatureMult(natureIdx, key){
 
 function sumEffort(effort){
   return STAT_KEYS.reduce((s,k)=>s+(effort[k]||0), 0);
+}
+
+// pt を +1 した時の実数値の増分 (ボーナス目盛り計算用)
+//   性格 ×1.1: 1 or 2 (約10pt 毎に 2)
+//   性格 ×0.9: 0 or 1 (約10pt 毎に 0)
+//   性格 ×1.0: 常に 1
+function statGainFor(key, base, pts, mult){
+  if (key === 'hp') return 1;
+  const cur = calcRealStat(key, base, pts,     mult);
+  const nxt = calcRealStat(key, base, pts + 1, mult);
+  return nxt - cur;
 }
 
 // =========================================================================
@@ -1680,7 +1718,7 @@ function fullResetBattle(){
   updateUndoButton();
 }
 
-// === HP リセット / バトルリセット ===
+// === バトルリセット (バトル開始前の状態に戻す: HP/状態/壁/設置/ランクをクリア、わざ・ポケモン・能力Pは保持) ===
 function resetBattle(){
   ['self','opp'].forEach(s=>{
     const st = sides[s];
@@ -1689,14 +1727,26 @@ function resetBattle(){
     st.badpoisonCounter = 0;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
+    // 場の効果 (壁・設置・ばけのかわ) もクリア
+    st.reflect = false;
+    st.lightScreen = false;
+    st.stealthRock = false;
+    st.disguise = false;
+    // 選択中のわざ矢印もリセット
+    st.selectedMoveIdx = null;
   });
   battleLog.length = 0;
   battleHistory.length = 0;
-  log('Reset', 'HP全回復・履歴クリア');
-  // status select も再同期
+  log('Reset', 'バトルリセット (HP/状態/壁/ランクを初期化)');
+  // 各 UI を再同期
   ['self','opp'].forEach(side=>{
     const sel = document.querySelector(`.status-select[data-side="${side}"]`);
     if (sel) sel.value = 'none';
+    // 場のチェックボックス類 (リフレクター / ひかりのかべ / ステルスロック / ばけのかわ)
+    ['reflect','lightScreen','stealthRock','disguise'].forEach(flag=>{
+      const cb = document.querySelector(`input[type=checkbox][data-side="${side}"][data-flag="${flag}"]`);
+      if (cb) cb.checked = false;
+    });
   });
   renderBattleLog();
   renderBoth();
@@ -1775,58 +1825,85 @@ function render(side){
     hpEl.remove();
   }
 
-  // ステータス表
-  const tbody = root.querySelector('.stat-tbody');
-  tbody.innerHTML = '';
+  // ステータス編集行 (チェッカーの数値入力 UI と同等)
+  const rowsEl = root.querySelector('.stat-rows');
+  const totalEp = sumEffort(st.effort);
+  rowsEl.classList.toggle('budget-full', totalEp === 66);
+  if (!st.selectedStatKey) st.selectedStatKey = 'hp';
+
   let realSum = 0;
-  STAT_KEYS.forEach(k=>{
+  const rowsHtml = STAT_KEYS.map(k => {
     const base = st.poke ? st.poke[k] : 0;
     const ep = st.effort[k] || 0;
     const mult = getNatureMult(st.natureIdx, k);
     const real = st.poke ? calcRealStat(k, base, ep, mult) : 0;
     realSum += real;
-    // ランク補正セル（HP はランクなし）
-    const rankCell = (k === 'hp') ? '<td class="stat-rank"></td>' : (()=>{
+    const natUp   = mult > 1;
+    const natDown = mult < 1;
+    // 残り予算を考慮した「ここで取りうる上限」
+    const maxHere = Math.min(32, 66 - (totalEp - ep));
+    const canInc = ep < maxHere;
+    const canDec = ep > 0;
+    const pct = (ep / 32) * 100;
+
+    // 性格 ↑/↓ 行の +2 ボーナス / +0 無駄 目盛り
+    let marksHtml = '';
+    if (st.poke && (natUp || natDown)){
+      for (let p = 0; p < 32; p++){
+        const gain = statGainFor(k, base, p, mult);
+        if (gain >= 2){
+          const left = ((p + 1) / 32) * 100;
+          marksHtml += `<span class="stat-bonus-mark bonus" style="left:${left}%" title="+2 ボーナス pt"></span>`;
+        } else if (gain === 0){
+          const left = ((p + 1) / 32) * 100;
+          marksHtml += `<span class="stat-bonus-mark waste" style="left:${left}%" title="+0 無駄 pt"></span>`;
+        }
+      }
+    }
+
+    // ランク (HP はランクなし → 空セル)
+    const rankHtml = (k === 'hp') ? '<div class="stat-rank"></div>' : (() => {
       const r = st.rank ? (st.rank[k] || 0) : 0;
-      const cls = r > 0 ? 'up' : (r < 0 ? 'down' : '');
+      const rcls = r > 0 ? 'up' : (r < 0 ? 'down' : '');
       const sign = r > 0 ? '+' : '';
-      return `<td class="stat-rank"><span class="stat-rank-ctrl">
+      return `<div class="stat-rank"><span class="stat-rank-ctrl">
         <button type="button" class="rank-dec" data-key="${k}" ${r<=-6?'disabled':''}>−</button>
-        <span class="rank-val ${cls}">${sign}${r}</span>
+        <span class="rank-val ${rcls}">${sign}${r}</span>
         <button type="button" class="rank-inc" data-key="${k}" ${r>=6?'disabled':''}>＋</button>
-      </span></td>`;
+      </span></div>`;
     })();
-    const tr = document.createElement('tr');
-    const trCls = [
-      mult > 1 ? 'nat-up' : '',
-      mult < 1 ? 'nat-down' : '',
-      ep > 0  ? 'has-pts' : '',
+
+    const rowCls = ['stat-row',
+      st.selectedStatKey === k ? 'selected' : '',
+      natUp   ? 'nat-up'   : '',
+      natDown ? 'nat-down' : '',
+      ep > 0  ? 'has-pts'  : '',
       ep >= 32 ? 'max-pts' : '',
     ].filter(Boolean).join(' ');
-    if (trCls) tr.className = trCls;
-    tr.innerHTML = `
-      <td class="stat-key"><b class="stat-letter">${STAT_LETTER[k]}</b><span class="stat-jp">${STAT_LABELS[k]}</span></td>
-      <td class="stat-effort"><input type="number" min="0" max="32" data-key="${k}" value="${ep}"></td>
-      ${rankCell}
-      <td class="stat-final">${st.poke ? real : '—'}</td>
-    `;
-    tbody.appendChild(tr);
-  });
-  // 合計行
-  const totalEp = sumEffort(st.effort);
-  root.querySelector('.stat-total-ep').textContent = totalEp;
-  root.querySelector('.stat-total-real').textContent = st.poke ? realSum : '—';
+
+    return `<div class="${rowCls}" data-key="${k}">
+      <div class="stat-key"><b class="stat-letter">${STAT_LETTER[k]}</b><span class="stat-jp">${STAT_LABELS[k]}</span></div>
+      <div class="stat-actual">${st.poke ? real : '—'}</div>
+      <button type="button" class="stat-min" data-key="${k}" ${!canDec?'disabled':''} title="ミニマム (0)">MIN</button>
+      <button type="button" class="stat-dec" data-key="${k}" ${!canDec?'disabled':''} title="-1">◀</button>
+      <div class="stat-bar" data-key="${k}"><div class="stat-bar-fill" style="width:${pct}%"></div><div class="stat-bar-preview"></div>${marksHtml}</div>
+      <div class="stat-pts">${ep}</div>
+      <button type="button" class="stat-inc" data-key="${k}" ${!canInc?'disabled':''} title="+1">▶</button>
+      <button type="button" class="stat-max" data-key="${k}" ${!canInc?'disabled':''} title="マックス">MAX</button>
+      ${rankHtml}
+    </div>`;
+  }).join('');
+  // 合計行 (実数値合計)
+  const footHtml = `<div class="stat-row foot">
+    <span>合計</span>
+    <span>実数値: <b class="stat-total-real">${st.poke ? realSum : '—'}</b></span>
+  </div>`;
+  rowsEl.innerHTML = rowsHtml + footHtml;
 
   // EP合計
   const sum = root.querySelector('.ep-summary');
   sum.querySelector('b').textContent = totalEp;
   sum.classList.toggle('over', totalEp > 66);
-
-  // 各セルの over フラグ
-  root.querySelectorAll('.stat-effort input').forEach(inp=>{
-    const v = parseInt(inp.value,10)||0;
-    inp.classList.toggle('over', v > 32);
-  });
 
   // 特性セレクタ
   renderAbilitySelect(root, st);
@@ -1846,23 +1923,9 @@ function renderMoves(root, st){
   const sideId = root.dataset.side;
   const oppId = sideId === 'self' ? 'opp' : 'self';
   wrap.innerHTML = '';
-  if (!st.moves || !st.moves.length){
-    // 空でも 4 つのプレースホルダー枠を表示 (クリックで技選択モーダル)
-    for (let i = 0; i < 4; i++){
-      const row = document.createElement('div');
-      row.className = 'move-row move-row-empty';
-      row.dataset.moveIdx = i;
-      row.dataset.empty = '1';
-      row.innerHTML = `<div class="move-head"><span class="m-empty">＋ 技スロット ${i+1} (クリックで選択)</span></div>`;
-      wrap.appendChild(row);
-    }
-    const hint = document.createElement('div');
-    hint.className = 'moves-empty';
-    hint.innerHTML = 'ポケモン選択後、技スロットをクリックして技を選んでください';
-    wrap.appendChild(hint);
-    return;
-  }
-  st.moves.forEach((m, idx)=>{
+  const moves = st.moves || [];
+
+  moves.forEach((m, idx)=>{
     const row = document.createElement('div');
     row.className = 'move-row' + (st.selectedMoveIdx === idx ? ' selected' : '');
     row.dataset.moveIdx = idx;
@@ -1920,6 +1983,28 @@ function renderMoves(root, st){
     row.innerHTML = head + body;
     wrap.appendChild(row);
   });
+
+  // 末尾に常に空き枠を 1 つ表示 (最大 4 枠まで)
+  if (moves.length < 4){
+    const idx = moves.length;
+    const row = document.createElement('div');
+    row.className = 'move-row move-row-empty';
+    row.dataset.moveIdx = idx;
+    row.dataset.empty = '1';
+    const label = moves.length === 0
+      ? '＋ 技を選択 (クリックで複数選べます)'
+      : '＋ 技を追加';
+    row.innerHTML = `<div class="move-head"><span class="m-empty">${label}</span></div>`;
+    wrap.appendChild(row);
+  }
+
+  // ポケモン未選択時のヒント
+  if (!st.poke){
+    const hint = document.createElement('div');
+    hint.className = 'moves-empty';
+    hint.innerHTML = 'ポケモン選択後、技スロットをクリックして技を選んでください';
+    wrap.appendChild(hint);
+  }
 }
 
 function renderAbilitySelect(root, st){
@@ -2128,24 +2213,36 @@ function initNatureSelects(){
 }
 
 function attachEpInput(){
+  function setEffort(side, key, raw){
+    const st = sides[side];
+    const total = sumEffort(st.effort);
+    const cur = st.effort[key] || 0;
+    const maxHere = Math.min(32, 66 - (total - cur));
+    const v = Math.max(0, Math.min(maxHere, raw));
+    if (v === cur) return false;
+    st.effort[key] = v;
+    if (key === 'hp' && st.poke){
+      st.currentHp = realStat(st, 'hp');
+      st.fainted = false;
+    }
+    return true;
+  }
+  function refreshAfter(side, key){
+    render(side);
+    if (key === 'hp') render(side === 'self' ? 'opp' : 'self');
+  }
+  function ptsFromPointer(barEl, clientX){
+    const r = barEl.getBoundingClientRect();
+    if (!r.width) return null;
+    const ratio = Math.max(0, Math.min(1, (clientX - r.left) / r.width));
+    return Math.round(ratio * 32);
+  }
+
   document.querySelectorAll('.side').forEach(sideEl=>{
     const side = sideEl.dataset.side;
+
+    // 現在HPの直接入力
     sideEl.addEventListener('input', e=>{
-      if (e.target.matches('.stat-effort input')){
-        const key = e.target.dataset.key;
-        let v = parseInt(e.target.value, 10);
-        if (isNaN(v) || v < 0) v = 0;
-        // 自動的に32でクランプはしない（オーバー表示で気付かせる）
-        sides[side].effort[key] = v;
-        // HP の能力Pを変えると最大HPが変わる → 現HPも追従させる
-        if (key === 'hp' && sides[side].poke){
-          sides[side].currentHp = realStat(sides[side], 'hp');
-          sides[side].fainted = false;
-        }
-        render(side);
-        if (key === 'hp') render(side === 'self' ? 'opp' : 'self');
-        return;
-      }
       if (e.target.matches('.battle-hp-input')){
         const maxHp = realStat(sides[side], 'hp');
         let v = parseInt(e.target.value, 10);
@@ -2154,27 +2251,143 @@ function attachEpInput(){
         sides[side].currentHp = v;
         sides[side].fainted = (v <= 0);
         render(side);
-        // ダメ計の被ダメ表示・マルチスケイル判定が連動するので相手側も再描画
+        render(side === 'self' ? 'opp' : 'self');
+      }
+    });
+
+    function selectRow(side, k){
+      if (sides[side].selectedStatKey === k) return false;
+      sides[side].selectedStatKey = k;
+      return true;
+    }
+
+    // ボタンクリック: MIN / MAX / ◀ / ▶ / rank ±
+    sideEl.addEventListener('click', e=>{
+      const minBtn = e.target.closest('.stat-min[data-key]');
+      if (minBtn){
+        const k = minBtn.dataset.key;
+        selectRow(side, k);
+        if (setEffort(side, k, 0)) refreshAfter(side, k);
+        else render(side);
+        return;
+      }
+      const maxBtn = e.target.closest('.stat-max[data-key]');
+      if (maxBtn){
+        const k = maxBtn.dataset.key;
+        selectRow(side, k);
+        if (setEffort(side, k, 32)) refreshAfter(side, k);
+        else render(side);
+        return;
+      }
+      const decBtn = e.target.closest('.stat-dec[data-key]');
+      if (decBtn){
+        const k = decBtn.dataset.key;
+        const cur = sides[side].effort[k] || 0;
+        selectRow(side, k);
+        if (setEffort(side, k, cur - 1)) refreshAfter(side, k);
+        else render(side);
+        return;
+      }
+      const incBtn = e.target.closest('.stat-inc[data-key]');
+      if (incBtn){
+        const k = incBtn.dataset.key;
+        const cur = sides[side].effort[k] || 0;
+        selectRow(side, k);
+        if (setEffort(side, k, cur + 1)) refreshAfter(side, k);
+        else render(side);
+        return;
+      }
+      const rb = e.target.closest('.rank-inc, .rank-dec');
+      if (rb){
+        const key = rb.dataset.key;
+        const st = sides[side];
+        st.rank = st.rank || {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
+        const cur = st.rank[key] || 0;
+        const delta = rb.classList.contains('rank-inc') ? 1 : -1;
+        const next = Math.max(-6, Math.min(6, cur + delta));
+        if (next === cur) return;
+        st.rank[key] = next;
+        render(side);
         render(side === 'self' ? 'opp' : 'self');
         return;
       }
+      // 行内のどこかをクリック → 選択行ハイライトのみ更新
+      const row = e.target.closest('.stat-row[data-key]');
+      if (row){
+        if (selectRow(side, row.dataset.key)) render(side);
+      }
     });
-    // ランク ± ボタン（クリック委譲）
-    sideEl.addEventListener('click', e=>{
-      const btn = e.target.closest('.rank-inc, .rank-dec');
-      if (!btn) return;
-      const key = btn.dataset.key;
-      const st = sides[side];
-      st.rank = st.rank || {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
-      const cur = st.rank[key] || 0;
-      const delta = btn.classList.contains('rank-inc') ? 1 : -1;
-      const next = Math.max(-6, Math.min(6, cur + delta));
-      if (next === cur) return;
-      st.rank[key] = next;
-      render(side);
-      // 反対側のダメ計にも影響するので両側再描画
-      render(side === 'self' ? 'opp' : 'self');
+
+    // バーをクリック / ドラッグして 能力P を設定
+    sideEl.addEventListener('mousedown', e=>{
+      const bar = e.target.closest('.stat-bar[data-key]');
+      if (!bar) return;
+      const k = bar.dataset.key;
+      let pending = selectRow(side, k);
+      const apply = (clientX) => {
+        const liveBar = sideEl.querySelector(`.stat-bar[data-key="${k}"]`);
+        if (!liveBar) return;
+        const target = ptsFromPointer(liveBar, clientX);
+        if (target == null) return;
+        if (setEffort(side, k, target)){
+          refreshAfter(side, k);
+          pending = false;
+        }
+      };
+      apply(e.clientX);
+      if (pending) { render(side); pending = false; }
+      const onMove = ev => apply(ev.clientX);
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+      e.preventDefault();
     });
+
+    // バーホバー: 移動先プレビュー
+    sideEl.addEventListener('mousemove', e=>{
+      const bar = e.target.closest('.stat-bar[data-key]');
+      if (!bar){
+        sideEl.querySelectorAll('.stat-bar-preview').forEach(p=>{ p.style.width = '0'; });
+        return;
+      }
+      const r = bar.getBoundingClientRect();
+      if (!r.width) return;
+      const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      const preview = bar.querySelector('.stat-bar-preview');
+      if (preview) preview.style.width = (ratio * 100) + '%';
+    });
+    sideEl.addEventListener('mouseleave', ()=>{
+      sideEl.querySelectorAll('.stat-bar-preview').forEach(p=>{ p.style.width = '0'; });
+    });
+
+    // タッチ操作 (スマホ)
+    sideEl.addEventListener('touchstart', e=>{
+      const bar = e.target.closest('.stat-bar[data-key]');
+      if (!bar) return;
+      const k = bar.dataset.key;
+      selectRow(side, k);
+      const apply = (clientX) => {
+        const liveBar = sideEl.querySelector(`.stat-bar[data-key="${k}"]`);
+        if (!liveBar) return;
+        const target = ptsFromPointer(liveBar, clientX);
+        if (target == null) return;
+        if (setEffort(side, k, target)) refreshAfter(side, k);
+      };
+      if (e.touches[0]) apply(e.touches[0].clientX);
+      const onMove = ev => { if (ev.touches[0]) apply(ev.touches[0].clientX); };
+      const onEnd = () => {
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+        document.removeEventListener('touchcancel', onEnd);
+      };
+      document.addEventListener('touchmove', onMove, {passive:true});
+      document.addEventListener('touchend', onEnd);
+      document.addEventListener('touchcancel', onEnd);
+      e.preventDefault();
+    }, {passive:false});
   });
 }
 
@@ -2183,15 +2396,6 @@ function attachCardClick(){
     card.addEventListener('click', ()=>{
       const side = card.closest('.side').dataset.side;
       openPokeModal(side);
-    });
-  });
-}
-
-function attachStatsEditButton(){
-  document.querySelectorAll('.stats-edit-btn').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const side = btn.closest('.side').dataset.side;
-      openStatsPickerModal(side);
     });
   });
 }
@@ -2483,7 +2687,6 @@ window.addEventListener('DOMContentLoaded', ()=>{
   initNatureSelects();
   attachEpInput();
   attachCardClick();
-  attachStatsEditButton();
   attachAbilityChange();
   attachItemChange();
   attachEnvPanel();
@@ -2529,50 +2732,12 @@ function attachMoveSelect(){
   });
 }
 
-// === ステータス編集モーダル (party_checker iframe / stats_only モード) ===
-let _statsPickerSide = null;
-function openStatsPickerModal(side) {
-  const st = sides[side];
-  if (!st.poke) { openPokeModal(side); return; }
-  _statsPickerSide = side;
-  const pokeName = pokeFullName(st.poke);
-  const eff = st.effort || {};
-  const effStr = ['hp','atk','def','spatk','spdef','spd']
-    .map(k => `${k}:${eff[k] || 0}`).join(',');
-  const natureName = (NATURES[st.natureIdx] && NATURES[st.natureIdx][0]) || 'まじめ';
-  const params = new URLSearchParams();
-  params.set('stats_only', 'true');
-  params.set('poke', pokeName);
-  params.set('effort', effStr);
-  params.set('nature', natureName);
-  params.set('slot', side);
-  const url = 'party_checker.html?' + params.toString();
-  const iframe = document.getElementById('stats-picker-iframe');
-  const title = document.getElementById('stats-picker-title');
-  const modal = document.getElementById('stats-picker-modal');
-  if (title) title.textContent = `${side === 'self' ? '自分' : '相手'}側 ${pokeName} — 能力値を編集`;
-  if (iframe) iframe.src = url;
-  if (modal) modal.classList.add('vis');
-}
-function closeStatsPickerModal() {
-  const modal = document.getElementById('stats-picker-modal');
-  const iframe = document.getElementById('stats-picker-iframe');
-  if (modal) modal.classList.remove('vis');
-  if (iframe) iframe.src = 'about:blank';
-  _statsPickerSide = null;
-}
-(function setupStatsPickerCloseHandlers() {
-  const closeBtn = document.getElementById('stats-picker-close');
-  if (closeBtn) closeBtn.addEventListener('click', closeStatsPickerModal);
-  const modal = document.getElementById('stats-picker-modal');
-  if (modal) modal.addEventListener('click', e => { if (e.target === modal) closeStatsPickerModal(); });
-})();
-
 // === 技選択モーダル (waza-list iframe / single モード) ===
 let _movePickerSide = null;
 let _movePickerSlot = null;
 function pokeFullName(p){
   if (!p) return '';
+  if (p.mega) return p.name;
   return (p.form && p.form !== '通常') ? `${p.name}(${p.form})` : p.name;
 }
 function openMovePickerModal(side, slotIdx){
@@ -2585,16 +2750,19 @@ function openMovePickerModal(side, slotIdx){
   _movePickerSide = side;
   _movePickerSlot = slotIdx;
   const pokeName = pokeFullName(st.poke);
+  // 現在セット済みの技 key を initial に渡してチェックを引き継ぐ
+  const currentKeys = (st.moves || [])
+    .map(m => m && m.key).filter(Boolean);
   const params = new URLSearchParams();
-  params.set('mode', 'single');
+  params.set('mode', 'multi');
   params.set('pokemon', pokeName);
   params.set('lock', '1');
-  params.set('slot', String(slotIdx + 1));
+  if (currentKeys.length) params.set('initial', currentKeys.join(','));
   const url = 'waza-list.html?' + params.toString();
   const iframe = document.getElementById('move-picker-iframe');
   const title = document.getElementById('move-picker-title');
   const modal = document.getElementById('move-picker-modal');
-  if (title) title.textContent = `${side === 'self' ? '自分' : '相手'}側 ${pokeName} — スロット${slotIdx + 1} 技を選択`;
+  if (title) title.textContent = `${side === 'self' ? '自分' : '相手'}側 ${pokeName} — 技を選択 (複数可)`;
   if (iframe) iframe.src = url;
   if (modal) modal.classList.add('vis');
 }
@@ -2615,11 +2783,28 @@ function closeMovePickerModal(){
     if (e.target === modal) closeMovePickerModal();
   });
 })();
-// iframe からの postMessage (waza-picker / stats-picker 両対応)
+// iframe からの postMessage (waza-picker)
 window.addEventListener('message', (e) => {
   const d = e.data || {};
-  // 技選択 (waza-list iframe)
-  if (d.type === 'waza-picker:pick') {
+  // 複数選択 (mode=multi の確定)
+  if (d.type === 'waza-picker:confirm') {
+    if (_movePickerSide != null && Array.isArray(d.keys)) {
+      const st = sides[_movePickerSide];
+      const wazaMap = (typeof WAZA_MAP !== 'undefined') ? WAZA_MAP : {};
+      st.moves = d.keys
+        .map(k => wazaMap[k])
+        .filter(Boolean)
+        .slice(0, 4);
+      // 選択中インデックスが範囲外になったらリセット
+      if (st.selectedMoveIdx != null && st.selectedMoveIdx >= st.moves.length) {
+        st.selectedMoveIdx = null;
+      }
+      render(_movePickerSide);
+    }
+    closeMovePickerModal();
+  }
+  // 単一選択 (mode=single の互換ハンドラ; 現状未使用だが残しておく)
+  else if (d.type === 'waza-picker:pick') {
     if (_movePickerSide != null && _movePickerSlot != null && d.key) {
       const move = (typeof WAZA_MAP !== 'undefined') ? WAZA_MAP[d.key] : null;
       if (move) {
@@ -2632,27 +2817,6 @@ window.addEventListener('message', (e) => {
     closeMovePickerModal();
   } else if (d.type === 'waza-picker:cancel') {
     closeMovePickerModal();
-  }
-  // ステータス編集 (party_checker iframe)
-  else if (d.type === 'stats-picker:confirm') {
-    if (_statsPickerSide != null) {
-      const st = sides[_statsPickerSide];
-      if (d.effort) st.effort = { ...d.effort };
-      if (d.nature) {
-        const idx = NATURES.findIndex(([n]) => n === d.nature);
-        if (idx >= 0) st.natureIdx = idx;
-      }
-      // HP 変更による currentHp 連動
-      if (st.poke) {
-        st.currentHp = realStat(st, 'hp');
-        st.fainted = false;
-      }
-      render(_statsPickerSide);
-      render(_statsPickerSide === 'self' ? 'opp' : 'self');
-    }
-    closeStatsPickerModal();
-  } else if (d.type === 'stats-picker:cancel') {
-    closeStatsPickerModal();
   }
 });
 
