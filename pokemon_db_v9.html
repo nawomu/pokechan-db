@@ -1388,9 +1388,40 @@ function setChk(ci, idx, val) {
 }
 
 // スコア計算（DATA全件に対して初期化時）
+// 相性集計列(cnt系)を resist 配列から再計算する。
+//   集計定義は pokechan_data.js 全 275 件で検証済み: cnt42=cnt4+cnt2(弱点計) / cnthfqf=cnthf+cntqf(耐計)。
+function recalcResistCounts(p) {
+  let c4=0,c2=0,c1=0,chf=0,cqf=0,c0=0;
+  p.resist.forEach(v => {
+    if (v === 4) c4++;
+    else if (v === 2) c2++;
+    else if (v === 1) c1++;
+    else if (v === 0.5) chf++;
+    else if (v === 0.25) cqf++;
+    else if (v === 0) c0++;
+  });
+  p.cnt4=c4; p.cnt2=c2; p.cnt1=c1; p.cnthf=chf; p.cntqf=cqf; p.cnt0=c0;
+  p.cnt42 = c4 + c2;       // 弱点計
+  p.cnthfqf = chf + cqf;   // 耐計
+}
+
+// 特性「ふゆう」補正: じめん技を無効化(×0)し、相性18列・集計を再計算する。
+//   pokechan_data.js のふゆう持ち 10 体は全員「ふゆう単独」特性のため、ふゆう所持＝じめん無効が確定。
+//   resist(SSOT)は素のタイプ相性なので、ここ(表示層)で上書きする。冪等。
+function applyLevitate(p) {
+  if (!p.resist) return;
+  const jimen = TYPES.indexOf('じめん');
+  const hasLevitate = p.ab1 === 'ふゆう' || p.ab2 === 'ふゆう' || p.ab3 === 'ふゆう';
+  if (jimen >= 0 && hasLevitate && p.resist[jimen] !== 0) {
+    p.resist[jimen] = 0;
+    recalcResistCounts(p);
+  }
+}
+
 function initScores() {
   DATA.forEach(p => {
     p._idx = DATA.indexOf(p); // 固定インデックス
+    applyLevitate(p);         // ふゆう: じめんを×0化 + 集計再計算
     p.weakScore = -(p.cnt4 * 3 + p.cnt2 * 1);
     p.resScore  = p.cnthf * 1 + p.cntqf * 2 + p.cnt0 * 3;
     p.totalScore = p.weakScore + p.resScore;
