@@ -1033,6 +1033,22 @@ const NATURE_NAMES = Object.keys(NATURES);
 const STAT_KEYS_5 = ['atk','def','spatk','spdef','spd'];
 const STAT_FULL_LABEL = {atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
 
+// i18n: 性格名を現在言語で表示 (ja or 未登録は元の日本語)
+function _natDisp(jaName) {
+  return (window.I18N && window.I18N.nature) ? window.I18N.nature(jaName) : jaName;
+}
+// i18n: 能力フルラベル (こうげき → Attack 等)。data-i18n の header.*_full を共有
+const _STAT_FULL_KEY = {atk:'stats.atk_full', def:'stats.def_full', spatk:'stats.sp_atk_full', spdef:'stats.sp_def_full', spd:'stats.spd_full'};
+function _statFull(k) {
+  return (window.I18N && window.I18N.t) ? window.I18N.t(_STAT_FULL_KEY[k], STAT_FULL_LABEL[k]) : STAT_FULL_LABEL[k];
+}
+// i18n: 自動生成タブ名 (タブN / Tab N) を現在言語で表示。手動リネーム名はそのまま
+function _tabDisp(name) {
+  const m = /^(?:タブ|Tab )\s*(\d+)$/.exec(name || '');
+  if (m) return _tCK('checker.tab_label', 'タブ') + m[1];
+  return name;
+}
+
 // 能力ポイント (Champions 方式: 1pt = 実数値+1, 各 0-32, 合計 0-66)
 const PT_MAX_PER_STAT = 32;
 const PT_MAX_TOTAL = 66;
@@ -1125,7 +1141,7 @@ function _evRefresh() {
 
   // 性格ドロップダウンのトリガー表示更新 & 選択中ハイライト
   const trigger = document.getElementById('ev-nature-trigger');
-  if (trigger) trigger.textContent = _evTempNature;
+  if (trigger) trigger.textContent = _natDisp(_evTempNature);
   const panel = document.getElementById('ev-nature-panel');
   if (panel) {
     panel.querySelectorAll('.nat-dd-item').forEach(it => {
@@ -1142,8 +1158,8 @@ function _evRefresh() {
     effEl.innerHTML = `<span class="nat-eff-neutral">${_tCK('checker.nat_neutral','(補正なし)')}</span>`;
   } else {
     effEl.innerHTML =
-      `<span class="nat-eff-up">${STAT_FULL_LABEL[nat.up]}↑</span> / ` +
-      `<span class="nat-eff-down">${STAT_FULL_LABEL[nat.down]}↓</span>`;
+      `<span class="nat-eff-up">${_statFull(nat.up)}↑</span> / ` +
+      `<span class="nat-eff-down">${_statFull(nat.down)}↓</span>`;
   }
 
   // 6行 (直接バー操作 + 行内 MIN/MAX + 動的ボーナス目盛り)
@@ -1237,13 +1253,13 @@ function _buildNatureDropdownPanel() {
     const nat = NATURES[n];
     const isNeutral = !nat || nat.up === nat.down;
     const effHtml = isNeutral
-      ? '<span class="nat-eff-neutral">(補正なし)</span>'
+      ? `<span class="nat-eff-neutral">${_tCK('checker.nat_neutral','(補正なし)')}</span>`
       : `<span class="nat-eff">` +
-          `<span class="nat-eff-up">${STAT_FULL_LABEL[nat.up]}↑</span> / ` +
-          `<span class="nat-eff-down">${STAT_FULL_LABEL[nat.down]}↓</span>` +
+          `<span class="nat-eff-up">${_statFull(nat.up)}↑</span> / ` +
+          `<span class="nat-eff-down">${_statFull(nat.down)}↓</span>` +
         `</span>`;
     const isSel = (n === _evTempNature) ? ' selected' : '';
-    return `<div class="nat-dd-item${isSel}" data-n="${n}"><span class="nat-dd-name">${n}</span>${effHtml}</div>`;
+    return `<div class="nat-dd-item${isSel}" data-n="${n}"><span class="nat-dd-name">${_natDisp(n)}</span>${effHtml}</div>`;
   }).join('');
 }
 
@@ -1494,21 +1510,22 @@ function openNaturePicker(slotIdx) {
     const nat = NATURES[n];
     const isNeutral = !nat || nat.up === nat.down;
     const effHtml = isNeutral
-      ? '<span class="nat-eff-neutral">(補正なし)</span>'
+      ? `<span class="nat-eff-neutral">${_tCK('checker.nat_neutral','(補正なし)')}</span>`
       : `<span class="nat-eff">` +
-          `<span class="nat-eff-up">${STAT_FULL_LABEL[nat.up]}↑</span> / ` +
-          `<span class="nat-eff-down">${STAT_FULL_LABEL[nat.down]}↓</span>` +
+          `<span class="nat-eff-up">${_statFull(nat.up)}↑</span> / ` +
+          `<span class="nat-eff-down">${_statFull(nat.down)}↓</span>` +
         `</span>`;
     const sel = (n === current) ? ' selected' : '';
-    return `<div class="nat-list-item${sel}" data-n="${n}"><span class="nat-list-name">${n}</span>${effHtml}</div>`;
+    return `<div class="nat-list-item${sel}" data-n="${n}"><span class="nat-list-name">${_natDisp(n)}</span>${effHtml}</div>`;
   }).join('');
 
   document.getElementById('nat-list').innerHTML = html;
 
   const nat = NATURES[current] || {};
+  const _selLbl = _tCK('checker.nat_selected_label', '選択中:');
   const info = isNatureNeutral(current)
-    ? `選択中: ${current} (補正なし)`
-    : `選択中: ${current} (${STAT_FULL_LABEL[nat.up]}↑ / ${STAT_FULL_LABEL[nat.down]}↓)`;
+    ? `${_selLbl} ${_natDisp(current)} ${_tCK('checker.nat_neutral','(補正なし)')}`
+    : `${_selLbl} ${_natDisp(current)} (${_statFull(nat.up)}↑ / ${_statFull(nat.down)}↓)`;
   document.getElementById('nat-info').textContent = info;
   document.getElementById('nat-ov').classList.add('vis');
 }
@@ -1682,7 +1699,6 @@ function renderPcTabs() {
   const bc = document.createElement('div');
   bc.style.cssText = 'display:flex;align-items:center;gap:5px;flex-shrink:0;margin-right:8px;padding-right:10px;border-right:1px solid #30363d';
   bc.innerHTML = `<a href="index.html" style="color:#79c0ff;font-weight:700;text-decoration:none;font-size:12px" title="${_tCK('checker.nav_pchamdb_home_title','PchamDB トップに戻る')}">${_tCK('checker.nav_pchamdb_home','🏠 PchamDB')}</a>`
-    + '<span style="color:#79c0ff;font-size:11px;font-weight:600;letter-spacing:0.5px;margin:0 4px">BETA</span>'
     + '<span style="color:#666;font-size:11px">›</span>'
     + `<span style="color:#8b949e;font-size:11px">${_tCK('checker.breadcrumb_title','手持ちわざチェッカー')}</span>`
     + `<span style="color:#666;font-size:10px;margin-left:2px">${_tCK('checker.version_label', CHECKER_VERSION)}</span>`;
@@ -1693,11 +1709,11 @@ function renderPcTabs() {
     el.className = 'pc-tab' + (tab.id === pcActiveId ? ' active' : '');
     const nameSpan = document.createElement('span');
     nameSpan.className = 'pc-tab-name';
-    nameSpan.textContent = tab.name;
-    nameSpan.title = 'ダブルクリックで名前変更';
+    nameSpan.textContent = _tabDisp(tab.name);
+    nameSpan.title = _tCK('checker.tip_rename', 'ダブルクリックで名前変更');
     nameSpan.ondblclick = (e) => {
       e.stopPropagation();
-      const nv = prompt('タブ名を変更:', tab.name);
+      const nv = prompt(_tCK('checker.prompt_rename', 'タブ名を変更:'), _tabDisp(tab.name));
       if (nv !== null && nv.trim()) { tab.name = nv.trim(); savePcTabs(); renderPcTabs(); }
     };
     el.appendChild(nameSpan);
@@ -1706,7 +1722,7 @@ function renderPcTabs() {
       const cb = document.createElement('span');
       cb.className = 'pc-tab-close';
       cb.textContent = '×';
-      cb.title = 'タブを削除';
+      cb.title = _tCK('checker.tip_del_tab', 'タブを削除');
       cb.onclick = (e) => { e.stopPropagation(); removePcTab(tab.id); };
       el.appendChild(cb);
     }
@@ -1715,7 +1731,7 @@ function renderPcTabs() {
   const addBtn = document.createElement('button');
   addBtn.className = 'pc-tab-add';
   addBtn.textContent = '＋';
-  addBtn.title = '新規タブ';
+  addBtn.title = _tCK('checker.tip_add_tab', '新規タブ');
   addBtn.onclick = addPcTab;
   bar.appendChild(addBtn);
 
@@ -1723,7 +1739,7 @@ function renderPcTabs() {
   const dbBtn = document.createElement('button');
   dbBtn.className = 'pc-nav-btn nav-db';
   dbBtn.textContent = '🗄️ DB';
-  dbBtn.title = 'ポケモンDBを別タブで開く';
+  dbBtn.title = _tCK('checker.tip_open_db', 'ポケモンDBを別タブで開く');
   dbBtn.onclick = () => window.open('pokemon_db_v9.html', '_blank');
   dbBtn.style.marginLeft = 'auto';
   dbBtn.style.marginRight = '6px';
@@ -1732,14 +1748,14 @@ function renderPcTabs() {
   const wzBtn = document.createElement('button');
   wzBtn.className = 'pc-nav-btn nav-waza';
   wzBtn.textContent = _tCK('checker.nav_waza_list', '📋 わざリスト');
-  wzBtn.title = 'わざリストを別タブで開く';
+  wzBtn.title = _tCK('checker.tip_open_waza', 'わざリストを別タブで開く');
   wzBtn.onclick = () => window.open('waza-list.html', '_blank');
   bar.appendChild(wzBtn);
 
   const tcBtn = document.createElement('button');
   tcBtn.className = 'pc-nav-btn nav-type-chart';
   tcBtn.textContent = _tCK('checker.nav_type_chart', '📊 タイプ相性');
-  tcBtn.title = 'タイプ相性表を別タブで開く';
+  tcBtn.title = _tCK('checker.tip_open_type_chart', 'タイプ相性表を別タブで開く');
   tcBtn.onclick = () => window.open('type_chart.html', '_blank');
   bar.appendChild(tcBtn);
 
@@ -1785,10 +1801,11 @@ function addPcTab() {
   if (typeof renderTable === 'function') renderTable();
 }
 function removePcTab(id) {
-  if (pcTabs.length <= 1) { alert('タブは1個以上必要です'); return; }
+  if (pcTabs.length <= 1) { alert(_tCK('checker.alert_min_tab', 'タブは1個以上必要です')); return; }
   const t = pcTabs.find(t => t.id === id);
   if (!t) return;
-  if (!confirm(`タブ「${t.name}」を削除しますか？\n(中身のパーティ・設定も全て消えます)`)) return;
+  const _confMsg = _tCK('checker.confirm_del_tab', 'タブ「{name}」を削除しますか？\n(中身のパーティ・設定も全て消えます)').replace('{name}', _tabDisp(t.name));
+  if (!confirm(_confMsg)) return;
   const idx = pcTabs.findIndex(x => x.id === id);
   pcTabs.splice(idx, 1);
   if (pcActiveId === id) {
@@ -2125,7 +2142,7 @@ function renderTable() {
       const p = name && POKE_MAP[name];
       if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
       return `<td style="text-align:center;padding:2px 3px" ${dragAttrs(slotIdx)}>
-        <span class="nature-cell" onclick="openStatPopup(${slotIdx})" title="${_tCK('checker.tip_nature_edit','クリックして性格・能力Pを編集')}">${partyNatures[slotIdx]}</span>
+        <span class="nature-cell" onclick="openStatPopup(${slotIdx})" title="${_tCK('checker.tip_nature_edit','クリックして性格・能力Pを編集')}">${_natDisp(partyNatures[slotIdx])}</span>
       </td>`;
     }).join("")}
   </tr>`);
