@@ -362,6 +362,32 @@ tbody tr:hover td { background: #FFF3C4 !important; }
   font-weight: 700;
   text-align: center !important;
 }
+.name-srch {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 2px;
+  color: white;
+  font-size: 10px;
+  font-family: var(--font);
+  font-weight: 400;
+  padding: 1px 4px;
+}
+.name-srch::placeholder { color: rgba(255,255,255,0.5); }
+.srch-box { position: relative; width: 100%; display: flex; }
+.srch-box input { padding-right: 16px !important; }
+.srch-clr {
+  display: none;
+  position: absolute;
+  right: 2px; top: 50%; transform: translateY(-50%);
+  background: transparent; border: none;
+  color: rgba(255,255,255,0.7);
+  cursor: pointer; font-size: 12px; line-height: 1; padding: 0 2px;
+  font-family: var(--font);
+}
+.srch-box.has-val .srch-clr { display: block; }
+.srch-clr:hover { color: #fff; }
 .mega-name { color: #B8860B; }
 .region-name { color: #8B3FC0; }
 .mega-mark {
@@ -513,6 +539,23 @@ tbody tr:hover td { background: #FFF3C4 !important; }
   box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 .ms-dropdown.open { display: flex; flex-direction: column; }
+.ms-search-wrap {
+  padding: 3px;
+  border-bottom: 1px solid rgba(255,255,255,0.2);
+  flex: 0 0 auto;
+}
+.ms-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 2px;
+  color: white;
+  font-size: 10px;
+  font-family: var(--font);
+  padding: 2px 5px;
+}
+.ms-search::placeholder { color: rgba(255,255,255,0.5); }
 .ms-body {
   max-height: 280px;
   overflow-y: auto;
@@ -1168,12 +1211,6 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
 <div class="tb">
   <div class="tb-title">⚔ <span data-i18n="db.tb_title">ポケモンチャンピオンズ</span><small data-i18n="db.tb_title_db">DB</small></div>
   <div class="tb-sep"></div>
-  <div class="sw">
-    <span class="si">🔍</span>
-    <input type="text" id="srch" placeholder="名前・とくせい検索…" data-i18n-attr="placeholder:db.search_placeholder" oninput="onSrchInput()" onkeydown="onSrchKey(event)" autocomplete="off">
-    <button class="sw-clr" onclick="clearSrch()">✕</button>
-  </div>
-  <div class="tb-sep"></div>
   <div class="reset-group">
     <span class="reset-lbl" data-i18n="db.reset">リセット</span>
     <button class="btn-reset-s" onclick="resetAllFilters()" title="全フィルタをリセット（チェック値は保持）">All</button>
@@ -1645,6 +1682,26 @@ function msInit(msId, values, onchange) {
   // ドロップダウン内クリックはバブリングを止める
   dd.onclick = e => e.stopPropagation();
 
+  // インクリメンタル検索欄（特性ドロップダウンのみ存在）: かな揺れ対応で項目を絞り込む
+  const sb = dd.querySelector('.ms-search');
+  if (sb) {
+    const sbox = sb.closest('.srch-box');
+    const runSearch = () => {
+      const q = sb.value.trim().toLowerCase();
+      const qk = hiraToKata(q), qh = kataToHira(q);
+      dd.querySelectorAll('.ms-item').forEach(it => {
+        const v = (it.dataset.val || '').toLowerCase();
+        const show = !q || hiraToKata(v).includes(qk) || kataToHira(v).includes(qh);
+        it.style.display = show ? '' : 'none';
+      });
+      if (sbox) sbox.classList.toggle('has-val', !!sb.value);
+    };
+    sb.onclick = e => e.stopPropagation();
+    sb.oninput = runSearch;
+    const sbClr = dd.querySelector('.srch-clr');
+    if (sbClr) sbClr.onclick = e => { e.stopPropagation(); sb.value = ''; runSearch(); sb.focus(); };
+  }
+
   wrap.dataset.msInited = '1';
 }
 
@@ -1684,6 +1741,13 @@ function msClear(msId) {
   const dd = wrap._dd || wrap.querySelector('.ms-dropdown');
   if (dd) {
     dd.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+    const sb = dd.querySelector('.ms-search');
+    if (sb && sb.value) {
+      sb.value = '';
+      dd.querySelectorAll('.ms-item').forEach(it => it.style.display = '');
+      const sbox = sb.closest('.srch-box');
+      if (sbox) sbox.classList.remove('has-val');
+    }
   }
   updateMsBtn(msId);
 }
@@ -1723,7 +1787,7 @@ function captureState() {
     sortStack: JSON.parse(JSON.stringify(sortStack)),
     selTypes: [...selTypes],
     excludeTypes: [...excludeTypes],
-    srch: document.getElementById('srch')?.value || '',
+    nameSrch: document.getElementById('name-srch-main')?.value || '',
     ff: document.getElementById('ff')?.value || '',
     msStates: {}, statFilters: {}, selStates: {}
   };
@@ -1750,7 +1814,12 @@ function restoreState(state) {
   syncSortPrimary();
   selTypes = new Set(state.selTypes || []);
   excludeTypes = new Set(state.excludeTypes || []);
-  const srch = document.getElementById('srch'); if (srch) srch.value = state.srch || '';
+  const nameSrch = document.getElementById('name-srch-main');
+  if (nameSrch) {
+    nameSrch.value = state.nameSrch || '';
+    const nbox = nameSrch.closest('.srch-box');
+    if (nbox) nbox.classList.toggle('has-val', !!nameSrch.value);
+  }
   const ff = document.getElementById('ff'); if (ff) ff.value = state.ff || '';
   if (state.msStates) {
     Object.entries(state.msStates).forEach(([id, vals]) => {
@@ -1929,8 +1998,8 @@ function resetAllFiltersNoSave() {
   document.querySelectorAll('#main-tbl .st-op').forEach(el => el.value = '');
   document.querySelectorAll('#main-tbl .st-num').forEach(el => el.value = '');
   document.querySelectorAll('#main-tbl .h-sel').forEach(el => el.value = '');
-  const srch = document.getElementById('srch');
-  if (srch) srch.value = '';
+  const nameSrch = document.getElementById('name-srch-main');
+  if (nameSrch) { nameSrch.value = ''; const nb = nameSrch.closest('.srch-box'); if (nb) nb.classList.remove('has-val'); }
   const ff = document.getElementById('ff');
   if (ff) ff.value = '';
   sortStack = [{ key: 'no', dir: 1 }];
@@ -2058,7 +2127,17 @@ COLUMNS.push({
   buildTh: (ctx) => {
     const th = document.createElement('th');
     th.className = 'th-name';
-    th.innerHTML = `<div class="hdr2"><div class="hdr2-bot" data-sort="name" style="justify-content:center">${_tDB('db.col_pokemon', 'ポケモン名')}<span class="si2" data-skey="name"></span></div></div>`;
+    const srchId = `name-srch-${ctx.prefix}`;
+    th.innerHTML = `<div class="hdr2">
+      <div class="hdr2-top"><div class="srch-box"><input class="name-srch" id="${srchId}" type="text" placeholder="${_tDB('db.name_search', '名前検索')}" data-i18n-attr="placeholder:db.name_search" autocomplete="off"><button class="srch-clr" type="button" tabindex="-1">×</button></div></div>
+      <div class="hdr2-bot" data-sort="name" style="justify-content:center">${_tDB('db.col_pokemon', 'ポケモン名')}<span class="si2" data-skey="name"></span></div>
+    </div>`;
+    const box = th.querySelector('.srch-box');
+    const inp = th.querySelector('.name-srch');
+    const sync = () => box.classList.toggle('has-val', !!inp.value);
+    inp.oninput = () => { sync(); ctx.onFilter(); };
+    inp.onclick = e => e.stopPropagation();
+    th.querySelector('.srch-clr').onclick = e => { e.stopPropagation(); inp.value = ''; sync(); ctx.onFilter(); inp.focus(); };
     return th;
   },
   buildTd: (p) => {
@@ -2067,6 +2146,11 @@ COLUMNS.push({
     return `<td class="td-name ${cls}" title="${_tDB('db.tt_pokemon_hover', 'ホバー: わざ一覧 / クリック: モーダル')}" data-pokemon-name="${p.name}" style="cursor:pointer">${display}</td>`;
   },
   getVal: (p) => p.name,
+  applyFilter: (arr, ctx) => {
+    const q = (document.getElementById(`name-srch-${ctx.prefix}`)?.value || '').trim();
+    if (!q) return arr;
+    return arr.filter(p => nameMatches(p.name, q));
+  },
 });
 
 // -------- 型 (フォルム絞込 ms式チェックボックス) --------
@@ -2288,6 +2372,7 @@ for (let ai = 0; ai < 3; ai++) {
           <div class="ms-wrap" id="${msId}">
             <button class="ms-btn" data-i18n="db.ms_all">全▾</button>
             <div class="ms-dropdown">
+              <div class="ms-search-wrap"><div class="srch-box"><input class="ms-search" type="text" placeholder="${_tDB('db.ability_search', '特性検索')}" data-i18n-attr="placeholder:db.ability_search" autocomplete="off"><button class="srch-clr" type="button" tabindex="-1">×</button></div></div>
               <div class="ms-body"></div>
               <div class="ms-footer">
                 <button class="ms-foot-btn" data-act="clear" data-i18n="db.ms_clear">全解除</button>
@@ -3090,14 +3175,6 @@ function applyF() {
     if (_learnsFilter) {
       d = d.filter(p => p[_learnsFilter] === true);
     }
-    // 検索
-    const q = document.getElementById('srch')?.value.trim() || '';
-    if (q) {
-      d = d.filter(p =>
-        nameMatches(p.name, q) ||
-        (p.ab1 + p.ab2 + p.ab3).toLowerCase().includes(q.toLowerCase())
-      );
-    }
     // タイプ絞込
     if (selTypes.size > 0) {
       d = d.filter(p => {
@@ -3648,24 +3725,13 @@ function resetAllFilters() {
   // わざチェックボックスもリセット
   wazaFilterReset('main');
   document.querySelectorAll('#main-tbl .waza-chk').forEach(chk => chk.checked = false);
-  const srch = document.getElementById('srch');
-  if (srch) srch.value = '';
+  const nameSrch = document.getElementById('name-srch-main');
+  if (nameSrch) { nameSrch.value = ''; const nb = nameSrch.closest('.srch-box'); if (nb) nb.classList.remove('has-val'); }
   sortKey = 'no'; sortDir = 1;
   buildTyChips();
   // checksは触らない（各ポケモンのチェック値は保持される）
   applyF();
 }
-
-// ============================================================
-// 検索
-// ============================================================
-function onSrchInput() { applyF(); }
-function onSrchKey(e) { if (e.key === 'Enter') applyF(); }
-function clearSrch() {
-  const el = document.getElementById('srch');
-  if (el) { el.value = ''; applyF(); }
-}
-
 
 // ============================================================
 // 補完モーダル: ズーム・最大化
