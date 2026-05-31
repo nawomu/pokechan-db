@@ -1405,23 +1405,32 @@ function recalcResistCounts(p) {
   p.cnthfqf = chf + cqf;   // 耐計
 }
 
-// 特性「ふゆう」補正: じめん技を無効化(×0)し、相性18列・集計を再計算する。
-//   pokechan_data.js のふゆう持ち 10 体は全員「ふゆう単独」特性のため、ふゆう所持＝じめん無効が確定。
+// 特性によるタイプ無効化(×0)テーブル: 特性名 → 無効化するタイプ。
+//   ふゆう=じめん無効 / ちょすい=みず無効。将来 もらいび(ほのお)・ちくでん(でんき) 等も追加可。
+//   注: ふゆう持ち10体は全員「ふゆう単独」特性で無効が確定。
+//       ちょすい持ち3体(シャワーズ等)は複数特性のため、当該特性選択時のみ実際に無効になるが、
+//       一覧DBには特性選択UIが無いため「候補に所持していれば×0表示」とする。
 //   resist(SSOT)は素のタイプ相性なので、ここ(表示層)で上書きする。冪等。
-function applyLevitate(p) {
+const ABILITY_TYPE_IMMUNITY = {
+  'ふゆう':   'じめん',
+  'ちょすい': 'みず',
+};
+function applyAbilityImmunity(p) {
   if (!p.resist) return;
-  const jimen = TYPES.indexOf('じめん');
-  const hasLevitate = p.ab1 === 'ふゆう' || p.ab2 === 'ふゆう' || p.ab3 === 'ふゆう';
-  if (jimen >= 0 && hasLevitate && p.resist[jimen] !== 0) {
-    p.resist[jimen] = 0;
-    recalcResistCounts(p);
+  const abis = [p.ab1, p.ab2, p.ab3];
+  let changed = false;
+  for (const ab in ABILITY_TYPE_IMMUNITY) {
+    if (!abis.includes(ab)) continue;
+    const ti = TYPES.indexOf(ABILITY_TYPE_IMMUNITY[ab]);
+    if (ti >= 0 && p.resist[ti] !== 0) { p.resist[ti] = 0; changed = true; }
   }
+  if (changed) recalcResistCounts(p);
 }
 
 function initScores() {
   DATA.forEach(p => {
     p._idx = DATA.indexOf(p); // 固定インデックス
-    applyLevitate(p);         // ふゆう: じめんを×0化 + 集計再計算
+    applyAbilityImmunity(p);  // ふゆう/ちょすい: 該当タイプを×0化 + 集計再計算
     p.weakScore = -(p.cnt4 * 3 + p.cnt2 * 1);
     p.resScore  = p.cnthf * 1 + p.cntqf * 2 + p.cnt0 * 3;
     p.totalScore = p.weakScore + p.resScore;
