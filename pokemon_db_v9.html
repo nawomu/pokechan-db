@@ -435,6 +435,14 @@ tbody tr:hover td { background: #FFF3C4 !important; }
 .td-res.rv-hf { background: #80C080 !important; }
 .td-res.rv-qf { background: #40A040 !important; color: white !important; }
 .td-res.rv-x0 { background: #205020 !important; color: white !important; }
+/* 特性由来の×0 (ふゆう/ちょすい等) は黒で区別。タイプ由来の×0=緑と分ける */
+.td-res.rv-x0-ab { background: #0a0a0a !important; color: #ffd24d !important; box-shadow: inset 0 0 0 1px #555; }
+/* 特性名の色分け: 無効化を発動中=ピンク / 条件付き無効ポケの併せ持ち特性=グレー */
+.td-ab .ab-tip.ab-imm { color: #ff5db1 !important; font-weight: 700; }
+.td-ab .ab-tip.ab-dim { color: #5a6472 !important; opacity: .55; }
+/* 「特性×0」トグルボタン (列表示トグルとは別機能) */
+.ab-x0-btn { opacity: .6; }
+.ab-x0-btn.on { opacity: 1; background: #7D3C98 !important; border-color: #9B59B6 !important; color: #fff; }
 .th-rc, .td-rc { width: 28px !important; min-width: 28px !important; max-width: 28px !important; }
 .th-cnt { background: var(--hdr) !important; }
 .th-sc, .td-sc-col { width: 32px !important; min-width: 32px !important; max-width: 32px !important; }
@@ -1197,6 +1205,7 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
   <button class="grp-btn" data-grp="stat" data-i18n="db.col_stat">能力値</button>
   <button class="grp-btn" data-grp="ab" data-i18n="db.col_ab">とくせい</button>
   <button class="grp-btn" data-grp="resist" data-i18n="db.col_resist">相性18</button>
+  <button class="grp-btn ab-x0-btn" id="btn-ab-x0" type="button" onclick="toggleAbilityX0()" title="特性による無効化(ちょすい等)を相性表に反映/解除。ふゆう等の単独特性で確定する無効は常時反映。">🛡 特性×0</button>
   <button class="grp-btn" data-grp="cnt" data-i18n="db.col_cnt">集計+スコア</button>
   <button class="grp-btn" data-grp="waza" data-i18n="db.col_waza">わざ</button>
   <span class="tb-sep" style="height:10px;margin:0 2px;background:rgba(255,255,255,0.2)"></span>
@@ -1406,35 +1415,84 @@ function recalcResistCounts(p) {
 }
 
 // 特性によるタイプ無効化(×0)テーブル: 特性名 → 無効化するタイプ。
-//   ふゆう=じめん無効 / ちょすい=みず無効。将来 もらいび(ほのお)・ちくでん(でんき) 等も追加可。
-//   注: ふゆう持ち10体は全員「ふゆう単独」特性で無効が確定。
-//       ちょすい持ち3体(シャワーズ等)は複数特性のため、当該特性選択時のみ実際に無効になるが、
-//       一覧DBには特性選択UIが無いため「候補に所持していれば×0表示」とする。
-//   resist(SSOT)は素のタイプ相性なので、ここ(表示層)で上書きする。冪等。
+//   ふゆう=じめん / ちょすい=みず。将来 もらいび(ほのお)・ちくでん/ひらいしん(でんき)・そうしょく(くさ) 等も追加可。
 const ABILITY_TYPE_IMMUNITY = {
   'ふゆう':   'じめん',
   'ちょすい': 'みず',
 };
-function applyAbilityImmunity(p) {
-  if (!p.resist) return;
-  const abis = [p.ab1, p.ab2, p.ab3];
-  let changed = false;
-  for (const ab in ABILITY_TYPE_IMMUNITY) {
-    if (!abis.includes(ab)) continue;
-    const ti = TYPES.indexOf(ABILITY_TYPE_IMMUNITY[ab]);
-    if (ti >= 0 && p.resist[ti] !== 0) { p.resist[ti] = 0; changed = true; }
+
+// 「とくせい×0」トグル状態。
+//   off(既定): 単独特性で無効が確定するもの(ふゆう等)のみ×0。
+//   on        : 複数特性の1つで無効になるもの(ちょすい等)も×0化する。
+let ABILITY_X0_ON = false;
+
+// 各ポケモンの「特性で無効化されうるタイプ」マップを構築 (素の相性を保存した後に1度だけ)。
+//   p._immMap[typeIdx] = { ability:特性名, certain:単独特性で確定か }
+//   素のタイプ相性で既に×0のタイプ(ひこうのじめん等)は特性に依らないため除外。
+function buildImmMap(p) {
+  p._immMap = {};
+  const abis = [p.ab1, p.ab2, p.ab3].filter(Boolean);
+  for (const ab of abis) {
+    const tn = ABILITY_TYPE_IMMUNITY[ab];
+    if (!tn) continue;
+    const ti = TYPES.indexOf(tn);
+    if (ti < 0 || p._resistRaw[ti] === 0) continue;
+    p._immMap[ti] = { ability: ab, certain: abis.length === 1 };
   }
-  if (changed) recalcResistCounts(p);
+}
+
+// トグル状態に応じて resist(と集計)を素の相性から再計算する。
+//   確定(certain)な無効は常時適用、条件付きは ABILITY_X0_ON のときのみ適用。冪等。
+function recomputeResist(p) {
+  if (!p._resistRaw) return;
+  p.resist = p._resistRaw.slice();
+  for (const ti in p._immMap) {
+    const info = p._immMap[ti];
+    if (info.certain || ABILITY_X0_ON) p.resist[ti] = 0;
+  }
+  recalcResistCounts(p);
+}
+
+function computeScores(p) {
+  p.weakScore = -(p.cnt4 * 3 + p.cnt2 * 1);
+  p.resScore  = p.cnthf * 1 + p.cntqf * 2 + p.cnt0 * 3;
+  p.totalScore = p.weakScore + p.resScore;
+}
+
+// 特性 ab が このポケモンで「無効化を発動中」か (色分け判定用)
+function immActive(p, ab) {
+  if (!p._immMap) return false;
+  for (const ti in p._immMap) {
+    const info = p._immMap[ti];
+    if (info.ability === ab && (info.certain || ABILITY_X0_ON)) return true;
+  }
+  return false;
+}
+// トグルon かつ このポケモンが「条件付き無効(ちょすい等)」を発動中か
+//   → 無効化に関与しない併せ持ち特性をグレーアウトする判定用
+function pHasActiveConditional(p) {
+  if (!ABILITY_X0_ON || !p._immMap) return false;
+  for (const ti in p._immMap) if (!p._immMap[ti].certain) return true;
+  return false;
 }
 
 function initScores() {
   DATA.forEach(p => {
     p._idx = DATA.indexOf(p); // 固定インデックス
-    applyAbilityImmunity(p);  // ふゆう/ちょすい: 該当タイプを×0化 + 集計再計算
-    p.weakScore = -(p.cnt4 * 3 + p.cnt2 * 1);
-    p.resScore  = p.cnthf * 1 + p.cntqf * 2 + p.cnt0 * 3;
-    p.totalScore = p.weakScore + p.resScore;
+    if (!p._resistRaw) { p._resistRaw = p.resist.slice(); buildImmMap(p); } // 素の相性を一度だけ保存
+    recomputeResist(p);  // ふゆう(確定)を常時反映、トグルonならちょすい等も
+    computeScores(p);
   });
+}
+
+// 「とくせい×0」トグル: 条件付き無効(ちょすい等)の反映を切替えて全再計算・再描画
+function toggleAbilityX0() {
+  ABILITY_X0_ON = !ABILITY_X0_ON;
+  DATA.forEach(p => { recomputeResist(p); computeScores(p); });
+  _globalHM = null;  // ヒートマップ再計算を促す
+  const btn = document.getElementById('btn-ab-x0');
+  if (btn) btn.classList.toggle('on', ABILITY_X0_ON);
+  if (typeof applyF === 'function') applyF();  // メイン再描画
 }
 
 // とくせい一覧取得（重複除外、ソート済み）
@@ -2264,7 +2322,13 @@ for (let ai = 0; ai < 3; ai++) {
       const i18nDesc = (window.I18N && I18N.abilityDesc) ? I18N.abilityDesc(v) : null;
       const desc = i18nDesc || ((typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[v]) ? ABILITY_DESC[v] : '');
       const escAttr = s => String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-      return `<td class="td-ab" data-grp="ab"><span class="ab-tip" data-ab-name="${escAttr(displayName)}" data-ab-desc="${escAttr(desc)}">${displayName}</span></td>`;
+      // 特性の色分け: 無効化を発動中の特性=ピンク / 条件付き無効ポケの併せ持ち特性=グレー
+      let extraCls = '';
+      if (v) {
+        if (immActive(p, v)) extraCls = ' ab-imm';
+        else if (pHasActiveConditional(p)) extraCls = ' ab-dim';
+      }
+      return `<td class="td-ab" data-grp="ab"><span class="ab-tip${extraCls}" data-ab-name="${escAttr(displayName)}" data-ab-desc="${escAttr(desc)}">${displayName}</span></td>`;
     },
     getVal: (p) => p[k] || '',
     applyFilter: (arr, ctx) => {
@@ -2333,7 +2397,9 @@ TYPES.forEach((t, ri) => {
     buildTd: (p) => {
       const v = p.resist[ri];
       const lbl = RLBL[v] ?? v;
-      const cls = RCLS[v] || '';
+      let cls = RCLS[v] || '';
+      // 特性で無効化された×0は黒で区別 (タイプ由来の×0=緑と分ける)
+      if (v === 0 && p._immMap && p._immMap[ri]) cls = 'rv-x0-ab';
       return `<td class="td-res ${cls}" data-grp="resist">${lbl}</td>`;
     },
     getVal: (p) => p.resist[ri],
