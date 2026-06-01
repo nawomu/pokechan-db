@@ -93,6 +93,14 @@ function toHira(s) {
     String.fromCharCode(ch.charCodeAt(0) - 0x60)
   );
 }
+// \u8868\u793A\u8A00\u8A9E\u3067\u306E\u6280\u540D (ja or \u73FE\u5728\u8A00\u8A9E)
+function moveDisplayName(m) {
+  return (window.I18N && I18N.move) ? I18N.move(m.key, m.name) : m.name;
+}
+// \u691C\u7D22\u7167\u5408\u7528: \u65E5\u672C\u8A9E\u540D\uFF0B\u8868\u793A\u8A00\u8A9E\u540D\u3092\u6B63\u898F\u5316\u3057\u3066\u7D50\u5408 (\u82F1\u8A9EUI\u3067\u82F1\u540D\u691C\u7D22\u306B\u5BFE\u5FDC)
+function moveSearchKey(m) {
+  return toHira(m.name) + '' + toHira(moveDisplayName(m));
+}
 
 let sortKey = 'power';
 let sortDir = -1;   // 初期表示: 威力の高い順 (威力なし=変化技は末尾)
@@ -681,7 +689,7 @@ function render() {
 
   let visibleCount = 0;
   rows.forEach(m => {
-    if (searchQ && !toHira(m.name).includes(searchQ)) return;
+    if (searchQ && !moveSearchKey(m).includes(searchQ)) return;
     if (selectedTypes.size > 0 && !selectedTypes.has(m.type)) return;
     if (fTarget && m.target !== fTarget) return;
     if (fMode && m.mode !== fMode) return;
@@ -1337,7 +1345,7 @@ function setupWpSearchAutocomplete() {
     const qHira = toHira(q);
     if (!qHira) { sug.classList.remove('vis'); return; }
     const wazaHits = moves
-      .filter(m => toHira(m.name).includes(qHira))
+      .filter(m => moveSearchKey(m).includes(qHira))
       .slice(0, 12);
     if (!wazaHits.length) {
       sug.innerHTML = '<div class="wp-sug-empty">該当なし</div>';
@@ -1345,12 +1353,14 @@ function setupWpSearchAutocomplete() {
       return;
     }
     wazaHits.forEach(m => {
+      const dn = moveDisplayName(m);
+      const tn = (window.I18N && I18N.type) ? I18N.type(m.type) : (m.type || '');
       const item = document.createElement('div');
       item.className = 'wp-sug-item';
       item.innerHTML = '<span class="wp-sug-tag sug-waza">技</span><span class="wp-sug-name">' +
-        m.name + '</span><span class="wp-sug-meta">' + (m.type || '') + '</span>';
-      item.dataset.name = m.name;
-      item.onmousedown = (e) => { e.preventDefault(); chooseWaza(m.name); };
+        dn + '</span><span class="wp-sug-meta">' + tn + '</span>';
+      item.dataset.name = dn;
+      item.onmousedown = (e) => { e.preventDefault(); chooseWaza(dn); };
       sug.appendChild(item);
     });
     sug.classList.add('vis');
