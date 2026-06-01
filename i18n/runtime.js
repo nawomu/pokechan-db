@@ -25,6 +25,23 @@
   const SUPPORTED = ['ja', 'en', 'es', 'fr', 'de', 'it', 'ko', 'zh-Hans', 'zh-Hant'];
   const DEFAULT_LANG = 'ja';
 
+  // 言語別の静的URL(/en/ 等)を持つコンテンツページ。tools/build_i18n_pages.js の PAGES と一致させる。
+  // これらのページでは言語切替を「その場再翻訳」ではなく対応する /<lang>/ URL へ遷移させる(SEO/UX)。
+  const STATIC_PAGES = ['index.html', 'how_to_use.html', 'db_guide.html', 'builder_guide.html'];
+
+  // 現在地が静的コンテンツページなら、指定言語の対応URL(絶対パス)を返す。該当しなければ null。
+  function staticPageUrl(targetLang) {
+    try {
+      let parts = location.pathname.split('/').filter(Boolean); // ルートは []
+      if (parts.length && SUPPORTED.includes(parts[0])) parts = parts.slice(1); // 先頭が言語ディレクトリなら除去
+      let page = parts.length ? parts[parts.length - 1] : 'index.html';
+      if (!page || !/\.html$/i.test(page)) page = 'index.html'; // 末尾スラッシュ等
+      if (!STATIC_PAGES.includes(page)) return null;
+      const base = targetLang === DEFAULT_LANG ? '/' : '/' + targetLang + '/';
+      return page === 'index.html' ? base : base + page;
+    } catch (e) { return null; }
+  }
+
   // i18n フォルダの URL ベース (HTMLから見て相対パス)
   // 各HTMLは同じディレクトリにあるので "i18n/" が基準
   const BASE = (function () {
@@ -387,6 +404,13 @@
       item.dataset.lang = l;
       if (l === currentLang) item.classList.add('active');
       item.addEventListener('click', async () => {
+        // 静的コンテンツページ(/lang/...)では対応言語URLへ遷移(SEO向けの正規URL)
+        const navUrl = staticPageUrl(l);
+        if (navUrl) {
+          try { localStorage.setItem(STORAGE_KEY, l); } catch (e) {}
+          location.href = navUrl;
+          return;
+        }
         await setLang(l);
         menu.querySelectorAll('button').forEach((b) => b.classList.toggle('active', b.dataset.lang === l));
         document.getElementById('i18n-cur-label').textContent = LANG_LABELS[l] || l;
