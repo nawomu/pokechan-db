@@ -26,6 +26,30 @@ for (const l of ALL_LANGS) dict[l] = JSON.parse(fs.readFileSync(path.join(ROOT, 
 
 function get(d, dotted) { return dotted.split('.').reduce((o, k) => (o == null ? undefined : o[k]), d); }
 
+// ページファイル名 → i18n セクションキー (how_to_use だけ howto に対応)
+function sectionKey(page) {
+  return page.replace('.html', '') === 'how_to_use' ? 'howto' : page.replace('.html', '');
+}
+
+// JSON-LD の inLanguage を再帰的に言語別へ差し替え
+function setInLanguage(node, lang) {
+  if (Array.isArray(node)) { node.forEach(n => setInLanguage(n, lang)); return; }
+  if (node && typeof node === 'object') {
+    if ('inLanguage' in node) node.inLanguage = lang;
+    for (const k of Object.keys(node)) setInLanguage(node[k], lang);
+  }
+}
+
+// FAQPage の mainEntity を i18n(howto.faqN_q / faqN_a)から言語別に生成
+function buildFaq(d) {
+  const out = [];
+  for (let i = 1; i <= 5; i++) {
+    const q = get(d, `howto.faq${i}_q`), a = get(d, `howto.faq${i}_a`);
+    if (q && a) out.push({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } });
+  }
+  return out;
+}
+
 // 正規URL: index はディレクトリ形(/ , /en/) で統一、その他は /en/page.html
 function pageUrl(page, lang) {
   if (page === 'index.html') return SITE + '/' + (lang === 'ja' ? '' : lang + '/');
@@ -77,7 +101,33 @@ for (const page of PAGES) {
       $('meta[property="og:description"]').attr('content', tagline);
       $('meta[name="twitter:description"]').attr('content', tagline);
       $('meta[property="og:locale"]').attr('content', lang.replace('-', '_'));
+    } else {
+      // ガイド系: meta description / og:title / og:description を言語別に上書き
+      // (title は data-i18n=page_title で localize 済み → それを og/twitter に流用)
+      const desc = get(dict[lang], sectionKey(page) + '.meta_desc') || '';
+      const locTitle = $('title').text();
+      if (desc) {
+        $('meta[name="description"]').attr('content', desc);
+        $('meta[property="og:description"]').attr('content', desc);
+        $('meta[name="twitter:description"]').attr('content', desc);
+      }
+      if (locTitle) {
+        $('meta[property="og:title"]').attr('content', locTitle);
+        $('meta[name="twitter:title"]').attr('content', locTitle);
+      }
+      $('meta[property="og:locale"]').attr('content', lang.replace('-', '_'));
     }
+
+    // JSON-LD: inLanguage を言語別化し、how_to_use の FAQ は i18n から再生成
+    $('script[type="application/ld+json"]').each((i, el) => {
+      let json;
+      try { json = JSON.parse($(el).html()); } catch (e) { return; }
+      setInLanguage(json, lang);
+      if (page === 'how_to_use.html' && json['@type'] === 'FAQPage') {
+        json.mainEntity = buildFaq(dict[lang]);
+      }
+      $(el).html('\n' + JSON.stringify(json, null, 2) + '\n');
+    });
 
     rewritePaths($);
 
@@ -105,7 +155,7 @@ console.log('出力先: ' + GEN_LANGS.map(l => `/${l}/`).join(', '));
 
 // ===== sitemap.xml 再生成 (多言語 hreflang 対応) =====
 function buildSitemap() {
-  const TODAY = '2026-06-01';
+  const TODAY = '2026-06-02';
   const contentPr = { 'index.html': '1.0', 'how_to_use.html': '0.8', 'db_guide.html': '0.7', 'builder_guide.html': '0.7' };
   const tools = [['pokemon_db_v9.html', '0.9'], ['party_checker.html', '0.9'], ['waza-list.html', '0.8'], ['type_chart.html', '0.7'], ['battle_simulator.html', '0.8']];
   const legal = ['making', 'terms', 'privacy', 'disclaimer', 'contact'];
