@@ -1652,6 +1652,7 @@ function msInit(msId, values, onchange) {
     const item = document.createElement('div');
     item.className = 'ms-item';
     item.dataset.val = val;
+    item.dataset.lbl = lbl;
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -1689,9 +1690,12 @@ function msInit(msId, values, onchange) {
     const runSearch = () => {
       const q = sb.value.trim().toLowerCase();
       const qk = hiraToKata(q), qh = kataToHira(q);
+      // 内部の日本語名(val)と表示言語のラベル(lbl)の双方で一致判定
+      const hit = s => hiraToKata(s).includes(qk) || kataToHira(s).includes(qh);
       dd.querySelectorAll('.ms-item').forEach(it => {
         const v = (it.dataset.val || '').toLowerCase();
-        const show = !q || hiraToKata(v).includes(qk) || kataToHira(v).includes(qh);
+        const l = (it.dataset.lbl || '').toLowerCase();
+        const show = !q || hit(v) || hit(l);
         it.style.display = show ? '' : 'none';
       });
       if (sbox) sbox.classList.toggle('has-val', !!sb.value);
@@ -2149,7 +2153,9 @@ COLUMNS.push({
   applyFilter: (arr, ctx) => {
     const q = (document.getElementById(`name-srch-${ctx.prefix}`)?.value || '').trim();
     if (!q) return arr;
-    return arr.filter(p => nameMatches(p.name, q));
+    // 内部の日本語名に加え、表示中の言語のローカライズ名でも一致判定（英語等で検索可能に）
+    const loc = (window.I18N && I18N.pokemon) ? (n => I18N.pokemon(n)) : (n => n);
+    return arr.filter(p => nameMatches(p.name, q) || nameMatches(loc(p.name), q));
   },
 });
 
@@ -2395,7 +2401,12 @@ for (let ai = 0; ai < 3; ai++) {
       };
       setTimeout(() => {
         const abList = buildAbilityList();
-        msInit(msId, abList.map(a => ({val: a, lbl: a})), ctx.onFilter);
+        // val は内部の日本語名（p.ab1 等と照合）、lbl は表示言語のローカライズ名
+        const abLoc = (window.I18N && I18N.ability) ? (a => I18N.ability(a)) : (a => a);
+        const abItems = abList.map(a => ({val: a, lbl: abLoc(a)}));
+        // 表示言語のラベル順に並べ替え（英語等でも五十音/アルファベット順に揃える）
+        abItems.sort((x, y) => x.lbl.localeCompare(y.lbl, undefined, {numeric: true}));
+        msInit(msId, abItems, ctx.onFilter);
       }, 0);
       return th;
     },
