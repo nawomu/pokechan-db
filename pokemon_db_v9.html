@@ -1272,6 +1272,7 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
       <div class="spacer"></div>
       <!-- 画面中央: ズーム操作 -->
       <div class="modal-zoom-group">
+        <button class="modal-zoom-btn modal-zoom-refresh" onclick="compatRefresh()" title="チームポケモンを最新のチェック状態に更新" data-i18n="db.compat_refresh" data-i18n-attr="title:db.compat_refresh_tip">🔄 更新</button>
         <button class="modal-zoom-btn" onclick="compatZoom(-10)" title="縮小">−</button>
         <span class="modal-zoom-lbl" id="compat-zoom-lbl">100%</span>
         <button class="modal-zoom-btn" onclick="compatZoom(10)" title="拡大">＋</button>
@@ -3300,6 +3301,20 @@ function openCompatSearch(ci) {
 
 function closeCompatSearch() {
   document.getElementById('compat-modal').classList.remove('open');
+}
+
+// チームポケモンを現在のチェック状態に再構築（モーダルを閉じずに反映・ズーム/最大化は維持）
+function compatRefresh() {
+  const ci = compatCiNum;
+  const body = document.getElementById('compat-body');
+  if (!body) return;
+  const team = DATA.filter(p => checks[ci][p._idx] !== undefined);
+  if (team.length === 0) {
+    body.innerHTML = `<div class="modal-info" style="color:#cc0000">${_tDB('db.no_check_target', '⚠ チェック {n} に値が入っているポケモンがありません。').replace('{n}', ci+1)}<br>${_tDB('db.no_check_target_sub', 'チェック {n} の欄に値を入れてから再度お試しください。').replace('{n}', ci+1)}</div>`;
+    return;
+  }
+  buildCompatResult(team, ci);
+  applyCompatZoom();
 }
 
 function buildCompatResult(team, ci) {
