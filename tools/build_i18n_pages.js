@@ -16,15 +16,21 @@ const SITE = 'https://pchamdb.com';
 const ALL_LANGS = ['ja', 'en', 'es', 'fr', 'de', 'it', 'ko', 'zh-Hans', 'zh-Hant'];
 const GEN_LANGS = ALL_LANGS.filter(l => l !== 'ja');           // ja はルート(=x-default)
 
-// 生成対象ページ (クリーンに data-i18n 化済みのコンテンツページ)
-const PAGES = ['how_to_use.html', 'db_guide.html', 'builder_guide.html'];
-// 同一言語ディレクトリ内に留めるリンク(相対のまま) ※ index は Phase2 で追加予定
+// 生成対象ページ (コンテンツページ)
+const PAGES = ['index.html', 'how_to_use.html', 'db_guide.html', 'builder_guide.html'];
+// 同一言語ディレクトリ内に留めるリンク(相対のまま)
 const KEEP_RELATIVE = new Set(PAGES);
 
 const dict = {};
 for (const l of ALL_LANGS) dict[l] = JSON.parse(fs.readFileSync(path.join(ROOT, `i18n/ui-${l}.json`), 'utf8'));
 
 function get(d, dotted) { return dotted.split('.').reduce((o, k) => (o == null ? undefined : o[k]), d); }
+
+// 正規URL: index はディレクトリ形(/ , /en/) で統一、その他は /en/page.html
+function pageUrl(page, lang) {
+  if (page === 'index.html') return SITE + '/' + (lang === 'ja' ? '' : lang + '/');
+  return SITE + '/' + (lang === 'ja' ? '' : lang + '/') + page;
+}
 
 function localize($, lang) {
   const d = dict[lang];
@@ -59,16 +65,29 @@ for (const page of PAGES) {
     const $ = cheerio.load(srcHtml, { decodeEntities: false });
     $('html').attr('lang', lang);
     localize($, lang);
+
+    // index.html はタイトル/説明が data-i18n 化されていないので tagline から言語別に設定
+    if (page === 'index.html') {
+      const tagline = get(dict[lang], 'site.tagline') || '';
+      const title = 'PchamDB - ' + tagline;
+      $('title').text(title);
+      $('meta[property="og:title"]').attr('content', title);
+      $('meta[name="twitter:title"]').attr('content', title);
+      $('meta[name="description"]').attr('content', tagline);
+      $('meta[property="og:description"]').attr('content', tagline);
+      $('meta[name="twitter:description"]').attr('content', tagline);
+      $('meta[property="og:locale"]').attr('content', lang.replace('-', '_'));
+    }
+
     rewritePaths($);
 
     // canonical / hreflang を再構築
     $('link[rel="canonical"]').remove();
     $('link[rel="alternate"][hreflang]').remove();
-    const canonical = `${SITE}/${lang}/${page}`;
+    const canonical = pageUrl(page, lang);
     let hl = `\n<link rel="canonical" href="${canonical}">\n`;
-    hl += `<link rel="alternate" hreflang="ja" href="${SITE}/${page}">\n`;
-    for (const l of GEN_LANGS) hl += `<link rel="alternate" hreflang="${l}" href="${SITE}/${l}/${page}">\n`;
-    hl += `<link rel="alternate" hreflang="x-default" href="${SITE}/${page}">\n`;
+    for (const l of ALL_LANGS) hl += `<link rel="alternate" hreflang="${l}" href="${pageUrl(page, l)}">\n`;
+    hl += `<link rel="alternate" hreflang="x-default" href="${pageUrl(page, 'ja')}">\n`;
     $('head').append(hl);
     $('meta[property="og:url"]').attr('content', canonical);
 
@@ -83,3 +102,42 @@ for (const page of PAGES) {
 }
 console.log(`生成完了: ${count} ファイル (${PAGES.length}ページ × ${GEN_LANGS.length}言語)`);
 console.log('出力先: ' + GEN_LANGS.map(l => `/${l}/`).join(', '));
+
+// ===== sitemap.xml 再生成 (多言語 hreflang 対応) =====
+function buildSitemap() {
+  const TODAY = '2026-06-01';
+  const contentPr = { 'index.html': '1.0', 'how_to_use.html': '0.8', 'db_guide.html': '0.7', 'builder_guide.html': '0.7' };
+  const tools = [['pokemon_db_v9.html', '0.9'], ['party_checker.html', '0.9'], ['waza-list.html', '0.8'], ['type_chart.html', '0.7'], ['battle_simulator.html', '0.8']];
+  const legal = ['making', 'terms', 'privacy', 'disclaimer', 'contact'];
+  const locFor = (page, lang) => pageUrl(page, lang);
+  const alt = (page) => {
+    let s = '';
+    for (const l of ALL_LANGS) s += `    <xhtml:link rel="alternate" hreflang="${l}" href="${locFor(page, l)}"/>\n`;
+    s += `    <xhtml:link rel="alternate" hreflang="x-default" href="${locFor(page, 'ja')}"/>\n`;
+    return s;
+  };
+  let o = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n        xmlns:xhtml="http://www.w3.org/1999/xhtml">\n';
+  o += '  <!-- コンテンツページ (各言語の静的URL + hreflang) -->\n';
+  for (const page of PAGES) for (const l of ALL_LANGS) {
+    o += '  <url>\n';
+    o += `    <loc>${locFor(page, l)}</loc>\n`;
+    o += alt(page);
+    o += `    <lastmod>${TODAY}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${l === 'ja' ? contentPr[page] : (page === 'index.html' ? '0.9' : '0.6')}</priority>\n  </url>\n`;
+  }
+  o += '  <!-- 主要機能ページ (単一URL + ランタイム言語切替) -->\n';
+  for (const [f, pr] of tools) o += `  <url>\n    <loc>${SITE}/${f}</loc>\n    <lastmod>${TODAY}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${pr}</priority>\n  </url>\n`;
+  o += '  <!-- 制作・法的ページ (ja + en) -->\n';
+  for (const p of legal) for (const suf of ['', '_en']) {
+    o += '  <url>\n';
+    o += `    <loc>${SITE}/${p}${suf}.html</loc>\n`;
+    o += `    <xhtml:link rel="alternate" hreflang="ja" href="${SITE}/${p}.html"/>\n`;
+    o += `    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/${p}_en.html"/>\n`;
+    o += `    <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/${p}.html"/>\n`;
+    o += `    <lastmod>${TODAY}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.4</priority>\n  </url>\n`;
+  }
+  o += '</urlset>\n';
+  fs.writeFileSync(path.join(ROOT, 'sitemap.xml'), o);
+  const urls = (o.match(/<loc>/g) || []).length;
+  console.log(`sitemap.xml 再生成: ${urls} URL`);
+}
+buildSitemap();
