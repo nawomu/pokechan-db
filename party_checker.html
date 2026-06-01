@@ -3101,9 +3101,17 @@ document.getElementById("pf-done").addEventListener("click", () => {
 });
 document.getElementById("pf-ov").addEventListener("click", e => {
   if (e.target === document.getElementById("pf-ov")) {
-    commitPfChanges();
-    closePokemonFilter();
-    renderTable();
+    // 背景クリック = Confirm と同じ挙動。iframe版は現在の選択を保持して確定させる
+    const iframe = document.getElementById('pf-iframe');
+    if (iframe && iframe.style.display !== 'none' && iframe.contentWindow) {
+      // iframe に確定要求 → iframe が 'waza-picker:confirm' を返し、上の message ハンドラで保存・反映・close される
+      iframe.contentWindow.postMessage({ type: 'waza-picker:request-confirm' }, '*');
+    } else {
+      // レガシーDOM版 fallback
+      commitPfChanges();
+      closePokemonFilter();
+      renderTable();
+    }
   }
 });
 

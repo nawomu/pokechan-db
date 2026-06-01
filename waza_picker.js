@@ -1633,6 +1633,12 @@ function cancelSelection() {
   }
 }
 
+// 親モーダルからの確定要求 (背景クリック時など) → 現在の選択で confirm を返す
+window.addEventListener('message', (e) => {
+  const d = e.data || {};
+  if (d && d.type === 'waza-picker:request-confirm') confirmSelection();
+});
+
 // === ポケロック (mode=multi/single + ?lock=1 で wp-poke-trigger を無効化) ===
 function applyPokeLock() {
   if (!WP_LOCK_POKEMON) return;
