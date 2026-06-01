@@ -28,6 +28,22 @@ const WP_LOCK_POKEMON = WP_QUERY.get('lock') === '1';
 const WP_SLOT_NO = WP_QUERY.get('slot') || '';
 const WP_INITIAL_SELECTED = (WP_QUERY.get('initial') || '').split(',').filter(Boolean);
 let WP_SELECTED = new Set(WP_INITIAL_SELECTED);
+let wpCheckedOnly = false;   // 「チェック中のみ表示」フィルタ (multi)
+
+// 選択操作メニュー (グレーのフィルタ行: ☑▾)
+function toggleSelMenu(e) {
+  if (e) e.stopPropagation();
+  const pop = document.getElementById('wp-selmenu-pop');
+  if (pop) pop.classList.toggle('vis');
+}
+function closeSelMenu() {
+  const pop = document.getElementById('wp-selmenu-pop');
+  if (pop) pop.classList.remove('vis');
+}
+document.addEventListener('click', (e) => {
+  const wrap = document.getElementById('wp-selmenu');
+  if (wrap && !wrap.contains(e.target)) closeSelMenu();
+});
 
 // i18n: タイプ名 3 文字短縮表記 (types-master.json の short3 を優先、未ロード時は full → slice(0,3))
 // pokemon_db_v9.html の type3() と同パターン
@@ -689,6 +705,7 @@ function render() {
 
   let visibleCount = 0;
   rows.forEach(m => {
+    if (wpCheckedOnly && WP_MODE !== 'browse' && !WP_SELECTED.has(m.key)) return;
     if (searchQ && !moveSearchKey(m).includes(searchQ)) return;
     if (selectedTypes.size > 0 && !selectedTypes.has(m.type)) return;
     if (fTarget && m.target !== fTarget) return;
@@ -1558,25 +1575,21 @@ function setupSelectionMode() {
     });
   }
 
-  // 全選択チェックボックス (multi のみ)
-  const chkAll = document.getElementById('wp-chk-all');
-  if (chkAll) {
-    if (WP_MODE === 'single') {
-      chkAll.style.display = 'none';
-    } else {
-      chkAll.addEventListener('change', () => {
-        const visibleChks = document.querySelectorAll('#tbody .wp-row-chk');
-        visibleChks.forEach(cb => {
-          cb.checked = chkAll.checked;
-          const k = cb.dataset.key;
-          if (chkAll.checked) WP_SELECTED.add(k);
-          else WP_SELECTED.delete(k);
-          const tr = cb.closest('tr');
-          if (tr) tr.classList.toggle('row-checked', chkAll.checked);
-        });
-        refreshConfirmBar();
-      });
+  // 選択操作メニュー (multi のみ): チェック中のみ表示 / すべて解除(確認付き)
+  const selWrap = document.getElementById('wp-selmenu');
+  if (WP_MODE === 'single') {
+    if (selWrap) selWrap.style.display = 'none';
+  } else {
+    const co = document.getElementById('wp-checked-only');
+    if (co) {
+      co.checked = wpCheckedOnly;
+      co.addEventListener('change', () => { wpCheckedOnly = co.checked; render(); });
     }
+    const clrSel = document.getElementById('wp-clear-sel');
+    if (clrSel) clrSel.addEventListener('click', () => {
+      if (!clearAllSelected()) return;
+      closeSelMenu();
+    });
   }
 
   // 確定バーのボタン
@@ -1587,14 +1600,25 @@ function setupSelectionMode() {
   if (cancelBtn) cancelBtn.addEventListener('click', cancelSelection);
   if (clearBtn) {
     if (WP_MODE === 'single') clearBtn.style.display = 'none';
-    else clearBtn.addEventListener('click', () => {
-      WP_SELECTED.clear();
-      render();
-      refreshConfirmBar();
-    });
+    else clearBtn.addEventListener('click', () => { clearAllSelected(); });
   }
 
   refreshConfirmBar();
+}
+// 選択を全解除 (確認付き)。実行したら true、キャンセルしたら false
+function clearAllSelected() {
+  const n = WP_SELECTED.size;
+  if (n > 0) {
+    const msg = _t('waza.confirm_clear_all', '選択中の {n} 件をすべて解除しますか？').replace('{n}', n);
+    if (!confirm(msg)) return false;
+  }
+  WP_SELECTED.clear();
+  wpCheckedOnly = false;
+  const co = document.getElementById('wp-checked-only');
+  if (co) co.checked = false;
+  render();
+  refreshConfirmBar();
+  return true;
 }
 // 旧 API 互換 (init で呼ばれる)
 function setupSingleMode() { /* no-op: setupSelectionMode が両対応 */ }
