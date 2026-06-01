@@ -124,6 +124,7 @@ function buildSitemap() {
     o += alt(page);
     o += `    <lastmod>${TODAY}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${l === 'ja' ? contentPr[page] : (page === 'index.html' ? '0.9' : '0.6')}</priority>\n  </url>\n`;
   }
+  o += `  <!-- サイトマップ(人間向けHTML) -->\n  <url>\n    <loc>${SITE}/sitemap.html</loc>\n    <lastmod>${TODAY}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.3</priority>\n  </url>\n`;
   o += '  <!-- 主要機能ページ (単一URL + ランタイム言語切替) -->\n';
   for (const [f, pr] of tools) o += `  <url>\n    <loc>${SITE}/${f}</loc>\n    <lastmod>${TODAY}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${pr}</priority>\n  </url>\n`;
   o += '  <!-- 制作・法的ページ (ja + en) -->\n';
