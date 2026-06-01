@@ -762,12 +762,6 @@ body.stats-only-mode #ev-ov.vis { display: flex !important; }
 <div id="pc-tab-bar"></div>
 
 <div id="filter-bar">
-  <label data-i18n="checker.move_search_label">わざ検索:</label>
-  <input id="waza-filter" type="text" placeholder="わざ名…" data-i18n-attr="placeholder:checker.move_search_placeholder">
-  <label data-i18n="checker.category_label">分類:</label>
-  <button class="fcat-btn on" data-cat="変化" data-i18n="category.status">変化</button>
-  <button class="fcat-btn on" data-cat="物理" data-i18n="category.physical">物理</button>
-  <button class="fcat-btn on" data-cat="特殊" data-i18n="category.special">特殊</button>
   <label style="font-size:.7rem"><span data-i18n="checker.base_stats_label">種族値:</span>
     <button class="sv-btn sv-base on" data-sv="base" data-i18n="checker.sv_base">種族</button>
     <button class="sv-btn sv-v6"      data-sv="v6" data-i18n="checker.sv_v6">６V</button>
@@ -2515,8 +2509,8 @@ function pfResetFilterState() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  // ソート初期化 (タイプ順: TYPES 配列順=ノーマル先頭)
-  pfSortKey = 'type'; pfSortDir = 1;
+  // ソート初期化 (威力の高い順。威力なし=変化技は末尾)
+  pfSortKey = 'power'; pfSortDir = -1;
 }
 function updatePfTitle() {
   const typeMsg = pfType
@@ -3114,15 +3108,7 @@ document.getElementById("pf-ov").addEventListener("click", e => {
 });
 
 // ── フィルタバー ──────────────────────────────────────────────────────────────
-bindSearch("waza-filter", v => { filterWaza = v; renderTable(); });
-document.querySelectorAll(".fcat-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    const c = btn.dataset.cat;
-    if (filterCats.has(c)) { filterCats.delete(c); btn.classList.remove("on"); }
-    else { filterCats.add(c); btn.classList.add("on"); }
-    renderTable();
-  });
-});
+// わざ検索・分類フィルタUIは廃止 (filterWaza="" / filterCats=全分類 のまま=絞り込みなし)。
 // 種族値表示モード切替ボタン (各ボタン独立 ON/OFF)
 document.querySelectorAll(".sv-btn").forEach(btn => {
   const key = btn.dataset.sv;

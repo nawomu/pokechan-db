@@ -94,8 +94,8 @@ function toHira(s) {
   );
 }
 
-let sortKey = 'name';
-let sortDir = 1;
+let sortKey = 'power';
+let sortDir = -1;   // 初期表示: 威力の高い順 (威力なし=変化技は末尾)
 
 // ===== タイプ複数選択フィルター =====
 let selectedTypes = new Set();
@@ -887,11 +887,11 @@ function resetAll() {
   document.querySelectorAll('.ef-chip').forEach(el => {
     el.classList.remove('active', 'active-status', 'active-up', 'active-down', 'active-misc');
   });
-  sortKey = 'name';
-  sortDir = 1;
+  sortKey = 'power';
+  sortDir = -1;
   document.querySelectorAll('th[data-sort]').forEach(x => { x.classList.remove('sorted','asc'); });
-  const nameTh = document.querySelector('th[data-sort="name"]');
-  if (nameTh) { nameTh.classList.add('sorted'); nameTh.classList.add('asc'); }
+  const powerTh = document.querySelector('th[data-sort="power"]');
+  if (powerTh) { powerTh.classList.add('sorted'); }
   render();
 }
 
@@ -1234,7 +1234,7 @@ function refreshPokemonFilterBanner() {
   const label = trigger.querySelector('.wp-poke-label');
   if (!INITIAL_POKEMON_FILTER) {
     trigger.classList.remove('has-val');
-    if (label) label.textContent = '🧬 全ポケモンを選択中 ▾';
+    if (label) label.textContent = _t('waza.poke_select_all', '🧬 ポケモン選択 ▾');
   } else {
     trigger.classList.add('has-val');
     const cnt = moves.filter(m => (m.learners || []).some(l => l.name === INITIAL_POKEMON_FILTER)).length;
