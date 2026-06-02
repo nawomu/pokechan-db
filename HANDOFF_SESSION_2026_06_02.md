@@ -81,3 +81,47 @@
 - `how_to_use.html` / `db_guide.html` / `builder_guide.html` / `index.html` — 原典(ja)。`/<lang>/` に静的版
 - `sitemap.xml`(自動生成・52URL) / `sitemap.html`(人間向け) / `ads.txt`
 - 前回: `HANDOFF_SESSION_2026_06_01.md`
+
+---
+
+## 🆕 2026-06-02 セッション後半 (運用作業 + フッター + OGP)
+
+前半(上記)の後、ユーザーと以下を実施。
+
+### F. AdSense 表示確認 + Search Console 登録 (運用・コミット無し)
+- 本番 `pchamdb.com` の AdSense 事前確認 → **全項目クリア**(ads.txt=承認済み / `/en/` / `how_to_use.html` / sitemap.xml=整形式52URL・Googlebot UAで200取得・robots許可)。
+- **Google Search Console を URLプレフィックス `https://pchamdb.com/` で登録**。所有権は**サイトの GA タグ(gtag.js, G-3Y3S9N1K7H)経由で自動確認**。`sitemap.xml` 送信済み。
+  - 送信直後ステータス「取得できませんでした」は初回クロール前の暫定表示(配信側は正常)。数時間〜1日で「成功」に変わる想定。
+  - ⚠️ **gtag.js を全ページから消すと所有権確認が外れる**。
+  - 詳細メモ: 記憶 `search-console-setup`。
+- **AdSense は「サイトの管理」で承認状況=準備中 / ads.txt=承認済み** を確認(審査パイプライン進行中)。**再申請ボタン不要・待つだけ**。要確認/要審査に変わったら詳細を見て対策。
+
+### G. 広告戦略の方針確認 (実装は保留)
+- ガイドページへの広告枠追加・楽天/AdSense以外の広告は **AdSense 承認後まで様子見** とユーザー判断。
+- 参考(`HANDOFF_AD_STRATEGY.md`): ガイドは承認後 In-content 1枠が最適。海外は **Amazon OneLink(実装済 `onelink.js`)** が本命、**楽天は日本専用→地域出し分け**が有効。次点 Ezoic / TCGplayer / もしも。
+
+### H. 主要ツール4ページにフッター新設 (commit `ead81f5`)
+- **共有CSS `site-footer.css` を新設**(type_chart のフッターCSSを共通化)。
+- `pokemon_db_v9 / party_checker / waza-list / battle_simulator` の `</body>` 直前にフッター追加 + `<head>` に `site-footer.css` リンク。
+  - リンク: 制作の裏側/利用規約/プライバシー/免責/お問い合わせ/**サイトマップ**(全て data-i18n で9言語対応)。
+- これで**全ページに内部リンク導線**が揃った(従来は法的+ガイドのみ)。
+- 未対応: `making(_en)` はフッター枠自体が無く CTA のみ(任意)。
+
+### I. OGP 専用画像 (1200×630) を作成・全ページ反映 (commit `ead81f5`)
+- **`ogp/og-default.png`**(1200×630) を新規作成。生成テンプレ **`ogp/_template.html`** 同梱。
+  - **生成手順**: `cd ogp && "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless=new --disable-gpu --hide-scrollbars --force-device-scale-factor=2 --window-size=1200,630 --screenshot="$PWD/_og_2x.png" "file://$PWD/_template.html"` → `sips -z 630 1200 _og_2x.png --out og-default.png`(2x描画→縮小で文字鮮明)。
+  - ⚠️ ロゴは **`branding/logo/logo_main_clean.png`** を使用。**`logo_main_transparent.png` は市松模様が実ピクセルとして焼き込まれた不良ファイル**(透過していない)→使わない。
+- 全ページの `og:image` / `twitter:image` を旧 `logo_main_white_bg.png` → `https://pchamdb.com/ogp/og-default.png` に統一(root21 + /lang/32 = **53ページ**)。ガイド3ページに `twitter:card=summary_large_image` + `twitter:image` 追加。
+- `/lang/` 32ページを再ビルドして反映。**本番デプロイ・反映確認済み**(og画像200 / og:image切替 / フッター反映)。
+- ⚠️ OGP は **ページに表示されず、SNSシェア時のサムネ**にのみ使われる。X はキャッシュが強い→既出URLは反映に時間差。
+
+### この後半で増えた残件 / 次にやること
+1. **AdSense 承認待ち** → 承認後: `affiliate-config.js` の `adsense.enabled=true` + client + slot 投入、ガイドに In-content 1枠、自動 ins 注入スクリプト。
+2. Search Console の sitemap ステータスが翌日も「取得できませんでした」なら行クリック→再送信。
+3. (任意) OGP の **ja/en 言語別バリエーション**(現状は日英併記の共通1枚)。`ogp/_template.html` の `#tagline` を差し替えて再生成すれば作れる。
+4. (任意) `making(_en)` にフッター枠新設。
+
+### 後半の関連ファイル
+- `site-footer.css` — 主要ツール共通フッターCSS(新規)
+- `ogp/og-default.png` — OGP画像(新規) / `ogp/_template.html` — 生成テンプレ(新規)
+- 記憶: `search-console-setup`(Search Console設定) / `dmarc-rollout-plan`(DNS本人管理)
