@@ -1,0 +1,759 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>condition 修正候補(プロト形式)</title><style>
+ *{box-sizing:border-box} body{font-family:-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;margin:0;background:#0f1419;color:#e6edf3;font-size:12px}
+ header{padding:10px 16px;background:#161b22;border-bottom:1px solid #30363d;position:sticky;top:0;z-index:6}
+ h1{font-size:15px;margin:0} .sub{font-size:11px;color:#9aa7b4;margin-top:3px;line-height:1.6}
+ table{border-collapse:collapse;width:100%} thead th{position:sticky;top:64px;background:#21262d;color:#9aa7b4;font-size:11px;padding:6px 7px;border-bottom:2px solid #30363d;text-align:left;white-space:nowrap}
+ td{padding:6px 7px;border-bottom:1px solid #1c2128;vertical-align:top}
+ tr.sec td{background:#1d2330;color:#d2a8ff;font-weight:700;font-size:13px;position:sticky;top:93px;border-bottom:2px solid #a371f7;z-index:2}
+ tr.sec .gc{color:#8b949e;font-weight:400;font-size:11px;margin-left:6px}
+ .c-nm{font-weight:700;min-width:104px} .c-nm b{color:#e6edf3}
+ .kind{color:#9aa7b4;font-size:11px;white-space:nowrap}
+ .type{color:#6e7681;font-family:ui-monospace,SFMono-Regular,monospace;font-size:10.5px;min-width:150px}
+ .type .tn{color:#e3b341} .raw{color:#ff7b72}
+ .old{color:#ff9a92;font-family:ui-monospace,monospace;font-size:11px;min-width:180px;line-height:1.5}
+ .new{min-width:230px;line-height:1.6} .new .if{font-size:10px;border-radius:3px;padding:0 5px;font-weight:700;background:#16263b;color:#79c0ff;margin-right:4px} .new b{color:#7ee787;font-size:12.5px}
+ .new .ex{color:#f0b86e} .new .grd{color:#79c0ff} .rs{background:#3a2a16;color:#e3b341;font-size:10px;border-radius:3px;padding:0 5px;font-weight:700}
+ .c-desc{min-width:260px;max-width:380px;color:#9aa7b4;font-size:11px;line-height:1.55}
+ tbody tr:hover td{background:#161b22}
+ .changed .new{background:#10220f;border-radius:4px}
+ .sum b{color:#e6edf3} .sum code{background:#21262d;border:1px solid #30363d;border-radius:3px;padding:0 4px;color:#ff9a92;font-size:10.5px}
+ .legend{font-size:11px;color:#9aa7b4}
+</style></head><body>
+<header><h1>🧩 condition 表示の修正候補 — 揃える前提・全104件(プロト形式)</h1>
+<div class="sub legend">
+ <b style="color:#ff9a92">赤=現在の表示</b>(condStr) → <b style="color:#7ee787">緑=修正候補</b>(改良版). 緑がヤックン説明に戻れるか確認.
+ / 発見: <b style="color:#e3b341">type 54種が乱立</b> → 19概念に集約(見出し=統一単位).
+ 壊れた主因 ① <code>and</code>/<code>grounded_exceptions</code>/<code>excludes_*</code> を捨て節が消失 ② 辞書に無い type が生英語で露出.
+</div></header>
+<table><thead><tr>
+ <th>わざ名</th><th>kind</th><th>type / 生データ</th><th>🔴 現在の表示</th><th>🟢 修正候補</th><th>説明(ポケモン徹底攻略)</th>
+</tr></thead><tbody><tr class="sec"><td colspan="6">場・フィールド<span class="gc">統一候補 type: field_state / field / field_is / field_active</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>Gのちから</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">field_state</span><br>{"type":"field_state", "value":"じゅうりょく"}</td>
+   <td class="old">IF:field_state:じゅうりょく</td>
+   <td class="new"><span class="if">IF</span><b>場が『じゅうりょく』状態の時</b></td>
+   <td class="c-desc">100%の確率で相手の『ぼうぎょ』ランクを1段階下げる。場が『じゅうりょく』状態の時、威力が1.5倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>じしん</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">field</span><br>{"type":"field", "value":"グラスフィールド"}</td>
+   <td class="old">IF:field:グラスフィールド</td>
+   <td class="new"><span class="if">IF</span><b>場が『グラスフィールド』の時</b></td>
+   <td class="c-desc">相手が技『あなをほる』を使っている時でも命中し、ダメージが2倍になる。『グラスフィールド』の時、威力が半減する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>じならし</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">field_is</span><br>{"type":"field_is", "value":"グラスフィールド"}</td>
+   <td class="old">IF:field_is:グラスフィールド</td>
+   <td class="new"><span class="if">IF</span><b>場が『グラスフィールド』の時</b></td>
+   <td class="c-desc">100%の確率で相手の『すばやさ』ランクを1段階下げる。『グラスフィールド』の時、威力が半減する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>だいちのはどう</b></td>
+   <td class="kind">技タイプ変更</td>
+   <td class="type"><span class="tn raw">field_active</span><br>{"type":"field_active", "and":"user_grounded", "grounded_exceptions":["ひこうタイプ", "ふゆう"]}</td>
+   <td class="old">IF:field_active</td>
+   <td class="new"><span class="if">IF</span><b>場がフィールド<span class="ex">(ひこうタイプ・ふゆうは除く)</span>の時／<span class="grd">自分が地面にいる時</span></b></td>
+   <td class="c-desc">場の状態がフィールドで、自分が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、技のタイプが変化し、威力も2倍になる(フィールドの1.3倍の効果もさらに加わる)。『グラスフィールド』の時は『くさ』タイプ、『ミストフィールド』の時は『フェアリー』タイプ、『エレキフィールド』の時は『でんき』タイ</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>だいちのはどう</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">field_active</span><br>{"type":"field_active", "and":"user_grounded", "grounded_exceptions":["ひこうタイプ", "ふゆう"]}</td>
+   <td class="old">IF:field_active</td>
+   <td class="new"><span class="if">IF</span><b>場がフィールド<span class="ex">(ひこうタイプ・ふゆうは除く)</span>の時／<span class="grd">自分が地面にいる時</span></b></td>
+   <td class="c-desc">場の状態がフィールドで、自分が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、技のタイプが変化し、威力も2倍になる(フィールドの1.3倍の効果もさらに加わる)。『グラスフィールド』の時は『くさ』タイプ、『ミストフィールド』の時は『フェアリー』タイプ、『エレキフィールド』の時は『でんき』タイ</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ミストバースト</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">field</span><br>{"type":"field", "value":"ミストフィールド", "and":"user_grounded", "grounded_exceptions":["ひこうタイプ", "ふゆう"]}</td>
+   <td class="old">IF:field:ミストフィールド</td>
+   <td class="new"><span class="if">IF</span><b>場が『ミストフィールド』<span class="ex">(ひこうタイプ・ふゆうは除く)</span>の時／<span class="grd">自分が地面にいる時</span></b></td>
+   <td class="c-desc">攻撃後、自分が『ひんし』状態になる。場の状態が『ミストフィールド』で、自分が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、威力が1.5倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ライジングボルト</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">field</span><br>{"type":"field", "value":"エレキフィールド", "and":"target_grounded", "grounded_exceptions":["ひこうタイプ", "ふゆう"]}</td>
+   <td class="old">IF:field:エレキフィールド</td>
+   <td class="new"><span class="if">IF</span><b>場が『エレキフィールド』<span class="ex">(ひこうタイプ・ふゆうは除く)</span>の時</b></td>
+   <td class="c-desc">場の状態が『エレキフィールド』で、なおかつ相手が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、威力が2倍になる(自分も地面にいれば、フィールドの1.3倍の効果もさらに加わる)。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ワイドフォース</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">field</span><br>{"type":"field", "value":"サイコフィールド", "and":"user_grounded", "grounded_exceptions":["ひこうタイプ", "ふゆう"]}</td>
+   <td class="old">IF:field:サイコフィールド</td>
+   <td class="new"><span class="if">IF</span><b>場が『サイコフィールド』<span class="ex">(ひこうタイプ・ふゆうは除く)</span>の時／<span class="grd">自分が地面にいる時</span></b></td>
+   <td class="c-desc">場の状態が『サイコフィールド』で、自分が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、威力が1.5倍になり(フィールドの1.3倍の効果もさらに加わる)、また相手全体を攻撃する(その時ダブルバトルではダメージは0.75倍)。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ワイドフォース</b></td>
+   <td class="kind">対象範囲変更</td>
+   <td class="type"><span class="tn raw">field</span><br>{"type":"field", "value":"サイコフィールド", "and":"user_grounded", "grounded_exceptions":["ひこうタイプ", "ふゆう"]}</td>
+   <td class="old">IF:field:サイコフィールド</td>
+   <td class="new"><span class="if">IF</span><b>場が『サイコフィールド』<span class="ex">(ひこうタイプ・ふゆうは除く)</span>の時／<span class="grd">自分が地面にいる時</span></b></td>
+   <td class="c-desc">場の状態が『サイコフィールド』で、自分が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、威力が1.5倍になり(フィールドの1.3倍の効果もさらに加わる)、また相手全体を攻撃する(その時ダブルバトルではダメージは0.75倍)。</td>
+  </tr><tr class="sec"><td colspan="6">接地<span class="gc">統一候補 type: grounded / user_grounded / target_grounded</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>エレキフィールド</b></td>
+   <td class="kind">状態異常予防</td>
+   <td class="type"><span class="tn ">grounded</span><br>{"type":"grounded"}</td>
+   <td class="old">IF:接地時</td>
+   <td class="new"><span class="if">IF</span><b><span class="grd">地面にいる時</span></b></td>
+   <td class="c-desc">5ターンの間、場の状態を『エレキフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、『ねむり』『ねむけ』(『あくび』)状態にならず、また『でんき』タイプの技の威力が1.3倍になる(第7世代までは1.5倍)。すでに『ねむり』状態の場合は回復しない。また、道具『</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>エレキフィールド</b></td>
+   <td class="kind">場の威力補正</td>
+   <td class="type"><span class="tn ">grounded</span><br>{"type":"grounded"}</td>
+   <td class="old">IF:接地時</td>
+   <td class="new"><span class="if">IF</span><b><span class="grd">地面にいる時</span></b></td>
+   <td class="c-desc">5ターンの間、場の状態を『エレキフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、『ねむり』『ねむけ』(『あくび』)状態にならず、また『でんき』タイプの技の威力が1.3倍になる(第7世代までは1.5倍)。すでに『ねむり』状態の場合は回復しない。また、道具『</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>グラスフィールド</b></td>
+   <td class="kind">場の威力補正</td>
+   <td class="type"><span class="tn raw">user_grounded</span><br>{"type":"user_grounded"}</td>
+   <td class="old">IF:user_grounded</td>
+   <td class="new"><span class="if">IF</span><b><span class="grd">自分が地面にいる時</span></b></td>
+   <td class="c-desc">5ターンの間、場の状態を『グラスフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、毎ターン最大HPの1/16ずつ回復し、また『くさ』タイプの技の威力が1.3倍になり(第7世代までは1.5倍)、技『じしん』『じならし』『マグニチュード』の威力が半減する。また</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>グラスフィールド</b></td>
+   <td class="kind">場の威力補正</td>
+   <td class="type"><span class="tn raw">target_grounded</span><br>{"type":"target_grounded"}</td>
+   <td class="old">IF:target_grounded</td>
+   <td class="new"><span class="if">IF</span><b><span class="grd">相手が地面にいる時</span></b></td>
+   <td class="c-desc">5ターンの間、場の状態を『グラスフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、毎ターン最大HPの1/16ずつ回復し、また『くさ』タイプの技の威力が1.3倍になり(第7世代までは1.5倍)、技『じしん』『じならし』『マグニチュード』の威力が半減する。また</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>グラスフィールド</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">grounded</span><br>{"type":"grounded", "excludes_types":["ひこう"], "excludes_abilities":["ふゆう"]}</td>
+   <td class="old">IF:接地時</td>
+   <td class="new"><span class="if">IF</span><b><span class="grd">地面にいる時</span></b></td>
+   <td class="c-desc">5ターンの間、場の状態を『グラスフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、毎ターン最大HPの1/16ずつ回復し、また『くさ』タイプの技の威力が1.3倍になり(第7世代までは1.5倍)、技『じしん』『じならし』『マグニチュード』の威力が半減する。また</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>サイコフィールド</b></td>
+   <td class="kind">優先技無効</td>
+   <td class="type"><span class="tn ">grounded</span><br>{"type":"grounded"}</td>
+   <td class="old">IF:接地時</td>
+   <td class="new"><span class="if">IF</span><b><span class="grd">地面にいる時</span></b></td>
+   <td class="c-desc">5ターンの間、場の状態を『サイコフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、相手(味方は含まない)の先制技を受けなくなり、また『エスパー』タイプの技の威力が1.3倍になる(第7世代までは1.5倍)。また、道具『サイコシード』を持ったポケモンは『とくぼ</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>サイコフィールド</b></td>
+   <td class="kind">場の威力補正</td>
+   <td class="type"><span class="tn ">grounded</span><br>{"type":"grounded"}</td>
+   <td class="old">IF:接地時</td>
+   <td class="new"><span class="if">IF</span><b><span class="grd">地面にいる時</span></b></td>
+   <td class="c-desc">5ターンの間、場の状態を『サイコフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、相手(味方は含まない)の先制技を受けなくなり、また『エスパー』タイプの技の威力が1.3倍になる(第7世代までは1.5倍)。また、道具『サイコシード』を持ったポケモンは『とくぼ</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ミストフィールド</b></td>
+   <td class="kind">状態異常予防</td>
+   <td class="type"><span class="tn ">grounded</span><br>{"type":"grounded", "excludes_types":["ひこう"], "excludes_abilities":["ふゆう"]}</td>
+   <td class="old">IF:接地時</td>
+   <td class="new"><span class="if">IF</span><b><span class="grd">地面にいる時</span></b></td>
+   <td class="c-desc">5ターンの間、場の状態を『ミストフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、状態異常にならず、また『ドラゴン』タイプの技の威力が半減する。すでに状態異常の場合は回復しない。また、道具『ミストシード』を持ったポケモンは『とくぼう』ランクが1段階上がる(</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ミストフィールド</b></td>
+   <td class="kind">場の威力補正</td>
+   <td class="type"><span class="tn raw">target_grounded</span><br>{"type":"target_grounded"}</td>
+   <td class="old">IF:target_grounded</td>
+   <td class="new"><span class="if">IF</span><b><span class="grd">相手が地面にいる時</span></b></td>
+   <td class="c-desc">5ターンの間、場の状態を『ミストフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、状態異常にならず、また『ドラゴン』タイプの技の威力が半減する。すでに状態異常の場合は回復しない。また、道具『ミストシード』を持ったポケモンは『とくぼう』ランクが1段階上がる(</td>
+  </tr><tr class="sec"><td colspan="6">天気<span class="gc">統一候補 type: weather / weather_in</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>あさのひざし</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">weather</span><br>{"type":"weather", "value":"なし(通常)"}</td>
+   <td class="old">IF:天候:なし(通常)</td>
+   <td class="new"><span class="if">IF</span><b>天気がふつうの時</b></td>
+   <td class="c-desc">HPが、天気が通常の時は最大HPの1/2、『にほんばれ』の時は最大HPの2/3、『あめ』『ゆき』『すなあらし』の時は最大HPの1/4回復する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>あさのひざし</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">weather</span><br>{"type":"weather", "value":"にほんばれ"}</td>
+   <td class="old">IF:天候:にほんばれ</td>
+   <td class="new"><span class="if">IF</span><b>天気が『にほんばれ』の時</b></td>
+   <td class="c-desc">HPが、天気が通常の時は最大HPの1/2、『にほんばれ』の時は最大HPの2/3、『あめ』『ゆき』『すなあらし』の時は最大HPの1/4回復する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>あさのひざし</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">weather_in</span><br>{"type":"weather_in", "values":["あめ", "ゆき", "すなあらし"]}</td>
+   <td class="old">IF:天候:あめ・ゆき・すなあらし</td>
+   <td class="new"><span class="if">IF</span><b>天気が『あめ』『ゆき』『すなあらし』の時</b></td>
+   <td class="c-desc">HPが、天気が通常の時は最大HPの1/2、『にほんばれ』の時は最大HPの2/3、『あめ』『ゆき』『すなあらし』の時は最大HPの1/4回復する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>こうごうせい</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">weather</span><br>{"type":"weather", "value":"なし(通常)"}</td>
+   <td class="old">IF:天候:なし(通常)</td>
+   <td class="new"><span class="if">IF</span><b>天気がふつうの時</b></td>
+   <td class="c-desc">HPが、天気が通常の時は最大HPの1/2、『にほんばれ』の時は最大HPの2/3、『あめ』『ゆき』『すなあらし』の時は最大HPの1/4回復する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>こうごうせい</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">weather</span><br>{"type":"weather", "value":"にほんばれ"}</td>
+   <td class="old">IF:天候:にほんばれ</td>
+   <td class="new"><span class="if">IF</span><b>天気が『にほんばれ』の時</b></td>
+   <td class="c-desc">HPが、天気が通常の時は最大HPの1/2、『にほんばれ』の時は最大HPの2/3、『あめ』『ゆき』『すなあらし』の時は最大HPの1/4回復する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>こうごうせい</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">weather_in</span><br>{"type":"weather_in", "values":["あめ", "ゆき", "すなあらし"]}</td>
+   <td class="old">IF:天候:あめ・ゆき・すなあらし</td>
+   <td class="new"><span class="if">IF</span><b>天気が『あめ』『ゆき』『すなあらし』の時</b></td>
+   <td class="c-desc">HPが、天気が通常の時は最大HPの1/2、『にほんばれ』の時は最大HPの2/3、『あめ』『ゆき』『すなあらし』の時は最大HPの1/4回復する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ソーラービーム</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">weather_in</span><br>{"type":"weather_in", "values":["あめ", "ゆき", "すなあらし"]}</td>
+   <td class="old">IF:天候:あめ・ゆき・すなあらし</td>
+   <td class="new"><span class="if">IF</span><b>天気が『あめ』『ゆき』『すなあらし』の時</b></td>
+   <td class="c-desc">1ターン目は攻撃せずに、2ターン目で攻撃する。天気が『にほんばれ』の時は1ターンためずに攻撃でき、『あめ』『ゆき』『すなあらし』の時は威力が半分になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ソーラーブレード</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">weather_in</span><br>{"type":"weather_in", "values":["あめ", "ゆき", "すなあらし"]}</td>
+   <td class="old">IF:天候:あめ・ゆき・すなあらし</td>
+   <td class="new"><span class="if">IF</span><b>天気が『あめ』『ゆき』『すなあらし』の時</b></td>
+   <td class="c-desc">1ターン目は攻撃せずに、2ターン目で攻撃する。天気が『にほんばれ』の時は1ターンためずに攻撃でき、『あめ』『ゆき』『すなあらし』の時は威力が半分になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>つきのひかり</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">weather</span><br>{"type":"weather", "value":"なし(通常)"}</td>
+   <td class="old">IF:天候:なし(通常)</td>
+   <td class="new"><span class="if">IF</span><b>天気がふつうの時</b></td>
+   <td class="c-desc">HPが、天気が通常の時は最大HPの1/2、『にほんばれ』の時は最大HPの2/3、『あめ』『ゆき』『すなあらし』の時は最大HPの1/4回復する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>つきのひかり</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">weather</span><br>{"type":"weather", "value":"にほんばれ"}</td>
+   <td class="old">IF:天候:にほんばれ</td>
+   <td class="new"><span class="if">IF</span><b>天気が『にほんばれ』の時</b></td>
+   <td class="c-desc">HPが、天気が通常の時は最大HPの1/2、『にほんばれ』の時は最大HPの2/3、『あめ』『ゆき』『すなあらし』の時は最大HPの1/4回復する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>つきのひかり</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn ">weather_in</span><br>{"type":"weather_in", "values":["あめ", "ゆき", "すなあらし"]}</td>
+   <td class="old">IF:天候:あめ・ゆき・すなあらし</td>
+   <td class="new"><span class="if">IF</span><b>天気が『あめ』『ゆき』『すなあらし』の時</b></td>
+   <td class="c-desc">HPが、天気が通常の時は最大HPの1/2、『にほんばれ』の時は最大HPの2/3、『あめ』『ゆき』『すなあらし』の時は最大HPの1/4回復する。</td>
+  </tr><tr class="sec"><td colspan="6">タイプ<span class="gc">統一候補 type: target_type_not_in / target_type_in / type_in / not_type_in / user_is_type / ally_type_not / ally_type / user_type / user_not_type</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>しおづけ</b></td>
+   <td class="kind">継続削り</td>
+   <td class="type"><span class="tn raw">target_type_not_in</span><br>{"type":"target_type_not_in", "values":["はがね", "みず"]}</td>
+   <td class="old">IF:target_type_not_in:はがね・みず</td>
+   <td class="new"><span class="if">IF</span><b>相手が『はがね』『みず』タイプでない時</b></td>
+   <td class="c-desc">追加効果として相手を『しおづけ』状態にして、毎ターン終了後、相手の最大HPの1/16のダメージを与える。相手が『はがね』や『みず』タイプの場合は、毎ターン最大HPの1/8のダメージになる。(ポケモンSVでは通常1/8、はがね・みずタイプは1/4のダメージだった)</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>しおづけ</b></td>
+   <td class="kind">継続削り</td>
+   <td class="type"><span class="tn ">target_type_in</span><br>{"type":"target_type_in", "values":["はがね", "みず"]}</td>
+   <td class="old">IF:相手が:はがね・みず</td>
+   <td class="new"><span class="if">IF</span><b>相手が『はがね』『みず』タイプの時</b></td>
+   <td class="c-desc">追加効果として相手を『しおづけ』状態にして、毎ターン終了後、相手の最大HPの1/16のダメージを与える。相手が『はがね』や『みず』タイプの場合は、毎ターン最大HPの1/8のダメージになる。(ポケモンSVでは通常1/8、はがね・みずタイプは1/4のダメージだった)</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>すなあらし</b></td>
+   <td class="kind">能力倍率</td>
+   <td class="type"><span class="tn raw">type_in</span><br>{"type":"type_in", "values":["いわ"]}</td>
+   <td class="old">IF:type_in:いわ</td>
+   <td class="new"><span class="if">IF</span><b>『いわ』タイプの時</b></td>
+   <td class="c-desc">5ターンの間、天気を『すなあらし』にする。『いわ』『じめん』『はがね』タイプではないポケモンは、毎ターン最大HPの1/16のダメージを受ける。また、『いわ』タイプのポケモンは『とくぼう』が1.5倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>すなあらし</b></td>
+   <td class="kind">全体継続ダメージ</td>
+   <td class="type"><span class="tn raw">not_type_in</span><br>{"type":"not_type_in", "values":["いわ", "じめん", "はがね"]}</td>
+   <td class="old">IF:not_type_in:いわ・じめん・はがね</td>
+   <td class="new"><span class="if">IF</span><b>『いわ』『じめん』『はがね』タイプでない時</b></td>
+   <td class="c-desc">5ターンの間、天気を『すなあらし』にする。『いわ』『じめん』『はがね』タイプではないポケモンは、毎ターン最大HPの1/16のダメージを受ける。また、『いわ』タイプのポケモンは『とくぼう』が1.5倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ぜったいれいど</b></td>
+   <td class="kind">命中率固定</td>
+   <td class="type"><span class="tn raw">user_is_type</span><br>{"type":"user_is_type", "values":["こおり"]}</td>
+   <td class="old">IF:user_is_type:こおり</td>
+   <td class="new"><span class="if">IF</span><b>自分が『こおり』タイプの時</b></td>
+   <td class="c-desc">相手を『ひんし』状態にする。相手が『こおり』タイプの場合は効果がない。また、『こおり』タイプ以外のポケモンが使うと命中率が20%に下がる。ダイマックスしている相手には無効。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ドラゴンエール</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn raw">ally_type_not</span><br>{"type":"ally_type_not", "values":["ドラゴン"]}</td>
+   <td class="old">IF:ally_type_not:ドラゴン</td>
+   <td class="new"><span class="if">IF</span><b>味方が『ドラゴン』タイプでない時</b></td>
+   <td class="c-desc">自分を除く味方全体を『きゅうしょアップ』状態(急所ランク1段階)にして、今後使う技が急所に当たりやすくなる(すでに『きゅうしょアップ』状態の時は失敗する)。対象の味方が『ドラゴン』タイプの場合は、2段階上がる。音系の技。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ドラゴンエール</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn raw">ally_type</span><br>{"type":"ally_type", "values":["ドラゴン"]}</td>
+   <td class="old">IF:ally_type:ドラゴン</td>
+   <td class="new"><span class="if">IF</span><b>味方が『ドラゴン』タイプの時</b></td>
+   <td class="c-desc">自分を除く味方全体を『きゅうしょアップ』状態(急所ランク1段階)にして、今後使う技が急所に当たりやすくなる(すでに『きゅうしょアップ』状態の時は失敗する)。対象の味方が『ドラゴン』タイプの場合は、2段階上がる。音系の技。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>のろい</b></td>
+   <td class="kind">HPが減る</td>
+   <td class="type"><span class="tn ">user_type</span><br>{"type":"user_type", "value":"ゴースト"}</td>
+   <td class="old">IF:自分が:ゴースト</td>
+   <td class="new"><span class="if">IF</span><b>自分が『ゴースト』タイプの時</b></td>
+   <td class="c-desc">自分のタイプが『ゴースト』タイプの時は自分のHPを最大HPの半分だけ減らして、相手を『のろい』状態にする。『のろい』状態になると毎ターン、HPが最大HPの1/4ずつ減る。それ以外のポケモンの場合『すばやさ』ランクが1段階下がり、『こうげき』『ぼうぎょ』ランクが1段階ずつ上がる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>のろい</b></td>
+   <td class="kind">状態付与</td>
+   <td class="type"><span class="tn ">user_type</span><br>{"type":"user_type", "value":"ゴースト"}</td>
+   <td class="old">IF:自分が:ゴースト</td>
+   <td class="new"><span class="if">IF</span><b>自分が『ゴースト』タイプの時</b></td>
+   <td class="c-desc">自分のタイプが『ゴースト』タイプの時は自分のHPを最大HPの半分だけ減らして、相手を『のろい』状態にする。『のろい』状態になると毎ターン、HPが最大HPの1/4ずつ減る。それ以外のポケモンの場合『すばやさ』ランクが1段階下がり、『こうげき』『ぼうぎょ』ランクが1段階ずつ上がる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>のろい</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn ">user_not_type</span><br>{"type":"user_not_type", "value":"ゴースト"}</td>
+   <td class="old">IF:自分が非:ゴースト</td>
+   <td class="new"><span class="if">IF</span><b>自分が『ゴースト』タイプでない時</b></td>
+   <td class="c-desc">自分のタイプが『ゴースト』タイプの時は自分のHPを最大HPの半分だけ減らして、相手を『のろい』状態にする。『のろい』状態になると毎ターン、HPが最大HPの1/4ずつ減る。それ以外のポケモンの場合『すばやさ』ランクが1段階下がり、『こうげき』『ぼうぎょ』ランクが1段階ずつ上がる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>のろい</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn ">user_not_type</span><br>{"type":"user_not_type", "value":"ゴースト"}</td>
+   <td class="old">IF:自分が非:ゴースト</td>
+   <td class="new"><span class="if">IF</span><b>自分が『ゴースト』タイプでない時</b></td>
+   <td class="c-desc">自分のタイプが『ゴースト』タイプの時は自分のHPを最大HPの半分だけ減らして、相手を『のろい』状態にする。『のろい』状態になると毎ターン、HPが最大HPの1/4ずつ減る。それ以外のポケモンの場合『すばやさ』ランクが1段階下がり、『こうげき』『ぼうぎょ』ランクが1段階ずつ上がる。</td>
+  </tr><tr class="sec"><td colspan="6">状態異常<span class="gc">統一候補 type: user_status_in / target_has_status / target_has_status_condition / target_status_in</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>からげんき</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">user_status_in</span><br>{"type":"user_status_in", "values":["どく", "もうどく", "まひ", "やけど"]}</td>
+   <td class="old">IF:user_status_in:どく・もうどく・まひ・やけど</td>
+   <td class="new"><span class="if">IF</span><b>自分が『どく』『もうどく』『まひ』『やけど』状態の時</b></td>
+   <td class="c-desc">自分が『どく』『まひ』『やけど』状態の時、威力が2倍になる。『やけど』による『こうげき』の半減の影響を受けない。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>たたりめ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">target_has_status</span><br>{"type":"target_has_status", "value":"any_non_volatile_status"}</td>
+   <td class="old">IF:target_has_status:any_non_volatile_status</td>
+   <td class="new"><span class="if">IF</span><b>相手が『any_non_volatile_status』状態の時</b></td>
+   <td class="c-desc">相手が状態異常の時、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>のろい</b></td>
+   <td class="kind">継続削り</td>
+   <td class="type"><span class="tn raw">target_has_status</span><br>{"type":"target_has_status", "value":"のろい"}</td>
+   <td class="old">IF:target_has_status:のろい</td>
+   <td class="new"><span class="if">IF</span><b>相手が『のろい』状態の時</b></td>
+   <td class="c-desc">自分のタイプが『ゴースト』タイプの時は自分のHPを最大HPの半分だけ減らして、相手を『のろい』状態にする。『のろい』状態になると毎ターン、HPが最大HPの1/4ずつ減る。それ以外のポケモンの場合『すばやさ』ランクが1段階下がり、『こうげき』『ぼうぎょ』ランクが1段階ずつ上がる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ひゃっきやこう</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">target_has_status_condition</span><br>{"type":"target_has_status_condition"}</td>
+   <td class="old">IF:target_has_status_condition</td>
+   <td class="new"><span class="if">IF</span><b>相手が状態異常の時</b></td>
+   <td class="c-desc">30%の確率で相手を『やけど』状態にする。相手が状態異常の時、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ベノムショック</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">target_status_in</span><br>{"type":"target_status_in", "values":["どく", "もうどく"]}</td>
+   <td class="old">IF:target_status_in:どく・もうどく</td>
+   <td class="new"><span class="if">IF</span><b>相手が『どく』『もうどく』状態の時</b></td>
+   <td class="c-desc">相手が『どく』『もうどく』状態の時、威力が2倍になる。</td>
+  </tr><tr class="sec"><td colspan="6">道具<span class="gc">統一候補 type: user_has_no_held_item / holds_item / holding_item / target_holding_item / target_holds_battle_effect_berry</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>アクロバット</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">user_has_no_held_item</span><br>{"type":"user_has_no_held_item"}</td>
+   <td class="old">IF:user_has_no_held_item</td>
+   <td class="new"><span class="if">IF</span><b>自分が道具を持っていない時</b></td>
+   <td class="c-desc">自分が道具を持っていない時、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>エレキフィールド</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn ">holds_item</span><br>{"type":"holds_item", "value":"エレキシード"}</td>
+   <td class="old">IF:道具:エレキシード</td>
+   <td class="new"><span class="if">IF</span><b>『エレキシード』を持っている時</b></td>
+   <td class="c-desc">5ターンの間、場の状態を『エレキフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、『ねむり』『ねむけ』(『あくび』)状態にならず、また『でんき』タイプの技の威力が1.3倍になる(第7世代までは1.5倍)。すでに『ねむり』状態の場合は回復しない。また、道具『</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>グラスフィールド</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn raw">holding_item</span><br>{"type":"holding_item", "value":"グラスシード"}</td>
+   <td class="old">IF:holding_item:グラスシード</td>
+   <td class="new"><span class="if">IF</span><b>『グラスシード』を持っている時</b></td>
+   <td class="c-desc">5ターンの間、場の状態を『グラスフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、毎ターン最大HPの1/16ずつ回復し、また『くさ』タイプの技の威力が1.3倍になり(第7世代までは1.5倍)、技『じしん』『じならし』『マグニチュード』の威力が半減する。また</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>サイコフィールド</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn ">holds_item</span><br>{"type":"holds_item", "value":"サイコシード"}</td>
+   <td class="old">IF:道具:サイコシード</td>
+   <td class="new"><span class="if">IF</span><b>『サイコシード』を持っている時</b></td>
+   <td class="c-desc">5ターンの間、場の状態を『サイコフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、相手(味方は含まない)の先制技を受けなくなり、また『エスパー』タイプの技の威力が1.3倍になる(第7世代までは1.5倍)。また、道具『サイコシード』を持ったポケモンは『とくぼ</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>はたきおとす</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">target_holding_item</span><br>{"type":"target_holding_item"}</td>
+   <td class="old">IF:target_holding_item</td>
+   <td class="new"><span class="if">IF</span><b>相手が道具を持っている時</b></td>
+   <td class="c-desc">相手が道具を持っている場合、威力が1.5倍になり、さらに道具を持っていない状態にする。戦闘終了後、道具は元に戻る。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>はたきおとす</b></td>
+   <td class="kind">持ち物排除</td>
+   <td class="type"><span class="tn raw">target_holding_item</span><br>{"type":"target_holding_item"}</td>
+   <td class="old">IF:target_holding_item</td>
+   <td class="new"><span class="if">IF</span><b>相手が道具を持っている時</b></td>
+   <td class="c-desc">相手が道具を持っている場合、威力が1.5倍になり、さらに道具を持っていない状態にする。戦闘終了後、道具は元に戻る。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ミストフィールド</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn raw">holding_item</span><br>{"type":"holding_item", "value":"ミストシード"}</td>
+   <td class="old">IF:holding_item:ミストシード</td>
+   <td class="new"><span class="if">IF</span><b>『ミストシード』を持っている時</b></td>
+   <td class="c-desc">5ターンの間、場の状態を『ミストフィールド』にする。『ひこう』タイプや特性『ふゆう』などではない地面にいるすべてのポケモンは、状態異常にならず、また『ドラゴン』タイプの技の威力が半減する。すでに状態異常の場合は回復しない。また、道具『ミストシード』を持ったポケモンは『とくぼう』ランクが1段階上がる(</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>むしくい</b></td>
+   <td class="kind">木の実強制</td>
+   <td class="type"><span class="tn raw">target_holds_battle_effect_berry</span><br>{"type":"target_holds_battle_effect_berry"}</td>
+   <td class="old">IF:target_holds_battle_effect_berry</td>
+   <td class="new"><span class="if">IF</span><b>相手がバトルで効果のある『きのみ』を持っている時</b></td>
+   <td class="c-desc">相手が持っているバトルに効果のある『きのみ』を奪って、自分に使う。</td>
+  </tr><tr class="sec"><td colspan="6">相手の技<span class="gc">統一候補 type: target_used_move / target_used_minimize / target_minimized / target_used</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>サンダーダイブ</b></td>
+   <td class="kind">必中</td>
+   <td class="type"><span class="tn ">target_used_move</span><br>{"type":"target_used_move", "value":"ちいさくなる"}</td>
+   <td class="old">IF:相手の直前技:ちいさくなる</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">攻撃が外れたり、相手の技『まもる』などで失敗すると、自分の最大HPの半分のダメージを自分が受ける。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>サンダーダイブ</b></td>
+   <td class="kind">威力可変</td>
+   <td class="type"><span class="tn ">target_used_move</span><br>{"type":"target_used_move", "value":"ちいさくなる"}</td>
+   <td class="old">IF:相手の直前技:ちいさくなる</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">攻撃が外れたり、相手の技『まもる』などで失敗すると、自分の最大HPの半分のダメージを自分が受ける。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ドラゴンダイブ</b></td>
+   <td class="kind">必中</td>
+   <td class="type"><span class="tn ">target_used_move</span><br>{"type":"target_used_move", "value":"ちいさくなる"}</td>
+   <td class="old">IF:相手の直前技:ちいさくなる</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">20%の確率で相手をひるませる。相手が『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ドラゴンダイブ</b></td>
+   <td class="kind">ダメージ倍率</td>
+   <td class="type"><span class="tn ">target_used_move</span><br>{"type":"target_used_move", "value":"ちいさくなる"}</td>
+   <td class="old">IF:相手の直前技:ちいさくなる</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">20%の確率で相手をひるませる。相手が『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>のしかかり</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">target_used_minimize</span><br>{"type":"target_used_minimize"}</td>
+   <td class="old">IF:target_used_minimize</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">30%の確率で相手を『まひ』状態にする。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>のしかかり</b></td>
+   <td class="kind">必中</td>
+   <td class="type"><span class="tn raw">target_used_minimize</span><br>{"type":"target_used_minimize"}</td>
+   <td class="old">IF:target_used_minimize</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">30%の確率で相手を『まひ』状態にする。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ヒートスタンプ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">target_minimized</span><br>{"type":"target_minimized"}</td>
+   <td class="old">IF:target_minimized</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">自分の『おもさ』が相手より重いほど威力が高くなる。相手の『おもさ』が自分の1/5以下なら120、1/4以下なら100、1/3以下なら80、1/2以下なら60、それ以上なら40。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。ダイマックスしている相手には無効。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ヒートスタンプ</b></td>
+   <td class="kind">必中</td>
+   <td class="type"><span class="tn raw">target_minimized</span><br>{"type":"target_minimized"}</td>
+   <td class="old">IF:target_minimized</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">自分の『おもさ』が相手より重いほど威力が高くなる。相手の『おもさ』が自分の1/5以下なら120、1/4以下なら100、1/3以下なら80、1/2以下なら60、それ以上なら40。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。ダイマックスしている相手には無効。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>フライングプレス</b></td>
+   <td class="kind">必中</td>
+   <td class="type"><span class="tn raw">target_used</span><br>{"type":"target_used", "value":"ちいさくなる"}</td>
+   <td class="old">IF:target_used:ちいさくなる</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">この技は『かくとう』タイプであると同時に『ひこう』タイプでもある。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>フライングプレス</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">target_used</span><br>{"type":"target_used", "value":"ちいさくなる"}</td>
+   <td class="old">IF:target_used:ちいさくなる</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">この技は『かくとう』タイプであると同時に『ひこう』タイプでもある。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ヘビーボンバー</b></td>
+   <td class="kind">必中</td>
+   <td class="type"><span class="tn ">target_used_move</span><br>{"type":"target_used_move", "value":"ちいさくなる"}</td>
+   <td class="old">IF:相手の直前技:ちいさくなる</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">自分の『おもさ』が相手より重いほど威力が高くなる。相手の『おもさ』が自分の1/5以下なら120、1/4以下なら100、1/3以下なら80、1/2以下なら60、それより大きければ40。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる(第7世代以降)。ダイマックスしている相手には無効</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ヘビーボンバー</b></td>
+   <td class="kind">ダメージ倍率</td>
+   <td class="type"><span class="tn ">target_used_move</span><br>{"type":"target_used_move", "value":"ちいさくなる"}</td>
+   <td class="old">IF:相手の直前技:ちいさくなる</td>
+   <td class="new"><span class="if">IF</span><b>相手が『ちいさくなる』を使っている時</b></td>
+   <td class="c-desc">自分の『おもさ』が相手より重いほど威力が高くなる。相手の『おもさ』が自分の1/5以下なら120、1/4以下なら100、1/3以下なら80、1/2以下なら60、それより大きければ40。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる(第7世代以降)。ダイマックスしている相手には無効</td>
+  </tr><tr class="sec"><td colspan="6">このターン<span class="gc">統一候補 type: user_stat_lowered_this_turn / target_stat_rose_this_turn / target_already_damaged_this_turn / target_stat_raised_this_turn / user_took_damage_this_turn / not_first_round_user_this_turn</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>うっぷんばらし</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">user_stat_lowered_this_turn</span><br>{"type":"user_stat_lowered_this_turn", "includes":"stat lowered on switch-in this turn"}</td>
+   <td class="old">IF:user_stat_lowered_this_turn</td>
+   <td class="new"><span class="if">IF</span><b>そのターンに自分の能力ランクが下げられた時</b></td>
+   <td class="c-desc">そのターンの間に自分の能力ランクを下げられていると、威力が2倍になる(通常は後攻で攻撃する必要があるが、場に出た時に能力ランクを下げられた場合も対象となる)。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>しっとのほのお</b></td>
+   <td class="kind">状態付与</td>
+   <td class="type"><span class="tn raw">target_stat_rose_this_turn</span><br>{"type":"target_stat_rose_this_turn", "includes":"stat boost gained on switch-in"}</td>
+   <td class="old">IF:target_stat_rose_this_turn</td>
+   <td class="new"><span class="if">IF</span><b>そのターンに相手の能力ランクが上がった時</b></td>
+   <td class="c-desc">100%の確率で、そのターンの間に能力ランクが上がった相手ポケモンを『やけど』状態にする(通常は後攻で攻撃する必要があるが、場に出た時に能力ランクが上がった場合も対象となる)。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ダメおし</b></td>
+   <td class="kind">条件威力倍率</td>
+   <td class="type"><span class="tn raw">target_already_damaged_this_turn</span><br>{"type":"target_already_damaged_this_turn"}</td>
+   <td class="old">IF:target_already_damaged_this_turn</td>
+   <td class="new"><span class="if">IF</span><b>相手がそのターンすでにダメージを受けている時</b></td>
+   <td class="c-desc">そのターン、相手が既にダメージを受けている時、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>みわくのボイス</b></td>
+   <td class="kind">状態付与</td>
+   <td class="type"><span class="tn raw">target_stat_raised_this_turn</span><br>{"type":"target_stat_raised_this_turn", "includes":"stat rise on switch-in"}</td>
+   <td class="old">IF:target_stat_raised_this_turn</td>
+   <td class="new"><span class="if">IF</span><b>そのターンに相手の能力ランクが上がった時</b></td>
+   <td class="c-desc">100%の確率で、そのターンの間に能力ランクが上がった相手ポケモンを1〜4ターンの間『こんらん』状態にする(通常は後攻で攻撃する必要があるが、場に出た時に能力ランクが上がった場合も対象となる)。音系の技。相手の『みがわり』状態を貫通する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ゆきなだれ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">user_took_damage_this_turn</span><br>{"type":"user_took_damage_this_turn"}</td>
+   <td class="old">IF:被弾後</td>
+   <td class="new"><span class="if">IF</span><b>そのターン自分が攻撃のダメージを受けた時</b></td>
+   <td class="c-desc">そのターンに相手の技のダメージを受けると威力が2倍になる。必ず後攻になる(優先度:-4)。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>りんしょう</b></td>
+   <td class="kind">威力可変</td>
+   <td class="type"><span class="tn raw">not_first_round_user_this_turn</span><br>{"type":"not_first_round_user_this_turn"}</td>
+   <td class="old">IF:not_first_round_user_this_turn</td>
+   <td class="new"><span class="if">IF</span><b>同じターンで自分より先に同じ技が使われた時</b></td>
+   <td class="c-desc">同じターンに他のポケモンも『りんしょう』を使おうとすると、『すばやさ』に関係なく最初に使用したポケモンに続いて使用でき、最初以外の『りんしょう』は威力が2倍になる。音系の技。相手の『みがわり』状態を貫通する。(ダブルバトル用)</td>
+  </tr><tr class="sec"><td colspan="6">行動順<span class="gc">統一候補 type: user_moves_after_target</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>しっぺがえし</b></td>
+   <td class="kind">条件威力倍率</td>
+   <td class="type"><span class="tn raw">user_moves_after_target</span><br>{"type":"user_moves_after_target"}</td>
+   <td class="old">IF:user_moves_after_target</td>
+   <td class="new"><span class="if">IF</span><b>自分が後攻の時</b></td>
+   <td class="c-desc">自分が後攻の時、威力が2倍になる。</td>
+  </tr><tr class="sec"><td colspan="6">前ターン失敗<span class="gc">統一候補 type: previous_turn_move_failed_or_could_not_act / failed_to_act_last_turn</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>じだんだ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn raw">previous_turn_move_failed_or_could_not_act</span><br>{"type":"previous_turn_move_failed_or_could_not_act", "includes":["move missed", "move failed", "could not act due to paralysis", "could not act due to confusion", "could not act due to flinch"], "complete":false, "needs_research":true}</td>
+   <td class="old">IF:previous_turn_move_failed_or_could_not_act</td>
+   <td class="new"><span class="if">IF</span><b>前のターンで技が外れた・失敗した・行動できなかった時 <span class="rs">🔍要調査</span></b></td>
+   <td class="c-desc">前のターンで自分が使った技が外れたり失敗したり、『まひ』『こんらん』『ひるみ』状態などで行動できなかった場合、威力が2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>やけっぱち</b></td>
+   <td class="kind">威力可変</td>
+   <td class="type"><span class="tn raw">failed_to_act_last_turn</span><br>{"type":"failed_to_act_last_turn", "causes":["move_missed", "move_failed", "paralysis", "confusion", "flinch"], "complete":false, "needs_research":true}</td>
+   <td class="old">IF:failed_to_act_last_turn</td>
+   <td class="new"><span class="if">IF</span><b>前のターンで技が外れた・失敗した・行動できなかった時 <span class="rs">🔍要調査</span></b></td>
+   <td class="c-desc">前のターンで自分が使った技が外れたり失敗したり、『まひ』『こんらん』『ひるみ』状態などで行動できなかった場合、威力が2倍になる。</td>
+  </tr><tr class="sec"><td colspan="6">接触で被弾<span class="gc">統一候補 type: hit_by_contact_move_while_protecting / hit_by_contact_move_before_activation / contact_move</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>キングシールド</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn raw">hit_by_contact_move_while_protecting</span><br>{"type":"hit_by_contact_move_while_protecting"}</td>
+   <td class="old">IF:hit_by_contact_move_while_protecting</td>
+   <td class="new"><span class="if">IF</span><b>守っている間に接触技で攻撃された時</b></td>
+   <td class="c-desc">優先度+4の先制技。そのターンの間、相手の攻撃技を受けない。また、接触技(直接攻撃)で攻撃してきた相手の『こうげき』ランクを1段階下げる(第7世代までは2段階)。連続で使うと失敗しやすくなる。具体的には、最初は成功するが、使う度に成功率が1/3になっていく(失敗するとリセットされる)。ダイマックス技</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>くちばしキャノン</b></td>
+   <td class="kind">状態付与</td>
+   <td class="type"><span class="tn raw">hit_by_contact_move_before_activation</span><br>{"type":"hit_by_contact_move_before_activation"}</td>
+   <td class="old">IF:hit_by_contact_move_before_activation</td>
+   <td class="new"><span class="if">IF</span><b>技が出る前に接触技で攻撃された時</b></td>
+   <td class="c-desc">必ず後攻になる(優先度:-3)。技が発動する前に接触技(直接攻撃)を受けると、そのポケモンを『やけど』状態にする。技はそのまま受ける。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>トーチカ</b></td>
+   <td class="kind">状態付与</td>
+   <td class="type"><span class="tn raw">hit_by_contact_move_while_protecting</span><br>{"type":"hit_by_contact_move_while_protecting"}</td>
+   <td class="old">IF:hit_by_contact_move_while_protecting</td>
+   <td class="new"><span class="if">IF</span><b>守っている間に接触技で攻撃された時</b></td>
+   <td class="c-desc">優先度+4の先制技。そのターンの間、相手の攻撃を防ぐと同時に、接触技(直接攻撃)で攻撃した相手を『どく』状態にする。連続で使うと失敗しやすくなる。具体的には、最初は成功するが、使う度に成功率が1/3になっていく(失敗するとリセットされる)。ダイマックス技や第7世代のZワザの攻撃技は貫通し、1/4のダ</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ニードルガード</b></td>
+   <td class="kind">接触反動</td>
+   <td class="type"><span class="tn raw">contact_move</span><br>{"type":"contact_move"}</td>
+   <td class="old">IF:contact_move</td>
+   <td class="new"><span class="if">IF</span><b>接触技(直接攻撃)で攻撃された時</b></td>
+   <td class="c-desc">優先度+4の先制技。そのターンの間、相手の攻撃を防ぐと同時に、接触技(直接攻撃)で攻撃した相手に相手の最大HPの1/8のダメージを与える。連続で使うと失敗しやすくなる。具体的には、最初は成功するが、使う度に成功率が1/3になっていく(失敗するとリセットされる)。ダイマックス技や第7世代のZワザの攻撃</td>
+  </tr><tr class="sec"><td colspan="6">複合<span class="gc">統一候補 type: all / any_of</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>グラススライダー</b></td>
+   <td class="kind">条件付き優先</td>
+   <td class="type"><span class="tn raw">all</span><br>{"type":"all", "values":[{"type":"terrain", "value":"グラスフィールド"}, {"type":"user_grounded", "not_negated_by":["ひこうタイプ", "ふゆう"], "complete":false}]}</td>
+   <td class="old">IF:all:[object Object]・[object Object]</td>
+   <td class="new"><span class="if">IF</span><b>場が『グラスフィールド』の時 かつ <span class="grd">自分が地面にいる時</span> <span class="rs">🔍要調査</span></b></td>
+   <td class="c-desc">場の状態が『グラスフィールド』で、自分が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、優先度+1の先制技。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ねをはる</b></td>
+   <td class="kind">地面技被弾化</td>
+   <td class="type"><span class="tn raw">any_of</span><br>{"type":"any_of", "values":["user_is_flying_type", "user_ability_ふゆう"]}</td>
+   <td class="old">IF:any_of:user_is_flying_type・user_ability_ふゆう</td>
+   <td class="new"><span class="if">IF</span><b>次のどれかの時: 自分がひこうタイプ または 特性ふゆう</b></td>
+   <td class="c-desc">使用後、毎ターン、HPが最大HPの1/16ずつ回復するが、交代できなくなる。自分が『ひこう』タイプや、特性『ふゆう』のポケモンの場合は『じめん』タイプの技が当たるようになる。</td>
+  </tr><tr class="sec"><td colspan="6">たくわえ数<span class="gc">統一候補 type: stockpile_count</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>のみこむ</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn raw">stockpile_count</span><br>{"type":"stockpile_count", "value":1}</td>
+   <td class="old">IF:stockpile_count:1</td>
+   <td class="new"><span class="if">IF</span><b>『たくわえる』を使った数が1つの時</b></td>
+   <td class="c-desc">技『たくわえる』を使った数だけHPが多く回復する。1つの時は最大HPの1/4、2つの時は最大HPの1/2、3つの時は全回復する。技『たくわえる』で上がった『ぼうぎょ』『とくぼう』ランクは元に戻る。技『たくわえる』を使っていない時は失敗する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>のみこむ</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn raw">stockpile_count</span><br>{"type":"stockpile_count", "value":2}</td>
+   <td class="old">IF:stockpile_count:2</td>
+   <td class="new"><span class="if">IF</span><b>『たくわえる』を使った数が2つの時</b></td>
+   <td class="c-desc">技『たくわえる』を使った数だけHPが多く回復する。1つの時は最大HPの1/4、2つの時は最大HPの1/2、3つの時は全回復する。技『たくわえる』で上がった『ぼうぎょ』『とくぼう』ランクは元に戻る。技『たくわえる』を使っていない時は失敗する。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>のみこむ</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn raw">stockpile_count</span><br>{"type":"stockpile_count", "value":3}</td>
+   <td class="old">IF:stockpile_count:3</td>
+   <td class="new"><span class="if">IF</span><b>『たくわえる』を使った数が3つの時</b></td>
+   <td class="c-desc">技『たくわえる』を使った数だけHPが多く回復する。1つの時は最大HPの1/4、2つの時は最大HPの1/2、3つの時は全回復する。技『たくわえる』で上がった『ぼうぎょ』『とくぼう』ランクは元に戻る。技『たくわえる』を使っていない時は失敗する。</td>
+  </tr><tr class="sec"><td colspan="6">性別<span class="gc">統一候補 type: opposite_gender</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>メロメロ</b></td>
+   <td class="kind">メロメロ付与</td>
+   <td class="type"><span class="tn raw">opposite_gender</span><br>{"type":"opposite_gender"}</td>
+   <td class="old">IF:opposite_gender</td>
+   <td class="new"><span class="if">IF</span><b>相手が自分と違う性別の時</b></td>
+   <td class="c-desc">相手が自分とは異なる性別の場合、相手を『メロメロ』状態にする。『メロメロ』状態になると、50%の確率で相手は自分に攻撃できなくなる。自分と相手の性別が同じ時や、どちらかが性別不明の場合は失敗する。</td>
+  </tr><tr class="sec"><td colspan="6">撃破時<span class="gc">統一候補 type: target_knocked_out_by_this_move</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>とどめばり</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn raw">target_knocked_out_by_this_move</span><br>{"type":"target_knocked_out_by_this_move"}</td>
+   <td class="old">IF:target_knocked_out_by_this_move</td>
+   <td class="new"><span class="if">IF</span><b>この技で相手を倒した時</b></td>
+   <td class="c-desc">この技で相手を倒すと、自分の『こうげき』ランクが3段階上がる。</td>
+  </tr><tr class="sec"><td colspan="6">先制使用<span class="gc">統一候補 type: used_before_target_moves</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>そうでん</b></td>
+   <td class="kind">相手技タイプ変更</td>
+   <td class="type"><span class="tn raw">used_before_target_moves</span><br>{"type":"used_before_target_moves"}</td>
+   <td class="old">IF:used_before_target_moves</td>
+   <td class="new"><span class="if">IF</span><b>相手が技を出す前に使った時</b></td>
+   <td class="c-desc">相手が技を出す前に使用すると、そのターン相手の攻撃は『でんき』タイプになる。</td>
+  </tr><tr class="sec"><td colspan="6">味方対象<span class="gc">統一候補 type: target_is_ally</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>かふんだんご</b></td>
+   <td class="kind">回復</td>
+   <td class="type"><span class="tn raw">target_is_ally</span><br>{"type":"target_is_ally"}</td>
+   <td class="old">IF:target_is_ally</td>
+   <td class="new"><span class="if">IF</span><b>味方に使った時</b></td>
+   <td class="c-desc">味方に使った場合、ダメージではなく味方のHPを最大HPの1/2回復する。</td>
+  </tr><tr class="sec"><td colspan="6">すがた<span class="gc">統一候補 type: user_species / user_species_form</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>オーラぐるま</b></td>
+   <td class="kind">技タイプ変更</td>
+   <td class="type"><span class="tn raw">user_species</span><br>{"type":"user_species", "value":"モルペコ"}</td>
+   <td class="old">IF:user_species:モルペコ</td>
+   <td class="new"><span class="if">IF</span><b>自分が『モルペコ』の時</b></td>
+   <td class="c-desc">100%の確率で自分の『すばやさ』ランクが1段階上がる。自分の『モルペコ』のフォルムが『まんぷくもよう』の時は『でんき』タイプ、『はらぺこもよう』の時は『あく』タイプの技になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>レイジングブル</b></td>
+   <td class="kind">技タイプ変更</td>
+   <td class="type"><span class="tn raw">user_species_form</span><br>{"type":"user_species_form", "value":"ケンタロス(パルデア)", "by":"form"}</td>
+   <td class="old">IF:user_species_form:ケンタロス(パルデア)</td>
+   <td class="new"><span class="if">IF</span><b>自分が『ケンタロス(パルデア)』の時</b></td>
+   <td class="c-desc">『ケンタロス(パルデア)』が使う場合、自分のフォルムに合わせて『かくとう』『ほのお』『みず』タイプのいずれかに変化する。相手の技『リフレクター』『ひかりのかべ』『オーロラベール』を解除して攻撃する。</td>
+  </tr><tr class="sec"><td colspan="6">特性<span class="gc">統一候補 type: ability_in / ability</span></td></tr><tr class="changed">
+   <td class="c-nm"><b>アームハンマー</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability_in</span><br>{"type":"ability_in", "values":["てつのこぶし"]}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">攻撃後、自分の『すばやさ』ランクが1段階下がる。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>アイスハンマー</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability_in</span><br>{"type":"ability_in", "values":["てつのこぶし"]}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">攻撃後、自分の『すばやさ』ランクが1段階下がる。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>かみなりパンチ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability</span><br>{"type":"ability", "value":"てつのこぶし"}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">10%の確率で相手を『まひ』状態にする。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>きあいパンチ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability</span><br>{"type":"ability", "value":"てつのこぶし"}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">必ず後攻になり(優先度:-3)、攻撃するまでに技を受けると失敗してしまう。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>コメットパンチ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability</span><br>{"type":"ability", "value":"てつのこぶし"}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">20%の確率で自分の『こうげき』ランクが1段階上がる。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ジェットパンチ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability</span><br>{"type":"ability", "value":"てつのこぶし"}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">優先度+1の先制技。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>じばそうさ</b></td>
+   <td class="kind">能力ランク変化</td>
+   <td class="type"><span class="tn ">ability_in</span><br>{"type":"ability_in", "values":["プラス", "マイナス"]}</td>
+   <td class="old">IF:特性:プラス・マイナス</td>
+   <td class="new"><span class="if">IF</span><b>特性が『プラス』『マイナス』の時</b></td>
+   <td class="c-desc">自分と味方全体の特性が『プラス』『マイナス』のポケモンの『ぼうぎょ』『とくぼう』ランクが1段階ずつ上がる。なお、『ダイウォール』は貫通しない。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>シャドーパンチ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability_in</span><br>{"type":"ability_in", "values":["てつのこぶし"]}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">自分の命中率、相手の回避率に関係なく必ず命中する。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ドレインパンチ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability</span><br>{"type":"ability", "value":"てつのこぶし"}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">相手に与えたダメージの半分だけ自分のHPが回復する。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ばくれつパンチ</b></td>
+   <td class="kind">場の威力補正</td>
+   <td class="type"><span class="tn ">ability</span><br>{"type":"ability", "value":"てつのこぶし"}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">100%の確率で相手を1〜4ターンの間『こんらん』状態にする。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>バレットパンチ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability</span><br>{"type":"ability", "value":"てつのこぶし"}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">優先度+1の先制技。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ぶちかまし</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability_in</span><br>{"type":"ability_in", "values":["てつのこぶし"]}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">攻撃後、自分の『ぼうぎょ』『とくぼう』ランクが1段階ずつ下がる。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>ほのおのパンチ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability</span><br>{"type":"ability", "value":"てつのこぶし"}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">10%の確率で相手を『やけど』状態にする。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>マッハパンチ</b></td>
+   <td class="kind">威力可変</td>
+   <td class="type"><span class="tn ">ability_in</span><br>{"type":"ability_in", "values":["てつのこぶし"]}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">優先度+1の先制技。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr><tr class="changed">
+   <td class="c-nm"><b>れいとうパンチ</b></td>
+   <td class="kind">威力倍率</td>
+   <td class="type"><span class="tn ">ability</span><br>{"type":"ability", "value":"てつのこぶし"}</td>
+   <td class="old">IF:特性:てつのこぶし</td>
+   <td class="new"><span class="if">IF</span><b>特性が『てつのこぶし』の時</b></td>
+   <td class="c-desc">10%の確率で相手を『こおり』状態にする。特性『てつのこぶし』の時、威力が1.2倍になる。</td>
+  </tr></tbody></table></body></html>

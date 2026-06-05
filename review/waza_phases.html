@@ -1,0 +1,890 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>わざタグ フェーズ別ビュー — PchamDB</title>
+<style>
+  :root{--orange:#FF7A00;--bg:#0f1320;--card:#1a2032;--ink:#e7ecf5;--muted:#8b97b0;--line:#2a3350}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;font-size:13px;line-height:1.5}
+  header{padding:16px 22px;background:linear-gradient(135deg,#1a2238,#101626);border-bottom:2px solid var(--orange)}
+  header h1{margin:0 0 4px;font-size:19px}
+  header .sub{color:var(--muted);font-size:12px}
+  .tabs{position:sticky;top:0;z-index:10;display:flex;flex-wrap:wrap;gap:6px;padding:10px 18px;background:#0c1020;border-bottom:1px solid var(--line)}
+  .tab{background:var(--card);border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:7px 12px;cursor:pointer;font-size:12px}
+  .tab:hover{border-color:var(--orange)}
+  .tab.active{background:var(--orange);color:#1a1206;border-color:var(--orange);font-weight:700}
+  .tab .badge{background:rgba(0,0,0,.18);border-radius:8px;padding:0 6px;font-size:11px;margin-left:3px}
+  .tab.active .badge{background:rgba(0,0,0,.25)}
+  .wrap{padding:14px 22px;max-width:1200px;margin:0 auto}
+  .panel{display:none}.panel.active{display:block}
+  .phase-desc{color:var(--muted);font-size:12px;margin:4px 0 14px;border-left:3px solid var(--orange);padding-left:8px}
+  .tagcard{background:var(--card);border:1px solid var(--line);border-radius:8px;margin:7px 0;overflow:hidden}
+  .tagcard.warn{border-color:#7a5a2c;background:#241d12}
+  summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:10px;padding:9px 12px;flex-wrap:wrap}
+  summary::-webkit-details-marker{display:none}
+  summary:hover{background:#212a44}
+  .lbl{font-weight:700;font-size:13px;min-width:240px;flex:1}
+  .tg{font-family:ui-monospace,Menlo,monospace;font-size:11px;color:#9fd0ff;background:#26304d;border:1px solid #38507e;border-radius:8px;padding:1px 7px}
+  .cnt{color:var(--muted);font-size:11px;white-space:nowrap}
+  .prob{color:#ffce5a;font-weight:700;font-size:12px;white-space:nowrap}
+  .pmuted{color:var(--muted)}
+  .mvs{padding:4px 12px 12px;border-top:1px dashed var(--line)}
+  .mv{display:flex;gap:8px;padding:3px 0;border-bottom:1px solid #20283f;font-size:12px;align-items:baseline}
+  .mv-name{font-weight:700;min-width:120px;white-space:nowrap}
+  .mv-prob{color:#ffce5a;min-width:42px;text-align:right}
+  .mv-desc{color:#c7d2ea}
+  .more{color:var(--muted);font-size:11px;padding-top:6px}
+  .legend{background:#15203a;border:1px solid var(--line);border-radius:8px;padding:10px 14px;color:#cdd8ef;font-size:12px;margin:10px 0}
+  code.inl{background:#26304d;border-radius:4px;padding:0 4px;font-size:11px}
+</style></head><body>
+<header>
+  <h1>⚔️ わざタグ フェーズ別ビュー</h1>
+  <div class="sub">バトル1ターンの流れ順 ／ 490技・タグ164種 ／ 自動生成 tools/_waza_phases.js</div>
+</header>
+<div class="tabs"><button class="tab active" data-tab="P1">① 行動順 <span class="badge">7</span></button><button class="tab" data-tab="P2">② 行動可否・溜め・ロック <span class="badge">11</span></button><button class="tab" data-tab="P3">③ 命中・回避・防御 <span class="badge">9</span></button><button class="tab" data-tab="P4">④ ダメージ計算 <span class="badge">44</span></button><button class="tab" data-tab="P5">⑤ 命中後の追加効果 <span class="badge">67</span></button><button class="tab" data-tab="P6">⑥ 場・天気・設置・壁 <span class="badge">17</span></button><button class="tab" data-tab="P7">⑦ 交代 <span class="badge">2</span></button><button class="tab" data-tab="P8">⑧ ターン終了・継続・遅延 <span class="badge">4</span></button><button class="tab" data-tab="META">⚙️ メタ/横断 <span class="badge">3</span></button><button class="tab" data-tab="UNCLASSIFIED">❓ 未分類 <span class="badge">0</span></button></div>
+<div class="wrap">
+  <div class="legend">
+    各タグを<b>クリックで展開</b>すると該当技と説明文(徹底攻略由来)が出ます。<code class="inl">⚠</code>は名前と中身がズレ/重複/付与誤りの<b>要確認</b>タグ。
+    <b>確率</b>はオレンジ表示(構造化prob優先・無ければ説明文から抽出)。
+    
+  </div>
+  <section class="panel active" id="panel-P1">
+      <p class="phase-desc">技の優先度 → 素早さで行動順が決まる — タグ 7種 / 延べ 37技</p><details class="tagcard"><summary>
+        <span class="lbl">優先度+1（先制）</span>
+        <code class="tg">priority_plus_1</code>
+        <span class="cnt">13技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">でんこうせっか</span><span class="mv-desc">優先度+1の先制技。</span></div><div class="mv"><span class="mv-name">マッハパンチ</span><span class="mv-desc">優先度+1の先制技。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">ふいうち</span><span class="mv-desc">優先度+1の先制技。敵が攻撃技を選んでない時は失敗。</span></div><div class="mv"><span class="mv-name">しんくうは</span><span class="mv-desc">優先度+1の先制技。</span></div><div class="mv"><span class="mv-name">バレットパンチ</span><span class="mv-desc">優先度+1の先制技。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">こおりのつぶて</span><span class="mv-desc">優先度+1の先制技。</span></div><div class="mv"><span class="mv-name">かげうち</span><span class="mv-desc">優先度+1の先制技。</span></div><div class="mv"><span class="mv-name">アクアジェット</span><span class="mv-desc">優先度+1の先制技。</span></div><div class="mv"><span class="mv-name">つぶらなひとみ</span><span class="mv-desc">優先度+1の先制技。敵のこうげきを1段階低下。</span></div><div class="mv"><span class="mv-name">みずしゅりけん</span><span class="mv-desc">優先度+1の先制技。2〜5回の連続攻撃。</span></div><div class="mv"><span class="mv-name">アクセルロック</span><span class="mv-desc">優先度+1の先制技。</span></div><div class="mv"><span class="mv-name">グラススライダー</span><span class="mv-desc">優先度+1の先制技。場の状態がグラスフィールドで、自身がひこうタイプや特性ふゆうなどではなく地面にいる時。</span></div><div class="more">＋他 1 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">優先度+4（最優先級）</span>
+        <code class="tg">priority_plus_4</code>
+        <span class="cnt">6技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">まもる</span><span class="mv-desc">優先度+4の先制技。1ターン敵の技を完全防御。連続使用で成功率1/3に低下。</span></div><div class="mv"><span class="mv-name">みきり</span><span class="mv-desc">優先度+4の先制技。1ターン敵の技を完全防御。連続使用で成功率1/3に低下。</span></div><div class="mv"><span class="mv-name">こらえる</span><span class="mv-desc">優先度+4の先制技。ひんし化する攻撃でもHP1残し耐える。連続使用で成功率1/3に低下。</span></div><div class="mv"><span class="mv-name">ニードルガード</span><span class="mv-desc">優先度+4の先制技。1ターン、敵の技を完全防御。接触技してきた敵に最大HP/8のダメージ。連続使用で成功率1/3に。</span></div><div class="mv"><span class="mv-name">キングシールド</span><span class="mv-desc">優先度+4の先制技。1ターン、敵の攻撃技のみ完全防御。接触技してきた敵のこうげき-1。連続使用で成功率1/3に。</span></div><div class="mv"><span class="mv-name">トーチカ</span><span class="mv-prob">100%</span><span class="mv-desc">優先度+4の先制技。1ターン、敵の技を完全防御。接触技してきた敵をどく化。連続使用で成功率1/3に。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">優先度+2</span>
+        <code class="tg">priority_plus_2</code>
+        <span class="cnt">6技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">しんそく</span><span class="mv-desc">優先度+2の先制技。</span></div><div class="mv"><span class="mv-name">このゆびとまれ</span><span class="mv-desc">優先度+2の先制技。そのターン敵の技を全て自身が受ける(全体技除く)。ダブル用。</span></div><div class="mv"><span class="mv-name">フェイント</span><span class="mv-desc">優先度+2の先制技。キングシールド/トーチカ/みきり/まもるなどの防御技の効果を解除して攻撃。</span></div><div class="mv"><span class="mv-name">いかりのこな</span><span class="mv-desc">優先度+2の先制技。そのターン敵の技を全て自身が受ける(全体技除く)。くさタイプ/特性ぼうじん/ぼうじんゴーグル無効。ダブル用。</span></div><div class="mv"><span class="mv-name">サイドチェンジ</span><span class="mv-desc">優先度+2の先制技。自身と味方の位置を交代。連続使用で成功率1/3に低下。ダブル用。</span></div><div class="mv"><span class="mv-name">であいがしら</span><span class="mv-desc">優先度+2の先制技。出場した最初のターンのみ成功。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">優先度-6（最後攻）</span>
+        <code class="tg">priority_minus_6</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ふきとばし</span><span class="mv-desc">優先度-6の後攻技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">ほえる</span><span class="mv-desc">優先度-6の後攻技。音技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">ともえなげ</span><span class="mv-desc">優先度-6の後攻技。攻撃後、敵を強制交代させる。</span></div><div class="mv"><span class="mv-name">ドラゴンテール</span><span class="mv-desc">優先度-6の後攻技。攻撃後、敵を強制交代させる。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">優先度+3</span>
+        <code class="tg">priority_plus_3</code>
+        <span class="cnt">4技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ねこだまし</span><span class="mv-prob">100%</span><span class="mv-desc">優先度+3の先制技。100%でひるみ。出場した最初のターンのみ成功。</span></div><div class="mv"><span class="mv-name">ワイドガード</span><span class="mv-desc">優先度+3の先制技。1ターン、自身と味方は複数対象技を受けない。</span></div><div class="mv"><span class="mv-name">ファストガード</span><span class="mv-desc">優先度+3の先制技。1ターン、自身と味方は先制技を受けない。</span></div><div class="mv"><span class="mv-name">はやてがえし</span><span class="mv-prob">100%</span><span class="mv-desc">優先度+3の先制技。敵を100%でひるみ。敵が先制技を使っていない or 行動済時は失敗。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">優先度-5（後攻）</span>
+        <code class="tg">priority_minus_5</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">カウンター</span><span class="mv-desc">優先度-5の後攻技。敵の物理攻撃ダメージの2倍を反射。ダブルバトルでは最後に受けた技のみ対象。タイプ相性は無視するがゴーストには無効。</span></div><div class="mv"><span class="mv-name">ミラーコート</span><span class="mv-desc">優先度-5の後攻技。敵の特殊攻撃のダメージの2倍を反射。ダブルバトルの時は最後に受けた技のみ有効になる。あくタイプには無効だが、それ以外のタイプ相性は無視。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">優先度-3（後攻）</span>
+        <code class="tg">priority_minus_3</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">きあいパンチ</span><span class="mv-desc">優先度-3の後攻技、攻撃前に技を受けると失敗。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">くちばしキャノン</span><span class="mv-desc">優先度-3の後攻技。発動前に接触技を受けるとそのポケモンをやけど化(技も普通に発動)。</span></div></div></details></section><section class="panel" id="panel-P2">
+      <p class="phase-desc">まひ/こおり/ねむり/ひるみ/こんらんで動けるか。溜め技・連続ターン技の拘束 — タグ 11種 / 延べ 61技</p><details class="tagcard"><summary>
+        <span class="lbl">ひるませる（相手を行動不可に）</span>
+        <code class="tg">status_flinch</code>
+        <span class="cnt">18技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">かみつく</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をひるませる。</span></div><div class="mv"><span class="mv-name">たきのぼり</span><span class="mv-prob">20%</span><span class="mv-desc">確率20%で敵をひるませる。</span></div><div class="mv"><span class="mv-name">ゴッドバード</span><span class="mv-prob">30%</span><span class="mv-desc">急所ランク+1。1ターン目で溜め、2ターン目に攻撃。30%でひるみ。</span></div><div class="mv"><span class="mv-name">いわなだれ</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をひるませる。</span></div><div class="mv"><span class="mv-name">いびき</span><span class="mv-prob">30%</span><span class="mv-desc">音技。自身がねむり状態の時のみ使用可能。確率30%で敵をひるませる。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">ねこだまし</span><span class="mv-prob">100%</span><span class="mv-desc">優先度+3の先制技。100%でひるみ。出場した最初のターンのみ成功。</span></div><div class="mv"><span class="mv-name">じんつうりき</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をひるませる。</span></div><div class="mv"><span class="mv-name">あくのはどう</span><span class="mv-prob">20%</span><span class="mv-desc">確率20%で敵をひるませる。</span></div><div class="mv"><span class="mv-name">エアスラッシュ</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をひるませる。</span></div><div class="mv"><span class="mv-name">ドラゴンダイブ</span><span class="mv-prob">20%</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。20%でひるみ。</span></div><div class="mv"><span class="mv-name">かみなりのキバ</span><span class="mv-prob">10/10%</span><span class="mv-desc">10%でまひ。10%でひるみ。</span></div><div class="mv"><span class="mv-name">こおりのキバ</span><span class="mv-prob">10/10%</span><span class="mv-desc">10%でこおり。10%でひるみ。</span></div><div class="more">＋他 6 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分が連続技で拘束される</span>
+        <code class="tg">lock_self_bind</code>
+        <span class="cnt">9技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">しめつける</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">まきつく</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">ほのおのうず</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">こうそくスピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の効果(うずしお/しめつける/まきつく/やどりぎのタネ等)、および自身の場の設置技(ステルスロック/まきびし/どくびし/ねばねばネット等)を解除。攻撃後、100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">うずしお</span><span class="mv-desc">敵をバインド化(4〜5ターン)、毎ターン終了時に最大HP/8ダメージ。ゴーストタイプ以外は交代不可。ダイビング中の敵にも命中、ダメージ2倍。</span></div><div class="mv"><span class="mv-name">すなじごく</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">まとわりつく</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">トラバサミ</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">キラースピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の技および自身の場の設置技(ねばねばネット/まきびし/どくびし/ステルスロック等)を解除。確率100%で敵をどく化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">次ターン反動で動けない</span>
+        <code class="tg">recharge_next</code>
+        <span class="cnt">6技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">はかいこうせん</span><span class="mv-desc">次のターンは行動不能。</span></div><div class="mv"><span class="mv-name">ブラストバーン</span><span class="mv-desc">次のターンは行動不能。</span></div><div class="mv"><span class="mv-name">ハイドロカノン</span><span class="mv-desc">次のターンは行動不能。</span></div><div class="mv"><span class="mv-name">ハードプラント</span><span class="mv-desc">次のターンは行動不能。</span></div><div class="mv"><span class="mv-name">ギガインパクト</span><span class="mv-desc">次のターンは行動不能。</span></div><div class="mv"><span class="mv-name">がんせきほう</span><span class="mv-desc">次のターンは行動不能。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">溜め中は無敵（そらをとぶ等）</span>
+        <code class="tg">charge_invulnerable</code>
+        <span class="cnt">5技</span>
+        <span class="prob">30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">そらをとぶ</span><span class="mv-desc">1ターン目に空中へ飛び、2ターン目に攻撃。空中時はうちおとす/かみなり/ぼうふうなど一部の技以外を受けない。</span></div><div class="mv"><span class="mv-name">あなをほる</span><span class="mv-desc">1ターン目で地中状態、2ターン目に攻撃。地中時はじしんなど一部の技以外を受けない。</span></div><div class="mv"><span class="mv-name">ダイビング</span><span class="mv-desc">1ターン目で水中状態、2ターン目に攻撃。水中時はなみのり/うずしおなど一部の技以外を受けない。</span></div><div class="mv"><span class="mv-name">とびはねる</span><span class="mv-prob">30%</span><span class="mv-desc">1ターン目で空中状態、2ターン目に攻撃。30%でまひ。空中時はうちおとす/かみなり/ぼうふうなど一部の技以外を受けない。</span></div><div class="mv"><span class="mv-name">ゴーストダイブ</span><span class="mv-desc">1ターン目に消失、2ターン目に攻撃。消失中はほぼ全技を受けない。キングシールド/トーチカ/みきり/まもるなどの防御技を貫通。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">3ターン連続行動ロック</span>
+        <code class="tg">lock_3turn</code>
+        <span class="cnt">5技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">あばれる</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">はなびらのまい</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">げきりん</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">さわぐ</span><span class="mv-desc">音技。3ターン連続で攻撃し、その間は全ポケモンがねむり状態にならない。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">だいふんげき</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">溜め攻撃（2ターン）</span>
+        <code class="tg">charge_then_attack</code>
+        <span class="cnt">5技</span>
+        <span class="prob">30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ソーラービーム</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div><div class="mv"><span class="mv-name">ゴッドバード</span><span class="mv-prob">30%</span><span class="mv-desc">急所ランク+1。1ターン目で溜め、2ターン目に攻撃。30%でひるみ。</span></div><div class="mv"><span class="mv-name">ソーラーブレード</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div><div class="mv"><span class="mv-name">メテオビーム</span><span class="mv-desc">1ターン目で溜め(自身とくこう+1)、2ターン目に攻撃。</span></div><div class="mv"><span class="mv-name">エレクトロビーム</span><span class="mv-desc">1ターン目に自身のとくこう+1、2ターン目に攻撃。あめ時は溜め無しで即攻撃。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分拘束（要確認）</span>
+        <code class="tg">lock_self_self</code>
+        <span class="cnt">4技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">あばれる</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">はなびらのまい</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">げきりん</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">だいふんげき</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">溜め（通常）</span>
+        <code class="tg">charge_normal</code>
+        <span class="cnt">3技</span>
+        <span class="prob">30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ソーラービーム</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div><div class="mv"><span class="mv-name">ゴッドバード</span><span class="mv-prob">30%</span><span class="mv-desc">急所ランク+1。1ターン目で溜め、2ターン目に攻撃。30%でひるみ。</span></div><div class="mv"><span class="mv-name">ソーラーブレード</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の技を封じる（かなしばり/いちゃもん）</span>
+        <code class="tg">move_block_disable</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">かなしばり</span><span class="mv-desc">敵が直前に使った技を4ターン、使えなくする。</span></div><div class="mv"><span class="mv-name">いちゃもん</span><span class="mv-desc">使用後、敵は同じ技を連続で出せなくなる。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">天候で溜め省略</span>
+        <code class="tg">skip_charge_in_weather</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ソーラービーム</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div><div class="mv"><span class="mv-name">ソーラーブレード</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">溜め（能力上昇付き）</span>
+        <code class="tg">charge_with_stat_up</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">メテオビーム</span><span class="mv-desc">1ターン目で溜め(自身とくこう+1)、2ターン目に攻撃。</span></div><div class="mv"><span class="mv-name">エレクトロビーム</span><span class="mv-desc">1ターン目に自身のとくこう+1、2ターン目に攻撃。あめ時は溜め無しで即攻撃。</span></div></div></details></section><section class="panel" id="panel-P3">
+      <p class="phase-desc">命中/回避判定、必中、まもる/みがわり、貫通 — タグ 9種 / 延べ 74技</p><details class="tagcard"><summary>
+        <span class="lbl">みがわりを作る</span>
+        <code class="tg">defense_substitute</code>
+        <span class="cnt">25技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ふきとばし</span><span class="mv-desc">優先度-6の後攻技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">ほえる</span><span class="mv-desc">優先度-6の後攻技。音技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">うたう</span><span class="mv-prob">100%</span><span class="mv-desc">音技。敵をねむり化。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">いやなおと</span><span class="mv-desc">音技。敵のぼうぎょを2段階低下。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">みがわり</span><span class="mv-desc">自身のHPを最大HP/4消費し、分身を出す。分身は技を肩代わり。最大HP/4のダメで消える。音技などはそのまま受ける。</span></div><div class="mv"><span class="mv-name">いびき</span><span class="mv-prob">30%</span><span class="mv-desc">音技。自身がねむり状態の時のみ使用可能。確率30%で敵をひるませる。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">ほろびのうた</span><span class="mv-desc">音技。3ターン後、使用時に出ていた全ポケモン(自身含む)がひんし化。交代したポケモンは効果消失。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">いやしのすず</span><span class="mv-desc">音技。自身と味方全体のポケモンの状態異常を治す。味方がみがわり状態でも効果が発生する。</span></div><div class="mv"><span class="mv-name">さわぐ</span><span class="mv-desc">音技。3ターン連続で攻撃し、その間は全ポケモンがねむり状態にならない。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">ハイパーボイス</span><span class="mv-desc">音技。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">むしのさざめき</span><span class="mv-prob">10%</span><span class="mv-desc">音技。確率10%で敵のとくぼうを1段階低下。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="more">＋他 13 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">みがわりを貫通する</span>
+        <code class="tg">substitute_pierce</code>
+        <span class="cnt">21技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ふきとばし</span><span class="mv-desc">優先度-6の後攻技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">ほえる</span><span class="mv-desc">優先度-6の後攻技。音技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">うたう</span><span class="mv-prob">100%</span><span class="mv-desc">音技。敵をねむり化。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">いやなおと</span><span class="mv-desc">音技。敵のぼうぎょを2段階低下。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">いびき</span><span class="mv-prob">30%</span><span class="mv-desc">音技。自身がねむり状態の時のみ使用可能。確率30%で敵をひるませる。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">ほろびのうた</span><span class="mv-desc">音技。3ターン後、使用時に出ていた全ポケモン(自身含む)がひんし化。交代したポケモンは効果消失。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">いやしのすず</span><span class="mv-desc">音技。自身と味方全体のポケモンの状態異常を治す。味方がみがわり状態でも効果が発生する。</span></div><div class="mv"><span class="mv-name">さわぐ</span><span class="mv-desc">音技。3ターン連続で攻撃し、その間は全ポケモンがねむり状態にならない。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">ハイパーボイス</span><span class="mv-desc">音技。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">むしのさざめき</span><span class="mv-prob">10%</span><span class="mv-desc">音技。確率10%で敵のとくぼうを1段階低下。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">りんしょう</span><span class="mv-desc">音技。同ターン他ポケモンもりんしょう使用時、すばやさ無視で連続使用、2匹目以降は威力2倍。みがわり貫通。ダブル用。</span></div><div class="mv"><span class="mv-name">バークアウト</span><span class="mv-prob">100%</span><span class="mv-desc">音技。確率100%で敵のとくこうを1段階低下。みがわりを貫通。</span></div><div class="more">＋他 9 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">必中</span>
+        <code class="tg">must_hit</code>
+        <span class="cnt">11技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ふきとばし</span><span class="mv-desc">優先度-6の後攻技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">ほえる</span><span class="mv-desc">優先度-6の後攻技。音技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">あくび</span><span class="mv-prob">100%</span><span class="mv-desc">敵をねむけ状態にして、次のターン終了時に敵をねむり化。ただし、そのポケモンが交代されると効果は消える。命中・回避を無視して必中。</span></div><div class="mv"><span class="mv-name">シャドーパンチ</span><span class="mv-desc">命中・回避を無視して必中。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">つばめがえし</span><span class="mv-desc">命中・回避を無視して必中。</span></div><div class="mv"><span class="mv-name">はどうだん</span><span class="mv-desc">命中・回避を無視して必中。</span></div><div class="mv"><span class="mv-name">クリアスモッグ</span><span class="mv-desc">能力ランク変動を元に戻す。命中・回避を無視して必中。</span></div><div class="mv"><span class="mv-name">スマートホーン</span><span class="mv-desc">命中・回避を無視して必中。</span></div><div class="mv"><span class="mv-name">なみだめ</span><span class="mv-desc">敵のこうげき/とくこう-1。命中・回避を無視して必中、まもる系の防御技を貫通。</span></div><div class="mv"><span class="mv-name">ドゲザン</span><span class="mv-desc">命中・回避を無視して必中。</span></div><div class="mv"><span class="mv-name">トリックフラワー</span><span class="mv-desc">必中急所。命中・回避を無視して必中。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">まもる（攻撃を防ぐ）</span>
+        <code class="tg">defense_protect</code>
+        <span class="cnt">5技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">まもる</span><span class="mv-desc">優先度+4の先制技。1ターン敵の技を完全防御。連続使用で成功率1/3に低下。</span></div><div class="mv"><span class="mv-name">みきり</span><span class="mv-desc">優先度+4の先制技。1ターン敵の技を完全防御。連続使用で成功率1/3に低下。</span></div><div class="mv"><span class="mv-name">ニードルガード</span><span class="mv-desc">優先度+4の先制技。1ターン、敵の技を完全防御。接触技してきた敵に最大HP/8のダメージ。連続使用で成功率1/3に。</span></div><div class="mv"><span class="mv-name">キングシールド</span><span class="mv-desc">優先度+4の先制技。1ターン、敵の攻撃技のみ完全防御。接触技してきた敵のこうげき-1。連続使用で成功率1/3に。</span></div><div class="mv"><span class="mv-name">トーチカ</span><span class="mv-prob">100%</span><span class="mv-desc">優先度+4の先制技。1ターン、敵の技を完全防御。接触技してきた敵をどく化。連続使用で成功率1/3に。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">相手の命中率ダウン ⚠opp_acc_down_1と重複</span>
+        <code class="tg">opp_accuracy_down</code>
+        <span class="cnt">3技</span>
+        <span class="prob">30〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">どろかけ</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵の命中率を1段階低下。</span></div><div class="mv"><span class="mv-name">だくりゅう</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵の命中率を1段階低下。</span></div><div class="mv"><span class="mv-name">ナイトバースト</span><span class="mv-prob">40%</span><span class="mv-desc">確率40%で敵の命中率を1段階低下。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の命中率-1</span>
+        <code class="tg">opp_acc_down_1</code>
+        <span class="cnt">3技</span>
+        <span class="prob">30〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">どろかけ</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵の命中率を1段階低下。</span></div><div class="mv"><span class="mv-name">だくりゅう</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵の命中率を1段階低下。</span></div><div class="mv"><span class="mv-name">ナイトバースト</span><span class="mv-prob">40%</span><span class="mv-desc">確率40%で敵の命中率を1段階低下。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分の回避率アップ</span>
+        <code class="tg">self_evasion_up</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">かげぶんしん</span><span class="mv-desc">自身の回避率を1段階上昇。</span></div><div class="mv"><span class="mv-name">ちいさくなる</span><span class="mv-desc">自身の回避率を2段階上昇。ただし、のしかかり/ヒートスタンプ/フライングプレスなど一部の技は必中・威力2倍で受ける。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の回避率ダウン</span>
+        <code class="tg">opp_evasion_down</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">かげぶんしん</span><span class="mv-desc">自身の回避率を1段階上昇。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">攻撃を自分に集める（いかりのこな等）</span>
+        <code class="tg">defense_redirect</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">このゆびとまれ</span><span class="mv-desc">優先度+2の先制技。そのターン敵の技を全て自身が受ける(全体技除く)。ダブル用。</span></div><div class="mv"><span class="mv-name">いかりのこな</span><span class="mv-desc">優先度+2の先制技。そのターン敵の技を全て自身が受ける(全体技除く)。くさタイプ/特性ぼうじん/ぼうじんゴーグル無効。ダブル用。</span></div></div></details></section><section class="panel" id="panel-P4">
+      <p class="phase-desc">威力補正・急所・タイプ・連続ヒット・反動・吸収・固定/一撃 — タグ 44種 / 延べ 196技</p><details class="tagcard"><summary>
+        <span class="lbl">ダメージのみ（追加効果なし）</span>
+        <code class="tg">damage_only</code>
+        <span class="cnt">16技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">はたく</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">メガトンキック</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">ハイドロポンプ</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">ドリルくちばし</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">メガホーン</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">ドラゴンクロー</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">アクアテール</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">タネばくだん</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">シザークロス</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">りゅうのはどう</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">パワージェム</span><span class="mv-desc">ダメージのみ</span></div><div class="mv"><span class="mv-name">パワーウィップ</span><span class="mv-desc">ダメージのみ</span></div><div class="more">＋他 4 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">急所ランク+（急所に当たりやすい）</span>
+        <code class="tg">self_crit_boost</code>
+        <span class="cnt">16技</span>
+        <span class="prob">10〜30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">きあいだめ</span><span class="mv-desc">自身をきゅうしょアップ+2に。すでに発動中なら失敗。</span></div><div class="mv"><span class="mv-name">ゴッドバード</span><span class="mv-prob">30%</span><span class="mv-desc">急所ランク+1。1ターン目で溜め、2ターン目に攻撃。30%でひるみ。</span></div><div class="mv"><span class="mv-name">クラブハンマー</span><span class="mv-desc">急所ランク+1。</span></div><div class="mv"><span class="mv-name">クロスチョップ</span><span class="mv-desc">急所ランク+1。</span></div><div class="mv"><span class="mv-name">ブレイズキック</span><span class="mv-prob">10%</span><span class="mv-desc">急所ランク+1。確率10%で敵をやけど化。</span></div><div class="mv"><span class="mv-name">エアカッター</span><span class="mv-desc">急所ランク+1。</span></div><div class="mv"><span class="mv-name">リーフブレード</span><span class="mv-desc">急所ランク+1。</span></div><div class="mv"><span class="mv-name">つじぎり</span><span class="mv-desc">急所ランク+1。</span></div><div class="mv"><span class="mv-name">シャドークロー</span><span class="mv-desc">急所ランク+1。</span></div><div class="mv"><span class="mv-name">サイコカッター</span><span class="mv-desc">急所ランク+1。</span></div><div class="mv"><span class="mv-name">クロスポイズン</span><span class="mv-prob">10%</span><span class="mv-desc">急所ランク+1。確率10%で敵をどく化。</span></div><div class="mv"><span class="mv-name">ストーンエッジ</span><span class="mv-desc">急所ランク+1。</span></div><div class="more">＋他 4 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">タイプ相性を無視</span>
+        <code class="tg">type_ignore</code>
+        <span class="cnt">15技</span>
+        <span class="prob">30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ハサミギロチン</span><span class="mv-prob">30%</span><span class="mv-desc">命中率30%で敵をひんし化。ゴーストタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">つのドリル</span><span class="mv-prob">30%</span><span class="mv-desc">命中率30%で敵をひんし化。ゴーストタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">カウンター</span><span class="mv-desc">優先度-5の後攻技。敵の物理攻撃ダメージの2倍を反射。ダブルバトルでは最後に受けた技のみ対象。タイプ相性は無視するがゴーストには無効。</span></div><div class="mv"><span class="mv-name">ちきゅうなげ</span><span class="mv-desc">自身のレベル(50Lv)と同じ値の固定ダメージを与える。</span></div><div class="mv"><span class="mv-name">じわれ</span><span class="mv-desc">敵をひんし化。ひこうタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">ナイトヘッド</span><span class="mv-desc">自身のレベル分の固定ダメージ。ノーマルタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">いかりのまえば</span><span class="mv-desc">敵のHPを残HPの半分削る(残HP1時は1ダメージ)。ゴーストタイプには無効、それ以外はタイプ相性無視。</span></div><div class="mv"><span class="mv-name">ミラーコート</span><span class="mv-desc">優先度-5の後攻技。敵の特殊攻撃のダメージの2倍を反射。ダブルバトルの時は最後に受けた技のみ有効になる。あくタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">みらいよち</span><span class="mv-desc">2ターン後にダメージ。交代した場合は同位置のポケモンに命中。タイプ相性適用。</span></div><div class="mv"><span class="mv-name">がむしゃら</span><span class="mv-desc">敵の残HPから自身の残HPを引いた値のダメージ。敵HPが自身以下なら失敗。ゴーストタイプ無効、それ以外はタイプ相性無視。</span></div><div class="mv"><span class="mv-name">メタルバースト</span><span class="mv-desc">受けた最終ダメージの1.5倍を反射。被ダメ無し時は失敗。タイプ相性無視。</span></div><div class="mv"><span class="mv-name">ステルスロック</span><span class="mv-desc">場にステルスロックを設置。敵交代時、出現ポケモンに最大HP/8のダメージ(タイプ相性適用、4倍弱点なら最大HP/2)。</span></div><div class="more">＋他 3 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">てつのこぶしで威力1.2倍（パンチ技）</span>
+        <code class="tg">power_x12_by_iron_fist</code>
+        <span class="cnt">14技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ほのおのパンチ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をやけど化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">れいとうパンチ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をこおり化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">かみなりパンチ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をまひ化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">マッハパンチ</span><span class="mv-desc">優先度+1の先制技。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">ばくれつパンチ</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵を1〜4ターン、こんらん化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">きあいパンチ</span><span class="mv-desc">優先度-3の後攻技、攻撃前に技を受けると失敗。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">コメットパンチ</span><span class="mv-prob">20%</span><span class="mv-desc">確率20%で自身のこうげきが1段階上がる。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">シャドーパンチ</span><span class="mv-desc">命中・回避を無視して必中。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">アームハンマー</span><span class="mv-desc">攻撃後、自身のすばやさ-1。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">ドレインパンチ</span><span class="mv-desc">与えたダメージの1/2、自身のHPを回復。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">バレットパンチ</span><span class="mv-desc">優先度+1の先制技。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">アイスハンマー</span><span class="mv-desc">攻撃後、自身のすばやさ-1。特性てつのこぶし威力1.2倍。</span></div><div class="more">＋他 2 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">天候で威力2倍</span>
+        <code class="tg">power_x2_in_weather</code>
+        <span class="cnt">14技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ふぶき</span><span class="mv-prob">10%</span><span class="mv-desc">10%で敵をこおり化。天気がゆきの時は必中。</span></div><div class="mv"><span class="mv-name">せいちょう</span><span class="mv-desc">自身のこうげき/とくこう+1。にほんばれ時は+2。</span></div><div class="mv"><span class="mv-name">ソーラービーム</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div><div class="mv"><span class="mv-name">かみなり</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をまひ化。天気があめの時は必中、にほんばれの時は命中率が50%になる。敵が技フリーフォール/とびはねる/そらをとぶを使っている時でも命中する。</span></div><div class="mv"><span class="mv-name">あさのひざし</span><span class="mv-desc">天気で回復量変化: 通常時=最大HP/2、にほんばれ=2/3、あめ/ゆき/すなあらし=1/4。</span></div><div class="mv"><span class="mv-name">こうごうせい</span><span class="mv-desc">天気で回復量変化: 通常時=最大HP/2、にほんばれ=2/3、あめ/ゆき/すなあらし=1/4。</span></div><div class="mv"><span class="mv-name">つきのひかり</span><span class="mv-desc">天気で回復量変化: 通常時=最大HP/2、にほんばれ=2/3、あめ/ゆき/すなあらし=1/4。</span></div><div class="mv"><span class="mv-name">おにび</span><span class="mv-prob">100%</span><span class="mv-desc">敵をやけど化。ほのおタイプには無効。</span></div><div class="mv"><span class="mv-name">ウェザーボール</span><span class="mv-desc">天気がにほんばれの時はほのおタイプ、あめの時はみずタイプ、ゆきの時はこおりタイプ、すなあらしの時はいわタイプになり、威力2倍。</span></div><div class="mv"><span class="mv-name">ぼうふう</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で、敵を1〜4ターン、こんらん化。天気があめの時は必中、にほんばれの時は命中率が50%になる。敵が技フリーフォール/とびはねる/そらをとぶを使っている時でも命中する。</span></div><div class="mv"><span class="mv-name">ソーラーブレード</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div><div class="mv"><span class="mv-name">もえつきる</span><span class="mv-desc">攻撃後、自身のほのおタイプを失う。ほのおタイプ以外は失敗。こおり状態でも使用可、使用するとこおりが治る。</span></div><div class="more">＋他 2 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">グラスフィールドで威力半減（じしん等）</span>
+        <code class="tg">power_half_in_grassfield</code>
+        <span class="cnt">10技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じしん</span><span class="mv-desc">あなをほる中の敵にも命中、ダメージ2倍。グラスフィールド時は威力1/2。</span></div><div class="mv"><span class="mv-name">でんじふゆう</span><span class="mv-desc">5ターン、自身がふゆう状態に。フィールド/ねばねばネット/どくびし/まきびし/じめん技の効果を無効化。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">じならし</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。グラスフィールドの時、威力が半減する。</span></div><div class="mv"><span class="mv-name">グラスフィールド</span><span class="mv-desc">5ターン、場をグラスフィールドに。地上ポケモンは毎ターン最大HP/16回復、くさ技1.3倍。じしん/じならし系の威力1/2。</span></div><div class="mv"><span class="mv-name">ミストフィールド</span><span class="mv-desc">5ターン、場をミストフィールドに。地上ポケモンは状態異常無効、ドラゴン技は威力1/2。</span></div><div class="mv"><span class="mv-name">アイアンローラー</span><span class="mv-desc">場のフィールド状態を破壊。フィールドなしの時は失敗。</span></div><div class="mv"><span class="mv-name">グラススライダー</span><span class="mv-desc">優先度+1の先制技。場の状態がグラスフィールドで、自身がひこうタイプや特性ふゆうなどではなく地面にいる時。</span></div><div class="mv"><span class="mv-name">だいちのはどう</span><span class="mv-desc">場のフィールド条件下で技タイプが変化、威力2倍に(地上時のみ、フィールド1.3倍も加算)。グラス=くさ、ミスト=フェアリー、エレキ=でんき、サイコ=エスパー。</span></div><div class="mv"><span class="mv-name">アイススピナー</span><span class="mv-desc">場のフィールド状態を破壊。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">2〜5回連続ヒット</span>
+        <code class="tg">multi_2_5_random</code>
+        <span class="cnt">8技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ミサイルばり</span><span class="mv-desc">2〜5回の連続攻撃。</span></div><div class="mv"><span class="mv-name">ボーンラッシュ</span><span class="mv-desc">2〜5回の連続攻撃。</span></div><div class="mv"><span class="mv-name">タネマシンガン</span><span class="mv-desc">2〜5回の連続攻撃。</span></div><div class="mv"><span class="mv-name">つららばり</span><span class="mv-desc">2〜5回の連続攻撃。</span></div><div class="mv"><span class="mv-name">ロックブラスト</span><span class="mv-desc">2〜5回の連続攻撃。</span></div><div class="mv"><span class="mv-name">スイープビンタ</span><span class="mv-desc">2〜5回の連続攻撃。</span></div><div class="mv"><span class="mv-name">みずしゅりけん</span><span class="mv-desc">優先度+1の先制技。2〜5回の連続攻撃。</span></div><div class="mv"><span class="mv-name">スケイルショット</span><span class="mv-desc">2〜5回連続攻撃。攻撃後、ぼうぎょ-1, すばやさ+1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">与ダメージの1/2を回復（吸収）</span>
+        <code class="tg">drain_half</code>
+        <span class="cnt">8技</span>
+        <span class="prob">20%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">きゅうけつ</span><span class="mv-desc">与えたダメージの1/2、自身のHPを回復。</span></div><div class="mv"><span class="mv-name">ギガドレイン</span><span class="mv-desc">与えたダメージの1/2、自身のHPを回復。</span></div><div class="mv"><span class="mv-name">ドレインパンチ</span><span class="mv-desc">与えたダメージの1/2、自身のHPを回復。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">ウッドホーン</span><span class="mv-desc">与えたダメージの1/2、自身のHPを回復。</span></div><div class="mv"><span class="mv-name">ドレインキッス</span><span class="mv-desc">与えたダメージの1/2、自身のHPを回復。</span></div><div class="mv"><span class="mv-name">パラボラチャージ</span><span class="mv-desc">与えたダメージの1/2、自身のHPを回復。</span></div><div class="mv"><span class="mv-name">むねんのつるぎ</span><span class="mv-desc">与えたダメージの1/2、自身のHPを回復。</span></div><div class="mv"><span class="mv-name">シャカシャカほう</span><span class="mv-prob">20%</span><span class="mv-desc">与えたダメージの1/2だけ自身のHPが回復。また、確率20%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。また、敵のこおり状態を治す。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ちいさくなった相手に威力2倍</span>
+        <code class="tg">power_x2_on_minimize</code>
+        <span class="cnt">6技</span>
+        <span class="prob">20〜30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">のしかかり</span><span class="mv-prob">30%</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。30%でまひ。</span></div><div class="mv"><span class="mv-name">ドラゴンダイブ</span><span class="mv-prob">20%</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。20%でひるみ。</span></div><div class="mv"><span class="mv-name">ヘビーボンバー</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。自身のおもさが敵より重いほど威力上昇: 1/5以下120/1/4以下100/1/3以下80/1/2以下60/それより大40。</span></div><div class="mv"><span class="mv-name">ヒートスタンプ</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。自身のおもさが敵より重いほど威力上昇: 1/5以下120/1/4以下100/1/3以下80/1/2以下60/それ以上40。</span></div><div class="mv"><span class="mv-name">フライングプレス</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。この技はかくとう+ひこうの複合タイプ。</span></div><div class="mv"><span class="mv-name">サンダーダイブ</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。攻撃が外れる、または敵のまもる等で失敗時は、自身も最大HP/2のダメージを受ける。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">反動ダメージ1/3</span>
+        <code class="tg">recoil_1_3</code>
+        <span class="cnt">6技</span>
+        <span class="prob">10%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">すてみタックル</span><span class="mv-desc">与えたダメージの1/3を反動で自身も受ける。</span></div><div class="mv"><span class="mv-name">ボルテッカー</span><span class="mv-prob">10%</span><span class="mv-desc">与えたダメージの1/3を自身も受ける。確率10%で敵をまひ化。</span></div><div class="mv"><span class="mv-name">フレアドライブ</span><span class="mv-prob">10%</span><span class="mv-desc">与えたダメージの1/3を自身も受ける。確率10%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。</span></div><div class="mv"><span class="mv-name">ブレイブバード</span><span class="mv-desc">与えたダメージの1/3を反動で自身も受ける。</span></div><div class="mv"><span class="mv-name">ウッドハンマー</span><span class="mv-desc">与えたダメージの1/3を反動で自身も受ける。</span></div><div class="mv"><span class="mv-name">ウェーブタックル</span><span class="mv-desc">与えたダメージの1/3を反動で自身も受ける。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">こおり関連の無効（要確認）</span>
+        <code class="tg">ice_immune</code>
+        <span class="cnt">5技</span>
+        <span class="prob">20%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">やどりぎのタネ</span><span class="mv-desc">毎ターン、敵のHPを最大HP/8与え、与えた分だけ自身のHPを回復。自身は交代しても効果が引き継がれる。くさタイプのポケモンには効果がない。</span></div><div class="mv"><span class="mv-name">みちづれ</span><span class="mv-desc">自身はみちづれ状態となり、次の自身のターンまでに敵の攻撃でひんし化と、敵もひんし化。</span></div><div class="mv"><span class="mv-name">このゆびとまれ</span><span class="mv-desc">優先度+2の先制技。そのターン敵の技を全て自身が受ける(全体技除く)。ダブル用。</span></div><div class="mv"><span class="mv-name">ぜったいれいど</span><span class="mv-prob">20%</span><span class="mv-desc">敵をひんし化。敵がこおりタイプの場合は効果がない。また、こおりタイプ以外のポケモンが使うと命中率が20%に下がる。</span></div><div class="mv"><span class="mv-name">いかりのこな</span><span class="mv-desc">優先度+2の先制技。そのターン敵の技を全て自身が受ける(全体技除く)。くさタイプ/特性ぼうじん/ぼうじんゴーグル無効。ダブル用。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">天候で威力半減</span>
+        <code class="tg">power_half_in_weather</code>
+        <span class="cnt">5技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ソーラービーム</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div><div class="mv"><span class="mv-name">じしん</span><span class="mv-desc">あなをほる中の敵にも命中、ダメージ2倍。グラスフィールド時は威力1/2。</span></div><div class="mv"><span class="mv-name">グラスフィールド</span><span class="mv-desc">5ターン、場をグラスフィールドに。地上ポケモンは毎ターン最大HP/16回復、くさ技1.3倍。じしん/じならし系の威力1/2。</span></div><div class="mv"><span class="mv-name">ミストフィールド</span><span class="mv-desc">5ターン、場をミストフィールドに。地上ポケモンは状態異常無効、ドラゴン技は威力1/2。</span></div><div class="mv"><span class="mv-name">ソーラーブレード</span><span class="mv-desc">1ターン目で溜め状態、2ターン目に攻撃。にほんばれ時は溜め無しで即攻撃、あめ/ゆき/すなあらし時は威力1/2。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">一撃必殺</span>
+        <code class="tg">ohko</code>
+        <span class="cnt">4技</span>
+        <span class="prob">20〜30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ハサミギロチン</span><span class="mv-prob">30%</span><span class="mv-desc">命中率30%で敵をひんし化。ゴーストタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">つのドリル</span><span class="mv-prob">30%</span><span class="mv-desc">命中率30%で敵をひんし化。ゴーストタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">じわれ</span><span class="mv-desc">敵をひんし化。ひこうタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">ぜったいれいど</span><span class="mv-prob">20%</span><span class="mv-desc">敵をひんし化。敵がこおりタイプの場合は効果がない。また、こおりタイプ以外のポケモンが使うと命中率が20%に下がる。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">2〜3ターン連続攻撃（あばれる系）</span>
+        <code class="tg">multi_thrash</code>
+        <span class="cnt">4技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">あばれる</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">はなびらのまい</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">げきりん</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">だいふんげき</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の重さで威力変化</span>
+        <code class="tg">power_by_weight_opp</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">けたぐり</span><span class="mv-desc">敵が重いほど威力上昇(20〜120)。重さで決定: 10kg未満20/25kg未満40/50kg未満60/100kg未満80/200kg未満100/それ以上120。</span></div><div class="mv"><span class="mv-name">くさむすび</span><span class="mv-desc">敵が重いほど威力上昇(20〜120)。重さで決定: 10kg未満20/25kg未満40/50kg未満60/100kg未満80/200kg未満100/それ以上120。</span></div><div class="mv"><span class="mv-name">ヘビーボンバー</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。自身のおもさが敵より重いほど威力上昇: 1/5以下120/1/4以下100/1/3以下80/1/2以下60/それより大40。</span></div><div class="mv"><span class="mv-name">ヒートスタンプ</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。自身のおもさが敵より重いほど威力上昇: 1/5以下120/1/4以下100/1/3以下80/1/2以下60/それ以上40。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のHPが低いほど威力上昇</span>
+        <code class="tg">power_by_hp_low</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じたばた</span><span class="mv-desc">残HPが少ないほど威力上昇(20〜200)。</span></div><div class="mv"><span class="mv-name">きしかいせい</span><span class="mv-desc">残HPが少ないほど威力上昇(20〜200)。</span></div><div class="mv"><span class="mv-name">ふんか</span><span class="mv-desc">残HPが少ないほど威力低下(1〜150)。</span></div><div class="mv"><span class="mv-name">しおふき</span><span class="mv-desc">残HPが少ないほど威力低下(1〜150)。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">2回連続ヒット</span>
+        <code class="tg">multi_2_fixed</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ダブルアタック</span><span class="mv-desc">2回の連続攻撃。する。</span></div><div class="mv"><span class="mv-name">ドラゴンアロー</span><span class="mv-desc">1ターンに2回連続で攻撃する。相手が2匹いる場合は、それぞれに1回ずつ攻撃する。ただし、技『まもる』やタイプ相性などでダメージを与えられない時は片方に2回攻撃する。</span></div><div class="mv"><span class="mv-name">ダブルウイング</span><span class="mv-desc">2回の連続攻撃。する。</span></div><div class="mv"><span class="mv-name">ツインビーム</span><span class="mv-desc">2回の連続攻撃。する。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ゴーストには無効</span>
+        <code class="tg">ghost_immune</code>
+        <span class="cnt">3技</span>
+        <span class="prob">30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ハサミギロチン</span><span class="mv-prob">30%</span><span class="mv-desc">命中率30%で敵をひんし化。ゴーストタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">つのドリル</span><span class="mv-prob">30%</span><span class="mv-desc">命中率30%で敵をひんし化。ゴーストタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">いかりのまえば</span><span class="mv-desc">敵のHPを残HPの半分削る(残HP1時は1ダメージ)。ゴーストタイプには無効、それ以外はタイプ相性無視。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ダイブ中の相手に威力2倍</span>
+        <code class="tg">power_x2_on_dive</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">なみのり</span><span class="mv-desc">敵が水中状態の場合、ダメージ2倍。</span></div><div class="mv"><span class="mv-name">うずしお</span><span class="mv-desc">敵をバインド化(4〜5ターン)、毎ターン終了時に最大HP/8ダメージ。ゴーストタイプ以外は交代不可。ダイビング中の敵にも命中、ダメージ2倍。</span></div><div class="mv"><span class="mv-name">ダイビング</span><span class="mv-desc">1ターン目で水中状態、2ターン目に攻撃。水中時はなみのり/うずしおなど一部の技以外を受けない。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">外すと反動ダメージ（とびひざげり等）</span>
+        <code class="tg">recoil_on_miss</code>
+        <span class="cnt">3技</span>
+        <span class="prob">30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">とびひざげり</span><span class="mv-desc">外れるか失敗時、自身のHPを最大HP/2消費。</span></div><div class="mv"><span class="mv-name">かかとおとし</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵を1〜4ターン、こんらん化。攻撃が外れたり、敵の技まもるなどで失敗すると、自身の最大HPの1/2のダメージを自身が受ける。</span></div><div class="mv"><span class="mv-name">サンダーダイブ</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。攻撃が外れる、または敵のまもる等で失敗時は、自身も最大HP/2のダメージを受ける。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">失敗/外しで自分にダメージ</span>
+        <code class="tg">fail_self_damage</code>
+        <span class="cnt">3技</span>
+        <span class="prob">30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">とびひざげり</span><span class="mv-desc">外れるか失敗時、自身のHPを最大HP/2消費。</span></div><div class="mv"><span class="mv-name">かかとおとし</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵を1〜4ターン、こんらん化。攻撃が外れたり、敵の技まもるなどで失敗すると、自身の最大HPの1/2のダメージを自身が受ける。</span></div><div class="mv"><span class="mv-name">サンダーダイブ</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。攻撃が外れる、または敵のまもる等で失敗時は、自身も最大HP/2のダメージを受ける。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">たくわえる回数で威力上昇</span>
+        <code class="tg">power_by_takuwaeru</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">たくわえる</span><span class="mv-desc">自身のぼうぎょ/とくぼう+1。たくわえる回数を1増やす(最大3回)。のみこむ/はきだすの効果に影響。</span></div><div class="mv"><span class="mv-name">はきだす</span><span class="mv-desc">たくわえる回数で威力アップ(1=100/2=200/3=300)。たくわえるで上がったランクは元に戻る。たくわえるなしでは失敗。</span></div><div class="mv"><span class="mv-name">のみこむ</span><span class="mv-desc">たくわえる回数でHP回復(1=最大HP/4, 2=最大HP/2, 3=全回復)。たくわえるで上がったランクは元に戻る。たくわえるなしでは失敗。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">必ず急所に当たる</span>
+        <code class="tg">must_crit</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">やまあらし</span><span class="mv-desc">必中急所。</span></div><div class="mv"><span class="mv-name">こおりのいぶき</span><span class="mv-desc">必中急所。</span></div><div class="mv"><span class="mv-name">トリックフラワー</span><span class="mv-desc">必中急所。命中・回避を無視して必中。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">固定ダメージ</span>
+        <code class="tg">fixed_damage</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ちきゅうなげ</span><span class="mv-desc">自身のレベル(50Lv)と同じ値の固定ダメージを与える。</span></div><div class="mv"><span class="mv-name">ナイトヘッド</span><span class="mv-desc">自身のレベル分の固定ダメージ。ノーマルタイプには無効だが、それ以外のタイプ相性は無視。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">あなをほる中の相手に威力2倍</span>
+        <code class="tg">power_x2_on_dig</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じしん</span><span class="mv-desc">あなをほる中の敵にも命中、ダメージ2倍。グラスフィールド時は威力1/2。</span></div><div class="mv"><span class="mv-name">あなをほる</span><span class="mv-desc">1ターン目で地中状態、2ターン目に攻撃。地中時はじしんなど一部の技以外を受けない。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">出てすぐのターンのみ威力</span>
+        <code class="tg">power_first_turn_only</code>
+        <span class="cnt">2技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ねこだまし</span><span class="mv-prob">100%</span><span class="mv-desc">優先度+3の先制技。100%でひるみ。出場した最初のターンのみ成功。</span></div><div class="mv"><span class="mv-name">であいがしら</span><span class="mv-desc">優先度+2の先制技。出場した最初のターンのみ成功。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手が状態異常なら威力2倍</span>
+        <code class="tg">power_x2_if_status</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">からげんき</span><span class="mv-desc">自身がどく/まひ/やけど状態の時、威力2倍。やけどによるこうげきの半減の影響を受けない。</span></div><div class="mv"><span class="mv-name">ベノムショック</span><span class="mv-desc">敵がどく/もうどく状態の時、威力2倍。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のHPが高いほど威力上昇</span>
+        <code class="tg">power_by_hp_self_high</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ふんか</span><span class="mv-desc">残HPが少ないほど威力低下(1〜150)。</span></div><div class="mv"><span class="mv-name">しおふき</span><span class="mv-desc">残HPが少ないほど威力低下(1〜150)。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">受けたダメージを1.5倍で反射</span>
+        <code class="tg">counter_last_dmg_x15</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">メタルバースト</span><span class="mv-desc">受けた最終ダメージの1.5倍を反射。被ダメ無し時は失敗。タイプ相性無視。</span></div><div class="mv"><span class="mv-name">ほうふく</span><span class="mv-desc">受けた最終ダメージの1.5倍を反射。被ダメ無し時は失敗。タイプ相性無視。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">反動ダメージ1/2</span>
+        <code class="tg">recoil_1_2</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">もろはのずつき</span><span class="mv-desc">与ダメの1/2を反動で自身も受ける。</span></div><div class="mv"><span class="mv-name">はめつのひかり</span><span class="mv-desc">与ダメの1/2を反動で自身も受ける。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分が重いほど威力上昇</span>
+        <code class="tg">power_by_weight_self_heavier</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ヘビーボンバー</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。自身のおもさが敵より重いほど威力上昇: 1/5以下120/1/4以下100/1/3以下80/1/2以下60/それより大40。</span></div><div class="mv"><span class="mv-name">ヒートスタンプ</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。自身のおもさが敵より重いほど威力上昇: 1/5以下120/1/4以下100/1/3以下80/1/2以下60/それ以上40。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">能力上昇の数だけ威力上昇</span>
+        <code class="tg">power_plus_by_buff_count</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">アシストパワー</span><span class="mv-desc">自身の能力ランク+1ごとに威力+20。</span></div><div class="mv"><span class="mv-name">つけあがる</span><span class="mv-desc">自身の能力ランク+1ごとに威力+20。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">相手が状態異常なら威力2倍 ⚠power_x2_if_statusと重複ぎみ</span>
+        <code class="tg">power_x2_if_opp_status</code>
+        <span class="cnt">2技</span>
+        <span class="prob">30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">たたりめ</span><span class="mv-desc">敵が状態異常の時、威力2倍。</span></div><div class="mv"><span class="mv-name">ひゃっきやこう</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をやけど化。敵が状態異常の時、威力2倍。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">フィールド中で威力2倍</span>
+        <code class="tg">power_x2_in_field</code>
+        <span class="cnt">2技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じならし</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。グラスフィールドの時、威力が半減する。</span></div><div class="mv"><span class="mv-name">だいちのはどう</span><span class="mv-desc">場のフィールド条件下で技タイプが変化、威力2倍に(地上時のみ、フィールド1.3倍も加算)。グラス=くさ、ミスト=フェアリー、エレキ=でんき、サイコ=エスパー。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の能力変化を無視してダメージ</span>
+        <code class="tg">stat_ignore</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">せいなるつるぎ</span><span class="mv-desc">敵の能力ランクを無視してダメージ。</span></div><div class="mv"><span class="mv-name">DDラリアット</span><span class="mv-desc">敵の能力ランクを無視してダメージ。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">前ターン失敗で威力2倍</span>
+        <code class="tg">power_x2_if_prev_fail</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じだんだ</span><span class="mv-desc">前ターンで自身が外れ/失敗/まひ/こんらん/ひるみ等で行動できなかった場合、威力2倍。</span></div><div class="mv"><span class="mv-name">やけっぱち</span><span class="mv-desc">前ターンで自身が能力ダウンされていた場合、威力2倍。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">能力低下後に威力2倍（要確認）</span>
+        <code class="tg">power_x2_after_debuff</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">うっぷんばらし</span><span class="mv-desc">今ターン能力ダウンされていれば威力2倍(出場時のダウンも対象)。</span></div><div class="mv"><span class="mv-name">やけっぱち</span><span class="mv-desc">前ターンで自身が能力ダウンされていた場合、威力2倍。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のHPを半分にする</span>
+        <code class="tg">target_hp_half</code>
+        <span class="cnt">1技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">いかりのまえば</span><span class="mv-desc">敵のHPを残HPの半分削る(残HP1時は1ダメージ)。ゴーストタイプには無効、それ以外はタイプ相性無視。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">素早さにぼうぎょを使う（要確認）</span>
+        <code class="tg">use_def_for_spe</code>
+        <span class="cnt">1技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">サイコショック</span><span class="mv-desc">敵のとくぼうではなくぼうぎょでダメ計算する特殊技。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の攻撃力で計算（イカサマ）</span>
+        <code class="tg">use_opp_atk</code>
+        <span class="cnt">1技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">イカサマ</span><span class="mv-desc">自身ではなく敵のこうげき値でダメ計算する物理技。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">反動ダメージ1/4</span>
+        <code class="tg">recoil_1_4</code>
+        <span class="cnt">1技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ワイルドボルト</span><span class="mv-desc">与ダメの1/4を反動で自身も受ける。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ダメージ計算をぼうぎょで行う（ボディプレス）</span>
+        <code class="tg">defense_swap_atk</code>
+        <span class="cnt">1技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ボディプレス</span><span class="mv-desc">ダメージ計算をぼうぎょの数値で行う(ぼうぎょランクも適用)。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">物理/特殊を自動選択</span>
+        <code class="tg">auto_select_phys_spec</code>
+        <span class="cnt">1技</span>
+        <span class="prob">20%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">シェルアームズ</span><span class="mv-prob">20%</span><span class="mv-desc">物理/特殊で大きい方の分類で攻撃。20%で敵をどく化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のHPが高いほど威力上昇</span>
+        <code class="tg">power_by_hp_target_high</code>
+        <span class="cnt">1技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ハードプレス</span><span class="mv-desc">敵の残HPが多いほど威力上昇(1〜100)。式: 100×敵残HP÷敵最大HP。</span></div></div></details></section><section class="panel" id="panel-P5">
+      <p class="phase-desc">状態異常・能力変化・道具/タイプ操作・回復(多くは確率発動) — タグ 67種 / 延べ 319技</p><details class="tagcard"><summary>
+        <span class="lbl">やけどにする</span>
+        <code class="tg">status_burn</code>
+        <span class="cnt">16技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ほのおのパンチ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をやけど化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">かえんほうしゃ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をやけど化。</span></div><div class="mv"><span class="mv-name">だいもんじ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をやけど化。</span></div><div class="mv"><span class="mv-name">ねっぷう</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をやけど化。</span></div><div class="mv"><span class="mv-name">おにび</span><span class="mv-prob">100%</span><span class="mv-desc">敵をやけど化。ほのおタイプには無効。</span></div><div class="mv"><span class="mv-name">ブレイズキック</span><span class="mv-prob">10%</span><span class="mv-desc">急所ランク+1。確率10%で敵をやけど化。</span></div><div class="mv"><span class="mv-name">フレアドライブ</span><span class="mv-prob">10%</span><span class="mv-desc">与えたダメージの1/3を自身も受ける。確率10%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。</span></div><div class="mv"><span class="mv-name">ほのおのキバ</span><span class="mv-prob">10/10%</span><span class="mv-desc">10%でやけど。10%でひるみ。</span></div><div class="mv"><span class="mv-name">ふんえん</span><span class="mv-prob">30%</span><span class="mv-desc">30%の確率で相手を『やけど』状態にする。</span></div><div class="mv"><span class="mv-name">ねっとう</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。また、敵のこおり状態を治す。</span></div><div class="mv"><span class="mv-name">れんごく</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵をやけど化。</span></div><div class="mv"><span class="mv-name">くちばしキャノン</span><span class="mv-desc">優先度-3の後攻技。発動前に接触技を受けるとそのポケモンをやけど化(技も普通に発動)。</span></div><div class="more">＋他 4 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">こんらんにする</span>
+        <code class="tg">status_confuse</code>
+        <span class="cnt">14技</span>
+        <span class="prob">20〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">あばれる</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">はなびらのまい</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">あやしいひかり</span><span class="mv-prob">100%</span><span class="mv-desc">敵を1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">てんしのキッス</span><span class="mv-prob">100%</span><span class="mv-desc">敵を1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">げきりん</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">いばる</span><span class="mv-prob">100%</span><span class="mv-desc">敵を1〜4ターン、こんらん化が、敵のこうげきランクを2段階上げてしまう。</span></div><div class="mv"><span class="mv-name">ばくれつパンチ</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵を1〜4ターン、こんらん化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">おだてる</span><span class="mv-prob">100%</span><span class="mv-desc">敵を1〜4ターン、こんらん化が、敵のとくこうランクを1段階上げてしまう。</span></div><div class="mv"><span class="mv-name">フラフラダンス</span><span class="mv-prob">100%</span><span class="mv-desc">敵を1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">みずのはどう</span><span class="mv-prob">20%</span><span class="mv-desc">確率20%で敵を1〜4ターン、こんらん化。</span></div><div class="mv"><span class="mv-name">ぼうふう</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で、敵を1〜4ターン、こんらん化。天気があめの時は必中、にほんばれの時は命中率が50%になる。敵が技フリーフォール/とびはねる/そらをとぶを使っている時でも命中する。</span></div><div class="mv"><span class="mv-name">だいふんげき</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="more">＋他 2 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">まひにする</span>
+        <code class="tg">status_paralysis</code>
+        <span class="cnt">13技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">かみなりパンチ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をまひ化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">のしかかり</span><span class="mv-prob">30%</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。30%でまひ。</span></div><div class="mv"><span class="mv-name">しびれごな</span><span class="mv-prob">100%</span><span class="mv-desc">敵をまひ化。ぼうじんゴーグル/特性ぼうじん/くさタイプ/でんきタイプを持つポケモンには無効。</span></div><div class="mv"><span class="mv-name">10まんボルト</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をまひ化。</span></div><div class="mv"><span class="mv-name">でんじは</span><span class="mv-prob">100%</span><span class="mv-desc">敵をまひ化。じめんタイプやでんきタイプには無効。</span></div><div class="mv"><span class="mv-name">かみなり</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をまひ化。天気があめの時は必中、にほんばれの時は命中率が50%になる。敵が技フリーフォール/とびはねる/そらをとぶを使っている時でも命中する。</span></div><div class="mv"><span class="mv-name">へびにらみ</span><span class="mv-prob">100%</span><span class="mv-desc">敵をまひ化。でんきタイプには無効。</span></div><div class="mv"><span class="mv-name">でんじほう</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵をまひ化。</span></div><div class="mv"><span class="mv-name">とびはねる</span><span class="mv-prob">30%</span><span class="mv-desc">1ターン目で空中状態、2ターン目に攻撃。30%でまひ。空中時はうちおとす/かみなり/ぼうふうなど一部の技以外を受けない。</span></div><div class="mv"><span class="mv-name">ボルテッカー</span><span class="mv-prob">10%</span><span class="mv-desc">与えたダメージの1/3を自身も受ける。確率10%で敵をまひ化。</span></div><div class="mv"><span class="mv-name">かみなりのキバ</span><span class="mv-prob">10/10%</span><span class="mv-desc">10%でまひ。10%でひるみ。</span></div><div class="mv"><span class="mv-name">ほうでん</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をまひ化。</span></div><div class="more">＋他 1 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のこうげき-1</span>
+        <code class="tg">opp_atk_down_1</code>
+        <span class="cnt">13技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">くすぐる</span><span class="mv-desc">敵のこうげき-1, ぼうぎょ-1。</span></div><div class="mv"><span class="mv-name">つぶらなひとみ</span><span class="mv-desc">優先度+1の先制技。敵のこうげきを1段階低下。</span></div><div class="mv"><span class="mv-name">おたけび</span><span class="mv-desc">音技。敵のこうげき/とくこうランクを1段階低下。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">じゃれつく</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵のこうげきを1段階低下。</span></div><div class="mv"><span class="mv-name">キングシールド</span><span class="mv-desc">優先度+4の先制技。1ターン、敵の攻撃技のみ完全防御。接触技してきた敵のこうげき-1。連続使用で成功率1/3に。</span></div><div class="mv"><span class="mv-name">すてゼリフ</span><span class="mv-desc">音技。敵のこうげき/とくこう-1。その後、手持ちと交代。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">トロピカルキック</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のこうげきを1段階低下。</span></div><div class="mv"><span class="mv-name">ちからをすいとる</span><span class="mv-desc">敵のこうげき値分のHP回復+敵のこうげき-1。ランクが下がらない場合は回復のみ。すでに最低ランクの時は失敗。</span></div><div class="mv"><span class="mv-name">なみだめ</span><span class="mv-desc">敵のこうげき/とくこう-1。命中・回避を無視して必中、まもる系の防御技を貫通。</span></div><div class="mv"><span class="mv-name">とびかかる</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のこうげきを1段階低下。</span></div><div class="mv"><span class="mv-name">ワイドブレイカー</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のこうげきを1段階低下。</span></div><div class="mv"><span class="mv-name">うらみつらみ</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のこうげきを1段階低下。</span></div><div class="more">＋他 1 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手を交代不可に（バインド/かげふみ）</span>
+        <code class="tg">trap_no_switch</code>
+        <span class="cnt">12技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">しめつける</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">まきつく</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">ほのおのうず</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">くろいまなざし</span><span class="mv-desc">ゴーストタイプ以外の敵を逃走/交代不可に。自身が場を離れると解除。</span></div><div class="mv"><span class="mv-name">うずしお</span><span class="mv-desc">敵をバインド化(4〜5ターン)、毎ターン終了時に最大HP/8ダメージ。ゴーストタイプ以外は交代不可。ダイビング中の敵にも命中、ダメージ2倍。</span></div><div class="mv"><span class="mv-name">ねをはる</span><span class="mv-desc">毎ターン最大HP/16回復するが、交代不可に。ひこうタイプ・特性ふゆう持ちでもじめん技が当たるようになる。</span></div><div class="mv"><span class="mv-name">すなじごく</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">とおせんぼう</span><span class="mv-desc">ゴーストタイプ以外の敵を逃走/交代不可に。自身が場を離れると解除。</span></div><div class="mv"><span class="mv-name">まとわりつく</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">フェアリーロック</span><span class="mv-desc">次のターン終了まで、場の全ポケモンが交代不可に。</span></div><div class="mv"><span class="mv-name">かげぬい</span><span class="mv-desc">ゴーストタイプ以外の敵を逃走/交代不可に。自身が場を離れると解除。</span></div><div class="mv"><span class="mv-name">トラバサミ</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">どくにする</span>
+        <code class="tg">status_poison</code>
+        <span class="cnt">12技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">どくのこな</span><span class="mv-prob">100%</span><span class="mv-desc">敵をどく化。ぼうじんゴーグル/特性ぼうじん/くさタイプ/はがねタイプ/どくタイプ所持時は無効。</span></div><div class="mv"><span class="mv-name">どくどく</span><span class="mv-prob">100%</span><span class="mv-desc">敵をもうどく化(被ダメが1/16, 2/16, 3/16…と増加)。どくタイプ使用時は必中。どく/はがねタイプには無効。</span></div><div class="mv"><span class="mv-name">ヘドロばくだん</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をどく化。</span></div><div class="mv"><span class="mv-name">どくどくのキバ</span><span class="mv-prob">50%</span><span class="mv-desc">50%で敵をもうどく化。1/16から増えていくスリップダメージ。交代で1/16にリセット。</span></div><div class="mv"><span class="mv-name">どくづき</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をどく化。</span></div><div class="mv"><span class="mv-name">クロスポイズン</span><span class="mv-prob">10%</span><span class="mv-desc">急所ランク+1。確率10%で敵をどく化。</span></div><div class="mv"><span class="mv-name">ダストシュート</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をどく化。</span></div><div class="mv"><span class="mv-name">ヘドロウェーブ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をどく化。</span></div><div class="mv"><span class="mv-name">トーチカ</span><span class="mv-prob">100%</span><span class="mv-desc">優先度+4の先制技。1ターン、敵の技を完全防御。接触技してきた敵をどく化。連続使用で成功率1/3に。</span></div><div class="mv"><span class="mv-name">どくのいと</span><span class="mv-prob">100%</span><span class="mv-desc">敵をどく化+すばやさ-2。</span></div><div class="mv"><span class="mv-name">シェルアームズ</span><span class="mv-prob">20%</span><span class="mv-desc">物理/特殊で大きい方の分類で攻撃。20%で敵をどく化。</span></div><div class="mv"><span class="mv-name">キラースピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の技および自身の場の設置技(ねばねばネット/まきびし/どくびし/ステルスロック等)を解除。確率100%で敵をどく化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のとくぼう+1</span>
+        <code class="tg">self_spd_up_1</code>
+        <span class="cnt">11技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">こうそくスピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の効果(うずしお/しめつける/まきつく/やどりぎのタネ等)、および自身の場の設置技(ステルスロック/まきびし/どくびし/ねばねばネット等)を解除。攻撃後、100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">げんしのちから</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で自身のすばやさ/とくぼう/とくこう/ぼうぎょ/こうげきランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">たくわえる</span><span class="mv-desc">自身のぼうぎょ/とくぼう+1。たくわえる回数を1増やす(最大3回)。のみこむ/はきだすの効果に影響。</span></div><div class="mv"><span class="mv-name">じゅうでん</span><span class="mv-desc">次回の自身のでんき技を威力2倍化(1回限り)。同時に自身のとくぼう+1。</span></div><div class="mv"><span class="mv-name">コスモパワー</span><span class="mv-desc">自身のぼうぎょ+1, とくぼう+1。</span></div><div class="mv"><span class="mv-name">めいそう</span><span class="mv-desc">自身のとくこう+1, とくぼう+1。</span></div><div class="mv"><span class="mv-name">ちょうのまい</span><span class="mv-desc">自身のとくこう/とくぼう/すばやさランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">ニトロチャージ</span><span class="mv-prob">100%</span><span class="mv-desc">100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">オーラぐるま</span><span class="mv-prob">100%</span><span class="mv-desc">100%で自身のすばやさ+1。モルペコがまんぷく時はでんきタイプ、はらぺこ時はあくタイプ技に変化。</span></div><div class="mv"><span class="mv-name">アクアステップ</span><span class="mv-prob">100%</span><span class="mv-desc">100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">くさわけ</span><span class="mv-prob">100%</span><span class="mv-desc">100%で自身のすばやさ+1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のすばやさ+1</span>
+        <code class="tg">self_spe_up_1</code>
+        <span class="cnt">10技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">こうそくスピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の効果(うずしお/しめつける/まきつく/やどりぎのタネ等)、および自身の場の設置技(ステルスロック/まきびし/どくびし/ねばねばネット等)を解除。攻撃後、100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">げんしのちから</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で自身のすばやさ/とくぼう/とくこう/ぼうぎょ/こうげきランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">りゅうのまい</span><span class="mv-desc">自身のこうげき+1, すばやさ+1。</span></div><div class="mv"><span class="mv-name">ちょうのまい</span><span class="mv-desc">自身のとくこう/とくぼう/すばやさランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">ニトロチャージ</span><span class="mv-prob">100%</span><span class="mv-desc">100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">オーラぐるま</span><span class="mv-prob">100%</span><span class="mv-desc">100%で自身のすばやさ+1。モルペコがまんぷく時はでんきタイプ、はらぺこ時はあくタイプ技に変化。</span></div><div class="mv"><span class="mv-name">スケイルショット</span><span class="mv-desc">2〜5回連続攻撃。攻撃後、ぼうぎょ-1, すばやさ+1。</span></div><div class="mv"><span class="mv-name">アクアステップ</span><span class="mv-prob">100%</span><span class="mv-desc">100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">おかたづけ</span><span class="mv-desc">自身と敵のみがわり、ねばねばネット/まきびし/どくびし/ステルスロックを解除。自身のこうげき/すばやさ+1。</span></div><div class="mv"><span class="mv-name">くさわけ</span><span class="mv-prob">100%</span><span class="mv-desc">100%で自身のすばやさ+1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のとくこう+1</span>
+        <code class="tg">self_spa_up_1</code>
+        <span class="cnt">9技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">せいちょう</span><span class="mv-desc">自身のこうげき/とくこう+1。にほんばれ時は+2。</span></div><div class="mv"><span class="mv-name">げんしのちから</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で自身のすばやさ/とくぼう/とくこう/ぼうぎょ/こうげきランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">めいそう</span><span class="mv-desc">自身のとくこう+1, とくぼう+1。</span></div><div class="mv"><span class="mv-name">チャージビーム</span><span class="mv-prob">70%</span><span class="mv-desc">70%で自身のとくこう+1。</span></div><div class="mv"><span class="mv-name">ちょうのまい</span><span class="mv-desc">自身のとくこう/とくぼう/すばやさランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">ほのおのまい</span><span class="mv-prob">50%</span><span class="mv-desc">50%で自身のとくこう+1。</span></div><div class="mv"><span class="mv-name">メテオビーム</span><span class="mv-desc">1ターン目で溜め(自身とくこう+1)、2ターン目に攻撃。</span></div><div class="mv"><span class="mv-name">フレアソング</span><span class="mv-prob">100%</span><span class="mv-desc">音技。確率100%で自身のとくこうを1段階上昇。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">エレクトロビーム</span><span class="mv-desc">1ターン目に自身のとくこう+1、2ターン目に攻撃。あめ時は溜め無しで即攻撃。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のぼうぎょ-1</span>
+        <code class="tg">opp_def_down_1</code>
+        <span class="cnt">9技</span>
+        <span class="prob">20〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">アイアンテール</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵のぼうぎょを1段階低下。</span></div><div class="mv"><span class="mv-name">かみくだく</span><span class="mv-prob">20%</span><span class="mv-desc">確率20%で敵のぼうぎょを1段階低下。</span></div><div class="mv"><span class="mv-name">ブレイククロー</span><span class="mv-prob">50%</span><span class="mv-desc">確率50%で敵のぼうぎょを1段階低下。</span></div><div class="mv"><span class="mv-name">くすぐる</span><span class="mv-desc">敵のこうげき-1, ぼうぎょ-1。</span></div><div class="mv"><span class="mv-name">シェルブレード</span><span class="mv-prob">50%</span><span class="mv-desc">確率50%で敵のぼうぎょを1段階低下。</span></div><div class="mv"><span class="mv-name">アクアブレイク</span><span class="mv-prob">20%</span><span class="mv-desc">確率20%で、敵のぼうぎょを1段階低下。</span></div><div class="mv"><span class="mv-name">ほのおのムチ</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のぼうぎょを1段階低下。</span></div><div class="mv"><span class="mv-name">Gのちから</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のぼうぎょを1段階低下。場がじゅうりょく状態の時、威力1.5倍。</span></div><div class="mv"><span class="mv-name">3ぼんのや</span><span class="mv-prob">30%</span><span class="mv-desc">急所ランク+1。確率50%で、敵のぼうぎょを1段階低下。確率30%で敵をひるませる。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のとくぼう-1</span>
+        <code class="tg">opp_spd_down_1</code>
+        <span class="cnt">8技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">サイコキネシス</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵のとくぼうを1段階低下。</span></div><div class="mv"><span class="mv-name">シャドーボール</span><span class="mv-prob">20%</span><span class="mv-desc">確率20%で敵のとくぼうを1段階低下。</span></div><div class="mv"><span class="mv-name">むしのさざめき</span><span class="mv-prob">10%</span><span class="mv-desc">音技。確率10%で敵のとくぼうを1段階低下。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">きあいだま</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵のとくぼうを1段階低下。</span></div><div class="mv"><span class="mv-name">エナジーボール</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵のとくぼうを1段階低下。</span></div><div class="mv"><span class="mv-name">だいちのちから</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵のとくぼうを1段階低下。</span></div><div class="mv"><span class="mv-name">ラスターカノン</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵のとくぼうを1段階低下。</span></div><div class="mv"><span class="mv-name">りんごさん</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のとくぼうを1段階低下。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のすばやさ-1</span>
+        <code class="tg">opp_spe_down_1</code>
+        <span class="cnt">8技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">こごえるかぜ</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。</span></div><div class="mv"><span class="mv-name">がんせきふうじ</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。</span></div><div class="mv"><span class="mv-name">マッドショット</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。</span></div><div class="mv"><span class="mv-name">ローキック</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。</span></div><div class="mv"><span class="mv-name">じならし</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。グラスフィールドの時、威力が半減する。</span></div><div class="mv"><span class="mv-name">エレキネット</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。</span></div><div class="mv"><span class="mv-name">とびつく</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。</span></div><div class="mv"><span class="mv-name">みずあめボム</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で、敵をあめまみれ化。3ターン、毎ターン終了時に敵のすばやさが1段階下がる。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のとくこう-1</span>
+        <code class="tg">opp_spa_down_1</code>
+        <span class="cnt">8技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">むしのていこう</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のとくこうを1段階低下。</span></div><div class="mv"><span class="mv-name">バークアウト</span><span class="mv-prob">100%</span><span class="mv-desc">音技。確率100%で敵のとくこうを1段階低下。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">おたけび</span><span class="mv-desc">音技。敵のこうげき/とくこうランクを1段階低下。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">マジカルフレイム</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のとくこうを1段階低下。</span></div><div class="mv"><span class="mv-name">ムーンフォース</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵のとくこうを1段階低下。</span></div><div class="mv"><span class="mv-name">すてゼリフ</span><span class="mv-desc">音技。敵のこうげき/とくこう-1。その後、手持ちと交代。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">なみだめ</span><span class="mv-desc">敵のこうげき/とくこう-1。命中・回避を無視して必中、まもる系の防御技を貫通。</span></div><div class="mv"><span class="mv-name">はいよるいちげき</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で、敵のとくこうを1段階低下</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のこうげき+1</span>
+        <code class="tg">self_atk_up_1</code>
+        <span class="cnt">7技</span>
+        <span class="prob">10〜20%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">せいちょう</span><span class="mv-desc">自身のこうげき/とくこう+1。にほんばれ時は+2。</span></div><div class="mv"><span class="mv-name">げんしのちから</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で自身のすばやさ/とくぼう/とくこう/ぼうぎょ/こうげきランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">コメットパンチ</span><span class="mv-prob">20%</span><span class="mv-desc">確率20%で自身のこうげきが1段階上がる。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">ビルドアップ</span><span class="mv-desc">自身のこうげき+1, ぼうぎょ+1。</span></div><div class="mv"><span class="mv-name">りゅうのまい</span><span class="mv-desc">自身のこうげき+1, すばやさ+1。</span></div><div class="mv"><span class="mv-name">とぐろをまく</span><span class="mv-desc">自身のこうげき/ぼうぎょ/命中率ランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">おかたづけ</span><span class="mv-desc">自身と敵のみがわり、ねばねばネット/まきびし/どくびし/ステルスロックを解除。自身のこうげき/すばやさ+1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のぼうぎょ+1</span>
+        <code class="tg">self_def_up_1</code>
+        <span class="cnt">7技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">はがねのつばさ</span><span class="mv-prob">10%</span><span class="mv-desc">10%で自身のぼうぎょ+1。</span></div><div class="mv"><span class="mv-name">げんしのちから</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で自身のすばやさ/とくぼう/とくこう/ぼうぎょ/こうげきランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">たくわえる</span><span class="mv-desc">自身のぼうぎょ/とくぼう+1。たくわえる回数を1増やす(最大3回)。のみこむ/はきだすの効果に影響。</span></div><div class="mv"><span class="mv-name">コスモパワー</span><span class="mv-desc">自身のぼうぎょ+1, とくぼう+1。</span></div><div class="mv"><span class="mv-name">ビルドアップ</span><span class="mv-desc">自身のこうげき+1, ぼうぎょ+1。</span></div><div class="mv"><span class="mv-name">とぐろをまく</span><span class="mv-desc">自身のこうげき/ぼうぎょ/命中率ランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">バリアーラッシュ</span><span class="mv-prob">100%</span><span class="mv-desc">攻撃後、100%で自身のぼうぎょ+1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">味方のこうげきを上げる</span>
+        <code class="tg">buff_ally_atk</code>
+        <span class="cnt">7技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">いやしのすず</span><span class="mv-desc">音技。自身と味方全体のポケモンの状態異常を治す。味方がみがわり状態でも効果が発生する。</span></div><div class="mv"><span class="mv-name">しんぴのまもり</span><span class="mv-desc">5ターン、味方の場をしんぴのまもりに。状態異常・こんらん無効。交代後も維持。</span></div><div class="mv"><span class="mv-name">とおぼえ</span><span class="mv-desc">音技。自身と味方全体のこうげきを1段階上昇。</span></div><div class="mv"><span class="mv-name">おいかぜ</span><span class="mv-desc">4ターン、自身と味方のすばやさ2倍化。</span></div><div class="mv"><span class="mv-name">じばそうさ</span><span class="mv-desc">プラス/マイナス特性持ちの自身と味方のぼうぎょ/とくぼう+1。</span></div><div class="mv"><span class="mv-name">いのちのしずく</span><span class="mv-desc">自身と味方全体のHPを最大HP/4ずつ回復。特性ちょすい/よびみずの味方は特性発動で無効化。</span></div><div class="mv"><span class="mv-name">コーチング</span><span class="mv-desc">自身を除く味方全体のこうげき/ぼうぎょランクが1段階上がる(ダブルバトル用)。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のぼうぎょ-1</span>
+        <code class="tg">self_def_down_1</code>
+        <span class="cnt">7技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ばかぢから</span><span class="mv-desc">攻撃後、自身のこうげき/ぼうぎょ-1。</span></div><div class="mv"><span class="mv-name">インファイト</span><span class="mv-desc">攻撃後、自身のぼうぎょ/とくぼう-1。</span></div><div class="mv"><span class="mv-name">からをやぶる</span><span class="mv-desc">自身のぼうぎょ-1, とくぼう-1, こうげき+2, とくこう+2, すばやさ+2。</span></div><div class="mv"><span class="mv-name">スケイルノイズ</span><span class="mv-desc">音技。攻撃後、自身のぼうぎょが1段階下がる。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">スケイルショット</span><span class="mv-desc">2〜5回連続攻撃。攻撃後、ぼうぎょ-1, すばやさ+1。</span></div><div class="mv"><span class="mv-name">ぶちかまし</span><span class="mv-desc">攻撃後、自身のぼうぎょ-1, とくぼう-1。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">アーマーキャノン</span><span class="mv-desc">攻撃後、自身のぼうぎょ/とくぼう-1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">こおりにする</span>
+        <code class="tg">status_freeze</code>
+        <span class="cnt">6技</span>
+        <span class="prob">10%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">れいとうパンチ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をこおり化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">れいとうビーム</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をこおり化。</span></div><div class="mv"><span class="mv-name">ふぶき</span><span class="mv-prob">10%</span><span class="mv-desc">10%で敵をこおり化。天気がゆきの時は必中。</span></div><div class="mv"><span class="mv-name">にほんばれ</span><span class="mv-desc">5ターン、天気をにほんばれに。ほのお技1.5倍、みず技1/2、こおり化無効。</span></div><div class="mv"><span class="mv-name">こおりのキバ</span><span class="mv-prob">10/10%</span><span class="mv-desc">10%でこおり。10%でひるみ。</span></div><div class="mv"><span class="mv-name">フリーズドライ</span><span class="mv-desc">みずタイプ相手にも効果抜群。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">最大HPの1/2回復</span>
+        <code class="tg">recovery_1_2</code>
+        <span class="cnt">6技</span>
+        <span class="prob">50%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じこさいせい</span><span class="mv-prob">50%</span><span class="mv-desc">最大HPの50%回復。</span></div><div class="mv"><span class="mv-name">ねがいごと</span><span class="mv-prob">50%</span><span class="mv-desc">1ターン後の終了時、最大HPの50%回復。交代した位置のポケモンも対象。</span></div><div class="mv"><span class="mv-name">なまける</span><span class="mv-prob">50%</span><span class="mv-desc">最大HPの50%回復。</span></div><div class="mv"><span class="mv-name">はねやすめ</span><span class="mv-desc">最大HP/2回復。そのターンの間、自身はひこうタイプ扱いにならない。</span></div><div class="mv"><span class="mv-name">いやしのはどう</span><span class="mv-desc">対象のHPを最大HP/2回復(自分には不可)。</span></div><div class="mv"><span class="mv-name">かふんだんご</span><span class="mv-desc">敵に攻撃技、味方には最大HP/2回復。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の特性をコピー</span>
+        <code class="tg">ability_copy_target</code>
+        <span class="cnt">6技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">なりきり</span><span class="mv-desc">自身の特性を敵と同じに。固有特性はコピー不可。</span></div><div class="mv"><span class="mv-name">スキルスワップ</span><span class="mv-desc">自身と敵の特性を交換。固有特性は不可。</span></div><div class="mv"><span class="mv-name">いえき</span><span class="mv-desc">敵の特性を無効化(ばけのかわ/バトルスイッチなどフォルムに関わる特性や、一部の固有の特性には無効)。</span></div><div class="mv"><span class="mv-name">なやみのタネ</span><span class="mv-desc">敵の特性をふみんに変更。なまけ/バトルスイッチなど固有特性は失敗。</span></div><div class="mv"><span class="mv-name">シンプルビーム</span><span class="mv-desc">敵の特性をたんじゅんに変更。</span></div><div class="mv"><span class="mv-name">なかまづくり</span><span class="mv-desc">敵の特性を自身と同じ特性にする。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">HPを半分払う（みがわり/いのちがけ）</span>
+        <code class="tg">hp_cost_half</code>
+        <span class="cnt">5技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">とびひざげり</span><span class="mv-desc">外れるか失敗時、自身のHPを最大HP/2消費。</span></div><div class="mv"><span class="mv-name">のろい</span><span class="mv-desc">ゴーストタイプの場合: 自身HPを最大HP/2消費し、敵をのろい化(毎ターンHP-最大HP/4)。それ以外: すばやさ-1, こうげき/ぼうぎょ+1。</span></div><div class="mv"><span class="mv-name">はらだいこ</span><span class="mv-desc">自身のHPを最大HP/2消費し、こうげきランクを最大に。</span></div><div class="mv"><span class="mv-name">てっていこうせん</span><span class="mv-desc">自身のHPを最大HP/2消費(まもる等で防がれてもHPは減る)。</span></div><div class="mv"><span class="mv-name">しっぽきり</span><span class="mv-desc">自身のHPを最大HP/2消費しみがわり化、その後手持ちと交代。みがわりHPは最大HP/4。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のぼうぎょ+2</span>
+        <code class="tg">self_def_up_2</code>
+        <span class="cnt">5技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">とける</span><span class="mv-desc">自身のぼうぎょを2段階上昇。</span></div><div class="mv"><span class="mv-name">てっぺき</span><span class="mv-desc">自身のぼうぎょを2段階上昇。</span></div><div class="mv"><span class="mv-name">コットンガード</span><span class="mv-desc">自身のぼうぎょ+3。</span></div><div class="mv"><span class="mv-name">ほおばる</span><span class="mv-desc">持っているきのみを即時食べ、自身のぼうぎょ+2。</span></div><div class="mv"><span class="mv-name">たてこもる</span><span class="mv-desc">自身のぼうぎょを2段階上昇。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">使うと自分の状態異常が治る</span>
+        <code class="tg">self_status_cure_on_use</code>
+        <span class="cnt">5技</span>
+        <span class="prob">10〜30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">フレアドライブ</span><span class="mv-prob">10%</span><span class="mv-desc">与えたダメージの1/3を自身も受ける。確率10%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。</span></div><div class="mv"><span class="mv-name">ねっとう</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。また、敵のこおり状態を治す。</span></div><div class="mv"><span class="mv-name">もえつきる</span><span class="mv-desc">攻撃後、自身のほのおタイプを失う。ほのおタイプ以外は失敗。こおり状態でも使用可、使用するとこおりが治る。</span></div><div class="mv"><span class="mv-name">ねっさのだいち</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。</span></div><div class="mv"><span class="mv-name">シャカシャカほう</span><span class="mv-prob">20%</span><span class="mv-desc">与えたダメージの1/2だけ自身のHPが回復。また、確率20%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。また、敵のこおり状態を治す。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ねむりにする</span>
+        <code class="tg">status_sleep</code>
+        <span class="cnt">4技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">うたう</span><span class="mv-prob">100%</span><span class="mv-desc">音技。敵をねむり化。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">ねむりごな</span><span class="mv-prob">100%</span><span class="mv-desc">敵をねむり化。ぼうじんゴーグル/特性ぼうじん/くさタイプ所持時は無効。</span></div><div class="mv"><span class="mv-name">さいみんじゅつ</span><span class="mv-prob">100%</span><span class="mv-desc">敵をねむり化。</span></div><div class="mv"><span class="mv-name">あくび</span><span class="mv-prob">100%</span><span class="mv-desc">敵をねむけ状態にして、次のターン終了時に敵をねむり化。ただし、そのポケモンが交代されると効果は消える。命中・回避を無視して必中。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">1/2回復 ⚠recovery_1_2の部分集合</span>
+        <code class="tg">recovery_simple</code>
+        <span class="cnt">4技</span>
+        <span class="prob">50%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じこさいせい</span><span class="mv-prob">50%</span><span class="mv-desc">最大HPの50%回復。</span></div><div class="mv"><span class="mv-name">ねがいごと</span><span class="mv-prob">50%</span><span class="mv-desc">1ターン後の終了時、最大HPの50%回復。交代した位置のポケモンも対象。</span></div><div class="mv"><span class="mv-name">なまける</span><span class="mv-prob">50%</span><span class="mv-desc">最大HPの50%回復。</span></div><div class="mv"><span class="mv-name">はねやすめ</span><span class="mv-desc">最大HP/2回復。そのターンの間、自身はひこうタイプ扱いにならない。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の能力ランクをコピー</span>
+        <code class="tg">stat_copy</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">へんしん</span><span class="mv-desc">敵に変身。HP・持ち物・状態異常を除く全要素をコピー。技PPは全5。交代で解除。</span></div><div class="mv"><span class="mv-name">じこあんじ</span><span class="mv-desc">敵の能力ランク変動を、自身にコピー。</span></div><div class="mv"><span class="mv-name">なりきり</span><span class="mv-desc">自身の特性を敵と同じに。固有特性はコピー不可。</span></div><div class="mv"><span class="mv-name">ミラータイプ</span><span class="mv-desc">自身のタイプを敵と同じに変更する。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のこうげき-2</span>
+        <code class="tg">opp_atk_down_2</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">あまえる</span><span class="mv-desc">敵のこうげきを2段階低下。</span></div><div class="mv"><span class="mv-name">おきみやげ</span><span class="mv-desc">自身がひんしになるが、敵のこうげき/とくこうランクを2段階低下。</span></div><div class="mv"><span class="mv-name">フェザーダンス</span><span class="mv-desc">敵のこうげきを2段階低下。</span></div><div class="mv"><span class="mv-name">ハバネロエキス</span><span class="mv-desc">敵のこうげきランクを2段階上げ、ぼうぎょを2段階低下。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のとくぼう-2</span>
+        <code class="tg">opp_spd_down_2</code>
+        <span class="cnt">4技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">うそなき</span><span class="mv-desc">敵のとくぼうを2段階低下。</span></div><div class="mv"><span class="mv-name">きんぞくおん</span><span class="mv-desc">音技。敵のとくぼうを2段階低下。</span></div><div class="mv"><span class="mv-name">アシッドボム</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のとくぼうを2段階低下。</span></div><div class="mv"><span class="mv-name">ルミナコリジョン</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のとくぼうを2段階低下。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のとくぼう-1</span>
+        <code class="tg">self_spd_down_1</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">インファイト</span><span class="mv-desc">攻撃後、自身のぼうぎょ/とくぼう-1。</span></div><div class="mv"><span class="mv-name">からをやぶる</span><span class="mv-desc">自身のぼうぎょ-1, とくぼう-1, こうげき+2, とくこう+2, すばやさ+2。</span></div><div class="mv"><span class="mv-name">ぶちかまし</span><span class="mv-desc">攻撃後、自身のぼうぎょ-1, とくぼう-1。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">アーマーキャノン</span><span class="mv-desc">攻撃後、自身のぼうぎょ/とくぼう-1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のタイプを変更/追加</span>
+        <code class="tg">type_change_target</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">みずびたし</span><span class="mv-desc">敵をみずタイプにする。</span></div><div class="mv"><span class="mv-name">もりののろい</span><span class="mv-desc">敵のタイプにくさタイプを追加する。</span></div><div class="mv"><span class="mv-name">ハロウィン</span><span class="mv-desc">敵のタイプにゴーストタイプを追加する。</span></div><div class="mv"><span class="mv-name">まほうのこな</span><span class="mv-desc">敵のタイプをエスパーに変更。くさタイプ/特性ぼうじん/ぼうじんゴーグル所持には無効。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のすばやさ-2</span>
+        <code class="tg">opp_spe_down_2</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">いとをはく</span><span class="mv-desc">敵のすばやさを2段階低下。</span></div><div class="mv"><span class="mv-name">わたほうし</span><span class="mv-desc">敵のすばやさを2段階低下。くさタイプ・特性ぼうじん・道具ぼうじんゴーグル所持には無効。</span></div><div class="mv"><span class="mv-name">こわいかお</span><span class="mv-desc">敵のすばやさを2段階低下。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">⚠中身がOHKO/接地化（タイプ追加でない・要再付与）</span>
+        <code class="tg">type_add</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じわれ</span><span class="mv-desc">敵をひんし化。ひこうタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">じゅうりょく</span><span class="mv-desc">5ターン、全ポケモンの命中率1.67倍に。ふゆう/ひこうタイプにじめん技が命中。空中/とびはね系の浮遊技が無効化。</span></div><div class="mv"><span class="mv-name">うちおとす</span><span class="mv-desc">ふゆう/ひこうタイプにじめん技が命中するように。空中状態の敵にも命中、そらをとぶ/とびはねる/でんじふゆうを解除。でんじふゆうは無効化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">もうどくにする</span>
+        <code class="tg">status_badpoison</code>
+        <span class="cnt">3技</span>
+        <span class="prob">50〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">どくどく</span><span class="mv-prob">100%</span><span class="mv-desc">敵をもうどく化(被ダメが1/16, 2/16, 3/16…と増加)。どくタイプ使用時は必中。どく/はがねタイプには無効。</span></div><div class="mv"><span class="mv-name">どくどくのキバ</span><span class="mv-prob">50%</span><span class="mv-desc">50%で敵をもうどく化。1/16から増えていくスリップダメージ。交代で1/16にリセット。</span></div><div class="mv"><span class="mv-name">どくびし</span><span class="mv-desc">敵の場をどくびしに。敵交代時、出現ポケモンをどく化。2回重ねると もうどく化。どく/はがね/ひこう/特性ふゆうは無効。どくタイプ出場で解除。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のとくぼう+2</span>
+        <code class="tg">self_spd_up_2</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">こうそくいどう</span><span class="mv-desc">自身のすばやさ+2。</span></div><div class="mv"><span class="mv-name">ドわすれ</span><span class="mv-desc">自身のとくぼうを2段階上昇。</span></div><div class="mv"><span class="mv-name">ロックカット</span><span class="mv-desc">自身のすばやさ+2。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のすばやさ+2</span>
+        <code class="tg">self_spe_up_2</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">こうそくいどう</span><span class="mv-desc">自身のすばやさ+2。</span></div><div class="mv"><span class="mv-name">ロックカット</span><span class="mv-desc">自身のすばやさ+2。</span></div><div class="mv"><span class="mv-name">からをやぶる</span><span class="mv-desc">自身のぼうぎょ-1, とくぼう-1, こうげき+2, とくこう+2, すばやさ+2。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のこうげき+2（いばる等のデメリット）</span>
+        <code class="tg">opp_atk_up_2</code>
+        <span class="cnt">3技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">いばる</span><span class="mv-prob">100%</span><span class="mv-desc">敵を1〜4ターン、こんらん化が、敵のこうげきランクを2段階上げてしまう。</span></div><div class="mv"><span class="mv-name">デコレーション</span><span class="mv-desc">敵のこうげき/とくこうランクを2段階上昇ダブルバトル用。</span></div><div class="mv"><span class="mv-name">ハバネロエキス</span><span class="mv-desc">敵のこうげきランクを2段階上げ、ぼうぎょを2段階低下。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ランダムな能力+2</span>
+        <code class="tg">buff_random_stat_2</code>
+        <span class="cnt">3技</span>
+        <span class="prob">10%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ねごと</span><span class="mv-desc">自身がねむり状態の時のみ使用可能。自身の持っている技のうち1つをランダムに使用。PP消費は本技のみ。</span></div><div class="mv"><span class="mv-name">げんしのちから</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で自身のすばやさ/とくぼう/とくこう/ぼうぎょ/こうげきランクが1段階上がる。</span></div><div class="mv"><span class="mv-name">つぼをつく</span><span class="mv-desc">ランダムで自身のいずれかの能力ランクが2段階上昇 (こうげき/ぼうぎょ/とくこう/とくぼう/すばやさ/命中率/回避率のうち1つ)。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">状態異常を治す（⚠HP回復でない・cure_status相当）</span>
+        <code class="tg">recovery_status_only</code>
+        <span class="cnt">3技</span>
+        <span class="prob">20〜30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">いやしのすず</span><span class="mv-desc">音技。自身と味方全体のポケモンの状態異常を治す。味方がみがわり状態でも効果が発生する。</span></div><div class="mv"><span class="mv-name">ねっとう</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。また、敵のこおり状態を治す。</span></div><div class="mv"><span class="mv-name">シャカシャカほう</span><span class="mv-prob">20%</span><span class="mv-desc">与えたダメージの1/2だけ自身のHPが回復。また、確率20%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。また、敵のこおり状態を治す。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">天候で回復量変化（あさのひざし等）</span>
+        <code class="tg">recovery_1_4_or_1_2</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">あさのひざし</span><span class="mv-desc">天気で回復量変化: 通常時=最大HP/2、にほんばれ=2/3、あめ/ゆき/すなあらし=1/4。</span></div><div class="mv"><span class="mv-name">こうごうせい</span><span class="mv-desc">天気で回復量変化: 通常時=最大HP/2、にほんばれ=2/3、あめ/ゆき/すなあらし=1/4。</span></div><div class="mv"><span class="mv-name">つきのひかり</span><span class="mv-desc">天気で回復量変化: 通常時=最大HP/2、にほんばれ=2/3、あめ/ゆき/すなあらし=1/4。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">たくわえ回数でHP回復（のみこむ）</span>
+        <code class="tg">recovery_takuwaeru</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">たくわえる</span><span class="mv-desc">自身のぼうぎょ/とくぼう+1。たくわえる回数を1増やす(最大3回)。のみこむ/はきだすの効果に影響。</span></div><div class="mv"><span class="mv-name">はきだす</span><span class="mv-desc">たくわえる回数で威力アップ(1=100/2=200/3=300)。たくわえるで上がったランクは元に戻る。たくわえるなしでは失敗。</span></div><div class="mv"><span class="mv-name">のみこむ</span><span class="mv-desc">たくわえる回数でHP回復(1=最大HP/4, 2=最大HP/2, 3=全回復)。たくわえるで上がったランクは元に戻る。たくわえるなしでは失敗。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">自分のとくこう-2（攻撃後）⚠self_spa_down_2と重複</span>
+        <code class="tg">self_spa_down_2_after</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">オーバーヒート</span><span class="mv-desc">攻撃後、自身のとくこう-2。</span></div><div class="mv"><span class="mv-name">りゅうせいぐん</span><span class="mv-desc">攻撃後、自身のとくこう-2。</span></div><div class="mv"><span class="mv-name">リーフストーム</span><span class="mv-desc">攻撃後、自身のとくこう-2。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のとくこう-2（攻撃後）</span>
+        <code class="tg">self_spa_down_2</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">オーバーヒート</span><span class="mv-desc">攻撃後、自身のとくこう-2。</span></div><div class="mv"><span class="mv-name">りゅうせいぐん</span><span class="mv-desc">攻撃後、自身のとくこう-2。</span></div><div class="mv"><span class="mv-name">リーフストーム</span><span class="mv-desc">攻撃後、自身のとくこう-2。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">自分のぼうぎょ-（攻撃後）⚠self_def_down_1と重複ぎみ</span>
+        <code class="tg">self_def_down_after</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">インファイト</span><span class="mv-desc">攻撃後、自身のぼうぎょ/とくぼう-1。</span></div><div class="mv"><span class="mv-name">ぶちかまし</span><span class="mv-desc">攻撃後、自身のぼうぎょ-1, とくぼう-1。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">アーマーキャノン</span><span class="mv-desc">攻撃後、自身のぼうぎょ/とくぼう-1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ぼうぎょ↔とくぼう 入替</span>
+        <code class="tg">stat_swap_def_spdef</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ガードスワップ</span><span class="mv-desc">自身と敵のぼうぎょ/とくぼうランクを入れ替える。</span></div><div class="mv"><span class="mv-name">ガードシェア</span><span class="mv-desc">自身と敵のぼうぎょ/とくぼうを合計し、半分ずつに分配。</span></div><div class="mv"><span class="mv-name">ワンダールーム</span><span class="mv-desc">5ターン、全ポケモンのぼうぎょ/とくぼう値を入れ替え。再使用で解除。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のこうげき+2</span>
+        <code class="tg">self_atk_up_2</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">つるぎのまい</span><span class="mv-desc">自身のこうげきを2段階上昇。</span></div><div class="mv"><span class="mv-name">からをやぶる</span><span class="mv-desc">自身のぼうぎょ-1, とくぼう-1, こうげき+2, とくこう+2, すばやさ+2。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のぼうぎょ-2</span>
+        <code class="tg">opp_def_down_2</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">いやなおと</span><span class="mv-desc">音技。敵のぼうぎょを2段階低下。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">ハバネロエキス</span><span class="mv-desc">敵のこうげきランクを2段階上げ、ぼうぎょを2段階低下。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">能力ランクを元に戻す（くろいきり等）</span>
+        <code class="tg">stat_reset</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">くろいきり</span><span class="mv-desc">全ポケモンの能力ランクをリセット。</span></div><div class="mv"><span class="mv-name">クリアスモッグ</span><span class="mv-desc">能力ランク変動を元に戻す。命中・回避を無視して必中。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ランダムな状態異常</span>
+        <code class="tg">status_random</code>
+        <span class="cnt">2技</span>
+        <span class="prob">20〜30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">トライアタック</span><span class="mv-prob">20%</span><span class="mv-desc">20%で敵をまひ/やけど/こおりのいずれかに(ランダム)。</span></div><div class="mv"><span class="mv-name">フェイタルクロー</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で、敵をどく/まひ/ねむり状態のいずれかにする。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の道具を奪う</span>
+        <code class="tg">item_steal</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">どろぼう</span><span class="mv-desc">敵が道具未所持時のみ、敵の道具を奪う。</span></div><div class="mv"><span class="mv-name">ほしがる</span><span class="mv-desc">敵が道具未所持時のみ、敵の道具を奪う。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のPPを減らす</span>
+        <code class="tg">pp_reduce</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">うらみ</span><span class="mv-desc">敵の直前の使用技のPP-4。</span></div><div class="mv"><span class="mv-name">ぶきみなじゅもん</span><span class="mv-desc">音技。敵の直前の使用技のPP-3。みがわりを貫通。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">⚠いばる系: 実際は相手こうげき+2</span>
+        <code class="tg">opp_atk_down_2_via_buff_x2</code>
+        <span class="cnt">2技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">いばる</span><span class="mv-prob">100%</span><span class="mv-desc">敵を1〜4ターン、こんらん化が、敵のこうげきランクを2段階上げてしまう。</span></div><div class="mv"><span class="mv-name">ハバネロエキス</span><span class="mv-desc">敵のこうげきランクを2段階上げ、ぼうぎょを2段階低下。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のとくこう-2</span>
+        <code class="tg">opp_spa_down_2</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">おきみやげ</span><span class="mv-desc">自身がひんしになるが、敵のこうげき/とくこうランクを2段階低下。</span></div><div class="mv"><span class="mv-name">かいでんぱ</span><span class="mv-desc">敵のとくこうを2段階低下。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">道具を入れ替える（トリック）</span>
+        <code class="tg">item_swap</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">トリック</span><span class="mv-desc">敵と自身の道具を交換。片側のみ所持時も成功。</span></div><div class="mv"><span class="mv-name">すりかえ</span><span class="mv-desc">敵と自身の道具を交換。片側のみ所持時も成功。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のこうげき-1</span>
+        <code class="tg">self_atk_down_1</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ばかぢから</span><span class="mv-desc">攻撃後、自身のこうげき/ぼうぎょ-1。</span></div><div class="mv"><span class="mv-name">ちからをすいとる</span><span class="mv-desc">敵のこうげき値分のHP回復+敵のこうげき-1。ランクが下がらない場合は回復のみ。すでに最低ランクの時は失敗。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の道具を失わせる（はたきおとす）</span>
+        <code class="tg">item_remove</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">はたきおとす</span><span class="mv-desc">敵が道具所持時、威力1.5倍に、さらに道具を消失させる。戦闘終了後に道具は復元。</span></div><div class="mv"><span class="mv-name">ふしょくガス</span><span class="mv-desc">道具持ちポケモンの道具を消失。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のタイプを変更/喪失</span>
+        <code class="tg">type_change_self</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">はねやすめ</span><span class="mv-desc">最大HP/2回復。そのターンの間、自身はひこうタイプ扱いにならない。</span></div><div class="mv"><span class="mv-name">もえつきる</span><span class="mv-desc">攻撃後、自身のほのおタイプを失う。ほのおタイプ以外は失敗。こおり状態でも使用可、使用するとこおりが治る。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のとくぼう-（攻撃後）</span>
+        <code class="tg">self_spd_down_after</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">アームハンマー</span><span class="mv-desc">攻撃後、自身のすばやさ-1。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">アイスハンマー</span><span class="mv-desc">攻撃後、自身のすばやさ-1。特性てつのこぶし威力1.2倍。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のすばやさ-1</span>
+        <code class="tg">self_spe_down_1</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">アームハンマー</span><span class="mv-desc">攻撃後、自身のすばやさ-1。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">アイスハンマー</span><span class="mv-desc">攻撃後、自身のすばやさ-1。特性てつのこぶし威力1.2倍。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">次に出すポケモンを全回復（⚠そうでん誤付与あり）</span>
+        <code class="tg">recovery_swap_with_self</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">いやしのねがい</span><span class="mv-desc">自身ひんし化と引き換えに、次に出すポケモンのHPと状態異常を全回復(PPは戻らない)。</span></div><div class="mv"><span class="mv-name">そうでん</span><span class="mv-desc">対象の次に出す技をでんきタイプ化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のきのみを食べる/奪う</span>
+        <code class="tg">item_berry_eat_steal</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ついばむ</span><span class="mv-desc">敵のきのみを奪い、自身が即時食べる。</span></div><div class="mv"><span class="mv-name">むしくい</span><span class="mv-desc">敵のきのみを奪い、自身が即時食べる。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の最後の技をコピー（ものまね）</span>
+        <code class="tg">mimic_last</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">まねっこ</span><span class="mv-desc">最後に使われた技で敵に攻撃。自身の技も対象となる。</span></div><div class="mv"><span class="mv-name">さいはい</span><span class="mv-desc">敵が最後に使用した技をその場でもう一度使わせる。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">こうげき↔とくこう 入替</span>
+        <code class="tg">stat_swap_atk_spa</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">パワースワップ</span><span class="mv-desc">自身と敵のこうげき/とくこうランクを入れ替える。</span></div><div class="mv"><span class="mv-name">パワーシェア</span><span class="mv-desc">自身と敵のこうげき/とくこうを合計し、半分ずつに分配。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のとくこう+2</span>
+        <code class="tg">self_spa_up_2</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">わるだくみ</span><span class="mv-desc">自身のとくこうを2段階上昇。</span></div><div class="mv"><span class="mv-name">からをやぶる</span><span class="mv-desc">自身のぼうぎょ-1, とくぼう-1, こうげき+2, とくこう+2, すばやさ+2。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手のこおりを治す（副作用）</span>
+        <code class="tg">opp_status_cure_freeze</code>
+        <span class="cnt">2技</span>
+        <span class="prob">20〜30%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ねっとう</span><span class="mv-prob">30%</span><span class="mv-desc">確率30%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。また、敵のこおり状態を治す。</span></div><div class="mv"><span class="mv-name">シャカシャカほう</span><span class="mv-prob">20%</span><span class="mv-desc">与えたダメージの1/2だけ自身のHPが回復。また、確率20%で敵をやけど化。自身がこおり状態の時でも使う事ができ、使うとこおり状態が治る。また、敵のこおり状態を治す。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">能力上昇した相手をやけど ⚠付与誤りあり</span>
+        <code class="tg">status_burn_via_buff_check</code>
+        <span class="cnt">2技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">しっとのほのお</span><span class="mv-prob">100%</span><span class="mv-desc">今ターン能力アップされた敵をやけど化(出場時のアップも対象)。</span></div><div class="mv"><span class="mv-name">みわくのボイス</span><span class="mv-prob">100%</span><span class="mv-desc">音技。今ターン能力アップされた敵を1〜4ターンこんらん化(出場時のアップも対象)。みがわりを貫通。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">能力上昇した相手をこんらん ⚠付与誤りあり</span>
+        <code class="tg">status_confuse_via_buff_check</code>
+        <span class="cnt">2技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">しっとのほのお</span><span class="mv-prob">100%</span><span class="mv-desc">今ターン能力アップされた敵をやけど化(出場時のアップも対象)。</span></div><div class="mv"><span class="mv-name">みわくのボイス</span><span class="mv-prob">100%</span><span class="mv-desc">音技。今ターン能力アップされた敵を1〜4ターンこんらん化(出場時のアップも対象)。みがわりを貫通。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分のHPを使う（要確認）</span>
+        <code class="tg">hp_drain_self</code>
+        <span class="cnt">1技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">がむしゃら</span><span class="mv-desc">敵の残HPから自身の残HPを引いた値のダメージ。敵HPが自身以下なら失敗。ゴーストタイプ無効、それ以外はタイプ相性無視。</span></div></div></details></section><section class="panel" id="panel-P6">
+      <p class="phase-desc">フィールド/天気/設置物/壁の展開・解除 — タグ 17種 / 延べ 81技</p><details class="tagcard"><summary>
+        <span class="lbl">グラスフィールド展開</span>
+        <code class="tg">field_grass</code>
+        <span class="cnt">9技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じしん</span><span class="mv-desc">あなをほる中の敵にも命中、ダメージ2倍。グラスフィールド時は威力1/2。</span></div><div class="mv"><span class="mv-name">でんじふゆう</span><span class="mv-desc">5ターン、自身がふゆう状態に。フィールド/ねばねばネット/どくびし/まきびし/じめん技の効果を無効化。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">じならし</span><span class="mv-prob">100%</span><span class="mv-desc">確率100%で敵のすばやさを1段階低下。グラスフィールドの時、威力が半減する。</span></div><div class="mv"><span class="mv-name">グラスフィールド</span><span class="mv-desc">5ターン、場をグラスフィールドに。地上ポケモンは毎ターン最大HP/16回復、くさ技1.3倍。じしん/じならし系の威力1/2。</span></div><div class="mv"><span class="mv-name">アイアンローラー</span><span class="mv-desc">場のフィールド状態を破壊。フィールドなしの時は失敗。</span></div><div class="mv"><span class="mv-name">グラススライダー</span><span class="mv-desc">優先度+1の先制技。場の状態がグラスフィールドで、自身がひこうタイプや特性ふゆうなどではなく地面にいる時。</span></div><div class="mv"><span class="mv-name">だいちのはどう</span><span class="mv-desc">場のフィールド条件下で技タイプが変化、威力2倍に(地上時のみ、フィールド1.3倍も加算)。グラス=くさ、ミスト=フェアリー、エレキ=でんき、サイコ=エスパー。</span></div><div class="mv"><span class="mv-name">アイススピナー</span><span class="mv-desc">場のフィールド状態を破壊。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">エレキフィールド展開</span>
+        <code class="tg">field_electric</code>
+        <span class="cnt">7技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">でんじふゆう</span><span class="mv-desc">5ターン、自身がふゆう状態に。フィールド/ねばねばネット/どくびし/まきびし/じめん技の効果を無効化。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">エレキフィールド</span><span class="mv-desc">5ターン、場をエレキフィールドに。地上ポケモンはねむり/あくび無効、でんき技1.3倍。</span></div><div class="mv"><span class="mv-name">アイアンローラー</span><span class="mv-desc">場のフィールド状態を破壊。フィールドなしの時は失敗。</span></div><div class="mv"><span class="mv-name">ライジングボルト</span><span class="mv-desc">エレキフィールド + 敵が地上時、威力2倍(自身も地上ならフィールド1.3倍も加算)。</span></div><div class="mv"><span class="mv-name">だいちのはどう</span><span class="mv-desc">場のフィールド条件下で技タイプが変化、威力2倍に(地上時のみ、フィールド1.3倍も加算)。グラス=くさ、ミスト=フェアリー、エレキ=でんき、サイコ=エスパー。</span></div><div class="mv"><span class="mv-name">アイススピナー</span><span class="mv-desc">場のフィールド状態を破壊。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">サイコフィールド展開</span>
+        <code class="tg">field_psychic</code>
+        <span class="cnt">7技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">でんじふゆう</span><span class="mv-desc">5ターン、自身がふゆう状態に。フィールド/ねばねばネット/どくびし/まきびし/じめん技の効果を無効化。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">サイコフィールド</span><span class="mv-desc">5ターン、場をサイコフィールドに。地上ポケモンはエスパー技1.3倍、先制技を受けない、サイコシード持ちのとくぼう+1。</span></div><div class="mv"><span class="mv-name">ワイドフォース</span><span class="mv-desc">サイコフィールド時、威力1.5倍に。敵全体攻撃化(ダブル時はダメージ0.75倍)。</span></div><div class="mv"><span class="mv-name">アイアンローラー</span><span class="mv-desc">場のフィールド状態を破壊。フィールドなしの時は失敗。</span></div><div class="mv"><span class="mv-name">だいちのはどう</span><span class="mv-desc">場のフィールド条件下で技タイプが変化、威力2倍に(地上時のみ、フィールド1.3倍も加算)。グラス=くさ、ミスト=フェアリー、エレキ=でんき、サイコ=エスパー。</span></div><div class="mv"><span class="mv-name">アイススピナー</span><span class="mv-desc">場のフィールド状態を破壊。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ミストフィールド展開</span>
+        <code class="tg">field_misty</code>
+        <span class="cnt">7技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">でんじふゆう</span><span class="mv-desc">5ターン、自身がふゆう状態に。フィールド/ねばねばネット/どくびし/まきびし/じめん技の効果を無効化。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">ミストフィールド</span><span class="mv-desc">5ターン、場をミストフィールドに。地上ポケモンは状態異常無効、ドラゴン技は威力1/2。</span></div><div class="mv"><span class="mv-name">アイアンローラー</span><span class="mv-desc">場のフィールド状態を破壊。フィールドなしの時は失敗。</span></div><div class="mv"><span class="mv-name">ミストバースト</span><span class="mv-desc">攻撃後、自身がひんし化。場の状態がミストフィールドで、自身がひこうタイプや特性ふゆうなどではなく地面にいる時、威力1.5倍。</span></div><div class="mv"><span class="mv-name">だいちのはどう</span><span class="mv-desc">場のフィールド条件下で技タイプが変化、威力2倍に(地上時のみ、フィールド1.3倍も加算)。グラス=くさ、ミスト=フェアリー、エレキ=でんき、サイコ=エスパー。</span></div><div class="mv"><span class="mv-name">アイススピナー</span><span class="mv-desc">場のフィールド状態を破壊。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">天気を変える</span>
+        <code class="tg">weather_change</code>
+        <span class="cnt">6技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">すなあらし</span><span class="mv-desc">5ターン、天気をすなあらしに。いわ/じめん/はがね以外は毎ターン最大HP/16ダメージ。いわタイプはとくぼう1.5倍。</span></div><div class="mv"><span class="mv-name">あまごい</span><span class="mv-desc">5ターン、天気をあめに。みず技1.5倍、ほのお技1/2。</span></div><div class="mv"><span class="mv-name">にほんばれ</span><span class="mv-desc">5ターン、天気をにほんばれに。ほのお技1.5倍、みず技1/2、こおり化無効。</span></div><div class="mv"><span class="mv-name">エレキフィールド</span><span class="mv-desc">5ターン、場をエレキフィールドに。地上ポケモンはねむり/あくび無効、でんき技1.3倍。</span></div><div class="mv"><span class="mv-name">さむいギャグ</span><span class="mv-desc">5ターン、天気をゆきにし、手持ちと交代。</span></div><div class="mv"><span class="mv-name">ゆきげしき</span><span class="mv-desc">5ターン、天気をゆきに(こおりタイプのぼうぎょが1.5倍)。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">どくびし設置</span>
+        <code class="tg">setup_toxic_spikes</code>
+        <span class="cnt">6技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">こうそくスピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の効果(うずしお/しめつける/まきつく/やどりぎのタネ等)、および自身の場の設置技(ステルスロック/まきびし/どくびし/ねばねばネット等)を解除。攻撃後、100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">どくびし</span><span class="mv-desc">敵の場をどくびしに。敵交代時、出現ポケモンをどく化。2回重ねると もうどく化。どく/はがね/ひこう/特性ふゆうは無効。どくタイプ出場で解除。</span></div><div class="mv"><span class="mv-name">でんじふゆう</span><span class="mv-desc">5ターン、自身がふゆう状態に。フィールド/ねばねばネット/どくびし/まきびし/じめん技の効果を無効化。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">キラースピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の技および自身の場の設置技(ねばねばネット/まきびし/どくびし/ステルスロック等)を解除。確率100%で敵をどく化。</span></div><div class="mv"><span class="mv-name">おかたづけ</span><span class="mv-desc">自身と敵のみがわり、ねばねばネット/まきびし/どくびし/ステルスロックを解除。自身のこうげき/すばやさ+1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ステルスロック設置</span>
+        <code class="tg">setup_stealth_rock</code>
+        <span class="cnt">6技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">こうそくスピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の効果(うずしお/しめつける/まきつく/やどりぎのタネ等)、および自身の場の設置技(ステルスロック/まきびし/どくびし/ねばねばネット等)を解除。攻撃後、100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">ステルスロック</span><span class="mv-desc">場にステルスロックを設置。敵交代時、出現ポケモンに最大HP/8のダメージ(タイプ相性適用、4倍弱点なら最大HP/2)。</span></div><div class="mv"><span class="mv-name">がんせきアックス</span><span class="mv-desc">攻撃後、敵の場をステルスロック化。</span></div><div class="mv"><span class="mv-name">キラースピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の技および自身の場の設置技(ねばねばネット/まきびし/どくびし/ステルスロック等)を解除。確率100%で敵をどく化。</span></div><div class="mv"><span class="mv-name">おかたづけ</span><span class="mv-desc">自身と敵のみがわり、ねばねばネット/まきびし/どくびし/ステルスロックを解除。自身のこうげき/すばやさ+1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ねばねばネット設置</span>
+        <code class="tg">setup_sticky_web</code>
+        <span class="cnt">6技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">こうそくスピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の効果(うずしお/しめつける/まきつく/やどりぎのタネ等)、および自身の場の設置技(ステルスロック/まきびし/どくびし/ねばねばネット等)を解除。攻撃後、100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">でんじふゆう</span><span class="mv-desc">5ターン、自身がふゆう状態に。フィールド/ねばねばネット/どくびし/まきびし/じめん技の効果を無効化。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">ねばねばネット</span><span class="mv-desc">場にねばねばネットを設置。敵交代時、出現ポケモンのすばやさ-1。ひこう/特性ふゆうには無効。</span></div><div class="mv"><span class="mv-name">キラースピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の技および自身の場の設置技(ねばねばネット/まきびし/どくびし/ステルスロック等)を解除。確率100%で敵をどく化。</span></div><div class="mv"><span class="mv-name">おかたづけ</span><span class="mv-desc">自身と敵のみがわり、ねばねばネット/まきびし/どくびし/ステルスロックを解除。自身のこうげき/すばやさ+1。</span></div></div></details><details class="tagcard warn"><summary>
+        <span class="lbl">⚠設置物/バインド/まもる解除（地形でない・clear_hazards相当）</span>
+        <code class="tg">remove_field</code>
+        <span class="cnt">5技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">こうそくスピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の効果(うずしお/しめつける/まきつく/やどりぎのタネ等)、および自身の場の設置技(ステルスロック/まきびし/どくびし/ねばねばネット等)を解除。攻撃後、100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">フェイント</span><span class="mv-desc">優先度+2の先制技。キングシールド/トーチカ/みきり/まもるなどの防御技の効果を解除して攻撃。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">キラースピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の技および自身の場の設置技(ねばねばネット/まきびし/どくびし/ステルスロック等)を解除。確率100%で敵をどく化。</span></div><div class="mv"><span class="mv-name">おかたづけ</span><span class="mv-desc">自身と敵のみがわり、ねばねばネット/まきびし/どくびし/ステルスロックを解除。自身のこうげき/すばやさ+1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">オーロラベール（両壁）</span>
+        <code class="tg">wall_aurora</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">かわらわり</span><span class="mv-desc">敵の技オーロラベール/リフレクター/ひかりのかべを解除して攻撃。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div><div class="mv"><span class="mv-name">サイコファング</span><span class="mv-desc">敵の技オーロラベール/リフレクター/ひかりのかべを解除して攻撃。</span></div><div class="mv"><span class="mv-name">レイジングブル</span><span class="mv-desc">ケンタロス(パルデア)使用時、フォルムによりタイプが変化(かくとう/ほのお/みず)。敵のリフレクター/ひかりのかべ/オーロラベールを解除して攻撃。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">フィールド展開（terrain_set 相当）</span>
+        <code class="tg">field_change</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">グラスフィールド</span><span class="mv-desc">5ターン、場をグラスフィールドに。地上ポケモンは毎ターン最大HP/16回復、くさ技1.3倍。じしん/じならし系の威力1/2。</span></div><div class="mv"><span class="mv-name">ミストフィールド</span><span class="mv-desc">5ターン、場をミストフィールドに。地上ポケモンは状態異常無効、ドラゴン技は威力1/2。</span></div><div class="mv"><span class="mv-name">エレキフィールド</span><span class="mv-desc">5ターン、場をエレキフィールドに。地上ポケモンはねむり/あくび無効、でんき技1.3倍。</span></div><div class="mv"><span class="mv-name">サイコフィールド</span><span class="mv-desc">5ターン、場をサイコフィールドに。地上ポケモンはエスパー技1.3倍、先制技を受けない、サイコシード持ちのとくぼう+1。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手の壁を破壊（かわらわり等）</span>
+        <code class="tg">defense_remove_walls</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">かわらわり</span><span class="mv-desc">敵の技オーロラベール/リフレクター/ひかりのかべを解除して攻撃。</span></div><div class="mv"><span class="mv-name">サイコファング</span><span class="mv-desc">敵の技オーロラベール/リフレクター/ひかりのかべを解除して攻撃。</span></div><div class="mv"><span class="mv-name">レイジングブル</span><span class="mv-desc">ケンタロス(パルデア)使用時、フォルムによりタイプが変化(かくとう/ほのお/みず)。敵のリフレクター/ひかりのかべ/オーロラベールを解除して攻撃。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">でんじふゆう（浮遊化）</span>
+        <code class="tg">electric_float</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じゅうりょく</span><span class="mv-desc">5ターン、全ポケモンの命中率1.67倍に。ふゆう/ひこうタイプにじめん技が命中。空中/とびはね系の浮遊技が無効化。</span></div><div class="mv"><span class="mv-name">でんじふゆう</span><span class="mv-desc">5ターン、自身がふゆう状態に。フィールド/ねばねばネット/どくびし/まきびし/じめん技の効果を無効化。</span></div><div class="mv"><span class="mv-name">うちおとす</span><span class="mv-desc">ふゆう/ひこうタイプにじめん技が命中するように。空中状態の敵にも命中、そらをとぶ/とびはねる/でんじふゆうを解除。でんじふゆうは無効化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ひかりのかべ/リフレクター（壁）</span>
+        <code class="tg">wall_light</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ひかりのかべ</span><span class="mv-desc">5ターン、敵の特殊攻撃ダメージを半減。味方複数時は2/3。急所は軽減対象外。交代後も維持。</span></div><div class="mv"><span class="mv-name">オーロラベール</span><span class="mv-desc">天気がゆき状態の時のみ使用でき、5ターン、自身と味方が受ける敵の物理攻撃と特殊攻撃ダメージを半減。味方複数時は2/3。急所は軽減対象外。交代後も維持。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">まきびし設置</span>
+        <code class="tg">setup_spikes</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">まきびし</span><span class="mv-desc">敵交代時にダメージを与える設置技。3回まで重ねがけ可: 1回=最大HP/8, 2回=最大HP/6, 3回=最大HP/4。ひこう/特性ふゆうは無効。</span></div><div class="mv"><span class="mv-name">ひけん・ちえなみ</span><span class="mv-desc">攻撃後、相手の場を『まきびし』状態にする。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">しろいきり（能力低下を防ぐ）</span>
+        <code class="tg">wall_mist</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">しんぴのまもり</span><span class="mv-desc">5ターン、味方の場をしんぴのまもりに。状態異常・こんらん無効。交代後も維持。</span></div><div class="mv"><span class="mv-name">きりばらい</span><span class="mv-desc">敵の回避率を1段階低下。敵がみがわり状態時、回避率を下げる効果のみ失敗する。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">フィールド破壊（terrain_remove 相当）</span>
+        <code class="tg">field_remove</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">アイアンローラー</span><span class="mv-desc">場のフィールド状態を破壊。フィールドなしの時は失敗。</span></div><div class="mv"><span class="mv-name">アイススピナー</span><span class="mv-desc">場のフィールド状態を破壊。</span></div></div></details></section><section class="panel" id="panel-P7">
+      <p class="phase-desc">自主交代・強制交代 — タグ 2種 / 延べ 11技</p><details class="tagcard"><summary>
+        <span class="lbl">自分が交代する（とんぼがえり等）</span>
+        <code class="tg">self_switch</code>
+        <span class="cnt">7技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">とんぼがえり</span><span class="mv-desc">攻撃後、手持ちと交代。</span></div><div class="mv"><span class="mv-name">ワンダールーム</span><span class="mv-desc">5ターン、全ポケモンのぼうぎょ/とくぼう値を入れ替え。再使用で解除。</span></div><div class="mv"><span class="mv-name">ボルトチェンジ</span><span class="mv-desc">攻撃後、手持ちと交代。</span></div><div class="mv"><span class="mv-name">すてゼリフ</span><span class="mv-desc">音技。敵のこうげき/とくこう-1。その後、手持ちと交代。みがわりを貫通。</span></div><div class="mv"><span class="mv-name">クイックターン</span><span class="mv-desc">攻撃後、手持ちと交代。</span></div><div class="mv"><span class="mv-name">しっぽきり</span><span class="mv-desc">自身のHPを最大HP/2消費しみがわり化、その後手持ちと交代。みがわりHPは最大HP/4。</span></div><div class="mv"><span class="mv-name">さむいギャグ</span><span class="mv-desc">5ターン、天気をゆきにし、手持ちと交代。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">相手を強制交代（ふきとばし等）</span>
+        <code class="tg">force_switch_opp</code>
+        <span class="cnt">4技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ふきとばし</span><span class="mv-desc">優先度-6の後攻技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">ほえる</span><span class="mv-desc">優先度-6の後攻技。音技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">ともえなげ</span><span class="mv-desc">優先度-6の後攻技。攻撃後、敵を強制交代させる。</span></div><div class="mv"><span class="mv-name">ドラゴンテール</span><span class="mv-desc">優先度-6の後攻技。攻撃後、敵を強制交代させる。</span></div></div></details></section><section class="panel" id="panel-P8">
+      <p class="phase-desc">毎ターン回復/ダメージ、やどりぎ、瀕死、未来攻撃 — タグ 4種 / 延べ 10技</p><details class="tagcard"><summary>
+        <span class="lbl">やどりぎのタネ（毎ターン吸収）</span>
+        <code class="tg">recovery_drain_seed</code>
+        <span class="cnt">3技</span>
+        <span class="prob">100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">やどりぎのタネ</span><span class="mv-desc">毎ターン、敵のHPを最大HP/8与え、与えた分だけ自身のHPを回復。自身は交代しても効果が引き継がれる。くさタイプのポケモンには効果がない。</span></div><div class="mv"><span class="mv-name">こうそくスピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の効果(うずしお/しめつける/まきつく/やどりぎのタネ等)、および自身の場の設置技(ステルスロック/まきびし/どくびし/ねばねばネット等)を解除。攻撃後、100%で自身のすばやさ+1。</span></div><div class="mv"><span class="mv-name">キラースピン</span><span class="mv-prob">100%</span><span class="mv-desc">自身が受けているバインド系の技および自身の場の設置技(ねばねばネット/まきびし/どくびし/ステルスロック等)を解除。確率100%で敵をどく化。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">自分が瀕死になる（だいばくはつ等）</span>
+        <code class="tg">self_faint</code>
+        <span class="cnt">3技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">じばく</span><span class="mv-desc">攻撃後、自身がひんし化。</span></div><div class="mv"><span class="mv-name">だいばくはつ</span><span class="mv-desc">攻撃後、自身がひんし化。</span></div><div class="mv"><span class="mv-name">ミストバースト</span><span class="mv-desc">攻撃後、自身がひんし化。場の状態がミストフィールドで、自身がひこうタイプや特性ふゆうなどではなく地面にいる時、威力1.5倍。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">未来に攻撃（みらいよち）</span>
+        <code class="tg">future_attack</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">みらいよち</span><span class="mv-desc">2ターン後にダメージ。交代した場合は同位置のポケモンに命中。タイプ相性適用。</span></div><div class="mv"><span class="mv-name">メテオビーム</span><span class="mv-desc">1ターン目で溜め(自身とくこう+1)、2ターン目に攻撃。</span></div></div></details><details class="tagcard"><summary>
+        <span class="lbl">毎ターンHP回復（ねをはる/アクアリング）</span>
+        <code class="tg">recovery_per_turn</code>
+        <span class="cnt">2技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ねをはる</span><span class="mv-desc">毎ターン最大HP/16回復するが、交代不可に。ひこうタイプ・特性ふゆう持ちでもじめん技が当たるようになる。</span></div><div class="mv"><span class="mv-name">アクアリング</span><span class="mv-desc">毎ターン最大HP/16ずつ回復し続ける。</span></div></div></details></section><section class="panel" id="panel-META">
+      <p class="phase-desc">広域フラグ・ダブル専用・寄せ集め・正規化候補 — タグ 3種 / 延べ 567技</p><details class="tagcard"><summary>
+        <span class="lbl">追加効果を持つ（広域フラグ・474/490技）</span>
+        <code class="tg">has_secondary_effect</code>
+        <span class="cnt">474技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">ほのおのパンチ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をやけど化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">れいとうパンチ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をこおり化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">かみなりパンチ</span><span class="mv-prob">10%</span><span class="mv-desc">確率10%で敵をまひ化。特性てつのこぶし威力1.2倍。</span></div><div class="mv"><span class="mv-name">ハサミギロチン</span><span class="mv-prob">30%</span><span class="mv-desc">命中率30%で敵をひんし化。ゴーストタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">つるぎのまい</span><span class="mv-desc">自身のこうげきを2段階上昇。</span></div><div class="mv"><span class="mv-name">ふきとばし</span><span class="mv-desc">優先度-6の後攻技。敵を強制交代させる。命中・回避を無視して必中。まもる系の防御技およびみがわりを貫通。</span></div><div class="mv"><span class="mv-name">そらをとぶ</span><span class="mv-desc">1ターン目に空中へ飛び、2ターン目に攻撃。空中時はうちおとす/かみなり/ぼうふうなど一部の技以外を受けない。</span></div><div class="mv"><span class="mv-name">しめつける</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">つのドリル</span><span class="mv-prob">30%</span><span class="mv-desc">命中率30%で敵をひんし化。ゴーストタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">のしかかり</span><span class="mv-prob">30%</span><span class="mv-desc">ちいさくなる中の敵には必中・威力2倍。30%でまひ。</span></div><div class="mv"><span class="mv-name">まきつく</span><span class="mv-desc">敵をバインド化(4〜5ターン)。バインド中は毎ターン終了時に最大HP/8のダメージ、ゴーストタイプ以外は交代できない。</span></div><div class="mv"><span class="mv-name">あばれる</span><span class="mv-prob">100%</span><span class="mv-desc">自身はあばれ状態となり、2〜3ターン連続で攻撃。その後1〜4ターン、こんらん化。</span></div><div class="more">＋他 462 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">その他（専用タグ未整備の寄せ集め）</span>
+        <code class="tg">other_misc</code>
+        <span class="cnt">84技</span>
+        <span class="prob">10〜100%</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">カウンター</span><span class="mv-desc">優先度-5の後攻技。敵の物理攻撃ダメージの2倍を反射。ダブルバトルでは最後に受けた技のみ対象。タイプ相性は無視するがゴーストには無効。</span></div><div class="mv"><span class="mv-name">じわれ</span><span class="mv-desc">敵をひんし化。ひこうタイプには無効だが、それ以外のタイプ相性は無視。</span></div><div class="mv"><span class="mv-name">かげぶんしん</span><span class="mv-desc">自身の回避率を1段階上昇。</span></div><div class="mv"><span class="mv-name">ちいさくなる</span><span class="mv-desc">自身の回避率を2段階上昇。ただし、のしかかり/ヒートスタンプ/フライングプレスなど一部の技は必中・威力2倍で受ける。</span></div><div class="mv"><span class="mv-name">リフレクター</span><span class="mv-desc">5ターン、敵の物理攻撃ダメージを半減。味方複数時は2/3。急所は軽減対象外。交代後も維持。</span></div><div class="mv"><span class="mv-name">へんしん</span><span class="mv-desc">敵に変身。HP・持ち物・状態異常を除く全要素をコピー。技PPは全5。交代で解除。</span></div><div class="mv"><span class="mv-name">ねむる</span><span class="mv-desc">全HPと状態異常を回復し、2ターン、ねむり状態になり、3ターン目に起床。</span></div><div class="mv"><span class="mv-name">いかりのまえば</span><span class="mv-desc">敵のHPを残HPの半分削る(残HP1時は1ダメージ)。ゴーストタイプには無効、それ以外はタイプ相性無視。</span></div><div class="mv"><span class="mv-name">のろい</span><span class="mv-desc">ゴーストタイプの場合: 自身HPを最大HP/2消費し、敵をのろい化(毎ターンHP-最大HP/4)。それ以外: すばやさ-1, こうげき/ぼうぎょ+1。</span></div><div class="mv"><span class="mv-name">はらだいこ</span><span class="mv-desc">自身のHPを最大HP/2消費し、こうげきランクを最大に。</span></div><div class="mv"><span class="mv-name">みちづれ</span><span class="mv-desc">自身はみちづれ状態となり、次の自身のターンまでに敵の攻撃でひんし化と、敵もひんし化。</span></div><div class="mv"><span class="mv-name">ほろびのうた</span><span class="mv-desc">音技。3ターン後、使用時に出ていた全ポケモン(自身含む)がひんし化。交代したポケモンは効果消失。みがわりを貫通。</span></div><div class="more">＋他 72 技</div></div></details><details class="tagcard"><summary>
+        <span class="lbl">ダブル専用（味方対象）</span>
+        <code class="tg">ally_target_doubles_only</code>
+        <span class="cnt">9技</span>
+        <span class="pmuted">—</span>
+      </summary><div class="mvs"><div class="mv"><span class="mv-name">このゆびとまれ</span><span class="mv-desc">優先度+2の先制技。そのターン敵の技を全て自身が受ける(全体技除く)。ダブル用。</span></div><div class="mv"><span class="mv-name">いかりのこな</span><span class="mv-desc">優先度+2の先制技。そのターン敵の技を全て自身が受ける(全体技除く)。くさタイプ/特性ぼうじん/ぼうじんゴーグル無効。ダブル用。</span></div><div class="mv"><span class="mv-name">おさきにどうぞ</span><span class="mv-desc">敵はすばやさに関係なく、直後行動可能。ダブルバトル用。</span></div><div class="mv"><span class="mv-name">りんしょう</span><span class="mv-desc">音技。同ターン他ポケモンもりんしょう使用時、すばやさ無視で連続使用、2匹目以降は威力2倍。みがわり貫通。ダブル用。</span></div><div class="mv"><span class="mv-name">サイドチェンジ</span><span class="mv-desc">優先度+2の先制技。自身と味方の位置を交代。連続使用で成功率1/3に低下。ダブル用。</span></div><div class="mv"><span class="mv-name">さきおくり</span><span class="mv-desc">対象の行動順をすばやさ無視で最後に。行動済の敵には失敗。ダブルバトル用。</span></div><div class="mv"><span class="mv-name">アロマミスト</span><span class="mv-desc">味方1体のとくぼうを1段階上昇(ダブルバトル用)。</span></div><div class="mv"><span class="mv-name">デコレーション</span><span class="mv-desc">敵のこうげき/とくこうランクを2段階上昇ダブルバトル用。</span></div><div class="mv"><span class="mv-name">コーチング</span><span class="mv-desc">自身を除く味方全体のこうげき/ぼうぎょランクが1段階上がる(ダブルバトル用)。</span></div></div></details></section><section class="panel" id="panel-UNCLASSIFIED">
+      <p class="phase-desc">フェーズ未割当 (要分類) — タグ 0種 / 延べ 0技</p><p class="pmuted">該当タグなし</p></section>
+</div>
+<script>
+  const tabs=[...document.querySelectorAll('.tab')],panels=[...document.querySelectorAll('.panel')];
+  tabs.forEach(t=>t.addEventListener('click',()=>{
+    tabs.forEach(x=>x.classList.toggle('active',x===t));
+    panels.forEach(p=>p.classList.toggle('active',p.id==='panel-'+t.dataset.tab));
+    window.scrollTo({top:0});
+  }));
+</script>
+</body></html>

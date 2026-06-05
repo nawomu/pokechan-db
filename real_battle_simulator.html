@@ -1351,14 +1351,9 @@ const PHASES = [
   '10a','10b','10c','10d','10e','10f','10g','10h',  // ターン終了処理
 ];
 
-// 技の優先度を取得 (tags から)
+// 技の優先度を取得 (battle_data.priority から)
 function movePriority(move){
-  if (!move || !move.tags) return 0;
-  for (const tag of move.tags){
-    const m = tag.match(/^priority_(plus|minus)_(\d)/);
-    if (m) return (m[1]==='plus'?1:-1) * parseInt(m[2],10);
-  }
-  return 0;
+  return (move && move.battle_data && move.battle_data.priority) || 0;
 }
 
 // 素早さ実数値（ランク+ステ補正+トリックルーム反映、状態異常まひ ×0.5、こだわりスカーフ ×1.5）
@@ -1449,7 +1444,8 @@ function phaseInitA(){
 function phaseHitCheck(move, atk, def){
   if (!move) return {hit:false, reason:'技が選択されていない'};
   // 必中タグ
-  if (move.tags && move.tags.includes('must_hit')) return {hit:true};
+  const _effs = (move.battle_data && move.battle_data.effects) || [];
+  if (_effs.some(e => e.kind === '必中' || e.ignores_accuracy)) return {hit:true};
   if (move.accuracy == null || move.accuracy === '—' || move.accuracy === 0) return {hit:true};
   // 命中率 ×ランク（acc - eva）— 簡易: ランク 0 前提
   const acc = Number(move.accuracy);
@@ -1498,7 +1494,7 @@ function phaseApplyEffects(atkSide, defSide, move){
     if (target.fainted) continue;
     const prob = ef.prob != null ? ef.prob : 100;
     if (Math.random() * 100 >= prob) continue;
-    if (ef.kind === 'status'){
+    if (ef.kind === '状態付与'){
       // 既に状態異常持ち or テラ中の特定条件で無効。シンプルに「none 以外なら付与しない」
       if (target.status && target.status !== 'none') continue;
       const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
