@@ -38,10 +38,15 @@ const STAT = { attack: '攻', defense: '防', special_attack: '特攻', special_
 const PK = { multiplier: '倍率', value: '値', stat: '能力', stats: '能力', stages: '段', prob: '確率', fraction: '割合', turn_end_damage: '終了ダメ', prevents_switch: '交代不可', ignores_accuracy: '命中無視', bypasses_substitute: 'みがわり貫通', replacement: '交代先', pass: '引継', pass_to_replacement: '引継先', semi_invulnerable: '避ける状態', vulnerable_to: 'それでも当たる技', vulnerable_if: 'それでも当たる条件', skip_charge_if_weather: '天候で溜め省略', hits_state: '命中状態', damage_multiplier: 'ダメージ倍率', cases: '天候別命中', bypasses: 'まもり貫通', not_bypassed: '貫通例外', on_charge_turn: '溜めターンに', power_per_hit: '各ヒット威力', doubles_note: 'ダブル時', note: '注', effect: '効果', champions_amount: 'チャンピオンズでは', minimum: '最低' };
 function jvP(k, v) { if (k === 'pass') return (Array.isArray(v) ? v : [v]).map(x => ({ stat_changes: '能力ランク変化', volatiles: '状態変化' }[x] || x)).join('・'); return jv(k, v); }
 function immStr(arr) { return (arr || []).map(x => x.value || (x.values && x.values.join('・')) || x.type).join('・'); }
-const CONDT = { weather_in: '天候', weather: '天候', ability: '特性', ability_in: '特性', holds_item: '道具', target_used_move: '相手の直前技', user_type: '自分が', user_not_type: '自分が非', target_type: '相手が', target_type_in: '相手が', grounded: '接地時', user_took_damage_this_turn: '被弾後', ability_plus_or_minus: '特性プラス/マイナス' };
-function condStr(c) { if (typeof c !== 'object' || !c) return c; const val = c.value || (c.values && c.values.join('・')) || ''; const label = CONDT[c.type] || c.type; return val ? label + ':' + val : label; }
+const { condStrNew } = require('./_cond_render.js');
+function condStr(c) { return condStrNew(c); }
 function casesStr(arr) { return (arr || []).map(c => `${c.weather}→${c.accuracy === '必中' ? '必中' : c.accuracy + '%'}`).join(' / '); }
 function pctStr(f) { return (+(f * 100).toFixed(2)) + '%'; }
+// 0.125→「1/8」等(部品→言葉)。きれいな単位分数なら分数で、でなければ%。
+function fracText(f) { const inv = 1 / f; const r = Math.round(inv); return Math.abs(inv - r) < 0.02 ? `1/${r}` : pctStr(f); }
+// duration: 数値→「Nターン」/ [a,b]→「a〜bターン」/ enum語→日本語
+const DUR = { until_user_leaves: '自分が場を離れるまで', until_removed: '消えるまで', until_destroyed: 'こわれるまで', until_effect_removed: '消えるまで', until_target_leaves: '相手が場を離れるまで', until_user_or_target_leaves: 'どちらかが場を離れるまで', until_this_move_activates: 'この技が出るまで', until_end_of_next_turn: '次のターンの終わりまで', while_target_remains: '相手が場にいる間', while_user_remains: '自分が場にいる間' };
+function durStr(d) { if (Array.isArray(d)) return `${d[0]}〜${d[1]}ターン`; if (typeof d === 'number') return `${d}ターン`; return DUR[d] || d; }
 const FRAC_PRE = { '反動': '与えたダメージの', '吸収': '与えたダメージの', '失敗ダメージ': '最大HPの', 'HPが減る': '最大HPの', '回復': '最大HPの', '継続削り': '毎ターン最大HPの', '全体継続ダメージ': '毎ターン最大HPの' };
 function jv(k, v) { if (k === 'stat' || k === 'stats') return (Array.isArray(v) ? v : [v]).map(x => STAT[x] || x).join('・'); if (Array.isArray(v)) return v.map(x => typeof x === 'object' ? (x.value || x.type || '…') : x).join('・'); if (typeof v === 'object' && v) return v.value || v.type || '条件'; return v; }
 function effLine(e) {
@@ -62,13 +67,17 @@ function effLine(e) {
   const logic = e.selection === 'random_one' ? '<span class="lg or">どれか1つ</span>' : (Array.isArray(e.stats) || Array.isArray(e.value)) ? '<span class="lg and">同時</span>' : '';
   const cond = e.condition ? `<span class="lg if">IF:${esc(condStr(e.condition))}</span>` : '';
   const rs = e.needs_research ? `<span class="lg rs" title="${esc(e.needs_research)}">🔍要調査</span>` : '';
-  const dur = e.duration ? `<span class="dur">${esc(jv('duration', e.duration))}継続</span>` : '';
+  const dur = e.duration ? `<span class="dur">${esc(durStr(e.duration))}</span>` : '';
   const keys = ['semi_invulnerable', 'replacement', 'pass', 'pass_to_replacement', 'multiplier', 'value', 'stat', 'stats', 'stages', 'prob', 'fraction', 'turn_end_damage', 'prevents_switch', 'ignores_accuracy', 'bypasses_substitute', 'skip_charge_if_weather', 'vulnerable_to', 'vulnerable_if', 'bypasses', 'not_bypassed', 'on_charge_turn'];
   const allkeys = keys.concat(['hits_state', 'damage_multiplier', 'cases', 'power_per_hit', 'doubles_note', 'note', 'to_max', 'champions_amount', 'minimum']);
+  const BOOL_LBL = { prevents_switch: '交代できない', ignores_accuracy: '必ず当たる', bypasses_substitute: 'みがわり貫通', on_charge_turn: '溜めターンに' };
   const ps = allkeys.filter(k => e[k] !== undefined && !skipKeys.has(k)).map(k => {
+    if (e[k] === true) return `<span class="sdir up">${BOOL_LBL[k] || PK[k] || k}</span>`; // 真偽値は「true」でなく言葉
     if (k === 'stages') { const v = e[k]; return `<span class="sdir ${v > 0 ? 'up' : 'down'}">${v > 0 ? v + '段階アップ' : (-v) + '段階ダウン'}</span>`; }
     if (k === 'to_max') return `<span class="sdir up">最大(+6)までアップ</span>`;
-    if (k === 'fraction') { const pre = FRAC_PRE[e.kind]; return pre ? esc(pre + pctStr(e[k])) : `<span class="pk">割合</span>${esc(pctStr(e[k]))}`; }
+    if (k === 'value') return `<b>${esc(jvP(k, e[k]))}</b>`; // 「値」ラベルは出さず内容だけ
+    if (k === 'turn_end_damage') return esc('毎ターン最大HPの' + fracText(e[k]));
+    if (k === 'fraction') { const pre = FRAC_PRE[e.kind]; return pre ? esc(pre + fracText(e[k])) : `<span class="pk">割合</span>${esc(fracText(e[k]))}`; }
     if (k === 'cases') return `<span class="pk">${PK[k]}</span>${esc(casesStr(e[k]))}`;
     return `<span class="pk">${PK[k] || k}</span>${esc(jvP(k, e[k]))}`;
   }).join(' ');
