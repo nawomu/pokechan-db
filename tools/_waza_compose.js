@@ -7,7 +7,8 @@ const { condStrNew } = require('./_cond_render.js');
 function lit(t, m) { const at = t.indexOf(m); let i = t.indexOf('{', at), s = i, d = 0, S = false, e = false; for (; i < t.length; i++) { const c = t[i]; if (S) { if (e) e = false; else if (c === '\\') e = true; else if (c === '"') S = false; } else { if (c === '"') S = true; else if (c === '{') d++; else if (c === '}') { d--; if (d === 0) return t.slice(s, i + 1); } } } }
 const map = JSON.parse(lit(fs.readFileSync(path.join(ROOT, 'pokechan_data.js'), 'utf8'), 'const WAZA_MAP ='));
 
-const fracT = f => { if (Math.abs(f - 1) < 0.001) return 'ぜんぶ'; if (Math.abs(f - 0.5) < 0.001) return 'はんぶん'; const r = Math.round(1 / f); return Math.abs(1 / f - r) < 0.04 ? `${r}分の1` : (+(f * 100).toFixed(1)) + '%'; };
+// ✓声ルール(台帳): 0.5→半分 / 1→全部 / それ以外→1/N スラッシュ表記(8分の1化しない)
+const fracT = f => { if (f == null || isNaN(f)) return ''; if (Math.abs(f - 1) < 0.001) return '全部'; if (Math.abs(f - 0.5) < 0.001) return '半分'; const r = Math.round(1 / f); return Math.abs(1 / f - r) < 0.04 ? `1/${r}` : (+(f * 100).toFixed(1)) + '%'; };
 const multT = mu => mu >= 1 ? `${mu}倍になる` : (Math.abs(mu - 0.5) < 0.001 ? '半分になる' : `${fracT(mu)}になる`);
 const durT = d => Array.isArray(d) ? `${d[0]}〜${d[1]}ターン` : (typeof d === 'number' ? `${d}ターン` : ({ until_user_leaves: '自分が場を離れるまで', until_removed: '消えるまで' }[d] || d));
 const TGT = { self: '自分', opponent: '相手', team: '味方', all: '場の全員', ally: '味方', all_opponents: '相手全体', all_but_self: '自分以外', party: '手持ち全員', incoming: '次に出る味方' };
@@ -19,37 +20,45 @@ const immT = arr => (arr || []).map(x => x.value || (x.values || []).join('・')
 // condStrNew は「〜の時/〜の場合」を返す。文頭につなぐ。
 const condT = c => condStrNew(c).replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)');
 
-// kind → 文の部品(子ども口調)。未対応は null を返す。
+const amountT = a => a === '自分の残りHP分' ? '自分のいまのこっているHPと同じだけ' : a;
+// kind → 文の部品(子ども口調)。conditionは付けない(compose側でグループ束ね)。未対応は null。
 function clause(e, m) {
   const k = e.kind, t = TGT[e.target] || e.target;
   switch (k) {
     case '状態付与': {
       if (e.value === 'バインド') {
-        let s = `相手をバインド状態にして、${durT(e.duration)}のあいだ、毎ターン終わりに、最大HPの${fracT(e.turn_end_damage)}だけダメージをあたえる`;
-        if (e.prevents_switch) s += `。そのあいだ、${immT(e.immune)}タイプでない相手は、にげたり交代したりできない`;
+        let s = `相手をバインド状態にして、${durT(e.duration)}の間、毎ターン終わりに、最大HPの${fracT(e.turn_end_damage)}だけダメージを与える`;
+        if (e.prevents_switch) s += `。その間、${immT(e.immune)}タイプでない相手は、逃げたり交代したりできない`;
         return s;
       }
-      const dd = e.duration ? `${durT(e.duration)}のあいだ、` : '';
+      const dd = e.duration ? `${durT(e.duration)}の間、` : '';
       return `${dd}${t}を『${e.value}』状態にする`;
     }
     case '拘束':
-      return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}のあいだ、にげたり交代したりできないようにする`;
+      return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}の間、逃げたり交代したりできないようにする`;
     case '反動':
-      return `相手にあたえたダメージの${fracT(e.fraction)}を、自分もうける`;
+      return `相手に与えたダメージの${fracT(e.fraction)}を、自分も受ける`;
     case '威力倍率':
-      return `${e.condition ? condT(e.condition) + '、' : ''}威力が${multT(e.multiplier)}`;
+      return `威力が${multT(e.multiplier)}`;
     case '自分瀕死':
       return `技を使ったあと、自分はひんしになる`;
     case '回復':
       return `${t}のHPを、最大HPの${fracT(e.fraction)}だけ回復する`;
+    case 'HPが減る':
+      return `自分のHPが最大HPの${fracT(e.fraction)}減る`;
+    case '固定ダメージ':
+      return `相手に、${amountT(e.amount)}のダメージを与える(タイプ相性は受けない)`;
+    case '継続削り':
+      return `毎ターン、相手のHPを最大HPの${fracT(e.fraction)}だけ削る`;
     case '能力ランク変化': {
       if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
-      const who = TGT2[e.target] || (t + 'の');
       const st = joinStats(statList(e));
-      const dir = e.to_max ? 'いっきに最大まであがる' : e.stages > 0 ? `${e.stages}段階あがる` : `${-e.stages}段階さがる`;
       const pre = (e.prob && e.prob < 100) ? `${e.prob}%のかくりつで、` : '';
-      const cd = e.condition ? condT(e.condition) + '、' : '';
-      return `${cd}${pre}${who}${st}が${dir}`;
+      if (e.target === 'opponent' && e.stages > 0)  // 相手を上げる=こっちの損 → 「してしまう」(✓本人)
+        return `${pre}相手の${st}を${e.stages}段階上げてしまう`;
+      const who = TGT2[e.target] || (t + 'の');
+      const dir = e.to_max ? 'いっきに最大まであがる' : e.stages > 0 ? `${e.stages}段階あがる` : `${-e.stages}段階さがる`;
+      return `${pre}${who}${st}が${dir}`;
     }
     default:
       return null; // 穴
@@ -57,9 +66,27 @@ function clause(e, m) {
 }
 function compose(m) {
   const eff = (m.battle_data && m.battle_data.effects) || [];
-  const parts = [], holes = [];
-  for (const e of eff) { const c = clause(e, m); if (c) parts.push(c); else holes.push(e.kind); }
-  return { text: parts.length ? parts.join('。') + '。' : '', holes };
+  const holes = [], groups = [];
+  for (const e of eff) {
+    const c = clause(e, m); if (!c) { holes.push(e.kind); continue; }
+    const key = e.condition ? JSON.stringify(e.condition) : '';
+    let g = groups.find(x => x.key === key);
+    if (!g) { g = { key, cond: e.condition, cl: [] }; groups.push(g); }
+    g.cl.push({ text: c, kind: e.kind });
+  }
+  const sentences = groups.map(g => {
+    const body = g.cl.map((cl, i) =>
+      (i > 0 && cl.kind === '能力ランク変化' && g.cl[i - 1].kind === 'HPが減る') ? 'そのかわり、' + cl.text : cl.text
+    ).join('。');
+    return g.cond ? `${condT(g.cond)}、${body}` : body;
+  });
+  let text = sentences.length ? sentences.join('。') + '。' : '';
+  const bd = m.battle_data || {};
+  const lo = (bd.fails_if || []).find(f => f.type === 'current_hp_below_fraction');
+  if (lo) text += `(今のHPが最大HPの${fracT(lo.fraction)}より少ないと失敗する)`;
+  const gi = (bd.immune || []).find(x => x.type === 'target_type' && (x.value === 'ゴースト' || (x.values || []).includes('ゴースト')));
+  if (gi) text += `(ゴーストタイプには当たらない)`;
+  return { text, holes };
 }
 
 const byName = {}; for (const [k, m] of Object.entries(map)) byName[m.name] = m;
