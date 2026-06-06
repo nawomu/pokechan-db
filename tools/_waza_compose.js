@@ -21,6 +21,9 @@ const immT = arr => (arr || []).map(x => x.value || (x.values || []).join('・')
 const condT = c => condStrNew(c).replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)');
 
 const amountT = a => a === '自分の残りHP分' ? '自分のいまのこっているHPと同じだけ' : a;
+// 言葉のルール(2026-06-06 阿部さん): ランクの増減は和語数詞「ひとつ/ふたつ…」。「1個」にしない。
+const KAZU = { 1: 'ひとつ', 2: 'ふたつ', 3: 'みっつ', 4: 'よっつ', 5: 'いつつ', 6: 'むっつ' };
+const kazuT = n => KAZU[Math.abs(n)] || `${Math.abs(n)}個`;
 // kind → 文の部品(子ども口調)。conditionは付けない(compose側でグループ束ね)。未対応は null。
 function clause(e, m) {
   const k = e.kind, t = TGT[e.target] || e.target;
@@ -58,9 +61,9 @@ function clause(e, m) {
       if (e.min_hits) return `${e.min_hits}〜${e.max_hits}回攻撃する`;
       return null;
     case '急所率上昇':
-      // legacy音をそのまま: stages→「急所に当たりやすい(急所ランク:+N)」 / always_crit→「必ず急所に当たる」。targetは言及しない(legacy準拠)。
+      // ★忠実版(2026-06-06): データをそのまま。stages→「急所ランクがひとつ上がる」(解釈・softeningしない) / always_crit→「必ず急所に当たる」。
       if (e.always_crit) return `必ず急所に当たる`;
-      return `急所に当たりやすい(急所ランク:+${e.stages})`;
+      return `急所ランクが${kazuT(e.stages)}上がる`;
     case '能力ランク変化': {
       if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
       const st = joinStats(statList(e));
