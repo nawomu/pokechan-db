@@ -20,7 +20,7 @@ const kindGroup = {}; canon.forEach(c => kindGroup[c.kind] = c.group);
 const specs = [...R('review/waza_effects_pilot.json').moves, ...R('review/waza_effects_specs_final.json').specs];
 const esc = s => String(s).replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
-const TGT = { self: '自分', opponent: '相手', team: '味方の場', opponent_team: '相手の場', ally: '味方', all: '場の全員', field: '場全体' };
+const TGT = { self: '自分', opponent: '相手', team: '味方の場', opponent_team: '相手の場', ally: '味方', all: '場の全員', field: '場全体', all_opponents: '相手全体', all_but_self: '自分以外', party: '手持ち全員', incoming: '次に出る味方' };
 const PH = { on_use: '使用時', lasting: '継続', delayed: '遅延', this_turn: 'このターン', turn_end: 'ターン終了時', order: '行動順' };
 const PK = { duration: '継続', fraction: '割合', prob: '確率', stat: '能力', stages: '段階', multiplier: '倍率', value: '値',
   values: '値', condition: '条件', turns: 'ターン', min_hits: '最小回数', max_hits: '最大回数', turn_end_damage: 'ターン終了ダメージ',

@@ -7,16 +7,17 @@ const { condStrNew } = require('./_cond_render.js');
 function lit(t, m) { const at = t.indexOf(m); let i = t.indexOf('{', at), s = i, d = 0, S = false, e = false; for (; i < t.length; i++) { const c = t[i]; if (S) { if (e) e = false; else if (c === '\\') e = true; else if (c === '"') S = false; } else { if (c === '"') S = true; else if (c === '{') d++; else if (c === '}') { d--; if (d === 0) return t.slice(s, i + 1); } } } }
 const map = JSON.parse(lit(fs.readFileSync(path.join(ROOT, 'pokechan_data.js'), 'utf8'), 'const WAZA_MAP ='));
 
-const fracT = f => { const r = Math.round(1 / f); return Math.abs(1 / f - r) < 0.04 ? `${r}分の1` : (+(f * 100).toFixed(1)) + '%'; };
+const fracT = f => { if (Math.abs(f - 1) < 0.001) return 'ぜんぶ'; if (Math.abs(f - 0.5) < 0.001) return 'はんぶん'; const r = Math.round(1 / f); return Math.abs(1 / f - r) < 0.04 ? `${r}分の1` : (+(f * 100).toFixed(1)) + '%'; };
+const multT = mu => mu >= 1 ? `${mu}倍になる` : (Math.abs(mu - 0.5) < 0.001 ? '半分になる' : `${fracT(mu)}になる`);
 const durT = d => Array.isArray(d) ? `${d[0]}〜${d[1]}ターン` : (typeof d === 'number' ? `${d}ターン` : ({ until_user_leaves: '自分が場を離れるまで', until_removed: '消えるまで' }[d] || d));
-const TGT = { self: '自分', opponent: '相手', team: '味方', all: '場の全員', ally: '味方' };
-const TGT2 = { self: '自分の', opponent: '相手の', '相手全体': '相手全員の', ally: '味方の', team: '味方全員の', all: '場の全員の', '自分以外全体': '自分いがいの全員の' };
+const TGT = { self: '自分', opponent: '相手', team: '味方', all: '場の全員', ally: '味方', all_opponents: '相手全体', all_but_self: '自分以外', party: '手持ち全員', incoming: '次に出る味方' };
+const TGT2 = { self: '自分の', opponent: '相手の', all_opponents: '相手全員の', ally: '味方の', team: '味方全員の', all: '場の全員の', all_but_self: '自分いがいの全員の', party: '手持ちの', incoming: '次に出る味方の' };
 const STAT = { attack: 'こうげき', defense: 'ぼうぎょ', special_attack: 'とくこう', special_defense: 'とくぼう', speed: 'すばやさ', accuracy: 'めいちゅう', evasion: 'かいひ', all: 'すべての能力' };
 const statList = e => (Array.isArray(e.stats) ? e.stats : [e.stat]).map(s => STAT[s] || s);
 const joinStats = a => a.length <= 1 ? (a[0] || '') : a.length === 2 ? a.join('と') : a.join('・');
 const immT = arr => (arr || []).map(x => x.value || (x.values || []).join('・')).join('・');
 // condStrNew は「〜の時/〜の場合」を返す。文頭につなぐ。
-const condT = c => condStrNew(c).replace(/の時$/, 'とき').replace(/の場合は除く\)/, 'はのぞく)');
+const condT = c => condStrNew(c).replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)');
 
 // kind → 文の部品(子ども口調)。未対応は null を返す。
 function clause(e, m) {
@@ -28,14 +29,15 @@ function clause(e, m) {
         if (e.prevents_switch) s += `。そのあいだ、${immT(e.immune)}タイプでない相手は、にげたり交代したりできない`;
         return s;
       }
-      return `${t}を『${e.value}』状態にする`;
+      const dd = e.duration ? `${durT(e.duration)}のあいだ、` : '';
+      return `${dd}${t}を『${e.value}』状態にする`;
     }
     case '拘束':
       return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}のあいだ、にげたり交代したりできないようにする`;
     case '反動':
       return `相手にあたえたダメージの${fracT(e.fraction)}を、自分もうける`;
     case '威力倍率':
-      return `${e.condition ? condT(e.condition) + '、' : ''}威力が${e.multiplier}倍になる`;
+      return `${e.condition ? condT(e.condition) + '、' : ''}威力が${multT(e.multiplier)}`;
     case '自分瀕死':
       return `技を使ったあと、自分はひんしになる`;
     case '回復':
@@ -62,15 +64,20 @@ function compose(m) {
 
 const byName = {}; for (const [k, m] of Object.entries(map)) byName[m.name] = m;
 // 能力ランク変化テンプレの音合わせ用に代表技を名前で指定(各パラメータ形)
-const NAMES = ['しめつける', 'すてみタックル', 'ミストバースト', 'とおせんぼう',
-  'つるぎのまい', 'りゅうのまい', 'すてゼリフ', 'げんしのちから', 'いばる', 'はらだいこ', 'サイコキネシス', 'こごえるかぜ', 'のろい', 'そらをとぶ', 'ふきとばし'];
+const NAMES = [
+  // ★耳の確定待ち(これを並べて確認)
+  'いばる', 'はらだいこ', 'ミストバースト', 'のろい', 'いのちがけ',
+  // 以下は文脈(テンプレが効いてる確定済み等)
+  'しめつける', 'すてみタックル', 'とおせんぼう', 'つるぎのまい', 'りゅうのまい', 'すてゼリフ', 'げんしのちから', 'てんしのキッス', 'サイコキネシス', 'こごえるかぜ', 'そらをとぶ', 'ふきとばし'];
 const esc = s => String(s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 let rows = '';
 for (const nm of NAMES) {
   const m = byName[nm]; if (!m) { rows += `<tr><td>${nm} (なし)</td></tr>`; continue; }
   const { text, holes } = compose(m);
+  const srcLines = ((m.battle_data || {}).effects || []).map(e => esc(JSON.stringify(e))).join('\n') || '(effectsなし)';
   rows += `<tr>
    <td class="mv">${esc(m.name)}</td>
+   <td class="src">${srcLines}</td>
    <td class="gen">${esc(text) || '<span style="color:#ff7b72">(全effect未対応)</span>'}${holes.length ? `<div class="hole">⚠ 未対応kind(=構造の穴 or テンプレ未作): ${esc(holes.join('・'))}</div>` : ''}</td>
    <td class="leg">${esc(m.description_legacy || '')}</td>
    <td class="cur">${esc(m.description || '')}</td>
@@ -78,19 +85,32 @@ for (const nm of NAMES) {
 }
 const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>文章化レンダラ叩き台 vs ヤックン音</title><style>
- body{font-family:-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;margin:0;background:#0f1419;color:#e6edf3;font-size:13px}
- header{padding:10px 16px;background:#161b22;border-bottom:1px solid #30363d} h1{font-size:15px;margin:0}
- .sub{font-size:11px;color:#9aa7b4;margin-top:4px;line-height:1.6}
- table{border-collapse:collapse;width:100%} th{background:#21262d;color:#9aa7b4;font-size:11px;padding:7px;text-align:left;border-bottom:2px solid #30363d}
- td{padding:9px;border-bottom:1px solid #1c2128;vertical-align:top;line-height:1.65}
- .mv{color:#d2a8ff;font-weight:700;white-space:nowrap}
- .gen{color:#7ee787;min-width:300px} .leg{color:#e6edf3;min-width:300px} .cur{color:#9aa7b4;min-width:220px;font-size:12px}
+ body{font-family:-apple-system,"Hiragino Kaku Gothic ProN",sans-serif;margin:0;background:#0f1419;color:#e6edf3;font-size:16px}
+ header{padding:12px 18px;background:#161b22;border-bottom:1px solid #30363d} h1{font-size:19px;margin:0}
+ .sub{font-size:13px;color:#9aa7b4;margin-top:6px;line-height:1.7}
+ table{border-collapse:collapse;width:100%} th{background:#21262d;color:#9aa7b4;font-size:14px;padding:9px;text-align:left;border-bottom:2px solid #30363d}
+ td{padding:11px;border-bottom:1px solid #1c2128;vertical-align:top;line-height:1.75}
+ .mv{color:#d2a8ff;font-weight:700;white-space:nowrap;font-size:16px}
+ .src{color:#79c0ff;font-family:ui-monospace,SFMono-Regular,monospace;font-size:13.5px;line-height:1.7;min-width:340px;max-width:480px;white-space:pre-wrap;word-break:break-all}
+ .gen{color:#7ee787;min-width:300px;font-size:16px} .leg{color:#e6edf3;min-width:300px;font-size:16px} .cur{color:#9aa7b4;min-width:220px;font-size:14px}
  .hole{color:#ffd479;font-size:11px;margin-top:5px}
  tr:hover td{background:#161b22}
 </style></head><body>
 <header><h1>🔊 effects → ヤックン音の一文(叩き台) を legacy と並べて聴く</h1>
-<div class="sub"><b style="color:#7ee787">緑=生成文(effectsから組んだ)</b> / <b>白=description_legacy(音の見本)</b> / 灰=description(現行・簡潔). 緑が白の"音"に近いか、戻れるか。⚠=未対応kind(構造の穴 or テンプレ未作)。</div></header>
-<table><thead><tr><th>技</th><th>🟢 生成文(effects→一文)</th><th>description_legacy(音の見本)</th><th>description(現行)</th></tr></thead><tbody>${rows}</tbody></table>
+<div class="sub"><b style="color:#7ee787">緑=新しく作る文(effectsから生成)</b> / <b>白=ヤックン(お手本・既にある良い文＝description_legacy)</b> / 灰=今の短い説明(description). <b>緑が白の意味と声に戻れてるか</b>を聴く。⚠=未対応kind(構造の穴 or テンプレ未作)。</div></header>
+<table><thead><tr><th>技</th><th>元データ(effects=本番SSOT)</th><th>🟢 新版(これを作りたい)</th><th>★ ヤックン(お手本)</th><th>今の短い説明</th></tr></thead><tbody>${rows}</tbody></table>
 </body></html>`;
 fs.writeFileSync(path.join(ROOT, 'review', 'waza_compose.html'), html);
 console.log('生成: review/waza_compose.html /', NAMES.length, '技');
+
+// 精度上げ③: 全490を compose し、生成文に機械が漏れていないか検知(回帰ガード)。※正しさは保証しない=legacyの耳のみ。
+const LEAK = /[A-Za-z]{2,}|(?<![0-9])0\.[0-9]+|\btrue\b|\bundefined\b|\bNaN\b/;
+let scanned = 0, leaks = [], voiced = 0;
+for (const m of Object.values(map)) {
+  const { text, holes } = compose(m); scanned++;
+  if (text && !holes.length) voiced++;
+  if (text) { const t = text.replace(/HP|PP/g, ''); if (LEAK.test(t)) leaks.push(`${m.name}: ${text.slice(0, 80)}`); }
+}
+console.log(`\n[機械漏れ検知] 全${scanned}技中 フル生成可 ${voiced}技 / 生成文に機械漏れ ${leaks.length}件`);
+leaks.slice(0, 15).forEach(x => console.log('  🔴 ' + x));
+if (leaks.length === 0) console.log('  ✅ 漏れなし(生成済みテンプレ範囲)');

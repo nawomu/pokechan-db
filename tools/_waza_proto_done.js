@@ -33,7 +33,7 @@ const POST = new Set(['recoil', 'recoil_attacker', 'drain', 'faint_self', 'switc
 function rank(e) { const en = JA2EN[e.kind], g = GRP[en]; if (RES.has(en) || e.phase === 'turn_end' || e.phase === 'delayed') return 6; if (MT.has(en)) return 1; if (DMG.has(g)) return 1; if (POST.has(en)) return 4; if (e.phase === 'lasting' || FG.has(g)) return 5; return 3; }
 const STAGE = { 1: '威力', 3: '命中後', 4: '攻撃後', 5: '場/継続', 6: 'ターン終了' }, SC = { 1: 's1', 3: 's3', 4: 's4', 5: 's5', 6: 's6' };
 const FLAG = { punch: '👊パンチ', sound: '🔊音', ball: '🔵弾', bullet: '🔵弾', bite: '🦷牙', dance: '💃舞', powder: '🌫粉', pulse: '〰️波動', wind: '🌬風', slicing: '🔪切断' };
-const TGT = { self: '自分', opponent: '相手', team: '味方場', opponent_team: '相手場', ally: '味方', all: '場全員', field: '場', '交代先': '次に出る味方' };
+const TGT = { self: '自分', opponent: '相手', team: '味方場', opponent_team: '相手場', ally: '味方', all: '場全員', field: '場', all_opponents: '相手全体', all_but_self: '自分以外', party: '手持ち全員', incoming: '次に出る味方' };
 const STAT = { attack: '攻', defense: '防', special_attack: '特攻', special_defense: '特防', speed: '速', accuracy: '命中', evasion: '回避', all: '全' };
 const PK = { multiplier: '倍率', value: '値', stat: '能力', stats: '能力', stages: '段', prob: '確率', fraction: '割合', turn_end_damage: '終了ダメ', prevents_switch: '交代不可', ignores_accuracy: '命中無視', bypasses_substitute: 'みがわり貫通', replacement: '交代先', pass: '引継', pass_to_replacement: '引継先', semi_invulnerable: '避ける状態', vulnerable_to: 'それでも当たる技', vulnerable_if: 'それでも当たる条件', skip_charge_if_weather: '天候で溜め省略', hits_state: '命中状態', damage_multiplier: 'ダメージ倍率', cases: '天候別命中', bypasses: 'まもり貫通', not_bypassed: '貫通例外', on_charge_turn: '溜めターンに', power_per_hit: '各ヒット威力', doubles_note: 'ダブル時', note: '注', effect: '効果', champions_amount: 'チャンピオンズでは', minimum: '最低' };
 function jvP(k, v) { if (k === 'pass') return (Array.isArray(v) ? v : [v]).map(x => ({ stat_changes: '能力ランク変化', volatiles: '状態変化' }[x] || x)).join('・'); return jv(k, v); }
@@ -43,7 +43,7 @@ function condStr(c) { return condStrNew(c); }
 function casesStr(arr) { return (arr || []).map(c => `${c.weather}→${c.accuracy === '必中' ? '必中' : c.accuracy + '%'}`).join(' / '); }
 function pctStr(f) { return (+(f * 100).toFixed(2)) + '%'; }
 // 0.125→「1/8」等(部品→言葉)。きれいな単位分数なら分数で、でなければ%。
-function fracText(f) { const inv = 1 / f; const r = Math.round(inv); return Math.abs(inv - r) < 0.02 ? `1/${r}` : pctStr(f); }
+function fracText(f) { if (f >= 0.999) return '全部'; if (Math.abs(f - 0.5) < 0.001) return '半分'; const inv = 1 / f; const r = Math.round(inv); return Math.abs(inv - r) < 0.02 ? `1/${r}` : pctStr(f); }
 // duration: 数値→「Nターン」/ [a,b]→「a〜bターン」/ enum語→日本語
 const DUR = { until_user_leaves: '自分が場を離れるまで', until_removed: '消えるまで', until_destroyed: 'こわれるまで', until_effect_removed: '消えるまで', until_target_leaves: '相手が場を離れるまで', until_user_or_target_leaves: 'どちらかが場を離れるまで', until_this_move_activates: 'この技が出るまで', until_end_of_next_turn: '次のターンの終わりまで', while_target_remains: '相手が場にいる間', while_user_remains: '自分が場にいる間' };
 function durStr(d) { if (Array.isArray(d)) return `${d[0]}〜${d[1]}ターン`; if (typeof d === 'number') return `${d}ターン`; return DUR[d] || d; }
