@@ -34,7 +34,8 @@ function clause(e, m) {
         if (e.prevents_switch) s += `。その間、${immT(e.immune)}タイプでない相手は、逃げたり交代したりできない`;
         return s;
       }
-      const pp = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''; // gold由来: legacy「X%の確率で相手を『◯』状態にする」。落とすと「必ず◯」化(意味漏れ)
+      const pp = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''; // 忠実: 確率はデータのまま。落とすと「必ず◯」化(意味漏れ)
+      if (e.value === 'ひるみ') return `${pp}相手をひるませる`; // ひるみは動作=「ひるませる」(『ひるみ』状態にする は不自然・kind:ひるみ と統一)
       const dd = e.duration ? `${durT(e.duration)}の間、` : '';
       return `${pp}${dd}${t}を『${e.value}』状態にする`;
     }
@@ -64,6 +65,9 @@ function clause(e, m) {
       // ★忠実版(2026-06-06): データをそのまま。stages→「急所ランクがひとつ上がる」(解釈・softeningしない) / always_crit→「必ず急所に当たる」。
       if (e.always_crit) return `必ず急所に当たる`;
       return `急所ランクが${kazuT(e.stages)}上がる`;
+    case 'ひるみ':
+      // ★忠実版: kind:ひるみ = N%の確率で相手をひるませる(状態付与:ひるみ と統一)。
+      return `${(e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''}相手をひるませる`;
     case '能力ランク変化': {
       if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
       const st = joinStats(statList(e));
