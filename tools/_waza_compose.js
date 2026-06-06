@@ -31,8 +31,9 @@ function clause(e, m) {
         if (e.prevents_switch) s += `。その間、${immT(e.immune)}タイプでない相手は、逃げたり交代したりできない`;
         return s;
       }
+      const pp = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''; // gold由来: legacy「X%の確率で相手を『◯』状態にする」。落とすと「必ず◯」化(意味漏れ)
       const dd = e.duration ? `${durT(e.duration)}の間、` : '';
-      return `${dd}${t}を『${e.value}』状態にする`;
+      return `${pp}${dd}${t}を『${e.value}』状態にする`;
     }
     case '拘束':
       return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}の間、逃げたり交代したりできないようにする`;
@@ -63,7 +64,7 @@ function clause(e, m) {
     case '能力ランク変化': {
       if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
       const st = joinStats(statList(e));
-      const pre = (e.prob && e.prob < 100) ? `${e.prob}%のかくりつで、` : '';
+      const pre = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''; // gold=漢字「確率」・読点なし(legacy 119:0)
       if (e.target === 'opponent' && e.stages > 0)  // 相手を上げる=こっちの損 → 「してしまう」(✓本人)
         return `${pre}相手の${st}を${e.stages}段階上げてしまう`;
       const who = TGT2[e.target] || (t + 'の');
@@ -99,6 +100,8 @@ function compose(m) {
   return { text, holes };
 }
 
+module.exports = { compose, clause, map }; // 確認HTML生成器など他ツールから同一エンジンを再利用(音のドリフト防止)
+if (require.main === module) {
 const byName = {}; for (const [k, m] of Object.entries(map)) byName[m.name] = m;
 // 能力ランク変化テンプレの音合わせ用に代表技を名前で指定(各パラメータ形)
 const NAMES = [
@@ -153,3 +156,4 @@ for (const m of Object.values(map)) {
 console.log(`\n[機械漏れ検知] 全${scanned}技中 フル生成可 ${voiced}技 / 生成文に機械漏れ ${leaks.length}件`);
 leaks.slice(0, 15).forEach(x => console.log('  🔴 ' + x));
 if (leaks.length === 0) console.log('  ✅ 漏れなし(生成済みテンプレ範囲)');
+}
