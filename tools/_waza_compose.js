@@ -56,6 +56,10 @@ function clause(e, m) {
       if (e.hits) return `${e.hits}回攻撃する`;
       if (e.min_hits) return `${e.min_hits}〜${e.max_hits}回攻撃する`;
       return null;
+    case '急所率上昇':
+      // legacy音をそのまま: stages→「急所に当たりやすい(急所ランク:+N)」 / always_crit→「必ず急所に当たる」。targetは言及しない(legacy準拠)。
+      if (e.always_crit) return `必ず急所に当たる`;
+      return `急所に当たりやすい(急所ランク:+${e.stages})`;
     case '能力ランク変化': {
       if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
       const st = joinStats(statList(e));
@@ -101,7 +105,9 @@ const NAMES = [
   // ★耳の確定待ち(これを並べて確認)
   'いばる', 'はらだいこ', 'ミストバースト', 'のろい', 'いのちがけ',
   // 以下は文脈(テンプレが効いてる確定済み等)
-  'しめつける', 'すてみタックル', 'とおせんぼう', 'つるぎのまい', 'りゅうのまい', 'すてゼリフ', 'げんしのちから', 'てんしのキッス', 'サイコキネシス', 'こごえるかぜ', 'そらをとぶ', 'ふきとばし'];
+  'しめつける', 'すてみタックル', 'とおせんぼう', 'つるぎのまい', 'りゅうのまい', 'すてゼリフ', 'げんしのちから', 'てんしのキッス', 'サイコキネシス', 'こごえるかぜ', 'そらをとぶ', 'ふきとばし',
+  // 急所率上昇テンプレ確認用(stages / always_crit / 他kind同居でプローブ)
+  'クラブハンマー', 'こおりのいぶき', 'つじぎり', 'エアカッター', 'クロスポイズン'];
 const esc = s => String(s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 let rows = '';
 for (const nm of NAMES) {
