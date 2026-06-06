@@ -50,6 +50,12 @@ function clause(e, m) {
       return `相手に、${amountT(e.amount)}のダメージを与える(タイプ相性は受けない)`;
     case '継続削り':
       return `毎ターン、相手のHPを最大HPの${fracT(e.fraction)}だけ削る`;
+    case '連続攻撃':
+      if (e.hits_by) return `手持ちのポケモンの数だけ攻撃する`;
+      if (e.stop_on_miss) return `外れるまで最大${e.max_hits}回攻撃する`;
+      if (e.hits) return `${e.hits}回攻撃する`;
+      if (e.min_hits) return `${e.min_hits}〜${e.max_hits}回攻撃する`;
+      return null;
     case '能力ランク変化': {
       if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
       const st = joinStats(statList(e));
