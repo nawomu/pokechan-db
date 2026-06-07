@@ -22,9 +22,7 @@ const immT = arr => (arr || []).map(x => x.value || (x.values || []).join('・')
 const condT = c => condStrNew(c).replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)').replace(/『/g, '「').replace(/』/g, '」'); // 囲みは「」に統一(共有_cond_renderは触らずcompose側で吸収)
 
 const amountT = a => a === '自分の残りHP分' ? '自分のいまのこっているHPと同じだけ' : a;
-// 言葉のルール(2026-06-06 阿部さん): ランクの増減は和語数詞「ひとつ/ふたつ…」。「1個」にしない。
-const KAZU = { 1: 'ひとつ', 2: 'ふたつ', 3: 'みっつ', 4: 'よっつ', 5: 'いつつ', 6: 'むっつ' };
-const kazuT = n => KAZU[Math.abs(n)] || `${Math.abs(n)}個`;
+// ※ランク増減は±N表記に統一(能力=こうげき+1 / 急所=急所+1)。旧・和語数詞ヘルパー(kazuT)は2026-06-07に廃止。
 // 威力可変ヘルパー(英語formula/basisは出さない=機械漏れ防止。未知形はnull=穴)
 const ratioFrac = r => `1/${Math.round(1 / r)}`; // 0.2→1/5(fracTは0.5を半分にするので比率専用)
 const fmlT = e => { // 既知formulaのみ和文化。未知はnull(生英語式を出さない)
@@ -83,9 +81,9 @@ function clause(e, m) {
       if (e.min_hits) return `${e.min_hits}〜${e.max_hits}回攻撃する`;
       return null;
     case '急所率上昇':
-      // ★忠実版(2026-06-06): データをそのまま。stages→「急所ランクがひとつ上がる」(解釈・softeningしない) / always_crit→「必ず急所に当たる」。
+      // ★±N表記(2026-06-07 阿部さん上書き): 「急所+1」(「ランク」語は省く・短く=能力ランク±Nと揃える)。always_crit→「必ず急所に当たる」。
       if (e.always_crit) return `必ず急所に当たる`;
-      return `急所ランクが${kazuT(e.stages)}上がる`;
+      return `急所${e.stages > 0 ? '+' : ''}${e.stages}`;
     case 'ひるみ':
       // ★忠実版: kind:ひるみ = N%の確率で相手をひるませる(状態付与:ひるみ と統一)。
       return `${(e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''}相手をひるませる`;
