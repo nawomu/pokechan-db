@@ -49,7 +49,12 @@ function getMoveFilterTags(m) {
     const tgt = e.target === 'self' ? '(自)' : '';
     const p = (e.prob != null && e.prob < 100) ? `${e.prob}%` : ''; // ★日本語kind(ひるみ/状態付与)に対応(英語kindバグ修正・2026-06-07)
     if (e.kind === 'ひるみ' || (e.kind === '状態付与' && e.value === 'ひるみ')) out.push({cls:'tag-status', text:`😵 ${p}ひるみ${tgt}`});
-    else if (e.kind === '状態付与') out.push({cls:'tag-status', text:`${STATUS_ICON[e.value]||'🩻'} ${p}${e.value}${tgt}`});
+    else if (e.kind === '状態付与') {
+      // ★英語prose value(うちおとす等の未構造プレースホルダ)はタグに出さない=長大化/英語漏れ/列ズレ防止。
+      //   元データはEffects列で確認できる。park: SSOTの英語残(うちおとす/むしくい)は別途ちゃんと構造化する。
+      if (/[A-Za-z]/.test(String(e.value || ''))) continue;
+      out.push({cls:'tag-status', text:`${STATUS_ICON[e.value]||'🩻'} ${p}${e.value}${tgt}`});
+    }
   }
 
   // ランク変動
@@ -272,9 +277,22 @@ const THEAD = `<thead><tr>
   <th class="col-effsrc">Effects(元データ)</th><th class="col-effect">効果</th><th class="col-tags">タグ</th><th class="col-yakkun">ヤック</th>
 </tr></thead>`;
 
+// ★状態モデル(セッションをまたぐ正本): 「作る(ビルド)」と「確定(阿部さんの耳でOK)」は別物。
+//   Claudeは★→✓に上げない → CONFIRMED への昇格は阿部さんだけが行う(下のSetを編集)。出典=HANDOFF §2「確定した判断」。
+const CONFIRMED = new Set(['急所率上昇', '能力ランク変化', '必中']); // ✓確定(阿部さんの耳でOK済)
+const WORKING = new Set(['状態異常回復']);                           // 🔨 いま開通作業中(任意・複数可)
+// 状態の優先順: 作業中 > 確定 > 確認待ち(ビルド済だが耳未確定) > これから(未ビルド)
+function kindState(k) {
+  if (k === NOEFF) return 'noeff';
+  if (WORKING.has(k)) return 'working';
+  if (CONFIRMED.has(k)) return 'done';
+  if (HANDLED.has(k)) return 'review';
+  return 'todo';
+}
+const SEC_BADGE = { done: '<span class="sec-ok">✓ 確定</span>', review: '<span class="sec-rv">🕓 確認待ち</span>', working: '<span class="sec-wk">🔨 作業中</span>', todo: '<span class="sec-ng">⚠ これから</span>', noeff: '' };
 const sections = ordered.map((k, i) => {
   const ms = byKind.get(k);
-  const badge = k === NOEFF ? '' : (HANDLED.has(k) ? '<span class="sec-ok">✓テンプレ対応</span>' : '<span class="sec-ng">⚠未対応</span>');
+  const badge = SEC_BADGE[kindState(k)];
   return `<section class="sec" id="sec-${i}"><h2 class="sec-h">【${esc(k)}】<span class="sec-n">${ms.length}技</span>${badge}</h2>
   <div class="tbl-wrap"><table>${THEAD}<tbody>${ms.map(buildRow).join('\n')}</tbody></table></div></section>`;
 }).join('\n');
@@ -293,22 +311,27 @@ for (const m of moves) {
     oneHoleByKind.get(k).push(m.name);
   }
 }
-const tocIdx = ordered.map((k, i) => ({ k, i, n: byKind.get(k).length }));
+const tocIdx = ordered.map((k, i) => ({ k, i, n: byKind.get(k).length, st: kindState(k) }));
 const kindToIdx = new Map(tocIdx.map(x => [x.k, x.i]));
 const oneHoleMoves = [...oneHoleByKind.values()].reduce((a, b) => a + b.length, 0);
 // 「あと1穴で完結」を、開通すると完結する技数の多いkind順に(=次に潰すと完結数が増えるkindが分かる)
 const nearList = [...oneHoleByKind.entries()].sort((a, b) => b[1].length - a[1].length)
   .map(([k, names]) => `<a class="near-row" href="#sec-${kindToIdx.has(k) ? kindToIdx.get(k) : 0}"><b class="near-k">${esc(k)}</b><span class="near-n">${names.length}技完結</span><span class="near-mv">${names.map(esc).join('・')}</span></a>`).join('');
-const doneItems = tocIdx.filter(x => x.k !== NOEFF && HANDLED.has(x.k));   // 作業した順(KIND_ORDER順=ordered先頭群)
-const todoItems = tocIdx.filter(x => x.k !== NOEFF && !HANDLED.has(x.k));  // 技数の多い順(restKinds=技数降順)
+const pick = st => tocIdx.filter(x => x.st === st);
+const workItems = pick('working'), doneItems = pick('done'), reviewItems = pick('review'), todoItems = pick('todo');
 const noeffItem = tocIdx.find(x => x.k === NOEFF);
-const tocChip = (x, done) => `<a class="toc-chip ${done ? 'is-done' : 'is-todo'}" href="#sec-${x.i}">${esc(x.k === NOEFF ? '追加効果なし' : x.k)}<span class="toc-n">${x.n}</span>${done ? '<span class="toc-ok">✓</span>' : (x.k === NOEFF ? '' : '<span class="toc-ng">⚠</span>')}</a>`;
+const CHIP_CLS = { working: 'is-working', done: 'is-done', review: 'is-review', todo: 'is-todo', noeff: 'is-todo' };
+const CHIP_MK = { working: '🔨', done: '✓', review: '🕓', todo: '⚠', noeff: '' };
+const tocChip = x => `<a class="toc-chip ${CHIP_CLS[x.st]}" href="#sec-${x.i}">${esc(x.k === NOEFF ? '追加効果なし' : x.k)}<span class="toc-n">${x.n}</span>${CHIP_MK[x.st] ? `<span class="toc-mk">${CHIP_MK[x.st]}</span>` : ''}</a>`;
+const tocGroup = (lbl, cls, items) => items.length ? `<div class="toc-grp"><div class="toc-lbl ${cls}">${lbl}</div><div class="toc-chips">${items.map(tocChip).join('')}</div></div>` : '';
 const toc = `<nav class="toc" id="toc">
-  <div class="toc-prog">📊 進捗：<b class="p-done">グループ対応済 ${doneItems.length}</b>　｜　説明文が出せる <b>${voicedMoves}</b>/${moves.length}技　｜　<b class="p-cmpl">✅技が完結(穴ゼロ) ${completeMoves}</b>　｜　<b class="p-near">⚠あと1穴で完結 ${oneHoleMoves}技</b>　｜　これから ${todoItems.length}グループ</div>
+  <div class="toc-prog">📊 進捗：<b class="p-work">🔨作業中 ${workItems.length}</b>　｜　<b class="p-done">✓確定 ${doneItems.length}</b>　｜　<b class="p-review">🕓確認待ち ${reviewItems.length}</b>　｜　<b class="p-todo">⚠これから ${todoItems.length}</b>グループ　｜　説明文が出せる <b>${voicedMoves}</b>/${moves.length}技　｜　<b class="p-cmpl">✅完結(穴ゼロ) ${completeMoves}</b>　｜　<b class="p-near">あと1穴 ${oneHoleMoves}技</b></div>
   <details class="near-box"${oneHoleMoves ? '' : ' style="display:none"'}><summary>🎯 あと1穴で完結する技 ${oneHoleMoves}技 ―「このkindを開通すると○技が一気に完結」(クリックでセクションへ)</summary>
     <div class="near-list">${nearList}</div></details>
-  <div class="toc-grp"><div class="toc-lbl ok">✓ 対応済（作業した順）</div><div class="toc-chips">${doneItems.map(x => tocChip(x, true)).join('')}</div></div>
-  <div class="toc-grp"><div class="toc-lbl ng">⚠ これから（技数の多い順）</div><div class="toc-chips">${todoItems.map(x => tocChip(x, false)).join('')}${noeffItem ? tocChip(noeffItem, false) : ''}</div></div>
+  ${tocGroup('🔨 作業中（いま開通中）', 'wk', workItems)}
+  ${tocGroup('✓ 確定（阿部さんの耳でOK）', 'ok', doneItems)}
+  ${tocGroup('🕓 確認待ち（ビルド済・耳の確認まち）', 'rv', reviewItems)}
+  ${tocGroup('⚠ これから（技数の多い順）', 'ng', [...todoItems, ...(noeffItem ? [noeffItem] : [])])}
 </nav>`;
 
 const CSS = `
@@ -316,11 +339,14 @@ body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothi
 .hdr { padding:10px 16px; background:#1F4E79; color:#fff; }
 .hdr h1 { font-size:16px; margin:0; }
 .hdr .sub { font-size:11px; color:#cfe0f0; margin-top:4px; }
-.tbl-wrap { overflow-x:auto; }
+/* ★overflow-xを付けない: 付けるとtbl-wrapがstickyの含有ブロック(内側スクロール)になり、
+   列見出し(thead)のsticky top:33px がビューポート基準でなくなって33px下にズレ→先頭行のタグが
+   見出しの上に透ける「幽霊枠」が出ていた。visibleにしてビューポート基準のstickyに戻す。 */
+.tbl-wrap { overflow-x:visible; }
 /* グループ一覧(目次) */
 .toc { padding:10px 16px 12px; background:#eef3fa; border-bottom:2px solid #1F4E79; }
 .toc-prog { font-size:12.5px; color:#33415c; margin-bottom:9px; padding:6px 10px; background:#fff; border:1px solid #C5D2E5; border-radius:6px; }
-.toc-prog .p-done { color:#2E7D32; } .toc-prog .p-todo { color:#C77800; } .toc-prog .p-cmpl { color:#1565C0; } .toc-prog .p-near { color:#B8860B; }
+.toc-prog .p-done { color:#2E7D32; } .toc-prog .p-todo { color:#C77800; } .toc-prog .p-cmpl { color:#1565C0; } .toc-prog .p-near { color:#B8860B; } .toc-prog .p-review { color:#1565C0; } .toc-prog .p-work { color:#6A1B9A; }
 /* あと1穴で完結 */
 .near-box { margin:0 0 9px; background:#FFFBEA; border:1px solid #E3C58A; border-radius:7px; padding:4px 10px; }
 .near-box > summary { cursor:pointer; font-size:12px; font-weight:700; color:#8a5a00; padding:4px 0; }
@@ -335,17 +361,21 @@ body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothi
 .mv-st.hole { background:#FBEAEA; color:#A33; border:1px solid #E0A6A6; }
 .toc-grp { margin-bottom:7px; }
 .toc-lbl { font-size:11px; font-weight:700; margin-bottom:5px; }
-.toc-lbl.ok { color:#2E7D32; } .toc-lbl.ng { color:#C77800; }
+.toc-lbl.ok { color:#2E7D32; } .toc-lbl.ng { color:#C77800; } .toc-lbl.rv { color:#1565C0; } .toc-lbl.wk { color:#6A1B9A; }
 .toc-chips { display:flex; flex-wrap:wrap; gap:5px; }
 .toc-chip { display:inline-flex; align-items:center; gap:4px; text-decoration:none; font-size:12px; font-weight:700; border-radius:14px; padding:3px 10px; white-space:nowrap; transition:background .12s,border-color .12s,color .12s; }
 .toc-chip.is-done { color:#1B5E20; background:#fff; border:1px solid #9CCC9E; }
 .toc-chip.is-done:hover { background:#2E7D32; color:#fff; border-color:#2E7D32; }
+.toc-chip.is-review { color:#0D47A1; background:#fff; border:1px solid #90CAF9; }
+.toc-chip.is-review:hover { background:#1976D2; color:#fff; border-color:#1976D2; }
+.toc-chip.is-working { color:#4527A0; background:#fff; border:1px solid #B39DDB; }
+.toc-chip.is-working:hover { background:#6A1B9A; color:#fff; border-color:#6A1B9A; }
 .toc-chip.is-todo { color:#8a5a00; background:#fff; border:1px solid #E3C58A; }
 .toc-chip.is-todo:hover { background:#C77800; color:#fff; border-color:#C77800; }
 .toc-chip:hover .toc-n { color:#fff; }
+.toc-chip:hover .toc-mk { color:#fff; }
 .toc-n { font-size:10px; color:#7a8aa0; font-weight:600; }
-.toc-ok { color:#2E7D32; font-size:11px; } .toc-chip.is-done:hover .toc-ok { color:#fff; }
-.toc-ng { color:#C77800; font-size:11px; } .toc-chip.is-todo:hover .toc-ng { color:#fff; }
+.toc-mk { font-size:11px; }
 /* 一番上に戻るボタン */
 .to-top { position:fixed; right:20px; bottom:22px; z-index:200; background:#1F4E79; color:#fff; text-decoration:none; font-size:13px; font-weight:700; padding:10px 15px; border-radius:24px; box-shadow:0 3px 10px rgba(0,0,0,.28); opacity:.92; }
 .to-top:hover { background:#16395c; opacity:1; }
@@ -353,6 +383,8 @@ body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothi
 .sec-h { position:sticky; top:0; z-index:60; margin:0; padding:8px 16px; background:#10263d; color:#fff; font-size:15px; border-top:2px solid #4a90d9; }
 .sec-n { font-size:12px; color:#9cc4ee; margin-left:10px; font-weight:400; }
 .sec-ok { font-size:11px; color:#7ee787; background:#16361f; padding:2px 8px; border-radius:5px; margin-left:10px; font-weight:400; }
+.sec-rv { font-size:11px; color:#90CAF9; background:#102a44; padding:2px 8px; border-radius:5px; margin-left:10px; font-weight:400; }
+.sec-wk { font-size:11px; color:#D1C4E9; background:#2a1a40; padding:2px 8px; border-radius:5px; margin-left:10px; font-weight:400; }
 .sec-ng { font-size:11px; color:#ffd479; background:#3a2e12; padding:2px 8px; border-radius:5px; margin-left:10px; font-weight:400; }
 .sec thead th { top:33px; }
 table { border-collapse:collapse; width:100%; font-size:11px; background:#fff; }
@@ -390,8 +422,10 @@ td.col-contact, td.col-guard { width:34px; text-align:center; }
 td.col-cat { width:62px; text-align:center; }
 td.col-effect { min-width:300px; font-size:12px; color:#222; line-height:1.5; }
 td.col-yakkun { min-width:300px; font-size:12px; color:#555; line-height:1.5; background:#FFFDF5; }
-td.col-tags { min-width:200px; max-width:360px; }
-td.col-tags { display:flex; flex-wrap:wrap; gap:2px; padding:4px; align-content:flex-start; }
+/* ★col-tagsは普通のテーブルセルのまま(display:flexにするとセルが列幅同期から外れ、見出しがズレる)。
+   チップはinline-blockで自然に折り返す。間隔はmarginで取る。 */
+td.col-tags { min-width:200px; max-width:360px; padding:4px; vertical-align:top; }
+td.col-tags .mw-tag { margin:0 2px 2px 0; }
 .gen-none { color:#C0392B; font-weight:700; }
 .hole { color:#A35200; font-size:10px; margin-top:4px; }
 .mw-tag { display:inline-block; padding:2px 8px; border-radius:4px; font-size:12.5px; font-weight:700; line-height:1.45; background:#F0F4FA; border:1px solid #C5D2E5; color:#1F4E79; white-space:nowrap; }
