@@ -220,9 +220,13 @@ function buildRow(m) {
   else if (prio < 0) prioTd = `<td class="col-prio prio-neg">${prio}</td>`;
   else prioTd = `<td class="col-prio prio-zero">—</td>`;
 
-  const effHtml = text
-    ? esc(text) + (holes.length ? `<div class="hole">⚠未対応: ${esc(holes.join('・'))}</div>` : '')
-    : '<span class="gen-none">(生成なし)</span>' + (holes.length ? `<div class="hole">⚠未対応: ${esc(holes.join('・'))}</div>` : '');
+  // ★技単位の完結バッジ(2026-06-07): 穴ゼロ=✅完結(再チェック不要)/ 穴あり=⚠残りN穴。あと1穴は黄色で「もう少し」。
+  const nEff = ((m.battle_data || {}).effects || []).length;
+  const status = holes.length === 0
+    ? `<span class="mv-st done">${nEff ? '✅完結' : '✅効果なし'}</span>`
+    : `<span class="mv-st ${holes.length === 1 ? 'near' : 'hole'}">⚠残り${holes.length}穴</span>`;
+  const holeDetail = holes.length ? `<div class="hole">未対応: ${esc(holes.join('・'))}</div>` : '';
+  const effHtml = status + (text ? ' ' + esc(text) : ' <span class="gen-none">(生成なし)</span>') + holeDetail;
 
   // 並び順(2026-06-07 阿部さん指定=プロト踏襲): 習得/わざ名/優先/フラグ/タイプ/分類/威力/命中/PP/接触/守貫/対象/カテゴリ/効果/タグ/ヤック
   return `<tr>
@@ -277,15 +281,32 @@ const sections = ordered.map((k, i) => {
 
 // ★グループ一覧(目次)= 上部にチップ表示・クリックでジャンプ(検索が説明文の語を拾う問題の回避)。
 //   「✓対応済(作業した順)」と「⚠これから(技数の多い順)」に分け、進捗(どこまで終わったか)を一目で。
-let voicedMoves = 0;
-for (const m of moves) { const { text, holes } = compose(m); if (text && !holes.length) voicedMoves++; }
+let voicedMoves = 0, completeMoves = 0;
+const oneHoleByKind = new Map(); // 残り1穴の技を「その穴のkind」でまとめる(=そのkindを開通すると何技が完結するか)
+for (const m of moves) {
+  const { text, holes } = compose(m);
+  if (text && !holes.length) voicedMoves++;
+  if (!holes.length) completeMoves++;                       // 穴ゼロ=完結(効果なし技も含む=もう見直さなくてよい)
+  else if (holes.length === 1) {                            // あと1穴で完結=安い完結
+    const k = holes[0];
+    if (!oneHoleByKind.has(k)) oneHoleByKind.set(k, []);
+    oneHoleByKind.get(k).push(m.name);
+  }
+}
 const tocIdx = ordered.map((k, i) => ({ k, i, n: byKind.get(k).length }));
+const kindToIdx = new Map(tocIdx.map(x => [x.k, x.i]));
+const oneHoleMoves = [...oneHoleByKind.values()].reduce((a, b) => a + b.length, 0);
+// 「あと1穴で完結」を、開通すると完結する技数の多いkind順に(=次に潰すと完結数が増えるkindが分かる)
+const nearList = [...oneHoleByKind.entries()].sort((a, b) => b[1].length - a[1].length)
+  .map(([k, names]) => `<a class="near-row" href="#sec-${kindToIdx.has(k) ? kindToIdx.get(k) : 0}"><b class="near-k">${esc(k)}</b><span class="near-n">${names.length}技完結</span><span class="near-mv">${names.map(esc).join('・')}</span></a>`).join('');
 const doneItems = tocIdx.filter(x => x.k !== NOEFF && HANDLED.has(x.k));   // 作業した順(KIND_ORDER順=ordered先頭群)
 const todoItems = tocIdx.filter(x => x.k !== NOEFF && !HANDLED.has(x.k));  // 技数の多い順(restKinds=技数降順)
 const noeffItem = tocIdx.find(x => x.k === NOEFF);
 const tocChip = (x, done) => `<a class="toc-chip ${done ? 'is-done' : 'is-todo'}" href="#sec-${x.i}">${esc(x.k === NOEFF ? '追加効果なし' : x.k)}<span class="toc-n">${x.n}</span>${done ? '<span class="toc-ok">✓</span>' : (x.k === NOEFF ? '' : '<span class="toc-ng">⚠</span>')}</a>`;
 const toc = `<nav class="toc" id="toc">
-  <div class="toc-prog">📊 進捗：<b class="p-done">対応済 ${doneItems.length}グループ</b>（説明文が出せる <b>${voicedMoves}</b> / ${moves.length}技）　｜　<b class="p-todo">これから ${todoItems.length}グループ</b>　｜　全${ordered.length}グループ</div>
+  <div class="toc-prog">📊 進捗：<b class="p-done">グループ対応済 ${doneItems.length}</b>　｜　説明文が出せる <b>${voicedMoves}</b>/${moves.length}技　｜　<b class="p-cmpl">✅技が完結(穴ゼロ) ${completeMoves}</b>　｜　<b class="p-near">⚠あと1穴で完結 ${oneHoleMoves}技</b>　｜　これから ${todoItems.length}グループ</div>
+  <details class="near-box"${oneHoleMoves ? '' : ' style="display:none"'}><summary>🎯 あと1穴で完結する技 ${oneHoleMoves}技 ―「このkindを開通すると○技が一気に完結」(クリックでセクションへ)</summary>
+    <div class="near-list">${nearList}</div></details>
   <div class="toc-grp"><div class="toc-lbl ok">✓ 対応済（作業した順）</div><div class="toc-chips">${doneItems.map(x => tocChip(x, true)).join('')}</div></div>
   <div class="toc-grp"><div class="toc-lbl ng">⚠ これから（技数の多い順）</div><div class="toc-chips">${todoItems.map(x => tocChip(x, false)).join('')}${noeffItem ? tocChip(noeffItem, false) : ''}</div></div>
 </nav>`;
@@ -299,7 +320,19 @@ body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothi
 /* グループ一覧(目次) */
 .toc { padding:10px 16px 12px; background:#eef3fa; border-bottom:2px solid #1F4E79; }
 .toc-prog { font-size:12.5px; color:#33415c; margin-bottom:9px; padding:6px 10px; background:#fff; border:1px solid #C5D2E5; border-radius:6px; }
-.toc-prog .p-done { color:#2E7D32; } .toc-prog .p-todo { color:#C77800; }
+.toc-prog .p-done { color:#2E7D32; } .toc-prog .p-todo { color:#C77800; } .toc-prog .p-cmpl { color:#1565C0; } .toc-prog .p-near { color:#B8860B; }
+/* あと1穴で完結 */
+.near-box { margin:0 0 9px; background:#FFFBEA; border:1px solid #E3C58A; border-radius:7px; padding:4px 10px; }
+.near-box > summary { cursor:pointer; font-size:12px; font-weight:700; color:#8a5a00; padding:4px 0; }
+.near-list { display:flex; flex-direction:column; gap:3px; padding:4px 0 6px; }
+.near-row { display:flex; align-items:baseline; gap:8px; text-decoration:none; font-size:12px; padding:3px 6px; border-radius:5px; }
+.near-row:hover { background:#FCEFC7; }
+.near-k { color:#1F4E79; min-width:130px; } .near-n { color:#B8860B; font-weight:700; min-width:64px; } .near-mv { color:#555; }
+/* 技単位の完結バッジ */
+.mv-st { display:inline-block; font-size:10.5px; font-weight:700; padding:1px 6px; border-radius:4px; margin-right:3px; white-space:nowrap; }
+.mv-st.done { background:#E6F5E6; color:#1B5E20; border:1px solid #9CCC9E; }
+.mv-st.near { background:#FFF7DB; color:#8a5a00; border:1px solid #E3C58A; }
+.mv-st.hole { background:#FBEAEA; color:#A33; border:1px solid #E0A6A6; }
 .toc-grp { margin-bottom:7px; }
 .toc-lbl { font-size:11px; font-weight:700; margin-bottom:5px; }
 .toc-lbl.ok { color:#2E7D32; } .toc-lbl.ng { color:#C77800; }
