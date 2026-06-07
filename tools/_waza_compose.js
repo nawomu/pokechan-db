@@ -24,6 +24,18 @@ const amountT = a => a === '自分の残りHP分' ? '自分のいまのこって
 // 言葉のルール(2026-06-06 阿部さん): ランクの増減は和語数詞「ひとつ/ふたつ…」。「1個」にしない。
 const KAZU = { 1: 'ひとつ', 2: 'ふたつ', 3: 'みっつ', 4: 'よっつ', 5: 'いつつ', 6: 'むっつ' };
 const kazuT = n => KAZU[Math.abs(n)] || `${Math.abs(n)}個`;
+// 威力可変ヘルパー(英語formula/basisは出さない=機械漏れ防止。未知形はnull=穴)
+const ratioFrac = r => `1/${Math.round(1 / r)}`; // 0.2→1/5(fracTは0.5を半分にするので比率専用)
+const fmlT = e => { // 既知formulaのみ和文化。未知はnull(生英語式を出さない)
+  const f = (e.formula || '').replace(/\s+/g, '');
+  if (/^(floor\()?150\*currentHP\/maxHP\)?$/.test(f)) return '自分のHPが少ないほど威力が下がる(威力は 150×今のHP÷最大HP・端数切り捨て)';
+  if (f === 'floor(25*target_speed/user_speed)+1') return `相手よりすばやさが低いほど威力が高くなる(威力は 25×相手のすばやさ÷自分のすばやさ+1・端数切り捨て・最大${e.max_power})`;
+  if (f === '100*target_current_HP/target_max_HP') return '相手の残りHPが多いほど威力が高くなる(威力は 100×相手の今のHP÷相手の最大HP)';
+  return null;
+};
+const wtKgT = arr => arr.map(t => t.min_kg != null ? `${t.min_kg}kg以上は${t.power}` : `${t.max_kg}kg未満は${t.power}`).join('・');
+const wRatioT = arr => arr.map(t => { const r = t.target_weight_at_most_fraction_of_user != null ? t.target_weight_at_most_fraction_of_user : t.max_ratio; return (r == null || t.otherwise) ? `それ以外なら${t.power}` : `${ratioFrac(r)}以下なら${t.power}`; }).join('・');
+const sRatioT = arr => arr.map(t => t.ratio_at_or_above != null ? `${t.ratio_at_or_above}倍以上は${t.power}` : `${t.ratio_below}倍未満は${t.power}`).join('・');
 // kind → 文の部品(子ども口調)。conditionは付けない(compose側でグループ束ね)。未対応は null。
 function clause(e, m) {
   const k = e.kind, t = TGT[e.target] || e.target;
@@ -68,6 +80,18 @@ function clause(e, m) {
     case 'ひるみ':
       // ★忠実版: kind:ひるみ = N%の確率で相手をひるませる(状態付与:ひるみ と統一)。
       return `${(e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''}相手をひるませる`;
+    case '威力可変': {
+      // ★忠実版: データの段階表/式をそのまま日本語で。英語formula/basisは出さない・未知形はnull(穴)。
+      if (e.relation === 'lower_hp_higher_power') return `自分の残りHPが少ないほど威力が高くなる(威力${e.power_min}〜${e.power_max})`;
+      if (e.formula) return fmlT(e); // 既知のみ・未知null
+      if (e.tiers && (e.tiers[0] || {}).max_kg != null) return `相手のおもさが重いほど威力が高くなる(${wtKgT(e.tiers)})`;
+      if (e.weight_thresholds) return `相手のおもさが重いほど威力が高くなる(${wtKgT(e.weight_thresholds)})`;
+      if (e.basis === 'weight_ratio_target_over_user' || (e.table && (e.table[0] || {}).max_ratio !== undefined)) return `自分のおもさが相手より重いほど威力が高くなる(相手のおもさが自分の${wRatioT(e.table)})`;
+      if (e.basis === 'user_speed_over_target_speed') return `自分のすばやさが相手より高いほど威力が高くなる(自分のすばやさが相手の${sRatioT(e.table)})`;
+      if (e.per_stage) return `自分の能力ランクが1段階上がっているごとに威力が${e.per_stage}上がる(基礎威力${e.base_power})`;
+      if (e.based_on === 'stockpile_count' && e.power_table) return `たくわえた数で威力が変わる(${Object.entries(e.power_table).map(([k, v]) => `${k}つで${v}`).join('・')})`;
+      return null; // 条件×倍率/天気/needs_research 等は穴
+    }
     case '能力ランク変化': {
       if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
       const st = joinStats(statList(e));
@@ -158,7 +182,7 @@ let scanned = 0, leaks = [], voiced = 0;
 for (const m of Object.values(map)) {
   const { text, holes } = compose(m); scanned++;
   if (text && !holes.length) voiced++;
-  if (text) { const t = text.replace(/HP|PP/g, ''); if (LEAK.test(t)) leaks.push(`${m.name}: ${text.slice(0, 80)}`); }
+  if (text) { const t = text.replace(/HP|PP|kg/g, ''); if (LEAK.test(t)) leaks.push(`${m.name}: ${text.slice(0, 80)}`); } // HP/PP/kg=正当な単位(機械漏れでない)
 }
 console.log(`\n[機械漏れ検知] 全${scanned}技中 フル生成可 ${voiced}技 / 生成文に機械漏れ ${leaks.length}件`);
 leaks.slice(0, 15).forEach(x => console.log('  🔴 ' + x));
