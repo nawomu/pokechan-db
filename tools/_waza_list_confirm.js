@@ -249,8 +249,9 @@ function buildRow(m) {
 const moves = Object.values(map);
 
 // ===== カテゴリ(効果kind)別セクション(2026-06-07 阿部さん: 急所/ひるみ…とチェックする順に区切る・重複OK) =====
-const KIND_ORDER = ['急所率上昇', 'ひるみ', '威力可変', '状態付与', '能力ランク変化', '回復', '反動', '拘束', '継続削り', '連続攻撃', '固定ダメージ', 'HPが減る', '自分瀕死', '威力倍率'];
-const HANDLED = new Set(['状態付与', '拘束', '反動', '威力倍率', '自分瀕死', '回復', 'HPが減る', '固定ダメージ', '継続削り', '連続攻撃', '急所率上昇', 'ひるみ', '威力可変', '能力ランク変化']);
+// 作業した順(開通順)。HANDLED=テンプレ対応済(_waza_compose.js の clause が喋れるkind)。両者は一致させる(必中=2026-06-07 追加)。
+const KIND_ORDER = ['急所率上昇', 'ひるみ', '威力可変', '能力ランク変化', '状態付与', '拘束', '反動', '威力倍率', '自分瀕死', '回復', 'HPが減る', '固定ダメージ', '継続削り', '連続攻撃', '必中'];
+const HANDLED = new Set(KIND_ORDER);
 const NOEFF = '（追加効果なし）';
 const byKind = new Map();
 for (const m of moves) {
@@ -267,12 +268,27 @@ const THEAD = `<thead><tr>
   <th class="col-effsrc">Effects(元データ)</th><th class="col-effect">効果</th><th class="col-tags">タグ</th><th class="col-yakkun">ヤック</th>
 </tr></thead>`;
 
-const sections = ordered.map(k => {
+const sections = ordered.map((k, i) => {
   const ms = byKind.get(k);
   const badge = k === NOEFF ? '' : (HANDLED.has(k) ? '<span class="sec-ok">✓テンプレ対応</span>' : '<span class="sec-ng">⚠未対応</span>');
-  return `<section class="sec"><h2 class="sec-h">【${esc(k)}】<span class="sec-n">${ms.length}技</span>${badge}</h2>
+  return `<section class="sec" id="sec-${i}"><h2 class="sec-h">【${esc(k)}】<span class="sec-n">${ms.length}技</span>${badge}</h2>
   <div class="tbl-wrap"><table>${THEAD}<tbody>${ms.map(buildRow).join('\n')}</tbody></table></div></section>`;
 }).join('\n');
+
+// ★グループ一覧(目次)= 上部にチップ表示・クリックでジャンプ(検索が説明文の語を拾う問題の回避)。
+//   「✓対応済(作業した順)」と「⚠これから(技数の多い順)」に分け、進捗(どこまで終わったか)を一目で。
+let voicedMoves = 0;
+for (const m of moves) { const { text, holes } = compose(m); if (text && !holes.length) voicedMoves++; }
+const tocIdx = ordered.map((k, i) => ({ k, i, n: byKind.get(k).length }));
+const doneItems = tocIdx.filter(x => x.k !== NOEFF && HANDLED.has(x.k));   // 作業した順(KIND_ORDER順=ordered先頭群)
+const todoItems = tocIdx.filter(x => x.k !== NOEFF && !HANDLED.has(x.k));  // 技数の多い順(restKinds=技数降順)
+const noeffItem = tocIdx.find(x => x.k === NOEFF);
+const tocChip = (x, done) => `<a class="toc-chip ${done ? 'is-done' : 'is-todo'}" href="#sec-${x.i}">${esc(x.k === NOEFF ? '追加効果なし' : x.k)}<span class="toc-n">${x.n}</span>${done ? '<span class="toc-ok">✓</span>' : (x.k === NOEFF ? '' : '<span class="toc-ng">⚠</span>')}</a>`;
+const toc = `<nav class="toc" id="toc">
+  <div class="toc-prog">📊 進捗：<b class="p-done">対応済 ${doneItems.length}グループ</b>（説明文が出せる <b>${voicedMoves}</b> / ${moves.length}技）　｜　<b class="p-todo">これから ${todoItems.length}グループ</b>　｜　全${ordered.length}グループ</div>
+  <div class="toc-grp"><div class="toc-lbl ok">✓ 対応済（作業した順）</div><div class="toc-chips">${doneItems.map(x => tocChip(x, true)).join('')}</div></div>
+  <div class="toc-grp"><div class="toc-lbl ng">⚠ これから（技数の多い順）</div><div class="toc-chips">${todoItems.map(x => tocChip(x, false)).join('')}${noeffItem ? tocChip(noeffItem, false) : ''}</div></div>
+</nav>`;
 
 const CSS = `
 body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; background:#fff; color:#222; }
@@ -280,7 +296,27 @@ body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothi
 .hdr h1 { font-size:16px; margin:0; }
 .hdr .sub { font-size:11px; color:#cfe0f0; margin-top:4px; }
 .tbl-wrap { overflow-x:auto; }
-.sec { margin:0 0 22px; }
+/* グループ一覧(目次) */
+.toc { padding:10px 16px 12px; background:#eef3fa; border-bottom:2px solid #1F4E79; }
+.toc-prog { font-size:12.5px; color:#33415c; margin-bottom:9px; padding:6px 10px; background:#fff; border:1px solid #C5D2E5; border-radius:6px; }
+.toc-prog .p-done { color:#2E7D32; } .toc-prog .p-todo { color:#C77800; }
+.toc-grp { margin-bottom:7px; }
+.toc-lbl { font-size:11px; font-weight:700; margin-bottom:5px; }
+.toc-lbl.ok { color:#2E7D32; } .toc-lbl.ng { color:#C77800; }
+.toc-chips { display:flex; flex-wrap:wrap; gap:5px; }
+.toc-chip { display:inline-flex; align-items:center; gap:4px; text-decoration:none; font-size:12px; font-weight:700; border-radius:14px; padding:3px 10px; white-space:nowrap; transition:background .12s,border-color .12s,color .12s; }
+.toc-chip.is-done { color:#1B5E20; background:#fff; border:1px solid #9CCC9E; }
+.toc-chip.is-done:hover { background:#2E7D32; color:#fff; border-color:#2E7D32; }
+.toc-chip.is-todo { color:#8a5a00; background:#fff; border:1px solid #E3C58A; }
+.toc-chip.is-todo:hover { background:#C77800; color:#fff; border-color:#C77800; }
+.toc-chip:hover .toc-n { color:#fff; }
+.toc-n { font-size:10px; color:#7a8aa0; font-weight:600; }
+.toc-ok { color:#2E7D32; font-size:11px; } .toc-chip.is-done:hover .toc-ok { color:#fff; }
+.toc-ng { color:#C77800; font-size:11px; } .toc-chip.is-todo:hover .toc-ng { color:#fff; }
+/* 一番上に戻るボタン */
+.to-top { position:fixed; right:20px; bottom:22px; z-index:200; background:#1F4E79; color:#fff; text-decoration:none; font-size:13px; font-weight:700; padding:10px 15px; border-radius:24px; box-shadow:0 3px 10px rgba(0,0,0,.28); opacity:.92; }
+.to-top:hover { background:#16395c; opacity:1; }
+.sec { margin:0 0 22px; scroll-margin-top:0; }
 .sec-h { position:sticky; top:0; z-index:60; margin:0; padding:8px 16px; background:#10263d; color:#fff; font-size:15px; border-top:2px solid #4a90d9; }
 .sec-n { font-size:12px; color:#9cc4ee; margin-left:10px; font-weight:400; }
 .sec-ok { font-size:11px; color:#7ee787; background:#16361f; padding:2px 8px; border-radius:5px; margin-left:10px; font-weight:400; }
@@ -358,11 +394,13 @@ const html = `<!DOCTYPE html>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>わざリスト 確認 (新説明文 × 本番レイアウト) - PchamDB</title>
 <style>${CSS}</style></head><body>
-<div class="hdr">
+<div class="hdr" id="top">
   <h1>📋 わざリスト 確認用 — 新説明文(エンジン生成)を本番レイアウトで表示</h1>
   <div class="sub">効果(=エフェクト内容)カテゴリーごとに区切って表示。効果列=新生成 / ヤック列=description_legacy(お手本)。優先列=battle_data.priority。重複技は各カテゴリに出ます。本番ファイルは未変更。全${moves.length}技 / ${ordered.length}カテゴリ。</div>
 </div>
+${toc}
 ${sections}
+<a class="to-top" href="#top" title="一番上に戻る">↑ 上へ</a>
 </body></html>`;
 
 const outDir = path.join(ROOT, 'review');
