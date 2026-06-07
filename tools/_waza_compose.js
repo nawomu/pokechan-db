@@ -53,6 +53,14 @@ function clause(e, m) {
     }
     case '拘束':
       return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}の間、逃げたり交代したりできないようにする`;
+    case 'まもり貫通':
+      // ★bypasses形(ゴーストダイブ/なみだめ): 相手の守り技リストの効果を受けない。not_bypassed=除外。
+      // 他形(pierces_without_removing=フェイント / 防御側variant=ニードルガード)は意味が別→穴(=意味の分裂に注意)。
+      if (Array.isArray(e.bypasses)) {
+        const ex = (e.not_bypassed || []).length ? `(「${e.not_bypassed.join('」「')}」は除く)` : '';
+        return `相手の「${e.bypasses.join('」「')}」の効果を受けない${ex}`;
+      }
+      return null;
     case '反動':
       return `相手に与えたダメージの${fracT(e.fraction)}を、自分も受ける`;
     case '威力倍率':
@@ -99,12 +107,14 @@ function clause(e, m) {
     }
     case '能力ランク変化': {
       if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
-      const st = joinStats(statList(e));
+      const sts = statList(e);
       const pre = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : '';
-      // ★忠実版(2026-06-07 阿部さん): 相手を上げる場合も解釈せず「上がる」(旧「上げてしまう」は廃止)
       const who = TGT2[e.target] || (t + 'の');
-      const dir = e.to_max ? 'いっきに最大まであがる' : e.stages > 0 ? `${e.stages}段階あがる` : `${-e.stages}段階さがる`;
-      return `${pre}${who}${st}が${dir}`;
+      // ★±N表記に統一(2026-06-07 阿部さん): 能力ランクの増減は「こうげき-1、とくこう-1」。✗「〜が1段階さがる」。
+      // 各能力に符号つき数値を付ける(同stagesでも能力ごとに繰り返す)。to_maxのみ特例(数値でない)。
+      if (e.to_max) return `${pre}${who}${joinStats(sts)}が最大まであがる`;
+      const sg = e.stages > 0 ? `+${e.stages}` : `${e.stages}`; // 負はそのまま(-2 など)
+      return `${pre}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
     }
     default:
       return null; // 穴
