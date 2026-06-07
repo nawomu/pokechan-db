@@ -11,6 +11,7 @@ const WRITE = [
   ['直訳=逐語訳', '「直訳」はデータの逐語訳であって、子ども向けの作文・意訳ではない。まず"そのまま"で伝わるかを見る(憶測・想像で足さない)。'],
   ['独自に作る/ヤックンを写さない', 'legacy(ヤックン)の編集的な言い回しを写さない(verbatim一致=盗用リスク=赤信号)。legacyは<b>意味の参照のみ</b>。'],
   ['自然な収束はOK', '言い方が一通りしかないもの(例「30%の確率で相手をひるませる」「必ず急所に当たる」)が legacy と一致するのは<b>自然な収束=可・機械的でよい</b>(2026-06-07 阿部さん確定)。無理に変えると不自然。'],
+  ['略さない(意味が要る所)', '効果の意味が説明に必要なら<b>略さない</b>。「短くて済む」より「意味が戻る」を採る。<b>例(必中・2026-06-07 阿部さんの耳で確定)</b>: ✗「必ず命中する」だけに縮める → ✓「<b>相手の回避率や自分の命中率に関係なく</b>、必ず命中する」。理由=相手のかいひ上昇(ちいさくなる/かいひ)や自分の命中率低下(どろかけ等)を<b>無視して当たる</b>という肝が落ちる。説明にもsimにも効く情報→残す(effectsにも <code>ignores:[user_accuracy,target_evasion]</code> を入れる)。'],
   ['effectsは二役', 'effects は シミュレーター と 説明文 の<b>両方</b>に使う同じデータ。simが読まない効果でも説明文には要る→<b>安易に削除しない</b>(例: 鉄の拳1.2倍)。'],
   ['優先度を入れる', '優先度(battle_data.priority)は「使うとどうなるか」の一部→説明文に入れる(例「優先度-3で、必ず後攻になる」)。'],
   ['voiced ≠ complete', 'カバー率も機械漏れ検知も<b>データの欠けは見えない</b>。穴フラグ無しでもデータが肝を落とせば新版は不完全。意味の完全性は人間/検証が legacy照合する(例: きあいパンチの失敗条件=データ欠け)。'],
@@ -47,10 +48,13 @@ const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta n
  .rv{flex:1;padding:10px 14px;font-size:14.5px;background:#11161c;color:#c9d1d9}
  .rv b{color:#ffd479}
  .note{font-size:12.5px;color:#6e7681;margin-top:20px}
+ .basis{margin:14px 0 8px;padding:13px 16px;background:#10263d;border:1px solid #4a90d9;border-left:5px solid #4a90d9;border-radius:8px;font-size:15px;color:#cfe6ff}
+ .basis b{color:#ffd479}
 </style></head><body>
 <header><div class="wrap" style="padding-bottom:0"><h1>📏 わざリスト ルールリスト(集約)</h1>
 <div class="date">説明文づくりの全ルール / 2026-06-07 / SSOT=ヤックン耳_判断ログ.md(本表はその集約ビュー)</div></div></header>
 <div class="wrap">
+<div class="basis">📋 <b>確認は必ず <code>review/waza_list_confirm.html</code> をベースに使う</b>(本番デザイン・効果カテゴリー別セクション)。各技で <b>効果(新版)↔ヤック(legacy)</b> を<b>意味で照合</b>する。これがわざリスト確認の標準・セッションが変わっても不変。</div>
 ${sec('✍️ 書き方のルール(姿勢・方針)', '#7ee787', WRITE)}
 ${sec('🔤 言葉のルール(表記・語彙)', '#79c0ff', WORD)}
 <div class="note">確認フォーマット: <b>tools/_waza_list_confirm.js → review/waza_list_confirm.html</b>(本番デザイン・効果カテゴリー別セクション・列=名前→優先→フラグ→タイプ→分類→威力…→Effects→効果→タグ→ヤック)。これで毎回チェックする。</div>
