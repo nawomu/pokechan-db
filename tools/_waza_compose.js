@@ -18,7 +18,7 @@ const statList = e => (Array.isArray(e.stats) ? e.stats : [e.stat]).map(s => STA
 const joinStats = a => a.length <= 1 ? (a[0] || '') : a.length === 2 ? a.join('と') : a.join('・');
 const immT = arr => (arr || []).map(x => x.value || (x.values || []).join('・')).join('・');
 // condStrNew は「〜の時/〜の場合」を返す。文頭につなぐ。
-const condT = c => condStrNew(c).replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)');
+const condT = c => condStrNew(c).replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)').replace(/『/g, '「').replace(/』/g, '」'); // 囲みは「」に統一(共有_cond_renderは触らずcompose側で吸収)
 
 const amountT = a => a === '自分の残りHP分' ? '自分のいまのこっているHPと同じだけ' : a;
 // 言葉のルール(2026-06-06 阿部さん): ランクの増減は和語数詞「ひとつ/ふたつ…」。「1個」にしない。
@@ -49,7 +49,7 @@ function clause(e, m) {
       const pp = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''; // 忠実: 確率はデータのまま。落とすと「必ず◯」化(意味漏れ)
       if (e.value === 'ひるみ') return `${pp}相手をひるませる`; // ひるみは動作=「ひるませる」(『ひるみ』状態にする は不自然・kind:ひるみ と統一)
       const dd = e.duration ? `${durT(e.duration)}の間、` : '';
-      return `${pp}${dd}${t}を『${e.value}』状態にする`;
+      return `${pp}${dd}${t}を「${e.value}」状態にする`; // 囲みは「」(2026-06-07 阿部さん・ヤックン『』と差別化)
     }
     case '拘束':
       return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}の間、逃げたり交代したりできないようにする`;
@@ -95,9 +95,8 @@ function clause(e, m) {
     case '能力ランク変化': {
       if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
       const st = joinStats(statList(e));
-      const pre = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''; // gold=漢字「確率」・読点なし(legacy 119:0)
-      if (e.target === 'opponent' && e.stages > 0)  // 相手を上げる=こっちの損 → 「してしまう」(✓本人)
-        return `${pre}相手の${st}を${e.stages}段階上げてしまう`;
+      const pre = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : '';
+      // ★忠実版(2026-06-07 阿部さん): 相手を上げる場合も解釈せず「上がる」(旧「上げてしまう」は廃止)
       const who = TGT2[e.target] || (t + 'の');
       const dir = e.to_max ? 'いっきに最大まであがる' : e.stages > 0 ? `${e.stages}段階あがる` : `${-e.stages}段階さがる`;
       return `${pre}${who}${st}が${dir}`;
@@ -124,6 +123,11 @@ function compose(m) {
   });
   let text = sentences.length ? sentences.join('。') + '。' : '';
   const bd = m.battle_data || {};
+  // ★優先度を説明に入れる(2026-06-07 阿部さん): battle_data.priority(構造)から。技の意味=先手/後手は使うとどうなるかの一部。
+  const pr = bd.priority;
+  if (typeof pr === 'number' && pr !== 0) {
+    text = (pr > 0 ? `優先度+${pr}で、先に攻撃できる。` : `優先度${pr}で、必ず後攻になる。`) + text;
+  }
   const lo = (bd.fails_if || []).find(f => f.type === 'current_hp_below_fraction');
   if (lo) text += `(今のHPが最大HPの${fracT(lo.fraction)}より少ないと失敗する)`;
   const gi = (bd.immune || []).find(x => x.type === 'target_type' && (x.value === 'ゴースト' || (x.values || []).includes('ゴースト')));

@@ -1,0 +1,59 @@
+/** わざリスト ルールリスト(集約)。言葉のルール + 書き方のルール を1枚に。
+ * SSOT=ヤックン耳_判断ログ.md(本HTMLはその集約ビュー)。実行: node tools/_rules.js → review/rules.html */
+const fs = require('fs'), path = require('path');
+const ROOT = path.resolve(__dirname, '..');
+const esc = s => String(s || '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+
+// 書き方のルール(姿勢・方針)
+const WRITE = [
+  ['そのまま忠実', 'データ(effects)の中身を言葉通りに訳す。アレンジ・ひねり・まとめ・省略・"やさしく崩す"・AI加工は<b>しない</b>。子どもに分からなくても、まず事実をそのまま。'],
+  ['忠実 > やさしさ', 'softening が事実(機構)をぼかすなら、忠実を採る。「やさしい子ども口調」より忠実が優先。'],
+  ['直訳=逐語訳', '「直訳」はデータの逐語訳であって、子ども向けの作文・意訳ではない。まず"そのまま"で伝わるかを見る(憶測・想像で足さない)。'],
+  ['独自に作る/ヤックンを写さない', 'legacy(ヤックン)の編集的な言い回しを写さない(verbatim一致=盗用リスク=赤信号)。legacyは<b>意味の参照のみ</b>。'],
+  ['自然な収束はOK', '言い方が一通りしかないもの(例「30%の確率で相手をひるませる」「必ず急所に当たる」)が legacy と一致するのは<b>自然な収束=可・機械的でよい</b>(2026-06-07 阿部さん確定)。無理に変えると不自然。'],
+  ['effectsは二役', 'effects は シミュレーター と 説明文 の<b>両方</b>に使う同じデータ。simが読まない効果でも説明文には要る→<b>安易に削除しない</b>(例: 鉄の拳1.2倍)。'],
+  ['優先度を入れる', '優先度(battle_data.priority)は「使うとどうなるか」の一部→説明文に入れる(例「優先度-3で、必ず後攻になる」)。'],
+  ['voiced ≠ complete', 'カバー率も機械漏れ検知も<b>データの欠けは見えない</b>。穴フラグ無しでもデータが肝を落とせば新版は不完全。意味の完全性は人間/検証が legacy照合する(例: きあいパンチの失敗条件=データ欠け)。'],
+  ['「足りない」前に裏取り', '「欠落/不要/誤り」と言う前に、実データ+sim実装(real_battle_simulator.html)を確認。二層(eff/bd)を両方見る。'],
+];
+
+// 言葉のルール(表記・語彙)
+const WORD = [
+  ['日本語ベース・正確', '日本の製品。正確で標準的な日本語(公式準拠の用語・適切な漢字)。英語は英語のままでよい。'],
+  ['幼稚化しない', '公式技説明の全ひらがな・幼稚な表現に寄せない。一般的な日本語表現にする。'],
+  ['助数詞=和語数詞', 'ランクの増減は「ひとつ/ふたつ/みっつ…」。「1個」にしない。例「急所ランクが<b>ひとつ</b>上がる」。'],
+  ['数値はそのまま', '確率などの数字は崩さない(「10%」のまま。「10回に1回」にしない)。'],
+  ['急所(stages)', '`急所率上昇 stages:1` →「急所ランクがひとつ上がる」(解釈・softeningしない)。`always_crit`→「必ず急所に当たる」。'],
+  ['囲み記号=「 」', '状態名・用語の囲みは「 」(2026-06-07・ヤックンの『 』と差別化)。海外向けの " " は i18n時に再考。'],
+  ['ひるみ=ひるませる', 'ひるみは一回の動作(持続状態でない)→「相手をひるませる」。「『ひるみ』状態にする」は不自然(全19技 duration無し=◇確定)。'],
+  ['カテゴリは文頭に付けない', '【急所】等を説明文の頭に付けない。効果の種類は<b>タグ</b>で分かるようにする(タグをちらっと見れば分かる設計)。'],
+  ['機械語を出さない', 'true / 0.125 / 英語 / キー名 を出力に出さない(部品→日本語に)。'],
+];
+
+const sec = (title, color, rules) => `
+<section><h2 style="border-color:${color};color:${color}">${title}</h2>
+${rules.map(([k, v], i) => `<div class="rule"><div class="rk" style="background:${color}">${i + 1}. ${esc(k)}</div><div class="rv">${v}</div></div>`).join('')}
+</section>`;
+
+const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>わざリスト ルールリスト(集約)</title><style>
+ body{font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;margin:0;background:#0f1419;color:#e6edf3;line-height:1.8;font-size:16px}
+ .wrap{max-width:900px;margin:0 auto;padding:0 18px 60px}
+ header{padding:16px 18px;background:#1F4E79;color:#fff;margin-bottom:14px}
+ h1{font-size:20px;margin:0} .date{font-size:12px;color:#cfe0f0;margin-top:5px}
+ h2{font-size:18px;margin:26px 0 12px;padding-bottom:6px;border-bottom:2px solid}
+ .rule{display:flex;gap:0;margin-bottom:9px;border:1px solid #30363d;border-radius:8px;overflow:hidden}
+ .rk{flex:0 0 200px;padding:10px 13px;color:#fff;font-weight:700;font-size:14.5px;display:flex;align-items:center}
+ .rv{flex:1;padding:10px 14px;font-size:14.5px;background:#11161c;color:#c9d1d9}
+ .rv b{color:#ffd479}
+ .note{font-size:12.5px;color:#6e7681;margin-top:20px}
+</style></head><body>
+<header><div class="wrap" style="padding-bottom:0"><h1>📏 わざリスト ルールリスト(集約)</h1>
+<div class="date">説明文づくりの全ルール / 2026-06-07 / SSOT=ヤックン耳_判断ログ.md(本表はその集約ビュー)</div></div></header>
+<div class="wrap">
+${sec('✍️ 書き方のルール(姿勢・方針)', '#7ee787', WRITE)}
+${sec('🔤 言葉のルール(表記・語彙)', '#79c0ff', WORD)}
+<div class="note">確認フォーマット: <b>tools/_waza_list_confirm.js → review/waza_list_confirm.html</b>(本番デザイン・効果カテゴリー別セクション・列=名前→優先→フラグ→タイプ→分類→威力…→Effects→効果→タグ→ヤック)。これで毎回チェックする。</div>
+</div></body></html>`;
+fs.writeFileSync(path.join(ROOT, 'review', 'rules.html'), html);
+console.log('生成: review/rules.html / 書き方', WRITE.length, '+ 言葉', WORD.length, 'ルール');
