@@ -303,6 +303,35 @@ console.log('\n=== 段⑫ 連続攻撃（複数ヒット） ===');
   check('T26 ミサイルばりは2〜5回ヒット', r26.hits >= 2 && r26.hits <= 5, `hits=${r26.hits}`);
 }
 
+console.log('\n=== 段⑬ 回復(変化技)＋ 連続攻撃 max_hits（検証WFが指摘） ===');
+{
+  // T27: じこさいせい → 最大HPの半分回復
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  const max = E.realStat(E.sides.self, 'hp');
+  E.sides.self.currentHp = 1;
+  E.phaseApplyEffects('self', 'opp', moveByName('じこさいせい'));
+  check('T27 じこさいせいで最大HPの半分回復', E.sides.self.currentHp === 1 + Math.floor(max * 0.5), `hp=${E.sides.self.currentHp} 期待=${1 + Math.floor(max * 0.5)}`);
+
+  // T28: あさのひざし → 天候なしは1/2 / にほんばれは2/3(条件分岐)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.currentHp = 1;
+  E.phaseApplyEffects('self', 'opp', moveByName('あさのひざし'));
+  check('T28 あさのひざし(天候なし)=1/2回復', E.sides.self.currentHp === 1 + Math.floor(max * 0.5), `hp=${E.sides.self.currentHp}`);
+  resetEnv(); E.env.weather = 'sunny';
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.currentHp = 1;
+  E.phaseApplyEffects('self', 'opp', moveByName('あさのひざし'));
+  check('T28 あさのひざし(はれ)=約2/3回復', E.sides.self.currentHp === 1 + Math.floor(max * 0.6667), `hp=${E.sides.self.currentHp} 期待=${1 + Math.floor(max * 0.6667)}`);
+
+  // T29: ネズミざん(max_hits:10) → 複数ヒット
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('ネズミざん')];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(7)); E.sides.opp.currentHp = 99999;
+  const r29 = E.phaseDealDamage('self', 'opp', moveByName('ネズミざん'));
+  check('T29 ネズミざんが複数ヒット(>1)', r29.hits > 1, `hits=${r29.hits}`);
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

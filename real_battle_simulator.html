@@ -1479,6 +1479,8 @@ function phaseDealDamage(atkSide, defSide, move){
       } else {
         hitCount = multiEf.min_hits + Math.floor(Math.random() * (multiEf.max_hits - multiEf.min_hits + 1));
       }
+    } else if (multiEf.max_hits != null){
+      hitCount = multiEf.max_hits; // ネズミざん/トリプルアクセル(stop_on_miss): 簡易に最大回数(命中前提・威力逓増は未対応=park)
     }
   }
 
@@ -1520,6 +1522,15 @@ function phaseDealDamage(atkSide, defSide, move){
     log('8', `${def.poke.name} は ひんしになった！`);
   }
   return {...result, variation: total, hits};
+}
+
+// 回復等の天候条件(あさのひざし/つきのひかり 等)を現在の天候と照合
+const _WMAP = {'にほんばれ':'sunny','あめ':'rain','すなあらし':'sand','ゆき':'snow','なし(通常)':'none','なし':'none','none':'none'};
+function weatherCondOk(c, w){
+  if (!c) return true;
+  if (c.type === 'weather') return (_WMAP[c.value] || c.value) === w || (String(c.value).includes('なし') && w === 'none');
+  if (c.type === 'weather_in') return (c.values || []).some(v => (_WMAP[v] || v) === w);
+  return false; // 不明な条件は誤適用回避でスキップ
 }
 
 // === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
@@ -1569,6 +1580,16 @@ function phaseApplyEffects(atkSide, defSide, move){
           target.rank[rk] = Math.max(-6, Math.min(6, (target.rank[rk]||0) + sg));
           log('9', `${target.poke.name} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
         }
+      }
+    } else if (ef.kind === '回復'){
+      // 天候条件付き(あさのひざし等)は現天候一致時のみ。条件なし(じこさいせい等)は常に。amount指定(ちからをすいとる)は未対応=park。
+      if (ef.condition && !weatherCondOk(ef.condition, env.weather)) continue;
+      if (ef.fraction != null){
+        const max = realStat(target, 'hp');
+        if (target.currentHp == null) target.currentHp = max;
+        const heal = Math.max(1, Math.floor(max * ef.fraction));
+        target.currentHp = Math.min(max, target.currentHp + heal);
+        log('9', `${target.poke.name} は HPを ${heal} 回復！ (残HP ${target.currentHp})`);
       }
     }
   }
