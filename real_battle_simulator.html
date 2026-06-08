@@ -1554,11 +1554,19 @@ function phaseApplyEffects(atkSide, defSide, move){
       continue;
     }
     if (ef.kind === '状態付与'){
-      // 既に状態異常持ち or テラ中の特定条件で無効。シンプルに「none 以外なら付与しない」
-      if (target.status && target.status !== 'none') continue;
       const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
       const code = map[ef.value];
       if (!code) continue;
+      // 遅延付与(あくび: ねむけ→次のターン終わりに眠る)。即時には付与しない。
+      if (ef.phase === 'delayed' || ef.trigger === 'turn_end'){
+        if (!target.pendingStatus && target.status === 'none'){
+          target.pendingStatus = { code, turns: (ef.delay_turns != null ? ef.delay_turns : 1), label: ef.value };
+          log('9', `${target.poke.name} は ねむけ 状態になった！(次のターン終わりに ${ef.value})`);
+        }
+        continue;
+      }
+      // 既に状態異常持ちなら付与しない
+      if (target.status && target.status !== 'none') continue;
       target.status = code;
       log('9', `${target.poke.name} は ${ef.value} 状態になった！`);
     } else if (ef.kind === '能力ランク変化'){
@@ -1788,6 +1796,14 @@ function runTurn(){
   }
   // ターン終了処理
   phaseEndOfTurnSlip();
+  // 遅延状態(あくび等)のカウントダウン→発動
+  ['self','opp'].forEach(s => {
+    const st = sides[s];
+    if (st.pendingStatus){
+      if (st.pendingStatus.turns > 0) st.pendingStatus.turns--;
+      else { if (st.status === 'none'){ st.status = st.pendingStatus.code; log('10', `${st.poke.name} は ${st.pendingStatus.label} 状態になった！`); } st.pendingStatus = null; }
+    }
+  });
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
   sides.opp.turnsOut = (sides.opp.turnsOut || 0) + 1;
