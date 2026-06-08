@@ -115,6 +115,30 @@ function clause(e, m) {
       const sg = e.stages > 0 ? `+${e.stages}` : `${e.stages}`; // 負はそのまま(-2 など)
       return `${pre}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
     }
+    case '2ターン目に攻撃': {
+      // ★ためわざ(SOP開通#: 2ターン目に攻撃)。1ターン目ためて2ターン目に攻撃。
+      //   バリアント: 半無敵(semi_invulnerable+vulnerable_to) / 天候で溜め省略(skip_charge_if_weather)。
+      //   他効果(急所/状態付与/威力倍率/能力ランク/まもり貫通)は各kindのテンプレが喋る→ここはため挙動だけ。
+      const VERB = { '空中': '空中へ飛び上がり', '地中': '地中に潜り', '水中': '水中に潜り', '消失': 'すがたを消し' };
+      const loc = e.semi_invulnerable;
+      // ★溜めターンに発動する能力上昇(on_charge_turn・エレクトロビーム)を「1ターン目は攻撃せず{上昇}、…」に織り込む。
+      //   ※データは既に on_charge_turn:true を持つ=データ変更不要。composeは on_charge_turn の能力ランク変化を別出力しない(下のskip)。
+      const chargeRank = ((m.battle_data || {}).effects || []).find(x => x.kind === '能力ランク変化' && x.on_charge_turn);
+      const chargeStat = chargeRank ? clause(chargeRank, m) : '';
+      let s;
+      if (loc) {
+        s = `1ターン目に${VERB[loc] || `${loc}に入り`}、2ターン目に攻撃する`;
+        if (Array.isArray(e.vulnerable_to) && e.vulnerable_to.length)
+          s += `。${loc}にいる間は「${e.vulnerable_to.join('」「')}」以外の技を受けない`;
+        else
+          s += `。すがたを消している間は、ほとんどの技を受けない`; // 消失でvulnerable_to無し(ゴーストダイブ)
+      } else {
+        s = `1ターン目は攻撃せず${chargeStat}、2ターン目に攻撃する`;
+      }
+      if (Array.isArray(e.skip_charge_if_weather) && e.skip_charge_if_weather.length)
+        s += `。天気が「${e.skip_charge_if_weather.join('」「')}」のときは、ためずにすぐ攻撃できる`;
+      return s;
+    }
     default:
       return null; // 穴
   }
@@ -123,6 +147,8 @@ function compose(m) {
   const eff = (m.battle_data && m.battle_data.effects) || [];
   const holes = [], groups = [];
   for (const e of eff) {
+    // ★溜めターン発動の能力上昇は「2ターン目に攻撃」の文に織り込み済→単独では出さない(二重防止)。
+    if (e.kind === '能力ランク変化' && e.on_charge_turn && eff.some(x => x.kind === '2ターン目に攻撃')) continue;
     const c = clause(e, m); if (!c) { holes.push(e.kind); continue; }
     const key = e.condition ? JSON.stringify(e.condition) : '';
     let g = groups.find(x => x.key === key);
