@@ -522,10 +522,13 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
   padding:6px 6px;font-size:11px;width:100%;
 }
 #battle-log{
-  max-height:200px;overflow-y:auto;
+  max-height:340px;min-height:120px;overflow-y:auto;resize:vertical;
   background:#000;border:1px solid #21262d;border-radius:4px;
   padding:6px 8px;font-size:11px;font-family:Menlo,Consolas,monospace;
 }
+/* ターン/開始の区切り行を見やすく(履歴を遡りやすく) */
+#battle-log .log-line.log-sep .log-msg{color:#ffd479;font-weight:700;}
+#battle-log .log-line.log-sep{border-top:1px solid #30363d;margin-top:3px;padding-top:3px;}
 #battle-log .log-line{display:flex;gap:8px;padding:1px 0;color:#c9d1d9}
 #battle-log .log-phase{
   flex-shrink:0;min-width:48px;color:#79c0ff;font-weight:700;font-size:10px;
@@ -1765,6 +1768,9 @@ function startBattle(){
   ensureBattleState();
   pushHistory();
   log('Start', '─── バトル開始 ───');
+  // 誰が場に出たかを履歴に残す
+  if (sides.self.poke) log('Start', `${sides.self.poke.name} が 場に出た！`);
+  if (sides.opp.poke)  log('Start', `${sides.opp.poke.name} が 場に出た！`);
   phaseInitA();
   renderBattleLog();
   renderBoth();
@@ -1773,9 +1779,10 @@ function startBattle(){
 function renderBattleLog(){
   const el = document.getElementById('battle-log');
   if (!el) return;
-  el.innerHTML = battleLog.map(e =>
-    `<div class="log-line"><span class="log-phase">${e.phase}</span><span class="log-msg">${e.msg}</span></div>`
-  ).join('');
+  el.innerHTML = battleLog.map(e => {
+    const sep = /───/.test(e.msg) ? ' log-sep' : '';
+    return `<div class="log-line${sep}"><span class="log-phase">${e.phase}</span><span class="log-msg">${e.msg}</span></div>`;
+  }).join('');
   el.scrollTop = el.scrollHeight;
 }
 
