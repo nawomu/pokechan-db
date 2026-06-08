@@ -90,6 +90,7 @@ function check(name, cond, detail) {
 
 const E = buildEngine();
 const pokeByName = n => data.POKEMON_LIST.find(p => p.name === n);
+const moveByName = n => Object.values(data.WAZA_MAP).find(m => m.name === n);
 function freshSide(pokeName, moveKey) {
   const s = E.makeSideState();
   s.poke = pokeByName(pokeName);
@@ -178,6 +179,23 @@ console.log('\n=== 段② 状態異常付与（おにび→やけど＋ターン
   check('T6 runTurnで相手がやけどになった', E.sides.opp.status === 'burn', E.sides.opp.status);
   check('T6 相手はやけどスリップでHPが減っている', E.sides.opp.currentHp < oppMax,
     `opp ${oppMax}->${E.sides.opp.currentHp}`);
+}
+
+console.log('\n=== 段③ 能力ランク変化（つるぎのまい=こうげき+2 / めいそう=とくこう・とくぼう+1） ===');
+{
+  // T7: つるぎのまい(自分のこうげき+2)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.phaseApplyEffects('self', 'opp', moveByName('つるぎのまい'));
+  check('T7 つるぎのまいで自分のこうげき rank +2', E.sides.self.rank.atk === 2, `atk=${E.sides.self.rank.atk}`);
+
+  // T8: めいそう(とくこう+1・とくぼう+1) 複数stat
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.phaseApplyEffects('self', 'opp', moveByName('めいそう'));
+  check('T8 めいそうで とくこう+1・とくぼう+1', E.sides.self.rank.spatk === 1 && E.sides.self.rank.spdef === 1,
+    `spatk=${E.sides.self.rank.spatk} spdef=${E.sides.self.rank.spdef}`);
 }
 
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);

@@ -1502,6 +1502,17 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (!code) continue;
       target.status = code;
       log('9', `${target.poke.name} は ${ef.value} 状態になった！`);
+    } else if (ef.kind === '能力ランク変化'){
+      // effects の英語stat → sim の rank キーに対応づけて ±stages（-6..+6 でクランプ）。
+      const STATMAP = {attack:'atk',defense:'def',special_attack:'spatk',special_defense:'spdef',speed:'spd',accuracy:'acc',evasion:'eva'};
+      const keys = Array.isArray(ef.stats) ? ef.stats : (ef.stat ? [ef.stat] : []);
+      const dn = (ef.stages||0) > 0 ? 'あがった' : 'さがった';
+      for (const k of keys){
+        const rk = STATMAP[k] || k;
+        if (target.rank[rk] === undefined) continue;
+        target.rank[rk] = Math.max(-6, Math.min(6, (target.rank[rk]||0) + (ef.stages||0)));
+        log('9', `${target.poke.name} の ${k} ランクが ${ef.stages>0?'+':''}${ef.stages} ${dn}！`);
+      }
     }
   }
 }
