@@ -43,7 +43,9 @@
 - [x] **S3 不要(N/A)** vm が実コードを実行=HTMLとNodeが同一コード→ゴールデン(切り出し一致)検証は原理的に不要。
 - [x] **S4 済(12/12 pass・exit0)** `tools/_sim_test.js` 段①: T1 calcDamage健全＋ゴールデン値(はたく フシギバナ→フシギバナ=16〜19)/ T2 単発攻撃フロー(phaseDealDamage で右HP減・状態/ランク変化なし・自分無傷)/ T3 マルチターン runTurn(両者はたく・決定論seed・両HP減・余計な変化なし)。
 - [~] **S5 一部** 決定論PRNG(mulberry32)＋`setRandom`＋runTurn は実装。**残**: `runBattle(maxTurns)` 反復ループ・再現ログのファイル出力。
-- [ ] **次** 段②(状態異常付与: おにび等で `opp.status` 変化＋スリップダメ)。`/goal` 接続(`node tools/_sim_test.js` 全件pass=合否)。
+- [x] **段② 済(16/16 pass)** 状態異常付与: T4 おにび→やけど(burn) / T5 やけどスリップ=floor(HP/16) / T6 runTurnで相手やけど＋スリップ。`phaseApplyEffects`/`phaseSlipFor` を取り出しに追加。
+- [ ] **次=段③ 能力ランク変化** … `phaseApplyEffects` は `能力ランク変化` を**未処理**(出典 リファレンス§6)→ テストは**赤で先行**→ sim に処理を足して緑化(=/goal が駆動する最初の"実装"ループ)。stat英語キー(attack/special_attack…)→sim rankキー(atk/spatk…)のマップが要る。
+- **/goal メモ**: 現状すでに全件pass=goalは「達成」判定で止まり得る。再現を前へ進めるには段③(未実装=赤)を足し、それを実装して緑にするループを回す(緑の状態だけcommit)。
 
 段①の純粋攻撃技 母集団(命中100・effects空・優先度なし=11件): はたく/ドラゴンクロー/パワージェム/シザークロス/りゅうのはどう 等。**最初は `はたく`(ノーマル/物理/40)**・受けは等倍タイプ。
 要確認は全て解消済(trickRoom命名=`trickRoom`で一貫/能力kind=`能力ランク変化`/最小移行から/実機RNG再現不要)。

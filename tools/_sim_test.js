@@ -73,7 +73,7 @@ function buildEngine() {
   } catch(e){}
   ;globalThis.__engine = (function(){ try { return {
     sides, env, LEVEL, calcDamage, realStat, rankedStat, makeSideState, runTurn,
-    decideOrder, phaseHitCheck, phaseDealDamage, phaseApplyEffects,
+    decideOrder, phaseHitCheck, phaseDealDamage, phaseApplyEffects, phaseSlipFor,
     setRandom: (fn)=>{ Math.random = fn; },
   }; } catch(e){ globalThis.__engineErr = String(e&&e.stack||e); return null; } })();`;
   vm.runInContext(inline.join('\n') + expose, ctx, { filename: 'sim-inline.js' });
@@ -147,6 +147,37 @@ console.log('\n=== 段① マルチターン: 左→右 両者がはたく(runTu
   check('T3 状態異常もランク変化も起きていない',
     E.sides.self.status === 'none' && E.sides.opp.status === 'none' &&
     Object.values(E.sides.self.rank).every(v => v === 0) && Object.values(E.sides.opp.rank).every(v => v === 0));
+}
+
+console.log('\n=== 段② 状態異常付与（おにび→やけど＋ターン終了スリップ） ===');
+{
+  // T4: 状態付与の単発適用（おにび: やけど100%）。phaseApplyEffectsで opp が burn になる。
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'onibi');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.setRandom(mulberry32(20260608));
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.phaseApplyEffects('self', 'opp', data.WAZA_MAP.onibi);
+  check('T4 おにびで相手が「やけど(burn)」になった', E.sides.opp.status === 'burn', E.sides.opp.status);
+
+  // T5: やけどのターン終了スリップ = floor(maxHP/16) 減る
+  const maxHp = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = maxHp;
+  E.phaseSlipFor('opp');
+  const expectedSlip = Math.max(1, Math.floor(maxHp / 16));
+  check('T5 やけどスリップ = floor(最大HP/16)', maxHp - E.sides.opp.currentHp === expectedSlip,
+    `減少=${maxHp - E.sides.opp.currentHp} 期待=${expectedSlip}`);
+
+  // T6: リアルなターン(runTurn)で 左=おにび が当たり、右がやけど＋ターン終了スリップ
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'onibi');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.setRandom(mulberry32(7));   // おにび(命中85)が当たるseed
+  const oppMax = E.realStat(E.sides.opp, 'hp');
+  E.runTurn();
+  check('T6 runTurnで相手がやけどになった', E.sides.opp.status === 'burn', E.sides.opp.status);
+  check('T6 相手はやけどスリップでHPが減っている', E.sides.opp.currentHp < oppMax,
+    `opp ${oppMax}->${E.sides.opp.currentHp}`);
 }
 
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
