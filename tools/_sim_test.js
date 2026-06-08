@@ -236,6 +236,24 @@ console.log('\n=== 段⑨ ねこだましは「場に出た最初のターン」
   check('T20 かみつく(通常ひるみ技)は2ターン目も普通に使える(相手が被弾し続ける)', E.sides.opp.currentHp < oppMax, `opp=${E.sides.opp.currentHp}/${oppMax}`);
 }
 
+console.log('\n=== 段⑩ mismatch修正(検証WFが検出): はらだいこ to_max / つぼをつく random_one_of ===');
+{
+  // T21: はらだいこ → こうげきが最大(+6)まで上がる(to_max)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.phaseApplyEffects('self', 'opp', moveByName('はらだいこ'));
+  check('T21 はらだいこで こうげきランクが最大+6', E.sides.self.rank.atk === 6, `atk=${E.sides.self.rank.atk}`);
+
+  // T22: つぼをつく → 7能力のうち「ちょうど1つだけ」+2(ランダム抽選)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(20260608));
+  E.phaseApplyEffects('self', 'opp', moveByName('つぼをつく'));
+  const raised = Object.entries(E.sides.self.rank).filter(([, v]) => v !== 0);
+  check('T22 つぼをつくで上がる能力はちょうど1つ', raised.length === 1, `raised=${JSON.stringify(Object.fromEntries(raised))}`);
+  check('T22 その1つは+2', raised.length === 1 && raised[0][1] === 2, `${JSON.stringify(raised)}`);
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
