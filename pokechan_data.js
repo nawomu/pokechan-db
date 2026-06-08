@@ -111,3 +111,12 @@ const NATURES = {
   'むじゃき':  { up: 'spd',   down: 'spdef' },
 };
 
+// ---- Node(テスト/turn-engine)から読み込むための export。
+// ブラウザ(<script>読み込み)では module が無いのでスキップ＝本番挙動は不変。データ本体には一切触れない。
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = {
+    TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER,
+    POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES,
+  };
+}
+

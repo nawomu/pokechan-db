@@ -35,6 +35,18 @@
 4. 出来たら `/goal node tools/_sim_test.js が全件パス。毎ターン実行しログに残す。WAZA_MAP等のデータ構造は壊さない。または30ターンで停止` のような形で自走させる。
 5. 以降、§6ギャップを**パッケージ単位(phase9適用後の完成 / 10b・10d〜10hターン終了 / Init-B / 特性・持ち物網羅 …)**で潰す。各パッケージ後に阿部さんが動作確認。
 
+## 3.5 進行状況(★逐次更新・中断しても次に渡せるように)
+**設計確定**: `TEST_ENV_DESIGN_技ターン検証.md`(段階拡張・最初の1ケース・/goal接続)。阿部さんOK済(2026-06-08)。
+着手チェックリスト(設計付録):
+- [x] **S1 済(検証OK)** `pokechan_data.js` 末尾に Node 読込用 `module.exports`(`typeof module` ガードで本番不変)。`require("./pokechan_data.js")` で WAZA_MAP(490)/POKEMON_LIST(275)/NATURES(25)/TYPES(18) を取得確認・`node --check` OK。コミット予定/済。
+- [ ] **S2** sim の純粋ロジック(`calcDamage` L1039 ほか)+定数を `turn-engine.js` に切り出し、`Math.random`→注入PRNGに置換。HTMLは `<script src>` 読込に変更し挙動不変
+- [ ] **S3** ゴールデンテスト: 同一初期状態で「HTML実行」と「Node実行」のHP/ログ一致(切り出しデグレ検出)
+- [ ] **S4** `tools/_sim_test.js` で段①(`はたく`等の純粋攻撃技で相手HPが計算どおり減る・余計な変化なし)→ 全件pass=exit0
+- [ ] **S5** seed固定PRNG・`runBattle(maxTurns)`・再現ログ整備 → 段②(状態異常+forceChance)へ
+
+段①の純粋攻撃技 母集団(命中100・effects空・優先度なし=11件): はたく/ドラゴンクロー/パワージェム/シザークロス/りゅうのはどう 等。**最初は `はたく`(ノーマル/物理/40)**・受けは等倍タイプ。
+要確認は全て解消済(trickRoom命名=`trickRoom`で一貫/能力kind=`能力ランク変化`/最小移行から/実機RNG再現不要)。
+
 ## 4. 注意・原則(不変)
 - **声(説明文)とデータ判断は機械で測れない→人間チェックを残す**。/goal で自走させるのは sim の機械計算部分。
 - effects(SSOT=`pokechan_data.js`)編集は sim にも効く→慎重・検証してから・阿部さんに報告。
