@@ -345,6 +345,27 @@ console.log('\n=== 段⑭ あくび(遅延ねむり)=即眠りでなく次ター
   check('T30 次のターン終わりに「ねむり」状態になる', E.sides.opp.status === 'sleep', `status=${E.sides.opp.status}`);
 }
 
+console.log('\n=== 段⑮ power=null ダメージ(固定ダメージ・一撃必殺) ===');
+{
+  // T31: ちきゅうなげ → 固定50ダメージ(champions_amount)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('ちきゅうなげ')];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(1));
+  const oppMax = E.realStat(E.sides.opp, 'hp'); E.sides.opp.currentHp = oppMax;
+  E.phaseDealDamage('self', 'opp', moveByName('ちきゅうなげ'));
+  check('T31 ちきゅうなげは固定50ダメージ', oppMax - E.sides.opp.currentHp === 50, `減=${oppMax - E.sides.opp.currentHp}`);
+
+  // T32: つのドリル → 一撃必殺(相手ひんし)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('つのドリル')];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(1));
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.phaseDealDamage('self', 'opp', moveByName('つのドリル'));
+  check('T32 つのドリルは一撃必殺(相手HP0・ひんし)', E.sides.opp.currentHp === 0 && E.sides.opp.fainted, `hp=${E.sides.opp.currentHp} fainted=${E.sides.opp.fainted}`);
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

@@ -1457,8 +1457,45 @@ function phaseHitCheck(move, atk, def){
   return {hit: roll < acc, reason: roll < acc ? null : `${move.name} は外れた！`};
 }
 
+// タイプ相性の積(0=無効)。固定ダメージ/一撃必殺の無効判定に使う。
+function moveTypeEff(mtype, dtypes){
+  const i = TYPES.indexOf(mtype); if (i < 0) return 1;
+  let e = 1; dtypes.forEach(t => { const j = TYPES.indexOf(t); if (j >= 0) e *= TYPE_CHART[i][j]; }); return e;
+}
+// 固定ダメージ量(power非依存)。champions_amount優先、無ければ amount テキストを解釈。未対応はnull。
+function fixedDamageAmount(ef, atk, def){
+  if (ef.champions_amount != null) return ef.champions_amount;
+  const a = ef.amount || '';
+  if (a.includes('レベル')) return LEVEL;
+  if (a.includes('相手の残りHPの半分')) return Math.max(ef.minimum || 1, Math.floor(def.currentHp / 2));
+  if (a.includes('相手の残りHPから自分の残りHP')) return Math.max(0, def.currentHp - atk.currentHp);
+  if (a.includes('自分の残りHP')) return atk.currentHp;
+  return null;
+}
+
 // === フェーズ: ダメ計算 → HP 反映 (Atk-Base 〜 8) ===
 function phaseDealDamage(atkSide, defSide, move){
+  // power非依存の特殊ダメージ(一撃必殺/固定ダメージ)を先に処理
+  const _e0 = (move.battle_data && move.battle_data.effects) || [];
+  const ohkoEf = _e0.find(e => e.kind === '一撃必殺');
+  const fixedEf = _e0.find(e => e.kind === '固定ダメージ');
+  if (ohkoEf || fixedEf){
+    const a = sides[atkSide], df = sides[defSide];
+    if (!a.poke || !df.poke) return null;
+    const ignores = (ohkoEf && ohkoEf.ignores_type_matchup) || (fixedEf && fixedEf.ignores_type_matchup);
+    const defTypes = [df.poke.type1, df.poke.type2].filter(Boolean);
+    if (!ignores && moveTypeEff(move.type, defTypes) === 0){
+      log('8', `${df.poke.name} には こうかが ないようだ…`);
+      return { immune: true, reason: 'こうかなし' };
+    }
+    let dmg = ohkoEf ? df.currentHp : fixedDamageAmount(fixedEf, a, df);
+    if (dmg == null) return null; // 未対応の固定ダメージ式
+    dmg = Math.max(0, dmg);
+    df.currentHp = Math.max(0, df.currentHp - dmg);
+    log('8', `${a.poke.name} の ${move.name}！ ${df.poke.name} に ${dmg} ダメージ！${ohkoEf ? '(一撃必殺！)' : ''} (残HP ${df.currentHp})`);
+    if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); }
+    return { variation: dmg, hits: 1, special: true };
+  }
   const result = calcDamage(atkSide, defSide, move);
   if (!result) return null;
   if (result.immune){
