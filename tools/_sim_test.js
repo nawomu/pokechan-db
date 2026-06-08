@@ -254,6 +254,55 @@ console.log('\n=== 段⑩ mismatch修正(検証WFが検出): はらだいこ to_
   check('T22 その1つは+2', raised.length === 1 && raised[0][1] === 2, `${JSON.stringify(raised)}`);
 }
 
+console.log('\n=== 段⑪ 吸収・反動（与ダメから計算） ===');
+{
+  // T23: ドレインパンチ → 与ダメの半分(fraction0.5)だけ自分が回復
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('ドレインパンチ')];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(20260608));
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.sides.self.currentHp = 1; // 低HPにして回復を可視化
+  const r1 = E.phaseDealDamage('self', 'opp', moveByName('ドレインパンチ'));
+  const heal = Math.max(1, Math.floor(r1.variation * 0.5));
+  check('T23 吸収で与ダメの半分だけ回復', E.sides.self.currentHp === 1 + heal, `self=${E.sides.self.currentHp} 期待=${1 + heal} (与ダメ=${r1.variation})`);
+
+  // T24: すてみタックル → 与ダメの約1/3(fraction0.33)を自分も受ける
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('すてみタックル')];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(20260608));
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  const selfMax = E.realStat(E.sides.self, 'hp'); E.sides.self.currentHp = selfMax;
+  const r2 = E.phaseDealDamage('self', 'opp', moveByName('すてみタックル'));
+  const rec = Math.max(1, Math.floor(r2.variation * 0.33));
+  check('T24 反動で与ダメの約1/3を自分も受ける', selfMax - E.sides.self.currentHp === rec, `反動=${selfMax - E.sides.self.currentHp} 期待=${rec} (与ダメ=${r2.variation})`);
+}
+
+console.log('\n=== 段⑫ 連続攻撃（複数ヒット） ===');
+{
+  // T25: ダブルアタック(hits:2固定) → 2回ヒット・合計は単発の約2倍
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('ダブルアタック')];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(20260608));
+  E.sides.opp.currentHp = 9999; // 倒れず全ヒット受ける
+  const single = E.calcDamage('self', 'opp', moveByName('ダブルアタック'));
+  const r25 = E.phaseDealDamage('self', 'opp', moveByName('ダブルアタック'));
+  const drop = 9999 - E.sides.opp.currentHp;
+  check('T25 ダブルアタックは2回ヒット', r25.hits === 2, `hits=${r25.hits}`);
+  check('T25 合計ダメは単発の約2倍(範囲内)', drop >= 2 * single.min && drop <= 2 * single.max, `drop=${drop} 単発${single.min}-${single.max}`);
+
+  // T26: ミサイルばり(2〜5) → ヒット数が2〜5
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('ミサイルばり')];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(7));
+  E.sides.opp.currentHp = 9999;
+  const r26 = E.phaseDealDamage('self', 'opp', moveByName('ミサイルばり'));
+  check('T26 ミサイルばりは2〜5回ヒット', r26.hits >= 2 && r26.hits <= 5, `hits=${r26.hits}`);
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

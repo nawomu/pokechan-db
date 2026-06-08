@@ -1465,23 +1465,61 @@ function phaseDealDamage(atkSide, defSide, move){
     log('8', `${result.reason}！`);
     return result;
   }
-  // 乱数1つ選択
-  const variation = result.variations[Math.floor(Math.random() * result.variations.length)];
-  const def = sides[defSide];
-  def.currentHp = Math.max(0, def.currentHp - variation);
-  log('8', `${sides[atkSide].poke.name} の ${move.name}！ ${def.poke.name} に ${variation} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
-  // 反動ダメージ (ゴツメ・たま)
+  const _effs = (move.battle_data && move.battle_data.effects) || [];
+  const atk = sides[atkSide], def = sides[defSide];
+
+  // 連続攻撃: ヒット数を決める(2〜5は第5世代以降の確率・固定hitsはその回数。hits_by=ふくろだたきは未対応で1発)
+  const multiEf = _effs.find(e => e.kind === '連続攻撃');
+  let hitCount = 1;
+  if (multiEf){
+    if (multiEf.hits) hitCount = multiEf.hits;
+    else if (multiEf.min_hits != null && multiEf.max_hits != null){
+      if (multiEf.min_hits === 2 && multiEf.max_hits === 5){
+        const r = Math.random(); hitCount = r < 0.35 ? 2 : r < 0.70 ? 3 : r < 0.85 ? 4 : 5;
+      } else {
+        hitCount = multiEf.min_hits + Math.floor(Math.random() * (multiEf.max_hits - multiEf.min_hits + 1));
+      }
+    }
+  }
+
+  // ヒット数ぶんダメージ(各ヒットで乱数を引く・相手が倒れたら中断)
+  let total = 0, hits = 0;
+  for (let h = 0; h < hitCount; h++){
+    if (def.currentHp <= 0) break;
+    const v = result.variations[Math.floor(Math.random() * result.variations.length)];
+    def.currentHp = Math.max(0, def.currentHp - v);
+    total += v; hits++;
+  }
+  if (hitCount > 1) log('8', `${atk.poke.name} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
+  else log('8', `${atk.poke.name} の ${move.name}！ ${def.poke.name} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
+
+  // 吸収(ドレイン): 与ダメ合計の fraction だけ自分が回復
+  const drainEf = _effs.find(e => e.kind === '吸収');
+  if (drainEf && total > 0){
+    const amax = realStat(atk, 'hp');
+    const heal = Math.max(1, Math.floor(total * (drainEf.fraction || 0.5)));
+    atk.currentHp = Math.min(amax, atk.currentHp + heal);
+    log('9', `${atk.poke.name} は 吸収して ${heal} 回復！ (残HP ${atk.currentHp})`);
+  }
+  // 技固有の反動: 与ダメ合計の fraction だけ自分も受ける(※厳密な丸め 0.33 vs 1/3 は権威確認=park)
+  const recoilEf = _effs.find(e => e.kind === '反動');
+  if (recoilEf && total > 0){
+    const dmg = Math.max(1, Math.floor(total * (recoilEf.fraction || 0)));
+    atk.currentHp = Math.max(0, atk.currentHp - dmg);
+    log('9', `${atk.poke.name} は 反動で ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
+    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
+  }
+  // 反動ダメージ (ゴツメ・たま=持ち物由来)
   if (result.recoil > 0){
-    const atk = sides[atkSide];
     atk.currentHp = Math.max(0, atk.currentHp - result.recoil);
     log('9', `${atk.poke.name} は反動で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
   }
-  // ひんし判定
+  // ひんし判定(防御側)
   if (def.currentHp <= 0){
     def.fainted = true;
     log('8', `${def.poke.name} は ひんしになった！`);
   }
-  return {...result, variation};
+  return {...result, variation: total, hits};
 }
 
 // === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
