@@ -1393,6 +1393,7 @@ function ensureBattleState(){
     }
     if (st.selectedMoveIdx == null) st.selectedMoveIdx = 0;
     if (st.fainted == null) st.fainted = false;
+    if (st.turnsOut == null) st.turnsOut = 0;   // 場に出てから経過したターン数(0=出た最初のターン)。交代/開始で0。
   });
 }
 
@@ -1662,6 +1663,16 @@ function runSingleAttack(atkSide, moveIdx){
   renderBoth();
 }
 
+// ねこだまし/であいがしら: 場に出た最初のターンしか出せない。
+// データの fails_if/requires で表現(キーが3種に分裂しているので全部見る)。「全ひるみ技」ではなくこの印を持つ技のみ。
+function isFirstTurnOnlyMove(move){
+  const bd = (move && move.battle_data) || {};
+  const failKeys = ['not_users_first_turn_on_field', 'not_first_turn_after_switch_in'];
+  if ((bd.fails_if || []).some(f => failKeys.includes(f.type))) return true;
+  if ((bd.requires || []).some(r => r.type === 'first_turn_after_switch_in')) return true;
+  return false;
+}
+
 // === 1ターン実行 (両側同時) ===
 function runTurn(){
   ensureBattleState();
@@ -1690,6 +1701,10 @@ function runTurn(){
     if (atk.status === 'freeze' && Math.random() > 0.2){ log('0c', `${atk.poke.name} は こおっていて うごけない！`); continue; }
     if (atk.status === 'paralysis' && Math.random() < 0.25){ log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); continue; }
     if (atk.flinched){ log('0c', `${atk.poke.name} は ひるんで うごけない！`); continue; }
+    // ねこだまし/であいがしら: 場に出た最初のターン(turnsOut===0)以外は失敗
+    if (isFirstTurnOnlyMove(a.move) && atk.turnsOut > 0){
+      log('0c', `${atk.poke.name} の ${a.move.name} は 場に出た最初のターンしか出せない！`); continue;
+    }
     // 命中判定
     const hit = phaseHitCheck(a.move, atk, def);
     if (!hit.hit){ log('0c', hit.reason); continue; }
@@ -1705,6 +1720,9 @@ function runTurn(){
   }
   // ターン終了処理
   phaseEndOfTurnSlip();
+  // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
+  sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
+  sides.opp.turnsOut = (sides.opp.turnsOut || 0) + 1;
   log('Turn', '─── ターン終了 ───');
   renderBattleLog();
   renderBoth();
