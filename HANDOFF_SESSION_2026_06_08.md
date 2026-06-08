@@ -45,4 +45,6 @@
 - sim本体: `real_battle_simulator.html`(`const PHASES` L1341-1352 / `calcDamage()` L1039-1287 / `phaseApplyEffects()` L1484-1507)
 - SSOT: `pokechan_data.js`(`WAZA_MAP`.battle_data.effects/.priority) / タグDB(phase付): `_review/tag_database.json`
 - 説明文トラック: `tools/_waza_compose.js`・`tools/_waza_list_confirm.js`・`わざ説明文_開通手順.md`・`ヤックン耳_判断ログ.md`
-- 憲法: `CLAUDE.md` / 基準: `review/rules.html`(`tools/_rules.js`)
+- 憲法: `CLAUDE.md` / 基準(説明文の書き方): `review/rules.html`(`tools/_rules.js`)
+- **★回し方の運用ルール: `ループ運用ルール.md`**(自動化で回すときの規律=引き継ぎ必読・回しながら厳選して蓄積)
+- **引き継ぎ必読セット**: CLAUDE.md → `ループ運用ルール.md` → 最新 `HANDOFF_SESSION_*.md` → テスト結果(`tools/_sim_test.js`・作成予定)
