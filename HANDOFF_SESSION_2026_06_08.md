@@ -39,10 +39,11 @@
 **設計確定**: `TEST_ENV_DESIGN_技ターン検証.md`(段階拡張・最初の1ケース・/goal接続)。阿部さんOK済(2026-06-08)。
 着手チェックリスト(設計付録):
 - [x] **S1 済(検証OK)** `pokechan_data.js` 末尾に Node 読込用 `module.exports`(`typeof module` ガードで本番不変)。`require("./pokechan_data.js")` で WAZA_MAP(490)/POKEMON_LIST(275)/NATURES(25)/TYPES(18) を取得確認・`node --check` OK。コミット予定/済。
-- [ ] **S2** sim の純粋ロジック(`calcDamage` L1039 ほか)+定数を `turn-engine.js` に切り出し、`Math.random`→注入PRNGに置換。HTMLは `<script src>` 読込に変更し挙動不変
-- [ ] **S3** ゴールデンテスト: 同一初期状態で「HTML実行」と「Node実行」のHP/ログ一致(切り出しデグレ検出)
-- [ ] **S4** `tools/_sim_test.js` で段①(`はたく`等の純粋攻撃技で相手HPが計算どおり減る・余計な変化なし)→ 全件pass=exit0
-- [ ] **S5** seed固定PRNG・`runBattle(maxTurns)`・再現ログ整備 → 段②(状態異常+forceChance)へ
+- [x] **S2 済(方式変更=より安全)** 当初の「turn-engine.js 切り出し」をやめ、**`real_battle_simulator.html` の実エンジンを Node の `vm` でそのまま実行**(DOMは吸収プロキシ・描画関数はno-op差替)。**sim 無改変・単一ソース・切り出しデグレ原理上ゼロ**。`tools/_sim_test.js` の `buildEngine()` がエンジン関数(calcDamage/runTurn/realStat/phaseDealDamage 等)を取り出す。
+- [x] **S3 不要(N/A)** vm が実コードを実行=HTMLとNodeが同一コード→ゴールデン(切り出し一致)検証は原理的に不要。
+- [x] **S4 済(12/12 pass・exit0)** `tools/_sim_test.js` 段①: T1 calcDamage健全＋ゴールデン値(はたく フシギバナ→フシギバナ=16〜19)/ T2 単発攻撃フロー(phaseDealDamage で右HP減・状態/ランク変化なし・自分無傷)/ T3 マルチターン runTurn(両者はたく・決定論seed・両HP減・余計な変化なし)。
+- [~] **S5 一部** 決定論PRNG(mulberry32)＋`setRandom`＋runTurn は実装。**残**: `runBattle(maxTurns)` 反復ループ・再現ログのファイル出力。
+- [ ] **次** 段②(状態異常付与: おにび等で `opp.status` 変化＋スリップダメ)。`/goal` 接続(`node tools/_sim_test.js` 全件pass=合否)。
 
 段①の純粋攻撃技 母集団(命中100・effects空・優先度なし=11件): はたく/ドラゴンクロー/パワージェム/シザークロス/りゅうのはどう 等。**最初は `はたく`(ノーマル/物理/40)**・受けは等倍タイプ。
 要確認は全て解消済(trickRoom命名=`trickRoom`で一貫/能力kind=`能力ランク変化`/最小移行から/実機RNG再現不要)。
