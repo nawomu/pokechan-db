@@ -2130,6 +2130,11 @@ function render(side){
   renderMoves(root, st);
 }
 
+// その選択ポケモンが「使える技」(覚える技=learners)を返す
+function usableMoves(poke){
+  if (!poke || typeof WAZA_MAP === 'undefined') return [];
+  return Object.values(WAZA_MAP).filter(m => Array.isArray(m.learners) && m.learners.includes(poke.name));
+}
 function renderMoves(root, st){
   const wrap = root.querySelector('.moves-list');
   const sideId = root.dataset.side;
@@ -2219,11 +2224,27 @@ function renderMoves(root, st){
     wrap.appendChild(rr);
   }
 
-  // ポケモン未選択時のヒント
-  if (!st.poke){
+  // 使える技をインライン一覧(検索→クリックで装着)。モーダルを開かずここから選べる。表示はそのポケモンが覚える技だけ。
+  if (st.poke){
+    const pool = usableMoves(st.poke);
+    const pd = document.createElement('div');
+    pd.className = 'move-pool';
+    pd.innerHTML = `
+      <div style="margin-top:8px;font-size:11px;color:#8b949e">使える技 (${pool.length}) — クリックで装着・検索OK</div>
+      <input class="move-pool-search" placeholder="技を検索 (ひらがなOK)…" style="width:100%;box-sizing:border-box;margin:4px 0;font-size:12px;padding:5px 8px;background:#0d1117;border:1px solid #30363d;border-radius:4px;color:#e6edf3">
+      <div class="move-pool-list" style="max-height:220px;overflow-y:auto;border:1px solid #21262d;border-radius:4px">
+        ${pool.map(m => `<div class="pool-move" data-key="${m.key}" data-name="${m.name}" style="display:flex;gap:6px;align-items:center;padding:4px 7px;cursor:pointer;border-bottom:1px solid #1c2128;font-size:11.5px">
+          <span class="t-badge t-${m.type}">${m.type}</span><span style="flex:1;color:#e6edf3">${m.name}</span>
+          <span style="color:#8b949e;font-size:10px">${m.category}</span>
+          <span style="color:#8b949e;width:30px;text-align:right">${(m.power==null||m.power===0||m.power==='—')?'—':m.power}</span>
+        </div>`).join('')}
+      </div>`;
+    wrap.appendChild(pd);
+  } else {
+    // ポケモン未選択時のヒント
     const hint = document.createElement('div');
     hint.className = 'moves-empty';
-    hint.innerHTML = 'ポケモン選択後、技スロットをクリックして技を選んでください';
+    hint.innerHTML = 'ポケモンを選ぶと、使える技の一覧がここに出ます';
     wrap.appendChild(hint);
   }
 }
@@ -2932,6 +2953,21 @@ function attachMoveSelect(){
   document.querySelectorAll('.side').forEach(sideEl=>{
     const side = sideEl.dataset.side;
     sideEl.addEventListener('click', e=>{
+      // 使える技プールのクリック → 装着(あれば選択・無ければ追加(最大4)・満杯なら選択中を置換)
+      const poolMove = e.target.closest('.pool-move');
+      if (poolMove){
+        e.stopPropagation();
+        const mv = (typeof WAZA_MAP !== 'undefined') ? WAZA_MAP[poolMove.dataset.key] : null;
+        if (mv){
+          const st = sides[side]; st.moves = st.moves || [];
+          const ex = st.moves.findIndex(m => m && m.key === poolMove.dataset.key);
+          if (ex >= 0) st.selectedMoveIdx = ex;
+          else if (st.moves.length < 4){ st.moves.push(mv); st.selectedMoveIdx = st.moves.length - 1; }
+          else { st.moves[st.selectedMoveIdx >= 0 ? st.selectedMoveIdx : 0] = mv; }
+          render(side);
+        }
+        return;
+      }
       // ↺ 技リセット → 技だけ空に(ポケモン/性格/努力値はそのまま)
       const resetBtn = e.target.closest('.m-reset-btn');
       if (resetBtn){
@@ -2975,6 +3011,16 @@ function attachMoveSelect(){
       const idx = parseInt(row.dataset.moveIdx, 10);
       if (isNaN(idx)) return;
       openMovePickerModal(side, idx);
+    });
+    // 技プールの検索(ひらがなOK・かな区別なし)→ 一致しない行を隠す
+    sideEl.addEventListener('input', e=>{
+      const inp = e.target.closest('.move-pool-search');
+      if (!inp) return;
+      const q = toKata(inp.value.trim().toLowerCase());
+      sideEl.querySelectorAll('.pool-move').forEach(row=>{
+        const nm = toKata((row.dataset.name || '').toLowerCase());
+        row.style.display = (!q || nm.includes(q)) ? '' : 'none';
+      });
     });
   });
 }
