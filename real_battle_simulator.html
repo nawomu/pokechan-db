@@ -1822,7 +1822,23 @@ function runTurn(){
     {side:firstSide, move: firstSide==='self'?selfMove:oppMove, opp:secondSide},
     {side:secondSide, move: secondSide==='self'?selfMove:oppMove, opp:firstSide},
   ];
-  log('0b', `先攻: ${sides[firstSide].poke ? sides[firstSide].poke.name : '?'}`);
+  // 先攻になった理由をログに出す(優先度 or すばやさ or トリックルーム or 同速ランダム)
+  {
+    const fMove = firstSide === 'self' ? selfMove : oppMove;
+    const sMove = secondSide === 'self' ? selfMove : oppMove;
+    const fp = movePriority(fMove), sp = movePriority(sMove);
+    const fName = sides[firstSide].poke ? sides[firstSide].poke.name : '?';
+    let why;
+    if (fp !== sp){
+      why = `${fMove ? fMove.name : '技'} が 優先度${fp > 0 ? '+' : ''}${fp} のため`;
+    } else {
+      const fs = effectiveSpeed(sides[firstSide]), ss = effectiveSpeed(sides[secondSide]);
+      if (fs === ss) why = `すばやさ同値(${fs})・ランダムで`;
+      else if (env.trickRoom) why = `トリックルームで すばやさが低い方(${fs} < ${ss})が`;
+      else why = `すばやさが速い(${fs} > ${ss})ため`;
+    }
+    log('0b', `先攻: ${fName}（${why}）`);
+  }
 
   for (const a of order){
     const atk = sides[a.side];
