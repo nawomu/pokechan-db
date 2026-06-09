@@ -28,7 +28,7 @@ function probe(move) {
   const sb = snap(E.sides.self), ob = snap(E.sides.opp), wb = E.env.weather, fb = E.env.field;
   try {
     if (move.category === '変化') E.phaseApplyEffects('self', 'opp', move);
-    else { E.phaseDealDamage('self', 'opp', move); if (!E.sides.opp.fainted) E.phaseApplyEffects('self', 'opp', move); }
+    else { const dr = E.phaseDealDamage('self', 'opp', move); if (dr && !dr.immune && !E.sides.opp.fainted) E.phaseApplyEffects('self', 'opp', move); }
   } catch (e) { return { error: String(e && e.message || e) }; }
   const sa = snap(E.sides.self), oa = snap(E.sides.opp);
   return {
