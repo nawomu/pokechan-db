@@ -2694,13 +2694,15 @@ function closePokeModal(){
   currentModalSide = null;
 }
 
+// ひらがな→カタカナに正規化(検索を かな区別なしに。例: 「やみ」で「ヤミラミ」がヒット)
+function toKata(s){ return String(s).replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60)); }
 function renderPokeList(q){
   const list = document.getElementById('poke-list');
   list.innerHTML = '';
-  const ql = q.trim().toLowerCase();
+  const ql = toKata(q.trim().toLowerCase());
   const filtered = POKEMON_LIST.filter(p=>{
     if (!ql) return true;
-    const label = (p.name + (p.form && p.form !== '通常' ? p.form : '')).toLowerCase();
+    const label = toKata((p.name + (p.form && p.form !== '通常' ? p.form : '')).toLowerCase());
     return label.includes(ql);
   }).slice(0, 200);   // 表示は上位200件まで
 
