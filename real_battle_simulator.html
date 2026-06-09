@@ -2101,6 +2101,7 @@ function renderMoves(root, st){
         <span class="m-cat ${m.category}">${m.category}</span>
         <span class="m-pow">${pow}</span>
         <span class="m-acc">${acc}</span>
+        <button class="m-select-btn" data-action="select-move" data-move-idx="${idx}" title="この技を「ターン実行」で使う技に選ぶ" style="margin-right:4px;font-size:11px;border-radius:4px;padding:3px 9px;cursor:pointer;border:1px solid ${st.selectedMoveIdx===idx?'#58a6ff':'#30363d'};background:${st.selectedMoveIdx===idx?'#1f4e79':'#161b22'};color:${st.selectedMoveIdx===idx?'#fff':'#9aa7b4'}">${st.selectedMoveIdx===idx ? '✓ 選択中' : '選択'}</button>
         <button class="m-attack-btn" data-action="attack" data-move-idx="${idx}" ${canAttack ? '' : 'disabled'}>⚔ 実行</button>
       </div>`;
 
@@ -2889,7 +2890,17 @@ function attachMoveSelect(){
         render(side);
         return;
       }
-      // ⚔ 実行ボタン → 片側攻撃
+      // 「選択」ボタン → ターン実行で使う技に設定(片側だけ実行せず・選択中を表示)
+      const selBtn = e.target.closest('.m-select-btn');
+      if (selBtn){
+        e.stopPropagation();
+        const idx = parseInt(selBtn.dataset.moveIdx, 10);
+        if (isNaN(idx)) return;
+        sides[side].selectedMoveIdx = idx;
+        render(side);
+        return;
+      }
+      // ⚔ 実行ボタン → 片側だけ即時攻撃
       const btn = e.target.closest('.m-attack-btn');
       if (btn){
         e.stopPropagation();
@@ -2907,13 +2918,12 @@ function attachMoveSelect(){
         openMovePickerModal(side, idx);
         return;
       }
-      // 既存スロットクリックは selectedMoveIdx 更新 (将来は再選択モーダルにする予定)
+      // 既存スロット(技名)クリック → 技ピッカーを開いて入れ替え(現在の技はチェック済みで開く)
       const row = e.target.closest('.move-row');
       if (!row) return;
       const idx = parseInt(row.dataset.moveIdx, 10);
       if (isNaN(idx)) return;
-      sides[side].selectedMoveIdx = idx;
-      render(side);
+      openMovePickerModal(side, idx);
     });
   });
 }
