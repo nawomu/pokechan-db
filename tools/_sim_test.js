@@ -409,6 +409,29 @@ console.log('\n=== 段⑰ 変化技も「効かない相手には付与しない
   check('T34 対照: でんじは→フシギバナはまひする', E.sides.opp.status === 'paralysis', `status=${E.sides.opp.status}`);
 }
 
+console.log('\n=== 段⑱ こんらん付与＋混乱で自分を攻撃 ===');
+{
+  // T35: あやしいひかり → 相手がこんらん(2〜5ターン)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(1));
+  E.phaseApplyEffects('self', 'opp', moveByName('あやしいひかり'));
+  check('T35 あやしいひかりで相手がこんらん(2〜5ターン)', E.sides.opp.confusion >= 2 && E.sides.opp.confusion <= 5, `confusion=${E.sides.opp.confusion}`);
+
+  // T36: 混乱中、行動時に自分を攻撃しうる(rng固定で自傷を起こす)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.self.confusion = 3;
+  E.setRandom(() => 0); // 0<1/3 → 自傷
+  const selfMax = E.realStat(E.sides.self, 'hp'); E.sides.self.currentHp = selfMax;
+  const oppMax = E.realStat(E.sides.opp, 'hp'); E.sides.opp.currentHp = oppMax;
+  E.runTurn();
+  check('T36 混乱中は自分を攻撃してHPが減る', E.sides.self.currentHp < selfMax, `self=${E.sides.self.currentHp}/${selfMax}`);
+  check('T36 混乱で自傷した側は相手を攻撃できていない', E.sides.opp.currentHp === oppMax, `opp=${E.sides.opp.currentHp}/${oppMax}`);
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
