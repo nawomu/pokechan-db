@@ -2160,6 +2160,14 @@ function renderMoves(root, st){
     wrap.appendChild(row);
   }
 
+  // 技リセットボタン(技が1つ以上ある時だけ。ポケモン・性格・努力値はそのまま、技だけ消す)
+  if (moves.length > 0){
+    const rr = document.createElement('div');
+    rr.className = 'moves-reset';
+    rr.innerHTML = `<button class="m-reset-btn" data-action="reset-moves" title="ポケモンはそのまま、技だけクリアして選び直す" style="margin-top:5px;font-size:11px;color:#9aa7b4;background:#161b22;border:1px solid #30363d;border-radius:4px;padding:3px 10px;cursor:pointer">↺ 技をリセット</button>`;
+    wrap.appendChild(rr);
+  }
+
   // ポケモン未選択時のヒント
   if (!st.poke){
     const hint = document.createElement('div');
@@ -2872,6 +2880,15 @@ function attachMoveSelect(){
   document.querySelectorAll('.side').forEach(sideEl=>{
     const side = sideEl.dataset.side;
     sideEl.addEventListener('click', e=>{
+      // ↺ 技リセット → 技だけ空に(ポケモン/性格/努力値はそのまま)
+      const resetBtn = e.target.closest('.m-reset-btn');
+      if (resetBtn){
+        e.stopPropagation();
+        sides[side].moves = [];
+        sides[side].selectedMoveIdx = 0;
+        render(side);
+        return;
+      }
       // ⚔ 実行ボタン → 片側攻撃
       const btn = e.target.closest('.m-attack-btn');
       if (btn){
