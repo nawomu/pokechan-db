@@ -1594,6 +1594,15 @@ function phaseApplyEffects(atkSide, defSide, move){
       const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
       const code = map[ef.value];
       if (!code) continue;
+      // ★効かない相手には付与しない(状態異常のタイプ無効)。ダメージ技の追加効果・変化技の両方に共通。
+      const tg = target.poke ? [target.poke.type1, target.poke.type2].filter(Boolean) : [];
+      const STATUS_IMMUNE = { burn:['ほのお'], freeze:['こおり'], paralysis:['でんき'], poison:['どく','はがね'], badpoison:['どく','はがね'] };
+      const immuneHere = (STATUS_IMMUNE[code] || []).some(t => tg.includes(t))
+        || (ef.target !== 'self' && move.type === 'でんき' && tg.includes('じめん')); // でんき技(でんじは等)はじめんに無効
+      if (immuneHere){
+        log('9', `${target.poke.name} には こうかが ないようだ…`);
+        continue;
+      }
       // 遅延付与(あくび: ねむけ→次のターン終わりに眠る)。即時には付与しない。
       if (ef.phase === 'delayed' || ef.trigger === 'turn_end'){
         if (!target.pendingStatus && target.status === 'none'){
