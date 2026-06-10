@@ -1019,6 +1019,9 @@ function makeSideState(){
     futureSight: null,
     // ねをはる: true の間、地面に根をはる(ひこう/ふゆうでも地面にいる扱い・ターン終了ごとに最大HPの1/16回復)
     rooted: false,
+    // ねがいごと: {turns, amount}。turnsがターン終了ごとに1減り、0になったターンの終わりに amount 回復
+    // (使ったターンを含めて数えるため delay_turns+1 で持つ。amount=使った時の最大HPの半分)
+    wish: null,
     // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等): {atk: 数値, ...} / null。
     // realStat がこれを最優先で返す(ランク補正はその上に乗る)。場を離れる/リセットで消える。
     statOverride: null,
@@ -2577,8 +2580,21 @@ function phaseApplyEffects(atkSide, defSide, move){
       // turn_end宣言(グラスフィールドの毎ターン回復)はターン終了処理が担当 → ここ(使用時)では発動しない
       if (ef.phase === 'turn_end') continue;
       // ねをはる(lasting+trigger:turn_end の毎ターン回復)もターン終了処理(rooted)が担当 → 使用時は発動しない
-      // (ねがいごと=delayed+turn_end は現状の使用時回復近似を維持するため対象外に絞る)
       if (ef.phase === 'lasting' && ef.trigger === 'turn_end') continue;
+      // ねがいごと(delayed+turn_end): 使用時は回復せず、次のターンの終わりに発動する願いを仕込む。
+      // 回復量=使った側の最大HPの半分(使った時点で確定)。願っている間の再使用は失敗。出典: Bulbapedia "Wish"
+      if (ef.phase === 'delayed' && ef.trigger === 'turn_end'){
+        if (target.wish){
+          log('9', `しかし うまく きまらなかった！(すでに ねがいごとをしている)`);
+        } else {
+          target.wish = {
+            turns: (ef.delay_turns != null ? ef.delay_turns : 1) + 1,
+            amount: Math.max(1, Math.floor(realStat(target, 'hp') * (ef.fraction || 0.5))),
+          };
+          log('9', `${target.poke.name} は ねがいごとをした！`);
+        }
+        continue;
+      }
       // たくわえ条件(のみこむ: たくわえた数で回復量が変わる)。消費(たくわえ消費)は後続のefが担当
       if (ef.condition && ef.condition.type === 'stockpile_count'){
         if ((atk.stockpile || 0) !== ef.condition.value) continue;
@@ -3089,6 +3105,7 @@ function snapshotBattleState(){
     electrified: st.electrified || null,                         // そうでんも一手戻せるように
     typeSuppressed: st.typeSuppressed || null,                   // はねやすめも一手戻せるように
     rooted: !!st.rooted,                                         // ねをはるも一手戻せるように
+    wish: st.wish ? {turns: st.wish.turns, amount: st.wish.amount} : null, // ねがいごとも一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -3150,6 +3167,7 @@ function undoBattle(){
     st.electrified = src.electrified || null;                          // そうでんの巻き戻し
     st.typeSuppressed = src.typeSuppressed || null;                    // はねやすめの巻き戻し
     st.rooted = !!src.rooted;                                          // ねをはるの巻き戻し
+    st.wish = src.wish ? {turns: src.wish.turns, amount: src.wish.amount} : null; // ねがいごとの巻き戻し
   };
   lastMoveAnywhere = s.lastMoveAny || null;   // まねっこの巻き戻し
   restore(sides.self, s.self);
@@ -3877,6 +3895,24 @@ function runTurn(){
         if (st.poke) log('10', `${st.poke.name} は また 音の技が だせるようになった！`);
       }
     }
+    // ねがいごと: カウントが0になったターンの終わりに、仕込んだ量(使った時の最大HPの半分)回復。
+    // 出典: Bulbapedia "Wish"(1v1=交代なしでは使った本人が受け取る)
+    if (st.wish){
+      st.wish.turns--;
+      if (st.wish.turns <= 0){
+        const _amt = st.wish.amount;
+        st.wish = null;
+        if (st.poke && !st.fainted){
+          const _max = realStat(st, 'hp');
+          if (st.currentHp == null) st.currentHp = _max;
+          if (st.currentHp < _max){
+            const _before = st.currentHp;
+            st.currentHp = Math.min(_max, st.currentHp + _amt);
+            log('10', `${st.poke.name} の ねがいごとが かなった！ HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+          }
+        }
+      }
+    }
     // ねをはる: ターン終了ごとに最大HPの1/16回復(データのfraction 0.0625=1/16。出典: Bulbapedia "Ingrain")
     if (st.rooted && st.poke && !st.fainted){
       const _max = realStat(st, 'hp');
@@ -3999,6 +4035,7 @@ function resetBattle(){
     st.electrified = null;
     st.typeSuppressed = null;
     st.rooted = false;
+    st.wish = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア

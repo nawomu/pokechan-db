@@ -3791,6 +3791,35 @@ console.log('\n=== 段74 さわぐ(連続強制(混乱なし)+ねむり予防) =
   resetEnv();
 }
 
+console.log('\n=== 段75 ねがいごと(次のターン終了に最大HPの半分回復) ===');
+{
+  resetEnv();
+  // ねがいごと: 使ったターンは回復しない。次のターンの終わりに、使った側の最大HPの半分回復。
+  // 願っている間の再使用は失敗。出典: Bulbapedia "Wish"
+  E.sides.self = freshSide('リザードン', null);   // 最大HP153 → 回復76
+  E.sides.self.moves = [moveByName('ねがいごと')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.currentHp = 10;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('じしん')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';   // 相手は眠らせてノイズゼロ
+  E.setRandom(() => 0.0);
+  E.runTurn();   // T1: ねがいごと(まだ回復しない)
+  check('T176 使ったターンには回復しない',
+    E.sides.self.currentHp === 10,
+    `リザードンHP=${E.sides.self.currentHp}(10期待: 即時回復しない)`);
+  E.runTurn();   // T2: 再使用は失敗→ターン終了に願いがかなう(+76=floor(153/2))
+  check('T176b 次のターンの終わりに最大HPの半分回復(再使用は失敗)',
+    E.sides.self.currentHp === 86,
+    `リザードンHP=${E.sides.self.currentHp}(86期待: 10+76)`);
+  E.runTurn();   // T3: 願いは消費済み→もう一度願える(このターンの終わりはまだ回復しない)
+  check('T176c 願いは一度で消費される(3ターン目の終わりは回復しない)',
+    E.sides.self.currentHp === 86,
+    `リザードンHP=${E.sides.self.currentHp}(86期待: 願い直し中)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
