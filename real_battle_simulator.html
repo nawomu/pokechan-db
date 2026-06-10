@@ -1007,6 +1007,9 @@ function makeSideState(){
     // かなしばり: {name, turns}(その技名を出せない) / アンコール: {move, turns}(その技しか出せない)
     disable: null,
     encore: null,
+    // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等): {atk: 数値, ...} / null。
+    // realStat がこれを最優先で返す(ランク補正はその上に乗る)。場を離れる/リセットで消える。
+    statOverride: null,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1581,6 +1584,8 @@ function stealthRockMult(defTypes){
 // side 内のステータスを実数値で返す（natureMult のみ、ランクは含まない）
 function realStat(st, key){
   if (!st.poke) return 0;
+  // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等)があれば最優先
+  if (st.statOverride && st.statOverride[key] != null) return st.statOverride[key];
   const ep = st.effort[key] || 0;
   const mult = getNatureMult(st.natureIdx, key);
   return calcRealStat(key, st.poke[key], ep, mult);
@@ -2512,6 +2517,61 @@ function phaseApplyEffects(atkSide, defSide, move){
         target.encore = { move: target.lastMove, turns: ef.duration || 3 };
         log('9', `${target.poke.name} は アンコールを うけた！`);
       }
+    } else if (ef.kind === 'ランクリセット'){
+      // クリアスモッグ: 相手の能力ランク変化(命中/回避含む)を全て元に戻す。出典: Bulbapedia "Clear Smog"
+      target.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
+      log('9', `${target.poke.name} の 能力変化が 元に戻った！`);
+    } else if (ef.kind === 'ランクコピー'){
+      // じこあんじ: 相手のランク変化(命中/回避含む)を自分にコピーする。出典: Bulbapedia "Psych Up"
+      atk.rank = {...target.rank};
+      log('9', `${atk.poke.name} は ${target.poke.name} の 能力変化を まねした！`);
+    } else if (ef.kind === '能力入替'){
+      // 能力入替は3義(データの構造で区別する):
+      //  ① target:self(パワートリック)= 自分の実数値を入れかえる(ランクは元の能力に残る)
+      //  ② stats に speed(スピードスワップ)= 自分と相手の素の実数値を入れかえる(ランク無関係)
+      //  ③ それ以外(パワースワップ/ガードスワップ)= 自分と相手のランク変化を入れかえる
+      // 出典: Bulbapedia "Power Trick" / "Speed Swap" / "Power Swap" / "Guard Swap"
+      const _SK = {attack:'atk', defense:'def', special_attack:'spatk', special_defense:'spdef', speed:'spd'};
+      const _keys = (ef.stats || []).map(s => _SK[s]).filter(Boolean);
+      if (ef.target === 'self'){
+        // ① 自分の中で実数値スワップ(再使用で元に戻る=もう一度入れかえる)
+        const vals = _keys.map(k => realStat(atk, k));
+        atk.statOverride = atk.statOverride || {};
+        _keys.forEach((k, i) => { atk.statOverride[k] = vals[_keys.length - 1 - i]; });
+        log('9', `${atk.poke.name} は ${move.name}で 能力を 入れかえた！`);
+      } else if (_keys.includes('spd')){
+        // ② 自分と相手で素の実数値スワップ
+        for (const k of _keys){
+          const a = realStat(atk, k), b = realStat(target, k);
+          atk.statOverride = atk.statOverride || {};
+          target.statOverride = target.statOverride || {};
+          atk.statOverride[k] = b;
+          target.statOverride[k] = a;
+        }
+        log('9', `${atk.poke.name} は おたがいの すばやさを 入れかえた！`);
+      } else {
+        // ③ 自分と相手でランク変化スワップ
+        for (const k of _keys){
+          const a = atk.rank[k] || 0;
+          atk.rank[k] = target.rank[k] || 0;
+          target.rank[k] = a;
+        }
+        log('9', `${atk.poke.name} は おたがいの 能力変化を 入れかえた！`);
+      }
+    } else if (ef.kind === '実数値折半'){
+      // ガードシェア/パワーシェア: 自分と相手の対象能力の実数値を合計して半分ずつ(切り捨て)にする。
+      // ランク変化はそのまま残る。出典: Bulbapedia "Guard Split" / "Power Split"
+      const _SK2 = {attack:'atk', defense:'def', special_attack:'spatk', special_defense:'spdef', speed:'spd'};
+      for (const s of (ef.stats || [])){
+        const k = _SK2[s];
+        if (!k) continue;
+        const avg = Math.floor((realStat(atk, k) + realStat(target, k)) / 2);
+        atk.statOverride = atk.statOverride || {};
+        target.statOverride = target.statOverride || {};
+        atk.statOverride[k] = avg;
+        target.statOverride[k] = avg;
+      }
+      log('9', `${atk.poke.name} は おたがいの 能力を 分けあった！`);
     } else if (ef.kind === '次技威力倍化'){
       // じゅうでん: 次に使う指定タイプ(でんき)のダメージ技の威力が2倍。指定タイプの技を使うまで
       // 持続し、使うと消費される(第9世代)。出典: Bulbapedia "Charge"
@@ -2657,6 +2717,7 @@ function snapshotBattleState(){
     lastMove: st.lastMove || null,                              // かなしばり/アンコールの対象技
     disable: st.disable ? {...st.disable} : null,               // かなしばりも一手戻せるように
     encore: st.encore ? {...st.encore} : null,                  // アンコールも一手戻せるように
+    statOverride: st.statOverride ? {...st.statOverride} : null, // 実数値上書きも一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -2702,6 +2763,7 @@ function undoBattle(){
     st.lastMove = src.lastMove || null;                               // かなしばり/アンコールの対象技
     st.disable = src.disable ? {...src.disable} : null;               // かなしばりの巻き戻し
     st.encore = src.encore ? {...src.encore} : null;                  // アンコールの巻き戻し
+    st.statOverride = src.statOverride ? {...src.statOverride} : null; // 実数値上書きの巻き戻し
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -3262,6 +3324,7 @@ function resetBattle(){
     st.lastMove = null;
     st.disable = null;
     st.encore = null;
+    st.statOverride = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア

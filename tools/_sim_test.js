@@ -2693,6 +2693,87 @@ console.log('\n=== 段54 ダメージ計算の参照先変更(ボディプレス
   resetEnv();
 }
 
+console.log('\n=== 段55 ランク・実数値の操作(クリアスモッグ/じこあんじ/能力入替/実数値折半) ===');
+// 出典: Bulbapedia "Clear Smog"(相手の能力ランクを全て0に) / "Psych Up"(相手のランクを全て自分にコピー) /
+//       "Power Trick"(自分のこうげき⇔ぼうぎょの実数値を入れかえ・ランク不変・再使用で戻る) /
+//       "Speed Swap"(自分と相手のすばやさ実数値を入れかえ) /
+//       "Power Swap"/"Guard Swap"(ランクだけ相手と入れかえ) /
+//       "Guard Split"/"Power Split"(実数値を合計して半分ずつ・切り捨て)
+{
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('クリアスモッグ'), moveByName('じこあんじ'), moveByName('パワースワップ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  // クリアスモッグ: ダメージ+相手の能力ランクを全部元に戻す
+  E.sides.opp.rank.atk = 6; E.sides.opp.rank.def = -2; E.sides.opp.rank.spd = 3;
+  E.runTurn();
+  check('T154 クリアスモッグで相手のランクが全て0', E.sides.opp.rank.atk === 0 && E.sides.opp.rank.def === 0 &&
+    E.sides.opp.rank.spd === 0 && E.sides.opp.currentHp < 155,
+    `相手rank atk=${E.sides.opp.rank.atk} def=${E.sides.opp.rank.def} spd=${E.sides.opp.rank.spd} 残HP=${E.sides.opp.currentHp}(最大155)`);
+  // じこあんじ: 相手のランクを全て自分にコピー(相手は不変)
+  E.sides.opp.rank.atk = 2; E.sides.opp.rank.spd = -1;
+  E.sides.self.selectedMoveIdx = 1;
+  E.runTurn();
+  check('T154b じこあんじでランクをコピー', E.sides.self.rank.atk === 2 && E.sides.self.rank.spd === -1 &&
+    E.sides.opp.rank.atk === 2 && E.sides.opp.rank.spd === -1,
+    `自分rank atk=${E.sides.self.rank.atk} spd=${E.sides.self.rank.spd} 相手rank atk=${E.sides.opp.rank.atk} spd=${E.sides.opp.rank.spd}`);
+  // パワースワップ: こうげき/とくこうのランクだけ相手と入れかえ
+  E.sides.self.rank.atk = 0; E.sides.self.rank.spatk = -1; E.sides.self.rank.spd = 0;
+  E.sides.opp.rank.atk = 2; E.sides.opp.rank.spatk = 0; E.sides.opp.rank.spd = -1;
+  E.sides.self.selectedMoveIdx = 2;
+  E.runTurn();
+  check('T154c パワースワップでこうげき/とくこうランク入れかえ',
+    E.sides.self.rank.atk === 2 && E.sides.self.rank.spatk === 0 &&
+    E.sides.opp.rank.atk === 0 && E.sides.opp.rank.spatk === -1 &&
+    E.sides.self.rank.spd === 0 && E.sides.opp.rank.spd === -1,
+    `自分 atk=${E.sides.self.rank.atk} spatk=${E.sides.self.rank.spatk} spd=${E.sides.self.rank.spd} / ` +
+    `相手 atk=${E.sides.opp.rank.atk} spatk=${E.sides.opp.rank.spatk} spd=${E.sides.opp.rank.spd}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  E.sides.self = freshSide('カメックス', null);   // こうげき83/ぼうぎょ100(Lv50実数値103/120)
+  E.sides.self.moves = [moveByName('パワートリック'), moveByName('スピードスワップ'), moveByName('ガードシェア')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  const ptAtk = E.realStat(E.sides.self, 'atk'), ptDef = E.realStat(E.sides.self, 'def');
+  // パワートリック: 自分のこうげき⇔ぼうぎょの実数値を入れかえ(ランクは不変)
+  E.runTurn();
+  check('T154d パワートリックで実数値入れかえ', E.realStat(E.sides.self, 'atk') === ptDef &&
+    E.realStat(E.sides.self, 'def') === ptAtk && (E.sides.self.rank.atk || 0) === 0,
+    `atk=${E.realStat(E.sides.self, 'atk')}(期待${ptDef}) def=${E.realStat(E.sides.self, 'def')}(期待${ptAtk}) rank.atk=${E.sides.self.rank.atk}`);
+  // 再使用で元に戻る
+  E.runTurn();
+  check('T154e パワートリック再使用で元に戻る', E.realStat(E.sides.self, 'atk') === ptAtk &&
+    E.realStat(E.sides.self, 'def') === ptDef,
+    `atk=${E.realStat(E.sides.self, 'atk')}(期待${ptAtk}) def=${E.realStat(E.sides.self, 'def')}(期待${ptDef})`);
+  // スピードスワップ: 自分と相手のすばやさ実数値を入れかえ
+  const ssSelf = E.realStat(E.sides.self, 'spd'), ssOpp = E.realStat(E.sides.opp, 'spd');
+  E.sides.self.selectedMoveIdx = 1;
+  E.runTurn();
+  check('T154f スピードスワップで実数値入れかえ', E.realStat(E.sides.self, 'spd') === ssOpp &&
+    E.realStat(E.sides.opp, 'spd') === ssSelf,
+    `自分spd=${E.realStat(E.sides.self, 'spd')}(期待${ssOpp}) 相手spd=${E.realStat(E.sides.opp, 'spd')}(期待${ssSelf})`);
+  // ガードシェア: ぼうぎょ/とくぼうを合計して半分ずつ(切り捨て)
+  const gsD = Math.floor((E.realStat(E.sides.self, 'def') + E.realStat(E.sides.opp, 'def')) / 2);
+  const gsSD = Math.floor((E.realStat(E.sides.self, 'spdef') + E.realStat(E.sides.opp, 'spdef')) / 2);
+  E.sides.self.selectedMoveIdx = 2;
+  E.runTurn();
+  check('T154g ガードシェアで実数値折半', E.realStat(E.sides.self, 'def') === gsD &&
+    E.realStat(E.sides.opp, 'def') === gsD && E.realStat(E.sides.self, 'spdef') === gsSD &&
+    E.realStat(E.sides.opp, 'spdef') === gsSD,
+    `def 自分=${E.realStat(E.sides.self, 'def')} 相手=${E.realStat(E.sides.opp, 'def')}(期待${gsD}) ` +
+    `spdef 自分=${E.realStat(E.sides.self, 'spdef')} 相手=${E.realStat(E.sides.opp, 'spdef')}(期待${gsSD})`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
