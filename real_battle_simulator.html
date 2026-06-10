@@ -985,6 +985,8 @@ function makeSideState(){
     sleepTurns: null,
     // あばれ状態(げきりん等): {move, left=残り攻撃ターン数} / null。暴れ終わり・中断でクリア。
     rampage: null,
+    // ちいさくなる状態(場を離れるまで継続): のしかかり等の対象技が必中+威力2倍になる
+    minimized: false,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1202,6 +1204,10 @@ function calcDamage(atkSide, defSide, move){
   // このターン能力を下げられて威力倍化(うっぷんばらし。Bulbapedia "Lash Out")
   const lowMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'user_stat_lowered_this_turn');
   if (lowMul && atk.statLoweredThisTurn) power *= (lowMul.multiplier || 2);
+
+  // 対ちいさくなる威力倍化(のしかかり/ヒートスタンプ/フライングプレス等: 相手がちいさくなる状態なら2倍。Bulbapedia "Minimize")
+  const minMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'target_minimized');
+  if (minMul && def.minimized) power *= (minMul.multiplier || 2);
 
   // 天候条件つき威力倍率(ソーラービーム/ソーラーブレード: あめ/すなあらし/ゆきで威力半減。Bulbapedia "Solar Beam")
   const weatherMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'weather_in');
@@ -1677,9 +1683,15 @@ function phaseHitCheck(move, atk, def){
       && fieldRules().some(r => r.kind === '優先技無効')){
     return {hit:false, reason:`${def.poke.name} は フィールドに守られて 先制技が当たらない！`};
   }
-  // 必中タグ
+  // 必中タグ。条件つき必中(対ちいさくなる等)は条件を満たす時だけ必中
+  //(でないとフライングプレス命中95/ドラゴンダイブ命中75が常に当たってしまう)。
   const _effs = (move.battle_data && move.battle_data.effects) || [];
-  if (_effs.some(e => e.kind === '必中' || e.ignores_accuracy)) return {hit:true};
+  const _hitCondOk = (e) => {
+    if (!e.condition) return true;                                            // 無条件必中(スピードスター等)
+    if (e.condition.type === 'target_minimized') return !!(def && def.minimized);
+    return false;                                                             // 未対応条件は必中扱いしない
+  };
+  if (_effs.some(e => (e.kind === '必中' || e.ignores_accuracy) && _hitCondOk(e))) return {hit:true};
   if (move.accuracy == null || move.accuracy === '—' || move.accuracy === 0) return {hit:true};
   // 命中率 ×ランク（acc - eva）— 簡易: ランク 0 前提
   let acc = Number(move.accuracy);
@@ -2143,6 +2155,11 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `${target.poke.name} は ${move.name}で バインド状態になった！`);
         continue;
       }
+      // ちいさくなる状態(自分対象・場を離れるまで継続): のしかかり等が必中+威力2倍で当たるようになる
+      if (ef.value === 'ちいさくなる'){
+        target.minimized = true;
+        continue;   // ログは能力ランク変化(回避率+2)が出すので追加メッセージなし
+      }
       const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
       const code = map[ef.value];
       if (!code) continue;
@@ -2448,6 +2465,7 @@ function snapshotBattleState(){
     sleepTurns: st.sleepTurns != null ? st.sleepTurns : null,
     rampage: st.rampage ? {move: st.rampage.move, left: st.rampage.left} : null,
     item: st.item != null ? st.item : null,   // はたきおとす(持ち物排除)を一手戻せるように
+    minimized: !!st.minimized,                // ちいさくなる状態も一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -2485,6 +2503,7 @@ function undoBattle(){
     st.sleepTurns = src.sleepTurns != null ? src.sleepTurns : null;
     st.rampage = src.rampage ? {move: src.rampage.move, left: src.rampage.left} : null;
     st.item = src.item != null ? src.item : null;   // はたきおとす(持ち物排除)の巻き戻し
+    st.minimized = !!src.minimized;                 // ちいさくなる状態の巻き戻し
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
