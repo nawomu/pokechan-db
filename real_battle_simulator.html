@@ -1022,6 +1022,10 @@ function makeSideState(){
     // ねがいごと: {turns, amount}。turnsがターン終了ごとに1減り、0になったターンの終わりに amount 回復
     // (使ったターンを含めて数えるため delay_turns+1 で持つ。amount=使った時の最大HPの半分)
     wish: null,
+    // みがわり: 分身の残りHP(0=いない)。攻撃と相手対象の効果を肩代わりする(みがわり貫通の技は素通り)
+    subHp: 0,
+    // このターンの攻撃を分身が受けたか(phaseDealDamageが立て、phaseApplyEffectsが追加効果遮断に読む一過性フラグ)
+    subAbsorbed: false,
     // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等): {atk: 数値, ...} / null。
     // realStat がこれを最優先で返す(ランク補正はその上に乗る)。場を離れる/リセットで消える。
     statOverride: null,
@@ -1893,6 +1897,8 @@ function recordTaken(df, move, lastHitDmg){
 function phaseDealDamage(atkSide, defSide, move){
   // power非依存の特殊ダメージ(一撃必殺/固定ダメージ)を先に処理
   const _e0 = (move.battle_data && move.battle_data.effects) || [];
+  // みがわり: この攻撃を分身が受けたかのフラグを毎攻撃リセット(phaseApplyEffectsが追加効果遮断に読む)
+  sides[defSide].subAbsorbed = false;
 
   // もえつきる: 自分が除去対象タイプ(ほのお)でなければ技ごと失敗(Bulbapedia "Burn Up")
   const _typeRemEf = _e0.find(e => e.kind === 'タイプ除去' && e.target === 'self');
@@ -1921,6 +1927,13 @@ function phaseDealDamage(atkSide, defSide, move){
       return { failed: true };
     }
     let dmg = Math.floor(basis * (counterEf.multiplier || 2));
+    // みがわり: 倍返しダメージも分身が受ける(Bulbapedia "Substitute")
+    if (df.subHp > 0 && !piercesSub(move)){
+      const dealt = Math.min(dmg, df.subHp);
+      df.subHp -= dealt; df.subAbsorbed = true;
+      log('8', `${a.poke.name} の ${move.name}！ ${df.poke.name} の みがわりが ${dealt} ダメージを 受けた！${df.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
+      return { variation: dealt, hits: 1, special: true };
+    }
     if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${a.poke.name} の ${move.name}！ 受けたダメージを倍返し！ ${df.poke.name} に ${dmg} ダメージ！ (残HP ${df.currentHp})`);
@@ -1943,6 +1956,13 @@ function phaseDealDamage(atkSide, defSide, move){
     let dmg = ohkoEf ? df.currentHp : fixedDamageAmount(fixedEf, a, df);
     if (dmg == null) return null; // 未対応の固定ダメージ式
     dmg = Math.max(0, dmg);
+    // みがわり: 一撃必殺・固定ダメージも分身が受ける(一撃は分身がこわれるだけ。Bulbapedia "Substitute")
+    if (df.subHp > 0 && !piercesSub(move)){
+      const dealt = Math.min(ohkoEf ? df.subHp : dmg, df.subHp);
+      df.subHp -= dealt; df.subAbsorbed = true;
+      log('8', `${a.poke.name} の ${move.name}！ ${df.poke.name} の みがわりが ${dealt} ダメージを 受けた！${df.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
+      return { variation: dealt, hits: 1, special: true };
+    }
     // こらえる: 一撃必殺・固定ダメージも技のダメージなのでHP1で耐える(Bulbapedia "Endure")
     if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
     df.currentHp = Math.max(0, df.currentHp - dmg);
@@ -1979,19 +1999,33 @@ function phaseDealDamage(atkSide, defSide, move){
   }
 
   // ヒット数ぶんダメージ(各ヒットで乱数を引く・相手が倒れたら中断)
+  const _pierce = piercesSub(move);
   let total = 0, hits = 0, lastHit = 0;
   for (let h = 0; h < hitCount; h++){
     if (def.currentHp <= 0) break;
     let v = result.variations[Math.floor(Math.random() * result.variations.length)];
+    // みがわり: 分身がダメージを肩代わり(超過分は消える)。連続攻撃で分身がこわれたら残りは本体に当たる
+    // (第5世代以降。Bulbapedia "Substitute"/"Multi-strike move")。こらえる判定は本体が受ける時だけ。
+    if (def.subHp > 0 && !_pierce){
+      const dealt = Math.min(v, def.subHp);
+      def.subHp -= dealt; def.subAbsorbed = true;
+      total += dealt; hits++; lastHit = dealt;
+      continue;
+    }
     // こらえる: 技のダメージではHPが1より下がらない(連続攻撃は1発ごとに判定。Bulbapedia "Endure")
     if (def.enduring && v >= def.currentHp){ v = def.currentHp - 1; log('8', `${def.poke.name} は こうげきを こらえた！`); }
     def.currentHp = Math.max(0, def.currentHp - v);
     total += v; hits++; lastHit = v;
   }
-  recordTaken(def, move, lastHit); // 倍返し用(連続攻撃は最後の1発分)
+  // 分身が受けた攻撃は倍返し(カウンター等)の対象に積まない(近似: 連続攻撃の混在時もまとめて積まない)
+  if (!def.subAbsorbed) recordTaken(def, move, lastHit); // 倍返し用(連続攻撃は最後の1発分)
   // じゅうでん消費: 指定タイプ(でんき)の技を実際に使ったら効果が切れる(実効タイプで判定)
   if (atk.chargeBoost && result.moveType === atk.chargeBoost.move_type) atk.chargeBoost = null;
-  if (hitCount > 1) log('8', `${atk.poke.name} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
+  if (def.subAbsorbed){
+    // 分身が受けた(連続攻撃でこわれて本体にも当たった混在時は合計表記の近似)
+    log('8', `${atk.poke.name} の ${move.name}！ ${def.poke.name} の みがわりが ${total} ダメージを 受けた！${def.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
+  }
+  else if (hitCount > 1) log('8', `${atk.poke.name} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   else log('8', `${atk.poke.name} の ${move.name}！ ${def.poke.name} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
 
   // 吸収(ドレイン): 与ダメ合計の fraction だけ自分が回復
@@ -2210,6 +2244,10 @@ function disruptRampage(atk){
 // さわぐ最中か: どちらかの場のあばれ技が 状態異常予防(ねむり) を宣言していれば、場の誰も眠れない。
 // (データ宣言を読む=さわぐの effects に 状態異常予防 value:ねむり target:all がある。Bulbapedia "Uproar")
 // 近似: 実機の「さわぎ始めに眠っているポケモンを起こす」は未実装(データに宣言なし・付与予防のみ)
+// みがわりを素通りする技か(音技等。データの みがわり貫通 宣言を読む。Bulbapedia "Substitute")
+function piercesSub(move){
+  return ((move && move.battle_data && move.battle_data.effects) || []).some(e => e.kind === 'みがわり貫通');
+}
 function uproarActive(){
   return ['self', 'opp'].some(k => {
     const st = sides[k];
@@ -2302,6 +2340,11 @@ function phaseApplyEffects(atkSide, defSide, move){
       return;
     }
   }
+  // みがわり: すでに分身がいる時は技ごと失敗=HP(1/4)も払わない(Bulbapedia "Substitute")
+  if (move.battle_data.effects.some(e => e.kind === 'みがわり設置') && atk.subHp > 0){
+    log('9', `しかし うまく きまらなかった！(すでに みがわりがいる)`);
+    return;
+  }
   // たくわえる: すでに最大(3)までたくわえていると技ごと失敗=ランクも上がらない(Bulbapedia "Stockpile")
   const _stockAdd = move.battle_data.effects.find(e => e.kind === 'たくわえ加算');
   if (_stockAdd && (atk.stockpile || 0) >= (_stockAdd.max || 3)){
@@ -2313,6 +2356,14 @@ function phaseApplyEffects(atkSide, defSide, move){
   for (const ef of move.battle_data.effects){
     const target = ef.target === 'self' ? atk : def;
     if (target.fainted) continue;
+    // みがわり: 相手を対象にする効果は分身に防がれる(みがわり貫通の技は通す)。
+    // 攻撃技は分身が受けた時(subAbsorbed)、変化技は分身がいる間。target:'all'(ほろびのうた=音)は通す。
+    // 出典: Bulbapedia "Substitute"
+    if (ef.target === 'opponent' && !piercesSub(move)
+        && (def.subAbsorbed || (move.category === '変化' && def.subHp > 0))){
+      log('9', `${def.poke.name} は みがわりに 守られている！`);
+      continue;
+    }
     // 溜めターン専用の効果(メテオビーム/エレクトロビームのとくこう+1)は攻撃時には発動しない(startChargeIfNeededが担当)
     if (ef.kind === '能力ランク変化' && (ef.timing === 'charge_turn' || ef.on_charge_turn)) continue;
     const prob = ef.prob != null ? ef.prob : 100;
@@ -2871,6 +2922,12 @@ function phaseApplyEffects(atkSide, defSide, move){
         _st.typeSuppressed = ef.value;
         log('9', `${_st.poke.name} は このターン ${ef.value}タイプで なくなった！`);
       }
+    } else if (ef.kind === 'みがわり設置'){
+      // みがわり: 払った分(最大HPの1/4=同じ技の HPが減る effect が控除済み)をHPにした分身を出す。
+      // すでにいる時の失敗・HP不足の失敗は上のゲートが担当。出典: Bulbapedia "Substitute"
+      const _cEf = move.battle_data.effects.find(e => e.kind === 'HPが減る');
+      atk.subHp = Math.max(1, Math.floor(realStat(atk, 'hp') * ((_cEf && _cEf.fraction) || 0.25)));
+      log('9', `${atk.poke.name} の みがわりが あらわれた！`);
     } else if (ef.kind === '自分拘束'){
       // ねをはる: 地面に根をはる(場にいる間ずっと=lasting)。すでに根をはっていたら失敗。
       // 根をはると ひこうタイプ/ふゆうでも地面にいる扱い=じめん技が当たる(isGrounded/タイプ相性で反映)。
@@ -3106,6 +3163,7 @@ function snapshotBattleState(){
     typeSuppressed: st.typeSuppressed || null,                   // はねやすめも一手戻せるように
     rooted: !!st.rooted,                                         // ねをはるも一手戻せるように
     wish: st.wish ? {turns: st.wish.turns, amount: st.wish.amount} : null, // ねがいごとも一手戻せるように
+    subHp: st.subHp || 0,                                        // みがわりも一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -3168,6 +3226,8 @@ function undoBattle(){
     st.typeSuppressed = src.typeSuppressed || null;                    // はねやすめの巻き戻し
     st.rooted = !!src.rooted;                                          // ねをはるの巻き戻し
     st.wish = src.wish ? {turns: src.wish.turns, amount: src.wish.amount} : null; // ねがいごとの巻き戻し
+    st.subHp = src.subHp || 0;                                         // みがわりの巻き戻し
+    st.subAbsorbed = false;
   };
   lastMoveAnywhere = s.lastMoveAny || null;   // まねっこの巻き戻し
   restore(sides.self, s.self);
@@ -4036,6 +4096,8 @@ function resetBattle(){
     st.typeSuppressed = null;
     st.rooted = false;
     st.wish = null;
+    st.subHp = 0;
+    st.subAbsorbed = false;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
