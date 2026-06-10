@@ -1029,6 +1029,8 @@ function makeSideState(){
     lockOn: 0,
     // そうでん: このターン自分の技がこのタイプになる(タイプ名/null。ターン開始でクリア)
     electrified: null,
+    // はねやすめ: このターンだけ失っているタイプ(タイプ名/null。ターン開始でクリア)
+    typeSuppressed: null,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -2048,8 +2050,14 @@ function isGrounded(st){
 // バトル中のタイプ参照は全てここを通す(UI表示も同じ)。
 function sideTypes(st){
   if (!st || !st.poke) return [];
-  if (st.typeOverride) return st.typeOverride.slice();
-  return [st.poke.type1, st.poke.type2].filter(Boolean);
+  let ts = st.typeOverride ? st.typeOverride.slice() : [st.poke.type1, st.poke.type2].filter(Boolean);
+  // はねやすめ: 使ったターンだけ ひこうタイプを失う。純ひこうならノーマル扱い(第5世代以降)。
+  // 出典: Bulbapedia "Roost"
+  if (st.typeSuppressed && ts.includes(st.typeSuppressed)){
+    ts = ts.filter(t => t !== st.typeSuppressed);
+    if (!ts.length) ts = ['ノーマル'];
+  }
+  return ts;
 }
 
 // 現在の特性(シンプルビーム/なりきり/スキルスワップ/いえき等の特性変化を反映)。
@@ -2790,6 +2798,13 @@ function phaseApplyEffects(atkSide, defSide, move){
         _st.typeOverride = _cur.filter(t => t !== ef.value);
         log('9', `${_st.poke.name} は ${ef.value}タイプで なくなった！`);
       }
+    } else if (ef.kind === 'タイプ一時無効'){
+      // はねやすめ: 使ったターンだけ指定タイプ(ひこう)を失う(ターン開始で戻る)。出典: Bulbapedia "Roost"
+      const _st = ef.target === 'self' ? atk : target;
+      if (sideTypes(_st).includes(ef.value)){
+        _st.typeSuppressed = ef.value;
+        log('9', `${_st.poke.name} は このターン ${ef.value}タイプで なくなった！`);
+      }
     } else if (ef.kind === '特性上書き'){
       // なりきり(source=opponent_ability)=相手の特性を自分にコピー /
       // なかまづくり(value=自分の特性)=自分の特性を相手に /
@@ -3007,6 +3022,7 @@ function snapshotBattleState(){
     tormented: !!st.tormented,                                   // いちゃもんも一手戻せるように
     imprison: !!st.imprison,                                     // ふういんも一手戻せるように
     electrified: st.electrified || null,                         // そうでんも一手戻せるように
+    typeSuppressed: st.typeSuppressed || null,                   // はねやすめも一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -3062,6 +3078,7 @@ function undoBattle(){
     st.tormented = !!src.tormented;                                    // いちゃもんの巻き戻し
     st.imprison = !!src.imprison;                                      // ふういんの巻き戻し
     st.electrified = src.electrified || null;                          // そうでんの巻き戻し
+    st.typeSuppressed = src.typeSuppressed || null;                    // はねやすめの巻き戻し
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -3294,6 +3311,8 @@ function runTurn(){
   sides.self.enduring = false; sides.opp.enduring = false;
   // そうでん(技タイプ変更)もそのターン限り → ターン開始でクリア
   sides.self.electrified = null; sides.opp.electrified = null;
+  // はねやすめ(タイプ一時無効)もそのターン限り → ターン開始でクリア
+  sides.self.typeSuppressed = null; sides.opp.typeSuppressed = null;
   // 「このターン受けたダメージ」(倍返し用)もターン開始でリセット
   sides.self.tookThisTurn = {phys:0, spec:0, any:0};
   sides.opp.tookThisTurn = {phys:0, spec:0, any:0};
@@ -3700,6 +3719,7 @@ function resetBattle(){
     st.tormented = false;
     st.imprison = false;
     st.electrified = null;
+    st.typeSuppressed = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
