@@ -109,10 +109,26 @@ for (const [key, mv] of Object.entries(data.WAZA_MAP)) {
     rec.calc_type = TYPE_EN2JA[calcMove.type];
     buckets.type_mismatch.push(rec); continue;
   }
-  // 溜め技(2ターン目に攻撃/charge_turnの能力上昇)はcalcが溜め込み(+1段)前提 → 溜めターン未実装の間は別分類
-  const isCharge = (bd.effects || []).some(e => e.kind === '2ターン目に攻撃'
-    || (e.kind === '能力ランク変化' && (e.timing === 'charge_turn' || e.on_charge_turn)));
-  if (isCharge) { buckets.charge_pending.push(rec); continue; }
+  // 溜め技の能力上昇(メテオビーム/エレクトロビーム=溜めターンにとくこう+1): calcは+1込みで返す
+  // → うちも溜めターンのランク上昇を適用してから再計算して比較(sim実装済み: startChargeIfNeeded)
+  const chargeBoosts = (bd.effects || []).filter(e =>
+    e.kind === '能力ランク変化' && (e.timing === 'charge_turn' || e.on_charge_turn));
+  if (chargeBoosts.length) {
+    const STATMAP = { attack: 'atk', defense: 'def', special_attack: 'spatk', special_defense: 'spdef', speed: 'spd' };
+    const saved = { ...E.sides.self.rank };
+    for (const e of chargeBoosts) {
+      const keys = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
+      for (const k of keys) { const rk = STATMAP[k] || k; if (E.sides.self.rank[rk] !== undefined) E.sides.self.rank[rk] += (e.stages || 0); }
+    }
+    const boosted = E.calcDamage('self', 'opp', mv);
+    E.sides.self.rank = saved;
+    if (boosted && !boosted.immune) {
+      rec.ours = [boosted.min, boosted.max];
+      rec.charge_boost_applied = true;
+      if (boosted.min === calcRange[0] && boosted.max === calcRange[1]) { buckets.match.push(rec); continue; }
+    }
+    buckets.charge_pending.push(rec); continue;
+  }
   buckets.diff.push(rec);
 }
 

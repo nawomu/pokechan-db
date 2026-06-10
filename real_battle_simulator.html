@@ -967,6 +967,8 @@ function makeSideState(){
     tookThisTurn: {phys:0, spec:0, any:0},
     // このターンすでに行動枠を消費したか(しっぺがえし=user_moves_after_target 用)。ターン開始でリセット。
     movedThisTurn: false,
+    // 溜め技(2ターン技)の溜め状態: {move, semi, vulnerableTo} / null。解放(攻撃)した瞬間にクリア。
+    charging: null,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1154,6 +1156,10 @@ function calcDamage(atkSide, defSide, move){
   // しっぺがえし: このターン相手がすでに行動していたら威力倍化(Bulbapedia "Payback" ×2・行動順ベース)
   const afterMul = bdEffects.find(e => e.kind === '条件威力倍率' && e.condition && e.condition.type === 'user_moves_after_target');
   if (afterMul && def.movedThisTurn) power *= (afterMul.multiplier || 2);
+
+  // 天候条件つき威力倍率(ソーラービーム/ソーラーブレード: あめ/すなあらし/ゆきで威力半減。Bulbapedia "Solar Beam")
+  const weatherMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'weather_in');
+  if (weatherMul && weatherCondOk(weatherMul.condition, env.weather)) power = Math.floor(power * (weatherMul.multiplier || 1));
 
   const atkOrigTypes = [atk.poke.type1, atk.poke.type2].filter(Boolean);
   const atkTypes = atkOrigTypes;
@@ -1559,6 +1565,13 @@ function phaseInitA(){
 // === フェーズ: 0c 命中判定 (一撃必殺・必中・追加効果は別計算) ===
 function phaseHitCheck(move, atk, def){
   if (!move) return {hit:false, reason:'技が選択されていない'};
+  // 半無敵(そらをとぶ/あなをほる等の溜め中=空中/地中/水中/消失)は原則すべての技が外れる。
+  // vulnerable_to に列挙された技(じしん→あなをほる、かみなり→そらをとぶ等)だけは当たる(Bulbapedia "Semi-invulnerable turn")。
+  if (def && def.charging && def.charging.semi){
+    if (!(def.charging.vulnerableTo || []).includes(move.name)){
+      return {hit:false, reason:`${def.poke.name} は ${def.charging.semi}にいて ${move.name} は当たらない！`};
+    }
+  }
   // 必中タグ
   const _effs = (move.battle_data && move.battle_data.effects) || [];
   if (_effs.some(e => e.kind === '必中' || e.ignores_accuracy)) return {hit:true};
@@ -1733,6 +1746,8 @@ function phaseApplyEffects(atkSide, defSide, move){
   for (const ef of move.battle_data.effects){
     const target = ef.target === 'self' ? atk : def;
     if (target.fainted) continue;
+    // 溜めターン専用の効果(メテオビーム/エレクトロビームのとくこう+1)は攻撃時には発動しない(startChargeIfNeededが担当)
+    if (ef.kind === '能力ランク変化' && (ef.timing === 'charge_turn' || ef.on_charge_turn)) continue;
     const prob = ef.prob != null ? ef.prob : 100;
     if (Math.random() * 100 >= prob) continue;
     if (ef.kind === 'ひるみ' || (ef.kind === '状態付与' && ef.value === 'ひるみ')){
@@ -1934,20 +1949,25 @@ function runSingleAttack(atkSide, moveIdx){
     return;
   }
   pushHistory();
-  log('Attack', `${atk.poke.name} が ${move.name} を選んだ！`);
+  // 溜め技の解放: 溜め中なら溜めていた技を放つ(選択技より優先)。解放した瞬間に半無敵も解ける。
+  let mv = move, releasing = false;
+  if (atk.charging){ mv = atk.charging.move; releasing = true; atk.charging = null; }
+  log('Attack', `${atk.poke.name} が ${mv.name} を選んだ！`);
   // 行動阻害（ねむり/こおり/まひ）
   if (atk.status === 'sleep'){ log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); renderBattleLog(); renderBoth(); return; }
   if (atk.status === 'freeze' && Math.random() > 0.2){ log('0c', `${atk.poke.name} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
   if (atk.status === 'paralysis' && Math.random() < 0.25){ log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
+  if (startChargeIfNeeded(atk, mv, releasing)){ renderBattleLog(); renderBoth(); return; }
   // 命中判定
-  const hit = phaseHitCheck(move, atk, def);
+  const hit = phaseHitCheck(mv, atk, def);
   if (!hit.hit){ log('0c', hit.reason); renderBattleLog(); renderBoth(); return; }
-  if (move.category === '変化'){
-    log('9', `${atk.poke.name} は ${move.name} を使った！ (変化技は MVP では効果未実装)`);
-    phaseApplyEffects(atkSide, defSide, move);
+  if (mv.category === '変化'){
+    log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
+    phaseApplyEffects(atkSide, defSide, mv);
   } else {
-    phaseDealDamage(atkSide, defSide, move);
-    if (!def.fainted) phaseApplyEffects(atkSide, defSide, move);
+    phaseDealDamage(atkSide, defSide, mv);
+    if (!def.fainted) phaseApplyEffects(atkSide, defSide, mv);
   }
   // 攻撃側のターン終了スリップ（片側攻撃でも自分側のみ処理）
   phaseSlipFor(atkSide);
@@ -1963,6 +1983,35 @@ function isFirstTurnOnlyMove(move){
   if ((bd.fails_if || []).some(f => failKeys.includes(f.type))) return true;
   if ((bd.requires || []).some(r => r.type === 'first_turn_after_switch_in')) return true;
   return false;
+}
+
+// 溜め技(2ターン技): 溜め開始したら true(=このターンは攻撃しない)。releasing=解放ターンは再溜めしない。
+// skip_charge_if_weather(晴れソーラービーム/あめエレクトロビーム)は溜めなしで即攻撃(Bulbapedia "Solar Beam"/"Electro Shot")。
+function startChargeIfNeeded(st, mv, releasing){
+  if (releasing || !st.poke) return false;
+  const effs = (mv && mv.battle_data && mv.battle_data.effects) || [];
+  const chargeEf = effs.find(e => e.kind === '2ターン目に攻撃');
+  if (!chargeEf) return false;
+  if ((chargeEf.skip_charge_if_weather || []).some(w => (_WMAP[w] || w) === env.weather)){
+    log('0c', `${st.poke.name} の ${mv.name} は 天候のおかげで 溜めずに撃てる！`);
+    return false;
+  }
+  // 溜めターンに発動する自己ランク上昇(メテオビーム/エレクトロビーム: とくこう+1)。timing/on_charge_turn の2表記を両方読む。
+  const STATMAP = {attack:'atk',defense:'def',special_attack:'spatk',special_defense:'spdef',speed:'spd',accuracy:'acc',evasion:'eva'};
+  effs.filter(e => e.kind === '能力ランク変化' && (e.timing === 'charge_turn' || e.on_charge_turn)).forEach(e => {
+    const keys = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
+    for (const k of keys){
+      const rk = STATMAP[k] || k;
+      if (st.rank[rk] === undefined) continue;
+      const sg = e.stages || 0;
+      st.rank[rk] = Math.max(-6, Math.min(6, (st.rank[rk] || 0) + sg));
+      log('9', `${st.poke.name} の ${k} ランクが ${sg > 0 ? '+' : ''}${sg} ${sg > 0 ? 'あがった' : 'さがった'}！`);
+    }
+  });
+  const SEMI_MSG = {'空中':'空高く 飛び上がった！','地中':'地面に もぐった！','水中':'水中に もぐった！','消失':'すがたを 消した！'};
+  st.charging = { move: mv, semi: chargeEf.semi_invulnerable || null, vulnerableTo: chargeEf.vulnerable_to || [] };
+  log('0c', `${st.poke.name} は ${SEMI_MSG[chargeEf.semi_invulnerable] || 'ちからを ためている！'}`);
+  return true;
 }
 
 // === 1ターン実行 (両側同時) ===
@@ -2011,7 +2060,11 @@ function runTurn(){
     // 行動枠の消費を記録(しっぺがえし=行動順ベース。ねむり等で不発でも枠は先に過ぎた扱い)
     atk.movedThisTurn = true;
     if (atk.fainted){ log(a.side, `${atk.poke.name} は ひんし状態のため行動できない`); continue; }
-    if (!a.move){ log(a.side, `${atk.poke.name} は技を選択していない`); continue; }
+    // 溜め技の解放: 前ターンから溜めていれば、このターンは溜めていた技を放つ(選択技より優先)。
+    // 解放した瞬間に半無敵も解ける(行動不能で流れた場合もここで解除=まひ等で溜めは中断)。
+    let mv = a.move, releasing = false;
+    if (atk.charging){ mv = atk.charging.move; releasing = true; atk.charging = null; }
+    if (!mv){ log(a.side, `${atk.poke.name} は技を選択していない`); continue; }
     // ねむり・こおり等
     if (atk.status === 'sleep'){ log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); continue; }
     if (atk.status === 'freeze' && Math.random() > 0.2){ log('0c', `${atk.poke.name} は こおっていて うごけない！`); continue; }
@@ -2031,22 +2084,24 @@ function runTurn(){
     }
     if (atk.flinched){ log('0c', `${atk.poke.name} は ひるんで うごけない！`); continue; }
     // ねこだまし/であいがしら: 場に出た最初のターン(turnsOut===0)以外は失敗
-    if (isFirstTurnOnlyMove(a.move) && atk.turnsOut > 0){
-      log('0c', `${atk.poke.name} の ${a.move.name} は 場に出た最初のターンしか出せない！`); continue;
+    if (isFirstTurnOnlyMove(mv) && atk.turnsOut > 0){
+      log('0c', `${atk.poke.name} の ${mv.name} は 場に出た最初のターンしか出せない！`); continue;
     }
+    // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
+    if (startChargeIfNeeded(atk, mv, releasing)) continue;
     // 命中判定
-    const hit = phaseHitCheck(a.move, atk, def);
+    const hit = phaseHitCheck(mv, atk, def);
     if (!hit.hit){ log('0c', hit.reason); continue; }
-    if (a.move.category === '変化'){
-      log('9', `${atk.poke.name} は ${a.move.name} を使った！ (変化技は MVP では効果未実装)`);
+    if (mv.category === '変化'){
+      log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
       // 変化技でも状態異常付与だけは適用（おにび等）
-      phaseApplyEffects(a.side, a.opp, a.move);
+      phaseApplyEffects(a.side, a.opp, mv);
       continue;
     }
     // ダメ計算とHP適用
-    const dmgRes = phaseDealDamage(a.side, a.opp, a.move);
+    const dmgRes = phaseDealDamage(a.side, a.opp, mv);
     // ★追加効果は「技が当たった」時だけ発動。こうかなし(タイプ無効)や計算不可なら発動しない(全技共通)。
-    if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, a.opp, a.move);
+    if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, a.opp, mv);
   }
   // ターン終了処理
   phaseEndOfTurnSlip();
@@ -2100,6 +2155,7 @@ function resetBattle(){
     if (st.poke) st.currentHp = realStat(st, 'hp');
     st.fainted = false;
     st.badpoisonCounter = 0;
+    st.charging = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア

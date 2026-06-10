@@ -777,6 +777,130 @@ console.log('\n=== 段㉔ 条件技(fails_if/条件威力倍率: ポルターガ
   E.env.field = 'none';
 }
 
+console.log('\n=== 段㉕ 溜め技(2ターン技: 溜め→攻撃/天候スキップ/溜めターン能力上昇/半無敵) ===');
+// 期待値の出典: @smogon/calc(同条件: フシギバナvsフシギバナ Lv50/IV31/P0/補正なし)
+//   ソーラービーム=[16,20] / あめ時=[8,10](威力半減) / そらをとぶ=[68,82]
+//   メテオビーム(+1とくこう込み)=[68,81] / エレクトロビーム(+1とくこう込み)=[36,43]
+//     ※calcの既定値はどちらも「溜めターンの+1とくこう」込み(rank0手計算の1.5倍で確認済み)
+// 意味の出典(Bulbapedia):
+//   "Solar Beam" — 1ターン目に溜め、2ターン目に攻撃。晴れなら溜めなしで即攻撃。あめ/すなあらし/ゆきで威力半減
+//   "Meteor Beam"/"Electro Shot" — 溜めターンに自分のとくこう+1。エレクトロショットはあめなら溜めなし
+//   "Semi-invulnerable turn" — そらをとぶ等の溜め中は原則攻撃が当たらない(じしん→あなをほる等の列挙技は当たる)
+{
+  // T68 ソーラービーム: 1ターン目=溜め(ダメージなし)、2ターン目=攻撃
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ソーラービーム')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null); // 相手は技なし(行動しない)
+  E.sides.self.currentHp = E.realStat(E.sides.self, 'hp');
+  const oppHp0 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppHp0;
+  E.setRandom(mulberry32(20260610));
+  E.runTurn();
+  check('T68 1ターン目は溜め(相手ノーダメージ)', E.sides.opp.currentHp === oppHp0, `hp=${E.sides.opp.currentHp}/${oppHp0}`);
+  check('T68 溜め状態(charging)が立つ', !!E.sides.self.charging, JSON.stringify(E.sides.self.charging && E.sides.self.charging.move && E.sides.self.charging.move.name));
+  E.runTurn();
+  const t68dealt = oppHp0 - E.sides.opp.currentHp;
+  check('T68 2ターン目に攻撃([16,20]内のダメージ)', t68dealt >= 16 && t68dealt <= 20, `dealt=${t68dealt}`);
+  check('T68 攻撃後は溜め解除', !E.sides.self.charging, JSON.stringify(!!E.sides.self.charging));
+
+  // T69 にほんばれ: 溜めなしで1ターン目に即攻撃
+  resetEnv();
+  E.env.weather = 'sunny';
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ソーラービーム')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.self.currentHp = E.realStat(E.sides.self, 'hp');
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.setRandom(mulberry32(20260610));
+  E.runTurn();
+  const t69dealt = E.realStat(E.sides.opp, 'hp') - E.sides.opp.currentHp;
+  check('T69 にほんばれなら1ターン目に即攻撃', t69dealt >= 16 && t69dealt <= 20 && !E.sides.self.charging, `dealt=${t69dealt} charging=${!!E.sides.self.charging}`);
+
+  // T69b あめ: 威力半減([8,10])
+  resetEnv();
+  E.env.weather = 'rain';
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  const t69b = E.calcDamage('self', 'opp', moveByName('ソーラービーム'));
+  check('T69b あめでソーラービーム威力半減=[8,10]', t69b && t69b.min === 8 && t69b.max === 10, t69b && `[${t69b.min},${t69b.max}]`);
+  resetEnv();
+
+  // T70 エレクトロビーム: 溜めターンにとくこう+1 → 2ターン目ダメージは+1込み[36,43]
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('エレクトロビーム')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.self.currentHp = E.realStat(E.sides.self, 'hp');
+  const t70hp0 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = t70hp0;
+  E.setRandom(mulberry32(20260610));
+  E.runTurn();
+  check('T70 溜めターンにとくこう+1', E.sides.self.rank.spatk === 1 && E.sides.opp.currentHp === t70hp0,
+    `spatk=${E.sides.self.rank.spatk} oppHp=${E.sides.opp.currentHp}/${t70hp0}`);
+  E.runTurn();
+  const t70dealt = t70hp0 - E.sides.opp.currentHp;
+  check('T70 2ターン目ダメージ=[36,43](+1とくこう込み)', t70dealt >= 36 && t70dealt <= 43, `dealt=${t70dealt}`);
+  check('T70 とくこうは+1のまま(攻撃ターンに二重上昇しない)', E.sides.self.rank.spatk === 1, `spatk=${E.sides.self.rank.spatk}`);
+
+  // T70b エレクトロビーム calcDamage単体: +1とくこうで[36,43]ちょうど
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.rank.spatk = 1;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  const t70b = E.calcDamage('self', 'opp', moveByName('エレクトロビーム'));
+  check('T70b エレクトロビーム(+1とくこう)=[36,43]', t70b && t70b.min === 36 && t70b.max === 43, t70b && `[${t70b.min},${t70b.max}]`);
+
+  // T71 メテオビーム: 同じく溜め→とくこう+1→[68,81](effectsに「2ターン目に攻撃」が必要=データ補完)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('メテオビーム')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.self.currentHp = E.realStat(E.sides.self, 'hp');
+  const t71hp0 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = t71hp0;
+  E.setRandom(mulberry32(20260610));
+  E.runTurn();
+  check('T71 メテオビーム溜めターン(とくこう+1・ノーダメージ)', E.sides.self.rank.spatk === 1 && E.sides.opp.currentHp === t71hp0,
+    `spatk=${E.sides.self.rank.spatk} oppHp=${E.sides.opp.currentHp}/${t71hp0}`);
+  E.runTurn();
+  const t71dealt = t71hp0 - E.sides.opp.currentHp;
+  check('T71 メテオビーム2ターン目=[68,81](+1とくこう込み)', t71dealt >= 68 && t71dealt <= 81, `dealt=${t71dealt}`);
+
+  // T72 半無敵: そらをとぶ中は はたく が外れ、かみなり(vulnerable_to)は当たる
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.charging = { move: moveByName('そらをとぶ'), semi: '空中',
+    vulnerableTo: ['うちおとす','かぜおこし','かみなり','サウザンアロー','スカイアッパー','たつまき','ぼうふう'] };
+  E.setRandom(() => 0); // 命中ロールを必ず成功側に倒す(外れの原因が半無敵だけになるように)
+  const t72a = E.phaseHitCheck(moveByName('はたく'), E.sides.self, E.sides.opp);
+  check('T72 空中の相手に はたく は当たらない', !t72a.hit, JSON.stringify(t72a));
+  const t72b = E.phaseHitCheck(moveByName('かみなり'), E.sides.self, E.sides.opp);
+  check('T72 空中の相手に かみなり は当たる(vulnerable_to)', t72b.hit === true, JSON.stringify(t72b));
+  E.sides.opp.charging = null;
+
+  // T72c runTurn統合: 自分が溜め中(2ターン目の相手先制)は攻撃を外し、解放で[68,82]を与える
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('そらをとぶ')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.rank.spd = 1; // 相手を先攻にする(溜め中に攻撃を受ける形)
+  E.sides.self.currentHp = E.realStat(E.sides.self, 'hp');
+  const t72hp0 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = t72hp0;
+  E.setRandom(mulberry32(20260610));
+  E.runTurn(); // T1: 相手はたく(命中=溜め前なので当たる)、自分は溜め
+  const selfHpAfterT1 = E.sides.self.currentHp;
+  check('T72c 1ターン目: 自分は溜めに入った', !!E.sides.self.charging, JSON.stringify(!!E.sides.self.charging));
+  E.runTurn(); // T2: 相手先攻はたく→空中で外れる、自分が解放
+  check('T72c 2ターン目: 空中なので相手の攻撃が外れる(自分ノーダメージ)', E.sides.self.currentHp === selfHpAfterT1,
+    `hp=${E.sides.self.currentHp}/${selfHpAfterT1}`);
+  const t72dealt = t72hp0 - E.sides.opp.currentHp;
+  check('T72c 2ターン目: そらをとぶ解放=[68,82]内', t72dealt >= 68 && t72dealt <= 82, `dealt=${t72dealt}`);
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
