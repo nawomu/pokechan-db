@@ -1582,6 +1582,11 @@ function phaseHitCheck(move, atk, def){
       return {hit:false, reason:`${def.poke.name} は ${def.charging.semi}にいて ${move.name} は当たらない！`};
     }
   }
+  // サイコフィールド: 地面にいるポケモンには相手の先制技(優先度>0)が当たらない(データ宣言: 優先技無効)
+  if (def && def.poke && isGrounded(def) && movePriority(move) > 0
+      && fieldRules().some(r => r.kind === '優先技無効')){
+    return {hit:false, reason:`${def.poke.name} は フィールドに守られて 先制技が当たらない！`};
+  }
   // 必中タグ
   const _effs = (move.battle_data && move.battle_data.effects) || [];
   if (_effs.some(e => e.kind === '必中' || e.ignores_accuracy)) return {hit:true};
@@ -1754,6 +1759,25 @@ function weatherCondOk(c, w){
   return false; // 不明な条件は誤適用回避でスキップ
 }
 
+// フィールド名↔キーの対応。フィールドの「ルール」はフィールド技のeffectsがデータで宣言する
+// (回復turn_end/状態異常予防/優先技無効/シード条件つきランク) → エンジンはそれを読むだけ。
+// UI手動設定のフィールドでも同じ技データを参照する(=単一ソース)。
+const _FMAP = {'グラスフィールド':'grassy','ミストフィールド':'misty','エレキフィールド':'electric','サイコフィールド':'psychic'};
+const _FIELD_MOVE = {grassy:'グラスフィールド', misty:'ミストフィールド', electric:'エレキフィールド', psychic:'サイコフィールド'};
+function fieldRules(){
+  const name = _FIELD_MOVE[env.field];
+  if (!name) return [];
+  const mv = Object.values(WAZA_MAP).find(m => m.name === name);
+  return (mv && mv.battle_data && mv.battle_data.effects) || [];
+}
+// 「地面にいる」判定: ひこうタイプ/とくせいふゆうは地面にいない → フィールドの効果を受けない
+function isGrounded(st){
+  if (!st || !st.poke) return false;
+  if ([st.poke.type1, st.poke.type2].includes('ひこう')) return false;
+  if (st.ability === 'ふゆう') return false;
+  return true;
+}
+
 // === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
 function phaseApplyEffects(atkSide, defSide, move){
   if (!move || !move.battle_data || !move.battle_data.effects) return;
@@ -1778,6 +1802,12 @@ function phaseApplyEffects(atkSide, defSide, move){
     }
     if (ef.kind === 'こんらん' || (ef.kind === '状態付与' && ef.value === 'こんらん')){
       // こんらんは揮発状態(2〜5ターン)。あばれる等の delayed(暴れ終了後の自己混乱)は未対応。
+      // ミストフィールド(状態異常予防・values指定なし=全部)は こんらんも防ぐ(Bulbapedia "Misty Terrain")
+      const fGuardC = fieldRules().find(r => r.kind === '状態異常予防');
+      if (fGuardC && isGrounded(target) && !fGuardC.values){
+        log('9', `${target.poke.name} は フィールドに守られている！`);
+        continue;
+      }
       if (!(ef.phase === 'delayed' || ef.trigger) && !target.confusion){
         const dt = Array.isArray(ef.duration_turns)
           ? (ef.duration_turns[0] + Math.floor(Math.random() * (ef.duration_turns[1] - ef.duration_turns[0] + 1)))
@@ -1801,6 +1831,12 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `${target.poke.name} には こうかが ないようだ…`);
         continue;
       }
+      // フィールドの状態異常予防(ミスト=全部 / エレキ=ねむり・ねむけ)。地面にいるポケモンだけ守られる(データ宣言を読む)
+      const fGuard = fieldRules().find(r => r.kind === '状態異常予防');
+      if (fGuard && isGrounded(target) && (!fGuard.values || fGuard.values.includes(ef.value))){
+        log('9', `${target.poke.name} は フィールドに守られている！`);
+        continue;
+      }
       // 遅延付与(あくび: ねむけ→次のターン終わりに眠る)。即時には付与しない。
       if (ef.phase === 'delayed' || ef.trigger === 'turn_end'){
         if (!target.pendingStatus && target.status === 'none'){
@@ -1814,6 +1850,21 @@ function phaseApplyEffects(atkSide, defSide, move){
       target.status = code;
       log('9', `${target.poke.name} は ${ef.value} 状態になった！`);
     } else if (ef.kind === '能力ランク変化'){
+      // condition付きは満たした時だけ(シード所持/のろい非ゴースト等)。未対応の条件は誤適用回避でスキップ。
+      if (ef.condition){
+        const c = ef.condition;
+        if (c.type === 'holding_item' || c.type === 'holds_item'){
+          // シード系(グラスシード等): 対象がその道具を持っている時だけ発動
+          const itName = target.item && ITEM_BY_KEY[target.item] && ITEM_BY_KEY[target.item].name;
+          if (itName !== c.value) continue;
+        } else if (c.type === 'user_not_type'){
+          // のろい: ゴースト以外が使った時のランク変化(ゴースト版の自傷のろいは未対応)
+          const at = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+          if (at.includes(c.value)) continue;
+        } else {
+          continue; // とどめばり/キングシールド/じばそうさ/ドラゴンエール等の状況条件は未対応=発動させない
+        }
+      }
       // effects の英語stat → sim の rank キーに対応づけて ±stages（-6..+6 でクランプ）。
       const STATMAP = {attack:'atk',defense:'def',special_attack:'spatk',special_defense:'spdef',speed:'spd',accuracy:'acc',evasion:'eva'};
       let keys = Array.isArray(ef.stats) ? ef.stats.slice() : (ef.stat ? [ef.stat] : []);
@@ -1834,6 +1885,8 @@ function phaseApplyEffects(atkSide, defSide, move){
         }
       }
     } else if (ef.kind === '回復'){
+      // turn_end宣言(グラスフィールドの毎ターン回復)はターン終了処理が担当 → ここ(使用時)では発動しない
+      if (ef.phase === 'turn_end') continue;
       // 天候条件付き(あさのひざし等)は現天候一致時のみ。条件なし(じこさいせい等)は常に。amount指定(ちからをすいとる)は未対応=park。
       if (ef.condition && !weatherCondOk(ef.condition, env.weather)) continue;
       if (ef.fraction != null){
@@ -1845,11 +1898,22 @@ function phaseApplyEffects(atkSide, defSide, move){
       }
     } else if (ef.kind === 'フィールド除去'){
       // アイアンローラー等: 攻撃が当たったらフィールドを消す(Bulbapedia "Steel Roller"・失敗時は来ない=immune時effects不発)
-      const FMAP = {'グラスフィールド':'grassy','ミストフィールド':'misty','エレキフィールド':'electric','サイコフィールド':'psychic'};
-      const removable = (ef.values || []).map(v => FMAP[v] || v);
+      const removable = (ef.values || []).map(v => _FMAP[v] || v);
       if (env.field !== 'none' && removable.includes(env.field)){
         env.field = 'none';
+        env.fieldTurns = null;
         log('9', `フィールドが こわれて消えた！`);
+      }
+    } else if (ef.kind === 'フィールド展開'){
+      // グラス/ミスト/エレキ/サイコ: 5ターンの間 フィールドを変える(duration=データ指定)。
+      // すでに同じフィールドなら失敗=ターン数もリフレッシュしない(Bulbapedia "Grassy Terrain"等)。
+      const f = _FMAP[ef.value] || ef.value;
+      if (env.field === f){
+        log('9', `しかし うまく きまらなかった！(すでに ${ef.value})`);
+      } else {
+        env.field = f;
+        env.fieldTurns = ef.duration || 5; // ターン終了ごとに減り、0で元に戻る(UI手動設定はnull=無期限)
+        log('9', `足下が ${ef.value} になった！`);
       }
     } else if (ef.kind === '天候変化'){
       // にほんばれ/あまごい/すなあらし/ゆきげしき/さむいギャグ: 5ターンの間 天気を変える(duration=データ指定)。
@@ -2167,6 +2231,27 @@ function runTurn(){
       log('10', '天気が 元に戻った！');
     }
   }
+  // グラスフィールドの毎ターン回復(データ宣言: 回復 phase=turn_end)— 地面にいるポケモンだけ
+  const _fHeal = fieldRules().find(r => r.kind === '回復' && r.phase === 'turn_end');
+  if (_fHeal && _fHeal.fraction != null){
+    for (const s of ['self','opp']){
+      const st = sides[s];
+      if (!st.poke || st.fainted || !isGrounded(st)) continue;
+      const max = realStat(st, 'hp');
+      if (st.currentHp == null || st.currentHp >= max) continue;
+      const heal = Math.max(1, Math.floor(max * _fHeal.fraction));
+      st.currentHp = Math.min(max, st.currentHp + heal);
+      log('10', `${st.poke.name} は フィールドで HPを ${heal} 回復！ (残HP ${st.currentHp})`);
+    }
+  }
+  // 技で展開したフィールドのカウントダウン(5ターン目の終わりに元に戻る。UI手動設定=null は無期限)
+  if (env.fieldTurns != null && env.field !== 'none'){
+    env.fieldTurns--;
+    if (env.fieldTurns <= 0){
+      env.field = 'none'; env.fieldTurns = null;
+      log('10', 'フィールドが 元に戻った！');
+    }
+  }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
   sides.opp.turnsOut = (sides.opp.turnsOut || 0) + 1;
@@ -2184,6 +2269,7 @@ function fullResetBattle(){
   env.weather = 'none';
   env.weatherTurns = null;
   env.field = 'none';
+  env.fieldTurns = null;
   env.doubleBattle = false;
   env.trickRoom = false;
   battleLog.length = 0;
@@ -2987,6 +3073,7 @@ function attachEnvPanel(){
   });
   document.getElementById('env-field').addEventListener('change', e=>{
     env.field = e.target.value;
+    env.fieldTurns = null; // UI手動設定は無期限(技で展開した時だけ5ターンカウント)
     renderBoth();
   });
   document.getElementById('env-double').addEventListener('change', e=>{
