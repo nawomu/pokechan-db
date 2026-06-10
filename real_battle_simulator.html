@@ -1215,9 +1215,35 @@ function calcDamage(atkSide, defSide, move){
             immune:true, reason:'ばけのかわで無効化', recoil:0};
   }
 
+  // 技タイプ変更(mapping型): ウェザーボール=天気で / だいちのはどう=フィールド(自分が接地)で技のタイプが変わる。
+  // STAB・タイプ相性とも変わったタイプで判定する(Bulbapedia "Weather Ball"/"Terrain Pulse")。
+  // フォルム依存(オーラぐるま/レイジングブル)はフォルム状態がsimに無いため未対応(元タイプのまま)。
+  let moveType = move.type;
+  const typeChg = bdEffects.find(e => e.kind === '技タイプ変更' && e.mapping);
+  if (typeChg){
+    const byField = typeChg.condition && typeChg.condition.type === 'field_active';
+    if (byField){
+      if (env.field !== 'none' && isGrounded(atk)){
+        const jpF = Object.keys(_FMAP).find(k => _FMAP[k] === env.field);
+        if (jpF && typeChg.mapping[jpF]) moveType = typeChg.mapping[jpF];
+      }
+    } else if (env.weather !== 'none'){
+      const jpW = Object.keys(_WMAP).find(k => _WMAP[k] === env.weather);
+      if (jpW && typeChg.mapping[jpW]) moveType = typeChg.mapping[jpW];
+    }
+  }
+
+  // 威力可変(based_on: weather): ウェザーボール=天気があると威力50→100(power_tableを読む)
+  const wPow = bdEffects.find(e => e.kind === '威力可変' && e.based_on === 'weather' && e.power_table);
+  if (wPow && env.weather !== 'none' && wPow.power_table.any_weather) power = wPow.power_table.any_weather;
+
+  // フィールド展開中の威力倍率(だいちのはどう: フィールド+自分が接地で2倍。Bulbapedia "Terrain Pulse")
+  const fActMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'field_active');
+  if (fActMul && env.field !== 'none' && isGrounded(atk)) power *= (fActMul.multiplier || 2);
+
   // タイプ相性（フライングプレス=技タイプ追加: かくとう×ひこうの複合で判定。Bulbapedia "Flying Press"）
   const extraTypeEf = bdEffects.find(e => e.kind === '技タイプ追加');
-  const moveTypes = [move.type].concat(extraTypeEf && extraTypeEf.value ? [extraTypeEf.value] : []);
+  const moveTypes = [moveType].concat(extraTypeEf && extraTypeEf.value ? [extraTypeEf.value] : []);
   let eff = 1;
   moveTypes.forEach(mt=>{
     const mtIdx = TYPES.indexOf(mt);
@@ -1244,13 +1270,13 @@ function calcDamage(atkSide, defSide, move){
     const ct = fr.condition && fr.condition.type;
     const grounded = (ct === 'target_grounded') ? isGrounded(def) : isGrounded(atk); // user_grounded/grounded=攻め手
     if (!grounded) continue;
-    const hitType = fr.move_type != null && fr.move_type === move.type;
+    const hitType = fr.move_type != null && fr.move_type === moveType;
     const hitMove = Array.isArray(fr.moves) && fr.moves.includes(move.name);
     if (!hitType && !hitMove) continue;
     const mul = fr.multiplier || 1;
     power = Math.max(1, pokeRound(power, Math.round(mul * 4096)));
     const lbl = {grassy:'グラスF', electric:'エレキF', psychic:'サイコF', misty:'ミストF'}[env.field] || 'フィールド';
-    chips.push({label: hitMove ? `${lbl} 地震系` : (mul < 1 ? `${lbl} ${move.type}` : lbl),
+    chips.push({label: hitMove ? `${lbl} 地震系` : (mul < 1 ? `${lbl} ${moveType}` : lbl),
                 factor: mul, kind: mul >= 1 ? 'env' : 'env-down'});
   }
 
@@ -1273,11 +1299,11 @@ function calcDamage(atkSide, defSide, move){
   // === 補正適用（pokeRound 段階） ===
   // 1) 天候
   if (env.weather === 'sunny'){
-    if (move.type === 'ほのお'){ base = pokeRound(base, 6144); chips.push({label:'はれ', factor:1.5, kind:'env'}); }
-    else if (move.type === 'みず'){ base = pokeRound(base, 2048); chips.push({label:'はれ', factor:0.5, kind:'env-down'}); }
+    if (moveType === 'ほのお'){ base = pokeRound(base, 6144); chips.push({label:'はれ', factor:1.5, kind:'env'}); }
+    else if (moveType === 'みず'){ base = pokeRound(base, 2048); chips.push({label:'はれ', factor:0.5, kind:'env-down'}); }
   } else if (env.weather === 'rain'){
-    if (move.type === 'みず'){ base = pokeRound(base, 6144); chips.push({label:'あめ', factor:1.5, kind:'env'}); }
-    else if (move.type === 'ほのお'){ base = pokeRound(base, 2048); chips.push({label:'あめ', factor:0.5, kind:'env-down'}); }
+    if (moveType === 'みず'){ base = pokeRound(base, 6144); chips.push({label:'あめ', factor:1.5, kind:'env'}); }
+    else if (moveType === 'ほのお'){ base = pokeRound(base, 2048); chips.push({label:'あめ', factor:0.5, kind:'env-down'}); }
   }
   if (env.weather === 'sand' && !isPhys && defTypes.includes('いわ')){
     base = pokeRound(base, 2731);
@@ -1325,12 +1351,12 @@ function calcDamage(atkSide, defSide, move){
     chips.push({label:'テクニシャン', factor:1.5, kind:'ability'});
   }
   // もらいび: ほのお技 ×1.5（発動中と仮定する近似）
-  if (ab === 'もらいび' && move.type === 'ほのお'){
+  if (ab === 'もらいび' && moveType === 'ほのお'){
     base = pokeRound(base, 6144);
     chips.push({label:'もらいび', factor:1.5, kind:'ability'});
   }
   // すなのちから: 砂嵐中 いわ/じめん/はがね ×1.3
-  if (ab === 'すなのちから' && env.weather === 'sand' && ['いわ','じめん','はがね'].includes(move.type)){
+  if (ab === 'すなのちから' && env.weather === 'sand' && ['いわ','じめん','はがね'].includes(moveType)){
     base = pokeRound(base, 5325);
     chips.push({label:'すなのちから', factor:1.3, kind:'ability'});
   }
@@ -1358,7 +1384,7 @@ function calcDamage(atkSide, defSide, move){
 
   // 3.8) 攻撃側 持ち物（タイプ強化系: もくたん等 ×1.2）
   const atkItem = atk.item ? ITEM_BY_KEY[atk.item] : null;
-  if (atkItem && atkItem.category === 'type_boost' && atkItem.poke_type === move.type){
+  if (atkItem && atkItem.category === 'type_boost' && atkItem.poke_type === moveType){
     base = pokeRound(base, atkItem.q12 || 4915);
     chips.push({label:atkItem.name, factor:atkItem.factor || 1.2, kind:'item'});
   }
@@ -1413,7 +1439,7 @@ function calcDamage(atkSide, defSide, move){
     // 8.5) 半減きのみ（防御側 item、効果バツグン時のみ ×0.5）
     if (eff > 1){
       const defItem = def.item ? ITEM_BY_KEY[def.item] : null;
-      if (defItem && defItem.category === 'berry_resist' && defItem.poke_type === move.type){
+      if (defItem && defItem.category === 'berry_resist' && defItem.poke_type === moveType){
         v = pokeRound(v, 2048);
         if (r === 85) chips.push({label:defItem.name, factor:0.5, kind:'item'});
       }
