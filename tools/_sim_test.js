@@ -1858,6 +1858,71 @@ console.log('\n=== 段㊳ ばくれつパンチ×てつのこぶし(特性の威
   resetEnv();
 }
 
+console.log('\n=== 段㊴ バインド(しめつける等7技: 4〜5ターン毎ターン終了時1/8削り+こうそくスピン解除) ===');
+// 出典: legacy(7技同一文)「4〜5ターンの間、毎ターン終了後最大HPの1/8」+ Bulbapedia "Bind"(第6世代以降1/8)。
+// 逃げ/交代封じ(prevents_switch)は1vs1のsimでは出番なし。ゴーストタイプには付与されない(immune宣言)。
+{
+  // T122 しめつける: 付与+毎ターン終了時に最大HPの1/8(フシギバナ155→19)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('しめつける'), moveByName('はたく')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.rank.spd = 6;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  const t122max = E.realStat(E.sides.opp, 'hp');   // 155
+  E.setRandom(() => 0.0);   // 命中 / ダメ乱数最小 / バインド4ターン(4+floor(0*2))
+  E.runTurn();   // 1ターン目: しめつける+ターン終了バインド19
+  const t122slip = (E.sides.opp.slips || []).filter(sl => sl.source === 'バインド');
+  check('T122 バインド状態が付く', t122slip.length === 1, `slips=${JSON.stringify(E.sides.opp.slips)}`);
+  const t122moveDmg = t122max - E.sides.opp.currentHp - 19;
+  check('T122 ターン終了時に19(=155×1/8切り捨て)削られる', t122moveDmg > 0 && t122moveDmg < 19,
+    `総減=${t122max - E.sides.opp.currentHp}(技ダメ${t122moveDmg}+バインド19のはず)`);
+  E.runTurn();   // 2ターン目: 重ねがけされない
+  check('T122b 重ねがけ不可(1件のまま)', (E.sides.opp.slips || []).filter(sl => sl.source === 'バインド').length === 1,
+    `slips=${JSON.stringify(E.sides.opp.slips)}`);
+  // T123 4ターンで解ける(rand=0→4ターン): あと2ターンで消える
+  E.runTurn();   // 3ターン目
+  E.runTurn();   // 4ターン目(最後の削り→とける)
+  check('T123 4ターン目の終わりにバインドがとける', (E.sides.opp.slips || []).length === 0,
+    `slips=${JSON.stringify(E.sides.opp.slips)}`);
+  const t123hp4 = E.sides.opp.currentHp;
+  E.sides.self.selectedMoveIdx = 1;   // 5ターン目は はたく(しめつける継続だと正しく再付与されるため)
+  E.runTurn();   // 5ターン目: バインドダメージなし(技ダメのみ)
+  const t123drop5 = t123hp4 - E.sides.opp.currentHp;
+  check('T123 とけた後はターン終了ダメージなし(技ダメのみ)', t123drop5 > 0 && t123drop5 < 19, `5ターン目の減=${t123drop5}`);
+
+  // T124 こうそくスピン: 自分のバインドを解除+すばやさ+1
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('こうそくスピン')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.slips = [{source: 'バインド', fraction: 0.125, turns: 4}];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.rank.spd = -6;   // 自分が先攻(自分のランクは+1チェックに使うので触らない)
+  const t124max = E.realStat(E.sides.self, 'hp');
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T124 こうそくスピンでバインドが解除される', (E.sides.self.slips || []).length === 0,
+    `slips=${JSON.stringify(E.sides.self.slips)}`);
+  check('T124 すばやさ+1', E.sides.self.rank.spd === 1, `spd rank=${E.sides.self.rank.spd}`);
+  check('T124 解除ターンの終了時バインドダメージなし(はたく分のみ減)', t124max - E.sides.self.currentHp <= 19,
+    `減=${t124max - E.sides.self.currentHp}(はたく16-19のみのはず)`);
+
+  // T125 ゴーストタイプには付与されない(ほのおのうず→ゲンガー: ほのお等倍で当たるがバインドは付かない)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ほのおのうず')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.rank.spd = 6;
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  const t125max = E.realStat(E.sides.opp, 'hp');
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T125 ほのおのうずは当たる(ダメージあり)', E.sides.opp.currentHp < t125max, `hp=${E.sides.opp.currentHp}/${t125max}`);
+  check('T125 ゴーストにバインドは付かない', (E.sides.opp.slips || []).length === 0, `slips=${JSON.stringify(E.sides.opp.slips)}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

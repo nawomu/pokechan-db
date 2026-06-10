@@ -2061,6 +2061,23 @@ function phaseApplyEffects(atkSide, defSide, move){
         }
         continue;
       }
+      // バインド(しめつける/ほのおのうず等7技): 4〜5ターンの間、毎ターン終了時に最大HPの1/8を削る揮発状態。
+      // turns付きslipsとして記録し phaseSlipFor が削って数える。prevents_switch(逃げ/交代封じ)は1vs1では出番なし。
+      // ゴーストタイプには付与されない(データの immune 宣言を読む)。
+      if (ef.value === 'バインド'){
+        if (target.slips && target.slips.some(sl => sl.source === 'バインド')) continue;   // 重ねがけ不可
+        const tgB = target.poke ? [target.poke.type1, target.poke.type2].filter(Boolean) : [];
+        if ((ef.immune || []).some(im => im.type === 'target_type' && tgB.includes(im.value))){
+          log('9', `${target.poke.name} には こうかが ないようだ…`);
+          continue;
+        }
+        const dB = Array.isArray(ef.duration) ? ef.duration : [4, 5];
+        const bTurns = dB[0] + Math.floor(Math.random() * (dB[1] - dB[0] + 1));
+        if (!target.slips) target.slips = [];
+        target.slips.push({ source: 'バインド', fraction: (ef.turn_end_damage != null ? ef.turn_end_damage : 0.125), turns: bTurns });
+        log('9', `${target.poke.name} は ${move.name}で バインド状態になった！`);
+        continue;
+      }
       const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
       const code = map[ef.value];
       if (!code) continue;
@@ -2145,6 +2162,14 @@ function phaseApplyEffects(atkSide, defSide, move){
                     : (ef.target === 'incoming') ? null : atk;
       if (!cureTgt || cureTgt.fainted) continue;
       const CURE_MAP = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
+      // バインド解除(こうそくスピン): 自分のバインド系継続ダメージを解除(状態異常とは別枠=slips)
+      if (ef.value === 'バインド'){
+        if (cureTgt.slips && cureTgt.slips.some(sl => sl.source === 'バインド')){
+          cureTgt.slips = cureTgt.slips.filter(sl => sl.source !== 'バインド');
+          log('9', `${cureTgt.poke.name} は バインドから 解放された！`);
+        }
+        continue;
+      }
       const cureAll = (ef.value == null || ef.value === 'all');
       const cureCode = (typeof ef.value === 'string') ? CURE_MAP[ef.value] : null;
       if (!cureAll && !cureCode) continue;
@@ -2275,14 +2300,20 @@ function phaseSlipFor(s){
       if (st.currentHp <= 0){ st.fainted = true; log('10c', `${st.poke.name} は ひんしになった！`); }
     }
   }
-  // 揮発スリップ状態(しおづけ=1/16またはみず/はがね1/8・のろい=1/4): 毎ターン終了時に最大HPの宣言割合を削る
+  // 揮発スリップ状態(しおづけ=1/16またはみず/はがね1/8・のろい=1/4・バインド=1/8): 毎ターン終了時に最大HPの宣言割合を削る。
+  // turns付き(バインド=4〜5ターン)は数えて、使い切ったら とける。turnsなし(しおづけ等)は続く。
   if (st.slips && st.slips.length && !st.fainted){
     for (const sl of st.slips){
       const d = Math.max(1, Math.floor(max * sl.fraction));
       st.currentHp = Math.max(0, st.currentHp - d);
       log('10a', `${st.poke.name} は ${sl.source}で ${d} ダメージ！ (残HP ${st.currentHp})`);
+      if (sl.turns != null){
+        sl.turns--;
+        if (sl.turns <= 0) log('10a', `${st.poke.name} は ${sl.source}から 解放された！`);
+      }
       if (st.currentHp <= 0){ st.fainted = true; log('10a', `${st.poke.name} は ひんしになった！`); break; }
     }
+    st.slips = st.slips.filter(sl => sl.turns == null || sl.turns > 0);
   }
 }
 
