@@ -933,6 +933,7 @@ const env = {
   field:   'none',       // none / electric / grassy / misty / psychic
   doubleBattle: false,   // ダブルバトル（範囲技 ×0.75）
   trickRoom: false,      // トリックルーム（素早さ逆転）
+  trickRoomTurns: null,  // 技で展開した時のみ5ターンカウント(UI手動チェック=null は無期限)
 };
 
 // 範囲技判定（ダブルで ×0.75 が乗る対象）
@@ -2276,6 +2277,17 @@ function phaseApplyEffects(atkSide, defSide, move){
         env.weatherTurns = ef.duration || 5; // ターン終了ごとに減り、0で元に戻る(UI手動設定はnull=無期限)
         log('9', `天気が ${ef.value} になった！`);
       }
+    } else if (ef.kind === 'トリックルーム'){
+      // トリックルーム: 5ターンの間すばやさ逆転(優先度-7)。展開中に再使用すると元に戻る(toggle)。
+      // 出典: Bulbapedia "Trick Room"(lasts 5 turns / using it again ends the effect)
+      if (env.trickRoom){
+        env.trickRoom = false; env.trickRoomTurns = null;
+        log('9', 'ねじれた時空が 元に戻った！');
+      } else {
+        env.trickRoom = true;
+        env.trickRoomTurns = ef.duration || 5; // ターン終了ごとに減り、0で元に戻る(UI手動チェックはnull=無期限)
+        log('9', `${atk.poke.name} は 時空を ねじまげた！`);
+      }
     }
   }
 }
@@ -2759,6 +2771,14 @@ function runTurn(){
       log('10', 'フィールドが 元に戻った！');
     }
   }
+  // 技で展開したトリックルームのカウントダウン(5ターン目の終わりに元に戻る。UI手動チェック=null は無期限)
+  if (env.trickRoomTurns != null && env.trickRoom){
+    env.trickRoomTurns--;
+    if (env.trickRoomTurns <= 0){
+      env.trickRoom = false; env.trickRoomTurns = null;
+      log('10', 'ねじれた時空が 元に戻った！');
+    }
+  }
   // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
   for (const s of ['self','opp']){
     const st = sides[s];
@@ -2792,6 +2812,7 @@ function fullResetBattle(){
   env.fieldTurns = null;
   env.doubleBattle = false;
   env.trickRoom = false;
+  env.trickRoomTurns = null;
   battleLog.length = 0;
   battleHistory.length = 0;
   log('Reset', '全リセット完了');
@@ -3610,6 +3631,7 @@ function attachEnvPanel(){
   });
   document.getElementById('env-trickroom').addEventListener('change', e=>{
     env.trickRoom = e.target.checked;
+    env.trickRoomTurns = null; // UI手動チェックは無期限(技で展開した時だけ5ターンカウント)
     renderBoth();
   });
   // 攻撃側 状態異常 select

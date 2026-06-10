@@ -25,7 +25,7 @@ function freshSide(pokeName, moveKey) {
   s.selectedMoveIdx = 0;
   return s;
 }
-function resetEnv() { E.env.weather = 'none'; E.env.weatherTurns = null; E.env.field = 'none'; E.env.fieldTurns = null; E.env.doubleBattle = false; E.env.trickRoom = false; }
+function resetEnv() { E.env.weather = 'none'; E.env.weatherTurns = null; E.env.field = 'none'; E.env.fieldTurns = null; E.env.doubleBattle = false; E.env.trickRoom = false; E.env.trickRoomTurns = null; }
 
 console.log('=== 段① 追加効果なしの純粋攻撃技（はたく: ノーマル物理40） ===');
 // 受けは「ノーマル等倍」になるタイプ。フシギバナ(くさ/どく)はノーマル技を等倍で受ける。
@@ -1970,6 +1970,61 @@ console.log('\n=== 段㊵ やどりぎのタネ(毎ターン相手の最大HP1/8
   E.runTurn();
   check('T127 こうそくスピンでやどりぎが解除される', (E.sides.self.slips || []).length === 0,
     `slips=${JSON.stringify(E.sides.self.slips)}`);
+  resetEnv();
+}
+
+console.log('\n=== 段㊶ トリックルーム(5ターン素早さ逆転・再使用で解除・優先度-7) ===');
+// legacy:「5ターンの間、すばやさが低いポケモンから攻撃」「もう1度使用すると元に戻る」「必ず後攻(優先度-7)」
+// env.trickRoom(UI手動=無期限)は実装済 → 技からの展開(5ターンカウント+トグル)を開通する。
+{
+  // T128 フシギバナ(遅80) vs ゲンガー(速110)。1ターン目にトリックルーム→2ターン目は遅い方が先攻
+  // ※自分の攻撃技はくさ技(タネばくだん)にする(はたく=ノーマルはゴーストのゲンガーにこうかなし)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('トリックルーム'), moveByName('タネばくだん')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // 1ターン目: ゲンガー先攻(TRは-7でどのみち後攻)→TR展開
+  check('T128 トリックルームが展開される', E.env.trickRoom === true, `trickRoom=${E.env.trickRoom}`);
+  check('T128 5ターンカウントが付く(使用ターンで1消費=残4)', E.env.trickRoomTurns === 4, `turns=${E.env.trickRoomTurns}`);
+  // 2ターン目: 遅いフシギバナが先攻になるはず。相手HP1なら先に倒して被弾しない
+  E.sides.self.selectedMoveIdx = 1;
+  E.sides.opp.currentHp = 1;
+  const t128sHp = E.sides.self.currentHp;
+  E.runTurn();
+  check('T128 TR下では遅い方が先攻(先に倒して被弾なし)', E.sides.opp.fainted && E.sides.self.currentHp === t128sHp,
+    `oppFainted=${E.sides.opp.fainted} selfHp=${E.sides.self.currentHp}(前=${t128sHp})`);
+
+  // T128b 5ターン目の終わりに元に戻る(使用ターン含め5ターン)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('トリックルーム'), moveByName('タネばくだん')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // 1(展開)
+  E.sides.self.selectedMoveIdx = 1;
+  E.runTurn(); E.runTurn(); E.runTurn();   // 2,3,4
+  check('T128b 4ターン目まではまだ有効', E.env.trickRoom === true, `trickRoom=${E.env.trickRoom} turns=${E.env.trickRoomTurns}`);
+  E.runTurn();   // 5(終わりに戻る)
+  check('T128b 5ターン目の終わりに元に戻る', E.env.trickRoom === false && E.env.trickRoomTurns == null,
+    `trickRoom=${E.env.trickRoom} turns=${E.env.trickRoomTurns}`);
+
+  // T129 もう1度使うと元に戻る(トグル)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('トリックルーム')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // 展開
+  check('T129 1回目で展開', E.env.trickRoom === true, `trickRoom=${E.env.trickRoom}`);
+  E.runTurn();   // 再使用→解除
+  check('T129 2回目で元に戻る', E.env.trickRoom === false && E.env.trickRoomTurns == null,
+    `trickRoom=${E.env.trickRoom} turns=${E.env.trickRoomTurns}`);
   resetEnv();
 }
 
