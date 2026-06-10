@@ -59,7 +59,7 @@
 - 反動の厳密丸め / トリプルアクセル威力逓増 / ネズミざんstop_on_miss / ふくろだたき(味方数) / なげつける(持ち物威力)
 - ふゆうのじめん無効(特性ファミリー自体が未スプリント)
 - データの小さな違和感(動作には影響なし・直すなら_fixスクリプトで): つじぎり/エアカッターの急所効果 target が opponent/all_opponents になっている(意味的には self の急所ランク)。エンジンは top キー crit_stage を読むので実害なし
-- `HANDOFF_SESSION_2026_06_09.md` は**未コミット運用のまま**(コミットしない約束)
+- `HANDOFF_SESSION_2026_06_09.md` は 70ef1f8(2026-06-10 UI改修)で**コミット済みだった**(「未コミット運用」の引き継ぎ情報は古い)
 - 説明文(compose)側は今回触っていない: 急所まわりの effects を compose が読むか未確認 → 説明文セッション再開時に `わざ説明文_開通手順.md` で照合
 
 ## 6. 引き継ぎの作法(変えない)
@@ -68,5 +68,5 @@
 - コミット前3点: ①SyntaxError チェック(new Function) ②テスト全緑 ③crosscheck基準値
 - 正解は権威ソース(`バトル再現_羅針盤.md`)。**急所ページの権威ソースに「ポケモンWiki」が追加**(2026-06-11 阿部さん指定: https://wiki.pokemonwiki.com/wiki/急所 — WebFetchは403になるのでcurl+ブラウザUAで取る)
 - pokechan_data.js は直接編集禁止 → `tools/_fix_*.js`(dry-run→--write、compose不変をgit diffで確認)
-- コミットしないもの: `pl.m3u8` / `pokechan_data.js.tagdbbak` / `.tagsbak` / `画像　*説明ページ/` / `HANDOFF_SESSION_2026_06_09.md`
+- コミットしないもの: `pl.m3u8` / `pokechan_data.js.tagdbbak` / `.tagsbak` / `画像　*説明ページ/`
 - 阿部さんへの定期報告を忘れない(「動いてます？」と言わせない)。テストの様子は観戦レポートを案内する
