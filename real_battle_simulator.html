@@ -969,6 +969,8 @@ function makeSideState(){
     movedThisTurn: false,
     // 溜め技(2ターン技)の溜め状態: {move, semi, vulnerableTo} / null。解放(攻撃)した瞬間にクリア。
     charging: null,
+    // 反動で動けない(はかいこうせん系): 攻撃成功の次ターンは行動不能。消化したらクリア。
+    mustRecharge: false,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1949,6 +1951,12 @@ function runSingleAttack(atkSide, moveIdx){
     return;
   }
   pushHistory();
+  // 反動(はかいこうせん系): 前ターンの攻撃が成功していたら、このターンは動けない(Bulbapedia "Hyper Beam")
+  if (atk.mustRecharge){
+    atk.mustRecharge = false;
+    log('0c', `${atk.poke.name} は こうげきの反動で 動けない！`);
+    renderBattleLog(); renderBoth(); return;
+  }
   // 溜め技の解放: 溜め中なら溜めていた技を放つ(選択技より優先)。解放した瞬間に半無敵も解ける。
   let mv = move, releasing = false;
   if (atk.charging){ mv = atk.charging.move; releasing = true; atk.charging = null; }
@@ -1966,8 +1974,11 @@ function runSingleAttack(atkSide, moveIdx){
     log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
     phaseApplyEffects(atkSide, defSide, mv);
   } else {
-    phaseDealDamage(atkSide, defSide, mv);
+    const dmgRes = phaseDealDamage(atkSide, defSide, mv);
     if (!def.fainted) phaseApplyEffects(atkSide, defSide, mv);
+    // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
+    if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
+        ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
   }
   // 攻撃側のターン終了スリップ（片側攻撃でも自分側のみ処理）
   phaseSlipFor(atkSide);
@@ -2060,6 +2071,8 @@ function runTurn(){
     // 行動枠の消費を記録(しっぺがえし=行動順ベース。ねむり等で不発でも枠は先に過ぎた扱い)
     atk.movedThisTurn = true;
     if (atk.fainted){ log(a.side, `${atk.poke.name} は ひんし状態のため行動できない`); continue; }
+    // 反動(はかいこうせん系): 前ターンの攻撃が成功していたら、このターンは動けない(Bulbapedia "Hyper Beam")
+    if (atk.mustRecharge){ atk.mustRecharge = false; log('0c', `${atk.poke.name} は こうげきの反動で 動けない！`); continue; }
     // 溜め技の解放: 前ターンから溜めていれば、このターンは溜めていた技を放つ(選択技より優先)。
     // 解放した瞬間に半無敵も解ける(行動不能で流れた場合もここで解除=まひ等で溜めは中断)。
     let mv = a.move, releasing = false;
@@ -2102,6 +2115,9 @@ function runTurn(){
     const dmgRes = phaseDealDamage(a.side, a.opp, mv);
     // ★追加効果は「技が当たった」時だけ発動。こうかなし(タイプ無効)や計算不可なら発動しない(全技共通)。
     if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, a.opp, mv);
+    // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
+    if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
+        ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
   }
   // ターン終了処理
   phaseEndOfTurnSlip();
@@ -2156,6 +2172,7 @@ function resetBattle(){
     st.fainted = false;
     st.badpoisonCounter = 0;
     st.charging = null;
+    st.mustRecharge = false;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
