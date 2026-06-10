@@ -2050,6 +2050,9 @@ const GRAVITY_BLOCKED = ['そらをとぶ', 'はねる', 'とびげり', 'とび
 // (エンコール/GRAVITY_BLOCKED と同じ方式=スキーマを推測で足さない)。
 // 出典: Bulbapedia "Role Play"/"Entrainment"/"Skill Swap"/"Gastro Acid" の対象外特性のうち sim に存在するもの
 const ABILITY_CHANGE_NG = ['ふしぎなまもり', 'バトルスイッチ', 'ばけのかわ', 'なまけ'];
+// さいはい(技強制再使用)で繰り返させられない技(Bulbapedia "Instruct": 溜め技・反動技・
+// 呼び出し技・さいはい自身・まもり系などは指示できない)。技名でなく effect kind での近似
+const INSTRUCT_NG_KINDS = ['2ターン目に攻撃', '次のターン行動不能', 'ランダム技', '直前技模倣', '技強制再使用', '遅延攻撃', 'まもり', 'こらえる'];
 // 「地面にいる」判定: ひこうタイプ/とくせいふゆうは地面にいない → フィールドの効果を受けない
 // じゅうりょく中は全員が地面にいる扱い(Bulbapedia "Gravity")
 function isGrounded(st){
@@ -3318,6 +3321,24 @@ function runSingleAttack(atkSide, moveIdx){
     if (_selfKOAlways) applySelfFaint(atk);
     renderBattleLog(); renderBoth(); return;
   }
+  // 技強制再使用(さいはい): 相手が最後に使った技を、その場でもう一度使わせる(Bulbapedia "Instruct")。
+  // 再使用は runSingleAttack の再帰で実行(さいはい自身は INSTRUCT_NG_KINDS で弾かれるので有限)。
+  // ※再帰側でも pushHistory されるため「戻る」が2回になる(単発実行のみの小さな近似)
+  if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '技強制再使用')){
+    const _lm = def.lastMove;
+    const _lmIdx = _lm ? (def.moves || []).findIndex(m => m && m.name === _lm.name) : -1;
+    const _ok = _lm && !def.fainted && !def.charging && !def.mustRecharge && _lmIdx >= 0 &&
+      !((_lm.battle_data && _lm.battle_data.effects) || []).some(e => INSTRUCT_NG_KINDS.includes(e.kind));
+    if (!_ok){
+      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！`);
+      noteActionFailed(atk);
+      renderBattleLog(); renderBoth(); return;
+    }
+    log('0c', `${atk.poke.name} は ${mv.name}！ ${def.poke.name} は しじに したがい もういちど ${_lm.name} を つかう！`);
+    renderBattleLog(); renderBoth();
+    runSingleAttack(defSide, _lmIdx);
+    return;
+  }
   if (mv.category === '変化'){
     log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
     phaseApplyEffects(atkSide, defSide, mv);
@@ -3640,6 +3661,23 @@ function runTurn(){
       applyCrashDamage(atk, mv);
       applyHpCost(atk, mv);
       if (_selfKOAlways) applySelfFaint(atk);
+      continue;
+    }
+    // 技強制再使用(さいはい): 相手が最後に使った技を、その場でもう一度使わせる。
+    // まだ技を使っていない/技リストにない/呼出不可の技(溜め・反動・呼び出し系・まもり系)は失敗。
+    // 出典: Bulbapedia "Instruct"(呼出不可リストはNG kindでの近似・コメント明記)
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '技強制再使用')){
+      const _lm = def.lastMove;
+      const _ok = _lm && !def.fainted && !def.charging && !def.mustRecharge &&
+        (def.moves || []).some(m => m && m.name === _lm.name) &&
+        !((_lm.battle_data && _lm.battle_data.effects) || []).some(e => INSTRUCT_NG_KINDS.includes(e.kind));
+      if (!_ok){
+        log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！`);
+        noteActionFailed(atk);
+      } else {
+        log('0c', `${atk.poke.name} は ${mv.name}！ ${def.poke.name} は しじに したがい もういちど ${_lm.name} を つかう！`);
+        order.splice(order.indexOf(a) + 1, 0, {side: a.opp, move: _lm, opp: a.side});
+      }
       continue;
     }
     if (mv.category === '変化'){

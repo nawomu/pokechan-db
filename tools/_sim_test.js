@@ -3686,6 +3686,35 @@ console.log('\n=== 段71 まねっこ(直前技模倣) ===');
   resetEnv();
 }
 
+console.log('\n=== 段72 さいはい(技強制再使用) ===');
+{
+  resetEnv();
+  // さいはい: 相手が最後に使った技を、その場でもう一度使わせる。まだ技を使っていなければ失敗。
+  // 出典: Bulbapedia "Instruct"
+  E.sides.self = freshSide('ゲンガー', null);    // spd130=先手
+  E.sides.self.moves = [moveByName('さいはい')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カメックス', null);
+  E.sides.opp.moves = [moveByName('タネばくだん')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.sides.self.currentHp = 135;          // freshSideはcurrentHp未設定のため明示
+  const _hp0 = 135;
+  E.runTurn();   // T1: さいはい(相手はまだ技を使っていない=失敗)→カメックスのタネばくだん(1発)
+  const _hp1 = E.sides.self.currentHp;
+  const _d1 = _hp0 - _hp1;
+  check('T173 相手がまだ技を使っていない さいはいは失敗(被弾は1発分)',
+    _d1 > 0,
+    `1ターン目被弾=${_d1}(>0期待)`);
+  E.runTurn();   // T2: さいはい→カメックスがタネばくだんを即くりかえす+自分の行動でもう1発=計2発
+  const _hp2 = E.sides.self.currentHp;
+  const _d2 = _hp1 - _hp2;
+  check('T173b さいはいで相手が直前の技をもう一度使う(被弾が2発分になる)',
+    _d2 === _d1 * 2,
+    `2ターン目被弾=${_d2}(${_d1 * 2}=2発分期待)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
