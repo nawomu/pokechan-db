@@ -2941,6 +2941,59 @@ console.log('\n=== 段57 いたみわけ + フリーズドライ(相性上書き
   resetEnv();
 }
 
+console.log('\n=== 段58 持ち物奪取(どろぼう/ほしがる)+持ち物交換(トリック/すりかえ) ===');
+// 出典: Bulbapedia "Thief"/"Covet"(自分が道具を持っていなければ、ダメージ後に相手の道具を奪う) /
+//       "Trick"/"Switcheroo"(おたがいの道具を入れかえる。両方持っていない時だけ失敗)
+// ※リサイクルは「きのみ消費」基盤がsim未実装(きのみを消費しない)のため対象外。
+{
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('どろぼう')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.item = 'kodawari_scarf';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T158 どろぼうでダメージ+道具を奪う',
+    E.sides.self.item === 'kodawari_scarf' && !E.sides.opp.item && E.sides.opp.currentHp < 155,
+    `自分item=${E.sides.self.item} 相手item=${E.sides.opp.item} 相手HP=${E.sides.opp.currentHp}(最大155)`);
+  // 自分がすでに道具を持っている時は奪えない(ダメージは入る)
+  E.sides.opp.item = 'type_boost_water';
+  const hpBefore = E.sides.opp.currentHp;
+  E.runTurn();
+  check('T158b 自分が道具持ちなら奪えない(ダメージのみ)',
+    E.sides.self.item === 'kodawari_scarf' && E.sides.opp.item === 'type_boost_water' &&
+    E.sides.opp.currentHp < hpBefore,
+    `自分item=${E.sides.self.item} 相手item=${E.sides.opp.item}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // トリック: 両者の道具を入れかえる
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('トリック')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.item = 'type_boost_ghost';
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.item = 'kodawari_scarf';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T158c トリックで道具を入れかえ',
+    E.sides.self.item === 'kodawari_scarf' && E.sides.opp.item === 'type_boost_ghost',
+    `自分item=${E.sides.self.item} 相手item=${E.sides.opp.item}`);
+  // 片方しか持っていなくても成功(自分の道具が相手へ)
+  E.sides.opp.item = null;
+  E.runTurn();
+  check('T158d 片方だけ道具持ちでもトリック成功',
+    !E.sides.self.item && E.sides.opp.item === 'kodawari_scarf',
+    `自分item=${E.sides.self.item} 相手item=${E.sides.opp.item}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

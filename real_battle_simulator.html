@@ -2386,6 +2386,28 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `${atk.poke.name} は ${def.poke.name} の ${itKO ? itKO.name : def.item} を はたきおとした！`);
         def.item = null;
       }
+    } else if (ef.kind === '持ち物奪取'){
+      // どろぼう/ほしがる: 自分が道具を持っていなければ、相手の道具を奪って自分のものにする。
+      // 自分が持っていれば奪わない(ダメージは通常どおり)。トレーナー戦後返却はsim対象外。
+      // 出典: Bulbapedia "Thief" / "Covet"
+      if (!atk.item && def.item){
+        const itTh = ITEM_BY_KEY[def.item];
+        atk.item = def.item;
+        def.item = null;
+        log('9', `${atk.poke.name} は ${def.poke.name} から ${itTh ? itTh.name : atk.item} を うばいとった！`);
+      }
+    } else if (ef.kind === '持ち物交換'){
+      // トリック/すりかえ: おたがいの道具を入れかえる。片方しか持っていなくても成功・
+      // 両方持っていない時だけ失敗。出典: Bulbapedia "Trick" / "Switcheroo"
+      if (!atk.item && !def.item){
+        log('9', `しかし うまく きまらなかった！`);
+      } else {
+        const _ai = atk.item || null;
+        atk.item = def.item || null;
+        def.item = _ai;
+        const _nm = (k) => { const it = k && ITEM_BY_KEY[k]; return it ? it.name : 'なし'; };
+        log('9', `${atk.poke.name} は おたがいの 道具を 入れかえた！(自分=${_nm(atk.item)} / 相手=${_nm(def.item)})`);
+      }
     } else if (ef.kind === '状態異常回復'){
       // ねむる/いやしのすず(=全部)・フレアドライブ等(value=こおり 等の単品)。
       // target: self/party/team=自分側(1vs1では自分)・opponent/all_but_self=相手側。incoming(いやしのねがい)は交代未実装=スキップ。
