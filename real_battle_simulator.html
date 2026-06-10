@@ -1007,6 +1007,10 @@ function makeSideState(){
     // かなしばり: {name, turns}(その技名を出せない) / アンコール: {move, turns}(その技しか出せない)
     disable: null,
     encore: null,
+    // いちゃもん: 同じ技を続けて出せない(かけた側が場を離れるまで=sim交代なしで実質永続)
+    tormented: false,
+    // ふういん: 自分が知っている技を相手は出せない(自分が場にいる間)
+    imprison: false,
     // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等): {atk: 数値, ...} / null。
     // realStat がこれを最優先で返す(ランク補正はその上に乗る)。場を離れる/リセットで消える。
     statOverride: null,
@@ -2581,6 +2585,24 @@ function phaseApplyEffects(atkSide, defSide, move){
     } else if (ef.kind === 'たくわえ消費'){
       // はきだす側は phaseDealDamage が先に消費するのでここは のみこむ(変化技)用(0なら何もしない)
       consumeStockpile(atk);
+    } else if (ef.kind === 'いちゃもん'){
+      // いちゃもん: 相手は同じ技を続けて出せなくなる。すでにいちゃもん状態なら失敗。
+      // 出典: Bulbapedia "Torment"
+      if (target.tormented){
+        log('9', `しかし うまく きまらなかった！(すでに いちゃもん状態)`);
+      } else {
+        target.tormented = true;
+        log('9', `${target.poke.name} は いちゃもんを つけられた！`);
+      }
+    } else if (ef.kind === 'ふういん'){
+      // ふういん: 自分も知っている技を、相手は出せなくなる(自分が場にいる間)。
+      // すでにふういん発動中なら失敗。出典: Bulbapedia "Imprison"
+      if (atk.imprison){
+        log('9', `しかし うまく きまらなかった！(すでに ふういん発動中)`);
+      } else {
+        atk.imprison = true;
+        log('9', `${atk.poke.name} は あいての技を ふういんした！`);
+      }
     } else if (ef.kind === 'ちょうはつ'){
       // ちょうはつ: 3ターンの間(使われたターンを含む)変化技を出せない。すでにちょうはつ状態なら失敗。
       // 出典: Bulbapedia "Taunt"(第5世代以降は3ターン)
@@ -2954,6 +2976,8 @@ function snapshotBattleState(){
     dbondPrev: !!st.dbondPrev,
     perishCount: st.perishCount != null ? st.perishCount : null, // ほろびのうたも一手戻せるように
     lockOn: st.lockOn || 0,                                      // ロックオンも一手戻せるように
+    tormented: !!st.tormented,                                   // いちゃもんも一手戻せるように
+    imprison: !!st.imprison,                                     // ふういんも一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -3006,6 +3030,8 @@ function undoBattle(){
     st.dbondPrev = !!src.dbondPrev;
     st.perishCount = src.perishCount != null ? src.perishCount : null; // ほろびのうたの巻き戻し
     st.lockOn = src.lockOn || 0;                                       // ロックオンの巻き戻し
+    st.tormented = !!src.tormented;                                    // いちゃもんの巻き戻し
+    st.imprison = !!src.imprison;                                      // ふういんの巻き戻し
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -3088,6 +3114,20 @@ function runSingleAttack(atkSide, moveIdx){
   // かなしばり状態: 封じられた技は出せない(Bulbapedia "Disable")
   if (atk.disable && mv.name === atk.disable.name){
     log('0c', `${atk.poke.name} は かなしばりで ${mv.name} が だせない！`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
+  // いちゃもん状態: 直前に使った技と同じ技は出せない(Bulbapedia "Torment")。
+  // 実機では わるあがき に置き換わる=出せなかったターンを「使った」扱いにしない(lastMoveを流す)近似
+  if (atk.tormented && atk.lastMove && mv.name === atk.lastMove.name){
+    log('0c', `${atk.poke.name} は いちゃもんを つけられていて おなじ技が だせない！`);
+    atk.lastMove = null;
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
+  // ふういん: 相手がふういんを発動中で、相手も知っている技は出せない(Bulbapedia "Imprison")
+  if (def.imprison && (def.moves || []).some(m => m && m.name === mv.name)){
+    log('0c', `${atk.poke.name} は ふういんされていて ${mv.name} が だせない！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
@@ -3325,6 +3365,18 @@ function runTurn(){
     // かなしばり状態: 封じられた技は出せない(Bulbapedia "Disable")
     if (atk.disable && mv.name === atk.disable.name){
       log('0c', `${atk.poke.name} は かなしばりで ${mv.name} が だせない！`);
+      noteActionFailed(atk); continue;
+    }
+    // いちゃもん状態: 直前に使った技と同じ技は出せない(Bulbapedia "Torment")。
+    // 実機では わるあがき に置き換わる=出せなかったターンを「使った」扱いにしない(lastMoveを流す)近似
+    if (atk.tormented && atk.lastMove && mv.name === atk.lastMove.name){
+      log('0c', `${atk.poke.name} は いちゃもんを つけられていて おなじ技が だせない！`);
+      atk.lastMove = null;
+      noteActionFailed(atk); continue;
+    }
+    // ふういん: 相手がふういんを発動中で、相手も知っている技は出せない(Bulbapedia "Imprison")
+    if (def.imprison && (def.moves || []).some(m => m && m.name === mv.name)){
+      log('0c', `${atk.poke.name} は ふういんされていて ${mv.name} が だせない！`);
       noteActionFailed(atk); continue;
     }
     // じゅうりょく: 空中にいる技は使えない(Bulbapedia "Gravity")
@@ -3596,6 +3648,8 @@ function resetBattle(){
     st.dbondPrev = false;
     st.perishCount = null;
     st.lockOn = 0;
+    st.tormented = false;
+    st.imprison = false;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
