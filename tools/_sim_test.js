@@ -2346,6 +2346,67 @@ console.log('\n=== 段㊽ じゅうでん(とくぼう+1・次のでんき技の
   resetEnv();
 }
 
+console.log('\n=== 段㊾ たくわえる/はきだす/のみこむ ===');
+// 出典: Bulbapedia "Stockpile"(最大3回・使うたび ぼうぎょ/とくぼう+1。3回たくわえていると失敗) /
+//       "Spit Up"(威力=たくわえた数×100。使うとたくわえは0に戻り、上がったぼうぎょ/とくぼうも戻る。0なら失敗) /
+//       "Swallow"(たくわえ1=1/4・2=1/2・3=全回復。使うと同様に戻る。0なら失敗)
+{
+  resetEnv();
+  E.sides.self = freshSide('カメックス', 'takuwaeru');
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T146 たくわえ1: ぼうぎょ/とくぼう+1', E.sides.self.stockpile === 1 && E.sides.self.rank.def === 1 && E.sides.self.rank.spdef === 1,
+    `stockpile=${E.sides.self.stockpile} def=${E.sides.self.rank.def} spdef=${E.sides.self.rank.spdef}`);
+  E.runTurn(); E.runTurn();
+  check('T146b たくわえ3: ぼうぎょ/とくぼう+3', E.sides.self.stockpile === 3 && E.sides.self.rank.def === 3 && E.sides.self.rank.spdef === 3,
+    `stockpile=${E.sides.self.stockpile} def=${E.sides.self.rank.def} spdef=${E.sides.self.rank.spdef}`);
+  E.runTurn();   // 4回目は技ごと失敗(ランクも上がらない)
+  check('T146c 4回目は失敗して3のまま', E.sides.self.stockpile === 3 && E.sides.self.rank.def === 3 && E.sides.self.rank.spdef === 3,
+    `stockpile=${E.sides.self.stockpile} def=${E.sides.self.rank.def} spdef=${E.sides.self.rank.spdef}`);
+
+  // はきだす: 威力=たくわえ×100(3→300 / 1→100で約3倍差)
+  const mvHD = moveByName('はきだす');
+  const hd3 = E.calcDamage('self', 'opp', mvHD);
+  E.sides.self.stockpile = 1;
+  const hd1 = E.calcDamage('self', 'opp', mvHD);
+  E.sides.self.stockpile = 3;
+  check('T146d たくわえ3はたくわえ1の約3倍', hd1 && hd3 && hd3.min >= Math.floor(hd1.min * 2.7) && hd3.min <= Math.ceil(hd1.min * 3.3),
+    hd1 && hd3 && `×1=${hd1.min} ×3=${hd3.min} (比=${(hd3.min / hd1.min).toFixed(3)})`);
+
+  // 使うと当たって消費され、上がったランクも戻る
+  E.sides.self.moves = [mvHD]; E.sides.self.selectedMoveIdx = 0;
+  const t146hp = E.sides.opp.currentHp;
+  E.runTurn();
+  check('T146e はきだす(威力300)が当たる', hd3 != null && E.sides.opp.currentHp === Math.max(0, t146hp - hd3.min),
+    `減少=${t146hp - E.sides.opp.currentHp} 期待=${hd3 ? hd3.min : 'null(威力可変未対応)'}`);
+  check('T146f 消費されランクも戻る', E.sides.self.stockpile === 0 && E.sides.self.rank.def === 0 && E.sides.self.rank.spdef === 0,
+    `stockpile=${E.sides.self.stockpile} def=${E.sides.self.rank.def} spdef=${E.sides.self.rank.spdef}`);
+  // たくわえ0でははきだす失敗
+  const t146hp2 = E.sides.opp.currentHp;
+  E.runTurn();
+  check('T146g たくわえ0でははきだす失敗', E.sides.opp.currentHp === t146hp2 && E.sides.self.failedThisTurn === true,
+    `減少=${t146hp2 - E.sides.opp.currentHp} failedThisTurn=${E.sides.self.failedThisTurn}`);
+
+  // のみこむ: たくわえ2で最大HPの半分回復+消費
+  E.sides.self = freshSide('カメックス', 'takuwaeru');
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.runTurn(); E.runTurn();   // たくわえ2
+  const cMax = E.realStat(E.sides.self, 'hp');
+  E.sides.self.currentHp = 20;
+  E.sides.self.moves = [moveByName('のみこむ')]; E.sides.self.selectedMoveIdx = 0;
+  E.runTurn();
+  const expHeal = Math.max(1, Math.floor(cMax * 0.5));
+  check('T146h のみこむ(たくわえ2)で半分回復+消費', E.sides.self.currentHp === Math.min(cMax, 20 + expHeal) && E.sides.self.stockpile === 0 && E.sides.self.rank.def === 0,
+    `残HP=${E.sides.self.currentHp} 期待=${Math.min(cMax, 20 + expHeal)} stockpile=${E.sides.self.stockpile} def=${E.sides.self.rank.def}`);
+  // たくわえ0でのみこむ失敗
+  E.sides.self.currentHp = 20;
+  E.runTurn();
+  check('T146i たくわえ0でのみこむ失敗', E.sides.self.currentHp === 20 && E.sides.self.failedThisTurn === true,
+    `残HP=${E.sides.self.currentHp} failedThisTurn=${E.sides.self.failedThisTurn}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

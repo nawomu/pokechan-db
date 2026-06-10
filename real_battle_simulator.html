@@ -991,6 +991,9 @@ function makeSideState(){
     minimized: false,
     // じゅうでん状態: {move_type, multiplier} / null。指定タイプの技を使うまで持続・使うと消費。
     chargeBoost: null,
+    // たくわえる: たくわえた数(0..3)と、たくわえるで実際に上がったランク(消費時に戻す分)
+    stockpile: 0,
+    stockpileBoost: {def: 0, spdef: 0},
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1138,7 +1141,11 @@ function variablePower(move, atk, def){
     const r = tw / uw;
     return r <= 0.2 ? 120 : r <= 0.25 ? 100 : r <= 1/3 ? 80 : r <= 0.5 ? 60 : 40;
   }
-  // はきだす=たくわえ未実装 → 未対応
+  // はきだす: 威力=たくわえた数で100/200/300(power_tableを読む)。たくわえ0は失敗=null(Bulbapedia "Spit Up")
+  if (ef.based_on === 'stockpile_count' && ef.power_table){
+    const n = atk.stockpile || 0;
+    return n ? (ef.power_table[String(n)] || null) : null;
+  }
   return null;
 }
 
@@ -1800,6 +1807,8 @@ function phaseDealDamage(atkSide, defSide, move){
   }
   const result = calcDamage(atkSide, defSide, move);
   if (!result) return null;
+  // たくわえ消費(はきだす): 撃ったら(こうかなしでも)たくわえは消え、上がったランクも戻る
+  if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(sides[atkSide]);
   if (result.immune){
     log('8', `${result.reason}！`);
     return result;
@@ -2027,6 +2036,18 @@ function progressRampage(atk, mv){
 
 // 行動の失敗を記録し、あばれ状態も中断する(呼び元=失敗点: 外れ/まもられ/こうかなし/ねむり・こおり・まひ・ひるみ・こんらんで動けない)。
 // failedThisTurn はターン開始時に lastTurnFailed へ移される(じだんだ=前ターン失敗で威力2倍 が読む)。
+// たくわえ消費(はきだす/のみこむ): たくわえた数を0に戻し、たくわえるで実際に上がった
+// ぼうぎょ/とくぼうのランクを戻す(Bulbapedia "Spit Up"/"Swallow")。0なら何もしない(冪等)。
+function consumeStockpile(st){
+  if (!(st.stockpile || 0)) return;
+  const b = st.stockpileBoost || {def: 0, spdef: 0};
+  st.rank.def = Math.max(-6, Math.min(6, (st.rank.def || 0) - b.def));
+  st.rank.spdef = Math.max(-6, Math.min(6, (st.rank.spdef || 0) - b.spdef));
+  st.stockpile = 0;
+  st.stockpileBoost = {def: 0, spdef: 0};
+  log('9', `${st.poke.name} の たくわえたものが なくなった！`);
+}
+
 function noteActionFailed(atk){
   atk.failedThisTurn = true;
   disruptRampage(atk);
@@ -2081,6 +2102,14 @@ function phaseApplyEffects(atkSide, defSide, move){
       return;
     }
   }
+  // たくわえる: すでに最大(3)までたくわえていると技ごと失敗=ランクも上がらない(Bulbapedia "Stockpile")
+  const _stockAdd = move.battle_data.effects.find(e => e.kind === 'たくわえ加算');
+  if (_stockAdd && (atk.stockpile || 0) >= (_stockAdd.max || 3)){
+    log('9', `${atk.poke.name} は これいじょう たくわえられない！`);
+    return;
+  }
+  // たくわえ加算がある技は「実際に上がった分」を消費時に戻すため、実行前のランクを控えておく
+  const _preStockRank = _stockAdd ? {def: atk.rank.def || 0, spdef: atk.rank.spdef || 0} : null;
   for (const ef of move.battle_data.effects){
     const target = ef.target === 'self' ? atk : def;
     if (target.fainted) continue;
@@ -2323,8 +2352,12 @@ function phaseApplyEffects(atkSide, defSide, move){
     } else if (ef.kind === '回復'){
       // turn_end宣言(グラスフィールドの毎ターン回復)はターン終了処理が担当 → ここ(使用時)では発動しない
       if (ef.phase === 'turn_end') continue;
+      // たくわえ条件(のみこむ: たくわえた数で回復量が変わる)。消費(たくわえ消費)は後続のefが担当
+      if (ef.condition && ef.condition.type === 'stockpile_count'){
+        if ((atk.stockpile || 0) !== ef.condition.value) continue;
+      }
       // 天候条件付き(あさのひざし等)は現天候一致時のみ。条件なし(じこさいせい等)は常に。amount指定(ちからをすいとる)は未対応=park。
-      if (ef.condition && !weatherCondOk(ef.condition, env.weather)) continue;
+      else if (ef.condition && !weatherCondOk(ef.condition, env.weather)) continue;
       if (ef.fraction != null){
         const max = realStat(target, 'hp');
         if (target.currentHp == null) target.currentHp = max;
@@ -2384,6 +2417,18 @@ function phaseApplyEffects(atkSide, defSide, move){
         env.weatherTurns = ef.duration || 5; // ターン終了ごとに減り、0で元に戻る(UI手動設定はnull=無期限)
         log('9', `天気が ${ef.value} になった！`);
       }
+    } else if (ef.kind === 'たくわえ加算'){
+      // たくわえる: カウント+1(最大は冒頭でゲート済み)。上がったランク分を記録して消費時に戻す
+      atk.stockpile = (atk.stockpile || 0) + (ef.value || 1);
+      if (!atk.stockpileBoost) atk.stockpileBoost = {def: 0, spdef: 0};
+      if (_preStockRank){
+        atk.stockpileBoost.def += (atk.rank.def || 0) - _preStockRank.def;
+        atk.stockpileBoost.spdef += (atk.rank.spdef || 0) - _preStockRank.spdef;
+      }
+      log('9', `${atk.poke.name} は ${atk.stockpile}つ たくわえた！`);
+    } else if (ef.kind === 'たくわえ消費'){
+      // はきだす側は phaseDealDamage が先に消費するのでここは のみこむ(変化技)用(0なら何もしない)
+      consumeStockpile(atk);
     } else if (ef.kind === '次技威力倍化'){
       // じゅうでん: 次に使う指定タイプ(でんき)のダメージ技の威力が2倍。指定タイプの技を使うまで
       // 持続し、使うと消費される(第9世代)。出典: Bulbapedia "Charge"
@@ -2489,6 +2534,8 @@ function snapshotBattleState(){
     item: st.item != null ? st.item : null,   // はたきおとす(持ち物排除)を一手戻せるように
     minimized: !!st.minimized,                // ちいさくなる状態も一手戻せるように
     chargeBoost: st.chargeBoost ? {...st.chargeBoost} : null,   // じゅうでん状態も一手戻せるように
+    stockpile: st.stockpile || 0,                               // たくわえも一手戻せるように
+    stockpileBoost: {...(st.stockpileBoost || {def: 0, spdef: 0})},
   });
   return {
     self: snap(sides.self),
@@ -2528,6 +2575,8 @@ function undoBattle(){
     st.item = src.item != null ? src.item : null;   // はたきおとす(持ち物排除)の巻き戻し
     st.minimized = !!src.minimized;                 // ちいさくなる状態の巻き戻し
     st.chargeBoost = src.chargeBoost ? {...src.chargeBoost} : null;   // じゅうでん状態の巻き戻し
+    st.stockpile = src.stockpile || 0;                                // たくわえの巻き戻し
+    st.stockpileBoost = {...(src.stockpileBoost || {def: 0, spdef: 0})};
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -2591,6 +2640,12 @@ function runSingleAttack(atkSide, moveIdx){
   const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
   if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
     log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`);
+    renderBattleLog(); renderBoth(); return;
+  }
+  // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
+  if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
+    log('0c', `${atk.poke.name} の ${mv.name}！ しかし たくわえたものが ない！`);
+    noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
   // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
@@ -2800,6 +2855,11 @@ function runTurn(){
     if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
       log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`); continue;
     }
+    // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
+      log('0c', `${atk.poke.name} の ${mv.name}！ しかし たくわえたものが ない！`);
+      noteActionFailed(atk); continue;
+    }
     // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ。連続使用は成功率が1/3ずつ下がり、
     // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure"。
     // ファストガードはmultiplierなし=連続でも失敗しない)
@@ -2977,6 +3037,8 @@ function resetBattle(){
     st.rampage = null;
     st.minimized = false;
     st.chargeBoost = null;
+    st.stockpile = 0;
+    st.stockpileBoost = {def: 0, spdef: 0};
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
