@@ -1128,6 +1128,13 @@ function calcDamage(atkSide, defSide, move){
   if (!power) power = variablePower(move, atk, def) || 0;
   if (!power) return null;
 
+  // 技ごとの特殊効果(battle_data.effects)をダメージ式が読む
+  const bdEffects = (move.battle_data && move.battle_data.effects) || [];
+
+  // アクロバット: 使用者が道具を持っていないと威力倍化(Bulbapedia "Acrobatics" ×2)
+  const noItemMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'user_has_no_held_item');
+  if (noItemMul && !atk.item) power *= (noItemMul.multiplier || 2);
+
   const atkOrigTypes = [atk.poke.type1, atk.poke.type2].filter(Boolean);
   const atkTypes = atkOrigTypes;
   const defTypes = [def.poke.type1, def.poke.type2].filter(Boolean);
@@ -1139,15 +1146,18 @@ function calcDamage(atkSide, defSide, move){
             immune:true, reason:'ばけのかわで無効化', recoil:0};
   }
 
-  // タイプ相性
-  const moveTypeIdx = TYPES.indexOf(move.type);
+  // タイプ相性（フライングプレス=技タイプ追加: かくとう×ひこうの複合で判定。Bulbapedia "Flying Press"）
+  const extraTypeEf = bdEffects.find(e => e.kind === '技タイプ追加');
+  const moveTypes = [move.type].concat(extraTypeEf && extraTypeEf.value ? [extraTypeEf.value] : []);
   let eff = 1;
-  if (moveTypeIdx >= 0){
+  moveTypes.forEach(mt=>{
+    const mtIdx = TYPES.indexOf(mt);
+    if (mtIdx < 0) return;
     defTypes.forEach(dt=>{
       const dtIdx = TYPES.indexOf(dt);
-      if (dtIdx >= 0) eff *= TYPE_CHART[moveTypeIdx][dtIdx];
+      if (dtIdx >= 0) eff *= TYPE_CHART[mtIdx][dtIdx];
     });
-  }
+  });
   if (eff === 0){
     const hp = realStat(def, 'hp');
     return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
@@ -1156,9 +1166,12 @@ function calcDamage(atkSide, defSide, move){
 
   // 攻撃側・防御側の能力値（ランク補正反映、急所時は攻撃-/防御+ を無視）
   const isPhys = move.category === '物理';
-  const crit   = atk.critical;
+  // 常時急所技(やまあらし/こおりのいぶき/トリックフラワー): UIのトグルに関係なく急所×1.5
+  const crit   = atk.critical || !!(move.battle_data && move.battle_data.must_crit);
   const aKey = isPhys ? 'atk'  : 'spatk';
-  const dKey = isPhys ? 'def'  : 'spdef';
+  // サイコショック: 特殊技だが相手の「ぼうぎょ」を参照(Bulbapedia "Psyshock")
+  const altDef = bdEffects.find(e => e.kind === '別防御参照ダメージ');
+  const dKey = altDef ? (altDef.value === 'defense' ? 'def' : 'spdef') : (isPhys ? 'def' : 'spdef');
   const aStat = rankedStat(atk, aKey, {crit, role:'atk'});
   const dStat = rankedStat(def, dKey, {crit, role:'def'});
   const hp = realStat(def, 'hp');
@@ -1284,8 +1297,8 @@ function calcDamage(atkSide, defSide, move){
   for (let r = 85; r <= 100; r++){
     let v = Math.floor(base * r / 100);
 
-    // 5) STAB
-    if (atkOrigTypes.includes(move.type)){
+    // 5) STAB（技タイプ追加がある技=フライングプレスは、追加タイプ一致でも乗る。Bulbapedia "Flying Press"）
+    if (moveTypes.some(mt => atkOrigTypes.includes(mt))){
       v = pokeRound(v, 6144);
       if (r === 85) chips.push({label:'タイプ一致', factor:1.5, kind:'stab'});
     }
