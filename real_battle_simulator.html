@@ -1867,6 +1867,20 @@ function applySelfFaint(atk){
   log('9', `${atk.poke.name} は ひんしになった！`);
 }
 
+// HPコスト(てっていこうせん): 使用宣言したら 外れても・守られても 最大HPの半分(切り上げ)を支払う。
+// 支払いで自分がひんしになることもある(Bulbapedia "Steel Beam": HP cost even if it misses or the target protects)
+function applyHpCost(atk, mv){
+  if (atk.fainted) return;
+  const ef = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'HPが減る' && e.always_pays_even_if_blocked);
+  if (!ef) return;
+  const max = realStat(atk, 'hp');
+  const cost = Math.max(1, (ef.rounding === 'up' ? Math.ceil : Math.floor)(max * (ef.fraction || 0.5)));
+  if (atk.currentHp == null) atk.currentHp = max;
+  atk.currentHp = Math.max(0, atk.currentHp - cost);
+  log('9', `${atk.poke.name} は 自分のHPを ${cost} けずった！ (残りHP ${atk.currentHp})`);
+  if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
+}
+
 // 失敗ダメージ(とびひざげり/かかとおとし/サンダーダイブ):
 //   外れた・守られた・こうかなしの時、自分が最大HPの半分のダメージ(第5世代以降)。
 //   (Bulbapedia "High Jump Kick"/"Axe Kick"/"Supercell Slam": crash damage = 1/2 max HP)
@@ -1889,6 +1903,34 @@ function phaseApplyEffects(atkSide, defSide, move){
   if (atk.ability === 'ちからずく') return;
   // 防御側ひんし時は付与しない
   if (def.fainted) return;
+  // HPコスト技(はらだいこ/ソウルビート/みがわり等の変化技): HPがコスト以下・もうランク最大なら技ごと失敗。
+  // (Bulbapedia "Belly Drum"/"Clangorous Soul" + PS実装: hp <= cost で失敗=支払いなし)
+  // てっていこうせん(攻撃・always_pays_even_if_blocked)は対象外=自分がひんしになってでも撃つ(applyHpCostが担当)。
+  const _cost = move.battle_data.effects.find(e => e.kind === 'HPが減る' && !e.always_pays_even_if_blocked);
+  if (_cost && move.category === '変化'){
+    let _applies = true;
+    if (_cost.condition){
+      // のろい: ゴーストが使った時だけHPコスト技。それ以外の条件は評価できない=コスト技扱いしない
+      if (_cost.condition.type === 'user_type'){
+        const at = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+        _applies = at.includes(_cost.condition.value);
+      } else { _applies = false; }
+    }
+    if (_applies){
+      const max = realStat(atk, 'hp');
+      const cost = Math.max(1, (_cost.rounding === 'up' ? Math.ceil : Math.floor)(max * (_cost.fraction || 0.5)));
+      if (atk.currentHp == null) atk.currentHp = max;
+      const toMax = move.battle_data.effects.find(e => e.kind === '能力ランク変化' && e.to_max && e.target === 'self');
+      const allUp = move.battle_data.effects.find(e => e.kind === '能力ランク変化' && e.stat === 'all' && e.target === 'self');
+      const STATMAP6 = {attack:'atk',defense:'def',special_attack:'spatk',special_defense:'spdef',speed:'spd'};
+      if (atk.currentHp <= cost
+          || (toMax && (atk.rank[STATMAP6[toMax.stat]] || 0) >= 6)
+          || (allUp && ['atk','def','spatk','spdef','spd'].every(k => (atk.rank[k] || 0) >= 6))){
+        log('9', `しかし うまく きまらなかった！`);
+        return;
+      }
+    }
+  }
   for (const ef of move.battle_data.effects){
     const target = ef.target === 'self' ? atk : def;
     if (target.fainted) continue;
@@ -1994,6 +2036,8 @@ function phaseApplyEffects(atkSide, defSide, move){
       // effects の英語stat → sim の rank キーに対応づけて ±stages（-6..+6 でクランプ）。
       const STATMAP = {attack:'atk',defense:'def',special_attack:'spatk',special_defense:'spdef',speed:'spd',accuracy:'acc',evasion:'eva'};
       let keys = Array.isArray(ef.stats) ? ef.stats.slice() : (ef.stat ? [ef.stat] : []);
+      // stat:"all"(ソウルビート等) = 5能力すべて
+      if (keys.length === 1 && keys[0] === 'all') keys = ['attack','defense','special_attack','special_defense','speed'];
       // ランダムに1つだけ(つぼをつく 等)
       if (ef.stat_choice === 'random_one_of' && keys.length){
         keys = [keys[Math.floor(Math.random() * keys.length)]];
@@ -2010,6 +2054,23 @@ function phaseApplyEffects(atkSide, defSide, move){
           log('9', `${target.poke.name} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
         }
       }
+    } else if (ef.kind === 'HPが減る'){
+      // HPコスト(はらだいこ=半分切り捨て/ソウルビート=1/3/みがわり=1/4)。不足時の失敗ゲートはループ前で済み。
+      // てっていこうせん(always_pays_even_if_blocked)は攻撃フロー側 applyHpCost が担当(外れ/守られても支払うため)。
+      if (ef.always_pays_even_if_blocked) continue;
+      if (ef.condition){
+        // のろい: ゴーストが使った時だけ。評価できない条件は誤適用回避でスキップ
+        if (ef.condition.type === 'user_type'){
+          const at = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+          if (!at.includes(ef.condition.value)) continue;
+        } else { continue; }
+      }
+      const maxC = realStat(atk, 'hp');
+      const cost = Math.max(1, (ef.rounding === 'up' ? Math.ceil : Math.floor)(maxC * (ef.fraction || 0.5)));
+      if (atk.currentHp == null) atk.currentHp = maxC;
+      atk.currentHp = Math.max(0, atk.currentHp - cost);
+      log('9', `${atk.poke.name} は 自分のHPを ${cost} けずった！ (残りHP ${atk.currentHp})`);
+      if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
     } else if (ef.kind === '回復'){
       // turn_end宣言(グラスフィールドの毎ターン回復)はターン終了処理が担当 → ここ(使用時)では発動しない
       if (ef.phase === 'turn_end') continue;
@@ -2237,12 +2298,13 @@ function runSingleAttack(atkSide, moveIdx){
   if (startChargeIfNeeded(atk, mv, releasing)){ renderBattleLog(); renderBoth(); return; }
   // 命中判定
   const hit = phaseHitCheck(mv, atk, def);
-  if (!hit.hit){ log('0c', hit.reason); applyCrashDamage(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
+  if (!hit.hit){ log('0c', hit.reason); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
   // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
   if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
     log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
     applyProtectPunishers(atk, def, mv);
     applyCrashDamage(atk, mv);
+    applyHpCost(atk, mv);
     if (_selfKOAlways) applySelfFaint(atk);
     renderBattleLog(); renderBoth(); return;
   }
@@ -2258,6 +2320,8 @@ function runSingleAttack(atkSide, moveIdx){
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
     // 失敗ダメージ(とびひざげり系): こうかなしの時も反動を受ける
     if (dmgRes && dmgRes.immune) applyCrashDamage(atk, mv);
+    // HPコスト(てっていこうせん): 撃ったら結果に関係なく支払う
+    applyHpCost(atk, mv);
     // 自分瀕死: 威力あり=結果に関係なく / 威力なし(いのちがけ)=当たった時だけ
     if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
   }
@@ -2413,12 +2477,13 @@ function runTurn(){
     if (startChargeIfNeeded(atk, mv, releasing)) continue;
     // 命中判定
     const hit = phaseHitCheck(mv, atk, def);
-    if (!hit.hit){ log('0c', hit.reason); applyCrashDamage(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
+    if (!hit.hit){ log('0c', hit.reason); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
     // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
     if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
       log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
       applyProtectPunishers(atk, def, mv);
       applyCrashDamage(atk, mv);
+      applyHpCost(atk, mv);
       if (_selfKOAlways) applySelfFaint(atk);
       continue;
     }
@@ -2438,6 +2503,8 @@ function runTurn(){
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
     // 失敗ダメージ(とびひざげり系): こうかなしの時も反動を受ける
     if (dmgRes && dmgRes.immune) applyCrashDamage(atk, mv);
+    // HPコスト(てっていこうせん): 撃ったら結果に関係なく支払う
+    applyHpCost(atk, mv);
     // 自分瀕死: 威力あり=結果に関係なく / 威力なし(いのちがけ)=当たった時だけ
     if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
   }
