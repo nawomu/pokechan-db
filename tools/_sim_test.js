@@ -3971,6 +3971,114 @@ console.log('\n=== 段78 音技のみがわり貫通(substitute_pierce を読む
   resetEnv();
 }
 
+console.log('\n=== 段79 急所率上昇(きあいだめ/高急所技: 確率制・第7世代以降) ===');
+{
+  resetEnv();
+  // きあいだめ: きゅうしょアップ状態(急所ランク+2)になる。場を離れるまで続く・重ねがけ不可。
+  // 出典: ポケモンWiki「急所」(きゅうしょアップ=+2)/Bulbapedia "Focus Energy"
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('きあいだめ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T180 きあいだめで きゅうしょアップ状態(+2)になる',
+    E.sides.self.critBoost === 2,
+    `critBoost=${E.sides.self.critBoost}(2期待)`);
+  E.runTurn();   // 2回目は失敗(重ねがけ不可)
+  check('T180b きあいだめの重ねがけは失敗する',
+    E.sides.self.critBoost === 2 && E.sides.self.failedThisTurn === true,
+    `critBoost=${E.sides.self.critBoost}(2期待) failedThisTurn=${E.sides.self.failedThisTurn}(true期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // きゅうしょアップ(+2)+高急所技つじぎり(+1)=ランク3以上 → 確定急所(乱数最小でも急所)
+  // 急所率: ランク0=1/24, 1=1/8, 2=1/2, 3以上=確定(第7世代以降。ポケモンWiki「急所」/Bulbapedia "Critical hit")
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('つじぎり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.critBoost = 2;   // きあいだめ済みの状態を直接セット
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  // 期待値: 急所つじぎりの最小乱数ダメージ(UIトグルで急所を立てた calcDamage と一致するはず)
+  E.sides.self.critical = true;
+  const t180cExp = E.calcDamage('self', 'opp', moveByName('つじぎり')).min;
+  E.sides.self.critical = false;
+  const t180cMax = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = t180cMax;
+  E.setRandom(() => 0.0);   // 乱数最小=確率ロールでは急所が出ない値 → 確定急所だけが通る
+  E.runTurn();
+  check('T180c ランク3以上(きあいだめ+つじぎり)は確定急所(×1.5)',
+    t180cMax - E.sides.opp.currentHp === t180cExp,
+    `実ダメージ=${t180cMax - E.sides.opp.currentHp}(急所min=${t180cExp}期待)`);
+  check('T180c2 急所のログが出る',
+    E.battleLog.some(l => l.msg.includes('きゅうしょ')),
+    `log=${JSON.stringify(E.battleLog.slice(-6).map(l => l.msg))}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // 高急所技つじぎり単体(+1)=急所率1/8。乱数を高め(0.9 >= 1-1/8=0.875)に固定 → 急所が出る
+  // (確率ロールは「乱数が高いほど急所」の向き=既存テストの乱数最小と互換)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('つじぎり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.9);
+  E.runTurn();
+  check('T180d 高急所技(+1)は乱数0.9(>=7/8)で急所が出る',
+    E.battleLog.some(l => l.msg.includes('きゅうしょ')),
+    `log=${JSON.stringify(E.battleLog.slice(-6).map(l => l.msg))}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // 高急所技つじぎり単体(+1): 乱数最小(0.0 < 0.875)では急所は出ない=通常ダメージ(回帰確認)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('つじぎり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  const t180eExp = E.calcDamage('self', 'opp', moveByName('つじぎり')).min;
+  const t180eMax = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = t180eMax;
+  const t180eLogStart = E.battleLog.length;   // ログ判定はこのターンの分だけ(前テストの残留を見ない)
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T180e 高急所技でも乱数最小なら通常ダメージ(急所なし)',
+    t180eMax - E.sides.opp.currentHp === t180eExp && !E.battleLog.slice(t180eLogStart).some(l => l.msg.includes('きゅうしょ')),
+    `実ダメージ=${t180eMax - E.sides.opp.currentHp}(通常min=${t180eExp}期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // ドラゴンエール: 味方対象(fails_if no_ally)なので1vs1では失敗する(ポケモンWiki「急所」: 味方が受ける技)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('ドラゴンエール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T180f ドラゴンエールは味方がいない1vs1では失敗する',
+    E.sides.self.failedThisTurn === true && !E.sides.self.critBoost,
+    `failedThisTurn=${E.sides.self.failedThisTurn}(true期待) critBoost=${E.sides.self.critBoost}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

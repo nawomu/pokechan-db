@@ -1026,6 +1026,8 @@ function makeSideState(){
     subHp: 0,
     // このターンの攻撃を分身が受けたか(phaseDealDamageが立て、phaseApplyEffectsが追加効果遮断に読む一過性フラグ)
     subAbsorbed: false,
+    // きゅうしょアップ状態(きあいだめ=+2): 急所ランクの上乗せ。場を離れるまで続く(1vs1では実質ずっと)
+    critBoost: 0,
     // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等): {atk: 数値, ...} / null。
     // realStat がこれを最優先で返す(ランク補正はその上に乗る)。場を離れる/リセットで消える。
     statOverride: null,
@@ -1201,7 +1203,7 @@ function variablePower(move, atk, def){
   return null;
 }
 
-function calcDamage(atkSide, defSide, move){
+function calcDamage(atkSide, defSide, move, opts){
   if (!move) return null;
   if (move.category === '変化') return null;
 
@@ -1404,7 +1406,8 @@ function calcDamage(atkSide, defSide, move){
     isPhys = _pp > _sp;
   }
   // 常時急所技(やまあらし/こおりのいぶき/トリックフラワー): UIのトグルに関係なく急所×1.5
-  const crit   = atk.critical || !!(move.battle_data && move.battle_data.must_crit);
+  // opts.crit = phaseDealDamage の確率ロール(きあいだめ/高急所技)で急所が出た時に立つ
+  const crit   = atk.critical || !!(move.battle_data && move.battle_data.must_crit) || !!(opts && opts.crit);
   const aKey = isPhys ? 'atk'  : 'spatk';
   // サイコショック: 特殊技だが相手の「ぼうぎょ」を参照(Bulbapedia "Psyshock")
   const altDef = bdEffects.find(e => e.kind === '別防御参照ダメージ');
@@ -1971,7 +1974,20 @@ function phaseDealDamage(atkSide, defSide, move){
     recordTaken(df, move, dmg);
     return { variation: dmg, hits: 1, special: true };
   }
-  const result = calcDamage(atkSide, defSide, move);
+  // 急所判定(確率制・第7世代以降): 急所ランク = きゅうしょアップ状態(きあいだめ=+2) + 技の急所ランク(crit_stage=高急所技+1)。
+  // 確率は ランク1=1/8, 2=1/2, 3以上=確定。乱数は「高いほど急所」(roll >= 1-p)の向きで引く=既存テスト(乱数最小=急所なし)と互換。
+  // 近似(意図的): ①ランク0の素急所(1/24)はロールしない=UIの急所トグル担当(決定論性を保ち全テストの乱数列を守る)
+  //              ②連続攻撃は実機では1発ごとに判定だが、simは技1回につき1判定。
+  // 出典: ポケモンWiki「急所」/ Bulbapedia "Critical hit"(第7世代以降の確率表・きゅうしょアップ=+2・高急所技=+1)
+  let critRoll = false;
+  {
+    const _a = sides[atkSide];
+    const _stage = (_a.critBoost || 0) + ((move.battle_data && move.battle_data.crit_stage) || 0);
+    if (!_a.critical && !(move.battle_data && move.battle_data.must_crit) && _stage > 0){
+      critRoll = _stage >= 3 || Math.random() >= 1 - (_stage === 2 ? 0.5 : 0.125);
+    }
+  }
+  const result = calcDamage(atkSide, defSide, move, critRoll ? {crit: true} : undefined);
   if (!result) return null;
   // たくわえ消費(はきだす): 撃ったら(こうかなしでも)たくわえは消え、上がったランクも戻る
   if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(sides[atkSide]);
@@ -2027,6 +2043,7 @@ function phaseDealDamage(atkSide, defSide, move){
   }
   else if (hitCount > 1) log('8', `${atk.poke.name} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   else log('8', `${atk.poke.name} の ${move.name}！ ${def.poke.name} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
+  if (critRoll && total > 0) log('8', `きゅうしょに あたった！`);
 
   // 吸収(ドレイン): 与ダメ合計の fraction だけ自分が回復
   const drainEf = _effs.find(e => e.kind === '吸収');
@@ -2349,6 +2366,12 @@ function phaseApplyEffects(atkSide, defSide, move){
     noteActionFailed(atk);
     return;
   }
+  // 味方対象の技(ドラゴンエール等: fails_if no_ally 宣言): 1vs1(味方なし)では失敗(ポケモンWiki「急所」: 味方が受ける技)
+  if ((move.battle_data.fails_if || []).some(f => f.type === 'no_ally')){
+    log('9', `しかし うまく きまらなかった！(味方の ポケモンがいない)`);
+    noteActionFailed(atk);
+    return;
+  }
   // みがわり: すでに分身がいる時は技ごと失敗=HP(1/4)も払わない(Bulbapedia "Substitute")
   if (move.battle_data.effects.some(e => e.kind === 'みがわり設置') && atk.subHp > 0){
     log('9', `しかし うまく きまらなかった！(すでに みがわりがいる)`);
@@ -2458,6 +2481,18 @@ function phaseApplyEffects(atkSide, defSide, move){
         if (!target.slips) target.slips = [];
         target.slips.push({ source: 'バインド', fraction: (ef.turn_end_damage != null ? ef.turn_end_damage : 0.125), turns: bTurns });
         log('9', `${target.poke.name} は ${move.name}で バインド状態になった！`);
+        continue;
+      }
+      // きゅうしょアップ(きあいだめ): 急所ランク+2の状態になる(場を離れるまで)。重ねがけは失敗。
+      // 出典: ポケモンWiki「急所」(きゅうしょアップ=+2・第3世代以降)/Bulbapedia "Focus Energy"
+      if (ef.value === 'きゅうしょアップ'){
+        if (target.critBoost > 0){
+          log('9', `しかし うまく きまらなかった！(すでに きゅうしょアップしている)`);
+          noteActionFailed(atk);
+          continue;
+        }
+        target.critBoost = ef.crit_stages || 2;
+        log('9', `${target.poke.name} は きあいを ためはじめた！`);
         continue;
       }
       // ちいさくなる状態(自分対象・場を離れるまで継続): のしかかり等が必中+威力2倍で当たるようになる
@@ -3173,6 +3208,7 @@ function snapshotBattleState(){
     rooted: !!st.rooted,                                         // ねをはるも一手戻せるように
     wish: st.wish ? {turns: st.wish.turns, amount: st.wish.amount} : null, // ねがいごとも一手戻せるように
     subHp: st.subHp || 0,                                        // みがわりも一手戻せるように
+    critBoost: st.critBoost || 0,                                // きあいだめも一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -3237,6 +3273,7 @@ function undoBattle(){
     st.wish = src.wish ? {turns: src.wish.turns, amount: src.wish.amount} : null; // ねがいごとの巻き戻し
     st.subHp = src.subHp || 0;                                         // みがわりの巻き戻し
     st.subAbsorbed = false;
+    st.critBoost = src.critBoost || 0;                                 // きあいだめの巻き戻し
   };
   lastMoveAnywhere = s.lastMoveAny || null;   // まねっこの巻き戻し
   restore(sides.self, s.self);
@@ -4107,6 +4144,7 @@ function resetBattle(){
     st.wish = null;
     st.subHp = 0;
     st.subAbsorbed = false;
+    st.critBoost = 0;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
