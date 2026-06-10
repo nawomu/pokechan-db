@@ -982,6 +982,8 @@ function makeSideState(){
     slips: [],
     // ねむりの残り行動カウント(技で眠った時のみ。null=UI手動のねむり=眠り続ける)。行動時に減り、0で目覚める。
     sleepTurns: null,
+    // あばれ状態(げきりん等): {move, left=残り攻撃ターン数} / null。暴れ終わり・中断でクリア。
+    rampage: null,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1899,6 +1901,44 @@ function applyCrashDamage(atk, mv){
   if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
 }
 
+// あばれ状態(kind=暴れる(混乱): あばれる/はなびらのまい/げきりん/だいふんげき)
+//   2〜3ターン技ロックで攻撃し続け、暴れ終わると1〜4ターンこんらん(legacy=Champions仕様)。
+//   中断(外れ/まもられ/こうかなし/ねむり/まひ/こおり/ひるみ/こんらん自傷)で暴れは終わり こんらんしない。
+//   ただし「最終ターンになるはずだった」ターンの中断なら こんらんする(Bulbapedia "Thrash" 第5世代以降)。
+function endRampage(atk, withConfusion){
+  if (!atk.rampage) return;
+  const rmv = atk.rampage.move;
+  atk.rampage = null;
+  log('9', `${atk.poke.name} の あばれるのが やんだ！`);
+  if (!withConfusion || atk.fainted || atk.confusion) return;
+  // ミストフィールド(状態異常予防・values指定なし=全部)は こんらんも防ぐ(通常付与と同じ規則)
+  const fG = fieldRules().find(r => r.kind === '状態異常予防');
+  if (fG && isGrounded(atk) && !fG.values) return;
+  const ef = ((rmv.battle_data && rmv.battle_data.effects) || []).find(e => e.kind === '状態付与' && e.value === 'こんらん' && e.trigger === 'rampage_end');
+  const d = (ef && Array.isArray(ef.duration)) ? ef.duration : [1, 4];
+  // こんらんカウンタは行動時デクリメント(0で解ける)なので「nターン混乱」=カウンタ n+1
+  atk.confusion = (d[0] + 1) + Math.floor(Math.random() * (d[1] - d[0] + 1));
+  log('9', `${atk.poke.name} は こんらんした！`);
+}
+function disruptRampage(atk){
+  if (!atk.rampage) return;
+  endRampage(atk, atk.rampage.left <= 1);
+}
+// 攻撃が成功した時のあばれ進行: 開始 or 残り回数を消費。使い切ったら やんで こんらん。
+function progressRampage(atk, mv){
+  const ef = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '暴れる(混乱)');
+  if (!ef) return;
+  if (!atk.rampage){
+    const d = Array.isArray(ef.duration) ? ef.duration : [2, 3];
+    const total = d[0] + Math.floor(Math.random() * (d[1] - d[0] + 1));
+    atk.rampage = { move: mv, left: total - 1 };
+    log('9', `${atk.poke.name} は あばれだした！`);
+  } else {
+    atk.rampage.left--;
+  }
+  if (atk.rampage.left <= 0) endRampage(atk, true);
+}
+
 function phaseApplyEffects(atkSide, defSide, move){
   if (!move || !move.battle_data || !move.battle_data.effects) return;
   const atk = sides[atkSide];
@@ -2263,6 +2303,7 @@ function snapshotBattleState(){
     badpoisonCounter: st.badpoisonCounter || 0,
     slips: (st.slips || []).map(x => ({...x})),
     sleepTurns: st.sleepTurns != null ? st.sleepTurns : null,
+    rampage: st.rampage ? {move: st.rampage.move, left: st.rampage.left} : null,
   });
   return {
     self: snap(sides.self),
@@ -2298,6 +2339,7 @@ function undoBattle(){
     st.badpoisonCounter = src.badpoisonCounter;
     st.slips = (src.slips || []).map(x => ({...x}));
     st.sleepTurns = src.sleepTurns != null ? src.sleepTurns : null;
+    st.rampage = src.rampage ? {move: src.rampage.move, left: src.rampage.left} : null;
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -2337,6 +2379,8 @@ function runSingleAttack(atkSide, moveIdx){
   // 溜め技の解放: 溜め中なら溜めていた技を放つ(選択技より優先)。解放した瞬間に半無敵も解ける。
   let mv = move, releasing = false;
   if (atk.charging){ mv = atk.charging.move; releasing = true; atk.charging = null; }
+  // あばれ状態(げきりん等): 暴れている間は選択に関係なくその技を出し続ける(技ロック)
+  if (!releasing && atk.rampage) mv = atk.rampage.move;
   log('Attack', `${atk.poke.name} が ${mv.name} を選んだ！`);
   // 行動阻害（ねむり/こおり/まひ）
   // ねむり: カウンタ持ち(技で眠った)は行動時に1減らし、0になったターンに目覚めて行動する(PS実装と同じ)。
@@ -2345,7 +2389,7 @@ function runSingleAttack(atkSide, moveIdx){
     atk.sleepTurns--;
     if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${atk.poke.name} は 目をさました！`); }
   }
-  if (atk.status === 'sleep'){ log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'sleep'){ disruptRampage(atk); log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); renderBattleLog(); renderBoth(); return; }
   // こおり: 解凍宣言技(フレアドライブ等=状態異常回復 self こおり)は こおり状態でも使えて、自分のこおりが とける
   if (atk.status === 'freeze' &&
       ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '状態異常回復' && e.target === 'self' &&
@@ -2353,8 +2397,8 @@ function runSingleAttack(atkSide, moveIdx){
     atk.status = 'none';
     log('0c', `${atk.poke.name} の こおりが とけた！`);
   }
-  if (atk.status === 'freeze' && Math.random() > 0.2){ log('0c', `${atk.poke.name} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
-  if (atk.status === 'paralysis' && Math.random() < 0.25){ log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'freeze' && Math.random() > 0.2){ disruptRampage(atk); log('0c', `${atk.poke.name} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'paralysis' && Math.random() < 0.25){ disruptRampage(atk); log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
   // 使用条件(requires: オーロラベール=ゆきの時だけ等)。満たさなければ失敗(Bulbapedia "Aurora Veil")
   const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
   if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
@@ -2385,10 +2429,11 @@ function runSingleAttack(atkSide, moveIdx){
   if (startChargeIfNeeded(atk, mv, releasing)){ renderBattleLog(); renderBoth(); return; }
   // 命中判定
   const hit = phaseHitCheck(mv, atk, def);
-  if (!hit.hit){ log('0c', hit.reason); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
+  if (!hit.hit){ log('0c', hit.reason); disruptRampage(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
   // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
   if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
     log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
+    disruptRampage(atk);
     applyProtectPunishers(atk, def, mv);
     applyCrashDamage(atk, mv);
     applyHpCost(atk, mv);
@@ -2402,6 +2447,9 @@ function runSingleAttack(atkSide, moveIdx){
   } else {
     const dmgRes = phaseDealDamage(atkSide, defSide, mv);
     if (!def.fainted) phaseApplyEffects(atkSide, defSide, mv);
+    // あばれ(げきりん等): 攻撃成功で進行(開始/消費/終了→こんらん) / こうかなし・失敗は中断
+    if (dmgRes && !dmgRes.immune && !dmgRes.failed) progressRampage(atk, mv);
+    else disruptRampage(atk);
     // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
     if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
@@ -2511,6 +2559,8 @@ function runTurn(){
     // 解放した瞬間に半無敵も解ける(行動不能で流れた場合もここで解除=まひ等で溜めは中断)。
     let mv = a.move, releasing = false;
     if (atk.charging){ mv = atk.charging.move; releasing = true; atk.charging = null; }
+    // あばれ状態(げきりん等): 暴れている間は選択に関係なくその技を出し続ける(技ロック)
+    if (!releasing && atk.rampage) mv = atk.rampage.move;
     if (!mv){ log(a.side, `${atk.poke.name} は技を選択していない`); continue; }
     // ねむり・こおり等
     // ねむり: カウンタ持ち(技で眠った)は行動時に1減らし、0になったターンに目覚めて行動する(PS実装と同じ)。
@@ -2519,7 +2569,7 @@ function runTurn(){
       atk.sleepTurns--;
       if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${atk.poke.name} は 目をさました！`); }
     }
-    if (atk.status === 'sleep'){ log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); continue; }
+    if (atk.status === 'sleep'){ disruptRampage(atk); log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); continue; }
     // こおり: 解凍宣言技(フレアドライブ等=状態異常回復 self こおり)は こおり状態でも使えて、自分のこおりが とける
     if (atk.status === 'freeze' &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '状態異常回復' && e.target === 'self' &&
@@ -2527,8 +2577,8 @@ function runTurn(){
       atk.status = 'none';
       log('0c', `${atk.poke.name} の こおりが とけた！`);
     }
-    if (atk.status === 'freeze' && Math.random() > 0.2){ log('0c', `${atk.poke.name} は こおっていて うごけない！`); continue; }
-    if (atk.status === 'paralysis' && Math.random() < 0.25){ log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); continue; }
+    if (atk.status === 'freeze' && Math.random() > 0.2){ disruptRampage(atk); log('0c', `${atk.poke.name} は こおっていて うごけない！`); continue; }
+    if (atk.status === 'paralysis' && Math.random() < 0.25){ disruptRampage(atk); log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); continue; }
     // こんらん: 行動前に判定。残りターンを減らし、解けてなければ1/3で自分を攻撃して行動失敗。
     if (atk.confusion > 0){
       atk.confusion--;
@@ -2539,10 +2589,11 @@ function runTurn(){
         atk.currentHp = Math.max(0, atk.currentHp - dmg);
         log('0c', `${atk.poke.name} は わけもわからず じぶんを こうげきした！ (${dmg} ダメージ)`);
         if (atk.currentHp <= 0){ atk.fainted = true; log('0c', `${atk.poke.name} は ひんしになった！`); }
+        disruptRampage(atk);
         continue;
       }
     }
-    if (atk.flinched){ log('0c', `${atk.poke.name} は ひるんで うごけない！`); continue; }
+    if (atk.flinched){ disruptRampage(atk); log('0c', `${atk.poke.name} は ひるんで うごけない！`); continue; }
     // ねこだまし/であいがしら: 場に出た最初のターン(turnsOut===0)以外は失敗
     if (isFirstTurnOnlyMove(mv) && atk.turnsOut > 0){
       log('0c', `${atk.poke.name} の ${mv.name} は 場に出た最初のターンしか出せない！`); continue;
@@ -2577,10 +2628,11 @@ function runTurn(){
     if (startChargeIfNeeded(atk, mv, releasing)) continue;
     // 命中判定
     const hit = phaseHitCheck(mv, atk, def);
-    if (!hit.hit){ log('0c', hit.reason); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
+    if (!hit.hit){ log('0c', hit.reason); disruptRampage(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
     // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
     if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
       log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
+      disruptRampage(atk);
       applyProtectPunishers(atk, def, mv);
       applyCrashDamage(atk, mv);
       applyHpCost(atk, mv);
@@ -2598,6 +2650,9 @@ function runTurn(){
     const dmgRes = phaseDealDamage(a.side, a.opp, mv);
     // ★追加効果は「技が当たった」時だけ発動。こうかなし(タイプ無効)や計算不可なら発動しない(全技共通)。
     if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, a.opp, mv);
+    // あばれ(げきりん等): 攻撃成功で進行(開始/消費/終了→こんらん) / こうかなし・失敗は中断
+    if (dmgRes && !dmgRes.immune && !dmgRes.failed) progressRampage(atk, mv);
+    else disruptRampage(atk);
     // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
     if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
@@ -2710,6 +2765,7 @@ function resetBattle(){
     st.protectStreak = 0;
     st.slips = [];
     st.sleepTurns = null;
+    st.rampage = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
