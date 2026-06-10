@@ -5,12 +5,30 @@
  * 段階(設計§3): ①追加効果なし純粋攻撃 → ②状態異常 → ③能力ランク → ④優先度/素早さ → ⑤天候/フィールド
  */
 const path = require('path');
+const fs = require('fs');
 const { buildEngine, mulberry32, ROOT } = require('./_sim_engine.js');
 const data = require(path.join(ROOT, 'pokechan_data.js'));
+
+// ===== 観戦レポート(review/sim_test_report.html) =====
+// 各checkの「直前のcheck以降に流れたバトルログ」を拾い、テスト実行のたびにHTMLへ書き出す。
+// 阿部さんがChromeで開きっぱなし→リロードすれば、テストが流したバトルをログで観戦できる(2026-06-11要望)。
+const _report = [];        // {section, name, ok, detail, log:[{phase,msg}]}
+let _reportSection = '';
+let _reportLogPos = 0;
+const _origConsoleLog = console.log.bind(console);
+console.log = (...a) => {   // セクション見出し(=== 段… ===)を拾う(テスト本文は無改変で済ませる)
+  const m = String(a[0] ?? '').match(/^\n?=== (.+?) ===/);
+  if (m && !m[1].startsWith('結果')) { _reportSection = m[1]; try { _reportLogPos = E.battleLog.length; } catch (_e) { _reportLogPos = 0; } }
+  _origConsoleLog(...a);
+};
 
 // ===== 軽量テストランナー =====
 let pass = 0, fail = 0; const fails = [];
 function check(name, cond, detail) {
+  if (_reportLogPos > E.battleLog.length) _reportLogPos = 0;   // battleLogがリセットされた直後の巻き戻り対策
+  _report.push({ section: _reportSection, name, ok: !!cond, detail: detail || '',
+    log: E.battleLog.slice(_reportLogPos).map(l => ({ phase: l.phase, msg: l.msg })) });
+  _reportLogPos = E.battleLog.length;
   if (cond) { pass++; console.log('  ✅ ' + name); }
   else { fail++; fails.push(name); console.log('  ❌ ' + name + (detail ? '  → ' + detail : '')); }
 }
@@ -4077,6 +4095,64 @@ console.log('\n=== 段79 急所率上昇(きあいだめ/高急所技: 確率制
     E.sides.self.failedThisTurn === true && !E.sides.self.critBoost,
     `failedThisTurn=${E.sides.self.failedThisTurn}(true期待) critBoost=${E.sides.self.critBoost}`);
   resetEnv();
+}
+
+// ===== 観戦レポート書き出し(review/sim_test_report.html) =====
+// テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
+{
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const secs = [];
+  for (const r of _report) {
+    if (!secs.length || secs[secs.length - 1].title !== r.section) secs.push({ title: r.section, tests: [] });
+    secs[secs.length - 1].tests.push(r);
+  }
+  const failCount = _report.filter(r => !r.ok).length;
+  const html = `<!DOCTYPE html>
+<html lang="ja"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>バトルテスト観戦 — sim_test_report</title>
+<style>
+body{background:#10141d;color:#cfd6e4;font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;margin:0;padding:16px 12px 60px}
+h1{font-size:17px;color:#e8edf7;margin:4px 0 2px}
+.meta{font-size:12px;color:#8b94a7;margin-bottom:14px}
+.sum{display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:700;margin-right:8px}
+.sum.ok{background:#10331f;color:#4ade80;border:1px solid #4ade8044}
+.sum.ng{background:#3a1518;color:#f87171;border:1px solid #f8717144}
+details.sec{margin:10px 0;border:1px solid #232a3a;border-radius:10px;background:#141927;overflow:hidden}
+details.sec>summary{cursor:pointer;padding:9px 12px;font-size:13px;font-weight:700;color:#dbe3f2;background:#1a2030;list-style:none}
+details.sec>summary::before{content:"▸ ";color:#5b667d}
+details.sec[open]>summary::before{content:"▾ "}
+details.sec.hasfail>summary{color:#fda4af;background:#2a1820}
+.test{border-top:1px solid #1d2433;padding:8px 12px}
+.tname{font-size:12.5px;font-weight:700}
+.tname.ok{color:#4ade80}.tname.ng{color:#f87171}
+.tdetail{font-size:11.5px;color:#fbbf24;margin:2px 0 0 18px}
+.blog{margin:6px 0 2px 18px;padding:7px 10px;background:#0c0f17;border:1px solid #1d2433;border-radius:8px;font-size:12px;line-height:1.75}
+.blog .l{display:block}
+.blog .p8{color:#e8edf7}
+.blog .p9{color:#9fb4d8}
+.blog .crit{color:#fbbf24;font-weight:700}
+.blog .turn{color:#5b667d;font-size:11px}
+.nolog{color:#5b667d;font-size:11px;margin-left:18px}
+</style></head><body>
+<h1>バトルテスト観戦レポート</h1>
+<div class="meta">生成: ${new Date().toLocaleString('ja-JP')} ・ node tools/_sim_test.js のバトルログをそのまま表示(リロードで最新)</div>
+<div style="margin-bottom:12px"><span class="sum ok">✅ ${pass} pass</span>${failCount ? `<span class="sum ng">❌ ${failCount} fail</span>` : ''}</div>
+${secs.map(sec => {
+  const hasFail = sec.tests.some(t => !t.ok);
+  return `<details class="sec${hasFail ? ' hasfail' : ''}"${hasFail ? ' open' : ''}><summary>${esc(sec.title)} (${sec.tests.length})</summary>
+${sec.tests.map(t => `<div class="test"><div class="tname ${t.ok ? 'ok' : 'ng'}">${t.ok ? '✅' : '❌'} ${esc(t.name)}</div>
+${!t.ok && t.detail ? `<div class="tdetail">→ ${esc(t.detail)}</div>` : ''}
+${t.log.length ? `<div class="blog">${t.log.map(l => {
+    const cls = l.msg.includes('きゅうしょ') ? 'crit' : l.msg.startsWith('───') ? 'turn' : 'p' + esc(l.phase);
+    return `<span class="l ${cls}">${esc(l.msg)}</span>`;
+  }).join('')}</div>` : `<div class="nolog">(このcheckで流れたバトルログなし)</div>`}
+</div>`).join('\n')}
+</details>`;
+}).join('\n')}
+</body></html>`;
+  fs.writeFileSync(path.join(ROOT, 'review', 'sim_test_report.html'), html);
+  console.log(`観戦レポート: review/sim_test_report.html(${_report.length}件)`);
 }
 
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
