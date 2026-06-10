@@ -69,6 +69,8 @@ function buildEngine() {
   ;globalThis.__engine = (function(){ try { return {
     sides, env, LEVEL, calcDamage, realStat, rankedStat, makeSideState, runTurn,
     decideOrder, phaseHitCheck, phaseDealDamage, phaseApplyEffects, phaseSlipFor, battleLog,
+    effectiveSpeed: (typeof effectiveSpeed !== 'undefined') ? effectiveSpeed : null,
+    variablePower: (typeof variablePower !== 'undefined') ? variablePower : null,
     setRandom: (fn)=>{ Math.random = fn; },
   }; } catch(e){ globalThis.__engineErr = String(e&&e.stack||e); return null; } })();`;
   vm.runInContext(inline.join('\n') + expose, ctx, { filename: 'sim-inline.js' });

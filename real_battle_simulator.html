@@ -1066,15 +1066,50 @@ function pokeRound(num, q12){
 
 // 攻撃側 atkSide が防御側 defSide に move を撃った時のダメージを計算
 // 戻り値: null (計算不可) / {min,max,variations,hp,koHits,koType,immune,reason}
+// 威力可変(power=null系)の威力を effects から動的に解決する。未対応の基準(体重系=データ無し等)は null。
+// 出典: Bulbapedia "Reversal/Flail"(48*HP/maxHP の段階表・GenV+) / "Gyro Ball"(min(150,floor(25*相手S/自分S)+1)) /
+//       "Electro Ball"(自分S/相手S比の段階表) / "Hard Press"(100*相手残りHP/最大HP)。すばやさは補正込み(effectiveSpeed)。
+function variablePower(move, atk, def){
+  const ef = ((move.battle_data && move.battle_data.effects) || []).find(e => e.kind === '威力可変');
+  if (!ef || !atk.poke || !def.poke) return null;
+
+  // じたばた/きしかいせい: P=floor(48*残りHP/最大HP) → P<2:200 / <5:150 / <10:100 / <17:80 / <33:40 / 他:20
+  if (ef.basis === 'user_current_hp_ratio'){
+    const max = realStat(atk, 'hp');
+    const p = Math.floor(48 * atk.currentHp / max);
+    return p < 2 ? 200 : p < 5 ? 150 : p < 10 ? 100 : p < 17 ? 80 : p < 33 ? 40 : 20;
+  }
+  // ジャイロボール: min(150, floor(25*相手すばやさ/自分すばやさ)+1)。自分すばやさ0は1扱い。
+  if (ef.formula && ef.formula.includes('target_speed / user_speed')){
+    const us = Math.max(1, effectiveSpeed(atk));
+    return Math.min(ef.max_power || 150, Math.floor(25 * effectiveSpeed(def) / us) + 1);
+  }
+  // エレキボール: 自分すばやさ/相手すばやさ比 → <1:40 / <2:60 / <3:80 / <4:120 / ≧4:150
+  if (ef.basis === 'user_speed_over_target_speed'){
+    const ds = effectiveSpeed(def);
+    if (ds <= 0) return 40; // 相手すばやさ0は40(Bulbapedia)
+    const r = effectiveSpeed(atk) / ds;
+    return r < 1 ? 40 : r < 2 ? 60 : r < 3 ? 80 : r < 4 ? 120 : 150;
+  }
+  // ハードプレス: 100*相手の残りHP/最大HP (最小1)
+  if (ef.formula && ef.formula.includes('target_current_HP / target_max_HP')){
+    return Math.max(1, Math.floor(100 * def.currentHp / realStat(def, 'hp')));
+  }
+  // 体重系(けたぐり/くさむすび/ヘビーボンバー/ヒートスタンプ)=体重データ未収載・はきだす=たくわえ未実装 → 未対応
+  return null;
+}
+
 function calcDamage(atkSide, defSide, move){
   if (!move) return null;
   if (move.category === '変化') return null;
-  const power = (move.power == null || move.power === 0 || move.power === '—') ? 0 : Number(move.power);
-  if (!power) return null;
 
   const atk = sides[atkSide];
   const def = sides[defSide];
   if (!atk.poke || !def.poke) return null;
+
+  let power = (move.power == null || move.power === 0 || move.power === '—') ? 0 : Number(move.power);
+  if (!power) power = variablePower(move, atk, def) || 0;
+  if (!power) return null;
 
   const atkOrigTypes = [atk.poke.type1, atk.poke.type2].filter(Boolean);
   const atkTypes = atkOrigTypes;

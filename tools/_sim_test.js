@@ -432,6 +432,67 @@ console.log('\n=== 段⑱ こんらん付与＋混乱で自分を攻撃 ===');
   check('T36 混乱で自傷した側は相手を攻撃できていない', E.sides.opp.currentHp === oppMax, `opp=${E.sides.opp.currentHp}/${oppMax}`);
 }
 
+console.log('\n=== 段⑲ 威力可変(power=null系: HP/すばやさ基準) ===');
+// 期待値の出典(権威ソース):
+// - きしかいせい/じたばた: Bulbapedia "Reversal (move)" Gen V+ — P=floor(48*currentHP/maxHP):
+//   P<2→200 / P<5→150 / P<10→100 / P<17→80 / P<33→40 / それ以外→20
+// - ジャイロボール: Bulbapedia "Gyro Ball (move)" — power = min(150, floor(25*相手すばやさ/自分すばやさ)+1)
+//   (すばやさはランク・まひ等の補正込み。トリックルームは影響しない)
+// - エレキボール: Bulbapedia "Electro Ball (move)" — 自分すばやさ/相手すばやさ比:
+//   <1→40 / <2→60 / <3→80 / <4→120 / ≧4→150
+// - ハードプレス: Bulbapedia "Hard Press (move)" — power = 100*相手の残りHP/最大HP (最小1・最大100)
+{
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  const vp = (mv) => E.variablePower ? E.variablePower(mv, E.sides.self, E.sides.opp) : null;
+  const selfMax = E.realStat(E.sides.self, 'hp');
+  const oppMax = E.realStat(E.sides.opp, 'hp');
+  E.sides.self.currentHp = selfMax; E.sides.opp.currentHp = oppMax;
+
+  // T37: きしかいせい — HP満タン=20 / 1/3=80 / HP1=200
+  const kishi = moveByName('きしかいせい');
+  check('T37 きしかいせい HP満タン→威力20', vp(kishi) === 20, `power=${vp(kishi)}`);
+  E.sides.self.currentHp = Math.floor(selfMax / 3);
+  check('T37 きしかいせい HP1/3→威力80', vp(kishi) === 80, `power=${vp(kishi)}`);
+  E.sides.self.currentHp = 1;
+  check('T37 きしかいせい HP1→威力200', vp(kishi) === 200, `power=${vp(kishi)}`);
+
+  // T38: じたばた — HP半分=40(P=23<33)
+  E.sides.self.currentHp = Math.floor(selfMax / 2);
+  const jita = moveByName('じたばた');
+  check('T38 じたばた HP半分→威力40', vp(jita) === 40, `power=${vp(jita)}`);
+  E.sides.self.currentHp = selfMax;
+
+  // T39: ジャイロボール — 同速(同ポケ)→floor(25*1)+1=26 / 自分-6ランク(×0.25)→相手が4倍速=floor(100)+1=101
+  const gyro = moveByName('ジャイロボール');
+  check('T39 ジャイロボール 同速→威力26', vp(gyro) === 26, `power=${vp(gyro)}`);
+  E.sides.self.rank.spd = -6; // ×0.25 → 相手/自分 = 4
+  check('T39 ジャイロボール 相手4倍速→威力101', vp(gyro) === 101, `power=${vp(gyro)}`);
+  E.sides.self.rank.spd = 0;
+
+  // T40: エレキボール — 同速(比1)→60 / 自分+6ランク(×4=比4)→150 / 自分-6(比0.25<1)→40
+  const elec = moveByName('エレキボール');
+  check('T40 エレキボール 同速→威力60', vp(elec) === 60, `power=${vp(elec)}`);
+  E.sides.self.rank.spd = 6;
+  check('T40 エレキボール 自分4倍速→威力150', vp(elec) === 150, `power=${vp(elec)}`);
+  E.sides.self.rank.spd = -6;
+  check('T40 エレキボール 相手が速い→威力40', vp(elec) === 40, `power=${vp(elec)}`);
+  E.sides.self.rank.spd = 0;
+
+  // T41: ハードプレス — 相手HP満タン→100 / 相手30%→floor(100*cur/max)
+  const press = moveByName('ハードプレス');
+  check('T41 ハードプレス 相手HP満タン→威力100', vp(press) === 100, `power=${vp(press)}`);
+  E.sides.opp.currentHp = Math.floor(oppMax * 0.3);
+  const expPress = Math.max(1, Math.floor(100 * E.sides.opp.currentHp / oppMax));
+  check('T41 ハードプレス 相手HP30%→威力' + expPress, vp(press) === expPress, `power=${vp(press)}`);
+  E.sides.opp.currentHp = oppMax;
+
+  // T42: calcDamage 統合 — きしかいせい(power=null)がダメージを返す(従来はnull)
+  const r = E.calcDamage('self', 'opp', kishi);
+  check('T42 きしかいせいで calcDamage が非null・min>0', !!r && !r.immune && r.min > 0, r ? `min=${r.min}` : 'null');
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
