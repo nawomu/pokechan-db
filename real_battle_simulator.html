@@ -3013,6 +3013,8 @@ function phaseEndOfTurnSlip(){
 // === 履歴スタック (Undo 用) ===
 const battleHistory = [];
 const HISTORY_MAX = 50;
+// まねっこ用: 戦闘でだれかが直前に使った技(どちらの側でも)。技を「使った」扱いの瞬間に更新
+let lastMoveAnywhere = null;
 
 function snapshotBattleState(){
   const snap = (st)=>({
@@ -3052,6 +3054,7 @@ function snapshotBattleState(){
     self: snap(sides.self),
     opp: snap(sides.opp),
     log: battleLog.map(e=>({phase:e.phase, msg:e.msg})),
+    lastMoveAny: lastMoveAnywhere || null,   // まねっこも一手戻せるように
   };
 }
 
@@ -3107,6 +3110,7 @@ function undoBattle(){
     st.electrified = src.electrified || null;                          // そうでんの巻き戻し
     st.typeSuppressed = src.typeSuppressed || null;                    // はねやすめの巻き戻し
   };
+  lastMoveAnywhere = s.lastMoveAny || null;   // まねっこの巻き戻し
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
   battleLog.length = 0;
@@ -3201,6 +3205,18 @@ function runSingleAttack(atkSide, moveIdx){
     log('0c', `${atk.poke.name} は ${mv.name} で ${_pick.name} を くりだした！`);
     mv = _pick;
   }
+  // 直前技模倣(まねっこ): 戦闘でだれかが直前に使った技をまねる。だれも使っていない/
+  // まねっこ自身は まねできず失敗(Bulbapedia "Copycat"。呼出不可リストは「まねっこ系」のみの近似)
+  if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '直前技模倣')){
+    if (!lastMoveAnywhere ||
+        ((lastMoveAnywhere.battle_data && lastMoveAnywhere.battle_data.effects) || []).some(e => e.kind === '直前技模倣')){
+      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(まねする技がない)`);
+      noteActionFailed(atk);
+      renderBattleLog(); renderBoth(); return;
+    }
+    log('0c', `${atk.poke.name} は ${mv.name} で ${lastMoveAnywhere.name} を まねした！`);
+    mv = lastMoveAnywhere;
+  }
   // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
   if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
     log('0c', `${atk.poke.name} の ${mv.name}！ しかし たくわえたものが ない！`);
@@ -3260,6 +3276,7 @@ function runSingleAttack(atkSide, moveIdx){
   atk.destinyBond = false;
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
+  lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
   // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
   const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
   const _enduEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'こらえる');
@@ -3519,6 +3536,17 @@ function runTurn(){
       log('0c', `${atk.poke.name} は ${mv.name} で ${_pick.name} を くりだした！`);
       mv = _pick;
     }
+    // 直前技模倣(まねっこ): 戦闘でだれかが直前に使った技をまねる。だれも使っていない/
+    // まねっこ自身は まねできず失敗(Bulbapedia "Copycat"。呼出不可リストは「まねっこ系」のみの近似)
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '直前技模倣')){
+      if (!lastMoveAnywhere ||
+          ((lastMoveAnywhere.battle_data && lastMoveAnywhere.battle_data.effects) || []).some(e => e.kind === '直前技模倣')){
+        log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(まねする技がない)`);
+        noteActionFailed(atk); continue;
+      }
+      log('0c', `${atk.poke.name} は ${mv.name} で ${lastMoveAnywhere.name} を まねした！`);
+      mv = lastMoveAnywhere;
+    }
     // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
       log('0c', `${atk.poke.name} の ${mv.name}！ しかし たくわえたものが ない！`);
@@ -3570,6 +3598,7 @@ function runTurn(){
   atk.destinyBond = false;
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
+  lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
     // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ。連続使用は成功率が1/3ずつ下がり、
     // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure"。
     // ファストガードはmultiplierなし=連続でも失敗しない)
@@ -3841,6 +3870,7 @@ function fullResetBattle(){
 
 // === バトルリセット (バトル開始前の状態に戻す: HP/状態/壁/設置/ランクをクリア、わざ・ポケモン・能力Pは保持) ===
 function resetBattle(){
+  lastMoveAnywhere = null;   // まねっこ用の直前技もリセット
   ['self','opp'].forEach(s=>{
     const st = sides[s];
     if (st.poke) st.currentHp = realStat(st, 'hp');
