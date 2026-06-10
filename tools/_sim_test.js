@@ -3349,6 +3349,45 @@ console.log('\n=== 段63 いちゃもん/ふういん(技制限) ===');
   resetEnv();
 }
 
+console.log('\n=== 段64 そうでん(相手技タイプ変更) ===');
+{
+  resetEnv();
+  // そうでん: 相手が動く前に使うと、このターン相手の技はでんきタイプになる。出典: Bulbapedia "Electrify"
+  // はたく(ノーマル)→ゲンガー=×0 だが、でんき化すると×1=ダメージが通る(判定が綺麗に割れる)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('そうでん'), moveByName('ロックオン')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // T1: そうでん(ゲンガー先手)→はたく(でんき化=当たる)
+  const hp1 = E.sides.self.currentHp;
+  check('T164 そうでんで相手のはたくがでんきタイプになり ゴーストに当たる',
+    hp1 < 135, `自分HP=${hp1}(135未満期待)`);
+  // 次のターンには元のタイプに戻る(はたく=ノーマル→×0)
+  E.sides.self.selectedMoveIdx = 1;
+  E.runTurn();   // T2: ロックオン→はたく(ノーマル=×0)
+  check('T164b そうでんはそのターン限り(次ターンは×0に戻る)',
+    E.sides.self.currentHp === hp1, `自分HP=${E.sides.self.currentHp}(${hp1}のまま期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // 相手がすでに行動済みのターンに使うと失敗する
+  E.sides.self = freshSide('フシギバナ', null);   // spd100=後手
+  E.sides.self.moves = [moveByName('そうでん')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('ゲンガー', null);      // spd130=先手
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // ゲンガーが先に行動→そうでんは失敗
+  check('T164c そうでんは相手が行動済みなら失敗',
+    !E.sides.opp.electrified, `相手electrified=${E.sides.opp.electrified}(なし期待)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
