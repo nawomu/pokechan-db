@@ -1191,6 +1191,13 @@ function calcDamage(atkSide, defSide, move){
             immune:true, reason:'フィールドが はられていないので失敗', recoil:0};
   }
 
+  // ランク数威力加算(つけあがる): 自分の上がっている能力ランク合計1つにつき威力+20(Bulbapedia "Power Trip")
+  const rankAddEf = bdEffects.find(e => e.kind === 'ランク数威力加算');
+  if (rankAddEf){
+    const _ups = Object.values(atk.rank || {}).reduce((s, v) => s + Math.max(0, v || 0), 0);
+    power += (rankAddEf.add_per_stage || 20) * _ups;
+  }
+
   // アクロバット: 使用者が道具を持っていないと威力倍化(Bulbapedia "Acrobatics" ×2)
   const noItemMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'user_has_no_held_item');
   if (noItemMul && !atk.item) power *= (noItemMul.multiplier || 2);
@@ -1347,8 +1354,18 @@ function calcDamage(atkSide, defSide, move){
   // サイコショック: 特殊技だが相手の「ぼうぎょ」を参照(Bulbapedia "Psyshock")
   const altDef = bdEffects.find(e => e.kind === '別防御参照ダメージ');
   const dKey = altDef ? (altDef.value === 'defense' ? 'def' : 'spdef') : (isPhys ? 'def' : 'spdef');
-  const aStat = rankedStat(atk, aKey, {crit, role:'atk'});
-  const dStat = rankedStat(def, dKey, {crit, role:'def'});
+  const _AKMAP = {attack:'atk', defense:'def', special_attack:'spatk', special_defense:'spdef', speed:'spd'};
+  // 別能力ダメージ(ボディプレス): 自分の「ぼうぎょ」とぼうぎょランクを攻撃力に使う(Bulbapedia "Body Press")
+  const altAtkEf = bdEffects.find(e => e.kind === '別能力ダメージ');
+  // 相手能力ダメージ(イカサマ): 相手の「こうげき」と相手のこうげきランクで計算(Bulbapedia "Foul Play")
+  const foulEf = bdEffects.find(e => e.kind === '相手能力ダメージ');
+  // ランク無視(せいなるつるぎ/DDラリアット): 相手の能力ランク変化(+も-も)を無視してダメージ計算
+  // (Bulbapedia "Sacred Sword"/"Darkest Lariat")
+  const ignoreRankEf = bdEffects.find(e => e.kind === 'ランク無視');
+  const aStat = altAtkEf ? rankedStat(atk, _AKMAP[altAtkEf.use_stat] || 'def', {crit, role:'atk'})
+              : foulEf  ? rankedStat(def, _AKMAP[foulEf.stat] || 'atk', {crit, role:'atk'})
+              : rankedStat(atk, aKey, {crit, role:'atk'});
+  const dStat = rankedStat(def, dKey, {crit, role:'def', ignoreRank: !!ignoreRankEf});
   const hp = realStat(def, 'hp');
 
   // ベースダメ（SVの内部式）
@@ -1579,6 +1596,7 @@ function rankedStat(st, key, opts){
   if (key === 'hp') return raw;
   const r = st.rank ? (st.rank[key] || 0) : 0;
   let useR = r;
+  if (opts && opts.ignoreRank) useR = 0;   // ランク無視(せいなるつるぎ等): ランク変化を丸ごと無視
   if (opts && opts.crit){
     if (opts.role === 'atk' && r < 0) useR = 0;   // 急所時の攻撃ランク低下を無視
     if (opts.role === 'def' && r > 0) useR = 0;   // 急所時の防御ランク上昇を無視

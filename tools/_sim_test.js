@@ -2640,6 +2640,59 @@ console.log('\n=== 段53 部屋系(ワンダールーム/マジックルーム) 
   resetEnv();
 }
 
+console.log('\n=== 段54 ダメージ計算の参照先変更(ボディプレス/イカサマ/ランク無視/つけあがる) ===');
+// 出典: Bulbapedia "Body Press"(自分のぼうぎょ+ぼうぎょランクを攻撃力に使う) /
+//       "Foul Play"(相手のこうげき+相手のこうげきランクで計算) /
+//       "Sacred Sword"・"Darkest Lariat"(相手の能力ランク変化を無視してダメージ計算) /
+//       "Power Trip"=つけあがる(威力20+自分の上がっているランク合計×20)
+{
+  resetEnv();
+  E.sides.self = freshSide('カメックス', null);   // ぼうぎょ100 > こうげき83 → ボディプレスの差が見える
+  E.sides.self.moves = [moveByName('ボディプレス')];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.setRandom(() => 0.0);
+  // ボディプレス: こうげきランクは無関係・ぼうぎょランクが効く
+  const b0 = E.calcDamage('self', 'opp', moveByName('ボディプレス'));
+  E.sides.self.rank.atk = 6;
+  const b1 = E.calcDamage('self', 'opp', moveByName('ボディプレス'));
+  E.sides.self.rank.atk = 0;
+  E.sides.self.rank.def = 2;
+  const b2 = E.calcDamage('self', 'opp', moveByName('ボディプレス'));
+  E.sides.self.rank.def = 0;
+  check('T153 ボディプレスは自分のぼうぎょ(+ランク)で計算', b1.max === b0.max && b2.max > b0.max,
+    `基準max=${b0.max} こうげき+6=${b1.max}(期待不変) ぼうぎょ+2=${b2.max}(期待増)`);
+  // イカサマ: 相手のこうげき(+相手のこうげきランク)で計算
+  const i0 = E.calcDamage('self', 'opp', moveByName('イカサマ'));
+  E.sides.opp.rank.atk = 2;
+  const i1 = E.calcDamage('self', 'opp', moveByName('イカサマ'));
+  E.sides.opp.rank.atk = 0;
+  E.sides.self.rank.atk = 6;
+  const i2 = E.calcDamage('self', 'opp', moveByName('イカサマ'));
+  E.sides.self.rank.atk = 0;
+  check('T153b イカサマは相手のこうげき(+ランク)で計算', i1.max > i0.max && i2.max === i0.max,
+    `基準max=${i0.max} 相手こうげき+2=${i1.max}(期待増) 自分こうげき+6=${i2.max}(期待不変)`);
+  // ランク無視: 相手のぼうぎょランク(+でも-でも)を無視
+  const s0 = E.calcDamage('self', 'opp', moveByName('せいなるつるぎ'));
+  E.sides.opp.rank.def = 6;
+  const s1 = E.calcDamage('self', 'opp', moveByName('せいなるつるぎ'));
+  E.sides.opp.rank.def = -6;
+  const s2 = E.calcDamage('self', 'opp', moveByName('せいなるつるぎ'));
+  E.sides.opp.rank.def = 0;
+  check('T153c せいなるつるぎは相手のランク変化を無視', s1.max === s0.max && s2.max === s0.max,
+    `基準max=${s0.max} 相手ぼうぎょ+6=${s1.max} -6=${s2.max}(どちらも不変が期待)`);
+  // つけあがる: 上がっているランク合計×20を威力に加算(こうげき以外のランクで威力だけ変える)
+  const t0 = E.calcDamage('self', 'opp', moveByName('つけあがる'));
+  E.sides.self.rank.def = 2;
+  E.sides.self.rank.spd = 1;
+  const t1 = E.calcDamage('self', 'opp', moveByName('つけあがる'));   // 威力20→80
+  E.sides.self.rank.def = 0;
+  E.sides.self.rank.spd = 0;
+  check('T153d つけあがるはランク合計で威力加算', t1.max > t0.max * 3 && t1.max < t0.max * 5,
+    `基準max=${t0.max} ランク+3後max=${t1.max}(期待≈4倍)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
