@@ -69,6 +69,7 @@ function buildEngine() {
   ;globalThis.__engine = (function(){ try { return {
     sides, env, LEVEL, calcDamage, realStat, rankedStat, makeSideState, runTurn,
     decideOrder, phaseHitCheck, phaseDealDamage, phaseApplyEffects, phaseSlipFor, battleLog,
+    runSingleAttack: (typeof runSingleAttack !== 'undefined') ? runSingleAttack : null,
     effectiveSpeed: (typeof effectiveSpeed !== 'undefined') ? effectiveSpeed : null,
     variablePower: (typeof variablePower !== 'undefined') ? variablePower : null,
     TEST_POKEMON: (typeof TEST_POKEMON !== 'undefined') ? TEST_POKEMON : null,

@@ -974,6 +974,10 @@ function makeSideState(){
     charging: null,
     // 反動で動けない(はかいこうせん系): 攻撃成功の次ターンは行動不能。消化したらクリア。
     mustRecharge: false,
+    // まもる系: このターン守っている技(WAZA_MAPの技オブジェクト or null)。次のターン開始でクリア。
+    protecting: null,
+    // まもる系の連続成功カウント(成功のたび+1。失敗 or 別の行動で0に戻る=成功率が1/3ずつ下がる)
+    protectStreak: 0,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1789,6 +1793,54 @@ function isGrounded(st){
 }
 
 // === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
+// まもる系: 守っている技がこの技を防ぐか(データ宣言を読む。フェイント等 protect:false は呼び出し側で素通り)
+//   blocks_priority_only=先制技(優先度>0)だけ防ぐ(ファストガード) / blocks_status_moves:false=変化技は防がない(キングシールド/トーチカ)
+function protectBlocks(protMove, mv){
+  const ef = ((protMove && protMove.battle_data && protMove.battle_data.effects) || []).find(e => e.kind === 'まもり');
+  if (!ef) return false;
+  if (ef.blocks_priority_only) return movePriority(mv) > 0;
+  if (ef.blocks_status_moves === false && mv.category === '変化') return false;
+  return true;
+}
+
+// まもる系のおしおき: 守りの体勢に「接触技」で触れた相手に発動(データ宣言を読む)。
+//   ニードルガード=接触反動(最大HPの1/8) / キングシールド=こうげき-1 / トーチカ=どく(Bulbapedia各記事)
+function applyProtectPunishers(atk, def, mv){
+  if (!mv.contact || !def.protecting) return;
+  const efs = (def.protecting.battle_data && def.protecting.battle_data.effects) || [];
+  for (const ef of efs){
+    const ct = ef.condition && ef.condition.type;
+    if (ef.kind === '接触反動' && ct === 'contact_move'){
+      const max = realStat(atk, 'hp');
+      const dmg = Math.max(1, Math.floor(max * (ef.fraction || 0.125)));
+      atk.currentHp = Math.max(0, (atk.currentHp == null ? max : atk.currentHp) - dmg);
+      log('9', `${atk.poke.name} は トゲにふれて ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
+      if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
+    } else if (ef.kind === '能力ランク変化' && ct === 'hit_by_contact_move_while_protecting'){
+      const STATMAP = {attack:'atk',defense:'def',special_attack:'spatk',special_defense:'spdef',speed:'spd',accuracy:'acc',evasion:'eva'};
+      const keys = Array.isArray(ef.stats) ? ef.stats : (ef.stat ? [ef.stat] : []);
+      for (const k of keys){
+        const rk = STATMAP[k] || k;
+        if (atk.rank[rk] === undefined) continue;
+        const sg = ef.stages || 0;
+        atk.rank[rk] = Math.max(-6, Math.min(6, (atk.rank[rk] || 0) + sg));
+        log('9', `${atk.poke.name} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
+      }
+    } else if (ef.kind === '状態付与' && ct === 'hit_by_contact_move_while_protecting'){
+      const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
+      const code = map[ef.value];
+      if (!code) continue;
+      // 効かない相手には付与しない(状態異常のタイプ無効=本体の状態付与と同じ基準)
+      const tg = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+      const STATUS_IMMUNE = { burn:['ほのお'], freeze:['こおり'], paralysis:['でんき'], poison:['どく','はがね'], badpoison:['どく','はがね'] };
+      if ((STATUS_IMMUNE[code] || []).some(t => tg.includes(t))) continue;
+      if (atk.status && atk.status !== 'none') continue;
+      atk.status = code;
+      log('9', `${atk.poke.name} は ${ef.value} 状態になった！`);
+    }
+  }
+}
+
 function phaseApplyEffects(atkSide, defSide, move){
   if (!move || !move.battle_data || !move.battle_data.effects) return;
   const atk = sides[atkSide];
@@ -1811,6 +1863,8 @@ function phaseApplyEffects(atkSide, defSide, move){
       continue;
     }
     if (ef.kind === 'こんらん' || (ef.kind === '状態付与' && ef.value === 'こんらん')){
+      // condition付き(みわくのボイス=このターン能力が上がった相手のみ等)は評価できないため誤適用回避でスキップ
+      if (ef.condition) continue;
       // こんらんは揮発状態(2〜5ターン)。あばれる等の delayed(暴れ終了後の自己混乱)は未対応。
       // ミストフィールド(状態異常予防・values指定なし=全部)は こんらんも防ぐ(Bulbapedia "Misty Terrain")
       const fGuardC = fieldRules().find(r => r.kind === '状態異常予防');
@@ -1833,6 +1887,18 @@ function phaseApplyEffects(atkSide, defSide, move){
       continue;
     }
     if (ef.kind === '状態付与'){
+      // condition付きは満たした時だけ。評価できる条件: user_type(のろい=ゴースト使用時の自傷のろい)。
+      // 守り中の接触条件(トーチカ)は applyProtectPunishers が担当。それ以外
+      // (くちばしキャノン/しっとのほのお等の状況条件)は未対応=誤適用回避でスキップ。
+      if (ef.condition){
+        const c = ef.condition;
+        if (c.type === 'user_type'){
+          const at = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+          if (!at.includes(c.value)) continue;
+        } else {
+          continue;
+        }
+      }
       const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
       const code = map[ef.value];
       if (!code) continue;
@@ -2107,11 +2173,34 @@ function runSingleAttack(atkSide, moveIdx){
     log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`);
     renderBattleLog(); renderBoth(); return;
   }
+  // まもる系(kind=まもり): 使用宣言した瞬間に守りの体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
+  const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
+  if (_protEf){
+    const _rate = (_protEf.consecutive_success_multiplier != null)
+      ? Math.pow(_protEf.consecutive_success_multiplier, atk.protectStreak) : 1;
+    if (Math.random() < _rate){
+      atk.protecting = mv;
+      atk.protectStreak++;
+      log('0c', `${atk.poke.name} は ${mv.name} で 守りの体勢に入った！`);
+    } else {
+      atk.protectStreak = 0;
+      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
+    }
+    renderBattleLog(); renderBoth(); return;
+  }
+  // まもる系以外の行動をしたら連続成功カウントはリセット
+  atk.protectStreak = 0;
   // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
   if (startChargeIfNeeded(atk, mv, releasing)){ renderBattleLog(); renderBoth(); return; }
   // 命中判定
   const hit = phaseHitCheck(mv, atk, def);
   if (!hit.hit){ log('0c', hit.reason); renderBattleLog(); renderBoth(); return; }
+  // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
+  if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
+    log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
+    applyProtectPunishers(atk, def, mv);
+    renderBattleLog(); renderBoth(); return;
+  }
   if (mv.category === '変化'){
     log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
     phaseApplyEffects(atkSide, defSide, mv);
@@ -2173,6 +2262,8 @@ function runTurn(){
   pushHistory();
   // ひるみはそのターン限り → ターン開始でクリア(このターン中に先攻が後攻へ付与する)
   sides.self.flinched = false; sides.opp.flinched = false;
+  // まもる系もそのターン限り → ターン開始でクリア(連続成功カウントは持ち越す)
+  sides.self.protecting = null; sides.opp.protecting = null;
   // 「このターン受けたダメージ」(倍返し用)もターン開始でリセット
   sides.self.tookThisTurn = {phys:0, spec:0, any:0};
   sides.opp.tookThisTurn = {phys:0, spec:0, any:0};
@@ -2247,11 +2338,35 @@ function runTurn(){
     if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
       log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`); continue;
     }
+    // まもる系(kind=まもり): 使用宣言した瞬間に守りの体勢へ。連続使用は成功率が1/3ずつ下がり、
+    // 失敗 or 別の行動でカウントが戻る(Bulbapedia "Protect"。ファストガードはmultiplierなし=連続でも失敗しない)
+    const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
+    if (_protEf){
+      const _rate = (_protEf.consecutive_success_multiplier != null)
+        ? Math.pow(_protEf.consecutive_success_multiplier, atk.protectStreak) : 1;
+      if (Math.random() < _rate){
+        atk.protecting = mv;
+        atk.protectStreak++;
+        log('0c', `${atk.poke.name} は ${mv.name} で 守りの体勢に入った！`);
+      } else {
+        atk.protectStreak = 0;
+        log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
+      }
+      continue;
+    }
+    // まもる系以外の行動をしたら連続成功カウントはリセット
+    atk.protectStreak = 0;
     // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
     if (startChargeIfNeeded(atk, mv, releasing)) continue;
     // 命中判定
     const hit = phaseHitCheck(mv, atk, def);
     if (!hit.hit){ log('0c', hit.reason); continue; }
+    // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
+    if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
+      log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
+      applyProtectPunishers(atk, def, mv);
+      continue;
+    }
     if (mv.category === '変化'){
       log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
       // 変化技でも状態異常付与だけは適用（おにび等）
@@ -2364,6 +2479,8 @@ function resetBattle(){
     st.badpoisonCounter = 0;
     st.charging = null;
     st.mustRecharge = false;
+    st.protecting = null;
+    st.protectStreak = 0;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
