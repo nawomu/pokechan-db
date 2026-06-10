@@ -936,6 +936,10 @@ const env = {
   trickRoomTurns: null,  // 技で展開した時のみ5ターンカウント(UI手動チェック=null は無期限)
   gravity: false,        // じゅうりょく（命中5/3倍・全員接地・空中技禁止）
   gravityTurns: null,    // じゅうりょくの残りターン(技で展開した時のみ5ターンカウント)
+  wonderRoom: false,     // ワンダールーム（全員の素のぼうぎょ⇔とくぼうが入れかわる）
+  wonderRoomTurns: null,
+  magicRoom: false,      // マジックルーム（全員の持ち物の効果がなくなる）
+  magicRoomTurns: null,
 };
 
 // 範囲技判定（ダブルで ×0.75 が乗る対象）
@@ -1438,7 +1442,8 @@ function calcDamage(atkSide, defSide, move){
   }
 
   // 3.8) 攻撃側 持ち物（タイプ強化系: もくたん等 ×1.2）
-  const atkItem = atk.item ? ITEM_BY_KEY[atk.item] : null;
+  // マジックルーム中は全員の持ち物の効果がなくなる(Bulbapedia "Magic Room")→持ち物系の補正を全てスキップ
+  const atkItem = (!env.magicRoom && atk.item) ? ITEM_BY_KEY[atk.item] : null;
   if (atkItem && atkItem.category === 'type_boost' && atkItem.poke_type === moveType){
     base = pokeRound(base, atkItem.q12 || 4915);
     chips.push({label:atkItem.name, factor:atkItem.factor || 1.2, kind:'item'});
@@ -1485,15 +1490,15 @@ function calcDamage(atkSide, defSide, move){
       }
     }
 
-    // 8) いのちのたま ×1.3
-    if (atk.lifeOrb){
+    // 8) いのちのたま ×1.3（マジックルーム中は効果なし）
+    if (atk.lifeOrb && !env.magicRoom){
       v = pokeRound(v, 5324);
       if (r === 85) chips.push({label:'いのちのたま', factor:1.3, kind:'item'});
     }
 
-    // 8.5) 半減きのみ（防御側 item、効果バツグン時のみ ×0.5）
+    // 8.5) 半減きのみ（防御側 item、効果バツグン時のみ ×0.5。マジックルーム中は効果なし）
     if (eff > 1){
-      const defItem = def.item ? ITEM_BY_KEY[def.item] : null;
+      const defItem = (!env.magicRoom && def.item) ? ITEM_BY_KEY[def.item] : null;
       if (defItem && defItem.category === 'berry_resist' && defItem.poke_type === moveType){
         v = pokeRound(v, 2048);
         if (r === 85) chips.push({label:defItem.name, factor:0.5, kind:'item'});
@@ -1520,7 +1525,7 @@ function calcDamage(atkSide, defSide, move){
   // - 全乱数で致命 ('all'): 確定撃破がタスキで防がれる
   // - 一部乱数で致命 ('partial'): 致命する乱数のみタスキ発動、それ以外は通常ダメージ
   let focusSashSaved = null;
-  const defItemForSash = def.item ? ITEM_BY_KEY[def.item] : null;
+  const defItemForSash = (!env.magicRoom && def.item) ? ITEM_BY_KEY[def.item] : null;
   if (defItemForSash && defItemForSash.key === 'focus_sash'){
     const isFullHp = def.currentHp == null || def.currentHp >= hp;
     if (isFullHp && maxD >= effectiveHp){
@@ -1529,10 +1534,10 @@ function calcDamage(atkSide, defSide, move){
     }
   }
 
-  // ゴツゴツメット反動（接触技という属性は持っていないので、物理技 = 接触に近似）
-  const helmetRecoil = (def.rockyHelmet && isPhys) ? Math.floor(realStat(atk,'hp') / 6) : 0;
-  // いのちのたま反動
-  const orbRecoil = atk.lifeOrb ? Math.floor(realStat(atk,'hp') / 10) : 0;
+  // ゴツゴツメット反動（接触技という属性は持っていないので、物理技 = 接触に近似。マジックルーム中は効果なし）
+  const helmetRecoil = (def.rockyHelmet && isPhys && !env.magicRoom) ? Math.floor(realStat(atk,'hp') / 6) : 0;
+  // いのちのたま反動（マジックルーム中は効果なし）
+  const orbRecoil = (atk.lifeOrb && !env.magicRoom) ? Math.floor(realStat(atk,'hp') / 10) : 0;
 
   return {
     min:minD, max:maxD, variations, hp, effectiveHp, stealthHp,
@@ -1567,7 +1572,10 @@ function realStat(st, key){
 // ランク補正適用後の能力値（攻撃・防御・特攻・特防・素早さ用）
 // 急所時は攻撃側のマイナスランク / 防御側のプラスランクは無視するためのフラグ付き
 function rankedStat(st, key, opts){
-  const raw = realStat(st, key);
+  // ワンダールーム: 素のぼうぎょ⇔とくぼうだけ入れかわる(ランク補正は元の能力に残る。Bulbapedia "Wonder Room")
+  let rawKey = key;
+  if (env.wonderRoom && (key === 'def' || key === 'spdef')) rawKey = (key === 'def') ? 'spdef' : 'def';
+  const raw = realStat(st, rawKey);
   if (key === 'hp') return raw;
   const r = st.rank ? (st.rank[key] || 0) : 0;
   let useR = r;
@@ -1618,7 +1626,7 @@ function effectiveSpeed(st){
   if (!st.poke) return 0;
   let s = rankedStat(st, 'spd');
   if (st.status === 'paralysis' && st.ability !== 'はやあし') s = Math.floor(s / 2);
-  const item = st.item ? ITEM_BY_KEY[st.item] : null;
+  const item = (!env.magicRoom && st.item) ? ITEM_BY_KEY[st.item] : null;
   if (item && item.key === 'kodawari_scarf') s = Math.floor(s * 1.5);
   return s;
 }
@@ -2492,6 +2500,22 @@ function phaseApplyEffects(atkSide, defSide, move){
       const _st = ef.target === 'self' ? atk : def;
       _st.chargeBoost = { move_type: ef.move_type, multiplier: ef.multiplier || 2 };
       log('9', `${_st.poke.name} は ${ef.move_type}を ためはじめた！`);
+    } else if (ef.kind === '部屋系'){
+      // 部屋系: ワンダールーム(swap_statsあり)=素のぼうぎょ⇔とくぼう入れかえ /
+      // マジックルーム=全員の持ち物の効果がなくなる。どちらも5ターン・再使用で元に戻る(toggle)。
+      // 出典: Bulbapedia "Wonder Room" / "Magic Room"
+      const _isWonder = !!ef.swap_stats;
+      const _rKey = _isWonder ? 'wonderRoom' : 'magicRoom';
+      const _rtKey = _isWonder ? 'wonderRoomTurns' : 'magicRoomTurns';
+      if (env[_rKey]){
+        env[_rKey] = false; env[_rtKey] = null;
+        log('9', _isWonder ? 'ぼうぎょと とくぼうが 元に戻った！' : 'マジックルームの 効果が なくなった！');
+      } else {
+        env[_rKey] = true;
+        env[_rtKey] = ef.duration || 5;
+        log('9', _isWonder ? `${atk.poke.name} は ぼうぎょと とくぼうが 入れかわる 空間を つくった！`
+                           : `${atk.poke.name} は 道具が 使えなくなる 空間を つくった！`);
+      }
     } else if (ef.kind === 'じゅうりょく'){
       // じゅうりょく: 5ターンの間、全員の命中率5/3倍・全員接地(ひこう/ふゆうにじめん技が当たる)・
       // 空中にいる技(GRAVITY_BLOCKED)は使えない(溜め中なら中止して落とす)。展開中の再使用は失敗。
@@ -3103,6 +3127,21 @@ function runTurn(){
       log('10', 'じゅうりょくが もとに もどった！');
     }
   }
+  // 部屋系(ワンダールーム/マジックルーム)のカウントダウン(5ターン目の終わりに元に戻る)
+  if (env.wonderRoomTurns != null && env.wonderRoom){
+    env.wonderRoomTurns--;
+    if (env.wonderRoomTurns <= 0){
+      env.wonderRoom = false; env.wonderRoomTurns = null;
+      log('10', 'ぼうぎょと とくぼうが 元に戻った！');
+    }
+  }
+  if (env.magicRoomTurns != null && env.magicRoom){
+    env.magicRoomTurns--;
+    if (env.magicRoomTurns <= 0){
+      env.magicRoom = false; env.magicRoomTurns = null;
+      log('10', 'マジックルームの 効果が なくなった！');
+    }
+  }
   // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
   for (const s of ['self','opp']){
     const st = sides[s];
@@ -3161,6 +3200,10 @@ function fullResetBattle(){
   env.trickRoomTurns = null;
   env.gravity = false;
   env.gravityTurns = null;
+  env.wonderRoom = false;
+  env.wonderRoomTurns = null;
+  env.magicRoom = false;
+  env.magicRoomTurns = null;
   battleLog.length = 0;
   battleHistory.length = 0;
   log('Reset', '全リセット完了');

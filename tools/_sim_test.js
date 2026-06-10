@@ -25,7 +25,7 @@ function freshSide(pokeName, moveKey) {
   s.selectedMoveIdx = 0;
   return s;
 }
-function resetEnv() { E.env.weather = 'none'; E.env.weatherTurns = null; E.env.field = 'none'; E.env.fieldTurns = null; E.env.doubleBattle = false; E.env.trickRoom = false; E.env.trickRoomTurns = null; E.env.gravity = false; E.env.gravityTurns = null; }
+function resetEnv() { E.env.weather = 'none'; E.env.weatherTurns = null; E.env.field = 'none'; E.env.fieldTurns = null; E.env.doubleBattle = false; E.env.trickRoom = false; E.env.trickRoomTurns = null; E.env.gravity = false; E.env.gravityTurns = null; E.env.wonderRoom = false; E.env.wonderRoomTurns = null; E.env.magicRoom = false; E.env.magicRoomTurns = null; }
 
 console.log('=== 段① 追加効果なしの純粋攻撃技（はたく: ノーマル物理40） ===');
 // 受けは「ノーマル等倍」になるタイプ。フシギバナ(くさ/どく)はノーマル技を等倍で受ける。
@@ -2573,6 +2573,70 @@ console.log('\n=== 段52 じゅうりょく/Gのちから ===');
   E.runTurn();
   check('T150g 解除後は空中技が使える', !!E.sides.opp.charging,
     `相手charging=${JSON.stringify(E.sides.opp.charging && E.sides.opp.charging.move.name)}`);
+  resetEnv();
+}
+
+console.log('\n=== 段53 部屋系(ワンダールーム/マジックルーム) ===');
+// 出典: Bulbapedia "Wonder Room"(5ターン・全員の素のぼうぎょ⇔とくぼうが入れかわる。
+//       ランク補正は元の能力に残る。再使用で元に戻る) /
+//       Bulbapedia "Magic Room"(5ターン・全員の持ち物の効果がなくなる。再使用で元に戻る)
+{
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('ワンダールーム'), moveByName('はたく'), moveByName('シャドーボール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);   // 素のぼうぎょ83 < とくぼう100 → 入れかえの差が見える
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  const p0 = E.calcDamage('self', 'opp', moveByName('はたく'));         // 通常: 物理はぼうぎょで受ける
+  const s0 = E.calcDamage('self', 'opp', moveByName('シャドーボール')); // 通常: 特殊はとくぼうで受ける
+  E.runTurn();   // ターン1: ワンダールーム展開
+  check('T151 ワンダールーム展開', E.env.wonderRoom === true && E.env.wonderRoomTurns === 4,
+    `wonderRoom=${E.env.wonderRoom} turns=${E.env.wonderRoomTurns}(期待4=5から1ターン経過)`);
+  const p1 = E.calcDamage('self', 'opp', moveByName('はたく'));
+  const s1 = E.calcDamage('self', 'opp', moveByName('シャドーボール'));
+  check('T151b 素のぼうぎょ⇔とくぼう入れかえ(物理減・特殊増)', p1.max < p0.max && s1.max > s0.max,
+    `物理max ${p0.max}→${p1.max}(期待減) 特殊max ${s0.max}→${s1.max}(期待増)`);
+  // ランク補正は入れかわらない: とくぼう+6にしても物理は(元の)ぼうぎょランクで受ける=物理ダメ不変
+  E.sides.opp.rank.spdef = 6;
+  const p2 = E.calcDamage('self', 'opp', moveByName('はたく'));
+  const s2 = E.calcDamage('self', 'opp', moveByName('シャドーボール'));
+  check('T151c ランクは元の能力に残る', p2.max === p1.max && s2.max < s1.max,
+    `物理max=${p2.max}(期待${p1.max}=不変) 特殊max ${s1.max}→${s2.max}(期待減=とくぼうランクが効く)`);
+  E.sides.opp.rank.spdef = 0;
+  // 再使用で元に戻る(toggle)
+  E.runTurn();
+  check('T151d 再使用で元に戻る', E.env.wonderRoom === false && E.env.wonderRoomTurns == null,
+    `wonderRoom=${E.env.wonderRoom} turns=${E.env.wonderRoomTurns}`);
+  // 5ターンで自然解除
+  E.runTurn();   // 再展開(5)→末尾で4
+  E.sides.self.selectedMoveIdx = 1;   // 以後は再使用しない(はたく)=toggleさせず自然経過を見る
+  E.runTurn(); E.runTurn(); E.runTurn(); E.runTurn();   // 4ターン経過で0
+  check('T151e 5ターンで自然解除', E.env.wonderRoom === false && E.env.wonderRoomTurns == null,
+    `wonderRoom=${E.env.wonderRoom} turns=${E.env.wonderRoomTurns}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('マジックルーム'), moveByName('はたく')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.lifeOrb = true;   // いのちのたま(×1.3)
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  const m0 = E.calcDamage('self', 'opp', moveByName('はたく'));   // いのちのたま込み
+  E.runTurn();   // ターン1: マジックルーム展開
+  const m1 = E.calcDamage('self', 'opp', moveByName('はたく'));   // 道具の効果なし
+  check('T152 マジックルームで持ち物の効果が消える', E.env.magicRoom === true && m1.max < m0.max,
+    `magicRoom=${E.env.magicRoom} max ${m0.max}→${m1.max}(期待減=いのちのたま×1.3が消える)`);
+  // 再使用で元に戻る(toggle)
+  E.runTurn();
+  const m2 = E.calcDamage('self', 'opp', moveByName('はたく'));
+  check('T152b 再使用で元に戻る', E.env.magicRoom === false && m2.max === m0.max,
+    `magicRoom=${E.env.magicRoom} max=${m2.max}(期待${m0.max})`);
   resetEnv();
 }
 
