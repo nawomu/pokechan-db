@@ -2441,6 +2441,87 @@ console.log('\n=== 段㊿ ちょうはつ(3ターンの間 変化技を出せな
   resetEnv();
 }
 
+console.log('\n=== 段51 かなしばり/アンコール(lastMove基盤) ===');
+// 出典: Bulbapedia "Disable"(第5世代以降: 4ターンの間、相手が最後に使った技を封じる。
+//       相手がまだ技を使っていない・すでにかなしばり状態なら失敗) /
+//       Bulbapedia "Encore"(第5世代以降: 3ターンの間、相手は最後に使った技しか出せない。
+//       PP0解除はPP未実装のため対象外。ものまね等(legacy列挙)が最後の技なら失敗)
+{
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', null);   // ゲンガー(速い)が先に動く
+  E.sides.self.moves = [moveByName('かなしばり'), moveByName('はたく')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('タネばくだん'), moveByName('こわいかお')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  // ターン1: 相手はまだ技を使っていない→かなしばり失敗。相手のタネばくだんは通る(ゲンガーLv50 HP=135)
+  E.runTurn();
+  check('T148 相手が技未使用ならかなしばり失敗', !E.sides.opp.disable && E.sides.self.currentHp < 135 &&
+    E.sides.opp.lastMove && E.sides.opp.lastMove.name === 'タネばくだん',
+    `disable=${JSON.stringify(E.sides.opp.disable)} 残HP=${E.sides.self.currentHp}(最大135) lastMove=${E.sides.opp.lastMove && E.sides.opp.lastMove.name}`);
+  // ターン2: かなしばり成功(タネばくだんを封印)→相手は同ターンのタネばくだんが出せない
+  const t148hp1 = E.sides.self.currentHp;
+  E.runTurn();
+  check('T148b かなしばりで最後に使った技を封じる', E.sides.opp.disable && E.sides.opp.disable.name === 'タネばくだん' &&
+    E.sides.self.currentHp === t148hp1 && E.sides.opp.failedThisTurn === true,
+    `disable=${JSON.stringify(E.sides.opp.disable)} 残HP=${E.sides.self.currentHp}(期待=${t148hp1}) failed=${E.sides.opp.failedThisTurn}`);
+  // ターン3: 再かなしばりは失敗(すでにかなしばり状態)。相手は別の技(こわいかお)なら出せる
+  E.sides.opp.selectedMoveIdx = 1;
+  E.runTurn();
+  check('T148c 重ねがけ失敗+別の技は出せる', E.sides.opp.disable && E.sides.opp.disable.name === 'タネばくだん' &&
+    E.sides.self.rank.spd === -2,
+    `disable=${JSON.stringify(E.sides.opp.disable)} 自分spd=${E.sides.self.rank.spd}`);
+  // ターン4〜5: タネばくだんはまだ出せない(4ターン持続)。ターン5終了で解除
+  E.sides.self.selectedMoveIdx = 1;   // 自分は以後はたく
+  E.sides.opp.selectedMoveIdx = 0;
+  const t148hp2 = E.sides.self.currentHp;
+  E.runTurn();   // ターン4: 封じ
+  E.runTurn();   // ターン5: 封じ(終了時に解除)
+  check('T148d 4ターンの間封じられ続け5ターン目終了で解除', E.sides.self.currentHp === t148hp2 && !E.sides.opp.disable,
+    `残HP=${E.sides.self.currentHp}(期待=${t148hp2}) disable=${JSON.stringify(E.sides.opp.disable)}`);
+  // ターン6: 解除されてタネばくだんが出せる
+  E.runTurn();
+  check('T148e 解除後はまた出せる', E.sides.self.currentHp < t148hp2,
+    `残HP=${E.sides.self.currentHp}(前=${t148hp2})`);
+  resetEnv();
+}
+{
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('アンコール'), moveByName('はたく')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('タネばくだん'), moveByName('こわいかお')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  // ターン1: 相手はまだ技を使っていない→アンコール失敗。相手のタネばくだんは通る(ゲンガーLv50 HP=135)
+  E.runTurn();
+  check('T149 相手が技未使用ならアンコール失敗', !E.sides.opp.encore && E.sides.self.currentHp < 135,
+    `encore=${JSON.stringify(E.sides.opp.encore && {turns: E.sides.opp.encore.turns})} 残HP=${E.sides.self.currentHp}(最大135)`);
+  // ターン2: アンコール成功(タネばくだんに固定)→相手はこわいかおを選んでもタネばくだんを出す
+  E.sides.opp.selectedMoveIdx = 1;
+  const t149hp1 = E.sides.self.currentHp;
+  E.runTurn();
+  check('T149b アンコールで最後の技に固定(選択を上書き)', E.sides.opp.encore && E.sides.self.rank.spd === 0 &&
+    E.sides.self.currentHp < t149hp1,
+    `encore=${!!E.sides.opp.encore} 自分spd=${E.sides.self.rank.spd} 残HP=${E.sides.self.currentHp}(前=${t149hp1})`);
+  // ターン3: 再アンコールは失敗(すでにアンコール状態)。相手は固定継続
+  E.runTurn();
+  check('T149c 重ねがけ失敗+固定継続', E.sides.opp.encore && E.sides.self.rank.spd === 0,
+    `encore=${!!E.sides.opp.encore} 自分spd=${E.sides.self.rank.spd}`);
+  // ターン4: 固定最終ターン(3ターン持続)→終了時に解除
+  E.sides.self.selectedMoveIdx = 1;   // 自分は以後はたく
+  E.runTurn();
+  check('T149d 3ターン持続し4ターン目終了で解除', !E.sides.opp.encore && E.sides.self.rank.spd === 0,
+    `encore=${JSON.stringify(E.sides.opp.encore && {turns: E.sides.opp.encore.turns})} 自分spd=${E.sides.self.rank.spd}`);
+  // ターン5: 解除されてこわいかおが出せる(すばやさ-2)
+  E.runTurn();
+  check('T149e 解除後は選んだ技が出せる', E.sides.self.rank.spd === -2,
+    `自分spd=${E.sides.self.rank.spd}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

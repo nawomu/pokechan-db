@@ -996,6 +996,11 @@ function makeSideState(){
     stockpileBoost: {def: 0, spdef: 0},
     // ちょうはつ: 残りターン(>0の間は変化技を出せない。使われたターンを含めて3ターン)
     tauntTurns: 0,
+    // 最後に「使った」技(かなしばり/アンコールの対象。行動阻害で出せなかった時は更新しない)
+    lastMove: null,
+    // かなしばり: {name, turns}(その技名を出せない) / アンコール: {move, turns}(その技しか出せない)
+    disable: null,
+    encore: null,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -2440,6 +2445,27 @@ function phaseApplyEffects(atkSide, defSide, move){
         target.tauntTurns = ef.duration || 3;
         log('9', `${target.poke.name} は ちょうはつに のってしまった！`);
       }
+    } else if (ef.kind === 'かなしばり'){
+      // かなしばり: 相手が最後に使った技を4ターンの間出せなくする。
+      // 相手がまだ技を使っていない・すでにかなしばり状態なら失敗。出典: Bulbapedia "Disable"(第5世代以降は4ターン)
+      if (!target.lastMove || target.disable){
+        log('9', `しかし うまく きまらなかった！`);
+      } else {
+        target.disable = { name: target.lastMove.name, turns: ef.duration || 4 };
+        log('9', `${target.poke.name} の ${target.lastMove.name} を 封じこめた！`);
+      }
+    } else if (ef.kind === 'アンコール'){
+      // アンコール: 3ターンの間、相手は最後に使った技しか出せない。まだ技を使っていない・
+      // すでにアンコール状態・対象外の技(legacy列挙=ものまね等)なら失敗。PP0解除はPP未実装のため対象外。
+      // 出典: Bulbapedia "Encore"(第5世代以降は3ターン)
+      const _ngEnc = ['ものまね', 'ゆびをふる', 'オウムがえし', 'へんしん', 'わるあがき', 'スケッチ',
+                      'ねごと', 'アンコール', 'しぜんのちから', 'ねこのて', 'さきどり', 'まねっこ'];
+      if (!target.lastMove || target.encore || _ngEnc.includes(target.lastMove.name)){
+        log('9', `しかし うまく きまらなかった！`);
+      } else {
+        target.encore = { move: target.lastMove, turns: ef.duration || 3 };
+        log('9', `${target.poke.name} は アンコールを うけた！`);
+      }
     } else if (ef.kind === '次技威力倍化'){
       // じゅうでん: 次に使う指定タイプ(でんき)のダメージ技の威力が2倍。指定タイプの技を使うまで
       // 持続し、使うと消費される(第9世代)。出典: Bulbapedia "Charge"
@@ -2548,6 +2574,9 @@ function snapshotBattleState(){
     stockpile: st.stockpile || 0,                               // たくわえも一手戻せるように
     stockpileBoost: {...(st.stockpileBoost || {def: 0, spdef: 0})},
     tauntTurns: st.tauntTurns || 0,                             // ちょうはつも一手戻せるように
+    lastMove: st.lastMove || null,                              // かなしばり/アンコールの対象技
+    disable: st.disable ? {...st.disable} : null,               // かなしばりも一手戻せるように
+    encore: st.encore ? {...st.encore} : null,                  // アンコールも一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -2590,6 +2619,9 @@ function undoBattle(){
     st.stockpile = src.stockpile || 0;                                // たくわえの巻き戻し
     st.stockpileBoost = {...(src.stockpileBoost || {def: 0, spdef: 0})};
     st.tauntTurns = src.tauntTurns || 0;                              // ちょうはつの巻き戻し
+    st.lastMove = src.lastMove || null;                               // かなしばり/アンコールの対象技
+    st.disable = src.disable ? {...src.disable} : null;               // かなしばりの巻き戻し
+    st.encore = src.encore ? {...src.encore} : null;                  // アンコールの巻き戻し
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -2631,6 +2663,8 @@ function runSingleAttack(atkSide, moveIdx){
   if (atk.charging){ mv = atk.charging.move; releasing = true; atk.charging = null; }
   // あばれ状態(げきりん等): 暴れている間は選択に関係なくその技を出し続ける(技ロック)
   if (!releasing && atk.rampage) mv = atk.rampage.move;
+  // アンコール状態: 選んだ技に関係なく最後に使った技を出し続ける(Bulbapedia "Encore")
+  if (!releasing && !atk.rampage && atk.encore) mv = atk.encore.move;
   log('Attack', `${atk.poke.name} が ${mv.name} を選んだ！`);
   // 行動阻害（ねむり/こおり/まひ）
   // ねむり: カウンタ持ち(技で眠った)は行動時に1減らし、0になったターンに目覚めて行動する(PS実装と同じ)。
@@ -2667,6 +2701,15 @@ function runSingleAttack(atkSide, moveIdx){
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
+  // かなしばり状態: 封じられた技は出せない(Bulbapedia "Disable")
+  if (atk.disable && mv.name === atk.disable.name){
+    log('0c', `${atk.poke.name} は かなしばりで ${mv.name} が だせない！`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
+  // ここまで通れば技を「使った」扱い(かなしばり/アンコールの対象になる最後の技)。
+  // ねむり・まひ・ひるみ・ちょうはつ等で出せなかった場合は更新しない。
+  atk.lastMove = mv;
   // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
   const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
   const _enduEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'こらえる');
@@ -2832,6 +2875,8 @@ function runTurn(){
     if (atk.charging){ mv = atk.charging.move; releasing = true; atk.charging = null; }
     // あばれ状態(げきりん等): 暴れている間は選択に関係なくその技を出し続ける(技ロック)
     if (!releasing && atk.rampage) mv = atk.rampage.move;
+    // アンコール状態: 選んだ技に関係なく最後に使った技を出し続ける(Bulbapedia "Encore")
+    if (!releasing && !atk.rampage && atk.encore) mv = atk.encore.move;
     if (!mv){ log(a.side, `${atk.poke.name} は技を選択していない`); continue; }
     // ねむり・こおり等
     // ねむり: カウンタ持ち(技で眠った)は行動時に1減らし、0になったターンに目覚めて行動する(PS実装と同じ)。
@@ -2884,6 +2929,14 @@ function runTurn(){
       log('0c', `${atk.poke.name} は ちょうはつされて ${mv.name} が だせない！`);
       noteActionFailed(atk); continue;
     }
+    // かなしばり状態: 封じられた技は出せない(Bulbapedia "Disable")
+    if (atk.disable && mv.name === atk.disable.name){
+      log('0c', `${atk.poke.name} は かなしばりで ${mv.name} が だせない！`);
+      noteActionFailed(atk); continue;
+    }
+    // ここまで通れば技を「使った」扱い(かなしばり/アンコールの対象になる最後の技)。
+    // ねむり・まひ・ひるみ・ちょうはつ等で出せなかった場合は更新しない。
+    atk.lastMove = mv;
     // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ。連続使用は成功率が1/3ずつ下がり、
     // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure"。
     // ファストガードはmultiplierなし=連続でも失敗しない)
@@ -3006,12 +3059,26 @@ function runTurn(){
       }
     }
   }
-  // ちょうはつのカウントダウン(使われたターンを含めて3ターンで切れる)
+  // ちょうはつ/かなしばり/アンコールのカウントダウン(使われたターンを含めて持続ターンで切れる)
   for (const s of ['self','opp']){
     const st = sides[s];
     if ((st.tauntTurns || 0) > 0){
       st.tauntTurns--;
       if (st.tauntTurns <= 0 && st.poke) log('10', `${st.poke.name} の ちょうはつの 効果が切れた！`);
+    }
+    if (st.disable){
+      st.disable.turns--;
+      if (st.disable.turns <= 0){
+        st.disable = null;
+        if (st.poke) log('10', `${st.poke.name} の かなしばりが とけた！`);
+      }
+    }
+    if (st.encore){
+      st.encore.turns--;
+      if (st.encore.turns <= 0){
+        st.encore = null;
+        if (st.poke) log('10', `${st.poke.name} の アンコール状態が とけた！`);
+      }
     }
   }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
@@ -3072,6 +3139,9 @@ function resetBattle(){
     st.stockpile = 0;
     st.stockpileBoost = {def: 0, spdef: 0};
     st.tauntTurns = 0;
+    st.lastMove = null;
+    st.disable = null;
+    st.encore = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
