@@ -1014,6 +1014,9 @@ function makeSideState(){
     // じごくづき: >0の間、音技(soundBlockedMoves のリスト)が出せない(ターン終了ごとに1減る)
     soundBlocked: 0,
     soundBlockedMoves: null,
+    // みらいよち(遅延攻撃): 自分が予知している攻撃 {turns, move}。turnsがターン終了ごとに1減り
+    // 0になったターンの終わりに相手へ当たる(使ったターンを含めて数えるため delay_turns+1 で持つ)
+    futureSight: null,
     // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等): {atk: 数値, ...} / null。
     // realStat がこれを最優先で返す(ランク補正はその上に乗る)。場を離れる/リセットで消える。
     statOverride: null,
@@ -3041,6 +3044,7 @@ function snapshotBattleState(){
     imprison: !!st.imprison,                                     // ふういんも一手戻せるように
     soundBlocked: st.soundBlocked || 0,                          // じごくづきも一手戻せるように
     soundBlockedMoves: st.soundBlockedMoves ? [...st.soundBlockedMoves] : null,
+    futureSight: st.futureSight ? { turns: st.futureSight.turns, move: st.futureSight.move } : null, // みらいよちも一手戻せるように
     electrified: st.electrified || null,                         // そうでんも一手戻せるように
     typeSuppressed: st.typeSuppressed || null,                   // はねやすめも一手戻せるように
   });
@@ -3099,6 +3103,7 @@ function undoBattle(){
     st.imprison = !!src.imprison;                                      // ふういんの巻き戻し
     st.soundBlocked = src.soundBlocked || 0;                           // じごくづきの巻き戻し
     st.soundBlockedMoves = src.soundBlockedMoves ? [...src.soundBlockedMoves] : null;
+    st.futureSight = src.futureSight ? { turns: src.futureSight.turns, move: src.futureSight.move } : null; // みらいよちの巻き戻し
     st.electrified = src.electrified || null;                          // そうでんの巻き戻し
     st.typeSuppressed = src.typeSuppressed || null;                    // はねやすめの巻き戻し
   };
@@ -3250,6 +3255,11 @@ function runSingleAttack(atkSide, moveIdx){
   const _selfKOAlways = _selfKO && mv.power != null && mv.power !== '—';
   // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
   if (startChargeIfNeeded(atk, mv, releasing)){ renderBattleLog(); renderBoth(); return; }
+  // 遅延攻撃(みらいよち): 使ったターンは攻撃せず予知だけ。発動中の再使用は失敗(Bulbapedia "Future Sight")
+  if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '遅延攻撃')){
+    armFutureSight(atk, mv);
+    renderBattleLog(); renderBoth(); return;
+  }
   // 命中判定
   const hit = phaseHitCheck(mv, atk, def);
   if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
@@ -3301,6 +3311,22 @@ function isFirstTurnOnlyMove(move){
 
 // 溜め技(2ターン技): 溜め開始したら true(=このターンは攻撃しない)。releasing=解放ターンは再溜めしない。
 // skip_charge_if_weather(晴れソーラービーム/あめエレクトロビーム)は溜めなしで即攻撃(Bulbapedia "Solar Beam"/"Electro Shot")。
+// みらいよち(遅延攻撃)の予知: 使ったターンは攻撃せず、delay_turns 後のターン終了時に当てる。
+// すでに発動中なら失敗。出典: Bulbapedia "Future Sight"
+function armFutureSight(st, mv){
+  if (!st.poke) return;
+  if (st.futureSight){
+    log('0c', `${st.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(すでに 予知している)`);
+    noteActionFailed(st);
+    return;
+  }
+  const ef = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '遅延攻撃');
+  // 使ったターンの終了でも1減るため +1 で持つ(=delay_turns 後のターン終了時に0になる)
+  st.futureSight = { turns: ((ef && ef.delay_turns) || 2) + 1, move: mv };
+  st.lastMove = mv;
+  log('0c', `${st.poke.name} は みらいに こうげきを よちした！`);
+}
+
 function startChargeIfNeeded(st, mv, releasing){
   if (releasing || !st.poke) return false;
   const effs = (mv && mv.battle_data && mv.battle_data.effects) || [];
@@ -3516,6 +3542,11 @@ function runTurn(){
     const _selfKOAlways = _selfKO && mv.power != null && mv.power !== '—';
     // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
     if (startChargeIfNeeded(atk, mv, releasing)) continue;
+    // 遅延攻撃(みらいよち): 使ったターンは攻撃せず予知だけ。発動中の再使用は失敗(Bulbapedia "Future Sight")
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '遅延攻撃')){
+      armFutureSight(atk, mv);
+      continue;
+    }
     // 命中判定
     const hit = phaseHitCheck(mv, atk, def);
     if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
@@ -3682,6 +3713,34 @@ function runTurn(){
         if (st.poke) log('10', `${st.poke.name} は また 音の技が だせるようになった！`);
       }
     }
+    // みらいよち(遅延攻撃): カウントが0になったターンの終わりに相手へ当たる。
+    // 当たる時にダメージ計算(その時点の能力・タイプ相性で計算/まもる・こらえるは当たるターンに有効)。
+    // 出典: Bulbapedia "Future Sight"(第5世代以降)
+    if (st.futureSight){
+      st.futureSight.turns--;
+      if (st.futureSight.turns <= 0){
+        const _fsMove = st.futureSight.move;
+        st.futureSight = null;
+        const _tk = s === 'self' ? 'opp' : 'self';
+        const _tgt = sides[_tk];
+        if (st.poke && _tgt.poke && !_tgt.fainted){
+          if (_tgt.protecting && _fsMove.protect === true && protectBlocks(_tgt.protecting, _fsMove)){
+            log('10', `${_tgt.poke.name} は ${_tgt.protecting.name} で ${_fsMove.name} を 防いだ！`);
+          } else {
+            const _res = calcDamage(s, _tk, _fsMove);
+            if (_res.immune){
+              log('10', `${_tgt.poke.name} は ${_fsMove.name} の こうげきを うけた！ しかし こうかが ないようだ…`);
+            } else {
+              let _v = _res.variations[Math.floor(Math.random() * _res.variations.length)];
+              if (_tgt.enduring && _v >= _tgt.currentHp){ _v = _tgt.currentHp - 1; log('10', `${_tgt.poke.name} は こうげきを こらえた！`); }
+              _tgt.currentHp = Math.max(0, _tgt.currentHp - _v);
+              log('10', `${_tgt.poke.name} は ${_fsMove.name} の こうげきを うけた！ ${_v} ダメージ！ (残HP ${_tgt.currentHp}/${_res.hp})`);
+              if (_tgt.currentHp <= 0){ _tgt.fainted = true; log('10', `${_tgt.poke.name} は ひんしになった！`); }
+            }
+          }
+        }
+      }
+    }
   }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
@@ -3761,6 +3820,7 @@ function resetBattle(){
     st.imprison = false;
     st.soundBlocked = 0;
     st.soundBlockedMoves = null;
+    st.futureSight = null;
     st.electrified = null;
     st.typeSuppressed = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};

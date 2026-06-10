@@ -3555,6 +3555,38 @@ console.log('\n=== 段68 シェルアームズ(物理特殊自動) ===');
   resetEnv();
 }
 
+console.log('\n=== 段69 みらいよち(遅延攻撃) ===');
+{
+  resetEnv();
+  // みらいよち: 使ったターンはダメージなし。2ターン後のターン終了時に当たる(エスパー120特殊)。
+  // 使用中にもう一度使うと失敗。出典: Bulbapedia "Future Sight"
+  E.sides.self = freshSide('ゲンガー', null);    // spd130=先手
+  E.sides.self.moves = [moveByName('みらいよち')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カメックス', null);   // HP154。はたく=ノーマルはゲンガーに×0(ノイズなし)
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // T1: みらいよち宣言(まだ当たらない)
+  check('T170 使ったターンはダメージなし',
+    E.sides.opp.currentHp === 154,
+    `カメックスHP=${E.sides.opp.currentHp}(154=無傷期待)`);
+  E.runTurn();   // T2: 発動中の再使用は失敗。まだ当たらない
+  check('T170b 2ターン目もまだ当たらない(再使用は失敗)',
+    E.sides.opp.currentHp === 154,
+    `カメックスHP=${E.sides.opp.currentHp}(154=無傷期待)`);
+  E.runTurn();   // T3: ターン終了時に攻撃が当たる
+  check('T170c 2ターン後のターン終了時に当たる',
+    E.sides.opp.currentHp < 154,
+    `カメックスHP=${E.sides.opp.currentHp}(154未満期待)`);
+  const _hp3 = E.sides.opp.currentHp;
+  E.runTurn();   // T4: 一度当たったら消える(再使用していないので何も起きない)
+  check('T170d 当たったあとは消えている(翌ターン再発しない)',
+    E.sides.opp.currentHp === _hp3,
+    `カメックスHP=${E.sides.opp.currentHp}(${_hp3}のまま期待)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
