@@ -3715,6 +3715,50 @@ console.log('\n=== 段72 さいはい(技強制再使用) ===');
   resetEnv();
 }
 
+console.log('\n=== 段73 ねをはる(自分拘束+地面技被弾化+毎ターン回復) ===');
+{
+  resetEnv();
+  // ねをはる: 根をはると ひこうタイプでも じめん技が当たるようになる(接地)。
+  // 出典: Bulbapedia "Ingrain"(使用後はじめん技の対象になる・ひこうの無効が消える=等倍)
+  E.sides.self = freshSide('リザードン', null);   // ほのお/ひこう・spd120=先手
+  E.sides.self.moves = [moveByName('ねをはる')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.currentHp = 100;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('じしん')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // ねをはる→じしんが当たる(×2)→ターン終了に1/16回復(+9)
+  const _hp1 = E.sides.self.currentHp;
+  check('T174 ねをはった後は じしんが当たる(ターン終了に回復もする)',
+    _hp1 > 0 && _hp1 < 109,
+    `リザードンHP=${_hp1}(0超・109未満期待: 109=無傷+回復9)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // 毎ターン終了に最大HPの1/16回復(153→9)。すでに根をはっていたら再使用は失敗(二重回復しない)
+  E.sides.self = freshSide('リザードン', null);
+  E.sides.self.moves = [moveByName('ねをはる')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.currentHp = 100;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('じしん')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';   // 相手は眠らせてノイズゼロ
+  E.setRandom(() => 0.0);
+  E.runTurn();   // ねをはる→回復+9
+  const _hp1 = E.sides.self.currentHp;
+  check('T174b ターン終了に最大HPの1/16回復する',
+    _hp1 === 109,
+    `リザードンHP=${_hp1}(109期待: 100+9)`);
+  E.runTurn();   // 再使用は失敗(が、根は残っていて回復は続く)→+9
+  check('T174c 再使用は失敗するが回復は続く(二重にならない)',
+    E.sides.self.currentHp === 118,
+    `リザードンHP=${E.sides.self.currentHp}(118期待: 109+9)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
