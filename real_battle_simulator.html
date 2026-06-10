@@ -960,6 +960,9 @@ function makeSideState(){
     // この側に張られた／撒かれた状態（被ダメ計算で使う）
     reflect: false,
     lightScreen: false,
+    auroraVeil: false,                       // オーロラベール(物理特殊とも半減・ゆきの時だけ張れる)
+    safeguard: false,                        // しんぴのまもり(相手からの状態異常とこんらんを防ぐ)
+    screenTurns: {},                         // 技で張った壁の残りターン(flag→残数)。UI手動チェックは載らない=無期限
     stealthRock: false,
     rockyHelmet: false,
     disguise: false,
@@ -1348,12 +1351,16 @@ function calcDamage(atkSide, defSide, move){
       chips.push({label:effLabel, factor:eff, kind: eff > 1 ? 'eff-up' : 'eff-down'});
     }
 
-    // 7) 壁
-    if (!crit && (def.reflect || def.lightScreen)){
-      const wallActive = isPhys ? def.reflect : def.lightScreen;
+    // 7) 壁（リフレクター=物理 / ひかりのかべ=特殊 / オーロラベール=両方・重なっても軽減は1回分）
+    //    急所は壁を無視。壁除去宣言技(かわらわり/サイコファング等=壁を壊してから攻撃)も軽減を受けない。
+    const breaksWall = bdEffects.some(e => e.kind === '壁除去');
+    if (!crit && !breaksWall){
+      const wallActive = isPhys ? (def.reflect || def.auroraVeil) : (def.lightScreen || def.auroraVeil);
       if (wallActive){
         v = pokeRound(v, 2048);
-        if (r === 85) chips.push({label: isPhys ? 'リフレクター' : 'ひかりのかべ', factor:0.5, kind:'wall'});
+        const wallLabel = isPhys ? (def.reflect ? 'リフレクター' : 'オーロラベール')
+                                 : (def.lightScreen ? 'ひかりのかべ' : 'オーロラベール');
+        if (r === 85) chips.push({label: wallLabel, factor:0.5, kind:'wall'});
       }
     }
 
@@ -1770,6 +1777,9 @@ function fieldRules(){
   const mv = Object.values(WAZA_MAP).find(m => m.name === name);
   return (mv && mv.battle_data && mv.battle_data.effects) || [];
 }
+// 壁(自分の場に張るもの)の名前↔フラグ対応。しろいきり等の未実装壁はここに無い=壁除去で黙ってスキップされる。
+const _SCREEN_FLAG = {'リフレクター':'reflect','ひかりのかべ':'lightScreen','オーロラベール':'auroraVeil','しんぴのまもり':'safeguard'};
+const _SCREEN_NAME = {reflect:'リフレクター', lightScreen:'ひかりのかべ', auroraVeil:'オーロラベール', safeguard:'しんぴのまもり'};
 // 「地面にいる」判定: ひこうタイプ/とくせいふゆうは地面にいない → フィールドの効果を受けない
 function isGrounded(st){
   if (!st || !st.poke) return false;
@@ -1808,6 +1818,11 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `${target.poke.name} は フィールドに守られている！`);
         continue;
       }
+      // しんぴのまもり: 相手からの こんらん も防ぐ(自分にかける効果は対象外。Bulbapedia "Safeguard")
+      if (ef.target !== 'self' && target.safeguard){
+        log('9', `${target.poke.name} は しんぴのまもりに 守られている！`);
+        continue;
+      }
       if (!(ef.phase === 'delayed' || ef.trigger) && !target.confusion){
         const dt = Array.isArray(ef.duration_turns)
           ? (ef.duration_turns[0] + Math.floor(Math.random() * (ef.duration_turns[1] - ef.duration_turns[0] + 1)))
@@ -1835,6 +1850,11 @@ function phaseApplyEffects(atkSide, defSide, move){
       const fGuard = fieldRules().find(r => r.kind === '状態異常予防');
       if (fGuard && isGrounded(target) && (!fGuard.values || fGuard.values.includes(ef.value))){
         log('9', `${target.poke.name} は フィールドに守られている！`);
+        continue;
+      }
+      // しんぴのまもり: 相手からの状態異常を防ぐ(ねむけ=あくびも防ぐ。自分にかける効果は対象外。Bulbapedia "Safeguard")
+      if (ef.target !== 'self' && target.safeguard){
+        log('9', `${target.poke.name} は しんぴのまもりに 守られている！`);
         continue;
       }
       // 遅延付与(あくび: ねむけ→次のターン終わりに眠る)。即時には付与しない。
@@ -1903,6 +1923,28 @@ function phaseApplyEffects(atkSide, defSide, move){
         env.field = 'none';
         env.fieldTurns = null;
         log('9', `フィールドが こわれて消えた！`);
+      }
+    } else if (ef.kind === '壁設置'){
+      // リフレクター/ひかりのかべ/しんぴのまもり/オーロラベール: 自分の場(team)に5ターンの壁を張る。
+      // すでに同じ壁があれば失敗=ターン数リフレッシュなし(Bulbapedia "Reflect"等)。
+      const flag = _SCREEN_FLAG[ef.value] || ef.value;
+      if (atk[flag]){
+        log('9', `しかし うまく きまらなかった！(${ef.value} はすでに 張られている)`);
+      } else {
+        atk[flag] = true;
+        if (!atk.screenTurns) atk.screenTurns = {};
+        atk.screenTurns[flag] = ef.duration || 5; // ターン終了ごとに減り、0で消える(UI手動チェックは無期限)
+        log('9', `${atk.poke.name} の場に ${ef.value} が 張られた！`);
+      }
+    } else if (ef.kind === '壁除去'){
+      // かわらわり/サイコファング/レイジングブル(攻撃が当たったら=ここに来たら)・きりばらい(変化): 相手の場の壁を消す
+      for (const name of (ef.values || [])){
+        const flag = _SCREEN_FLAG[name];
+        if (flag && def[flag]){
+          def[flag] = false;
+          if (def.screenTurns) delete def.screenTurns[flag];
+          log('9', `相手の場の ${name} が こわれて消えた！`);
+        }
       }
     } else if (ef.kind === 'フィールド展開'){
       // グラス/ミスト/エレキ/サイコ: 5ターンの間 フィールドを変える(duration=データ指定)。
@@ -2059,6 +2101,12 @@ function runSingleAttack(atkSide, moveIdx){
   if (atk.status === 'sleep'){ log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); renderBattleLog(); renderBoth(); return; }
   if (atk.status === 'freeze' && Math.random() > 0.2){ log('0c', `${atk.poke.name} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
   if (atk.status === 'paralysis' && Math.random() < 0.25){ log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  // 使用条件(requires: オーロラベール=ゆきの時だけ等)。満たさなければ失敗(Bulbapedia "Aurora Veil")
+  const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
+  if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
+    log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`);
+    renderBattleLog(); renderBoth(); return;
+  }
   // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
   if (startChargeIfNeeded(atk, mv, releasing)){ renderBattleLog(); renderBoth(); return; }
   // 命中判定
@@ -2194,6 +2242,11 @@ function runTurn(){
     if (isFirstTurnOnlyMove(mv) && atk.turnsOut > 0){
       log('0c', `${atk.poke.name} の ${mv.name} は 場に出た最初のターンしか出せない！`); continue;
     }
+    // 使用条件(requires: オーロラベール=ゆきの時だけ等)。満たさなければ失敗(Bulbapedia "Aurora Veil")
+    const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
+    if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
+      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`); continue;
+    }
     // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
     if (startChargeIfNeeded(atk, mv, releasing)) continue;
     // 命中判定
@@ -2252,6 +2305,19 @@ function runTurn(){
       log('10', 'フィールドが 元に戻った！');
     }
   }
+  // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
+  for (const s of ['self','opp']){
+    const st = sides[s];
+    if (!st.screenTurns) continue;
+    for (const flag of Object.keys(st.screenTurns)){
+      st.screenTurns[flag]--;
+      if (st.screenTurns[flag] <= 0){
+        delete st.screenTurns[flag];
+        st[flag] = false;
+        log('10', `${st.poke ? st.poke.name + ' の場の ' : ''}${_SCREEN_NAME[flag] || flag} の効果が なくなった！`);
+      }
+    }
+  }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
   sides.opp.turnsOut = (sides.opp.turnsOut || 0) + 1;
@@ -2303,6 +2369,9 @@ function resetBattle(){
     // 場の効果 (壁・設置・ばけのかわ) もクリア
     st.reflect = false;
     st.lightScreen = false;
+    st.auroraVeil = false;
+    st.safeguard = false;
+    st.screenTurns = {};
     st.stealthRock = false;
     st.disguise = false;
     // 選択中のわざ矢印もリセット

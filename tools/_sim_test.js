@@ -1086,6 +1086,108 @@ console.log('\n=== 段㉘ フィールド展開4種(+フィールドのルール
   resetEnv();
 }
 
+console.log('\n=== 段㉙ 壁ファミリー(壁設置4: リフレクター/ひかりのかべ/しんぴのまもり/オーロラベール + 壁除去3: かわらわり/サイコファング/きりばらい) ===');
+// 意味の出典(Bulbapedia "Reflect"/"Light Screen"/"Safeguard"/"Aurora Veil"/"Brick Break"/"Psychic Fangs"/"Defog"):
+//   壁=5ターン・自分の場・急所は軽減しない・再使用は失敗。オーロラベールはゆきの時だけ張れて物理特殊両方半減。
+//   しんぴのまもり=相手からの状態異常とこんらんを防ぐ。かわらわり/サイコファング=壁を壊して攻撃(壁の軽減を受けない)。
+//   きりばらい=相手の壁とフィールドを消す+回避-1。ゴールデン値=@smogon/calc(フシギバナvsフシギバナ Lv50/IV31/P0)
+{
+  // T84 リフレクター: 物理半減/特殊そのまま/急所は無視/5ターンで消える(再使用リフレッシュなし)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('リフレクター')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(20260613));
+  E.phaseApplyEffects('self', 'opp', moveByName('リフレクター'));
+  check('T84 リフレクターが自分の場に張られる', E.sides.self.reflect === true, `reflect=${E.sides.self.reflect}`);
+  const t84p = E.calcDamage('opp', 'self', moveByName('はたく'));
+  check('T84 物理は半減[8,9]', t84p && t84p.min === 8 && t84p.max === 9, JSON.stringify(t84p));
+  const t84s = E.calcDamage('opp', 'self', moveByName('れいとうビーム'));
+  check('T84 特殊はそのまま[68,82]', t84s && t84s.min === 68 && t84s.max === 82, JSON.stringify(t84s));
+  E.sides.opp.critical = true;
+  const t84c = E.calcDamage('opp', 'self', moveByName('はたく'));
+  check('T84 急所は壁を無視[23,28]', t84c && t84c.min === 23 && t84c.max === 28, JSON.stringify(t84c));
+  E.sides.opp.critical = false;
+  for (let i = 0; i < 4; i++) E.runTurn(); // 自分は毎ターン再使用→失敗(リフレッシュなし)のはず
+  check('T84 4ターン目まで壁は続く', E.sides.self.reflect === true, `reflect=${E.sides.self.reflect}`);
+  E.runTurn();
+  check('T84 5ターン目の終わりに壁が消える', E.sides.self.reflect === false, `reflect=${E.sides.self.reflect}`);
+
+  // T85 ひかりのかべ: 特殊半減/物理そのまま
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.phaseApplyEffects('self', 'opp', moveByName('ひかりのかべ'));
+  check('T85 ひかりのかべが張られる', E.sides.self.lightScreen === true, `lightScreen=${E.sides.self.lightScreen}`);
+  const t85s = E.calcDamage('opp', 'self', moveByName('れいとうビーム'));
+  check('T85 特殊は半減[34,41]', t85s && t85s.min === 34 && t85s.max === 41, JSON.stringify(t85s));
+  const t85p = E.calcDamage('opp', 'self', moveByName('はたく'));
+  check('T85 物理はそのまま[16,19]', t85p && t85p.min === 16 && t85p.max === 19, JSON.stringify(t85p));
+
+  // T86 オーロラベール: ゆき以外は失敗/ゆきなら物理特殊とも半減
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('オーロラベール')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(mulberry32(20260614));
+  E.runTurn();
+  check('T86 ゆき以外ではオーロラベールは失敗', !E.sides.self.auroraVeil, `auroraVeil=${E.sides.self.auroraVeil}`);
+  E.env.weather = 'snow';
+  E.runTurn();
+  check('T86 ゆきならオーロラベールが張られる', E.sides.self.auroraVeil === true, `auroraVeil=${E.sides.self.auroraVeil}`);
+  const t86p = E.calcDamage('opp', 'self', moveByName('はたく'));
+  check('T86 物理は半減[8,9]', t86p && t86p.min === 8 && t86p.max === 9, JSON.stringify(t86p));
+  const t86s = E.calcDamage('opp', 'self', moveByName('れいとうビーム'));
+  check('T86 特殊も半減[34,41]', t86s && t86s.min === 34 && t86s.max === 41, JSON.stringify(t86s));
+
+  // T87 しんぴのまもり: 相手からの状態異常とこんらんを防ぐ(自分の場だけ)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.phaseApplyEffects('self', 'opp', moveByName('しんぴのまもり'));
+  check('T87 しんぴのまもりが張られる', E.sides.self.safeguard === true, `safeguard=${E.sides.self.safeguard}`);
+  E.setRandom(() => 0);
+  E.phaseApplyEffects('opp', 'self', moveByName('おにび'));
+  check('T87 やけどを防ぐ', E.sides.self.status === 'none', `status=${E.sides.self.status}`);
+  E.phaseApplyEffects('opp', 'self', moveByName('あやしいひかり'));
+  check('T87 こんらんも防ぐ', !E.sides.self.confusion, `confusion=${E.sides.self.confusion}`);
+  E.phaseApplyEffects('self', 'opp', moveByName('おにび'));
+  check('T87 守られていない相手側には通る', E.sides.opp.status === 'burn', `status=${E.sides.opp.status}`);
+
+  // T88 かわらわり/サイコファング: 壁を壊して攻撃(壁の軽減を受けない→攻撃後に壁が消える)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('かわらわり')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.phaseApplyEffects('opp', 'self', moveByName('リフレクター')); // 相手側に壁(opp自身の場)
+  check('T88 前提: 相手の場にリフレクター', E.sides.opp.reflect === true, `reflect=${E.sides.opp.reflect}`);
+  const t88 = E.calcDamage('self', 'opp', moveByName('かわらわり'));
+  check('T88 かわらわりは壁の軽減を受けない[14,17]', t88 && t88.min === 14 && t88.max === 17, JSON.stringify(t88));
+  E.setRandom(mulberry32(20260615));
+  E.runTurn();
+  check('T88 攻撃のあと壁がこわれる', E.sides.opp.reflect === false, `reflect=${E.sides.opp.reflect}`);
+  E.sides.opp.lightScreen = true; E.sides.opp.screenTurns = { lightScreen: 5 };
+  const t88b = E.calcDamage('self', 'opp', moveByName('サイコファング'));
+  check('T88 サイコファングも壁の軽減を受けない[66,78]', t88b && t88b.min === 66 && t88b.max === 78, JSON.stringify(t88b));
+  E.phaseApplyEffects('self', 'opp', moveByName('サイコファング'));
+  check('T88 サイコファングで壁がこわれる', E.sides.opp.lightScreen === false, `lightScreen=${E.sides.opp.lightScreen}`);
+
+  // T89 きりばらい: 相手の壁を消す+フィールドも消す+回避-1
+  resetEnv();
+  E.env.field = 'grassy'; E.env.fieldTurns = 3;
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.phaseApplyEffects('opp', 'self', moveByName('リフレクター'));
+  E.phaseApplyEffects('opp', 'self', moveByName('しんぴのまもり'));
+  E.setRandom(() => 0);
+  E.phaseApplyEffects('self', 'opp', moveByName('きりばらい'));
+  check('T89 相手のリフレクターが消える', E.sides.opp.reflect === false, `reflect=${E.sides.opp.reflect}`);
+  check('T89 相手のしんぴのまもりが消える', E.sides.opp.safeguard === false, `safeguard=${E.sides.opp.safeguard}`);
+  check('T89 フィールドも消える', E.env.field === 'none', `field=${E.env.field}`);
+  check('T89 相手の回避-1', E.sides.opp.rank.eva === -1, `eva=${E.sides.opp.rank.eva}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
