@@ -1195,6 +1195,14 @@ function calcDamage(atkSide, defSide, move){
   const itemMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'target_holding_item');
   if (itemMul && def.item) power = Math.max(1, pokeRound(power, Math.round((itemMul.multiplier || 1.5) * 4096)));
 
+  // 前ターン失敗で威力倍化(じだんだ: 外れ/まもられ/こうかなし/行動不能の次のターンは2倍。Bulbapedia "Stomping Tantrum")
+  const prevFailMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'previous_turn_move_failed_or_could_not_act');
+  if (prevFailMul && atk.lastTurnFailed) power *= (prevFailMul.multiplier || 2);
+
+  // このターン能力を下げられて威力倍化(うっぷんばらし。Bulbapedia "Lash Out")
+  const lowMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'user_stat_lowered_this_turn');
+  if (lowMul && atk.statLoweredThisTurn) power *= (lowMul.multiplier || 2);
+
   // 天候条件つき威力倍率(ソーラービーム/ソーラーブレード: あめ/すなあらし/ゆきで威力半減。Bulbapedia "Solar Beam")
   const weatherMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'weather_in');
   if (weatherMul && weatherCondOk(weatherMul.condition, env.weather)) power = Math.floor(power * (weatherMul.multiplier || 1));
@@ -1989,6 +1997,13 @@ function progressRampage(atk, mv){
   if (atk.rampage.left <= 0) endRampage(atk, true);
 }
 
+// 行動の失敗を記録し、あばれ状態も中断する(呼び元=失敗点: 外れ/まもられ/こうかなし/ねむり・こおり・まひ・ひるみ・こんらんで動けない)。
+// failedThisTurn はターン開始時に lastTurnFailed へ移される(じだんだ=前ターン失敗で威力2倍 が読む)。
+function noteActionFailed(atk){
+  atk.failedThisTurn = true;
+  disruptRampage(atk);
+}
+
 function phaseApplyEffects(atkSide, defSide, move){
   if (!move || !move.battle_data || !move.battle_data.effects) return;
   const atk = sides[atkSide];
@@ -2200,7 +2215,9 @@ function phaseApplyEffects(atkSide, defSide, move){
           log('9', `${target.poke.name} の ${k} ランクが 最大まであがった！`);
         } else {
           const sg = ef.stages || 0;
-          target.rank[rk] = Math.max(-6, Math.min(6, (target.rank[rk]||0) + sg));
+          const beforeRk = target.rank[rk] || 0;
+          target.rank[rk] = Math.max(-6, Math.min(6, beforeRk + sg));
+          if (sg < 0 && target.rank[rk] < beforeRk) target.statLoweredThisTurn = true;   // うっぷんばらし用(実際に下がった時だけ)
           log('9', `${target.poke.name} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
         }
       }
@@ -2517,7 +2534,7 @@ function runSingleAttack(atkSide, moveIdx){
     atk.sleepTurns--;
     if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${atk.poke.name} は 目をさました！`); }
   }
-  if (atk.status === 'sleep'){ disruptRampage(atk); log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'sleep'){ noteActionFailed(atk); log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); renderBattleLog(); renderBoth(); return; }
   // こおり: 解凍宣言技(フレアドライブ等=状態異常回復 self こおり)は こおり状態でも使えて、自分のこおりが とける
   if (atk.status === 'freeze' &&
       ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '状態異常回復' && e.target === 'self' &&
@@ -2525,8 +2542,8 @@ function runSingleAttack(atkSide, moveIdx){
     atk.status = 'none';
     log('0c', `${atk.poke.name} の こおりが とけた！`);
   }
-  if (atk.status === 'freeze' && Math.random() > 0.2){ disruptRampage(atk); log('0c', `${atk.poke.name} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
-  if (atk.status === 'paralysis' && Math.random() < 0.25){ disruptRampage(atk); log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${atk.poke.name} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
   // 使用条件(requires: オーロラベール=ゆきの時だけ等)。満たさなければ失敗(Bulbapedia "Aurora Veil")
   const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
   if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
@@ -2557,11 +2574,11 @@ function runSingleAttack(atkSide, moveIdx){
   if (startChargeIfNeeded(atk, mv, releasing)){ renderBattleLog(); renderBoth(); return; }
   // 命中判定
   const hit = phaseHitCheck(mv, atk, def);
-  if (!hit.hit){ log('0c', hit.reason); disruptRampage(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
+  if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
   // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
   if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
     log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
-    disruptRampage(atk);
+    noteActionFailed(atk);
     applyProtectPunishers(atk, def, mv);
     applyCrashDamage(atk, mv);
     applyHpCost(atk, mv);
@@ -2577,7 +2594,7 @@ function runSingleAttack(atkSide, moveIdx){
     if (!def.fainted) phaseApplyEffects(atkSide, defSide, mv);
     // あばれ(げきりん等): 攻撃成功で進行(開始/消費/終了→こんらん) / こうかなし・失敗は中断
     if (dmgRes && !dmgRes.immune && !dmgRes.failed) progressRampage(atk, mv);
-    else disruptRampage(atk);
+    else noteActionFailed(atk);
     // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
     if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
@@ -2647,6 +2664,13 @@ function runTurn(){
   // 「このターン行動済み」(しっぺがえし用)もターン開始でリセット
   sides.self.movedThisTurn = false;
   sides.opp.movedThisTurn = false;
+  // 「前ターンの失敗」(じだんだ用)を確定し、今ターン分をリセット
+  ['self','opp'].forEach(s => {
+    sides[s].lastTurnFailed = !!sides[s].failedThisTurn;
+    sides[s].failedThisTurn = false;
+    // 「このターン能力を下げられた」(うっぷんばらし用)もターン開始でリセット
+    sides[s].statLoweredThisTurn = false;
+  });
   log('Turn', '─── ターン開始 ───');
   const selfMove = sides.self.moves[sides.self.selectedMoveIdx];
   const oppMove  = sides.opp.moves[sides.opp.selectedMoveIdx];
@@ -2697,7 +2721,7 @@ function runTurn(){
       atk.sleepTurns--;
       if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${atk.poke.name} は 目をさました！`); }
     }
-    if (atk.status === 'sleep'){ disruptRampage(atk); log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); continue; }
+    if (atk.status === 'sleep'){ noteActionFailed(atk); log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); continue; }
     // こおり: 解凍宣言技(フレアドライブ等=状態異常回復 self こおり)は こおり状態でも使えて、自分のこおりが とける
     if (atk.status === 'freeze' &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '状態異常回復' && e.target === 'self' &&
@@ -2705,8 +2729,8 @@ function runTurn(){
       atk.status = 'none';
       log('0c', `${atk.poke.name} の こおりが とけた！`);
     }
-    if (atk.status === 'freeze' && Math.random() > 0.2){ disruptRampage(atk); log('0c', `${atk.poke.name} は こおっていて うごけない！`); continue; }
-    if (atk.status === 'paralysis' && Math.random() < 0.25){ disruptRampage(atk); log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); continue; }
+    if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${atk.poke.name} は こおっていて うごけない！`); continue; }
+    if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); continue; }
     // こんらん: 行動前に判定。残りターンを減らし、解けてなければ1/3で自分を攻撃して行動失敗。
     if (atk.confusion > 0){
       atk.confusion--;
@@ -2717,11 +2741,11 @@ function runTurn(){
         atk.currentHp = Math.max(0, atk.currentHp - dmg);
         log('0c', `${atk.poke.name} は わけもわからず じぶんを こうげきした！ (${dmg} ダメージ)`);
         if (atk.currentHp <= 0){ atk.fainted = true; log('0c', `${atk.poke.name} は ひんしになった！`); }
-        disruptRampage(atk);
+        noteActionFailed(atk);
         continue;
       }
     }
-    if (atk.flinched){ disruptRampage(atk); log('0c', `${atk.poke.name} は ひるんで うごけない！`); continue; }
+    if (atk.flinched){ noteActionFailed(atk); log('0c', `${atk.poke.name} は ひるんで うごけない！`); continue; }
     // ねこだまし/であいがしら: 場に出た最初のターン(turnsOut===0)以外は失敗
     if (isFirstTurnOnlyMove(mv) && atk.turnsOut > 0){
       log('0c', `${atk.poke.name} の ${mv.name} は 場に出た最初のターンしか出せない！`); continue;
@@ -2756,11 +2780,11 @@ function runTurn(){
     if (startChargeIfNeeded(atk, mv, releasing)) continue;
     // 命中判定
     const hit = phaseHitCheck(mv, atk, def);
-    if (!hit.hit){ log('0c', hit.reason); disruptRampage(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
+    if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
     // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
     if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
       log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
-      disruptRampage(atk);
+      noteActionFailed(atk);
       applyProtectPunishers(atk, def, mv);
       applyCrashDamage(atk, mv);
       applyHpCost(atk, mv);
@@ -2780,7 +2804,7 @@ function runTurn(){
     if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, a.opp, mv);
     // あばれ(げきりん等): 攻撃成功で進行(開始/消費/終了→こんらん) / こうかなし・失敗は中断
     if (dmgRes && !dmgRes.immune && !dmgRes.failed) progressRampage(atk, mv);
-    else disruptRampage(atk);
+    else noteActionFailed(atk);
     // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
     if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
