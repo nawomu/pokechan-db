@@ -1173,6 +1173,19 @@ function calcDamage(atkSide, defSide, move){
   const afterMul = bdEffects.find(e => e.kind === '条件威力倍率' && e.condition && e.condition.type === 'user_moves_after_target');
   if (afterMul && def.movedThisTurn) power *= (afterMul.multiplier || 2);
 
+  // 状態異常条件つき威力倍率(からげんき=自分の状態 / ベノムショック=相手の指定状態 / たたりめ・ひゃっきやこう=相手が状態異常なら何でも)
+  // 出典: Bulbapedia "Facade" / "Venoshock" / "Hex" / "Infernal Parade"(いずれも威力2倍)
+  const statusMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition &&
+    ['user_status_in', 'target_status_in', 'target_has_status_condition'].includes(e.condition.type));
+  if (statusMul){
+    const c = statusMul.condition;
+    const _SCODE = {'どく':'poison', 'もうどく':'badpoison', 'まひ':'paralysis', 'やけど':'burn', 'ねむり':'sleep', 'こおり':'freeze'};
+    const hit = c.type === 'user_status_in'   ? (c.values || []).some(v => _SCODE[v] === atk.status)
+              : c.type === 'target_status_in' ? (c.values || []).some(v => _SCODE[v] === def.status)
+              : def.status !== 'none';
+    if (hit) power *= (statusMul.multiplier || 2);
+  }
+
   // 天候条件つき威力倍率(ソーラービーム/ソーラーブレード: あめ/すなあらし/ゆきで威力半減。Bulbapedia "Solar Beam")
   const weatherMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'weather_in');
   if (weatherMul && weatherCondOk(weatherMul.condition, env.weather)) power = Math.floor(power * (weatherMul.multiplier || 1));
@@ -1286,8 +1299,9 @@ function calcDamage(atkSide, defSide, move){
     chips.push({label:'ダブル範囲', factor:0.75, kind:'env-down'});
   }
 
-  // 3.6) やけど物理 ×0.5（こんじょう除外）
-  if (atk.status === 'burn' && isPhys && atk.ability !== 'こんじょう'){
+  // 3.6) やけど物理 ×0.5（こんじょう除外・からげんき=データ宣言「やけど低下無視」も除外。Bulbapedia "Facade"第6世代以降）
+  if (atk.status === 'burn' && isPhys && atk.ability !== 'こんじょう' &&
+      !bdEffects.some(e => e.kind === 'やけど低下無視')){
     base = pokeRound(base, 2048);
     chips.push({label:'やけど', factor:0.5, kind:'env-down'});
   }
