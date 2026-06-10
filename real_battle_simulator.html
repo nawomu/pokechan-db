@@ -1204,6 +1204,27 @@ function calcDamage(atkSide, defSide, move){
             immune:true, reason:'こうかなし', recoil:0};
   }
 
+  // 適用された補正をチップ表示用に記録
+  const chips = [];
+
+  // フィールドの威力補正(データ宣言を読む: move_type/moves/multiplier/condition=接地)。
+  // @smogon/calc と同じく「威力」に掛けてからダメージ式へ(最終ダメージに掛けると丸めがズレる)。
+  // 補正は地面にいるポケモンだけ(攻め手接地=グラス/エレキ/サイコ、受け手接地=ミストのドラゴン半減/じしん半減)
+  for (const fr of fieldRules()){
+    if (fr.kind !== '場の威力補正') continue;
+    const ct = fr.condition && fr.condition.type;
+    const grounded = (ct === 'target_grounded') ? isGrounded(def) : isGrounded(atk); // user_grounded/grounded=攻め手
+    if (!grounded) continue;
+    const hitType = fr.move_type != null && fr.move_type === move.type;
+    const hitMove = Array.isArray(fr.moves) && fr.moves.includes(move.name);
+    if (!hitType && !hitMove) continue;
+    const mul = fr.multiplier || 1;
+    power = Math.max(1, pokeRound(power, Math.round(mul * 4096)));
+    const lbl = {grassy:'グラスF', electric:'エレキF', psychic:'サイコF', misty:'ミストF'}[env.field] || 'フィールド';
+    chips.push({label: hitMove ? `${lbl} 地震系` : (mul < 1 ? `${lbl} ${move.type}` : lbl),
+                factor: mul, kind: mul >= 1 ? 'env' : 'env-down'});
+  }
+
   // 攻撃側・防御側の能力値（ランク補正反映、急所時は攻撃-/防御+ を無視）
   const isPhys = move.category === '物理';
   // 常時急所技(やまあらし/こおりのいぶき/トリックフラワー): UIのトグルに関係なく急所×1.5
@@ -1219,9 +1240,6 @@ function calcDamage(atkSide, defSide, move){
   // ベースダメ（SVの内部式）
   // base = floor( floor( floor( (2L/5+2) * P * A / D ) / 50 ) ) + 2
   let base = Math.floor((2 * LEVEL / 5 + 2) * power * aStat / dStat / 50) + 2;
-
-  // 適用された補正をチップ表示用に記録
-  const chips = [];
 
   // === 補正適用（pokeRound 段階） ===
   // 1) 天候
@@ -1241,19 +1259,7 @@ function calcDamage(atkSide, defSide, move){
     chips.push({label:'ゆき こおり防御', factor:2/3, kind:'env-down'});
   }
 
-  // 2) フィールド
-  const flyingAtk = atkTypes.includes('ひこう');
-  if (env.field === 'electric' && move.type === 'でんき' && !flyingAtk){
-    base = pokeRound(base, 5325); chips.push({label:'エレキF', factor:1.3, kind:'env'});
-  } else if (env.field === 'grassy'){
-    if (move.type === 'くさ' && !flyingAtk){ base = pokeRound(base, 5325); chips.push({label:'グラスF', factor:1.3, kind:'env'}); }
-    if (['じしん','じならし','マグニチュード'].includes(move.name)){ base = pokeRound(base, 2048); chips.push({label:'グラスF 地震系', factor:0.5, kind:'env-down'}); }
-  } else if (env.field === 'psychic' && move.type === 'エスパー' && !flyingAtk){
-    base = pokeRound(base, 5325); chips.push({label:'サイコF', factor:1.3, kind:'env'});
-  } else if (env.field === 'misty' && move.type === 'ドラゴン'){
-    const defFlying = defTypes.includes('ひこう');
-    if (!defFlying){ base = pokeRound(base, 2048); chips.push({label:'ミストF ドラゴン', factor:0.5, kind:'env-down'}); }
-  }
+  // 2) フィールドの威力補正は「威力」段階で適用済み(上のデータ宣言ブロック=丸めを@smogon/calcに一致させる)
 
   // 3) 急所 ×1.5（crit は上で宣言済み）
   if (crit){ base = pokeRound(base, 6144); chips.push({label:'急所', factor:1.5, kind:'crit'}); }

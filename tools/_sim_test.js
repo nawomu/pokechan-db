@@ -1294,6 +1294,53 @@ console.log('\n=== 段㉚ まもりファミリー(まもる/みきり/キング
   resetEnv();
 }
 
+console.log('\n=== 段㉛ 場の威力補正(フィールドのダメージ補正: グラス1.3/じしん半減/エレキ1.3/サイコ1.3/ミスト=ドラゴン半減) ===');
+// 意味の出典(Bulbapedia "Grassy Terrain"/"Electric Terrain"/"Psychic Terrain"/"Misty Terrain"・第8世代以降は1.3倍):
+//   補正は「地面にいる」ポケモンだけ(攻め手接地=グラス/エレキ/サイコ、受け手接地=ミスト/じしん半減)。
+//   ゴールデン値=@smogon/calc Field({terrain})(フシギバナvsフシギバナ Lv50/IV31/P0)
+{
+  // T96 グラスフィールド: くさ技1.3倍(接地した攻め手)+じしん半減(接地した受け手)
+  resetEnv();
+  E.env.field = 'grassy';
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  const t96a = E.calcDamage('self', 'opp', moveByName('タネばくだん'));
+  check('T96 くさ技は1.3倍[14,17]', t96a && t96a.min === 14 && t96a.max === 17, JSON.stringify(t96a));
+  const t96b = E.calcDamage('self', 'opp', moveByName('じしん'));
+  check('T96 じしんは半減[19,23]', t96b && t96b.min === 19 && t96b.max === 23, JSON.stringify(t96b));
+
+  // T97 エレキフィールド: でんき技1.3倍(攻め手が接地している時だけ)
+  resetEnv();
+  E.env.field = 'electric';
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  const t97a = E.calcDamage('self', 'opp', moveByName('10まんボルト'));
+  check('T97 でんき技は1.3倍[22,26]', t97a && t97a.min === 22 && t97a.max === 26, JSON.stringify(t97a));
+  E.sides.self = freshSide('ピジョット', null);
+  const t97b = E.calcDamage('self', 'opp', moveByName('10まんボルト'));
+  check('T97 非接地(ピジョット)の でんき技は補正なし[13,15]', t97b && t97b.min === 13 && t97b.max === 15, JSON.stringify(t97b));
+
+  // T98 サイコフィールド: エスパー技1.3倍(接地した攻め手)
+  resetEnv();
+  E.env.field = 'psychic';
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  const t98 = E.calcDamage('self', 'opp', moveByName('サイコキネシス'));
+  check('T98 エスパー技は1.3倍[90,106]', t98 && t98.min === 90 && t98.max === 106, JSON.stringify(t98));
+
+  // T99 ミストフィールド: 接地した受け手へのドラゴン技は半減(非接地の受け手はそのまま)
+  resetEnv();
+  E.env.field = 'misty';
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  const t99a = E.calcDamage('self', 'opp', moveByName('りゅうのはどう'));
+  check('T99 接地した受け手へのドラゴン技は半減[17,20]', t99a && t99a.min === 17 && t99a.max === 20, JSON.stringify(t99a));
+  E.sides.opp = freshSide('ピジョット', null);
+  const t99b = E.calcDamage('self', 'opp', moveByName('りゅうのはどう'));
+  check('T99 非接地(ピジョット)の受け手は半減されない[43,51]', t99b && t99b.min === 43 && t99b.max === 51, JSON.stringify(t99b));
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
