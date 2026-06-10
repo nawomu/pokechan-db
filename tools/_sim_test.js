@@ -2309,6 +2309,43 @@ console.log('\n=== 段㊼ こらえる(優先度+4・技の直撃をHP1で耐え
   resetEnv();
 }
 
+console.log('\n=== 段㊽ じゅうでん(とくぼう+1・次のでんき技の威力2倍) ===');
+// 出典: Bulbapedia "Charge"(とくぼう+1。次に使うでんきタイプのダメージ技の威力が2倍。
+//       でんき技を使うまで効果が続き[第9世代]、でんき技を使うと消費される)
+{
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'juuden');
+  E.sides.opp = freshSide('カメックス', null);
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T145 とくぼう+1', E.sides.self.rank.spdef === 1, `spdef=${E.sides.self.rank.spdef}`);
+  check('T145b じゅうでん状態が立つ', !!E.sides.self.chargeBoost, `chargeBoost=${JSON.stringify(E.sides.self.chargeBoost || null)}`);
+  // でんき技の威力約2倍 / でんき以外は不変
+  const mvTB = moveByName('10まんボルト');
+  const mvSB = moveByName('タネばくだん');
+  const _cb = E.sides.self.chargeBoost || {move_type:'でんき', multiplier:2};
+  E.sides.self.chargeBoost = null;
+  const tbN = E.calcDamage('self', 'opp', mvTB);
+  const sbN = E.calcDamage('self', 'opp', mvSB);
+  E.sides.self.chargeBoost = _cb;
+  const tbC = E.calcDamage('self', 'opp', mvTB);
+  const sbC = E.calcDamage('self', 'opp', mvSB);
+  check('T145c でんき技が約2倍', tbN && tbC && tbC.min >= Math.floor(tbN.min * 1.8) && tbC.min <= Math.ceil(tbN.min * 2.2),
+    tbN && tbC && `通常=${tbN.min} じゅうでん=${tbC.min} (比=${(tbC.min / tbN.min).toFixed(3)})`);
+  check('T145d でんき以外は不変', sbN && sbC && sbC.min === sbN.min, sbN && sbC && `通常=${sbN.min} じゅうでん中=${sbC.min}`);
+  // 持続と消費: でんき以外の技を使っても残る → でんき技を使うと消費される
+  E.sides.self.moves = [mvSB]; E.sides.self.selectedMoveIdx = 0;
+  E.runTurn();
+  check('T145e でんき以外を使っても消費されない', !!E.sides.self.chargeBoost, `chargeBoost=${JSON.stringify(E.sides.self.chargeBoost || null)}`);
+  const oppMax = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppMax; E.sides.opp.fainted = false;
+  E.sides.self.moves = [mvTB]; E.sides.self.selectedMoveIdx = 0;
+  E.runTurn();
+  check('T145f でんき技は2倍で当たり消費される', E.sides.opp.currentHp === Math.max(0, oppMax - tbC.min) && !E.sides.self.chargeBoost,
+    `残HP=${E.sides.opp.currentHp} 期待=${Math.max(0, oppMax - tbC.min)}(2倍=${tbC.min}/等倍=${tbN.min}) chargeBoost=${JSON.stringify(E.sides.self.chargeBoost || null)}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
