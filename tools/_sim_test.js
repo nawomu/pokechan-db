@@ -3587,6 +3587,80 @@ console.log('\n=== 段69 みらいよち(遅延攻撃) ===');
   resetEnv();
 }
 
+console.log('\n=== 段70 ねごと(ランダム技)・ねむり専用技ゲート ===');
+{
+  resetEnv();
+  // ねごと: ねむり状態の時だけ使え、自分のほかの技をランダムに1つくりだす。
+  // 出典: Bulbapedia "Sleep Talk"
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ねごと'), moveByName('タネばくだん')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.status = 'sleep';          // UI手動ねむり(カウンタなし=眠り続ける)
+  E.sides.opp = freshSide('ゲンガー', null);   // タネばくだん=くさ ×1。HP135
+  E.sides.opp.moves = [moveByName('はたく')];  // はたく=ノーマルはゲンガー側が使う技。フシギバナへ×1だが
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';                // 相手も眠らせてノイズゼロにする
+  E.setRandom(() => 0.0);
+  E.runTurn();   // ねごと→タネばくだん が出る
+  check('T171 ねむり中のねごとで ほかの技が出る',
+    E.sides.opp.currentHp < 135,
+    `ゲンガーHP=${E.sides.opp.currentHp}(135未満期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // 起きている時のねごとは失敗する(requires self_status ねむり)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ねごと'), moveByName('タネばくだん')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T171b 起きている時のねごとは失敗する',
+    E.sides.opp.currentHp === 135,
+    `ゲンガーHP=${E.sides.opp.currentHp}(135=無傷期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // いびき: ねむり状態の時だけ出せる攻撃技(requires self_status ねむり)。
+  // 出典: Bulbapedia "Snore"
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('いびき')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.status = 'sleep';
+  E.sides.opp = freshSide('カメックス', null);  // HP154・いびき=ノーマル×1
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T171c ねむり中のいびきは攻撃できる',
+    E.sides.opp.currentHp < 154,
+    `カメックスHP=${E.sides.opp.currentHp}(154未満期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // 起きている時のいびきは失敗する
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('いびき')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カメックス', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T171d 起きている時のいびきは失敗する',
+    E.sides.opp.currentHp === 154,
+    `カメックスHP=${E.sides.opp.currentHp}(154=無傷期待)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

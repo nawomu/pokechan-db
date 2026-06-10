@@ -3157,7 +3157,12 @@ function runSingleAttack(atkSide, moveIdx){
     atk.sleepTurns--;
     if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${atk.poke.name} は 目をさました！`); }
   }
-  if (atk.status === 'sleep'){ noteActionFailed(atk); log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); renderBattleLog(); renderBoth(); return; }
+  // ねむり専用技(いびき/ねごと=requires self_status ねむり)だけは眠ったまま出せる(Bulbapedia "Snore"/"Sleep Talk")
+  if (atk.status === 'sleep'){
+    const _sleepOK = ((mv.battle_data && mv.battle_data.requires) || []).some(rq => rq.type === 'self_status' && rq.value === 'ねむり');
+    log('0c', `${atk.poke.name} は ぐうぐう眠っている！`);
+    if (!_sleepOK){ noteActionFailed(atk); renderBattleLog(); renderBoth(); return; }
+  }
   // こおり: 解凍宣言技(フレアドライブ等=状態異常回復 self こおり)は こおり状態でも使えて、自分のこおりが とける
   if (atk.status === 'freeze' &&
       ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '状態異常回復' && e.target === 'self' &&
@@ -3172,6 +3177,29 @@ function runSingleAttack(atkSide, moveIdx){
   if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
     log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`);
     renderBattleLog(); renderBoth(); return;
+  }
+  // 使用条件(requires self_status: いびき/ねごと=自分がねむりの時だけ)。満たさなければ失敗
+  const _reqS = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'self_status');
+  if (_reqS && !(_reqS.value === 'ねむり' && atk.status === 'sleep')){
+    log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(${_reqS.value}状態ではない)`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
+  // ランダム技(ねごと): 自分のほかの技をランダムに1つくりだす(ねごと系・溜め技は呼べない=近似)。
+  // 出典: Bulbapedia "Sleep Talk"
+  const _randEf = ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'ランダム技');
+  if (_randEf){
+    const _cands = (atk.moves || []).filter(m => m && m.name !== mv.name &&
+      !((m.battle_data && m.battle_data.effects) || []).some(e =>
+        e.kind === 'ランダム技' || e.kind === '直前技模倣' || e.kind === '2ターン目に攻撃'));
+    if (!_cands.length){
+      log('0c', `${atk.poke.name} の ${mv.name}！ しかし だせる技がない！`);
+      noteActionFailed(atk);
+      renderBattleLog(); renderBoth(); return;
+    }
+    const _pick = _cands[Math.floor(Math.random() * _cands.length)];
+    log('0c', `${atk.poke.name} は ${mv.name} で ${_pick.name} を くりだした！`);
+    mv = _pick;
   }
   // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
   if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
@@ -3432,7 +3460,12 @@ function runTurn(){
       atk.sleepTurns--;
       if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${atk.poke.name} は 目をさました！`); }
     }
-    if (atk.status === 'sleep'){ noteActionFailed(atk); log('0c', `${atk.poke.name} は ぐうぐう眠っている！`); continue; }
+    // ねむり専用技(いびき/ねごと=requires self_status ねむり)だけは眠ったまま出せる(Bulbapedia "Snore"/"Sleep Talk")
+    if (atk.status === 'sleep'){
+      const _sleepOK = ((mv.battle_data && mv.battle_data.requires) || []).some(rq => rq.type === 'self_status' && rq.value === 'ねむり');
+      log('0c', `${atk.poke.name} は ぐうぐう眠っている！`);
+      if (!_sleepOK){ noteActionFailed(atk); continue; }
+    }
     // こおり: 解凍宣言技(フレアドライブ等=状態異常回復 self こおり)は こおり状態でも使えて、自分のこおりが とける
     if (atk.status === 'freeze' &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '状態異常回復' && e.target === 'self' &&
@@ -3465,6 +3498,26 @@ function runTurn(){
     const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
     if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
       log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`); continue;
+    }
+    // 使用条件(requires self_status: いびき/ねごと=自分がねむりの時だけ)。満たさなければ失敗
+    const _reqS = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'self_status');
+    if (_reqS && !(_reqS.value === 'ねむり' && atk.status === 'sleep')){
+      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(${_reqS.value}状態ではない)`);
+      noteActionFailed(atk); continue;
+    }
+    // ランダム技(ねごと): 自分のほかの技をランダムに1つくりだす(ねごと系・溜め技は呼べない=近似)。
+    // 出典: Bulbapedia "Sleep Talk"
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'ランダム技')){
+      const _cands = (atk.moves || []).filter(m => m && m.name !== mv.name &&
+        !((m.battle_data && m.battle_data.effects) || []).some(e =>
+          e.kind === 'ランダム技' || e.kind === '直前技模倣' || e.kind === '2ターン目に攻撃'));
+      if (!_cands.length){
+        log('0c', `${atk.poke.name} の ${mv.name}！ しかし だせる技がない！`);
+        noteActionFailed(atk); continue;
+      }
+      const _pick = _cands[Math.floor(Math.random() * _cands.length)];
+      log('0c', `${atk.poke.name} は ${mv.name} で ${_pick.name} を くりだした！`);
+      mv = _pick;
     }
     // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
