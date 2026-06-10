@@ -1437,6 +1437,62 @@ console.log('\n=== 段㉜ 自分瀕死(じばく/だいばくはつ/ミストバ
   resetEnv();
 }
 
+console.log('\n=== 段㉝ 失敗ダメージ(とびひざげり/かかとおとし/サンダーダイブ: 外したら自分が最大HPの半分のダメージ) ===');
+// 意味の出典(Bulbapedia "High Jump Kick"/"Axe Kick"/"Supercell Slam"):
+//   外れた時・守られた時・こうかなし(ゴースト等)の時、自分が最大HPの半分のダメージを受ける(第5世代以降)。
+//   当たった時は反動なし。ゴールデン値=@smogon/calc(とびひざげり フシギバナvsフシギバナ [24,29])
+{
+  // T106 とびひざげり: 当たれば反動なし/外したら最大HP半分(155→77)/こうかなし(ゴースト)でも反動
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('とびひざげり')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.rank.spd = 6;   // 同速ランダムを避けて必ず先攻
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  const t106 = E.calcDamage('self', 'opp', moveByName('とびひざげり'));
+  check('T106 とびひざげりのダメージ[24,29]', t106 && t106.min === 24 && t106.max === 29, JSON.stringify(t106));
+  const t106max = E.realStat(E.sides.self, 'hp');
+  E.setRandom(() => 0);        // 命中(0 < 90)
+  E.runTurn();
+  check('T106 当たれば反動なし(相手のはたく分だけ減る)', E.sides.self.currentHp > t106max - 30, `hp=${E.sides.self.currentHp}/${t106max}`);
+  E.sides.self.currentHp = t106max; E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.setRandom(() => 0.95);     // 95 > 90 → 外れる
+  E.runTurn();
+  check('T106 外したら最大HPの半分(77)の反動', E.sides.self.currentHp <= t106max - 77, `hp=${E.sides.self.currentHp}(期待${t106max - 77}以下)`);
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('とびひざげり')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.rank.spd = 6;
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0);
+  E.runTurn();
+  check('T106 こうかなし(ゴースト)でも反動(77)', E.sides.self.currentHp <= t106max - 77, `hp=${E.sides.self.currentHp}`);
+
+  // T107 守られても反動
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('とびひざげり')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('まもる')]; E.sides.opp.selectedMoveIdx = 0;
+  const t107max = E.realStat(E.sides.self, 'hp');
+  E.setRandom(() => 0);
+  E.runTurn();
+  check('T107 守られたら反動(77)', E.sides.self.currentHp === t107max - 77, `hp=${E.sides.self.currentHp}(期待${t107max - 77})`);
+
+  // T108 かかとおとし/サンダーダイブも同じ仕組み(外したら半分)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('かかとおとし')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.rank.spd = 6;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('まもる')]; E.sides.opp.selectedMoveIdx = 0;
+  const t108max = E.realStat(E.sides.self, 'hp');
+  E.setRandom(() => 0);
+  E.runTurn();
+  check('T108 かかとおとしも守られたら反動(77)', E.sides.self.currentHp === t108max - 77, `hp=${E.sides.self.currentHp}(期待${t108max - 77})`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

@@ -1867,6 +1867,20 @@ function applySelfFaint(atk){
   log('9', `${atk.poke.name} は ひんしになった！`);
 }
 
+// 失敗ダメージ(とびひざげり/かかとおとし/サンダーダイブ):
+//   外れた・守られた・こうかなしの時、自分が最大HPの半分のダメージ(第5世代以降)。
+//   (Bulbapedia "High Jump Kick"/"Axe Kick"/"Supercell Slam": crash damage = 1/2 max HP)
+function applyCrashDamage(atk, mv){
+  if (atk.fainted) return;
+  const ef = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '失敗ダメージ');
+  if (!ef) return;
+  const max = realStat(atk, 'hp');
+  const dmg = Math.max(1, Math.floor(max * (ef.fraction || 0.5)));
+  atk.currentHp = Math.max(0, (atk.currentHp == null ? max : atk.currentHp) - dmg);
+  log('9', `${atk.poke.name} は いきおいあまって たおれた！ (${dmg} ダメージ・残りHP ${atk.currentHp})`);
+  if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
+}
+
 function phaseApplyEffects(atkSide, defSide, move){
   if (!move || !move.battle_data || !move.battle_data.effects) return;
   const atk = sides[atkSide];
@@ -2223,11 +2237,12 @@ function runSingleAttack(atkSide, moveIdx){
   if (startChargeIfNeeded(atk, mv, releasing)){ renderBattleLog(); renderBoth(); return; }
   // 命中判定
   const hit = phaseHitCheck(mv, atk, def);
-  if (!hit.hit){ log('0c', hit.reason); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
+  if (!hit.hit){ log('0c', hit.reason); applyCrashDamage(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
   // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
   if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
     log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
     applyProtectPunishers(atk, def, mv);
+    applyCrashDamage(atk, mv);
     if (_selfKOAlways) applySelfFaint(atk);
     renderBattleLog(); renderBoth(); return;
   }
@@ -2241,6 +2256,8 @@ function runSingleAttack(atkSide, moveIdx){
     // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
     if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
+    // 失敗ダメージ(とびひざげり系): こうかなしの時も反動を受ける
+    if (dmgRes && dmgRes.immune) applyCrashDamage(atk, mv);
     // 自分瀕死: 威力あり=結果に関係なく / 威力なし(いのちがけ)=当たった時だけ
     if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
   }
@@ -2396,11 +2413,12 @@ function runTurn(){
     if (startChargeIfNeeded(atk, mv, releasing)) continue;
     // 命中判定
     const hit = phaseHitCheck(mv, atk, def);
-    if (!hit.hit){ log('0c', hit.reason); if (_selfKOAlways) applySelfFaint(atk); continue; }
+    if (!hit.hit){ log('0c', hit.reason); applyCrashDamage(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
     // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
     if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
       log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
       applyProtectPunishers(atk, def, mv);
+      applyCrashDamage(atk, mv);
       if (_selfKOAlways) applySelfFaint(atk);
       continue;
     }
@@ -2418,6 +2436,8 @@ function runTurn(){
     // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
     if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
+    // 失敗ダメージ(とびひざげり系): こうかなしの時も反動を受ける
+    if (dmgRes && dmgRes.immune) applyCrashDamage(atk, mv);
     // 自分瀕死: 威力あり=結果に関係なく / 威力なし(いのちがけ)=当たった時だけ
     if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
   }
