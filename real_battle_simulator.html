@@ -1313,6 +1313,8 @@ function calcDamage(atkSide, defSide, move){
   // タイプ相性（フライングプレス=技タイプ追加: かくとう×ひこうの複合で判定。Bulbapedia "Flying Press"）
   const extraTypeEf = bdEffects.find(e => e.kind === '技タイプ追加');
   const moveTypes = [moveType].concat(extraTypeEf && extraTypeEf.value ? [extraTypeEf.value] : []);
+  // 相性上書き(フリーズドライ): 指定タイプに対しては相性表に関係なく こうかばつぐん(×2)。Bulbapedia "Freeze-Dry"
+  const matchOvr = bdEffects.find(e => e.kind === '相性上書き' && e.effectiveness === 'super_effective');
   let eff = 1;
   moveTypes.forEach(mt=>{
     const mtIdx = TYPES.indexOf(mt);
@@ -1322,6 +1324,7 @@ function calcDamage(atkSide, defSide, move){
       if (dtIdx < 0) return;
       // じゅうりょく: ひこうも地面にいる扱い→じめん技の「こうかなし」だけ消える(等倍。Bulbapedia "Gravity")
       if (env.gravity && mt === 'じめん' && dt === 'ひこう') return;
+      if (matchOvr && dt === matchOvr.against_type){ eff *= 2; return; }
       eff *= TYPE_CHART[mtIdx][dtIdx];
     });
   });
@@ -2626,6 +2629,16 @@ function phaseApplyEffects(atkSide, defSide, move){
         target.typeOverride = [..._cur, ef.value];
         log('9', `${target.poke.name} に ${ef.value}タイプが 追加された！`);
       }
+    } else if (ef.kind === 'いたみわけ'){
+      // いたみわけ: 自分と相手の今のHPを合計して半分ずつ(切り捨て)に分ける。最大HPは超えない(超過分は消える)。
+      // ダイマックス補正はsim未実装のため考慮しない。出典: Bulbapedia "Pain Split"
+      const _aMax = realStat(atk, 'hp'), _dMax = realStat(def, 'hp');
+      if (atk.currentHp == null) atk.currentHp = _aMax;
+      if (def.currentHp == null) def.currentHp = _dMax;
+      const _avg = Math.floor((atk.currentHp + def.currentHp) / 2);
+      atk.currentHp = Math.min(_aMax, _avg);
+      def.currentHp = Math.min(_dMax, _avg);
+      log('9', `${atk.poke.name} と ${def.poke.name} は いたみを 分けあった！(おたがい HP ${_avg})`);
     } else if (ef.kind === 'タイプ除去'){
       // もえつきる: 攻撃後、自分から指定タイプが消える(純ほのおならタイプなしになる)。
       // 「自分がそのタイプでない時は技ごと失敗」は phaseDealDamage 側のゲートが担当。出典: Bulbapedia "Burn Up"
