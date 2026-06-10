@@ -1380,7 +1380,16 @@ function calcDamage(atkSide, defSide, move){
   }
 
   // 攻撃側・防御側の能力値（ランク補正反映、急所時は攻撃-/防御+ を無視）
-  const isPhys = move.category === '物理';
+  let isPhys = move.category === '物理';
+  // シェルアームズ(物理特殊自動): 物理(こうげき/ぼうぎょ)と特殊(とくこう/とくぼう)で仮ダメージを
+  // 計算して高くなるほうのカテゴリで撃つ。同値は特殊のまま(実機は乱数=sim決定論のための近似)。
+  // 出典: Bulbapedia "Shell Side Arm"
+  const autoCatEf = bdEffects.find(e => e.kind === '物理特殊自動');
+  if (autoCatEf){
+    const _pp = Math.floor(Math.floor((2 * LEVEL / 5 + 2) * power * rankedStat(atk, 'atk', {role:'atk'}) / rankedStat(def, 'def', {role:'def'})) / 50);
+    const _sp = Math.floor(Math.floor((2 * LEVEL / 5 + 2) * power * rankedStat(atk, 'spatk', {role:'atk'}) / rankedStat(def, 'spdef', {role:'def'})) / 50);
+    isPhys = _pp > _sp;
+  }
   // 常時急所技(やまあらし/こおりのいぶき/トリックフラワー): UIのトグルに関係なく急所×1.5
   const crit   = atk.critical || !!(move.battle_data && move.battle_data.must_crit);
   const aKey = isPhys ? 'atk'  : 'spatk';
