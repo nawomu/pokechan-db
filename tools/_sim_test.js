@@ -721,6 +721,62 @@ console.log('\n=== 段㉓ ダメージ式の特殊4族(防御参照/常時急所
   check('T63 フライングプレス(かくとう+ひこう複合相性)=[38,45]', eq(t63, [38, 45]), JSON.stringify(t63));
 }
 
+console.log('\n=== 段㉔ 条件技(fails_if/条件威力倍率: ポルターガイスト/アイアンローラー/しっぺがえし) ===');
+// 期待値の出典: @smogon/calc(同条件: フシギバナvsフシギバナ Lv50/IV31/P0/補正なし)
+//   Poltergeist(相手オボンのみ持ち)=[41,49] / Steel Roller(グラスフィールド)=[49,58] / Payback(2倍時)=[38,45]
+// 意味の出典(Bulbapedia):
+//   "Poltergeist" — 相手が道具を持っていないと失敗
+//   "Steel Roller" — フィールドが何も無いと失敗。成功するとフィールドを消す
+//   "Payback"(しっぺがえし) — 相手がそのターン先に行動していたら威力2倍(50→100)
+// fails_if/効果はすべて battle_data に既存(スキーマ追加なし=エンジンが読むだけ)
+{
+  resetEnv();
+  const dmg = (ja, setup) => {
+    E.sides.self = freshSide('フシギバナ', null);
+    E.sides.opp = freshSide('フシギバナ', null);
+    E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+    if (setup) setup(E.sides.self, E.sides.opp);
+    const r = E.calcDamage('self', 'opp', moveByName(ja));
+    return r && !r.immune ? [r.min, r.max] : (r && r.immune ? 'fail' : null);
+  };
+  const eq = (a, b) => Array.isArray(a) && a[0] === b[0] && a[1] === b[1];
+
+  // T64 ポルターガイスト
+  const t64a = dmg('ポルターガイスト');
+  check('T64 ポルターガイスト 相手道具なし→失敗', t64a === 'fail', JSON.stringify(t64a));
+  const t64b = dmg('ポルターガイスト', (self, opp) => { opp.item = 'oran_berry'; });
+  check('T64 ポルターガイスト 相手道具あり=[41,49]', eq(t64b, [41, 49]), JSON.stringify(t64b));
+
+  // T65 アイアンローラー
+  const t65a = dmg('アイアンローラー');
+  check('T65 アイアンローラー フィールドなし→失敗', t65a === 'fail', JSON.stringify(t65a));
+  E.env.field = 'grassy';
+  const t65b = dmg('アイアンローラー');
+  check('T65 アイアンローラー グラスF=[49,58]', eq(t65b, [49, 58]), JSON.stringify(t65b));
+  E.env.field = 'none';
+
+  // T66 しっぺがえし
+  const t66a = dmg('しっぺがえし');
+  check('T66 しっぺがえし 相手未行動=[19,23](威力50)', eq(t66a, [19, 23]), JSON.stringify(t66a));
+  const t66b = dmg('しっぺがえし', (self, opp) => { opp.movedThisTurn = true; });
+  check('T66 しっぺがえし 相手行動済=[38,45](威力100)', eq(t66b, [38, 45]), JSON.stringify(t66b));
+
+  // T67 runTurn統合: アイアンローラー成功でフィールドが消える / movedThisTurnがターン内で立つ
+  resetEnv();
+  E.env.field = 'grassy';
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('アイアンローラー')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.setRandom(mulberry32(20260610));
+  E.sides.self.currentHp = E.realStat(E.sides.self, 'hp');
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.runTurn();
+  check('T67 アイアンローラー成功後にフィールドが消える', E.env.field === 'none', `field=${E.env.field}`);
+  check('T67 行動済みフラグが両側に立つ', E.sides.self.movedThisTurn === true && E.sides.opp.movedThisTurn === true,
+    `self=${E.sides.self.movedThisTurn} opp=${E.sides.opp.movedThisTurn}`);
+  E.env.field = 'none';
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

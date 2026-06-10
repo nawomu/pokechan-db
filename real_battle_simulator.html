@@ -965,6 +965,8 @@ function makeSideState(){
     disguise: false,
     // このターンに技で受けたダメージ(最後の1発・カウンター/ミラーコート/メタルバースト用)。ターン開始でリセット。
     tookThisTurn: {phys:0, spec:0, any:0},
+    // このターンすでに行動枠を消費したか(しっぺがえし=user_moves_after_target 用)。ターン開始でリセット。
+    movedThisTurn: false,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1131,9 +1133,27 @@ function calcDamage(atkSide, defSide, move){
   // 技ごとの特殊効果(battle_data.effects)をダメージ式が読む
   const bdEffects = (move.battle_data && move.battle_data.effects) || [];
 
+  // 失敗条件(battle_data.fails_if): データが宣言する不発条件をダメージ式でも見る
+  // ポルターガイスト=相手が道具なしで失敗 / アイアンローラー=フィールドが無いと失敗(Bulbapedia "Poltergeist"/"Steel Roller")
+  const failsIf = (move.battle_data && move.battle_data.fails_if) || [];
+  if (failsIf.some(f => f.type === 'target_has_no_item') && !def.item){
+    const hp = realStat(def, 'hp');
+    return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
+            immune:true, reason:'相手が道具を持っていないので失敗', recoil:0};
+  }
+  if (failsIf.some(f => f.type === 'no_terrain_active') && env.field === 'none'){
+    const hp = realStat(def, 'hp');
+    return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
+            immune:true, reason:'フィールドが はられていないので失敗', recoil:0};
+  }
+
   // アクロバット: 使用者が道具を持っていないと威力倍化(Bulbapedia "Acrobatics" ×2)
   const noItemMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'user_has_no_held_item');
   if (noItemMul && !atk.item) power *= (noItemMul.multiplier || 2);
+
+  // しっぺがえし: このターン相手がすでに行動していたら威力倍化(Bulbapedia "Payback" ×2・行動順ベース)
+  const afterMul = bdEffects.find(e => e.kind === '条件威力倍率' && e.condition && e.condition.type === 'user_moves_after_target');
+  if (afterMul && def.movedThisTurn) power *= (afterMul.multiplier || 2);
 
   const atkOrigTypes = [atk.poke.type1, atk.poke.type2].filter(Boolean);
   const atkTypes = atkOrigTypes;
@@ -1787,6 +1807,14 @@ function phaseApplyEffects(atkSide, defSide, move){
         target.currentHp = Math.min(max, target.currentHp + heal);
         log('9', `${target.poke.name} は HPを ${heal} 回復！ (残HP ${target.currentHp})`);
       }
+    } else if (ef.kind === 'フィールド除去'){
+      // アイアンローラー等: 攻撃が当たったらフィールドを消す(Bulbapedia "Steel Roller"・失敗時は来ない=immune時effects不発)
+      const FMAP = {'グラスフィールド':'grassy','ミストフィールド':'misty','エレキフィールド':'electric','サイコフィールド':'psychic'};
+      const removable = (ef.values || []).map(v => FMAP[v] || v);
+      if (env.field !== 'none' && removable.includes(env.field)){
+        env.field = 'none';
+        log('9', `フィールドが こわれて消えた！`);
+      }
     }
   }
 }
@@ -1946,6 +1974,9 @@ function runTurn(){
   // 「このターン受けたダメージ」(倍返し用)もターン開始でリセット
   sides.self.tookThisTurn = {phys:0, spec:0, any:0};
   sides.opp.tookThisTurn = {phys:0, spec:0, any:0};
+  // 「このターン行動済み」(しっぺがえし用)もターン開始でリセット
+  sides.self.movedThisTurn = false;
+  sides.opp.movedThisTurn = false;
   log('Turn', '─── ターン開始 ───');
   const selfMove = sides.self.moves[sides.self.selectedMoveIdx];
   const oppMove  = sides.opp.moves[sides.opp.selectedMoveIdx];
@@ -1977,6 +2008,8 @@ function runTurn(){
   for (const a of order){
     const atk = sides[a.side];
     const def = sides[a.opp];
+    // 行動枠の消費を記録(しっぺがえし=行動順ベース。ねむり等で不発でも枠は先に過ぎた扱い)
+    atk.movedThisTurn = true;
     if (atk.fainted){ log(a.side, `${atk.poke.name} は ひんし状態のため行動できない`); continue; }
     if (!a.move){ log(a.side, `${atk.poke.name} は技を選択していない`); continue; }
     // ねむり・こおり等
