@@ -3480,6 +3480,50 @@ console.log('\n=== 段66 はねやすめ(タイプ一時無効) ===');
   resetEnv();
 }
 
+console.log('\n=== 段67 じごくづき(カテゴリ封じ)・必ず急所回帰 ===');
+{
+  resetEnv();
+  // じごくづき: 当てた相手は2ターンの間 音技(blocked_moves 31技)が出せない。
+  // 出典: Bulbapedia "Throat Chop"(当たったターンを1ターン目と数える)
+  E.sides.self = freshSide('リザードン', null);   // spd120=先手
+  E.sides.self.moves = [moveByName('じごくづき'), moveByName('ロックオン')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);    // spd100
+  E.sides.opp.moves = [moveByName('ハイパーボイス')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // T1: じごくづき命中→同ターンのハイパーボイスは封じられる
+  check('T167 じごくづきを受けた直後のターン 音技が出せない',
+    E.sides.self.currentHp === 153,
+    `リザードンHP=${E.sides.self.currentHp}(153=無傷期待)`);
+  E.sides.self.selectedMoveIdx = 1;
+  E.runTurn();   // T2: 自分はロックオン。相手はまだ封じ(2ターン目)
+  check('T167b 2ターン目も音技が出せない',
+    E.sides.self.currentHp === 153,
+    `リザードンHP=${E.sides.self.currentHp}(153=無傷期待)`);
+  E.runTurn();   // T3: 封じが切れてハイパーボイスが当たる
+  check('T167c 3ターン目は封じが切れて音技が当たる',
+    E.sides.self.currentHp < 153,
+    `リザードンHP=${E.sides.self.currentHp}(153未満期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // 必ず急所(やまあらし must_crit): 既存実装(calcDamage の must_crit)の回帰ガード。
+  // 急所はランク補正(防御+)を無視し×1.5 → 通常より大きいダメージになる。出典: Bulbapedia "Storm Throw"
+  E.sides.self = freshSide('リザードン', null);
+  E.sides.self.moves = [moveByName('やまあらし')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(() => 0.0);
+  const _crit = E.calcDamage('self', 'opp', moveByName('やまあらし'));
+  const _chips = (_crit.chips || []).map(c => c.kind);
+  check('T168 やまあらし(必ず急所)は急所トグルなしでも急所×1.5が乗る',
+    _chips.includes('crit'),
+    `chips=${_chips.join(',')}(crit含む期待)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

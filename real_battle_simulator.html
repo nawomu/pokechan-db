@@ -1011,6 +1011,9 @@ function makeSideState(){
     tormented: false,
     // ふういん: 自分が知っている技を相手は出せない(自分が場にいる間)
     imprison: false,
+    // じごくづき: >0の間、音技(soundBlockedMoves のリスト)が出せない(ターン終了ごとに1減る)
+    soundBlocked: 0,
+    soundBlockedMoves: null,
     // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等): {atk: 数値, ...} / null。
     // realStat がこれを最優先で返す(ランク補正はその上に乗る)。場を離れる/リセットで消える。
     statOverride: null,
@@ -2639,6 +2642,12 @@ function phaseApplyEffects(atkSide, defSide, move){
         atk.imprison = true;
         log('9', `${atk.poke.name} は あいての技を ふういんした！`);
       }
+    } else if (ef.kind === 'カテゴリ封じ'){
+      // じごくづき: 2ターンの間(当てたターンを含む)音技が出せない。
+      // 封じる技は effects の blocked_moves リスト(SSOT)をそのまま使う。出典: Bulbapedia "Throat Chop"
+      target.soundBlocked = ef.duration || 2;
+      target.soundBlockedMoves = (ef.blocked_moves || []).slice();
+      log('9', `${target.poke.name} は ${ef.duration || 2}ターンの間 音の技が だせなくなった！`);
     } else if (ef.kind === 'ちょうはつ'){
       // ちょうはつ: 3ターンの間(使われたターンを含む)変化技を出せない。すでにちょうはつ状態なら失敗。
       // 出典: Bulbapedia "Taunt"(第5世代以降は3ターン)
@@ -3021,6 +3030,8 @@ function snapshotBattleState(){
     lockOn: st.lockOn || 0,                                      // ロックオンも一手戻せるように
     tormented: !!st.tormented,                                   // いちゃもんも一手戻せるように
     imprison: !!st.imprison,                                     // ふういんも一手戻せるように
+    soundBlocked: st.soundBlocked || 0,                          // じごくづきも一手戻せるように
+    soundBlockedMoves: st.soundBlockedMoves ? [...st.soundBlockedMoves] : null,
     electrified: st.electrified || null,                         // そうでんも一手戻せるように
     typeSuppressed: st.typeSuppressed || null,                   // はねやすめも一手戻せるように
   });
@@ -3077,6 +3088,8 @@ function undoBattle(){
     st.lockOn = src.lockOn || 0;                                       // ロックオンの巻き戻し
     st.tormented = !!src.tormented;                                    // いちゃもんの巻き戻し
     st.imprison = !!src.imprison;                                      // ふういんの巻き戻し
+    st.soundBlocked = src.soundBlocked || 0;                           // じごくづきの巻き戻し
+    st.soundBlockedMoves = src.soundBlockedMoves ? [...src.soundBlockedMoves] : null;
     st.electrified = src.electrified || null;                          // そうでんの巻き戻し
     st.typeSuppressed = src.typeSuppressed || null;                    // はねやすめの巻き戻し
   };
@@ -3184,6 +3197,12 @@ function runSingleAttack(atkSide, moveIdx){
       ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次ターン使用不可')){
     log('0c', `${atk.poke.name} は ${mv.name} を 連続では だせない！`);
     atk.lastMove = null;
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
+  // じごくづき(カテゴリ封じ): 音技が出せない(Bulbapedia "Throat Chop")
+  if (atk.soundBlocked > 0 && atk.soundBlockedMoves && atk.soundBlockedMoves.includes(mv.name)){
+    log('0c', `${atk.poke.name} は じごくづきの ダメージで ${mv.name} が だせない！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
@@ -3447,6 +3466,11 @@ function runTurn(){
       atk.lastMove = null;
       noteActionFailed(atk); continue;
     }
+    // じごくづき(カテゴリ封じ): 音技が出せない(Bulbapedia "Throat Chop")
+    if (atk.soundBlocked > 0 && atk.soundBlockedMoves && atk.soundBlockedMoves.includes(mv.name)){
+      log('0c', `${atk.poke.name} は じごくづきの ダメージで ${mv.name} が だせない！`);
+      noteActionFailed(atk); continue;
+    }
     // じゅうりょく: 空中にいる技は使えない(Bulbapedia "Gravity")
     if (env.gravity && GRAVITY_BLOCKED.includes(mv.name)){
       log('0c', `${atk.poke.name} は じゅうりょくが強くて ${mv.name} が だせない！`);
@@ -3641,6 +3665,14 @@ function runTurn(){
       st.lockOn--;
       if (st.lockOn <= 0 && st.poke) log('10', `${st.poke.name} の ねらいが はずれた！`);
     }
+    // じごくづき(カテゴリ封じ): 当たったターンを含め2ターン(ターン終了ごとに1減る・0で解除)
+    if (st.soundBlocked > 0){
+      st.soundBlocked--;
+      if (st.soundBlocked <= 0){
+        st.soundBlockedMoves = null;
+        if (st.poke) log('10', `${st.poke.name} は また 音の技が だせるようになった！`);
+      }
+    }
   }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
@@ -3718,6 +3750,8 @@ function resetBattle(){
     st.lockOn = 0;
     st.tormented = false;
     st.imprison = false;
+    st.soundBlocked = 0;
+    st.soundBlockedMoves = null;
     st.electrified = null;
     st.typeSuppressed = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
