@@ -2248,6 +2248,7 @@ function render(side){
 // その選択ポケモンが「使える技」(覚える技=learners)を返す
 function usableMoves(poke){
   if (!poke || typeof WAZA_MAP === 'undefined') return [];
+  if (poke.test_dummy) return Object.values(WAZA_MAP);   // テスト用ダミーは全技使える
   return Object.values(WAZA_MAP).filter(m => Array.isArray(m.learners) && m.learners.includes(poke.name));
 }
 // 威力の数値化(なし/0/—は -1 扱いで一番下)
@@ -2393,7 +2394,9 @@ function renderAbilitySelect(root, st){
     return;
   }
   sel.disabled = false;
-  const abilities = [st.poke.ab1, st.poke.ab2, st.poke.ab3].filter(a=>a && a.trim() !== '');
+  // テスト用ダミーは全特性から選べる(技と同じ発想)。通常はそのポケモンのab1〜ab3。
+  const abilities = st.poke.test_dummy ? dummyAbilityList()
+                  : [st.poke.ab1, st.poke.ab2, st.poke.ab3].filter(a=>a && a.trim() !== '');
   if (!abilities.length){
     sel.innerHTML = '<option value="">特性なし</option>';
     descEl.textContent = '特性データがありません';
@@ -2407,13 +2410,14 @@ function renderAbilitySelect(root, st){
   abilities.forEach(a=>{
     const opt = document.createElement('option');
     opt.value = a;
-    opt.textContent = a;
+    opt.textContent = a || '（なし）';
     if (a === st.ability) opt.selected = true;
     sel.appendChild(opt);
   });
-  const desc = (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[st.ability]) ? ABILITY_DESC[st.ability] : '（説明データなし）';
+  const desc = st.ability === '' ? '特性なし（テスト用）'
+             : (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[st.ability]) ? ABILITY_DESC[st.ability] : '（説明データなし）';
   descEl.textContent = desc;
-  descEl.classList.toggle('empty', !ABILITY_DESC || !ABILITY_DESC[st.ability]);
+  descEl.classList.toggle('empty', st.ability !== '' && (!ABILITY_DESC || !ABILITY_DESC[st.ability]));
 }
 
 // 持ち物 pill ボタンの再描画（ポケカ下に表示）
@@ -2939,7 +2943,7 @@ function renderPokeList(q){
   const list = document.getElementById('poke-list');
   list.innerHTML = '';
   const ql = toKata(q.trim().toLowerCase());
-  const filtered = POKEMON_LIST.filter(p=>{
+  const filtered = TEST_POKEMON.concat(POKEMON_LIST).filter(p=>{   // ダミーは先頭に表示
     if (!ql) return true;
     const label = toKata((p.name + (p.form && p.form !== '通常' ? p.form : '')).toLowerCase());
     return label.includes(ql);
@@ -3080,11 +3084,39 @@ function clearHandoff(){
   renderHandoffBar();
 }
 
+// =========================================================================
+// テスト用ダミーポケモン(sim専用・SSOTには入れない)
+//   ・HP実数値999(基礎924→floor((924*2+31)/2)+60=999)=テスト中に倒れにくい
+//   ・他の能力は平均(基礎100→実数値120)=強すぎて相手を倒さない
+//   ・全技使える(usableMoves が test_dummy を特別扱い)
+//   ・全特性から選べる(dummyAbilityList・既定は「なし」)
+//   ・タイプ違いを用意: みず=無効タイプなし(全技当たる・既定) / ノーマル / ゴースト
+//   ・体重91.2kg = 全275匹のweight_kgの平均(2026-06-10時点のSSOTから算出)
+// =========================================================================
+const TEST_POKEMON = [
+  { no:'T1', name:'テスト(みず)',   form:'通常', mega:false, type1:'みず',   type2:'', weight_kg:91.2,    hp:924, atk:100, def:100, spatk:100, spdef:100, spd:100, total:1424, ab1:'', ab2:'', ab3:'', test_dummy:true },
+  { no:'T2', name:'テスト(ノーマル)', form:'通常', mega:false, type1:'ノーマル', type2:'', weight_kg:91.2,    hp:924, atk:100, def:100, spatk:100, spdef:100, spd:100, total:1424, ab1:'', ab2:'', ab3:'', test_dummy:true },
+  { no:'T3', name:'テスト(ゴースト)', form:'通常', mega:false, type1:'ゴースト', type2:'', weight_kg:91.2,    hp:924, atk:100, def:100, spatk:100, spdef:100, spd:100, total:1424, ab1:'', ab2:'', ab3:'', test_dummy:true },
+];
+// テスト用ダミーが選べる特性 = 「なし」+ 全特性(ABILITY_DESC・五十音順)
+function dummyAbilityList(){
+  const all = (typeof ABILITY_DESC !== 'undefined') ? Object.keys(ABILITY_DESC) : [];
+  return [''].concat(all.sort((a,b)=>a.localeCompare(b,'ja')));
+}
+// 弱点・耐性表示用の resist(SSOT形式の18倍率)を TYPE_CHART から計算して付与
+function registerTestPokemon(){
+  TEST_POKEMON.forEach(p=>{
+    p.resist = TYPES.map(t => moveTypeEff(t, [p.type1, p.type2].filter(Boolean)));
+    POKE_MAP_BY_NAME[p.name] = p;
+  });
+}
+
 // 起動時のデフォルト編成(リロードのたびに選び直さずテストできるように)。
 // 希望のポケモン・技をセット。技は希望名→無ければ威力上位で4枠を埋める(データ欠けに強い)。
+// テスト用ダミー同士(みず vs みず=無効タイプなし)で、リロード直後からテストを回せる。
 const DEFAULT_SETUP = {
-  self: { name: 'フシギバナ', moves: ['のしかかり', 'ギガドレイン', 'やどりぎのタネ', 'ソーラービーム'] },
-  opp:  { name: 'リザードン', moves: ['かえんほうしゃ', 'エアスラッシュ', 'じしん', 'りゅうのはどう'] },
+  self: { name: 'テスト(みず)', moves: ['たいあたり'] },
+  opp:  { name: 'テスト(みず)', moves: ['たいあたり'] },
 };
 function applyDefaultSetup(){
   if (typeof WAZA_MAP === 'undefined') return;
@@ -3124,6 +3156,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   }
   // 名前→ポケモンの逆引き
   POKEMON_LIST.forEach(p=>{ POKE_MAP_BY_NAME[p.name] = p; });
+  registerTestPokemon();   // テスト用ダミーを選択肢に追加
 
   // 持ち物 key→アイテム情報の逆引き
   if (window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){
