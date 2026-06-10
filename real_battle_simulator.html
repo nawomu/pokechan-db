@@ -978,6 +978,8 @@ function makeSideState(){
     protecting: null,
     // まもる系の連続成功カウント(成功のたび+1。失敗 or 別の行動で0に戻る=成功率が1/3ずつ下がる)
     protectStreak: 0,
+    // 揮発スリップ状態(しおづけ/のろい): {source, fraction} の配列。毎ターン終了時に最大HP×fractionを削る。
+    slips: [],
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1916,7 +1918,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         _applies = at.includes(_cost.condition.value);
       } else { _applies = false; }
     }
-    if (_applies){
+    if (_applies && !_cost.can_faint_self){   // のろい(ゴースト)はHP不足でも実行=ゲート対象外(自分はひんし)
       const max = realStat(atk, 'hp');
       const cost = Math.max(1, (_cost.rounding === 'up' ? Math.ceil : Math.floor)(max * (_cost.fraction || 0.5)));
       if (atk.currentHp == null) atk.currentHp = max;
@@ -1980,6 +1982,29 @@ function phaseApplyEffects(atkSide, defSide, move){
         } else {
           continue;
         }
+      }
+      // 揮発スリップ状態(しおづけ/のろい): 状態異常とは別枠。同じ技の「継続削り」宣言から削る割合を
+      // 読んで対象に記録し、毎ターン終了時に phaseSlipFor が削る(しんぴのまもり/フィールドでは防げない)。
+      // タイプ条件(しおづけ: はがね/みず=1/8・それ以外=1/16)は付与時に一度だけ評価(戦闘中タイプ不変の前提)。
+      const slipDecls = (move.battle_data.effects || []).filter(e => e.kind === '継続削り' &&
+        ((e.source === ef.value) || (e.condition && e.condition.type === 'target_has_status' && e.condition.value === ef.value)));
+      if (slipDecls.length){
+        if (!target.slips) target.slips = [];
+        if (!target.slips.some(sl => sl.source === ef.value)){   // 重ねがけ不可(1回分だけ)
+          const tgS = target.poke ? [target.poke.type1, target.poke.type2].filter(Boolean) : [];
+          const decl = slipDecls.find(e => {
+            const c = e.condition;
+            if (!c || c.type === 'target_has_status') return true;
+            if (c.type === 'target_type_in') return (c.values || []).some(t => tgS.includes(t));
+            if (c.type === 'target_type_not_in') return !(c.values || []).some(t => tgS.includes(t));
+            return false;
+          });
+          if (decl){
+            target.slips.push({ source: ef.value, fraction: decl.fraction });
+            log('9', `${target.poke.name} は ${ef.value} 状態になった！`);
+          }
+        }
+        continue;
       }
       const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
       const code = map[ef.value];
@@ -2174,6 +2199,15 @@ function phaseSlipFor(s){
       if (st.currentHp <= 0){ st.fainted = true; log('10c', `${st.poke.name} は ひんしになった！`); }
     }
   }
+  // 揮発スリップ状態(しおづけ=1/16またはみず/はがね1/8・のろい=1/4): 毎ターン終了時に最大HPの宣言割合を削る
+  if (st.slips && st.slips.length && !st.fainted){
+    for (const sl of st.slips){
+      const d = Math.max(1, Math.floor(max * sl.fraction));
+      st.currentHp = Math.max(0, st.currentHp - d);
+      log('10a', `${st.poke.name} は ${sl.source}で ${d} ダメージ！ (残HP ${st.currentHp})`);
+      if (st.currentHp <= 0){ st.fainted = true; log('10a', `${st.poke.name} は ひんしになった！`); break; }
+    }
+  }
 }
 
 function phaseEndOfTurnSlip(){
@@ -2191,6 +2225,7 @@ function snapshotBattleState(){
     status: st.status,
     rank: {...st.rank},
     badpoisonCounter: st.badpoisonCounter || 0,
+    slips: (st.slips || []).map(x => ({...x})),
   });
   return {
     self: snap(sides.self),
@@ -2224,6 +2259,7 @@ function undoBattle(){
     st.status = src.status;
     st.rank = {...src.rank};
     st.badpoisonCounter = src.badpoisonCounter;
+    st.slips = (src.slips || []).map(x => ({...x}));
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -2608,6 +2644,7 @@ function resetBattle(){
     st.mustRecharge = false;
     st.protecting = null;
     st.protectStreak = 0;
+    st.slips = [];
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
