@@ -575,6 +575,63 @@ console.log('\n=== 段⑳ 倍返し(カウンター/ミラーコート/メタル
     `taken=${tk} returned=${oM - E.sides.opp.currentHp}`);
 }
 
+console.log('\n=== 段㉑ 威力可変(体重系: けたぐり/くさむすび/ヘビーボンバー/ヒートスタンプ) ===');
+// 期待値の出典(権威ソース):
+// - けたぐり/くさむすび: Bulbapedia "Low Kick (move)" GenIII+ — 相手の体重(kg):
+//   <10→20 / 10〜24.9→40 / 25〜49.9→60 / 50〜99.9→80 / 100〜199.9→100 / 200以上→120
+//   (境界は下側に含む: ちょうど10.0kg→40、ちょうど100.0kg→100)
+// - ヘビーボンバー/ヒートスタンプ: Bulbapedia "Heavy Slam (move)" — 相手の体重/自分の体重:
+//   >1/2→40 / >1/3〜1/2→60 / >1/4〜1/3→80 / >1/5〜1/4→100 / 1/5以下→120
+//   (境界は重い側に含む: ちょうど1/2→60、ちょうど1/5→120)
+// 体重はSSOT(pokechan_data.js weight_kg, 028c924で追加・PokéAPI由来二重検証済み)
+{
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('ピカチュウ', null);
+  const vp = (mv) => E.variablePower ? E.variablePower(mv, E.sides.self, E.sides.opp) : null;
+  const setOpp = n => { E.sides.opp.poke = pokeByName(n); E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp'); };
+  const setSelf = n => { E.sides.self.poke = pokeByName(n); E.sides.self.currentHp = E.realStat(E.sides.self, 'hp'); };
+
+  // T49: けたぐり — 相手の体重段階表(境界: ちょうど100.0kg→100)
+  const kick = moveByName('けたぐり');
+  check('T49 けたぐり vs ピカチュウ(6.0kg)→威力20', vp(kick) === 20, `power=${vp(kick)}`);
+  setOpp('ゲンガー');   // 40.5kg
+  check('T49 けたぐり vs ゲンガー(40.5kg)→威力60', vp(kick) === 60, `power=${vp(kick)}`);
+  setOpp('フシギバナ'); // 100.0kg ちょうど → 100〜199.9の枠
+  check('T49 けたぐり vs フシギバナ(100.0kgちょうど)→威力100', vp(kick) === 100, `power=${vp(kick)}`);
+  setOpp('カビゴン');   // 460kg
+  check('T49 けたぐり vs カビゴン(460kg)→威力120', vp(kick) === 120, `power=${vp(kick)}`);
+
+  // T50: くさむすび — 同じ段階表(effectsのキーは weight_thresholds)
+  const grass = moveByName('くさむすび');
+  check('T50 くさむすび vs カビゴン(460kg)→威力120', vp(grass) === 120, `power=${vp(grass)}`);
+  setOpp('ピカチュウ');
+  check('T50 くさむすび vs ピカチュウ(6.0kg)→威力20', vp(grass) === 20, `power=${vp(grass)}`);
+
+  // T51: ヘビーボンバー — 自分と相手の体重比(境界: ちょうど1/2→60、ちょうど1/5→120)
+  const slam = moveByName('ヘビーボンバー');
+  setSelf('カビゴン'); setOpp('ピカチュウ'); // 6/460 ≪ 1/5
+  check('T51 ヘビーボンバー カビゴン→ピカチュウ(比0.013)→威力120', vp(slam) === 120, `power=${vp(slam)}`);
+  setSelf('フシギバナ'); setOpp('カビゴン'); // 相手の方が重い
+  check('T51 ヘビーボンバー フシギバナ→カビゴン(比4.6)→威力40', vp(slam) === 40, `power=${vp(slam)}`);
+  setOpp('ドラパルト'); // 50/100 = ちょうど1/2 → 60
+  check('T51 ヘビーボンバー 比ちょうど1/2→威力60', vp(slam) === 60, `power=${vp(slam)}`);
+  setSelf('アーボック'); setOpp('タルップル'); // 13/65 = ちょうど1/5 → 120
+  check('T51 ヘビーボンバー 比ちょうど1/5→威力120', vp(slam) === 120, `power=${vp(slam)}`);
+
+  // T52: ヒートスタンプ — 同じ体重比表(effectsのキーは table/max_ratio)
+  const stamp = moveByName('ヒートスタンプ');
+  setSelf('カビゴン'); setOpp('ピカチュウ');
+  check('T52 ヒートスタンプ カビゴン→ピカチュウ→威力120', vp(stamp) === 120, `power=${vp(stamp)}`);
+  setSelf('フシギバナ'); setOpp('ドラパルト');
+  check('T52 ヒートスタンプ 比ちょうど1/2→威力60', vp(stamp) === 60, `power=${vp(stamp)}`);
+
+  // T53: calcDamage統合 — けたぐり(power=null)がダメージを返す
+  setSelf('カイリキー'); setOpp('カビゴン');
+  const r = E.calcDamage('self', 'opp', kick);
+  check('T53 けたぐりで calcDamage が非null・min>0', !!r && !r.immune && r.min > 0, r ? `min=${r.min}` : 'null');
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
