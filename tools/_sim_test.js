@@ -493,6 +493,88 @@ console.log('\n=== 段⑲ 威力可変(power=null系: HP/すばやさ基準) ===
   check('T42 きしかいせいで calcDamage が非null・min>0', !!r && !r.immune && r.min > 0, r ? `min=${r.min}` : 'null');
 }
 
+console.log('\n=== 段⑳ 倍返し(カウンター/ミラーコート/メタルバースト) ===');
+// 期待値の出典(権威ソース):
+// - カウンター: Bulbapedia "Counter (move)" — そのターンに受けた物理ダメージの2倍を返す。優先度-5。
+//   物理を受けていなければ失敗。ゴーストタイプには無効(タイプ無効は適用・相性倍率は無視)。
+// - ミラーコート: Bulbapedia "Mirror Coat (move)" — 特殊ダメージの2倍。優先度-5。物理には失敗。
+// - メタルバースト: Bulbapedia "Metal Burst (move)" — 物理/特殊問わず最後に受けたダメージの1.5倍。優先度0。
+{
+  // T43: カウンター — 物理を受けた後、2倍を返す
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('カウンター')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.setRandom(mulberry32(20260610));
+  const selfMax = E.realStat(E.sides.self, 'hp'); E.sides.self.currentHp = selfMax;
+  const oppMax = E.realStat(E.sides.opp, 'hp'); E.sides.opp.currentHp = oppMax;
+  E.phaseDealDamage('opp', 'self', moveByName('はたく'));
+  const taken = selfMax - E.sides.self.currentHp;
+  E.phaseDealDamage('self', 'opp', moveByName('カウンター'));
+  const returned = oppMax - E.sides.opp.currentHp;
+  check('T43 カウンター=受けた物理の2倍を返す', taken > 0 && returned === taken * 2, `taken=${taken} returned=${returned}`);
+
+  // T44: カウンターは特殊技に失敗 / ミラーコートは特殊の2倍
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('カウンター'), moveByName('ミラーコート')];
+  E.sides.opp = freshSide('フシギバナ', null); E.sides.opp.moves = [moveByName('10まんボルト')];
+  E.setRandom(mulberry32(20260610));
+  const sMax = E.realStat(E.sides.self, 'hp'); E.sides.self.currentHp = sMax;
+  const oMax = E.realStat(E.sides.opp, 'hp'); E.sides.opp.currentHp = oMax;
+  E.phaseDealDamage('opp', 'self', moveByName('10まんボルト'));
+  const taken2 = sMax - E.sides.self.currentHp;
+  E.phaseDealDamage('self', 'opp', moveByName('カウンター'));
+  check('T44 カウンターは特殊ダメージには失敗(相手HP減らず)', E.sides.opp.currentHp === oMax, `opp=${E.sides.opp.currentHp}/${oMax}`);
+  E.phaseDealDamage('self', 'opp', moveByName('ミラーコート'));
+  check('T44 ミラーコート=受けた特殊の2倍を返す', taken2 > 0 && oMax - E.sides.opp.currentHp === taken2 * 2,
+    `taken=${taken2} returned=${oMax - E.sides.opp.currentHp}`);
+
+  // T45: メタルバースト — 物理/特殊問わず最後に受けたダメージの1.5倍(切り捨て)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('メタルバースト')];
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.setRandom(mulberry32(20260610));
+  const sMax3 = E.realStat(E.sides.self, 'hp'); E.sides.self.currentHp = sMax3;
+  const oMax3 = E.realStat(E.sides.opp, 'hp'); E.sides.opp.currentHp = oMax3;
+  E.phaseDealDamage('opp', 'self', moveByName('はたく'));
+  const taken3 = sMax3 - E.sides.self.currentHp;
+  E.phaseDealDamage('self', 'opp', moveByName('メタルバースト'));
+  check('T45 メタルバースト=最後に受けたダメージの1.5倍(切り捨て)',
+    taken3 > 0 && oMax3 - E.sides.opp.currentHp === Math.floor(taken3 * 1.5),
+    `taken=${taken3} returned=${oMax3 - E.sides.opp.currentHp} 期待=${Math.floor(taken3 * 1.5)}`);
+
+  // T46: 受けていないターンのカウンターは失敗 / ゴーストにはカウンター無効
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('カウンター')];
+  E.sides.opp = freshSide('ゲンガー', 'hataku');
+  E.setRandom(mulberry32(20260610));
+  const gMax = E.realStat(E.sides.opp, 'hp'); E.sides.opp.currentHp = gMax;
+  E.sides.self.currentHp = E.realStat(E.sides.self, 'hp');
+  E.phaseDealDamage('self', 'opp', moveByName('カウンター'));
+  check('T46 何も受けていないターンのカウンターは失敗', E.sides.opp.currentHp === gMax, `opp=${E.sides.opp.currentHp}/${gMax}`);
+  E.phaseDealDamage('opp', 'self', moveByName('はたく'));
+  E.phaseDealDamage('self', 'opp', moveByName('カウンター'));
+  check('T46 ゴーストタイプにはカウンター無効', E.sides.opp.currentHp === gMax, `opp=${E.sides.opp.currentHp}/${gMax}`);
+
+  // T47: 優先度 — カウンター(-5)は同速でも後攻
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('カウンター')];
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  const first = E.decideOrder(moveByName('カウンター'), moveByName('はたく'));
+  check('T47 カウンター(優先度-5)は相手が先攻', first === 'opp', `first=${first}`);
+
+  // T48: runTurn統合 — 受けたターン内に2倍を返す(はたく→カウンターの順に自動で解決)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.moves = [moveByName('カウンター')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.setRandom(mulberry32(20260610));
+  const sM = E.realStat(E.sides.self, 'hp'); E.sides.self.currentHp = sM;
+  const oM = E.realStat(E.sides.opp, 'hp'); E.sides.opp.currentHp = oM;
+  E.runTurn();
+  const tk = sM - E.sides.self.currentHp;
+  check('T48 runTurn: カウンターがそのターン受けた物理の2倍を返す', tk > 0 && oM - E.sides.opp.currentHp === tk * 2,
+    `taken=${tk} returned=${oM - E.sides.opp.currentHp}`);
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
