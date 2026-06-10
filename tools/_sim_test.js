@@ -1923,6 +1923,56 @@ console.log('\n=== 段㊴ バインド(しめつける等7技: 4〜5ターン毎
   resetEnv();
 }
 
+console.log('\n=== 段㊵ やどりぎのタネ(毎ターン相手の最大HP1/8を吸って自分が回復・くさ無効・スピン解除) ===');
+// legacy:「毎ターン、相手のHPを最大HPの1/8ずつ減らし、その分自分のHPを回復」「くさタイプには無効」
+{
+  // T126 付与+ターン終了で相手-16(ゲンガー135×1/8)/自分+16回復
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('やどりぎのタネ')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.rank.spd = 6;
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  const t126sMax = E.realStat(E.sides.self, 'hp');   // 155
+  const t126oMax = E.realStat(E.sides.opp, 'hp');    // 135
+  E.setRandom(() => 0.0);   // 命中(0<90)
+  const t126hatakuDmg = E.calcDamage('opp', 'self', moveByName('はたく')).min;   // rand0=最小ロール固定
+  E.sides.self.currentHp = 100;   // 回復が最大HPキャップに当たらないように削っておく(+16を厳密に見る)
+  E.runTurn();   // 自分: やどりぎ付与 → 相手: はたく → ターン終了: 相手-16/自分+16
+  const t126slip = (E.sides.opp.slips || []).filter(sl => sl.source === 'やどりぎのタネ');
+  check('T126 やどりぎ状態が付く', t126slip.length === 1, `slips=${JSON.stringify(E.sides.opp.slips)}`);
+  check('T126 ターン終了時に相手が16(=135×1/8切り捨て)削られる', t126oMax - E.sides.opp.currentHp === 16,
+    `相手の減=${t126oMax - E.sides.opp.currentHp}`);
+  const t126expect = Math.min(t126sMax, 100 - t126hatakuDmg + 16);
+  check('T126 削った分(16)だけ自分が回復している', E.sides.self.currentHp === t126expect,
+    `self hp=${E.sides.self.currentHp} 期待=${t126expect}(100-被弾${t126hatakuDmg}+回復16)`);
+
+  // T126b くさタイプには無効(フシギバナに撃つ)
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('やどりぎのタネ')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.rank.spd = 6;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T126b くさタイプには付かない', (E.sides.opp.slips || []).length === 0, `slips=${JSON.stringify(E.sides.opp.slips)}`);
+
+  // T127 こうそくスピンでやどりぎ解除
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('こうそくスピン')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.slips = [{source: 'やどりぎのタネ', fraction: 0.125, drains: true}];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.rank.spd = -6;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T127 こうそくスピンでやどりぎが解除される', (E.sides.self.slips || []).length === 0,
+    `slips=${JSON.stringify(E.sides.self.slips)}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

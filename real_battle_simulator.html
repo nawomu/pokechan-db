@@ -2154,6 +2154,21 @@ function phaseApplyEffects(atkSide, defSide, move){
           log('9', `${target.poke.name} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
         }
       }
+    } else if (ef.kind === 'やどりぎ'){
+      // やどりぎのタネ: 毎ターン終了時に相手の最大HP1/8を削り、その分自分が回復(くさタイプには無効)。
+      // 交代引き継ぎ(carries_over_on_user_switch)は1vs1のsimでは出番なし。drains付きslipsとして記録。
+      if (def.fainted) continue;
+      const tgY = def.poke ? [def.poke.type1, def.poke.type2].filter(Boolean) : [];
+      const immY = (move.battle_data.immune || []).some(im => im.type === 'target_type' &&
+        (im.values || [im.value]).some(t => tgY.includes(t)));
+      if (immY){
+        log('9', `${def.poke.name} には こうかが ないようだ…`);
+        continue;
+      }
+      if (!def.slips) def.slips = [];
+      if (def.slips.some(sl => sl.source === 'やどりぎのタネ')) continue;   // 重ねがけ不可
+      def.slips.push({ source: 'やどりぎのタネ', fraction: (ef.fraction != null ? ef.fraction : 0.125), drains: true });
+      log('9', `${def.poke.name} に やどりぎのタネを 植えつけた！`);
     } else if (ef.kind === '状態異常回復'){
       // ねむる/いやしのすず(=全部)・フレアドライブ等(value=こおり 等の単品)。
       // target: self/party/team=自分側(1vs1では自分)・opponent/all_but_self=相手側。incoming(いやしのねがい)は交代未実装=スキップ。
@@ -2162,11 +2177,11 @@ function phaseApplyEffects(atkSide, defSide, move){
                     : (ef.target === 'incoming') ? null : atk;
       if (!cureTgt || cureTgt.fainted) continue;
       const CURE_MAP = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
-      // バインド解除(こうそくスピン): 自分のバインド系継続ダメージを解除(状態異常とは別枠=slips)
-      if (ef.value === 'バインド'){
-        if (cureTgt.slips && cureTgt.slips.some(sl => sl.source === 'バインド')){
-          cureTgt.slips = cureTgt.slips.filter(sl => sl.source !== 'バインド');
-          log('9', `${cureTgt.poke.name} は バインドから 解放された！`);
+      // バインド/やどりぎ解除(こうそくスピン): 自分の揮発slip状態を解除(状態異常とは別枠=slips)
+      if (ef.value === 'バインド' || ef.value === 'やどりぎのタネ'){
+        if (cureTgt.slips && cureTgt.slips.some(sl => sl.source === ef.value)){
+          cureTgt.slips = cureTgt.slips.filter(sl => sl.source !== ef.value);
+          log('9', `${cureTgt.poke.name} は ${ef.value}から 解放された！`);
         }
         continue;
       }
@@ -2300,13 +2315,24 @@ function phaseSlipFor(s){
       if (st.currentHp <= 0){ st.fainted = true; log('10c', `${st.poke.name} は ひんしになった！`); }
     }
   }
-  // 揮発スリップ状態(しおづけ=1/16またはみず/はがね1/8・のろい=1/4・バインド=1/8): 毎ターン終了時に最大HPの宣言割合を削る。
+  // 揮発スリップ状態(しおづけ=1/16またはみず/はがね1/8・のろい=1/4・バインド=1/8・やどりぎ=1/8吸い取り): 毎ターン終了時に最大HPの宣言割合を削る。
   // turns付き(バインド=4〜5ターン)は数えて、使い切ったら とける。turnsなし(しおづけ等)は続く。
+  // drains付き(やどりぎ)は削った分だけ相手側が回復する。
   if (st.slips && st.slips.length && !st.fainted){
+    const other = sides[s === 'self' ? 'opp' : 'self'];
     for (const sl of st.slips){
       const d = Math.max(1, Math.floor(max * sl.fraction));
       st.currentHp = Math.max(0, st.currentHp - d);
       log('10a', `${st.poke.name} は ${sl.source}で ${d} ダメージ！ (残HP ${st.currentHp})`);
+      if (sl.drains && other.poke && !other.fainted){
+        const oMax = realStat(other, 'hp');
+        if (other.currentHp == null) other.currentHp = oMax;
+        const healed = Math.min(oMax - other.currentHp, d);
+        if (healed > 0){
+          other.currentHp += healed;
+          log('10a', `${other.poke.name} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
+        }
+      }
       if (sl.turns != null){
         sl.turns--;
         if (sl.turns <= 0) log('10a', `${st.poke.name} は ${sl.source}から 解放された！`);
