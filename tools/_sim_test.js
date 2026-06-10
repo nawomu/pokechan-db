@@ -2134,6 +2134,52 @@ console.log('\n=== 段㊸ 技タイプ変更(mapping型)+威力可変: ウェザ
   resetEnv();
 }
 
+console.log('\n=== 段㊹ このターン/持ち物の条件威力(ゆきなだれ/はたきおとす+持ち物排除/じならし) ===');
+// 出典: Bulbapedia "Avalanche"(そのターン相手の技のダメージを受けていると2倍・優先度-4) /
+//       "Knock Off"(相手が道具持ちなら1.5倍+道具をはたきおとす) / "Bulldoze"(グラスフィールドで半減=場側ルール)
+{
+  // T136 ゆきなだれ: このターン被弾していると威力2倍
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('カメックス', null);
+  const mvYN = moveByName('ゆきなだれ');
+  E.sides.self.tookThisTurn = {phys: 0, spec: 0, any: 0};
+  const ynN = E.calcDamage('self', 'opp', mvYN);
+  E.sides.self.tookThisTurn = {phys: 20, spec: 0, any: 20};
+  const ynT = E.calcDamage('self', 'opp', mvYN);
+  check('T136 被弾なしでダメージが出る', ynN && ynN.min > 0, ynN ? `min=${ynN.min}` : 'null');
+  check('T136b このターン被弾で約2倍', ynN && ynT && ynT.min >= Math.floor(ynN.min * 1.8) && ynT.min <= Math.ceil(ynN.min * 2.2),
+    ynN && ynT && `なし=${ynN.min} 被弾後=${ynT.min} (比=${(ynT.min / ynN.min).toFixed(3)})`);
+  E.sides.self.tookThisTurn = {phys: 0, spec: 0, any: 0};
+
+  // T137 はたきおとす: 相手が道具持ちなら1.5倍+攻撃後に道具がなくなる
+  const mvHO = moveByName('はたきおとす');
+  E.sides.opp.item = null;
+  const hoN = E.calcDamage('self', 'opp', mvHO);
+  E.sides.opp.item = 'kodawari_scarf';
+  const hoI = E.calcDamage('self', 'opp', mvHO);
+  check('T137 道具持ち相手に約1.5倍', hoN && hoI && hoI.min >= Math.floor(hoN.min * 1.4) && hoI.min <= Math.ceil(hoN.min * 1.6),
+    hoN && hoI && `なし=${hoN.min} 持ち=${hoI.min} (比=${(hoI.min / hoN.min).toFixed(3)})`);
+  // runTurn で道具がはたきおとされる
+  E.sides.self.moves = [mvHO]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T137b 攻撃後に相手の道具がなくなる', E.sides.opp.item == null, `item=${E.sides.opp.item}`);
+
+  // T138 じならし: グラスフィールドで威力半減(場側ルール=接地した相手への地震系0.5倍)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('カメックス', null);
+  const mvJN = moveByName('じならし');
+  const jnN = E.calcDamage('self', 'opp', mvJN);
+  E.env.field = 'grassy';
+  const jnG = E.calcDamage('self', 'opp', mvJN);
+  check('T138 グラスフィールドで約半減', jnN && jnG && jnG.min >= Math.floor(jnN.min * 0.4) && jnG.min <= Math.ceil(jnN.min * 0.6),
+    jnN && jnG && `なし=${jnN.min} グラス=${jnG.min} (比=${(jnG.min / jnN.min).toFixed(3)})`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

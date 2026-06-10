@@ -1186,6 +1186,15 @@ function calcDamage(atkSide, defSide, move){
     if (hit) power *= (statusMul.multiplier || 2);
   }
 
+  // このターン被弾で威力倍化(ゆきなだれ: そのターン相手の技のダメージを受けていると2倍。Bulbapedia "Avalanche")
+  // ※スリップ(やけど/天候等)は対象外=技のダメージだけが tookThisTurn に記録される(recordTaken)
+  const tookMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'user_took_damage_this_turn');
+  if (tookMul && atk.tookThisTurn && atk.tookThisTurn.any > 0) power *= (tookMul.multiplier || 2);
+
+  // 相手が道具持ちで威力倍化(はたきおとす ×1.5。Bulbapedia "Knock Off")
+  const itemMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'target_holding_item');
+  if (itemMul && def.item) power = Math.max(1, pokeRound(power, Math.round((itemMul.multiplier || 1.5) * 4096)));
+
   // 天候条件つき威力倍率(ソーラービーム/ソーラーブレード: あめ/すなあらし/ゆきで威力半減。Bulbapedia "Solar Beam")
   const weatherMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'weather_in');
   if (weatherMul && weatherCondOk(weatherMul.condition, env.weather)) power = Math.floor(power * (weatherMul.multiplier || 1));
@@ -2210,6 +2219,14 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (def.slips.some(sl => sl.source === 'やどりぎのタネ')) continue;   // 重ねがけ不可
       def.slips.push({ source: 'やどりぎのタネ', fraction: (ef.fraction != null ? ef.fraction : 0.125), drains: true });
       log('9', `${def.poke.name} に やどりぎのタネを 植えつけた！`);
+    } else if (ef.kind === '持ち物排除'){
+      // はたきおとす: 相手の道具をはたきおとす(このバトル中なくなる。restored_after_battle=戦闘後に戻る、はsimでは
+      // リセット=持ち物再設定で表現される)。Bulbapedia "Knock Off"
+      if (def.item){
+        const itKO = ITEM_BY_KEY[def.item];
+        log('9', `${atk.poke.name} は ${def.poke.name} の ${itKO ? itKO.name : def.item} を はたきおとした！`);
+        def.item = null;
+      }
     } else if (ef.kind === '状態異常回復'){
       // ねむる/いやしのすず(=全部)・フレアドライブ等(value=こおり 等の単品)。
       // target: self/party/team=自分側(1vs1では自分)・opponent/all_but_self=相手側。incoming(いやしのねがい)は交代未実装=スキップ。
@@ -2413,6 +2430,7 @@ function snapshotBattleState(){
     slips: (st.slips || []).map(x => ({...x})),
     sleepTurns: st.sleepTurns != null ? st.sleepTurns : null,
     rampage: st.rampage ? {move: st.rampage.move, left: st.rampage.left} : null,
+    item: st.item != null ? st.item : null,   // はたきおとす(持ち物排除)を一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -2449,6 +2467,7 @@ function undoBattle(){
     st.slips = (src.slips || []).map(x => ({...x}));
     st.sleepTurns = src.sleepTurns != null ? src.sleepTurns : null;
     st.rampage = src.rampage ? {move: src.rampage.move, left: src.rampage.left} : null;
+    st.item = src.item != null ? src.item : null;   // はたきおとす(持ち物排除)の巻き戻し
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
