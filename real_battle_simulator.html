@@ -1013,6 +1013,11 @@ function makeSideState(){
     // タイプの上書き(みずびたし/ハロウィン/もえつきる等): タイプ名の配列(0〜3つ) / null=元のまま。
     // sideTypes() がこれを最優先で返す。空配列=タイプなし(純ほのおのもえつきる後)もあり得る。
     typeOverride: null,
+    // みちづれ状態(次に自分が行動するまで) / 直前の行動がみちづれだったか(連続使用は失敗・第7世代以降)
+    destinyBond: false,
+    dbondPrev: false,
+    // ほろびのうたのカウント(ターン終了ごとに減り0でひんし) / null=対象外
+    perishCount: null,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1799,6 +1804,15 @@ function fixedDamageAmount(ef, atk, def){
   return null;
 }
 
+// みちづれ: 相手の技でひんしになったら、その相手も道連れでひんしにする(Bulbapedia "Destiny Bond")。
+// 技ダメージのひんしサイト(phaseDealDamage内)からだけ呼ぶ=スリップ/反動では発動しない。
+function applyDestinyBond(downed, killer){
+  if (!downed.destinyBond || !killer || killer.fainted || !killer.poke) return;
+  killer.currentHp = 0;
+  killer.fainted = true;
+  log('8', `${downed.poke.name} は ${killer.poke.name} を みちづれにした！ ${killer.poke.name} は ひんしになった！`);
+}
+
 // 技で受けたダメージを記録(倍返し=カウンター等用)。連続攻撃は最後の1発分(Bulbapedia "Counter")。
 function recordTaken(df, move, lastHitDmg){
   if (!(lastHitDmg > 0)) return;
@@ -1843,7 +1857,7 @@ function phaseDealDamage(atkSide, defSide, move){
     if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${a.poke.name} の ${move.name}！ 受けたダメージを倍返し！ ${df.poke.name} に ${dmg} ダメージ！ (残HP ${df.currentHp})`);
-    if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); }
+    if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); applyDestinyBond(df, a); }
     recordTaken(df, move, dmg);
     return { variation: dmg, hits: 1, special: true };
   }
@@ -1866,7 +1880,7 @@ function phaseDealDamage(atkSide, defSide, move){
     if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${a.poke.name} の ${move.name}！ ${df.poke.name} に ${dmg} ダメージ！${ohkoEf ? '(一撃必殺！)' : ''} (残HP ${df.currentHp})`);
-    if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); }
+    if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); applyDestinyBond(df, a); }
     recordTaken(df, move, dmg);
     return { variation: dmg, hits: 1, special: true };
   }
@@ -1938,6 +1952,7 @@ function phaseDealDamage(atkSide, defSide, move){
   if (def.currentHp <= 0){
     def.fainted = true;
     log('8', `${def.poke.name} は ひんしになった！`);
+    applyDestinyBond(def, atk);   // みちづれ(相手の技でひんし→道連れ)
   }
   return {...result, variation: total, hits};
 }
@@ -2651,6 +2666,26 @@ function phaseApplyEffects(atkSide, defSide, move){
         target.typeOverride = [..._cur, ef.value];
         log('9', `${target.poke.name} に ${ef.value}タイプが 追加された！`);
       }
+    } else if (ef.kind === 'みちづれ'){
+      // みちづれ: 次に自分が行動するまでに相手の技でひんしになったら相手も道連れ。
+      // 第7世代以降は連続で使うと必ず失敗。出典: Bulbapedia "Destiny Bond"
+      if (atk.dbondPrev){
+        log('9', `しかし うまく きまらなかった！`);
+      } else {
+        atk.destinyBond = true;
+        atk.dbondPrev = true;
+        log('9', `${atk.poke.name} は あいてを みちづれに しようとしている！`);
+      }
+    } else if (ef.kind === 'ほろびのうた'){
+      // ほろびのうた: 場の全員にほろびカウント。ターン終了ごとに 3→2→1 と減り0でひんし。
+      // すでにカウント中のポケモンはリセットしない。交代で解除は交代未実装のため出番なし。
+      // 出典: Bulbapedia "Perish Song"
+      for (const s of ['self','opp']){
+        const st = sides[s];
+        if (!st.poke || st.fainted || st.perishCount != null) continue;
+        st.perishCount = (ef.duration || 3) + 1;   // ターン終了で1減って「3」になる→0でひんし
+      }
+      log('9', `ほろびのうたが ひびきわたった！`);
     } else if (ef.kind === 'いたみわけ'){
       // いたみわけ: 自分と相手の今のHPを合計して半分ずつ(切り捨て)に分ける。最大HPは超えない(超過分は消える)。
       // ダイマックス補正はsim未実装のため考慮しない。出典: Bulbapedia "Pain Split"
@@ -2817,6 +2852,9 @@ function snapshotBattleState(){
     encore: st.encore ? {...st.encore} : null,                  // アンコールも一手戻せるように
     statOverride: st.statOverride ? {...st.statOverride} : null, // 実数値上書きも一手戻せるように
     typeOverride: st.typeOverride ? [...st.typeOverride] : null, // タイプ変化も一手戻せるように
+    destinyBond: !!st.destinyBond,                               // みちづれも一手戻せるように
+    dbondPrev: !!st.dbondPrev,
+    perishCount: st.perishCount != null ? st.perishCount : null, // ほろびのうたも一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -2864,6 +2902,9 @@ function undoBattle(){
     st.encore = src.encore ? {...src.encore} : null;                  // アンコールの巻き戻し
     st.statOverride = src.statOverride ? {...src.statOverride} : null; // 実数値上書きの巻き戻し
     st.typeOverride = src.typeOverride ? [...src.typeOverride] : null; // タイプ変化の巻き戻し
+    st.destinyBond = !!src.destinyBond;                                // みちづれの巻き戻し
+    st.dbondPrev = !!src.dbondPrev;
+    st.perishCount = src.perishCount != null ? src.perishCount : null; // ほろびのうたの巻き戻し
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -2957,6 +2998,9 @@ function runSingleAttack(atkSide, moveIdx){
   }
   // ここまで通れば技を「使った」扱い(かなしばり/アンコールの対象になる最後の技)。
   // ねむり・まひ・ひるみ・ちょうはつ等で出せなかった場合は更新しない。
+  // みちづれ状態は自分が次に行動したら解除(Bulbapedia "Destiny Bond")。連続使用判定の記録も更新
+  atk.destinyBond = false;
+  if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
   const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
@@ -3189,7 +3233,10 @@ function runTurn(){
     }
     // ここまで通れば技を「使った」扱い(かなしばり/アンコールの対象になる最後の技)。
     // ねむり・まひ・ひるみ・ちょうはつ等で出せなかった場合は更新しない。
-    atk.lastMove = mv;
+    // みちづれ状態は自分が次に行動したら解除(Bulbapedia "Destiny Bond")。連続使用判定の記録も更新
+  atk.destinyBond = false;
+  if (mv.name !== 'みちづれ') atk.dbondPrev = false;
+  atk.lastMove = mv;
     // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ。連続使用は成功率が1/3ずつ下がり、
     // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure"。
     // ファストガードはmultiplierなし=連続でも失敗しない)
@@ -3356,6 +3403,18 @@ function runTurn(){
         if (st.poke) log('10', `${st.poke.name} の アンコール状態が とけた！`);
       }
     }
+    // ほろびのうた: カウントが減り0でひんし(Bulbapedia "Perish Song")
+    if (st.perishCount != null && !st.fainted && st.poke){
+      st.perishCount--;
+      if (st.perishCount <= 0){
+        st.currentHp = 0;
+        st.fainted = true;
+        st.perishCount = null;
+        log('10', `${st.poke.name} の ほろびのカウントが 0になった！ ${st.poke.name} は ひんしになった！`);
+      } else {
+        log('10', `${st.poke.name} の ほろびのカウントが ${st.perishCount}になった！`);
+      }
+    }
   }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
@@ -3426,6 +3485,9 @@ function resetBattle(){
     st.encore = null;
     st.statOverride = null;
     st.typeOverride = null;
+    st.destinyBond = false;
+    st.dbondPrev = false;
+    st.perishCount = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア

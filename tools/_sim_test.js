@@ -2994,6 +2994,87 @@ console.log('\n=== 段58 持ち物奪取(どろぼう/ほしがる)+持ち物交
   resetEnv();
 }
 
+console.log('\n=== 段59 ひんし系(ほろびのうた/みちづれ) ===');
+// 出典: Bulbapedia "Perish Song"(場の全員にカウント3→ターン終了ごとに減り0でひんし・再使用でリセットしない) /
+//       "Destiny Bond"(次に自分が行動するまでに相手の技でひんしになったら相手も道連れ・
+//                      第7世代以降は連続使用で必ず失敗)
+{
+  resetEnv();
+  // ほろびのうた: 3ターン終了までは両者健在(カウント1)→4ターン目の終了で両者ひんし
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('ほろびのうた')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];   // ノーマル×ゴースト=こうかなし(ダメージのノイズなし)
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn(); E.runTurn(); E.runTurn();
+  check('T159 ほろびのうた3ターン目終了時は両者健在(カウント1)',
+    !E.sides.self.fainted && !E.sides.opp.fainted &&
+    E.sides.self.perishCount === 1 && E.sides.opp.perishCount === 1,
+    `自分 fainted=${E.sides.self.fainted} count=${E.sides.self.perishCount} / 相手 fainted=${E.sides.opp.fainted} count=${E.sides.opp.perishCount}`);
+  E.runTurn();
+  check('T159b 4ターン目終了で両者ひんし',
+    E.sides.self.fainted && E.sides.opp.fainted,
+    `自分 fainted=${E.sides.self.fainted} / 相手 fainted=${E.sides.opp.fainted}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // みちづれ: みちづれ後に相手の技でひんし→相手も道連れ
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('みちづれ'), moveByName('はたく')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('タネばくだん')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.sides.self.currentHp = 1;   // 相手の一撃でひんしになる状況
+  E.sides.opp.currentHp = 155;
+  E.runTurn();
+  check('T159c みちづれで相手を道連れに',
+    E.sides.self.fainted && E.sides.opp.fainted,
+    `自分 fainted=${E.sides.self.fainted} / 相手 fainted=${E.sides.opp.fainted}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // みちづれは自分が次に行動したら解除される
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('みちづれ'), moveByName('ヘドロばくだん')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('タネばくだん')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // 1ターン目: みちづれ(自分は先手・被弾しても倒れない)
+  E.sides.self.currentHp = 1;
+  E.sides.self.selectedMoveIdx = 1;   // 2ターン目: 別の技で行動→みちづれ解除
+  E.runTurn();
+  check('T159d 行動したらみちづれ解除(相手は道連れにならない)',
+    E.sides.self.fainted && !E.sides.opp.fainted,
+    `自分 fainted=${E.sides.self.fainted} / 相手 fainted=${E.sides.opp.fainted}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // みちづれの連続使用は必ず失敗(第7世代以降)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('みちづれ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('タネばくだん')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // 1ターン目: みちづれ成功
+  E.sides.self.currentHp = 1;
+  E.runTurn();   // 2ターン目: みちづれ失敗→相手の技でひんしでも道連れなし
+  check('T159e 連続使用のみちづれは失敗(道連れなし)',
+    E.sides.self.fainted && !E.sides.opp.fainted,
+    `自分 fainted=${E.sides.self.fainted} / 相手 fainted=${E.sides.opp.fainted}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
