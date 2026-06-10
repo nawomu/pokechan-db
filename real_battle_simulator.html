@@ -1170,6 +1170,15 @@ function calcDamage(atkSide, defSide, move){
   const weatherMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'weather_in');
   if (weatherMul && weatherCondOk(weatherMul.condition, env.weather)) power = Math.floor(power * (weatherMul.multiplier || 1));
 
+  // フィールド条件つき威力倍率(ミストバースト: ミストフィールド上で接地していると1.5倍。Bulbapedia "Misty Explosion")
+  // じしん等はフィールド側(場の威力補正の moves)にも同じ意味が宣言されている(composeが喋るため技側にも残る)
+  // → フィールド側が技名で宣言している時はフィールド側を正として技側はスキップ(二重適用の防止)
+  const fieldMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'field');
+  if (fieldMul && _FMAP[fieldMul.condition.value] === env.field && isGrounded(atk) &&
+      !fieldRules().some(r => r.kind === '場の威力補正' && Array.isArray(r.moves) && r.moves.includes(move.name))){
+    power = Math.max(1, pokeRound(power, Math.round((fieldMul.multiplier || 1) * 4096)));
+  }
+
   // 半無敵命中の倍化: じしん→あなをほる中 / なみのり・うずしお→ダイビング中 は威力2倍(Bulbapedia "Semi-invulnerable turn")
   const semiHit = bdEffects.find(e => e.kind === '半無敵命中');
   if (semiHit && semiHit.damage_multiplier && def.charging && def.charging.semi &&
@@ -1847,6 +1856,17 @@ function applyProtectPunishers(atk, def, mv){
   }
 }
 
+// 自分瀕死(じばく系): 使用者をひんしにする。
+//   威力あり(じばく/だいばくはつ/ミストバースト)=第5世代以降「外れても・守られても・こうかなしでも」
+//   使用宣言したら必ず倒れる。威力なし(おきみやげ/いのちがけ/いやしのねがい)=技が成功した時だけ。
+//   (Bulbapedia "Self-Destruct"/"Memento"/"Final Gambit"。成功時のみ/常時の振り分けは呼び出し側)
+function applySelfFaint(atk){
+  if (atk.fainted) return;
+  atk.currentHp = 0;
+  atk.fainted = true;
+  log('9', `${atk.poke.name} は ひんしになった！`);
+}
+
 function phaseApplyEffects(atkSide, defSide, move){
   if (!move || !move.battle_data || !move.battle_data.effects) return;
   const atk = sides[atkSide];
@@ -2196,26 +2216,33 @@ function runSingleAttack(atkSide, moveIdx){
   }
   // まもる系以外の行動をしたら連続成功カウントはリセット
   atk.protectStreak = 0;
+  // 自分瀕死(じばく系): 威力ありは使用宣言したら必ず倒れる / 威力なしは成功時のみ
+  const _selfKO = ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '自分瀕死');
+  const _selfKOAlways = _selfKO && mv.power != null && mv.power !== '—';
   // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
   if (startChargeIfNeeded(atk, mv, releasing)){ renderBattleLog(); renderBoth(); return; }
   // 命中判定
   const hit = phaseHitCheck(mv, atk, def);
-  if (!hit.hit){ log('0c', hit.reason); renderBattleLog(); renderBoth(); return; }
+  if (!hit.hit){ log('0c', hit.reason); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
   // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
   if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
     log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
     applyProtectPunishers(atk, def, mv);
+    if (_selfKOAlways) applySelfFaint(atk);
     renderBattleLog(); renderBoth(); return;
   }
   if (mv.category === '変化'){
     log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
     phaseApplyEffects(atkSide, defSide, mv);
+    if (_selfKO) applySelfFaint(atk);   // おきみやげ/いやしのねがい=成功した時だけ
   } else {
     const dmgRes = phaseDealDamage(atkSide, defSide, mv);
     if (!def.fainted) phaseApplyEffects(atkSide, defSide, mv);
     // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
     if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
+    // 自分瀕死: 威力あり=結果に関係なく / 威力なし(いのちがけ)=当たった時だけ
+    if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
   }
   // 攻撃側のターン終了スリップ（片側攻撃でも自分側のみ処理）
   phaseSlipFor(atkSide);
@@ -2362,21 +2389,26 @@ function runTurn(){
     }
     // まもる系以外の行動をしたら連続成功カウントはリセット
     atk.protectStreak = 0;
+    // 自分瀕死(じばく系): 威力ありは使用宣言したら必ず倒れる / 威力なしは成功時のみ
+    const _selfKO = ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '自分瀕死');
+    const _selfKOAlways = _selfKO && mv.power != null && mv.power !== '—';
     // 溜め技: 1ターン目はここで溜めに入る(攻撃しない)。天候スキップ時はそのまま攻撃へ。
     if (startChargeIfNeeded(atk, mv, releasing)) continue;
     // 命中判定
     const hit = phaseHitCheck(mv, atk, def);
-    if (!hit.hit){ log('0c', hit.reason); continue; }
+    if (!hit.hit){ log('0c', hit.reason); if (_selfKOAlways) applySelfFaint(atk); continue; }
     // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
     if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
       log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
       applyProtectPunishers(atk, def, mv);
+      if (_selfKOAlways) applySelfFaint(atk);
       continue;
     }
     if (mv.category === '変化'){
       log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
       // 変化技でも状態異常付与だけは適用（おにび等）
       phaseApplyEffects(a.side, a.opp, mv);
+      if (_selfKO) applySelfFaint(atk);   // おきみやげ/いやしのねがい=成功した時だけ
       continue;
     }
     // ダメ計算とHP適用
@@ -2386,6 +2418,8 @@ function runTurn(){
     // 反動予約(はかいこうせん系): 攻撃が成功した時だけ次ターン行動不能(外れ/こうかなし/失敗は反動なし=第5世代以降)
     if (dmgRes && !dmgRes.immune && !dmgRes.failed &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
+    // 自分瀕死: 威力あり=結果に関係なく / 威力なし(いのちがけ)=当たった時だけ
+    if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
   }
   // ターン終了処理
   phaseEndOfTurnSlip();
