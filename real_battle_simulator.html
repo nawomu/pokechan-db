@@ -2340,6 +2340,13 @@ function phaseApplyEffects(atkSide, defSide, move){
       return;
     }
   }
+  // ふきとばし/ほえる(強制交代(吹き飛ばし)): 相手に控えがいない時は失敗(Bulbapedia "Whirlwind"/"Roar")。
+  // この sim は1vs1(控えなし)なので常に失敗が正解
+  if (move.battle_data.effects.some(e => e.kind === '強制交代(吹き飛ばし)')){
+    log('9', `しかし うまく きまらなかった！(ひかえの ポケモンがいない)`);
+    noteActionFailed(atk);
+    return;
+  }
   // みがわり: すでに分身がいる時は技ごと失敗=HP(1/4)も払わない(Bulbapedia "Substitute")
   if (move.battle_data.effects.some(e => e.kind === 'みがわり設置') && atk.subHp > 0){
     log('9', `しかし うまく きまらなかった！(すでに みがわりがいる)`);
