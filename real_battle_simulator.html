@@ -1013,6 +1013,9 @@ function makeSideState(){
     // タイプの上書き(みずびたし/ハロウィン/もえつきる等): タイプ名の配列(0〜3つ) / null=元のまま。
     // sideTypes() がこれを最優先で返す。空配列=タイプなし(純ほのおのもえつきる後)もあり得る。
     typeOverride: null,
+    // 特性の上書き(シンプルビーム/なりきり/スキルスワップ等): 特性名 / ''=特性なし(いえき) / null=元のまま。
+    // sideAbility() がこれを最優先で返す。
+    abilityOverride: null,
     // みちづれ状態(次に自分が行動するまで) / 直前の行動がみちづれだったか(連続使用は失敗・第7世代以降)
     destinyBond: false,
     dbondPrev: false,
@@ -1416,14 +1419,14 @@ function calcDamage(atkSide, defSide, move){
   }
 
   // 3.6) やけど物理 ×0.5（こんじょう除外・からげんき=データ宣言「やけど低下無視」も除外。Bulbapedia "Facade"第6世代以降）
-  if (atk.status === 'burn' && isPhys && atk.ability !== 'こんじょう' &&
+  if (atk.status === 'burn' && isPhys && sideAbility(atk) !== 'こんじょう' &&
       !bdEffects.some(e => e.kind === 'やけど低下無視')){
     base = pokeRound(base, 2048);
     chips.push({label:'やけど', factor:0.5, kind:'env-down'});
   }
 
   // 3.7) 攻撃側 特性補正（vgc-champions-calc 準拠の Q12 値）
-  const ab = atk.ability;
+  const ab = sideAbility(atk);
   // てつのこぶし: パンチ技 ×1.2
   if (ab === 'てつのこぶし' && move.flags && move.flags.punch){
     base = pokeRound(base, 4915);
@@ -1452,7 +1455,7 @@ function calcDamage(atkSide, defSide, move){
   }
 
   // 3.75) 防御側 特性補正
-  const defAb = def.ability;
+  const defAb = sideAbility(def);
   // フィルター / ハードロック: 効果バツグン時 ×0.75
   if ((defAb === 'フィルター' || defAb === 'ハードロック') && eff > 1){
     base = pokeRound(base, 3072);
@@ -1659,7 +1662,7 @@ function movePriority(move){
 function effectiveSpeed(st){
   if (!st.poke) return 0;
   let s = rankedStat(st, 'spd');
-  if (st.status === 'paralysis' && st.ability !== 'はやあし') s = Math.floor(s / 2);
+  if (st.status === 'paralysis' && sideAbility(st) !== 'はやあし') s = Math.floor(s / 2);
   const item = (!env.magicRoom && st.item) ? ITEM_BY_KEY[st.item] : null;
   if (item && item.key === 'kodawari_scarf') s = Math.floor(s * 1.5);
   return s;
@@ -1708,7 +1711,7 @@ function phaseInitA(){
     const st = sides[s];
     if (!st.poke) continue;
     const other = s === 'self' ? sides.opp : sides.self;
-    const ab = st.ability;
+    const ab = sideAbility(st);
     if (ab === 'いかく' && other.poke){
       other.rank.atk = Math.max(-6, (other.rank.atk||0) - 1);
       log('Init-A', `${st.poke.name} の いかくで ${other.poke.name} のこうげきがさがった！`);
@@ -1984,13 +1987,18 @@ const _SCREEN_NAME = {reflect:'リフレクター', lightScreen:'ひかりのか
 // エンコールのNGリストと同じく engine 側に保持=技側にフラグのスキーマを推測で足さない)
 const GRAVITY_BLOCKED = ['そらをとぶ', 'はねる', 'とびげり', 'とびひざげり', 'とびはねる',
                          'でんじふゆう', 'フライングプレス', 'フリーフォール'];
+// 特性操作(なりきり/なかまづくり/スキルスワップ/いえき等)で変えられない特性。
+// データ側 exceptions は complete:false(調査中)のためエンジン側に legacy/Bulbapedia 列挙で保持
+// (エンコール/GRAVITY_BLOCKED と同じ方式=スキーマを推測で足さない)。
+// 出典: Bulbapedia "Role Play"/"Entrainment"/"Skill Swap"/"Gastro Acid" の対象外特性のうち sim に存在するもの
+const ABILITY_CHANGE_NG = ['ふしぎなまもり', 'バトルスイッチ', 'ばけのかわ', 'なまけ'];
 // 「地面にいる」判定: ひこうタイプ/とくせいふゆうは地面にいない → フィールドの効果を受けない
 // じゅうりょく中は全員が地面にいる扱い(Bulbapedia "Gravity")
 function isGrounded(st){
   if (!st || !st.poke) return false;
   if (env.gravity) return true;
   if (sideTypes(st).includes('ひこう')) return false;
-  if (st.ability === 'ふゆう') return false;
+  if (sideAbility(st) === 'ふゆう') return false;
   return true;
 }
 
@@ -2001,6 +2009,15 @@ function sideTypes(st){
   if (!st || !st.poke) return [];
   if (st.typeOverride) return st.typeOverride.slice();
   return [st.poke.type1, st.poke.type2].filter(Boolean);
+}
+
+// 現在の特性(シンプルビーム/なりきり/スキルスワップ/いえき等の特性変化を反映)。
+// abilityOverride があればそれが正(空文字=特性なし/いえきで無効化)。
+// バトル中の特性参照は全てここを通す(sideTypes と同じ方式)。
+function sideAbility(st){
+  if (!st) return '';
+  if (st.abilityOverride != null) return st.abilityOverride;
+  return st.ability || '';
 }
 
 // === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
@@ -2153,7 +2170,7 @@ function phaseApplyEffects(atkSide, defSide, move){
   const atk = sides[atkSide];
   const def = sides[defSide];
   // ちからずく時は追加効果が発動しない
-  if (atk.ability === 'ちからずく') return;
+  if (sideAbility(atk) === 'ちからずく') return;
   // 防御側ひんし時は付与しない
   if (def.fainted) return;
   // HPコスト技(はらだいこ/ソウルビート/みがわり等の変化技): HPがコスト以下・もうランク最大なら技ごと失敗。
@@ -2705,6 +2722,57 @@ function phaseApplyEffects(atkSide, defSide, move){
         _st.typeOverride = _cur.filter(t => t !== ef.value);
         log('9', `${_st.poke.name} は ${ef.value}タイプで なくなった！`);
       }
+    } else if (ef.kind === '特性上書き'){
+      // なりきり(source=opponent_ability)=相手の特性を自分にコピー /
+      // なかまづくり(value=自分の特性)=自分の特性を相手に /
+      // シンプルビーム・なやみのタネ(value=特性名)=相手の特性を指定特性にする。
+      // 変えられない特性は ABILITY_CHANGE_NG。出典: Bulbapedia "Role Play"/"Entrainment"/"Simple Beam"/"Worry Seed"
+      if (ef.source === 'opponent_ability'){
+        // なりきりは ef.target が self(変わるのは自分)なので、コピー元は明示的に相手(def)
+        const _src = sideAbility(def);
+        if (!_src || ABILITY_CHANGE_NG.includes(_src)){
+          log('9', `しかし うまく きまらなかった！`);
+        } else {
+          atk.abilityOverride = _src;
+          log('9', `${atk.poke.name} は ${def.poke.name} の ${_src}を なりきった！`);
+        }
+      } else if (ef.value === '自分の特性'){
+        const _src = sideAbility(atk);
+        if (!_src || ABILITY_CHANGE_NG.includes(_src) || ABILITY_CHANGE_NG.includes(sideAbility(target))){
+          log('9', `しかし うまく きまらなかった！`);
+        } else {
+          target.abilityOverride = _src;
+          log('9', `${target.poke.name} の 特性が ${_src}に なった！`);
+        }
+      } else {
+        if (ABILITY_CHANGE_NG.includes(sideAbility(target)) || sideAbility(target) === ef.value){
+          log('9', `しかし うまく きまらなかった！`);
+        } else {
+          target.abilityOverride = ef.value;
+          log('9', `${target.poke.name} の 特性が ${ef.value}に なった！`);
+        }
+      }
+    } else if (ef.kind === '特性交換'){
+      // スキルスワップ: おたがいの特性を入れかえる。どちらかが変えられない特性/両方とも特性なしなら失敗。
+      // 出典: Bulbapedia "Skill Swap"
+      const _a = sideAbility(atk), _d = sideAbility(target);
+      if ((!_a && !_d) || ABILITY_CHANGE_NG.includes(_a) || ABILITY_CHANGE_NG.includes(_d)){
+        log('9', `しかし うまく きまらなかった！`);
+      } else {
+        atk.abilityOverride = _d;
+        target.abilityOverride = _a;
+        log('9', `${atk.poke.name} は おたがいの 特性を 入れかえた！`);
+      }
+    } else if (ef.kind === '特性無効化'){
+      // いえき: 相手の特性のはたらきをなくす(空文字=特性なし扱い)。すでに無効/変えられない特性なら失敗。
+      // 出典: Bulbapedia "Gastro Acid"
+      const _d = sideAbility(target);
+      if (_d === '' || ABILITY_CHANGE_NG.includes(_d)){
+        log('9', `しかし うまく きまらなかった！`);
+      } else {
+        target.abilityOverride = '';
+        log('9', `${target.poke.name} の 特性が きかなくなった！`);
+      }
     } else if (ef.kind === '次技威力倍化'){
       // じゅうでん: 次に使う指定タイプ(でんき)のダメージ技の威力が2倍。指定タイプの技を使うまで
       // 持続し、使うと消費される(第9世代)。出典: Bulbapedia "Charge"
@@ -2786,9 +2854,8 @@ function phaseSlipFor(s){
   }
   // 砂嵐継続ダメ (いわ/じめん/はがね/ふゆう/すながくれ/すなのちから/マジックガード除外)
   if (env.weather === 'sand' && !st.fainted){
-    const t1 = st.poke.type1, t2 = st.poke.type2;
-    if (![t1,t2].some(t => ['いわ','じめん','はがね'].includes(t)) &&
-        !['ふゆう','すなのちから','すながくれ','マジックガード'].includes(st.ability)){
+    if (!sideTypes(st).some(t => ['いわ','じめん','はがね'].includes(t)) &&
+        !['ふゆう','すなのちから','すながくれ','マジックガード'].includes(sideAbility(st))){
       const d = Math.max(1, Math.floor(max / 16));
       st.currentHp = Math.max(0, st.currentHp - d);
       log('10c', `${st.poke.name} は すなあらしで ${d} ダメージ！`);
@@ -2852,6 +2919,7 @@ function snapshotBattleState(){
     encore: st.encore ? {...st.encore} : null,                  // アンコールも一手戻せるように
     statOverride: st.statOverride ? {...st.statOverride} : null, // 実数値上書きも一手戻せるように
     typeOverride: st.typeOverride ? [...st.typeOverride] : null, // タイプ変化も一手戻せるように
+    abilityOverride: st.abilityOverride != null ? st.abilityOverride : null, // 特性変化も一手戻せるように
     destinyBond: !!st.destinyBond,                               // みちづれも一手戻せるように
     dbondPrev: !!st.dbondPrev,
     perishCount: st.perishCount != null ? st.perishCount : null, // ほろびのうたも一手戻せるように
@@ -2902,6 +2970,7 @@ function undoBattle(){
     st.encore = src.encore ? {...src.encore} : null;                  // アンコールの巻き戻し
     st.statOverride = src.statOverride ? {...src.statOverride} : null; // 実数値上書きの巻き戻し
     st.typeOverride = src.typeOverride ? [...src.typeOverride] : null; // タイプ変化の巻き戻し
+    st.abilityOverride = src.abilityOverride != null ? src.abilityOverride : null; // 特性変化の巻き戻し
     st.destinyBond = !!src.destinyBond;                                // みちづれの巻き戻し
     st.dbondPrev = !!src.dbondPrev;
     st.perishCount = src.perishCount != null ? src.perishCount : null; // ほろびのうたの巻き戻し
@@ -3485,6 +3554,7 @@ function resetBattle(){
     st.encore = null;
     st.statOverride = null;
     st.typeOverride = null;
+    st.abilityOverride = null;
     st.destinyBond = false;
     st.dbondPrev = false;
     st.perishCount = null;

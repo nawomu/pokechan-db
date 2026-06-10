@@ -3075,6 +3075,98 @@ console.log('\n=== 段59 ひんし系(ほろびのうた/みちづれ) ===');
   resetEnv();
 }
 
+console.log('\n=== 段60 特性操作(シンプルビーム/なりきり/なかまづくり/スキルスワップ/いえき) ===');
+// 出典: Bulbapedia "Simple Beam"/"Worry Seed"(相手の特性を指定特性に) /
+//       "Role Play"(相手の特性をコピー) / "Entrainment"(自分の特性を相手に) /
+//       "Skill Swap"(入れかえ) / "Gastro Acid"(無効化)。ふしぎなまもり等の固有特性は対象外。
+{
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('シンプルビーム'), moveByName('なりきり'), moveByName('なかまづくり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.ability = 'のろわれボディ';
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.ability = 'しんりょく';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T160 シンプルビームで相手の特性がたんじゅんに',
+    E.sideAbility && E.sideAbility(E.sides.opp) === 'たんじゅん',
+    `相手特性=${E.sideAbility && E.sideAbility(E.sides.opp)}`);
+  // なりきり: 相手の(今の)特性を自分にコピー
+  E.sides.self.selectedMoveIdx = 1;
+  E.runTurn();
+  check('T160b なりきりで相手の特性をコピー',
+    E.sideAbility && E.sideAbility(E.sides.self) === 'たんじゅん',
+    `自分特性=${E.sideAbility && E.sideAbility(E.sides.self)}`);
+  // なかまづくり: 自分の(今の)特性を相手に
+  E.sides.self.abilityOverride = null;   // 自分をのろわれボディに戻す
+  E.sides.self.selectedMoveIdx = 2;
+  E.runTurn();
+  check('T160c なかまづくりで自分の特性を相手に',
+    E.sideAbility && E.sideAbility(E.sides.opp) === 'のろわれボディ',
+    `相手特性=${E.sideAbility && E.sideAbility(E.sides.opp)}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // スキルスワップ: 入れかえ
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('スキルスワップ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.ability = 'のろわれボディ';
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.ability = 'しんりょく';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T160d スキルスワップで特性を入れかえ',
+    E.sideAbility && E.sideAbility(E.sides.self) === 'しんりょく' &&
+    E.sideAbility(E.sides.opp) === 'のろわれボディ',
+    `自分=${E.sideAbility && E.sideAbility(E.sides.self)} 相手=${E.sideAbility && E.sideAbility(E.sides.opp)}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // いえき: 特性無効化。はやあし+まひ(無効化前=すばやさ半減なし→無効化後=半減)で行動確認
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('いえき')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.ability = 'はやあし';
+  E.sides.opp.status = 'paralysis';
+  E.setRandom(() => 0.0);
+  const spdBefore = E.effectiveSpeed(E.sides.opp);   // はやあし: まひでも半減しない=100
+  E.runTurn();
+  const spdAfter = E.effectiveSpeed(E.sides.opp);    // 無効化後: まひ半減=50
+  check('T160e いえきで特性が無効化(はやあしが効かなくなり まひ半減)',
+    spdBefore === 100 && spdAfter === 50,
+    `無効化前=${spdBefore}(期待100) 無効化後=${spdAfter}(期待50)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // なりきり: ふしぎなまもり(固有特性)はコピーできず失敗
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('なりきり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.ability = 'のろわれボディ';
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.ability = 'ふしぎなまもり';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T160f なりきりはふしぎなまもりをコピーできない',
+    E.sideAbility && E.sideAbility(E.sides.self) === 'のろわれボディ',
+    `自分特性=${E.sideAbility && E.sideAbility(E.sides.self)}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
