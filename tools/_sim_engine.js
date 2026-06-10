@@ -74,6 +74,7 @@ function buildEngine() {
     TEST_POKEMON: (typeof TEST_POKEMON !== 'undefined') ? TEST_POKEMON : null,
     usableMoves: (typeof usableMoves !== 'undefined') ? usableMoves : null,
     dummyAbilityList: (typeof dummyAbilityList !== 'undefined') ? dummyAbilityList : null,
+    moveTypeEff: (typeof moveTypeEff !== 'undefined') ? moveTypeEff : null,
     setRandom: (fn)=>{ Math.random = fn; },
   }; } catch(e){ globalThis.__engineErr = String(e&&e.stack||e); return null; } })();`;
   vm.runInContext(inline.join('\n') + expose, ctx, { filename: 'sim-inline.js' });
