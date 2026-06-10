@@ -1010,6 +1010,9 @@ function makeSideState(){
     // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等): {atk: 数値, ...} / null。
     // realStat がこれを最優先で返す(ランク補正はその上に乗る)。場を離れる/リセットで消える。
     statOverride: null,
+    // タイプの上書き(みずびたし/ハロウィン/もえつきる等): タイプ名の配列(0〜3つ) / null=元のまま。
+    // sideTypes() がこれを最優先で返す。空配列=タイプなし(純ほのおのもえつきる後)もあり得る。
+    typeOverride: null,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -1261,9 +1264,9 @@ function calcDamage(atkSide, defSide, move){
   if (semiHit && semiHit.damage_multiplier && def.charging && def.charging.semi &&
       (semiHit.hits_state || []).includes(def.charging.semi)) power *= semiHit.damage_multiplier;
 
-  const atkOrigTypes = [atk.poke.type1, atk.poke.type2].filter(Boolean);
+  const atkOrigTypes = sideTypes(atk);   // タイプ変化(みずびたし等)を反映した現在のタイプ
   const atkTypes = atkOrigTypes;
-  const defTypes = [def.poke.type1, def.poke.type2].filter(Boolean);
+  const defTypes = sideTypes(def);
 
   // ばけのかわ無効化
   if (def.disguise){
@@ -1807,6 +1810,13 @@ function phaseDealDamage(atkSide, defSide, move){
   // power非依存の特殊ダメージ(一撃必殺/固定ダメージ)を先に処理
   const _e0 = (move.battle_data && move.battle_data.effects) || [];
 
+  // もえつきる: 自分が除去対象タイプ(ほのお)でなければ技ごと失敗(Bulbapedia "Burn Up")
+  const _typeRemEf = _e0.find(e => e.kind === 'タイプ除去' && e.target === 'self');
+  if (_typeRemEf && !sideTypes(sides[atkSide]).includes(_typeRemEf.value)){
+    log('8', `${sides[atkSide].poke.name} の ${move.name}！ しかし うまく きまらなかった！`);
+    return { failed: true };
+  }
+
   // 倍返し(カウンター=物理2倍 / ミラーコート=特殊2倍 / メタルバースト・ほうふく=物理特殊問わず1.5倍)
   // 出典: Bulbapedia "Counter"/"Mirror Coat"/"Metal Burst" — そのターンに受けた該当ダメージが対象。
   // タイプ無効(ゴースト×カウンター等)は適用・相性倍率は無視。受けていなければ失敗。
@@ -1814,7 +1824,7 @@ function phaseDealDamage(atkSide, defSide, move){
   if (counterEf){
     const a = sides[atkSide], df = sides[defSide];
     if (!a.poke || !df.poke) return null;
-    const defTypes = [df.poke.type1, df.poke.type2].filter(Boolean);
+    const defTypes = sideTypes(df);
     if (moveTypeEff(move.type, defTypes) === 0){
       log('8', `${df.poke.name} には こうかが ないようだ…`);
       return { immune: true, reason: 'こうかなし' };
@@ -1841,7 +1851,7 @@ function phaseDealDamage(atkSide, defSide, move){
     const a = sides[atkSide], df = sides[defSide];
     if (!a.poke || !df.poke) return null;
     const ignores = (ohkoEf && ohkoEf.ignores_type_matchup) || (fixedEf && fixedEf.ignores_type_matchup);
-    const defTypes = [df.poke.type1, df.poke.type2].filter(Boolean);
+    const defTypes = sideTypes(df);
     if (!ignores && moveTypeEff(move.type, defTypes) === 0){
       log('8', `${df.poke.name} には こうかが ないようだ…`);
       return { immune: true, reason: 'こうかなし' };
@@ -1961,9 +1971,18 @@ const GRAVITY_BLOCKED = ['そらをとぶ', 'はねる', 'とびげり', 'とび
 function isGrounded(st){
   if (!st || !st.poke) return false;
   if (env.gravity) return true;
-  if ([st.poke.type1, st.poke.type2].includes('ひこう')) return false;
+  if (sideTypes(st).includes('ひこう')) return false;
   if (st.ability === 'ふゆう') return false;
   return true;
+}
+
+// 現在のタイプ(みずびたし/ハロウィン/もえつきる等のタイプ変化を反映)。
+// typeOverride があればそれが正(空配列=タイプなし)。STAB・相性・接地・状態異常のタイプ無効など
+// バトル中のタイプ参照は全てここを通す(UI表示も同じ)。
+function sideTypes(st){
+  if (!st || !st.poke) return [];
+  if (st.typeOverride) return st.typeOverride.slice();
+  return [st.poke.type1, st.poke.type2].filter(Boolean);
 }
 
 // === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
@@ -2005,7 +2024,7 @@ function applyProtectPunishers(atk, def, mv){
       const code = map[ef.value];
       if (!code) continue;
       // 効かない相手には付与しない(状態異常のタイプ無効=本体の状態付与と同じ基準)
-      const tg = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+      const tg = sideTypes(atk);
       const STATUS_IMMUNE = { burn:['ほのお'], freeze:['こおり'], paralysis:['でんき'], poison:['どく','はがね'], badpoison:['どく','はがね'] };
       if ((STATUS_IMMUNE[code] || []).some(t => tg.includes(t))) continue;
       if (atk.status && atk.status !== 'none') continue;
@@ -2128,7 +2147,7 @@ function phaseApplyEffects(atkSide, defSide, move){
     if (_cost.condition){
       // のろい: ゴーストが使った時だけHPコスト技。それ以外の条件は評価できない=コスト技扱いしない
       if (_cost.condition.type === 'user_type'){
-        const at = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+        const at = sideTypes(atk);
         _applies = at.includes(_cost.condition.value);
       } else { _applies = false; }
     }
@@ -2212,7 +2231,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (ef.condition){
         const c = ef.condition;
         if (c.type === 'user_type'){
-          const at = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+          const at = sideTypes(atk);
           if (!at.includes(c.value)) continue;
         } else {
           continue;
@@ -2226,7 +2245,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (slipDecls.length){
         if (!target.slips) target.slips = [];
         if (!target.slips.some(sl => sl.source === ef.value)){   // 重ねがけ不可(1回分だけ)
-          const tgS = target.poke ? [target.poke.type1, target.poke.type2].filter(Boolean) : [];
+          const tgS = sideTypes(target);
           const decl = slipDecls.find(e => {
             const c = e.condition;
             if (!c || c.type === 'target_has_status') return true;
@@ -2246,7 +2265,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       // ゴーストタイプには付与されない(データの immune 宣言を読む)。
       if (ef.value === 'バインド'){
         if (target.slips && target.slips.some(sl => sl.source === 'バインド')) continue;   // 重ねがけ不可
-        const tgB = target.poke ? [target.poke.type1, target.poke.type2].filter(Boolean) : [];
+        const tgB = sideTypes(target);
         if ((ef.immune || []).some(im => im.type === 'target_type' && tgB.includes(im.value))){
           log('9', `${target.poke.name} には こうかが ないようだ…`);
           continue;
@@ -2267,7 +2286,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       const code = map[ef.value];
       if (!code) continue;
       // ★効かない相手には付与しない(状態異常のタイプ無効)。ダメージ技の追加効果・変化技の両方に共通。
-      const tg = target.poke ? [target.poke.type1, target.poke.type2].filter(Boolean) : [];
+      const tg = sideTypes(target);
       const STATUS_IMMUNE = { burn:['ほのお'], freeze:['こおり'], paralysis:['でんき'], poison:['どく','はがね'], badpoison:['どく','はがね'] };
       const immuneHere = (STATUS_IMMUNE[code] || []).some(t => tg.includes(t))
         || (ef.target !== 'self' && move.type === 'でんき' && tg.includes('じめん')) // でんき技(でんじは等)はじめんに無効
@@ -2312,7 +2331,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           if (itName !== c.value) continue;
         } else if (c.type === 'user_not_type'){
           // のろい: ゴースト以外が使った時のランク変化(ゴースト版の自傷のろいは未対応)
-          const at = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+          const at = sideTypes(atk);
           if (at.includes(c.value)) continue;
         } else {
           continue; // とどめばり/キングシールド/じばそうさ/ドラゴンエール等の状況条件は未対応=発動させない
@@ -2345,7 +2364,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       // やどりぎのタネ: 毎ターン終了時に相手の最大HP1/8を削り、その分自分が回復(くさタイプには無効)。
       // 交代引き継ぎ(carries_over_on_user_switch)は1vs1のsimでは出番なし。drains付きslipsとして記録。
       if (def.fainted) continue;
-      const tgY = def.poke ? [def.poke.type1, def.poke.type2].filter(Boolean) : [];
+      const tgY = sideTypes(def);
       const immY = (move.battle_data.immune || []).some(im => im.type === 'target_type' &&
         (im.values || [im.value]).some(t => tgY.includes(t)));
       if (immY){
@@ -2397,7 +2416,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (ef.condition){
         // のろい: ゴーストが使った時だけ。評価できない条件は誤適用回避でスキップ
         if (ef.condition.type === 'user_type'){
-          const at = atk.poke ? [atk.poke.type1, atk.poke.type2].filter(Boolean) : [];
+          const at = sideTypes(atk);
           if (!at.includes(ef.condition.value)) continue;
         } else { continue; }
       }
@@ -2572,6 +2591,50 @@ function phaseApplyEffects(atkSide, defSide, move){
         target.statOverride[k] = avg;
       }
       log('9', `${atk.poke.name} は おたがいの 能力を 分けあった！`);
+    } else if (ef.kind === 'タイプ上書き'){
+      // みずびたし/まほうのこな: 相手を単タイプにする(すでにその単タイプなら失敗) /
+      // ミラータイプ(value=copy_target_current_types): 自分のタイプを相手の今のタイプと同じにする。
+      // テラスタル系はsim未実装のため考慮しない。出典: Bulbapedia "Soak" / "Magic Powder" / "Reflect Type"
+      if (ef.value === 'copy_target_current_types'){
+        // ミラータイプは ef.target が self(変わるのは自分)なので、コピー元は明示的に相手(def)
+        const _ts = sideTypes(def);
+        if (!_ts.length){
+          log('9', `しかし うまく きまらなかった！`);
+        } else {
+          atk.typeOverride = _ts;
+          log('9', `${atk.poke.name} は ${def.poke.name} と 同じタイプに なった！`);
+        }
+      } else {
+        const _cur = sideTypes(target);
+        // まほうのこな(エスパー化)は こな技=くさタイプに無効(legacy/Bulbapedia "Magic Powder"。ぼうじん系は未実装)
+        if (ef.value === 'エスパー' && _cur.includes('くさ')){
+          log('9', `${target.poke.name} には こうかが ないようだ…`);
+        } else if (_cur.length === 1 && _cur[0] === ef.value){
+          log('9', `しかし うまく きまらなかった！`);
+        } else {
+          target.typeOverride = [ef.value];
+          log('9', `${target.poke.name} は ${ef.value}タイプに なった！`);
+        }
+      }
+    } else if (ef.kind === 'タイプ追加'){
+      // もりののろい(くさ)/ハロウィン(ゴースト): 相手のタイプに追加(すでに持っていれば失敗)。
+      // 出典: Bulbapedia "Forest's Curse" / "Trick-or-Treat"
+      const _cur = sideTypes(target);
+      if (_cur.includes(ef.value)){
+        log('9', `しかし うまく きまらなかった！`);
+      } else {
+        target.typeOverride = [..._cur, ef.value];
+        log('9', `${target.poke.name} に ${ef.value}タイプが 追加された！`);
+      }
+    } else if (ef.kind === 'タイプ除去'){
+      // もえつきる: 攻撃後、自分から指定タイプが消える(純ほのおならタイプなしになる)。
+      // 「自分がそのタイプでない時は技ごと失敗」は phaseDealDamage 側のゲートが担当。出典: Bulbapedia "Burn Up"
+      const _st = ef.target === 'self' ? atk : target;
+      const _cur = sideTypes(_st);
+      if (_cur.includes(ef.value)){
+        _st.typeOverride = _cur.filter(t => t !== ef.value);
+        log('9', `${_st.poke.name} は ${ef.value}タイプで なくなった！`);
+      }
     } else if (ef.kind === '次技威力倍化'){
       // じゅうでん: 次に使う指定タイプ(でんき)のダメージ技の威力が2倍。指定タイプの技を使うまで
       // 持続し、使うと消費される(第9世代)。出典: Bulbapedia "Charge"
@@ -2718,6 +2781,7 @@ function snapshotBattleState(){
     disable: st.disable ? {...st.disable} : null,               // かなしばりも一手戻せるように
     encore: st.encore ? {...st.encore} : null,                  // アンコールも一手戻せるように
     statOverride: st.statOverride ? {...st.statOverride} : null, // 実数値上書きも一手戻せるように
+    typeOverride: st.typeOverride ? [...st.typeOverride] : null, // タイプ変化も一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -2764,6 +2828,7 @@ function undoBattle(){
     st.disable = src.disable ? {...src.disable} : null;               // かなしばりの巻き戻し
     st.encore = src.encore ? {...src.encore} : null;                  // アンコールの巻き戻し
     st.statOverride = src.statOverride ? {...src.statOverride} : null; // 実数値上書きの巻き戻し
+    st.typeOverride = src.typeOverride ? [...src.typeOverride] : null; // タイプ変化の巻き戻し
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -3325,6 +3390,7 @@ function resetBattle(){
     st.disable = null;
     st.encore = null;
     st.statOverride = null;
+    st.typeOverride = null;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
@@ -3403,7 +3469,7 @@ function render(side){
     nameEl.textContent = st.poke.name + (st.poke.form && st.poke.form !== '通常' ? '('+st.poke.form+')' : '');
     nameEl.classList.remove('empty');
     typesEl.innerHTML = '';
-    [st.poke.type1, st.poke.type2].filter(Boolean).forEach(t=>{
+    sideTypes(st).forEach(t=>{   // タイプ変化(みずびたし等)を反映した現在のタイプを表示
       const b = document.createElement('span');
       b.className = 't-badge t-'+t;
       b.textContent = t;
