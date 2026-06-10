@@ -25,7 +25,7 @@ function freshSide(pokeName, moveKey) {
   s.selectedMoveIdx = 0;
   return s;
 }
-function resetEnv() { E.env.weather = 'none'; E.env.field = 'none'; E.env.doubleBattle = false; E.env.trickRoom = false; }
+function resetEnv() { E.env.weather = 'none'; E.env.weatherTurns = null; E.env.field = 'none'; E.env.doubleBattle = false; E.env.trickRoom = false; }
 
 console.log('=== 段① 追加効果なしの純粋攻撃技（はたく: ノーマル物理40） ===');
 // 受けは「ノーマル等倍」になるタイプ。フシギバナ(くさ/どく)はノーマル技を等倍で受ける。
@@ -948,6 +948,76 @@ console.log('\n=== 段㉖ 反動で動けない技(はかいこうせん系6種:
   E.runTurn();
   check('T75 こうかなしなら反動なし', E.sides.self.mustRecharge === false && E.sides.opp.currentHp === E.realStat(E.sides.opp, 'hp'),
     `mustRecharge=${E.sides.self.mustRecharge} oppHp=${E.sides.opp.currentHp}`);
+}
+
+console.log('\n=== 段㉗ 天候ファミリー(天候変化5/天候必中3/半無敵命中の2倍/晴れこおり無効) ===');
+// 期待値の出典: @smogon/calc じしん=[38,45] / じしん×2(あなをほる中=bp200相当)=[75,89]
+// 意味の出典(Bulbapedia):
+//   "Rain Dance"等 — 5ターンの間 天気を変える(5ターン目の終わりに元に戻る)
+//   "Blizzard" — ゆきの時は必ず命中 / "Thunder"/"Hurricane" — あめで必中・にほんばれで命中率50
+//   "Semi-invulnerable turn" — じしん→あなをほる中/なみのり→ダイビング中はダメージ2倍
+//   "Freeze" — にほんばれの間は こおり状態にならない
+{
+  // T76 にほんばれ(変化技)で天気が変わり、5ターン目の終わりに元に戻る
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('にほんばれ')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.self.currentHp = E.realStat(E.sides.self, 'hp');
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.setRandom(mulberry32(20260611));
+  E.runTurn();
+  check('T76 にほんばれで天気=sunny', E.env.weather === 'sunny', `weather=${E.env.weather}`);
+  // 2〜4ターン目もにほんばれを使い続ける→「すでに同じ天気なので失敗」しターン数はリフレッシュされない(Bulbapedia "Sunny Day")
+  for (let i = 0; i < 3; i++) E.runTurn();
+  check('T76 4ターン目まで天気は続く', E.env.weather === 'sunny', `weather=${E.env.weather}`);
+  check('T76 再使用してもターン数はリフレッシュしない(残1)', E.env.weatherTurns === 1, `weatherTurns=${E.env.weatherTurns}`);
+  E.runTurn();
+  check('T76 5ターン目の終わりに天気が元に戻る', E.env.weather === 'none', `weather=${E.env.weather}`);
+
+  // T77 天候必中: ふぶき(命中70)はゆきで必中 / かみなりは晴れで命中率50
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.setRandom(() => 0.85); // ロール85: 命中70なら外れる
+  const t77a = E.phaseHitCheck(moveByName('ふぶき'), E.sides.self, E.sides.opp);
+  check('T77 通常時ふぶき(命中70)はロール85で外れる', !t77a.hit, JSON.stringify(t77a));
+  E.env.weather = 'snow';
+  const t77b = E.phaseHitCheck(moveByName('ふぶき'), E.sides.self, E.sides.opp);
+  check('T77 ゆきならふぶき必中', t77b.hit === true, JSON.stringify(t77b));
+  E.env.weather = 'rain';
+  const t77c = E.phaseHitCheck(moveByName('かみなり'), E.sides.self, E.sides.opp);
+  check('T77 あめならかみなり必中', t77c.hit === true, JSON.stringify(t77c));
+  E.env.weather = 'sunny';
+  E.setRandom(() => 0.6); // ロール60: 通常命中70なら当たるが、晴れ50なら外れる
+  const t77d = E.phaseHitCheck(moveByName('かみなり'), E.sides.self, E.sides.opp);
+  check('T77 にほんばれならかみなり命中率50(ロール60で外れ)', !t77d.hit, JSON.stringify(t77d));
+  resetEnv();
+
+  // T78 半無敵命中の2倍: じしん→あなをほる中=[75,89](通常[38,45])
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  const t78a = E.calcDamage('self', 'opp', moveByName('じしん'));
+  check('T78 じしん通常=[38,45]', t78a && t78a.min === 38 && t78a.max === 45, t78a && `[${t78a.min},${t78a.max}]`);
+  E.sides.opp.charging = { move: moveByName('あなをほる'), semi: '地中', vulnerableTo: ['じしん','マグニチュード'] };
+  const t78b = E.calcDamage('self', 'opp', moveByName('じしん'));
+  check('T78 あなをほる中のじしん=2倍[75,89]', t78b && t78b.min === 75 && t78b.max === 89, t78b && `[${t78b.min},${t78b.max}]`);
+  E.sides.opp.charging = null;
+
+  // T79 にほんばれの間は こおり にならない(れいとうビームの追加効果が不発)
+  resetEnv();
+  E.env.weather = 'sunny';
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.setRandom(() => 0); // 追加効果ロール0 = 必ず発動側に倒す
+  E.phaseApplyEffects('self', 'opp', moveByName('れいとうビーム'));
+  check('T79 晴れではこおりにならない', E.sides.opp.status === 'none', `status=${E.sides.opp.status}`);
+  E.env.weather = 'none';
+  E.phaseApplyEffects('self', 'opp', moveByName('れいとうビーム'));
+  check('T79 天気なしなら こおり が付く(対照)', E.sides.opp.status === 'freeze', `status=${E.sides.opp.status}`);
+  resetEnv();
 }
 
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);

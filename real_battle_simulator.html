@@ -1163,6 +1163,11 @@ function calcDamage(atkSide, defSide, move){
   const weatherMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'weather_in');
   if (weatherMul && weatherCondOk(weatherMul.condition, env.weather)) power = Math.floor(power * (weatherMul.multiplier || 1));
 
+  // 半無敵命中の倍化: じしん→あなをほる中 / なみのり・うずしお→ダイビング中 は威力2倍(Bulbapedia "Semi-invulnerable turn")
+  const semiHit = bdEffects.find(e => e.kind === '半無敵命中');
+  if (semiHit && semiHit.damage_multiplier && def.charging && def.charging.semi &&
+      (semiHit.hits_state || []).includes(def.charging.semi)) power *= semiHit.damage_multiplier;
+
   const atkOrigTypes = [atk.poke.type1, atk.poke.type2].filter(Boolean);
   const atkTypes = atkOrigTypes;
   const defTypes = [def.poke.type1, def.poke.type2].filter(Boolean);
@@ -1568,9 +1573,12 @@ function phaseInitA(){
 function phaseHitCheck(move, atk, def){
   if (!move) return {hit:false, reason:'技が選択されていない'};
   // 半無敵(そらをとぶ/あなをほる等の溜め中=空中/地中/水中/消失)は原則すべての技が外れる。
-  // vulnerable_to に列挙された技(じしん→あなをほる、かみなり→そらをとぶ等)だけは当たる(Bulbapedia "Semi-invulnerable turn")。
+  // 例外=当たる技: 防御側の vulnerable_to 列挙(じしん→あなをほる等) または 攻撃側の「半無敵命中」宣言(どちらのデータでも可)。
   if (def && def.charging && def.charging.semi){
-    if (!(def.charging.vulnerableTo || []).includes(move.name)){
+    const _se = (move.battle_data && move.battle_data.effects) || [];
+    const canHit = (def.charging.vulnerableTo || []).includes(move.name)
+      || _se.some(e => e.kind === '半無敵命中' && (e.hits_state || []).includes(def.charging.semi));
+    if (!canHit){
       return {hit:false, reason:`${def.poke.name} は ${def.charging.semi}にいて ${move.name} は当たらない！`};
     }
   }
@@ -1579,7 +1587,17 @@ function phaseHitCheck(move, atk, def){
   if (_effs.some(e => e.kind === '必中' || e.ignores_accuracy)) return {hit:true};
   if (move.accuracy == null || move.accuracy === '—' || move.accuracy === 0) return {hit:true};
   // 命中率 ×ランク（acc - eva）— 簡易: ランク 0 前提
-  const acc = Number(move.accuracy);
+  let acc = Number(move.accuracy);
+  // 天候必中: ふぶき=ゆきで必中 / かみなり・ぼうふう=あめで必中・にほんばれで命中率50(Bulbapedia "Blizzard"/"Thunder"/"Hurricane")
+  const wAcc = _effs.find(e => e.kind === '天候必中');
+  if (wAcc){
+    if (wAcc.value && (_WMAP[wAcc.value] || wAcc.value) === env.weather && wAcc.accuracy === 'never_miss') return {hit:true};
+    for (const c of (wAcc.cases || [])){
+      if ((_WMAP[c.weather] || c.weather) !== env.weather) continue;
+      if (c.accuracy === '必中' || c.accuracy === 'never_miss') return {hit:true};
+      if (typeof c.accuracy === 'number') acc = c.accuracy;
+    }
+  }
   const roll = Math.random() * 100;
   return {hit: roll < acc, reason: roll < acc ? null : `${move.name} は外れた！`};
 }
@@ -1777,7 +1795,8 @@ function phaseApplyEffects(atkSide, defSide, move){
       const tg = target.poke ? [target.poke.type1, target.poke.type2].filter(Boolean) : [];
       const STATUS_IMMUNE = { burn:['ほのお'], freeze:['こおり'], paralysis:['でんき'], poison:['どく','はがね'], badpoison:['どく','はがね'] };
       const immuneHere = (STATUS_IMMUNE[code] || []).some(t => tg.includes(t))
-        || (ef.target !== 'self' && move.type === 'でんき' && tg.includes('じめん')); // でんき技(でんじは等)はじめんに無効
+        || (ef.target !== 'self' && move.type === 'でんき' && tg.includes('じめん')) // でんき技(でんじは等)はじめんに無効
+        || (code === 'freeze' && env.weather === 'sunny'); // にほんばれの間は こおり にならない(Bulbapedia "Freeze")
       if (immuneHere){
         log('9', `${target.poke.name} には こうかが ないようだ…`);
         continue;
@@ -1831,6 +1850,17 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (env.field !== 'none' && removable.includes(env.field)){
         env.field = 'none';
         log('9', `フィールドが こわれて消えた！`);
+      }
+    } else if (ef.kind === '天候変化'){
+      // にほんばれ/あまごい/すなあらし/ゆきげしき/さむいギャグ: 5ターンの間 天気を変える(duration=データ指定)。
+      // すでに同じ天気なら失敗する=ターン数もリフレッシュしない(Bulbapedia "Sunny Day"等)。
+      const w = _WMAP[ef.value] || ef.value;
+      if (env.weather === w){
+        log('9', `しかし うまく きまらなかった！(天気はすでに ${ef.value})`);
+      } else {
+        env.weather = w;
+        env.weatherTurns = ef.duration || 5; // ターン終了ごとに減り、0で元に戻る(UI手動設定はnull=無期限)
+        log('9', `天気が ${ef.value} になった！`);
       }
     }
   }
@@ -2129,6 +2159,14 @@ function runTurn(){
       else { if (st.status === 'none'){ st.status = st.pendingStatus.code; log('10', `${st.poke.name} は ${st.pendingStatus.label} 状態になった！`); } st.pendingStatus = null; }
     }
   });
+  // 技で変えた天気のカウントダウン(5ターン目の終わりに元に戻る。UI手動設定=null は無期限)
+  if (env.weatherTurns != null && env.weather !== 'none'){
+    env.weatherTurns--;
+    if (env.weatherTurns <= 0){
+      env.weather = 'none'; env.weatherTurns = null;
+      log('10', '天気が 元に戻った！');
+    }
+  }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
   sides.opp.turnsOut = (sides.opp.turnsOut || 0) + 1;
@@ -2144,6 +2182,7 @@ function fullResetBattle(){
     sides[s] = makeSideState();
   });
   env.weather = 'none';
+  env.weatherTurns = null;
   env.field = 'none';
   env.doubleBattle = false;
   env.trickRoom = false;
@@ -2943,6 +2982,7 @@ function attachEnvPanel(){
   // 天候・フィールド select
   document.getElementById('env-weather').addEventListener('change', e=>{
     env.weather = e.target.value;
+    env.weatherTurns = null; // UI手動設定は無期限(技で変えた時だけ5ターンカウント)
     renderBoth();
   });
   document.getElementById('env-field').addEventListener('change', e=>{
