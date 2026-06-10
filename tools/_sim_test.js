@@ -25,7 +25,7 @@ function freshSide(pokeName, moveKey) {
   s.selectedMoveIdx = 0;
   return s;
 }
-function resetEnv() { E.env.weather = 'none'; E.env.weatherTurns = null; E.env.field = 'none'; E.env.fieldTurns = null; E.env.doubleBattle = false; E.env.trickRoom = false; E.env.trickRoomTurns = null; }
+function resetEnv() { E.env.weather = 'none'; E.env.weatherTurns = null; E.env.field = 'none'; E.env.fieldTurns = null; E.env.doubleBattle = false; E.env.trickRoom = false; E.env.trickRoomTurns = null; E.env.gravity = false; E.env.gravityTurns = null; }
 
 console.log('=== 段① 追加効果なしの純粋攻撃技（はたく: ノーマル物理40） ===');
 // 受けは「ノーマル等倍」になるタイプ。フシギバナ(くさ/どく)はノーマル技を等倍で受ける。
@@ -2519,6 +2519,60 @@ console.log('\n=== 段51 かなしばり/アンコール(lastMove基盤) ===');
   E.runTurn();
   check('T149e 解除後は選んだ技が出せる', E.sides.self.rank.spd === -2,
     `自分spd=${E.sides.self.rank.spd}`);
+  resetEnv();
+}
+
+console.log('\n=== 段52 じゅうりょく/Gのちから ===');
+// 出典: Bulbapedia "Gravity"(第5世代以降: 5ターン・全員の命中率5/3倍・ひこう/ふゆうも接地扱い=
+//       じめん技が当たる・空中にいる技[そらをとぶ等]は使用不可/溜め中は中止・展開中の再使用は失敗) /
+//       Bulbapedia "Grav Apple"(じゅうりょく中は威力1.5倍)
+{
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('じゅうりょく'), moveByName('じしん'), moveByName('Gのちから')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('リザードン', null);   // ひこう持ち(じめん無効)・フシギバナより速い
+  E.sides.opp.moves = [moveByName('そらをとぶ')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  const d0 = E.calcDamage('self', 'opp', moveByName('じしん'));   // 重力なし: ひこうにこうかなし
+  // ターン1: リザードン(速い)がそらをとぶで溜め(空中)→フシギバナがじゅうりょく→空中から落とされる
+  E.runTurn();
+  check('T150 じゅうりょく展開+溜め中のそらをとぶ中止', E.env.gravity === true && !E.sides.opp.charging && d0.immune === true,
+    `gravity=${E.env.gravity} 相手charging=${JSON.stringify(E.sides.opp.charging && E.sides.opp.charging.move.name)} 重力なしじしん immune=${d0.immune}`);
+  // ターン2: 重力中はそらをとぶが出せない。じゅうりょくの再使用は失敗(ターン数はリセットされない)
+  E.runTurn();
+  check('T150b 空中技は出せない+再使用は失敗', E.sides.opp.failedThisTurn === true && E.env.gravityTurns === 3,
+    `相手failed=${E.sides.opp.failedThisTurn} gravityTurns=${E.env.gravityTurns}(期待3=5から2ターン経過・リセットなし)`);
+  // 重力中: じめん技がひこうに当たる
+  const d1 = E.calcDamage('self', 'opp', moveByName('じしん'));
+  check('T150c じめん技がひこうに当たる', d1 && !d1.immune && d1.max > 0,
+    `immune=${d1 && d1.immune} max=${d1 && d1.max}`);
+  // 重力中: 命中率5/3倍(かみなり acc70 → 116.7。roll80: 重力なし=外れ/重力中=当たる)
+  E.setRandom(() => 0.8);
+  const h1 = E.phaseHitCheck(moveByName('かみなり'), E.sides.self, E.sides.opp);
+  E.env.gravity = false;
+  const h0 = E.phaseHitCheck(moveByName('かみなり'), E.sides.self, E.sides.opp);
+  E.env.gravity = true;
+  E.setRandom(() => 0.0);
+  check('T150d 命中率5/3倍', h1.hit === true && h0.hit === false,
+    `重力中hit=${h1.hit}(期待true) 重力なしhit=${h0.hit}(期待false)`);
+  // Gのちから: じゅうりょく中は威力1.5倍(90→135)
+  const g1 = E.calcDamage('self', 'opp', moveByName('Gのちから'));
+  E.env.gravity = false;
+  const g0 = E.calcDamage('self', 'opp', moveByName('Gのちから'));
+  E.env.gravity = true;
+  check('T150e Gのちから1.5倍', g0.max > 0 && g1.max >= Math.floor(g0.max * 1.4) && g1.max <= Math.ceil(g0.max * 1.6),
+    `重力なしmax=${g0.max} 重力中max=${g1.max}(期待≈1.5倍)`);
+  // ターン3〜5: 5ターンで解除
+  E.runTurn(); E.runTurn(); E.runTurn();
+  check('T150f 5ターンで解除', E.env.gravity === false && E.env.gravityTurns == null,
+    `gravity=${E.env.gravity} gravityTurns=${E.env.gravityTurns}`);
+  // ターン6: 解除後はそらをとぶが使える(フシギバナはじしんに変更=溜め空中には当たらない)
+  E.sides.self.selectedMoveIdx = 1;
+  E.runTurn();
+  check('T150g 解除後は空中技が使える', !!E.sides.opp.charging,
+    `相手charging=${JSON.stringify(E.sides.opp.charging && E.sides.opp.charging.move.name)}`);
   resetEnv();
 }
 

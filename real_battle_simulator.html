@@ -934,6 +934,8 @@ const env = {
   doubleBattle: false,   // ダブルバトル（範囲技 ×0.75）
   trickRoom: false,      // トリックルーム（素早さ逆転）
   trickRoomTurns: null,  // 技で展開した時のみ5ターンカウント(UI手動チェック=null は無期限)
+  gravity: false,        // じゅうりょく（命中5/3倍・全員接地・空中技禁止）
+  gravityTurns: null,    // じゅうりょくの残りターン(技で展開した時のみ5ターンカウント)
 };
 
 // 範囲技判定（ダブルで ×0.75 が乗る対象）
@@ -1282,6 +1284,11 @@ function calcDamage(atkSide, defSide, move){
   const fActMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition && e.condition.type === 'field_active');
   if (fActMul && env.field !== 'none' && isGrounded(atk)) power *= (fActMul.multiplier || 2);
 
+  // じゅうりょく条件つき威力倍率(Gのちから: じゅうりょく中は1.5倍。Bulbapedia "Grav Apple")
+  const gravMul = bdEffects.find(e => e.kind === '威力倍率' && e.condition &&
+    e.condition.type === 'field_state' && e.condition.value === 'じゅうりょく');
+  if (gravMul && env.gravity) power *= (gravMul.multiplier || 1.5);
+
   // じゅうでん(次技威力倍化): 指定タイプ(でんき)の技の威力倍化。実効タイプで判定。
   // 消費は実際に技を使った時=phaseDealDamage側(計算プレビューでは消費しない)。Bulbapedia "Charge"
   if (atk.chargeBoost && moveType === atk.chargeBoost.move_type) power *= (atk.chargeBoost.multiplier || 2);
@@ -1295,7 +1302,10 @@ function calcDamage(atkSide, defSide, move){
     if (mtIdx < 0) return;
     defTypes.forEach(dt=>{
       const dtIdx = TYPES.indexOf(dt);
-      if (dtIdx >= 0) eff *= TYPE_CHART[mtIdx][dtIdx];
+      if (dtIdx < 0) return;
+      // じゅうりょく: ひこうも地面にいる扱い→じめん技の「こうかなし」だけ消える(等倍。Bulbapedia "Gravity")
+      if (env.gravity && mt === 'じめん' && dt === 'ひこう') return;
+      eff *= TYPE_CHART[mtIdx][dtIdx];
     });
   });
   if (eff === 0){
@@ -1691,9 +1701,11 @@ function phaseInitA(){
 // === フェーズ: 0c 命中判定 (一撃必殺・必中・追加効果は別計算) ===
 function phaseHitCheck(move, atk, def){
   if (!move) return {hit:false, reason:'技が選択されていない'};
+  // 自分・場を対象にする技は相手を狙っていない→相手の半無敵に関係なく出せる(じゅうりょく/トリックルーム等)
+  const _selfOrField = ['自分', '味方の場', '全体の場', '相手の場', '味方全体', '味方1体', '自分か味方'].includes(move.target);
   // 半無敵(そらをとぶ/あなをほる等の溜め中=空中/地中/水中/消失)は原則すべての技が外れる。
   // 例外=当たる技: 防御側の vulnerable_to 列挙(じしん→あなをほる等) または 攻撃側の「半無敵命中」宣言(どちらのデータでも可)。
-  if (def && def.charging && def.charging.semi){
+  if (def && def.charging && def.charging.semi && !_selfOrField){
     const _se = (move.battle_data && move.battle_data.effects) || [];
     const canHit = (def.charging.vulnerableTo || []).includes(move.name)
       || _se.some(e => e.kind === '半無敵命中' && (e.hits_state || []).includes(def.charging.semi));
@@ -1728,6 +1740,8 @@ function phaseHitCheck(move, atk, def){
       if (typeof c.accuracy === 'number') acc = c.accuracy;
     }
   }
+  // じゅうりょく: 全員の命中率が5/3倍(Bulbapedia "Gravity")
+  if (env.gravity) acc = acc * 5 / 3;
   const roll = Math.random() * 100;
   return {hit: roll < acc, reason: roll < acc ? null : `${move.name} は外れた！`};
 }
@@ -1907,9 +1921,15 @@ function fieldRules(){
 // 壁(自分の場に張るもの)の名前↔フラグ対応。しろいきり等の未実装壁はここに無い=壁除去で黙ってスキップされる。
 const _SCREEN_FLAG = {'リフレクター':'reflect','ひかりのかべ':'lightScreen','オーロラベール':'auroraVeil','しんぴのまもり':'safeguard'};
 const _SCREEN_NAME = {reflect:'リフレクター', lightScreen:'ひかりのかべ', auroraVeil:'オーロラベール', safeguard:'しんぴのまもり'};
+// じゅうりょく中に使えない「空中にいる技」(legacy/Bulbapedia "Gravity" 列挙。
+// エンコールのNGリストと同じく engine 側に保持=技側にフラグのスキーマを推測で足さない)
+const GRAVITY_BLOCKED = ['そらをとぶ', 'はねる', 'とびげり', 'とびひざげり', 'とびはねる',
+                         'でんじふゆう', 'フライングプレス', 'フリーフォール'];
 // 「地面にいる」判定: ひこうタイプ/とくせいふゆうは地面にいない → フィールドの効果を受けない
+// じゅうりょく中は全員が地面にいる扱い(Bulbapedia "Gravity")
 function isGrounded(st){
   if (!st || !st.poke) return false;
+  if (env.gravity) return true;
   if ([st.poke.type1, st.poke.type2].includes('ひこう')) return false;
   if (st.ability === 'ふゆう') return false;
   return true;
@@ -2472,6 +2492,24 @@ function phaseApplyEffects(atkSide, defSide, move){
       const _st = ef.target === 'self' ? atk : def;
       _st.chargeBoost = { move_type: ef.move_type, multiplier: ef.multiplier || 2 };
       log('9', `${_st.poke.name} は ${ef.move_type}を ためはじめた！`);
+    } else if (ef.kind === 'じゅうりょく'){
+      // じゅうりょく: 5ターンの間、全員の命中率5/3倍・全員接地(ひこう/ふゆうにじめん技が当たる)・
+      // 空中にいる技(GRAVITY_BLOCKED)は使えない(溜め中なら中止して落とす)。展開中の再使用は失敗。
+      // 出典: Bulbapedia "Gravity"(第5世代以降は5ターン)
+      if (env.gravity){
+        log('9', `しかし うまく きまらなかった！(すでに じゅうりょくが強い)`);
+      } else {
+        env.gravity = true;
+        env.gravityTurns = ef.duration || 5;
+        log('9', 'じゅうりょくが 強くなった！');
+        for (const s of ['self','opp']){
+          const st = sides[s];
+          if (st.charging && st.charging.move && GRAVITY_BLOCKED.includes(st.charging.move.name)){
+            st.charging = null;
+            log('9', `${st.poke.name} は じゅうりょくで 空中にいられなくなった！`);
+          }
+        }
+      }
     } else if (ef.kind === 'トリックルーム'){
       // トリックルーム: 5ターンの間すばやさ逆転(優先度-7)。展開中に再使用すると元に戻る(toggle)。
       // 出典: Bulbapedia "Trick Room"(lasts 5 turns / using it again ends the effect)
@@ -2707,6 +2745,12 @@ function runSingleAttack(atkSide, moveIdx){
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
+  // じゅうりょく: 空中にいる技は使えない(Bulbapedia "Gravity")
+  if (env.gravity && GRAVITY_BLOCKED.includes(mv.name)){
+    log('0c', `${atk.poke.name} は じゅうりょくが強くて ${mv.name} が だせない！`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
   // ここまで通れば技を「使った」扱い(かなしばり/アンコールの対象になる最後の技)。
   // ねむり・まひ・ひるみ・ちょうはつ等で出せなかった場合は更新しない。
   atk.lastMove = mv;
@@ -2934,6 +2978,11 @@ function runTurn(){
       log('0c', `${atk.poke.name} は かなしばりで ${mv.name} が だせない！`);
       noteActionFailed(atk); continue;
     }
+    // じゅうりょく: 空中にいる技は使えない(Bulbapedia "Gravity")
+    if (env.gravity && GRAVITY_BLOCKED.includes(mv.name)){
+      log('0c', `${atk.poke.name} は じゅうりょくが強くて ${mv.name} が だせない！`);
+      noteActionFailed(atk); continue;
+    }
     // ここまで通れば技を「使った」扱い(かなしばり/アンコールの対象になる最後の技)。
     // ねむり・まひ・ひるみ・ちょうはつ等で出せなかった場合は更新しない。
     atk.lastMove = mv;
@@ -3046,6 +3095,14 @@ function runTurn(){
       log('10', 'ねじれた時空が 元に戻った！');
     }
   }
+  // じゅうりょくのカウントダウン(5ターン目の終わりに元に戻る)
+  if (env.gravityTurns != null && env.gravity){
+    env.gravityTurns--;
+    if (env.gravityTurns <= 0){
+      env.gravity = false; env.gravityTurns = null;
+      log('10', 'じゅうりょくが もとに もどった！');
+    }
+  }
   // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
   for (const s of ['self','opp']){
     const st = sides[s];
@@ -3102,6 +3159,8 @@ function fullResetBattle(){
   env.doubleBattle = false;
   env.trickRoom = false;
   env.trickRoomTurns = null;
+  env.gravity = false;
+  env.gravityTurns = null;
   battleLog.length = 0;
   battleHistory.length = 0;
   log('Reset', '全リセット完了');
