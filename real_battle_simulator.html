@@ -2186,9 +2186,11 @@ function applyCrashDamage(atk, mv){
 function endRampage(atk, withConfusion){
   if (!atk.rampage) return;
   const rmv = atk.rampage.move;
+  // さわぐ(連続強制(混乱なし)): 終わってもこんらんしない(Bulbapedia "Uproar")
+  const noConf = !!atk.rampage.noConfusion;
   atk.rampage = null;
-  log('9', `${atk.poke.name} の あばれるのが やんだ！`);
-  if (!withConfusion || atk.fainted || atk.confusion) return;
+  log('9', noConf ? `${atk.poke.name} は しずかになった！` : `${atk.poke.name} の あばれるのが やんだ！`);
+  if (noConf || !withConfusion || atk.fainted || atk.confusion) return;
   // ミストフィールド(状態異常予防・values指定なし=全部)は こんらんも防ぐ(通常付与と同じ規則)
   const fG = fieldRules().find(r => r.kind === '状態異常予防');
   if (fG && isGrounded(atk) && !fG.values) return;
@@ -2202,15 +2204,27 @@ function disruptRampage(atk){
   if (!atk.rampage) return;
   endRampage(atk, atk.rampage.left <= 1);
 }
+// さわぐ最中か: どちらかの場のあばれ技が 状態異常予防(ねむり) を宣言していれば、場の誰も眠れない。
+// (データ宣言を読む=さわぐの effects に 状態異常予防 value:ねむり target:all がある。Bulbapedia "Uproar")
+// 近似: 実機の「さわぎ始めに眠っているポケモンを起こす」は未実装(データに宣言なし・付与予防のみ)
+function uproarActive(){
+  return ['self', 'opp'].some(k => {
+    const st = sides[k];
+    return st.rampage && (((st.rampage.move.battle_data || {}).effects) || []).some(e => e.kind === '状態異常予防' && e.value === 'ねむり');
+  });
+}
 // 攻撃が成功した時のあばれ進行: 開始 or 残り回数を消費。使い切ったら やんで こんらん。
 function progressRampage(atk, mv){
-  const ef = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '暴れる(混乱)');
+  // さわぐ(連続強制(混乱なし)=固定3ターン・こんらんなし)も同じあばれ基質に乗せる(Bulbapedia "Uproar")
+  const ef = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '暴れる(混乱)' || e.kind === '連続強制(混乱なし)');
   if (!ef) return;
   if (!atk.rampage){
-    const d = Array.isArray(ef.duration) ? ef.duration : [2, 3];
+    const noConf = ef.kind === '連続強制(混乱なし)';
+    // duration がスカラー(さわぐ=3)なら固定ターン数、配列(あばれる=[2,3])なら乱数
+    const d = Array.isArray(ef.duration) ? ef.duration : (ef.duration ? [ef.duration, ef.duration] : [2, 3]);
     const total = d[0] + Math.floor(Math.random() * (d[1] - d[0] + 1));
-    atk.rampage = { move: mv, left: total - 1 };
-    log('9', `${atk.poke.name} は あばれだした！`);
+    atk.rampage = { move: mv, left: total - 1, noConfusion: noConf };
+    log('9', noConf ? `${atk.poke.name} は さわぎだした！` : `${atk.poke.name} は あばれだした！`);
   } else {
     atk.rampage.left--;
   }
@@ -2399,6 +2413,11 @@ function phaseApplyEffects(atkSide, defSide, move){
         || (code === 'freeze' && env.weather === 'sunny'); // にほんばれの間は こおり にならない(Bulbapedia "Freeze")
       if (immuneHere){
         log('9', `${target.poke.name} には こうかが ないようだ…`);
+        continue;
+      }
+      // さわぐ最中は場の誰も眠れない(ねむる自身も含む。Bulbapedia "Uproar")
+      if (code === 'sleep' && uproarActive()){
+        log('9', `さわがしくて ${target.poke.name} は ねむれない！`);
         continue;
       }
       // フィールドの状態異常予防(ミスト=全部 / エレキ=ねむり・ねむけ)。地面にいるポケモンだけ守られる(データ宣言を読む)
@@ -3045,7 +3064,7 @@ function snapshotBattleState(){
     badpoisonCounter: st.badpoisonCounter || 0,
     slips: (st.slips || []).map(x => ({...x})),
     sleepTurns: st.sleepTurns != null ? st.sleepTurns : null,
-    rampage: st.rampage ? {move: st.rampage.move, left: st.rampage.left} : null,
+    rampage: st.rampage ? {move: st.rampage.move, left: st.rampage.left, noConfusion: !!st.rampage.noConfusion} : null,
     item: st.item != null ? st.item : null,   // はたきおとす(持ち物排除)を一手戻せるように
     minimized: !!st.minimized,                // ちいさくなる状態も一手戻せるように
     chargeBoost: st.chargeBoost ? {...st.chargeBoost} : null,   // じゅうでん状態も一手戻せるように
@@ -3106,7 +3125,7 @@ function undoBattle(){
     st.badpoisonCounter = src.badpoisonCounter;
     st.slips = (src.slips || []).map(x => ({...x}));
     st.sleepTurns = src.sleepTurns != null ? src.sleepTurns : null;
-    st.rampage = src.rampage ? {move: src.rampage.move, left: src.rampage.left} : null;
+    st.rampage = src.rampage ? {move: src.rampage.move, left: src.rampage.left, noConfusion: !!src.rampage.noConfusion} : null;
     st.item = src.item != null ? src.item : null;   // はたきおとす(持ち物排除)の巻き戻し
     st.minimized = !!src.minimized;                 // ちいさくなる状態の巻き戻し
     st.chargeBoost = src.chargeBoost ? {...src.chargeBoost} : null;   // じゅうでん状態の巻き戻し
@@ -3730,7 +3749,13 @@ function runTurn(){
     const st = sides[s];
     if (st.pendingStatus){
       if (st.pendingStatus.turns > 0) st.pendingStatus.turns--;
-      else { if (st.status === 'none'){ st.status = st.pendingStatus.code; if (st.pendingStatus.code === 'sleep') st.sleepTurns = 2 + Math.floor(Math.random() * 3); log('10', `${st.poke.name} は ${st.pendingStatus.label} 状態になった！`); } st.pendingStatus = null; }
+      else {
+        // さわぐ最中はねむけ(あくび)からも眠らない(発動だけ不発・Bulbapedia "Uproar")
+        if (st.pendingStatus.code === 'sleep' && uproarActive()){
+          log('10', `さわがしくて ${st.poke.name} は ねむれない！`);
+        } else if (st.status === 'none'){ st.status = st.pendingStatus.code; if (st.pendingStatus.code === 'sleep') st.sleepTurns = 2 + Math.floor(Math.random() * 3); log('10', `${st.poke.name} は ${st.pendingStatus.label} 状態になった！`); }
+        st.pendingStatus = null;
+      }
     }
   });
   // 技で変えた天気のカウントダウン(5ターン目の終わりに元に戻る。UI手動設定=null は無期限)
