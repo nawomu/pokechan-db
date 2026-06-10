@@ -3935,6 +3935,42 @@ console.log('\n=== 段77 ふきとばし/ほえる(1vs1=控えがいないので
   resetEnv();
 }
 
+console.log('\n=== 段78 音技のみがわり貫通(substitute_pierce を読む) ===');
+{
+  resetEnv();
+  // うたう(音技・変化)は分身を素通りして本体を眠らせる(Bulbapedia "Substitute": 第6世代以降、音技は素通り)
+  E.sides.self = freshSide('リザードン', null);
+  E.sides.self.moves = [moveByName('みがわり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.currentHp = 153;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('うたう')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);   // 命中ロール0=うたう(命中55)も当たる
+  E.runTurn();   // T1: みがわり→うたうは貫通して本体が眠る
+  check('T179 音技(うたう)は分身を素通りして本体を眠らせる',
+    E.sides.self.status === 'sleep' && E.sides.self.subHp === 38,
+    `status=${E.sides.self.status}(sleep期待) subHp=${E.sides.self.subHp}(38期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // きんぞくおん(音技・変化)も貫通して とくぼう-2(データ修正: substitute_pierce 追加済み)
+  E.sides.self = freshSide('リザードン', null);
+  E.sides.self.moves = [moveByName('みがわり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.currentHp = 153;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('きんぞくおん')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // T1: みがわり→きんぞくおんは貫通して とくぼう-2
+  check('T179b 音技(きんぞくおん)は分身を素通りして とくぼう-2',
+    E.sides.self.rank.spdef === -2 && E.sides.self.subHp === 38,
+    `spdefランク=${E.sides.self.rank.spdef}(-2期待) subHp=${E.sides.self.subHp}(38期待)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');
