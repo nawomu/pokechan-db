@@ -977,7 +977,9 @@ function makeSideState(){
     mustRecharge: false,
     // まもる系: このターン守っている技(WAZA_MAPの技オブジェクト or null)。次のターン開始でクリア。
     protecting: null,
-    // まもる系の連続成功カウント(成功のたび+1。失敗 or 別の行動で0に戻る=成功率が1/3ずつ下がる)
+    // こらえる: このターン技のダメージをHP1で耐える。次のターン開始でクリア。
+    enduring: false,
+    // まもる系・こらえる共通の連続成功カウント(成功のたび+1。失敗 or 別の行動で0に戻る=成功率が1/3ずつ下がる)
     protectStreak: 0,
     // 揮発スリップ状態(しおづけ/のろい): {source, fraction} の配列。毎ターン終了時に最大HP×fractionを削る。
     slips: [],
@@ -1758,7 +1760,8 @@ function phaseDealDamage(atkSide, defSide, move){
       log('8', `${a.poke.name} の ${move.name}！ しかし うまく きまらなかった！`);
       return { failed: true };
     }
-    const dmg = Math.floor(basis * (counterEf.multiplier || 2));
+    let dmg = Math.floor(basis * (counterEf.multiplier || 2));
+    if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${a.poke.name} の ${move.name}！ 受けたダメージを倍返し！ ${df.poke.name} に ${dmg} ダメージ！ (残HP ${df.currentHp})`);
     if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); }
@@ -1780,6 +1783,8 @@ function phaseDealDamage(atkSide, defSide, move){
     let dmg = ohkoEf ? df.currentHp : fixedDamageAmount(fixedEf, a, df);
     if (dmg == null) return null; // 未対応の固定ダメージ式
     dmg = Math.max(0, dmg);
+    // こらえる: 一撃必殺・固定ダメージも技のダメージなのでHP1で耐える(Bulbapedia "Endure")
+    if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${a.poke.name} の ${move.name}！ ${df.poke.name} に ${dmg} ダメージ！${ohkoEf ? '(一撃必殺！)' : ''} (残HP ${df.currentHp})`);
     if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); }
@@ -1815,7 +1820,9 @@ function phaseDealDamage(atkSide, defSide, move){
   let total = 0, hits = 0, lastHit = 0;
   for (let h = 0; h < hitCount; h++){
     if (def.currentHp <= 0) break;
-    const v = result.variations[Math.floor(Math.random() * result.variations.length)];
+    let v = result.variations[Math.floor(Math.random() * result.variations.length)];
+    // こらえる: 技のダメージではHPが1より下がらない(連続攻撃は1発ごとに判定。Bulbapedia "Endure")
+    if (def.enduring && v >= def.currentHp){ v = def.currentHp - 1; log('8', `${def.poke.name} は こうげきを こらえた！`); }
     def.currentHp = Math.max(0, def.currentHp - v);
     total += v; hits++; lastHit = v;
   }
@@ -2569,15 +2576,16 @@ function runSingleAttack(atkSide, moveIdx){
     log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`);
     renderBattleLog(); renderBoth(); return;
   }
-  // まもる系(kind=まもり): 使用宣言した瞬間に守りの体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
+  // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
   const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
-  if (_protEf){
-    const _rate = (_protEf.consecutive_success_multiplier != null)
-      ? Math.pow(_protEf.consecutive_success_multiplier, atk.protectStreak) : 1;
+  const _enduEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'こらえる');
+  if (_protEf || _enduEf){
+    const _mult = _protEf ? _protEf.consecutive_success_multiplier : (1 / 3);   // こらえるはfails_if宣言どおり1/3
+    const _rate = (_mult != null) ? Math.pow(_mult, atk.protectStreak) : 1;
     if (Math.random() < _rate){
-      atk.protecting = mv;
+      if (_protEf){ atk.protecting = mv; log('0c', `${atk.poke.name} は ${mv.name} で 守りの体勢に入った！`); }
+      else { atk.enduring = true; log('0c', `${atk.poke.name} は こらえる体勢に入った！`); }
       atk.protectStreak++;
-      log('0c', `${atk.poke.name} は ${mv.name} で 守りの体勢に入った！`);
     } else {
       atk.protectStreak = 0;
       log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
@@ -2675,8 +2683,9 @@ function runTurn(){
   pushHistory();
   // ひるみはそのターン限り → ターン開始でクリア(このターン中に先攻が後攻へ付与する)
   sides.self.flinched = false; sides.opp.flinched = false;
-  // まもる系もそのターン限り → ターン開始でクリア(連続成功カウントは持ち越す)
+  // まもる系・こらえるもそのターン限り → ターン開始でクリア(連続成功カウントは持ち越す)
   sides.self.protecting = null; sides.opp.protecting = null;
+  sides.self.enduring = false; sides.opp.enduring = false;
   // 「このターン受けたダメージ」(倍返し用)もターン開始でリセット
   sides.self.tookThisTurn = {phys:0, spec:0, any:0};
   sides.opp.tookThisTurn = {phys:0, spec:0, any:0};
@@ -2774,16 +2783,18 @@ function runTurn(){
     if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
       log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`); continue;
     }
-    // まもる系(kind=まもり): 使用宣言した瞬間に守りの体勢へ。連続使用は成功率が1/3ずつ下がり、
-    // 失敗 or 別の行動でカウントが戻る(Bulbapedia "Protect"。ファストガードはmultiplierなし=連続でも失敗しない)
+    // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ。連続使用は成功率が1/3ずつ下がり、
+    // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure"。
+    // ファストガードはmultiplierなし=連続でも失敗しない)
     const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
-    if (_protEf){
-      const _rate = (_protEf.consecutive_success_multiplier != null)
-        ? Math.pow(_protEf.consecutive_success_multiplier, atk.protectStreak) : 1;
+    const _enduEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'こらえる');
+    if (_protEf || _enduEf){
+      const _mult = _protEf ? _protEf.consecutive_success_multiplier : (1 / 3);   // こらえるはfails_if宣言どおり1/3
+      const _rate = (_mult != null) ? Math.pow(_mult, atk.protectStreak) : 1;
       if (Math.random() < _rate){
-        atk.protecting = mv;
+        if (_protEf){ atk.protecting = mv; log('0c', `${atk.poke.name} は ${mv.name} で 守りの体勢に入った！`); }
+        else { atk.enduring = true; log('0c', `${atk.poke.name} は こらえる体勢に入った！`); }
         atk.protectStreak++;
-        log('0c', `${atk.poke.name} は ${mv.name} で 守りの体勢に入った！`);
       } else {
         atk.protectStreak = 0;
         log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
@@ -2942,10 +2953,12 @@ function resetBattle(){
     st.charging = null;
     st.mustRecharge = false;
     st.protecting = null;
+    st.enduring = false;
     st.protectStreak = 0;
     st.slips = [];
     st.sleepTurns = null;
     st.rampage = null;
+    st.minimized = false;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
