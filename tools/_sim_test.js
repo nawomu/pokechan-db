@@ -3388,6 +3388,67 @@ console.log('\n=== 段64 そうでん(相手技タイプ変更) ===');
   resetEnv();
 }
 
+console.log('\n=== 段65 条件付き優先(グラススライダー)/すなあらし能力倍率/デカハンマー ===');
+{
+  resetEnv();
+  // グラススライダー: グラスフィールド中で自分が接地している時だけ優先度+1(それ以外は0)。
+  // 出典: Bulbapedia "Grassy Glide"(第9世代)
+  E.sides.self = freshSide('フシギバナ', null);   // spd100=遅い
+  E.sides.self.moves = [moveByName('グラススライダー')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('ゲンガー', null);      // spd130=速い
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  const o1 = E.decideOrder(moveByName('グラススライダー'), moveByName('はたく'));
+  E.env.field = 'grassy';
+  const o2 = E.decideOrder(moveByName('グラススライダー'), moveByName('はたく'));
+  E.sides.self.typeOverride = ['ひこう'];          // 接地していない→優先されない
+  const o3 = E.decideOrder(moveByName('グラススライダー'), moveByName('はたく'));
+  check('T165 グラススライダーはグラスフィールド+接地の時だけ先制',
+    o1 === 'opp' && o2 === 'self' && o3 === 'opp',
+    `フィールドなし=${o1}(opp期待) グラス=${o2}(self期待) グラス+ひこう=${o3}(opp期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // すなあらし中はいわタイプのとくぼう1.5倍(特殊だけ・物理は不変)。出典: Bulbapedia "Sandstorm"(第4世代以降)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.opp = freshSide('カメックス', null);
+  E.sides.opp.typeOverride = ['いわ'];
+  E.setRandom(() => 0.0);
+  const spNo = E.calcDamage('self', 'opp', moveByName('みずのはどう')).max;
+  const phNo = E.calcDamage('self', 'opp', moveByName('はたく')).max;
+  E.env.weather = 'sand';
+  const spSand = E.calcDamage('self', 'opp', moveByName('みずのはどう')).max;
+  const phSand = E.calcDamage('self', 'opp', moveByName('はたく')).max;
+  check('T165b すなあらしでいわタイプのとくぼう1.5倍(特殊減・物理不変)',
+    spSand < spNo && phSand === phNo,
+    `特殊: ${spNo}→${spSand}(減少期待) 物理: ${phNo}→${phSand}(不変期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // デカハンマー: 2ターン続けて出せない(1ターンあければ再び出せる)。出典: Bulbapedia "Gigaton Hammer"
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('デカハンマー')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // T1: 成功
+  const hp1 = E.sides.opp.currentHp;
+  E.runTurn();   // T2: 連続=出せない
+  const hp2 = E.sides.opp.currentHp;
+  E.runTurn();   // T3: 1ターンあいた=成功
+  const hp3 = E.sides.opp.currentHp;
+  check('T165c デカハンマーは連続で出せない(T2ブロック/T3成功)',
+    hp1 < 155 && hp2 === hp1 && hp3 < hp2,
+    `T1後=${hp1}(155未満期待) T2後=${hp2}(不変期待) T3後=${hp3}(${hp1}未満期待)`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

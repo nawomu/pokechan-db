@@ -1665,8 +1665,22 @@ const PHASES = [
 ];
 
 // 技の優先度を取得 (battle_data.priority から)
-function movePriority(move){
-  return (move && move.battle_data && move.battle_data.priority) || 0;
+// 条件付き優先(グラススライダー): 条件(グラスフィールド+自分が接地)を満たす時だけ優先度がつき、
+// 満たさなければ0(データの素のpriorityは「条件成立時の値」として扱う)。出典: Bulbapedia "Grassy Glide"
+// st(使う側の状態)が渡されない呼び出しでは接地条件は満たす前提で評価する。
+function movePriority(move, st){
+  const base = (move && move.battle_data && move.battle_data.priority) || 0;
+  const condEf = ((move && move.battle_data && move.battle_data.effects) || []).find(e => e.kind === '条件付き優先');
+  if (condEf){
+    const vals = (condEf.condition && condEf.condition.type === 'all' && condEf.condition.values) || [condEf.condition].filter(Boolean);
+    const ok = vals.every(c => {
+      if (c.type === 'terrain' || c.type === 'field') return _FMAP[c.value] === env.field;
+      if (c.type === 'user_grounded') return st ? isGrounded(st) : true;
+      return true;
+    });
+    return ok ? (condEf.priority != null ? condEf.priority : base) : 0;
+  }
+  return base;
 }
 
 // 素早さ実数値（ランク+ステ補正+トリックルーム反映、状態異常まひ ×0.5、こだわりスカーフ ×1.5）
@@ -1682,8 +1696,8 @@ function effectiveSpeed(st){
 // 行動順を判定: 優先度 → 素早さ (トリックルームで逆転) → 同速ランダム
 // 戻り値: 先手の side を 'self' or 'opp' で返す
 function decideOrder(move1, move2){
-  const p1 = movePriority(move1);
-  const p2 = movePriority(move2);
+  const p1 = movePriority(move1, sides.self);
+  const p2 = movePriority(move2, sides.opp);
   if (p1 !== p2) return p1 > p2 ? 'self' : 'opp';
   const s1 = effectiveSpeed(sides.self);
   const s2 = effectiveSpeed(sides.opp);
@@ -1776,7 +1790,7 @@ function phaseHitCheck(move, atk, def){
     }
   }
   // サイコフィールド: 地面にいるポケモンには相手の先制技(優先度>0)が当たらない(データ宣言: 優先技無効)
-  if (def && def.poke && isGrounded(def) && movePriority(move) > 0
+  if (def && def.poke && isGrounded(def) && movePriority(move, atk) > 0
       && fieldRules().some(r => r.kind === '優先技無効')){
     return {hit:false, reason:`${def.poke.name} は フィールドに守られて 先制技が当たらない！`};
   }
@@ -3147,6 +3161,15 @@ function runSingleAttack(atkSide, moveIdx){
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
+  // 次ターン使用不可(デカハンマー): 同じ技を2ターン続けて出せない(Bulbapedia "Gigaton Hammer")。
+  // 出せなかったターンは「使った」扱いにしない(lastMoveを流す=いちゃもんと同じ近似)
+  if (atk.lastMove && mv.name === atk.lastMove.name &&
+      ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次ターン使用不可')){
+    log('0c', `${atk.poke.name} は ${mv.name} を 連続では だせない！`);
+    atk.lastMove = null;
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
   // じゅうりょく: 空中にいる技は使えない(Bulbapedia "Gravity")
   if (env.gravity && GRAVITY_BLOCKED.includes(mv.name)){
     log('0c', `${atk.poke.name} は じゅうりょくが強くて ${mv.name} が だせない！`);
@@ -3298,7 +3321,7 @@ function runTurn(){
   {
     const fMove = firstSide === 'self' ? selfMove : oppMove;
     const sMove = secondSide === 'self' ? selfMove : oppMove;
-    const fp = movePriority(fMove), sp = movePriority(sMove);
+    const fp = movePriority(fMove, sides[firstSide]), sp = movePriority(sMove, sides[secondSide]);
     const fName = sides[firstSide].poke ? sides[firstSide].poke.name : '?';
     let why;
     if (fp !== sp){
@@ -3395,6 +3418,14 @@ function runTurn(){
     // ふういん: 相手がふういんを発動中で、相手も知っている技は出せない(Bulbapedia "Imprison")
     if (def.imprison && (def.moves || []).some(m => m && m.name === mv.name)){
       log('0c', `${atk.poke.name} は ふういんされていて ${mv.name} が だせない！`);
+      noteActionFailed(atk); continue;
+    }
+    // 次ターン使用不可(デカハンマー): 同じ技を2ターン続けて出せない(Bulbapedia "Gigaton Hammer")。
+    // 出せなかったターンは「使った」扱いにしない(lastMoveを流す=いちゃもんと同じ近似)
+    if (atk.lastMove && mv.name === atk.lastMove.name &&
+        ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次ターン使用不可')){
+      log('0c', `${atk.poke.name} は ${mv.name} を 連続では だせない！`);
+      atk.lastMove = null;
       noteActionFailed(atk); continue;
     }
     // じゅうりょく: 空中にいる技は使えない(Bulbapedia "Gravity")
