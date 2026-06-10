@@ -2407,6 +2407,40 @@ console.log('\n=== 段㊾ たくわえる/はきだす/のみこむ ===');
   resetEnv();
 }
 
+console.log('\n=== 段㊿ ちょうはつ(3ターンの間 変化技を出せない) ===');
+// 出典: Bulbapedia "Taunt"(第5世代以降: 3ターン持続[使われたターンを含む]。攻撃技は出せる。
+//       すでにちょうはつ状態の相手には失敗)
+{
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', 'chouhatsu');   // ゲンガー(速い)が先にちょうはつ
+  E.sides.self.moves = [moveByName('ちょうはつ'), moveByName('はたく')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('こわいかお'), moveByName('タネばくだん')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // ターン1: ちょうはつ→相手のこわいかおは出せない
+  check('T147 ちょうはつ状態になり変化技が出せない', E.sides.opp.tauntTurns > 0 && E.sides.self.rank.spd === 0 && E.sides.opp.failedThisTurn === true,
+    `tauntTurns=${E.sides.opp.tauntTurns} 自分spd=${E.sides.self.rank.spd} failedThisTurn=${E.sides.opp.failedThisTurn}`);
+  // ターン2: 攻撃技は出せる
+  E.sides.self.selectedMoveIdx = 1;   // 自分は以後はたく(ちょうはつ再使用しない)
+  E.sides.opp.selectedMoveIdx = 1;    // 相手はタネばくだん
+  const t147hp = E.sides.self.currentHp;
+  E.runTurn();
+  check('T147b ちょうはつ中でも攻撃技は出せる', E.sides.self.currentHp < t147hp,
+    `自分残HP=${E.sides.self.currentHp} (前=${t147hp})`);
+  // ターン3: まだ変化技は出せない(3ターン目=最後の持続ターン)
+  E.sides.opp.selectedMoveIdx = 0;
+  E.runTurn();
+  check('T147c 3ターン目もまだ出せない', E.sides.self.rank.spd === 0 && E.sides.opp.tauntTurns === 0,
+    `自分spd=${E.sides.self.rank.spd} tauntTurns=${E.sides.opp.tauntTurns}`);
+  // ターン4: 効果が切れて変化技が出せる(こわいかお=すばやさ-2)
+  E.runTurn();
+  check('T147d 4ターン目は効果が切れて出せる', E.sides.self.rank.spd === -2,
+    `自分spd=${E.sides.self.rank.spd} tauntTurns=${E.sides.opp.tauntTurns}`);
+  resetEnv();
+}
+
 console.log(`\n=== 結果: ${pass} pass / ${fail} fail ===`);
 if (fail) { console.log('失敗:', fails.join(' / ')); process.exit(1); }
 console.log('✅ 全件パス');

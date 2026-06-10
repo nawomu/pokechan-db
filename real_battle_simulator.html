@@ -994,6 +994,8 @@ function makeSideState(){
     // たくわえる: たくわえた数(0..3)と、たくわえるで実際に上がったランク(消費時に戻す分)
     stockpile: 0,
     stockpileBoost: {def: 0, spdef: 0},
+    // ちょうはつ: 残りターン(>0の間は変化技を出せない。使われたターンを含めて3ターン)
+    tauntTurns: 0,
     // 能力値編集 UI で現在ハイライト中の行
     selectedStatKey: 'hp',
     // 技プール(インライン一覧)の並び替えモード: 'damage'(相手に効く順) / 'power'(威力順+変化下) / 'type'(タイプ順)
@@ -2429,6 +2431,15 @@ function phaseApplyEffects(atkSide, defSide, move){
     } else if (ef.kind === 'たくわえ消費'){
       // はきだす側は phaseDealDamage が先に消費するのでここは のみこむ(変化技)用(0なら何もしない)
       consumeStockpile(atk);
+    } else if (ef.kind === 'ちょうはつ'){
+      // ちょうはつ: 3ターンの間(使われたターンを含む)変化技を出せない。すでにちょうはつ状態なら失敗。
+      // 出典: Bulbapedia "Taunt"(第5世代以降は3ターン)
+      if ((target.tauntTurns || 0) > 0){
+        log('9', `しかし うまく きまらなかった！(すでに ちょうはつ状態)`);
+      } else {
+        target.tauntTurns = ef.duration || 3;
+        log('9', `${target.poke.name} は ちょうはつに のってしまった！`);
+      }
     } else if (ef.kind === '次技威力倍化'){
       // じゅうでん: 次に使う指定タイプ(でんき)のダメージ技の威力が2倍。指定タイプの技を使うまで
       // 持続し、使うと消費される(第9世代)。出典: Bulbapedia "Charge"
@@ -2536,6 +2547,7 @@ function snapshotBattleState(){
     chargeBoost: st.chargeBoost ? {...st.chargeBoost} : null,   // じゅうでん状態も一手戻せるように
     stockpile: st.stockpile || 0,                               // たくわえも一手戻せるように
     stockpileBoost: {...(st.stockpileBoost || {def: 0, spdef: 0})},
+    tauntTurns: st.tauntTurns || 0,                             // ちょうはつも一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -2577,6 +2589,7 @@ function undoBattle(){
     st.chargeBoost = src.chargeBoost ? {...src.chargeBoost} : null;   // じゅうでん状態の巻き戻し
     st.stockpile = src.stockpile || 0;                                // たくわえの巻き戻し
     st.stockpileBoost = {...(src.stockpileBoost || {def: 0, spdef: 0})};
+    st.tauntTurns = src.tauntTurns || 0;                              // ちょうはつの巻き戻し
   };
   restore(sides.self, s.self);
   restore(sides.opp, s.opp);
@@ -2645,6 +2658,12 @@ function runSingleAttack(atkSide, moveIdx){
   // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
   if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
     log('0c', `${atk.poke.name} の ${mv.name}！ しかし たくわえたものが ない！`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
+  // ちょうはつ状態: 変化技を出せない(Bulbapedia "Taunt")
+  if (mv.category === '変化' && (atk.tauntTurns || 0) > 0){
+    log('0c', `${atk.poke.name} は ちょうはつされて ${mv.name} が だせない！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
@@ -2860,6 +2879,11 @@ function runTurn(){
       log('0c', `${atk.poke.name} の ${mv.name}！ しかし たくわえたものが ない！`);
       noteActionFailed(atk); continue;
     }
+    // ちょうはつ状態: 変化技を出せない(Bulbapedia "Taunt")
+    if (mv.category === '変化' && (atk.tauntTurns || 0) > 0){
+      log('0c', `${atk.poke.name} は ちょうはつされて ${mv.name} が だせない！`);
+      noteActionFailed(atk); continue;
+    }
     // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ。連続使用は成功率が1/3ずつ下がり、
     // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure"。
     // ファストガードはmultiplierなし=連続でも失敗しない)
@@ -2982,6 +3006,14 @@ function runTurn(){
       }
     }
   }
+  // ちょうはつのカウントダウン(使われたターンを含めて3ターンで切れる)
+  for (const s of ['self','opp']){
+    const st = sides[s];
+    if ((st.tauntTurns || 0) > 0){
+      st.tauntTurns--;
+      if (st.tauntTurns <= 0 && st.poke) log('10', `${st.poke.name} の ちょうはつの 効果が切れた！`);
+    }
+  }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
   sides.opp.turnsOut = (sides.opp.turnsOut || 0) + 1;
@@ -3039,6 +3071,7 @@ function resetBattle(){
     st.chargeBoost = null;
     st.stockpile = 0;
     st.stockpileBoost = {def: 0, spdef: 0};
+    st.tauntTurns = 0;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア
