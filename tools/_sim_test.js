@@ -5696,6 +5696,97 @@ console.log('\n=== 段109 免疫系特性(ふみん/じゅうなん/めんえき
   resetEnv();
 }
 
+console.log('\n=== 段110 がんじょう/シェルアーマー/いしあたま/マルチスケイル ===');
+// 出典: ABILITY_DESC(公式準拠) — がんじょう=一撃必殺無効+満タンならHP1で耐える・シェルアーマー=急所無効・
+// いしあたま=反動無効・マルチスケイル=満タン時の被ダメ半減。
+{
+  resetEnv();
+  // T235 がんじょう: 一撃必殺が効かない
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ぜったいれいど')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.ability = 'がんじょう';
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T235 がんじょうに一撃必殺は効かない', E.sides.opp.fainted === false && E.sides.opp.currentHp === E.realStat(E.sides.opp, 'hp'),
+    `hp=${E.sides.opp.currentHp} fainted=${E.sides.opp.fainted}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T235b がんじょう: 満タンから一撃ひんしのダメージをHP1で耐える
+  E.sides.self = freshSide('カビゴン', null);
+  E.sides.self.moves = [moveByName('はかいこうせん')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.rank.spatk = 2;
+  E.sides.opp = freshSide('ピカチュウ', 'hataku');
+  E.sides.opp.ability = 'がんじょう';
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T235b がんじょうで満タンからHP1で耐える',
+    E.sides.opp.currentHp === 1 && E.sides.opp.fainted === false,
+    `hp=${E.sides.opp.currentHp} fainted=${E.sides.opp.fainted}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T236 シェルアーマー: 確定急所(きあいだめ+つじぎり)でも急所にならない
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('つじぎり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.critBoost = 2;   // +つじぎり1=ランク3で確定急所のはず
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.ability = 'シェルアーマー';
+  E.sides.opp.status = 'sleep';
+  const exp236 = E.calcDamage('self', 'opp', moveByName('つじぎり')).min;   // 通常min(急所なし)
+  const oppMax236 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppMax236;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T236 シェルアーマーは急所を無効化(通常ダメージ)',
+    oppMax236 - E.sides.opp.currentHp === exp236,
+    `実=${oppMax236 - E.sides.opp.currentHp}(${exp236}期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T237 いしあたま: すてみタックルの反動を受けない
+  E.sides.self = freshSide('カビゴン', null);
+  E.sides.self.moves = [moveByName('すてみタックル')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.ability = 'いしあたま';
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  const myMax237 = E.realStat(E.sides.self, 'hp');
+  E.sides.self.currentHp = myMax237;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T237 いしあたまは反動を受けない', E.sides.self.currentHp === myMax237,
+    `selfHp=${E.sides.self.currentHp}/${myMax237}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T238 マルチスケイル: 満タン時は被ダメ半減
+  E.sides.self = freshSide('カビゴン', 'hataku');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  const base238 = E.calcDamage('self', 'opp', moveByName('はたく')).min;
+  E.sides.opp.ability = 'マルチスケイル';
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  const half238 = E.calcDamage('self', 'opp', moveByName('はたく')).min;
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp') - 1;   // 満タンでない
+  const dmgd238 = E.calcDamage('self', 'opp', moveByName('はたく')).min;
+  check('T238 マルチスケイル: 満タンで半減・減っていれば等倍',
+    half238 < base238 && dmgd238 === base238,
+    `通常=${base238} 満タン=${half238} 非満タン=${dmgd238}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

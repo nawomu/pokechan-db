@@ -1532,7 +1532,9 @@ function calcDamage(atkSide, defSide, move, opts){
   }
   // 常時急所技(やまあらし/こおりのいぶき/トリックフラワー): UIのトグルに関係なく急所×1.5
   // opts.crit = phaseDealDamage の確率ロール(きあいだめ/高急所技)で急所が出た時に立つ
-  const crit   = atk.critical || !!(move.battle_data && move.battle_data.must_crit) || !!(opts && opts.crit);
+  // シェルアーマー(受け側): 急所を無効化(確定急所・UIトグルも含む。ABILITY_DESC公式準拠・段110)
+  const crit   = (atk.critical || !!(move.battle_data && move.battle_data.must_crit) || !!(opts && opts.crit))
+                 && sideAbility(def) !== 'シェルアーマー';
   const aKey = isPhys ? 'atk'  : 'spatk';
   // サイコショック: 特殊技だが相手の「ぼうぎょ」を参照(Bulbapedia "Psyshock")
   const altDef = bdEffects.find(e => e.kind === '別防御参照ダメージ');
@@ -2141,6 +2143,11 @@ function phaseDealDamage(atkSide, defSide, move){
       log('8', `${pname(df)} には こうかが ないようだ…`);
       return { immune: true, reason: 'こうかなし' };
     }
+    // がんじょう: 一撃必殺技を無効化(ABILITY_DESC公式準拠・段110)
+    if (ohkoEf && sideAbility(df) === 'がんじょう'){
+      log('8', `${pname(df)} は がんじょうで 一撃必殺が 効かない！`);
+      return { immune: true, reason: 'がんじょう' };
+    }
     let dmg = ohkoEf ? df.currentHp : fixedDamageAmount(fixedEf, a, df);
     if (dmg == null) return null; // 未対応の固定ダメージ式
     dmg = Math.max(0, dmg);
@@ -2174,6 +2181,8 @@ function phaseDealDamage(atkSide, defSide, move){
     if (!_a.critical && !(move.battle_data && move.battle_data.must_crit) && _stage > 0){
       critRoll = _stage >= 3 || Math.random() >= 1 - (_stage === 2 ? 0.5 : 0.125);
     }
+    // シェルアーマー(受け側): 急所を無効化(段110)
+    if (critRoll && sideAbility(sides[defSide]) === 'シェルアーマー') critRoll = false;
   }
   // ふくろだたき(連続攻撃 hits_by): ひんし・状態異常でない手持ち(自分を含む)1体につき1回攻撃。
   // 各ヒットの威力 = そのメンバーのこうげき種族値÷10+5(第5世代以降)。攻撃実数値・急所は使用者のもの。
@@ -2299,7 +2308,8 @@ function phaseDealDamage(atkSide, defSide, move){
   }
   // 技固有の反動: 与ダメ合計の fraction だけ自分も受ける(※厳密な丸め 0.33 vs 1/3 は権威確認=park)
   const recoilEf = _effs.find(e => e.kind === '反動');
-  if (recoilEf && total > 0){
+  // いしあたま: 反動技の反動を受けない(ABILITY_DESC公式準拠・段110)
+  if (recoilEf && total > 0 && sideAbility(atk) !== 'いしあたま'){
     const dmg = Math.max(1, Math.floor(total * (recoilEf.fraction || 0)));
     atk.currentHp = Math.max(0, atk.currentHp - dmg);
     log('9', `${pname(atk)} は 反動で ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
@@ -4250,7 +4260,16 @@ function _itemFrac(s){
 // 一撃必殺にも効く(第5世代以降)。こらえる成立後(v<HP)なら発動しない。
 // 出典: items_database.js宣言(trigger:ohko_at_full_hp)/ポケモンWiki「きあいのタスキ」
 function sashCheck(def, v){
-  if (!def.poke || env.magicRoom || !def.item) return v;
+  if (!def.poke) return v;
+  // がんじょう: 満タンから一撃ひんしになるダメージをHP1で耐える(消費なし。ABILITY_DESC公式準拠・段110)
+  if (sideAbility(def) === 'がんじょう'){
+    const _gMax = realStat(def, 'hp');
+    if (def.currentHp === _gMax && v >= def.currentHp){
+      log('8', `${pname(def)} は がんじょうで もちこたえた！`);
+      return def.currentHp - 1;
+    }
+  }
+  if (env.magicRoom || !def.item) return v;
   const it = ITEM_BY_KEY[def.item];
   if (!it) return v;
   if (it.key === 'focus_sash'){
