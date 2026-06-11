@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>リアルバトル — PchamDB</title>
+<style>
+/* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
+*{box-sizing:border-box}
+body{margin:0;background:#0c1322;color:#e6edf3;font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+  display:flex;flex-direction:column;align-items:center;min-height:100vh}
+header{width:100%;max-width:760px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px 0}
+header h1{font-size:15px;margin:0;color:#dbe3f2}
+header a{color:#58a6ff;font-size:12px;text-decoration:none}
+#game{width:100%;max-width:760px;padding:8px 14px 30px}
+
+/* ===== チーム編成 ===== */
+#setup{background:#141927;border:1px solid #232a3a;border-radius:14px;padding:18px}
+#setup h2{font-size:14px;margin:0 0 10px;color:#9fb4d8}
+.team-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.team-row .tlabel{font-size:12px;font-weight:700;width:64px}
+.team-row select{flex:1;min-width:130px;background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:6px}
+#setup .btns{display:flex;gap:10px;margin-top:14px}
+#setup button{flex:1;padding:12px;border-radius:10px;border:1px solid #2a3450;cursor:pointer;font-weight:800;font-size:14px;
+  background:linear-gradient(90deg,#1c2a3a,#2a1c3a);color:#fff}
+#setup button.sub{flex:0 0 auto;font-weight:600;font-size:12px;background:#1a2030}
+#setup button:hover{border-color:#58a6ff}
+
+/* ===== バトル画面 ===== */
+#battle{display:none}
+#field{position:relative;height:330px;background:linear-gradient(180deg,#16213c 0%,#10182a 55%,#0e1524 56%,#0a101e 100%);
+  border:1px solid #232a3a;border-radius:14px;overflow:hidden}
+#weather-fx{position:absolute;inset:0;pointer-events:none;opacity:.22;font-size:34px;letter-spacing:18px;line-height:1.3;text-align:center}
+.fighter{position:absolute;width:300px}
+.fighter .platform{position:absolute;left:50%;transform:translateX(-50%);bottom:-6px;width:200px;height:34px;border-radius:50%;background:#0006}
+.fighter .sprite{position:relative;display:flex;justify-content:center;align-items:flex-end;height:120px}
+.fighter .sprite img{max-height:118px;max-width:150px;filter:drop-shadow(0 6px 6px #0009);transition:transform .15s}
+.fighter .sprite .circ{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:800;color:#fff;background:#3a4660;box-shadow:inset 0 -8px 16px #0007,0 5px 8px #000a}
+#f-opp{top:22px;right:24px}
+#f-self{bottom:26px;left:24px}
+.pbox{position:absolute;background:#141927ee;border:1px solid #2a3450;border-radius:10px;padding:8px 12px;min-width:215px}
+#pb-opp{top:26px;left:24px}
+#pb-self{bottom:120px;right:24px}
+.pbox .row1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.pbox .nm{font-weight:800;font-size:14px}
+.pbox .lv{font-size:10px;color:#8b94a7}
+.pbox .hpbar{height:9px;background:#1d2433;border-radius:5px;margin:5px 0 3px;overflow:hidden;border:1px solid #2a3450}
+.pbox .hpfill{height:100%;background:#4ade80;width:100%;transition:width .5s}
+.pbox .hpfill.mid{background:#fbbf24}.pbox .hpfill.low{background:#f87171}
+.pbox .hptext{font-size:10px;color:#8b94a7;text-align:right}
+.pbox .sts{margin-top:3px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap}
+.pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#3a2518;color:#fbbf24;border:1px solid #fbbf2444}
+.pbox .balls{margin-top:3px;font-size:11px;letter-spacing:2px}
+
+@keyframes rbShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(4px)}}
+@keyframes rbLunge{0%{transform:none}40%{transform:translate(14px,-10px) scale(1.05)}100%{transform:none}}
+@keyframes rbLungeOpp{0%{transform:none}40%{transform:translate(-14px,10px) scale(1.05)}100%{transform:none}}
+@keyframes rbFaint{0%{opacity:1;transform:none}100%{opacity:0;transform:translateY(40px)}}
+@keyframes rbEnter{0%{opacity:0;transform:translateY(30px) scale(.5)}70%{transform:translateY(-6px) scale(1.06)}100%{opacity:1;transform:none}}
+.fighter.hit .sprite{animation:rbShake .5s}
+.fighter.lunge-self .sprite{animation:rbLunge .45s}
+.fighter.lunge-opp .sprite{animation:rbLungeOpp .45s}
+.fighter.faint .sprite{animation:rbFaint .7s forwards}
+.fighter.enter .sprite{animation:rbEnter .5s}
+
+/* メッセージ+コマンド */
+#msgbox{margin-top:10px;background:#141927;border:2px solid #3a4a80;border-radius:12px;min-height:74px;
+  padding:14px 16px;font-size:15px;line-height:1.7;cursor:pointer;position:relative}
+#msgbox .next{position:absolute;right:14px;bottom:8px;color:#58a6ff;animation:blink 1s infinite;font-size:13px}
+@keyframes blink{50%{opacity:0}}
+#cmd{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+#cmd button{padding:14px;border-radius:10px;border:1px solid #2a3450;background:#161d2e;color:#e6edf3;
+  font-size:14px;font-weight:800;cursor:pointer}
+#cmd button:hover:not(:disabled){border-color:#58a6ff;background:#1b2540}
+#cmd button:disabled{opacity:.35;cursor:default}
+#cmd button.mega-armed{border-color:#fbbf24;color:#fbbf24}
+#moves{margin-top:10px;display:none;grid-template-columns:1fr 1fr;gap:8px}
+#moves button{padding:12px 12px 10px;border-radius:10px;border:1px solid #2a3450;background:#161d2e;color:#e6edf3;
+  text-align:left;cursor:pointer}
+#moves button:hover{border-color:#58a6ff;background:#1b2540}
+#moves .mv-name{font-weight:800;font-size:14px}
+#moves .mv-sub{font-size:10.5px;color:#8b94a7;margin-top:2px}
+#moves .t-pill{display:inline-block;font-size:9px;padding:1px 7px;border-radius:7px;color:#fff;margin-right:6px}
+#moves button.back{text-align:center;color:#8b94a7;font-weight:700}
+#party{margin-top:10px;display:none;grid-template-columns:1fr 1fr;gap:8px}
+#party button{padding:12px;border-radius:10px;border:1px solid #2a3450;background:#161d2e;color:#e6edf3;text-align:left;cursor:pointer}
+#party button:hover:not(:disabled){border-color:#58a6ff}
+#party button:disabled{opacity:.4;cursor:default}
+#speed-row{margin-top:8px;font-size:11px;color:#8b94a7;display:flex;gap:14px;align-items:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>🎮 リアルバトル</h1>
+  <a href="real_battle_simulator.html">🔧 検証用シミュレーターへ</a>
+</header>
+<div id="game">
+
+  <!-- チーム編成 -->
+  <div id="setup">
+    <h2>チームをえらんで バトルスタート！(3体ずつ・技は自動で4つセット)</h2>
+    <div class="team-row"><span class="tlabel">自分</span>
+      <select id="s1"></select><select id="s2"></select><select id="s3"></select>
+    </div>
+    <div class="team-row"><span class="tlabel">相手</span>
+      <select id="o1"></select><select id="o2"></select><select id="o3"></select>
+    </div>
+    <div class="btns">
+      <button class="sub" id="btn-random">🎲 おまかせ編成</button>
+      <button id="btn-start">▶ バトルスタート！</button>
+    </div>
+  </div>
+
+  <!-- バトル画面 -->
+  <div id="battle">
+    <div id="field">
+      <div id="weather-fx"></div>
+      <div class="fighter" id="f-opp"><div class="platform"></div><div class="sprite"></div></div>
+      <div class="fighter" id="f-self"><div class="platform"></div><div class="sprite"></div></div>
+      <div class="pbox" id="pb-opp"><div class="row1"><span class="nm">—</span><span class="lv">Lv.50</span></div>
+        <div class="hpbar"><div class="hpfill"></div></div><div class="sts"></div><div class="balls"></div></div>
+      <div class="pbox" id="pb-self"><div class="row1"><span class="nm">—</span><span class="lv">Lv.50</span></div>
+        <div class="hpbar"><div class="hpfill"></div></div><div class="hptext">—</div><div class="sts"></div><div class="balls"></div></div>
+    </div>
+    <div id="msgbox">…<span class="next" style="display:none">▼ クリックでつぎへ</span></div>
+    <div id="cmd">
+      <button id="c-fight">⚔ たたかう</button>
+      <button id="c-party">🔄 ポケモン</button>
+      <button id="c-mega">⬡ メガシンカ</button>
+      <button id="c-run">🏃 にげる(編成にもどる)</button>
+    </div>
+    <div id="moves"></div>
+    <div id="party"></div>
+    <div id="speed-row">
+      <label><input type="checkbox" id="auto-msg"> 自動でメッセージ送り</label>
+      <span>送り速度: <select id="msg-speed"><option value="1500">ゆっくり</option><option value="1000" selected>ふつう</option><option value="600">はやい</option></select></span>
+    </div>
+  </div>
+</div>
+
+<!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
+<iframe id="engine-frame" src="real_battle_simulator.html" style="display:none"></iframe>
+
+<script>
+let S = null;           // __sim ブリッジ
+let busy = false;       // メッセージ再生中
+let msgQueue = [];      // 表示待ちのログ行
+let logPos = 0;         // battleLog の読み取り位置
+let gameOver = false;
+
+const $ = id => document.getElementById(id);
+
+document.getElementById('engine-frame').addEventListener('load', () => {
+  const w = $('engine-frame').contentWindow;
+  const wait = setInterval(() => {
+    if (w.__sim){ clearInterval(wait); S = w.__sim; initSetup(); }
+  }, 100);
+});
+
+// ===== チーム編成 =====
+function initSetup(){
+  const pokes = S.pokeList().filter(p => !p.mega);   // メガフォームは直接選ばない(ストーンで変身)
+  const opts = pokes.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
+  ['s1','s2','s3','o1','o2','o3'].forEach(id => { $(id).innerHTML = opts; });
+  randomize();
+  $('btn-random').addEventListener('click', randomize);
+  $('btn-start').addEventListener('click', startBattle);
+  $('msgbox').addEventListener('click', advanceMsg);
+  document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') advanceMsg(); });
+  $('c-fight').addEventListener('click', showMoves);
+  $('c-party').addEventListener('click', showParty);
+  $('c-mega').addEventListener('click', toggleMega);
+  $('c-run').addEventListener('click', () => { $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
+  function randomize(){
+    const pick = () => pokes[Math.floor(Math.random() * pokes.length)].name;
+    ['s1','s2','s3','o1','o2','o3'].forEach(id => { $(id).value = pick(); });
+  }
+}
+
+// 技の自動セット: 覚える技から「タイプかぶりなしで威力上位」を4つ(変化技は1つまで混ぜる)
+function autoMoves(poke){
+  const all = S.usableMoves(poke);
+  const dmg = all.filter(m => m.category !== '変化' && typeof m.power === 'number' && m.power > 0)
+                 .sort((a, b) => b.power - a.power);
+  const picked = [], types = new Set();
+  for (const m of dmg){ if (!types.has(m.type)){ picked.push(m); types.add(m.type); } if (picked.length === 4) break; }
+  for (const m of dmg){ if (picked.length >= 4) break; if (!picked.includes(m)) picked.push(m); }
+  return picked.slice(0, 4);
+}
+
+function buildSide(sideKey, names){
+  const st = S.makeSideState();
+  const lead = S.pokeByName(names[0]);
+  st.poke = lead;
+  st.moves = autoMoves(lead);
+  st.selectedMoveIdx = 0;
+  st.item = 'mega_stone_any';   // 全員メガストーン持ち(メガフォームがあればメガシンカ可)
+  st.bench = names.slice(1).map(n => {
+    const p = S.pokeByName(n);
+    return { poke: p, effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0}, natureIdx: 0,
+      ability: p.ab1 || '', item: '', moves: autoMoves(p),
+      currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
+  });
+  st.ability = lead.ab1 || '';
+  S.sides[sideKey] = st;
+}
+
+function startBattle(){
+  buildSide('self', ['s1','s2','s3'].map(id => $(id).value));
+  buildSide('opp',  ['o1','o2','o3'].map(id => $(id).value));
+  S.battleLog.length = 0;
+  logPos = 0; gameOver = false;
+  $('setup').style.display = 'none';
+  $('battle').style.display = 'block';
+  renderAll();
+  say([`バトルスタート！ いけっ！ ${S.sides.self.poke.name}！`, `相手は ${S.sides.opp.poke.name} を くりだした！`], () => showCmd(true));
+}
+
+// ===== 描画 =====
+function spriteHtml(poke){
+  const color = (S.typeColors()[poke.type1]) || '#3a4660';
+  return `<img src="images/sim/${encodeURIComponent(poke.name)}.png" alt="" style="display:none"
+      onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'">
+    <span class="circ" style="background:${color}">${poke.type1 || '?'}</span>`;
+}
+function renderAll(){
+  ['self', 'opp'].forEach(side => {
+    const st = S.sides[side];
+    const f = $('f-' + side), pb = $('pb-' + side);
+    if (!st.poke) return;
+    f.querySelector('.sprite').innerHTML = spriteHtml(st.poke);
+    pb.querySelector('.nm').textContent = st.poke.name;
+    const max = S.realStat(st, 'hp') || 1;
+    const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
+    setHpBar(side, hp, max);
+    // 状態バッジ(最小限: 状態異常+こんらん+みがわり)
+    const sj = S.statusJa();
+    const b = [];
+    if (sj[st.status]) b.push(sj[st.status]);
+    if (st.confusion > 0) b.push('こんらん');
+    if (st.subHp > 0) b.push('みがわり');
+    pb.querySelector('.sts').innerHTML = b.map(x => `<span class="bdg">${x}</span>`).join('');
+    // 残りポケモン(モンスターボール表示)
+    const alive = [st].concat(st.bench || []).filter(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0)).length;
+    const total = 1 + (st.bench || []).filter(e => e && e.poke).length;
+    pb.querySelector('.balls').textContent = '●'.repeat(alive) + '○'.repeat(Math.max(0, total - alive));
+  });
+}
+function setHpBar(side, hp, max){
+  const pb = $('pb-' + side);
+  const pct = Math.max(0, Math.min(100, hp / max * 100));
+  const fill = pb.querySelector('.hpfill');
+  fill.style.width = pct + '%';
+  fill.className = 'hpfill' + (pct <= 25 ? ' low' : pct <= 50 ? ' mid' : '');
+  const t = pb.querySelector('.hptext');
+  if (t) t.textContent = `${hp} / ${max}`;   // 自分側だけHP数値(相手はバーのみ=実機風)
+}
+
+// ===== メッセージ送り =====
+let sayQueue = [], sayDone = null, autoTimer = null;
+function say(lines, done){
+  sayQueue = lines.slice();
+  sayDone = done || null;
+  busy = true;
+  showCmd(false);
+  nextSay();
+}
+function nextSay(){
+  if (autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+  if (!sayQueue.length){
+    busy = false;
+    $('msgbox').querySelector('.next').style.display = 'none';
+    if (sayDone){ const d = sayDone; sayDone = null; d(); }
+    return;
+  }
+  const line = sayQueue.shift();
+  const box = $('msgbox');
+  box.firstChild.textContent = line.text != null ? line.text : line;
+  if (line.fx) line.fx();
+  box.querySelector('.next').style.display = sayQueue.length || sayDone ? 'inline' : 'none';
+  if ($('auto-msg').checked){
+    autoTimer = setTimeout(nextSay, +$('msg-speed').value);
+  }
+}
+function advanceMsg(){ if (busy) nextSay(); }
+
+// ===== コマンド =====
+function showCmd(on){
+  $('cmd').style.display = on ? 'grid' : 'none';
+  $('moves').style.display = 'none';
+  $('party').style.display = 'none';
+  if (on){
+    const st = S.sides.self;
+    const megaBtn = $('c-mega');
+    megaBtn.disabled = !S.canMegaEvolve(st) && !st.megaChoice;
+    megaBtn.classList.toggle('mega-armed', !!st.megaChoice);
+    megaBtn.textContent = st.megaChoice ? '⬡ メガシンカ予約中!' : '⬡ メガシンカ';
+  }
+}
+function showMoves(){
+  const st = S.sides.self;
+  const tc = S.typeColors();
+  $('cmd').style.display = 'none';
+  const mv = $('moves');
+  mv.style.display = 'grid';
+  mv.innerHTML = st.moves.map((m, i) => `
+    <button data-i="${i}"><span class="mv-name"><span class="t-pill" style="background:${tc[m.type] || '#3a4660'}">${m.type}</span>${m.name}</span>
+    <div class="mv-sub">威力${m.power ?? '—'} / 命中${m.accuracy ?? '—'} / ${m.category}</div></button>`).join('')
+    + `<button class="back">← もどる</button>`;
+  mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    if (b.classList.contains('back')){ showCmd(true); return; }
+    doTurn(+b.dataset.i);
+  }));
+}
+function showParty(){
+  const st = S.sides.self;
+  $('cmd').style.display = 'none';
+  const pt = $('party');
+  pt.style.display = 'grid';
+  pt.innerHTML = (st.bench || []).map((e, i) => {
+    if (!e || !e.poke) return '';
+    const max = S.realStat(e, 'hp');
+    const hp = e.currentHp == null ? max : e.currentHp;
+    const dead = e.fainted || hp <= 0;
+    return `<button data-i="${i}" ${dead ? 'disabled' : ''}>${e.poke.name}<div class="mv-sub">${dead ? 'ひんし' : `HP ${hp}/${max}`}</div></button>`;
+  }).join('') + `<button class="back">← もどる</button>`;
+  pt.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    if (b.classList.contains('back')){ showCmd(true); return; }
+    S.sides.self.switchChoice = +b.dataset.i;
+    doTurn(null);   // 交代をこのターンの行動に
+  }));
+}
+function toggleMega(){
+  const st = S.sides.self;
+  if (st.megaChoice){ st.megaChoice = false; }
+  else if (S.canMegaEvolve(st)){ st.megaChoice = true; }
+  showCmd(true);
+}
+
+// ===== ターン実行→ログを1行ずつ実機テンポで再生 =====
+function doTurn(moveIdx){
+  if (busy || gameOver) return;
+  const self = S.sides.self, opp = S.sides.opp;
+  if (moveIdx != null) self.selectedMoveIdx = moveIdx;
+  if (opp.poke && !opp.fainted) opp.selectedMoveIdx = S.aiChooseMove('opp');
+  logPos = S.battleLog.length;
+  S.runTurn();
+  const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
+  const lines = fresh.map(e => lineWithFx(e.msg));
+  say(lines, endOfTurn);
+}
+// ログ1行 → テキスト+演出(HPバー同期・揺れ・ひんし・交代)
+function lineWithFx(msg){
+  const fx = () => {
+    // 残HP同期: 「(残HP X/Y)」(相手側は「相手の」を含む行)
+    const hpM = msg.match(/\(残HP (\d+)(?:\/(\d+))?\)/);
+    const isOpp = msg.includes('相手の');
+    if (hpM){
+      const side = isOpp ? 'opp' : 'self';
+      const st = S.sides[side];
+      const max = hpM[2] ? +hpM[2] : (S.realStat(st, 'hp') || 1);
+      setHpBar(side, +hpM[1], max);
+    }
+    if (/ダメージ！/.test(msg)){
+      const tgt = /相手の [^\s！]+ に \d+ ダメージ/.test(msg) ? 'opp' : (/ に \d+ ダメージ/.test(msg) ? 'self' : null);
+      if (tgt){ flash(tgt, 'hit'); flash(tgt === 'self' ? 'opp' : 'self', tgt === 'self' ? 'lunge-opp' : 'lunge-self'); }
+    }
+    if (/は ひんしになった！/.test(msg)) flash(isOpp ? 'opp' : 'self', 'faint');
+    if (/が 場に出た！|メガシンカした！/.test(msg)){ renderAll(); flash(isOpp ? 'opp' : 'self', 'enter'); }
+    if (/状態になった！|こんらんした！|回復/.test(msg)) renderAll();
+  };
+  return { text: msg, fx };
+}
+function flash(side, cls){
+  const f = $('f-' + side);
+  f.classList.remove(cls);
+  void f.offsetWidth;
+  f.classList.add(cls);
+  setTimeout(() => f.classList.remove(cls), 800);
+}
+function endOfTurn(){
+  renderAll();
+  const dead = side => {
+    const st = S.sides[side];
+    const all = [st].concat(st.bench || []);
+    return all.every(e => !e || !e.poke || e.fainted || (e.currentHp != null && e.currentHp <= 0));
+  };
+  if (dead('opp') || dead('self')){
+    gameOver = true;
+    say([dead('opp') ? '🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！' : '😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…',
+         '「にげる」から 編成にもどって もういちど あそべます'], () => showCmd(true));
+    return;
+  }
+  showCmd(true);
+}
+</script>
+</body>
+</html>
