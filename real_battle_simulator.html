@@ -1994,6 +1994,7 @@ function phaseDealDamage(atkSide, defSide, move){
       return { variation: dealt, hits: 1, special: true };
     }
     if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
+    dmg = sashCheck(df, dmg);   // きあいのタスキ(倍返しダメージにも効く)
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${a.poke.name} の ${move.name}！ 受けたダメージを倍返し！ ${df.poke.name} に ${dmg} ダメージ！ (残HP ${df.currentHp})`);
     if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); applyDestinyBond(df, a); }
@@ -2024,6 +2025,7 @@ function phaseDealDamage(atkSide, defSide, move){
     }
     // こらえる: 一撃必殺・固定ダメージも技のダメージなのでHP1で耐える(Bulbapedia "Endure")
     if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
+    dmg = sashCheck(df, dmg);   // きあいのタスキ(一撃必殺にも効く=第5世代以降)
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${a.poke.name} の ${move.name}！ ${df.poke.name} に ${dmg} ダメージ！${ohkoEf ? '(一撃必殺！)' : ''} (残HP ${df.currentHp})`);
     if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); applyDestinyBond(df, a); }
@@ -2113,6 +2115,7 @@ function phaseDealDamage(atkSide, defSide, move){
     }
     // こらえる: 技のダメージではHPが1より下がらない(連続攻撃は1発ごとに判定。Bulbapedia "Endure")
     if (def.enduring && v >= def.currentHp){ v = def.currentHp - 1; log('8', `${def.poke.name} は こうげきを こらえた！`); }
+    v = sashCheck(def, v);   // きあいのタスキ(満タン時のみ・消費)
     def.currentHp = Math.max(0, def.currentHp - v);
     total += v; hits++; lastHit = v;
   }
@@ -3941,6 +3944,22 @@ function _itemFrac(s){
   const p = String(s).split('/');
   return p.length === 2 ? Number(p[0]) / Number(p[1]) : Number(s) || 0;
 }
+// きあいのタスキ: HP満タンから一撃でひんしになるダメージをHP1で耐える(1回限り・消費)。
+// 一撃必殺にも効く(第5世代以降)。こらえる成立後(v<HP)なら発動しない。
+// 出典: items_database.js宣言(trigger:ohko_at_full_hp)/ポケモンWiki「きあいのタスキ」
+function sashCheck(def, v){
+  if (!def.poke || env.magicRoom || !def.item) return v;
+  const it = ITEM_BY_KEY[def.item];
+  if (!it || it.key !== 'focus_sash') return v;
+  const max = realStat(def, 'hp');
+  if (def.currentHp === max && v >= def.currentHp){
+    consumeItem(def);
+    log('8', `${def.poke.name} は きあいのタスキで もちこたえた！`);
+    return def.currentHp - 1;
+  }
+  return v;
+}
+
 function itemReactions(){
   ['self','opp'].forEach(s => {
     const st = sides[s];
