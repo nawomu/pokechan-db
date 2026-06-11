@@ -1840,6 +1840,12 @@ const battleLog = [];
 function log(phase, msg){
   battleLog.push({phase, msg});
 }
+// ログ表示用の名前: 相手側のポケモンには「相手の」を付ける(同名対決でもどちらか分かるように。
+// 実機の「あいての ○○」表記に準拠。2026-06-12 阿部さん要望)
+function pname(st){
+  if (!st || !st.poke) return '?';
+  return (st === sides.opp ? '相手の ' : '') + st.poke.name;
+}
 
 // === フェーズ: Init-A 場に出た時の特性発動 ===
 function phaseInitA(){
@@ -1853,31 +1859,31 @@ function phaseInitA(){
     const ab = sideAbility(st);
     if (ab === 'いかく' && other.poke){
       other.rank.atk = Math.max(-6, (other.rank.atk||0) - 1);
-      log('Init-A', `${st.poke.name} の いかくで ${other.poke.name} のこうげきがさがった！`);
+      log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
     } else if (ab === 'ひでり'){
       env.weather = 'sunny';
-      log('Init-A', `${st.poke.name} の ひでりで 日差しが強くなった！`);
+      log('Init-A', `${pname(st)} の ひでりで 日差しが強くなった！`);
     } else if (ab === 'あめふらし'){
       env.weather = 'rain';
-      log('Init-A', `${st.poke.name} の あめふらしで あめが降り始めた！`);
+      log('Init-A', `${pname(st)} の あめふらしで あめが降り始めた！`);
     } else if (ab === 'すなおこし'){
       env.weather = 'sand';
-      log('Init-A', `${st.poke.name} の すなおこしで すなあらしが舞い始めた！`);
+      log('Init-A', `${pname(st)} の すなおこしで すなあらしが舞い始めた！`);
     } else if (ab === 'ゆきふらし' || ab === 'ゆきふらし'){
       env.weather = 'snow';
-      log('Init-A', `${st.poke.name} の ${ab}で ゆきが降り始めた！`);
+      log('Init-A', `${pname(st)} の ${ab}で ゆきが降り始めた！`);
     } else if (ab === 'エレキメイカー'){
       env.field = 'electric';
-      log('Init-A', `${st.poke.name} の エレキメイカーで 足下に電気が満ちた！`);
+      log('Init-A', `${pname(st)} の エレキメイカーで 足下に電気が満ちた！`);
     } else if (ab === 'グラスメイカー'){
       env.field = 'grassy';
-      log('Init-A', `${st.poke.name} の グラスメイカーで 足下に草が生えた！`);
+      log('Init-A', `${pname(st)} の グラスメイカーで 足下に草が生えた！`);
     } else if (ab === 'ミストメイカー'){
       env.field = 'misty';
-      log('Init-A', `${st.poke.name} の ミストメイカーで 足下に霧が満ちた！`);
+      log('Init-A', `${pname(st)} の ミストメイカーで 足下に霧が満ちた！`);
     } else if (ab === 'サイコメイカー'){
       env.field = 'psychic';
-      log('Init-A', `${st.poke.name} の サイコメイカーで 足下に不思議な空間が広がった！`);
+      log('Init-A', `${pname(st)} の サイコメイカーで 足下に不思議な空間が広がった！`);
     }
   }
 }
@@ -1970,7 +1976,7 @@ function applyDestinyBond(downed, killer){
   if (!downed.destinyBond || !killer || killer.fainted || !killer.poke) return;
   killer.currentHp = 0;
   killer.fainted = true;
-  log('8', `${downed.poke.name} は ${killer.poke.name} を みちづれにした！ ${killer.poke.name} は ひんしになった！`);
+  log('8', `${pname(downed)} は ${pname(killer)} を みちづれにした！ ${pname(killer)} は ひんしになった！`);
 }
 
 // 技で受けたダメージを記録(倍返し=カウンター等用)。連続攻撃は最後の1発分(Bulbapedia "Counter")。
@@ -1992,7 +1998,7 @@ function phaseDealDamage(atkSide, defSide, move){
   // もえつきる: 自分が除去対象タイプ(ほのお)でなければ技ごと失敗(Bulbapedia "Burn Up")
   const _typeRemEf = _e0.find(e => e.kind === 'タイプ除去' && e.target === 'self');
   if (_typeRemEf && !sideTypes(sides[atkSide]).includes(_typeRemEf.value)){
-    log('8', `${sides[atkSide].poke.name} の ${move.name}！ しかし うまく きまらなかった！`);
+    log(`8`, `${pname(sides[atkSide])} の ${move.name}！ しかし うまく きまらなかった！`);
     return { failed: true };
   }
 
@@ -2005,14 +2011,14 @@ function phaseDealDamage(atkSide, defSide, move){
     if (!a.poke || !df.poke) return null;
     const defTypes = sideTypes(df);
     if (moveTypeEff(move.type, defTypes) === 0){
-      log('8', `${df.poke.name} には こうかが ないようだ…`);
+      log('8', `${pname(df)} には こうかが ないようだ…`);
       return { immune: true, reason: 'こうかなし' };
     }
     const t = a.tookThisTurn || {phys:0, spec:0, any:0};
     const basis = (counterEf.basis || '').includes('physical') ? t.phys
                 : (counterEf.category === '特殊') ? t.spec : t.any;
     if (!basis){
-      log('8', `${a.poke.name} の ${move.name}！ しかし うまく きまらなかった！`);
+      log('8', `${pname(a)} の ${move.name}！ しかし うまく きまらなかった！`);
       return { failed: true };
     }
     let dmg = Math.floor(basis * (counterEf.multiplier || 2));
@@ -2020,14 +2026,14 @@ function phaseDealDamage(atkSide, defSide, move){
     if (df.subHp > 0 && !piercesSub(move)){
       const dealt = Math.min(dmg, df.subHp);
       df.subHp -= dealt; df.subAbsorbed = true;
-      log('8', `${a.poke.name} の ${move.name}！ ${df.poke.name} の みがわりが ${dealt} ダメージを 受けた！${df.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
+      log('8', `${pname(a)} の ${move.name}！ ${pname(df)} の みがわりが ${dealt} ダメージを 受けた！${df.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
       return { variation: dealt, hits: 1, special: true };
     }
-    if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
+    if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${pname(df)} は こうげきを こらえた！`); }
     dmg = sashCheck(df, dmg);   // きあいのタスキ(倍返しダメージにも効く)
     df.currentHp = Math.max(0, df.currentHp - dmg);
-    log('8', `${a.poke.name} の ${move.name}！ 受けたダメージを倍返し！ ${df.poke.name} に ${dmg} ダメージ！ (残HP ${df.currentHp})`);
-    if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); applyDestinyBond(df, a); }
+    log('8', `${pname(a)} の ${move.name}！ 受けたダメージを倍返し！ ${pname(df)} に ${dmg} ダメージ！ (残HP ${df.currentHp})`);
+    if (df.currentHp <= 0){ df.fainted = true; log('8', `${pname(df)} は ひんしになった！`); applyDestinyBond(df, a); }
     recordTaken(df, move, dmg);
     return { variation: dmg, hits: 1, special: true };
   }
@@ -2040,7 +2046,7 @@ function phaseDealDamage(atkSide, defSide, move){
     const ignores = (ohkoEf && ohkoEf.ignores_type_matchup) || (fixedEf && fixedEf.ignores_type_matchup);
     const defTypes = sideTypes(df);
     if (!ignores && moveTypeEff(move.type, defTypes) === 0){
-      log('8', `${df.poke.name} には こうかが ないようだ…`);
+      log('8', `${pname(df)} には こうかが ないようだ…`);
       return { immune: true, reason: 'こうかなし' };
     }
     let dmg = ohkoEf ? df.currentHp : fixedDamageAmount(fixedEf, a, df);
@@ -2050,15 +2056,15 @@ function phaseDealDamage(atkSide, defSide, move){
     if (df.subHp > 0 && !piercesSub(move)){
       const dealt = Math.min(ohkoEf ? df.subHp : dmg, df.subHp);
       df.subHp -= dealt; df.subAbsorbed = true;
-      log('8', `${a.poke.name} の ${move.name}！ ${df.poke.name} の みがわりが ${dealt} ダメージを 受けた！${df.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
+      log('8', `${pname(a)} の ${move.name}！ ${pname(df)} の みがわりが ${dealt} ダメージを 受けた！${df.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
       return { variation: dealt, hits: 1, special: true };
     }
     // こらえる: 一撃必殺・固定ダメージも技のダメージなのでHP1で耐える(Bulbapedia "Endure")
-    if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${df.poke.name} は こうげきを こらえた！`); }
+    if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${pname(df)} は こうげきを こらえた！`); }
     dmg = sashCheck(df, dmg);   // きあいのタスキ(一撃必殺にも効く=第5世代以降)
     df.currentHp = Math.max(0, df.currentHp - dmg);
-    log('8', `${a.poke.name} の ${move.name}！ ${df.poke.name} に ${dmg} ダメージ！${ohkoEf ? '(一撃必殺！)' : ''} (残HP ${df.currentHp})`);
-    if (df.currentHp <= 0){ df.fainted = true; log('8', `${df.poke.name} は ひんしになった！`); applyDestinyBond(df, a); }
+    log('8', `${pname(a)} の ${move.name}！ ${pname(df)} に ${dmg} ダメージ！${ohkoEf ? '(一撃必殺！)' : ''} (残HP ${df.currentHp})`);
+    if (df.currentHp <= 0){ df.fainted = true; log('8', `${pname(df)} は ひんしになった！`); applyDestinyBond(df, a); }
     recordTaken(df, move, dmg);
     return { variation: dmg, hits: 1, special: true };
   }
@@ -2091,7 +2097,7 @@ function phaseDealDamage(atkSide, defSide, move){
         if (b && b.poke && !b.fainted && (!b.status || b.status === 'none')) beatUpPowers.push(Math.floor(b.poke.atk / 10) + 5);
       }
       if (!beatUpPowers.length){
-        log('8', `${a.poke.name} の ${move.name}！ しかし うまく きまらなかった！`);
+        log('8', `${pname(a)} の ${move.name}！ しかし うまく きまらなかった！`);
         noteActionFailed(a);
         return { failed: true };
       }
@@ -2146,7 +2152,7 @@ function phaseDealDamage(atkSide, defSide, move){
       continue;
     }
     // こらえる: 技のダメージではHPが1より下がらない(連続攻撃は1発ごとに判定。Bulbapedia "Endure")
-    if (def.enduring && v >= def.currentHp){ v = def.currentHp - 1; log('8', `${def.poke.name} は こうげきを こらえた！`); }
+    if (def.enduring && v >= def.currentHp){ v = def.currentHp - 1; log('8', `${pname(def)} は こうげきを こらえた！`); }
     v = sashCheck(def, v);   // きあいのタスキ(満タン時のみ・消費)
     def.currentHp = Math.max(0, def.currentHp - v);
     total += v; hits++; lastHit = v;
@@ -2157,10 +2163,10 @@ function phaseDealDamage(atkSide, defSide, move){
   if (atk.chargeBoost && result.moveType === atk.chargeBoost.move_type) atk.chargeBoost = null;
   if (def.subAbsorbed){
     // 分身が受けた(連続攻撃でこわれて本体にも当たった混在時は合計表記の近似)
-    log('8', `${atk.poke.name} の ${move.name}！ ${def.poke.name} の みがわりが ${total} ダメージを 受けた！${def.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
+    log('8', `${pname(atk)} の ${move.name}！ ${pname(def)} の みがわりが ${total} ダメージを 受けた！${def.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
   }
-  else if (hitCount > 1) log('8', `${atk.poke.name} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
-  else log('8', `${atk.poke.name} の ${move.name}！ ${def.poke.name} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
+  else if (hitCount > 1) log('8', `${pname(atk)} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
+  else log('8', `${pname(atk)} の ${move.name}！ ${pname(def)} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   if (critRoll && total > 0) log('8', `きゅうしょに あたった！`);
   // かいがらのすず: 技でダメージを与えたら与ダメ合計の1/8回復(items_database宣言)
   if (atk.poke && !atk.fainted && !env.magicRoom && atk.item === 'shell_bell' && total > 0){
@@ -2168,14 +2174,14 @@ function phaseDealDamage(atkSide, defSide, move){
     if (atk.currentHp < _sbMax){
       const _sbHeal = Math.max(1, Math.floor(total / 8));
       atk.currentHp = Math.min(_sbMax, atk.currentHp + _sbHeal);
-      log('9', `${atk.poke.name} は かいがらのすずで ${_sbHeal} 回復！ (残HP ${atk.currentHp})`);
+      log('9', `${pname(atk)} は かいがらのすずで ${_sbHeal} 回復！ (残HP ${atk.currentHp})`);
     }
   }
   // おうじゃのしるし: ダメージを与えた時10%の確率で相手をひるませる(まだ動いていない相手にだけ意味がある)
   if (atk.poke && !env.magicRoom && atk.item === 'kings_rock' && total > 0 && def.poke && !def.fainted && !def.flinched){
     if (Math.random() < 0.1){
       def.flinched = true;
-      log('9', `${def.poke.name} は おうじゃのしるしで ひるんだ！`);
+      log('9', `${pname(def)} は おうじゃのしるしで ひるんだ！`);
     }
   }
   // 半減きのみ: 実際に半減が効いた攻撃(バツグン+タイプ一致+本体が受けた)で一度だけ消費。
@@ -2185,7 +2191,7 @@ function phaseDealDamage(atkSide, defSide, move){
     if (_bi && _bi.category === 'berry_resist' && _bi.resist_type === result.moveType &&
         moveTypeEff(result.moveType, sideTypes(def)) > 1){
       consumeItem(def);
-      log('9', `${def.poke.name} は ${_bi.name}で ダメージを 半減した！(きのみは なくなった)`);
+      log('9', `${pname(def)} は ${_bi.name}で ダメージを 半減した！(きのみは なくなった)`);
     }
   }
 
@@ -2195,25 +2201,25 @@ function phaseDealDamage(atkSide, defSide, move){
     const amax = realStat(atk, 'hp');
     const heal = Math.max(1, Math.floor(total * (drainEf.fraction || 0.5)));
     atk.currentHp = Math.min(amax, atk.currentHp + heal);
-    log('9', `${atk.poke.name} は 吸収して ${heal} 回復！ (残HP ${atk.currentHp})`);
+    log('9', `${pname(atk)} は 吸収して ${heal} 回復！ (残HP ${atk.currentHp})`);
   }
   // 技固有の反動: 与ダメ合計の fraction だけ自分も受ける(※厳密な丸め 0.33 vs 1/3 は権威確認=park)
   const recoilEf = _effs.find(e => e.kind === '反動');
   if (recoilEf && total > 0){
     const dmg = Math.max(1, Math.floor(total * (recoilEf.fraction || 0)));
     atk.currentHp = Math.max(0, atk.currentHp - dmg);
-    log('9', `${atk.poke.name} は 反動で ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
-    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
+    log('9', `${pname(atk)} は 反動で ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
+    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
   }
   // 反動ダメージ (ゴツメ・たま=持ち物由来)
   if (result.recoil > 0){
     atk.currentHp = Math.max(0, atk.currentHp - result.recoil);
-    log('9', `${atk.poke.name} は反動で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
+    log('9', `${pname(atk)} は反動で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
   }
   // ひんし判定(防御側)
   if (def.currentHp <= 0){
     def.fainted = true;
-    log('8', `${def.poke.name} は ひんしになった！`);
+    log('8', `${pname(def)} は ひんしになった！`);
     applyDestinyBond(def, atk);   // みちづれ(相手の技でひんし→道連れ)
   }
   return {...result, variation: total, hits};
@@ -2312,8 +2318,8 @@ function applyProtectPunishers(atk, def, mv){
       const max = realStat(atk, 'hp');
       const dmg = Math.max(1, Math.floor(max * (ef.fraction || 0.125)));
       atk.currentHp = Math.max(0, (atk.currentHp == null ? max : atk.currentHp) - dmg);
-      log('9', `${atk.poke.name} は トゲにふれて ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
-      if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
+      log('9', `${pname(atk)} は トゲにふれて ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
+      if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
     } else if (ef.kind === '能力ランク変化' && ct === 'hit_by_contact_move_while_protecting'){
       const STATMAP = {attack:'atk',defense:'def',special_attack:'spatk',special_defense:'spdef',speed:'spd',accuracy:'acc',evasion:'eva'};
       const keys = Array.isArray(ef.stats) ? ef.stats : (ef.stat ? [ef.stat] : []);
@@ -2322,7 +2328,7 @@ function applyProtectPunishers(atk, def, mv){
         if (atk.rank[rk] === undefined) continue;
         const sg = ef.stages || 0;
         atk.rank[rk] = Math.max(-6, Math.min(6, (atk.rank[rk] || 0) + sg));
-        log('9', `${atk.poke.name} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
+        log('9', `${pname(atk)} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
       }
     } else if (ef.kind === '状態付与' && ct === 'hit_by_contact_move_while_protecting'){
       const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
@@ -2334,7 +2340,7 @@ function applyProtectPunishers(atk, def, mv){
       if ((STATUS_IMMUNE[code] || []).some(t => tg.includes(t))) continue;
       if (atk.status && atk.status !== 'none') continue;
       atk.status = code;
-      log('9', `${atk.poke.name} は ${ef.value} 状態になった！`);
+      log('9', `${pname(atk)} は ${ef.value} 状態になった！`);
     }
   }
 }
@@ -2347,7 +2353,7 @@ function applySelfFaint(atk){
   if (atk.fainted) return;
   atk.currentHp = 0;
   atk.fainted = true;
-  log('9', `${atk.poke.name} は ひんしになった！`);
+  log('9', `${pname(atk)} は ひんしになった！`);
 }
 
 // HPコスト(てっていこうせん): 使用宣言したら 外れても・守られても 最大HPの半分(切り上げ)を支払う。
@@ -2360,8 +2366,8 @@ function applyHpCost(atk, mv){
   const cost = Math.max(1, (ef.rounding === 'up' ? Math.ceil : Math.floor)(max * (ef.fraction || 0.5)));
   if (atk.currentHp == null) atk.currentHp = max;
   atk.currentHp = Math.max(0, atk.currentHp - cost);
-  log('9', `${atk.poke.name} は 自分のHPを ${cost} けずった！ (残りHP ${atk.currentHp})`);
-  if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
+  log('9', `${pname(atk)} は 自分のHPを ${cost} けずった！ (残りHP ${atk.currentHp})`);
+  if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
 }
 
 // 失敗ダメージ(とびひざげり/かかとおとし/サンダーダイブ):
@@ -2374,8 +2380,8 @@ function applyCrashDamage(atk, mv){
   const max = realStat(atk, 'hp');
   const dmg = Math.max(1, Math.floor(max * (ef.fraction || 0.5)));
   atk.currentHp = Math.max(0, (atk.currentHp == null ? max : atk.currentHp) - dmg);
-  log('9', `${atk.poke.name} は いきおいあまって たおれた！ (${dmg} ダメージ・残りHP ${atk.currentHp})`);
-  if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
+  log('9', `${pname(atk)} は いきおいあまって たおれた！ (${dmg} ダメージ・残りHP ${atk.currentHp})`);
+  if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
 }
 
 // あばれ状態(kind=暴れる(混乱): あばれる/はなびらのまい/げきりん/だいふんげき)
@@ -2388,7 +2394,7 @@ function endRampage(atk, withConfusion){
   // さわぐ(連続強制(混乱なし)): 終わってもこんらんしない(Bulbapedia "Uproar")
   const noConf = !!atk.rampage.noConfusion;
   atk.rampage = null;
-  log('9', noConf ? `${atk.poke.name} は しずかになった！` : `${atk.poke.name} の あばれるのが やんだ！`);
+  log('9', noConf ? `${pname(atk)} は しずかになった！` : `${pname(atk)} の あばれるのが やんだ！`);
   if (noConf || !withConfusion || atk.fainted || atk.confusion) return;
   // ミストフィールド(状態異常予防・values指定なし=全部)は こんらんも防ぐ(通常付与と同じ規則)
   const fG = fieldRules().find(r => r.kind === '状態異常予防');
@@ -2397,7 +2403,7 @@ function endRampage(atk, withConfusion){
   const d = (ef && Array.isArray(ef.duration)) ? ef.duration : [1, 4];
   // こんらんカウンタは行動時デクリメント(0で解ける)なので「nターン混乱」=カウンタ n+1
   atk.confusion = (d[0] + 1) + Math.floor(Math.random() * (d[1] - d[0] + 1));
-  log('9', `${atk.poke.name} は こんらんした！`);
+  log('9', `${pname(atk)} は こんらんした！`);
 }
 function disruptRampage(atk){
   if (!atk.rampage) return;
@@ -2429,7 +2435,7 @@ function progressRampage(atk, mv){
     const d = Array.isArray(ef.duration) ? ef.duration : (ef.duration ? [ef.duration, ef.duration] : [2, 3]);
     const total = d[0] + Math.floor(Math.random() * (d[1] - d[0] + 1));
     atk.rampage = { move: mv, left: total - 1, noConfusion: noConf };
-    log('9', noConf ? `${atk.poke.name} は さわぎだした！` : `${atk.poke.name} は あばれだした！`);
+    log('9', noConf ? `${pname(atk)} は さわぎだした！` : `${pname(atk)} は あばれだした！`);
   } else {
     atk.rampage.left--;
   }
@@ -2447,7 +2453,7 @@ function consumeStockpile(st){
   st.rank.spdef = Math.max(-6, Math.min(6, (st.rank.spdef || 0) - b.spdef));
   st.stockpile = 0;
   st.stockpileBoost = {def: 0, spdef: 0};
-  log('9', `${st.poke.name} の たくわえたものが なくなった！`);
+  log('9', `${pname(st)} の たくわえたものが なくなった！`);
 }
 
 function noteActionFailed(atk){
@@ -2516,12 +2522,12 @@ function phaseApplyEffects(atkSide, defSide, move){
       return;
     }
     if (def.rooted){
-      log('9', `しかし うまく きまらなかった！(${def.poke.name} は ねをはっている)`);
+      log('9', `しかし うまく きまらなかった！(${pname(def)} は ねをはっている)`);
       noteActionFailed(atk);
       return;
     }
     const pick = liveIdxs[Math.floor(Math.random() * liveIdxs.length)];
-    log('9', `${def.poke.name} は ふきとばされた！`);
+    log('9', `${pname(def)} は ふきとばされた！`);
     attemptSwitch(defSide, pick, {ignoreTrapping: true});
     return;
   }
@@ -2563,7 +2569,7 @@ function phaseApplyEffects(atkSide, defSide, move){
   // たくわえる: すでに最大(3)までたくわえていると技ごと失敗=ランクも上がらない(Bulbapedia "Stockpile")
   const _stockAdd = move.battle_data.effects.find(e => e.kind === 'たくわえ加算');
   if (_stockAdd && (atk.stockpile || 0) >= (_stockAdd.max || 3)){
-    log('9', `${atk.poke.name} は これいじょう たくわえられない！`);
+    log('9', `${pname(atk)} は これいじょう たくわえられない！`);
     return;
   }
   // たくわえ加算がある技は「実際に上がった分」を消費時に戻すため、実行前のランクを控えておく
@@ -2581,7 +2587,7 @@ function phaseApplyEffects(atkSide, defSide, move){
     // 出典: Bulbapedia "Substitute"
     if (ef.target === 'opponent' && !piercesSub(move)
         && (def.subAbsorbed || (move.category === '変化' && def.subHp > 0))){
-      log('9', `${def.poke.name} は みがわりに 守られている！`);
+      log('9', `${pname(def)} は みがわりに 守られている！`);
       continue;
     }
     // 自分交代(とんぼがえり/ボルトチェンジ/クイックターン/すてゼリフ): 攻撃・効果のあと控えと入れ替わる。
@@ -2625,7 +2631,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           inSt.statOverride = passed.statOverride;
           inSt.aquaRing = passed.aquaRing;
           inSt.magnetRise = passed.magnetRise;
-          log('9', `${inSt.poke.name} は 能力変化などを 引き継いだ！`);
+          log('9', `${pname(inSt)} は 能力変化などを 引き継いだ！`);
         }
         continue;
       }
@@ -2645,12 +2651,12 @@ function phaseApplyEffects(atkSide, defSide, move){
     if (ef.kind === '拘束'){
       const tgT = sideTypes(target);
       if ((ef.immune || []).some(im => im.type === 'target_type' && tgT.includes(im.value))){
-        log('9', `${target.poke.name} には こうかが ないようだ…`);
+        log('9', `${pname(target)} には こうかが ないようだ…`);
         continue;
       }
       if (!target.trapped){
         target.trapped = true;
-        log('9', `${target.poke.name} は にげられなくなった！`);
+        log('9', `${pname(target)} は にげられなくなった！`);
       }
       continue;
     }
@@ -2662,16 +2668,16 @@ function phaseApplyEffects(atkSide, defSide, move){
       let placed = false;
       if (ef.value === 'ステルスロック' && !fieldSt.stealthRock){
         fieldSt.stealthRock = true; placed = true;
-        log('9', `${fieldSt.poke.name} の足元に とがった岩が 浮かびはじめた！`);
+        log('9', `${pname(fieldSt)} の足元に とがった岩が 浮かびはじめた！`);
       } else if (ef.value === 'まきびし' && (fieldSt.spikesLayers || 0) < (ef.max_layers || 3)){
         fieldSt.spikesLayers = (fieldSt.spikesLayers || 0) + 1; placed = true;
-        log('9', `${fieldSt.poke.name} の足元に まきびしが 散らばった！(${fieldSt.spikesLayers}層)`);
+        log('9', `${pname(fieldSt)} の足元に まきびしが 散らばった！(${fieldSt.spikesLayers}層)`);
       } else if (ef.value === 'どくびし' && (fieldSt.toxicSpikesLayers || 0) < (ef.max_layers || 2)){
         fieldSt.toxicSpikesLayers = (fieldSt.toxicSpikesLayers || 0) + 1; placed = true;
-        log('9', `${fieldSt.poke.name} の足元に どくびしが 散らばった！(${fieldSt.toxicSpikesLayers}層)`);
+        log('9', `${pname(fieldSt)} の足元に どくびしが 散らばった！(${fieldSt.toxicSpikesLayers}層)`);
       } else if (ef.value === 'sticky_web' && !fieldSt.stickyWeb){
         fieldSt.stickyWeb = true; placed = true;
-        log('9', `${fieldSt.poke.name} の足元に ねばねばネットが 広がった！`);
+        log('9', `${pname(fieldSt)} の足元に ねばねばネットが 広がった！`);
       }
       if (!placed){
         log('9', `しかし うまく きまらなかった！(これ以上 置けない)`);
@@ -2685,7 +2691,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (atk.lastConsumedItem && !atk.item){
         atk.item = atk.lastConsumedItem;
         atk.lastConsumedItem = null;
-        log('9', `${atk.poke.name} は ${(ITEM_BY_KEY[atk.item] || {}).name || '道具'}を リサイクルした！`);
+        log('9', `${pname(atk)} は ${(ITEM_BY_KEY[atk.item] || {}).name || '道具'}を リサイクルした！`);
       } else {
         log('9', `しかし うまく きまらなかった！(再生できる道具が ない)`);
         noteActionFailed(atk);
@@ -2706,7 +2712,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         const eater = (ef.target === 'all') ? holder : ((holder === def) ? atk : holder);
         if (holder === eater){ consumeItem(holder); }    // 自分で食べた=リサイクル可
         else { holder.item = ''; }                       // 奪われて食べられた=リサイクル不可
-        log('9', `${eater.poke.name} は ${it.name}を 食べた！`);
+        log('9', `${pname(eater)} は ${it.name}を 食べた！`);
         applyBerryEffect(eater, it);
       }
       continue;
@@ -2717,7 +2723,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       const relTgt = ef.target === 'self' ? atk : def;
       if ((relTgt.slips || []).some(sl => sl.source === 'バインド' || sl.source === 'やどりぎのタネ')){
         relTgt.slips = relTgt.slips.filter(sl => sl.source !== 'バインド' && sl.source !== 'やどりぎのタネ');
-        log('9', `${relTgt.poke.name} は しめつけから 解放された！`);
+        log('9', `${pname(relTgt)} は しめつけから 解放された！`);
       }
       continue;
     }
@@ -2728,7 +2734,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       const t = ef.target === 'team' || ef.target === 'self' ? atk : def;
       if (t.stealthRock || (t.spikesLayers || 0) > 0 || (t.toxicSpikesLayers || 0) > 0 || t.stickyWeb){
         t.stealthRock = false; t.spikesLayers = 0; t.toxicSpikesLayers = 0; t.stickyWeb = false;
-        log('9', `${t.poke.name} の場の 設置物が 消えた！`);
+        log('9', `${pname(t)} の場の 設置物が 消えた！`);
       }
       continue;
     }
@@ -2740,7 +2746,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
       if (!liveIdxs.length || def.rooted) continue;
       const pick = liveIdxs[Math.floor(Math.random() * liveIdxs.length)];
-      log('9', `${def.poke.name} は ふきとばされた！`);
+      log('9', `${pname(def)} は ふきとばされた！`);
       attemptSwitch(defSide, pick, {ignoreTrapping: true});
       continue;
     }
@@ -2751,7 +2757,7 @@ function phaseApplyEffects(atkSide, defSide, move){
     if (ef.kind === 'ひるみ' || (ef.kind === '状態付与' && ef.value === 'ひるみ')){
       // ひるみは「状態異常」でなく、そのターンだけ行動できなくする一過性フラグ(ターン開始でクリア)。
       target.flinched = true;
-      log('9', `${target.poke.name} は ひるんだ！`);
+      log('9', `${pname(target)} は ひるんだ！`);
       continue;
     }
     if (ef.kind === 'こんらん' || (ef.kind === '状態付与' && ef.value === 'こんらん')){
@@ -2761,12 +2767,12 @@ function phaseApplyEffects(atkSide, defSide, move){
       // ミストフィールド(状態異常予防・values指定なし=全部)は こんらんも防ぐ(Bulbapedia "Misty Terrain")
       const fGuardC = fieldRules().find(r => r.kind === '状態異常予防');
       if (fGuardC && isGrounded(target) && !fGuardC.values){
-        log('9', `${target.poke.name} は フィールドに守られている！`);
+        log('9', `${pname(target)} は フィールドに守られている！`);
         continue;
       }
       // しんぴのまもり: 相手からの こんらん も防ぐ(自分にかける効果は対象外。Bulbapedia "Safeguard")
       if (ef.target !== 'self' && target.safeguard){
-        log('9', `${target.poke.name} は しんぴのまもりに 守られている！`);
+        log('9', `${pname(target)} は しんぴのまもりに 守られている！`);
         continue;
       }
       if (!(ef.phase === 'delayed' || ef.trigger) && !target.confusion){
@@ -2774,7 +2780,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           ? (ef.duration_turns[0] + Math.floor(Math.random() * (ef.duration_turns[1] - ef.duration_turns[0] + 1)))
           : (2 + Math.floor(Math.random() * 4));
         target.confusion = dt;
-        log('9', `${target.poke.name} は こんらんした！`);
+        log('9', `${pname(target)} は こんらんした！`);
       }
       continue;
     }
@@ -2809,7 +2815,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           });
           if (decl){
             target.slips.push({ source: ef.value, fraction: decl.fraction });
-            log('9', `${target.poke.name} は ${ef.value} 状態になった！`);
+            log('9', `${pname(target)} は ${ef.value} 状態になった！`);
           }
         }
         continue;
@@ -2821,14 +2827,14 @@ function phaseApplyEffects(atkSide, defSide, move){
         if (target.slips && target.slips.some(sl => sl.source === 'バインド')) continue;   // 重ねがけ不可
         const tgB = sideTypes(target);
         if ((ef.immune || []).some(im => im.type === 'target_type' && tgB.includes(im.value))){
-          log('9', `${target.poke.name} には こうかが ないようだ…`);
+          log('9', `${pname(target)} には こうかが ないようだ…`);
           continue;
         }
         const dB = Array.isArray(ef.duration) ? ef.duration : [4, 5];
         const bTurns = dB[0] + Math.floor(Math.random() * (dB[1] - dB[0] + 1));
         if (!target.slips) target.slips = [];
         target.slips.push({ source: 'バインド', fraction: (ef.turn_end_damage != null ? ef.turn_end_damage : 0.125), turns: bTurns });
-        log('9', `${target.poke.name} は ${move.name}で バインド状態になった！`);
+        log('9', `${pname(target)} は ${move.name}で バインド状態になった！`);
         continue;
       }
       // おいかぜ: 4ターンの間、自分側のすばやさが2倍(サイドに残る=交代しても続く。ポケモンWiki「おいかぜ」)
@@ -2838,7 +2844,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           noteActionFailed(atk);
         } else {
           target.tailwindTurns = ef.duration || 4;
-          log('9', `${target.poke.name} の後ろから 追い風が 吹きはじめた！`);
+          log('9', `${pname(target)} の後ろから 追い風が 吹きはじめた！`);
         }
         continue;
       }
@@ -2849,7 +2855,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           noteActionFailed(atk);
         } else {
           target.magnetRise = ef.duration || 5;
-          log('9', `${target.poke.name} は 電磁力で 浮き上がった！`);
+          log('9', `${pname(target)} は 電磁力で 浮き上がった！`);
         }
         continue;
       }
@@ -2857,7 +2863,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (ef.value === 'あめまみれ'){
         if (!target.syrupTurns){
           target.syrupTurns = ef.duration || 3;
-          log('9', `${target.poke.name} は あめまみれに なった！`);
+          log('9', `${pname(target)} は あめまみれに なった！`);
         }
         continue;
       }
@@ -2865,7 +2871,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (ef.value === 'かいふくふうじ'){
         if (!target.healBlockTurns){
           target.healBlockTurns = ef.duration || 2;
-          log('9', `${target.poke.name} は 回復を 封じられた！`);
+          log('9', `${pname(target)} は 回復を 封じられた！`);
         }
         continue;
       }
@@ -2878,7 +2884,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           continue;
         }
         target.critBoost = ef.crit_stages || 2;
-        log('9', `${target.poke.name} は きあいを ためはじめた！`);
+        log('9', `${pname(target)} は きあいを ためはじめた！`);
         continue;
       }
       // ちいさくなる状態(自分対象・場を離れるまで継続): のしかかり等が必中+威力2倍で当たるようになる
@@ -2896,30 +2902,30 @@ function phaseApplyEffects(atkSide, defSide, move){
         || (ef.target !== 'self' && move.type === 'でんき' && tg.includes('じめん')) // でんき技(でんじは等)はじめんに無効
         || (code === 'freeze' && env.weather === 'sunny'); // にほんばれの間は こおり にならない(Bulbapedia "Freeze")
       if (immuneHere){
-        log('9', `${target.poke.name} には こうかが ないようだ…`);
+        log('9', `${pname(target)} には こうかが ないようだ…`);
         continue;
       }
       // さわぐ最中は場の誰も眠れない(ねむる自身も含む。Bulbapedia "Uproar")
       if (code === 'sleep' && uproarActive()){
-        log('9', `さわがしくて ${target.poke.name} は ねむれない！`);
+        log('9', `さわがしくて ${pname(target)} は ねむれない！`);
         continue;
       }
       // フィールドの状態異常予防(ミスト=全部 / エレキ=ねむり・ねむけ)。地面にいるポケモンだけ守られる(データ宣言を読む)
       const fGuard = fieldRules().find(r => r.kind === '状態異常予防');
       if (fGuard && isGrounded(target) && (!fGuard.values || fGuard.values.includes(ef.value))){
-        log('9', `${target.poke.name} は フィールドに守られている！`);
+        log('9', `${pname(target)} は フィールドに守られている！`);
         continue;
       }
       // しんぴのまもり: 相手からの状態異常を防ぐ(ねむけ=あくびも防ぐ。自分にかける効果は対象外。Bulbapedia "Safeguard")
       if (ef.target !== 'self' && target.safeguard){
-        log('9', `${target.poke.name} は しんぴのまもりに 守られている！`);
+        log('9', `${pname(target)} は しんぴのまもりに 守られている！`);
         continue;
       }
       // 遅延付与(あくび: ねむけ→次のターン終わりに眠る)。即時には付与しない。
       if (ef.phase === 'delayed' || ef.trigger === 'turn_end'){
         if (!target.pendingStatus && target.status === 'none'){
           target.pendingStatus = { code, turns: (ef.delay_turns != null ? ef.delay_turns : 1), label: ef.value };
-          log('9', `${target.poke.name} は ねむけ 状態になった！(次のターン終わりに ${ef.value})`);
+          log('9', `${pname(target)} は ねむけ 状態になった！(次のターン終わりに ${ef.value})`);
         }
         continue;
       }
@@ -2929,7 +2935,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       // ねむりは自然に目覚める: ねむる=固定(duration+1=3カウント) / ふつう=1〜3ターン(第5世代以降・Bulbapedia "Sleep")
       // カウントは行動時に減らし、0になったターンに目覚めて行動する(PS実装と同じ)
       if (code === 'sleep') target.sleepTurns = (ef.duration != null) ? ef.duration + 1 : 2 + Math.floor(Math.random() * 3);
-      log('9', `${target.poke.name} は ${ef.value} 状態になった！`);
+      log('9', `${pname(target)} は ${ef.value} 状態になった！`);
     } else if (ef.kind === '能力ランク変化'){
       // くろいきり(reset宣言): 場にいる全員の能力ランクの変化をすべて0に戻す(ポケモンWiki「くろいきり」)
       if (ef.reset){
@@ -2969,13 +2975,13 @@ function phaseApplyEffects(atkSide, defSide, move){
         if (target.rank[rk] === undefined) continue;
         if (ef.to_max){
           target.rank[rk] = 6; // はらだいこ等: 最大まで上げる
-          log('9', `${target.poke.name} の ${k} ランクが 最大まであがった！`);
+          log('9', `${pname(target)} の ${k} ランクが 最大まであがった！`);
         } else {
           const sg = ef.stages || 0;
           const beforeRk = target.rank[rk] || 0;
           target.rank[rk] = Math.max(-6, Math.min(6, beforeRk + sg));
           if (sg < 0 && target.rank[rk] < beforeRk) target.statLoweredThisTurn = true;   // うっぷんばらし用(実際に下がった時だけ)
-          log('9', `${target.poke.name} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
+          log('9', `${pname(target)} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
         }
       }
     } else if (ef.kind === 'やどりぎ'){
@@ -2986,19 +2992,19 @@ function phaseApplyEffects(atkSide, defSide, move){
       const immY = (move.battle_data.immune || []).some(im => im.type === 'target_type' &&
         (im.values || [im.value]).some(t => tgY.includes(t)));
       if (immY){
-        log('9', `${def.poke.name} には こうかが ないようだ…`);
+        log('9', `${pname(def)} には こうかが ないようだ…`);
         continue;
       }
       if (!def.slips) def.slips = [];
       if (def.slips.some(sl => sl.source === 'やどりぎのタネ')) continue;   // 重ねがけ不可
       def.slips.push({ source: 'やどりぎのタネ', fraction: (ef.fraction != null ? ef.fraction : 0.125), drains: true });
-      log('9', `${def.poke.name} に やどりぎのタネを 植えつけた！`);
+      log('9', `${pname(def)} に やどりぎのタネを 植えつけた！`);
     } else if (ef.kind === '持ち物排除'){
       // はたきおとす: 相手の道具をはたきおとす(このバトル中なくなる。restored_after_battle=戦闘後に戻る、はsimでは
       // リセット=持ち物再設定で表現される)。Bulbapedia "Knock Off"
       if (def.item){
         const itKO = ITEM_BY_KEY[def.item];
-        log('9', `${atk.poke.name} は ${def.poke.name} の ${itKO ? itKO.name : def.item} を はたきおとした！`);
+        log('9', `${pname(atk)} は ${pname(def)} の ${itKO ? itKO.name : def.item} を はたきおとした！`);
         def.item = null;
       }
     } else if (ef.kind === '持ち物奪取'){
@@ -3009,7 +3015,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         const itTh = ITEM_BY_KEY[def.item];
         atk.item = def.item;
         def.item = null;
-        log('9', `${atk.poke.name} は ${def.poke.name} から ${itTh ? itTh.name : atk.item} を うばいとった！`);
+        log('9', `${pname(atk)} は ${pname(def)} から ${itTh ? itTh.name : atk.item} を うばいとった！`);
       }
     } else if (ef.kind === '持ち物交換'){
       // トリック/すりかえ: おたがいの道具を入れかえる。片方しか持っていなくても成功・
@@ -3021,7 +3027,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         atk.item = def.item || null;
         def.item = _ai;
         const _nm = (k) => { const it = k && ITEM_BY_KEY[k]; return it ? it.name : 'なし'; };
-        log('9', `${atk.poke.name} は おたがいの 道具を 入れかえた！(自分=${_nm(atk.item)} / 相手=${_nm(def.item)})`);
+        log('9', `${pname(atk)} は おたがいの 道具を 入れかえた！(自分=${_nm(atk.item)} / 相手=${_nm(def.item)})`);
       }
     } else if (ef.kind === '状態異常回復'){
       // ねむる/いやしのすず(=全部)・フレアドライブ等(value=こおり 等の単品)。
@@ -3035,7 +3041,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (ef.value === 'バインド' || ef.value === 'やどりぎのタネ'){
         if (cureTgt.slips && cureTgt.slips.some(sl => sl.source === ef.value)){
           cureTgt.slips = cureTgt.slips.filter(sl => sl.source !== ef.value);
-          log('9', `${cureTgt.poke.name} は ${ef.value}から 解放された！`);
+          log('9', `${pname(cureTgt)} は ${ef.value}から 解放された！`);
         }
         continue;
       }
@@ -3050,7 +3056,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           if (cureAll || b.status === cureCode){
             b.status = 'none';
             b.sleepTurns = null;
-            log('9', `控えの ${b.poke.name} の 状態異常も 治った！`);
+            log('9', `控えの ${pname(b)} の 状態異常も 治った！`);
           }
         }
       }
@@ -3059,7 +3065,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         cureTgt.status = 'none';
         cureTgt.badpoisonCounter = 0;
         cureTgt.sleepTurns = null;
-        log('9', `${cureTgt.poke.name} の 状態異常が 治った！`);
+        log('9', `${pname(cureTgt)} の 状態異常が 治った！`);
       }
     } else if (ef.kind === 'HPが減る'){
       // HPコスト(はらだいこ=半分切り捨て/ソウルビート=1/3/みがわり=1/4)。不足時の失敗ゲートはループ前で済み。
@@ -3076,8 +3082,8 @@ function phaseApplyEffects(atkSide, defSide, move){
       const cost = Math.max(1, (ef.rounding === 'up' ? Math.ceil : Math.floor)(maxC * (ef.fraction || 0.5)));
       if (atk.currentHp == null) atk.currentHp = maxC;
       atk.currentHp = Math.max(0, atk.currentHp - cost);
-      log('9', `${atk.poke.name} は 自分のHPを ${cost} けずった！ (残りHP ${atk.currentHp})`);
-      if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
+      log('9', `${pname(atk)} は 自分のHPを ${cost} けずった！ (残りHP ${atk.currentHp})`);
+      if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
     } else if (ef.kind === '回復'){
       // いやしのねがい(target:incoming): 自分はひんしになり、代わりに出てきたポケモンが全回復。
       // フラグはサイドに残し、attemptSwitch(死に出し含む)が消費する。控えなしの失敗ゲートはループ前。
@@ -3090,7 +3096,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           noteActionFailed(atk);
         } else {
           target.aquaRing = true;
-          log('9', `${target.poke.name} は 水のリングを まとった！`);
+          log('9', `${pname(target)} は 水のリングを まとった！`);
         }
         continue;
       }
@@ -3114,7 +3120,7 @@ function phaseApplyEffects(atkSide, defSide, move){
             turns: (ef.delay_turns != null ? ef.delay_turns : 1) + 1,
             amount: Math.max(1, Math.floor(realStat(target, 'hp') * (ef.fraction || 0.5))),
           };
-          log('9', `${target.poke.name} は ねがいごとをした！`);
+          log('9', `${pname(target)} は ねがいごとをした！`);
         }
         continue;
       }
@@ -3129,7 +3135,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         if (target.currentHp == null) target.currentHp = max;
         const heal = Math.max(1, Math.floor(max * ef.fraction));
         target.currentHp = Math.min(max, target.currentHp + heal);
-        log('9', `${target.poke.name} は HPを ${heal} 回復！ (残HP ${target.currentHp})`);
+        log('9', `${pname(target)} は HPを ${heal} 回復！ (残HP ${target.currentHp})`);
       }
     } else if (ef.kind === 'フィールド除去'){
       // アイアンローラー等: 攻撃が当たったらフィールドを消す(Bulbapedia "Steel Roller"・失敗時は来ない=immune時effects不発)
@@ -3155,7 +3161,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         atk[flag] = true;
         if (!atk.screenTurns) atk.screenTurns = {};
         atk.screenTurns[flag] = ef.duration || 5; // ターン終了ごとに減り、0で消える(UI手動チェックは無期限)
-        log('9', `${atk.poke.name} の場に ${ef.value} が 張られた！`);
+        log('9', `${pname(atk)} の場に ${ef.value} が 張られた！`);
       }
     } else if (ef.kind === '壁除去'){
       // かわらわり/サイコファング/レイジングブル(攻撃が当たったら=ここに来たら)・きりばらい(変化): 相手の場の壁を消す
@@ -3197,7 +3203,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         atk.stockpileBoost.def += (atk.rank.def || 0) - _preStockRank.def;
         atk.stockpileBoost.spdef += (atk.rank.spdef || 0) - _preStockRank.spdef;
       }
-      log('9', `${atk.poke.name} は ${atk.stockpile}つ たくわえた！`);
+      log('9', `${pname(atk)} は ${atk.stockpile}つ たくわえた！`);
     } else if (ef.kind === 'たくわえ消費'){
       // はきだす側は phaseDealDamage が先に消費するのでここは のみこむ(変化技)用(0なら何もしない)
       consumeStockpile(atk);
@@ -3205,10 +3211,10 @@ function phaseApplyEffects(atkSide, defSide, move){
       // そうでん: 相手が動く前に使うと、このターン相手の技は指定タイプ(でんき)になる。
       // 相手がすでに行動済みなら失敗。出典: Bulbapedia "Electrify"
       if (target.movedThisTurn){
-        log('9', `しかし うまく きまらなかった！(${target.poke.name} は もう行動した)`);
+        log('9', `しかし うまく きまらなかった！(${pname(target)} は もう行動した)`);
       } else {
         target.electrified = ef.value || 'でんき';
-        log('9', `${target.poke.name} の 技は このターン ${target.electrified}タイプに なる！`);
+        log('9', `${pname(target)} の 技は このターン ${target.electrified}タイプに なる！`);
       }
     } else if (ef.kind === 'いちゃもん'){
       // いちゃもん: 相手は同じ技を続けて出せなくなる。すでにいちゃもん状態なら失敗。
@@ -3217,7 +3223,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！(すでに いちゃもん状態)`);
       } else {
         target.tormented = true;
-        log('9', `${target.poke.name} は いちゃもんを つけられた！`);
+        log('9', `${pname(target)} は いちゃもんを つけられた！`);
       }
     } else if (ef.kind === 'ふういん'){
       // ふういん: 自分も知っている技を、相手は出せなくなる(自分が場にいる間)。
@@ -3226,14 +3232,14 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！(すでに ふういん発動中)`);
       } else {
         atk.imprison = true;
-        log('9', `${atk.poke.name} は あいての技を ふういんした！`);
+        log('9', `${pname(atk)} は あいての技を ふういんした！`);
       }
     } else if (ef.kind === 'カテゴリ封じ'){
       // じごくづき: 2ターンの間(当てたターンを含む)音技が出せない。
       // 封じる技は effects の blocked_moves リスト(SSOT)をそのまま使う。出典: Bulbapedia "Throat Chop"
       target.soundBlocked = ef.duration || 2;
       target.soundBlockedMoves = (ef.blocked_moves || []).slice();
-      log('9', `${target.poke.name} は ${ef.duration || 2}ターンの間 音の技が だせなくなった！`);
+      log('9', `${pname(target)} は ${ef.duration || 2}ターンの間 音の技が だせなくなった！`);
     } else if (ef.kind === 'ちょうはつ'){
       // ちょうはつ: 3ターンの間(使われたターンを含む)変化技を出せない。すでにちょうはつ状態なら失敗。
       // 出典: Bulbapedia "Taunt"(第5世代以降は3ターン)
@@ -3241,7 +3247,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！(すでに ちょうはつ状態)`);
       } else {
         target.tauntTurns = ef.duration || 3;
-        log('9', `${target.poke.name} は ちょうはつに のってしまった！`);
+        log('9', `${pname(target)} は ちょうはつに のってしまった！`);
       }
     } else if (ef.kind === 'かなしばり'){
       // かなしばり: 相手が最後に使った技を4ターンの間出せなくする。
@@ -3250,7 +3256,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！`);
       } else {
         target.disable = { name: target.lastMove.name, turns: ef.duration || 4 };
-        log('9', `${target.poke.name} の ${target.lastMove.name} を 封じこめた！`);
+        log('9', `${pname(target)} の ${target.lastMove.name} を 封じこめた！`);
       }
     } else if (ef.kind === 'アンコール'){
       // アンコール: 3ターンの間、相手は最後に使った技しか出せない。まだ技を使っていない・
@@ -3262,16 +3268,16 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！`);
       } else {
         target.encore = { move: target.lastMove, turns: ef.duration || 3 };
-        log('9', `${target.poke.name} は アンコールを うけた！`);
+        log('9', `${pname(target)} は アンコールを うけた！`);
       }
     } else if (ef.kind === 'ランクリセット'){
       // クリアスモッグ: 相手の能力ランク変化(命中/回避含む)を全て元に戻す。出典: Bulbapedia "Clear Smog"
       target.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
-      log('9', `${target.poke.name} の 能力変化が 元に戻った！`);
+      log('9', `${pname(target)} の 能力変化が 元に戻った！`);
     } else if (ef.kind === 'ランクコピー'){
       // じこあんじ: 相手のランク変化(命中/回避含む)を自分にコピーする。出典: Bulbapedia "Psych Up"
       atk.rank = {...target.rank};
-      log('9', `${atk.poke.name} は ${target.poke.name} の 能力変化を まねした！`);
+      log('9', `${pname(atk)} は ${pname(target)} の 能力変化を まねした！`);
     } else if (ef.kind === '能力入替'){
       // 能力入替は3義(データの構造で区別する):
       //  ① target:self(パワートリック)= 自分の実数値を入れかえる(ランクは元の能力に残る)
@@ -3285,7 +3291,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         const vals = _keys.map(k => realStat(atk, k));
         atk.statOverride = atk.statOverride || {};
         _keys.forEach((k, i) => { atk.statOverride[k] = vals[_keys.length - 1 - i]; });
-        log('9', `${atk.poke.name} は ${move.name}で 能力を 入れかえた！`);
+        log('9', `${pname(atk)} は ${move.name}で 能力を 入れかえた！`);
       } else if (_keys.includes('spd')){
         // ② 自分と相手で素の実数値スワップ
         for (const k of _keys){
@@ -3295,7 +3301,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           atk.statOverride[k] = b;
           target.statOverride[k] = a;
         }
-        log('9', `${atk.poke.name} は おたがいの すばやさを 入れかえた！`);
+        log('9', `${pname(atk)} は おたがいの すばやさを 入れかえた！`);
       } else {
         // ③ 自分と相手でランク変化スワップ
         for (const k of _keys){
@@ -3303,7 +3309,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           atk.rank[k] = target.rank[k] || 0;
           target.rank[k] = a;
         }
-        log('9', `${atk.poke.name} は おたがいの 能力変化を 入れかえた！`);
+        log('9', `${pname(atk)} は おたがいの 能力変化を 入れかえた！`);
       }
     } else if (ef.kind === '実数値折半'){
       // ガードシェア/パワーシェア: 自分と相手の対象能力の実数値を合計して半分ずつ(切り捨て)にする。
@@ -3318,7 +3324,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         atk.statOverride[k] = avg;
         target.statOverride[k] = avg;
       }
-      log('9', `${atk.poke.name} は おたがいの 能力を 分けあった！`);
+      log('9', `${pname(atk)} は おたがいの 能力を 分けあった！`);
     } else if (ef.kind === 'タイプ上書き'){
       // みずびたし/まほうのこな: 相手を単タイプにする(すでにその単タイプなら失敗) /
       // ミラータイプ(value=copy_target_current_types): 自分のタイプを相手の今のタイプと同じにする。
@@ -3330,18 +3336,18 @@ function phaseApplyEffects(atkSide, defSide, move){
           log('9', `しかし うまく きまらなかった！`);
         } else {
           atk.typeOverride = _ts;
-          log('9', `${atk.poke.name} は ${def.poke.name} と 同じタイプに なった！`);
+          log('9', `${pname(atk)} は ${pname(def)} と 同じタイプに なった！`);
         }
       } else {
         const _cur = sideTypes(target);
         // まほうのこな(エスパー化)は こな技=くさタイプに無効(legacy/Bulbapedia "Magic Powder"。ぼうじん系は未実装)
         if (ef.value === 'エスパー' && _cur.includes('くさ')){
-          log('9', `${target.poke.name} には こうかが ないようだ…`);
+          log('9', `${pname(target)} には こうかが ないようだ…`);
         } else if (_cur.length === 1 && _cur[0] === ef.value){
           log('9', `しかし うまく きまらなかった！`);
         } else {
           target.typeOverride = [ef.value];
-          log('9', `${target.poke.name} は ${ef.value}タイプに なった！`);
+          log('9', `${pname(target)} は ${ef.value}タイプに なった！`);
         }
       }
     } else if (ef.kind === 'タイプ追加'){
@@ -3352,7 +3358,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！`);
       } else {
         target.typeOverride = [..._cur, ef.value];
-        log('9', `${target.poke.name} に ${ef.value}タイプが 追加された！`);
+        log('9', `${pname(target)} に ${ef.value}タイプが 追加された！`);
       }
     } else if (ef.kind === 'みちづれ'){
       // みちづれ: 次に自分が行動するまでに相手の技でひんしになったら相手も道連れ。
@@ -3362,7 +3368,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       } else {
         atk.destinyBond = true;
         atk.dbondPrev = true;
-        log('9', `${atk.poke.name} は あいてを みちづれに しようとしている！`);
+        log('9', `${pname(atk)} は あいてを みちづれに しようとしている！`);
       }
     } else if (ef.kind === 'ほろびのうた'){
       // ほろびのうた: 場の全員にほろびカウント。ターン終了ごとに 3→2→1 と減り0でひんし。
@@ -3383,7 +3389,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       const _avg = Math.floor((atk.currentHp + def.currentHp) / 2);
       atk.currentHp = Math.min(_aMax, _avg);
       def.currentHp = Math.min(_dMax, _avg);
-      log('9', `${atk.poke.name} と ${def.poke.name} は いたみを 分けあった！(おたがい HP ${_avg})`);
+      log('9', `${pname(atk)} と ${pname(def)} は いたみを 分けあった！(おたがい HP ${_avg})`);
     } else if (ef.kind === 'タイプ除去'){
       // もえつきる: 攻撃後、自分から指定タイプが消える(純ほのおならタイプなしになる)。
       // 「自分がそのタイプでない時は技ごと失敗」は phaseDealDamage 側のゲートが担当。出典: Bulbapedia "Burn Up"
@@ -3391,21 +3397,21 @@ function phaseApplyEffects(atkSide, defSide, move){
       const _cur = sideTypes(_st);
       if (_cur.includes(ef.value)){
         _st.typeOverride = _cur.filter(t => t !== ef.value);
-        log('9', `${_st.poke.name} は ${ef.value}タイプで なくなった！`);
+        log('9', `${pname(_st)} は ${ef.value}タイプで なくなった！`);
       }
     } else if (ef.kind === 'タイプ一時無効'){
       // はねやすめ: 使ったターンだけ指定タイプ(ひこう)を失う(ターン開始で戻る)。出典: Bulbapedia "Roost"
       const _st = ef.target === 'self' ? atk : target;
       if (sideTypes(_st).includes(ef.value)){
         _st.typeSuppressed = ef.value;
-        log('9', `${_st.poke.name} は このターン ${ef.value}タイプで なくなった！`);
+        log('9', `${pname(_st)} は このターン ${ef.value}タイプで なくなった！`);
       }
     } else if (ef.kind === 'みがわり設置'){
       // みがわり: 払った分(最大HPの1/4=同じ技の HPが減る effect が控除済み)をHPにした分身を出す。
       // すでにいる時の失敗・HP不足の失敗は上のゲートが担当。出典: Bulbapedia "Substitute"
       const _cEf = move.battle_data.effects.find(e => e.kind === 'HPが減る');
       atk.subHp = Math.max(1, Math.floor(realStat(atk, 'hp') * ((_cEf && _cEf.fraction) || 0.25)));
-      log('9', `${atk.poke.name} の みがわりが あらわれた！`);
+      log('9', `${pname(atk)} の みがわりが あらわれた！`);
     } else if (ef.kind === '自分拘束'){
       // ねをはる: 地面に根をはる(場にいる間ずっと=lasting)。すでに根をはっていたら失敗。
       // 根をはると ひこうタイプ/ふゆうでも地面にいる扱い=じめん技が当たる(isGrounded/タイプ相性で反映)。
@@ -3414,7 +3420,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！(すでに ねをはっている)`);
       } else {
         atk.rooted = true;
-        log('9', `${atk.poke.name} は 地面に ねをはった！`);
+        log('9', `${pname(atk)} は 地面に ねをはった！`);
       }
     } else if (ef.kind === '特性上書き'){
       // なりきり(source=opponent_ability)=相手の特性を自分にコピー /
@@ -3428,7 +3434,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           log('9', `しかし うまく きまらなかった！`);
         } else {
           atk.abilityOverride = _src;
-          log('9', `${atk.poke.name} は ${def.poke.name} の ${_src}を なりきった！`);
+          log('9', `${pname(atk)} は ${pname(def)} の ${_src}を なりきった！`);
         }
       } else if (ef.value === '自分の特性'){
         const _src = sideAbility(atk);
@@ -3436,14 +3442,14 @@ function phaseApplyEffects(atkSide, defSide, move){
           log('9', `しかし うまく きまらなかった！`);
         } else {
           target.abilityOverride = _src;
-          log('9', `${target.poke.name} の 特性が ${_src}に なった！`);
+          log('9', `${pname(target)} の 特性が ${_src}に なった！`);
         }
       } else {
         if (ABILITY_CHANGE_NG.includes(sideAbility(target)) || sideAbility(target) === ef.value){
           log('9', `しかし うまく きまらなかった！`);
         } else {
           target.abilityOverride = ef.value;
-          log('9', `${target.poke.name} の 特性が ${ef.value}に なった！`);
+          log('9', `${pname(target)} の 特性が ${ef.value}に なった！`);
         }
       }
     } else if (ef.kind === '特性交換'){
@@ -3455,7 +3461,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       } else {
         atk.abilityOverride = _d;
         target.abilityOverride = _a;
-        log('9', `${atk.poke.name} は おたがいの 特性を 入れかえた！`);
+        log('9', `${pname(atk)} は おたがいの 特性を 入れかえた！`);
       }
     } else if (ef.kind === '特性無効化'){
       // いえき: 相手の特性のはたらきをなくす(空文字=特性なし扱い)。すでに無効/変えられない特性なら失敗。
@@ -3465,26 +3471,26 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！`);
       } else {
         target.abilityOverride = '';
-        log('9', `${target.poke.name} の 特性が きかなくなった！`);
+        log('9', `${pname(target)} の 特性が きかなくなった！`);
       }
     } else if (ef.kind === 'ロックオン'){
       // ロックオン: 次のターンに自分が使う技が必ず当たる(次のターンの終わりまで有効・使うと消費)。
       // 出典: Bulbapedia "Lock-On"
       atk.lockOn = 2;   // ターン終了ごとに1減る=次ターン中まで有効
-      log('9', `${atk.poke.name} は ${def.poke.name} に ねらいを さだめた！`);
+      log('9', `${pname(atk)} は ${pname(def)} に ねらいを さだめた！`);
     } else if (ef.kind === 'まもり解除'){
       // フェイント: 守っている相手に当たったうえで、そのターンの守り(まもる/みきり等)を解除する。
       // まもる中に当たること自体は protect:false(技フラグ)が担当。出典: Bulbapedia "Feint"
       if (target.protecting && (ef.affected_moves || []).includes(target.protecting.name)){
         target.protecting = null;
-        log('9', `${target.poke.name} の 守りが やぶられた！`);
+        log('9', `${pname(target)} の 守りが やぶられた！`);
       }
     } else if (ef.kind === '次技威力倍化'){
       // じゅうでん: 次に使う指定タイプ(でんき)のダメージ技の威力が2倍。指定タイプの技を使うまで
       // 持続し、使うと消費される(第9世代)。出典: Bulbapedia "Charge"
       const _st = ef.target === 'self' ? atk : def;
       _st.chargeBoost = { move_type: ef.move_type, multiplier: ef.multiplier || 2 };
-      log('9', `${_st.poke.name} は ${ef.move_type}を ためはじめた！`);
+      log('9', `${pname(_st)} は ${ef.move_type}を ためはじめた！`);
     } else if (ef.kind === '部屋系'){
       // 部屋系: ワンダールーム(swap_statsあり)=素のぼうぎょ⇔とくぼう入れかえ /
       // マジックルーム=全員の持ち物の効果がなくなる。どちらも5ターン・再使用で元に戻る(toggle)。
@@ -3498,7 +3504,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       } else {
         env[_rKey] = true;
         env[_rtKey] = ef.duration || 5;
-        log('9', _isWonder ? `${atk.poke.name} は ぼうぎょと とくぼうが 入れかわる 空間を つくった！`
+        log('9', _isWonder ? `${pname(atk)} は ぼうぎょと とくぼうが 入れかわる 空間を つくった！`
                            : `${atk.poke.name} は 道具が 使えなくなる 空間を つくった！`);
       }
     } else if (ef.kind === 'じゅうりょく'){
@@ -3515,7 +3521,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           const st = sides[s];
           if (st.charging && st.charging.move && GRAVITY_BLOCKED.includes(st.charging.move.name)){
             st.charging = null;
-            log('9', `${st.poke.name} は じゅうりょくで 空中にいられなくなった！`);
+            log('9', `${pname(st)} は じゅうりょくで 空中にいられなくなった！`);
           }
         }
       }
@@ -3528,7 +3534,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       } else {
         env.trickRoom = true;
         env.trickRoomTurns = ef.duration || 5; // ターン終了ごとに減り、0で元に戻る(UI手動チェックはnull=無期限)
-        log('9', `${atk.poke.name} は 時空を ねじまげた！`);
+        log('9', `${pname(atk)} は 時空を ねじまげた！`);
       }
     }
   }
@@ -3543,20 +3549,20 @@ function phaseSlipFor(s){
   if (st.status === 'burn'){
     const d = Math.max(1, Math.floor(max / 16));
     st.currentHp = Math.max(0, st.currentHp - d);
-    log('10a', `${st.poke.name} は やけどで ${d} ダメージ！ (残HP ${st.currentHp})`);
+    log('10a', `${pname(st)} は やけどで ${d} ダメージ！ (残HP ${st.currentHp})`);
   } else if (st.status === 'poison'){
     const d = Math.max(1, Math.floor(max / 8));
     st.currentHp = Math.max(0, st.currentHp - d);
-    log('10a', `${st.poke.name} は どくで ${d} ダメージ！ (残HP ${st.currentHp})`);
+    log('10a', `${pname(st)} は どくで ${d} ダメージ！ (残HP ${st.currentHp})`);
   } else if (st.status === 'badpoison'){
     st.badpoisonCounter = (st.badpoisonCounter || 0) + 1;
     const d = Math.max(1, Math.floor(max * st.badpoisonCounter / 16));
     st.currentHp = Math.max(0, st.currentHp - d);
-    log('10a', `${st.poke.name} は もうどくで ${d} ダメージ！ (残HP ${st.currentHp})`);
+    log('10a', `${pname(st)} は もうどくで ${d} ダメージ！ (残HP ${st.currentHp})`);
   }
   if (st.currentHp <= 0){
     st.fainted = true;
-    log('10a', `${st.poke.name} は ひんしになった！`);
+    log('10a', `${pname(st)} は ひんしになった！`);
   }
   // 砂嵐継続ダメ (いわ/じめん/はがね/ふゆう/すながくれ/すなのちから/マジックガード除外)
   if (env.weather === 'sand' && !st.fainted){
@@ -3564,8 +3570,8 @@ function phaseSlipFor(s){
         !['ふゆう','すなのちから','すながくれ','マジックガード'].includes(sideAbility(st))){
       const d = Math.max(1, Math.floor(max / 16));
       st.currentHp = Math.max(0, st.currentHp - d);
-      log('10c', `${st.poke.name} は すなあらしで ${d} ダメージ！`);
-      if (st.currentHp <= 0){ st.fainted = true; log('10c', `${st.poke.name} は ひんしになった！`); }
+      log('10c', `${pname(st)} は すなあらしで ${d} ダメージ！`);
+      if (st.currentHp <= 0){ st.fainted = true; log('10c', `${pname(st)} は ひんしになった！`); }
     }
   }
   // 揮発スリップ状態(しおづけ=1/16またはみず/はがね1/8・のろい=1/4・バインド=1/8・やどりぎ=1/8吸い取り): 毎ターン終了時に最大HPの宣言割合を削る。
@@ -3576,21 +3582,21 @@ function phaseSlipFor(s){
     for (const sl of st.slips){
       const d = Math.max(1, Math.floor(max * sl.fraction));
       st.currentHp = Math.max(0, st.currentHp - d);
-      log('10a', `${st.poke.name} は ${sl.source}で ${d} ダメージ！ (残HP ${st.currentHp})`);
+      log('10a', `${pname(st)} は ${sl.source}で ${d} ダメージ！ (残HP ${st.currentHp})`);
       if (sl.drains && other.poke && !other.fainted){
         const oMax = realStat(other, 'hp');
         if (other.currentHp == null) other.currentHp = oMax;
         const healed = Math.min(oMax - other.currentHp, d);
         if (healed > 0){
           other.currentHp += healed;
-          log('10a', `${other.poke.name} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
+          log('10a', `${pname(other)} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
         }
       }
       if (sl.turns != null){
         sl.turns--;
-        if (sl.turns <= 0) log('10a', `${st.poke.name} は ${sl.source}から 解放された！`);
+        if (sl.turns <= 0) log('10a', `${pname(st)} は ${sl.source}から 解放された！`);
       }
-      if (st.currentHp <= 0){ st.fainted = true; log('10a', `${st.poke.name} は ひんしになった！`); break; }
+      if (st.currentHp <= 0){ st.fainted = true; log('10a', `${pname(st)} は ひんしになった！`); break; }
     }
     st.slips = st.slips.filter(sl => sl.turns == null || sl.turns > 0);
   }
@@ -3782,7 +3788,7 @@ function runSingleAttack(atkSide, moveIdx){
   const move = atk.moves[moveIdx];
   if (!atk.poke || !def.poke || !move) return;
   if (atk.fainted){
-    log(atkSide, `${atk.poke.name} は ひんし状態のため行動できない`);
+    log(atkSide, `${pname(atk)} は ひんし状態のため行動できない`);
     renderBattleLog();
     return;
   }
@@ -3790,7 +3796,7 @@ function runSingleAttack(atkSide, moveIdx){
   // 反動(はかいこうせん系): 前ターンの攻撃が成功していたら、このターンは動けない(Bulbapedia "Hyper Beam")
   if (atk.mustRecharge){
     atk.mustRecharge = false;
-    log('0c', `${atk.poke.name} は こうげきの反動で 動けない！`);
+    log('0c', `${pname(atk)} は こうげきの反動で 動けない！`);
     renderBattleLog(); renderBoth(); return;
   }
   // 溜め技の解放: 溜め中なら溜めていた技を放つ(選択技より優先)。解放した瞬間に半無敵も解ける。
@@ -3800,18 +3806,18 @@ function runSingleAttack(atkSide, moveIdx){
   if (!releasing && atk.rampage) mv = atk.rampage.move;
   // アンコール状態: 選んだ技に関係なく最後に使った技を出し続ける(Bulbapedia "Encore")
   if (!releasing && !atk.rampage && atk.encore) mv = atk.encore.move;
-  log('Attack', `${atk.poke.name} が ${mv.name} を選んだ！`);
+  log('Attack', `${pname(atk)} が ${mv.name} を選んだ！`);
   // 行動阻害（ねむり/こおり/まひ）
   // ねむり: カウンタ持ち(技で眠った)は行動時に1減らし、0になったターンに目覚めて行動する(PS実装と同じ)。
   // カウンタなし(UI手動のねむり)は従来どおり眠り続ける。
   if (atk.status === 'sleep' && atk.sleepTurns != null){
     atk.sleepTurns--;
-    if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${atk.poke.name} は 目をさました！`); }
+    if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${pname(atk)} は 目をさました！`); }
   }
   // ねむり専用技(いびき/ねごと=requires self_status ねむり)だけは眠ったまま出せる(Bulbapedia "Snore"/"Sleep Talk")
   if (atk.status === 'sleep'){
     const _sleepOK = ((mv.battle_data && mv.battle_data.requires) || []).some(rq => rq.type === 'self_status' && rq.value === 'ねむり');
-    log('0c', `${atk.poke.name} は ぐうぐう眠っている！`);
+    log('0c', `${pname(atk)} は ぐうぐう眠っている！`);
     if (!_sleepOK){ noteActionFailed(atk); renderBattleLog(); renderBoth(); return; }
   }
   // こおり: 解凍宣言技(フレアドライブ等=状態異常回復 self こおり)は こおり状態でも使えて、自分のこおりが とける
@@ -3819,20 +3825,20 @@ function runSingleAttack(atkSide, moveIdx){
       ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '状態異常回復' && e.target === 'self' &&
         (e.value === 'こおり' || (Array.isArray(e.value) && e.value.includes('こおり'))))){
     atk.status = 'none';
-    log('0c', `${atk.poke.name} の こおりが とけた！`);
+    log('0c', `${pname(atk)} の こおりが とけた！`);
   }
-  if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${atk.poke.name} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
-  if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${pname(atk)} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
   // 使用条件(requires: オーロラベール=ゆきの時だけ等)。満たさなければ失敗(Bulbapedia "Aurora Veil")
   const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
   if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
-    log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`);
+    log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`);
     renderBattleLog(); renderBoth(); return;
   }
   // 使用条件(requires self_status: いびき/ねごと=自分がねむりの時だけ)。満たさなければ失敗
   const _reqS = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'self_status');
   if (_reqS && !(_reqS.value === 'ねむり' && atk.status === 'sleep')){
-    log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(${_reqS.value}状態ではない)`);
+    log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(${_reqS.value}状態ではない)`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
@@ -3844,12 +3850,12 @@ function runSingleAttack(atkSide, moveIdx){
       !((m.battle_data && m.battle_data.effects) || []).some(e =>
         e.kind === 'ランダム技' || e.kind === '直前技模倣' || e.kind === '2ターン目に攻撃'));
     if (!_cands.length){
-      log('0c', `${atk.poke.name} の ${mv.name}！ しかし だせる技がない！`);
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし だせる技がない！`);
       noteActionFailed(atk);
       renderBattleLog(); renderBoth(); return;
     }
     const _pick = _cands[Math.floor(Math.random() * _cands.length)];
-    log('0c', `${atk.poke.name} は ${mv.name} で ${_pick.name} を くりだした！`);
+    log('0c', `${pname(atk)} は ${mv.name} で ${_pick.name} を くりだした！`);
     mv = _pick;
   }
   // 直前技模倣(まねっこ): 戦闘でだれかが直前に使った技をまねる。だれも使っていない/
@@ -3857,42 +3863,42 @@ function runSingleAttack(atkSide, moveIdx){
   if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '直前技模倣')){
     if (!lastMoveAnywhere ||
         ((lastMoveAnywhere.battle_data && lastMoveAnywhere.battle_data.effects) || []).some(e => e.kind === '直前技模倣')){
-      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(まねする技がない)`);
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(まねする技がない)`);
       noteActionFailed(atk);
       renderBattleLog(); renderBoth(); return;
     }
-    log('0c', `${atk.poke.name} は ${mv.name} で ${lastMoveAnywhere.name} を まねした！`);
+    log('0c', `${pname(atk)} は ${mv.name} で ${lastMoveAnywhere.name} を まねした！`);
     mv = lastMoveAnywhere;
   }
   // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
   if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
-    log('0c', `${atk.poke.name} の ${mv.name}！ しかし たくわえたものが ない！`);
+    log('0c', `${pname(atk)} の ${mv.name}！ しかし たくわえたものが ない！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
   // ちょうはつ状態: 変化技を出せない(Bulbapedia "Taunt")
   if (mv.category === '変化' && (atk.tauntTurns || 0) > 0){
-    log('0c', `${atk.poke.name} は ちょうはつされて ${mv.name} が だせない！`);
+    log('0c', `${pname(atk)} は ちょうはつされて ${mv.name} が だせない！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
   // かなしばり状態: 封じられた技は出せない(Bulbapedia "Disable")
   if (atk.disable && mv.name === atk.disable.name){
-    log('0c', `${atk.poke.name} は かなしばりで ${mv.name} が だせない！`);
+    log('0c', `${pname(atk)} は かなしばりで ${mv.name} が だせない！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
   // いちゃもん状態: 直前に使った技と同じ技は出せない(Bulbapedia "Torment")。
   // 実機では わるあがき に置き換わる=出せなかったターンを「使った」扱いにしない(lastMoveを流す)近似
   if (atk.tormented && atk.lastMove && mv.name === atk.lastMove.name){
-    log('0c', `${atk.poke.name} は いちゃもんを つけられていて おなじ技が だせない！`);
+    log('0c', `${pname(atk)} は いちゃもんを つけられていて おなじ技が だせない！`);
     atk.lastMove = null;
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
   // ふういん: 相手がふういんを発動中で、相手も知っている技は出せない(Bulbapedia "Imprison")
   if (def.imprison && (def.moves || []).some(m => m && m.name === mv.name)){
-    log('0c', `${atk.poke.name} は ふういんされていて ${mv.name} が だせない！`);
+    log('0c', `${pname(atk)} は ふういんされていて ${mv.name} が だせない！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
@@ -3900,20 +3906,20 @@ function runSingleAttack(atkSide, moveIdx){
   // 出せなかったターンは「使った」扱いにしない(lastMoveを流す=いちゃもんと同じ近似)
   if (atk.lastMove && mv.name === atk.lastMove.name &&
       ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次ターン使用不可')){
-    log('0c', `${atk.poke.name} は ${mv.name} を 連続では だせない！`);
+    log('0c', `${pname(atk)} は ${mv.name} を 連続では だせない！`);
     atk.lastMove = null;
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
   // じごくづき(カテゴリ封じ): 音技が出せない(Bulbapedia "Throat Chop")
   if (atk.soundBlocked > 0 && atk.soundBlockedMoves && atk.soundBlockedMoves.includes(mv.name)){
-    log('0c', `${atk.poke.name} は じごくづきの ダメージで ${mv.name} が だせない！`);
+    log('0c', `${pname(atk)} は じごくづきの ダメージで ${mv.name} が だせない！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
   // じゅうりょく: 空中にいる技は使えない(Bulbapedia "Gravity")
   if (env.gravity && GRAVITY_BLOCKED.includes(mv.name)){
-    log('0c', `${atk.poke.name} は じゅうりょくが強くて ${mv.name} が だせない！`);
+    log('0c', `${pname(atk)} は じゅうりょくが強くて ${mv.name} が だせない！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
@@ -3931,12 +3937,12 @@ function runSingleAttack(atkSide, moveIdx){
     const _mult = _protEf ? _protEf.consecutive_success_multiplier : (1 / 3);   // こらえるはfails_if宣言どおり1/3
     const _rate = (_mult != null) ? Math.pow(_mult, atk.protectStreak) : 1;
     if (Math.random() < _rate){
-      if (_protEf){ atk.protecting = mv; log('0c', `${atk.poke.name} は ${mv.name} で 守りの体勢に入った！`); }
-      else { atk.enduring = true; log('0c', `${atk.poke.name} は こらえる体勢に入った！`); }
+      if (_protEf){ atk.protecting = mv; log('0c', `${pname(atk)} は ${mv.name} で 守りの体勢に入った！`); }
+      else { atk.enduring = true; log('0c', `${pname(atk)} は こらえる体勢に入った！`); }
       atk.protectStreak++;
     } else {
       atk.protectStreak = 0;
-      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
     }
     renderBattleLog(); renderBoth(); return;
   }
@@ -3957,7 +3963,7 @@ function runSingleAttack(atkSide, moveIdx){
   if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
   // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
   if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
-    log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
+    log('0c', `${pname(def)} は ${def.protecting.name} で こうげきを 防いだ！`);
     noteActionFailed(atk);
     applyProtectPunishers(atk, def, mv);
     applyCrashDamage(atk, mv);
@@ -3974,17 +3980,17 @@ function runSingleAttack(atkSide, moveIdx){
     const _ok = _lm && !def.fainted && !def.charging && !def.mustRecharge && _lmIdx >= 0 &&
       !((_lm.battle_data && _lm.battle_data.effects) || []).some(e => INSTRUCT_NG_KINDS.includes(e.kind));
     if (!_ok){
-      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！`);
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
       noteActionFailed(atk);
       renderBattleLog(); renderBoth(); return;
     }
-    log('0c', `${atk.poke.name} は ${mv.name}！ ${def.poke.name} は しじに したがい もういちど ${_lm.name} を つかう！`);
+    log('0c', `${pname(atk)} は ${mv.name}！ ${pname(def)} は しじに したがい もういちど ${_lm.name} を つかう！`);
     renderBattleLog(); renderBoth();
     runSingleAttack(defSide, _lmIdx);
     return;
   }
   if (mv.category === '変化'){
-    log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
+    log('9', `${pname(atk)} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
     phaseApplyEffects(atkSide, defSide, mv);
     if (_selfKO) applySelfFaint(atk);   // おきみやげ/いやしのねがい=成功した時だけ
   } else {
@@ -4027,7 +4033,7 @@ function isFirstTurnOnlyMove(move){
 function armFutureSight(st, mv){
   if (!st.poke) return;
   if (st.futureSight){
-    log('0c', `${st.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(すでに 予知している)`);
+    log('0c', `${pname(st)} の ${mv.name}！ しかし うまく きまらなかった！(すでに 予知している)`);
     noteActionFailed(st);
     return;
   }
@@ -4035,7 +4041,7 @@ function armFutureSight(st, mv){
   // 使ったターンの終了でも1減るため +1 で持つ(=delay_turns 後のターン終了時に0になる)
   st.futureSight = { turns: ((ef && ef.delay_turns) || 2) + 1, move: mv };
   st.lastMove = mv;
-  log('0c', `${st.poke.name} は みらいに こうげきを よちした！`);
+  log('0c', `${pname(st)} は みらいに こうげきを よちした！`);
 }
 
 function startChargeIfNeeded(st, mv, releasing){
@@ -4044,7 +4050,7 @@ function startChargeIfNeeded(st, mv, releasing){
   const chargeEf = effs.find(e => e.kind === '2ターン目に攻撃');
   if (!chargeEf) return false;
   if ((chargeEf.skip_charge_if_weather || []).some(w => (_WMAP[w] || w) === env.weather)){
-    log('0c', `${st.poke.name} の ${mv.name} は 天候のおかげで 溜めずに撃てる！`);
+    log('0c', `${pname(st)} の ${mv.name} は 天候のおかげで 溜めずに撃てる！`);
     return false;
   }
   // 溜めターンに発動する自己ランク上昇(メテオビーム/エレクトロビーム: とくこう+1)。timing/on_charge_turn の2表記を両方読む。
@@ -4056,12 +4062,12 @@ function startChargeIfNeeded(st, mv, releasing){
       if (st.rank[rk] === undefined) continue;
       const sg = e.stages || 0;
       st.rank[rk] = Math.max(-6, Math.min(6, (st.rank[rk] || 0) + sg));
-      log('9', `${st.poke.name} の ${k} ランクが ${sg > 0 ? '+' : ''}${sg} ${sg > 0 ? 'あがった' : 'さがった'}！`);
+      log('9', `${pname(st)} の ${k} ランクが ${sg > 0 ? '+' : ''}${sg} ${sg > 0 ? 'あがった' : 'さがった'}！`);
     }
   });
   const SEMI_MSG = {'空中':'空高く 飛び上がった！','地中':'地面に もぐった！','水中':'水中に もぐった！','消失':'すがたを 消した！'};
   st.charging = { move: mv, semi: chargeEf.semi_invulnerable || null, vulnerableTo: chargeEf.vulnerable_to || [] };
-  log('0c', `${st.poke.name} は ${SEMI_MSG[chargeEf.semi_invulnerable] || 'ちからを ためている！'}`);
+  log('0c', `${pname(st)} は ${SEMI_MSG[chargeEf.semi_invulnerable] || 'ちからを ためている！'}`);
   return true;
 }
 
@@ -4141,14 +4147,14 @@ function sashCheck(def, v){
     const max = realStat(def, 'hp');
     if (def.currentHp === max && v >= def.currentHp){
       consumeItem(def);
-      log('8', `${def.poke.name} は きあいのタスキで もちこたえた！`);
+      log('8', `${pname(def)} は きあいのタスキで もちこたえた！`);
       return def.currentHp - 1;
     }
   }
   // きあいのハチマキ: 10%の確率でひんしダメージをHP1で耐える(消費しない・満タン条件なし)。
   // 出典: items_database宣言/ポケモンWiki「きあいのハチマキ」
   if (it.key === 'focus_band' && v >= def.currentHp && def.currentHp > 0 && Math.random() < 0.1){
-    log('8', `${def.poke.name} は きあいのハチマキで もちこたえた！`);
+    log('8', `${pname(def)} は きあいのハチマキで もちこたえた！`);
     return def.currentHp - 1;
   }
   return v;
@@ -4165,7 +4171,7 @@ function applyBerryEffect(st, it){
                : (it.heal_amount_fixed || 0);
     if (heal > 0 && st.currentHp < max){
       st.currentHp = Math.min(max, st.currentHp + heal);
-      log('9', `${st.poke.name} は HPを 回復した！ (残HP ${st.currentHp})`);
+      log('9', `${pname(st)} は HPを 回復した！ (残HP ${st.currentHp})`);
     }
     return;
   }
@@ -4175,7 +4181,7 @@ function applyBerryEffect(st, it){
     if ((tgt === 'all' || tgt === 'confusion') && st.confusion > 0) st.confusion = 0;
     if (tgt === 'all' ? (st.status !== 'none') : (CMAP[tgt] || []).includes(st.status)){
       st.status = 'none'; st.badpoisonCounter = 0; st.sleepTurns = null;
-      log('9', `${st.poke.name} の 状態異常が 治った！`);
+      log('9', `${pname(st)} の 状態異常が 治った！`);
     }
   }
 }
@@ -4195,7 +4201,7 @@ function itemReactions(){
         if (heal > 0){
           st.currentHp = Math.min(max, st.currentHp + heal);
           consumeItem(st);
-          log('9', `${st.poke.name} は ${it.name}で HPを ${heal} 回復した！ (残HP ${st.currentHp})`);
+          log('9', `${pname(st)} は ${it.name}で HPを ${heal} 回復した！ (残HP ${st.currentHp})`);
         }
       }
       return;
@@ -4206,7 +4212,7 @@ function itemReactions(){
       if (Object.keys(_rk).some(k => _rk[k] < 0)){
         Object.keys(_rk).forEach(k => { if (_rk[k] < 0) _rk[k] = 0; });
         consumeItem(st);
-        log('9', `${st.poke.name} は しろいハーブで 下がった能力を 元に戻した！`);
+        log('9', `${pname(st)} は しろいハーブで 下がった能力を 元に戻した！`);
       }
       return;
     }
@@ -4215,7 +4221,7 @@ function itemReactions(){
       if (st.encore || st.disable || st.tormented){
         st.encore = null; st.disable = null; st.tormented = false;
         consumeItem(st);
-        log('9', `${st.poke.name} は メンタルハーブで 束縛を 解いた！`);
+        log('9', `${pname(st)} は メンタルハーブで 束縛を 解いた！`);
       }
       return;
     }
@@ -4231,7 +4237,7 @@ function itemReactions(){
       }
       if (cured){
         consumeItem(st);
-        log('9', `${st.poke.name} は ${it.name}で 状態異常を 治した！`);
+        log('9', `${pname(st)} は ${it.name}で 状態異常を 治した！`);
       }
     }
   });
@@ -4248,29 +4254,29 @@ function applyEntryHazards(sideKey){
     const dmg = Math.floor(realStat(st, 'hp') * stealthRockMult(types) / 8);
     if (dmg > 0){
       st.currentHp = Math.max(0, st.currentHp - dmg);
-      log('9', `とがった岩が ${st.poke.name} に 食いこんだ！ ${dmg} ダメージ！ (残HP ${st.currentHp})`);
-      if (st.currentHp <= 0){ st.fainted = true; log('9', `${st.poke.name} は ひんしになった！`); return; }
+      log('9', `とがった岩が ${pname(st)} に 食いこんだ！ ${dmg} ダメージ！ (残HP ${st.currentHp})`);
+      if (st.currentHp <= 0){ st.fainted = true; log('9', `${pname(st)} は ひんしになった！`); return; }
     }
   }
   if ((st.spikesLayers || 0) > 0 && isGrounded(st)){
     const fr = st.spikesLayers >= 3 ? 0.25 : st.spikesLayers === 2 ? (1 / 6) : 0.125;
     const dmg = Math.max(1, Math.floor(realStat(st, 'hp') * fr));
     st.currentHp = Math.max(0, st.currentHp - dmg);
-    log('9', `${st.poke.name} は まきびしの ダメージを受けた！ ${dmg} ダメージ！ (残HP ${st.currentHp})`);
-    if (st.currentHp <= 0){ st.fainted = true; log('9', `${st.poke.name} は ひんしになった！`); return; }
+    log('9', `${pname(st)} は まきびしの ダメージを受けた！ ${dmg} ダメージ！ (残HP ${st.currentHp})`);
+    if (st.currentHp <= 0){ st.fainted = true; log('9', `${pname(st)} は ひんしになった！`); return; }
   }
   if ((st.toxicSpikesLayers || 0) > 0 && isGrounded(st)){
     if (types.includes('どく')){
       st.toxicSpikesLayers = 0;
-      log('9', `${st.poke.name} は どくびしを 吸収した！`);
+      log('9', `${pname(st)} は どくびしを 吸収した！`);
     } else if (!types.includes('はがね') && st.status === 'none'){
       st.status = st.toxicSpikesLayers >= 2 ? 'badpoison' : 'poison';
-      log('9', `${st.poke.name} は ${st.toxicSpikesLayers >= 2 ? 'もうどく' : 'どく'} 状態になった！`);
+      log('9', `${pname(st)} は ${st.toxicSpikesLayers >= 2 ? 'もうどく' : 'どく'} 状態になった！`);
     }
   }
   if (st.stickyWeb && isGrounded(st)){
     st.rank.spd = Math.max(-6, (st.rank.spd || 0) - 1);
-    log('9', `${st.poke.name} は ねばねばネットに ひっかかった！ すばやさ-1`);
+    log('9', `${pname(st)} は ねばねばネットに ひっかかった！ すばやさ-1`);
   }
 }
 
@@ -4286,10 +4292,10 @@ function attemptSwitch(sideKey, benchIdx, opts){
   }
   const reason = (opts && opts.ignoreTrapping) ? null : cannotSwitchReason(st);
   if (reason){
-    log('9', `${st.poke.name} は にげられない！(${reason})`);
+    log('9', `${pname(st)} は にげられない！(${reason})`);
     return false;
   }
-  const outName = st.poke.name;
+  const outName = pname(st);
   st.bench[benchIdx] = packBenchEntry(st);   // 出ていたポケモンの永続フィールドを控え枠へ
   clearVolatilesOnSwitch(st);
   for (const k of BENCH_FIELDS) st[k] = entry[k];
@@ -4297,8 +4303,8 @@ function attemptSwitch(sideKey, benchIdx, opts){
   st.switchedThisTurn = true;
   // 拘束(くろいまなざし等)は「かけた側が場を離れるまで」→ この側のポケモンが離れたので相手の拘束を解除
   sides[sideKey === 'self' ? 'opp' : 'self'].trapped = false;
-  if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${st.poke.name} が 場に出た！`);
-  else log('9', `${outName} は 引っ込んだ！ ${st.poke.name} が 場に出た！`);
+  if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${pname(st)} が 場に出た！`);
+  else log('9', `${outName} は 引っ込んだ！ ${pname(st)} が 場に出た！`);
   applyEntryHazards(sideKey);   // 設置技(ステルスロック等)は交代完了後に発動
   // いやしのねがい: 出てきたポケモンが全回復(設置物のダメージの後=回復で帳消しにできる)。
   // 実機(第8世代以降)は「健康なポケモンには持ち越し」だが、simは最初に出たポケモンに適用する近似。
@@ -4306,7 +4312,7 @@ function attemptSwitch(sideKey, benchIdx, opts){
     st.currentHp = realStat(st, 'hp');
     st.status = 'none'; st.badpoisonCounter = 0; st.sleepTurns = null;
     st.healingWish = false;
-    log('9', `いやしのねがいが かなった！ ${st.poke.name} は 元気になった！`);
+    log('9', `いやしのねがいが かなった！ ${pname(st)} は 元気になった！`);
   }
   return true;
 }
@@ -4369,7 +4375,7 @@ function runTurn(){
     const fMove = firstSide === 'self' ? selfMove : oppMove;
     const sMove = secondSide === 'self' ? selfMove : oppMove;
     const fp = movePriority(fMove, sides[firstSide]), sp = movePriority(sMove, sides[secondSide]);
-    const fName = sides[firstSide].poke ? sides[firstSide].poke.name : '?';
+    const fName = sides[firstSide].poke ? pname(sides[firstSide]) : '?';
     let why;
     if (quickClawSide === firstSide){
       why = `せんせいのつめが 発動したため`;
@@ -4389,11 +4395,11 @@ function runTurn(){
     const def = sides[a.opp];
     // 行動枠の消費を記録(しっぺがえし=行動順ベース。ねむり等で不発でも枠は先に過ぎた扱い)
     atk.movedThisTurn = true;
-    if (atk.fainted){ log(a.side, `${atk.poke.name} は ひんし状態のため行動できない`); continue; }
+    if (atk.fainted){ log(a.side, `${pname(atk)} は ひんし状態のため行動できない`); continue; }
     // 交代した側はこのターンの行動を消費済み(技を出さない)
     if (atk.switchedThisTurn) continue;
     // 反動(はかいこうせん系): 前ターンの攻撃が成功していたら、このターンは動けない(Bulbapedia "Hyper Beam")
-    if (atk.mustRecharge){ atk.mustRecharge = false; log('0c', `${atk.poke.name} は こうげきの反動で 動けない！`); continue; }
+    if (atk.mustRecharge){ atk.mustRecharge = false; log('0c', `${pname(atk)} は こうげきの反動で 動けない！`); continue; }
     // 溜め技の解放: 前ターンから溜めていれば、このターンは溜めていた技を放つ(選択技より優先)。
     // 解放した瞬間に半無敵も解ける(行動不能で流れた場合もここで解除=まひ等で溜めは中断)。
     let mv = a.move, releasing = false;
@@ -4402,18 +4408,18 @@ function runTurn(){
     if (!releasing && atk.rampage) mv = atk.rampage.move;
     // アンコール状態: 選んだ技に関係なく最後に使った技を出し続ける(Bulbapedia "Encore")
     if (!releasing && !atk.rampage && atk.encore) mv = atk.encore.move;
-    if (!mv){ log(a.side, `${atk.poke.name} は技を選択していない`); continue; }
+    if (!mv){ log(a.side, `${pname(atk)} は技を選択していない`); continue; }
     // ねむり・こおり等
     // ねむり: カウンタ持ち(技で眠った)は行動時に1減らし、0になったターンに目覚めて行動する(PS実装と同じ)。
     // カウンタなし(UI手動のねむり)は従来どおり眠り続ける。
     if (atk.status === 'sleep' && atk.sleepTurns != null){
       atk.sleepTurns--;
-      if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${atk.poke.name} は 目をさました！`); }
+      if (atk.sleepTurns <= 0){ atk.status = 'none'; atk.sleepTurns = null; log('0c', `${pname(atk)} は 目をさました！`); }
     }
     // ねむり専用技(いびき/ねごと=requires self_status ねむり)だけは眠ったまま出せる(Bulbapedia "Snore"/"Sleep Talk")
     if (atk.status === 'sleep'){
       const _sleepOK = ((mv.battle_data && mv.battle_data.requires) || []).some(rq => rq.type === 'self_status' && rq.value === 'ねむり');
-      log('0c', `${atk.poke.name} は ぐうぐう眠っている！`);
+      log('0c', `${pname(atk)} は ぐうぐう眠っている！`);
       if (!_sleepOK){ noteActionFailed(atk); continue; }
     }
     // こおり: 解凍宣言技(フレアドライブ等=状態異常回復 self こおり)は こおり状態でも使えて、自分のこおりが とける
@@ -4421,38 +4427,38 @@ function runTurn(){
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '状態異常回復' && e.target === 'self' &&
           (e.value === 'こおり' || (Array.isArray(e.value) && e.value.includes('こおり'))))){
       atk.status = 'none';
-      log('0c', `${atk.poke.name} の こおりが とけた！`);
+      log('0c', `${pname(atk)} の こおりが とけた！`);
     }
-    if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${atk.poke.name} は こおっていて うごけない！`); continue; }
-    if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${atk.poke.name} は からだが しびれて うごけない！`); continue; }
+    if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${pname(atk)} は こおっていて うごけない！`); continue; }
+    if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); continue; }
     // こんらん: 行動前に判定。残りターンを減らし、解けてなければ1/3で自分を攻撃して行動失敗。
     if (atk.confusion > 0){
       atk.confusion--;
-      if (atk.confusion <= 0){ atk.confusion = 0; log('0c', `${atk.poke.name} の こんらんが とけた！`); }
+      if (atk.confusion <= 0){ atk.confusion = 0; log('0c', `${pname(atk)} の こんらんが とけた！`); }
       else if (Math.random() < 1/3){
         const A = realStat(atk, 'atk'), D = realStat(atk, 'def');
         const dmg = Math.max(1, Math.floor((2 * LEVEL / 5 + 2) * 40 * A / D / 50) + 2);
         atk.currentHp = Math.max(0, atk.currentHp - dmg);
-        log('0c', `${atk.poke.name} は わけもわからず じぶんを こうげきした！ (${dmg} ダメージ)`);
-        if (atk.currentHp <= 0){ atk.fainted = true; log('0c', `${atk.poke.name} は ひんしになった！`); }
+        log('0c', `${pname(atk)} は わけもわからず じぶんを こうげきした！ (${dmg} ダメージ)`);
+        if (atk.currentHp <= 0){ atk.fainted = true; log('0c', `${pname(atk)} は ひんしになった！`); }
         noteActionFailed(atk);
         continue;
       }
     }
-    if (atk.flinched){ noteActionFailed(atk); log('0c', `${atk.poke.name} は ひるんで うごけない！`); continue; }
+    if (atk.flinched){ noteActionFailed(atk); log('0c', `${pname(atk)} は ひるんで うごけない！`); continue; }
     // ねこだまし/であいがしら: 場に出た最初のターン(turnsOut===0)以外は失敗
     if (isFirstTurnOnlyMove(mv) && atk.turnsOut > 0){
-      log('0c', `${atk.poke.name} の ${mv.name} は 場に出た最初のターンしか出せない！`); continue;
+      log('0c', `${pname(atk)} の ${mv.name} は 場に出た最初のターンしか出せない！`); continue;
     }
     // 使用条件(requires: オーロラベール=ゆきの時だけ等)。満たさなければ失敗(Bulbapedia "Aurora Veil")
     const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
     if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
-      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`); continue;
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(天気が ${_reqW.value} ではない)`); continue;
     }
     // 使用条件(requires self_status: いびき/ねごと=自分がねむりの時だけ)。満たさなければ失敗
     const _reqS = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'self_status');
     if (_reqS && !(_reqS.value === 'ねむり' && atk.status === 'sleep')){
-      log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(${_reqS.value}状態ではない)`);
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(${_reqS.value}状態ではない)`);
       noteActionFailed(atk); continue;
     }
     // ランダム技(ねごと): 自分のほかの技をランダムに1つくりだす(ねごと系・溜め技は呼べない=近似)。
@@ -4462,11 +4468,11 @@ function runTurn(){
         !((m.battle_data && m.battle_data.effects) || []).some(e =>
           e.kind === 'ランダム技' || e.kind === '直前技模倣' || e.kind === '2ターン目に攻撃'));
       if (!_cands.length){
-        log('0c', `${atk.poke.name} の ${mv.name}！ しかし だせる技がない！`);
+        log('0c', `${pname(atk)} の ${mv.name}！ しかし だせる技がない！`);
         noteActionFailed(atk); continue;
       }
       const _pick = _cands[Math.floor(Math.random() * _cands.length)];
-      log('0c', `${atk.poke.name} は ${mv.name} で ${_pick.name} を くりだした！`);
+      log('0c', `${pname(atk)} は ${mv.name} で ${_pick.name} を くりだした！`);
       mv = _pick;
     }
     // 直前技模倣(まねっこ): 戦闘でだれかが直前に使った技をまねる。だれも使っていない/
@@ -4474,55 +4480,55 @@ function runTurn(){
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '直前技模倣')){
       if (!lastMoveAnywhere ||
           ((lastMoveAnywhere.battle_data && lastMoveAnywhere.battle_data.effects) || []).some(e => e.kind === '直前技模倣')){
-        log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(まねする技がない)`);
+        log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(まねする技がない)`);
         noteActionFailed(atk); continue;
       }
-      log('0c', `${atk.poke.name} は ${mv.name} で ${lastMoveAnywhere.name} を まねした！`);
+      log('0c', `${pname(atk)} は ${mv.name} で ${lastMoveAnywhere.name} を まねした！`);
       mv = lastMoveAnywhere;
     }
     // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
-      log('0c', `${atk.poke.name} の ${mv.name}！ しかし たくわえたものが ない！`);
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし たくわえたものが ない！`);
       noteActionFailed(atk); continue;
     }
     // ちょうはつ状態: 変化技を出せない(Bulbapedia "Taunt")
     if (mv.category === '変化' && (atk.tauntTurns || 0) > 0){
-      log('0c', `${atk.poke.name} は ちょうはつされて ${mv.name} が だせない！`);
+      log('0c', `${pname(atk)} は ちょうはつされて ${mv.name} が だせない！`);
       noteActionFailed(atk); continue;
     }
     // かなしばり状態: 封じられた技は出せない(Bulbapedia "Disable")
     if (atk.disable && mv.name === atk.disable.name){
-      log('0c', `${atk.poke.name} は かなしばりで ${mv.name} が だせない！`);
+      log('0c', `${pname(atk)} は かなしばりで ${mv.name} が だせない！`);
       noteActionFailed(atk); continue;
     }
     // いちゃもん状態: 直前に使った技と同じ技は出せない(Bulbapedia "Torment")。
     // 実機では わるあがき に置き換わる=出せなかったターンを「使った」扱いにしない(lastMoveを流す)近似
     if (atk.tormented && atk.lastMove && mv.name === atk.lastMove.name){
-      log('0c', `${atk.poke.name} は いちゃもんを つけられていて おなじ技が だせない！`);
+      log('0c', `${pname(atk)} は いちゃもんを つけられていて おなじ技が だせない！`);
       atk.lastMove = null;
       noteActionFailed(atk); continue;
     }
     // ふういん: 相手がふういんを発動中で、相手も知っている技は出せない(Bulbapedia "Imprison")
     if (def.imprison && (def.moves || []).some(m => m && m.name === mv.name)){
-      log('0c', `${atk.poke.name} は ふういんされていて ${mv.name} が だせない！`);
+      log('0c', `${pname(atk)} は ふういんされていて ${mv.name} が だせない！`);
       noteActionFailed(atk); continue;
     }
     // 次ターン使用不可(デカハンマー): 同じ技を2ターン続けて出せない(Bulbapedia "Gigaton Hammer")。
     // 出せなかったターンは「使った」扱いにしない(lastMoveを流す=いちゃもんと同じ近似)
     if (atk.lastMove && mv.name === atk.lastMove.name &&
         ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次ターン使用不可')){
-      log('0c', `${atk.poke.name} は ${mv.name} を 連続では だせない！`);
+      log('0c', `${pname(atk)} は ${mv.name} を 連続では だせない！`);
       atk.lastMove = null;
       noteActionFailed(atk); continue;
     }
     // じごくづき(カテゴリ封じ): 音技が出せない(Bulbapedia "Throat Chop")
     if (atk.soundBlocked > 0 && atk.soundBlockedMoves && atk.soundBlockedMoves.includes(mv.name)){
-      log('0c', `${atk.poke.name} は じごくづきの ダメージで ${mv.name} が だせない！`);
+      log('0c', `${pname(atk)} は じごくづきの ダメージで ${mv.name} が だせない！`);
       noteActionFailed(atk); continue;
     }
     // じゅうりょく: 空中にいる技は使えない(Bulbapedia "Gravity")
     if (env.gravity && GRAVITY_BLOCKED.includes(mv.name)){
-      log('0c', `${atk.poke.name} は じゅうりょくが強くて ${mv.name} が だせない！`);
+      log('0c', `${pname(atk)} は じゅうりょくが強くて ${mv.name} が だせない！`);
       noteActionFailed(atk); continue;
     }
     // ここまで通れば技を「使った」扱い(かなしばり/アンコールの対象になる最後の技)。
@@ -4541,12 +4547,12 @@ function runTurn(){
       const _mult = _protEf ? _protEf.consecutive_success_multiplier : (1 / 3);   // こらえるはfails_if宣言どおり1/3
       const _rate = (_mult != null) ? Math.pow(_mult, atk.protectStreak) : 1;
       if (Math.random() < _rate){
-        if (_protEf){ atk.protecting = mv; log('0c', `${atk.poke.name} は ${mv.name} で 守りの体勢に入った！`); }
-        else { atk.enduring = true; log('0c', `${atk.poke.name} は こらえる体勢に入った！`); }
+        if (_protEf){ atk.protecting = mv; log('0c', `${pname(atk)} は ${mv.name} で 守りの体勢に入った！`); }
+        else { atk.enduring = true; log('0c', `${pname(atk)} は こらえる体勢に入った！`); }
         atk.protectStreak++;
       } else {
         atk.protectStreak = 0;
-        log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
+        log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
       }
       continue;
     }
@@ -4567,7 +4573,7 @@ function runTurn(){
     if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
     // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
     if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
-      log('0c', `${def.poke.name} は ${def.protecting.name} で こうげきを 防いだ！`);
+      log('0c', `${pname(def)} は ${def.protecting.name} で こうげきを 防いだ！`);
       noteActionFailed(atk);
       applyProtectPunishers(atk, def, mv);
       applyCrashDamage(atk, mv);
@@ -4584,16 +4590,16 @@ function runTurn(){
         (def.moves || []).some(m => m && m.name === _lm.name) &&
         !((_lm.battle_data && _lm.battle_data.effects) || []).some(e => INSTRUCT_NG_KINDS.includes(e.kind));
       if (!_ok){
-        log('0c', `${atk.poke.name} の ${mv.name}！ しかし うまく きまらなかった！`);
+        log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
         noteActionFailed(atk);
       } else {
-        log('0c', `${atk.poke.name} は ${mv.name}！ ${def.poke.name} は しじに したがい もういちど ${_lm.name} を つかう！`);
+        log('0c', `${pname(atk)} は ${mv.name}！ ${pname(def)} は しじに したがい もういちど ${_lm.name} を つかう！`);
         order.splice(order.indexOf(a) + 1, 0, {side: a.opp, move: _lm, opp: a.side});
       }
       continue;
     }
     if (mv.category === '変化'){
-      log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
+      log('9', `${pname(atk)} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
       // 変化技でも状態異常付与だけは適用（おにび等）
       phaseApplyEffects(a.side, a.opp, mv);
       // おきみやげ/いやしのねがい=成功した時だけ自滅(失敗ゲートが noteActionFailed を立てた時は倒れない)
@@ -4629,8 +4635,8 @@ function runTurn(){
       else {
         // さわぐ最中はねむけ(あくび)からも眠らない(発動だけ不発・Bulbapedia "Uproar")
         if (st.pendingStatus.code === 'sleep' && uproarActive()){
-          log('10', `さわがしくて ${st.poke.name} は ねむれない！`);
-        } else if (st.status === 'none'){ st.status = st.pendingStatus.code; if (st.pendingStatus.code === 'sleep') st.sleepTurns = 2 + Math.floor(Math.random() * 3); log('10', `${st.poke.name} は ${st.pendingStatus.label} 状態になった！`); }
+          log('10', `さわがしくて ${pname(st)} は ねむれない！`);
+        } else if (st.status === 'none'){ st.status = st.pendingStatus.code; if (st.pendingStatus.code === 'sleep') st.sleepTurns = 2 + Math.floor(Math.random() * 3); log('10', `${pname(st)} は ${st.pendingStatus.label} 状態になった！`); }
         st.pendingStatus = null;
       }
     }
@@ -4653,7 +4659,7 @@ function runTurn(){
       if (st.currentHp == null || st.currentHp >= max) continue;
       const heal = Math.max(1, Math.floor(max * _fHeal.fraction));
       st.currentHp = Math.min(max, st.currentHp + heal);
-      log('10', `${st.poke.name} は フィールドで HPを ${heal} 回復！ (残HP ${st.currentHp})`);
+      log('10', `${pname(st)} は フィールドで HPを ${heal} 回復！ (残HP ${st.currentHp})`);
     }
   }
   // 技で展開したフィールドのカウントダウン(5ターン目の終わりに元に戻る。UI手動設定=null は無期限)
@@ -4713,7 +4719,7 @@ function runTurn(){
       if (st.screenTurns[flag] <= 0){
         delete st.screenTurns[flag];
         st[flag] = false;
-        log('10', `${st.poke ? st.poke.name + ' の場の ' : ''}${_SCREEN_NAME[flag] || flag} の効果が なくなった！`);
+        log('10', `${st.poke ? pname(st) + ` の場の ` : ``}${_SCREEN_NAME[flag] || flag} の効果が なくなった！`);
       }
     }
   }
@@ -4722,20 +4728,20 @@ function runTurn(){
     const st = sides[s];
     if ((st.tauntTurns || 0) > 0){
       st.tauntTurns--;
-      if (st.tauntTurns <= 0 && st.poke) log('10', `${st.poke.name} の ちょうはつの 効果が切れた！`);
+      if (st.tauntTurns <= 0 && st.poke) log('10', `${pname(st)} の ちょうはつの 効果が切れた！`);
     }
     if (st.disable){
       st.disable.turns--;
       if (st.disable.turns <= 0){
         st.disable = null;
-        if (st.poke) log('10', `${st.poke.name} の かなしばりが とけた！`);
+        if (st.poke) log('10', `${pname(st)} の かなしばりが とけた！`);
       }
     }
     if (st.encore){
       st.encore.turns--;
       if (st.encore.turns <= 0){
         st.encore = null;
-        if (st.poke) log('10', `${st.poke.name} の アンコール状態が とけた！`);
+        if (st.poke) log('10', `${pname(st)} の アンコール状態が とけた！`);
       }
     }
     // ほろびのうた: カウントが減り0でひんし(Bulbapedia "Perish Song")
@@ -4745,22 +4751,22 @@ function runTurn(){
         st.currentHp = 0;
         st.fainted = true;
         st.perishCount = null;
-        log('10', `${st.poke.name} の ほろびのカウントが 0になった！ ${st.poke.name} は ひんしになった！`);
+        log('10', `${pname(st)} の ほろびのカウントが 0になった！ ${pname(st)} は ひんしになった！`);
       } else {
-        log('10', `${st.poke.name} の ほろびのカウントが ${st.perishCount}になった！`);
+        log('10', `${pname(st)} の ほろびのカウントが ${st.perishCount}になった！`);
       }
     }
     // ロックオン: 次のターンの終わりまで有効(ターン終了ごとに1減る・0で切れる)
     if (st.lockOn > 0){
       st.lockOn--;
-      if (st.lockOn <= 0 && st.poke) log('10', `${st.poke.name} の ねらいが はずれた！`);
+      if (st.lockOn <= 0 && st.poke) log('10', `${pname(st)} の ねらいが はずれた！`);
     }
     // じごくづき(カテゴリ封じ): 当たったターンを含め2ターン(ターン終了ごとに1減る・0で解除)
     if (st.soundBlocked > 0){
       st.soundBlocked--;
       if (st.soundBlocked <= 0){
         st.soundBlockedMoves = null;
-        if (st.poke) log('10', `${st.poke.name} は また 音の技が だせるようになった！`);
+        if (st.poke) log('10', `${pname(st)} は また 音の技が だせるようになった！`);
       }
     }
     // ねがいごと: カウントが0になったターンの終わりに、仕込んだ量(使った時の最大HPの半分)回復。
@@ -4776,7 +4782,7 @@ function runTurn(){
           if (st.currentHp < _max){
             const _before = st.currentHp;
             st.currentHp = Math.min(_max, st.currentHp + _amt);
-            log('10', `${st.poke.name} の ねがいごとが かなった！ HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+            log('10', `${pname(st)} の ねがいごとが かなった！ HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
           }
         }
       }
@@ -4788,7 +4794,7 @@ function runTurn(){
       if (st.currentHp < _max){
         const _before = st.currentHp;
         st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max / 16)));
-        log('10', `${st.poke.name} は ねをはって HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+        log('10', `${pname(st)} は ねをはって HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
       }
     }
     // アクアリング: ターン終了ごとに最大HPの1/16回復(ポケモンWiki「アクアリング」)
@@ -4798,30 +4804,30 @@ function runTurn(){
       if (st.currentHp < _max){
         const _before = st.currentHp;
         st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max / 16)));
-        log('10', `${st.poke.name} は アクアリングで HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+        log('10', `${pname(st)} は アクアリングで HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
       }
     }
     // でんじふゆうのカウントダウン(5ターンで降りる)
     if (st.magnetRise > 0){
       st.magnetRise--;
-      if (st.magnetRise <= 0){ st.magnetRise = 0; log('10', `${st.poke.name} の 電磁浮遊が 解けた！`); }
+      if (st.magnetRise <= 0){ st.magnetRise = 0; log('10', `${pname(st)} の 電磁浮遊が 解けた！`); }
     }
     // あめまみれ: 毎ターン終了時にすばやさ-1(3ターンで乾く)
     if (st.syrupTurns > 0 && st.poke && !st.fainted){
       st.rank.spd = Math.max(-6, (st.rank.spd || 0) - 1);
-      log('10', `${st.poke.name} は あめまみれで すばやさ-1！`);
+      log('10', `${pname(st)} は あめまみれで すばやさ-1！`);
       st.syrupTurns--;
-      if (st.syrupTurns <= 0){ st.syrupTurns = 0; log('10', `${st.poke.name} の あめが 乾いた！`); }
+      if (st.syrupTurns <= 0){ st.syrupTurns = 0; log('10', `${pname(st)} の あめが 乾いた！`); }
     }
     // かいふくふうじのカウントダウン
     if (st.healBlockTurns > 0){
       st.healBlockTurns--;
-      if (st.healBlockTurns <= 0){ st.healBlockTurns = 0; log('10', `${st.poke.name} の 回復封じが 解けた！`); }
+      if (st.healBlockTurns <= 0){ st.healBlockTurns = 0; log('10', `${pname(st)} の 回復封じが 解けた！`); }
     }
     // おいかぜのカウントダウン(4ターンでやむ)
     if (st.tailwindTurns > 0){
       st.tailwindTurns--;
-      if (st.tailwindTurns <= 0){ st.tailwindTurns = 0; log('10', `${st.poke.name} 側の 追い風が やんだ！`); }
+      if (st.tailwindTurns <= 0){ st.tailwindTurns = 0; log('10', `${pname(st)} 側の 追い風が やんだ！`); }
     }
     // たべのこし(B案: trigger end_of_turn 宣言の持ち物): ターン終了時に最大HPの1/16回復(消費しない)。
     // 出典: items_database.js 宣言(trigger/heal_fraction)/ポケモンWiki「たべのこし」。マジックルーム中は無効。
@@ -4835,7 +4841,7 @@ function runTurn(){
         if (_frac > 0 && st.currentHp < _max){
           const _before = st.currentHp;
           st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max * _frac)));
-          log('10', `${st.poke.name} は ${_it.name}で HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+          log('10', `${pname(st)} は ${_it.name}で HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
         }
       }
     }
@@ -4851,17 +4857,17 @@ function runTurn(){
         const _tgt = sides[_tk];
         if (st.poke && _tgt.poke && !_tgt.fainted){
           if (_tgt.protecting && _fsMove.protect === true && protectBlocks(_tgt.protecting, _fsMove)){
-            log('10', `${_tgt.poke.name} は ${_tgt.protecting.name} で ${_fsMove.name} を 防いだ！`);
+            log('10', `${pname(_tgt)} は ${_tgt.protecting.name} で ${_fsMove.name} を 防いだ！`);
           } else {
             const _res = calcDamage(s, _tk, _fsMove);
             if (_res.immune){
-              log('10', `${_tgt.poke.name} は ${_fsMove.name} の こうげきを うけた！ しかし こうかが ないようだ…`);
+              log('10', `${pname(_tgt)} は ${_fsMove.name} の こうげきを うけた！ しかし こうかが ないようだ…`);
             } else {
               let _v = _res.variations[Math.floor(Math.random() * _res.variations.length)];
-              if (_tgt.enduring && _v >= _tgt.currentHp){ _v = _tgt.currentHp - 1; log('10', `${_tgt.poke.name} は こうげきを こらえた！`); }
+              if (_tgt.enduring && _v >= _tgt.currentHp){ _v = _tgt.currentHp - 1; log('10', `${pname(_tgt)} は こうげきを こらえた！`); }
               _tgt.currentHp = Math.max(0, _tgt.currentHp - _v);
-              log('10', `${_tgt.poke.name} は ${_fsMove.name} の こうげきを うけた！ ${_v} ダメージ！ (残HP ${_tgt.currentHp}/${_res.hp})`);
-              if (_tgt.currentHp <= 0){ _tgt.fainted = true; log('10', `${_tgt.poke.name} は ひんしになった！`); }
+              log('10', `${pname(_tgt)} は ${_fsMove.name} の こうげきを うけた！ ${_v} ダメージ！ (残HP ${_tgt.currentHp}/${_res.hp})`);
+              if (_tgt.currentHp <= 0){ _tgt.fainted = true; log('10', `${pname(_tgt)} は ひんしになった！`); }
             }
           }
         }
@@ -5020,8 +5026,8 @@ function startBattle(){
   pushHistory();
   log('Start', '─── バトル開始 ───');
   // 誰が場に出たかを履歴に残す
-  if (sides.self.poke) log('Start', `${sides.self.poke.name} が 場に出た！`);
-  if (sides.opp.poke)  log('Start', `${sides.opp.poke.name} が 場に出た！`);
+  if (sides.self.poke) log(`Start`, `${pname(sides.self)} が 場に出た！`);
+  if (sides.opp.poke)  log(`Start`, `${pname(sides.opp)} が 場に出た！`);
   phaseInitA();
   renderBattleLog();
   renderBoth();
