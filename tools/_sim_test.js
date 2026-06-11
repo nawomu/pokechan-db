@@ -5120,6 +5120,92 @@ console.log('\n=== 段96 きあいのタスキ(満タンから一撃ひんしを
   resetEnv();
 }
 
+console.log('\n=== 段97 きのみ系技(リサイクル/むしくい・ついばむ/ほおばる/おちゃかい) ===');
+// 出典: ポケモンWiki「リサイクル」(自分が使った道具を再生)/「むしくい」「ついばむ」(相手のきのみを奪って即食べる)/
+// 「ほおばる」(自分のきのみを食べて ぼうぎょ+2。きのみなし=失敗)/「おちゃかい」(全員がきのみを即食べる)。
+{
+  resetEnv();
+  // T200 リサイクル: 消費した道具が戻る
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('リサイクル')];
+  E.sides.self.item = '';
+  E.sides.self.lastConsumedItem = 'berry_sitrus';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.phaseApplyEffects('self', 'opp', moveByName('リサイクル'));
+  check('T200 リサイクルで消費した道具が戻る',
+    E.sides.self.item === 'berry_sitrus' && E.sides.self.lastConsumedItem === null,
+    `item=${E.sides.self.item} last=${E.sides.self.lastConsumedItem}`);
+  // T200b 戻すものがなければ失敗
+  E.sides.self.item = ''; E.sides.self.lastConsumedItem = null;
+  E.phaseApplyEffects('self', 'opp', moveByName('リサイクル'));
+  check('T200b 戻すものがなければ失敗', E.sides.self.failedThisTurn === true && E.sides.self.item === '',
+    `failed=${E.sides.self.failedThisTurn} item=${E.sides.self.item}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T201 むしくい: 相手のきのみを奪って自分が即食べる(オボン=自分の最大HPの1/4回復)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('むしくい')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.currentHp = 60;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.item = 'berry_sitrus';
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  const myMax201 = E.realStat(E.sides.self, 'hp');
+  check('T201 むしくい: 相手のオボンを食べて自分が1/4回復・相手のきのみは消える',
+    E.sides.self.currentHp === 60 + Math.floor(myMax201 / 4) && E.sides.opp.item === '',
+    `selfHp=${E.sides.self.currentHp}(${60 + Math.floor(myMax201 / 4)}期待) oppItem=${E.sides.opp.item}`);
+  check('T201 食べられたきのみは相手のリサイクル対象にならない',
+    !E.sides.opp.lastConsumedItem, `last=${E.sides.opp.lastConsumedItem}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T202 ほおばる: 自分のきのみを食べて ぼうぎょ+2(きのみなし=失敗)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ほおばる')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.item = 'berry_sitrus';
+  E.sides.self.currentHp = 100;   // ※半分(77)より上=オボンの自己発動では回復しない高さにして「食べた」ことを確かめる
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  const myMax202 = E.realStat(E.sides.self, 'hp');
+  check('T202 ほおばる: きのみを食べて(オボン=1/4回復)ぼうぎょ+2',
+    E.sides.self.rank.def === 2 && E.sides.self.item === '' && E.sides.self.currentHp === 100 + Math.floor(myMax202 / 4),
+    `def=${E.sides.self.rank.def} item=${E.sides.self.item} hp=${E.sides.self.currentHp}`);
+  // T202b きのみを持っていないと失敗(ランクも上がらない)
+  E.sides.self.rank.def = 0;
+  E.sides.self.lastConsumedItem = null;
+  E.phaseApplyEffects('self', 'opp', moveByName('ほおばる'));
+  check('T202b きのみなしのほおばるは失敗(ぼうぎょも上がらない)',
+    E.sides.self.rank.def === 0 && E.sides.self.failedThisTurn === true,
+    `def=${E.sides.self.rank.def} failed=${E.sides.self.failedThisTurn}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T203 おちゃかい: 両者ともきのみを即食べる
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('おちゃかい')];
+  E.sides.self.item = 'berry_sitrus';
+  E.sides.self.currentHp = 60;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.item = 'berry_cure_all';
+  E.sides.opp.status = 'burn';
+  E.phaseApplyEffects('self', 'opp', moveByName('おちゃかい'));
+  const myMax203 = E.realStat(E.sides.self, 'hp');
+  check('T203 おちゃかい: 自分はオボンで回復・相手はラムでやけど治癒(両方消費)',
+    E.sides.self.currentHp === 60 + Math.floor(myMax203 / 4) && E.sides.self.item === '' &&
+    E.sides.opp.status === 'none' && E.sides.opp.item === '',
+    `selfHp=${E.sides.self.currentHp} selfItem=${E.sides.self.item} oppSt=${E.sides.opp.status} oppItem=${E.sides.opp.item}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

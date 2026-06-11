@@ -2476,6 +2476,20 @@ function phaseApplyEffects(atkSide, defSide, move){
     attemptSwitch(defSide, pick, {ignoreTrapping: true});
     return;
   }
+  // ほおばる(木の実強制 self)/おちゃかい(all): 食べられるきのみが誰にも無いと技ごと失敗
+  // (ほおばるの ぼうぎょ+2 も発動しない)。出典: ポケモンWiki「ほおばる」「おちゃかい」
+  {
+    const _bfEf = move.battle_data.effects.find(e => e.kind === '木の実強制' && (e.target === 'self' || e.target === 'all'));
+    if (_bfEf){
+      const _isB = k => { const i = k && ITEM_BY_KEY[k]; return !!(i && String(i.category || '').startsWith('berry')); };
+      const _holders = _bfEf.target === 'all' ? [atk, def] : [atk];
+      if (!_holders.some(h => h.poke && !h.fainted && _isB(h.item))){
+        log('9', `しかし うまく きまらなかった！(きのみを もっていない)`);
+        noteActionFailed(atk);
+        return;
+      }
+    }
+  }
   // いやしのねがい(回復 target:incoming): 出せる控えがいないと失敗(自分もひんしにならない)。
   // 出典: ポケモンWiki「いやしのねがい」
   if (move.battle_data.effects.some(e => e.kind === '回復' && e.target === 'incoming')){
@@ -2604,6 +2618,38 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (!placed){
         log('9', `しかし うまく きまらなかった！(これ以上 置けない)`);
         noteActionFailed(atk);
+      }
+      continue;
+    }
+    // 持ち物復活(リサイクル): 自分が消費した道具を再生する(なければ失敗)。
+    // ※奪われた/はたき落とされた道具は対象外(lastConsumedItem=自分で消費した分だけ)。出典: ポケモンWiki「リサイクル」
+    if (ef.kind === '持ち物復活'){
+      if (atk.lastConsumedItem && !atk.item){
+        atk.item = atk.lastConsumedItem;
+        atk.lastConsumedItem = null;
+        log('9', `${atk.poke.name} は ${(ITEM_BY_KEY[atk.item] || {}).name || '道具'}を リサイクルした！`);
+      } else {
+        log('9', `しかし うまく きまらなかった！(再生できる道具が ない)`);
+        noteActionFailed(atk);
+      }
+      continue;
+    }
+    // 木の実奪取食(ついばむ)/木の実強制(むしくい=相手のきのみを奪って即食べる・ほおばる=自分のきのみを食べる・
+    // おちゃかい=全員が自分のきのみを食べる)。食べた効果は即時発動(回復/状態異常治癒。半減きのみ等は即時効果なし)。
+    // 奪って食べられたきのみは持ち主のリサイクル対象にならない(自分で食べた分はなる)。
+    // 出典: ポケモンWiki「むしくい」「ついばむ」「ほおばる」「おちゃかい」/ Bulbapedia "Bug Bite"/"Stuff Cheeks"/"Teatime"
+    if (ef.kind === '木の実奪取食' || ef.kind === '木の実強制'){
+      const _isBerry = k => { const i = k && ITEM_BY_KEY[k]; return !!(i && String(i.category || '').startsWith('berry')); };
+      const _holders = ef.target === 'all' ? [atk, def] : [target];
+      for (const holder of _holders){
+        if (!holder.poke || holder.fainted || !_isBerry(holder.item) || env.magicRoom) continue;
+        const it = ITEM_BY_KEY[holder.item];
+        // おちゃかい(all)=各自が自分のを食べる / むしくい等(opponent)=相手のきのみを自分(攻撃側)が食べる
+        const eater = (ef.target === 'all') ? holder : ((holder === def) ? atk : holder);
+        if (holder === eater){ consumeItem(holder); }    // 自分で食べた=リサイクル可
+        else { holder.item = ''; }                       // 奪われて食べられた=リサイクル不可
+        log('9', `${eater.poke.name} は ${it.name}を 食べた！`);
+        applyBerryEffect(eater, it);
       }
       continue;
     }
@@ -3958,6 +4004,32 @@ function sashCheck(def, v){
     return def.currentHp - 1;
   }
   return v;
+}
+
+// きのみを「食べた」時の即時効果(むしくい/ほおばる/おちゃかい用)。回復きのみはHPに関係なく即回復、
+// 状態異常きのみは該当していれば治す。半減きのみ等は即時効果なし(食べられて消えるだけ)。
+function applyBerryEffect(st, it){
+  if (!st.poke || st.fainted || !it) return;
+  if (it.category === 'berry_hp_cure' && (it.heal_fraction || it.heal_amount_fixed)){
+    const max = realStat(st, 'hp');
+    if (st.currentHp == null) st.currentHp = max;
+    const heal = it.heal_fraction ? Math.max(1, Math.floor(max * _itemFrac(it.heal_fraction)))
+               : (it.heal_amount_fixed || 0);
+    if (heal > 0 && st.currentHp < max){
+      st.currentHp = Math.min(max, st.currentHp + heal);
+      log('9', `${st.poke.name} は HPを 回復した！ (残HP ${st.currentHp})`);
+    }
+    return;
+  }
+  if (it.category === 'berry_status_cure'){
+    const tgt = it.cure_target;
+    const CMAP = {paralysis:['paralysis'], sleep:['sleep'], poison:['poison','badpoison'], burn:['burn'], freeze:['freeze']};
+    if ((tgt === 'all' || tgt === 'confusion') && st.confusion > 0) st.confusion = 0;
+    if (tgt === 'all' ? (st.status !== 'none') : (CMAP[tgt] || []).includes(st.status)){
+      st.status = 'none'; st.badpoisonCounter = 0; st.sleepTurns = null;
+      log('9', `${st.poke.name} の 状態異常が 治った！`);
+    }
+  }
 }
 
 function itemReactions(){
