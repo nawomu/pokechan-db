@@ -580,6 +580,10 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 .stage-mon.heal{animation:stHeal .7s}
 .stage-mon.acting{transform:translateY(-4px) scale(1.04)}
 .mon-badges .bdg.new{animation:stPop .35s}
+@keyframes stEnter{0%{transform:translateY(26px) scale(.5);opacity:0}70%{transform:translateY(-4px) scale(1.06)}100%{transform:none;opacity:1}}
+@keyframes stFaint{0%{filter:none;opacity:1}100%{filter:grayscale(1) brightness(.5);opacity:.45}}
+.stage-mon.enter .mon-art{animation:stEnter .5s}
+.stage-mon.faint .mon-art{animation:stFaint .6s forwards}
 .battle-ctrl button:active{transform:translateY(1px)}
 .battle-hint{font-size:10px;color:#8b949e;margin-top:4px;line-height:1.4}
 
@@ -6233,31 +6237,47 @@ function renderStage(){
   });
   animateStageFromLog();
 }
-// 新しいログ行を読んで、ダメージ=揺れ+赤 / 回復=緑 を時系列順に再生する(順番に見せる簡易演出)
+// 新しいログ行を読んで、時系列順に演出を再生する(v2: 技タイプ色のヒット光・交代ポップ・状態フラッシュ)
 function animateStageFromLog(){
   if (_stageLogPos > battleLog.length) _stageLogPos = 0;
   const fresh = battleLog.slice(_stageLogPos);
   _stageLogPos = battleLog.length;
   let delay = 80;
-  for (const e of fresh){
-    const m = e.msg;
-    let side = null, cls = null;
-    let dm = m.match(/(相手の )?[^\s！]+ に \d+ ダメージ/);
-    if (dm){ side = dm[1] ? 'opp' : 'self'; cls = 'hit'; }
-    else if (/回復/.test(m)){ side = m.startsWith('相手の') ? 'opp' : 'self'; cls = 'heal'; }
-    else if (/みがわりが \d+ ダメージ/.test(m)){ side = m.includes('相手の') ? 'opp' : 'self'; cls = 'hit'; }
-    if (!side || !cls) continue;
+  const fire = (side, cls, glowColor) => {
     const el = document.getElementById('stage-' + side);
-    if (!el) continue;
-    const c = cls;
+    if (!el) return false;
     setTimeout(() => {
-      el.classList.remove(c);
+      el.classList.remove(cls);
       void el.offsetWidth;   // reflow=アニメ再発火
-      el.classList.add(c);
-      setTimeout(() => el.classList.remove(c), 750);
+      el.classList.add(cls);
+      if (glowColor){
+        el.style.boxShadow = `0 0 26px 4px ${glowColor}`;
+        setTimeout(() => { el.style.boxShadow = ''; }, 600);
+      }
+      setTimeout(() => el.classList.remove(cls), 750);
     }, delay);
     delay += 400;
-    if (delay > 4800) break;   // 演出は最大12発まで(長い乱戦はログで追う)
+    return true;
+  };
+  for (const e of fresh){
+    if (delay > 5600) break;   // 演出は最大14発まで(長い乱戦はログで追う)
+    const m = e.msg;
+    // ダメージ: 技名からタイプ色を引いて、受けた側を技タイプの色で光らせる+揺らす
+    const dm = m.match(/の ([^\s！]+)！ (相手の )?[^\s！]+ に \d+ ダメージ/);
+    if (dm){
+      const mv = (typeof WAZA_MAP !== 'undefined') && Object.values(WAZA_MAP).find(x => x.name === dm[1]);
+      const color = (mv && typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[mv.type]) || '#f87171';
+      fire(dm[2] ? 'opp' : 'self', 'hit', color + 'cc');
+      continue;
+    }
+    if (/みがわりが \d+ ダメージ/.test(m)){ fire(m.includes('相手の') ? 'opp' : 'self', 'hit', '#94a3b8cc'); continue; }
+    if (/回復/.test(m)){ fire(m.startsWith('相手の') ? 'opp' : 'self', 'heal', '#4ade80aa'); continue; }
+    // 交代: 出てきた側をポップ
+    if (/が 場に出た！/.test(m)){ fire(m.includes('相手の') ? 'opp' : 'self', 'enter', null); continue; }
+    // 状態異常・こんらん: 黄色フラッシュ
+    if (/状態になった！|こんらんした！/.test(m)){ fire(m.startsWith('相手の') ? 'opp' : 'self', 'heal', '#fbbf24aa'); continue; }
+    // ひんし: 暗転
+    if (/は ひんしになった！/.test(m)){ fire(m.startsWith('相手の') ? 'opp' : 'self', 'faint', null); continue; }
   }
 }
 
