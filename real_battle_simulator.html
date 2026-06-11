@@ -5609,9 +5609,10 @@ function registerTestPokemon(){
 // 起動時のデフォルト編成(リロードのたびに選び直さずテストできるように)。
 // 希望のポケモン・技をセット。技は希望名→無ければ威力上位で4枠を埋める(データ欠けに強い)。
 // テスト用ダミー同士(みず vs みず=無効タイプなし)で、リロード直後からテストを回せる。
+// 控えもテスト用(ノーマル/ゴースト)をデフォルトでセット=交代・設置技・死に出しをすぐ試せる(2026-06-11 阿部さん)。
 const DEFAULT_SETUP = {
-  self: { name: 'テスト(みず)', moves: ['たいあたり'] },
-  opp:  { name: 'テスト(みず)', moves: ['たいあたり'] },
+  self: { name: 'テスト(みず)', moves: ['たいあたり'], bench: ['テスト(ノーマル)', 'テスト(ゴースト)'] },
+  opp:  { name: 'テスト(みず)', moves: ['たいあたり'], bench: ['テスト(ノーマル)', 'テスト(ゴースト)'] },
 };
 function applyDefaultSetup(){
   if (typeof WAZA_MAP === 'undefined') return;
@@ -5638,6 +5639,14 @@ function applyDefaultSetup(){
     let selIdx = 0;
     for (const nm of (w.moves||[])){ const i = learn.findIndex(x=>x.name === nm); if (i >= 0){ selIdx = i; break; } }
     st.selectedMoveIdx = selIdx;
+    // 控えのデフォルト(テスト用ダミー): 満タン・状態なし・全技リストで待機
+    st.bench = (w.bench || []).map(nm=>{
+      const bp = POKE_MAP_BY_NAME[nm];
+      if (!bp) return null;
+      return { poke: bp, effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0}, natureIdx: 0,
+        ability: '', item: '', moves: usableMoves(bp),
+        currentHp: null, fainted: false, status: 'none', sleepTurns: null };
+    });
   });
 }
 
@@ -5669,7 +5678,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   attachBattleControl();
   document.getElementById('handoff-clear').addEventListener('click', clearHandoff);
   renderHandoffBar();
-  applyDefaultSetup();   // デフォルト編成(フシギバナ vs リザードン)を入れておく
+  applyDefaultSetup();   // デフォルト編成(テスト(みず)+控え=テスト(ノーマル)/テスト(ゴースト)を両サイドに)
   render('self');
   render('opp');
 });
