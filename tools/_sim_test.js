@@ -4812,6 +4812,39 @@ console.log('\n=== 段89 ふくろだたき(ひんし・状態異常でない手
   resetEnv();
 }
 
+console.log('\n=== 段90 かげふみ(特性: 相手は交代できない・かげふみ同士は無効) ===');
+// 出典: ポケモンWiki「ポケモンチェンジ」— 相手の特性がかげふみのとき交代できない。
+// 自分もかげふみなら無視できる(第4世代以降)。ゴーストタイプは無視できる(第6世代以降)。
+// ※ありじごく/じりょく/きゅうばん/きれいなぬけがらは現DBに持ち主がいない=park(推測実装しない)
+{
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.ability = 'かげふみ';   // メガゲンガーの特性(エンジンは名前の文字列比較)
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  const ok191 = E.attemptSwitch('opp', 0);
+  check('T191 相手がかげふみだと交代できない', ok191 === false && E.sides.opp.poke.name === 'カビゴン',
+    `ret=${ok191} opp=${E.sides.opp.poke.name}`);
+  // T191b かげふみ同士は無効
+  E.sides.opp.ability = 'かげふみ';
+  const ok191b = E.attemptSwitch('opp', 0);
+  check('T191b かげふみ同士なら交代できる', ok191b === true,
+    `ret=${ok191b}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T191c ゴーストタイプはかげふみを無視して交代できる
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.ability = 'かげふみ';
+  E.sides.opp = freshSide('ゲンガー', 'hataku');
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  const ok191c = E.attemptSwitch('opp', 0);
+  check('T191c ゴーストタイプはかげふみを無視できる', ok191c === true,
+    `ret=${ok191c}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

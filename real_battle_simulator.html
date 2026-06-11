@@ -3845,6 +3845,11 @@ function cannotSwitchReason(st){
   if (st.trapped) return 'にげられない';
   if ((st.slips || []).some(sl => sl.source === 'バインド')) return 'バインドされている';
   if (env.fairyLockTurns > 0) return 'フェアリーロック';
+  // かげふみ(特性): 相手がかげふみだと交代できない(自分もかげふみなら無効=第4世代以降)。
+  // ※ありじごく/じりょく/きゅうばん/きれいなぬけがらは現DBに持ち主がいない=park(推測実装しない)
+  // 出典: ポケモンWiki「ポケモンチェンジ」
+  const oppSt = (st === sides.self) ? sides.opp : sides.self;
+  if (oppSt.poke && !oppSt.fainted && sideAbility(oppSt) === 'かげふみ' && sideAbility(st) !== 'かげふみ') return 'かげふみ';
   return null;
 }
 // 交代時の揮発リセット: resetBattle のポケモン由来項目と同じ範囲。
