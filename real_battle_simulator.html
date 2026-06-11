@@ -1127,6 +1127,8 @@ function makeSideState(){
     magnetRise: 0,
     // あめまみれ(みずあめボム): >0の間、毎ターン終了時にすばやさ-1(3ターン)
     syrupTurns: 0,
+    // もらいび発動中(ほのお技を吸収した後true=自分のほのお技1.5倍)。交代でリセット
+    flashFire: false,
     // かいふくふうじ(サイコノイズ): >0の間、回復技が失敗する(2ターン)
     healBlockTurns: 0,
     // パーティ(控え)A-1: 控えエントリの配列(最大3体マイナス場の1体)。エントリ=BENCH_FIELDSの永続フィールドのみ
@@ -1483,6 +1485,8 @@ function calcDamage(atkSide, defSide, move, opts){
       // ねをはる(rooted)も同じ=根をはった ひこうに じめん技が当たる(Bulbapedia "Ingrain")
       if ((env.gravity || (def && def.rooted)) && mt === 'じめん' && dt === 'ひこう') return;
       if (matchOvr && dt === matchOvr.against_type){ eff *= 2; return; }
+      // きもったま(攻撃側): ノーマル/かくとう技がゴーストに当たる(ABILITY_DESC公式準拠・段111)
+      if (dt === 'ゴースト' && (moveType === 'ノーマル' || moveType === 'かくとう') && sideAbility(atk) === 'きもったま') return;
       eff *= TYPE_CHART[mtIdx][dtIdx];
     });
   });
@@ -1496,6 +1500,16 @@ function calcDamage(atkSide, defSide, move, opts){
     const hp = realStat(def, 'hp');
     return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
             immune:true, reason:'こうかなし(でんじふゆうで浮いている)', recoil:0};
+  }
+  // タイプ吸収/無効の特性(受け側・段111・ABILITY_DESC公式準拠)。おまけ(回復/ランク/もらいび)は phaseDealDamage 側で発動
+  {
+    const _dAb = sideAbility(def);
+    const _ABSORB = {'ちょすい': 'みず', 'ちくでん': 'でんき', 'もらいび': 'ほのお', 'そうしょく': 'くさ', 'ひらいしん': 'でんき', 'でんきエンジン': 'でんき'};
+    if (_ABSORB[_dAb] === moveType || (_dAb === 'ぼうおん' && move.flags && move.flags.sound)){
+      const hp = realStat(def, 'hp');
+      return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
+              immune:true, reason:`${pname(def)} は ${_dAb}で 効かない`, absorbAb:_dAb, recoil:0};
+    }
   }
 
   // 適用された補正をチップ表示用に記録
@@ -1629,8 +1643,8 @@ function calcDamage(atkSide, defSide, move, opts){
     base = pokeRound(base, 6144);
     chips.push({label:'テクニシャン', factor:1.5, kind:'ability'});
   }
-  // もらいび: ほのお技 ×1.5（発動中と仮定する近似）
-  if (ab === 'もらいび' && moveType === 'ほのお'){
+  // もらいび: ほのお技を受けて発動した後、自分のほのお技 ×1.5(段111で発動条件flashFireを実装=常時発動の近似を解消)
+  if (ab === 'もらいび' && moveType === 'ほのお' && atk.flashFire){
     base = pokeRound(base, 6144);
     chips.push({label:'もらいび', factor:1.5, kind:'ability'});
   }
@@ -2211,6 +2225,31 @@ function phaseDealDamage(atkSide, defSide, move){
   if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(sides[atkSide]);
   if (result.immune){
     log('8', `${result.reason}！`);
+    // 吸収特性のおまけ発動(段111・ABILITY_DESC公式準拠): 回復1/4・ランク+1・もらいび=炎強化
+    if (result.absorbAb){
+      const _d = sides[defSide];
+      const _ab = result.absorbAb;
+      if (_ab === 'ちょすい' || _ab === 'ちくでん'){
+        const _m = realStat(_d, 'hp');
+        if (_d.currentHp != null && _d.currentHp < _m){
+          const _b = _d.currentHp;
+          _d.currentHp = Math.min(_m, _d.currentHp + Math.max(1, Math.floor(_m / 4)));
+          log('9', `${pname(_d)} は ${_ab}で HPを ${_d.currentHp - _b} 回復！ (残HP ${_d.currentHp})`);
+        }
+      } else if (_ab === 'そうしょく'){
+        _d.rank.atk = Math.min(6, (_d.rank.atk || 0) + 1);
+        log('9', `${pname(_d)} は そうしょくで こうげき+1！`);
+      } else if (_ab === 'ひらいしん'){
+        _d.rank.spatk = Math.min(6, (_d.rank.spatk || 0) + 1);
+        log('9', `${pname(_d)} は ひらいしんで とくこう+1！`);
+      } else if (_ab === 'でんきエンジン'){
+        _d.rank.spd = Math.min(6, (_d.rank.spd || 0) + 1);
+        log('9', `${pname(_d)} は でんきエンジンで すばやさ+1！`);
+      } else if (_ab === 'もらいび' && !_d.flashFire){
+        _d.flashFire = true;
+        log('9', `${pname(_d)} は もらいびで ほのおの力が 強まった！`);
+      }
+    }
     return result;
   }
   const _effs = (move.battle_data && move.battle_data.effects) || [];
@@ -2633,6 +2672,13 @@ function phaseApplyEffects(atkSide, defSide, move){
     const pick = liveIdxs[Math.floor(Math.random() * liveIdxs.length)];
     log('9', `${pname(def)} は ふきとばされた！`);
     attemptSwitch(defSide, pick, {ignoreTrapping: true});
+    return;
+  }
+  // ぼうおん: 相手対象の音技(変化技含む)は効かない(ABILITY_DESC公式準拠・段111。攻撃技はcalcDamage側で無効)
+  if (move.flags && move.flags.sound && sideAbility(def) === 'ぼうおん' &&
+      move.battle_data.effects.some(e => e.target === 'opponent' || e.target === 'all_opponents')){
+    log('9', `${pname(def)} は ぼうおんで 音技が 効かない！`);
+    noteActionFailed(atk);
     return;
   }
   // ほおばる(木の実強制 self)/おちゃかい(all): 食べられるきのみが誰にも無いと技ごと失敗
@@ -3778,6 +3824,7 @@ function snapshotBattleState(){
     magnetRise: st.magnetRise || 0,                              // でんじふゆうも一手戻せるように
     syrupTurns: st.syrupTurns || 0,                              // あめまみれも一手戻せるように
     healBlockTurns: st.healBlockTurns || 0,                      // かいふくふうじも一手戻せるように
+    flashFire: !!st.flashFire,                                   // もらいび発動状態も一手戻せるように
     // 設置技A-4も一手戻せるように(stealthRockは既存UIフラグを共用)
     stealthRock: !!st.stealthRock,
     spikesLayers: st.spikesLayers || 0,
@@ -3867,6 +3914,7 @@ function undoBattle(){
     st.magnetRise = src.magnetRise || 0;                               // でんじふゆうの巻き戻し
     st.syrupTurns = src.syrupTurns || 0;                               // あめまみれの巻き戻し
     st.healBlockTurns = src.healBlockTurns || 0;                       // かいふくふうじの巻き戻し
+    st.flashFire = !!src.flashFire;                                    // もらいび発動状態の巻き戻し
     // 設置技A-4の巻き戻し
     st.stealthRock = !!src.stealthRock;
     st.spikesLayers = src.spikesLayers || 0;
@@ -4240,6 +4288,7 @@ function clearVolatilesOnSwitch(st){
   st.trapped = false; // にげられない状態も揮発
   st.aquaRing = false; st.magnetRise = 0;   // アクアリング/でんじふゆうも揮発(バトンタッチは引き継ぐ)。おいかぜはサイド残留=触らない
   st.syrupTurns = 0; st.healBlockTurns = 0; // あめまみれ/かいふくふうじも揮発
+  st.flashFire = false;                     // もらいび発動状態も揮発
   st.flinched = false; st.pendingStatus = null;   // あくびは交代すれば不発(Bulbapedia "Yawn")
   st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
   st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
@@ -5127,6 +5176,7 @@ function resetBattle(){
     st.magnetRise = 0;
     st.syrupTurns = 0;
     st.healBlockTurns = 0;
+    st.flashFire = false;
     if (st.lastConsumedItem && !st.item){ st.item = st.lastConsumedItem; }   // バトルリセットで消費した道具は戻す
     st.lastConsumedItem = null;
     // パーティ(控え)A-1: 控えはメンバー(ポケモン・技)を保持したまま HP/状態だけ初期化

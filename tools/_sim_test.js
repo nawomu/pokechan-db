@@ -5787,6 +5787,101 @@ console.log('\n=== 段110 がんじょう/シェルアーマー/いしあたま/
   resetEnv();
 }
 
+console.log('\n=== 段111 タイプ吸収/無効の特性(ちょすい/ちくでん/もらいび/そうしょく/ひらいしん/でんきエンジン/きもったま/ぼうおん) ===');
+// 出典: ABILITY_DESC(公式準拠)。吸収特性は無効化+おまけ(回復1/4・ランク+1・もらいび=炎1.5倍化)。
+{
+  resetEnv();
+  // T239 ちょすい: みず技無効+最大HPの1/4回復
+  E.sides.self = freshSide('カビゴン', null);
+  E.sides.self.moves = [moveByName('ハイドロポンプ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.ability = 'ちょすい';
+  E.sides.opp.status = 'sleep';
+  const oMax239 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = 100;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T239 ちょすい: みず技が無効で1/4回復',
+    E.sides.opp.currentHp === Math.min(oMax239, 100 + Math.floor(oMax239 / 4)),
+    `hp=${E.sides.opp.currentHp}(${100 + Math.floor(oMax239 / 4)}期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T239b そうしょく: くさ技無効+こうげき+1
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ギガドレイン')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.ability = 'そうしょく';
+  E.sides.opp.status = 'sleep';
+  const oMax239b = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oMax239b;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T239b そうしょく: くさ技無効+こうげき+1',
+    E.sides.opp.currentHp === oMax239b && E.sides.opp.rank.atk === 1,
+    `hp=${E.sides.opp.currentHp}/${oMax239b} atk=${E.sides.opp.rank.atk}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T240 もらいび: ほのお技無効+発動後は自分のほのお技1.5倍
+  E.sides.self = freshSide('リザードン', null);
+  E.sides.self.moves = [moveByName('かえんほうしゃ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('リザードン', null);
+  E.sides.opp.moves = [moveByName('かえんほうしゃ')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.ability = 'もらいび';
+  E.sides.opp.status = 'sleep';
+  const oMax240 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oMax240;
+  const plain240 = E.calcDamage('opp', 'self', moveByName('かえんほうしゃ')).min;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T240 もらいび: ほのお技が無効(無傷)', E.sides.opp.currentHp === oMax240,
+    `hp=${E.sides.opp.currentHp}/${oMax240}`);
+  check('T240b 発動後は自分のほのお技が1.5倍',
+    E.calcDamage('opp', 'self', moveByName('かえんほうしゃ')).min > plain240,
+    `発動前=${plain240} 発動後=${E.calcDamage('opp', 'self', moveByName('かえんほうしゃ')).min}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T241 きもったま: ノーマル技がゴーストに当たる
+  E.sides.self = freshSide('カビゴン', 'hataku');
+  E.sides.self.ability = 'きもったま';
+  E.sides.opp = freshSide('ゲンガー', 'hataku');
+  const r241 = E.calcDamage('self', 'opp', moveByName('はたく'));
+  check('T241 きもったま: ノーマル技がゴーストに当たる', r241 && !r241.immune && r241.min > 0,
+    `immune=${r241 && r241.immune} min=${r241 && r241.min}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T242 ぼうおん: 音技(ハイパーボイス)が無効・うたう(変化の音技)も効かない
+  E.sides.self = freshSide('カビゴン', null);
+  E.sides.self.moves = [moveByName('ハイパーボイス')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.ability = 'ぼうおん';
+  E.sides.opp.status = 'sleep';
+  const oMax242 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oMax242;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T242 ぼうおんは音技を無効化', E.sides.opp.currentHp === oMax242,
+    `hp=${E.sides.opp.currentHp}/${oMax242}`);
+  E.sides.opp.status = 'none';
+  E.sides.self.moves = [moveByName('うたう')]; E.sides.self.selectedMoveIdx = 0;
+  E.runTurn();
+  check('T242b うたう(変化の音技)もぼうおんに効かない', E.sides.opp.status === 'none',
+    `status=${E.sides.opp.status}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
