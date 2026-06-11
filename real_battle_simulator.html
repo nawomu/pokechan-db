@@ -1551,9 +1551,16 @@ function calcDamage(atkSide, defSide, move, opts){
   const dStat = rankedStat(def, dKey, {crit, role:'def', ignoreRank: !!ignoreRankEf});
   const hp = realStat(def, 'hp');
 
+  // ちからもち/ヨガパワー: こうげき(物理)が2倍(ABILITY_DESC公式準拠・段107)
+  let aStatEff = aStat;
+  {
+    const _aab = sideAbility(atk);
+    if ((_aab === 'ちからもち' || _aab === 'ヨガパワー') && isPhys) aStatEff = aStat * 2;
+  }
+
   // ベースダメ（SVの内部式）
   // base = floor( floor( floor( (2L/5+2) * P * A / D ) / 50 ) ) + 2
-  let base = Math.floor((2 * LEVEL / 5 + 2) * power * aStat / dStat / 50) + 2;
+  let base = Math.floor((2 * LEVEL / 5 + 2) * power * aStatEff / dStat / 50) + 2;
 
   // === 補正適用（pokeRound 段階） ===
   // 1) 天候
@@ -1597,6 +1604,17 @@ function calcDamage(atkSide, defSide, move, opts){
   if (ab === 'てつのこぶし' && move.flags && move.flags.punch){
     base = pokeRound(base, 4915);
     chips.push({label:'てつのこぶし', factor:1.2, kind:'ability'});
+  }
+  // しんりょく/もうか/げきりゅう: HPが1/3以下のとき該当タイプの技 ×1.5(ABILITY_DESC公式準拠・段107)
+  const _PINCH_AB = {'しんりょく': 'くさ', 'もうか': 'ほのお', 'げきりゅう': 'みず'};
+  if (_PINCH_AB[ab] === moveType && atk.currentHp != null && atk.currentHp <= Math.floor(realStat(atk, 'hp') / 3)){
+    base = pokeRound(base, 6144);
+    chips.push({label: ab, factor: 1.5, kind: 'ability'});
+  }
+  // あついしぼう(受け側): ほのお/こおり技を受ける時、相手のこうげき・とくこう半減=×0.5(ABILITY_DESC公式準拠・段107)
+  if (sideAbility(def) === 'あついしぼう' && (moveType === 'ほのお' || moveType === 'こおり')){
+    base = pokeRound(base, 2048);
+    chips.push({label: 'あついしぼう', factor: 0.5, kind: 'ability'});
   }
   // ちからずく: 追加効果あり技 ×1.3（追加効果が発動しなくなる代わりに）
   const hasSecondaryEffect = !!(move.battle_data && move.battle_data.effects && move.battle_data.effects.length);
