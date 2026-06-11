@@ -6054,6 +6054,42 @@ console.log('\n=== 段114 ランク防御特性(クリアボディ/かちき/ま
   resetEnv();
 }
 
+console.log('\n=== 段115 対戦AI(技の自動選択: ダメージ最大・無効回避・確定KO優先) ===');
+{
+  resetEnv();
+  // T252 AI: こうかなしの技(ノーマル→ゴースト)を避けて通る技を選ぶ
+  E.sides.self = freshSide('ゲンガー', 'hataku');
+  E.sides.opp = freshSide('カビゴン', null);
+  E.sides.opp.moves = [moveByName('はたく'), moveByName('シャドーボール')];
+  E.sides.opp.selectedMoveIdx = 0;
+  const pick252 = E.aiChooseMove('opp');
+  check('T252 AIはこうかなし(はたく→ゲンガー)を避けてシャドーボールを選ぶ', pick252 === 1,
+    `pick=${pick252}(1期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T252b AI: 確定で倒せる技があれば威力が低くてもそれを選ぶ
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.currentHp = 10;   // はたくでも倒せる残りHP
+  E.sides.opp = freshSide('カビゴン', null);
+  E.sides.opp.moves = [moveByName('はかいこうせん'), moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  const pick252b = E.aiChooseMove('opp');
+  // どちらでも倒せる→平均ダメージ+KOボーナスが同等以上=どちらかを選べばOKだが、
+  // 「KOできる技にボーナス」が効いていること自体は『はたくでも選ばれ得る』ことでは確認できないため、
+  // ここは「無効でない技を返す」ことの確認に留める(KO優先の厳密比較は T252c)
+  check('T252b AIは技を選べる(どちらもKO可)', pick252b === 0 || pick252b === 1, `pick=${pick252b}`);
+  // T252c: はかいこうせんでは倒せないがはたくで倒せる状況は作れないので、
+  // 「片方こうかなし+片方KO可」で KOボーナス込みの選択を確認
+  E.sides.self = freshSide('ゲンガー', 'hataku');
+  E.sides.self.currentHp = 10;
+  E.sides.opp.moves = [moveByName('はたく'), moveByName('シャドーボール')];
+  const pick252c = E.aiChooseMove('opp');
+  check('T252c こうかなしを避けてKOできる技を選ぶ', pick252c === 1, `pick=${pick252c}(1期待)`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

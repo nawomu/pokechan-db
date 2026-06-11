@@ -865,6 +865,9 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <button id="btn-full-reset" type="button">🔄 全リセット</button>
     </div>
     <div class="battle-hint">技横の <b>実行</b> で片側攻撃。両側選択して「ターン実行」で同時。</div>
+    <label class="chk" style="display:block;margin:4px 0 0;font-size:11px;color:#9fb4d8">
+      <input type="checkbox" id="opp-ai"> 🤖 相手AI(ターン実行のたびに相手の技を自動で選ぶ)
+    </label>
 
     <!-- バトルステージ(段105): キャラ枠+HPバー+状態バッジ。絵は images/sim/{ポケモン名}.png を置けば差し替わる -->
     <div id="battle-stage">
@@ -4581,6 +4584,33 @@ function attemptSwitch(sideKey, benchIdx, opts){
   return true;
 }
 
+// === B: 対戦AI(段115) — 技の自動選択 ===
+// ダメージ最大(平均値)を選ぶ。こうかなし(immune)は選ばない・確定で倒せる技に大ボーナス。
+// 変化技はv1では「攻撃が全部無効な時の保険」(スコア1)。交代判断はv1では持たない(死に出しは自動)。
+function aiChooseMove(sideKey){
+  const st = sides[sideKey];
+  const foe = sideKey === 'self' ? 'opp' : 'self';
+  if (!st.poke || !st.moves || !st.moves.length) return 0;
+  const foeSt = sides[foe];
+  const foeHp = foeSt.poke ? (foeSt.currentHp == null ? realStat(foeSt, 'hp') : foeSt.currentHp) : 0;
+  let best = -1, bestScore = -1;
+  st.moves.forEach((m, i) => {
+    if (!m) return;
+    let score = 0;
+    if (m.category !== '変化'){
+      const r = calcDamage(sideKey, foe, m);
+      if (r && !r.immune && r.max > 0){
+        score = (r.min + r.max) / 2;
+        if (r.min >= foeHp && foeHp > 0) score += 1000;   // 確定で倒せる技を最優先
+      }
+    } else {
+      score = 1;   // 攻撃が全部無効な時だけ変化技に流れる
+    }
+    if (score > bestScore){ bestScore = score; best = i; }
+  });
+  return best >= 0 ? best : 0;
+}
+
 function runTurn(){
   ensureBattleState();
   pushHistory();
@@ -6775,7 +6805,14 @@ function attachBattleControl(){
   const reset = document.getElementById('btn-reset-battle');
   const full  = document.getElementById('btn-full-reset');
   if (start) start.addEventListener('click', startBattle);
-  if (turn)  turn.addEventListener('click', runTurn);
+  // 相手AI(段115): チェックON中はターン実行のたびに相手の技をAIが選ぶ(手動選択を上書き)
+  if (turn)  turn.addEventListener('click', () => {
+    const aiCb = document.getElementById('opp-ai');
+    if (aiCb && aiCb.checked && sides.opp.poke && !sides.opp.fainted){
+      sides.opp.selectedMoveIdx = aiChooseMove('opp');
+    }
+    runTurn();
+  });
   if (undo)  undo.addEventListener('click', undoBattle);
   if (full)  full.addEventListener('click', fullResetBattle);
   if (reset) reset.addEventListener('click', resetBattle);
