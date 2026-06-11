@@ -2270,7 +2270,9 @@ function phaseDealDamage(atkSide, defSide, move){
     }
   }
   // おうじゃのしるし: ダメージを与えた時10%の確率で相手をひるませる(まだ動いていない相手にだけ意味がある)
-  if (atk.poke && !env.magicRoom && atk.item === 'kings_rock' && total > 0 && def.poke && !def.fainted && !def.flinched){
+  // せいしんりょく持ちはひるまない(段109)
+  if (atk.poke && !env.magicRoom && atk.item === 'kings_rock' && total > 0 && def.poke && !def.fainted && !def.flinched
+      && sideAbility(def) !== 'せいしんりょく'){
     if (Math.random() < 0.1){
       def.flinched = true;
       log('9', `${pname(def)} は おうじゃのしるしで ひるんだ！`);
@@ -2849,6 +2851,8 @@ function phaseApplyEffects(atkSide, defSide, move){
     if (Math.random() * 100 >= prob) continue;
     if (ef.kind === 'ひるみ' || (ef.kind === '状態付与' && ef.value === 'ひるみ')){
       // ひるみは「状態異常」でなく、そのターンだけ行動できなくする一過性フラグ(ターン開始でクリア)。
+      // せいしんりょく: ひるまない(ABILITY_DESC公式準拠・段109)
+      if (sideAbility(target) === 'せいしんりょく') continue;
       target.flinched = true;
       log('9', `${pname(target)} は ひるんだ！`);
       continue;
@@ -2856,6 +2860,11 @@ function phaseApplyEffects(atkSide, defSide, move){
     if (ef.kind === 'こんらん' || (ef.kind === '状態付与' && ef.value === 'こんらん')){
       // condition付き(みわくのボイス=このターン能力が上がった相手のみ等)は評価できないため誤適用回避でスキップ
       if (ef.condition) continue;
+      // マイペース: こんらんしない(ABILITY_DESC公式準拠・段109)
+      if (sideAbility(target) === 'マイペース'){
+        log('9', `${pname(target)} は マイペースで こんらんしない！`);
+        continue;
+      }
       // こんらんは揮発状態(2〜5ターン)。あばれる等の delayed(暴れ終了後の自己混乱)は未対応。
       // ミストフィールド(状態異常予防・values指定なし=全部)は こんらんも防ぐ(Bulbapedia "Misty Terrain")
       const fGuardC = fieldRules().find(r => r.kind === '状態異常予防');
@@ -2996,6 +3005,14 @@ function phaseApplyEffects(atkSide, defSide, move){
         || (code === 'freeze' && env.weather === 'sunny'); // にほんばれの間は こおり にならない(Bulbapedia "Freeze")
       if (immuneHere){
         log('9', `${pname(target)} には こうかが ないようだ…`);
+        continue;
+      }
+      // 特性による状態異常の無効(ふみん/やるき=ねむり・じゅうなん=まひ・めんえき=どく系・マグマのよろい=こおり)
+      // ABILITY_DESC公式準拠・段109。ねむる(self対象)もふみんなら失敗する
+      const _AB_IMMUNE = { sleep:['ふみん','やるき'], paralysis:['じゅうなん'], poison:['めんえき'], badpoison:['めんえき'], freeze:['マグマのよろい'] };
+      const _abI = sideAbility(target);
+      if ((_AB_IMMUNE[code] || []).includes(_abI)){
+        log('9', `${pname(target)} は ${_abI}で ${ef.value}に ならない！`);
         continue;
       }
       // さわぐ最中は場の誰も眠れない(ねむる自身も含む。Bulbapedia "Uproar")
@@ -4362,7 +4379,7 @@ function applyEntryHazards(sideKey){
     if (types.includes('どく')){
       st.toxicSpikesLayers = 0;
       log('9', `${pname(st)} は どくびしを 吸収した！`);
-    } else if (!types.includes('はがね') && st.status === 'none'){
+    } else if (!types.includes('はがね') && st.status === 'none' && sideAbility(st) !== 'めんえき'){
       st.status = st.toxicSpikesLayers >= 2 ? 'badpoison' : 'poison';
       log('9', `${pname(st)} は ${st.toxicSpikesLayers >= 2 ? 'もうどく' : 'どく'} 状態になった！`);
     }
@@ -4743,6 +4760,9 @@ function runTurn(){
         // さわぐ最中はねむけ(あくび)からも眠らない(発動だけ不発・Bulbapedia "Uproar")
         if (st.pendingStatus.code === 'sleep' && uproarActive()){
           log('10', `さわがしくて ${pname(st)} は ねむれない！`);
+        } else if ((({sleep:['ふみん','やるき'], paralysis:['じゅうなん'], poison:['めんえき'], badpoison:['めんえき'], freeze:['マグマのよろい']})[st.pendingStatus.code] || []).includes(sideAbility(st))){
+          // あくび等の遅延発動も特性で無効(段109・ABILITY_DESC公式準拠)
+          log('10', `${pname(st)} は 特性で ${st.pendingStatus.label}に ならない！`);
         } else if (st.status === 'none'){ st.status = st.pendingStatus.code; if (st.pendingStatus.code === 'sleep') st.sleepTurns = 2 + Math.floor(Math.random() * 3); log('10', `${pname(st)} は ${st.pendingStatus.label} 状態になった！`); }
         st.pendingStatus = null;
       }
