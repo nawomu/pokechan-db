@@ -4887,6 +4887,54 @@ console.log('\n=== 段91 いやしのねがい(自分はひんし→交代で出
   resetEnv();
 }
 
+console.log('\n=== 段92 おはかまいり(倒れた手持ちの数だけ威力+50) ===');
+// 出典: Bulbapedia "Last Respects" — 威力 = 50 + 50×(ひんしになった手持ちの数)。
+// ※実機は「ひんしになった回数」(復活して再びひんしも数える)=simは現在ひんしの控えの数で近似。
+{
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('おはかまいり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku'), benchEntry('カビゴン', 'hataku')];
+  E.sides.self.bench[0].fainted = true;
+  E.sides.self.bench[0].currentHp = 0;
+  // ※相手をカビゴン(ノーマル)にすると おはかまいり(ゴースト)がこうかなし=0で偽緑になるのでフシギバナ
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  const ohk = moveByName('おはかまいり');
+  const exp193 = E.calcDamage('self', 'opp', ohk, {powerOverride: 100}).min;   // 50+50×1
+  const oppMax193 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppMax193;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T193 ひんしの控え1体で威力100(50+50)',
+    oppMax193 - E.sides.opp.currentHp === exp193,
+    `実=${oppMax193 - E.sides.opp.currentHp}(${exp193}期待)`);
+  resetEnv();
+}
+
+console.log('\n=== 段93 キラースピン(拘束解除: バインド/やどりぎを振りほどく) ===');
+// 出典: Bulbapedia "Mortal Spin" — こうそくスピン同様にバインド・やどりぎ・設置を解除し、相手をどくにする。
+// データはこうそくスピン(状態異常回復)と違い「拘束解除」kindで宣言されている。
+{
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('キラースピン')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.slips = [
+    {source: 'バインド', fraction: 0.125, turns: 3},
+    {source: 'やどりぎのタネ', fraction: 0.125, drains: true},
+  ];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T194 キラースピンでバインド/やどりぎが解除される',
+    !(E.sides.self.slips || []).some(sl => sl.source === 'バインド' || sl.source === 'やどりぎのタネ'),
+    `slips=${JSON.stringify(E.sides.self.slips)}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

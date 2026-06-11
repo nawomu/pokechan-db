@@ -1260,6 +1260,16 @@ function calcDamage(atkSide, defSide, move, opts){
   // 技ごとの特殊効果(battle_data.effects)をダメージ式が読む
   const bdEffects = (move.battle_data && move.battle_data.effects) || [];
 
+  // 威力段階増加(おはかまいり): ひんしになった手持ち1体につき威力+50。
+  // ※実機は「ひんしになった回数」(復活後の再ひんしも数える)=simは現在ひんしの控えの数で近似(コメント宣言)。
+  // 出典: Bulbapedia "Last Respects"(50 + 50×fainted party members)
+  // powerOverride(呼び出し側が最終威力を指定)の時は増分を重ねない
+  const _lastRespEf = bdEffects.find(e => e.kind === '威力段階増加' && e.per === 'fainted_teammate');
+  if (_lastRespEf && !(opts && opts.powerOverride != null)){
+    const _faintedN = (atk.bench || []).filter(b => b && b.poke && (b.fainted || (b.currentHp != null && b.currentHp <= 0))).length;
+    power += (_lastRespEf.power_increment || 50) * _faintedN;
+  }
+
   // 失敗条件(battle_data.fails_if): データが宣言する不発条件をダメージ式でも見る
   // ポルターガイスト=相手が道具なしで失敗 / アイアンローラー=フィールドが無いと失敗(Bulbapedia "Poltergeist"/"Steel Roller")
   const failsIf = (move.battle_data && move.battle_data.fails_if) || [];
@@ -2577,6 +2587,16 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (!placed){
         log('9', `しかし うまく きまらなかった！(これ以上 置けない)`);
         noteActionFailed(atk);
+      }
+      continue;
+    }
+    // 拘束解除(キラースピン): 自分のバインド系・やどりぎを振りほどく(こうそくスピンの宣言違い版)。
+    // 出典: Bulbapedia "Mortal Spin"
+    if (ef.kind === '拘束解除'){
+      const relTgt = ef.target === 'self' ? atk : def;
+      if ((relTgt.slips || []).some(sl => sl.source === 'バインド' || sl.source === 'やどりぎのタネ')){
+        relTgt.slips = relTgt.slips.filter(sl => sl.source !== 'バインド' && sl.source !== 'やどりぎのタネ');
+        log('9', `${relTgt.poke.name} は しめつけから 解放された！`);
       }
       continue;
     }
