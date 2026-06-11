@@ -1056,6 +1056,9 @@ function makeSideState(){
     critBoost: 0,
     // こんらん残り行動カウント(0=こんらんしていない)。行動時に減り0で解ける。交代でリセット(バトンタッチは引き継ぐ)
     confusion: 0,
+    // にげられない状態(くろいまなざし/とおせんぼう/かげぬい=拘束kind): true の間は交代不可。
+    // かけた側が場を離れると解除(attemptSwitchが相手側をクリア)。技による交代・ゴーストタイプは封じ無視
+    trapped: false,
     // パーティ(控え)A-1: 控えエントリの配列(最大3体マイナス場の1体)。エントリ=BENCH_FIELDSの永続フィールドのみ
     bench: [],
     // このターンの行動選択が「交代」のとき、出す控えのindex(null=技を出す)。runTurnの交代フェーズが消費する
@@ -2488,6 +2491,21 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (liveIdx >= 0) attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true});
       continue;
     }
+    // 拘束(くろいまなざし/とおせんぼう/かげぬい): 相手をにげられない状態にする(かけた側が場を離れるまで)。
+    // ゴーストタイプには効かない(データのimmune宣言+第6世代以降は素で封じ無視)。
+    // 出典: ポケモンWiki「くろいまなざし」/「ポケモンチェンジ」
+    if (ef.kind === '拘束'){
+      const tgT = sideTypes(target);
+      if ((ef.immune || []).some(im => im.type === 'target_type' && tgT.includes(im.value))){
+        log('9', `${target.poke.name} には こうかが ないようだ…`);
+        continue;
+      }
+      if (!target.trapped){
+        target.trapped = true;
+        log('9', `${target.poke.name} は にげられなくなった！`);
+      }
+      continue;
+    }
     // 設置(ステルスロック/まきびし/どくびし/ねばねばネット): 相手の場に仕掛け、交代で出てきたポケモンに発動。
     // まきびし3層・どくびし2層まで(すでに最大なら失敗)。みがわりは関係なし(場に置く技)。
     // 出典: ポケモンWiki「ステルスロック」「まきびし」「どくびし」「ねばねばネット」
@@ -3350,6 +3368,7 @@ function snapshotBattleState(){
     subHp: st.subHp || 0,                                        // みがわりも一手戻せるように
     critBoost: st.critBoost || 0,                                // きあいだめも一手戻せるように
     confusion: st.confusion || 0,                                // こんらんも一手戻せるように(段82で漏れを発見し追加)
+    trapped: !!st.trapped,                                       // にげられない状態も一手戻せるように
     // 設置技A-4も一手戻せるように(stealthRockは既存UIフラグを共用)
     stealthRock: !!st.stealthRock,
     spikesLayers: st.spikesLayers || 0,
@@ -3431,6 +3450,7 @@ function undoBattle(){
     st.subAbsorbed = false;
     st.critBoost = src.critBoost || 0;                                 // きあいだめの巻き戻し
     st.confusion = src.confusion || 0;                                 // こんらんの巻き戻し(段82で漏れを発見し追加)
+    st.trapped = !!src.trapped;                                        // にげられない状態の巻き戻し
     // 設置技A-4の巻き戻し
     st.stealthRock = !!src.stealthRock;
     st.spikesLayers = src.spikesLayers || 0;
@@ -3773,6 +3793,7 @@ function packBenchEntry(st){
 function cannotSwitchReason(st){
   if (sideTypes(st).includes('ゴースト')) return null;   // 第6世代以降: ゴーストタイプは交代封じを無視
   if (st.rooted) return 'ねをはっている';
+  if (st.trapped) return 'にげられない';
   if ((st.slips || []).some(sl => sl.source === 'バインド')) return 'バインドされている';
   return null;
 }
@@ -3793,6 +3814,7 @@ function clearVolatilesOnSwitch(st){
   st.electrified = null; st.typeSuppressed = null;
   st.rooted = false; st.subHp = 0; st.subAbsorbed = false; st.critBoost = 0;
   st.confusion = 0;   // こんらんも揮発(バトンタッチだけが引き継ぐ)
+  st.trapped = false; // にげられない状態も揮発
   st.flinched = false; st.pendingStatus = null;   // あくびは交代すれば不発(Bulbapedia "Yawn")
   st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
   st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
@@ -3856,6 +3878,8 @@ function attemptSwitch(sideKey, benchIdx, opts){
   for (const k of BENCH_FIELDS) st[k] = entry[k];
   if (st.currentHp == null) st.currentHp = realStat(st, 'hp');   // 未設定=満タンで出す
   st.switchedThisTurn = true;
+  // 拘束(くろいまなざし等)は「かけた側が場を離れるまで」→ この側のポケモンが離れたので相手の拘束を解除
+  sides[sideKey === 'self' ? 'opp' : 'self'].trapped = false;
   if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${st.poke.name} が 場に出た！`);
   else log('9', `${outName} は 引っ込んだ！ ${st.poke.name} が 場に出た！`);
   applyEntryHazards(sideKey);   // 設置技(ステルスロック等)は交代完了後に発動
@@ -4455,6 +4479,7 @@ function resetBattle(){
     st.subAbsorbed = false;
     st.critBoost = 0;
     st.confusion = 0;   // こんらんもクリア(段82で漏れを発見し追加)
+    st.trapped = false;
     // パーティ(控え)A-1: 控えはメンバー(ポケモン・技)を保持したまま HP/状態だけ初期化
     (st.bench || []).forEach(e => { e.currentHp = null; e.fainted = false; e.status = 'none'; e.sleepTurns = null; });
     st.switchChoice = null;
