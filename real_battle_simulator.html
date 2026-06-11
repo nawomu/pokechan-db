@@ -1779,12 +1779,23 @@ function effectiveSpeed(st){
   return s;
 }
 
-// 行動順を判定: 優先度 → 素早さ (トリックルームで逆転) → 同速ランダム
+// 行動順を判定: 優先度 → (せんせいのつめ20%) → 素早さ (トリックルームで逆転) → 同速ランダム
 // 戻り値: 先手の side を 'self' or 'opp' で返す
+let quickClawSide = null;   // このターンせんせいのつめが発動した側(先攻理由ログ用)
 function decideOrder(move1, move2){
+  quickClawSide = null;
   const p1 = movePriority(move1, sides.self);
   const p2 = movePriority(move2, sides.opp);
   if (p1 !== p2) return p1 > p2 ? 'self' : 'opp';
+  // せんせいのつめ: 同じ優先度の中で20%の確率で先に動ける(両者発動なら通常判定。items_database宣言)
+  if (!env.magicRoom){
+    const c1 = sides.self.item === 'quick_claw' && Math.random() < 0.2;
+    const c2 = sides.opp.item === 'quick_claw' && Math.random() < 0.2;
+    if (c1 !== c2){
+      quickClawSide = c1 ? 'self' : 'opp';
+      return quickClawSide;
+    }
+  }
   const s1 = effectiveSpeed(sides.self);
   const s2 = effectiveSpeed(sides.opp);
   if (s1 !== s2){
@@ -1914,6 +1925,8 @@ function phaseHitCheck(move, atk, def){
   }
   // じゅうりょく: 全員の命中率が5/3倍(Bulbapedia "Gravity")
   if (env.gravity) acc = acc * 5 / 3;
+  // ひかりのこな: 持ち主に対する技の命中率×0.9(items_database宣言)
+  if (!env.magicRoom && def && def.item === 'bright_powder') acc = acc * 0.9;
   const roll = Math.random() * 100;
   return {hit: roll < acc, reason: roll < acc ? null : `${move.name} は外れた！`};
 }
@@ -2040,7 +2053,9 @@ function phaseDealDamage(atkSide, defSide, move){
   let critRoll = false;
   {
     const _a = sides[atkSide];
-    const _stage = (_a.critBoost || 0) + ((move.battle_data && move.battle_data.crit_stage) || 0);
+    // ピントレンズ: 急所ランク+1(items_database宣言。マジックルーム中は無効)
+    const _lens = (!env.magicRoom && _a.item === 'scope_lens') ? 1 : 0;
+    const _stage = (_a.critBoost || 0) + ((move.battle_data && move.battle_data.crit_stage) || 0) + _lens;
     if (!_a.critical && !(move.battle_data && move.battle_data.must_crit) && _stage > 0){
       critRoll = _stage >= 3 || Math.random() >= 1 - (_stage === 2 ? 0.5 : 0.125);
     }
@@ -2130,6 +2145,22 @@ function phaseDealDamage(atkSide, defSide, move){
   else if (hitCount > 1) log('8', `${atk.poke.name} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   else log('8', `${atk.poke.name} の ${move.name}！ ${def.poke.name} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   if (critRoll && total > 0) log('8', `きゅうしょに あたった！`);
+  // かいがらのすず: 技でダメージを与えたら与ダメ合計の1/8回復(items_database宣言)
+  if (atk.poke && !atk.fainted && !env.magicRoom && atk.item === 'shell_bell' && total > 0){
+    const _sbMax = realStat(atk, 'hp');
+    if (atk.currentHp < _sbMax){
+      const _sbHeal = Math.max(1, Math.floor(total / 8));
+      atk.currentHp = Math.min(_sbMax, atk.currentHp + _sbHeal);
+      log('9', `${atk.poke.name} は かいがらのすずで ${_sbHeal} 回復！ (残HP ${atk.currentHp})`);
+    }
+  }
+  // おうじゃのしるし: ダメージを与えた時10%の確率で相手をひるませる(まだ動いていない相手にだけ意味がある)
+  if (atk.poke && !env.magicRoom && atk.item === 'kings_rock' && total > 0 && def.poke && !def.fainted && !def.flinched){
+    if (Math.random() < 0.1){
+      def.flinched = true;
+      log('9', `${def.poke.name} は おうじゃのしるしで ひるんだ！`);
+    }
+  }
   // 半減きのみ: 実際に半減が効いた攻撃(バツグン+タイプ一致+本体が受けた)で一度だけ消費。
   // ※分身(みがわり)が受けた時は消費しない(計算は半減のまま=近似・コメント宣言)。出典: ポケモンWiki「オッカのみ」等
   if (def.poke && !env.magicRoom && def.item && total > 0 && !def.subAbsorbed){
@@ -3996,11 +4027,19 @@ function _itemFrac(s){
 function sashCheck(def, v){
   if (!def.poke || env.magicRoom || !def.item) return v;
   const it = ITEM_BY_KEY[def.item];
-  if (!it || it.key !== 'focus_sash') return v;
-  const max = realStat(def, 'hp');
-  if (def.currentHp === max && v >= def.currentHp){
-    consumeItem(def);
-    log('8', `${def.poke.name} は きあいのタスキで もちこたえた！`);
+  if (!it) return v;
+  if (it.key === 'focus_sash'){
+    const max = realStat(def, 'hp');
+    if (def.currentHp === max && v >= def.currentHp){
+      consumeItem(def);
+      log('8', `${def.poke.name} は きあいのタスキで もちこたえた！`);
+      return def.currentHp - 1;
+    }
+  }
+  // きあいのハチマキ: 10%の確率でひんしダメージをHP1で耐える(消費しない・満タン条件なし)。
+  // 出典: items_database宣言/ポケモンWiki「きあいのハチマキ」
+  if (it.key === 'focus_band' && v >= def.currentHp && def.currentHp > 0 && Math.random() < 0.1){
+    log('8', `${def.poke.name} は きあいのハチマキで もちこたえた！`);
     return def.currentHp - 1;
   }
   return v;
@@ -4049,6 +4088,25 @@ function itemReactions(){
           consumeItem(st);
           log('9', `${st.poke.name} は ${it.name}で HPを ${heal} 回復した！ (残HP ${st.currentHp})`);
         }
+      }
+      return;
+    }
+    // しろいハーブ: 能力ランクが下がっていたら一度だけ元に戻して消費(items_database宣言)
+    if (it.key === 'white_herb'){
+      const _rk = st.rank || {};
+      if (Object.keys(_rk).some(k => _rk[k] < 0)){
+        Object.keys(_rk).forEach(k => { if (_rk[k] < 0) _rk[k] = 0; });
+        consumeItem(st);
+        log('9', `${st.poke.name} は しろいハーブで 下がった能力を 元に戻した！`);
+      }
+      return;
+    }
+    // メンタルハーブ: アンコール/かなしばり/いちゃもん等の束縛を一度だけ解いて消費(メロメロは未実装=対象外)
+    if (it.key === 'mental_herb'){
+      if (st.encore || st.disable || st.tormented){
+        st.encore = null; st.disable = null; st.tormented = false;
+        consumeItem(st);
+        log('9', `${st.poke.name} は メンタルハーブで 束縛を 解いた！`);
       }
       return;
     }
@@ -4204,7 +4262,9 @@ function runTurn(){
     const fp = movePriority(fMove, sides[firstSide]), sp = movePriority(sMove, sides[secondSide]);
     const fName = sides[firstSide].poke ? sides[firstSide].poke.name : '?';
     let why;
-    if (fp !== sp){
+    if (quickClawSide === firstSide){
+      why = `せんせいのつめが 発動したため`;
+    } else if (fp !== sp){
       why = `${fMove ? fMove.name : '技'} が 優先度${fp > 0 ? '+' : ''}${fp} のため`;
     } else {
       const fs = effectiveSpeed(sides[firstSide]), ss = effectiveSpeed(sides[secondSide]);
