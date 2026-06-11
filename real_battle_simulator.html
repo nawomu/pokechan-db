@@ -2367,11 +2367,25 @@ function phaseApplyEffects(atkSide, defSide, move){
       return;
     }
   }
-  // ふきとばし/ほえる(強制交代(吹き飛ばし)): 相手に控えがいない時は失敗(Bulbapedia "Whirlwind"/"Roar")。
-  // この sim は1vs1(控えなし)なので常に失敗が正解
+  // ふきとばし/ほえる(強制交代(吹き飛ばし)): 相手をランダムな控えと強制交代させる(優先度-6)。
+  // 相手がねをはる状態・控えなしでは失敗。みがわりは貫通(データ宣言 bypasses_substitute)。きゅうばんは特性=park。
+  // 出典: ポケモンWiki「ポケモンチェンジ」/「ふきとばし」
   if (move.battle_data.effects.some(e => e.kind === '強制交代(吹き飛ばし)')){
-    log('9', `しかし うまく きまらなかった！(ひかえの ポケモンがいない)`);
-    noteActionFailed(atk);
+    const liveIdxs = (def.bench || []).map((e, i) => ({e, i}))
+      .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+    if (!liveIdxs.length){
+      log('9', `しかし うまく きまらなかった！(ひかえの ポケモンがいない)`);
+      noteActionFailed(atk);
+      return;
+    }
+    if (def.rooted){
+      log('9', `しかし うまく きまらなかった！(${def.poke.name} は ねをはっている)`);
+      noteActionFailed(atk);
+      return;
+    }
+    const pick = liveIdxs[Math.floor(Math.random() * liveIdxs.length)];
+    log('9', `${def.poke.name} は ふきとばされた！`);
+    attemptSwitch(defSide, pick, {ignoreTrapping: true});
     return;
   }
   // 味方対象の技(ドラゴンエール等: fails_if no_ally 宣言): 1vs1(味方なし)では失敗(ポケモンWiki「急所」: 味方が受ける技)
@@ -2446,6 +2460,18 @@ function phaseApplyEffects(atkSide, defSide, move){
         continue;
       }
       if (liveIdx >= 0) attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true});
+      continue;
+    }
+    // 強制交代(攻撃)(ドラゴンテール/ともえなげ): ダメージのあと相手をランダムな控えと強制交代させる。
+    // ねをはる相手・控えなしは交代しない(ダメージのみ)。みがわりに防がれたら交代しない(上のみがわり遮断guard)。
+    // きゅうばんは特性=park。出典: ポケモンWiki「ポケモンチェンジ」
+    if (ef.kind === '強制交代(攻撃)'){
+      const liveIdxs = (def.bench || []).map((e, i) => ({e, i}))
+        .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+      if (!liveIdxs.length || def.rooted) continue;
+      const pick = liveIdxs[Math.floor(Math.random() * liveIdxs.length)];
+      log('9', `${def.poke.name} は ふきとばされた！`);
+      attemptSwitch(defSide, pick, {ignoreTrapping: true});
       continue;
     }
     // 溜めターン専用の効果(メテオビーム/エレクトロビームのとくこう+1)は攻撃時には発動しない(startChargeIfNeededが担当)

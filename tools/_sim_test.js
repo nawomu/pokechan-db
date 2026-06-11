@@ -4365,6 +4365,100 @@ console.log('\n=== 段82 バトンタッチ(能力変化と一部の状態変化
   resetEnv();
 }
 
+console.log('\n=== 段83 強制交代(ふきとばし/ほえる本来動作+ドラゴンテール/ともえなげ) ===');
+// 出典: ポケモンWiki「ポケモンチェンジ」/「ふきとばし」— 相手をランダムな控えと強制交代させる。
+// 失敗/不発: 相手がねをはる状態・控えなし(きゅうばんは特性=park)。ドラゴンテールはみがわりに防がれたら交代しない。
+{
+  resetEnv();
+  // T184 ふきとばし: 相手に控えがいれば強制交代させる(段77「常に失敗」からの本来動作化)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('ふきとばし')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T184 ふきとばしで相手が強制交代した',
+    E.sides.opp.poke.name === 'リザードン' && E.sides.self.failedThisTurn === false,
+    `opp=${E.sides.opp.poke.name} failed=${E.sides.self.failedThisTurn}`);
+  check('T184 控えに眠ったフシギバナが戻っている(状態異常は持ち越し)',
+    E.sides.opp.bench[0].poke.name === 'フシギバナ' && E.sides.opp.bench[0].status === 'sleep',
+    `bench0=${E.sides.opp.bench[0].poke.name}/${E.sides.opp.bench[0].status}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T184b ねをはる相手はふきとばせない
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('ふきとばし')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.rooted = true;
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T184b ねをはる相手にはふきとばしは失敗する',
+    E.sides.opp.poke.name === 'フシギバナ' && E.sides.self.failedThisTurn === true,
+    `opp=${E.sides.opp.poke.name} failed=${E.sides.self.failedThisTurn}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T184c ドラゴンテール: ダメージを与えてから相手を強制交代させる
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('ドラゴンテール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  const oppHp184c = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppHp184c;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T184c ドラゴンテール: ダメージ+強制交代',
+    E.sides.opp.poke.name === 'リザードン' && E.sides.opp.bench[0].currentHp < oppHp184c,
+    `opp=${E.sides.opp.poke.name} 戻ったフシギバナHP=${E.sides.opp.bench[0].currentHp}/${oppHp184c}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T184d ドラゴンテールがみがわりに防がれたら交代しない(みがわり遮断・ポケモンWiki)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('ドラゴンテール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.subHp = 38;
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T184d みがわりに防がれたドラゴンテールは交代させない',
+    E.sides.opp.poke.name === 'フシギバナ',
+    `opp=${E.sides.opp.poke.name} subHp=${E.sides.opp.subHp}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T184e ねをはる相手にはドラゴンテールのダメージのみ(交代なし)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('ドラゴンテール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.rooted = true;
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  const oppHp184e = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppHp184e;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T184e ねをはる相手にはダメージのみで交代なし',
+    E.sides.opp.poke.name === 'フシギバナ' && E.sides.opp.currentHp < oppHp184e,
+    `opp=${E.sides.opp.poke.name} hp=${E.sides.opp.currentHp}/${oppHp184e}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
