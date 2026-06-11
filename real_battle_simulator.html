@@ -1028,6 +1028,8 @@ function makeSideState(){
     subAbsorbed: false,
     // きゅうしょアップ状態(きあいだめ=+2): 急所ランクの上乗せ。場を離れるまで続く(交代でリセット)
     critBoost: 0,
+    // こんらん残り行動カウント(0=こんらんしていない)。行動時に減り0で解ける。交代でリセット(バトンタッチは引き継ぐ)
+    confusion: 0,
     // パーティ(控え)A-1: 控えエントリの配列(最大3体マイナス場の1体)。エントリ=BENCH_FIELDSの永続フィールドのみ
     bench: [],
     // このターンの行動選択が「交代」のとき、出す控えのindex(null=技を出す)。runTurnの交代フェーズが消費する
@@ -2408,8 +2410,41 @@ function phaseApplyEffects(atkSide, defSide, move){
     // バトンタッチ(pass宣言あり)は引き継ぎ交代=未実装(誤実装回避でスキップ・次段)。
     // 出典: ポケモンWiki「ポケモンチェンジ」
     if (ef.kind === '自分交代'){
-      if (ef.pass) continue;
       const liveIdx = (atk.bench || []).findIndex(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
+      if (ef.pass){
+        // バトンタッチ: 能力変化と一部の状態変化を引き継いで交代。控えがいないと失敗。
+        // 引き継ぐ(第9世代): ランク(マイナスも)/こんらん/きゅうしょアップ/みがわり/やどりぎのタネ/のろい/
+        //   ほろびのうた/ねをはる/パワートリック(実数値上書き)。引き継がない: バインド/しおづけ/アンコール等。
+        // 出典: ポケモンWiki「バトンタッチ」(世代別引き継ぎ表)
+        if (liveIdx < 0){
+          log('9', `しかし うまく きまらなかった！(出せる控えが いない)`);
+          noteActionFailed(atk);
+          continue;
+        }
+        const passed = {
+          rank: {...atk.rank},
+          confusion: atk.confusion || 0,
+          critBoost: atk.critBoost || 0,
+          subHp: atk.subHp || 0,
+          rooted: !!atk.rooted,
+          perishCount: atk.perishCount != null ? atk.perishCount : null,
+          slips: (atk.slips || []).filter(sl => sl.source === 'やどりぎのタネ' || sl.source === 'のろい').map(sl => ({...sl})),
+          statOverride: atk.statOverride ? {...atk.statOverride} : null,
+        };
+        if (attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true})){
+          const inSt = sides[atkSide];
+          inSt.rank = passed.rank;
+          inSt.confusion = passed.confusion;
+          inSt.critBoost = passed.critBoost;
+          inSt.subHp = passed.subHp;
+          inSt.rooted = passed.rooted;
+          inSt.perishCount = passed.perishCount;
+          inSt.slips = passed.slips;
+          inSt.statOverride = passed.statOverride;
+          log('9', `${inSt.poke.name} は 能力変化などを 引き継いだ！`);
+        }
+        continue;
+      }
       if (liveIdx >= 0) attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true});
       continue;
     }
@@ -3226,6 +3261,7 @@ function snapshotBattleState(){
     wish: st.wish ? {turns: st.wish.turns, amount: st.wish.amount} : null, // ねがいごとも一手戻せるように
     subHp: st.subHp || 0,                                        // みがわりも一手戻せるように
     critBoost: st.critBoost || 0,                                // きあいだめも一手戻せるように
+    confusion: st.confusion || 0,                                // こんらんも一手戻せるように(段82で漏れを発見し追加)
     // パーティ(控え)A-1: 交代も一手戻せるように(ポケモン本体・技・控えごと)
     poke: st.poke || null,
     moves: [...(st.moves || [])],
@@ -3301,6 +3337,7 @@ function undoBattle(){
     st.subHp = src.subHp || 0;                                         // みがわりの巻き戻し
     st.subAbsorbed = false;
     st.critBoost = src.critBoost || 0;                                 // きあいだめの巻き戻し
+    st.confusion = src.confusion || 0;                                 // こんらんの巻き戻し(段82で漏れを発見し追加)
     // パーティ(控え)A-1: 交代の巻き戻し(ポケモン本体・技・控えごと)
     st.poke = src.poke || null;
     st.moves = [...(src.moves || [])];
@@ -3657,6 +3694,7 @@ function clearVolatilesOnSwitch(st){
   st.soundBlocked = 0; st.soundBlockedMoves = null;
   st.electrified = null; st.typeSuppressed = null;
   st.rooted = false; st.subHp = 0; st.subAbsorbed = false; st.critBoost = 0;
+  st.confusion = 0;   // こんらんも揮発(バトンタッチだけが引き継ぐ)
   st.flinched = false; st.pendingStatus = null;   // あくびは交代すれば不発(Bulbapedia "Yawn")
   st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
   st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
@@ -4269,6 +4307,7 @@ function resetBattle(){
     st.subHp = 0;
     st.subAbsorbed = false;
     st.critBoost = 0;
+    st.confusion = 0;   // こんらんもクリア(段82で漏れを発見し追加)
     // パーティ(控え)A-1: 控えはメンバー(ポケモン・技)を保持したまま HP/状態だけ初期化
     (st.bench || []).forEach(e => { e.currentHp = null; e.fainted = false; e.status = 'none'; e.sleepTurns = null; });
     st.switchChoice = null;
