@@ -971,6 +971,10 @@ function makeSideState(){
     safeguard: false,                        // しんぴのまもり(相手からの状態異常とこんらんを防ぐ)
     screenTurns: {},                         // 技で張った壁の残りターン(flag→残数)。UI手動チェックは載らない=無期限
     stealthRock: false,
+    // 設置技A-4(サイドの場に残る=交代でリセットしない): まきびし(0〜3層)/どくびし(0〜2層)/ねばねばネット
+    spikesLayers: 0,
+    toxicSpikesLayers: 0,
+    stickyWeb: false,
     rockyHelmet: false,
     disguise: false,
     // このターンに技で受けたダメージ(最後の1発・カウンター/ミラーコート/メタルバースト用)。ターン開始でリセット。
@@ -2462,6 +2466,42 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (liveIdx >= 0) attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true});
       continue;
     }
+    // 設置(ステルスロック/まきびし/どくびし/ねばねばネット): 相手の場に仕掛け、交代で出てきたポケモンに発動。
+    // まきびし3層・どくびし2層まで(すでに最大なら失敗)。みがわりは関係なし(場に置く技)。
+    // 出典: ポケモンWiki「ステルスロック」「まきびし」「どくびし」「ねばねばネット」
+    if (ef.kind === '設置'){
+      const fieldSt = def;   // target: opponent_team = 相手の場
+      let placed = false;
+      if (ef.value === 'ステルスロック' && !fieldSt.stealthRock){
+        fieldSt.stealthRock = true; placed = true;
+        log('9', `${fieldSt.poke.name} の足元に とがった岩が 浮かびはじめた！`);
+      } else if (ef.value === 'まきびし' && (fieldSt.spikesLayers || 0) < (ef.max_layers || 3)){
+        fieldSt.spikesLayers = (fieldSt.spikesLayers || 0) + 1; placed = true;
+        log('9', `${fieldSt.poke.name} の足元に まきびしが 散らばった！(${fieldSt.spikesLayers}層)`);
+      } else if (ef.value === 'どくびし' && (fieldSt.toxicSpikesLayers || 0) < (ef.max_layers || 2)){
+        fieldSt.toxicSpikesLayers = (fieldSt.toxicSpikesLayers || 0) + 1; placed = true;
+        log('9', `${fieldSt.poke.name} の足元に どくびしが 散らばった！(${fieldSt.toxicSpikesLayers}層)`);
+      } else if (ef.value === 'sticky_web' && !fieldSt.stickyWeb){
+        fieldSt.stickyWeb = true; placed = true;
+        log('9', `${fieldSt.poke.name} の足元に ねばねばネットが 広がった！`);
+      }
+      if (!placed){
+        log('9', `しかし うまく きまらなかった！(これ以上 置けない)`);
+        noteActionFailed(atk);
+      }
+      continue;
+    }
+    // 設置除去(こうそくスピン): 自分の場の設置物を取り除く。
+    // trigger付きの宣言(どくびしの「どくタイプが出ると解除」)は applyEntryHazards 側で処理するのでスキップ
+    if (ef.kind === '設置除去'){
+      if (ef.trigger) continue;
+      const t = ef.target === 'team' || ef.target === 'self' ? atk : def;
+      if (t.stealthRock || (t.spikesLayers || 0) > 0 || (t.toxicSpikesLayers || 0) > 0 || t.stickyWeb){
+        t.stealthRock = false; t.spikesLayers = 0; t.toxicSpikesLayers = 0; t.stickyWeb = false;
+        log('9', `${t.poke.name} の場の 設置物が 消えた！`);
+      }
+      continue;
+    }
     // 強制交代(攻撃)(ドラゴンテール/ともえなげ): ダメージのあと相手をランダムな控えと強制交代させる。
     // ねをはる相手・控えなしは交代しない(ダメージのみ)。みがわりに防がれたら交代しない(上のみがわり遮断guard)。
     // きゅうばんは特性=park。出典: ポケモンWiki「ポケモンチェンジ」
@@ -3288,6 +3328,11 @@ function snapshotBattleState(){
     subHp: st.subHp || 0,                                        // みがわりも一手戻せるように
     critBoost: st.critBoost || 0,                                // きあいだめも一手戻せるように
     confusion: st.confusion || 0,                                // こんらんも一手戻せるように(段82で漏れを発見し追加)
+    // 設置技A-4も一手戻せるように(stealthRockは既存UIフラグを共用)
+    stealthRock: !!st.stealthRock,
+    spikesLayers: st.spikesLayers || 0,
+    toxicSpikesLayers: st.toxicSpikesLayers || 0,
+    stickyWeb: !!st.stickyWeb,
     // パーティ(控え)A-1: 交代も一手戻せるように(ポケモン本体・技・控えごと)
     poke: st.poke || null,
     moves: [...(st.moves || [])],
@@ -3364,6 +3409,11 @@ function undoBattle(){
     st.subAbsorbed = false;
     st.critBoost = src.critBoost || 0;                                 // きあいだめの巻き戻し
     st.confusion = src.confusion || 0;                                 // こんらんの巻き戻し(段82で漏れを発見し追加)
+    // 設置技A-4の巻き戻し
+    st.stealthRock = !!src.stealthRock;
+    st.spikesLayers = src.spikesLayers || 0;
+    st.toxicSpikesLayers = src.toxicSpikesLayers || 0;
+    st.stickyWeb = !!src.stickyWeb;
     // パーティ(控え)A-1: 交代の巻き戻し(ポケモン本体・技・控えごと)
     st.poke = src.poke || null;
     st.moves = [...(src.moves || [])];
@@ -3726,6 +3776,43 @@ function clearVolatilesOnSwitch(st){
   st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
   st.selectedMoveIdx = null;  // 新しいポケモンの技選択はUI/呼び出し側がやり直す
 }
+// 交代で出てきたポケモンへの設置物の発動。発動順は ステルスロック→まきびし→どくびし→ねばねばネット(近似)。
+// 出典: ポケモンWiki「ステルスロック」(最大HP×いわ相性÷8・全員に当たる)/「まきびし」(接地のみ 1層1/8・2層1/6・3層1/4)/
+//       「どくびし」(接地のみ 1層どく・2層もうどく・どくタイプが接地で出ると解除)/「ねばねばネット」(接地のみ すばやさ-1)
+function applyEntryHazards(sideKey){
+  const st = sides[sideKey];
+  if (!st.poke || st.fainted) return;
+  const types = sideTypes(st);
+  if (st.stealthRock){
+    const dmg = Math.floor(realStat(st, 'hp') * stealthRockMult(types) / 8);
+    if (dmg > 0){
+      st.currentHp = Math.max(0, st.currentHp - dmg);
+      log('9', `とがった岩が ${st.poke.name} に 食いこんだ！ ${dmg} ダメージ！ (残HP ${st.currentHp})`);
+      if (st.currentHp <= 0){ st.fainted = true; log('9', `${st.poke.name} は ひんしになった！`); return; }
+    }
+  }
+  if ((st.spikesLayers || 0) > 0 && isGrounded(st)){
+    const fr = st.spikesLayers >= 3 ? 0.25 : st.spikesLayers === 2 ? (1 / 6) : 0.125;
+    const dmg = Math.max(1, Math.floor(realStat(st, 'hp') * fr));
+    st.currentHp = Math.max(0, st.currentHp - dmg);
+    log('9', `${st.poke.name} は まきびしの ダメージを受けた！ ${dmg} ダメージ！ (残HP ${st.currentHp})`);
+    if (st.currentHp <= 0){ st.fainted = true; log('9', `${st.poke.name} は ひんしになった！`); return; }
+  }
+  if ((st.toxicSpikesLayers || 0) > 0 && isGrounded(st)){
+    if (types.includes('どく')){
+      st.toxicSpikesLayers = 0;
+      log('9', `${st.poke.name} は どくびしを 吸収した！`);
+    } else if (!types.includes('はがね') && st.status === 'none'){
+      st.status = st.toxicSpikesLayers >= 2 ? 'badpoison' : 'poison';
+      log('9', `${st.poke.name} は ${st.toxicSpikesLayers >= 2 ? 'もうどく' : 'どく'} 状態になった！`);
+    }
+  }
+  if (st.stickyWeb && isGrounded(st)){
+    st.rank.spd = Math.max(-6, (st.rank.spd || 0) - 1);
+    log('9', `${st.poke.name} は ねばねばネットに ひっかかった！ すばやさ-1`);
+  }
+}
+
 // 交代の実行。成功=true / 失敗(封じ・出せる控えなし)=false
 // opts.ignoreTrapping: 技による交代(とんぼがえり等)は交代封じの影響を受けない(ポケモンWiki「ポケモンチェンジ」)
 function attemptSwitch(sideKey, benchIdx, opts){
@@ -3748,6 +3835,7 @@ function attemptSwitch(sideKey, benchIdx, opts){
   if (st.currentHp == null) st.currentHp = realStat(st, 'hp');   // 未設定=満タンで出す
   st.switchedThisTurn = true;
   log('9', `${outName} は 引っ込んだ！ ${st.poke.name} が 場に出た！`);
+  applyEntryHazards(sideKey);   // 設置技(ステルスロック等)は交代完了後に発動
   return true;
 }
 
@@ -4347,6 +4435,9 @@ function resetBattle(){
     st.safeguard = false;
     st.screenTurns = {};
     st.stealthRock = false;
+    st.spikesLayers = 0;
+    st.toxicSpikesLayers = 0;
+    st.stickyWeb = false;
     st.disguise = false;
     // 選択中のわざ矢印もリセット
     st.selectedMoveIdx = null;
