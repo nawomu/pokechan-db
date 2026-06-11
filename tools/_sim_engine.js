@@ -60,6 +60,10 @@ function buildEngine() {
 
   vm.runInContext(itemsSrc, ctx, { filename: 'items_database.js' });
   const expose = `\n;try {
+    // DOMContentLoadedはvmでは発火しない → ITEM_BY_KEY(道具の逆引き)を手で詰める(段94で判明)
+    if (typeof ITEM_BY_KEY !== 'undefined' && window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){
+      window.ITEMS_DATABASE.items.forEach(it=>{ ITEM_BY_KEY[it.key] = it; });
+    }
     if (typeof renderBoth==='function') renderBoth = function(){};
     if (typeof renderBattleLog==='function') renderBattleLog = function(){};
     if (typeof render==='function') render = function(){};
