@@ -68,6 +68,7 @@ function buildEngine() {
     if (typeof POKE_MAP_BY_NAME !== 'undefined' && typeof POKEMON_LIST !== 'undefined'){
       POKEMON_LIST.forEach(p=>{ POKE_MAP_BY_NAME[p.name] = p; });
     }
+    if (typeof registerVirtualItems === 'function') registerVirtualItems();   // 汎用メガストーン
     if (typeof renderBoth==='function') renderBoth = function(){};
     if (typeof renderBattleLog==='function') renderBattleLog = function(){};
     if (typeof render==='function') render = function(){};

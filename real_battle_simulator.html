@@ -4608,11 +4608,32 @@ function attemptSwitch(sideKey, benchIdx, opts){
 // バトルの流れ_実機リファレンス.md(メガシンカは交代の後・技フェーズの直前・各サイド1バトル1回)。
 // 種族値・タイプ・特性は POKEMON_LIST のメガフォームのエントリへ切替(HPは引き継ぎ)。
 // バトルリセットで元のフォームに戻る。メガ状態のまま交代してもバトル中は戻らない(megaBaseが控えに同行)。
+// シミュレーター用の汎用メガストーン(2026-06-12 阿部さん: ポケモンごとにストーンを選ぶのは面倒
+// →1個の「メガストーン」でそのポケモンに対応するメガフォームに変身できる)
+function registerVirtualItems(){
+  if (typeof ITEM_BY_KEY === 'undefined' || ITEM_BY_KEY['mega_stone_any']) return;
+  const v = { key: 'mega_stone_any', name: 'メガストーン', category: 'mega_stone',
+    effect: '持たせたポケモンにメガフォームがあればメガシンカできる(シミュレーター用の汎用ストーン)',
+    implemented_in_pokechan: true, is_default: true };
+  ITEM_BY_KEY[v.key] = v;
+  try {
+    const db = (typeof window !== 'undefined' && window.ITEMS_DATABASE) || (typeof ITEMS_DATABASE !== 'undefined' ? ITEMS_DATABASE : null);
+    if (db && Array.isArray(db.items) && !db.items.some(i => i.key === v.key)) db.items.unshift(v);
+  } catch (e) {}
+}
+// そのポケモンのメガフォームを探す(POKEMON_LISTの「メガ◯◯」。X/Y分岐は専用ストーン以外ではXを既定=近似)
+function megaFormFor(poke){
+  if (!poke) return null;
+  return POKE_MAP_BY_NAME['メガ' + poke.name] || POKE_MAP_BY_NAME['メガ' + poke.name + 'X'] || null;
+}
 function canMegaEvolve(st){
   if (!st.poke || st.fainted || st.megaUsed || !st.item) return null;
   const it = ITEM_BY_KEY[st.item];
-  if (!it || it.category !== 'mega_stone' || it.applies_to !== st.poke.name || !it.mega_form) return null;
-  return POKE_MAP_BY_NAME[it.mega_form] || null;
+  if (!it || it.category !== 'mega_stone') return null;
+  // 専用ストーン(applies_to一致)はその宣言のメガフォームへ(リザードンX/Yを正しく分岐)。
+  // 汎用ストーン・不一致のストーンでも、持ち主にメガフォームが存在すればそれに変身できる(阿部さん指定)
+  if (it.applies_to === st.poke.name && it.mega_form) return POKE_MAP_BY_NAME[it.mega_form] || null;
+  return megaFormFor(st.poke);
 }
 function megaEvolve(sideKey){
   const st = sides[sideKey];
@@ -6664,6 +6685,7 @@ window.addEventListener('DOMContentLoaded', ()=>{
   if (window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){
     window.ITEMS_DATABASE.items.forEach(it=>{ ITEM_BY_KEY[it.key] = it; });
   }
+  registerVirtualItems();   // 汎用メガストーン(シミュレーター専用)を選択肢の先頭に足す
 
   initNatureSelects();
   attachEpInput();
