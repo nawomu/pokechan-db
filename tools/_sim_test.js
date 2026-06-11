@@ -4959,6 +4959,108 @@ console.log('\n=== 段94 たべのこし(ターン終了時に最大HPの1/16回
   resetEnv();
 }
 
+console.log('\n=== 段95 きのみ・タイプ強化(発動+消費。既存バグ=フィールド名不一致で全部不発だった) ===');
+// 出典: items_database.js宣言(boost_type/resist_type/trigger/heal_fraction/cure_target)/ポケモンWiki各道具。
+// 既存バグ: エンジンが poke_type を読んでいた(データに存在しないキー)→ タイプ強化18種・半減きのみ18種が不発だった。
+{
+  resetEnv();
+  // T196 タイプ強化(もくたん): ほのお技の威力1.2倍
+  E.sides.self = freshSide('リザードン', null);
+  E.sides.self.moves = [moveByName('かえんほうしゃ')];
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  const noItem196 = E.calcDamage('self', 'opp', moveByName('かえんほうしゃ')).min;
+  E.sides.self.item = 'type_boost_fire';
+  const withItem196 = E.calcDamage('self', 'opp', moveByName('かえんほうしゃ')).min;
+  check('T196 もくたんで ほのお技のダメージが上がる', withItem196 > noItem196,
+    `なし=${noItem196} あり=${withItem196}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T196b 半減きのみ: 効果バツグンの技を一度だけ半減し、使ったら消える
+  E.sides.self = freshSide('リザードン', null);
+  E.sides.self.moves = [moveByName('かえんほうしゃ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');   // ほのお×くさ=バツグン
+  E.sides.opp.status = 'sleep';
+  const plain196b = E.calcDamage('self', 'opp', moveByName('かえんほうしゃ')).min;
+  E.sides.opp.item = 'berry_resist_fire';   // オッカのみ相当
+  const oppMax196b = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppMax196b;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  const dealt196b = oppMax196b - E.sides.opp.currentHp;
+  check('T196b 半減きのみでバツグンのダメージが半減される', dealt196b < plain196b && dealt196b > 0,
+    `素=${plain196b} 半減後=${dealt196b}`);
+  check('T196b 使ったきのみは消える(lastConsumedItemに記録)',
+    E.sides.opp.item === '' && E.sides.opp.lastConsumedItem === 'berry_resist_fire',
+    `item=${E.sides.opp.item} last=${E.sides.opp.lastConsumedItem}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T197 オボンのみ: HPが半分以下になったら最大HPの1/4回復して消費
+  E.sides.self = freshSide('カビゴン', 'hataku');
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.item = 'berry_sitrus';
+  const oppMax197 = E.realStat(E.sides.opp, 'hp');   // 155
+  E.sides.opp.currentHp = Math.floor(oppMax197 / 2) + 10;   // 87: 一撃(約30)で半分以下に落ちる
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  const dmg197 = E.calcDamage('self', 'opp', moveByName('はたく')).min;
+  const exp197 = Math.floor(oppMax197 / 2) + 10 - dmg197 + Math.floor(oppMax197 / 4);
+  check('T197 オボンのみ: 半分以下に落ちたら1/4回復+消費',
+    E.sides.opp.currentHp === exp197 && E.sides.opp.item === '',
+    `hp=${E.sides.opp.currentHp}(${exp197}期待) item=${E.sides.opp.item}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T197b 半分より上では発動しない
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.item = 'berry_sitrus';
+  E.sides.self.currentHp = E.realStat(E.sides.self, 'hp');
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T197b HPが半分より上なら発動しない', E.sides.self.item === 'berry_sitrus',
+    `item=${E.sides.self.item}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T198 ラムのみ: 状態異常が付いた直後に治して消費(おにび→やけど→即治癒)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('おにび')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.item = 'berry_cure_all';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T198 ラムのみ: やけどが即治って消費される',
+    E.sides.opp.status === 'none' && E.sides.opp.item === '',
+    `status=${E.sides.opp.status} item=${E.sides.opp.item}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T198b クラボのみ(まひ専用)はやけどには反応しない
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('おにび')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.item = 'berry_cure_paralysis';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T198b クラボのみ(まひ専用)はやけどに反応しない',
+    E.sides.opp.status === 'burn' && E.sides.opp.item === 'berry_cure_paralysis',
+    `status=${E.sides.opp.status} item=${E.sides.opp.item}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

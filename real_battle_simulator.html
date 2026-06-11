@@ -1062,6 +1062,8 @@ function makeSideState(){
     trapped: false,
     // いやしのねがい: 次に出てくるポケモンが全回復する予約(サイドに残る=交代でリセットしない)
     healingWish: false,
+    // B案(道具): 最後に消費した道具のkey(リサイクル用。ポケモンと一緒に控えへ移動する)
+    lastConsumedItem: null,
     // パーティ(控え)A-1: 控えエントリの配列(最大3体マイナス場の1体)。エントリ=BENCH_FIELDSの永続フィールドのみ
     bench: [],
     // このターンの行動選択が「交代」のとき、出す控えのindex(null=技を出す)。runTurnの交代フェーズが消費する
@@ -1571,7 +1573,8 @@ function calcDamage(atkSide, defSide, move, opts){
   // 3.8) 攻撃側 持ち物（タイプ強化系: もくたん等 ×1.2）
   // マジックルーム中は全員の持ち物の効果がなくなる(Bulbapedia "Magic Room")→持ち物系の補正を全てスキップ
   const atkItem = (!env.magicRoom && atk.item) ? ITEM_BY_KEY[atk.item] : null;
-  if (atkItem && atkItem.category === 'type_boost' && atkItem.poke_type === moveType){
+  // ※データのキーは boost_type(段95で修正: 旧 poke_type はデータに存在せず18種全部不発だった)
+  if (atkItem && atkItem.category === 'type_boost' && atkItem.boost_type === moveType){
     base = pokeRound(base, atkItem.q12 || 4915);
     chips.push({label:atkItem.name, factor:atkItem.factor || 1.2, kind:'item'});
   }
@@ -1626,7 +1629,8 @@ function calcDamage(atkSide, defSide, move, opts){
     // 8.5) 半減きのみ（防御側 item、効果バツグン時のみ ×0.5。マジックルーム中は効果なし）
     if (eff > 1){
       const defItem = (!env.magicRoom && def.item) ? ITEM_BY_KEY[def.item] : null;
-      if (defItem && defItem.category === 'berry_resist' && defItem.poke_type === moveType){
+      // ※データのキーは resist_type(段95で修正: 旧 poke_type はデータに存在せず18種全部不発だった)
+      if (defItem && defItem.category === 'berry_resist' && defItem.resist_type === moveType){
         v = pokeRound(v, 2048);
         if (r === 85) chips.push({label:defItem.name, factor:0.5, kind:'item'});
       }
@@ -2123,6 +2127,16 @@ function phaseDealDamage(atkSide, defSide, move){
   else if (hitCount > 1) log('8', `${atk.poke.name} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   else log('8', `${atk.poke.name} の ${move.name}！ ${def.poke.name} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   if (critRoll && total > 0) log('8', `きゅうしょに あたった！`);
+  // 半減きのみ: 実際に半減が効いた攻撃(バツグン+タイプ一致+本体が受けた)で一度だけ消費。
+  // ※分身(みがわり)が受けた時は消費しない(計算は半減のまま=近似・コメント宣言)。出典: ポケモンWiki「オッカのみ」等
+  if (def.poke && !env.magicRoom && def.item && total > 0 && !def.subAbsorbed){
+    const _bi = ITEM_BY_KEY[def.item];
+    if (_bi && _bi.category === 'berry_resist' && _bi.resist_type === result.moveType &&
+        moveTypeEff(result.moveType, sideTypes(def)) > 1){
+      consumeItem(def);
+      log('9', `${def.poke.name} は ${_bi.name}で ダメージを 半減した！(きのみは なくなった)`);
+    }
+  }
 
   // 吸収(ドレイン): 与ダメ合計の fraction だけ自分が回復
   const drainEf = _effs.find(e => e.kind === '吸収');
@@ -3455,6 +3469,7 @@ function snapshotBattleState(){
     confusion: st.confusion || 0,                                // こんらんも一手戻せるように(段82で漏れを発見し追加)
     trapped: !!st.trapped,                                       // にげられない状態も一手戻せるように
     healingWish: !!st.healingWish,                               // いやしのねがいも一手戻せるように
+    lastConsumedItem: st.lastConsumedItem || null,               // 消費した道具(リサイクル用)も一手戻せるように
     // 設置技A-4も一手戻せるように(stealthRockは既存UIフラグを共用)
     stealthRock: !!st.stealthRock,
     spikesLayers: st.spikesLayers || 0,
@@ -3538,6 +3553,7 @@ function undoBattle(){
     st.confusion = src.confusion || 0;                                 // こんらんの巻き戻し(段82で漏れを発見し追加)
     st.trapped = !!src.trapped;                                        // にげられない状態の巻き戻し
     st.healingWish = !!src.healingWish;                                // いやしのねがいの巻き戻し
+    st.lastConsumedItem = src.lastConsumedItem || null;                // 消費した道具の巻き戻し
     // 設置技A-4の巻き戻し
     st.stealthRock = !!src.stealthRock;
     st.spikesLayers = src.spikesLayers || 0;
@@ -3799,6 +3815,7 @@ function runSingleAttack(atkSide, moveIdx){
     applyHpCost(atk, mv);
     // 自分瀕死: 威力あり=結果に関係なく / 威力なし(いのちがけ)=当たった時だけ
     if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
+    itemReactions();   // B案: 行動の後に道具(きのみ)の発動チェック
   }
   // 攻撃側のターン終了スリップ（片側攻撃でも自分側のみ処理）
   phaseSlipFor(atkSide);
@@ -3870,7 +3887,7 @@ function startChargeIfNeeded(st, mv, releasing){
 //   ※フェアリーロック/かげふみ/ありじごく/じりょく/きれいなぬけがら は未実装(park)。
 // ・壁(リフレクター等)・ねがいごと・みらいよちは「場(サイド)」に残る=ポケモンに付いて行かない。
 // 控えエントリ = ポケモンと一緒に移動する永続フィールドだけの入れ物
-const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns'];
+const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem'];
 function packBenchEntry(st){
   const e = {};
   for (const k of BENCH_FIELDS) e[k] = st[k];
@@ -3913,6 +3930,55 @@ function clearVolatilesOnSwitch(st){
   st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
   st.selectedMoveIdx = null;  // 新しいポケモンの技選択はUI/呼び出し側がやり直す
 }
+// === B案: 道具(きのみ等)の発動・消費 ===
+// 出典: items_database.js の宣言(category/trigger/heal_fraction/heal_amount_fixed/cure_target)+ポケモンWiki各道具。
+// 発動チェックは ①各行動の後 ②ターン終了処理の後 に呼ぶ(実機の「即時発動」をイベント直後チェックで近似)。
+function consumeItem(st){
+  st.lastConsumedItem = st.item;
+  st.item = '';
+}
+function _itemFrac(s){
+  const p = String(s).split('/');
+  return p.length === 2 ? Number(p[0]) / Number(p[1]) : Number(s) || 0;
+}
+function itemReactions(){
+  ['self','opp'].forEach(s => {
+    const st = sides[s];
+    if (!st.poke || st.fainted || !st.item || env.magicRoom) return;
+    const it = ITEM_BY_KEY[st.item];
+    if (!it) return;
+    // HPきのみ(オボン/オレン): HPが半分以下になっていたら回復して消費(ヒメリ=PP系は未対応)
+    if (it.category === 'berry_hp_cure' && it.trigger === 'hp_le_50pct'){
+      const max = realStat(st, 'hp');
+      if (st.currentHp != null && st.currentHp > 0 && st.currentHp <= Math.floor(max / 2)){
+        const heal = it.heal_fraction ? Math.max(1, Math.floor(max * _itemFrac(it.heal_fraction)))
+                   : (it.heal_amount_fixed || 0);
+        if (heal > 0){
+          st.currentHp = Math.min(max, st.currentHp + heal);
+          consumeItem(st);
+          log('9', `${st.poke.name} は ${it.name}で HPを ${heal} 回復した！ (残HP ${st.currentHp})`);
+        }
+      }
+      return;
+    }
+    // 状態異常きのみ(ラム/クラボ等): 対象の状態異常・こんらんが付いていたら治して消費
+    if (it.category === 'berry_status_cure'){
+      const tgt = it.cure_target;
+      const CMAP = {paralysis:['paralysis'], sleep:['sleep'], poison:['poison','badpoison'], burn:['burn'], freeze:['freeze']};
+      let cured = false;
+      if ((tgt === 'all' || tgt === 'confusion') && st.confusion > 0){ st.confusion = 0; cured = true; }
+      if (tgt === 'all' ? (st.status !== 'none') : (CMAP[tgt] || []).includes(st.status)){
+        st.status = 'none'; st.badpoisonCounter = 0; st.sleepTurns = null;
+        cured = true;
+      }
+      if (cured){
+        consumeItem(st);
+        log('9', `${st.poke.name} は ${it.name}で 状態異常を 治した！`);
+      }
+    }
+  });
+}
+
 // 交代で出てきたポケモンへの設置物の発動。発動順は ステルスロック→まきびし→どくびし→ねばねばネット(近似)。
 // 出典: ポケモンWiki「ステルスロック」(最大HP×いわ相性÷8・全員に当たる)/「まきびし」(接地のみ 1層1/8・2層1/6・3層1/4)/
 //       「どくびし」(接地のみ 1層どく・2層もうどく・どくタイプが接地で出ると解除)/「ねばねばネット」(接地のみ すばやさ-1)
@@ -4272,6 +4338,7 @@ function runTurn(){
       phaseApplyEffects(a.side, a.opp, mv);
       // おきみやげ/いやしのねがい=成功した時だけ自滅(失敗ゲートが noteActionFailed を立てた時は倒れない)
       if (_selfKO && !atk.failedThisTurn) applySelfFaint(atk);
+      itemReactions();   // B案: 行動の後に道具(きのみ)の発動チェック
       continue;
     }
     // ダメ計算とHP適用
@@ -4290,6 +4357,7 @@ function runTurn(){
     applyHpCost(atk, mv);
     // 自分瀕死: 威力あり=結果に関係なく / 威力なし(いのちがけ)=当たった時だけ
     if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
+    itemReactions();   // B案: 行動の後に道具(きのみ)の発動チェック
   }
   // ターン終了処理
   phaseEndOfTurnSlip();
@@ -4375,6 +4443,7 @@ function runTurn(){
       log('10', 'フェアリーロックが 解けた！');
     }
   }
+  itemReactions();   // B案: ターン終了処理(スリップ等)の後にも道具の発動チェック
   // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
   for (const s of ['self','opp']){
     const st = sides[s];
@@ -4608,6 +4677,8 @@ function resetBattle(){
     st.confusion = 0;   // こんらんもクリア(段82で漏れを発見し追加)
     st.trapped = false;
     st.healingWish = false;
+    if (st.lastConsumedItem && !st.item){ st.item = st.lastConsumedItem; }   // バトルリセットで消費した道具は戻す
+    st.lastConsumedItem = null;
     // パーティ(控え)A-1: 控えはメンバー(ポケモン・技)を保持したまま HP/状態だけ初期化
     (st.bench || []).forEach(e => { e.currentHp = null; e.fainted = false; e.status = 'none'; e.sleepTurns = null; });
     st.switchChoice = null;
