@@ -1064,6 +1064,12 @@ function makeSideState(){
     healingWish: false,
     // B案(道具): 最後に消費した道具のkey(リサイクル用。ポケモンと一緒に控えへ移動する)
     lastConsumedItem: null,
+    // おいかぜ: 自分側のすばやさ2倍の残りターン(サイドに残る=交代しても続く)
+    tailwindTurns: 0,
+    // アクアリング: 毎ターン終了時に最大HPの1/16回復(場を離れるまで。バトンタッチで引き継ぐ)
+    aquaRing: false,
+    // でんじふゆう: >0の間、地面にいない扱い(じめん技無効。場を離れるまでではなく5ターン。バトンタッチで引き継ぐ)
+    magnetRise: 0,
     // パーティ(控え)A-1: 控えエントリの配列(最大3体マイナス場の1体)。エントリ=BENCH_FIELDSの永続フィールドのみ
     bench: [],
     // このターンの行動選択が「交代」のとき、出す控えのindex(null=技を出す)。runTurnの交代フェーズが消費する
@@ -1426,6 +1432,12 @@ function calcDamage(atkSide, defSide, move, opts){
     return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
             immune:true, reason:'こうかなし', recoil:0};
   }
+  // でんじふゆう: 地面にいない扱い=じめん技はこうかなし(じゅうりょく/ねをはるで打ち消し。ポケモンWiki「でんじふゆう」)
+  if (moveType === 'じめん' && def.magnetRise > 0 && !env.gravity && !def.rooted){
+    const hp = realStat(def, 'hp');
+    return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
+            immune:true, reason:'こうかなし(でんじふゆうで浮いている)', recoil:0};
+  }
 
   // 適用された補正をチップ表示用に記録
   const chips = [];
@@ -1776,6 +1788,7 @@ function effectiveSpeed(st){
   if (st.status === 'paralysis' && sideAbility(st) !== 'はやあし') s = Math.floor(s / 2);
   const item = (!env.magicRoom && st.item) ? ITEM_BY_KEY[st.item] : null;
   if (item && item.key === 'kodawari_scarf') s = Math.floor(s * 1.5);
+  if (st.tailwindTurns > 0) s = s * 2;   // おいかぜ: 自分側のすばやさ2倍(ポケモンWiki「おいかぜ」)
   return s;
 }
 
@@ -2243,6 +2256,7 @@ function isGrounded(st){
   if (!st || !st.poke) return false;
   if (env.gravity) return true;
   if (st.rooted) return true; // ねをはる: 根をはると地面にいる扱い(Bulbapedia "Ingrain")
+  if (st.magnetRise > 0) return false; // でんじふゆう: 浮いている(ポケモンWiki「でんじふゆう」)
   if (sideTypes(st).includes('ひこう')) return false;
   if (sideAbility(st) === 'ふゆう') return false;
   return true;
@@ -2592,6 +2606,8 @@ function phaseApplyEffects(atkSide, defSide, move){
           perishCount: atk.perishCount != null ? atk.perishCount : null,
           slips: (atk.slips || []).filter(sl => sl.source === 'やどりぎのタネ' || sl.source === 'のろい').map(sl => ({...sl})),
           statOverride: atk.statOverride ? {...atk.statOverride} : null,
+          aquaRing: !!atk.aquaRing,                  // アクアリングも引き継ぐ(第9世代表○)
+          magnetRise: atk.magnetRise || 0,           // でんじふゆうも引き継ぐ(第9世代表○)
         };
         if (attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true})){
           const inSt = sides[atkSide];
@@ -2603,6 +2619,8 @@ function phaseApplyEffects(atkSide, defSide, move){
           inSt.perishCount = passed.perishCount;
           inSt.slips = passed.slips;
           inSt.statOverride = passed.statOverride;
+          inSt.aquaRing = passed.aquaRing;
+          inSt.magnetRise = passed.magnetRise;
           log('9', `${inSt.poke.name} は 能力変化などを 引き継いだ！`);
         }
         continue;
@@ -2807,6 +2825,28 @@ function phaseApplyEffects(atkSide, defSide, move){
         if (!target.slips) target.slips = [];
         target.slips.push({ source: 'バインド', fraction: (ef.turn_end_damage != null ? ef.turn_end_damage : 0.125), turns: bTurns });
         log('9', `${target.poke.name} は ${move.name}で バインド状態になった！`);
+        continue;
+      }
+      // おいかぜ: 4ターンの間、自分側のすばやさが2倍(サイドに残る=交代しても続く。ポケモンWiki「おいかぜ」)
+      if (ef.value === 'おいかぜ'){
+        if (target.tailwindTurns > 0){
+          log('9', `しかし うまく きまらなかった！(すでに 追い風が吹いている)`);
+          noteActionFailed(atk);
+        } else {
+          target.tailwindTurns = ef.duration || 4;
+          log('9', `${target.poke.name} の後ろから 追い風が 吹きはじめた！`);
+        }
+        continue;
+      }
+      // でんじふゆう: 5ターンの間、地面にいない扱い(じめん技無効・設置技無効。ポケモンWiki「でんじふゆう」)
+      if (ef.value === 'でんじふゆう'){
+        if (target.magnetRise > 0){
+          log('9', `しかし うまく きまらなかった！(すでに 浮いている)`);
+          noteActionFailed(atk);
+        } else {
+          target.magnetRise = ef.duration || 5;
+          log('9', `${target.poke.name} は 電磁力で 浮き上がった！`);
+        }
         continue;
       }
       // きゅうしょアップ(きあいだめ): 急所ランク+2の状態になる(場を離れるまで)。重ねがけは失敗。
@@ -3023,6 +3063,17 @@ function phaseApplyEffects(atkSide, defSide, move){
       // フラグはサイドに残し、attemptSwitch(死に出し含む)が消費する。控えなしの失敗ゲートはループ前。
       // 出典: ポケモンWiki「いやしのねがい」/ Bulbapedia "Healing Wish"
       if (ef.target === 'incoming'){ atk.healingWish = true; continue; }
+      // アクアリング(turn_end+duration宣言): 毎ターン終了時に1/16回復する状態をまとう(場を離れるまで)
+      if (ef.phase === 'turn_end' && ef.duration){
+        if (target.aquaRing){
+          log('9', `しかし うまく きまらなかった！(すでに 水のリングをまとっている)`);
+          noteActionFailed(atk);
+        } else {
+          target.aquaRing = true;
+          log('9', `${target.poke.name} は 水のリングを まとった！`);
+        }
+        continue;
+      }
       // turn_end宣言(グラスフィールドの毎ターン回復)はターン終了処理が担当 → ここ(使用時)では発動しない
       if (ef.phase === 'turn_end') continue;
       // ねをはる(lasting+trigger:turn_end の毎ターン回復)もターン終了処理(rooted)が担当 → 使用時は発動しない
@@ -3570,6 +3621,9 @@ function snapshotBattleState(){
     trapped: !!st.trapped,                                       // にげられない状態も一手戻せるように
     healingWish: !!st.healingWish,                               // いやしのねがいも一手戻せるように
     lastConsumedItem: st.lastConsumedItem || null,               // 消費した道具(リサイクル用)も一手戻せるように
+    tailwindTurns: st.tailwindTurns || 0,                        // おいかぜも一手戻せるように
+    aquaRing: !!st.aquaRing,                                     // アクアリングも一手戻せるように
+    magnetRise: st.magnetRise || 0,                              // でんじふゆうも一手戻せるように
     // 設置技A-4も一手戻せるように(stealthRockは既存UIフラグを共用)
     stealthRock: !!st.stealthRock,
     spikesLayers: st.spikesLayers || 0,
@@ -3654,6 +3708,9 @@ function undoBattle(){
     st.trapped = !!src.trapped;                                        // にげられない状態の巻き戻し
     st.healingWish = !!src.healingWish;                                // いやしのねがいの巻き戻し
     st.lastConsumedItem = src.lastConsumedItem || null;                // 消費した道具の巻き戻し
+    st.tailwindTurns = src.tailwindTurns || 0;                         // おいかぜの巻き戻し
+    st.aquaRing = !!src.aquaRing;                                      // アクアリングの巻き戻し
+    st.magnetRise = src.magnetRise || 0;                               // でんじふゆうの巻き戻し
     // 設置技A-4の巻き戻し
     st.stealthRock = !!src.stealthRock;
     st.spikesLayers = src.spikesLayers || 0;
@@ -4025,6 +4082,7 @@ function clearVolatilesOnSwitch(st){
   st.rooted = false; st.subHp = 0; st.subAbsorbed = false; st.critBoost = 0;
   st.confusion = 0;   // こんらんも揮発(バトンタッチだけが引き継ぐ)
   st.trapped = false; // にげられない状態も揮発
+  st.aquaRing = false; st.magnetRise = 0;   // アクアリング/でんじふゆうも揮発(バトンタッチは引き継ぐ)。おいかぜはサイド残留=触らない
   st.flinched = false; st.pendingStatus = null;   // あくびは交代すれば不発(Bulbapedia "Yawn")
   st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
   st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
@@ -4702,6 +4760,26 @@ function runTurn(){
         log('10', `${st.poke.name} は ねをはって HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
       }
     }
+    // アクアリング: ターン終了ごとに最大HPの1/16回復(ポケモンWiki「アクアリング」)
+    if (st.aquaRing && st.poke && !st.fainted){
+      const _max = realStat(st, 'hp');
+      if (st.currentHp == null) st.currentHp = _max;
+      if (st.currentHp < _max){
+        const _before = st.currentHp;
+        st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max / 16)));
+        log('10', `${st.poke.name} は アクアリングで HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+      }
+    }
+    // でんじふゆうのカウントダウン(5ターンで降りる)
+    if (st.magnetRise > 0){
+      st.magnetRise--;
+      if (st.magnetRise <= 0){ st.magnetRise = 0; log('10', `${st.poke.name} の 電磁浮遊が 解けた！`); }
+    }
+    // おいかぜのカウントダウン(4ターンでやむ)
+    if (st.tailwindTurns > 0){
+      st.tailwindTurns--;
+      if (st.tailwindTurns <= 0){ st.tailwindTurns = 0; log('10', `${st.poke.name} 側の 追い風が やんだ！`); }
+    }
     // たべのこし(B案: trigger end_of_turn 宣言の持ち物): ターン終了時に最大HPの1/16回復(消費しない)。
     // 出典: items_database.js 宣言(trigger/heal_fraction)/ポケモンWiki「たべのこし」。マジックルーム中は無効。
     if (st.poke && !st.fainted && st.item && !env.magicRoom){
@@ -4848,6 +4926,9 @@ function resetBattle(){
     st.confusion = 0;   // こんらんもクリア(段82で漏れを発見し追加)
     st.trapped = false;
     st.healingWish = false;
+    st.tailwindTurns = 0;
+    st.aquaRing = false;
+    st.magnetRise = 0;
     if (st.lastConsumedItem && !st.item){ st.item = st.lastConsumedItem; }   // バトルリセットで消費した道具は戻す
     st.lastConsumedItem = null;
     // パーティ(控え)A-1: 控えはメンバー(ポケモン・技)を保持したまま HP/状態だけ初期化
