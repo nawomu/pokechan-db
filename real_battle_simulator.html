@@ -549,6 +549,37 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
   background:#1a2030;border:1px solid #2a3450;color:#cfd6e4}
 .bench-slot .b-btns button:hover:not(:disabled){background:#22305a;border-color:#3a4a80}
 .bench-slot .b-btns button:disabled{opacity:.4;cursor:default}
+/* バトルステージ(段105) */
+#battle-stage{position:relative;margin:8px 0 10px;padding:10px 8px 8px;background:linear-gradient(180deg,#10182a,#0c1322);
+  border:1px solid #232a3a;border-radius:12px;overflow:hidden}
+.stage-weather{position:absolute;inset:0;pointer-events:none;opacity:.25;font-size:30px;text-align:center;line-height:1.2;letter-spacing:14px;overflow:hidden}
+.stage-row{display:flex;align-items:stretch;gap:6px;position:relative}
+.stage-mon{flex:1 1 0;min-width:0;text-align:center;position:relative;padding:14px 4px 6px;border-radius:10px;transition:transform .15s}
+.stage-side-tag{position:absolute;top:2px;left:6px;font-size:9px;font-weight:700;padding:1px 7px;border-radius:8px}
+.self-tag{background:#11331f;color:#4ade80;border:1px solid #4ade8044}
+.opp-tag{background:#3a1518;color:#f87171;border:1px solid #f8717144}
+.stage-vs{align-self:center;font-size:11px;font-weight:800;color:#5b667d;flex:0 0 auto}
+.mon-art{height:64px;display:flex;align-items:center;justify-content:center;margin-bottom:4px}
+.mon-art img{max-height:64px;max-width:90px;image-rendering:auto;filter:drop-shadow(0 3px 4px #0008)}
+.mon-circle{display:inline-flex;align-items:center;justify-content:center;width:54px;height:54px;border-radius:50%;
+  font-size:13px;font-weight:800;color:#fff;background:#3a4660;box-shadow:inset 0 -6px 12px #0006,0 3px 6px #0008}
+.mon-name{font-size:12px;font-weight:700;color:#dbe3f2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mon-hpbar{height:7px;background:#1d2433;border-radius:4px;margin:3px 10px 2px;overflow:hidden}
+.mon-hpfill{height:100%;border-radius:4px;background:#4ade80;width:100%;transition:width .45s,background .45s}
+.mon-hpfill.mid{background:#fbbf24}.mon-hpfill.low{background:#f87171}
+.mon-hptext{font-size:10px;color:#8b94a7}
+.mon-badges{margin-top:3px;min-height:16px;display:flex;flex-wrap:wrap;gap:3px;justify-content:center}
+.mon-badges .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#1a2030;border:1px solid #2a3450;color:#9fb4d8}
+.mon-badges .bdg.st{background:#3a2518;color:#fbbf24;border-color:#fbbf2444}
+.mon-badges .bdg.fainted{background:#3a1518;color:#f87171;border-color:#f8717166;font-weight:700}
+@keyframes stShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-7px)}40%{transform:translateX(6px)}60%{transform:translateX(-4px)}80%{transform:translateX(3px)}}
+@keyframes stFlash{0%{background:#f8717133}100%{background:transparent}}
+@keyframes stHeal{0%{background:#4ade8033}100%{background:transparent}}
+@keyframes stPop{0%{transform:scale(.6);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+.stage-mon.hit{animation:stShake .45s,stFlash .6s}
+.stage-mon.heal{animation:stHeal .7s}
+.stage-mon.acting{transform:translateY(-4px) scale(1.04)}
+.mon-badges .bdg.new{animation:stPop .35s}
 .battle-ctrl button:active{transform:translateY(1px)}
 .battle-hint{font-size:10px;color:#8b949e;margin-top:4px;line-height:1.4}
 
@@ -834,6 +865,30 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <button id="btn-full-reset" type="button">🔄 全リセット</button>
     </div>
     <div class="battle-hint">技横の <b>実行</b> で片側攻撃。両側選択して「ターン実行」で同時。</div>
+
+    <!-- バトルステージ(段105): キャラ枠+HPバー+状態バッジ。絵は images/sim/{ポケモン名}.png を置けば差し替わる -->
+    <div id="battle-stage">
+      <div class="stage-weather" id="stage-weather"></div>
+      <div class="stage-row">
+        <div class="stage-mon" id="stage-self">
+          <span class="stage-side-tag self-tag">自分</span>
+          <div class="mon-art"><span class="mon-circle">?</span></div>
+          <div class="mon-name">—</div>
+          <div class="mon-hpbar"><div class="mon-hpfill"></div></div>
+          <div class="mon-hptext">—</div>
+          <div class="mon-badges"></div>
+        </div>
+        <div class="stage-vs">VS</div>
+        <div class="stage-mon" id="stage-opp">
+          <span class="stage-side-tag opp-tag">相手</span>
+          <div class="mon-art"><span class="mon-circle">?</span></div>
+          <div class="mon-name">—</div>
+          <div class="mon-hpbar"><div class="mon-hpfill"></div></div>
+          <div class="mon-hptext">—</div>
+          <div class="mon-badges"></div>
+        </div>
+      </div>
+    </div>
 
     <h3 style="margin-top:4px">📜 バトルログ</h3>
     <div id="battle-log"></div>
@@ -5880,6 +5935,102 @@ function swapSides(){
 function renderBoth(){
   render('self');
   render('opp');
+  renderStage();
+}
+
+// === バトルステージ(段105): キャラ枠+HPバー+状態バッジ+簡易エフェクト ===
+// 絵は images/sim/{ポケモン名}.png を置けば自動で差し替わる(手描き風オリジナル用スロット)。無ければタイプ色サークル。
+let _stageLogPos = 0;
+function _stageBadges(st){
+  const b = [];
+  const ja = _STATUS_JA[st.status];
+  if (ja) b.push({t: ja, c: 'st'});
+  if (st.confusion > 0) b.push({t: 'こんらん', c: 'st'});
+  if (st.subHp > 0) b.push({t: 'みがわり'});
+  if (st.critBoost > 0) b.push({t: 'きゅうしょUP'});
+  if ((st.slips || []).some(x => x.source === 'バインド')) b.push({t: 'バインド', c: 'st'});
+  if ((st.slips || []).some(x => x.source === 'やどりぎのタネ')) b.push({t: 'やどりぎ', c: 'st'});
+  if ((st.slips || []).some(x => x.source === 'しおづけ')) b.push({t: 'しおづけ', c: 'st'});
+  if (st.rooted) b.push({t: 'ねをはる'});
+  if (st.aquaRing) b.push({t: 'アクアリング'});
+  if (st.magnetRise > 0) b.push({t: 'でんじふゆう'});
+  if (st.syrupTurns > 0) b.push({t: 'あめまみれ', c: 'st'});
+  if (st.healBlockTurns > 0) b.push({t: 'かいふくふうじ', c: 'st'});
+  if (st.trapped) b.push({t: 'にげられない', c: 'st'});
+  if (st.tailwindTurns > 0) b.push({t: 'おいかぜ'});
+  if (st.reflect) b.push({t: 'リフレクター'});
+  if (st.lightScreen) b.push({t: 'ひかりのかべ'});
+  if (st.auroraVeil) b.push({t: 'オーロラベール'});
+  if (st.stealthRock) b.push({t: 'ステルスロック', c: 'st'});
+  if ((st.spikesLayers || 0) > 0) b.push({t: `まきびし×${st.spikesLayers}`, c: 'st'});
+  if ((st.toxicSpikesLayers || 0) > 0) b.push({t: `どくびし×${st.toxicSpikesLayers}`, c: 'st'});
+  if (st.stickyWeb) b.push({t: 'ねばねばネット', c: 'st'});
+  if (st.perishCount != null) b.push({t: `ほろび${st.perishCount}`, c: 'st'});
+  return b;
+}
+function renderStage(){
+  const wEl = document.getElementById('stage-weather');
+  if (wEl){
+    const W = {sunny: '☀️', rain: '🌧', sand: '🌪', snow: '❄️'};
+    wEl.textContent = W[env.weather] ? Array(7).join(W[env.weather] + ' ') : '';
+  }
+  ['self', 'opp'].forEach(s => {
+    const el = document.getElementById('stage-' + s);
+    if (!el) return;
+    const st = sides[s];
+    const nameEl = el.querySelector('.mon-name');
+    const art = el.querySelector('.mon-art');
+    if (!st.poke){
+      nameEl.textContent = '—';
+      art.innerHTML = '<span class="mon-circle">?</span>';
+      el.querySelector('.mon-hptext').textContent = '—';
+      el.querySelector('.mon-badges').innerHTML = '';
+      return;
+    }
+    nameEl.textContent = st.poke.name;
+    const color = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[st.poke.type1]) || '#3a4660';
+    art.innerHTML = `<img src="images/sim/${encodeURIComponent(st.poke.name)}.png" alt=""
+        style="display:none" onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'">
+      <span class="mon-circle" style="background:${color}">${st.poke.type1 || '?'}</span>`;
+    const max = realStat(st, 'hp') || 1;
+    const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
+    const pct = Math.max(0, Math.min(100, hp / max * 100));
+    const fill = el.querySelector('.mon-hpfill');
+    fill.style.width = pct + '%';
+    fill.className = 'mon-hpfill' + (pct <= 25 ? ' low' : pct <= 50 ? ' mid' : '');
+    el.querySelector('.mon-hptext').textContent = st.fainted ? 'ひんし' : `${hp} / ${max}`;
+    el.querySelector('.mon-badges').innerHTML = st.fainted
+      ? '<span class="bdg fainted">ひんし</span>'
+      : _stageBadges(st).map(x => `<span class="bdg ${x.c || ''} new">${x.t}</span>`).join('');
+  });
+  animateStageFromLog();
+}
+// 新しいログ行を読んで、ダメージ=揺れ+赤 / 回復=緑 を時系列順に再生する(順番に見せる簡易演出)
+function animateStageFromLog(){
+  if (_stageLogPos > battleLog.length) _stageLogPos = 0;
+  const fresh = battleLog.slice(_stageLogPos);
+  _stageLogPos = battleLog.length;
+  let delay = 80;
+  for (const e of fresh){
+    const m = e.msg;
+    let side = null, cls = null;
+    let dm = m.match(/(相手の )?[^\s！]+ に \d+ ダメージ/);
+    if (dm){ side = dm[1] ? 'opp' : 'self'; cls = 'hit'; }
+    else if (/回復/.test(m)){ side = m.startsWith('相手の') ? 'opp' : 'self'; cls = 'heal'; }
+    else if (/みがわりが \d+ ダメージ/.test(m)){ side = m.includes('相手の') ? 'opp' : 'self'; cls = 'hit'; }
+    if (!side || !cls) continue;
+    const el = document.getElementById('stage-' + side);
+    if (!el) continue;
+    const c = cls;
+    setTimeout(() => {
+      el.classList.remove(c);
+      void el.offsetWidth;   // reflow=アニメ再発火
+      el.classList.add(c);
+      setTimeout(() => el.classList.remove(c), 750);
+    }, delay);
+    delay += 400;
+    if (delay > 4800) break;   // 演出は最大12発まで(長い乱戦はログで追う)
+  }
 }
 
 // =========================================================================
