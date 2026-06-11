@@ -64,6 +64,10 @@ function buildEngine() {
     if (typeof ITEM_BY_KEY !== 'undefined' && window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){
       window.ITEMS_DATABASE.items.forEach(it=>{ ITEM_BY_KEY[it.key] = it; });
     }
+    // POKE_MAP_BY_NAME(名前→ポケモン逆引き)も同じ理由で手詰め(段117=メガシンカで判明)
+    if (typeof POKE_MAP_BY_NAME !== 'undefined' && typeof POKEMON_LIST !== 'undefined'){
+      POKEMON_LIST.forEach(p=>{ POKE_MAP_BY_NAME[p.name] = p; });
+    }
     if (typeof renderBoth==='function') renderBoth = function(){};
     if (typeof renderBattleLog==='function') renderBattleLog = function(){};
     if (typeof render==='function') render = function(){};
@@ -76,6 +80,8 @@ function buildEngine() {
     runSingleAttack: (typeof runSingleAttack !== 'undefined') ? runSingleAttack : null,
     attemptSwitch: (typeof attemptSwitch !== 'undefined') ? attemptSwitch : null,
     aiChooseMove: (typeof aiChooseMove !== 'undefined') ? aiChooseMove : null,
+    megaEvolve: (typeof megaEvolve !== 'undefined') ? megaEvolve : null,
+    resetBattle: (typeof resetBattle !== 'undefined') ? resetBattle : null,
     effectiveSpeed: (typeof effectiveSpeed !== 'undefined') ? effectiveSpeed : null,
     variablePower: (typeof variablePower !== 'undefined') ? variablePower : null,
     TEST_POKEMON: (typeof TEST_POKEMON !== 'undefined') ? TEST_POKEMON : null,

@@ -549,6 +549,10 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
   background:#1a2030;border:1px solid #2a3450;color:#cfd6e4}
 .bench-slot .b-btns button:hover:not(:disabled){background:#22305a;border-color:#3a4a80}
 .bench-slot .b-btns button:disabled{opacity:.4;cursor:default}
+.bench-slot.mega{flex:1 1 100%;cursor:pointer;font-weight:800;color:#e9d5ff;background:linear-gradient(90deg,#2a1c3a,#1c2a3a);
+  border:1px solid #7c5cbf66;justify-content:center;align-items:center}
+.bench-slot.mega:hover{border-color:#a78bfa}
+.bench-slot.mega.armed{color:#fbbf24;border-color:#fbbf2466;background:linear-gradient(90deg,#3a2c1a,#2a1c3a)}
 /* バトルステージ(段105) */
 #battle-stage{position:relative;margin:8px 0 10px;padding:10px 8px 8px;background:linear-gradient(180deg,#10182a,#0c1322);
   border:1px solid #232a3a;border-radius:12px;overflow:hidden}
@@ -1136,6 +1140,11 @@ function makeSideState(){
     syrupTurns: 0,
     // もらいび発動中(ほのお技を吸収した後true=自分のほのお技1.5倍)。交代でリセット
     flashFire: false,
+    // メガシンカ(Init-B): megaUsed=このサイドはバトル中もう使った / megaChoice=次のターン頭で変身する予約 /
+    // megaBase=変身前のフォーム(バトルリセットで戻す。ポケモンと一緒に控えへ同行)
+    megaUsed: false,
+    megaChoice: false,
+    megaBase: null,
     // かいふくふうじ(サイコノイズ): >0の間、回復技が失敗する(2ターン)
     healBlockTurns: 0,
     // パーティ(控え)A-1: 控えエントリの配列(最大3体マイナス場の1体)。エントリ=BENCH_FIELDSの永続フィールドのみ
@@ -3883,6 +3892,9 @@ function snapshotBattleState(){
     syrupTurns: st.syrupTurns || 0,                              // あめまみれも一手戻せるように
     healBlockTurns: st.healBlockTurns || 0,                      // かいふくふうじも一手戻せるように
     flashFire: !!st.flashFire,                                   // もらいび発動状態も一手戻せるように
+    megaUsed: !!st.megaUsed,                                     // メガシンカも一手戻せるように
+    megaChoice: !!st.megaChoice,
+    megaBase: st.megaBase || null,
     // 設置技A-4も一手戻せるように(stealthRockは既存UIフラグを共用)
     stealthRock: !!st.stealthRock,
     spikesLayers: st.spikesLayers || 0,
@@ -3973,6 +3985,9 @@ function undoBattle(){
     st.syrupTurns = src.syrupTurns || 0;                               // あめまみれの巻き戻し
     st.healBlockTurns = src.healBlockTurns || 0;                       // かいふくふうじの巻き戻し
     st.flashFire = !!src.flashFire;                                    // もらいび発動状態の巻き戻し
+    st.megaUsed = !!src.megaUsed;                                      // メガシンカの巻き戻し
+    st.megaChoice = !!src.megaChoice;
+    st.megaBase = src.megaBase || null;
     // 設置技A-4の巻き戻し
     st.stealthRock = !!src.stealthRock;
     st.spikesLayers = src.spikesLayers || 0;
@@ -4306,7 +4321,7 @@ function startChargeIfNeeded(st, mv, releasing){
 //   ※フェアリーロック/かげふみ/ありじごく/じりょく/きれいなぬけがら は未実装(park)。
 // ・壁(リフレクター等)・ねがいごと・みらいよちは「場(サイド)」に残る=ポケモンに付いて行かない。
 // 控えエントリ = ポケモンと一緒に移動する永続フィールドだけの入れ物
-const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem'];
+const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem','megaBase'];
 function packBenchEntry(st){
   const e = {};
   for (const k of BENCH_FIELDS) e[k] = st[k];
@@ -4588,6 +4603,31 @@ function attemptSwitch(sideKey, benchIdx, opts){
   return true;
 }
 
+// === Init-B: メガシンカ(段117) ===
+// 出典: HANDOFF_PHASE3_INIT_B.md / items_database.js(mega_stone: applies_to/mega_form宣言) /
+// バトルの流れ_実機リファレンス.md(メガシンカは交代の後・技フェーズの直前・各サイド1バトル1回)。
+// 種族値・タイプ・特性は POKEMON_LIST のメガフォームのエントリへ切替(HPは引き継ぎ)。
+// バトルリセットで元のフォームに戻る。メガ状態のまま交代してもバトル中は戻らない(megaBaseが控えに同行)。
+function canMegaEvolve(st){
+  if (!st.poke || st.fainted || st.megaUsed || !st.item) return null;
+  const it = ITEM_BY_KEY[st.item];
+  if (!it || it.category !== 'mega_stone' || it.applies_to !== st.poke.name || !it.mega_form) return null;
+  return POKE_MAP_BY_NAME[it.mega_form] || null;
+}
+function megaEvolve(sideKey){
+  const st = sides[sideKey];
+  const mf = canMegaEvolve(st);
+  if (!mf) return false;
+  const stone = ITEM_BY_KEY[st.item];
+  st.megaBase = st.poke;
+  st.poke = mf;
+  st.ability = mf.ab1 || '';
+  st.megaUsed = true;
+  st.megaChoice = false;
+  log('0a', `${pname(st)} の ${stone.name}が 反応している！ ${mf.name} に メガシンカした！`);
+  return true;
+}
+
 // === B: 対戦AI(段115) — 技の自動選択 ===
 // ダメージ最大(平均値)を選ぶ。こうかなし(immune)は選ばない・確定で倒せる技に大ボーナス。
 // 変化技はv1では「攻撃が全部無効な時の保険」(スコア1)。交代判断はv1では持たない(死に出しは自動)。
@@ -4658,6 +4698,8 @@ function runTurn(){
       attemptSwitch(s, idx);
     }
   }
+  // ③ メガシンカ(Init-B): 交代の後・技フェーズの直前(実機リファレンス)。予約(megaChoice)があれば変身
+  ['self', 'opp'].forEach(s => { if (sides[s].megaChoice) megaEvolve(s); });
   // 交代した側はこのターン技を出さない(交代して出されたポケモンは次のターンまで行動できない)
   const selfMove = sides.self.switchedThisTurn ? null : sides.self.moves[sides.self.selectedMoveIdx];
   const oppMove  = sides.opp.switchedThisTurn ? null : sides.opp.moves[sides.opp.selectedMoveIdx];
@@ -5283,6 +5325,11 @@ function resetBattle(){
     st.syrupTurns = 0;
     st.healBlockTurns = 0;
     st.flashFire = false;
+    // メガシンカはバトルリセットで元のフォームに戻る(控えのメガも戻す)
+    if (st.megaBase){ st.poke = st.megaBase; st.ability = ''; st.megaBase = null; }
+    (st.bench || []).forEach(e => { if (e && e.megaBase){ e.poke = e.megaBase; e.ability = ''; e.megaBase = null; } });
+    st.megaUsed = false;
+    st.megaChoice = false;
     if (st.lastConsumedItem && !st.item){ st.item = st.lastConsumedItem; }   // バトルリセットで消費した道具は戻す
     st.lastConsumedItem = null;
     // パーティ(控え)A-1: 控えはメンバー(ポケモン・技)を保持したまま HP/状態だけ初期化
@@ -5498,6 +5545,12 @@ function renderBench(root, side){
   const st = sides[side];
   if (!st.bench) st.bench = [];
   let html = '<span class="bench-head">控え</span>';
+  // メガシンカボタン(段117): ストーン装備+未使用の時だけ出る。クリックで予約→ターン実行の頭で変身
+  if (st.megaChoice){
+    html = `<button type="button" class="bench-slot mega armed" data-mega="1" title="クリックで予約解除">⬡ メガシンカ予約中(ターン実行で変身)</button>` + html;
+  } else if (typeof canMegaEvolve === 'function' && canMegaEvolve(st)){
+    html = `<button type="button" class="bench-slot mega" data-mega="1" title="次のターンの頭でメガシンカする">⬡ メガシンカ！</button>` + html;
+  }
   for (let i = 0; i < BENCH_MAX; i++){
     const e = st.bench[i];
     if (!e || !e.poke){
@@ -6431,6 +6484,9 @@ document.querySelectorAll('.bench-bar').forEach(bar=>{
       renderBoth();
     } else if (btn.dataset.benchRemove != null){
       sides[side].bench[+btn.dataset.benchRemove] = null;
+      render(side);
+    } else if (btn.dataset.mega != null){
+      sides[side].megaChoice = !sides[side].megaChoice;   // 予約のトグル(変身はターン実行の頭)
       render(side);
     }
   });
