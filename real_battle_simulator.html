@@ -1882,6 +1882,9 @@ function effectiveSpeed(st){
   const item = (!env.magicRoom && st.item) ? ITEM_BY_KEY[st.item] : null;
   if (item && item.key === 'kodawari_scarf') s = Math.floor(s * 1.5);
   if (st.tailwindTurns > 0) s = s * 2;   // おいかぜ: 自分側のすばやさ2倍(ポケモンWiki「おいかぜ」)
+  // 天候すばやさ特性(段113・ABILITY_DESC公式準拠): 該当天候で2倍
+  const _WSPD = {'すいすい': 'rain', 'ようりょくそ': 'sunny', 'すなかき': 'sand', 'ゆきかき': 'snow'};
+  if (_WSPD[sideAbility(st)] === env.weather) s = s * 2;
   return s;
 }
 
@@ -4516,6 +4519,20 @@ function attemptSwitch(sideKey, benchIdx, opts){
     return false;
   }
   const outName = pname(st);
+  // 交代連動特性(段113・ABILITY_DESC公式準拠): 控えに戻る時に発動(死に出し=ひんしには発動しない)
+  if (!st.fainted && (st.currentHp == null || st.currentHp > 0)){
+    const _outAb = sideAbility(st);
+    if (_outAb === 'さいせいりょく'){
+      const _m = realStat(st, 'hp');
+      if (st.currentHp < _m){
+        st.currentHp = Math.min(_m, st.currentHp + Math.floor(_m / 3));
+        log('9', `${outName} は さいせいりょくで 回復しながら 戻った！`);
+      }
+    } else if (_outAb === 'しぜんかいふく' && st.status !== 'none'){
+      st.status = 'none'; st.badpoisonCounter = 0; st.sleepTurns = null;
+      log('9', `${outName} は しぜんかいふくで 状態異常を 治して 戻った！`);
+    }
+  }
   st.bench[benchIdx] = packBenchEntry(st);   // 出ていたポケモンの永続フィールドを控え枠へ
   clearVolatilesOnSwitch(st);
   for (const k of BENCH_FIELDS) st[k] = entry[k];
@@ -4526,6 +4543,13 @@ function attemptSwitch(sideKey, benchIdx, opts){
   if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${pname(st)} が 場に出た！`);
   else log('9', `${outName} は 引っ込んだ！ ${pname(st)} が 場に出た！`);
   applyEntryHazards(sideKey);   // 設置技(ステルスロック等)は交代完了後に発動
+  // おみとおし: 場に出た時、相手の持ち物を見抜く(段113・ABILITY_DESC公式準拠)
+  {
+    const _oppSt = sides[sideKey === 'self' ? 'opp' : 'self'];
+    if (sideAbility(st) === 'おみとおし' && _oppSt.poke && _oppSt.item && ITEM_BY_KEY[_oppSt.item]){
+      log('9', `${pname(st)} は おみとおしで ${pname(_oppSt)} の ${ITEM_BY_KEY[_oppSt.item].name}を 見抜いた！`);
+    }
+  }
   // いやしのねがい: 出てきたポケモンが全回復(設置物のダメージの後=回復で帳消しにできる)。
   // 実機(第8世代以降)は「健康なポケモンには持ち越し」だが、simは最初に出たポケモンに適用する近似。
   if (st.healingWish && !st.fainted && st.poke){
