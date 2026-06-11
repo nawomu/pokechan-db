@@ -962,6 +962,7 @@ const env = {
   wonderRoomTurns: null,
   magicRoom: false,      // マジックルーム（全員の持ち物の効果がなくなる）
   magicRoomTurns: null,
+  fairyLockTurns: null,  // フェアリーロック(全員逃走不可)の残りカウント(発動=2、次のターンの終わりまで)
 };
 
 // 範囲技判定（ダブルで ×0.75 が乗る対象）
@@ -2491,6 +2492,13 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (liveIdx >= 0) attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true});
       continue;
     }
+    // 全員逃走不可(フェアリーロック): 次のターンの終わりまで全員交代できない(ゴースト/技による交代は無視可)。
+    // 出典: ポケモンWiki「フェアリーロック」
+    if (ef.kind === '全員逃走不可'){
+      env.fairyLockTurns = 2;   // このターンの終わりに2→1、次のターンの終わりに1→0で解除
+      log('9', `フェアリーロックで 誰も にげられなくなった！`);
+      continue;
+    }
     // 拘束(くろいまなざし/とおせんぼう/かげぬい): 相手をにげられない状態にする(かけた側が場を離れるまで)。
     // ゴーストタイプには効かない(データのimmune宣言+第6世代以降は素で封じ無視)。
     // 出典: ポケモンWiki「くろいまなざし」/「ポケモンチェンジ」
@@ -3795,6 +3803,7 @@ function cannotSwitchReason(st){
   if (st.rooted) return 'ねをはっている';
   if (st.trapped) return 'にげられない';
   if ((st.slips || []).some(sl => sl.source === 'バインド')) return 'バインドされている';
+  if (env.fairyLockTurns > 0) return 'フェアリーロック';
   return null;
 }
 // 交代時の揮発リセット: resetBattle のポケモン由来項目と同じ範囲。
@@ -4265,6 +4274,14 @@ function runTurn(){
       log('10', 'マジックルームの 効果が なくなった！');
     }
   }
+  // フェアリーロックのカウントダウン(次のターンの終わりに解除)
+  if (env.fairyLockTurns != null && env.fairyLockTurns > 0){
+    env.fairyLockTurns--;
+    if (env.fairyLockTurns <= 0){
+      env.fairyLockTurns = null;
+      log('10', 'フェアリーロックが 解けた！');
+    }
+  }
   // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
   for (const s of ['self','opp']){
     const st = sides[s];
@@ -4418,6 +4435,7 @@ function fullResetBattle(){
   env.wonderRoomTurns = null;
   env.magicRoom = false;
   env.magicRoomTurns = null;
+  env.fairyLockTurns = null;
   battleLog.length = 0;
   battleHistory.length = 0;
   log('Reset', '全リセット完了');
