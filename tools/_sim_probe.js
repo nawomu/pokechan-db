@@ -1,7 +1,9 @@
 /* 全技を sim で1ターン試して「挙動」を機械観測する(安い)。LLM判定(ワークフロー)の一次データ。
  * 実行: node tools/_sim_probe.js            → 全技を review/_sim_probe_all.json に出力
  *       node tools/_sim_probe.js <技名>     → 1技だけ表示
- * 観測は phase を直接呼んで self の技を opp に当てた結果(必中・追加効果必発・乱数min に固定)。
+ * 観測は runSingleAttack(実際の行動フロー)で self の技を opp に当てた結果(必中・追加効果必発・乱数min)。
+ * ※段102でphase直呼び→行動フロー経由に変更: 溜め技/自滅/requiresゲート/まもり等が観測に乗るように
+ *   (run4検証で「phase直呼びだと行動フローのゲートが見えず誤mismatch判定になる」と判明したため)。
  */
 const fs = require('fs');
 const path = require('path');
@@ -27,8 +29,7 @@ function probe(move) {
   E.setRandom(() => 0); // 必中・追加効果必発・乱数最小
   const sb = snap(E.sides.self), ob = snap(E.sides.opp), wb = E.env.weather, fb = E.env.field;
   try {
-    if (move.category === '変化') E.phaseApplyEffects('self', 'opp', move);
-    else { const dr = E.phaseDealDamage('self', 'opp', move); if (dr && !dr.immune && !E.sides.opp.fainted) E.phaseApplyEffects('self', 'opp', move); }
+    E.runSingleAttack('self', 0);   // 実際の行動フロー(溜め/自滅/requires/まもり/道具反応まで含む)
   } catch (e) { return { error: String(e && e.message || e) }; }
   const sa = snap(E.sides.self), oa = snap(E.sides.opp);
   return {
