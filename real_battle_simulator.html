@@ -533,6 +533,22 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 .battle-ctrl button:hover{border-color:#58a6ff;background:#1c2a3a;color:#fff}
 .battle-ctrl button#btn-run-turn{background:linear-gradient(90deg,#1c2a3a,#2a1c3a);}
 .battle-ctrl button#btn-run-turn:hover{background:linear-gradient(90deg,#22354a,#341d4a);}
+/* パーティ(控え)A-6 */
+.bench-bar{display:flex;gap:6px;align-items:stretch;margin:6px 0 2px;flex-wrap:wrap}
+.bench-bar .bench-head{font-size:10px;color:#8b949e;align-self:center;flex:0 0 auto}
+.bench-slot{flex:1 1 0;min-width:120px;display:flex;flex-direction:column;gap:2px;
+  background:#141927;border:1px solid #232a3a;border-radius:8px;padding:5px 8px;font-size:11px}
+.bench-slot.empty{justify-content:center;align-items:center;color:#5b667d;background:transparent;
+  border-style:dashed;cursor:pointer;font-size:11px}
+.bench-slot.empty:hover{color:#9fb4d8;border-color:#3a4660}
+.bench-slot.fainted{opacity:.55}
+.bench-slot .b-name{font-weight:700;color:#dbe3f2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bench-slot .b-hp{color:#8b949e;font-size:10px}
+.bench-slot .b-btns{display:flex;gap:4px;margin-top:2px}
+.bench-slot .b-btns button{flex:0 0 auto;font-size:10px;padding:2px 7px;border-radius:6px;cursor:pointer;
+  background:#1a2030;border:1px solid #2a3450;color:#cfd6e4}
+.bench-slot .b-btns button:hover:not(:disabled){background:#22305a;border-color:#3a4a80}
+.bench-slot .b-btns button:disabled{opacity:.4;cursor:default}
 .battle-ctrl button:active{transform:translateY(1px)}
 .battle-hint{font-size:10px;color:#8b949e;margin-top:4px;line-height:1.4}
 
@@ -698,6 +714,9 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       <span class="change-btn">▾ 選択</span>
     </div>
 
+    <!-- パーティ(控え)A-6: 控え2枠(パーティ3体) -->
+    <div class="bench-bar"></div>
+
     <div class="stat-rows"></div>
     <div class="stat-foot-row">
       <select class="nature-select"></select>
@@ -829,6 +848,9 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
       </div>
       <span class="change-btn">▾ 選択</span>
     </div>
+
+    <!-- パーティ(控え)A-6: 控え2枠(パーティ3体) -->
+    <div class="bench-bar"></div>
 
     <div class="stat-rows"></div>
     <div class="stat-foot-row">
@@ -4632,6 +4654,41 @@ function render(side){
 
   // 技スロット
   renderMoves(root, st);
+
+  // パーティ(控え)A-6
+  renderBench(root, side);
+}
+
+// === パーティ(控え)A-6: 控えバーの描画 ===
+const BENCH_MAX = 2;   // パーティ3体=場の1体+控え2体(2026-06-11 阿部さん指定。エンジンは枚数可変)
+const _STATUS_JA = {burn:'やけど', paralysis:'まひ', poison:'どく', badpoison:'もうどく', sleep:'ねむり', freeze:'こおり'};
+function renderBench(root, side){
+  const bar = root.querySelector('.bench-bar');
+  if (!bar) return;
+  const st = sides[side];
+  if (!st.bench) st.bench = [];
+  let html = '<span class="bench-head">控え</span>';
+  for (let i = 0; i < BENCH_MAX; i++){
+    const e = st.bench[i];
+    if (!e || !e.poke){
+      html += `<button type="button" class="bench-slot empty" data-bench-add="${i}">＋ 控えを追加</button>`;
+      continue;
+    }
+    const max = realStat(e, 'hp');
+    const hp = e.currentHp == null ? max : e.currentHp;
+    const dead = e.fainted || hp <= 0;
+    const stLabel = (e.status && e.status !== 'none') ? `・${_STATUS_JA[e.status] || e.status}` : '';
+    html += `<div class="bench-slot${dead ? ' fainted' : ''}">
+      <span class="b-name">${e.poke.name}</span>
+      <span class="b-hp">${dead ? 'ひんし' : `HP ${hp}/${max}${stLabel}`}</span>
+      <span class="b-btns">
+        <button type="button" data-bench-switch="${i}" title="交代してターン実行(交代は技より先・このターンは行動できない)" ${dead || !st.poke ? 'disabled' : ''}>⚔ 交代</button>
+        <button type="button" data-bench-swap="${i}" title="ターンを使わず入れ替える(準備用)" ${dead || !st.poke ? 'disabled' : ''}>⇄</button>
+        <button type="button" data-bench-remove="${i}" title="控えから外す">✕</button>
+      </span>
+    </div>`;
+  }
+  bar.innerHTML = html;
 }
 
 // その選択ポケモンが「使える技」(覚える技=learners)を返す
@@ -5287,11 +5344,13 @@ function renderBoth(){
 // =========================================================================
 
 let currentModalSide = null;
+let benchModalIdx = null;   // パーティ(控え)A-6: nullでなければ「控え枠benchModalIdx」への選択モード
 
 function openPokeModal(side, anchorEl){
   currentModalSide = side;
   const modal = document.getElementById('poke-modal');
-  modal.querySelector('.who').textContent = side === 'self' ? '（自分側）' : '（相手側）';
+  modal.querySelector('.who').textContent =
+    (side === 'self' ? '（自分側）' : '（相手側）') + (benchModalIdx != null ? '控え' : '');
   document.getElementById('poke-search').value = '';
   renderPokeList('');
   modal.classList.add('vis');
@@ -5328,6 +5387,7 @@ function closePokeModal(){
   const box = document.querySelector('#poke-modal .modal-box');
   if (box){ box.style.position=''; box.style.left=''; box.style.top=''; box.style.margin=''; }
   currentModalSide = null;
+  benchModalIdx = null;
 }
 
 // ひらがな→カタカナに正規化(検索を かな区別なしに。例: 「やみ」で「ヤミラミ」がヒット)
@@ -5353,6 +5413,19 @@ function renderPokeList(q){
       </span>
     `;
     item.addEventListener('click', ()=>{
+      if (currentModalSide && benchModalIdx != null){
+        // パーティ(控え)A-6: 控え枠にセット(技は全技リスト・満タン・状態なしで待機)
+        const st = sides[currentModalSide];
+        if (!st.bench) st.bench = [];
+        st.bench[benchModalIdx] = {
+          poke: p, effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0}, natureIdx: 0,
+          ability: '', item: '', moves: usableMoves(p),
+          currentHp: null, fainted: false, status: 'none', sleepTurns: null,
+        };
+        render(currentModalSide);
+        closePokeModal();
+        return;
+      }
       if (currentModalSide){
         const st = sides[currentModalSide];
         st.poke = p;
@@ -5390,6 +5463,35 @@ document.getElementById('poke-modal').addEventListener('click', e=>{
 });
 document.addEventListener('keydown', e=>{
   if (e.key === 'Escape') closePokeModal();
+});
+
+// === パーティ(控え)A-6: 控えバーの操作 ===
+document.querySelectorAll('.bench-bar').forEach(bar=>{
+  bar.addEventListener('click', e=>{
+    const sideEl = bar.closest('.side');
+    if (!sideEl) return;
+    const side = sideEl.dataset.side;
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    if (btn.dataset.benchAdd != null){
+      benchModalIdx = +btn.dataset.benchAdd;
+      openPokeModal(side, btn);
+    } else if (btn.dataset.benchSwitch != null){
+      // 交代を今ターンの行動にしてターン実行(交代は技より先・出たポケモンはこのターン行動できない)
+      sides[side].switchChoice = +btn.dataset.benchSwitch;
+      runTurn();
+    } else if (btn.dataset.benchSwap != null){
+      // ターンを使わない入れ替え(チーム準備用。バトル中に使うと実機より有利になるので注意書きはtitleに)
+      ensureBattleState();
+      pushHistory();
+      attemptSwitch(side, +btn.dataset.benchSwap);
+      renderBattleLog();
+      renderBoth();
+    } else if (btn.dataset.benchRemove != null){
+      sides[side].bench[+btn.dataset.benchRemove] = null;
+      render(side);
+    }
+  });
 });
 
 // =========================================================================
