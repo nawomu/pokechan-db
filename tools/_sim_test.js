@@ -4935,6 +4935,30 @@ console.log('\n=== 段93 キラースピン(拘束解除: バインド/やどり
   resetEnv();
 }
 
+console.log('\n=== 段94 たべのこし(ターン終了時に最大HPの1/16回復) ===');
+// 出典: items_database.js宣言(trigger:end_of_turn, heal_fraction:1/16)/ポケモンWiki「たべのこし」。
+// きのみと違い消費されない。マジックルーム中は無効。満タンなら何も起きない。
+{
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.item = 'leftovers';
+  E.sides.self.currentHp = 100;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.sides.self.status = 'sleep';   // 両者眠り=ダメージ要因ゼロでターン終了処理だけ観測
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  const max195 = E.realStat(E.sides.self, 'hp');
+  check('T195 ターン終了時に最大HPの1/16回復(100→109)',
+    E.sides.self.currentHp === 100 + Math.floor(max195 / 16) && E.sides.self.item === 'leftovers',
+    `hp=${E.sides.self.currentHp}(${100 + Math.floor(max195 / 16)}期待) item=${E.sides.self.item}`);
+  E.sides.self.currentHp = max195;
+  E.runTurn();
+  check('T195b 満タンなら回復しない(超過しない)', E.sides.self.currentHp === max195,
+    `hp=${E.sides.self.currentHp}/${max195}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

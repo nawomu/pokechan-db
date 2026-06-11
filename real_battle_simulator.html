@@ -4462,6 +4462,22 @@ function runTurn(){
         log('10', `${st.poke.name} は ねをはって HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
       }
     }
+    // たべのこし(B案: trigger end_of_turn 宣言の持ち物): ターン終了時に最大HPの1/16回復(消費しない)。
+    // 出典: items_database.js 宣言(trigger/heal_fraction)/ポケモンWiki「たべのこし」。マジックルーム中は無効。
+    if (st.poke && !st.fainted && st.item && !env.magicRoom){
+      const _it = ITEM_BY_KEY[st.item];
+      if (_it && _it.trigger === 'end_of_turn' && _it.heal_fraction){
+        const _fr = String(_it.heal_fraction).split('/');
+        const _frac = _fr.length === 2 ? Number(_fr[0]) / Number(_fr[1]) : Number(_it.heal_fraction);
+        const _max = realStat(st, 'hp');
+        if (st.currentHp == null) st.currentHp = _max;
+        if (_frac > 0 && st.currentHp < _max){
+          const _before = st.currentHp;
+          st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max * _frac)));
+          log('10', `${st.poke.name} は ${_it.name}で HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+        }
+      }
+    }
     // みらいよち(遅延攻撃): カウントが0になったターンの終わりに相手へ当たる。
     // 当たる時にダメージ計算(その時点の能力・タイプ相性で計算/まもる・こらえるは当たるターンに有効)。
     // 出典: Bulbapedia "Future Sight"(第5世代以降)
