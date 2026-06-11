@@ -3834,7 +3834,8 @@ function attemptSwitch(sideKey, benchIdx, opts){
   for (const k of BENCH_FIELDS) st[k] = entry[k];
   if (st.currentHp == null) st.currentHp = realStat(st, 'hp');   // 未設定=満タンで出す
   st.switchedThisTurn = true;
-  log('9', `${outName} は 引っ込んだ！ ${st.poke.name} が 場に出た！`);
+  if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${st.poke.name} が 場に出た！`);
+  else log('9', `${outName} は 引っ込んだ！ ${st.poke.name} が 場に出た！`);
   applyEntryHazards(sideKey);   // 設置技(ステルスロック等)は交代完了後に発動
   return true;
 }
@@ -4337,6 +4338,16 @@ function runTurn(){
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
   sides.opp.turnsOut = (sides.opp.turnsOut || 0) + 1;
+  // 瀕死交代(死に出し): ひんしになったポケモンは、控えがいればターンの最後に次のポケモンと交代する。
+  // 死に出しで出たポケモンは「交代したターンは行動不可」の対象外(switchedThisTurnは次のターン開始で消える)。
+  // 控えの選択は実機ではプレイヤー=simは最初の生きている控えで近似。出典: ポケモンWiki「ポケモンチェンジ」
+  ['self','opp'].forEach(s => {
+    const st = sides[s];
+    if (!st.poke || !st.fainted) return;
+    const liveIdx = (st.bench || []).findIndex(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
+    if (liveIdx < 0) return;
+    attemptSwitch(s, liveIdx, {ignoreTrapping: true, faintReplace: true});
+  });
   log('Turn', '─── ターン終了 ───');
   renderBattleLog();
   renderBoth();
