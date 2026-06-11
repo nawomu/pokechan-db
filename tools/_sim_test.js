@@ -4207,6 +4207,99 @@ function benchEntry(pokeName, moveKey){
   resetEnv();
 }
 
+console.log('\n=== 段81 自分交代(とんぼがえり/ボルトチェンジ/すてゼリフ: 攻撃・効果のあと控えと交代) ===');
+// 出典: ポケモンWiki「ポケモンチェンジ」— 攻撃が成功すると直後に交代。控えがいないと攻撃/効果のみ。
+// 技による交代は交代封じ(バインド/ねをはる等)の影響を受けない。まもる等に防がれたら交代しない。
+{
+  resetEnv();
+  // T182 とんぼがえり: 相手にダメージ→自分は控えと交代
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('とんぼがえり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  const oppHp182 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppHp182;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T182 とんぼがえり: ダメージを与えてから交代した',
+    E.sides.opp.currentHp < oppHp182 && E.sides.self.poke.name === 'リザードン',
+    `oppHp=${E.sides.opp.currentHp}/${oppHp182} self=${E.sides.self.poke.name}`);
+  check('T182 控えにゲンガーが戻っている',
+    E.sides.self.bench[0].poke.name === 'ゲンガー',
+    `bench0=${E.sides.self.bench[0].poke.name}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T182b 控えがいないと攻撃のみ(交代しない・技は成功扱い)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('とんぼがえり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  const oppHp182b = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppHp182b;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T182b 控えなし: 攻撃のみで交代しない',
+    E.sides.opp.currentHp < oppHp182b && E.sides.self.poke.name === 'ゲンガー' && E.sides.self.failedThisTurn === false,
+    `oppHp=${E.sides.opp.currentHp} self=${E.sides.self.poke.name} failed=${E.sides.self.failedThisTurn}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T182c すてゼリフ: 相手のこうげき/とくこう-1 → 自分は交代
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('すてゼリフ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T182c すてゼリフ: こうげき-1/とくこう-1 のあと交代',
+    E.sides.opp.rank.atk === -1 && E.sides.opp.rank.spatk === -1 && E.sides.self.poke.name === 'リザードン',
+    `rank=${JSON.stringify(E.sides.opp.rank)} self=${E.sides.self.poke.name}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T182d 技による交代は交代封じを無視できる(ねをはる中でもとんぼがえりで交代できる)
+  // ※ゴーストタイプは素で封じ無視なので、ゴーストでないフシギバナで確かめる
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('とんぼがえり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.rooted = true;
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('ゲンガー', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T182d ねをはる中でも技による交代はできる',
+    E.sides.self.poke.name === 'リザードン',
+    `self=${E.sides.self.poke.name}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T182e まもるに防がれたら交代もしない(フシギバナ100 < ゲンガー130 でまもるが先)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('とんぼがえり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('まもる')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T182e まもるに防がれたら交代しない',
+    E.sides.self.poke.name === 'フシギバナ',
+    `self=${E.sides.self.poke.name}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

@@ -2402,6 +2402,17 @@ function phaseApplyEffects(atkSide, defSide, move){
       log('9', `${def.poke.name} は みがわりに 守られている！`);
       continue;
     }
+    // 自分交代(とんぼがえり/ボルトチェンジ/クイックターン/すてゼリフ): 攻撃・効果のあと控えと入れ替わる。
+    // 出せる控えがいなければ交代だけしない(攻撃/ランク下げは成立)。技による交代は交代封じを無視。
+    // 控えの選択は実機ではプレイヤーが選ぶ=simは最初の生きている控えで近似。
+    // バトンタッチ(pass宣言あり)は引き継ぎ交代=未実装(誤実装回避でスキップ・次段)。
+    // 出典: ポケモンWiki「ポケモンチェンジ」
+    if (ef.kind === '自分交代'){
+      if (ef.pass) continue;
+      const liveIdx = (atk.bench || []).findIndex(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
+      if (liveIdx >= 0) attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true});
+      continue;
+    }
     // 溜めターン専用の効果(メテオビーム/エレクトロビームのとくこう+1)は攻撃時には発動しない(startChargeIfNeededが担当)
     if (ef.kind === '能力ランク変化' && (ef.timing === 'charge_turn' || ef.on_charge_turn)) continue;
     const prob = ef.prob != null ? ef.prob : 100;
@@ -3652,7 +3663,8 @@ function clearVolatilesOnSwitch(st){
   st.selectedMoveIdx = null;  // 新しいポケモンの技選択はUI/呼び出し側がやり直す
 }
 // 交代の実行。成功=true / 失敗(封じ・出せる控えなし)=false
-function attemptSwitch(sideKey, benchIdx){
+// opts.ignoreTrapping: 技による交代(とんぼがえり等)は交代封じの影響を受けない(ポケモンWiki「ポケモンチェンジ」)
+function attemptSwitch(sideKey, benchIdx, opts){
   const st = sides[sideKey];
   if (!st.poke) return false;
   const entry = (st.bench || [])[benchIdx];
@@ -3660,7 +3672,7 @@ function attemptSwitch(sideKey, benchIdx){
     log('9', `交代できない(出せる控えが いない)`);
     return false;
   }
-  const reason = cannotSwitchReason(st);
+  const reason = (opts && opts.ignoreTrapping) ? null : cannotSwitchReason(st);
   if (reason){
     log('9', `${st.poke.name} は にげられない！(${reason})`);
     return false;
