@@ -2813,6 +2813,18 @@ function phaseApplyEffects(atkSide, defSide, move){
       const cureAll = (ef.value == null || ef.value === 'all');
       const cureCode = (typeof ef.value === 'string') ? CURE_MAP[ef.value] : null;
       if (!cureAll && !cureCode) continue;
+      // party/team(いやしのすず): 控えの状態異常も治す(パーティ波及。場が健康でも控えは治る)
+      // 出典: ポケモンWiki「いやしのすず」(自分と手持ち全員の状態異常を治す)
+      if (ef.target === 'party' || ef.target === 'team'){
+        for (const b of (cureTgt.bench || [])){
+          if (!b || !b.poke || b.fainted || !b.status || b.status === 'none') continue;
+          if (cureAll || b.status === cureCode){
+            b.status = 'none';
+            b.sleepTurns = null;
+            log('9', `控えの ${b.poke.name} の 状態異常も 治った！`);
+          }
+        }
+      }
       if (cureTgt.status === 'none') continue;
       if (cureAll || cureTgt.status === cureCode){
         cureTgt.status = 'none';
