@@ -543,6 +543,8 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 .bench-slot.empty:hover{color:#9fb4d8;border-color:#3a4660}
 .bench-slot.fainted{opacity:.55}
 .bench-slot .b-name{font-weight:700;color:#dbe3f2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bench-slot .b-name.b-pick{cursor:pointer}
+.bench-slot .b-name.b-pick:hover{color:#58a6ff;text-decoration:underline}
 .bench-slot .b-hp{color:#8b949e;font-size:10px}
 .bench-slot .b-btns{display:flex;gap:4px;margin-top:2px}
 .bench-slot .b-btns button{flex:0 0 auto;font-size:10px;padding:2px 7px;border-radius:6px;cursor:pointer;
@@ -5581,11 +5583,10 @@ function renderBench(root, side){
     const dead = e.fainted || hp <= 0;
     const stLabel = (e.status && e.status !== 'none') ? `・${_STATUS_JA[e.status] || e.status}` : '';
     html += `<div class="bench-slot${dead ? ' fainted' : ''}">
-      <span class="b-name">${e.poke.name}</span>
+      <span class="b-name b-pick" data-bench-edit="${i}" title="クリックでこの控え枠のポケモンを選び直す">${e.poke.name} ▾</span>
       <span class="b-hp">${dead ? 'ひんし' : `HP ${hp}/${max}${stLabel}`}</span>
       <span class="b-btns">
         <button type="button" data-bench-switch="${i}" title="交代してターン実行(交代は技より先・このターンは行動できない)" ${dead || !st.poke ? 'disabled' : ''}>⚔ 交代</button>
-        <button type="button" data-bench-swap="${i}" title="ターンを使わず入れ替える(準備用)" ${dead || !st.poke ? 'disabled' : ''}>⇄</button>
         <button type="button" data-bench-remove="${i}" title="控えから外す">✕</button>
       </span>
     </div>`;
@@ -6496,6 +6497,13 @@ document.querySelectorAll('.bench-bar').forEach(bar=>{
     const sideEl = bar.closest('.side');
     if (!sideEl) return;
     const side = sideEl.dataset.side;
+    // 控えの名前クリック=その枠のポケモンを選び直す(2026-06-12 阿部さん: ＋追加と同じモーダルで入れ替え)
+    const editEl = e.target.closest('[data-bench-edit]');
+    if (editEl){
+      benchModalIdx = +editEl.dataset.benchEdit;
+      openPokeModal(side, editEl);
+      return;
+    }
     const btn = e.target.closest('button');
     if (!btn) return;
     if (btn.dataset.benchAdd != null){
@@ -6505,13 +6513,6 @@ document.querySelectorAll('.bench-bar').forEach(bar=>{
       // 交代を今ターンの行動にしてターン実行(交代は技より先・出たポケモンはこのターン行動できない)
       sides[side].switchChoice = +btn.dataset.benchSwitch;
       runTurn();
-    } else if (btn.dataset.benchSwap != null){
-      // ターンを使わない入れ替え(チーム準備用。バトル中に使うと実機より有利になるので注意書きはtitleに)
-      ensureBattleState();
-      pushHistory();
-      attemptSwitch(side, +btn.dataset.benchSwap);
-      renderBattleLog();
-      renderBoth();
     } else if (btn.dataset.benchRemove != null){
       sides[side].bench[+btn.dataset.benchRemove] = null;
       render(side);
