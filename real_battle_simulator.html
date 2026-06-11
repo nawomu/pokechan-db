@@ -2023,6 +2023,25 @@ function phaseHitCheck(move, atk, def){
   if (env.gravity) acc = acc * 5 / 3;
   // ひかりのこな: 持ち主に対する技の命中率×0.9(items_database宣言)
   if (!env.magicRoom && def && def.item === 'bright_powder') acc = acc * 0.9;
+  // 命中・回避ランク補正(段108・従来はランク0前提でかげぶんしん等が効いていなかった)
+  // 実効命中 = 技の命中 × ランク補正((命中-回避)を-6..+6に丸め、+n=(3+n)/3・-n=3/(3+n))
+  // ノーガード(どちらかが持つ)=必ず命中(命中率固定=一撃必殺は対象外の保守実装・要権威確認はpark)
+  // するどいめ=相手の回避ランク上昇と自分の命中ランク低下を無視(第6世代以降)
+  // 出典: ポケモンWiki「命中」/Bulbapedia "Accuracy"・ABILITY_DESC(公式準拠)
+  {
+    const _aAb = sideAbility(atk);
+    const _dAb = def ? sideAbility(def) : '';
+    if ((_aAb === 'ノーガード' || _dAb === 'ノーガード') && !fixAcc) return {hit: true};
+    let _accR = (atk.rank && atk.rank.acc) || 0;
+    let _evaR = (def && def.rank && def.rank.eva) || 0;
+    if (_aAb === 'するどいめ'){
+      if (_accR < 0) _accR = 0;
+      if (_evaR > 0) _evaR = 0;
+    }
+    const _s = Math.max(-6, Math.min(6, _accR - _evaR));
+    if (_s > 0) acc = acc * (3 + _s) / 3;
+    else if (_s < 0) acc = acc * 3 / (3 - _s);
+  }
   const roll = Math.random() * 100;
   return {hit: roll < acc, reason: roll < acc ? null : `${move.name} は外れた！`};
 }

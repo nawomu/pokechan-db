@@ -5565,6 +5565,63 @@ console.log('\n=== 段107 特性スプリント①(しんりょく系ピンチ1.
   resetEnv();
 }
 
+console.log('\n=== 段108 命中・回避ランクの命中計算+ノーガード/するどいめ ===');
+// 出典: ポケモンWiki「命中」/Bulbapedia "Accuracy"(第5世代以降) — 実効命中 = 技の命中 ×
+// ランク補正((命中ランク-回避ランク)を-6..+6に丸め、+n=(3+n)/3, -n=3/(3+n))。
+// 今までランク0前提でかげぶんしん等が命中に効いていなかった(コア欠落)。
+{
+  resetEnv();
+  // T225 かげぶんしん(回避+1)で命中100の技が75%になる(ロール80で外れる)
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.rank.eva = 1;
+  const oppMax225 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppMax225;
+  E.setRandom(() => 0.8);
+  E.runTurn();
+  check('T225 回避+1で命中100が75%になり ロール80で外れる',
+    E.sides.opp.currentHp === oppMax225, `oppHp=${E.sides.opp.currentHp}/${oppMax225}`);
+  // T225b 命中ランク+1で相殺すれば当たる
+  E.sides.self.rank.acc = 1;
+  E.runTurn();
+  check('T225b 命中+1で相殺して当たる', E.sides.opp.currentHp < oppMax225,
+    `oppHp=${E.sides.opp.currentHp}/${oppMax225}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T226 ノーガード: 回避+6でも必ず当たる
+  E.sides.self = freshSide('カビゴン', 'hataku');
+  E.sides.self.ability = 'ノーガード';
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.rank.eva = 6;
+  const oppMax226 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppMax226;
+  E.setRandom(() => 0.99);
+  E.runTurn();
+  check('T226 ノーガードなら回避+6でも必ず当たる', E.sides.opp.currentHp < oppMax226,
+    `oppHp=${E.sides.opp.currentHp}/${oppMax226}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T227 するどいめ: 相手の回避ランク上昇を無視する
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.ability = 'するどいめ';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.sides.opp.rank.eva = 2;
+  const oppMax227 = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppMax227;
+  E.setRandom(() => 0.8);
+  E.runTurn();
+  check('T227 するどいめは回避ランク上昇を無視して当たる', E.sides.opp.currentHp < oppMax227,
+    `oppHp=${E.sides.opp.currentHp}/${oppMax227}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
