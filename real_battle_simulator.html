@@ -1026,8 +1026,14 @@ function makeSideState(){
     subHp: 0,
     // このターンの攻撃を分身が受けたか(phaseDealDamageが立て、phaseApplyEffectsが追加効果遮断に読む一過性フラグ)
     subAbsorbed: false,
-    // きゅうしょアップ状態(きあいだめ=+2): 急所ランクの上乗せ。場を離れるまで続く(1vs1では実質ずっと)
+    // きゅうしょアップ状態(きあいだめ=+2): 急所ランクの上乗せ。場を離れるまで続く(交代でリセット)
     critBoost: 0,
+    // パーティ(控え)A-1: 控えエントリの配列(最大3体マイナス場の1体)。エントリ=BENCH_FIELDSの永続フィールドのみ
+    bench: [],
+    // このターンの行動選択が「交代」のとき、出す控えのindex(null=技を出す)。runTurnの交代フェーズが消費する
+    switchChoice: null,
+    // このターン交代で場に出たか(交代して出たポケモンは次のターンまで行動できない)。ターン開始でクリア
+    switchedThisTurn: false,
     // 実数値の上書き(パワートリック/スピードスワップ/ガードシェア等): {atk: 数値, ...} / null。
     // realStat がこれを最優先で返す(ランク補正はその上に乗る)。場を離れる/リセットで消える。
     statOverride: null,
@@ -3209,6 +3215,16 @@ function snapshotBattleState(){
     wish: st.wish ? {turns: st.wish.turns, amount: st.wish.amount} : null, // ねがいごとも一手戻せるように
     subHp: st.subHp || 0,                                        // みがわりも一手戻せるように
     critBoost: st.critBoost || 0,                                // きあいだめも一手戻せるように
+    // パーティ(控え)A-1: 交代も一手戻せるように(ポケモン本体・技・控えごと)
+    poke: st.poke || null,
+    moves: [...(st.moves || [])],
+    effort: {...(st.effort || {})},
+    natureIdx: st.natureIdx || 0,
+    ability: st.ability || '',
+    turnsOut: st.turnsOut || 0,
+    bench: (st.bench || []).map(e => ({...e, moves: [...(e.moves || [])], effort: {...(e.effort || {})}})),
+    switchChoice: st.switchChoice != null ? st.switchChoice : null,
+    switchedThisTurn: !!st.switchedThisTurn,
   });
   return {
     self: snap(sides.self),
@@ -3274,6 +3290,16 @@ function undoBattle(){
     st.subHp = src.subHp || 0;                                         // みがわりの巻き戻し
     st.subAbsorbed = false;
     st.critBoost = src.critBoost || 0;                                 // きあいだめの巻き戻し
+    // パーティ(控え)A-1: 交代の巻き戻し(ポケモン本体・技・控えごと)
+    st.poke = src.poke || null;
+    st.moves = [...(src.moves || [])];
+    st.effort = {...(src.effort || {})};
+    st.natureIdx = src.natureIdx || 0;
+    st.ability = src.ability || '';
+    st.turnsOut = src.turnsOut || 0;
+    st.bench = (src.bench || []).map(e => ({...e, moves: [...(e.moves || [])], effort: {...(e.effort || {})}}));
+    st.switchChoice = src.switchChoice != null ? src.switchChoice : null;
+    st.switchedThisTurn = !!src.switchedThisTurn;
   };
   lastMoveAnywhere = s.lastMoveAny || null;   // まねっこの巻き戻し
   restore(sides.self, s.self);
@@ -3583,6 +3609,72 @@ function startChargeIfNeeded(st, mv, releasing){
 }
 
 // === 1ターン実行 (両側同時) ===
+// === パーティ(控え)A-1: 交代 ===
+// 出典: ポケモンWiki「ポケモンチェンジ」/ Bulbapedia "Recall"。
+// ・交代するとランク補正・状態変化(揮発)・タイプ/特性/技の変更は元に戻る。
+// ・状態異常は回復しない(ねむりの残りカウントは持ち越し・もうどくカウンタはリセット)。
+// ・バインド/ねをはる状態は交代できない(ゴーストタイプは第6世代以降これを無視して交代できる)。
+//   ※フェアリーロック/かげふみ/ありじごく/じりょく/きれいなぬけがら は未実装(park)。
+// ・壁(リフレクター等)・ねがいごと・みらいよちは「場(サイド)」に残る=ポケモンに付いて行かない。
+// 控えエントリ = ポケモンと一緒に移動する永続フィールドだけの入れ物
+const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns'];
+function packBenchEntry(st){
+  const e = {};
+  for (const k of BENCH_FIELDS) e[k] = st[k];
+  return e;
+}
+// 交代封じの判定: 封じられていれば理由の文字列、出られるなら null
+function cannotSwitchReason(st){
+  if (sideTypes(st).includes('ゴースト')) return null;   // 第6世代以降: ゴーストタイプは交代封じを無視
+  if (st.rooted) return 'ねをはっている';
+  if ((st.slips || []).some(sl => sl.source === 'バインド')) return 'バインドされている';
+  return null;
+}
+// 交代時の揮発リセット: resetBattle のポケモン由来項目と同じ範囲。
+// 持ち越すもの(HP/状態異常/ねむりカウント)と、サイドに残るもの(壁/ねがいごと/みらいよち/設置)は触らない。
+function clearVolatilesOnSwitch(st){
+  st.badpoisonCounter = 0;   // もうどくカウンタはリセット(もうどく状態自体は持ち越し)
+  st.charging = null; st.mustRecharge = false;
+  st.protecting = null; st.enduring = false; st.protectStreak = 0;
+  st.slips = [];
+  st.rampage = null; st.minimized = false; st.chargeBoost = null;
+  st.stockpile = 0; st.stockpileBoost = {def: 0, spdef: 0};
+  st.tauntTurns = 0; st.lastMove = null; st.disable = null; st.encore = null;
+  st.statOverride = null; st.typeOverride = null; st.abilityOverride = null;
+  st.destinyBond = false; st.dbondPrev = false; st.perishCount = null;
+  st.lockOn = 0; st.tormented = false; st.imprison = false;
+  st.soundBlocked = 0; st.soundBlockedMoves = null;
+  st.electrified = null; st.typeSuppressed = null;
+  st.rooted = false; st.subHp = 0; st.subAbsorbed = false; st.critBoost = 0;
+  st.flinched = false; st.pendingStatus = null;   // あくびは交代すれば不発(Bulbapedia "Yawn")
+  st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
+  st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
+  st.selectedMoveIdx = null;  // 新しいポケモンの技選択はUI/呼び出し側がやり直す
+}
+// 交代の実行。成功=true / 失敗(封じ・出せる控えなし)=false
+function attemptSwitch(sideKey, benchIdx){
+  const st = sides[sideKey];
+  if (!st.poke) return false;
+  const entry = (st.bench || [])[benchIdx];
+  if (!entry || !entry.poke || entry.fainted || (entry.currentHp != null && entry.currentHp <= 0)){
+    log('9', `交代できない(出せる控えが いない)`);
+    return false;
+  }
+  const reason = cannotSwitchReason(st);
+  if (reason){
+    log('9', `${st.poke.name} は にげられない！(${reason})`);
+    return false;
+  }
+  const outName = st.poke.name;
+  st.bench[benchIdx] = packBenchEntry(st);   // 出ていたポケモンの永続フィールドを控え枠へ
+  clearVolatilesOnSwitch(st);
+  for (const k of BENCH_FIELDS) st[k] = entry[k];
+  if (st.currentHp == null) st.currentHp = realStat(st, 'hp');   // 未設定=満タンで出す
+  st.switchedThisTurn = true;
+  log('9', `${outName} は 引っ込んだ！ ${st.poke.name} が 場に出た！`);
+  return true;
+}
+
 function runTurn(){
   ensureBattleState();
   pushHistory();
@@ -3607,10 +3699,28 @@ function runTurn(){
     sides[s].failedThisTurn = false;
     // 「このターン能力を下げられた」(うっぷんばらし用)もターン開始でリセット
     sides[s].statLoweredThisTurn = false;
+    // 「このターン交代で出た」もターン開始でリセット
+    sides[s].switchedThisTurn = false;
   });
   log('Turn', '─── ターン開始 ───');
-  const selfMove = sides.self.moves[sides.self.selectedMoveIdx];
-  const oppMove  = sides.opp.moves[sides.opp.selectedMoveIdx];
+  // ② 交代フェーズ: 交代は技より必ず先に処理する。両者が交代を選んだ時はすばやさが高い順
+  // (トリックルームでは遅い順)。※同速は self 先の近似。おいうち割り込みは未実装(park)。
+  // 出典: ポケモンWiki「ポケモンチェンジ」/ Bulbapedia "Priority"
+  {
+    const sw = ['self','opp'].filter(s => sides[s].switchChoice != null);
+    if (sw.length === 2){
+      const s1 = effectiveSpeed(sides.self), s2 = effectiveSpeed(sides.opp);
+      if (env.trickRoom ? (s1 > s2) : (s1 < s2)) sw.reverse();
+    }
+    for (const s of sw){
+      const idx = sides[s].switchChoice;
+      sides[s].switchChoice = null;
+      attemptSwitch(s, idx);
+    }
+  }
+  // 交代した側はこのターン技を出さない(交代して出されたポケモンは次のターンまで行動できない)
+  const selfMove = sides.self.switchedThisTurn ? null : sides.self.moves[sides.self.selectedMoveIdx];
+  const oppMove  = sides.opp.switchedThisTurn ? null : sides.opp.moves[sides.opp.selectedMoveIdx];
   // 行動順
   const firstSide = decideOrder(selfMove, oppMove);
   const secondSide = firstSide === 'self' ? 'opp' : 'self';
@@ -3642,6 +3752,8 @@ function runTurn(){
     // 行動枠の消費を記録(しっぺがえし=行動順ベース。ねむり等で不発でも枠は先に過ぎた扱い)
     atk.movedThisTurn = true;
     if (atk.fainted){ log(a.side, `${atk.poke.name} は ひんし状態のため行動できない`); continue; }
+    // 交代した側はこのターンの行動を消費済み(技を出さない)
+    if (atk.switchedThisTurn) continue;
     // 反動(はかいこうせん系): 前ターンの攻撃が成功していたら、このターンは動けない(Bulbapedia "Hyper Beam")
     if (atk.mustRecharge){ atk.mustRecharge = false; log('0c', `${atk.poke.name} は こうげきの反動で 動けない！`); continue; }
     // 溜め技の解放: 前ターンから溜めていれば、このターンは溜めていた技を放つ(選択技より優先)。
@@ -4145,6 +4257,10 @@ function resetBattle(){
     st.subHp = 0;
     st.subAbsorbed = false;
     st.critBoost = 0;
+    // パーティ(控え)A-1: 控えはメンバー(ポケモン・技)を保持したまま HP/状態だけ初期化
+    (st.bench || []).forEach(e => { e.currentHp = null; e.fainted = false; e.status = 'none'; e.sleepTurns = null; });
+    st.switchChoice = null;
+    st.switchedThisTurn = false;
     st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
     st.status = 'none';
     // 場の効果 (壁・設置・ばけのかわ) もクリア

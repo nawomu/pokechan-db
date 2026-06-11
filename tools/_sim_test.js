@@ -4097,6 +4097,116 @@ console.log('\n=== 段79 急所率上昇(きあいだめ/高急所技: 確率制
   resetEnv();
 }
 
+console.log('\n=== 段80 パーティ導入A-1(bench構造+交代+揮発リセット) ===');
+// 出典: ポケモンWiki「ポケモンチェンジ」— 交代でランク補正・状態変化・タイプ/特性の変更は元に戻る。
+// 状態異常は回復しない(ねむりターンは持ち越し・もうどくカウンタはリセット)。
+// バインド/ねをはる状態は交代不可(ゴーストタイプは第6世代以降無視して交代できる)。
+// 交代して出たポケモンはそのターン行動できない。複数交代はすばやさ順。
+function benchEntry(pokeName, moveKey){
+  return { poke: pokeByName(pokeName), effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0},
+    natureIdx: 0, ability: '', item: '', moves: moveKey ? [data.WAZA_MAP[moveKey]] : [],
+    currentHp: null, fainted: false, status: 'none', sleepTurns: null };
+}
+{
+  resetEnv();
+  // T181 手動交代: 永続(HP/状態異常)は控えに持って行き、揮発(ランク/きあいだめ/みがわり)は消える
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.currentHp = 100;
+  E.sides.self.status = 'burn';
+  E.sides.self.rank.atk = 2;
+  E.sides.self.critBoost = 2;
+  E.sides.self.subHp = 30;
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('ゲンガー', 'hataku');
+  const ok181 = E.attemptSwitch('self', 0);
+  check('T181 交代できた', ok181 === true, `ret=${ok181}`);
+  check('T181 リザードンが場に出て満タン',
+    E.sides.self.poke && E.sides.self.poke.name === 'リザードン' && E.sides.self.currentHp === E.realStat(E.sides.self, 'hp'),
+    `poke=${E.sides.self.poke && E.sides.self.poke.name} hp=${E.sides.self.currentHp}`);
+  check('T181 揮発状態は持ち越されない(ランク/きあいだめ/みがわり=ゼロ)',
+    E.sides.self.rank.atk === 0 && E.sides.self.critBoost === 0 && E.sides.self.subHp === 0,
+    `rank.atk=${E.sides.self.rank.atk} critBoost=${E.sides.self.critBoost} subHp=${E.sides.self.subHp}`);
+  check('T181 控えに戻ったフシギバナはHP100+やけどを保持',
+    E.sides.self.bench[0].poke.name === 'フシギバナ' && E.sides.self.bench[0].currentHp === 100 && E.sides.self.bench[0].status === 'burn',
+    `bench0=${JSON.stringify({n: E.sides.self.bench[0].poke.name, hp: E.sides.self.bench[0].currentHp, st: E.sides.self.bench[0].status})}`);
+  // T181b 戻すと フシギバナのHP/やけどはそのまま・ランクは消えたまま
+  E.attemptSwitch('self', 0);
+  check('T181b 戻ったフシギバナ: HP100+やけど保持・ランクはリセット済み',
+    E.sides.self.poke.name === 'フシギバナ' && E.sides.self.currentHp === 100 &&
+    E.sides.self.status === 'burn' && E.sides.self.rank.atk === 0,
+    `poke=${E.sides.self.poke.name} hp=${E.sides.self.currentHp} st=${E.sides.self.status} rank.atk=${E.sides.self.rank.atk}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T181c runTurn内の交代: 技より先に処理され、相手の攻撃は交代後の新ポケモンが受ける。
+  // 交代した側はそのターン行動しない(相手のHPは減らない)
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.self.switchChoice = 0;
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  const oppHp181c = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppHp181c;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  const lizaMax = E.realStat(E.sides.self, 'hp');
+  check('T181c 交代後のリザードンが相手の攻撃を受けた',
+    E.sides.self.poke.name === 'リザードン' && E.sides.self.currentHp < lizaMax,
+    `poke=${E.sides.self.poke.name} hp=${E.sides.self.currentHp}/${lizaMax}`);
+  check('T181c 交代した側はそのターン行動しない(相手のHPは満タンのまま)',
+    E.sides.opp.currentHp === oppHp181c,
+    `oppHp=${E.sides.opp.currentHp}(${oppHp181c}期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T181d ねをはる状態は交代できない(ポケモンWiki「ポケモンチェンジ」)
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.rooted = true;
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('ゲンガー', 'hataku');
+  const ok181d = E.attemptSwitch('self', 0);
+  check('T181d ねをはる状態は交代できない',
+    ok181d === false && E.sides.self.poke.name === 'フシギバナ',
+    `ret=${ok181d} poke=${E.sides.self.poke.name}`);
+  // T181e バインド状態も交代できない
+  E.sides.self.rooted = false;
+  E.sides.self.slips = [{source: 'バインド', fraction: 0.125, turns: 3}];
+  const ok181e = E.attemptSwitch('self', 0);
+  check('T181e バインド状態も交代できない',
+    ok181e === false && E.sides.self.poke.name === 'フシギバナ',
+    `ret=${ok181e} poke=${E.sides.self.poke.name}`);
+  // T181f ゴーストタイプは交代封じを無視できる(第6世代以降)
+  E.sides.opp.slips = [{source: 'バインド', fraction: 0.125, turns: 3}];
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  const ok181f = E.attemptSwitch('opp', 0);
+  check('T181f ゴーストタイプ(ゲンガー)はバインド中でも交代できる',
+    ok181f === true && E.sides.opp.poke.name === 'リザードン',
+    `ret=${ok181f} poke=${E.sides.opp.poke.name}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T181g もうどくカウンタは交代でリセット(状態異常もうどく自体は持ち越し)
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.self.status = 'badpoison';
+  E.sides.self.badpoisonCounter = 3;
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('ゲンガー', 'hataku');
+  E.attemptSwitch('self', 0);   // フシギバナを下げる
+  E.attemptSwitch('self', 0);   // フシギバナを再び出す
+  check('T181g もうどくは持ち越し・カウンタはリセット',
+    E.sides.self.status === 'badpoison' && (E.sides.self.badpoisonCounter || 0) === 0,
+    `status=${E.sides.self.status} counter=${E.sides.self.badpoisonCounter}`);
+  // T181h ひんしの控えには交代できない
+  E.sides.self.bench[0].fainted = true;
+  const ok181h = E.attemptSwitch('self', 0);
+  check('T181h ひんしの控えには交代できない', ok181h === false, `ret=${ok181h}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
