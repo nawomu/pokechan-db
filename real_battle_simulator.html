@@ -1060,6 +1060,8 @@ function makeSideState(){
     // にげられない状態(くろいまなざし/とおせんぼう/かげぬい=拘束kind): true の間は交代不可。
     // かけた側が場を離れると解除(attemptSwitchが相手側をクリア)。技による交代・ゴーストタイプは封じ無視
     trapped: false,
+    // いやしのねがい: 次に出てくるポケモンが全回復する予約(サイドに残る=交代でリセットしない)
+    healingWish: false,
     // パーティ(控え)A-1: 控えエントリの配列(最大3体マイナス場の1体)。エントリ=BENCH_FIELDSの永続フィールドのみ
     bench: [],
     // このターンの行動選択が「交代」のとき、出す控えのindex(null=技を出す)。runTurnの交代フェーズが消費する
@@ -2447,6 +2449,16 @@ function phaseApplyEffects(atkSide, defSide, move){
     attemptSwitch(defSide, pick, {ignoreTrapping: true});
     return;
   }
+  // いやしのねがい(回復 target:incoming): 出せる控えがいないと失敗(自分もひんしにならない)。
+  // 出典: ポケモンWiki「いやしのねがい」
+  if (move.battle_data.effects.some(e => e.kind === '回復' && e.target === 'incoming')){
+    const _hwOk = (atk.bench || []).some(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
+    if (!_hwOk){
+      log('9', `しかし うまく きまらなかった！(出せる控えが いない)`);
+      noteActionFailed(atk);
+      return;
+    }
+  }
   // 味方対象の技(ドラゴンエール等: fails_if no_ally 宣言): 1vs1(味方なし)では失敗(ポケモンWiki「急所」: 味方が受ける技)
   if ((move.battle_data.fails_if || []).some(f => f.type === 'no_ally')){
     log('9', `しかし うまく きまらなかった！(味方の ポケモンがいない)`);
@@ -2879,6 +2891,10 @@ function phaseApplyEffects(atkSide, defSide, move){
       log('9', `${atk.poke.name} は 自分のHPを ${cost} けずった！ (残りHP ${atk.currentHp})`);
       if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${atk.poke.name} は ひんしになった！`); }
     } else if (ef.kind === '回復'){
+      // いやしのねがい(target:incoming): 自分はひんしになり、代わりに出てきたポケモンが全回復。
+      // フラグはサイドに残し、attemptSwitch(死に出し含む)が消費する。控えなしの失敗ゲートはループ前。
+      // 出典: ポケモンWiki「いやしのねがい」/ Bulbapedia "Healing Wish"
+      if (ef.target === 'incoming'){ atk.healingWish = true; continue; }
       // turn_end宣言(グラスフィールドの毎ターン回復)はターン終了処理が担当 → ここ(使用時)では発動しない
       if (ef.phase === 'turn_end') continue;
       // ねをはる(lasting+trigger:turn_end の毎ターン回復)もターン終了処理(rooted)が担当 → 使用時は発動しない
@@ -3418,6 +3434,7 @@ function snapshotBattleState(){
     critBoost: st.critBoost || 0,                                // きあいだめも一手戻せるように
     confusion: st.confusion || 0,                                // こんらんも一手戻せるように(段82で漏れを発見し追加)
     trapped: !!st.trapped,                                       // にげられない状態も一手戻せるように
+    healingWish: !!st.healingWish,                               // いやしのねがいも一手戻せるように
     // 設置技A-4も一手戻せるように(stealthRockは既存UIフラグを共用)
     stealthRock: !!st.stealthRock,
     spikesLayers: st.spikesLayers || 0,
@@ -3500,6 +3517,7 @@ function undoBattle(){
     st.critBoost = src.critBoost || 0;                                 // きあいだめの巻き戻し
     st.confusion = src.confusion || 0;                                 // こんらんの巻き戻し(段82で漏れを発見し追加)
     st.trapped = !!src.trapped;                                        // にげられない状態の巻き戻し
+    st.healingWish = !!src.healingWish;                                // いやしのねがいの巻き戻し
     // 設置技A-4の巻き戻し
     st.stealthRock = !!src.stealthRock;
     st.spikesLayers = src.spikesLayers || 0;
@@ -3938,6 +3956,14 @@ function attemptSwitch(sideKey, benchIdx, opts){
   if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${st.poke.name} が 場に出た！`);
   else log('9', `${outName} は 引っ込んだ！ ${st.poke.name} が 場に出た！`);
   applyEntryHazards(sideKey);   // 設置技(ステルスロック等)は交代完了後に発動
+  // いやしのねがい: 出てきたポケモンが全回復(設置物のダメージの後=回復で帳消しにできる)。
+  // 実機(第8世代以降)は「健康なポケモンには持ち越し」だが、simは最初に出たポケモンに適用する近似。
+  if (st.healingWish && !st.fainted && st.poke){
+    st.currentHp = realStat(st, 'hp');
+    st.status = 'none'; st.badpoisonCounter = 0; st.sleepTurns = null;
+    st.healingWish = false;
+    log('9', `いやしのねがいが かなった！ ${st.poke.name} は 元気になった！`);
+  }
   return true;
 }
 
@@ -4224,7 +4250,8 @@ function runTurn(){
       log('9', `${atk.poke.name} は ${mv.name} を使った！ (変化技は MVP では効果未実装)`);
       // 変化技でも状態異常付与だけは適用（おにび等）
       phaseApplyEffects(a.side, a.opp, mv);
-      if (_selfKO) applySelfFaint(atk);   // おきみやげ/いやしのねがい=成功した時だけ
+      // おきみやげ/いやしのねがい=成功した時だけ自滅(失敗ゲートが noteActionFailed を立てた時は倒れない)
+      if (_selfKO && !atk.failedThisTurn) applySelfFaint(atk);
       continue;
     }
     // ダメ計算とHP適用
@@ -4544,6 +4571,7 @@ function resetBattle(){
     st.critBoost = 0;
     st.confusion = 0;   // こんらんもクリア(段82で漏れを発見し追加)
     st.trapped = false;
+    st.healingWish = false;
     // パーティ(控え)A-1: 控えはメンバー(ポケモン・技)を保持したまま HP/状態だけ初期化
     (st.bench || []).forEach(e => { e.currentHp = null; e.fainted = false; e.status = 'none'; e.sleepTurns = null; });
     st.switchChoice = null;
