@@ -5458,6 +5458,56 @@ console.log('\n=== 段100 おいかぜ/アクアリング/でんじふゆう(持
   resetEnv();
 }
 
+console.log('\n=== 段101 あめまみれ/かいふくふうじ/ふしょくガス(run4未実装の付与系) ===');
+// 出典: ポケモンWiki「みずあめボム」(3ターン毎ターン終了時すばやさ-1)/「サイコノイズ」(2ターン回復技を使えない)/
+// 「ふしょくガス」(相手の道具を溶かして失わせる=リサイクル不可)。
+{
+  resetEnv();
+  // T219 みずあめボム: あめまみれ=毎ターン終了時にすばやさ-1(3ターン)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('みずあめボム')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T219 あめまみれでターン終了時にすばやさ-1',
+    E.sides.opp.rank.spd === -1, `spd=${E.sides.opp.rank.spd}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T220 サイコノイズ: かいふくふうじ=回復技が失敗する
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('サイコノイズ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', null);
+  E.sides.opp.moves = [moveByName('じこさいせい')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.currentHp = 100;
+  E.setRandom(() => 0.0);
+  E.runTurn();   // ゲンガー先攻サイコノイズ→カビゴンのじこさいせいは封じられて失敗
+  check('T220 かいふくふうじ中はじこさいせいが失敗(HP回復しない)',
+    E.sides.opp.currentHp < E.realStat(E.sides.opp, 'hp') / 2 + 60,
+    `hp=${E.sides.opp.currentHp}(回復していなければ100からサイコノイズ分減のみ)`);
+  check('T220b かいふくふうじが付いている', (E.sides.opp.healBlockTurns || 0) > 0,
+    `healBlockTurns=${E.sides.opp.healBlockTurns}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T221 ふしょくガス: 相手の道具を溶かす(リサイクルでも戻せない)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('ふしょくガス')];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.item = 'leftovers';
+  E.phaseApplyEffects('self', 'opp', moveByName('ふしょくガス'));
+  check('T221 ふしょくガスで相手の道具が消える(リサイクル不可)',
+    !E.sides.opp.item && !E.sides.opp.lastConsumedItem,
+    `item=${E.sides.opp.item} last=${E.sides.opp.lastConsumedItem}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

@@ -1070,6 +1070,10 @@ function makeSideState(){
     aquaRing: false,
     // でんじふゆう: >0の間、地面にいない扱い(じめん技無効。場を離れるまでではなく5ターン。バトンタッチで引き継ぐ)
     magnetRise: 0,
+    // あめまみれ(みずあめボム): >0の間、毎ターン終了時にすばやさ-1(3ターン)
+    syrupTurns: 0,
+    // かいふくふうじ(サイコノイズ): >0の間、回復技が失敗する(2ターン)
+    healBlockTurns: 0,
     // パーティ(控え)A-1: 控えエントリの配列(最大3体マイナス場の1体)。エントリ=BENCH_FIELDSの永続フィールドのみ
     bench: [],
     // このターンの行動選択が「交代」のとき、出す控えのindex(null=技を出す)。runTurnの交代フェーズが消費する
@@ -2187,7 +2191,7 @@ function phaseDealDamage(atkSide, defSide, move){
 
   // 吸収(ドレイン): 与ダメ合計の fraction だけ自分が回復
   const drainEf = _effs.find(e => e.kind === '吸収');
-  if (drainEf && total > 0){
+  if (drainEf && total > 0 && !(atk.healBlockTurns > 0)){   // かいふくふうじ中は吸収回復もできない
     const amax = realStat(atk, 'hp');
     const heal = Math.max(1, Math.floor(total * (drainEf.fraction || 0.5)));
     atk.currentHp = Math.min(amax, atk.currentHp + heal);
@@ -2849,6 +2853,22 @@ function phaseApplyEffects(atkSide, defSide, move){
         }
         continue;
       }
+      // あめまみれ(みずあめボム): 3ターンの間、毎ターン終了時にすばやさ-1(ポケモンWiki「みずあめボム」)
+      if (ef.value === 'あめまみれ'){
+        if (!target.syrupTurns){
+          target.syrupTurns = ef.duration || 3;
+          log('9', `${target.poke.name} は あめまみれに なった！`);
+        }
+        continue;
+      }
+      // かいふくふうじ(サイコノイズ): 2ターンの間、回復技が使えない(ポケモンWiki「サイコノイズ」)
+      if (ef.value === 'かいふくふうじ'){
+        if (!target.healBlockTurns){
+          target.healBlockTurns = ef.duration || 2;
+          log('9', `${target.poke.name} は 回復を 封じられた！`);
+        }
+        continue;
+      }
       // きゅうしょアップ(きあいだめ): 急所ランク+2の状態になる(場を離れるまで)。重ねがけは失敗。
       // 出典: ポケモンWiki「急所」(きゅうしょアップ=+2・第3世代以降)/Bulbapedia "Focus Energy"
       if (ef.value === 'きゅうしょアップ'){
@@ -3076,6 +3096,12 @@ function phaseApplyEffects(atkSide, defSide, move){
       }
       // turn_end宣言(グラスフィールドの毎ターン回復)はターン終了処理が担当 → ここ(使用時)では発動しない
       if (ef.phase === 'turn_end') continue;
+      // かいふくふうじ(サイコノイズ): 回復技は失敗する(ポケモンWiki「サイコノイズ」)
+      if (target.healBlockTurns > 0){
+        log('9', `しかし 回復が 封じられている！`);
+        noteActionFailed(atk);
+        continue;
+      }
       // ねをはる(lasting+trigger:turn_end の毎ターン回復)もターン終了処理(rooted)が担当 → 使用時は発動しない
       if (ef.phase === 'lasting' && ef.trigger === 'turn_end') continue;
       // ねがいごと(delayed+turn_end): 使用時は回復せず、次のターンの終わりに発動する願いを仕込む。
@@ -3624,6 +3650,8 @@ function snapshotBattleState(){
     tailwindTurns: st.tailwindTurns || 0,                        // おいかぜも一手戻せるように
     aquaRing: !!st.aquaRing,                                     // アクアリングも一手戻せるように
     magnetRise: st.magnetRise || 0,                              // でんじふゆうも一手戻せるように
+    syrupTurns: st.syrupTurns || 0,                              // あめまみれも一手戻せるように
+    healBlockTurns: st.healBlockTurns || 0,                      // かいふくふうじも一手戻せるように
     // 設置技A-4も一手戻せるように(stealthRockは既存UIフラグを共用)
     stealthRock: !!st.stealthRock,
     spikesLayers: st.spikesLayers || 0,
@@ -3711,6 +3739,8 @@ function undoBattle(){
     st.tailwindTurns = src.tailwindTurns || 0;                         // おいかぜの巻き戻し
     st.aquaRing = !!src.aquaRing;                                      // アクアリングの巻き戻し
     st.magnetRise = src.magnetRise || 0;                               // でんじふゆうの巻き戻し
+    st.syrupTurns = src.syrupTurns || 0;                               // あめまみれの巻き戻し
+    st.healBlockTurns = src.healBlockTurns || 0;                       // かいふくふうじの巻き戻し
     // 設置技A-4の巻き戻し
     st.stealthRock = !!src.stealthRock;
     st.spikesLayers = src.spikesLayers || 0;
@@ -4083,6 +4113,7 @@ function clearVolatilesOnSwitch(st){
   st.confusion = 0;   // こんらんも揮発(バトンタッチだけが引き継ぐ)
   st.trapped = false; // にげられない状態も揮発
   st.aquaRing = false; st.magnetRise = 0;   // アクアリング/でんじふゆうも揮発(バトンタッチは引き継ぐ)。おいかぜはサイド残留=触らない
+  st.syrupTurns = 0; st.healBlockTurns = 0; // あめまみれ/かいふくふうじも揮発
   st.flinched = false; st.pendingStatus = null;   // あくびは交代すれば不発(Bulbapedia "Yawn")
   st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
   st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
@@ -4775,6 +4806,18 @@ function runTurn(){
       st.magnetRise--;
       if (st.magnetRise <= 0){ st.magnetRise = 0; log('10', `${st.poke.name} の 電磁浮遊が 解けた！`); }
     }
+    // あめまみれ: 毎ターン終了時にすばやさ-1(3ターンで乾く)
+    if (st.syrupTurns > 0 && st.poke && !st.fainted){
+      st.rank.spd = Math.max(-6, (st.rank.spd || 0) - 1);
+      log('10', `${st.poke.name} は あめまみれで すばやさ-1！`);
+      st.syrupTurns--;
+      if (st.syrupTurns <= 0){ st.syrupTurns = 0; log('10', `${st.poke.name} の あめが 乾いた！`); }
+    }
+    // かいふくふうじのカウントダウン
+    if (st.healBlockTurns > 0){
+      st.healBlockTurns--;
+      if (st.healBlockTurns <= 0){ st.healBlockTurns = 0; log('10', `${st.poke.name} の 回復封じが 解けた！`); }
+    }
     // おいかぜのカウントダウン(4ターンでやむ)
     if (st.tailwindTurns > 0){
       st.tailwindTurns--;
@@ -4929,6 +4972,8 @@ function resetBattle(){
     st.tailwindTurns = 0;
     st.aquaRing = false;
     st.magnetRise = 0;
+    st.syrupTurns = 0;
+    st.healBlockTurns = 0;
     if (st.lastConsumedItem && !st.item){ st.item = st.lastConsumedItem; }   // バトルリセットで消費した道具は戻す
     st.lastConsumedItem = null;
     // パーティ(控え)A-1: 控えはメンバー(ポケモン・技)を保持したまま HP/状態だけ初期化
