@@ -5831,8 +5831,15 @@ function _renderItemModalList(selectedKey){
   </div>`;
   for (const cat of _ITEM_CAT_ORDER){
     if (!byCat[cat]) continue;
+    let catItems = byCat[cat];
+    // メガストーンは汎用1個に集約(2026-06-12 阿部さん: 個別ナイトをずらずら出さない)。
+    // X/Y分岐があるリザードンの専用ストーン2個だけ残す(汎用はX既定のため)
+    if (cat === 'mega_stone'){
+      catItems = catItems.filter(it => it.key === 'mega_stone_any' || /[XY]$/.test(it.mega_form || ''));
+    }
+    if (!catItems.length) continue;
     html += `<div class="item-cat-head">${_escHtml(cats[cat]||cat)}</div>`;
-    for (const it of byCat[cat]){
+    for (const it of catItems){
       const sel = (selectedKey === it.key) ? ' selected' : '';
       html += `<div class="item-row${sel}" data-key="${_escHtml(it.key)}">
         <span class="item-row-name">${_escHtml(it.name)}</span>
