@@ -2596,7 +2596,8 @@ function phaseApplyEffects(atkSide, defSide, move){
     // バトンタッチ(pass宣言あり)は引き継ぎ交代=未実装(誤実装回避でスキップ・次段)。
     // 出典: ポケモンWiki「ポケモンチェンジ」
     if (ef.kind === '自分交代'){
-      const liveIdx = (atk.bench || []).findIndex(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
+      const _liveIdxs = (atk.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+      const liveIdx = _liveIdxs.length ? chooseSwitchTarget(atkSide, _liveIdxs) : -1;
       if (ef.pass){
         // バトンタッチ: 能力変化と一部の状態変化を引き継いで交代。控えがいないと失敗。
         // 引き継ぐ(第9世代): ランク(マイナスも)/こんらん/きゅうしょアップ/みがわり/やどりぎのタネ/のろい/
@@ -4280,6 +4281,20 @@ function applyEntryHazards(sideKey){
   }
 }
 
+// 交代先の選択: 自分側で生きている控えが2体以上いる時はポップアップで選ばせる(実機の交代先選択の簡易版)。
+// 相手側・テスト実行時(vm=promptがダミー)は最初の生き控え。2026-06-12 阿部さん要望(クイックターン等で選びたい)
+function chooseSwitchTarget(sideKey, liveIdxs){
+  if (liveIdxs.length <= 1) return liveIdxs[0];
+  if (sideKey === 'self'){
+    const st = sides[sideKey];
+    const menu = liveIdxs.map(i => `${i + 1}: ${st.bench[i].poke.name}`).join(' / ');
+    const ans = prompt(`どの控えと交代しますか？ 番号を入力してください (${menu})`, String(liveIdxs[0] + 1));
+    const n = parseInt(ans, 10) - 1;
+    if (liveIdxs.includes(n)) return n;
+  }
+  return liveIdxs[0];
+}
+
 // 交代の実行。成功=true / 失敗(封じ・出せる控えなし)=false
 // opts.ignoreTrapping: 技による交代(とんぼがえり等)は交代封じの影響を受けない(ポケモンWiki「ポケモンチェンジ」)
 function attemptSwitch(sideKey, benchIdx, opts){
@@ -4883,7 +4898,8 @@ function runTurn(){
   ['self','opp'].forEach(s => {
     const st = sides[s];
     if (!st.poke || !st.fainted) return;
-    const liveIdx = (st.bench || []).findIndex(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
+    const _liveIdxs = (st.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+    const liveIdx = _liveIdxs.length ? chooseSwitchTarget(s, _liveIdxs) : -1;
     if (liveIdx < 0) return;
     attemptSwitch(s, liveIdx, {ignoreTrapping: true, faintReplace: true});
   });
