@@ -2551,8 +2551,13 @@ function phaseApplyEffects(atkSide, defSide, move){
   // たくわえ加算がある技は「実際に上がった分」を消費時に戻すため、実行前のランクを控えておく
   const _preStockRank = _stockAdd ? {def: atk.rank.def || 0, spdef: atk.rank.spdef || 0} : null;
   for (const ef of move.battle_data.effects){
-    const target = ef.target === 'self' ? atk : def;
+    // 対象のマッピング: self/team/party=自分側、それ以外(opponent等)=相手側。
+    // ※team/partyを相手にマップすると じばそうさ/おいかぜ等が逆向きに効く実バグになる(run4検証で発見・段99修正)
+    const target = (ef.target === 'self' || ef.target === 'team' || ef.target === 'party') ? atk : def;
     if (target.fainted) continue;
+    // ally対象は1vs1では存在しない=スキップ(とおぼえの+1が相手に付く実バグをrun4で発見・段99修正。
+    // ドラゴンエール等の「味方がいないと失敗」はfails_if no_allyゲートが先に処理する)
+    if (ef.target === 'ally') continue;
     // みがわり: 相手を対象にする効果は分身に防がれる(みがわり貫通の技は通す)。
     // 攻撃技は分身が受けた時(subAbsorbed)、変化技は分身がいる間。target:'all'(ほろびのうた=音)は通す。
     // 出典: Bulbapedia "Substitute"
@@ -2866,10 +2871,19 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (code === 'sleep') target.sleepTurns = (ef.duration != null) ? ef.duration + 1 : 2 + Math.floor(Math.random() * 3);
       log('9', `${target.poke.name} は ${ef.value} 状態になった！`);
     } else if (ef.kind === '能力ランク変化'){
+      // くろいきり(reset宣言): 場にいる全員の能力ランクの変化をすべて0に戻す(ポケモンWiki「くろいきり」)
+      if (ef.reset){
+        [atk, def].forEach(t => { if (t.poke) t.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0}; });
+        log('9', `すべての能力変化が 元に戻った！`);
+        continue;
+      }
       // condition付きは満たした時だけ(シード所持/のろい非ゴースト等)。未対応の条件は誤適用回避でスキップ。
       if (ef.condition){
         const c = ef.condition;
-        if (c.type === 'holding_item' || c.type === 'holds_item'){
+        if (c.type === 'ability_in'){
+          // じばそうさ: 対象の特性がプラス/マイナスの時だけ(ポケモンWiki「じばそうさ」)
+          if (!(c.values || []).includes(sideAbility(target))) continue;
+        } else if (c.type === 'holding_item' || c.type === 'holds_item'){
           // シード系(グラスシード等): 対象がその道具を持っている時だけ発動
           const itName = target.item && ITEM_BY_KEY[target.item] && ITEM_BY_KEY[target.item].name;
           if (itName !== c.value) continue;
@@ -3051,6 +3065,12 @@ function phaseApplyEffects(atkSide, defSide, move){
     } else if (ef.kind === '壁設置'){
       // リフレクター/ひかりのかべ/しんぴのまもり/オーロラベール: 自分の場(team)に5ターンの壁を張る。
       // すでに同じ壁があれば失敗=ターン数リフレッシュなし(Bulbapedia "Reflect"等)。
+      // オーロラベールは天気がゆきの時しか張れない(ポケモンWiki「オーロラベール」・run4検証で欠落発見)
+      if (ef.value === 'オーロラベール' && env.weather !== 'snow'){
+        log('9', `しかし うまく きまらなかった！(ゆきが 降っていない)`);
+        noteActionFailed(atk);
+        continue;
+      }
       const flag = _SCREEN_FLAG[ef.value] || ef.value;
       if (atk[flag]){
         log('9', `しかし うまく きまらなかった！(${ef.value} はすでに 張られている)`);
