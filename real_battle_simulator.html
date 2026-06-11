@@ -1561,10 +1561,14 @@ function calcDamage(atkSide, defSide, move, opts){
   // ランク無視(せいなるつるぎ/DDラリアット): 相手の能力ランク変化(+も-も)を無視してダメージ計算
   // (Bulbapedia "Sacred Sword"/"Darkest Lariat")
   const ignoreRankEf = bdEffects.find(e => e.kind === 'ランク無視');
-  const aStat = altAtkEf ? rankedStat(atk, _AKMAP[altAtkEf.use_stat] || 'def', {crit, role:'atk'})
-              : foulEf  ? rankedStat(def, _AKMAP[foulEf.stat] || 'atk', {crit, role:'atk'})
-              : rankedStat(atk, aKey, {crit, role:'atk'});
-  const dStat = rankedStat(def, dKey, {crit, role:'def', ignoreRank: !!ignoreRankEf});
+  // てんねん(段114・ABILITY_DESC公式準拠): 受け側がてんねん=攻撃側の攻撃ランクを無視 /
+  // 攻撃側がてんねん=受け側の防御ランクを無視
+  const _unawareDef = sideAbility(def) === 'てんねん';
+  const _unawareAtk = sideAbility(atk) === 'てんねん';
+  const aStat = altAtkEf ? rankedStat(atk, _AKMAP[altAtkEf.use_stat] || 'def', {crit, role:'atk', ignoreRank: _unawareDef})
+              : foulEf  ? rankedStat(def, _AKMAP[foulEf.stat] || 'atk', {crit, role:'atk', ignoreRank: _unawareDef})
+              : rankedStat(atk, aKey, {crit, role:'atk', ignoreRank: _unawareDef});
+  const dStat = rankedStat(def, dKey, {crit, role:'def', ignoreRank: !!ignoreRankEf || _unawareAtk});
   const hp = realStat(def, 'hp');
 
   // ちからもち/ヨガパワー: こうげき(物理)が2倍(ABILITY_DESC公式準拠・段107)
@@ -3175,10 +3179,26 @@ function phaseApplyEffects(atkSide, defSide, move){
           log('9', `${pname(target)} の ${k} ランクが 最大まであがった！`);
         } else {
           const sg = ef.stages || 0;
+          // クリアボディ/しろいけむり: 敵からのランク低下を無効化(段114・ABILITY_DESC公式準拠。自分で下げる分は通る)
+          if (sg < 0 && target !== atk && ['クリアボディ', 'しろいけむり'].includes(sideAbility(target))){
+            log('9', `${pname(target)} は ${sideAbility(target)}で 能力が下がらない！`);
+            continue;
+          }
           const beforeRk = target.rank[rk] || 0;
           target.rank[rk] = Math.max(-6, Math.min(6, beforeRk + sg));
           if (sg < 0 && target.rank[rk] < beforeRk) target.statLoweredThisTurn = true;   // うっぷんばらし用(実際に下がった時だけ)
           log('9', `${pname(target)} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
+          // かちき/まけんき: 敵に能力ランクを下げられると とくこう/こうげき+2(段114・ABILITY_DESC公式準拠)
+          if (sg < 0 && target.rank[rk] < beforeRk && target !== atk){
+            const _dAb114 = sideAbility(target);
+            if (_dAb114 === 'かちき'){
+              target.rank.spatk = Math.min(6, (target.rank.spatk || 0) + 2);
+              log('9', `${pname(target)} の かちき！ とくこう+2！`);
+            } else if (_dAb114 === 'まけんき'){
+              target.rank.atk = Math.min(6, (target.rank.atk || 0) + 2);
+              log('9', `${pname(target)} の まけんき！ こうげき+2！`);
+            }
+          }
         }
       }
     } else if (ef.kind === 'やどりぎ'){
