@@ -1250,6 +1250,8 @@ function calcDamage(atkSide, defSide, move, opts){
   if (!atk.poke || !def.poke) return null;
 
   let power = (move.power == null || move.power === 0 || move.power === '—') ? 0 : Number(move.power);
+  // 威力の外部指定(ふくろだたき=手持ちメンバーごとに威力が違う): 呼び出し側が1発ぶんの威力を渡す
+  if (opts && opts.powerOverride != null) power = opts.powerOverride;
   if (!power) power = variablePower(move, atk, def) || 0;
   if (!power) return null;
 
@@ -2025,7 +2027,28 @@ function phaseDealDamage(atkSide, defSide, move){
       critRoll = _stage >= 3 || Math.random() >= 1 - (_stage === 2 ? 0.5 : 0.125);
     }
   }
-  const result = calcDamage(atkSide, defSide, move, critRoll ? {crit: true} : undefined);
+  // ふくろだたき(連続攻撃 hits_by): ひんし・状態異常でない手持ち(自分を含む)1体につき1回攻撃。
+  // 各ヒットの威力 = そのメンバーのこうげき種族値÷10+5(第5世代以降)。攻撃実数値・急所は使用者のもの。
+  // 出典: Bulbapedia "Beat Up" / データ宣言 hits_by
+  let beatUpPowers = null;
+  {
+    const _bm = (move.battle_data && move.battle_data.effects || []).find(e => e.kind === '連続攻撃' && e.hits_by);
+    if (_bm){
+      const a = sides[atkSide];
+      beatUpPowers = [];
+      if (a.poke && !a.fainted && (!a.status || a.status === 'none')) beatUpPowers.push(Math.floor(a.poke.atk / 10) + 5);
+      for (const b of (a.bench || [])){
+        if (b && b.poke && !b.fainted && (!b.status || b.status === 'none')) beatUpPowers.push(Math.floor(b.poke.atk / 10) + 5);
+      }
+      if (!beatUpPowers.length){
+        log('8', `${a.poke.name} の ${move.name}！ しかし うまく きまらなかった！`);
+        noteActionFailed(a);
+        return { failed: true };
+      }
+    }
+  }
+  const result = calcDamage(atkSide, defSide, move,
+    (critRoll || beatUpPowers) ? {crit: critRoll, powerOverride: beatUpPowers ? beatUpPowers[0] : undefined} : undefined);
   if (!result) return null;
   // たくわえ消費(はきだす): 撃ったら(こうかなしでも)たくわえは消え、上がったランクも戻る
   if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(sides[atkSide]);
@@ -2049,6 +2072,8 @@ function phaseDealDamage(atkSide, defSide, move){
       }
     } else if (multiEf.max_hits != null){
       hitCount = multiEf.max_hits; // ネズミざん/トリプルアクセル(stop_on_miss): 簡易に最大回数(命中前提・威力逓増は未対応=park)
+    } else if (multiEf.hits_by && beatUpPowers){
+      hitCount = beatUpPowers.length;   // ふくろだたき: 出せるメンバーの数だけ
     }
   }
 
@@ -2057,7 +2082,11 @@ function phaseDealDamage(atkSide, defSide, move){
   let total = 0, hits = 0, lastHit = 0;
   for (let h = 0; h < hitCount; h++){
     if (def.currentHp <= 0) break;
-    let v = result.variations[Math.floor(Math.random() * result.variations.length)];
+    // ふくろだたき: 2発目以降はそのメンバーの威力で計算し直す(1発目は result がその威力で計算済み)
+    const _hitRes = (beatUpPowers && h > 0)
+      ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: beatUpPowers[h]}) || result)
+      : result;
+    let v = _hitRes.variations[Math.floor(Math.random() * _hitRes.variations.length)];
     // みがわり: 分身がダメージを肩代わり(超過分は消える)。連続攻撃で分身がこわれたら残りは本体に当たる
     // (第5世代以降。Bulbapedia "Substitute"/"Multi-strike move")。こらえる判定は本体が受ける時だけ。
     if (def.subHp > 0 && !_pierce){
