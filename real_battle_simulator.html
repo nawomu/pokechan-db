@@ -2308,6 +2308,34 @@ function phaseDealDamage(atkSide, defSide, move){
   else if (hitCount > 1) log('8', `${pname(atk)} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   else log('8', `${pname(atk)} の ${move.name}！ ${pname(def)} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   if (critRoll && total > 0) log('8', `きゅうしょに あたった！`);
+  // 接触反応特性(受け側・段112・ABILITY_DESC公式準拠): 直接攻撃(move.contact)を本体が受けた時に発動
+  if (def.poke && !def.fainted && total > 0 && !def.subAbsorbed && move.contact && atk.poke && !atk.fainted){
+    const _cAb = sideAbility(def);
+    // せいでんき=30%まひ / ほのおのからだ=30%やけど(相手の状態異常が無い時だけ・タイプ免疫も尊重)
+    if (_cAb === 'せいでんき' || _cAb === 'ほのおのからだ'){
+      const _code = _cAb === 'せいでんき' ? 'paralysis' : 'burn';
+      const _tImm = {paralysis: ['でんき'], burn: ['ほのお']}[_code];
+      if (atk.status === 'none' && !_tImm.some(t => sideTypes(atk).includes(t)) && Math.random() < 0.3){
+        atk.status = _code;
+        log('9', `${pname(atk)} は ${_cAb}で ${_code === 'paralysis' ? 'まひ' : 'やけど'} 状態になった！`);
+      }
+    }
+    // さめはだ=接触してきた相手に最大HPの1/8
+    if (_cAb === 'さめはだ'){
+      const _rMax = realStat(atk, 'hp');
+      const _rDmg = Math.max(1, Math.floor(_rMax / 8));
+      atk.currentHp = Math.max(0, atk.currentHp - _rDmg);
+      log('9', `${pname(atk)} は さめはだで ${_rDmg} ダメージ！ (残HP ${atk.currentHp})`);
+      if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
+    }
+  }
+  // くだけるよろい(受け側・段112): 物理技を受けるとぼうぎょ-1・すばやさ+2
+  if (def.poke && !def.fainted && total > 0 && !def.subAbsorbed && move.category === '物理' &&
+      sideAbility(def) === 'くだけるよろい'){
+    def.rank.def = Math.max(-6, (def.rank.def || 0) - 1);
+    def.rank.spd = Math.min(6, (def.rank.spd || 0) + 2);
+    log('9', `${pname(def)} の くだけるよろい！ ぼうぎょ-1 すばやさ+2！`);
+  }
   // かいがらのすず: 技でダメージを与えたら与ダメ合計の1/8回復(items_database宣言)
   if (atk.poke && !atk.fainted && !env.magicRoom && atk.item === 'shell_bell' && total > 0){
     const _sbMax = realStat(atk, 'hp');

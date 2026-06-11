@@ -5882,6 +5882,70 @@ console.log('\n=== 段111 タイプ吸収/無効の特性(ちょすい/ちくで
   resetEnv();
 }
 
+console.log('\n=== 段112 接触反応特性(せいでんき/ほのおのからだ/さめはだ)+くだけるよろい ===');
+// 出典: ABILITY_DESC(公式準拠) — せいでんき/ほのおのからだ=直接攻撃を受けると30%で相手をまひ/やけど・
+// さめはだ=直接攻撃の相手に最大HPの1/8・くだけるよろい=物理を受けるとぼうぎょ-1すばやさ+2。
+{
+  resetEnv();
+  // T243 せいでんき: 接触技を当てた側がまひ(乱数0=30%必発)
+  E.sides.self = freshSide('カビゴン', 'hataku');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.ability = 'せいでんき';
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T243 せいでんき: 接触した相手がまひ', E.sides.self.status === 'paralysis',
+    `status=${E.sides.self.status}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T244 さめはだ: 接触技を当てた側が最大HPの1/8ダメージ
+  E.sides.self = freshSide('カビゴン', 'hataku');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.ability = 'さめはだ';
+  E.sides.opp.status = 'sleep';
+  const myMax244 = E.realStat(E.sides.self, 'hp');
+  E.sides.self.currentHp = myMax244;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T244 さめはだ: 接触した相手が最大HPの1/8削れる',
+    E.sides.self.currentHp === myMax244 - Math.floor(myMax244 / 8),
+    `hp=${E.sides.self.currentHp}(${myMax244 - Math.floor(myMax244 / 8)}期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T244b 非接触技(かえんほうしゃ)ではさめはだは発動しない
+  E.sides.self = freshSide('リザードン', null);
+  E.sides.self.moves = [moveByName('かえんほうしゃ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.ability = 'さめはだ';
+  E.sides.opp.status = 'sleep';
+  const myMax244b = E.realStat(E.sides.self, 'hp');
+  E.sides.self.currentHp = myMax244b;
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T244b 非接触技ではさめはだ無反応', E.sides.self.currentHp === myMax244b,
+    `hp=${E.sides.self.currentHp}/${myMax244b}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T245 くだけるよろい: 物理を受けるとぼうぎょ-1すばやさ+2
+  E.sides.self = freshSide('カビゴン', 'hataku');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.ability = 'くだけるよろい';
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.0);
+  E.runTurn();
+  check('T245 くだけるよろい: ぼうぎょ-1すばやさ+2',
+    E.sides.opp.rank.def === -1 && E.sides.opp.rank.spd === 2,
+    `def=${E.sides.opp.rank.def} spd=${E.sides.opp.rank.spd}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
