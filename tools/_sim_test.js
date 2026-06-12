@@ -6685,6 +6685,40 @@ console.log('\n=== 段126 のろわれボディ(ゲンガー) ===');
   resetEnv();
 }
 
+console.log('\n=== 段127 メガシンカ直後の登場特性発動 ===');
+// 実機: メガシンカで得た「場に出た時に発動する特性」(ひでり/ゆきふらし/トレース等)はメガシンカした瞬間に発動する
+// (例: メガリザードンYのひでり)。megaEvolve後にfireEntryAbilityを呼ぶ。かげふみ(メガゲンガー)は常時参照なのでそのまま効く。
+{
+  resetEnv();
+  // T279 メガユキメノコ: メガシンカした瞬間にゆきふらしが発動して天気がゆきに
+  E.sides.self = freshSide('ユキメノコ', null);
+  E.sides.self.moves = [moveByName('シャドーボール')];
+  E.sides.self.item = 'mega_stone_any';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.env.weather = 'none';
+  E.megaEvolve('self');
+  check('T279 メガユキメノコのゆきふらしがメガシンカ時に発動', E.env.weather === 'snow',
+    `weather=${E.env.weather} poke=${E.sides.self.poke.name}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T279b メガゲンガー: かげふみで相手は交代できない(メガシンカ後)
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('シャドーボール')];
+  E.sides.self.item = 'mega_stone_any';
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  const sub = freshSide('カビゴン', 'hataku');
+  E.sides.opp.bench = [{ poke: sub.poke, effort: sub.effort, natureIdx: 0, ability: '', item: '',
+    moves: sub.moves, currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null }];
+  E.megaEvolve('self');
+  check('T279b前提 メガゲンガーになった', E.sides.self.poke.name === 'メガゲンガー', `poke=${E.sides.self.poke.name}`);
+  const swOk = E.attemptSwitch('opp', 0);
+  check('T279b かげふみで相手は交代できない', swOk === false && E.sides.opp.poke.name === 'フシギバナ',
+    `swOk=${swOk} poke=${E.sides.opp.poke.name}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

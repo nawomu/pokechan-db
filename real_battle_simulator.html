@@ -1975,9 +1975,14 @@ function phaseInitA(){
   const order = (effectiveSpeed(sides.self) >= effectiveSpeed(sides.opp))
     ? ['self','opp'] : ['opp','self'];
   // 各側を速度順に発動
-  for (const s of order){
+  for (const s of order) fireEntryAbility(s);
+}
+// 1体ぶんの「場に出た時の特性」発動(段127: バトル開始Init-Aと、メガシンカ直後からも呼ぶ。
+// 実機はメガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)がその瞬間に発動する)
+function fireEntryAbility(s){
+  {
     const st = sides[s];
-    if (!st.poke) continue;
+    if (!st.poke) return;
     const other = s === 'self' ? sides.opp : sides.self;
     const ab = sideAbility(st);
     if (ab === 'いかく' && other.poke){
@@ -4392,7 +4397,7 @@ function startChargeIfNeeded(st, mv, releasing){
 // ・交代するとランク補正・状態変化(揮発)・タイプ/特性/技の変更は元に戻る。
 // ・状態異常は回復しない(ねむりの残りカウントは持ち越し・もうどくカウンタはリセット)。
 // ・バインド/ねをはる状態は交代できない(ゴーストタイプは第6世代以降これを無視して交代できる)。
-//   ※フェアリーロック/かげふみ/ありじごく/じりょく/きれいなぬけがら は未実装(park)。
+//   ※かげふみは実装済み(cannotSwitchReason)。フェアリーロック/ありじごく/じりょく/きれいなぬけがら は未実装(park)。
 // ・壁(リフレクター等)・ねがいごと・みらいよちは「場(サイド)」に残る=ポケモンに付いて行かない。
 // 控えエントリ = ポケモンと一緒に移動する永続フィールドだけの入れ物
 const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem','megaBase','heroAnnounce'];
@@ -4755,6 +4760,8 @@ function megaEvolve(sideKey){
   st.megaUsed = true;
   st.megaChoice = false;
   log('0a', `${pname(st)} の ${stone.name}が 反応している！ ${mf.name} に メガシンカした！`);
+  // メガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)はその瞬間に発動する(段127・実機準拠)
+  fireEntryAbility(sideKey);
   return true;
 }
 
