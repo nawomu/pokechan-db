@@ -489,7 +489,7 @@ genPokemonIndex();
 POKE.forEach(genPokemonDetail);
 // genTypeIndex(); // タイプ一覧ページは廃止(既存 type_chart.html と役割重複・2026-06-12 阿部さん)
 TYPES.forEach(genTypeDetail);
-genMoveIndex();
+// genMoveIndex(); // わざ一覧(/move/)は廃止(既存 waza-list.html と役割重複・2026-06-12 阿部さん)
 
 console.log('✅ 生成完了');
 console.log('  特性:', 1 + ALL_ABIL.length, 'ページ (/ability/)');

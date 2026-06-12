@@ -16,8 +16,8 @@ function url(loc, pri, freq) {
 }
 
 const blocks = [];
-// 一覧(index)は優先度高め(/type/ は一覧ページ廃止のため除外)
-for (const dir of ['pokemon', 'move', 'ability']) {
+// 一覧(index)は優先度高め(/type/・/move/ は一覧ページ廃止のため除外)
+for (const dir of ['pokemon', 'ability']) {
   blocks.push(url(`${BASE}/${dir}/`, '0.7', 'weekly'));
 }
 // 個別ページ
