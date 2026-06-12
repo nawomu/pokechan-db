@@ -6719,6 +6719,63 @@ console.log('\n=== 段127 メガシンカ直後の登場特性発動 ===');
   resetEnv();
 }
 
+console.log('\n=== 段128 マジックミラー(変化技を跳ね返す) ===');
+// 出典: ポケモンWiki「マジックミラー」— 常時マジックコート状態=相手に出された変化技を受けずに跳ね返す。
+// 設置技も跳ね返す(すでに設置済みの効果は防げない)。かたやぶり系には跳ね返せない。
+{
+  resetEnv();
+  // T280 でんじは→エーフィ(マジックミラー): 跳ね返って自分がまひする
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('でんじは')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('エーフィ', null);
+  E.sides.opp.ability = 'マジックミラー';
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.setRandom(() => 0.0);
+  E.runSingleAttack('self', 0);
+  check('T280 でんじはが跳ね返って自分がまひ',
+    E.sides.self.status === 'paralysis' && E.sides.opp.status === 'none',
+    `self=${E.sides.self.status} opp=${E.sides.opp.status}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T280b ステルスロック→マジックミラー: 自分側の場に岩が刺さる
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ステルスロック')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('エーフィ', null);
+  E.sides.opp.ability = 'マジックミラー';
+  E.setRandom(() => 0.0);
+  E.runSingleAttack('self', 0);
+  check('T280b 設置技も跳ね返る(自分の場にステルスロック)',
+    E.sides.self.stealthRock === true && !E.sides.opp.stealthRock,
+    `self=${E.sides.self.stealthRock} opp=${E.sides.opp.stealthRock}`);
+  // T280c 攻撃技は跳ね返さない(普通に当たる)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ギガドレイン')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('エーフィ', null);
+  E.sides.opp.ability = 'マジックミラー';
+  const _max = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = _max;
+  E.runSingleAttack('self', 0);
+  check('T280c 攻撃技は跳ね返さない', E.sides.opp.currentHp < _max,
+    `hp=${E.sides.opp.currentHp}/${_max}`);
+  // T280d かたやぶりの変化技は跳ね返せない
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'かたやぶり';
+  E.sides.self.moves = [moveByName('でんじは')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('エーフィ', null);
+  E.sides.opp.ability = 'マジックミラー';
+  E.runSingleAttack('self', 0);
+  check('T280d かたやぶりには跳ね返せない(相手がまひ)',
+    E.sides.opp.status === 'paralysis' && E.sides.self.status === 'none',
+    `self=${E.sides.self.status} opp=${E.sides.opp.status}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
