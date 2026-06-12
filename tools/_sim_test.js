@@ -6544,10 +6544,10 @@ console.log('\n=== 段123 ふゆう(じめん技無効) ===');
 // じめん無効が「でんじふゆうだけ」を見ていた→isGrounded基準に統一。
 {
   resetEnv();
-  // T275 ふゆう持ちにじめん技はこうかなし
+  // T275 ふゆう持ちにじめん技はこうかなし(ロトム=DB上の実在ふゆう持ち。でんき/ゴーストでじめん2倍のはずが無効)
   E.sides.self = freshSide('フシギバナ', null);
   E.sides.self.moves = [moveByName('じしん')];
-  E.sides.opp = freshSide('ゲンガー', 'hataku');   // ゲンガー(ゴースト/どく)=じめん等倍だがふゆう
+  E.sides.opp = freshSide('ロトム', 'hataku');
   E.sides.opp.ability = 'ふゆう';
   const r1 = E.calcDamage('self', 'opp', moveByName('じしん'));
   check('T275 ふゆうにじめん技はこうかなし', r1 && r1.immune, `immune=${r1 && r1.immune}`);
@@ -6569,11 +6569,11 @@ console.log('\n=== 段124 かたやぶり(相手の防御特性を無視) ===');
 // さめはだ等の「攻撃を受けた後に働く特性」は無視しない。ターボブレイズ/テラボルテージも同効果。
 {
   resetEnv();
-  // T276 かたやぶり+じしん は ふゆう を無視して当たる
+  // T276 かたやぶり+じしん は ふゆう を無視して当たる(ロトム=実在ふゆう持ち)
   E.sides.self = freshSide('フシギバナ', null);
   E.sides.self.ability = 'かたやぶり';
   E.sides.self.moves = [moveByName('じしん')];
-  E.sides.opp = freshSide('ゲンガー', 'hataku');
+  E.sides.opp = freshSide('ロトム', 'hataku');
   E.sides.opp.ability = 'ふゆう';
   const r1 = E.calcDamage('self', 'opp', moveByName('じしん'));
   check('T276 かたやぶりはふゆうを無視して当てる', r1 && !r1.immune && r1.min > 0,
