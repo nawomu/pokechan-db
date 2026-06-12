@@ -124,6 +124,22 @@ const LIST_JS = `
   apply();
 })();`;
 
+// マウスオーバー説明ポップアップ([data-tip] を拾う・全ページ共通)
+const TIP_JS = `
+(function(){
+  var tip=document.createElement('div');tip.id='c-tip';tip.style.display='none';document.body.appendChild(tip);
+  function show(el){var t=el.getAttribute('data-tip');if(!t)return;tip.textContent=t;tip.style.display='block';
+    tip.style.left='0px';tip.style.top='0px';var r=el.getBoundingClientRect();
+    var w=tip.offsetWidth,h=tip.offsetHeight,left=r.left,top=r.bottom+6;
+    if(left+w>innerWidth-8)left=innerWidth-8-w;if(left<8)left=8;
+    if(top+h>innerHeight-8)top=r.top-6-h;
+    tip.style.left=left+'px';tip.style.top=top+'px';}
+  function hide(){tip.style.display='none';}
+  document.addEventListener('mouseover',function(e){var el=e.target.closest('[data-tip]');if(el)show(el);});
+  document.addEventListener('mouseout',function(e){var el=e.target.closest('[data-tip]');if(el)hide();});
+  document.addEventListener('scroll',hide,true);
+})();`;
+
 // ポケモン個別ページの「覚える技」表のソート/フィルター用JS
 const MOVE_JS = `
 (function(){
@@ -347,10 +363,13 @@ function genPokemonIndex() {
   const rows = POKE.map(p => {
     const types = [p.type1, p.type2].filter(Boolean);
     const total = p.hp + p.atk + p.def + p.spatk + p.spdef + p.spd;
+    const abCell = [p.ab1, p.ab2, p.ab3].filter(Boolean)
+      .map(a => `<a href="${abilHref(a)}" class="ab-chip" data-tip="${esc(ABID[a] || '')}">${esc(a)}</a>`).join('');
     return `      <tr data-name="${esc(p.name)}" data-types="${esc(types.join(','))}">`
       + `<td class="num">${esc(p.no)}</td>`
       + `<td class="name"><a href="${esc(pokeSlug.get(p.name))}.html">${esc(p.name)}</a></td>`
       + `<td>${types.map(badge).join('')}</td>`
+      + `<td class="abils">${abCell}</td>`
       + `<td class="num" data-v="${p.hp}">${p.hp}</td>`
       + `<td class="num" data-v="${p.atk}">${p.atk}</td>`
       + `<td class="num" data-v="${p.def}">${p.def}</td>`
@@ -381,6 +400,7 @@ function genPokemonIndex() {
         <th class="num" data-k="no">No.</th>
         <th data-k="name">なまえ</th>
         <th>タイプ</th>
+        <th>特性<span style="font-weight:400;font-size:11px;color:#888">(乗せると説明)</span></th>
         <th class="num" data-k="hp">HP</th>
         <th class="num" data-k="atk">こう</th>
         <th class="num" data-k="def">ぼう</th>
@@ -394,7 +414,8 @@ ${rows}
       </tbody>
     </table></div>
   </article>
-  <script>${LIST_JS}</script>` + FOOT;
+  <script>${LIST_JS}</script>
+  <script>${TIP_JS}</script>` + FOOT;
   writePage('pokemon/index.html', body);
 }
 
