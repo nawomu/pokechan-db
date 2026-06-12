@@ -4650,31 +4650,93 @@ function megaEvolve(sideKey){
   return true;
 }
 
-// === B: 対戦AI(段115) — 技の自動選択 ===
-// ダメージ最大(平均値)を選ぶ。こうかなし(immune)は選ばない・確定で倒せる技に大ボーナス。
-// 変化技はv1では「攻撃が全部無効な時の保険」(スコア1)。交代判断はv1では持たない(死に出しは自動)。
-function aiChooseMove(sideKey){
+// === B: 対戦AI(段115 → v2: 段118) ===
+// v2(2026-06-12 阿部さん「AI強化」): 変化技を battle_data.effects から評価+不利時の交代判断。
+// AIの行動方針はsim独自設計(実機の再現対象ではない)。スコアは「HP換算」で攻撃技の平均ダメージと直接比較する。
+const _AI_STATMAP = {attack:'atk', defense:'def', special_attack:'spatk', special_defense:'spdef', speed:'spd', accuracy:'acc', evasion:'eva'};
+
+// 変化技が相手のタイプに無効宣言されているか(でんじは→じめん/でんき等。battle_data.immuneを読む)
+function aiStatusImmune(move, foeSt){
+  const im = (move.battle_data && move.battle_data.immune) || [];
+  if (!foeSt.poke) return false;
+  const ftypes = sideTypes(foeSt);
+  return im.some(d => {
+    if (d.type !== 'target_type') return false;
+    const vals = d.values || (d.value ? [d.value] : []);
+    return vals.some(t => ftypes.includes(t));
+  });
+}
+
+// 1技のスコア(HP換算)。攻撃技=平均ダメージ(確定KOに+1000)。変化技=効果データから見積もり。
+function aiScoreMove(sideKey, m){
   const st = sides[sideKey];
   const foe = sideKey === 'self' ? 'opp' : 'self';
-  if (!st.poke || !st.moves || !st.moves.length) return 0;
   const foeSt = sides[foe];
   const foeHp = foeSt.poke ? (foeSt.currentHp == null ? realStat(foeSt, 'hp') : foeSt.currentHp) : 0;
+  if (m.category !== '変化'){
+    const r = calcDamage(sideKey, foe, m);
+    if (!r || r.immune || r.max <= 0) return 0;
+    let score = (r.min + r.max) / 2;
+    if (r.min >= foeHp && foeHp > 0) score += 1000;   // 確定で倒せる技を最優先
+    return score;
+  }
+  // 変化技の見積もり(保険の最低値=1はv1互換: 攻撃が全部無効な時だけ流れる)
+  const efs = (m.battle_data && m.battle_data.effects) || [];
+  const myMax = realStat(st, 'hp');
+  const myHp = st.currentHp == null ? myMax : st.currentHp;
+  let score = 1;
+  for (const e of efs){
+    if (e.kind === '回復' && e.target === 'self'){
+      score = Math.max(score, (myMax - myHp) * 0.7);   // 減ったHPの7割相当の価値(満タンならほぼ0)
+    } else if (e.kind === '状態付与' && (e.target === 'opponent' || e.target === 'all_opponents')
+               && (e.prob == null || e.prob >= 100)
+               && foeSt.poke && foeSt.status === 'none' && !aiStatusImmune(m, foeSt)){
+      score = Math.max(score, foeHp * 0.45);           // 健康な相手への状態異常は残HPの45%相当
+    } else if (e.kind === '能力ランク変化' && e.target === 'self' && (e.stages || 0) > 0){
+      const k = _AI_STATMAP[e.stat] || e.stat;
+      const cur = (st.rank && st.rank[k]) || 0;
+      // 自分が元気(HP2/3以上)で積み切ってない(+2未満)なら積む価値あり
+      if (myHp * 3 >= myMax * 2 && cur < 2) score = Math.max(score, 40 + (e.stages || 1) * 10);
+    }
+  }
+  return score;
+}
+
+function aiChooseMove(sideKey){
+  const st = sides[sideKey];
+  if (!st.poke || !st.moves || !st.moves.length) return 0;
   let best = -1, bestScore = -1;
   st.moves.forEach((m, i) => {
     if (!m) return;
-    let score = 0;
-    if (m.category !== '変化'){
-      const r = calcDamage(sideKey, foe, m);
-      if (r && !r.immune && r.max > 0){
-        score = (r.min + r.max) / 2;
-        if (r.min >= foeHp && foeHp > 0) score += 1000;   // 確定で倒せる技を最優先
-      }
-    } else {
-      score = 1;   // 攻撃が全部無効な時だけ変化技に流れる
-    }
+    const score = aiScoreMove(sideKey, m);
     if (score > bestScore){ bestScore = score; best = i; }
   });
   return best >= 0 ? best : 0;
+}
+
+// 行動選択(技 or 交代)。交代は控えめに:「どの技にも価値が無い(全部こうかなし・変化技も無駄)」時だけ、
+// 相手に一番タイプ相性の良い攻撃技を持つ控えへ交代する。戻り値 {type:'move'|'switch', index}
+function aiChooseAction(sideKey){
+  const st = sides[sideKey];
+  const foe = sideKey === 'self' ? 'opp' : 'self';
+  const best = aiChooseMove(sideKey);
+  const bestScore = (st.moves && st.moves[best]) ? aiScoreMove(sideKey, st.moves[best]) : 0;
+  if (bestScore > 5) return {type: 'move', index: best};
+  const foeSt = sides[foe];
+  const ftypes = foeSt.poke ? sideTypes(foeSt) : [];
+  let swIdx = -1, swEff = 0;
+  (st.bench || []).forEach((b, i) => {
+    if (!b || !b.poke || b.fainted || (b.currentHp != null && b.currentHp <= 0)) return;
+    let eff = 0;
+    (b.moves || []).forEach(m => {
+      if (!m || m.category === '変化') return;
+      const e = moveTypeEff(m.type, ftypes);
+      if (e > eff) eff = e;
+    });
+    if (eff > swEff){ swEff = eff; swIdx = i; }
+  });
+  if (swIdx >= 0 && swEff > 0) return {type: 'switch', index: swIdx};
+  return {type: 'move', index: best};
 }
 
 function runTurn(){
@@ -6916,11 +6978,13 @@ function attachBattleControl(){
   const reset = document.getElementById('btn-reset-battle');
   const full  = document.getElementById('btn-full-reset');
   if (start) start.addEventListener('click', startBattle);
-  // 相手AI(段115): チェックON中はターン実行のたびに相手の技をAIが選ぶ(手動選択を上書き)
+  // 相手AI(段115→v2:段118): チェックON中はターン実行のたびに相手の行動(技 or 交代)をAIが選ぶ
   if (turn)  turn.addEventListener('click', () => {
     const aiCb = document.getElementById('opp-ai');
     if (aiCb && aiCb.checked && sides.opp.poke && !sides.opp.fainted){
-      sides.opp.selectedMoveIdx = aiChooseMove('opp');
+      const act = aiChooseAction('opp');
+      if (act.type === 'switch') sides.opp.switchChoice = act.index;
+      else sides.opp.selectedMoveIdx = act.index;
     }
     runTurn();
   });
@@ -6935,7 +6999,7 @@ function attachBattleControl(){
 window.__sim = {
   sides, env, battleLog,
   runTurn, calcDamage, realStat, makeSideState, usableMoves,
-  aiChooseMove, attemptSwitch, megaEvolve, canMegaEvolve, resetBattle,
+  aiChooseMove, aiChooseAction, aiScoreMove, attemptSwitch, megaEvolve, canMegaEvolve, resetBattle,
   pokeByName: n => (POKE_MAP_BY_NAME[n] || null),
   pokeList: () => POKEMON_LIST,
   typeColors: () => (typeof TYPE_COLORS !== 'undefined' ? TYPE_COLORS : {}),
