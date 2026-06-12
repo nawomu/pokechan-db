@@ -6619,6 +6619,39 @@ console.log('\n=== 段124 かたやぶり(相手の防御特性を無視) ===');
   resetEnv();
 }
 
+console.log('\n=== 段125 連続攻撃のstop_on_miss+威力逓増(トリプルアクセル/ネズミざん) ===');
+// 出典: ポケモンWiki「トリプルアクセル」(3回連続・威力20/40/60・各回ごとに命中判定・外れた時点で終了)/
+// 「ネズミざん」(最大10回・1回ごとに命中判定・外れた時点で終了)。データ宣言(stop_on_miss/power_per_hit)を読む。
+{
+  resetEnv();
+  // T277 トリプルアクセル: 全部当たれば威力20/40/60の3発分
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('トリプルアクセル')];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  const mv = moveByName('トリプルアクセル');
+  const d20 = E.calcDamage('self', 'opp', mv, {crit: false}).min;
+  const d40 = E.calcDamage('self', 'opp', mv, {crit: false, powerOverride: 40}).min;
+  const d60 = E.calcDamage('self', 'opp', mv, {crit: false, powerOverride: 60}).min;
+  const oppMax = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = oppMax;
+  E.setRandom(() => 0.0);   // 全ヒット・最小乱数
+  E.phaseDealDamage('self', 'opp', mv);
+  check('T277 3発全部当たると威力20/40/60の合計ダメージ',
+    oppMax - E.sides.opp.currentHp === d20 + d40 + d60,
+    `dealt=${oppMax - E.sides.opp.currentHp} 期待=${d20}+${d40}+${d60}=${d20 + d40 + d60}`);
+  // T277b 2発目が外れたら1発分で終了
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.currentHp = oppMax;
+  let _seq = [0.0, 0.99];   // 1発目の乱数→2発目の命中判定で外れる
+  let _i = 0;
+  E.setRandom(() => (_i < _seq.length ? _seq[_i++] : 0.0));
+  E.phaseDealDamage('self', 'opp', mv);
+  check('T277b 外れた時点で終了(1発分のみ)',
+    oppMax - E.sides.opp.currentHp === d20,
+    `dealt=${oppMax - E.sides.opp.currentHp} 期待=${d20}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

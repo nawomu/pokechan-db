@@ -2312,7 +2312,7 @@ function phaseDealDamage(atkSide, defSide, move){
         hitCount = multiEf.min_hits + Math.floor(Math.random() * (multiEf.max_hits - multiEf.min_hits + 1));
       }
     } else if (multiEf.max_hits != null){
-      hitCount = multiEf.max_hits; // ネズミざん/トリプルアクセル(stop_on_miss): 簡易に最大回数(命中前提・威力逓増は未対応=park)
+      hitCount = multiEf.max_hits; // ネズミざん/トリプルアクセル(stop_on_miss): 最大回数から開始(各回の命中判定はヒットループ内・段125)
     } else if (multiEf.hits_by && beatUpPowers){
       hitCount = beatUpPowers.length;   // ふくろだたき: 出せるメンバーの数だけ
     }
@@ -2320,12 +2320,23 @@ function phaseDealDamage(atkSide, defSide, move){
 
   // ヒット数ぶんダメージ(各ヒットで乱数を引く・相手が倒れたら中断)
   const _pierce = piercesSub(move);
+  // stop_on_miss(段125・トリプルアクセル/ネズミざん): 2発目以降は1発ごとに命中判定し、外れた時点で終了。
+  // power_per_hit(トリプルアクセル=20/40/60): その発の威力で計算し直す。
+  // 出典: ポケモンWiki「トリプルアクセル」「ネズミざん」。急所は技1回につき1判定の近似(既存コメント②)
+  const _stopOnMiss = multiEf && multiEf.stop_on_miss;
+  const _pph = (multiEf && multiEf.power_per_hit) || null;
   let total = 0, hits = 0, lastHit = 0;
   for (let h = 0; h < hitCount; h++){
     if (def.currentHp <= 0) break;
+    if (_stopOnMiss && h > 0){
+      const _hc = phaseHitCheck(move, atk, def);
+      if (!_hc.hit){ log('8', `${hits + 1}発目は はずれて 攻撃が 止まった！`); break; }
+    }
     // ふくろだたき: 2発目以降はそのメンバーの威力で計算し直す(1発目は result がその威力で計算済み)
     const _hitRes = (beatUpPowers && h > 0)
       ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: beatUpPowers[h]}) || result)
+      : (_pph && h > 0 && _pph[h] != null)
+      ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: _pph[h]}) || result)
       : result;
     let v = _hitRes.variations[Math.floor(Math.random() * _hitRes.variations.length)];
     // みがわり: 分身がダメージを肩代わり(超過分は消える)。連続攻撃で分身がこわれたら残りは本体に当たる
