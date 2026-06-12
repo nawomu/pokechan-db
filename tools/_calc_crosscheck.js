@@ -35,7 +35,26 @@ const mkCalc = () => new Pokemon(gen, POKE_EN, {
   ivs: { hp: 31, atk: 31, def: 31, spa: 31, spd: 31, spe: 31 }, evs: {},
 });
 
-const buckets = { match: [], diff: [], bp_mismatch: [], type_mismatch: [], charge_pending: [], ours_null: [], calc_error: [], immune_both: [], skipped_status: [] };
+const buckets = { match: [], diff: [], champions_verified: [], bp_mismatch: [], type_mismatch: [], charge_pending: [], ours_null: [], calc_error: [], immune_both: [], skipped_status: [] };
+
+// Championsで公式に威力/タイプが変更された技(2026-06-12 ポケモンWiki各技ページで全件権威確認済み)。
+// calc(本家=メインシリーズ値)とズレるのは正しい → champions_verified に分類して「要確認」から外す。
+// 例: かげぬいのWiki表記「威力 80 (SVまで) →90 (Champions)」
+const CHAMPIONS_VERIFIED = {
+  boonrasshu:       { bp: 30,  mainline: 25,  note: 'ボーンラッシュ 25→30' },
+  naitobaasuto:     { bp: 90,  mainline: 85,  note: 'ナイトバースト 85→90' },
+  kagenui:          { bp: 90,  mainline: 80,  note: 'かげぬい 80→90' },
+  toropikarukikku:  { bp: 85,  mainline: 70,  note: 'トロピカルキック 70→85' },
+  kuchibashikyanon: { bp: 120, mainline: 100, note: 'くちばしキャノン 100→120' },
+  deaigashira:      { bp: 100, mainline: 90,  note: 'であいがしら 90→100' },
+  honoonomuchi:     { bp: 90,  mainline: 80,  note: 'ほのおのムチ 80→90' },
+  ringosan:         { bp: 90,  mainline: 80,  note: 'りんごさん 80→90' },
+  gnochikara:       { bp: 90,  mainline: 80,  note: 'Gのちから 80→90' },
+  bariaarasshu:     { bp: 90,  mainline: 70,  note: 'バリアーラッシュ 70→90' },
+  "hyouzan'oroshi": { bp: 120, mainline: 100, note: 'ひょうざんおろし 100→120' },
+  hyakkiyakou:      { bp: 65,  mainline: 60,  note: 'ひゃっきやこう 60→65' },
+  torabasami:       { type: 'はがね', mainline_type: 'くさ', note: 'トラバサミ くさ→はがね' },
+};
 
 // 技タイプの英日対応(type_mismatch分類用: トラバサミ=Championsでタイプ変更が権威確認済みの類)
 const TYPE_EN2JA = {
@@ -102,12 +121,20 @@ for (const [key, mv] of Object.entries(data.WAZA_MAP)) {
     rec.normalized = `ours×${calcMove.hits}`;
   }
   if (ourCmp[0] === calcRange[0] && ourCmp[1] === calcRange[1]) { buckets.match.push(rec); continue; }
-  // 威力/タイプのデータ自体が本家と違う(Champions差分の可能性) → 別分類(隠さず列挙・要権威確認)
+  // 威力/タイプのデータ自体が本家と違う → 権威確認済み(Champions変更)なら champions_verified、
+  // 未確認の新規ズレだけを bp_mismatch / type_mismatch として騒ぐ
   const ourBp = (mv.power == null || mv.power === '—') ? 0 : Number(mv.power);
-  if (ourBp && calcMove.bp && ourBp !== calcMove.bp) { buckets.bp_mismatch.push(rec); continue; }
+  const cv = CHAMPIONS_VERIFIED[rec.key];
+  if (ourBp && calcMove.bp && ourBp !== calcMove.bp) {
+    if (cv && cv.bp === ourBp && cv.mainline === calcMove.bp){ rec.verified = cv.note; buckets.champions_verified.push(rec); }
+    else buckets.bp_mismatch.push(rec);
+    continue;
+  }
   if (calcMove.type && TYPE_EN2JA[calcMove.type] && TYPE_EN2JA[calcMove.type] !== mv.type) {
     rec.calc_type = TYPE_EN2JA[calcMove.type];
-    buckets.type_mismatch.push(rec); continue;
+    if (cv && cv.type === mv.type && cv.mainline_type === rec.calc_type){ rec.verified = cv.note; buckets.champions_verified.push(rec); }
+    else buckets.type_mismatch.push(rec);
+    continue;
   }
   // 溜め技の能力上昇(メテオビーム/エレクトロビーム=溜めターンにとくこう+1): calcは+1込みで返す
   // → うちも溜めターンのランク上昇を適用してから再計算して比較(sim実装済み: startChargeIfNeeded)
@@ -144,10 +171,12 @@ console.log('=== @smogon/calc 照合結果(', out.matchup, ') ===');
 for (const [k, v] of Object.entries(out.counts)) console.log(`  ${k}: ${v}`);
 console.log('\n--- diff(同威力なのに乱数幅がズレ=エンジン側の疑い) ---');
 buckets.diff.forEach(r => console.log(`  ${r.name} (${r.type}/${r.category} bp${r.power}) ours=${JSON.stringify(r.ours)} calc=${JSON.stringify(r.calc)}`));
-console.log('\n--- bp_mismatch(威力データが本家と違う=Champions差分?要権威確認) ---');
+console.log('\n--- bp_mismatch(威力データが本家と違う=未確認の新規ズレ。出たら権威確認すること) ---');
 buckets.bp_mismatch.forEach(r => console.log(`  ${r.name} ours_bp=${r.power} calc_bp=${r.calc_bp} ours=${JSON.stringify(r.ours)} calc=${JSON.stringify(r.calc)}`));
-console.log('\n--- type_mismatch(タイプデータが本家と違う=Champions差分?要権威確認) ---');
+console.log('\n--- type_mismatch(タイプデータが本家と違う=未確認の新規ズレ。出たら権威確認すること) ---');
 buckets.type_mismatch.forEach(r => console.log(`  ${r.name} ours=${r.type} calc=${r.calc_type}`));
+console.log('\n--- champions_verified(Champions公式変更と権威確認済み=正常) ---');
+buckets.champions_verified.forEach(r => console.log(`  ${r.verified}`));
 console.log('\n--- charge_pending(溜め技: 溜めターン未実装のため保留・隠さず列挙) ---');
 buckets.charge_pending.forEach(r => console.log(`  ${r.name} ours=${JSON.stringify(r.ours)} calc=${JSON.stringify(r.calc)}`));
 console.log('\n→ 詳細: review/_calc_crosscheck.json');
