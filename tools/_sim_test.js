@@ -6436,6 +6436,109 @@ console.log('\n=== 段121 マイティチェンジ(イルカマン) ===');
   resetEnv();
 }
 
+console.log('\n=== 段122 特性5種: むしのしらせ/じしんかじょう/いたずらごころ/へんげんじざい/トレース ===');
+// 出典は全てポケモンWiki(2026-06-12取得): むしのしらせ=HP1/3以下でむし技の攻撃/特攻1.5倍 /
+// じしんかじょう=攻撃技で相手をひんしにするとこうげき+1 / いたずらごころ=変化技の優先度+1(第7世代以降:
+// 優先度を上げた技はあくタイプに無効) / へんげんじざい=技を出す直前に自分がその技タイプに変化(交代で戻る・
+// 1回場に出るごとに1回) / トレース=場に出た時に相手の特性をコピー。
+{
+  resetEnv();
+  // T270 むしのしらせ: HP1/3以下でむし技が強くなる(しんりょくファミリーと同型)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'むしのしらせ';
+  E.sides.self.moves = [moveByName('シザークロス')];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  const fullMin = E.calcDamage('self', 'opp', moveByName('シザークロス')).min;
+  E.sides.self.currentHp = Math.floor(E.realStat(E.sides.self, 'hp') / 3);
+  const pinchMin = E.calcDamage('self', 'opp', moveByName('シザークロス')).min;
+  check('T270 むしのしらせ: ピンチでむし技が1.5倍相当に上がる', pinchMin > fullMin,
+    `full=${fullMin} pinch=${pinchMin}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T271 じしんかじょう: 攻撃技で相手を倒すとこうげき+1
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'じしんかじょう';
+  E.sides.self.moves = [moveByName('でんこうせっか')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.currentHp = 1;
+  E.setRandom(() => 0.0);
+  E.runSingleAttack('self', 0);
+  check('T271 倒すとこうげき+1', E.sides.opp.fainted && E.sides.self.rank.atk === 1,
+    `fainted=${E.sides.opp.fainted} atk=${E.sides.self.rank.atk}`);
+  // T271b 倒せなかった時は上がらない
+  E.sides.self.rank.atk = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.runSingleAttack('self', 0);
+  check('T271b 倒せなければ上がらない', !E.sides.opp.fainted && E.sides.self.rank.atk === 0,
+    `fainted=${E.sides.opp.fainted} atk=${E.sides.self.rank.atk}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T272 いたずらごころ: 変化技の優先度+1(遅いカビゴンが先に でんじは を出せる)
+  E.sides.self = freshSide('カビゴン', null);   // 素早さ30 < フシギバナ80
+  E.sides.self.moves = [moveByName('でんじは')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.sides.opp.selectedMoveIdx = 0;
+  E.setRandom(() => 0.99);
+  check('T272前提 特性なしでは後攻', E.decideOrder(E.sides.self.moves[0], E.sides.opp.moves[0]) === 'opp',
+    `first=${E.decideOrder(E.sides.self.moves[0], E.sides.opp.moves[0])}`);
+  E.sides.self.ability = 'いたずらごころ';
+  check('T272 いたずらごころで変化技が先攻になる',
+    E.decideOrder(E.sides.self.moves[0], E.sides.opp.moves[0]) === 'self',
+    `first=${E.decideOrder(E.sides.self.moves[0], E.sides.opp.moves[0])}`);
+  // T272b 第7世代以降: あくタイプには変化技が無効
+  E.sides.opp = freshSide('ブラッキー', 'hataku');
+  E.setRandom(() => 0.0);
+  E.runSingleAttack('self', 0);
+  check('T272b あくタイプに変化技が効かない(状態異常つかない)', E.sides.opp.status === 'none',
+    `status=${E.sides.opp.status}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T273 へんげんじざい: 技を出す直前に自分がその技タイプに変化(1回場に出るごとに1回)
+  E.sides.self = freshSide('フシギバナ', null);   // くさ/どく
+  E.sides.self.ability = 'へんげんじざい';
+  E.sides.self.moves = [moveByName('10まんボルト'), moveByName('シャドーボール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.0);
+  E.runSingleAttack('self', 0);
+  check('T273 技タイプ(でんき)に変化する', JSON.stringify(E.sideTypes(E.sides.self)) === '["でんき"]',
+    `types=${JSON.stringify(E.sideTypes(E.sides.self))}`);
+  // T273b 同じ登場中は2回目は発動しない(でんきのまま)
+  E.runSingleAttack('self', 1);
+  check('T273b 1回場に出るごとに1回だけ(2発目では変わらない)',
+    JSON.stringify(E.sideTypes(E.sides.self)) === '["でんき"]',
+    `types=${JSON.stringify(E.sideTypes(E.sides.self))}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T274 トレース: 場に出た時、相手の特性をコピーする
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'トレース';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.ability = 'あついしぼう';
+  E.phaseInitA();
+  check('T274 相手の特性をコピーする', E.sideAbility(E.sides.self) === 'あついしぼう',
+    `ability=${E.sideAbility(E.sides.self)}`);
+  // T274b コピー不可特性(バトルスイッチ)はコピーしない
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'トレース';
+  E.sides.opp = freshSide('ギルガルド(シールド)', 'hataku');
+  E.sides.opp.ability = 'バトルスイッチ';
+  E.phaseInitA();
+  check('T274b バトルスイッチはコピーできない', E.sideAbility(E.sides.self) === 'トレース',
+    `ability=${E.sideAbility(E.sides.self)}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

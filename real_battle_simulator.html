@@ -1643,7 +1643,8 @@ function calcDamage(atkSide, defSide, move, opts){
     chips.push({label:'てつのこぶし', factor:1.2, kind:'ability'});
   }
   // しんりょく/もうか/げきりゅう: HPが1/3以下のとき該当タイプの技 ×1.5(ABILITY_DESC公式準拠・段107)
-  const _PINCH_AB = {'しんりょく': 'くさ', 'もうか': 'ほのお', 'げきりゅう': 'みず'};
+  // むしのしらせ: 同型のむし版(段122・ポケモンWiki「むしのしらせ」=第5世代以降は攻撃/特攻1.5倍≒×1.5近似)
+  const _PINCH_AB = {'しんりょく': 'くさ', 'もうか': 'ほのお', 'げきりゅう': 'みず', 'むしのしらせ': 'むし'};
   if (_PINCH_AB[ab] === moveType && atk.currentHp != null && atk.currentHp <= Math.floor(realStat(atk, 'hp') / 3)){
     base = pokeRound(base, 6144);
     chips.push({label: ab, factor: 1.5, kind: 'ability'});
@@ -1881,7 +1882,9 @@ const PHASES = [
 // 満たさなければ0(データの素のpriorityは「条件成立時の値」として扱う)。出典: Bulbapedia "Grassy Glide"
 // st(使う側の状態)が渡されない呼び出しでは接地条件は満たす前提で評価する。
 function movePriority(move, st){
-  const base = (move && move.battle_data && move.battle_data.priority) || 0;
+  let base = (move && move.battle_data && move.battle_data.priority) || 0;
+  // いたずらごころ: 変化技の優先度+1(段122・ポケモンWiki「いたずらごころ」)
+  if (st && move && move.category === '変化' && sideAbility(st) === 'いたずらごころ') base += 1;
   const condEf = ((move && move.battle_data && move.battle_data.effects) || []).find(e => e.kind === '条件付き優先');
   if (condEf){
     const vals = (condEf.condition && condEf.condition.type === 'all' && condEf.condition.values) || [condEf.condition].filter(Boolean);
@@ -1973,6 +1976,14 @@ function phaseInitA(){
     if (ab === 'いかく' && other.poke){
       other.rank.atk = Math.max(-6, (other.rank.atk||0) - 1);
       log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
+    } else if (ab === 'トレース' && other.poke){
+      // トレース(段122・ポケモンWiki): 場に出た時、相手の特性をコピー(abilityOverride=交代で自然に消える)。
+      // コピー不可はフォルムチェンジ系等(代表のみの近似)
+      const _tAb = sideAbility(other);
+      if (_tAb && !['トレース', 'バトルスイッチ', 'マイティチェンジ'].includes(_tAb)){
+        st.abilityOverride = _tAb;
+        log('Init-A', `${pname(st)} は トレースで ${pname(other)} の ${_tAb}を コピーした！`);
+      }
     } else if (ab === 'ひでり'){
       env.weather = 'sunny';
       log('Init-A', `${pname(st)} の ひでりで 日差しが強くなった！`);
@@ -2421,6 +2432,11 @@ function phaseDealDamage(atkSide, defSide, move){
     def.fainted = true;
     log('8', `${pname(def)} は ひんしになった！`);
     applyDestinyBond(def, atk);   // みちづれ(相手の技でひんし→道連れ)
+    // じしんかじょう: 攻撃技で相手をひんしにするとこうげき+1(段122・ポケモンWiki「じしんかじょう」)
+    if (!atk.fainted && sideAbility(atk) === 'じしんかじょう' && (atk.rank.atk || 0) < 6){
+      atk.rank.atk = (atk.rank.atk || 0) + 1;
+      log('9', `${pname(atk)} は じしんかじょうで こうげきが あがった！`);
+    }
   }
   return {...result, variation: total, hits};
 }
@@ -4178,6 +4194,13 @@ function runSingleAttack(atkSide, moveIdx){
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
   stanceChange(atkSide, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
+  proteanChange(atk, mv);      // へんげんじざい/リベロ(段122): 技を出す直前にタイプ変化
+  // いたずらごころ(段122): 優先度を上げた変化技はあくタイプに無効
+  if (pranksterBlocked(atk, def, mv)){
+    log('0c', `${pname(def)} には 効果がない！(いたずらごころの先制変化技は あくタイプに無効)`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
   // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
   const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
   const _enduEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'こらえる');
@@ -4359,6 +4382,7 @@ function clearVolatilesOnSwitch(st){
   st.stockpile = 0; st.stockpileBoost = {def: 0, spdef: 0};
   st.tauntTurns = 0; st.lastMove = null; st.disable = null; st.encore = null;
   st.statOverride = null; st.typeOverride = null; st.abilityOverride = null;
+  st.proteanUsed = false;   // へんげんじざい(段122): 1回場に出るごとに1回 → 交代でリセット
   st.destinyBond = false; st.dbondPrev = false; st.perishCount = null;
   st.lockOn = 0; st.tormented = false; st.imprison = false;
   st.soundBlocked = 0; st.soundBlockedMoves = null;
@@ -4624,6 +4648,14 @@ function attemptSwitch(sideKey, benchIdx, opts){
     if (sideAbility(st) === 'おみとおし' && _oppSt.poke && _oppSt.item && ITEM_BY_KEY[_oppSt.item]){
       log('9', `${pname(st)} は おみとおしで ${pname(_oppSt)} の ${ITEM_BY_KEY[_oppSt.item].name}を 見抜いた！`);
     }
+    // トレース(段122): 交代で場に出た時も相手の特性をコピー(phaseInitAと同条件)
+    if (sideAbility(st) === 'トレース' && _oppSt.poke){
+      const _tAb = sideAbility(_oppSt);
+      if (_tAb && !['トレース', 'バトルスイッチ', 'マイティチェンジ'].includes(_tAb)){
+        st.abilityOverride = _tAb;
+        log('9', `${pname(st)} は トレースで ${pname(_oppSt)} の ${_tAb}を コピーした！`);
+      }
+    }
   }
   // いやしのねがい: 出てきたポケモンが全回復(設置物のダメージの後=回復で帳消しにできる)。
   // 実機(第8世代以降)は「健康なポケモンには持ち越し」だが、simは最初に出たポケモンに適用する近似。
@@ -4680,6 +4712,26 @@ function megaEvolve(sideKey){
   st.megaChoice = false;
   log('0a', `${pname(st)} の ${stone.name}が 反応している！ ${mf.name} に メガシンカした！`);
   return true;
+}
+
+// === へんげんじざい/リベロ(段122) — 出典: ポケモンWiki「へんげんじざい」 ===
+// 技を出す直前に自分のタイプがその技のタイプに変化(第9世代: 1回場に出るごとに1回)。
+// 交代で戻る(typeOverrideはclearVolatilesOnSwitchで消える)。すでにその単一タイプなら発動しない(=1回を消費しない近似)。
+function proteanChange(st, mv){
+  const ab = sideAbility(st);
+  if ((ab !== 'へんげんじざい' && ab !== 'リベロ') || st.proteanUsed || !mv || !mv.type) return;
+  const cur = sideTypes(st);
+  if (cur.length === 1 && cur[0] === mv.type) return;
+  st.typeOverride = [mv.type];
+  st.proteanUsed = true;
+  log('0c', `${pname(st)} は ${ab}で ${mv.type}タイプに なった！`);
+}
+// いたずらごころのあく無効(段122・第7世代以降): 優先度を上げた変化技は あくタイプの相手に無効。
+// 対象が相手側の技だけ(自分・場対象は通る)。true=無効で行動失敗
+function pranksterBlocked(atk, def, mv){
+  if (!mv || mv.category !== '変化' || sideAbility(atk) !== 'いたずらごころ') return false;
+  if (!def.poke || !sideTypes(def).includes('あく')) return false;
+  return ['1体選択', 'ランダム1体', '相手全体', '自分以外全体'].includes(mv.target);
 }
 
 // === バトルスイッチ(段120・ギルガルド) — 出典: ポケモンWiki「バトルスイッチ」 ===
@@ -5016,6 +5068,13 @@ function runTurn(){
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
     stanceChange(a.side, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
+    proteanChange(atk, mv);     // へんげんじざい/リベロ(段122): 技を出す直前にタイプ変化
+    // いたずらごころ(段122): 優先度を上げた変化技はあくタイプに無効
+    if (pranksterBlocked(atk, def, mv)){
+      log('0c', `${pname(def)} には 効果がない！(いたずらごころの先制変化技は あくタイプに無効)`);
+      noteActionFailed(atk);
+      continue;
+    }
     // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ。連続使用は成功率が1/3ずつ下がり、
     // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure"。
     // ファストガードはmultiplierなし=連続でも失敗しない)

@@ -81,6 +81,7 @@ function buildEngine() {
     runSingleAttack: (typeof runSingleAttack !== 'undefined') ? runSingleAttack : null,
     attemptSwitch: (typeof attemptSwitch !== 'undefined') ? attemptSwitch : null,
     aiChooseMove: (typeof aiChooseMove !== 'undefined') ? aiChooseMove : null,
+    phaseInitA: (typeof phaseInitA !== 'undefined') ? phaseInitA : null,
     aiChooseAction: (typeof aiChooseAction !== 'undefined') ? aiChooseAction : null,
     aiScoreMove: (typeof aiScoreMove !== 'undefined') ? aiScoreMove : null,
     megaEvolve: (typeof megaEvolve !== 'undefined') ? megaEvolve : null,
