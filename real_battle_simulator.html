@@ -1512,15 +1512,22 @@ function calcDamage(atkSide, defSide, move, opts){
     return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
             immune:true, reason:'こうかなし', recoil:0};
   }
-  // でんじふゆう: 地面にいない扱い=じめん技はこうかなし(じゅうりょく/ねをはるで打ち消し。ポケモンWiki「でんじふゆう」)
-  if (moveType === 'じめん' && def.magnetRise > 0 && !env.gravity && !def.rooted){
-    const hp = realStat(def, 'hp');
-    return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
-            immune:true, reason:'こうかなし(でんじふゆうで浮いている)', recoil:0};
+  // 浮いている相手にじめん技はこうかなし(段123: ふゆう/でんじふゆう=isGrounded基準に統一。
+  // ひこうタイプは相性表(eff=0)で処理済み。じゅうりょく/ねをはるはisGroundedが打ち消す)
+  // かたやぶり(段124): ふゆうは無視できる(でんじふゆうは状態であって特性ではないので無視できない)
+  if (moveType === 'じめん' && !isGrounded(def) && !sideTypes(def).includes('ひこう')){
+    const _isLevitate = sideAbility(def) === 'ふゆう' && !(def.magnetRise > 0);
+    if (!(_isLevitate && _BREAKER.includes(sideAbility(atk)))){
+      const hp = realStat(def, 'hp');
+      const why = _isLevitate ? 'ふゆうで 浮いている' : 'でんじふゆうで 浮いている';
+      return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
+              immune:true, reason:`こうかなし(${why})`, recoil:0};
+    }
   }
   // タイプ吸収/無効の特性(受け側・段111・ABILITY_DESC公式準拠)。おまけ(回復/ランク/もらいび)は phaseDealDamage 側で発動
+  // かたやぶり(段124)はこれらを無視して当てる
   {
-    const _dAb = sideAbility(def);
+    const _dAb = defAbilityVs(def, atk);
     const _ABSORB = {'ちょすい': 'みず', 'ちくでん': 'でんき', 'もらいび': 'ほのお', 'そうしょく': 'くさ', 'ひらいしん': 'でんき', 'でんきエンジン': 'でんき'};
     if (_ABSORB[_dAb] === moveType || (_dAb === 'ぼうおん' && move.flags && move.flags.sound)){
       const hp = realStat(def, 'hp');
@@ -1565,7 +1572,7 @@ function calcDamage(atkSide, defSide, move, opts){
   // opts.crit = phaseDealDamage の確率ロール(きあいだめ/高急所技)で急所が出た時に立つ
   // シェルアーマー(受け側): 急所を無効化(確定急所・UIトグルも含む。ABILITY_DESC公式準拠・段110)
   const crit   = (atk.critical || !!(move.battle_data && move.battle_data.must_crit) || !!(opts && opts.crit))
-                 && sideAbility(def) !== 'シェルアーマー';
+                 && defAbilityVs(def, atk) !== 'シェルアーマー';   // かたやぶり(段124)は急所無効も無視
   const aKey = isPhys ? 'atk'  : 'spatk';
   // サイコショック: 特殊技だが相手の「ぼうぎょ」を参照(Bulbapedia "Psyshock")
   const altDef = bdEffects.find(e => e.kind === '別防御参照ダメージ');
@@ -1580,7 +1587,7 @@ function calcDamage(atkSide, defSide, move, opts){
   const ignoreRankEf = bdEffects.find(e => e.kind === 'ランク無視');
   // てんねん(段114・ABILITY_DESC公式準拠): 受け側がてんねん=攻撃側の攻撃ランクを無視 /
   // 攻撃側がてんねん=受け側の防御ランクを無視
-  const _unawareDef = sideAbility(def) === 'てんねん';
+  const _unawareDef = defAbilityVs(def, atk) === 'てんねん';   // かたやぶり(段124)はてんねんも無視
   const _unawareAtk = sideAbility(atk) === 'てんねん';
   const aStat = altAtkEf ? rankedStat(atk, _AKMAP[altAtkEf.use_stat] || 'def', {crit, role:'atk', ignoreRank: _unawareDef})
               : foulEf  ? rankedStat(def, _AKMAP[foulEf.stat] || 'atk', {crit, role:'atk', ignoreRank: _unawareDef})
@@ -1650,7 +1657,7 @@ function calcDamage(atkSide, defSide, move, opts){
     chips.push({label: ab, factor: 1.5, kind: 'ability'});
   }
   // あついしぼう(受け側): ほのお/こおり技を受ける時、相手のこうげき・とくこう半減=×0.5(ABILITY_DESC公式準拠・段107)
-  if (sideAbility(def) === 'あついしぼう' && (moveType === 'ほのお' || moveType === 'こおり')){
+  if (defAbilityVs(def, atk) === 'あついしぼう' && (moveType === 'ほのお' || moveType === 'こおり')){
     base = pokeRound(base, 2048);
     chips.push({label: 'あついしぼう', factor: 0.5, kind: 'ability'});
   }
@@ -1676,8 +1683,8 @@ function calcDamage(atkSide, defSide, move, opts){
     chips.push({label:'すなのちから', factor:1.3, kind:'ability'});
   }
 
-  // 3.75) 防御側 特性補正
-  const defAb = sideAbility(def);
+  // 3.75) 防御側 特性補正(かたやぶり=段124はこれらを無視する)
+  const defAb = defAbilityVs(def, atk);
   // フィルター / ハードロック: 効果バツグン時 ×0.75
   if ((defAb === 'フィルター' || defAb === 'ハードロック') && eff > 1){
     base = pokeRound(base, 3072);
@@ -1976,6 +1983,9 @@ function phaseInitA(){
     if (ab === 'いかく' && other.poke){
       other.rank.atk = Math.max(-6, (other.rank.atk||0) - 1);
       log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
+    } else if (_BREAKER.includes(ab)){
+      // かたやぶり系(段124): 場に出た時に宣言(実機準拠メッセージ)
+      log('Init-A', `${pname(st)} の ${ab}！`);
     } else if (ab === 'トレース' && other.poke){
       // トレース(段122・ポケモンWiki): 場に出た時、相手の特性をコピー(abilityOverride=交代で自然に消える)。
       // コピー不可はフォルムチェンジ系等(代表のみの近似)
@@ -2231,7 +2241,7 @@ function phaseDealDamage(atkSide, defSide, move){
       critRoll = _stage >= 3 || Math.random() >= 1 - (_stage === 2 ? 0.5 : 0.125);
     }
     // シェルアーマー(受け側): 急所を無効化(段110)
-    if (critRoll && sideAbility(sides[defSide]) === 'シェルアーマー') critRoll = false;
+    if (critRoll && defAbilityVs(sides[defSide], sides[atkSide]) === 'シェルアーマー') critRoll = false;
   }
   // ふくろだたき(連続攻撃 hits_by): ひんし・状態異常でない手持ち(自分を含む)1体につき1回攻撃。
   // 各ヒットの威力 = そのメンバーのこうげき種族値÷10+5(第5世代以降)。攻撃実数値・急所は使用者のもの。
@@ -2328,7 +2338,7 @@ function phaseDealDamage(atkSide, defSide, move){
     }
     // こらえる: 技のダメージではHPが1より下がらない(連続攻撃は1発ごとに判定。Bulbapedia "Endure")
     if (def.enduring && v >= def.currentHp){ v = def.currentHp - 1; log('8', `${pname(def)} は こうげきを こらえた！`); }
-    v = sashCheck(def, v);   // きあいのタスキ(満タン時のみ・消費)
+    v = sashCheck(def, v, atk);   // きあいのタスキ(満タン時のみ・消費)。atk=かたやぶり判定用
     def.currentHp = Math.max(0, def.currentHp - v);
     total += v; hits++; lastHit = v;
   }
@@ -2510,6 +2520,22 @@ function sideAbility(st){
   if (!st) return '';
   if (st.abilityOverride != null) return st.abilityOverride;
   return st.ability || '';
+}
+
+// === かたやぶり(段124) — 出典: ポケモンWiki「かたやぶり」 ===
+// 攻撃側がかたやぶり系なら、相手の「防御に働く特性」(Wikiの無視リスト)を無視して技を出せる。
+// さめはだ/せいでんき等「攻撃を受けた後に働く特性」は無視しない(リスト外)。
+const _BREAKER = ['かたやぶり', 'ターボブレイズ', 'テラボルテージ'];
+// Wikiの無視リストのうちエンジン実装済みのもの(新しい防御特性を実装したらここにも足すこと)
+const _BREAKABLE = new Set(['あついしぼう', 'がんじょう', 'クリアボディ', 'シェルアーマー', 'じゅうなん',
+  'しろいけむり', 'せいしんりょく', 'そうしょく', 'ちくでん', 'ちょすい', 'でんきエンジン', 'てんねん',
+  'どんかん', 'ひらいしん', 'ふみん', 'ふゆう', 'ぼうおん', 'マイペース', 'マグマのよろい',
+  'マルチスケイル', 'めんえき', 'もらいび', 'やるき', 'ファーコート', 'フィルター', 'ハードロック']);
+// 攻撃の文脈で相手の特性を読む時はこれを使う(atk=攻撃側。無視対象なら ''=特性なし扱い)
+function defAbilityVs(def, atk){
+  const a = sideAbility(def);
+  if (atk && _BREAKER.includes(sideAbility(atk)) && _BREAKABLE.has(a)) return '';
+  return a;
 }
 
 // === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
@@ -3139,7 +3165,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       // 特性による状態異常の無効(ふみん/やるき=ねむり・じゅうなん=まひ・めんえき=どく系・マグマのよろい=こおり)
       // ABILITY_DESC公式準拠・段109。ねむる(self対象)もふみんなら失敗する
       const _AB_IMMUNE = { sleep:['ふみん','やるき'], paralysis:['じゅうなん'], poison:['めんえき'], badpoison:['めんえき'], freeze:['マグマのよろい'] };
-      const _abI = sideAbility(target);
+      const _abI = (target !== atk) ? defAbilityVs(target, atk) : sideAbility(target);   // かたやぶり(段124)は相手の免疫特性を無視
       if ((_AB_IMMUNE[code] || []).includes(_abI)){
         log('9', `${pname(target)} は ${_abI}で ${ef.value}に ならない！`);
         continue;
@@ -3218,7 +3244,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         } else {
           const sg = ef.stages || 0;
           // クリアボディ/しろいけむり: 敵からのランク低下を無効化(段114・ABILITY_DESC公式準拠。自分で下げる分は通る)
-          if (sg < 0 && target !== atk && ['クリアボディ', 'しろいけむり'].includes(sideAbility(target))){
+          if (sg < 0 && target !== atk && ['クリアボディ', 'しろいけむり'].includes(defAbilityVs(target, atk))){
             log('9', `${pname(target)} は ${sideAbility(target)}で 能力が下がらない！`);
             continue;
           }
@@ -4412,10 +4438,10 @@ function _itemFrac(s){
 // きあいのタスキ: HP満タンから一撃でひんしになるダメージをHP1で耐える(1回限り・消費)。
 // 一撃必殺にも効く(第5世代以降)。こらえる成立後(v<HP)なら発動しない。
 // 出典: items_database.js宣言(trigger:ohko_at_full_hp)/ポケモンWiki「きあいのタスキ」
-function sashCheck(def, v){
+function sashCheck(def, v, atk){
   if (!def.poke) return v;
   // がんじょう: 満タンから一撃ひんしになるダメージをHP1で耐える(消費なし。ABILITY_DESC公式準拠・段110)
-  if (sideAbility(def) === 'がんじょう'){
+  if (defAbilityVs(def, atk) === 'がんじょう'){   // かたやぶり(段124)はがんじょうも無視
     const _gMax = realStat(def, 'hp');
     if (def.currentHp === _gMax && v >= def.currentHp){
       log('8', `${pname(def)} は がんじょうで もちこたえた！`);
