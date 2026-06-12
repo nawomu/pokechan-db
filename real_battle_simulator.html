@@ -4328,7 +4328,7 @@ function startChargeIfNeeded(st, mv, releasing){
 //   ※フェアリーロック/かげふみ/ありじごく/じりょく/きれいなぬけがら は未実装(park)。
 // ・壁(リフレクター等)・ねがいごと・みらいよちは「場(サイド)」に残る=ポケモンに付いて行かない。
 // 控えエントリ = ポケモンと一緒に移動する永続フィールドだけの入れ物
-const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem','megaBase'];
+const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem','megaBase','heroAnnounce'];
 function packBenchEntry(st){
   const e = {};
   for (const k of BENCH_FIELDS) e[k] = st[k];
@@ -4594,6 +4594,14 @@ function attemptSwitch(sideKey, benchIdx, opts){
     const _sf = POKE_MAP_BY_NAME[st.poke.name.replace('(ブレード)', '(シールド)')];
     if (_sf) st.poke = _sf;
   }
+  // マイティチェンジ(段121・イルカマン): ナイーブが交代で手持ちに戻った時点でマイティへ。
+  // ひんしで場を去った時は発動しない。マイティは以後ずっとマイティ(戻らない)。
+  // 特性は上書き/コピー/無効化されない→st.ability直参照(出典: ポケモンWiki「マイティチェンジ」)
+  if (st.ability === 'マイティチェンジ' && st.poke && /\(ナイーブ\)$/.test(st.poke.name)
+      && !st.fainted && (st.currentHp == null || st.currentHp > 0)){
+    const _hf = POKE_MAP_BY_NAME[st.poke.name.replace('(ナイーブ)', '(マイティ)')];
+    if (_hf){ st.poke = _hf; st.heroAnnounce = true; }   // 初登場メッセージの予約(場に出た時に消費)
+  }
   st.bench[benchIdx] = packBenchEntry(st);   // 出ていたポケモンの永続フィールドを控え枠へ
   clearVolatilesOnSwitch(st);
   for (const k of BENCH_FIELDS) st[k] = entry[k];
@@ -4604,6 +4612,12 @@ function attemptSwitch(sideKey, benchIdx, opts){
   if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${pname(st)} が 場に出た！`);
   else log('9', `${outName} は 引っ込んだ！ ${pname(st)} が 場に出た！`);
   applyEntryHazards(sideKey);   // 設置技(ステルスロック等)は交代完了後に発動
+  // マイティチェンジ(段121): 初めてマイティで場に出た時だけ「変身して 帰ってきた！」。
+  // 設置技ダメージの後に判定=設置でひんしになったら出さない(次の登場に持ち越し。ポケモンWiki準拠)
+  if (st.heroAnnounce && !st.fainted && st.currentHp > 0){
+    st.heroAnnounce = false;
+    log('9', `${pname(st)} は 変身して 帰ってきた！`);
+  }
   // おみとおし: 場に出た時、相手の持ち物を見抜く(段113・ABILITY_DESC公式準拠)
   {
     const _oppSt = sides[sideKey === 'self' ? 'opp' : 'self'];

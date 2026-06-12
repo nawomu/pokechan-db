@@ -6380,6 +6380,62 @@ console.log('\n=== 段120 バトルスイッチ(ギルガルド) ===');
   resetEnv();
 }
 
+console.log('\n=== 段121 マイティチェンジ(イルカマン) ===');
+// 出典: ポケモンWiki「マイティチェンジ」— ナイーブが交代で手持ちに戻った時点でマイティにフォルムチェンジ
+// (技交代・だっしゅつ系でも発動)/ひんしで場を去った時は発動しない/マイティは交代でもひんしでも戻らない/
+// 初めてマイティで場に出る時のみ「変身して 帰ってきた！」(設置技ダメージの後判定)。
+{
+  resetEnv();
+  // T265 交代で手持ちに戻るとマイティになる(戻った時点でチェンジ)
+  E.sides.self = freshSide('イルカマン(ナイーブ)', null);
+  E.sides.self.ability = 'マイティチェンジ';
+  E.sides.self.moves = [moveByName('なみのり')];
+  const sub = freshSide('フシギバナ', 'hataku');
+  E.sides.self.bench = [{ poke: sub.poke, effort: sub.effort, natureIdx: 0, ability: '', item: '',
+    moves: sub.moves, currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null }];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.attemptSwitch('self', 0);
+  check('T265 交代で控えに戻るとマイティフォルムになる',
+    E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name === 'イルカマン(マイティ)',
+    `bench=${E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name}`);
+  // T265b 初めてマイティで場に出ると「変身して 帰ってきた！」
+  const n0 = E.battleLog.length;
+  E.attemptSwitch('self', 0);
+  const logs0 = E.battleLog.slice(n0).map(e => e.msg);
+  check('T265b 初登場時に「変身して 帰ってきた！」が出る',
+    logs0.some(m => m.includes('変身して 帰ってきた！')), logs0.join(' / '));
+  check('T265c 場のイルカマンはマイティ', E.sides.self.poke.name === 'イルカマン(マイティ)',
+    `poke=${E.sides.self.poke.name}`);
+  // T265d 2回目以降の登場ではメッセージは出ない(マイティのまま交代→再登場)
+  E.attemptSwitch('self', 0);   // マイティが下がる(フォルム変わらず)
+  const n1 = E.battleLog.length;
+  E.attemptSwitch('self', 0);   // 再登場
+  const logs1 = E.battleLog.slice(n1).map(e => e.msg);
+  check('T265d マイティは交代しても戻らない', E.sides.self.poke.name === 'イルカマン(マイティ)',
+    `poke=${E.sides.self.poke.name}`);
+  check('T265e 2回目の登場ではメッセージなし',
+    !logs1.some(m => m.includes('変身して 帰ってきた！')), logs1.join(' / '));
+  resetEnv();
+}
+{
+  resetEnv();
+  // T266 ひんしで場を去った時は発動しない(死に出しのpack)
+  E.sides.self = freshSide('イルカマン(ナイーブ)', null);
+  E.sides.self.ability = 'マイティチェンジ';
+  E.sides.self.moves = [moveByName('なみのり')];
+  E.sides.self.currentHp = 0;
+  E.sides.self.fainted = true;
+  const sub2 = freshSide('フシギバナ', 'hataku');
+  E.sides.self.bench = [{ poke: sub2.poke, effort: sub2.effort, natureIdx: 0, ability: '', item: '',
+    moves: sub2.moves, currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null }];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.attemptSwitch('self', 0, {faintReplace: true});
+  check('T266 ひんしで下がった時は発動しない(ナイーブのまま)',
+    E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name === 'イルカマン(ナイーブ)',
+    `bench=${E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
