@@ -6907,6 +6907,99 @@ console.log('\n=== 段131 シンクロ+プレッシャー ===');
   resetEnv();
 }
 
+console.log('\n=== 段132 特性6種: てきおうりょく/かたいツメ/サンパワー/アイスボディ/すりぬけ/天候かくれ ===');
+// 出典は全てABILITY_DESC(公式準拠): てきおうりょく=一致補正2倍 / かたいツメ=直接攻撃1.3倍 /
+// サンパワー=晴れでとくこう1.5倍+毎ターン1/8減 / アイスボディ=ゆきで1/16回復 /
+// すりぬけ=壁・みがわり無視 / ゆきがくれ・すながくれ=該当天候で回避1.25倍(かたやぶりは無視)。
+{
+  resetEnv();
+  // T285 てきおうりょく: タイプ一致が1.5→2倍
+  E.sides.self = freshSide('フシギバナ', null);   // くさ → ギガドレイン一致
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  const base = E.calcDamage('self', 'opp', moveByName('ギガドレイン')).max;
+  E.sides.self.ability = 'てきおうりょく';
+  const adapt = E.calcDamage('self', 'opp', moveByName('ギガドレイン')).max;
+  check('T285 てきおうりょくで一致技が強くなる(2/1.5倍)', adapt > base,
+    `base=${base} adapt=${adapt}`);
+  // T285b かたいツメ: 接触技だけ1.3倍
+  E.sides.self = freshSide('フシギバナ', null);
+  const c0 = E.calcDamage('self', 'opp', moveByName('でんこうせっか')).max;   // 接触
+  const n0 = E.calcDamage('self', 'opp', moveByName('シャドーボール')).max;   // 非接触
+  E.sides.self.ability = 'かたいツメ';
+  const c1 = E.calcDamage('self', 'opp', moveByName('でんこうせっか')).max;
+  const n1 = E.calcDamage('self', 'opp', moveByName('シャドーボール')).max;
+  check('T285b かたいツメは接触技だけ強くなる', c1 > c0 && n1 === n0,
+    `contact:${c0}→${c1} ranged:${n0}→${n1}`);
+  // T285c サンパワー: 晴れで特殊技1.5倍(ハイドロポンプ=みず特殊。晴れの水半減と打ち消し合っても1.5/0.5で差は出る)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'サンパワー';
+  const s0 = E.calcDamage('self', 'opp', moveByName('ギガドレイン')).max;
+  E.env.weather = 'sunny';
+  const s1 = E.calcDamage('self', 'opp', moveByName('ギガドレイン')).max;
+  check('T285c サンパワーは晴れで特殊技が1.5倍', s1 > s0, `none=${s0} sunny=${s1}`);
+  E.env.weather = 'none';
+  resetEnv();
+}
+{
+  resetEnv();
+  // T285d サンパワーのスリップ(1/8)とアイスボディの回復(1/16)をターン終了で確認
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'サンパワー';
+  E.sides.self.moves = [moveByName('つるぎのまい')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('エーフィ', null);
+  E.sides.opp.ability = 'アイスボディ';
+  E.sides.opp.moves = [moveByName('つるぎのまい')];
+  E.sides.opp.selectedMoveIdx = 0;
+  const sMax = E.realStat(E.sides.self, 'hp');
+  const oMax = E.realStat(E.sides.opp, 'hp');
+  E.sides.self.currentHp = sMax;
+  E.sides.opp.currentHp = oMax - 30;
+  E.env.weather = 'sunny';
+  E.setRandom(() => 0.5);
+  E.runTurn();
+  check('T285d サンパワーで毎ターン1/8減る', E.sides.self.currentHp === sMax - Math.floor(sMax / 8),
+    `hp=${E.sides.self.currentHp} 期待=${sMax - Math.floor(sMax / 8)}`);
+  E.env.weather = 'snow';
+  const oBefore = E.sides.opp.currentHp;
+  E.runTurn();
+  check('T285e アイスボディはゆきで1/16回復', E.sides.opp.currentHp === oBefore + Math.floor(oMax / 16),
+    `hp=${E.sides.opp.currentHp} 期待=${oBefore + Math.floor(oMax / 16)}`);
+  E.env.weather = 'none';
+  resetEnv();
+}
+{
+  resetEnv();
+  // T285f すりぬけ: リフレクターを無視して攻撃(物理半減がかからない)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  const noWall = E.calcDamage('self', 'opp', moveByName('でんこうせっか')).max;
+  E.sides.opp.reflect = true;
+  const walled = E.calcDamage('self', 'opp', moveByName('でんこうせっか')).max;
+  E.sides.self.ability = 'すりぬけ';
+  const pierced = E.calcDamage('self', 'opp', moveByName('でんこうせっか')).max;
+  check('T285f すりぬけは壁を無視する', walled < noWall && pierced === noWall,
+    `noWall=${noWall} walled=${walled} pierced=${pierced}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T285g すながくれ: すなあらしで命中×0.8(命中100が80に=ロール0.85で外れる)。かたやぶりは無視
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('でんこうせっか')];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.ability = 'すながくれ';
+  E.env.weather = 'sand';
+  E.setRandom(() => 0.85);   // roll=85 → acc80なら外れ・acc100なら当たり
+  const r1 = E.phaseHitCheck(moveByName('でんこうせっか'), E.sides.self, E.sides.opp);
+  check('T285g すながくれで命中が下がる(85ロールが外れる)', r1.hit === false, `hit=${r1.hit}`);
+  E.sides.self.ability = 'かたやぶり';
+  const r2 = E.phaseHitCheck(moveByName('でんこうせっか'), E.sides.self, E.sides.opp);
+  check('T285h かたやぶりはすながくれを無視する', r2.hit === true, `hit=${r2.hit}`);
+  E.env.weather = 'none';
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
