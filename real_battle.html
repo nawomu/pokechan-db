@@ -200,8 +200,10 @@ document.getElementById('engine-frame').addEventListener('load', () => {
     if (w.__sim){
       clearInterval(wait);
       S = w.__sim;
-      // ひんし時の死に出し先: promptを出さず先頭の生存控えを自動で出す(エンジンのフック)
+      // ひんし時の死に出し: 控えが2匹以上ならエンジンは保留し、ターン後にプレイヤーがUIで選ぶ
+      // (1匹なら __rbSwitchPick=先頭 で自動。promptは出さない。デモ自動バトル中は全自動)
       w.__rbSwitchPick = idxs => idxs[0];
+      w.__rbDeferFaintReplace = !location.search.includes('demo');
       initSetup();
     }
   }, 100);
@@ -420,7 +422,7 @@ function showMoves(){
     doTurn(+b.dataset.i);
   }));
 }
-function showParty(){
+function showParty(forced){
   const st = S.sides.self;
   $('cmd').style.display = 'none';
   const pt = $('party');
@@ -431,10 +433,20 @@ function showParty(){
     const hp = e.currentHp == null ? max : e.currentHp;
     const dead = e.fainted || hp <= 0;
     return `<button data-i="${i}" ${dead ? 'disabled' : ''}>${e.poke.name}<div class="mv-sub">${dead ? 'ひんし' : `HP ${hp}/${max}`}</div></button>`;
-  }).join('') + `<button class="back">← もどる</button>`;
+  }).join('') + (forced ? '' : `<button class="back">← もどる</button>`);
   pt.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
     if (b.classList.contains('back')){ showCmd(true); return; }
+    if (forced){
+      // 死に出し: その場で交代を実行してログを再生(ターン消費なし=実機どおり)
+      pt.style.display = 'none';
+      logPos = S.battleLog.length;
+      S.attemptSwitch('self', +b.dataset.i, {ignoreTrapping: true, faintReplace: true});
+      renderAll();
+      const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
+      say(fresh.map(e => lineWithFx(e.msg)), () => showCmd(true));
+      return;
+    }
     S.sides.self.switchChoice = +b.dataset.i;
     doTurn(null);   // 交代をこのターンの行動に
   }));
@@ -449,6 +461,7 @@ function toggleMega(){
 // ===== ターン実行→ログを1行ずつ実機テンポで再生 =====
 function doTurn(moveIdx){
   if (busy || gameOver) return;
+  if (S.sides.self.fainted) return;   // 死に出しの選択待ち中はターンを進めない
   const self = S.sides.self, opp = S.sides.opp;
   if (moveIdx != null) self.selectedMoveIdx = moveIdx;
   // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
@@ -689,6 +702,12 @@ function endOfTurn(){
     if (dead('opp')) SE.win(); else SE.lose();
     say([dead('opp') ? '🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！' : '😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…',
          '「にげる」から 編成にもどって もういちど あそべます'], () => showCmd(true));
+    return;
+  }
+  // 死に出し(自分側): エンジンが保留した交代先をプレイヤーが選ぶ(控え2匹以上の時だけ保留される)
+  if (S.sides.self.fainted){
+    $('msgbox').firstChild.textContent = `${S.sides.self.poke.name} は たおれてしまった… つぎのポケモンを えらんでね`;
+    showParty(true);
     return;
   }
   showCmd(true);

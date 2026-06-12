@@ -5365,6 +5365,10 @@ function runTurn(){
     const st = sides[s];
     if (!st.poke || !st.fainted) return;
     const _liveIdxs = (st.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+    // リアルバトル(real_battle.html)のフック: 自分側の死に出しはターン後にプレイヤーがUIで選ぶ
+    // (生きてる控えが2匹以上の時だけ保留。1匹ならそのまま自動で出す)
+    if (s === 'self' && _liveIdxs.length >= 2 &&
+        typeof window !== 'undefined' && window.__rbDeferFaintReplace){ return; }
     const liveIdx = _liveIdxs.length ? chooseSwitchTarget(s, _liveIdxs) : -1;
     if (liveIdx < 0) return;
     attemptSwitch(s, liveIdx, {ignoreTrapping: true, faintReplace: true});
