@@ -154,13 +154,13 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
 
   <!-- チーム編成 -->
   <div id="setup">
-    <h2>チームをえらんで バトルスタート！(3体ずつ・技は自動で4つセット)</h2>
-    <div class="team-row"><span class="tlabel">自分</span>
-      <button class="slot" id="s1"></button><button class="slot" id="s2"></button><button class="slot" id="s3"></button>
-    </div>
-    <div class="team-row"><span class="tlabel">相手</span>
-      <button class="slot" id="o1"></button><button class="slot" id="o2"></button><button class="slot" id="o3"></button>
-    </div>
+    <h2>チームをえらんで バトルスタート！(技は自動セット・⚙くわしく編成で変更OK)</h2>
+    <div style="margin-bottom:8px;font-size:12px;color:#9fb4d8">人数:
+      <select id="team-size" style="background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:4px">
+        <option value="3" selected>3体ずつ</option><option value="6">6体ずつ(フルバトル)</option>
+      </select></div>
+    <div class="team-row" id="row-self"><span class="tlabel">自分</span></div>
+    <div class="team-row" id="row-opp"><span class="tlabel">相手</span></div>
     <button id="detail-toggle">⚙ くわしく編成(わざ・もちもの をえらぶ)</button>
     <div id="detail-setup"></div>
     <div class="btns">
@@ -244,6 +244,10 @@ document.getElementById('engine-frame').addEventListener('load', () => {
 });
 
 // ===== チーム編成 =====
+let teamSize = 3;      // 3体 or 6体(フルバトル)
+const selfIds = () => Array.from({length: teamSize}, (_, i) => 's' + (i + 1));
+const oppIds  = () => Array.from({length: teamSize}, (_, i) => 'o' + (i + 1));
+let winStreak = 0;     // 連戦モードの連勝数
 const slotVal = {};    // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
 const slotMoves = {};  // 各スロットの技4つ(くわしく編成で変更可。ポケモンを変えると自動選定に戻る)
 const slotItem = {};   // 各スロットの持ち物key(既定=汎用メガストーン)
@@ -265,7 +269,7 @@ function renderDetailSetup(){
   if (!box) return;
   const tc = S.typeColors();
   const items = S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any' || /リザードナイト/.test(it.name));
-  box.innerHTML = ['s1','s2','s3','o1','o2','o3'].map(id => {
+  box.innerHTML = selfIds().concat(oppIds()).map(id => {
     const nm = slotVal[id]; if (!nm) return '';
     const mvs = slotMoves[id] || [];
     const chips = [0,1,2,3].map(i => {
@@ -342,9 +346,27 @@ function renderPickerList(query){
     closePicker();
   }));
 }
+function renderTeamRows(){
+  // 人数ぶんのスロットボタンを作り直す(既存の選択は引き継ぐ)
+  [['row-self', selfIds()], ['row-opp', oppIds()]].forEach(([rowId, ids]) => {
+    const row = $(rowId);
+    row.querySelectorAll('.slot').forEach(b => b.remove());
+    ids.forEach(id => {
+      const b = document.createElement('button');
+      b.className = 'slot'; b.id = id;
+      b.addEventListener('click', () => openPicker(id));
+      row.appendChild(b);
+    });
+  });
+}
 function initSetup(){
   const pokes = S.pokeList().filter(p => !p.mega);   // メガフォームは直接選ばない(ストーンで変身)
-  ['s1','s2','s3','o1','o2','o3'].forEach(id => $(id).addEventListener('click', () => openPicker(id)));
+  renderTeamRows();
+  $('team-size').addEventListener('change', () => {
+    teamSize = +$('team-size').value;
+    renderTeamRows();
+    randomize();   // 枠が変わるので選び直し(おまかせで埋める)
+  });
   $('pp-q').addEventListener('input', () => renderPickerList($('pp-q').value));
   $('pp-close').addEventListener('click', closePicker);
   $('poke-picker').addEventListener('click', e => { if (e.target === $('poke-picker')) closePicker(); });
@@ -372,8 +394,12 @@ function initSetup(){
   });
   function randomize(){
     const pick = () => pokes[Math.floor(Math.random() * pokes.length)].name;
-    ['s1','s2','s3','o1','o2','o3'].forEach(id => setSlot(id, pick()));
+    selfIds().concat(oppIds()).forEach(id => setSlot(id, pick()));
   }
+  window.__randomizeOpp = () => {   // 連戦モード: 相手チームだけ引き直す
+    const pick = () => pokes[Math.floor(Math.random() * pokes.length)].name;
+    oppIds().forEach(id => setSlot(id, pick()));
+  };
   // デモ自動バトル(?demo=1): 演出確認用。おまかせ編成で開始し、技0を選び続ける
   if (location.search.includes('demo')){
     $('auto-msg').checked = true;
@@ -416,8 +442,8 @@ function buildSide(sideKey, ids){
 }
 
 function startBattle(){
-  buildSide('self', ['s1','s2','s3']);
-  buildSide('opp',  ['o1','o2','o3']);
+  buildSide('self', selfIds());
+  buildSide('opp',  oppIds());
   S.battleLog.length = 0;
   logPos = 0; gameOver = false;
   $('setup').style.display = 'none';
@@ -801,6 +827,30 @@ function flash(side, cls){
   f.classList.add(cls);
   setTimeout(() => f.classList.remove(cls), 800);
 }
+// 連戦モード(段: 連戦): 勝利後にコマンド欄を「つぎの相手」に差し替える
+function showNextOpponentButton(){
+  const cmd = $('cmd');
+  cmd.style.display = 'grid';
+  cmd.querySelectorAll('button').forEach(b => b.disabled = true);
+  let nb = $('c-next');
+  if (!nb){
+    nb = document.createElement('button');
+    nb.id = 'c-next';
+    nb.style.gridColumn = '1 / -1';
+    nb.style.borderColor = '#4ade80';
+    nb.style.color = '#4ade80';
+    cmd.prepend(nb);
+    nb.addEventListener('click', () => {
+      SE.select();
+      window.__randomizeOpp();   // 相手だけ引き直し
+      gameOver = false;
+      nb.remove();
+      cmd.querySelectorAll('button').forEach(b => b.disabled = false);
+      startBattle();             // buildSideが自分チームも作り直す=全回復
+    });
+  }
+  nb.textContent = `⚔ つぎの相手と たたかう！(連勝: ${winStreak})`;
+}
 function endOfTurn(){
   renderAll();
   const dead = side => {
@@ -811,9 +861,11 @@ function endOfTurn(){
   if (dead('opp') || dead('self')){
     gameOver = true;
     bgmStop();
-    if (dead('opp')) SE.win(); else SE.lose();
-    say([dead('opp') ? '🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！' : '😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…',
-         '「にげる」から 編成にもどって もういちど あそべます'], () => showCmd(true));
+    const won = dead('opp');
+    if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
+    say([won ? `🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！(連勝: ${winStreak})` : '😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…',
+         won ? '「つぎの相手」で 連戦できます(チームは 全回復)' : '「にげる」から 編成にもどって もういちど あそべます'],
+        () => { showCmd(true); if (won) showNextOpponentButton(); });
     return;
   }
   // 死に出し(自分側): エンジンが保留した交代先をプレイヤーが選ぶ(控え2匹以上の時だけ保留される)
