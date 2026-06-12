@@ -153,6 +153,7 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
     <div id="speed-row">
       <label><input type="checkbox" id="auto-msg"> 自動でメッセージ送り</label>
       <span>送り速度: <select id="msg-speed"><option value="1500">ゆっくり</option><option value="1000" selected>ふつう</option><option value="600">はやい</option></select></span>
+      <button id="snd-toggle" style="margin-left:auto;background:#161d2e;border:1px solid #2a3450;border-radius:8px;color:#e6edf3;padding:4px 10px;cursor:pointer">🔊 音オン</button>
     </div>
   </div>
 </div>
@@ -192,10 +193,19 @@ function initSetup(){
   $('btn-start').addEventListener('click', startBattle);
   $('msgbox').addEventListener('click', advanceMsg);
   document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') advanceMsg(); });
-  $('c-fight').addEventListener('click', showMoves);
-  $('c-party').addEventListener('click', showParty);
-  $('c-mega').addEventListener('click', toggleMega);
-  $('c-run').addEventListener('click', () => { $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
+  $('c-fight').addEventListener('click', () => { SE.select(); showMoves(); });
+  $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
+  $('c-mega').addEventListener('click', () => { SE.select(); toggleMega(); });
+  $('c-run').addEventListener('click', () => { bgmStop(); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
+  // 音オン/オフ(設定はlocalStorageに保存)
+  updateSndBtn();
+  $('snd-toggle').addEventListener('click', () => {
+    sndOn = !sndOn;
+    localStorage.setItem('rb_snd', sndOn ? 'on' : 'off');
+    updateSndBtn();
+    if (sndOn){ SE.select(); if ($('battle').style.display !== 'none' && !gameOver) bgmStart(); }
+    else bgmStop();
+  });
   function randomize(){
     const pick = () => pokes[Math.floor(Math.random() * pokes.length)].name;
     ['s1','s2','s3','o1','o2','o3'].forEach(id => { $(id).value = pick(); });
@@ -245,6 +255,8 @@ function startBattle(){
   $('setup').style.display = 'none';
   $('battle').style.display = 'block';
   renderAll();
+  setWeatherFx(null);
+  bgmStart();
   say([`バトルスタート！ いけっ！ ${S.sides.self.poke.name}！`, `相手は ${S.sides.opp.poke.name} を くりだした！`], () => showCmd(true));
 }
 
@@ -345,6 +357,7 @@ function showMoves(){
     <div class="mv-sub">威力${m.power ?? '—'} / 命中${m.accuracy ?? '—'} / ${m.category}</div></button>`).join('')
     + `<button class="back">← もどる</button>`;
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
     if (b.classList.contains('back')){ showCmd(true); return; }
     doTurn(+b.dataset.i);
   }));
@@ -362,6 +375,7 @@ function showParty(){
     return `<button data-i="${i}" ${dead ? 'disabled' : ''}>${e.poke.name}<div class="mv-sub">${dead ? 'ひんし' : `HP ${hp}/${max}`}</div></button>`;
   }).join('') + `<button class="back">← もどる</button>`;
   pt.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
     if (b.classList.contains('back')){ showCmd(true); return; }
     S.sides.self.switchChoice = +b.dataset.i;
     doTurn(null);   // 交代をこのターンの行動に
@@ -391,6 +405,93 @@ function doTurn(moveIdx){
   const lines = fresh.map(e => lineWithFx(e.msg));
   say(lines, endOfTurn);
 }
+// ===== サウンド(Web Audio合成・ファミコン風 — ファイル不要・全部自作波形=権利フリー) =====
+// 2026-06-12 阿部さん「音とBGM入れたらそれっぽくなる」。autoplay制限があるので初回クリックで解錠。
+let AC = null, sndOn = localStorage.getItem('rb_snd') !== 'off';
+let bgmTimer = null, bgmStep = 0, masterBgm = null;
+function ac(){
+  if (!AC){ AC = new (window.AudioContext || window.webkitAudioContext)(); }
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+// 単音(波形・周波数・長さ・音量・ピッチスライド先)
+function tone(type, freq, dur, vol, slideTo, when){
+  if (!sndOn) return;
+  const ctx = ac(), t = when != null ? when : ctx.currentTime;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(ctx.destination);
+  o.start(t); o.stop(t + dur + 0.02);
+}
+// ノイズ(打撃用)
+function noise(dur, vol, lowpass){
+  if (!sndOn) return;
+  const ctx = ac(), t = ctx.currentTime;
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const g = ctx.createGain(); g.gain.value = vol;
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lowpass || 1200;
+  src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t);
+}
+// 効果音いろいろ
+const SE = {
+  select(){ tone('square', 880, 0.06, 0.12); },
+  hit(){ noise(0.16, 0.5, 900); tone('square', 180, 0.12, 0.2, 70); },
+  superEff(){ noise(0.25, 0.6, 2200); tone('square', 320, 0.22, 0.25, 60); tone('square', 480, 0.18, 0.18, 90); },
+  weak(){ noise(0.1, 0.25, 500); tone('triangle', 140, 0.14, 0.18, 90); },
+  crit(){ tone('sawtooth', 1400, 0.1, 0.22, 500); noise(0.2, 0.5, 3000); tone('square', 250, 0.2, 0.2, 60); },
+  faint(){ tone('square', 520, 0.5, 0.22, 65); tone('triangle', 260, 0.55, 0.18, 40); },
+  heal(){ [523, 659, 784, 1047].forEach((f, i) => tone('square', f, 0.12, 0.14, null, ac().currentTime + i * 0.09)); },
+  status(){ tone('square', 330, 0.1, 0.16, 392); tone('square', 392, 0.1, 0.16, 330, null); },
+  mega(){ [440, 554, 659, 880, 1109].forEach((f, i) => tone('square', f, 0.16, 0.16, null, ac().currentTime + i * 0.08)); noise(0.5, 0.25, 4000); },
+  enter(){ tone('square', 392, 0.07, 0.14, 784); },
+  win(){ [523, 523, 523, 659, 784, 1047].forEach((f, i) => tone('square', f, i === 5 ? 0.5 : 0.13, 0.16, null, ac().currentTime + i * 0.13)); },
+  lose(){ [392, 370, 349, 330].forEach((f, i) => tone('triangle', f, 0.3, 0.18, null, ac().currentTime + i * 0.28)); },
+};
+// バトルBGM: 8bit風2小節ループ(Am)。スケジューラで16分音符を先読み再生
+const BGM_BASS = [110, 0, 110, 0, 165, 0, 110, 0, 131, 0, 131, 0, 98, 0, 98, 123];           // A E C G…
+const BGM_LEAD = [440, 0, 523, 587, 659, 0, 587, 523, 440, 0, 392, 440, 523, 440, 392, 330]; // 戦闘っぽい旋律
+function bgmStart(){
+  if (!sndOn || bgmTimer) return;
+  const ctx = ac();
+  masterBgm = ctx.createGain(); masterBgm.gain.value = 0.10; masterBgm.connect(ctx.destination);
+  let next = ctx.currentTime + 0.05;
+  const SPB = 0.13;   // 16分音符の長さ(≒115bpmの16ビート)
+  bgmStep = 0;
+  bgmTimer = setInterval(() => {
+    if (!sndOn){ bgmStop(); return; }
+    while (next < ctx.currentTime + 0.2){
+      const i = bgmStep % 16;
+      const b = BGM_BASS[i], l = BGM_LEAD[i];
+      if (b){ const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'triangle'; o.frequency.value = b;
+        g.gain.setValueAtTime(0.9, next); g.gain.exponentialRampToValueAtTime(0.001, next + SPB * 0.9);
+        o.connect(g); g.connect(masterBgm); o.start(next); o.stop(next + SPB); }
+      if (l){ const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'square'; o.frequency.value = l;
+        g.gain.setValueAtTime(0.35, next); g.gain.exponentialRampToValueAtTime(0.001, next + SPB * 0.85);
+        o.connect(g); g.connect(masterBgm); o.start(next); o.stop(next + SPB); }
+      if (i % 4 === 0){ // ハイハット代わりのノイズチック
+        const len = Math.floor(ctx.sampleRate * 0.03), buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const d = buf.getChannelData(0); for (let k = 0; k < len; k++) d[k] = (Math.random() * 2 - 1) * (1 - k / len);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const g = ctx.createGain(); g.gain.value = 0.12; s.connect(g); g.connect(masterBgm); s.start(next); }
+      next += SPB; bgmStep++;
+    }
+  }, 40);
+}
+function bgmStop(){
+  if (bgmTimer){ clearInterval(bgmTimer); bgmTimer = null; }
+  if (masterBgm){ try { masterBgm.disconnect(); } catch (e) {} masterBgm = null; }
+}
+function updateSndBtn(){ const b = $('snd-toggle'); if (b) b.textContent = sndOn ? '🔊 音オン' : '🔇 音オフ'; }
+
 // ===== ステージ演出v3のヘルパー =====
 let lastTgt = null;   // 直前のダメージ対象(「こうかは…」「きゅうしょ」は直後の行で飛んでくる)
 function popText(side, text, color, size){
@@ -449,6 +550,7 @@ function lineWithFx(msg){
       if (d) popText(tgt, '−' + d[1], '#fff');
       flash(tgt, 'hit');
       flash(atkSide, atkSide === 'self' ? 'lunge-self' : 'lunge-opp');
+      SE.hit();
     } else {
       // ② スリップ系の残HP行(やけど/すなあらし/さめはだ等): 主語側が減る
       if (hpM){
@@ -460,15 +562,15 @@ function lineWithFx(msg){
       }
     }
     // ③ こうか・急所(直前のダメージ対象に重ねる)
-    if (msg === 'こうかは ばつぐんだ！'){ screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18); }
-    else if (msg === 'こうかは いまひとつのようだ…'){ popText(lastTgt || 'opp', 'いまひとつ…', '#8b94a7', 13); }
-    else if (msg === 'きゅうしょに あたった！'){ screenFlash('#ffd96b'); popText(lastTgt || 'opp', '急所!', '#ff8866', 17); }
+    if (msg === 'こうかは ばつぐんだ！'){ screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18); SE.superEff(); }
+    else if (msg === 'こうかは いまひとつのようだ…'){ popText(lastTgt || 'opp', 'いまひとつ…', '#8b94a7', 13); SE.weak(); }
+    else if (msg === 'きゅうしょに あたった！'){ screenFlash('#ffd96b'); popText(lastTgt || 'opp', '急所!', '#ff8866', 17); SE.crit(); }
     // ④ 状態異常・こんらん: 絵文字を浮かべる
     const stM = msg.match(/は (もうどく|どく|まひ|やけど|こおり|ねむり|ねむけ) 状態になった！|は (こんらん)した！/);
     if (stM){
       const side = subjOpp ? 'opp' : 'self';
       const emo = {もうどく:'💜', どく:'💜', まひ:'⚡', やけど:'🔥', こおり:'❄️', ねむり:'💤', ねむけ:'💤', こんらん:'💫'}[stM[1] || stM[2]];
-      if (emo) popText(side, emo, null, 24);
+      if (emo){ popText(side, emo, null, 24); SE.status(); }
       renderAll();
     }
     // ⑤ 天候(開始で常時オーバーレイ・終了で消す)
@@ -482,14 +584,16 @@ function lineWithFx(msg){
       const side = subjOpp ? 'opp' : 'self';
       setHpBar(side, 0, S.realStat(S.sides[side], 'hp') || 1);   // バーも0に(こんらん自傷等で同期漏れした時の保険)
       flash(side, 'faint');
+      SE.faint();
     }
-    if (/が 場に出た！/.test(msg)){ renderAll(); flash(subjOpp ? 'opp' : 'self', 'enter'); }
+    if (/が 場に出た！/.test(msg)){ renderAll(); flash(subjOpp ? 'opp' : 'self', 'enter'); SE.enter(); }
     if (/メガシンカした！/.test(msg)){
       screenFlash('#ffd96b', true);
       renderAll();
       flash(subjOpp ? 'opp' : 'self', 'enter');
+      SE.mega();
     }
-    if (/回復/.test(msg)){ renderAll(); if (hpM) popText(subjOpp ? 'opp' : 'self', '＋', '#4ade80', 18); }
+    if (/回復/.test(msg)){ renderAll(); if (hpM){ popText(subjOpp ? 'opp' : 'self', '＋', '#4ade80', 18); SE.heal(); } }
   };
   return { text: msg, fx };
 }
@@ -509,6 +613,8 @@ function endOfTurn(){
   };
   if (dead('opp') || dead('self')){
     gameOver = true;
+    bgmStop();
+    if (dead('opp')) SE.win(); else SE.lose();
     say([dead('opp') ? '🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！' : '😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…',
          '「にげる」から 編成にもどって もういちど あそべます'], () => showCmd(true));
     return;
