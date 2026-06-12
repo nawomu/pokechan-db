@@ -56,6 +56,20 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
 .pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#3a2518;color:#fbbf24;border:1px solid #fbbf2444}
 .pbox .balls{margin-top:3px;font-size:11px;letter-spacing:2px}
 
+/* ===== ステージ演出v3(2026-06-12 阿部さん「演出強化」) ===== */
+.popnum{position:absolute;left:50%;top:8px;transform:translateX(-50%);font-weight:900;font-size:20px;
+  text-shadow:0 2px 4px #000c;pointer-events:none;animation:rbPop 1s forwards;z-index:5;white-space:nowrap}
+@keyframes rbPop{0%{opacity:0;transform:translateX(-50%) translateY(6px) scale(.6)}18%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1.18)}100%{opacity:0;transform:translateX(-50%) translateY(-46px) scale(1)}}
+.burst{position:absolute;left:50%;top:46%;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;
+  pointer-events:none;animation:rbBurst .55s forwards;z-index:4}
+@keyframes rbBurst{0%{transform:scale(.15);opacity:.9}100%{transform:scale(1.8);opacity:0}}
+#fx-flash{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:6}
+#fx-flash.on{animation:rbFlash .5s forwards}
+#fx-flash.mega{animation:rbMega 1s forwards}
+@keyframes rbFlash{0%{opacity:.75}100%{opacity:0}}
+@keyframes rbMega{0%{opacity:0}25%{opacity:.95}55%{opacity:.6}100%{opacity:0}}
+@keyframes rbWeather{0%{transform:translateY(-8px)}100%{transform:translateY(8px)}}
+#weather-fx.live{animation:rbWeather 2.2s ease-in-out infinite alternate}
 @keyframes rbShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(4px)}}
 @keyframes rbLunge{0%{transform:none}40%{transform:translate(14px,-10px) scale(1.05)}100%{transform:none}}
 @keyframes rbLungeOpp{0%{transform:none}40%{transform:translate(-14px,10px) scale(1.05)}100%{transform:none}}
@@ -119,6 +133,7 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
   <div id="battle">
     <div id="field">
       <div id="weather-fx"></div>
+      <div id="fx-flash"></div>
       <div class="fighter" id="f-opp"><div class="platform"></div><div class="sprite"></div></div>
       <div class="fighter" id="f-self"><div class="platform"></div><div class="sprite"></div></div>
       <div class="pbox" id="pb-opp"><span class="who opp">あいて</span><div class="row1"><span class="nm">—</span><span class="lv">Lv.50</span></div>
@@ -157,7 +172,13 @@ const $ = id => document.getElementById(id);
 document.getElementById('engine-frame').addEventListener('load', () => {
   const w = $('engine-frame').contentWindow;
   const wait = setInterval(() => {
-    if (w.__sim){ clearInterval(wait); S = w.__sim; initSetup(); }
+    if (w.__sim){
+      clearInterval(wait);
+      S = w.__sim;
+      // ひんし時の死に出し先: promptを出さず先頭の生存控えを自動で出す(エンジンのフック)
+      w.__rbSwitchPick = idxs => idxs[0];
+      initSetup();
+    }
   }, 100);
 });
 
@@ -178,6 +199,13 @@ function initSetup(){
   function randomize(){
     const pick = () => pokes[Math.floor(Math.random() * pokes.length)].name;
     ['s1','s2','s3','o1','o2','o3'].forEach(id => { $(id).value = pick(); });
+  }
+  // デモ自動バトル(?demo=1): 演出確認用。おまかせ編成で開始し、技0を選び続ける
+  if (location.search.includes('demo')){
+    $('auto-msg').checked = true;
+    $('msg-speed').value = '600';
+    startBattle();
+    setInterval(() => { if (!busy && !gameOver && $('battle').style.display !== 'none') doTurn(0); }, 1200);
   }
 }
 
@@ -351,32 +379,117 @@ function doTurn(moveIdx){
   if (busy || gameOver) return;
   const self = S.sides.self, opp = S.sides.opp;
   if (moveIdx != null) self.selectedMoveIdx = moveIdx;
-  if (opp.poke && !opp.fainted) opp.selectedMoveIdx = S.aiChooseMove('opp');
+  // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
+  if (opp.poke && !opp.fainted){
+    const act = S.aiChooseAction ? S.aiChooseAction('opp') : {type: 'move', index: S.aiChooseMove('opp')};
+    if (act.type === 'switch') opp.switchChoice = act.index;
+    else opp.selectedMoveIdx = act.index;
+  }
   logPos = S.battleLog.length;
   S.runTurn();
   const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
   const lines = fresh.map(e => lineWithFx(e.msg));
   say(lines, endOfTurn);
 }
-// ログ1行 → テキスト+演出(HPバー同期・揺れ・ひんし・交代)
+// ===== ステージ演出v3のヘルパー =====
+let lastTgt = null;   // 直前のダメージ対象(「こうかは…」「きゅうしょ」は直後の行で飛んでくる)
+function popText(side, text, color, size){
+  const f = $('f-' + side);
+  const el = document.createElement('div');
+  el.className = 'popnum';
+  el.textContent = text;
+  if (color) el.style.color = color;
+  if (size) el.style.fontSize = size + 'px';
+  f.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+function burstFx(side, color){
+  const f = $('f-' + side);
+  const el = document.createElement('div');
+  el.className = 'burst';
+  el.style.background = `radial-gradient(circle, ${color}cc 0%, ${color}55 45%, transparent 70%)`;
+  f.appendChild(el);
+  setTimeout(() => el.remove(), 650);
+}
+function screenFlash(color, mega){
+  const el = $('fx-flash');
+  el.style.background = color;
+  el.className = '';
+  void el.offsetWidth;
+  el.className = mega ? 'mega' : 'on';
+}
+const _WEATHER_FX = {sun: ['☀️', '#3a2c14'], rain: ['💧', '#14263a'], sand: ['🌪️', '#34290f'], snow: ['❄️', '#1a2a3c']};
+function setWeatherFx(kind){
+  const el = $('weather-fx');
+  if (!kind){ el.textContent = ''; el.classList.remove('live'); $('field').style.boxShadow = ''; return; }
+  const [emo, tint] = _WEATHER_FX[kind];
+  el.textContent = (emo + ' ').repeat(24);
+  el.classList.add('live');
+  $('field').style.boxShadow = `inset 0 0 80px 20px ${tint}`;
+}
+
+// ログ1行 → テキスト+演出(HPバー同期・タイプ色バースト・ダメージ数字・こうか/急所・状態異常・天候・メガ)
 function lineWithFx(msg){
   const fx = () => {
-    // 残HP同期: 「(残HP X/Y)」(相手側は「相手の」を含む行)
     const hpM = msg.match(/\(残HP (\d+)(?:\/(\d+))?\)/);
-    const isOpp = msg.includes('相手の');
-    if (hpM){
-      const side = isOpp ? 'opp' : 'self';
-      const st = S.sides[side];
-      const max = hpM[2] ? +hpM[2] : (S.realStat(st, 'hp') || 1);
-      setHpBar(side, +hpM[1], max);
+    const subjOpp = msg.startsWith('相手の');   // 行の主語(先頭)が相手側か
+    // ① 攻撃のダメージ行: 「A の 技！ … ダメージ！」(対象=攻撃側の反対。連続ヒット・みがわりも同じ形)
+    const atkLine = msg.match(/^(相手の )?\S+ の (\S+)！/);
+    if (atkLine && /ダメージ！/.test(msg) && !/で \d+ ダメージ/.test(msg)){
+      const atkSide = atkLine[1] ? 'opp' : 'self';
+      const tgt = atkSide === 'self' ? 'opp' : 'self';
+      lastTgt = tgt;
+      if (hpM){
+        const max = hpM[2] ? +hpM[2] : (S.realStat(S.sides[tgt], 'hp') || 1);
+        setHpBar(tgt, +hpM[1], max);   // 1発ごとにターゲット側のバーを減らす
+      }
+      const mv = (S.sides[atkSide].moves || []).find(m => m && m.name === atkLine[2]);
+      burstFx(tgt, mv ? (S.typeColors()[mv.type] || '#9fb4d8') : '#9fb4d8');
+      const d = msg.match(/(?:に|合計) (\d+) ダメージ/);
+      if (d) popText(tgt, '−' + d[1], '#fff');
+      flash(tgt, 'hit');
+      flash(atkSide, atkSide === 'self' ? 'lunge-self' : 'lunge-opp');
+    } else {
+      // ② スリップ系の残HP行(やけど/すなあらし/さめはだ等): 主語側が減る
+      if (hpM){
+        const side = subjOpp ? 'opp' : 'self';
+        const max = hpM[2] ? +hpM[2] : (S.realStat(S.sides[side], 'hp') || 1);
+        setHpBar(side, +hpM[1], max);
+        const d = msg.match(/で (\d+) ダメージ/);
+        if (d){ popText(side, '−' + d[1], '#f87171', 15); flash(side, 'hit'); }
+      }
     }
-    if (/ダメージ！/.test(msg)){
-      const tgt = /相手の [^\s！]+ に \d+ ダメージ/.test(msg) ? 'opp' : (/ に \d+ ダメージ/.test(msg) ? 'self' : null);
-      if (tgt){ flash(tgt, 'hit'); flash(tgt === 'self' ? 'opp' : 'self', tgt === 'self' ? 'lunge-opp' : 'lunge-self'); }
+    // ③ こうか・急所(直前のダメージ対象に重ねる)
+    if (msg === 'こうかは ばつぐんだ！'){ screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18); }
+    else if (msg === 'こうかは いまひとつのようだ…'){ popText(lastTgt || 'opp', 'いまひとつ…', '#8b94a7', 13); }
+    else if (msg === 'きゅうしょに あたった！'){ screenFlash('#ffd96b'); popText(lastTgt || 'opp', '急所!', '#ff8866', 17); }
+    // ④ 状態異常・こんらん: 絵文字を浮かべる
+    const stM = msg.match(/は (もうどく|どく|まひ|やけど|こおり|ねむり|ねむけ) 状態になった！|は (こんらん)した！/);
+    if (stM){
+      const side = subjOpp ? 'opp' : 'self';
+      const emo = {もうどく:'💜', どく:'💜', まひ:'⚡', やけど:'🔥', こおり:'❄️', ねむり:'💤', ねむけ:'💤', こんらん:'💫'}[stM[1] || stM[2]];
+      if (emo) popText(side, emo, null, 24);
+      renderAll();
     }
-    if (/は ひんしになった！/.test(msg)) flash(isOpp ? 'opp' : 'self', 'faint');
-    if (/が 場に出た！|メガシンカした！/.test(msg)){ renderAll(); flash(isOpp ? 'opp' : 'self', 'enter'); }
-    if (/状態になった！|こんらんした！|回復/.test(msg)) renderAll();
+    // ⑤ 天候(開始で常時オーバーレイ・終了で消す)
+    if (/日差しが強くなった|天気が にほんばれ/.test(msg)) setWeatherFx('sun');
+    else if (/あめが降り始めた|天気が あめ に/.test(msg)) setWeatherFx('rain');
+    else if (/すなあらしが舞い始めた|天気が すなあらし/.test(msg)) setWeatherFx('sand');
+    else if (/ゆきが降り始めた|天気が ゆき に/.test(msg)) setWeatherFx('snow');
+    else if (/天気が 元に戻った/.test(msg)) setWeatherFx(null);
+    // ⑥ ひんし・登場・メガシンカ
+    if (/は ひんしになった！/.test(msg)){
+      const side = subjOpp ? 'opp' : 'self';
+      setHpBar(side, 0, S.realStat(S.sides[side], 'hp') || 1);   // バーも0に(こんらん自傷等で同期漏れした時の保険)
+      flash(side, 'faint');
+    }
+    if (/が 場に出た！/.test(msg)){ renderAll(); flash(subjOpp ? 'opp' : 'self', 'enter'); }
+    if (/メガシンカした！/.test(msg)){
+      screenFlash('#ffd96b', true);
+      renderAll();
+      flash(subjOpp ? 'opp' : 'self', 'enter');
+    }
+    if (/回復/.test(msg)){ renderAll(); if (hpM) popText(subjOpp ? 'opp' : 'self', '＋', '#4ade80', 18); }
   };
   return { text: msg, fx };
 }

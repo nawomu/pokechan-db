@@ -6245,6 +6245,39 @@ console.log('\n=== 段118 対戦AI v2: 変化技評価+交代判断 ===');
   resetEnv();
 }
 
+console.log('\n=== 段119 こうか表示メッセージ(実機準拠) ===');
+// 出典: 実機のバトルメッセージ「こうかは ばつぐんだ！」「こうかは いまひとつのようだ…」(ポケモンWiki「相性」)。
+// 表示順は「きゅうしょに あたった！」→「こうかは…」の近似。こうかなしは既存の別メッセージ。
+{
+  resetEnv();
+  // T260 ばつぐん: シャドーボール(ゴースト)→ゲンガー(ゴースト/どく)=×2
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('シャドーボール')];
+  E.sides.opp = freshSide('ゲンガー', null);
+  E.setRandom(() => 0.0);
+  const n0 = E.battleLog.length;
+  E.phaseDealDamage('self', 'opp', moveByName('シャドーボール'));
+  const logs0 = E.battleLog.slice(n0).map(e => e.msg);
+  check('T260 こうかばつぐんで「こうかは ばつぐんだ！」が出る',
+    logs0.includes('こうかは ばつぐんだ！'), logs0.join(' / '));
+  // T260b いまひとつ: でんこうせっか(ノーマル)→ハガネール(はがね/じめん)=×0.5
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('ハガネール', null);
+  const n1 = E.battleLog.length;
+  E.phaseDealDamage('self', 'opp', moveByName('でんこうせっか'));
+  const logs1 = E.battleLog.slice(n1).map(e => e.msg);
+  check('T260b いまひとつで「こうかは いまひとつのようだ…」が出る',
+    logs1.includes('こうかは いまひとつのようだ…'), logs1.join(' / '));
+  // T260c 等倍はこうかメッセージなし
+  E.sides.opp = freshSide('カビゴン', null);
+  const n2 = E.battleLog.length;
+  E.phaseDealDamage('self', 'opp', moveByName('でんこうせっか'));
+  const logs2 = E.battleLog.slice(n2).map(e => e.msg);
+  check('T260c 等倍はこうかメッセージなし',
+    !logs2.some(m => m.startsWith('こうかは')), logs2.join(' / '));
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

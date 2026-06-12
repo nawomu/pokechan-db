@@ -2332,6 +2332,11 @@ function phaseDealDamage(atkSide, defSide, move){
   else if (hitCount > 1) log('8', `${pname(atk)} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   else log('8', `${pname(atk)} の ${move.name}！ ${pname(def)} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   if (critRoll && total > 0) log('8', `きゅうしょに あたった！`);
+  // こうか表示(段119・実機準拠メッセージ。出典: ポケモンWiki「相性」)。本体にダメージが入った時のみの近似
+  if (total > 0 && !def.subAbsorbed){
+    const _effChip = (result.chips || []).find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
+    if (_effChip) log('8', _effChip.kind === 'eff-up' ? 'こうかは ばつぐんだ！' : 'こうかは いまひとつのようだ…');
+  }
   // 接触反応特性(受け側・段112・ABILITY_DESC公式準拠): 直接攻撃(move.contact)を本体が受けた時に発動
   if (def.poke && !def.fainted && total > 0 && !def.subAbsorbed && move.contact && atk.poke && !atk.fainted){
     const _cAb = sideAbility(def);
@@ -4537,6 +4542,13 @@ function applyEntryHazards(sideKey){
 function chooseSwitchTarget(sideKey, liveIdxs){
   if (liveIdxs.length <= 1) return liveIdxs[0];
   if (sideKey === 'self'){
+    // リアルバトル(real_battle.html)からのフック: promptを出さずに親ページが選ぶ
+    // (promptはヘッドレス/iframe内でJSをブロックする・ゲーム画面にブラウザダイアログは不格好)
+    if (typeof window !== 'undefined' && typeof window.__rbSwitchPick === 'function'){
+      const p = window.__rbSwitchPick(liveIdxs);
+      if (liveIdxs.includes(p)) return p;
+      return liveIdxs[0];
+    }
     const st = sides[sideKey];
     const menu = liveIdxs.map(i => `${i + 1}: ${st.bench[i].poke.name}`).join(' / ');
     const ans = prompt(`どの控えと交代しますか？ 番号を入力してください (${menu})`, String(liveIdxs[0] + 1));
