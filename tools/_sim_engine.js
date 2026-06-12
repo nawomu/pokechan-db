@@ -82,6 +82,7 @@ function buildEngine() {
     attemptSwitch: (typeof attemptSwitch !== 'undefined') ? attemptSwitch : null,
     aiChooseMove: (typeof aiChooseMove !== 'undefined') ? aiChooseMove : null,
     phaseInitA: (typeof phaseInitA !== 'undefined') ? phaseInitA : null,
+    initPP: (typeof initPP !== 'undefined') ? initPP : null,
     aiChooseAction: (typeof aiChooseAction !== 'undefined') ? aiChooseAction : null,
     aiScoreMove: (typeof aiScoreMove !== 'undefined') ? aiScoreMove : null,
     megaEvolve: (typeof megaEvolve !== 'undefined') ? megaEvolve : null,

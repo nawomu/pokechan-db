@@ -304,6 +304,9 @@ function buildSide(sideKey, names){
       currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
   });
   st.ability = lead.ab1 || '';
+  // PP管理(段129): 場の技+控えの技のPPを初期化(エンジンはst.ppがある時だけPPを見る)
+  st.pp = st.moves.map(m => (m && m.pp) ? m.pp : 0);
+  st.bench.forEach(e => { e.pp = (e.moves || []).map(m => (m && m.pp) ? m.pp : 0); });
   S.sides[sideKey] = st;
 }
 
@@ -412,9 +415,13 @@ function showMoves(){
   $('cmd').style.display = 'none';
   const mv = $('moves');
   mv.style.display = 'grid';
-  mv.innerHTML = st.moves.map((m, i) => `
-    <button data-i="${i}"><span class="mv-name"><span class="t-pill" style="background:${tc[m.type] || '#3a4660'}">${m.type}</span>${m.name}</span>
-    <div class="mv-sub">威力${m.power ?? '—'} / 命中${m.accuracy ?? '—'} / ${m.category}</div></button>`).join('')
+  const ppOf = i => (st.pp ? st.pp[i] : null);
+  const allOut = st.pp && st.moves.every((m, i) => !m || st.pp[i] <= 0);
+  mv.innerHTML = (allOut
+    ? `<button data-i="0"><span class="mv-name">わるあがき</span><div class="mv-sub">PPが ぜんぶ なくなった！ 威力50 / 反動あり</div></button>`
+    : st.moves.map((m, i) => `
+    <button data-i="${i}" ${ppOf(i) != null && ppOf(i) <= 0 ? 'disabled' : ''}><span class="mv-name"><span class="t-pill" style="background:${tc[m.type] || '#3a4660'}">${m.type}</span>${m.name}</span>
+    <div class="mv-sub">威力${m.power ?? '—'} / 命中${m.accuracy ?? '—'} / ${m.category}${ppOf(i) != null ? ` / PP ${ppOf(i)}/${m.pp || 0}` : ''}</div></button>`).join(''))
     + `<button class="back">← もどる</button>`;
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();

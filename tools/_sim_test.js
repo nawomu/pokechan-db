@@ -6776,6 +6776,41 @@ console.log('\n=== 段128 マジックミラー(変化技を跳ね返す) ===');
   resetEnv();
 }
 
+console.log('\n=== 段129 PP管理+わるあがき ===');
+// 出典: ポケモンWiki「わるあがき」— PP切れで自動発動。物理50・タイプ相性/一致の影響なし(ゴーストにも当たる)・
+// 命中判定なし・反動=自分の最大HPの1/4。PPはinitPPで初期化した時だけ管理(オプトイン=既存テスト無影響)。
+{
+  resetEnv();
+  // T281 PPが使用で1減る(命中・無効に関係なく)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('シャドーボール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');   // ゴースト無効=外れても消費を確認
+  E.initPP(E.sides.self);
+  const pp0 = E.sides.self.pp[0];
+  E.setRandom(() => 0.0);
+  E.runSingleAttack('self', 0);
+  check('T281 使用でPPが1減る(こうかなしでも)', E.sides.self.pp[0] === pp0 - 1,
+    `pp=${E.sides.self.pp[0]}/${pp0}`);
+  // T281b PPが切れたら わるあがき(タイプ相性無視=ゴーストのゲンガーにも当たる+反動1/4)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('はたく')];   // ノーマル=ゴーストに無効のはずの技しか持っていない
+  E.sides.self.selectedMoveIdx = 0;
+  E.initPP(E.sides.self);
+  E.sides.self.pp[0] = 0;   // PP切れ
+  const myMax = E.realStat(E.sides.self, 'hp');
+  E.sides.self.currentHp = myMax;
+  E.sides.opp = freshSide('ゲンガー', 'hataku');
+  const gMax = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = gMax;
+  E.runSingleAttack('self', 0);
+  check('T281b PP切れでわるあがき(ゴーストにも当たる)', E.sides.opp.currentHp < gMax,
+    `oppHp=${E.sides.opp.currentHp}/${gMax}`);
+  check('T281c わるあがきの反動=最大HPの1/4', E.sides.self.currentHp === myMax - Math.floor(myMax / 4),
+    `hp=${E.sides.self.currentHp} 期待=${myMax - Math.floor(myMax / 4)}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

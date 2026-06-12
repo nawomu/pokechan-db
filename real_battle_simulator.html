@@ -2460,6 +2460,14 @@ function phaseDealDamage(atkSide, defSide, move){
     atk.currentHp = Math.max(0, atk.currentHp - result.recoil);
     log('9', `${pname(atk)} は反動で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
   }
+  // わるあがき反動(段129): 自分の最大HPの1/4(第4世代以降)。いしあたま等でも防げない
+  if (move.struggle && total > 0 && atk.poke && !atk.fainted){
+    const _sMax = realStat(atk, 'hp');
+    const _sDmg = Math.max(1, Math.floor(_sMax / 4));
+    atk.currentHp = Math.max(0, atk.currentHp - _sDmg);
+    log('9', `${pname(atk)} は わるあがきの 反動で ${_sDmg} ダメージ！ (残HP ${atk.currentHp})`);
+    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
+  }
   // ひんし判定(防御側)
   if (def.currentHp <= 0){
     def.fainted = true;
@@ -4118,6 +4126,8 @@ function runSingleAttack(atkSide, moveIdx){
   if (!releasing && atk.rampage) mv = atk.rampage.move;
   // アンコール状態: 選んだ技に関係なく最後に使った技を出し続ける(Bulbapedia "Encore")
   if (!releasing && !atk.rampage && atk.encore) mv = atk.encore.move;
+  // PP切れ→わるあがき(段129)。溜め解放・あばれ継続はPPを再消費しない(最初の使用時に消費済み)
+  if (!releasing && !atk.rampage) mv = struggleIfNoPP(atk, mv);
   log('Attack', `${pname(atk)} が ${mv.name} を選んだ！`);
   // 行動阻害（ねむり/こおり/まひ）
   // ねむり: カウンタ持ち(技で眠った)は行動時に1減らし、0になったターンに目覚めて行動する(PS実装と同じ)。
@@ -4242,6 +4252,7 @@ function runSingleAttack(atkSide, moveIdx){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
+  if (!releasing && !atk.rampage) consumePP(atk, mv);   // PP消費(段129・命中や無効に関係なく1)
   stanceChange(atkSide, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
   proteanChange(atk, mv);      // へんげんじざい/リベロ(段122): 技を出す直前にタイプ変化
   // いたずらごころ(段122): 優先度を上げた変化技はあくタイプに無効
@@ -4409,7 +4420,7 @@ function startChargeIfNeeded(st, mv, releasing){
 //   ※かげふみは実装済み(cannotSwitchReason)。フェアリーロック/ありじごく/じりょく/きれいなぬけがら は未実装(park)。
 // ・壁(リフレクター等)・ねがいごと・みらいよちは「場(サイド)」に残る=ポケモンに付いて行かない。
 // 控えエントリ = ポケモンと一緒に移動する永続フィールドだけの入れ物
-const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem','megaBase','heroAnnounce'];
+const BENCH_FIELDS = ['poke','effort','natureIdx','ability','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem','megaBase','heroAnnounce','pp'];
 function packBenchEntry(st){
   const e = {};
   for (const k of BENCH_FIELDS) e[k] = st[k];
@@ -4774,6 +4785,36 @@ function megaEvolve(sideKey){
   return true;
 }
 
+// === PP管理+わるあがき(段129) — 出典: ポケモンWiki「わるあがき」 ===
+// PPはバトル開始時に initPP で初期化(st.pp=技スロットと同じ並びの配列)。st.pp が無い時は従来動作
+// (=研究用ページの単発実行や既存テストの大量実行を壊さない・オプトイン方式)。
+// わるあがき(第4世代以降): 物理50・タイプ相性とタイプ一致の影響を受けない(タイプ"???")・命中判定なし・
+// 反動は自分の最大HPの1/4(いしあたま等でも防げない)。PPが全部なくなった時に自動で出る。
+const STRUGGLE_MOVE = { name: 'わるあがき', type: '???', category: '物理', power: 50, accuracy: null,
+  pp: 1, contact: true, protect: true, target: 'ランダム1体',
+  battle_data: { crit_stage: 0, must_crit: false, crit_changes: [], effects: [] }, flags: {}, struggle: true };
+function initPP(st){
+  if (!st) return;
+  st.pp = (st.moves || []).map(m => (m && m.pp) ? m.pp : 0);
+  (st.bench || []).forEach(e => { if (e && e.poke) e.pp = (e.moves || []).map(m => (m && m.pp) ? m.pp : 0); });
+}
+// 技を実際に使った時のPP消費(命中・無効に関係なく1減る)。st.pp未初期化なら何もしない
+function consumePP(st, mv){
+  if (!st.pp || !mv || mv.struggle) return;
+  const i = (st.moves || []).findIndex(m => m && m.name === mv.name);
+  if (i >= 0 && st.pp[i] > 0) st.pp[i]--;
+}
+// 選んだ技のPPが切れていたら わるあがき に置き換える(st.pp未初期化なら従来どおり)
+function struggleIfNoPP(st, mv){
+  if (!st.pp || !mv || mv.struggle) return mv;
+  const i = (st.moves || []).findIndex(m => m && m.name === mv.name);
+  if (i >= 0 && st.pp[i] <= 0){
+    log('0c', `${pname(st)} の 技は PPが なくなった！`);
+    return STRUGGLE_MOVE;
+  }
+  return mv;
+}
+
 // === へんげんじざい/リベロ(段122) — 出典: ポケモンWiki「へんげんじざい」 ===
 // 技を出す直前に自分のタイプがその技のタイプに変化(第9世代: 1回場に出るごとに1回)。
 // 交代で戻る(typeOverrideはclearVolatilesOnSwitchで消える)。すでにその単一タイプなら発動しない(=1回を消費しない近似)。
@@ -4873,6 +4914,7 @@ function aiChooseMove(sideKey){
   let best = -1, bestScore = -1;
   st.moves.forEach((m, i) => {
     if (!m) return;
+    if (st.pp && st.pp[i] <= 0) return;   // PP切れの技は選ばない(段129)
     const score = aiScoreMove(sideKey, m);
     if (score > bestScore){ bestScore = score; best = i; }
   });
@@ -4998,6 +5040,8 @@ function runTurn(){
     // アンコール状態: 選んだ技に関係なく最後に使った技を出し続ける(Bulbapedia "Encore")
     if (!releasing && !atk.rampage && atk.encore) mv = atk.encore.move;
     if (!mv){ log(a.side, `${pname(atk)} は技を選択していない`); continue; }
+    // PP切れ→わるあがき(段129)。溜め解放・あばれ継続はPPを再消費しない
+    if (!releasing && !atk.rampage) mv = struggleIfNoPP(atk, mv);
     // ねむり・こおり等
     // ねむり: カウンタ持ち(技で眠った)は行動時に1減らし、0になったターンに目覚めて行動する(PS実装と同じ)。
     // カウンタなし(UI手動のねむり)は従来どおり眠り続ける。
@@ -5127,6 +5171,7 @@ function runTurn(){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
+    if (!releasing && !atk.rampage) consumePP(atk, mv);   // PP消費(段129・命中や無効に関係なく1)
     stanceChange(a.side, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
     proteanChange(atk, mv);     // へんげんじざい/リベロ(段122): 技を出す直前にタイプ変化
     // いたずらごころ(段122): 優先度を上げた変化技はあくタイプに無効
@@ -5644,6 +5689,7 @@ function startBattle(){
   ensureBattleState();
   pushHistory();
   log('Start', '─── バトル開始 ───');
+  initPP(sides.self); initPP(sides.opp);   // PP管理開始(段129)
   // 誰が場に出たかを履歴に残す
   if (sides.self.poke) log(`Start`, `${pname(sides.self)} が 場に出た！`);
   if (sides.opp.poke)  log(`Start`, `${pname(sides.opp)} が 場に出た！`);
