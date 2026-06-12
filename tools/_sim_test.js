@@ -6811,6 +6811,37 @@ console.log('\n=== 段129 PP管理+わるあがき ===');
   resetEnv();
 }
 
+console.log('\n=== 段130 AI v3: 被弾予測+受け交代 ===');
+// sim独自設計: 「相手に今ターン倒される(相手の最大平均ダメ>=自分の残HP) かつ 自分が後攻 かつ 確定KOで
+// 倒し返せない」時、相手の技を一番安く受けられる控え(最良で半減以下)へ交代。連続では交代しない(往復防止)。
+{
+  resetEnv();
+  // T282 サンダース(速い・10まんボルト)にギャラドス(遅い・電気4倍・残りわずか)→ 半減できるフシギバナに受け交代
+  E.sides.self = freshSide('サンダース', null);
+  E.sides.self.moves = [moveByName('10まんボルト')];
+  E.sides.opp = freshSide('ギャラドス', null);
+  E.sides.opp.moves = [moveByName('なみのり')];
+  E.sides.opp.currentHp = 40;   // 10まんボルトで確実に落ちる残量
+  const subA = freshSide('フシギバナ', null);   // でんき半減・くさ技持ち
+  subA.moves = [moveByName('ギガドレイン')];
+  E.sides.opp.bench = [{ poke: subA.poke, effort: subA.effort, natureIdx: 0, ability: '', item: '',
+    moves: subA.moves, currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null }];
+  const act = E.aiChooseAction('opp');
+  check('T282 倒される見込みなら受けられる控えに交代', act.type === 'switch' && act.index === 0,
+    `act=${JSON.stringify(act)}`);
+  // T282b 自分のほうが速ければ殴る(先に行動できる)
+  E.sides.opp.rank.spd = 6;
+  E.sides.opp.aiSwitchedLast = false;
+  const act2 = E.aiChooseAction('opp');
+  check('T282b 先手を取れるなら技を出す', act2.type === 'move', `act=${JSON.stringify(act2)}`);
+  E.sides.opp.rank.spd = 0;
+  // T282c 直前に交代したばかりなら連続では交代しない(往復防止)
+  E.sides.opp.aiSwitchedLast = true;
+  const act3 = E.aiChooseAction('opp');
+  check('T282c 連続交代はしない', act3.type === 'move', `act=${JSON.stringify(act3)}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

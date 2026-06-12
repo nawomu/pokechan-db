@@ -4921,15 +4921,50 @@ function aiChooseMove(sideKey){
   return best >= 0 ? best : 0;
 }
 
-// 行動選択(技 or 交代)。交代は控えめに:「どの技にも価値が無い(全部こうかなし・変化技も無駄)」時だけ、
-// 相手に一番タイプ相性の良い攻撃技を持つ控えへ交代する。戻り値 {type:'move'|'switch', index}
+// 行動選択(技 or 交代)。v3(段130)=被弾予測つき。戻り値 {type:'move'|'switch', index}
+// 交代する場面は2つ:
+//  A) どの技にも価値が無い(全部こうかなし等) → 相手に一番タイプ相性の良い控えへ(v2から)
+//  B) 「相手の最大平均ダメージ >= 自分の残HP(=今ターン倒される見込み) かつ 自分が後攻 かつ
+//      確定KOで倒し返せない」 → 相手の技を一番安く受けられる控え(最良で半減以下)へ受け交代(v3)。
+// 連続では交代しない(aiSwitchedLast=往復防止)。AIはsim内の情報(相手の技)を見てよい設計。
 function aiChooseAction(sideKey){
   const st = sides[sideKey];
   const foe = sideKey === 'self' ? 'opp' : 'self';
+  const foeSt = sides[foe];
   const best = aiChooseMove(sideKey);
   const bestScore = (st.moves && st.moves[best]) ? aiScoreMove(sideKey, st.moves[best]) : 0;
-  if (bestScore > 5) return {type: 'move', index: best};
-  const foeSt = sides[foe];
+  if (bestScore >= 1000){ st.aiSwitchedLast = false; return {type: 'move', index: best}; }   // 確定KOは最優先
+  // B) 被弾予測(v3)
+  if (foeSt.poke && !st.aiSwitchedLast){
+    const myHp = st.currentHp == null ? realStat(st, 'hp') : st.currentHp;
+    let foeMax = 0, foeMaxMove = null;
+    (foeSt.moves || []).forEach(m => {
+      if (!m || m.category === '変化') return;
+      const r = calcDamage(foe, sideKey, m);
+      if (r && !r.immune){ const avg = (r.min + r.max) / 2; if (avg > foeMax){ foeMax = avg; foeMaxMove = m; } }
+    });
+    const mySpd = effectiveSpeed(st), foeSpd = effectiveSpeed(foeSt);
+    const slower = env.trickRoom ? (mySpd > foeSpd) : (mySpd < foeSpd);
+    if (foeMaxMove && foeMax >= myHp && slower){
+      // 受けられる控え: 相手の主力技タイプの被ダメ倍率が最小の子(半減以下が条件)。同率なら攻撃相性が良い子
+      let swIdx = -1, swTaken = 99, swAtk = 0;
+      (st.bench || []).forEach((b, i) => {
+        if (!b || !b.poke || b.fainted || (b.currentHp != null && b.currentHp <= 0)) return;
+        const btypes = [b.poke.type1, b.poke.type2].filter(Boolean);
+        const taken = moveTypeEff(foeMaxMove.type, btypes);
+        let atkEff = 0;
+        (b.moves || []).forEach(m => {
+          if (!m || m.category === '変化') return;
+          const e = moveTypeEff(m.type, sideTypes(foeSt));
+          if (e > atkEff) atkEff = e;
+        });
+        if (taken < swTaken || (taken === swTaken && atkEff > swAtk)){ swTaken = taken; swIdx = i; swAtk = atkEff; }
+      });
+      if (swIdx >= 0 && swTaken <= 0.5){ st.aiSwitchedLast = true; return {type: 'switch', index: swIdx}; }
+    }
+  }
+  if (bestScore > 5){ st.aiSwitchedLast = false; return {type: 'move', index: best}; }
+  // A) どの技にも価値が無い(v2)
   const ftypes = foeSt.poke ? sideTypes(foeSt) : [];
   let swIdx = -1, swEff = 0;
   (st.bench || []).forEach((b, i) => {
@@ -4942,7 +4977,8 @@ function aiChooseAction(sideKey){
     });
     if (eff > swEff){ swEff = eff; swIdx = i; }
   });
-  if (swIdx >= 0 && swEff > 0) return {type: 'switch', index: swIdx};
+  if (swIdx >= 0 && swEff > 0 && !st.aiSwitchedLast){ st.aiSwitchedLast = true; return {type: 'switch', index: swIdx}; }
+  st.aiSwitchedLast = false;
   return {type: 'move', index: best};
 }
 
