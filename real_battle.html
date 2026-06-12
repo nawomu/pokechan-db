@@ -19,7 +19,22 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
 #setup h2{font-size:14px;margin:0 0 10px;color:#9fb4d8}
 .team-row{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
 .team-row .tlabel{font-size:12px;font-weight:700;width:64px}
-.team-row select{flex:1;min-width:130px;background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:6px}
+.team-row .slot{flex:1;min-width:130px;background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;
+  padding:6px 8px;cursor:pointer;display:flex;align-items:center;gap:7px;font-size:13px;text-align:left}
+.team-row .slot:hover{border-color:#58a6ff}
+.team-row .slot img{width:30px;height:30px;object-fit:contain;flex:0 0 auto}
+/* ポケモン検索モーダル */
+#poke-picker{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
+#poke-picker .pp-box{background:#141927;border:1px solid #2a3450;border-radius:14px;width:100%;max-width:560px;
+  max-height:80vh;display:flex;flex-direction:column;padding:14px}
+#poke-picker input{background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:9px;padding:9px 12px;
+  font-size:15px;margin-bottom:10px;width:100%}
+#pp-list{overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+#pp-list button{background:#0c1322;border:1px solid #232a3a;border-radius:9px;color:#e6edf3;cursor:pointer;
+  padding:7px 5px;display:flex;flex-direction:column;align-items:center;gap:3px;font-size:11px}
+#pp-list button:hover{border-color:#58a6ff;background:#1b2540}
+#pp-list img{width:54px;height:54px;object-fit:contain}
+#pp-close{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer}
 #setup .btns{display:flex;gap:10px;margin-top:14px}
 #setup button{flex:1;padding:12px;border-radius:10px;border:1px solid #2a3450;cursor:pointer;font-weight:800;font-size:14px;
   background:linear-gradient(90deg,#1c2a3a,#2a1c3a);color:#fff}
@@ -118,10 +133,10 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
   <div id="setup">
     <h2>チームをえらんで バトルスタート！(3体ずつ・技は自動で4つセット)</h2>
     <div class="team-row"><span class="tlabel">自分</span>
-      <select id="s1"></select><select id="s2"></select><select id="s3"></select>
+      <button class="slot" id="s1"></button><button class="slot" id="s2"></button><button class="slot" id="s3"></button>
     </div>
     <div class="team-row"><span class="tlabel">相手</span>
-      <select id="o1"></select><select id="o2"></select><select id="o3"></select>
+      <button class="slot" id="o1"></button><button class="slot" id="o2"></button><button class="slot" id="o3"></button>
     </div>
     <div class="btns">
       <button class="sub" id="btn-random">🎲 おまかせ編成</button>
@@ -158,6 +173,15 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
   </div>
 </div>
 
+<!-- ポケモン検索モーダル(チーム編成用・ひらがな/カタカナどちらでも検索可) -->
+<div id="poke-picker">
+  <div class="pp-box">
+    <input id="pp-q" placeholder="なまえで さがす(ひらがなでもOK)…">
+    <div id="pp-list"></div>
+    <button id="pp-close">とじる</button>
+  </div>
+</div>
+
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
 <iframe id="engine-frame" src="real_battle_simulator.html" style="display:none"></iframe>
 
@@ -184,10 +208,44 @@ document.getElementById('engine-frame').addEventListener('load', () => {
 });
 
 // ===== チーム編成 =====
+const slotVal = {};   // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
+let pickerSlot = null;
+// ひらがな→カタカナ(検索用正規化。「ぴかちゅう」でピカチュウにヒット)
+const toKata = s => s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
+function setSlot(id, name){
+  slotVal[id] = name;
+  const enc = encodeURIComponent(name);
+  $(id).innerHTML = `<img src="images/sim/${enc}.svg" alt="" onerror="this.remove()"><span>${name}</span>`;
+}
+function openPicker(id){
+  pickerSlot = id;
+  $('poke-picker').style.display = 'flex';
+  const q = $('pp-q');
+  q.value = '';
+  renderPickerList('');
+  q.focus();
+}
+function closePicker(){ $('poke-picker').style.display = 'none'; pickerSlot = null; }
+function renderPickerList(query){
+  const pokes = S.pokeList().filter(p => !p.mega);
+  const k = toKata(query.trim());
+  const hits = k ? pokes.filter(p => p.name.includes(k) || p.name.includes(query.trim())) : pokes;
+  $('pp-list').innerHTML = hits.slice(0, 120).map(p => {
+    const enc = encodeURIComponent(p.name);
+    return `<button data-n="${p.name}"><img loading="lazy" src="images/sim/${enc}.svg" onerror="this.remove()">${p.name}</button>`;
+  }).join('') || '<div style="color:#8b94a7;padding:10px">みつからない…</div>';
+  $('pp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    setSlot(pickerSlot, b.dataset.n);
+    closePicker();
+  }));
+}
 function initSetup(){
   const pokes = S.pokeList().filter(p => !p.mega);   // メガフォームは直接選ばない(ストーンで変身)
-  const opts = pokes.map(p => `<option value="${p.name}">${p.name}</option>`).join('');
-  ['s1','s2','s3','o1','o2','o3'].forEach(id => { $(id).innerHTML = opts; });
+  ['s1','s2','s3','o1','o2','o3'].forEach(id => $(id).addEventListener('click', () => openPicker(id)));
+  $('pp-q').addEventListener('input', () => renderPickerList($('pp-q').value));
+  $('pp-close').addEventListener('click', closePicker);
+  $('poke-picker').addEventListener('click', e => { if (e.target === $('poke-picker')) closePicker(); });
   randomize();
   $('btn-random').addEventListener('click', randomize);
   $('btn-start').addEventListener('click', startBattle);
@@ -208,7 +266,7 @@ function initSetup(){
   });
   function randomize(){
     const pick = () => pokes[Math.floor(Math.random() * pokes.length)].name;
-    ['s1','s2','s3','o1','o2','o3'].forEach(id => { $(id).value = pick(); });
+    ['s1','s2','s3','o1','o2','o3'].forEach(id => setSlot(id, pick()));
   }
   // デモ自動バトル(?demo=1): 演出確認用。おまかせ編成で開始し、技0を選び続ける
   if (location.search.includes('demo')){
@@ -248,8 +306,8 @@ function buildSide(sideKey, names){
 }
 
 function startBattle(){
-  buildSide('self', ['s1','s2','s3'].map(id => $(id).value));
-  buildSide('opp',  ['o1','o2','o3'].map(id => $(id).value));
+  buildSide('self', ['s1','s2','s3'].map(id => slotVal[id]));
+  buildSide('opp',  ['o1','o2','o3'].map(id => slotVal[id]));
   S.battleLog.length = 0;
   logPos = 0; gameOver = false;
   $('setup').style.display = 'none';
