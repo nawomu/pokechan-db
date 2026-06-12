@@ -1991,6 +1991,9 @@ function fireEntryAbility(s){
     } else if (_BREAKER.includes(ab)){
       // かたやぶり系(段124): 場に出た時に宣言(実機準拠メッセージ)
       log('Init-A', `${pname(st)} の ${ab}！`);
+    } else if (ab === 'プレッシャー'){
+      // プレッシャー(段131): 場に出た時に宣言(実機「◯◯は プレッシャーを はなっている！」)
+      log('Init-A', `${pname(st)} は プレッシャーを はなっている！`);
     } else if (ab === 'トレース' && other.poke){
       // トレース(段122・ポケモンWiki): 場に出た時、相手の特性をコピー(abilityOverride=交代で自然に消える)。
       // コピー不可はフォルムチェンジ系等(代表のみの近似)
@@ -3232,6 +3235,18 @@ function phaseApplyEffects(atkSide, defSide, move){
       // カウントは行動時に減らし、0になったターンに目覚めて行動する(PS実装と同じ)
       if (code === 'sleep') target.sleepTurns = (ef.duration != null) ? ef.duration + 1 : 2 + Math.floor(Math.random() * 3);
       log('9', `${pname(target)} は ${ef.value} 状態になった！`);
+      // シンクロ(段131・ポケモンWiki): 相手の技で どく/もうどく/まひ/やけど にされたら、相手も同じ状態にする
+      // (ねむり/こおりは対象外。相手がすでに状態異常・タイプ免疫なら返らない)
+      if (target !== atk && sideAbility(target) === 'シンクロ' &&
+          ['poison', 'badpoison', 'paralysis', 'burn'].includes(code) &&
+          atk.poke && !atk.fainted && atk.status === 'none'){
+        const _sTImm = { poison: ['どく', 'はがね'], badpoison: ['どく', 'はがね'], paralysis: ['でんき'], burn: ['ほのお'] }[code] || [];
+        if (!_sTImm.some(t => sideTypes(atk).includes(t))){
+          atk.status = code;
+          if (code === 'badpoison') atk.badpoisonCounter = 0;
+          log('9', `${pname(target)} の シンクロ！ ${pname(atk)} も ${ef.value} 状態になった！`);
+        }
+      }
     } else if (ef.kind === '能力ランク変化'){
       // くろいきり(reset宣言): 場にいる全員の能力ランクの変化をすべて0に戻す(ポケモンWiki「くろいきり」)
       if (ef.reset){
@@ -4252,7 +4267,7 @@ function runSingleAttack(atkSide, moveIdx){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
-  if (!releasing && !atk.rampage) consumePP(atk, mv);   // PP消費(段129・命中や無効に関係なく1)
+  if (!releasing && !atk.rampage) consumePP(atk, mv, def);   // PP消費(段129/プレッシャー=段131)
   stanceChange(atkSide, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
   proteanChange(atk, mv);      // へんげんじざい/リベロ(段122): 技を出す直前にタイプ変化
   // いたずらごころ(段122): 優先度を上げた変化技はあくタイプに無効
@@ -4798,11 +4813,16 @@ function initPP(st){
   st.pp = (st.moves || []).map(m => (m && m.pp) ? m.pp : 0);
   (st.bench || []).forEach(e => { if (e && e.poke) e.pp = (e.moves || []).map(m => (m && m.pp) ? m.pp : 0); });
 }
-// 技を実際に使った時のPP消費(命中・無効に関係なく1減る)。st.pp未初期化なら何もしない
-function consumePP(st, mv){
+// 技を実際に使った時のPP消費(命中・無効に関係なく1減る)。st.pp未初期化なら何もしない。
+// プレッシャー(段131・ポケモンWiki): 相手を対象にした技なら減少量+1
+function consumePP(st, mv, foeSt){
   if (!st.pp || !mv || mv.struggle) return;
   const i = (st.moves || []).findIndex(m => m && m.name === mv.name);
-  if (i >= 0 && st.pp[i] > 0) st.pp[i]--;
+  if (i < 0 || st.pp[i] <= 0) return;
+  let n = 1;
+  if (foeSt && foeSt.poke && !foeSt.fainted && sideAbility(foeSt) === 'プレッシャー' &&
+      ['1体選択', 'ランダム1体', '相手全体', '自分以外全体', '相手の場'].includes(mv.target)) n = 2;
+  st.pp[i] = Math.max(0, st.pp[i] - n);
 }
 // 選んだ技のPPが切れていたら わるあがき に置き換える(st.pp未初期化なら従来どおり)
 function struggleIfNoPP(st, mv){
@@ -5207,7 +5227,7 @@ function runTurn(){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
-    if (!releasing && !atk.rampage) consumePP(atk, mv);   // PP消費(段129・命中や無効に関係なく1)
+    if (!releasing && !atk.rampage) consumePP(atk, mv, def);   // PP消費(段129/プレッシャー=段131)
     stanceChange(a.side, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
     proteanChange(atk, mv);     // へんげんじざい/リベロ(段122): 技を出す直前にタイプ変化
     // いたずらごころ(段122): 優先度を上げた変化技はあくタイプに無効

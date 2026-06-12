@@ -6842,6 +6842,71 @@ console.log('\n=== 段130 AI v3: 被弾予測+受け交代 ===');
   resetEnv();
 }
 
+console.log('\n=== 段131 シンクロ+プレッシャー ===');
+// 出典: ポケモンWiki「シンクロ」(相手の技で どく/まひ/やけど にされたら相手も同じ状態に。ねむり/こおりは対象外)/
+// 「プレッシャー」(このポケモンを対象に使われた技のPP減少量が1増える)。おいうちはDB(SSOT)に無い=Champions非収録→対象外。
+{
+  resetEnv();
+  // T283 シンクロ: でんじはでまひ→撃った側もまひ
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('でんじは')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('エーフィ', null);
+  E.sides.opp.ability = 'シンクロ';
+  E.setRandom(() => 0.0);
+  E.runSingleAttack('self', 0);
+  check('T283 シンクロでまひが返る',
+    E.sides.opp.status === 'paralysis' && E.sides.self.status === 'paralysis',
+    `opp=${E.sides.opp.status} self=${E.sides.self.status}`);
+  // T283b ねむりは返らない(対象外)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('ねむりごな')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('エーフィ', null);
+  E.sides.opp.ability = 'シンクロ';
+  E.runSingleAttack('self', 0);
+  check('T283b ねむりは返らない', E.sides.opp.status === 'sleep' && E.sides.self.status === 'none',
+    `opp=${E.sides.opp.status} self=${E.sides.self.status}`);
+  // T283c 撃った側がすでに状態異常なら返らない(上書きしない)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('おにび')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.status = 'sleep';
+  E.sides.self.sleepTurns = null;   // UI手動ねむり=眠り続ける(行動チェックは寝てるが…おにびは出せないので調整)
+  E.sides.self.status = 'paralysis';   // まひなら2割で動けないだけ→乱数0.99で行動可能に
+  E.sides.opp = freshSide('エーフィ', null);
+  E.sides.opp.ability = 'シンクロ';
+  E.setRandom(() => 0.99);   // まひチェック(<0.25で不発)を通す+おにび命中(命中85…0.99は外れる?)
+  E.setRandom(() => 0.5);    // まひ通過(0.5>=0.25)・命中(0.5<0.85)・シンクロ判定不要
+  E.runSingleAttack('self', 0);
+  check('T283c すでに状態異常の相手には返さない(やけど上書きなし)',
+    E.sides.opp.status === 'burn' && E.sides.self.status === 'paralysis',
+    `opp=${E.sides.opp.status} self=${E.sides.self.status}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T284 プレッシャー: 対象にした技のPP消費が2になる
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('でんこうせっか'), moveByName('つるぎのまい')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.ability = 'プレッシャー';
+  E.initPP(E.sides.self);
+  const pp0 = E.sides.self.pp[0];
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('self', 0);
+  check('T284 プレッシャーでPPが2減る', E.sides.self.pp[0] === pp0 - 2,
+    `pp=${E.sides.self.pp[0]} 期待=${pp0 - 2}`);
+  // T284b 自分対象の技(つるぎのまい)は通常どおり1
+  const pp1 = E.sides.self.pp[1];
+  E.sides.self.selectedMoveIdx = 1;
+  E.runSingleAttack('self', 1);
+  check('T284b 自分対象の技は1のまま', E.sides.self.pp[1] === pp1 - 1,
+    `pp=${E.sides.self.pp[1]} 期待=${pp1 - 1}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
