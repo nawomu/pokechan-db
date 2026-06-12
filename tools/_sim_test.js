@@ -6278,6 +6278,108 @@ console.log('\n=== 段119 こうか表示メッセージ(実機準拠) ===');
   resetEnv();
 }
 
+console.log('\n=== 段120 バトルスイッチ(ギルガルド) ===');
+// 出典: ポケモンWiki「バトルスイッチ」— シールドで攻撃技→ブレードにチェンジしてから攻撃(無効/外れでも発動・
+// 変化技では発動しない)/ブレードでキングシールド→シールドへ(まもる等では発動しない・失敗でも発動)/
+// 交代でシールドに戻る/行動できなかった時は発動しない(第7世代以降)。
+{
+  resetEnv();
+  // T261 シールドで攻撃技→ブレードにチェンジしてから攻撃する(ダメージはブレードの種族値で計算)
+  E.sides.self = freshSide('ギルガルド(シールド)', null);
+  E.sides.self.ability = 'バトルスイッチ';
+  E.sides.self.moves = [moveByName('シャドーボール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('フシギバナ', 'hataku');   // ゴースト等倍
+  const oppMax = E.realStat(E.sides.opp, 'hp');
+  const shieldMax = E.calcDamage('self', 'opp', moveByName('シャドーボール')).max;  // シールドの特攻50での最大
+  E.setRandom(() => 0.0);
+  const n0 = E.battleLog.length;
+  E.runSingleAttack('self', 0);
+  const logs0 = E.battleLog.slice(n0).map(e => e.msg);
+  check('T261 攻撃技でブレードフォルムになる', E.sides.self.poke.name === 'ギルガルド(ブレード)',
+    `poke=${E.sides.self.poke.name}`);
+  check('T261b チェンジのメッセージが出る', logs0.some(m => m.includes('ブレードフォルム チェンジ')), logs0.join(' / '));
+  check('T261c ダメージはブレードの種族値(特攻140)で計算される',
+    (oppMax - E.sides.opp.currentHp) > shieldMax,
+    `dealt=${oppMax - E.sides.opp.currentHp} shield_max=${shieldMax}`);
+  // T261d 攻撃がこうかなし(シャドーボール×ノーマル)でも発動してブレードになる
+  E.sides.self = freshSide('ギルガルド(シールド)', null);
+  E.sides.self.ability = 'バトルスイッチ';
+  E.sides.self.moves = [moveByName('シャドーボール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');   // ゴースト無効
+  E.runSingleAttack('self', 0);
+  check('T261d こうかなしでも発動してブレードになる', E.sides.self.poke.name === 'ギルガルド(ブレード)',
+    `poke=${E.sides.self.poke.name}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T262 変化技(つるぎのまい)では発動しない
+  E.sides.self = freshSide('ギルガルド(シールド)', null);
+  E.sides.self.ability = 'バトルスイッチ';
+  E.sides.self.moves = [moveByName('つるぎのまい')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.0);
+  E.runSingleAttack('self', 0);
+  check('T262 変化技ではフォルムが変わらない', E.sides.self.poke.name === 'ギルガルド(シールド)',
+    `poke=${E.sides.self.poke.name}`);
+  // T262b ブレードでキングシールド→シールドに戻る
+  E.sides.self = freshSide('ギルガルド(ブレード)', null);
+  E.sides.self.ability = 'バトルスイッチ';
+  E.sides.self.moves = [moveByName('キングシールド')];
+  E.sides.self.selectedMoveIdx = 0;
+  const n1 = E.battleLog.length;
+  E.runSingleAttack('self', 0);
+  const logs1 = E.battleLog.slice(n1).map(e => e.msg);
+  check('T262b キングシールドでシールドフォルムに戻る', E.sides.self.poke.name === 'ギルガルド(シールド)',
+    `poke=${E.sides.self.poke.name}`);
+  check('T262c チェンジのメッセージが出る', logs1.some(m => m.includes('シールドフォルム チェンジ')), logs1.join(' / '));
+  // T262d ブレードで まもる ではフォルムが変わらない
+  E.sides.self = freshSide('ギルガルド(ブレード)', null);
+  E.sides.self.ability = 'バトルスイッチ';
+  E.sides.self.moves = [moveByName('まもる')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.runSingleAttack('self', 0);
+  check('T262d まもるでは発動しない(ブレードのまま)', E.sides.self.poke.name === 'ギルガルド(ブレード)',
+    `poke=${E.sides.self.poke.name}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T263 交代で控えに戻るとシールドフォルムに戻る
+  E.sides.self = freshSide('ギルガルド(ブレード)', null);
+  E.sides.self.ability = 'バトルスイッチ';
+  E.sides.self.moves = [moveByName('シャドーボール')];
+  const sub = freshSide('フシギバナ', 'hataku');
+  E.sides.self.bench = [{ poke: sub.poke, effort: sub.effort, natureIdx: 0, ability: '', item: '',
+    moves: sub.moves, currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null }];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.attemptSwitch('self', 0);
+  const backEntry = E.sides.self.bench[0];
+  check('T263 交代で控えのギルガルドはシールドフォルムに戻る',
+    backEntry.poke && backEntry.poke.name === 'ギルガルド(シールド)',
+    `bench=${backEntry.poke && backEntry.poke.name}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T264 行動できなかった時は発動しない(第7世代以降: ねむりで攻撃技が不発→シールドのまま)
+  E.sides.self = freshSide('ギルガルド(シールド)', null);
+  E.sides.self.ability = 'バトルスイッチ';
+  E.sides.self.moves = [moveByName('シャドーボール')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.status = 'sleep';
+  E.sides.self.sleepTurns = 5;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.0);
+  E.runSingleAttack('self', 0);
+  check('T264 ねむりで行動できない時は発動しない', E.sides.self.poke.name === 'ギルガルド(シールド)',
+    `poke=${E.sides.self.poke.name}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

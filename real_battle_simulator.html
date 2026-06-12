@@ -4177,6 +4177,7 @@ function runSingleAttack(atkSide, moveIdx){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
+  stanceChange(atkSide, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
   // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
   const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
   const _enduEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'こらえる');
@@ -4588,6 +4589,11 @@ function attemptSwitch(sideKey, benchIdx, opts){
       log('9', `${outName} は しぜんかいふくで 状態異常を 治して 戻った！`);
     }
   }
+  // バトルスイッチ(段120): 交代で控えに戻るとシールドフォルムに戻る(ポケモンWiki「バトルスイッチ」)
+  if (st.ability === 'バトルスイッチ' && st.poke && /\(ブレード\)$/.test(st.poke.name)){
+    const _sf = POKE_MAP_BY_NAME[st.poke.name.replace('(ブレード)', '(シールド)')];
+    if (_sf) st.poke = _sf;
+  }
   st.bench[benchIdx] = packBenchEntry(st);   // 出ていたポケモンの永続フィールドを控え枠へ
   clearVolatilesOnSwitch(st);
   for (const k of BENCH_FIELDS) st[k] = entry[k];
@@ -4660,6 +4666,27 @@ function megaEvolve(sideKey){
   st.megaChoice = false;
   log('0a', `${pname(st)} の ${stone.name}が 反応している！ ${mf.name} に メガシンカした！`);
   return true;
+}
+
+// === バトルスイッチ(段120・ギルガルド) — 出典: ポケモンWiki「バトルスイッチ」 ===
+// シールドフォルムで攻撃技→ブレードフォルムにチェンジしてから攻撃(相性無効/命中外れでも発動・変化技では発動しない)。
+// ブレードフォルムでキングシールド→シールドフォルムへ(まもる等の他の守り技では発動しない・連続使用で失敗しても発動)。
+// 交代で控えに戻るとシールドフォルムに戻る(attemptSwitch)。第7世代以降: 行動できなかった時は発動しない
+// (=このフックは行動可否チェックを全部通った「技を使った扱い」の地点で呼ぶ)。
+// この特性は上書き/コピー/無効化されない → sideAbilityでなく st.ability を直接見る。
+// 近似(park): ねごとから出た技でも発動してしまう(実機は発動しない=ねむり中なので実害ほぼ無し)。
+function stanceChange(sideKey, mv){
+  const st = sides[sideKey];
+  if (!st.poke || st.ability !== 'バトルスイッチ') return;
+  const base = st.poke.name.replace(/\((シールド|ブレード)\)$/, '');
+  let want = null;
+  if (mv.category !== '変化' && st.poke.name === base + '(シールド)') want = 'ブレード';
+  else if (mv.name === 'キングシールド' && st.poke.name === base + '(ブレード)') want = 'シールド';
+  if (!want) return;
+  const f = POKE_MAP_BY_NAME[base + '(' + want + ')'];
+  if (!f) return;
+  st.poke = f;
+  log('0c', `${want}フォルム チェンジ！ (${pname(st)})`);
 }
 
 // === B: 対戦AI(段115 → v2: 段118) ===
@@ -4974,6 +5001,7 @@ function runTurn(){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
+    stanceChange(a.side, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
     // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ。連続使用は成功率が1/3ずつ下がり、
     // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure"。
     // ファストガードはmultiplierなし=連続でも失敗しない)
