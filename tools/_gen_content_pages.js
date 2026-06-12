@@ -38,6 +38,10 @@ const enc = s => encodeURIComponent(s); // href用(日本語ファイル名)
 const badge = t => t ? `<span class="badge t-${esc(t)}">${esc(t)}</span>` : '';
 const jaSort = (a, b) => a.localeCompare(b, 'ja');
 
+// 左右サイドの広告予約枠(広い画面のみCSSで表示)
+const SIDE_ADS = `<aside class="side-rail left ad-section" data-ad-slot="content-rail-left" aria-label="広告"><div class="railbox"><span class="pr-label">広告 / PR</span><div class="ad-section__inner"></div></div></aside>`
+  + `<aside class="side-rail right ad-section" data-ad-slot="content-rail-right" aria-label="広告"><div class="railbox"><span class="pr-label">広告 / PR</span><div class="ad-section__inner"></div></div></aside>`;
+
 function head(title, desc, canonical) {
   return `<!DOCTYPE html>
 <html lang="ja">
@@ -62,6 +66,7 @@ function head(title, desc, canonical) {
 </head>
 <body>
 <header class="hero"><a href="../index.html"><div class="logo">PchamDB<small>ポケモンチャンピオンズ 非公式ファンデータベース</small></div></a></header>
+${SIDE_ADS}
 <div class="wrap">`;
 }
 const FOOT = `</div>
@@ -73,6 +78,11 @@ const FOOT = `</div>
 </footer>
 </body>
 </html>`;
+
+// 広告の予約枠(既存サイトと同じ作法。承認後に .ad-section__inner へ <ins class="adsbygoogle"> を入れる)
+function adBox(slot) {
+  return `<aside class="ad-section in-content" data-ad-slot="${slot}" aria-label="広告"><span class="pr-label">広告 / PR</span><div class="ad-section__inner"></div></aside>`;
+}
 
 function writePage(rel, htmlBody) {
   const full = path.join(ROOT, rel);
@@ -234,6 +244,7 @@ function genAbilityDetail(ab) {
     <p class="lead">${esc(desc)}</p>
     <h2>この特性を持つポケモン(${owners.length})</h2>
     ${ownerChips}
+    ${adBox('content-ability')}
     <h2>関連</h2>
     <div class="chips"><a href="index.html">← 特性一覧へ戻る</a></div>
   </article>` + FOOT;
@@ -254,7 +265,8 @@ function genAbilityIndex() {
     <h1>特性(とくせい)一覧</h1>
     <p class="lead">ポケモンが持つ「特性」全${ALL_ABIL.length}種類の効果をまとめました。特性をえらぶと、くわしい効果と、その特性を持つポケモンが見られます。</p>
     <table>${rows}</table>
-  </article>` + FOOT;
+  </article>
+  ${adBox('content-ability-list')}` + FOOT;
   writePage('ability/index.html', body);
 }
 
@@ -353,6 +365,7 @@ function genPokemonDetail(p) {
     ${weaknessTable(p)}
     <h2>特性</h2>
     <table>${abilRows}</table>
+    ${adBox('content-pokemon')}
     <h2>覚える技</h2>
     ${movesTable(p.name)}
   </article>
@@ -414,6 +427,7 @@ ${rows}
       </tbody>
     </table></div>
   </article>
+  ${adBox('content-pokemon-list')}
   <script>${LIST_JS}</script>
   <script>${TIP_JS}</script>` + FOOT;
   writePage('pokemon/index.html', body);
@@ -454,7 +468,8 @@ function genTypeDetail(t) {
     </table>
     <h2>${t}タイプのポケモン(${owns.length})</h2>
     <div class="chips">${owns.map(p => `<a href="${pokeHref(p.name)}">${esc(p.name)}</a>`).join('')}</div>
-  </article>` + FOOT;
+  </article>
+  ${adBox('content-type')}` + FOOT;
   writePage(`type/${t}.html`, body);
 }
 function genTypeIndex() {
