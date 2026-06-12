@@ -35,6 +35,29 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
 #pp-list button:hover{border-color:#58a6ff;background:#1b2540}
 #pp-list img{width:54px;height:54px;object-fit:contain}
 #pp-close{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer}
+/* くわしく編成(技・持ち物の編集) */
+#detail-setup{margin-top:12px;border-top:1px solid #232a3a;padding-top:10px;display:none}
+#detail-setup.open{display:block}
+.ds-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.ds-row .ds-name{width:130px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px}
+.ds-row .ds-name img{width:26px;height:26px;object-fit:contain}
+.ds-row .mv-chip{font-size:10.5px;padding:4px 8px;border-radius:8px;border:1px solid #2a3450;background:#0c1322;
+  color:#e6edf3;cursor:pointer;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ds-row .mv-chip:hover{border-color:#58a6ff}
+.ds-row select{background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:4px;font-size:11px;max-width:150px}
+#detail-toggle{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:8px;color:#9fb4d8;
+  padding:6px 12px;cursor:pointer;font-size:12px;width:100%}
+/* わざ検索モーダル(ポケモン検索と同型) */
+#move-picker{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
+#move-picker .mp-box{background:#141927;border:1px solid #2a3450;border-radius:14px;width:100%;max-width:560px;
+  max-height:80vh;display:flex;flex-direction:column;padding:14px}
+#move-picker input{background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:9px;padding:9px 12px;
+  font-size:15px;margin-bottom:10px;width:100%}
+#mp-list{overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+#mp-list button{background:#0c1322;border:1px solid #232a3a;border-radius:8px;color:#e6edf3;cursor:pointer;
+  padding:7px 10px;text-align:left;font-size:12px}
+#mp-list button:hover{border-color:#58a6ff;background:#1b2540}
+#mp-close{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer}
 #setup .btns{display:flex;gap:10px;margin-top:14px}
 #setup button{flex:1;padding:12px;border-radius:10px;border:1px solid #2a3450;cursor:pointer;font-weight:800;font-size:14px;
   background:linear-gradient(90deg,#1c2a3a,#2a1c3a);color:#fff}
@@ -138,6 +161,8 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
     <div class="team-row"><span class="tlabel">相手</span>
       <button class="slot" id="o1"></button><button class="slot" id="o2"></button><button class="slot" id="o3"></button>
     </div>
+    <button id="detail-toggle">⚙ くわしく編成(わざ・もちもの をえらぶ)</button>
+    <div id="detail-setup"></div>
     <div class="btns">
       <button class="sub" id="btn-random">🎲 おまかせ編成</button>
       <button id="btn-start">▶ バトルスタート！</button>
@@ -170,6 +195,15 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
       <span>送り速度: <select id="msg-speed"><option value="1500">ゆっくり</option><option value="1000" selected>ふつう</option><option value="600">はやい</option></select></span>
       <button id="snd-toggle" style="margin-left:auto;background:#161d2e;border:1px solid #2a3450;border-radius:8px;color:#e6edf3;padding:4px 10px;cursor:pointer">🔊 音オン</button>
     </div>
+  </div>
+</div>
+
+<!-- わざ検索モーダル(くわしく編成用) -->
+<div id="move-picker">
+  <div class="mp-box">
+    <input id="mp-q" placeholder="わざのなまえで さがす(ひらがなでもOK)…">
+    <div id="mp-list"></div>
+    <button id="mp-close">とじる</button>
   </div>
 </div>
 
@@ -210,14 +244,80 @@ document.getElementById('engine-frame').addEventListener('load', () => {
 });
 
 // ===== チーム編成 =====
-const slotVal = {};   // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
+const slotVal = {};    // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
+const slotMoves = {};  // 各スロットの技4つ(くわしく編成で変更可。ポケモンを変えると自動選定に戻る)
+const slotItem = {};   // 各スロットの持ち物key(既定=汎用メガストーン)
 let pickerSlot = null;
+let movePick = null;   // {slotId, idx} わざモーダルの編集先
 // ひらがな→カタカナ(検索用正規化。「ぴかちゅう」でピカチュウにヒット)
 const toKata = s => s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
 function setSlot(id, name){
   slotVal[id] = name;
+  slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
+  if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
   const enc = encodeURIComponent(name);
   $(id).innerHTML = `<img src="images/sim/${enc}.svg" alt="" onerror="this.remove()"><span>${name}</span>`;
+  renderDetailSetup();
+}
+// くわしく編成: 6スロットぶんの技チップ+持ち物セレクト
+function renderDetailSetup(){
+  const box = $('detail-setup');
+  if (!box) return;
+  const tc = S.typeColors();
+  const items = S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any' || /リザードナイト/.test(it.name));
+  box.innerHTML = ['s1','s2','s3','o1','o2','o3'].map(id => {
+    const nm = slotVal[id]; if (!nm) return '';
+    const mvs = slotMoves[id] || [];
+    const chips = [0,1,2,3].map(i => {
+      const m = mvs[i];
+      return `<button class="mv-chip" data-slot="${id}" data-i="${i}" title="${m ? m.name : 'わざを えらぶ'}"
+        style="${m ? `border-left:4px solid ${tc[m.type] || '#3a4660'}` : ''}">${m ? m.name : '—'}</button>`;
+    }).join('');
+    const opts = items.map(it => `<option value="${it.key}" ${slotItem[id] === it.key ? 'selected' : ''} title="${it.effect || ''}">${it.name}</option>`).join('');
+    return `<div class="ds-row"><span class="ds-name"><img src="images/sim/${encodeURIComponent(nm)}.svg" onerror="this.remove()">${id.startsWith('s') ? '🟢' : '🔴'}${nm}</span>
+      ${chips}<select data-item="${id}"><option value="">もちもの なし</option>${opts}</select></div>`;
+  }).join('');
+  box.querySelectorAll('.mv-chip').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    openMovePicker(b.dataset.slot, +b.dataset.i);
+  }));
+  box.querySelectorAll('select[data-item]').forEach(sel => sel.addEventListener('change', () => {
+    slotItem[sel.dataset.item] = sel.value;
+  }));
+}
+// わざモーダル(ひらがな検索→クリックでそのスロットの技を差し替え)
+function openMovePicker(slotId, idx){
+  movePick = { slotId, idx };
+  $('move-picker').style.display = 'flex';
+  $('mp-q').value = '';
+  renderMovePickList('');
+  $('mp-q').focus();
+}
+function closeMovePicker(){ $('move-picker').style.display = 'none'; movePick = null; }
+function renderMovePickList(query){
+  if (!movePick) return;
+  const poke = S.pokeByName(slotVal[movePick.slotId]);
+  const all = S.usableMoves(poke);
+  const tc = S.typeColors();
+  const k = toKata(query.trim());
+  const hits = k ? all.filter(m => m.name.includes(k) || m.name.includes(query.trim())) : all;
+  $('mp-list').innerHTML = hits.slice(0, 80).map(m =>
+    `<button data-n="${m.name}"><span style="color:${tc[m.type] || '#9fb4d8'};font-weight:700">[${m.type}]</span>
+     ${m.name} <span style="color:#8b94a7">威力${m.power ?? '—'} / 命中${m.accuracy ?? '—'} / ${m.category} / PP${m.pp ?? '—'}</span></button>`
+  ).join('') || '<div style="color:#8b94a7;padding:8px">みつからない…</div>';
+  $('mp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    const mv = all.find(m => m.name === b.dataset.n);
+    if (mv && movePick){
+      const arr = slotMoves[movePick.slotId];
+      // 同じ技を2枠に入れない(既にある場合は入れ替え)
+      const dup = arr.findIndex(m => m && m.name === mv.name);
+      if (dup >= 0 && dup !== movePick.idx) arr[dup] = arr[movePick.idx];
+      arr[movePick.idx] = mv;
+      renderDetailSetup();
+    }
+    closeMovePicker();
+  }));
 }
 function openPicker(id){
   pickerSlot = id;
@@ -248,6 +348,10 @@ function initSetup(){
   $('pp-q').addEventListener('input', () => renderPickerList($('pp-q').value));
   $('pp-close').addEventListener('click', closePicker);
   $('poke-picker').addEventListener('click', e => { if (e.target === $('poke-picker')) closePicker(); });
+  $('detail-toggle').addEventListener('click', () => { SE.select(); $('detail-setup').classList.toggle('open'); });
+  $('mp-q').addEventListener('input', () => renderMovePickList($('mp-q').value));
+  $('mp-close').addEventListener('click', closeMovePicker);
+  $('move-picker').addEventListener('click', e => { if (e.target === $('move-picker')) closeMovePicker(); });
   randomize();
   $('btn-random').addEventListener('click', randomize);
   $('btn-start').addEventListener('click', startBattle);
@@ -290,17 +394,18 @@ function autoMoves(poke){
   return picked.slice(0, 4);
 }
 
-function buildSide(sideKey, names){
+function buildSide(sideKey, ids){
   const st = S.makeSideState();
-  const lead = S.pokeByName(names[0]);
+  const lead = S.pokeByName(slotVal[ids[0]]);
   st.poke = lead;
-  st.moves = autoMoves(lead);
+  st.moves = (slotMoves[ids[0]] || autoMoves(lead)).filter(Boolean);
   st.selectedMoveIdx = 0;
-  st.item = 'mega_stone_any';   // 全員メガストーン持ち(メガフォームがあればメガシンカ可)
-  st.bench = names.slice(1).map(n => {
-    const p = S.pokeByName(n);
+  st.item = slotItem[ids[0]] != null ? slotItem[ids[0]] : 'mega_stone_any';   // くわしく編成で変更可(既定=汎用メガストーン)
+  st.bench = ids.slice(1).map(id => {
+    const p = S.pokeByName(slotVal[id]);
     return { poke: p, effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0}, natureIdx: 0,
-      ability: p.ab1 || '', item: '', moves: autoMoves(p),
+      ability: p.ab1 || '', item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
+      moves: (slotMoves[id] || autoMoves(p)).filter(Boolean),
       currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
   });
   st.ability = lead.ab1 || '';
@@ -311,8 +416,8 @@ function buildSide(sideKey, names){
 }
 
 function startBattle(){
-  buildSide('self', ['s1','s2','s3'].map(id => slotVal[id]));
-  buildSide('opp',  ['o1','o2','o3'].map(id => slotVal[id]));
+  buildSide('self', ['s1','s2','s3']);
+  buildSide('opp',  ['o1','o2','o3']);
   S.battleLog.length = 0;
   logPos = 0; gameOver = false;
   $('setup').style.display = 'none';
