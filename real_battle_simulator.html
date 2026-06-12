@@ -2390,6 +2390,13 @@ function phaseDealDamage(atkSide, defSide, move){
       if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
     }
   }
+  // のろわれボディ(受け側・段126): 攻撃技でダメージを受けると30%でその技をかなしばり状態に。
+  // 非接触の技にも発動(ポケモンWiki「のろわれボディ」)。すでにかなしばり中なら発動しない
+  if (def.poke && total > 0 && !def.subAbsorbed && atk.poke && !atk.fainted &&
+      sideAbility(def) === 'のろわれボディ' && !atk.disable && Math.random() < 0.3){
+    atk.disable = { name: move.name, turns: 4 };
+    log('9', `${pname(def)} の のろわれボディ！ ${pname(atk)} の ${move.name} を かなしばり状態に した！`);
+  }
   // くだけるよろい(受け側・段112): 物理技を受けるとぼうぎょ-1・すばやさ+2
   if (def.poke && !def.fainted && total > 0 && !def.subAbsorbed && move.category === '物理' &&
       sideAbility(def) === 'くだけるよろい'){
