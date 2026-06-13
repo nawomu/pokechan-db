@@ -7465,6 +7465,65 @@ console.log('\n=== 段139 メロメロ+メロメロボディ(性別前提) ===')
   resetEnv();
 }
 
+console.log('\n=== 段140 あまのじゃく+ムラっけ ===');
+// 出典: ポケモンWiki「あまのじゃく」(自分のランク変動の符号反転)/「ムラっけ」(ターン終了に1つ+2・別の1つ-1)。
+{
+  resetEnv();
+  // T292 あまのじゃく: つるぎのまい(本来+2)が-2になる
+  E.sides.self = freshSide('ジャローダ', null);
+  E.sides.self.ability = 'あまのじゃく';
+  E.sides.self.moves = [moveByName('つるぎのまい')];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.5);
+  E.phaseApplyEffects('self', 'opp', moveByName('つるぎのまい'));
+  check('T292 あまのじゃくでつるぎのまいが-2', E.sides.self.rank.atk === -2, `atk=${E.sides.self.rank.atk}`);
+  // T292b 相手の能力低下技(いやなおと=ぼうぎょ-2)が+2になる
+  E.sides.self = freshSide('ジャローダ', null);
+  E.sides.self.ability = 'あまのじゃく';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.moves = [moveByName('いやなおと')];
+  E.phaseApplyEffects('opp', 'self', moveByName('いやなおと'));
+  check('T292b あまのじゃくで相手の低下技が上昇に', E.sides.self.rank.def === 2, `def=${E.sides.self.rank.def}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T292c ムラっけ: ターン終了で1つ+2・別の1つ-1(合計ランク変動=+1)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'ムラっけ';
+  E.sides.self.moves = [moveByName('はたく')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.status = 'paralysis';
+  E.setRandom(() => 0.3);
+  E.runTurn();
+  const ranks = ['atk','def','spatk','spdef','spd'].map(k => E.sides.self.rank[k]);
+  const ups = ranks.filter(r => r === 2).length;
+  const downs = ranks.filter(r => r === -1).length;
+  const sum = ranks.reduce((a,b)=>a+b,0);
+  check('T292c ムラっけで1つ+2・1つ-1(合計+1)', ups === 1 && downs === 1 && sum === 1,
+    `ranks=${JSON.stringify(ranks)}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T292d あまのじゃく+クリアボディの相互作用: 相手の低下技は あまのじゃくで上昇に化けるのでクリアボディ無関係
+  E.sides.self = freshSide('ジャローダ', null);
+  E.sides.self.ability = 'あまのじゃく';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.moves = [moveByName('いやなおと')];
+  E.phaseApplyEffects('opp', 'self', moveByName('いやなおと'));
+  check('T292d あまのじゃくは低下技を上昇に(クリアボディ判定を通らない)', E.sides.self.rank.def === 2,
+    `def=${E.sides.self.rank.def}`);
+  // 対照: あまのじゃく無し(クリアボディあり)なら下がらない
+  E.sides.self = freshSide('ジャローダ', null);
+  E.sides.self.ability = 'クリアボディ';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.phaseApplyEffects('opp', 'self', moveByName('いやなおと'));
+  check('T292e 対照: クリアボディなら下がらない(0)', E.sides.self.rank.def === 0, `def=${E.sides.self.rank.def}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

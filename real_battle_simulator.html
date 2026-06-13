@@ -3424,11 +3424,14 @@ function phaseApplyEffects(atkSide, defSide, move){
       for (const k of keys){
         const rk = STATMAP[k] || k;
         if (target.rank[rk] === undefined) continue;
+        const _contrary = sideAbility(target) === 'あまのじゃく';   // あまのじゃく(段140): 変動の符号を反転
         if (ef.to_max){
-          target.rank[rk] = 6; // はらだいこ等: 最大まで上げる
-          log('9', `${pname(target)} の ${k} ランクが 最大まであがった！`);
+          // あまのじゃく+to_max(はらだいこ等)は最低ランクへ
+          target.rank[rk] = _contrary ? -6 : 6;
+          log('9', `${pname(target)} の ${k} ランクが ${_contrary ? '最低までさがった' : '最大まであがった'}！`);
         } else {
-          const sg = ef.stages || 0;
+          let sg = ef.stages || 0;
+          if (_contrary && sg !== 0) sg = -sg;   // あまのじゃく(段140): 上がる⇄下がるを反転(以降のガードは反転後の符号で判定)
           // クリアボディ/しろいけむり: 敵からのランク低下を無効化(段114・ABILITY_DESC公式準拠。自分で下げる分は通る)
           if (sg < 0 && target !== atk && ['クリアボディ', 'しろいけむり'].includes(defAbilityVs(target, atk))){
             log('9', `${pname(target)} は ${sideAbility(target)}で 能力が下がらない！`);
@@ -5775,6 +5778,22 @@ function runTurn(){
           log('10', `${pname(st)} は はんすうで ${_cc.name}を もう一度 食べた！`);
           applyBerryEffect(st, _cc);
         }
+      }
+    }
+    // ムラっけ(段140・ABILITY_DESC): ターン終了時、1つの能力+2・別の1つ-1(こうげき/ぼうぎょ/とくこう/とくぼう/すばやさ)
+    if (st.poke && !st.fainted && sideAbility(st) === 'ムラっけ'){
+      const _mStats = ['atk','def','spatk','spdef','spd'];
+      const _mJa = {atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
+      const _up = _mStats.filter(k => (st.rank[k] || 0) < 6);
+      const upK = (_up.length ? _up : _mStats)[Math.floor(Math.random() * (_up.length ? _up.length : _mStats.length))];
+      st.rank[upK] = Math.min(6, (st.rank[upK] || 0) + 2);
+      const _dn = _mStats.filter(k => k !== upK && (st.rank[k] || 0) > -6);
+      if (_dn.length){
+        const dnK = _dn[Math.floor(Math.random() * _dn.length)];
+        st.rank[dnK] = Math.max(-6, (st.rank[dnK] || 0) - 1);
+        log('10', `${pname(st)} の ムラっけ！ ${_mJa[upK]}が ぐーんとあがり ${_mJa[dnK]}が さがった！`);
+      } else {
+        log('10', `${pname(st)} の ムラっけ！ ${_mJa[upK]}が ぐーんとあがった！`);
       }
     }
     // かそく(段137・ABILITY_DESC): 毎ターン終了時すばやさ+1
