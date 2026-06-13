@@ -502,8 +502,9 @@ function renderAll(){
     const st = S.sides[side];
     const f = $('f-' + side), pb = $('pb-' + side);
     if (!st.poke) return;
-    f.querySelector('.sprite').innerHTML = spriteHtml(st.poke);
-    pb.querySelector('.nm').textContent = st.poke.name;
+    const shown = st.illusionAs || st.poke;   // イリュージョン(段138): 化けている姿を表示
+    f.querySelector('.sprite').innerHTML = spriteHtml(shown);
+    pb.querySelector('.nm').textContent = shown.name;
     const max = S.realStat(st, 'hp') || 1;
     const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
     setHpBar(side, hp, max);
@@ -840,6 +841,12 @@ function lineWithFx(msg){
       renderAll();
       flash(side, 'enter');
       SE.enter();
+    }
+    // イリュージョン解除(ゾロアーク): 正体バレで姿を戻す
+    if (/イリュージョンが とけた！/.test(msg)){
+      renderAll();
+      flash(msg.includes('相手の') ? 'opp' : 'self', 'enter');
+      SE.status();
     }
     // マイティチェンジ(イルカマン): ヒーロー初登場はメガ並みの演出で
     if (/変身して 帰ってきた！/.test(msg)){

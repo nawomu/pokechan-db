@@ -7304,6 +7304,86 @@ console.log('\n=== 段136-137 実戦級特性10種 ===');
   resetEnv();
 }
 
+console.log('\n=== 段138 あくしゅう/はとむね/はんすう/イリュージョン ===');
+// 出典: ポケモンWiki(あくしゅう=攻撃でダメージ時10%ひるみ・はんすう=次ターン終了時に再食・交代で消滅・
+// イリュージョン=最後尾の生存ポケモンに化ける/攻撃技ダメージで解除)+ABILITY_DESC(はとむね=ぼうぎょ低下無効)。
+// park: くいしんぼう=25%発動きのみがDB非収録 / メロメロボディ=性別データ無し(阿部さん判断待ち)。
+{
+  resetEnv();
+  // T290 あくしゅう: 10%ロール成功でひるみ
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'あくしゅう';
+  E.sides.self.moves = [moveByName('でんこうせっか')];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  let _seq = [0.0, 0.05];   // ダメージ乱数→あくしゅう10%(成功)
+  let _i = 0;
+  E.setRandom(() => (_i < _seq.length ? _seq[_i++] : 0.5));
+  E.phaseDealDamage('self', 'opp', moveByName('でんこうせっか'));
+  check('T290 あくしゅうで10%ひるみ', E.sides.opp.flinched === true, `flinched=${E.sides.opp.flinched}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T290b はとむね: ぼうぎょ低下を無効(いやなおと=実在技。※しっぽをふるはDBに無い=偽緑罠を踏みかけた3回目)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('いやなおと')];
+  E.sides.opp = freshSide('ピジョット', 'hataku');
+  E.sides.opp.ability = 'はとむね';
+  E.setRandom(() => 0.5);
+  E.phaseApplyEffects('self', 'opp', moveByName('いやなおと'));
+  check('T290b はとむねでぼうぎょが下がらない', E.sides.opp.rank.def === 0, `def=${E.sides.opp.rank.def}`);
+  // 対照: はとむねが無ければ下がる
+  E.sides.opp.ability = '';
+  E.phaseApplyEffects('self', 'opp', moveByName('いやなおと'));
+  check('T290b対照 特性なしなら下がる', E.sides.opp.rank.def < 0, `def=${E.sides.opp.rank.def}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T290c はんすう: きのみを食べた次のターン終了時にもう一度食べる
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'はんすう';
+  E.sides.self.item = 'berry_sitrus';
+  E.sides.self.moves = [moveByName('つるぎのまい')];
+  E.sides.self.selectedMoveIdx = 0;
+  const fMax = E.realStat(E.sides.self, 'hp');
+  E.sides.self.currentHp = Math.floor(fMax / 2) - 10;   // オボン発動圏
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.status = 'paralysis';
+  E.setRandom(() => 0.5);
+  E.runTurn();   // このターン中にオボンを食べる(itemReactions)→ターン終了でcudChew 2→1
+  const afterEat = E.sides.self.currentHp;
+  check('T290c前提 オボンを食べた', E.sides.self.item === '' && afterEat > Math.floor(fMax / 2) - 10,
+    `item=${E.sides.self.item} hp=${afterEat}`);
+  E.sides.self.currentHp = Math.floor(fMax / 2);   // また減らす(再食の回復を観測するため)
+  E.runTurn();   // 次ターン終了ではんすう発動
+  check('T290c はんすうで次ターン終了時にもう一度食べる(回復)', E.sides.self.currentHp > Math.floor(fMax / 2),
+    `hp=${E.sides.self.currentHp}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T290d イリュージョン: 最後尾の生存ポケモンに化けて登場・被弾で解除
+  E.sides.self = freshSide('ゾロアーク', null);
+  E.sides.self.ability = 'イリュージョン';
+  E.sides.self.moves = [moveByName('つじぎり')];
+  const subZ = freshSide('カビゴン', 'hataku');
+  E.sides.self.bench = [{ poke: subZ.poke, effort: subZ.effort, natureIdx: 0, ability: '', item: '',
+    moves: subZ.moves, currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null }];
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('ギガドレイン')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.phaseInitA();
+  check('T290d 最後尾(カビゴン)に化けて登場', E.sides.self.illusionAs && E.sides.self.illusionAs.name === 'カビゴン',
+    `as=${E.sides.self.illusionAs && E.sides.self.illusionAs.name}`);
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);   // 攻撃技を受ける→解除
+  check('T290e 攻撃技のダメージで正体がバレる', !E.sides.self.illusionAs,
+    `as=${E.sides.self.illusionAs && E.sides.self.illusionAs.name}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

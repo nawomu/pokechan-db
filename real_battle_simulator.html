@@ -2025,9 +2025,19 @@ function log(phase, msg){
 }
 // ログ表示用の名前: 相手側のポケモンには「相手の」を付ける(同名対決でもどちらか分かるように。
 // 実機の「あいての ○○」表記に準拠。2026-06-12 阿部さん要望)
+// イリュージョン(段138)中は化けている姿の名前を出す(=騙しがログにも効く)
 function pname(st){
   if (!st || !st.poke) return '?';
-  return (st === sides.opp ? '相手の ' : '') + st.poke.name;
+  const shown = st.illusionAs || st.poke;
+  return (st === sides.opp ? '相手の ' : '') + shown.name;
+}
+// イリュージョン(段138・ポケモンWiki): 場に出る時、手持ちの一番後ろの生きているポケモンに化ける。
+// 自分が最後尾(化ける相手がいない)なら化けない。攻撃技のダメージを受けると解ける(phaseDealDamage)。
+function applyIllusion(st){
+  if (!st.poke || sideAbility(st) !== 'イリュージョン') return;
+  const live = (st.bench || []).filter(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
+  const last = live.length ? live[live.length - 1] : null;
+  if (last && last.poke.name !== st.poke.name) st.illusionAs = last.poke;
 }
 
 // === フェーズ: Init-A 場に出た時の特性発動 ===
@@ -2043,6 +2053,7 @@ function fireEntryAbility(s){
   {
     const st = sides[s];
     if (!st.poke) return;
+    applyIllusion(st);   // イリュージョン(段138): 登場時に化ける(バトル開始)
     const other = s === 'self' ? sides.opp : sides.self;
     const ab = sideAbility(st);
     if (ab === 'いかく' && other.poke){
@@ -2487,6 +2498,12 @@ function phaseDealDamage(atkSide, defSide, move){
       if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
     }
   }
+  // イリュージョン解除(段138): 攻撃技のダメージを受けると本来の姿に戻る
+  if (def.poke && def.illusionAs && total > 0 && !def.subAbsorbed){
+    const _fake = def.illusionAs.name;
+    def.illusionAs = null;
+    log('9', `${pname(def)} の イリュージョンが とけた！(${_fake} に化けていた)`);
+  }
   // のろわれボディ(受け側・段126): 攻撃技でダメージを受けると30%でその技をかなしばり状態に。
   // 非接触の技にも発動(ポケモンWiki「のろわれボディ」)。すでにかなしばり中なら発動しない
   if (def.poke && total > 0 && !def.subAbsorbed && atk.poke && !atk.fainted &&
@@ -2517,6 +2534,14 @@ function phaseDealDamage(atkSide, defSide, move){
     if (Math.random() < 0.1){
       def.flinched = true;
       log('9', `${pname(def)} は おうじゃのしるしで ひるんだ！`);
+    }
+  }
+  // あくしゅう(段138・ポケモンWiki): 攻撃技でダメージを与えたとき10%でひるませる(第5世代以降)
+  if (atk.poke && sideAbility(atk) === 'あくしゅう' && total > 0 && def.poke && !def.fainted && !def.flinched
+      && defAbilityVs(def, atk) !== 'せいしんりょく'){
+    if (Math.random() < 0.1){
+      def.flinched = true;
+      log('9', `${pname(def)} は あくしゅうで ひるんだ！`);
     }
   }
   // 半減きのみ: 実際に半減が効いた攻撃(バツグン+タイプ一致+本体が受けた)で一度だけ消費。
@@ -3388,6 +3413,11 @@ function phaseApplyEffects(atkSide, defSide, move){
           // クリアボディ/しろいけむり: 敵からのランク低下を無効化(段114・ABILITY_DESC公式準拠。自分で下げる分は通る)
           if (sg < 0 && target !== atk && ['クリアボディ', 'しろいけむり'].includes(defAbilityVs(target, atk))){
             log('9', `${pname(target)} は ${sideAbility(target)}で 能力が下がらない！`);
+            continue;
+          }
+          // はとむね(段138・ABILITY_DESC): 敵からのぼうぎょ低下を無効化(かたやぶりは無視)
+          if (sg < 0 && target !== atk && rk === 'def' && defAbilityVs(target, atk) === 'はとむね'){
+            log('9', `${pname(target)} は はとむねで ぼうぎょが下がらない！`);
             continue;
           }
           const beforeRk = target.rank[rk] || 0;
@@ -4575,6 +4605,8 @@ function clearVolatilesOnSwitch(st){
   st.statOverride = null; st.typeOverride = null; st.abilityOverride = null;
   st.proteanUsed = false;   // へんげんじざい(段122): 1回場に出るごとに1回 → 交代でリセット
   st.choiceLock = null;     // こだわりロック(段135): 交代で解除
+  st.cudChew = null;        // はんすう(段138): 交代で発動しなくなる
+  st.illusionAs = null;     // イリュージョン(段138): 引っ込めば解除(次の登場で再判定)
   st.destinyBond = false; st.dbondPrev = false; st.perishCount = null;
   st.lockOn = 0; st.tormented = false; st.imprison = false;
   st.soundBlocked = 0; st.soundBlockedMoves = null;
@@ -4595,6 +4627,12 @@ function clearVolatilesOnSwitch(st){
 // 発動チェックは ①各行動の後 ②ターン終了処理の後 に呼ぶ(実機の「即時発動」をイベント直後チェックで近似)。
 function consumeItem(st){
   st.lastConsumedItem = st.item;
+  // はんすう(段138・ポケモンWiki): きのみを消費したら次のターン終了時にもう一度食べる(交代で消える)。
+  // 複数食べたら最後の1つだけが対象(上書き)
+  const _ci = ITEM_BY_KEY[st.item];
+  if (_ci && String(_ci.category || '').startsWith('berry') && sideAbility(st) === 'はんすう'){
+    st.cudChew = { key: st.item, n: 2 };
+  }
   st.item = '';
 }
 function _itemFrac(s){
@@ -4847,6 +4885,8 @@ function attemptSwitch(sideKey, benchIdx, opts){
     if (sideAbility(st) === 'おみとおし' && _oppSt.poke && _oppSt.item && ITEM_BY_KEY[_oppSt.item]){
       log('9', `${pname(st)} は おみとおしで ${pname(_oppSt)} の ${ITEM_BY_KEY[_oppSt.item].name}を 見抜いた！`);
     }
+    // イリュージョン(段138): 交代で場に出た時も化ける
+    applyIllusion(st);
     // トレース(段122): 交代で場に出た時も相手の特性をコピー(phaseInitAと同条件)
     if (sideAbility(st) === 'トレース' && _oppSt.poke){
       const _tAb = sideAbility(_oppSt);
@@ -5670,6 +5710,18 @@ function runTurn(){
     if (st.tailwindTurns > 0){
       st.tailwindTurns--;
       if (st.tailwindTurns <= 0){ st.tailwindTurns = 0; log('10', `${pname(st)} 側の 追い風が やんだ！`); }
+    }
+    // はんすう(段138): きのみを食べた次のターン終了時に同じきのみをもう一度食べる(道具は復活しない)
+    if (st.poke && !st.fainted && st.cudChew){
+      st.cudChew.n--;
+      if (st.cudChew.n <= 0){
+        const _cc = ITEM_BY_KEY[st.cudChew.key];
+        st.cudChew = null;
+        if (_cc){
+          log('10', `${pname(st)} は はんすうで ${_cc.name}を もう一度 食べた！`);
+          applyBerryEffect(st, _cc);
+        }
+      }
     }
     // かそく(段137・ABILITY_DESC): 毎ターン終了時すばやさ+1
     if (st.poke && !st.fainted && sideAbility(st) === 'かそく' && (st.rank.spd || 0) < 6){
