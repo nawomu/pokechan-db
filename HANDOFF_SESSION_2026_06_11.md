@@ -252,3 +252,9 @@
 - **handoff連携**: real_battleのloadHandoff()がビルダー編成を取り込み(技key解決・不足は自動補完・相手ランダム・読込後消費)。pboxに性別記号(♂青/♀桃)。エンジンmakeSideState/BENCH_FIELDSにgender。
 - **段139 メロメロ**(`b35c5bd`・791/791): メロメロ技データは既存(kind:メロメロ付与+fails_if)→エンジン対応。isOppositeGender/applyAttract/attractGuard(どんかん/アロマベール)。行動50%阻害(両フロー・PP消費なし)・相手交代/ひんしで解除。メロメロボディ=接触異性30%。💕バッジ+演出。
 - **メロメロの相手記憶は1vs1近似**(boolean attracted+相手離脱で解除)。ダブル拡張時は発生源IDが要る。
+
+## 19. ✅性格努力値のリアルバトル反映+あまのじゃく/ムラっけ(2026-06-13・段140)
+
+- **性格・努力値反映**(commit直前): handoffのnature名→natureIdx(bridge.natureIdxOf)・effort(Champions点)をbuildSide/loadHandoff/loadTeam/saveTeamに配線。手動選択は無補正。CDP確認=ガブリアスようき+努力値で素早さ122→169。
+- **段140**: あまのじゃく(ランク変動の符号反転・反転後にガード判定・to_max→-6)/ムラっけ(ターン終了1つ+2・別1つ-1)。
+- **複合特性の残り(park候補)**: へんしょく/カウンター系特性・トランジスタ系威力・各種フォルム特性等。実戦頻出+面白い系はほぼ実装完了(特性≈110/192種)。
