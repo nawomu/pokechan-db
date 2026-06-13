@@ -487,7 +487,10 @@ tr.type-data-row.drag-target td{border-top:2px solid #f0883e !important}
 .fcat-btn{padding:2px 9px;border:1px solid #30363d;border-radius:10px;background:transparent;color:#8b949e;cursor:pointer;font-size:.73rem}
 .fcat-btn.on{background:#21262d;color:#e6edf3;border-color:#8b949e}
 #filter-bar label{font-size:.73rem;color:#8b949e}
-#send-to-battle{display:none;margin-left:auto;padding:5px 12px;background:#8a3a00;color:#fff;border:1px solid #c66e00;border-radius:5px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap}
+#send-to-battle,#send-to-sim{display:none;padding:5px 12px;color:#fff;border-radius:5px;font-size:.78rem;font-weight:700;cursor:pointer;white-space:nowrap}
+#send-to-sim{margin-left:auto;background:#1c3a5a;border:1px solid #2f6ea0}
+#send-to-sim:hover{background:#2f6ea0;border-color:#58a6ff}
+#send-to-battle{margin-left:6px;background:#8a3a00;border:1px solid #c66e00}
 #send-to-battle:hover{background:#c66e00;border-color:#f59e0b}
 #send-to-battle:active{background:#6e2e00}
 
@@ -773,7 +776,8 @@ body.stats-only-mode #ev-ov.vis { display: flex !important; }
     <button class="sv-btn sv-b on"    data-sv="b" title="最大: EV252・性格1.1" data-i18n="checker.sv_b" data-i18n-attr="title:checker.tip_sv_b">最大</button>
     <button class="sv-btn sv-rank on" data-sv="rank" data-i18n="checker.sv_rank">順位</button>
   </label>
-  <button id="send-to-battle" type="button" title="現在のチーム・性格・能力P・選択中の技をバトルシミュレーターに送ります" data-i18n="checker.send_to_battle" data-i18n-attr="title:checker.tip_send_to_battle">⚔️ バトルへ送る</button>
+  <button id="send-to-sim" type="button" title="現在のチーム・性格・能力P・選択中の技を簡易バトルシミュレーターに送ります">🔧 シミュレーターへ</button>
+  <button id="send-to-battle" type="button" title="現在のチーム・性格・能力P・技・持ち物・性別をリアルバトルに送ります">⚔️ リアルバトルへ</button>
 </div>
 
 <div id="main-wrap">
@@ -3364,11 +3368,16 @@ renderTable();
 <!-- バトルシミュレーターへの送信機能（ローカル開発専用、file:// でのみ有効） -->
 <script>
 (function(){
-  if (location.protocol !== 'file:') return;  // 公開サイトでは無効
-  const btn = document.getElementById('send-to-battle');
-  if (!btn) return;
-  btn.style.display = 'inline-block';
-  btn.addEventListener('click', function(){
+  // ローカル開発(file:// または localhost/127.0.0.1 のサーバー)でだけ表示。公開サイトでは無効
+  const _isLocal = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  if (!_isLocal) return;
+  const btnSim = document.getElementById('send-to-sim');
+  const btnRb  = document.getElementById('send-to-battle');
+  if (!btnRb || !btnSim) return;
+  btnSim.style.display = 'inline-block';
+  btnRb.style.display = 'inline-block';
+  // 現在の編成を handoff オブジェクトに変換(両方の送り先で共通)
+  function buildHandoff(){
     const handoff = { version: 1, timestamp: Date.now(), party: [] };
     let sent = 0;
     for (let i = 0; i < PARTY_SIZE; i++){
@@ -3377,27 +3386,31 @@ renderTable();
       const moves = [];
       const sf = slotFilters[i];
       if (sf && typeof sf === 'object'){
-        Object.values(sf).forEach(arr=>{
-          if (Array.isArray(arr)) moves.push(...arr);
-        });
+        Object.values(sf).forEach(arr=>{ if (Array.isArray(arr)) moves.push(...arr); });
       }
       handoff.party.push({
         name: name,
         nature: partyNatures[i] || 'まじめ',
         effort: { ...(partyEvs[i] || {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0}) },
         moves: [...new Set(moves)],
-        item: partyItems[i] || '',                       // 持ち物(2026-06-13: リアルバトルへも送る)
-        gender: partyGenders[i] || genderOf(name),       // 性別(無ければここで決定)
+        item: partyItems[i] || '',
+        gender: partyGenders[i] || genderOf(name),
       });
       sent++;
     }
-    if (sent === 0){
-      alert(_tCK('checker.alert_empty_party','チームが空です。先にポケモンを選択してください。'));
-      return;
-    }
-    // リアルバトル(real_battle.html)へ送る(2026-06-13 阿部さん: ビルダーで構築→リアルバトルへ)。
-    // 旧 battle_simulator.html 互換のため同じキーで保存しつつ、リアルバトル用キーも書く
+    return sent ? handoff : null;
+  }
+  // 🔧 簡易シミュレーターへ(従来どおり battle_simulator.html)
+  btnSim.addEventListener('click', function(){
+    const handoff = buildHandoff();
+    if (!handoff){ alert(_tCK('checker.alert_empty_party','チームが空です。先にポケモンを選択してください。')); return; }
     localStorage.setItem('pokechan_battle_handoff_v1', JSON.stringify(handoff));
+    window.open('battle_simulator.html', '_blank');
+  });
+  // ⚔️ リアルバトルへ(性別・持ち物つき)
+  btnRb.addEventListener('click', function(){
+    const handoff = buildHandoff();
+    if (!handoff){ alert(_tCK('checker.alert_empty_party','チームが空です。先にポケモンを選択してください。')); return; }
     localStorage.setItem('pokechan_realbattle_handoff_v1', JSON.stringify(handoff));
     window.open('real_battle.html', '_blank');
   });
