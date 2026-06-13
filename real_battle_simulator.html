@@ -4205,6 +4205,9 @@ function runSingleAttack(atkSide, moveIdx){
   if (!releasing && atk.rampage) mv = atk.rampage.move;
   // アンコール状態: 選んだ技に関係なく最後に使った技を出し続ける(Bulbapedia "Encore")
   if (!releasing && !atk.rampage && atk.encore) mv = atk.encore.move;
+  // こだわりロック(段135): こだわり道具を持っている間は最初に使った技に固定。道具を失ったら解除
+  if (atk.choiceLock && !(atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].restriction === '選択技固定')) atk.choiceLock = null;
+  if (!releasing && !atk.rampage && !atk.encore && atk.choiceLock) mv = atk.choiceLock;
   // PP切れ→わるあがき(段129)。溜め解放・あばれ継続はPPを再消費しない(最初の使用時に消費済み)
   if (!releasing && !atk.rampage) mv = struggleIfNoPP(atk, mv);
   log('Attack', `${pname(atk)} が ${mv.name} を選んだ！`);
@@ -4332,6 +4335,8 @@ function runSingleAttack(atkSide, moveIdx){
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
   if (!releasing && !atk.rampage) consumePP(atk, mv, def);   // PP消費(段129/プレッシャー=段131)
+  // こだわりロック開始(段135): こだわり道具持ちが技を使ったらその技に固定(わるあがきでは固定しない)
+  if (!atk.choiceLock && !mv.struggle && atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].restriction === '選択技固定') atk.choiceLock = mv;
   stanceChange(atkSide, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
   proteanChange(atk, mv);      // へんげんじざい/リベロ(段122): 技を出す直前にタイプ変化
   // いたずらごころ(段122): 優先度を上げた変化技はあくタイプに無効
@@ -4531,6 +4536,7 @@ function clearVolatilesOnSwitch(st){
   st.tauntTurns = 0; st.lastMove = null; st.disable = null; st.encore = null;
   st.statOverride = null; st.typeOverride = null; st.abilityOverride = null;
   st.proteanUsed = false;   // へんげんじざい(段122): 1回場に出るごとに1回 → 交代でリセット
+  st.choiceLock = null;     // こだわりロック(段135): 交代で解除
   st.destinyBond = false; st.dbondPrev = false; st.perishCount = null;
   st.lockOn = 0; st.tormented = false; st.imprison = false;
   st.soundBlocked = 0; st.soundBlockedMoves = null;
@@ -5002,6 +5008,11 @@ function aiScoreMove(sideKey, m){
 function aiChooseMove(sideKey){
   const st = sides[sideKey];
   if (!st.poke || !st.moves || !st.moves.length) return 0;
+  // こだわりロック中はその技しか選べない(段135)
+  if (st.choiceLock && st.item && ITEM_BY_KEY[st.item] && ITEM_BY_KEY[st.item].restriction === '選択技固定'){
+    const li = st.moves.findIndex(m => m && m.name === st.choiceLock.name);
+    if (li >= 0) return li;
+  }
   let best = -1, bestScore = -1;
   st.moves.forEach((m, i) => {
     if (!m) return;
@@ -5167,6 +5178,9 @@ function runTurn(){
     // アンコール状態: 選んだ技に関係なく最後に使った技を出し続ける(Bulbapedia "Encore")
     if (!releasing && !atk.rampage && atk.encore) mv = atk.encore.move;
     if (!mv){ log(a.side, `${pname(atk)} は技を選択していない`); continue; }
+    // こだわりロック(段135): こだわり道具を持っている間は最初に使った技に固定。道具を失ったら解除
+    if (atk.choiceLock && !(atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].restriction === '選択技固定')) atk.choiceLock = null;
+    if (!releasing && !atk.rampage && !atk.encore && atk.choiceLock) mv = atk.choiceLock;
     // PP切れ→わるあがき(段129)。溜め解放・あばれ継続はPPを再消費しない
     if (!releasing && !atk.rampage) mv = struggleIfNoPP(atk, mv);
     // ねむり・こおり等
@@ -5299,6 +5313,7 @@ function runTurn(){
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
     if (!releasing && !atk.rampage) consumePP(atk, mv, def);   // PP消費(段129/プレッシャー=段131)
+    if (!atk.choiceLock && !mv.struggle && atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].restriction === '選択技固定') atk.choiceLock = mv;   // こだわりロック開始(段135)
     stanceChange(a.side, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
     proteanChange(atk, mv);     // へんげんじざい/リベロ(段122): 技を出す直前にタイプ変化
     // いたずらごころ(段122): 優先度を上げた変化技はあくタイプに無効

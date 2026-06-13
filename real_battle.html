@@ -255,13 +255,42 @@ let pickerSlot = null;
 let movePick = null;   // {slotId, idx} わざモーダルの編集先
 // ひらがな→カタカナ(検索用正規化。「ぴかちゅう」でピカチュウにヒット)
 const toKata = s => s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
-function setSlot(id, name){
+function setSlot(id, name, keepCustom){
   slotVal[id] = name;
-  slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
+  if (!keepCustom) slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
   if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
   const enc = encodeURIComponent(name);
   $(id).innerHTML = `<img src="images/sim/${enc}.svg" alt="" onerror="this.remove()"><span>${name}</span>`;
   renderDetailSetup();
+  saveTeam();
+}
+// 編成の保存/復元(localStorage): ポケモン名・技名・持ち物キー・人数(リロードしても残る)
+function saveTeam(){
+  try {
+    const data = { size: teamSize, val: slotVal, item: slotItem,
+      moves: Object.fromEntries(Object.entries(slotMoves).map(([k, arr]) => [k, (arr || []).map(m => m && m.name)])) };
+    localStorage.setItem('rb_team', JSON.stringify(data));
+  } catch (e) {}
+}
+function loadTeam(){
+  try {
+    const d = JSON.parse(localStorage.getItem('rb_team') || 'null');
+    if (!d || !d.val || !d.val.s1) return false;
+    teamSize = d.size || 3;
+    $('team-size').value = String(teamSize);
+    renderTeamRows();
+    selfIds().concat(oppIds()).forEach(id => {
+      if (!d.val[id] || !S.pokeByName(d.val[id])) return;
+      slotItem[id] = d.item && d.item[id] != null ? d.item[id] : 'mega_stone_any';
+      const poke = S.pokeByName(d.val[id]);
+      const all = S.usableMoves(poke);
+      const names = (d.moves && d.moves[id]) || [];
+      const mvs = names.map(n => all.find(m => m.name === n)).filter(Boolean);
+      slotMoves[id] = mvs.length === 4 ? mvs : autoMoves(poke);
+      setSlot(id, d.val[id], true);
+    });
+    return true;
+  } catch (e) { return false; }
 }
 // くわしく編成: 6スロットぶんの技チップ+持ち物セレクト
 function renderDetailSetup(){
@@ -287,6 +316,7 @@ function renderDetailSetup(){
   }));
   box.querySelectorAll('select[data-item]').forEach(sel => sel.addEventListener('change', () => {
     slotItem[sel.dataset.item] = sel.value;
+    saveTeam();
   }));
 }
 // わざモーダル(ひらがな検索→クリックでそのスロットの技を差し替え)
@@ -319,6 +349,7 @@ function renderMovePickList(query){
       if (dup >= 0 && dup !== movePick.idx) arr[dup] = arr[movePick.idx];
       arr[movePick.idx] = mv;
       renderDetailSetup();
+      saveTeam();
     }
     closeMovePicker();
   }));
@@ -374,7 +405,7 @@ function initSetup(){
   $('mp-q').addEventListener('input', () => renderMovePickList($('mp-q').value));
   $('mp-close').addEventListener('click', closeMovePicker);
   $('move-picker').addEventListener('click', e => { if (e.target === $('move-picker')) closeMovePicker(); });
-  randomize();
+  if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
   $('btn-random').addEventListener('click', randomize);
   $('btn-start').addEventListener('click', startBattle);
   $('msgbox').addEventListener('click', advanceMsg);
@@ -547,12 +578,13 @@ function showMoves(){
   const mv = $('moves');
   mv.style.display = 'grid';
   const ppOf = i => (st.pp ? st.pp[i] : null);
+  const lockName = st.choiceLock ? st.choiceLock.name : null;   // こだわりロック(段135)
   const allOut = st.pp && st.moves.every((m, i) => !m || st.pp[i] <= 0);
   mv.innerHTML = (allOut
     ? `<button data-i="0"><span class="mv-name">わるあがき</span><div class="mv-sub">PPが ぜんぶ なくなった！ 威力50 / 反動あり</div></button>`
     : st.moves.map((m, i) => `
-    <button data-i="${i}" ${ppOf(i) != null && ppOf(i) <= 0 ? 'disabled' : ''}><span class="mv-name"><span class="t-pill" style="background:${tc[m.type] || '#3a4660'}">${m.type}</span>${m.name}</span>
-    <div class="mv-sub">威力${m.power ?? '—'} / 命中${m.accuracy ?? '—'} / ${m.category}${ppOf(i) != null ? ` / PP ${ppOf(i)}/${m.pp || 0}` : ''}</div></button>`).join(''))
+    <button data-i="${i}" ${(ppOf(i) != null && ppOf(i) <= 0) || (lockName && m.name !== lockName) ? 'disabled' : ''}><span class="mv-name"><span class="t-pill" style="background:${tc[m.type] || '#3a4660'}">${m.type}</span>${m.name}${lockName === m.name ? ' 🔒' : ''}</span>
+    <div class="mv-sub">威力${m.power ?? '—'} / 命中${m.accuracy ?? '—'} / ${m.category}${ppOf(i) != null ? ` / PP ${ppOf(i)}/${m.pp || 0}` : ''}${lockName && m.name !== lockName ? ' / こだわり中' : ''}</div></button>`).join(''))
     + `<button class="back">← もどる</button>`;
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
