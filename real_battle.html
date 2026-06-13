@@ -251,6 +251,18 @@ let winStreak = 0;     // 連戦モードの連勝数
 const slotVal = {};    // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
 const slotMoves = {};  // 各スロットの技4つ(くわしく編成で変更可。ポケモンを変えると自動選定に戻る)
 const slotItem = {};   // 各スロットの持ち物key(既定=汎用メガストーン)
+const slotGender = {}; // 各スロットの性別 '♂'/'♀'/'—'(2026-06-13 ビルダー連携)
+// 無性別ポケモン(party_checkerと同じ。相手チーム=ランダム編成にも性別を割り振るため)
+const GENDERLESS_RB = new Set(["メタモン","ロトム","ヒートロトム","ウォッシュロトム","フロストロトム","スピンロトム",
+  "カットロトム","ギルガルド(シールド)","ギルガルド(ブレード)","クレッフィ","ゴルーグ","メガゴルーグ",
+  "ポットデス","ブリジュラス","ミミズズ","キョジオーン"]);
+function genderOfRB(name){
+  if (!name) return '';
+  if (GENDERLESS_RB.has(name)) return '—';
+  if (name.includes('♂')) return '♂';
+  if (name.includes('♀')) return '♀';
+  return Math.random() < 0.5 ? '♂' : '♀';
+}
 let pickerSlot = null;
 let movePick = null;   // {slotId, idx} わざモーダルの編集先
 // ひらがな→カタカナ(検索用正規化。「ぴかちゅう」でピカチュウにヒット)
@@ -259,6 +271,7 @@ function setSlot(id, name, keepCustom){
   slotVal[id] = name;
   if (!keepCustom) slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
   if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
+  if (!keepCustom || !slotGender[id]) slotGender[id] = genderOfRB(name);   // 性別(ビルダー由来は復元側でセット)
   const enc = encodeURIComponent(name);
   $(id).innerHTML = `<img src="images/sim/${enc}.svg" alt="" onerror="this.remove()"><span>${name}</span>`;
   renderDetailSetup();
@@ -289,6 +302,37 @@ function loadTeam(){
       slotMoves[id] = mvs.length === 4 ? mvs : autoMoves(poke);
       setSlot(id, d.val[id], true);
     });
+    return true;
+  } catch (e) { return false; }
+}
+// チームビルダー(party_checker.html)からの受け取り(2026-06-13)。自分チームだけ反映・相手はランダム。
+// 一度読んだら handoff キーは消す(リロードで毎回上書きしないため。rb_teamには保存される)
+function loadHandoff(){
+  try {
+    const d = JSON.parse(localStorage.getItem('pokechan_realbattle_handoff_v1') || 'null');
+    if (!d || !Array.isArray(d.party)) return false;
+    const picks = d.party.filter(e => e && e.name && S.pokeByName(e.name)).slice(0, 6);
+    if (!picks.length) return false;
+    localStorage.removeItem('pokechan_realbattle_handoff_v1');
+    teamSize = picks.length > 3 ? 6 : 3;
+    $('team-size').value = String(teamSize);
+    renderTeamRows();
+    const pokes = S.pokeList().filter(p => !p.mega);
+    const rnd = () => pokes[Math.floor(Math.random() * pokes.length)].name;
+    // 自分チーム = ビルダーの編成(技keyを解決・足りなければ自動補完)
+    selfIds().forEach((id, i) => {
+      const e = picks[i];
+      if (!e){ setSlot(id, rnd()); return; }
+      const poke = S.pokeByName(e.name);
+      const all = S.usableMoves(poke);
+      const byKey = (e.moves || []).map(k => all.find(m => m && (m.key === k || m.name === k))).filter(Boolean);
+      slotMoves[id] = byKey.length ? byKey.slice(0, 4) : autoMoves(poke);
+      slotItem[id] = e.item || 'mega_stone_any';
+      slotGender[id] = e.gender || genderOfRB(e.name);
+      setSlot(id, e.name, true);
+    });
+    // 相手チームはランダム
+    oppIds().forEach(id => setSlot(id, rnd()));
     return true;
   } catch (e) { return false; }
 }
@@ -405,7 +449,8 @@ function initSetup(){
   $('mp-q').addEventListener('input', () => renderMovePickList($('mp-q').value));
   $('mp-close').addEventListener('click', closeMovePicker);
   $('move-picker').addEventListener('click', e => { if (e.target === $('move-picker')) closeMovePicker(); });
-  if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
+  if (loadHandoff()) { /* ビルダーから来た自分チームを反映済み */ }
+  else if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
   $('btn-random').addEventListener('click', randomize);
   $('btn-start').addEventListener('click', startBattle);
   $('msgbox').addEventListener('click', advanceMsg);
@@ -458,11 +503,12 @@ function buildSide(sideKey, ids){
   st.moves = (slotMoves[ids[0]] || autoMoves(lead)).filter(Boolean);
   st.selectedMoveIdx = 0;
   st.item = slotItem[ids[0]] != null ? slotItem[ids[0]] : 'mega_stone_any';   // くわしく編成で変更可(既定=汎用メガストーン)
+  st.gender = slotGender[ids[0]] || genderOfRB(slotVal[ids[0]]);
   st.bench = ids.slice(1).map(id => {
     const p = S.pokeByName(slotVal[id]);
     return { poke: p, effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0}, natureIdx: 0,
       ability: p.ab1 || '', item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
-      moves: (slotMoves[id] || autoMoves(p)).filter(Boolean),
+      moves: (slotMoves[id] || autoMoves(p)).filter(Boolean), gender: slotGender[id] || genderOfRB(slotVal[id]),
       currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
   });
   st.ability = lead.ab1 || '';
@@ -504,7 +550,8 @@ function renderAll(){
     if (!st.poke) return;
     const shown = st.illusionAs || st.poke;   // イリュージョン(段138): 化けている姿を表示
     f.querySelector('.sprite').innerHTML = spriteHtml(shown);
-    pb.querySelector('.nm').textContent = shown.name;
+    const _g = (!st.illusionAs && st.gender && st.gender !== '—') ? ' ' + st.gender : '';   // 性別記号(化け中は出さない)
+    pb.querySelector('.nm').innerHTML = shown.name + (_g ? `<span style="color:${st.gender === '♂' ? '#7db0ff' : '#ff9ec4'};font-weight:900">${_g}</span>` : '');
     const max = S.realStat(st, 'hp') || 1;
     const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
     setHpBar(side, hp, max);

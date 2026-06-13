@@ -941,6 +941,31 @@ let partyItems = JSON.parse(localStorage.getItem(LS_PARTY_ITEMS) || "[]");
 while (partyItems.length < PARTY_SIZE) partyItems.push("");
 partyItems = partyItems.slice(0, PARTY_SIZE);
 
+// 性別 (2026-06-13 阿部さん: ビルダーで選んだ時に男女ランダム決定・無性別あり・リアルバトルへ送る)
+const LS_PARTY_GENDERS = "pokechan_party_genders_v1";  // 各スロットの性別 '♂'/'♀'/'—'(無性別)/''(未選択)
+// この roster の無性別ポケモン(ナショナル準拠。デスカーン/デスバーン等は実は有性別なので含めない)
+const GENDERLESS = new Set(["メタモン","ロトム","ヒートロトム","ウォッシュロトム","フロストロトム","スピンロトム",
+  "カットロトム","ギルガルド(シールド)","ギルガルド(ブレード)","クレッフィ","ゴルーグ","メガゴルーグ",
+  "ポットデス","ブリジュラス","ミミズズ","キョジオーン"]);
+function genderOf(name){
+  if (!name) return '';
+  if (GENDERLESS.has(name)) return '—';
+  if (name.includes('♂')) return '♂';   // イダイトウ♂/ニャオニクス♂等=名前で性別固定
+  if (name.includes('♀')) return '♀';
+  return Math.random() < 0.5 ? '♂' : '♀';
+}
+let partyGenders = JSON.parse(localStorage.getItem(LS_PARTY_GENDERS) || "[]");
+while (partyGenders.length < PARTY_SIZE) partyGenders.push("");
+partyGenders = partyGenders.slice(0, PARTY_SIZE);
+function saveGenders(){ localStorage.setItem(LS_PARTY_GENDERS, JSON.stringify(partyGenders)); }
+function toggleGender(slotIdx){
+  const g = partyGenders[slotIdx];
+  if (g === '♂') partyGenders[slotIdx] = '♀';
+  else if (g === '♀') partyGenders[slotIdx] = '♂';
+  else return;   // 無性別は切り替え不可
+  saveGenders(); renderTable();
+}
+
 // 持ち物 key → アイテム情報の逆引き（items_database.js 読み込み後に構築）
 const ITEM_BY_KEY = {};
 if (window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){
@@ -2207,6 +2232,19 @@ function renderTable() {
     }).join("")}
   </tr>`);
 
+  // 性別 (2026-06-13: 選択時に決まる。♂♀はクリックで切替・無性別は—)
+  rows.push(`<tr>
+    <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem">性別</td>
+    ${party.map((name, slotIdx) => {
+      if (!name) return `<td class="empty-slot-cell"></td>`;
+      let g = partyGenders[slotIdx];
+      if (!g) { g = genderOf(name); partyGenders[slotIdx] = g; }
+      const color = g === '♂' ? '#5b8ff0' : g === '♀' ? '#f06fa0' : '#9aa3b2';
+      const clickable = (g === '♂' || g === '♀');
+      return `<td class="gender-cell" data-slot="${slotIdx}" ${clickable ? `onclick="toggleGender(${slotIdx})"` : ''} title="${clickable ? 'クリックで♂♀切替' : '無性別'}" style="text-align:center;vertical-align:middle;${clickable ? 'cursor:pointer' : ''}"><span style="font-weight:800;font-size:1.1rem;color:${color}">${g}</span></td>`;
+    }).join("")}
+  </tr>`);
+
   // 持ち物 (スロット毎にクリックでモーダル)
   rows.push(`<tr>
     <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem" data-i18n="checker.row_item">持ち物</td>
@@ -2311,6 +2349,10 @@ function onSlotDrop(e, idx) {
     const tmp = party[dragSlotIdx];
     party[dragSlotIdx] = party[idx];
     party[idx] = tmp;
+    const tmpG = partyGenders[dragSlotIdx];   // 性別もポケモンに追従
+    partyGenders[dragSlotIdx] = partyGenders[idx];
+    partyGenders[idx] = tmpG;
+    saveGenders();
     // スロットフィルタも一緒にスワップ (ポケモンに追従)
     const tmpF = slotFilters[dragSlotIdx];
     if (slotFilters[idx] !== undefined) slotFilters[dragSlotIdx] = slotFilters[idx];
@@ -2379,9 +2421,10 @@ function selectPoke(name) {
   // → グローバルタイプフィルタの影響を受けず、まっさらな状態に
   if (party[activeSlot] !== name) {
     slotFilters[activeSlot] = {};
+    partyGenders[activeSlot] = genderOf(name);   // 選んだ瞬間に性別を決める(男女ランダム/無性別/名前固定)
   }
   party[activeSlot] = name;
-  saveParty(); saveSlotFilters(); renderTable(); closeModal();
+  saveParty(); saveSlotFilters(); saveGenders(); renderTable(); closeModal();
 }
 // IME 入力中(変換確定前)もリアルタイム反映するヘルパ
 function bindSearch(id, cb) {
@@ -2396,7 +2439,8 @@ document.getElementById("modal-close-x").addEventListener("click", closeModal);
 document.getElementById("modal-clear").addEventListener("click", () => {
   party[activeSlot] = null;
   delete slotFilters[activeSlot];
-  saveParty(); saveSlotFilters(); renderTable(); closeModal();
+  partyGenders[activeSlot] = '';
+  saveParty(); saveSlotFilters(); saveGenders(); renderTable(); closeModal();
 });
 document.getElementById("modal-ov").addEventListener("click", e => {
   if (e.target === document.getElementById("modal-ov")) closeModal();
@@ -3342,6 +3386,8 @@ renderTable();
         nature: partyNatures[i] || 'まじめ',
         effort: { ...(partyEvs[i] || {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0}) },
         moves: [...new Set(moves)],
+        item: partyItems[i] || '',                       // 持ち物(2026-06-13: リアルバトルへも送る)
+        gender: partyGenders[i] || genderOf(name),       // 性別(無ければここで決定)
       });
       sent++;
     }
@@ -3349,8 +3395,11 @@ renderTable();
       alert(_tCK('checker.alert_empty_party','チームが空です。先にポケモンを選択してください。'));
       return;
     }
+    // リアルバトル(real_battle.html)へ送る(2026-06-13 阿部さん: ビルダーで構築→リアルバトルへ)。
+    // 旧 battle_simulator.html 互換のため同じキーで保存しつつ、リアルバトル用キーも書く
     localStorage.setItem('pokechan_battle_handoff_v1', JSON.stringify(handoff));
-    window.open('battle_simulator.html', '_blank');
+    localStorage.setItem('pokechan_realbattle_handoff_v1', JSON.stringify(handoff));
+    window.open('real_battle.html', '_blank');
   });
 })();
 </script>
