@@ -7026,6 +7026,110 @@ console.log('\n=== 段133 がんじょうあご/きれあじ(flags.bite/slash) =
   resetEnv();
 }
 
+console.log('\n=== 段134 特性7種: メガランチャー/ぼうだん/フェアリースキン/かるわざ/いかりのつぼ/リーフガード/きんちょうかん ===');
+// 出典: ABILITY_DESC(公式準拠)。くいしんぼうは対象きのみ(25%発動系)がDB非収録のためpark。
+{
+  resetEnv();
+  // T287 メガランチャー: はどう技1.5倍
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  const p0 = E.calcDamage('self', 'opp', moveByName('みずのはどう')).max;
+  E.sides.self.ability = 'メガランチャー';
+  const p1 = E.calcDamage('self', 'opp', moveByName('みずのはどう')).max;
+  check('T287 メガランチャーではどう技1.5倍', p1 > p0, `${p0}→${p1}`);
+  // T287b ぼうだん: 弾の技を無効化(かたやぶりで貫通)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp.ability = 'ぼうだん';
+  const r1 = E.calcDamage('self', 'opp', moveByName('ヘドロばくだん'));
+  check('T287b ぼうだんで弾技がこうかなし', r1 && r1.immune, `immune=${r1 && r1.immune}`);
+  E.sides.self.ability = 'かたやぶり';
+  const r2 = E.calcDamage('self', 'opp', moveByName('ヘドロばくだん'));
+  check('T287c かたやぶりはぼうだんを無視', r2 && !r2.immune, `immune=${r2 && r2.immune}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T287d フェアリースキン: ノーマル技がフェアリーになる(ドラゴンに2倍で当たる=本来ノーマルは等倍)+1.2倍
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.opp = freshSide('カイリュー', 'hataku');   // ドラゴン/ひこう
+  const n0 = E.calcDamage('self', 'opp', moveByName('でんこうせっか')).max;
+  E.sides.self.ability = 'フェアリースキン';
+  const n1 = E.calcDamage('self', 'opp', moveByName('でんこうせっか')).max;
+  check('T287d フェアリースキンでノーマル技がフェアリー化(ドラゴンに抜群+1.2倍)', n1 > n0 * 2,
+    `${n0}→${n1}(2.4倍期待)`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T287e かるわざ: 道具を消費するとすばやさ2倍(最初から無しは対象外)
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.ability = 'かるわざ';
+  const sp0 = E.effectiveSpeed(E.sides.self);
+  E.sides.self.item = '';
+  E.sides.self.lastConsumedItem = null;
+  check('T287e 最初から道具なしでは2倍にならない', E.effectiveSpeed(E.sides.self) === sp0, `spd=${E.effectiveSpeed(E.sides.self)}`);
+  E.sides.self.lastConsumedItem = 'oran_berry';
+  check('T287f 道具を消費した後はすばやさ2倍', E.effectiveSpeed(E.sides.self) === sp0 * 2,
+    `spd=${E.effectiveSpeed(E.sides.self)} 期待=${sp0 * 2}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T287g いかりのつぼ: 急所を受けるとこうげき最大
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('でんこうせっか')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.critical = true;   // UI急所トグル=確定急所
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.ability = 'いかりのつぼ';
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('self', 0);
+  check('T287g 急所を受けるとこうげきが+6に', E.sides.opp.rank.atk === 6, `atk=${E.sides.opp.rank.atk}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T287h リーフガード: 晴れの間は状態異常にならない
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('でんじは')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.ability = 'リーフガード';
+  E.env.weather = 'sunny';
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('self', 0);
+  check('T287h リーフガード(晴れ)で状態異常にならない', E.sides.opp.status === 'none', `status=${E.sides.opp.status}`);
+  E.env.weather = 'none';
+  E.runSingleAttack('self', 0);
+  check('T287i 晴れでなければ普通にかかる', E.sides.opp.status === 'paralysis', `status=${E.sides.opp.status}`);
+  E.env.weather = 'none';
+  resetEnv();
+}
+{
+  resetEnv();
+  // T287j きんちょうかん: 相手はきのみ(オボン)を食べられない
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('でんこうせっか')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.ability = 'きんちょうかん';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.item = 'berry_sitrus';   // オボンのみ(実キー。偽キーだと発動せず偽緑になる=技名罠の道具版)
+  const oMax = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = Math.floor(oMax / 2) - 5;   // 50%以下=本来オボン発動圏
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('self', 0);
+  check('T287j きんちょうかんで相手のきのみが発動しない',
+    E.sides.opp.item === 'berry_sitrus',   // 消費されていない
+    `item=${E.sides.opp.item} hp=${E.sides.opp.currentHp}`);
+  // 対照: きんちょうかんが無ければオボンは発動して消費される
+  E.sides.self.ability = '';
+  E.sides.opp.currentHp = Math.floor(oMax / 2) - 5;
+  E.runSingleAttack('self', 0);
+  check('T287k 対照: きんちょうかん無しならオボン発動(消費される)', E.sides.opp.item === '',
+    `item=${E.sides.opp.item}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
