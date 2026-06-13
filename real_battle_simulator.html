@@ -1045,7 +1045,8 @@ function makeSideState(){
     effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0},
     natureIdx: 0,
     ability: '',                             // 選択中の特性名
-    gender: '',                              // 性別 '♂'/'♀'/'—'(無性別)。メロメロ系の判定に使う(段139〜)
+    gender: '',                              // 性別 '♂'/'♀'/'—'(無性別)。メロメロ系の判定に使う(段139)
+    attracted: false,                        // メロメロ状態(揮発・相手が交代/ひんしで解除)
     item: '',                                // 持ち物 (ITEMS_DATABASE.items[].key、空文字でなし)
     moves: [],                               // [{key,name,type,category,power,accuracy,pp,...}, ...]
     // 能力ランク補正 (-6..+6)
@@ -2490,6 +2491,11 @@ function phaseDealDamage(atkSide, defSide, move){
         log('9', `${pname(atk)} は ${_cAb}で ${_code === 'paralysis' ? 'まひ' : 'やけど'} 状態になった！`);
       }
     }
+    // メロメロボディ(段139・ポケモンWiki): 直接攻撃してきた異性を30%でメロメロに
+    if (_cAb === 'メロメロボディ' && !atk.attracted && isOppositeGender(atk, def) && !attractGuard(atk, def) && Math.random() < 0.3){
+      atk.attracted = true;
+      log('9', `${pname(def)} の メロメロボディ！ ${pname(atk)} は メロメロに なった！`);
+    }
     // さめはだ=接触してきた相手に最大HPの1/8
     if (_cAb === 'さめはだ'){
       const _rMax = realStat(atk, 'hp');
@@ -2590,6 +2596,7 @@ function phaseDealDamage(atkSide, defSide, move){
   if (def.currentHp <= 0){
     def.fainted = true;
     log('8', `${pname(def)} は ひんしになった！`);
+    atk.attracted = false;        // メロメロ(段139): メロメロにした相手が倒れたら解放
     applyDestinyBond(def, atk);   // みちづれ(相手の技でひんし→道連れ)
     // じしんかじょう: 攻撃技で相手をひんしにするとこうげき+1(段122・ポケモンWiki「じしんかじょう」)
     if (!atk.fainted && sideAbility(atk) === 'じしんかじょう' && (atk.rank.atk || 0) < 6){
@@ -3161,6 +3168,17 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (sideAbility(target) === 'せいしんりょく') continue;
       target.flinched = true;
       log('9', `${pname(target)} は ひるんだ！`);
+      continue;
+    }
+    if (ef.kind === 'メロメロ付与'){
+      // メロメロ付与(段139): 異性のみ・性別不明/同性は不成立(fails_if宣言+isOppositeGender)。
+      // どんかん/アロマベールで防がれる(applyAttract内)。みがわりは貫通しない
+      const _at = ef.target === 'self' ? atk : def;
+      if (_at.subHp > 0 && !piercesSub(move, atk)){ log('9', `${pname(_at)} は みがわりに 守られている！`); continue; }
+      if (!applyAttract(_at, atk)){
+        // 条件を満たさない時のメッセージ(同性/無性別)
+        if (!isOppositeGender(_at, atk)) log('9', `しかし ${pname(_at)} には 効果がなかった…`);
+      }
       continue;
     }
     if (ef.kind === 'こんらん' || (ef.kind === '状態付与' && ef.value === 'こんらん')){
@@ -4302,6 +4320,11 @@ function runSingleAttack(atkSide, moveIdx){
   }
   if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${pname(atk)} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
   if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  // メロメロ(段139): 50%で行動不能。PP消費しない(=この時点でreturnするのでconsumePPに到達しない)
+  if (atk.attracted){
+    log('0c', `${pname(atk)} は メロメロだ！`);
+    if (Math.random() < 0.5){ noteActionFailed(atk); log('0c', `${pname(atk)} は メロメロで 技が だせなかった！`); renderBattleLog(); renderBoth(); return; }
+  }
   // 使用条件(requires: オーロラベール=ゆきの時だけ等)。満たさなければ失敗(Bulbapedia "Aurora Veil")
   const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
   if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
@@ -4608,6 +4631,7 @@ function clearVolatilesOnSwitch(st){
   st.choiceLock = null;     // こだわりロック(段135): 交代で解除
   st.cudChew = null;        // はんすう(段138): 交代で発動しなくなる
   st.illusionAs = null;     // イリュージョン(段138): 引っ込めば解除(次の登場で再判定)
+  st.attracted = false;     // メロメロ(段139): 交代で解除(本人ぶん)
   st.destinyBond = false; st.dbondPrev = false; st.perishCount = null;
   st.lockOn = 0; st.tormented = false; st.imprison = false;
   st.soundBlocked = 0; st.soundBlockedMoves = null;
@@ -4871,6 +4895,7 @@ function attemptSwitch(sideKey, benchIdx, opts){
   st.switchedThisTurn = true;
   // 拘束(くろいまなざし等)は「かけた側が場を離れるまで」→ この側のポケモンが離れたので相手の拘束を解除
   sides[sideKey === 'self' ? 'opp' : 'self'].trapped = false;
+  sides[sideKey === 'self' ? 'opp' : 'self'].attracted = false;   // メロメロ(段139): 相手が離れたら解放
   if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${pname(st)} が 場に出た！`);
   else log('9', `${outName} は 引っ込んだ！ ${pname(st)} が 場に出た！`);
   applyEntryHazards(sideKey);   // 設置技(ステルスロック等)は交代完了後に発動
@@ -4989,6 +5014,29 @@ function struggleIfNoPP(st, mv){
     return STRUGGLE_MOVE;
   }
   return mv;
+}
+
+// === メロメロ(段139) — 出典: ポケモンWiki「メロメロ」「メロメロボディ」「メロメロ(状態変化)」 ===
+// 異性(両方♂/♀で異なる)同士でのみ成立。性別不明(—)・同性・どちらか未設定は不成立。
+function isOppositeGender(a, b){
+  if (!a || !b) return false;
+  const ga = a.gender, gb = b.gender;
+  if ((ga !== '♂' && ga !== '♀') || (gb !== '♂' && gb !== '♀')) return false;
+  return ga !== gb;
+}
+// メロメロ予防特性(どんかん/アロマベール)。かたやぶりはメロメロ付与を貫通できる
+function attractGuard(st, atk){
+  const ab = defAbilityVs(st, atk);
+  return ab === 'どんかん' || ab === 'アロマベール';
+}
+// メロメロを付与(条件を満たせば)。戻り値=付与できたか
+function applyAttract(target, source){
+  if (!target.poke || target.attracted) return false;
+  if (!isOppositeGender(target, source)) return false;
+  if (attractGuard(target, source)) { log('9', `${pname(target)} は ${defAbilityVs(target, source)}で メロメロに ならない！`); return false; }
+  target.attracted = true;
+  log('9', `${pname(target)} は ${pname(source)} に メロメロに なった！`);
+  return true;
 }
 
 // === へんげんじざい/リベロ(段122) — 出典: ポケモンWiki「へんげんじざい」 ===
@@ -5284,6 +5332,11 @@ function runTurn(){
     }
     if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${pname(atk)} は こおっていて うごけない！`); continue; }
     if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); continue; }
+    // メロメロ(段139): 50%で行動不能。PP消費しない
+    if (atk.attracted){
+      log('0c', `${pname(atk)} は メロメロだ！`);
+      if (Math.random() < 0.5){ noteActionFailed(atk); log('0c', `${pname(atk)} は メロメロで 技が だせなかった！`); continue; }
+    }
     // こんらん: 行動前に判定。残りターンを減らし、解けてなければ1/3で自分を攻撃して行動失敗。
     if (atk.confusion > 0){
       atk.confusion--;

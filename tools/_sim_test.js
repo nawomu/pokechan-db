@@ -7384,6 +7384,87 @@ console.log('\n=== 段138 あくしゅう/はとむね/はんすう/イリュー
   resetEnv();
 }
 
+console.log('\n=== 段139 メロメロ+メロメロボディ(性別前提) ===');
+// 出典: ポケモンWiki「メロメロ」「メロメロボディ」「メロメロ(状態変化)」。
+// 異性のみ・性別不明/同性は無効・50%で行動不能(PP消費なし)・相手が交代/ひんしで解除・どんかんで予防。
+{
+  resetEnv();
+  // T291 異性にメロメロが付与され、50%で行動不能
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.gender = '♂';
+  E.sides.self.moves = [moveByName('メロメロ')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.gender = '♀';
+  E.setRandom(() => 0.5);
+  E.phaseApplyEffects('self', 'opp', moveByName('メロメロ'));
+  check('T291 異性にメロメロ付与', E.sides.opp.attracted === true, `attracted=${E.sides.opp.attracted}`);
+  // 行動判定: 0.4<0.5で行動不能・0.6>=0.5で行動可能
+  E.sides.opp.moves = [moveByName('はたく')]; E.sides.opp.selectedMoveIdx = 0;
+  let _seq = [0.4]; let _i = 0;
+  E.setRandom(() => (_i < _seq.length ? _seq[_i++] : 0.99));
+  const n0 = E.battleLog.length;
+  E.runSingleAttack('opp', 0);
+  const logs0 = E.battleLog.slice(n0).map(e => e.msg);
+  check('T291b メロメロで行動不能(50%側)', logs0.some(m => m.includes('メロメロで 技が だせなかった')), logs0.join(' / '));
+  resetEnv();
+}
+{
+  resetEnv();
+  // T291c 同性には無効
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.gender = '♂';
+  E.sides.opp = freshSide('カビゴン', 'hataku'); E.sides.opp.gender = '♂';
+  E.phaseApplyEffects('self', 'opp', moveByName('メロメロ'));
+  check('T291c 同性にはメロメロ無効', !E.sides.opp.attracted, `attracted=${E.sides.opp.attracted}`);
+  // T291d 性別不明には無効
+  E.sides.opp = freshSide('カビゴン', 'hataku'); E.sides.opp.gender = '—';
+  E.phaseApplyEffects('self', 'opp', moveByName('メロメロ'));
+  check('T291d 性別不明にはメロメロ無効', !E.sides.opp.attracted, `attracted=${E.sides.opp.attracted}`);
+  // T291e どんかんは予防
+  E.sides.opp = freshSide('カビゴン', 'hataku'); E.sides.opp.gender = '♀'; E.sides.opp.ability = 'どんかん';
+  E.phaseApplyEffects('self', 'opp', moveByName('メロメロ'));
+  check('T291e どんかんでメロメロ予防', !E.sides.opp.attracted, `attracted=${E.sides.opp.attracted}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T291f メロメロにした相手が交代したら解除
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.gender = '♂';
+  E.sides.self.moves = [moveByName('メロメロ')];
+  E.sides.opp = freshSide('カビゴン', 'hataku'); E.sides.opp.gender = '♀';
+  E.phaseApplyEffects('self', 'opp', moveByName('メロメロ'));
+  check('T291f前提 相手がメロメロ', E.sides.opp.attracted === true, `attracted=${E.sides.opp.attracted}`);
+  const sub = freshSide('ピカチュウ', null);
+  E.sides.self.bench = [{ poke: sub.poke, effort: sub.effort, natureIdx: 0, ability: '', item: '',
+    moves: [moveByName('10まんボルト')], currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null, gender: '♂' }];
+  E.attemptSwitch('self', 0);   // メロメロにした側(自分)が引っ込む
+  check('T291f メロメロにした側が交代→相手は解放', !E.sides.opp.attracted, `attracted=${E.sides.opp.attracted}`);
+  resetEnv();
+}
+{
+  resetEnv();
+  // T291g メロメロボディ: 異性の接触攻撃で30%メロメロ
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.gender = '♂';
+  E.sides.self.moves = [moveByName('でんこうせっか')];   // 接触
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('ピクシー', 'hataku'); E.sides.opp.gender = '♀'; E.sides.opp.ability = 'メロメロボディ';
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  let _seq = [0.0, 0.1]; let _i = 0;   // ダメージ乱数→メロメロボディ30%(成功)
+  E.setRandom(() => (_i < _seq.length ? _seq[_i++] : 0.5));
+  E.phaseDealDamage('self', 'opp', moveByName('でんこうせっか'));
+  check('T291g メロメロボディで攻撃側がメロメロに', E.sides.self.attracted === true, `attracted=${E.sides.self.attracted}`);
+  // T291h 同性には発動しない
+  E.sides.self = freshSide('フシギバナ', null); E.sides.self.gender = '♀';
+  E.sides.self.moves = [moveByName('でんこうせっか')]; E.sides.self.selectedMoveIdx = 0;
+  E.sides.opp = freshSide('ピクシー', 'hataku'); E.sides.opp.gender = '♀'; E.sides.opp.ability = 'メロメロボディ';
+  E.sides.opp.currentHp = E.realStat(E.sides.opp, 'hp');
+  _i = 0; _seq = [0.0, 0.1];
+  E.setRandom(() => (_i < _seq.length ? _seq[_i++] : 0.5));
+  E.phaseDealDamage('self', 'opp', moveByName('でんこうせっか'));
+  check('T291h メロメロボディは同性には発動しない', !E.sides.self.attracted, `attracted=${E.sides.self.attracted}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {
