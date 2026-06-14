@@ -177,8 +177,15 @@ function clause(e, m) {
       return `相手の「まもる」などの守りをやぶってから攻撃する`;
     case '設置': {
       const v = e.value;
-      if (v === 'ステルスロック') return `相手の場に とがった岩をうかべる。相手が交代で出てくるたびにダメージを与える`;
-      if (v === 'まきびし') return `相手の場に まきびしをまく(最大${e.max_layers || 3}回まで重ねられる)。相手が交代で出てくるたびにダメージを与える(地面にいない相手には効かない)`;
+      // 交代で出てくるたびのダメージ量を層数ごとに出す(legacyに明記=戻すべき細部)
+      const dmgT = () => {
+        const d = e.damage_on_switch_in;
+        if (!Array.isArray(d) || !d.length) return '';
+        if (d.length === 1) return `(最大HPの${fracT(d[0].fraction)})`;
+        return `(${d.map(x => `${x.layers}回で${fracT(x.fraction)}`).join('・')})`;
+      };
+      if (v === 'ステルスロック') return `相手の場に とがった岩をうかべる。相手が交代で出てくるたびに、最大HPの${fracT(0.125)}ぶんダメージを与える(いわが弱点のタイプほど大きく、効きにくいタイプほど小さくなる)`;
+      if (v === 'まきびし') return `相手の場に まきびしをまく(最大${e.max_layers || 3}回まで重ねられる)。相手が交代で出てくるたびにダメージを与える${dmgT()}(地面にいない相手には効かない)`;
       if (v === 'どくびし') return `相手の場に どくびしをまく。相手が交代で出てくると どく状態になる(2回重ねると もうどく。地面にいない相手には効かない)`;
       if (v === 'ねばねばネット' || v === 'sticky_web') return `相手の場に ねばねばネットをはる。相手が交代で出てくると すばやさが1段階下がる(地面にいない相手には効かない)`;
       return /^[A-Za-z_]+$/.test(String(v || '')) ? `相手の場に わなをしかける` : `相手の場に「${v}」をしかける`;
@@ -189,7 +196,9 @@ function clause(e, m) {
       const r = e.reduces || [];
       const what = (r.includes('special_damage') && r.includes('physical_damage')) ? '物理技と特殊技'
         : r.includes('special_damage') ? '特殊技' : r.includes('physical_damage') ? '物理技' : '技';
-      return `${durT(e.duration)}の間、味方が受ける${what}のダメージを${fracT(e.multiplier)}にする(急所には効かない)`;
+      let s = `${durT(e.duration)}の間、味方が受ける${what}のダメージを${fracT(e.multiplier)}にする(急所には効かない)`;
+      if (e.persists_through_switch) s += '。交代しても消えない';
+      return s;
     }
     case '壁除去':
       return `相手の「${(e.values || []).join('」「')}」をこわしてから攻撃する`;
