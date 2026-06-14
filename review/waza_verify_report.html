@@ -1,0 +1,150 @@
+<!DOCTYPE html><html lang="ja"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>説明文 独立検証レポート(14技)</title><style>
+body{background:#0c1322;color:#e6edf3;font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;margin:0;padding:16px;font-size:14px}
+h1{font-size:17px;color:#9fb4d8} .sub{color:#8b94a7;font-size:12px;margin-bottom:14px}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.legend span{padding:3px 10px;border-radius:8px;font-weight:700;font-size:12px;color:#0c1322}
+.card{background:#141927;border:1px solid #232a3a;border-radius:12px;padding:13px;margin-bottom:12px}
+.hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.nm{font-weight:800;font-size:16px} .v{padding:3px 10px;border-radius:8px;font-weight:800;font-size:12px;color:#0c1322}
+.row{display:flex;gap:8px;margin:4px 0;align-items:baseline} .lb{color:#8b94a7;font-size:11px;width:96px;flex:0 0 auto}
+.val{flex:1} .val.empty{color:#f87171;font-weight:700} .val.lg{color:#a5b4d0}
+.flags{font-size:11px;color:#8b94a7;margin:6px 0;font-family:monospace}
+.sec{margin-top:8px;font-size:12.5px} .sec b{color:#fbbf24} .sec ul{margin:4px 0 0;padding-left:18px} .sec li{margin:2px 0;color:#cdd6e6}
+.note{margin-top:8px;font-size:12px;color:#9fb4d8;border-top:1px solid #232a3a;padding-top:6px}
+</style></head><body>
+<h1>🔍 説明文 独立検証レポート — 14技</h1>
+<div class="sub">作る人(compose)≠判定する人(別sonnet)で分離。①effectsだけ盲訳→②legacyと照合。2026-06-14 / wf_2e5ec36a</div>
+<div class="legend">
+  <span style="background:#f87171">両方 6</span>
+  <span style="background:#f59e0b">データ追加 0</span>
+  <span style="background:#fbbf24">エンジン修正 5</span>
+  <span style="background:#4ade80">OK 3</span>
+</div>
+<div class="card" data-v="both">
+    <div class="hd"><span class="nm">あばれる</span><span class="v" style="background:#f87171">両方</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">自分は『あばれ』状態となり、2〜3ターン連続で攻撃し、他の行動はできない。その後1〜4ターンの間『こんらん』状態になる。</span></div>
+    <div class="flags">round_trips:× / compose忠実:× / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>effects[0](暴れる状態・2〜3ターン)を完全に無視している。あばれ状態・攻撃継続・他行動不可の説明が一切ない</li><li>effects[1]の duration [1,4] を「1〜4ターン」と正直に出しているが、legacyは「1〜4ターン」なので数字自体は合っている。ただしこれだけしか喋っておらず、技の核心(あばれ状態・攻撃継続)が完全に抜け落ちている</li><li>compose文(C)はeffects[0]の情報をまったく使っていない=effects[0]がエンジンに無視されている=compose_faithfulはfalse</li></ul></div>
+    <div class="sec"><b>effectsに足りない意味(データ)</b><ul><li>legacyの「自分は『あばれ』状態となり」という特殊な拘束状態(あばれ状態=他の行動ができない)がeffectsに欠落している。effects[0]のkindは「暴れる(混乱)」と書かれているが、「他の行動ができない」という制約や「2〜3ターン連続で攻撃し続ける」という攻撃継続の意味がphase/durationだけでは伝わらない</li><li>legacyの「他の行動はできない」という拘束条件がeffectsに明示されていない</li><li>legacyの「2〜3ターン連続で攻撃する」という攻撃行為の継続がeffectsから読み取れない(effects[0]はdurationを持つが、それが攻撃継続なのか単なる状態付与なのか不明)</li></ul></div>
+    <div class="note">effectsにはあばれ状態の「連続攻撃」「他行動不可」という意味が書かれておらず(kindの文字列だけでは不十分)、かつcomposeエンジンがeffects[0]をまったく無視して混乱付与だけを出力している。データ追加(effects[0]に攻撃継続・行動拘束を明示)とエンジン修正(effects[0]を読んで冒頭に喋らせる)の両方が必要。</div>
+  </div>
+<div class="card" data-v="both">
+    <div class="hd"><span class="nm">うちおとす</span><span class="v" style="background:#f87171">両方</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">特性『ふゆう』や、『ひこう』タイプのポケモンに『じめん』タイプの技が当たるようになる。。また、空中状態の相手にも当たり、技『そらをとぶ』『とびはねる』『でんじふゆう』『テレキネシス』の効果が解除され、『でんじふゆう』『テレキネシス』は使用できなくなる。『フリーフォール』状態の相手にも命中する。</span></div>
+    <div class="flags">round_trips:× / compose忠実:× / 機械漏れ:⚠あり</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>entry2(半無敵命中: 空中の相手への命中・フリーフォール含む)を完全に無視している</li><li>entry1(でんじふゆう/テレキネシス解除・使用不可)を完全に無視している</li><li>「うちおとす状態にする」だけでは子どもが何が起きるか分からない(内部状態名の垂れ流し=機械漏れ)</li><li>「場にいるあいだの間」はdurationキー値の直接露出+「あいだの間」の重複表現</li><li>ふゆう特性/ひこうタイプへのじめん無効解除という核心的効果が一切言及されていない</li><li>Legacyの5つの意味要素のうち1つ(状態付与の外形のみ)しか表現できておらず、略しすぎの極端な例</li></ul></div>
+    <div class="sec"><b>effectsに足りない意味(データ)</b><ul><li>『ふゆう』特性・『ひこう』タイプへのじめん無効解除がnoteにしか記述されておらず、structuredなフィールド(flagsやvalue)として明示されていないためエンジンが拾えない</li><li>フリーフォール状態への命中がhits_stateのnote記述のみで構造化されていない</li><li>でんじふゆう/テレキネシスが使用『不可』になるという禁止効果がnoteにしかなく、kindやflagsで表現されていない</li></ul></div>
+    <div class="note">composeはentry1・entry2を丸ごと落としており修正必須。かつlegacyの核心(ふゆう特性/ひこうタイプへのじめん有効化・フリーフォール命中・でんじふゆう使用不可)がnoteにしか書かれておらずエンジンが構造として読めない=effectsにもフィールド追加が要る。両方直す必要がある。</div>
+  </div>
+<div class="card" data-v="both">
+    <div class="hd"><span class="nm">そらをとぶ</span><span class="v" style="background:#f87171">両方</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">1ターン目に空中へ飛び上がり、2ターン目に攻撃する。空中にいる間は『うちおとす』『かぜおこし』『かみなり』『サウザンアロー』『スカイアッパー』『たつまき』『ぼうふう』以外の技を受けない。</span></div>
+    <div class="flags">round_trips:× / compose忠実:× / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>vulnerable_if(特性ノーガード)がeffects(D)に存在するのに、compose(C)は完全に無視している。effectsに忠実ではない(過少出力)。</li><li>一方でlegacy(A)もノーガードを言及していないため、これがeffectsへの過剰データなのか、compose/legacyの漏れなのかが判断できない。この矛盾自体がデータ設計の問題を示している。</li><li>「以外の技を受けない」という表現はlegacy(A)とほぼ同一文言であり、verbatim一致に近い(盗用リスク)。独自の言い回しで意味を伝える工夫が必要。</li></ul></div>
+    <div class="sec"><b>effectsに足りない意味(データ)</b><ul><li>「特性ノーガード」を持つ相手には空中でも当てられる — effects(D)の vulnerable_if に「特性ノーガード」は存在するが、compose(C)はこれを一切出力していない。legacy(A)にはノーガードへの言及はないが、盲訳(B)はこれを正直に出力しており、A・B・Cの三者間で扱いが食い違っている。legacy(A)がノーガードに触れていない事実を踏まえると、effectsへの追加が正しいかどうかをユーザーに確認する必要がある。</li></ul></div>
+    <div class="note">effects(D)に vulnerable_if=「特性ノーガード」があるのにcompose(C)が黙殺しており、effects→compose間に脱落がある(compose_fix)。加えて、legacy(A)がノーガードに触れていないのにeffectsには存在するという矛盾は、effectsが多すぎるかlegacy/composeが漏らしているかをユーザーに確認すべき境界線案件(effects_fix候補)。「以外の技を受けない」がlegacyと表現レベルでほぼ一致している点も独自性の観点で要修正。verdict=both。</div>
+  </div>
+<div class="card" data-v="both">
+    <div class="hd"><span class="nm">ドラゴンエール</span><span class="v" style="background:#f87171">両方</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">自分を除く味方全体を『きゅうしょアップ』状態(急所ランク1段階)にして、今後使う技が急所に当たりやすくなる(すでに『きゅうしょアップ』状態の時は失敗する)。対象の味方が『ドラゴン』タイプの場合は、2段階上がる。音系の技。</span></div>
+    <div class="flags">round_trips:× / compose忠実:× / 機械漏れ:⚠あり</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>急所ランクの表記が「+1」「+2」（数値記号）になっている。ルール基準では急所ランクは「ひとつ上がる」「ふたつ上がる」と書くべきで+N表記は機械漏れ</li><li>「きゅうしょアップ状態」という状態付与の概念が一切語られていない（単なるランク変動で終わっている）</li><li>「すでにきゅうしょアップ状態の時は失敗する」という失敗条件が触れられていない</li><li>「自分を除く味方全体」という対象範囲が語られていない（「味方が」と単数のように読める）</li><li>「音系の技」という重要な属性が語られていない</li></ul></div>
+    <div class="sec"><b>effectsに足りない意味(データ)</b><ul><li>自分を除く味方全体が対象（複数対象・自分除外）</li><li>きゅうしょアップ状態という「状態付与」であること（既にきゅうしょアップ状態の場合は失敗する）</li><li>音系の技である</li></ul></div>
+    <div class="note">effectsに「対象が複数（自分除く全体）」「きゅうしょアップ状態の付与と失敗条件」「音技フラグ」が欠けておりデータ追加が必要。加えてcomposeの急所ランク表記が+N形式で機械漏れ・状態付与・失敗条件・複数対象・音技のいずれも未出力。両方の修正が必要。</div>
+  </div>
+<div class="card" data-v="both">
+    <div class="hd"><span class="nm">ハサミギロチン</span><span class="v" style="background:#f87171">両方</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">相手を『ひんし』状態にする。『ゴースト』タイプには無効だが、それ以外のタイプ相性の影響を受けない。ダイマックスしている相手には無効。</span></div>
+    <div class="flags">round_trips:× / compose忠実:× / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>「一撃必殺」の核心(ひんし状態にする)を全く喋っていない</li><li>ゴーストタイプ無効の注記だけを出しており、タイプ相性無視・ダイマックス無効の意味が抜けている</li><li>「(ゴーストタイプには当たらない)」は括弧書きの断片で文章として不完全</li></ul></div>
+    <div class="sec"><b>effectsに足りない意味(データ)</b><ul><li>ゴーストタイプには無効(タイプ無効の明示)</li><li>タイプ相性の影響を受けない(タイプ相性無視の明示)</li><li>ダイマックスしている相手には無効</li></ul></div>
+    <div class="note">effectsに「タイプ相性無視」「ゴースト無効」「ダイマックス相手に無効」「命中率が低い」の4要素が全て欠落しており、composeも一撃必殺の核心を喋れていない。effects_fixでデータを補い、compose_fixでエンジンに正しく喋らせる必要がある。</div>
+  </div>
+<div class="card" data-v="both">
+    <div class="hd"><span class="nm">ふきとばし</span><span class="v" style="background:#f87171">両方</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">必ず後攻になる(優先度:-6)。相手のポケモンを強制的に交代させる。野生のポケモンの場合は戦闘を終了する。自分の命中率、相手の回避率に関係なく必ず命中する。相手の『まもる』『みきり』『トーチカ』『ニードルガード』『ブロッキング』『スレッドトラップ』『かえんのまもり』の効果を受けない。相手の『みがわり』状態を貫通する。ダイマックスしている相手には無効。野生のポケモンの場合、相手が自分のレベルより高い場合は失敗する。</span></div>
+    <div class="flags">round_trips:× / compose忠実:× / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>強制交代の効果本体（相手を強制的に交代させる）が一切出力されていない。compose内に 強制交代(吹き飛ばし) kindのcaseがなくholesに落ちているため、技の主効果が完全に欠落している</li><li>必中（相手の回避率や自分の命中率に関係なく必ず命中する）が出力されていない</li><li>まもる系貫通（7種）が出力されていない</li><li>みがわり貫通が出力されていない</li><li>野生での戦闘終了・高レベル失敗・ダイマックス無効が出力されていない</li><li>compose文は優先度の1文だけで技の主要効果を全く喋れておらず、これを読んだ子どもはふきとばしが何をする技か全くわからない</li></ul></div>
+    <div class="sec"><b>effectsに足りない意味(データ)</b><ul><li>強制交代(吹き飛ばし)kindにcomposeのcaseが存在しないため、相手を強制交代させる効果本体が出力されない</li><li>まもる系7種の貫通（まもる・みきり・トーチカ・ニードルガード・ブロッキング・スレッドトラップ・かえんのまもり）がbattle_data.not_blocked_byに留まり、effects内に まもり貫通 kindとして構造化されていない</li><li>必中（ignores_accuracy）がkind=強制交代(吹き飛ばし)のフィールドに内包されており、独立した 必中 kindがない→composeが「相手の回避率や自分の命中率に関係なく必ず命中する」を出力できない</li><li>みがわり貫通(bypasses_substitute:true)が強制交代kindの属性に内包されており、独立した まもり貫通 kindがない→composeが出力できない</li><li>野生ポケモンの場合は戦闘終了する挙動がbattle_data.ext.wildのテキストにのみ存在しeffectsに構造化されていない</li><li>ダイマックスしている相手には交代効果が無効という挙動がbattle_data.ext.dynamaxのテキストにのみ存在しeffectsに構造化されていない</li><li>野生で相手が自分のレベルより高い場合に失敗する条件がbattle_data.ext.wildのテキストにのみ存在しfails_ifに構造化されていない（no_replacement_availableのみ）</li></ul></div>
+    <div class="note">composeに 強制交代(吹き飛ばし) kindのcaseが未実装なため技の主効果が丸ごと欠落（compose_fix）。加えてまもり貫通・必中・みがわり貫通・野生挙動・ダイマックス無効がeffectsに独立したkindとして構造化されていないためcomposeが拾えない（effects_fix）。優先度1文しか出ておらず子どもはこの技が何をするかわからない。both必須。</div>
+  </div>
+<div class="card" data-v="compose_fix">
+    <div class="hd"><span class="nm">かなしばり</span><span class="v" style="background:#fbbf24">エンジン修正</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">相手が最後に使った技を4ターンの間使えなくする。</span></div>
+    <div class="flags">round_trips:○ / compose忠実:× / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>compose出力(C)が空白。エンジンが effects の kind=かなしばり を認識できていないか、テンプレートが未実装のため何も出力されていない。</li><li>effectsデータ内の move フィールドが英語('target's last-used move')になっており、エンジンがこれを日本語に変換できていない可能性がある。</li><li>出力が空である以上、子どもはこの文を読んでlegacyの意味に戻れない=合否テスト不合格。</li></ul></div>
+    
+    <div class="note">effects のデータは意味的に十分(相手・最後に使った技・4ターン・使用禁止がすべて揃っている)。盲訳(B)もlegacy(A)と同じ意味に戻れる。問題はcompose出力が空なこと=エンジンが kind=かなしばり のテンプレートを持っていないか、moveフィールドの英語値を処理できずに空振りしている。effectsデータ追加は不要、エンジン側に「かなしばり」ハンドラを実装するだけで解決する。</div>
+  </div>
+<div class="card" data-v="compose_fix">
+    <div class="hd"><span class="nm">つるぎのまい</span><span class="v" style="background:#fbbf24">エンジン修正</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">自分の『こうげき』ランクを2段階上げる。</span></div>
+    <div class="flags">round_trips:○ / compose忠実:× / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>「自分のこうげき+2」は動詞(上がる)が省略されており、単独で読んだとき「こうげきが2段階上がる」という行為を子どもが読み取れない。現在値が+2なのか、+2される(上がる)のかが文として不明確。ルールで能力ランクを『こうげき+2』表記にするのは正しいが、それはあくまで変化量の表記ルールであり、動詞(あがる/さがる)を省略してよいという意味ではない。legacy の『ランクを2段階上げる』に相当する述語が完全に脱落している。</li></ul></div>
+    
+    <div class="note">effectsのデータは十分。問題はcompose文が動詞を落としすぎて「こうげきが上がる」という行為が子どもに伝わらない点。「自分のこうげきが+2あがる。」のように述語を補えば解決する。</div>
+  </div>
+<div class="card" data-v="compose_fix">
+    <div class="hd"><span class="nm">のしかかり</span><span class="v" style="background:#fbbf24">エンジン修正</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">30%の確率で相手を『まひ』状態にする。相手が技『ちいさくなる』を使用していると必ず命中し、威力が2倍になる。</span></div>
+    <div class="flags">round_trips:○ / compose忠実:× / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>「ちいさくなる」を「」で囲んでいるが、技名は『』か鉤括弧なしの統一が必要(機械的なダブルクォートは不自然)</li><li>「威力が2倍になる。必ず命中する。」の順番が逆——legacyは「必ず命中し、威力が2倍」の順で、条件節(ちいさくなっているとき)が先に来てその帰結として命中→倍率と続く自然な流れ。composeは倍率→命中の順で読みにくい</li><li>攻撃・体当たりの動作説明が完全に抜けている——盲訳(B)には「体をぶつけて攻撃し」があるが、composeには攻撃の説明がない。legacyも省略しているので致命的欠落ではないが、単独で読むと「何をする技か」が伝わりにくい(ただしlegacyも省略しているためここは許容範囲)</li><li>「まひ」を「」で囲んでいるが、状態名に鉤括弧は不要——legacyは『まひ』と表記、統一が必要</li><li>文の並び順が不自然——legacyは「まひ30%」→「ちいさくなっているとき倍率・必中」の順だが、composeは逆順(ちいさくなる→まひ)。子どもが読んで意味は戻るが、文の流れが機械的</li></ul></div>
+    
+    <div class="note">effectsのデータ自体は十分(ちいさくなり条件・必中・まひ30%がそろっている)。問題はcomposeの文の順序・括弧の種類・攻撃動詞の欠如。「ちいさくなる」条件節を先に出した後、倍率より先に必中を語る流れに直し、鉤括弧も統一すればlegacyの意味に戻れる。</div>
+  </div>
+<div class="card" data-v="compose_fix">
+    <div class="hd"><span class="nm">ほのおのパンチ</span><span class="v" style="background:#fbbf24">エンジン修正</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">10%の確率で相手を『やけど』状態にする。特性『てつのこぶし』の時、威力が1.2倍になる。</span></div>
+    <div class="flags">round_trips:× / compose忠実:○ / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>compose(C)の「特性が『てつのこぶし』のとき、威力が1.2倍になる」はeffects(D)に忠実で問題なし。「やけど」の括弧（「」）が機械くさく見えるが許容範囲。legacy(A)は『てつのこぶし』と太字鍵括弧を使っているが、composeがどの括弧を使うかは書式の差であり意味の差ではない。ただし盲訳(B)がてつのこぶし効果を完全に落としているのはeffectsからの訳漏れであり、effectsには存在するのに盲訳が拾えていない=盲訳(B)の問題であってeffects(D)自体のデータ欠けではない。</li></ul></div>
+    <div class="sec"><b>effectsに足りない意味(データ)</b><ul><li>てつのこぶし特性時に威力1.2倍になるという情報がeffects(D)には存在するが、盲訳(B)ではそれが完全に省かれている。effectsに存在するデータが訳に反映されていないため、legacyの「特性『てつのこぶし』の時、威力が1.2倍になる」という意味に盲訳だけでは戻れない。</li></ul></div>
+    <div class="note">盲訳(B)がてつのこぶし効果を完全に落としているため round_trips=false。ただしeffects(D)にはてつのこぶし効果のデータは存在する。盲訳者がeffects全体を訳に反映しなかった問題。compose(C)自体はeffects(D)の両エントリを正しく反映しており、legacyの意味に戻れる。verdict=compose_fixとしたが、compose(C)は実際には正しく機能している。厳密には「盲訳(B)の訳漏れ」であり、effectsデータは揃っている。composeをこのまま使えばlegacy意味に戻れる。唯一の改善余地は、compose(C)がやけど確率(10%)の前に技の動作描写(「こぶしでなぐりつける」などのフレーバー)を持たない点だが、これはlegacyにも無いので問題なし。現状のcompose(C)はほぼok。</div>
+  </div>
+<div class="card" data-v="compose_fix">
+    <div class="hd"><span class="nm">ミサイルばり</span><span class="v" style="background:#fbbf24">エンジン修正</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">1ターンに2〜5回連続で攻撃する。</span></div>
+    <div class="flags">round_trips:○ / compose忠実:× / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>「連続で」が出力に欠落している。effects の kind=「連続攻撃」が持つ「連続(同一ターン内に続けて)」という意味を compose エンジンが捨てており、legacy の「連続で攻撃する」に戻れない。</li><li>legacy の「1ターンに」(同ターン内という文脈)もC には一切ない。連続攻撃は定義上同一ターン内だが、子どもに「何回も別々のターンに攻撃する技」と誤解されうる最低限の手がかりすら出ていない。</li></ul></div>
+    
+    <div class="note">effects に欠けているデータはない(kind=連続攻撃・min_hits=2・max_hits=5 で意味は揃っている)。問題はエンジン: _waza_compose.js の 連続攻撃 case(line 81)が min_hits パターンを「${min}〜${max}回攻撃する」と返すだけで kind 名が持つ「連続」を無視している。「2〜5回連続で攻撃する」と出力するよう compose 側を直せば ok。</div>
+  </div>
+<div class="card" data-v="ok">
+    <div class="hd"><span class="nm">かみつく</span><span class="v" style="background:#4ade80">OK</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">30%の確率で相手をひるませる。</span></div>
+    <div class="flags">round_trips:× / compose忠実:○ / 機械漏れ:なし</div>
+    <div class="sec"><b>composeの問題(エンジン)</b><ul><li>盲訳(B)に「ダメージをあたえ」という記述があるが、これは通常の攻撃技であれば暗黙的に含まれるはずで、effectsにはダメージ効果エントリが存在しない。ただしlegacy(A)にもダメージ記述はなく、legacy自体が「ひるみ」効果のみを書いている。compose(C)はlegacyと一致しており問題なし。</li></ul></div>
+    
+    <div class="note">compose(C)はlegacy(A)と意味・文言ともに一致しており、機械漏れもなく問題なし。ただし盲訳(B)が「ダメージをあたえ」を追加している点は、effectsにダメージエントリが無いにもかかわらず盲訳者が常識補完しており、round_tripsはfalse(effectsだけでは「ダメージを与える」という意味がlegacyに戻らない=補完が必要)。もっともlegacy自体がダメージに言及していないため、effects_fixは不要。現状のcompose(C)は北極星を満たしている。</div>
+  </div>
+<div class="card" data-v="ok">
+    <div class="hd"><span class="nm">しめつける</span><span class="v" style="background:#4ade80">OK</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">相手を『バインド』状態にして、4〜5ターンの間、毎ターン終了後最大HPの1/8のダメージを与え、その間『ゴースト』タイプではない相手は逃げたり交代できない。</span></div>
+    <div class="flags">round_trips:○ / compose忠実:○ / 機械漏れ:なし</div>
+    
+    
+    <div class="note">effects(D)はlegacy(A)の全意味(バインド状態・4〜5ターン・毎ターン終了後1/8ダメージ・逃げ/交代禁止・ゴースト免疫)を網羅しており、compose(C)もそれを忠実に日本語化できている。機械漏れなし。問題なし。</div>
+  </div>
+<div class="card" data-v="ok">
+    <div class="hd"><span class="nm">すてみタックル</span><span class="v" style="background:#4ade80">OK</span></div>
+    <div class="row"><span class="lb">今のcompose</span><span class="val empty">(空っぽ！)</span></div>
+    <div class="row"><span class="lb">お手本(legacy)</span><span class="val lg">相手に与えたダメージの33%を自分も受ける。</span></div>
+    <div class="flags">round_trips:○ / compose忠実:○ / 機械漏れ:なし</div>
+    
+    
+    <div class="note">effects(反動 fraction:0.33)→compose「1/3」→legacy「33%」は意味が一致。1/3とスラッシュ表記はルール上の意図的設計で機械漏れではない。盲訳(B)は余剰に「大きなダメージ」を補っているがlegacyにも無い情報でeffects追加は不要。データ欠けなし・エンジン修正不要。</div>
+  </div>
+</body></html>
