@@ -102,10 +102,12 @@ function clause(e, m) {
       if (e.basis === 'user_speed_over_target_speed') return `自分のすばやさが相手より高いほど威力が高くなる(自分のすばやさが相手の${sRatioT(e.table)})`;
       if (e.per_stage) return `自分の能力ランクが1段階上がっているごとに威力が${e.per_stage}上がる(基礎威力${e.base_power})`;
       if (e.based_on === 'stockpile_count' && e.power_table) return `たくわえた数で威力が変わる(${Object.entries(e.power_table).map(([k, v]) => `${k}つで${v}`).join('・')})`;
-      return null; // 条件×倍率/天気/needs_research 等は穴
+      if (e.multiplier) return `威力が${multT(e.multiplier)}`; // 条件付き倍率(やけっぱち等)。条件はcompose側が前置
+      return null; // 天気/needs_research 等は穴
     }
     case '能力ランク変化': {
-      if (!e.stat && !e.stats) return null; // くろいきり等のリセットは別機構→穴
+      if (e.reset) return `場にいる全員の能力ランクの変化を、すべて元にもどす`; // くろいきり
+      if (!e.stat && !e.stats) return null;
       const sts = statList(e);
       const pre = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : '';
       const who = TGT2[e.target] || (t + 'の');
@@ -141,6 +143,249 @@ function clause(e, m) {
     }
     default:
       return null; // 穴
+    // ===== 2026-06-14 独立検証で炙った穴を開通(子ども口調・機械漏れ無し)。曖昧/複雑は null のまま残す。 =====
+    case '状態異常回復': {
+      if (Array.isArray(e.value)) return `相手の「${e.value.join('」「')}」の状態を解除する`;
+      const who = e.target === 'team' ? '味方みんな' : e.target === 'self' ? '自分' : (TGT[e.target] || '自分');
+      return `${who}の状態異常をすべて治す`;
+    }
+    case '吸収':
+      return `相手に与えたダメージの${fracT(e.fraction)}だけ、自分のHPを回復する`;
+    case '自分交代':
+      return (Array.isArray(e.pass) && e.pass.length)
+        ? `自分の能力の変化などを引きついで、控えのポケモンと交代する`
+        : `攻撃したあと、控えのポケモンと交代する`;
+    case 'みがわり貫通':
+      return `相手の「みがわり」をすりぬけて当たる`;
+    case '半無敵命中': {
+      const M = { '水中': 'ダイビング', '地中': 'あなをほる', '空中': 'そらをとぶ・とびはねる' };
+      const states = e.hits_state || [];
+      const moves = states.map(s => M[s] || s).join('」「');
+      let s = `相手が「${moves}」で${states.join('・')}にいる時でも当てられる`;
+      if (e.damage_multiplier && e.damage_multiplier !== 1) s += `。そのときダメージが${e.damage_multiplier}倍になる`;
+      return s;
+    }
+    case '次のターン行動不能':
+      return `使った次のターンは、動けなくなる`;
+    case 'まもり':
+      return `そのターン、相手の技をふせぐ。続けて使うと失敗しやすくなる`;
+    case 'こらえる':
+      return `そのターン、どんな攻撃を受けてもHPが1だけ残ってたえる。続けて使うと失敗しやすくなる`;
+    case '範囲まもり':
+      return `そのターン、複数を巻きこむ技から自分と味方をまもる`;
+    case 'まもり解除':
+      return `相手の「まもる」などの守りをやぶってから攻撃する`;
+    case '設置': {
+      const v = e.value;
+      if (v === 'ステルスロック') return `相手の場に とがった岩をうかべる。相手が交代で出てくるたびにダメージを与える`;
+      if (v === 'まきびし') return `相手の場に まきびしをまく(最大${e.max_layers || 3}回まで重ねられる)。相手が交代で出てくるたびにダメージを与える(地面にいない相手には効かない)`;
+      if (v === 'どくびし') return `相手の場に どくびしをまく。相手が交代で出てくると どく状態になる(2回重ねると もうどく。地面にいない相手には効かない)`;
+      if (v === 'ねばねばネット' || v === 'sticky_web') return `相手の場に ねばねばネットをはる。相手が交代で出てくると すばやさが1段階下がる(地面にいない相手には効かない)`;
+      return /^[A-Za-z_]+$/.test(String(v || '')) ? `相手の場に わなをしかける` : `相手の場に「${v}」をしかける`;
+    }
+    case '設置除去':
+      return `自分の場の「${(e.values || []).join('」「')}」を消す`;
+    case '壁設置': {
+      const r = e.reduces || [];
+      const what = (r.includes('special_damage') && r.includes('physical_damage')) ? '物理技と特殊技'
+        : r.includes('special_damage') ? '特殊技' : r.includes('physical_damage') ? '物理技' : '技';
+      return `${durT(e.duration)}の間、味方が受ける${what}のダメージを${fracT(e.multiplier)}にする(急所には効かない)`;
+    }
+    case '壁除去':
+      return `相手の「${(e.values || []).join('」「')}」をこわしてから攻撃する`;
+    case '天候変化':
+      return `${durT(e.duration)}の間、天気を「${e.value}」にする`;
+    case '天候必中':
+      if (Array.isArray(e.cases)) {
+        const parts = e.cases.map(c => (c.accuracy === '必中' || c.accuracy === 'never_miss')
+          ? `「${c.weather}」のときは必ず当たる` : `「${c.weather}」のときは命中率が${c.accuracy}%になる`);
+        return parts.join('。');
+      }
+      return (e.accuracy === 'never_miss' || e.accuracy === '必中') ? `天気が「${e.value}」のときは必ず当たる` : null;
+    case '場の威力補正': {
+      // ばくれつパンチ(特性条件) / グラスフィールド(タイプ・地面条件で威力上下)
+      const mt = e.move_type ? `「${e.move_type}」タイプの技の` : '';
+      const dir = e.multiplier >= 1 ? '高くなる' : '下がる';
+      if (e.moves) return `${e.moves.map(x => `「${x}」`).join('')}の威力が${multT(e.multiplier)}`;
+      return `${mt}威力が${dir}(${multT(e.multiplier)})`;
+    }
+    case '引き寄せ':
+      return `そのターン、相手の技を自分に引き寄せる`;
+    case 'フィールド展開':
+      return `${durT(e.duration)}の間、足元を「${e.value}」にする`;
+    case 'フィールド除去':
+      return `場のフィールドを消す`;
+    case '一撃必殺':
+      return `当たれば相手は 一発でひんしになる`;
+    case '暴れる(混乱)':
+      return `${durT(e.duration)}の間、同じ技を出しつづける(ほかの行動はできない)`;
+    case '連続強制(混乱なし)':
+      return `${durT(e.duration)}の間、同じ技を出しつづける`;
+    case '倍返し': {
+      const cat = (e.basis || '').includes('physical') ? '物理技' : (e.category === '特殊' || (e.basis || '').includes('special')) ? '特殊技' : '技';
+      return `先に相手の${cat}を受けてから、そのダメージの${e.multiplier || 2}倍を返す(タイプ相性は関係なく当たる)`;
+    }
+    case '特性上書き':
+      if (e.source === 'opponent_ability') return `相手の特性を、自分の特性としてコピーする`;
+      if (e.value) return `相手の特性を「${e.value}」に変える`;
+      return `相手の特性を 上書きする`;
+    case '特性交換':
+      return `自分と相手の特性を入れかえる`;
+    case '特性無効化':
+      return `相手の特性を、場にいる間きかなくする`;
+    case '技タイプ変更':
+      if (e.mapping) {
+        const ex = Object.entries(e.mapping).map(([k, v]) => `「${k}」なら${v}`).join('・');
+        return `天気によって技のタイプが変わる(${ex}。天気がなければ${e.default_type || 'ノーマル'})`;
+      }
+      if (e.type_by_form) {
+        const ex = Object.entries(e.type_by_form).map(([k, v]) => `「${k}」のときは${v}`).join('・');
+        return `すがたによって技のタイプが変わる(${ex})`;
+      }
+      return null;
+    case 'タイプ上書き':
+      // ミラータイプ等は value が機械値(copy_target_current_types)→意味で訳す
+      if (e.value === 'copy_target_current_types') return `自分のタイプを、相手と同じタイプに変える`;
+      return /^[A-Za-z_]+$/.test(String(e.value || '')) ? `相手のタイプを変える` : `相手のタイプを「${e.value}」だけに変える`;
+    case 'タイプ追加':
+      return `相手に「${e.value}」タイプを追加する`;
+    case 'タイプ除去':
+      return `自分の「${e.value}」タイプがなくなる`;
+    case 'タイプ一時無効':
+      return `そのターンだけ、自分の「${e.value}」タイプがなくなる`;
+    case '技タイプ追加':
+      return `この技は「${e.value}」タイプも合わさったあつかいになる`;
+    case '失敗ダメージ':
+      return `外れると、自分が最大HPの${fracT(e.fraction)}ぶんダメージを受ける`;
+    case '状態異常予防':
+      return e.value === 'ねむり' ? `${durT(e.duration)}の間、場のどのポケモンも ねむれなくなる` : `${durT(e.duration)}の間、状態異常をふせぐ`;
+    case '条件威力倍率':
+      return `威力が${multT(e.multiplier)}`;
+    case '威力段階増加':
+      return `ひんしになった味方の数が多いほど威力が高くなる(1体ごとに+${e.power_increment})`;
+    case 'ランク数威力加算':
+      return `自分の能力ランクが上がっているほど威力が高くなる(1段階ごとに+${e.add_per_stage})`;
+    case '強制交代(吹き飛ばし)':
+      return `相手をむりやり交代させる(出てくる相手はランダム)`;
+    case '強制交代(攻撃)':
+      return `攻撃して、相手をむりやり交代させる(出てくる相手はランダム)`;
+    case '持ち物奪取':
+      return `相手の持ち物をうばう(自分が何も持っていないときだけ)`;
+    case '持ち物排除':
+      return `相手の持ち物をはたき落として、使えなくする`;
+    case '持ち物交換':
+      return `自分と相手の持ち物を入れかえる`;
+    case '持ち物復活':
+      return `なくなった自分の持ち物を1回だけ元にもどす`;
+    case 'PP減少':
+      return e.value != null ? `相手が最後に使った技のPPを${e.value}へらす` : `相手が最後に使った技のPPを大きくへらす`;
+    case '部屋系':
+      return `${durT(e.duration)}の間、場の全員の「ぼうぎょ」と「とくぼう」が入れかわる(もう一度使うと元にもどる)`;
+    case 'トリックルーム':
+      return `${durT(e.duration)}の間、すばやさが低いポケモンから先に行動する(もう一度使うと元にもどる)`;
+    case 'じゅうりょく':
+      return `${durT(e.duration)}の間、みんなの命中率が上がり、浮いているポケモンも地面にいるあつかいになる。空をとぶ技は使えなくなる`;
+    case '必ず急所':
+      return `必ず急所に当たる`;
+    case 'ランク無視':
+      return `相手の能力ランクの変化を無視して攻撃する`;
+    case 'ランクリセット':
+      return `相手の能力ランクの変化をすべて元にもどす`;
+    case 'ランクコピー':
+      return `相手の能力ランクの変化を、自分にコピーする`;
+    case '別防御参照ダメージ':
+      return `特殊技だが、相手の「ぼうぎょ」でダメージを計算する`;
+    case '別能力ダメージ':
+      return `自分の「ぼうぎょ」の高さでダメージを計算する`;
+    case '相手能力ダメージ':
+      return `相手の「こうげき」の高さでダメージを計算する(相手が強いほど痛い)`;
+    case '物理特殊自動':
+      return `物理と特殊のうち、ダメージが大きいほうで攻撃する`;
+    case '相手持ち物威力':
+      return `相手の持ち物を使って攻撃する。相手が持ち物を持っていないと失敗する`;
+    case '相性上書き':
+      return `「${e.against_type}」タイプの相手に こうかばつぐんになる`;
+    case 'やどりぎ':
+      return `相手に タネをうえつける。毎ターン相手のHPを最大HPの${fracT(e.fraction)}吸い取って、自分のHPを回復する(くさタイプには効かない)`;
+    case 'みちづれ':
+      return `自分が次に行動する前に相手の技でひんしになると、その相手も道づれにする`;
+    case 'ほろびのうた':
+      return `使った時に場にいた全員が、${e.duration || 3}ターン後にひんしになる(交代するとのがれられる)`;
+    case 'ロックオン':
+      return `次にこの相手へ使う技が、必ず当たるようになる`;
+    case 'メロメロ付与':
+      return `相手を メロメロにする(異性にだけ効く)。メロメロの相手は50%の確率で動けなくなる`;
+    case 'アンコール':
+      return `${durT(e.duration)}の間、相手は直前に使った技しか出せなくなる`;
+    case 'ちょうはつ':
+      return `${durT(e.duration)}の間、相手は変化技を出せなくなる`;
+    case 'いちゃもん':
+      return `相手は同じ技を続けて出せなくなる`;
+    case 'かなしばり':
+      return `相手が最後に使った技を、${durT(e.duration)}の間 出せなくする`;
+    case 'ふういん':
+      return `自分も知っている技を、相手は使えなくなる`;
+    case 'カテゴリ封じ':
+      return `${durT(e.duration)}の間、相手は音の技を出せなくなる`;
+    case '全員逃走不可':
+      return `${durT(e.duration)}の間、おたがい逃げたり交代したりできなくなる(ゴーストタイプはのぞく)`;
+    case '拘束解除':
+      return `自分にかかったバインドなどの状態をふりほどく`;
+    case '自分拘束':
+      return `地面に根をはる。逃げられなくなるが、毎ターン少しずつHPが回復する`;
+    case 'いたみわけ':
+      return `自分と相手の今のHPを合わせて、半分ずつに分ける`;
+    case '実数値折半':
+      return `自分と相手の${joinStats(statList(e))}の数値を合わせて、半分ずつにする`;
+    case 'たくわえ加算':
+      return `「たくわえ」を1つためる(最大${e.max || 3}つ)。ぼうぎょ・とくぼうも上がる`;
+    case 'たくわえ消費':
+      return `ためた「たくわえ」を使いきって、上がっていたぼうぎょ・とくぼうを元にもどす`;
+    case '能力入替': {
+      const sts = statList(e);
+      // パワートリック=自分の中で入替 / スワップ系=相手とランク入替
+      if (e.target === 'self' && !e.effect && !e.detail) return `自分の${joinStats(sts)}の数値を入れかえる`;
+      return `自分と相手の${joinStats(sts)}のランクの変化を入れかえる`;
+    }
+    case '能力ランク変化_リセット': // 予備
+    case '直後に行動':
+      return `この技を使ったあと、相手はすぐ次に行動する`;
+    case '最後に行動':
+      return `そのターン、相手の行動を一番最後にする`;
+    case '相手技タイプ変更':
+      return `相手より先に使うと、相手のその技を「${e.value}」タイプに変える`;
+    case '木の実強制':
+      return `相手の持っているきのみをうばって、その場で自分が食べる`;
+    case '木の実奪取食':
+      return `相手の持っているきのみをうばって、自分で食べる`;
+    case 'やけど低下無視':
+      return `やけどでこうげきが下がっていても、下がっていないあつかいで攻撃する`;
+    case '次技威力倍化':
+      return `次に出す「${e.move_type}」タイプの技の威力が${e.multiplier}倍になる`;
+    case '味方威力上昇':
+      return `そのターン、味方の技の威力が${multT(e.multiplier)}`;
+    case '命中率固定':
+      return `命中率が${e.value}%になる`;
+    case 'ランダム技':
+      return `自分が覚えている技の中から、ランダムで1つ出す`;
+    case '直前技模倣':
+      return `直前にだれかが使った技を、自分も出す`;
+    case '技強制再使用':
+      return `相手に、直前に使った技をもう一度すぐ出させる`;
+    case '遅延攻撃':
+      return `${e.delay_turns || 2}ターン後に、その場所にいる相手へ攻撃が当たる`;
+    case '接触反動':
+      return `この守りが成功して相手が直接攻撃してくると、相手は最大HPの${fracT(e.fraction)}ダメージを受ける`;
+    case '優先技無効':
+      return `${durT(e.duration)}の間、地面にいるポケモンは相手の先制技を受けなくなる`;
+    case '次ターン使用不可':
+      return `この技は2ターン続けて出せない`;
+    case 'みがわり設置':
+      return `自分のHPを最大HPの${fracT(0.25)}使って、みがわりを作る。みがわりがある間は攻撃を肩がわりしてくれる`;
+    case 'へんしん':
+      return `相手のすがた・能力・覚えている技をコピーして、相手とそっくりになる`;
+    case 'なげつける':
+      return `持っている道具を投げつけて攻撃する。道具によって威力や効果が変わる`;
   }
 }
 function compose(m) {
