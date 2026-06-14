@@ -22,6 +22,7 @@ const WRITE = [
   ['照合して抜けを丁寧に追加', '作った効果(新版)とヤックン(legacy)を必ず<b>見比べ</b>、新版に抜けている意味がないかチェックする。<b>抜けていれば、丁寧に effects へ追加</b>して補完する(=「略さない」の実行・voiced≠completeの実践)。これを各技でやる。実例=なみだめのまもり貫通(上記「略さない」例2)。'],
   ['SSOT編集は検証してから書く', '<code>pokechan_data.js</code>(SSOT)を編集する時は、<b>置換件数チェック＋JSON妥当性検証</b>をしてから書き込む(事故防止)。手順: 該当文字列がN件きっかり一致するか確認 → 置換 → WAZA_MAPがparseできるか確認 → 期待どおりか確認 → OKなら保存。'],
   ['技を完結させる(ハイブリッド)', '<b>技を✅完結(穴ゼロ)させてから次へ</b>=部分✅で放置しない(放置すると別kind開通のたびに同じ技を再チェック=再チェック税／小kindがほったらかしに)。確認HTMLの<b>技単位バッジ(✅完結/⚠残りN穴)</b>で完結技は再チェック不要。<b>設計品質は守る</b>=テンプレは同kind全件を見て一度で正しく(1技だけ見て設計しない=意味の分裂の罠)。だが<b>あと1〜2穴の技・1〜2技しか持たない小kindは見えたら一緒に潰す</b>。残り穴は確認HTMLの「あと1穴で完結」リストで可視化。'],
+  ['★独立検証(sonnet判定者)は鵜呑み禁止', '「作る人(compose)≠判定する人(別sonnet)」の独立検証ループ(<code>tools/_waza_verify_workflow2.js</code>)は<b>下働き</b>。<b>信用できる信号は「compose空っぽ」「機械漏れ(英語/キー/true/undefined/生小数/⚠️要調査)」の2つだけ</b>=機械的に確実。<b>判定列(OK/エンジン/データ/両方)は鵜呑み禁止</b>。判定者は北極星と逆に過剰判定する癖がある実例(2026-06-14): ✗「急所+1」を"急所に当たりやすいを足せ"とエンジン要修正にする(ルール逆)／✗優先度がeffectsに無いをデータ不足(優先度はbattle_data.priorityから別途出る正常設計)／✗ダイマックス無効・野生挙動・ダメージkind無しをデータ不足(Champions対象外/攻撃技は自明)／✗bareな一致(「30%でひるませる」)を問題視。<b>判定し直し</b>=<code>tools/_waza_verify_reclassify.js</code>(空白/機械漏れ/穴だけで採点)。<b>意味・声の最終判定は阿部さんの耳=判定者は耳の代わりにならない</b>。'],
 ];
 
 // 言葉のルール(表記・語彙)
@@ -61,10 +62,12 @@ const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta n
 <header><div class="wrap" style="padding-bottom:0"><h1>📏 わざリスト ルールリスト(集約)</h1>
 <div class="date">説明文づくりの全ルール / 2026-06-07 / SSOT=ヤックン耳_判断ログ.md(本表はその集約ビュー)</div></div></header>
 <div class="wrap">
-<div class="basis">📋 <b>確認は必ず <code>review/waza_list_confirm.html</code> をベースに使う</b>(本番デザイン・効果カテゴリー別セクション)。各技で <b>効果(新版)↔ヤック(legacy)</b> を<b>意味で照合</b>する。これがわざリスト確認の標準・セッションが変わっても不変。</div>
+<div class="basis">📋 <b>確認は必ず2つのHTMLをベースに使う</b>(セッションが変わっても不変の標準):<br>
+① <code>review/waza_list_confirm.html</code>(本番デザイン・効果カテゴリー別セクション)= 各技で <b>効果(新版compose)↔ヤック(legacy)</b> を<b>意味で照合</b>する。<br>
+② <code>review/waza_verify_report.html</code>(①と同じ列・並び・色＋【判定】列)= 独立検証の機械チェック(空白/機械漏れ/穴)を効果kind別グループ+進捗で見る。<b>2026-06-14 阿部さん: このフォーマットを今後の標準にして据え置く</b>。生成は <code>tools/_waza_verify_reclassify.js</code>(機械チェックで判定)→ <code>tools/_waza_verify_report.js</code>(①のbuildRowを再利用=二重管理しない)。</div>
 ${sec('✍️ 書き方のルール(姿勢・方針)', '#7ee787', WRITE)}
 ${sec('🔤 言葉のルール(表記・語彙)', '#79c0ff', WORD)}
-<div class="note">確認フォーマット: <b>tools/_waza_list_confirm.js → review/waza_list_confirm.html</b>(本番デザイン・効果カテゴリー別セクション・列=名前→優先→フラグ→タイプ→分類→威力…→Effects→効果→タグ→ヤック)。これで毎回チェックする。</div>
+<div class="note">確認フォーマット(標準・据え置き): <b>tools/_waza_list_confirm.js → review/waza_list_confirm.html</b>(列=習得→わざ名→優先→フラグ→タイプ→分類→威力→命中→PP→接触→守貫→対象→カテゴリ→Effects→効果→タグ→ヤック)。検証レポート(<b>tools/_waza_verify_report.js → review/waza_verify_report.html</b>)は同じ列＋【判定】。両方で毎回チェックする。</div>
 </div></body></html>`;
 fs.writeFileSync(path.join(ROOT, 'review', 'rules.html'), html);
 console.log('生成: review/rules.html / 書き方', WRITE.length, '+ 言葉', WORD.length, 'ルール');
