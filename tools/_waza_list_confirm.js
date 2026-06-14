@@ -475,3 +475,6 @@ if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
 const outPath = path.join(outDir, 'waza_list_confirm.html');
 fs.writeFileSync(outPath, html);
 console.log(`生成: review/waza_list_confirm.html / 全${moves.length}技 / ${ordered.length}カテゴリ別 / 列17(…カテゴリ→Effects(元データ)→効果→タグ→ヤック)`);
+
+// ★検証レポート(_waza_verify_report.js)が同じ行・列・色をそのまま再利用するためにエクスポート(二重管理しない)。
+module.exports = { buildRow, THEAD, CSS, moves, ordered, byKind, esc };
