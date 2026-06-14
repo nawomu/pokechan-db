@@ -54,10 +54,18 @@ function clause(e, m) {
       return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}の間、逃げたり交代したりできないようにする`;
     case 'まもり貫通':
       // ★bypasses形(ゴーストダイブ/なみだめ): 相手の守り技リストの効果を受けない。not_bypassed=除外。
-      // 他形(pierces_without_removing=フェイント / 防御側variant=ニードルガード)は意味が別→穴(=意味の分裂に注意)。
       if (Array.isArray(e.bypasses)) {
         const ex = (e.not_bypassed || []).length ? `(「${e.not_bypassed.join('」「')}」は除く)` : '';
         return `相手の「${e.bypasses.join('」「')}」の効果を受けない${ex}`;
+      }
+      // フェイント形: まもる等を貫通して当たる(一部除く)
+      if (Array.isArray(e.pierces_without_removing)) {
+        const ex = `(「${e.pierces_without_removing.join('」「')}」は除く)`;
+        return `相手が「まもる」などで守っていても、それを無視して当たる${ex}`;
+      }
+      // ニードルガード形(守り側): ダイマックス技/Zワザで攻撃されてもダメージを軽くする
+      if (Array.isArray(e.values) && e.user_takes_fraction != null) {
+        return `「${e.values.join('」「')}」で攻撃されても、受けるダメージを最大HPの${fracT(e.user_takes_fraction)}までにおさえる`;
       }
       return null;
     case '反動':
@@ -103,7 +111,11 @@ function clause(e, m) {
       if (e.per_stage) return `自分の能力ランクが1段階上がっているごとに威力が${e.per_stage}上がる(基礎威力${e.base_power})`;
       if (e.based_on === 'stockpile_count' && e.power_table) return `たくわえた数で威力が変わる(${Object.entries(e.power_table).map(([k, v]) => `${k}つで${v}`).join('・')})`;
       if (e.multiplier) return `威力が${multT(e.multiplier)}`; // 条件付き倍率(やけっぱち等)。条件はcompose側が前置
-      return null; // 天気/needs_research 等は穴
+      if (e.based_on === 'weather' && e.power_table) {
+        const w = e.power_table; const lo = w.no_weather, hi = w.any_weather;
+        if (lo != null && hi != null) return `天気があると威力が${lo}から${hi}に上がる`;
+      }
+      return null; // needs_research 等は穴
     }
     case '能力ランク変化': {
       if (e.reset) return `場にいる全員の能力ランクの変化を、すべて元にもどす`; // くろいきり
@@ -251,6 +263,7 @@ function clause(e, m) {
         const ex = Object.entries(e.type_by_form).map(([k, v]) => `「${k}」のときは${v}`).join('・');
         return `すがたによって技のタイプが変わる(${ex})`;
       }
+      if (Array.isArray(e.values)) return `すがたによって技のタイプが「${e.values.join('」「')}」に変わる`;
       return null;
     case 'タイプ上書き':
       // ミラータイプ等は value が機械値(copy_target_current_types)→意味で訳す
@@ -395,6 +408,25 @@ function clause(e, m) {
       return `相手のすがた・能力・覚えている技をコピーして、相手とそっくりになる`;
     case 'なげつける':
       return `持っている道具を投げつけて攻撃する。道具によって威力や効果が変わる`;
+    // ===== 2026-06-14 残り10技の小さな穴を開通 =====
+    case '能力倍率': {
+      // 条件(いわタイプ等)はcompose側がcondTで前置するので、ここはbareに
+      const st = STAT[e.stat] || e.stat;
+      return `${st}が${multT(e.multiplier)}`;
+    }
+    case '全体継続ダメージ':
+      return `毎ターン終わりに、最大HPの${fracT(e.fraction)}ダメージを受ける`;
+    case '地面技被弾化':
+      return `ひこうタイプや特性「ふゆう」で浮いていても、地面にいるあつかいになる(じめん技が当たる)`;
+    case '対象範囲変更':
+      return `サイコフィールドで自分が地面にいると、相手全体に当たるようになる`;
+    case '条件付き優先':
+      // 自己完結文(条件込み)。compose側はこのkindがある時 priority行を出さない+ゴミ条件文も前置しない
+      return e.priority ? `グラスフィールドで自分が地面にいると、優先度+${e.priority}で先に攻撃できる(ふだんは優先度0)` : null;
+    case '行動順繰上げ':
+      return `そのターン、味方の行動順を自分のすぐ後ろにする`;
+    case '位置入替':
+      return `自分と味方の立ち位置を入れかえる`;
   }
 }
 function compose(m) {
@@ -413,13 +445,17 @@ function compose(m) {
     const body = g.cl.map((cl, i) =>
       (i > 0 && cl.kind === '能力ランク変化' && g.cl[i - 1].kind === 'HPが減る') ? 'そのかわり、' + cl.text : cl.text
     ).join('。');
-    return g.cond ? `${condT(g.cond)}、${body}` : body;
+    // 条件文がゴミ(⚠️要調査=condStrNewが訳しきれない複雑条件)なら前置しない=clauseが自己完結で意味を持つ
+    const ct = g.cond ? condT(g.cond) : '';
+    return (ct && !ct.includes('⚠')) ? `${ct}、${body}` : body;
   });
   let text = sentences.length ? sentences.join('。') + '。' : '';
   const bd = m.battle_data || {};
-  // ★優先度を説明に入れる(2026-06-07 阿部さん): battle_data.priority(構造)から。技の意味=先手/後手は使うとどうなるかの一部。
+  // ★優先度を説明に入れる(2026-06-07 阿部さん): battle_data.priority(構造)から。
+  // ただし「条件付き優先」kind(グラススライダー等)がある時は二重になるので出さない(clauseが条件込みで喋る)。
   const pr = bd.priority;
-  if (typeof pr === 'number' && pr !== 0) {
+  const hasCondPrio = eff.some(e => e.kind === '条件付き優先');
+  if (typeof pr === 'number' && pr !== 0 && !hasCondPrio) {
     text = (pr > 0 ? `優先度+${pr}で、先に攻撃できる。` : `優先度${pr}で、必ず後攻になる。`) + text;
   }
   const lo = (bd.fails_if || []).find(f => f.type === 'current_hp_below_fraction');
