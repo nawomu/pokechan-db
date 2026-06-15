@@ -21,6 +21,16 @@ const immT = arr => (arr || []).map(x => x.value || (x.values || []).join('・')
 // condStrNew は「〜の時/〜の場合」を返す。文頭につなぐ。
 const condT = c => condStrNew(c).replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)').replace(/『/g, '「').replace(/』/g, '」'); // 囲みは「」に統一(共有_cond_renderは触らずcompose側で吸収)
 
+// ★現シーズンの強化システム在否(2026-06-15 阿部さん確定)。未解禁のシステムへの言及は説明文に出さない=ゲート。
+// 来たら該当を true にするだけで、関連する一文(ダイウォール除外・ダイマックス技/Zワザ被弾軽減 等)が全技に一斉表示される(書き直し0)。
+// ※メガシンカは現状解禁中=true。※第N世代/SV等の他作品トリビアはこれとは別カテゴリ(ext/drop方針)。詳細=review/rules.html「★未実装システム…」。
+const SYSTEMS_IN_GAME = { mega: true, dynamax: false, tera: false, zmove: false };
+const SYSTEM_OF = { 'ダイマックス': 'dynamax', 'キョダイマックス': 'dynamax', 'ダイウォール': 'dynamax', 'ダイマックス技': 'dynamax', 'テラスタル': 'tera', 'テラスタル技': 'tera', 'Zワザ': 'zmove', 'Z技': 'zmove', 'Zワザ攻撃技': 'zmove' };
+const systemInGame = label => { const s = SYSTEM_OF[label]; return s ? !!SYSTEMS_IN_GAME[s] : true; }; // 未登録(通常技)は出してよい=true
+const gateList = arr => (arr || []).filter(systemInGame); // リストから未解禁システムの項目を除く
+// 効果まるごとが未解禁システム専用(=今は出すものが無い)か。穴ではなくゲートなので compose ではスキップ。
+const isFullyGated = e => e.kind === 'まもり貫通' && Array.isArray(e.values) && e.user_takes_fraction != null && gateList(e.values).length === 0;
+
 const amountT = a => a === '自分の残りHP分' ? '自分のいまのこっているHPと同じだけ' : a;
 // ※ランク増減は±N表記に統一(能力=こうげき+1 / 急所=急所+1)。旧・和語数詞ヘルパー(kazuT)は2026-06-07に廃止。
 // 威力可変ヘルパー(英語formula/basisは出さない=機械漏れ防止。未知形はnull=穴)
@@ -55,17 +65,21 @@ function clause(e, m) {
     case 'まもり貫通':
       // ★bypasses形(ゴーストダイブ/なみだめ): 相手の守り技リストの効果を受けない。not_bypassed=除外。
       if (Array.isArray(e.bypasses)) {
-        const ex = (e.not_bypassed || []).length ? `(「${e.not_bypassed.join('」「')}」は除く)` : '';
+        const nb = gateList(e.not_bypassed); // 未解禁システム(ダイウォール等)は除外語から外す
+        const ex = nb.length ? `(「${nb.join('」「')}」は除く)` : '';
         return `相手の「${e.bypasses.join('」「')}」の効果を受けない${ex}`;
       }
       // フェイント形: まもる等を貫通して当たる(一部除く)
       if (Array.isArray(e.pierces_without_removing)) {
-        const ex = `(「${e.pierces_without_removing.join('」「')}」は除く)`;
+        const pw = gateList(e.pierces_without_removing); // 未解禁システム(ダイウォール等)は除外語から外す
+        const ex = pw.length ? `(「${pw.join('」「')}」は除く)` : '';
         return `相手が「まもる」などで守っていても、それを無視して当たる${ex}`;
       }
       // ニードルガード形(守り側): ダイマックス技/Zワザで攻撃されてもダメージを軽くする
       if (Array.isArray(e.values) && e.user_takes_fraction != null) {
-        return `「${e.values.join('」「')}」で攻撃されても、受けるダメージを最大HPの${fracT(e.user_takes_fraction)}までにおさえる`;
+        const vs = gateList(e.values); // ダイマックス技/Zワザが全部未解禁なら、この一文ごと出さない
+        if (!vs.length) return null;
+        return `「${vs.join('」「')}」で攻撃されても、受けるダメージを最大HPの${fracT(e.user_takes_fraction)}までにおさえる`;
       }
       return null;
     case '反動':
@@ -91,6 +105,8 @@ function clause(e, m) {
     case '急所率上昇':
       // ★±N表記(2026-06-07 阿部さん上書き): 「急所+1」(「ランク」語は省く・短く=能力ランク±Nと揃える)。always_crit→「必ず急所に当たる」。
       if (e.always_crit) return `必ず急所に当たる`;
+      // 味方の急所ランクを上げる継続バフ(ドラゴンエール等)は対象を明示。それ以外(技自体の急所率)は「急所+N」。
+      if (e.target === 'ally' || e.target === 'team') return `${TGT2[e.target] || '味方の'}急所${e.stages > 0 ? '+' : ''}${e.stages}`;
       return `急所${e.stages > 0 ? '+' : ''}${e.stages}`;
     case 'ひるみ':
       // ★忠実版: kind:ひるみ = N%の確率で相手をひるませる(状態付与:ひるみ と統一)。
@@ -290,7 +306,9 @@ function clause(e, m) {
     case '強制交代(吹き飛ばし)':
       return `相手をむりやり交代させる(出てくる相手はランダム)`;
     case '強制交代(攻撃)':
-      return `攻撃して、相手をむりやり交代させる(出てくる相手はランダム)`;
+      // ダメージは通るが交代だけダイマックス相手に無効(ともえなげ/ドラゴンテール・Bulbapedia裏取り2026-06-15)。表示はゲート。
+      return `攻撃して、相手をむりやり交代させる(出てくる相手はランダム)` +
+        ((e.no_switch_if_target_dynamax && SYSTEMS_IN_GAME.dynamax) ? `。ダイマックスしている相手は、むりやり交代させられない(ダメージは当たる)` : ``);
     case '持ち物奪取':
       return `相手の持ち物をうばう(自分が何も持っていないときだけ)`;
     case '持ち物排除':
@@ -435,6 +453,7 @@ function compose(m) {
   for (const e of eff) {
     // ★溜めターン発動の能力上昇は「2ターン目に攻撃」の文に織り込み済→単独では出さない(二重防止)。
     if (e.kind === '能力ランク変化' && e.on_charge_turn && eff.some(x => x.kind === '2ターン目に攻撃')) continue;
+    if (isFullyGated(e)) continue; // 未解禁システム専用の効果=穴でなくゲート(skip)
     const c = clause(e, m); if (!c) { holes.push(e.kind); continue; }
     const key = e.condition ? JSON.stringify(e.condition) : '';
     let g = groups.find(x => x.key === key);
@@ -451,6 +470,18 @@ function compose(m) {
   });
   let text = sentences.length ? sentences.join('。') + '。' : '';
   const bd = m.battle_data || {};
+  // ★使用条件(requires)を前置(2026-06-15): データに在るのにcompose未発声だった取りこぼし(いびき露呈例)。
+  // ※accuracy_check(どくタイプ必中=どくどく)は使用ゲートでないのでここでは扱わない。
+  const reqT = r => {
+    if (r.type === 'self_status') return `自分が「${r.value}」状態の時だけ使える`;
+    if (r.type === 'weather') return `天気が「${r.value}」の時だけ使える`;
+    if (r.type === 'all_other_known_moves_used') return `自分が覚えている他の技を全部使うと、使えるようになる`;
+    if (r.type === 'user_has_eaten_berry') return `「きのみ」を食べると、使えるようになる`;
+    if (r.type === 'first_turn_after_switch_in') return `出てきた最初のターンしか成功しない`;
+    return null;
+  };
+  const reqStr = (bd.requires || []).map(reqT).filter(Boolean).map(s => s + '。').join('');
+  if (reqStr) text = reqStr + text;
   // ★優先度を説明に入れる(2026-06-07 阿部さん): battle_data.priority(構造)から。
   // ただし「条件付き優先」kind(グラススライダー等)がある時は二重になるので出さない(clauseが条件込みで喋る)。
   const pr = bd.priority;
@@ -460,12 +491,33 @@ function compose(m) {
   }
   const lo = (bd.fails_if || []).find(f => f.type === 'current_hp_below_fraction');
   if (lo) text += `(今のHPが最大HPの${fracT(lo.fraction)}より少ないと失敗する)`;
+  const ais = (bd.fails_if || []).find(f => f.type === 'ally_already_in_state');
+  if (ais) text += `(味方がすでに「${ais.value}」状態だと失敗する)`;
   const gi = (bd.immune || []).find(x => x.type === 'target_type' && (x.value === 'ゴースト' || (x.values || []).includes('ゴースト')));
   if (gi) text += `(ゴーストタイプには当たらない)`;
+  // ★必中フラグ(bd.must_hit)を訳す(2026-06-15・Bulbapedia裏取り): 既に必中を言っている技(必中kind等)は重複させない。
+  // = ふきとばし/ほえる など、必中kindを持たず bd.must_hit だけで必中を表す技の取りこぼしを補う。
+  if (bd.must_hit === true && !/必ず命中|必中/.test(text)) {
+    text += `相手の回避率や自分の命中率に関係なく、必ず命中する。`;
+  }
+  // ★まもり貫通(bd.not_blocked_by)。※音技等のnot_blocked_byは意味が違う場合があるので「強制交代(吹き飛ばし)」kind限定で訳す(ふきとばし/ほえる・Bulbapedia裏取り済)。
+  if (eff.some(e => e.kind === '強制交代(吹き飛ばし)') && (bd.not_blocked_by || []).length && !/効果を受けない/.test(text)) {
+    text += `相手の「${bd.not_blocked_by.join('」「')}」の効果を受けない。`;
+  }
+  // ★みがわり貫通フラグ(substitute_pierce)を後置(2026-06-15): 効果kind「みがわり貫通」で既に喋っていなければ補う(いびき等の取りこぼし)。
+  if (bd.substitute_pierce === true && !eff.some(e => e.kind === 'みがわり貫通') && !/すりぬけて当たる/.test(text)) {
+    text += `相手の「みがわり」をすりぬけて当たる。`;
+  }
+  // ★ダイマックス相手に無効(bd.immune の dynamax_target を訳す)。表示はゲート(現状ダイマックス未解禁=非表示)。legacy同様みがわり貫通の後に置く。
+  if ((bd.immune || []).some(x => x.type === 'dynamax_target' || x.type === 'dynamax') && SYSTEMS_IN_GAME.dynamax) {
+    text += `ダイマックスしている相手には無効。`;
+  }
+  // ★音系の技(flags.sound)を後置(2026-06-15): 全sound技に「音系の技。」(legacyも全技に明記・横断漏れだった)。
+  if (m.flags && m.flags.sound === true && !/音系の技/.test(text)) text += `音系の技。`;
   return { text, holes };
 }
 
-module.exports = { compose, clause, map }; // 確認HTML生成器など他ツールから同一エンジンを再利用(音のドリフト防止)
+module.exports = { compose, clause, map, isFullyGated }; // 確認HTML生成器など他ツールから同一エンジンを再利用(音のドリフト防止)
 if (require.main === module) {
 const byName = {}; for (const [k, m] of Object.entries(map)) byName[m.name] = m;
 // 能力ランク変化テンプレの音合わせ用に代表技を名前で指定(各パラメータ形)

@@ -53,6 +53,13 @@ node -e 'const d=require("/tmp/wvm_full.json");const m=d[process.argv[1]];consol
 初見の他人がeffectsだけから書いた盲訳(B):
 ${blind ? blind.naive : '(盲訳失敗)'}
 
+【このプロジェクトの前提=以下は欠けに数えない(誤検知しない)】
+- 優先度(先攻/後攻)は別の場所(battle_data.priority)から自動で出るので、EFFECTSに priority が無くても正常。
+- 「ダイマックス相手には無効」「野生ポケモン関係(戦闘終了/高レベルで失敗)」はこのゲーム(Champions)では対象外。欠けに数えない。
+- 攻撃技にダメージそのもののkindが無いのは正常(LEGACYもダメージを書かない)。欠けに数えない。
+- ゴーストタイプ無効は別処理で出る。EFFECTSに無くても欠けに数えない。
+これらを missing_in_effects や verdict の理由にしないこと。
+
 診断の観点(北極星=子どもがうちの出力(COMPOSE)だけでLEGACYと同じ意味に戻れること):
 1. round_trips: 盲訳(B)でLEGACYの意味に戻れるか(戻れない=effectsにデータ不足)。
    ※注意: 盲訳者がeffectsの一部を訳し忘れただけなら、それはeffectsの欠けではない。データの有無で判断。
