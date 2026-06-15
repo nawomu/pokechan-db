@@ -66,6 +66,15 @@ function clause(e, m) {
       if (Array.isArray(e.value)) {
         return `${pp}${dd}${t}を「${e.value.join('」「')}」のうちランダムで1つの状態にする`;
       }
+      // ★2026-06-15: forced=true で value='ねむり' duration=2 (ねむる): 3ターン目に目覚める
+      if (e.forced === true && e.value === 'ねむり' && e.duration === 2) {
+        return `2ターンの間、自分を「ねむり」状態にして、3ターン目に目を覚ます`;
+      }
+      // ★2026-06-15: delayed (あくび): 次のターン終わりに状態異常+「相手が交代すると効果は消える」
+      if (e.phase === 'delayed' && e.delay_turns === 1 && e.trigger === 'turn_end') {
+        const rem = e.removed_if ? `(相手が交代すると効果は消える)` : '';
+        return `次のターン終わりに${t}を「${e.value}」状態にする${rem}`;
+      }
       return `${pp}${dd}${t}を「${e.value}」状態にする`; // 囲みは「」(2026-06-07 阿部さん・ヤックン『』と差別化)
     }
     case '拘束':
@@ -103,6 +112,10 @@ function clause(e, m) {
         if (e.amount.type === 'target_stat') return `相手の「${STAT[e.amount.stat] || e.amount.stat}」の実数値と同じだけ、${t}のHPを回復する`;
       }
       if (e.fraction == null) return null; // 穴=出さない(機械漏れ防止)
+      // ★2026-06-15: lasting (ねをはる等) は「毎ターン終わりに」を明示。即時回復の誤読を防ぐ。
+      if (e.phase === 'lasting' && e.trigger === 'turn_end') {
+        return `毎ターン終わりに、${t}のHPを最大HPの${fracT(e.fraction)}だけ回復する`;
+      }
       return `${t}のHPを、最大HPの${fracT(e.fraction)}だけ回復する`;
     case 'HPが減る':
       return `自分のHPが最大HPの${fracT(e.fraction)}減る`;
@@ -161,7 +174,15 @@ function clause(e, m) {
       if (e.stat_choice === 'random_one_of') {
         return `${pre}${who}「${sts.join('」「')}」のうちランダムで1つが${sg}`;
       }
-      return `${pre}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
+      let main = `${pre}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
+      // ★2026-06-15: modifier (せいちょうの「にほんばれ」で2段階等)を訳す
+      if (e.modifier && e.modifier.type === 'weather' && e.modifier.stages != null) {
+        const mg = e.modifier.stages > 0 ? `+${e.modifier.stages}` : `${e.modifier.stages}`;
+        main += `(天気が「${(e.modifier.values || []).join('」「')}」のときは${mg})`;
+      }
+      // ★ちからをすいとる: note「相手の能力を下げられない時は、回復だけする」を補足(共起=回復kindと一緒)
+      if (e.note && /下げられない時は、回復だけする/.test(e.note)) main += `(相手の能力を下げられない時は、回復だけする)`;
+      return main;
     }
     case '2ターン目に攻撃': {
       // ★ためわざ(SOP開通#: 2ターン目に攻撃)。1ターン目ためて2ターン目に攻撃。
@@ -428,7 +449,8 @@ function clause(e, m) {
     case '拘束解除':
       return `自分にかかったバインドなどの状態をふりほどく`;
     case '自分拘束':
-      return `地面に根をはる。逃げられなくなるが、毎ターン少しずつHPが回復する`;
+      // ★2026-06-15: HPまわりは「回復」kindが言うので、ここは「地面に根をはる(逃げられなくなる)」に絞る
+      return `地面に根をはって、逃げられなくなる`;
     case 'いたみわけ':
       return `自分と相手の今のHPを合わせて、半分ずつに分ける`;
     case '実数値折半':
