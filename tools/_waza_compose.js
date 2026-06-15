@@ -57,7 +57,11 @@ function clause(e, m) {
       }
       const pp = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''; // 忠実: 確率はデータのまま。落とすと「必ず◯」化(意味漏れ)
       if (e.value === 'ひるみ') return `${pp}相手をひるませる`; // ひるみは動作=「ひるませる」(『ひるみ』状態にする は不自然・kind:ひるみ と統一)
-      const dd = e.duration ? `${durT(e.duration)}の間、` : '';
+      // ★2026-06-15: duration_turns(範囲string "1-4" 等)も対応(あやしいひかり等で取りこぼし)
+      let dd = '';
+      if (e.duration) dd = `${durT(e.duration)}の間、`;
+      else if (typeof e.duration_turns === 'string') dd = `${e.duration_turns.replace('-', '〜')}ターンの間、`;
+      else if (Array.isArray(e.duration_turns)) dd = `${e.duration_turns[0]}〜${e.duration_turns[1]}ターンの間、`;
       return `${pp}${dd}${t}を「${e.value}」状態にする`; // 囲みは「」(2026-06-07 阿部さん・ヤックン『』と差別化)
     }
     case '拘束':
@@ -315,7 +319,10 @@ function clause(e, m) {
     case '技タイプ変更':
       if (e.mapping) {
         const ex = Object.entries(e.mapping).map(([k, v]) => `「${k}」なら${v}`).join('・');
-        return `天気によって技のタイプが変わる(${ex}。天気がなければ${e.default_type || 'ノーマル'})`;
+        // ★2026-06-15: マッピングキーから天気/フィールドを判定(だいちのはどう=フィールド・ウェザーボール=天気)
+        const isField = Object.keys(e.mapping).some(k => /フィールド/.test(k));
+        const ctx = isField ? 'フィールド' : '天気';
+        return `${ctx}によって技のタイプが変わる(${ex}。${ctx}がなければ${e.default_type || 'ノーマル'})`;
       }
       if (e.type_by_form) {
         const ex = Object.entries(e.type_by_form).map(([k, v]) => `「${k}」のときは${v}`).join('・');
@@ -539,6 +546,32 @@ function compose(m) {
   if (ais) text += `(味方がすでに「${ais.value}」状態だと失敗する)`;
   const gi = (bd.immune || []).find(x => x.type === 'target_type' && (x.value === 'ゴースト' || (x.values || []).includes('ゴースト')));
   if (gi) text += `(ゴーストタイプには当たらない)`;
+  // ★2026-06-15: タイプ/特性/道具による免疫を一律で訳す(状態付与の粉技・能力ダウン技で大量取りこぼしだった)。
+  //   既存ハンドラ(ゴースト・dynamax_target)はスキップ。設置技の on_switch_in_pokemon もここで訳す。
+  //   設置 clause で「地面にいない相手には効かない」を既に言っている場合、特性「ふゆう」/not_grounded は重複なので飛ばす。
+  const arr = x => Array.isArray(x.values) ? x.values : (x.value != null ? [x.value] : []);
+  const hasGround = /地面にいない相手には効かない/.test(text);
+  const immuneT = (im) => {
+    const v = arr(im).map(x => String(x).replace(/タイプ$/, ''));
+    if (!v.length) return null;
+    if (im.type === 'target_type' || im.type === 'type' || im.type === 'on_switch_in_pokemon') {
+      if (v.length === 1 && v[0] === 'ゴースト') return null; // 既存ハンドラ
+      return `「${v.join('」「')}」タイプには効かない`;
+    }
+    if (im.type === 'ability' || im.type === 'target_ability') {
+      if (hasGround && v.length === 1 && v[0] === 'ふゆう') return null; // 「地面にいない」に内包
+      return `特性「${v.join('」「')}」のポケモンには効かない`;
+    }
+    if (im.type === 'item' || im.type === 'target_item') {
+      return `「${v.join('」「')}」を持つポケモンには効かない`;
+    }
+    return null;
+  };
+  const handledTypes = new Set(['dynamax_target','dynamax','not_grounded','move_class']);
+  const immuneLines = (bd.immune || []).filter(im => !handledTypes.has(im.type)).map(immuneT).filter(Boolean);
+  // 既出回避: 既に compose 内で同じ免疫を言っている場合は重複させない
+  const newLines = immuneLines.filter(line => !text.includes(line));
+  if (newLines.length) text += newLines.join('。') + '。';
   // ★必中フラグ(bd.must_hit)を訳す(2026-06-15・Bulbapedia裏取り): 既に必中を言っている技(必中kind等)は重複させない。
   // = ふきとばし/ほえる など、必中kindを持たず bd.must_hit だけで必中を表す技の取りこぼしを補う。
   if (bd.must_hit === true && !/必ず命中|必中/.test(text)) {
