@@ -62,6 +62,10 @@ function clause(e, m) {
       if (e.duration) dd = `${durT(e.duration)}の間、`;
       else if (typeof e.duration_turns === 'string') dd = `${e.duration_turns.replace('-', '〜')}ターンの間、`;
       else if (Array.isArray(e.duration_turns)) dd = `${e.duration_turns[0]}〜${e.duration_turns[1]}ターンの間、`;
+      // ★2026-06-15: value 配列(トライアタックの「まひ・やけど・こおり」)はランダム1つを明示
+      if (Array.isArray(e.value)) {
+        return `${pp}${dd}${t}を「${e.value.join('」「')}」のうちランダムで1つの状態にする`;
+      }
       return `${pp}${dd}${t}を「${e.value}」状態にする`; // 囲みは「」(2026-06-07 阿部さん・ヤックン『』と差別化)
     }
     case '拘束':
@@ -275,7 +279,10 @@ function clause(e, m) {
       return s;
     }
     case '壁除去':
-      return `相手の「${(e.values || []).join('」「')}」をこわしてから攻撃する`;
+      // ★2026-06-15: 変化技(きりばらい等)で「こわしてから攻撃する」誤発火を防ぐ
+      return (m && m.power && m.power > 0)
+        ? `相手の「${(e.values || []).join('」「')}」をこわしてから攻撃する`
+        : `相手の「${(e.values || []).join('」「')}」をこわす`;
     case '天候変化':
       return `${durT(e.duration)}の間、天気を「${e.value}」にする`;
     case '天候必中':
@@ -544,6 +551,18 @@ function compose(m) {
   if (lo) text += `(今のHPが最大HPの${fracT(lo.fraction)}より少ないと失敗する)`;
   const ais = (bd.fails_if || []).find(f => f.type === 'ally_already_in_state');
   if (ais) text += `(味方がすでに「${ais.value}」状態だと失敗する)`;
+  // ★2026-06-15: ねこだまし系(出てきた最初のターンしか成功しない)
+  if ((bd.fails_if || []).some(f => f.type === 'not_users_first_turn_on_field')) {
+    text += `(出てきた最初のターンしか成功しない)`;
+  }
+  // ★2026-06-15: きあいだめ系(すでに同じ状態のときは失敗)
+  const uas = (bd.fails_if || []).find(f => f.type === 'user_already_in_state');
+  if (uas) text += `(自分がすでに「${uas.value}」状態のときは失敗する)`;
+  // ★2026-06-15: どくどく系(自分が特定タイプなら必中)= accuracy_check の bypass_if を訳す
+  const acc = (bd.requires || []).find(r => r.type === 'accuracy_check' && r.bypass_if);
+  if (acc && acc.bypass_if.type === 'user_type_in') {
+    text += `「${(acc.bypass_if.values || []).join('」「')}」タイプが使うと必ず命中する。`;
+  }
   const gi = (bd.immune || []).find(x => x.type === 'target_type' && (x.value === 'ゴースト' || (x.values || []).includes('ゴースト')));
   if (gi) text += `(ゴーストタイプには当たらない)`;
   // ★2026-06-15: タイプ/特性/道具による免疫を一律で訳す(状態付与の粉技・能力ダウン技で大量取りこぼしだった)。
@@ -554,7 +573,7 @@ function compose(m) {
   const immuneT = (im) => {
     const v = arr(im).map(x => String(x).replace(/タイプ$/, ''));
     if (!v.length) return null;
-    if (im.type === 'target_type' || im.type === 'type' || im.type === 'on_switch_in_pokemon') {
+    if (im.type === 'target_type' || im.type === 'type' || im.type === 'on_switch_in_pokemon' || im.type === 'target_type_in' || im.type === 'pokemon_type') {
       if (v.length === 1 && v[0] === 'ゴースト') return null; // 既存ハンドラ
       return `「${v.join('」「')}」タイプには効かない`;
     }
