@@ -116,7 +116,9 @@ function clause(e, m) {
       if (e.phase === 'lasting' && e.trigger === 'turn_end') {
         return `毎ターン終わりに、${t}のHPを最大HPの${fracT(e.fraction)}だけ回復する`;
       }
-      return `${t}のHPを、最大HPの${fracT(e.fraction)}だけ回復する`;
+      // ★2026-06-15: fraction=1=全部のときは「だけ」を付けない(「全部だけ回復する」が不自然 - のみこむ)
+      const fr = fracT(e.fraction);
+      return (fr === '全部') ? `${t}のHPを全部回復する` : `${t}のHPを、最大HPの${fr}だけ回復する`;
     case 'HPが減る':
       return `自分のHPが最大HPの${fracT(e.fraction)}減る`;
     case '固定ダメージ':
@@ -389,6 +391,8 @@ function clause(e, m) {
     case '持ち物奪取':
       return `相手の持ち物をうばう(自分が何も持っていないときだけ)`;
     case '持ち物排除':
+      // ★2026-06-15: target=all(ふしょくガス)は場全員に効く。target=opponent(はたきおとす)は相手だけ。
+      if (e.target === 'all' || e.target === 'all_but_self') return `場の全員の持ち物を、使えなくする`;
       return `相手の持ち物をはたき落として、使えなくする`;
     case '持ち物交換':
       return `自分と相手の持ち物を入れかえる`;
@@ -449,8 +453,8 @@ function clause(e, m) {
     case '拘束解除':
       return `自分にかかったバインドなどの状態をふりほどく`;
     case '自分拘束':
-      // ★2026-06-15: HPまわりは「回復」kindが言うので、ここは「地面に根をはる(逃げられなくなる)」に絞る
-      return `地面に根をはって、逃げられなくなる`;
+      // ★2026-06-15: HPまわりは「回復」kindが言うので、ここは「地面に根をはる(交代できなくなる)」に絞る。「逃げる」は野生用語=避ける。
+      return `地面に根をはって、交代できなくなる`;
     case 'いたみわけ':
       return `自分と相手の今のHPを合わせて、半分ずつに分ける`;
     case '実数値折半':
@@ -461,8 +465,11 @@ function clause(e, m) {
       return `ためた「たくわえ」を使いきって、上がっていたぼうぎょ・とくぼうを元にもどす`;
     case '能力入替': {
       const sts = statList(e);
-      // パワートリック=自分の中で入替 / スワップ系=相手とランク入替
-      if (e.target === 'self' && !e.effect && !e.detail) return `自分の${joinStats(sts)}の数値を入れかえる`;
+      // ★2026-06-15: targets=[self,opponent] (スピードスワップ等) は実数値の入替 / target=opponent (パワースワップ等) はランク変化の入替 / target=self (パワートリック) は自分内の数値入替
+      if (e.target === 'self' && !e.effect && !e.detail) return `自分の${joinStats(sts)}の数値を入れかえる(ランクは変わらない)`;
+      if (Array.isArray(e.targets) && e.targets.includes('self') && e.targets.includes('opponent')) {
+        return `自分と相手の${joinStats(sts)}の数値を入れかえる`;
+      }
       return `自分と相手の${joinStats(sts)}のランクの変化を入れかえる`;
     }
     case '能力ランク変化_リセット': // 予備
@@ -610,8 +617,10 @@ function compose(m) {
   };
   const handledTypes = new Set(['dynamax_target','dynamax','not_grounded','move_class']);
   const immuneLines = (bd.immune || []).filter(im => !handledTypes.has(im.type)).map(immuneT).filter(Boolean);
-  // 既出回避: 既に compose 内で同じ免疫を言っている場合は重複させない
-  const newLines = immuneLines.filter(line => !text.includes(line));
+  // ★2026-06-15: 既出回避を「」を除外して正規化比較(やどりぎのタネ重複対策)
+  const norm = s => String(s).replace(/[「」『』]/g, '');
+  const tn = norm(text);
+  const newLines = immuneLines.filter(line => !tn.includes(norm(line)));
   if (newLines.length) text += newLines.join('。') + '。';
   // ★必中フラグ(bd.must_hit)を訳す(2026-06-15・Bulbapedia裏取り): 既に必中を言っている技(必中kind等)は重複させない。
   // = ふきとばし/ほえる など、必中kindを持たず bd.must_hit だけで必中を表す技の取りこぼしを補う。
