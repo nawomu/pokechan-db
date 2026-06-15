@@ -89,6 +89,12 @@ function clause(e, m) {
     case '自分瀕死':
       return `技を使ったあと、自分はひんしになる`;
     case '回復':
+      // ★2026-06-15: amount構造化対応(ちからをすいとる等)。fractionは従来どおり。
+      if (e.amount && typeof e.amount === 'object') {
+        const STAT = { attack:'こうげき', defense:'ぼうぎょ', special_attack:'とくこう', special_defense:'とくぼう', speed:'すばやさ' };
+        if (e.amount.type === 'target_stat') return `相手の「${STAT[e.amount.stat] || e.amount.stat}」の実数値と同じだけ、${t}のHPを回復する`;
+      }
+      if (e.fraction == null) return null; // 穴=出さない(機械漏れ防止)
       return `${t}のHPを、最大HPの${fracT(e.fraction)}だけ回復する`;
     case 'HPが減る':
       return `自分のHPが最大HPの${fracT(e.fraction)}減る`;
@@ -143,6 +149,10 @@ function clause(e, m) {
       // 各能力に符号つき数値を付ける(同stagesでも能力ごとに繰り返す)。to_maxのみ特例(数値でない)。
       if (e.to_max) return `${pre}${who}${joinStats(sts)}が最大まであがる`;
       const sg = e.stages > 0 ? `+${e.stages}` : `${e.stages}`; // 負はそのまま(-2 など)
+      // ★stat_choice='random_one_of' (つぼをつく等): 全列挙でなくランダム1つを明示(2026-06-15)
+      if (e.stat_choice === 'random_one_of') {
+        return `${pre}${who}「${sts.join('」「')}」のうちランダムで1つが${sg}`;
+      }
       return `${pre}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
     }
     case '2ターン目に攻撃': {
@@ -173,16 +183,30 @@ function clause(e, m) {
       return null; // 穴
     // ===== 2026-06-14 独立検証で炙った穴を開通(子ども口調・機械漏れ無し)。曖昧/複雑は null のまま残す。 =====
     case '状態異常回復': {
-      if (Array.isArray(e.value)) return `相手の「${e.value.join('」「')}」の状態を解除する`;
-      const who = e.target === 'team' ? '味方みんな' : e.target === 'self' ? '自分' : (TGT[e.target] || '自分');
+      // ★2026-06-15: target/value/values の組み合わせを正確に喋り分け(こうそくスピン重複対策・ねっとう等の取りこぼし対策)
+      const WHO = { team:'味方みんな', self:'自分', party:'手持ち全員', incoming:'次に出る味方', all:'場の全員', all_but_self:'自分以外の全員', all_opponents:'相手全員', opponent:'相手', ally:'味方' };
+      const who = WHO[e.target] || '自分';
+      // values=技名配列(こうそくスピンのバインド系): 自分が受けている「うずしお」「...」の効果を解除する
+      if (Array.isArray(e.values) && e.values.length) {
+        const bindHead = e.value ? `「${e.value}」状態(` : '';
+        const bindTail = e.value ? ')' : '';
+        return `${who}が受けている${bindHead}「${e.values.join('」「')}」${bindTail}の効果を解除する`;
+      }
+      // value=array(複数の状態/効果名): 「でんじふゆう」「テレキネシス」を解除する
+      if (Array.isArray(e.value)) return `${who}の「${e.value.join('」「')}」の効果を解除する`;
+      // value=具体的な状態名(こおり/やけど/みがわり/やどりぎのタネ等): その状態だけ解除
+      if (typeof e.value === 'string' && e.value !== 'all') {
+        return `${who}の「${e.value}」状態を解除する`;
+      }
+      // value=undefined or "all": 全部
       return `${who}の状態異常をすべて治す`;
     }
     case '吸収':
       return `相手に与えたダメージの${fracT(e.fraction)}だけ、自分のHPを回復する`;
     case '自分交代':
-      return (Array.isArray(e.pass) && e.pass.length)
-        ? `自分の能力の変化などを引きついで、控えのポケモンと交代する`
-        : `攻撃したあと、控えのポケモンと交代する`;
+      // ★2026-06-15: 変化技(power無)で「攻撃したあと」と書かない(しっぽきり・さむいギャグの誤読対策)
+      if (Array.isArray(e.pass) && e.pass.length) return `自分の能力の変化などを引きついで、控えのポケモンと交代する`;
+      return (m && m.power && m.power > 0) ? `攻撃したあと、控えのポケモンと交代する` : `使ったあと、控えのポケモンと交代する`;
     case 'みがわり貫通':
       return `相手の「みがわり」をすりぬけて当たる`;
     case '半無敵命中': {
@@ -219,11 +243,29 @@ function clause(e, m) {
       return /^[A-Za-z_]+$/.test(String(v || '')) ? `相手の場に わなをしかける` : `相手の場に「${v}」をしかける`;
     }
     case '設置除去':
-      return `自分の場の「${(e.values || []).join('」「')}」を消す`;
+      // ★2026-06-15: value(string)+trigger(phase=lasting)=「設置技の自動消滅条件」を訳す(どくびしの「どくタイプが出ると消える」等)。
+      //   ※values(配列・active removal)は従来どおり「自分の場の…を消す」。
+      if (typeof e.value === 'string' && e.phase === 'lasting') {
+        if (e.auto_removed_by) {
+          const ar = e.auto_removed_by;
+          if (ar.type === 'poke_type_switch_in') return `「${ar.poke_type}」タイプのポケモンが場に出ると消える`;
+        }
+        return null; // 未訳のtrigger=出さない(機械漏れ防止)。データ側で auto_removed_by を構造化する。
+      }
+      if (!Array.isArray(e.values) || !e.values.length) return null; // 空リスト=出さない
+      return `自分の場の「${e.values.join('」「')}」を消す`;
     case '壁設置': {
+      // ★2026-06-15: prevents=配列(状態異常/こんらん予防系=しんぴのまもり)に対応。従来のreduces/multiplier(光の壁等)はそのまま。
+      if (Array.isArray(e.prevents) && e.prevents.length) {
+        let s = `${durT(e.duration)}の間、味方を「${e.prevents.join('」「')}」にならないようにする`;
+        if (e.persists_through_switch) s += '。交代しても消えない';
+        return s;
+      }
       const r = e.reduces || [];
       const what = (r.includes('special_damage') && r.includes('physical_damage')) ? '物理技と特殊技'
         : r.includes('special_damage') ? '特殊技' : r.includes('physical_damage') ? '物理技' : '技';
+      // multiplierが無い変則型は穴扱い=出さない(機械漏れ防止)
+      if (e.multiplier == null) return null;
       let s = `${durT(e.duration)}の間、味方が受ける${what}のダメージを${fracT(e.multiplier)}にする(急所には効かない)`;
       if (e.persists_through_switch) s += '。交代しても消えない';
       return s;
@@ -395,7 +437,9 @@ function clause(e, m) {
     case '相手技タイプ変更':
       return `相手より先に使うと、相手のその技を「${e.value}」タイプに変える`;
     case '木の実強制':
-      return `相手の持っているきのみをうばって、その場で自分が食べる`;
+      // ★2026-06-15: target を見て自分用(ほおばる)と相手用(きのみせんじゅつ等)を区別。
+      if (e.target === 'self') return `自分が持っている「きのみ」を、その場ですぐに使う(食べる)`;
+      return `相手が持っている「きのみ」を、その場ですぐに使わせる(食べさせる)`;
     case '木の実奪取食':
       return `相手の持っているきのみをうばって、自分で食べる`;
     case 'やけど低下無視':
