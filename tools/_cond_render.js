@@ -99,6 +99,10 @@ function condStrNew(c) {
   if (c.and === 'user_grounded') {
     base += parts.length ? exNote(parts, '自分が') : 'で、自分が地面にいる時';
   }
+  // ★2026-06-17: 相手が地面にいる条件(ライジングボルト等)
+  else if (c.and === 'target_grounded') {
+    base = base.replace(/の時$/, '') + `で、相手が地面にいるとき${parts.length ? `(${parts.join('、')}などはのぞく)` : ''}`;
+  }
   // ② 接地系 type 自身: 除外があれば「(主語、…の場合は除く)」だけにし、地面にいる表現は省く。無ければアンカーとして残す
   else if (isGrounded) {
     const subj = c.type === 'user_grounded' ? '自分が' : c.type === 'target_grounded' ? '相手が' : '';

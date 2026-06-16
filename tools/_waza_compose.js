@@ -28,7 +28,7 @@ const statList = e => (Array.isArray(e.stats) ? e.stats : [e.stat]).map(s => STA
 const joinStats = a => a.length <= 1 ? (a[0] || '') : a.length === 2 ? a.join('と') : a.join('・');
 const immT = arr => (arr || []).map(x => x.value || (x.values || []).join('・')).join('・');
 // condStrNew は「〜の時/〜の場合」を返す。文頭につなぐ。
-const condT = c => condStrNew(c).replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)').replace(/『/g, '「').replace(/』/g, '」'); // 囲みは「」に統一(共有_cond_renderは触らずcompose側で吸収)
+const condT = c => condStrNew(c).replace(/\s*⚠️要調査/g, '').replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)').replace(/『/g, '「').replace(/』/g, '」'); // 囲みは「」に統一(共有_cond_renderは触らずcompose側で吸収)。⚠要調査=翻訳済(リスト未確定)の印→除去して条件は出す
 
 // ★現シーズンの強化システム在否(2026-06-15 阿部さん確定)。未解禁のシステムへの言及は説明文に出さない=ゲート。
 // 来たら該当を true にするだけで、関連する一文(ダイウォール除外・ダイマックス技/Zワザ被弾軽減 等)が全技に一斉表示される(書き直し0)。
@@ -448,10 +448,12 @@ function clause(e, m) {
         ((e.no_switch_if_target_dynamax && SYSTEMS_IN_GAME.dynamax) ? `。ダイマックスしている相手は、むりやり交代させられない(ダメージは当たる)` : ``);
     case '持ち物奪取':
       return `相手の持ち物をうばう(自分が何も持っていないときだけ)`;
-    case '持ち物排除':
+    case '持ち物排除': {
       // ★2026-06-15: target=all(ふしょくガス)は場全員に効く。target=opponent(はたきおとす)は相手だけ。
-      if (e.target === 'all' || e.target === 'all_but_self') return `場の全員の持ち物を、使えなくする`;
-      return `相手の持ち物をはたき落として、使えなくする`;
+      const rest = e.restored_after_battle ? `。バトルが終わると道具は元にもどる` : ``; // はたきおとす
+      if (e.target === 'all' || e.target === 'all_but_self') return `場の全員の持ち物を、使えなくする${rest}`;
+      return `相手の持ち物をはたき落として、使えなくする${rest}`;
+    }
     case '持ち物交換':
       return `自分と相手の持ち物を入れかえる`;
     case '持ち物復活':
@@ -628,7 +630,7 @@ function compose(m) {
     // 条件文がゴミ(⚠️要調査=condStrNewが訳しきれない複雑条件)なら前置しない=clauseが自己完結で意味を持つ
     const selfContained = g.cl.every(cl => SELF_CONTAINED_COND.has(cl.kind));
     const ct = (g.cond && !selfContained) ? condT(g.cond) : '';
-    return (ct && !ct.includes('⚠')) ? `${ct}、${body}` : body;
+    return (ct && !ct.includes('未対応')) ? `${ct}、${body}` : body;
   });
   let text = sentences.length ? sentences.join('。') + '。' : '';
   const bd = m.battle_data || {};
