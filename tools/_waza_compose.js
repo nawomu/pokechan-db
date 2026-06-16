@@ -119,8 +119,9 @@ function clause(e, m) {
       // フェイント形: まもる等を貫通して当たる(一部除く)
       if (Array.isArray(e.pierces_without_removing)) {
         const pw = gateList(e.pierces_without_removing); // 未解禁システム(ダイウォール等)は除外語から外す
-        const ex = pw.length ? `(「${pw.join('」「')}」は除く)` : '';
-        return `相手が「まもる」などで守っていても、それを無視して当たる${ex}`;
+        // フェイント=まもり解除kindが「やぶって攻撃」を既に言う。除外がダイウォール(ゲート中)だけなら、この一文は出さない(重複防止)
+        if (!pw.length) return null;
+        return `相手が「まもる」などで守っていても、それを無視して当たる(「${pw.join('」「')}」は除く)`;
       }
       // ニードルガード形(守り側): ダイマックス技/Zワザで攻撃されてもダメージを軽くする
       if (Array.isArray(e.values) && e.user_takes_fraction != null) {
@@ -462,8 +463,16 @@ function clause(e, m) {
     case '失敗ダメージ':
       // ★外れだけでなく「まもる等で防がれて失敗」も含む(とびひざげり/かかとおとし/サンダーダイブ・legacy明記)
       return `外れたり、「まもる」などで防がれて失敗したとき、自分が最大HPの${fracT(e.fraction)}ぶんダメージを受ける`;
-    case '状態異常予防':
-      return e.value === 'ねむり' ? `${durT(e.duration)}の間、場のどのポケモンも ねむれなくなる` : `${durT(e.duration)}の間、状態異常をふせぐ`;
+    case '状態異常予防': {
+      // ★values列挙(エレキ=ねむり/ねむけ)・note補足(エレキ=起こさない/ミスト=治らない)。地面条件はcondTが前置。
+      let s;
+      if (Array.isArray(e.values) && e.values.length) s = `${durT(e.duration)}の間、「${e.values.join('」「')}」状態にならない`;
+      else if (e.value === 'ねむり') s = `${durT(e.duration)}の間、場のどのポケモンも ねむれなくなる`;
+      else s = `${durT(e.duration)}の間、状態異常をふせぐ`;
+      if (/起こさない/.test(e.note || '')) s += `(すでに眠っているポケモンは目を覚まさない)`;
+      else if (/治らない/.test(e.note || '')) s += `(すでにかかっている状態異常は治らない)`;
+      return s;
+    }
     case '条件威力倍率':
       return `${(e.prob && e.prob < 100) ? `${e.prob}%くらいの確率で、` : ``}威力が${multT(e.multiplier)}`; // きまぐレーザー
     case '威力段階増加':
@@ -749,8 +758,10 @@ function compose(m) {
     text += `相手の「${bd.not_blocked_by.join('」「')}」の効果を受けない。`;
   }
   // ★みがわり貫通フラグ(substitute_pierce)を後置(2026-06-15): 効果kind「みがわり貫通」で既に喋っていなければ補う(いびき等の取りこぼし)。
-  if (bd.substitute_pierce === true && !eff.some(e => e.kind === 'みがわり貫通') && !/すりぬけて当たる/.test(text)) {
-    text += `相手の「みがわり」をすりぬけて当たる。`;
+  if (bd.substitute_pierce === true && !eff.some(e => e.kind === 'みがわり貫通') && !/すりぬけて当たる|みがわり.*状態でも/.test(text)) {
+    // ★味方/自分だけを対象にする技(いやしのすず=party回復)は「相手の」でなく「味方の」みがわりに届く、と言う
+    const allyOnly = eff.length && eff.every(e => ['self', 'party', 'team', 'ally', 'incoming'].includes(e.target));
+    text += allyOnly ? `味方が「みがわり」状態でも、効果がとどく。` : `相手の「みがわり」をすりぬけて当たる。`;
   }
   // ★ダイマックス相手に無効(bd.immune の dynamax_target を訳す)。表示はゲート(現状ダイマックス未解禁=非表示)。legacy同様みがわり貫通の後に置く。
   if ((bd.immune || []).some(x => x.type === 'dynamax_target' || x.type === 'dynamax') && SYSTEMS_IN_GAME.dynamax) {
