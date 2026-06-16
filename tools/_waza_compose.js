@@ -85,6 +85,8 @@ function clause(e, m) {
         const rem = e.removed_if ? `(相手が交代すると効果は消える)` : '';
         return `次のターン終わりに${t}を「${e.value}」状態にする${rem}`;
       }
+      // ★暴れ終わったあとの混乱(あばれる/げきりん等): trigger=rampage_end(2026-06-17)
+      if (e.trigger === 'rampage_end') return `暴れ終わったあと、${dd}${t === '自分' ? '自分が' : `${t}が`}「${e.value}」状態になる`;
       // ★状態の中身を喋る(voiced≠complete 補完・2026-06-17): 状態名だけでは意味が戻らない技に、データの該当フィールドを足す。
       let base = `${pp}${dd}${t}を「${e.value}」状態にする`; // 囲みは「」(2026-06-07 阿部さん・ヤックン『』と差別化)
       const det = [];
@@ -153,9 +155,13 @@ function clause(e, m) {
       const fr = fracT(e.fraction);
       return (fr === '全部') ? `${t}のHPを全部回復する` : `${t}のHPを、最大HPの${fr}だけ回復する`;
     case 'HPが減る':
-      return `自分のHPが最大HPの${fracT(e.fraction)}減る`;
-    case '固定ダメージ':
-      return `相手に、${amountT(e.amount)}のダメージを与える(タイプ相性は受けない)`;
+      return `自分のHPが最大HPの${fracT(e.fraction)}減る` + (e.always_pays_even_if_blocked ? `(相手が「まもる」などで防いでも、自分のHPは減る)` : ``); // てっていこうせん
+    case '固定ダメージ': {
+      let s = `相手に、${amountT(e.amount)}のダメージを与える(タイプ相性は受けない)`;
+      if (e.minimum === 1) s += `(相手の残りHPが1のときは1ダメージになる)`; // いかりのまえば
+      if (e.champions_amount) s += `(チャンピオンズでは${e.champions_amount}ダメージ)`; // ちきゅうなげ
+      return s;
+    }
     case '継続削り':
       return `毎ターン、相手のHPを最大HPの${fracT(e.fraction)}だけ削る`;
     case '連続攻撃': {
@@ -282,7 +288,7 @@ function clause(e, m) {
     case 'みがわり貫通':
       return `相手の「みがわり」をすりぬけて当たる`;
     case '半無敵命中': {
-      const M = { '水中': 'ダイビング', '地中': 'あなをほる', '空中': 'そらをとぶ・とびはねる' };
+      const M = { '水中': 'ダイビング', '地中': 'あなをほる', '空中': 'そらをとぶ・とびはねる・フリーフォール' };
       const states = e.hits_state || [];
       const moves = states.map(s => M[s] || s).join('」「');
       let s = `相手が「${moves}」で${states.join('・')}にいる時でも当てられる`;
@@ -354,7 +360,9 @@ function clause(e, m) {
         : r.includes('special_damage') ? '特殊技' : r.includes('physical_damage') ? '物理技' : '技';
       // multiplierが無い変則型は穴扱い=出さない(機械漏れ防止)
       if (e.multiplier == null) return null;
-      let s = `${durT(e.duration)}の間、味方が受ける${what}のダメージを${fracT(e.multiplier)}にする(急所には効かない)`;
+      let s = `${durT(e.duration)}の間、自分と味方が受ける${what}のダメージを${fracT(e.multiplier)}にする`;
+      if (e.multiplier_multi != null) s += `(味方が2匹いるときは${fracT(e.multiplier_multi)})`; // ダブルバトル=2/3(ひかりのかべ等)
+      s += `(急所には効かない)`;
       if (e.persists_through_switch) s += '。交代しても消えない';
       return s;
     }
@@ -363,8 +371,15 @@ function clause(e, m) {
       return (m && m.power && m.power > 0)
         ? `相手の「${(e.values || []).join('」「')}」をこわしてから攻撃する`
         : `相手の「${(e.values || []).join('」「')}」をこわす`;
-    case '天候変化':
-      return `${durT(e.duration)}の間、天気を「${e.value}」にする`;
+    case '天候変化': {
+      let s = `${durT(e.duration)}の間、天気を「${e.value}」にする`;
+      // ★side_effects(構造化・あまごい/にほんばれ)を訳す: 技ダメージ倍率/状態異常予防
+      for (const se of (e.side_effects || [])) {
+        if (se.type === 'move_damage_multiplier') s += `。「${se.move_type}」タイプの技のダメージが${se.multiplier >= 1 ? `${se.multiplier}倍になる` : '半分になる'}`;
+        else if (se.type === 'prevent_status') s += `。そのあいだ、ポケモンは「${se.value}」状態にならない`;
+      }
+      return s;
+    }
     case '天候必中':
       if (Array.isArray(e.cases)) {
         const parts = e.cases.map(c => (c.accuracy === '必中' || c.accuracy === 'never_miss')
@@ -386,7 +401,7 @@ function clause(e, m) {
     case 'フィールド除去':
       return `場のフィールドを消す`;
     case '一撃必殺':
-      return `当たれば相手は 一発でひんしになる`;
+      return `当たれば相手は 一発でひんしになる` + (e.ignores_type_matchup ? `(タイプ相性に関係なく当たる)` : ``); // じわれ
     case '暴れる(混乱)':
       return `${durT(e.duration)}の間、同じ技を出しつづける(ほかの行動はできない)`;
     case '連続強制(混乱なし)':
@@ -431,7 +446,8 @@ function clause(e, m) {
     case '技タイプ追加':
       return `この技は「${e.value}」タイプも合わさったあつかいになる`;
     case '失敗ダメージ':
-      return `外れると、自分が最大HPの${fracT(e.fraction)}ぶんダメージを受ける`;
+      // ★外れだけでなく「まもる等で防がれて失敗」も含む(とびひざげり/かかとおとし/サンダーダイブ・legacy明記)
+      return `外れたり、「まもる」などで防がれて失敗したとき、自分が最大HPの${fracT(e.fraction)}ぶんダメージを受ける`;
     case '状態異常予防':
       return e.value === 'ねむり' ? `${durT(e.duration)}の間、場のどのポケモンも ねむれなくなる` : `${durT(e.duration)}の間、状態異常をふせぐ`;
     case '条件威力倍率':
@@ -526,7 +542,8 @@ function clause(e, m) {
     case '実数値折半':
       return `自分と相手の${joinStats(statList(e))}の数値を合わせて、半分ずつにする`;
     case 'たくわえ加算':
-      return `「たくわえ」を1つためる(最大${e.max || 3}つ)。ぼうぎょ・とくぼうも上がる`;
+      // ★ぼうぎょ・とくぼう上昇は能力ランク変化kindが言う→重複を除き、note(のみこむ/はきだす強化)を出す(たくわえる)
+      return `「たくわえ」を1つためる(最大${e.max || 3}つ)。ためるほど「のみこむ」「はきだす」の効果が大きくなる`;
     case 'たくわえ消費':
       return `ためた「たくわえ」を使いきって、上がっていたぼうぎょ・とくぼうを元にもどす`;
     case '能力入替': {
@@ -564,7 +581,7 @@ function clause(e, m) {
     case '味方威力上昇':
       return `そのターン、味方の技の威力が${multT(e.multiplier)}`;
     case '命中率固定':
-      return `命中率が${e.value}%になる`;
+      return `命中率が${e.value}%になる` + (e.else_value != null ? `(そうでないときは命中率${e.else_value}%)` : ``); // ぜったいれいど
     case 'ランダム技':
       return `自分が覚えている技の中から、ランダムで1つ出す`;
     case '直前技模倣':
@@ -679,7 +696,7 @@ function compose(m) {
   const immuneT = (im) => {
     const v = arr(im).map(x => String(x).replace(/タイプ$/, ''));
     if (!v.length) return null;
-    if (im.type === 'target_type' || im.type === 'type' || im.type === 'on_switch_in_pokemon' || im.type === 'target_type_in' || im.type === 'pokemon_type') {
+    if (im.type === 'target_type' || im.type === 'type' || im.type === 'on_switch_in_pokemon' || im.type === 'target_type_in' || im.type === 'pokemon_type' || im.type === 'target_is_type') {
       if (v.length === 1 && v[0] === 'ゴースト') return null; // 既存ハンドラ
       return `「${v.join('」「')}」タイプには効かない`;
     }
