@@ -311,18 +311,21 @@ function clause(e, m) {
       return `相手の「まもる」などの守りをやぶってから攻撃する`;
     case '設置': {
       const v = e.value;
+      const after = (e.phase === 'on_use' && e.timing === 'after_damage') ? '攻撃したあと、' : ''; // がんせきアックス・ひけん/ちえなみ
       // 交代で出てくるたびのダメージ量を層数ごとに出す(legacyに明記=戻すべき細部)
       const dmgT = () => {
-        const d = e.damage_on_switch_in;
+        let d = e.damage_on_switch_in;
+        // まきびしの標準ダメージ(データ未設定の技=ひけん・ちえなみ等)を補完
+        if ((!Array.isArray(d) || !d.length) && v === 'まきびし') d = [{ layers: 1, fraction: 0.125 }, { layers: 2, fraction: 0.1667 }, { layers: 3, fraction: 0.25 }];
         if (!Array.isArray(d) || !d.length) return '';
         if (d.length === 1) return `(最大HPの${fracT(d[0].fraction)})`;
         return `(${d.map(x => `${x.layers}回で${fracT(x.fraction)}`).join('・')})`;
       };
-      if (v === 'ステルスロック') return `相手の場に とがった岩をうかべる。相手が交代で出てくるたびに、最大HPの${fracT(0.125)}ぶんダメージを与える(いわが弱点のタイプほど大きく、効きにくいタイプほど小さくなる)`;
-      if (v === 'まきびし') return `相手の場に まきびしをまく(最大${e.max_layers || 3}回まで重ねられる)。相手が交代で出てくるたびにダメージを与える${dmgT()}(地面にいない相手には効かない)`;
-      if (v === 'どくびし') return `相手の場に どくびしをまく。相手が交代で出てくると どく状態になる(2回重ねると もうどく。地面にいない相手には効かない)`;
-      if (v === 'ねばねばネット' || v === 'sticky_web') return `相手の場に ねばねばネットをはる。相手が交代で出てくると すばやさが1段階下がる(地面にいない相手には効かない)`;
-      return /^[A-Za-z_]+$/.test(String(v || '')) ? `相手の場に わなをしかける` : `相手の場に「${v}」をしかける`;
+      if (v === 'ステルスロック') return `${after}相手の場に とがった岩をうかべる。相手が交代で出てくるたびに、最大HPの${fracT(0.125)}ぶんダメージを与える(いわが弱点のタイプほど大きく、効きにくいタイプほど小さくなる)`;
+      if (v === 'まきびし') return `${after}相手の場に まきびしをまく(最大${e.max_layers || 3}回まで重ねられる)。相手が交代で出てくるたびにダメージを与える${dmgT()}(地面にいない相手には効かない)`;
+      if (v === 'どくびし') return `${after}相手の場に どくびしをまく。相手が交代で出てくると どく状態になる(2回重ねると もうどく。地面にいない相手には効かない)`;
+      if (v === 'ねばねばネット' || v === 'sticky_web') return `${after}相手の場に ねばねばネットをはる。相手が交代で出てくると すばやさが1段階下がる(地面にいない相手には効かない)`;
+      return /^[A-Za-z_]+$/.test(String(v || '')) ? `${after}相手の場に わなをしかける` : `${after}相手の場に「${v}」をしかける`;
     }
     case '設置除去':
       // ★2026-06-15: value(string)+trigger(phase=lasting)=「設置技の自動消滅条件」を訳す(どくびしの「どくタイプが出ると消える」等)。
@@ -335,7 +338,10 @@ function clause(e, m) {
         return null; // 未訳のtrigger=出さない(機械漏れ防止)。データ側で auto_removed_by を構造化する。
       }
       if (!Array.isArray(e.values) || !e.values.length) return null; // 空リスト=出さない
-      return `自分の場の「${e.values.join('」「')}」を消す`;
+      // ★target別に消す範囲を訳し分け(2026-06-17): all/field=両方・opponent=相手・team/既定=自分
+      const where = (e.target === 'all' || e.target === 'field') ? '自分と相手、両方の場の'
+        : (e.target === 'opponent_team' || e.target === 'opponent') ? '相手の場の' : '自分の場の';
+      return `${where}「${e.values.join('」「')}」を消す`;
     case '壁設置': {
       // ★2026-06-15: prevents=配列(状態異常/こんらん予防系=しんぴのまもり)に対応。従来のreduces/multiplier(光の壁等)はそのまま。
       if (Array.isArray(e.prevents) && e.prevents.length) {
@@ -507,6 +513,8 @@ function clause(e, m) {
     case '全員逃走不可':
       return `${durT(e.duration)}の間、おたがい逃げたり交代したりできなくなる(ゴーストタイプはのぞく)`;
     case '拘束解除':
+      // ★values(キラースピン)があれば対象技を列挙(こうそくスピンと同様に省略しない)
+      if (Array.isArray(e.values) && e.values.length) return `自分が受けている「${e.values.join('」「')}」などの効果をふりほどく`;
       return `自分にかかったバインドなどの状態をふりほどく`;
     case '自分拘束':
       // ★2026-06-15: HPまわりは「回復」kindが言うので、ここは「地面に根をはる(交代できなくなる)」に絞る。「逃げる」は野生用語=避ける。
