@@ -8,7 +8,16 @@ function lit(t, m) { const at = t.indexOf(m); let i = t.indexOf('{', at), s = i,
 const map = JSON.parse(lit(fs.readFileSync(path.join(ROOT, 'pokechan_data.js'), 'utf8'), 'const WAZA_MAP ='));
 
 // ✓声ルール(台帳): 0.5→半分 / 1→全部 / それ以外→1/N スラッシュ表記(8分の1化しない)
-const fracT = f => { if (f == null || isNaN(f)) return ''; if (Math.abs(f - 1) < 0.001) return '全部'; if (Math.abs(f - 0.5) < 0.001) return '半分'; const r = Math.round(1 / f); return Math.abs(1 / f - r) < 0.04 ? `1/${r}` : (+(f * 100).toFixed(1)) + '%'; };
+const fracT = f => {
+  if (f == null || isNaN(f)) return '';
+  if (Math.abs(f - 1) < 0.001) return '全部';
+  if (Math.abs(f - 0.5) < 0.001) return '半分';
+  const r = Math.round(1 / f);
+  if (Math.abs(1 / f - r) < 0.04) return `1/${r}`;
+  // 真分数(2/3・3/4 等)は分数で書く=生の小数%露出(66.7%)を防ぐ
+  for (let d = 2; d <= 16; d++) { const n = Math.round(f * d); if (n > 0 && n < d && Math.abs(f - n / d) < 0.005) return `${n}/${d}`; }
+  return (+(f * 100).toFixed(1)) + '%';
+};
 const multT = mu => mu >= 1 ? `${mu}倍になる` : (Math.abs(mu - 0.5) < 0.001 ? '半分になる' : `${fracT(mu)}になる`);
 const durT = d => Array.isArray(d) ? `${d[0]}〜${d[1]}ターン` : (typeof d === 'number' ? `${d}ターン` : ({ until_user_leaves: '自分が場を離れるまで', until_removed: '消えるまで' }[d] || d));
 const TGT = { self: '自分', opponent: '相手', team: '味方', all: '場の全員', ally: '味方', all_opponents: '相手全体', all_but_self: '自分以外', party: '手持ち全員', incoming: '次に出る味方' };
@@ -348,6 +357,7 @@ function clause(e, m) {
     }
     case '特性上書き':
       if (e.source === 'opponent_ability') return `相手の特性を、自分の特性としてコピーする`;
+      if (e.value === '自分の特性') return `相手の特性を、自分と同じ特性に変える`;
       if (e.value) return `相手の特性を「${e.value}」に変える`;
       return `相手の特性を 上書きする`;
     case '特性交換':
@@ -566,12 +576,15 @@ function compose(m) {
     if (!g) { g = { key, cond: e.condition, cl: [] }; groups.push(g); }
     g.cl.push({ text: c, kind: e.kind });
   }
+  // clauseが条件込みで自己完結するkind=condTを前置しない(「次のどれかの時:」漏れ防止・ねをはる)
+  const SELF_CONTAINED_COND = new Set(['地面技被弾化', '条件付き優先']);
   const sentences = groups.map(g => {
     const body = g.cl.map((cl, i) =>
       (i > 0 && cl.kind === '能力ランク変化' && g.cl[i - 1].kind === 'HPが減る') ? 'そのかわり、' + cl.text : cl.text
     ).join('。');
     // 条件文がゴミ(⚠️要調査=condStrNewが訳しきれない複雑条件)なら前置しない=clauseが自己完結で意味を持つ
-    const ct = g.cond ? condT(g.cond) : '';
+    const selfContained = g.cl.every(cl => SELF_CONTAINED_COND.has(cl.kind));
+    const ct = (g.cond && !selfContained) ? condT(g.cond) : '';
     return (ct && !ct.includes('⚠')) ? `${ct}、${body}` : body;
   });
   let text = sentences.length ? sentences.join('。') + '。' : '';
