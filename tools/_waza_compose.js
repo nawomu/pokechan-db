@@ -38,7 +38,10 @@ const SYSTEM_OF = { 'ダイマックス': 'dynamax', 'キョダイマックス':
 const systemInGame = label => { const s = SYSTEM_OF[label]; return s ? !!SYSTEMS_IN_GAME[s] : true; }; // 未登録(通常技)は出してよい=true
 const gateList = arr => (arr || []).filter(systemInGame); // リストから未解禁システムの項目を除く
 // 効果まるごとが未解禁システム専用(=今は出すものが無い)か。穴ではなくゲートなので compose ではスキップ。
-const isFullyGated = e => e.kind === 'まもり貫通' && Array.isArray(e.values) && e.user_takes_fraction != null && gateList(e.values).length === 0;
+const isFullyGated = e => e.kind === 'まもり貫通' && (
+  (Array.isArray(e.values) && e.user_takes_fraction != null && gateList(e.values).length === 0) || // ニードルガード形(ダイマックス/Z軽減)
+  (Array.isArray(e.pierces_without_removing) && gateList(e.pierces_without_removing).length === 0)   // フェイント形(除外がダイウォール=ゲートだけ)
+);
 
 const amountT = a => a === '自分の残りHP分' ? '自分のいまのこっているHPと同じだけ' : a;
 // ※ランク増減は±N表記に統一(能力=こうげき+1 / 急所=急所+1)。旧・和語数詞ヘルパー(kazuT)は2026-06-07に廃止。
