@@ -125,12 +125,20 @@ function clause(e, m) {
       return `相手に、${amountT(e.amount)}のダメージを与える(タイプ相性は受けない)`;
     case '継続削り':
       return `毎ターン、相手のHPを最大HPの${fracT(e.fraction)}だけ削る`;
-    case '連続攻撃':
-      if (e.hits_by) return `手持ちのポケモンの数だけ攻撃する`;
-      if (e.stop_on_miss) return `外れるまで最大${e.max_hits}回攻撃する`;
-      if (e.hits) return `${e.hits}回攻撃する`;
-      if (e.min_hits) return `${e.min_hits}〜${e.max_hits}回攻撃する`;
-      return null;
+    case '連続攻撃': {
+      // ★hits_by は data の条件文字列をそのまま喋る(ふくろだたき=ひんし/状態異常を除く手持ちの数。一般化して落とさない)
+      let base;
+      if (e.hits_by) base = `${e.hits_by}だけ攻撃する`;
+      else if (e.stop_on_miss) base = `外れるまで最大${e.max_hits}回つづけて攻撃する`;
+      else if (e.hits) base = `${e.hits}回つづけて攻撃する`;
+      else if (e.min_hits) base = `${e.min_hits}〜${e.max_hits}回つづけて攻撃する`;
+      else return null;
+      // ★当たるたびに威力が上がる技(トリプルアクセル=20→40→60)。power_per_hit を落とさない
+      if (Array.isArray(e.power_per_hit)) base += `。当たるたびに威力が上がる(${e.power_per_hit.join('→')})`;
+      // ★ダブルバトルの挙動(ドラゴンアロー=相手それぞれに1回ずつ)。doubles_note を落とさない
+      if (e.doubles_note) base += `。${e.doubles_note}`;
+      return base;
+    }
     case '急所率上昇':
       // ★±N表記(2026-06-07 阿部さん上書き): 「急所+1」(「ランク」語は省く・短く=能力ランク±Nと揃える)。always_crit→「必ず急所に当たる」。
       if (e.always_crit) return `必ず急所に当たる`;
