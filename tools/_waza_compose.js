@@ -140,8 +140,13 @@ function clause(e, m) {
         if (e.amount.type === 'target_stat') return `相手の「${STAT[e.amount.stat] || e.amount.stat}」の実数値と同じだけ、${t}のHPを回復する`;
       }
       if (e.fraction == null) return null; // 穴=出さない(機械漏れ防止)
-      // ★2026-06-15: lasting (ねをはる等) は「毎ターン終わりに」を明示。即時回復の誤読を防ぐ。
-      if (e.phase === 'lasting' && e.trigger === 'turn_end') {
+      // ★遅延回復(ねがいごと): 次のターン終わりに、その場所のポケモンを回復(2026-06-17)
+      if (e.phase === 'delayed' && e.trigger === 'turn_end') {
+        const rep = e.heals_replacement ? `(自分が交代しても、同じ場所に出たポケモンが回復する)` : '';
+        return `次のターンの終わりに、${t}のHPを最大HPの${fracT(e.fraction)}だけ回復する${rep}`;
+      }
+      // ★2026-06-15/06-17: 毎ターン回復(ねをはる/アクアリング/フィールド回復)。phase=lasting&trigger=turn_end か phase=turn_end 単独。即時回復の誤読を防ぐ。
+      if ((e.phase === 'lasting' && e.trigger === 'turn_end') || e.phase === 'turn_end') {
         return `毎ターン終わりに、${t}のHPを最大HPの${fracT(e.fraction)}だけ回復する`;
       }
       // ★2026-06-15: fraction=1=全部のときは「だけ」を付けない(「全部だけ回復する」が不自然 - のみこむ)
@@ -286,8 +291,18 @@ function clause(e, m) {
     }
     case '次のターン行動不能':
       return `使った次のターンは、動けなくなる`;
-    case 'まもり':
-      return `そのターン、相手の技をふせぐ。続けて使うと失敗しやすくなる`;
+    case 'まもり': {
+      // ★中身を発声(2026-06-17): 対象(team)・攻撃技のみ・先制技のみ・成功率1/3+リセット をデータから訳す。
+      const who = e.target === 'team' ? '自分と味方' : '自分';
+      let s;
+      if (e.blocks_priority_only) s = `そのターン、相手の先制技から${who}をまもる`;
+      else if (e.blocks_status_moves === false) s = `そのターン、相手の攻撃技をふせぐ(変化技はふせげない)`;
+      else s = `そのターン、相手の技をふせぐ`;
+      s += (e.consecutive_success_multiplier != null)
+        ? `。続けて使うたびに、成功する確率が${fracT(e.consecutive_success_multiplier)}になる(失敗するともとにもどる)`
+        : `。続けて使うと失敗しやすくなる`;
+      return s;
+    }
     case 'こらえる':
       return `そのターン、どんな攻撃を受けてもHPが1だけ残ってたえる。続けて使うと失敗しやすくなる`;
     case '範囲まもり':
@@ -549,7 +564,8 @@ function clause(e, m) {
     case '遅延攻撃':
       return `${e.delay_turns || 2}ターン後に、その場所にいる相手へ攻撃が当たる`;
     case '接触反動':
-      return `この守りが成功して相手が直接攻撃してくると、相手は最大HPの${fracT(e.fraction)}ダメージを受ける`;
+      // 自己完結文(条件込み)→ SELF_CONTAINED_COND で condT 前置を抑制(ニードルガードの条件二重を解消)
+      return `守っている間に直接攻撃をしてきた相手は、最大HPの${fracT(e.fraction)}のダメージを受ける`;
     case '優先技無効':
       return `${durT(e.duration)}の間、地面にいるポケモンは相手の先制技を受けなくなる`;
     case '次ターン使用不可':
@@ -596,7 +612,7 @@ function compose(m) {
     g.cl.push({ text: c, kind: e.kind });
   }
   // clauseが条件込みで自己完結するkind=condTを前置しない(「次のどれかの時:」漏れ防止・ねをはる)
-  const SELF_CONTAINED_COND = new Set(['地面技被弾化', '条件付き優先']);
+  const SELF_CONTAINED_COND = new Set(['地面技被弾化', '条件付き優先', '接触反動']);
   const sentences = groups.map(g => {
     const body = g.cl.map((cl, i) =>
       (i > 0 && cl.kind === '能力ランク変化' && g.cl[i - 1].kind === 'HPが減る') ? 'そのかわり、' + cl.text : cl.text
@@ -663,6 +679,9 @@ function compose(m) {
     }
     if (im.type === 'item' || im.type === 'target_item') {
       return `「${v.join('」「')}」を持つポケモンには効かない`;
+    }
+    if (im.type === 'ally_ability') { // いのちのしずく等: 味方の特性が回復より先に出て効果が届かない
+      return `特性「${v.join('」「')}」を持つ味方には、この技の効果がきかない(かわりにその特性が出る)`;
     }
     return null;
   };
