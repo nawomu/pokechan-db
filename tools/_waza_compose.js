@@ -20,8 +20,8 @@ const fracT = f => {
 };
 const multT = mu => mu >= 1 ? `${mu}倍になる` : (Math.abs(mu - 0.5) < 0.001 ? '半分になる' : `${fracT(mu)}になる`);
 const durT = d => Array.isArray(d) ? `${d[0]}〜${d[1]}ターン` : (typeof d === 'number' ? `${d}ターン` : ({ until_user_leaves: '自分が場を離れるまで', until_removed: '消えるまで' }[d] || d));
-const TGT = { self: '自分', opponent: '相手', team: '味方', all: '場の全員', ally: '味方', all_opponents: '相手全体', all_but_self: '自分以外', party: '手持ち全員', incoming: '次に出る味方' };
-const TGT2 = { self: '自分の', opponent: '相手の', all_opponents: '相手全員の', ally: '味方の', team: '味方全員の', all: '場の全員の', all_but_self: '自分いがいの全員の', party: '手持ちの', incoming: '次に出る味方の' };
+const TGT = { self: '自分', opponent: '相手', team: '自分と味方', all: '場の全員', ally: '味方', all_opponents: '相手全体', all_but_self: '自分以外', party: '手持ち全員', incoming: '次に出る味方' };
+const TGT2 = { self: '自分の', opponent: '相手の', all_opponents: '相手全員の', ally: '味方の', team: '自分と味方全員の', all: '場の全員の', all_but_self: '自分いがいの全員の', party: '手持ちの', incoming: '次に出る味方の' };
 // 能力名: こうげき系はlegacy同様ひらがな / 命中率・回避率はlegacyが漢字(ひらがな0件)→漢字。
 const STAT = { attack: 'こうげき', defense: 'ぼうぎょ', special_attack: 'とくこう', special_defense: 'とくぼう', speed: 'すばやさ', accuracy: '命中率', evasion: '回避率', all: 'すべての能力' };
 const statList = e => (Array.isArray(e.stats) ? e.stats : [e.stat]).map(s => STAT[s] || s);
@@ -68,9 +68,10 @@ function clause(e, m) {
       if (e.value === 'ひるみ') return `${pp}相手をひるませる`; // ひるみは動作=「ひるませる」(『ひるみ』状態にする は不自然・kind:ひるみ と統一)
       // ★2026-06-15: duration_turns(範囲string "1-4" 等)も対応(あやしいひかり等で取りこぼし)
       let dd = '';
-      if (e.duration) dd = `${durT(e.duration)}の間、`;
+      if (e.duration) { const dt = durT(e.duration); dd = /あいだ$|間$/.test(dt) ? `${dt}、` : `${dt}の間、`; } // 「あいだ」終わりは「の間」重複を避ける(うちおとす)
       else if (typeof e.duration_turns === 'string') dd = `${e.duration_turns.replace('-', '〜')}ターンの間、`;
       else if (Array.isArray(e.duration_turns)) dd = `${e.duration_turns[0]}〜${e.duration_turns[1]}ターンの間、`;
+      else if (e.duration_turns && typeof e.duration_turns === 'object') dd = `${e.duration_turns.min}〜${e.duration_turns.max}ターンの間、`; // {min,max}形(フラフラダンス)
       // ★2026-06-15: value 配列(トライアタックの「まひ・やけど・こおり」)はランダム1つを明示
       if (Array.isArray(e.value)) {
         return `${pp}${dd}${t}を「${e.value.join('」「')}」のうちランダムで1つの状態にする`;
@@ -84,7 +85,25 @@ function clause(e, m) {
         const rem = e.removed_if ? `(相手が交代すると効果は消える)` : '';
         return `次のターン終わりに${t}を「${e.value}」状態にする${rem}`;
       }
-      return `${pp}${dd}${t}を「${e.value}」状態にする`; // 囲みは「」(2026-06-07 阿部さん・ヤックン『』と差別化)
+      // ★状態の中身を喋る(voiced≠complete 補完・2026-06-17): 状態名だけでは意味が戻らない技に、データの該当フィールドを足す。
+      let base = `${pp}${dd}${t}を「${e.value}」状態にする`; // 囲みは「」(2026-06-07 阿部さん・ヤックン『』と差別化)
+      const det = [];
+      if (e.crit_stages) det.push(`急所ランクが${e.crit_stages > 0 ? '+' : ''}${e.crit_stages}ぶん上がって、技が急所に当たりやすくなる`); // きあいだめ
+      if (e.stat && e.multiplier) det.push(`${STAT[e.stat] || e.stat}が${e.multiplier}倍になる`); // おいかぜ
+      if (e.tick_effect && e.tick_effect.kind === 'stat' && e.tick_effect.phase === 'turn_end') { // みずあめボム
+        const ts = STAT[e.tick_effect.stat] || e.tick_effect.stat, sg = e.tick_effect.stages > 0 ? `+${e.tick_effect.stages}` : `${e.tick_effect.stages}`;
+        det.push(`その間、毎ターン終わりに${t}の${ts}${sg}`);
+      }
+      if (e.substitute_hp && e.substitute_hp.fraction) det.push(`「みがわり」のHPは最大HPの${fracT(e.substitute_hp.fraction)}になる`); // しっぽきり
+      if (Array.isArray(e.grants_immunity_to)) { // でんじふゆう
+        const parts = e.grants_immunity_to.map(g => g.type === 'move_type' ? `「${(g.values || []).join('」「')}」タイプの技` : `「${(g.values || []).join('」「')}」`);
+        if (parts.length) det.push(`地面にいない扱いになり、${parts.join('・')}などの効果を受けなくなる`);
+      }
+      if (e.prevents && (e.prevents.healing_moves || e.prevents.hp_recovery_from)) det.push(`その間、回復系の技が使えなくなり、特性・道具・場の効果によるHPの回復も起きなくなる`); // サイコノイズ
+      if (e.value === 'ちいさくなる' && Array.isArray(e.affected_moves)) det.push(`「のしかかり」「ふみつけ」など決まった技は、この状態のとき必ず当たり、受けるダメージが2倍になってしまう`);
+      if (e.value === 'もうどく' && e.note) det.push(`「もうどく」は、毎ターン終わりに受けるダメージが1/16→2/16→3/16…と増えていく`);
+      if (e.value === 'うちおとす') det.push(`地面に落とされて、特性「ふゆう」やひこうタイプでも「じめん」タイプの技が当たるようになる`);
+      return det.length ? `${base}。${det.join('。')}` : base;
     }
     case '拘束':
       return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}の間、逃げたり交代したりできないようにする`;
