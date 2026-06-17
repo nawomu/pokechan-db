@@ -277,6 +277,11 @@ const THEAD = `<thead><tr>
   <th class="col-effsrc">Effects(元データ)</th><th class="col-effect">効果</th><th class="col-tags">タグ</th><th class="col-yakkun">ヤック</th>
 </tr></thead>`;
 
+// ★人の耳チェック(確認OK→行を非表示)。verify_report と同仕様・進捗localStorage共有。
+//   buildRow/THEAD の export は壊さない=このページ専用に「確認」列を足したヘッダ/セルを作る。
+const THEAD_CHK = THEAD.replace('</tr></thead>', '<th class="col-chk">確認</th></tr></thead>');
+const CHKCELL = '<td class="col-chk"><label class="rowchk-l"><input type="checkbox" class="rowchk">確認OK</label></td>';
+
 // ★状態モデル(セッションをまたぐ正本): 「作る(ビルド)」と「確定(阿部さんの耳でOK)」は別物。
 //   Claudeは★→✓に上げない → CONFIRMED への昇格は阿部さんだけが行う(下のSetを編集)。出典=HANDOFF §2「確定した判断」。
 const CONFIRMED = new Set(['急所率上昇', '能力ランク変化', '必中']); // ✓確定(阿部さんの耳でOK済)
@@ -293,8 +298,8 @@ const SEC_BADGE = { done: '<span class="sec-ok">✓ 確定</span>', review: '<sp
 const sections = ordered.map((k, i) => {
   const ms = byKind.get(k);
   const badge = SEC_BADGE[kindState(k)];
-  return `<section class="sec" id="sec-${i}"><h2 class="sec-h">【${esc(k)}】<span class="sec-n">${ms.length}技</span>${badge}</h2>
-  <div class="tbl-wrap"><table>${THEAD}<tbody>${ms.map(buildRow).join('\n')}</tbody></table></div></section>`;
+  return `<section class="sec" id="sec-${i}"><h2 class="sec-h"><span class="caret">▾</span>【${esc(k)}】<span class="sec-n">${ms.length}技</span>${badge}<span class="sec-prog"></span><button class="sec-done">✓全部チェックして畳む</button></h2>
+  <div class="tbl-wrap"><table>${THEAD_CHK}<tbody>${ms.map(m => buildRow(m).replace('</tr>', CHKCELL + '</tr>')).join('\n')}</tbody></table></div></section>`;
 }).join('\n');
 
 // ★グループ一覧(目次)= 上部にチップ表示・クリックでジャンプ(検索が説明文の語を拾う問題の回避)。
@@ -454,6 +459,27 @@ thead th.col-effsrc { text-align:left; }
 .mw-tag.tag-unlock  { background:#FFF3E0; border-color:#FB8C00; color:#E65100; }
 .mw-tag.tag-other   { background:#F5F5F5; border-color:#9E9E9E; color:#424242; }
 .mw-tag.tag-cure    { background:#DCEDC8; border-color:#689F38; color:#33691E; }
+/* === 人の耳チェック(確認OK→非表示)=== */
+.bar { position:sticky; top:0; z-index:90; background:#fff; padding:7px 16px; border-bottom:1px solid #C5D2E5; display:flex; gap:7px; flex-wrap:wrap; align-items:center; }
+.bar button { padding:4px 12px; border-radius:14px; border:1px solid #C5D2E5; background:#fff; cursor:pointer; font-weight:700; font-size:12px; color:#1F4E79; }
+.bar button.on { background:#1F4E79; color:#fff; border-color:#1F4E79; }
+.bar input { padding:5px 10px; border-radius:8px; border:1px solid #C5D2E5; font-size:13px; }
+.bar .cnt { font-size:12.5px; color:#33415c; font-weight:700; margin-left:auto; }
+/* バーの分だけ見出し/列見出しのstickyを下げる(バー35px) */
+.sec-h { top:35px; cursor:pointer; user-select:none; }
+.sec thead th { top:68px; }
+.sec-h .caret { display:inline-block; transition:transform .15s; font-size:12px; margin-right:4px; }
+.sec.collapsed .caret { transform:rotate(-90deg); }
+.sec.collapsed .tbl-wrap { display:none; }
+.sec-prog { font-size:11px; color:#7ee787; margin-left:8px; font-weight:400; }
+.sec-done { font-size:11px; padding:2px 9px; border-radius:5px; margin-left:auto; border:1px solid #4a90d9; background:#173049; color:#cfe0f0; cursor:pointer; font-weight:700; }
+.sec-done:hover { background:#1f4e79; }
+.sec.allchecked .sec-h { filter:saturate(.45); }
+td.col-chk { width:96px; min-width:96px; text-align:center; vertical-align:middle; }
+thead th.col-chk { min-width:96px; }
+.rowchk-l { display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700; color:#1F4E79; cursor:pointer; white-space:nowrap; }
+.rowchk { width:17px; height:17px; cursor:pointer; }
+tbody tr.is-checked { opacity:.5; }
 `;
 
 const html = `<!DOCTYPE html>
@@ -465,9 +491,55 @@ const html = `<!DOCTYPE html>
   <h1>📋 わざリスト 確認用 — 新説明文(エンジン生成)を本番レイアウトで表示</h1>
   <div class="sub">効果(=エフェクト内容)カテゴリーごとに区切って表示。効果列=新生成 / ヤック列=description_legacy(お手本)。優先列=battle_data.priority。重複技は各カテゴリに出ます。本番ファイルは未変更。全${moves.length}技 / ${ordered.length}カテゴリ。</div>
 </div>
+<div class="bar">
+  <input id="q" placeholder="技名でしぼり込み…">
+  <button id="toggleChecked" class="act">👁 確認OKも表示</button>
+  <button id="collapseAll" class="act">▾ グループ全部畳む/開く</button>
+  <button id="resetChk" class="act">↺ 確認OKをリセット</button>
+  <span class="cnt" id="cnt"></span>
+</div>
 ${toc}
 ${sections}
 <a class="to-top" href="#top" title="一番上に戻る">↑ 上へ</a>
+<script>
+// ===== 人の耳チェック(確認OK→行が非表示)・localStorage永続。verify_report と進捗を共有(同キー)=====
+const rows=[...document.querySelectorAll("tbody tr")];
+const secs=[...document.querySelectorAll(".sec")];
+const LS_CHK="pcham_voice_checked_v1", LS_COL="pcham_sec_collapsed_v1"; // ★verify_report と同キー=進捗共有
+let checked=new Set(JSON.parse(localStorage.getItem(LS_CHK)||"[]"));
+let collapsed=new Set(JSON.parse(localStorage.getItem(LS_COL)||"[]"));
+let showChecked=false;
+const saveChk=()=>localStorage.setItem(LS_CHK,JSON.stringify([...checked]));
+const saveCol=()=>localStorage.setItem(LS_COL,JSON.stringify([...collapsed]));
+function keyOf(r){const s=r.closest(".sec");const nm=r.querySelector(".name-cell");return (s?s.id:"")+"|"+(nm?nm.textContent.trim():"");}
+function apply(){const v=document.getElementById("q").value.trim();
+  rows.forEach(r=>{const nm=r.querySelector(".name-cell");const okQ=!v||(nm&&nm.textContent.includes(v));
+    const hideChk=checked.has(keyOf(r))&&!showChecked;
+    r.style.display=(okQ&&!hideChk)?"":"none";});
+  secs.forEach(s=>{const any=[...s.querySelectorAll("tbody tr")].some(r=>r.style.display!=="none");
+    s.style.display=(any||s.classList.contains("collapsed"))?"":"none";});
+  updCnt();}
+function updCnt(){const c=document.getElementById("cnt");if(c)c.textContent="確認OK "+checked.size+" / "+rows.length+"技";}
+function markSecDone(){secs.forEach(s=>{const rs=[...s.querySelectorAll("tbody tr")];const done=rs.filter(r=>checked.has(keyOf(r))).length;
+  const all=rs.length>0&&done===rs.length;s.classList.toggle("allchecked",all);
+  const p=s.querySelector(".sec-prog");if(p)p.textContent=done>0?("確認OK "+done+"/"+rs.length):"";});}
+rows.forEach(r=>{const cb=r.querySelector(".rowchk");if(!cb)return;const k=keyOf(r);
+  cb.checked=checked.has(k);r.classList.toggle("is-checked",cb.checked);
+  cb.addEventListener("change",()=>{if(cb.checked)checked.add(k);else checked.delete(k);
+    r.classList.toggle("is-checked",cb.checked);saveChk();markSecDone();apply();});});
+function setCol(s,on){s.classList.toggle("collapsed",on);if(on)collapsed.add(s.id);else collapsed.delete(s.id);saveCol();}
+secs.forEach(s=>{if(collapsed.has(s.id))s.classList.add("collapsed");
+  const h=s.querySelector(".sec-h");if(h)h.addEventListener("click",e=>{if(e.target.closest(".sec-done")||e.target.closest("a"))return;setCol(s,!s.classList.contains("collapsed"));});
+  const btn=s.querySelector(".sec-done");if(btn)btn.addEventListener("click",e=>{e.stopPropagation();
+    s.querySelectorAll("tbody tr").forEach(r=>{const cb=r.querySelector(".rowchk");if(cb&&!cb.checked){cb.checked=true;checked.add(keyOf(r));r.classList.add("is-checked");}});
+    saveChk();setCol(s,true);markSecDone();apply();});});
+document.getElementById("q").addEventListener("input",apply);
+document.getElementById("toggleChecked").addEventListener("click",function(){showChecked=!showChecked;
+  this.classList.toggle("on",showChecked);this.textContent=showChecked?"🙈 確認OKを隠す":"👁 確認OKも表示";apply();});
+document.getElementById("collapseAll").addEventListener("click",()=>{const anyOpen=secs.some(s=>!s.classList.contains("collapsed"));secs.forEach(s=>setCol(s,anyOpen));apply();});
+document.getElementById("resetChk").addEventListener("click",()=>{if(confirm("確認OKを全部リセットしますか?(verify_reportと共有)")){checked.clear();saveChk();rows.forEach(r=>{const cb=r.querySelector(".rowchk");if(cb)cb.checked=false;r.classList.remove("is-checked");});markSecDone();apply();}});
+markSecDone();apply();
+</script>
 </body></html>`;
 
 const outDir = path.join(ROOT, 'review');
