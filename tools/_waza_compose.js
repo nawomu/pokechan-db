@@ -168,7 +168,9 @@ function clause(e, m) {
       }
       // ★2026-06-15: fraction=1=全部のときは「だけ」を付けない(「全部だけ回復する」が不自然 - のみこむ)
       const fr = fracT(e.fraction);
-      return (fr === '全部') ? `${t}のHPを全部回復する` : `${t}のHPを、最大HPの${fr}だけ回復する`;
+      // ★2026-06-18: incoming(次に出る味方)+全回復 = いやしのねがい/みかづきのいのり/さいきのいのり → 「ただしPPは回復しない」明示
+      const ppNote = (e.target === 'incoming' && fr === '全部') ? `(ただしPPは回復しない)` : ``;
+      return ((fr === '全部') ? `${t}のHPを全部回復する` : `${t}のHPを、最大HPの${fr}だけ回復する`) + ppNote;
     case 'HPが減る':
       return `自分のHPが最大HPの${fracT(e.fraction)}減る` + (e.always_pays_even_if_blocked ? `(相手が「まもる」などで防いでも、自分のHPは減る)` : ``); // てっていこうせん
     case '固定ダメージ': {
@@ -317,7 +319,7 @@ function clause(e, m) {
       return `${who}の状態異常をすべて治す`;
     }
     case '吸収':
-      return `相手に与えたダメージの${fracT(e.fraction)}だけ、自分のHPを回復する`;
+      return `相手に与えたダメージの${fracT(e.fraction)}だけ、自分のHPを回復する` + (e.basis === 'damage_dealt' ? `` : ``);
     case '自分交代':
       // ★2026-06-15: 変化技(power無)で「攻撃したあと」と書かない(しっぽきり・さむいギャグの誤読対策)
       if (Array.isArray(e.pass) && e.pass.length) return `自分にかかっていた能力ランクの変化や一部の状態(「みがわり」「やどりぎのタネ」「きあいだめ」など)を、控えのポケモンに引きついで交代する(「ちょうはつ」「メロメロ」などは引きつがない)`; // 2026-06-18 バトンタッチ詳細
@@ -490,7 +492,8 @@ function clause(e, m) {
         // ★2026-06-15: マッピングキーから天気/フィールドを判定(だいちのはどう=フィールド・ウェザーボール=天気)
         const isField = Object.keys(e.mapping).some(k => /フィールド/.test(k));
         const ctx = isField ? 'フィールド' : '天気';
-        return `${ctx}によって技のタイプが変わる(${ex}。${ctx}がなければ${e.default_type || 'ノーマル'})`;
+        const fieldNote = isField ? `(さらにフィールドによる1.3倍の効果も重ねてかかる)` : ``; // 2026-06-18 だいちのはどう
+        return `${ctx}によって技のタイプが変わる(${ex}。${ctx}がなければ${e.default_type || 'ノーマル'})${fieldNote}`;
       }
       if (e.type_by_form) {
         const ex = Object.entries(e.type_by_form).map(([k, v]) => `「${k}」のときは${v}`).join('・');
