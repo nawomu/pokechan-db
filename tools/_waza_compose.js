@@ -791,6 +791,13 @@ function compose(m) {
   if (eff.some(e => e.kind === '強制交代(吹き飛ばし)') && (bd.not_blocked_by || []).length && !/効果を受けない/.test(text)) {
     text += `相手の「${bd.not_blocked_by.join('」「')}」の効果を受けない。`;
   }
+  // ★ダイウォール無効(bd.not_blocked_by の中で SYSTEM_OF=='dynamax' のもの)を後置(2026-06-17 阿部さん):
+  //   未解禁=カッコ書き(つぼをつく/いやしのすず/とおぼえ/フェイント/アロマミスト/じばそうさ/なみだめ/デコレーション/いのちのしずく/コーチング/ゴーストダイブ 計11技)。
+  //   解禁(SYSTEMS_IN_GAME.dynamax=true)時はカッコ無しの通常文に。既出は重複させない。
+  const nbDyna = (bd.not_blocked_by || []).filter(x => SYSTEM_OF[x] === 'dynamax');
+  if (nbDyna.length && !new RegExp(nbDyna.join('|')).test(text)) {
+    text += SYSTEMS_IN_GAME.dynamax ? `「${nbDyna.join('」「')}」の効果も受けない。` : `（${nbDyna.join('・')}の効果も受けない）`;
+  }
   // ★みがわり貫通フラグ(substitute_pierce)を後置(2026-06-15): 効果kind「みがわり貫通」で既に喋っていなければ補う(いびき等の取りこぼし)。
   if (bd.substitute_pierce === true && !eff.some(e => e.kind === 'みがわり貫通') && !/すりぬけて当たる|みがわり.*状態でも/.test(text)) {
     // ★味方/自分だけを対象にする技(いやしのすず=party回復)は「相手の」でなく「味方の」みがわりに届く、と言う
