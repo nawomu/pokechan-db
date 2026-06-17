@@ -451,10 +451,11 @@ function clause(e, m) {
     }
     case '特性上書き': {
       const exAbil = (e.exceptions || []).flatMap(x => x.values || []);
-      const exC = exAbil.length ? `(ただし「${exAbil.join('」「')}」などの特別な特性はコピーできない)` : ``; // なりきり
+      const exC = exAbil.length ? `(ただし「${exAbil.join('」「')}」などの特別な特性はコピーできない)` : ``;
+      const exF = exAbil.length ? `(ただし「${exAbil.join('」「')}」など一部の特別な特性のときは失敗する)` : ``; // なやみのタネ
       if (e.source === 'opponent_ability') return `相手の特性を、自分の特性としてコピーする${exC}`;
       if (e.value === '自分の特性') return `相手の特性を、自分と同じ特性に変える`;
-      if (e.value) return `相手の特性を「${e.value}」に変える`;
+      if (e.value) return `相手の特性を「${e.value}」に変える${exF}`; // なやみのタネ: ふみんに変える + 失敗条件
       return `相手の特性を 上書きする`;
     }
     case '特性交換': {
