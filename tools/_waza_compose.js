@@ -100,10 +100,13 @@ function clause(e, m) {
       if (e.substitute_hp && e.substitute_hp.fraction) det.push(`「みがわり」のHPは最大HPの${fracT(e.substitute_hp.fraction)}になる`); // しっぽきり
       if (Array.isArray(e.grants_immunity_to)) { // でんじふゆう
         const parts = e.grants_immunity_to.map(g => g.type === 'move_type' ? `「${(g.values || []).join('」「')}」タイプの技` : `「${(g.values || []).join('」「')}」`);
-        if (parts.length) det.push(`地面にいない扱いになり、${parts.join('・')}などの効果を受けなくなる`);
+        if (parts.length) det.push(`地面にいない扱いになり、${parts.join('・')}の効果を受けなくなる`); // でんじふゆう grants_immunity_to 全列挙(2026-06-17 阿部さん「など」削除)
       }
-      if (e.prevents && (e.prevents.healing_moves || e.prevents.hp_recovery_from)) det.push(`その間、回復系の技が使えなくなり、特性・道具・場の効果によるHPの回復も起きなくなる`); // サイコノイズ
-      if (e.value === 'ちいさくなる' && Array.isArray(e.affected_moves)) det.push(`「のしかかり」「ふみつけ」など決まった技は、この状態のとき必ず当たり、受けるダメージが2倍になってしまう`);
+      if (e.prevents && e.prevents.healing_moves) { // サイコノイズ: 回復技を全列挙(2026-06-17 阿部さん)
+        det.push(`その間、回復系の技(「${e.prevents.healing_moves.join('」「')}」)が使えなくなる`);
+        if (e.prevents.hp_recovery_from) det.push(`特性・道具・場の効果によるHPの回復も起きなくなる`);
+      } else if (e.prevents && e.prevents.hp_recovery_from) det.push(`その間、特性・道具・場の効果によるHPの回復も起きなくなる`);
+      if (e.value === 'ちいさくなる' && Array.isArray(e.affected_moves)) det.push(`「${e.affected_moves.join('」「')}」は、この状態のとき必ず当たり、受けるダメージが2倍になってしまう`); // ちいさくなる affected_moves 全列挙(2026-06-17 阿部さん)
       if (e.value === 'もうどく' && e.note) det.push(`「もうどく」は、毎ターン終わりに受けるダメージが1/16→2/16→3/16…と増えていく`);
       if (e.value === 'うちおとす') det.push(`地面に落とされて、特性「ふゆう」やひこうタイプでも「じめん」タイプの技が当たるようになる`);
       return det.length ? `${base}。${det.join('。')}` : base;
@@ -581,12 +584,12 @@ function clause(e, m) {
     case 'ふういん':
       return `自分が場にいる間、自分も知っている技を相手は使えなくなる`; // duration=自分が場を離れるまで
     case 'カテゴリ封じ':
-      return `${durT(e.duration)}の間、相手は音の技${Array.isArray(e.blocked_moves) && e.blocked_moves.length ? '(うたう・いびき・ハイパーボイスなど)' : ''}を出せなくなる`; // じごくづき
+      return `${durT(e.duration)}の間、相手は音の技${Array.isArray(e.blocked_moves) && e.blocked_moves.length ? `(「${e.blocked_moves.join('」「')}」)` : ''}を出せなくなる`; // じごくづき blocked_moves 全列挙(2026-06-17 阿部さん)
     case '全員逃走不可':
       return `${durT(e.duration)}の間、おたがい逃げたり交代したりできなくなる(ゴーストタイプはのぞく)`;
     case '拘束解除':
       // ★values(キラースピン)があれば対象技を列挙(こうそくスピンと同様に省略しない)
-      if (Array.isArray(e.values) && e.values.length) return `自分が受けている「${e.values.join('」「')}」などの効果をふりほどく`;
+      if (Array.isArray(e.values) && e.values.length) return `自分が受けている「${e.values.join('」「')}」の効果をふりほどく`; // キラースピン: 「など」削除、データ全列挙(2026-06-17 阿部さん)
       return `自分にかかったバインドなどの状態をふりほどく`;
     case '自分拘束':
       // ★2026-06-15: HPまわりは「回復」kindが言うので、ここは「地面に根をはる(交代できなくなる)」に絞る。「逃げる」は野生用語=避ける。
