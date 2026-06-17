@@ -295,8 +295,20 @@ function kindState(k) {
   return 'todo';
 }
 const SEC_BADGE = { done: '<span class="sec-ok">✓ 確定</span>', review: '<span class="sec-rv">🕓 確認待ち</span>', working: '<span class="sec-wk">🔨 作業中</span>', todo: '<span class="sec-ng">⚠ これから</span>', noeff: '' };
+// ★セクション内の並び替え(2026-06-17 阿部さん): ①分類で分ける(変化 / 物理 / 特殊)②効果の文言が似たものを隣に。
+//   似た文=同じ言い回しで始まる→正規化(先頭の「N%の確率で」を外し・数字を#に)した署名でソート=機械(数値)が違うだけの同型をまとめる。
+const _composeCache = new Map();
+const _txt = m => { if (!_composeCache.has(m)) _composeCache.set(m, compose(m).text || ''); return _composeCache.get(m); };
+const CATBUCKET = c => c === '変化' ? 0 : c === '物理' ? 1 : 2; // 変化を先に固める→物理→特殊
+const sortSig = m => _txt(m).replace(/^\d+%の確率で/, '').replace(/\d+/g, '#'); // 似た効果の署名(確率・数値の違いを無視)
+const sortMoves = arr => [...arr].sort((a, b) =>
+  CATBUCKET(a.category) - CATBUCKET(b.category) ||
+  sortSig(a).localeCompare(sortSig(b), 'ja') ||
+  _txt(a).localeCompare(_txt(b), 'ja') ||
+  a.name.localeCompare(b.name, 'ja'));
+
 const sections = ordered.map((k, i) => {
-  const ms = byKind.get(k);
+  const ms = sortMoves(byKind.get(k));
   const badge = SEC_BADGE[kindState(k)];
   return `<section class="sec" id="sec-${i}"><h2 class="sec-h"><span class="caret">▾</span>【${esc(k)}】<span class="sec-n">${ms.length}技</span>${badge}<span class="sec-prog"></span><button class="sec-done">✓全部チェックして畳む</button></h2>
   <div class="tbl-wrap"><table>${THEAD_CHK}<tbody>${ms.map(m => buildRow(m).replace('</tr>', CHKCELL + '</tr>')).join('\n')}</tbody></table></div></section>`;
