@@ -152,6 +152,10 @@ function clause(e, m) {
       }
       // ★2026-06-15/06-17: 毎ターン回復(ねをはる/アクアリング/フィールド回復)。phase=lasting&trigger=turn_end か phase=turn_end 単独。即時回復の誤読を防ぐ。
       if ((e.phase === 'lasting' && e.trigger === 'turn_end') || e.phase === 'turn_end') {
+        // ★grounded(フィールド回復=グラスフィールド): 被弾側基準で「地面にいるポケモンの」と書く(condT前置の重複を解消)
+        const grnd = e.condition && (e.condition.type === 'grounded' || e.condition.type === 'target_grounded');
+        const ex = grnd && (e.condition.excludes_types || e.condition.excludes_abilities) ? `(ひこうタイプや特性「ふゆう」などはのぞく)` : '';
+        if (grnd) return `毎ターン終わりに、地面にいるポケモンのHPを最大HPの${fracT(e.fraction)}だけ回復する${ex}`;
         return `毎ターン終わりに、${t}のHPを最大HPの${fracT(e.fraction)}だけ回復する`;
       }
       // ★2026-06-15: fraction=1=全部のときは「だけ」を付けない(「全部だけ回復する」が不自然 - のみこむ)
@@ -400,11 +404,17 @@ function clause(e, m) {
       }
       return (e.accuracy === 'never_miss' || e.accuracy === '必中') ? `天気が「${e.value}」のときは必ず当たる` : null;
     case '場の威力補正': {
-      // ばくれつパンチ(特性条件) / グラスフィールド(タイプ・地面条件で威力上下)
+      // ばくれつパンチ(特性条件) / フィールド(タイプ・地面条件で威力上下)
       const mt = e.move_type ? `「${e.move_type}」タイプの技の` : '';
       const dir = e.multiplier >= 1 ? '高くなる' : '下がる';
-      if (e.moves) return `${e.moves.map(x => `「${x}」`).join('')}の威力が${multT(e.multiplier)}`;
-      return `${mt}威力が${dir}(${multT(e.multiplier)})`;
+      // ★地面条件を内包(condT前置の重複を解消・グラス/エレキ/サイコ/ミスト)
+      const c = e.condition || {};
+      const subj = (c.type === 'user_grounded') ? '地面にいるポケモンが使う'
+                  : (c.type === 'target_grounded') ? '地面にいるポケモンが受ける'
+                  : (c.type === 'grounded') ? '地面にいるポケモンの'
+                  : '';
+      if (e.moves) return `${subj}${e.moves.map(x => `「${x}」`).join('')}の威力が${multT(e.multiplier)}`;
+      return `${subj}${mt}威力が${dir}(${multT(e.multiplier)})`;
     }
     case '引き寄せ': {
       let s = `そのターン、相手の技を自分に引き寄せる`;
@@ -475,11 +485,17 @@ function clause(e, m) {
       // ★外れだけでなく「まもる等で防がれて失敗」も含む(とびひざげり/かかとおとし/サンダーダイブ・legacy明記)
       return `外れたり、「まもる」などで防がれて失敗したとき、自分が最大HPの${fracT(e.fraction)}ぶんダメージを受ける`;
     case '状態異常予防': {
-      // ★values列挙(エレキ=ねむり/ねむけ)・note補足(エレキ=起こさない/ミスト=治らない)。地面条件はcondTが前置。
-      let s;
-      if (Array.isArray(e.values) && e.values.length) s = `${durT(e.duration)}の間、「${e.values.join('」「')}」状態にならない`;
-      else if (e.value === 'ねむり') s = `${durT(e.duration)}の間、場のどのポケモンも ねむれなくなる`;
-      else s = `${durT(e.duration)}の間、状態異常をふせぐ`;
+      // ★values列挙(エレキ=ねむり/ねむけ)・note補足(エレキ=起こさない/ミスト=治らない)
+      // ★地面条件は clause が「地面にいるポケモンは」を内包(condT前置の重複を解消・エレキ/ミスト)
+      const c = e.condition || {};
+      const subj = (c.type === 'grounded' || c.type === 'user_grounded' || c.type === 'target_grounded') ? '地面にいるポケモンは' : '';
+      const ex = (c.excludes_types || c.excludes_abilities) ? `(ひこうタイプや特性「ふゆう」などはのぞく)` : '';
+      let body;
+      if (Array.isArray(e.values) && e.values.length) body = `「${e.values.join('」「')}」状態にならない`;
+      else if (e.value === 'ねむり') body = `ねむれなくなる`;
+      else body = subj ? `状態異常にならない` : `状態異常をふせぐ`; // 主語が「地面にいるポケモンは」なら「ならない」が自然(ミスト)
+      let s = subj ? `${durT(e.duration)}の間、${subj}${body}` : `${durT(e.duration)}の間、${body === 'ねむれなくなる' ? '場のどのポケモンも ねむれなくなる' : body}`;
+      if (ex) s += ex;
       if (/起こさない/.test(e.note || '')) s += `(すでに眠っているポケモンは目を覚まさない)`;
       else if (/治らない/.test(e.note || '')) s += `(すでにかかっている状態異常は治らない)`;
       return s;
@@ -680,12 +696,16 @@ function compose(m) {
   }
   // clauseが条件込みで自己完結するkind=condTを前置しない(「次のどれかの時:」漏れ防止・ねをはる)
   const SELF_CONTAINED_COND = new Set(['地面技被弾化', '条件付き優先', '接触反動']);
+  // ★grounded時に「地面にいるポケモンは」をclauseが内包するkind(フィールド技の「地面にいる時」重複・係り解消)
+  const GROUNDED_SELF = new Set(['状態異常予防', '場の威力補正', '優先技無効', '回復']);
+  const isGroundedCond = c => c && (c.type === 'grounded' || c.type === 'user_grounded' || c.type === 'target_grounded');
   const sentences = groups.map(g => {
     const body = g.cl.map((cl, i) =>
       (i > 0 && cl.kind === '能力ランク変化' && g.cl[i - 1].kind === 'HPが減る') ? 'そのかわり、' + cl.text : cl.text
     ).join('。');
     // 条件文がゴミ(⚠️要調査=condStrNewが訳しきれない複雑条件)なら前置しない=clauseが自己完結で意味を持つ
-    const selfContained = g.cl.every(cl => SELF_CONTAINED_COND.has(cl.kind));
+    const selfContained = g.cl.every(cl => SELF_CONTAINED_COND.has(cl.kind))
+      || (isGroundedCond(g.cond) && g.cl.every(cl => GROUNDED_SELF.has(cl.kind))); // groundedはclause内包=前置スキップ
     const ct = (g.cond && !selfContained) ? condT(g.cond) : '';
     return (ct && !ct.includes('未対応')) ? `${ct}、${body}` : body;
   });
