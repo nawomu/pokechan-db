@@ -209,7 +209,7 @@ function getMoveFilterTags(m) {
   if (bd.substitute_remove) out.push({cls:'tag-other', text:'🪬 みがわり解除'});
   if (bd.protect_pierce)    out.push({cls:'tag-other', text:'🛡️ まもる貫通'});
 
-  // ★effects kind別タグ(2026-06-17 阿部さん・ワークフロー設計): 既存タグの取りこぼしを kind 別に埋める。
+  // ★effects kind別タグ(2026-06-17 阿部さん): 略・アレンジを避け、データ/legacy通りの正確な言葉でタグ化。
   //   既存タグ(bd.*由来)と内容重複しないよう、emitWhenを絞った。1技に同種タグが重複しないよう Set で去重。
   const seen = new Set(out.map(t => t.text));
   const push = (cls, text) => { if (!seen.has(text)) { out.push({cls, text}); seen.add(text); } };
@@ -217,104 +217,104 @@ function getMoveFilterTags(m) {
     const k = e.kind;
     const ct = e.condition && e.condition.type;
     if (k === '威力倍率') {
-      if (e.multiplier >= 2 && /target_status|user_status|status_condition|user_has_status|target_has_status/.test(ct||'')) push('tag-misc', '🤢 状態で威力2倍');
-      if (/field/.test(ct||'')) push('tag-field', '🌿 場で威力変化');
-      if (ct === 'target_minimized') push('tag-misc', '🔻 ちびっこに2倍');
-      if (ct === 'user_has_no_held_item') push('tag-misc', '🎒 道具なしで2倍'); // アクロバット
-      if (/previous_turn_move_failed|failed_to_act_last_turn/.test(ct||'')) push('tag-misc', '😤 前ターン失敗で2倍'); // じだんだ/やけっぱち
-      if (ct === 'user_stat_lowered_this_turn') push('tag-misc', '😤 ランク下げられて2倍'); // うっぷんばらし
-      if (/target_already_damaged/.test(ct||'')) push('tag-misc', '💢 ダメージ後に2倍'); // たたりめ系
+      if (e.multiplier >= 2 && /target_status|user_status|status_condition|user_has_status|target_has_status/.test(ct||'')) push('tag-misc', '🤢 相手の状態異常で威力2倍');
+      if (/field/.test(ct||'')) push('tag-field', '🌿 フィールドで威力変化');
+      if (ct === 'target_minimized') push('tag-misc', '🔻 「ちいさくなる」相手に威力2倍');
+      if (ct === 'user_has_no_held_item') push('tag-misc', '🎒 持ち物なしで威力2倍'); // アクロバット
+      if (/previous_turn_move_failed|failed_to_act_last_turn/.test(ct||'')) push('tag-misc', '😤 前のターン失敗で威力2倍'); // じだんだ/やけっぱち
+      if (ct === 'user_stat_lowered_this_turn') push('tag-misc', '😤 そのターン能力下げられたら威力2倍'); // うっぷんばらし
+      if (/target_already_damaged/.test(ct||'')) push('tag-misc', '💢 相手が同ターンに先にダメージ受けたら威力2倍'); // たたりめ系
     }
-    if (k === '必中' && ct === 'target_minimized') push('tag-misc', '🎯 ちいさくなる貫通');
+    if (k === '必中' && ct === 'target_minimized') push('tag-misc', '🎯 「ちいさくなる」中の相手に必ず命中');
     if (k === '連続攻撃') {
-      if (e.hits_by != null) push('tag-misc', '👥 手持ちぶん攻撃');
-      if (e.stop_on_miss === true && !Array.isArray(e.power_per_hit)) push('tag-misc', '🎲 外れたら止まる');
-      if (Array.isArray(e.power_per_hit)) push('tag-misc', '📈 威力UP連続');
+      if (e.hits_by != null) push('tag-misc', '👥 手持ちの数だけ攻撃');
+      if (e.stop_on_miss === true && !Array.isArray(e.power_per_hit)) push('tag-misc', '🎲 外れるまで連続');
+      if (Array.isArray(e.power_per_hit)) push('tag-misc', '📈 当たるたび威力上昇');
     }
-    if (k === '半無敵命中') push('tag-misc', e.damage_multiplier === 2 ? '💥 潜伏中2倍' : '🌪️ 半無敵命中');
+    if (k === '半無敵命中') push('tag-misc', e.damage_multiplier === 2 ? '💥 半無敵中の相手に当てて威力2倍' : '🌪️ 半無敵中の相手に当てられる');
     if (k === '威力可変') {
-      if (e.basis === 'target_weight' || (Array.isArray(e.tiers) && e.tiers[0] && e.tiers[0].max_kg != null) || (Array.isArray(e.weight_thresholds))) push('tag-misc', '⚖️ 重さで威力');
-      if (e.relation === 'lower_hp_higher_power') push('tag-misc', '💢 ピンチで威力UP');
-      if (e.formula && /current_HP\s*\/\s*[\w]*max_HP|currentHP\s*\/\s*\w*maxHP/i.test(e.formula)) push('tag-misc', '📉 HPあるほど威力UP'); // ふんか・しおふき・ハードプレス
-      if (e.basis === 'user_speed_over_target_speed') push('tag-misc', '⚡ すばやさ差で威力'); // エレキボール
-      if (e.basis === 'user_positive_stat_stages' || e.per_stage) push('tag-misc', '📈 ランク数で威力UP'); // アシストパワー
-      if (e.multiplier === 2 && /failed_to_act|previous_turn_move_failed/.test(ct||'')) push('tag-misc', '😤 前ターン失敗で2倍'); // やけっぱち
+      if (e.basis === 'target_weight' || (Array.isArray(e.tiers) && e.tiers[0] && e.tiers[0].max_kg != null) || (Array.isArray(e.weight_thresholds))) push('tag-misc', '⚖️ 相手の重さで威力変化');
+      if (e.relation === 'lower_hp_higher_power') push('tag-misc', '💢 自分のHPが少ないほど威力上昇');
+      if (e.formula && /current_HP\s*\/\s*[\w]*max_HP|currentHP\s*\/\s*\w*maxHP/i.test(e.formula)) push('tag-misc', '📉 自分のHPが多いほど威力上昇'); // ふんか・しおふき・ハードプレス
+      if (e.basis === 'user_speed_over_target_speed') push('tag-misc', '⚡ 相手とのすばやさ差で威力変化'); // エレキボール
+      if (e.basis === 'user_positive_stat_stages' || e.per_stage) push('tag-misc', '📈 自分の能力ランク段階で威力上昇'); // アシストパワー
+      if (e.multiplier === 2 && /failed_to_act|previous_turn_move_failed/.test(ct||'')) push('tag-misc', '😤 前のターン失敗で威力2倍'); // やけっぱち
     }
     if (k === '倍返し') {
-      if (e.multiplier === 1.5) push('tag-recoil', '🔄 1.5倍返し');
-      else push('tag-recoil', '🔄 ' + (e.multiplier || 2) + '倍返し');
+      const mu = e.multiplier || 2;
+      push('tag-recoil', `🔄 受けたダメージの${mu}倍で返す`);
     }
     if (k === '固定ダメージ') {
-      if (e.amount === '自分のレベル分') push('tag-misc', '🔢 レベル分ダメ');
-      else if (typeof e.amount === 'string' && /残りHPの半分/.test(e.amount)) push('tag-misc', '✂️ 残HP半減');
-      else if (typeof e.amount === 'string' && /HPから自分の残りHPを引/.test(e.amount)) push('tag-misc', '⚖️ HP差ダメ');
+      if (e.amount === '自分のレベル分') push('tag-misc', '🔢 自分のレベル分のダメージ');
+      else if (typeof e.amount === 'string' && /残りHPの半分/.test(e.amount)) push('tag-misc', '✂️ 相手の残りHPの半分のダメージ');
+      else if (typeof e.amount === 'string' && /HPから自分の残りHPを引/.test(e.amount)) push('tag-misc', '⚖️ 相手と自分のHP差のダメージ');
     }
-    if (k === '回復' && e.target === 'team') push('tag-recov', '💚 みんな回復');
-    if (k === '状態異常回復' && e.target === 'self' && e.value === 'こおり' && (e.usable_while_frozen || /こおっていても/.test(e.note||''))) push('tag-cure', '❄️ こおりでも使える');
-    if (k === '状態異常回復' && /opponent|all_opponents|all_but_self/.test(e.target || '') && e.value === 'こおり') push('tag-cure', '🫧 相手こおり治す');
+    if (k === '回復' && e.target === 'team') push('tag-recov', '💚 自分と味方を回復');
+    if (k === '状態異常回復' && e.target === 'self' && e.value === 'こおり' && (e.usable_while_frozen || /こおっていても/.test(e.note||''))) push('tag-cure', '❄️ 「こおり」中でも使える');
+    if (k === '状態異常回復' && /opponent|all_opponents|all_but_self/.test(e.target || '') && e.value === 'こおり') push('tag-cure', '🫧 相手の「こおり」状態を治す');
     if (k === 'HPが減る') {
-      if (e.always_pays_even_if_blocked === true) push('tag-misc', '⚠️ 防がれても減る');
-      else if (Math.abs(e.fraction - 0.5) < 0.01) push('tag-drain', '💸 HP半減');
-      else if (Math.abs(e.fraction - 0.25) < 0.01) push('tag-drain', '💸 HP1/4減');
-      else if (Math.abs(e.fraction - 0.3333) < 0.02) push('tag-drain', '💸 HP1/3減');
+      if (e.always_pays_even_if_blocked === true) push('tag-misc', '⚠️ 防がれても自分のHPが減る');
+      else if (Math.abs(e.fraction - 0.5) < 0.01) push('tag-drain', '💸 自分のHPが最大HPの半分減る');
+      else if (Math.abs(e.fraction - 0.25) < 0.01) push('tag-drain', '💸 自分のHPが最大HPの1/4減る');
+      else if (Math.abs(e.fraction - 0.3333) < 0.02) push('tag-drain', '💸 自分のHPが最大HPの1/3減る');
     }
-    if (k === 'みがわり設置') push('tag-support', '🪆 分身設置');
-    if (k === 'PP減少') push('tag-other', '💢 PP削り');
-    if (k === 'みちづれ') push('tag-faint', '💀 道連れ');
-    if (k === 'ロックオン') push('tag-flag', '🎯 次ターン必中');
-    if (k === 'メロメロ付与') push('tag-status', '💕 メロメロ');
-    if (k === 'ランダム技') push('tag-misc', '🎲 持ち技ランダム');
-    if (k === 'いたみわけ') push('tag-recov', '🤝 HP山分け');
-    if (k === '自分交代' && Array.isArray(e.pass) && e.pass.length > 0) push('tag-switch', '🎽 引き継ぎ交代');
-    if (k === '遅延攻撃') push('tag-charge', '⏳ 2T後に攻撃');
-    if (k === 'やけど低下無視') push('tag-misc', '🔥 やけど攻撃-無視');
-    if (k === '持ち物交換') push('tag-support', '🔄 道具入替');
-    if (k === '特性上書き' && e.target === 'opponent' && e.value && e.value !== '自分の特性') push('tag-misc', '🔀 特性押付');
-    if (k === '特性上書き' && (e.source === 'opponent_ability' || e.value === '自分の特性')) push('tag-misc', '🪞 特性コピー');
-    if (k === '持ち物排除' && (e.target === 'all' || e.target === 'all_but_self')) push('tag-misc', '🗑️ 場の道具消し');
-    if (k === 'ふういん') push('tag-block', '🔒 同技封印');
-    if (k === '木の実奪取食') push('tag-misc', '🍒 きのみ奪い食');
+    if (k === 'みがわり設置') push('tag-support', '🪆 「みがわり」を作る');
+    if (k === 'PP減少') push('tag-other', '💢 相手の技のPPを減らす');
+    if (k === 'みちづれ') push('tag-faint', '💀 みちづれ');
+    if (k === 'ロックオン') push('tag-flag', '🎯 次のターン必ず命中');
+    if (k === 'メロメロ付与') push('tag-status', '💕 「メロメロ」状態にする');
+    if (k === 'ランダム技') push('tag-misc', '🎲 自分の覚えている技からランダム');
+    if (k === 'いたみわけ') push('tag-recov', '🤝 自分と相手のHPを半分ずつに分ける');
+    if (k === '自分交代' && Array.isArray(e.pass) && e.pass.length > 0) push('tag-switch', '🎽 能力ランクを引き継いで交代');
+    if (k === '遅延攻撃') push('tag-charge', '⏳ 2ターン後に攻撃が当たる');
+    if (k === 'やけど低下無視') push('tag-misc', '🔥 「やけど」のこうげき低下を無視');
+    if (k === '持ち物交換') push('tag-support', '🔄 自分と相手の持ち物を入れかえる');
+    if (k === '特性上書き' && e.target === 'opponent' && e.value && e.value !== '自分の特性') push('tag-misc', '🔀 相手の特性を上書き');
+    if (k === '特性上書き' && (e.source === 'opponent_ability' || e.value === '自分の特性')) push('tag-misc', '🪞 相手の特性をコピー');
+    if (k === '持ち物排除' && (e.target === 'all' || e.target === 'all_but_self')) push('tag-misc', '🗑️ 場の全員の持ち物を使えなくする');
+    if (k === 'ふういん') push('tag-block', '🔒 自分も知っている技を相手は使えなくなる');
+    if (k === '木の実奪取食') push('tag-misc', '🍒 相手の「きのみ」を奪って食べる');
     if (k === '条件威力倍率') {
-      if (/moves_after/.test(ct||'')) push('tag-misc', '🔄 後攻で2倍');
-      else if (/already_damaged/.test(ct||'')) push('tag-misc', '💢 追撃で2倍');
-      else if (e.prob != null) push('tag-misc', '🎲 確率で2倍');
+      if (/moves_after/.test(ct||'')) push('tag-misc', '🔄 後攻で使うと威力2倍');
+      else if (/already_damaged/.test(ct||'')) push('tag-misc', '💢 相手が同ターンに先にダメージ受けたら威力2倍');
+      else if (e.prob != null) push('tag-misc', '🎲 ' + e.prob + '%の確率で威力2倍');
     }
-    if (k === 'なげつける') push('tag-misc', '🎁 道具で攻撃');
-    if (k === '能力入替' && Array.isArray(e.stats) && e.stats.length === 1 && e.stats[0] === 'speed') push('tag-rankop', '🔄 速さ入替');
-    if (k === '特性無効化') push('tag-other', '🚫 特性きかず');
-    if (k === '直前技模倣') push('tag-misc', '🪞 直前技模倣');
-    if (k === '木の実強制') push('tag-misc', e.target === 'opponent' ? '🍃 きのみ奪取' : '🍃 きのみ即発動');
+    if (k === 'なげつける') push('tag-misc', '🎁 持っている道具を投げて攻撃');
+    if (k === '能力入替' && Array.isArray(e.stats) && e.stats.length === 1 && e.stats[0] === 'speed') push('tag-rankop', '🔄 自分と相手のすばやさを入れかえ');
+    if (k === '特性無効化') push('tag-other', '🚫 相手の特性を無効にする');
+    if (k === '直前技模倣') push('tag-misc', '🪞 直前にだれかが使った技をまねる');
+    if (k === '木の実強制') push('tag-misc', e.target === 'opponent' ? '🍃 相手の「きのみ」を奪って使う' : '🍃 持っている「きのみ」をすぐに使う');
     if (k === '実数値折半') {
       const sts = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
-      if (sts.some(s => /defense/.test(s))) push('tag-rankop', '🛡️ 防御均等化');
-      if (sts.some(s => /attack/.test(s))) push('tag-rankop', '⚔️ 攻撃均等化');
+      if (sts.some(s => /defense/.test(s))) push('tag-rankop', '🛡️ 自分と相手のぼうぎょ・とくぼうを平均化');
+      if (sts.some(s => /attack/.test(s))) push('tag-rankop', '⚔️ 自分と相手のこうげき・とくこうを平均化');
     }
-    if (k === '別防御参照ダメージ') push('tag-misc', '🛡️ とくぼう無視');
+    if (k === '別防御参照ダメージ') push('tag-misc', '🛡️ 特殊技だが相手のぼうぎょで計算');
     if (k === 'タイプ上書き') {
-      if (e.value === 'copy_target_current_types') push('tag-misc', '🪞 タイプコピー');
-      else if (e.value && !/^[A-Za-z_]+$/.test(String(e.value))) push('tag-misc', '🎭 タイプ変更');
+      if (e.value === 'copy_target_current_types') push('tag-misc', '🪞 自分のタイプを相手と同じにする');
+      else if (e.value && !/^[A-Za-z_]+$/.test(String(e.value))) push('tag-misc', `🎭 相手のタイプを「${e.value}」だけに変える`);
     }
-    if (k === '相手能力ダメージ') push('tag-misc', '↩️ 敵こうげきで計算');
-    if (k === 'ランク無視') push('tag-misc', '🔓 ランク無視');
-    if (k === '技タイプ追加') push('tag-misc', '🔀 技にタイプ追加');
-    if (k === 'タイプ追加') push('tag-other', '🏷️ 相手にタイプ追加');
-    if (k === '技強制再使用') push('tag-misc', '🔁 敵に同技反復');
-    if (k === 'ランク数威力加算') push('tag-misc', '📈 積むほど威力UP');
-    if (k === 'タイプ除去') push('tag-other', '💨 自タイプ消失');
-    if (k === '別能力ダメージ') push('tag-misc', '🛡️ ぼうぎょでダメ計');
-    if (k === '対象範囲変更') push('tag-misc', '🌐 全体化(条件)');
-    if (k === '相手持ち物威力') push('tag-misc', '🎒 敵の道具で攻撃');
-    if (k === '威力段階増加') push('tag-misc', '⚰️ 仲間瀕死で威力UP');
-    if (k === '次ターン使用不可') push('tag-recoil', '🚫 連発不可');
-    if (k === 'へんしん') push('tag-misc', '✨ へんしん');
+    if (k === '相手能力ダメージ') push('tag-misc', '↩️ 相手のこうげきの高さでダメージ計算');
+    if (k === 'ランク無視') push('tag-misc', '🔓 相手の能力ランク変化を無視して攻撃');
+    if (k === '技タイプ追加') push('tag-misc', '🔀 この技にタイプを追加');
+    if (k === 'タイプ追加') push('tag-other', `🏷️ 相手に「${e.value}」タイプを追加`);
+    if (k === '技強制再使用') push('tag-misc', '🔁 相手に直前の技をもう一度使わせる');
+    if (k === 'ランク数威力加算') push('tag-misc', '📈 自分の能力ランクが上がっているほど威力上昇');
+    if (k === 'タイプ除去') push('tag-other', `💨 自分の「${e.value}」タイプがなくなる`);
+    if (k === '別能力ダメージ') push('tag-misc', '🛡️ 自分のぼうぎょでダメージ計算');
+    if (k === '対象範囲変更') push('tag-misc', '🌐 条件で相手全体に当たるようになる');
+    if (k === '相手持ち物威力') push('tag-misc', '🎒 相手の持ち物を使って攻撃');
+    if (k === '威力段階増加') push('tag-misc', '⚰️ ひんしになった味方が多いほど威力上昇');
+    if (k === '次ターン使用不可') push('tag-recoil', '🚫 次のターン使えない');
+    if (k === 'へんしん') push('tag-misc', '✨ 相手のすがた・能力・技をコピー');
   }
   // ★requires(使用条件)からタグ(ゲップ/とっておき/いびき等)
   for (const r of (bd.requires || [])) {
-    if (r.type === 'user_has_eaten_berry') push('tag-misc', '🍒 きのみ食後だけ');
-    if (r.type === 'all_other_known_moves_used') push('tag-misc', '🎴 他技全部使用後');
-    if (r.type === 'self_status') push('tag-status', '💤 ' + r.value + '時のみ');
-    if (r.type === 'weather') push('tag-field', '🌤 ' + r.value + '時のみ');
-    if (r.type === 'first_turn_after_switch_in') push('tag-misc', '⏮ 出てきた初手');
+    if (r.type === 'user_has_eaten_berry') push('tag-misc', '🍒 「きのみ」を食べた後だけ使える');
+    if (r.type === 'all_other_known_moves_used') push('tag-misc', '🎴 他の技を全部使うと使える');
+    if (r.type === 'self_status') push('tag-status', `💤 自分が「${r.value}」状態の時だけ使える`);
+    if (r.type === 'weather') push('tag-field', `🌤 天気が「${r.value}」の時だけ使える`);
+    if (r.type === 'first_turn_after_switch_in') push('tag-misc', '⏮ 出てきた最初のターンだけ使える');
   }
 
   return out;
@@ -363,7 +363,9 @@ function buildRow(m) {
   const effHtml = status + (text ? ' ' + esc(text) : ' <span class="gen-none">(生成なし)</span>') + holeDetail;
 
   // 並び順(2026-06-07 阿部さん指定=プロト踏襲): 習得/わざ名/優先/フラグ/タイプ/分類/威力/命中/PP/接触/守貫/対象/カテゴリ/効果/タグ/ヤック
-  return `<tr>
+  // ★2026-06-17: タグフィルター用に data-tags 属性に全タグテキストを並べる(JS側でこれを検索)
+  const dataTags = tags.map(t => t.text).join('|');
+  return `<tr data-tags="${esc(dataTags)}">
   <td class="col-learners">${learners > 0 ? learners : '—'}</td>
   <td class="col-name"><span class="name-cell">${esc(m.name)}</span></td>
   ${prioTd}
@@ -647,8 +649,14 @@ const html = `<!DOCTYPE html>
   <button id="toggleChecked" class="act">👁 確認OKも表示</button>
   <button id="collapseAll" class="act">▾ グループ全部畳む/開く</button>
   <button id="resetChk" class="act">↺ 確認OKをリセット</button>
-  <span class="hint">💡 見直したいときは、そのグループの見出しをクリックで開く(チェック済みも再表示)／全部見るなら👁</span>
+  <button id="tagPanel" class="act">🏷 タグでしぼり込み…</button>
+  <button id="clearTags" class="act" style="display:none">✕ タグ解除</button>
+  <span id="activeTags" class="active-tags"></span>
   <span class="cnt" id="cnt"></span>
+</div>
+<div id="tagFilterBox" class="tag-filter-box" style="display:none">
+  <div class="tfb-hint">💡 タグをクリックでそのタグを持つ技だけ表示(複数選択=AND)。もう一度クリックで外す。「✕ タグ解除」で全解除。</div>
+  <div id="tagFilterChips" class="tag-filter-chips"></div>
 </div>
 ${toc}
 ${sections}
