@@ -145,7 +145,7 @@ function clause(e, m) {
     case '威力倍率':
       return `威力が${multT(e.multiplier)}`;
     case '自分瀕死':
-      return `技を使ったあと、自分はひんしになる`;
+      return `技を使ったあと、自分はひんしになる`; // いやしのねがい/みかづきのいのり/さいきのいのり等
     case '回復':
       // ★2026-06-15: amount構造化対応(ちからをすいとる等)。fractionは従来どおり。
       if (e.amount && typeof e.amount === 'object') {
@@ -320,7 +320,7 @@ function clause(e, m) {
       return `相手に与えたダメージの${fracT(e.fraction)}だけ、自分のHPを回復する`;
     case '自分交代':
       // ★2026-06-15: 変化技(power無)で「攻撃したあと」と書かない(しっぽきり・さむいギャグの誤読対策)
-      if (Array.isArray(e.pass) && e.pass.length) return `自分の能力の変化などを引きついで、控えのポケモンと交代する`;
+      if (Array.isArray(e.pass) && e.pass.length) return `自分にかかっていた能力ランクの変化や一部の状態(「みがわり」「やどりぎのタネ」「きあいだめ」など)を、控えのポケモンに引きついで交代する(「ちょうはつ」「メロメロ」などは引きつがない)`; // 2026-06-18 バトンタッチ詳細
       // ★2026-06-17: pass_to_replacement (しっぽきり=みがわり状態を引き継ぐ)
       if (Array.isArray(e.pass_to_replacement) && e.pass_to_replacement.length) return `控えのポケモンと交代する(「${e.pass_to_replacement.join('」「')}」状態は次のポケモンに引き継がれる)`;
       return (m && m.power && m.power > 0) ? `攻撃したあと、控えのポケモンと交代する` : `使ったあと、控えのポケモンと交代する`;
@@ -572,7 +572,7 @@ function clause(e, m) {
       }
       return `${durT(e.duration)}の間、場の全員の道具の効果がなくなる(もう一度使うと元にもどる)`;
     case 'トリックルーム':
-      return `${durT(e.duration)}の間、すばやさが低いポケモンから先に行動する(もう一度使うと元にもどる)`;
+      return `${durT(e.duration)}の間、すばやさが低いポケモンから先に行動する(ただし優先度のある先制技には効かない。もう一度使うと元にもどる)`; // 2026-06-18
     case 'じゅうりょく':
       return `${durT(e.duration)}の間、場の全員の命中率が5/3倍くらいになり、ひこうタイプや特性「ふゆう」で浮いているポケモンも地面にいるあつかいになる。「そらをとぶ」「とびはねる」「フリーフォール」「はねる」「とびげり」「とびひざげり」「でんじふゆう」「フライングプレス」などの空中に行く技は使えなくなり、使っている最中なら中止される`; // 2026-06-18: 使用不可技列挙
     case '必ず急所':

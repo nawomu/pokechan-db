@@ -42,6 +42,7 @@ const L = {
   target_stat_rose_this_turn: c => `そのターンに相手の能力ランクが上がった時`,
   target_stat_raised_this_turn: c => `そのターンに相手の能力ランクが上がった時`,
   user_stat_lowered_this_turn: c => `そのターンに自分の能力ランクが下げられた時(交代で場に出た直後に下げられた場合もふくむ)`, // 2026-06-18 うっぷんばらし
+  target_stat_rose_this_turn: c => `そのターンに相手の能力ランクが上がった時(交代で場に出た直後に上がった場合もふくむ)`, // 2026-06-18 しっとのほのお/みわくのボイス
   not_first_round_user_this_turn: c => `同じターンで自分より先に同じ技が使われた時`,
   previous_turn_move_failed_or_could_not_act: c => `前のターンで技が外れた・失敗した・「まひ」「こんらん」「ひるみ」状態などで動けなかった時`,
   failed_to_act_last_turn: c => `前のターンで技が外れた・失敗した・「まひ」「こんらん」「ひるみ」状態などで動けなかった時`,
