@@ -255,6 +255,8 @@ function clause(e, m) {
       }
       // ★ちからをすいとる: note「相手の能力を下げられない時は、回復だけする」を補足(共起=回復kindと一緒)
       if (e.note && /下げられない時は、回復だけする/.test(e.note)) main += `(相手の能力を下げられない時は、回復だけする)`;
+      // ★2026-06-18: 特定状態時失敗(きりばらい=相手が「みがわり」のとき回避率低下のみ失敗)
+      if (e.fails_if_target_state) main += `(相手が「${e.fails_if_target_state}」状態のときは、この効果だけ失敗する)`;
       return main;
     }
     case '2ターン目に攻撃': {
