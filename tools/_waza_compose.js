@@ -233,7 +233,13 @@ function clause(e, m) {
       if (e.stat_choice === 'random_one_of') {
         return `${pre}${who}「${sts.join('」「')}」のうちランダムで1つが${sg}`;
       }
-      let main = `${pre}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
+      // ★主要5能力(こうげき/ぼうぎょ/とくこう/とくぼう/すばやさ)が全部同時(げんしのちから等)は「すべての能力」とまとめる(2026-06-17 阿部さん・「ランダムで1つ?」誤読防止)
+      const MAIN5 = ['attack', 'defense', 'special_attack', 'special_defense', 'speed'];
+      const rawStats = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
+      const isAll5 = rawStats.length === 5 && MAIN5.every(s => rawStats.includes(s));
+      let main = isAll5
+        ? `${pre}${who}すべての能力(${sts.join('・')})が一気に${sg}`
+        : `${pre}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
       // ★攻撃技で自分の能力ランク「ダウン」は legacy が「攻撃後、」を明示=実機の Phase 9(攻撃後)に下がる(2026-06-17 阿部さん・リファレンス §3 確認済)。
       //    インファイト/りゅうせいぐん/ばかぢから等。アップ系(はがねのつばさ等)は legacy も「攻撃後」を省略するので前置しない。
       //    sim側も phaseApplyEffects 内で処理(real_battle_simulator.html L3390)=データのphase:on_useはsim実装で攻撃後扱い。
