@@ -37,8 +37,7 @@ function getMoveFilterTags(m) {
   if (flags.ball)           out.push({cls:'tag-flag',  text:'🔵 弾'});
   if (flags.pulse)          out.push({cls:'tag-flag',  text:'〰️ 波動'});
   if (flags.ohko)           out.push({cls:'tag-flag',  text:'💀 一撃必殺'});
-  if (flags.charge)         out.push({cls:'tag-flag',  text:'⏳ 溜め'});
-  if (flags.recharge)       out.push({cls:'tag-flag',  text:'🔁 2T動けない'});
+  // ⏳ 溜め(flags.charge)・🔁 2T動けない(flags.recharge)はbd.charge/recharge と内容重複=ここでは出さない(2026-06-17 阿部さん・統合)
   if (flags.change_type)    out.push({cls:'tag-flag',  text:'🎭 タイプ変更'});
   if (flags.change_ability) out.push({cls:'tag-flag',  text:'✨ 特性変更'});
   if (flags.change_item)    out.push({cls:'tag-flag',  text:'🎁 道具変更'});
@@ -122,13 +121,17 @@ function getMoveFilterTags(m) {
   if (prio > 0) out.push({cls:'tag-prio-up',   text:`⚡ 先制+${prio}`});
   if (prio < 0) out.push({cls:'tag-prio-down', text:`🐢 後攻${prio}`});
 
-  // ため / 再不可
+  // ため / 再不可(2026-06-17 阿部さん・正確な言葉に統一)
   if (bd.charge) {
-    const CHARGE_LBL = {'normal':'2ターン目に攻撃','invulnerable':'半無敵化','with_stat_up':'1T能力UP+2T攻撃'};
+    const CHARGE_LBL = {
+      'normal':         '1ターン目にためて2ターン目に攻撃',
+      'invulnerable':   '1ターン目に空中などにかくれて2ターン目に攻撃',
+      'with_stat_up':   '1ターン目に能力ランクが上がり2ターン目に攻撃',
+    };
     out.push({cls:'tag-charge', text:`⏳ ${CHARGE_LBL[bd.charge]||bd.charge}`});
   }
-  if (bd.charge_skip_in_weather) out.push({cls:'tag-charge', text:'☀️ 天候で省略'});
-  if (bd.recharge)               out.push({cls:'tag-charge', text:'🔁 使用後不動'});
+  if (bd.charge_skip_in_weather) out.push({cls:'tag-charge', text:'☀️ 天気でためを省略できる'});
+  if (bd.recharge)               out.push({cls:'tag-charge', text:'🔁 使った次のターンは動けない'});
 
   // 場・設置・交代系
   if (bd.weather_set) {
@@ -326,7 +329,7 @@ const numCell = v => (v == null || v === '') ? '<span style="color:#BBB">—</sp
 
 // === 行の組み立て ===
 // フラグ列(プロト準拠: パンチ/音 等のアイコン。change_*は効果側=タグに出るのでここでは出さない)
-const FLAGCOL = [['punch', '👊パンチ'], ['sound', '🔊音'], ['charge', '⏳ため'], ['recharge', '🔁2T'], ['drain', '🩸吸収'], ['pulse', '〰️波動'], ['ball', '🔵弾'], ['ohko', '💀一撃'], ['powder', '🌸こな']];
+const FLAGCOL = [['punch', '👊パンチ'], ['sound', '🔊音'], ['drain', '🩸吸収'], ['pulse', '〰️波動'], ['ball', '🔵弾'], ['ohko', '💀一撃'], ['powder', '🌸こな']]; // charge/rechargeは溜め技タグと重複=フラグ列から除外(2026-06-17)
 const flagCell = f => { const xs = FLAGCOL.filter(([k]) => f[k]).map(([, v]) => v); return xs.length ? xs.join(' ') : '<span style="color:#BBB">—</span>'; };
 
 function buildRow(m) {
