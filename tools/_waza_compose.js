@@ -234,6 +234,10 @@ function clause(e, m) {
         return `${pre}${who}「${sts.join('」「')}」のうちランダムで1つが${sg}`;
       }
       let main = `${pre}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
+      // ★攻撃技で自分の能力ランク「ダウン」は legacy が「攻撃後、」を明示=実機の Phase 9(攻撃後)に下がる(2026-06-17 阿部さん・リファレンス §3 確認済)。
+      //    インファイト/りゅうせいぐん/ばかぢから等。アップ系(はがねのつばさ等)は legacy も「攻撃後」を省略するので前置しない。
+      //    sim側も phaseApplyEffects 内で処理(real_battle_simulator.html L3390)=データのphase:on_useはsim実装で攻撃後扱い。
+      if (e.target === 'self' && (e.stages || 0) < 0 && m && m.power > 0 && !e.on_charge_turn) main = `攻撃したあと、${main}`;
       // ★2026-06-15: modifier (せいちょうの「にほんばれ」で2段階等)を訳す
       if (e.modifier && e.modifier.type === 'weather' && e.modifier.stages != null) {
         const mg = e.modifier.stages > 0 ? `+${e.modifier.stages}` : `${e.modifier.stages}`;
@@ -703,9 +707,14 @@ function compose(m) {
   const GROUNDED_SELF = new Set(['状態異常予防', '場の威力補正', '優先技無効', '回復']);
   const isGroundedCond = c => c && (c.type === 'grounded' || c.type === 'user_grounded' || c.type === 'target_grounded');
   const sentences = groups.map(g => {
-    const body = g.cl.map((cl, i) =>
-      (i > 0 && cl.kind === '能力ランク変化' && g.cl[i - 1].kind === 'HPが減る') ? 'そのかわり、' + cl.text : cl.text
-    ).join('。');
+    const body = g.cl.map((cl, i) => {
+      let txt = cl.text;
+      // 連続する「攻撃したあと、」を2回目以降は消す(スケイルショット=ぼうぎょ-1+すばやさ+1 を1文にまとめる)
+      if (i > 0 && txt.startsWith('攻撃したあと、') && (g.cl[i - 1].text || '').startsWith('攻撃したあと、')) {
+        txt = txt.replace(/^攻撃したあと、/, '');
+      }
+      return (i > 0 && cl.kind === '能力ランク変化' && g.cl[i - 1].kind === 'HPが減る') ? 'そのかわり、' + txt : txt;
+    }).join('。');
     // 条件文がゴミ(⚠️要調査=condStrNewが訳しきれない複雑条件)なら前置しない=clauseが自己完結で意味を持つ
     const selfContained = g.cl.every(cl => SELF_CONTAINED_COND.has(cl.kind))
       || (isGroundedCond(g.cond) && g.cl.every(cl => GROUNDED_SELF.has(cl.kind))); // groundedはclause内包=前置スキップ
