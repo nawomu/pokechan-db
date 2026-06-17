@@ -127,13 +127,15 @@ thead th.col-effsrc { text-align:left; }
 .bar button { padding:4px 12px; border-radius:14px; border:1px solid #C5D2E5; background:#fff; cursor:pointer; font-weight:700; font-size:12px; color:#1F4E79; }
 .bar button.on { background:#1F4E79; color:#fff; border-color:#1F4E79; }
 .bar input { padding:5px 10px; border-radius:8px; border:1px solid #C5D2E5; font-size:13px; }
+.bar .hint { font-size:11px; color:#5a6b85; margin-left:8px; }
 .bar .cnt { font-size:12.5px; color:#33415c; font-weight:700; margin-left:auto; }
 /* バーの分だけ見出し/列見出しのstickyを下げる(バー35px) */
 .sec-h { top:35px; cursor:pointer; user-select:none; }
 .sec thead th { top:68px; }
 .sec-h .caret { display:inline-block; transition:transform .15s; font-size:12px; margin-right:4px; }
-.sec.collapsed .caret { transform:rotate(-90deg); }
-.sec.collapsed .tbl-wrap { display:none; }
+.sec.collapsed .caret, .sec.hdr-only .caret { transform:rotate(-90deg); }
+.sec.collapsed .tbl-wrap, .sec.hdr-only .tbl-wrap { display:none; }
+.sec.hdr-only .sec-h::after, .sec.collapsed.allchecked .sec-h::after { content:"▶ クリックで見直す"; font-size:10px; color:#9cc4ee; margin-left:8px; font-weight:400; }
 .sec-prog { font-size:11px; color:#7ee787; margin-left:8px; font-weight:400; }
 .sec-done { font-size:11px; padding:2px 9px; border-radius:5px; margin-left:auto; border:1px solid #4a90d9; background:#173049; color:#cfe0f0; cursor:pointer; font-weight:700; }
 .sec-done:hover { background:#1f4e79; }
@@ -153,6 +155,7 @@ tbody tr.is-checked { opacity:.5; }
   <button id="toggleChecked" class="act">👁 確認OKも表示</button>
   <button id="collapseAll" class="act">▾ グループ全部畳む/開く</button>
   <button id="resetChk" class="act">↺ 確認OKをリセット</button>
+  <span class="hint">💡 見直したいときは、そのグループの見出しをクリックで開く(チェック済みも再表示)／全部見るなら👁</span>
   <span class="cnt" id="cnt"></span>
 </div>
 <nav class="toc" id="toc">
@@ -13378,15 +13381,21 @@ const LS_CHK="pcham_voice_checked_v1", LS_COL="pcham_sec_collapsed_v1"; // ★ve
 let checked=new Set(JSON.parse(localStorage.getItem(LS_CHK)||"[]"));
 let collapsed=new Set(JSON.parse(localStorage.getItem(LS_COL)||"[]"));
 let showChecked=false;
+let revealed=new Set(); // ★開いたセクションは、そのセクションだけチェック済みも再表示(見直し用・一時)
 const saveChk=()=>localStorage.setItem(LS_CHK,JSON.stringify([...checked]));
 const saveCol=()=>localStorage.setItem(LS_COL,JSON.stringify([...collapsed]));
 function keyOf(r){const s=r.closest(".sec");const nm=r.querySelector(".name-cell");return (s?s.id:"")+"|"+(nm?nm.textContent.trim():"");}
 function apply(){const v=document.getElementById("q").value.trim();
   rows.forEach(r=>{const nm=r.querySelector(".name-cell");const okQ=!v||(nm&&nm.textContent.includes(v));
-    const hideChk=checked.has(keyOf(r))&&!showChecked;
+    const sec=r.closest(".sec");const revd=showChecked||(sec&&revealed.has(sec.id)); // 全体表示 or このセクションが開かれている
+    const hideChk=checked.has(keyOf(r))&&!revd;
     r.style.display=(okQ&&!hideChk)?"":"none";});
-  secs.forEach(s=>{const any=[...s.querySelectorAll("tbody tr")].some(r=>r.style.display!=="none");
-    s.style.display=(any||s.classList.contains("collapsed"))?"":"none";});
+  // 検索ヒット無しのセクションだけ隠す。チェック済みで中身が全部消えても見出しは残す=クリックで見直せる
+  secs.forEach(s=>{const rs=[...s.querySelectorAll("tbody tr")];
+    const matchQ=!v||rs.some(r=>{const nm=r.querySelector(".name-cell");return nm&&nm.textContent.includes(v);});
+    const visN=rs.filter(r=>r.style.display!=="none").length;
+    s.classList.toggle("hdr-only",rs.length>0&&visN===0&&!s.classList.contains("collapsed")); // チェック済みで空=見出しだけ残す
+    s.style.display=matchQ?"":"none";});
   updCnt();}
 function updCnt(){const c=document.getElementById("cnt");if(c)c.textContent="確認OK "+checked.size+" / "+rows.length+"技";}
 function markSecDone(){secs.forEach(s=>{const rs=[...s.querySelectorAll("tbody tr")];const done=rs.filter(r=>checked.has(keyOf(r))).length;
@@ -13396,9 +13405,12 @@ rows.forEach(r=>{const cb=r.querySelector(".rowchk");if(!cb)return;const k=keyOf
   cb.checked=checked.has(k);r.classList.toggle("is-checked",cb.checked);
   cb.addEventListener("change",()=>{if(cb.checked)checked.add(k);else checked.delete(k);
     r.classList.toggle("is-checked",cb.checked);saveChk();markSecDone();apply();});});
-function setCol(s,on){s.classList.toggle("collapsed",on);if(on)collapsed.add(s.id);else collapsed.delete(s.id);saveCol();}
+function setCol(s,on){s.classList.toggle("collapsed",on);if(on){collapsed.add(s.id);revealed.delete(s.id);}else{collapsed.delete(s.id);revealed.add(s.id);}saveCol();} // 開く=そのセクションのチェック済みも見直し表示 / 畳む=また隠す
 secs.forEach(s=>{if(collapsed.has(s.id))s.classList.add("collapsed");
-  const h=s.querySelector(".sec-h");if(h)h.addEventListener("click",e=>{if(e.target.closest(".sec-done")||e.target.closest("a"))return;setCol(s,!s.classList.contains("collapsed"));});
+  const h=s.querySelector(".sec-h");if(h)h.addEventListener("click",e=>{if(e.target.closest(".sec-done")||e.target.closest("a"))return;
+    const visN=[...s.querySelectorAll("tbody tr")].filter(r=>r.style.display!=="none").length;
+    const closed=s.classList.contains("collapsed")||visN===0; // 畳んでいる or チェック済みで空 → 開いて見直す
+    setCol(s,!closed);apply();});
   const btn=s.querySelector(".sec-done");if(btn)btn.addEventListener("click",e=>{e.stopPropagation();
     s.querySelectorAll("tbody tr").forEach(r=>{const cb=r.querySelector(".rowchk");if(cb&&!cb.checked){cb.checked=true;checked.add(keyOf(r));r.classList.add("is-checked");}});
     saveChk();setCol(s,true);markSecDone();apply();});});

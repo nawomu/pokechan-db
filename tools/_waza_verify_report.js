@@ -88,8 +88,9 @@ thead th.col-verdict { min-width:260px; }
 /* === 人の耳チェック(確認OK→畳む)=== */
 .sec-h { cursor:pointer; user-select:none; display:flex; align-items:center; gap:8px; }
 .sec-h .caret { display:inline-block; transition:transform .15s; font-size:13px; color:#1F4E79; }
-.sec.collapsed .caret { transform:rotate(-90deg); }
-.sec.collapsed .tbl-wrap { display:none; }
+.sec.collapsed .caret, .sec.hdr-only .caret { transform:rotate(-90deg); }
+.sec.collapsed .tbl-wrap, .sec.hdr-only .tbl-wrap { display:none; }
+.sec.hdr-only .sec-h::after, .sec.collapsed.allchecked .sec-h::after { content:"▶ クリックで見直す"; font-size:10px; color:#2E7D32; margin-left:8px; font-weight:400; }
 .sec.collapsed .sec-h { opacity:.72; }
 .sec.allchecked .sec-h { background:#eef7ee; }
 .sec.allchecked .caret::after { content:" ✓"; color:#2E7D32; }
@@ -127,18 +128,21 @@ const LS_CHK="pcham_voice_checked_v1", LS_COL="pcham_sec_collapsed_v1";
 let checked=new Set(JSON.parse(localStorage.getItem(LS_CHK)||"[]"));
 let collapsed=new Set(JSON.parse(localStorage.getItem(LS_COL)||"[]"));
 let showChecked=false;
+let revealed=new Set(); // ★開いたグループは、そのグループだけチェック済みも再表示(見直し用・一時)
 const saveChk=()=>localStorage.setItem(LS_CHK,JSON.stringify([...checked]));
 const saveCol=()=>localStorage.setItem(LS_COL,JSON.stringify([...collapsed]));
 function vof(r){const b=r.querySelector(".vbadge");return b?[...b.classList].find(c=>c.startsWith("v-")).slice(2):"";}
 function keyOf(r){const s=r.closest(".sec");const nm=r.querySelector(".name-cell");return (s?s.id:"")+"|"+(nm?nm.textContent.trim():"");}
 function apply(){const v=document.getElementById("q").value.trim();
-rows.forEach(r=>{const leak=!!r.querySelector(".vleak");const okF=filt==="all"||(filt==="leak"?leak:vof(r)===filt);
-const nm=r.querySelector(".name-cell");const okQ=!v||(nm&&nm.textContent.includes(v));
-const hideChk=checked.has(keyOf(r))&&!showChecked;
-r.style.display=(okF&&okQ&&!hideChk)?"":"none";});
-secs.forEach(s=>{const any=[...s.querySelectorAll("tbody tr")].some(r=>r.style.display!=="none");
-// 折りたたみ中のセクションは見出しだけ残す(中身は非表示)。フィルタで全消えなら丸ごと隠す
-s.style.display=(any||s.classList.contains("collapsed"))?"":"none";});
+const fsMatch=r=>{const leak=!!r.querySelector(".vleak");const okF=filt==="all"||(filt==="leak"?leak:vof(r)===filt);const nm=r.querySelector(".name-cell");const okQ=!v||(nm&&nm.textContent.includes(v));return okF&&okQ;};
+rows.forEach(r=>{const sec=r.closest(".sec");const revd=showChecked||(sec&&revealed.has(sec.id));
+const hideChk=checked.has(keyOf(r))&&!revd;
+r.style.display=(fsMatch(r)&&!hideChk)?"":"none";});
+secs.forEach(s=>{const rs=[...s.querySelectorAll("tbody tr")];
+const anyFS=rs.some(fsMatch); // フィルタ/検索でヒットする行(チェック隠しは除く=見出しは残す)
+const visN=rs.filter(r=>r.style.display!=="none").length;
+s.classList.toggle("hdr-only",anyFS&&visN===0&&!s.classList.contains("collapsed")); // チェック済みで空=見出しだけ残す
+s.style.display=anyFS?"":"none";});
 updCnt();}
 function updCnt(){const c=document.getElementById("cnt");if(c)c.textContent="耳チェック "+checked.size+" / "+rows.length+"技";}
 function markSecDone(){secs.forEach(s=>{const rs=[...s.querySelectorAll("tbody tr")];const done=rs.filter(r=>checked.has(keyOf(r))).length;
@@ -150,9 +154,12 @@ cb.checked=checked.has(k);r.classList.toggle("is-checked",cb.checked);
 cb.addEventListener("change",()=>{if(cb.checked)checked.add(k);else checked.delete(k);
 r.classList.toggle("is-checked",cb.checked);saveChk();markSecDone();apply();});});
 // セクション折りたたみ
-function setCol(s,on){s.classList.toggle("collapsed",on);if(on)collapsed.add(s.id);else collapsed.delete(s.id);saveCol();}
+function setCol(s,on){s.classList.toggle("collapsed",on);if(on){collapsed.add(s.id);revealed.delete(s.id);}else{collapsed.delete(s.id);revealed.add(s.id);}saveCol();} // 開く=チェック済みも見直し / 畳む=また隠す
 secs.forEach(s=>{if(collapsed.has(s.id))s.classList.add("collapsed");
-const h=s.querySelector(".sec-h");h.addEventListener("click",e=>{if(e.target.closest(".sec-done"))return;setCol(s,!s.classList.contains("collapsed"));});
+const h=s.querySelector(".sec-h");h.addEventListener("click",e=>{if(e.target.closest(".sec-done"))return;
+const visN=[...s.querySelectorAll("tbody tr")].filter(r=>r.style.display!=="none").length;
+const closed=s.classList.contains("collapsed")||visN===0; // 畳んでいる or チェック済みで空 → 開いて見直す
+setCol(s,!closed);apply();});
 const btn=s.querySelector(".sec-done");if(btn)btn.addEventListener("click",e=>{e.stopPropagation();
 s.querySelectorAll("tbody tr").forEach(r=>{const cb=r.querySelector(".rowchk");if(cb&&!cb.checked){cb.checked=true;checked.add(keyOf(r));r.classList.add("is-checked");}});
 saveChk();setCol(s,true);markSecDone();apply();});});
