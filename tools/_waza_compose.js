@@ -798,6 +798,13 @@ function compose(m) {
   if (nbDyna.length && !new RegExp(nbDyna.join('|')).test(text)) {
     text += SYSTEMS_IN_GAME.dynamax ? `「${nbDyna.join('」「')}」の効果も受けない。` : `（${nbDyna.join('・')}の効果も受けない）`;
   }
+  // ★not_bypassing(2026-06-17 阿部さん・じばそうさ): not_blocked_by の対称形=この技は◯◯に防がれる側。
+  //   ヤックンが「なお『ダイウォール』は貫通しない」と注意書きを入れる技で、似た味方支援技(いやしのすず等)が貫通技一覧に載るのと対比。
+  //   未解禁=カッコ書き「(◯◯は貫通しない)」/ 解禁時はカッコ無し通常文。
+  const nbpDyna = (bd.not_bypassing || []).filter(x => SYSTEM_OF[x] === 'dynamax');
+  if (nbpDyna.length && !new RegExp(nbpDyna.join('|')).test(text)) {
+    text += SYSTEMS_IN_GAME.dynamax ? `「${nbpDyna.join('」「')}」は貫通しない。` : `（${nbpDyna.join('・')}は貫通しない）`;
+  }
   // ★みがわり貫通フラグ(substitute_pierce)を後置(2026-06-15): 効果kind「みがわり貫通」で既に喋っていなければ補う(いびき等の取りこぼし)。
   if (bd.substitute_pierce === true && !eff.some(e => e.kind === 'みがわり貫通') && !/すりぬけて当たる|みがわり.*状態でも/.test(text)) {
     // ★味方/自分だけを対象にする技(いやしのすず=party回復)は「相手の」でなく「味方の」みがわりに届く、と言う
