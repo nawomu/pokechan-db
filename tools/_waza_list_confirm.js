@@ -65,6 +65,27 @@ function getMoveFilterTags(m) {
     const probTxt = r.prob < 100 ? `${r.prob}% ` : '';
     out.push({cls:'tag-rank', text:`📊 ${probTxt}${TGT_JP[r.target]||'?'}${STAT_JP[r.stat]||r.stat}${sign}${r.delta}`});
   }
+  // ★rank_changes が無い技は effects の能力ランク変化からタグを作る(2026-06-17 阿部さん・はらだいこ/ソウルビート等の取りこぼし)
+  if (!Array.isArray(bd.rank_changes) || bd.rank_changes.length === 0) {
+    const STAT_EN_JP = {attack:'攻', defense:'防', special_attack:'特攻', special_defense:'特防', speed:'速', accuracy:'命中', evasion:'回避', all:'全能力'};
+    const TGT_EN_JP = {self:'自', opponent:'相', team:'味', ally:'味', all_opponents:'相全', all_but_self:'他全', party:'手', incoming:'次味', all:'場全'};
+    for (const e of (bd.effects || [])) {
+      if (e.kind !== '能力ランク変化') continue;
+      const tgt = TGT_EN_JP[e.target] || '?';
+      const sts = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
+      const probTxt = (e.prob != null && e.prob < 100) ? `${e.prob}% ` : '';
+      if (e.to_max) { // はらだいこ=自攻が最大まで上がる
+        for (const s of sts) out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}${STAT_EN_JP[s] || s}最大`});
+      } else if (e.stages) {
+        const sign = e.stages > 0 ? '+' : '';
+        if (e.stat_choice === 'random_one_of') { // つぼをつく等
+          out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}ランダム${sign}${e.stages}`});
+        } else {
+          for (const s of sts) out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}${STAT_EN_JP[s] || s}${sign}${e.stages}`});
+        }
+      }
+    }
+  }
 
   // 急所
   if (bd.must_crit)         out.push({cls:'tag-crit', text:'💥 必中急所'});
