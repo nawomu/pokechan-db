@@ -30,18 +30,16 @@ const immT = arr => (arr || []).map(x => x.value || (x.values || []).join('・')
 // condStrNew は「〜の時/〜の場合」を返す。文頭につなぐ。
 const condT = c => condStrNew(c).replace(/\s*⚠️要調査/g, '').replace(/の時$/, 'のとき').replace(/の場合は除く\)/, 'はのぞく)').replace(/『/g, '「').replace(/』/g, '」'); // 囲みは「」に統一(共有_cond_renderは触らずcompose側で吸収)。⚠要調査=翻訳済(リスト未確定)の印→除去して条件は出す
 
-// ★現シーズンの強化システム在否(2026-06-15 阿部さん確定)。未解禁のシステムへの言及は説明文に出さない=ゲート。
-// 来たら該当を true にするだけで、関連する一文(ダイウォール除外・ダイマックス技/Zワザ被弾軽減 等)が全技に一斉表示される(書き直し0)。
+// ★現シーズンの強化システム在否(2026-06-15)。★2026-06-17 阿部さん変更: 未解禁システムは「非表示」でなく「（カッコ書き）」で残す。
+// 来たら該当を true にするだけで、関連する一文(ダイウォール除外・ダイマックス技/Zワザ被弾軽減 等)が全技で「カッコ無しの通常文」に切り替わる(書き直し0)。
 // ※メガシンカは現状解禁中=true。※第N世代/SV等の他作品トリビアはこれとは別カテゴリ(ext/drop方針)。詳細=review/rules.html「★未実装システム…」。
 const SYSTEMS_IN_GAME = { mega: true, dynamax: false, tera: false, zmove: false };
 const SYSTEM_OF = { 'ダイマックス': 'dynamax', 'キョダイマックス': 'dynamax', 'ダイウォール': 'dynamax', 'ダイマックス技': 'dynamax', 'テラスタル': 'tera', 'テラスタル技': 'tera', 'Zワザ': 'zmove', 'Z技': 'zmove', 'Zワザ攻撃技': 'zmove' };
 const systemInGame = label => { const s = SYSTEM_OF[label]; return s ? !!SYSTEMS_IN_GAME[s] : true; }; // 未登録(通常技)は出してよい=true
-const gateList = arr => (arr || []).filter(systemInGame); // リストから未解禁システムの項目を除く
-// 効果まるごとが未解禁システム専用(=今は出すものが無い)か。穴ではなくゲートなので compose ではスキップ。
-const isFullyGated = e => e.kind === 'まもり貫通' && (
-  (Array.isArray(e.values) && e.user_takes_fraction != null && gateList(e.values).length === 0) || // ニードルガード形(ダイマックス/Z軽減)
-  (Array.isArray(e.pierces_without_removing) && gateList(e.pierces_without_removing).length === 0)   // フェイント形(除外がダイウォール=ゲートだけ)
-);
+const gateList = arr => (arr || []).filter(systemInGame); // 解禁済の項目だけ(=通常文に出す分)
+const gatedItems = arr => (arr || []).filter(x => !systemInGame(x)); // 未解禁の項目(=カッコ書きで残す分)
+// ★2026-06-17: 未解禁システムもカッコ書きで残すようになったので「丸ごとスキップ」はしない(全effectを描画)。
+const isFullyGated = e => false;
 
 const amountT = a => a === '自分の残りHP分' ? '自分のいまのこっているHPと同じだけ' : a;
 // ※ランク増減は±N表記に統一(能力=こうげき+1 / 急所=急所+1)。旧・和語数詞ヘルパー(kazuT)は2026-06-07に廃止。
@@ -112,27 +110,28 @@ function clause(e, m) {
     }
     case '拘束':
       return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}の間、逃げたり交代したりできないようにする`;
-    case 'まもり貫通':
+    case 'まもり貫通': {
       // ★bypasses形(ゴーストダイブ/なみだめ): 相手の守り技リストの効果を受けない。not_bypassed=除外。
       if (Array.isArray(e.bypasses)) {
-        const nb = gateList(e.not_bypassed); // 未解禁システム(ダイウォール等)は除外語から外す
-        const ex = nb.length ? `(「${nb.join('」「')}」は除く)` : '';
+        const inG = gateList(e.not_bypassed), gd = gatedItems(e.not_bypassed); // 解禁分は通常文・未解禁(ダイウォール)はカッコ書き
+        let ex = inG.length ? `(「${inG.join('」「')}」は除く)` : '';
+        if (gd.length) ex += `（${gd.join('・')}は除く）`;
         return `相手の「${e.bypasses.join('」「')}」の効果を受けない${ex}`;
       }
-      // フェイント形: まもる等を貫通して当たる(一部除く)
+      // フェイント形: まもる等を貫通して当たる(一部除く)。まもり解除kindが本文を言うので、未解禁のみのときは除外をカッコで添える
       if (Array.isArray(e.pierces_without_removing)) {
-        const pw = gateList(e.pierces_without_removing); // 未解禁システム(ダイウォール等)は除外語から外す
-        // フェイント=まもり解除kindが「やぶって攻撃」を既に言う。除外がダイウォール(ゲート中)だけなら、この一文は出さない(重複防止)
-        if (!pw.length) return null;
-        return `相手が「まもる」などで守っていても、それを無視して当たる(「${pw.join('」「')}」は除く)`;
+        const inG = gateList(e.pierces_without_removing), gd = gatedItems(e.pierces_without_removing);
+        if (inG.length) return `相手が「まもる」などで守っていても、それを無視して当たる(「${inG.join('」「')}」は除く)${gd.length ? `（${gd.join('・')}は除く）` : ''}`;
+        return `（ただし${gd.join('・')}は破れない）`; // フェイント: ダイウォールのみ=カッコ書きで残す
       }
       // ニードルガード形(守り側): ダイマックス技/Zワザで攻撃されてもダメージを軽くする
       if (Array.isArray(e.values) && e.user_takes_fraction != null) {
-        const vs = gateList(e.values); // ダイマックス技/Zワザが全部未解禁なら、この一文ごと出さない
-        if (!vs.length) return null;
-        return `「${vs.join('」「')}」で攻撃されても、受けるダメージを最大HPの${fracT(e.user_takes_fraction)}までにおさえる`;
+        const inG = gateList(e.values);
+        if (inG.length) return `「${inG.join('」「')}」で攻撃されても、受けるダメージを最大HPの${fracT(e.user_takes_fraction)}までにおさえる`;
+        return `（ダイマックス技やZワザの攻撃は、防いでも最大HPの${fracT(e.user_takes_fraction)}のダメージを受ける）`; // 未解禁=カッコ書き(まもる/みきり/ニードルガード)
       }
       return null;
+    }
     case '反動':
       return `相手に与えたダメージの${fracT(e.fraction)}を、自分も受ける`;
     case '威力倍率':
@@ -314,6 +313,12 @@ function clause(e, m) {
       s += (e.consecutive_success_multiplier != null)
         ? `。続けて使うたびに、成功する確率が${fracT(e.consecutive_success_multiplier)}になる(失敗するともとにもどる)`
         : `。続けて使うと失敗しやすくなる`;
+      // ★ダイマックス技/Zワザは防ぎきれずダメージ(まもる/みきり=partial_bypass)。未解禁はカッコ書き(2026-06-17)。
+      if (e.partial_bypass) {
+        const pb = Array.isArray(e.partial_bypass) ? e.partial_bypass : [e.partial_bypass];
+        const frac = pb[0] && pb[0].damage_fraction;
+        if (frac != null) s += SYSTEMS_IN_GAME.dynamax ? `。ダイマックス技やZワザの攻撃は防げず、最大HPの${fracT(frac)}のダメージを受ける` : `（ダイマックス技やZワザの攻撃は、防いでも最大HPの${fracT(frac)}のダメージを受ける）`;
+      }
       return s;
     }
     case 'こらえる':
@@ -452,8 +457,11 @@ function clause(e, m) {
       if (Array.isArray(e.values)) return `すがたによって技のタイプが「${e.values.join('」「')}」に変わる`;
       return null;
     case 'タイプ上書き':
-      // ミラータイプ等は value が機械値(copy_target_current_types)→意味で訳す
-      if (e.value === 'copy_target_current_types') return `自分のタイプを、相手と同じタイプに変える`;
+      // ミラータイプ等は value が機械値(copy_target_current_types)→意味で訳す。テラスタル分岐(未解禁)はカッコ書きで残す。
+      if (e.value === 'copy_target_current_types') {
+        const tera = (!SYSTEMS_IN_GAME.tera && /テラスタル/.test(e.note || '')) ? `（相手がテラスタルしているときはそのテラスタイプをコピーする。ステラのときは元のタイプをコピーする）` : '';
+        return `自分のタイプを、相手と同じタイプに変える${tera}`;
+      }
       return /^[A-Za-z_]+$/.test(String(e.value || '')) ? `相手のタイプを変える` : `相手のタイプを「${e.value}」だけに変える`;
     case 'タイプ追加':
       return `相手に「${e.value}」タイプを追加する`;
@@ -485,9 +493,9 @@ function clause(e, m) {
     case '強制交代(吹き飛ばし)':
       return `相手をむりやり交代させる(出てくる相手はランダム)`;
     case '強制交代(攻撃)':
-      // ダメージは通るが交代だけダイマックス相手に無効(ともえなげ/ドラゴンテール・Bulbapedia裏取り2026-06-15)。表示はゲート。
+      // ダメージは通るが交代だけダイマックス相手に無効(ともえなげ/ドラゴンテール)。未解禁はカッコ書きで残す(2026-06-17)。
       return `攻撃して、相手をむりやり交代させる(出てくる相手はランダム)` +
-        ((e.no_switch_if_target_dynamax && SYSTEMS_IN_GAME.dynamax) ? `。ダイマックスしている相手は、むりやり交代させられない(ダメージは当たる)` : ``);
+        (e.no_switch_if_target_dynamax ? (SYSTEMS_IN_GAME.dynamax ? `。ダイマックスしている相手は、むりやり交代させられない(ダメージは当たる)` : `（ダイマックスしている相手は、むりやり交代させられない。ダメージは当たる）`) : ``);
     case '持ち物奪取':
       return `相手の持ち物をうばう(自分が何も持っていないときだけ)` + (e.returned_after_trainer_battle ? `。トレーナーとのバトルでは、終わるとうばった道具は返される` : ``); // どろぼう・ほしがる
     case '持ち物排除': {
@@ -766,9 +774,13 @@ function compose(m) {
     const allyOnly = eff.length && eff.every(e => ['self', 'party', 'team', 'ally', 'incoming'].includes(e.target));
     text += allyOnly ? `味方が「みがわり」状態でも、効果がとどく。` : `相手の「みがわり」をすりぬけて当たる。`;
   }
-  // ★ダイマックス相手に無効(bd.immune の dynamax_target を訳す)。表示はゲート(現状ダイマックス未解禁=非表示)。legacy同様みがわり貫通の後に置く。
-  if ((bd.immune || []).some(x => x.type === 'dynamax_target' || x.type === 'dynamax') && SYSTEMS_IN_GAME.dynamax) {
-    text += `ダイマックスしている相手には無効。`;
+  // ★ダイマックス相手に無効(bd.immune の dynamax_target)。★2026-06-17 阿部さん: 未解禁はカッコ書きで残す。解禁(flag true)なら通常文。
+  if ((bd.immune || []).some(x => x.type === 'dynamax_target' || x.type === 'dynamax')) {
+    text += SYSTEMS_IN_GAME.dynamax ? `ダイマックスしている相手には無効。` : `（ダイマックスしている相手には効かない）`;
+  }
+  // ★まもり系のダイマックス技/Zワザ貫通(bd.immune の move_class=max_move/gen7_z_move)。未解禁はカッコ書き(キングシールド/トーチカ)。
+  if ((bd.immune || []).some(x => x.type === 'move_class' && (x.value === 'max_move' || x.value === 'gen7_z_move')) && !/ダイマックス技やZワザ/.test(text)) {
+    text += SYSTEMS_IN_GAME.dynamax ? `ダイマックス技やZワザの攻撃は防げず、最大HPの${fracT(0.25)}のダメージを受ける。` : `（ダイマックス技やZワザの攻撃は防いでも最大HPの${fracT(0.25)}のダメージを受ける）`;
   }
   // ★音系の技(flags.sound)を後置(2026-06-15): 全sound技に「音系の技。」(legacyも全技に明記・横断漏れだった)。
   if (m.flags && m.flags.sound === true && !/音系の技/.test(text)) text += `音系の技。`;
