@@ -65,7 +65,10 @@ function clause(e, m) {
         if (e.prevents_switch) s += `。その間、${immT(e.immune)}タイプでない相手は、逃げたり交代したりできない`;
         return s;
       }
-      const pp = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''; // 忠実: 確率はデータのまま。落とすと「必ず◯」化(意味漏れ)
+      // ★2026-06-17 阿部さん: 攻撃技で prob:100 は「必ず」を明示(ばくれつパンチ等が確率制と誤読される問題対策)。
+      //   変化技の prob:100 は既に確定なので省略(legacy慣例)。
+      const pp = (e.prob != null && e.prob < 100) ? `${e.prob}%の確率で`
+        : (e.prob === 100 && m && m.power > 0 ? '必ず' : '');
       if (e.value === 'ひるみ') return `${pp}相手をひるませる`; // ひるみは動作=「ひるませる」(『ひるみ』状態にする は不自然・kind:ひるみ と統一)
       // ★2026-06-15: duration_turns(範囲string "1-4" 等)も対応(あやしいひかり等で取りこぼし)
       let dd = '';
@@ -124,8 +127,8 @@ function clause(e, m) {
       // フェイント形: まもる等を貫通して当たる(一部除く)。まもり解除kindが本文を言うので、未解禁のみのときは除外をカッコで添える
       if (Array.isArray(e.pierces_without_removing)) {
         const inG = gateList(e.pierces_without_removing), gd = gatedItems(e.pierces_without_removing);
-        if (inG.length) return `相手が「まもる」などで守っていても、それを無視して当たる(「${inG.join('」「')}」は除く)${gd.length ? `（${gd.join('・')}は除く）` : ''}`;
-        return `（ただし${gd.join('・')}は破れない）`; // フェイント: ダイウォールのみ=カッコ書きで残す
+        if (inG.length) return `相手が「まもる」などで守っていても、それを無視して当たる(「${inG.join('」「')}」は除く)${gd.length ? `（${gd.join('・')}には防がれる）` : ''}`;
+        return `（ただし${gd.join('・')}には防がれる）`; // フェイント: ダイウォールのみ=カッコ書きで残す(「破れない」が誤読されないよう「防がれる」に・2026-06-17)
       }
       // ニードルガード形(守り側): ダイマックス技/Zワザで攻撃されてもダメージを軽くする
       if (Array.isArray(e.values) && e.user_takes_fraction != null) {
@@ -243,7 +246,8 @@ function clause(e, m) {
       // ★攻撃技で自分の能力ランク「ダウン」は legacy が「攻撃後、」を明示=実機の Phase 9(攻撃後)に下がる(2026-06-17 阿部さん・リファレンス §3 確認済)。
       //    インファイト/りゅうせいぐん/ばかぢから等。アップ系(はがねのつばさ等)は legacy も「攻撃後」を省略するので前置しない。
       //    sim側も phaseApplyEffects 内で処理(real_battle_simulator.html L3390)=データのphase:on_useはsim実装で攻撃後扱い。
-      if (e.target === 'self' && (e.stages || 0) < 0 && m && m.power > 0 && !e.on_charge_turn) main = `攻撃したあと、${main}`;
+      //    例外: timing='after_damage'(バリアーラッシュ等)はデータで明示されているのでアップ系でも「攻撃したあと」を付ける。
+      if (e.target === 'self' && m && m.power > 0 && !e.on_charge_turn && ((e.stages || 0) < 0 || e.timing === 'after_damage')) main = `攻撃したあと、${main}`;
       // ★2026-06-15: modifier (せいちょうの「にほんばれ」で2段階等)を訳す
       if (e.modifier && e.modifier.type === 'weather' && e.modifier.stages != null) {
         const mg = e.modifier.stages > 0 ? `+${e.modifier.stages}` : `${e.modifier.stages}`;
@@ -307,6 +311,8 @@ function clause(e, m) {
     case '自分交代':
       // ★2026-06-15: 変化技(power無)で「攻撃したあと」と書かない(しっぽきり・さむいギャグの誤読対策)
       if (Array.isArray(e.pass) && e.pass.length) return `自分の能力の変化などを引きついで、控えのポケモンと交代する`;
+      // ★2026-06-17: pass_to_replacement (しっぽきり=みがわり状態を引き継ぐ)
+      if (Array.isArray(e.pass_to_replacement) && e.pass_to_replacement.length) return `控えのポケモンと交代する(「${e.pass_to_replacement.join('」「')}」状態は次のポケモンに引き継がれる)`;
       return (m && m.power && m.power > 0) ? `攻撃したあと、控えのポケモンと交代する` : `使ったあと、控えのポケモンと交代する`;
     case 'みがわり貫通':
       return `相手の「みがわり」をすりぬけて当たる`;
@@ -447,7 +453,8 @@ function clause(e, m) {
     case '倍返し': {
       const cat = (e.basis || '').includes('physical') ? '物理技' : (e.category === '特殊' || (e.basis || '').includes('special')) ? '特殊技' : '技';
       return `先に相手の${cat}を受けてから、そのダメージの${e.multiplier || 2}倍を返す(タイプ相性は関係なく当たる)` +
-        (e.doubles_note ? `(ダブルバトルでは、最後に受けた${cat}のダメージだけを返す)` : ``); // カウンター
+        (e.doubles_note ? `(ダブルバトルでは、最後に受けた${cat}のダメージだけを返す)` : ``) +
+        (e.requires_damage_taken ? `(そのターンにダメージを受けていないと失敗する)` : ``); // 2026-06-17: メタルバースト等
     }
     case '特性上書き': {
       const exAbil = (e.exceptions || []).flatMap(x => x.values || []);
@@ -537,7 +544,7 @@ function clause(e, m) {
     case '持ち物交換':
       return `自分と相手の持ち物を入れかえる` + ((e.note || e.detail) ? `(どちらか一方しか道具を持っていなくても成功する)` : ``); // トリック・すりかえ
     case '持ち物復活':
-      return `なくなった自分の持ち物を1回だけ元にもどす`;
+      return `自分が最後に使った道具を元にもどす`; // ★2026-06-17: 「1回だけ」は誤情報(リサイクルは何度でも使える)
     case 'PP減少': {
       const n = e.value != null ? e.value : e.amount; // ぶきみなじゅもんは amount キー
       return n != null ? `相手が最後に使った技のPPを${n}へらす` : `相手が最後に使った技のPPを大きくへらす`;
@@ -690,7 +697,7 @@ function clause(e, m) {
     case '行動順繰上げ':
       return `そのターン、すばやさに関係なく、味方の行動順を自分のすぐ後ろにする`; // りんしょう
     case '位置入替':
-      return `自分と味方の立ち位置を入れかえる`;
+      return `自分と味方の立ち位置を入れかえる` + (e.consecutive_success_multiplier != null ? `(続けて使うたびに、成功する確率が${fracT(e.consecutive_success_multiplier)}になる。失敗するともとにもどる)` : ``); // 2026-06-17: サイドチェンジ
   }
 }
 function compose(m) {
@@ -714,14 +721,21 @@ function compose(m) {
   const GROUNDED_SELF = new Set(['状態異常予防', '場の威力補正', '優先技無効', '回復']);
   const isGroundedCond = c => c && (c.type === 'grounded' || c.type === 'user_grounded' || c.type === 'target_grounded');
   const sentences = groups.map(g => {
+    // ★条件付きgroup(2026-06-17 阿部さん指摘): 同じconditionで複数clauseを「。」で繋ぐと2文目が条件と切れて常時に見える(のしかかり等)。
+    //    例: 「相手が『ちいさくなる』を使っている時、威力が2倍になる。必ず命中する」 → 「…、威力が2倍になり、さらに必ず命中する」
+    const sep = (g.cond && g.cl.length > 1) ? '、さらに' : '。';
     const body = g.cl.map((cl, i) => {
       let txt = cl.text;
       // 連続する「攻撃したあと、」を2回目以降は消す(スケイルショット=ぼうぎょ-1+すばやさ+1 を1文にまとめる)
       if (i > 0 && txt.startsWith('攻撃したあと、') && (g.cl[i - 1].text || '').startsWith('攻撃したあと、')) {
         txt = txt.replace(/^攻撃したあと、/, '');
       }
+      // condition共有時は連用形化(「…なる」→「…なり」)で「、さらに」と繋ぐ
+      if (i < g.cl.length - 1 && sep === '、さらに') {
+        txt = txt.replace(/なる$/, 'なり').replace(/する$/, 'し');
+      }
       return (i > 0 && cl.kind === '能力ランク変化' && g.cl[i - 1].kind === 'HPが減る') ? 'そのかわり、' + txt : txt;
-    }).join('。');
+    }).join(sep);
     // 条件文がゴミ(⚠️要調査=condStrNewが訳しきれない複雑条件)なら前置しない=clauseが自己完結で意味を持つ
     const selfContained = g.cl.every(cl => SELF_CONTAINED_COND.has(cl.kind))
       || (isGroundedCond(g.cond) && g.cl.every(cl => GROUNDED_SELF.has(cl.kind))); // groundedはclause内包=前置スキップ
@@ -760,6 +774,16 @@ function compose(m) {
   // ★2026-06-15: きあいだめ系(すでに同じ状態のときは失敗)
   const uas = (bd.fails_if || []).find(f => f.type === 'user_already_in_state');
   if (uas) text += `(自分がすでに「${uas.value}」状態のときは失敗する)`;
+  // ★2026-06-17 阿部さん全数スキャン: 新規 fails_if を訳出
+  for (const f of (bd.fails_if || [])) {
+    if (f.type === 'hit_by_attacking_move_before_use') text += `(攻撃するまでに相手の技を受けると失敗する)`; // きあいパンチ
+    else if (f.type === 'target_not_selecting_attacking_move') text += `(相手がそのターンに攻撃技を選んでいない・既に行動済みのときは失敗する)`; // ふいうち
+    else if (f.type === 'target_not_selecting_priority_move') text += `(相手がそのターンに先制技を選んでいない・既に攻撃済みのときは失敗する)`; // はやてがえし
+    else if (f.type === 'user_not_type') text += `(自分が「${f.value}」タイプでないときは失敗する)`; // もえつきる
+    else if (f.type === 'no_stockpile') text += `(「たくわえる」を1度も使っていないときは失敗する)`; // はきだす/のみこむ
+    else if (f.type === 'user_holding_item') text += `(すでに道具を持っているときは失敗する)`; // リサイクル
+    else if (f.type === 'no_field_active') text += `(フィールドが何もないときは失敗する)`; // アイアンローラー
+  }
   // ★2026-06-15: どくどく系(自分が特定タイプなら必中)= accuracy_check の bypass_if を訳す
   const acc = (bd.requires || []).find(r => r.type === 'accuracy_check' && r.bypass_if);
   if (acc && acc.bypass_if.type === 'user_type_in') {
@@ -824,7 +848,9 @@ function compose(m) {
   // ★みがわり貫通フラグ(substitute_pierce)を後置(2026-06-15): 効果kind「みがわり貫通」で既に喋っていなければ補う(いびき等の取りこぼし)。
   if (bd.substitute_pierce === true && !eff.some(e => e.kind === 'みがわり貫通') && !/すりぬけて当たる|みがわり.*状態でも/.test(text)) {
     // ★味方/自分だけを対象にする技(いやしのすず=party回復)は「相手の」でなく「味方の」みがわりに届く、と言う
-    const allyOnly = eff.length && eff.every(e => ['self', 'party', 'team', 'ally', 'incoming'].includes(e.target));
+    // ★self単独はallyOnly扱いしない(2026-06-17 阿部さん指摘・フレアソング等の音系自己強化技は legacy「相手の『みがわり』状態を貫通する」と書く)。
+    //   ally扱いは party/team/ally/incoming(味方/手持ちを実際に対象にする技)に限定。
+    const allyOnly = eff.length > 0 && eff.every(e => ['party', 'team', 'ally', 'incoming'].includes(e.target));
     text += allyOnly ? `味方が「みがわり」状態でも、効果がとどく。` : `相手の「みがわり」をすりぬけて当たる。`;
   }
   // ★ダイマックス相手に無効(bd.immune の dynamax_target)。★2026-06-17 阿部さん: 未解禁はカッコ書きで残す。解禁(flag true)なら通常文。
