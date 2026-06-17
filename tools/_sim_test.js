@@ -7524,6 +7524,30 @@ console.log('\n=== 段140 あまのじゃく+ムラっけ ===');
   resetEnv();
 }
 
+console.log('\n=== 段141 きりばらい: 相手みがわり中は回避率-1だけ失敗(2026-06-18 阿部さん指摘) ===');
+// 出典: ポケモンWiki「きりばらい」(相手が『みがわり』状態の場合、回避率を下げる効果のみ失敗する)
+// データ: effects[0].fails_if_target_state='みがわり' / sim実装: 能力ランク変化ハンドラ内
+{
+  // T293 相手みがわり無し → 回避率-1が通る(対照)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'kiribarai');
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.subHp = 0; // みがわり無し
+  E.setRandom(() => 0.5);
+  E.phaseApplyEffects('self', 'opp', moveByName('きりばらい'));
+  check('T293 対照: 相手みがわり無しなら回避率-1', E.sides.opp.rank.eva === -1, `eva=${E.sides.opp.rank.eva}`);
+
+  // T294 相手にみがわりあり → 回避率-1は失敗(eva=0のまま)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'kiribarai');
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.subHp = 1; // みがわりあり(subHp>0)
+  E.setRandom(() => 0.5);
+  E.phaseApplyEffects('self', 'opp', moveByName('きりばらい'));
+  check('T294 みがわり中: 回避率-1が失敗(eva=0)', E.sides.opp.rank.eva === 0, `eva=${E.sides.opp.rank.eva}`);
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

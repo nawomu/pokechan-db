@@ -3412,6 +3412,11 @@ function phaseApplyEffects(atkSide, defSide, move){
           continue; // とどめばり/キングシールド/じばそうさ/ドラゴンエール等の状況条件は未対応=発動させない
         }
       }
+      // ★2026-06-18: fails_if_target_state(きりばらい=相手みがわり時に回避率-1だけ失敗)
+      if (ef.fails_if_target_state === 'みがわり' && target.subHp > 0){
+        log('9', `${pname(target)} は みがわり 状態のため ${pname(atk)} の ${move.name} の 能力ランク変化は 失敗した！`);
+        continue;
+      }
       // effects の英語stat → sim の rank キーに対応づけて ±stages（-6..+6 でクランプ）。
       const STATMAP = {attack:'atk',defense:'def',special_attack:'spatk',special_defense:'spdef',speed:'spd',accuracy:'acc',evasion:'eva'};
       let keys = Array.isArray(ef.stats) ? ef.stats.slice() : (ef.stat ? [ef.stat] : []);
