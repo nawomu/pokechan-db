@@ -342,7 +342,7 @@ const CHIP_MK = { working: '🔨', done: '✓', review: '🕓', todo: '⚠', noe
 const tocChip = x => `<a class="toc-chip ${CHIP_CLS[x.st]}" href="#sec-${x.i}">${esc(x.k === NOEFF ? '追加効果なし' : x.k)}<span class="toc-n">${x.n}</span>${CHIP_MK[x.st] ? `<span class="toc-mk">${CHIP_MK[x.st]}</span>` : ''}</a>`;
 const tocGroup = (lbl, cls, items) => items.length ? `<div class="toc-grp"><div class="toc-lbl ${cls}">${lbl}</div><div class="toc-chips">${items.map(tocChip).join('')}</div></div>` : '';
 const toc = `<nav class="toc" id="toc">
-  <div class="toc-prog">📊 進捗：<b class="p-work">🔨作業中 ${workItems.length}</b>　｜　<b class="p-done">✓確定 ${doneItems.length}</b>　｜　<b class="p-review">🕓確認待ち ${reviewItems.length}</b>　｜　<b class="p-todo">⚠これから ${todoItems.length}</b>グループ　｜　説明文が出せる <b>${voicedMoves}</b>/${moves.length}技　｜　<b class="p-cmpl">✅完結(穴ゼロ) ${completeMoves}</b>　｜　<b class="p-near">あと1穴 ${oneHoleMoves}技</b></div>
+  <div class="toc-prog">📊 進捗：<b class="p-work">🔨作業中 ${workItems.length}</b>　｜　<b class="p-done">✓確定 ${doneItems.length}</b>　｜　<b class="p-review">🕓確認待ち ${reviewItems.length}</b>　｜　<b class="p-todo">⚠これから ${todoItems.length}</b>グループ　｜　説明文が出せる <b>${voicedMoves}</b>/${moves.length}技　｜　<b class="p-cmpl">✅完結(穴ゼロ) ${completeMoves}</b>　｜　<b class="p-near">あと1穴 ${oneHoleMoves}技</b><span id="dyn-prog"></span></div>
   <details class="near-box"${oneHoleMoves ? '' : ' style="display:none"'}><summary>🎯 あと1穴で完結する技 ${oneHoleMoves}技 ―「このkindを開通すると○技が一気に完結」(クリックでセクションへ)</summary>
     <div class="near-list">${nearList}</div></details>
   ${tocGroup('🔨 作業中（いま開通中）', 'wk', workItems)}
@@ -363,7 +363,15 @@ body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothi
 /* グループ一覧(目次) */
 .toc { padding:10px 16px 12px; background:#eef3fa; border-bottom:2px solid #1F4E79; }
 .toc-prog { font-size:12.5px; color:#33415c; margin-bottom:9px; padding:6px 10px; background:#fff; border:1px solid #C5D2E5; border-radius:6px; }
-.toc-prog .p-done { color:#2E7D32; } .toc-prog .p-todo { color:#C77800; } .toc-prog .p-cmpl { color:#1565C0; } .toc-prog .p-near { color:#B8860B; } .toc-prog .p-review { color:#1565C0; } .toc-prog .p-work { color:#6A1B9A; }
+.toc-prog .p-done { color:#2E7D32; } .toc-prog .p-todo { color:#C77800; } .toc-prog .p-cmpl { color:#1565C0; } .toc-prog .p-near { color:#B8860B; } .toc-prog .p-review { color:#1565C0; } .toc-prog .p-work { color:#6A1B9A; } .toc-prog .p-fullok { color:#1B5E20; } .toc-prog .p-partial { color:#E65100; }
+/* ★OKチェック動的反映(2026-06-17) */
+.toc-chip.is-fullok { background:#2E7D32 !important; color:#fff !important; border-color:#2E7D32 !important; }
+.toc-chip.is-fullok .toc-n { color:#cfe8c8 !important; }
+.toc-chip.is-fullok .toc-mk-dyn { color:#fff; font-weight:700; }
+.toc-chip.is-partial { background:#FFF3E0 !important; color:#A35200 !important; border-color:#FFB74D !important; }
+.toc-chip.is-partial .toc-n { color:#A35200 !important; }
+.toc-chip.is-partial .toc-mk-dyn { color:#A35200; font-weight:700; font-size:10.5px; }
+.toc-mk-dyn { margin-left:3px; }
 /* あと1穴で完結 */
 .near-box { margin:0 0 9px; background:#FFFBEA; border:1px solid #E3C58A; border-radius:7px; padding:4px 10px; }
 .near-box > summary { cursor:pointer; font-size:12px; font-weight:700; color:#8a5a00; padding:4px 0; }
@@ -543,7 +551,22 @@ function apply(){const v=document.getElementById("q").value.trim();
 function updCnt(){const c=document.getElementById("cnt");if(c)c.textContent="確認OK "+checked.size+" / "+rows.length+"技";}
 function markSecDone(){secs.forEach(s=>{const rs=[...s.querySelectorAll("tbody tr")];const done=rs.filter(r=>checked.has(keyOf(r))).length;
   const all=rs.length>0&&done===rs.length;s.classList.toggle("allchecked",all);
-  const p=s.querySelector(".sec-prog");if(p)p.textContent=done>0?("確認OK "+done+"/"+rs.length):"";});}
+  const p=s.querySelector(".sec-prog");if(p)p.textContent=done>0?("確認OK "+done+"/"+rs.length):"";
+  // ★上部チップに進捗を反映(2026-06-17 阿部さん): 同じid(#sec-X)を持つtocチップを動的に書き換える
+  const chip=document.querySelector('.toc-chip[href="#'+s.id+'"]');
+  if(chip){
+    chip.classList.toggle("is-fullok",all);
+    chip.classList.toggle("is-partial",done>0&&!all);
+    let mk=chip.querySelector(".toc-mk-dyn");
+    if(done>0){if(!mk){mk=document.createElement("span");mk.className="toc-mk-dyn";chip.appendChild(mk);}mk.textContent=all?"✓":(done+"/"+rs.length);}
+    else if(mk)mk.remove();
+  }
+});
+// 上部「📊 進捗」行にも反映(✓確認OK完了 N グループ)
+const fullOk=document.querySelectorAll(".toc-chip.is-fullok").length;
+const partial=document.querySelectorAll(".toc-chip.is-partial").length;
+const dyn=document.getElementById("dyn-prog");if(dyn)dyn.innerHTML=" ｜ <b class=\"p-fullok\">✅確認OK完了 "+fullOk+"</b>"+(partial?" ｜ <b class=\"p-partial\">👀進行中 "+partial+"</b>":"");
+}
 rows.forEach(r=>{const cb=r.querySelector(".rowchk");if(!cb)return;const k=keyOf(r);
   cb.checked=checked.has(k);r.classList.toggle("is-checked",cb.checked);
   cb.addEventListener("change",()=>{if(cb.checked)checked.add(k);else checked.delete(k);
