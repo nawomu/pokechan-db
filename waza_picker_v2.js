@@ -1920,15 +1920,19 @@ if (WP_MODE === 'multi' || WP_MODE === 'single') {
 // ★2026-06-18 阿部さん指摘・第2版: 旧フィルタにある重要タグも新タグ側で見えるように除外を最小限に
 // 除外するのは「状態異常(細分%でカバー済)」「タイプ変更系(細分でカバー済)」「必中急所/必中」など
 // 残すのは「サポートW」「みがわり貫通」「バインド」「相手交代」など各カテゴリの主役タグ
-// ★2026-06-18 第5版: 旧フィルタとダブっても、新タグ側でも見える方が大事(ユーザー指摘)
-// 援護/特殊・状態異常・設置/守る・場の効果 のカテゴリは1個1個復活
+// ★2026-06-18 第6版 阿部さん指摘: 1〜2件しかないカテゴリは「その他」にまとめる
+// 旧フィルタと同名のタグは OFT に入れて新タグから除外
 const OLD_FILTER_TAGS = new Set([
-  // タイプ・特性・道具変更: 細分(タイプ変更(◯◯)/相手の特性をコピー等)でカバー済
+  // タイプ・特性・道具変更
   '🎭 タイプ変更', '✨ 特性変更', '🎁 道具変更',
-  // 命中・急所: 旧フィルタにそのまま同名でカバー済(細分なし)
-  '💥 必中急所', '🎯 必中',
-  // 一撃必殺: 4技だけだが「技フラグ」の旧チップで同じ
+  // 命中・急所
+  '💥 必中急所', '🎯 必中', '🎯 急所+1',  // 急所+1=旧「急所率高」14件
+  // 一撃必殺
   '💀 一撃必殺',
+  // 連続技=旧「連続攻撃」12件
+  '⚡ 連続2-5回', '⚡ 連続2回',
+  // 援護/特殊=旧フィルタ「サポートW」「みがわり貫通」
+  '🤝 サポートW', '👻 みがわり貫通',
 ]);
 (function setupNewTagFilter() {
   const box = document.getElementById('newTagChips');
@@ -2007,13 +2011,11 @@ const OLD_FILTER_TAGS = new Set([
     if (/^🐢 後攻-/.test(t)) return 'priority_down'; // 後攻技
     // ためる/ターン技(2ターン目に攻撃・使った次のターン動けない・天気でためを省略・遅延・直前技繰返強制 等)
     if (/1ターン目|ターン目に攻撃|^⏳|天気でためを省略|2T後|3T後|ターンため|使った次のターンは動けない|^🔁|遅延|^⏮|出てきた最初|連続使用|繰返|^🎴|^⚰/.test(t)) return 'charge';
-    // ★2026-06-18 第3版: 旧フィルタのダメ補正細分に合わせて細分化
-    // 急所系
-    if (/^🎯 急所|^🎯 味急所|急所率|急所アップ/.test(t)) return 'crit';
-    // 必中急所(別カテゴリ)→ OLD_FILTER_TAGSで除外済だが念のため
-    // 連続技
-    if (/^⚡ 連続|^🎲 外れるまで連続|^📈 当たるたび|連続2-5回|連続2回|連続強制|外れるまで連続|当たるたび威力/.test(t)) return 'multihit';
-    // あばれ状態
+    // ★2026-06-18 第6版: 1〜2件のカテゴリ(急所/連続技/援護)は misc に統合
+    // 急所/連続技の細部(味急所/外れるまで連続/当たるたび威力)はmiscへ
+    if (/^🎯 急所|^🎯 味急所|急所率|急所アップ/.test(t)) return 'misc';
+    if (/^⚡ 連続|^🎲 外れるまで連続|^📈 当たるたび|連続2-5回|連続2回|連続強制|外れるまで連続|当たるたび威力/.test(t)) return 'misc';
+    // あばれ状態(2-3T)は thrash カテゴリで個別に残す(特徴的)
     if (/あばれ状態/.test(t)) return 'thrash';
     // 自分にダメージ(反動・失敗ダメージ・防がれても自分のHPが減る・瀕死技)
     if (/^💢 反動|^💔 失敗ダメージ|^⚠️ 防がれても自分のHPが減る|^💀 瀕死技|防がれても自分のHP|失敗ダメージ|^💸 自分のHPが最大HPの半分減る/.test(t)) return 'selfdmg';
@@ -2037,8 +2039,8 @@ const OLD_FILTER_TAGS = new Set([
     if (/^🔒|封じ|アンコール|ふういん|いちゃもん|ちょうはつ|まねっこ|さいはい|ねごと/.test(t)) return 'block';
     // 持ち物
     if (/^🎒|^🍒|^🍃|^🎁|^🗑|持ち物|きのみ|道具/.test(t)) return 'item';
-    // ★2026-06-18 阿部さん指摘: 援護・みがわり貫通を「援護/特殊」1カテゴリに統合(コンパクト化)
-    if (/^🤝|^👻|^🪆|サポート|引き寄せ|位置入替|味方威力|てだすけ|^👥|手持ちの数だけ攻撃|みがわり/.test(t)) return 'support_special';
+    // ★2026-06-18 第6版: 援護/特殊も misc に統合(1〜2件しかないので)
+    if (/^🤝|^👻|^🪆|サポート|引き寄せ|位置入替|味方威力|てだすけ|^👥|手持ちの数だけ攻撃|みがわり/.test(t)) return 'misc';
     // 解除系の追加(💀 瀕死技は HP変化 か特殊か... 一旦 HPに)
     if (/^💀 瀕死技|瀕死技/.test(t)) return 'hp';
     // 交代/拘束(復活したバインド/相手交代/自分交代/交代不可)
@@ -2060,14 +2062,13 @@ const OLD_FILTER_TAGS = new Set([
     self_down2: '自分↓↓', self_down1: '自分↓',
     ally: '味方能力',
     priority_up: '先制技', priority_down: '後攻技', charge: 'ためる/ターン技',  // ★2026-06-18 第4版: 使用後不動/その他タイミングを統合
-    crit: '急所',  // ★2026-06-18 第3版: 旧フィルタの細分採用
-    multihit: '連続技', thrash: 'あばれ状態', selfdmg: '自分にダメージ',
-    dmg: 'ダメ補正(その他)', hp: 'HP変化',
+    thrash: 'あばれ状態', selfdmg: '自分にダメージ',
+    dmg: 'ダメ補正', hp: 'HP変化',
     field: '場の効果', hazard: '設置/守る', clear: '解除系',
     switch: '交代/拘束', type: 'タイプ操作', block: '技封じ',
-    item: '持ち物', support_special: '援護/特殊', misc: 'その他'
+    item: '持ち物', misc: 'その他'
   };
-  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority_up','priority_down','charge','crit','multihit','thrash','selfdmg','dmg','hp','field','hazard','clear','switch','type','block','item','support_special','misc'];
+  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority_up','priority_down','charge','thrash','selfdmg','dmg','hp','field','hazard','clear','switch','type','block','item','misc'];
   // カテゴリ毎にタグをグループ化
   const byCat = {};
   for (const [tag, count] of filterTags) {
