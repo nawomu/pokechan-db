@@ -317,11 +317,13 @@ function _filterCatHit(m, catKey, aggregateMode) {
   let chipFn = null;
   if (catKey === 'flag')      chipFn = (f) => !!flags[f];
   else if (catKey === 'status') {
+    // ★2026-06-18 fix: 旧コードは英語kind(flinch/status)を探していたが、データは日本語kind(ひるみ/状態付与)に統一済
+    // → 状態異常チップが全部0件ヒット=壊れていた。日本語kindに直して復活させる。
     const effects = bd.effects || [];
     chipFn = (s) => {
-      if (s === 'ひるみ') return effects.some(e => e.kind === 'flinch');
-      if (s === 'どく')   return effects.some(e => e.kind === 'status' && (e.value === 'どく' || e.value === 'もうどく'));
-      return effects.some(e => e.kind === 'status' && e.value === s);
+      if (s === 'ひるみ') return effects.some(e => e.kind === 'ひるみ' || (e.kind === '状態付与' && e.value === 'ひるみ'));
+      if (s === 'どく')   return effects.some(e => e.kind === '状態付与' && (e.value === 'どく' || e.value === 'もうどく'));
+      return effects.some(e => e.kind === '状態付与' && e.value === s);
     };
   }
   else if (catKey === 'target') {
@@ -1871,7 +1873,21 @@ const OLD_FILTER_TAGS = new Set([
       const key = t.text; tagCount[key] = (tagCount[key] || 0) + 1;
     }
   }
-  const filterTags = Object.entries(tagCount).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
+  // ★2026-06-18: 並び順を「素テキストでグループ化→グループの最大頻度降順→グループ内は確率降順」
+  // 旧: 全部頻度降順 → 30%ひるみ/20%ひるみ/10%ひるみ が散らばっていた
+  const tagBase = (t) => t.replace(/^[^\p{L}\p{N}]+/u, '').replace(/^(\d+)%\s?/, '').trim();
+  const tagPct  = (t) => { const m = t.match(/(\d+)%/); return m ? parseInt(m[1], 10) : 0; };
+  const groups = {};
+  for (const [t, c] of Object.entries(tagCount)) {
+    if (c < 2) continue;
+    const b = tagBase(t);
+    (groups[b] = groups[b] || { base: b, max: 0, items: [] });
+    groups[b].items.push({ tag: t, count: c, pct: tagPct(t) });
+    if (c > groups[b].max) groups[b].max = c;
+  }
+  const filterTags = Object.values(groups)
+    .sort((a, b) => b.max - a.max || a.base.localeCompare(b.base, 'ja'))
+    .flatMap(g => g.items.sort((a, b) => b.pct - a.pct || b.count - a.count).map(x => [x.tag, x.count]));
   const active = new Set();
   function applyNewTags() {
     document.querySelectorAll('.new-tag-chip').forEach(el => {
