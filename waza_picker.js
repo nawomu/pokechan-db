@@ -524,11 +524,10 @@ function getMoveFilterTags(m) {
   const STATUS_ICON = {'まひ':'⚡','やけど':'🔥','こおり':'❄️','ねむり':'💤','どく':'☠️','もうどく':'💀','こんらん':'🌀','メロメロ':'💕','バインド':'🔗','ちいさくなる':'🔻','きゅうしょアップ':'🎯'}; // 2026-06-18 バインド等の絵文字を統一(STATUS_ICONフォールバック🩻と bd.* 由来タグの重複を解消)
   for (const e of (bd.effects || [])) {
     const tgt = e.target === 'self' ? '(自)' : '';
-    // ★2026-06-18 阿部さん指摘: 100%確定の状態付与もタグに残す(旧フィルタとのテキスト重複でOLD_FILTER_TAGS除外されていた)
-    //   prob=null → 確率表記なし(あばれる系delayed等)
-    //   prob=100 → 「100%」明示(確定付与)
-    //   prob<100 → 「30%」「20%」等
-    const p = (e.prob != null) ? `${e.prob}%` : '';
+    // ★2026-06-18 阿部さん指摘・コンパクト化: 状態異常の % 細分は旧フィルタ(まひ・やけど・ねむり等)で完全カバー済
+    //   詳細タグ側では「100%まひ」「30%まひ」「10%まひ」のような細分を出さず、まとめて「⚡ まひ」(=OLD_FILTER_TAGSで除外)
+    //   ただし、prob=null(あばれる系=delayed)+ target=self は「(自)」を付けて残す(旧フィルタにない情報)
+    const p = '';
     if (e.kind === 'ひるみ' || (e.kind === '状態付与' && e.value === 'ひるみ')) out.push({cls:'tag-status', text:`😵 ${p}ひるみ${tgt}`});
     else if (e.kind === '状態付与') {
       // ★英語prose value(うちおとす等の未構造プレースホルダ)はタグに出さない=長大化/英語漏れ/列ズレ防止。
@@ -1932,8 +1931,8 @@ if (WP_MODE === 'multi' || WP_MODE === 'single') {
 // 除外するのは「状態異常(細分%でカバー済)」「タイプ変更系(細分でカバー済)」「必中急所/必中」など
 // 残すのは「サポートW」「みがわり貫通」「バインド」「相手交代」など各カテゴリの主役タグ
 const OLD_FILTER_TAGS = new Set([
-  // 状態異常: 100%/30%/10%まひ等の細分でカバー済
-  '⚡ まひ', '💤 ねむり', '🔥 やけど', '☠️ どく', '🌀 こんらん', '😵 ひるみ',
+  // 状態異常: 旧フィルタ7チップで完全カバー(まひ/ねむり/こおり/やけど/どく/こんらん/ひるみ)
+  '⚡ まひ', '💤 ねむり', '❄️ こおり', '🔥 やけど', '☠️ どく', '🌀 こんらん', '😵 ひるみ',
   // タイプ・特性・道具変更: 細分(タイプ変更(◯◯)/相手の特性をコピー等)でカバー済
   '🎭 タイプ変更', '✨ 特性変更', '🎁 道具変更',
   // 命中・急所: 旧フィルタにそのまま同名でカバー済(細分なし)
@@ -2039,10 +2038,8 @@ const OLD_FILTER_TAGS = new Set([
     if (/^🔒|封じ|アンコール|ふういん|いちゃもん|ちょうはつ|まねっこ|さいはい|ねごと/.test(t)) return 'block';
     // 持ち物
     if (/^🎒|^🍒|^🍃|^🎁|^🗑|持ち物|きのみ|道具/.test(t)) return 'item';
-    // 援護(サポートW・引き寄せ・てだすけ・位置入替・味方威力)
-    if (/^🤝 サポート|^🤝|サポートW|引き寄せ|位置入替|味方威力|てだすけ|^👥|手持ちの数だけ攻撃/.test(t)) return 'support';
-    // みがわり貫通・特殊
-    if (/^👻|^🪆|みがわり/.test(t)) return 'special';
+    // ★2026-06-18 阿部さん指摘: 援護・みがわり貫通を「援護/特殊」1カテゴリに統合(コンパクト化)
+    if (/^🤝|^👻|^🪆|サポート|引き寄せ|位置入替|味方威力|てだすけ|^👥|手持ちの数だけ攻撃|みがわり/.test(t)) return 'support_special';
     // 解除系の追加(💀 瀕死技は HP変化 か特殊か... 一旦 HPに)
     if (/^💀 瀕死技|瀕死技/.test(t)) return 'hp';
     // 交代/拘束(復活したバインド/相手交代/自分交代/交代不可)
@@ -2068,9 +2065,9 @@ const OLD_FILTER_TAGS = new Set([
     dmg: 'ダメ補正', hp: 'HP変化',
     field: '場の効果', hazard: '設置/守る', clear: '解除系',
     switch: '交代/拘束', type: 'タイプ操作', block: '技封じ',
-    item: '持ち物', support: '援護', special: 'みがわり貫通系', misc: 'その他'
+    item: '持ち物', support_special: '援護/特殊', misc: 'その他'
   };
-  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority','turn','dmg','multihit','selfdmg','hp','field','hazard','clear','switch','type','block','item','support','special','misc'];
+  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority','turn','dmg','multihit','selfdmg','hp','field','hazard','clear','switch','type','block','item','support_special','misc'];
   // カテゴリ毎にタグをグループ化
   const byCat = {};
   for (const [tag, count] of filterTags) {
