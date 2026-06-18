@@ -1990,8 +1990,9 @@ const OLD_FILTER_TAGS = new Set([
     if (/^📊 (\d+% )?相\S+\+/.test(t)) return 'opp_up';
     // 味方・場全体
     if (/^📊 (\d+% )?味|味方を回復|^📊 (\d+% )?場全/.test(t)) return 'ally';
-    // タイミング(順番系)
-    if (/^⚡ 先制|^🐢 後攻|^⏳|^⏮|^🔁|^🎴|^⚰|ターン目|遅延|タイミング|2T後|3T後|ターンため|出てきた最初|連続使用|繰返|使った次のターンは動けない|天気でためを省略/.test(t)) return 'timing';
+    // ★2026-06-18 阿部さん指摘: 「タイミング」を「優先度(先制/後攻)」と「ターン技(ため/2ターン目に攻撃/使った次のターン動けない)」に分割
+    if (/^⚡ 先制\+|^🐢 後攻-|遅延|^⏮|出てきた最初/.test(t)) return 'priority';
+    if (/ターン目に攻撃|使った次のターンは動けない|天気でためを省略|^⏳|2T後|3T後|ターンため|連続使用|繰返|^🎴|^⚰/.test(t)) return 'turn';
     // ダメ補正
     if (/^🎯 急所|^🎯 味急所|^🎯 「ちいさくなる」中|^💥|^📈|^💢|^🔢|連続2|連続強制|外れるまで|半無敵|あばれ状態|反動|失敗|威力2倍|威力1\/2|威力可変|たくわえ|ダメおし|急所率|急所アップ|相手とのすばやさ差|相手の能力ランク変化を無視|レベル分のダメージ|「ちいさくなる」相手に威力2倍/.test(t)) return 'dmg';
     // HP変化(状態異常回復もここに含める)
@@ -2022,12 +2023,13 @@ const OLD_FILTER_TAGS = new Set([
     opp_down2: '相手↓↓', opp_down1: '相手↓', opp_up: '相手↑',
     self_down2: '自分↓↓', self_down1: '自分↓',
     ally: '味方能力',
-    timing: 'タイミング', dmg: 'ダメ補正', hp: 'HP変化',
+    priority: '優先度', turn: 'ターン技',  // ★2026-06-18: タイミング→分割
+    dmg: 'ダメ補正', hp: 'HP変化',
     field: '場の効果', hazard: '設置/守る', clear: '解除系',
     switch: '交代/拘束', type: 'タイプ操作', block: '技封じ',
     item: '持ち物', support: '援護', special: 'みがわり貫通系', misc: 'その他'
   };
-  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','timing','dmg','hp','field','hazard','clear','switch','type','block','item','support','special','misc'];
+  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority','turn','dmg','hp','field','hazard','clear','switch','type','block','item','support','special','misc'];
   // カテゴリ毎にタグをグループ化
   const byCat = {};
   for (const [tag, count] of filterTags) {
