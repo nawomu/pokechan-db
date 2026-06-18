@@ -801,7 +801,7 @@ function render() {
   const fMode = document.getElementById('f-mode').value;
   const fContact = document.getElementById('f-contact').value;
   const fGuard = document.getElementById('f-guard').value;
-  const fCat = document.getElementById('f-cat').value;
+  // ★2026-06-18: 「カテゴリ」列削除(subcategory手動分類・320技で空欄・旧フィルタと新タグで完全カバー済)
   const fPrio = document.getElementById('f-prio').value;
   const fClass = document.getElementById('f-class').value;
   const fPower = document.getElementById('f-power').value;
@@ -868,7 +868,7 @@ function render() {
     if (fMode && m.mode !== fMode) return;
     if (fContact && m.contact !== fContact) return;
     if (fGuard && m.guard !== fGuard) return;
-    if (fCat && m.category !== fCat) return;
+    // ★2026-06-18: fCatフィルタ削除(カテゴリ列廃止)
     if (fClass && m.class !== fClass) return;
     if (fPower !== '') {
       const v = toNumNull(m.power);
@@ -931,7 +931,7 @@ function render() {
         if (p < 0) return `<td class="col-prio prio-neg">${p}</td>`;
         return `<td class="col-prio prio-zero">—</td>`;
       })()}
-      <td class="col-cat"><span class="cat-cell">${tCategory(m.category)}</span></td>
+      <!-- ★2026-06-18: col-cat 削除(subcategoryフィルタ廃止) -->
       <td class="col-effect effect-cell" data-key="${m.key}">${m.effect}</td>
       <td class="col-tags">${getMoveFilterTags(m).map(t => `<span class="mw-tag ${t.cls}">${t.text}</span>`).join('')}</td>
     `;
@@ -972,16 +972,15 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
   };
 });
 
-['search','f-target','f-mode','f-contact','f-guard','f-cat','f-prio','f-class','f-power','f-acc','f-pp','f-prob-min'].forEach(id => {
+// ★2026-06-18: 'f-cat' 削除(カテゴリ列廃止)
+['search','f-target','f-mode','f-contact','f-guard','f-prio','f-class','f-power','f-acc','f-pp','f-prob-min'].forEach(id => {
   document.getElementById(id).addEventListener('input', render);
   document.getElementById(id).addEventListener('change', render);
 });
 
 const types = [...new Set(moves.map(m => m.type))].sort();
 const targets = [...new Set(moves.map(m => m.target))].sort();
-const cats = [...new Set(moves.map(m => m.category))].sort();
 targets.forEach(t => { const o = document.createElement('option'); o.value=t; o.textContent=t; document.getElementById('f-target').appendChild(o); });
-cats.forEach(c => { const o = document.createElement('option'); o.value=c; o.textContent=c; document.getElementById('f-cat').appendChild(o); });
 
 // ===== タイプ多重選択ドロップダウンの構築 =====
 function buildTypeDropdown() {
@@ -1055,7 +1054,7 @@ updateTypeBtnLabel();
 // 画面状態リセット (検索・フィルタ・ソートのみ初期化)
 function resetAll() {
   document.getElementById('search').value = '';
-  ['f-target', 'f-mode', 'f-contact', 'f-guard', 'f-cat', 'f-prio', 'f-class', 'f-power', 'f-acc', 'f-pp', 'f-prob-min'].forEach(id => {
+  ['f-target', 'f-mode', 'f-contact', 'f-guard', 'f-prio', 'f-class', 'f-power', 'f-acc', 'f-pp', 'f-prob-min'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
