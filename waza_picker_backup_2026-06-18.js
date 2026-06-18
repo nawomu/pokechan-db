@@ -488,7 +488,6 @@ moves.forEach(m => {
 });
 
 // 技ごとに該当するフィルタタグ一覧を生成 (battle_data, flags, priority, effects, rank_changes ベース)
-// ★2026-06-18: 新 getMoveFilterTags (確認ページと同一実装・waza_list_confirm.js より移植)
 function getMoveFilterTags(m) {
   const out = [];
   const bd = m.battle_data || {};
@@ -501,23 +500,18 @@ function getMoveFilterTags(m) {
   if (flags.ball)           out.push({cls:'tag-flag',  text:'🔵 弾'});
   if (flags.pulse)          out.push({cls:'tag-flag',  text:'〰️ 波動'});
   if (flags.ohko)           out.push({cls:'tag-flag',  text:'💀 一撃必殺'});
-  // ⏳ 溜め(flags.charge)・🔁 2T動けない(flags.recharge)はbd.charge/recharge と内容重複=ここでは出さない(2026-06-17 阿部さん・統合)
+  if (flags.charge)         out.push({cls:'tag-flag',  text:'⏳ 溜め'});
+  if (flags.recharge)       out.push({cls:'tag-flag',  text:'🔁 2T動けない'});
   if (flags.change_type)    out.push({cls:'tag-flag',  text:'🎭 タイプ変更'});
   if (flags.change_ability) out.push({cls:'tag-flag',  text:'✨ 特性変更'});
   if (flags.change_item)    out.push({cls:'tag-flag',  text:'🎁 道具変更'});
 
   // 副作用 (状態異常 / ひるみ)
-  const STATUS_ICON = {'まひ':'⚡','やけど':'🔥','こおり':'❄️','ねむり':'💤','どく':'☠️','もうどく':'💀','こんらん':'🌀','メロメロ':'💕','バインド':'🔗','ちいさくなる':'🔻','きゅうしょアップ':'🎯'}; // 2026-06-18 バインド等の絵文字を統一(STATUS_ICONフォールバック🩻と bd.* 由来タグの重複を解消)
+  const STATUS_ICON = {'まひ':'⚡','やけど':'🔥','こおり':'❄️','ねむり':'💤','どく':'☠️','もうどく':'💀','こんらん':'🌀','メロメロ':'💕'};
   for (const e of (bd.effects || [])) {
     const tgt = e.target === 'self' ? '(自)' : '';
-    const p = (e.prob != null && e.prob < 100) ? `${e.prob}%` : ''; // ★日本語kind(ひるみ/状態付与)に対応(英語kindバグ修正・2026-06-07)
-    if (e.kind === 'ひるみ' || (e.kind === '状態付与' && e.value === 'ひるみ')) out.push({cls:'tag-status', text:`😵 ${p}ひるみ${tgt}`});
-    else if (e.kind === '状態付与') {
-      // ★英語prose value(うちおとす等の未構造プレースホルダ)はタグに出さない=長大化/英語漏れ/列ズレ防止。
-      //   元データはEffects列で確認できる。park: SSOTの英語残(うちおとす/むしくい)は別途ちゃんと構造化する。
-      if (/[A-Za-z]/.test(String(e.value || ''))) continue;
-      out.push({cls:'tag-status', text:`${STATUS_ICON[e.value]||'🩻'} ${p}${e.value}${tgt}`});
-    }
+    if (e.kind === 'flinch') out.push({cls:'tag-status', text:`😵 ${e.prob}%ひるみ${tgt}`});
+    else if (e.kind === 'status') out.push({cls:'tag-status', text:`${STATUS_ICON[e.value]||'🩻'} ${e.prob}%${e.value}${tgt}`});
   }
 
   // ランク変動
@@ -527,27 +521,6 @@ function getMoveFilterTags(m) {
     const sign = r.delta > 0 ? '+' : '';
     const probTxt = r.prob < 100 ? `${r.prob}% ` : '';
     out.push({cls:'tag-rank', text:`📊 ${probTxt}${TGT_JP[r.target]||'?'}${STAT_JP[r.stat]||r.stat}${sign}${r.delta}`});
-  }
-  // ★rank_changes が無い技は effects の能力ランク変化からタグを作る(2026-06-17 阿部さん・はらだいこ/ソウルビート等の取りこぼし)
-  if (!Array.isArray(bd.rank_changes) || bd.rank_changes.length === 0) {
-    const STAT_EN_JP = {attack:'攻', defense:'防', special_attack:'特攻', special_defense:'特防', speed:'速', accuracy:'命中', evasion:'回避', all:'全能力'};
-    const TGT_EN_JP = {self:'自', opponent:'相', team:'味', ally:'味', all_opponents:'相全', all_but_self:'他全', party:'手', incoming:'次味', all:'場全'};
-    for (const e of (bd.effects || [])) {
-      if (e.kind !== '能力ランク変化') continue;
-      const tgt = TGT_EN_JP[e.target] || '?';
-      const sts = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
-      const probTxt = (e.prob != null && e.prob < 100) ? `${e.prob}% ` : '';
-      if (e.to_max) { // はらだいこ=自攻が最大まで上がる
-        for (const s of sts) out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}${STAT_EN_JP[s] || s}最大`});
-      } else if (e.stages) {
-        const sign = e.stages > 0 ? '+' : '';
-        if (e.stat_choice === 'random_one_of') { // つぼをつく等
-          out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}ランダム${sign}${e.stages}`});
-        } else {
-          for (const s of sts) out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}${STAT_EN_JP[s] || s}${sign}${e.stages}`});
-        }
-      }
-    }
   }
 
   // 急所
@@ -585,31 +558,26 @@ function getMoveFilterTags(m) {
   if (prio > 0) out.push({cls:'tag-prio-up',   text:`⚡ 先制+${prio}`});
   if (prio < 0) out.push({cls:'tag-prio-down', text:`🐢 後攻${prio}`});
 
-  // ため / 再不可(2026-06-17 阿部さん・正確な言葉に統一)
+  // ため / 再不可
   if (bd.charge) {
-    const CHARGE_LBL = {
-      'normal':         '1ターン目にためて2ターン目に攻撃',
-      'invulnerable':   '1ターン目に空中などにかくれて2ターン目に攻撃',
-      'with_stat_up':   '1ターン目に能力ランクが上がり2ターン目に攻撃',
-    };
+    const CHARGE_LBL = {'normal':'2ターン目に攻撃','invulnerable':'半無敵化','with_stat_up':'1T能力UP+2T攻撃'};
     out.push({cls:'tag-charge', text:`⏳ ${CHARGE_LBL[bd.charge]||bd.charge}`});
   }
-  if (bd.charge_skip_in_weather) out.push({cls:'tag-charge', text:'☀️ 天気でためを省略できる'});
-  if (bd.recharge)               out.push({cls:'tag-charge', text:'🔁 使った次のターンは動けない'});
+  if (bd.charge_skip_in_weather) out.push({cls:'tag-charge', text:'☀️ 天候で省略'});
+  if (bd.recharge)               out.push({cls:'tag-charge', text:'🔁 使用後不動'});
 
   // 場・設置・交代系
-  // ★2026-06-18: 同種の細分タグを「天候(◯◯)」「フィールド(◯◯)」「設置(◯◯)」のように統合(統一カテゴリで括弧に詳細)
   if (bd.weather_set) {
-    const W = {'sunny':'にほんばれ','rain':'あめ','snow':'ゆき','sand':'すなあらし'};
-    out.push({cls:'tag-field', text:`🌤 天候(${W[bd.weather_set]||bd.weather_set})`});
+    const W = {'sunny':'☀️ 晴れに','rain':'🌧️ あめに','snow':'❄️ ゆきに','sand':'🌪️ すなあらしに'};
+    out.push({cls:'tag-field', text:W[bd.weather_set]||bd.weather_set});
   }
   if (bd.field_set) {
-    const F = {'electric':'エレキフィールド','grass':'グラスフィールド','psychic':'サイコフィールド','misty':'ミストフィールド'};
-    out.push({cls:'tag-field', text:`🌿 フィールド(${F[bd.field_set]||bd.field_set})`});
+    const F = {'electric':'⚡ エレキフィールド','grass':'🌿 グラスフィールド','psychic':'🔮 サイコフィールド','misty':'🌫️ ミストフィールド'};
+    out.push({cls:'tag-field', text:F[bd.field_set]||bd.field_set});
   }
   if (bd.hazard_set) {
-    const H = {'spikes':'まきびし','toxic_spikes':'どくびし','stealth_rock':'ステルスロック','sticky_web':'ねばねばネット'};
-    out.push({cls:'tag-hazard', text:`📌 設置(${H[bd.hazard_set]||bd.hazard_set})`});
+    const H = {'spikes':'📌 まきびし','toxic_spikes':'☠️ どくびし','stealth_rock':'🪨 ステルスロック','sticky_web':'🕸️ ねばねばネット'};
+    out.push({cls:'tag-hazard', text:H[bd.hazard_set]||bd.hazard_set});
   }
   if (bd.tailwind)       out.push({cls:'tag-field', text:'🌬️ 追い風'});
   if (bd.gravity)        out.push({cls:'tag-field', text:'🌌 重力'});
@@ -619,7 +587,7 @@ function getMoveFilterTags(m) {
   if (bd.field_remove)   out.push({cls:'tag-field', text:'🧹 フィールド破壊'});
 
   // 交代系
-  // bd.bind は effects[状態付与=バインド] と完全に対応(7技で一致)→ 状態付与kindのタグでカバー済=重複削除(2026-06-18)
+  if (bd.bind)             out.push({cls:'tag-switch', text:'🔗 バインド'});
   if (bd.force_switch_opp) out.push({cls:'tag-switch', text:'🔄 相手交代'});
   if (bd.self_switch)      out.push({cls:'tag-switch', text:'↩️ 自分交代'});
   if (bd.trap_no_switch)   out.push({cls:'tag-switch', text:'🪤 交代不可'});
@@ -630,12 +598,12 @@ function getMoveFilterTags(m) {
   // 壁
   if (bd.screen) {
     const S = {'reflect':'リフレクター','light_screen':'ひかりのかべ','aurora_veil':'オーロラベール','safeguard':'しんぴのまもり'};
-    out.push({cls:'tag-screen', text:`🛡️ 壁(${S[bd.screen]||bd.screen})`}); // 2026-06-18 統合形
+    out.push({cls:'tag-screen', text:`🛡️ ${S[bd.screen]||bd.screen}`});
   }
   // ルーム
   if (bd.room) {
     const R = {'trick_room':'トリックルーム','wonder_room':'ワンダールーム','magic_room':'マジックルーム'};
-    out.push({cls:'tag-room', text:`🌀 ルーム(${R[bd.room]||bd.room})`}); // 2026-06-18 統合形
+    out.push({cls:'tag-room', text:`🌀 ${R[bd.room]||bd.room}`});
   }
   // 技封じ (効果別に簡潔表示)
   if (bd.move_block) {
@@ -651,10 +619,10 @@ function getMoveFilterTags(m) {
   }
   // サポート
   if (bd.support)          out.push({cls:'tag-support', text:'🤝 サポートW'});
-  // ランク操作(2026-06-18: 統合形=「能力入替(◯◯)」)
+  // ランク操作
   if (bd.rank_op) {
-    const RO = {'copy':'相手→自分にコピー','swap_atk_spa':'攻と特攻を入替','swap_def_spd':'防と特防を入替','swap_atk_def_self':'自分の攻と防を入替'};
-    out.push({cls:'tag-rankop', text:`🔄 能力入替(${RO[bd.rank_op]||bd.rank_op})`});
+    const RO = {'copy':'ランクコピー','swap_atk_spa':'攻特攻入替','swap_def_spd':'防特防入替','swap_atk_def_self':'自攻防入替'};
+    out.push({cls:'tag-rankop', text:`🔄 ${RO[bd.rank_op]||bd.rank_op}`});
   }
   // 解除系
   if (Array.isArray(bd.unlock)) {
@@ -677,119 +645,8 @@ function getMoveFilterTags(m) {
   if (bd.substitute_remove) out.push({cls:'tag-other', text:'🪬 みがわり解除'});
   if (bd.protect_pierce)    out.push({cls:'tag-other', text:'🛡️ まもる貫通'});
 
-  // ★effects kind別タグ(2026-06-17 阿部さん): 略・アレンジを避け、データ/legacy通りの正確な言葉でタグ化。
-  //   既存タグ(bd.*由来)と内容重複しないよう、emitWhenを絞った。1技に同種タグが重複しないよう Set で去重。
-  const seen = new Set(out.map(t => t.text));
-  const push = (cls, text) => { if (!seen.has(text)) { out.push({cls, text}); seen.add(text); } };
-  for (const e of (bd.effects || [])) {
-    const k = e.kind;
-    const ct = e.condition && e.condition.type;
-    if (k === '威力倍率') {
-      if (e.multiplier >= 2 && /target_status|user_status|status_condition|user_has_status|target_has_status/.test(ct||'')) push('tag-misc', '🤢 相手の状態異常で威力2倍');
-      if (/field/.test(ct||'')) push('tag-field', '🌿 フィールドで威力変化');
-      if (ct === 'target_minimized') push('tag-misc', '🔻 「ちいさくなる」相手に威力2倍');
-      if (ct === 'user_has_no_held_item') push('tag-misc', '🎒 持ち物なしで威力2倍'); // アクロバット
-      if (/previous_turn_move_failed|failed_to_act_last_turn/.test(ct||'')) push('tag-misc', '😤 前のターン失敗で威力2倍'); // じだんだ/やけっぱち
-      if (ct === 'user_stat_lowered_this_turn') push('tag-misc', '😤 そのターン能力下げられたら威力2倍'); // うっぷんばらし
-      if (/target_already_damaged/.test(ct||'')) push('tag-misc', '💢 相手が同ターンに先にダメージ受けたら威力2倍'); // たたりめ系
-    }
-    if (k === '必中' && ct === 'target_minimized') push('tag-misc', '🎯 「ちいさくなる」中の相手に必ず命中');
-    if (k === '連続攻撃') {
-      if (e.hits_by != null) push('tag-misc', '👥 手持ちの数だけ攻撃');
-      if (e.stop_on_miss === true && !Array.isArray(e.power_per_hit)) push('tag-misc', '🎲 外れるまで連続');
-      if (Array.isArray(e.power_per_hit)) push('tag-misc', '📈 当たるたび威力上昇');
-    }
-    if (k === '半無敵命中') push('tag-misc', e.damage_multiplier === 2 ? '💥 半無敵中の相手に当てて威力2倍' : '🌪️ 半無敵中の相手に当てられる');
-    if (k === '威力可変') {
-      if (e.basis === 'target_weight' || (Array.isArray(e.tiers) && e.tiers[0] && e.tiers[0].max_kg != null) || (Array.isArray(e.weight_thresholds))) push('tag-misc', '⚖️ 相手の重さで威力変化');
-      if (e.relation === 'lower_hp_higher_power') push('tag-misc', '💢 自分のHPが少ないほど威力上昇');
-      if (e.formula && /current_HP\s*\/\s*[\w]*max_HP|currentHP\s*\/\s*\w*maxHP/i.test(e.formula)) push('tag-misc', '📉 自分のHPが多いほど威力上昇'); // ふんか・しおふき・ハードプレス
-      // ★2026-06-18 統合: エレキボール(basis=user_speed_over_target_speed) と ジャイロボール(formula=target_speed/user_speed)は同じ「すばやさ差で威力」
-      if (e.basis === 'user_speed_over_target_speed' || (e.formula && /target_speed\s*\/\s*user_speed/.test(e.formula))) push('tag-misc', '⚡ 相手とのすばやさ差で威力変化');
-      if (e.basis === 'user_positive_stat_stages' || e.per_stage) push('tag-misc', '📈 自分の能力ランク段階で威力上昇'); // アシストパワー
-      if (e.multiplier === 2 && /failed_to_act|previous_turn_move_failed/.test(ct||'')) push('tag-misc', '😤 前のターン失敗で威力2倍'); // やけっぱち
-    }
-    if (k === '倍返し') {
-      const mu = e.multiplier || 2;
-      push('tag-recoil', `🔄 受けたダメージの${mu}倍で返す`);
-    }
-    if (k === '固定ダメージ') {
-      if (e.amount === '自分のレベル分') push('tag-misc', '🔢 自分のレベル分のダメージ');
-      else if (typeof e.amount === 'string' && /残りHPの半分/.test(e.amount)) push('tag-misc', '✂️ 相手の残りHPの半分のダメージ');
-      else if (typeof e.amount === 'string' && /HPから自分の残りHPを引/.test(e.amount)) push('tag-misc', '⚖️ 相手と自分のHP差のダメージ');
-    }
-    if (k === '回復' && e.target === 'team') push('tag-recov', '💚 自分と味方を回復');
-    if (k === '状態異常回復' && e.target === 'self' && e.value === 'こおり' && (e.usable_while_frozen || /こおっていても/.test(e.note||''))) push('tag-cure', '❄️ 「こおり」中でも使える');
-    if (k === '状態異常回復' && /opponent|all_opponents|all_but_self/.test(e.target || '') && e.value === 'こおり') push('tag-cure', '🫧 相手の「こおり」状態を治す');
-    if (k === 'HPが減る') {
-      if (e.always_pays_even_if_blocked === true) push('tag-misc', '⚠️ 防がれても自分のHPが減る');
-      else if (Math.abs(e.fraction - 0.5) < 0.01) push('tag-drain', '💸 自分のHPが最大HPの半分減る');
-      else if (Math.abs(e.fraction - 0.25) < 0.01) push('tag-drain', '💸 自分のHPが最大HPの1/4減る');
-      else if (Math.abs(e.fraction - 0.3333) < 0.02) push('tag-drain', '💸 自分のHPが最大HPの1/3減る');
-    }
-    if (k === 'みがわり設置') push('tag-support', '🪆 「みがわり」を作る');
-    if (k === 'PP減少') push('tag-other', '💢 相手の技のPPを減らす');
-    if (k === 'みちづれ') push('tag-faint', '💀 みちづれ');
-    if (k === 'ロックオン') push('tag-flag', '🎯 次のターン必ず命中');
-    if (k === 'メロメロ付与') push('tag-status', '💕 「メロメロ」状態にする');
-    if (k === 'ランダム技') push('tag-misc', '🎲 自分の覚えている技からランダム');
-    if (k === 'いたみわけ') push('tag-recov', '🤝 自分と相手のHPを半分ずつに分ける');
-    if (k === '自分交代' && Array.isArray(e.pass) && e.pass.length > 0) push('tag-switch', '🎽 能力ランクを引き継いで交代');
-    if (k === '遅延攻撃') push('tag-charge', '⏳ 2ターン後に攻撃が当たる');
-    if (k === 'やけど低下無視') push('tag-misc', '🔥 「やけど」のこうげき低下を無視');
-    if (k === '持ち物交換') push('tag-support', '🔄 自分と相手の持ち物を入れかえる');
-    if (k === '特性上書き' && e.target === 'opponent' && e.value && e.value !== '自分の特性') push('tag-misc', '🔀 相手の特性を上書き');
-    if (k === '特性上書き' && (e.source === 'opponent_ability' || e.value === '自分の特性')) push('tag-misc', '🪞 相手の特性をコピー');
-    if (k === '持ち物排除' && (e.target === 'all' || e.target === 'all_but_self')) push('tag-misc', '🗑️ 場の全員の持ち物を使えなくする');
-    if (k === 'ふういん') push('tag-block', '🔒 自分も知っている技を相手は使えなくなる');
-    if (k === '木の実奪取食') push('tag-misc', '🍒 相手の「きのみ」を奪って使う'); // 2026-06-18 統合: むしくい(木の実強制 target=opponent)と表現を一致
-    if (k === '条件威力倍率') {
-      if (/moves_after/.test(ct||'')) push('tag-misc', '🔄 後攻で使うと威力2倍');
-      else if (/already_damaged/.test(ct||'')) push('tag-misc', '💢 相手が同ターンに先にダメージ受けたら威力2倍');
-      else if (e.prob != null) push('tag-misc', '🎲 ' + e.prob + '%の確率で威力2倍');
-    }
-    if (k === 'なげつける') push('tag-misc', '🎁 持っている道具を投げて攻撃');
-    if (k === '能力入替' && Array.isArray(e.stats) && e.stats.length === 1 && e.stats[0] === 'speed') push('tag-rankop', '🔄 能力入替(自分と相手のすばやさを入れかえ)'); // 2026-06-18 統合形
-    if (k === '特性無効化') push('tag-other', '🚫 相手の特性を無効にする');
-    if (k === '直前技模倣') push('tag-misc', '🪞 直前にだれかが使った技をまねる');
-    if (k === '木の実強制') push('tag-misc', e.target === 'opponent' ? '🍒 相手の「きのみ」を奪って使う' : '🍃 持っている「きのみ」をすぐに使う'); // 2026-06-18 統合: 「奪って使う」をついばむと表現一致(両方🍒)
-    if (k === '実数値折半') {
-      const sts = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
-      if (sts.some(s => /defense/.test(s))) push('tag-rankop', '🔄 能力入替(ぼうぎょ・とくぼうを平均化)');
-      if (sts.some(s => /attack/.test(s))) push('tag-rankop', '🔄 能力入替(こうげき・とくこうを平均化)');
-    }
-    if (k === '別防御参照ダメージ') push('tag-misc', '🛡️ 特殊技だが相手のぼうぎょで計算');
-    if (k === 'タイプ上書き') {
-      if (e.value === 'copy_target_current_types') push('tag-misc', '🪞 タイプコピー(自分→相手と同じ)');
-      else if (e.value && !/^[A-Za-z_]+$/.test(String(e.value))) push('tag-misc', `🎭 タイプ変更(相手→${e.value}だけに)`);
-    } // 2026-06-18 統合形
-    if (k === '相手能力ダメージ') push('tag-misc', '↩️ 相手のこうげきの高さでダメージ計算');
-    if (k === 'ランク無視') push('tag-misc', '🔓 相手の能力ランク変化を無視して攻撃');
-    if (k === '技タイプ追加') push('tag-misc', '🔀 この技にタイプを追加');
-    if (k === 'タイプ追加') push('tag-other', `🏷️ タイプ追加(相手→${e.value})`); // 2026-06-18
-    if (k === '技強制再使用') push('tag-misc', '🔁 相手に直前の技をもう一度使わせる');
-    if (k === 'ランク数威力加算') push('tag-misc', '📈 自分の能力ランク段階で威力上昇'); // 2026-06-18 統合: アシストパワーと表現一致
-    if (k === 'タイプ除去') push('tag-other', `💨 タイプ除去(自分の${e.value}が消える)`); // 2026-06-18
-    if (k === '別能力ダメージ') push('tag-misc', '🛡️ 自分のぼうぎょでダメージ計算');
-    if (k === '対象範囲変更') push('tag-misc', '🌐 条件で相手全体に当たるようになる');
-    if (k === '相手持ち物威力') push('tag-misc', '🎒 相手の持ち物を使って攻撃');
-    if (k === '威力段階増加') push('tag-misc', '⚰️ ひんしになった味方が多いほど威力上昇');
-    if (k === '次ターン使用不可') push('tag-recoil', '🚫 次のターン使えない');
-    if (k === 'へんしん') push('tag-misc', '✨ 相手のすがた・能力・技をコピー');
-  }
-  // ★requires(使用条件)からタグ(ゲップ/とっておき/いびき等)
-  for (const r of (bd.requires || [])) {
-    if (r.type === 'user_has_eaten_berry') push('tag-misc', '🍒 「きのみ」を食べた後だけ使える');
-    if (r.type === 'all_other_known_moves_used') push('tag-misc', '🎴 他の技を全部使うと使える');
-    if (r.type === 'self_status') push('tag-status', `💤 自分が「${r.value}」状態の時だけ使える`);
-    if (r.type === 'weather') push('tag-field', `🌤 天気が「${r.value}」の時だけ使える`);
-    if (r.type === 'first_turn_after_switch_in') push('tag-misc', '⏮ 出てきた最初のターンだけ使える');
-  }
-
   return out;
 }
-
-
 
 function render() {
   const tbody = document.getElementById('tbody');
@@ -846,20 +703,10 @@ function render() {
     return 0;
   });
 
-  // ★2026-06-18: 新タグフィルタ(window.__newTagActive にユーザーがチェックしたタグセット)
-  const newTagActive = window.__newTagActive || new Set();
-  const newTagMode = aggregateMode || 'OR'; // 既存の OR/AND と同じ集合論
   let visibleCount = 0;
   rows.forEach(m => {
     if (wpCheckedOnly && WP_MODE !== 'browse' && !WP_SELECTED.has(m.key)) return;
     if (searchQ && !moveSearchKey(m).includes(searchQ)) return;
-    // 新タグフィルタ: アクティブなタグが付いている技だけ通す
-    if (newTagActive.size > 0) {
-      const tags = new Set(getMoveFilterTags(m).map(t => t.text));
-      const arr = [...newTagActive];
-      const ok = newTagMode === 'AND' ? arr.every(t => tags.has(t)) : arr.some(t => tags.has(t));
-      if (!ok) return;
-    }
     if (selectedTypes.size > 0 && !selectedTypes.has(m.type)) return;
     if (fTarget && m.target !== fTarget) return;
     if (fMode && m.mode !== fMode) return;
@@ -1847,42 +1694,3 @@ if (WP_MODE === 'multi' || WP_MODE === 'single') {
   refreshConfirmBar();
   if (WP_MODE === 'multi') syncChkAll();
 }
-
-// ★2026-06-18: 新タグチップ生成と絞り込み連携(私たちが整備した126フィルタ向きタグ)
-(function setupNewTagFilter() {
-  const box = document.getElementById('newTagChips');
-  if (!box) return;
-  // 全技から新タグを集計(1技以上)→ 2技以上=フィルタ向きだけ採用
-  const tagCount = {};
-  for (const m of moves) {
-    const tags = getMoveFilterTags(m);
-    for (const t of tags) { const key = t.text; tagCount[key] = (tagCount[key] || 0) + 1; }
-  }
-  const filterTags = Object.entries(tagCount).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
-  const active = new Set();
-  function applyNewTags() {
-    document.querySelectorAll('.new-tag-chip').forEach(el => {
-      el.classList.toggle('on', active.has(el.dataset.tag));
-    });
-    render(); // 既存のrenderが newTagFilter を読むよう次の修正で連携
-  }
-  // window に公開して既存filterパイプラインから読めるように
-  window.__newTagActive = active;
-  for (const [tag, count] of filterTags) {
-    const chip = document.createElement('span');
-    chip.className = 'new-tag-chip';
-    chip.dataset.tag = tag;
-    chip.innerHTML = tag + '<span class="c">' + count + '</span>';
-    chip.addEventListener('click', () => {
-      if (active.has(tag)) active.delete(tag); else active.add(tag);
-      applyNewTags();
-    });
-    box.appendChild(chip);
-  }
-  // リセットボタン連携
-  const resetBtn = document.querySelector('button[onclick="resetAll()"]');
-  if (resetBtn) {
-    const origReset = window.resetAll;
-    window.resetAll = function () { active.clear(); applyNewTags(); if (origReset) origReset(); };
-  }
-})();
