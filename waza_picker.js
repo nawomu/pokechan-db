@@ -1851,6 +1851,54 @@ if (WP_MODE === 'multi' || WP_MODE === 'single') {
   if (WP_MODE === 'multi') syncChkAll();
 }
 
+// ★2026-06-18: 旧フィルタチップ全部に「◯件」のカウント表示を追加(0件ヒットでユーザーが困らないように)
+(function annotateOldChips() {
+  const chips = document.querySelectorAll('.ef-chip');
+  chips.forEach(chip => {
+    const type = chip.dataset.efType;
+    const val = chip.dataset.efVal;
+    if (!type || !val) return;
+    // 全moveに対して該当チップが効くかカウント
+    let cnt = 0;
+    for (const m of moves) {
+      const flags = m.flags || {};
+      const bd = m.battle_data || {};
+      const effects = bd.effects || [];
+      let hit = false;
+      try {
+        if (type === 'flag') hit = !!flags[val];
+        else if (type === 'status') {
+          if (val === 'ひるみ') hit = effects.some(e => e.kind === 'ひるみ' || (e.kind === '状態付与' && e.value === 'ひるみ'));
+          else if (val === 'どく') hit = effects.some(e => e.kind === '状態付与' && (e.value === 'どく' || e.value === 'もうどく'));
+          else hit = effects.some(e => e.kind === '状態付与' && e.value === val);
+        } else if (type === 'target') {
+          const PAT = { '相手全体': ['相手全体','全体','自分以外全体'], '自分以外':['自分以外全体','相手全体','全体'], '味方':['味方1体','味方全体','味方の場','自分か味方'], '場':['全体の場','相手の場','味方の場'] };
+          hit = (PAT[val] || []).some(p => (m.target || '') === p);
+        } else if (['self_up2','self_up1','opp_down2','opp_down1','self_down2','self_down1'].includes(type)) {
+          const SK = {'こうげき':'atk','ぼうぎょ':'def','とくこう':'spa','とくぼう':'spd','すばやさ':'spe','命中率':'acc','回避率':'eva'};
+          const RC = { self_up2:['self',d=>d>=2], self_up1:['self',d=>d===1], opp_down2:['opp',d=>d<=-2], opp_down1:['opp',d=>d===-1], self_down2:['self',d=>d<=-2], self_down1:['self',d=>d===-1] };
+          const [tgt, check] = RC[type];
+          const key = SK[val];
+          hit = (bd.rank_changes || []).some(r => r.target === tgt && r.stat === key && check(r.delta));
+        }
+        // exclude/misc は判定が複雑なのでスキップ(ハードコード件数なし)
+      } catch (e) { hit = false; }
+      if (hit) cnt++;
+    }
+    // exclude/misc系も簡易判定
+    if (cnt === 0 && (type === 'misc' || type === 'exclude')) return; // 判定が複雑なので件数省略
+    // 件数表示を追記
+    if (cnt > 0 || ['flag','status','target','self_up2','self_up1','opp_down2','opp_down1','self_down2','self_down1'].includes(type)) {
+      const badge = document.createElement('span');
+      badge.className = 'ef-chip-count';
+      badge.textContent = ' ' + cnt;
+      badge.style.cssText = 'margin-left:3px;font-size:10px;color:' + (cnt === 0 ? '#bbb' : '#7a8aa0') + ';font-weight:600';
+      chip.appendChild(badge);
+      if (cnt === 0) chip.style.opacity = '0.45';
+    }
+  });
+})();
+
 // ★2026-06-18: 新タグチップ生成と絞り込み連携(私たちが整備した126フィルタ向きタグ)
 // ★2026-06-18 ダブり整理: 旧フィルタチップと完全テキスト一致するタグは新タグ側から除外(同じ内容を二重表示しない)
 const OLD_FILTER_TAGS = new Set([
