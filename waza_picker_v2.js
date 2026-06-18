@@ -1940,20 +1940,62 @@ const OLD_FILTER_TAGS = new Set([
     document.querySelectorAll('.new-tag-chip').forEach(el => {
       el.classList.toggle('on', active.has(el.dataset.tag));
     });
-    render(); // 既存のrenderが newTagFilter を読むよう次の修正で連携
+    render();
   }
-  // window に公開して既存filterパイプラインから読めるように
   window.__newTagActive = active;
+  // ★2026-06-18 阿部さん指摘: 詳細タグも旧フィルタと同じジャンル分けに(技フラグ/状態異常/能力ランク/タイミング/...)
+  function detailCategory(t) {
+    if (/^👊 パンチ|^🔊 音|^🔵 弾|^〰️ 波動/.test(t)) return 'flag';
+    if (/^😵|^⚡.*まひ|^💤|^❄️|^🔥|^☠️|^💀(?!.*瀕死)|^🌀(?!.*ルーム)|^💕|もうどく|メロメロ|ねむけ|きゅうしょアップ\(自\)|ちいさくなる\(自\)/.test(t)) return 'status';
+    if (/^📊 自/.test(t)) return 'self_rank';
+    if (/^📊 相|^📊 味/.test(t)) return 'target_rank';
+    if (/^🎯|^💥|^📈|連続|急所|必中|あばれ状態|反動|失敗|威力上昇|威力2倍|威力1\/2|威力可変|半無敵|たくわえる/.test(t)) return 'dmg';
+    if (/^💚|^🩸|^💊|^💸|^🩹|^🪆|^🤝 自分と相手のHP/.test(t)) return 'hp';
+    if (/^🌤|^🌿 フィールド|^🌀 ルーム|^🌬|^🌌|フィールドで威力/.test(t)) return 'field';
+    if (/^📌|^🛡️ 壁|^🚧|まもる|ステルスロック/.test(t)) return 'hazard';
+    if (/^🧹|フィールド破壊|壁破壊|防御貫通|ランクリセット/.test(t)) return 'clear';
+    if (/^🔗|^🪤|^🔄|^↩️|^🎽|^🪞|^🎭|^🏷|^💨|交代|拘束|タイプ追加|タイプコピー|タイプ変更/.test(t)) return 'switch';
+    if (/^⚡ 先制|^🐢|ターン目|遅延|タイミング|2T後|3T後|ターンため/.test(t)) return 'timing';
+    if (/^🔒|封じ|アンコール|ふういん/.test(t)) return 'block';
+    if (/^🎒|^🍒|^🍃|^🎁|^🗑|持ち物|きのみ|道具/.test(t)) return 'item';
+    if (/^🤝|サポート|引き寄せ/.test(t)) return 'support';
+    return 'misc';
+  }
+  const CAT_LABEL = {
+    flag: '技フラグ', status: '状態異常', self_rank: '自分能力', target_rank: '相手/味方能力',
+    dmg: 'ダメ補正', hp: 'HP変化', field: '場の効果', hazard: '設置/守る',
+    clear: '解除系', switch: '交代/タイプ', timing: 'タイミング', block: '技封じ',
+    item: '持ち物', support: '援護', misc: 'その他'
+  };
+  const CAT_ORDER = ['flag','status','self_rank','target_rank','dmg','hp','timing','field','hazard','clear','switch','block','item','support','misc'];
+  // カテゴリ毎にタグをグループ化
+  const byCat = {};
   for (const [tag, count] of filterTags) {
-    const chip = document.createElement('span');
-    chip.className = 'new-tag-chip';
-    chip.dataset.tag = tag;
-    chip.innerHTML = tag + '<span class="c">' + count + '</span>';
-    chip.addEventListener('click', () => {
-      if (active.has(tag)) active.delete(tag); else active.add(tag);
-      applyNewTags();
-    });
-    box.appendChild(chip);
+    const cat = detailCategory(tag);
+    (byCat[cat] = byCat[cat] || []).push([tag, count]);
+  }
+  for (const cat of CAT_ORDER) {
+    const tags = byCat[cat];
+    if (!tags || !tags.length) continue;
+    const row = document.createElement('div');
+    row.className = 'newtag-cat-row';
+    row.dataset.cat = cat;
+    const label = document.createElement('span');
+    label.className = 'newtag-cat-label';
+    label.textContent = CAT_LABEL[cat] + ':';
+    row.appendChild(label);
+    for (const [tag, count] of tags) {
+      const chip = document.createElement('span');
+      chip.className = 'new-tag-chip';
+      chip.dataset.tag = tag;
+      chip.innerHTML = tag + '<span class="c">' + count + '</span>';
+      chip.addEventListener('click', () => {
+        if (active.has(tag)) active.delete(tag); else active.add(tag);
+        applyNewTags();
+      });
+      row.appendChild(chip);
+    }
+    box.appendChild(row);
   }
   // リセットボタン連携
   const resetBtn = document.querySelector('button[onclick="resetAll()"]');
