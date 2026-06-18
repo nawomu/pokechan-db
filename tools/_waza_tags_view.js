@@ -114,8 +114,10 @@ const sections = tags.map(([tag, moves], i) => {
 </tr>`;
   }).join('\n');
   const cat = tagCategory(tag);
-  return `<section class="tag-sec" id="${id}" data-tag="${esc(tag)}" data-cat="${cat}">
-<h2><span class="tag-name">${esc(tag)}</span><span class="tag-count">${moves.length}技</span><span class="tag-cat-badge cat-${cat}">${CAT_LABEL[cat]}</span></h2>
+  const useTag = moves.length >= 2 ? 'filter' : 'label'; // 2技以上=フィルタ向き / 1技=個性ラベル
+  const useLabel = useTag === 'filter' ? '🔍 フィルタ向き' : '🏷 個性ラベル';
+  return `<section class="tag-sec" id="${id}" data-tag="${esc(tag)}" data-cat="${cat}" data-use="${useTag}">
+<h2><span class="tag-name">${esc(tag)}</span><span class="tag-count">${moves.length}技</span><span class="tag-cat-badge cat-${cat}">${CAT_LABEL[cat]}</span><span class="tag-use-badge use-${useTag}">${useLabel}</span></h2>
 <table>
 <thead><tr><th>習得</th><th>わざ名</th><th>タイプ</th><th>分類</th><th>威力</th><th>命中</th><th>PP</th></tr></thead>
 <tbody>${rows}</tbody>
@@ -165,7 +167,9 @@ td.cls{width:42px;text-align:center}
 .cls-badge.cls-spec{background:#58a6ff}
 .cls-badge.cls-stat{background:#6e7681}
 .tag-sec.hidden{display:none}
-.tag-cat-badge{font-size:10px;padding:2px 8px;border-radius:10px;background:#fff;color:#1F4E79;font-weight:700;white-space:nowrap}
+.tag-cat-badge,.tag-use-badge{font-size:10px;padding:2px 8px;border-radius:10px;background:#fff;color:#1F4E79;font-weight:700;white-space:nowrap}
+.use-filter{background:#2E7D32;color:#fff}
+.use-label{background:#FFB74D;color:#5D4037}
 .cat-rank{background:#E3F2FD;color:#0D47A1}.cat-status{background:#FFE0F0;color:#880E4F}.cat-field{background:#E0F7FA;color:#006978}.cat-hazard{background:#FFF9C4;color:#6F4E00}.cat-screen{background:#FFFDE7;color:#5D4037}.cat-room{background:#F3E5F5;color:#4A148C}.cat-type{background:#E8ECF2;color:#1F4E79}.cat-switch{background:#E8F5E9;color:#1B5E20}.cat-block{background:#FFCDD2;color:#B71C1C}.cat-timing{background:#FFF3E0;color:#A35200}.cat-hp{background:#E6F5E6;color:#2E7D32}.cat-faint{background:#424242;color:#fff}.cat-item{background:#FFF8E1;color:#B86E00}.cat-support{background:#E0F2F1;color:#004D40}.cat-flag{background:#E3F2FD;color:#0D47A1}.cat-power{background:#FFEBE9;color:#B33A33}.cat-misc{background:#F5F5F5;color:#424242}
 .cat-sel{padding:5px 10px;border-radius:8px;border:1px solid #C5D2E5;font-size:12.5px;background:#fff}
 .to-top{position:fixed;right:20px;bottom:22px;z-index:200;background:#1F4E79;color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:10px 15px;border-radius:24px;box-shadow:0 3px 10px rgba(0,0,0,.28);opacity:.92}
@@ -173,7 +177,7 @@ td.cls{width:42px;text-align:center}
 </style></head><body>
 <div class="hdr" id="top">
 <h1>🏷 タグ別 技一覧 — タグの多い順</h1>
-<div class="sub">全${totalTagCount}タグ・${totalMoves}技。タグごとに含まれる技を表示。技名クリックで waza_list_confirm に飛びます。</div>
+<div class="sub">全${totalTagCount}タグ・${totalMoves}技。<b>🔍 フィルタ向き=複数技で絞り込みに使える</b> / <b>🏷 個性ラベル=1技だけの特性表示</b>。本番waza-list.htmlのフィルター候補は🔍だけにする想定。</div>
 </div>
 <div class="bar">
 <input id="q" placeholder="タグ名でしぼり込み…">
@@ -181,6 +185,9 @@ td.cls{width:42px;text-align:center}
 <button data-f="lots">多い順(6技以上)</button>
 <button data-f="few">少ない(2-5技)</button>
 <button data-f="one">1技だけ</button>
+<button data-u="all" class="on" style="margin-left:8px">用途:全部</button>
+<button data-u="filter">🔍 フィルタ向きだけ</button>
+<button data-u="label">🏷 個性ラベルだけ</button>
 <select id="catFilter" class="cat-sel">
 <option value="">📂 カテゴリ(全部)</option>
 ${Object.entries(CAT_LABEL).map(([k, lbl]) => `<option value="${k}">${lbl} (${catCount[k] || 0})</option>`).join('')}
@@ -193,12 +200,13 @@ ${sections}
 <script>
 const secs=[...document.querySelectorAll(".tag-sec")];
 const chips=[...document.querySelectorAll(".toc-chip")];
-let filter="all",catFilter="";
+let filter="all",catFilter="",useFilter="all";
 function apply(){
   const q=document.getElementById("q").value.trim().toLowerCase();
   for(const s of secs){
     const tag=s.dataset.tag.toLowerCase();
     const cat=s.dataset.cat;
+    const use=s.dataset.use;
     const count=parseInt(s.querySelector(".tag-count").textContent);
     const matchQ=!q||tag.includes(q);
     let matchF=true;
@@ -206,7 +214,8 @@ function apply(){
     else if(filter==="few")matchF=count>=2&&count<=5;
     else if(filter==="one")matchF=count===1;
     const matchC=!catFilter||cat===catFilter;
-    s.classList.toggle("hidden",!(matchQ&&matchF&&matchC));
+    const matchU=useFilter==="all"||use===useFilter;
+    s.classList.toggle("hidden",!(matchQ&&matchF&&matchC&&matchU));
   }
   for(const c of chips){
     const tag=c.dataset.tag.toLowerCase();
@@ -217,6 +226,12 @@ document.getElementById("q").addEventListener("input",apply);
 document.querySelectorAll(".bar button[data-f]").forEach(b=>b.addEventListener("click",()=>{
   filter=b.dataset.f;
   document.querySelectorAll(".bar button[data-f]").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on");
+  apply();
+}));
+document.querySelectorAll(".bar button[data-u]").forEach(b=>b.addEventListener("click",()=>{
+  useFilter=b.dataset.u;
+  document.querySelectorAll(".bar button[data-u]").forEach(x=>x.classList.remove("on"));
   b.classList.add("on");
   apply();
 }));
