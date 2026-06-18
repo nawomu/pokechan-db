@@ -346,10 +346,22 @@ function _filterCatHit(m, catKey, aggregateMode) {
     };
     if (!RANK_CHECKS[catKey]) return false;
     const [tgtKey, check] = RANK_CHECKS[catKey];
-    const ranks = bd.rank_changes || [];
+    // ★2026-06-18 阿部さん指摘: bd.rank_changes が空でも effects[能力ランク変化]からも拾う
+    // (のろい/メテオビーム/スケイルショット/どくのいと等 がここから漏れていた)
+    // ally/team は「自分↑」とは別意味なので含めない。stat_choice='random_one_of' (つぼをつく等)は確定じゃないので除外。
+    const STAT_EN_KEY = { attack:'atk', defense:'def', special_attack:'spa', special_defense:'spd', speed:'spe', accuracy:'acc', evasion:'eva' };
+    const TGT_EN_KEY = { self:'self', opponent:'opp' };
+    const effRanks = (bd.effects||[]).filter(e=>e.kind==='能力ランク変化' && e.stat_choice !== 'random_one_of').flatMap(e => {
+      const stats = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
+      const delta = (e.stages != null) ? e.stages : (e.delta != null ? e.delta : 0);
+      const mappedTgt = TGT_EN_KEY[e.target];
+      if (!mappedTgt) return [];
+      return stats.map(s => ({ target: mappedTgt, stat: STAT_EN_KEY[s] || s, delta }));
+    });
+    const allRanks = [...(bd.rank_changes || []), ...effRanks];
     chipFn = (stat) => {
       const key = STAT_KEY_MAP[stat];
-      return ranks.some(r => r.target === tgtKey && r.stat === key && check(r.delta));
+      return allRanks.some(r => r.target === tgtKey && r.stat === key && check(r.delta));
     };
   }
   // OR: 1つでも該当 / AND: 全部該当
@@ -534,23 +546,34 @@ function getMoveFilterTags(m) {
     const probTxt = r.prob < 100 ? `${r.prob}% ` : '';
     out.push({cls:'tag-rank', text:`📊 ${probTxt}${TGT_JP[r.target]||'?'}${STAT_JP[r.stat]||r.stat}${sign}${r.delta}`});
   }
-  // ★rank_changes が無い技は effects の能力ランク変化からタグを作る(2026-06-17 阿部さん・はらだいこ/ソウルビート等の取りこぼし)
-  if (!Array.isArray(bd.rank_changes) || bd.rank_changes.length === 0) {
+  // ★2026-06-17/2026-06-18: rank_changes と effects[能力ランク変化]の両方からタグを作る
+  // (はらだいこ/ソウルビート/とおぼえ/ハバネロエキス等の取りこぼし対応)
+  // rank_changes に既に登録済みのエントリは effects から除外して重複防止
+  {
     const STAT_EN_JP = {attack:'攻', defense:'防', special_attack:'特攻', special_defense:'特防', speed:'速', accuracy:'命中', evasion:'回避', all:'全能力'};
+    const STAT_EN_NORM = {attack:'atk', defense:'def', special_attack:'spa', special_defense:'spd', speed:'spe', accuracy:'acc', evasion:'eva'};
     const TGT_EN_JP = {self:'自', opponent:'相', team:'味', ally:'味', all_opponents:'相全', all_but_self:'他全', party:'手', incoming:'次味', all:'場全'};
+    const TGT_EN_NORM = {self:'self', opponent:'opp', ally:'ally', team:'team'};
+    const seen = new Set((bd.rank_changes || []).map(r => `${r.target}|${r.stat}|${r.delta}|${r.prob||100}`));
     for (const e of (bd.effects || [])) {
       if (e.kind !== '能力ランク変化') continue;
       const tgt = TGT_EN_JP[e.target] || '?';
       const sts = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
       const probTxt = (e.prob != null && e.prob < 100) ? `${e.prob}% ` : '';
-      if (e.to_max) { // はらだいこ=自攻が最大まで上がる
+      const tgtNorm = TGT_EN_NORM[e.target];
+      if (e.to_max) {
         for (const s of sts) out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}${STAT_EN_JP[s] || s}最大`});
       } else if (e.stages) {
         const sign = e.stages > 0 ? '+' : '';
-        if (e.stat_choice === 'random_one_of') { // つぼをつく等
+        if (e.stat_choice === 'random_one_of') {
           out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}ランダム${sign}${e.stages}`});
         } else {
-          for (const s of sts) out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}${STAT_EN_JP[s] || s}${sign}${e.stages}`});
+          for (const s of sts) {
+            const key = `${tgtNorm}|${STAT_EN_NORM[s]||s}|${e.stages}|${e.prob||100}`;
+            if (seen.has(key)) continue; // rank_changes と重複→ skip
+            seen.add(key);
+            out.push({cls:'tag-rank', text:`📊 ${probTxt}${tgt}${STAT_EN_JP[s] || s}${sign}${e.stages}`});
+          }
         }
       }
     }
