@@ -2016,8 +2016,13 @@ const OLD_FILTER_TAGS = new Set([
     // ★2026-06-18 阿部さん指摘: 「タイミング」を「優先度(先制/後攻)」と「ターン技(ため/2ターン目に攻撃/使った次のターン動けない)」に分割
     if (/^⚡ 先制\+|^🐢 後攻-|遅延|^⏮|出てきた最初/.test(t)) return 'priority';
     if (/ターン目に攻撃|使った次のターンは動けない|天気でためを省略|^⏳|2T後|3T後|ターンため|連続使用|繰返|^🎴|^⚰/.test(t)) return 'turn';
-    // ダメ補正(倍返し=「受けたダメージのN倍で返す」もここ)
-    if (/^🎯 急所|^🎯 味急所|^🎯 「ちいさくなる」中|^💥|^📈|^💢|^🔢|^🔄 受けたダメージ|連続2|連続強制|外れるまで|半無敵|あばれ状態|反動|失敗|威力2倍|威力1\/2|威力可変|たくわえ|ダメおし|急所率|急所アップ|相手とのすばやさ差|相手の能力ランク変化を無視|レベル分のダメージ|「ちいさくなる」相手に威力2倍|受けたダメージの.*倍で返す/.test(t)) return 'dmg';
+    // ★2026-06-18 阿部さん指摘: ダメ補正から「連続技」「自分にダメージ」を独立カテゴリに分離
+    // 連続技(連続2回・連続2-5回・外れるまで連続・当たるたび威力上昇=トリプルアクセル)
+    if (/^⚡ 連続|^🎲 外れるまで連続|^📈 当たるたび|連続2-5回|連続2回|連続強制|外れるまで連続|当たるたび威力/.test(t)) return 'multihit';
+    // 自分にダメージ(反動・失敗ダメージ・防がれても自分のHPが減る・瀕死技)
+    if (/^💢 反動|^💔 失敗ダメージ|^⚠️ 防がれても自分のHPが減る|^💀 瀕死技|防がれても自分のHP|失敗ダメージ|^💸 自分のHPが最大HPの半分減る/.test(t)) return 'selfdmg';
+    // ダメ補正(残り: 急所・必中・威力倍率・半無敵・受けたダメージで返す等)
+    if (/^🎯 急所|^🎯 味急所|^🎯 「ちいさくなる」中|^💥|^📈|^💢|^🔢|^🔄 受けたダメージ|^😤|^😵 ねむけ|あばれ状態|半無敵|威力2倍|威力1\/2|威力可変|たくわえ|ダメおし|急所率|急所アップ|相手とのすばやさ差|相手の能力ランク変化を無視|レベル分のダメージ|「ちいさくなる」相手に威力2倍|受けたダメージの.*倍で返す|相手の技のPPを減らす|HPが少ないほど威力|HPが多いほど威力|相手の重さで威力/.test(t)) return 'dmg';
     // HP変化(状態異常回復もここに含める)
     if (/^💚|^🩸|^💊|^💸|^🩹|^🪆|^🤝 自分と相手のHP|^⚖️|^✂️|^🫧|HP|状態を治す|状態異常治す/.test(t)) return 'hp';
     // 場の効果(天候/フィールド/ルーム/追い風/重力)
@@ -2059,12 +2064,13 @@ const OLD_FILTER_TAGS = new Set([
     self_down2: '自分↓↓', self_down1: '自分↓',
     ally: '味方能力',
     priority: '優先度', turn: 'ターン技',  // ★2026-06-18: タイミング→分割
+    multihit: '連続技', selfdmg: '自分にダメージ',  // ★2026-06-18 第2版: ダメ補正から分離
     dmg: 'ダメ補正', hp: 'HP変化',
     field: '場の効果', hazard: '設置/守る', clear: '解除系',
     switch: '交代/拘束', type: 'タイプ操作', block: '技封じ',
     item: '持ち物', support: '援護', special: 'みがわり貫通系', misc: 'その他'
   };
-  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority','turn','dmg','hp','field','hazard','clear','switch','type','block','item','support','special','misc'];
+  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority','turn','dmg','multihit','selfdmg','hp','field','hazard','clear','switch','type','block','item','support','special','misc'];
   // カテゴリ毎にタグをグループ化
   const byCat = {};
   for (const [tag, count] of filterTags) {
