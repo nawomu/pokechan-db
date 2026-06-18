@@ -240,7 +240,8 @@ function getMoveFilterTags(m) {
       if (e.basis === 'target_weight' || (Array.isArray(e.tiers) && e.tiers[0] && e.tiers[0].max_kg != null) || (Array.isArray(e.weight_thresholds))) push('tag-misc', '⚖️ 相手の重さで威力変化');
       if (e.relation === 'lower_hp_higher_power') push('tag-misc', '💢 自分のHPが少ないほど威力上昇');
       if (e.formula && /current_HP\s*\/\s*[\w]*max_HP|currentHP\s*\/\s*\w*maxHP/i.test(e.formula)) push('tag-misc', '📉 自分のHPが多いほど威力上昇'); // ふんか・しおふき・ハードプレス
-      if (e.basis === 'user_speed_over_target_speed') push('tag-misc', '⚡ 相手とのすばやさ差で威力変化'); // エレキボール
+      // ★2026-06-18 統合: エレキボール(basis=user_speed_over_target_speed) と ジャイロボール(formula=target_speed/user_speed)は同じ「すばやさ差で威力」
+      if (e.basis === 'user_speed_over_target_speed' || (e.formula && /target_speed\s*\/\s*user_speed/.test(e.formula))) push('tag-misc', '⚡ 相手とのすばやさ差で威力変化');
       if (e.basis === 'user_positive_stat_stages' || e.per_stage) push('tag-misc', '📈 自分の能力ランク段階で威力上昇'); // アシストパワー
       if (e.multiplier === 2 && /failed_to_act|previous_turn_move_failed/.test(ct||'')) push('tag-misc', '😤 前のターン失敗で威力2倍'); // やけっぱち
     }
@@ -277,7 +278,7 @@ function getMoveFilterTags(m) {
     if (k === '特性上書き' && (e.source === 'opponent_ability' || e.value === '自分の特性')) push('tag-misc', '🪞 相手の特性をコピー');
     if (k === '持ち物排除' && (e.target === 'all' || e.target === 'all_but_self')) push('tag-misc', '🗑️ 場の全員の持ち物を使えなくする');
     if (k === 'ふういん') push('tag-block', '🔒 自分も知っている技を相手は使えなくなる');
-    if (k === '木の実奪取食') push('tag-misc', '🍒 相手の「きのみ」を奪って食べる');
+    if (k === '木の実奪取食') push('tag-misc', '🍒 相手の「きのみ」を奪って使う'); // 2026-06-18 統合: むしくい(木の実強制 target=opponent)と表現を一致
     if (k === '条件威力倍率') {
       if (/moves_after/.test(ct||'')) push('tag-misc', '🔄 後攻で使うと威力2倍');
       else if (/already_damaged/.test(ct||'')) push('tag-misc', '💢 相手が同ターンに先にダメージ受けたら威力2倍');
@@ -287,7 +288,7 @@ function getMoveFilterTags(m) {
     if (k === '能力入替' && Array.isArray(e.stats) && e.stats.length === 1 && e.stats[0] === 'speed') push('tag-rankop', '🔄 能力入替(自分と相手のすばやさを入れかえ)'); // 2026-06-18 統合形
     if (k === '特性無効化') push('tag-other', '🚫 相手の特性を無効にする');
     if (k === '直前技模倣') push('tag-misc', '🪞 直前にだれかが使った技をまねる');
-    if (k === '木の実強制') push('tag-misc', e.target === 'opponent' ? '🍃 相手の「きのみ」を奪って使う' : '🍃 持っている「きのみ」をすぐに使う');
+    if (k === '木の実強制') push('tag-misc', e.target === 'opponent' ? '🍒 相手の「きのみ」を奪って使う' : '🍃 持っている「きのみ」をすぐに使う'); // 2026-06-18 統合: 「奪って使う」をついばむと表現一致(両方🍒)
     if (k === '実数値折半') {
       const sts = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
       if (sts.some(s => /defense/.test(s))) push('tag-rankop', '🔄 能力入替(ぼうぎょ・とくぼうを平均化)');
@@ -303,7 +304,7 @@ function getMoveFilterTags(m) {
     if (k === '技タイプ追加') push('tag-misc', '🔀 この技にタイプを追加');
     if (k === 'タイプ追加') push('tag-other', `🏷️ タイプ追加(相手→${e.value})`); // 2026-06-18
     if (k === '技強制再使用') push('tag-misc', '🔁 相手に直前の技をもう一度使わせる');
-    if (k === 'ランク数威力加算') push('tag-misc', '📈 自分の能力ランクが上がっているほど威力上昇');
+    if (k === 'ランク数威力加算') push('tag-misc', '📈 自分の能力ランク段階で威力上昇'); // 2026-06-18 統合: アシストパワーと表現一致
     if (k === 'タイプ除去') push('tag-other', `💨 タイプ除去(自分の${e.value}が消える)`); // 2026-06-18
     if (k === '別能力ダメージ') push('tag-misc', '🛡️ 自分のぼうぎょでダメージ計算');
     if (k === '対象範囲変更') push('tag-misc', '🌐 条件で相手全体に当たるようになる');
