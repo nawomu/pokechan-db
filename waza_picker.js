@@ -1914,16 +1914,16 @@ if (WP_MODE === 'multi' || WP_MODE === 'single') {
 // ★2026-06-18 阿部さん指摘・第2版: 旧フィルタにある重要タグも新タグ側で見えるように除外を最小限に
 // 除外するのは「状態異常(細分%でカバー済)」「タイプ変更系(細分でカバー済)」「必中急所/必中」など
 // 残すのは「サポートW」「みがわり貫通」「バインド」「相手交代」など各カテゴリの主役タグ
+// ★2026-06-18 第4版: 状態異常タグは「⚡ まひ」「💤 ねむり」等として残す(%細分は削除済みで1個に統合)
+// 旧フィルタとダブるが、新タグでも状態異常が見えることが大事(ユーザー指摘)
 const OLD_FILTER_TAGS = new Set([
-  // 状態異常: 旧フィルタ7チップで完全カバー(まひ/ねむり/こおり/やけど/どく/こんらん/ひるみ)
-  '⚡ まひ', '💤 ねむり', '❄️ こおり', '🔥 やけど', '☠️ どく', '🌀 こんらん', '😵 ひるみ',
   // タイプ・特性・道具変更: 細分(タイプ変更(◯◯)/相手の特性をコピー等)でカバー済
   '🎭 タイプ変更', '✨ 特性変更', '🎁 道具変更',
   // 命中・急所: 旧フィルタにそのまま同名でカバー済(細分なし)
   '💥 必中急所', '🎯 必中',
   // 一撃必殺: 4技だけだが「技フラグ」の旧チップで同じ
   '💀 一撃必殺',
-  // ★2026-06-18 第3版: 1技ずつの細分は旧フィルタが完全担当
+  // 1技ずつの細分は旧フィルタが完全担当
   '☀️ 天候変更', '🌐 フィールド変更', '📌 設置技', '🛡️ 壁', '🌀 ルーム', '🚧 ワイガ/ファガ',
   '🌌 重力', '🌬️ 追い風',
 ]);
@@ -2071,9 +2071,47 @@ const OLD_FILTER_TAGS = new Set([
     const cat = detailCategory(tag);
     (byCat[cat] = byCat[cat] || []).push([tag, count]);
   }
+  // ★2026-06-18 阿部さん指摘: 能力ランク・状態異常など、カテゴリ内の並び順をきちんと統一
+  // - 能力ランク: 攻→防→特攻→特防→速→命中→回避
+  // - 状態異常: まひ→ねむり→こおり→やけど→どく→こんらん→ひるみ
+  function sortKeyForTag(t, cat) {
+    // 能力ランク変化系
+    if (['self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally'].includes(cat)) {
+      const STAT_ORDER = ['攻','防','特攻','特防','速','命中','回避','ランダム','全'];
+      // 「📊 (確率%)? 自攻+1」「📊 相全速-2」など → ステータス名を抽出
+      const m = t.match(/^📊\s*(?:\d+%\s)?[自相味相全味全場]+\s*(.+?)([+-]\d+|最大)$/);
+      if (m) {
+        const stat = m[1];
+        const idx = STAT_ORDER.indexOf(stat);
+        return idx === -1 ? 99 : idx;
+      }
+      return 99;
+    }
+    // 状態異常
+    if (cat === 'status') {
+      const STATUS_ORDER = ['まひ','ねむり','こおり','やけど','どく','もうどく','こんらん','ひるみ','メロメロ','あばれ','その他'];
+      for (let i = 0; i < STATUS_ORDER.length; i++) if (t.includes(STATUS_ORDER[i])) return i;
+      return 99;
+    }
+    // 優先度: +1→+2→+3→+4(数字昇順)
+    if (cat === 'priority_up') {
+      const m = t.match(/\+(\d+)/); return m ? parseInt(m[1]) : 99;
+    }
+    if (cat === 'priority_down') {
+      const m = t.match(/-(\d+)/); return m ? parseInt(m[1]) : 99;
+    }
+    return 0;
+  }
   for (const cat of CAT_ORDER) {
     const tags = byCat[cat];
     if (!tags || !tags.length) continue;
+    // カテゴリ内で並び順を統一(ステータス順 / 状態異常順 / 優先度数字順)
+    tags.sort((a, b) => {
+      const ka = sortKeyForTag(a[0], cat), kb = sortKeyForTag(b[0], cat);
+      if (ka !== kb) return ka - kb;
+      // 同じステータスなら頻度の降順
+      return b[1] - a[1];
+    });
     const row = document.createElement('div');
     row.className = 'newtag-cat-row';
     row.dataset.cat = cat;
