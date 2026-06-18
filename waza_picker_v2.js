@@ -1962,9 +1962,29 @@ const OLD_FILTER_TAGS = new Set([
     groups[b].items.push({ tag: t, count: c, pct: tagPct(t) });
     if (c > groups[b].max) groups[b].max = c;
   }
-  const filterTags = Object.values(groups)
-    .sort((a, b) => b.max - a.max || a.base.localeCompare(b.base, 'ja'))
-    .flatMap(g => g.items.sort((a, b) => b.pct - a.pct || b.count - a.count).map(x => [x.tag, x.count]));
+  // ★2026-06-18 阿部さん指摘: 旧フィルタにあるカテゴリ(設置/守る/場の効果/解除系/タイプ/技封じ/援護/みがわり貫通系)は
+  // 1技だけでも視認性のため表示(壁・ルーム等を見えなくする問題の解消)
+  const KEEP_ALWAYS_CATS_PRE = ['field', 'hazard', 'clear', 'switch', 'type', 'block', 'support', 'special', 'item', 'turn'];
+  // 1技だけのタグでも、上記カテゴリなら採用(2技以上は無条件採用)
+  const filterTags = [];
+  for (const g of Object.values(groups).sort((a, b) => b.max - a.max || a.base.localeCompare(b.base, 'ja'))) {
+    for (const x of g.items.sort((a, b) => b.pct - a.pct || b.count - a.count)) {
+      filterTags.push([x.tag, x.count]);
+    }
+  }
+  // 1技タグも追加(KEEP_ALWAYS_CATS_PRE のカテゴリのみ)
+  for (const [t, c] of Object.entries(tagCount)) {
+    if (c !== 1) continue;
+    const cat = (function tmpCat(tt){
+      if (/^🌤 天候|^🌿 フィールド|^🌀 ルーム|^🌬|^🌌 重力|フィールドで威力|追い風/.test(tt)) return 'field';
+      if (/^📌 設置|^🛡️ 壁|^🛡 壁|^🚧|^🛡️ まもる|まもる貫通|ステルスロック|^🕸/.test(tt)) return 'hazard';
+      if (/^🧹|フィールド破壊|壁破壊|防御貫通|ランクリセット/.test(tt)) return 'clear';
+      if (/^🎭|^🏷|^💨|タイプ追加|タイプコピー|タイプ変更/.test(tt)) return 'type';
+      if (/^🔒|封じ|アンコール|ふういん/.test(tt)) return 'block';
+      return null;
+    })(t);
+    if (cat) filterTags.push([t, c]);
+  }
   const active = new Set();
   function applyNewTags() {
     document.querySelectorAll('.new-tag-chip').forEach(el => {
@@ -1993,14 +2013,14 @@ const OLD_FILTER_TAGS = new Set([
     // ★2026-06-18 阿部さん指摘: 「タイミング」を「優先度(先制/後攻)」と「ターン技(ため/2ターン目に攻撃/使った次のターン動けない)」に分割
     if (/^⚡ 先制\+|^🐢 後攻-|遅延|^⏮|出てきた最初/.test(t)) return 'priority';
     if (/ターン目に攻撃|使った次のターンは動けない|天気でためを省略|^⏳|2T後|3T後|ターンため|連続使用|繰返|^🎴|^⚰/.test(t)) return 'turn';
-    // ダメ補正
-    if (/^🎯 急所|^🎯 味急所|^🎯 「ちいさくなる」中|^💥|^📈|^💢|^🔢|連続2|連続強制|外れるまで|半無敵|あばれ状態|反動|失敗|威力2倍|威力1\/2|威力可変|たくわえ|ダメおし|急所率|急所アップ|相手とのすばやさ差|相手の能力ランク変化を無視|レベル分のダメージ|「ちいさくなる」相手に威力2倍/.test(t)) return 'dmg';
+    // ダメ補正(倍返し=「受けたダメージのN倍で返す」もここ)
+    if (/^🎯 急所|^🎯 味急所|^🎯 「ちいさくなる」中|^💥|^📈|^💢|^🔢|^🔄 受けたダメージ|連続2|連続強制|外れるまで|半無敵|あばれ状態|反動|失敗|威力2倍|威力1\/2|威力可変|たくわえ|ダメおし|急所率|急所アップ|相手とのすばやさ差|相手の能力ランク変化を無視|レベル分のダメージ|「ちいさくなる」相手に威力2倍|受けたダメージの.*倍で返す/.test(t)) return 'dmg';
     // HP変化(状態異常回復もここに含める)
     if (/^💚|^🩸|^💊|^💸|^🩹|^🪆|^🤝 自分と相手のHP|^⚖️|^✂️|^🫧|HP|状態を治す|状態異常治す/.test(t)) return 'hp';
-    // 場の効果
-    if (/^🌤|^🌿 フィールド|^🌀 ルーム|^🌬|^🌌|フィールドで威力|^🪞 直前/.test(t)) return 'field';
-    // 設置/守る
-    if (/^📌|^🛡️ 壁|^🚧|^🛡 まもる|まもる貫通|ステルスロック|^🕸/.test(t)) return 'hazard';
+    // 場の効果(天候/フィールド/ルーム/追い風/重力)
+    if (/^🌤 天候|^🌿 フィールド|^🌀 ルーム|^🌬|^🌌 重力|フィールドで威力|追い風|^🪞 直前/.test(t)) return 'field';
+    // 設置/守る(壁・設置・ワイガファガ・まもる貫通)
+    if (/^📌 設置|^🛡️ 壁|^🛡 壁|^🚧|^🛡️ まもる|まもる貫通|ステルスロック|^🕸|^🛡 ワイドガード|^🛡 ファストガード/.test(t)) return 'hazard';
     // 解除系
     if (/^🧹|フィールド破壊|壁破壊|防御貫通|ランクリセット/.test(t)) return 'clear';
     // 交代/拘束
