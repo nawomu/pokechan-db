@@ -1999,16 +1999,25 @@ const OLD_FILTER_TAGS = new Set([
     if (/^📊 (\d+% )?相\S+\+/.test(t)) return 'opp_up';
     // 味方・場全体
     if (/^📊 (\d+% )?味|味方を回復|^📊 (\d+% )?場全/.test(t)) return 'ally';
-    // ★2026-06-18 阿部さん指摘: 「タイミング」を「優先度(先制/後攻)」と「ターン技(ため/2ターン目に攻撃/使った次のターン動けない)」に分割
-    if (/^⚡ 先制\+|^🐢 後攻-|遅延|^⏮|出てきた最初/.test(t)) return 'priority';
-    if (/ターン目に攻撃|使った次のターンは動けない|天気でためを省略|^⏳|2T後|3T後|ターンため|連続使用|繰返|^🎴|^⚰/.test(t)) return 'turn';
-    // ★2026-06-18 阿部さん指摘: ダメ補正から「連続技」「自分にダメージ」を独立カテゴリに分離
-    // 連続技(連続2回・連続2-5回・外れるまで連続・当たるたび威力上昇=トリプルアクセル)
+    // ★2026-06-18 阿部さん指摘・第3版: 旧フィルタの「順番」と同じ4分類に細分
+    //  先制技 / 後攻技 / ためる技(2ターン目に攻撃) / 使用後不動(使った次のターンは動けない)
+    if (/^⚡ 先制\+/.test(t)) return 'priority_up';   // 先制技
+    if (/^🐢 後攻-/.test(t)) return 'priority_down'; // 後攻技
+    if (/1ターン目|ターン目に攻撃|^⏳|天気でためを省略|2T後|3T後|ターンため/.test(t)) return 'charge';  // ためる技
+    if (/使った次のターンは動けない|^🔁/.test(t)) return 'recharge'; // 使用後不動
+    if (/遅延|^⏮|出てきた最初|連続使用|繰返|^🎴|^⚰/.test(t)) return 'turn'; // その他のタイミング系
+    // ★2026-06-18 第3版: 旧フィルタのダメ補正細分に合わせて細分化
+    // 急所系
+    if (/^🎯 急所|^🎯 味急所|急所率|急所アップ/.test(t)) return 'crit';
+    // 必中急所(別カテゴリ)→ OLD_FILTER_TAGSで除外済だが念のため
+    // 連続技
     if (/^⚡ 連続|^🎲 外れるまで連続|^📈 当たるたび|連続2-5回|連続2回|連続強制|外れるまで連続|当たるたび威力/.test(t)) return 'multihit';
+    // あばれ状態
+    if (/あばれ状態/.test(t)) return 'thrash';
     // 自分にダメージ(反動・失敗ダメージ・防がれても自分のHPが減る・瀕死技)
     if (/^💢 反動|^💔 失敗ダメージ|^⚠️ 防がれても自分のHPが減る|^💀 瀕死技|防がれても自分のHP|失敗ダメージ|^💸 自分のHPが最大HPの半分減る/.test(t)) return 'selfdmg';
-    // ダメ補正(残り: 急所・必中・威力倍率・半無敵・受けたダメージで返す等)
-    if (/^🎯 急所|^🎯 味急所|^🎯 「ちいさくなる」中|^💥|^📈|^💢|^🔢|^🔄 受けたダメージ|^😤|^😵 ねむけ|あばれ状態|半無敵|威力2倍|威力1\/2|威力可変|たくわえ|ダメおし|急所率|急所アップ|相手とのすばやさ差|相手の能力ランク変化を無視|レベル分のダメージ|「ちいさくなる」相手に威力2倍|受けたダメージの.*倍で返す|相手の技のPPを減らす|HPが少ないほど威力|HPが多いほど威力|相手の重さで威力/.test(t)) return 'dmg';
+    // ダメ補正(残り: 威力倍率・半無敵・受けたダメージで返す・特殊な威力変化など)
+    if (/^💥|^📈|^💢|^🔢|^🔄 受けたダメージ|^😤|^😵 ねむけ|^🔻|半無敵|威力2倍|威力1\/2|威力可変|たくわえ|ダメおし|相手とのすばやさ差|相手の能力ランク変化を無視|レベル分のダメージ|「ちいさくなる」相手に威力2倍|「ちいさくなる」中の相手に必ず命中|受けたダメージの.*倍で返す|相手の技のPPを減らす|HPが少ないほど威力|HPが多いほど威力|相手の重さで威力/.test(t)) return 'dmg';
     // HP変化(状態異常回復もここに含める)
     if (/^💚|^🩸|^💊|^💸|^🩹|^🪆|^🤝 自分と相手のHP|^⚖️|^✂️|^🫧|HP|状態を治す|状態異常治す/.test(t)) return 'hp';
     // 場の効果(天候/フィールド/ルーム/追い風/重力)
@@ -2047,14 +2056,15 @@ const OLD_FILTER_TAGS = new Set([
     opp_down2: '相手↓↓', opp_down1: '相手↓', opp_up: '相手↑',
     self_down2: '自分↓↓', self_down1: '自分↓',
     ally: '味方能力',
-    priority: '優先度', turn: 'ターン技',  // ★2026-06-18: タイミング→分割
-    multihit: '連続技', selfdmg: '自分にダメージ',  // ★2026-06-18 第2版: ダメ補正から分離
-    dmg: 'ダメ補正', hp: 'HP変化',
+    priority_up: '先制技', priority_down: '後攻技', charge: 'ためる技', recharge: '使用後不動', turn: 'その他タイミング',  // ★2026-06-18 第3版: 旧フィルタの「順番」と同じ4細分
+    crit: '急所',  // ★2026-06-18 第3版: 旧フィルタの細分採用
+    multihit: '連続技', thrash: 'あばれ状態', selfdmg: '自分にダメージ',
+    dmg: 'ダメ補正(その他)', hp: 'HP変化',
     field: '場の効果', hazard: '設置/守る', clear: '解除系',
     switch: '交代/拘束', type: 'タイプ操作', block: '技封じ',
     item: '持ち物', support_special: '援護/特殊', misc: 'その他'
   };
-  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority','turn','dmg','multihit','selfdmg','hp','field','hazard','clear','switch','type','block','item','support_special','misc'];
+  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority_up','priority_down','charge','recharge','turn','crit','multihit','thrash','selfdmg','dmg','hp','field','hazard','clear','switch','type','block','item','support_special','misc'];
   // カテゴリ毎にタグをグループ化
   const byCat = {};
   for (const [tag, count] of filterTags) {
