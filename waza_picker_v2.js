@@ -512,7 +512,11 @@ function getMoveFilterTags(m) {
   const STATUS_ICON = {'まひ':'⚡','やけど':'🔥','こおり':'❄️','ねむり':'💤','どく':'☠️','もうどく':'💀','こんらん':'🌀','メロメロ':'💕','バインド':'🔗','ちいさくなる':'🔻','きゅうしょアップ':'🎯'}; // 2026-06-18 バインド等の絵文字を統一(STATUS_ICONフォールバック🩻と bd.* 由来タグの重複を解消)
   for (const e of (bd.effects || [])) {
     const tgt = e.target === 'self' ? '(自)' : '';
-    const p = (e.prob != null && e.prob < 100) ? `${e.prob}%` : ''; // ★日本語kind(ひるみ/状態付与)に対応(英語kindバグ修正・2026-06-07)
+    // ★2026-06-18 阿部さん指摘: 100%確定の状態付与もタグに残す(旧フィルタとのテキスト重複でOLD_FILTER_TAGS除外されていた)
+    //   prob=null → 確率表記なし(あばれる系delayed等)
+    //   prob=100 → 「100%」明示(確定付与)
+    //   prob<100 → 「30%」「20%」等
+    const p = (e.prob != null) ? `${e.prob}%` : '';
     if (e.kind === 'ひるみ' || (e.kind === '状態付与' && e.value === 'ひるみ')) out.push({cls:'tag-status', text:`😵 ${p}ひるみ${tgt}`});
     else if (e.kind === '状態付与') {
       // ★英語prose value(うちおとす等の未構造プレースホルダ)はタグに出さない=長大化/英語漏れ/列ズレ防止。
