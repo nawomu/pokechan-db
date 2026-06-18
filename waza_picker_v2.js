@@ -1850,14 +1850,26 @@ if (WP_MODE === 'multi' || WP_MODE === 'single') {
 }
 
 // ★2026-06-18: 新タグチップ生成と絞り込み連携(私たちが整備した126フィルタ向きタグ)
+// ★2026-06-18 ダブり整理: 旧フィルタチップと完全テキスト一致するタグは新タグ側から除外(同じ内容を二重表示しない)
+const OLD_FILTER_TAGS = new Set([
+  '💀 一撃必殺', '🎭 タイプ変更', '✨ 特性変更', '🎁 道具変更',
+  '⚡ まひ', '💤 ねむり', '🔥 やけど', '☠️ どく', '🌀 こんらん', '😵 ひるみ',
+  '💥 必中急所', '🎯 必中', '💔 失敗ダメージ', '💀 瀕死技',
+  '🔗 バインド', '🔄 相手交代', '↩️ 自分交代', '🪤 交代不可',
+  '🌬️ 追い風', '🌌 重力', '🛡️ まもる貫通', '🧹 設置解除',
+  '🤝 サポートW', '👻 みがわり貫通'
+]);
 (function setupNewTagFilter() {
   const box = document.getElementById('newTagChips');
   if (!box) return;
-  // 全技から新タグを集計(1技以上)→ 2技以上=フィルタ向きだけ採用
+  // 全技から新タグを集計(1技以上)→ 2技以上=フィルタ向きだけ採用 + 旧フィルタとの重複を除外
   const tagCount = {};
   for (const m of moves) {
     const tags = getMoveFilterTags(m);
-    for (const t of tags) { const key = t.text; tagCount[key] = (tagCount[key] || 0) + 1; }
+    for (const t of tags) {
+      if (OLD_FILTER_TAGS.has(t.text)) continue;
+      const key = t.text; tagCount[key] = (tagCount[key] || 0) + 1;
+    }
   }
   const filterTags = Object.entries(tagCount).filter(([, c]) => c >= 2).sort((a, b) => b[1] - a[1]);
   const active = new Set();
