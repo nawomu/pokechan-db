@@ -671,10 +671,16 @@ function getMoveFilterTags(m) {
     const RO = {'copy':'相手→自分にコピー','swap_atk_spa':'攻と特攻を入替','swap_def_spd':'防と特防を入替','swap_atk_def_self':'自分の攻と防を入替'};
     out.push({cls:'tag-rankop', text:`🔄 能力入替(${RO[bd.rank_op]||bd.rank_op})`});
   }
-  // 解除系
+  // 解除系(2026-06-18 第4版: ランクリセット(全)/(敵) を統合・防御貫通も統合済タグ)
   if (Array.isArray(bd.unlock)) {
-    const UN = {'screen':'壁破壊','protect':'防御貫通','rank_reset_all':'ランクリセット(全)','rank_reset_opp':'ランクリセット(敵)'};
-    bd.unlock.forEach(u => out.push({cls:'tag-unlock', text:`🧹 ${UN[u]||u}`}));
+    const UN = {'screen':'壁破壊','protect':'防御貫通','rank_reset_all':'ランクリセット','rank_reset_opp':'ランクリセット'};
+    const seen = new Set();
+    bd.unlock.forEach(u => {
+      const lbl = UN[u] || u;
+      if (seen.has(lbl)) return; // 同じ統合形は重複させない
+      seen.add(lbl);
+      out.push({cls:'tag-unlock', text:`🧹 ${lbl}`});
+    });
   }
 
   // 状態異常回復
@@ -781,7 +787,7 @@ function getMoveFilterTags(m) {
     if (k === '相手能力ダメージ') push('tag-misc', '↩️ 相手のこうげきの高さでダメージ計算');
     if (k === 'ランク無視') push('tag-misc', '🔓 相手の能力ランク変化を無視して攻撃');
     if (k === '技タイプ追加') push('tag-misc', '🔀 この技にタイプを追加');
-    if (k === 'タイプ追加') push('tag-other', `🏷️ タイプ追加(相手→${e.value})`); // 2026-06-18
+    if (k === 'タイプ追加') push('tag-other', '🏷️ 相手にタイプ追加'); // 2026-06-18 第4版: 個別タイプ名は出さず統合(各1技ずつなのでフィルタ的に意味なし)
     if (k === '技強制再使用') push('tag-misc', '🔁 相手に直前の技をもう一度使わせる');
     if (k === 'ランク数威力加算') push('tag-misc', '📈 自分の能力ランク段階で威力上昇'); // 2026-06-18 統合: アシストパワーと表現一致
     if (k === 'タイプ除去') push('tag-other', `💨 タイプ除去(自分の${e.value}が消える)`); // 2026-06-18
@@ -1996,13 +2002,11 @@ const OLD_FILTER_TAGS = new Set([
     if (/^📊 (\d+% )?相\S+\+/.test(t)) return 'opp_up';
     // 味方・場全体
     if (/^📊 (\d+% )?味|味方を回復|^📊 (\d+% )?場全/.test(t)) return 'ally';
-    // ★2026-06-18 阿部さん指摘・第3版: 旧フィルタの「順番」と同じ4分類に細分
-    //  先制技 / 後攻技 / ためる技(2ターン目に攻撃) / 使用後不動(使った次のターンは動けない)
+    // ★2026-06-18 第4版 阿部さん指摘: 使用後不動・その他タイミングをためる技に統合(コンパクト化)
     if (/^⚡ 先制\+/.test(t)) return 'priority_up';   // 先制技
     if (/^🐢 後攻-/.test(t)) return 'priority_down'; // 後攻技
-    if (/1ターン目|ターン目に攻撃|^⏳|天気でためを省略|2T後|3T後|ターンため/.test(t)) return 'charge';  // ためる技
-    if (/使った次のターンは動けない|^🔁/.test(t)) return 'recharge'; // 使用後不動
-    if (/遅延|^⏮|出てきた最初|連続使用|繰返|^🎴|^⚰/.test(t)) return 'turn'; // その他のタイミング系
+    // ためる/ターン技(2ターン目に攻撃・使った次のターン動けない・天気でためを省略・遅延・直前技繰返強制 等)
+    if (/1ターン目|ターン目に攻撃|^⏳|天気でためを省略|2T後|3T後|ターンため|使った次のターンは動けない|^🔁|遅延|^⏮|出てきた最初|連続使用|繰返|^🎴|^⚰/.test(t)) return 'charge';
     // ★2026-06-18 第3版: 旧フィルタのダメ補正細分に合わせて細分化
     // 急所系
     if (/^🎯 急所|^🎯 味急所|急所率|急所アップ/.test(t)) return 'crit';
@@ -2055,7 +2059,7 @@ const OLD_FILTER_TAGS = new Set([
     opp_down2: '相手↓↓', opp_down1: '相手↓', opp_up: '相手↑',
     self_down2: '自分↓↓', self_down1: '自分↓',
     ally: '味方能力',
-    priority_up: '先制技', priority_down: '後攻技', charge: 'ためる技', recharge: '使用後不動', turn: 'その他タイミング',  // ★2026-06-18 第3版: 旧フィルタの「順番」と同じ4細分
+    priority_up: '先制技', priority_down: '後攻技', charge: 'ためる/ターン技',  // ★2026-06-18 第4版: 使用後不動/その他タイミングを統合
     crit: '急所',  // ★2026-06-18 第3版: 旧フィルタの細分採用
     multihit: '連続技', thrash: 'あばれ状態', selfdmg: '自分にダメージ',
     dmg: 'ダメ補正(その他)', hp: 'HP変化',
@@ -2063,7 +2067,7 @@ const OLD_FILTER_TAGS = new Set([
     switch: '交代/拘束', type: 'タイプ操作', block: '技封じ',
     item: '持ち物', support_special: '援護/特殊', misc: 'その他'
   };
-  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority_up','priority_down','charge','recharge','turn','crit','multihit','thrash','selfdmg','dmg','hp','field','hazard','clear','switch','type','block','item','support_special','misc'];
+  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority_up','priority_down','charge','crit','multihit','thrash','selfdmg','dmg','hp','field','hazard','clear','switch','type','block','item','support_special','misc'];
   // カテゴリ毎にタグをグループ化
   const byCat = {};
   for (const [tag, count] of filterTags) {
