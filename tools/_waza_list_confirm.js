@@ -43,7 +43,7 @@ function getMoveFilterTags(m) {
   if (flags.change_item)    out.push({cls:'tag-flag',  text:'🎁 道具変更'});
 
   // 副作用 (状態異常 / ひるみ)
-  const STATUS_ICON = {'まひ':'⚡','やけど':'🔥','こおり':'❄️','ねむり':'💤','どく':'☠️','もうどく':'💀','こんらん':'🌀','メロメロ':'💕'};
+  const STATUS_ICON = {'まひ':'⚡','やけど':'🔥','こおり':'❄️','ねむり':'💤','どく':'☠️','もうどく':'💀','こんらん':'🌀','メロメロ':'💕','バインド':'🔗','ちいさくなる':'🔻','きゅうしょアップ':'🎯'}; // 2026-06-18 バインド等の絵文字を統一(STATUS_ICONフォールバック🩻と bd.* 由来タグの重複を解消)
   for (const e of (bd.effects || [])) {
     const tgt = e.target === 'self' ? '(自)' : '';
     const p = (e.prob != null && e.prob < 100) ? `${e.prob}%` : ''; // ★日本語kind(ひるみ/状態付与)に対応(英語kindバグ修正・2026-06-07)
@@ -155,7 +155,7 @@ function getMoveFilterTags(m) {
   if (bd.field_remove)   out.push({cls:'tag-field', text:'🧹 フィールド破壊'});
 
   // 交代系
-  if (bd.bind)             out.push({cls:'tag-switch', text:'🔗 バインド'});
+  // bd.bind は effects[状態付与=バインド] と完全に対応(7技で一致)→ 状態付与kindのタグでカバー済=重複削除(2026-06-18)
   if (bd.force_switch_opp) out.push({cls:'tag-switch', text:'🔄 相手交代'});
   if (bd.self_switch)      out.push({cls:'tag-switch', text:'↩️ 自分交代'});
   if (bd.trap_no_switch)   out.push({cls:'tag-switch', text:'🪤 交代不可'});
