@@ -557,6 +557,9 @@ function getMoveFilterTags(m) {
     const seen = new Set((bd.rank_changes || []).map(r => `${r.target}|${r.stat}|${r.delta}|${r.prob||100}`));
     for (const e of (bd.effects || [])) {
       if (e.kind !== '能力ランク変化') continue;
+      // ★2026-06-18 阿部さん指摘: target='all' + condition は「シード持ちだけ場全員+1」のような条件付き副次効果
+      //  → 「場全防+1」とだけ書くとミスリードなのでタグ化しない(フィールド(◯◯)タグでカバー済)
+      if (e.target === 'all' && e.condition) continue;
       const tgt = TGT_EN_JP[e.target] || '?';
       const sts = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
       const probTxt = (e.prob != null && e.prob < 100) ? `${e.prob}% ` : '';
