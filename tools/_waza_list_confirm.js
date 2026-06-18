@@ -134,17 +134,18 @@ function getMoveFilterTags(m) {
   if (bd.recharge)               out.push({cls:'tag-charge', text:'🔁 使った次のターンは動けない'});
 
   // 場・設置・交代系
+  // ★2026-06-18: 同種の細分タグを「天候(◯◯)」「フィールド(◯◯)」「設置(◯◯)」のように統合(統一カテゴリで括弧に詳細)
   if (bd.weather_set) {
-    const W = {'sunny':'☀️ 晴れに','rain':'🌧️ あめに','snow':'❄️ ゆきに','sand':'🌪️ すなあらしに'};
-    out.push({cls:'tag-field', text:W[bd.weather_set]||bd.weather_set});
+    const W = {'sunny':'にほんばれ','rain':'あめ','snow':'ゆき','sand':'すなあらし'};
+    out.push({cls:'tag-field', text:`🌤 天候(${W[bd.weather_set]||bd.weather_set})`});
   }
   if (bd.field_set) {
-    const F = {'electric':'⚡ エレキフィールド','grass':'🌿 グラスフィールド','psychic':'🔮 サイコフィールド','misty':'🌫️ ミストフィールド'};
-    out.push({cls:'tag-field', text:F[bd.field_set]||bd.field_set});
+    const F = {'electric':'エレキフィールド','grass':'グラスフィールド','psychic':'サイコフィールド','misty':'ミストフィールド'};
+    out.push({cls:'tag-field', text:`🌿 フィールド(${F[bd.field_set]||bd.field_set})`});
   }
   if (bd.hazard_set) {
-    const H = {'spikes':'📌 まきびし','toxic_spikes':'☠️ どくびし','stealth_rock':'🪨 ステルスロック','sticky_web':'🕸️ ねばねばネット'};
-    out.push({cls:'tag-hazard', text:H[bd.hazard_set]||bd.hazard_set});
+    const H = {'spikes':'まきびし','toxic_spikes':'どくびし','stealth_rock':'ステルスロック','sticky_web':'ねばねばネット'};
+    out.push({cls:'tag-hazard', text:`📌 設置(${H[bd.hazard_set]||bd.hazard_set})`});
   }
   if (bd.tailwind)       out.push({cls:'tag-field', text:'🌬️ 追い風'});
   if (bd.gravity)        out.push({cls:'tag-field', text:'🌌 重力'});
@@ -165,12 +166,12 @@ function getMoveFilterTags(m) {
   // 壁
   if (bd.screen) {
     const S = {'reflect':'リフレクター','light_screen':'ひかりのかべ','aurora_veil':'オーロラベール','safeguard':'しんぴのまもり'};
-    out.push({cls:'tag-screen', text:`🛡️ ${S[bd.screen]||bd.screen}`});
+    out.push({cls:'tag-screen', text:`🛡️ 壁(${S[bd.screen]||bd.screen})`}); // 2026-06-18 統合形
   }
   // ルーム
   if (bd.room) {
     const R = {'trick_room':'トリックルーム','wonder_room':'ワンダールーム','magic_room':'マジックルーム'};
-    out.push({cls:'tag-room', text:`🌀 ${R[bd.room]||bd.room}`});
+    out.push({cls:'tag-room', text:`🌀 ルーム(${R[bd.room]||bd.room})`}); // 2026-06-18 統合形
   }
   // 技封じ (効果別に簡潔表示)
   if (bd.move_block) {
@@ -186,10 +187,10 @@ function getMoveFilterTags(m) {
   }
   // サポート
   if (bd.support)          out.push({cls:'tag-support', text:'🤝 サポートW'});
-  // ランク操作
+  // ランク操作(2026-06-18: 統合形=「能力入替(◯◯)」)
   if (bd.rank_op) {
-    const RO = {'copy':'ランクコピー','swap_atk_spa':'攻特攻入替','swap_def_spd':'防特防入替','swap_atk_def_self':'自攻防入替'};
-    out.push({cls:'tag-rankop', text:`🔄 ${RO[bd.rank_op]||bd.rank_op}`});
+    const RO = {'copy':'相手→自分にコピー','swap_atk_spa':'攻と特攻を入替','swap_def_spd':'防と特防を入替','swap_atk_def_self':'自分の攻と防を入替'};
+    out.push({cls:'tag-rankop', text:`🔄 能力入替(${RO[bd.rank_op]||bd.rank_op})`});
   }
   // 解除系
   if (Array.isArray(bd.unlock)) {
@@ -283,27 +284,27 @@ function getMoveFilterTags(m) {
       else if (e.prob != null) push('tag-misc', '🎲 ' + e.prob + '%の確率で威力2倍');
     }
     if (k === 'なげつける') push('tag-misc', '🎁 持っている道具を投げて攻撃');
-    if (k === '能力入替' && Array.isArray(e.stats) && e.stats.length === 1 && e.stats[0] === 'speed') push('tag-rankop', '🔄 自分と相手のすばやさを入れかえ');
+    if (k === '能力入替' && Array.isArray(e.stats) && e.stats.length === 1 && e.stats[0] === 'speed') push('tag-rankop', '🔄 能力入替(自分と相手のすばやさを入れかえ)'); // 2026-06-18 統合形
     if (k === '特性無効化') push('tag-other', '🚫 相手の特性を無効にする');
     if (k === '直前技模倣') push('tag-misc', '🪞 直前にだれかが使った技をまねる');
     if (k === '木の実強制') push('tag-misc', e.target === 'opponent' ? '🍃 相手の「きのみ」を奪って使う' : '🍃 持っている「きのみ」をすぐに使う');
     if (k === '実数値折半') {
       const sts = Array.isArray(e.stats) ? e.stats : (e.stat ? [e.stat] : []);
-      if (sts.some(s => /defense/.test(s))) push('tag-rankop', '🛡️ 自分と相手のぼうぎょ・とくぼうを平均化');
-      if (sts.some(s => /attack/.test(s))) push('tag-rankop', '⚔️ 自分と相手のこうげき・とくこうを平均化');
+      if (sts.some(s => /defense/.test(s))) push('tag-rankop', '🔄 能力入替(ぼうぎょ・とくぼうを平均化)');
+      if (sts.some(s => /attack/.test(s))) push('tag-rankop', '🔄 能力入替(こうげき・とくこうを平均化)');
     }
     if (k === '別防御参照ダメージ') push('tag-misc', '🛡️ 特殊技だが相手のぼうぎょで計算');
     if (k === 'タイプ上書き') {
-      if (e.value === 'copy_target_current_types') push('tag-misc', '🪞 自分のタイプを相手と同じにする');
-      else if (e.value && !/^[A-Za-z_]+$/.test(String(e.value))) push('tag-misc', `🎭 相手のタイプを「${e.value}」だけに変える`);
-    }
+      if (e.value === 'copy_target_current_types') push('tag-misc', '🪞 タイプコピー(自分→相手と同じ)');
+      else if (e.value && !/^[A-Za-z_]+$/.test(String(e.value))) push('tag-misc', `🎭 タイプ変更(相手→${e.value}だけに)`);
+    } // 2026-06-18 統合形
     if (k === '相手能力ダメージ') push('tag-misc', '↩️ 相手のこうげきの高さでダメージ計算');
     if (k === 'ランク無視') push('tag-misc', '🔓 相手の能力ランク変化を無視して攻撃');
     if (k === '技タイプ追加') push('tag-misc', '🔀 この技にタイプを追加');
-    if (k === 'タイプ追加') push('tag-other', `🏷️ 相手に「${e.value}」タイプを追加`);
+    if (k === 'タイプ追加') push('tag-other', `🏷️ タイプ追加(相手→${e.value})`); // 2026-06-18
     if (k === '技強制再使用') push('tag-misc', '🔁 相手に直前の技をもう一度使わせる');
     if (k === 'ランク数威力加算') push('tag-misc', '📈 自分の能力ランクが上がっているほど威力上昇');
-    if (k === 'タイプ除去') push('tag-other', `💨 自分の「${e.value}」タイプがなくなる`);
+    if (k === 'タイプ除去') push('tag-other', `💨 タイプ除去(自分の${e.value}が消える)`); // 2026-06-18
     if (k === '別能力ダメージ') push('tag-misc', '🛡️ 自分のぼうぎょでダメージ計算');
     if (k === '対象範囲変更') push('tag-misc', '🌐 条件で相手全体に当たるようになる');
     if (k === '相手持ち物威力') push('tag-misc', '🎒 相手の持ち物を使って攻撃');
@@ -469,20 +470,25 @@ const oneHoleMoves = [...oneHoleByKind.values()].reduce((a, b) => a + b.length, 
 const nearList = [...oneHoleByKind.entries()].sort((a, b) => b[1].length - a[1].length)
   .map(([k, names]) => `<a class="near-row" href="#sec-${kindToIdx.has(k) ? kindToIdx.get(k) : 0}"><b class="near-k">${esc(k)}</b><span class="near-n">${names.length}技完結</span><span class="near-mv">${names.map(esc).join('・')}</span></a>`).join('');
 const pick = st => tocIdx.filter(x => x.st === st);
-const workItems = pick('working'), doneItems = pick('done'), reviewItems = pick('review'), todoItems = pick('todo');
+// ★2026-06-18 阿部さん指摘: 1技だけのkindセクションは「個別固有(各1技)」グループに分離(目次のスッキリ化)
+const isLonely = x => x.n === 1; // 技数1のkind
+const workItems = pick('working'), doneItems = pick('done'), reviewItems = pick('review');
+const todoMulti = pick('todo').filter(x => !isLonely(x)); // todoのうち2技以上
+const todoLonely = pick('todo').filter(x => isLonely(x));  // todoのうち1技だけ(個別固有)
 const noeffItem = tocIdx.find(x => x.k === NOEFF);
 const CHIP_CLS = { working: 'is-working', done: 'is-done', review: 'is-review', todo: 'is-todo', noeff: 'is-todo' };
 const CHIP_MK = { working: '🔨', done: '✓', review: '🕓', todo: '⚠', noeff: '' };
 const tocChip = x => `<a class="toc-chip ${CHIP_CLS[x.st]}" href="#sec-${x.i}">${esc(x.k === NOEFF ? '追加効果なし' : x.k)}<span class="toc-n">${x.n}</span>${CHIP_MK[x.st] ? `<span class="toc-mk">${CHIP_MK[x.st]}</span>` : ''}</a>`;
 const tocGroup = (lbl, cls, items) => items.length ? `<div class="toc-grp"><div class="toc-lbl ${cls}">${lbl}</div><div class="toc-chips">${items.map(tocChip).join('')}</div></div>` : '';
 const toc = `<nav class="toc" id="toc">
-  <div class="toc-prog">📊 進捗：<b class="p-work">🔨作業中 ${workItems.length}</b>　｜　<b class="p-done">✓確定 ${doneItems.length}</b>　｜　<b class="p-review">🕓確認待ち ${reviewItems.length}</b>　｜　<b class="p-todo">⚠これから ${todoItems.length}</b>グループ　｜　説明文が出せる <b>${voicedMoves}</b>/${moves.length}技　｜　<b class="p-cmpl">✅完結(穴ゼロ) ${completeMoves}</b>　｜　<b class="p-near">あと1穴 ${oneHoleMoves}技</b><span id="dyn-prog"></span></div>
+  <div class="toc-prog">📊 進捗：<b class="p-work">🔨作業中 ${workItems.length}</b>　｜　<b class="p-done">✓確定 ${doneItems.length}</b>　｜　<b class="p-review">🕓確認待ち ${reviewItems.length}</b>　｜　<b class="p-todo">⚠これから ${todoMulti.length + todoLonely.length}</b>グループ　｜　説明文が出せる <b>${voicedMoves}</b>/${moves.length}技　｜　<b class="p-cmpl">✅完結(穴ゼロ) ${completeMoves}</b>　｜　<b class="p-near">あと1穴 ${oneHoleMoves}技</b><span id="dyn-prog"></span></div>
   <details class="near-box"${oneHoleMoves ? '' : ' style="display:none"'}><summary>🎯 あと1穴で完結する技 ${oneHoleMoves}技 ―「このkindを開通すると○技が一気に完結」(クリックでセクションへ)</summary>
     <div class="near-list">${nearList}</div></details>
   ${tocGroup('🔨 作業中（いま開通中）', 'wk', workItems)}
   ${tocGroup('✓ 確定（阿部さんの耳でOK）', 'ok', doneItems)}
   ${tocGroup('🕓 確認待ち（ビルド済・耳の確認まち）', 'rv', reviewItems)}
-  ${tocGroup('⚠ これから（技数の多い順）', 'ng', [...todoItems, ...(noeffItem ? [noeffItem] : [])])}
+  ${tocGroup(`⚠ これから（複数技あり・技数の多い順 ${todoMulti.length}グループ）`, 'ng', [...todoMulti, ...(noeffItem ? [noeffItem] : [])])}
+  ${todoLonely.length ? `<details class="toc-grp toc-lonely"><summary class="toc-lbl ng">📦 個別固有（1技だけのkind ${todoLonely.length}グループ・クリックで展開）</summary><div class="toc-chips">${todoLonely.map(tocChip).join('')}</div></details>` : ''}
 </nav>`;
 
 const CSS = `
@@ -519,6 +525,10 @@ body { margin:0; font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothi
 .mv-st.near { background:#FFF7DB; color:#8a5a00; border:1px solid #E3C58A; }
 .mv-st.hole { background:#FBEAEA; color:#A33; border:1px solid #E0A6A6; }
 .toc-grp { margin-bottom:7px; }
+.toc-lonely > summary { cursor:pointer; padding:4px 0; list-style:none; }
+.toc-lonely > summary::before { content:"▸ "; color:#5b667d; }
+.toc-lonely[open] > summary::before { content:"▾ "; }
+.toc-lonely[open] > .toc-chips { margin-top:5px; }
 .toc-lbl { font-size:11px; font-weight:700; margin-bottom:5px; }
 .toc-lbl.ok { color:#2E7D32; } .toc-lbl.ng { color:#C77800; } .toc-lbl.rv { color:#1565C0; } .toc-lbl.wk { color:#6A1B9A; }
 .toc-chips { display:flex; flex-wrap:wrap; gap:5px; }
