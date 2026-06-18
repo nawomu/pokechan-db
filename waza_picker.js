@@ -1970,31 +1970,61 @@ const OLD_FILTER_TAGS = new Set([
     render();
   }
   window.__newTagActive = active;
-  // ★2026-06-18 阿部さん指摘: 詳細タグも旧フィルタと同じジャンル分けに(技フラグ/状態異常/能力ランク/タイミング/...)
+  // ★2026-06-18 阿部さん指摘・第2版: 旧フィルタのジャンル分け(段階別)を採用 + 新タグの細分も保持
+  // 18カテゴリ: 旧の段階別の見やすさ + 新の細分(技封じ・持ち物・タイプ・タイミング)
   function detailCategory(t) {
     if (/^👊 パンチ|^🔊 音|^🔵 弾|^〰️ 波動/.test(t)) return 'flag';
-    if (/^😵|^⚡.*まひ|^💤|^❄️|^🔥|^☠️|^💀(?!.*瀕死)|^🌀(?!.*ルーム)|^💕|もうどく|メロメロ|ねむけ|きゅうしょアップ\(自\)|ちいさくなる\(自\)/.test(t)) return 'status';
-    if (/^📊 自/.test(t)) return 'self_rank';
-    if (/^📊 相|^📊 味/.test(t)) return 'target_rank';
-    if (/^🎯|^💥|^📈|連続|急所|必中|あばれ状態|反動|失敗|威力上昇|威力2倍|威力1\/2|威力可変|半無敵|たくわえる/.test(t)) return 'dmg';
-    if (/^💚|^🩸|^💊|^💸|^🩹|^🪆|^🤝 自分と相手のHP/.test(t)) return 'hp';
-    if (/^🌤|^🌿 フィールド|^🌀 ルーム|^🌬|^🌌|フィールドで威力/.test(t)) return 'field';
-    if (/^📌|^🛡️ 壁|^🚧|まもる|ステルスロック/.test(t)) return 'hazard';
+    if (/^😵|^⚡\s*\d*%?まひ|^💤|^❄️|^🔥\s*\d*%?やけど|^☠️|^💀\s*\d*%?(どく|もうどく|瀕死)?|^🌀(?!.*ルーム)|^💕|^🤢|もうどく|メロメロ|ねむけ|きゅうしょアップ\(自\)|ちいさくなる\(自\)|やけど低下無視|あめまみれ/.test(t) && !/瀕死技|ひんし/.test(t)) return 'status';
+    // 自分の能力ランク(段階別・確率付きも対応)
+    if (/^📊 (\d+% )?自\S+\+[2-6]/.test(t)) return 'self_up2';
+    if (/^📊 (\d+% )?自\S+\+1$/.test(t)) return 'self_up1';
+    if (/^📊 (\d+% )?自\S+-[2-6]/.test(t)) return 'self_down2';
+    if (/^📊 (\d+% )?自\S+-1$/.test(t)) return 'self_down1';
+    if (/^📊 (\d+% )?自ランダム/.test(t)) return 'self_up1';
+    // 相手の能力ランク(段階別・確率付きも対応)
+    if (/^📊 (\d+% )?相\S+-[2-6]/.test(t)) return 'opp_down2';
+    if (/^📊 (\d+% )?相\S+-1$/.test(t)) return 'opp_down1';
+    if (/^📊 (\d+% )?相\S+\+/.test(t)) return 'opp_up';
+    // 味方・場全体
+    if (/^📊 (\d+% )?味|味方を回復|^📊 (\d+% )?場全/.test(t)) return 'ally';
+    // タイミング(順番系)
+    if (/^⚡ 先制|^🐢 後攻|^⏳|^⏮|^🔁|^🎴|^⚰|ターン目|遅延|タイミング|2T後|3T後|ターンため|出てきた最初|連続使用|繰返|使った次のターンは動けない|天気でためを省略/.test(t)) return 'timing';
+    // ダメ補正
+    if (/^🎯 急所|^🎯 味急所|^🎯 「ちいさくなる」中|^💥|^📈|^💢|^🔢|連続2|連続強制|外れるまで|半無敵|あばれ状態|反動|失敗|威力2倍|威力1\/2|威力可変|たくわえ|ダメおし|急所率|急所アップ|相手とのすばやさ差|相手の能力ランク変化を無視|レベル分のダメージ|「ちいさくなる」相手に威力2倍/.test(t)) return 'dmg';
+    // HP変化(状態異常回復もここに含める)
+    if (/^💚|^🩸|^💊|^💸|^🩹|^🪆|^🤝 自分と相手のHP|^⚖️|^✂️|^🫧|HP|状態を治す|状態異常治す/.test(t)) return 'hp';
+    // 場の効果
+    if (/^🌤|^🌿 フィールド|^🌀 ルーム|^🌬|^🌌|フィールドで威力|^🪞 直前/.test(t)) return 'field';
+    // 設置/守る
+    if (/^📌|^🛡️ 壁|^🚧|^🛡 まもる|まもる貫通|ステルスロック|^🕸/.test(t)) return 'hazard';
+    // 解除系
     if (/^🧹|フィールド破壊|壁破壊|防御貫通|ランクリセット/.test(t)) return 'clear';
-    if (/^🔗|^🪤|^🔄|^↩️|^🎽|^🪞|^🎭|^🏷|^💨|交代|拘束|タイプ追加|タイプコピー|タイプ変更/.test(t)) return 'switch';
-    if (/^⚡ 先制|^🐢|ターン目|遅延|タイミング|2T後|3T後|ターンため/.test(t)) return 'timing';
-    if (/^🔒|封じ|アンコール|ふういん/.test(t)) return 'block';
+    // 交代/拘束
+    if (/^🔗|^🪤|^🔄(?!.*持ち物)|^↩️|^🎽|交代|拘束/.test(t)) return 'switch';
+    // タイプ操作・特性操作
+    if (/^🎭|^🏷|^💨|^🪞 自分のタイプ|^🪞 タイプコピー|^✨ 相手の|^🪞 相手の特性|タイプ追加|タイプコピー|タイプ変更|相性上書き|フリーズドライ|特性を上書き|特性をコピー/.test(t)) return 'type';
+    // 技封じ
+    if (/^🔒|封じ|アンコール|ふういん|いちゃもん|ちょうはつ|まねっこ|さいはい|ねごと/.test(t)) return 'block';
+    // 持ち物
     if (/^🎒|^🍒|^🍃|^🎁|^🗑|持ち物|きのみ|道具/.test(t)) return 'item';
-    if (/^🤝|サポート|引き寄せ/.test(t)) return 'support';
+    // 援護
+    if (/^🤝 サポート|サポートW|引き寄せ|位置入替|味方威力|てだすけ|^👥/.test(t)) return 'support';
+    // みがわり貫通・特殊
+    if (/^👻|^🪆|みがわり/.test(t)) return 'special';
     return 'misc';
   }
   const CAT_LABEL = {
-    flag: '技フラグ', status: '状態異常', self_rank: '自分能力', target_rank: '相手/味方能力',
-    dmg: 'ダメ補正', hp: 'HP変化', field: '場の効果', hazard: '設置/守る',
-    clear: '解除系', switch: '交代/タイプ', timing: 'タイミング', block: '技封じ',
-    item: '持ち物', support: '援護', misc: 'その他'
+    flag: '技フラグ', status: '状態異常',
+    self_up2: '自分↑↑', self_up1: '自分↑',
+    opp_down2: '相手↓↓', opp_down1: '相手↓', opp_up: '相手↑',
+    self_down2: '自分↓↓', self_down1: '自分↓',
+    ally: '味方能力',
+    timing: 'タイミング', dmg: 'ダメ補正', hp: 'HP変化',
+    field: '場の効果', hazard: '設置/守る', clear: '解除系',
+    switch: '交代/拘束', type: 'タイプ操作', block: '技封じ',
+    item: '持ち物', support: '援護', special: 'みがわり貫通系', misc: 'その他'
   };
-  const CAT_ORDER = ['flag','status','self_rank','target_rank','dmg','hp','timing','field','hazard','clear','switch','block','item','support','misc'];
+  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','timing','dmg','hp','field','hazard','clear','switch','type','block','item','support','special','misc'];
   // カテゴリ毎にタグをグループ化
   const byCat = {};
   for (const [tag, count] of filterTags) {
