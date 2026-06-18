@@ -2825,9 +2825,19 @@ function buildWazaTh(ctx, key, label) {
         chk.addEventListener('click', e => e.stopPropagation());
         return th;
       },
-      buildTd: (p) => `<td class="td-ch waza-cls-${w.class}" data-grp="waza">${p[key] ? '○' : ''}</td>`,
-      getVal: (p) => p[key] ? 1 : 0,
-      applyFilter: (arr, ctx) => wazaFilterGet(ctx.prefix, key) ? arr.filter(p => p[key]) : arr
+      // ★2026-06-19 阿部さん指摘: POKEMON_LISTのフラグでなく WAZA_MAP.learners を直接読む(共通化・二重管理廃止)
+      // → わざリスト(WAZA_MAP)を更新すれば、ポケモンDBの◯も自動で反映される
+      buildTd: (p) => {
+        const ws = WAZA_MAP[key] && WAZA_MAP[key].learners;
+        return `<td class="td-ch waza-cls-${w.class}" data-grp="waza">${ws && ws.includes(p.name) ? '○' : ''}</td>`;
+      },
+      getVal: (p) => {
+        const ws = WAZA_MAP[key] && WAZA_MAP[key].learners;
+        return ws && ws.includes(p.name) ? 1 : 0;
+      },
+      applyFilter: (arr, ctx) => wazaFilterGet(ctx.prefix, key)
+        ? arr.filter(p => { const ws = WAZA_MAP[key] && WAZA_MAP[key].learners; return ws && ws.includes(p.name); })
+        : arr
     });
   });
 }
