@@ -846,9 +846,10 @@ function render() {
     return 0;
   });
 
-  // ★2026-06-18: 新タグフィルタ(window.__newTagActive にユーザーがチェックしたタグセット)
+  // ★2026-06-18 fix: aggregateMode は _filterCatHit のローカル引数だった→ ReferenceError で render が止まっていた
+  // 正しいグローバルは filterMode(OR/AND)
   const newTagActive = window.__newTagActive || new Set();
-  const newTagMode = aggregateMode || 'OR'; // 既存の OR/AND と同じ集合論
+  const newTagMode = (typeof filterMode !== 'undefined' ? filterMode : 'OR');
   let visibleCount = 0;
   rows.forEach(m => {
     if (wpCheckedOnly && WP_MODE !== 'browse' && !WP_SELECTED.has(m.key)) return;
