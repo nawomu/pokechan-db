@@ -628,26 +628,17 @@ function getMoveFilterTags(m) {
   if (bd.charge_skip_in_weather) out.push({cls:'tag-charge', text:'☀️ 天気でためを省略できる'});
   if (bd.recharge)               out.push({cls:'tag-charge', text:'🔁 使った次のターンは動けない'});
 
-  // 場・設置・交代系
-  // ★2026-06-18: 同種の細分タグを「天候(◯◯)」「フィールド(◯◯)」「設置(◯◯)」のように統合(統一カテゴリで括弧に詳細)
-  if (bd.weather_set) {
-    const W = {'sunny':'にほんばれ','rain':'あめ','snow':'ゆき','sand':'すなあらし'};
-    out.push({cls:'tag-field', text:`🌤 天候(${W[bd.weather_set]||bd.weather_set})`});
-  }
-  if (bd.field_set) {
-    const F = {'electric':'エレキフィールド','grass':'グラスフィールド','psychic':'サイコフィールド','misty':'ミストフィールド'};
-    out.push({cls:'tag-field', text:`🌿 フィールド(${F[bd.field_set]||bd.field_set})`});
-  }
-  if (bd.hazard_set) {
-    const H = {'spikes':'まきびし','toxic_spikes':'どくびし','stealth_rock':'ステルスロック','sticky_web':'ねばねばネット'};
-    out.push({cls:'tag-hazard', text:`📌 設置(${H[bd.hazard_set]||bd.hazard_set})`});
-  }
+  // ★2026-06-18 阿部さん指摘・第3版: 細分(エレキ/グラス/サイコ/ミスト 各1技ずつ)はフィルタとして役立たない
+  //  → 旧フィルタと同じ「フィールド変更」「天候変更」「ルーム」「設置技」「壁」「ワイガ/ファガ」に統一
+  //  → OLD_FILTER_TAGS で除外され、詳細タグから消える(旧フィルタが完全担当)
+  if (bd.weather_set)    out.push({cls:'tag-field', text:'☀️ 天候変更'});
+  if (bd.field_set)      out.push({cls:'tag-field', text:'🌐 フィールド変更'});
+  if (bd.hazard_set)     out.push({cls:'tag-hazard', text:'📌 設置技'});
   if (bd.tailwind)       out.push({cls:'tag-field', text:'🌬️ 追い風'});
   if (bd.gravity)        out.push({cls:'tag-field', text:'🌌 重力'});
-  if (bd.protect_wide)   out.push({cls:'tag-field', text:'🚧 ワイドガード'});
-  if (bd.protect_fast)   out.push({cls:'tag-field', text:'🚧 ファストガード'});
+  if (bd.protect_wide || bd.protect_fast) out.push({cls:'tag-field', text:'🚧 ワイガ/ファガ'});
   if (bd.remove_hazards) out.push({cls:'tag-field', text:'🧹 設置解除'});
-  if (bd.field_remove)   out.push({cls:'tag-field', text:'🧹 フィールド破壊'});
+  if (bd.field_remove)   out.push({cls:'tag-field', text:'🌐 フィールド破壊'});
 
   // 交代系
   // bd.bind は effects[状態付与=バインド] と完全に対応(7技で一致)→ 状態付与kindのタグでカバー済=重複削除(2026-06-18)
@@ -658,16 +649,9 @@ function getMoveFilterTags(m) {
   // 瀕死技
   if (bd.self_faint)       out.push({cls:'tag-faint', text:'💀 瀕死技'});
 
-  // 壁
-  if (bd.screen) {
-    const S = {'reflect':'リフレクター','light_screen':'ひかりのかべ','aurora_veil':'オーロラベール','safeguard':'しんぴのまもり'};
-    out.push({cls:'tag-screen', text:`🛡️ 壁(${S[bd.screen]||bd.screen})`}); // 2026-06-18 統合形
-  }
-  // ルーム
-  if (bd.room) {
-    const R = {'trick_room':'トリックルーム','wonder_room':'ワンダールーム','magic_room':'マジックルーム'};
-    out.push({cls:'tag-room', text:`🌀 ルーム(${R[bd.room]||bd.room})`}); // 2026-06-18 統合形
-  }
+  // ★2026-06-18 第3版: 壁・ルームも各1技ずつ→ 旧フィルタと同じ単一テキストに
+  if (bd.screen) out.push({cls:'tag-screen', text:'🛡️ 壁'});
+  if (bd.room)   out.push({cls:'tag-room', text:'🌀 ルーム'});
   // 技封じ (効果別に簡潔表示)
   if (bd.move_block) {
     const MB = {
@@ -1939,6 +1923,9 @@ const OLD_FILTER_TAGS = new Set([
   '💥 必中急所', '🎯 必中',
   // 一撃必殺: 4技だけだが「技フラグ」の旧チップで同じ
   '💀 一撃必殺',
+  // ★2026-06-18 第3版: 1技ずつの細分は旧フィルタが完全担当
+  '☀️ 天候変更', '🌐 フィールド変更', '📌 設置技', '🛡️ 壁', '🌀 ルーム', '🚧 ワイガ/ファガ',
+  '🌌 重力', '🌬️ 追い風',
 ]);
 (function setupNewTagFilter() {
   const box = document.getElementById('newTagChips');
