@@ -7524,6 +7524,41 @@ console.log('\n=== 段140 あまのじゃく+ムラっけ ===');
   resetEnv();
 }
 
+console.log('\n=== 段142 みがわりの仕様確認(2026-06-18 阿部さん・ポケモンWiki裏取り) ===');
+// 出典: ポケモンWiki「みがわり」 / Bulbapedia "Substitute"
+// 仕様: ①最大HPの1/4だけ自分のHPを減らし、その分のHPの分身を作る
+//      ②分身がダメージを肩がわり(分身のHPが0で壊れる)
+//      ③連続攻撃の途中で分身が壊れたら、残りのヒットは本体に当たる
+//      ④分身が壊れた瞬間のヒットの超過分は消える(本体には行かない)
+//      ⑤HPが最大HPの1/4以下のときは使えない(失敗)
+{
+  // T296 失敗条件: HPが1/4以下なら使えない
+  resetEnv();
+  E.sides.self = freshSide('カビゴン', 'migawari');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  const maxHp = E.realStat(E.sides.self, 'hp');
+  E.sides.self.currentHp = Math.floor(maxHp / 4); // 丁度1/4(切り捨て)以下
+  E.setRandom(() => 0.5);
+  const hpBefore = E.sides.self.currentHp;
+  const subBefore = E.sides.self.subHp;
+  E.phaseApplyEffects('self', 'opp', moveByName('みがわり'));
+  // 失敗していればsubHpは増えず、HPも減らない
+  check('T296 HP1/4以下のときは みがわり 失敗(分身できず)', E.sides.self.subHp === subBefore, `subHp=${E.sides.self.subHp}`);
+
+  // T297 成功条件: HPが1/4より大きい時は分身を作る
+  resetEnv();
+  E.sides.self = freshSide('カビゴン', 'migawari');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  const maxHp2 = E.realStat(E.sides.self, 'hp');
+  E.sides.self.currentHp = maxHp2; // 満タン
+  E.setRandom(() => 0.5);
+  E.phaseApplyEffects('self', 'opp', moveByName('みがわり'));
+  const expectedSub = Math.floor(maxHp2 / 4);
+  check('T297 みがわり成功 subHp=最大HPの1/4', E.sides.self.subHp === expectedSub, `subHp=${E.sides.self.subHp} expected=${expectedSub}`);
+  check('T297 みがわり成功 本体のHPが1/4減る', E.sides.self.currentHp === maxHp2 - expectedSub, `hp=${E.sides.self.currentHp} expected=${maxHp2 - expectedSub}`);
+  resetEnv();
+}
+
 console.log('\n=== 段141 きりばらい: 相手みがわり中は回避率-1だけ失敗(2026-06-18 阿部さん指摘) ===');
 // 出典: ポケモンWiki「きりばらい」(相手が『みがわり』状態の場合、回避率を下げる効果のみ失敗する)
 // データ: effects[0].fails_if_target_state='みがわり' / sim実装: 能力ランク変化ハンドラ内
