@@ -71,6 +71,30 @@ const clsBadge = c => c === '物理' ? 'cls-phys' : c === '特殊' ? 'cls-spec' 
 const totalMoves = Object.keys(moveTags).length;
 const totalTagCount = tags.length;
 const oneOnly = tags.filter(t => t[1].length === 1).length;
+
+// ★2026-06-18: タグカテゴリ自動判定(絵文字/言葉から)
+function tagCategory(t) {
+  if (/^📊|急所|ランク変化|入替|平均化/.test(t)) return 'rank';
+  if (/^🌀|^💕|^😵|^💤|^🔥|^❄|^⚡\s|^☠|^💀|状態|こんらん|ひるみ|どく|ねむ|まひ|やけど|もうどく|メロメロ|あめまみれ|かいふくふうじ|きゅうしょアップ|ちいさくなる|でんじふゆう|バインド/.test(t)) return 'status';
+  if (/^🌤|^🌿|^⚡ エレキ|フィールド|天候|追い風|🌌/.test(t)) return 'field';
+  if (/^📌|設置|🕸|🪨|🧹/.test(t)) return 'hazard';
+  if (/^🛡️ 壁|オーロラベール|リフレクター|ひかりのかべ|しんぴのまもり/.test(t)) return 'screen';
+  if (/^🌀 ルーム/.test(t)) return 'room';
+  if (/^🎭|^🏷|^🪞|^💨|タイプ/.test(t)) return 'type';
+  if (/^🔄|^↩|^🎽|交代|引き継/.test(t)) return 'switch';
+  if (/^🔒|封じ|アンコール|ふういん/.test(t)) return 'block';
+  if (/^⏳|^⏮|^🔁|^⚡ 先制|^🐢 後攻|優先|2T|タイミング|出てきた最初/.test(t)) return 'timing';
+  if (/^🩸|^💚|^🤝|^🪆|^💸|回復|HP|分身/.test(t)) return 'hp';
+  if (/^💀 瀕死|瀕死|ひんし|道連れ/.test(t)) return 'faint';
+  if (/^🎒|^🍒|^🍃|^🎁|^🗑|持ち物|きのみ|道具/.test(t)) return 'item';
+  if (/^🤝 サポート|味方|味/.test(t)) return 'support';
+  if (/^👊|^🔊|^〰️|^🔵|^💀 一撃|^🌸|フラグ|パンチ|音|弾|波動|こな/.test(t)) return 'flag';
+  if (/威力|連続|半無敵|貫通|まもる/.test(t)) return 'power';
+  return 'misc';
+}
+const CAT_LABEL = { rank:'📊 能力ランク', status:'🌀 状態異常', field:'🌤 天候/フィールド', hazard:'📌 設置', screen:'🛡 壁', room:'🌀 ルーム', type:'🎭 タイプ', switch:'🔄 交代/入替', block:'🔒 技封じ', timing:'⏳ タイミング', hp:'💚 HP操作', faint:'💀 瀕死', item:'🎁 持ち物', support:'🤝 サポート', flag:'🏷 フラグ', power:'💥 威力/命中', misc:'❓ その他' };
+const catCount = {};
+for (const [t, ms] of tags) { const c = tagCategory(t); catCount[c] = (catCount[c] || 0) + 1; }
 const twoToFive = tags.filter(t => t[1].length >= 2 && t[1].length <= 5).length;
 const sixToTwenty = tags.filter(t => t[1].length >= 6 && t[1].length <= 20).length;
 const above20 = tags.filter(t => t[1].length > 20).length;
@@ -89,8 +113,9 @@ const sections = tags.map(([tag, moves], i) => {
 <td class="num">${esc(d.pp)}</td>
 </tr>`;
   }).join('\n');
-  return `<section class="tag-sec" id="${id}" data-tag="${esc(tag)}">
-<h2><span class="tag-name">${esc(tag)}</span><span class="tag-count">${moves.length}技</span></h2>
+  const cat = tagCategory(tag);
+  return `<section class="tag-sec" id="${id}" data-tag="${esc(tag)}" data-cat="${cat}">
+<h2><span class="tag-name">${esc(tag)}</span><span class="tag-count">${moves.length}技</span><span class="tag-cat-badge cat-${cat}">${CAT_LABEL[cat]}</span></h2>
 <table>
 <thead><tr><th>習得</th><th>わざ名</th><th>タイプ</th><th>分類</th><th>威力</th><th>命中</th><th>PP</th></tr></thead>
 <tbody>${rows}</tbody>
@@ -140,6 +165,9 @@ td.cls{width:42px;text-align:center}
 .cls-badge.cls-spec{background:#58a6ff}
 .cls-badge.cls-stat{background:#6e7681}
 .tag-sec.hidden{display:none}
+.tag-cat-badge{font-size:10px;padding:2px 8px;border-radius:10px;background:#fff;color:#1F4E79;font-weight:700;white-space:nowrap}
+.cat-rank{background:#E3F2FD;color:#0D47A1}.cat-status{background:#FFE0F0;color:#880E4F}.cat-field{background:#E0F7FA;color:#006978}.cat-hazard{background:#FFF9C4;color:#6F4E00}.cat-screen{background:#FFFDE7;color:#5D4037}.cat-room{background:#F3E5F5;color:#4A148C}.cat-type{background:#E8ECF2;color:#1F4E79}.cat-switch{background:#E8F5E9;color:#1B5E20}.cat-block{background:#FFCDD2;color:#B71C1C}.cat-timing{background:#FFF3E0;color:#A35200}.cat-hp{background:#E6F5E6;color:#2E7D32}.cat-faint{background:#424242;color:#fff}.cat-item{background:#FFF8E1;color:#B86E00}.cat-support{background:#E0F2F1;color:#004D40}.cat-flag{background:#E3F2FD;color:#0D47A1}.cat-power{background:#FFEBE9;color:#B33A33}.cat-misc{background:#F5F5F5;color:#424242}
+.cat-sel{padding:5px 10px;border-radius:8px;border:1px solid #C5D2E5;font-size:12.5px;background:#fff}
 .to-top{position:fixed;right:20px;bottom:22px;z-index:200;background:#1F4E79;color:#fff;text-decoration:none;font-size:13px;font-weight:700;padding:10px 15px;border-radius:24px;box-shadow:0 3px 10px rgba(0,0,0,.28);opacity:.92}
 .to-top:hover{background:#16395c}
 </style></head><body>
@@ -153,6 +181,10 @@ td.cls{width:42px;text-align:center}
 <button data-f="lots">多い順(6技以上)</button>
 <button data-f="few">少ない(2-5技)</button>
 <button data-f="one">1技だけ</button>
+<select id="catFilter" class="cat-sel">
+<option value="">📂 カテゴリ(全部)</option>
+${Object.entries(CAT_LABEL).map(([k, lbl]) => `<option value="${k}">${lbl} (${catCount[k] || 0})</option>`).join('')}
+</select>
 <span class="summary">📊 1技=${oneOnly} / 2〜5技=${twoToFive} / 6〜20技=${sixToTwenty} / 20技超=${above20}</span>
 </div>
 <nav class="toc">${toc}</nav>
@@ -161,18 +193,20 @@ ${sections}
 <script>
 const secs=[...document.querySelectorAll(".tag-sec")];
 const chips=[...document.querySelectorAll(".toc-chip")];
-let filter="all";
+let filter="all",catFilter="";
 function apply(){
   const q=document.getElementById("q").value.trim().toLowerCase();
   for(const s of secs){
     const tag=s.dataset.tag.toLowerCase();
+    const cat=s.dataset.cat;
     const count=parseInt(s.querySelector(".tag-count").textContent);
     const matchQ=!q||tag.includes(q);
     let matchF=true;
     if(filter==="lots")matchF=count>=6;
     else if(filter==="few")matchF=count>=2&&count<=5;
     else if(filter==="one")matchF=count===1;
-    s.classList.toggle("hidden",!(matchQ&&matchF));
+    const matchC=!catFilter||cat===catFilter;
+    s.classList.toggle("hidden",!(matchQ&&matchF&&matchC));
   }
   for(const c of chips){
     const tag=c.dataset.tag.toLowerCase();
@@ -186,6 +220,7 @@ document.querySelectorAll(".bar button[data-f]").forEach(b=>b.addEventListener("
   b.classList.add("on");
   apply();
 }));
+document.getElementById("catFilter").addEventListener("change",e=>{catFilter=e.target.value;apply();});
 </script>
 </body></html>`;
 
