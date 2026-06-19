@@ -1771,6 +1771,22 @@ function calcDamage(atkSide, defSide, move, opts){
     base = pokeRound(base, 8192);
     chips.push({label:'でんきだま', factor:2.0, kind:'item'});
   }
+  // ★2026-06-19 メトロノーム: 同じ技を連続使用で威力+20%/最大2倍(items_database.js宣言)
+  // 出典: ポケモンWiki「メトロノーム(道具)」
+  if (atkItem && atkItem.key === 'metronome') {
+    // 連続使用カウンター(metronomeCount)を atk に保持
+    if (atk._metronomeLastMoveKey === move.key) {
+      atk.metronomeCount = Math.min(5, (atk.metronomeCount || 0) + 1); // 最大+100%(5*0.2=1.0)
+    } else {
+      atk._metronomeLastMoveKey = move.key;
+      atk.metronomeCount = 0;
+    }
+    const boost = 1 + 0.2 * atk.metronomeCount;
+    if (boost > 1) {
+      base = Math.floor(base * boost);
+      chips.push({label:`メトロノーム(${atk.metronomeCount}回目)`, factor: boost, kind:'item'});
+    }
+  }
 
   // 4) 16通り乱数 [85..100] / 100（ここから先は variation 毎に）
   const variations = [];
