@@ -226,6 +226,25 @@ memory: `content-pages-separate-session` で明示済
 
 ---
 
+
+## 🚀 本番デプロイ仕組み(2026-06-19確認)
+
+**pchamdb.com は GitHub Pages 自動デプロイ**
+- リポジトリ: github.com/nawomu/pokechan-db
+- CNAMEファイル: pchamdb.com
+- ブランチ: main
+- `git push origin main` = 本番反映(数秒〜1分で公開)
+
+### 確認方法
+```bash
+curl -s https://pchamdb.com/pokemon_db_v9.html | grep BUILD_VERSION
+# → BUILD_VERSION = 'DB: 06/19更新' などが返れば最新反映済
+```
+
+### キャッシュバスター(?v=YYYYMMDDx)を必ず付ける理由
+GitHub Pages はファイル単位でキャッシュされる。HTMLは早いがJS/JSONは古いまま読まれる。
+→ <script src="waza_picker.js?v=20260619a"> のように毎回バージョン更新。
+
 ## 🎁 アイテム(持ち物)sim実装 残課題(2026-06-19追加)
 
 レギュMB追加 11通常アイテムが sim 未実装(`real_battle_simulator.html` に分岐なし)。
