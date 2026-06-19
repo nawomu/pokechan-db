@@ -404,7 +404,14 @@ for (const m of moves) {
   for (const k of (kinds.length ? kinds : [NOEFF])) { if (!byKind.has(k)) byKind.set(k, []); byKind.get(k).push(m); }
 }
 const restKinds = [...byKind.keys()].filter(k => k !== NOEFF && !KIND_ORDER.includes(k)).sort((a, b) => byKind.get(b).length - byKind.get(a).length);
-const ordered = [...KIND_ORDER.filter(k => byKind.has(k)), ...restKinds, ...(byKind.has(NOEFF) ? [NOEFF] : [])];
+
+// ★2026-06-19 阿部さん依頼: 新技専用セクション(レギュMB追加8技をまとめて確認)
+const NEW_TECHS_KIND = '🆕 新技(レギュMB追加)';
+const MB_NEW_TECH_NAMES = new Set(['どくばりセンボン', 'ひっくりかえす', 'どげざつき', 'ソウルクラッシュ', 'はいすいのじん', 'ふんどのこぶし', 'ゴールドラッシュ', 'コインビーム']);
+const mbNewTechs = moves.filter(m => MB_NEW_TECH_NAMES.has(m.name));
+if (mbNewTechs.length) byKind.set(NEW_TECHS_KIND, mbNewTechs);
+
+const ordered = [NEW_TECHS_KIND, ...KIND_ORDER.filter(k => byKind.has(k)), ...restKinds, ...(byKind.has(NOEFF) ? [NOEFF] : [])].filter(k => byKind.has(k));
 
 const THEAD = `<thead><tr>
   <th class="col-learners">習得</th><th class="col-name">わざ名</th><th class="col-prio">優先</th><th class="col-flag">フラグ</th>

@@ -245,6 +245,40 @@ memory: `content-pages-separate-session` で明示済
 
 ---
 
+
+## 🆕 新技追加 ルール文書化(2026-06-19・必読)
+
+本セッションで「新技をlegacyコピー」というルール違反をユーザーに却下された経緯から、
+**新技追加の正しい手順を文書化**しました:
+
+### 📄 `新技追加手順.md`(新設・必読)
+- 北極星: description は legacy コピー禁止・compose 出力が正解
+- 三層の役割(effects/compose case/description)
+- Step 1-6 の作業フロー
+- 私(Claude)がやらかしたミス事例3つ
+- チェックリスト10項目
+
+### ⚠️ 致命的なミスパターン
+1. `description = description_legacy`(コピー)→ 盗用リスク・却下
+2. `fails_if` を effects 内に書く → 正解は `bd.fails_if[]` 配列
+3. `priority` を effects に書く → 正解は `bd.priority`
+4. 「相手の魂を打ち砕いて」のような独自フレーバー追加 → effects から訳す原則違反
+
+### ✅ 正しい流れ
+```
+1. effects(SSOT)を構造化
+2. _waza_compose.js に case 追加(訳す)
+3. description = compose(m).text で上書き
+4. compose(m).holes が空であること確認
+5. 確認ページで耳テスト
+```
+
+### 🆕 確認ページの新技セクション
+`tools/_waza_list_confirm.js` に NEW_TECHS_KIND セクションを追加。
+waza_list_confirm.html を開くと先頭に「🆕 新技(レギュMB追加)」セクションが出て、
+新8技だけまとめて確認できる(OKチェック付き)。
+
+
 ## 🎁 Co-Authored-By
 
 Claude Opus 4.7(本セッション)
