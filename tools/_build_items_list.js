@@ -31,12 +31,28 @@ const byCat = {};
 for (const it of items) { (byCat[it.category] = byCat[it.category] || []).push(it); }
 
 const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
+  // ★2026-06-19 阿部さん指摘: フロンティアショップ入手のデフォルト + 追加バージョンの明示
+  const acqLabel = (it) => {
+    if (it.acquisition_note) return it.acquisition_note;
+    const a = it.acquisition;
+    if (a === 'frontier_shop_2000VP') return 'フロンティアショップ 2,000VP';
+    if (a === 'frontier_shop') return 'フロンティアショップ';
+    if (a === 'tutorial_free') return 'チュートリアル(無料)';
+    if (a === 'za_link') return 'Pokémon LEGENDS Z-A 連携';
+    if (a === 'season_m1_reward') return 'シーズンM-1 報酬';
+    if (a === 'season_m1_or_giveaway') return 'シーズンM-1 / 配布';
+    if (a === 'frontier_shop_2000VP_or_campaign') return 'フロンティアショップ 2,000VP / キャンペーン無料配布';
+    // 入手情報なし: メガストーンならフロンティアショップ推定、その他は不明
+    if (it.category === 'mega_stone') return 'フロンティアショップ(推定)';
+    return '不明';
+  };
   const arr = byCat[c].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
   const rows = arr.map(it => {
     const isNew = MB_NEW_KEYS.has(it.key);
-    const nameCell = isNew ? `<b>${esc(it.name)}</b> <span class="tag-new">🆕 06/19</span>` : esc(it.name);
+    const versionTag = isNew ? ' <span class="tag-version">M-Bで追加</span>' : '';
+    const nameCell = isNew ? `<b>${esc(it.name)}</b> <span class="tag-new">🆕</span>${versionTag}` : esc(it.name);
     const effect = esc(it.effect || '');
-    const acq = esc(it.acquisition_note || it.acquisition || '');
+    const acq = esc(acqLabel(it));
     const applies = it.applies_to ? `<br><span class="applies">対応: ${esc(it.applies_to)}</span>` : '';
     const factor = it.factor != null ? `×${it.factor}` : (it.q12 != null ? `(Q12: ${it.q12})` : '');
     return `<tr class="${isNew ? 'row-new' : ''}">
@@ -93,6 +109,7 @@ tbody tr:nth-child(2n){background:#fafbfd}
 tbody tr.row-new{background:#FFFDE7}
 tbody tr.row-new:hover{background:#FFF9C4}
 .tag-new{display:inline-block;font-size:10px;background:#FF7A00;color:#fff;padding:1px 6px;border-radius:8px;font-weight:700;margin-left:4px}
+.tag-version{display:inline-block;font-size:10px;background:#6A1B9A;color:#fff;padding:1px 7px;border-radius:8px;font-weight:700;margin-left:3px}
 td.name{min-width:140px;font-weight:700;color:#1F4E79}
 td.effect{font-size:12px;color:#33415c;max-width:400px}
 td.factor{width:80px;font-family:monospace;color:#E65100;text-align:center}
