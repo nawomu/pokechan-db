@@ -227,6 +227,75 @@ memory: `content-pages-separate-session` で明示済
 ---
 
 
+## 🎯 セッション終盤(夕方〜夜)の追加作業
+
+### バトル sim実装 - 全11アイテム完了
+| 難度 | 実装 | テスト |
+|---|---|---|
+| 低 | あついいわ/しめったいわ/さらさらいわ/つめたいいわ(天気5→8T) | T299-T303 ✅ |
+| 低 | ひかりのねんど(壁5→8T) | T304/T305 ✅ |
+| 低 | こうかくレンズ(命中×1.1) / フォーカスレンズ(後攻時×1.2) | (テスト未) |
+| 中 | おおきなねっこ(HP吸収×1.3) | T306 ✅ |
+| 中 | くろいてっきゅう(素早半分+地面技通る) | T307 ✅ |
+| 中 | きれいなぬけがら(交代封じ無視) | (テスト未) |
+| 高 | メトロノーム(連続+20%/最大×2) | T308/T308b ✅ |
+
+simテスト 803 pass → **814 pass / 2 fail**(残2はT185d既存問題のみ)
+
+### UI整理(タイトル/ナビ統一)
+- battle_simulator.html h1: 「🔧 簡易バトルシミュレーター」
+- real_battle_simulator.html h1: 「⚔️ リアルバトルシミュレーター」
+- ナビ統一: 「クイック計算」→「簡易バトル」(古い名前廃止)
+- 両ページから相互切り替え可能(✅ナビボタン追加)
+- トップの「リアルバトル」カード: real_battle_simulator.html → **real_battle.html**(実機風)
+- index.html に 🎁持ち物一覧 + 📰ニュース + ⚔️リアルバトル カード追加
+
+### 新規ページ
+- **news.html**: アップデート情報・レギュMB詳細・期間/38体/8技/27道具/ルール
+- **items_list.html**: 全159アイテム自動生成・カテゴリ別・新27件に紫「M-Bで追加」バッジ・検索バー
+- ツール: `tools/_build_items_list.js`
+
+### ポケモンDB の M-B 表示
+- POKEMON_LIST 全38体に `added_in: 'M-B'` フラグ
+- pokemon_db_v9.html 名前列に紫「M-B」バッジ自動表示
+- .th-no/.td-no 列幅 34px→44px(1000番台ポケモン省略回避)
+
+### 致命バグ修正3つ(DevTools Console から判明)
+
+**バグ1: バトル送信ボタン本番非表示**
+- party_checker.html L3370 に `if (!_isLocal) return;` のローカル限定ガード
+- 本番(pchamdb.com)では永久に display:none = ボタン見えない
+- 修正: ガード削除で本番でもボタン表示
+- 教訓: ソース見て「実装あり」だけでは不十分・本番URLで実機確認
+
+**バグ2: items_database.js が sim 25 fail**
+- 旧版: `window.ITEMS_DATABASE = {...};`
+- 私の再生成: `const ITEMS_DATABASE = {...};`
+- sim_engine.js は vm.runInContext で `window.ITEMS_DATABASE` を参照
+- const 宣言だと undefined → ITEM_BY_KEY 空 → 25 fail
+- 修正: `window.ITEMS_DATABASE = ...` 形式に戻して 814 pass
+
+**バグ3: battle_simulator.html ポケモン選択クリック不能**
+- DevTools Console:
+  - `Uncaught SyntaxError: Identifier 'NATURES' has already been declared`
+  - `Uncaught ReferenceError: openPokeModal is not defined`
+- 原因: pokechan_data.js と battle_simulator.html で `const NATURES` 二重宣言
+- SyntaxError で JS全停止 → onclick 無効
+- 修正: battle_simulator.html の NATURES を `NATURES_ARR` にリネーム(4箇所)
+- 教訓: **DevTools Console を最初に見るべき**だった。私の修正(user-select:none・onclick属性付与・キャッシュバスター更新)が全部無駄だった原因
+
+### 更新ルール文書化(新技追加手順.md)
+- 📅 更新日付・ニュース反映ルール
+- 🌍 全体更新の必須チェック(A-F・チェックリスト・ミス事例7パターン)
+- 🎁 アイテム追加ルール(三層の役割・sim実装4系統)
+
+### 持ち物一覧の入手情報補完
+- 空白73件のうちメガストーン→「フロンティアショップ(推定)」
+- acquisition フラグ日本語化(2,000VP/チュートリアル/Z-A連携 等)
+- 新27件に紫「M-Bで追加」バッジ
+
+---
+
 ## 🚀 本番デプロイ仕組み(2026-06-19確認)
 
 **pchamdb.com は GitHub Pages 自動デプロイ**
