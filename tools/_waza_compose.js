@@ -798,7 +798,8 @@ function compose(m) {
   const pr = bd.priority;
   const hasCondPrio = eff.some(e => e.kind === '条件付き優先');
   if (typeof pr === 'number' && pr !== 0 && !hasCondPrio) {
-    text = (pr > 0 ? `優先度+${pr}で、先に攻撃できる。` : `優先度${pr}で、必ず後攻になる。`) + text;
+    // ★2026-06-19 阿部さん指摘: 既存先制技の description「優先度+1の先制技。」と揃える(新技も同じ表現に)
+    text = (pr > 0 ? `優先度+${pr}の先制技。` : `優先度${pr}の後攻技。`) + text;
   }
   const lo = (bd.fails_if || []).find(f => f.type === 'current_hp_below_fraction');
   if (lo) text += `(今のHPが最大HPの${fracT(lo.fraction)}より少ないと失敗する)`;
