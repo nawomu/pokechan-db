@@ -1972,6 +1972,8 @@ function effectiveSpeed(st){
   if (st.status === 'paralysis' && sideAbility(st) !== 'はやあし') s = Math.floor(s / 2);
   const item = (!env.magicRoom && st.item) ? ITEM_BY_KEY[st.item] : null;
   if (item && item.key === 'kodawari_scarf') s = Math.floor(s * 1.5);
+  // ★2026-06-19 くろいてっきゅう: 素早さが半分になる(items_database.js宣言)
+  if (item && item.key === 'kuroi_tekkyu') s = Math.floor(s / 2);
   if (st.tailwindTurns > 0) s = s * 2;   // おいかぜ: 自分側のすばやさ2倍(ポケモンWiki「おいかぜ」)
   // 天候すばやさ特性(段113・ABILITY_DESC公式準拠): 該当天候で2倍
   const _WSPD = {'すいすい': 'rain', 'ようりょくそ': 'sunny', 'すなかき': 'sand', 'ゆきかき': 'snow'};
@@ -2576,7 +2578,12 @@ function phaseDealDamage(atkSide, defSide, move){
   const drainEf = _effs.find(e => e.kind === '吸収');
   if (drainEf && total > 0 && !(atk.healBlockTurns > 0)){   // かいふくふうじ中は吸収回復もできない
     const amax = realStat(atk, 'hp');
-    const heal = Math.max(1, Math.floor(total * (drainEf.fraction || 0.5)));
+    let heal = Math.max(1, Math.floor(total * (drainEf.fraction || 0.5)));
+    // ★2026-06-19 おおきなねっこ: HP吸収量が1.3倍になる(items_database.js宣言)
+    const _drainItem = ITEM_BY_KEY[atk.item];
+    if (_drainItem && _drainItem.key === 'ooki_na_nekko') {
+      heal = Math.floor(heal * 1.3);
+    }
     atk.currentHp = Math.min(amax, atk.currentHp + heal);
     log('9', `${pname(atk)} は 吸収して ${heal} 回復！ (残HP ${atk.currentHp})`);
   }
@@ -2658,6 +2665,8 @@ function isGrounded(st){
   if (!st || !st.poke) return false;
   if (env.gravity) return true;
   if (st.rooted) return true; // ねをはる: 根をはると地面にいる扱い(Bulbapedia "Ingrain")
+  // ★2026-06-19 くろいてっきゅう: 持ち主はひこう・ふゆうでも地面にいる扱い(items_database.js宣言)
+  if (st.item && ITEM_BY_KEY[st.item] && ITEM_BY_KEY[st.item].key === 'kuroi_tekkyu') return true;
   if (st.magnetRise > 0) return false; // でんじふゆう: 浮いている(ポケモンWiki「でんじふゆう」)
   if (sideTypes(st).includes('ひこう')) return false;
   if (sideAbility(st) === 'ふゆう') return false;
@@ -4894,10 +4903,15 @@ function attemptSwitch(sideKey, benchIdx, opts){
     log('9', `交代できない(出せる控えが いない)`);
     return false;
   }
-  const reason = (opts && opts.ignoreTrapping) ? null : cannotSwitchReason(st);
+  // ★2026-06-19 きれいなぬけがら: 交代封じを無視して交代できる(items_database.js宣言)
+  const _shedShell = st.item && ITEM_BY_KEY[st.item] && ITEM_BY_KEY[st.item].key === 'kireina_nukegara';
+  const reason = (opts && opts.ignoreTrapping) || _shedShell ? null : cannotSwitchReason(st);
   if (reason){
     log('9', `${pname(st)} は にげられない！(${reason})`);
     return false;
+  }
+  if (_shedShell && cannotSwitchReason(st)) {
+    log('9', `${pname(st)} は きれいなぬけがらで にげるしたくをした！`);
   }
   const outName = pname(st);
   // 交代連動特性(段113・ABILITY_DESC公式準拠): 控えに戻る時に発動(死に出し=ひんしには発動しない)
