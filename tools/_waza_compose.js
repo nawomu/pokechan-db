@@ -228,6 +228,12 @@ function clause(e, m) {
         const w = e.power_table; const lo = w.no_weather, hi = w.any_weather;
         if (lo != null && hi != null) return `天気があると威力が${lo}から${hi}に上がる`;
       }
+      // ★2026-06-19 新技対応: ふんどのこぶし(コノヨザル)= 怒り蓄積式
+      if (e.basis === 'rage_accumulator') {
+        const per = e.per_hit_taken || 50;
+        const reset = e.reset_at_turn_end ? '。ターンが終わると蓄積はリセットされる' : '';
+        return `攻撃を受けるたびに威力が${per}ずつ上がっていく${reset}`;
+      }
       return null; // needs_research 等は穴
     }
     case '能力ランク変化': {
@@ -586,6 +592,9 @@ function clause(e, m) {
       return `相手の能力ランクの変化をすべて元にもどす`;
     case 'ランクコピー':
       return `相手のすべての能力ランクの変化を、そのまま自分にコピーする`; // じこあんじ(copies='all stat ranks')
+    case 'ランク反転':
+      // ★2026-06-19 新技対応: ひっくりかえす(カラマネロ)
+      return `相手の能力ランクの上がりさがりを、すべて反対にする(+1なら-1、-2なら+2)`;
     case '別防御参照ダメージ':
       return `特殊技だが、相手の「ぼうぎょ」でダメージを計算する`;
     case '別能力ダメージ': {
@@ -814,6 +823,7 @@ function compose(m) {
     else if (f.type === 'no_stockpile') text += `(「たくわえる」を1度も使っていないときは失敗する)`; // はきだす/のみこむ
     else if (f.type === 'user_holding_item') text += `(すでに道具を持っているときは失敗する)`; // リサイクル
     else if (f.type === 'no_field_active') text += `(フィールドが何もないときは失敗する)`; // アイアンローラー
+    else if (f.type === 'no_damage_dealt_last_turn') text += `(前のターンに相手にダメージを与えていないときは失敗する)`; // ★2026-06-19 どげざつき
   }
   // ★2026-06-15: どくどく系(自分が特定タイプなら必中)= accuracy_check の bypass_if を訳す
   const acc = (bd.requires || []).find(r => r.type === 'accuracy_check' && r.bypass_if);
