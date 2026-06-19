@@ -2189,6 +2189,16 @@ function phaseHitCheck(move, atk, def){
     if (_s > 0) acc = acc * (3 + _s) / 3;
     else if (_s < 0) acc = acc * 3 / (3 - _s);
   }
+  // ★2026-06-19 持ち物による命中補正(こうかくレンズ・フォーカスレンズ)
+  // 出典: items_database.js宣言・ポケモンWiki「こうかくレンズ」「フォーカスレンズ」
+  const _accItem = ITEM_BY_KEY[atk.item];
+  if (_accItem && _accItem.key === 'koukaku_lens') {
+    acc = acc * 1.1; // 常時1.1倍
+  } else if (_accItem && _accItem.key === 'focus_lens') {
+    // フォーカスレンズ: 相手より遅く攻撃したとき1.2倍
+    // 後攻判定 = atk.actedAfterTarget (ターン処理で設定)
+    if (atk.actedAfterTarget) acc = acc * 1.2;
+  }
   const roll = Math.random() * 100;
   return {hit: roll < acc, reason: roll < acc ? null : `${move.name} は外れた！`};
 }
@@ -3640,7 +3650,15 @@ function phaseApplyEffects(atkSide, defSide, move){
       } else {
         atk[flag] = true;
         if (!atk.screenTurns) atk.screenTurns = {};
-        atk.screenTurns[flag] = ef.duration || 5; // ターン終了ごとに減り、0で消える(UI手動チェックは無期限)
+        // ★2026-06-19 持ち物による延長(ひかりのねんど): 壁の効果が5→8ターンに
+        // 出典: items_database.js宣言・ポケモンWiki「ひかりのねんど」
+        let scDur = ef.duration || 5;
+        const _scItem = ITEM_BY_KEY[atk.item];
+        if (_scItem && _scItem.key === 'hikari_no_nendo') {
+          scDur = 8;
+          log('9', `${pname(atk)} の ひかりのねんどで ${ef.value} の効果が伸びた！`);
+        }
+        atk.screenTurns[flag] = scDur; // ターン終了ごとに減り、0で消える(UI手動チェックは無期限)
         log('9', `${pname(atk)} の場に ${ef.value} が 張られた！`);
       }
     } else if (ef.kind === '壁除去'){
@@ -3672,7 +3690,20 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！(天気はすでに ${ef.value})`);
       } else {
         env.weather = w;
-        env.weatherTurns = ef.duration || 5; // ターン終了ごとに減り、0で元に戻る(UI手動設定はnull=無期限)
+        // ★2026-06-19 持ち物による延長(あついいわ/しめったいわ/さらさらいわ/つめたいいわ)
+        // 出典: items_database.js宣言・ポケモンWiki各「いわ」道具
+        let dur = ef.duration || 5;
+        const _wItem = ITEM_BY_KEY[atk.item];
+        if (_wItem) {
+          if ((w === 'sunny' && _wItem.key === 'atsui_iwa') ||
+              (w === 'rain' && _wItem.key === 'shimetta_iwa') ||
+              (w === 'sand' && _wItem.key === 'sarasara_iwa') ||
+              (w === 'snow' && _wItem.key === 'tsumetai_iwa')) {
+            dur = 8;
+            log('9', `${pname(atk)} の ${_wItem.name}で 天気の効果が伸びた！`);
+          }
+        }
+        env.weatherTurns = dur;
         log('9', `天気が ${ef.value} になった！`);
       }
     } else if (ef.kind === 'たくわえ加算'){
