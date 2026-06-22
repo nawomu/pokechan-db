@@ -49,23 +49,27 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
   const arr = byCat[c].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
   const rows = arr.map(it => {
     const isNew = MB_NEW_KEYS.has(it.key);
-    const versionTag = isNew ? ' <span class="tag-version">M-Bで追加</span>' : '';
-    const nameCell = isNew ? `<b>${esc(it.name)}</b> <span class="tag-new">🆕</span>${versionTag}` : esc(it.name);
+    const versionTag = isNew ? ` <span class="tag-version" data-i18n="items_list.tag_version_mb">M-Bで追加</span>` : '';
+    // アイテム名は runtime で I18N.item() 翻訳(data-item-ja)。タグ類は別要素に分離。
+    const nameSpan = `<span data-item-ja="${esc(it.name)}">${esc(it.name)}</span>`;
+    const nameCell = isNew ? `<b>${nameSpan}</b> <span class="tag-new">🆕</span>${versionTag}` : nameSpan;
     const effect = esc(it.effect || '');
     const acq = esc(acqLabel(it));
-    const applies = it.applies_to ? `<br><span class="applies">対応: ${esc(it.applies_to)}</span>` : '';
+    const applies = it.applies_to
+      ? `<br><span class="applies"><span data-i18n="items_list.applies_prefix">対応:</span> <span data-poke-ja="${esc(it.applies_to)}">${esc(it.applies_to)}</span></span>`
+      : '';
     const factor = it.factor != null ? `×${it.factor}` : (it.q12 != null ? `(Q12: ${it.q12})` : '');
     return `<tr class="${isNew ? 'row-new' : ''}">
 <td class="name">${nameCell}${applies}</td>
-<td class="effect">${effect}</td>
+<td class="effect" data-itemdesc-ja="${esc(it.effect || '')}">${effect}</td>
 <td class="factor">${factor}</td>
 <td class="acq">${acq}</td>
 </tr>`;
   }).join('\n');
   return `<section class="cat-sec" id="cat-${c}">
-<h2><span class="cat-icon">${c === 'mega_stone' ? '✨' : '🎁'}</span> ${esc(CAT_LABEL[c] || c)} <span class="count">${arr.length}件</span></h2>
+<h2><span class="cat-icon">${c === 'mega_stone' ? '✨' : '🎁'}</span> <span data-i18n="items_list.cat_${c}">${esc(CAT_LABEL[c] || c)}</span> <span class="count">${arr.length}件</span></h2>
 <table>
-<thead><tr><th class="th-name">アイテム名</th><th class="th-effect">効果</th><th class="th-factor">倍率</th><th class="th-acq">入手</th></tr></thead>
+<thead><tr><th class="th-name" data-i18n="items_list.th_name">アイテム名</th><th class="th-effect" data-i18n="items_list.th_effect">効果</th><th class="th-factor" data-i18n="items_list.th_factor">倍率</th><th class="th-acq" data-i18n="items_list.th_acq">入手</th></tr></thead>
 <tbody>${rows}</tbody>
 </table>
 </section>`;
@@ -78,11 +82,12 @@ const sumChips = CAT_ORDER.filter(c => byCat[c]).map(c =>
 
 const html = `<!DOCTYPE html>
 <html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>🎁 持ち物一覧 - PchamDB</title>
+<title data-i18n="items_list.page_title">🎁 持ち物一覧 - PchamDB</title>
 <meta name="description" content="ポケモンチャンピオンズ全持ち物一覧。メガストーン・威力補正・天気延長・タイプ強化・状態異常付与・きのみ等カテゴリ別">
 <meta name="theme-color" content="#FF7A00">
 <link rel="canonical" href="https://pchamdb.com/items_list.html">
 <link rel="icon" href="favicon.png" type="image/png">
+<script defer src="i18n/runtime.js?v=20260622"></script>
 <style>
 body{margin:0;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;background:#f5f7fa;color:#222;font-size:14px;padding:0 0 60px}
 .hdr{padding:14px 18px;background:linear-gradient(135deg,#FF7A00,#FFC107);color:#fff;position:sticky;top:0;z-index:50}
@@ -122,24 +127,24 @@ td.acq{font-size:11.5px;color:#5d4037;min-width:120px}
 </style></head><body>
 <div class="hdr">
 <h1>🎁 持ち物一覧 - PchamDB</h1>
-<div class="sub">全 ${items.length} アイテム・最終更新 06/19 (レギュMBで <b>+${newCount}件</b> 追加 🆕)</div>
+<div class="sub" id="items-subtitle" data-tpl-count="${items.length}" data-tpl-date="06/19" data-tpl-season="M-B" data-tpl-n="${newCount}">全 ${items.length} アイテム・最終更新 06/19 (レギュMBで <b>+${newCount}件</b> 追加 🆕)</div>
 </div>
 <div class="nav">
-<a href="index.html">🏠 トップ</a>
-<a href="pokemon_db_v9.html">🗄️ ポケモンDB</a>
-<a href="waza-list.html">📋 わざ一覧</a>
-<a href="news.html">📰 ニュース</a>
-<a href="party_checker.html">🎯 チームビルダー</a>
+<a href="index.html">🏠 <span data-i18n="items_list.nav_top">トップ</span></a>
+<a href="pokemon_db_v9.html">🗄️ <span data-i18n="items_list.nav_pokemon_db">ポケモンDB</span></a>
+<a href="waza-list.html">📋 <span data-i18n="items_list.nav_waza">わざ一覧</span></a>
+<a href="news.html">📰 <span data-i18n="items_list.nav_news">ニュース</span></a>
+<a href="party_checker.html">🎯 <span data-i18n="items_list.nav_team_builder">チームビルダー</span></a>
 </div>
 <div class="bar">
-<input id="q" placeholder="🔍 アイテム名・効果で絞り込み…">
+<input id="q" placeholder="🔍 アイテム名・効果で絞り込み…" data-i18n-attr="placeholder:items_list.search_placeholder">
 ${sumChips}
 </div>
 <div class="main">
-<div class="update-note">📅 <b>06/19 レギュMB更新</b>: メガストーン16種 + 通常持ち物11種 追加・1対戦でメガシンカ1度ルール・期間 2026/6/17〜9/2 10:59 (<a href="news.html">詳しくはニュース</a>)</div>
+<div class="update-note">📅 <span data-i18n="items_list.update_note_text">メガストーン16種 + 通常持ち物11種 追加・1対戦でメガシンカ1度ルール・期間 2026/6/17〜9/2 10:59</span> (<a href="news.html" data-i18n="items_list.update_note_news_link">詳しくはニュース</a>)</div>
 ${sections}
 </div>
-<a href="#" class="bn-cat">↑ トップへ</a>
+<a href="#" class="bn-cat" data-i18n="items_list.btn_scroll_top">↑ トップへ</a>
 <script>
 const inp = document.getElementById('q');
 const allRows = [...document.querySelectorAll('tbody tr')];
@@ -150,6 +155,35 @@ inp.addEventListener('input', () => {
     r.style.display = !q || txt.includes(q) ? '' : 'none';
   }
 });
+// 持ち物名/効果/対応ポケモンを runtime で翻訳(I18N.item/itemDesc/pokemon)
+function applyItemI18n() {
+  if (!window.I18N) return;
+  document.querySelectorAll('[data-item-ja]').forEach(el => {
+    el.textContent = I18N.item(el.getAttribute('data-item-ja'));
+  });
+  document.querySelectorAll('[data-itemdesc-ja]').forEach(el => {
+    const ja = el.getAttribute('data-itemdesc-ja');
+    const t = I18N.itemDesc(ja);
+    el.textContent = t || ja;
+  });
+  document.querySelectorAll('[data-poke-ja]').forEach(el => {
+    el.textContent = I18N.pokemon(el.getAttribute('data-poke-ja'));
+  });
+  // サブタイトル(プレースホルダ入りテンプレート)を補間
+  const st = document.getElementById('items-subtitle');
+  if (st) {
+    const tpl = I18N.t('items_list.subtitle_template', null);
+    if (tpl) {
+      st.textContent = tpl
+        .replace('{count}', st.getAttribute('data-tpl-count'))
+        .replace('{date}', st.getAttribute('data-tpl-date'))
+        .replace('{season}', st.getAttribute('data-tpl-season'))
+        .replace('{n}', st.getAttribute('data-tpl-n'));
+    }
+  }
+}
+document.addEventListener('i18n:ready', applyItemI18n);
+document.addEventListener('i18n:changed', applyItemI18n);
 </script>
 </body></html>`;
 

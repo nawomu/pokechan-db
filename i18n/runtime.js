@@ -10,6 +10,8 @@
  *   I18N.move(key, jaFallback) : わざ名 (ローマ字キー + 日本語名 → 現在言語)
  *                                 ja モード or 未登録時は jaFallback を返す
  *   I18N.ability(jaName)       : 特性名
+ *   I18N.item(jaName)          : 持ち物名 (日本語 → 現在言語、未登録/jaは jaName)
+ *   I18N.itemDesc(jaName)      : 持ち物の効果文 (jaは null → 呼び出し側でフォールバック)
  *   I18N.nature(jaName)        : 性格名 (日本語 → 現在言語、 ja モード or 未登録時は jaName)
  *   I18N.type(jaName, format?) : タイプ名 (format: 'full' [既定] | 'short3')
  *   I18N.apply()               : DOMの data-i18n="key" 属性を全部翻訳
@@ -109,6 +111,7 @@
       pokemon: main ? main.pokemon || {} : {},
       moves: main ? main.moves || {} : {},
       natures: main ? main.natures || {} : {},
+      items: main ? main.items || {} : {},
       ui: ui,
     };
     // タイプ多言語マスターは言語非依存で 1 度だけロード (lang 切替時の再フェッチ不要)
@@ -197,6 +200,26 @@
     if (!d) return null;
     const entry = d.abilities[jaName];
     if (entry && entry.short_effect) return entry.short_effect;
+    return null;
+  }
+
+  function tItem(jaName) {
+    // 持ち物名 (日本語 → 現在言語)。未登録/jaモードは jaName。
+    if (currentLang === 'ja' || !jaName) return jaName;
+    const d = cache[currentLang];
+    if (!d || !d.items) return jaName;
+    const entry = d.items[jaName];
+    if (entry && entry.name) return entry.name;
+    return jaName;
+  }
+
+  function tItemDesc(jaName) {
+    // 持ち物の効果文。ja は null を返し、呼び出し側で元の effect をフォールバックに使う。
+    if (currentLang === 'ja' || !jaName) return null;
+    const d = cache[currentLang];
+    if (!d || !d.items) return null;
+    const entry = d.items[jaName];
+    if (entry && entry.effect) return entry.effect;
     return null;
   }
 
@@ -527,6 +550,8 @@
     moveDesc: tMoveDesc,
     ability: tAbility,
     abilityDesc: tAbilityDesc,
+    item: tItem,
+    itemDesc: tItemDesc,
     nature: tNature,
     type: tType,
     apply: applyDOM,

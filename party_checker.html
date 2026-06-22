@@ -22,7 +22,7 @@
 <link rel="icon" href="favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="manifest" href="manifest.json">
-<script defer src="i18n/runtime.js"></script>
+<script defer src="i18n/runtime.js?v=20260622"></script>
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PchamDB">
@@ -776,8 +776,8 @@ body.stats-only-mode #ev-ov.vis { display: flex !important; }
     <button class="sv-btn sv-b on"    data-sv="b" title="最大: EV252・性格1.1" data-i18n="checker.sv_b" data-i18n-attr="title:checker.tip_sv_b">最大</button>
     <button class="sv-btn sv-rank on" data-sv="rank" data-i18n="checker.sv_rank">順位</button>
   </label>
-  <button id="send-to-sim" type="button" title="現在のチーム・性格・能力P・選択中の技を簡易バトルシミュレーターに送ります">🔧 シミュレーターへ</button>
-  <button id="send-to-battle" type="button" title="現在のチーム・性格・能力P・技・持ち物・性別をリアルバトルに送ります">⚔️ リアルバトルへ</button>
+  <button id="send-to-sim" type="button" title="現在のチーム・性格・能力P・選択中の技を簡易バトルシミュレーターに送ります" data-i18n-attr="title:checker.tip_send_to_sim">🔧 <span data-i18n="checker.send_to_sim_btn">シミュレーターへ</span></button>
+  <button id="send-to-battle" type="button" title="現在のチーム・性格・能力P・技・持ち物・性別をリアルバトルに送ります" data-i18n-attr="title:checker.tip_send_to_battle">⚔️ <span data-i18n="checker.send_to_battle_btn">リアルバトルへ</span></button>
 </div>
 
 <div id="main-wrap">
@@ -805,7 +805,7 @@ body.stats-only-mode #ev-ov.vis { display: flex !important; }
   <div id="item-modal-box">
     <div id="item-modal-head">
       <h3 id="item-modal-title" data-i18n="checker.item_select_modal_title">持ち物を選択</h3>
-      <button id="item-modal-close-x" aria-label="閉じる" title="閉じる" onclick="closeItemModal()">×</button>
+      <button id="item-modal-close-x" aria-label="閉じる" title="閉じる" onclick="closeItemModal()" data-i18n-attr="aria-label:checker.item_modal_close_aria,title:checker.item_modal_close_aria">×</button>
     </div>
     <div id="item-modal-list"></div>
   </div>
@@ -1049,7 +1049,7 @@ window._pickItemFromModal = function(key){
       pill.textContent = it ? it.name : _tCK('checker.slot_select','＋ 選択');
       pill.classList.toggle('empty', !it);
     }
-    td.setAttribute('title', it ? (it.effect||it.name) : 'クリックで持ち物を選ぶ');
+    td.setAttribute('title', it ? (it.effect||it.name) : _tCK('checker.tip_item_click','クリックで持ち物を選ぶ'));
   }
   closeItemModal();
 };
@@ -2238,14 +2238,14 @@ function renderTable() {
 
   // 性別 (2026-06-13: 選択時に決まる。♂♀はクリックで切替・無性別は—)
   rows.push(`<tr>
-    <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem">性別</td>
+    <td class="row-label" style="text-align:center;vertical-align:middle;font-size:.68rem" data-i18n="checker.row_gender">性別</td>
     ${party.map((name, slotIdx) => {
       if (!name) return `<td class="empty-slot-cell"></td>`;
       let g = partyGenders[slotIdx];
       if (!g) { g = genderOf(name); partyGenders[slotIdx] = g; }
       const color = g === '♂' ? '#5b8ff0' : g === '♀' ? '#f06fa0' : '#9aa3b2';
       const clickable = (g === '♂' || g === '♀');
-      return `<td class="gender-cell" data-slot="${slotIdx}" ${clickable ? `onclick="toggleGender(${slotIdx})"` : ''} title="${clickable ? 'クリックで♂♀切替' : '無性別'}" style="text-align:center;vertical-align:middle;${clickable ? 'cursor:pointer' : ''}"><span style="font-weight:800;font-size:1.1rem;color:${color}">${g}</span></td>`;
+      return `<td class="gender-cell" data-slot="${slotIdx}" ${clickable ? `onclick="toggleGender(${slotIdx})"` : ''} title="${clickable ? _tCK('checker.tip_gender_toggle','クリックで♂♀切替') : _tCK('checker.tip_genderless','無性別')}" style="text-align:center;vertical-align:middle;${clickable ? 'cursor:pointer' : ''}"><span style="font-weight:800;font-size:1.1rem;color:${color}">${g}</span></td>`;
     }).join("")}
   </tr>`);
 
@@ -2258,7 +2258,7 @@ function renderTable() {
       const curItem = cur ? ITEM_BY_KEY[cur] : null;
       const label = curItem ? curItem.name : _tCK('checker.slot_select','＋ 選択');
       const cls = curItem ? '' : 'empty';
-      const title = curItem ? (curItem.effect || curItem.name) : 'クリックで持ち物を選ぶ';
+      const title = curItem ? (curItem.effect || curItem.name) : _tCK('checker.tip_item_click','クリックで持ち物を選ぶ');
       return `<td class="item-cell" data-slot="${slotIdx}" onclick="openItemModal(${slotIdx})" title="${title.replace(/"/g,'&quot;')}">
         <span class="item-pill ${cls}">${label}</span>
       </td>`;
@@ -2511,13 +2511,13 @@ function renderHeaderRow(prefix, fs, onSortClick) {
 function renderFilterBar(prefix, fs, onChange) {
   const catBtn = (lbl, key) => `<button class="fb-cat-btn ${fs.cat.has(key)?'on':''}" onclick="${onChange}('cat','${key}')">${lbl}</button>`;
   return `<div class="modal-filter-bar">
-    分類
+    ${_tCK('checker.filter_bar_category_label','分類')}
     ${catBtn("物理","物理")}${catBtn("特殊","特殊")}${catBtn("変化","変化")}
-    <label>威力≥<input type="number" min="0" id="${prefix}-pow-min" value="${fs.powMin ?? ''}" oninput="${onChange}('powMin', this.value)"></label>
-    <label>命中≥<input type="number" min="0" id="${prefix}-acc-min" value="${fs.accMin ?? ''}" oninput="${onChange}('accMin', this.value)"></label>
-    <label>PP≥<input type="number" min="0" id="${prefix}-pp-min" value="${fs.ppMin ?? ''}" oninput="${onChange}('ppMin', this.value)"></label>
-    <label>優先度≥<input type="number" id="${prefix}-pri-min" value="${fs.priMin ?? ''}" oninput="${onChange}('priMin', this.value)"></label>
-    <span style="color:#6e7681;font-size:.68rem">(空欄=条件なし)</span>
+    <label>${_tCK('checker.filter_power_min','威力≥')}<input type="number" min="0" id="${prefix}-pow-min" value="${fs.powMin ?? ''}" oninput="${onChange}('powMin', this.value)"></label>
+    <label>${_tCK('checker.filter_acc_min','命中≥')}<input type="number" min="0" id="${prefix}-acc-min" value="${fs.accMin ?? ''}" oninput="${onChange}('accMin', this.value)"></label>
+    <label>${_tCK('checker.filter_pp_min','PP≥')}<input type="number" min="0" id="${prefix}-pp-min" value="${fs.ppMin ?? ''}" oninput="${onChange}('ppMin', this.value)"></label>
+    <label>${_tCK('checker.filter_prio_min','優先度≥')}<input type="number" id="${prefix}-pri-min" value="${fs.priMin ?? ''}" oninput="${onChange}('priMin', this.value)"></label>
+    <span style="color:#6e7681;font-size:.68rem">${_tCK('checker.filter_empty_hint','(空欄=条件なし)')}</span>
   </div>`;
 }
 
@@ -2845,7 +2845,7 @@ function restorePfEfChipStates() {
 function buildPfTableHead() {
   document.querySelector('#pf-table thead').innerHTML = `
     <tr class="head-row">
-      <th class="col-chk" title="${_tCK('checker.pf_chk_title','選択')}">☑</th>
+      <th class="col-chk" title="${_tCK('checker.pf_chk_title','選択')}">${_tCK('checker.col_move_chk','☑')}</th>
       <th class="col-name" data-pfsort="name" data-i18n="checker.col_move_name">わざ名</th>
       <th class="col-type" data-pfsort="type" data-i18n="checker.col_move_type">タイプ</th>
       <th class="col-class" data-pfsort="category" data-i18n="checker.col_move_class">分類</th>
@@ -2877,10 +2877,10 @@ function buildPfTableHead() {
       <th><input type="number" id="pf-f-acc" placeholder="≥" min="0" max="100"></th>
       <th><input type="number" id="pf-f-pp" placeholder="≥" min="0"></th>
       <th><input type="number" id="pf-f-prob" placeholder="≥%" min="0" max="100"></th>
-      <th><select id="pf-f-prio"><option value="">全</option><option value="hi">先制</option><option value="0">通常</option><option value="lo">後攻</option></select></th>
-      <th><select id="pf-f-target"><option value="">全対象</option></select></th>
-      <th><select id="pf-f-contact"><option value="">全</option><option value="●">接●</option><option value="○">接○</option></select></th>
-      <th><select id="pf-f-guard"><option value="">全</option><option value="○">守○</option><option value="×">守×</option></select></th>
+      <th><select id="pf-f-prio"><option value="">${_tCK('checker.pf_filter_prio_all','全')}</option><option value="hi">${_tCK('checker.pf_filter_prio_hi','先制')}</option><option value="0">${_tCK('checker.pf_filter_prio_normal','通常')}</option><option value="lo">${_tCK('checker.pf_filter_prio_lo','後攻')}</option></select></th>
+      <th><select id="pf-f-target"><option value="">${_tCK('checker.pf_filter_target_all','全対象')}</option></select></th>
+      <th><select id="pf-f-contact"><option value="">${_tCK('checker.pf_filter_contact_all','全')}</option><option value="●">${_tCK('checker.pf_filter_contact_yes','接●')}</option><option value="○">${_tCK('checker.pf_filter_contact_no','接○')}</option></select></th>
+      <th><select id="pf-f-guard"><option value="">${_tCK('checker.pf_filter_guard_all','全')}</option><option value="○">${_tCK('checker.pf_filter_guard_yes','守○')}</option><option value="×">${_tCK('checker.pf_filter_guard_no','守×')}</option></select></th>
       <th></th>
     </tr>
   `;
@@ -3321,7 +3321,7 @@ renderTable();
 
 
 <!-- ページトップへ戻るボタン -->
-<button id="back-to-top" style="position:fixed;right:20px;bottom:210px;width:42px;height:42px;border-radius:50%;background:rgba(243,156,18,0.92);color:white;border:none;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.35);z-index:9997;display:none;align-items:center;justify-content:center" title="ページトップへ戻る">▲</button>
+<button id="back-to-top" style="position:fixed;right:20px;bottom:210px;width:42px;height:42px;border-radius:50%;background:rgba(243,156,18,0.92);color:white;border:none;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.35);z-index:9997;display:none;align-items:center;justify-content:center" title="ページトップへ戻る" data-i18n-attr="title:checker.back_to_top">▲</button>
 <script>
 (function(){
   const btn = document.getElementById('back-to-top');
@@ -3418,7 +3418,7 @@ renderTable();
 </script>
 
 <!-- 楽天モーションウィジェット (レコメンド型・画面下部固定) -->
-<div id="rakuten-motion-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1a1a1a;text-align:center;padding:6px 0;border-top:1px solid #333;"><button id="ad-hide-btn" style="position:absolute;top:4px;right:8px;width:26px;height:26px;background:rgba(0,0,0,0.85);color:#fff;border:1px solid #888;border-radius:50%;cursor:pointer;font-size:14px;font-weight:700;line-height:1;padding:0;z-index:10000;box-shadow:0 2px 6px rgba(0,0,0,0.5)" title="広告を閉じる" aria-label="広告を閉じる">×</button>
+<div id="rakuten-motion-bar" style="position:fixed;bottom:0;left:0;right:0;z-index:9999;background:#1a1a1a;text-align:center;padding:6px 0;border-top:1px solid #333;"><button id="ad-hide-btn" style="position:absolute;top:4px;right:8px;width:26px;height:26px;background:rgba(0,0,0,0.85);color:#fff;border:1px solid #888;border-radius:50%;cursor:pointer;font-size:14px;font-weight:700;line-height:1;padding:0;z-index:10000;box-shadow:0 2px 6px rgba(0,0,0,0.5)" title="広告を閉じる" aria-label="広告を閉じる" data-i18n-attr="title:checker.ad_hide_btn_label,aria-label:checker.ad_hide_btn_label">×</button>
   <script type="text/javascript">rakuten_design="slide";rakuten_affiliateId="094cc83a.45f5f4d6.094cc83b.9462ef1e";rakuten_items="ctsmatch";rakuten_genreId="0";rakuten_size="468x160";rakuten_target="_blank";rakuten_theme="gray";rakuten_border="off";rakuten_auto_mode="on";rakuten_genre_title="off";rakuten_recommend="on";rakuten_ts="1778740840797";</script><script type="text/javascript" src="https://xml.affiliate.rakuten.co.jp/widget/js/rakuten_widget.js?20230106"></script>
 </div>
 
