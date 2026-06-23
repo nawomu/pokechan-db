@@ -999,7 +999,16 @@ const _STAT_KEY = {atk:'common.stat_atk', def:'common.stat_def', spatk:'common.s
 const tStatLabel = k => (window.I18N && window.I18N.t && _STAT_KEY[k]) ? window.I18N.t(_STAT_KEY[k], STAT_LABELS[k]) : (STAT_LABELS[k] || k);
 // 状態異常の表示バッジ → 共有語彙キー(該当ある分のみ)
 const _STATUS_KEY = {やけど:'common.status_burn', まひ:'common.status_paralysis', どく:'common.status_poison', もうどく:'common.status_toxic', ねむり:'common.status_sleep', こおり:'common.status_freeze', こんらん:'common.status_confusion', メロメロ:'common.status_infatuation'};
-const tStatusBadge = ja => (window.I18N && window.I18N.t && _STATUS_KEY[ja]) ? window.I18N.t(_STATUS_KEY[ja], ja) : ja;
+// 設置物/状態バッジ(数値の付かない固定ラベルのみ)→ 共有語彙キー。
+// ×N・カウント付き(まきびし×2/ほろび3/きゅうしょUP)は語順設計が要るため据え置き。
+const _BADGE_KEY = {みがわり:'common.bdg_substitute', リフレクター:'common.bdg_reflect', ひかりのかべ:'common.bdg_light_screen', オーロラベール:'common.bdg_aurora_veil', おいかぜ:'common.bdg_tailwind', ステルスロック:'common.bdg_stealth_rock', ねばねばネット:'common.bdg_sticky_web', やどりぎ:'common.bdg_leech_seed', しおづけ:'common.bdg_salt_cure', ねをはる:'common.bdg_ingrain', アクアリング:'common.bdg_aqua_ring', でんじふゆう:'common.bdg_magnet_rise', かいふくふうじ:'common.bdg_heal_block', にげられない:'common.bdg_no_escape', バインド:'common.bdg_bind'};
+const tStatusBadge = ja => {
+  if (window.I18N && window.I18N.t){
+    if (_STATUS_KEY[ja]) return window.I18N.t(_STATUS_KEY[ja], ja);
+    if (_BADGE_KEY[ja]) return window.I18N.t(_BADGE_KEY[ja], ja);
+  }
+  return ja;
+};
 
 // =========================================================================
 // 定数
@@ -6556,8 +6565,12 @@ function openItemModal(side){
   _itemModalSide = side;
   const st = sides[side];
   const titleEl = document.getElementById('item-modal-title');
-  const label = (st && st.poke) ? tPokeName(st.poke.name) : (side === 'self' ? '自分側' : '相手側');
-  if (titleEl) titleEl.textContent = `${label} の持ち物を選択`;
+  const _sideLbl = side === 'self'
+    ? (window.I18N ? I18N.t('common.side_self','自分側') : '自分側')
+    : (window.I18N ? I18N.t('common.side_opp','相手側') : '相手側');
+  const label = (st && st.poke) ? tPokeName(st.poke.name) : _sideLbl;
+  const _itemSel = window.I18N ? I18N.t('common.item_select','持ち物を選択') : '持ち物を選択';
+  if (titleEl) titleEl.textContent = `${label} の${_itemSel}`;
   _renderItemModalList(st ? (st.item || '') : '');
   document.getElementById('item-modal-ov').classList.add('vis');
 }
