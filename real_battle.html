@@ -233,10 +233,13 @@ const $ = id => document.getElementById(id);
 const tPokeName = nm => (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(nm) : nm;
 const tMoveName = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.key, m.name) : m.name;
 const tItemName = it => (window.I18N && window.I18N.item) ? window.I18N.item(it.name) : it.name;
+const tItemDesc = it => ((window.I18N && window.I18N.itemDesc && window.I18N.itemDesc(it.name)) || it.effect || '');
 const tTypeName = ty => (window.I18N && window.I18N.type) ? window.I18N.type(ty) : ty;
 // 技の分類(物理/特殊/変化)の表示語。値はマスターのまま保持し、表示時だけ共有語彙キーで翻訳。
 const _CAT_KEY = {'物理':'common.cat_phys', '特殊':'common.cat_spec', '変化':'common.cat_stat'};
 const tCatName = c => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[c] || '', c) : c;
+// 言語切替・i18n初期化時に「くわしく編成」を作り直す(option等の一度きり構築JS部品を追従させる。Sが未準備なら何もしない=冪等)
+['i18n:changed', 'i18n:ready'].forEach(ev => document.addEventListener(ev, () => { if (typeof S !== 'undefined' && S) renderDetailSetup(); }));
 
 document.getElementById('engine-frame').addEventListener('load', () => {
   const w = $('engine-frame').contentWindow;
@@ -369,7 +372,7 @@ function renderDetailSetup(){
       return `<button class="mv-chip" data-slot="${id}" data-i="${i}" title="${m ? tMoveName(m) : I18N.t('real_battle.move_slot_empty_title','わざを えらぶ')}"
         style="${m ? `border-left:4px solid ${tc[m.type] || '#3a4660'}` : ''}">${m ? tMoveName(m) : '—'}</button>`;
     }).join('');
-    const opts = items.map(it => `<option value="${it.key}" ${slotItem[id] === it.key ? 'selected' : ''} title="${it.effect || ''}">${tItemName(it)}</option>`).join('');
+    const opts = items.map(it => `<option value="${it.key}" ${slotItem[id] === it.key ? 'selected' : ''} title="${tItemDesc(it)}">${tItemName(it)}</option>`).join('');
     return `<div class="ds-row"><span class="ds-name"><img src="images/sim/${encodeURIComponent(nm)}.svg" onerror="this.remove()">${id.startsWith('s') ? '🟢' : '🔴'}${tPokeName(nm)}</span>
       ${chips}<select data-item="${id}"><option value="">${I18N.t('real_battle.item_none_option','もちもの なし')}</option>${opts}</select></div>`;
   }).join('');

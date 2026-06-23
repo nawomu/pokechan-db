@@ -2212,6 +2212,7 @@ function appendTeRow(wrap, cls, label, types){
 function initNatureSelects(){
   document.querySelectorAll('.nature-select').forEach((sel,i)=>{
     const side = i === 0 ? 'self' : 'opp';
+    sel.innerHTML = ''; // 冪等: 言語切替で再構築する前にクリア(option重複防止)
     NATURES_ARR.forEach(([name,up,down],idx)=>{
       const opt = document.createElement('option');
       opt.value = idx;
@@ -2220,10 +2221,13 @@ function initNatureSelects(){
       sel.appendChild(opt);
     });
     sel.value = sides[side].natureIdx;
-    sel.addEventListener('change', e=>{
-      sides[side].natureIdx = parseInt(e.target.value, 10);
-      render(side);
-    });
+    if (!sel._natureBound){ // change ハンドラは1回だけ(再構築で重複させない)
+      sel._natureBound = true;
+      sel.addEventListener('change', e=>{
+        sides[side].natureIdx = parseInt(e.target.value, 10);
+        render(side);
+      });
+    }
   });
 }
 
@@ -2720,6 +2724,21 @@ window.addEventListener('DOMContentLoaded', ()=>{
   render('self');
   render('opp');
 });
+
+// 言語切替時: JSで一度きり構築した部品(性格select)を作り直し、
+// 翻訳ヘルパー経由の動的描画(能力名・持ち物ピル等)を再実行する。
+// (持ち物モーダルは開くたび _renderItemModalList で再構築されるため現在言語に追従)
+function _i18nRefreshSim(){
+  if (typeof POKEMON_LIST === 'undefined') return;
+  initNatureSelects();   // 冪等(中で innerHTML クリア)
+  render('self');
+  render('opp');
+  renderHandoffBar();
+}
+// i18n:changed(切替)に加え i18n:ready(初回ロード=言語preset時)でも再描画。
+// ★初回ロードで preset言語の場合、辞書ロード前に一度描画されるため ready で貼り直さないと能力名/性格名がjaのまま残る。
+document.addEventListener('i18n:changed', _i18nRefreshSim);
+document.addEventListener('i18n:ready', _i18nRefreshSim);
 
 // 技スロットをクリックして「使う技」を選択、または ⚔ 実行ボタンで片側攻撃
 function attachMoveSelect(){

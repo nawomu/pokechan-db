@@ -991,6 +991,8 @@ const tMoveName = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.k
 const tItemName = it => (window.I18N && window.I18N.item && it) ? window.I18N.item(it.name) : (it && it.name) || '';
 const tAbilName = a  => (window.I18N && window.I18N.ability && a) ? window.I18N.ability(a) : a;
 const tTypeName = t  => (window.I18N && window.I18N.type && t) ? window.I18N.type(t) : t;
+// HTMLエスケープのグローバルヘルパー(stat-key描画 L6269等は別関数スコープの局所eschを参照できず未定義になっていた=Playwright監査で発覚。グローバル定義で解消。局所const eschは各関数内でシャドウ=衝突なし)
+function esch(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // 分類(物理/特殊/変化)の表示語のみ多言語化。CSSクラスの値(物理/特殊/変化)はそのまま残す。
 const _CAT_KEY = {'物理':'common.cat_phys','特殊':'common.cat_spec','変化':'common.cat_stat'};
 const tCatName = v => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[v] || '', v) : v;
@@ -6518,9 +6520,9 @@ function renderAbilitySelect(root, st){
     const opt = document.createElement('option');
     opt.value = a;
     // 選択肢の行に説明を直接埋め込む(2026-06-12 阿部さん: 選ぶ画面で特性の説明も見たい)
-    const _ad = a && typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[a] ? ABILITY_DESC[a] : '';
-    const _an = tAbilName(a);   // 特性名は I18N、説明文(_ad)は自由文のため未対応
-    opt.textContent = !a ? '（なし）'
+    const _ad = a ? (((window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[a]) || '')) : '';  // 特性効果文を現在言語へ(9言語)
+    const _an = tAbilName(a);
+    opt.textContent = !a ? (window.I18N ? I18N.t('real_battle.ability_none_option', '特性なし') : '特性なし')
       : _ad ? `${_an}｜${_ad.length > 42 ? _ad.slice(0, 42) + '…' : _ad}` : _an;
     opt.title = _ad;
     if (a === st.ability) opt.selected = true;
@@ -6699,6 +6701,8 @@ function appendTeRow(wrap, cls, label, types){
 function initNatureSelects(){
   document.querySelectorAll('.nature-select').forEach((sel,i)=>{
     const side = i === 0 ? 'self' : 'opp';
+    // ★冪等: 言語切替で再実行されるため、毎回作り直す(option重複・selected喪失を防ぐ)
+    sel.innerHTML = '';
     NATURE_LIST.forEach(([name,up,down],idx)=>{
       const opt = document.createElement('option');
       opt.value = idx;
@@ -6707,10 +6711,14 @@ function initNatureSelects(){
       sel.appendChild(opt);
     });
     sel.value = sides[side].natureIdx;
-    sel.addEventListener('change', e=>{
-      sides[side].natureIdx = parseInt(e.target.value, 10);
-      render(side);
-    });
+    // change リスナーは1度だけ束縛する(再実行で二重発火しないように)
+    if (!sel._natBound){
+      sel._natBound = true;
+      sel.addEventListener('change', e=>{
+        sides[side].natureIdx = parseInt(e.target.value, 10);
+        render(side);
+      });
+    }
   });
 }
 
@@ -7478,6 +7486,31 @@ window.addEventListener('DOMContentLoaded', ()=>{
   render('self');
   render('opp');
 });
+
+// =========================================================================
+// i18n 再描画フック: 一度きり構築のJS部品(性格セレクト等)は言語切替に追従しない。
+// i18n:ready(初回) と i18n:changed(切替)で同じ処理を実行し、表示文字列を貼り直す。
+// ★バトルログ(renderBattleLog)・log()本文は対象外(演出/本文には触れない)。
+// =========================================================================
+function refreshAllI18nContent(){
+  // 性格セレクトの option(性格名+能力名↑↓)を作り直す(冪等)
+  if (typeof initNatureSelects === 'function') initNatureSelects();
+  // 両サイドのカード(ステータス能力名・タイプ/状態バッジ・持ち物pill・技プール等)とステージを再描画
+  if (typeof renderBoth === 'function') renderBoth();
+  // 控えバー(控えポケモン名・交代ボタン等)
+  if (typeof renderHandoffBar === 'function') renderHandoffBar();
+  // 持ち物モーダルが開いていればリスト(持ち物名・効果文)を貼り直す
+  const itemOv = document.getElementById('item-modal-ov');
+  if (itemOv && itemOv.classList.contains('vis') && _itemModalSide){
+    const st = sides[_itemModalSide];
+    openItemModal(_itemModalSide);   // タイトル+リストを丸ごと再構築
+    void st;
+  }
+  // 再構築後の data-i18n / data-i18n-attr 要素を翻訳適用
+  if (window.I18N && I18N.apply) I18N.apply();
+}
+document.addEventListener('i18n:ready', refreshAllI18nContent);
+document.addEventListener('i18n:changed', refreshAllI18nContent);
 
 // 技スロットをクリックして「使う技」を選択、または ⚔ 実行ボタンで片側攻撃
 function attachMoveSelect(){
