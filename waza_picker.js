@@ -170,6 +170,8 @@ function tContact(c) { return c && I18N_CONTACT_MAP[c] ? _t(I18N_CONTACT_MAP[c],
 function tGuard(g) { return g && I18N_GUARD_MAP[g] ? _t(I18N_GUARD_MAP[g], g) : g; }
 function tCategory(c) { return c && I18N_CATEGORY_MAP[c] ? _t(I18N_CATEGORY_MAP[c], c) : c; }
 function tLearnersCount(n) { return _t('waza.learners_count', `${n}匹`).replace('{n}', n); }
+// 技の効果説明の表示: ja=元のja(独自)、非ja=i18n moves[key].desc(翻訳済)。検索/解析は m.effect(ja)のまま
+function tEffect(m) { return (window.I18N && I18N.moveDesc) ? I18N.moveDesc(m.key, m.effect || '') : (m.effect || ''); }
 
 // 検索モード (OR デフォルト / AND オプション)
 let filterMode = 'OR';
@@ -951,7 +953,7 @@ function render() {
         return `<td class="col-prio prio-zero">—</td>`;
       })()}
       <!-- ★2026-06-18: col-cat 削除(subcategoryフィルタ廃止) -->
-      <td class="col-effect effect-cell" data-key="${m.key}">${m.effect}</td>
+      <td class="col-effect effect-cell" data-key="${m.key}">${tEffect(m)}</td>
       <td class="col-tags">${getMoveFilterTags(m).map(t => `<span class="mw-tag ${t.cls}">${t.text}</span>`).join('')}</td>
     `;
     tbody.appendChild(tr);
@@ -1400,7 +1402,7 @@ let lmDragX = 0, lmDragY = 0;
           return parts.join('');
         })()}
       </div>
-      <div class="dt-desc">${escHtml(effect)}</div>
+      <div class="dt-desc">${escHtml(tEffect(m))}</div>
       ${bdBadges}
       <div class="dt-learners-title">${learnerTitleHtml}</div>
       <div class="dt-learners">${learnerListHtml}</div>
