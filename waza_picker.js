@@ -186,6 +186,25 @@ function tTagText(ja) {
   if (lang === 'ja' || !MOVE_TAG_TR || !MOVE_TAG_TR[lang]) return ja;
   return MOVE_TAG_TR[lang][ja] || ja;
 }
+// 詳細タグ フィルタパネル(newTagChips)は一度きり構築=言語切替に追従しないので、表示文字列だけ再翻訳する。
+function retranslateNewTagPanel() {
+  document.querySelectorAll('#newTagChips .new-tag-chip').forEach((chip) => {
+    const ja = chip.dataset.tag;
+    if (ja && chip.firstChild) chip.firstChild.nodeValue = tTagText(ja); // .c(件数span)は温存
+  });
+  document.querySelectorAll('#newTagChips .newtag-cat-label').forEach((lbl) => {
+    const cat = lbl.dataset.cat;
+    if (cat) lbl.textContent = _t('waza.detailcat.' + cat, lbl.dataset.fb || cat) + ':';
+  });
+}
+// 一度きり構築のJS部品(タグパネル・タイプ多選択DD・対象種別option)を言語切替で再描画。
+function refreshWazaPickerI18n() {
+  try { retranslateNewTagPanel(); } catch (e) {}
+  try { if (typeof buildTypeDropdown === 'function') buildTypeDropdown(); } catch (e) {}
+  try { if (typeof buildTargetOptions === 'function') buildTargetOptions(); } catch (e) {}
+}
+document.addEventListener('i18n:ready', refreshWazaPickerI18n);
+document.addEventListener('i18n:changed', refreshWazaPickerI18n);
 
 // 検索モード (OR デフォルト / AND オプション)
 let filterMode = 'OR';
@@ -1015,7 +1034,14 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
 
 const types = [...new Set(moves.map(m => m.type))].sort();
 const targets = [...new Set(moves.map(m => m.target))].sort();
-targets.forEach(t => { const o = document.createElement('option'); o.value=t; o.textContent=t; document.getElementById('f-target').appendChild(o); });
+// 対象種別オプション: 冪等に再構築可能(言語切替で再描画)。表示は targets.<ja> で翻訳・value(=絞り込みキー)はjaのまま。
+function buildTargetOptions() {
+  const sel = document.getElementById('f-target');
+  if (!sel) return;
+  sel.querySelectorAll('option[data-dyn]').forEach(o => o.remove());
+  targets.forEach(t => { const o = document.createElement('option'); o.value=t; o.dataset.dyn='1'; o.textContent=_t('targets.'+t, t); sel.appendChild(o); });
+}
+buildTargetOptions();
 
 // ===== タイプ多重選択ドロップダウンの構築 =====
 function buildTypeDropdown() {
@@ -1025,10 +1051,10 @@ function buildTypeDropdown() {
   const actions = document.createElement('div');
   actions.className = 'ms-actions';
   const allBtn = document.createElement('button');
-  allBtn.type = 'button'; allBtn.className = 'ms-act-btn'; allBtn.textContent = '全選択';
+  allBtn.type = 'button'; allBtn.className = 'ms-act-btn'; allBtn.textContent = _t('waza.select_all', '全選択');
   allBtn.onclick = (e) => { e.stopPropagation(); types.forEach(t => selectedTypes.add(t)); syncTypeCheckboxes(); updateTypeBtnLabel(); render(); };
   const clrBtn = document.createElement('button');
-  clrBtn.type = 'button'; clrBtn.className = 'ms-act-btn'; clrBtn.textContent = '全解除';
+  clrBtn.type = 'button'; clrBtn.className = 'ms-act-btn'; clrBtn.textContent = _t('waza.clear_all', '全解除');
   clrBtn.onclick = (e) => { e.stopPropagation(); selectedTypes.clear(); syncTypeCheckboxes(); updateTypeBtnLabel(); render(); };
   actions.appendChild(allBtn);
   actions.appendChild(clrBtn);
@@ -1049,7 +1075,7 @@ function buildTypeDropdown() {
     sw.style.background = typeColors[t] || '#999';
     const txt = document.createElement('span');
     txt.className = 'ms-name';
-    txt.textContent = t;
+    txt.textContent = (window.I18N && I18N.type) ? I18N.type(t) : t;
     lbl.appendChild(cb);
     lbl.appendChild(sw);
     lbl.appendChild(txt);
@@ -2137,6 +2163,7 @@ const OLD_FILTER_TAGS = new Set([
     row.dataset.cat = cat;
     const label = document.createElement('span');
     label.className = 'newtag-cat-label';
+    label.dataset.cat = cat; label.dataset.fb = CAT_LABEL[cat];  // 言語切替で再翻訳するため保持
     label.textContent = _t('waza.detailcat.' + cat, CAT_LABEL[cat]) + ':';
     row.appendChild(label);
     for (const [tag, count] of tags) {
