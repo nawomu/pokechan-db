@@ -1258,6 +1258,8 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
   <span class="grp-lbl" data-i18n="db.fn_group_label" title="その技を覚えるポケモンだけに絞り込み" data-i18n-attr="title:db.fn_group_label_tip">機能:</span>
   <button class="grp-btn fn-btn" data-fn="recovery" onclick="toggleFnGroup('recovery')" data-i18n="db.fn_recovery" style="font-size:11px;padding:2px 8px">💚 回復技</button>
   <button class="grp-btn fn-btn" data-fn="setup" onclick="toggleFnGroup('setup')" data-i18n="db.fn_setup" style="font-size:11px;padding:2px 8px">📈 積み技</button>
+  <button class="grp-btn fn-btn" data-fn="status" onclick="toggleFnGroup('status')" data-i18n="db.fn_status" style="font-size:11px;padding:2px 8px">😵 状態異常技</button>
+  <button class="grp-btn fn-btn" data-fn="hazard" onclick="toggleFnGroup('hazard')" data-i18n="db.fn_hazard" style="font-size:11px;padding:2px 8px">📌 設置技</button>
   <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
   <span class="grp-lbl" data-i18n="db.filter_label">絞込:</span>
   <div id="tychips-sel" style="display:inline-block"></div>
@@ -1339,21 +1341,29 @@ const WAZA_MASTER = (function () {
   return out;
 })();
 
-// ★機能グループ(2026-06-23 G): 回復技/積み技 を1つ以上覚えるポケモン名の集合。WAZA_MAP.learners基準。
+// ★機能グループ(2026-06-23 G): そのグループの技を1つ以上覚えるポケモン名の集合。WAZA_MAP.learners基準。
 const FN_GROUP_SETS = (function () {
-  const recovery = new Set(), setup = new Set();
+  const recovery = new Set(), setup = new Set(), status = new Set(), hazard = new Set();
+  const MAJOR_STATUS = new Set(['まひ', 'やけど', 'こおり', 'どく', 'もうどく', 'ねむり']);
   for (const k in WAZA_MAP) {
     const m = WAZA_MAP[k], bd = m.battle_data || {}, eff = bd.effects || [], lr = m.learners || [];
-    // 回復技: HP回復(天候/毎ターン等) or ダメージ回復(ドレイン) or 回復/いたみわけ effect
-    const isRecovery = (bd.recovery && bd.recovery !== 'status_only') || !!bd.drain
-      || eff.some(e => e.kind === '回復' || e.kind === 'いたみわけ');
+    // 回復技(★ねむる除く=全員覚える汎用を排除): HP回復(天候/毎ターン等)/ドレイン/回復・いたみわけ effect
+    const isRecovery = m.name !== 'ねむる' && (
+      (bd.recovery && bd.recovery !== 'status_only') || !!bd.drain
+      || eff.some(e => e.kind === '回復' || e.kind === 'いたみわけ'));
     // 積み技: 自分の能力ランクが上がる(剣の舞/竜の舞/蝶の舞 等)
     const isSetup = (bd.rank_changes || []).some(r => r.target === 'self' && r.delta > 0)
       || eff.some(e => e.kind === '能力ランク変化' && (e.target === 'self' || e.target === 'user') && ((e.stages || 0) > 0 || e.to_max));
+    // 状態異常技: 相手に主要状態異常を「確実め」に付与(prob≥30)。ほのおのパンチ等の10%追加効果は除外。
+    const isStatus = eff.some(e => e.kind === '状態付与' && e.target !== 'self' && MAJOR_STATUS.has(e.value) && (e.prob == null || e.prob >= 30));
+    // 設置技: ステルスロック/まきびし/どくびし/ねばねばネット(effects kind=設置)
+    const isHazard = eff.some(e => e.kind === '設置');
     if (isRecovery) lr.forEach(n => recovery.add(n));
     if (isSetup) lr.forEach(n => setup.add(n));
+    if (isStatus) lr.forEach(n => status.add(n));
+    if (isHazard) lr.forEach(n => hazard.add(n));
   }
-  return { recovery, setup };
+  return { recovery, setup, status, hazard };
 })();
 let fnGroups = new Set();  // 選択中の機能グループ(AND絞り込み)
 function toggleFnGroup(g) {
