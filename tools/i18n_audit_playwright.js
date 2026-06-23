@@ -19,8 +19,8 @@ const onlyPage = (process.argv.find(a => a.startsWith('--page=')) || '').split('
 const pages = onlyPage ? [onlyPage] : PAGES;
 
 // ページ内で実行: 日本語が残ったテキスト/属性を収集(data-i18n-audit-skip は除外)
-function scanFn() {
-  const JA = /[ぁ-ゖァ-ヺ一-龯]/; // ひら/カタ/漢字
+function scanFn(lang) {
+  const JA = (lang === 'zh-Hans' || lang === 'zh-Hant') ? /[ぁ-ゖァ-ヺ]/ : /[ぁ-ゖァ-ヺ一-龯]/; // 中国語は漢字を共有するためzhはかなのみ検出
   const skipTags = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT']);
   const out = []; const seen = new Set();
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -60,7 +60,7 @@ function scanFn() {
       try {
         await page.goto(BASE + '/' + pg, { waitUntil: 'networkidle', timeout: 20000 });
         await page.waitForTimeout(900); // i18n 適用 + 動的描画待ち
-        const leaks = await page.evaluate(scanFn);
+        const leaks = await page.evaluate(scanFn, lang);
         report[lang][pg] = leaks;
         const tag = leaks.length === 0 ? 'OK ' : leaks.length + '件';
         console.log(`[${lang}] ${pg.padEnd(28)} ${tag}`);
