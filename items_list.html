@@ -1105,12 +1105,28 @@ function applyItemI18n() {
     el.textContent = I18N.item(el.getAttribute('data-item-ja'));
   });
   document.querySelectorAll('[data-itemdesc-ja]').forEach(el => {
-    const ja = el.getAttribute('data-itemdesc-ja');
-    const t = I18N.itemDesc(ja);
-    el.textContent = t || ja;
+    const fallback = el.getAttribute('data-itemdesc-ja');  // 効果の独自ja(jaモード/未訳時の表示)
+    // I18N.itemDesc は「アイテム名(ja)」が引数。同じ行の名前セルから解決して効果文を多言語化。
+    const row = el.closest('tr');
+    const nameEl = row && row.querySelector('[data-item-ja]');
+    const itemJa = nameEl && nameEl.getAttribute('data-item-ja');
+    const t = itemJa ? I18N.itemDesc(itemJa) : null;
+    el.textContent = t || fallback;
   });
   document.querySelectorAll('[data-poke-ja]').forEach(el => {
     el.textContent = I18N.pokemon(el.getAttribute('data-poke-ja'));
+  });
+  // サマリーチップ: href #cat-<id> から items_list.cat_<id> を引いて表示語を翻訳(件数<b>は温存)
+  document.querySelectorAll('a.sum-chip[href^="#cat-"]').forEach(el => {
+    const id = (el.getAttribute('href') || '').replace('#cat-', '');
+    const label = I18N.t('items_list.cat_' + id, '');
+    if (label && el.firstChild && el.firstChild.nodeType === 3) el.firstChild.nodeValue = label;
+  });
+  // 件数 "N件" → N + count_unit
+  const unit = I18N.t('items_list.count_unit', '件');
+  document.querySelectorAll('span.count').forEach(el => {
+    const m = (el.textContent || '').match(/(\d+)/);
+    if (m) el.textContent = m[1] + unit;
   });
   // サブタイトル(プレースホルダ入りテンプレート)を補間
   const st = document.getElementById('items-subtitle');
