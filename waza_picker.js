@@ -172,6 +172,20 @@ function tCategory(c) { return c && I18N_CATEGORY_MAP[c] ? _t(I18N_CATEGORY_MAP[
 function tLearnersCount(n) { return _t('waza.learners_count', `${n}匹`).replace('{n}', n); }
 // 技の効果説明の表示: ja=元のja(独自)、非ja=i18n moves[key].desc(翻訳済)。検索/解析は m.effect(ja)のまま
 function tEffect(m) { return (window.I18N && I18N.moveDesc) ? I18N.moveDesc(m.key, m.effect || '') : (m.effect || ''); }
+// 効果フィルタタグの表示翻訳: タグ文字列(ja)を現在言語へ。フィルタ判定はja文字列のまま使う(表示だけ翻訳)。
+let MOVE_TAG_TR = null;
+(function loadMoveTagTr() {
+  try {
+    fetch('i18n/move_tags_i18n.json').then(r => r.ok ? r.json() : null).then(d => {
+      if (d) { MOVE_TAG_TR = d; document.dispatchEvent(new CustomEvent('i18n:changed', { detail: { lang: (window.I18N && I18N.lang) || 'ja' } })); }
+    }).catch(() => {});
+  } catch (e) {}
+})();
+function tTagText(ja) {
+  const lang = (window.I18N && I18N.lang) || 'ja';
+  if (lang === 'ja' || !MOVE_TAG_TR || !MOVE_TAG_TR[lang]) return ja;
+  return MOVE_TAG_TR[lang][ja] || ja;
+}
 
 // 検索モード (OR デフォルト / AND オプション)
 let filterMode = 'OR';
@@ -954,7 +968,7 @@ function render() {
       })()}
       <!-- ★2026-06-18: col-cat 削除(subcategoryフィルタ廃止) -->
       <td class="col-effect effect-cell" data-key="${m.key}">${tEffect(m)}</td>
-      <td class="col-tags">${getMoveFilterTags(m).map(t => `<span class="mw-tag ${t.cls}">${t.text}</span>`).join('')}</td>
+      <td class="col-tags">${getMoveFilterTags(m).map(t => `<span class="mw-tag ${t.cls}">${tTagText(t.text)}</span>`).join('')}</td>
     `;
     tbody.appendChild(tr);
     visibleCount++;
@@ -2123,13 +2137,13 @@ const OLD_FILTER_TAGS = new Set([
     row.dataset.cat = cat;
     const label = document.createElement('span');
     label.className = 'newtag-cat-label';
-    label.textContent = CAT_LABEL[cat] + ':';
+    label.textContent = _t('waza.detailcat.' + cat, CAT_LABEL[cat]) + ':';
     row.appendChild(label);
     for (const [tag, count] of tags) {
       const chip = document.createElement('span');
       chip.className = 'new-tag-chip';
       chip.dataset.tag = tag;
-      chip.innerHTML = tag + '<span class="c">' + count + '</span>';
+      chip.innerHTML = tTagText(tag) + '<span class="c">' + count + '</span>';
       chip.addEventListener('click', () => {
         if (active.has(tag)) active.delete(tag); else active.add(tag);
         applyNewTags();
