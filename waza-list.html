@@ -301,9 +301,9 @@
   </div>
   <!-- ★2026-06-18: 詳細タグ検索(効果kindベース・自動生成・個別効果で狙い撃ち) -->
   <div class="ef-row ef-row-newtags">
-    <span class="ef-label" style="background:#2E7D32;color:#fff" data-i18n="waza.ef_label_new_tag">🏷 詳細タグ:</span>
+    <span class="ef-label ef-newtag-toggle" style="background:#2E7D32;color:#fff;cursor:pointer" onclick="toggleNewTags()" title="クリックで詳細タグを開閉" data-i18n-attr="title:waza.ef_newtag_toggle_tip"><span id="newTagArrow">▶</span> <span data-i18n="waza.ef_label_new_tag">🏷 詳細タグ:</span></span>
     <span style="font-size:11px;color:#7a8aa0;margin-left:6px" data-i18n="waza.ef_new_tag_hint">細かい効果で絞り込み(159件) ← 上の「クイック検索」より細かい単位。例: 30%まひ・自攻+1・天候(あめ)・壁(リフレクター) など個別指定。</span>
-    <div id="newTagChips" class="new-tag-chips"></div>
+    <div id="newTagChips" class="new-tag-chips" style="display:none"></div>
   </div>
 </div>
 <style>
@@ -476,6 +476,23 @@
   }
   document.addEventListener('i18n:ready', refreshAllI18nContent);
   document.addEventListener('i18n:changed', refreshAllI18nContent);
+
+  // ★詳細タグ(緑帯)の開閉: 既定は閉じてリストを見やすく。クリックで開閉(状態をlocalStorageに保存)
+  window.toggleNewTags = function(force){
+    const box = document.getElementById('newTagChips');
+    const arrow = document.getElementById('newTagArrow');
+    if (!box) return;
+    const open = (typeof force === 'boolean') ? force : (box.style.display === 'none');
+    box.style.display = open ? 'block' : 'none';
+    if (arrow) arrow.textContent = open ? '▼' : '▶';
+    try { localStorage.setItem('pchamdb.newtags.open', open ? '1' : '0'); } catch(e){}
+  };
+  // 初期状態の復元(既定=閉)。前回開いていたら開く。
+  document.addEventListener('DOMContentLoaded', function(){
+    let open = false;
+    try { open = localStorage.getItem('pchamdb.newtags.open') === '1'; } catch(e){}
+    if (open) window.toggleNewTags(true);
+  });
 </script>
 
 <footer class="site-footer">
