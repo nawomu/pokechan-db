@@ -1102,6 +1102,8 @@ body.hide-cls-特殊 .waza-cls-特殊 { display: none !important; }
 .cls-btn.on[data-cls="変化"] { background: #6C3483; color: #fff; }
 .cls-btn.on[data-cls="物理"] { background: #B03A2E; color: #fff; }
 .cls-btn.on[data-cls="特殊"] { background: #2874A6; color: #fff; }
+.fn-btn { background: rgba(120,120,120,0.35); }
+.fn-btn.on { background: #2E7D32; color: #fff; }
 
 /* わざ列データセル: 分類別 薄背景 + 黒文字 (○がホバー行でも見える) */
 tbody td.td-ch.waza-cls-変化 { background: #ECECEC !important; color: #111 !important; }
@@ -1253,6 +1255,10 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
   <button class="grp-btn cls-btn" data-cls="物理" data-i18n="db.cls_phys" style="font-size:11px;padding:2px 8px">物理</button>
   <button class="grp-btn cls-btn" data-cls="特殊" data-i18n="db.cls_spec" style="font-size:11px;padding:2px 8px">特殊</button>
   <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
+  <span class="grp-lbl" data-i18n="db.fn_group_label" title="その技を覚えるポケモンだけに絞り込み" data-i18n-attr="title:db.fn_group_label_tip">機能:</span>
+  <button class="grp-btn fn-btn" data-fn="recovery" onclick="toggleFnGroup('recovery')" data-i18n="db.fn_recovery" style="font-size:11px;padding:2px 8px">💚 回復技</button>
+  <button class="grp-btn fn-btn" data-fn="setup" onclick="toggleFnGroup('setup')" data-i18n="db.fn_setup" style="font-size:11px;padding:2px 8px">📈 積み技</button>
+  <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
   <span class="grp-lbl" data-i18n="db.filter_label">絞込:</span>
   <div id="tychips-sel" style="display:inline-block"></div>
   <button class="tc-clr" onclick="clearSelTy()">✕</button>
@@ -1332,6 +1338,29 @@ const WAZA_MASTER = (function () {
   }
   return out;
 })();
+
+// ★機能グループ(2026-06-23 G): 回復技/積み技 を1つ以上覚えるポケモン名の集合。WAZA_MAP.learners基準。
+const FN_GROUP_SETS = (function () {
+  const recovery = new Set(), setup = new Set();
+  for (const k in WAZA_MAP) {
+    const m = WAZA_MAP[k], bd = m.battle_data || {}, eff = bd.effects || [], lr = m.learners || [];
+    // 回復技: HP回復(天候/毎ターン等) or ダメージ回復(ドレイン) or 回復/いたみわけ effect
+    const isRecovery = (bd.recovery && bd.recovery !== 'status_only') || !!bd.drain
+      || eff.some(e => e.kind === '回復' || e.kind === 'いたみわけ');
+    // 積み技: 自分の能力ランクが上がる(剣の舞/竜の舞/蝶の舞 等)
+    const isSetup = (bd.rank_changes || []).some(r => r.target === 'self' && r.delta > 0)
+      || eff.some(e => e.kind === '能力ランク変化' && (e.target === 'self' || e.target === 'user') && ((e.stages || 0) > 0 || e.to_max));
+    if (isRecovery) lr.forEach(n => recovery.add(n));
+    if (isSetup) lr.forEach(n => setup.add(n));
+  }
+  return { recovery, setup };
+})();
+let fnGroups = new Set();  // 選択中の機能グループ(AND絞り込み)
+function toggleFnGroup(g) {
+  if (fnGroups.has(g)) fnGroups.delete(g); else fnGroups.add(g);
+  document.querySelectorAll('.fn-btn').forEach(b => b.classList.toggle('on', fnGroups.has(b.dataset.fn)));
+  if (typeof applyF === 'function') applyF();  // 行を再絞り込み
+}
 
 
 // ============================================================
@@ -3223,6 +3252,11 @@ function applyF() {
         const ts = new Set([p.type1, p.type2].filter(Boolean));
         return ![...excludeTypes].some(t => ts.has(t));
       });
+    }
+    // ★機能グループ絞り込み(回復技/積み技 を覚えるポケモンのみ。複数選択はAND)
+    if (fnGroups.size > 0) {
+      const sets = [...fnGroups].map(g => FN_GROUP_SETS[g]).filter(Boolean);
+      d = d.filter(p => sets.every(s => s.has(p.name)));
     }
     return d;
   };
