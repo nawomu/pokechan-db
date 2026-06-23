@@ -879,6 +879,14 @@ const tItemName    = ja => (window.I18N && window.I18N.item) ? window.I18N.item(
 const tItemDesc    = (ja, fb) => ((window.I18N && window.I18N.itemDesc && window.I18N.itemDesc(ja)) || fb || '');
 const tAbilityName = ja => (window.I18N && window.I18N.ability) ? window.I18N.ability(ja) : ja;
 const tTypeName    = ja => (window.I18N && window.I18N.type) ? window.I18N.type(ja) : ja;
+const tMoveDesc    = m  => (window.I18N && window.I18N.moveDesc && m) ? window.I18N.moveDesc(m.key, m.description||'') : (m ? (m.description||'') : '');
+// 分類(物理/特殊/変化)の表示語。値(=CSSクラス/検索キー)は ja のまま、表示文字列だけ翻訳
+const CAT_I18N_KEY = {'物理':'common.cat_phys','特殊':'common.cat_spec','変化':'common.cat_stat'};
+const tCatLabel    = ja => (window.I18N && window.I18N.t) ? window.I18N.t(CAT_I18N_KEY[ja]||'', ja) : ja;
+// 能力名の表示語。STAT_LABELS のキー(atk/def/spatk/spdef/spd/hp) → common.stat_* (hp は共有語彙なしのため ja のまま)
+const STAT_I18N_KEY = {atk:'common.stat_atk',def:'common.stat_def',spatk:'common.stat_spa',spdef:'common.stat_spd',spd:'common.stat_spe'};
+const tStatLabel   = k  => (window.I18N && window.I18N.t && STAT_I18N_KEY[k]) ? window.I18N.t(STAT_I18N_KEY[k], STAT_LABELS[k]) : (STAT_LABELS[k]||k);
+const tNatureName  = ja => (window.I18N && window.I18N.nature) ? window.I18N.nature(ja) : ja;
 
 // =========================================================================
 // 定数
@@ -1889,7 +1897,7 @@ function render(side){
     ].filter(Boolean).join(' ');
 
     return `<div class="${rowCls}" data-key="${k}">
-      <div class="stat-key"><b class="stat-letter">${STAT_LETTER[k]}</b><span class="stat-jp">${STAT_LABELS[k]}</span></div>
+      <div class="stat-key"><b class="stat-letter">${STAT_LETTER[k]}</b><span class="stat-jp">${tStatLabel(k)}</span></div>
       <div class="stat-actual">${st.poke ? real : '—'}</div>
       <button type="button" class="stat-min" data-key="${k}" ${!canDec?'disabled':''} title="ミニマム (0)">${I18N.t('sim.stat_min_btn','MIN')}</button>
       <button type="button" class="stat-dec" data-key="${k}" ${!canDec?'disabled':''} title="-1">◀</button>
@@ -1942,8 +1950,8 @@ function renderMoves(root, st){
     const head = `
       <div class="move-head">
         <span class="m-type t-${m.type}">${tTypeName(m.type)}</span>
-        <span class="m-name" title="${m.description||''}">${tMoveName(m)}</span>
-        <span class="m-cat ${m.category}">${m.category}</span>
+        <span class="m-name" title="${tMoveDesc(m)}">${tMoveName(m)}</span>
+        <span class="m-cat ${m.category}">${tCatLabel(m.category)}</span>
         <span class="m-pow">${pow}</span>
         <span class="m-acc">${acc}</span>
         <button class="m-attack-btn" data-action="attack" data-move-idx="${idx}" ${canAttack ? '' : 'disabled'}>⚔ 実行</button>
@@ -2207,8 +2215,8 @@ function initNatureSelects(){
     NATURES_ARR.forEach(([name,up,down],idx)=>{
       const opt = document.createElement('option');
       opt.value = idx;
-      const tag = up === '—' ? '' : ` (${STAT_LABELS[up]}↑/${STAT_LABELS[down]}↓)`;
-      opt.textContent = name + tag;
+      const tag = up === '—' ? '' : ` (${tStatLabel(up)}↑/${tStatLabel(down)}↓)`;
+      opt.textContent = tNatureName(name) + tag;
       sel.appendChild(opt);
     });
     sel.value = sides[side].natureIdx;
@@ -2638,7 +2646,7 @@ function renderHandoffBar(){
     chip.innerHTML = `
       <div class="hf-chip-name">${tPokeName(p.name)}${poke ? '' : ' ⚠️'}</div>
       <div class="hf-chip-types">${types.map(t=>`<span class="t-badge t-${t}">${tTypeName(t)}</span>`).join('')}</div>
-      <div class="hf-chip-meta">${p.nature || 'まじめ'} / 技${moveCount}</div>
+      <div class="hf-chip-meta">${tNatureName(p.nature || 'まじめ')} / 技${moveCount}</div>
       <div class="hf-chip-btns">
         <button class="hf-self" data-side="self">${I18N.t('sim.handoff_chip_self_btn','▶ 自分')}</button>
         <button class="hf-opp" data-side="opp">${I18N.t('sim.handoff_chip_opp_btn','相手 ◀')}</button>

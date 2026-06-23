@@ -991,6 +991,15 @@ const tMoveName = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.k
 const tItemName = it => (window.I18N && window.I18N.item && it) ? window.I18N.item(it.name) : (it && it.name) || '';
 const tAbilName = a  => (window.I18N && window.I18N.ability && a) ? window.I18N.ability(a) : a;
 const tTypeName = t  => (window.I18N && window.I18N.type && t) ? window.I18N.type(t) : t;
+// 分類(物理/特殊/変化)の表示語のみ多言語化。CSSクラスの値(物理/特殊/変化)はそのまま残す。
+const _CAT_KEY = {'物理':'common.cat_phys','特殊':'common.cat_spec','変化':'common.cat_stat'};
+const tCatName = v => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[v] || '', v) : v;
+// 能力名(STAT_LABELS の内部キー)→ 共有語彙キー
+const _STAT_KEY = {atk:'common.stat_atk', def:'common.stat_def', spatk:'common.stat_spa', spdef:'common.stat_spd', spd:'common.stat_spe'};
+const tStatLabel = k => (window.I18N && window.I18N.t && _STAT_KEY[k]) ? window.I18N.t(_STAT_KEY[k], STAT_LABELS[k]) : (STAT_LABELS[k] || k);
+// 状態異常の表示バッジ → 共有語彙キー(該当ある分のみ)
+const _STATUS_KEY = {やけど:'common.status_burn', まひ:'common.status_paralysis', どく:'common.status_poison', もうどく:'common.status_toxic', ねむり:'common.status_sleep', こおり:'common.status_freeze', こんらん:'common.status_confusion', メロメロ:'common.status_infatuation'};
+const tStatusBadge = ja => (window.I18N && window.I18N.t && _STATUS_KEY[ja]) ? window.I18N.t(_STATUS_KEY[ja], ja) : ja;
 
 // =========================================================================
 // 定数
@@ -6248,7 +6257,7 @@ function render(side){
     ].filter(Boolean).join(' ');
 
     return `<div class="${rowCls}" data-key="${k}">
-      <div class="stat-key"><b class="stat-letter">${STAT_LETTER[k]}</b><span class="stat-jp">${STAT_LABELS[k]}</span></div>
+      <div class="stat-key"><b class="stat-letter">${STAT_LETTER[k]}</b><span class="stat-jp">${esch(tStatLabel(k))}</span></div>
       <div class="stat-actual">${st.poke ? real : '—'}</div>
       <button type="button" class="stat-min" data-key="${k}" ${!canDec?'disabled':''} title="${window.I18N ? I18N.t('real_battle.stat_min_title','ミニマム (0)') : 'ミニマム (0)'}">MIN</button>
       <button type="button" class="stat-dec" data-key="${k}" ${!canDec?'disabled':''} title="-1">◀</button>
@@ -6305,7 +6314,7 @@ function renderBench(root, side){
     const max = realStat(e, 'hp');
     const hp = e.currentHp == null ? max : e.currentHp;
     const dead = e.fainted || hp <= 0;
-    const stLabel = (e.status && e.status !== 'none') ? `・${_STATUS_JA[e.status] || e.status}` : '';
+    const stLabel = (e.status && e.status !== 'none') ? `・${tStatusBadge(_STATUS_JA[e.status] || e.status)}` : '';
     html += `<div class="bench-slot${dead ? ' fainted' : ''}">
       <span class="b-name b-pick" data-bench-edit="${i}" title="${window.I18N ? I18N.t('real_battle.bench_edit_title','クリックでこの控え枠のポケモンを選び直す') : 'クリックでこの控え枠のポケモンを選び直す'}">${tPokeName(e.poke.name)} ▾</span>
       <span class="b-hp">${dead ? (window.I18N ? I18N.t('real_battle.bench_fainted','ひんし') : 'ひんし') : `HP ${hp}/${max}${stLabel}`}</span>
@@ -6436,7 +6445,7 @@ function renderMoves(root, st){
     const acc = (m.accuracy == null || m.accuracy === 0 || m.accuracy === '—') ? (window.I18N ? I18N.t('real_battle.move_accuracy_always','必中') : '必中') : m.accuracy;
     const pow = (m.power == null || m.power === 0 || m.power === '—') ? '—' : m.power;
     const pp  = (m.pp == null) ? '—' : m.pp;
-    const desc = m.description || m.description_legacy || '';
+    const desc = (window.I18N && window.I18N.moveDesc) ? window.I18N.moveDesc(m.key, m.description || m.description_legacy || '') : (m.description || m.description_legacy || '');
     const full = m.description_legacy || m.description || '';
     const result = getDmg(m);
     const mini = oppReady ? dmgMiniHtml(result) : '';
@@ -6444,7 +6453,7 @@ function renderMoves(root, st){
       <div class="move-head" style="display:flex;gap:8px;align-items:center;white-space:nowrap">
         <span class="m-type t-${m.type}">${esch(tTypeName(m.type))}</span>
         <span class="m-name" style="flex:0 0 auto">${esch(tMoveName(m))}</span>
-        <span class="m-cat ${m.category}">${m.category}</span>
+        <span class="m-cat ${m.category}">${esch(tCatName(m.category))}</span>
         <span style="flex:0 0 auto;color:#8b949e;font-size:10px">${window.I18N ? I18N.t('real_battle.move_pow_label','威力') : '威力'}<b style="color:#c9d1d9">${pow}</b> ${window.I18N ? I18N.t('real_battle.move_acc_label','命中') : '命中'}<b style="color:#c9d1d9">${acc}</b> ${window.I18N ? I18N.t('real_battle.move_pp_label','PP') : 'PP'}<b style="color:#c9d1d9">${pp}</b></span>
         ${(mini && !sel) ? `<span style="flex:0 0 auto">${mini}</span>` : ''}
         <span style="flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;color:#7d8590;font-size:10.5px">${esch(desc)}</span>
@@ -6680,8 +6689,8 @@ function initNatureSelects(){
     NATURE_LIST.forEach(([name,up,down],idx)=>{
       const opt = document.createElement('option');
       opt.value = idx;
-      const tag = up === '—' ? '' : ` (${STAT_LABELS[up]}↑/${STAT_LABELS[down]}↓)`;
-      opt.textContent = name + tag;
+      const tag = up === '—' ? '' : ` (${tStatLabel(up)}↑/${tStatLabel(down)}↓)`;
+      opt.textContent = ((window.I18N && window.I18N.nature) ? window.I18N.nature(name) : name) + tag;
       sel.appendChild(opt);
     });
     sel.value = sides[side].natureIdx;
@@ -7061,7 +7070,7 @@ function renderStage(){
     el.querySelector('.mon-hptext').textContent = st.fainted ? (window.I18N ? I18N.t('real_battle.stage_hp_fainted','ひんし') : 'ひんし') : `${hp} / ${max}`;
     el.querySelector('.mon-badges').innerHTML = st.fainted
       ? `<span class="bdg fainted">${window.I18N ? I18N.t('real_battle.stage_fainted_badge','ひんし') : 'ひんし'}</span>`
-      : _stageBadges(st).map(x => `<span class="bdg ${x.c || ''} new">${x.t}</span>`).join('');
+      : _stageBadges(st).map(x => `<span class="bdg ${x.c || ''} new">${tStatusBadge(x.t)}</span>`).join('');
   });
   animateStageFromLog();
 }

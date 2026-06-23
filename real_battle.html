@@ -234,6 +234,9 @@ const tPokeName = nm => (window.I18N && window.I18N.pokemon) ? window.I18N.pokem
 const tMoveName = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.key, m.name) : m.name;
 const tItemName = it => (window.I18N && window.I18N.item) ? window.I18N.item(it.name) : it.name;
 const tTypeName = ty => (window.I18N && window.I18N.type) ? window.I18N.type(ty) : ty;
+// 技の分類(物理/特殊/変化)の表示語。値はマスターのまま保持し、表示時だけ共有語彙キーで翻訳。
+const _CAT_KEY = {'物理':'common.cat_phys', '特殊':'common.cat_spec', '変化':'common.cat_stat'};
+const tCatName = c => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[c] || '', c) : c;
 
 document.getElementById('engine-frame').addEventListener('load', () => {
   const w = $('engine-frame').contentWindow;
@@ -397,7 +400,7 @@ function renderMovePickList(query){
   const hits = k ? all.filter(m => m.name.includes(k) || m.name.includes(query.trim())) : all;
   $('mp-list').innerHTML = hits.slice(0, 80).map(m =>
     `<button data-n="${m.name}"><span style="color:${tc[m.type] || '#9fb4d8'};font-weight:700">[${tTypeName(m.type)}]</span>
-     ${tMoveName(m)} <span style="color:#8b94a7">${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'} / ${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'} / ${m.category} / ${I18N.t('real_battle.move_pp_label','PP')}${m.pp ?? '—'}</span></button>`
+     ${tMoveName(m)} <span style="color:#8b94a7">${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'} / ${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'} / ${tCatName(m.category)} / ${I18N.t('real_battle.move_pp_label','PP')}${m.pp ?? '—'}</span></button>`
   ).join('') || `<div style="color:#8b94a7;padding:8px">${I18N.t('real_battle.move_not_found','みつからない…')}</div>`;
   $('mp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
@@ -575,10 +578,12 @@ function renderAll(){
     setHpBar(side, hp, max);
     // 状態バッジ(最小限: 状態異常+こんらん+みがわり)
     const sj = S.statusJa();
+    const _STBADGE_KEY = {burn:'common.status_burn', paralysis:'common.status_paralysis', poison:'common.status_poison',
+      badpoison:'common.status_toxic', sleep:'common.status_sleep', freeze:'common.status_freeze'};
     const b = [];
-    if (sj[st.status]) b.push(sj[st.status]);
-    if (st.confusion > 0) b.push('こんらん');
-    if (st.attracted) b.push('💕メロメロ');
+    if (sj[st.status]) b.push(I18N.t(_STBADGE_KEY[st.status] || '', sj[st.status]));
+    if (st.confusion > 0) b.push(I18N.t('common.status_confusion', 'こんらん'));
+    if (st.attracted) b.push('💕' + I18N.t('common.status_infatuation', 'メロメロ'));
     if (st.subHp > 0) b.push('みがわり');
     pb.querySelector('.sts').innerHTML = b.map(x => `<span class="bdg">${x}</span>`).join('');
     // 残りポケモン(モンスターボール表示)
@@ -651,7 +656,7 @@ function showMoves(){
     ? `<button data-i="0"><span class="mv-name">${I18N.t('real_battle.move_last_resort','わるあがき')}</span><div class="mv-sub">${I18N.t('real_battle.move_last_resort_desc','PPが ぜんぶ なくなった！ 威力50 / 反動あり')}</div></button>`
     : st.moves.map((m, i) => `
     <button data-i="${i}" ${(ppOf(i) != null && ppOf(i) <= 0) || (lockName && m.name !== lockName) ? 'disabled' : ''}><span class="mv-name"><span class="t-pill" style="background:${tc[m.type] || '#3a4660'}">${tTypeName(m.type)}</span>${tMoveName(m)}${lockName === m.name ? ' 🔒' : ''}</span>
-    <div class="mv-sub">${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'} / ${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'} / ${m.category}${ppOf(i) != null ? ` / ${I18N.t('real_battle.move_pp_label','PP')} ${ppOf(i)}/${m.pp || 0}` : ''}${lockName && m.name !== lockName ? ` / ${I18N.t('real_battle.move_stubbornlock_note','こだわり中')}` : ''}</div></button>`).join(''))
+    <div class="mv-sub">${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'} / ${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'} / ${tCatName(m.category)}${ppOf(i) != null ? ` / ${I18N.t('real_battle.move_pp_label','PP')} ${ppOf(i)}/${m.pp || 0}` : ''}${lockName && m.name !== lockName ? ` / ${I18N.t('real_battle.move_stubbornlock_note','こだわり中')}` : ''}</div></button>`).join(''))
     + `<button class="back">${I18N.t('real_battle.move_back_button','← もどる')}</button>`;
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
