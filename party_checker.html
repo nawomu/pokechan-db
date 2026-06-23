@@ -917,6 +917,7 @@ const tDisp = t => {
 
 // ── 技名・持ち物名の表示用 (SSOT表示原則: マスターDBから現在言語へ。検索/キー用の内部ja名は変えない) ──
 const tMoveName  = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.key, m.name) : m.name;
+const tMoveDesc  = m  => ((window.I18N && window.I18N.moveDesc && window.I18N.moveDesc(m.key, m.description)) || m.description || '');
 const tItemName  = it => (window.I18N && window.I18N.item) ? window.I18N.item(it.name) : it.name;
 const tItemEffect= it => ((window.I18N && window.I18N.itemDesc && window.I18N.itemDesc(it.name)) || it.effect || '');
 
@@ -1994,7 +1995,7 @@ function catShortChar(cat) {
 function wazaItemTableHtml(m) {
   // テーブルセル内は技名のみ、分類は文字色で示す (物=橙 / 特=青 / 変=灰)
   // 詳細はホバー(title)とモーダルで確認
-  const descTip = (m.description || "").replace(/"/g, '&quot;');
+  const descTip = (tMoveDesc(m) || "").replace(/"/g, '&quot;');  // 表示は現在言語(内部解析はja)
   const catCls  = catClass(m.category);  // phys / spec / stat
   return `<div class="waza-item" title="${descTip}">
     <span class="w-name wn-${catCls}">${tMoveName(m)}</span>
@@ -2007,12 +2008,13 @@ function wazaItemModalHtml(m) {
   const accuracy = m.accuracy != null ? m.accuracy : "—";
   const pp       = m.pp       != null ? m.pp       : "—";
   const contact  = m.contact === true ? "●" : (m.contact === false ? "○" : "—");
-  const desc     = (m.description || "").trim();
-  const descTip  = desc.replace(/"/g, '&quot;');
-  const pri      = extractPriority(desc);
+  const desc     = (m.description || "").trim();          // ja: 優先度解析/検索用(内部)
+  const descDisp = (tMoveDesc(m) || "").trim();           // 表示用(現在言語)
+  const descTip  = descDisp.replace(/"/g, '&quot;');
+  const pri      = extractPriority(desc);                 // 解析は必ずjaで
   const priStr   = pri > 0 ? `+${pri}` : `${pri}`;
   const priCls   = pri > 0 ? "w-pri pri-pos" : pri < 0 ? "w-pri pri-neg" : "w-pri pri-zero";
-  const descAttr = desc.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const descAttr = desc.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');  // data-desc=ja(検索/フィルタ)
   return `<div class="waza-row" data-desc="${descAttr}">
     <span class="w-name">${tMoveName(m)}</span>
     <span class="w-type" style="background:${TYPE_COLORS[m.type]}">${tDisp(m.type)}</span>
@@ -2022,7 +2024,7 @@ function wazaItemModalHtml(m) {
     <span class="w-pp">PP${pp}</span>
     <span class="w-contact">接${contact}</span>
     <span class="${priCls}">${priStr}</span>
-    <span class="w-desc-inline">${desc}</span>
+    <span class="w-desc-inline">${descDisp}</span>
   </div>`;
 }
 
