@@ -7196,7 +7196,8 @@ function renderPokeList(q){
   const list = document.getElementById('poke-list');
   list.innerHTML = '';
   const ql = toKata(q.trim().toLowerCase());
-  const filtered = TEST_POKEMON.concat(POKEMON_LIST).filter(p=>{   // ダミーは先頭に表示
+  const _devDummies = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname) ? TEST_POKEMON : [];  // ★ダミーは開発(localhost)時のみ。本番では出さない(2026-06-24)
+  const filtered = _devDummies.concat(POKEMON_LIST).filter(p=>{   // ダミーは開発時のみ先頭に表示
     if (!ql) return true;
     const label = toKata((p.name + (p.form && p.form !== '通常' ? p.form : '')).toLowerCase());
     return label.includes(ql);
@@ -7409,13 +7410,12 @@ function registerTestPokemon(){
   });
 }
 
-// 起動時のデフォルト編成(リロードのたびに選び直さずテストできるように)。
-// 希望のポケモン・技をセット。技は希望名→無ければ威力上位で4枠を埋める(データ欠けに強い)。
-// テスト用ダミー同士(みず vs みず=無効タイプなし)で、リロード直後からテストを回せる。
-// 控えもテスト用(ノーマル/ゴースト)をデフォルトでセット=交代・設置技・死に出しをすぐ試せる(2026-06-11 阿部さん)。
+// 起動時のデフォルト編成。希望のポケモン・技をセット。技は希望名→無ければ威力上位で4枠を埋める(データ欠けに強い)。
+// ★2026-06-24 阿部さん: 既定の手持ちをテスト用ダミーから実在ポケモンに変更(本番の第一印象=ダミーが出ないように)。
+//   定番のカントー御三家+人気枠で、交代・死に出しも試せるよう控え2体ずつ。ダミーは localhost(開発時)のみピッカーに表示。
 const DEFAULT_SETUP = {
-  self: { name: 'テスト(みず)', moves: ['たいあたり'], bench: ['テスト(ノーマル)', 'テスト(ゴースト)'] },
-  opp:  { name: 'テスト(みず)', moves: ['たいあたり'], bench: ['テスト(ノーマル)', 'テスト(ゴースト)'] },
+  self: { name: 'リザードン', moves: ['かえんほうしゃ'], bench: ['カイリュー', 'ゲンガー'] },
+  opp:  { name: 'カメックス', moves: ['ハイドロポンプ'], bench: ['フシギバナ', 'ピカチュウ'] },
 };
 function applyDefaultSetup(){
   if (typeof WAZA_MAP === 'undefined') return;
