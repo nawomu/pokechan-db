@@ -229,6 +229,12 @@ let gameOver = false;
 
 const $ = id => document.getElementById(id);
 
+// I18N 表示ヘルパー(マスターDBの固有名詞は直書きせずDB辞書から描画。jaや未登録はjaにフォールバック)
+const tPokeName = nm => (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(nm) : nm;
+const tMoveName = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.key, m.name) : m.name;
+const tItemName = it => (window.I18N && window.I18N.item) ? window.I18N.item(it.name) : it.name;
+const tTypeName = ty => (window.I18N && window.I18N.type) ? window.I18N.type(ty) : ty;
+
 document.getElementById('engine-frame').addEventListener('load', () => {
   const w = $('engine-frame').contentWindow;
   const wait = setInterval(() => {
@@ -278,7 +284,7 @@ function setSlot(id, name, keepCustom){
   if (!keepCustom || !slotGender[id]) slotGender[id] = genderOfRB(name);   // 性別(ビルダー由来は復元側でセット)
   if (!keepCustom){ slotNature[id] = 'まじめ'; slotEffort[id] = ZERO_EV(); }   // 手動選択は無補正・努力値0
   const enc = encodeURIComponent(name);
-  $(id).innerHTML = `<img src="images/sim/${enc}.svg" alt="" onerror="this.remove()"><span>${name}</span>`;
+  $(id).innerHTML = `<img src="images/sim/${enc}.svg" alt="" onerror="this.remove()"><span>${tPokeName(name)}</span>`;
   renderDetailSetup();
   saveTeam();
 }
@@ -357,11 +363,11 @@ function renderDetailSetup(){
     const mvs = slotMoves[id] || [];
     const chips = [0,1,2,3].map(i => {
       const m = mvs[i];
-      return `<button class="mv-chip" data-slot="${id}" data-i="${i}" title="${m ? m.name : I18N.t('real_battle.move_slot_empty_title','わざを えらぶ')}"
-        style="${m ? `border-left:4px solid ${tc[m.type] || '#3a4660'}` : ''}">${m ? m.name : '—'}</button>`;
+      return `<button class="mv-chip" data-slot="${id}" data-i="${i}" title="${m ? tMoveName(m) : I18N.t('real_battle.move_slot_empty_title','わざを えらぶ')}"
+        style="${m ? `border-left:4px solid ${tc[m.type] || '#3a4660'}` : ''}">${m ? tMoveName(m) : '—'}</button>`;
     }).join('');
-    const opts = items.map(it => `<option value="${it.key}" ${slotItem[id] === it.key ? 'selected' : ''} title="${it.effect || ''}">${it.name}</option>`).join('');
-    return `<div class="ds-row"><span class="ds-name"><img src="images/sim/${encodeURIComponent(nm)}.svg" onerror="this.remove()">${id.startsWith('s') ? '🟢' : '🔴'}${nm}</span>
+    const opts = items.map(it => `<option value="${it.key}" ${slotItem[id] === it.key ? 'selected' : ''} title="${it.effect || ''}">${tItemName(it)}</option>`).join('');
+    return `<div class="ds-row"><span class="ds-name"><img src="images/sim/${encodeURIComponent(nm)}.svg" onerror="this.remove()">${id.startsWith('s') ? '🟢' : '🔴'}${tPokeName(nm)}</span>
       ${chips}<select data-item="${id}"><option value="">${I18N.t('real_battle.item_none_option','もちもの なし')}</option>${opts}</select></div>`;
   }).join('');
   box.querySelectorAll('.mv-chip').forEach(b => b.addEventListener('click', () => {
@@ -390,8 +396,8 @@ function renderMovePickList(query){
   const k = toKata(query.trim());
   const hits = k ? all.filter(m => m.name.includes(k) || m.name.includes(query.trim())) : all;
   $('mp-list').innerHTML = hits.slice(0, 80).map(m =>
-    `<button data-n="${m.name}"><span style="color:${tc[m.type] || '#9fb4d8'};font-weight:700">[${m.type}]</span>
-     ${m.name} <span style="color:#8b94a7">${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'} / ${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'} / ${m.category} / ${I18N.t('real_battle.move_pp_label','PP')}${m.pp ?? '—'}</span></button>`
+    `<button data-n="${m.name}"><span style="color:${tc[m.type] || '#9fb4d8'};font-weight:700">[${tTypeName(m.type)}]</span>
+     ${tMoveName(m)} <span style="color:#8b94a7">${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'} / ${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'} / ${m.category} / ${I18N.t('real_battle.move_pp_label','PP')}${m.pp ?? '—'}</span></button>`
   ).join('') || `<div style="color:#8b94a7;padding:8px">${I18N.t('real_battle.move_not_found','みつからない…')}</div>`;
   $('mp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
@@ -423,7 +429,7 @@ function renderPickerList(query){
   const hits = k ? pokes.filter(p => p.name.includes(k) || p.name.includes(query.trim())) : pokes;
   $('pp-list').innerHTML = hits.slice(0, 120).map(p => {
     const enc = encodeURIComponent(p.name);
-    return `<button data-n="${p.name}"><img loading="lazy" src="images/sim/${enc}.svg" onerror="this.remove()">${p.name}</button>`;
+    return `<button data-n="${p.name}"><img loading="lazy" src="images/sim/${enc}.svg" onerror="this.remove()">${tPokeName(p.name)}</button>`;
   }).join('') || `<div style="color:#8b94a7;padding:10px">${I18N.t('real_battle.poke_not_found','みつからない…')}</div>`;
   $('pp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
@@ -540,7 +546,7 @@ function startBattle(){
   renderAll();
   setWeatherFx(null);
   bgmStart();
-  say([`${I18N.t('real_battle.battle_start_msg1','バトルスタート！ いけっ！')} ${S.sides.self.poke.name}！`, `相手は ${S.sides.opp.poke.name} ${I18N.t('real_battle.battle_start_msg2','を くりだした！')}`], () => showCmd(true));
+  say([`${I18N.t('real_battle.battle_start_msg1','バトルスタート！ いけっ！')} ${tPokeName(S.sides.self.poke.name)}！`, `相手は ${tPokeName(S.sides.opp.poke.name)} ${I18N.t('real_battle.battle_start_msg2','を くりだした！')}`], () => showCmd(true));
 }
 
 // ===== 描画 =====
@@ -563,7 +569,7 @@ function renderAll(){
     const shown = st.illusionAs || st.poke;   // イリュージョン(段138): 化けている姿を表示
     f.querySelector('.sprite').innerHTML = spriteHtml(shown);
     const _g = (!st.illusionAs && st.gender && st.gender !== '—') ? ' ' + st.gender : '';   // 性別記号(化け中は出さない)
-    pb.querySelector('.nm').innerHTML = shown.name + (_g ? `<span style="color:${st.gender === '♂' ? '#7db0ff' : '#ff9ec4'};font-weight:900">${_g}</span>` : '');
+    pb.querySelector('.nm').innerHTML = tPokeName(shown.name) + (_g ? `<span style="color:${st.gender === '♂' ? '#7db0ff' : '#ff9ec4'};font-weight:900">${_g}</span>` : '');
     const max = S.realStat(st, 'hp') || 1;
     const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
     setHpBar(side, hp, max);
@@ -644,7 +650,7 @@ function showMoves(){
   mv.innerHTML = (allOut
     ? `<button data-i="0"><span class="mv-name">${I18N.t('real_battle.move_last_resort','わるあがき')}</span><div class="mv-sub">${I18N.t('real_battle.move_last_resort_desc','PPが ぜんぶ なくなった！ 威力50 / 反動あり')}</div></button>`
     : st.moves.map((m, i) => `
-    <button data-i="${i}" ${(ppOf(i) != null && ppOf(i) <= 0) || (lockName && m.name !== lockName) ? 'disabled' : ''}><span class="mv-name"><span class="t-pill" style="background:${tc[m.type] || '#3a4660'}">${m.type}</span>${m.name}${lockName === m.name ? ' 🔒' : ''}</span>
+    <button data-i="${i}" ${(ppOf(i) != null && ppOf(i) <= 0) || (lockName && m.name !== lockName) ? 'disabled' : ''}><span class="mv-name"><span class="t-pill" style="background:${tc[m.type] || '#3a4660'}">${tTypeName(m.type)}</span>${tMoveName(m)}${lockName === m.name ? ' 🔒' : ''}</span>
     <div class="mv-sub">${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'} / ${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'} / ${m.category}${ppOf(i) != null ? ` / ${I18N.t('real_battle.move_pp_label','PP')} ${ppOf(i)}/${m.pp || 0}` : ''}${lockName && m.name !== lockName ? ` / ${I18N.t('real_battle.move_stubbornlock_note','こだわり中')}` : ''}</div></button>`).join(''))
     + `<button class="back">${I18N.t('real_battle.move_back_button','← もどる')}</button>`;
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
@@ -663,7 +669,7 @@ function showParty(forced){
     const max = S.realStat(e, 'hp');
     const hp = e.currentHp == null ? max : e.currentHp;
     const dead = e.fainted || hp <= 0;
-    return `<button data-i="${i}" ${dead ? 'disabled' : ''}>${e.poke.name}<div class="mv-sub">${dead ? I18N.t('real_battle.party_fainted','ひんし') : `HP ${hp}/${max}`}</div></button>`;
+    return `<button data-i="${i}" ${dead ? 'disabled' : ''}>${tPokeName(e.poke.name)}<div class="mv-sub">${dead ? I18N.t('real_battle.party_fainted','ひんし') : `HP ${hp}/${max}`}</div></button>`;
   }).join('') + (forced ? '' : `<button class="back">${I18N.t('real_battle.move_back_button','← もどる')}</button>`);
   pt.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
@@ -972,7 +978,7 @@ function endOfTurn(){
   }
   // 死に出し(自分側): エンジンが保留した交代先をプレイヤーが選ぶ(控え2匹以上の時だけ保留される)
   if (S.sides.self.fainted){
-    $('msgbox').firstChild.textContent = `${S.sides.self.poke.name} ${I18N.t('real_battle.faint_replace_prompt','は たおれてしまった… つぎのポケモンを えらんでね')}`;
+    $('msgbox').firstChild.textContent = `${tPokeName(S.sides.self.poke.name)} ${I18N.t('real_battle.faint_replace_prompt','は たおれてしまった… つぎのポケモンを えらんでね')}`;
     showParty(true);
     return;
   }

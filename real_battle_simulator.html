@@ -984,6 +984,15 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 'use strict';
 
 // =========================================================================
+// i18n 表示ヘルパー（SSOTマスター値→現在言語の表示文字列。lookup/内部キーは ja のまま）
+// =========================================================================
+const tPokeName = ja => (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(ja) : ja;
+const tMoveName = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.key, m.name) : (m && m.name) || '';
+const tItemName = it => (window.I18N && window.I18N.item && it) ? window.I18N.item(it.name) : (it && it.name) || '';
+const tAbilName = a  => (window.I18N && window.I18N.ability && a) ? window.I18N.ability(a) : a;
+const tTypeName = t  => (window.I18N && window.I18N.type && t) ? window.I18N.type(t) : t;
+
+// =========================================================================
 // 定数
 // =========================================================================
 const LEVEL = 50;
@@ -6148,13 +6157,13 @@ function render(side){
     nameEl.classList.add('empty');
     typesEl.innerHTML = '';
   } else {
-    nameEl.textContent = st.poke.name + (st.poke.form && st.poke.form !== '通常' ? '('+st.poke.form+')' : '');
+    nameEl.textContent = tPokeName(st.poke.name) + (st.poke.form && st.poke.form !== '通常' ? '('+st.poke.form+')' : '');
     nameEl.classList.remove('empty');
     typesEl.innerHTML = '';
     sideTypes(st).forEach(t=>{   // タイプ変化(みずびたし等)を反映した現在のタイプを表示
       const b = document.createElement('span');
-      b.className = 't-badge t-'+t;
-      b.textContent = t;
+      b.className = 't-badge t-'+t;   // CSSクラスは内部キー(ja)のまま
+      b.textContent = tTypeName(t);
       typesEl.appendChild(b);
     });
   }
@@ -6298,7 +6307,7 @@ function renderBench(root, side){
     const dead = e.fainted || hp <= 0;
     const stLabel = (e.status && e.status !== 'none') ? `・${_STATUS_JA[e.status] || e.status}` : '';
     html += `<div class="bench-slot${dead ? ' fainted' : ''}">
-      <span class="b-name b-pick" data-bench-edit="${i}" title="${window.I18N ? I18N.t('real_battle.bench_edit_title','クリックでこの控え枠のポケモンを選び直す') : 'クリックでこの控え枠のポケモンを選び直す'}">${e.poke.name} ▾</span>
+      <span class="b-name b-pick" data-bench-edit="${i}" title="${window.I18N ? I18N.t('real_battle.bench_edit_title','クリックでこの控え枠のポケモンを選び直す') : 'クリックでこの控え枠のポケモンを選び直す'}">${tPokeName(e.poke.name)} ▾</span>
       <span class="b-hp">${dead ? (window.I18N ? I18N.t('real_battle.bench_fainted','ひんし') : 'ひんし') : `HP ${hp}/${max}${stLabel}`}</span>
       <span class="b-btns">
         <button type="button" data-bench-switch="${i}" title="${window.I18N ? I18N.t('real_battle.bench_switch_title','交代してターン実行(交代は技より先・このターンは行動できない)') : '交代してターン実行(交代は技より先・このターンは行動できない)'}" ${dead || !st.poke ? 'disabled' : ''}>${window.I18N ? I18N.t('real_battle.bench_switch_btn','⚔ 交代') : '⚔ 交代'}</button>
@@ -6433,8 +6442,8 @@ function renderMoves(root, st){
     const mini = oppReady ? dmgMiniHtml(result) : '';
     return `<div class="move-row${sel?' selected':''}" data-move-idx="${idx}" data-name="${esch(m.name)}" data-cat="${m.category}" data-type="${m.type}" data-tip="${esch(full)}">
       <div class="move-head" style="display:flex;gap:8px;align-items:center;white-space:nowrap">
-        <span class="m-type t-${m.type}">${m.type}</span>
-        <span class="m-name" style="flex:0 0 auto">${esch(m.name)}</span>
+        <span class="m-type t-${m.type}">${esch(tTypeName(m.type))}</span>
+        <span class="m-name" style="flex:0 0 auto">${esch(tMoveName(m))}</span>
         <span class="m-cat ${m.category}">${m.category}</span>
         <span style="flex:0 0 auto;color:#8b949e;font-size:10px">${window.I18N ? I18N.t('real_battle.move_pow_label','威力') : '威力'}<b style="color:#c9d1d9">${pow}</b> ${window.I18N ? I18N.t('real_battle.move_acc_label','命中') : '命中'}<b style="color:#c9d1d9">${acc}</b> ${window.I18N ? I18N.t('real_battle.move_pp_label','PP') : 'PP'}<b style="color:#c9d1d9">${pp}</b></span>
         ${(mini && !sel) ? `<span style="flex:0 0 auto">${mini}</span>` : ''}
@@ -6492,8 +6501,9 @@ function renderAbilitySelect(root, st){
     opt.value = a;
     // 選択肢の行に説明を直接埋め込む(2026-06-12 阿部さん: 選ぶ画面で特性の説明も見たい)
     const _ad = a && typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[a] ? ABILITY_DESC[a] : '';
+    const _an = tAbilName(a);   // 特性名は I18N、説明文(_ad)は自由文のため未対応
     opt.textContent = !a ? '（なし）'
-      : _ad ? `${a}｜${_ad.length > 42 ? _ad.slice(0, 42) + '…' : _ad}` : a;
+      : _ad ? `${_an}｜${_ad.length > 42 ? _ad.slice(0, 42) + '…' : _ad}` : _an;
     opt.title = _ad;
     if (a === st.ability) opt.selected = true;
     sel.appendChild(opt);
@@ -6517,9 +6527,9 @@ function renderItemSelect(root, st){
   }
   const it = ITEM_BY_KEY[st.item];
   if (it){
-    pill.textContent = it.name;
+    pill.textContent = tItemName(it);
     pill.classList.remove('empty');
-    btn.title = it.effect || it.name;
+    btn.title = ((window.I18N && window.I18N.itemDesc && window.I18N.itemDesc(it.name)) || it.effect) || tItemName(it);
   } else {
     pill.textContent = window.I18N ? I18N.t('real_battle.item_unknown','（未知のアイテム）') : '（未知のアイテム）';
     pill.classList.add('empty');
@@ -6537,7 +6547,7 @@ function openItemModal(side){
   _itemModalSide = side;
   const st = sides[side];
   const titleEl = document.getElementById('item-modal-title');
-  const label = (st && st.poke) ? st.poke.name : (side === 'self' ? '自分側' : '相手側');
+  const label = (st && st.poke) ? tPokeName(st.poke.name) : (side === 'self' ? '自分側' : '相手側');
   if (titleEl) titleEl.textContent = `${label} の持ち物を選択`;
   _renderItemModalList(st ? (st.item || '') : '');
   document.getElementById('item-modal-ov').classList.add('vis');
@@ -6575,9 +6585,10 @@ function _renderItemModalList(selectedKey){
     html += `<div class="item-cat-head">${_escHtml(cats[cat]||cat)}</div>`;
     for (const it of catItems){
       const sel = (selectedKey === it.key) ? ' selected' : '';
+      const _idesc = ((window.I18N && window.I18N.itemDesc && window.I18N.itemDesc(it.name)) || it.effect) || '';
       html += `<div class="item-row${sel}" data-key="${_escHtml(it.key)}">
-        <span class="item-row-name">${_escHtml(it.name)}</span>
-        <span class="item-row-desc">${_escHtml(it.effect||'')}</span>
+        <span class="item-row-name">${_escHtml(tItemName(it))}</span>
+        <span class="item-row-desc">${_escHtml(_idesc)}</span>
       </div>`;
     }
   }
@@ -6652,8 +6663,8 @@ function appendTeRow(wrap, cls, label, types){
   row.innerHTML = `<span class="te-mult ${cls}">${label}</span>`;
   types.forEach(t=>{
     const b = document.createElement('span');
-    b.className = 't-badge t-'+t;
-    b.textContent = t;
+    b.className = 't-badge t-'+t;   // CSSクラスは内部キー(ja)のまま
+    b.textContent = tTypeName(t);
     row.appendChild(b);
   });
   wrap.appendChild(row);
@@ -7034,13 +7045,13 @@ function renderStage(){
       el.querySelector('.mon-badges').innerHTML = '';
       return;
     }
-    nameEl.textContent = st.poke.name;
+    nameEl.textContent = tPokeName(st.poke.name);
     const color = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[st.poke.type1]) || '#3a4660';
-    const _enc = encodeURIComponent(st.poke.name);
+    const _enc = encodeURIComponent(st.poke.name);   // 画像ファイル名は内部キー(ja)のまま
     art.innerHTML = `<img src="images/sim/${_enc}.svg" alt="" style="display:none"
         onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'"
         onerror="if(!this.dataset.png){this.dataset.png=1;this.src='images/sim/${_enc}.png';}else{this.remove();}">
-      <span class="mon-circle" style="background:${color}">${st.poke.type1 || '?'}</span>`;
+      <span class="mon-circle" style="background:${color}">${st.poke.type1 ? tTypeName(st.poke.type1) : '?'}</span>`;
     const max = realStat(st, 'hp') || 1;
     const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
     const pct = Math.max(0, Math.min(100, hp / max * 100));
@@ -7166,9 +7177,9 @@ function renderPokeList(q){
     item.className = 'm-item';
     const formTag = p.form && p.form !== '通常' ? `<span style="color:#8b949e;font-size:10px">(${p.form})</span>` : '';
     item.innerHTML = `
-      <span class="m-name">${p.name} ${formTag}</span>
+      <span class="m-name">${tPokeName(p.name)} ${formTag}</span>
       <span class="m-types">
-        ${[p.type1, p.type2].filter(Boolean).map(t=>`<span class="t-badge t-${t}">${t}</span>`).join('')}
+        ${[p.type1, p.type2].filter(Boolean).map(t=>`<span class="t-badge t-${t}">${tTypeName(t)}</span>`).join('')}
       </span>
     `;
     item.addEventListener('click', ()=>{
@@ -7292,8 +7303,8 @@ function renderHandoffBar(){
     const chip = document.createElement('div');
     chip.className = 'hf-chip';
     chip.innerHTML = `
-      <div class="hf-chip-name">${p.name}${poke ? '' : ' ⚠️'}</div>
-      <div class="hf-chip-types">${types.map(t=>`<span class="t-badge t-${t}">${t}</span>`).join('')}</div>
+      <div class="hf-chip-name">${tPokeName(p.name)}${poke ? '' : ' ⚠️'}</div>
+      <div class="hf-chip-types">${types.map(t=>`<span class="t-badge t-${t}">${tTypeName(t)}</span>`).join('')}</div>
       <div class="hf-chip-meta">${p.nature || 'まじめ'} / 技${moveCount}</div>
       <div class="hf-chip-btns">
         <button class="hf-self" data-side="self">${window.I18N ? I18N.t('real_battle.handoff_chip_self_btn','▶ 自分') : '▶ 自分'}</button>
@@ -7567,7 +7578,11 @@ function openMovePickerModal(side, slotIdx){
   }
   _movePickerSide = side;
   _movePickerSlot = slotIdx;
-  const pokeName = pokeFullName(st.poke);
+  const pokeName = pokeFullName(st.poke);   // URLパラメータ/lookup用は ja のまま
+  // 表示タイトル用: ポケモン名だけ I18N(form 接尾は方針未定のため ja のまま付与)
+  const pokeNameDisp = (st.poke.mega || !st.poke.form || st.poke.form === '通常')
+    ? tPokeName(st.poke.name)
+    : `${tPokeName(st.poke.name)}(${st.poke.form})`;
   // 現在セット済みの技 key を initial に渡してチェックを引き継ぐ
   const currentKeys = (st.moves || [])
     .map(m => m && m.key).filter(Boolean);
@@ -7581,8 +7596,8 @@ function openMovePickerModal(side, slotIdx){
   const title = document.getElementById('move-picker-title');
   const modal = document.getElementById('move-picker-modal');
   if (title) title.textContent = window.I18N
-    ? I18N.t('real_battle.move_picker_title_full','{side}側 {pokeName} — 技を選択 (複数可)').replace('{side}', side === 'self' ? I18N.t('real_battle.move_picker_side_self','自分') : I18N.t('real_battle.move_picker_side_opp','相手')).replace('{pokeName}', pokeName)
-    : `${side === 'self' ? '自分' : '相手'}側 ${pokeName} — 技を選択 (複数可)`;
+    ? I18N.t('real_battle.move_picker_title_full','{side}側 {pokeName} — 技を選択 (複数可)').replace('{side}', side === 'self' ? I18N.t('real_battle.move_picker_side_self','自分') : I18N.t('real_battle.move_picker_side_opp','相手')).replace('{pokeName}', pokeNameDisp)
+    : `${side === 'self' ? '自分' : '相手'}側 ${pokeNameDisp} — 技を選択 (複数可)`;
   if (iframe) iframe.src = url;
   if (modal) modal.classList.add('vis');
 }
