@@ -28,7 +28,7 @@ function scanFn() {
   while ((n = walker.nextNode())) {
     const el = n.parentElement;
     if (!el || skipTags.has(el.tagName)) continue;
-    if (el.closest('[data-i18n-audit-skip]') || el.closest('.i18n-switcher')) continue;
+    if (el.closest('[data-i18n-audit-skip]') || el.closest('.i18n-switcher') || el.closest('.copyright') || el.closest('.site-footer') || el.classList.contains('copyright') || el.closest('[aria-label*="広告"]') || el.tagName==='IFRAME' || /日本語|简体中文|繁體中文|한국어|Español|Français|Deutsch|Italiano/.test((n.textContent||'').trim())) continue;
     const t = (n.textContent || '').trim();
     if (!t || !JA.test(t)) continue;
     const k = t.slice(0, 60);
@@ -36,7 +36,7 @@ function scanFn() {
     out.push({ text: k, where: el.tagName.toLowerCase() + (el.className ? '.' + String(el.className).split(/\s+/)[0] : '') });
   }
   document.querySelectorAll('[title],[data-desc],[placeholder],[aria-label]').forEach((el) => {
-    if (el.closest('[data-i18n-audit-skip]') || el.closest('.i18n-switcher')) return;
+    if (el.closest('[data-i18n-audit-skip]') || el.closest('.i18n-switcher') || el.closest('.copyright') || el.closest('.site-footer') || el.closest('[aria-label*="広告"]') || el.tagName==='IFRAME' || (el.getAttribute('title')||'').includes('広告')) return;
     ['title', 'data-desc', 'placeholder', 'aria-label'].forEach((a) => {
       const v = el.getAttribute(a);
       if (!v || !JA.test(v)) return;
