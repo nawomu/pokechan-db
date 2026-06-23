@@ -1098,9 +1098,23 @@ inp.addEventListener('input', () => {
     r.style.display = !q || txt.includes(q) ? '' : 'none';
   }
 });
+// 入手列(td.acq)の合成編集文を表示翻訳するための辞書(ja句→各言語)。非同期ロード後に再適用。
+let ACQ_TR = null;
+(function loadAcqTr(){
+  try { fetch('i18n/acq_i18n.json').then(r=>r.ok?r.json():null).then(d=>{ if(d){ ACQ_TR=d; if(window.I18N) applyItemI18n(); } }).catch(()=>{}); } catch(e){}
+})();
 // 持ち物名/効果/対応ポケモンを runtime で翻訳(I18N.item/itemDesc/pokemon)
 function applyItemI18n() {
   if (!window.I18N) return;
+  // 入手列: ja句を現在言語へ(辞書ロード済みかつ非ja時)。data-acq-ja(原文)を保持して再翻訳可能に。
+  if (ACQ_TR && I18N.lang !== 'ja' && ACQ_TR[I18N.lang]) {
+    const m = ACQ_TR[I18N.lang];
+    document.querySelectorAll('td.acq').forEach(el => {
+      const ja = el.getAttribute('data-acq-ja') || el.textContent.trim();
+      if (!el.getAttribute('data-acq-ja')) el.setAttribute('data-acq-ja', ja);
+      if (m[ja]) el.textContent = m[ja];
+    });
+  }
   document.querySelectorAll('[data-item-ja]').forEach(el => {
     el.textContent = I18N.item(el.getAttribute('data-item-ja'));
   });
