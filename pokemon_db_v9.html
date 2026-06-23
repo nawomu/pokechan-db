@@ -1104,6 +1104,10 @@ body.hide-cls-特殊 .waza-cls-特殊 { display: none !important; }
 .cls-btn.on[data-cls="特殊"] { background: #2874A6; color: #fff; }
 .fn-btn { background: rgba(120,120,120,0.35); }
 .fn-btn.on { background: #2E7D32; color: #fff; }
+/* 機能グループ選択中: 該当わざ列を黄色ハイライト(どの技が含まれるか一目で分かる) */
+th.fn-hl { background: #FFE066 !important; }
+tbody td.td-ch.fn-hl { background: #FFF3B0 !important; color: #8a6d00 !important; font-weight: 700; }
+tbody tr:hover td.td-ch.fn-hl { background: #FFE680 !important; }
 
 /* わざ列データセル: 分類別 薄背景 + 黒文字 (○がホバー行でも見える) */
 tbody td.td-ch.waza-cls-変化 { background: #ECECEC !important; color: #111 !important; }
@@ -1341,35 +1345,45 @@ const WAZA_MASTER = (function () {
   return out;
 })();
 
-// ★機能グループ(2026-06-23 G): そのグループの技を1つ以上覚えるポケモン名の集合。WAZA_MAP.learners基準。
-const FN_GROUP_SETS = (function () {
-  const recovery = new Set(), setup = new Set(), status = new Set(), hazard = new Set();
+// ★機能グループ(2026-06-23 G): 定義は waza-list クイック検索(waza_picker.js の _miscTagJudges / status / self_up 判定)に
+//   合わせて共通化。FN_GROUP_SETS=覚えるポケモン名の集合 / FN_GROUP_MOVES=その技keyの集合(列ハイライト用)。
+const [FN_GROUP_SETS, FN_GROUP_MOVES] = (function () {
+  const sets = { recovery: new Set(), setup: new Set(), status: new Set(), hazard: new Set() };
+  const mvs  = { recovery: new Set(), setup: new Set(), status: new Set(), hazard: new Set() };
   const MAJOR_STATUS = new Set(['まひ', 'やけど', 'こおり', 'どく', 'もうどく', 'ねむり']);
   for (const k in WAZA_MAP) {
     const m = WAZA_MAP[k], bd = m.battle_data || {}, eff = bd.effects || [], lr = m.learners || [];
-    // 回復技(★ねむる除く=全員覚える汎用を排除): HP回復(天候/毎ターン等)/ドレイン/回復・いたみわけ effect
-    const isRecovery = m.name !== 'ねむる' && (
-      (bd.recovery && bd.recovery !== 'status_only') || !!bd.drain
-      || eff.some(e => e.kind === '回復' || e.kind === 'いたみわけ'));
-    // 積み技: 自分の能力ランクが上がる(剣の舞/竜の舞/蝶の舞 等)
+    // 回復技 = 回復のみ(bd.recovery≠status_only) + ダメージ回復(bd.drain)。★ねむる除く(阿部さん)
+    const isRecovery = m.name !== 'ねむる' && ((bd.recovery && bd.recovery !== 'status_only') || !!bd.drain);
+    // 積み技 = 自分の能力ランクが上がる(self_up判定相当)
     const isSetup = (bd.rank_changes || []).some(r => r.target === 'self' && r.delta > 0)
       || eff.some(e => e.kind === '能力ランク変化' && (e.target === 'self' || e.target === 'user') && ((e.stages || 0) > 0 || e.to_max));
-    // 状態異常技: 相手に主要状態異常を「確実め」に付与(prob≥30)。ほのおのパンチ等の10%追加効果は除外。
-    const isStatus = eff.some(e => e.kind === '状態付与' && e.target !== 'self' && MAJOR_STATUS.has(e.value) && (e.prob == null || e.prob >= 30));
-    // 設置技: ステルスロック/まきびし/どくびし/ねばねばネット(effects kind=設置)
-    const isHazard = eff.some(e => e.kind === '設置');
-    if (isRecovery) lr.forEach(n => recovery.add(n));
-    if (isSetup) lr.forEach(n => setup.add(n));
-    if (isStatus) lr.forEach(n => status.add(n));
-    if (isHazard) lr.forEach(n => hazard.add(n));
+    // 状態異常技 = 相手に主要状態異常を付与(status判定相当・追加効果も含む=クイック検索と一致)
+    const isStatus = eff.some(e => e.kind === '状態付与' && e.target !== 'self' && MAJOR_STATUS.has(e.value));
+    // 設置技 = まきびし系(_miscTagJudges: bd.hazard_set)
+    const isHazard = !!bd.hazard_set;
+    if (isRecovery) { mvs.recovery.add(k); lr.forEach(n => sets.recovery.add(n)); }
+    if (isSetup)    { mvs.setup.add(k);    lr.forEach(n => sets.setup.add(n)); }
+    if (isStatus)   { mvs.status.add(k);   lr.forEach(n => sets.status.add(n)); }
+    if (isHazard)   { mvs.hazard.add(k);   lr.forEach(n => sets.hazard.add(n)); }
   }
-  return { recovery, setup, status, hazard };
+  return [sets, mvs];
 })();
 let fnGroups = new Set();  // 選択中の機能グループ(AND絞り込み)
 function toggleFnGroup(g) {
   if (fnGroups.has(g)) fnGroups.delete(g); else fnGroups.add(g);
   document.querySelectorAll('.fn-btn').forEach(b => b.classList.toggle('on', fnGroups.has(b.dataset.fn)));
-  if (typeof applyF === 'function') applyF();  // 行を再絞り込み
+  if (typeof applyF === 'function') applyF();  // 行を再絞り込み + わざ列セルのハイライト再計算
+  // わざ列ヘッダ(th)はapplyFで再構築されないので直接トグル
+  document.querySelectorAll('.waza-chk').forEach(chk => {
+    const th = chk.closest('th');
+    if (th) th.classList.toggle('fn-hl', isFnHl(chk.dataset.wazaKey));
+  });
+}
+// 選択中グループに含まれる技key→列ハイライト判定
+function isFnHl(key) {
+  if (!fnGroups.size) return false;
+  return [...fnGroups].some(g => FN_GROUP_MOVES[g] && FN_GROUP_MOVES[g].has(key));
 }
 
 
@@ -2861,6 +2875,7 @@ function buildWazaTh(ctx, key, label) {
           </div>
           <div class="hdr2-bot" data-sort="${key}" style="font-size:9px">${label()}<span class="si2" data-skey="${key}"></span></div>
         </div>`;
+        if (isFnHl(key)) th.classList.add('fn-hl');  // 選択中グループの技列ヘッダを黄色に
         const chk = th.querySelector('.waza-chk');
         chk.addEventListener('change', e => { e.stopPropagation(); wazaFilterSet(ctx.prefix,key,chk.checked); ctx.onFilter(); });
         chk.addEventListener('click', e => e.stopPropagation());
@@ -2870,7 +2885,7 @@ function buildWazaTh(ctx, key, label) {
       // → わざリスト(WAZA_MAP)を更新すれば、ポケモンDBの◯も自動で反映される
       buildTd: (p) => {
         const ws = WAZA_MAP[key] && WAZA_MAP[key].learners;
-        return `<td class="td-ch waza-cls-${w.class}" data-grp="waza">${ws && ws.includes(p.name) ? '○' : ''}</td>`;
+        return `<td class="td-ch waza-cls-${w.class}${isFnHl(key) ? ' fn-hl' : ''}" data-grp="waza">${ws && ws.includes(p.name) ? '○' : ''}</td>`;
       },
       getVal: (p) => {
         const ws = WAZA_MAP[key] && WAZA_MAP[key].learners;
