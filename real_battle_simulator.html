@@ -991,6 +991,26 @@ const tMoveName = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.k
 const tItemName = it => (window.I18N && window.I18N.item && it) ? window.I18N.item(it.name) : (it && it.name) || '';
 const tAbilName = a  => (window.I18N && window.I18N.ability && a) ? window.I18N.ability(a) : a;
 const tTypeName = t  => (window.I18N && window.I18N.type && t) ? window.I18N.type(t) : t;
+// ダメージ計算chip(label=ja)の多言語化。効果語/天候/状態は real_battle UIキー、特性名/道具名は既存辞書で解決(2026-06-24)。
+const _CHIP_KEY = {
+  'タイプ一致':'real_battle.chip_stab', 'てきおうりょく(一致×2)':'real_battle.chip_adaptability',
+  'こうかばつぐん':'real_battle.chip_super_effective', 'こうかいまひとつ':'real_battle.chip_not_very_effective',
+  '相性':'real_battle.chip_type_eff', 'ダブル範囲':'real_battle.chip_spread',
+  'あめ':'real_battle.env_weather_rain', 'はれ':'real_battle.env_weather_sunny',
+  'やけど':'real_battle.status_burn', 'リフレクター':'real_battle.flag_reflect',
+  'ひかりのかべ':'real_battle.flag_light_screen', 'オーロラベール':'real_battle.flag_aurora_veil',
+  'すなあらし いわ特防':'real_battle.chip_sand_spdef', 'ゆき こおり防御':'real_battle.chip_snow_def',
+  'かんそうはだ(炎弱化)':'real_battle.chip_dryskin_fire',
+};
+function tChipLabel(label){
+  if (!window.I18N || I18N.lang === 'ja' || !label) return label;
+  if (_CHIP_KEY[label]) return I18N.t(_CHIP_KEY[label], label);
+  const m = label.match(/^メトロノーム\((\d+)回目\)$/);
+  if (m) return I18N.t('real_battle.chip_metronome','メトロノーム({n}回目)').replace('{n}', m[1]);
+  const ab = I18N.ability ? I18N.ability(label) : label; if (ab && ab !== label) return ab;   // 特性名(あついしぼう等)
+  const it = I18N.item ? I18N.item(label) : label; if (it && it !== label) return it;          // 道具名(いのちのたま等)
+  return label;
+}
 // HTMLエスケープのグローバルヘルパー(stat-key描画 L6269等は別関数スコープの局所eschを参照できず未定義になっていた=Playwright監査で発覚。グローバル定義で解消。局所const eschは各関数内でシャドウ=衝突なし)
 function esch(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 // 分類(物理/特殊/変化)の表示語のみ多言語化。CSSクラスの値(物理/特殊/変化)はそのまま残す。
@@ -6360,7 +6380,8 @@ function dmgKoLabel(result){
     const tmpl = window.I18N ? I18N.t('real_battle.ko_random','乱数{n}発') : '乱数{n}発';
     return tmpl.replace('{n}', n) + sash;
   }
-  return `${n}発${sash}`;
+  const tmpl = window.I18N ? I18N.t('real_battle.ko_hits','{n}発') : '{n}発';
+  return tmpl.replace('{n}', n) + sash;
 }
 function dmgKoClass(result){
   return (result.koType === 'guaranteed' && result.koHits === 1) ? 'guaranteed-1'
@@ -6369,14 +6390,14 @@ function dmgKoClass(result){
 // 技プール行用の極小ダメージ表示(HP% と 確定/乱数発数だけ・1行)
 function dmgMiniHtml(result){
   if (!result) return '';                                   // 変化技/威力なし/相手未選択
-  if (result.immune) return `<span class="dmg-immune">こうかなし</span>`;
+  if (result.immune) return `<span class="dmg-immune">${window.I18N ? I18N.t('real_battle.no_effect','こうかなし') : 'こうかなし'}</span>`;
   const p1 = (result.min / result.hp * 100).toFixed(1), p2 = (result.max / result.hp * 100).toFixed(1);
   return `<span class="dmg-mini"><b class="dm-p">${p1}〜${p2}%</b> <span class="dm-k ${dmgKoClass(result)}">${dmgKoLabel(result)}</span></span>`;
 }
 // 選択中の技の下に出す詳細ダメージ(1行・ダメ範囲/HP%/発数/補正チップ/反動)
 function dmgFullHtml(result){
   if (!result) return '';
-  if (result.immune) return `<div class="move-immune">${result.reason || 'こうかなし'}</div>`;
+  if (result.immune) return `<div class="move-immune">${result.reason || (window.I18N ? I18N.t('real_battle.no_effect','こうかなし') : 'こうかなし')}</div>`;
   const p1 = (result.min / result.hp * 100).toFixed(1), p2 = (result.max / result.hp * 100).toFixed(1);
   const _recoilLabel = window.I18N ? I18N.t('real_battle.recoil_label','反動') : '反動';
   const _helmetLabel = window.I18N ? I18N.t('real_battle.recoil_helmet','ゴツメ') : 'ゴツメ';
@@ -6394,7 +6415,7 @@ function dmgFullHtml(result){
     return ` ×${(+x.toFixed(3))}`;
   };
   const chips = (result.chips && result.chips.length)
-    ? result.chips.map(c=>`<span class="dmg-chip chip-${c.kind}">${c.label}${fr(c.factor)}</span>`).join('') : '';
+    ? result.chips.map(c=>`<span class="dmg-chip chip-${c.kind}">${tChipLabel(c.label)}${fr(c.factor)}</span>`).join('') : '';
   const _dmgLabel = window.I18N ? I18N.t('real_battle.dmg_label','ダメージ') : 'ダメージ';
   const _hpOpen = window.I18N ? I18N.t('real_battle.dmg_hp_pct_open','（HP') : '（HP';
   return `<div class="dmg-line"><span class="dl-d">${_dmgLabel} <b>${result.min}〜${result.max}</b><span class="dl-p">${_hpOpen} <b>${p1}〜${p2}%</b>）</span></span><span class="dl-k ${dmgKoClass(result)}"><b>${dmgKoLabel(result)}</b></span>${stealth}${chips}${recoil}</div>`;
