@@ -969,7 +969,7 @@ function render() {
       ${chkCell}
       ${learnersHtml}
       <td class="col-name name-cell" data-key="${m.key}" onclick="showLearners('${m.key}')">${window.I18N ? I18N.move(m.key, m.name) : m.name}</td>
-      <td class="col-type" title="${m.type}"><span class="type-cell" style="background:${color}">${wpType3(m.type)}</span></td>
+      <td class="col-type" title="${(window.I18N && I18N.type) ? I18N.type(m.type) : m.type}"><span class="type-cell" style="background:${color}">${wpType3(m.type)}</span></td>
       <td class="col-class"><span class="cls-badge cls-${m.class === '物理' ? 'phys' : m.class === '特殊' ? 'spec' : 'stat'}">${tClass(m.class)}</span></td>
       <td class="col-power num-cell">${m.power}</td>
       <td class="col-acc num-cell">${m.acc}</td>
@@ -1520,7 +1520,7 @@ function buildWpTypeBar() {
     btn.textContent = wpType3(t);
     btn.style.background = (typeof typeColors !== 'undefined' && typeColors[t]) || '#888';
     btn.dataset.type = t;
-    btn.title = t;
+    btn.title = (window.I18N && I18N.type) ? I18N.type(t) : t;
     btn.onclick = () => {
       if (selectedTypes.has(t) && selectedTypes.size === 1) {
         selectedTypes.clear();
@@ -1559,9 +1559,10 @@ function syncWpTypeBar() {
       anySelectionCleared = true;
     }
     b.classList.toggle('active', selectedTypes.has(t));
+    const tName = (window.I18N && I18N.type) ? I18N.type(t) : t;
     b.title = (cnt === 0 && INITIAL_POKEMON_FILTER)
-      ? t + ' (このポケモンは習得しません)'
-      : t + ' (' + cnt + '件)';
+      ? tName + ' (' + _t('waza.type_not_learned', 'このポケモンは習得しません') + ')'
+      : tName + ' (' + cnt + _t('waza.count_unit', '件') + ')';
   });
   if (anySelectionCleared && typeof syncTypeCheckboxes === 'function') syncTypeCheckboxes();
 }
