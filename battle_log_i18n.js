@@ -43,6 +43,22 @@
     if (kind === 'item') return (I18N() && I18N().item) ? I18N().item(raw) : raw;
     return raw;
   }
+  // 能力名(ログ中は英語rawの場合がある=attack 等)→ 言語別
+  var STAT = {
+    attack:   { en: 'Attack', fr: 'Attaque', de: 'Angriff', es: 'Ataque', it: 'Attacco', ko: '공격', 'zh-Hans': '攻击', 'zh-Hant': '攻擊' },
+    defense:  { en: 'Defense', fr: 'Défense', de: 'Verteidigung', es: 'Defensa', it: 'Difesa', ko: '방어', 'zh-Hans': '防御', 'zh-Hant': '防禦' },
+    'sp. attack':  { en: 'Sp. Atk', fr: 'Att. Spé', de: 'Sp.-Ang', es: 'At. Esp', it: 'Att. Sp', ko: '특수공격', 'zh-Hans': '特攻', 'zh-Hant': '特攻' },
+    'sp. defense': { en: 'Sp. Def', fr: 'Déf. Spé', de: 'Sp.-Vert', es: 'Def. Esp', it: 'Dif. Sp', ko: '특수방어', 'zh-Hans': '特防', 'zh-Hant': '特防' },
+    speed:    { en: 'Speed', fr: 'Vitesse', de: 'Initiative', es: 'Velocidad', it: 'Velocità', ko: '스피드', 'zh-Hans': '速度', 'zh-Hant': '速度' },
+    accuracy: { en: 'accuracy', fr: 'Précision', de: 'Genauigkeit', es: 'Precisión', it: 'Precisione', ko: '명중률', 'zh-Hans': '命中率', 'zh-Hant': '命中率' },
+    evasion:  { en: 'evasiveness', fr: 'Esquive', de: 'Fluchtwert', es: 'Evasión', it: 'Elusione', ko: '회피율', 'zh-Hans': '闪避率', 'zh-Hant': '閃避率' },
+  };
+  function tStat(raw, lang) {
+    if (raw == null) return '';
+    var key = String(raw).toLowerCase().replace(/\s+/g, ' ').trim();
+    var e = STAT[key];
+    return e ? (e[lang] || e.en || raw) : raw;
+  }
   // 状態語(共有語彙 common.status_* があれば使う)
   function tStatus(ja, lang) {
     var map = { 'もうどく': 'badly_poison', 'どく': 'poison', 'まひ': 'paralysis', 'やけど': 'burn', 'こおり': 'freeze', 'ねむり': 'sleep', 'ねむけ': 'drowsy', 'こんらん': 'confusion' };
@@ -70,6 +86,15 @@
     cant_love: { "en": "{p} is immobilized by love!", "fr": "{p} est immobilisé par l'amour !", "de": "{p} ist vor lauter Liebe wie gelähmt!", "es": "¡{p} está inmovilizado por el enamoramiento!", "it": "{p} è immobilizzato dall'amore!", "ko": "{p}은(는) 헤롱헤롱해서 움직일 수 없다!", "zh-Hans": "{p}因着迷而无法行动！", "zh-Hant": "{p}著迷而無法行動！" },
     slip: { "en": "{p} is hurt by {st}! ({n} dmg) (HP {hp})", "fr": "{p} souffre de l'effet {st} ! ({n} dégâts) (PV {hp})", "de": "{p} wird durch {st} verletzt! ({n} Schaden) (KP {hp})", "es": "¡{p} se resiente de {st}! ({n} de daño) (PS {hp})", "it": "{p} è ferito da {st}! ({n} danni) (PS {hp})", "ko": "{p}은(는) {st}(으)로 데미지를 입었다! ({n} 데미지) (HP {hp})", "zh-Hans": "{p}受到了{st}的伤害！（{n}点伤害）（HP {hp}）", "zh-Hant": "{p}受到了{st}的傷害！（{n}點傷害）（HP {hp}）" },
     switch_in: { "en": "{out} fainted, so {in} was sent out!", "fr": "{out} est K.O., {in} entre en jeu !", "de": "{out} wurde besiegt, daher wurde {in} eingewechselt!", "es": "¡{out} se debilitó, así que sacó a {in}!", "it": "{out} è esausto, così è stato mandato in campo {in}!", "ko": "{out}이(가) 쓰러져서 {in}을(를) 내보냈다!", "zh-Hans": "{out}倒下了，于是派出了{in}！", "zh-Hant": "{out}倒下了，於是派出了{in}！" },
+    switch_voluntary: { "en": "{out} withdrew! {in} was sent out!", "fr": "{out} est rappelé ! {in} entre en jeu !", "de": "{out} wurde zurückgerufen! {in} kommt ins Spiel!", "es": "¡{out} se retiró! ¡Sale {in}!", "it": "{out} si ritira! Entra {in}!", "ko": "{out}이(가) 들어갔다! {in}이(가) 나왔다!", "zh-Hans": "{out}收回了！{in}上场了！", "zh-Hant": "{out}收回了！{in}上場了！" },
+    turn_first_fast: { "en": "{p} moves first (Speed {a} > {b})", "fr": "{p} agit en premier (Vitesse {a} > {b})", "de": "{p} ist zuerst dran (Initiative {a} > {b})", "es": "{p} actúa primero (Velocidad {a} > {b})", "it": "{p} agisce per primo (Velocità {a} > {b})", "ko": "{p}이(가) 먼저 행동 (스피드 {a} > {b})", "zh-Hans": "{p}先行动（速度 {a} > {b}）", "zh-Hant": "{p}先行動（速度 {a} > {b}）" },
+    turn_first_tie: { "en": "{p} moves first (Speed tie {a}, random)", "fr": "{p} agit en premier (Vitesse égale {a}, au hasard)", "de": "{p} ist zuerst dran (Initiative-Gleichstand {a}, zufällig)", "es": "{p} actúa primero (empate de Velocidad {a}, al azar)", "it": "{p} agisce per primo (parità di Velocità {a}, casuale)", "ko": "{p}이(가) 먼저 행동 (스피드 동일 {a}, 무작위)", "zh-Hans": "{p}先行动（速度相同 {a}，随机）", "zh-Hant": "{p}先行動（速度相同 {a}，隨機）" },
+    cant_fainted: { "en": "{p} can’t act — it has fainted", "fr": "{p} ne peut pas agir — il est K.O.", "de": "{p} kann nicht handeln — es ist besiegt", "es": "{p} no puede actuar: está debilitado", "it": "{p} non può agire — è esausto", "ko": "{p}은(는) 쓰러져서 행동할 수 없다", "zh-Hans": "{p}已倒下，无法行动", "zh-Hant": "{p}已倒下，無法行動" },
+    statmove_used: { "en": "{p} used {move}! (status move effects not yet implemented)", "fr": "{p} utilise {move} ! (effets des capacités de statut non implémentés)", "de": "{p} setzt {move} ein! (Statusattacken-Effekte noch nicht umgesetzt)", "es": "¡{p} usó {move}! (efectos de movimientos de estado aún no implementados)", "it": "{p} usa {move}! (effetti delle mosse di stato non ancora implementati)", "ko": "{p}의 {move}! (변화 기술 효과는 아직 미구현)", "zh-Hans": "{p}使用了{move}！（变化招式效果尚未实现）", "zh-Hant": "{p}使出了{move}！（變化招式效果尚未實作）" },
+    stat_rose: { "en": "{p}’s {stat} rose! ({n})", "fr": "{stat} de {p} augmente ! ({n})", "de": "{stat} von {p} steigt! ({n})", "es": "¡{stat} de {p} subió! ({n})", "it": "{stat} di {p} aumenta! ({n})", "ko": "{p}의 {stat}이(가) 올라갔다! ({n})", "zh-Hans": "{p}的{stat}提升了！（{n}）", "zh-Hant": "{p}的{stat}提升了！（{n}）" },
+    stat_fell: { "en": "{p}’s {stat} fell! ({n})", "fr": "{stat} de {p} baisse ! ({n})", "de": "{stat} von {p} sinkt! ({n})", "es": "¡{stat} de {p} bajó! ({n})", "it": "{stat} di {p} diminuisce! ({n})", "ko": "{p}의 {stat}이(가) 떨어졌다! ({n})", "zh-Hans": "{p}的{stat}降低了！（{n}）", "zh-Hant": "{p}的{stat}降低了！（{n}）" },
+    stat_max: { "en": "{p}’s {stat} rose to the max!", "fr": "{stat} de {p} est au maximum !", "de": "{stat} von {p} ist am Maximum!", "es": "¡{stat} de {p} subió al máximo!", "it": "{stat} di {p} è al massimo!", "ko": "{p}의 {stat}이(가) 최대까지 올라갔다!", "zh-Hans": "{p}的{stat}提升到了最大！", "zh-Hant": "{p}的{stat}提升到了最大！" },
+    stat_min: { "en": "{p}’s {stat} fell to the min!", "fr": "{stat} de {p} est au minimum !", "de": "{stat} von {p} ist am Minimum!", "es": "¡{stat} de {p} bajó al mínimo!", "it": "{stat} di {p} è al minimo!", "ko": "{p}의 {stat}이(가) 최저까지 떨어졌다!", "zh-Hans": "{p}的{stat}降到了最低！", "zh-Hant": "{p}的{stat}降到了最低！" },
   };
 
   // ─── パターン(順に試す)。slots: テンプレ名→{g:捕捉番号, kind} ───
@@ -93,6 +118,15 @@
     { id: 'cant_love', re: /^((?:相手の )?\S+) は メロメロで 技が だせなかった！$/, slots: { p: { g: 1, kind: 'poke' } } },
     { id: 'slip', re: /^((?:相手の )?\S+) は (やけど|どく|もうどく)で (\d+) ダメージ！ \(残HP (\d+)\)$/, slots: { p: { g: 1, kind: 'poke' }, st: { g: 2, kind: 'status' }, n: { g: 3, kind: 'num' }, hp: { g: 4, kind: 'num' } } },
     { id: 'switch_in', re: /^たおれた ((?:相手の )?\S+) の代わりに ((?:相手の )?\S+) が 場に出た！$/, slots: { out: { g: 1, kind: 'poke' }, 'in': { g: 2, kind: 'poke' } } },
+    { id: 'switch_voluntary', re: /^((?:相手の )?\S+) は 引っ込んだ！ ((?:相手の )?\S+) が 場に出た！$/, slots: { out: { g: 1, kind: 'poke' }, 'in': { g: 2, kind: 'poke' } } },
+    { id: 'turn_first_fast', re: /^先攻: ((?:相手の )?\S+)（すばやさが速い\((\d+) > (\d+)\)ため）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' }, b: { g: 3, kind: 'num' } } },
+    { id: 'turn_first_tie', re: /^先攻: ((?:相手の )?\S+)（すばやさ同値\((\d+)\)・ランダムで）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' } } },
+    { id: 'cant_fainted', re: /^((?:相手の )?\S+) は ひんし状態のため行動できない$/, slots: { p: { g: 1, kind: 'poke' } } },
+    { id: 'statmove_used', re: /^((?:相手の )?\S+) は (\S+) を使った！ \(変化技は MVP では効果未実装\)$/, slots: { p: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
+    { id: 'stat_rose', re: /^((?:相手の )?\S+) の (.+?) ランクが ([+-]?\d+) あがった！$/, slots: { p: { g: 1, kind: 'poke' }, stat: { g: 2, kind: 'stat' }, n: { g: 3, kind: 'raw' } } },
+    { id: 'stat_fell', re: /^((?:相手の )?\S+) の (.+?) ランクが ([+-]?\d+) さがった！$/, slots: { p: { g: 1, kind: 'poke' }, stat: { g: 2, kind: 'stat' }, n: { g: 3, kind: 'raw' } } },
+    { id: 'stat_max', re: /^((?:相手の )?\S+) の (.+?) ランクが 最大まであがった！$/, slots: { p: { g: 1, kind: 'poke' }, stat: { g: 2, kind: 'stat' } } },
+    { id: 'stat_min', re: /^((?:相手の )?\S+) の (.+?) ランクが 最低までさがった！$/, slots: { p: { g: 1, kind: 'poke' }, stat: { g: 2, kind: 'stat' } } },
   ];
 
   function translateLogLine(msg, lang) {
@@ -106,7 +140,9 @@
       return tpl.replace(/\{(\w+)\}/g, function (_, name) {
         var s = p.slots[name]; if (!s) return '';
         if (p.post && p.post[name]) return p.post[name](m[s.g]);
-        return (s.kind === 'status') ? tStatus(m[s.g], lang) : tSlot(m[s.g], s.kind, lang);
+        if (s.kind === 'status') return tStatus(m[s.g], lang);
+        if (s.kind === 'stat') return tStat(m[s.g], lang);
+        return tSlot(m[s.g], s.kind, lang);
       });
     }
     return msg;
