@@ -329,6 +329,10 @@ document.getElementById('engine-frame').addEventListener('load', () => {
 let teamSize = 3;      // 3体 or 6体(フルバトル)
 const selfIds = () => Array.from({length: teamSize}, (_, i) => 's' + (i + 1));
 const oppIds  = () => Array.from({length: teamSize}, (_, i) => 'o' + (i + 1));
+// バトル中の変身でしか現れない姿=最初から手持ちに置けない(イルカマン=ナイーブ始動/ギルガルド=シールド始動)。
+// メガと同じく抽選・選択プールから除外する。
+const BATTLE_ONLY_FORMS = new Set(['イルカマン(マイティ)', 'ギルガルド(ブレード)']);
+const isPickable = p => !p.mega && !BATTLE_ONLY_FORMS.has(p.name);
 let winStreak = 0;     // 連戦モードの連勝数
 const slotVal = {};    // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
 const slotMoves = {};  // 各スロットの技4つ(くわしく編成で変更可。ポケモンを変えると自動選定に戻る)
@@ -406,7 +410,7 @@ function loadHandoff(){
     teamSize = picks.length > 3 ? 6 : 3;
     $('team-size').value = String(teamSize);
     renderTeamRows();
-    const pokes = S.pokeList().filter(p => !p.mega);
+    const pokes = S.pokeList().filter(isPickable);
     const rnd = () => pokes[Math.floor(Math.random() * pokes.length)].name;
     // 自分チーム = ビルダーの編成(技keyを解決・足りなければ自動補完)
     selfIds().forEach((id, i) => {
@@ -499,7 +503,7 @@ function openPicker(id){
 }
 function closePicker(){ $('poke-picker').style.display = 'none'; pickerSlot = null; }
 function renderPickerList(query){
-  const pokes = S.pokeList().filter(p => !p.mega);
+  const pokes = S.pokeList().filter(isPickable);
   const k = toKata(query.trim());
   const hits = k ? pokes.filter(p => p.name.includes(k) || p.name.includes(query.trim())) : pokes;
   $('pp-list').innerHTML = hits.slice(0, 120).map(p => {
@@ -526,7 +530,7 @@ function renderTeamRows(){
   });
 }
 function initSetup(){
-  const pokes = S.pokeList().filter(p => !p.mega);   // メガフォームは直接選ばない(ストーンで変身)
+  const pokes = S.pokeList().filter(isPickable);   // メガフォームは直接選ばない(ストーンで変身)
   renderTeamRows();
   $('team-size').addEventListener('change', () => {
     teamSize = +$('team-size').value;
