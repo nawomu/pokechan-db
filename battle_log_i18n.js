@@ -53,9 +53,10 @@
     accuracy: { en: 'accuracy', fr: 'Précision', de: 'Genauigkeit', es: 'Precisión', it: 'Precisione', ko: '명중률', 'zh-Hans': '命中率', 'zh-Hant': '命中率' },
     evasion:  { en: 'evasiveness', fr: 'Esquive', de: 'Fluchtwert', es: 'Evasión', it: 'Elusione', ko: '회피율', 'zh-Hans': '闪避率', 'zh-Hant': '閃避率' },
   };
+  var STAT_JA = { 'こうげき': 'attack', 'ぼうぎょ': 'defense', 'とくこう': 'sp. attack', 'とくぼう': 'sp. defense', 'すばやさ': 'speed', 'めいちゅう': 'accuracy', 'めいちゅうりつ': 'accuracy', 'かいひ': 'evasion', 'かいひりつ': 'evasion' };
   function tStat(raw, lang) {
     if (raw == null) return '';
-    var key = String(raw).toLowerCase().replace(/\s+/g, ' ').trim();
+    var key = STAT_JA[String(raw).trim()] || String(raw).toLowerCase().replace(/\s+/g, ' ').trim();
     var e = STAT[key];
     return e ? (e[lang] || e.en || raw) : raw;
   }
@@ -66,6 +67,42 @@
     if (I && I.t && map[ja]) { var v = I.t('common.status_' + map[ja], ja); if (v && v !== ja) return v; }
     return ja;
   }
+  // ─── 語彙(状態/効果/壁=COND, 溜め=SEMI)。entity以外の固定語彙を訳す。───
+  var COND = {
+    "あめまみれ": { "en": "Soaked", "fr": "Détrempé", "de": "Durchnässt", "es": "Empapado", "it": "Inzuppato", "ko": "흠뻑상태", "zh-Hans": "湿透", "zh-Hant": "濕透" },
+    "おいかぜ": { "en": "Tailwind", "fr": "Vent Arrière", "de": "Rückenwind", "es": "Viento Afín", "it": "Ventoincoda", "ko": "순풍", "zh-Hans": "顺风", "zh-Hant": "順風" },
+    "かいふくふうじ": { "en": "Heal Block", "fr": "Anti-Soin", "de": "Heilblockade", "es": "Anticura", "it": "Anticura", "ko": "회복봉인", "zh-Hans": "回复封锁", "zh-Hant": "回復封鎖" },
+    "きゅうしょアップ": { "en": "heightened critical-hit ratio", "fr": "taux de coups critiques augmenté", "de": "erhöhte Volltrefferquote", "es": "mayor índice de golpes críticos", "it": "maggiore tasso di brutti colpi", "ko": "급소율 상승", "zh-Hans": "要害率提升", "zh-Hant": "要害率提升" },
+    "こんらん": { "en": "Confusion", "fr": "Confusion", "de": "Verwirrung", "es": "Confusión", "it": "Confusione", "ko": "혼란", "zh-Hans": "混乱", "zh-Hant": "混亂" },
+    "ステルスロック": { "en": "Stealth Rock", "fr": "Piège de Roc", "de": "Tarnsteine", "es": "Trampa Rocas", "it": "Levitoroccia", "ko": "스텔스록", "zh-Hans": "隐形岩", "zh-Hant": "隱形岩" },
+    "ちいさくなる": { "en": "Minimize", "fr": "Lilliput", "de": "Klein-Macher", "es": "Reducción", "it": "Mini", "ko": "작아지기", "zh-Hans": "变小", "zh-Hant": "變小" },
+    "でんじふゆう": { "en": "Magnet Rise", "fr": "Vol Magnétik", "de": "Magnetflug", "es": "Levitón", "it": "Elettralzo", "ko": "전자부유", "zh-Hans": "电磁飘浮", "zh-Hant": "電磁飄浮" },
+    "どくびし": { "en": "Toxic Spikes", "fr": "Pics Toxik", "de": "Giftspitzen", "es": "Púas Tóxicas", "it": "Fielepunte", "ko": "독압정", "zh-Hans": "毒菱", "zh-Hant": "毒菱" },
+    "バインド": { "en": "Bind", "fr": "Étreinte", "de": "Klammergriff", "es": "Atadura", "it": "Legatura", "ko": "옭아매기", "zh-Hans": "束缚", "zh-Hant": "束縛" },
+    "ひるみ": { "en": "Flinch", "fr": "Apeuré", "de": "Zurückschrecken", "es": "Retroceso", "it": "Tentennamento", "ko": "풀죽음", "zh-Hans": "畏缩", "zh-Hant": "畏縮" },
+    "まきびし": { "en": "Spikes", "fr": "Picots", "de": "Stachler", "es": "Púas", "it": "Punte", "ko": "압정뿌리기", "zh-Hans": "撒菱", "zh-Hant": "撒菱" },
+    "やどりぎのタネ": { "en": "Leech Seed", "fr": "Vampigraine", "de": "Egelsamen", "es": "Drenadoras", "it": "Parassiseme", "ko": "씨뿌리기", "zh-Hans": "寄生种子", "zh-Hant": "寄生種子" },
+    "オーロラベール": { "en": "Aurora Veil", "fr": "Voile Aurore", "de": "Auroraschleier", "es": "Velo Aurora", "it": "Velaurora", "ko": "오로라베일", "zh-Hans": "极光幕", "zh-Hant": "極光幕" },
+    "リフレクター": { "en": "Reflect", "fr": "Protection", "de": "Reflektor", "es": "Reflejo", "it": "Riflesso", "ko": "리플렉터", "zh-Hans": "反射壁", "zh-Hant": "反射壁" },
+    "ひかりのかべ": { "en": "Light Screen", "fr": "Mur Lumière", "de": "Lichtschild", "es": "Pantalla de Luz", "it": "Schermoluce", "ko": "빛의장막", "zh-Hans": "光墙", "zh-Hant": "光牆" },
+    "しんぴのまもり": { "en": "Safeguard", "fr": "Rune Protect", "de": "Bodyguard", "es": "Velo Sagrado", "it": "Salvaguardia", "ko": "신비의부적", "zh-Hans": "神秘守护", "zh-Hant": "神秘守護" }
+  };
+  var SEMI = {
+    "空高く 飛び上がった！": { "en": "flew up high!", "fr": "s'est envolé dans les airs !", "de": "flog hoch in die Luft empor!", "es": "¡voló muy alto!", "it": "è volato in alto!", "ko": "하늘 높이 날아올랐다!", "zh-Hans": "飞向了高空！", "zh-Hant": "飛向了高空！" },
+    "地面に もぐった！": { "en": "burrowed underground!", "fr": "a creusé un trou !", "de": "grub sich in den Boden ein!", "es": "¡se escondió bajo tierra!", "it": "si è infilato sottoterra!", "ko": "땅속으로 파고들었다!", "zh-Hans": "钻入了地里！", "zh-Hant": "鑽入了地裡！" },
+    "水中に もぐった！": { "en": "dove underwater!", "fr": "a plongé sous l'eau !", "de": "tauchte unter Wasser ab!", "es": "¡se sumergió en el agua!", "it": "si è immerso sott'acqua!", "ko": "물속으로 잠수했다!", "zh-Hans": "潜入了水中！", "zh-Hant": "潛入了水中！" },
+    "すがたを 消した！": { "en": "vanished instantly!", "fr": "a disparu instantanément !", "de": "verschwand augenblicklich!", "es": "¡desapareció al instante!", "it": "è sparito all'istante!", "ko": "모습을 감췄다!", "zh-Hans": "消失了踪影！", "zh-Hant": "消失了蹤影！" },
+    "ちからを ためている！": { "en": "is absorbing power!", "fr": "absorbe de l'énergie !", "de": "sammelt Energie!", "es": "¡está absorbiendo energía!", "it": "sta assorbendo energia!", "ko": "힘을 모으고 있다!", "zh-Hans": "正在积蓄力量！", "zh-Hant": "正在積蓄力量！" }
+  };
+  function tCond(ja, lang) {
+    var s = tStatus(ja, lang); if (s !== ja) return s;
+    if (COND[ja]) return COND[ja][lang] || COND[ja].en || ja;
+    if (I18N() && I18N().type) { var t = I18N().type(ja); if (t && t !== ja) return t; }
+    return ja;
+  }
+  function tType(ja, lang) { return (I18N() && I18N().type) ? I18N().type(ja) : ja; }
+  function tSemi(ja, lang) { return SEMI[ja] ? (SEMI[ja][lang] || SEMI[ja].en || ja) : ja; }
+  function tScreen(ja, lang) { return COND[ja] ? (COND[ja][lang] || COND[ja].en || ja) : ja; }
 
   // ─── 翻訳テンプレ(id → 言語別)。en 完成・他言語は並列WFで順次。未登録は ja フォールバック。───
   var TPL = {
@@ -129,8 +166,10 @@
     bl_88: { "en":"{p} used {move}! Obeying orders, {p2} uses {p3} again!", "fr":"{p} utilise {move} ! Obéissant aux ordres, {p2} utilise à nouveau {p3} !", "de":"{p} setzt {move} ein! {p2} gehorcht und setzt {p3} erneut ein!", "es":"¡{p} usó {move}! Obedeciendo las órdenes, ¡{p2} vuelve a usar {p3}!", "it":"{p} usa {move}! Seguendo gli ordini, {p2} usa di nuovo {p3}!", "ko":"{p}의 {move}! 지시에 따라 {p2}는 다시 {p3}을(를) 사용한다!", "zh-Hans":"{p}使用了{move}！{p2}听从指示，再次使出{p3}！", "zh-Hant":"{p}使出了{move}！{p2}聽從指示，再次使出{p3}！" },
     bl_122: { "en":"{p} swapped both Pokémon's held items! (Own: {item} / Foe: {item2})", "fr":"{p} échange les objets tenus des deux Pokémon ! (Soi : {item} / Adversaire : {item2})", "de":"{p} tauschte die Items beider Pokémon! (Eigenes: {item} / Gegnerisches: {item2})", "es":"¡{p} intercambió los objetos de ambos Pokémon! (Propio: {item} / Rival: {item2})", "it":"{p} ha scambiato gli oggetti di entrambi i Pokémon! (Proprio: {item} / Avversario: {item2})", "ko":"{p}은(는) 서로의 아이템을 바꿨다! (자신: {item} / 상대: {item2})", "zh-Hans":"{p}交换了双方的道具！（自身：{item} / 对手：{item2}）", "zh-Hant":"{p}交換了雙方的道具！（自身：{item} / 對手：{item2}）" },
     bl_179: { "en":"{p} created a space where Defense and Sp. Def are swapped!", "fr":"{p} crée un espace où Défense et Déf. Spé sont inversées !", "de":"{p} schuf einen Bereich, in dem Verteidigung und Sp.-Vert. vertauscht sind!", "es":"¡{p} creó un espacio donde Defensa y Def. Esp. se intercambian!", "it":"{p} ha creato uno spazio dove Difesa e Dif. Sp. si scambiano!", "ko":"{p}은(는) 방어와 특수방어가 바뀌는 공간을 만들었다!", "zh-Hans":"{p}创造了一个防御与特防互换的空间！", "zh-Hant":"{p}創造了一個防禦與特防互換的空間！" },
+    bl_216: { "en":"But it failed! ({n} is already in effect)", "fr":"Mais cela échoue ! ({n} est déjà en place)", "de":"Doch es schlug fehl! ({n} ist bereits aktiv)", "es":"¡Pero ha fallado! ({n} ya está en efecto)", "it":"Ma la mossa è fallita! ({n} è già attivo)", "ko":"하지만 실패했다! ({n}이(가) 이미 펼쳐져 있다)", "zh-Hans":"但是失败了！（{n}已经展开）", "zh-Hant":"但是失敗了！（{n}已經展開）" },
     bl_236: { "en":"But it failed! (No ally Pokémon)", "fr":"Mais cela échoue ! (Aucun Pokémon allié)", "de":"Doch es schlug fehl! (Kein verbündetes Pokémon)", "es":"¡Pero ha fallado! (no hay ningún Pokémon aliado)", "it":"Ma la mossa è fallita! (Nessun Pokémon alleato)", "ko":"하지만 실패했다! (아군 포켓몬이 없다)", "zh-Hans":"但是失败了！（没有友方宝可梦）", "zh-Hant":"但是失敗了！（沒有友方寶可夢）" },
     bl_239: { "en":"Sharp rocks dug into {p}! {n} damage! (HP {n2})", "fr":"Des rochers acérés s'enfoncent dans {p} ! {n} PV perdus ! (PV {n2})", "de":"Spitze Felsen bohrten sich in {p}! {n} Schaden! (KP {n2})", "es":"¡Unas rocas afiladas se clavaron en {p}! ¡{n} de daño! (PS {n2})", "it":"Delle rocce appuntite si conficcano in {p}! {n} danni! (PS {n2})", "ko":"뾰족한 바위가 {p}에게 파고들었다! {n} 데미지! (HP {n2})", "zh-Hans":"尖锐的岩石刺入了{p}！{n}点伤害！（HP {n2}）", "zh-Hant":"尖銳的岩石刺入了{p}！{n}點傷害！（HP {n2}）" },
+    bl_14: { "en":"{p} used {move}! But it failed! (Not in {n} status)", "fr":"{p} utilise {move} ! Mais cela échoue ! (Pas dans l'état {n})", "de":"{p} setzt {move} ein! Doch es schlug fehl! (Nicht im Zustand {n})", "es":"¡{p} usó {move}! ¡Pero ha fallado! (No está en el estado {n})", "it":"{p} usa {move}! Ma la mossa è fallita! (Non è nello stato {n})", "ko":"{p}의 {move}! 하지만 실패했다! ({n} 상태가 아니다)", "zh-Hans":"{p}使用了{move}！但是失败了！（不处于{n}状态）", "zh-Hant":"{p}使出了{move}！但是失敗了！（不處於{n}狀態）" },
     bl_120: { "en":"{p} can't use the same move twice in a row due to Encore!", "fr":"{p} est soumis à Rappel et ne peut pas utiliser la même capacité !", "de":"{p} ist durch Zugabe blockiert und kann dieselbe Attacke nicht mehr einsetzen!", "es":"¡{p} está bajo el efecto de Bis y no puede usar la misma movimiento!", "it":"{p} è soggetto a Bis e non può usare la stessa mossa!", "ko":"{p}은(는) 앙코르 상태라 같은 기술을 쓸 수 없다!", "zh-Hans":"{p}因为安可而无法使用相同的招式！", "zh-Hant":"{p}因為安可而無法使用相同的招式！" },
     bl_217: { "en":"But it failed! (No Berry held)", "fr":"Mais cela échoue ! (Pas de Baie tenue)", "de":"Doch es schlug fehl! (Keine Beere dabei)", "es":"¡Pero ha fallado! (no lleva ninguna Baya)", "it":"Ma la mossa è fallita! (Nessuna Bacca tenuta)", "ko":"하지만 실패했다! (나무열매를 갖고 있지 않다)", "zh-Hans":"但是失败了！（没有持有树果）", "zh-Hant":"但是失敗了！（沒有持有樹果）" },
     bl_220: { "en":"But it failed! (Already under Encore)", "fr":"Mais cela échoue ! (Déjà sous l'effet de Rappel)", "de":"Doch es schlug fehl! (Bereits durch Zugabe blockiert)", "es":"¡Pero ha fallado! (ya está bajo el efecto de Bis)", "it":"Ma la mossa è fallita! (Già soggetto a Bis)", "ko":"하지만 실패했다! (이미 앙코르 상태다)", "zh-Hans":"但是失败了！（已经处于安可状态）", "zh-Hant":"但是失敗了！（已經處於安可狀態）" },
@@ -153,6 +192,7 @@
     bl_218: { "en":"But it failed! (Cannot place any more)", "fr":"Mais ça a échoué ! (Impossible d'en placer davantage)", "de":"Aber es hat nicht funktioniert! (Kann nicht mehr platziert werden)", "es":"¡Pero ha fallado! (No se pueden colocar más)", "it":"Ma ha fallito! (Non se ne possono posizionare altri)", "ko":"하지만 기술에 실패했다！(더 이상 설치할 수 없다)", "zh-Hans":"但是出招失败了！(无法再放置更多了)", "zh-Hant":"但是出招失敗了！(無法再放置更多了)" },
     bl_230: { "en":"But it failed! (Already airborne)", "fr":"Mais ça a échoué ! (Déjà en lévitation)", "de":"Aber es hat nicht funktioniert! (Bereits in der Luft)", "es":"¡Pero ha fallado! (Ya está en el aire)", "it":"Ma ha fallito! (Già in levitazione)", "ko":"하지만 기술에 실패했다！(이미 떠 있다)", "zh-Hans":"但是出招失败了！(已经处于浮空状态)", "zh-Hant":"但是出招失敗了！(已經處於浮空狀態)" },
     bl_33: { "en":"{p}'s Weak Armor! Defense fell by 1, Speed rose by 2!", "fr":"La Drape Fragile de {p} ! Défense-1, Vitesse+2 !", "de":"{p}'s Schwache Hülle! Verteidigung sinkt um 1, Initiative steigt um 2!", "es":"¡El Manto Débil de {p}! ¡Defensa bajó 1, Velocidad subió 2!", "it":"Il Manto Debole di {p}! Difesa -1, Velocità +2!", "ko":"{p}의 깨지는갑옷! 방어-1, 스피드+2!", "zh-Hans":"{p}的碎裂盔甲！防御-1，速度+2！", "zh-Hant":"{p}的碎裂甲冑！防禦-1，速度+2！" },
+    bl_53: { "en":"{p}'s Moody! {p2} sharply rose, and {p3} fell!", "fr":"La Lunatisme de {p} ! {p2} a augmenté vivement et {p3} a baissé !", "de":"{p}'s Launisch! {p2} stieg stark, {p3} fiel!", "es":"¡El Caprichoso de {p}! ¡{p2} subió mucho y {p3} bajó!", "it":"Il Lunatico di {p}! {p2} è salita molto, {p3} è scesa!", "ko":"{p}의 변덕쟁이! {p2}이(가) 크게 올랐고 {p3}이(가) 내려갔다!", "zh-Hans":"{p}的心情任性！{p2}大幅上升，{p3}下降了！", "zh-Hant":"{p}的心情任性！{p2}大幅上升，{p3}下降了！" },
     bl_86: { "en":"{p} took {p2} down with it! {p3} fainted!", "fr":"{p} a emmené {p2} dans sa chute ! {p3} est K.O. !", "de":"{p} nahm {p2} mit in den Untergang! {p3} wurde besiegt!", "es":"¡{p} se llevó a {p2} con él! ¡{p3} se debilitó!", "it":"{p} ha trascinato con sé {p2}! {p3} è esausto!", "ko":"{p}은(는) {p2}을(를) 길동무로 만들었다! {p3}은(는) 쓰러졌다!", "zh-Hans":"{p}与{p2}同归于尽！{p3}陷入了濒死状态！", "zh-Hant":"{p}與{p2}同歸於盡！{p3}陷入了瀕死狀態！" },
     bl_149: { "en":"{p} healed its status condition with Natural Cure and switched out!", "fr":"{p} a soigné son problème de statut grâce à Gué Naturel et est rentré !", "de":"{p} heilte seinen Statuseffekt mit Naturrein und wurde ausgetauscht!", "es":"¡{p} curó su problema de estado con Cura Natural y se retiró!", "it":"{p} ha curato il suo stato con Guarigione Naturale ed è rientrato!", "ko":"{p}은(는) 자연회복으로 상태 이상을 낫게 하고 돌아갔다!", "zh-Hans":"{p}借助自然回复治愈了异常状态，退场了！", "zh-Hant":"{p}藉助自然回復治癒了異常狀態，退場了！" },
     bl_166: { "en":"{p} was caught in a Sticky Web! Speed fell by 1!", "fr":"{p} est pris dans la Toile Gluante ! Vitesse-1 !", "de":"{p} wurde in einem Klebenetz gefangen! Initiative sinkt um 1!", "es":"¡{p} quedó atrapado en la Red Viscosa! ¡Velocidad bajó 1!", "it":"{p} è rimasto intrappolato nella Ragnatela Appiccicosa! Velocità -1!", "ko":"{p}은(는) 끈적끈적네트에 걸렸다! 스피드-1!", "zh-Hans":"{p}被黏黏网缠住了！速度-1！", "zh-Hant":"{p}被黏黏網纏住了！速度-1！" },
@@ -187,8 +227,10 @@
     bl_98: { "en":"{p} restored {n} HP using {p2}! (HP remaining: {n2})", "fr":"{p} a récupéré {n} PV grâce à {p2} ! (PV restants : {n2})", "de":"{p} hat {n} KP mit {p2} wiederhergestellt! (Verbleibende KP: {n2})", "es":"¡{p} recuperó {n} PS gracias a {p2}! (PS restantes: {n2})", "it":"{p} ha recuperato {n} PS grazie a {p2}! (PS rimanenti: {n2})", "ko":"{p}은(는) {p2}(으)로 HP를 {n} 회복했다! (남은 HP: {n2})", "zh-Hans":"{p}通过{p2}回复了{n}点HP！（剩余HP：{n2}）", "zh-Hant":"{p}透過{p2}回復了{n}點HP！（剩餘HP：{n2}）" },
     bl_143: { "en":"{p} is hurt by Rough Skin for {n} damage! (HP remaining: {n2})", "fr":"{p} subit {n} dégâts à cause de Peau Dure ! (PV restants : {n2})", "de":"{p} erleidet {n} Schadenspunkte durch Rauhhaut! (Verbleibende KP: {n2})", "es":"¡{p} recibe {n} de daño por Piel Tosca! (PS restantes: {n2})", "it":"{p} subisce {n} danni per Pelleruvida! (PS rimanenti: {n2})", "ko":"{p}은(는) 까칠한피부로 {n} 데미지를 입었다! (남은 HP: {n2})", "zh-Hans":"{p}因粗糙皮肤受到了{n}点伤害！（剩余HP：{n2}）", "zh-Hant":"{p}因粗糙皮膚受到了{n}點傷害！（剩餘HP：{n2}）" },
     bl_151: { "en":"{p} can't use {move} because of intense gravity!", "fr":"{p} ne peut pas utiliser {move} à cause de la forte gravité !", "de":"{p} kann {move} wegen der starken Schwerkraft nicht einsetzen!", "es":"¡{p} no puede usar {move} debido a la fuerte gravedad!", "it":"{p} non può usare {move} a causa della forte gravità!", "ko":"{p}은(는) 중력이 강해서 {move}을(를) 쓸 수 없다!", "zh-Hans":"{p}因重力太强而无法使用{move}！", "zh-Hant":"{p}因重力太強而無法使用{move}！" },
+    bl_219: { "en":"But it failed! (already at {n})", "fr":"Mais ça a échoué ! (déjà à {n})", "de":"Aber es hat nicht geklappt! (bereits bei {n})", "es":"¡Pero falló! (ya en {n})", "it":"Ma ha fallito! (già a {n})", "ko":"하지만 제대로 맞지 않았다！(이미 {n})", "zh-Hans":"但是没有成功！（已经是{n}）", "zh-Hant":"但是沒有成功！（已經是{n}）" },
     bl_19: { "en":"{p} used {move}! But there's nothing stored up!", "fr":"{p} utilise {move} ! Mais rien n'a été emmagasiné !", "de":"{p} setzt {move} ein! Aber es wurde nichts aufgeladen!", "es":"¡{p} usó {move}! ¡Pero no hay nada almacenado!", "it":"{p} usa {move}! Ma non c'è nulla di accumulato!", "ko":"{p}의 {move}！ 하지만 저축한 것이 없다！", "zh-Hans":"{p}使出了{move}！但是没有蓄积任何东西！", "zh-Hant":"{p}使出了{move}！但是沒有蓄積任何東西！" },
     bl_34: { "en":"{p}'s Grassy Surge caused grass to grow on the field!", "fr":"Le Surge Herbacé de {p} a fait pousser de l'herbe sur le terrain !", "de":"{p}s Grassurge hat das Spielfeld mit Gras bedeckt!", "es":"¡El Surgimiento Planta de {p} hizo crecer hierba en el campo!", "it":"Il Surgherba di {p} ha fatto crescere l'erba sul terreno!", "ko":"{p}의 그래스서지로 발밑에 풀이 자라났다!", "zh-Hans":"{p}的青草场效果让脚下长出了青草！", "zh-Hant":"{p}的青草場效果讓腳下長出了青草！" },
+    bl_45: { "en":"{p}'s Light Clay extended the effect of {n} by more turns!", "fr":"L'Argile Lumière de {p} prolonge la durée de l'effet de {n} !", "de":"{p}s Leichtton hat die Dauer des Effekts von {n} verlängert!", "es":"¡La Arcilla Luz de {p} prolongó el efecto de {n} turnos!", "it":"L'Argilla Luce di {p} ha prolungato l'effetto di {n}!", "ko":"{p}의 빛의점토로 {n}의 효과가 연장되었다!", "zh-Hans":"{p}的光之黏土使{n}的效果延长了！", "zh-Hant":"{p}的光之黏土使{n}的效果延長了！" },
     bl_51: { "en":"{p}'s Misty Surge covered the field in mist!", "fr":"Le Surge Brumeux de {p} a recouvert le terrain de brume !", "de":"{p}s Nebelsurge hat das Spielfeld in Nebel gehüllt!", "es":"¡El Surgimiento Niebla de {p} cubrió el campo con niebla!", "it":"Il Surgnebbia di {p} ha avvolto il terreno nella nebbia!", "ko":"{p}의 미스트서지로 발밑에 안개가 가득 찼다!", "zh-Hans":"{p}的薄雾场效果让脚下充满了雾气！", "zh-Hant":"{p}的薄霧場效果讓腳下充滿了霧氣！" },
     bl_67: { "en":"Pointed stones began floating around {p}!", "fr":"Des rochers acérés commencent à flotter autour de {p} !", "de":"Spitze Steine schweben nun um {p} herum!", "es":"¡Rocas puntiagudas comenzaron a flotar alrededor de {p}!", "it":"Rocce appuntite hanno cominciato a fluttuare intorno a {p}!", "ko":"{p}의 발밑에 뾰족한 돌이 떠오르기 시작했다!", "zh-Hans":"{p}脚边开始漂浮起了尖锐的岩石！", "zh-Hant":"{p}腳邊開始漂浮起了尖銳的岩石！" },
     bl_68: { "en":"Poison spikes were scattered around {p}! (layer {n})", "fr":"Des Pics Vénèn ont été dispersés autour de {p} ! (couche {n})", "de":"Giftnattern wurden um {p} verstreut! (Schicht {n})", "es":"¡Se esparcieron Pinchos Tóxicos alrededor de {p}! (capa {n})", "it":"Degli spilli velenosi sono stati dispersi intorno a {p}! (strato {n})", "ko":"{p}의 발밑에 독압정이 뿌려졌다！({n}층)", "zh-Hans":"{p}脚边散布了毒菱！（第{n}层）", "zh-Hant":"{p}腳邊散布了毒菱！（第{n}層）" },
@@ -201,9 +243,13 @@
     bl_182: { "en":"{p} bounced {move} back with Magic Bounce!", "fr":"{p} a renvoyé {move} grâce à Renvoi Magique !", "de":"{p} hat {move} mit Magieschild zurückgeworfen!", "es":"¡{p} devolvió {move} gracias a Espejo Mágico!", "it":"{p} ha rimandato indietro {move} con Specchio Magico!", "ko":"{p}은(는) 매직미러로 {move}을(를) 되돌려 보냈다!", "zh-Hans":"{p}用魔法镜将{move}反弹回去了！", "zh-Hant":"{p}用魔法鏡將{move}反彈回去了！" },
     bl_183: { "en":"{p} can use sound-based moves again!", "fr":"{p} peut à nouveau utiliser des capacités sonores !", "de":"{p} kann wieder Geräusch-Attacken einsetzen!", "es":"¡{p} ya puede volver a usar movimientos de sonido!", "it":"{p} può usare di nuovo le mosse basate sul suono!", "ko":"{p}은(는) 다시 소리 기술을 쓸 수 있게 되었다!", "zh-Hans":"{p}又可以使出声音技了！", "zh-Hant":"{p}又可以使出聲音技了！" },
     bl_189: { "en":"{p} boosted its Fire-type power with Flash Fire!", "fr":"{p} a amplifié la puissance de ses capacités Feu grâce à Torche !", "de":"{p} verstärkte seine Feuer-Attacken durch Blitzblitz!", "es":"¡{p} potenció su poder de tipo Fuego con Absorbe Fuego!", "it":"{p} ha potenziato la sua potenza di tipo Fuoco con Vampirafuoco!", "ko":"{p}은(는) 타오르는불꽃으로 불꽃 타입 기술의 힘이 강해졌다!", "zh-Hans":"{p}借助引火特性，火属性技的威力增强了！", "zh-Hant":"{p}藉助引火特性，火屬性技的威力增強了！" },
+    bl_38: { "en":"{p}'s Synchronize! {p2} also became {n}!", "fr":"Synchro de {p} ! {p2} est aussi {n} !", "de":"{p}s Synchrono! {p2} ist jetzt auch {n}!", "es":"¡Sincronía de {p}! ¡{p2} también quedó {n}!", "it":"Sincronismo di {p}! Anche {p2} è diventato/a {n}!", "ko":"{p}의 싱크로! {p2}도 {n} 상태가 되었다!", "zh-Hans":"{p}的同步！{p2}也变成了{n}状态！", "zh-Hant":"{p}的同步！{p2}也變成了{n}狀態！" },
+    bl_52: { "en":"{p}'s Moody! {p2}'s stat shot up a lot!", "fr":"Lunatisme de {p} ! La stat de {p2} a largement augmenté !", "de":"{p}s Launisch! {p2}s Statuswert stieg stark!", "es":"¡Veleta de {p}! ¡La estadística de {p2} subió mucho!", "it":"Umoralità di {p}! La stat di {p2} è aumentata moltissimo!", "ko":"{p}의 변덕쟁이! {p2}의 능력이 훌쩍 올랐다!", "zh-Hans":"{p}的喜怒无常！{p2}的能力大幅提升了！", "zh-Hant":"{p}的喜怒無常！{p2}的能力大幅提升了！" },
+    bl_57: { "en":"{p}'s move becomes {n} type this turn!", "fr":"La capacité de {p} devient de type {n} ce tour !", "de":"{p}s Attacke wird diesen Zug zum Typ {n}!", "es":"¡El movimiento de {p} es de tipo {n} este turno!", "it":"La mossa di {p} diventa di tipo {n} in questo turno!", "ko":"{p}의 기술은 이번 턴에 {n} 타입이 된다!", "zh-Hans":"{p}的技在这回合变为{n}属性！", "zh-Hant":"{p}的技在這回合變為{n}屬性！" },
     bl_69: { "en":"A sticky web was laid under {p}!", "fr":"Une Toile Poisseuse a été déployée sous {p} !", "de":"Unter {p} wurde ein Klebnetz ausgelegt!", "es":"¡Se extendió una Red Viscosa bajo {p}!", "it":"Una Ragnatela Vischiosa è stata posata ai piedi di {p}!", "ko":"{p}의 발밑에 끈적끈적네트가 깔렸다!", "zh-Hans":"{p}脚下铺开了黏黏网！", "zh-Hant":"{p}腳下鋪開了黏黏網！" },
     bl_126: { "en":"{p} identified {p2}'s {item} with Frisk!", "fr":"{p} a repéré le {item} de {p2} grâce à Inspection !", "de":"{p} hat {p2}s {item} mit Spürsinn entdeckt!", "es":"¡{p} identificó el {item} de {p2} con Fisgón!", "it":"{p} ha scoperto il {item} di {p2} grazie a Curiosone!", "ko":"{p}은(는) 꼼꼼히보기로 {p2}의 {item}을(를) 간파했다!", "zh-Hans":"{p}用慧眼识珠看穿了{p2}的{item}！", "zh-Hant":"{p}用慧眼識珠看穿了{p2}的{item}！" },
     bl_134: { "en":"{p} held on using its Focus Band!", "fr":"{p} a survécu grâce au Bandeau Concentration !", "de":"{p} behauptete sich mithilfe des Fokusbands!", "es":"¡{p} aguantó gracias a la Banda Focus!", "it":"{p} ha resistito grazie alla Fascia Focus!", "ko":"{p}은(는) 기합의머리띠로 버텼다!", "zh-Hans":"{p}靠着气合头带撑住了！", "zh-Hant":"{p}靠著鬥志頭帶撐住了！" },
+    bl_139: { "en":"{p} lost its {n} type this turn!", "fr":"{p} a perdu son type {n} ce tour !", "de":"{p} verlor diesen Zug seinen Typ {n}!", "es":"¡{p} perdió el tipo {n} este turno!", "it":"{p} ha perso il tipo {n} in questo turno!", "ko":"{p}은(는) 이번 턴에 {n} 타입이 아니게 되었다!", "zh-Hans":"{p}在这回合不再是{n}属性了！", "zh-Hant":"{p}在這回合不再是{n}屬性了！" },
     bl_157: { "en":"{p} is taunted and can't use {move}!", "fr":"{p} est provoqué et ne peut pas utiliser {move} !", "de":"{p} ist provoziert und kann {move} nicht einsetzen!", "es":"¡{p} está provocado y no puede usar {move}!", "it":"{p} è sotto Provocazione e non può usare {move}!", "ko":"{p}은(는) 도발당해서 {move}을(를) 쓸 수 없다!", "zh-Hans":"{p}受到挑衅，无法使出{move}！", "zh-Hant":"{p}受到挑釁，無法使出{move}！" },
     bl_162: { "en":"{p} traced {p2}'s {p3}!", "fr":"{p} a copié le talent {p3} de {p2} grâce à Calque !", "de":"{p} kopierte {p2}'s Fähigkeit {p3} mit Spurensinn!", "es":"¡{p} copió la habilidad {p3} de {p2} mediante Huella!", "it":"{p} ha copiato l'abilità {p3} di {p2} con Rilevatore!", "ko":"{p}은(는) 트레이스로 {p2}의 {p3}을(를) 복사했다!", "zh-Hans":"{p}用描摹复制了{p2}的{p3}！", "zh-Hant":"{p}用描摹複製了{p2}的{p3}！" },
     bl_169: { "en":"{p}'s Big Pecks prevents its Defense from being lowered!", "fr":"Le talent Gros Jabot de {p} l'empêche de voir sa Défense baisser !", "de":"{p}'s Fähigkeit Dickbrustigkeit verhindert, dass sein Verteidigungswert sinkt!", "es":"¡La habilidad Pechugón de {p} impide que su Defensa baje!", "it":"L'abilità Torace Ampio di {p} impedisce la riduzione della sua Difesa!", "ko":"{p}은(는) 패기가슴으로 방어가 내려가지 않는다!", "zh-Hans":"{p}的坚实胸膛防止了防御降低！", "zh-Hant":"{p}的堅實胸膛防止了防禦降低！" },
@@ -229,6 +275,7 @@
     bl_176: { "en":"{p} is exerting its pressure!", "fr":"{p} exerce sa pression !", "de":"{p} setzt seinen Stressdruck ein!", "es":"¡{p} está ejerciendo presión!", "it":"{p} sta esercitando la sua pressione!", "ko":"{p}는 프레셔를 내뿜고 있다!", "zh-Hans":"{p}正在散发压迫感！", "zh-Hant":"{p}正在散發壓迫感！" },
     bl_178: { "en":"{p}'s soundproofing blocks sound-based moves!", "fr":"L'insonorisation de {p} le protège des capacités sonores !", "de":"{p}s Lärmschutz macht es immun gegen klangbasierte Attacken!", "es":"¡El aislante de {p} lo protege de los movimientos de sonido!", "it":"L'insonorizzazione di {p} lo rende immune alle mosse sonore!", "ko":"{p}는 방음으로 음파 기술이 통하지 않는다!", "zh-Hans":"{p}因隔音效果，声音技能无效！", "zh-Hant":"{p}因隔音效果，聲音技能無效！" },
     bl_180: { "en":"{p}'s Own Tempo prevents confusion!", "fr":"Le Tempo Perso de {p} l'empêche d'être confus !", "de":"{p}s Eigentakt verhindert Verwirrung!", "es":"¡El Ritmo Propio de {p} lo protege de la confusión!", "it":"Il Passo Proprio di {p} lo protegge dalla confusione!", "ko":"{p}는 마이페이스로 혼란 상태가 되지 않는다!", "zh-Hans":"{p}因我行我素，不会陷入混乱！", "zh-Hant":"{p}因我行我素，不會陷入混亂！" },
+    bl_190: { "en":"{p}'s Leaf Guard prevents {n}!", "fr":"La Feuille Bouclier de {p} l'empêche d'être {n} !", "de":"{p}s Blätterschutz verhindert {n}!", "es":"¡La Hoja Escudo de {p} evita {n}!", "it":"La Foglia Scudo di {p} impedisce {n}!", "ko":"{p}는 리프가드로 {n} 상태가 되지 않는다!", "zh-Hans":"{p}因树叶防护，不会变成{n}！", "zh-Hant":"{p}因樹葉防護，不會變成{n}！" },
     bl_210: { "en":"The {p}th hit missed and the attack stopped!", "fr":"Le {p}e coup a raté et l'attaque s'est arrêtée !", "de":"Der {p}. Treffer hat verfehlt und der Angriff wurde gestoppt!", "es":"¡El golpe número {p} falló y el ataque se detuvo!", "it":"Il {p}° colpo ha mancato e l'attacco si è fermato!", "ko":"{p}번째 공격이 빗나가 공격이 멈췄다!", "zh-Hans":"第{p}击未命中，攻击停止了！", "zh-Hant":"第{p}擊未命中，攻擊停止了！" },
     bl_243: { "en":"Can't switch out (no usable Pokémon in reserve)", "fr":"Impossible de changer (aucun Pokémon disponible en réserve)", "de":"Kein Wechsel möglich (keine einsatzbereiten Pokémon in Reserve)", "es":"No se puede cambiar (no hay Pokémon disponibles en reserva)", "it":"Impossibile cambiare (nessun Pokémon disponibile in riserva)", "ko":"교체 불가(내보낼 수 있는 교체 요원이 없음)", "zh-Hans":"无法换场（没有可以上场的替补）", "zh-Hant":"無法換場（沒有可以上場的替補）" },
     bl_20: { "en":"{p} used {move}! But there are no usable moves!", "fr":"{p} utilise {move} ! Mais il n'y a plus de capacités utilisables !", "de":"{p} setzt {move} ein! Aber es gibt keine einsetzbaren Attacken!", "es":"¡{p} usó {move}! ¡Pero no hay movimientos disponibles!", "it":"{p} usa {move}! Ma non ci sono mosse utilizzabili!", "ko":"{p}의 {move}! 하지만 사용할 수 있는 기술이 없다!", "zh-Hans":"{p}的{move}！但没有可以使出的技能！", "zh-Hant":"{p}的{move}！但沒有可以使出的技能！" },
@@ -276,9 +323,11 @@
     bl_197: { "en":"{p} became surrounded by a watery veil!", "fr":"{p} s'est entouré d'un anneau d'eau !", "de":"{p} umgab sich mit einem Wasserring!", "es":"¡{p} se rodeó de un anillo de agua!", "it":"{p} si è circondato di un anello d'acqua!", "ko":"{p}는 물의 링을 둘렀다!", "zh-Hans":"{p}周围环绕上了水之环！", "zh-Hant":"{p}周圍環繞上了水之環！" },
     bl_199: { "en":"{p} levitated with electromagnetism!", "fr":"{p} a lévité grâce à l'électromagnétisme !", "de":"{p} schwebte durch Elektromagnetismus!", "es":"¡{p} levitó con el electromagnetismo!", "it":"{p} ha levitato grazie all'elettromagnetismo!", "ko":"{p}는 전자기력으로 떠올랐다!", "zh-Hans":"{p}借助电磁力浮了起来！", "zh-Hant":"{p}藉助電磁力浮了起來！" },
     bl_240: { "en":"The terrain faded!", "fr":"Le terrain a disparu !", "de":"Das Terrain verblasste!", "es":"¡El terreno desapareció!", "it":"Il terreno è svanito!", "ko":"필드가 사라졌다!", "zh-Hans":"场地消失了！", "zh-Hant":"場地消失了！" },
+    bl_3: { "en":"{p} acquired the {n} type!", "fr":"{p} a acquis le type {n} !", "de":"{p} hat den Typ {n} erhalten!", "es":"¡{p} adquirió el tipo {n}!", "it":"{p} ha acquisito il tipo {n}!", "ko":"{p}에게 {n} 타입이 추가됐다!", "zh-Hans":"{p}增加了{n}属性！", "zh-Hant":"{p}增加了{n}屬性！" },
     bl_24: { "en":"{p} calmed down!", "fr":"{p} s'est calmé !", "de":"{p} hat sich beruhigt!", "es":"¡{p} se calmó!", "it":"{p} si è calmato!", "ko":"{p}의 날뛰기가 멈췄다!", "zh-Hans":"{p}停止了乱打！", "zh-Hant":"{p}停止了亂打！" },
     bl_32: { "en":"{p} is no longer restricted by Disable!", "fr":"{p} n'est plus entravé par Entrave !", "de":"{p} ist nicht mehr durch Knebelung eingeschränkt!", "es":"¡{p} ya no está impedido por Anulación!", "it":"{p} non è più limitato da Blocco!", "ko":"{p}의 봉인이 풀렸다!", "zh-Hans":"{p}的束缚解除了！", "zh-Hant":"{p}的束縛解除了！" },
     bl_66: { "en":"{p}'s field hazards vanished!", "fr":"Les pièges du terrain de {p} ont disparu !", "de":"{p}'s Feldhindernisse sind verschwunden!", "es":"¡Los obstáculos del campo de {p} desaparecieron!", "it":"Le trappole nel campo di {p} sono scomparse!", "ko":"{p}의 장에 설치된 것이 사라졌다!", "zh-Hans":"{p}场地上的设置物消失了！", "zh-Hant":"{p}場地上的設置物消失了！" },
+    bl_91: { "en":"{p} is no longer {n} type!", "fr":"{p} n'est plus de type {n} !", "de":"{p} ist nicht mehr vom Typ {n}!", "es":"¡{p} ya no es de tipo {n}!", "it":"{p} non è più di tipo {n}!", "ko":"{p}은(는) {n}타입이 아니게 되었다!", "zh-Hans":"{p}不再是{n}属性了！", "zh-Hant":"{p}不再是{n}屬性了！" },
     bl_116: { "en":"{p} was covered in syrup!", "fr":"{p} est recouvert de sirop !", "de":"{p} wurde mit Sirup bedeckt!", "es":"¡{p} quedó cubierto de sirope!", "it":"{p} è stato ricoperto di sciroppo!", "ko":"{p}은(는) 끈적끈적해졌다!", "zh-Hans":"{p}被糖浆粘住了！", "zh-Hant":"{p}被糖漿黏住了！" },
     bl_117: { "en":"{p} got an Encore!", "fr":"{p} reçoit un Rappel !", "de":"{p} erhielt eine Zugabe!", "es":"¡{p} recibió un Bis!", "it":"{p} ha ricevuto un Bis!", "ko":"{p}은(는) 앙코르를 받았다!", "zh-Hans":"{p}受到了返场！", "zh-Hant":"{p}受到了安可！" },
     bl_140: { "en":"{p} braced itself!", "fr":"{p} se prépare à endurer !", "de":"{p} wappnet sich!", "es":"¡{p} se preparó para aguantar!", "it":"{p} si è preparato a resistere!", "ko":"{p}은(는) 버티는 자세를 취했다!", "zh-Hans":"{p}做好了忍耐的准备！", "zh-Hant":"{p}做好了忍耐的準備！" },
@@ -291,6 +340,7 @@
     bl_58: { "en":"{p}'s protection was broken!", "fr":"La protection de {p} a été brisée !", "de":"{p}s Schutz wurde durchbrochen!", "es":"¡La protección de {p} fue destruida!", "it":"La protezione di {p} è stata sfondata!", "ko":"{p}의 방어가 뚫렸다!", "zh-Hans":"{p}的防护被突破了！", "zh-Hant":"{p}的防護被突破了！" },
     bl_59: { "en":"{p} was cured of its status condition!", "fr":"{p} est guéri de son altération de statut !", "de":"{p} wurde von seinem Statusleiden geheilt!", "es":"¡{p} se curó de su problema de estado!", "it":"{p} è guarito dal suo stato!", "ko":"{p}의 상태 이상이 나았다!", "zh-Hans":"{p}的异常状态痊愈了！", "zh-Hant":"{p}的異常狀態痊癒了！" },
     bl_60: { "en":"{p}'s Levitate wore off!", "fr":"Lévitation de {p} a disparu !", "de":"{p}s Levitation ließ nach!", "es":"¡La Levitación de {p} desapareció!", "it":"Levitazione di {p} è terminata!", "ko":"{p}의 부유가 풀렸다!", "zh-Hans":"{p}的浮游消失了！", "zh-Hant":"{p}的浮游消失了！" },
+    bl_65: { "en":"{n} was set up on {p}'s side!", "fr":"{n} est mis en place du côté de {p} !", "de":"{n} wurde auf {p}s Seite aufgestellt!", "es":"¡{n} fue colocado en el campo de {p}!", "it":"{n} è stato piazzato dal lato di {p}!", "ko":"{p} 편에 {n}이(가) 펼쳐졌다!", "zh-Hans":"{p}一方铺设了{n}！", "zh-Hant":"{p}一方鋪設了{n}！" },
     bl_106: { "en":"{p} recycled {item}!", "fr":"{p} a recyclé {item} !", "de":"{p} hat {item} recycelt!", "es":"¡{p} recicló {item}!", "it":"{p} ha riciclato {item}!", "ko":"{p}은(는) {item}을(를) 리사이클했다!", "zh-Hans":"{p}循环利用了{item}！", "zh-Hant":"{p}循環利用了{item}！" },
     bl_137: { "en":"{p} is fast asleep!", "fr":"{p} dort profondément !", "de":"{p} schläft tief und fest!", "es":"¡{p} está profundamente dormido!", "it":"{p} sta dormendo profondamente!", "ko":"{p}은(는) 쿨쿨 자고 있다!", "zh-Hans":"{p}正在呼呼大睡！", "zh-Hant":"{p}正在呼呼大睡！" },
     bl_164: { "en":"{p} can no longer escape!", "fr":"{p} ne peut plus fuir !", "de":"{p} kann nicht mehr fliehen!", "es":"¡{p} ya no puede huir!", "it":"{p} non può più fuggire!", "ko":"{p}은(는) 도망칠 수 없게 되었다!", "zh-Hans":"{p}无法逃跑了！", "zh-Hant":"{p}無法逃跑了！" },
@@ -299,6 +349,8 @@
     bl_198: { "en":"{p} planted its roots!", "fr":"{p} a planté ses racines dans le sol !", "de":"{p} hat seine Wurzeln im Boden verankert!", "es":"¡{p} echó raíces en el suelo!", "it":"{p} ha piantato le radici nel terreno!", "ko":"{p}은(는) 땅에 뿌리를 내렸다!", "zh-Hans":"{p}在地面上扎根了！", "zh-Hant":"{p}在地面上紮根了！" },
     bl_206: { "en":"The tailwind on {p}'s side faded!", "fr":"Le vent arrière du côté de {p} s'est dissipé !", "de":"Der Rückenwind auf {p}s Seite hat nachgelassen!", "es":"¡El viento de cola del lado de {p} se detuvo!", "it":"Il vento favorevole dal lato di {p} si è calmato!", "ko":"{p} 편의 순풍이 그쳤다!", "zh-Hans":"{p}一方的顺风停止了！", "zh-Hant":"{p}一方的順風停止了！" },
     bl_35: { "en":"{p} thawed out!", "fr":"{p} est décongelé !", "de":"{p} ist aufgetaut!", "es":"¡{p} se descongeló!", "it":"{p} si è scongelato!", "ko":"{p}의 얼음이 녹았다!", "zh-Hans":"{p}的冰融化了！", "zh-Hant":"{p}的冰融化了！" },
+    bl_89: { "en":"{p} was freed from {n}!", "fr":"{p} est libéré de {n} !", "de":"{p} wurde von {n} befreit!", "es":"¡{p} se liberó de {n}!", "it":"{p} è stato liberato da {n}!", "ko":"{p}은(는) {n}에서 해방되었다!", "zh-Hans":"{p}从{n}中解放了！", "zh-Hant":"{p}從{n}中解放了！" },
+    bl_92: { "en":"{p} transformed into the {n} type!", "fr":"{p} est devenu de type {n} !", "de":"{p} wurde zum Typ {n}!", "es":"¡{p} se convirtió en tipo {n}!", "it":"{p} è diventato di tipo {n}!", "ko":"{p}은(는) {n}타입이 됐다!", "zh-Hans":"{p}变成了{n}属性！", "zh-Hant":"{p}變成了{n}屬性！" },
     bl_165: { "en":"{p} made a wish!", "fr":"{p} a fait un vœu !", "de":"{p} hat sich etwas gewünscht!", "es":"¡{p} pidió un deseo!", "it":"{p} ha espresso un desiderio!", "ko":"{p}은(는) 소원을 빌었다!", "zh-Hans":"{p}许下了愿望！", "zh-Hant":"{p}許下了願望！" },
     bl_25: { "en":"{p}'s candy dried up!", "fr":"Le bonbon de {p} s'est desséché !", "de":"{p}s Bonbon ist eingetrocknet!", "es":"¡El caramelo de {p} se secó!", "it":"La caramella di {p} si è seccata!", "ko":"{p}의 사탕이 말라 버렸다!", "zh-Hans":"{p}的糖果干涸了！", "zh-Hant":"{p}的糖果乾涸了！" },
     bl_148: { "en":"{p} calmed down!", "fr":"{p} s'est calmé !", "de":"{p} hat sich beruhigt!", "es":"¡{p} se calmó!", "it":"{p} si è calmato!", "ko":"{p}은(는) 조용해졌다!", "zh-Hans":"{p}平静下来了！", "zh-Hant":"{p}平靜下來了！" },
@@ -327,6 +379,7 @@
     blf_12: { "en":"Undid one move.", "fr":"Un coup a été annulé.", "de":"Ein Zug wurde rückgängig gemacht.", "es":"Se deshizo un movimiento.", "it":"Una mossa è stata annullata.", "ko":"한 수 되돌렸습니다.", "zh-Hans":"已撤销一步。", "zh-Hant":"已撤銷一步。" },
     blf_13: { "en":"Full reset complete.", "fr":"Réinitialisation complète terminée.", "de":"Vollständiger Reset abgeschlossen.", "es":"Reinicio completo finalizado.", "it":"Reset completo eseguito.", "ko":"전체 리셋 완료.", "zh-Hans":"全部重置完成。", "zh-Hant":"全部重置完成。" },
     blf_14: { "en":"The weather returned to normal!", "fr":"Le temps est revenu à la normale !", "de":"Das Wetter ist wieder normal!", "es":"¡El tiempo volvió a la normalidad!", "it":"Il clima è tornato normale!", "ko":"날씨가 원래대로 돌아왔다!", "zh-Hans":"天气恢复正常了！", "zh-Hant":"天氣恢復正常了！" },
+    blf_15: { "en":"No effect!", "fr":"Ça n'a aucun effet !", "de":"Es zeigt keine Wirkung!", "es":"¡No tiene efecto!", "it":"Non ha effetto!", "ko":"효과가 없다!", "zh-Hans":"没有效果！", "zh-Hant":"沒有效果！" },
   };
 
   // ─── パターン(順に試す)。slots: テンプレ名→{g:捕捉番号, kind} ───
@@ -378,24 +431,26 @@
     { id: 'bl_221', re: /^しかし うまく きまらなかった！\(すでに きゅうしょアップしている\)$/, slots: {  } },
     { id: 'bl_228', re: /^しかし うまく きまらなかった！\(すでに 水のリングをまとっている\)$/, slots: {  } },
     { id: 'bl_15', re: /^((?:相手の )?\S+) の (\S+)！ しかし うまく きまらなかった！\(すでに 予知している\)$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
-    { id: 'bl_84', re: /^((?:相手の )?\S+) は (\S+) の こうげきを うけた！ しかし こうかが ないようだ…$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
+    { id: 'bl_84', re: /^((?:相手の )?\S+) は (\S+) の こうげきを うけた！ しかし こうかが ないようだ…$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "move" } } },
     { id: 'bl_181', re: /^((?:相手の )?\S+) は まきびしの ダメージを受けた！ (\d+) ダメージ！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
     { id: 'bl_224', re: /^しかし うまく きまらなかった！\(すでに ねがいごとをしている\)$/, slots: {  } },
     { id: 'bl_16', re: /^((?:相手の )?\S+) の (\S+)！ しかし うまく きまらなかった！\(まねする技がない\)$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_42', re: /^((?:相手の )?\S+) の ねがいごとが かなった！ HPを (\d+) 回復！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
     { id: 'bl_48', re: /^((?:相手の )?\S+) の ほろびのカウントが 0になった！ ((?:相手の )?\S+) は ひんしになった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" } } },
-    { id: 'bl_83', re: /^((?:相手の )?\S+) は (\S+) の こうげきを うけた！ (\d+) ダメージ！ \(残HP (\d+)\/(\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" }, "n": { g: 3, kind: "num" }, "n2": { g: 4, kind: "num" }, "n3": { g: 5, kind: "num" } } },
+    { id: 'bl_83', re: /^((?:相手の )?\S+) は (\S+) の こうげきを うけた！ (\d+) ダメージ！ \(残HP (\d+)\/(\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "move" }, "n": { g: 3, kind: "num" }, "n2": { g: 4, kind: "num" }, "n3": { g: 5, kind: "num" } } },
     { id: 'bl_118', re: /^((?:相手の )?\S+) は いきおいあまって たおれた！ \((\d+) ダメージ・残りHP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
     { id: 'bl_191', re: /^((?:相手の )?\S+) は わけもわからず じぶんを こうげきした！ \((\d+) ダメージ\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" } } },
     { id: 'bl_222', re: /^しかし うまく きまらなかった！\(すでに じゅうりょくが強い\)$/, slots: {  } },
     { id: 'bl_229', re: /^しかし うまく きまらなかった！\(すでに 追い風が吹いている\)$/, slots: {  } },
     { id: 'bl_231', re: /^しかし うまく きまらなかった！\(ひかえの ポケモンがいない\)$/, slots: {  } },
     { id: 'bl_44', re: /^((?:相手の )?\S+) の のろわれボディ！ ((?:相手の )?\S+) の (\S+) を かなしばり状態に した！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" }, "move": { g: 3, kind: "move" } } },
-    { id: 'bl_88', re: /^((?:相手の )?\S+) は (\S+)！ ((?:相手の )?\S+) は しじに したがい もういちど (\S+) を つかう！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" }, "p2": { g: 3, kind: "poke" }, "move2": { g: 4, kind: "move" } } },
+    { id: 'bl_88', re: /^((?:相手の )?\S+) は (\S+)！ ((?:相手の )?\S+) は しじに したがい もういちど (\S+) を つかう！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" }, "p2": { g: 3, kind: "poke" }, "p3": { g: 4, kind: "move" } } },
     { id: 'bl_122', re: /^((?:相手の )?\S+) は おたがいの 道具を 入れかえた！\(自分=(\S+) \/ 相手=(\S+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "item": { g: 2, kind: "item" }, "item2": { g: 3, kind: "item" } } },
     { id: 'bl_179', re: /^((?:相手の )?\S+) は ぼうぎょと とくぼうが 入れかわる 空間を つくった！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_216', re: /^しかし うまく きまらなかった！\((\S+) はすでに 張られている\)$/, slots: { "n": { g: 1, kind: "cond" } } },
     { id: 'bl_236', re: /^しかし うまく きまらなかった！\(味方の ポケモンがいない\)$/, slots: {  } },
     { id: 'bl_239', re: /^とがった岩が ((?:相手の )?\S+) に 食いこんだ！ (\d+) ダメージ！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
+    { id: 'bl_14', re: /^((?:相手の )?\S+) の (\S+)！ しかし うまく きまらなかった！\((\S+)状態ではない\)$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" }, "n": { g: 3, kind: "cond" } } },
     { id: 'bl_120', re: /^((?:相手の )?\S+) は いちゃもんを つけられていて おなじ技が だせない！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_217', re: /^しかし うまく きまらなかった！\(きのみを もっていない\)$/, slots: {  } },
     { id: 'bl_220', re: /^しかし うまく きまらなかった！\(すでに いちゃもん状態\)$/, slots: {  } },
@@ -404,12 +459,12 @@
     { id: 'bl_226', re: /^しかし うまく きまらなかった！\(すでに ふういん発動中\)$/, slots: {  } },
     { id: 'bl_227', re: /^しかし うまく きまらなかった！\(すでに みがわりがいる\)$/, slots: {  } },
     { id: 'bl_233', re: /^しかし うまく きまらなかった！\(再生できる道具が ない\)$/, slots: {  } },
-    { id: 'bl_99', re: /^((?:相手の )?\S+) は (\S+)で ダメージを 半減した！\(きのみは なくなった\)$/, slots: { "p": { g: 1, kind: "poke" }, "item": { g: 2, kind: "item" } } },
+    { id: 'bl_99', re: /^((?:相手の )?\S+) は (\S+)で ダメージを 半減した！\(きのみは なくなった\)$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "item" } } },
     { id: 'bl_214', re: /^しかし うまく きまらなかった！\(((?:相手の )?\S+) は ねをはっている\)$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_232', re: /^しかし うまく きまらなかった！\(ゆきが 降っていない\)$/, slots: {  } },
     { id: 'bl_234', re: /^しかし うまく きまらなかった！\(出せる控えが いない\)$/, slots: {  } },
     { id: 'bl_2', re: /^((?:相手の )?\S+) と ((?:相手の )?\S+) は いたみを 分けあった！\(おたがい HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" }, "n": { g: 3, kind: "num" } } },
-    { id: 'bl_13', re: /^((?:相手の )?\S+) の (\S+)！ (\d+)回ヒット 合計 (\d+) ダメージ！ \(残HP (\d+)\/(\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" }, "n": { g: 3, kind: "num" }, "n2": { g: 4, kind: "num" }, "n3": { g: 5, kind: "num" }, "n4": { g: 6, kind: "num" } } },
+    { id: 'bl_13', re: /^((?:相手の )?\S+) の (\S+)！ (\d+)回ヒット 合計 (\d+) ダメージ！ \(残HP (\d+)\/(\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" }, "p2": { g: 3, kind: "num" }, "n": { g: 4, kind: "num" }, "n2": { g: 5, kind: "num" }, "n3": { g: 6, kind: "num" } } },
     { id: 'bl_18', re: /^((?:相手の )?\S+) の (\S+)！ しかし うまく きまらなかった！\(連続使用\)$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_27', re: /^((?:相手の )?\S+) の いかりのつぼ！ こうげきが 最大まで あがった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_37', re: /^((?:相手の )?\S+) の サイコメイカーで 足下に不思議な空間が広がった！$/, slots: { "p": { g: 1, kind: "poke" } } },
@@ -418,6 +473,7 @@
     { id: 'bl_218', re: /^しかし うまく きまらなかった！\(これ以上 置けない\)$/, slots: {  } },
     { id: 'bl_230', re: /^しかし うまく きまらなかった！\(すでに 浮いている\)$/, slots: {  } },
     { id: 'bl_33', re: /^((?:相手の )?\S+) の くだけるよろい！ ぼうぎょ-1 すばやさ\+2！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_53', re: /^((?:相手の )?\S+) の ムラっけ！ (\S+)が ぐーんとあがり (\S+)が さがった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "stat" }, "p3": { g: 3, kind: "stat" } } },
     { id: 'bl_86', re: /^((?:相手の )?\S+) は ((?:相手の )?\S+) を みちづれにした！ ((?:相手の )?\S+) は ひんしになった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" }, "p3": { g: 3, kind: "poke" } } },
     { id: 'bl_149', re: /^((?:相手の )?\S+) は しぜんかいふくで 状態異常を 治して 戻った！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_166', re: /^((?:相手の )?\S+) は ねばねばネットに ひっかかった！ すばやさ-1$/, slots: { "p": { g: 1, kind: "poke" } } },
@@ -428,7 +484,7 @@
     { id: 'bl_132', re: /^((?:相手の )?\S+) は かんそうはだで HPを 回復！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" } } },
     { id: 'bl_153', re: /^((?:相手の )?\S+) は しろいハーブで 下がった能力を 元に戻した！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_211', re: /^いやしのねがいが かなった！ ((?:相手の )?\S+) は 元気になった！$/, slots: { "p": { g: 1, kind: "poke" } } },
-    { id: 'bl_22', re: /^((?:相手の )?\S+) の (\S+)が 反応している！ ((?:相手の )?\S+) に メガシンカした！$/, slots: { "p": { g: 1, kind: "poke" }, "item": { g: 2, kind: "item" }, "p2": { g: 3, kind: "poke" } } },
+    { id: 'bl_22', re: /^((?:相手の )?\S+) の (\S+)が 反応している！ ((?:相手の )?\S+) に メガシンカした！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "item" }, "p3": { g: 3, kind: "poke" } } },
     { id: 'bl_131', re: /^((?:相手の )?\S+) は かんそうはだで (\d+) ダメージ！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
     { id: 'bl_146', re: /^((?:相手の )?\S+) は じごくづきの ダメージで (\S+) が だせない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_168', re: /^((?:相手の )?\S+) は ねをはって HPを (\d+) 回復！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
@@ -448,12 +504,14 @@
     { id: 'bl_241', re: /^フェアリーロックで 誰も にげられなくなった！$/, slots: {  } },
     { id: 'bl_7', re: /^((?:相手の )?\S+) の (\S+) は 天候のおかげで 溜めずに撃てる！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_29', re: /^((?:相手の )?\S+) の エレキメイカーで 足下に電気が満ちた！$/, slots: { "p": { g: 1, kind: "poke" } } },
-    { id: 'bl_90', re: /^((?:相手の )?\S+) は (\d+)ターンの間 音の技が だせなくなった！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" } } },
-    { id: 'bl_98', re: /^((?:相手の )?\S+) は (\S+)で HPを (\d+) 回復した！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "item": { g: 2, kind: "item" }, "n": { g: 3, kind: "num" }, "n2": { g: 4, kind: "num" } } },
+    { id: 'bl_90', re: /^((?:相手の )?\S+) は (\d+)ターンの間 音の技が だせなくなった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "num" } } },
+    { id: 'bl_98', re: /^((?:相手の )?\S+) は (\S+)で HPを (\d+) 回復した！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "item" }, "n": { g: 3, kind: "num" }, "n2": { g: 4, kind: "num" } } },
     { id: 'bl_143', re: /^((?:相手の )?\S+) は さめはだで (\d+) ダメージ！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
     { id: 'bl_151', re: /^((?:相手の )?\S+) は じゅうりょくが強くて (\S+) が だせない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
+    { id: 'bl_219', re: /^しかし うまく きまらなかった！\(すでに (\S+)\)$/, slots: { "n": { g: 1, kind: "cond" } } },
     { id: 'bl_19', re: /^((?:相手の )?\S+) の (\S+)！ しかし たくわえたものが ない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_34', re: /^((?:相手の )?\S+) の グラスメイカーで 足下に草が生えた！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_45', re: /^((?:相手の )?\S+) の ひかりのねんどで (\S+) の効果が伸びた！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "cond" } } },
     { id: 'bl_51', re: /^((?:相手の )?\S+) の ミストメイカーで 足下に霧が満ちた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_67', re: /^((?:相手の )?\S+) の足元に とがった岩が 浮かびはじめた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_68', re: /^((?:相手の )?\S+) の足元に どくびしが 散らばった！\((\d+)層\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" } } },
@@ -466,13 +524,17 @@
     { id: 'bl_182', re: /^((?:相手の )?\S+) は マジックミラーで (\S+) を 跳ね返した！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_183', re: /^((?:相手の )?\S+) は また 音の技が だせるようになった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_189', re: /^((?:相手の )?\S+) は もらいびで ほのおの力が 強まった！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_38', re: /^((?:相手の )?\S+) の シンクロ！ ((?:相手の )?\S+) も (\S+) 状態になった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" }, "n": { g: 3, kind: "cond" } } },
+    { id: 'bl_52', re: /^((?:相手の )?\S+) の ムラっけ！ (\S+)が ぐーんとあがった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "stat" } } },
+    { id: 'bl_57', re: /^((?:相手の )?\S+) の 技は このターン (\S+)タイプに なる！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "type" } } },
     { id: 'bl_69', re: /^((?:相手の )?\S+) の足元に ねばねばネットが 広がった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_126', re: /^((?:相手の )?\S+) は おみとおしで ((?:相手の )?\S+) の (\S+)を 見抜いた！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" }, "item": { g: 3, kind: "item" } } },
     { id: 'bl_134', re: /^((?:相手の )?\S+) は きあいのハチマキで もちこたえた！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_139', re: /^((?:相手の )?\S+) は このターン (\S+)タイプで なくなった！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "type" } } },
     { id: 'bl_157', re: /^((?:相手の )?\S+) は ちょうはつされて (\S+) が だせない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
-    { id: 'bl_162', re: /^((?:相手の )?\S+) は トレースで ((?:相手の )?\S+) の (\S+)を コピーした！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" }, "ab": { g: 3, kind: "ability" } } },
+    { id: 'bl_162', re: /^((?:相手の )?\S+) は トレースで ((?:相手の )?\S+) の (\S+)を コピーした！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" }, "p3": { g: 3, kind: "ability" } } },
     { id: 'bl_169', re: /^((?:相手の )?\S+) は はとむねで ぼうぎょが下がらない！$/, slots: { "p": { g: 1, kind: "poke" } } },
-    { id: 'bl_170', re: /^((?:相手の )?\S+) は はんすうで (\S+)を もう一度 食べた！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
+    { id: 'bl_170', re: /^((?:相手の )?\S+) は はんすうで (\S+)を もう一度 食べた！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "move" } } },
     { id: 'bl_188', re: /^((?:相手の )?\S+) は メンタルハーブで 束縛を 解いた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_30', re: /^((?:相手の )?\S+) の かそく！ すばやさが あがった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_64', re: /^((?:相手の )?\S+) の後ろから 追い風が 吹きはじめた！$/, slots: { "p": { g: 1, kind: "poke" } } },
@@ -494,7 +556,8 @@
     { id: 'bl_176', re: /^((?:相手の )?\S+) は プレッシャーを はなっている！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_178', re: /^((?:相手の )?\S+) は ぼうおんで 音技が 効かない！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_180', re: /^((?:相手の )?\S+) は マイペースで こんらんしない！$/, slots: { "p": { g: 1, kind: "poke" } } },
-    { id: 'bl_210', re: /^(\d+)発目は はずれて 攻撃が 止まった！$/, slots: { "n": { g: 1, kind: "num" } } },
+    { id: 'bl_190', re: /^((?:相手の )?\S+) は リーフガードで (\S+)に ならない！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "cond" } } },
+    { id: 'bl_210', re: /^(\d+)発目は はずれて 攻撃が 止まった！$/, slots: { "p": { g: 1, kind: "num" } } },
     { id: 'bl_243', re: /^交代できない\(出せる控えが いない\)$/, slots: {  } },
     { id: 'bl_20', re: /^((?:相手の )?\S+) の (\S+)！ しかし だせる技がない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_41', re: /^((?:相手の )?\S+) の ちょうはつの 効果が切れた！$/, slots: { "p": { g: 1, kind: "poke" } } },
@@ -514,13 +577,13 @@
     { id: 'bl_26', re: /^((?:相手の )?\S+) の アンコール状態が とけた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_49', re: /^((?:相手の )?\S+) の まけんき！ こうげき\+2！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_56', re: /^((?:相手の )?\S+) の 技は PPが なくなった！$/, slots: { "p": { g: 1, kind: "poke" } } },
-    { id: 'bl_76', re: /^((?:相手の )?\S+) は (\S+) で こうげきを 防いだ！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
+    { id: 'bl_76', re: /^((?:相手の )?\S+) は (\S+) で こうげきを 防いだ！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "move" } } },
     { id: 'bl_77', re: /^((?:相手の )?\S+) は (\S+) で 守りの体勢に入った！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_79', re: /^((?:相手の )?\S+) は ((?:相手の )?\S+) に ねらいを さだめた！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" } } },
     { id: 'bl_80', re: /^((?:相手の )?\S+) は ((?:相手の )?\S+) に メロメロに なった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" } } },
     { id: 'bl_87', re: /^((?:相手の )?\S+) は (\S+) を 連続では だせない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_100', re: /^((?:相手の )?\S+) は (\S+)で バインド状態になった！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
-    { id: 'bl_101', re: /^((?:相手の )?\S+) は (\S+)で メロメロに ならない！$/, slots: { "p": { g: 1, kind: "poke" }, "ab": { g: 2, kind: "ability" } } },
+    { id: 'bl_101', re: /^((?:相手の )?\S+) は (\S+)で メロメロに ならない！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "ability" } } },
     { id: 'bl_119', re: /^((?:相手の )?\S+) は いちゃもんを つけられた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_150', re: /^((?:相手の )?\S+) は しめつけから 解放された！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_155', re: /^((?:相手の )?\S+) は すなあらしで (\d+) ダメージ！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" } } },
@@ -535,15 +598,17 @@
     { id: 'bl_50', re: /^((?:相手の )?\S+) の みがわりが あらわれた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_62', re: /^((?:相手の )?\S+) の 特性が きかなくなった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_63', re: /^((?:相手の )?\S+) の 能力変化が 元に戻った！$/, slots: { "p": { g: 1, kind: "poke" } } },
-    { id: 'bl_102', re: /^((?:相手の )?\S+) は (\S+)で 状態異常を 治した！$/, slots: { "p": { g: 1, kind: "poke" }, "item": { g: 2, kind: "item" } } },
+    { id: 'bl_102', re: /^((?:相手の )?\S+) は (\S+)で 状態異常を 治した！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "item" } } },
     { id: 'bl_104', re: /^((?:相手の )?\S+) は (\S+)で 能力を 入れかえた！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_135', re: /^((?:相手の )?\S+) は きあいを ためはじめた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_197', re: /^((?:相手の )?\S+) は 水のリングを まとった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_199', re: /^((?:相手の )?\S+) は 電磁力で 浮き上がった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_240', re: /^フィールドが こわれて消えた！$/, slots: {  } },
+    { id: 'bl_3', re: /^((?:相手の )?\S+) に (\S+)タイプが 追加された！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "type" } } },
     { id: 'bl_24', re: /^((?:相手の )?\S+) の あばれるのが やんだ！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_32', re: /^((?:相手の )?\S+) の かなしばりが とけた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_66', re: /^((?:相手の )?\S+) の場の 設置物が 消えた！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_91', re: /^((?:相手の )?\S+) は (\S+)タイプで なくなった！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "type" } } },
     { id: 'bl_116', re: /^((?:相手の )?\S+) は あめまみれに なった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_117', re: /^((?:相手の )?\S+) は アンコールを うけた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_140', re: /^((?:相手の )?\S+) は こらえる体勢に入った！$/, slots: { "p": { g: 1, kind: "poke" } } },
@@ -556,6 +621,7 @@
     { id: 'bl_58', re: /^((?:相手の )?\S+) の 守りが やぶられた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_59', re: /^((?:相手の )?\S+) の 状態異常が 治った！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_60', re: /^((?:相手の )?\S+) の 電磁浮遊が 解けた！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_65', re: /^((?:相手の )?\S+) の場に (\S+) が 張られた！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "cond" } } },
     { id: 'bl_106', re: /^((?:相手の )?\S+) は (\S+)を リサイクルした！$/, slots: { "p": { g: 1, kind: "poke" }, "item": { g: 2, kind: "item" } } },
     { id: 'bl_137', re: /^((?:相手の )?\S+) は ぐうぐう眠っている！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_164', re: /^((?:相手の )?\S+) は にげられなくなった！$/, slots: { "p": { g: 1, kind: "poke" } } },
@@ -564,6 +630,8 @@
     { id: 'bl_198', re: /^((?:相手の )?\S+) は 地面に ねをはった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_206', re: /^((?:相手の )?\S+) 側の 追い風が やんだ！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_35', re: /^((?:相手の )?\S+) の こおりが とけた！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_89', re: /^((?:相手の )?\S+) は (\S+)から 解放された！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "cond" } } },
+    { id: 'bl_92', re: /^((?:相手の )?\S+) は (\S+)タイプに なった！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "type" } } },
     { id: 'bl_165', re: /^((?:相手の )?\S+) は ねがいごとをした！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_25', re: /^((?:相手の )?\S+) の あめが 乾いた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_148', re: /^((?:相手の )?\S+) は しずかになった！$/, slots: { "p": { g: 1, kind: "poke" } } },
@@ -572,11 +640,11 @@
     { id: 'bl_144', re: /^((?:相手の )?\S+) は さわぎだした！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_204', re: /^((?:相手の )?\S+) は 目をさました！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_0', re: /^((?:相手の )?\S+) が (\S+) を選んだ！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
-    { id: 'bl_107', re: /^((?:相手の )?\S+) は (\S+)を 食べた！$/, slots: { "p": { g: 1, kind: "poke" }, "item": { g: 2, kind: "item" } } },
+    { id: 'bl_107', re: /^((?:相手の )?\S+) は (\S+)を 食べた！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "item" } } },
     { id: 'bl_187', re: /^((?:相手の )?\S+) は メロメロだ！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_1', re: /^((?:相手の )?\S+) が 場に出た！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_172', re: /^((?:相手の )?\S+) は ひるんだ！$/, slots: { "p": { g: 1, kind: "poke" } } },
-    { id: 'bl_207', re: /^(\d+)！$/, slots: { "n": { g: 1, kind: "num" } } },
+    { id: 'bl_207', re: /^(\d+)！$/, slots: { "p": { g: 1, kind: "num" } } },
     { id: 'blf_0', re: /^─── ターン終了 ───$/, slots: {} },
     { id: 'blf_1', re: /^─── ターン開始 ───$/, slots: {} },
     { id: 'blf_2', re: /^─── バトル開始 ───$/, slots: {} },
@@ -592,6 +660,7 @@
     { id: 'blf_12', re: /^一手戻しました$/, slots: {} },
     { id: 'blf_13', re: /^全リセット完了$/, slots: {} },
     { id: 'blf_14', re: /^天気が 元に戻った！$/, slots: {} },
+    { id: 'blf_15', re: /^こうかなし！$/, slots: {} },
   ];
 
   function translateLogLine(msg, lang) {
@@ -605,6 +674,10 @@
       return tpl.replace(/\{(\w+)\}/g, function (_, name) {
         var s = p.slots[name]; if (!s) return '';
         if (p.post && p.post[name]) return p.post[name](m[s.g]);
+        if (s.kind === 'cond') return tCond(m[s.g], lang);
+        if (s.kind === 'type') return tType(m[s.g], lang);
+        if (s.kind === 'semi') return tSemi(m[s.g], lang);
+        if (s.kind === 'screen') return tScreen(m[s.g], lang);
         if (s.kind === 'status') return tStatus(m[s.g], lang);
         if (s.kind === 'stat') return tStat(m[s.g], lang);
         return tSlot(m[s.g], s.kind, lang);
