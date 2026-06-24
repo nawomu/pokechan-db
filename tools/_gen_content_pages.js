@@ -1,24 +1,22 @@
-/* コンテンツ静的ページ生成(SEO用)。pokechan_data.js から自動生成。
- * 生成物(リポジトリ直下):
- *   /ability/index.html + /ability/<特性名>.html (192)
- *   /pokemon/index.html + /pokemon/<slug>.html  (275, slug=英語フォーム名 api由来・一意化)
- *   /type/index.html    + /type/<タイプ名>.html (18)
- *   /move/index.html  (490技のデータ一覧。個別ページは声✓後に別途=MOVE_PAGES)
+/* コンテンツ静的ページ生成(SEO用・多言語=案A)。pokechan_data.js + i18n/*.json から自動生成。
+ * 生成物:
+ *   ja : /ability/<特性名>.html /pokemon/<slug>.html /type/<タイプ名>.html (既存パス不変)
+ *   非ja: /<lang>/ability/<en-slug>.html  /<lang>/pokemon/<slug>.html  /<lang>/type/<en-slug>.html
+ *   各ページに hreflang alternate。データ(名前/効果/タイプ)は SSOT(i18n/*.json)から引く=手書きゼロ。
  * 実行: node tools/_gen_content_pages.js
- * ※ SSOTは読むだけ。既存の index.html 等は変更しない(トップのカードは別途手当て)。
+ * 固定UIラベル・アクセサ = tools/_content_i18n.js。法務フッタ本文は ja 維持(2026-06-24 決定)。
  */
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
 const d = require(path.join(ROOT, 'pokechan_data.js'));
-const W = d.WAZA_MAP;
-const POKE = d.POKEMON_LIST;
-const PWAZA = d.POKEMON_WAZA;
-const ABID = d.ABILITY_DESC;
+const I = require('./_content_i18n.js');
+const W = d.WAZA_MAP, POKE = d.POKEMON_LIST, PWAZA = d.POKEMON_WAZA, ABID = d.ABILITY_DESC;
 
-const MOVE_PAGES = false; // 技の個別ページは声✓後に true へ(今は技名はリンクにしない)
+// ★生成する言語(段階導入。まず ja+en パイロット → 他言語のラベルを埋めて全言語へ)
+const GEN_LANGS = process.env.GEN_LANGS ? process.env.GEN_LANGS.split(',') : ['ja', 'en'];
+const MOVE_PAGES = false;
 
-// ---- タイプ相性表(type_chart.html と同一) ----
 const TYPES = ["ノーマル","ほのお","みず","でんき","くさ","こおり","かくとう","どく","じめん","ひこう","エスパー","むし","いわ","ゴースト","ドラゴン","あく","はがね","フェアリー"];
 const TYPE_CHART = [
   [1,1,1,1,1,1,1,1,1,1,1,1,0.5,0,1,1,0.5,1],[1,0.5,0.5,1,2,2,1,1,1,1,1,2,0.5,1,0.5,1,2,1],
@@ -32,19 +30,69 @@ const TYPE_CHART = [
   [1,0.5,0.5,0.5,1,2,1,1,1,1,1,1,2,1,1,1,0.5,2],[1,0.5,1,1,1,1,2,0.5,1,1,1,1,1,1,2,2,0.5,1]];
 const tIdx = t => TYPES.indexOf(t);
 
-// ---- helpers ----
 const esc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const enc = s => encodeURIComponent(s); // href用(日本語ファイル名)
-const badge = t => t ? `<span class="badge t-${esc(t)}">${esc(t)}</span>` : '';
+const enc = s => encodeURIComponent(s);
+const kebab = s => String(s).normalize('NFKD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'x';
 const jaSort = (a, b) => a.localeCompare(b, 'ja');
+const { T, tPoke, tType, tAbName, tAbDesc } = I;
 
-// 左右サイドの広告予約枠(広い画面のみCSSで表示)
-const SIDE_ADS = `<aside class="side-rail left ad-section" data-ad-slot="content-rail-left" aria-label="広告"><div class="railbox"><span class="pr-label">広告 / PR</span><div class="ad-section__inner"></div></div></aside>`
-  + `<aside class="side-rail right ad-section" data-ad-slot="content-rail-right" aria-label="広告"><div class="railbox"><span class="pr-label">広告 / PR</span><div class="ad-section__inner"></div></div></aside>`;
+// ---- slug マップ(英語ベース・言語共通・重複回避) ----
+const ALL_ABIL = Object.keys(ABID).sort(jaSort);
+function buildSlugMap(jaList, enName) {
+  const used = new Set(), map = new Map();
+  for (const ja of jaList) { let b = kebab(enName(ja)), s = b, i = 2; while (used.has(s)) { s = b + '-' + (i++); } used.add(s); map.set(ja, s); }
+  return map;
+}
+const abilSlugMap = buildSlugMap(ALL_ABIL, ja => tAbName('en', ja));
+const typeSlugMap = buildSlugMap(TYPES, ja => tType('en', ja));
+// pokemon slug(既存=英語フォーム名・図鑑Noフォールバック)
+let weights = {};
+try { require(path.join(ROOT, 'review', '_weights_collected.json')).weights.forEach(x => { weights[x.name] = x.api; }); }
+catch (e) { console.log('⚠ 体重JSON無し: slugは図鑑Noベース'); }
+const slugUsed = new Set(), pokeSlugMap = new Map();
+for (const p of POKE) { let base = weights[p.name] || ('p' + p.no), s = base, i = 2; while (slugUsed.has(s)) { s = base + '-' + (i++); } slugUsed.add(s); pokeSlugMap.set(p.name, s); }
 
-function head(title, desc, canonical) {
+const abilSlug = ja => abilSlugMap.get(ja) || kebab(ja);
+const typeSlug = ja => typeSlugMap.get(ja) || kebab(ja);
+const pokeSlug = name => pokeSlugMap.get(name);
+
+// ---- パス/URL ----
+const dirPrefix = lang => (lang === 'ja' ? '' : lang + '/');
+const up = lang => (lang === 'ja' ? '..' : '../..');
+// ファイル名=ファイルシステム用(ja は生の日本語名) / URL名=href・canonical用(ja は %エンコード)
+const fileBase = (lang, kind, ja) => kind === 'pokemon' ? pokeSlug(ja) : (lang === 'ja' ? ja : (kind === 'ability' ? abilSlug(ja) : typeSlug(ja)));
+const urlBase = (lang, kind, ja) => kind === 'pokemon' ? pokeSlug(ja) : (lang === 'ja' ? enc(ja) : (kind === 'ability' ? abilSlug(ja) : typeSlug(ja)));
+const pageUrl = (lang, kind, ja) => `https://pchamdb.com/${dirPrefix(lang)}${kind}/${urlBase(lang, kind, ja)}.html`;
+const indexUrl = (lang, kind) => `https://pchamdb.com/${dirPrefix(lang)}${kind}/`;
+// 同言語内リンク(detail/index は同階層 /<kind>/ に居る → 兄弟カテゴリは ../<kind>/)
+const pokeHref = (lang, name) => `../pokemon/${pokeSlug(name)}.html`;
+const abilHref = (lang, name) => `../ability/${urlBase(lang, 'ability', name)}.html`;
+const typeHref = (lang, name) => `../type/${urlBase(lang, 'type', name)}.html`;
+
+const pokeByName = name => POKE.find(p => p.name === name);
+const otherForms = p => POKE.filter(q => q.no === p.no && q.name !== p.name);
+const abilityOwners = ab => POKE.filter(p => [p.ab1, p.ab2, p.ab3].includes(ab));
+
+const badge = (lang, t) => t ? `<span class="badge t-${esc(t)}">${esc(tType(lang, t))}</span>` : '';
+
+// hreflang ブロック(生成中の全言語 + x-default=ja)
+function hreflang(kind, ja) {
+  const links = GEN_LANGS.map(l => `<link rel="alternate" hreflang="${l}" href="${(kind === 'index') ? indexUrl(l, ja) : pageUrl(l, kind, ja)}">`);
+  const xdef = (kind === 'index') ? indexUrl('ja', ja) : pageUrl('ja', kind, ja);
+  links.push(`<link rel="alternate" hreflang="x-default" href="${xdef}">`);
+  return links.join('\n');
+}
+
+const sideAds = lang => {
+  const pr = esc(T(lang, 'ad_pr')), ar = esc(T(lang, 'ad_aria'));
+  return `<aside class="side-rail left ad-section" data-ad-slot="content-rail-left" aria-label="${ar}"><div class="railbox"><span class="pr-label">${pr}</span><div class="ad-section__inner"></div></div></aside>`
+    + `<aside class="side-rail right ad-section" data-ad-slot="content-rail-right" aria-label="${ar}"><div class="railbox"><span class="pr-label">${pr}</span><div class="ad-section__inner"></div></div></aside>`;
+};
+
+function head(lang, title, desc, canonical, hrefBlock) {
+  const u = up(lang);
   return `<!DOCTYPE html>
-<html lang="ja">
+<html lang="${lang}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -56,42 +104,37 @@ function head(title, desc, canonical) {
 <meta name="description" content="${esc(desc)}">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="${canonical}">
+${hrefBlock}
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="PchamDB">
 <meta property="og:title" content="${esc(title)}">
 <meta property="og:description" content="${esc(desc)}">
 <meta property="og:url" content="${canonical}">
-<link rel="icon" href="../favicon.png" type="image/png">
-<link rel="stylesheet" href="../content.css">
+<link rel="icon" href="${u}/favicon.png" type="image/png">
+<link rel="stylesheet" href="${u}/content.css">
 </head>
 <body>
-<header class="hero"><a href="../index.html"><div class="logo">PchamDB<small>ポケモンチャンピオンズ 非公式ファンデータベース</small></div></a></header>
-${SIDE_ADS}
+<header class="hero"><a href="${u}/index.html"><div class="logo">PchamDB<small>${esc(T(lang, 'site_tagline'))}</small></div></a></header>
+${sideAds(lang)}
 <div class="wrap">`;
 }
-const FOOT = `</div>
+function FOOT(lang) {
+  const u = up(lang);
+  return `</div>
 <footer>
-  <p class="unofficial">⚠️ 当サイトは非公式ファンサイトです</p>
+  <p class="unofficial">${esc(T(lang, 'unofficial_note'))}</p>
   <p>任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズなど関連企業とは一切関係ありません。</p>
-  <div class="links"><a href="../index.html">ホーム</a> · <a href="../making.html">制作の裏側</a> · <a href="../terms.html">利用規約</a> · <a href="../privacy.html">プライバシーポリシー</a> · <a href="../disclaimer.html">免責事項</a> · <a href="../contact.html">お問い合わせ</a> · <a href="../sitemap.html">サイトマップ</a></div>
+  <div class="links"><a href="${u}/index.html">${esc(T(lang, 'foot_home'))}</a> · <a href="${u}/making.html">${esc(T(lang, 'foot_making'))}</a> · <a href="${u}/terms.html">${esc(T(lang, 'foot_terms'))}</a> · <a href="${u}/privacy.html">${esc(T(lang, 'foot_privacy'))}</a> · <a href="${u}/disclaimer.html">${esc(T(lang, 'foot_disc'))}</a> · <a href="${u}/contact.html">${esc(T(lang, 'foot_contact'))}</a> · <a href="${u}/sitemap.html">${esc(T(lang, 'foot_sitemap'))}</a></div>
   <p>ポケモン・Pokémon等の商標および著作権は任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズに帰属します。<br>© 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc. © 2026 PchamDB</p>
 </footer>
 </body>
 </html>`;
-
-// 広告の予約枠(既存サイトと同じ作法。承認後に .ad-section__inner へ <ins class="adsbygoogle"> を入れる)
-function adBox(slot) {
-  return `<aside class="ad-section in-content" data-ad-slot="${slot}" aria-label="広告"><span class="pr-label">広告 / PR</span><div class="ad-section__inner"></div></aside>`;
 }
+const adBox = (lang, slot) => `<aside class="ad-section in-content" data-ad-slot="${slot}" aria-label="${esc(T(lang,'ad_aria'))}"><span class="pr-label">${esc(T(lang,'ad_pr'))}</span><div class="ad-section__inner"></div></aside>`;
+function writePage(lang, rel, html) { const full = path.join(ROOT, dirPrefix(lang) + rel); fs.mkdirSync(path.dirname(full), { recursive: true }); fs.writeFileSync(full, html); }
 
-function writePage(rel, htmlBody) {
-  const full = path.join(ROOT, rel);
-  fs.mkdirSync(path.dirname(full), { recursive: true });
-  fs.writeFileSync(full, htmlBody);
-}
-
-// 一覧のソート/フィルター用クライアントJS(本文リンクはHTMLに残るのでSEOに影響しない)
-const LIST_JS = `
+// ---- クライアントJS(ラベルは引数で注入) ----
+const listJs = unit => `
 (function(){
   var table=document.getElementById('pkTable'),body=document.getElementById('pkBody');
   var search=document.getElementById('pkSearch'),count=document.getElementById('pkCount'),tf=document.getElementById('pkTypeFilter');
@@ -99,13 +142,13 @@ const LIST_JS = `
   var rows=[].slice.call(body.querySelectorAll('tr')),curType='';
   function toKata(s){return s.replace(/[\\u3041-\\u3096]/g,function(c){return String.fromCharCode(c.charCodeAt(0)+0x60);});}
   function apply(){
-    var q=toKata((search.value||'').trim()),shown=0;
+    var q=toKata((search.value||'').trim().toLowerCase()),shown=0;
     rows.forEach(function(r){
       var okT=!curType||(','+r.getAttribute('data-types')+',').indexOf(','+curType+',')>=0;
-      var okQ=!q||toKata(r.getAttribute('data-name')).indexOf(q)>=0;
+      var okQ=!q||toKata((r.getAttribute('data-name')||'').toLowerCase()).indexOf(q)>=0;
       var on=okT&&okQ;r.style.display=on?'':'none';if(on)shown++;
     });
-    count.textContent=shown+' / '+rows.length+' 体';
+    count.textContent=shown+' / '+rows.length+'${unit ? ' ' + unit : ''}';
   }
   search.addEventListener('input',apply);
   tf.addEventListener('click',function(e){
@@ -122,7 +165,7 @@ const LIST_JS = `
       th.classList.add(dir>0?'sort-asc':'sort-desc');
       var idx=[].indexOf.call(th.parentNode.children,th),arr=rows.slice();
       arr.sort(function(a,b){
-        if(k==='name')return a.getAttribute('data-name').localeCompare(b.getAttribute('data-name'),'ja')*dir;
+        if(k==='name')return (a.getAttribute('data-name')||'').localeCompare(b.getAttribute('data-name')||'')*dir;
         var x,y;
         if(k==='no'){x=parseInt(a.children[0].textContent,10);y=parseInt(b.children[0].textContent,10);}
         else{x=parseFloat(a.children[idx].getAttribute('data-v'));y=parseFloat(b.children[idx].getAttribute('data-v'));}
@@ -133,403 +176,252 @@ const LIST_JS = `
   });
   apply();
 })();`;
-
-// マウスオーバー説明ポップアップ([data-tip] を拾う・全ページ共通)
 const TIP_JS = `
 (function(){
   var tip=document.createElement('div');tip.id='c-tip';tip.style.display='none';document.body.appendChild(tip);
   function show(el){var t=el.getAttribute('data-tip');if(!t)return;tip.textContent=t;tip.style.display='block';
-    tip.style.left='0px';tip.style.top='0px';var r=el.getBoundingClientRect();
-    var w=tip.offsetWidth,h=tip.offsetHeight,left=r.left,top=r.bottom+6;
-    if(left+w>innerWidth-8)left=innerWidth-8-w;if(left<8)left=8;
-    if(top+h>innerHeight-8)top=r.top-6-h;
+    var r=el.getBoundingClientRect(),w=tip.offsetWidth,h=tip.offsetHeight,left=r.left,top=r.bottom+6;
+    if(left+w>innerWidth-8)left=innerWidth-8-w;if(left<8)left=8;if(top+h>innerHeight-8)top=r.top-6-h;
     tip.style.left=left+'px';tip.style.top=top+'px';}
   function hide(){tip.style.display='none';}
   document.addEventListener('mouseover',function(e){var el=e.target.closest('[data-tip]');if(el)show(el);});
   document.addEventListener('mouseout',function(e){var el=e.target.closest('[data-tip]');if(el)hide();});
   document.addEventListener('scroll',hide,true);
 })();`;
-
-// ポケモン個別ページの「覚える技」表のソート/フィルター用JS
 const MOVE_JS = `
 (function(){
-  var t=document.getElementById('mvTable');if(!t)return;
-  var body=document.getElementById('mvBody');
+  var t=document.getElementById('mvTable');if(!t)return;var body=document.getElementById('mvBody');
   var rows=[].slice.call(body.querySelectorAll('tr'));
   var mvType=document.getElementById('mvType'),mvCat=document.getElementById('mvCat'),mvSort=document.getElementById('mvSort');
   var curType='',curCat='';
   function num(r,k){var v=parseFloat(r.getAttribute('data-'+k));return isNaN(v)?-1:v;}
-  function apply(){rows.forEach(function(r){
-    var okT=!curType||r.getAttribute('data-type')===curType;
-    var okC=!curCat||r.getAttribute('data-cat')===curCat;
-    r.style.display=(okT&&okC)?'':'none';});}
-  function filterBox(box,attr,setter){if(!box)return;box.addEventListener('click',function(e){
-    var b=e.target.closest('button');if(!b)return;setter(b.getAttribute(attr)||'');
-    [].forEach.call(box.querySelectorAll('button'),function(x){x.classList.remove('on');});b.classList.add('on');apply();});}
-  filterBox(mvType,'data-type',function(v){curType=v;});
-  filterBox(mvCat,'data-cat',function(v){curCat=v;});
+  function apply(){rows.forEach(function(r){var okT=!curType||r.getAttribute('data-type')===curType;var okC=!curCat||r.getAttribute('data-cat')===curCat;r.style.display=(okT&&okC)?'':'none';});}
+  function filterBox(box,attr,setter){if(!box)return;box.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;setter(b.getAttribute(attr)||'');[].forEach.call(box.querySelectorAll('button'),function(x){x.classList.remove('on');});b.classList.add('on');apply();});}
+  filterBox(mvType,'data-type',function(v){curType=v;});filterBox(mvCat,'data-cat',function(v){curCat=v;});
   var CR={'物理':0,'特殊':1,'変化':2};
-  function sortBy(k,dir){
-    var arr=rows.slice();
-    arr.sort(function(a,b){
-      if(k==='kind'){
-        var ca=CR[a.getAttribute('data-cat')];if(ca==null)ca=9;
-        var cb=CR[b.getAttribute('data-cat')];if(cb==null)cb=9;
-        if(ca!==cb)return ca-cb;
-        var pa=num(a,'power'),pb=num(b,'power');if(pa!==pb)return pb-pa;
-        return a.getAttribute('data-name').localeCompare(b.getAttribute('data-name'),'ja');
-      }
-      if(k==='name')return a.getAttribute('data-name').localeCompare(b.getAttribute('data-name'),'ja')*dir;
-      return (num(a,k)-num(b,k))*dir;
-    });
-    arr.forEach(function(r){body.appendChild(r);});
-  }
+  function sortBy(k,dir){var arr=rows.slice();arr.sort(function(a,b){
+    if(k==='kind'){var ca=CR[a.getAttribute('data-cat')];if(ca==null)ca=9;var cb=CR[b.getAttribute('data-cat')];if(cb==null)cb=9;if(ca!==cb)return ca-cb;var pa=num(a,'power'),pb=num(b,'power');if(pa!==pb)return pb-pa;return (a.getAttribute('data-name')||'').localeCompare(b.getAttribute('data-name')||'');}
+    if(k==='name')return (a.getAttribute('data-name')||'').localeCompare(b.getAttribute('data-name')||'')*dir;
+    return (num(a,k)-num(b,k))*dir;});arr.forEach(function(r){body.appendChild(r);});}
   var active='kind',dir={power:-1,acc:-1,pp:-1,name:1};
-  if(mvSort)mvSort.addEventListener('click',function(e){
-    var b=e.target.closest('button');if(!b)return;var k=b.getAttribute('data-sort');
-    if(k!=='kind'&&active===k)dir[k]=-dir[k];
-    active=k;
-    [].forEach.call(mvSort.querySelectorAll('button'),function(x){x.classList.remove('on');});b.classList.add('on');
-    sortBy(k,dir[k]||1);
-  });
+  if(mvSort)mvSort.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;var k=b.getAttribute('data-sort');if(k!=='kind'&&active===k)dir[k]=-dir[k];active=k;[].forEach.call(mvSort.querySelectorAll('button'),function(x){x.classList.remove('on');});b.classList.add('on');sortBy(k,dir[k]||1);});
 })();`;
 
-// ---- ポケモン slug(英語フォーム名・一意化) ----
-let weights = {};
-try {
-  const wj = require(path.join(ROOT, 'review', '_weights_collected.json'));
-  wj.weights.forEach(x => { weights[x.name] = x.api; });
-} catch (e) { console.log('⚠ 体重JSON無し: slugは図鑑Noベースにフォールバック'); }
-const slugUsed = new Set();
-const pokeSlug = new Map();
-for (const p of POKE) {
-  let base = weights[p.name] || ('p' + p.no);
-  let s = base, i = 2;
-  while (slugUsed.has(s)) { s = base + '-' + i; i++; }
-  slugUsed.add(s);
-  pokeSlug.set(p.name, s);
-}
-const pokeByName = name => POKE.find(p => p.name === name);
-const pokeHref = name => `../pokemon/${pokeSlug.get(name)}.html`;
-const abilHref = name => `../ability/${enc(name)}.html`;
-const typeHref = name => `../type/${enc(name)}.html`;
-
-// 同一図鑑Noの別フォーム
-function otherForms(p) {
-  return POKE.filter(q => q.no === p.no && q.name !== p.name);
-}
-
 // ===========================================================
-// 1) 特性ページ
+// 1) 特性
 // ===========================================================
-function abilityOwners(ab) {
-  return POKE.filter(p => [p.ab1, p.ab2, p.ab3].includes(ab));
-}
-const ALL_ABIL = Object.keys(ABID).sort(jaSort);
-
-function genAbilityDetail(ab) {
-  const desc = ABID[ab] || '';
+function genAbilityDetail(lang, ab) {
+  const jaDesc = ABID[ab] || '', desc = tAbDesc(lang, ab, jaDesc), abN = tAbName(lang, ab);
   const owners = abilityOwners(ab);
   const ownerChips = owners.length
-    ? `<div class="chips">${owners.map(p => `<a href="${pokeHref(p.name)}">${esc(p.name)}</a>`).join('')}</div>`
-    : '<p style="color:var(--muted)">(このDB内に該当ポケモンなし)</p>';
-  const body = head(
-    `${ab}(特性)の効果と覚えるポケモン｜PchamDB`,
-    `特性「${ab}」の効果。${desc} この特性を持つポケモン一覧も掲載。`,
-    `https://pchamdb.com/ability/${enc(ab)}.html`
+    ? `<div class="chips">${owners.map(p => `<a href="${pokeHref(lang, p.name)}">${esc(tPoke(lang, p.name))}</a>`).join('')}</div>`
+    : `<p style="color:var(--muted)">${esc(T(lang, 'ability_no_owner'))}</p>`;
+  const body = head(lang,
+    T(lang, 'ability_title').replace('{x}', abN),
+    T(lang, 'ability_desc_meta').replace('{x}', abN).replace('{d}', desc),
+    pageUrl(lang, 'ability', ab), hreflang('ability', ab)
   ) + `
-  <nav class="crumbs"><a href="../index.html">ホーム</a> &gt; <a href="index.html">特性一覧</a> &gt; <b>${esc(ab)}</b></nav>
+  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'ability_list'))}</a> &gt; <b>${esc(abN)}</b></nav>
   <article class="card">
-    <h1>${esc(ab)}</h1>
+    <h1>${esc(abN)}</h1>
     <p class="lead">${esc(desc)}</p>
-    <h2>この特性を持つポケモン(${owners.length})</h2>
+    <h2>${esc(T(lang, 'ability_owners').replace('{n}', owners.length))}</h2>
     ${ownerChips}
-    ${adBox('content-ability')}
-    <h2>関連</h2>
-    <div class="chips"><a href="index.html">← 特性一覧へ戻る</a></div>
-  </article>` + FOOT;
-  writePage(`ability/${ab}.html`, body);
+    ${adBox(lang, 'content-ability')}
+    <h2>${esc(T(lang, 'related'))}</h2>
+    <div class="chips"><a href="index.html">${esc(T(lang, 'ability_back'))}</a></div>
+  </article>` + FOOT(lang);
+  writePage(lang, `ability/${fileBase(lang, 'ability', ab)}.html`, body);
 }
-
-function genAbilityIndex() {
+function genAbilityIndex(lang) {
   const rows = ALL_ABIL.map(ab =>
-    `<tr><th style="width:26%"><a href="${enc(ab)}.html">${esc(ab)}</a></th><td>${esc(ABID[ab] || '')}</td></tr>`
+    `<tr><th style="width:26%"><a href="${urlBase(lang, 'ability', ab)}.html">${esc(tAbName(lang, ab))}</a></th><td>${esc(tAbDesc(lang, ab, ABID[ab] || ''))}</td></tr>`
   ).join('\n');
-  const body = head(
-    '特性(とくせい)一覧 全' + ALL_ABIL.length + '種｜PchamDB',
-    'ポケモンの特性' + ALL_ABIL.length + '種類の効果一覧。各特性の効果と、その特性を持つポケモンを確認できます。',
-    'https://pchamdb.com/ability/'
+  const body = head(lang,
+    T(lang, 'ability_list_title').replace('{n}', ALL_ABIL.length),
+    T(lang, 'ability_list_desc').replace('{n}', ALL_ABIL.length),
+    indexUrl(lang, 'ability'), hreflang('index', 'ability')
   ) + `
-  <nav class="crumbs"><a href="../index.html">ホーム</a> &gt; <b>特性一覧</b></nav>
+  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <b>${esc(T(lang, 'ability_list'))}</b></nav>
   <article class="card">
-    <h1>特性(とくせい)一覧</h1>
-    <p class="lead">ポケモンが持つ「特性」全${ALL_ABIL.length}種類の効果をまとめました。特性をえらぶと、くわしい効果と、その特性を持つポケモンが見られます。</p>
+    <h1>${esc(T(lang, 'ability_list_h1'))}</h1>
+    <p class="lead">${T(lang, 'ability_list_lead').replace('{n}', ALL_ABIL.length)}</p>
     <table>${rows}</table>
   </article>
-  ${adBox('content-ability-list')}` + FOOT;
-  writePage('ability/index.html', body);
+  ${adBox(lang, 'content-ability-list')}` + FOOT(lang);
+  writePage(lang, 'ability/index.html', body);
 }
 
 // ===========================================================
-// 2) ポケモンページ
+// 2) ポケモン
 // ===========================================================
-function weaknessTable(p) {
-  const di = [p.type1, p.type2].filter(Boolean).map(tIdx);
-  const buckets = {};
-  TYPES.forEach((atk, ai) => {
-    let m = 1; di.forEach(x => m *= TYPE_CHART[ai][x]);
-    (buckets[m] = buckets[m] || []).push(atk);
-  });
-  const row = (label, mult) => buckets[mult] && buckets[mult].length
-    ? `<tr><th style="width:30%">${label}</th><td>${buckets[mult].map(badge).join('')}</td></tr>` : '';
-  return `<table>
-      ${row('4倍ダメージ(大きな弱点)', 4)}
-      ${row('2倍ダメージ(弱点)', 2)}
-      ${row('0.5倍(半減)', 0.5)}
-      ${row('0.25倍(とても効きにくい)', 0.25)}
-      ${row('効果なし(無効)', 0)}
-    </table>`;
+function weaknessTable(lang, p) {
+  const di = [p.type1, p.type2].filter(Boolean).map(tIdx), buckets = {};
+  TYPES.forEach((atk, ai) => { let m = 1; di.forEach(x => m *= TYPE_CHART[ai][x]); (buckets[m] = buckets[m] || []).push(atk); });
+  const row = (key, mult) => buckets[mult] && buckets[mult].length
+    ? `<tr><th style="width:30%">${esc(T(lang, key))}</th><td>${buckets[mult].map(t => badge(lang, t)).join('')}</td></tr>` : '';
+  return `<table>${row('weak_4x', 4)}${row('weak_2x', 2)}${row('weak_half', 0.5)}${row('weak_quarter', 0.25)}${row('weak_zero', 0)}</table>`;
 }
-function statRow(label, v) {
-  const w = Math.min(100, Math.round(v / 150 * 100));
-  return `<tr><th style="width:26%">${label}</th><td>${v} <span class="stat-bar"><i style="width:${w}%"></i></span></td></tr>`;
-}
-function movesTable(name) {
+const statRow = (label, v) => `<tr><th style="width:26%">${esc(label)}</th><td>${v} <span class="stat-bar"><i style="width:${Math.min(100, Math.round(v / 150 * 100))}%"></i></span></td></tr>`;
+function movesTable(lang, name) {
   const keys = PWAZA[name] || [];
-  if (!keys.length) return '<p style="color:var(--muted)">(このDB内に技データなし)</p>';
+  if (!keys.length) return `<p style="color:var(--muted)">${esc(T(lang, 'no_move_data'))}</p>`;
   const catRank = { '物理': 0, '特殊': 1, '変化': 2 };
-  // 技オブジェクト化 → 既定の並び: 物理→特殊→変化、各カテゴリ内は威力降順
   const mv = keys.map(k => Object.values(W).find(x => x.key === k) || { name: k })
-    .sort((a, b) =>
-      (catRank[a.category] ?? 9) - (catRank[b.category] ?? 9)
-      || ((b.power || -1) - (a.power || -1))
-      || a.name.localeCompare(b.name, 'ja'));
+    .sort((a, b) => (catRank[a.category] ?? 9) - (catRank[b.category] ?? 9) || ((b.power || -1) - (a.power || -1)) || a.name.localeCompare(b.name, 'ja'));
+  const mvName = m => (I.dict[lang] && I.dict[lang].moves && I.dict[lang].moves[m.key] && I.dict[lang].moves[m.key].name) || m.name;
+  const CAT_KEY = { '物理': 'cat_phys', '特殊': 'cat_spec', '変化': 'cat_stat' };
+  const tCat = c => CAT_KEY[c] ? T(lang, CAT_KEY[c]) : c;
   const rows = mv.map(m => {
-    const pw = (m.power == null || m.power === 0) ? '—' : m.power;
-    const ac = (m.accuracy == null || m.accuracy === 0) ? '—' : m.accuracy;
-    const nameCell = MOVE_PAGES ? `<a href="../move/${esc(m.key)}.html">${esc(m.name)}</a>` : esc(m.name);
-    // ※説明文はSSOT(effects→compose)が育って耳✓後に追加。古い description フィールドは出さない(盗用/機械声リスク)
-    return `      <tr data-name="${esc(m.name)}" data-type="${esc(m.type || '')}" data-cat="${esc(m.category || '')}"`
-      + ` data-power="${m.power == null ? '' : m.power}" data-acc="${m.accuracy == null ? '' : m.accuracy}" data-pp="${m.pp == null ? '' : m.pp}">`
-      + `<td>${nameCell}</td><td>${badge(m.type)}</td><td class="cls-${esc(m.category || '')}">${esc(m.category || '')}</td>`
+    const pw = (m.power == null || m.power === 0) ? '—' : m.power, ac = (m.accuracy == null || m.accuracy === 0) ? '—' : m.accuracy;
+    const nm = lang === 'ja' ? esc(m.name) : esc(mvName(m));
+    return `      <tr data-name="${esc(lang === 'ja' ? m.name : mvName(m))}" data-type="${esc(m.type || '')}" data-cat="${esc(m.category || '')}" data-power="${m.power == null ? '' : m.power}" data-acc="${m.accuracy == null ? '' : m.accuracy}" data-pp="${m.pp == null ? '' : m.pp}">`
+      + `<td>${nm}</td><td>${badge(lang, m.type)}</td><td class="cls-${esc(m.category || '')}">${esc(tCat(m.category || ''))}</td>`
       + `<td class="num">${pw}</td><td class="num">${ac}</td><td class="num">${esc(m.pp == null ? '' : m.pp)}</td></tr>`;
   }).join('\n');
-  // フィルター用ボタン(このポケモンの覚える技に含まれるタイプ・分類だけ)
   const presentTypes = TYPES.filter(t => mv.some(m => m.type === t));
-  const typeBtns = presentTypes.map(t => `<button class="tf t-${esc(t)}" data-type="${esc(t)}">${esc(t)}</button>`).join('');
+  const typeBtns = presentTypes.map(t => `<button class="tf t-${esc(t)}" data-type="${esc(t)}">${esc(tType(lang, t))}</button>`).join('');
   const presentCats = ['物理', '特殊', '変化'].filter(c => mv.some(m => m.category === c));
-  const catBtns = presentCats.map(c => `<button class="catf cat-${esc(c)}" data-cat="${esc(c)}">${esc(c)}</button>`).join('');
+  const catBtns = presentCats.map(c => `<button class="catf cat-${esc(c)}" data-cat="${esc(c)}">${esc(tCat(c))}</button>`).join('');
   return `<div class="list-controls">
-      <div class="sort-group" id="mvSort">並び順:
-        <button class="sortb on" data-sort="kind">種類順(物理→特殊→変化)</button><button class="sortb" data-sort="power">威力</button><button class="sortb" data-sort="acc">命中</button><button class="sortb" data-sort="pp">PP</button><button class="sortb" data-sort="name">名前</button>
+      <div class="sort-group" id="mvSort">${esc(T(lang, 'mv_sort'))}
+        <button class="sortb on" data-sort="kind">${esc(T(lang, 'mv_sort_kind'))}</button><button class="sortb" data-sort="power">${esc(T(lang, 'mv_sort_power'))}</button><button class="sortb" data-sort="acc">${esc(T(lang, 'mv_sort_acc'))}</button><button class="sortb" data-sort="pp">${esc(T(lang, 'mv_sort_pp'))}</button><button class="sortb" data-sort="name">${esc(T(lang, 'mv_sort_name'))}</button>
       </div>
-      <div class="type-filter chips" id="mvType">しぼりこみ: <button class="all on" data-type="">全タイプ</button>${typeBtns}</div>
-      <div class="type-filter chips" id="mvCat" style="margin-top:6px"><button class="all on" data-cat="">全分類</button>${catBtns}</div>
+      <div class="type-filter chips" id="mvType">${esc(T(lang, 'mv_filter'))} <button class="all on" data-type="">${esc(T(lang, 'mv_all_types'))}</button>${typeBtns}</div>
+      <div class="type-filter chips" id="mvCat" style="margin-top:6px"><button class="all on" data-cat="">${esc(T(lang, 'mv_all_cats'))}</button>${catBtns}</div>
     </div>
     <div class="table-scroll"><table class="move-table" id="mvTable">
-      <thead><tr><th>技名</th><th>タイプ</th><th>分類</th><th class="num">威力</th><th class="num">命中</th><th class="num">PP</th></tr></thead>
+      <thead><tr><th>${esc(T(lang, 'mv_col_name'))}</th><th>${esc(T(lang, 'mv_col_type'))}</th><th>${esc(T(lang, 'mv_col_cat'))}</th><th class="num">${esc(T(lang, 'mv_col_power'))}</th><th class="num">${esc(T(lang, 'mv_col_acc'))}</th><th class="num">${esc(T(lang, 'mv_col_pp'))}</th></tr></thead>
       <tbody id="mvBody">
 ${rows}
       </tbody>
     </table></div>`;
 }
-function genPokemonDetail(p) {
-  const types = [p.type1, p.type2].filter(Boolean);
-  const total = (p.hp + p.atk + p.def + p.spatk + p.spdef + p.spd);
+function genPokemonDetail(lang, p) {
+  const types = [p.type1, p.type2].filter(Boolean), pN = tPoke(lang, p.name);
+  const total = p.hp + p.atk + p.def + p.spatk + p.spdef + p.spd;
   const abils = [p.ab1, p.ab2, p.ab3].filter(Boolean);
-  const abilRows = abils.map(a => `<tr><th style="width:28%"><a href="${abilHref(a)}">${esc(a)}</a></th><td>${esc(ABID[a] || '')}</td></tr>`).join('');
+  const abilRows = abils.map(a => `<tr><th style="width:28%"><a href="${abilHref(lang, a)}">${esc(tAbName(lang, a))}</a></th><td>${esc(tAbDesc(lang, a, ABID[a] || ''))}</td></tr>`).join('');
   const forms = otherForms(p);
-  const formLine = forms.length
-    ? `<p style="margin:4px 0 0;font-size:14px"><b>別のすがた:</b> ${forms.map(f => `<a href="${pokeHref(f.name)}">${esc(f.name)}</a>`).join(' ／ ')}</p>` : '';
-  const body = head(
-    `${p.name}(No.${p.no})の種族値・弱点・特性・覚える技｜PchamDB`,
-    `${p.name}(${types.join('/')})の種族値・タイプ相性(弱点)・特性・覚える技の一覧。`,
-    `https://pchamdb.com/pokemon/${pokeSlug.get(p.name)}.html`
+  const formLine = forms.length ? `<p style="margin:4px 0 0;font-size:14px"><b>${esc(T(lang, 'other_forms'))}</b> ${forms.map(f => `<a href="${pokeHref(lang, f.name)}">${esc(tPoke(lang, f.name))}</a>`).join(' ／ ')}</p>` : '';
+  const body = head(lang,
+    T(lang, 'pokemon_title').replace('{x}', pN).replace('{no}', p.no),
+    T(lang, 'pokemon_desc_meta').replace('{x}', pN).replace('{t}', types.map(t => tType(lang, t)).join('/')),
+    pageUrl(lang, 'pokemon', p.name), hreflang('pokemon', p.name)
   ) + `
-  <nav class="crumbs"><a href="../index.html">ホーム</a> &gt; <a href="index.html">ポケモン一覧</a> &gt; <b>${esc(p.name)}</b></nav>
+  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'pokemon_list'))}</a> &gt; <b>${esc(pN)}</b></nav>
   <article class="card">
-    <h1>No.${esc(p.no)} ${esc(p.name)}</h1>
-    <p>${types.map(t => `<a href="${typeHref(t)}">${badge(t)}</a>`).join('')} ／ 重さ ${esc(p.weight_kg != null ? p.weight_kg + 'kg' : '不明')}</p>
+    <h1>No.${esc(p.no)} ${esc(pN)}</h1>
+    <p>${types.map(t => `<a href="${typeHref(lang, t)}">${badge(lang, t)}</a>`).join('')} ／ ${esc(T(lang, 'weight'))} ${esc(p.weight_kg != null ? p.weight_kg + 'kg' : T(lang, 'unknown'))}</p>
     ${formLine}
-    <h2>種族値</h2>
+    <h2>${esc(T(lang, 'base_stats'))}</h2>
     <table>
-      ${statRow('HP', p.hp)}
-      ${statRow('こうげき', p.atk)}
-      ${statRow('ぼうぎょ', p.def)}
-      ${statRow('とくこう', p.spatk)}
-      ${statRow('とくぼう', p.spdef)}
-      ${statRow('すばやさ', p.spd)}
-      <tr><th>合計</th><td><b>${total}</b></td></tr>
+      ${statRow(T(lang, 'stat_hp'), p.hp)}${statRow(T(lang, 'stat_atk'), p.atk)}${statRow(T(lang, 'stat_def'), p.def)}
+      ${statRow(T(lang, 'stat_spatk'), p.spatk)}${statRow(T(lang, 'stat_spdef'), p.spdef)}${statRow(T(lang, 'stat_spd'), p.spd)}
+      <tr><th>${esc(T(lang, 'stat_total'))}</th><td><b>${total}</b></td></tr>
     </table>
-    <h2>タイプ相性(弱点・耐性)</h2>
-    ${weaknessTable(p)}
-    <h2>特性</h2>
+    <h2>${esc(T(lang, 'type_matchup'))}</h2>
+    ${weaknessTable(lang, p)}
+    <h2>${esc(T(lang, 'abilities_h'))}</h2>
     <table>${abilRows}</table>
-    ${adBox('content-pokemon')}
-    <h2>覚える技</h2>
-    ${movesTable(p.name)}
+    ${adBox(lang, 'content-pokemon')}
+    <h2>${esc(T(lang, 'learnable_moves'))}</h2>
+    ${movesTable(lang, p.name)}
   </article>
-  <script>${MOVE_JS}</script>` + FOOT;
-  writePage(`pokemon/${pokeSlug.get(p.name)}.html`, body);
+  <script>${MOVE_JS}</script>` + FOOT(lang);
+  writePage(lang, `pokemon/${pokeSlug(p.name)}.html`, body);
 }
-function genPokemonIndex() {
+function genPokemonIndex(lang) {
   const rows = POKE.map(p => {
-    const types = [p.type1, p.type2].filter(Boolean);
-    const total = p.hp + p.atk + p.def + p.spatk + p.spdef + p.spd;
-    const abCell = [p.ab1, p.ab2, p.ab3].filter(Boolean)
-      .map(a => `<a href="${abilHref(a)}" class="ab-chip" data-tip="${esc(ABID[a] || '')}">${esc(a)}</a>`).join('');
-    return `      <tr data-name="${esc(p.name)}" data-types="${esc(types.join(','))}">`
-      + `<td class="num">${esc(p.no)}</td>`
-      + `<td class="name"><a href="${esc(pokeSlug.get(p.name))}.html">${esc(p.name)}</a></td>`
-      + `<td>${types.map(badge).join('')}</td>`
-      + `<td class="abils">${abCell}</td>`
-      + `<td class="num" data-v="${p.hp}">${p.hp}</td>`
-      + `<td class="num" data-v="${p.atk}">${p.atk}</td>`
-      + `<td class="num" data-v="${p.def}">${p.def}</td>`
-      + `<td class="num" data-v="${p.spatk}">${p.spatk}</td>`
-      + `<td class="num" data-v="${p.spdef}">${p.spdef}</td>`
-      + `<td class="num" data-v="${p.spd}">${p.spd}</td>`
+    const types = [p.type1, p.type2].filter(Boolean), total = p.hp + p.atk + p.def + p.spatk + p.spdef + p.spd;
+    const abCell = [p.ab1, p.ab2, p.ab3].filter(Boolean).map(a => `<a href="${abilHref(lang, a)}" class="ab-chip" data-tip="${esc(tAbDesc(lang, a, ABID[a] || ''))}">${esc(tAbName(lang, a))}</a>`).join('');
+    return `      <tr data-name="${esc(tPoke(lang, p.name))}" data-types="${esc(types.join(','))}">`
+      + `<td class="num">${esc(p.no)}</td><td class="name"><a href="${esc(pokeSlug(p.name))}.html">${esc(tPoke(lang, p.name))}</a></td>`
+      + `<td>${types.map(t => badge(lang, t)).join('')}</td><td class="abils">${abCell}</td>`
+      + `<td class="num" data-v="${p.hp}">${p.hp}</td><td class="num" data-v="${p.atk}">${p.atk}</td><td class="num" data-v="${p.def}">${p.def}</td>`
+      + `<td class="num" data-v="${p.spatk}">${p.spatk}</td><td class="num" data-v="${p.spdef}">${p.spdef}</td><td class="num" data-v="${p.spd}">${p.spd}</td>`
       + `<td class="num" data-v="${total}"><b>${total}</b></td></tr>`;
   }).join('\n');
-  const typeBtns = TYPES.map(t => `<button class="tf t-${esc(t)}" data-type="${esc(t)}">${esc(t)}</button>`).join('');
-  const body = head(
-    'ポケモン一覧 全' + POKE.length + '体(種族値ソート・タイプ絞り込み)｜PchamDB',
-    'ポケモン' + POKE.length + '体の種族値・タイプ一覧。種族値で並び替え、タイプで絞り込みできます。各ポケモンの詳細(弱点・特性・覚える技)へ。',
-    'https://pchamdb.com/pokemon/'
+  const typeBtns = TYPES.map(t => `<button class="tf t-${esc(t)}" data-type="${esc(t)}">${esc(tType(lang, t))}</button>`).join('');
+  const body = head(lang,
+    T(lang, 'pokemon_list_title').replace('{n}', POKE.length),
+    T(lang, 'pokemon_list_desc').replace('{n}', POKE.length),
+    indexUrl(lang, 'pokemon'), hreflang('index', 'pokemon')
   ) + `
-  <nav class="crumbs"><a href="../index.html">ホーム</a> &gt; <b>ポケモン一覧</b></nav>
+  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <b>${esc(T(lang, 'pokemon_list'))}</b></nav>
   <article class="card">
-    <h1>ポケモン一覧</h1>
-    <p class="lead">登録されている全${POKE.length}体のポケモン。<b>見出しをおすと並び替え</b>、<b>タイプをおすと絞り込み</b>できます。名前をおすと、そのポケモンの弱点・特性・覚える技が見られます。</p>
+    <h1>${esc(T(lang, 'pokemon_list'))}</h1>
+    <p class="lead">${T(lang, 'pokemon_list_lead').replace('{n}', POKE.length)}</p>
     <div class="list-controls">
-      <input class="search" id="pkSearch" type="search" placeholder="🔎 名前でしぼりこむ(ひらがな・カタカナ)">
-      <div class="type-filter chips" id="pkTypeFilter">
-        <button class="all on" data-type="">すべて</button>${typeBtns}
-      </div>
+      <input class="search" id="pkSearch" type="search" placeholder="${esc(T(lang, 'pk_search_ph'))}">
+      <div class="type-filter chips" id="pkTypeFilter"><button class="all on" data-type="">${esc(T(lang, 'pk_all'))}</button>${typeBtns}</div>
       <span class="filter-count" id="pkCount"></span>
     </div>
     <div class="table-scroll"><table class="sortable list-table" id="pkTable">
       <thead><tr>
-        <th class="num" data-k="no">No.</th>
-        <th data-k="name">なまえ</th>
-        <th>タイプ</th>
-        <th>特性<span style="font-weight:400;font-size:11px;color:#888">(乗せると説明)</span></th>
-        <th class="num" data-k="hp">HP</th>
-        <th class="num" data-k="atk">こう</th>
-        <th class="num" data-k="def">ぼう</th>
-        <th class="num" data-k="spatk">特こう</th>
-        <th class="num" data-k="spdef">特ぼう</th>
-        <th class="num" data-k="spd">すば</th>
-        <th class="num" data-k="total">合計</th>
+        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
+        <th>${esc(T(lang, 'col_ability'))}<span style="font-weight:400;font-size:11px;color:#888">${esc(T(lang, 'col_ability_hint'))}</span></th>
+        <th class="num" data-k="hp">${esc(T(lang, 'col_hp'))}</th><th class="num" data-k="atk">${esc(T(lang, 'col_atk'))}</th><th class="num" data-k="def">${esc(T(lang, 'col_def'))}</th>
+        <th class="num" data-k="spatk">${esc(T(lang, 'col_spatk'))}</th><th class="num" data-k="spdef">${esc(T(lang, 'col_spdef'))}</th><th class="num" data-k="spd">${esc(T(lang, 'col_spd'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
       </tr></thead>
       <tbody id="pkBody">
 ${rows}
       </tbody>
     </table></div>
   </article>
-  ${adBox('content-pokemon-list')}
-  <script>${LIST_JS}</script>
-  <script>${TIP_JS}</script>` + FOOT;
-  writePage('pokemon/index.html', body);
+  ${adBox(lang, 'content-pokemon-list')}
+  <script>${listJs(T(lang, 'pk_count_unit'))}</script>
+  <script>${TIP_JS}</script>` + FOOT(lang);
+  writePage(lang, 'pokemon/index.html', body);
 }
 
 // ===========================================================
-// 3) タイプページ
+// 3) タイプ(個別のみ・一覧は type_chart.html と重複で廃止)
 // ===========================================================
-function genTypeDetail(t) {
-  const ai = tIdx(t);
-  // 攻撃(このタイプの技 → 相手タイプ)
+function genTypeDetail(lang, t) {
+  const ai = tIdx(t), tN = tType(lang, t);
   const off = { good: [], bad: [], no: [] };
   TYPES.forEach((dt, di) => { const m = TYPE_CHART[ai][di]; if (m === 2) off.good.push(dt); else if (m === 0.5) off.bad.push(dt); else if (m === 0) off.no.push(dt); });
-  // 防御(相手の技 → このタイプ)
   const def = { weak: [], resist: [], no: [] };
   TYPES.forEach((at, x) => { const m = TYPE_CHART[x][ai]; if (m === 2) def.weak.push(at); else if (m === 0.5) def.resist.push(at); else if (m === 0) def.no.push(at); });
   const owns = POKE.filter(p => p.type1 === t || p.type2 === t);
-  const line = arr => arr.length ? arr.map(badge).join('') : '<span style="color:var(--muted)">なし</span>';
-  const body = head(
-    `${t}タイプの相性・ポケモン一覧｜PchamDB`,
-    `${t}タイプの弱点・耐性・攻撃相性と、${t}タイプのポケモン一覧。`,
-    `https://pchamdb.com/type/${enc(t)}.html`
+  const line = arr => arr.length ? arr.map(x => badge(lang, x)).join('') : `<span style="color:var(--muted)">${esc(T(lang, 'none'))}</span>`;
+  const body = head(lang,
+    T(lang, 'type_title').replace(/\{x\}/g, tN),
+    T(lang, 'type_desc_meta').replace(/\{x\}/g, tN),
+    pageUrl(lang, 'type', t), hreflang('type', t)
   ) + `
-  <nav class="crumbs"><a href="../index.html">ホーム</a> &gt; <a href="../type_chart.html">タイプ相性表</a> &gt; <b>${esc(t)}</b></nav>
+  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="${up(lang)}/type_chart.html">${esc(T(lang, 'type_chart_nav'))}</a> &gt; <b>${esc(tN)}</b></nav>
   <article class="card">
-    <h1>${badge(t)} ${esc(t)}タイプ</h1>
-    <h2>攻撃するとき(${t}の技で攻める)</h2>
+    <h1>${badge(lang, t)} ${esc(T(lang, 'type_h1').replace('{x}', tN))}</h1>
+    <h2>${esc(T(lang, 'type_attacking').replace('{x}', tN))}</h2>
     <table>
-      <tr><th style="width:34%">ばつぐん(2倍)</th><td>${line(off.good)}</td></tr>
-      <tr><th>いまひとつ(0.5倍)</th><td>${line(off.bad)}</td></tr>
-      <tr><th>効果なし</th><td>${line(off.no)}</td></tr>
+      <tr><th style="width:34%">${esc(T(lang, 'type_super'))}</th><td>${line(off.good)}</td></tr>
+      <tr><th>${esc(T(lang, 'type_notvery'))}</th><td>${line(off.bad)}</td></tr>
+      <tr><th>${esc(T(lang, 'type_no'))}</th><td>${line(off.no)}</td></tr>
     </table>
-    <h2>守るとき(${t}タイプが受ける)</h2>
+    <h2>${esc(T(lang, 'type_defending').replace('{x}', tN))}</h2>
     <table>
-      <tr><th style="width:34%">弱点(2倍)</th><td>${line(def.weak)}</td></tr>
-      <tr><th>半減(0.5倍)</th><td>${line(def.resist)}</td></tr>
-      <tr><th>効果なし(無効)</th><td>${line(def.no)}</td></tr>
+      <tr><th style="width:34%">${esc(T(lang, 'type_weak'))}</th><td>${line(def.weak)}</td></tr>
+      <tr><th>${esc(T(lang, 'type_resist'))}</th><td>${line(def.resist)}</td></tr>
+      <tr><th>${esc(T(lang, 'type_immune'))}</th><td>${line(def.no)}</td></tr>
     </table>
-    <h2>${t}タイプのポケモン(${owns.length})</h2>
-    <div class="chips">${owns.map(p => `<a href="${pokeHref(p.name)}">${esc(p.name)}</a>`).join('')}</div>
+    <h2>${esc(T(lang, 'type_owners').replace('{x}', tN).replace('{n}', owns.length))}</h2>
+    <div class="chips">${owns.map(p => `<a href="${pokeHref(lang, p.name)}">${esc(tPoke(lang, p.name))}</a>`).join('')}</div>
   </article>
-  ${adBox('content-type')}` + FOOT;
-  writePage(`type/${t}.html`, body);
-}
-function genTypeIndex() {
-  const items = TYPES.map(t => `<a href="${enc(t)}.html">${badge(t)}</a>`).join(' ');
-  const body = head(
-    'タイプ相性一覧 全18タイプ｜PchamDB',
-    '18タイプそれぞれの弱点・耐性・攻撃相性と、各タイプのポケモン一覧。',
-    'https://pchamdb.com/type/'
-  ) + `
-  <nav class="crumbs"><a href="../index.html">ホーム</a> &gt; <b>タイプ一覧</b></nav>
-  <article class="card">
-    <h1>タイプ一覧</h1>
-    <p class="lead">18種類のタイプ。えらぶと、そのタイプの弱点・耐性・攻撃相性と、そのタイプのポケモンが見られます。</p>
-    <p style="line-height:2.4">${items}</p>
-    <p style="font-size:13px;color:var(--muted)">タイプ同士の早見表は <a href="../type_chart.html">タイプ相性表</a> もどうぞ。</p>
-  </article>` + FOOT;
-  writePage('type/index.html', body);
-}
-
-// ===========================================================
-// 4) わざ一覧(個別ページは保留=データ一覧のみ)
-// ===========================================================
-function genMoveIndex() {
-  const all = Object.values(W).slice().sort((a, b) => (a.move_no || 0) - (b.move_no || 0));
-  const rows = all.map(m => {
-    const pw = (m.power == null || m.power === 0) ? '—' : m.power;
-    const ac = (m.accuracy == null || m.accuracy === 0) ? '—' : m.accuracy;
-    return `      <tr><td>${esc(m.name)}</td><td>${badge(m.type)}</td><td class="cls-${esc(m.category || '')}">${esc(m.category || '')}</td><td class="num">${pw}</td><td class="num">${ac}</td><td class="num">${esc(m.pp == null ? '' : m.pp)}</td></tr>`;
-  }).join('\n');
-  const body = head(
-    'わざ一覧 全' + all.length + '種｜PchamDB',
-    'わざ' + all.length + '種類の威力・命中・PP・タイプ・分類の一覧。',
-    'https://pchamdb.com/move/'
-  ) + `
-  <nav class="crumbs"><a href="../index.html">ホーム</a> &gt; <b>わざ一覧</b></nav>
-  <article class="card">
-    <h1>わざ一覧</h1>
-    <p class="lead">登録されている全${all.length}わざのデータ(タイプ・分類・威力・命中・PP)です。</p>
-    <div class="table-scroll"><table class="move-table">
-      <tr><th>技名</th><th>タイプ</th><th>分類</th><th>威力</th><th>命中</th><th>PP</th></tr>
-${rows}
-    </table></div>
-  </article>` + FOOT;
-  writePage('move/index.html', body);
+  ${adBox(lang, 'content-type')}` + FOOT(lang);
+  writePage(lang, `type/${fileBase(lang, 'type', t)}.html`, body);
 }
 
 // ===========================================================
 // 実行
 // ===========================================================
-genAbilityIndex();
-ALL_ABIL.forEach(genAbilityDetail);
-genPokemonIndex();
-POKE.forEach(genPokemonDetail);
-// genTypeIndex(); // タイプ一覧ページは廃止(既存 type_chart.html と役割重複・2026-06-12 阿部さん)
-TYPES.forEach(genTypeDetail);
-// genMoveIndex(); // わざ一覧(/move/)は廃止(既存 waza-list.html と役割重複・2026-06-12 阿部さん)
-
-console.log('✅ 生成完了');
-console.log('  特性:', 1 + ALL_ABIL.length, 'ページ (/ability/)');
-console.log('  ポケモン:', 1 + POKE.length, 'ページ (/pokemon/)');
-console.log('  タイプ:', TYPES.length, 'ページ (/type/ 個別のみ・一覧は廃止)');
-console.log('  わざ一覧: 1 ページ (/move/) ※個別ページは MOVE_PAGES=false で保留');
-console.log('  合計:', 1 + ALL_ABIL.length + 1 + POKE.length + TYPES.length + 1, 'ページ');
+let n = 0;
+for (const lang of GEN_LANGS) {
+  genAbilityIndex(lang); ALL_ABIL.forEach(ab => genAbilityDetail(lang, ab));
+  genPokemonIndex(lang); POKE.forEach(p => genPokemonDetail(lang, p));
+  TYPES.forEach(t => genTypeDetail(lang, t));
+  n += 1 + ALL_ABIL.length + 1 + POKE.length + TYPES.length;
+  console.log(`  [${lang}] ability ${1 + ALL_ABIL.length} / pokemon ${1 + POKE.length} / type ${TYPES.length}`);
+}
+console.log(`✅ 生成完了: ${GEN_LANGS.join(',')} = 計 ${n} ページ`);
