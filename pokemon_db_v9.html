@@ -1272,6 +1272,10 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
   <button class="grp-btn fn-btn" data-fn="setup" onclick="toggleFnGroup('setup')" data-i18n="db.fn_setup" style="font-size:11px;padding:2px 8px">📈 積み技</button>
   <button class="grp-btn fn-btn" data-fn="status" onclick="toggleFnGroup('status')" data-i18n="db.fn_status" style="font-size:11px;padding:2px 8px">😵 状態異常技</button>
   <button class="grp-btn fn-btn" data-fn="hazard" onclick="toggleFnGroup('hazard')" data-i18n="db.fn_hazard" style="font-size:11px;padding:2px 8px">📌 設置技</button>
+  <button class="grp-btn fn-btn" data-fn="priority" onclick="toggleFnGroup('priority')" data-i18n="db.fn_priority" style="font-size:11px;padding:2px 8px">⚡ 優先技</button>
+  <button class="grp-btn fn-btn" data-fn="multi" onclick="toggleFnGroup('multi')" data-i18n="db.fn_multi" style="font-size:11px;padding:2px 8px">🔢 多段技</button>
+  <button class="grp-btn fn-btn" data-fn="recoil" onclick="toggleFnGroup('recoil')" data-i18n="db.fn_recoil" style="font-size:11px;padding:2px 8px">💥 反動技</button>
+  <button class="grp-btn fn-btn" data-fn="crit" onclick="toggleFnGroup('crit')" data-i18n="db.fn_crit" style="font-size:11px;padding:2px 8px">🎯 急所技</button>
   <span class="tb-sep" style="height:14px;margin:0 4px;background:rgba(255,255,255,0.3)"></span>
   <span class="grp-lbl" data-i18n="db.filter_label">絞込:</span>
   <div id="tychips-sel" style="display:inline-block"></div>
@@ -1356,11 +1360,22 @@ const WAZA_MASTER = (function () {
 // ★機能グループ(2026-06-23 G): 定義は waza-list クイック検索(waza_picker.js の _miscTagJudges / status / self_up 判定)に
 //   合わせて共通化。FN_GROUP_SETS=覚えるポケモン名の集合 / FN_GROUP_MOVES=その技keyの集合(列ハイライト用)。
 const [FN_GROUP_SETS, FN_GROUP_MOVES] = (function () {
-  const sets = { recovery: new Set(), setup: new Set(), status: new Set(), hazard: new Set() };
-  const mvs  = { recovery: new Set(), setup: new Set(), status: new Set(), hazard: new Set() };
+  const GK = ['recovery', 'setup', 'status', 'hazard', 'priority', 'multi', 'recoil', 'crit'];
+  const sets = {}, mvs = {};
+  GK.forEach(g => { sets[g] = new Set(); mvs[g] = new Set(); });
   const MAJOR_STATUS = new Set(['まひ', 'やけど', 'こおり', 'どく', 'もうどく', 'ねむり']);
   for (const k in WAZA_MAP) {
     const m = WAZA_MAP[k], bd = m.battle_data || {}, eff = bd.effects || [], lr = m.learners || [];
+    const isAtk = m.category === '物理' || m.category === '特殊';   // ★G(b): 攻撃技のグループ用
+    // 優先技 = 先制(優先度+) / 多段 = 連続ヒット / 反動 = 反動ダメージ / 急所 = 急所率上昇(いずれも攻撃技)
+    const isPriority = isAtk && (bd.priority || 0) > 0;
+    const isMulti    = isAtk && (bd.multi_hit || eff.some(e => e.kind === '連続攻撃'));
+    const isRecoil   = isAtk && (bd.recoil || eff.some(e => e.kind === '反動'));
+    const isCrit     = isAtk && ((bd.crit_stage || 0) > 0 || eff.some(e => e.kind === '急所率上昇'));
+    if (isPriority) { mvs.priority.add(k); lr.forEach(n => sets.priority.add(n)); }
+    if (isMulti)    { mvs.multi.add(k);    lr.forEach(n => sets.multi.add(n)); }
+    if (isRecoil)   { mvs.recoil.add(k);   lr.forEach(n => sets.recoil.add(n)); }
+    if (isCrit)     { mvs.crit.add(k);     lr.forEach(n => sets.crit.add(n)); }
     // 回復技 = 回復のみ(bd.recovery≠status_only) + ダメージ回復(bd.drain)。★ねむる除く(阿部さん)
     const isRecovery = m.name !== 'ねむる' && ((bd.recovery && bd.recovery !== 'status_only') || !!bd.drain);
     // 積み技 = 自分の能力ランクが上がる(self_up判定相当)
