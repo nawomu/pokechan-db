@@ -1710,9 +1710,10 @@ function setupSelectionMode() {
   // モードタイトル
   const titleEl = document.getElementById('wp-mode-title');
   if (titleEl) {
-    const slotLabel = WP_SLOT_NO ? '【スロット' + WP_SLOT_NO + '】' : '';
-    const pokeLabel = INITIAL_POKEMON_FILTER ? ' ' + INITIAL_POKEMON_FILTER : '';
-    const suffix = WP_MODE === 'multi' ? ' 技を選択 (複数可)' : ' 技を選択 (1つだけ)';
+    const slotLabel = WP_SLOT_NO ? _t('waza.slot_label', '【スロット{n}】').replace('{n}', WP_SLOT_NO) : '';
+    const pokeName = INITIAL_POKEMON_FILTER ? ((window.I18N && I18N.pokemon) ? I18N.pokemon(INITIAL_POKEMON_FILTER) : INITIAL_POKEMON_FILTER) : '';
+    const pokeLabel = pokeName ? ' ' + pokeName : '';
+    const suffix = WP_MODE === 'multi' ? _t('waza.pick_multi', ' 技を選択 (複数可)') : _t('waza.pick_single', ' 技を選択 (1つだけ)');
     titleEl.textContent = slotLabel + pokeLabel + suffix;
   }
 

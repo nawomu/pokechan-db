@@ -198,10 +198,22 @@ function retranslateNewTagPanel() {
   });
 }
 // 一度きり構築のJS部品(タグパネル・タイプ多選択DD・対象種別option)を言語切替で再描画。
+function renderModeTitle() {
+  if (WP_MODE !== 'multi' && WP_MODE !== 'single') return;
+  const titleEl = document.getElementById('wp-mode-title');
+  if (!titleEl) return;
+  const slotLabel = WP_SLOT_NO ? _t('waza.slot_label', '【スロット{n}】').replace('{n}', WP_SLOT_NO) : '';
+  const pokeName = INITIAL_POKEMON_FILTER ? ((window.I18N && I18N.pokemon) ? I18N.pokemon(INITIAL_POKEMON_FILTER) : INITIAL_POKEMON_FILTER) : '';
+  const pokeLabel = pokeName ? ' ' + pokeName : '';
+  const suffix = WP_MODE === 'multi' ? _t('waza.pick_multi', ' 技を選択 (複数可)') : _t('waza.pick_single', ' 技を選択 (1つだけ)');
+  titleEl.textContent = slotLabel + pokeLabel + suffix;
+}
+
 function refreshWazaPickerI18n() {
   try { retranslateNewTagPanel(); } catch (e) {}
   try { if (typeof buildTypeDropdown === 'function') buildTypeDropdown(); } catch (e) {}
   try { if (typeof buildTargetOptions === 'function') buildTargetOptions(); } catch (e) {}
+  try { renderModeTitle(); } catch (e) {}
 }
 document.addEventListener('i18n:ready', refreshWazaPickerI18n);
 document.addEventListener('i18n:changed', refreshWazaPickerI18n);
@@ -1750,14 +1762,8 @@ function setupSelectionMode() {
     WP_SELECTED = new Set([first]);
   }
 
-  // モードタイトル
-  const titleEl = document.getElementById('wp-mode-title');
-  if (titleEl) {
-    const slotLabel = WP_SLOT_NO ? '【スロット' + WP_SLOT_NO + '】' : '';
-    const pokeLabel = INITIAL_POKEMON_FILTER ? ' ' + INITIAL_POKEMON_FILTER : '';
-    const suffix = WP_MODE === 'multi' ? ' 技を選択 (複数可)' : ' 技を選択 (1つだけ)';
-    titleEl.textContent = slotLabel + pokeLabel + suffix;
-  }
+  // モードタイトル(i18n読込後/言語切替でも再描画したいので関数化→refreshWazaPickerI18nからも呼ぶ)
+  renderModeTitle();
 
   // チェックボックスのクリック (イベント委譲)
   const tbody = document.getElementById('tbody');
