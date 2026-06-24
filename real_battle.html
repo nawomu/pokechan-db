@@ -333,6 +333,8 @@ const oppIds  = () => Array.from({length: teamSize}, (_, i) => 'o' + (i + 1));
 // メガと同じく抽選・選択プールから除外する。
 const BATTLE_ONLY_FORMS = new Set(['イルカマン(マイティ)', 'ギルガルド(ブレード)']);
 const isPickable = p => !p.mega && !BATTLE_ONLY_FORMS.has(p.name);
+// 変身結果の姿を「始動の姿」へ戻す(保存データ/引き継ぎに古い姿が残っていても矯正)
+const FORM_REVERT = {'イルカマン(マイティ)': 'イルカマン(ナイーブ)', 'ギルガルド(ブレード)': 'ギルガルド(シールド)'};
 let winStreak = 0;     // 連戦モードの連勝数
 const slotVal = {};    // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
 const slotMoves = {};  // 各スロットの技4つ(くわしく編成で変更可。ポケモンを変えると自動選定に戻る)
@@ -357,6 +359,7 @@ let movePick = null;   // {slotId, idx} わざモーダルの編集先
 // ひらがな→カタカナ(検索用正規化。「ぴかちゅう」でピカチュウにヒット)
 const toKata = s => s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
 function setSlot(id, name, keepCustom){
+  name = FORM_REVERT[name] || name;   // 変身でしか出ない姿は始動の姿に矯正(イルカマン=ナイーブ/ギルガルド=シールド)
   slotVal[id] = name;
   if (!keepCustom) slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
   if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
