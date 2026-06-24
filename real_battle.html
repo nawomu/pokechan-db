@@ -16,6 +16,8 @@ header{width:100%;max-width:760px;display:flex;justify-content:space-between;ali
 header h1{font-size:15px;margin:0;color:#dbe3f2}
 header a{color:#58a6ff;font-size:12px;text-decoration:none}
 #game{width:100%;max-width:760px;padding:8px 14px 30px}
+/* バトル中は左右2カラムのぶん横幅を広げる(設定画面は760pxのまま) */
+body.in-battle #game,body.in-battle header{max-width:1060px}
 
 /* ===== チーム編成 ===== */
 #setup{background:#141927;border:1px solid #232a3a;border-radius:14px;padding:18px}
@@ -68,7 +70,7 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
 #setup button:hover{border-color:#58a6ff}
 
 /* ===== バトル画面 ===== */
-#battle{display:none}
+#battle{display:none;gap:14px;align-items:flex-start}
 #field{position:relative;height:430px;border:1px solid #2a3550;border-radius:14px;overflow:hidden;
   background:
     radial-gradient(150% 70% at 50% 118%, #7ec25a 0%, #6db04c 30%, transparent 58%),
@@ -142,9 +144,27 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
 .fighter.enter .sprite{animation:rbEnter .5s}
 
 /* メッセージ+コマンド */
-#msgbox{margin-top:10px;background:#141927;border:2px solid #3a4a80;border-radius:12px;min-height:74px;
-  padding:14px 16px;font-size:15px;line-height:1.7;cursor:pointer;position:relative}
-#msgbox .next{position:absolute;right:14px;bottom:8px;color:#58a6ff;animation:blink 1s infinite;font-size:13px}
+/* メッセージ吹き出し=盤面の下に重ねる(Showdown風) */
+#msgbox{position:absolute;left:10px;right:10px;bottom:10px;z-index:8;
+  background:#0b1020dd;border:1px solid #ffffff30;border-radius:10px;min-height:28px;
+  padding:9px 14px 9px 14px;font-size:15px;line-height:1.55;color:#fff;cursor:pointer;
+  text-shadow:0 1px 2px #000a}
+#msgbox .next{position:absolute;right:12px;bottom:5px;color:#9ec5ff;animation:blink 1s infinite;font-size:12px}
+/* 2カラム(左=盤面/右=流れるログ) */
+#battle-main{flex:0 0 600px;max-width:600px;min-width:0}
+#battle-log-panel{flex:1 1 auto;min-width:0;align-self:stretch;display:flex;flex-direction:column;
+  background:#0e1422;border:1px solid #232a3a;border-radius:12px;max-height:608px}
+#log-head{flex:0 0 auto;padding:8px 12px;font-weight:800;font-size:13px;color:#9fb0c8;border-bottom:1px solid #232a3a}
+#log-scroll{flex:1 1 auto;overflow-y:auto;padding:6px 12px 12px;font-size:13px;line-height:1.55}
+#log-scroll .log-turn{margin:11px 0 5px;font-weight:900;color:#1b2438;background:#fff;
+  display:inline-block;padding:2px 12px;border-radius:10px;font-size:12px}
+#log-scroll .log-turn:first-child{margin-top:2px}
+#log-scroll .log-line{color:#cdd6e4;margin:2px 0}
+@media(max-width:880px){
+  #battle{flex-direction:column}
+  #battle-main{flex:1 1 auto;width:100%;max-width:100%}
+  #battle-log-panel{width:100%;max-height:240px}
+}
 @keyframes blink{50%{opacity:0}}
 #cmd{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
 #cmd button{padding:14px;border-radius:10px;border:1px solid #2a3450;background:#161d2e;color:#e6edf3;
@@ -195,6 +215,7 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
 
   <!-- バトル画面 -->
   <div id="battle">
+    <div id="battle-main">
     <div id="field">
       <div id="weather-fx"></div>
       <div id="fx-flash"></div>
@@ -207,8 +228,8 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
         <div class="hpbar"><div class="hpfill"></div></div><div class="sts"></div><div class="balls"></div></div>
       <div class="pbox" id="pb-self"><span class="who self" data-i18n="real_battle.pbox_label_self">じぶん</span><div class="row1"><span class="nm">—</span><span class="lv">Lv.50</span></div>
         <div class="hpbar"><div class="hpfill"></div></div><div class="hptext">—</div><div class="sts"></div><div class="balls"></div></div>
+      <div id="msgbox">…<span class="next" style="display:none" data-i18n="real_battle.msgbox_next_prompt">▼ クリックでつぎへ</span></div>
     </div>
-    <div id="msgbox">…<span class="next" style="display:none" data-i18n="real_battle.msgbox_next_prompt">▼ クリックでつぎへ</span></div>
     <div id="cmd">
       <button id="c-fight" data-i18n="real_battle.cmd_fight">⚔ たたかう</button>
       <button id="c-party" data-i18n="real_battle.cmd_party">🔄 ポケモン</button>
@@ -221,6 +242,11 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
       <label><input type="checkbox" id="auto-msg"> <span data-i18n="real_battle.auto_msg_label">自動でメッセージ送り</span></label>
       <span><span data-i18n="real_battle.msg_speed_label">送り速度:</span> <select id="msg-speed"><option value="1500" data-i18n="real_battle.msg_speed_slow">ゆっくり</option><option value="1000" selected data-i18n="real_battle.msg_speed_normal">ふつう</option><option value="600" data-i18n="real_battle.msg_speed_fast">はやい</option></select></span>
       <button id="snd-toggle" style="margin-left:auto;background:#161d2e;border:1px solid #2a3450;border-radius:8px;color:#e6edf3;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
+    </div>
+    </div><!-- /battle-main -->
+    <div id="battle-log-panel">
+      <div id="log-head" data-i18n="real_battle.log_head">バトルログ</div>
+      <div id="log-scroll"></div>
     </div>
   </div>
 </div>
@@ -254,6 +280,13 @@ let logPos = 0;         // battleLog の読み取り位置
 let gameOver = false;
 let turnNo = 1;         // ターン数(Showdown風 Turn バッジ表示用)
 function updateTurnBadge(){ const b = document.getElementById('turn-badge'); if (b) b.textContent = 'Turn ' + turnNo; }
+// ===== 流れるバトルログ(Showdown風・右カラム。履歴が積み上がって残る) =====
+let lastLogTurn = 0;
+function clearLog(){ const s = document.getElementById('log-scroll'); if (s) s.innerHTML = ''; lastLogTurn = 0; }
+function logTurnHeader(n){ const s = document.getElementById('log-scroll'); if (!s || n === lastLogTurn) return; lastLogTurn = n;
+  const d = document.createElement('div'); d.className = 'log-turn'; d.textContent = 'Turn ' + n; s.appendChild(d); s.scrollTop = s.scrollHeight; }
+function logLine(text){ const s = document.getElementById('log-scroll'); if (!s || !text) return;
+  const d = document.createElement('div'); d.className = 'log-line'; d.textContent = text; s.appendChild(d); s.scrollTop = s.scrollHeight; }
 
 const $ = id => document.getElementById(id);
 
@@ -508,7 +541,7 @@ function initSetup(){
   $('c-fight').addEventListener('click', () => { SE.select(); showMoves(); });
   $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
   $('c-mega').addEventListener('click', () => { SE.select(); toggleMega(); });
-  $('c-run').addEventListener('click', () => { bgmStop(); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
+  $('c-run').addEventListener('click', () => { bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
   // 音オン/オフ(設定はlocalStorageに保存)
   updateSndBtn();
   $('snd-toggle').addEventListener('click', () => {
@@ -575,9 +608,10 @@ function startBattle(){
   buildSide('opp',  oppIds());
   S.battleLog.length = 0;
   logPos = 0; gameOver = false;
-  turnNo = 1; updateTurnBadge();
+  turnNo = 1; updateTurnBadge(); clearLog();
+  document.body.classList.add('in-battle');
   $('setup').style.display = 'none';
-  $('battle').style.display = 'block';
+  $('battle').style.display = 'flex';
   renderAll();
   setWeatherFx(null);
   bgmStart();
@@ -658,7 +692,9 @@ function nextSay(){
   }
   const line = sayQueue.shift();
   const box = $('msgbox');
-  box.firstChild.textContent = line.text != null ? line.text : line;
+  const txt = line.text != null ? line.text : line;
+  box.firstChild.textContent = txt;
+  logLine(txt);   // 右の流れるログにも積む
   if (line.fx) line.fx();
   box.querySelector('.next').style.display = sayQueue.length || sayDone ? 'inline' : 'none';
   if ($('auto-msg').checked){
@@ -753,6 +789,7 @@ function doTurn(moveIdx){
   S.runTurn();
   const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
   const lines = fresh.map(e => lineWithFx(e.msg));
+  logTurnHeader(turnNo);   // 右ログに「Turn N」見出し
   say(lines, endOfTurn);
 }
 // ===== サウンド(Web Audio合成・ファミコン風 — ファイル不要・全部自作波形=権利フリー) =====
