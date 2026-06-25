@@ -864,6 +864,14 @@ tbody tr:hover td { background: #FFF3C4 !important; }
   flex: 1;
   background: #DDE3EC;
 }
+/* ★スクロールバーを常時クラシック表示（Macのオーバーレイバーは隠れてマウスで掴めず「右スクロールできない」と誤解されるため）。
+   webkit-scrollbarを明示すると macOS でも非オーバーレイの太いバーが常時出る。 */
+.modal-body { scrollbar-width: auto; }
+.modal-body::-webkit-scrollbar { height: 15px; width: 15px; }
+.modal-body::-webkit-scrollbar-track { background: #c2ccd9; }
+.modal-body::-webkit-scrollbar-thumb { background: #6b7d96; border-radius: 8px; border: 3px solid #c2ccd9; }
+.modal-body::-webkit-scrollbar-thumb:hover { background: #51637d; }
+.modal-body::-webkit-scrollbar-corner { background: #c2ccd9; }
 /* 補完モーダル内のテーブル: modal-body が全体スクロールを担当 */
 .modal-body .compat-tbl-wrap {
   /* overflow指定なし - modal-bodyが縦横スクロール */
@@ -3378,6 +3386,7 @@ function openCompatSearch(ci) {
   const modal = document.getElementById('compat-modal');
   const body = document.getElementById('compat-body');
   modal.classList.add('open');
+  _compatHideBottomBars(true);  // 下部固定バー(広告/ミラー)が横スクロールバーを覆うのを防ぐ
 
   // ズーム/最大化リセット
   compatZoomLevel = 100;
@@ -3404,8 +3413,20 @@ function openCompatSearch(ci) {
   buildCompatResult(team, ci);
 }
 
+// 補完モーダル(全画面)を開いている間は、画面下の固定広告バー・メインリストのミラー横スクロールバーを隠す。
+// これらは z-index が高く(広告9999/ミラー9998 > モーダル9000)、最大化モーダル下端の横スクロールバーを覆ってしまい
+// 「右にスクロールできない」原因になっていたため。閉じたら元に戻す。
+function _compatHideBottomBars(hide) {
+  ['rakuten-motion-bar', 'h-mirror-scroll'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (hide) { if (el.dataset._prevDisp === undefined) el.dataset._prevDisp = el.style.display || ''; el.style.display = 'none'; }
+    else { el.style.display = el.dataset._prevDisp || ''; delete el.dataset._prevDisp; }
+  });
+}
 function closeCompatSearch() {
   document.getElementById('compat-modal').classList.remove('open');
+  _compatHideBottomBars(false);
 }
 
 // チームポケモンを現在のチェック状態に再構築（モーダルを閉じずに反映・ズーム/最大化は維持）
