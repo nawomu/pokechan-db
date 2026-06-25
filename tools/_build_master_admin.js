@@ -13,8 +13,13 @@ const TYPE_JA={normal:'ノーマル',fire:'ほのお',water:'みず',electric:'�
 const official=JSON.parse(fs.readFileSync('reference/moves_master.json','utf8'));
 const byJa={}; for(const k in W){const m=W[k]; if(m&&m.name) byJa[m.name]=m;}
 const MB_NEW=new Set(['どくばりセンボン','ひっくりかえす','どげざつき','ソウルクラッシュ','はいすいのじん','ふんどのこぶし','ゴールドラッシュ','コインビーム']);
-function season(r){ if(!r.inDB) return '未対応'; if(MB_NEW.has(r.ja)) return 'M-B'; return 'M-A'; }
-function seasonBdg(s){const c={'M-A':'s-ma','M-B':'s-mb','未対応':'s-todo'}[s]||'s-base';return `<span class="sbg ${c}">${s}</span>`;}
+// 季は「使える季(複数可)」。M-B新規=M-Bのみ(🆕)/ 継続=M-A・M-B両方 / DB未収録=未対応 / Champions独自
+function seasonsCell(r){
+  if(r.champ) return '<span class="sbg s-mb">🆕M-B</span><span class="sbg s-base">独自</span>';
+  if(!r.inDB) return '<span class="sbg s-todo">未対応</span>';
+  if(MB_NEW.has(r.ja)) return '<span class="sbg s-mb">🆕M-B</span>';
+  return '<span class="sbg s-ma">M-A</span><span class="sbg s-mb">M-B</span>';
+}
 function ms(m){const eff=(m.battle_data&&m.battle_data.effects)||[];return {nEff:eff.length,desc:(m.description||'').trim()};}
 const rows=[]; const seen=new Set();
 for(const o of official){const ja=o.names.ja||'';seen.add(ja);const m=byJa[ja];const s=m?ms(m):null;
@@ -30,7 +35,7 @@ function badge(r){const g=group(r);
   if(g==='champ')return '<span class="b champ">独自</span>'+(r.nEff>0?'<span class="b ok">eff'+r.nEff+'</span>':'')+(r.desc?'<span class="b ok">説明✓</span>':'');
   return (r.nEff>0?'<span class="b ok">eff'+r.nEff+'</span>':'<span class="b ng">eff無</span>')+(r.desc?'<span class="b ok">説明✓</span>':'<span class="b ng">説明✗</span>');}
 function rowHtml(r){return `<tr data-slug="${esc(r.slug)}"><td class="chkcell"><input type="checkbox" class="chk" data-slug="${esc(r.slug)}" title="確認OKで畳む"></td>
-<td>${seasonBdg(r.champ?'独自':season(r))}</td>
+<td>${seasonsCell(r)}</td>
 <td>${r.no}</td><td class="ja">${esc(r.ja)}</td><td class="en">${esc(r.en)}</td><td>${esc(r.type)}</td><td>${esc(r.dclass||'')}</td>
 <td>${r.power??''}</td><td>${r.accuracy??''}</td><td>${r.pp??''}</td><td>${r.priority||0}</td>
 <td>${badge(r)}</td><td class="desc">${esc(r.desc)}</td><td class="eff">${esc(r.effect_en)}</td></tr>`;}
@@ -90,7 +95,13 @@ console.log(`review/_master_moves.html: 全${rows.length}技 / 要作業${counts
 const pm=JSON.parse(fs.readFileSync('reference/pokeapi_master.json','utf8'));
 const projNames=new Set(P.map(p=>p.name));
 const projSeason={}; P.forEach(p=>{projSeason[p.name]=p.added_in||'M-A';});
-function pSeasonBdg(s){const c={'M-A':'s-ma','M-B':'s-mb','未対応':'s-todo'}[s]||'s-todo';return `<span class="sbg ${c}">${s}</span>`;}
+// 季は「使える季(複数可)」。added_in='M-B'=M-Bのみ(🆕)/ それ以外のDB=M-A・M-B両方 / 未収録=未対応
+function pSeasonsCell(r){
+  if(!r.inDB) return '<span class="sbg s-todo">未対応</span>';
+  if(r.champ) return r.season==='M-B'?'<span class="sbg s-mb">🆕M-B</span><span class="sbg s-base">独自</span>':'<span class="sbg s-base">独自</span>';
+  if(r.season==='M-B') return '<span class="sbg s-mb">🆕M-B</span>';
+  return '<span class="sbg s-ma">M-A</span><span class="sbg s-mb">M-B</span>';
+}
 const FORM_SUF={'alola':'(アローラ)','galar':'(ガラル)','hisui':'(ヒスイ)','paldea':'(パルデア)'};
 function cands(v){const sj=v.species_names.ja||'';const c=[];if(v.is_mega){let s='';if(/-x$/.test(v.form_slug))s='X';else if(/-y$/.test(v.form_slug))s='Y';c.push('メガ'+sj+s);}for(const k in FORM_SUF)if((v.form_slug||'').includes(k))c.push(sj+FORM_SUF[k]);c.push(sj);return c;}
 const rows=pm.map(v=>{const hit=cands(v).find(c=>projNames.has(c));const st=v.stats;
@@ -109,7 +120,7 @@ const inDB=rows.filter(r=>r.inDB).length;
 const nMB=rows.filter(r=>r.season==='M-B').length, nMA=rows.filter(r=>r.season==='M-A').length;
 const tr=rows.map(r=>`<tr data-slug="p${r.dex}_${esc(r.form)}" class="${r.inDB?'r-in':r.is_default?'':'r-form'}">
 <td class="chkcell"><input type="checkbox" class="chk" data-slug="p${r.dex}_${esc(r.form)}"></td>
-<td>${pSeasonBdg(r.season)}</td><td>${r.dex}</td><td class="ja">${esc(r.ja)}${r.form?'<span class=fm>['+esc(r.form)+']</span>':''}</td><td class=en>${esc(r.en)}</td>
+<td>${pSeasonsCell(r)}</td><td>${r.dex}</td><td class="ja">${esc(r.ja)}${r.form?'<span class=fm>['+esc(r.form)+']</span>':''}</td><td class=en>${esc(r.en)}</td>
 <td>${esc(r.types)}</td><td class=st>${r.stats}</td><td>${r.total}</td><td class=ab>${esc(r.abil)}</td>
 <td>${r.champ?'<span class="b form">独自</span>':r.inDB?'<span class="b ok">DB有</span>':(r.is_default?'<span class="b miss">未収録</span>':'<span class="b form">フォルム</span>')}</td><td class=ja>${esc(r.projName)}</td></tr>`).join('');
 const html=`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
