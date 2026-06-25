@@ -867,6 +867,22 @@ tbody tr:hover td { background: #FFF3C4 !important; }
 /* ★スクロールバーを常時クラシック表示（Macのオーバーレイバーは隠れてマウスで掴めず「右スクロールできない」と誤解されるため）。
    webkit-scrollbarを明示すると macOS でも非オーバーレイの太いバーが常時出る。 */
 .modal-body { scrollbar-width: auto; }
+/* ★補完モーダルの横スクロール ミラーバー(ヘッダー直下・常時表示・ドラッグ可) */
+.compat-hbar {
+  flex: 0 0 auto;
+  height: 16px;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  background: #2a3550;
+  border-bottom: 1px solid #5a6b8c;
+  display: none;  /* JSで補完モーダル表示中のみ block */
+}
+.compat-hbar #compat-hbar-inner { height: 1px; }
+.compat-hbar::-webkit-scrollbar { height: 16px; }
+.compat-hbar::-webkit-scrollbar-track { background: #1b2336; }
+.compat-hbar::-webkit-scrollbar-thumb { background: #7a8ec0; border-radius: 8px; border: 2px solid #1b2336; }
+.compat-hbar::-webkit-scrollbar-thumb:hover { background: #95a8d8; }
+.modal-overlay.open .compat-hbar { display: block; }
 .modal-body::-webkit-scrollbar { height: 15px; width: 15px; }
 .modal-body::-webkit-scrollbar-track { background: #c2ccd9; }
 .modal-body::-webkit-scrollbar-thumb { background: #6b7d96; border-radius: 8px; border: 3px solid #c2ccd9; }
@@ -1319,6 +1335,8 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
       <!-- 右端: 閉じるボタン（Xのみ） -->
       <button class="modal-close-x" onclick="closeCompatSearch()" title="閉じる" data-i18n-attr="title:db.tt_close">✕</button>
     </div>
+    <!-- ★横スクロール用ミラーバー(ヘッダー直下に常設・マウスでドラッグ可)。本体テーブルは超ワイドで、Macだと本体のスクロールバーが隠れ/広告に覆われ掴めないため。メインリストの実績ある方式と同じ。 -->
+    <div class="compat-hbar" id="compat-hbar"><div id="compat-hbar-inner"></div></div>
     <div class="modal-body" id="compat-body"></div>
     <div class="modal-resize-r" id="compat-resize-r" title="右端: 幅を調整" data-i18n-attr="title:db.tt_resize_r"></div>
     <div class="modal-resize-b" id="compat-resize-b" title="下端: 高さを調整" data-i18n-attr="title:db.tt_resize_b"></div>
@@ -3545,6 +3563,7 @@ function buildCompatResult(team, ci) {
         document.getElementById('compat-team-tbl'),
         document.getElementById('compat-cand-tbl')
       ]);
+      compatSyncHbar();
     };
   });
   document.getElementById('compat-clr-sel').onclick = () => {
@@ -3575,7 +3594,10 @@ function buildCompatResult(team, ci) {
   setTimeout(() => {
     updateResCounts('team', compatTeam);
     updateResCounts('cand', compatCandidates.map(c => c.p));
+    compatSyncHbar();
   }, 100);
+  compatSyncHbar();
+  setTimeout(compatSyncHbar, 300);
 }
 
 function buildCompatTyChips() {
@@ -3749,6 +3771,7 @@ function compatApply() {
     if (span) span.textContent = _tDB('db.compat_candidates', '▶ 補完候補（{pairs}件 / {cand}中）').replace('{pairs}', pairs.length).replace('{cand}', compatCandidates.length);
     else lbl.textContent = _tDB('db.compat_candidates', '▶ 補完候補（{pairs}件 / {cand}中）').replace('{pairs}', pairs.length).replace('{cand}', compatCandidates.length);
   }
+  compatSyncHbar();
 }
 
 function resetCompatFilters() {
@@ -3903,6 +3926,21 @@ function applyCompatZoom() {
   const candTbl = document.getElementById('compat-cand-tbl');
   if (teamTbl) teamTbl.style.zoom = compatZoomLevel / 100;
   if (candTbl) candTbl.style.zoom = compatZoomLevel / 100;
+  compatSyncHbar();
+}
+
+// 横ミラーバーを本体スクロール幅に同期し、双方向スクロールを連動。
+function compatSyncHbar() {
+  const body = document.getElementById('compat-body');
+  const bar = document.getElementById('compat-hbar');
+  const inner = document.getElementById('compat-hbar-inner');
+  if (!body || !bar || !inner) return;
+  inner.style.width = body.scrollWidth + 'px';
+  if (!bar._wired) {
+    bar.addEventListener('scroll', () => { if (!bar._busy) { bar._busy = true; body.scrollLeft = bar.scrollLeft; bar._busy = false; } });
+    body.addEventListener('scroll', () => { if (!bar._busy) { bar._busy = true; bar.scrollLeft = body.scrollLeft; bar._busy = false; } });
+    bar._wired = true;
+  }
 }
 
 function compatZoomReset() {
