@@ -372,7 +372,7 @@ function buildRow(m) {
   const dataTags = tags.map(t => t.text).join('|');
   return `<tr data-tags="${esc(dataTags)}">
   <td class="col-learners">${learners > 0 ? learners : '—'}</td>
-  <td class="col-name"><span class="name-cell">${esc(m.name)}</span></td>
+  <td class="col-name"><span class="name-cell">${esc(m.name)}</span>${MB_NEW_TECH_NAMES.has(m.name) ? '<span class="season-bdg s-mb" title="レギュMBで新規追加">🆕M-B</span>' : '<span class="season-bdg s-base" title="もとからあった技(既存・確認済の作業分)">もとから</span>'}</td>
   ${prioTd}
   <td class="col-flag">${flagCell(m.flags || {})}</td>
   <td class="col-type"><span class="type-cell" style="background:${color}">${esc(m.type)}</span></td>
@@ -573,6 +573,9 @@ tbody tr:hover { background:#E3F2FD !important; }
 .type-cell { display:block; color:#fff; text-align:center; padding:3px 4px; border-radius:3px; font-weight:700; font-size:12px; white-space:nowrap; }
 td.col-type { padding:1px !important; }
 .name-cell { font-weight:700; color:#1F4E79; }
+.season-bdg { display:inline-block; margin-left:4px; padding:0 4px; border-radius:3px; font-size:9px; font-weight:700; vertical-align:middle; }
+.season-bdg.s-mb { background:#FF7A00; color:#fff; }
+.season-bdg.s-base { background:#E3E8EF; color:#7a8aa0; }
 .cat-cell { background:#E8ECF2; padding:1px 4px; border-radius:2px; font-size:10px; white-space:nowrap; }
 .mode-both { color:#666; font-size:10px; }
 .mode-double { color:#D32F2F; font-weight:700; font-size:10px; background:#FFEBEE; padding:1px 4px; border-radius:2px; }
