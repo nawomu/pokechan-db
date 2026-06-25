@@ -152,3 +152,44 @@ document.querySelectorAll('input.chk').forEach(function(c){if(st[c.dataset.slug]
 fs.writeFileSync('review/_master_pokemon.html',html);
 console.log(`review/_master_pokemon.html: 全${rows.length}variety / DB収録(推定)${inDB}`);
 })();
+
+// ========== 道具マスター(シーズンタグ付き) ==========
+(function(){
+const sbI={window:{}};vm.runInContext(fs.readFileSync('items_database.js','utf8'),vm.createContext(sbI));
+const DB=(sbI.window.ITEMS_DATABASE||sbI.ITEMS_DATABASE);
+const items=(DB&&DB.items)||[];
+const official=JSON.parse(fs.readFileSync('reference/items_master.json','utf8'));
+const offByJa={}; official.forEach(o=>{if(o.names.ja)offByJa[o.names.ja]=o;});
+function isMB(it){return /M-B/.test(it.notes||'')||/M-B/.test(it.acquisition_note||'');}
+function seasonsCell(mb){return mb?'<span class="sbg s-mb">🆕M-B</span>':'<span class="sbg s-ma">M-A</span><span class="sbg s-mb">M-B</span>';}
+const LANGS=['fr','de','es','it','ko','zh-Hans','zh-Hant'];
+const rows=items.map(it=>{const o=offByJa[it.name];const nLang=o?LANGS.filter(L=>o.names[L]).length:0;const mb=isMB(it);
+  return {key:it.key,ja:it.name,en:it.name_en||(o&&o.names.en)||'',cat:it.category||'',effect:it.effect||'',mb,nLang,inMaster:!!o};});
+const nMB=rows.filter(r=>r.mb).length;
+const tr=rows.map(r=>`<tr data-slug="${esc(r.key)}"><td class="chkcell"><input type="checkbox" class="chk" data-slug="${esc(r.key)}"></td>
+<td>${seasonsCell(r.mb)}</td><td class="ja">${esc(r.ja)}</td><td class="en">${esc(r.en)}</td><td>${esc(r.cat)}</td>
+<td class="desc">${esc(r.effect)}</td><td>${r.inMaster?('<span class="b ok">9言語'+(r.nLang+2)+'/9</span>'):'<span class="b miss">公式名なし</span>'}</td></tr>`).join('');
+const html=`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>裏管理: 道具マスター</title><style>
+body{font-family:system-ui,'Hiragino Kaku Gothic ProN',sans-serif;margin:0;background:#0f1419;color:#e6edf3;font-size:13px}
+h1{font-size:16px;padding:11px 16px;margin:0;background:#1F4E79;position:sticky;top:0;z-index:10}
+.prog{padding:9px 16px;background:#11161c;position:sticky;top:40px;z-index:9;font-size:12.5px;border-bottom:1px solid #233}
+.prog b{color:#ffd479}.prog input{margin-left:10px;padding:4px 8px;background:#1c2740;border:1px solid #30425f;color:#fff;border-radius:5px}
+table{border-collapse:collapse;width:100%;font-size:12px}th,td{border:1px solid #232c3a;padding:3px 6px;text-align:left;vertical-align:top}
+th{background:#1c2740;position:sticky;top:74px;color:#9ec5ff;font-size:11px}
+td.ja{color:#ffd479;white-space:nowrap}td.en{color:#8aa3bb}.desc{max-width:420px}.chkcell{text-align:center}tr.checked{opacity:.3;text-decoration:line-through}
+.b{display:inline-block;padding:0 5px;border-radius:4px;font-size:10px;font-weight:700}.b.ok{background:#1d6e3a}.b.miss{background:#6b4a1a}
+.sbg{display:inline-block;padding:0 5px;border-radius:4px;font-size:10px;font-weight:700}.sbg.s-ma{background:#2b4a6b;color:#cfe0f5}.sbg.s-mb{background:#FF7A00;color:#fff}
+tbody tr:nth-child(even){background:#141b2b}
+</style></head><body>
+<h1>🗂 裏管理: 道具マスター(プロジェクト${rows.length}件 / 公式マスター${official.length}件) ※非公開・管理用</h1>
+<div class="prog">📊 <span class="sbg s-mb">🆕M-B</span> ${nMB} ｜ <span class="sbg s-ma">M-A</span>継続 ${rows.length-nMB} ｜ 確認済 <span id="ck">0</span>
+<input id="q" placeholder="絞り込み" oninput="document.querySelectorAll('tr[data-slug]').forEach(function(r){r.style.display=r.textContent.includes(document.getElementById('q').value)?'':'none'})"></div>
+<table><thead><tr><th>✓</th><th>季</th><th>道具名</th><th>en</th><th>分類</th><th>効果</th><th>多言語</th></tr></thead><tbody>${tr}</tbody></table>
+<script>var K='pcham_master_it';var st={};try{st=JSON.parse(localStorage.getItem(K)||'{}')}catch(e){}
+function rc(){document.getElementById('ck').textContent=Object.values(st).filter(Boolean).length;}
+document.querySelectorAll('input.chk').forEach(function(c){if(st[c.dataset.slug]){c.checked=true;c.closest('tr').classList.add('checked');}c.addEventListener('change',function(){st[c.dataset.slug]=c.checked;c.closest('tr').classList.toggle('checked',c.checked);try{localStorage.setItem(K,JSON.stringify(st))}catch(e){}rc();});});rc();</script>
+</body></html>`;
+fs.writeFileSync('review/_master_items.html',html);
+console.log(`review/_master_items.html: プロジェクト道具${rows.length}件 / 🆕M-B ${nMB} / 公式マスター${official.length}`);
+})();
