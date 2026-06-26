@@ -95,9 +95,11 @@ console.log(`review/_master_moves.html: 全${rows.length}技 / 要作業${counts
 const pm=JSON.parse(fs.readFileSync('reference/pokeapi_master.json','utf8'));
 const projNames=new Set(P.map(p=>p.name));
 const projSeason={}; P.forEach(p=>{projSeason[p.name]=p.added_in||'M-A';});
+const GENR=[[1,151],[152,251],[252,386],[387,493],[494,649],[650,721],[722,809],[810,905],[906,1025]];
+const genOf=dex=>{for(let i=0;i<GENR.length;i++)if(dex>=GENR[i][0]&&dex<=GENR[i][1])return i+1;return 0;};
 // 季は「使える季(複数可)」。added_in='M-B'=M-Bのみ(🆕)/ それ以外のDB=M-A・M-B両方 / 未収録=未対応
 function pSeasonsCell(r){
-  if(!r.inDB) return '<span class="sbg s-todo">未対応</span>';
+  if(!r.inDB) return '<span class="sbg s-gen">第'+genOf(r.dex)+'世代</span>';
   if(r.champ) return r.season==='M-B'?'<span class="sbg s-mb">🆕M-B</span><span class="sbg s-base">独自</span>':'<span class="sbg s-base">独自</span>';
   if(r.season==='M-B') return '<span class="sbg s-mb">🆕M-B</span>';
   return '<span class="sbg s-ma">M-A</span><span class="sbg s-mb">M-B</span>';
@@ -135,7 +137,7 @@ td.ja{color:#ffd479}.en{color:#8aa3bb}.st{color:#9ec5ff}.ab{color:#7d8aa0;font-s
 tr.r-in{background:#13241a}tr.r-form{background:#1a1622}tr.checked{opacity:.3}
 .b{display:inline-block;padding:0 5px;border-radius:4px;font-size:10px;font-weight:700}.b.ok{background:#1d6e3a}.b.miss{background:#6b4a1a}.b.form{background:#3a2a6b}
 .sbg{display:inline-block;padding:0 5px;border-radius:4px;font-size:10px;font-weight:700}
-.sbg.s-ma{background:#2b4a6b;color:#cfe0f5}.sbg.s-mb{background:#FF7A00;color:#fff}.sbg.s-todo{background:#5a4a2a;color:#ffd479}
+.sbg.s-ma{background:#2b4a6b;color:#cfe0f5}.sbg.s-mb{background:#FF7A00;color:#fff}.sbg.s-todo{background:#5a4a2a;color:#ffd479}.sbg.s-gen{background:#2b3a55;color:#bcd}
 tbody tr:nth-child(even){background:#141b2b}
 </style></head><body>
 <h1>🗂 裏管理: 全ポケモンマスター(${rows.length} variety) ※非公開・管理用</h1>
