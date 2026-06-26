@@ -366,8 +366,10 @@ function clause(e, m) {
       return `そのターン、ひんしになる攻撃を受けてもHPが1だけ残ってたえる。続けて使うと失敗しやすくなる`; // 2026-06-18 阿部さん指摘: 「ひんしになる攻撃時」が正しい
     case '範囲まもり':
       return `そのターン、複数を巻きこむ技から自分と味方をまもる`;
-    case 'まもり解除':
-      return `相手の「まもる」などの守りをやぶってから攻撃する`;
+    case 'まもり解除': {
+      const aff = Array.isArray(e.affected_moves) && e.affected_moves.length ? `「${e.affected_moves.join('」「')}」` : '「まもる」など';
+      return `相手の${aff}の守りをやぶってから攻撃する`; // ★略さない: データのaffected_moves全列挙(2026-06-26・なみだめ/ちいさくなると同方針)
+    }
     case '設置': {
       const v = e.value;
       const after = (e.phase === 'on_use' && e.timing === 'after_damage') ? '攻撃したあと、' : ''; // がんせきアックス・ひけん/ちえなみ
@@ -462,7 +464,7 @@ function clause(e, m) {
     case 'フィールド展開':
       return `${durT(e.duration)}の間、足元を「${e.value}」にする`;
     case 'フィールド除去':
-      return `場のフィールドを消す`;
+      return Array.isArray(e.values) && e.values.length ? `場の「${e.values.join('」「')}」を消す` : `場のフィールドを消す`; // ★略さない: データのフィールド全列挙(2026-06-26)
     case '一撃必殺':
       return `当たれば相手は 一発でひんしになる` + (e.ignores_type_matchup ? `(タイプ相性に関係なく当たる)` : ``); // じわれ
     case '暴れる(混乱)':
