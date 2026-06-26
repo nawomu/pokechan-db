@@ -357,6 +357,11 @@ tbody tr:hover td { background: #FFF3C4 !important; }
 /* 個別列 */
 .th-chk, .td-chk { width: 32px !important; min-width: 32px !important; max-width: 32px !important; }
 .th-no, .td-no { width: 44px !important; min-width: 44px !important; max-width: 44px !important; font-size: 10px; } /* ★2026-06-19 阿部さん指摘: 1000番台のNoが省略表示されないよう列幅を拡張(34→44px) */
+.th-ssn, .td-ssn { width: 72px !important; min-width: 72px !important; max-width: 72px !important; text-align: center; white-space: nowrap; }
+.td-ssn .sbg { display: inline-block; padding: 0 4px; border-radius: 4px; font-size: 9px; font-weight: 700; margin: 0 1px; }
+.td-ssn .sbg.s-ma { background: #2b4a6b; color: #fff; }
+.td-ssn .sbg.s-mb { background: #FF7A00; color: #fff; }
+.th-ssn .ssn-sel { font-size: 10px; padding: 1px; max-width: 68px; border: 1px solid #ccc; border-radius: 4px; }
 .th-name, .td-name {
   width: 108px !important; min-width: 108px !important; max-width: 108px !important;
   font-weight: 700;
@@ -2237,6 +2242,36 @@ COLUMNS.push({
   },
   buildTd: (p) => `<td class="td-no">${p.no}</td>`,
   getVal: (p) => parseInt(p.no) || 0,
+});
+
+// -------- 季 SSN (M-A継続 / 🆕M-B新規。Generationとは別項目) --------
+COLUMNS.push({
+  key: 'season',
+  buildTh: (ctx) => {
+    const th = document.createElement('th');
+    th.className = 'th-ssn';
+    const selId = `ssn-sel-${ctx.prefix}`;
+    th.innerHTML = `<div class="hdr2">
+      <div class="hdr2-top"><select class="ssn-sel" id="${selId}"><option value="">全</option><option value="M-A">M-A継続</option><option value="M-B">🆕M-B</option></select></div>
+      <div class="hdr2-bot" data-sort="season" style="justify-content:center">SSN<span class="si2" data-skey="season"></span></div>
+    </div>`;
+    th.querySelector('.ssn-sel').onchange = () => ctx.onFilter();
+    th.querySelector('.ssn-sel').onclick = e => e.stopPropagation();
+    return th;
+  },
+  buildTd: (p) => {
+    const html = p.added_in === 'M-B'
+      ? '<span class="sbg s-mb">🆕M-B</span>'
+      : '<span class="sbg s-ma">M-A</span><span class="sbg s-mb">M-B</span>';
+    return `<td class="td-ssn">${html}</td>`;
+  },
+  getVal: (p) => p.added_in === 'M-B' ? 2 : 1,
+  applyFilter: (arr, ctx) => {
+    const v = document.getElementById(`ssn-sel-${ctx.prefix}`)?.value;
+    if (!v) return arr;
+    if (v === 'M-B') return arr.filter(p => p.added_in === 'M-B');   // M-B新規のみ
+    return arr.filter(p => p.added_in !== 'M-B');                     // M-A継続のみ
+  },
 });
 
 // -------- ポケモン名 --------

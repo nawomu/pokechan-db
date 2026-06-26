@@ -1,0 +1,198 @@
+// 全国版(全部版)共通データアダプタ。reference/*.json + learnsets から、pokechan_data.js と同一schemaの
+// pokechan_data_all.js を生成。既存ページ(v9/waza-list)は <script src> 差替だけで全1302ポケ・937技で動く。
+// 静的テーブルは pokechan_data.js から転記。490curated層(説明文/battle_data/体重)はキー一致分をオーバーレイ。
+// 実行: node tools/_build_pokechan_data_all.js → pokechan_data_all.js
+const fs=require('fs');
+const C=require('../pokechan_data.js');                       // curated(Champions) = 静的テーブル + overlay元
+const P=require('../reference/pokeapi_master.json');          // 1302 variety
+const MV=require('../reference/moves_master.json');           // 937 moves
+const AB=require('../reference/abilities_master.json');       // 367 abilities
+const LS=require('../reference/learnsets_master.json');       // learnset(slug→move slug[])
+let MJD={}; try{ MJD=require('../reference/moves_ja_desc.json'); }catch(e){} // 445技のJA説明(マザー流・WF生成)
+let MTAGS={}; try{ MTAGS=require('../reference/moves_tags.json'); }catch(e){} // 445技の効果分類(WF生成)→battle_dataに変換しタグを出す
+let LEGEND={}; try{ LEGEND=require('../reference/legend_status.json'); }catch(e){} // dex→伝説区分(restricted/sub/mythical)
+// 変化技の subcategory を分類から導出(ポケモンDBわざ列のグループ順 CAT_ORDER に合わせる=新技も既存と同じグループに入る)。
+function subcatFromTags(t){
+  if(!t) return 'その他';
+  if(t.recovery && t.recovery!=='none') return '回復';
+  if(t.screen && t.screen!=='none') return '壁';
+  if(t.room && t.room!=='none') return 'ルーム';
+  if(t.weather && t.weather!=='none') return '天候';
+  if(t.field && t.field!=='none') return 'フィールド';
+  if(t.hazard && t.hazard!=='none') return '設置';
+  if(t.moveBlock && t.moveBlock!=='none') return '技封じ';
+  if(t.switch==='trap') return '捕縛';
+  if(t.switch==='force_opp' || t.switch==='self') return '交代';
+  if(t.support) return 'サポート';
+  if((t.status&&t.status.length) || t.flinch>0) return '状態異常';
+  if(t.stats && t.stats.length){
+    const selfUp = t.stats.filter(s=>s.target==='self' && s.stages>0);
+    const oppDown = t.stats.filter(s=>s.target==='opponent' && s.stages<0);
+    if(selfUp.length){
+      const ss = selfUp.map(s=>s.stat);
+      if(ss.some(s=>s==='speed')) return '積み速';
+      if(ss.some(s=>s==='defense'||s==='special_defense')) return '積み防';
+      return '積み攻';
+    }
+    if(oppDown.length) return '能力下';
+  }
+  if(t.cureStatus) return '回復';
+  if(t.removeHazards||t.fieldRemove) return 'その他';
+  return 'その他';
+}
+// intermediate分類 → battle_data(タグエンジンが読む形)。waza_picker.js の getMoveFilterTags/_miscTagJudges 準拠。
+function bdFromTags(t){
+  const bd={crit_stage:0,must_crit:false,crit_changes:[],effects:[]};
+  (t.status||[]).forEach(s=>{ if(s&&s.name) bd.effects.push({kind:'状態付与',target:s.target||'opponent',value:s.name,prob:s.prob||100,phase:'on_use'}); });
+  if(t.flinch>0) bd.effects.push({kind:'ひるみ',target:'opponent',prob:t.flinch,phase:'on_use'});
+  (t.stats||[]).forEach(st=>{ if(st&&st.stat&&st.stages) bd.effects.push({kind:'能力ランク変化',target:st.target||'opponent',stat:st.stat,stages:st.stages,prob:st.prob||100,phase:'on_use'}); });
+  if(t.crit==='high') bd.crit_stage=1; if(t.crit==='always') bd.must_crit=true;
+  if(t.mustHit) bd.must_hit=true;
+  if(t.multiHit&&t.multiHit!=='none') bd.multi_hit=t.multiHit;
+  if(t.recoil&&t.recoil!=='none') bd.recoil=t.recoil;
+  if(t.drain&&t.drain!=='none') bd.drain=(t.drain==='seed'?'seed':'1/2');
+  if(t.recovery&&t.recovery!=='none') bd.recovery=t.recovery;
+  if(t.charge&&t.charge!=='none') bd.charge=t.charge;
+  if(t.recharge) bd.recharge=true; if(t.selfFaint) bd.self_faint=true;
+  if(t.weather&&t.weather!=='none') bd.weather_set=t.weather;
+  if(t.field&&t.field!=='none') bd.field_set=t.field;
+  if(t.hazard&&t.hazard!=='none') bd.hazard_set=t.hazard;
+  if(t.screen&&t.screen!=='none') bd.screen=t.screen;
+  if(t.room&&t.room!=='none') bd.room=t.room;
+  if(t.tailwind) bd.tailwind=true; if(t.gravity) bd.gravity=true;
+  if(t.switch==='force_opp') bd.force_switch_opp=true; else if(t.switch==='self') bd.self_switch=true; else if(t.switch==='trap') bd.trap_no_switch=true;
+  if(t.moveBlock&&t.moveBlock!=='none') bd.move_block=t.moveBlock;
+  if(t.support) bd.support=true;
+  if(t.removeHazards) bd.remove_hazards=true; if(t.fieldRemove) bd.field_remove=true;
+  if(t.cureStatus) bd.cure_status=[{target:'self',value:'all'}];
+  if(t.substitutePierce) bd.substitute_pierce=true;
+  return bd;
+}
+
+const TYPE_JA={normal:'ノーマル',fire:'ほのお',water:'みず',electric:'でんき',grass:'くさ',ice:'こおり',fighting:'かくとう',poison:'どく',ground:'じめん',flying:'ひこう',psychic:'エスパー',bug:'むし',rock:'いわ',ghost:'ゴースト',dragon:'ドラゴン',dark:'あく',steel:'はがね',fairy:'フェアリー'};
+const TYPES=C.TYPES; // JA順(TYPE_CHARTと一致)
+// 型相性表(攻撃type行 × 防御type列・TYPES順)。出典 tools/_gen_content_pages.js
+const TYPE_CHART=[
+  [1,1,1,1,1,1,1,1,1,1,1,1,0.5,0,1,1,0.5,1],[1,0.5,0.5,1,2,2,1,1,1,1,1,2,0.5,1,0.5,1,2,1],
+  [1,2,0.5,1,0.5,1,1,1,2,1,1,1,2,1,0.5,1,1,1],[1,1,2,0.5,0.5,1,1,1,0,2,1,1,1,1,0.5,1,1,1],
+  [1,0.5,2,1,0.5,1,1,0.5,2,0.5,1,0.5,2,1,0.5,1,0.5,1],[1,0.5,0.5,1,2,0.5,1,1,2,2,1,1,1,1,2,1,0.5,1],
+  [2,1,1,1,1,2,1,0.5,1,0.5,0.5,0.5,2,0,1,2,2,0.5],[1,1,1,1,2,1,1,0.5,0.5,1,1,1,0.5,0.5,1,1,0,2],
+  [1,2,1,2,0.5,1,1,2,1,0,1,0.5,2,1,1,1,2,1],[1,1,1,0.5,2,1,2,1,1,1,1,2,0.5,1,1,1,0.5,1],
+  [1,1,1,1,1,1,2,2,1,1,0.5,1,1,1,1,0,0.5,1],[1,0.5,1,1,2,1,0.5,0.5,1,0.5,2,1,1,0.5,1,2,0.5,0.5],
+  [1,2,1,1,1,2,0.5,1,0.5,2,1,2,1,1,1,1,0.5,1],[0,1,1,1,1,1,1,1,1,1,2,1,1,2,1,0.5,1,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,2,1,0.5,0],[1,1,1,1,1,1,0.5,1,1,1,2,1,1,2,1,0.5,1,0.5],
+  [1,0.5,0.5,0.5,1,2,1,1,1,1,1,1,2,1,1,1,0.5,2],[1,0.5,1,1,1,1,2,0.5,1,1,1,1,1,1,2,2,0.5,1]];
+const tIdx=ja=>TYPES.indexOf(ja);
+function resistOf(types){ // types=english slug[]
+  const i1=tIdx(TYPE_JA[types[0]]); const i2=types[1]!=null?tIdx(TYPE_JA[types[1]]):-1;
+  const r=[]; for(let i=0;i<18;i++){ let v=TYPE_CHART[i][i1]; if(i2>=0)v*=TYPE_CHART[i][i2]; r.push(v); } return r;
+}
+const ABJA={}; AB.forEach(a=>{ABJA[a.slug]=a.names.ja||a.names.en||a.slug;});
+const MVJA={}; MV.forEach(m=>{MVJA[m.slug]=m.names.ja||m.names.en||m.slug;});
+const CAT_JA={physical:'物理',special:'特殊',status:'変化'};
+const normWide=s=>String(s).replace(/Ｘ/g,'X').replace(/Ｙ/g,'Y'); // 全角XY→半角(curated一致用)
+const REG={alola:'アローラ',galar:'ガラル',hisui:'ヒスイ',paldea:'パルデア'};
+// 一意JA名(POKEMON_WAZA結合キー)。curated命名(メガ○○X / ○○(ヒスイ))に寄せつつ全1302で一意化。
+function jaNameRaw(v){
+  const base=v.species_names.ja||v.slug;
+  if(v.is_default && !v.is_mega && !v.form_slug) return base;
+  if(v.is_mega) return v.form_names.ja?normWide(v.form_names.ja):('メガ'+base);
+  const fs=v.form_slug||'';
+  for(const k in REG){ if(fs.includes(k)){ const rest=fs.split('-').filter(x=>x!==k).join('-'); return base+'('+REG[k]+(rest?('・'+rest):'')+')'; } }
+  if(v.form_names.ja) return base+'('+normWide(v.form_names.ja)+')';
+  if(fs) return base+'('+fs+')';
+  return base;
+}
+function formField(v){ if(v.is_mega)return'メガ進化'; if(v.is_default&&!v.form_slug)return'通常'; const fs=v.form_slug||''; for(const k in REG)if(fs.includes(k))return'リージョン'; return'フォルム'; }
+// 世代(dexから第1〜9)
+const GENR=[[1,151],[152,251],[252,386],[387,493],[494,649],[650,721],[722,809],[810,905],[906,1025]];
+const genOf=dex=>{for(let i=0;i<GENR.length;i++)if(dex>=GENR[i][0]&&dex<=GENR[i][1])return i+1;return 0;};
+
+// --- 見た目だけのフォーム除外(基本形と種族値+タイプ+特性が同一、またはキャップ/トーテム/gmax/starter等) ---
+const defByDex={}; P.forEach(v=>{if(v.is_default)defByDex[v.dex]=v;});
+const sig=v=>v.types.join('/')+'|'+Object.values(v.stats).join(',')+'|'+v.abilities.map(a=>a.name).sort().join(',');
+const COSM=/(^|-)(rock-star|belle|pop-star|phd|libre|cosplay|cap|totem|gmax|starter|battle-bond|gulping|gorging|dada|own-tempo|eternamax)(-|$)/;
+function isCosmetic(v){
+  if(v.is_mega||v.is_default) return false;       // メガ・各種default(リージョン本体含む)は常に残す
+  const d=defByDex[v.dex];
+  if(d && sig(v)===sig(d)) return true;            // 中身が基本形と完全同一=見た目だけ
+  if(COSM.test(v.form_slug||'')) return true;      // 既知の見た目フォーム(starter等は種族値違いでも除外)
+  return false;
+}
+const PALL=P;                                       // 全1302(参照用)
+const P2=P.filter(v=>!isCosmetic(v));               // 間引き後
+
+// --- jaName を全件で確定(衝突は form_slug 付与で一意化) ---
+const usedName=new Set(); const NAME={}; // slug→jaName
+for(const v of P2){ let n=jaNameRaw(v); if(usedName.has(n)) n=n+'〈'+v.slug+'〉'; usedName.add(n); NAME[v.slug]=n; }
+
+// --- POKEMON_LIST ---
+const weightByName={}; const curPByName={};
+C.POKEMON_LIST.forEach(p=>{weightByName[p.name]=p.weight_kg; curPByName[p.name]=p;});
+// Season(M-A/M-B)判定: Champions名簿と名前一致で。M-B新規=['M-B']/M-A継続=['M-A','M-B']/Champions外=[](世代のみ)。Generationとは別項目。
+function seasonOf(name){ const c=curPByName[name]; if(!c)return []; return c.added_in==='M-B'?['M-B']:['M-A','M-B']; }
+const POKEMON_LIST=P2.map(v=>{
+  const st=v.stats; const total=st.hp+st.atk+st.def+st.spa+st.spd+st.spe;
+  const abis=v.abilities.slice().sort((a,b)=>(a.hidden?1:0)-(b.hidden?1:0)).map(a=>ABJA[a.name]||a.name);
+  const name=NAME[v.slug];
+  return {
+    no:String(v.dex||0).padStart(3,'0'), name, gen:genOf(v.dex), season:seasonOf(NAME[v.slug]), legend:LEGEND[v.dex]||'', form:formField(v), mega:!!v.is_mega,
+    weight_kg:(weightByName[name]!=null?weightByName[name]:null),
+    type1:TYPE_JA[v.types[0]]||v.types[0], type2:v.types[1]?(TYPE_JA[v.types[1]]||v.types[1]):'',
+    hp:st.hp,atk:st.atk,def:st.def,spatk:st.spa,spdef:st.spd,spd:st.spe,total,
+    ab1:abis[0]||'',ab2:abis[1]||'',ab3:abis[2]||'',
+    resist:resistOf(v.types),
+  };
+});
+
+// --- WAZA_MAP(937, key=move slug) + learners(learnset逆引き) ---
+const learnersBy={}; // moveSlug→Set(jaName)
+const POKEMON_WAZA={};
+for(const v of P2){ const n=NAME[v.slug]; const moves=LS[v.slug]||[]; POKEMON_WAZA[n]=moves.slice();
+  for(const ms of moves){ (learnersBy[ms]||(learnersBy[ms]=new Set())).add(n); } }
+// curated overlay(JA技名一致): description/description_legacy/battle_data/tags/target/contact/protect/flags
+const curByName={}; Object.keys(C.WAZA_MAP).forEach(k=>{const w=C.WAZA_MAP[k];curByName[w.name]=w;});
+const WAZA_MAP={};
+for(const m of MV){
+  const nameJa=MVJA[m.slug]; const cur=curByName[nameJa];
+  const learners=[...(learnersBy[m.slug]||[])];
+  WAZA_MAP[m.slug]={
+    name:nameJa, move_no:m.id, type:TYPE_JA[m.type]||m.type, category:CAT_JA[m.damage_class]||'変化',
+    target:cur?cur.target:'1体選択', power:m.power, accuracy:m.accuracy, pp:m.pp, priority:m.priority||0,
+    contact:cur?!!cur.contact:false, protect:cur?(cur.protect!==false):true,
+    description:cur?(cur.description||MJD[m.slug]||''):(MJD[m.slug]||''), key:m.slug, learners,
+    national_new:!cur && !!MJD[m.slug], // 全国版で新規追加した技(M-A/M-B以外=Champions外)
+    description_legacy:cur?(cur.description_legacy||''):'',
+    battle_data:cur&&cur.battle_data?cur.battle_data:(MTAGS[m.slug]?bdFromTags(MTAGS[m.slug]):{crit_stage:0,must_crit:false,crit_changes:[],effects:[]}),
+    flags:cur&&cur.flags?cur.flags:{},
+    subcategory:(cur&&cur.subcategory)?cur.subcategory:((CAT_JA[m.damage_class]==='変化'&&MTAGS[m.slug])?subcatFromTags(MTAGS[m.slug]):undefined), // 変化技の細分(回復/状態異常等)=わざ列のグループ順。新技はタグ分類から導出して既存と同じグループへ
+    tags:cur&&cur.tags?cur.tags:[],
+  };
+}
+
+// --- 出力 ---
+const J=o=>JSON.stringify(o);
+const out=`// AUTO-GENERATED by tools/_build_pokechan_data_all.js — 編集しない。元データ=reference/*.json + learnsets_master.json
+// 全国版(全部版)共通DB。pokechan_data.js と同一schema。新ポケ/技追加時は reference 再生成→本ビルダー再実行のみ。
+const TYPES = ${J(C.TYPES)};
+const TYPE_COLORS = ${J(C.TYPE_COLORS)};
+const TYPE_KANJI = ${J(C.TYPE_KANJI)};
+const TYPE_DISPLAY = ${J(C.TYPE_DISPLAY)};
+const TYPE_OFFENSIVE_STATS = ${J(C.TYPE_OFFENSIVE_STATS)};
+const DEFAULT_TYPE_ORDER = ${J(C.DEFAULT_TYPE_ORDER)};
+const POKEMON_LIST = ${J(POKEMON_LIST)};
+const DATA = POKEMON_LIST;
+const WAZA_MAP = ${J(WAZA_MAP)};
+const POKEMON_WAZA = ${J(POKEMON_WAZA)};
+const ABILITY_DESC = ${J(C.ABILITY_DESC)};
+const STAT_RANK = ${J(C.STAT_RANK)};
+const NATURES = ${J(C.NATURES)};
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = { TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER, POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES };
+}
+`;
+fs.writeFileSync('pokechan_data_all.js',out);
+const overlaidW=MV.filter(m=>curByName[MVJA[m.slug]]).length;
+const overlaidP=POKEMON_LIST.filter(p=>p.weight_kg!=null).length;
+console.log(`pokechan_data_all.js 生成: POKEMON_LIST=${POKEMON_LIST.length}(全${PALL.length}から見た目フォーム${PALL.length-P2.length}件間引き) / WAZA_MAP=${Object.keys(WAZA_MAP).length} / POKEMON_WAZA=${Object.keys(POKEMON_WAZA).length}`);
+console.log(`overlay: 技説明/battle_data=${overlaidW}件 / 体重=${overlaidP}件`);

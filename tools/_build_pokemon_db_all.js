@@ -54,7 +54,7 @@ th{background:#1c2740;color:#9ec5ff;font-size:11px;position:sticky;top:96px;curs
 tbody tr:nth-child(even){background:#141b2b}
 tbody tr:hover{background:#1d2840}
 </style></head><body>
-<h1>📕 全国ポケモン図鑑DB(全世代・${D.length}フォルム)<a href="pokemon_db_v9.html">→ チャンピオンズDB</a></h1>
+<h1>📕 全国ポケモン図鑑DB(全世代・${D.length}フォルム)<a href="moves_db_all.html">📘わざ</a><a href="items_db_all.html">📦どうぐ</a><a href="pokemon_db_v9.html">→ チャンピオンズDB</a></h1>
 <div class="bar"><input id="q" placeholder="🔍 名前・タイプで検索(日本語/英語)" oninput="run()"><span class="cnt" id="cnt"></span>
 <div class="tyrow"><button class="tyb clr" onclick="ft('')">全タイプ</button>${typeBtns}</div>\n<div class="tyrow" style="margin-top:5px"><button class="gnb clr" onclick="fg(0)">全世代</button>${genBtns}</div></div>
 <table id="t"><thead><tr><th onclick="sortBy('dx')">No</th><th>絵</th><th onclick="sortBy('nm')">名前</th><th onclick="sortBy(2.5)">世代</th><th>タイプ</th><th onclick="sortBy(5)">HP</th><th onclick="sortBy(6)">攻</th><th onclick="sortBy(7)">防</th><th onclick="sortBy(8)">特攻</th><th onclick="sortBy(9)">特防</th><th onclick="sortBy(10)">速</th><th onclick="sortBy('bst')">合計</th><th>とくせい</th></tr></thead><tbody id="tb">${rows}</tbody></table>

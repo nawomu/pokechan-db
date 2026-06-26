@@ -76,6 +76,7 @@ const WAZA_MASTER_BUILT = (function () {
       category: m.subcategory || cls,
       effect: m.description,
       added: m.added !== undefined ? m.added : true,
+      national_new: m.national_new || false, // 全国版で新規追加した技(M-A/M-B以外)。本番Championsデータには無=常にfalse
       flags: m.flags || {},
     });
   }
@@ -921,6 +922,7 @@ function render() {
   let visibleCount = 0;
   rows.forEach(m => {
     if (wpCheckedOnly && WP_MODE !== 'browse' && !WP_SELECTED.has(m.key)) return;
+    if (window.__newOnlyActive && !m.national_new) return; // 🆕新規追加のみフィルタ(全国版・ガード付き)
     if (searchQ && !moveSearchKey(m).includes(searchQ)) return;
     // 新タグフィルタ: アクティブなタグが付いている技だけ通す
     if (newTagActive.size > 0) {
