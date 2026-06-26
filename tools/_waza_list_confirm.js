@@ -372,7 +372,8 @@ function buildRow(m) {
   const dataTags = tags.map(t => t.text).join('|');
   return `<tr data-tags="${esc(dataTags)}">
   <td class="col-learners">${learners > 0 ? learners : '—'}</td>
-  <td class="col-name"><span class="name-cell">${esc(m.name)}</span>${MB_NEW_TECH_NAMES.has(m.name) ? '<span class="season-bdg s-mb" title="レギュMBで新規追加">🆕M-B</span>' : '<span class="season-bdg s-base" title="もとからあった技(既存・確認済の作業分)">もとから</span>'}</td>
+  <td class="col-name"><span class="name-cell">${esc(m.name)}</span></td>
+  <td class="col-season">${MB_NEW_TECH_NAMES.has(m.name) ? '<span class="season-bdg s-mb" title="レギュMBで新規追加">🆕M-B</span>' : '<span class="season-bdg s-ma" title="M-A(もとから・既存)">M-A</span>'}</td>
   ${prioTd}
   <td class="col-flag">${flagCell(m.flags || {})}</td>
   <td class="col-type"><span class="type-cell" style="background:${color}">${esc(m.type)}</span></td>
@@ -414,7 +415,7 @@ if (mbNewTechs.length) byKind.set(NEW_TECHS_KIND, mbNewTechs);
 const ordered = [NEW_TECHS_KIND, ...KIND_ORDER.filter(k => byKind.has(k)), ...restKinds, ...(byKind.has(NOEFF) ? [NOEFF] : [])].filter(k => byKind.has(k));
 
 const THEAD = `<thead><tr>
-  <th class="col-learners">習得</th><th class="col-name">わざ名</th><th class="col-prio">優先</th><th class="col-flag">フラグ</th>
+  <th class="col-learners">習得</th><th class="col-name">わざ名</th><th class="col-season">季</th><th class="col-prio">優先</th><th class="col-flag">フラグ</th>
   <th class="col-type">タイプ</th><th class="col-class">分類</th><th class="col-power">威力</th><th class="col-acc">命中</th><th class="col-pp">PP</th>
   <th class="col-contact">接触</th><th class="col-guard">守貫</th><th class="col-target">対象</th><th class="col-cat">カテゴリ</th>
   <th class="col-effsrc">Effects(元データ)</th><th class="col-effect">効果</th><th class="col-tags">タグ</th><th class="col-yakkun">ヤック</th>
@@ -573,9 +574,11 @@ tbody tr:hover { background:#E3F2FD !important; }
 .type-cell { display:block; color:#fff; text-align:center; padding:3px 4px; border-radius:3px; font-weight:700; font-size:12px; white-space:nowrap; }
 td.col-type { padding:1px !important; }
 .name-cell { font-weight:700; color:#1F4E79; }
-.season-bdg { display:inline-block; margin-left:4px; padding:0 4px; border-radius:3px; font-size:9px; font-weight:700; vertical-align:middle; }
+.season-bdg { display:inline-block; padding:1px 5px; border-radius:3px; font-size:10px; font-weight:700; vertical-align:middle; white-space:nowrap; }
 .season-bdg.s-mb { background:#FF7A00; color:#fff; }
+.season-bdg.s-ma { background:#DCE6F2; color:#3a6092; }
 .season-bdg.s-base { background:#E3E8EF; color:#7a8aa0; }
+td.col-season, th.col-season { width:46px; text-align:center; }
 .cat-cell { background:#E8ECF2; padding:1px 4px; border-radius:2px; font-size:10px; white-space:nowrap; }
 .mode-both { color:#666; font-size:10px; }
 .mode-double { color:#D32F2F; font-weight:700; font-size:10px; background:#FFEBEE; padding:1px 4px; border-radius:2px; }
