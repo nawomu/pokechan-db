@@ -344,7 +344,8 @@ function buildRow(m) {
 
   // ★全国版新技(_national)は compose でなく master流 description を効果列に出す(compose対象外データのため)
   const { text, holes } = m._national ? { text: m.description || '', holes: [] } : compose(m);
-  const legacy = m._national ? (m.effect_en || '') : (m.description_legacy || '');
+  // 新技も description_legacy=ヤックン(徹底攻略)JA。無い分(SV未収録の特殊技)だけ英語effect_enをフォールバック。
+  const legacy = m._national ? (m.description_legacy || m.effect_en || '') : (m.description_legacy || '');
   const prob = extractProbability(m.description_legacy || '');
 
   const learners = m.learners ? m.learners.length : 0;
