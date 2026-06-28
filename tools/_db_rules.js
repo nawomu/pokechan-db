@@ -35,6 +35,18 @@ const RULES = [
     'マザー(本番 <code>pokechan_data.js</code> の description)は<b>簡潔技術スタイル</b>: 自身/敵・〜化(こおり化)・確率N%で・<b>ダメージのみ</b>/<b>ダメージ。{効果}</b>・N段階上昇/低下・分数(1/3, 最大HP/8)。<br>全国版リファレンスは<b>マザー流に統一</b>(2026-06-26 阿部さん確定)。※CLAUDE.md北極星(子ども口調)とは別系統。声の最終判定は阿部さんの耳。'],
   ['R8', 'PDCA(画面確認)を毎回・本番は確認後',
     '変更後は<b>Playwright実機でJSエラー0・件数・描画・操作を確認してから報告</b>。<b>中身まで見る</b>(効果列が埋まってるか等)=JSエラー0だけで「できた」と言わない。<br>全部ローカルで確認 → <b>阿部さんOK後に commit→push</b>。'],
+  ['R9', '★効果文は effects → compose の一方通行(出発点・最重要)',
+    '「<b>まずバトル(sim)を動かす目的で effects を作り、訳せば説明文</b>」。順番は必ず <b>effects(SSOT=<code>reference/moves_battle_data_fix.json</code>) → compose(<code>tools/_waza_compose.js</code> が訳すだけ)</b>。<br><b>禁止=effects空で説明文だけ手書き</b>(人間が読む文は埋まっても<b>simが動かない</b>=その技がバトルで不発=偽の完成)。<br>121kindに無いメカが出たら、<b>手書きで済ませず新kindをスキーマ＋composeに足す</b>(将来simにも)。手書き<code>reference/moves_desc_override.json</code>は新kind実装までの<b>一時しのぎ</b>(効果なし技だけが最終形)。技フラグ=<code>reference/_move_flags.json</code>。条件文=<code>tools/_cond_render.js</code>。'],
+];
+
+// ★失敗の教訓と注意事項(2026-06-28〜29のふりかえり)。次に同種をやる人へ。
+const LESSONS = [
+  ['❌ 何が原因で壊れていたか',
+    '①<b>お手本(ヤックン)が番号ズレで全面崩壊</b>: Yakkun技番号≠PokeAPI move id なのに番号で突き合わせ→別技の説明が大量混入。壊れた参照の上に全部建てていた。<br>②<b>パイプライン逆走</b>: 新技は英語から説明文を直接手書き(<code>moves_ja_desc.json</code>)で <b>effects→compose を通っていなかった</b>→effectsと説明文が無関係に乖離。<br>③<b>effects空で手書きして「埋まった」と誤認</b>(コートチェンジ等)=作る実感>確かめる規律の漂流。<br>④<b>「compose穴0=完成」と誤認</b>: 穴0はエラーが無いだけ。<b>意味がヤックンと合うかは別</b>(照合で427中163がズレ)。<br>⑤<b>系統的欠落を全部作り終えてから発見</b>(技フラグ/優先度/範囲「相手全体」未描画 等が163件の多く)。<br>⑥Workflowの初歩ミス(<code>require</code>使用/<code>args</code>文字列)で空振り＋セッション上限に複数回到達。'],
+  ['✅ 本来こうやるべきだった(次の正解手順)',
+    '①<b>お手本(ヤックン)を名前で正しく取り込む</b>(番号でなく英語名でjoin)。壊れた参照の上に建てない。<br>②<b>小さく端まで通す(20技パイロット)</b>: 20技で <code>effects→compose→ヤックンと手で意味照合</code> を端まで実行し、<b>systemicな欠落(フラグ/優先度/範囲/未対応kind/未対応条件render)を先に全部潰す</b>。<br>③<b>その後に量産</b>。検証は「<b>compose出力↔ヤックンの意味</b>」(穴0で満足しない)。照合はworkflowでよいが<b>判定者は偽陽性あり</b>→compose穴/undefinedの機械事実と併用。<br>④<b>effects空で説明文だけ手書きしない</b>(語彙が無ければ新kind)。<br>⑤Workflowは<b>骨組みを1回テスト</b>してから本実行(require禁止・args文字列ガード・大量実行はペース配分)。'],
+  ['⚠️ 毎回の注意事項(チェックの定石)',
+    'ビルド: <code>node tools/_build_pokechan_data_all.js</code> → <code>node tools/_waza_list_confirm.js</code>。<br><b>ゲート=compose穴0・undefined0・compose実行エラー0</b>を毎回確認(本番937技のデグレも)。<br><b>系統的欠落は一度直すと多数に効く</b>(範囲/フラグ/優先度=163→77へ激減)。<br>同種kindの出し分けは<b>判別フィールド</b>で(直前技模倣=mode / ランダム技=pool / 技タイプ変更=by/mapping-key / タイプ上書き=by)。<br>一言: 「<b>お手本を正しく・小さく端まで通して系統穴を先に潰す・穴0でなく意味で検証・逆走しない</b>」。'],
 ];
 
 // 後工程(順番)
@@ -72,6 +84,9 @@ pre.flow{background:#0f1722;color:#cfe0f5;padding:14px;border-radius:8px;font-si
 .rt{font-weight:800;color:#16314f;margin-bottom:4px}
 .rd{color:#33415c}
 code{background:#eef2f7;padding:1px 5px;border-radius:4px;font-size:12px;color:#1a4f72}
+.lesson{background:#fff7f5;border:1px solid #f0c5b8;border-left:5px solid #c0392b;border-radius:8px;padding:11px 14px;margin-bottom:10px}
+.lesson .lt{font-weight:800;color:#a93226;margin-bottom:5px}
+.lesson .ld{color:#4a3b38}
 ol.todo{background:#fff;border:1px solid #e2e7ec;border-radius:8px;padding:12px 14px 12px 34px}
 ol.todo li{margin-bottom:6px}
 table{border-collapse:collapse;width:100%;background:#fff;border:1px solid #e2e7ec;border-radius:8px;overflow:hidden}
@@ -87,8 +102,11 @@ td:first-child{font-weight:700;color:#16314f;white-space:nowrap}
 <h2>データの流れ(大元1本 → 全画面)</h2>
 <pre class="flow">${FLOW.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre>
 
-<h2>運用ルール R1〜R8</h2>
+<h2>運用ルール R1〜R9</h2>
 ${RULES.map(ruleCard).join('\n')}
+
+<h2>★失敗の教訓と注意事項(ふりかえり・必読)</h2>
+${LESSONS.map(l=>`<div class="lesson"><div class="lt">${l[0]}</div><div class="ld">${l[1]}</div></div>`).join('\n')}
 
 <h2>★後でやること(順番が大事)</h2>
 <ol class="todo">${TODO.map(t=>`<li>${t}</li>`).join('')}</ol>
