@@ -92,4 +92,21 @@
 | 確認ビュー | `review/waza_list_confirm.html` ← `tools/_waza_list_confirm.js` |
 
 ローカル確認: `python3 -m http.server 8000`。`node tools/_build_pokechan_data_all.js`(再生成)→`node tools/_waza_list_confirm.js`。
-関連メモリ: [[effects-sim-phase-first]] / [[yakkun-scrape-method]] / [[national-moves-grouping-todo]] / [[p4b-compose-verify-loop]]。
+関連メモリ: [[effects-sim-phase-first]] / [[yakkun-scrape-method]] / [[national-moves-grouping-todo]] / [[p4b-compose-verify-loop]] / [[national-moves-effects-pipeline]]。
+
+---
+
+## 5. ★注意すること(この領域を触る前に必ず読む)
+1. **★出発点を絶対に逆にしない**: 「まずバトル(sim)を動かす目的で effects を作り、訳せば説明文」。**順番は effects(SSOT) → compose(訳す)**。**禁止=effects空で説明文だけ手書き**(simが動かない偽の完成)。121kindに無いメカは**新kindをスキーマ＋compose(＋将来sim)に足す**。手書き`moves_desc_override.json`は一時しのぎ。([[effects-sim-phase-first]]・CLAUDE.md「★★出発点」)
+2. **全国版データの構造(SSOT)**: 大元=`reference/*.json`(PokeAPI)。**全国版の効果データ=`reference/moves_battle_data_fix.json`(MFIX overlay)**にslug→battle_data。技フラグ=`reference/_move_flags.json`。お手本(ヤック列/legacy)=`reference/moves_yakkun.json`。これらを`tools/_build_pokechan_data_all.js`が`pokechan_data_all.js`に焼く。**HTMLは触らずデータに足す**。
+3. **ビルド/確認の定石**: `node tools/_build_pokechan_data_all.js` → `node tools/_waza_list_confirm.js`。**compose穴0・undefined0・実行エラー0**を毎回確認(本番937技のデグレも見る)。`compose穴=信頼信号`([[p4b-compose-verify-loop]])。
+4. **照合(チェック)はworkflowで**: 効果文↔ヤックンの意味照合は並列WF。**判定者は偽陽性も出す**ので鵜呑みにせず、compose穴・undefinedの機械事実と合わせて見る。系統的欠落(範囲/フラグ/優先度)は一度直すと多数に効く。
+5. **Workflowスクリプトの罠**(2026-06-29実証): ①`require`はスクリプト本体で使えない(エラー)②`args`は文字列で来ることがある→`typeof args==='string'?JSON.parse(args):args`ガード③`Date.now()/Math.random()`不可④45秒CDP上限のブラウザ処理は投げっぱなし+ポーリング([[yakkun-scrape-method]])。
+6. **Yakkun(お手本)再取得**: WebFetchは403。ブラウザ同一オリジンfetch+EUC-JP+英語名照合([[yakkun-scrape-method]])。**丸写し禁止**(legacyは意味の参照・compose独自文)。
+7. **全部ローカル・未push**。本番反映(pchamdb.com)は阿部さんOK後。声/口調の最終判定は阿部さんの耳(北極星)=Claudeは★→✓に上げない。
+
+## 6. 今後の方針(おすすめ順)
+1. **残22技(複雑系)の仕上げ**: 状態機械(いかり)・条件/連携(ふんじん/トラップシェル/みずのちかい)・無効解除(みやぶる/ミラクルアイ)・発動条件(じんらい/じょうか/でんこうそうげき等)。多くは既存kindに条件/フラグrenderを足すか新kind少々。worklist=section2.5。
+2. **声サインオフ**: 確認ビューで阿部さんが効果↔ヤックを耳で照合。軽微の言い回し(ころがる「ねをはる」誤訳等)も拾う。
+3. **本番公開(push)** + 全部版の公開導線(index→全国版)。
+4. 後回し(別スプリント): **全部版sim**(937技effectsをsimが実行。新kind=場入れ替え等のsim実装) / 全部版の9言語i18n / waza-listグループ確定([[national-moves-grouping-todo]])。
