@@ -138,7 +138,7 @@ function clause(e, m) {
         if (inG.length) return `「${inG.join('」「')}」で攻撃されても、受けるダメージを最大HPの${fracT(e.user_takes_fraction)}までにおさえる`;
         return `（ダイマックス技やZワザの攻撃は、防いでも最大HPの${fracT(e.user_takes_fraction)}のダメージを受ける）`; // 未解禁=カッコ書き(まもる/みきり/ニードルガード)
       }
-      return null;
+      return `相手のまもる・みきりなどを無視して攻撃する`; // ★2026-06-28 最小形(パワフルエッジ等)
     }
     case '反動':
       return `相手に与えたダメージの${fracT(e.fraction)}を、自分も受ける`;
@@ -215,6 +215,17 @@ function clause(e, m) {
       return e.condition ? `必ず命中する` : `相手の回避率や自分の命中率に関係なく、必ず命中する`;
     case '威力可変': {
       // ★忠実版: データの段階表/式をそのまま日本語で。英語formula/basisは出さない・未知形はnull(穴)。
+      // ★2026-06-28 全国版の特殊basis(formula判定より前に処理=formulaは未知でnullになるため)
+      const maxP = e.max_power || e.power_max;
+      if (e.scales_with === 'なつき度' || e.basis === 'friendship') return `ポケモンがなついているほど威力が高くなる${maxP ? `(最大${maxP})` : ''}`;
+      if (e.scales_with === 'target_remaining_HP_ratio' || e.based_on === 'target_hp_ratio') return `相手の残りHPが多いほど威力が高くなる${maxP ? `(最大${maxP})` : ''}`;
+      if (e.basis === 'consecutive_hits') return `当てるたびに威力が2倍ずつ増えていく${maxP ? `(最大${maxP})` : ''}`;
+      if (e.scales_with === 'consecutive_uses') return `毎ターン続けて使うほど威力が高くなっていく${maxP ? `(最大${maxP})` : ''}`;
+      if (e.based_on === 'remaining_pp') return `この技の残りPPが少ないほど威力が高くなる`;
+      if (e.basis === 'held_berry') return `持っている「きのみ」によって威力が変わる`;
+      if (e.condition && e.condition.type === 'pledge_combo') return `ダブルバトルで他の「ちかい」技と合わせて使うと、威力が${maxP || 150}になり、追加の効果が出る`;
+      if (e.basis === 'random' && Array.isArray(e.tiers)) return `威力はランダムで決まる(${e.tiers.map(t => `${t.prob}%で${t.power}`).join('・')})`;
+      if (Array.isArray(e.power_table)) return `威力は${e.power_table.map(t => `${t.prob}%で${t.power}`).join('・')}になる`;
       if (e.relation === 'lower_hp_higher_power') return `自分の残りHPが少ないほど威力が高くなる(威力${e.power_min}〜${e.power_max})`;
       if (e.formula) return fmlT(e); // 既知のみ・未知null
       if (e.tiers && (e.tiers[0] || {}).max_kg != null) return `相手のおもさが重いほど威力が高くなる(${wtKgT(e.tiers)})`;
@@ -238,6 +249,7 @@ function clause(e, m) {
     }
     case '能力ランク変化': {
       if (e.reset) return `場にいる全員の能力ランクの変化を、すべて元にもどす`; // くろいきり
+      if (e.stat_by_condition) return e.stat_by_condition; // ★2026-06-28 いっちょうあがり(姿で上がる能力が変わる)
       if (!e.stat && !e.stats) return null;
       const sts = statList(e);
       const pre = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : '';
@@ -508,6 +520,12 @@ function clause(e, m) {
         return `すがたによって技のタイプが変わる(${ex})`;
       }
       if (Array.isArray(e.values)) return `すがたによって技のタイプが「${e.values.join('」「')}」に変わる`;
+      // ★2026-06-28 全国版: 個体値/タイプ1/テラス/道具/きのみ 由来
+      if (e.by === 'individual_values') return `技のタイプが、自分の個体値によって変わる`;
+      if (e.by === 'user_type1') return `技のタイプが、自分のタイプ1と同じになる(テラスタル中はテラスタイプになる)`;
+      if (e.by === 'held_berry' || (e.condition && e.condition.value === 'きのみ')) return `持っている「きのみ」によって、技のタイプが変わる`;
+      if (e.condition && e.condition.type === 'user_terastalized') return `テラスタル中は、技のタイプが自分のテラスタイプになる`;
+      if (e.condition && e.condition.type === 'held_item') return `持たせた「${e.condition.value}」の種類によって、技のタイプが変わる`;
       return null;
     case 'タイプ上書き':
       // ミラータイプ等は value が機械値(copy_target_current_types)→意味で訳す。テラスタル分岐(未解禁)はカッコ書きで残す。
