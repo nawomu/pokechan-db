@@ -1,0 +1,1393 @@
+{
+ "total": 427,
+ "ok": 264,
+ "bug": 4,
+ "wrong": 32,
+ "incomplete": 127,
+ "needs_new_kind": [
+  "対象範囲(value: 相手全体/全体 等。技がシングル単体でなく複数相手に当たる範囲をsim/説明に渡す)",
+  "音系フラグ(flags.sound)=音技。ぼうおん無効・みがわり貫通・自由に当たる、を表す",
+  "音系フラグ(flags.sound)=音技。bypasses_substituteは既存対応のはずなのでcompose側の取りこぼし",
+  "いかり状態: この技を使った後、被ダメージのたびに自分のこうげきランク+1し、別の技を使うまで継続する状態を付与",
+  "技コピー習得: 相手が最後に自分へ使った技をこの技スロットに一時上書きして使えるようにする(即時使用の直前技再現とは区別)",
+  "直前技再現(相手限定): 相手が最後に使った技を即座にそのまま使う(ものまねの技スロット置換・さるまねの自分含む とは区別)",
+  "範囲(対象範囲): all_opponents/全体攻撃を表すフラグまたはkind。既存targetがopponent単体しか表せないため、ダブルの全体対象を表現する手段が必要",
+  "発動条件kind(対象の状態を要求): condition.type='target_status' を吸収/ダメージ系に付ける表現。既存conditionで足りるなら不要。",
+  "新kindは不要。composeがeffects.immuneを読み「くさタイプ・ぼうじん・ぼうじんゴーグルには効かない」を出力すればよい。",
+  "固定ダメージkindに『タイプ無効のみ適用』フラグ(respects_immunity)を持たせる。既存ignoresで表現できれば新kind不要。",
+  "タイプ上書き(動的:一番上の技のタイプ) — 固定valueでなく『自分の最上段の技と同じタイプ』を文章化する分岐。kind名候補『タイプ変化(技基準)』",
+  "反動(最大HP基準) — 反動kindにbasis:'max_hp'/'damage_dealt'を区別するフィールド。加えて『無効化されないタイプ無視ダメージ』フラグ",
+  "技永続コピー(スケッチ) — 一時模倣(ものまね)と区別し『この技を忘れ、相手の最後の技を永続習得』を表すkindまたはpermanent:trueフラグ",
+  "タイプ変化(耐性タイプ抽選) — 『相手の最後の技がいまひとつ/無効になるタイプからランダム選択』を表すkindまたはselection条件フィールド",
+  "ゴーストタイプ無視(みやぶる/かぎわける効果): 相手がゴーストの間ノーマル・かくとうタイプの技を当てられるようにする",
+  "連続行動ロック(あばれる/ころがる型): 外れるか5ターン経つまで同じ技を強制的に出し続ける。既存『自分拘束』が交代不可と訳されるなら別kindで分離が必要",
+  "HP1残し(みねうち/てかげん効果): この技のダメージで相手が瀕死になる時、HPを必ず1だけ残す",
+  "なつき威力(friendship_power): ポケモンのなつき度に反比例して威力が変動する(最大102)",
+  "優先度変更(priority): 技の優先度を±Nする(あてみなげ=-1で必ず後攻)。既存になければ要新設",
+  "風技フラグ(wind): 風に関わる技の区分(かぜおこし等の相互作用用)。半無敵命中は既存kindで可",
+  "天候の付随ダメージ表現が天候変化kind内に無ければ、weather_chip(天候による毎ターン定率ダメージ)として補う余地あり",
+  "ランダム技の抽選元を区別する属性が必要(source: party_others=ねこのて / own_moves=なし / any=ゆびをふる)。新kindでなくkindにsource/pool属性追加で表現可。属性名候補: pool=\"party_bench\"",
+  "priority(優先度)情報を持つフィールドが既存kindに無ければ、move共通の priority 属性が必要(新kindでなく属性追加)。",
+  "priority(優先度)属性が必要(magic-coatと同じ)。新kind不要・共通属性で可。",
+  "priority(優先度)属性が必要(magic-coat等と共通)。新kind不要。",
+  "状態付与に『地形依存(terrain_dependent)』フラグがあると正確。新kind不要・属性で可。",
+  "タイプ上書きkindに『失敗条件(同タイプ所持で失敗)』を表す属性があると良い。新kind不要・対象修正と属性で可。",
+  "既存の flags.sound / bypasses_substitute で表現可。新kind不要だが compose が音技フラグを文章化していない",
+  "回避無視＆タイプ無効貫通(=相手の回避率を無視し、あくタイプに対してエスパー技の無効を解除して当てる)",
+  "回復封印(対象を一定ターン、回復技・特性・道具・場による全回復行為が不可になる)。既存の状態付与kindだけでは効果内容が言語化できない場合に必要",
+  "フラグ.弾(この技は弾技。特性ぼうだんで防がれる)。既存kindにbomb属性フラグが無ければ追加",
+  "フラグ.弾(この技は弾技。特性ぼうだんで防がれる)。mud-bombと共通",
+  "音技(フラグkind=音をつかう技。サウンドプルーフ等の判定に使う)※既存flagsに無ければ",
+  "PP回復(味方のPPを全回復)・踊り技(フラグkind=おどりをつかう技。おどりこ等の判定)※既存に無ければ",
+  "使用者限定失敗(指定ポケモン以外が使うと失敗する専用技制限kind)",
+  "おもさ変化(weight_change): 自分のおもさを一定量(100kg)減らす。重さ依存技の計算に影響",
+  "同タイプ限定命中(same_type_only_hit): 自分とタイプを共有するポケモンにのみ命中・ダメージ。共有しなければ効果なし",
+  "連れ去り拘束(carry_target_airborne): 相手を空中へ巻き込み拘束。体重上限(200kg超で失敗)・ひこうタイプ無効の条件付き",
+  "きのみ・ジュエル焼却(burn_berry_gem): 相手のきのみ/ジュエルのみを焼いて消す。他の持ち物には作用しない",
+  "威力倍率のconditionに ally_fainted_last_turn(前ターン味方が倒された)を追加。既存の威力倍率kindでcondition種別だけ新設",
+  "技フラグ(弾): ぼうだん特性で無効化される弾・爆発系フラグ",
+  "技フラグ(音): ぼうおん無効化・みがわり貫通の音系フラグ",
+  "技フラグ(切): 刃物・切断系フラグ(きれあじ等が参照)",
+  "連携威力倍化: 同ターンに対の技(クロスサンダー/クロスフレイム)が使われていると威力2倍",
+  "攻撃技限定まもり(自分と味方を攻撃技から守る・初ターンのみ成功)：範囲まもりが『複数巻き込み技』固定文なので別kindか変種が要る",
+  "音技フラグkind(音系の技=みがわり貫通やぼうおん等に関わる)が無ければ新設",
+  "変化技限定まもり(味方への変化技を無効化)：範囲まもり固定文では表せない変種kind",
+  "風技フラグkind(風の技=かぜのり/ウィンドライダーが反応)が無ければ新設",
+  "音技フラグkind(disarming-voiceと共通)",
+  "粉付着(ふんじん): 対象にこのターン限り粉を付け、対象がほのおタイプ技を選んだら技を失敗させ対象に最大HP1/4ダメージ+優先度+1。既存『失敗ダメージ』では条件(ほのお技限定)と主語(相手)が表せない",
+  "溜め技(charge_turn): 1ターン目に動作せず2ターン目に効果発動。既存のソーラービーム等の溜めkindがあれば流用、無ければ要追加",
+  "HP1残し(みねうち): この技のダメージで相手が瀕死になる時HPを1で止める。みねうち/みだれづきと共通kind",
+  "範囲(対象)指定: target_range=全体 — 単体/相手全体/全体 を表す対象範囲kind(既存121に無ければ追加)",
+  "範囲(対象)指定: target_range=全体 / 波動技フラグ(pulse)kind — メガランチャー等で強化される波動技の印",
+  "範囲(対象)指定: target_range=全体",
+  "使用者制限(failUnlessUser): 特定フォルム/種以外が使うと技が失敗する制約kind",
+  "Z技フラグ(zMove/基準技依存): 威力・分類が元の技で決まるZ技であることを表すkind",
+  "Z技フラグ(zMove/基準技依存)",
+  "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す",
+  "既存の優先度/先制kindがあればそれで可(優先度=+3)。無ければ『優先度(priority)』kind: 技の優先度を指定する(値+3で必ず先制)",
+  "特性無効化に condition: target_already_moved(対象がそのターン行動済みのとき特性無効)を表す条件型が必要",
+  "罠カウンター(=そのターン中に相手の物理技ダメージを受けたら攻撃発動・受けなければ失敗。優先度-3)",
+  "ノーマル技電気化(そのターン場全体でノーマルタイプの技をでんきタイプに変える)",
+  "既存に優先度系kindが無ければ『優先度』(value:+N=先制度、+2で必ず先に動く意味)を新設",
+  "なつき威力: なつき度に比例して威力が上昇(最大威力あり)。既存のなつき威力kindがあれば流用、無ければ新設。",
+  "貫通技ブロック: 通常のまもるを無視する技やダイマックス技も防ぐ(ただしフェイントは貫通)。優先度は既存kindで表現可。",
+  "対ダイマックス威力倍率: 相手がダイマックス状態ならダメージ2倍。既存の条件威力倍率に「相手ダイマックス」条件を足せれば新kind不要。",
+  "リダイレクト無視: ひらいしん・よびみず・対象変更技に影響されず狙った相手を攻撃する。",
+  "優先度/先制(priority): まもり技が必ず先に出る(+4)を表す。既存になければ追加",
+  "範囲指定(相手全体/range:all_opponents)= 効果なしの全体攻撃でも対象範囲を説明文に出すための範囲属性。既存121kindのターゲット表現が純ダメージ技に乗らないため。",
+  "範囲指定(相手全体/range:all_opponents)= glacial-lanceと同じ。純ダメージ全体技の対象範囲属性。",
+  "技フラグ(風技/かぜ技)= かぜのちから・ふうせん等の相互作用とyakkun表記のための分類フラグ。既存kindに技分類フラグの表現がない。",
+  "技フラグ(踊り/おどり技)= おどりこ特性等の相互作用とyakkun表記のための分類フラグ。",
+  "技フラグ(風技/かぜ技)= かぜ技分類フラグ。",
+  "被弾脆弱化: 次の自分のターンまで自分への攻撃が必中になり被ダメージ2倍になる自己付与状態",
+  "ひんし復活: 手持ちのひんし状態のポケモン1体を最大HPの半分で復活させる",
+  "タイプ未所持時失敗=指定タイプを自分が持っていない場合この技は失敗する",
+  "先制発動条件(相手が今ターン攻撃技を選んでおり、まだ攻撃していない場合のみ成功。それ以外は失敗)= ふいうち/じんらい共用の条件kind"
+ ],
+ "flagged": [
+  {
+   "slug": "razor-wind",
+   "name": "かまいたち",
+   "verdict": "incomplete",
+   "problem": "yakkunの「相手全体が対象」(複数相手戦での全体攻撃という対象範囲)がour_descに無い。2ターン目攻撃と急所+1は表現済みだが範囲情報が落ちている",
+   "fix_hint": "effectsに対象範囲=相手全体(ダブルで相手2体に当たる)を持たせ、本文に「相手全体を攻撃」を出す。2ターン目攻撃・急所率上昇は表現済み",
+   "needs_new_kind": "対象範囲(value: 相手全体/全体 等。技がシングル単体でなく複数相手に当たる範囲をsim/説明に渡す)"
+  },
+  {
+   "slug": "leer",
+   "name": "にらみつける",
+   "verdict": "incomplete",
+   "problem": "ヤックンは『相手全体が対象』だが、effects target=opponent(単体)で、our_descに相手全体の範囲が出ていない",
+   "fix_hint": "なきごえ同様 target=all_opponents にする(ぼうぎょ-1・相手全体)",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "growl",
+   "name": "なきごえ",
+   "verdict": "incomplete",
+   "problem": "ヤックンの『音系の技』が落ちている(こうげき-1・みがわり貫通は表現済み)",
+   "fix_hint": "flags.soundを立てて「音系の技」を喋らせる(ぼうおん等に効く肝)",
+   "needs_new_kind": "音系フラグ(flags.sound)=音技。ぼうおん無効・みがわり貫通・自由に当たる、を表す"
+  },
+  {
+   "slug": "supersonic",
+   "name": "ちょうおんぱ",
+   "verdict": "incomplete",
+   "problem": "ヤックンの『音系の技』と『みがわり貫通』が落ちている。effectsにbypasses_substitute:trueが在るのにour_descに反映されていない(1〜4ターンはこんらん固有なので可)",
+   "fix_hint": "bypasses_substituteをcomposeで「みがわり貫通」として出す+flags.soundで「音系の技」を出す",
+   "needs_new_kind": "音系フラグ(flags.sound)=音技。bypasses_substituteは既存対応のはずなのでcompose側の取りこぼし"
+  },
+  {
+   "slug": "acid",
+   "name": "ようかいえき",
+   "verdict": "incomplete",
+   "problem": "ヤックンは『相手全体が対象』だが effects target=opponent(単体)で範囲が出ていない(10%とくぼう-1は表現済み)",
+   "fix_hint": "target=all_opponentsにする(とくぼう-1・10%・相手全体)",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "razor-leaf",
+   "name": "はっぱカッター",
+   "verdict": "incomplete",
+   "problem": "yakkunの『切る技(slash flag)』が our_desc に落ちている。急所+1は表現できているが、切る技という技属性フラグが無い(はそうばさみ等の切断系判定・将来の特性連動に効く)。相手全体対象はダブル文脈で軽微。",
+   "fix_hint": "effectsに flags.slash(切る技)を追加し compose で『切る技』と表示。急所率上昇は既存どおり。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "rage",
+   "name": "いかり",
+   "verdict": "incomplete",
+   "problem": "effectsが空でour_descは「ダメージのみ」。ヤックンの核心『いかり状態になり、相手の技でダメージを受けるたびにこうげき+1。別の技を使うと解除』が完全に欠落。",
+   "fix_hint": "ダメージ＋『いかり状態付与(被弾でこうげき+1、他技使用で解除)』をeffectsに追加。",
+   "needs_new_kind": "いかり状態: この技を使った後、被ダメージのたびに自分のこうげきランク+1し、別の技を使うまで継続する状態を付与"
+  },
+  {
+   "slug": "teleport",
+   "name": "テレポート",
+   "verdict": "incomplete",
+   "problem": "自分交代は表現できているが、ヤックンの『必ず後攻になる(優先度-6)』が落ちている。先制/後攻はsimにも効く重要情報。",
+   "fix_hint": "自分交代に優先度-6(必ず後攻)の情報を付与。既存の優先度kind等で補える。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "mimic",
+   "name": "ものまね",
+   "verdict": "wrong",
+   "problem": "effects内のnoteは正しいが、composeが汎用テンプレ『直前にだれかが使った技を、自分も出す(自分が使った技もふくむ)』を出力。ものまねは(1)相手が最後に自分へ使った技限定で『だれか/自分の技も』は誤り(2)即座に出すのでなく技を一時コピーして使えるようになる(PPは最大値、交代で戻る)別の挙動。意味が取り違えられている。",
+   "fix_hint": "noteの通り『相手が最後に自分へ使った技を一時的にコピーして使えるようにする(PPは最大値、交代で元に戻る)』を訳出する。",
+   "needs_new_kind": "技コピー習得: 相手が最後に自分へ使った技をこの技スロットに一時上書きして使えるようにする(即時使用の直前技再現とは区別)"
+  },
+  {
+   "slug": "bide",
+   "name": "がまん",
+   "verdict": "incomplete",
+   "problem": "倍返し・ためこみ・タイプ相性無視は表現できているが、ヤックンの『必ず先制できる(優先度+1)』が落ちている。",
+   "fix_hint": "倍返し/連続強制に優先度+1(必ず先制)の情報を付与。既存の優先度kindで補える。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "metronome",
+   "name": "ゆびをふる",
+   "verdict": "wrong",
+   "problem": "our_descが『自分が覚えている技の中から、ランダムで1つ出す』としているが、ゆびをふるは自分の覚えている技ではなく、ほぼ全ての技からランダムに1つ使う。技プールの取り違え。",
+   "fix_hint": "ランダム技の母集団を『自分の技』でなく『ほぼ全ての技』としてcompose出力を直す(kind自体は妥当、文言/母集団の指定を修正)。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "mirror-move",
+   "name": "オウムがえし",
+   "verdict": "wrong",
+   "problem": "汎用テンプレ『直前にだれかが使った技を、自分も出す(自分が使った技もふくむ)』を出力。オウムがえしは『相手が最後に使った技』限定で、付記の『(自分が使った技もふくむ)』は誤り。コピー先(さるまね)やものまねと同一kindで混同されている。",
+   "fix_hint": "『相手が最後に使った技を、その相手にそのまま出す』と訳出(自分の技を含めない、note準拠)。",
+   "needs_new_kind": "直前技再現(相手限定): 相手が最後に使った技を即座にそのまま使う(ものまねの技スロット置換・さるまねの自分含む とは区別)"
+  },
+  {
+   "slug": "egg-bomb",
+   "name": "タマゴばくだん",
+   "verdict": "incomplete",
+   "problem": "ヤックンは『弾技』(ぼうだん特性で防がれる弾フラグ)を明示。our_descは『ダメージのみ』で弾フラグが落ちている。意味的な追加効果は無いが、ぼうだん等と相互作用するフラグが欠落。",
+   "fix_hint": "effectsにflags.bullet(弾技)を持たせる。本体は通常攻撃でダメージのみで正しい",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "swift",
+   "name": "スピードスター",
+   "verdict": "incomplete",
+   "problem": "ヤックンは『相手全体が対象』(ダブルで相手2体に当たる全体技)を明示。our_descは必中のみで、全体攻撃という対象範囲が落ちている。",
+   "fix_hint": "effectsにtarget=all_opponents相当(全体攻撃)を持たせる。必中(ignores user_accuracy/target_evasion)は正しい",
+   "needs_new_kind": "範囲(対象範囲): all_opponents/全体攻撃を表すフラグまたはkind。既存targetがopponent単体しか表せないため、ダブルの全体対象を表現する手段が必要"
+  },
+  {
+   "slug": "dream-eater",
+   "name": "ゆめくい",
+   "verdict": "incomplete",
+   "problem": "yakkunの「相手が『ねむり』状態の時だけ成功する」という発動条件が our_desc に無い。ゆめくいの核心(眠っている相手にしか効かない)が落ちている。",
+   "fix_hint": "effectsに発動条件「相手がねむり状態のみ成功」を追加。既存の吸収効果に condition: {type:'target_status', value:'ねむり'} 相当を付与し、composeに「相手がねむり状態のときだけ当たる」を喋らせる。",
+   "needs_new_kind": "発動条件kind(対象の状態を要求): condition.type='target_status' を吸収/ダメージ系に付ける表現。既存conditionで足りるなら不要。"
+  },
+  {
+   "slug": "spore",
+   "name": "キノコのほうし",
+   "verdict": "incomplete",
+   "problem": "effectsに immune(くさタイプ・特性ぼうじん・道具ぼうじんゴーグル=こな技無効)のデータがあるのに our_desc が喋っていない。yakkunの「無効」条件が完全に落ちている。",
+   "fix_hint": "effectsの immune 配列(target_type=くさ / target_ability=ぼうじん / こな技フラグによるぼうじんゴーグル無効)を composeが文章化するよう配線。データは既に存在し、エンジンが読めていないだけ。",
+   "needs_new_kind": "新kindは不要。composeがeffects.immuneを読み「くさタイプ・ぼうじん・ぼうじんゴーグルには効かない」を出力すればよい。"
+  },
+  {
+   "slug": "psywave",
+   "name": "サイコウェーブ",
+   "verdict": "incomplete",
+   "problem": "our_descは「タイプ相性は受けない」と言い切るが、yakkunは「あく(無効)タイプには無効だが、それ以外のタイプ相性の影響を受けない」=エスパー技ゆえ無効タイプ(あく)には当たらない点が残る。タイプ免疫だけは効くという肝が落ちている。",
+   "fix_hint": "固定ダメージでも『技タイプの無効(エスパー→あくは無効)は適用、それ以外の倍率は無視』を表現。effectsに respects_type_immunity:true(または ignores: ['type_effectiveness_except_immunity'])相当を追加し composeに反映。",
+   "needs_new_kind": "固定ダメージkindに『タイプ無効のみ適用』フラグ(respects_immunity)を持たせる。既存ignoresで表現できれば新kind不要。"
+  },
+  {
+   "slug": "conversion",
+   "name": "テクスチャー",
+   "verdict": "bug",
+   "problem": "our_descが『相手のタイプを「undefined」だけに変える』。対象がselfなのにopponentと出ており、付与タイプもundefined。yakkunは『自分のタイプを、自分の一番上の技と同じタイプに変える』",
+   "fix_hint": "タイプ上書き(target=self・付与タイプ=自分の1番目の技のタイプで動的決定)。composeがtarget=selfと動的note(value無し)を扱えず、相手/undefinedと出力している",
+   "needs_new_kind": "タイプ上書き(動的:一番上の技のタイプ) — 固定valueでなく『自分の最上段の技と同じタイプ』を文章化する分岐。kind名候補『タイプ変化(技基準)』"
+  },
+  {
+   "slug": "struggle",
+   "name": "わるあがき",
+   "verdict": "wrong",
+   "problem": "our_descは『相手に与えたダメージの1/4を自分も受ける』だが、わるあがきの反動は『自分の最大HPの1/4』。基準を取り違え。さらに『タイプに関係なくダメージ』『他に使える技が無い時だけ出る』も欠落",
+   "fix_hint": "反動の基準=最大HP(与ダメ基準ではない)。+タイプ無視ダメージ・PP枯渇時の自動発動。fractionだけでは与ダメ反動と区別できない",
+   "needs_new_kind": "反動(最大HP基準) — 反動kindにbasis:'max_hp'/'damage_dealt'を区別するフィールド。加えて『無効化されないタイプ無視ダメージ』フラグ"
+  },
+  {
+   "slug": "sketch",
+   "name": "スケッチ",
+   "verdict": "wrong",
+   "problem": "our_descは『直前にだれかが使った技を自分も出す』=ものまね/オウムがえし的な一時使用の意味になっている。スケッチは『この技を忘れて、相手が最後に使った技を永続的に覚える』。一時模倣と永続習得の取り違え",
+   "fix_hint": "直前技模倣kindのnoteに『忘れて覚える・戦闘後も元に戻らない(永続コピー)』とあるのにcompose未反映。'出す'でなく'覚える(永続)'を文章化",
+   "needs_new_kind": "技永続コピー(スケッチ) — 一時模倣(ものまね)と区別し『この技を忘れ、相手の最後の技を永続習得』を表すkindまたはpermanent:trueフラグ"
+  },
+  {
+   "slug": "triple-kick",
+   "name": "トリプルキック",
+   "verdict": "incomplete",
+   "problem": "yakkunの『当たる度に威力が10ずつ増える』が欠落。our_descは『外れるまで最大3回』のみ",
+   "fix_hint": "連続攻撃kindにpower_per_hit/増加noteあり。composeが当たるごとの威力上昇(10→20→30)を喋っていない",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "conversion-2",
+   "name": "テクスチャー２",
+   "verdict": "wrong",
+   "problem": "our_descは『相手のタイプを「ランダム」だけに変える』。対象がselfなのにopponentと出力、付与タイプがvalue文字列『ランダム』をそのまま表示。yakkunは『自分のタイプを、相手が最後に使った技が効きづらいタイプ(ランダム)に変える』",
+   "fix_hint": "タイプ上書き(target=self・value=ランダムだが意味は『相手の最後の技に耐性のあるタイプから1つ抽選』)。composeがtarget=selfとnoteの選定ロジックを無視しvalueリテラルを出している",
+   "needs_new_kind": "タイプ変化(耐性タイプ抽選) — 『相手の最後の技がいまひとつ/無効になるタイプからランダム選択』を表すkindまたはselection条件フィールド"
+  },
+  {
+   "slug": "foresight",
+   "name": "みやぶる",
+   "verdict": "incomplete",
+   "problem": "yakkunの肝『相手がゴーストタイプの時、ノーマル/かくとうタイプの技が当たるようになる』が落ちている。our_descは『能力ランクの変化を無視』とランク無視部分しか喋っておらず、回避率無視の表現も曖昧。",
+   "fix_hint": "回避率無視(命中する)+ゴースト無視の2効果。既存『ランク無視』に加えゴースト相性無効化を表す効果が要る。",
+   "needs_new_kind": "ゴーストタイプ無視(みやぶる/かぎわける効果): 相手がゴーストの間ノーマル・かくとうタイプの技を当てられるようにする"
+  },
+  {
+   "slug": "rollout",
+   "name": "ころがる",
+   "verdict": "wrong",
+   "problem": "『自分拘束』が『地面に根をはって、交代できなくなる』(=ねをはる)と誤訳されている。ころがるの拘束は『外れるまで5ターン同じ技を出し続ける』であって交代不可ではない。さらに末尾『威力が2倍になる』が『まるくなる』条件に触れず意味不明。",
+   "fix_hint": "自分拘束=連続行動ロック(外れる/5ターンで終了・同じ技を出し続ける)。威力倍率の条件『まるくなる使用時』を明示。",
+   "needs_new_kind": "連続行動ロック(あばれる/ころがる型): 外れるか5ターン経つまで同じ技を強制的に出し続ける。既存『自分拘束』が交代不可と訳されるなら別kindで分離が必要"
+  },
+  {
+   "slug": "false-swipe",
+   "name": "みねうち",
+   "verdict": "incomplete",
+   "problem": "effectsが空でour_descが『ダメージのみ』。みねうちの肝『この技で相手のHPが0になる時、HPを1残す』が完全に欠落。",
+   "fix_hint": "トドメを刺さずHP1を残す効果をeffectsに追加する。",
+   "needs_new_kind": "HP1残し(みねうち/てかげん効果): この技のダメージで相手が瀕死になる時、HPを必ず1だけ残す"
+  },
+  {
+   "slug": "fury-cutter",
+   "name": "れんぞくぎり",
+   "verdict": "incomplete",
+   "problem": "effectsには連続使用で倍増(最大160)・外れ/中断でリセットが入っているのに、our_descは『威力が2倍になる』だけに潰れている。連続スケール・最大値・リセット条件が落ちている。",
+   "fix_hint": "威力可変(scales_with=consecutive_use・40→80→160・最大160・外れたり連続しないと40に戻る)を文章化する。composeが威力可変のconsecutive_useを正しく展開していない。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "present",
+   "name": "プレゼント",
+   "verdict": "incomplete",
+   "problem": "回復効果の発動確率20%が落ちている。yakkunは『20%の確率で相手のHPを最大HPの1/4回復』だがour_descは無条件に回復するかのように書かれている(prob:20が未反映)。",
+   "fix_hint": "回復(target=opponent・fraction0.25・prob20)の20%条件を文章に出す。composeが回復のprobを喋っていない。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "frustration",
+   "name": "やつあたり",
+   "verdict": "incomplete",
+   "problem": "effectsが空でour_descは「ダメージのみ」。yakkunの肝=なついていないほど威力が高くなる(最大102)が完全に落ちている。",
+   "fix_hint": "なつき度で威力可変(なつき0で最大102/なついているほど低い)を効果として持たせる",
+   "needs_new_kind": "なつき威力(friendship_power): ポケモンのなつき度に反比例して威力が変動する(最大102)"
+  },
+  {
+   "slug": "pursuit",
+   "name": "おいうち",
+   "verdict": "incomplete",
+   "problem": "our_descが「威力が2倍になる」と無条件のように言っており、肝の条件(相手が交代しようとする時に攻撃すると2倍)が落ちている。effectsにはcondition:target_switching_outがあるのにcomposeが条件を喋っていない。",
+   "fix_hint": "既存kind 条件威力倍率(condition=target_switching_out)を「交代しようとする相手に攻撃すると交代前のポケモンに2倍」と条件込みで文章化する",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "vital-throw",
+   "name": "あてみなげ",
+   "verdict": "incomplete",
+   "problem": "yakkunの「必ず後攻になる(優先度-1)」が落ちている。our_descは必中だけ。effectsに優先度の効果が無い。",
+   "fix_hint": "優先度-1(必ず後攻)の効果を追加。既存の必中kindと併記",
+   "needs_new_kind": "優先度変更(priority): 技の優先度を±Nする(あてみなげ=-1で必ず後攻)。既存になければ要新設"
+  },
+  {
+   "slug": "twister",
+   "name": "たつまき",
+   "verdict": "incomplete",
+   "problem": "yakkunの「そらをとぶ/とびはねる/フリーフォール中の相手にも当たりダメージ2倍」「風技」が落ちている。effectsにひるみしか無い。",
+   "fix_hint": "既存kind 半無敵命中(hits_state=空中=そらをとぶ/とびはねる/フリーフォール, damage_multiplier=2)を追加。さらに風技フラグ(flags:wind)を付与",
+   "needs_new_kind": "風技フラグ(wind): 風に関わる技の区分(かぜおこし等の相互作用用)。半無敵命中は既存kindで可"
+  },
+  {
+   "slug": "hail",
+   "name": "あられ",
+   "verdict": "incomplete",
+   "problem": "yakkunの「こおりタイプ以外は毎ターン最大HPの1/16のダメージ」が落ちている。さらにvalueが『ゆき』だが技名はあられ=ダメージ天候。ゆき(ダメージ無)に置換すると意味がずれる懸念。",
+   "fix_hint": "天候変化valueは『あられ』にし、こおり以外へ毎ターン最大HP1/16の天候ダメージを効果として持たせる(天候の付随効果を文章化)",
+   "needs_new_kind": "天候の付随ダメージ表現が天候変化kind内に無ければ、weather_chip(天候による毎ターン定率ダメージ)として補う余地あり"
+  },
+  {
+   "slug": "assist",
+   "name": "ねこのて",
+   "verdict": "wrong",
+   "problem": "ねこのて(Assist)は『自分以外のてもちポケモンが覚えている技』からランダムに1つ出す技。our_descは『自分が覚えている技の中から』としており技の出どころを取り違えている。PPの注記(この技のみ消費)は正しい。",
+   "fix_hint": "ランダム技の抽選プール=自分のではなく『手持ち(控え)のポケモンの技』。pp_cost=this_move_onlyは維持。",
+   "needs_new_kind": "ランダム技の抽選元を区別する属性が必要(source: party_others=ねこのて / own_moves=なし / any=ゆびをふる)。新kindでなくkindにsource/pool属性追加で表現可。属性名候補: pool=\"party_bench\""
+  },
+  {
+   "slug": "magic-coat",
+   "name": "マジックコート",
+   "verdict": "incomplete",
+   "problem": "yakkunの『必ず先制でき(優先度:+4)』が our_desc に落ちている。マジックコートは先制で張ることが要点。",
+   "fix_hint": "effectsに優先度 priority:+4 を持たせ、compose で『必ず先制で』を出す。",
+   "needs_new_kind": "priority(優先度)情報を持つフィールドが既存kindに無ければ、move共通の priority 属性が必要(新kindでなく属性追加)。"
+  },
+  {
+   "slug": "revenge",
+   "name": "リベンジ",
+   "verdict": "incomplete",
+   "problem": "yakkunの『必ず後攻になる(優先度:-4)』が our_desc に落ちている。リベンジは後攻確定がダメージ2倍条件と一体の肝。",
+   "fix_hint": "effectsに priority:-4 を持たせ、compose で『必ず後攻になる』を出す。威力2倍条件(user_took_damage_this_turn)は正しい。",
+   "needs_new_kind": "priority(優先度)属性が必要(magic-coatと同じ)。新kind不要・共通属性で可。"
+  },
+  {
+   "slug": "snatch",
+   "name": "よこどり",
+   "verdict": "incomplete",
+   "problem": "yakkunの『必ず先制でき(優先度:+4)』が our_desc に落ちている。よこどりは先制で奪うのが要点。",
+   "fix_hint": "effectsに priority:+4 を持たせ、compose で『必ず先制で』を出す。奪う対象(能力変化技・回復技)は正しい。",
+   "needs_new_kind": "priority(優先度)属性が必要(magic-coat等と共通)。新kind不要。"
+  },
+  {
+   "slug": "secret-power",
+   "name": "ひみつのちから",
+   "verdict": "incomplete",
+   "problem": "yakkunは『追加効果は地形によって変わる・通常時はまひ』と地形で追加効果が変化する点を明示。our_descは『30%でまひ』だけで地形により追加効果が変わる説明が落ちている(effectsのnoteには在るが文に出ていない)。",
+   "fix_hint": "noteの『発動する追加効果は地形によって変わる(通常時はまひ)』を compose が喋るようにする。地形依存の追加効果という構造を表すフラグ。",
+   "needs_new_kind": "状態付与に『地形依存(terrain_dependent)』フラグがあると正確。新kind不要・属性で可。"
+  },
+  {
+   "slug": "camouflage",
+   "name": "ほごしょく",
+   "verdict": "wrong",
+   "problem": "ほごしょくは『自分のタイプ』を地形に応じたタイプに変える技(effectsもtarget:self)。our_descは『相手のタイプを』としており対象を取り違え。さらにyakkun/noteにある『同じタイプを既に持つ場合は失敗』の条件も落ちている。",
+   "fix_hint": "対象=self(自分のタイプを地形タイプ1つに上書き)。失敗条件 already_has_type を compose が喋る。",
+   "needs_new_kind": "タイプ上書きkindに『失敗条件(同タイプ所持で失敗)』を表す属性があると良い。新kind不要・対象修正と属性で可。"
+  },
+  {
+   "slug": "mud-sport",
+   "name": "どろあそび",
+   "verdict": "incomplete",
+   "problem": "yakkunの『5ターンの間』という持続が our_desc に出ていない。effectsには duration:5 があるのに訳文が落としている",
+   "fix_hint": "場の威力補正(でんき×0.333, duration:5)→『5ターンの間、でんきタイプの技の威力が1/3になる』と持続を明記",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "ice-ball",
+   "name": "アイスボール",
+   "verdict": "wrong",
+   "problem": "自分拘束を『地面に根をはって交代できなくなる』(=ねをはる/トラップ)と取り違え。実際は同じ技を5ターン連続で出し続ける拘束。威力可変(当たる度に倍々)も『威力が2倍になる。威力が2倍になる。』と重複した誤訳で、連続倍増もまるくなる条件も伝わらない",
+   "fix_hint": "自分拘束=外れるまで最大5ターン同じ技を出し続ける(交代不可ではない)。威力可変(consecutive_turns)=当たる度にダメージが倍々に増える。威力倍率(まるくなる使用済)=2倍。3要素を区別して訳す",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "grass-whistle",
+   "name": "くさぶえ",
+   "verdict": "incomplete",
+   "problem": "yakkunの『音系の技』が our_desc に出ていない。effectsには bypasses_substitute:true があるのに、音技である事(みがわり貫通・ぼうおん無効・ソウルクリア等に関わる)が訳されていない",
+   "fix_hint": "状態付与(ねむり100%)に加え、音技フラグ=みがわりを貫通する点を明記。『音の技。みがわりごしでも相手をねむり状態にする』",
+   "needs_new_kind": "既存の flags.sound / bypasses_substitute で表現可。新kind不要だが compose が音技フラグを文章化していない"
+  },
+  {
+   "slug": "water-sport",
+   "name": "みずあそび",
+   "verdict": "incomplete",
+   "problem": "yakkunの『5ターンの間』という持続時間が our_desc に出ていない(effectsには duration:5 あり)。",
+   "fix_hint": "場の威力補正(move_type:ほのお, multiplier:1/3, duration:5)を『5ターンのあいだ』と明示して訳す",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "miracle-eye",
+   "name": "ミラクルアイ",
+   "verdict": "wrong",
+   "problem": "our_descは『相手の回避率-6』と能力ランク低下として表現しているが、ミラクルアイの本来の効果は(1)相手の回避率を無視して必中化(2)あくタイプにエスパー技が当たるようになる、の2つ。回避率-6という機構自体が取り違えで、あく→エスパー貫通も欠落している。",
+   "fix_hint": "回避無視(必中化)＋あくタイプへのエスパー技無効貫通。能力ランク変化-6での代用は誤り。",
+   "needs_new_kind": "回避無視＆タイプ無効貫通(=相手の回避率を無視し、あくタイプに対してエスパー技の無効を解除して当てる)"
+  },
+  {
+   "slug": "brine",
+   "name": "しおみず",
+   "verdict": "incomplete",
+   "problem": "effectsが空で our_descが『ダメージのみ』。yakkunの『相手のHPが最大HPの半分以下のとき威力2倍』という追加効果が完全に欠落している。",
+   "fix_hint": "条件威力倍率(multiplier:2, condition:{type:target_hp_below_half})を追加。既存の条件威力倍率kindで表現可能。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "natural-gift",
+   "name": "しぜんのめぐみ",
+   "verdict": "incomplete",
+   "problem": "yakkunの『きのみはなくなる(消費される)』が our_desc に出ていない。威力/タイプ変化は表現できている。",
+   "fix_hint": "威力可変+技タイプ変更に加え、使用後にきのみを消費する旨(道具消費)を明示する",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "embargo",
+   "name": "さしおさえ",
+   "verdict": "incomplete",
+   "problem": "yakkunの『トレーナーもそのポケモンには道具を使えない』が our_desc に欠落。相手が道具を使えない点は表現できている。",
+   "fix_hint": "道具封じ(duration:5)に『トレーナーの道具使用も封じる』情報を補う",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "psycho-shift",
+   "name": "サイコシフト",
+   "verdict": "bug",
+   "problem": "our_descが『相手を「undefined」状態にする』とundefinedが露出している。状態付与effectのeffect文字列がcomposeで読めず壊れている。",
+   "fix_hint": "状態付与(自分の状態異常を相手にうつす)+状態異常回復(自分は治る)を『自分の状態異常を相手にうつし、自分は治る』と訳す。undefinedの原因はeffectキーの読み取り不整合。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "heal-block",
+   "name": "かいふくふうじ",
+   "verdict": "incomplete",
+   "problem": "状態名を付けるだけで「何が起きるか」を喋っていない。yakkunの肝『5ターンの間、回復技が使えず・特性/道具/場でもHP回復しなくなる』が落ちている。子どもはうちの出力だけでは意味に戻れない。",
+   "fix_hint": "状態付与(かいふくふうじ,5ターン)を、回復行為(回復技/特性/道具/場によるHP回復)を封じる意味として展開する",
+   "needs_new_kind": "回復封印(対象を一定ターン、回復技・特性・道具・場による全回復行為が不可になる)。既存の状態付与kindだけでは効果内容が言語化できない場合に必要"
+  },
+  {
+   "slug": "punishment",
+   "name": "おしおき",
+   "verdict": "wrong",
+   "problem": "威力の基準を取り違え。our_descは『自分の能力ランクが上がっているごとに』だが、effectsのbasis=target_positive_stat_stages・yakkunは『相手のいずれかの能力ランクが1つ上がる度に』。主語が自分→相手で逆。意味が変わる。",
+   "fix_hint": "威力可変(base60/per_stage20/max200, basis=相手の上昇している能力ランク合計)を『相手の』と訳す",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "heart-swap",
+   "name": "ハートスワップ",
+   "verdict": "wrong",
+   "problem": "『すべての能力の数値を入れかえる』は実数値交換と読めるが、effectsのnote/yakkunは『能力ランク(±段階)』の交換。実数値ではないと明記されており、意味がズレる。",
+   "fix_hint": "能力入替を『自分と相手のすべての能力ランク(±段階)を入れかえる(実数値ではない)』と訳す",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "mud-bomb",
+   "name": "どろばくだん",
+   "verdict": "incomplete",
+   "problem": "yakkunの『弾技』が落ちている。弾技は特性ぼうだんで防がれる/ビルドアップ系の判定に関わる属性で、effectsにフラグが無いため喋れていない。命中率-1部分はok。",
+   "fix_hint": "flags に 弾(bomb/ball)を持たせ、説明に『弾技』を出す",
+   "needs_new_kind": "フラグ.弾(この技は弾技。特性ぼうだんで防がれる)。既存kindにbomb属性フラグが無ければ追加"
+  },
+  {
+   "slug": "magnet-bomb",
+   "name": "マグネットボム",
+   "verdict": "incomplete",
+   "problem": "yakkunの『弾技』が落ちている。必中部分はokだが、弾技属性(特性ぼうだんで防がれる)がeffectsにフラグとして無く喋れていない。",
+   "fix_hint": "flags に 弾(bomb/ball)を持たせ、説明に『弾技』を出す",
+   "needs_new_kind": "フラグ.弾(この技は弾技。特性ぼうだんで防がれる)。mud-bombと共通"
+  },
+  {
+   "slug": "chatter",
+   "name": "おしゃべり",
+   "verdict": "incomplete",
+   "problem": "yakkunの「音系の技」が落ちている。音技フラグはみがわり貫通やぼうおんガード・サウンドプルーフ無効などの判定に効くので明示が要る。",
+   "fix_hint": "音技(sound)フラグを effects に追加し「音をつかった技」と喋らせる。こんらん100%・みがわり貫通は既にOK。",
+   "needs_new_kind": "音技(フラグkind=音をつかう技。サウンドプルーフ等の判定に使う)※既存flagsに無ければ"
+  },
+  {
+   "slug": "judgment",
+   "name": "さばきのつぶて",
+   "verdict": "wrong",
+   "problem": "our_descが「天気によって技のタイプが変わる」「天気がなければノーマル」と言うが、実際は持たせたプレートでタイプが変わる(condition=held_item プレート)。天気は誤り。composeのテンプレ取り違え。",
+   "fix_hint": "effects(技タイプ変更・mapping=プレート名→タイプ・default=ノーマル)は正しい。compose側で『持っているプレートによって』と訳すべき。天気文言を排除。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "lunar-dance",
+   "name": "みかづきのまい",
+   "verdict": "wrong",
+   "problem": "our_descが「PPは回復しない」と明言するが、みかづきのまいは次の味方のHP・状態異常・PPまで全回復する(いやしのねがいと違いPPも回復)のが本来。PP記述が逆。さらに「踊り系の技」も落ちている。",
+   "fix_hint": "回復(incoming・全回復)にPP回復も含める/effectsにPP全回復を表現。踊り技(dance)フラグ追加。状態異常回復・自分瀕死はOK。",
+   "needs_new_kind": "PP回復(味方のPPを全回復)・踊り技(フラグkind=おどりをつかう技。おどりこ等の判定)※既存に無ければ"
+  },
+  {
+   "slug": "dark-void",
+   "name": "ダークホール",
+   "verdict": "incomplete",
+   "problem": "yakkunの「ダークライ以外のポケモンが使うと失敗する」という使用者限定が落ちている。相手全体ねむり2〜4ターンは合っているが専用技制限が無い。",
+   "fix_hint": "effectsに『使用者がダークライ以外なら失敗』の条件(使用者限定)を追加。ねむり付与・相手全体・2〜4ターンはOK。",
+   "needs_new_kind": "使用者限定失敗(指定ポケモン以外が使うと失敗する専用技制限kind)"
+  },
+  {
+   "slug": "autotomize",
+   "name": "ボディパージ",
+   "verdict": "incomplete",
+   "problem": "yakkunにある『自分のおもさが100kg軽くなる』が our_desc から落ちている。すばやさ+2しか言っていない。おもさ軽減はけたぐり/くさむすび等の威力やヘビーボンバー判定に効く実機効果。",
+   "fix_hint": "speed+2 に加え、おもさ-100kg(重さ変化)の効果を追加。",
+   "needs_new_kind": "おもさ変化(weight_change): 自分のおもさを一定量(100kg)減らす。重さ依存技の計算に影響"
+  },
+  {
+   "slug": "telekinesis",
+   "name": "テレキネシス",
+   "verdict": "incomplete",
+   "problem": "必中化・じめん技無効・うき は表現できているが、yakkunの『一撃必殺の技は変化しない(必中化の例外)』が our_desc に無い。",
+   "fix_hint": "テレキネシスの必中化に『一撃必殺技は対象外(必中にしない)』の例外を注記。既存テレキネシスkindに ohko除外フラグを追加。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "synchronoise",
+   "name": "シンクロノイズ",
+   "verdict": "incomplete",
+   "problem": "effectsが空で our_desc が『ダメージのみ』。yakkunの核『自分と同じタイプのポケモンだけにダメージ(自分以外全員対象・同タイプ以外には当たらない)』がまるごと欠落。",
+   "fix_hint": "対象=自分以外全員、かつ命中条件=対象が自分と同じタイプを1つでも持つ場合のみ命中(違うタイプには効果なし)。",
+   "needs_new_kind": "同タイプ限定命中(same_type_only_hit): 自分とタイプを共有するポケモンにのみ命中・ダメージ。共有しなければ効果なし"
+  },
+  {
+   "slug": "sky-drop",
+   "name": "フリーフォール",
+   "verdict": "incomplete",
+   "problem": "1ターン目の溜め・空中無敵・次ターン行動不能は表現できているが、yakkunの①『相手とともに空中へ連れ去る(相手も巻き込む)』②『ひこうタイプのポケモンにはダメージなし(=連れ去れず無効)』③『相手の体重200kg以上だと失敗』が our_desc に無い。",
+   "fix_hint": "2ターン目攻撃に加え、対象を一緒に空中へ拘束(相手行動不能は既存)・対象がひこうタイプならダメージ無効・対象体重200kg以上で技失敗、の3条件を追加。",
+   "needs_new_kind": "連れ去り拘束(carry_target_airborne): 相手を空中へ巻き込み拘束。体重上限(200kg超で失敗)・ひこうタイプ無効の条件付き"
+  },
+  {
+   "slug": "incinerate",
+   "name": "やきつくす",
+   "verdict": "wrong",
+   "problem": "our_desc が『相手の持ち物をはたき落として使えなくする』と全持ち物対象に言っているが、やきつくすは『きのみ・ジュエル(ノーマルジュエル等)だけ』を焼いて消す技。対象道具を取り違え・拡大解釈しており意味が違う。",
+   "fix_hint": "持ち物排除の condition を『対象がきのみ または ジュエルを所持』に限定し、焼却して消滅(戦闘後も戻らない)とする。一般道具のはたき落とし表現は不可。",
+   "needs_new_kind": "きのみ・ジュエル焼却(burn_berry_gem): 相手のきのみ/ジュエルのみを焼いて消す。他の持ち物には作用しない"
+  },
+  {
+   "slug": "retaliate",
+   "name": "かたきうち",
+   "verdict": "incomplete",
+   "problem": "yakkunは「前のターンに味方が倒されていると威力2倍」だが、our_descは『ダメージのみ』で核心の威力2倍条件が完全に欠落。effectsが空。",
+   "fix_hint": "前ターンに味方が瀕死だった場合に威力2倍にする効果を追加。kind=威力倍率 multiplier:2 condition{type:ally_fainted_last_turn}",
+   "needs_new_kind": "威力倍率のconditionに ally_fainted_last_turn(前ターン味方が倒された)を追加。既存の威力倍率kindでcondition種別だけ新設"
+  },
+  {
+   "slug": "water-pledge",
+   "name": "みずのちかい",
+   "verdict": "incomplete",
+   "problem": "yakkunは「ダブルで他のちかい技と組合せで追加効果+威力150」だが、our_descは『ダメージのみ』。effectsが空でグラスミキサー(grass-pledge)に在る威力可変pledge_comboが付いていない。",
+   "fix_hint": "grass-pledgeと同様に kind=威力可変 condition{type:pledge_combo,battle_format:double} max_power:150 を追加",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "fire-pledge",
+   "name": "ほのおのちかい",
+   "verdict": "incomplete",
+   "problem": "water-pledgeと同じく、yakkunのちかい組合せ+威力150がour_descに無く『ダメージのみ』。effects空。",
+   "fix_hint": "grass-pledgeと同様 kind=威力可変 pledge_combo max_power:150 を追加",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "searing-shot",
+   "name": "かえんだん",
+   "verdict": "incomplete",
+   "problem": "yakkunは『自分以外全員が対象』(全体技)かつ『弾技』(ぼうだんで防がれる弾フラグ)。our_descはどちらも欠落し対象も相手1体扱い",
+   "fix_hint": "状態付与(やけど30%)に加え target=all_others / 全体攻撃、技フラグ『弾(bullet)』を追加",
+   "needs_new_kind": "技フラグ(弾): ぼうだん特性で無効化される弾・爆発系フラグ"
+  },
+  {
+   "slug": "techno-blast",
+   "name": "テクノバスター",
+   "verdict": "wrong",
+   "problem": "our_descが『天気によって技のタイプが変わる』と誤記。実際は持たせた『カセット(ドライブ)』でタイプが変わる。effects(mapping=カセット)は正しいのにcompose文言が天気にすり替わっている",
+   "fix_hint": "技タイプ変更 mappingはカセット持ち物依存。文言を『持たせたカセットによってタイプが変わる』に。天気ではない",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "relic-song",
+   "name": "いにしえのうた",
+   "verdict": "incomplete",
+   "problem": "yakkunの『音系の技』が落ちている(ぼうおんで防がれる/みがわり貫通の根拠でもある音フラグ)",
+   "fix_hint": "既存のねむり10%全体・みがわり貫通に加え、技フラグ『音(sound)』を追加",
+   "needs_new_kind": "技フラグ(音): ぼうおん無効化・みがわり貫通の音系フラグ"
+  },
+  {
+   "slug": "secret-sword",
+   "name": "しんぴのつるぎ",
+   "verdict": "incomplete",
+   "problem": "ダメージ計算(相手ぼうぎょ参照)は一致。yakkunの『切る技』(刃・カッター系フラグ、するどいツメ等の参照)が落ちている",
+   "fix_hint": "別防御参照ダメージに加え、技フラグ『切る(slash/sharp)』を追加",
+   "needs_new_kind": "技フラグ(切): 刃物・切断系フラグ(きれあじ等が参照)"
+  },
+  {
+   "slug": "fusion-flare",
+   "name": "クロスフレイム",
+   "verdict": "incomplete",
+   "problem": "yakkunの主効果『同ターンにクロスサンダーが使われていると威力2倍』(連携技)が完全に欠落。こおり時使用可/こおり解除しか喋っていない",
+   "fix_hint": "状態異常回復(こおり)に加え、連携(同ターンにクロスサンダー使用で威力2倍)を追加",
+   "needs_new_kind": "連携威力倍化: 同ターンに対の技(クロスサンダー/クロスフレイム)が使われていると威力2倍"
+  },
+  {
+   "slug": "fusion-bolt",
+   "name": "クロスサンダー",
+   "verdict": "incomplete",
+   "problem": "威力2倍の発動条件(同じターンに『クロスフレイム』が使われている時)が落ち、無条件で『威力が2倍になる』と読めてしまう。effectsのnoteにある条件をcomposeが出していない。",
+   "fix_hint": "威力倍率に condition『同ターンにfusion-flareが使用された』を持たせ、説明に『同じターンに技クロスフレイムが使われていると威力2倍』と条件を出す",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "mat-block",
+   "name": "たたみがえし",
+   "verdict": "incomplete",
+   "problem": "yakkunの核(攻撃技だけを無効化=変化技は防げない/出た最初のターンしか成功しない)が落ちている。さらに『複数を巻きこむ技から守る』は範囲まもり汎用テンプレの流用で、攻撃技全般を守る本義とずれ誤解を招く。detailに正解があるのにcomposeが汎用文しか出していない。",
+   "fix_hint": "範囲まもりのdetail(攻撃技を防ぐ/変化技は不可/初ターンのみ)を説明に反映。先制技ではない点も",
+   "needs_new_kind": "攻撃技限定まもり(自分と味方を攻撃技から守る・初ターンのみ成功)：範囲まもりが『複数巻き込み技』固定文なので別kindか変種が要る"
+  },
+  {
+   "slug": "ion-deluge",
+   "name": "プラズマシャワー",
+   "verdict": "wrong",
+   "problem": "意味が壊れている。yakkunは『必ず先制(優先度+1)、そのターン全ての技がでんきタイプになる』。our_descは『相手のその技をでんきにする』と対象を相手の1技に矮小化し、優先度+1も落ちている。composeがtarget:all/conditionを誤って『相手より先に使うと相手のその技』と訳出。",
+   "fix_hint": "相手技タイプ変更を『そのターン中に出される全ての技をでんきにする』+優先度+1(必ず先制)で表現",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "disarming-voice",
+   "name": "チャームボイス",
+   "verdict": "incomplete",
+   "problem": "yakkunの『音系の技』が落ちている(必中・みがわり貫通は反映済)。effectsにsoundフラグが無くcomposeが音技を出せていない。",
+   "fix_hint": "flags.sound(音技)をeffectsに追加し説明に『音の技』を出す",
+   "needs_new_kind": "音技フラグkind(音系の技=みがわり貫通やぼうおん等に関わる)が無ければ新設"
+  },
+  {
+   "slug": "crafty-shield",
+   "name": "トリックガード",
+   "verdict": "wrong",
+   "problem": "yakkunの本義は『そのターン味方への変化技を無効化(優先度+3・場対象には無効)』。our_descは『複数を巻きこむ技から自分と味方をまもる』と範囲まもり汎用文で、防ぐ対象が変化技であることが伝わらず誤解(攻撃のスプレッド技を防ぐかのよう)。優先度+3・場対象除外も落ち。detailに正解があるのに未反映。",
+   "fix_hint": "detail(変化技を防ぐ/場対象技には無効)+優先度+3を説明に反映",
+   "needs_new_kind": "変化技限定まもり(味方への変化技を無効化)：範囲まもり固定文では表せない変種kind"
+  },
+  {
+   "slug": "fairy-wind",
+   "name": "ようせいのかぜ",
+   "verdict": "incomplete",
+   "problem": "yakkunの『風技』が落ちている。effectsが空でwindフラグも無いため、かぜのり/ウィンドライダー等に関わる風技の情報が出ていない。",
+   "fix_hint": "flags.wind(風技)をeffectsに追加し説明に『風の技』を出す",
+   "needs_new_kind": "風技フラグkind(風の技=かぜのり/ウィンドライダーが反応)が無ければ新設"
+  },
+  {
+   "slug": "confide",
+   "name": "ないしょばなし",
+   "verdict": "incomplete",
+   "problem": "yakkunの『音系の技』が落ちている(とくこう-1・必中・みがわり貫通は反映済)。effectsにsoundフラグが無い。",
+   "fix_hint": "flags.sound(音技)をeffectsに追加し説明に『音の技』を出す",
+   "needs_new_kind": "音技フラグkind(disarming-voiceと共通)"
+  },
+  {
+   "slug": "powder",
+   "name": "ふんじん",
+   "verdict": "wrong",
+   "problem": "yakkunは『優先度+1で先制し、そのターンに相手がほのおタイプの技を使うと相手の技が失敗し相手が最大HP1/4のダメージを受ける』技。our_descは『自分が外れた/守られたとき自分が1/4ダメージ』と全く別物(対象も発動条件も主語も取り違え)。effectsの『失敗ダメージ・target:opponent・fraction0.25』だけでは粉まみれの仕組みを表せていない",
+   "fix_hint": "優先度+1、相手に『ふんじん(粉まみれ)』を付与→そのターン相手がほのおタイプの技を使った場合のみ、相手の技を失敗させ相手に最大HP1/4ダメージ",
+   "needs_new_kind": "粉付着(ふんじん): 対象にこのターン限り粉を付け、対象がほのおタイプ技を選んだら技を失敗させ対象に最大HP1/4ダメージ+優先度+1。既存『失敗ダメージ』では条件(ほのお技限定)と主語(相手)が表せない"
+  },
+  {
+   "slug": "geomancy",
+   "name": "ジオコントロール",
+   "verdict": "incomplete",
+   "problem": "yakkunは『1ターン目にためて2ターン目に発動』する2ターン技。our_descは能力上昇だけ書き、ためる1ターン(charge)が落ちている",
+   "fix_hint": "1ターン目=ためる、2ターン目に自分のとくこう/とくぼう/すばやさ+2。ソーラービーム系の溜め技フェーズを付与",
+   "needs_new_kind": "溜め技(charge_turn): 1ターン目に動作せず2ターン目に効果発動。既存のソーラービーム等の溜めkindがあれば流用、無ければ要追加"
+  },
+  {
+   "slug": "hold-back",
+   "name": "てかげん",
+   "verdict": "incomplete",
+   "problem": "yakkunは『この技で相手のHPが0になる時、HPを1で残す』(みねうち/みだれづき系)。our_descは『ダメージのみ』で、HPを1残す肝心の効果が完全に落ちている(effects空)",
+   "fix_hint": "ダメージで相手HPが0になる場合、HPを1にして倒さない",
+   "needs_new_kind": "HP1残し(みねうち): この技のダメージで相手が瀕死になる時HPを1で止める。みねうち/みだれづきと共通kind"
+  },
+  {
+   "slug": "thousand-arrows",
+   "name": "サウザンアロー",
+   "verdict": "incomplete",
+   "problem": "our_descは『うちおとす状態でふゆう/ひこうにもじめん技が当たる』接地は表せているが、yakkunが明記する『そらをとぶ・とびはねる・でんじふゆう・テレキネシスの効果を解除する』点が訳文に出ていない(effectsのnoteには有るがcompose出力に反映なし)",
+   "fix_hint": "接地に加え、そらをとぶ/とびはねる/でんじふゆう/テレキネシスの空中・浮遊効果も解除する旨を出力する",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "lands-wrath",
+   "name": "グランドフォース",
+   "verdict": "incomplete",
+   "problem": "yakkunは『相手全体が対象』の範囲技だが、our_descは『ダメージのみ』で全体攻撃であることが落ちている。ダブルで意味が変わる。",
+   "fix_hint": "effects/flagsに範囲=全体(相手全体)を持たせ『あいてがわ全員にダメージ』と喋らせる。通常攻撃部分はok。",
+   "needs_new_kind": "範囲(対象)指定: target_range=全体 — 単体/相手全体/全体 を表す対象範囲kind(既存121に無ければ追加)"
+  },
+  {
+   "slug": "origin-pulse",
+   "name": "こんげんのはどう",
+   "verdict": "incomplete",
+   "problem": "yakkunは『相手全体が対象』かつ『波動技』(メガランチャー強化対象)。our_descはどちらも欠落。",
+   "fix_hint": "範囲=相手全体 と 波動技フラグ(flags.pulse)を持たせる。",
+   "needs_new_kind": "範囲(対象)指定: target_range=全体 / 波動技フラグ(pulse)kind — メガランチャー等で強化される波動技の印"
+  },
+  {
+   "slug": "precipice-blades",
+   "name": "だんがいのつるぎ",
+   "verdict": "incomplete",
+   "problem": "yakkunは『相手全体が対象』の全体攻撃だが、our_descは『ダメージのみ』で範囲情報が落ちている。",
+   "fix_hint": "範囲=相手全体を持たせる。通常攻撃はok。",
+   "needs_new_kind": "範囲(対象)指定: target_range=全体"
+  },
+  {
+   "slug": "hyperspace-fury",
+   "name": "いじげんラッシュ",
+   "verdict": "incomplete",
+   "problem": "まもり貫通・みがわり貫通・ぼうぎょ-1は表現できているが、yakkunの『ときはなたれしフーパ以外が使うと失敗する』という使用者制限が落ちている。",
+   "fix_hint": "使用者を『ときはなたれしフーパ』に限定し、他では失敗するkindを追加。",
+   "needs_new_kind": "使用者制限(failUnlessUser): 特定フォルム/種以外が使うと技が失敗する制約kind"
+  },
+  {
+   "slug": "breakneck-blitz--physical",
+   "name": "ウルトラダッシュアタック",
+   "verdict": "incomplete",
+   "problem": "必中部分は一致するが、yakkunの『Z技。威力や分類は元の技で変化する』というZ技の本質が欠落。",
+   "fix_hint": "Z技フラグ(威力/分類が元技依存)を持たせて『これはZわざで、もとの技に応じて威力がかわる』と喋らせる。",
+   "needs_new_kind": "Z技フラグ(zMove/基準技依存): 威力・分類が元の技で決まるZ技であることを表すkind"
+  },
+  {
+   "slug": "breakneck-blitz--special",
+   "name": "ウルトラダッシュアタック",
+   "verdict": "incomplete",
+   "problem": "必中は一致するが、yakkunの『Z技。威力や分類は元の技で変化する』が欠落。",
+   "fix_hint": "Z技フラグ(元技依存)を追加。",
+   "needs_new_kind": "Z技フラグ(zMove/基準技依存)"
+  },
+  {
+   "slug": "all-out-pummeling--physical",
+   "name": "ぜんりょくむそうげきれつけん",
+   "verdict": "incomplete",
+   "problem": "必中は一致するが、yakkunの『Z技。威力や分類は元の技で変化する』が欠落。",
+   "fix_hint": "Z技フラグ(元技依存)を追加。",
+   "needs_new_kind": "Z技フラグ(zMove/基準技依存)"
+  },
+  {
+   "slug": "all-out-pummeling--special",
+   "name": "ぜんりょくむそうげきれつけん",
+   "verdict": "incomplete",
+   "problem": "必中は一致するが、yakkunの『Z技。威力や分類は元の技で変化する』が欠落。",
+   "fix_hint": "Z技フラグ(元技依存)を追加。",
+   "needs_new_kind": "Z技フラグ(zMove/基準技依存)"
+  },
+  {
+   "slug": "supersonic-skystrike--physical",
+   "name": "ファイナルダイブクラッシュ",
+   "verdict": "incomplete",
+   "problem": "必中は一致するが『Z技。威力や分類は元の技で変化する』が欠落。なおこの技のeffectsのignoresが日本語ラベル(相手の回避率/自分の命中率)で、他Z技のkey(target_evasion/user_accuracy)と不統一。",
+   "fix_hint": "Z技フラグ(元技依存)を追加。ignoresのキーをtarget_evasion/user_accuracyに統一。",
+   "needs_new_kind": "Z技フラグ(zMove/基準技依存)"
+  },
+  {
+   "slug": "supersonic-skystrike--special",
+   "name": "ファイナルダイブクラッシュ",
+   "verdict": "incomplete",
+   "problem": "必中は一致するが、yakkunの『Z技。威力や分類は元の技で変化する』が欠落。",
+   "fix_hint": "Z技フラグ(元技依存)を追加。",
+   "needs_new_kind": "Z技フラグ(zMove/基準技依存)"
+  },
+  {
+   "slug": "acid-downpour--physical",
+   "name": "アシッドポイズンデリート",
+   "verdict": "incomplete",
+   "problem": "必中は一致するが、yakkunの『Z技。威力や分類は元の技で変化する』が欠落。",
+   "fix_hint": "Z技フラグ(元技依存)を追加。",
+   "needs_new_kind": "Z技フラグ(zMove/基準技依存)"
+  },
+  {
+   "slug": "inferno-overdrive--special",
+   "name": "ダイナミックフルフレイム",
+   "verdict": "incomplete",
+   "problem": "必中部分は一致だが、ヤックンの「Z技で威力や分類は元の技で変化する」という肝が落ちている。our_descは単に「ダメージ」だけで、Z技で威力/分類が元技依存という情報が無い。",
+   "fix_hint": "既存「必中」に加え、Z技であること(威力・分類は元の技で変化)を表すeffectを足す。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "hydro-vortex--physical",
+   "name": "スーパーアクアトルネード",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "hydro-vortex--special",
+   "name": "スーパーアクアトルネード",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "bloom-doom--physical",
+   "name": "ブルームシャインエクストラ",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "bloom-doom--special",
+   "name": "ブルームシャインエクストラ",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "gigavolt-havoc--physical",
+   "name": "スパーキングギガボルト",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "gigavolt-havoc--special",
+   "name": "スパーキングギガボルト",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "shattered-psyche--physical",
+   "name": "マキシマムサイブレイカー",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "shattered-psyche--special",
+   "name": "マキシマムサイブレイカー",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "subzero-slammer--physical",
+   "name": "レイジングジオフリーズ",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "subzero-slammer--special",
+   "name": "レイジングジオフリーズ",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "devastating-drake--physical",
+   "name": "アルティメットドラゴンバーン",
+   "verdict": "incomplete",
+   "problem": "必中は一致だが、Z技で威力・分類が元技で変化する情報が抜けている。",
+   "fix_hint": "Z技で威力/分類が元技依存である旨のeffectを追加。",
+   "needs_new_kind": "Zわざ変動: 威力と分類が元の技によって決まるZ技であることを示す"
+  },
+  {
+   "slug": "spotlight",
+   "name": "スポットライト",
+   "verdict": "incomplete",
+   "problem": "yakkunの『必ず先制できる(優先度:+3)』が落ちている。引き寄せ(相手をそのターン技の対象にする)と全体技無効・ダブル用は表現できているが、優先度+3の先制が未記載",
+   "fix_hint": "引き寄せ effectに加え、優先度+3の先制を表すeffectを追加。優先度: +3 を明示",
+   "needs_new_kind": "既存の優先度/先制kindがあればそれで可(優先度=+3)。無ければ『優先度(priority)』kind: 技の優先度を指定する(値+3で必ず先制)"
+  },
+  {
+   "slug": "laser-focus",
+   "name": "とぎすます",
+   "verdict": "incomplete",
+   "problem": "ヤックンは「次のターン、自分の技が必ず急所に当たる」。our_descは「必ず急所に当たる。」だけで、いつ(次のターン)・誰の技(自分)が抜けている。",
+   "fix_hint": "急所率上昇(always_crit/phase=lasting)を『次のターン、自分の技が必ず急所に当たる』と訳す。phase=lastingの開始タイミング(次のターン)・対象=自分の技をcomposeで明示。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "purify",
+   "name": "じょうか",
+   "verdict": "incomplete",
+   "problem": "ヤックンの「相手が状態異常ではない時は失敗する」(=回復も発動しない)という失敗条件がour_descに無い。状態異常がないと技自体が失敗する肝が落ちている。",
+   "fix_hint": "状態異常回復に失敗条件『相手が状態異常でないときは失敗(回復も起きない)』を付与してcomposeに喋らせる。effectsのnoteには既に在るのでcompose側で出力。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "revelation-dance",
+   "name": "めざめるダンス",
+   "verdict": "incomplete",
+   "problem": "ヤックンの「踊り系の技」(=おどりこ特性で誘発・ダンス技扱い)がour_descに無い。タイプ変更部分は過不足ない。",
+   "fix_hint": "flags.dance(踊り技)を持たせ、『踊り(ダンス)技。』を補足。おどりこ特性・みがわり貫通等の挙動に効く。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "core-enforcer",
+   "name": "コアパニッシャー",
+   "verdict": "wrong",
+   "problem": "ヤックンは『相手がそのターンに既に技を使っていた場合のみ特性を無効化』。our_descは無条件で『場にいる間きかなくする』と発動条件を落とし、効果も恒久化していて意味が違う。",
+   "fix_hint": "特性無効化に発動条件『対象がそのターン既に技を使用済み』を付ける。条件未成立なら無効化しない。durationは『場にいる間』でなくヤックン準拠で見直し。",
+   "needs_new_kind": "特性無効化に condition: target_already_moved(対象がそのターン行動済みのとき特性無効)を表す条件型が必要"
+  },
+  {
+   "slug": "shell-trap",
+   "name": "トラップシェル",
+   "verdict": "incomplete",
+   "problem": "effectsが空でour_descが『ダメージのみ』。yakkunの肝(優先度-3で必ず後攻・そのターン相手の物理技を最初に受けた直後に反撃・物理ダメージを受けなければ失敗)が全て欠落。トラップ系カウンター技の本質が表現できていない。",
+   "fix_hint": "優先度-3(必中後攻)+物理被弾トリガーのカウンター発動条件+被弾なしで失敗。既存の罠/カウンター系kindでは表現不可。",
+   "needs_new_kind": "罠カウンター(=そのターン中に相手の物理技ダメージを受けたら攻撃発動・受けなければ失敗。優先度-3)"
+  },
+  {
+   "slug": "spectral-thief",
+   "name": "シャドースチール",
+   "verdict": "wrong",
+   "problem": "our_descが『相手のすべての能力ランクの変化を、そのまま自分にコピーする』。実際は『上昇分だけを奪い(相手からは消える)、その分自分を上げ、下降分は影響しない』。コピー(=元は残る/全変化対象)という表現は意味が違う(奪う・上昇分限定・相手から消去という肝が抜け、むしろ誤誘導)。effectsのcopies欄には正しい説明があるのにcompose出力が取りこぼしている。",
+   "fix_hint": "ランクコピーkindのcopies文面どおり『相手の能力ランクの上昇分だけを奪って自分のものにし(奪った分は相手から消える)、下降分は奪わない・影響しない。その後に攻撃』をcomposeに反映。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "sunsteel-strike",
+   "name": "メテオドライブ",
+   "verdict": "wrong",
+   "problem": "our_desc『相手の特性を、場にいる間きかなくする』はメテオドライブの効果を過大表現。実際は『この攻撃の間だけ相手の特性の影響を受けずに攻撃する』(常時無効化ではない)。子どもは特性が戦闘中ずっと消えると誤解する。",
+   "fix_hint": "特性無効化kindのcompose文面を『この攻撃の間だけ相手の特性を無視して攻撃する』に修正(かたやぶり相当・一時的)。新kind不要、composeテンプレ修正。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "moongeist-beam",
+   "name": "シャドーレイ",
+   "verdict": "wrong",
+   "problem": "sunsteel-strikeと同じ。our_desc『相手の特性を、場にいる間きかなくする』が過大表現。実際は『この攻撃の間だけ相手の特性の影響を受けずに攻撃する』。",
+   "fix_hint": "特性無効化kindのcompose文面を一時的な『この攻撃の間だけ相手の特性を無視して攻撃する』に修正。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "plasma-fists",
+   "name": "プラズマフィスト",
+   "verdict": "incomplete",
+   "problem": "本来の主効果『そのターンの間、ノーマルタイプの技がでんきタイプになる(場全体)』が effects にもour_descにも無い。てつのこぶし1.2倍しか出ていない。yakkunの当該文は『すべてのタイプの技をタイプにする』と文字化けだが、これがこの技の核。",
+   "fix_hint": "effectsに『そのターン、ノーマル技を電気タイプ化』効果を追加。パンチ系フラグも欲しい。",
+   "needs_new_kind": "ノーマル技電気化(そのターン場全体でノーマルタイプの技をでんきタイプに変える)"
+  },
+  {
+   "slug": "photon-geyser",
+   "name": "フォトンゲイザー",
+   "verdict": "wrong",
+   "problem": "特性無効化の文が『相手の特性を、場にいる間きかなくする』=永続無効化の意味になっている。実際は『この攻撃のあいだだけ相手の特性を無視して攻撃する』(一時無視、永続ではない)。yakkunも『特性の影響を受けずに攻撃する』。意味が違う。",
+   "fix_hint": "特性無効化kindの compose 文言を『この技を出すときだけ相手の特性を無視して攻撃する』に直す(永続disableではない)。物理特殊自動は概ねOK。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "light-that-burns-the-sky",
+   "name": "てんこがすめつぼうのひかり",
+   "verdict": "incomplete",
+   "problem": "yakkunにある『自分のこうげきととくこうの高い方でダメージ計算(物理特殊自動)』が effects/our_desc に欠落。さらに特性無効化が『場にいる間きかなくする』と永続表現になっている(本来は攻撃時だけ無視)。",
+   "fix_hint": "effectsに『物理特殊自動』kindを追加(フォトンゲイザー同様)。特性無効化の文言も一時無視に修正。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "searing-sunraze-smash",
+   "name": "サンシャインスマッシャー",
+   "verdict": "wrong",
+   "problem": "特性無効化が『場にいる間きかなくする』=永続無効化の意味。実際は『この攻撃のあいだだけ相手の特性を無視して攻撃する』。yakkunも『特性の影響を受けずに攻撃する』。意味が違う。必中部分は一致。",
+   "fix_hint": "特性無効化kindの compose 文言を一時無視『攻撃するときだけ相手の特性を無視する』に修正。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "menacing-moonraze-maelstrom",
+   "name": "ムーンライトブラスター",
+   "verdict": "wrong",
+   "problem": "特性無効化が『場にいる間きかなくする』=永続無効化表現。実際は『この攻撃のあいだだけ相手の特性を無視』。yakkun『特性の影響を受けずに攻撃する』。必中は一致。",
+   "fix_hint": "特性無効化kindの compose 文言を一時無視に修正。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "clangorous-soulblaze",
+   "name": "ブレイジングソウルビート",
+   "verdict": "incomplete",
+   "problem": "全能力+1・みがわり貫通・必中は一致するが、yakkunにある『音系の技』が effects/our_desc に無い。音技フラグはぼうおん/そうおん・みがわり貫通等に絡むため明示したい。",
+   "fix_hint": "flags.sound(音系)を effects に追加し『音の技』を喋らせる。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "zippy-zap",
+   "name": "ばちばちアクセル",
+   "verdict": "incomplete",
+   "problem": "yakkunの「必ず先制でき(優先度:+2)」が我が方の効果文に無い。急所だけ表示され、最優先で動く肝が落ちている。",
+   "fix_hint": "effectsに優先度(先制)kindを追加。例: {kind:'優先度', value:+2}。compose側で『必ず先制できる(優先度+2)』を喋らせる。",
+   "needs_new_kind": "既存に優先度系kindが無ければ『優先度』(value:+N=先制度、+2で必ず先に動く意味)を新設"
+  },
+  {
+   "slug": "freezy-frost",
+   "name": "こちこちフロスト",
+   "verdict": "wrong",
+   "problem": "effectsはランクリセット target='all'(すべてのポケモン=自分含む両者)なのに、our_descは『相手の能力ランク』と相手限定に取り違えている。自分側のランク変化も戻るのが正。",
+   "fix_hint": "target='all'を『すべてのポケモンの能力ランクの変化を元に戻す』と訳す。composeのランクリセット文がtarget=allを相手限定で出力するバグを修正。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "veevee-volley",
+   "name": "ブイブイブレイク",
+   "verdict": "incomplete",
+   "problem": "yakkunの肝「なついているほど威力が高い(最大148)」が完全に落ちている。our_descは必中だけで、なつき度比例の威力上昇を一切表していない。",
+   "fix_hint": "必中(既存)に加え、なつき度に比例して威力が上がる効果(おんがえし系)をeffectsに追加。",
+   "needs_new_kind": "なつき威力: なつき度に比例して威力が上昇(最大威力あり)。既存のなつき威力kindがあれば流用、無ければ新設。"
+  },
+  {
+   "slug": "max-guard",
+   "name": "ダイウォール",
+   "verdict": "incomplete",
+   "problem": "yakkunの「必ず先制(優先度+4)」「まもる無視技やダイマックス技も防げる」「フェイントは貫通する」が落ちている。our_descは通常まもりと同じ説明に留まる。",
+   "fix_hint": "優先度+4・まもり貫通技/ダイマックス技も防ぐ・フェイントは貫通、をeffectsに追加。",
+   "needs_new_kind": "貫通技ブロック: 通常のまもるを無視する技やダイマックス技も防ぐ(ただしフェイントは貫通)。優先度は既存kindで表現可。"
+  },
+  {
+   "slug": "dynamax-cannon",
+   "name": "ダイマックスほう",
+   "verdict": "incomplete",
+   "problem": "yakkunの「相手がダイマックスしているとダメージ2倍」が落ちている。our_descは「ダメージのみ」。",
+   "fix_hint": "相手がダイマックス状態のとき威力(ダメージ)2倍の条件効果を追加。",
+   "needs_new_kind": "対ダイマックス威力倍率: 相手がダイマックス状態ならダメージ2倍。既存の条件威力倍率に「相手ダイマックス」条件を足せれば新kind不要。"
+  },
+  {
+   "slug": "snipe-shot",
+   "name": "ねらいうち",
+   "verdict": "incomplete",
+   "problem": "yakkunの「ひらいしん/よびみず や攻撃対象変更効果の影響を受けず狙った相手を攻撃できる」が落ちている。our_descは急所+1のみ。",
+   "fix_hint": "急所率上昇(既存)に加え、リダイレクト(対象変更)を無視する効果を追加。",
+   "needs_new_kind": "リダイレクト無視: ひらいしん・よびみず・対象変更技に影響されず狙った相手を攻撃する。"
+  },
+  {
+   "slug": "jaw-lock",
+   "name": "くらいつく",
+   "verdict": "bug",
+   "problem": "同じ文が2回重複して出力されている。さらに「タイプでない相手を」という誤った修飾が付く(くらいつくにタイプ除外は無い)。本来は自分も相手も逃げ・交代不可だが、self側の拘束が「タイプでない相手」と誤って文章化されている。",
+   "fix_hint": "拘束(opponent)と拘束(self)を「自分と相手のどちらかがひんしになるまで、どちらも逃げ・交代できない」と1文に統合。誤った『タイプでない』修飾と重複を除去。composeが2件の拘束effectを別々に同文で吐く不具合。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "octolock",
+   "name": "たこがため",
+   "verdict": "incomplete",
+   "problem": "yakkunの肝「毎ターン ぼうぎょ・とくぼうが1段階ずつ下がり続ける(ターン上限なし)」の『毎ターン継続』が落ちている。our_descは「ぼうぎょ-1/とくぼう-1」と1回だけのように読める。",
+   "fix_hint": "turn_end phaseの能力ランク変化を「毎ターン、ぼうぎょ・とくぼうが1段階ずつ下がる」と継続表現する。拘束は『自分が場を離れるまで』で一致。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-flare",
+   "name": "ダイバーン",
+   "verdict": "incomplete",
+   "problem": "yakkunの「自分の命中率・相手の回避率に関係なく必ず命中する(ダイマックス技の必中)」が落ちている。our_descは天候変化のみ。レイドのバリア減少はバトル外寄りで許容。",
+   "fix_hint": "天候変化(にほんばれ5T)に加え、必中(ignores user_accuracy/target_evasion)を追加。ダイマックス技は基本必中。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-knuckle",
+   "name": "ダイナックル",
+   "verdict": "incomplete",
+   "problem": "yakkunは『自分と味方全体のこうげき+1』だが our_descは『自分のこうげき+1』のみ。味方全体への上昇が落ちている(ダブル要素)",
+   "fix_hint": "能力ランク変化 target=self_and_allies(自分と味方全体)こうげき+1",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-hailstorm",
+   "name": "ダイアイス",
+   "verdict": "wrong",
+   "problem": "yakkunは天気『あられ』(毎ターン削りダメージあり)だが our_desc/effectsは『ゆき』(削り無し・氷の防御UP)。天候の種類が違い意味が変わる。Gen8→Gen9の改名適用かもしれないが本来の技仕様はあられ",
+   "fix_hint": "天候変化 value=あられ(本来仕様)。ゆきへ意図的更新なら要人間判断",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-ooze",
+   "name": "ダイアシッド",
+   "verdict": "incomplete",
+   "problem": "yakkunは『自分と味方全体のとくこう+1』だが our_descは『自分のとくこう+1』のみ。味方全体が落ちている",
+   "fix_hint": "能力ランク変化 target=self_and_allies とくこう+1",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-airstream",
+   "name": "ダイジェット",
+   "verdict": "incomplete",
+   "problem": "yakkunは『自分と味方全体のすばやさ+1』だが our_descは『自分のすばやさ+1』のみ。味方全体が落ちている",
+   "fix_hint": "能力ランク変化 target=self_and_allies すばやさ+1",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-rockfall",
+   "name": "ダイロック",
+   "verdict": "incomplete",
+   "problem": "天候すなあらしは合っているが、ダイマックス技の『自分の命中率・相手の回避率に関係なく必ず命中する』が落ちている。",
+   "fix_hint": "天候変化(すなあらし)はOK。必中効果(命中率・回避率無視)を追加。レイドのバリアゲージ-2はバトル外扱いで任意。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-quake",
+   "name": "ダイアース",
+   "verdict": "incomplete",
+   "problem": "とくぼう+1は合うが、yakkunは『自分と味方全体』のとくぼう上昇、かつ必中(命中率・回避率無視)が落ちている。",
+   "fix_hint": "能力ランク変化(self special_defense +1)に加え、ダブルでは味方全体対象。必中効果を追加。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-darkness",
+   "name": "ダイアーク",
+   "verdict": "incomplete",
+   "problem": "相手とくぼう-1は合うが、ダイマックス技の必中(命中率・回避率無視)が落ちている。",
+   "fix_hint": "能力ランク変化(opponent special_defense -1)はOK。必中効果を追加。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-overgrowth",
+   "name": "ダイソウゲン",
+   "verdict": "incomplete",
+   "problem": "グラスフィールド展開は合うが、必中(命中率・回避率無視)が落ちている(フィールドの回復・草1.3倍は名称で十分)。",
+   "fix_hint": "フィールド展開(グラスフィールド)はOK。必中効果を追加。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "max-steelspike",
+   "name": "ダイスチル",
+   "verdict": "incomplete",
+   "problem": "ぼうぎょ+1は合うが、yakkunは『自分と味方全体』のぼうぎょ上昇、かつ必中(命中率・回避率無視)が落ちている。",
+   "fix_hint": "能力ランク変化(self defense +1)に加え、ダブルでは味方全体対象。必中効果を追加。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "pyro-ball",
+   "name": "かえんボール",
+   "verdict": "incomplete",
+   "problem": "やけど10%・こおり解除・こおりでも使用可は表現できているが、yakkunの『弾(ボール)技』フラグ(ぼうだん特性で防がれる)が落ちている。",
+   "fix_hint": "状態付与(やけど10%)・状態異常回復(こおり)はOK。flags.bullet(弾技)を追加してぼうだん無効判定を持たせる。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "behemoth-blade",
+   "name": "きょじゅうざん",
+   "verdict": "incomplete",
+   "problem": "effectsが空で『ダメージのみ』だが、yakkunの『相手がダイマックス中はダメージ2倍』と『切る技(スライス系)』フラグが落ちている。",
+   "fix_hint": "威力倍率(multiplier 2.0, condition=相手ダイマックス時)を追加。flags.slicing(切る技)も付与。既存の威力倍率kindで表現可。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "behemoth-bash",
+   "name": "きょじゅうだん",
+   "verdict": "incomplete",
+   "problem": "effectsが空で『ダメージのみ』だが、yakkunの『相手がダイマックス中はダメージ2倍』が落ちている。",
+   "fix_hint": "威力倍率(multiplier 2.0, condition=相手ダイマックス時)を追加。既存の威力倍率kindで表現可。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "overdrive",
+   "name": "オーバードライブ",
+   "verdict": "incomplete",
+   "problem": "みがわり貫通は表現できているが、yakkunの『音系の技』フラグと『相手全体が対象』が落ちている。",
+   "fix_hint": "みがわり貫通はOK。flags.sound(音技。ぼうおん無効/みがわり貫通の根拠)とtarget=相手全体(all_opponents)を追加。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "obstruct",
+   "name": "ブロッキング",
+   "verdict": "incomplete",
+   "problem": "yakkunの「必ず先制でき(優先度+4)」が our_desc に無い。まもり技の肝である先制が落ちている",
+   "fix_hint": "優先度+4(必ず先制)をeffectsに追加し文に出す。まもり/まもり貫通(ダイマ1/4)/接触でぼうぎょ-2は表現済み",
+   "needs_new_kind": "優先度/先制(priority): まもり技が必ず先に出る(+4)を表す。既存になければ追加"
+  },
+  {
+   "slug": "surging-strikes",
+   "name": "すいりゅうれんだ",
+   "verdict": "bug",
+   "problem": "「3〜3回つづけて攻撃する」とmin==maxなのに範囲表記になっており壊れた表示。固定回数は「3回」と出すべき",
+   "fix_hint": "連続攻撃 min_hits==max_hits のときは「N回」と表記(範囲は使わない)。急所/てつのこぶし1.2倍は表現済み",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "dragon-energy",
+   "name": "ドラゴンエナジー",
+   "verdict": "incomplete",
+   "problem": "yakkunの「相手全体が対象」が our_desc に出ていない。複数体対象という意味が落ちている",
+   "fix_hint": "target=all_opponents を文頭で「相手全体」と明示。威力可変(HP比例)は表現済み",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "fiery-wrath",
+   "name": "もえあがるいかり",
+   "verdict": "incomplete",
+   "problem": "yakkunの「相手全体が対象」が our_desc に出ていない。複数体対象という意味が落ちている",
+   "fix_hint": "target=all_opponents を文頭で「相手全体」と明示。ひるみ20%は表現済み",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "glacial-lance",
+   "name": "ブリザードランス",
+   "verdict": "incomplete",
+   "problem": "yakkunの「相手全体が対象」(全体攻撃=スプレッド技)が落ちている。effectsが空でour_descは『ダメージのみ』のみ。子はこれが全体技だと戻れない。",
+   "fix_hint": "範囲=相手全体(スプレッド)を表示できるようにする。純ダメージ技なので追加効果kindは不要だが、対象範囲の情報が必要。",
+   "needs_new_kind": "範囲指定(相手全体/range:all_opponents)= 効果なしの全体攻撃でも対象範囲を説明文に出すための範囲属性。既存121kindのターゲット表現が純ダメージ技に乗らないため。"
+  },
+  {
+   "slug": "astral-barrage",
+   "name": "アストラルビット",
+   "verdict": "incomplete",
+   "problem": "yakkunの「相手全体が対象」が落ちている。effects空でour_descは『ダメージのみ』のみ。全体攻撃という意味に戻れない。",
+   "fix_hint": "範囲=相手全体を表示。追加効果はなし(通常攻撃)で正しい。",
+   "needs_new_kind": "範囲指定(相手全体/range:all_opponents)= glacial-lanceと同じ。純ダメージ全体技の対象範囲属性。"
+  },
+  {
+   "slug": "springtide-storm",
+   "name": "はるのあらし",
+   "verdict": "incomplete",
+   "problem": "(1)yakkun『相手全体が対象』が落ち、our_descは『相手のこうげき-1』で単体扱い(effectsのtargetもopponentで全体になっていない)。(2)yakkun『風技』(かぜ技フラグ)が落ちている。",
+   "fix_hint": "能力ランク変化のtargetをall_opponentsに(全体技)。さらに風技フラグを説明に出す。",
+   "needs_new_kind": "技フラグ(風技/かぜ技)= かぜのちから・ふうせん等の相互作用とyakkun表記のための分類フラグ。既存kindに技分類フラグの表現がない。"
+  },
+  {
+   "slug": "victory-dance",
+   "name": "しょうりのまい",
+   "verdict": "incomplete",
+   "problem": "3能力ランク+1は一致するが、yakkun『踊り系の技』(おどり技フラグ)が落ちている。おどりこ等の相互作用・分類が戻らない。",
+   "fix_hint": "おどり技フラグを説明に出す。ランク上昇の効果自体は過不足なし。",
+   "needs_new_kind": "技フラグ(踊り/おどり技)= おどりこ特性等の相互作用とyakkun表記のための分類フラグ。"
+  },
+  {
+   "slug": "bleakwind-storm",
+   "name": "こがらしあらし",
+   "verdict": "incomplete",
+   "problem": "全体すばやさ-1(30%)・あめ必中は一致。yakkun『風技』(かぜ技フラグ)が落ちている。",
+   "fix_hint": "風技フラグを説明に出す。効果本体は過不足なし。",
+   "needs_new_kind": "技フラグ(風技/かぜ技)= かぜ技分類フラグ。"
+  },
+  {
+   "slug": "wildbolt-storm",
+   "name": "かみなりあらし",
+   "verdict": "incomplete",
+   "problem": "全体まひ20%・あめ必中は一致。yakkun『風技』(かぜ技フラグ)が落ちている。",
+   "fix_hint": "風技フラグを説明に出す。効果本体は過不足なし。",
+   "needs_new_kind": "技フラグ(風技/かぜ技)= かぜ技分類フラグ。"
+  },
+  {
+   "slug": "sandsear-storm",
+   "name": "ねっさのあらし",
+   "verdict": "incomplete",
+   "problem": "全体やけど20%・あめ必中は一致。yakkun『風技』(かぜ技フラグ)が落ちている。",
+   "fix_hint": "風技フラグを説明に出す。効果本体は過不足なし。",
+   "needs_new_kind": "技フラグ(風技/かぜ技)= かぜ技分類フラグ。"
+  },
+  {
+   "slug": "silk-trap",
+   "name": "スレッドトラップ",
+   "verdict": "incomplete",
+   "problem": "ヤックンの肝『必ず先制でき(優先度+4)』が our_desc に無い。まもり技の先制という重要情報が落ちている。接触攻撃→すばやさ-1や連続失敗は表現済み。",
+   "fix_hint": "まもり技共通の優先度+4(先制)を effects/compose で明示する。既存『まもり』kind に優先度情報を持たせる。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "glaive-rush",
+   "name": "きょけんとつげき",
+   "verdict": "incomplete",
+   "problem": "effects が空で our_desc は『ダメージのみ』。ヤックンの追加効果『次の自分のターンまで、相手からの攻撃が必中になり受けるダメージが2倍』が完全に欠落。",
+   "fix_hint": "次ターンまで自分が『被必中+被ダメ2倍』になる自己デバフを effects に追加する。",
+   "needs_new_kind": "被弾脆弱化: 次の自分のターンまで自分への攻撃が必中になり被ダメージ2倍になる自己付与状態"
+  },
+  {
+   "slug": "revival-blessing",
+   "name": "さいきのいのり",
+   "verdict": "wrong",
+   "problem": "ヤックンは『手持ちのひんし状態のポケモンを最大HP半分で復活(生き返らせる)』だが、our_desc は『手持ち全員のHPを半分回復』と取り違え。生きている味方を回復する技ではなく、ひんしを蘇生する技。意味が違う。",
+   "fix_hint": "対象=手持ちのひんし1体を選び復活、最大HP1/2で戦線復帰。回復(party/0.5)ではなく蘇生効果にする。",
+   "needs_new_kind": "ひんし復活: 手持ちのひんし状態のポケモン1体を最大HPの半分で復活させる"
+  },
+  {
+   "slug": "doodle",
+   "name": "うつしえ",
+   "verdict": "incomplete",
+   "problem": "特性上書き(self)と(ally)の2つが同一文『相手の特性を、自分の特性としてコピーする。』で重複出力され、味方ぶんが区別されていない。ヤックン『自分と味方を相手と同じ特性にする』の味方への適用が文面で表現されていない。",
+   "fix_hint": "target=ally の特性上書きを『味方も相手と同じ特性にする』と別文で出す。compose 側で target 別に文言を分岐させる。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "psyblade",
+   "name": "サイコブレイド",
+   "verdict": "incomplete",
+   "problem": "エレキフィールド1.5倍は表現済みだが、ヤックンの『切る技』(スライス系=きれあじ等の特性で威力が上がる対象)というフラグ情報が our_desc に無い。",
+   "fix_hint": "flags.slicing(切る技)を effects/フラグに持たせ、説明にも反映する。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "collision-course",
+   "name": "アクセルブレイク",
+   "verdict": "incomplete",
+   "problem": "effectsには condition:super_effective が入っているのに our_desc が『威力が1.333倍になる』と無条件にしてしまい、肝心の『相手の弱点をつくと』という発動条件が落ちている",
+   "fix_hint": "条件威力倍率(condition.type=super_effective)を『相手の弱点をつくと(効果ばつぐん時)、威力が4/3倍』と条件込みで文章化する",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "electro-drift",
+   "name": "イナズマドライブ",
+   "verdict": "incomplete",
+   "problem": "アクセルブレイクと同じ。condition:super_effective があるのに our_desc が無条件の『威力1.333倍』になっており『相手の弱点をつくと』が欠落",
+   "fix_hint": "条件威力倍率(super_effective)を『効果ばつぐんのとき威力1.333倍』と条件付きで出す",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "hyper-drill",
+   "name": "ハイパードリル",
+   "verdict": "wrong",
+   "problem": "pierces_without_removing のリストは『この技が貫通する守り技の一覧』なのに、our_desc は『…は除く(=貫通しない)』と逆の意味に訳している。yakkunは『まもる・みきり等の効果を受けない』＝それらを貫通する意。compose がリストを例外扱いして意味が反転",
+   "fix_hint": "まもり貫通(pierces_without_removing)は列挙された守りを『貫通して当たる(ただし守り自体は解除しない)』と訳す。『除く』は誤り",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "double-shock",
+   "name": "でんこうそうげき",
+   "verdict": "incomplete",
+   "problem": "yakkunの『自分がでんきタイプでない時は失敗する』が our_desc に無い。タイプ除去後に再使用すると失敗する条件が落ちている",
+   "fix_hint": "タイプ除去(value:でんき)に『この技は自分がでんきタイプでないと失敗する』という不発条件を持たせて文章化",
+   "needs_new_kind": "タイプ未所持時失敗=指定タイプを自分が持っていない場合この技は失敗する"
+  },
+  {
+   "slug": "tera-starstorm",
+   "name": "テラクラスター",
+   "verdict": "wrong",
+   "problem": "対象範囲変更の発動条件が「ステラフォルムのとき」なのに、our_descが「サイコフィールドで自分が地面にいると」と全く別の意味に誤訳されている。また威力2倍が無条件に書かれているが、本来は『テラスタルしている相手にのみ2倍』という条件付き。",
+   "fix_hint": "条件は user_form=ステラフォルム → composeが『サイコフィールド地面』に誤レンダリング(条件種別の取り違え)。条件威力倍率はcondition=target_terastalized(テラスタル相手のみ2倍)を文に出す。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "burning-bulwark",
+   "name": "かえんのまもり",
+   "verdict": "incomplete",
+   "problem": "yakkunの『必ず先制でき(優先度:+4)』が落ちている。守り技なので本来先制の優先度を持つが、effectsに優先度がなくour_descにも出ていない。",
+   "fix_hint": "既存kind『優先度』(stages/priority:+4)をeffectsに追加。守り+接触やけど付与は表現済み。",
+   "needs_new_kind": ""
+  },
+  {
+   "slug": "thunderclap",
+   "name": "じんらい",
+   "verdict": "incomplete",
+   "problem": "effectsが空でour_descが『ダメージのみ』。yakkunの核心『必ず先制(優先度:+1)』と『相手が攻撃技を選んでいない/既に攻撃を終えていると失敗』(ふいうち型条件)が完全に欠落している。",
+   "fix_hint": "既存kind『優先度』(+1)を追加。加えてふいうち(sucker-punch)同型の発動条件=相手が攻撃技を選択かつ未行動でないと失敗、をeffectsに入れる。",
+   "needs_new_kind": "先制発動条件(相手が今ターン攻撃技を選んでおり、まだ攻撃していない場合のみ成功。それ以外は失敗)= ふいうち/じんらい共用の条件kind"
+  }
+ ]
+}

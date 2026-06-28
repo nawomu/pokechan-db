@@ -950,6 +950,16 @@ function compose(m) {
   }
   // ★音系の技(flags.sound)を後置(2026-06-15): 全sound技に「音系の技。」(legacyも全技に明記・横断漏れだった)。
   if (m.flags && m.flags.sound === true && !/音系の技/.test(text)) text += `音系の技。`;
+  // ★2026-06-29 技分類フラグを後置(ヤックン表記に合わせる。風技/切る技/弾技/噛み技/踊り系/パンチ系/波動/こな)
+  const F = m.flags || {};
+  if (F.wind === true && !/風技/.test(text)) text += `風技。`;
+  if (F.slash === true && !/切る技/.test(text)) text += `切る技。`;
+  if (F.bullet === true && !/弾技/.test(text)) text += `弾技。`;
+  if (F.bite === true && !/噛み技/.test(text)) text += `噛み技。`;
+  if (F.dance === true && !/踊り/.test(text)) text += `踊り系の技。`;
+  if (F.punch === true && !/パンチ系の技/.test(text)) text += `パンチ系の技。`;
+  if (F.pulse === true && !/波動技/.test(text)) text += `波動技。`;
+  if (F.powder === true && !/こな技/.test(text)) text += `こな技。`;
   // ★ダブルバトル向きの技(flags.double_battle_oriented)を後置(2026-06-17): おさきにどうぞ・サイドチェンジ・さきおくり等。
   if (m.flags && m.flags.double_battle_oriented === true && !/ダブルバトル/.test(text)) text += `ダブルバトルで使う技。`;
   return { text, holes };

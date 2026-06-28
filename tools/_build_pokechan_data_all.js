@@ -14,6 +14,7 @@ let LEGEND={}; try{ LEGEND=require('../reference/legend_status.json'); }catch(e)
 let MYK={}; try{ MYK=require('../reference/moves_yakkun.json'); }catch(e){} // slug→ヤックン(徹底攻略)日本語効果文=新技のlegacy参照
 let MFIX={}; try{ MFIX=require('../reference/moves_battle_data_fix.json'); }catch(e){} // ★修正オーバーレイ: slug→正しいbattle_data(effects[])。これが在る技は説明文をcompose生成に一本化(2026-06-27)
 let MDESC={}; try{ MDESC=require('../reference/moves_desc_override.json'); }catch(e){} // ★説明文オーバーレイ(最優先): 121kind語彙で表現できない技(穴/空)をヤックン由来の独自マザー流文で埋める(2026-06-28)
+let MFLAGS={}; try{ MFLAGS=require('../reference/_move_flags.json'); }catch(e){} // ★技フラグ(音/風/切る/弾/噛み/踊り/パンチ等)=構築WFが付与。composeが「音系の技」等を発声(2026-06-29)
 const { compose } = require('./_waza_compose.js'); // effects→効果文(ルール: 元データから説明を生成)
 // ★修正済み技の効果文=composeで生成(マザー流: ダメージ技は「ダメージ。{効果}」/効果なしは「ダメージのみ。」)
 function composeDesc(m){
@@ -175,6 +176,8 @@ for(const m of MV){
   const bd = MFIX[m.slug] ? MFIX[m.slug]
            : (cur&&cur.battle_data ? cur.battle_data
            : (MTAGS[m.slug] ? bdFromTags(MTAGS[m.slug]) : {crit_stage:0,must_crit:false,crit_changes:[],effects:[]}));
+  // ★national技は battle_data.priority を技の優先度から設定(composeが「優先度+Nの先制技」を出す)。0は出さない。
+  if(!cur && bd && bd.priority==null && (m.priority||0)!==0) bd.priority = m.priority;
   const entry={
     name:nameJa, move_no:m.id, type:TYPE_JA[m.type]||m.type, category:CAT_JA[m.damage_class]||'変化',
     target:cur?cur.target:'1体選択', power:m.power, accuracy:m.accuracy, pp:m.pp, priority:m.priority||0,
@@ -183,7 +186,8 @@ for(const m of MV){
     national_new:!cur && !!MJD[m.slug], // 全国版で新規追加した技(M-A/M-B以外=Champions外)
     description_legacy:cur?(cur.description_legacy||''):(MYK[m.slug]||''), // 新技はヤックン(徹底攻略)JAをlegacy参照に
     battle_data:bd,
-    flags:cur&&cur.flags?cur.flags:{},
+    flags:cur&&cur.flags?cur.flags:(MFLAGS[m.slug]||{}), // ★national技は構築WFのフラグを適用
+
     subcategory:(cur&&cur.subcategory)?cur.subcategory:((CAT_JA[m.damage_class]==='変化'&&MTAGS[m.slug])?subcatFromTags(MTAGS[m.slug]):undefined), // 変化技の細分(回復/状態異常等)=わざ列のグループ順。新技はタグ分類から導出して既存と同じグループへ
     tags:cur&&cur.tags?cur.tags:[],
   };
