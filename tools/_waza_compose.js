@@ -70,6 +70,13 @@ function clause(e, m) {
         if (e.prevents_switch) s += `。その間、${immT(e.immune)}タイプでない相手は、逃げたり交代したりできない`;
         return s;
       }
+      // ★2026-06-29 状態名だけでは意味が戻らない特殊状態は中身を展開
+      if (e.value === 'かいふくふうじ') return `${durT(e.duration_turns || e.duration || 5)}の間、相手は回復系の技が使えなくなり、特性・道具・場の効果でもHPが回復しなくなる`; // かいふくふうじ
+      if (e.value === '無防備' || (e.effect && /必ず命中し.*2倍|必ず当たり.*2倍/.test(e.effect))) return e.effect || `次の自分のターンまで、相手から自分への攻撃が必ず当たり、受けるダメージが2倍になる`; // むぼうび(きょけんとつげき)
+      if (e.value && e.note && /地形|フィールドによって/.test(e.note)) { // ひみつのちから等=地形で追加効果が変わる
+        const pre0 = (e.prob != null && e.prob < 100) ? `${e.prob}%の確率で` : '';
+        return `${pre0}相手を「${e.value}」状態にする(ただし、出す追加効果はたたかう場所の地形によって変わる)`;
+      }
       // ★2026-06-17 阿部さん: 攻撃技で prob:100 は「必ず」を明示(ばくれつパンチ等が確率制と誤読される問題対策)。
       //   変化技の prob:100 は既に確定なので省略(legacy慣例)。
       const pp = (e.prob != null && e.prob < 100) ? `${e.prob}%の確率で`
@@ -175,7 +182,7 @@ function clause(e, m) {
       const fr = fracT(e.fraction);
       // ★2026-06-18: incoming(次に出る味方)+全回復 = いやしのねがい/みかづきのいのり/さいきのいのり → 「ただしPPは回復しない」明示
       const ppNote = (e.target === 'incoming' && fr === '全部') ? `(ただしPPは回復しない)` : ``;
-      return ((fr === '全部') ? `${t}のHPを全部回復する` : `${t}のHPを、最大HPの${fr}だけ回復する`) + ppNote;
+      return (e.prob && e.prob < 100 ? `${e.prob}%の確率で` : '') + ((fr === '全部') ? `${t}のHPを全部回復する` : `${t}のHPを、最大HPの${fr}だけ回復する`) + ppNote;
     case 'HPが減る':
       return `自分のHPが最大HPの${fracT(e.fraction)}減る` + (e.always_pays_even_if_blocked ? `(相手が「まもる」などで防いでも、自分のHPは減る)` : ``); // てっていこうせん
     case '固定ダメージ': {
@@ -196,6 +203,7 @@ function clause(e, m) {
       else return null;
       // ★当たるたびに威力が上がる技(トリプルアクセル=20→40→60)。power_per_hit を落とさない
       if (Array.isArray(e.power_per_hit)) base += `。当たるたびに威力が上がる(${e.power_per_hit.join('→')})`;
+      else if (typeof e.power_per_hit === 'number') base += `。当たるたびに威力が${e.power_per_hit}ずつ上がる`; // トリプルキック
       // ★ダブルバトルの挙動(ドラゴンアロー=相手それぞれに1回ずつ)。doubles_note を落とさない
       if (e.doubles_note) base += `。${e.doubles_note}`;
       return base;
@@ -222,12 +230,12 @@ function clause(e, m) {
       // ★忠実版: データの段階表/式をそのまま日本語で。英語formula/basisは出さない・未知形はnull(穴)。
       // ★2026-06-28 全国版の特殊basis(formula判定より前に処理=formulaは未知でnullになるため)
       const maxP = e.max_power || e.power_max;
-      if (e.scales_with === 'なつき度' || e.basis === 'friendship') return `ポケモンがなついているほど威力が高くなる${maxP ? `(最大${maxP})` : ''}`;
+      if (e.scales_with === 'なつき度' || e.basis === 'friendship') return `ポケモンが${e.relation === 'inverse' ? 'なついていない' : 'なついている'}ほど威力が高くなる${maxP ? `(最大${maxP})` : ''}`;
       if (e.scales_with === 'target_remaining_HP_ratio' || e.based_on === 'target_hp_ratio') return `相手の残りHPが多いほど威力が高くなる${maxP ? `(最大${maxP})` : ''}`;
       if (e.basis === 'consecutive_hits') return `当てるたびに威力が2倍ずつ増えていく${maxP ? `(最大${maxP})` : ''}`;
-      if (e.scales_with === 'consecutive_uses') return `毎ターン続けて使うほど威力が高くなっていく${maxP ? `(最大${maxP})` : ''}`;
+      if (e.scales_with === 'consecutive_uses' || e.scales_with === 'consecutive_use') return `続けて使うと、当てるたびに威力が上がっていく${maxP ? `(最大${maxP})` : ''}。外したり続けて使わないと元にもどる`;
       if (e.based_on === 'remaining_pp') return `この技の残りPPが少ないほど威力が高くなる`;
-      if (e.basis === 'held_berry') return `持っている「きのみ」によって威力が変わる`;
+      if (e.basis === 'held_berry') return `持っている「きのみ」によって威力が変わる${e.consumes_user_item ? '(使うと、そのきのみはなくなる)' : ''}`;
       if (e.condition && e.condition.type === 'pledge_combo') return `ダブルバトルで他の「ちかい」技と合わせて使うと、威力が${maxP || 150}になり、追加の効果が出る`;
       if (e.basis === 'random' && Array.isArray(e.tiers)) return `威力はランダムで決まる(${e.tiers.map(t => `${t.prob}%で${t.power}`).join('・')})`;
       if (Array.isArray(e.power_table)) return `威力は${e.power_table.map(t => `${t.prob}%で${t.power}`).join('・')}になる`;
@@ -342,7 +350,7 @@ function clause(e, m) {
       return `${who}の状態異常をすべて治す`;
     }
     case '吸収':
-      return `相手に与えたダメージの${fracT(e.fraction)}だけ、自分のHPを回復する` + (e.basis === 'damage_dealt' ? `` : ``);
+      return `相手に与えたダメージの${fracT(e.fraction)}だけ、自分のHPを回復する` + (e.condition && e.condition.type === 'target_has_status' ? `(相手が「${e.condition.value}」状態の時だけ成功する)` : ``);
     case '自分交代':
       // ★2026-06-15: 変化技(power無)で「攻撃したあと」と書かない(しっぽきり・さむいギャグの誤読対策)
       if (Array.isArray(e.pass) && e.pass.length) return `自分にかかっていた能力ランクの変化や一部の状態(「みがわり」「やどりぎのタネ」「きあいだめ」など)を、控えのポケモンに引きついで交代する(「ちょうはつ」「メロメロ」などは引きつがない)`; // 2026-06-18 バトンタッチ詳細
@@ -470,8 +478,9 @@ function clause(e, m) {
                   : (c.type === 'target_grounded') ? '地面にいるポケモンが受ける'
                   : (c.type === 'grounded') ? '地面にいるポケモンの'
                   : '';
-      if (e.moves) return `${subj}${e.moves.map(x => `「${x}」`).join('')}の威力が${multT(e.multiplier)}`;
-      return `${subj}${mt}威力が${dir}(${multT(e.multiplier)})`;
+      const durPre = e.duration ? `${durT(e.duration)}の間、` : '';
+      if (e.moves) return `${durPre}${subj}${e.moves.map(x => `「${x}」`).join('')}の威力が${multT(e.multiplier)}`;
+      return `${durPre}${subj}${mt}威力が${dir}(${multT(e.multiplier)})`;
     }
     case '引き寄せ': {
       let s = `そのターン、相手の技を自分に引き寄せる`;
@@ -623,6 +632,7 @@ function clause(e, m) {
     case 'ランクリセット':
       return `相手の能力ランクの変化をすべて元にもどす`;
     case 'ランクコピー':
+      if (e.onto === 'self') return `相手の上がっている能力ランクをすべて奪って自分のものにする(相手のその上昇分は元にもどる)。そのあと攻撃のダメージを与える`; // シャドースチール(奪う)
       return `相手のすべての能力ランクの変化を、そのまま自分にコピーする`; // じこあんじ(copies='all stat ranks')
     case 'ランク反転':
       // ★2026-06-19 新技対応: ひっくりかえす(カラマネロ)
@@ -718,9 +728,16 @@ function clause(e, m) {
       return `そのターン、味方の技の威力が${multT(e.multiplier)}`;
     case '命中率固定':
       return `命中率が${e.value}%になる` + (e.else_value != null ? `(そうでないときは命中率${e.else_value}%)` : ``); // ぜったいれいど
-    case 'ランダム技':
-      return `自分が覚えている技の中から、ランダムで1つ出す` + (e.pp_cost === 'this_move_only' ? `(へるPPはこの技のぶんだけで、出した技のPPは減らない)` : ``); // ねごと
+    case 'ランダム技': {
+      // ★2026-06-29 pool別: ほぼ全技(ゆびをふる) / 手持ち仲間の技(ねこのて) / 自分の覚え技(ねごと)
+      const src = e.pool === 'almost_all' ? `ほぼすべての技の中から` : e.pool === 'party_others' ? `自分以外の手持ちポケモンが覚えている技の中から` : `自分が覚えている技の中から`;
+      return `${src}、ランダムで1つ${e.pool==='almost_all'?'使う':'出す'}` + (e.pp_cost === 'this_move_only' ? `(へるPPはこの技のぶんだけで、出した技のPPは減らない)` : ``); // ねごと/ゆびをふる/ねこのて
+    }
     case '直前技模倣':
+      // ★2026-06-29 mode別に出し分け(ものまね=一時習得 / オウムがえし=即時再現 / スケッチ=永久習得)
+      if (e.mode === 'learn_temp') return `相手が最後に自分へ使った技を、一時的にコピーして出せるようになる(そのPPはポイントアップ未使用時の最大値になる。交代するともとにもどる)`; // ものまね
+      if (e.mode === 'learn_permanent') return `この技を忘れて、相手が最後に使った技を覚える(戦闘が終わってももとにもどらない)`; // スケッチ
+      if (e.mode === 'recreate_now') return `相手が最後に使った技で、その相手を攻撃する`; // オウムがえし
       return `直前にだれかが使った技を、自分も出す(自分が使った技もふくむ)`; // 2026-06-18 まねっこ
     case '技強制再使用':
       return `相手に、直前に使った技をもう一度すぐ出させる(反動のある技・2ターン技・複数ターン続く技・チャージ技・はかいこうせんなどには失敗する)`; // 2026-06-18 さいはい
@@ -784,7 +801,7 @@ function clause(e, m) {
     case 'よこどり':
       return `相手が使おうとした、能力ランクを変える技や回復の技を横どりして、自分にかける`; // よこどり
     case '道具封じ':
-      return `${durT(e.duration)}の間、相手は持っている道具を使えなくなる`; // さしおさえ
+      return `${durT(e.duration)}の間、相手は持っている道具を使えなくなる${e.note && /トレーナー/.test(e.note) ? '(トレーナーも、その相手に回復などの道具を使えなくなる)' : ''}`; // さしおさえ
     case '急所無効':
       return `${durT(e.duration)}の間、相手の攻撃が、自分や味方の急所に当たらなくなる`; // おまじない
     case 'さきどり':

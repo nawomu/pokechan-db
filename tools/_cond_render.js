@@ -56,6 +56,23 @@ const L = {
   target_is_ally: c => `味方に使った時`,
   user_species: c => `自分が『${c.value}』の時`,
   user_species_form: c => `自分が『${c.value}』の時`,
+  // ★2026-06-29 全国版で要追加の条件
+  super_effective: c => `相手の弱点をつく時`,
+  super_effective_hit: c => `相手の弱点をつく時`,
+  target_switching_out: c => `相手が交代しようとする時`,
+  target_is_switching: c => `相手が交代しようとする時`,
+  ally_fainted_previous_turn: c => `前のターンに味方が倒された時`,
+  ally_fainted_last_turn: c => `前のターンに味方が倒された時`,
+  current_hp_at_or_below_fraction: c => `相手の残りHPが${c.fraction===0.5?'半分':`${Math.round(1/(c.fraction||0.5))}分の1`}以下の時`,
+  target_hp_below_half: c => `相手の残りHPが半分以下の時`,
+  move_used_this_turn: c => `同じターンに『${c.value||c.move||''}』が使われた時`,
+  ally_or_foe_used_move_this_turn: c => `相手か味方が、同じターンに『${c.value||c.move||''}』を使った時`,
+  target_dynamaxed: c => `相手がダイマックスしている時`,
+  target_is_dynamax: c => `相手がダイマックスしている時`,
+  dynamax_target: c => `相手がダイマックスしている時`,
+  target_terastalized: c => `相手がテラスタルしている時`,
+  user_used_move: c => `前に『${c.value||c.move||''}』を使っている時`,
+  user_form: c => `自分が『${c.value}』の姿の時`,
 };
 // ネストの文字列トークン
 const TOK = { user_is_flying_type: '自分がひこうタイプ', 'user_ability_ふゆう': '特性ふゆう' };
