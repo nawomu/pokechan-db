@@ -127,7 +127,8 @@ function clause(e, m) {
       return det.length ? `${base}。${det.join('。')}` : base;
     }
     case '拘束':
-      return `${immT(e.immune)}タイプでない相手を、${durT(e.duration)}の間、逃げたり交代したりできないようにする`;
+      if (e.target === 'both') return `${durT(e.duration)}の間、おたがいに逃げたり交代したりできなくなる`; // くらいつく
+      return `${e.immune ? immT(e.immune) + 'タイプでない相手を' : '相手を'}、${durT(e.duration)}の間、逃げたり交代したりできないようにする`;
     case 'まもり貫通': {
       // ★bypasses形(ゴーストダイブ/なみだめ): 相手の守り技リストの効果を受けない。not_bypassed=除外。
       if (Array.isArray(e.bypasses)) {
@@ -181,7 +182,7 @@ function clause(e, m) {
       // ★2026-06-15: fraction=1=全部のときは「だけ」を付けない(「全部だけ回復する」が不自然 - のみこむ)
       const fr = fracT(e.fraction);
       // ★2026-06-18: incoming(次に出る味方)+全回復 = いやしのねがい/みかづきのいのり/さいきのいのり → 「ただしPPは回復しない」明示
-      const ppNote = (e.target === 'incoming' && fr === '全部') ? `(ただしPPは回復しない)` : ``;
+      const ppNote = (e.target === 'incoming' && fr === '全部') ? (e.restores_pp ? `(技のPPも全部回復する)` : `(ただしPPは回復しない)`) : ``;
       return (e.prob && e.prob < 100 ? `${e.prob}%の確率で` : '') + ((fr === '全部') ? `${t}のHPを全部回復する` : `${t}のHPを、最大HPの${fr}だけ回復する`) + ppNote;
     case 'HPが減る':
       return `自分のHPが最大HPの${fracT(e.fraction)}減る` + (e.always_pays_even_if_blocked ? `(相手が「まもる」などで防いでも、自分のHPは減る)` : ``); // てっていこうせん
@@ -281,7 +282,7 @@ function clause(e, m) {
       const isAll5 = rawStats.length === 5 && MAIN5.every(s => rawStats.includes(s));
       let main = isAll5
         ? `${pre}${who}すべての能力(${sts.join('・')})が一気に${sg}`
-        : `${pre}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
+        : `${pre}${e.per_turn ? '毎ターン、' : ''}${who}${sts.map(s => `${s}${sg}`).join('、')}`;
       // ★攻撃技で自分の能力ランク「ダウン」は legacy が「攻撃後、」を明示=実機の Phase 9(攻撃後)に下がる(2026-06-17 阿部さん・リファレンス §3 確認済)。
       //    インファイト/りゅうせいぐん/ばかぢから等。アップ系(はがねのつばさ等)は legacy も「攻撃後」を省略するので前置しない。
       //    sim側も phaseApplyEffects 内で処理(real_battle_simulator.html L3390)=データのphase:on_useはsim実装で攻撃後扱い。
@@ -390,7 +391,7 @@ function clause(e, m) {
     case 'こらえる':
       return `そのターン、ひんしになる攻撃を受けてもHPが1だけ残ってたえる。続けて使うと失敗しやすくなる`; // 2026-06-18 阿部さん指摘: 「ひんしになる攻撃時」が正しい
     case '範囲まもり':
-      return `そのターン、複数を巻きこむ技から自分と味方をまもる`;
+      return e.detail || `そのターン、複数を巻きこむ技から自分と味方をまもる`; // たたみがえし/トリックガード等はdetailで中身を出す
     case 'まもり解除': {
       const aff = Array.isArray(e.affected_moves) && e.affected_moves.length ? `「${e.affected_moves.join('」「')}」` : '「まもる」など';
       return `相手の${aff}の守りをやぶってから攻撃する`; // ★略さない: データのaffected_moves全列挙(2026-06-26・なみだめ/ちいさくなると同方針)
@@ -507,7 +508,7 @@ function clause(e, m) {
       const exAbil = (e.exceptions || []).flatMap(x => x.values || []);
       const exC = exAbil.length ? `(ただし「${exAbil.join('」「')}」などの特別な特性はコピーできない)` : ``;
       const exF = exAbil.length ? `(ただし「${exAbil.join('」「')}」など一部の特別な特性のときは失敗する)` : ``; // なやみのタネ
-      if (e.source === 'opponent_ability') return `相手の特性を、自分の特性としてコピーする${exC}`;
+      if (e.source === 'opponent_ability') return e.scope === 'self_and_ally' ? `自分と味方を、相手と同じ特性にする${exC}` : `相手の特性を、自分の特性としてコピーする${exC}`;
       if (e.value === '自分の特性') return `相手の特性を、自分と同じ特性に変える`;
       if (e.value) return `相手の特性を「${e.value}」に変える${exF}`; // なやみのタネ: ふみんに変える + 失敗条件
       return `相手の特性を 上書きする`;
@@ -522,9 +523,15 @@ function clause(e, m) {
     }
     case '技タイプ変更':
       if (e.mapping) {
+        const mk = Object.keys(e.mapping);
+        // ★2026-06-15/06-29: マッピングキーで判定(プレート=さばきのつぶて/カセット=テクノバスター/メモリ=マルチアタック/フィールド=だいちのはどう/天気=ウェザーボール)
+        const isPlate = mk.some(k => /プレート/.test(k)), isCassette = mk.some(k => /カセット/.test(k)), isMemory = mk.some(k => /メモリ/.test(k));
+        const isField = mk.some(k => /フィールド/.test(k));
+        if (isPlate || isCassette || isMemory) {
+          const item = isPlate ? 'プレート' : isCassette ? 'カセット' : 'メモリ';
+          return `持たせた「${item}」の種類によって、技のタイプが変わる`;
+        }
         const ex = Object.entries(e.mapping).map(([k, v]) => `「${k}」なら${v}`).join('・');
-        // ★2026-06-15: マッピングキーから天気/フィールドを判定(だいちのはどう=フィールド・ウェザーボール=天気)
-        const isField = Object.keys(e.mapping).some(k => /フィールド/.test(k));
         const ctx = isField ? 'フィールド' : '天気';
         const fieldNote = isField ? `(さらにフィールドによる1.3倍の効果も重ねてかかる)` : ``; // 2026-06-18 だいちのはどう
         return `${ctx}によって技のタイプが変わる(${ex}。${ctx}がなければ${e.default_type || 'ノーマル'})${fieldNote}`;
@@ -630,7 +637,7 @@ function clause(e, m) {
     case 'ランク無視':
       return `相手の能力ランクの変化を無視して攻撃する`;
     case 'ランクリセット':
-      return `相手の能力ランクの変化をすべて元にもどす`;
+      return e.target === 'all' ? `場にいる全員の能力ランクの変化を、すべて元にもどす` : `相手の能力ランクの変化をすべて元にもどす`;
     case 'ランクコピー':
       if (e.onto === 'self') return `相手の上がっている能力ランクをすべて奪って自分のものにする(相手のその上昇分は元にもどる)。そのあと攻撃のダメージを与える`; // シャドースチール(奪う)
       return `相手のすべての能力ランクの変化を、そのまま自分にコピーする`; // じこあんじ(copies='all stat ranks')
