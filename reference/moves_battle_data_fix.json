@@ -516,7 +516,17 @@
     "target": "opponent",
     "phase": "on_use",
     "value": "こんらん",
+    "prob": 100,
+    "duration": [
+     1,
+     4
+    ],
     "bypasses_substitute": true
+   },
+   {
+    "kind": "みがわり貫通",
+    "target": "opponent",
+    "phase": "on_use"
    }
   ]
  },
@@ -1422,7 +1432,20 @@
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "能力ランク変化",
+    "target": "self",
+    "stat": "attack",
+    "stages": 1,
+    "phase": "lasting",
+    "condition": {
+     "type": "user_hit_by_damaging_move"
+    },
+    "reset": false,
+    "note": "『いかり』状態。場にいる間、相手のダメージ技を受けるたびにこうげき+1。別の技を使うと『いかり』状態が解除される(これまでに上がったランクはそのまま残る)。"
+   }
+  ]
  },
  "teleport": {
   "crit_stage": 0,
@@ -1446,7 +1469,7 @@
     "kind": "直前技模倣",
     "target": "self",
     "phase": "on_use",
-    "note": "相手が最後に自分へ使った技を一時的にコピーして使えるようにする。コピーした技のPPはポイントアップ未使用時の最大値になり、交代すると元のものまねに戻る"
+    "note": "相手が最後に自分へ使った技を一時的にコピーして使えるようにする。コピーした技のPPはポイントアップ未使用時の最大値になる。交代すると元のものまねに戻る"
    }
   ]
  },
@@ -1569,7 +1592,7 @@
     "kind": "直前技模倣",
     "target": "self",
     "phase": "on_use",
-    "note": "相手が最後に使った技を、その相手に対してそっくりそのまま使う。相手がまだ技を出していない/直前の技がオウムがえしで真似できない技だった時は失敗する"
+    "note": "相手が最後に使った技を、その相手に対してそっくりそのまま使う(即時再現)。技スロットを書きかえる『ものまね』とは違い、その場で一度だけ繰り出す。相手がまだ技を出していない/直前の技がオウムがえしで真似できない技だった時は失敗する"
    }
   ]
  },
@@ -1895,7 +1918,8 @@
     "kind": "タイプ上書き",
     "target": "self",
     "phase": "on_use",
-    "note": "自分の一番上(1番目)の技と同じタイプに、自分のタイプを変える。付与するタイプは固定値でなく一番上の技のタイプで動的に決まる"
+    "note": "自分のタイプを、自分の覚えている技のうち一番上(1番目)の技と同じタイプに変える。付与するタイプは固定値ではなく、1番目の技のタイプで動的に決まる",
+    "by": "first_move"
    }
   ]
  },
@@ -1918,7 +1942,7 @@
   "crit_changes": [],
   "effects": [
    {
-    "kind": "反動",
+    "kind": "HPが減る",
     "target": "self",
     "phase": "on_use",
     "fraction": 0.25
@@ -1979,7 +2003,17 @@
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "威力可変",
+    "target": "opponent",
+    "phase": "on_use",
+    "basis": "friendship",
+    "relation": "inverse",
+    "max_power": 102,
+    "note": "なついていないほど威力が高くなる。最大102"
+   }
+  ]
  },
  "sacred-fire": {
   "crit_stage": 0,
@@ -2141,6 +2175,16 @@
     "target": "opponent",
     "phase": "on_use",
     "prob": 20
+   },
+   {
+    "kind": "半無敵命中",
+    "target": "all_but_self",
+    "phase": "on_use",
+    "hits_state": [
+     "空中"
+    ],
+    "damage_multiplier": 2,
+    "note": "相手が『そらをとぶ』『とびはねる』『フリーフォール』で空中にいても命中し、ダメージが2倍になる"
    }
   ]
  },
@@ -2301,7 +2345,7 @@
     "phase": "on_use",
     "value": "まひ",
     "prob": 30,
-    "note": "通常時(地形なし)の追加効果。30%でまひ。発動する追加効果は場の地形(フィールド)によって変わるが、地形なし時はまひ"
+    "note": "発動する追加効果は、たたかう場所の地形(フィールド)によって変わる。地形がないときは30%でまひ。地形があるときはその地形に応じた追加効果になる"
    }
   ]
  },
@@ -2329,7 +2373,8 @@
     "target": "self",
     "phase": "on_use",
     "value": "地形に応じたタイプ",
-    "note": "自分のタイプを、戦っている場所(地形)に応じたタイプ1つに変える。すでにその地形のタイプを持っている場合は失敗する。"
+    "note": "自分のタイプを、戦っている場所(地形)に応じたタイプ1つに変える。すでにその地形のタイプを持っている場合は失敗する。",
+    "by": "terrain"
    }
   ]
  },
@@ -2400,18 +2445,18 @@
   "crit_changes": [],
   "effects": [
    {
-    "kind": "自分拘束",
+    "kind": "連続強制(混乱なし)",
     "target": "self",
     "phase": "lasting",
-    "duration": "外れるまで最大5ターン"
+    "duration": 5
    },
    {
     "kind": "威力可変",
     "target": "opponent",
     "phase": "on_use",
-    "scales_with": "consecutive_turns",
-    "multiplier": 2,
-    "note": "攻撃が当たる度に威力が倍増する(連続して当たるほど倍々に上がる)。最大5ターン目まで。"
+    "basis": "consecutive_hits",
+    "base_power": 30,
+    "note": "連続して当てるたびに威力が2倍ずつ上がる(最大5ターン目まで)"
    },
    {
     "kind": "威力倍率",
@@ -2419,7 +2464,8 @@
     "phase": "on_use",
     "multiplier": 2,
     "condition": {
-     "type": "user_used_defense_curl"
+     "type": "user_used_move",
+     "value": "まるくなる"
     },
     "note": "事前に技『まるくなる』を使っているとダメージが2倍になる"
    }
@@ -2667,11 +2713,8 @@
   "crit_changes": [],
   "effects": [
    {
-    "kind": "能力ランク変化",
+    "kind": "ランク無視",
     "target": "opponent",
-    "stat": "evasion",
-    "stages": -6,
-    "prob": 100,
     "phase": "on_use"
    }
   ]
@@ -2703,7 +2746,18 @@
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "条件威力倍率",
+    "target": "opponent",
+    "phase": "on_use",
+    "multiplier": 2,
+    "condition": {
+     "type": "current_hp_at_or_below_fraction",
+     "fraction": 0.5
+    }
+   }
+  ]
  },
  "natural-gift": {
   "crit_stage": 0,
@@ -2715,15 +2769,16 @@
     "target": "opponent",
     "phase": "on_use",
     "basis": "held_berry",
-    "note": "持っている『きのみ』の種類によって威力が変わる"
+    "consumes_user_item": true,
+    "note": "持っている『きのみ』の種類によって威力が変わる。使うと持っている『きのみ』はなくなる"
    },
    {
     "kind": "技タイプ変更",
     "target": "self",
     "phase": "on_use",
     "default_type": "ノーマル",
-    "note": "持っている『きのみ』の種類によってこの技のタイプが変わる",
-    "by": "held_berry"
+    "by": "held_berry",
+    "note": "持っている『きのみ』の種類によってこの技のタイプが変わる"
    }
   ]
  },
@@ -2736,7 +2791,8 @@
     "kind": "道具封じ",
     "target": "opponent",
     "phase": "lasting",
-    "duration": 5
+    "duration": 5,
+    "note": "5ターンの間、相手は持っている道具を使えなくなる。さらにトレーナーも、回復などの道具をそのポケモンには使えなくなる。"
    }
   ]
  },
@@ -2749,14 +2805,14 @@
     "kind": "状態付与",
     "target": "opponent",
     "phase": "on_use",
-    "effect": "自分が今かかっている状態異常を、そのまま相手にうつす(やけど/どく/もうどく/まひ/ねむり/こおりのどれでも、自分がかかっているものをうつす)",
-    "note": "自分が状態異常でないと失敗する。相手がすでに別の状態異常にかかっている場合も失敗する。相手がその状態異常にならないタイプ/特性なら効かない"
+    "detail": "copy_user_status",
+    "note": "自分が今かかっている状態異常を、そのまま相手にうつす(やけど/どく/もうどく/まひ/ねむり/こおりのいずれか、自分がかかっているもの)。固定の状態異常ではなく自分のものをコピーする。自分が状態異常でないと失敗。相手がすでに別の状態異常にかかっていると失敗。相手がその状態異常にならないタイプ/特性なら効かない"
    },
    {
     "kind": "状態異常回復",
     "target": "self",
     "phase": "on_use",
-    "note": "相手にうつしたぶん、自分の状態異常は治る"
+    "note": "相手にうつしたぶん、自分の状態異常はなおる"
    }
   ]
  },
@@ -2859,7 +2915,7 @@
     "base_power": 60,
     "per_stage": 20,
     "max_power": 200,
-    "note": "威力は60が基本。相手のいずれかの能力ランクが1段階上がっているごとに威力が20増える(すべての能力ランクの合計・最大200)"
+    "note": "威力は60が基本。相手の能力ランクが1段階上がっているごとに威力が20増える(すべての上がっている能力ランクの合計・最大200)"
    }
   ]
  },
@@ -3119,7 +3175,8 @@
     "kind": "回復",
     "target": "incoming",
     "fraction": 1,
-    "phase": "delayed"
+    "phase": "delayed",
+    "note_structured": "次に出すポケモンのHPと全わざのPPを全回復する(いやしのねがいと違いPPも回復する)"
    },
    {
     "kind": "状態異常回復",
@@ -3186,7 +3243,8 @@
     "duration": [
      2,
      4
-    ]
+    ],
+    "note": "ダークライ以外のポケモンが使うと失敗する(使用者がダークライのときだけ成功する)"
    }
   ]
  },
@@ -3309,7 +3367,13 @@
     "kind": "テレキネシス",
     "target": "opponent",
     "phase": "lasting",
-    "duration": 3
+    "duration": 3,
+    "sub_effects": [
+     "3ターンの間、相手をうかせて『テレキネシス』状態にする",
+     "じめんタイプの技が当たらなくなる",
+     "それ以外の技は、相手の回避率や自分の命中率に関係なく必ず命中するようになる",
+     "ただし、一撃必殺の技は必中化の対象外(変化しない)"
+    ]
    }
   ]
  },
@@ -3428,10 +3492,12 @@
     "kind": "持ち物排除",
     "target": "all_opponents",
     "phase": "on_use",
+    "mode": "incinerate",
     "condition": {
      "type": "target_holding_item"
     },
-    "restored_after_battle": false
+    "restored_after_battle": false,
+    "note": "焼き尽くす対象は相手の『きのみ』と『ジュエル(ノーマルジュエル等)』だけ。これらを燃やして使えなくする。はたき落とす(道具全般の排除/落下)ではなく、消費アイテム限定の焼却。スキーマにきのみ/ジュエル限定のcondition語彙が無いため、限定の意味はnote/needs_composeで補足。"
    }
   ]
  },
@@ -3439,7 +3505,18 @@
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "威力倍率",
+    "target": "self",
+    "phase": "this_turn",
+    "multiplier": 2,
+    "condition": {
+     "type": "ally_fainted_previous_turn"
+    },
+    "note": "前のターンに味方のポケモンが倒されていると威力が2倍になる"
+   }
+  ]
  },
  "bestow": {
   "crit_stage": 0,
@@ -3457,13 +3534,37 @@
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "条件威力倍率",
+    "target": "opponent",
+    "phase": "on_use",
+    "multiplier": 1.875,
+    "condition": {
+     "type": "pledge_combo",
+     "value": "同じターンに味方が他の『ちかい』技(ほのおのちかい/くさのちかい)を使い連携した時"
+    },
+    "note": "連携時は威力が150になる(基準80→150。multiplierは目安で、実機は固定150)"
+   }
+  ]
  },
  "fire-pledge": {
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "威力可変",
+    "target": "self",
+    "phase": "on_use",
+    "base_power": 80,
+    "max_power": 150,
+    "condition": {
+     "type": "pledge_combo"
+    },
+    "note": "ダブルバトルで味方が同じターンに別の『ちかい』技を使い連携が成立すると、威力が150になる"
+   }
+  ]
  },
  "grass-pledge": {
   "crit_stage": 0,
@@ -3642,7 +3743,7 @@
      "フリーズカセット": "こおり"
     },
     "default_type": "ノーマル",
-    "note": "持たせた『カセット』によって技のタイプが変わる。カセットを持っていない時はノーマル"
+    "note": "持たせた『カセット』(道具)によって技のタイプが変わる。カセットを持っていない時はノーマル"
    }
   ]
  },
@@ -3793,6 +3894,17 @@
     "value": "こおり",
     "usable_while_frozen": true,
     "note": "自分が『こおり』状態でも使え、使うと自分の『こおり』が治る"
+   },
+   {
+    "kind": "条件威力倍率",
+    "target": "self",
+    "phase": "on_use",
+    "multiplier": 2,
+    "condition": {
+     "type": "ally_or_foe_used_move_this_turn",
+     "move": "fusion-bolt"
+    },
+    "note": "相手・味方を問わず、同じターンに『クロスサンダー』(fusion-bolt)が使われていると威力が2倍になる"
    }
   ]
  },
@@ -3806,6 +3918,11 @@
     "target": "self",
     "phase": "this_turn",
     "multiplier": 2,
+    "condition": {
+     "type": "move_used_this_turn",
+     "value": "fusion-flare",
+     "by": "anyone"
+    },
     "note": "同じターンに(相手・味方を問わず誰かが)技『クロスフレイム』(fusion-flare)を使っていると威力が2倍になる"
    }
   ]
@@ -3820,7 +3937,7 @@
     "target": "team",
     "phase": "this_turn",
     "value": "たたみがえし",
-    "detail": "そのターンの間、自分と味方を攻撃技(ダメージを与える技)から守る。変化技は防げない。出た最初のターンしか成功しない"
+    "detail": "そのターンの間、自分と味方への攻撃技(ダメージをあたえる技)を無効化する。変化技は防げない。出た最初のターンしか成功しない(先制技ではない・優先度0)"
    }
   ]
  },
@@ -3860,7 +3977,7 @@
     "condition": {
      "type": "used_before_target_moves"
     },
-    "note": "そのターンの間、出される技がすべてでんきタイプになる"
+    "note": "そのターン中、敵味方問わず(=target:all、場の全員)が出すノーマルタイプのわざが、すべてでんきタイプに変わる。優先度+1で先に決まる"
    }
   ]
  },
@@ -3895,7 +4012,7 @@
     "target": "team",
     "phase": "this_turn",
     "value": "トリックガード",
-    "detail": "そのターン、自分と味方への変化技を防ぐ。ただし場を対象とする技には効果がない"
+    "detail": "そのターン、自分と味方が受ける相手の変化技(状態へんか技)を防ぐ。攻撃技は防げない。また、場を対象とする技には効果がない"
    }
   ]
  },
@@ -4077,7 +4194,7 @@
    {
     "kind": "失敗ダメージ",
     "target": "opponent",
-    "phase": "on_use",
+    "phase": "this_turn",
     "fraction": 0.25
    }
   ]
@@ -4087,6 +4204,12 @@
   "must_crit": false,
   "crit_changes": [],
   "effects": [
+   {
+    "kind": "2ターン目に攻撃",
+    "target": "self",
+    "phase": "lasting",
+    "duration": 1
+   },
    {
     "kind": "能力ランク変化",
     "target": "self",
@@ -5064,7 +5187,23 @@
    {
     "kind": "特性無効化",
     "target": "all_opponents",
-    "phase": "on_use"
+    "phase": "on_use",
+    "condition": {
+     "type": "user_moves_after_target"
+    },
+    "exceptions": [
+     {
+      "type": "ability",
+      "reason": "form-related or certain unique abilities",
+      "values": [
+       "バトルスイッチ",
+       "ばけのかわ"
+      ],
+      "complete": false,
+      "needs_research": true
+     }
+    ],
+    "note": "この技のダメージを受けた相手が、そのターンにすでに技を使っていた(=自分があとに行動した)場合のみ、その相手の特性を無効化する。常時/場にいる間の無効化ではない"
    }
   ]
  },
@@ -5445,6 +5584,15 @@
      "type": "ability",
      "value": "てつのこぶし"
     }
+   },
+   {
+    "kind": "相手技タイプ変更",
+    "target": "opponent",
+    "value": "でんき",
+    "phase": "this_turn",
+    "condition": {
+     "type": "used_before_target_moves"
+    }
    }
   ]
  },
@@ -5471,6 +5619,12 @@
   "must_crit": false,
   "crit_changes": [],
   "effects": [
+   {
+    "kind": "物理特殊自動",
+    "target": "self",
+    "phase": "on_use",
+    "rule": "compare Physical and Special damage, use the higher category"
+   },
    {
     "kind": "必中",
     "target": "opponent",
@@ -5622,7 +5776,11 @@
     "target": "self",
     "phase": "on_use",
     "fraction": 0.5,
-    "basis": "damage_dealt"
+    "basis": "damage_dealt",
+    "condition": {
+     "type": "target_has_status",
+     "value": "ねむり"
+    }
    }
   ]
  },
@@ -5702,7 +5860,7 @@
     "kind": "直前技模倣",
     "target": "self",
     "phase": "on_use",
-    "note": "相手が最後に使った技を、この技(スケッチ)を忘れて覚える。戦闘が終わっても元に戻らない(永続コピー)。ただし通信対戦などでは元に戻る"
+    "note": "この技(スケッチ)を忘れ、相手が最後に使った技を恒久的に覚える。戦闘が終わっても元に戻らない(永続コピー)。ただし通信対戦などでは元に戻る。一回限りのコピー(オウムがえし/ものまね)ではない"
    }
   ]
  },
@@ -5788,7 +5946,8 @@
     "target": "self",
     "phase": "on_use",
     "value": "ランダム",
-    "note": "相手が最後に使った技が効きづらく(いまひとつ/無効)なるタイプの中から、ランダムに1つ選んで自分のタイプにする"
+    "note": "相手が最後に使ったわざを効きづらく(いまひとつ/こうかなし)するタイプの中から、ランダムに1つ選んで自分のタイプにする",
+    "by": "resist_last_foe"
    }
   ]
  },
@@ -5856,9 +6015,21 @@
   "crit_changes": [],
   "effects": [
    {
-    "kind": "ランク無視",
+    "kind": "必中",
     "target": "opponent",
-    "phase": "on_use"
+    "phase": "lasting",
+    "ignores": [
+     "target_evasion"
+    ],
+    "note": "使用後、相手の回避率(かいひりつ)の変化を無視して攻撃が当たるようになる。能力ランク一般ではなく回避率だけが対象"
+   },
+   {
+    "kind": "相性上書き",
+    "target": "opponent",
+    "phase": "on_use",
+    "against_type": "ゴースト",
+    "effectiveness": "neutral",
+    "note": "相手がゴーストタイプの間、本来は当たらない(無効の)ノーマルタイプ・かくとうタイプの技が当たるようになる(タイプ無効を解除する)"
    }
   ]
  },
@@ -5900,7 +6071,16 @@
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "瀕死回避",
+    "target": "opponent",
+    "phase": "on_use",
+    "scope": "this_move_only",
+    "leaves_hp": 1,
+    "note": "この技のダメージで相手のHPが0になる時、相手をひんしにせずHPを1のこす"
+   }
+  ]
  },
  "milk-drink": {
   "crit_stage": 0,
@@ -6154,6 +6334,15 @@
      "user_accuracy",
      "target_evasion"
     ]
+   },
+   {
+    "kind": "威力可変",
+    "target": "opponent",
+    "phase": "on_use",
+    "scales_with": "なつき度",
+    "power_max": 148,
+    "formula": "なつき度が高いほど威力が上がる(最大148)",
+    "note": "ポケモンがなついているほど威力が高くなる。最大148"
    }
   ]
  },
@@ -6204,7 +6393,17 @@
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "条件威力倍率",
+    "target": "opponent",
+    "phase": "on_use",
+    "multiplier": 2,
+    "condition": {
+     "type": "target_dynamaxed"
+    }
+   }
+  ]
  },
  "snipe-shot": {
   "crit_stage": 0,
@@ -6346,13 +6545,34 @@
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "威力倍率",
+    "target": "opponent",
+    "phase": "on_use",
+    "multiplier": 2,
+    "condition": {
+     "type": "target_is_dynamax"
+    },
+    "note": "第8世代では、相手がダイマックス状態のときダメージが2倍になる"
+   }
+  ]
  },
  "behemoth-bash": {
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "条件威力倍率",
+    "target": "opponent",
+    "phase": "on_use",
+    "multiplier": 2,
+    "condition": {
+     "type": "dynamax_target"
+    }
+   }
+  ]
  },
  "branch-poke": {
   "crit_stage": 0,
@@ -6759,7 +6979,18 @@
   "crit_stage": 0,
   "must_crit": false,
   "crit_changes": [],
-  "effects": []
+  "effects": [
+   {
+    "kind": "状態付与",
+    "target": "self",
+    "phase": "lasting",
+    "duration": 1,
+    "value": "無防備",
+    "multiplier": 2,
+    "effect": "次の自分のターンまで、相手から自分への攻撃が必ず命中し、受けるダメージが2倍になる",
+    "note": "きょけんとつげきの反動デバフ。自分の次の行動まで継続し、相手の攻撃が必中かつ被ダメージ2倍"
+   }
+  ]
  },
  "revival-blessing": {
   "crit_stage": 0,
@@ -6768,10 +6999,14 @@
   "effects": [
    {
     "kind": "回復",
-    "target": "party",
+    "target": "ally",
     "fraction": 0.5,
     "phase": "on_use",
-    "basis": "max_hp"
+    "basis": "max_hp",
+    "condition": {
+     "type": "target_fainted"
+    },
+    "note": "手持ちにいる『ひんし』状態のポケモンを1匹えらんで復活させ、最大HPの半分のHPで戻す。場にいる全員を回復する技ではない"
    }
   ]
  },

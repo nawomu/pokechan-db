@@ -60,6 +60,11 @@ function clause(e, m) {
   const k = e.kind, t = TGT[e.target] || e.target;
   switch (k) {
     case '状態付与': {
+      // ★2026-06-29 value欠落のundefined防止: detail/noteで意味を出す(サイコシフト等の状態コピー系)
+      if (!e.value) {
+        if (e.detail === 'copy_user_status') return `自分がいまかかっている状態異常を、そのまま相手にうつす(自分が状態異常でないときや、相手がすでに別の状態異常・効かないタイプのときは失敗する)`;
+        return null; // 不明はundefinedを出さず穴
+      }
       if (e.value === 'バインド') {
         let s = `相手をバインド状態にして、${durT(e.duration)}の間、毎ターン終わりに、最大HPの${fracT(e.turn_end_damage)}だけダメージを与える`;
         if (e.prevents_switch) s += `。その間、${immT(e.immune)}タイプでない相手は、逃げたり交代したりできない`;
@@ -533,7 +538,14 @@ function clause(e, m) {
         const tera = (!SYSTEMS_IN_GAME.tera && /テラスタル/.test(e.note || '')) ? `（相手がテラスタルしているときはそのテラスタイプをコピーする。ステラのときは元のタイプをコピーする）` : '';
         return `自分のタイプを、相手と同じタイプに変える${tera}`;
       }
-      return /^[A-Za-z_]+$/.test(String(e.value || '')) ? `相手のタイプを変える` : `相手のタイプを「${e.value}」だけに変える`;
+      // ★2026-06-29 target=self(テクスチャー/テクスチャー2/ほごしょく等)。by判別で動的タイプを訳す(undefined防止)
+      if (e.target === 'self') {
+        if (e.by === 'first_move') return `自分のタイプを、自分の一番上の技と同じタイプに変える`;
+        if (e.by === 'resist_last_foe') return `自分のタイプを、相手が最後に使った技を効きにくくするタイプの中からランダムに1つ選んで、それに変える`;
+        if (e.by === 'terrain') return `自分のタイプを、戦っている場所(地形)に合ったタイプ1つに変える(すでにそのタイプのときは失敗する)`;
+        return e.value && !/^[A-Za-z_]+$/.test(String(e.value)) && !/応じた|ランダム/.test(e.value) ? `自分のタイプを「${e.value}」に変える` : `自分のタイプを変える`;
+      }
+      return /^[A-Za-z_]+$/.test(String(e.value || '')) || !e.value ? `相手のタイプを変える` : `相手のタイプを「${e.value}」だけに変える`;
     case 'タイプ追加':
       return `相手に「${e.value}」タイプを追加する`;
     case 'タイプ除去':
@@ -755,6 +767,9 @@ function clause(e, m) {
       return `そのターン、すばやさに関係なく、味方の行動順を自分のすぐ後ろにする`; // りんしょう
     case '位置入替':
       return `自分と味方の立ち位置を入れかえる` + (e.consecutive_success_multiplier != null ? `(最初は必ず成功するが、2回目以降は続けて使うたびに成功する確率が${fracT(e.consecutive_success_multiplier)}になる。失敗するともとにもどる)` : ``); // 2026-06-18: サイドチェンジ 初回確実を明示
+    // ★2026-06-29 みねうち/てかげん: この技で相手は瀕死にならずHPが1残る
+    case '瀕死回避':
+      return `この技のダメージでは相手はひんしにならず、HPが${e.leaves_hp || 1}だけのこる`;
     // ★2026-06-28 全国版の場操作・道具操作系を新kindで追加(effects→sim土台。説明文オーバーレイから移行)
     case '場入れ替え':
       return `おたがいの場の状態(リフレクター・ひかりのかべ・オーロラベール・おいかぜ・しんぴのまもり・しろいきり・ステルスロック・まきびし・どくびし・ねばねばネット)を、自分側と相手側で入れかえる(残りターン数は引きつがれる)`; // コートチェンジ
