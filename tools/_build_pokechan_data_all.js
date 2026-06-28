@@ -157,14 +157,18 @@ const POKEMON_LIST=P2.map(v=>{
 });
 
 // --- WAZA_MAP(937, key=move slug) + learners(learnset逆引き) ---
+// ★2026-06-28 シャドウ技(type=shadow=コロシアム/XD専用・本編外)は全国版から除外(阿部さん)。
+//   ※slug名でなくtypeで判定(シャドーボール等の本編ゴースト技=type:ghostを誤除外しないため)。
+const SHADOW=new Set(MV.filter(m=>m.type==='shadow').map(m=>m.slug));
 const learnersBy={}; // moveSlug→Set(jaName)
 const POKEMON_WAZA={};
-for(const v of P2){ const n=NAME[v.slug]; const moves=LS[v.slug]||[]; POKEMON_WAZA[n]=moves.slice();
+for(const v of P2){ const n=NAME[v.slug]; const moves=(LS[v.slug]||[]).filter(ms=>!SHADOW.has(ms)); POKEMON_WAZA[n]=moves.slice();
   for(const ms of moves){ (learnersBy[ms]||(learnersBy[ms]=new Set())).add(n); } }
 // curated overlay(JA技名一致): description/description_legacy/battle_data/tags/target/contact/protect/flags
 const curByName={}; Object.keys(C.WAZA_MAP).forEach(k=>{const w=C.WAZA_MAP[k];curByName[w.name]=w;});
 const WAZA_MAP={};
 for(const m of MV){
+  if(SHADOW.has(m.slug)) continue; // ★シャドウ技除外(コロシアム/XD専用)
   const nameJa=MVJA[m.slug]; const cur=curByName[nameJa];
   const learners=[...(learnersBy[m.slug]||[])];
   // battle_data: ①修正オーバーレイ(MFIX) > ②Champions curated > ③moves_tags変換 > ④空
