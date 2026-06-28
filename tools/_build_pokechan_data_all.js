@@ -13,6 +13,7 @@ let MTAGS={}; try{ MTAGS=require('../reference/moves_tags.json'); }catch(e){} //
 let LEGEND={}; try{ LEGEND=require('../reference/legend_status.json'); }catch(e){} // dex→伝説区分(restricted/sub/mythical)
 let MYK={}; try{ MYK=require('../reference/moves_yakkun.json'); }catch(e){} // slug→ヤックン(徹底攻略)日本語効果文=新技のlegacy参照
 let MFIX={}; try{ MFIX=require('../reference/moves_battle_data_fix.json'); }catch(e){} // ★修正オーバーレイ: slug→正しいbattle_data(effects[])。これが在る技は説明文をcompose生成に一本化(2026-06-27)
+let MDESC={}; try{ MDESC=require('../reference/moves_desc_override.json'); }catch(e){} // ★説明文オーバーレイ(最優先): 121kind語彙で表現できない技(穴/空)をヤックン由来の独自マザー流文で埋める(2026-06-28)
 const { compose } = require('./_waza_compose.js'); // effects→効果文(ルール: 元データから説明を生成)
 // ★修正済み技の効果文=composeで生成(マザー流: ダメージ技は「ダメージ。{効果}」/効果なしは「ダメージのみ。」)
 function composeDesc(m){
@@ -182,9 +183,10 @@ for(const m of MV){
     subcategory:(cur&&cur.subcategory)?cur.subcategory:((CAT_JA[m.damage_class]==='変化'&&MTAGS[m.slug])?subcatFromTags(MTAGS[m.slug]):undefined), // 変化技の細分(回復/状態異常等)=わざ列のグループ順。新技はタグ分類から導出して既存と同じグループへ
     tags:cur&&cur.tags?cur.tags:[],
   };
-  // 説明文: ★MFIX(修正済)=compose一本化(元データから生成・ルール準拠) / それ以外=従来(curated or MJDマザー流)
-  entry.description = MFIX[m.slug] ? composeDesc(entry)
-                    : (cur?(cur.description||MJD[m.slug]||''):(MJD[m.slug]||''));
+  // 説明文: ★①MDESC(説明文オーバーレイ・最優先=語彙外メカをヤックン由来手書き) ②MFIX=compose一本化 ③従来(curated or MJD)
+  entry.description = MDESC[m.slug] ? MDESC[m.slug]
+                    : (MFIX[m.slug] ? composeDesc(entry)
+                    : (cur?(cur.description||MJD[m.slug]||''):(MJD[m.slug]||'')));
   WAZA_MAP[m.slug]=entry;
 }
 
