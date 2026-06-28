@@ -1,0 +1,488 @@
+[
+ {
+  "skill": "sonic-boom",
+  "slug": "sonic-boom",
+  "effects": [
+   {
+    "kind": "固定ダメージ",
+    "target": "opponent",
+    "phase": "on_use",
+    "amount": 20
+   }
+  ],
+  "notes": "ソニックブームは威力固定の特殊技で、命中すれば常に20の固定ダメージ。power=nullなので通常ダメージ計算は走らず、固定ダメージkindで表現。ヤックン文の「タイプには無効だが、それ以外のタイプ相性の影響を受けない」=相手がノーマル技を無効化するタイプ/特性(ゴーストではなくノーマル技なので該当は相手特性ふゆう等ではないが、無効なら0)なら無効、それ以外はタイプ相性倍率(半減・抜群)を無視して常に20。固定ダメージ技の本来の性質だが、スキーマに ignores_type_matchup や immune を表すフィールドが固定ダメージkindに無いため effects には入れずここに明記。amountは数値20で固定(自分のレベル分等の文字列ではない)。champions_amount/minimumは該当なし。",
+  "confidence": 0.9
+ },
+ {
+  "slug": "dragon-rage",
+  "effects": [
+   {
+    "kind": "固定ダメージ",
+    "target": "opponent",
+    "phase": "on_use",
+    "amount": 40
+   }
+  ],
+  "notes": "りゅうのいかり=常に40の固定ダメージ。固定ダメージkindに amount:40 を指定(レベル依存ではないので数値直書き)。yakkun「タイプには無効だが、それ以外のタイプ相性の影響を受けない」=ドラゴン技なのでフェアリー等の無効タイプには当たらない(これはタイプ無効として自動処理)が、それ以外は相性倍率(2倍/0.5倍)を受けず常に40という意味。固定ダメージは本来相性倍率を受けない仕様なので effects 上の追加表現は不要だが、スキーマに ignores_type_matchup 等のフィールドが固定ダメージには無いため、相性無視の肝は notes に記載(無理に表現しない)。通常ダメージ計算は使わない技なので power=null。",
+  "confidence": 0.9
+ },
+ {
+  "slug": "nightmare",
+  "effects": [
+   {
+    "kind": "継続削り",
+    "target": "opponent",
+    "phase": "turn_end",
+    "fraction": 0.25,
+    "condition": {
+     "type": "target_has_status",
+     "value": "ねむり"
+    }
+   }
+  ],
+  "flags": {},
+  "notes": "あくむ=相手がねむり状態のときだけ「あくむ」状態にし、毎ターン最大HPの1/4を削る。ねむりから覚めるとあくむも解ける技。スキーマの状態付与valueに「あくむ」が無いため、状態名そのもの(状態付与value=あくむ)は語彙に無く入れられない(推測でvalueを作らない方針)。代わりに、表現可能な「相手がねむり中・毎ターン最大HP1/4の継続ダメージ」を継続削り(phase:turn_end, fraction:0.25, condition:target_has_status=ねむり)で表現した。この条件付けにより「ねむり中だけ削る/覚めたら止まる(=あくむ解除)」という肝はカバーされる。一方で①命中時に相手が『ねむり』でないと失敗する点(発動条件)、②付与される状態名が独自の『あくむ』である点、はスキーマ語彙に該当kind/valueが無いため effects 化せず notes に記載。compose時は「相手がねむり状態のとき、毎ターンHPが最大HPの1/4ずつ減る(目が覚めると止まる)」の意味で訳せる。",
+  "confidence": 0.6
+ },
+ {
+  "slug": "stomp",
+  "effects": [
+   {
+    "kind": "状態付与",
+    "target": "opponent",
+    "phase": "on_use",
+    "value": "ひるみ",
+    "prob": 30
+   },
+   {
+    "kind": "必中",
+    "target": "opponent",
+    "phase": "on_use",
+    "condition": {
+     "type": "target_minimized"
+    }
+   },
+   {
+    "kind": "威力倍率",
+    "target": "opponent",
+    "phase": "on_use",
+    "multiplier": 2,
+    "condition": {
+     "type": "target_minimized"
+    }
+   }
+  ],
+  "notes": "ふみつけ(物理65/命中100)。通常ダメージはpower/categoryから自動なのでeffects外。追加効果3点を構造化: ①30%ひるみ(状態付与 ひるみ prob30)。②相手が「ちいさくなる」使用中なら必中(必中 condition target_minimized)=スキーマ表38行の例と完全一致。③同条件で威力2倍(威力倍率 multiplier2 condition target_minimized)。target_minimized はスキーマ既出のcondition型。contact:false(非接触技)なのでflags.contactは付けない。",
+  "confidence": 0.95
+ },
+ {
+  "slug": "growl",
+  "effects": [
+   {
+    "kind": "能力ランク変化",
+    "target": "all_opponents",
+    "stat": "attack",
+    "stages": -1,
+    "phase": "on_use"
+   },
+   {
+    "kind": "みがわり貫通",
+    "target": "opponent",
+    "phase": "on_use"
+   }
+  ],
+  "flags": {
+   "sound": true
+  },
+  "notes": "なきごえ=相手全体のこうげきランクを1段階下げる変化技。yakkun「相手全体が対象」よりtarget=all_opponentsとした(技自体のtargetフィールドは『1体選択』だが効果文は全体記載)。音系技=flags.sound。みがわり貫通はスキーマの専用kindで表現。威力なしの変化技なのでダメージeffectは無し。",
+  "confidence": 0.95
+ },
+ {
+  "effects": [
+   {
+    "kind": "状態付与",
+    "target": "opponent",
+    "phase": "on_use",
+    "value": "こんらん",
+    "bypasses_substitute": true
+   }
+  ],
+  "flags": {
+   "sound": true
+  },
+  "slug": "supersonic",
+  "notes": "ちょうおんぱ=相手をこんらん状態にする変化技(威力なし)。音系=flags.sound:true。みがわり貫通=状態付与のbypasses_substitute:true。こんらんの持続1～4ターンはこんらん状態の仕様で固定なので個別フィールドは付けず(schemaのdurationは任意)。命中55はaccuracy側で扱うためeffectsには入れない。",
+  "confidence": 0.9
+ },
+ {
+  "slug": "drum-beating",
+  "effects": [
+   {
+    "kind": "能力ランク変化",
+    "target": "opponent",
+    "stat": "speed",
+    "stages": -1,
+    "prob": 100,
+    "phase": "on_use"
+   }
+  ],
+  "notes": "ドラムアタック: 物理80/命中100/くさ。通常ダメージ後、100%で相手のすばやさを1段階下げる追加効果のみ。ダメージ本体はpower/categoryから自動。非接触(contact:false)。",
+  "confidence": 0.97
+ },
+ {
+  "slug": "pyro-ball",
+  "effects": [
+   {
+    "kind": "状態付与",
+    "target": "opponent",
+    "phase": "on_use",
+    "value": "やけど",
+    "prob": 10
+   },
+   {
+    "kind": "状態異常回復",
+    "target": "self",
+    "phase": "on_use",
+    "value": "こおり",
+    "usable_while_frozen": true
+   }
+  ],
+  "flags": {
+   "bullet": true
+  },
+  "notes": "かえんボール=ほのお物理120/命中90。通常ダメージはpower/categoryから自動なのでeffects化せず、追加効果のみ構造化。(1)10%でやけど=状態付与opponent/やけど/prob10。(2)ヤックン「自分がこおり状態でも使え、使うとこおりが治る」=状態異常回復self/value:こおり/usable_while_frozen:true(スキーマに専用フィールドあり)。(3)「弾技」=ぼうだん(ぼうおん系)で防がれるタグ。スキーマkindに弾技を表す語彙が無いためflags.bullet:trueで保持しnotesに明記(無理にkind化しない)。contact:false=非接触。",
+  "confidence": 0.9
+ },
+ {
+  "slug": "grav-apple",
+  "effects": [
+   {
+    "kind": "威力倍率",
+    "target": "self",
+    "phase": "on_use",
+    "multiplier": 1.5,
+    "condition": {
+     "type": "field_state",
+     "value": "じゅうりょく"
+    }
+   },
+   {
+    "kind": "能力ランク変化",
+    "target": "opponent",
+    "stat": "defense",
+    "stages": -1,
+    "phase": "on_use",
+    "prob": 100
+   }
+  ],
+  "notes": "Ｇのちから(grav-apple)。物理80/くさ。効果2つ: ①100%で相手のぼうぎょ-1(能力ランク変化, prob100)。②場が『じゅうりょく』状態のとき威力1.5倍(威力倍率, condition.type=field_state value=じゅうりょく)。通常ダメージはpower/categoryから自動なのでeffects化しない。confidenceは本番pokechan_data.jsのgrav-apple既存effectsと完全一致を確認済み(grep)。field_state/じゅうりょくはともに本番で使用実績のある語彙。",
+  "confidence": 0.99
+ },
+ {
+  "slug": "strange-steam",
+  "effects": [
+   {
+    "kind": "状態付与",
+    "target": "opponent",
+    "phase": "on_use",
+    "value": "こんらん",
+    "prob": 20
+   }
+  ],
+  "notes": "ワンダースチーム=特殊フェアリー威力90/命中95。通常ダメージはpower/categoryから自動なのでeffects化しない。追加効果は「20%で相手をこんらん」のみ。こんらんの継続1～4ターンはこんらん状態固有の仕様(value=こんらん側が持つ)なのでprob:20だけ指定。スキーマにduration系フィールドはあるが1-4ランダムは状態固有なので無理に入れない。",
+  "confidence": 0.95
+ },
+ {
+  "slug": "victory-dance",
+  "effects": [
+   {
+    "kind": "能力ランク変化",
+    "target": "self",
+    "stat": "attack",
+    "stages": 1,
+    "phase": "on_use"
+   },
+   {
+    "kind": "能力ランク変化",
+    "target": "self",
+    "stat": "defense",
+    "stages": 1,
+    "phase": "on_use"
+   },
+   {
+    "kind": "能力ランク変化",
+    "target": "self",
+    "stat": "speed",
+    "stages": 1,
+    "phase": "on_use"
+   }
+  ],
+  "flags": {
+   "dance": true
+  },
+  "notes": "変化技。自分のこうげき・ぼうぎょ・すばやさを各+1。3つの能力ランク変化を別々のentryで表現(stat英語=attack/defense/speed、stages=1、target=self、phase=on_use)。「踊り系の技」はflags.dance=true(おどりこ特性で誘発される技分類)。スキーマ表のflagsに踊り専用キーの明示は無いがflagsはオブジェクト自由欄として表現、effects本体には推測kindを入れていない。confidenceはeffectsは確実、dance flagのキー名のみ命名上の推測。",
+  "confidence": 0.9
+ },
+ {
+  "slug": "esper-wing",
+  "effects": [
+   {
+    "kind": "急所率上昇",
+    "target": "self",
+    "phase": "on_use",
+    "stages": 1
+   },
+   {
+    "kind": "能力ランク変化",
+    "target": "self",
+    "stat": "speed",
+    "stages": 1,
+    "phase": "on_use",
+    "prob": 100
+   }
+  ],
+  "notes": "オーラウイング(エスパー・特殊・威力80・命中100)。追加効果は2つ: ①急所ランク+1(急所率上昇 stages:1)、②攻撃後100%で自分のすばやさ+1段階(能力ランク変化 self speed stages:1 prob:100)。通常ダメージはpower/categoryから自動なのでeffectsに入れない。自己ランク上昇は攻撃後だが、本番慣例に合わせphase:on_useで表現(prob:100で確定上昇を明示)。",
+  "confidence": 0.95
+ },
+ {
+  "slug": "triple-arrows",
+  "effects": [
+   {
+    "kind": "急所率上昇",
+    "target": "self",
+    "phase": "on_use",
+    "stages": 1
+   },
+   {
+    "kind": "能力ランク変化",
+    "target": "opponent",
+    "stat": "defense",
+    "stages": -1,
+    "prob": 50,
+    "phase": "on_use"
+   },
+   {
+    "kind": "ひるみ",
+    "target": "opponent",
+    "phase": "on_use",
+    "prob": 30
+   }
+  ],
+  "notes": "３ぼんのや。通常物理ダメージ(power90)はeffects化しない。ヤックン3要素を構造化: ①急所ランク+1(急所率上昇 stages:1) ②50%で相手ぼうぎょ-1(能力ランク変化 defense -1 prob:50) ③30%でひるみ(ひるみ prob:30)。全て攻撃に伴う追加効果なのでphase=on_use。contact:false。",
+  "confidence": 0.97
+ },
+ {
+  "effects": [
+   {
+    "kind": "能力ランク変化",
+    "target": "opponent",
+    "stat": "defense",
+    "stages": -1,
+    "prob": 100,
+    "phase": "on_use"
+   }
+  ],
+  "notes": "ヤックン=100%で相手のぼうぎょを1段階下げる追加効果。物理90/命中100の通常ダメージ自体はpower/categoryから自動なのでeffects化せず、追加効果のみ構造化。prob:100で確定発動を明示。入力データcontact:falseに従いcontactフラグは付けていない。",
+  "slug": "thunderous-kick",
+  "confidence": 0.97
+ },
+ {
+  "slug": "bleakwind-storm",
+  "effects": [
+   {
+    "kind": "能力ランク変化",
+    "target": "all_opponents",
+    "stat": "speed",
+    "stages": -1,
+    "prob": 30,
+    "phase": "on_use"
+   },
+   {
+    "kind": "天候必中",
+    "target": "all_opponents",
+    "phase": "on_use",
+    "value": "あめ",
+    "accuracy": "never_miss"
+   }
+  ],
+  "flags": {
+   "wind": true
+  },
+  "notes": "こがらしあらし=相手全体対象の特殊ひこう技。①30%で相手全体のすばやさ-1(prob付き能力ランク変化)。②天気が『あめ』の時は必ず命中(天候必中 value=あめ accuracy=never_miss、スキーマ例のゆきあらし型をあめに置換)。③風技フラグ(wind)。通常ダメージはpower=100から自動なのでeffects化しない。相手全体対象はtarget=all_opponentsで表現。",
+  "confidence": 0.9
+ },
+ {
+  "slug": "psyblade",
+  "effects": [
+   {
+    "kind": "威力倍率",
+    "target": "self",
+    "phase": "this_turn",
+    "multiplier": 1.5,
+    "condition": {
+     "type": "terrain",
+     "value": "エレキフィールド"
+    }
+   }
+  ],
+  "flags": {
+   "slash": true
+  },
+  "notes": "通常の物理ダメージ(威力80)はpower/categoryから自動なのでeffects化せず。effectsは追加メカ=「場がエレキフィールドの時、威力1.5倍」のみ。条件はterrain条件タイプ+value:エレキフィールド(スキーマのterrain/field条件に準拠、グラスフィールド/サイコフィールドと同じ語彙)。phaseはてつのこぶし威力倍率例に倣いthis_turn。「切る技」=きれあじ等が強化する斬撃フラグ。スキーマのkind一覧にslash相当のkindが無いためeffectsには入れずflags.slashで表現。接触=false。",
+  "confidence": 0.86
+ },
+ {
+  "slug": "hydro-steam",
+  "effects": [
+   {
+    "kind": "威力倍率",
+    "target": "self",
+    "phase": "this_turn",
+    "multiplier": 1.5,
+    "condition": {
+     "type": "weather",
+     "value": "にほんばれ"
+    },
+    "note": "にほんばれ時、水技は通常威力が下がるが、この技は下がらず逆に1.5倍になる"
+   },
+   {
+    "kind": "状態異常回復",
+    "target": "self",
+    "phase": "on_use",
+    "value": "こおり",
+    "usable_while_frozen": true
+   },
+   {
+    "kind": "状態異常回復",
+    "target": "opponent",
+    "phase": "on_use",
+    "value": "こおり"
+   }
+  ],
+  "notes": "ヤックン文の3要素を構造化。(1)威力倍率: にほんばれ時に1.5倍。「威力が下がらず」は水技がにほんばれで弱体化する通常挙動の打ち消し=本技は1.5倍になる点をmultiplier1.5+conditionで表現し、補足をnoteに記載(下がらない肝はnote)。(2)状態異常回復(self/こおり)+usable_while_frozen:true=自分がこおりでも使え、使うと自分のこおりが治る。(3)状態異常回復(opponent/こおり)=相手のこおりも治す。通常ダメージはpower80から自動なのでeffects化しない。condition type=weatherはスキーマ表の天候value にほんばれ を使用(condition自体は他kindでcondition objを取る形に倣った)。",
+  "confidence": 0.85
+ },
+ {
+  "slug": "ruination",
+  "effects": [
+   {
+    "kind": "固定ダメージ",
+    "target": "opponent",
+    "phase": "on_use",
+    "amount": "相手の残りHPの半分"
+   }
+  ],
+  "flags": {},
+  "notes": "カタストロフィ=相手の現在HPの半分を固定ダメージで奪う技(いかりのまえば/Super Fangと同型)。本番のいかりのまえばに合わせ kind『固定ダメージ』・amount『相手の残りHPの半分』を採用(語彙一致)。\\n\\nヤックン『タイプ相性の影響を受けない』について: 固定ダメージは元来タイプ相性で増減しない性質。スキーマ表の『固定ダメージ』のfield一覧(kind,target,phase,amount,champions_amount,minimum)には型相性無視を表すフィールドが無いため、推測で ignores_type_matchup 等を足さずeffectsには入れない(いかりのまえばも同様にeffectsへ入れず legacy文側で表現していた)。compose/legacyで『タイプ相性に関係なく当たる(無効化されない)』を明示する必要あり。\\n\\nいかりのまえばとの差分: いかりのまえばは『ゴーストには無効』だがカタストロフィにはゴースト例外が無い(あくタイプ・全タイプに通る)。よって minimum:1 はヤックン文に明記が無いため未付与(機械的には残り1で1ダメージだが原文準拠で省略)。power=1 はダミー値で実ダメージは固定ダメージkindが決める(通常ダメージ計算は使わない)。",
+  "confidence": 0.88
+ },
+ {
+  "slug": "collision-course",
+  "effects": [
+   {
+    "kind": "条件威力倍率",
+    "target": "opponent",
+    "phase": "on_use",
+    "multiplier": 1.333,
+    "condition": {
+     "type": "super_effective"
+    }
+   }
+  ],
+  "flags": {},
+  "notes": "アクセルブレイク(コライドン専用)。ヤックン=「相手の弱点をつくと、ダメージが4/3倍(1.33倍)になる」。通常ダメージはpower100/物理から自動なので、特殊メカ=「効果ばつぐん(=相手の弱点をつく)時だけ威力×4/3」だけをeffects化。\\n\\n採用kind=「条件威力倍率」(スキーマ表 本番4件・purpose-built。条件成立時のみ威力倍率)。multiplier=1.333(=4/3≒1.33倍)。condition.type=\\\"super_effective\\\"=相手にこうかばつぐんで当たるとき(effectiveness値\\\"super_effective\\\"はフリーズドライ等で本番採用済の表記に合わせた)。\\n\\n【compose穴・要確認】tools/_waza_compose.js の「条件威力倍率」テンプレ(L546)は `威力が${multT(e.multiplier)}` しか出さず、condition(=「相手の弱点をつくと」)を文章化しない。このままだと説明文が「威力が1.33倍」だけになり、肝の発動条件(=ばつぐん時のみ)が漏れる。effects側の表現はスキーマ語彙内で過不足ないが、compose側で condition.type==\\\"super_effective\\\" を「相手の弱点をつくと、」と前置きする対応が別途必要(=データでなくエンジンの未訳。スキーマ表にcondition前置きを足す指示は無いので推測実装はせず、ここに残す)。\\n\\nなお「威力倍率」kind(L145)もテンプレ同様にconditionを訳さないため、どちらを使っても同じ穴。条件付き=「条件威力倍率」がより意味に近いので採用。\\n\\n同メカの双子=electro-drift(イナズマドライブ・ミライドン専用)も同一effectsでよい。",
+  "confidence": 0.8
+ },
+ {
+  "slug": "double-shock",
+  "effects": [
+   {
+    "kind": "タイプ除去",
+    "target": "self",
+    "value": "でんき",
+    "phase": "on_use"
+   }
+  ],
+  "notes": "でんこうそうげき=もえつきる(burn-up)のでんき版。通常ダメージ(物理120/命中100)はpower/categoryから自動。追加メカは「攻撃後に自分のでんきタイプを失う」=タイプ除去kind(本番のほのお除去と同型)で value=でんき。\\n\\nスキーマで表現できない肝: ヤックン文「自分がタイプではない時は失敗する」=でんきタイプを持っていない(=既に失っている/でんき以外になっている)状態では技自体が失敗する、という発動条件。タイプ除去のfieldsは kind/target/value/phase のみで fails_if 系の条件フィールドが無いため effects には入れていない。composeがこの失敗条件を喋れない可能性があり、必要なら別途エンジン側か台帳で補足が要る。contact=false(非接触)。",
+  "confidence": 0.85
+ },
+ {
+  "slug": "fillet-away",
+  "effects": [
+   {
+    "kind": "HPが減る",
+    "target": "self",
+    "phase": "on_use",
+    "fraction": 0.5
+   },
+   {
+    "kind": "能力ランク変化",
+    "target": "self",
+    "stats": [
+     "attack",
+     "special_attack",
+     "speed"
+    ],
+    "stages": 2,
+    "phase": "on_use"
+   }
+  ],
+  "notes": "みをけずる(変化技)。自分の最大HPの半分を払う代わりに、こうげき/とくこう/すばやさを各+2する自己強化。HPが減る(fraction:0.5=最大HPの半分)とランク+2はセットの代償構造。HP半減はコストでありダメージ判定ではない(瀕死にはなり得るがHPが1以上残らない場合は失敗=実機仕様だが、スキーマに『残HP不足で失敗』を表す語彙が無いためeffectsには入れずnotesに記載)。3能力をstats配列でまとめた。",
+  "confidence": 0.9
+ },
+ {
+  "slug": "mystical-power",
+  "effects": [
+   {
+    "kind": "能力ランク変化",
+    "target": "self",
+    "stat": "special_attack",
+    "stages": 1,
+    "phase": "on_use",
+    "prob": 100
+   }
+  ],
+  "notes": "威力70・命中90・特殊の通常ダメージはpower/categoryから自動なのでeffectsに入れない。追加効果は「100%の確率で自分のとくこうランクを1段階上げる」のみ。攻撃命中後の自己ランク変化なのでon_use(攻撃後の自己強化)。prob:100で必ず発動を明示。",
+  "confidence": 0.97
+ },
+ {
+  "slug": "freezing-glare",
+  "effects": [
+   {
+    "kind": "状態付与",
+    "target": "opponent",
+    "phase": "on_use",
+    "value": "こおり",
+    "prob": 10
+   }
+  ],
+  "notes": "特殊90/命中100のエスパー技。追加効果は10%でこおり付与のみ。通常ダメージはpower/categoryから自動なのでeffects化せず、状態付与1件のみ。",
+  "confidence": 0.98
+ },
+ {
+  "slug": "take-heart",
+  "effects": [
+   {
+    "kind": "状態異常回復",
+    "target": "self",
+    "phase": "on_use"
+   },
+   {
+    "kind": "能力ランク変化",
+    "target": "self",
+    "stat": "special_attack",
+    "stages": 1,
+    "phase": "on_use"
+   },
+   {
+    "kind": "能力ランク変化",
+    "target": "self",
+    "stat": "special_defense",
+    "stages": 1,
+    "phase": "on_use"
+   }
+  ],
+  "notes": "ブレイブチャージ=変化技。効果は2つ: (1)自分の状態異常を全て治す→状態異常回復 self(valueなし=全状態異常)。(2)自分のとくこう・とくぼうを各+1→能力ランク変化2件(special_attack/special_defense, stages:1)。yakkun「1段階ずつ上がる」=±N表記でstages:1。phaseは全てon_use(攻撃前の変化技、優先度0)。スキーマ表記の語彙のみ使用。表現しきれない肝なし。",
+  "confidence": 0.97
+ }
+]
