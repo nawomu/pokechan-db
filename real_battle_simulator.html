@@ -1675,6 +1675,20 @@ function calcDamage(atkSide, defSide, move, opts){
     if ((_aab === 'ちからもち' || _aab === 'ヨガパワー') && isPhys) aStatEff = aStat * 2;
   }
 
+  // ★こだわりハチマキ/メガネ: 攻撃・特攻の実数値に×1.5してからbaseDamage式に渡す(SD準拠)
+  // SDはonModifyAtk/onModifySpAイベントで stat を chainModify(1.5)→floor してから
+  //   baseDamage = tr(tr(tr(tr(2L/5+2)*P*attack)/defense)/50) に使う(items.js choiceband/choicespecs)。
+  // マジックルーム中は無効(atkItemが以降で null になるため先取りチェック)。
+  {
+    const _choiceItem = (!env.magicRoom && atk.item) ? ITEM_BY_KEY[atk.item] : null;
+    if (_choiceItem && _choiceItem.key === 'kodawari_hachimaki' && isPhys){
+      aStatEff = Math.floor(aStatEff * 1.5);
+    }
+    if (_choiceItem && _choiceItem.key === 'kodawari_megane' && !isPhys){
+      aStatEff = Math.floor(aStatEff * 1.5);
+    }
+  }
+
   // ★とつげきチョッキ/しんかのきせき: 防御側の防御力を×1.5(マジックルーム中は無効)
   let dStatEff = dStat;
   {
@@ -1885,15 +1899,12 @@ function calcDamage(atkSide, defSide, move, opts){
     }
   }
 
-  // ★こだわりハチマキ: 物理技の攻撃×1.5(マジックルーム中は無効=atkItemが取得済み。items_database宣言。出典: ポケモンWiki「こだわりハチマキ」)
-  // 攻撃ステータスへの補正はbase計算後に適用(ちからもちと同じ意味合い・整数丸め近似は許容)
+  // ★こだわりハチマキ/メガネ: 攻撃・特攻の実数値への補正はbaseDamage計算前(aStatEff段階)に適用済み(SD準拠)
+  // → chips表示用の記録はここで行う(補正自体はaStatEff段階で完了)
   if (atkItem && atkItem.key === 'kodawari_hachimaki' && isPhys){
-    base = pokeRound(base, 6144);  // ×1.5
     chips.push({label:'こだわりハチマキ', factor:1.5, kind:'item'});
   }
-  // ★こだわりメガネ: 特殊技の特攻×1.5(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「こだわりメガネ」)
   if (atkItem && atkItem.key === 'kodawari_megane' && !isPhys){
-    base = pokeRound(base, 6144);  // ×1.5
     chips.push({label:'こだわりメガネ', factor:1.5, kind:'item'});
   }
 
