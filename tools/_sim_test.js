@@ -7,7 +7,7 @@
 const path = require('path');
 const fs = require('fs');
 const { buildEngine, mulberry32, ROOT } = require('./_sim_engine.js');
-const data = require(path.join(ROOT, 'pokechan_data.js'));
+const data = require(path.join(ROOT, process.env.PCHAM_DATA || 'pokechan_data.js'));   // ★T4: PCHAM_DATA env var で差替可能(未指定=従来)
 
 // ===== 観戦レポート(review/sim_test_report.html) =====
 // 各checkの「直前のcheck以降に流れたバトルログ」を拾い、テスト実行のたびにHTMLへ書き出す。

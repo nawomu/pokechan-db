@@ -15,13 +15,69 @@ let MYK={}; try{ MYK=require('../reference/moves_yakkun.json'); }catch(e){} // s
 let MFIX={}; try{ MFIX=require('../reference/moves_battle_data_fix.json'); }catch(e){} // ★修正オーバーレイ: slug→正しいbattle_data(effects[])。これが在る技は説明文をcompose生成に一本化(2026-06-27)
 let MDESC={}; try{ MDESC=require('../reference/moves_desc_override.json'); }catch(e){} // ★説明文オーバーレイ(最優先): 121kind語彙で表現できない技(穴/空)をヤックン由来の独自マザー流文で埋める(2026-06-28)
 let MFLAGS={}; try{ MFLAGS=require('../reference/_move_flags.json'); }catch(e){} // ★技フラグ(音/風/切る/弾/噛み/踊り/パンチ等)=構築WFが付与。composeが「音系の技」等を発声(2026-06-29)
+let SD_MOVES={}; try{ SD_MOVES=require('../reference/_showdown/moves.json'); }catch(e){} // ★P8: Showdown moves.json(gen/isNonstandard)
 const { compose } = require('./_waza_compose.js'); // effects→効果文(ルール: 元データから説明を生成)
+
+// === P8: availability 導出ヘルパ ===
+const _sdByNum_all = {};
+Object.values(SD_MOVES).forEach(m => { if(m.num) _sdByNum_all[m.num] = m; });
+function deriveAvailabilityAll(mvId, mvSlug){
+  const lookupId = (mvSlug && mvSlug.includes('--special')) ? mvId - 1 : mvId;
+  const sd = _sdByNum_all[lookupId];
+  if (!sd) return null;
+  const genIntro = sd.gen || 1;
+  const ns = sd.isNonstandard;
+  if (ns === 'LGPE') return { gen_introduced: genIntro, gens: [genIntro], is_lgpe: true };
+  if (ns === 'Past') return { gen_introduced: genIntro, gens: Array.from({length: 8 - genIntro + 1}, (_, i) => genIntro + i) };
+  if (ns === 'CAP' || ns === 'Unobtainable' || ns === 'Gigantamax') return { gen_introduced: genIntro, gens: null, is_nonstandard: ns };
+  return { gen_introduced: genIntro, gens: Array.from({length: 9 - genIntro + 1}, (_, i) => genIntro + i) };
+}
 // ★修正済み技の効果文=composeで生成(マザー流: ダメージ技は「ダメージ。{効果}」/効果なしは「ダメージのみ。」)
+// ★P3 Max/Z技: compose内でプレフィックスを付与済み → ダメージ技のプレフィックス(is_max/z.user)が先頭に来るよう
+//   「ダメージ。」は Max/Z専用プレフィックスの後ろに挿入(例: 「攻撃技のダイマックス技。ダメージ。<効果>」)
 function composeDesc(m){
   const t=(compose(m).text||'').trim();
   const isDmg = m.category!=='変化' || (m.power!=null && m.power>0);
-  if(isDmg) return t ? ('ダメージ。'+t) : 'ダメージのみ。';
+  if(isDmg){
+    if(!t) return 'ダメージのみ。';
+    // Max技/専用Z技はcompose内でプレフィックスを付与済み。そのプレフィックスを先頭に残しつつ「ダメージ。」をその直後に挿入
+    const maxPfx = m.is_max ? (m.category!=='変化'?'攻撃技のダイマックス技。':'変化技のダイマックス技。') : '';
+    const zPfx = (m.z && m.z.user && !m.z.generic) ? `「${m.z.user}」の専用Zワザ。` : '';
+    const pfx = maxPfx || zPfx;
+    if(pfx && t.startsWith(pfx)){
+      // プレフィックス抜きの残テキスト
+      const rest = t.slice(pfx.length);
+      return pfx + 'ダメージ。' + (rest || '');
+    }
+    return 'ダメージ。'+t;
+  }
   return t;
+}
+// ★2026-07-01 穴チェック版: composeが穴なし(全effectsを喋れた)かどうかも返す。
+//   焼き込み撲滅=Champions技も穴なしならcompose再生成に切替える判定用。
+// ★2026-07-02 修正: isDmg技でeffects空(text="")は「追加効果なし=ダメージのみ」=穴なし(holes=false)。
+//   !t だけで holes=true とすると句点なし焼き込み(ダメージのみ)にフォールバックしてしまいmasterと不一致になる。
+function composeDescH(m){
+  const r = compose(m);
+  const t = (r.text||'').trim();
+  const isDmg = m.category!=='変化' || (m.power!=null && m.power>0);
+  let text;
+  if(isDmg){
+    if(!t){ text = 'ダメージのみ。'; }
+    else {
+      const maxPfx = m.is_max ? (m.category!=='変化'?'攻撃技のダイマックス技。':'変化技のダイマックス技。') : '';
+      const zPfx = (m.z && m.z.user && !m.z.generic) ? `「${m.z.user}」の専用Zワザ。` : '';
+      const pfx = maxPfx || zPfx;
+      if(pfx && t.startsWith(pfx)){
+        const rest = t.slice(pfx.length);
+        text = pfx + 'ダメージ。' + (rest || '');
+      } else {
+        text = 'ダメージ。'+t;
+      }
+    }
+  } else { text = t; }
+  const holes = (r.holes && r.holes.length>0) || (!t && !isDmg);   // 穴あり or (変化技で空) = compose不完全。dmg技のeffects空は「効果なし」で穴ではない
+  return {text, holes};
 }
 // 変化技の subcategory を分類から導出(ポケモンDBわざ列のグループ順 CAT_ORDER に合わせる=新技も既存と同じグループに入る)。
 function subcatFromTags(t){
@@ -176,25 +232,36 @@ for(const m of MV){
   const bd = MFIX[m.slug] ? MFIX[m.slug]
            : (cur&&cur.battle_data ? cur.battle_data
            : (MTAGS[m.slug] ? bdFromTags(MTAGS[m.slug]) : {crit_stage:0,must_crit:false,crit_changes:[],effects:[]}));
-  // ★national技は battle_data.priority を技の優先度から設定(composeが「優先度+Nの先制技」を出す)。0は出さない。
-  if(!cur && bd && bd.priority==null && (m.priority||0)!==0) bd.priority = m.priority;
+  // ★battle_data.priority を技の優先度から設定(composeが「優先度+Nの先制技」を出す)。0は出さない。
+  // ★2026-07-02 修正: Champions技(cur あり)もcompose再生成するようになったため !cur 条件を外す(masterと統一)
+  if(bd && bd.priority==null && (m.priority||0)!==0) bd.priority = m.priority;
   const entry={
     name:nameJa, move_no:m.id, type:TYPE_JA[m.type]||m.type, category:CAT_JA[m.damage_class]||'変化',
     target:cur?cur.target:'1体選択', power:m.power, accuracy:m.accuracy, pp:m.pp, priority:m.priority||0,
-    contact:cur?!!cur.contact:false, protect:cur?(cur.protect!==false):true,
+    contact:cur?!!cur.contact:!!(MFLAGS[m.slug]&&MFLAGS[m.slug].contact), protect:cur?(cur.protect!==false):true,
     description:'', key:m.slug, learners,
     national_new:!cur && !!MJD[m.slug], // 全国版で新規追加した技(M-A/M-B以外=Champions外)
     description_legacy:cur?(cur.description_legacy||''):(MYK[m.slug]||''), // 新技はヤックン(徹底攻略)JAをlegacy参照に
     battle_data:bd,
-    flags:cur&&cur.flags?cur.flags:(MFLAGS[m.slug]||{}), // ★national技は構築WFのフラグを適用
+    flags:Object.assign({}, MFLAGS[m.slug]||{}, cur&&cur.flags?cur.flags:{}), // ★MFLAGS(分類フラグ)をベースにChampions curatedフラグで上書き(双方マージ)
 
     subcategory:(cur&&cur.subcategory)?cur.subcategory:((CAT_JA[m.damage_class]==='変化'&&MTAGS[m.slug])?subcatFromTags(MTAGS[m.slug]):undefined), // 変化技の細分(回復/状態異常等)=わざ列のグループ順。新技はタグ分類から導出して既存と同じグループへ
     tags:cur&&cur.tags?cur.tags:[],
+    // ★P3 Max/Z メタデータ(2026-07-02): _move_flags.json の is_max/z フィールドをエントリに伝播
+    ...(MFLAGS[m.slug]&&MFLAGS[m.slug].is_max ? {is_max:true} : {}),
+    ...(MFLAGS[m.slug]&&MFLAGS[m.slug].z ? {z:MFLAGS[m.slug].z} : {}),
+    // ★P8: availability (gen_introduced / gens / is_lgpe 等)
+    availability: deriveAvailabilityAll(m.id, m.slug),
   };
-  // 説明文: ★①MDESC(説明文オーバーレイ・最優先=語彙外メカをヤックン由来手書き) ②MFIX=compose一本化 ③従来(curated or MJD)
+  // 説明文: ★①MDESC(手書きオーバーレイ・最優先=語彙外メカをヤックン由来手書き) ②MFIX=compose一本化
+  //   ③★2026-07-01 焼き込み撲滅: Champions技もcomposeが穴なしなら再生成(古い焼込descの陳腐化を根絶) ④穴あり=従来(curated焼込 or MJD)
+  // ★2026-07-02 修正: isDmg技はeffects空でも「ダメージのみ。」=完全文→常にcomposeDescHを呼ぶ(effects長さ条件を外す)
+  const _isDmg = entry.category!=='変化' || (entry.power!=null && entry.power>0);
+  const _ch = (_isDmg || (entry.battle_data && (entry.battle_data.effects||[]).length)) ? composeDescH(entry) : {text:'',holes:true};
   entry.description = MDESC[m.slug] ? MDESC[m.slug]
                     : (MFIX[m.slug] ? composeDesc(entry)
-                    : (cur?(cur.description||MJD[m.slug]||''):(MJD[m.slug]||'')));
+                    : (!_ch.holes ? _ch.text
+                    : (cur?(cur.description||MJD[m.slug]||''):(MJD[m.slug]||''))));
   WAZA_MAP[m.slug]=entry;
 }
 

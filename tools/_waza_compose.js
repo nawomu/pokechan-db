@@ -72,7 +72,8 @@ function clause(e, m) {
       }
       // ★2026-06-29 状態名だけでは意味が戻らない特殊状態は中身を展開
       if (e.value === 'かいふくふうじ') return `${durT(e.duration_turns || e.duration || 5)}の間、相手は回復系の技が使えなくなり、特性・道具・場の効果でもHPが回復しなくなる`; // かいふくふうじ
-      if (e.value === '無防備' || (e.effect && /必ず命中し.*2倍|必ず当たり.*2倍/.test(e.effect))) return e.effect || `次の自分のターンまで、相手から自分への攻撃が必ず当たり、受けるダメージが2倍になる`; // むぼうび(きょけんとつげき)
+      // ★P7 2026-07-02: ちいさくなるはaffected_moves全列挙経路に進める(e.effectの端折り文でearly returnしない)
+      if (e.value !== 'ちいさくなる' && (e.value === '無防備' || (e.effect && /必ず命中し.*2倍|必ず当たり.*2倍/.test(e.effect)))) return e.effect || `次の自分のターンまで、相手から自分への攻撃が必ず当たり、受けるダメージが2倍になる`; // むぼうび(きょけんとつげき)
       if (e.value && e.note && /地形|フィールドによって/.test(e.note)) { // ひみつのちから等=地形で追加効果が変わる
         const pre0 = (e.prob != null && e.prob < 100) ? `${e.prob}%の確率で` : '';
         return `${pre0}相手を「${e.value}」状態にする(ただし、出す追加効果はたたかう場所の地形によって変わる)`;
@@ -121,9 +122,20 @@ function clause(e, m) {
         det.push(`その間、回復系の技(「${e.prevents.healing_moves.join('」「')}」)が使えなくなる`);
         if (e.prevents.hp_recovery_from) det.push(`特性・道具・場の効果によるHPの回復も起きなくなる`);
       } else if (e.prevents && e.prevents.hp_recovery_from) det.push(`その間、特性・道具・場の効果によるHPの回復も起きなくなる`);
-      if (e.value === 'ちいさくなる' && Array.isArray(e.affected_moves)) det.push(`「${e.affected_moves.join('」「')}」は、この状態のとき必ず当たり、受けるダメージが2倍になってしまう`); // ちいさくなる affected_moves 全列挙(2026-06-17 阿部さん)
+      if (e.value === 'ちいさくなる' && Array.isArray(e.affected_moves)) {
+        // ★P7 2026-07-02: affected_moves全列挙 + generation_notes括弧書き
+        const genNotes = e.generation_notes || {};
+        const movesWithNotes = e.affected_moves.map(mv => {
+          const note = genNotes[mv];
+          if (!note) return `「${mv}」`;
+          // "from gen 6 onward" → "(第6世代以降)" / "gen 6 only" → "(第6世代のみ)"
+          const noteJa = note.replace(/from gen (\d+) onward/, '第$1世代以降').replace(/gen (\d+) only/, '第$1世代のみ').replace(/up to gen (\d+)/, '第$1世代まで');
+          return `「${mv}」(${noteJa})`;
+        });
+        det.push(`${movesWithNotes.join('・')}は、この状態のとき必ず当たり、受けるダメージが2倍になってしまう`);
+      } // ちいさくなる affected_moves全列挙+generation_notes括弧書き(P7 2026-07-02)
       if (e.value === 'もうどく' && e.note) det.push(`「もうどく」は、毎ターン終わりに受けるダメージが1/16→2/16→3/16…と増えていく`);
-      if (e.value === 'うちおとす') det.push(`地面に落とされて、特性「ふゆう」やひこうタイプでも「じめん」タイプの技が当たるようになる`);
+      if (e.value === 'うちおとす') det.push(`地面に落とされて、特性「ふゆう」やひこうタイプでも「じめん」タイプの技が当たるようになる(「そらをとぶ」「とびはねる」「でんじふゆう」「テレキネシス」で浮いている状態も解除される)`);
       return det.length ? `${base}。${det.join('。')}` : base;
     }
     case '拘束':
@@ -139,11 +151,17 @@ function clause(e, m) {
       }
       // フェイント形: まもる等を貫通して当たる(一部除く)。まもり解除kindが本文を言うので、未解禁のみのときは除外をカッコで添える
       if (Array.isArray(e.pierces_without_removing)) {
-        const inG = gateList(e.pierces_without_removing), gd = gatedItems(e.pierces_without_removing);
-        // ★2026-06-18 阿部さん再修正: フェイントの「pierces_without_removing=ダイウォール」は「貫通して当たるが解除はできない」が正しい。
-        //   「防がれる」(=攻撃が通らない)は逆の意味=誤訳。「解除はできないが攻撃は通る」と書く。
-        if (inG.length) return `相手が「まもる」などで守っていても、それを無視して当たる(「${inG.join('」「')}」は除く)${gd.length ? `（${gd.join('・')}は解除できないが、攻撃は通る）` : ''}`;
-        return `（${gd.join('・')}は解除できないが、攻撃は通る）`;
+        // ★2026-07-01 全数照合で「は除く」が逆に読める問題を修正: pierces_without_removing=「これらの守りを貫通して当たる(解除はしない)」。
+        const list = e.pierces_without_removing;
+        const onlyDaiwall = list.length === 1 && list[0] === 'ダイウォール';
+        if (onlyDaiwall) {
+          // アロマセラピー等(変化技): ダイウォールでも止められず効果が出る
+          return (m && m.power > 0)
+            ? `相手が「ダイウォール」で守っていても、それを無視して攻撃が当たる`
+            : `相手が「ダイウォール」で守っていても、止められずに効果が出る`;
+        }
+        // いじげんホール/ハイパードリル等: 列挙された守り技を貫通して当たる(ダイウォールは別=防がれる)
+        return `相手が「${list.filter(x => x !== 'ダイウォール').join('」「')}」などで守っていても、それを無視して当たる${e.daiwall_blocks ? `(ただし「ダイウォール」だけは防げる)` : ''}`;
       }
       // ニードルガード形(守り側): ダイマックス技/Zワザで攻撃されてもダメージを軽くする
       if (Array.isArray(e.values) && e.user_takes_fraction != null) {
@@ -166,6 +184,14 @@ function clause(e, m) {
         if (e.amount.type === 'target_stat') return `相手の「${STAT[e.amount.stat] || e.amount.stat}」の実数値と同じだけ、${t}のHPを回復する`;
       }
       if (e.fraction == null) return null; // 穴=出さない(機械漏れ防止)
+      // ★2026-06-30 さいきのいのり: 手持ちの「ひんし」ポケモンを1匹えらんで復活させる(場のHP回復ではない)
+      if (e.condition && e.condition.type === 'target_fainted') {
+        return `手持ちにいる「ひんし」のポケモンを1匹えらんで、最大HPの${fracT(e.fraction)}だけ回復させて復活させる`;
+      }
+      // ★2026-06-30 じょうか: 相手の状態異常を治したときだけ自分も回復(治せないと失敗)
+      if (e.condition && e.condition.type === 'target_had_status') {
+        return `自分のHPも、最大HPの${fracT(e.fraction)}回復する(相手が状態異常でないときは、この技は失敗する)`;
+      }
       // ★遅延回復(ねがいごと): 次のターン終わりに、その場所のポケモンを回復(2026-06-17)
       if (e.phase === 'delayed' && e.trigger === 'turn_end') {
         const rep = e.heals_replacement ? `(自分が交代しても、同じ場所に出たポケモンが回復する)` : '';
@@ -184,23 +210,27 @@ function clause(e, m) {
       // ★2026-06-18: incoming(次に出る味方)+全回復 = いやしのねがい/みかづきのいのり/さいきのいのり → 「ただしPPは回復しない」明示
       const ppNote = (e.target === 'incoming' && fr === '全部') ? (e.restores_pp ? `(技のPPも全部回復する)` : `(ただしPPは回復しない)`) : ``;
       return (e.prob && e.prob < 100 ? `${e.prob}%の確率で` : '') + ((fr === '全部') ? `${t}のHPを全部回復する` : `${t}のHPを、最大HPの${fr}だけ回復する`) + ppNote;
-    case 'HPが減る':
-      return `自分のHPが最大HPの${fracT(e.fraction)}減る` + (e.always_pays_even_if_blocked ? `(相手が「まもる」などで防いでも、自分のHPは減る)` : ``); // てっていこうせん
+    case 'HPが減る': {
+      // ★2026-06-30 わるあがき: タイプ無視ダメージ+発動条件
+      const pre2 = e.typeless ? `タイプに関係なくダメージを与える。` : ``;
+      const cond2 = e.only_when_no_moves ? `(ほかに使える技がなくなったときだけ出せる)` : ``;
+      return `${pre2}自分のHPが最大HPの${fracT(e.fraction)}減る${cond2}` + (e.always_pays_even_if_blocked ? `(相手が「まもる」などで防いでも、自分のHPは減る)` : ``); // てっていこうせん
+    }
     case '固定ダメージ': {
-      let s = `相手に、${amountT(e.amount)}のダメージを与える(タイプ相性は受けない)`;
+      let s = `相手に、${amountT(e.amount)}のダメージを与える(ダメージの量はタイプ相性で変わらないが、まったく効かないタイプ(無効)の相手には当たらない)`;
       if (e.minimum === 1) s += `(相手の残りHPが1のときは1ダメージになる)`; // いかりのまえば
       if (e.champions_amount) s += `(チャンピオンズでは${e.champions_amount}ダメージ)`; // ちきゅうなげ
       return s;
     }
     case '継続削り':
-      return `毎ターン、相手のHPを最大HPの${fracT(e.fraction)}だけ削る`;
+      return `毎ターン、相手のHPを最大HPの${fracT(e.fraction)}だけ削る` + ((e.condition && e.condition.value === 'ねむり') ? `(相手がねむっている間だけ。目を覚ますと、この効果も消える)` : '');
     case '連続攻撃': {
       // ★hits_by は data の条件文字列をそのまま喋る(ふくろだたき=ひんし/状態異常を除く手持ちの数。一般化して落とさない)
       let base;
       if (e.hits_by) base = `${e.hits_by}だけ攻撃する`;
       else if (e.stop_on_miss) base = `外れるまで最大${e.max_hits}回つづけて攻撃する`;
       else if (e.hits) base = `${e.hits}回つづけて攻撃する`;
-      else if (e.min_hits) base = `${e.min_hits}〜${e.max_hits}回つづけて攻撃する`;
+      else if (e.min_hits) base = (e.min_hits === e.max_hits) ? `${e.min_hits}回つづけて攻撃する` : `${e.min_hits}〜${e.max_hits}回つづけて攻撃する`; // min==max(ダブルニードル等)は「2回」
       else return null;
       // ★当たるたびに威力が上がる技(トリプルアクセル=20→40→60)。power_per_hit を落とさない
       if (Array.isArray(e.power_per_hit)) base += `。当たるたびに威力が上がる(${e.power_per_hit.join('→')})`;
@@ -211,7 +241,10 @@ function clause(e, m) {
     }
     case '急所率上昇':
       // ★±N表記(2026-06-07 阿部さん上書き): 「急所+1」(「ランク」語は省く・短く=能力ランク±Nと揃える)。always_crit→「必ず急所に当たる」。
-      if (e.always_crit) return `必ず急所に当たる`;
+      // ★2026-06-30 とぎすます: 次のターンに使う技が必ず急所
+      if (e.always_crit) return e.timing === 'next_turn' ? `次のターンに出す技が、必ず急所に当たるようになる` : `必ず急所に当たる`;
+      // ★2026-06-30 ねらいうち: 引き付け(よびみず/ひらいしん/このゆびとまれ等)を無視して、ねらった相手に当てられる
+      if (e.ignores_redirect) return `急所${e.stages > 0 ? '+' : ''}${e.stages}。特性「よびみず」「ひらいしん」やこのゆびとまれなどの、攻撃の的を引きよせる効果を無視して、ねらった相手に攻撃できる`;
       // 味方の急所ランクを上げる継続バフ(ドラゴンエール等)は対象を明示。それ以外(技自体の急所率)は「急所+N」。
       // ★2026-06-18: phase=lasting なら「きゅうしょアップ状態にして、今後使う技が急所に当たりやすくなる」を補足
       if (e.target === 'ally' || e.target === 'team') {
@@ -221,12 +254,19 @@ function clause(e, m) {
       return `急所${e.stages > 0 ? '+' : ''}${e.stages}`;
     case 'ひるみ':
       // ★忠実版: kind:ひるみ = N%の確率で相手をひるませる(状態付与:ひるみ と統一)。
-      return `${(e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''}相手をひるませる`;
+      return `${(e.prob && e.prob < 100) ? `${e.prob}%の確率で` : ''}相手をひるませる${e.per_hit ? `(2回の攻撃それぞれで判定する)` : ''}`;
     case '必中':
       // ★忠実版(開通順#3・2026-06-07 阿部さんの耳で確定): 無条件必中は「相手の回避率や自分の命中率に関係なく」を明記する。
       // = 必中の意味そのもの(相手のかいひランク上昇=ちいさくなる/どろかけ等で自分の命中率が下がっていても無視して当たる)。simにも効く情報→落とさない。
+      // ★2026-06-30 みやぶる/ミラクルアイ: 持続効果で「相手の回避率」だけ無視(自分の命中率は無視しない)。今後の攻撃に効く。
+      if (e.phase === 'lasting' && Array.isArray(e.ignores) && e.ignores.length === 1 && e.ignores[0] === 'target_evasion')
+        return `このあと、相手の回避率の変化に関係なく、攻撃が当たるようになる`;
       // 条件付き(相手が「ちいさくなる」使用時など)は条件をcomposeが前置→本体は「必ず命中する」。
       return e.condition ? `必ず命中する` : `相手の回避率や自分の命中率に関係なく、必ず命中する`;
+    case '効果なし':
+      // splash(はねる)/celebrate(おいわい)/hold-hands(てをつなぐ) 等=ゲーム上の効果が何もない技。
+      // 空欄回避のためcomposeが生成(effects→compose一方通行・手書きoverlay禁止)。simはno-op。
+      return 'なにもおこらない';
     case '威力可変': {
       // ★忠実版: データの段階表/式をそのまま日本語で。英語formula/basisは出さない・未知形はnull(穴)。
       // ★2026-06-28 全国版の特殊basis(formula判定より前に処理=formulaは未知でnullになるため)
@@ -234,7 +274,8 @@ function clause(e, m) {
       if (e.scales_with === 'なつき度' || e.basis === 'friendship') return `ポケモンが${e.relation === 'inverse' ? 'なついていない' : 'なついている'}ほど威力が高くなる${maxP ? `(最大${maxP})` : ''}`;
       if (e.scales_with === 'target_remaining_HP_ratio' || e.based_on === 'target_hp_ratio') return `相手の残りHPが多いほど威力が高くなる${maxP ? `(最大${maxP})` : ''}`;
       if (e.basis === 'consecutive_hits') return `当てるたびに威力が2倍ずつ増えていく${maxP ? `(最大${maxP})` : ''}`;
-      if (e.scales_with === 'consecutive_uses' || e.scales_with === 'consecutive_use') return `続けて使うと、当てるたびに威力が上がっていく${maxP ? `(最大${maxP})` : ''}。外したり続けて使わないと元にもどる`;
+      if (e.any_user_increments) return `毎ターン、場にいる誰か(味方でも)がこの技を使うたびに、威力が上がっていく${maxP ? `(最大${maxP})` : ''}`; // エコーボイス
+      if (e.scales_with === 'consecutive_uses' || e.scales_with === 'consecutive_use') return `続けて使うと、当てるたびに威力が${e.multiplier === 2 ? '2倍ずつ' : ''}上がっていく${maxP ? `(最大${maxP})` : ''}。外したり続けて使わないと元にもどる`;
       if (e.based_on === 'remaining_pp') return `この技の残りPPが少ないほど威力が高くなる`;
       if (e.basis === 'held_berry') return `持っている「きのみ」によって威力が変わる${e.consumes_user_item ? '(使うと、そのきのみはなくなる)' : ''}`;
       if (e.condition && e.condition.type === 'pledge_combo') return `ダブルバトルで他の「ちかい」技と合わせて使うと、威力が${maxP || 150}になり、追加の効果が出る`;
@@ -246,7 +287,11 @@ function clause(e, m) {
       if (e.weight_thresholds) return `相手のおもさが重いほど威力が高くなる(${wtKgT(e.weight_thresholds)})`;
       if (e.basis === 'weight_ratio_target_over_user' || (e.table && (e.table[0] || {}).max_ratio !== undefined)) return `自分のおもさが相手より重いほど威力が高くなる(相手のおもさが自分の${wRatioT(e.table)})`;
       if (e.basis === 'user_speed_over_target_speed') return `自分のすばやさが相手より高いほど威力が高くなる(自分のすばやさが相手の${sRatioT(e.table)})`;
-      if (e.per_stage) return `自分の能力ランクが1段階上がっているごとに威力が${e.per_stage}上がる(基礎威力${e.base_power})`;
+      if (e.per_stage) { // basisで主語が変わる: target=相手の(おしおき) / user=自分の(ストアードパワー等)
+        const whoStg = e.basis === 'target_positive_stat_stages' ? '相手の' : '自分の';
+        const mxStg = (e.max_power || e.power_max) ? `・最大${e.max_power || e.power_max}` : '';
+        return `${whoStg}能力ランクが1段階上がっているごとに威力が${e.per_stage}上がる(基礎威力${e.base_power}${mxStg})`;
+      }
       if (e.based_on === 'stockpile_count' && e.power_table) return `たくわえた数で威力が変わる(${Object.entries(e.power_table).map(([k, v]) => `${k}つで${v}`).join('・')})`;
       if (e.multiplier) return `威力が${multT(e.multiplier)}`; // 条件付き倍率(やけっぱち等)。条件はcompose側が前置
       if (e.based_on === 'weather' && e.power_table) {
@@ -266,8 +311,15 @@ function clause(e, m) {
       if (e.stat_by_condition) return e.stat_by_condition; // ★2026-06-28 いっちょうあがり(姿で上がる能力が変わる)
       if (!e.stat && !e.stats) return null;
       const sts = statList(e);
+      // ★2026-06-30 いかり: 被弾連動の状態(攻撃を受けるたびに上がっていく)
+      if (e.trigger === 'on_damage_taken') {
+        const sgR = e.stages > 0 ? `+${e.stages}` : `${e.stages}`;
+        const keep = e.keeps_on_end ? `(ほかの技を使うと止まるが、上がったランクはそのまま残る)` : `(ほかの技を使うと止まる)`;
+        return `この技を使っているあいだ、相手の攻撃を受けるたびに 自分の${joinStats(sts)}が${sgR}されていく${keep}`;
+      }
       const pre = (e.prob && e.prob < 100) ? `${e.prob}%の確率で` : '';
-      const who = TGT2[e.target] || (t + 'の');
+      // ★2026-07-01 型限定(たがやす/フラワーガード=くさタイプ全員のみ)。restrict_typeがあれば「場の〇〇タイプ全員の」。
+      const who = e.restrict_type ? `場の${e.restrict_type}タイプ全員の` : (TGT2[e.target] || (t + 'の'));
       // ★±N表記に統一(2026-06-07 阿部さん): 能力ランクの増減は「こうげき-1、とくこう-1」。✗「〜が1段階さがる」。
       // 各能力に符号つき数値を付ける(同stagesでも能力ごとに繰り返す)。to_maxのみ特例(数値でない)。
       if (e.to_max) return `${pre}${who}${joinStats(sts)}が最大まであがる`;
@@ -312,14 +364,21 @@ function clause(e, m) {
       const chargeRank = ((m.battle_data || {}).effects || []).find(x => x.kind === '能力ランク変化' && x.on_charge_turn);
       const chargeStat = chargeRank ? clause(chargeRank, m) : '';
       let s;
-      if (loc) {
+      if (e.carries_target) { // ★2026-06-30 フリーフォール: 相手をつかんで一緒に飛ぶ・相手は行動不能・おもさ制限
+        s = `1ターン目に相手をつかんで いっしょに${loc || '空中'}へ飛び上がり、そのあいだ相手は行動できない。2ターン目にたたき落としてダメージを与える`;
+        s += `。飛んでいる間は、自分も相手もほとんどの技を受けない`;
+        if (e.flying_immune) s += `(「ひこう」タイプの相手にはダメージは入らないが、つかんで飛ぶことはできる)`;
+        if (e.fails_if_target_weight_kg_at_least) s += `。おもさ${e.fails_if_target_weight_kg_at_least}kg以上の相手には失敗する`;
+      } else if (loc) {
         s = `1ターン目に${VERB[loc] || `${loc}に入り`}、2ターン目に攻撃する`;
         if (Array.isArray(e.vulnerable_to) && e.vulnerable_to.length)
           s += `。${loc}にいる間は「${e.vulnerable_to.join('」「')}」以外の技を受けない`;
         else
           s += `。すがたを消している間は、ほとんどの技を受けない`; // 消失でvulnerable_to無し(ゴーストダイブ)
       } else {
-        s = `1ターン目は攻撃せず${chargeStat}、2ターン目に攻撃する`;
+        // ★2026-07-01 ジオコントロール等の変化技(power無し)は「2ターン目に発動する」(攻撃しない)
+        const act = (m && m.power > 0) ? '2ターン目に攻撃する' : '2ターン目に発動する';
+        s = `1ターン目は ためて${chargeStat}、${act}`;
       }
       if (Array.isArray(e.skip_charge_if_weather) && e.skip_charge_if_weather.length)
         s += `。天気が「${e.skip_charge_if_weather.join('」「')}」のときは、ためずにすぐ攻撃できる`;
@@ -331,7 +390,7 @@ function clause(e, m) {
     case '状態異常回復': {
       // ★2026-06-15: target/value/values の組み合わせを正確に喋り分け(こうそくスピン重複対策・ねっとう等の取りこぼし対策)
       const WHO = { team:'味方みんな', self:'自分', party:'手持ち全員', incoming:'次に出る味方', all:'場の全員', all_but_self:'自分以外の全員', all_opponents:'相手全員', opponent:'相手', ally:'味方' };
-      const who = WHO[e.target] || '自分';
+      const who = e.includes_self ? '自分と味方みんな' : (WHO[e.target] || '自分');
       // values=技名配列(こうそくスピンのバインド系): 自分が受けている「うずしお」「...」の効果を解除する
       if (Array.isArray(e.values) && e.values.length) {
         const bindHead = e.value ? `「${e.value}」状態(` : '';
@@ -454,6 +513,9 @@ function clause(e, m) {
         : `相手の「${(e.values || []).join('」「')}」をこわす`;
     case '天候変化': {
       let s = `${durT(e.duration)}の間、天気を「${e.value}」にする`;
+      // ★2026-07-01 あられ/すなあらしの継続ダメージ(天候ダメージ)を明示
+      if (e.value === 'あられ') s += `。「こおり」タイプ以外のポケモンは、毎ターン終わりに最大HPの1/16のダメージを受ける`;
+      else if (e.value === 'すなあらし') s += `。「いわ」「じめん」「はがね」タイプ以外のポケモンは、毎ターン終わりに最大HPの1/16のダメージを受ける`;
       // ★side_effects(構造化・あまごい/にほんばれ)を訳す: 技ダメージ倍率/状態異常予防
       for (const se of (e.side_effects || [])) {
         if (se.type === 'move_damage_multiplier') s += `。「${se.move_type}」タイプの技のダメージが${se.multiplier >= 1 ? `${se.multiplier}倍になる` : '半分になる'}`;
@@ -484,12 +546,24 @@ function clause(e, m) {
       return `${durPre}${subj}${mt}威力が${dir}(${multT(e.multiplier)})`;
     }
     case '引き寄せ': {
-      let s = `そのターン、相手の技を自分に引き寄せる`;
+      // ★2026-07-01 target=opponent(スポットライト)=その相手に攻撃が集まる / target=self(このゆびとまれ等)=自分に引き寄せる
+      let s = e.target === 'opponent'
+        ? `そのターン、ねらった相手に、ほかのポケモンの攻撃が集まるようにする`
+        : `そのターン、相手の攻撃を自分に引き寄せる`;
       if ((Array.isArray(e.exceptions) && e.exceptions.some(x => x.type === 'move_target')) || (Array.isArray(e.excludes_move_targets) && e.excludes_move_targets.length)) s += `(相手全体をまとめてねらう技は引き寄せられない)`; // このゆびとまれ・いかりのこな
       return s;
     }
-    case 'フィールド展開':
-      return `${durT(e.duration)}の間、足元を「${e.value}」にする`;
+    case 'フィールド展開': {
+      // ★2026-07-01 フィールドの効果も説明(ダイ技/単体技で省略されていた=単体エレキフィールド技[master流]と粒度を揃える)
+      const FIELD_FX = {
+        'エレキフィールド': '地面にいるポケモンは「ねむり」「あくび」にならず、でんきタイプの技の威力が1.3倍になる',
+        'グラスフィールド': '地面にいるポケモンは毎ターン最大HPの1/16ずつ回復し、くさタイプの技の威力が1.3倍になる。じしんなどの威力は半分になる',
+        'サイコフィールド': '地面にいるポケモンは相手の先制技を受けなくなり、エスパータイプの技の威力が1.3倍になる',
+        'ミストフィールド': '地面にいるポケモンは状態異常にならず、ドラゴンタイプの技で受けるダメージが半分になる',
+      };
+      const fx = FIELD_FX[e.value] ? `(${FIELD_FX[e.value]})` : '';
+      return `${durT(e.duration)}の間、足元を「${e.value}」にする${fx}`;
+    }
     case 'フィールド除去':
       return Array.isArray(e.values) && e.values.length ? `場の「${e.values.join('」「')}」を消す` : `場のフィールドを消す`; // ★略さない: データのフィールド全列挙(2026-06-26)
     case '一撃必殺':
@@ -500,7 +574,7 @@ function clause(e, m) {
       return `${durT(e.duration)}の間、同じ技を出しつづける`;
     case '倍返し': {
       const cat = (e.basis || '').includes('physical') ? '物理技' : (e.category === '特殊' || (e.basis || '').includes('special')) ? '特殊技' : '技';
-      return `先に相手の${cat}を受けてから、そのダメージの${e.multiplier || 2}倍を返す(タイプ相性は関係なく当たる)` +
+      return `先に相手の${cat}を受けてから、そのダメージの${e.multiplier || 2}倍を返す(ダメージの量はタイプ相性で変わらないが、まったく効かないタイプ(無効)の相手には当たらない)` +
         (e.doubles_note ? `(ダブルバトルでは、最後に受けた${cat}のダメージだけを返す)` : ``) +
         (e.requires_damage_taken ? `(そのターンにダメージを受けていないと失敗する)` : ``); // 2026-06-17: メタルバースト等
     }
@@ -519,6 +593,11 @@ function clause(e, m) {
     }
     case '特性無効化': {
       const exAbil = (e.exceptions || []).flatMap(x => x.values || []);
+      // ★2026-07-01 コアパニッシャー(条件つき=後攻なら持続的に特性を無効化)
+      if (e.condition && e.condition.type === 'user_moves_after_target')
+        return `相手がそのターンに すでに技を使っていた(自分が後に行動した)ときは、その相手の特性をなくす`;
+      // ★2026-07-01 攻撃技(メテオドライブ/シャドーレイ/フォトンゲイザー等)=この技を出すときだけ相手の特性を無視(かたやぶり的)。変化技(いえき)=場にいる間 無効化(持続)。
+      if (m && m.power > 0) return `この技を出すときだけ、相手の特性を無視して攻撃する`;
       return `相手の特性を、場にいる間きかなくする` + (exAbil.length ? `(ただし「${exAbil.join('」「')}」など、すがた変化などに使う特別な特性には効かない)` : ``); // いえき
     }
     case '技タイプ変更':
@@ -565,12 +644,26 @@ function clause(e, m) {
     case 'タイプ追加':
       return `相手に「${e.value}」タイプを追加する`;
     case 'タイプ除去':
-      return `攻撃したあと、自分の「${e.value}」タイプがなくなる`; // 2026-06-18 もえつきる: 攻撃後タイミング
+      return `攻撃したあと、自分の「${e.value}」タイプがなくなる` + (e.fails_if_type_absent ? `(すでに「${e.value}」タイプでないときは失敗する)` : ``); // 2026-06-18 もえつきる: 攻撃後タイミング / でんこうそうげき: 失敗条件
     case 'タイプ一時無効':
       return `そのターンだけ、自分の「${e.value}」タイプがなくなる`;
+    // ★2026-06-30 全国版 残22技で追加した新kind
+    case '同タイプ限定': // シンクロノイズ
+      return `自分と同じタイプを持つポケモンにだけダメージを与える(タイプがちがう相手には当たらない)`;
+    case 'トラップ反撃': // トラップシェル(後攻は優先度で前置済み)
+      return `そのターン、相手の物理技でダメージを受けると、すぐに反撃して相手全体にダメージを与える(物理技を受けなかったときは失敗する)`;
+    case '攻撃技条件先制': // じんらい
+      return `必ず先制できる。ただし、相手が攻撃技を出そうとしている時だけ成功し、相手が変化技などを選んでいる${e.also_fails_if_target_acted ? '・すでに攻撃を終えている' : ''}と失敗する`;
+    case 'おもさ変化': // ボディパージ
+      return `自分のおもさが${Math.abs(e.delta_kg)}kg ${e.delta_kg < 0 ? '軽くなる' : '重くなる'}`;
+    case '使用者限定': // ダークホール
+      return `「${e.value}」しか使えない(ほかのポケモンが使うと失敗する)`;
     case '技タイプ追加':
-      return `この技は「${e.value}」タイプも合わさったあつかいになる`;
+      return e.replaces ? `この技のタイプは「${e.value}」タイプになる` : `この技は「${e.value}」タイプも合わさったあつかいになる`;
     case '失敗ダメージ':
+      // ★2026-06-30 ふんじん(target=opponent): 相手がほのお技を使おうとすると相手が失敗してダメージ。
+      if (e.target === 'opponent')
+        return `そのターン、相手が「ほのお」タイプの技を使おうとすると、その技は失敗し、相手は最大HPの${fracT(e.fraction)}ぶんダメージを受ける`;
       // ★外れだけでなく「まもる等で防がれて失敗」も含む(とびひざげり/かかとおとし/サンダーダイブ・legacy明記)
       return `外れたり、「まもる」などで防がれて失敗したとき、自分が最大HPの${fracT(e.fraction)}ぶんダメージを受ける`;
     case '状態異常予防': {
@@ -590,6 +683,9 @@ function clause(e, m) {
       return s;
     }
     case '条件威力倍率':
+      // ★2026-06-30 みずのちかい等: ダブルで他の「ちかい」技と連携すると威力150+追加効果
+      if (e.condition && e.condition.type === 'pledge_combo')
+        return `ダブルバトルで、同じターンに味方が他の「ちかい」技を使うと、威力が150になり、追加の効果が出る`;
       return `${(e.prob && e.prob < 100) ? `${e.prob}%くらいの確率で、` : ``}威力が${multT(e.multiplier)}`; // きまぐレーザー
     case '威力段階増加':
       return `ひんしになった味方の数が多いほど威力が高くなる(1体ごとに+${e.power_increment})`;
@@ -608,6 +704,11 @@ function clause(e, m) {
       return s;
     } // どろぼう・ほしがる 2026-06-17
     case '持ち物排除': {
+      // ★2026-06-30 やきつくす: きのみ/ジュエルを焼いて消す(はたき落とすではない)。相手全体。
+      if (e.method === 'burn' && e.item_filter === 'berry_or_gem') {
+        const who2 = (e.target === 'all_opponents') ? '相手全員' : '相手';
+        return `${who2}が持っている「きのみ」や「ノーマルジュエル」を焼いて消し、使えなくする(ふつうの道具には効かない)`;
+      }
       // ★2026-06-15: target=all(ふしょくガス)は場全員に効く。target=opponent(はたきおとす)は相手だけ。
       const rest = e.restored_after_battle ? `。バトルが終わると道具は元にもどる` : ``; // はたきおとす
       const destroy = e.mode === 'destroy' ? `(道具自体がなくなる)` : ``; // 2026-06-18: ふしょくガスは消滅
@@ -639,7 +740,7 @@ function clause(e, m) {
     case 'ランクリセット':
       return e.target === 'all' ? `場にいる全員の能力ランクの変化を、すべて元にもどす` : `相手の能力ランクの変化をすべて元にもどす`;
     case 'ランクコピー':
-      if (e.onto === 'self') return `相手の上がっている能力ランクをすべて奪って自分のものにする(相手のその上昇分は元にもどる)。そのあと攻撃のダメージを与える`; // シャドースチール(奪う)
+      if (e.onto === 'self') return `相手の上がっている能力ランクだけをすべて奪って自分のものにする(下がっているランクはそのまま残る。相手のその上昇分は元にもどる)。そのあと攻撃のダメージを与える`; // シャドースチール(奪う)
       return `相手のすべての能力ランクの変化を、そのまま自分にコピーする`; // じこあんじ(copies='all stat ranks')
     case 'ランク反転':
       // ★2026-06-19 新技対応: ひっくりかえす(カラマネロ)
@@ -657,7 +758,14 @@ function clause(e, m) {
     case '相手持ち物威力':
       return `相手の持ち物を使って攻撃する。相手が持ち物を持っていないと失敗する` + (e.negates_item === false ? `(相手の道具を消したり、効果を止めたりはしない)` : ``); // ポルターガイスト
     case '相性上書き':
-      return `「${e.against_type}」タイプの相手に こうかばつぐんになる(以前の作品までの仕様で、いまの作品では変わっている場合があります)`; // 2026-06-18 フリーズドライ等(SV→過去の作品 機械漏れ防止)
+      // ★2026-06-30 effectiveness=neutral は「無効の解除」(みやぶる/ミラクルアイ)。super系はこうかばつぐん(フリーズドライ等)。
+      if (e.effectiveness === 'neutral') {
+        const atk = Array.isArray(e.attacker_types) && e.attacker_types.length ? `「${e.attacker_types.join('」「')}」タイプの技` : `本来きかない(無効の)技`;
+        return `相手が「${e.against_type}」タイプでも、${atk}が ふつうに当たるようになる`;
+      }
+      // ★2026-07-01 タールショット=相手に弱点を付与 / フリーズドライ等=この技自体がこうかばつぐん(SVでも現行仕様なので免責は外す)
+      if (e.mode === 'adds_weakness') return `相手は「${e.against_type}」タイプの技で受けるダメージが2倍になる(「${e.against_type}」が弱点になる)`;
+      return `「${e.against_type}」タイプの相手に こうかばつぐんになる`; // フリーズドライ等
     case 'やどりぎ':
       return `相手に タネをうえつける。毎ターン相手のHPを最大HPの${fracT(e.fraction)}吸い取って、自分のHPを回復する${e.carries_over_on_user_switch ? '(自分が交代しても、相手のタネの効果は続く)' : ''}(くさタイプには効かない)`;
     case 'みちづれ':
@@ -688,8 +796,11 @@ function clause(e, m) {
       if (Array.isArray(e.values) && e.values.length) return `自分が受けている「${e.values.join('」「')}」の効果をふりほどく`; // キラースピン: 「など」削除、データ全列挙(2026-06-17 阿部さん)
       return `自分にかかったバインドなどの状態をふりほどく`;
     case '自分拘束':
-      // ★2026-06-15: HPまわりは「回復」kindが言うので、ここは「地面に根をはる(交代できなくなる)」に絞る。「逃げる」は野生用語=避ける。
-      return `地面に根をはって、交代できなくなる`;
+      // ★2026-06-30: 数値duration=ころがる/アイスボール系(外れるまで連続で出しつづける拘束)。"消えるまで"等=ねをはる(地面に根をはる)。
+      if (typeof e.duration === 'number') return `外れるまで、最大${e.duration}ターンの間、この技を続けて出しつづける(そのあいだ交代できない)`;
+      // ★2026-07-01: 「地面に根をはって」は捏造イメージ(ねをはる用の言い回しがはいすいのじん等に誤適用)=削除。
+      //   composeは情景を勝手に足さず、メカニズム(自分は交代できない)だけを描く(北極星: 勝手な想像は誤解の元)。
+      return `自分は交代できなくなる`;
     case 'いたみわけ':
       return `自分と相手の今のHPを合わせて、半分ずつに分ける`;
     case '実数値折半':
@@ -704,6 +815,8 @@ function clause(e, m) {
       // ★2026-06-15: targets=[self,opponent] (スピードスワップ等) は実数値の入替 / target=opponent (パワースワップ等) はランク変化の入替 / target=self (パワートリック) は自分内の数値入替
       if (e.target === 'self' && !e.effect && !e.detail) return `自分の${joinStats(sts)}の数値を入れかえる(ランクは変わらない)`;
       if (Array.isArray(e.targets) && e.targets.includes('self') && e.targets.includes('opponent')) {
+        // ★2026-06-30 swap_kind=stages(ハートスワップ)はランク変化の交換 / 無印(スピードスワップ等)は実数値の交換
+        if (e.swap_kind === 'stages') return `自分と相手の${joinStats(sts)}のランクの変化を、おたがいに入れかえる`;
         return `自分と相手の${joinStats(sts)}の数値を入れかえる`;
       }
       return `自分と相手の${joinStats(sts)}のランクの変化を入れかえる`;
@@ -714,6 +827,8 @@ function clause(e, m) {
     case '最後に行動':
       return `そのターン、相手の行動を一番最後にする`;
     case '相手技タイプ変更':
+      // ★2026-07-01 プラズマシャワー(target=all)/プラズマフィスト: そのターン、ノーマル技がすべて電気に。そうでん(opponent単体)は相手の技を電気化。
+      if (e.target === 'all' || e.normal_only) return `そのターン、場にいる全員が出す「ノーマル」タイプの技が、すべて「${e.value}」タイプになる`;
       return `相手より先に使うと、そのターン、相手のその技を「${e.value}」タイプに変える`; // そうでん(phase=this_turn)
     case '木の実強制':
       // ★2026-06-15: target別に言い分け
@@ -782,8 +897,12 @@ function clause(e, m) {
       return `毎ターン終わりに、最大HPの${fracT(e.fraction)}ダメージを受ける`;
     case '地面技被弾化':
       return `ひこうタイプや特性「ふゆう」で浮いていても、地面にいるあつかいになる(じめん技が当たる)`;
-    case '対象範囲変更':
-      return `サイコフィールドで自分が地面にいると、相手全体に当たるようになる` + (e.spread_multiplier_in_doubles != null ? `(ダブルバトルでは、それぞれへのダメージが${fracT(e.spread_multiplier_in_doubles)}倍になる)` : ``); // 2026-06-18: ワイドフォース 0.75→3/4分数化(機械漏れ防止)
+    case '対象範囲変更': {
+      // ★2026-07-01 条件で前置を変える: user_form(テラクラスター=ステラフォルム) / 既定=ワイドフォース(サイコフィールド)
+      const rc = e.condition || {};
+      const pre = rc.type === 'user_form' ? `「${rc.value}」のとき` : `サイコフィールドで自分が地面にいると`;
+      return `${pre}、相手全体に当たるようになる` + (e.spread_multiplier_in_doubles != null ? `(ダブルバトルでは、それぞれへのダメージが${fracT(e.spread_multiplier_in_doubles)}倍になる)` : ``); // 2026-06-18: ワイドフォース 0.75→3/4分数化(機械漏れ防止)
+    }
     case '条件付き優先':
       // 自己完結文(条件込み)。compose側はこのkindがある時 priority行を出さない+ゴミ条件文も前置しない
       return e.priority ? `グラスフィールドで自分が地面にいる(ひこうタイプや特性「ふゆう」などは除く)と、優先度+${e.priority}で先に攻撃できる(ふだんは優先度0)` : null; // 2026-06-18 グラススライダー除外例明示
@@ -814,7 +933,7 @@ function clause(e, m) {
     case 'さきどり':
       return `相手が出そうとしている攻撃技を先どりして使い、威力を${e.multiplier || 1.5}倍にする(後攻になったときや、相手が変化技を選んでいるときは失敗する)`; // さきどり
     case 'テレキネシス':
-      return `${durT(e.duration)}の間、相手をうかせて、相手への技が必ず当たるようになる(じめんの技は当たらなくなる)`; // テレキネシス
+      return `${durT(e.duration)}の間、相手をうかせて、相手への技が必ず当たるようになる(じめんの技は当たらなくなる${e.ohko_exception ? '。ただし一撃必殺の技は当たるようにならない' : ''})`; // テレキネシス
     case '道具譲渡':
       return `自分が持っている道具を相手にわたす(相手がすでに道具を持っているときは失敗する)`; // ギフトパス
     case '賞金倍':
@@ -837,7 +956,7 @@ function compose(m) {
     g.cl.push({ text: c, kind: e.kind });
   }
   // clauseが条件込みで自己完結するkind=condTを前置しない(「次のどれかの時:」漏れ防止・ねをはる)
-  const SELF_CONTAINED_COND = new Set(['地面技被弾化', '条件付き優先', '接触反動']);
+  const SELF_CONTAINED_COND = new Set(['地面技被弾化', '条件付き優先', '接触反動', '対象範囲変更', '相手技タイプ変更', '特性無効化']);
   // ★grounded時に「地面にいるポケモンは」をclauseが内包するkind(フィールド技の「地面にいる時」重複・係り解消)
   const GROUNDED_SELF = new Set(['状態異常予防', '場の威力補正', '優先技無効', '回復']);
   const isGroundedCond = c => c && (c.type === 'grounded' || c.type === 'user_grounded' || c.type === 'target_grounded');
@@ -989,18 +1108,47 @@ function compose(m) {
   }
   // ★音系の技(flags.sound)を後置(2026-06-15): 全sound技に「音系の技。」(legacyも全技に明記・横断漏れだった)。
   if (m.flags && m.flags.sound === true && !/音系の技/.test(text)) text += `音系の技。`;
-  // ★2026-06-29 技分類フラグを後置(ヤックン表記に合わせる。風技/切る技/弾技/噛み技/踊り系/パンチ系/波動/こな)
+  // ★2026-06-29 技分類フラグを後置(ヤックン表記に合わせる) / ★P6 2026-07-02「〜系の技。」形に統一(音系・パンチ系に揃える)
   const F = m.flags || {};
-  if (F.wind === true && !/風技/.test(text)) text += `風技。`;
-  if (F.slash === true && !/切る技/.test(text)) text += `切る技。`;
-  if (F.bullet === true && !/弾技/.test(text)) text += `弾技。`;
-  if (F.bite === true && !/噛み技/.test(text)) text += `噛み技。`;
-  if (F.dance === true && !/踊り/.test(text)) text += `踊り系の技。`;
+  if (F.wind === true && !/風系の技/.test(text)) text += `風系の技。`;
+  if ((F.slicing === true || F.slash === true) && !/切る系の技/.test(text)) text += `切る系の技。`;
+  if ((F.bullet === true || F.ball === true) && !/弾系の技/.test(text)) text += `弾系の技。`;
+  if (F.bite === true && !/かみつき系の技/.test(text)) text += `かみつき系の技。`;
+  if (F.dance === true && !/踊り系の技/.test(text)) text += `踊り系の技。`;
   if (F.punch === true && !/パンチ系の技/.test(text)) text += `パンチ系の技。`;
-  if (F.pulse === true && !/波動技/.test(text)) text += `波動技。`;
-  if (F.powder === true && !/こな技/.test(text)) text += `こな技。`;
+  if (F.pulse === true && !/波動系の技/.test(text)) text += `波動系の技。`;
+  if (F.powder === true && !/こな系の技/.test(text)) text += `こな系の技。`;
   // ★ダブルバトル向きの技(flags.double_battle_oriented)を後置(2026-06-17): おさきにどうぞ・サイドチェンジ・さきおくり等。
   if (m.flags && m.flags.double_battle_oriented === true && !/ダブルバトル/.test(text)) text += `ダブルバトルで使う技。`;
+  // ★2026-07-01 範囲(ヤック由来): 1体選択でない技は「ダブルでは全体に当たる」を後置(全数照合で範囲欠落を検出)
+  const rn = m.battle_data && m.battle_data._range_note;
+  if (rn && !/相手全体|相手全員|自分以外|みんな/.test(text)) {
+    text += rn === '自分以外みんな' ? `ダブルバトルでは、自分以外みんなに当たる。` : `ダブルバトルでは、相手全体に当たる。`;
+  }
+  // ★2026-07-01 タイプ別Zワザ(ウルトラダッシュアタック等36技): 威力・タイプ・分類はもとの技で変わる
+  if (m.battle_data && m.battle_data._z_variable && !/Zワザ|Z技/.test(text)) {
+    text += `もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。`;
+  }
+  // ★2026-07-01 無効対象(immune)を後置(こな技/どく系の効かない相手=キノコのほうし/どくガス等)
+  const immEff = eff.find(e => Array.isArray(e.immune) && e.immune.length);
+  if (immEff && !/には効かない|には無効/.test(text)) {
+    const parts = immEff.immune.map(x => x.type === 'target_type' ? `「${x.value}」タイプ` : x.type === 'target_ability' ? `特性「${x.value}」` : x.type === 'target_item' ? `道具「${x.value}」を持つ相手` : null).filter(Boolean);
+    if (parts.length) text += `(${parts.join('や')}には効かない)`;
+  }
+  // ★P3 Max技プレフィックス+レイドバリア末尾(2026-07-02)
+  // is_max: ダイ〜技(攻撃技→「攻撃技のダイマックス技。」+末尾「レイドでは…」、変化技(ダイウォール)→「変化技のダイマックス技。」)
+  if (m.is_max) {
+    const isDmgMove = m.category !== '変化';
+    const prefix = isDmgMove ? '攻撃技のダイマックス技。' : '変化技のダイマックス技。';
+    text = prefix + text;
+    if (isDmgMove && !/レイド/.test(text)) {
+      text += `レイドでは相手の不思議なバリアのゲージを2つ減らす。`;
+    }
+  }
+  // ★P3 Z技専用プレフィックス(2026-07-02): z.userがある専用Z技のみ冒頭に「『◯◯』の専用Zワザ。」
+  if (m.z && m.z.user && !m.z.generic && !/専用Zワザ/.test(text)) {
+    text = `「${m.z.user}」の専用Zワザ。` + text;
+  }
   return { text, holes };
 }
 

@@ -17,7 +17,16 @@ async function abilities(){
     for(const a of rows)all.push({id:a.id,slug:a.name,names:names(a.pokemon_v2_abilitynames),effect_en:((a.pokemon_v2_abilityeffecttexts||[])[0]||{}).short_effect||''});
     process.stdout.write(`\rabilities: ${all.length}`);if(rows.length<CH)break;
   }
-  fs.writeFileSync('reference/abilities_master.json',JSON.stringify(all));console.log(`\nabilities_master.json: ${all.length}`);
+  // Conquest(ポケモン+ノブナガの野望)専用特性(PokeAPI id10001-10060)は本編に無い/所持ポケ0のため除外。
+  let list=all.filter(a=>a.id<10000);
+  console.log(`\nConquest等(id>=10000)を除外: ${all.length-list.length}`);
+  // Champions独自特性(PokeAPIに無い・ABILITY_DESC由来)を追加。
+  try{
+    const ex=JSON.parse(fs.readFileSync('reference/abilities_extra.json','utf8'));
+    for(const e of ex){ if(!list.some(a=>a.slug===e.slug || (a.names&&a.names.ja===e.names.ja))){ list.push({id:e.id,slug:e.slug,names:{...e.names},effect_en:e.effect_en||'',ability_source:'champions'}); } }
+    console.log(`abilities_extra merged: ${ex.length}`);
+  }catch(e){ console.log('(abilities_extra.json not applied:',e.message,')'); }
+  fs.writeFileSync('reference/abilities_master.json',JSON.stringify(list));console.log(`abilities_master.json: ${list.length}`);
 }
 async function moves(){
   const all=[];const CH=400;

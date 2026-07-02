@@ -36,7 +36,7 @@ function absorber() {
 
 // エンジン関数群を取り出して返す
 function buildEngine() {
-  const data = require(path.join(ROOT, 'pokechan_data.js'));
+  const data = require(path.join(ROOT, process.env.PCHAM_DATA || 'pokechan_data.js'));   // ★T4: PCHAM_DATA env var で差替可能(未指定=従来)
   const html = fs.readFileSync(path.join(ROOT, 'real_battle_simulator.html'), 'utf8');
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1])
     .filter(s => s.includes('function calcDamage') || s.includes('function runTurn'));

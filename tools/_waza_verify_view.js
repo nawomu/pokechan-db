@@ -34,7 +34,7 @@ const GROUPS = [
 const FLAGS = [
   ['f_punch', '👊パンチ', m => m.flags && m.flags.punch],
   ['f_sound', '🔊音技', m => m.flags && m.flags.sound],
-  ['f_ball', '🔵弾技', m => m.flags && m.flags.ball],
+  ['f_ball', '🔵弾技', m => m.flags && (m.flags.bullet || m.flags.ball)],
   ['f_pulse', '〰️波動', m => m.flags && m.flags.pulse],
   ['f_charge', '⏳溜め技', m => m.flags && m.flags.charge],
 ];
