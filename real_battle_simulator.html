@@ -1597,7 +1597,8 @@ function calcDamage(atkSide, defSide, move, opts){
     const _dAb = defAbilityVs(def, atk);
     const _ABSORB = {'ちょすい': 'みず', 'ちくでん': 'でんき', 'もらいび': 'ほのお', 'そうしょく': 'くさ', 'ひらいしん': 'でんき', 'でんきエンジン': 'でんき', 'かんそうはだ': 'みず'};
     if (_ABSORB[_dAb] === moveType || (_dAb === 'ぼうおん' && move.flags && move.flags.sound)
-        || (_dAb === 'ぼうだん' && move.flags && (move.flags.bullet || move.flags.ball))){   // ぼうだん(段134): 弾の技を無効化
+        || (_dAb === 'ぼうだん' && move.flags && (move.flags.bullet || move.flags.ball))   // ぼうだん(段134): 弾の技を無効化
+        || (_dAb === 'ぼうじん' && move.flags && move.flags.powder)){   // ぼうじん: 粉技(flags.powder)を完全無効(Bulbapedia "Overcoat")
       const hp = realStat(def, 'hp');
       return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
               immune:true, reason:`${pname(def)} は ${_dAb}で 効かない`, absorbAb:_dAb, recoil:0};
@@ -1793,6 +1794,13 @@ function calcDamage(atkSide, defSide, move, opts){
   if (ab === 'すなのちから' && env.weather === 'sand' && ['いわ','じめん','はがね'].includes(moveType)){
     base = pokeRound(base, 5325);
     chips.push({label:'すなのちから', factor:1.3, kind:'ability'});
+  }
+  // すてみ(Reckless): 反動技(battle_data.effects に kind=反動 を持つ技)の威力×1.2(Bulbapedia "Reckless")。
+  // わるあがき(move.struggle)は対象外(Bulbapedia明記)。とびひざげり等の失敗ダメージ(crash damage)は対象外。
+  const _hasRecoilEf = !move.struggle && (move.battle_data && move.battle_data.effects || []).some(e => e.kind === '反動');
+  if (ab === 'すてみ' && _hasRecoilEf){
+    base = pokeRound(base, 4915);
+    chips.push({label:'すてみ', factor:1.2, kind:'ability'});
   }
 
   // 3.75) 防御側 特性補正(かたやぶり=段124はこれらを無視する)
@@ -2592,6 +2600,14 @@ function phaseDealDamage(atkSide, defSide, move){
       log('9', `${pname(atk)} は さめはだで ${_rDmg} ダメージ！ (残HP ${atk.currentHp})`);
       if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
     }
+    // てつのトゲ(Iron Barbs): さめはだと同一機構。接触してきた相手に最大HPの1/8(Bulbapedia "Iron Barbs")
+    if (_cAb === 'てつのトゲ'){
+      const _tbMax = realStat(atk, 'hp');
+      const _tbDmg = Math.max(1, Math.floor(_tbMax / 8));
+      atk.currentHp = Math.max(0, atk.currentHp - _tbDmg);
+      log('9', `${pname(atk)} は てつのトゲで ${_tbDmg} ダメージ！ (残HP ${atk.currentHp})`);
+      if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
+    }
   }
   // イリュージョン解除(段138): 攻撃技のダメージを受けると本来の姿に戻る
   if (def.poke && def.illusionAs && total > 0 && !def.subAbsorbed){
@@ -3076,6 +3092,12 @@ function phaseApplyEffects(atkSide, defSide, move){
   }
   // たくわえ加算がある技は「実際に上がった分」を消費時に戻すため、実行前のランクを控えておく
   const _preStockRank = _stockAdd ? {def: atk.rank.def || 0, spdef: atk.rank.spdef || 0} : null;
+  // ぼうじん(Overcoat): 粉技(flags.powder)の追加効果を完全無効(変化技としての粉技。Bulbapedia "Overcoat")
+  // 攻撃技のpowder無効はcalcDamage側で対処。ここでは変化技(どくのこな/しびれごな/ねむりごな等)を防ぐ
+  if (move.flags && move.flags.powder && sideAbility(def) === 'ぼうじん'){
+    log('9', `${pname(def)} は ぼうじんで こな技が 効かない！`);
+    return;
+  }
   for (const ef of move.battle_data.effects){
     // 対象のマッピング: self/team/party=自分側、それ以外(opponent等)=相手側。
     // ※team/partyを相手にマップすると じばそうさ/おいかぜ等が逆向きに効く実バグになる(run4検証で発見・段99修正)
@@ -3257,6 +3279,13 @@ function phaseApplyEffects(atkSide, defSide, move){
     if (ef.kind === '能力ランク変化' && (ef.timing === 'charge_turn' || ef.on_charge_turn)) continue;
     const prob = ef.prob != null ? ef.prob : 100;
     if (Math.random() * 100 >= prob) continue;
+    // りんぷん(Shield Dust): 相手の攻撃技の「追加効果」で相手側に起こる効果(状態付与/ひるみ/ランクダウン等)を防ぐ。
+    // 自分側に起こる効果(オーバーヒートの自ダウン等)は防がない(Bulbapedia "Shield Dust")。
+    // 追加効果 = prob < 100 or (prob=100でもtargetがopponent/all_opponents)の敵対象効果。
+    // ちからずく時はすでにreturnされているため、ここでのブロックはちからずくと独立。
+    if (sideAbility(def) === 'りんぷん' && (ef.target === 'opponent' || ef.target === 'all_opponents')){
+      continue;
+    }
     if (ef.kind === 'ひるみ' || (ef.kind === '状態付与' && ef.value === 'ひるみ')){
       // ひるみは「状態異常」でなく、そのターンだけ行動できなくする一過性フラグ(ターン開始でクリア)。
       // せいしんりょく: ひるまない(ABILITY_DESC公式準拠・段109)
@@ -4173,10 +4202,10 @@ function phaseSlipFor(s){
     st.fainted = true;
     log('10a', `${pname(st)} は ひんしになった！`);
   }
-  // 砂嵐継続ダメ (いわ/じめん/はがね/ふゆう/すながくれ/すなのちから/マジックガード除外)
+  // 砂嵐継続ダメ (いわ/じめん/はがね/ふゆう/すながくれ/すなのちから/マジックガード/ぼうじん除外)
   if (env.weather === 'sand' && !st.fainted){
     if (!sideTypes(st).some(t => ['いわ','じめん','はがね'].includes(t)) &&
-        !['ふゆう','すなのちから','すながくれ','マジックガード'].includes(sideAbility(st))){
+        !['ふゆう','すなのちから','すながくれ','マジックガード','ぼうじん'].includes(sideAbility(st))){
       const d = Math.max(1, Math.floor(max / 16));
       st.currentHp = Math.max(0, st.currentHp - d);
       log('10c', `${pname(st)} は すなあらしで ${d} ダメージ！`);
