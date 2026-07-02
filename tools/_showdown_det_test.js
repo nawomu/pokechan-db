@@ -632,7 +632,8 @@ function extractP2DmgT2(chunks) {
         turnCount++;
         continue;
       }
-      if (line.startsWith('|-crit|p2a:') && turnCount === 2) {
+      if (line.startsWith('|-crit|p2a:')) {
+        // T1・T2どちらの急所も除外(T1急所→T1後HPが低くなりT2ダメ計測が狂う)
         critOccurred = true;
       }
       if (line.startsWith('|switch|p2a:')) {
