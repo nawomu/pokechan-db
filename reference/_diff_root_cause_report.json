@@ -1,0 +1,100 @@
+{
+  "date": "2026-07-02",
+  "title": "Showdown差分テスト根本原因調査レポート",
+  "starmie_46_vs_37": {
+    "scenario": "スターミー_vs_Snorlax_noitem T1 p1(スターミー)",
+    "ours_net": 46,
+    "sd_net": 37,
+    "confirmed_breakdown": {
+      "ours": {
+        "recoil": 18,
+        "honoo_punch": 20,
+        "burn_slip": 8,
+        "total": 46
+      },
+      "sd": {
+        "recoil": 18,
+        "honoo_punch": 19,
+        "burn": "none",
+        "total": 37
+      }
+    },
+    "root_cause": "ほのおのパンチ(prob=10%)のやけど付与確率が うちのsim(mulberry32 seed)では発動、SD(seed=[1,2,3,4])では不発。両エンジンで乱数系列が独立しているため発動/不発が分かれた。やけどスリップ(8ダメ)と技ダメ乱数差(1)が合計9の差を生む。",
+    "calc_verification": {
+      "base_formula": "floor((2*50/5+2)*75*130/105/50)+2 = 42",
+      "eff": 0.5,
+      "range": "17~21(eff=0.5)",
+      "burn_slip": "floor(135/16)=8",
+      "recoil": "floor(56*0.33)=18",
+      "conclusion": "うちのsimのダメ式・eff計算・STAB計算は全て正しい"
+    },
+    "classification": "d. 乱数系列独立性(非決定論的差分)"
+  },
+  "triage_53_diffs": {
+    "total": 53,
+    "by_classification": {
+      "a_harness_setting_mismatch": {
+        "count": 0,
+        "detail": "HP/EV/IV/性格/道具/特性すべて一致確認。SDのpackedフォーマット正常にパース確認。"
+      },
+      "b_our_sim_formula_error": {
+        "count": 0,
+        "detail": "base計算式・eff(タイプ相性)・STAB・ランク補正すべて正しい。calcDamageの出力はGen9式に一致。"
+      },
+      "c_sd_conversion_error": {
+        "count": 0,
+        "detail": "SDパック文字列の解釈正常。Starmie HP=135/Snorlax HP=235で両エンジン一致。"
+      },
+      "d_rng_independence": {
+        "count": 53,
+        "sub_d1_secondary_effect_chance": {
+          "description": "追加効果確率(prob<100)の技が両エンジンで別々に乱数判定 → 状態異常発生ズレ → 以降ターンで雪だるま式のダメ差",
+          "moves": [
+            "ほのおのパンチ(10%やけど)",
+            "れいとうパンチ(10%こおり)",
+            "かえんほうしゃ(10%やけど)",
+            "のしかかり(30%まひ)",
+            "かみなりパンチ(10%まひ)",
+            "10まんボルト(10%まひ)",
+            "れいとうビーム(10%こおり)"
+          ],
+          "example_cascade": "T1でやけど発生→T1にスリップ8追加(小差) + T2以降に攻撃側の物理技が半減(大差, 50%変動)"
+        },
+        "sub_d2_accuracy_miss": {
+          "description": "命中率<100の技の外れが両エンジンで独立",
+          "moves": [
+            "メガトンキック(75%)",
+            "ハイドロポンプ(80%)",
+            "はかいこうせん(90%)"
+          ],
+          "example": "カメックス_vs_Snorlax T3でメガトンキックがうちで当たりSDで外れ → sd_no_damage_ours_damages"
+        }
+      }
+    }
+  },
+  "fix_recommendations": [
+    {
+      "location": "tools/_showdown_diff_test.js (ハーネス)",
+      "change": "両エンジンの乱数を同期させるか、追加効果・命中率を持つ技を使わないシナリオを選定する。具体的には: ① 追加効果なし・命中率100%の技のみのシナリオに差し替える or ② SDのカスタムランダムフックを使ってうちのsimと同じ乱数値を注入する",
+      "priority": "high - 現在の53件差分の全原因"
+    },
+    {
+      "location": "うちのsim (real_battle_simulator.html)",
+      "change": "修正不要。ダメ計算式・タイプ相性・実数値計算・STAB・道具補正はGen9準拠で正しい。",
+      "priority": "none"
+    }
+  ],
+  "truly_deterministic_scenarios": {
+    "note": "本当に決定論的な比較をするには、以下の条件が必要:",
+    "conditions": [
+      "使用する全技が accuracy=100(必中or100%) かつ prob_effect なし(追加効果の確率なし)",
+      "または 両エンジンに同じ乱数系列を注入して状態異常・命中判定を同期させる"
+    ],
+    "clean_moves_examples": [
+      "つるぎのまい(変化)",
+      "でんじは(まひ100%,ただし別エンジンで完全適用確認要)",
+      "みがわり",
+      "こごえるかぜ(かぜ100%素早さ下降)"
+    ]
+  }
+}
