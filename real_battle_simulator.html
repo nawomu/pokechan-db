@@ -1258,6 +1258,10 @@ const POKE_MAP_BY_NAME = {};
 // 持ち物 key → アイテム情報の逆引き（items_database.js 読み込み後に構築）
 const ITEM_BY_KEY = {};
 
+// しんかのきせき(Eviolite)対象 = まだ進化できる種の全国図鑑番号セット。
+// 導出元: Showdown pokedex(vendor/showdown/.../data/pokedex.js)の species.evos 有り・デフォルトフォーム(450種・2026-07-02生成)。
+const EVIOLITE_NFE_DEX = new Set([1,2,4,5,7,8,10,11,13,14,16,17,19,21,23,25,27,29,30,32,33,35,37,39,41,42,43,44,46,48,50,52,54,56,57,58,60,61,63,64,66,67,69,70,72,74,75,77,79,81,82,84,86,88,90,92,93,95,96,98,100,102,104,108,109,111,112,113,114,116,117,118,120,123,125,126,129,133,137,138,140,147,148,152,153,155,156,158,159,161,163,165,167,170,172,173,174,175,176,177,179,180,183,187,188,190,191,193,194,198,200,203,204,206,207,209,215,216,217,218,220,221,223,228,231,233,234,236,238,239,240,246,247,252,253,255,256,258,259,261,263,265,266,268,270,271,273,274,276,278,280,281,283,285,287,288,290,293,294,296,298,299,300,304,305,307,309,315,316,318,320,322,325,328,329,331,333,339,341,343,345,347,349,353,355,356,360,361,363,364,366,371,372,374,375,387,388,390,391,393,394,396,397,399,401,403,404,406,408,410,412,415,418,420,422,425,427,431,433,434,436,438,439,440,443,444,446,447,449,451,453,456,458,459,495,496,498,499,501,502,504,506,507,509,511,513,515,517,519,520,522,524,525,527,529,532,533,535,536,540,541,543,544,546,548,551,552,554,557,559,562,564,566,568,570,572,574,575,577,578,580,582,583,585,588,590,592,595,597,599,600,602,603,605,607,608,610,611,613,616,619,622,624,625,627,629,633,634,636,650,651,653,654,656,657,659,661,662,664,665,667,669,670,672,674,677,679,680,682,684,686,688,690,692,694,696,698,704,705,708,710,712,714,722,723,725,726,728,729,731,732,734,736,737,739,742,744,747,749,751,753,755,757,759,761,762,767,769,772,782,783,789,790,803,810,811,813,814,816,817,819,821,822,824,825,827,829,831,833,835,837,838,840,843,846,848,850,852,854,856,857,859,860,868,872,878,884,885,886,891,906,907,909,910,912,913,915,917,919,921,922,924,926,928,929,932,933,935,938,940,942,944,946,948,951,953,955,957,958,960,963,965,969,971,974,996,997,999,1011,1012]);
+
 // =========================================================================
 // 計算ロジック（純関数）
 // =========================================================================
@@ -1671,9 +1675,36 @@ function calcDamage(atkSide, defSide, move, opts){
     if ((_aab === 'ちからもち' || _aab === 'ヨガパワー') && isPhys) aStatEff = aStat * 2;
   }
 
+  // ★とつげきチョッキ/しんかのきせき: 防御側の防御力を×1.5(マジックルーム中は無効)
+  let dStatEff = dStat;
+  {
+    const _defItemForDef = (!env.magicRoom && def.item) ? ITEM_BY_KEY[def.item] : null;
+    // とつげきチョッキ: 特殊攻撃受け時のみ特防×1.5(Bulbapedia "Assault Vest")
+    if (_defItemForDef && _defItemForDef.key === 'assault_vest' && !isPhys && dKey === 'spdef'){
+      dStatEff = Math.floor(dStatEff * 1.5);
+      chips.push({label:'とつげきチョッキ', factor:1.5, kind:'item'});
+    }
+    // しんかのきせき: 進化前(まだ進化できる)ポケモンの防御・特防を×1.5(Bulbapedia "Eviolite")
+    // 進化前判定: Showdown pokedex(species.evos有り・デフォルトフォーム)から導出した全国図鑑番号セット。
+    //   Championsロスター313体では該当=ピカチュウのみだが、将来のロスター追加に耐えるよう全NFEを持つ。
+    //   メガシンカ中は対象外(メガは進化済み扱い)。
+    if (_defItemForDef && _defItemForDef.key === 'eviolite' && (dKey === 'def' || dKey === 'spdef')){
+      const _defPoke = def.poke;
+      let _canEvolve = false;
+      if (_defPoke && !_defPoke.mega && _defPoke.form !== 'メガ進化'){
+        const _dn = parseInt(_defPoke.no, 10);
+        _canEvolve = !isNaN(_dn) && EVIOLITE_NFE_DEX.has(_dn);
+      }
+      if (_canEvolve){
+        dStatEff = Math.floor(dStatEff * 1.5);
+        chips.push({label:'しんかのきせき', factor:1.5, kind:'item'});
+      }
+    }
+  }
+
   // ベースダメ（SVの内部式）
   // base = floor( floor( floor( (2L/5+2) * P * A / D ) / 50 ) ) + 2
-  let base = Math.floor((2 * LEVEL / 5 + 2) * power * aStatEff / dStat / 50) + 2;
+  let base = Math.floor((2 * LEVEL / 5 + 2) * power * aStatEff / dStatEff / 50) + 2;
 
   // === 補正適用（pokeRound 段階） ===
   // 1) 天候
@@ -1854,6 +1885,18 @@ function calcDamage(atkSide, defSide, move, opts){
     }
   }
 
+  // ★こだわりハチマキ: 物理技の攻撃×1.5(マジックルーム中は無効=atkItemが取得済み。items_database宣言。出典: ポケモンWiki「こだわりハチマキ」)
+  // 攻撃ステータスへの補正はbase計算後に適用(ちからもちと同じ意味合い・整数丸め近似は許容)
+  if (atkItem && atkItem.key === 'kodawari_hachimaki' && isPhys){
+    base = pokeRound(base, 6144);  // ×1.5
+    chips.push({label:'こだわりハチマキ', factor:1.5, kind:'item'});
+  }
+  // ★こだわりメガネ: 特殊技の特攻×1.5(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「こだわりメガネ」)
+  if (atkItem && atkItem.key === 'kodawari_megane' && !isPhys){
+    base = pokeRound(base, 6144);  // ×1.5
+    chips.push({label:'こだわりメガネ', factor:1.5, kind:'item'});
+  }
+
   // 4) 16通り乱数 [85..100] / 100（ここから先は variation 毎に）
   const variations = [];
   for (let r = 85; r <= 100; r++){
@@ -1894,9 +1937,33 @@ function calcDamage(atkSide, defSide, move, opts){
     }
 
     // 8) いのちのたま ×1.3（マジックルーム中は効果なし）
-    if (atk.lifeOrb && !env.magicRoom){
+    // チェックボックスフラグ(atk.lifeOrb)またはアイテムkey(life_orb)どちらでも発動(items_database宣言)
+    const _lifeOrbActive = (atk.lifeOrb || (atkItem && atkItem.key === 'life_orb')) && !env.magicRoom;
+    if (_lifeOrbActive){
       v = pokeRound(v, 5324);
       if (r === 85) chips.push({label:'いのちのたま', factor:1.3, kind:'item'});
+    }
+
+    // 8.3) たつじんのおび: 効果バツグン時に威力×1.2(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「たつじんのおび」)
+    if (eff > 1 && atkItem && atkItem.key === 'expert_belt'){
+      v = pokeRound(v, 4915);
+      if (r === 85) chips.push({label:'たつじんのおび', factor:1.2, kind:'item'});
+    }
+    // 8.4a) ちからのハチマキ: 物理技威力×1.1(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「ちからのハチマキ」)
+    if (atkItem && atkItem.key === 'muscle_band' && isPhys){
+      v = pokeRound(v, 4506);
+      if (r === 85) chips.push({label:'ちからのハチマキ', factor:1.1, kind:'item'});
+    }
+    // 8.4b) ものしりメガネ: 特殊技威力×1.1(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「ものしりメガネ」)
+    if (atkItem && atkItem.key === 'wise_glasses' && !isPhys){
+      v = pokeRound(v, 4506);
+      if (r === 85) chips.push({label:'ものしりメガネ', factor:1.1, kind:'item'});
+    }
+    // 8.4c) パンチグローブ: パンチ技威力×1.1(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「パンチグローブ」)
+    // ※接触判定無効化は calcDamage の contact フラグに影響せず(move.contact のオーバーライドはここでは非対応)
+    if (atkItem && atkItem.key === 'punching_glove' && move.flags && move.flags.punch){
+      v = pokeRound(v, 4506);
+      if (r === 85) chips.push({label:'パンチグローブ', factor:1.1, kind:'item'});
     }
 
     // 8.5) 半減きのみ（防御側 item、効果バツグン時のみ ×0.5。マジックルーム中は効果なし）
@@ -1938,10 +2005,17 @@ function calcDamage(atkSide, defSide, move, opts){
     }
   }
 
-  // ゴツゴツメット反動（接触技という属性は持っていないので、物理技 = 接触に近似。マジックルーム中は効果なし）
-  const helmetRecoil = (def.rockyHelmet && isPhys && !env.magicRoom) ? Math.floor(realStat(atk,'hp') / 6) : 0;
-  // いのちのたま反動（マジックルーム中は効果なし）
-  const orbRecoil = (atk.lifeOrb && !env.magicRoom) ? Math.floor(realStat(atk,'hp') / 10) : 0;
+  // ゴツゴツメット反動（接触技という属性を判定: move.contact === true を優先し、なければ物理技で近似。マジックルーム中は効果なし）
+  // item key(rocky_helmet)またはチェックボックスフラグ(def.rockyHelmet)どちらでも発動(items_database宣言)
+  // ★パンチグローブ: パンチ技は接触判定が消える(攻撃側がパンチグローブかつパンチ技ならゴツメ対象外)
+  const _helmetHolder = (!env.magicRoom && def.item) ? ITEM_BY_KEY[def.item] : null;
+  const _punchGloveActive = (atkItem && atkItem.key === 'punching_glove' && move.flags && move.flags.punch);
+  const _isContact = !_punchGloveActive && ((move.contact === true) || isPhys);  // contact属性があればそれ優先、なければ物理で近似
+  const _helmetActive = (_helmetHolder && _helmetHolder.key === 'rocky_helmet') || (def.rockyHelmet && !env.magicRoom);
+  const helmetRecoil = (_helmetActive && _isContact && !env.magicRoom) ? Math.floor(realStat(atk,'hp') / 6) : 0;
+  // いのちのたま反動（マジックルーム中は効果なし）。チェックボックスフラグまたはitem keyで発動
+  const _orbActive = (atk.lifeOrb || (atkItem && atkItem.key === 'life_orb')) && !env.magicRoom;
+  const orbRecoil = _orbActive ? Math.floor(realStat(atk,'hp') / 10) : 0;
 
   return {
     min:minD, max:maxD, variations, hp, effectiveHp, stealthHp,
@@ -2576,7 +2650,10 @@ function phaseDealDamage(atkSide, defSide, move){
     if (_effChip) log('8', _effChip.kind === 'eff-up' ? 'こうかは ばつぐんだ！' : 'こうかは いまひとつのようだ…');
   }
   // 接触反応特性(受け側・段112・ABILITY_DESC公式準拠): 直接攻撃(move.contact)を本体が受けた時に発動
-  if (def.poke && !def.fainted && total > 0 && !def.subAbsorbed && move.contact && atk.poke && !atk.fainted){
+  // ★パンチグローブ: パンチ技は接触判定が消える=接触反応特性・ゴツゴツメット等の対象外(items_database宣言。出典: ポケモンWiki「パンチグローブ」)
+  const _effectiveContact = move.contact &&
+    !(atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].key === 'punching_glove' && move.flags && move.flags.punch);
+  if (def.poke && !def.fainted && total > 0 && !def.subAbsorbed && _effectiveContact && atk.poke && !atk.fainted){
     const _cAb = sideAbility(def);
     // せいでんき=30%まひ / ほのおのからだ=30%やけど(相手の状態異常が無い時だけ・タイプ免疫も尊重)
     if (_cAb === 'せいでんき' || _cAb === 'ほのおのからだ'){
@@ -2688,10 +2765,21 @@ function phaseDealDamage(atkSide, defSide, move){
     log('9', `${pname(atk)} は 反動で ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
     if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
   }
-  // 反動ダメージ (ゴツメ・たま=持ち物由来)
+  // 反動ダメージ (ゴツメ・たま=持ち物由来。calcDamageが計算済み)
   if (result.recoil > 0){
     atk.currentHp = Math.max(0, atk.currentHp - result.recoil);
-    log('9', `${pname(atk)} は反動で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
+    const _recoilLabel = result.helmetRecoil > 0 && result.orbRecoil > 0 ? 'ゴツゴツメット+いのちのたまの反動'
+                       : result.helmetRecoil > 0 ? 'ゴツゴツメットの反動' : 'いのちのたまの反動';
+    log('9', `${pname(atk)} は ${_recoilLabel}で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
+    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
+  }
+  // ★ふうせん: 攻撃技でダメージを受けると割れて効果消失(items_database宣言。出典: ポケモンWiki「ふうせん」)
+  // total > 0 かつ本体が受けた(分身が受けた場合は割れない)
+  if (def.poke && !env.magicRoom && def.item && ITEM_BY_KEY[def.item] &&
+      ITEM_BY_KEY[def.item].key === 'air_balloon' && !def.airBalloonBurst && total > 0 && !def.subAbsorbed){
+    def.airBalloonBurst = true;  // 割れたフラグ=isGroundedでふうせん効果を失う
+    def.item = '';               // アイテム喪失(ふうせんは一度割れると消える)
+    log('9', `${pname(def)} の ふうせんが 割れた！`);
   }
   // わるあがき反動(段129): 自分の最大HPの1/4(第4世代以降)。いしあたま等でも防げない
   if (move.struggle && total > 0 && atk.poke && !atk.fainted){
@@ -2760,6 +2848,9 @@ function isGrounded(st){
   // ★2026-06-19 くろいてっきゅう: 持ち主はひこう・ふゆうでも地面にいる扱い(items_database.js宣言)
   if (st.item && ITEM_BY_KEY[st.item] && ITEM_BY_KEY[st.item].key === 'kuroi_tekkyu') return true;
   if (st.magnetRise > 0) return false; // でんじふゆう: 浮いている(ポケモンWiki「でんじふゆう」)
+  // ★ふうせん: 割れていない限り地面にいない扱い(じめん技無効。被弾で割れる=airBalloonBurst=true でfalse返さない)
+  // airBalloonBurst フラグは phaseDealDamage で被弾時に立てる
+  if (st.item && ITEM_BY_KEY[st.item] && ITEM_BY_KEY[st.item].key === 'air_balloon' && !st.airBalloonBurst) return false;
   if (sideTypes(st).includes('ひこう')) return false;
   if (sideAbility(st) === 'ふゆう') return false;
   return true;
@@ -4538,6 +4629,12 @@ function runSingleAttack(atkSide, moveIdx){
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
+  // ★とつげきチョッキ: 変化技を出せない(マジックルーム中でも道具効果は失われるが制限自体は残る=実機準拠。出典: ポケモンWiki「とつげきチョッキ」)
+  if (mv.category === '変化' && atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].key === 'assault_vest'){
+    log('0c', `${pname(atk)} は とつげきチョッキで ${mv.name} が だせない！`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
   // かなしばり状態: 封じられた技は出せない(Bulbapedia "Disable")
   if (atk.disable && mv.name === atk.disable.name){
     log('0c', `${pname(atk)} は かなしばりで ${mv.name} が だせない！`);
@@ -5576,6 +5673,11 @@ function runTurn(){
       log('0c', `${pname(atk)} は ちょうはつされて ${mv.name} が だせない！`);
       noteActionFailed(atk); continue;
     }
+    // ★とつげきチョッキ: 変化技を出せない(出典: ポケモンWiki「とつげきチョッキ」)
+    if (mv.category === '変化' && atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].key === 'assault_vest'){
+      log('0c', `${pname(atk)} は とつげきチョッキで ${mv.name} が だせない！`);
+      noteActionFailed(atk); continue;
+    }
     // かなしばり状態: 封じられた技は出せない(Bulbapedia "Disable")
     if (atk.disable && mv.name === atk.disable.name){
       log('0c', `${pname(atk)} は かなしばりで ${mv.name} が だせない！`);
@@ -6009,6 +6111,56 @@ function runTurn(){
           const _before = st.currentHp;
           st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max * _frac)));
           log('10', `${pname(st)} は ${_it.name}で HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+        }
+      }
+    }
+    // ★かえんだま: ターン終了時に持ち主をやけど状態にする(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「かえんだま」)
+    // やけど免疫: ほのおタイプ / みずびたし等でほのおになっている訳ではない=現タイプで判定
+    if (st.poke && !st.fainted && st.item && !env.magicRoom){
+      const _flameOrb = ITEM_BY_KEY[st.item];
+      if (_flameOrb && _flameOrb.key === 'flame_orb'){
+        const _stTypes = sideTypes(st);
+        if (st.status === 'none' && !_stTypes.includes('ほのお') && sideAbility(st) !== 'みずのベール' &&
+            sideAbility(st) !== 'マグマのよろい' && sideAbility(st) !== 'どんかん' && sideAbility(st) !== 'たいねつ'){
+          st.status = 'burn';
+          log('10', `${pname(st)} は かえんだまの 効果で やけど状態になった！`);
+        }
+      }
+    }
+    // ★どくどくだま: ターン終了時に持ち主をもうどく状態にする(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「どくどくだま」)
+    // もうどく免疫: どくタイプ / はがねタイプ / めんえき / どんかん
+    if (st.poke && !st.fainted && st.item && !env.magicRoom){
+      const _toxicOrb = ITEM_BY_KEY[st.item];
+      if (_toxicOrb && _toxicOrb.key === 'toxic_orb'){
+        const _stTypes = sideTypes(st);
+        if (st.status === 'none' && !_stTypes.includes('どく') && !_stTypes.includes('はがね') &&
+            sideAbility(st) !== 'めんえき' && sideAbility(st) !== 'どんかん'){
+          st.status = 'badpoison';
+          st.badPoisonTurns = 1;  // もうどくカウンタ初期化
+          log('10', `${pname(st)} は どくどくだまの 効果で もうどく状態になった！`);
+        }
+      }
+    }
+    // ★くろいヘドロ: ターン終了時に毒タイプは1/16回復、それ以外は1/8ダメージ(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「くろいヘドロ」)
+    if (st.poke && !st.fainted && st.item && !env.magicRoom){
+      const _blackSludge = ITEM_BY_KEY[st.item];
+      if (_blackSludge && _blackSludge.key === 'black_sludge'){
+        const _bsMax = realStat(st, 'hp');
+        if (st.currentHp == null) st.currentHp = _bsMax;
+        const _bsTypes = sideTypes(st);
+        if (_bsTypes.includes('どく')){
+          // 毒タイプ: 1/16回復
+          if (st.currentHp < _bsMax){
+            const _heal = Math.max(1, Math.floor(_bsMax / 16));
+            st.currentHp = Math.min(_bsMax, st.currentHp + _heal);
+            log('10', `${pname(st)} は くろいヘドロで HPを ${_heal} 回復！ (残HP ${st.currentHp})`);
+          }
+        } else {
+          // 非毒タイプ: 1/8ダメージ
+          const _dmg = Math.max(1, Math.floor(_bsMax / 8));
+          st.currentHp = Math.max(0, st.currentHp - _dmg);
+          log('10', `${pname(st)} は くろいヘドロで ${_dmg} ダメージ！ (残HP ${st.currentHp})`);
+          if (st.currentHp <= 0){ st.fainted = true; log('10', `${pname(st)} は ひんしになった！`); }
         }
       }
     }
