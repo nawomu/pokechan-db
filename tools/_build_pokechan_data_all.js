@@ -1,3 +1,8 @@
+// @deprecated 2026-07-02 — 後継ビルダーに移行済み。
+//   新ビルダー: tools/build_national_view.js (reference/master_*.json 参照版)
+//   今後の pokechan_data_all.js 生成は build_national_view.js を使うこと。
+//   このファイルはロールバック・参照用に残す(削除しない)。
+//
 // 全国版(全部版)共通データアダプタ。reference/*.json + learnsets から、pokechan_data.js と同一schemaの
 // pokechan_data_all.js を生成。既存ページ(v9/waza-list)は <script src> 差替だけで全1302ポケ・937技で動く。
 // 静的テーブルは pokechan_data.js から転記。490curated層(説明文/battle_data/体重)はキー一致分をオーバーレイ。
