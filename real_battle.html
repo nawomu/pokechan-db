@@ -4,9 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title data-i18n="real_battle.page_title">リアルバトル — PchamDB</title>
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://pchamdb.com/real_battle.html">
 <script defer src="i18n/runtime.js?v=20260622"></script>
-<script src="pokechan_data.js?v=20260703h"></script>
-<script src="battle_log_i18n.js?v=20260703i"></script>
+<script src="pokechan_data.js?v=20260704a"></script>
+<script src="battle_log_i18n.js?v=20260704a"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -242,26 +244,73 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
   #battle-log-panel{flex:0 0 auto;width:100%;height:auto;max-height:240px;min-width:0;order:1}
 }
 @keyframes blink{50%{opacity:0}}
-#cmd{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-#cmd button{padding:14px;border-radius:10px;border:1px solid #2a3450;background:#161d2e;color:#e6edf3;
-  font-size:14px;font-weight:800;cursor:pointer}
-#cmd button:hover:not(:disabled){border-color:#58a6ff;background:#1b2540}
+/* ===== S5: コントロール欄 / 技ボタン / 交代ボタン (Showdown準拠) ===== */
+/* #cmd: たたかう/ポケモン/メガ/にげる の4ボタングリッド */
+/* SD: 明るい白地ボタン。うちはダーク基調を維持しつつSD風の太枠+はっきり色に統一 */
+#cmd{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#cmd button{padding:13px 10px;border-radius:8px;border:2px solid #3a4a6a;background:#1a2238;color:#d0daf0;
+  font-size:13px;font-weight:800;cursor:pointer;font-family:Verdana,sans-serif;
+  transition:border-color .15s,background .15s}
+#cmd button:hover:not(:disabled){border-color:#7aabff;background:#1e2d4a;color:#fff}
 #cmd button:disabled{opacity:.35;cursor:default}
-#cmd button.mega-armed{border-color:#fbbf24;color:#fbbf24}
-#moves{margin-top:10px;display:none;grid-template-columns:1fr 1fr;gap:8px}
-#moves button{padding:12px 12px 10px;border-radius:10px;border:1px solid #2a3450;background:#161d2e;color:#e6edf3;
-  text-align:left;cursor:pointer}
-#moves button:hover:not(:disabled){filter:brightness(1.1);box-shadow:0 0 0 2px #ffffff55 inset}
-#moves button.tcol:not(:disabled){color:#fff;text-shadow:0 1px 2px #0007}
-#moves button.tcol:not(:disabled) .mv-sub{color:#ffffffdd}
-#moves .mv-name{font-weight:800;font-size:14px}
-#moves .mv-sub{font-size:10.5px;color:#8b94a7;margin-top:2px}
-#moves .t-pill{display:inline-block;font-size:9px;padding:1px 7px;border-radius:7px;color:#fff;margin-right:6px}
-#moves button.back{text-align:center;color:#8b94a7;font-weight:700}
-#party{margin-top:10px;display:none;grid-template-columns:1fr 1fr;gap:8px}
-#party button{padding:12px;border-radius:10px;border:1px solid #2a3450;background:#161d2e;color:#e6edf3;text-align:left;cursor:pointer}
-#party button:hover:not(:disabled){border-color:#58a6ff}
+/* メガシンカ予約中: 黄色強調(既存ロジック維持) */
+#cmd button.mega-armed{border-color:#fbbf24;color:#fbbf24;background:#241e04}
+#cmd button.mega-armed:hover:not(:disabled){background:#2e2504}
+/* ===== #moves: 技ボタン 2列グリッド (Showdown .movemenu 準拠) ===== */
+/* SD: タイプ色は左縁ボーダー帯(border-left)+ button背景はタイプ色をやや暗く。技名bold/PP小字右下 */
+#moves{margin-top:10px;display:none;grid-template-columns:1fr 1fr;gap:6px}
+/* 技ボタン基本: 左縁4px帯をタイプ色に。背景はダーク地(JS側で override) */
+#moves button{padding:10px 12px 8px 10px;border-radius:8px;border:1px solid #2a3450;
+  border-left-width:5px;/* タイプ色左縁帯(JS側でborder-left-colorをセット) */
+  background:#161d2e;color:#e6edf3;text-align:left;cursor:pointer;
+  font-family:Verdana,sans-serif;position:relative;
+  transition:filter .12s,box-shadow .12s}
+#moves button:hover:not(:disabled){filter:brightness(1.15);box-shadow:0 0 0 1px #ffffff44 inset}
+#moves button:disabled{opacity:.38;cursor:default}
+/* タイプ色背景(JS側でtcol付与時): 文字を白に */
+#moves button.tcol:not(:disabled){color:#fff;text-shadow:0 1px 3px #0009}
+/* 技名(上段・bold) */
+#moves .mv-name{font-weight:800;font-size:13px;line-height:1.25;display:block}
+/* タイプバッジ(技名の左に小さく) */
+#moves .t-pill{display:inline-block;font-size:9px;padding:1px 6px;border-radius:6px;
+  color:#fff;margin-right:5px;vertical-align:middle;opacity:.9}
+/* mv-sub: 分類/命中ライン (PP は別要素 .mv-pp で右寄せ) */
+#moves .mv-sub{font-size:10px;color:#a0a8ba;margin-top:3px;display:block;line-height:1.3}
+#moves button.tcol:not(:disabled) .mv-sub{color:#ffffffcc}
+/* PP表示: SD の <small class="pp"> 準拠。右下に小字 */
+#moves .mv-pp{position:absolute;right:9px;bottom:7px;font-size:10px;font-weight:700;
+  color:#c8d0e0;font-family:Verdana,sans-serif}
+#moves button.tcol:not(:disabled) .mv-pp{color:#ffffffdd}
+/* PP残少(2以下): 赤字強調 */
+#moves .mv-pp.pp-low{color:#f87171}
+/* もどるボタン */
+#moves button.back{text-align:center;color:#8b94a7;font-weight:700;border-left-width:1px;
+  grid-column:1/-1;padding:9px}
+/* ===== #party: 交代画面ボタン (09_switch 準拠) ===== */
+/* SD: アイコン+名前+ミニHPバー。うちは名前+ミニHPバーをボタン内に積む */
+#party{margin-top:10px;display:none;grid-template-columns:1fr 1fr;gap:6px}
+#party button{padding:10px 12px;border-radius:8px;border:2px solid #2a3450;background:#161d2e;
+  color:#e6edf3;text-align:left;cursor:pointer;font-family:Verdana,sans-serif;
+  transition:border-color .15s,background .15s}
+#party button:hover:not(:disabled){border-color:#7aabff;background:#1e2d4a}
 #party button:disabled{opacity:.4;cursor:default}
+/* 控えポケモン名 */
+#party .pt-name{font-weight:800;font-size:13px;display:flex;align-items:center;gap:6px}
+#party .pt-name img{width:28px;height:28px;object-fit:contain;flex:0 0 auto}
+/* ミニHPバー(交代画面) */
+#party .pt-hp-wrap{margin-top:5px;height:6px;background:#1d2433;border-radius:3px;
+  border:1px solid #2a3450;overflow:hidden}
+#party .pt-hp-bar{height:100%;border-radius:3px;background:#00bb51;transition:width .3s}
+#party .pt-hp-bar.mid{background:#d0c000}
+#party .pt-hp-bar.low{background:#c82315}
+/* HP%テキスト */
+#party .pt-hp-text{font-size:10px;color:#9fb4d8;margin-top:2px}
+/* ひんし表示 */
+#party .pt-fainted{font-size:11px;color:#f87171;font-weight:700}
+/* もどるボタン */
+#party button.back{text-align:center;color:#8b94a7;font-weight:700;grid-column:1/-1;
+  border-color:#2a3450;background:#161d2e;padding:9px}
+#party button.back:hover{border-color:#7aabff;background:#1e2d4a;color:#fff}
 #speed-row{margin-top:8px;font-size:11px;color:#8b94a7;display:flex;gap:14px;align-items:center}
 </style>
 </head>
@@ -975,11 +1024,39 @@ function showMoves(){
   const ppOf = i => (st.pp ? st.pp[i] : null);
   const lockName = st.choiceLock ? st.choiceLock.name : null;   // こだわりロック(段135)
   const allOut = st.pp && st.moves.every((m, i) => !m || st.pp[i] <= 0);
+  // S5: 技ボタン Showdown準拠デザイン
+  // - タイプ色: border-left(左縁帯5px) + 技名bold(<strong>) + PP小字右下(<small class="mv-pp">)
+  // - 技名上段: タイプバッジ(.t-pill) + 技名(<strong>)
+  // - サブ行: 威力/命中/分類 (PPはmv-ppで右下独立)
+  // - disabled時(PP切れ/こだわり外): グレーアウト・border-left は灰色
   mv.innerHTML = (allOut
-    ? `<button data-i="0"><span class="mv-name">${I18N.t('real_battle.move_last_resort','わるあがき')}</span><div class="mv-sub">${I18N.t('real_battle.move_last_resort_desc','PPが ぜんぶ なくなった！ 威力50 / 反動あり')}</div></button>`
-    : st.moves.map((m, i) => { const col = tc[m.type] || '#3a4660'; const off = (ppOf(i) != null && ppOf(i) <= 0) || (lockName && m.name !== lockName); return `
-    <button class="tcol" data-i="${i}" ${off ? 'disabled' : `style="background:linear-gradient(150deg,${col} 0%,${col}d0 100%);border-color:${col}"`}><span class="mv-name"><span class="t-pill" style="background:#00000038">${tTypeName(m.type)}</span>${tMoveName(m)}${lockName === m.name ? ' 🔒' : ''}</span>
-    <div class="mv-sub">${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'} / ${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'} / ${tCatName(m.category)}${ppOf(i) != null ? ` / ${I18N.t('real_battle.move_pp_label','PP')} ${ppOf(i)}/${m.pp || 0}` : ''}${lockName && m.name !== lockName ? ` / ${I18N.t('real_battle.move_stubbornlock_note','こだわり中')}` : ''}</div></button>`; }).join(''))
+    ? `<button data-i="0" style="border-left-color:#6b7280"><span class="mv-name"><strong>${I18N.t('real_battle.move_last_resort','わるあがき')}</strong></span><div class="mv-sub">${I18N.t('real_battle.move_last_resort_desc','PPが ぜんぶ なくなった！ 威力50 / 反動あり')}</div></button>`
+    : st.moves.map((m, i) => {
+        const col = tc[m.type] || '#3a4660';
+        const ppNow = ppOf(i);
+        const ppMax = m.pp || 0;
+        const off = (ppNow != null && ppNow <= 0) || (lockName && m.name !== lockName);
+        const locked = lockName && m.name !== lockName;
+        // PP残少(2以下): pp-low クラスで赤字
+        const ppLow = ppNow != null && ppNow <= 2 && !off;
+        const ppCls = 'mv-pp' + (ppLow ? ' pp-low' : '');
+        const ppTxt = ppNow != null ? `${ppNow}/${ppMax}` : '';
+        const subParts = [
+          `${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'}`,
+          `${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'}`,
+          tCatName(m.category),
+          locked ? I18N.t('real_battle.move_stubbornlock_note','こだわり中') : ''
+        ].filter(Boolean).join(' / ');
+        // 有効ボタン: タイプ色左縁 + タイプ色をやや暗くした背景グラデ
+        const btnStyle = off
+          ? 'border-left-color:#3a4060'
+          : `border-left-color:${col};background:linear-gradient(135deg,${col}28 0%,${col}18 100%);border-color:${col}88`;
+        return `<button class="tcol" data-i="${i}" ${off ? 'disabled' : ''} style="${btnStyle}">` +
+          `<span class="mv-name"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span><strong>${tMoveName(m)}${lockName === m.name ? ' 🔒' : ''}</strong></span>` +
+          `<div class="mv-sub">${subParts}</div>` +
+          (ppTxt ? `<span class="${ppCls}">${I18N.t('real_battle.move_pp_label','PP')} ${ppTxt}</span>` : '') +
+          `</button>`;
+      }).join(''))
     + `<button class="back">${I18N.t('real_battle.move_back_button','← もどる')}</button>`;
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
@@ -992,12 +1069,24 @@ function showParty(forced){
   $('cmd').style.display = 'none';
   const pt = $('party');
   pt.style.display = 'grid';
+  // S5: 交代画面ボタン Showdown準拠デザイン(09_switch準拠)
+  // - アイコン画像+名前+ミニHPバー+HP%テキスト を縦積みで表示
   pt.innerHTML = (st.bench || []).map((e, i) => {
     if (!e || !e.poke) return '';
-    const max = S.realStat(e, 'hp');
-    const hp = e.currentHp == null ? max : e.currentHp;
+    const max = S.realStat(e, 'hp') || 1;
+    const hp = e.currentHp == null ? max : Math.max(0, e.currentHp);
     const dead = e.fainted || hp <= 0;
-    return `<button data-i="${i}" ${dead ? 'disabled' : ''}>${tPokeName(e.poke.name)}<div class="mv-sub">${dead ? I18N.t('real_battle.party_fainted','ひんし') : `HP ${hp}/${max}`}</div></button>`;
+    const pct = Math.round(hp / max * 100);
+    const barCls = 'pt-hp-bar' + (pct <= 25 ? ' low' : pct <= 50 ? ' mid' : '');
+    const enc = encodeURIComponent((e.illusionAs || e.poke).name);
+    const nm = tPokeName((e.illusionAs || e.poke).name);
+    return `<button data-i="${i}" ${dead ? 'disabled' : ''}>` +
+      `<div class="pt-name"><img src="images/sim/${enc}.svg" alt="" onerror="this.remove()">${nm}</div>` +
+      (dead
+        ? `<div class="pt-fainted">${I18N.t('real_battle.party_fainted','ひんし')}</div>`
+        : `<div class="pt-hp-wrap"><div class="${barCls}" style="width:${pct}%"></div></div>` +
+          `<div class="pt-hp-text">${pct}% (${hp}/${max})</div>`) +
+      `</button>`;
   }).join('') + (forced ? '' : `<button class="back">${I18N.t('real_battle.move_back_button','← もどる')}</button>`);
   pt.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
