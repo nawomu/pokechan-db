@@ -176,7 +176,7 @@ function tLearnersCount(n) { return _t('waza.learners_count', `${n}匹`).replace
 function tGenChip(av) {
   if (!av) return '<span class="gen-na">—</span>';
   const g = av.gen_introduced || '?';
-  if (av.is_lgpe) return `<span class="gen-chip gen-lgpe" title="LGPE専用">G${g}L</span>`;
+  if (av.is_lgpe) return `<span class="gen-chip gen-lgpe" title="${(typeof _t==='function'?_t('waza.gen_lgpe_only','LGPE専用'):'LGPE専用')}">G${g}L</span>`;
   const gens = av.gens;
   if (!gens) return `<span class="gen-chip gen-g${g}">G${g}</span>`;
   const last = gens[gens.length - 1];
