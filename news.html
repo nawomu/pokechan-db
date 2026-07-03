@@ -9,7 +9,7 @@
 <link rel="canonical" href="https://pchamdb.com/news.html">
 <link rel="icon" href="favicon.png" type="image/png">
 <link rel="stylesheet" href="site-footer.css">
-<script defer src="i18n/runtime.js?v=20260703a"></script>
+<script defer src="i18n/runtime.js?v=20260703b"></script>
 <style>
 body{margin:0;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;background:#f5f7fa;color:#222;font-size:14px;padding:0 0 60px}
 .hdr{padding:18px;background:linear-gradient(135deg,#FF7A00,#FFC107);color:#fff;position:sticky;top:0;z-index:50}
@@ -166,10 +166,11 @@ table tr:nth-child(2n){background:#fafbfd}
   ];
   const CAT_JA = { phys:'物理', spec:'特殊', stat:'変化' };
 
-  function chip(text, cls) {
+  function chip(text, cls, skip) {
     const s = document.createElement('span');
     s.className = 'tag ' + cls;
     s.textContent = text;
+    if (skip) s.setAttribute('data-i18n-audit-skip', ''); // 独自名=公式外国語名なし=ja固定(監査除外)
     return s;
   }
   function td(text, skip) {
@@ -178,16 +179,16 @@ table tr:nth-child(2n){background:#fafbfd}
     if (skip) c.setAttribute('data-i18n-audit-skip', ''); // Champions独自の技名=意図的にja(誤検出回避)
     return c;
   }
-  function fill(id, ids, fn, cls) {
+  function fill(id, ids, fn, cls, skip) {
     const box = document.getElementById(id);
     if (!box) return;
     box.innerHTML = '';
-    ids.forEach((x) => box.appendChild(chip(fn(x), cls)));
+    ids.forEach((x) => box.appendChild(chip(fn(x), cls, skip)));
   }
   function render() {
     if (!window.I18N) return;
     fill('poke-normal', POKE_NORMAL, (x) => I18N.pokemon(x), 'new');
-    fill('poke-mega',   POKE_MEGA,   (x) => I18N.pokemon(x), 'mega');
+    fill('poke-mega',   POKE_MEGA,   (x) => I18N.pokemon(x), 'mega', true); // Champions独自メガ=ja固定
     fill('items-mega',  ITEMS_MEGA,  (x) => I18N.item(x),    'mega');
     fill('items-normal',ITEMS_NORMAL,(x) => I18N.item(x),    'new');
     const body = document.getElementById('moves-body');

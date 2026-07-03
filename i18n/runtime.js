@@ -557,4 +557,40 @@
     apply: applyDOM,
     onReady,
   };
+
+  // === 統合エンティティアクセサ (2026-07-03追加) ===
+
+  /**
+   * I18N.name(kind, id) — 統合エンティティ名アクセサ
+   * kind: 'pokemon' | 'move' | 'ability' | 'item' | 'nature' | 'type'
+   * id: JA名(pokemon/ability/item/nature/type) or PokeAPI slug/key (move)
+   * 戻り値: 現在言語での名称。未解決時はidをそのまま返す。
+   */
+  window.I18N.name = function(kind, id) {
+    switch (kind) {
+      case 'pokemon':  return tPokemon(id);
+      case 'move':     return tMove(id, id);
+      case 'ability':  return tAbility(id);
+      case 'item':     return tItem(id);
+      case 'nature':   return tNature(id);
+      case 'type':     return tType(id, 'full');
+      default:         return id;
+    }
+  };
+
+  /**
+   * I18N.desc(kind, id) — 統合エンティティ説明文アクセサ
+   * kind: 'move' | 'ability' | 'item'
+   * id: JA名 or PokeAPI slug/key (moveはslug/key)
+   * 戻り値: 現在言語での説明文。未解決時は空文字列を返す。
+   */
+  window.I18N.desc = function(kind, id) {
+    switch (kind) {
+      case 'move':    return tMoveDesc(id, '') || '';
+      case 'ability': return tAbilityDesc(id) || '';
+      case 'item':    return tItemDesc(id) || '';
+      default:        return '';
+    }
+  };
+
 })();

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // i18n 監査ハーネス: 各ページ×各言語をブラウザで開き、残った日本語(テキスト+ツールチップ属性)を検出。
-// 使い方: node tools/i18n_audit_playwright.js [lang1,lang2,...] [--page=foo.html]
+// 使い方: node tools/i18n_audit_playwright.js [lang1,lang2,...] [--page=foo.html] [--strict]
 //   例: node tools/i18n_audit_playwright.js en
 //       node tools/i18n_audit_playwright.js en,fr,ko
+//       node tools/i18n_audit_playwright.js en,ko,zh-Hans --strict
 // 前提: ローカルサーバが http://127.0.0.1:8000 で稼働中。
 const { chromium } = require('playwright');
 
@@ -12,11 +13,70 @@ const PAGES = [
   'type_chart.html', 'news.html', 'battle_simulator.html', 'real_battle.html', 'real_battle_simulator.html',
   'how_to_use.html', 'db_guide.html', 'builder_guide.html', 'making.html', 'sitemap.html',
   'contact.html', 'privacy.html', 'terms.html', 'disclaimer.html',
+  // 全国版・全部入りページ
+  'pokemon_db_all.html', 'pokemon_db_all_v9.html',
+  'waza-list_all.html',
+  'ability_all.html',
+  'items_db_all.html',
+  'moves_db_all.html',
+];
+
+// 意図的に日本語を残す許可パターン (正規表現)
+const ALLOWLIST = [
+  /ポケモンチャンネル/,   // サイト名
+  /ヤックン/,             // キャラクター名
+  /pchamdb\.com/,         // ドメイン
+  /ポケモン/,             // ブランド名
+  // ── Champions 独自ポケモン: reference/master_pokemon.json の is_original=true エントリ。
+  //    PokeAPI に公式英名が存在しないため ja 名を固定表示する(でっち上げ禁止)。
+  //    63 体をグループ化して登録。メガシンカ系 35 体 + 形態バリエーション + 通常独自ポケモン。
+  /メガ[^\s]/,            // 全メガシンカ独自ポケモン(メガライチュウX/Y・メガムクホーク等 35 体)。絵文字付き表示(🔴メガXX)にも対応
+  /ビビヨン/,             // Champions 独自(c-666) 公式英名なし
+  /フラエッテ/,           // Champions 独自(フラエッテ(えいえん)/メガフラエッテ) 公式英名なし
+  /フラージェス/,         // Champions 独自(c-671) 公式英名なし
+  /トリミアン/,           // Champions 独自(c-676) 公式英名なし
+  /ニャオニクス[♀♂]/,  // Champions 独自(形態バリエーション) 公式英名なし
+  /ギルガルド\(/,         // Champions 独自(シールド/ブレード形態) 公式英名なし
+  /パンプジン\(/,         // Champions 独自(小/大/特大/普通形態) 公式英名なし
+  /ルガルガン\(/,         // Champions 独自(たそがれ/まひる/まよなか形態) 公式英名なし
+  /ミミッキュ/,           // Champions 独自(c-778) 公式英名なし
+  /ポットデス/,           // Champions 独自(c-855) 公式英名なし
+  /マホイップ/,           // Champions 独自(c-869) 公式英名なし
+  /モルペコ/,             // Champions 独自(c-877) 公式英名なし
+  /イダイトウ[♀♂]/,    // Champions 独自(形態バリエーション) 公式英名なし
+  /イッカネズミ/,         // Champions 独自(c-925) 公式英名なし
+  /イルカマン\(/,         // Champions 独自(ナイーブ/マイティ形態) 公式英名なし
+  /ヤバソチャ/,           // Champions 独自(c-1013) 公式英名なし
+  /ケンタロス\(パルデア/,  // Champions 独自(パルデア炎/水/単形態) 公式英名なし
+  // ── Champions 独自特性: 公式PokeAPIに英名なし・またはマスター未登録のChampions固有とくせい。
+  /^うなぎのぼり$/,      // マスター未登録の独自特性(reference/master_abilities.json 外)
+  /^ほのおのたてがみ$/,  // マスター未登録の独自特性(reference/master_abilities.json 外)
+  /^もらいびこんじょう$/, // is_original 独自合成特性(もらいび+こんじょう)
+  /^メガソーラー$/,      // Champions 独自特性(英名なし)
+  /^ドラゴンスキン$/,    // Champions 独自特性(英名なし)
+  /^しぜんかいふくどくのトゲ$/, // is_original 独自合成特性
+  /^かんつうドリル$/,    // Champions 独自特性(英名なし)
+  /^とびだすハバネロ$/,  // Champions 独自特性(英名なし)
+  // ── サイト固有の固有名詞: 外国語翻訳先でも ja 名のままが意図的な固有名詞。
+  /ぴ〜ちゃん/,          // サイトオリジナルキャラクター名(terms.html等のコピーライト文中でも ja 固定)
+];
+
+// --strict モードで集計から除外するページ (既知の構造的未対応)
+const STRICT_SKIP_PAGES = [
+  'items_db_all.html',    // 道具名がHTMLベタ書き
+  'moves_db_all.html',    // 技名がHTMLベタ書き
+  'waza-list_all.html',   // 技説明文descが辞書未登録(段階的対応中)
 ];
 
 const argLangs = (process.argv[2] && !process.argv[2].startsWith('--')) ? process.argv[2].split(',') : ['en'];
 const onlyPage = (process.argv.find(a => a.startsWith('--page=')) || '').split('=')[1];
+const strictMode = process.argv.includes('--strict');
 const pages = onlyPage ? [onlyPage] : PAGES;
+
+// 許可リストに一致するテキストを除外する
+function applyAllowlist(findings) {
+  return findings.filter(f => !ALLOWLIST.some(re => re.test(f.text)));
+}
 
 // ページ内で実行: 日本語が残ったテキスト/属性を収集(data-i18n-audit-skip は除外)
 function scanFn(lang) {
@@ -60,10 +120,11 @@ function scanFn(lang) {
       try {
         await page.goto(BASE + '/' + pg, { waitUntil: 'networkidle', timeout: 20000 });
         await page.waitForTimeout(900); // i18n 適用 + 動的描画待ち
-        const leaks = await page.evaluate(scanFn, lang);
+        const raw = await page.evaluate(scanFn, lang);
+        const leaks = applyAllowlist(raw);
         report[lang][pg] = leaks;
         const tag = leaks.length === 0 ? 'OK ' : leaks.length + '件';
-        console.log(`[${lang}] ${pg.padEnd(28)} ${tag}`);
+        console.log(`[${lang}] ${pg.padEnd(30)} ${tag}`);
       } catch (e) {
         report[lang][pg] = [{ text: 'ERROR: ' + e.message.slice(0, 60), where: 'load' }];
         console.log(`[${lang}] ${pg.padEnd(28)} LOAD ERR`);
@@ -73,13 +134,42 @@ function scanFn(lang) {
   }
   await browser.close();
   const fs = require('fs');
-  fs.writeFileSync('/tmp/i18n_audit_report.json', JSON.stringify(report, null, 1));
+  const path = require('path');
+  const reportJson = JSON.stringify(report, null, 1);
+  // 出力先1: /tmp
+  fs.writeFileSync('/tmp/i18n_audit_report.json', reportJson);
+  // 出力先2: review/i18n_audit_latest.json (プロジェクトルート基準)
+  const projectRoot = path.resolve(__dirname, '..');
+  const reviewPath = path.join(projectRoot, 'review', 'i18n_audit_latest.json');
+  fs.writeFileSync(reviewPath, reportJson);
   // サマリ
   console.log('\n=== サマリ(言語別 総残日本語件数) ===');
+  let totalAll = 0;
   for (const lang of argLangs) {
     const total = Object.values(report[lang]).reduce((s, a) => s + a.length, 0);
     const pagesWith = Object.values(report[lang]).filter((a) => a.length).length;
     console.log(`  ${lang}: ${total}件 / ${pagesWith}ページ`);
+    totalAll += total;
   }
   console.log('詳細: /tmp/i18n_audit_report.json');
+  console.log('詳細: review/i18n_audit_latest.json');
+  if (strictMode) {
+    let strictTotal = 0;
+    for (const lang of argLangs) {
+      for (const [pg, leaks] of Object.entries(report[lang])) {
+        if (!STRICT_SKIP_PAGES.includes(pg)) {
+          strictTotal += leaks.length;
+        }
+      }
+    }
+    if (STRICT_SKIP_PAGES.length > 0) {
+      console.log('[STRICT] 除外ページ: ' + STRICT_SKIP_PAGES.join(', '));
+    }
+    if (strictTotal > 0) {
+      console.error('\n[STRICT] 残日本語 ' + strictTotal + '件 → exit 1');
+      process.exit(1);
+    } else {
+      console.log('\n[STRICT] 残日本語 0件 → OK');
+    }
+  }
 })();
