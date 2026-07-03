@@ -53,7 +53,16 @@
     accuracy: { en: 'accuracy', fr: 'Précision', de: 'Genauigkeit', es: 'Precisión', it: 'Precisione', ko: '명중률', 'zh-Hans': '命中率', 'zh-Hant': '命中率' },
     evasion:  { en: 'evasiveness', fr: 'Esquive', de: 'Fluchtwert', es: 'Evasión', it: 'Elusione', ko: '회피율', 'zh-Hans': '闪避率', 'zh-Hant': '閃避率' },
   };
-  var STAT_JA = { 'こうげき': 'attack', 'ぼうぎょ': 'defense', 'とくこう': 'sp. attack', 'とくぼう': 'sp. defense', 'すばやさ': 'speed', 'めいちゅう': 'accuracy', 'めいちゅうりつ': 'accuracy', 'かいひ': 'evasion', 'かいひりつ': 'evasion' };
+  var STAT_JA = {
+    // 日本語ひらがな名
+    'こうげき': 'attack', 'ぼうぎょ': 'defense', 'とくこう': 'sp. attack', 'とくぼう': 'sp. defense',
+    'すばやさ': 'speed', 'めいちゅう': 'accuracy', 'めいちゅうりつ': 'accuracy', 'かいひ': 'evasion', 'かいひりつ': 'evasion',
+    // simulatorが出力する英語内部キー名(例: "special_attack ランクが +1 あがった！")
+    'special_attack': 'sp. attack', 'special_defense': 'sp. defense',
+    'sp_attack': 'sp. attack', 'sp_defense': 'sp. defense',
+    'spatk': 'sp. attack', 'spdef': 'sp. defense',
+    'atk': 'attack', 'def': 'defense', 'spd': 'speed', 'acc': 'accuracy', 'eva': 'evasion',
+  };
   function tStat(raw, lang) {
     if (raw == null) return '';
     var key = STAT_JA[String(raw).trim()] || String(raw).toLowerCase().replace(/\s+/g, ' ').trim();
@@ -414,6 +423,12 @@
     blf_13: { "en":"Full reset complete.", "fr":"Réinitialisation complète terminée.", "de":"Vollständiger Reset abgeschlossen.", "es":"Reinicio completo finalizado.", "it":"Reset completo eseguito.", "ko":"전체 리셋 완료.", "zh-Hans":"全部重置完成。", "zh-Hant":"全部重置完成。" },
     blf_14: { "en":"The weather returned to normal!", "fr":"Le temps est revenu à la normale !", "de":"Das Wetter ist wieder normal!", "es":"¡El tiempo volvió a la normalidad!", "it":"Il clima è tornato normale!", "ko":"날씨가 원래대로 돌아왔다!", "zh-Hans":"天气恢复正常了！", "zh-Hant":"天氣恢復正常了！" },
     blf_15: { "en":"No effect!", "fr":"Ça n'a aucun effet !", "de":"Es zeigt keine Wirkung!", "es":"¡No tiene efecto!", "it":"Non ha effetto!", "ko":"효과가 없다!", "zh-Hans":"没有效果！", "zh-Hant":"沒有效果！" },
+    bl_249: { "en":"{p}'s Air Balloon popped!", "fr":"La Ballon Air de {p} a éclaté !", "de":"{p}'s Luftballon ist geplatzt!", "es":"¡El Globo Viento de {p} explotó!", "it":"Il Pallone Aria di {p} è scoppiato!", "ko":"{p}의 공기풍선이 터졌다!", "zh-Hans":"{p}的气球破了！", "zh-Hant":"{p}的氣球破了！" },
+    bl_250: { "en":"{p} is hurt by Iron Barbs for {n} damage! (HP remaining: {n2})", "fr":"{p} subit {n} dégâts à cause de Hérisson ! (PV restants : {n2})", "de":"{p} erleidet {n} Schadenspunkte durch Eisenstacheln! (Verbleibende KP: {n2})", "es":"¡{p} recibe {n} de daño por Hierros Ganchudos! (PS restantes: {n2})", "it":"{p} subisce {n} danni per Ferrospine! (PS rimanenti: {n2})", "ko":"{p}은(는) 철의가시로 {n} 데미지를 입었다! (남은 HP: {n2})", "zh-Hans":"{p}因铁刺皮受到了{n}点伤害！（剩余HP：{n2}）", "zh-Hant":"{p}因鐵刺皮受到了{n}點傷害！（剩餘HP：{n2}）" },
+    // real_battle.html が I18N.t で直生成する行(言語切替時の再翻訳=retranslateLogDom用。訳文は ui-*.json と同一に保つ)
+    bl_251: { "en":"Battle Start! Go, {p}!", "fr":"Combat lancé ! Vas-y, {p} !", "de":"Kampf startet! Los, {p}!", "es":"¡Empieza el combate! ¡Adelante, {p}!", "it":"La battaglia inizia! Vai, {p}!", "ko":"배틀 시작! 가랏, {p}!", "zh-Hans":"对战开始！上吧，{p}！", "zh-Hant":"對戰開始！上吧，{p}！" },
+    bl_252: { "en":"The opposing {p} entered the battle!", "fr":"Le {p} adverse entre en combat !", "de":"Das gegnerische {p} wurde eingesetzt!", "es":"¡El {p} rival ha salido!", "it":"Il {p} avversario entra in campo!", "ko":"상대는 {p}을(를) 내보냈다!", "zh-Hans":"对手派出了{p}！", "zh-Hant":"對手派出了{p}！" },
+    bl_253: { "en":"{p} has fainted… Please choose your next Pokémon!", "fr":"{p} est tombé… Choisis ton prochain Pokémon", "de":"{p} wurde besiegt… Wähle dein nächstes Pokémon!", "es":"{p} se ha debilitado… Elige tu próximo Pokémon", "it":"{p} è stato sconfitto… Scegli il prossimo Pokémon", "ko":"{p} 이/가 쓰러졌어… 다음 포켓몬을 골라줘", "zh-Hans":"{p} 倒下了……请选择下一只宝可梦吧", "zh-Hant":"{p} 倒下了… 請選擇下一隻寶可夢" },
   };
 
   // ─── パターン(順に試す)。slots: テンプレ名→{g:捕捉番号, kind} ───
@@ -545,6 +560,12 @@
     { id: 'bl_90', re: /^((?:相手の )?\S+) は (\d+)ターンの間 音の技が だせなくなった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "num" } } },
     { id: 'bl_98', re: /^((?:相手の )?\S+) は (\S+)で HPを (\d+) 回復した！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "item" }, "n": { g: 3, kind: "num" }, "n2": { g: 4, kind: "num" } } },
     { id: 'bl_143', re: /^((?:相手の )?\S+) は さめはだで (\d+) ダメージ！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
+    { id: 'bl_250', re: /^((?:相手の )?\S+) は てつのトゲで (\d+) ダメージ！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
+    { id: 'bl_249', re: /^((?:相手の )?\S+) の ふうせんが 割れた！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    // real_battle.html の I18N.t 直生成行(ja原文フォーム。切替時の再翻訳で使う)
+    { id: 'bl_251', re: /^バトルスタート！ いけっ！ (.+)！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_252', re: /^相手は (.+) を くりだした！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_253', re: /^(.+) は たおれてしまった… つぎのポケモンを えらんでね$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_151', re: /^((?:相手の )?\S+) は じゅうりょくが強くて (\S+) が だせない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_219', re: /^しかし うまく きまらなかった！\(すでに (\S+)\)$/, slots: { "n": { g: 1, kind: "cond" } } },
     { id: 'bl_208a', re: /^((?:相手の )?\S+) の場の (\S+) の効果が なくなった！$/, slots: { "p": { g: 1, kind: "poke" }, "sc": { g: 2, kind: "screen" } } },
@@ -723,9 +744,26 @@
     { id: 'blf_15', re: /^こうかなし！$/, slots: {} },
   ];
 
+  // ─── 言語切替時の再翻訳サポート(2026-07-03) ───
+  // 症状: バトル途中で言語を切り替えると、既にDOMに積まれたログ行(textContent=訳文/ja原文)は
+  //       data-i18n を持たないため applyDOM では再翻訳されず ja のまま残る(阿部さん報告の根本原因)。
+  // 対策: 訳文→ja原文の逆引きを覚えておき、i18n:changed で既存ログ行をja原文から現在言語に訳し直す。
+  var _srcByOutput = Object.create(null);   // 訳文 → ja原文
+  var _srcCount = 0;
+  function _rememberSrc(out, src) {
+    if (out == null || out === src) return;
+    if (_srcCount > 4000) { _srcByOutput = Object.create(null); _srcCount = 0; }  // 無限に増やさない
+    if (_srcByOutput[out] == null) { _srcByOutput[out] = src; _srcCount++; }
+  }
+
   function translateLogLine(msg, lang) {
     lang = lang || (I18N() && I18N().lang) || 'ja';
     if (lang === 'ja' || !I18N() || msg == null) return msg;
+    var out = _translateCore(msg, lang);
+    _rememberSrc(out, msg);
+    return out;
+  }
+  function _translateCore(msg, lang) {
     for (var i = 0; i < PATTERNS.length; i++) {
       var p = PATTERNS[i], m = msg.match(p.re);
       if (!m) continue;
@@ -750,7 +788,31 @@
     return msg;
   }
 
+  // 言語切替イベントで既存ログ行を再翻訳(表示層のみ・演出/データ非破壊)。
+  // 対象: #log-scroll .log-line(流れるログ)と #msg-lines .ml-line(メッセージ欄)。
+  // ja原文の復元順: ①行が覚えているdata-bl-src ②訳文→原文マップ ③textContentそのもの(ja表示中の行)。
+  function retranslateLogDom(lang) {
+    if (typeof document === 'undefined') return;
+    lang = lang || (I18N() && I18N().lang) || 'ja';
+    var nodes = document.querySelectorAll('#log-scroll .log-line, #msg-lines .ml-line');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      var cur = el.textContent;
+      var src = (el.getAttribute && el.getAttribute('data-bl-src')) || _srcByOutput[cur] || cur;
+      if (el.setAttribute) el.setAttribute('data-bl-src', src);   // 次回切替(en→fr等)でも原文に戻れるように
+      var out = (lang === 'ja') ? src : translateLogLine(src, lang);
+      if (out != null && out !== cur) el.textContent = out;
+    }
+  }
+  if (typeof document !== 'undefined') {
+    document.addEventListener('i18n:changed', function (ev) {
+      var lang = (ev && ev.detail && ev.detail.lang) || null;
+      try { retranslateLogDom(lang); } catch (e) { /* 表示層のみ=失敗しても対戦は壊さない */ }
+    });
+  }
+
   global.translateLogLine = translateLogLine;
+  global.retranslateLogDom = retranslateLogDom;
   global.BATTLE_LOG_TPL = TPL;
   global.BATTLE_LOG_PATTERNS = PATTERNS;
 })(typeof window !== 'undefined' ? window : globalThis);

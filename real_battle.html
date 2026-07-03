@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title data-i18n="real_battle.page_title">リアルバトル — PchamDB</title>
 <script defer src="i18n/runtime.js?v=20260622"></script>
-<script src="pokechan_data.js?v=20260702u"></script>
-<script src="battle_log_i18n.js?v=20260625a"></script>
+<script src="pokechan_data.js?v=20260703h"></script>
+<script src="battle_log_i18n.js?v=20260703e"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -137,12 +137,39 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 /* S2: ステータスバッジ(hpbar内のstatus div。既存.stsをhpbar外に残して互換維持) */
 .pbox .sts{margin-top:2px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap}
 .pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#3a2518;color:#fbbf24;border:1px solid #fbbf2444}
-.pbox .balls{margin-top:4px;display:flex;gap:3px;align-items:center}
-.pbox .balls .tball{width:20px;height:20px;border-radius:50%;background:#0003;border:1px solid #ffffff33;
-  display:flex;align-items:center;justify-content:center;overflow:hidden}
-.pbox .balls .tball img{width:18px;height:18px;object-fit:contain}
-.pbox .balls .tball.dead{opacity:.3;filter:grayscale(1)}
-.pbox .balls .tball.empty{background:#0001;border-style:dashed}
+/* S3: A-3デフォルト=.ballsはleftbar/rightbarに一本化。pbox内の.ballsは非表示。
+ * 復活させるには下の display:none を削除する。 */
+.pbox .balls{display:none}
+/* .pbox .balls{margin-top:4px;display:flex;gap:3px;align-items:center} */
+/* .pbox .balls .tball{width:20px;height:20px;border-radius:50%;background:#0003;border:1px solid #ffffff33; */
+/*   display:flex;align-items:center;justify-content:center;overflow:hidden} */
+/* .pbox .balls .tball img{width:18px;height:18px;object-fit:contain} */
+/* .pbox .balls .tball.dead{opacity:.3;filter:grayscale(1)} */
+/* .pbox .balls .tball.empty{background:#0001;border-style:dashed} */
+
+/* ===== S3: leftbar / rightbar (控え6体アイコンバー) ===== */
+/* Showdown準拠: 盤面(#field, position:relative)内に absolute でオーバーレイ */
+/* leftbar=自分側(盤面左端下寄り) / rightbar=相手側(盤面右端上寄り) */
+#leftbar,#rightbar{position:absolute;z-index:8;display:flex;flex-direction:column;
+  align-items:center;gap:2px;pointer-events:none}
+/* 自分側: 左端・下寄り(Showdown leftbar位置準拠) */
+#leftbar{left:2px;bottom:6px}
+/* 相手側: 右端・上寄り(Showdown rightbar位置準拠) */
+#rightbar{right:2px;top:6px}
+/* トレーナー名ラベル(Showdown: <strong>プレイヤー名</strong>) */
+.sbar-name{font-family:Verdana,sans-serif;font-size:10px;font-weight:700;color:#fff;
+  text-shadow:0 0 3px #000,0 0 5px #000,1px 1px 2px #000;
+  max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
+/* 6体アイコングリッド(3列×2行) */
+.sbar-icons{display:grid;grid-template-columns:repeat(3,28px);grid-template-rows:repeat(2,28px);gap:2px}
+/* 各アイコン1体 */
+.sbar-icons .sicon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  border-radius:4px;background:#00000033;overflow:hidden;transition:opacity .3s,filter .3s}
+.sbar-icons .sicon img{width:26px;height:26px;object-fit:contain;display:block}
+/* 場に出ている個体を強調(明るく・枠をつける) */
+.sbar-icons .sicon.active{background:#ffffff44;box-shadow:0 0 0 1px #ffffffaa}
+/* 瀕死: Showdown準拠(opacity:0.3 / grayscale(100%) brightness(.5)) */
+.sbar-icons .sicon.dead{opacity:0.3;filter:grayscale(100%) brightness(.5)}
 
 /* ===== ステージ演出v3(2026-06-12 阿部さん「演出強化」) ===== */
 .popnum{position:absolute;left:50%;top:8px;transform:translateX(-50%);font-weight:900;font-size:20px;
@@ -266,6 +293,17 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
       <div class="trainer tn-self"><span class="ava">🧑</span><span class="tnm" data-i18n="real_battle.pbox_label_self">じぶん</span></div>
       <div class="fighter" id="f-opp"><div class="platform"></div><div class="sprite"></div></div>
       <div class="fighter" id="f-self"><div class="platform"></div><div class="sprite"></div></div>
+      <!-- S3: leftbar(自分側・左端) / rightbar(相手側・右端) 控え6体アイコンバー -->
+      <!-- A-3デフォルト: pbox内の.ballsを非表示にしてこちらに一本化。 -->
+      <!-- 復活: pbox .balls の display:none を外す + 下記を削除 -->
+      <div id="leftbar">
+        <div class="sbar-name" id="sbar-name-self" data-i18n="real_battle.pbox_label_self"></div>
+        <div class="sbar-icons" id="sbar-icons-self"></div>
+      </div>
+      <div id="rightbar">
+        <div class="sbar-name" id="sbar-name-opp" data-i18n="real_battle.pbox_label_opp"></div>
+        <div class="sbar-icons" id="sbar-icons-opp"></div>
+      </div>
       <!-- S2: statbarオーバーレイ化(Showdown準拠)。.whoバッジはA-2=削除(display:noneで残す) -->
       <div class="pbox" id="pb-opp">
         <!-- .whoバッジ: A-2デフォルト=非表示。復活→ .pbox .who { display:none } を削除 -->
@@ -371,7 +409,7 @@ const tTypeName = ty => (window.I18N && window.I18N.type) ? window.I18N.type(ty)
 const _CAT_KEY = {'物理':'common.cat_phys', '特殊':'common.cat_spec', '変化':'common.cat_stat'};
 const tCatName = c => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[c] || '', c) : c;
 // 言語切替・i18n初期化時に「くわしく編成」を作り直す(option等の一度きり構築JS部品を追従させる。Sが未準備なら何もしない=冪等)
-['i18n:changed', 'i18n:ready'].forEach(ev => document.addEventListener(ev, () => { if (typeof S !== 'undefined' && S) renderDetailSetup(); }));
+['i18n:changed', 'i18n:ready'].forEach(ev => document.addEventListener(ev, () => { if (typeof S !== 'undefined' && S) renderDetailSetup(); if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} } })); // 2026-07-03: 対戦中の言語切替で盤面名前ラベルも即時再描画(#15統合)
 
 document.getElementById('engine-frame').addEventListener('load', () => {
   const w = $('engine-frame').contentWindow;
@@ -690,7 +728,7 @@ function startBattle(){
   document.body.classList.add('in-battle');
   $('setup').style.display = 'none';
   $('battle').style.display = 'flex';
-  renderAll();
+  renderAll();   // renderAll内でrenderSideBarsも呼ばれる
   setWeatherFx(null);
   bgmStart();
   say([I18N.t('real_battle.battle_start_self','バトルスタート！ いけっ！ {n}！').replace('{n}', tPokeName(S.sides.self.poke.name)), I18N.t('real_battle.battle_start_opp','相手は {n} を くりだした！').replace('{n}', tPokeName(S.sides.opp.poke.name))], () => showCmd(true));
@@ -730,15 +768,61 @@ function renderAll(){
     if (st.attracted) b.push('💕' + I18N.t('common.status_infatuation', 'メロメロ'));
     if (st.subHp > 0) b.push(I18N.t('common.bdg_substitute', 'みがわり'));
     pb.querySelector('.sts').innerHTML = b.map(x => `<span class="bdg">${x}</span>`).join('');
-    // 残りポケモン(手持ちアイコン列・ひんしは半透明=実機/Showdown風)
+    // 残りポケモン(手持ちアイコン列 pbox内.balls): S3でleftbar/rightbarに一本化のため非表示
+    // (復活: pbox .balls の display:none を外す + 下記をコメントアウト解除)
+    // const team = [st].concat(st.bench || []).filter(e => e && e.poke);
+    // const ballsHtml = team.map(e => {
+    //   const dead = e.fainted || (e.currentHp != null && e.currentHp <= 0);
+    //   const nm = (e.illusionAs || e.poke).name;
+    //   const enc = encodeURIComponent(nm);
+    //   return `<span class="tball${dead ? ' dead' : ''}" title="${tPokeName(nm)}"><img src="images/sim/${enc}.svg" alt="" onerror="this.remove()"></span>`;
+    // }).join('');
+    // pb.querySelector('.balls').innerHTML = ballsHtml;
+  });
+  // S3: leftbar / rightbar の更新(renderAll呼び出しごとに同期)
+  renderSideBars();
+}
+
+// S3: leftbar/rightbar 描画。場に出ている個体=.active / ひんし=.dead
+function renderSideBars(){
+  ['self', 'opp'].forEach(side => {
+    const st = S && S.sides && S.sides[side];
+    if (!st) return;
+    const iconsEl = document.getElementById('sbar-icons-' + side);
+    const nameEl  = document.getElementById('sbar-name-' + side);
+    if (!iconsEl || !nameEl) return;
+    // チーム全体(先頭+控え)
     const team = [st].concat(st.bench || []).filter(e => e && e.poke);
-    const ballsHtml = team.map(e => {
-      const dead = e.fainted || (e.currentHp != null && e.currentHp <= 0);
+    // 先頭ポケモン(場に出ている個体)
+    const activePoke = st.poke ? st.poke.name : null;
+    // アイコンを3×2グリッドで描画(最大6体。空スロットは空div)
+    const MAX = 6;
+    let html = '';
+    for (let i = 0; i < MAX; i++){
+      const e = team[i];
+      if (!e){
+        html += `<div class="sicon" style="background:transparent"></div>`;
+        continue;
+      }
       const nm = (e.illusionAs || e.poke).name;
       const enc = encodeURIComponent(nm);
-      return `<span class="tball${dead ? ' dead' : ''}" title="${tPokeName(nm)}"><img src="images/sim/${enc}.svg" alt="" onerror="this.remove()"></span>`;
-    }).join('');
-    pb.querySelector('.balls').innerHTML = ballsHtml;
+      const dead = e.fainted || (e.currentHp != null && e.currentHp <= 0);
+      // 場に出ている=先頭(i===0)かつひんし未
+      const active = (i === 0 && !dead);
+      const cls = ['sicon', dead ? 'dead' : '', active ? 'active' : ''].filter(Boolean).join(' ');
+      const max = S.realStat(e, 'hp') || 1;
+      const hp  = e.currentHp == null ? max : Math.max(0, e.currentHp);
+      const pct = Math.round(hp / max * 100);
+      const label = `${tPokeName(nm)} (${pct}%)`;
+      html += `<div class="${cls}" title="${label}" aria-label="${label}">` +
+              `<img src="images/sim/${enc}.svg" alt="${tPokeName(nm)}" loading="lazy" onerror="this.style.display='none'">` +
+              `</div>`;
+    }
+    iconsEl.innerHTML = html;
+    // トレーナー名はi18nキーから
+    nameEl.textContent = side === 'self'
+      ? (window.I18N && I18N.t ? I18N.t('real_battle.pbox_label_self', 'じぶん') : 'じぶん')
+      : (window.I18N && I18N.t ? I18N.t('real_battle.pbox_label_opp', 'あいて') : 'あいて');
   });
 }
 function setHpBar(side, hp, max){
