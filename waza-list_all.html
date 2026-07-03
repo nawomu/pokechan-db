@@ -21,7 +21,7 @@
 <link rel="icon" href="favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="manifest" href="manifest.json">
-<script defer src="i18n/runtime.js?v=20260622"></script>
+<script defer src="i18n/runtime.js?v=20260703a"></script>
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PchamDB">
@@ -94,7 +94,7 @@
 <div class="top-bar">
   <!-- Row 1: タイトル + 右端ナビ (常時固定) -->
   <div class="top-row top-row-1">
-    <h1><a href="index.html" class="site-home-link" title="PchamDB トップに戻る" data-i18n="checker.nav_pchamdb_home" data-i18n-attr="title:checker.nav_pchamdb_home_title">🏠 PchamDB</a> <span style="color:#8aa3bb;font-size:11px;font-weight:400">›</span> <span style="color:#ccc;font-size:11px;font-weight:400" data-i18n="checker.nav_waza_list">📋 わざリスト</span> <span style="font-size:10px;color:#8aa3bb;font-weight:400" data-i18n="waza.list_updated_label">リスト: 06/19更新</span></h1>
+    <h1><a href="index.html" class="site-home-link" title="PchamDB トップに戻る" data-i18n="checker.nav_pchamdb_home" data-i18n-attr="title:checker.nav_pchamdb_home_title">🏠 PchamDB</a> <span style="color:#8aa3bb;font-size:11px;font-weight:400">›</span> <span style="color:#ccc;font-size:11px;font-weight:400" data-i18n="checker.nav_waza_list">📋 わざリスト</span></h1>
     <nav class="top-nav">
       <button class="nav-db" onclick="window.open('pokemon_db_v9.html','_blank')" title="ポケモンDBを別タブで開く" data-i18n="waza.nav_db" data-i18n-attr="title:waza.nav_db_title">🗄️ DB</button>
       <button class="nav-checker" onclick="window.open('party_checker.html','_blank')" title="チームビルダーを別タブで開く" data-i18n="waza.nav_checker" data-i18n-attr="title:waza.nav_checker_title">🎯 ビルダー</button>
@@ -120,7 +120,7 @@
     <span class="count" id="count" style="display:inline-block;min-width:140px;text-align:left" data-i18n="waza.count_all_moves">全0技</span>
     <span id="pokemonFilterBanner" style="display:none"></span>
     <button class="secondary" onclick="resetAll()" data-i18n="waza.btn_reset">🔄 リセット</button>
-    <button id="new-only-btn" onclick="toggleNewOnly()" title="全国版で新たに追加した技(M-A/M-B以外)だけ表示" style="background:#FF7A00;color:#fff;font-weight:700">🆕 新規追加のみ</button>
+    <button id="new-only-btn" onclick="toggleNewOnly()" title="全国版で新たに追加した技(M-A/M-B以外)だけ表示" data-i18n-attr="title:waza.new_only_tip" style="background:#FF7A00;color:#fff;font-weight:700">🆕 新規追加のみ</button>
     <button id="ef-mode-btn" onclick="toggleFilterMode()" title="複数チップを選んだ時の検索モード切替。OR = どれかに該当、AND = 全部に該当" data-i18n="waza.search_mode_or" data-i18n-attr="title:waza.search_mode_title">🔀 検索: OR</button>
     <button id="ef-select-mode-btn" class="single-on" onclick="toggleSelectMode()" title="チップ選択モード切替。シングル=クリックで1つだけ選択 (他を解除)、複数=クリックで追加" data-i18n="waza.select_mode_single" data-i18n-attr="title:waza.select_mode_title">📌 シングル選択</button>
     <span style="font-size:10px;color:#8aa3bb;margin-left:4px" data-i18n="waza.hint_sort_filter">※ヘッダーでソート、その下でフィルタ</span>
@@ -449,15 +449,24 @@
 window.__showGenCol = true;
 </script>
 <script src="pokechan_data_all.js?v=20260626a"></script>
-<script src="waza_picker.js?v=20260701g"></script>
+<script src="waza_picker.js?v=20260703a"></script>
 <script>
 // 🆕新規追加のみフィルタ(全国版専用)。window.__newOnlyActive を切替→waza_picker.js render()が絞り込む
 function toggleNewOnly(){
   window.__newOnlyActive = !window.__newOnlyActive;
   var b=document.getElementById('new-only-btn');
-  if(b){ b.classList.toggle('on', window.__newOnlyActive); b.style.outline = window.__newOnlyActive ? '2px solid #fff' : 'none'; b.textContent = window.__newOnlyActive ? '🆕 新規追加のみ ✓' : '🆕 新規追加のみ'; }
+  if(b){ b.classList.toggle('on', window.__newOnlyActive); b.style.outline = window.__newOnlyActive ? '2px solid #fff' : 'none'; var lbl=(window.I18N&&I18N.t)?I18N.t('waza.new_only_btn','🆕 新規追加のみ'):'🆕 新規追加のみ'; b.textContent = window.__newOnlyActive ? lbl+' ✓' : lbl; }
   if(typeof render==='function') render();
 }
+// 言語切替時にボタン表示も追従
+function _refreshNewOnlyBtn(){
+  var b=document.getElementById('new-only-btn');
+  if(!b) return;
+  var lbl=(window.I18N&&I18N.t)?I18N.t('waza.new_only_btn','🆕 新規追加のみ'):'🆕 新規追加のみ';
+  b.textContent = window.__newOnlyActive ? lbl+' ✓' : lbl;
+}
+document.addEventListener('i18n:ready',_refreshNewOnlyBtn);
+document.addEventListener('i18n:changed',_refreshNewOnlyBtn);
 </script>
 
 <!--

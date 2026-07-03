@@ -639,7 +639,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 
 </style>
 <link rel="stylesheet" href="site-footer.css">
-<script defer src="i18n/runtime.js?v=20260622"></script>
+<script defer src="i18n/runtime.js?v=20260703a"></script>
 </head>
 <body>
 
@@ -2052,9 +2052,12 @@ function renderAbilitySelect(root, st){
     if (a === st.ability) opt.selected = true;
     sel.appendChild(opt);
   });
-  const desc = (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[st.ability]) ? ABILITY_DESC[st.ability] : '（説明データなし）';
+  // ★2026-07-03: 特性説明を現在言語で表示(9言語辞書 I18N.abilityDesc → ja本文 ABILITY_DESC → なし)
+  const i18nDesc = (window.I18N && I18N.abilityDesc) ? I18N.abilityDesc(st.ability) : null;
+  const jaDesc = (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[st.ability]) ? ABILITY_DESC[st.ability] : '';
+  const desc = i18nDesc || jaDesc || I18N.t('sim.ability_desc_none', '（説明データなし）');
   descEl.textContent = desc;
-  descEl.classList.toggle('empty', !ABILITY_DESC || !ABILITY_DESC[st.ability]);
+  descEl.classList.toggle('empty', !i18nDesc && !jaDesc);
 }
 
 // 持ち物 pill ボタンの再描画（ポケカ下に表示）
@@ -2118,7 +2121,7 @@ function _renderItemModalList(selectedKey){
   </div>`;
   for (const cat of _ITEM_CAT_ORDER){
     if (!byCat[cat]) continue;
-    html += `<div class="item-cat-head">${_escHtml(cats[cat]||cat)}</div>`;
+    html += `<div class="item-cat-head">${_escHtml(I18N.t('items_list.cat_'+cat, cats[cat]||cat))}</div>`;
     for (const it of byCat[cat]){
       const sel = (selectedKey === it.key) ? ' selected' : '';
       html += `<div class="item-row${sel}" data-key="${_escHtml(it.key)}">

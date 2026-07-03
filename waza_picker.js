@@ -195,7 +195,7 @@ function tEffect(m) { return (window.I18N && I18N.moveDesc) ? I18N.moveDesc(m.ke
 let MOVE_TAG_TR = null;
 (function loadMoveTagTr() {
   try {
-    fetch('i18n/move_tags_i18n.json').then(r => r.ok ? r.json() : null).then(d => {
+    fetch('i18n/move_tags_i18n.json?v=20260703a').then(r => r.ok ? r.json() : null).then(d => {
       if (d) { MOVE_TAG_TR = d; document.dispatchEvent(new CustomEvent('i18n:changed', { detail: { lang: (window.I18N && I18N.lang) || 'ja' } })); }
     }).catch(() => {});
   } catch (e) {}
@@ -601,6 +601,7 @@ function getMoveFilterTags(m) {
   if (flags.dance)          out.push({cls:'tag-flag',  text:'💃 踊り'});
   if (flags.powder)         out.push({cls:'tag-flag',  text:'🌸 粉'});
   if (flags.slicing || flags.slash) out.push({cls:'tag-flag',  text:'⚔️ 切る'});
+  if (flags.bite)           out.push({cls:'tag-flag',  text:'🦷 かみつき'});
 
   // 副作用 (状態異常 / ひるみ)
   const STATUS_ICON = {'まひ':'⚡','やけど':'🔥','こおり':'❄️','ねむり':'💤','どく':'☠️','もうどく':'💀','こんらん':'🌀','メロメロ':'💕','バインド':'🔗','ちいさくなる':'🔻','きゅうしょアップ':'🎯'}; // 2026-06-18 バインド等の絵文字を統一(STATUS_ICONフォールバック🩻と bd.* 由来タグの重複を解消)
@@ -2157,7 +2158,10 @@ const OLD_FILTER_TAGS = new Set([
   // ★2026-06-18 阿部さん指摘・第2版: 旧フィルタのジャンル分け(段階別)を採用 + 新タグの細分も保持
   // 18カテゴリ: 旧の段階別の見やすさ + 新の細分(技封じ・持ち物・タイプ・タイミング)
   function detailCategory(t) {
-    if (/^👊 パンチ|^🔊 音|^🔵 弾|^〰️ 波動/.test(t)) return 'flag';
+    // ★2026-07-03: P5フラグ系タグ(切る/かみつき/風/踊り/粉/Zワザ/ダイマックス)を技フラグへ・対象系は専用カテゴリへ
+    //   (先に判定しないと 🌀ダイマックス→状態異常 / 🌬️風→場の効果 に誤分類される)
+    if (/^👊 パンチ|^🔊 音|^🔵 弾|^〰️ 波動|^⚔️ 切る$|^🦷 かみつき$|^🌬️ 風$|^💃 踊り$|^🌸 粉$|^⚡ Zワザ|^🌀 ダイマックス$/.test(t)) return 'flag';
+    if (/^🎯 相手全体$|^🌐 場の全員$/.test(t)) return 'target';
     if (/^😵|^⚡\s*\d*%?まひ|^💤|^❄️|^🔥\s*\d*%?やけど|^☠️|^💀\s*\d*%?(どく|もうどく|瀕死)?|^🌀(?!.*ルーム)|^💕|^🤢|もうどく|メロメロ|ねむけ|きゅうしょアップ\(自\)|ちいさくなる\(自\)|やけど低下無視|あめまみれ/.test(t) && !/瀕死技|ひんし/.test(t)) return 'status';
     // 自分の能力ランク(段階別・確率付きも対応)
     if (/^📊 (\d+% )?自\S+\+[2-6]/.test(t)) return 'self_up2';
@@ -2221,7 +2225,7 @@ const OLD_FILTER_TAGS = new Set([
     return 'misc';
   }
   const CAT_LABEL = {
-    flag: '技フラグ', status: '状態異常',
+    flag: '技フラグ', target: '対象', status: '状態異常',
     self_up2: '自分↑↑', self_up1: '自分↑',
     opp_down2: '相手↓↓', opp_down1: '相手↓', opp_up: '相手↑',
     self_down2: '自分↓↓', self_down1: '自分↓',
@@ -2233,7 +2237,7 @@ const OLD_FILTER_TAGS = new Set([
     switch: '交代/拘束', type: 'タイプ操作', block: '技封じ',
     item: '持ち物', misc: 'その他'
   };
-  const CAT_ORDER = ['flag','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority_up','priority_down','charge','thrash','selfdmg','dmg','hp','field','hazard','clear','switch','type','block','item','misc'];
+  const CAT_ORDER = ['flag','target','status','self_up2','self_up1','self_down2','self_down1','opp_down2','opp_down1','opp_up','ally','priority_up','priority_down','charge','thrash','selfdmg','dmg','hp','field','hazard','clear','switch','type','block','item','misc'];
   // カテゴリ毎にタグをグループ化
   const byCat = {};
   for (const [tag, count] of filterTags) {
