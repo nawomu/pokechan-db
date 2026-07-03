@@ -22,7 +22,7 @@
 <link rel="icon" href="favicon.png" type="image/png">
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="manifest" href="manifest.json">
-<script defer src="i18n/runtime.js?v=20260703b"></script>
+<script defer src="i18n/runtime.js?v=20260703d"></script>
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PchamDB">
@@ -2294,9 +2294,8 @@ COLUMNS.push({
   buildTd: (p) => {
     const cls = p.form === 'メガ進化' ? 'mega-name' : p.form === 'リージョン' ? 'region-name' : '';
     const display = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(p.name) : p.name;
-    // ★2026-06-19: M-Bで追加されたポケモンには「M-B」バッジ表示
-    const verBadge = p.added_in ? ` <span style="display:inline-block;background:#6A1B9A;color:#fff;font-size:8.5px;font-weight:700;padding:1px 4px;border-radius:6px;vertical-align:middle">${p.added_in}</span>` : '';
-    return `<td class="td-name ${cls}" title="${_tDB('db.tt_pokemon_hover', 'ホバー: わざ一覧 / クリック: モーダル')}" data-pokemon-name="${p.name}" style="cursor:pointer">${display}${verBadge}</td>`;
+    // ★2026-07-03: verBadge(名前横M-Bチップ)はSSN列と重複のため削除
+    return `<td class="td-name ${cls}" title="${_tDB('db.tt_pokemon_hover', 'ホバー: わざ一覧 / クリック: モーダル')}" data-pokemon-name="${p.name}" style="cursor:pointer">${display}</td>`;
   },
   getVal: (p) => p.name,
   applyFilter: (arr, ctx) => {
@@ -4545,6 +4544,21 @@ let pmDragOffsetX = 0, pmDragOffsetY = 0;
 
 // ポケモン名ホバー → 覚えるわざ一覧をポップアップ表示
 // (tip 要素は script 終了タグ後の body 末尾にあるため、毎回 lazy 取得する)
+// ★2026-07-03: WAZA_MAP.learners逆引きキャッシュ (M-B追加ポケ対応・POKEMON_WAZA未収録の補完)
+let _pmHoverRevIdx = null;
+function _getPmHoverRevIdx() {
+  if (_pmHoverRevIdx) return _pmHoverRevIdx;
+  if (typeof WAZA_MAP === 'undefined') return {};
+  const rev = {};
+  for (const [key, waza] of Object.entries(WAZA_MAP)) {
+    for (const pn of (waza.learners || [])) {
+      if (!rev[pn]) rev[pn] = [];
+      rev[pn].push(key);
+    }
+  }
+  _pmHoverRevIdx = rev;
+  return rev;
+}
 (function setupPokemonHover() {
   let curName = null;
   function getTip() { return document.getElementById('pokemon-tip'); }
@@ -4559,8 +4573,17 @@ let pmDragOffsetX = 0, pmDragOffsetY = 0;
     const name = cell.dataset.pokemonName;
     if (name === curName) return;
     curName = name;
-    const moveKeys = (typeof POKEMON_WAZA !== 'undefined' && POKEMON_WAZA[name]) || [];
-    if (moveKeys.length === 0) { tip.style.display = 'none'; return; }
+    let moveKeys = (typeof POKEMON_WAZA !== 'undefined' && POKEMON_WAZA[name]) || [];
+    // ★2026-07-03: M-B追加ポケはPOKEMON_WAZAに未収録 → WAZA_MAP.learnersを逆引きしてフォールバック
+    if (moveKeys.length === 0) {
+      moveKeys = _getPmHoverRevIdx()[name] || [];
+    }
+    if (moveKeys.length === 0) {
+      const pokeI18nNameNoData = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(name) : name;
+      tip.innerHTML = `<div class="pt-title">${pokeI18nNameNoData}</div><div class="pt-list" style="color:#aaa;font-size:10.5px">${_tDB('db.pokemon_tip_no_moves', '技データなし')}</div>`;
+      tip.style.display = 'block';
+      return;
+    }
     const moves = moveKeys.map(k => WAZA_MAP[k]).filter(Boolean);
     // タイプ順 (TYPES) → 威力降順 → 名前
     moves.sort((a, b) => {
