@@ -791,6 +791,8 @@
   // 言語切替イベントで既存ログ行を再翻訳(表示層のみ・演出/データ非破壊)。
   // 対象: #log-scroll .log-line(流れるログ)と #msg-lines .ml-line(メッセージ欄)。
   // ja原文の復元順: ①行が覚えているdata-bl-src ②訳文→原文マップ ③textContentそのもの(ja表示中の行)。
+  // S4対応: log-line-small(効果行)は内部の <small> 要素のテキストを書き換えてタグ構造を維持する。
+  //         log-line(通常行)は textContent で全書き換え(strong は失われるが再翻訳時は平文で可)。
   function retranslateLogDom(lang) {
     if (typeof document === 'undefined') return;
     lang = lang || (I18N() && I18N().lang) || 'ja';
@@ -801,7 +803,11 @@
       var src = (el.getAttribute && el.getAttribute('data-bl-src')) || _srcByOutput[cur] || cur;
       if (el.setAttribute) el.setAttribute('data-bl-src', src);   // 次回切替(en→fr等)でも原文に戻れるように
       var out = (lang === 'ja') ? src : translateLogLine(src, lang);
-      if (out != null && out !== cur) el.textContent = out;
+      if (out == null || out === cur) continue;
+      // S4: log-line-small は <small> 子要素のテキストだけ書き換えてタグを維持する
+      var smEl = (el.classList && el.classList.contains('log-line-small')) ? el.querySelector('small') : null;
+      if (smEl) { smEl.textContent = out; }
+      else { el.textContent = out; }
     }
   }
   if (typeof document !== 'undefined') {

@@ -6,7 +6,7 @@
 <title data-i18n="real_battle.page_title">リアルバトル — PchamDB</title>
 <script defer src="i18n/runtime.js?v=20260622"></script>
 <script src="pokechan_data.js?v=20260703h"></script>
-<script src="battle_log_i18n.js?v=20260703e"></script>
+<script src="battle_log_i18n.js?v=20260703i"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -219,15 +219,22 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 /* S1: ログスクロール領域・文字色をShowdown準拠の黒に */
 #log-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:6px 12px 12px;font-size:13px;line-height:1.55;
   color:#000}
-/* S1: ターン見出し → Showdown準拠のh2スタイル(bg:#e0e7ea/17px/height:31px)。
- * JSではまだdiv.log-turnのまま(S4で h2.battle-history に移行予定)。
- * S1ではlog-turnのCSSをShowdown h2に近い見た目に更新する。 */
+/* S4: ターン見出し h2.battle-history(旧 div.log-turn を置き換え) */
+#log-scroll h2.battle-history{display:block;margin:0 -12px;padding:0 12px;
+  background:#e0e7ea;color:#000;font-size:17px;font-weight:bold;
+  height:31px;line-height:31px;border-radius:0}
+/* S4: spacer(ターン内区切り空行) */
+#log-scroll .spacer.battle-history{display:block;height:0.6em;margin:0;padding:0}
+/* S4: 通常行 */
+#log-scroll .log-line{color:#000;margin:1px 0}
+/* S4: 効果行(small) — Showdown 13.3px×0.8 ≒ 10.6px。グレー寄りで控えめに */
+#log-scroll .log-line-small{margin:0 0 1px;color:#333}
+#log-scroll .log-line-small small{font-size:smaller;color:#555}
+/* 後方互換: S1で設定した旧div.log-turnスタイルを残しておく(JS切替後は使われない) */
 #log-scroll .log-turn{display:block;margin:0 -12px 0;padding:0 12px;
   background:#e0e7ea;color:#000;font-size:17px;font-weight:bold;
   height:31px;line-height:31px;border-radius:0}
 #log-scroll .log-turn:first-child{margin-top:0}
-/* S1: ログ本文行の文字色を黒に(ダーク#cdd6e4 → #000) */
-#log-scroll .log-line{color:#000;margin:2px 0}
 /* S1: スマホ縦積み維持(≤880px。不変条件) */
 @media(max-width:880px){
   #battle{flex-direction:column}
@@ -384,12 +391,65 @@ let gameOver = false;
 let turnNo = 1;         // ターン数(Showdown風 Turn バッジ表示用)
 function updateTurnBadge(){ const b = document.getElementById('turn-badge'); if (b) b.textContent = 'Turn ' + turnNo; }
 // ===== 流れるバトルログ(Showdown風・右カラム。履歴が積み上がって残る) =====
+// S4: 4層マークアップ化。ターン見出し=h2.battle-history / 通常行=div.log-line.battle-history /
+//     効果行=div.log-line.log-line-small.battle-history / spacer=div.spacer.battle-history
+// retranslateLogDom は .log-line の textContent を走査するため .log-line クラスは必ず維持する。
+// XSS対策: テキストはすべて textContent / createTextNode で挿入し innerHTML に生文字列を流さない。
 let lastLogTurn = 0;
 function clearLog(){ const s = document.getElementById('log-scroll'); if (s) s.innerHTML = ''; lastLogTurn = 0; }
 function logTurnHeader(n){ const s = document.getElementById('log-scroll'); if (!s || n === lastLogTurn) return; lastLogTurn = n;
-  const d = document.createElement('div'); d.className = 'log-turn'; d.textContent = 'Turn ' + n; s.appendChild(d); s.scrollTop = s.scrollHeight; }
-function logLine(text){ const s = document.getElementById('log-scroll'); if (!s || !text) return;
-  const d = document.createElement('div'); d.className = 'log-line'; d.textContent = text; s.appendChild(d); s.scrollTop = s.scrollHeight; }
+  // spacer before turn h2 (ターン間の区切り空行)
+  if (lastLogTurn > 0){ const sp = document.createElement('div'); sp.className = 'spacer battle-history'; sp.appendChild(document.createElement('br')); s.appendChild(sp); }
+  const h = document.createElement('h2'); h.className = 'battle-history'; h.textContent = 'Turn ' + n; s.appendChild(h);
+  // spacer after turn h2
+  { const sp = document.createElement('div'); sp.className = 'spacer battle-history'; sp.appendChild(document.createElement('br')); s.appendChild(sp); }
+  s.scrollTop = s.scrollHeight; }
+// S4: logLine(text, type) — type: 'normal'(省略時) / 'small'(効果行) / 'spacer'(区切り空行)
+// 技名の <strong> はセグメント分割で安全に挿入(textContent ベースを維持)。
+// 技使用行パターン: 「〇〇の 〇〇！」または「〇〇 の 〇〇！」で始まり技名が「！」で終わる
+function _logMoveSplit(text, container){
+  // 「Aの B！」または「A の B！」: 末尾「！」まで技名(最後の「！」区切り)
+  // パターン: "{ポケモン名}の {技名}！" か "{ポケモン名} の {技名}！"
+  const m = text.match(/^(.+?)(の |の)(\S+？?！)(.*)$/);
+  if (!m){ container.textContent = text; return; }
+  const prefix = m[1] + m[2];
+  const moveName = m[3];
+  const suffix = m[4];
+  container.appendChild(document.createTextNode(prefix));
+  const strong = document.createElement('strong');
+  strong.textContent = moveName;
+  container.appendChild(strong);
+  if (suffix) container.appendChild(document.createTextNode(suffix));
+}
+// 効果行(small)として扱うパターン
+const _SMALL_PATS = [
+  /^こうかは ばつぐんだ！$/,
+  /^こうかは いまひとつのようだ…$/,
+  /^こうかは こうかなし…$/,
+  /^きゅうしょに あたった！$/,
+];
+function _isSmallLine(text){
+  for (var i=0;i<_SMALL_PATS.length;i++) if (_SMALL_PATS[i].test(text)) return true;
+  return false;
+}
+function logLine(text, type){ const s = document.getElementById('log-scroll'); if (!s || text == null || text === '') return;
+  // type 未指定時は内容でauto判定
+  if (!type){ type = _isSmallLine(text) ? 'small' : 'normal'; }
+  if (type === 'spacer'){
+    const sp = document.createElement('div'); sp.className = 'spacer battle-history'; sp.appendChild(document.createElement('br')); s.appendChild(sp); s.scrollTop = s.scrollHeight; return;
+  }
+  const d = document.createElement('div');
+  d.className = 'log-line battle-history' + (type === 'small' ? ' log-line-small' : '');
+  d.setAttribute('data-bl-src', text); // retranslateLogDom が参照するja原文
+  if (type === 'small'){
+    const sm = document.createElement('small'); sm.textContent = text; d.appendChild(sm);
+  } else {
+    // 技使用行は技名を strong にする試み(失敗してもフォールバックで全文 textContent)
+    const isMoveUse = /^(.+?)(の |の )(\S+！)/.test(text);
+    if (isMoveUse) { try { _logMoveSplit(text, d); } catch(e){ d.textContent = text; } }
+    else { d.textContent = text; }
+  }
+  s.appendChild(d); s.scrollTop = s.scrollHeight; }
 // メッセージ欄(下部・6行)に1行積む。直近が薄く残って見える
 function pushMsgLine(text){ const ml = document.getElementById('msg-lines'); if (!ml || text == null) return;
   const d = document.createElement('div'); d.className = 'ml-line'; d.textContent = text; ml.appendChild(d);
