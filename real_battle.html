@@ -101,20 +101,41 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 .trainer .ava{font-size:15px;line-height:1}
 .tn-opp{top:12px;right:14px}
 .tn-self{bottom:14px;left:14px}
-.pbox{position:absolute;background:#141927ee;border:1px solid #2a3450;border-radius:10px;padding:8px 12px;min-width:215px}
-#pb-opp{top:26px;left:24px}
-#pb-self{bottom:18px;right:24px}
-.pbox .who{position:absolute;top:-9px;left:10px;font-size:9px;font-weight:800;padding:1px 8px;border-radius:8px}
-.pbox .who.self{background:#11331f;color:#4ade80;border:1px solid #4ade8044}
-.pbox .who.opp{background:#3a1518;color:#f87171;border:1px solid #f8717144}
+/* S2: statbarオーバーレイ化(Showdown準拠)。transparent背景・162×44px・Verdana */
+/* 旧: background:#141927ee / border / border-radius / min-width:215px → 削除 */
+.pbox{position:absolute;background:transparent;border:none;border-radius:0;padding:4px 6px;
+  width:162px;font-family:Verdana,sans-serif;font-size:13px;color:#000;
+  text-shadow:0 0 3px #fff,0 0 6px #fff,0 0 2px #fff;/* 背景透明のため白ふちで可読性確保 */}
+/* S2: 相手statbar座標(Showdown: left:130px; top:120px) */
+#pb-opp{left:130px;top:120px}
+/* S2: 自分statbar座標(Showdown: left:350px; top:24px) */
+#pb-self{left:350px;top:24px}
+/* S2: .who バッジ削除(A-2デフォルト: Showdown準拠の透明statbarに統一)。
+ * 復活させるには下の display:none を削除し .pbox position:relative を追加する。 */
+.pbox .who{display:none}
+/* .pbox .who{position:absolute;top:-9px;left:10px;font-size:9px;font-weight:800;padding:1px 8px;border-radius:8px} */
+/* .pbox .who.self{background:#11331f;color:#4ade80;border:1px solid #4ade8044} */
+/* .pbox .who.opp{background:#3a1518;color:#f87171;border:1px solid #f8717144} */
 .pbox .row1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.pbox .nm{font-weight:800;font-size:14px}
-.pbox .lv{font-size:10px;color:#8b94a7}
-.pbox .hpbar{height:9px;background:#1d2433;border-radius:5px;margin:5px 0 3px;overflow:hidden;border:1px solid #2a3450}
-.pbox .hpfill{height:100%;background:#4ade80;width:100%;transition:width .5s}
-.pbox .hpfill.mid{background:#fbbf24}.pbox .hpfill.low{background:#f87171}
-.pbox .hptext{font-size:10px;color:#8b94a7;text-align:right}
-.pbox .sts{margin-top:3px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap}
+.pbox .nm{font-weight:800;font-size:13px;color:#000}
+.pbox .lv{font-size:10px;color:#444}
+/* S2: HPバー外枠(Showdown実測: 155×12px / border:1px solid #777 / border-radius:4px / bg:#fcfeff) */
+.pbox .hpbar{position:relative;width:155px;height:12px;background:#fcfeff;border-radius:4px;border:1px solid #777;
+  margin:4px 0 2px;overflow:visible}
+/* S2: HPテキスト(A-1=%のみ。実数値はdata属性に保持=後から data-hp/data-max で参照可) */
+.pbox .hptext{position:absolute;top:-1px;left:2px;font-size:9px;color:#444;line-height:12px;z-index:2;pointer-events:none}
+/* S2: prevhp = 前フレームHP幅(残像バー)。hpbarに対してposition:absolute。
+ * 黄色背景でゆっくり縮む(1.2s ease-out)。hp(現在バー)の下に描画(z-index低め) */
+.pbox .prevhp{position:absolute;top:2px;left:1px;height:8px;border-radius:3px;background:#d0c000;
+  transition:width 1.2s ease-out;width:0;z-index:1}
+/* S2: hp = 現在HP幅。hpbarに対してposition:absolute(prevhpの子でなくhpbarの子)。
+ * 即時反映(0.3s)・満=緑/中=黄/少=赤。z-indexをprevhpより上に設定 */
+.pbox .hp{position:absolute;top:2px;left:1px;height:8px;border-radius:3px;background:#00bb51;
+  transition:width .3s ease-out;width:0;z-index:2}
+.pbox .hp.mid{background:#d0c000}
+.pbox .hp.low{background:#c82315}
+/* S2: ステータスバッジ(hpbar内のstatus div。既存.stsをhpbar外に残して互換維持) */
+.pbox .sts{margin-top:2px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap}
 .pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#3a2518;color:#fbbf24;border:1px solid #fbbf2444}
 .pbox .balls{margin-top:4px;display:flex;gap:3px;align-items:center}
 .pbox .balls .tball{width:20px;height:20px;border-radius:50%;background:#0003;border:1px solid #ffffff33;
@@ -245,10 +266,33 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
       <div class="trainer tn-self"><span class="ava">🧑</span><span class="tnm" data-i18n="real_battle.pbox_label_self">じぶん</span></div>
       <div class="fighter" id="f-opp"><div class="platform"></div><div class="sprite"></div></div>
       <div class="fighter" id="f-self"><div class="platform"></div><div class="sprite"></div></div>
-      <div class="pbox" id="pb-opp"><span class="who opp" data-i18n="real_battle.pbox_label_opp">あいて</span><div class="row1"><span class="nm">—</span><span class="lv">Lv.50</span></div>
-        <div class="hpbar"><div class="hpfill"></div></div><div class="sts"></div><div class="balls"></div></div>
-      <div class="pbox" id="pb-self"><span class="who self" data-i18n="real_battle.pbox_label_self">じぶん</span><div class="row1"><span class="nm">—</span><span class="lv">Lv.50</span></div>
-        <div class="hpbar"><div class="hpfill"></div></div><div class="hptext">—</div><div class="sts"></div><div class="balls"></div></div>
+      <!-- S2: statbarオーバーレイ化(Showdown準拠)。.whoバッジはA-2=削除(display:noneで残す) -->
+      <div class="pbox" id="pb-opp">
+        <!-- .whoバッジ: A-2デフォルト=非表示。復活→ .pbox .who { display:none } を削除 -->
+        <span class="who opp" data-i18n="real_battle.pbox_label_opp">あいて</span>
+        <div class="row1"><strong class="nm">—</strong><span class="lv">Lv.50</span></div>
+        <!-- S2: 2層HPバー(外枠155×12px / prevhp=残像バー / hp=現在バー。両方hpbar直下に並置) -->
+        <div class="hpbar">
+          <div class="hptext">—%</div><!-- A-1=%のみ。data-hp/data-maxに実数値を保持 -->
+          <div class="prevhp"></div><!-- 残像バー(黄色・遅れて縮む) -->
+          <div class="hp"></div><!-- 現在バー(緑/黄/赤・即時縮む) -->
+          <div class="status"></div><!-- 状態異常バッジはここにも入れられる(将来用) -->
+        </div>
+        <div class="sts"></div>
+        <div class="balls"></div>
+      </div>
+      <div class="pbox" id="pb-self">
+        <span class="who self" data-i18n="real_battle.pbox_label_self">じぶん</span>
+        <div class="row1"><strong class="nm">—</strong><span class="lv">Lv.50</span></div>
+        <div class="hpbar">
+          <div class="hptext">—%</div>
+          <div class="prevhp"></div>
+          <div class="hp"></div>
+          <div class="status"></div>
+        </div>
+        <div class="sts"></div>
+        <div class="balls"></div>
+      </div>
     </div>
     <div id="msgbox"><div id="msg-lines"></div><span class="next" style="display:none" data-i18n="real_battle.msgbox_next_prompt">▼ クリックでつぎへ</span></div>
     <div id="cmd">
@@ -700,11 +744,39 @@ function renderAll(){
 function setHpBar(side, hp, max){
   const pb = $('pb-' + side);
   const pct = Math.max(0, Math.min(100, hp / max * 100));
-  const fill = pb.querySelector('.hpfill');
-  fill.style.width = pct + '%';
-  fill.className = 'hpfill' + (pct <= 25 ? ' low' : pct <= 50 ? ' mid' : '');
+  // S2: 2層HPバー。prevhp=前フレーム幅(遅れて縮む演出) / hp=現在幅(即時)
+  // barWidthPx: hpbar内側幅=155px - 2px(border) = 153px。prevhpはpxで持つ
+  const BAR_W = 153; // hpbar内側実効幅(px)
+  const newW = Math.round(pct / 100 * BAR_W);
+  const hpEl = pb.querySelector('.hp');
+  const prevEl = pb.querySelector('.prevhp');
+  if (hpEl && prevEl) {
+    // prevhpを現在のhp幅に一時固定してから、hpを新幅に更新
+    // (CSSトランジション: hp=0.3s即時縮小 / prevhp=1.2s遅延でゆっくり縮む)
+    const oldW = parseFloat(prevEl.style.width) || BAR_W;
+    // prevhpを旧幅に固定(アニメ開始点)
+    prevEl.style.transition = 'none';
+    prevEl.style.width = oldW + 'px';
+    // 1フレーム後にhpを新幅へ→さらにprevhpをtransitionで縮める
+    // NOTE: hp は prevhp の子要素なので、hp の幅は prevhp 基準の%になる。
+    // Showdown準拠: hp.width=pxでhpbar絶対幅を直接指定し、prevhpは常にhpbar全幅に固定する
+    // → これにより hp だけが縮み、その後 prevhp も transition で縮む(2層演出)
+    requestAnimationFrame(() => {
+      hpEl.style.width = newW + 'px'; // hpをpxで指定(prevhp内の絶対幅)
+      hpEl.className = 'hp' + (pct <= 25 ? ' low' : pct <= 50 ? ' mid' : '');
+      requestAnimationFrame(() => {
+        prevEl.style.transition = ''; // CSSに戻す(1.2s ease-out)
+        prevEl.style.width = newW + 'px';
+      });
+    });
+  }
+  // A-1: %のみ表示。data属性に実数値を保持(後から切替可能に)
   const t = pb.querySelector('.hptext');
-  if (t) t.textContent = `${hp} / ${max}`;   // 自分側だけHP数値(相手はバーのみ=実機風)
+  if (t) {
+    t.textContent = Math.round(pct) + '%';
+    t.dataset.hp = hp;
+    t.dataset.max = max;
+  }
 }
 
 // ===== メッセージ送り =====
