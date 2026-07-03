@@ -7,7 +7,7 @@ const IT=JSON.parse(fs.readFileSync('reference/items_master.json','utf8'));
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 // 54カテゴリの日本語訳(参照リスト用ラベル)
 const CAT_JA={
- 'all-machines':'わざマシン','all-mail':'てがみ','apricorn-balls':'ぼんぐりボール','apricorn-box':'ぼんぐり入れ','bad-held-items':'じゃまな持ち物','baking-only':'クッキング専用','catching-bonus':'捕獲ボーナス','choice':'こだわり系','collectibles':'コレクション','curry-ingredients':'カレー食材','data-cards':'データカード','dex-completion':'図鑑関連','dynamax-crystals':'ダイマックスクリスタル','effort-drop':'努力値ダウン','effort-training':'努力値アップ','event-items':'イベント道具','evolution':'進化用','flutes':'フエ','gameplay':'進行用','healing':'回復','held-items':'持ち物','in-a-pinch':'ピンチ系','jewels':'ジュエル','loot':'売却用','medicine':'くすり','mega-stones':'メガストーン','memories':'メモリ','miracle-shooter':'ミラクルシューター','mulch':'たいひ','nature-mints':'ミント','other':'その他','picky-healing':'好み回復','picnic':'ピクニック','plates':'プレート','plot-advancement':'ストーリー道具','pp-recovery':'PP回復','revival':'ひんし回復','sandwich-ingredients':'サンド食材','scarves':'スカーフ','species-candies':'アメ','species-specific':'専用道具','spelunking':'探検道具','standard-balls':'モンスターボール','stat-boosts':'能力アップ','status-cures':'状態回復','tera-shard':'テラピース','tm-materials':'わざマシン材料','training':'育成','type-enhancement':'タイプ強化','type-protection':'タイプ半減実','unused':'未使用','vitamins':'栄養ドリンク','z-crystals':'Zクリスタル'};
+ 'all-machines':'わざマシン','all-mail':'てがみ','apricorn-balls':'ぼんぐりボール','apricorn-box':'ぼんぐり入れ','bad-held-items':'じゃまな持ち物','baking-only':'クッキング専用','catching-bonus':'捕獲ボーナス','choice':'こだわり系','collectibles':'コレクション','curry-ingredients':'カレー食材','data-cards':'データカード','dex-completion':'図鑑関連','dynamax-crystals':'ダイマックスクリスタル','effort-drop':'努力値ダウン','effort-training':'努力値アップ','event-items':'イベント道具','evolution':'進化用','flutes':'フエ','gameplay':'進行用','healing':'回復','held-items':'持ち物','in-a-pinch':'ピンチ系','jewels':'ジュエル','loot':'売却用','medicine':'くすり','mega-stones':'メガストーン','memories':'メモリ','miracle-shooter':'ミラクルシューター','mulch':'たいひ','nature-mints':'ミント','other':'その他','picky-healing':'好み回復','picnic':'ピクニック','plates':'プレート','plot-advancement':'ストーリー道具','pp-recovery':'PP回復','revival':'ひんし回復','sandwich-ingredients':'サンド食材','scarves':'スカーフ','special-balls':'スペシャルボール','species-candies':'アメ','species-specific':'専用道具','spelunking':'探検道具','standard-balls':'モンスターボール','stat-boosts':'能力アップ','status-cures':'状態回復','tera-shard':'テラピース','tm-materials':'わざマシン材料','training':'育成','type-enhancement':'タイプ強化','type-protection':'タイプ半減実','unused':'未使用','vitamins':'栄養ドリンク','z-crystals':'Zクリスタル'};
 const catJa=c=>CAT_JA[c]||c;
 // ローカルに同梱できたスプライトのみ表示(PokeAPIに個別画像が無いTM等1300超は画像なし=無駄404を回避)
 const HAS=new Set(fs.readdirSync('images/item').filter(f=>f.endsWith('.png')).map(f=>f.slice(0,-4)));
@@ -16,17 +16,18 @@ const rows=IT.slice().sort((a,b)=>a.id-b.id).map(it=>{
   const ja=it.names.ja||it.slug, en=it.names.en||'';
   const cost=(it.cost==null||it.cost===0)?'—':it.cost;
   const img=HAS.has(it.slug)?`<img loading="lazy" src="${SPRITE(it.slug)}" alt="" width="32" height="32" onerror="this.style.visibility='hidden'">`:'';
-  return `<tr data-s="${esc(ja+' '+en)}" data-cat="${esc(it.category)}">
+  return `<tr data-s="${esc(ja+' '+en)}" data-cat="${esc(it.category)}" data-slug="${esc(it.slug)}" data-ja-name="${esc(ja)}">
 <td class="sp">${img}</td>
-<td class="nm">${esc(ja)}<br><span class="en">${esc(en)}</span></td>
-<td class="cat"><span class="cb">${esc(catJa(it.category))}</span></td>
+<td class="nm" data-ja-name="${esc(ja)}">${esc(ja)}<br><span class="en">${esc(en)}</span></td>
+<td class="cat"><span class="cb" data-cat-slug="${esc(it.category)}" data-ja="${esc(catJa(it.category))}">${esc(catJa(it.category))}</span></td>
 <td class="n">${cost}</td></tr>`;}).join('');
 // カテゴリ絞込ボタン(出現順=ja名)
 const cats=[...new Set(IT.map(i=>i.category))].sort((a,b)=>catJa(a).localeCompare(catJa(b),'ja'));
-const catBtns=cats.map(c=>`<button class="cbn" data-c="${esc(c)}" onclick="fc('${esc(c)}')">${esc(catJa(c))}</button>`).join('');
+const catBtns=cats.map(c=>`<button class="cbn" data-c="${esc(c)}" data-cat-slug="${esc(c)}" data-ja="${esc(catJa(c))}" onclick="fc('${esc(c)}')">${esc(catJa(c))}</button>`).join('');
 const html=`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>全国どうぐリストDB(全${IT.length}件) - PchamDB</title>
 <meta name="description" content="メインシリーズ全世代の全どうぐ(${IT.length}件)を名前・カテゴリで検索できる道具DB。">
+<script defer src="i18n/runtime.js?v=20260703c"></script>
 <style>
 :root{--hdr:#1F4E79}
 body{font-family:system-ui,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;margin:0;background:#0f1419;color:#e6edf3;font-size:13px}
@@ -49,18 +50,54 @@ th{background:#1c2740;color:#9ec5ff;font-size:11px;position:sticky;top:96px;curs
 tbody tr:nth-child(even){background:#141b2b}
 tbody tr:hover{background:#1d2840}
 </style></head><body>
-<h1>📦 全国どうぐリストDB(全${IT.length}件)<a href="pokemon_db_all.html">📕ポケモン</a><a href="moves_db_all.html">📘わざ</a><a href="items_list.html">→ チャンピオンズどうぐ一覧</a></h1>
-<div class="bar"><input id="q" placeholder="🔍 どうぐ名で検索(日本語/英語)" oninput="run()"><span class="cnt" id="cnt"></span>
-<div class="tyrow"><button class="cbn clr" onclick="fc('')">全カテゴリ</button>${catBtns}</div></div>
-<table id="t"><thead><tr><th>絵</th><th onclick="sortBy('nm')">どうぐ名</th><th>カテゴリ</th><th onclick="sortBy(3)">値段</th></tr></thead><tbody id="tb">${rows}</tbody></table>
+<h1><span data-i18n="items_db_all.nav_list">📦 全国どうぐリストDB(全${IT.length}件)</span><a href="pokemon_db_all.html" data-i18n="items_db_all.nav_pokemon">📕ポケモン</a><a href="moves_db_all.html" data-i18n="items_db_all.nav_moves">📘わざ</a><a href="items_list.html" data-i18n="items_db_all.nav_champions">→ チャンピオンズどうぐ一覧</a><span id="i18n-switcher-mount" style="float:right;display:inline-flex;align-items:center"></span></h1>
+<div class="bar"><input id="q" data-i18n-attr="placeholder:items_db_all.search_ph" placeholder="🔍 どうぐ名で検索(日本語/英語)" oninput="run()"><span class="cnt" id="cnt"></span>
+<div class="tyrow"><button class="cbn clr" data-i18n="items_db_all.filter_all" onclick="fc('')">全カテゴリ</button>${catBtns}</div></div>
+<table id="t"><thead><tr><th data-i18n="items_db_all.th_icon">絵</th><th onclick="sortBy('nm')" data-i18n="items_db_all.th_name">どうぐ名</th><th data-i18n="items_db_all.th_category">カテゴリ</th><th onclick="sortBy(3)" data-i18n="items_db_all.th_price">値段</th></tr></thead><tbody id="tb">${rows}</tbody></table>
 <script>
-var TB=document.getElementById('tb');var allRows=[].slice.call(TB.children);var curCat='';
-function run(){var q=document.getElementById('q').value.toLowerCase();var n=0;allRows.forEach(function(r){var okq=!q||r.dataset.s.toLowerCase().indexOf(q)>=0;var okc=!curCat||r.dataset.cat===curCat;var show=okq&&okc;r.style.display=show?'':'none';if(show)n++;});document.getElementById('cnt').textContent=n+' / '+allRows.length+' 件';}
+var TB=document.getElementById('tb');var allRows=[].slice.call(TB.children);var curCat='';var COUNT_UNIT_JA=' 件';
+function run(){var q=document.getElementById('q').value.toLowerCase();var n=0;allRows.forEach(function(r){var okq=!q||r.dataset.s.toLowerCase().indexOf(q)>=0;var okc=!curCat||r.dataset.cat===curCat;var show=okq&&okc;r.style.display=show?'':'none';if(show)n++;});var unit=(window.I18N&&I18N.t)?I18N.t('items_db_all.count_unit',COUNT_UNIT_JA):COUNT_UNIT_JA;document.getElementById('cnt').textContent=n+' / '+allRows.length+unit;}
 function fc(c){curCat=(curCat===c)?'':c;document.querySelectorAll('.cbn').forEach(function(b){b.classList.toggle('on',b.dataset.c===curCat)});run();}
 function sortBy(k){var idx=(k==='nm')?1:k; var asc=TB.dataset.sk!==(''+k)||TB.dataset.sd!=='asc'; var rows=allRows.slice();
  rows.sort(function(a,b){var av=a.children[idx].textContent.trim(),bv=b.children[idx].textContent.trim();var an=parseFloat(av.replace(/[^0-9.]/g,'')),bn=parseFloat(bv.replace(/[^0-9.]/g,''));var x,y;if(!isNaN(an)&&!isNaN(bn)&&av!=='—'&&bv!=='—'){x=an;y=bn}else{x=av;y=bv}return (x<y?-1:x>y?1:0)*(asc?1:-1)});
  TB.dataset.sk=''+k;TB.dataset.sd=asc?'asc':'desc';rows.forEach(function(r){TB.appendChild(r)});}
 run();
-</script><footer style="padding:16px;color:#7a8aa0;font-size:11px;line-height:1.7;border-top:1px solid #233;margin-top:20px">Pokémon の画像・名前は © 1995–2026 Nintendo / Game Freak / The Pokémon Company。本サイト(PchamDB)は<b>非公式・非営利</b>のファンサイトです。画像出典: <a href="https://pokeapi.co/" style="color:#9ec5ff">PokéAPI</a>(pokeapi.co)。</footer></body></html>`;
+</script><footer data-i18n-audit-skip style="padding:16px;color:#7a8aa0;font-size:11px;line-height:1.7;border-top:1px solid #233;margin-top:20px">Pokémon の画像・名前は © 1995–2026 Nintendo / Game Freak / The Pokémon Company。本サイト(PchamDB)は<b>非公式・非営利</b>のファンサイトです。画像出典: <a href="https://pokeapi.co/" style="color:#9ec5ff">PokéAPI</a>(pokeapi.co)。</footer>
+<script>
+(function(){
+  function applyI18n(){
+    if(!window.I18N||!I18N.t)return;
+    var ja=(I18N.lang==='ja');
+    // item name cells
+    document.querySelectorAll('#tb tr').forEach(function(tr){
+      var td=tr.querySelector('td.nm');
+      if(!td)return;
+      var jaName=tr.dataset.jaName;
+      td.firstChild.textContent=ja?jaName:I18N.item(jaName);
+    });
+    // category badge spans
+    document.querySelectorAll('.cb').forEach(function(sp){
+      var slug=sp.dataset.catSlug, jaLbl=sp.dataset.ja;
+      sp.textContent=ja?jaLbl:I18N.t('items_db_all.cat.'+slug,jaLbl);
+    });
+    // category filter buttons
+    document.querySelectorAll('.cbn[data-cat-slug]').forEach(function(b){
+      var slug=b.dataset.catSlug, jaLbl=b.dataset.ja;
+      if(jaLbl)b.textContent=ja?jaLbl:I18N.t('items_db_all.cat.'+slug,jaLbl);
+    });
+    // static UI via data-i18n
+    document.querySelectorAll('[data-i18n]').forEach(function(el){
+      var k=el.dataset.i18n;
+      var fb=el.dataset.i18nFb||el.textContent;
+      el.textContent=I18N.t(k,fb);
+    });
+    // count unit refresh
+    run();
+  }
+  document.addEventListener('i18n:ready',applyI18n);
+  document.addEventListener('i18n:changed',applyI18n);
+})();
+</script>
+</body></html>`;
 fs.writeFileSync('items_db_all.html',html);
 console.log('items_db_all.html 生成:',IT.length,'件 / カテゴリ',cats.length);

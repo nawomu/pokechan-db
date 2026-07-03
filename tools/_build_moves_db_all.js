@@ -13,17 +13,18 @@ const rows=M.slice().sort((a,b)=>a.id-b.id).map(m=>{
   const ja=m.names.ja||m.slug, en=m.names.en||'';
   const pw=(m.power==null?'—':m.power), ac=(m.accuracy==null?'—':m.accuracy), pp=(m.pp==null?'—':m.pp), pr=(m.priority||0);
   const prTxt=pr>0?('+'+pr):(''+pr);
-  return `<tr data-s="${esc(ja+' '+en)}" data-ty="${esc(m.type)}" data-cl="${esc(m.damage_class)}">
+  return `<tr data-s="${esc(ja+' '+en)}" data-ty="${esc(m.type)}" data-cl="${esc(m.damage_class)}" data-slug="${esc(m.slug)}" data-ja-name="${esc(ja)}">
 <td class="dx">${m.id}</td>
 <td class="nm">${esc(ja)}<br><span class="en">${esc(en)}</span></td>
-<td class="tys"><span class="ty" style="background:${TC[m.type]||'#777'}">${esc(TYPE_JA[m.type]||m.type)}</span></td>
-<td class="cl"><span class="clb" style="background:${cl.c}">${cl.ico} ${cl.ja}</span></td>
+<td class="tys"><span class="ty" data-ja="${esc(TYPE_JA[m.type]||m.type)}" style="background:${TC[m.type]||'#777'}">${esc(TYPE_JA[m.type]||m.type)}</span></td>
+<td class="cl"><span class="clb" data-cls="${esc(m.damage_class)}" data-ja="${esc(cl.ico+' '+cl.ja)}" style="background:${cl.c}">${cl.ico} ${cl.ja}</span></td>
 <td class="n">${pw}</td><td class="n">${ac}</td><td class="n">${pp}</td><td class="n">${prTxt}</td></tr>`;}).join('');
-const typeBtns=Object.keys(TYPE_JA).map(t=>`<button class="tyb" data-t="${t}" style="background:${TC[t]}" onclick="ft('${t}')">${TYPE_JA[t]}</button>`).join('');
-const clsBtns=Object.keys(CLS).map(k=>`<button class="clbn" data-c="${k}" style="background:${CLS[k].c}" onclick="fc('${k}')">${CLS[k].ico} ${CLS[k].ja}</button>`).join('');
+const typeBtns=Object.keys(TYPE_JA).map(t=>`<button class="tyb" data-t="${t}" data-ja="${TYPE_JA[t]}" style="background:${TC[t]}" onclick="ft('${t}')">${TYPE_JA[t]}</button>`).join('');
+const clsBtns=Object.keys(CLS).map(k=>`<button class="clbn" data-c="${k}" data-cls="${k}" data-ja="${CLS[k].ico} ${CLS[k].ja}" style="background:${CLS[k].c}" onclick="fc('${k}')">${CLS[k].ico} ${CLS[k].ja}</button>`).join('');
 const html=`<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>全国わざリストDB(全${M.length}技) - PchamDB</title>
 <meta name="description" content="メインシリーズ全世代の全わざ(${M.length}技)のタイプ・分類・威力・命中・PP・優先度を検索できる技DB。">
+<script defer src="i18n/runtime.js?v=20260703c"></script>
 <style>
 :root{--hdr:#1F4E79}
 body{font-family:system-ui,'Hiragino Kaku Gothic ProN','Yu Gothic',sans-serif;margin:0;background:#0f1419;color:#e6edf3;font-size:13px}
@@ -47,20 +48,63 @@ th{background:#1c2740;color:#9ec5ff;font-size:11px;position:sticky;top:96px;curs
 tbody tr:nth-child(even){background:#141b2b}
 tbody tr:hover{background:#1d2840}
 </style></head><body>
-<h1>📘 全国わざリストDB(全${M.length}技)<a href="pokemon_db_all.html">📕ポケモン</a><a href="items_db_all.html">📦どうぐ</a><a href="waza-list.html">→ チャンピオンズわざリスト</a></h1>
-<div class="bar"><input id="q" placeholder="🔍 わざ名で検索(日本語/英語)" oninput="run()"><span class="cnt" id="cnt"></span>
-<div class="tyrow"><button class="tyb clr" onclick="ft('')">全タイプ</button>${typeBtns}</div>
-<div class="tyrow" style="margin-top:5px"><button class="clbn clr" onclick="fc('')">全分類</button>${clsBtns}</div></div>
-<table id="t"><thead><tr><th onclick="sortBy(0)">No</th><th onclick="sortBy('nm')">わざ名</th><th>タイプ</th><th>分類</th><th onclick="sortBy(4)">威力</th><th onclick="sortBy(5)">命中</th><th onclick="sortBy(6)">PP</th><th onclick="sortBy(7)">優先度</th></tr></thead><tbody id="tb">${rows}</tbody></table>
+<h1><span data-i18n="moves_db_all.nav_list">📘 全国わざリストDB(全${M.length}技)</span><a href="pokemon_db_all.html" data-i18n="moves_db_all.nav_pokemon">📕ポケモン</a><a href="items_db_all.html" data-i18n="moves_db_all.nav_items">📦どうぐ</a><a href="waza-list.html" data-i18n="moves_db_all.nav_champions">→ チャンピオンズわざリスト</a><span id="i18n-switcher-mount" style="float:right;display:inline-flex;align-items:center"></span></h1>
+<div class="bar"><input id="q" data-i18n-attr="placeholder:moves_db_all.search_ph" placeholder="🔍 わざ名で検索(日本語/英語)" oninput="run()"><span class="cnt" id="cnt"></span>
+<div class="tyrow"><button class="tyb clr" data-i18n="moves_db_all.filter_all_type" onclick="ft('')">全タイプ</button>${typeBtns}</div>
+<div class="tyrow" style="margin-top:5px"><button class="clbn clr" data-i18n="moves_db_all.filter_all_class" onclick="fc('')">全分類</button>${clsBtns}</div></div>
+<table id="t"><thead><tr><th onclick="sortBy(0)" data-i18n="moves_db_all.th_no">No</th><th onclick="sortBy('nm')" data-i18n="moves_db_all.th_name">わざ名</th><th data-i18n="moves_db_all.th_type">タイプ</th><th data-i18n="moves_db_all.th_class">分類</th><th onclick="sortBy(4)" data-i18n="moves_db_all.th_power">威力</th><th onclick="sortBy(5)" data-i18n="moves_db_all.th_acc">命中</th><th onclick="sortBy(6)" data-i18n="moves_db_all.th_pp">PP</th><th onclick="sortBy(7)" data-i18n="moves_db_all.th_prio">優先度</th></tr></thead><tbody id="tb">${rows}</tbody></table>
 <script>
-var TB=document.getElementById('tb');var allRows=[].slice.call(TB.children);var curType='';var curCls='';
-function run(){var q=document.getElementById('q').value.toLowerCase();var n=0;allRows.forEach(function(r){var okq=!q||r.dataset.s.toLowerCase().indexOf(q)>=0;var okt=!curType||r.dataset.ty===curType;var okc=!curCls||r.dataset.cl===curCls;var show=okq&&okt&&okc;r.style.display=show?'':'none';if(show)n++;});document.getElementById('cnt').textContent=n+' / '+allRows.length+' 技';}
+var TB=document.getElementById('tb');var allRows=[].slice.call(TB.children);var curType='';var curCls='';var COUNT_UNIT_JA=' 技';
+function run(){var q=document.getElementById('q').value.toLowerCase();var n=0;allRows.forEach(function(r){var okq=!q||r.dataset.s.toLowerCase().indexOf(q)>=0;var okt=!curType||r.dataset.ty===curType;var okc=!curCls||r.dataset.cl===curCls;var show=okq&&okt&&okc;r.style.display=show?'':'none';if(show)n++;});var unit=(window.I18N&&I18N.t)?I18N.t('moves_db_all.count_unit',COUNT_UNIT_JA):COUNT_UNIT_JA;document.getElementById('cnt').textContent=n+' / '+allRows.length+unit;}
 function ft(t){curType=(curType===t)?'':t;document.querySelectorAll('.tyb').forEach(function(b){b.classList.toggle('on',b.dataset.t===curType)});run();}
 function fc(c){curCls=(curCls===c)?'':c;document.querySelectorAll('.clbn').forEach(function(b){b.classList.toggle('on',b.dataset.c===curCls)});run();}
 function sortBy(k){var idx=(k==='nm')?1:k; var asc=TB.dataset.sk!==(''+k)||TB.dataset.sd!=='asc'; var rows=allRows.slice();
  rows.sort(function(a,b){var av=a.children[idx].textContent.trim(),bv=b.children[idx].textContent.trim();var an=parseFloat(av),bn=parseFloat(bv);var x,y;if(!isNaN(an)&&!isNaN(bn)){x=an;y=bn}else{x=av;y=bv}return (x<y?-1:x>y?1:0)*(asc?1:-1)});
  TB.dataset.sk=''+k;TB.dataset.sd=asc?'asc':'desc';rows.forEach(function(r){TB.appendChild(r)});}
 run();
-</script><footer style="padding:16px;color:#7a8aa0;font-size:11px;line-height:1.7;border-top:1px solid #233;margin-top:20px">Pokémon の名前・わざ情報は © 1995–2026 Nintendo / Game Freak / The Pokémon Company。本サイト(PchamDB)は<b>非公式・非営利</b>のファンサイトです。データ出典: <a href="https://pokeapi.co/" style="color:#9ec5ff">PokéAPI</a>(pokeapi.co)。</footer></body></html>`;
+</script><footer data-i18n-audit-skip style="padding:16px;color:#7a8aa0;font-size:11px;line-height:1.7;border-top:1px solid #233;margin-top:20px">Pokémon の名前・わざ情報は © 1995–2026 Nintendo / Game Freak / The Pokémon Company。本サイト(PchamDB)は<b>非公式・非営利</b>のファンサイトです。データ出典: <a href="https://pokeapi.co/" style="color:#9ec5ff">PokéAPI</a>(pokeapi.co)。</footer>
+<script>
+(function(){
+  function applyI18n(){
+    if(!window.I18N||!I18N.t)return;
+    var ja=(I18N.lang==='ja');
+    // move name cells
+    document.querySelectorAll('#tb tr').forEach(function(tr){
+      var td=tr.querySelector('td.nm');
+      if(!td)return;
+      var jaName=tr.dataset.jaName,slug=tr.dataset.slug;
+      td.firstChild.textContent=ja?jaName:I18N.move(slug,jaName);
+    });
+    // type badges in table
+    document.querySelectorAll('#tb .ty[data-ja]').forEach(function(sp){
+      sp.textContent=ja?sp.dataset.ja:I18N.type(sp.dataset.ja);
+    });
+    // damage class badges
+    document.querySelectorAll('#tb .clb[data-cls]').forEach(function(sp){
+      var jaLbl=sp.dataset.ja,cls=sp.dataset.cls;
+      sp.textContent=ja?jaLbl:I18N.t('moves_db_all.cls.'+cls,jaLbl);
+    });
+    // type filter buttons
+    document.querySelectorAll('.tyb[data-ja]').forEach(function(b){
+      b.textContent=ja?b.dataset.ja:I18N.type(b.dataset.ja);
+    });
+    // class filter buttons
+    document.querySelectorAll('.clbn[data-cls]').forEach(function(b){
+      var jaLbl=b.dataset.ja,cls=b.dataset.cls;
+      if(jaLbl)b.textContent=ja?jaLbl:I18N.t('moves_db_all.cls.'+cls,jaLbl);
+    });
+    // static UI via data-i18n
+    document.querySelectorAll('[data-i18n]').forEach(function(el){
+      var k=el.dataset.i18n;
+      var fb=el.dataset.i18nFb||el.textContent;
+      el.textContent=I18N.t(k,fb);
+    });
+    run();
+  }
+  document.addEventListener('i18n:ready',applyI18n);
+  document.addEventListener('i18n:changed',applyI18n);
+})();
+</script>
+</body></html>`;
 fs.writeFileSync('moves_db_all.html',html);
 console.log('moves_db_all.html 生成:',M.length,'技');
