@@ -27,27 +27,9 @@ const ALLOWLIST = [
   /ヤックン/,             // キャラクター名
   /pchamdb\.com/,         // ドメイン
   /ポケモン/,             // ブランド名
-  // ── Champions 独自ポケモン: reference/master_pokemon.json の is_original=true エントリ。
-  //    PokeAPI に公式英名が存在しないため ja 名を固定表示する(でっち上げ禁止)。
-  //    63 体をグループ化して登録。メガシンカ系 35 体 + 形態バリエーション + 通常独自ポケモン。
-  /メガ[^\s]/,            // 全メガシンカ独自ポケモン(メガライチュウX/Y・メガムクホーク等 35 体)。絵文字付き表示(🔴メガXX)にも対応
-  /ビビヨン/,             // Champions 独自(c-666) 公式英名なし
-  /フラエッテ/,           // Champions 独自(フラエッテ(えいえん)/メガフラエッテ) 公式英名なし
-  /フラージェス/,         // Champions 独自(c-671) 公式英名なし
-  /トリミアン/,           // Champions 独自(c-676) 公式英名なし
-  /ニャオニクス[♀♂]/,  // Champions 独自(形態バリエーション) 公式英名なし
-  /ギルガルド\(/,         // Champions 独自(シールド/ブレード形態) 公式英名なし
-  /パンプジン\(/,         // Champions 独自(小/大/特大/普通形態) 公式英名なし
-  /ルガルガン\(/,         // Champions 独自(たそがれ/まひる/まよなか形態) 公式英名なし
-  /ミミッキュ/,           // Champions 独自(c-778) 公式英名なし
-  /ポットデス/,           // Champions 独自(c-855) 公式英名なし
-  /マホイップ/,           // Champions 独自(c-869) 公式英名なし
-  /モルペコ/,             // Champions 独自(c-877) 公式英名なし
-  /イダイトウ[♀♂]/,    // Champions 独自(形態バリエーション) 公式英名なし
-  /イッカネズミ/,         // Champions 独自(c-925) 公式英名なし
-  /イルカマン\(/,         // Champions 独自(ナイーブ/マイティ形態) 公式英名なし
-  /ヤバソチャ/,           // Champions 独自(c-1013) 公式英名なし
-  /ケンタロス\(パルデア/,  // Champions 独自(パルデア炎/水/単形態) 公式英名なし
+  // ── Champions 独自ポケモン: 2026-07-03 に合成名(name_synthesized)を導入し多言語名が
+  //    i18n 辞書に入ったため、ALLOWLIST から削除(残 ja 表示=本物の漏れとして検出する)。
+  //    合成規約: build_master.js の MEGA_PREFIX / synthMegaNames / synthFormNames 参照。
   // ── Champions 独自特性: 公式PokeAPIに英名なし・またはマスター未登録のChampions固有とくせい。
   /^うなぎのぼり$/,      // マスター未登録の独自特性(reference/master_abilities.json 外)
   /^ほのおのたてがみ$/,  // マスター未登録の独自特性(reference/master_abilities.json 外)

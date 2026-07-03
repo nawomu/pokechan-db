@@ -116,10 +116,12 @@ for (const lang of TARGET_LANGS) {
   // ── 1. pokemon ────────────────────────────────────────────────────────────
   let pokemonMissing = 0;
   const incomingPokemon = {};
+  const synthesizedJa = new Set(); // ★2026-07-03: name_synthesized=trueのja名(合成名=パイプライン所有・常に最新化)
   if (masterPokemon) {
     for (const entry of masterPokemon) {
       const ja = entry.names && entry.names.ja;
       if (!ja) continue; // ja 名なしはスキップ
+      if (entry.name_synthesized) synthesizedJa.add(ja);
       const langName = entry.names[lang];
       if (!langName) {
         // ja フォールバック
@@ -132,8 +134,21 @@ for (const lang of TARGET_LANGS) {
   }
   const existingPokemon = existing.pokemon || {};
   const pokemonResult = mergeEntries(existingPokemon, incomingPokemon);
+  // ★2026-07-03(expectedルール): 以下はOVERWRITE指定なしでも更新する(名前変更=expected扱い):
+  //   ①既存が純粋なjaフォールバック(値===キー)でmasterに非ja名が入った(穴埋め・手動修正は壊さない)
+  //   ②masterでname_synthesized:true(合成名=パイプライン所有。旧merge由来の壊れ名'Male'/'Shield Forme'等を置換)
+  let fallbackRefreshed = 0;
+  for (const [ja, incomingName] of Object.entries(incomingPokemon)) {
+    const cur = pokemonResult.merged[ja];
+    if (cur === incomingName) continue;
+    if (cur === ja || synthesizedJa.has(ja)) {
+      pokemonResult.merged[ja] = incomingName;
+      fallbackRefreshed++;
+    }
+  }
   output.pokemon = pokemonResult.merged;
-  diffCounts.pokemon = { added: pokemonResult.added, updated: pokemonResult.updated };
+  diffCounts.pokemon = { added: pokemonResult.added, updated: pokemonResult.updated + fallbackRefreshed };
+  if (fallbackRefreshed) console.log(`  [pokemon] jaフォールバック穴埋め更新: ${fallbackRefreshed}件`);
 
   // ── 2. moves ──────────────────────────────────────────────────────────────
   let movesMissing = 0;

@@ -2,7 +2,7 @@
 // pokechan_data.new.js
 // T2(DB統一リビルド)生成ファイル — tools/build_champions_view.js
 // 入力: reference/master_{pokemon,moves,abilities}.json (T1出力)
-// 生成日: 2026-07-02T08:23:39.139Z
+// 生成日: 2026-07-03T13:05:55.834Z
 // 注意: このファイルは自動生成。直接編集しない。
 // ============================================================
 

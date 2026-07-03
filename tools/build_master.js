@@ -123,6 +123,44 @@ const pBySlug = {};
 P.forEach(v=>{ pBySlug[v.slug] = v; });
 
 // ============================================================
+// タスク(2026-07-03): 独自メガ/独自フォームの合成名(name_synthesized)
+// 公式メガ実例(pokeapi form_names)から抽出した各言語のメガ接頭辞規約:
+//   en:'Mega '+種名 / fr:'Méga-'+種名 / es:'Mega-'+種名 / it:'Mega'+種名(結合)
+//   ko:'메가'+種名 / zh-Hans:'超级'+種名 / zh-Hant:'超級'+種名
+//   de: pokeapiのform_namesは全メガ'Mega-Form'(壊れ)のため公式実表記(Mega-Glurak等)の'Mega-'+種名を採用
+// サフィックス(X/Y/♂/♀): ラテン系言語はX/Yのみ' '区切り(Mega Charizard X準拠)・♂♀と非ラテンは直結
+// ============================================================
+const MEGA_PREFIX = { en:'Mega ', fr:'Méga-', de:'Mega-', es:'Mega-', it:'Mega', ko:'메가', 'zh-Hans':'超级', 'zh-Hant':'超級' };
+const LATIN_LANGS = new Set(['en','fr','de','es','it']);
+// 種の公式名 dex逆引き(is_defaultの species_names)
+const speciesByDex = {};
+P.forEach(v=>{ if(v.is_default && !speciesByDex[v.dex]) speciesByDex[v.dex] = v.species_names; });
+// 独自メガの合成名: prefix + 種公式名 + suffix
+function synthMegaNames(jaName, dex){
+  const sp = speciesByDex[dex];
+  if(!sp || !sp.ja) return null;
+  const rest = jaName.replace(/^メガ/, '');
+  if(!rest.startsWith(sp.ja)) return null;   // 'メガ'+種JA名+サフィックス の形でない → 合成不能
+  const suffix = rest.slice(sp.ja.length);   // '' / 'X' / 'Y' / '♂' / '♀'
+  const names = { ja: jaName };
+  for(const lang of Object.keys(MEGA_PREFIX)){
+    const base = sp[lang];
+    if(!base) continue;
+    const sep = (suffix && /^[XY]$/.test(suffix) && LATIN_LANGS.has(lang)) ? ' ' : '';
+    names[lang] = MEGA_PREFIX[lang] + base + sep + suffix;
+  }
+  return names;
+}
+// 非メガ独自フォームの種公式名転写: ja以外を種公式名に(jaは独自表記を保持)
+function synthFormNames(jaName, dex){
+  const sp = speciesByDex[dex];
+  if(!sp) return null;
+  const names = { ja: jaName };
+  for(const lang of Object.keys(sp)){ if(lang!=='ja' && sp[lang]) names[lang] = sp[lang]; }
+  return Object.keys(names).length > 1 ? names : null;
+}
+
+// ============================================================
 // master_pokemon.json (1302)
 // ============================================================
 const masterPokemon = P.map(v=>{
@@ -146,34 +184,51 @@ const masterPokemon = P.map(v=>{
 });
 
 // ★pokeapi_masterに無いChampions独自ポケモン(独自メガ/フォーム等)をpokechan_data.jsから追加(Champions 1件も失わない)
-let ownPokeCount=0, ownPokeSlugMatched=0, ownPokeJaOnly=0;
+let ownPokeCount=0, ownPokeSlugMatched=0, ownPokeJaOnly=0, ownPokeMegaSynth=0, ownPokeFormSynth=0;
 const _masterJaSet=new Set(masterPokemon.map(p=>p.names.ja));
 C.POKEMON_LIST.forEach(p=>{
   const ja=normWide(p.name);
   if(_masterJaSet.has(ja)) return;
+  const dex = parseInt(p.no)||0;
   // タスク(3): CHAMP_SLUG_MAPでpokeAPI slugと結合→多言語名取得
   const matchSlug = CHAMP_SLUG_MAP[p.name];
   const matchedV = matchSlug ? pBySlug[matchSlug] : null;
-  let names;
-  if(matchedV){
-    // species_names(基本言語) + form_names(フォーム差分)をマージ
-    names = Object.assign({}, matchedV.species_names||{}, matchedV.form_names||{}, {ja:p.name});
-    ownPokeSlugMatched++;
+  // タスク(2026-07-03): 独自メガ判定。p.megaフラグに加え「メガ+種JA名(+X/Y/♂/♀)」の名前パターンでも検出
+  // (M-B追加メガはpokechan_dataでmega:false/form:'通常'のものがある=フラグだけでは10体漏れる)
+  const sp = speciesByDex[dex];
+  const isMegaLike = !!p.mega || (ja.startsWith('メガ') && !!sp && !!sp.ja && ja.replace(/^メガ/,'').startsWith(sp.ja));
+  let names = null, nameSynth = false;
+  if (isMegaLike){
+    names = synthMegaNames(ja, dex);            // 合成: メガ接頭辞規約 + 種公式名 + サフィックス
+    if (names){ nameSynth = true; ownPokeMegaSynth++; }
   } else {
-    names = {ja:p.name};
-    ownPokeJaOnly++;
+    names = synthFormNames(ja, dex);            // 転写: 種公式名(jaは独自表記保持)
+    if (names){ nameSynth = true; ownPokeFormSynth++; }
+  }
+  if (!names){
+    // 合成不能(種がpokeapiに無い等) → 従来ロジック: slug結合 or jaのみ
+    if(matchedV){
+      names = Object.assign({}, matchedV.species_names||{}, matchedV.form_names||{}, {ja:p.name});
+      ownPokeSlugMatched++;
+    } else {
+      names = {ja:p.name};
+      ownPokeJaOnly++;
+    }
+  } else if (matchedV) {
+    ownPokeSlugMatched++;
   }
   masterPokemon.push({
-    id:'c-'+p.no, slug: matchSlug||('c-'+p.no), dex:parseInt(p.no)||0,
+    id:'c-'+p.no, slug: matchSlug||('c-'+p.no), dex,
     is_default:false, is_mega:!!p.mega, form_slug:'',
     names,
+    ...(nameSynth ? {name_synthesized:true} : {}),
     types:[p.type1,p.type2].filter(Boolean),
     stats:{hp:p.hp,atk:p.atk,def:p.def,spa:p.spatk,spd:p.spdef,spe:p.spd},
     abilities:[p.ab1,p.ab2,p.ab3].filter(Boolean),
     weight_kg:p.weight_kg!=null?p.weight_kg:null, legend:'',
     champions:{in:true, seasons:(p.added_in==='M-B'?['M-B']:['M-A','M-B']), mega:[]},
     is_original:true,
-    provenance:prov('pokechan_data(独自)', matchedV?'pokeapi_master(slug結合)':null)
+    provenance:prov('pokechan_data(独自)', nameSynth?'名前合成(メガ接頭辞規約/種公式名転写)':(matchedV?'pokeapi_master(slug結合)':null))
   });
   ownPokeCount++;
 });
@@ -365,6 +420,7 @@ console.log(`★compose再生成: description_ja空=${noDescM}件 (0が理想)`)
 console.log(`★Champions curated 保全: 技overlay=${mvOverlayCount}(期待=Champions WAZA_MAP件数に概ね一致)`);
 console.log(`★(T4)技seasons: null(根拠なし)=${mvSeasonsNull}件 / 設定あり=${mvSeasonsSet}件 (WAZA_MAPにadded_in無し→全技null=正常)`);
 console.log(`★(T3)独自ポケslug結合: ${ownPokeSlugMatched}件多言語名取得 / ${ownPokeJaOnly}件JAのみ(真の独自フォーム)`);
+console.log(`★(2026-07-03)独自名合成: メガ合成=${ownPokeMegaSynth}件 / 種公式名転写=${ownPokeFormSynth}件 (name_synthesized:true)`);
 // ★P8: availability 分布サマリ
 const avGen={}, avPast=[], avLgpe=[], avNull=[], avNonstd=[];
 masterMoves.forEach(m=>{
