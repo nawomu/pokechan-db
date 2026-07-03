@@ -7,8 +7,8 @@
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://pchamdb.com/real_battle.html">
 <script defer src="i18n/runtime.js?v=20260622"></script>
-<script src="pokechan_data.js?v=20260704a"></script>
-<script src="battle_log_i18n.js?v=20260704a"></script>
+<script src="pokechan_data.js?v=20260704b"></script>
+<script src="battle_log_i18n.js?v=20260704b"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -77,14 +77,59 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 #battle{display:none;gap:14px;align-items:flex-start}
 /* S1: 盤面サイズ 600×430 → 560×360 に変更(Showdown準拠) */
 /* font-familyはShowdown準拠でVerdanaを盤面内に限定適用(body全体は日本語フォントを維持) */
+/* S6: backgroundをfieldから除去し#field-backdropに委譲(プリセット切替の器として分離) */
 #field{position:relative;height:360px;border:1px solid #2a3550;border-radius:14px;overflow:hidden;
-  font-family:Verdana,sans-serif;
+  font-family:Verdana,sans-serif;background:#1a2a1a/* fallback(backdrop読込前のちらつき防止) */}
+/* S6: 背景プリセット構造 — #field-backdrop (z-index:0 / position:absolute;inset:0 / opacity:0.8)
+ * Showdown準拠: .backdrop div を差し替えることで背景を1行で切り替え可能にする器。
+ * うちの独自化ポイント: Showdownは外部画像だがうちはCSSグラデのみで構成(ファイル不要・権利フリー)。
+ * ダーク基調を維持(うち独自): Showdownは白系だがうちは暗め=現状維持。
+ * [阿部さん確認事項] ページ全体の背景トーン: SDは白系だがうちはダーク基調=現状維持(独自化ポイント)。
+ */
+#field-backdrop{position:absolute;inset:0;z-index:0;opacity:0.8;pointer-events:none;
+  transition:background 0.5s ease}
+/* プリセット1: grass = 草原グラデ(現状の#field背景をそのまま移植・第1プリセット) */
+#field-backdrop[data-preset="grass"]{
   background:
     radial-gradient(150% 70% at 50% 118%, #7ec25a 0%, #6db04c 30%, transparent 58%),
     linear-gradient(180deg,#a9e0f5 0%,#cbecfb 28%,#e2f4e3 45%,#a9d57f 46.5%,#8cc35e 72%,#74b350 100%);
   box-shadow:inset 0 -40px 60px #3a6e2f33, inset 0 18px 40px #ffffff22}
-#field::after{content:"";position:absolute;left:0;right:0;top:44%;height:3px;background:linear-gradient(90deg,#0000,#ffffff44,#0000);pointer-events:none}
-#weather-fx{position:absolute;inset:0;pointer-events:none;opacity:.22;font-size:34px;letter-spacing:18px;line-height:1.3;text-align:center}
+/* プリセット2: cave = 洞窟(ダーク石壁グラデ) */
+#field-backdrop[data-preset="cave"]{
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 90%, #3a3020 0%, #2a2218 40%, transparent 70%),
+    linear-gradient(180deg,#1a1510 0%,#2a2018 25%,#38301e 50%,#4a3c26 72%,#3a3020 100%);
+  box-shadow:inset 0 -40px 80px #0006, inset 0 30px 60px #0004}
+/* プリセット3: water = 水辺(水面グラデ) */
+#field-backdrop[data-preset="water"]{
+  background:
+    radial-gradient(ellipse 100% 50% at 50% 110%, #2a6a8a 0%, #1a4e72 30%, transparent 60%),
+    linear-gradient(180deg,#a8d4e8 0%,#b8e0f0 22%,#d0ecf8 38%,#8ab8d4 40%,#5a9ec0 65%,#3a7ea8 100%);
+  box-shadow:inset 0 -40px 60px #1a5a8a44, inset 0 18px 40px #ffffff33}
+/* プリセット4: night = 夜空グラデ */
+#field-backdrop[data-preset="night"]{
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 110%, #2a2438 0%, #1a1830 35%, transparent 65%),
+    linear-gradient(180deg,#0a0818 0%,#12102a 20%,#1c1840 40%,#2a2438 55%,#1e1c30 75%,#14121e 100%);
+  box-shadow:inset 0 -30px 60px #0a0816cc, inset 0 0 80px #ffffff0a}
+/* 夜空の星をCSS疑似要素で演出(Showdown非依存・うちの独自エフェクト) */
+#field-backdrop[data-preset="night"]::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+  background-image:
+    radial-gradient(1px 1px at 15% 12%, #ffffffcc, transparent),
+    radial-gradient(1px 1px at 32% 8%, #ffffffaa, transparent),
+    radial-gradient(1.5px 1.5px at 48% 18%, #ffffff99, transparent),
+    radial-gradient(1px 1px at 63% 6%, #ffffffbb, transparent),
+    radial-gradient(1px 1px at 78% 14%, #ffffffaa, transparent),
+    radial-gradient(1px 1px at 88% 9%, #ffffff88, transparent),
+    radial-gradient(1px 1px at 22% 22%, #ffffffcc, transparent),
+    radial-gradient(1px 1px at 55% 28%, #ffffffaa, transparent),
+    radial-gradient(1.5px 1.5px at 71% 24%, #ffffff99, transparent),
+    radial-gradient(1px 1px at 41% 33%, #ffffff88, transparent)}
+/* S6: #field::after の地平線ライン。#field-backdrop(z:0)の上に描画するためz-index:1を追加 */
+#field::after{content:"";position:absolute;left:0;right:0;top:44%;height:3px;z-index:1;background:linear-gradient(90deg,#0000,#ffffff44,#0000);pointer-events:none}
+/* S6: #weather-fx はbackdrop(z:0)の上・他演出要素より下(z:1)。天候絵文字オーバーレイ */
+#weather-fx{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.22;font-size:34px;letter-spacing:18px;line-height:1.3;text-align:center}
 .fighter{position:absolute;width:300px;transition:transform .2s}
 .fighter .platform{position:absolute;left:50%;transform:translateX(-50%);bottom:-6px;width:200px;height:34px;border-radius:50%;
   background:radial-gradient(ellipse at center,#3f6f2caa 0%,#3f6f2c55 55%,transparent 72%)}
@@ -342,6 +387,9 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
   <div id="battle">
     <div id="battle-main">
     <div id="field">
+      <!-- S6: 背景プリセット構造(Showdown .backdrop 準拠)。data-preset="grass/cave/water/night"で切替。
+           Showdown画像流用なし=CSSグラデで自前実装。将来の追加は CSS 1プリセット追記+option1行で済む。 -->
+      <div id="field-backdrop" data-preset="grass"></div>
       <div id="weather-fx"></div>
       <div id="fx-flash"></div>
       <div id="turn-badge">Turn 1</div>
@@ -400,6 +448,13 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
     <div id="speed-row">
       <label><input type="checkbox" id="auto-msg" checked> <span data-i18n="real_battle.auto_msg_label">自動でメッセージ送り</span></label>
       <span><span data-i18n="real_battle.msg_speed_label">送り速度:</span> <select id="msg-speed"><option value="1500" data-i18n="real_battle.msg_speed_slow">ゆっくり</option><option value="1000" selected data-i18n="real_battle.msg_speed_normal">ふつう</option><option value="600" data-i18n="real_battle.msg_speed_fast">はやい</option></select></span>
+      <!-- S6: 背景プリセット切替セレクト。将来の追加は option 1行+CSS 1プリセットで済む構造 -->
+      <span><span data-i18n="real_battle.backdrop_label">背景：</span> <select id="backdrop-sel" style="background:#161d2e;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:3px 6px;font-size:11px">
+        <option value="grass" data-i18n="real_battle.backdrop_grass">草原</option>
+        <option value="cave" data-i18n="real_battle.backdrop_cave">洞窟</option>
+        <option value="water" data-i18n="real_battle.backdrop_water">水辺</option>
+        <option value="night" data-i18n="real_battle.backdrop_night">夜空</option>
+      </select></span>
       <button id="snd-toggle" style="margin-left:auto;background:#161d2e;border:1px solid #2a3450;border-radius:8px;color:#e6edf3;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
     </div>
     </div><!-- /battle-main -->
@@ -744,6 +799,7 @@ function renderTeamRows(){
 }
 function initSetup(){
   const pokes = S.pokeList().filter(isPickable);   // メガフォームは直接選ばない(ストーンで変身)
+  initBackdrop();   // S6: 背景プリセット初期化(localStorageから復元・セレクト配線)
   renderTeamRows();
   $('team-size').addEventListener('change', () => {
     teamSize = +$('team-size').value;
@@ -1253,6 +1309,34 @@ function setWeatherFx(kind){
   el.textContent = (emo + ' ').repeat(24);
   el.classList.add('live');
   $('field').style.boxShadow = `inset 0 0 80px 20px ${tint}`;
+}
+// S6: 背景プリセット切替 ---------------------------------------------------
+// setBackdrop(preset): #field-backdrop の data-preset 属性を切り替えるだけ。
+// CSSが data-preset 値に応じて背景グラデを適用(将来の追加はCSS1プリセット+option1行)。
+// preset: 'grass' | 'cave' | 'water' | 'night'(初期値='grass')。
+const _BACKDROP_PRESETS = ['grass', 'cave', 'water', 'night'];
+function setBackdrop(preset){
+  const el = $('field-backdrop');
+  if (!el) return;
+  const p = _BACKDROP_PRESETS.includes(preset) ? preset : 'grass';
+  el.dataset.preset = p;
+  // セレクトと同期
+  const sel = $('backdrop-sel');
+  if (sel && sel.value !== p) sel.value = p;
+  // 設定をlocalStorageに保存(リロードで復元)
+  try { localStorage.setItem('rb_backdrop', p); } catch (e) {}
+}
+function initBackdrop(){
+  // localStorageから復元(保存値があればそれを適用、なければ'grass')
+  let saved = 'grass';
+  try { saved = localStorage.getItem('rb_backdrop') || 'grass'; } catch (e) {}
+  setBackdrop(saved);
+  // セレクトのchange → setBackdrop
+  const sel = $('backdrop-sel');
+  if (sel){
+    sel.value = saved;
+    sel.addEventListener('change', () => setBackdrop(sel.value));
+  }
 }
 
 // ログ1行 → テキスト+演出(HPバー同期・タイプ色バースト・ダメージ数字・こうか/急所・状態異常・天候・メガ)
