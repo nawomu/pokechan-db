@@ -740,15 +740,43 @@ console.log('\n=== セクション13: かわりもの(へんしん) × 持ち物
 // ─────────────────────────────────────────────
 console.log('\n=== 未実装/部分実装 特性・持ち物の確認 ===');
 {
-  // ふしぎなまもり: ABILITY_CHANGE_NG にあるが、有効打(バツグン以外無効)の判定ロジックはsimにない
-  // 出典: ポケモンWiki「ふしぎなまもり」= こうかバツグンの技しか当たらない
-  check('[未実装確認] ふしぎなまもり(Wonder Guard)の有効打判定がsimに実装されていない',
-    true, '※ABILITY_CHANGE_NG にあるのみ。バツグン以外の技を弾くロジックなし');
+  // ふしぎなまもり: こうかバツグンの攻撃技しか当たらない(ポケモンWiki/Bulbapedia "Wonder Guard")
+  // 2026-07-04実装: calcDamageで eff<=1 の攻撃技を immune 化。かたやぶりで貫通(_BREAKABLE入り)
+  resetEnv();
+  const def_wg = freshSide('カビゴン', 'hataku');   // ノーマル単(等倍=はたく/バツグン=かくとう)
+  def_wg.ability = 'ふしぎなまもり';
+  fullHp(def_wg);
+  const atk_wg = freshSide('カイリキー', 'hataku');
+  fullHp(atk_wg);
+  E.sides.self = atk_wg; E.sides.opp = def_wg;
+  const r_wg_neutral = E.calcDamage('self', 'opp', moveByKey('hataku'));           // 等倍→無効
+  const r_wg_super   = E.calcDamage('self', 'opp', moveByKey('kurosuchoppu'));     // かくとう=バツグン→通る
+  check('S14-T1 ふしぎなまもり: 等倍の攻撃技は無効', r_wg_neutral && r_wg_neutral.immune === true,
+    r_wg_neutral ? `immune=${r_wg_neutral.immune} reason=${r_wg_neutral.reason}` : 'calc失敗');
+  check('S14-T2 ふしぎなまもり: こうかバツグンは通る', r_wg_super && !r_wg_super.immune && r_wg_super.min > 0,
+    r_wg_super ? `min=${r_wg_super.min}` : 'calc失敗');
+  atk_wg.ability = 'かたやぶり';
+  const r_wg_break = E.calcDamage('self', 'opp', moveByKey('hataku'));
+  check('S14-T3 ふしぎなまもり×かたやぶり: 等倍でも通る(Bulbapedia "Mold Breaker")',
+    r_wg_break && !r_wg_break.immune && r_wg_break.min > 0,
+    r_wg_break ? `min=${r_wg_break.min}` : 'calc失敗');
 
-  // はりきり: Hustleのatk×1.5倍・命中×0.8倍。sim内で実装なし
-  // 出典: ポケモンWiki「はりきり」= 物理技のこうげき1.5倍・命中率0.8倍
-  check('[未実装確認] はりきり(Hustle)がsimに実装されていない',
-    true, '※grep結果ではりきりの実装が見つからない');
+  // はりきり: 物理のこうげき×1.5・物理技の命中×0.8(ポケモンWiki/Bulbapedia "Hustle")
+  // 2026-07-04実装: calcDamage(ちからもちと並列)+命中判定側に×0.8。ここではダメージ倍率を検証
+  // (命中×0.8は乱数関数が非公開のためコードレビューで確認済み)
+  resetEnv();
+  const atk_hu = freshSide('アップリュー', 'hataku');   // プール内のはりきり持ち
+  fullHp(atk_hu);
+  const def_hu = freshSide('カビゴン', 'hataku');
+  fullHp(def_hu);
+  E.sides.self = atk_hu; E.sides.opp = def_hu;
+  atk_hu.ability = '';
+  const r_hu_off = E.calcDamage('self', 'opp', moveByKey('hataku'));
+  atk_hu.ability = 'はりきり';
+  const r_hu_on = E.calcDamage('self', 'opp', moveByKey('hataku'));
+  const huRatio = r_hu_off && r_hu_off.min ? r_hu_on.min / r_hu_off.min : 0;
+  check('S14-T4 はりきり: 物理ダメージ≈1.5倍', huRatio > 1.35 && huRatio < 1.6,
+    `ratio=${huRatio.toFixed(2)} (off=${r_hu_off && r_hu_off.min} on=${r_hu_on && r_hu_on.min})`);
 
   // マジックガード×いのちのたま反動: simではいのちのたまの反動はphaseDealDamage後に直接計算され
   // マジックガードチェックがない(砂嵐ダメージはマジックガードを確認しているが反動は確認なし)
