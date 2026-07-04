@@ -761,13 +761,11 @@ console.log('\n=== 未実装/部分実装 特性・持ち物の確認 ===');
   fullHp(def_mg_orb);
   E.sides.self = atk_mg_orb; E.sides.opp = def_mg_orb;
   const r_mg_orb = E.calcDamage('self', 'opp', moveByKey('kaenhousha'));
-  // マジックガード持ちがいのちのたまを持つ場合: simはorbRecoil=floor(maxHP/10)を返す
-  // 本来の仕様(ポケモンWiki): マジックガードでいのちのたまの反動をゼロにするべき
-  // 現状(sim): orbRecoil > 0 → マジックガード×いのちのたま反動が未対応
+  // 本来の仕様(ポケモンWiki/Bulbapedia "Magic Guard"): マジックガードはいのちのたまの反動を受けない
+  // 2026-07-04修正済み: calcDamage側で攻撃側マジックガード判定→orbRecoil=0
   const mg_orb_recoil = r_mg_orb ? r_mg_orb.orbRecoil : -1;
-  // このテストは「未実装検出」として記録する(simがorbRecoil>0=未対応の検出)
-  check('[未実装検出] マジックガード×いのちのたま反動がsimで未対応(orbRecoil>0が検出される)',
-    mg_orb_recoil > 0, `orbRecoil=${mg_orb_recoil} (>0=本来反動なしのはずなのにsimは反動計算している)`);
+  check('S13-T3 マジックガード×いのちのたま=反動ゼロ(たまの×1.3は別サイトで有効のまま)',
+    mg_orb_recoil === 0, `orbRecoil=${mg_orb_recoil} (0=反動なしが正)`);
 }
 
 // ─────────────────────────────────────────────

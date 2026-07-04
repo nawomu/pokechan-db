@@ -2022,10 +2022,13 @@ function calcDamage(atkSide, defSide, move, opts){
   const _helmetHolder = (!env.magicRoom && def.item) ? ITEM_BY_KEY[def.item] : null;
   const _punchGloveActive = (atkItem && atkItem.key === 'punching_glove' && move.flags && move.flags.punch);
   const _isContact = !_punchGloveActive && ((move.contact === true) || isPhys);  // contact属性があればそれ優先、なければ物理で近似
+  // マジックガード(攻撃側): 直接攻撃以外のダメージを受けない=ゴツゴツメット被弾・いのちのたま反動ともゼロ
+  // (Bulbapedia "Magic Guard": Life Orb / Rocky Helmet とも防止リストに明記)
+  const _atkMagicGuard = sideAbility(atk) === 'マジックガード';
   const _helmetActive = (_helmetHolder && _helmetHolder.key === 'rocky_helmet') || (def.rockyHelmet && !env.magicRoom);
-  const helmetRecoil = (_helmetActive && _isContact && !env.magicRoom) ? Math.floor(realStat(atk,'hp') / 6) : 0;
+  const helmetRecoil = (_helmetActive && _isContact && !env.magicRoom && !_atkMagicGuard) ? Math.floor(realStat(atk,'hp') / 6) : 0;
   // いのちのたま反動（マジックルーム中は効果なし）。チェックボックスフラグまたはitem keyで発動
-  const _orbActive = (atk.lifeOrb || (atkItem && atkItem.key === 'life_orb')) && !env.magicRoom;
+  const _orbActive = (atk.lifeOrb || (atkItem && atkItem.key === 'life_orb')) && !env.magicRoom && !_atkMagicGuard;
   const orbRecoil = _orbActive ? Math.floor(realStat(atk,'hp') / 10) : 0;
 
   return {
@@ -4653,7 +4656,12 @@ function runSingleAttack(atkSide, moveIdx){
     atk.status = 'none';
     log('0c', `${pname(atk)} の こおりが とけた！`);
   }
-  if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${pname(atk)} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'freeze'){
+    if (Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${pname(atk)} は こおっていて うごけない！`); renderBattleLog(); renderBoth(); return; }
+    // 2割で解凍=こおりは治って行動する(Bulbapedia "Freeze"。治さないと毎ターンこおり判定が残り続ける)
+    atk.status = 'none';
+    log('0c', `${pname(atk)} の こおりが とけた！`);
+  }
   if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
   // メロメロ(段139): 50%で行動不能。PP消費しない(=この時点でreturnするのでconsumePPに到達しない)
   if (atk.attracted){
@@ -5690,7 +5698,12 @@ function runTurn(){
       atk.status = 'none';
       log('0c', `${pname(atk)} の こおりが とけた！`);
     }
-    if (atk.status === 'freeze' && Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${pname(atk)} は こおっていて うごけない！`); continue; }
+    if (atk.status === 'freeze'){
+      if (Math.random() > 0.2){ noteActionFailed(atk); log('0c', `${pname(atk)} は こおっていて うごけない！`); continue; }
+      // 2割で解凍=こおりは治って行動する(Bulbapedia "Freeze"。治さないと毎ターンこおり判定が残り続ける)
+      atk.status = 'none';
+      log('0c', `${pname(atk)} の こおりが とけた！`);
+    }
     if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); continue; }
     // メロメロ(段139): 50%で行動不能。PP消費しない
     if (atk.attracted){
