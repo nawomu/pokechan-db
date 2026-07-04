@@ -199,6 +199,8 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 .sbar-icons .sicon.active{background:#ffffff55;box-shadow:0 0 0 2px #d4f542}
 /* 瀕死 */
 .sbar-icons .sicon.dead{opacity:0.35;filter:grayscale(100%) brightness(.5)}
+/* スプライト画像なしのフォールバック=白● (空マークと区別して「残っている」が読めるように) */
+.sbar-icons .sicon.noimg::after{content:'●';color:#fff;font-size:11px;line-height:1;text-shadow:0 1px 2px #0009}
 
 /* ===== CH: UI出し入れ(メッセージ/演出中は全UIを消す=実機準拠の肝) =====
  * say()開始で #field.ch-busy → statbar/ボール列/ターン帯をフェードアウト。
@@ -274,17 +276,7 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 #log-scroll .log-turn:first-child{margin-top:0}
 /* S1: スマホ縦積み維持(≤880px。不変条件) */
 @media(max-width:880px){
-/* CH: スマホもチャンピオンズ同配置(相手=右上/自分=左下)。幅だけ詰める */
-#pb-opp{right:8px !important;top:6px !important;left:auto !important;width:170px}
-#pb-self{left:8px !important;bottom:6px !important;top:auto !important;width:170px}
-#rightbar{right:14px;top:76px}
-#leftbar{left:14px;bottom:76px}
-#moves,#party{width:220px}
-#cmd{width:160px}
-#msgbox{left:190px}
-#msg-lines .ml-line:last-child{font-size:14px}
-.pbox .hptext{font-size:14px}
-
+/* CH: スマホ配置の寸法上書きは後勝ちにするためstyle末尾の media ブロックにある(#moves等の定義より後) */
   #battle{flex-direction:column}
   #battle-main{flex:1 1 auto;width:100%;max-width:100%;order:0}
   #battle-log-panel{flex:0 0 auto;width:100%;height:auto;max-height:240px;min-width:0;order:1}
@@ -368,6 +360,20 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
   border-color:#2a3450;background:#161d2e;padding:9px}
 #party button.back:hover{border-color:#7aabff;background:#1e2d4a;color:#fff}
 #speed-row{margin-top:8px;font-size:11px;color:#8b94a7;display:flex;gap:14px;align-items:center}
+/* ===== CH: スマホ寸法上書き(必ず各コンポーネント定義より後=後勝ち) ===== */
+@media(max-width:880px){
+  /* チャンピオンズ同配置(相手=右上/自分=左下)。幅を詰めて右側の技リストと非重畳にする */
+  #pb-opp{right:8px;top:6px;left:auto;width:134px}
+  #pb-self{left:8px;bottom:6px;top:auto;width:134px}
+  #pb-self .nm,#pb-opp .nm{max-width:82px;font-size:11.5px}
+  #rightbar{right:14px;top:74px}
+  #leftbar{left:14px;bottom:74px}
+  #moves,#party{width:188px}
+  #cmd{width:150px}
+  #msgbox{left:170px}
+  #msg-lines .ml-line:last-child{font-size:14px}
+  .pbox .hptext{font-size:13px}
+}
 </style>
 </head>
 <body>
@@ -899,7 +905,10 @@ function buildSide(sideKey, ids){
       ability: defaultAbilityRB(p), item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
       moves: (slotMoves[id] || autoMoves(p)).filter(Boolean), gender: slotGender[id] || genderOfRB(slotVal[id]),
       currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
-  });
+  })
+  // 保存チームに現プール外の名前が残っていた場合(pokeByName=null)の抜け殻エントリを捨てる。
+  // 残すと「見えない控え」で実質人数が減る+ボールマーク欠け(2026-07-04 深掘りPDCAで発見)
+  .filter(e => e.poke);
   st.ability = defaultAbilityRB(lead);
   // PP管理(段129): 場の技+控えの技のPPを初期化(エンジンはst.ppがある時だけPPを見る)
   st.pp = st.moves.map(m => (m && m.pp) ? m.pp : 0);
@@ -908,6 +917,10 @@ function buildSide(sideKey, ids){
 }
 
 function startBattle(){
+  // 前試合の残骸を掃除: 勝敗で無効化したボタンを戻し、「つぎの相手」ボタンが残っていれば消す
+  // (勝利→にげる→再スタートの経路では c-next のクリックハンドラを通らないため)
+  const _nb = $('c-next'); if (_nb) _nb.remove();
+  ['c-fight','c-party','c-mega','c-run'].forEach(id => { const b = $(id); if (b) b.disabled = false; });
   buildSide('self', selfIds());
   buildSide('opp',  oppIds());
   S.battleLog.length = 0;
@@ -1003,15 +1016,11 @@ function renderSideBars(){
     const team = [st].concat(st.bench || []).filter(e => e && e.poke);
     // 先頭ポケモン(場に出ている個体)
     const activePoke = st.poke ? st.poke.name : null;
-    // アイコンを3×2グリッドで描画(最大6体。空スロットは空div)
-    const MAX = 6;
+    // CH: ボールマークは実機準拠=選出した数だけ(空スロットは出さない)。
+    // 画像なしでも「残数」が読めるよう●フォールバック(noimg)を敷く
     let html = '';
-    for (let i = 0; i < MAX; i++){
+    for (let i = 0; i < team.length; i++){
       const e = team[i];
-      if (!e){
-        html += `<div class="sicon" style="background:transparent"></div>`;
-        continue;
-      }
       // 手持ちアイコンはへんしん中も元のすがた(実機準拠: 手持ち画面はメタモンのまま)
       const nm = (e.illusionAs || (e.transformBase ? e.transformBase.poke : e.poke)).name;
       const enc = encodeURIComponent(nm);
@@ -1024,7 +1033,7 @@ function renderSideBars(){
       const pct = Math.round(hp / max * 100);
       const label = `${tPokeName(nm)} (${pct}%)`;
       html += `<div class="${cls}" title="${label}" aria-label="${label}">` +
-              `<img src="images/sim/${enc}.svg" alt="${tPokeName(nm)}" loading="lazy" onerror="this.style.display='none'">` +
+              `<img src="images/sim/${enc}.svg" alt="${tPokeName(nm)}" loading="lazy" onerror="this.parentElement.classList.add('noimg');this.remove()">` +
               `</div>`;
     }
     iconsEl.innerHTML = html;
@@ -1532,12 +1541,17 @@ function endOfTurn(){
     if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
     say([won ? `${I18N.t('real_battle.win_message1','🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！(連勝: ')}${winStreak})` : I18N.t('real_battle.lose_message1','😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…'),
          won ? I18N.t('real_battle.win_message2','「つぎの相手」で 連戦できます(チームは 全回復)') : I18N.t('real_battle.lose_message2','「にげる」から 編成にもどって もういちど あそべます')],
-        () => { showCmd(true); if (won) showNextOpponentButton(); });
+        () => { showCmd(true);
+          if (won) showNextOpponentButton();
+          // 敗北時: にげる以外を無効化(たたかう→技リストが開けて無反応クリックになるのを防ぐ)
+          else ['c-fight','c-party','c-mega'].forEach(id => { const b = $(id); if (b) b.disabled = true; });
+        });
     return;
   }
   // 死に出し(自分側): エンジンが保留した交代先をプレイヤーが選ぶ(控え2匹以上の時だけ保留される)
   if (S.sides.self.fainted){
     pushMsgLine(`${tPokeName(S.sides.self.poke.name)} ${I18N.t('real_battle.faint_replace_prompt','は たおれてしまった… つぎのポケモンを えらんでね')}`);
+    $('msgbox').style.display = 'block';   // CH: sayを経由しない案内なので明示的に出す(出さないと選択理由が見えない)
     showParty(true);
     return;
   }
