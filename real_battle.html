@@ -141,82 +141,70 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 #f-self{bottom:42px;left:64px;transform:scale(1.08);transform-origin:center bottom}
 #f-opp .platform{width:150px;height:24px}
 #f-self .platform{width:236px;height:40px}
-#turn-badge{position:absolute;top:10px;left:12px;z-index:7;background:#fffffff2;color:#1b2438;font-weight:900;
-  font-size:13px;padding:3px 12px;border-radius:11px;box-shadow:0 2px 5px #0004;border:1px solid #0002}
-.trainer{position:absolute;z-index:6;display:flex;align-items:center;gap:5px;font-weight:800;font-size:12px;color:#26331f;
-  background:#ffffffcc;padding:2px 9px 2px 4px;border-radius:13px;box-shadow:0 1px 3px #0003}
-.trainer .ava{font-size:15px;line-height:1}
-.tn-opp{top:12px;right:14px}
-.tn-self{bottom:14px;left:14px}
-/* S2: statbarオーバーレイ化(Showdown準拠)。transparent背景・162×44px・Verdana */
-/* 旧: background:#141927ee / border / border-radius / min-width:215px → 削除 */
-.pbox{position:absolute;background:transparent;border:none;border-radius:0;padding:4px 6px;
-  width:162px;font-family:Verdana,sans-serif;font-size:13px;color:#000;
-  text-shadow:0 0 3px #fff,0 0 6px #fff,0 0 2px #fff;/* 背景透明のため白ふちで可読性確保 */}
-/* S2: 相手statbar座標(Showdown: left:130px; top:120px) */
-#pb-opp{left:130px;top:120px}
-/* S2: 自分statbar座標(Showdown: left:350px; top:24px) */
-#pb-self{left:350px;top:24px}
-/* S2: .who バッジ削除(A-2デフォルト: Showdown準拠の透明statbarに統一)。
- * 復活させるには下の display:none を削除し .pbox position:relative を追加する。 */
+/* CH: ターンバッジは上中央の細帯へ(右上かぶり解消=右上はstatbar専用にする) */
+#turn-badge{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:7;background:#000000aa;color:#fff;font-weight:900;
+  font-size:11px;padding:2px 12px;border-radius:10px;box-shadow:0 2px 5px #0004;border:1px solid #ffffff22}
+/* CH: トレーナーチップは廃止(チャンピオンズはバトル中に出さない・statbarの名前で足りる) */
+.trainer{display:none}
+/* ===== CH: statbar チャンピオンズ風(平行四辺形パネル) =====
+ * 相手=右上クリムゾン+%のみ / 自分=左下青紫+数値。実機スクショ準拠(設計_リアルバトルUI_チャンピオンズ寄せ_2026-07-04.md) */
+.pbox{position:absolute;z-index:9;width:210px;padding:5px 12px 22px;font-family:Verdana,sans-serif;font-size:13px;color:#fff;
+  transform:skewX(-10deg);border-radius:8px;box-shadow:0 3px 10px #0007;transition:opacity .3s;overflow:visible}
+.pbox>*{transform:skewX(10deg)}   /* パネルだけ斜めに・中身は水平に戻す */
+#pb-opp{background:linear-gradient(135deg,#b02458 0%,#d63c78 100%);right:16px;top:10px;left:auto;border:1px solid #ffffff33}
+#pb-self{background:linear-gradient(135deg,#4638ae 0%,#6a5be0 100%);left:16px;bottom:10px;top:auto;border:1px solid #ffffff33}
 .pbox .who{display:none}
-/* .pbox .who{position:absolute;top:-9px;left:10px;font-size:9px;font-weight:800;padding:1px 8px;border-radius:8px} */
-/* .pbox .who.self{background:#11331f;color:#4ade80;border:1px solid #4ade8044} */
-/* .pbox .who.opp{background:#3a1518;color:#f87171;border:1px solid #f8717144} */
-.pbox .row1{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
-.pbox .nm{font-weight:800;font-size:13px;color:#000}
-.pbox .lv{font-size:10px;color:#444}
-/* S2: HPバー外枠(Showdown実測: 155×12px / border:1px solid #777 / border-radius:4px / bg:#fcfeff) */
-.pbox .hpbar{position:relative;width:155px;height:12px;background:#fcfeff;border-radius:4px;border:1px solid #777;
-  margin:4px 0 2px;overflow:visible}
-/* S2: HPテキスト(A-1=%のみ。実数値はdata属性に保持=後から data-hp/data-max で参照可) */
-.pbox .hptext{position:absolute;top:-1px;left:2px;font-size:9px;color:#444;line-height:12px;z-index:2;pointer-events:none}
-/* S2: prevhp = 前フレームHP幅(残像バー)。hpbarに対してposition:absolute。
- * 黄色背景でゆっくり縮む(1.2s ease-out)。hp(現在バー)の下に描画(z-index低め) */
-.pbox .prevhp{position:absolute;top:2px;left:1px;height:8px;border-radius:3px;background:#d0c000;
+.pbox .row1{display:flex;align-items:center;gap:6px}
+/* CH: statbar内ミニアイコン(実機の丸顔アイコン) */
+.pbox .icn{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#00000044;overflow:hidden;
+  display:flex;align-items:center;justify-content:center}
+.pbox .icn img{width:22px;height:22px;object-fit:contain}
+.pbox .nm{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 2px #0009;
+  max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbox .lv{display:none}   /* 実機statbarにLv表示なし(全員Lv50) */
+/* CH: HPバー=ダーク下地+ライム緑。%/数値テキストはバーの下に大きく出す */
+.pbox .hpbar{position:relative;width:100%;height:10px;background:#00000066;border-radius:5px;border:none;
+  margin:5px 0 0;overflow:visible}
+.pbox .hptext{position:absolute;right:0;top:11px;font-size:16px;font-weight:900;color:#fff;line-height:1.2;z-index:2;
+  pointer-events:none;text-shadow:0 1px 3px #000c;font-style:italic}
+.pbox .hptext small{font-size:11px;font-weight:700;opacity:.85}
+/* prevhp=残像バー(黄色・遅れて縮む) / hp=現在バー(即時) — 2層演出はShowdown版の仕組みを踏襲 */
+.pbox .prevhp{position:absolute;top:1px;left:1px;height:8px;border-radius:4px;background:#d0c000;
   transition:width 1.2s ease-out;width:0;z-index:1}
-/* S2: hp = 現在HP幅。hpbarに対してposition:absolute(prevhpの子でなくhpbarの子)。
- * 即時反映(0.3s)・満=緑/中=黄/少=赤。z-indexをprevhpより上に設定 */
-.pbox .hp{position:absolute;top:2px;left:1px;height:8px;border-radius:3px;background:#00bb51;
+.pbox .hp{position:absolute;top:1px;left:1px;height:8px;border-radius:4px;background:linear-gradient(180deg,#b5f542,#8ed62a);
   transition:width .3s ease-out;width:0;z-index:2}
-.pbox .hp.mid{background:#d0c000}
-.pbox .hp.low{background:#c82315}
-/* S2: ステータスバッジ(hpbar内のstatus div。既存.stsをhpbar外に残して互換維持) */
-.pbox .sts{margin-top:2px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap}
-.pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#3a2518;color:#fbbf24;border:1px solid #fbbf2444}
-/* S3: A-3デフォルト=.ballsはleftbar/rightbarに一本化。pbox内の.ballsは非表示。
- * 復活させるには下の display:none を削除する。 */
+.pbox .hp.mid{background:linear-gradient(180deg,#f5d442,#e0b81e)}
+.pbox .hp.low{background:linear-gradient(180deg,#f56a5a,#d63c2e)}
+/* %幅指定でも右端1pxの枠内に収める */
+.pbox .hp,.pbox .prevhp{max-width:calc(100% - 2px)}
+/* 状態異常バッジ(バー下・%テキストの左に並ぶ) */
+.pbox .sts{position:absolute;left:12px;bottom:3px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap;transform:skewX(10deg)}
+.pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466}
 .pbox .balls{display:none}
-/* .pbox .balls{margin-top:4px;display:flex;gap:3px;align-items:center} */
-/* .pbox .balls .tball{width:20px;height:20px;border-radius:50%;background:#0003;border:1px solid #ffffff33; */
-/*   display:flex;align-items:center;justify-content:center;overflow:hidden} */
-/* .pbox .balls .tball img{width:18px;height:18px;object-fit:contain} */
-/* .pbox .balls .tball.dead{opacity:.3;filter:grayscale(1)} */
-/* .pbox .balls .tball.empty{background:#0001;border-style:dashed} */
 
-/* ===== S3: leftbar / rightbar (控え6体アイコンバー) ===== */
-/* Showdown準拠: 盤面(#field, position:relative)内に absolute でオーバーレイ */
-/* leftbar=自分側(盤面左端下寄り) / rightbar=相手側(盤面右端上寄り) */
-#leftbar,#rightbar{position:absolute;z-index:8;display:flex;flex-direction:column;
-  align-items:center;gap:2px;pointer-events:none}
-/* 自分側: 左端・下寄り(Showdown leftbar位置準拠) */
-#leftbar{left:2px;bottom:6px}
-/* 相手側: 右端・上寄り(Showdown rightbar位置準拠) */
-#rightbar{right:2px;top:6px}
-/* トレーナー名ラベル(Showdown: <strong>プレイヤー名</strong>) */
-.sbar-name{font-family:Verdana,sans-serif;font-size:10px;font-weight:700;color:#fff;
-  text-shadow:0 0 3px #000,0 0 5px #000,1px 1px 2px #000;
-  max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center}
-/* 6体アイコングリッド(3列×2行) */
-.sbar-icons{display:grid;grid-template-columns:repeat(3,28px);grid-template-rows:repeat(2,28px);gap:2px}
-/* 各アイコン1体 */
-.sbar-icons .sicon{width:28px;height:28px;display:flex;align-items:center;justify-content:center;
-  border-radius:4px;background:#00000033;overflow:hidden;transition:opacity .3s,filter .3s}
-.sbar-icons .sicon img{width:26px;height:26px;object-fit:contain;display:block}
-/* 場に出ている個体を強調(明るく・枠をつける) */
-.sbar-icons .sicon.active{background:#ffffff44;box-shadow:0 0 0 1px #ffffffaa}
-/* 瀕死: Showdown準拠(opacity:0.3 / grayscale(100%) brightness(.5)) */
-.sbar-icons .sicon.dead{opacity:0.3;filter:grayscale(100%) brightness(.5)}
+/* ===== CH: leftbar / rightbar (残りポケモンのボールマーク列=statbarに隣接) ===== */
+/* 相手=statbar直下(右上) / 自分=statbar直上(左下)。実機のボールマーク行に対応 */
+#leftbar,#rightbar{position:absolute;z-index:9;display:flex;flex-direction:row;
+  align-items:center;gap:3px;pointer-events:none;transition:opacity .3s}
+#leftbar{left:22px;bottom:88px;top:auto}
+#rightbar{right:22px;top:88px;bottom:auto}
+/* トレーナー名ラベルは非表示(かぶり解消。statbarの名前で足りる) */
+.sbar-name{display:none}
+/* 6体を横一列の丸マークで(実機のボールマーク準拠・スプライト入りで情報量は維持) */
+.sbar-icons{display:flex;gap:3px}
+.sbar-icons .sicon{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;background:#00000055;border:1px solid #ffffff55;overflow:hidden;transition:opacity .3s,filter .3s}
+.sbar-icons .sicon img{width:19px;height:19px;object-fit:contain;display:block}
+/* 場に出ている個体を強調 */
+.sbar-icons .sicon.active{background:#ffffff55;box-shadow:0 0 0 2px #d4f542}
+/* 瀕死 */
+.sbar-icons .sicon.dead{opacity:0.35;filter:grayscale(100%) brightness(.5)}
+
+/* ===== CH: UI出し入れ(メッセージ/演出中は全UIを消す=実機準拠の肝) =====
+ * say()開始で #field.ch-busy → statbar/ボール列/ターン帯をフェードアウト。
+ * setHpBar(ダメージ反映)や完了で解除=バーが戻ってきて減る、の実機の流れを再現 */
+#field.ch-busy .pbox, #field.ch-busy #leftbar, #field.ch-busy #rightbar, #field.ch-busy #turn-badge{
+  opacity:0;pointer-events:none}
 
 /* ===== ステージ演出v3(2026-06-12 阿部さん「演出強化」) ===== */
 .popnum{position:absolute;left:50%;top:8px;transform:translateX(-50%);font-weight:900;font-size:20px;
@@ -243,15 +231,17 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 .fighter.faint .sprite{animation:rbFaint .7s forwards}
 .fighter.enter .sprite{animation:rbEnter .5s}
 
-/* メッセージ+コマンド */
-/* メッセージ欄=盤面の外・下部(6行ぶん縦長・直近の履歴が薄く見える) */
-#msgbox{position:relative;margin-top:10px;background:#0b1020;border:1px solid #2a3450;border-radius:12px;
-  padding:11px 14px 22px;cursor:pointer}
-#msg-lines{height:9.6em;overflow-y:auto;line-height:1.6;font-size:14.5px;
-  display:flex;flex-direction:column;justify-content:flex-end}
-#msg-lines .ml-line{margin:1px 0;color:#7e889c}      /* 前のログ=薄め */
-#msg-lines .ml-line:last-child{color:#fff;font-weight:600}  /* いまのメッセージ=白く強調 */
-#msgbox .next{position:absolute;right:12px;bottom:5px;color:#9ec5ff;animation:blink 1s infinite;font-size:12px}
+/* ===== CH: メッセージ=盤面内オーバーレイ(箱なし・白文字+黒フチ=実機準拠) ===== */
+/* 左端は自分statbar(幅210+余白)を避けて非重畳にする(ダメージ行=statbarとメッセージが同時表示のため) */
+#msgbox{position:absolute;left:244px;right:14px;bottom:6px;z-index:11;background:transparent;border:none;
+  padding:0 0 4px;cursor:pointer;min-height:2.6em;display:none/* メッセージ再生中だけ表示(say/nextSayが切替) */}
+#msg-lines{line-height:1.5;font-size:17px;display:flex;flex-direction:column;justify-content:flex-end}
+/* 実機は現在の1行だけを出す(履歴は右のバトルログパネルにある) */
+#msg-lines .ml-line{display:none}
+#msg-lines .ml-line:last-child{display:block;margin:0;color:#fff;font-weight:800;
+  text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 2px 5px #000d}
+#msgbox .next{position:absolute;right:2px;bottom:-4px;color:#fff;animation:blink 1s infinite;font-size:11px;
+  text-shadow:0 0 3px #000,0 1px 2px #000}
 /* S1: 2カラム配置。ログは右配置(Showdown準拠)。
  * 注: 過去に「ログは左」という独自化の経緯があったが、今回の方針「Showdownと完全に同じに再現」により
  * Showdown準拠の右配置へ変更。order指定で左=盤面(order:0)/右=ログ(order:1)に揃える。 */
@@ -284,64 +274,81 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 #log-scroll .log-turn:first-child{margin-top:0}
 /* S1: スマホ縦積み維持(≤880px。不変条件) */
 @media(max-width:880px){
-/* S7持ち越し修正: スマホではSD絶対座標(left:350等)が盤面からはみ出すため四隅配置に戻す */
-#pb-opp{left:8px !important;top:8px !important;}
-#pb-self{left:auto !important;right:8px !important;top:auto !important;bottom:8px !important;}
+/* CH: スマホもチャンピオンズ同配置(相手=右上/自分=左下)。幅だけ詰める */
+#pb-opp{right:8px !important;top:6px !important;left:auto !important;width:170px}
+#pb-self{left:8px !important;bottom:6px !important;top:auto !important;width:170px}
+#rightbar{right:14px;top:76px}
+#leftbar{left:14px;bottom:76px}
+#moves,#party{width:220px}
+#cmd{width:160px}
+#msgbox{left:190px}
+#msg-lines .ml-line:last-child{font-size:14px}
+.pbox .hptext{font-size:14px}
 
   #battle{flex-direction:column}
   #battle-main{flex:1 1 auto;width:100%;max-width:100%;order:0}
   #battle-log-panel{flex:0 0 auto;width:100%;height:auto;max-height:240px;min-width:0;order:1}
 }
 @keyframes blink{50%{opacity:0}}
-/* ===== S5: コントロール欄 / 技ボタン / 交代ボタン (Showdown準拠) ===== */
-/* #cmd: たたかう/ポケモン/メガ/にげる の4ボタングリッド */
-/* SD: 明るい白地ボタン。うちはダーク基調を維持しつつSD風の太枠+はっきり色に統一 */
-#cmd{margin-top:10px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
-#cmd button{padding:13px 10px;border-radius:8px;border:2px solid #3a4a6a;background:#1a2238;color:#d0daf0;
-  font-size:13px;font-weight:800;cursor:pointer;font-family:Verdana,sans-serif;
-  transition:border-color .15s,background .15s}
-#cmd button:hover:not(:disabled){border-color:#7aabff;background:#1e2d4a;color:#fff}
+/* ===== CH: コマンド/技/交代 = 盤面右側の縦オーバーレイ(チャンピオンズ準拠) ===== */
+/* #cmd: たたかう(緑)/ポケモン(紫) の丸ピル縦並び+COMMANDラベル。実機スクショ準拠 */
+#cmd{position:absolute;right:14px;top:114px;bottom:auto;z-index:10;display:flex;flex-direction:column;gap:7px;
+  width:190px;margin:0}
+#cmd::before{content:'COMMAND';color:#fff;font-weight:900;letter-spacing:3px;font-size:11px;
+  text-shadow:0 1px 3px #000;text-align:right;padding-right:6px}
+#cmd button{position:relative;padding:12px 16px;border-radius:26px;border:2px solid #ffffff44;color:#fff;
+  font-weight:900;font-size:14px;text-align:left;cursor:pointer;box-shadow:0 3px 9px #0007;
+  transition:box-shadow .15s,border-color .15s,transform .1s;font-family:inherit}
+#cmd button:hover:not(:disabled){border-color:#d4f542;box-shadow:0 0 0 3px #d4f54288,0 3px 9px #0007;transform:translateX(-3px)}
+#cmd button:hover:not(:disabled)::before{content:'▶';position:absolute;left:-18px;top:50%;transform:translateY(-50%);
+  color:#ffd400;font-size:13px;text-shadow:0 1px 3px #000}
+#c-fight{background:linear-gradient(135deg,#1f8f3a,#3fc45c)}
+#c-party{background:linear-gradient(135deg,#4638ae,#7b6ff0)}
+#c-mega{background:linear-gradient(135deg,#7a6116,#c9a227)}
+#c-run{background:#22283add;font-size:10.5px;padding:7px 12px;font-weight:700;white-space:nowrap;text-align:center}
 #cmd button:disabled{opacity:.35;cursor:default}
 /* メガシンカ予約中: 黄色強調(既存ロジック維持) */
-#cmd button.mega-armed{border-color:#fbbf24;color:#fbbf24;background:#241e04}
-#cmd button.mega-armed:hover:not(:disabled){background:#2e2504}
-/* ===== #moves: 技ボタン 2列グリッド (Showdown .movemenu 準拠) ===== */
-/* SD: タイプ色は左縁ボーダー帯(border-left)+ button背景はタイプ色をやや暗く。技名bold/PP小字右下 */
-#moves{margin-top:10px;display:none;grid-template-columns:1fr 1fr;gap:6px}
-/* 技ボタン基本: 左縁4px帯をタイプ色に。背景はダーク地(JS側で override) */
-#moves button{padding:10px 12px 8px 10px;border-radius:8px;border:1px solid #2a3450;
-  border-left-width:5px;/* タイプ色左縁帯(JS側でborder-left-colorをセット) */
-  background:#161d2e;color:#e6edf3;text-align:left;cursor:pointer;
-  font-family:Verdana,sans-serif;position:relative;
-  transition:filter .12s,box-shadow .12s}
-#moves button:hover:not(:disabled){filter:brightness(1.15);box-shadow:0 0 0 1px #ffffff44 inset}
+#cmd button.mega-armed{border-color:#fbbf24;box-shadow:0 0 0 3px #fbbf2466,0 3px 9px #0007}
+/* ===== CH: #moves 技カプセル縦リスト(チャンピオンズ準拠) ===== */
+/* 実機: 縦カプセル・左にタイプ・技名・右にPP・下に相性帯(◎ばつぐん/△いまひとつ)。選択中=黄緑発光 */
+#moves{position:absolute;right:14px;top:114px;bottom:auto;z-index:10;display:none;flex-direction:column;gap:4px;
+  width:262px;margin:0}
+#moves button{position:relative;padding:5px 14px 5px 12px;border-radius:20px;border:2px solid #ffffff33;
+  background:linear-gradient(135deg,#4638aeee,#6a5be0ee);color:#fff;text-align:left;cursor:pointer;
+  font-family:inherit;box-shadow:0 3px 8px #0006;
+  transition:box-shadow .12s,border-color .12s,transform .1s}
+#moves button:hover:not(:disabled){border-color:#d4f542;box-shadow:0 0 0 3px #d4f54288,0 3px 8px #0006;transform:translateX(-3px)}
 #moves button:disabled{opacity:.38;cursor:default}
-/* タイプ色背景(JS側でtcol付与時): 文字を白に */
 #moves button.tcol:not(:disabled){color:#fff;text-shadow:0 1px 3px #0009}
 /* 技名(上段・bold) */
-#moves .mv-name{font-weight:800;font-size:13px;line-height:1.25;display:block}
-/* タイプバッジ(技名の左に小さく) */
-#moves .t-pill{display:inline-block;font-size:9px;padding:1px 6px;border-radius:6px;
-  color:#fff;margin-right:5px;vertical-align:middle;opacity:.9}
-/* mv-sub: 分類/命中ライン (PP は別要素 .mv-pp で右寄せ) */
-#moves .mv-sub{font-size:10px;color:#a0a8ba;margin-top:3px;display:block;line-height:1.3}
-#moves button.tcol:not(:disabled) .mv-sub{color:#ffffffcc}
-/* PP表示: SD の <small class="pp"> 準拠。右下に小字 */
-#moves .mv-pp{position:absolute;right:9px;bottom:7px;font-size:10px;font-weight:700;
-  color:#c8d0e0;font-family:Verdana,sans-serif}
-#moves button.tcol:not(:disabled) .mv-pp{color:#ffffffdd}
-/* PP残少(2以下): 赤字強調 */
-#moves .mv-pp.pp-low{color:#f87171}
+#moves .mv-name{font-weight:800;font-size:12.5px;line-height:1.25;display:block;padding-right:44px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* タイプバッジ(技名の左・実機の丸タイプアイコン相当) */
+#moves .t-pill{display:inline-block;font-size:9px;padding:2px 7px;border-radius:9px;
+  color:#fff;margin-right:5px;vertical-align:middle;box-shadow:0 1px 2px #0007;border:1px solid #ffffff55}
+/* mv-sub: 相性ヒント帯(◎ばつぐん等)+威力/命中の小字。1行固定(折返しでカプセル高が暴れるのを防ぐ) */
+#moves .mv-sub{font-size:10px;color:#ffffffcc;margin-top:1px;display:block;line-height:1.25;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#moves .mv-eff{display:inline-block;font-size:10px;font-weight:800;padding:1px 8px;border-radius:8px;
+  margin-right:5px;background:#00000044;border:1px solid #ffffff33}
+#moves .mv-eff.eff-super{color:#ffe14d;border-color:#ffe14d88}
+#moves .mv-eff.eff-weak{color:#c9b8ff}
+#moves .mv-eff.eff-no{color:#ff9c9c}
+/* PP表示: 実機準拠=右側に大きめ */
+#moves .mv-pp{position:absolute;right:14px;top:6px;font-size:12px;font-weight:900;
+  color:#fff;font-style:italic;text-shadow:0 1px 2px #0009}
+#moves .mv-pp.pp-low{color:#ffb3a7}
 /* もどるボタン */
-#moves button.back{text-align:center;color:#8b94a7;font-weight:700;border-left-width:1px;
-  grid-column:1/-1;padding:9px}
-/* ===== #party: 交代画面ボタン (09_switch 準拠) ===== */
-/* SD: アイコン+名前+ミニHPバー。うちは名前+ミニHPバーをボタン内に積む */
-#party{margin-top:10px;display:none;grid-template-columns:1fr 1fr;gap:6px}
-#party button{padding:10px 12px;border-radius:8px;border:2px solid #2a3450;background:#161d2e;
-  color:#e6edf3;text-align:left;cursor:pointer;font-family:Verdana,sans-serif;
-  transition:border-color .15s,background .15s}
-#party button:hover:not(:disabled){border-color:#7aabff;background:#1e2d4a}
+#moves button.back{text-align:center;color:#e6edf3;font-weight:700;padding:5px;font-size:12px;
+  background:#22283add;border-radius:16px}
+/* ===== CH: #party 交代リスト(選出画面の青カプセル準拠) ===== */
+#party{position:absolute;right:14px;top:114px;bottom:auto;z-index:10;display:none;flex-direction:column;gap:7px;
+  width:274px;margin:0;max-height:238px;overflow-y:auto}
+#party button{padding:8px 14px;border-radius:18px;border:2px solid #ffffff33;
+  background:linear-gradient(135deg,#4638aeee,#6a5be0ee);
+  color:#fff;text-align:left;cursor:pointer;font-family:inherit;box-shadow:0 3px 8px #0006;
+  transition:box-shadow .12s,border-color .12s,transform .1s}
+#party button:hover:not(:disabled){border-color:#d4f542;box-shadow:0 0 0 3px #d4f54288,0 3px 8px #0006;transform:translateX(-3px)}
 #party button:disabled{opacity:.4;cursor:default}
 /* 控えポケモン名 */
 #party .pt-name{font-weight:800;font-size:13px;display:flex;align-items:center;gap:6px}
@@ -416,7 +423,7 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
       <div class="pbox" id="pb-opp">
         <!-- .whoバッジ: A-2デフォルト=非表示。復活→ .pbox .who { display:none } を削除 -->
         <span class="who opp" data-i18n="real_battle.pbox_label_opp">あいて</span>
-        <div class="row1"><strong class="nm">—</strong><span class="lv">Lv.50</span></div>
+        <div class="row1"><span class="icn"></span><strong class="nm">—</strong><span class="lv">Lv.50</span></div>
         <!-- S2: 2層HPバー(外枠155×12px / prevhp=残像バー / hp=現在バー。両方hpbar直下に並置) -->
         <div class="hpbar">
           <div class="hptext">—%</div><!-- A-1=%のみ。data-hp/data-maxに実数値を保持 -->
@@ -429,7 +436,7 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
       </div>
       <div class="pbox" id="pb-self">
         <span class="who self" data-i18n="real_battle.pbox_label_self">じぶん</span>
-        <div class="row1"><strong class="nm">—</strong><span class="lv">Lv.50</span></div>
+        <div class="row1"><span class="icn"></span><strong class="nm">—</strong><span class="lv">Lv.50</span></div>
         <div class="hpbar">
           <div class="hptext">—%</div>
           <div class="prevhp"></div>
@@ -439,19 +446,21 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
         <div class="sts"></div>
         <div class="balls"></div>
       </div>
+      <!-- CH: メッセージ/コマンド/技/交代は盤面内オーバーレイ(チャンピオンズ準拠の出し入れ)。
+           id参照のJSは移動の影響なし -->
+      <div id="msgbox"><div id="msg-lines"></div><span class="next" style="display:none" data-i18n="real_battle.msgbox_next_prompt">▼ クリックでつぎへ</span></div>
+      <div id="cmd">
+        <button id="c-fight" data-i18n="real_battle.cmd_fight">⚔ たたかう</button>
+        <button id="c-party" data-i18n="real_battle.cmd_party">🔄 ポケモン</button>
+        <button id="c-mega" data-i18n="real_battle.cmd_mega">⬡ メガシンカ</button>
+        <button id="c-run" data-i18n="real_battle.cmd_run">🏃 にげる(編成にもどる)</button>
+      </div>
+      <div id="moves"></div>
+      <div id="party"></div>
     </div>
-    <div id="msgbox"><div id="msg-lines"></div><span class="next" style="display:none" data-i18n="real_battle.msgbox_next_prompt">▼ クリックでつぎへ</span></div>
-    <div id="cmd">
-      <button id="c-fight" data-i18n="real_battle.cmd_fight">⚔ たたかう</button>
-      <button id="c-party" data-i18n="real_battle.cmd_party">🔄 ポケモン</button>
-      <button id="c-mega" data-i18n="real_battle.cmd_mega">⬡ メガシンカ</button>
-      <button id="c-run" data-i18n="real_battle.cmd_run">🏃 にげる(編成にもどる)</button>
-    </div>
-    <div id="moves"></div>
-    <div id="party"></div>
     <div id="speed-row">
       <label><input type="checkbox" id="auto-msg" checked> <span data-i18n="real_battle.auto_msg_label">自動でメッセージ送り</span></label>
-      <span><span data-i18n="real_battle.msg_speed_label">送り速度:</span> <select id="msg-speed"><option value="1500" data-i18n="real_battle.msg_speed_slow">ゆっくり</option><option value="1000" selected data-i18n="real_battle.msg_speed_normal">ふつう</option><option value="600" data-i18n="real_battle.msg_speed_fast">はやい</option></select></span>
+      <span><span data-i18n="real_battle.msg_speed_label">送り速度:</span> <select id="msg-speed"><option value="2400" data-i18n="real_battle.msg_speed_slow">ゆっくり</option><option value="1600" selected data-i18n="real_battle.msg_speed_normal">ふつう</option><option value="1000" data-i18n="real_battle.msg_speed_fast">はやい</option></select></span>
       <!-- S6: 背景プリセット切替セレクト。将来の追加は option 1行+CSS 1プリセットで済む構造 -->
       <span><span data-i18n="real_battle.backdrop_label">背景：</span> <select id="backdrop-sel" style="background:#161d2e;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:3px 6px;font-size:11px">
         <option value="grass" data-i18n="real_battle.backdrop_grass">草原</option>
@@ -821,7 +830,9 @@ function initSetup(){
   else if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
   $('btn-random').addEventListener('click', randomize);
   $('btn-start').addEventListener('click', startBattle);
-  $('msgbox').addEventListener('click', advanceMsg);
+  // CH: msgboxが盤面内に入ったので、盤面のどこをタップしてもメッセージ送りできるようにする
+  // (busy時のみ作用。msgbox個別のリスナーは二重発火するため廃止)
+  $('field').addEventListener('click', advanceMsg);
   document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') advanceMsg(); });
   $('c-fight').addEventListener('click', () => { SE.select(); showMoves(); });
   $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
@@ -936,11 +947,22 @@ function renderAll(){
     const f = $('f-' + side), pb = $('pb-' + side);
     if (!st.poke) return;
     const shown = st.illusionAs || st.poke;   // イリュージョン(段138)/へんしん(メタモン): 化けている・変身した姿を表示
-    f.querySelector('.sprite').innerHTML = spriteHtml(shown);
+    // 同じ姿なら作り直さない(renderAllは頻繁に呼ばれる=毎回innerHTML再構築だと画像再読込でちらつく)
+    const spriteEl = f.querySelector('.sprite');
+    if (spriteEl.dataset.shown !== shown.name){
+      spriteEl.innerHTML = spriteHtml(shown);
+      spriteEl.dataset.shown = shown.name;
+    }
     // 名前はへんしん中も自分の名前(実機のニックネーム表示準拠=すがたは変身先・名前はメタモン)
     const named = st.illusionAs || (st.transformBase ? st.transformBase.poke : st.poke);
     const _g = (!st.illusionAs && !st.transformBase && st.gender && st.gender !== '—') ? ' ' + st.gender : '';   // 性別記号(化け中・へんしん中は出さない)
-    pb.querySelector('.nm').innerHTML = tPokeName(named.name) + (_g ? `<span style="color:${st.gender === '♂' ? '#7db0ff' : '#ff9ec4'};font-weight:900">${_g}</span>` : '');
+    pb.querySelector('.nm').innerHTML = tPokeName(named.name) + (_g ? `<span style="color:${st.gender === '♂' ? '#a8d4ff' : '#ffd0e0'};font-weight:900">${_g}</span>` : '');
+    // CH: statbar内ミニアイコン(実機の丸顔アイコン)。すがた=見えている姿(shown)
+    const icn = pb.querySelector('.icn');
+    if (icn){
+      const encI = encodeURIComponent(shown.name);
+      icn.innerHTML = `<img src="images/sim/${encI}.svg" alt="" onerror="this.remove()">`;
+    }
     const max = S.realStat(st, 'hp') || 1;
     const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
     setHpBar(side, hp, max);
@@ -1015,36 +1037,38 @@ function renderSideBars(){
 function setHpBar(side, hp, max){
   const pb = $('pb-' + side);
   const pct = Math.max(0, Math.min(100, hp / max * 100));
-  // S2: 2層HPバー。prevhp=前フレーム幅(遅れて縮む演出) / hp=現在幅(即時)
-  // barWidthPx: hpbar内側幅=155px - 2px(border) = 153px。prevhpはpxで持つ
-  const BAR_W = 153; // hpbar内側実効幅(px)
-  const newW = Math.round(pct / 100 * BAR_W);
+  // CH: ダメージ反映=statbarを戻す(メッセージ中の全消しから復帰して減るバーを見せる=実機の流れ)
+  $('field').classList.remove('ch-busy');
+  // 2層HPバー(Showdown版の演出を踏襲): prevhp=残像(遅れて縮む) / hp=現在(即時)
+  // CH: パネル幅が可変(PC210/スマホ170)になったため px指定→%指定に変更
+  const newW = pct.toFixed(1) + '%';
   const hpEl = pb.querySelector('.hp');
   const prevEl = pb.querySelector('.prevhp');
   if (hpEl && prevEl) {
-    // prevhpを現在のhp幅に一時固定してから、hpを新幅に更新
-    // (CSSトランジション: hp=0.3s即時縮小 / prevhp=1.2s遅延でゆっくり縮む)
-    const oldW = parseFloat(prevEl.style.width) || BAR_W;
+    const oldW = prevEl.style.width || '100%';
     // prevhpを旧幅に固定(アニメ開始点)
     prevEl.style.transition = 'none';
-    prevEl.style.width = oldW + 'px';
-    // 1フレーム後にhpを新幅へ→さらにprevhpをtransitionで縮める
-    // NOTE: hp は prevhp の子要素なので、hp の幅は prevhp 基準の%になる。
-    // Showdown準拠: hp.width=pxでhpbar絶対幅を直接指定し、prevhpは常にhpbar全幅に固定する
-    // → これにより hp だけが縮み、その後 prevhp も transition で縮む(2層演出)
+    prevEl.style.width = oldW;
     requestAnimationFrame(() => {
-      hpEl.style.width = newW + 'px'; // hpをpxで指定(prevhp内の絶対幅)
+      hpEl.style.width = newW;
       hpEl.className = 'hp' + (pct <= 25 ? ' low' : pct <= 50 ? ' mid' : '');
       requestAnimationFrame(() => {
         prevEl.style.transition = ''; // CSSに戻す(1.2s ease-out)
-        prevEl.style.width = newW + 'px';
+        prevEl.style.width = newW;
       });
     });
   }
-  // A-1: %のみ表示。data属性に実数値を保持(後から切替可能に)
+  // CH: 実機準拠のHP表示=自分は数値(171/171)・相手は%のみ(ゲームと同じ=2026-07-04 阿部さん)
+  // 実数値はdata属性に保持(後から切替可能)
   const t = pb.querySelector('.hptext');
   if (t) {
-    t.textContent = Math.round(pct) + '%';
+    if (side === 'self'){
+      t.innerHTML = `${Math.round(hp)}<small>/${Math.round(max)}</small>`;
+    } else {
+      // 生きている限り0%と表示しない(実機の最低1%表示)
+      const pd = hp > 0 ? Math.max(1, Math.round(pct)) : 0;
+      t.innerHTML = `${pd}<small>%</small>`;
+    }
     t.dataset.hp = hp;
     t.dataset.max = max;
   }
@@ -1057,6 +1081,7 @@ function say(lines, done){
   sayDone = done || null;
   busy = true;
   showCmd(false);
+  $('msgbox').style.display = 'block';   // CH: メッセージ再生中だけ出す(実機準拠。残留するとボタンを塞ぐ)
   nextSay();
 }
 function nextSay(){
@@ -1064,12 +1089,17 @@ function nextSay(){
   if (!sayQueue.length){
     busy = false;
     $('msgbox').querySelector('.next').style.display = 'none';
+    $('msgbox').style.display = 'none';        // CH: メッセージ退場(コマンドUIに舞台を返す)
+    $('field').classList.remove('ch-busy');    // CH: メッセージ完了=UIを戻す
     if (sayDone){ const d = sayDone; sayDone = null; d(); }
     return;
   }
   const line = sayQueue.shift();
   const box = $('msgbox');
   const txt = line.text != null ? line.text : line;
+  // CH: 行ごとにいったん全UIを消す(実機の「メッセージ中はUI退場」)。
+  // ダメージ/状態反映を含む行は fx内のsetHpBarがすぐ戻す=「演出→バーが出て減る」の実機の流れ
+  $('field').classList.add('ch-busy');
   pushMsgLine(txt);   // 下部メッセージ欄(6行・直近が薄く残る)
   logLine(txt);       // 左の流れるログにも積む
   if (line.fx) line.fx();
@@ -1082,7 +1112,7 @@ function advanceMsg(){ if (busy) nextSay(); }
 
 // ===== コマンド =====
 function showCmd(on){
-  $('cmd').style.display = on ? 'grid' : 'none';
+  $('cmd').style.display = on ? 'flex' : 'none';   // CH: 右側縦並び
   $('moves').style.display = 'none';
   $('party').style.display = 'none';
   if (on){
@@ -1098,24 +1128,32 @@ function showMoves(){
   const tc = S.typeColors();
   $('cmd').style.display = 'none';
   const mv = $('moves');
-  mv.style.display = 'grid';
+  mv.style.display = 'flex';   // CH: 縦カプセルリスト
   const ppOf = i => (st.pp ? st.pp[i] : null);
   const lockName = st.choiceLock ? st.choiceLock.name : null;   // こだわりロック(段135)
   const allOut = st.pp && st.moves.every((m, i) => !m || st.pp[i] <= 0);
-  // S5: 技ボタン Showdown準拠デザイン
-  // - タイプ色: border-left(左縁帯5px) + 技名bold(<strong>) + PP小字右下(<small class="mv-pp">)
-  // - 技名上段: タイプバッジ(.t-pill) + 技名(<strong>)
-  // - サブ行: 威力/命中/分類 (PPはmv-ppで右下独立)
-  // - disabled時(PP切れ/こだわり外): グレーアウト・border-left は灰色
+  // CH: 相性ヒント(実機の◎ばつぐん/△いまひとつ帯)。相手の現タイプに対する素の相性(表示専用)
+  const oppTypes = (S.sideTypes && S.sides.opp && S.sides.opp.poke) ? S.sideTypes(S.sides.opp) : [];
+  const effBand = m => {
+    if (!m || m.category === '変化' || !S.typeEffPreview) return '';
+    const eff = S.typeEffPreview(m.type, oppTypes);
+    if (eff > 1)  return `<span class="mv-eff eff-super">◎ ${I18N.t('real_battle.chip_super_effective','こうかばつぐん')}</span>`;
+    if (eff === 0) return `<span class="mv-eff eff-no">✕ ${I18N.t('real_battle.no_effect','こうかなし')}</span>`;
+    if (eff < 1)  return `<span class="mv-eff eff-weak">△ ${I18N.t('real_battle.chip_not_very_effective','こうかいまひとつ')}</span>`;
+    return '';
+  };
+  // CH: 技カプセル(チャンピオンズ準拠)
+  // - 上段: タイプバッジ + 技名 / 右上: PP大きめ / 下段: 相性帯 + 威力/命中
+  // - カプセル背景はタイプ色グラデ・disabled時(PP切れ/こだわり外)はグレーアウト
   mv.innerHTML = (allOut
-    ? `<button data-i="0" style="border-left-color:#6b7280"><span class="mv-name"><strong>${I18N.t('real_battle.move_last_resort','わるあがき')}</strong></span><div class="mv-sub">${I18N.t('real_battle.move_last_resort_desc','PPが ぜんぶ なくなった！ 威力50 / 反動あり')}</div></button>`
+    ? `<button data-i="0"><span class="mv-name"><strong>${I18N.t('real_battle.move_last_resort','わるあがき')}</strong></span><div class="mv-sub">${I18N.t('real_battle.move_last_resort_desc','PPが ぜんぶ なくなった！ 威力50 / 反動あり')}</div></button>`
     : st.moves.map((m, i) => {
         const col = tc[m.type] || '#3a4660';
         const ppNow = ppOf(i);
         const ppMax = m.pp || 0;
         const off = (ppNow != null && ppNow <= 0) || (lockName && m.name !== lockName);
         const locked = lockName && m.name !== lockName;
-        // PP残少(2以下): pp-low クラスで赤字
+        // PP残少(2以下): pp-low クラスで強調
         const ppLow = ppNow != null && ppNow <= 2 && !off;
         const ppCls = 'mv-pp' + (ppLow ? ' pp-low' : '');
         const ppTxt = ppNow != null ? `${ppNow}/${ppMax}` : '';
@@ -1125,14 +1163,12 @@ function showMoves(){
           tCatName(m.category),
           locked ? I18N.t('real_battle.move_stubbornlock_note','こだわり中') : ''
         ].filter(Boolean).join(' / ');
-        // 有効ボタン: タイプ色左縁 + タイプ色をやや暗くした背景グラデ
-        const btnStyle = off
-          ? 'border-left-color:#3a4060'
-          : `border-left-color:${col};background:linear-gradient(135deg,${col}28 0%,${col}18 100%);border-color:${col}88`;
+        // カプセル背景=タイプ色グラデ(暗め→明るめ)
+        const btnStyle = off ? '' : `background:linear-gradient(135deg,${col}dd 0%,${col}99 100%)`;
         return `<button class="tcol" data-i="${i}" ${off ? 'disabled' : ''} style="${btnStyle}">` +
           `<span class="mv-name"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span><strong>${tMoveName(m)}${lockName === m.name ? ' 🔒' : ''}</strong></span>` +
-          `<div class="mv-sub">${subParts}</div>` +
-          (ppTxt ? `<span class="${ppCls}">${I18N.t('real_battle.move_pp_label','PP')} ${ppTxt}</span>` : '') +
+          `<div class="mv-sub">${effBand(m)}${subParts}</div>` +
+          (ppTxt ? `<span class="${ppCls}">${ppTxt}</span>` : '') +
           `</button>`;
       }).join(''))
     + `<button class="back">${I18N.t('real_battle.move_back_button','← もどる')}</button>`;
@@ -1146,7 +1182,7 @@ function showParty(forced){
   const st = S.sides.self;
   $('cmd').style.display = 'none';
   const pt = $('party');
-  pt.style.display = 'grid';
+  pt.style.display = 'flex';   // CH: 縦カプセルリスト(選出画面の青カプセル準拠)
   // S5: 交代画面ボタン Showdown準拠デザイン(09_switch準拠)
   // - アイコン画像+名前+ミニHPバー+HP%テキスト を縦積みで表示
   pt.innerHTML = (st.bench || []).map((e, i) => {
@@ -1462,15 +1498,14 @@ function flash(side, cls){
 // 連戦モード(段: 連戦): 勝利後にコマンド欄を「つぎの相手」に差し替える
 function showNextOpponentButton(){
   const cmd = $('cmd');
-  cmd.style.display = 'grid';
+  cmd.style.display = 'flex';
   cmd.querySelectorAll('button').forEach(b => b.disabled = true);
   let nb = $('c-next');
   if (!nb){
     nb = document.createElement('button');
     nb.id = 'c-next';
-    nb.style.gridColumn = '1 / -1';
     nb.style.borderColor = '#4ade80';
-    nb.style.color = '#4ade80';
+    nb.style.background = 'linear-gradient(135deg,#1f8f3a,#3fc45c)';
     cmd.prepend(nb);
     nb.addEventListener('click', () => {
       SE.select();
