@@ -248,8 +248,8 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 /* S1: 2カラム配置。ログは右配置(Showdown準拠)。
  * 注: 過去に「ログは左」という独自化の経緯があったが、今回の方針「Showdownと完全に同じに再現」により
  * Showdown準拠の右配置へ変更。order指定で左=盤面(order:0)/右=ログ(order:1)に揃える。 */
-/* CH: 盤面を少し横長に(560→640≒16:9・チャンピオンズ画角に寄せる。2026-07-05 阿部さん) */
-#battle-main{flex:0 0 640px;max-width:640px;min-width:0;order:0}
+/* CH: 盤面を少し横長に(560→600。640=16:9は「横長すぎ」で戻し=2026-07-05 阿部さん) */
+#battle-main{flex:0 0 600px;max-width:600px;min-width:0;order:0}
 /* S1: ログパネル 460×362px / bg:#eef2f5(Showdown実測値) / フォントVerdana限定指定 */
 /* CH: 盤面640化に合わせてログは伸縮(340〜460px)。狭ければ下に折返す(flex-wrap) */
 #battle-log-panel{flex:1 1 340px;min-width:340px;max-width:460px;height:362px;display:flex;flex-direction:column;order:1;
@@ -363,7 +363,7 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 #party button.back{text-align:center;color:#8b94a7;font-weight:700;grid-column:1/-1;
   border-color:#2a3450;background:#161d2e;padding:9px}
 #party button.back:hover{border-color:#7aabff;background:#1e2d4a;color:#fff}
-#speed-row{margin-top:8px;font-size:11px;color:#8b94a7;display:flex;gap:14px;align-items:center}
+#speed-row{margin-top:8px;font-size:11px;color:#8b94a7;display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap/* キャラ画像セレクト追加でスマホ幅を溢れないように */}
 /* ===== CH: スマホ寸法上書き(必ず各コンポーネント定義より後=後勝ち) ===== */
 @media(max-width:880px){
   /* チャンピオンズ同配置(相手=右上/自分=左下)。幅を詰めて右側の技リストと非重畳にする */
@@ -422,6 +422,14 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
     <div class="team-row" id="row-opp"><span class="tlabel" data-i18n="real_battle.team_label_opp">相手</span></div>
     <button id="detail-toggle" data-i18n="real_battle.detail_toggle_button">⚙ くわしく編成(わざ・もちもの をえらぶ)</button>
     <div id="detail-setup"></div>
+    <!-- CH: キャラ画像ソース(バトル前にも選べる=2026-07-05 阿部さん)。バトル中の#sprite-srcと同期 -->
+    <div style="margin-top:10px;font-size:12px;color:#8b94a7;display:flex;gap:8px;align-items:center">
+      <span data-i18n="real_battle.sprite_src_label">キャラ画像:</span>
+      <select id="sprite-src-setup" style="background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:4px 8px">
+        <option value="original" data-i18n="real_battle.sprite_src_original">うちのオリジナル絵</option>
+        <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
+      </select>
+    </div>
     <div class="btns">
       <button class="sub" id="btn-random" data-i18n="real_battle.btn_random">🎲 おまかせ編成</button>
       <button id="btn-start" data-i18n="real_battle.btn_start">▶ バトルスタート！</button>
@@ -502,6 +510,11 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
         <option value="water" data-i18n="real_battle.backdrop_water">水辺</option>
         <option value="night" data-i18n="real_battle.backdrop_night">夜空</option>
       </select></span>
+      <!-- CH: キャラ画像ソース切替(設定はバトル中も変更可・即反映) -->
+      <span><span data-i18n="real_battle.sprite_src_label">キャラ画像:</span> <select id="sprite-src" style="background:#161d2e;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:3px 6px;font-size:11px">
+        <option value="original" data-i18n="real_battle.sprite_src_original">うちのオリジナル絵</option>
+        <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
+      </select> <span id="sprite-credit" style="display:none;font-size:10px"><a href="https://pokeapi.co/" style="color:#9ec5ff" data-i18n="real_battle.sprite_credit">画像出典: PokéAPI</a></span></span>
       <button id="snd-toggle" style="margin-left:auto;background:#161d2e;border:1px solid #2a3450;border-radius:8px;color:#e6edf3;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
     </div>
     </div><!-- /battle-main -->
@@ -874,6 +887,13 @@ function initSetup(){
   $('c-run').addEventListener('click', () => { bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
   // 音オン/オフ(設定はlocalStorageに保存)
   updateSndBtn();
+  // キャラ画像ソース(編成/バトル中の両セレクトを同期・保存・即反映)
+  ['sprite-src', 'sprite-src-setup'].forEach(id => {
+    const el = $(id); if (!el) return;
+    el.value = spriteSrc;
+    el.addEventListener('change', () => setSpriteSrc(el.value));
+  });
+  setSpriteSrc(spriteSrc);   // クレジット表示等の初期反映
   $('snd-toggle').addEventListener('click', () => {
     sndOn = !sndOn;
     localStorage.setItem('rb_snd', sndOn ? 'on' : 'off');
@@ -971,12 +991,30 @@ function startBattle(){
 }
 
 // ===== 描画 =====
+// キャラ画像ソース設定(2026-07-05 阿部さん): 'original'=うちの落書きSVG / 'api'=PokeAPIスプライト
+// APIモードは通常フォームのみ(メガ/特殊フォームは名前→フォームID対応が未整備なので自作SVG継続)
+let spriteSrc = localStorage.getItem('rb_sprite_src') || 'original';
+function setSpriteSrc(v){
+  spriteSrc = v === 'api' ? 'api' : 'original';
+  localStorage.setItem('rb_sprite_src', spriteSrc);
+  ['sprite-src', 'sprite-src-setup'].forEach(id => { const el = $(id); if (el && el.value !== spriteSrc) el.value = spriteSrc; });
+  const cr = $('sprite-credit'); if (cr) cr.style.display = spriteSrc === 'api' ? 'inline' : 'none';
+  if (document.body.classList.contains('in-battle')){ try { renderAll(); } catch(e) {} }
+}
 function spriteHtml(poke){
   const color = (S.typeColors()[poke.type1]) || '#3a4660';
   // 仮アイコンには「ポケモン名」を出す(タイプ名だと名前と紛らわしい=2026-06-12 阿部さん指摘)
   const short = poke.name.length > 6 ? poke.name.slice(0, 6) : poke.name;
-  // SVG(忠実トレース版)優先→PNGに切替→どちらも無ければタイプ色サークル
   const enc = encodeURIComponent(poke.name);
+  // APIモード(通常フォームのみ): ローカルpoke画像→PokeAPI本家→自作SVG→サークルの順でフォールバック
+  if (spriteSrc === 'api' && poke.no && poke.form === '通常' && !poke.mega){
+    const n = parseInt(poke.no, 10);
+    return `<img src="images/poke/${n}.png" alt="" style="display:none;image-rendering:pixelated;height:112px" data-step="0"
+        onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'"
+        onerror="if(this.dataset.step==='0'){this.dataset.step='1';this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${n}.png';}else if(this.dataset.step==='1'){this.dataset.step='2';this.style.imageRendering='auto';this.src='images/sim/${enc}.svg';}else{this.remove();}">
+      <span class="circ" style="background:${color};font-size:${short.length > 4 ? 11 : 13}px">${short}</span>`;
+  }
+  // オリジナル: SVG(忠実トレース版)優先→PNGに切替→どちらも無ければタイプ色サークル
   return `<img src="images/sim/${enc}.svg" alt="" style="display:none"
       onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'"
       onerror="if(!this.dataset.png){this.dataset.png=1;this.src='images/sim/${enc}.png';}else{this.remove();}">
@@ -988,11 +1026,13 @@ function renderAll(){
     const f = $('f-' + side), pb = $('pb-' + side);
     if (!st.poke) return;
     const shown = st.illusionAs || st.poke;   // イリュージョン(段138)/へんしん(メタモン): 化けている・変身した姿を表示
-    // 同じ姿なら作り直さない(renderAllは頻繁に呼ばれる=毎回innerHTML再構築だと画像再読込でちらつく)
+    // 同じ姿なら作り直さない(renderAllは頻繁に呼ばれる=毎回innerHTML再構築だと画像再読込でちらつく)。
+    // 画像ソース設定(spriteSrc)が変わった時は作り直す
     const spriteEl = f.querySelector('.sprite');
-    if (spriteEl.dataset.shown !== shown.name){
+    const shownKey = spriteSrc + ':' + shown.name;
+    if (spriteEl.dataset.shown !== shownKey){
       spriteEl.innerHTML = spriteHtml(shown);
-      spriteEl.dataset.shown = shown.name;
+      spriteEl.dataset.shown = shownKey;
     }
     // 名前はへんしん中も自分の名前(実機のニックネーム表示準拠=すがたは変身先・名前はメタモン)
     const named = st.illusionAs || (st.transformBase ? st.transformBase.poke : st.poke);
