@@ -152,11 +152,39 @@ function synthMegaNames(jaName, dex){
   return names;
 }
 // 非メガ独自フォームの種公式名転写: ja以外を種公式名に(jaは独自表記を保持)
-function synthFormNames(jaName, dex){
+// matchedVが渡された場合: form_names も使って複合名を生成(同名衝空解消)
+//   ♂/♀フォーム(form_name="Male"/"Female"等) → 種名+♂/♀ 記号
+//   その他フォーム(form_name="Midday Form"等)  → 種名+' ('+form_name+')'
+//   form_name が当該言語に無い場合            → 種名のみ(フォールバック)
+const GENDER_FORM_NAMES = new Set(['Male','Female','Mâle','Femelle','Maschio','Femmina','Macho','Hembra','Männlich','Weiblich']);
+const GENDER_SYMBOL = { Male:'♂', Female:'♀', Mâle:'♂', Femelle:'♀', Maschio:'♂', Femmina:'♀', Macho:'♂', Hembra:'♀', Männlich:'♂', Weiblich:'♀' };
+function synthFormNames(jaName, dex, formNamesMap){
   const sp = speciesByDex[dex];
   if(!sp) return null;
   const names = { ja: jaName };
-  for(const lang of Object.keys(sp)){ if(lang!=='ja' && sp[lang]) names[lang] = sp[lang]; }
+  for(const lang of Object.keys(sp)){
+    if(lang==='ja' || !sp[lang]) continue;
+    const sn = sp[lang];
+    if(formNamesMap && formNamesMap[lang]){
+      const fm = formNamesMap[lang];
+      const gSym = GENDER_SYMBOL[fm];
+      names[lang] = gSym ? sn + gSym : sn + ' (' + fm + ')';
+    } else {
+      names[lang] = sn;
+    }
+  }
+  // ko/zh-Hans/zh-Hant のCJK性別フォーム名のfallback: species_namesに無いキーもあるため
+  if(formNamesMap){
+    for(const lang of Object.keys(formNamesMap)){
+      if(lang==='ja' || names[lang]) continue;
+      const fm = formNamesMap[lang];
+      const sn = sp[lang];
+      if(sn && fm){
+        const gSym = GENDER_SYMBOL[fm];
+        names[lang] = gSym ? sn + gSym : sn + ' (' + fm + ')';
+      }
+    }
+  }
   return Object.keys(names).length > 1 ? names : null;
 }
 
@@ -169,6 +197,12 @@ const masterPokemon = P.map(v=>{
   const names = {...v.species_names, ja: jaName};   // ja=jaNameRaw(normWide・Champions表記)
   if (v.form_names && Object.keys(v.form_names).length){
     for(const lang of Object.keys(v.form_names)){ if(lang!=='ja') names[lang]=v.form_names[lang]; }   // ja以外を上書き・jaはjaNameRaw保持
+  }
+  // ★(1) 公式メガのde修正: PokeAPIのform_names.deは全メガで'Mega-Form'(壊れ値)
+  // → synthMegaNames で 'Mega-'+種de名+サフィックス に合成上書き(deのみ)
+  if (v.is_mega && names.de === 'Mega-Form'){
+    const synth = synthMegaNames(jaName, v.dex);
+    if (synth && synth.de) names.de = synth.de;
   }
   const w = weightByName[jaName];
   const megaForm = v.is_mega ? (v.form_slug||'mega').replace(/^mega-?/,'').toUpperCase() : null;  // X/Y/''
@@ -202,7 +236,9 @@ C.POKEMON_LIST.forEach(p=>{
     names = synthMegaNames(ja, dex);            // 合成: メガ接頭辞規約 + 種公式名 + サフィックス
     if (names){ nameSynth = true; ownPokeMegaSynth++; }
   } else {
-    names = synthFormNames(ja, dex);            // 転写: 種公式名(jaは独自表記保持)
+    // ★(2) 非メガ独自フォーム: matchedV がある場合は form_names を渡して複合名生成(同名衝突解消)
+    const fnames = matchedV ? matchedV.form_names : null;
+    names = synthFormNames(ja, dex, fnames);    // 転写: 種公式名+フォームサフィックス(jaは独自表記保持)
     if (names){ nameSynth = true; ownPokeFormSynth++; }
   }
   if (!names){
