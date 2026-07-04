@@ -1209,15 +1209,28 @@ function showMoves(){
   const ppOf = i => (st.pp ? st.pp[i] : null);
   const lockName = st.choiceLock ? st.choiceLock.name : null;   // こだわりロック(段135)
   const allOut = st.pp && st.moves.every((m, i) => !m || st.pp[i] <= 0);
-  // CH: 相性ヒント(実機の◎ばつぐん/△いまひとつ帯)。相手の現タイプに対する素の相性(表示専用)
+  // CH: 相性ヒント(実機の★/◎/△/✕帯)。エンジンのcalcDamageで判定=DB同様に特性込み
+  // (ちょすい/ふゆう等の無効も✕になる=2026-07-05 阿部さん「DBの特性×0をそのままバトルで」)。
+  // calcDamageが使えない場合は素の相性表(typeEffPreview)にフォールバック
   const oppTypes = (S.sideTypes && S.sides.opp && S.sides.opp.poke) ? S.sideTypes(S.sides.opp) : [];
   const effBand = m => {
-    if (!m || m.category === '変化' || !S.typeEffPreview) return '';
-    const eff = S.typeEffPreview(m.type, oppTypes);
+    if (!m || m.category === '変化') return '';
+    let eff = 1, immune = false;
+    try {
+      const r = S.calcDamage('self', 'opp', m);
+      if (r && r.immune){ immune = true; }
+      else if (r && r.chips){
+        const c = r.chips.find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
+        eff = c ? c.factor : 1;
+      }
+    } catch(e){
+      eff = S.typeEffPreview ? S.typeEffPreview(m.type, oppTypes) : 1;
+      immune = eff === 0;
+    }
+    if (immune || eff === 0) return `<span class="mv-eff eff-no">✕ ${I18N.t('real_battle.no_effect','こうかなし')}</span>`;
     // 4倍=★ちょうばつぐん(チャンピオンズ実機準拠。en公式=Extremely effective / Game8・Kotaku裏取り済み)
     if (eff >= 4) return `<span class="mv-eff eff-hyper">★ ${I18N.t('real_battle.eff_hyper','ちょうばつぐん')}</span>`;
     if (eff > 1)  return `<span class="mv-eff eff-super">◎ ${I18N.t('real_battle.chip_super_effective','こうかばつぐん')}</span>`;
-    if (eff === 0) return `<span class="mv-eff eff-no">✕ ${I18N.t('real_battle.no_effect','こうかなし')}</span>`;
     if (eff < 1)  return `<span class="mv-eff eff-weak">△ ${I18N.t('real_battle.chip_not_very_effective','こうかいまひとつ')}</span>`;
     return '';
   };
