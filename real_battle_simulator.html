@@ -987,7 +987,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 
 <script src="pokechan_data.js?v=20260702u"></script>
 <script src="items_database.js"></script>
-<script src="battle_log_i18n.js?v=20260703e"></script>
+<script src="battle_log_i18n.js?v=20260704d"></script>
 <script>
 'use strict';
 
@@ -2197,9 +2197,10 @@ function log(phase, msg){
 // ログ表示用の名前: 相手側のポケモンには「相手の」を付ける(同名対決でもどちらか分かるように。
 // 実機の「あいての ○○」表記に準拠。2026-06-12 阿部さん要望)
 // イリュージョン(段138)中は化けている姿の名前を出す(=騙しがログにも効く)
+// へんしん状態(メタモン)は自分の名前のまま(実機はニックネーム表示=すがたが変わっても名前はメタモン)
 function pname(st){
   if (!st || !st.poke) return '?';
-  const shown = st.illusionAs || st.poke;
+  const shown = st.illusionAs || (st.transformBase ? st.transformBase.poke : st.poke);
   return (st === sides.opp ? '相手の ' : '') + shown.name;
 }
 // イリュージョン(段138・ポケモンWiki): 場に出る時、手持ちの一番後ろの生きているポケモンに化ける。
@@ -2209,6 +2210,49 @@ function applyIllusion(st){
   const live = (st.bench || []).filter(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
   const last = live.length ? live[live.length - 1] : null;
   if (last && last.poke.name !== st.poke.name) st.illusionAs = last.poke;
+}
+
+// === へんしん状態(技へんしん/特性かわりもの=メタモン) ===
+// 出典: ポケモンWiki「へんしん(状態変化)」「かわりもの」/ Bulbapedia "Transform"/"Imposter"。
+// コピーする: すがた(種族・フォルム・体重)・性別・現在のタイプ(みずびたし等の変化込み)・特性・
+//   覚えている技(PPは各5)・HP以外の実数値(相手の努力値/性格込みの最終値)・能力ランク(命中/回避含む)。
+// コピーしない: HP(現在値/最大値)・レベル・持ち物・状態異常。場を離れる(交代/ひんし)と元に戻る。
+// 失敗条件: 相手がへんしん状態/みがわり状態/イリュージョンで化けている・自分がすでにへんしん状態。
+function canTransformInto(st, target){
+  if (!st || !target || !st.poke || !target.poke) return false;
+  if (st.transformBase) return false;        // 自分がすでにへんしん状態
+  if (target.transformBase) return false;    // 相手がへんしん状態(へんしん済みにはへんしんできない)
+  if (target.subHp > 0) return false;        // みがわり状態には失敗
+  if (target.illusionAs) return false;       // イリュージョンで化けている相手には失敗
+  if (target.fainted || (target.currentHp != null && target.currentHp <= 0)) return false;
+  return true;
+}
+function applyTransform(st, target){
+  const ownMaxHp = realStat(st, 'hp');   // HPは自分のまま(poke差し替え前に自分の最大HPを確定)
+  st.transformBase = { poke: st.poke, moves: st.moves, pp: st.pp ? [...st.pp] : null,
+    ability: st.ability, gender: st.gender };
+  st.statOverride = {
+    hp: ownMaxHp,
+    atk: realStat(target, 'atk'), def: realStat(target, 'def'),
+    spatk: realStat(target, 'spatk'), spdef: realStat(target, 'spdef'), spd: realStat(target, 'spd'),
+  };
+  st.typeOverride = sideTypes(target).slice();   // 現在のタイプをコピー(タイプ変化込み)
+  st.poke = target.poke;
+  st.gender = target.gender || st.gender;        // 性別もコピー(第5世代以降・メロメロ判定用)
+  st.ability = sideAbility(target);
+  st.abilityOverride = null;
+  st.moves = (target.moves || []).slice();
+  if (st.pp) st.pp = st.moves.map(m => Math.min(5, (m && m.pp) || 5));   // コピーした技のPPは各5
+  st.rank = {...target.rank};                    // 能力ランクもコピー(相手の積みごともらう)
+  st.selectedMoveIdx = 0;
+}
+function revertTransform(st){
+  const tb = st && st.transformBase;
+  if (!tb) return;
+  st.poke = tb.poke; st.moves = tb.moves; st.pp = tb.pp;
+  st.ability = tb.ability; st.gender = tb.gender;
+  st.statOverride = null; st.typeOverride = null;
+  st.transformBase = null;
 }
 
 // === フェーズ: Init-A 場に出た時の特性発動 ===
@@ -2230,6 +2274,14 @@ function fireEntryAbility(s){
     if (ab === 'いかく' && other.poke){
       other.rank.atk = Math.max(-6, (other.rank.atk||0) - 1);
       log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
+    } else if (ab === 'かわりもの' && other.poke){
+      // かわりもの(メタモン隠れ特性): 場に出たとき正面の相手にへんしんする(ターン消費なし)。
+      // 出典: ポケモンWiki「かわりもの」/ Bulbapedia "Imposter"。失敗条件はcanTransformInto(発動しないだけでログなし)
+      if (canTransformInto(st, other)){
+        const _tg = pname(other);
+        applyTransform(st, other);
+        log('Init-A', `${pname(st)} は かわりもので ${_tg} に へんしんした！`);
+      }
     } else if (_BREAKER.includes(ab)){
       // かたやぶり系(段124): 場に出た時に宣言(実機準拠メッセージ)
       log('Init-A', `${pname(st)} の ${ab}！`);
@@ -3221,6 +3273,20 @@ function phaseApplyEffects(atkSide, defSide, move){
     // 控えの選択は実機ではプレイヤーが選ぶ=simは最初の生きている控えで近似。
     // バトンタッチ(pass宣言あり)は引き継ぎ交代=未実装(誤実装回避でスキップ・次段)。
     // 出典: ポケモンWiki「ポケモンチェンジ」
+    // へんしん(技・メタモン): 相手のすがた・能力・技をコピーしてへんしん状態になる。
+    // 失敗条件(相手がへんしん済み/みがわり/イリュージョン・自分がへんしん済み)はcanTransformInto。
+    // 出典: ポケモンWiki「へんしん(状態変化)」/ Bulbapedia "Transform"(まもるは貫通する=変化技のself対象なのでここに来る)
+    if (ef.kind === 'へんしん'){
+      if (!canTransformInto(atk, def)){
+        log('9', `しかし うまく きまらなかった！`);
+        noteActionFailed(atk);
+        continue;
+      }
+      const _tgName = pname(def);
+      applyTransform(atk, def);
+      log('9', `${pname(atk)} は ${_tgName} に へんしんした！`);
+      continue;
+    }
     if (ef.kind === '自分交代'){
       const _liveIdxs = (atk.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
       const liveIdx = _liveIdxs.length ? chooseSwitchTarget(atkSide, _liveIdxs) : -1;
@@ -4413,6 +4479,10 @@ function snapshotBattleState(){
     effort: {...(st.effort || {})},
     natureIdx: st.natureIdx || 0,
     ability: st.ability || '',
+    gender: st.gender || '',                                     // へんしんの性別コピーも一手戻せるように
+    pp: st.pp ? [...st.pp] : null,                               // へんしんのPP=5化も一手戻せるように
+    transformBase: st.transformBase ? {...st.transformBase, moves: [...(st.transformBase.moves || [])],
+      pp: st.transformBase.pp ? [...st.transformBase.pp] : null} : null,   // へんしん状態も一手戻せるように
     turnsOut: st.turnsOut || 0,
     bench: (st.bench || []).map(e => ({...e, moves: [...(e.moves || [])], effort: {...(e.effort || {})}})),
     switchChoice: st.switchChoice != null ? st.switchChoice : null,
@@ -4506,6 +4576,9 @@ function undoBattle(){
     st.effort = {...(src.effort || {})};
     st.natureIdx = src.natureIdx || 0;
     st.ability = src.ability || '';
+    st.gender = src.gender || st.gender;                          // へんしんの性別コピーの巻き戻し
+    st.pp = src.pp ? [...src.pp] : null;                          // へんしんのPP=5化の巻き戻し
+    st.transformBase = src.transformBase ? {...src.transformBase} : null;   // へんしん状態の巻き戻し
     st.turnsOut = src.turnsOut || 0;
     st.bench = (src.bench || []).map(e => ({...e, moves: [...(e.moves || [])], effort: {...(e.effort || {})}}));
     st.switchChoice = src.switchChoice != null ? src.switchChoice : null;
@@ -4895,6 +4968,7 @@ function clearVolatilesOnSwitch(st){
   st.stockpile = 0; st.stockpileBoost = {def: 0, spdef: 0};
   st.tauntTurns = 0; st.lastMove = null; st.disable = null; st.encore = null;
   st.statOverride = null; st.typeOverride = null; st.abilityOverride = null;
+  st.transformBase = null;  // へんしん状態も揮発(revertTransformが先に元へ戻している前提の保険)
   st.proteanUsed = false;   // へんげんじざい(段122): 1回場に出るごとに1回 → 交代でリセット
   st.choiceLock = null;     // こだわりロック(段135): 交代で解除
   st.cudChew = null;        // はんすう(段138): 交代で発動しなくなる
@@ -5148,6 +5222,9 @@ function attemptSwitch(sideKey, benchIdx, opts){
       log('9', `${outName} は しぜんかいふくで 状態異常を 治して 戻った！`);
     }
   }
+  // へんしん状態(へんしん/かわりもの)は場を離れると解ける(ひんし退場も同様)。
+  // 控えに戻す前に元のすがた・技・特性へ復帰させる(出典: ポケモンWiki「へんしん(状態変化)」)
+  revertTransform(st);
   // バトルスイッチ(段120): 交代で控えに戻るとシールドフォルムに戻る(ポケモンWiki「バトルスイッチ」)
   if (st.ability === 'バトルスイッチ' && st.poke && /\(ブレード\)$/.test(st.poke.name)){
     const _sf = POKE_MAP_BY_NAME[st.poke.name.replace('(ブレード)', '(シールド)')];
@@ -5194,6 +5271,12 @@ function attemptSwitch(sideKey, benchIdx, opts){
         log('9', `${pname(st)} は トレースで ${pname(_oppSt)} の ${_tAb}を コピーした！`);
       }
     }
+    // かわりもの(メタモン): 交代で場に出た時も正面の相手にへんしんする(Init-Aと同条件)
+    if (sideAbility(st) === 'かわりもの' && _oppSt.poke && canTransformInto(st, _oppSt)){
+      const _tg = pname(_oppSt);
+      applyTransform(st, _oppSt);
+      log('9', `${pname(st)} は かわりもので ${_tg} に へんしんした！`);
+    }
   }
   // いやしのねがい: 出てきたポケモンが全回復(設置物のダメージの後=回復で帳消しにできる)。
   // 実機(第8世代以降)は「健康なポケモンには持ち越し」だが、simは最初に出たポケモンに適用する近似。
@@ -5231,6 +5314,7 @@ function megaFormFor(poke){
 }
 function canMegaEvolve(st){
   if (!st.poke || st.fainted || st.megaUsed || !st.item) return null;
+  if (st.transformBase) return null;   // へんしん状態(メタモン)はメガシンカできない(借り物のすがたのため)
   const it = ITEM_BY_KEY[st.item];
   if (!it || it.category !== 'mega_stone') return null;
   // 専用ストーン(applies_to一致)はその宣言のメガフォームへ(リザードンX/Yを正しく分岐)。
@@ -5400,6 +5484,9 @@ function aiScoreMove(sideKey, m){
       const cur = (st.rank && st.rank[k]) || 0;
       // 自分が元気(HP2/3以上)で積み切ってない(+2未満)なら積む価値あり
       if (myHp * 3 >= myMax * 2 && cur < 2) score = Math.max(score, 40 + (e.stages || 1) * 10);
+    } else if (e.kind === 'へんしん'){
+      // へんしん(メタモン): 使える状況なら最優先級(使わないと他にやることがない)。使えない状況は価値なし
+      if (canTransformInto(st, foeSt)) score = Math.max(score, 60);
     }
   }
   return score;
@@ -6269,6 +6356,7 @@ function resetBattle(){
   lastMoveAnywhere = null;   // まねっこ用の直前技もリセット
   ['self','opp'].forEach(s=>{
     const st = sides[s];
+    revertTransform(st);   // へんしん状態はバトル終了で解ける(元のすがた・技に戻してからHPを引き直す)
     if (st.poke) st.currentHp = realStat(st, 'hp');
     st.fainted = false;
     st.badpoisonCounter = 0;
@@ -7971,6 +8059,7 @@ window.__sim = {
   sides, env, battleLog,
   runTurn, calcDamage, realStat, makeSideState, usableMoves,
   aiChooseMove, aiChooseAction, aiScoreMove, attemptSwitch, megaEvolve, canMegaEvolve, resetBattle,
+  phaseInitA,   // バトル開始時の登場特性(いかく/天候/かわりもの等)をリアルバトル側からも発動できるように
   pokeByName: n => (POKE_MAP_BY_NAME[n] || null),
   pokeList: () => POKEMON_LIST,
   natureIdxOf: name => { const i = NATURE_LIST.findIndex(n => n[0] === name); return i < 0 ? NATURE_LIST.findIndex(n => n[0] === 'まじめ') : i; },

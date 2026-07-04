@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://pchamdb.com/real_battle.html">
 <script defer src="i18n/runtime.js?v=20260622"></script>
 <script src="pokechan_data.js?v=20260704c"></script>
-<script src="battle_log_i18n.js?v=20260704c"></script>
+<script src="battle_log_i18n.js?v=20260704d"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -861,7 +861,15 @@ function autoMoves(poke){
   const picked = [], types = new Set();
   for (const m of dmg){ if (!types.has(m.type)){ picked.push(m); types.add(m.type); } if (picked.length === 4) break; }
   for (const m of dmg){ if (picked.length >= 4) break; if (!picked.includes(m)) picked.push(m); }
+  // 攻撃技を1つも覚えない子(メタモン=へんしんのみ)は変化技で埋める(技ゼロで出ると毎ターン棒立ちになる)
+  if (!picked.length) return all.slice(0, 4);
   return picked.slice(0, 4);
+}
+// 既定の特性: 基本は特性1。メタモンは隠れ特性かわりもの(シングル実戦の確定特性・チャンピオンズWiki準拠。
+// じゅうなん既定だと1ターン目にへんしんするだけの的になるため)
+function defaultAbilityRB(p){
+  if (p && p.name === 'メタモン') return p.ab3 || p.ab2 || p.ab1 || '';
+  return (p && p.ab1) || '';
 }
 
 function buildSide(sideKey, ids){
@@ -877,11 +885,11 @@ function buildSide(sideKey, ids){
   st.bench = ids.slice(1).map(id => {
     const p = S.pokeByName(slotVal[id]);
     return { poke: p, effort: { ...ZERO_EV(), ...(slotEffort[id] || {}) }, natureIdx: S.natureIdxOf(slotNature[id] || 'まじめ'),
-      ability: p.ab1 || '', item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
+      ability: defaultAbilityRB(p), item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
       moves: (slotMoves[id] || autoMoves(p)).filter(Boolean), gender: slotGender[id] || genderOfRB(slotVal[id]),
       currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
   });
-  st.ability = lead.ab1 || '';
+  st.ability = defaultAbilityRB(lead);
   // PP管理(段129): 場の技+控えの技のPPを初期化(エンジンはst.ppがある時だけPPを見る)
   st.pp = st.moves.map(m => (m && m.pp) ? m.pp : 0);
   st.bench.forEach(e => { e.pp = (e.moves || []).map(m => (m && m.pp) ? m.pp : 0); });
@@ -897,10 +905,17 @@ function startBattle(){
   document.body.classList.add('in-battle');
   $('setup').style.display = 'none';
   $('battle').style.display = 'flex';
-  renderAll();   // renderAll内でrenderSideBarsも呼ばれる
+  // 開始メッセージの名前はへんしん(かわりもの)前に確定させる(いけっ！はメタモンの名前で言う)
+  const selfName0 = tPokeName(S.sides.self.poke.name), oppName0 = tPokeName(S.sides.opp.poke.name);
+  // Init-A: バトル開始時の登場特性(いかく/天候/かわりもの=メタモンのへんしん等)を発動(実機準拠)。
+  // 交代・死に出しはエンジンのattemptSwitch内で発動済み=開始時だけここで呼ぶ
+  if (S.phaseInitA) S.phaseInitA();
+  const initLines = S.battleLog.filter(e => !/^───/.test(e.msg)).map(e => lineWithFx(e.msg));
+  logPos = S.battleLog.length;
+  renderAll();   // renderAll内でrenderSideBarsも呼ばれる(へんしん済みのすがたで描画)
   setWeatherFx(null);
   bgmStart();
-  say([I18N.t('real_battle.battle_start_self','バトルスタート！ いけっ！ {n}！').replace('{n}', tPokeName(S.sides.self.poke.name)), I18N.t('real_battle.battle_start_opp','相手は {n} を くりだした！').replace('{n}', tPokeName(S.sides.opp.poke.name))], () => showCmd(true));
+  say([I18N.t('real_battle.battle_start_self','バトルスタート！ いけっ！ {n}！').replace('{n}', selfName0), I18N.t('real_battle.battle_start_opp','相手は {n} を くりだした！').replace('{n}', oppName0)].concat(initLines), () => showCmd(true));
 }
 
 // ===== 描画 =====
@@ -920,10 +935,12 @@ function renderAll(){
     const st = S.sides[side];
     const f = $('f-' + side), pb = $('pb-' + side);
     if (!st.poke) return;
-    const shown = st.illusionAs || st.poke;   // イリュージョン(段138): 化けている姿を表示
+    const shown = st.illusionAs || st.poke;   // イリュージョン(段138)/へんしん(メタモン): 化けている・変身した姿を表示
     f.querySelector('.sprite').innerHTML = spriteHtml(shown);
-    const _g = (!st.illusionAs && st.gender && st.gender !== '—') ? ' ' + st.gender : '';   // 性別記号(化け中は出さない)
-    pb.querySelector('.nm').innerHTML = tPokeName(shown.name) + (_g ? `<span style="color:${st.gender === '♂' ? '#7db0ff' : '#ff9ec4'};font-weight:900">${_g}</span>` : '');
+    // 名前はへんしん中も自分の名前(実機のニックネーム表示準拠=すがたは変身先・名前はメタモン)
+    const named = st.illusionAs || (st.transformBase ? st.transformBase.poke : st.poke);
+    const _g = (!st.illusionAs && !st.transformBase && st.gender && st.gender !== '—') ? ' ' + st.gender : '';   // 性別記号(化け中・へんしん中は出さない)
+    pb.querySelector('.nm').innerHTML = tPokeName(named.name) + (_g ? `<span style="color:${st.gender === '♂' ? '#7db0ff' : '#ff9ec4'};font-weight:900">${_g}</span>` : '');
     const max = S.realStat(st, 'hp') || 1;
     const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
     setHpBar(side, hp, max);
@@ -973,7 +990,8 @@ function renderSideBars(){
         html += `<div class="sicon" style="background:transparent"></div>`;
         continue;
       }
-      const nm = (e.illusionAs || e.poke).name;
+      // 手持ちアイコンはへんしん中も元のすがた(実機準拠: 手持ち画面はメタモンのまま)
+      const nm = (e.illusionAs || (e.transformBase ? e.transformBase.poke : e.poke)).name;
       const enc = encodeURIComponent(nm);
       const dead = e.fainted || (e.currentHp != null && e.currentHp <= 0);
       // 場に出ている=先頭(i===0)かつひんし未
