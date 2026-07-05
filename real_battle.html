@@ -228,8 +228,8 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 /* CH: 敵=中央やや右(メニューとは重ねない)/自分=左寄り(2026-07-05 阿部さん「相手は少し右・手持ちは少し左」) */
 /* 配置調整(2026-07-06 阿部さん): 相手=もう少し右+下げて地平線(46.5%)の草に乗せる。
  * 自分=少し左+下に戻す(浮いて見えない高さ・左下HPボックスとは非重畳を維持) */
-#f-opp{top:58px;right:64px;transform:scale(.82);transform-origin:center bottom}
-#f-self{bottom:64px;left:44px;transform:scale(1.08);transform-origin:center bottom}
+#f-opp{top:58px;right:100px;transform:scale(.95);transform-origin:center bottom}
+#f-self{bottom:64px;left:44px;transform:scale(1.2);transform-origin:center bottom}
 /* 味方は右向き(全スプライトが左向き素材なので反転して相手の方を向かせる=2026-07-06 阿部さん) */
 #f-self .sprite img{transform:scaleX(-1)}
 #f-opp .platform{width:150px;height:24px}
@@ -419,8 +419,21 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
   background:linear-gradient(135deg,#a8871c,#ffd23e)}
 /* ===== CH: #moves 技カプセル縦リスト(チャンピオンズ準拠) ===== */
 /* 実機: 縦カプセル・左にタイプ・技名・右にPP・下に相性帯(◎ばつぐん/△いまひとつ)。選択中=黄緑発光 */
-#moves{position:absolute;right:14px;top:114px;bottom:auto;z-index:10;display:none;flex-direction:column;gap:4px;
-  width:262px;margin:0}
+#moves{position:absolute;right:14px;top:96px;bottom:auto;z-index:10;display:none;flex-direction:column;gap:4px;
+  width:224px;margin:0}
+/* 上段の小ボタン列(様子を見る/技の説明/⚙)=実機のX/Y行相当 */
+#moves .mv-top{display:flex;gap:4px}
+#moves .mv-top button{flex:1 1 auto;padding:2px 4px;border-radius:12px;font-size:9.5px;font-weight:700;text-align:center;
+  background:#22283add;color:#dbe3f2;border:1px solid #ffffff33;cursor:pointer;font-family:inherit;white-space:nowrap}
+#moves .mv-top button:hover{border-color:#d4f542}
+#moves .mv-top button.on{color:#d4f542;border-color:#d4f54288}
+/* 様子を見るパネル(左側オーバーレイ): ランク変化/状態/天候・フィールド残りターン */
+#watch-panel{position:absolute;left:14px;top:96px;z-index:12;display:none;max-width:270px;background:#141927ee;
+  border:1px solid #2a3450;border-radius:12px;padding:10px 12px;font-size:11.5px;color:#e6edf3;cursor:pointer;
+  box-shadow:0 4px 14px #0008}
+#watch-panel .wp-row{margin:3px 0;line-height:1.5}
+#watch-panel .wp-row b{color:#9ec5ff}
+#watch-panel .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466;margin-left:3px}
 #moves button{position:relative;padding:3px 14px 3px 12px;border-radius:18px;border:2px solid #ffffff33;
   background:linear-gradient(135deg,#4638aeee,#6a5be0ee);color:#fff;text-align:left;cursor:pointer;
   font-family:inherit;box-shadow:0 3px 8px #0006;
@@ -551,6 +564,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
       <select id="sprite-src-setup" style="background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:4px 8px">
         <option value="original" data-i18n="real_battle.sprite_src_original">うちのオリジナル絵</option>
         <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
+        <option value="home" data-i18n="real_battle.sprite_src_home">公式3D(Pokémon HOME)</option>
       </select>
     </div>
     <div class="btns">
@@ -623,6 +637,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
         <button id="c-run" data-i18n="real_battle.cmd_run">🏃 にげる(編成にもどる)</button>
       </div>
       <div id="moves"></div>
+      <div id="watch-panel"></div>
       <div id="party"></div>
     </div>
     <div id="speed-row">
@@ -639,6 +654,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
       <span><span data-i18n="real_battle.sprite_src_label">キャラ画像:</span> <select id="sprite-src" style="background:#161d2e;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:3px 6px;font-size:11px">
         <option value="original" data-i18n="real_battle.sprite_src_original">うちのオリジナル絵</option>
         <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
+        <option value="home" data-i18n="real_battle.sprite_src_home">公式3D(Pokémon HOME)</option>
       </select> <span id="sprite-credit" style="display:none;font-size:10px"><a href="https://pokeapi.co/" style="color:#9ec5ff" data-i18n="real_battle.sprite_credit">画像出典: PokéAPI</a></span></span>
       <button id="snd-toggle" style="margin-left:auto;background:#161d2e;border:1px solid #2a3450;border-radius:8px;color:#e6edf3;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
     </div>
@@ -856,7 +872,7 @@ function slotCapsuleHtml(id){
   if (!nm) return `<span class="cap-txt"><strong>—</strong></span>`;
   const it = S.itemByKey(slotItem[id]);
   const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
-  const src = (spriteSrc === 'api' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
+  const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
   return `<span class="cap-txt"><strong>${tPokeName(nm)}</strong><small>${it ? tItemName(it) : ''}</small></span>` +
     `<img src="${src}" alt="" onerror="this.remove()">` +
     `<span class="cap-change">⟳ ${I18N.t('real_battle.sel_change','かえる')}</span>`;
@@ -1310,10 +1326,10 @@ function startBattle(){
 // APIモードは通常フォームのみ(メガ/特殊フォームは名前→フォームID対応が未整備なので自作SVG継続)
 let spriteSrc = localStorage.getItem('rb_sprite_src') || 'original';
 function setSpriteSrc(v){
-  spriteSrc = v === 'api' ? 'api' : 'original';
+  spriteSrc = (v === 'api' || v === 'home') ? v : 'original';
   localStorage.setItem('rb_sprite_src', spriteSrc);
   ['sprite-src', 'sprite-src-setup'].forEach(id => { const el = $(id); if (el && el.value !== spriteSrc) el.value = spriteSrc; });
-  const cr = $('sprite-credit'); if (cr) cr.style.display = spriteSrc === 'api' ? 'inline' : 'none';
+  const cr = $('sprite-credit'); if (cr) cr.style.display = spriteSrc !== 'original' ? 'inline' : 'none';
   if (document.body.classList.contains('in-battle')){ try { renderAll(); } catch(e) {} }
   // 選出画面のカプセル/詳細パネルのスプライトも追従
   try {
@@ -1329,6 +1345,13 @@ function spriteHtml(poke){
   // APIモード: 対応表(sprite_api_ids.js=フォーム/メガ込み274体)にある名前はPokeAPI画像。
   // ローカルpoke画像→PokeAPI本家→自作SVG→サークルの順でフォールバック
   const _apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[poke.name] : null;
+  if (spriteSrc === 'home' && _apiId){
+    const n = _apiId;
+    return `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${n}.png" alt="" style="display:none;height:150px" data-step="0"
+        onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'"
+        onerror="if(this.dataset.step==='0'){this.dataset.step='1';this.style.imageRendering='pixelated';this.style.height='112px';this.src='images/poke/${n}.png';}else if(this.dataset.step==='1'){this.dataset.step='2';this.style.imageRendering='auto';this.src='images/sim/${enc}.svg';}else{this.remove();}">
+      <span class="circ" style="background:${color};font-size:${short.length > 4 ? 11 : 13}px">${short}</span>`;
+  }
   if (spriteSrc === 'api' && _apiId){
     const n = _apiId;
     return `<img src="images/poke/${n}.png" alt="" style="display:none;image-rendering:pixelated;height:112px" data-step="0"
@@ -1579,8 +1602,12 @@ function showMoves(){
   // CH: 技カプセル(チャンピオンズ準拠)
   // - 上段: タイプバッジ + 技名 / 右上: PP大きめ / 下段: 相性帯 + 威力/命中
   // - カプセル背景はタイプ色グラデ・disabled時(PP切れ/こだわり外)はグレーアウト
-  // 技リスト上の能力値ボタン(実機のX様子を見る位置=2026-07-05 阿部さん「技名の上に能力値の設定ボタン」)
-  const statsBtn = `<button class="stats-open">${I18N.t('real_battle.btn_stats','⚙ 能力値')}</button>`;
+  // 上段=様子を見る/技の説明(トグル)/⚙能力値(実機のX/Y行相当=2026-07-06 阿部さん)
+  const detailOn = localStorage.getItem('rb_move_detail') === 'on';
+  const statsBtn = `<div class="mv-top">` +
+    `<button class="watch-open">${I18N.t('real_battle.watch_button','👀 様子を見る')}</button>` +
+    `<button class="desc-toggle${detailOn ? ' on' : ''}">${I18N.t('real_battle.movedesc_button','📖 技の説明')}</button>` +
+    `<button class="stats-open">⚙</button></div>`;
   // メガシンカ=技リストの左横の丸ボタン(実機のRボタン位置=2026-07-06 阿部さん)。使える時だけ出す
   const megaSide = (S.canMegaEvolve(st) || st.megaChoice)
     ? `<button class="mega-side${st.megaChoice ? ' mega-armed' : ''}"><span class="ms-icon">⬡</span><span class="ms-label">${I18N.t('real_battle.cmd_mega','⬡ メガシンカ').replace('⬡ ', '')}</span></button>`
@@ -1600,18 +1627,20 @@ function showMoves(){
         const ppLow = ppNow != null && ppNow <= 2 && !off;
         const ppCls = 'mv-pp' + (ppLow ? ' pp-low' : '');
         const ppTxt = ppNow != null ? `${ppNow}/${ppMax}` : '';
-        const subParts = [
+        // 技の説明OFF時は相性帯+使用条件だけ(実機準拠のスリム表示=2026-07-06 阿部さん「文字が多い」)
+        const subParts = (detailOn ? [
           `${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'}`,
           `${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'}`,
-          tCatName(m.category),
+          tCatName(m.category)
+        ] : []).concat([
           locked ? I18N.t('real_battle.move_stubbornlock_note','こだわり中') : '',
           needsBerry ? I18N.t('real_battle.move_needs_berry','きのみを たべてから') : ''
-        ].filter(Boolean).join(' / ');
+        ]).filter(Boolean).join(' / ');
         // カプセル背景=タイプ色グラデ(暗め→明るめ)
         const btnStyle = off ? '' : `background:linear-gradient(135deg,${col}dd 0%,${col}99 100%)`;
         return `<button class="tcol" data-i="${i}" ${off ? 'disabled' : ''} style="${btnStyle}">` +
           `<span class="mv-name"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span><strong>${tMoveName(m)}${lockName === m.name ? ' 🔒' : ''}</strong></span>` +
-          `<div class="mv-sub">${effBand(m)}${subParts}</div>` +
+          ((effBand(m) || subParts) ? `<div class="mv-sub">${effBand(m)}${subParts}</div>` : '') +
           (ppTxt ? `<span class="${ppCls}">${ppTxt}</span>` : '') +
           `</button>`;
       }).join(''))
@@ -1619,6 +1648,11 @@ function showMoves(){
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
     if (b.classList.contains('stats-open')){ openStatsModal(); return; }
+    if (b.classList.contains('watch-open')){ toggleWatchPanel(); return; }
+    if (b.classList.contains('desc-toggle')){
+      localStorage.setItem('rb_move_detail', localStorage.getItem('rb_move_detail') === 'on' ? 'off' : 'on');
+      showMoves(); return;
+    }
     if (b.classList.contains('mega-side')){ toggleMega(); return; }
     if (b.classList.contains('party-open')){ showParty(); return; }   // 交代へ(もどるで技リストに帰る)
     doTurn(+b.dataset.i);
@@ -1689,6 +1723,35 @@ function openStatsModal(){
   holder.querySelector('#sm-close').addEventListener('click', () => { $('stats-modal').style.display = 'none'; });
   $('stats-modal').style.display = 'flex';
 }
+// 様子を見る: 両者のランク変化・状態異常と、天候/フィールド(残りターン)を表示(2026-07-06 阿部さん・実機のX)
+function toggleWatchPanel(){
+  const w = $('watch-panel');
+  if (w.style.display === 'block'){ w.style.display = 'none'; return; }
+  const RL = {atk:'A', def:'B', spatk:'C', spdef:'D', spd:'S', accuracy:'ACC', evasion:'EVA', crit:'CRIT'};
+  const sj = S.statusJa();
+  const _K = {burn:'common.status_burn', paralysis:'common.status_paralysis', poison:'common.status_poison',
+    badpoison:'common.status_toxic', sleep:'common.status_sleep', freeze:'common.status_freeze'};
+  const row = side => {
+    const st = S.sides[side];
+    if (!st || !st.poke) return '';
+    const parts = [];
+    Object.entries(st.rank || {}).forEach(([k, v]) => { if (v) parts.push(`<span class="bdg">${RL[k] || k}${v > 0 ? '+' : ''}${v}</span>`); });
+    if (sj[st.status]) parts.push(`<span class="bdg">${I18N.t(_K[st.status] || '', sj[st.status])}</span>`);
+    if (st.confusion > 0) parts.push(`<span class="bdg">${I18N.t('common.status_confusion','こんらん')}</span>`);
+    if (st.subHp > 0) parts.push(`<span class="bdg">${I18N.t('common.bdg_substitute','みがわり')}</span>`);
+    return `<div class="wp-row"><b>${tPokeName((st.illusionAs || st.poke).name)}</b>${parts.join('') || ' ' + I18N.t('real_battle.watch_none','とくに 変化なし')}</div>`;
+  };
+  const envRows = [];
+  const turnsTxt = n => n != null ? ' (' + I18N.t('real_battle.watch_turns_left','のこり{n}ターン').replace('{n}', n) + ')' : '';
+  const env = S.env || {};
+  if (env.weather && env.weather !== 'none')
+    envRows.push(`<div class="wp-row">☀ ${I18N.t('real_battle.env_weather_' + env.weather, env.weather)}${turnsTxt(env.weatherTurns)}</div>`);
+  if (env.field && env.field !== 'none')
+    envRows.push(`<div class="wp-row">🌐 ${I18N.t('real_battle.env_field_' + env.field, env.field)}${turnsTxt(env.fieldTurns)}</div>`);
+  w.innerHTML = row('opp') + row('self') + envRows.join('');
+  w.style.display = 'block';
+  w.onclick = () => { w.style.display = 'none'; };
+}
 function toggleMega(){
   const st = S.sides.self;
   if (st.megaChoice){ st.megaChoice = false; }
@@ -1701,7 +1764,7 @@ function doTurn(moveIdx){
   if (busy || gameOver) return;
   if (S.sides.self.fainted) return;   // 死に出しの選択待ち中はターンを進めない
   // 行動が決まったらまずメニューをパッと消す(2026-07-06 阿部さん)
-  ['cmd', 'moves', 'party'].forEach(id => { $(id).style.display = 'none'; });
+  ['cmd', 'moves', 'party', 'watch-panel'].forEach(id => { $(id).style.display = 'none'; });
   const self = S.sides.self, opp = S.sides.opp;
   if (moveIdx != null) self.selectedMoveIdx = moveIdx;
   // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
