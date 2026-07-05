@@ -195,8 +195,24 @@ const masterPokemon = P.map(v=>{
   const jaName = jaNameRaw(v);   // Champions表記のJA名(_buildと同一ロジック・curatedと結合)
   const seasons = seasonOf(jaName);
   const names = {...v.species_names, ja: jaName};   // ja=jaNameRaw(normWide・Champions表記)
-  if (v.form_names && Object.keys(v.form_names).length){
-    for(const lang of Object.keys(v.form_names)){ if(lang!=='ja') names[lang]=v.form_names[lang]; }   // ja以外を上書き・jaはjaNameRaw保持
+  // フォーム名の上書き(2026-07-06修正・実例95キー壊れ):
+  //  ①full_names(pokemon_name=完全名 'Hisuian Samurott'等)が最優先
+  //  ②ラベル(form_names)自体が種名を含む完全名(ロトム系CJK等)はそのまま
+  //  ③それ以外のラベル('Hisuian Form'/'알로라의 모습'等)は公式部品の合成「種名 (ラベル)」
+  //    (es/it/ko/zh-Hans/zh-HantはPokeAPIに完全名が無い。でっち上げ禁止=公式の種名+公式ラベルのみで構成)
+  //  ※メガは従来どおりラベルのまま(直後のde 'Mega-Form'修正・synthMegaNames系の既存処理を壊さない)
+  {
+    const _langs = new Set([...Object.keys(v.form_names||{}), ...Object.keys(v.full_names||{})]);
+    for (const lang of _langs){
+      if (lang === 'ja') continue;
+      const full = v.full_names && v.full_names[lang];
+      if (full){ names[lang] = full; continue; }
+      const label = v.form_names && v.form_names[lang];
+      if (!label) continue;
+      const spn = v.species_names && v.species_names[lang];
+      if (v.is_mega || !spn || label.includes(spn)) names[lang] = label;
+      else names[lang] = spn + ' (' + label + ')';
+    }
   }
   // ★(1) 公式メガのde修正: PokeAPIのform_names.deは全メガで'Mega-Form'(壊れ値)
   // → synthMegaNames で 'Mega-'+種de名+サフィックス に合成上書き(deのみ)

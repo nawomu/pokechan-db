@@ -8,13 +8,16 @@ const LMAP={'ja-Hrkt':'ja','en':'en','fr':'fr','de':'de','es':'es','it':'it','ko
 async function gql(q){for(let a=0;a<4;a++){try{const r=await fetch(GQL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q})});const j=await r.json();if(j.errors)throw new Error(JSON.stringify(j.errors).slice(0,200));return j.data;}catch(e){if(a===3)throw e;await new Promise(r=>setTimeout(r,1500*(a+1)));}}}
 const LF=`{pokemon_v2_language:{name:{_in:${JSON.stringify(LANGS)}}}}`;
 function names(arr){const o={};(arr||[]).forEach(n=>{o[LMAP[n.pokemon_v2_language.name]]=n.name;});return o;}
+// pokemon_name=フォームの「完全名」(例: Hisuian Samurott)。name(=Hisuian Form等のラベル)とは別カラム。
+// ラベルで種名を上書きすると壊れる(2026-07-06発覚)ため完全名も取得する
+function fullNames(arr){const o={};(arr||[]).forEach(n=>{if(n.pokemon_name)o[LMAP[n.pokemon_v2_language.name]]=n.pokemon_name;});return o;}
 (async()=>{
   const all=[]; const CH=300;
   for(let off=0;;off+=CH){
     const q=`query{ pokemon_v2_pokemon(limit:${CH},offset:${off},order_by:{id:asc}){
       id name is_default
       pokemon_v2_pokemonspecy{ id pokemon_v2_pokemonspeciesnames(where:${LF}){name pokemon_v2_language{name}} }
-      pokemon_v2_pokemonforms{ form_name is_mega pokemon_v2_pokemonformnames(where:${LF}){name pokemon_v2_language{name}} }
+      pokemon_v2_pokemonforms{ form_name is_mega pokemon_v2_pokemonformnames(where:${LF}){name pokemon_name pokemon_v2_language{name}} }
       pokemon_v2_pokemontypes(order_by:{slot:asc}){ pokemon_v2_type{name} }
       pokemon_v2_pokemonstats{ base_stat pokemon_v2_stat{name} }
       pokemon_v2_pokemonabilities(order_by:{slot:asc}){ is_hidden pokemon_v2_ability{name} }
@@ -29,6 +32,7 @@ function names(arr){const o={};(arr||[]).forEach(n=>{o[LMAP[n.pokemon_v2_languag
         is_mega:!!form.is_mega, form_slug:form.form_name||'',
         species_names:names(sp.pokemon_v2_pokemonspeciesnames),
         form_names:names(form.pokemon_v2_pokemonformnames),
+        full_names:fullNames(form.pokemon_v2_pokemonformnames),
         types:(p.pokemon_v2_pokemontypes||[]).map(t=>t.pokemon_v2_type.name),
         stats:{hp:stats.hp,atk:stats.attack,def:stats.defense,spa:stats['special-attack'],spd:stats['special-defense'],spe:stats.speed},
         abilities:(p.pokemon_v2_pokemonabilities||[]).map(a=>({name:a.pokemon_v2_ability.name,hidden:a.is_hidden})),
