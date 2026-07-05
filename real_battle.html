@@ -62,11 +62,12 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 #sel-detail .sd-head strong{font-size:17px;display:block}
 #sel-detail .sd-type{display:inline-block;font-size:10px;font-weight:800;color:#fff;border-radius:9px;padding:2px 9px;
   margin:4px 4px 0 0;box-shadow:0 1px 2px #0007;border:1px solid #ffffff55}
-/* 特性/もちものの変更セレクト(2026-07-05 阿部さん「持ち物と特性もクリックで変更できたら」) */
-#sel-detail .sd-row select{background:#00000042;color:#fff;border:1px solid #ffffff33;border-radius:8px;
-  padding:2px 6px;font-size:12px;font-weight:700;max-width:62%;font-family:inherit;cursor:pointer;text-align:right}
-#sel-detail .sd-row select:hover{border-color:#d4f542}
-#sel-detail .sd-row select option{color:#e6edf3;background:#141927;font-weight:400}
+/* 特性/もちもの/性格の変更セレクト(2026-07-05 阿部さん「持ち物と特性もクリックで変更できたら」) */
+#sel-detail .sd-row select,#sel-detail .sd-ev select{background:#00000042;color:#fff;border:1px solid #ffffff33;border-radius:8px;
+  padding:2px 6px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+#sel-detail .sd-row select{max-width:62%;text-align:right}
+#sel-detail .sd-row select:hover,#sel-detail .sd-ev select:hover{border-color:#d4f542}
+#sel-detail .sd-row select option,#sel-detail .sd-ev select option{color:#e6edf3;background:#141927;font-weight:400}
 #sel-detail .sd-moves{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
 #sel-detail .sd-move{position:relative;padding:6px 44px 6px 12px;border-radius:16px;border:2px solid #ffffff33;color:#fff;
   text-align:left;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 2px 6px #0005;
@@ -93,19 +94,50 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 #pp-list button:hover{border-color:#58a6ff;background:#1b2540}
 #pp-list img{width:54px;height:54px;object-fit:contain}
 #pp-close{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer}
-/* 能力値エディタ埋め込み(ビルダー=party_checkerのstats_onlyモードをiframeでそのまま使用。
- * 2026-07-05 阿部さん「ビルダーの仕様をそのまま持ってくる」「くわしく編成に最初から開いておく」。
- * 合計66pt・1能力32pt上限・スライダーUIはビルダー側の実装=二重管理しない。技/特性/持ち物は中央パネルで変更 */
-#detail-setup{margin-top:12px;border-top:1px solid #232a3a;padding-top:10px;display:none}
-#detail-setup.open{display:block}
-#ev-frame{width:100%;height:600px;border:0;border-radius:12px;background:#0c1322;display:block}
-#detail-toggle{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:8px;color:#9fb4d8;
-  padding:6px 12px;cursor:pointer;font-size:12px;width:100%}
+/* ===== 能力値コンパクトエディタ(中央パネル下段に一体・2026-07-05 阿部さん) =====
+ * ルール=ビルダー準拠(66pt/32上限/性格)。UI=名前なし・4目盛りメーター・MIN⇔MAXトグル1個・自動確定(適用ボタンなし)。
+ * #setup button の全体スタイル(flex:1/padding:12px)に負けないよう #sel-detail/#stats-modal 両スコープで上書き */
+.sd-ev{margin-top:8px;border-top:1px solid #ffffff22;padding-top:7px}
+.sd-ev-top{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.sd-ev-top .sd-nature{flex:1 1 auto;min-width:0}
+.sd-ev-budget{font-size:11px;color:#ffffffbb;font-weight:700;white-space:nowrap}
+.sd-ev-budget b{color:#ffe066;font-size:13px}
+.sd-ev.full .sd-ev-budget b{color:#ff5ee0}
+#sel-detail .sd-ev button,#stats-modal .sd-ev button{flex:none;width:auto;padding:0;font-weight:900;font-size:9px;
+  background:#00000042;border:1px solid #ffffff33;color:#fff;border-radius:4px;cursor:pointer;font-family:inherit}
+#sel-detail .sd-ev button:hover:not(:disabled),#stats-modal .sd-ev button:hover:not(:disabled){border-color:#d4f542}
+#sel-detail .sd-ev button:disabled,#stats-modal .sd-ev button:disabled{opacity:.3;cursor:default}
+#sel-detail .sd-ev .sd-ev-reset,#stats-modal .sd-ev .sd-ev-reset{padding:3px 9px;font-size:10px;font-weight:700}
+.sd-ev-row{display:grid;grid-template-columns:58px 34px 1fr 17px 24px 17px 36px;gap:3px;align-items:center;margin:3px 0}
+.sd-ev-row .evl{font-weight:900;font-size:12px;white-space:nowrap;overflow:hidden}
+.sd-ev-row .evl small{font-size:8.5px;color:#ffffff99;margin-left:2px;font-weight:600}
+.sd-ev-row .evl.up{color:#ff8a8a}
+.sd-ev-row .evl.up small{color:#ff8a8a99}
+.sd-ev-row .evl.down{color:#8ac2ff}
+.sd-ev-row .evl.down small{color:#8ac2ff99}
+.sd-ev-row .real{text-align:right;font-weight:900;font-style:italic;font-size:12.5px}
+.sd-ev-row.has .real{color:#ffe066}
+.sd-ev-row.maxed .real{color:#ff9dbd}
+/* メーター: 4目盛り(1目盛り=8pt)。値は0〜32のまま=見た目だけギュッと */
+.sd-ev-row .bar{position:relative;height:14px;background:#0d1117;border:1px solid #ffffff33;border-radius:4px;
+  overflow:hidden;cursor:pointer;touch-action:none}
+.sd-ev-row .bar::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),#ffffff30 calc(25% - 1px),#ffffff30 25%)}
+.sd-ev-row .fill{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#ffe680,#c9b878)}
+.sd-ev.full .fill{background:linear-gradient(90deg,#ffb84d,#ff7733)}
+#sel-detail .sd-ev .dec,#sel-detail .sd-ev .inc,#stats-modal .sd-ev .dec,#stats-modal .sd-ev .inc{height:16px;font-size:8px}
+.sd-ev-row .pts{text-align:center;font-weight:900;font-size:12px}
+.sd-ev-row.has .pts{color:#ffe066}
+.sd-ev-row.maxed .pts{color:#ff6f6f}
+#sel-detail .sd-ev .mm,#stats-modal .sd-ev .mm{height:16px;font-size:8.5px;letter-spacing:.5px}
 /* わざ検索モーダル(ポケモン検索と同型) */
-/* 能力値設定モーダル(バトル中⚙用。中身はビルダーの共通エディタiframe) */
+/* 能力値設定モーダル(バトル中⚙用。中身=共通コンパクトエディタ) */
 #stats-modal{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
-#stats-modal .sm-box{background:transparent;border:0;width:100%;max-width:720px;display:flex;flex-direction:column;padding:0}
-#sm-frame{width:100%;height:640px;border:0;border-radius:14px}
+#stats-modal .sm-box{background:#141927;border:1px solid #2a3450;border-radius:14px;width:100%;max-width:400px;
+  display:flex;flex-direction:column;padding:14px;color:#e6edf3}
+#stats-modal .sm-box .sd-ev{border-top:0;padding-top:0;margin-top:0}
+#stats-modal .sm-box select{background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:3px 6px;font-size:12px}
+#sm-close{margin-top:12px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer;font-family:inherit}
 /* 技リスト上の能力値ボタン(コンパクト=盤面高さに収める) */
 #moves button.stats-open{padding:1px 10px;border-radius:12px;font-size:10px;font-weight:700;text-align:center;
   background:#22283add;color:#d4f542;border:1px solid #d4f54255}
@@ -494,9 +526,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
         <div class="team-row" id="row-opp"></div>
       </div>
     </div>
-    <!-- CH: くわしく編成=ビルダー共通の能力値エディタ(既定で開く)。わざ/特性/もちものは中央パネルで変更(2026-07-05 阿部さん) -->
-    <button id="detail-toggle">⚙ <span data-i18n="real_battle.stats_modal_title">能力値(努力値ポイント)</span></button>
-    <div id="detail-setup" class="open"></div>
+    <!-- CH: 能力値エディタは中央パネル(#sel-detail)下段に一体化(2026-07-05 阿部さん「くっつけて・名前/適用なし」) -->
     <!-- CH: キャラ画像ソース(バトル前にも選べる=2026-07-05 阿部さん)。バトル中の#sprite-srcと同期 -->
     <div style="margin-top:10px;font-size:12px;color:#8b94a7;display:flex;gap:8px;align-items:center">
       <span data-i18n="real_battle.sprite_src_label">キャラ画像:</span>
@@ -716,7 +746,7 @@ const tTypeName = ty => (window.I18N && window.I18N.type) ? window.I18N.type(ty)
 const _CAT_KEY = {'物理':'common.cat_phys', '特殊':'common.cat_spec', '変化':'common.cat_stat'};
 const tCatName = c => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[c] || '', c) : c;
 // 言語切替・i18n初期化時に「くわしく編成」を作り直す(option等の一度きり構築JS部品を追従させる。Sが未準備なら何もしない=冪等)
-['i18n:changed', 'i18n:ready'].forEach(ev => document.addEventListener(ev, () => { if (typeof S !== 'undefined' && S) renderDetailSetup(); if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} } })); // 2026-07-03: 対戦中の言語切替で盤面名前ラベルも即時再描画(#15統合)
+['i18n:changed', 'i18n:ready'].forEach(ev => document.addEventListener(ev, () => { if (typeof S !== 'undefined' && S) try { renderSelDetail(selectedSlot); } catch(e) {} if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} } })); // 2026-07-03: 対戦中の言語切替で盤面名前ラベルも即時再描画(#15統合)
 
 document.getElementById('engine-frame').addEventListener('load', () => {
   const w = $('engine-frame').contentWindow;
@@ -787,7 +817,6 @@ function setSlot(id, name, keepCustom){
   if (!keepCustom){ slotNature[id] = 'まじめ'; slotEffort[id] = ZERO_EV(); }   // 手動選択は無補正・努力値0
   if (!keepCustom || !slotAbility[id]) slotAbility[id] = defaultAbilityRB(S.pokeByName(name));   // ポケモンを変えたら特性も既定に
   $(id).innerHTML = slotCapsuleHtml(id);
-  renderDetailSetup();
   if (typeof selectedSlot !== 'undefined' && selectedSlot === id) renderSelDetail(id);
   saveTeam();
 }
@@ -807,8 +836,7 @@ function slotCapsuleHtml(id){
 function setSelectedSlot(id){
   selectedSlot = id;
   document.querySelectorAll('.team-row .slot').forEach(b => b.classList.toggle('selected', b.id === id));
-  renderSelDetail(id);
-  renderDetailSetup();   // 下の能力値エディタも選択中スロットに追従
+  renderSelDetail(id);   // 中央パネル(能力値エディタ込み)を選択中スロットに追従
 }
 // 選べる持ち物リスト(メガストーンは汎用のみ。旧くわしく編成と同じ絞り込み)
 function itemChoicesRB(){
@@ -843,7 +871,15 @@ function renderSelDetail(id){
         `<span class="sd-pp">${m.pp || 0}/${m.pp || 0}</span></button>`;
     }).join('') + `</div>` +
     `<div class="sd-row"><span>${I18N.t('real_battle.sel_ability','特性')}</span><select class="sd-ab">${abOpts}</select></div>` +
-    `<div class="sd-row"><span>${I18N.t('real_battle.sel_item','もちもの')}</span><select class="sd-item">${itOpts}</select></div>`;
+    `<div class="sd-row"><span>${I18N.t('real_battle.sel_item','もちもの')}</span><select class="sd-item">${itOpts}</select></div>` +
+    `<div class="sd-ev"></div>`;
+  // 能力値エディタ(パネル下段に一体・自動確定=2026-07-05 阿部さん)
+  renderEvEditor(box.querySelector('.sd-ev'), {
+    poke: p,
+    getEff: () => slotEffort[id] || ZERO_EV(),
+    getNature: () => slotNature[id],
+    apply: (eff, nature) => { slotEffort[id] = eff; slotNature[id] = nature; saveTeam(); },
+  });
   box.querySelectorAll('.sd-move').forEach(b => b.addEventListener('click', () => { SE.select(); openMovePicker(id, +b.dataset.i); }));
   const abSel = box.querySelector('.sd-ab');
   if (abSel) abSel.addEventListener('change', () => { SE.select(); slotAbility[id] = abSel.value; saveTeam(); });
@@ -930,104 +966,63 @@ function loadHandoff(){
     return true;
   } catch (e) { return false; }
 }
-// ===== 能力値エディタ(ビルダー=party_checkerのstats_onlyモードをiframe埋め込み) =====
-// 「ビルダーの仕様をそのまま」(2026-07-05 阿部さん): 66pt/32上限/スライダー/性格ドロップダウンは
-// party_checker側の実装を共有=二重管理しない。確定/キャンセルはpostMessage(stats-picker:confirm/cancel)。
-// iframe側はlocalStorageを書かない(OK/Cancelはstats_onlyモードでpostMessage版に差し替わる)=ビルダーの保存チームは壊さない
-const effortStr = e => EFFORT_KEYS.map(k => `${k}:${(e && e[k]) || 0}`).join(',');
-function evFrameUrl(nm, effort, nature){
-  return `party_checker.html?stats_only=true&v=20260705b&poke=${encodeURIComponent(nm)}&effort=${encodeURIComponent(effortStr(effort))}` +
-    `&nature=${encodeURIComponent(nature || 'まじめ')}&slot=rb`;   // v=CloudflareのHTMLキャッシュ避け
-}
-// iframe内のエディタを対象ポケモンに合わせて開き直す(同一オリジン=直接呼び出し。リロード無し)。
-// iframe側のi18n初期化(__i18nReady)前に描画すると動的ラベルがjaのまま焼き付くため、準備完了までリトライして待つ
-function evFrameSync(ifr, nm, effort, nature){
-  if (!ifr) return;
-  const token = (ifr.__syncToken = (ifr.__syncToken || 0) + 1);   // 連打/スロット切替で古いリトライを無効化
-  const attempt = n => {
-    if (ifr.__syncToken !== token) return;
-    let ready = false;
-    try {
-      const w = ifr.contentWindow;
-      // party/POKE_MAP はlet/const宣言=window越しに不可視。橋(__statsOnlySet)経由でのみ操作できる
-      ready = !!(w && typeof w.__statsOnlySet === 'function' && w.__statsOnlyHas(nm) && w.__i18nReady);
-      if (ready){
-        w.__statsOnlySet(nm, clampEffortRB(effort), nature || 'まじめ');
-        // 埋め込みでは「閉じる」が無意味(背景クリックで消えると操作不能)→閉じられたら即開き直す
-        if (!w.__rbEvGuard){
-          w.__rbEvGuard = true;
-          const ov = w.document.getElementById('ev-ov');
-          if (ov) ov.addEventListener('click', e => { if (e.target === ov) setTimeout(() => { try { w.openStatPopup(0); } catch(_){} }, 0); });
-        }
-        return;
-      }
-    } catch(e){}
-    if (!ready && n < 40) setTimeout(() => attempt(n + 1), 150);
+// ===== 能力値コンパクトエディタ(中央パネル直下に一体化・2026-07-05 阿部さん) =====
+// ルールはビルダー準拠(合計66pt/1能力32pt/1pt=実数値+1・性格補正)。UIは指示どおりコンパクト独自:
+// ポケモン名なし/メーター4目盛り(1目盛り=8pt)/MIN⇔MAXトグル1個/適用・キャンセルなし=触った瞬間に確定保存
+const EV_LETTER = {hp:'H', atk:'A', def:'B', spatk:'C', spdef:'D', spd:'S'};
+const EV_LABEL_KEY = {hp:'stats.hp_full', atk:'stats.atk_full', def:'stats.def_full',
+  spatk:'stats.sp_atk_full', spdef:'stats.sp_def_full', spd:'stats.spd_full'};
+const tNature = n => (window.I18N && I18N.nature) ? I18N.nature(n) : n;
+// ctx = { poke, getEff(), getNature(), apply(eff, nature) } — applyは変更のたびに即呼ばれる(自動確定)
+function renderEvEditor(container, ctx){
+  if (!container || !ctx.poke) return;
+  const eff = clampEffortRB(ctx.getEff());
+  const natureName = ctx.getNature() || 'まじめ';
+  const nat = S.natureList().find(n => n[0] === natureName) || ['まじめ','—','—'];
+  const total = EFFORT_KEYS.reduce((s, k) => s + eff[k], 0);
+  const maxFor = k => Math.min(32, 66 - (total - eff[k]));
+  const tmp = S.makeSideState();
+  tmp.poke = ctx.poke; tmp.effort = eff; tmp.natureIdx = S.natureIdxOf(natureName);
+  const natOpts = S.natureList().map(n => {
+    const fx = n[1] !== '—' ? ` (${EV_LETTER[n[1]]}↑${EV_LETTER[n[2]]}↓)` : '';
+    return `<option value="${n[0]}" ${n[0] === natureName ? 'selected' : ''}>${tNature(n[0])}${fx}</option>`;
+  }).join('');
+  container.classList.toggle('full', total >= 66);
+  container.innerHTML =
+    `<div class="sd-ev-top"><select class="sd-nature">${natOpts}</select>` +
+    `<span class="sd-ev-budget"><b>${total}</b>/66</span>` +
+    `<button class="sd-ev-reset">${I18N.t('buttons.reset','リセット')}</button></div>` +
+    EFFORT_KEYS.map(k => {
+      const pts = eff[k], mx = maxFor(k);
+      const isMin = pts > 0 && pts >= mx;   // これ以上盛れない→MINに切り替わる(1ボタントグル)
+      return `<div class="sd-ev-row${pts >= 32 ? ' maxed' : pts > 0 ? ' has' : ''}" data-k="${k}">` +
+        `<span class="evl${nat[1] === k ? ' up' : nat[2] === k ? ' down' : ''}">${EV_LETTER[k]}<small>${I18N.t(EV_LABEL_KEY[k], k)}</small></span>` +
+        `<span class="real">${S.realStat(tmp, k)}</span>` +
+        `<span class="bar"><span class="fill" style="width:${pts / 32 * 100}%"></span></span>` +
+        `<button class="dec" ${pts <= 0 ? 'disabled' : ''}>◀</button><span class="pts">${pts}</span>` +
+        `<button class="inc" ${pts >= mx ? 'disabled' : ''}>▶</button>` +
+        `<button class="mm" ${!isMin && mx <= pts ? 'disabled' : ''}>${isMin ? 'MIN' : 'MAX'}</button></div>`;
+    }).join('');
+  // どの操作も即確定(適用ボタン無し=他のポケモンに移っても設定が残る)
+  const commit = (newEff, newNature) => {
+    ctx.apply(clampEffortRB(newEff || eff), newNature || natureName);
+    renderEvEditor(container, ctx);
   };
-  attempt(0);
+  container.querySelector('.sd-nature').addEventListener('change', e => { SE.select(); commit(eff, e.target.value); });
+  container.querySelector('.sd-ev-reset').addEventListener('click', () => { SE.select(); commit(ZERO_EV()); });
+  container.querySelectorAll('.sd-ev-row').forEach(row => {
+    const k = row.dataset.k;
+    const set = v => commit({ ...eff, [k]: Math.max(0, Math.min(maxFor(k), Math.round(v))) });
+    row.querySelector('.dec').addEventListener('click', () => set(eff[k] - 1));
+    row.querySelector('.inc').addEventListener('click', () => set(eff[k] + 1));
+    row.querySelector('.mm').addEventListener('click', () => { SE.select(); set(eff[k] > 0 && eff[k] >= maxFor(k) ? 0 : maxFor(k)); });
+    row.querySelector('.bar').addEventListener('pointerdown', ev => {
+      ev.preventDefault();
+      const r = ev.currentTarget.getBoundingClientRect();
+      set((ev.clientX - r.left) / r.width * 32);
+    });
+  });
 }
-// 選出画面下のエディタを選択中スロットに同期
-function evInlineSync(){
-  const ifr = $('ev-frame');
-  const id = selectedSlot, nm = slotVal[id];
-  if (!ifr || !nm) return;
-  slotEffort[id] = clampEffortRB(slotEffort[id]);
-  evFrameSync(ifr, nm, slotEffort[id], slotNature[id]);
-}
-// くわしく編成欄=能力値エディタ(既定で開いておく=2026-07-05 阿部さん)。iframeは言語切替時のみ作り直す
-function renderDetailSetup(){
-  const box = $('detail-setup');
-  if (!box) return;
-  const nm = slotVal[selectedSlot];
-  if (!nm) return;
-  const lang = (window.I18N && I18N.lang) || 'ja';
-  let ifr = $('ev-frame');
-  if (!ifr || ifr.dataset.lang !== lang){
-    box.innerHTML = '';
-    ifr = document.createElement('iframe');
-    ifr.id = 'ev-frame';
-    ifr.dataset.lang = lang;
-    ifr.src = evFrameUrl(nm, slotEffort[selectedSlot], slotNature[selectedSlot]);
-    ifr.addEventListener('load', evInlineSync);
-    box.appendChild(ifr);
-    return;
-  }
-  evInlineSync();
-}
-// エディタからの確定/キャンセル(選出画面インライン+バトル中モーダルの両方をここで受ける)
-window.addEventListener('message', e => {
-  const d = e.data;
-  if (!d || typeof d.type !== 'string' || d.type.indexOf('stats-picker:') !== 0) return;
-  const inlineIfr = $('ev-frame'), modalIfr = $('sm-frame');
-  const isInline = inlineIfr && e.source === inlineIfr.contentWindow;
-  const isModal  = modalIfr  && e.source === modalIfr.contentWindow;
-  if (!isInline && !isModal) return;
-  if (d.type === 'stats-picker:confirm'){
-    const eff = clampEffortRB(d.effort), nat = d.nature || 'まじめ';
-    if (isInline){
-      const id = selectedSlot;
-      slotEffort[id] = eff;
-      slotNature[id] = nat;
-      saveTeam();
-      // iframe側の基準値も更新(以後のキャンセル=この確定値に戻る)
-      try { inlineIfr.contentWindow.__statsOnlySet(slotVal[id], eff, nat, true); } catch(_){}
-    } else {
-      // バトル中: 場の自分ポケモンに即時反映(HP最大値が縮んだら現在HPをクランプ)
-      const st = S.sides.self;
-      if (st && st.poke){
-        st.effort = eff;
-        st.natureIdx = S.natureIdxOf(nat);
-        const newMax = S.realStat(st, 'hp');
-        if (st.currentHp != null) st.currentHp = Math.min(st.currentHp, newMax);
-        renderAll();
-      }
-      $('stats-modal').style.display = 'none';
-    }
-  } else if (d.type === 'stats-picker:cancel'){
-    if (isInline) evInlineSync();   // 保存値に戻して開き直す(インラインは常時表示)
-    else $('stats-modal').style.display = 'none';
-  }
-});
 // わざモーダル(ひらがな検索→クリックでそのスロットの技を差し替え)
 function openMovePicker(slotId, idx){
   movePick = { slotId, idx };
@@ -1057,7 +1052,7 @@ function renderMovePickList(query){
       const dup = arr.findIndex(m => m && m.name === mv.name);
       if (dup >= 0 && dup !== movePick.idx) arr[dup] = arr[movePick.idx];
       arr[movePick.idx] = mv;
-      renderDetailSetup();
+      renderSelDetail(movePick.slotId);
       saveTeam();
     }
     closeMovePicker();
@@ -1120,7 +1115,6 @@ function initSetup(){
   $('pp-q').addEventListener('input', () => renderPickerList($('pp-q').value));
   $('pp-close').addEventListener('click', closePicker);
   $('poke-picker').addEventListener('click', e => { if (e.target === $('poke-picker')) closePicker(); });
-  $('detail-toggle').addEventListener('click', () => { SE.select(); $('detail-setup').classList.toggle('open'); });
   $('mp-q').addEventListener('input', () => renderMovePickList($('mp-q').value));
   $('mp-close').addEventListener('click', closeMovePicker);
   $('move-picker').addEventListener('click', e => { if (e.target === $('move-picker')) closeMovePicker(); });
@@ -1588,39 +1582,26 @@ function showParty(forced){
 }
 // 能力値設定モーダル(バトル中の⚙から): ビルダー共通エディタ(iframe)を開く。
 // 確定=場の自分ポケモンに即時反映(messageリスナー側)・キャンセル=閉じるだけ。上限はビルダー側で担保(66/32)
-// へんしん/メガ中でもビルダー側に居る名前で開く(無ければメガ前の姿にフォールバック)
-function evEditName(ifr, st){
-  try {
-    const has = ifr.contentWindow.__statsOnlyHas;
-    if (has && !has(st.poke.name) && st.megaBase && st.megaBase.name) return st.megaBase.name;
-  } catch(e){}
-  return st.poke.name;
-}
 function openStatsModal(){
   const st = S.sides.self;
   if (!st || !st.poke) return;
   st.effort = clampEffortRB(st.effort);
-  const nat = (S.natureList()[st.natureIdx || 0] || ['まじめ'])[0];
-  const nm = st.poke.name;
-  try {
-    const holder = $('sm-holder');
-    let ifr = $('sm-frame');
-    if (!ifr){
-      ifr = document.createElement('iframe');
-      ifr.id = 'sm-frame';
-      ifr.src = evFrameUrl(nm, st.effort, nat);
-      ifr.addEventListener('load', () => {
-        const cur = S.sides.self;
-        if (cur && cur.poke){
-          const nat2 = (S.natureList()[cur.natureIdx || 0] || ['まじめ'])[0];
-          evFrameSync(ifr, evEditName(ifr, cur), cur.effort, nat2);
-        }
-      });
-      holder.appendChild(ifr);
-    } else {
-      evFrameSync(ifr, evEditName(ifr, st), st.effort, nat);
-    }
-  } catch(e){}
+  const holder = $('sm-holder');
+  holder.innerHTML = `<div class="sd-ev"></div><button id="sm-close">${I18N.t('real_battle.mp_close_button','とじる')}</button>`;
+  renderEvEditor(holder.querySelector('.sd-ev'), {
+    poke: st.poke,
+    getEff: () => st.effort || ZERO_EV(),
+    getNature: () => (S.natureList()[st.natureIdx || 0] || ['まじめ'])[0],
+    apply: (eff, nature) => {
+      // バトル中は場の自分ポケモンに即時反映(HP最大値が縮んだら現在HPをクランプ)
+      st.effort = eff;
+      st.natureIdx = S.natureIdxOf(nature);
+      const newMax = S.realStat(st, 'hp');
+      if (st.currentHp != null) st.currentHp = Math.min(st.currentHp, newMax);
+      renderAll();
+    },
+  });
+  holder.querySelector('#sm-close').addEventListener('click', () => { $('stats-modal').style.display = 'none'; });
   $('stats-modal').style.display = 'flex';
 }
 function toggleMega(){
