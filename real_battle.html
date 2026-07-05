@@ -950,7 +950,14 @@ function loadHandoff(){
     $('team-size').value = String(teamSize);
     renderTeamRows();
     const pokes = S.pokeList().filter(isPickable);
-    const rnd = () => pokes[Math.floor(Math.random() * pokes.length)].name;
+    // 重複なしランダム(同名2体は交代リストで紛らわしい): 使った名前を除外しながら引く
+    const used = new Set(picks.map(e => e && e.name).filter(Boolean));
+    const rnd = () => {
+      const cand = pokes.filter(p => !used.has(p.name));
+      const nm = (cand.length ? cand : pokes)[Math.floor(Math.random() * (cand.length ? cand.length : pokes.length))].name;
+      used.add(nm);
+      return nm;
+    };
     // 自分チーム = ビルダーの編成(技keyを解決・足りなければ自動補完)
     selfIds().forEach((id, i) => {
       const e = picks[i];
@@ -1155,13 +1162,20 @@ function initSetup(){
     if (sndOn){ SE.select(); if ($('battle').style.display !== 'none' && !gameOver) bgmStart(); }
     else bgmStop();
   });
-  function randomize(){
-    const pick = () => pokes[Math.floor(Math.random() * pokes.length)].name;
-    selfIds().concat(oppIds()).forEach(id => setSlot(id, pick()));
+  // 同じポケモンを1チームに2体引かない(重複すると交代リストで「HP満タンの同名」が出て混乱する=2026-07-05 阿部さん)
+  function sampleUnique(n){
+    const arr = pokes.slice();
+    for (let i = arr.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+    return arr.slice(0, n).map(p => p.name);
   }
-  window.__randomizeOpp = () => {   // 連戦モード: 相手チームだけ引き直す
-    const pick = () => pokes[Math.floor(Math.random() * pokes.length)].name;
-    oppIds().forEach(id => setSlot(id, pick()));
+  function randomize(){
+    const mine = sampleUnique(teamSize), opp = sampleUnique(teamSize);
+    selfIds().forEach((id, i) => setSlot(id, mine[i]));
+    oppIds().forEach((id, i) => setSlot(id, opp[i]));
+  }
+  window.__randomizeOpp = () => {   // 連戦モード: 相手チームだけ引き直す(重複なし)
+    const opp = sampleUnique(teamSize);
+    oppIds().forEach((id, i) => setSlot(id, opp[i]));
   };
   // デモ自動バトル(?demo=1): 演出確認用。おまかせ編成で開始し、技0を選び続ける
   if (location.search.includes('demo')){
