@@ -57,6 +57,18 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 #detail-toggle{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:8px;color:#9fb4d8;
   padding:6px 12px;cursor:pointer;font-size:12px;width:100%}
 /* わざ検索モーダル(ポケモン検索と同型) */
+/* 能力値設定モーダル(move-pickerと同型のオーバーレイ) */
+#stats-modal{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
+#stats-modal .sm-box{background:#141927;border:1px solid #2a3450;border-radius:14px;width:100%;max-width:420px;
+  display:flex;flex-direction:column;padding:16px;color:#e6edf3}
+#sm-rows .sm-row{display:flex;align-items:center;gap:10px;margin:4px 0;font-size:13px}
+#sm-rows .sm-row .lbl{flex:0 0 64px;font-weight:700;color:#9fb4d8}
+#sm-rows .sm-row input{width:76px;background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:5px 8px;font-size:13px}
+#sm-rows .sm-row .real{margin-left:auto;font-weight:900;font-style:italic;font-size:15px}
+#sm-close{margin-top:12px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer}
+/* 技リスト上の能力値ボタン */
+#moves button.stats-open{padding:4px 12px;border-radius:14px;font-size:11px;font-weight:700;text-align:center;
+  background:#22283add;color:#d4f542;border:1px solid #d4f54255}
 #move-picker{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
 #move-picker .mp-box{background:#141927;border:1px solid #2a3450;border-radius:14px;width:100%;max-width:560px;
   max-height:80vh;display:flex;flex-direction:column;padding:14px}
@@ -143,6 +155,11 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 #f-self{bottom:42px;left:30px;transform:scale(1.08);transform-origin:center bottom}
 #f-opp .platform{width:150px;height:24px}
 #f-self .platform{width:236px;height:40px}
+/* CH: バトル終了ボタン(左上・実機のexitアイコン風。ch-busyでも消えない=いつでも離脱できる) */
+#btn-exit{position:absolute;top:8px;left:10px;z-index:12;display:flex;gap:3px;align-items:center;
+  background:#000000aa;border:1px solid #ffffff33;border-radius:14px;color:#fff;font-size:11px;font-weight:700;
+  padding:3px 10px;cursor:pointer;transition:background .15s,border-color .15s;font-family:inherit}
+#btn-exit:hover{background:#333333cc;border-color:#d4f542}
 /* CH: ターンバッジは上中央の細帯へ(右上かぶり解消=右上はstatbar専用にする) */
 #turn-badge{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:7;background:#000000aa;color:#fff;font-weight:900;
   font-size:11px;padding:2px 12px;border-radius:10px;box-shadow:0 2px 5px #0004;border:1px solid #ffffff22}
@@ -451,6 +468,8 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
       <div id="weather-fx"></div>
       <div id="fx-flash"></div>
       <div id="turn-badge">Turn 1</div>
+      <!-- CH: バトル終了(常設・実機の左上exitアイコン相当。メッセージ中も押せる) -->
+      <button id="btn-exit"><span>🏃</span> <span data-i18n="real_battle.exit_button">終了</span></button>
       <div class="trainer tn-opp"><span class="ava">🤖</span><span class="tnm" data-i18n="real_battle.pbox_label_opp">あいて</span></div>
       <div class="trainer tn-self"><span class="ava">🧑</span><span class="tnm" data-i18n="real_battle.pbox_label_self">じぶん</span></div>
       <div class="fighter" id="f-opp"><div class="platform"></div><div class="sprite"></div></div>
@@ -540,6 +559,16 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 </div>
 
 <!-- ポケモン検索モーダル(チーム編成用・ひらがな/カタカナどちらでも検索可) -->
+<!-- CH: 能力値設定モーダル(技リスト上の⚙ボタンから。simなのでバトル中でも振り直せる=2026-07-05 阿部さん) -->
+<div id="stats-modal">
+  <div class="sm-box">
+    <h3 id="sm-title" style="margin:0 0 10px;font-size:15px"></h3>
+    <div id="sm-rows"></div>
+    <div id="sm-nature" style="margin-top:8px;font-size:12px;color:#9fb4d8"></div>
+    <button id="sm-close" data-i18n="real_battle.mp_close_button">とじる</button>
+  </div>
+</div>
+
 <div id="poke-picker">
   <div class="pp-box">
     <input id="pp-q" placeholder="なまえで さがす(ひらがなでもOK)…" data-i18n-attr="placeholder:real_battle.pp_search_placeholder">
@@ -887,6 +916,8 @@ function initSetup(){
   $('mp-q').addEventListener('input', () => renderMovePickList($('mp-q').value));
   $('mp-close').addEventListener('click', closeMovePicker);
   $('move-picker').addEventListener('click', e => { if (e.target === $('move-picker')) closeMovePicker(); });
+  $('sm-close').addEventListener('click', () => { $('stats-modal').style.display = 'none'; });
+  $('stats-modal').addEventListener('click', e => { if (e.target === $('stats-modal')) $('stats-modal').style.display = 'none'; });
   if (loadHandoff()) { /* ビルダーから来た自分チームを反映済み */ }
   else if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
   $('btn-random').addEventListener('click', randomize);
@@ -899,6 +930,8 @@ function initSetup(){
   $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
   $('c-mega').addEventListener('click', () => { SE.select(); toggleMega(); });
   $('c-run').addEventListener('click', () => { bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
+  // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
+  $('btn-exit').addEventListener('click', e => { e.stopPropagation(); bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
   // 音オン/オフ(設定はlocalStorageに保存)
   updateSndBtn();
   // キャラ画像ソース(編成/バトル中の両セレクトを同期・保存・即反映)
@@ -1259,7 +1292,9 @@ function showMoves(){
   // CH: 技カプセル(チャンピオンズ準拠)
   // - 上段: タイプバッジ + 技名 / 右上: PP大きめ / 下段: 相性帯 + 威力/命中
   // - カプセル背景はタイプ色グラデ・disabled時(PP切れ/こだわり外)はグレーアウト
-  mv.innerHTML = (allOut
+  // 技リスト上の能力値ボタン(実機のX様子を見る位置=2026-07-05 阿部さん「技名の上に能力値の設定ボタン」)
+  const statsBtn = `<button class="stats-open">${I18N.t('real_battle.btn_stats','⚙ 能力値')}</button>`;
+  mv.innerHTML = statsBtn + (allOut
     ? `<button data-i="0"><span class="mv-name"><strong>${I18N.t('real_battle.move_last_resort','わるあがき')}</strong></span><div class="mv-sub">${I18N.t('real_battle.move_last_resort_desc','PPが ぜんぶ なくなった！ 威力50 / 反動あり')}</div></button>`
     : st.moves.map((m, i) => {
         const col = tc[m.type] || '#3a4660';
@@ -1292,6 +1327,7 @@ function showMoves(){
     + `<button class="back">${I18N.t('real_battle.move_back_button','← もどる')}</button>`;
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
+    if (b.classList.contains('stats-open')){ openStatsModal(); return; }
     if (b.classList.contains('back')){ showCmd(true); return; }
     doTurn(+b.dataset.i);
   }));
@@ -1336,6 +1372,33 @@ function showParty(forced){
     S.sides.self.switchChoice = +b.dataset.i;
     doTurn(null);   // 交代をこのターンの行動に
   }));
+}
+// 能力値設定モーダル(2026-07-05 阿部さん): バトル中に自分の場のポケモンの努力値(Champions点)を振り直せる。
+// 実数値は即時再計算・statbarにも反映。HPの最大値が変わったら現在HPは同値のままクランプ
+function openStatsModal(){
+  const st = S.sides.self;
+  if (!st || !st.poke) return;
+  const KEYS = [['hp','hp_full'],['atk','atk_full'],['def','def_full'],['spatk','sp_atk_full'],['spdef','sp_def_full'],['spd','spd_full']];
+  $('sm-title').textContent = `${I18N.t('real_battle.stats_modal_title','能力値(努力値ポイント)')} — ${tPokeName(st.poke.name)}`;
+  $('sm-rows').innerHTML = KEYS.map(([k, lk]) =>
+    `<div class="sm-row"><span class="lbl">${I18N.t('stats.' + lk, k)}</span>` +
+    `<input type="number" min="0" max="252" step="4" data-k="${k}" value="${(st.effort && st.effort[k]) || 0}">` +
+    `<span class="real" data-real="${k}">${S.realStat(st, k)}</span></div>`).join('');
+  const natureName = (S.natureList()[st.natureIdx || 0] || ['まじめ'])[0];
+  $('sm-nature').textContent = `${I18N.t('real_battle.stats_nature_label','性格')}: ${natureName}`;
+  $('sm-rows').querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
+    const k = inp.dataset.k;
+    const v = Math.max(0, Math.min(252, parseInt(inp.value, 10) || 0));
+    st.effort = st.effort || {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0};
+    st.effort[k] = v;
+    if (k === 'hp'){
+      const newMax = S.realStat(st, 'hp');
+      if (st.currentHp != null) st.currentHp = Math.min(st.currentHp, newMax);
+    }
+    $('sm-rows').querySelectorAll('.real').forEach(el => { el.textContent = S.realStat(st, el.dataset.real); });
+    renderAll();   // statbarの数値/バー幅を即時反映
+  }));
+  $('stats-modal').style.display = 'flex';
 }
 function toggleMega(){
   const st = S.sides.self;
@@ -1637,6 +1700,7 @@ function showNextOpponentButton(){
   const cmd = $('cmd');
   cmd.style.display = 'flex';
   cmd.querySelectorAll('button').forEach(b => b.disabled = true);
+  $('c-run').disabled = false;   // 勝利後も「編成にもどる」で終了できる(2026-07-05 阿部さん)
   let nb = $('c-next');
   if (!nb){
     nb = document.createElement('button');
