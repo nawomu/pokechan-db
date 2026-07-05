@@ -13,7 +13,13 @@ const { chromium } = require('playwright');
   await p.check('#auto-msg').catch(()=>{});
   await p.locator('#msg-speed').selectOption('600').catch(()=>{});
   await p.locator('button:has-text("バトルスタート"), button:has-text("Battle Start")').first().click();
-  async function adv(){ for(let i=0;i<30;i++){ if(await p.locator('#c-fight').isVisible().catch(()=>0)) return true; await p.locator('#msgbox').click().catch(()=>{}); await p.waitForTimeout(300); } return false; }
+  // 死に出し(交代選択)が出たら先頭の控えを選んで続行。msgboxクリックは短timeout必須
+  // (非表示中のclickはデフォルト30秒待ち×ループで15分黙り込む=2026-07-06の教訓)
+  async function adv(){ for(let i=0;i<30;i++){ if(await p.locator('#c-fight').isVisible().catch(()=>0)) return true;
+    const pt = p.locator('#party button:not([disabled]):not(.back)').first();
+    if (await pt.isVisible().catch(()=>0)) await pt.click({timeout:800}).catch(()=>{});
+    else await p.locator('#msgbox').click({timeout:400}).catch(()=>{});
+    await p.waitForTimeout(300); } return false; }
   let turns=0;
   for (let t=0;t<6;t++){
     if(!await adv()) break;

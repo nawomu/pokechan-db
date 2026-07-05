@@ -227,7 +227,10 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
   font-weight:800;color:#fff;background:#3a4660;box-shadow:inset 0 -8px 16px #0007,0 5px 8px #000a}
 /* CH: 敵=中央やや右(メニューとは重ねない)/自分=左寄り(2026-07-05 阿部さん「相手は少し右・手持ちは少し左」) */
 #f-opp{top:52px;right:200px;transform:scale(.82);transform-origin:center bottom}
-#f-self{bottom:42px;left:30px;transform:scale(1.08);transform-origin:center bottom}
+/* 自分側: 左下のHPボックス/控えアイコンに被らないよう少し右上へ(2026-07-06 阿部さん) */
+#f-self{bottom:92px;left:88px;transform:scale(1.08);transform-origin:center bottom}
+/* 味方は右向き(全スプライトが左向き素材なので反転して相手の方を向かせる=2026-07-06 阿部さん) */
+#f-self .sprite img{transform:scaleX(-1)}
 #f-opp .platform{width:150px;height:24px}
 #f-self .platform{width:236px;height:40px}
 /* CH: バトル終了ボタン(左上・実機のexitアイコン風。ch-busyでも消えない=いつでも離脱できる) */
@@ -1488,6 +1491,19 @@ function nextSay(){
   pushMsgLine(txt);   // 下部メッセージ欄(6行・直近が薄く残る)
   if (!line.noLog) logLine(txt);   // 右の流れるログにも積む(表示専用の差し込み行は除く)
   if (line.fx) line.fx();
+  // こうか(ばつぐん/いまひとつ/なし)・急所はダメージ行と同じ拍に重ねる。
+  // 別拍だと「2回当たった」ように見える(2026-07-06 阿部さん「1発で効果抜群とかそれだけでいい」)
+  if (line.src && /ダメージ！/.test(line.src)){
+    const _EFF_JA = ['こうかは ばつぐんだ！', 'こうかは いまひとつのようだ…', 'こうかは こうかなし…', 'きゅうしょに あたった！'];
+    while (sayQueue.length){
+      const nx = sayQueue[0];
+      if (!nx || !nx.src || !_EFF_JA.includes(nx.src)) break;
+      sayQueue.shift();
+      pushMsgLine(nx.text);
+      if (!nx.noLog) logLine(nx.text);
+      if (nx.fx) nx.fx();
+    }
+  }
   box.querySelector('.next').style.display = sayQueue.length || sayDone ? 'inline' : 'none';
   if ($('auto-msg').checked){
     autoTimer = setTimeout(nextSay, +$('msg-speed').value);
@@ -1666,6 +1682,8 @@ function toggleMega(){
 function doTurn(moveIdx){
   if (busy || gameOver) return;
   if (S.sides.self.fainted) return;   // 死に出しの選択待ち中はターンを進めない
+  // 行動が決まったらまずメニューをパッと消す(2026-07-06 阿部さん)
+  ['cmd', 'moves', 'party'].forEach(id => { $(id).style.display = 'none'; });
   const self = S.sides.self, opp = S.sides.opp;
   if (moveIdx != null) self.selectedMoveIdx = moveIdx;
   // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
@@ -1941,7 +1959,7 @@ function lineWithFx(msg){
     }
     if (/回復/.test(msg)){ renderAll(); if (hpM){ popText(subjOpp ? 'opp' : 'self', '＋', '#4ade80', 18); SE.heal(); } }
   };
-  return { text: (window.translateLogLine ? translateLogLine(msg) : msg), fx };
+  return { text: (window.translateLogLine ? translateLogLine(msg) : msg), fx, src: msg };   // src=ja原文(演出合流の判定用)
 }
 function flash(side, cls){
   const f = $('f-' + side);
