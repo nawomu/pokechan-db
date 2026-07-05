@@ -24,7 +24,7 @@ header a{color:#58a6ff;font-size:12px;text-decoration:none}
 #game{width:100%;max-width:820px;padding:8px 14px 30px}
 /* バトル中は左右2カラムのぶん横幅を広げる(設定画面は760pxのまま) */
 /* CH: 盤面640(16:9)+ログ460+gap14+余白 = 1150px(2026-07-05 阿部さん「チャンピオンズ実機と同じ縦横比に」) */
-body.in-battle #game,body.in-battle header{max-width:1150px}
+body.in-battle #game,body.in-battle header{max-width:990px}
 
 /* ===== チーム編成 ===== */
 #setup{background:#f6f5fc;border:1px solid #c9c3e6;border-radius:14px;padding:18px;box-shadow:0 6px 18px #6a5be022}
@@ -176,7 +176,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 
 /* ===== バトル画面 ===== */
 /* S1: 3ブロックレイアウト化・盤面560×360/ログ460×362 (Showdown実測値) */
-#battle{display:none;gap:14px;align-items:flex-start;flex-wrap:wrap/* 盤面640化で狭い画面はログが下に折返す */}
+#battle{display:none;gap:14px;flex-direction:column/* ログは下段(2026-07-06 阿部さん「バトル画面を大きく迫力を」) */}
 /* S1: 盤面サイズ 600×430 → 560×360 に変更(Showdown準拠) */
 /* font-familyはShowdown準拠でVerdanaを盤面内に限定適用(body全体は日本語フォントを維持) */
 /* S6: backgroundをfieldから除去し#field-backdropに委譲(プリセット切替の器として分離) */
@@ -249,6 +249,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 #f-opp .platform{width:150px;height:24px}
 #f-self .platform{width:236px;height:40px}
 /* CH: バトル終了ボタン(左上・実機のexitアイコン風。ch-busyでも消えない=いつでも離脱できる) */
+#btn-exit .exit-div{width:1px;height:12px;background:#ffffff55;margin:0 2px}
 #btn-exit{position:absolute;top:8px;left:10px;z-index:12;display:flex;gap:3px;align-items:center;
   background:#000000aa;border:1px solid #ffffff33;border-radius:14px;color:#fff;font-size:11px;font-weight:700;
   padding:3px 10px;cursor:pointer;transition:background .15s,border-color .15s;font-family:inherit}
@@ -268,14 +269,14 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 .pbox .who{display:none}
 .pbox .row1{display:flex;align-items:center;gap:6px}
 /* CH: statbar内ミニアイコン(実機の丸顔アイコン) */
-.pbox .icn{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:#00000044;overflow:hidden;
+.pbox .icn{flex:0 0 auto;width:38px;height:38px;margin:-8px 0;border-radius:50%;background:#00000044;overflow:hidden;/* 縦は行高に足さない(負マージン)=箱の縦サイズ従来どおり */
   display:flex;align-items:center;justify-content:center}
-.pbox .icn img{width:34px;height:34px;object-fit:contain;image-rendering:pixelated}
+.pbox .icn img{width:36px;height:36px;object-fit:contain;image-rendering:pixelated}
 .pbox .nm{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 2px #0009;
   max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pbox .lv{display:none}   /* 実機statbarにLv表示なし(全員Lv50) */
 /* CH: HPバー=ダーク下地+ライム緑。%/数値テキストはバーの下に大きく出す */
-.pbox .hpbar{position:relative;width:100%;height:10px;background:#00000066;border-radius:5px;border:none;
+.pbox .hpbar{position:relative;width:calc(100% - 44px);margin-left:44px;height:10px;background:#00000066;border-radius:5px;border:none;/* 左を削ってアイコンの場所に(2026-07-06 阿部さん) */
   margin:5px 0 0;overflow:visible}
 .pbox .hptext{position:absolute;right:0;top:11px;font-size:16px;font-weight:900;color:#fff;line-height:1.2;z-index:2;
   pointer-events:none;text-shadow:0 1px 3px #000c;font-style:italic}
@@ -291,6 +292,10 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 .pbox .hp,.pbox .prevhp{max-width:calc(100% - 2px)}
 /* 状態異常バッジ(バー下・%テキストの左に並ぶ) */
 .pbox .sts{position:absolute;left:12px;bottom:3px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap;transform:skewX(10deg)}
+.pbox .held{position:absolute;left:52px;bottom:4px;transform:skewX(10deg);display:flex;gap:3px;align-items:center;
+  font-size:9px;font-weight:700;color:#ffffffdd;white-space:nowrap;max-width:120px;overflow:hidden}
+.pbox .held img{width:14px;height:14px;object-fit:contain;image-rendering:pixelated}
+.pbox .held.used{opacity:.45;filter:grayscale(1)}
 .pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466}
 .pbox .balls{display:none}
 
@@ -369,10 +374,12 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
  * Showdown準拠の右配置へ変更。order指定で左=盤面(order:0)/右=ログ(order:1)に揃える。 */
 /* CH: 盤面640×360=16:9(チャンピオンズ実機の画面比と同一)。
  * 経緯: 07-05朝に一度640→「横長すぎ」で600に戻し→同日昼に阿部さん「実機と全く同じ縦横比に」で16:9確定(明示指示が上書き) */
-#battle-main{flex:0 0 640px;max-width:640px;min-width:0;order:0}
+#battle-main{flex:0 0 auto;width:100%;max-width:none;min-width:0;order:0}
+/* 盤面は内部座標640×360のままzoomで拡大(位置/演出が丸ごと相似拡大される) */
+#field{zoom:1.45}
 /* S1: ログパネル 460×362px / bg:#eef2f5(Showdown実測値) / フォントVerdana限定指定 */
 /* CH: 盤面640化に合わせてログは伸縮(340〜460px)。狭ければ下に折返す(flex-wrap) */
-#battle-log-panel{flex:1 1 340px;min-width:340px;max-width:460px;height:362px;display:flex;flex-direction:column;order:1;
+#battle-log-panel{flex:0 0 auto;width:100%;min-width:0;max-width:none;height:230px;display:flex;flex-direction:column;order:1;
   background:#eef2f5;border:1px solid #aaaaaa;border-radius:0;
   font-family:Verdana,sans-serif;color:#000;overflow:hidden}
 /* S1: ログヘッダーをShowdown配色に合わせる(bg:#e0e7ea=ターン見出し色で統一) */
@@ -447,6 +454,9 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
   box-shadow:0 4px 14px #0008}
 #watch-panel .wp-row{margin:3px 0;line-height:1.5}
 #watch-panel .wp-row b{color:#9ec5ff}
+#mv-tip{position:absolute;left:14px;bottom:112px;z-index:12;display:none;max-width:300px;/* 自分HPボックスに被らない高さ */background:#141927ee;
+  border:1px solid #2a3450;border-radius:12px;padding:9px 12px;font-size:11px;line-height:1.55;color:#e6edf3;
+  box-shadow:0 4px 14px #0008;pointer-events:none}
 #watch-panel .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466;margin-left:3px}
 #moves button{position:relative;padding:3px 14px 3px 12px;border-radius:18px;border:2px solid #ffffff33;
   background:linear-gradient(135deg,#4638aeee,#6a5be0ee);color:#fff;text-align:left;cursor:pointer;
@@ -600,7 +610,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
       <div id="turn-badge">Turn 1</div>
       <!-- CH: バトル終了(常設・実機の左上exitアイコン相当。メッセージ中も押せる) -->
       <!-- 非常口ピクトグラム風のアイコンのみ(実機準拠・世界共通=2026-07-06 阿部さん)。ラベルはtitleで補助 -->
-      <button id="btn-exit" data-i18n-attr="title:real_battle.exit_button" title="終了"><span>🏃</span></button>
+      <button id="btn-exit" data-i18n-attr="title:real_battle.exit_button" title="終了"><span>🏃</span><span class="exit-div"></span><span>⊖</span></button>
       <div class="trainer tn-opp"><span class="ava">🤖</span><span class="tnm" data-i18n="real_battle.pbox_label_opp">あいて</span></div>
       <div class="trainer tn-self"><span class="ava">🧑</span><span class="tnm" data-i18n="real_battle.pbox_label_self">じぶん</span></div>
       <div class="fighter" id="f-opp"><div class="platform"></div><div class="sprite"></div></div>
@@ -641,6 +651,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
           <div class="status"></div>
         </div>
         <div class="sts"></div>
+        <div class="held"></div><!-- 自分の持ち物(アイコン+名前・消費でグレー=2026-07-06 阿部さん) -->
         <div class="balls"></div>
       </div>
       <!-- CH: メッセージ/コマンド/技/交代は盤面内オーバーレイ(チャンピオンズ準拠の出し入れ)。
@@ -653,6 +664,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
       </div>
       <div id="moves"></div>
       <div id="watch-panel"></div>
+      <div id="mv-tip"></div><!-- 技の説明ON時のホバー説明フロート(2026-07-06 阿部さん) -->
       <div id="party"></div>
     </div>
     <div id="speed-row">
@@ -1352,7 +1364,7 @@ function startBattle(){
   // Init-A: バトル開始時の登場特性(いかく/天候/かわりもの=メタモンのへんしん等)を発動(実機準拠)。
   // 交代・死に出しはエンジンのattemptSwitch内で発動済み=開始時だけここで呼ぶ
   if (S.phaseInitA) S.phaseInitA();
-  const initLines = S.battleLog.filter(e => !/^───/.test(e.msg)).map(e => lineWithFx(e.msg));
+  const initLines = S.battleLog.filter(e => !/^───/.test(e.msg)).flatMap(e => splitBattleLines(e.msg).map(lineWithFx));
   logPos = S.battleLog.length;
   renderAll();   // renderAll内でrenderSideBarsも呼ばれる(へんしん済みのすがたで描画)
   setWeatherFx(null);
@@ -1452,6 +1464,17 @@ function renderAll(){
     if (st.attracted) b.push('💕' + I18N.t('common.status_infatuation', 'メロメロ'));
     if (st.subHp > 0) b.push(I18N.t('common.bdg_substitute', 'みがわり'));
     pb.querySelector('.sts').innerHTML = b.map(x => `<span class="bdg">${x}</span>`).join('');
+    // 自分の持ち物(2026-07-06 阿部さん): アイコン+名前。消費済みはグレー
+    const heldEl = pb.querySelector('.held');
+    if (heldEl){
+      if (side === 'self'){
+        const cur = S.itemByKey(st.item);
+        const usedIt = !cur && st.lastConsumedItem ? S.itemByKey(st.lastConsumedItem) : null;
+        const showIt = cur || usedIt;
+        heldEl.className = 'held' + (usedIt ? ' used' : '');
+        heldEl.innerHTML = showIt ? itemIconHtml(showIt) + tItemName(showIt) : '';
+      } else heldEl.innerHTML = '';
+    }
     // 残りポケモン(手持ちアイコン列 pbox内.balls): S3でleftbar/rightbarに一本化のため非表示
     // (復活: pbox .balls の display:none を外す + 下記をコメントアウト解除)
     // const team = [st].concat(st.bench || []).filter(e => e && e.poke);
@@ -1697,6 +1720,18 @@ function showMoves(){
           `</button>`;
       }).join(''))
     + `<button class="back party-open">${I18N.t('real_battle.cmd_party','🔄 ポケモン')}</button>`;
+  // 技の説明ON: ホバーで説明文をフロート表示(優先度などの中身が読める=2026-07-06 阿部さん)
+  if (detailOn){
+    const tip = $('mv-tip');
+    mv.querySelectorAll('button.tcol').forEach(b => {
+      const m = st.moves[+b.dataset.i];
+      if (!m) return;
+      const desc = (window.I18N && I18N.moveDesc && I18N.moveDesc(m.key)) || m.desc || m.description || '';
+      if (!desc) return;
+      b.addEventListener('mouseenter', () => { tip.textContent = desc; tip.style.display = 'block'; });
+      b.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+    });
+  } else $('mv-tip').style.display = 'none';
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
     if (b.classList.contains('stats-open')){ openStatsModal(); return; }
@@ -1746,7 +1781,7 @@ function showParty(forced){
       S.attemptSwitch('self', +b.dataset.i, {ignoreTrapping: true, faintReplace: true});
       renderAll();
       const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
-      say(fresh.map(e => lineWithFx(e.msg)), () => showActionUI());
+      say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
       return;
     }
     S.sides.self.switchChoice = +b.dataset.i;
@@ -1841,7 +1876,7 @@ function doTurn(moveIdx){
       lines.push({ text: (window.translateLogLine ? translateLogLine(introJa) : introJa),
         fx: () => flash(introSide, 'preattack'), noLog: true });
     }
-    lines.push(lineWithFx(e.msg));
+    splitBattleLines(e.msg).forEach(t => lines.push(lineWithFx(t)));
   }
   logTurnHeader(turnNo);   // 右ログに「Turn N」見出し
   say(lines, endOfTurn);
@@ -1999,6 +2034,11 @@ function initBackdrop(){
 }
 
 // ログ1行 → テキスト+演出(HPバー同期・タイプ色バースト・ダメージ数字・こうか/急所・状態異常・天候・メガ)
+// 交代の複合行「Xは引っ込んだ！ Yが場に出た！」を2拍(2行)に割る(言葉でじっくり見せる=2026-07-06 阿部さん)
+function splitBattleLines(msg){
+  const m = msg.match(/^((?:相手の )?\S+ は 引っ込んだ！) ((?:相手の )?\S+ が 場に出た！)$/);
+  return m ? [m[1], m[2]] : [msg];
+}
 function lineWithFx(msg){
   const fx = () => {
     const hpM = msg.match(/\(残HP (\d+)(?:\/(\d+))?\)/);
@@ -2060,16 +2100,20 @@ function lineWithFx(msg){
       setTimeout(() => { const f = $('f-' + side); if (f) f.classList.add('gone'); }, 680);
       SE.faint();
     }
+    if (/は 引っ込んだ！$/.test(msg)){
+      // 交代1拍目: 縮んで消える+HPボックスも引っ込める(2拍目の「場に出た！」で戻る)
+      const side = subjOpp ? 'opp' : 'self';
+      flash(side, 'recall');
+      const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
+      setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 400);
+    }
     if (/が 場に出た！/.test(msg)){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
       const enterSide = /相手の \S+ が 場に出た/.test(msg) ? 'opp' : 'self';
       const f = $('f-' + enterSide);
-      const doEnter = () => { f.classList.remove('gone', 'recall'); renderAll(); flash(enterSide, 'enter'); SE.enter(); };
-      // 通常交代(引っ込んだ！を含む行): 縮んで消える→ワンテンポ置いて登場(死に出し=既にgoneなら即登場)
-      if (/は 引っ込んだ！/.test(msg) && !f.classList.contains('gone')){
-        f.classList.add('recall');
-        setTimeout(doEnter, 420);
-      } else doEnter();
+      f.classList.remove('gone', 'recall');
+      const pbEl = $('pb-' + enterSide); if (pbEl) pbEl.style.visibility = '';
+      renderAll(); flash(enterSide, 'enter'); SE.enter();
     }
     if (/メガシンカした！/.test(msg)){
       screenFlash('#ffd96b', true);

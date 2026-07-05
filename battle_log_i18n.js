@@ -125,6 +125,7 @@
   var TPL = {
     attack_dmg: { "en": "{atk} used {move}! {df} took {dmg} damage!{ohko} (HP {hp}{max})", "fr": "{atk} utilise {move} ! {df} perd {dmg} PV !{ohko} (PV {hp}{max})", "de": "{atk} setzt {move} ein! {df} erleidet {dmg} Schaden!{ohko} (KP {hp}{max})", "es": "¡{atk} usó {move}! ¡{df} recibió {dmg} de daño!{ohko} (PS {hp}{max})", "it": "{atk} usa {move}! {df} subisce {dmg} danni!{ohko} (PS {hp}{max})", "ko": "{atk}의 {move}! {df}에게 {dmg}의 데미지!{ohko} (HP {hp}{max})", "zh-Hans": "{atk}使用了{move}！{df}受到了{dmg}点伤害！{ohko}（HP {hp}{max}）", "zh-Hant": "{atk}使出了{move}！{df}受到了{dmg}點傷害！{ohko}（HP {hp}{max}）" },
     used_move: { "en": "{atk} used {move}!", "fr": "{atk} utilise {move} !", "de": "{atk} setzt {move} ein!", "es": "¡{atk} usó {move}!", "it": "{atk} usa {move}!", "ko": "{atk}의 {move}!", "zh-Hans": "{atk}使用了{move}！", "zh-Hant": "{atk}使出了{move}！" },
+    withdrew: { "en": "{p} withdrew!", "fr": "{p} est rappelé !", "de": "{p} wurde zurückgerufen!", "es": "¡{p} regresó!", "it": "{p} è stato richiamato!", "ko": "{p}은(는) 돌아왔다!", "zh-Hans": "{p}收回来了！", "zh-Hant": "{p}收回來了！" },
     missed_by: { "en": "{p}'s {move} missed!", "fr": "{move} de {p} échoue !", "de": "Die Attacke {move} von {p} ging daneben!", "es": "¡{move} de {p} falló!", "it": "{move} di {p} ha fallito!", "ko": "{p}의 {move}이(가) 빗나갔다!", "zh-Hans": "{p}的{move}没有命中！", "zh-Hant": "{p}的{move}沒有命中！" },
     missed: { "en": "{move} missed!", "fr": "{move} échoue !", "de": "Die Attacke {move} ging daneben!", "es": "¡{move} falló!", "it": "{move} ha fallito!", "ko": "{move}이(가) 빗나갔다!", "zh-Hans": "{move}没有命中！", "zh-Hant": "{move}沒有命中！" },
     failed: { "en": "But it failed!", "fr": "Mais cela échoue !", "de": "Doch es schlug fehl!", "es": "¡Pero ha fallado!", "it": "Ma la mossa è fallita!", "ko": "하지만 실패했다!", "zh-Hans": "但是失败了！", "zh-Hant": "但是失敗了！" },
@@ -459,6 +460,7 @@
     { id: 'cant_love', re: /^((?:相手の )?\S+) は メロメロで 技が だせなかった！$/, slots: { p: { g: 1, kind: 'poke' } } },
     { id: 'slip', re: /^((?:相手の )?\S+) は (やけど|どく|もうどく)で (\d+) ダメージ！ \(残HP (\d+)\)$/, slots: { p: { g: 1, kind: 'poke' }, st: { g: 2, kind: 'status' }, n: { g: 3, kind: 'num' }, hp: { g: 4, kind: 'num' } } },
     { id: 'switch_in', re: /^たおれた ((?:相手の )?\S+) の代わりに ((?:相手の )?\S+) が 場に出た！$/, slots: { out: { g: 1, kind: 'poke' }, 'in': { g: 2, kind: 'poke' } } },
+    { id: 'withdrew', re: /^((?:相手の )?\S+) は 引っ込んだ！$/, slots: { p: { g: 1, kind: 'poke' } } },
     { id: 'switch_voluntary', re: /^((?:相手の )?\S+) は 引っ込んだ！ ((?:相手の )?\S+) が 場に出た！$/, slots: { out: { g: 1, kind: 'poke' }, 'in': { g: 2, kind: 'poke' } } },
     { id: 'turn_first_fast', re: /^先攻: ((?:相手の )?\S+)（すばやさが速い\((\d+) > (\d+)\)ため）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' }, b: { g: 3, kind: 'num' } } },
     { id: 'turn_first_tie', re: /^先攻: ((?:相手の )?\S+)（すばやさ同値\((\d+)\)・ランダムで）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' } } },
