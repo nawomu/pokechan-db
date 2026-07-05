@@ -1047,6 +1047,9 @@ const LEVEL = 50;
 
 const STAT_KEYS = ['hp','atk','def','spatk','spdef','spd'];
 const STAT_LABELS = {hp:'HP',atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
+// ランク変化ログ用: 内部キー→日本語(生キー'special_attack'がログに出ていた=2026-07-06 阿部さんスクショで発覚)
+const RANK_KEY_JA = {attack:'こうげき',defense:'ぼうぎょ',special_attack:'とくこう',special_defense:'とくぼう',
+  speed:'すばやさ',accuracy:'命中率',evasion:'回避率'};
 const STAT_LETTER = {hp:'H',atk:'A',def:'B',spatk:'C',spdef:'D',spd:'S'};
 
 // 性格 [name, up, down]（— は補正なし）
@@ -3064,7 +3067,7 @@ function applyProtectPunishers(atk, def, mv){
         if (atk.rank[rk] === undefined) continue;
         const sg = ef.stages || 0;
         atk.rank[rk] = Math.max(-6, Math.min(6, (atk.rank[rk] || 0) + sg));
-        log('9', `${pname(atk)} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
+        log('9', `${pname(atk)} の ${RANK_KEY_JA[k]||k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
       }
     } else if (ef.kind === '状態付与' && ct === 'hit_by_contact_move_while_protecting'){
       const map = {'やけど':'burn','まひ':'paralysis','どく':'poison','もうどく':'badpoison','ねむり':'sleep','こおり':'freeze'};
@@ -3806,7 +3809,7 @@ function phaseApplyEffects(atkSide, defSide, move){
           if (ef.to_max){
             // あまのじゃく+to_max(はらだいこ等)は最低ランクへ
             target.rank[rk] = _contrary ? -6 : 6;
-            log('9', `${pname(target)} の ${k} ランクが ${_contrary ? '最低までさがった' : '最大まであがった'}！`);
+            log('9', `${pname(target)} の ${RANK_KEY_JA[k]||k} ランクが ${_contrary ? '最低までさがった' : '最大まであがった'}！`);
           } else {
             let sg = ef.stages || 0;
             if (_contrary && sg !== 0) sg = -sg;   // あまのじゃく(段140): 上がる⇄下がるを反転(以降のガードは反転後の符号で判定)
@@ -3823,7 +3826,7 @@ function phaseApplyEffects(atkSide, defSide, move){
             const beforeRk = target.rank[rk] || 0;
             target.rank[rk] = Math.max(-6, Math.min(6, beforeRk + sg));
             if (sg < 0 && target.rank[rk] < beforeRk) target.statLoweredThisTurn = true;   // うっぷんばらし用(実際に下がった時だけ)
-            log('9', `${pname(target)} の ${k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
+            log('9', `${pname(target)} の ${RANK_KEY_JA[k]||k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
             // かちき/まけんき: 敵に能力ランクを下げられると とくこう/こうげき+2(段114・ABILITY_DESC公式準拠)
             if (sg < 0 && target.rank[rk] < beforeRk && target !== atk){
               const _dAb114 = sideAbility(target);
@@ -5049,7 +5052,7 @@ function startChargeIfNeeded(st, mv, releasing){
       if (st.rank[rk] === undefined) continue;
       const sg = e.stages || 0;
       st.rank[rk] = Math.max(-6, Math.min(6, (st.rank[rk] || 0) + sg));
-      log('9', `${pname(st)} の ${k} ランクが ${sg > 0 ? '+' : ''}${sg} ${sg > 0 ? 'あがった' : 'さがった'}！`);
+      log('9', `${pname(st)} の ${RANK_KEY_JA[k]||k} ランクが ${sg > 0 ? '+' : ''}${sg} ${sg > 0 ? 'あがった' : 'さがった'}！`);
     }
   });
   const SEMI_MSG = {'空中':'空高く 飛び上がった！','地中':'地面に もぐった！','水中':'水中に もぐった！','消失':'すがたを 消した！'};
