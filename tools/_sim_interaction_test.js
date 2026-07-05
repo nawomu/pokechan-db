@@ -920,6 +920,125 @@ console.log('\n=== 未実装/部分実装 特性・持ち物の確認 ===');
 }
 
 // ─────────────────────────────────────────────
+// S17: なげつける(Fling) / とっておき(Last Resort) — 2026-07-05実装
+// 出典: なげつける=Bulbapedia "Fling"(威力表・Magic Room失敗・道具消費・追加効果はspecial-effects表)
+//       とっておき=Bulbapedia "Last Resort"/Showdown dex=他技をすべて1回以上使用で解禁・交代でリセット
+// ─────────────────────────────────────────────
+{
+  const fling = moveByKey('nagetsukeru');
+  const totteoki = moveByKey('totteoki');
+  const hataku = moveByKey('hataku');
+
+  // ===== なげつける =====
+  if (!fling) {
+    check('S17-T0 なげつけるがWAZA_MAPにある', false, 'nagetsukeruなし');
+  } else {
+    // T1: 道具なし→失敗(ダメージなし+失敗ログ)
+    resetEnv();
+    const a = freshSide('カイリュー', 'nagetsukeru'); a.ability = 'せいしんりょく'; a.item = ''; fullHp(a);
+    const d = freshSide('カビゴン', 'hataku'); const dhp = fullHp(d);
+    E.sides.self = a; E.sides.opp = d;
+    E.runSingleAttack('self', 0);
+    const failLog = E.battleLog.some(e => /なげつける！ しかし うまく きまらなかった/.test(e.msg));
+    check('S17-T1 なげつける: 道具なしは失敗する', failLog && d.currentHp === dhp,
+      `log=${failLog} hp=${dhp}→${d.currentHp}`);
+
+    // T2: くろいてっきゅう→威力130でダメージ(合成power=130の同タイプ(あく)技とダメージ一致で検証)
+    resetEnv();
+    const a2 = freshSide('カイリュー', 'nagetsukeru'); a2.ability = 'せいしんりょく'; a2.item = 'kuroi_tekkyu'; fullHp(a2);
+    const d2 = freshSide('カビゴン', 'hataku'); fullHp(d2);
+    E.sides.self = a2; E.sides.opp = d2;
+    const rFling = E.calcDamage('self', 'opp', fling);
+    const synth = Object.assign({}, fling, { power: 130 });   // power固定の同タイプ(あく)技を合成
+    const rSynth = E.calcDamage('self', 'opp', synth);
+    check('S17-T2 なげつける(くろいてっきゅう)の威力が130(合成power=130と一致)',
+      rFling && rSynth && rFling.min === rSynth.min && rFling.max === rSynth.max,
+      rFling && rSynth ? `fling(min=${rFling.min},max=${rFling.max}) synth(min=${rSynth.min},max=${rSynth.max})` : 'calc失敗');
+
+    // T2b: 威力表が効いていることの間接確認(くろいてっきゅう=130 ≫ オレンのみ=10)
+    resetEnv();
+    const a2b = freshSide('カイリュー', 'nagetsukeru'); a2b.ability = 'せいしんりょく'; a2b.item = 'berry_oran'; fullHp(a2b);
+    const d2b = freshSide('カビゴン', 'hataku'); fullHp(d2b);
+    E.sides.self = a2b; E.sides.opp = d2b;
+    const rBerry = E.calcDamage('self', 'opp', fling);
+    check('S17-T2b なげつける: くろいてっきゅう(130)はオレンのみ(10)より大ダメージ',
+      rFling && rBerry && rFling.max > rBerry.max,
+      rFling && rBerry ? `tekkyu=${rFling.max} berry=${rBerry.max}` : 'calc失敗');
+
+    // T3: 投げた後は道具消失(食べた扱い=lastConsumedItem には入れない)
+    resetEnv();
+    const a3 = freshSide('カイリュー', 'nagetsukeru'); a3.ability = 'せいしんりょく'; a3.item = 'kuroi_tekkyu'; fullHp(a3);
+    const d3 = freshSide('カビゴン', 'hataku'); fullHp(d3);
+    E.sides.self = a3; E.sides.opp = d3;
+    E.setRandom(mulberry32(20260705));
+    E.runSingleAttack('self', 0);
+    check('S17-T3 なげつける後は持ち物が消失(lastConsumedItemに入れない)',
+      !a3.item && a3.lastConsumedItem == null,
+      `item=${a3.item} lastConsumed=${a3.lastConsumedItem}`);
+
+    // T4: どくバリ(type_boost_poison)→どく付与
+    resetEnv();
+    const a4 = freshSide('カイリュー', 'nagetsukeru'); a4.ability = 'せいしんりょく'; a4.item = 'type_boost_poison'; fullHp(a4);
+    const d4 = freshSide('カビゴン', 'hataku'); fullHp(d4);   // ノーマル単=どく付与可能
+    E.sides.self = a4; E.sides.opp = d4;
+    E.setRandom(mulberry32(20260705));
+    E.runSingleAttack('self', 0);
+    check('S17-T4 なげつける(どくバリ)で相手をどく状態にする', d4.status === 'poison',
+      `status=${d4.status} hp=${d4.currentHp}`);
+
+    // T5: マジックルーム中は失敗(道具も消費されない)
+    resetEnv();
+    E.env.magicRoom = true; E.env.magicRoomTurns = 5;
+    const a5 = freshSide('カイリュー', 'nagetsukeru'); a5.ability = 'せいしんりょく'; a5.item = 'kuroi_tekkyu'; fullHp(a5);
+    const d5 = freshSide('カビゴン', 'hataku'); const dhp5 = fullHp(d5);
+    E.sides.self = a5; E.sides.opp = d5;
+    E.runSingleAttack('self', 0);
+    const mrFail = E.battleLog.some(e => /なげつける！ しかし うまく きまらなかった！.*マジックルーム/.test(e.msg));
+    check('S17-T5 なげつける: マジックルーム中は失敗(道具も残る)',
+      mrFail && d5.currentHp === dhp5 && a5.item === 'kuroi_tekkyu',
+      `log=${mrFail} hp=${dhp5}→${d5.currentHp} item=${a5.item}`);
+  }
+
+  // ===== とっておき =====
+  if (!totteoki) {
+    check('S17-T0 とっておきがWAZA_MAPにある', false, 'totteokiなし');
+  } else {
+    // T6: 他技未使用→失敗
+    resetEnv();
+    const t6 = freshSide('ガルーラ', 'totteoki'); t6.moves = [totteoki, hataku]; t6.selectedMoveIdx = 0; fullHp(t6);
+    const e6 = freshSide('カビゴン', 'hataku'); const ehp6 = fullHp(e6);
+    E.sides.self = t6; E.sides.opp = e6;
+    E.runSingleAttack('self', 0);   // いきなりとっておき→失敗
+    const lrFail = E.battleLog.some(e => /とっておき！ しかし うまく きまらなかった/.test(e.msg));
+    check('S17-T6 とっておき: 他技未使用は失敗', lrFail && e6.currentHp === ehp6,
+      `log=${lrFail} hp=${ehp6}→${e6.currentHp}`);
+
+    // T7: 他技をすべて使った後→成功(はたく→とっておき)
+    resetEnv();
+    const t7 = freshSide('ガルーラ', 'totteoki'); t7.moves = [totteoki, hataku]; fullHp(t7);
+    const e7 = freshSide('カビゴン', 'hataku'); fullHp(e7);
+    E.sides.self = t7; E.sides.opp = e7;
+    E.runSingleAttack('self', 1);   // 先にはたく=他技を使用(usedMoveNamesに記録)
+    const hpAfterHataku = e7.currentHp;
+    E.battleLog.length = 0;
+    E.runSingleAttack('self', 0);   // 次にとっておき→成功するはず
+    check('S17-T7 とっておき: 他技使用後は成功(ダメージが入る)',
+      e7.currentHp < hpAfterHataku && !E.battleLog.some(e => /とっておき！ しかし うまく きまらなかった/.test(e.msg)),
+      `hp=${hpAfterHataku}→${e7.currentHp}`);
+
+    // T8: これ1技のみ(他技なし)→失敗
+    resetEnv();
+    const t8 = freshSide('ガルーラ', 'totteoki'); t8.moves = [totteoki]; t8.selectedMoveIdx = 0; fullHp(t8);
+    const e8 = freshSide('カビゴン', 'hataku'); const ehp8 = fullHp(e8);
+    E.sides.self = t8; E.sides.opp = e8;
+    E.runSingleAttack('self', 0);
+    const soloFail = E.battleLog.some(e => /とっておき！ しかし うまく きまらなかった/.test(e.msg));
+    check('S17-T8 とっておき: 他技を持たない(1技のみ)は失敗', soloFail && e8.currentHp === ehp8,
+      `log=${soloFail} hp=${ehp8}→${e8.currentHp}`);
+  }
+}
+
+// ─────────────────────────────────────────────
 // 結果集計
 // ─────────────────────────────────────────────
 console.log('\n=== 結果 ===');

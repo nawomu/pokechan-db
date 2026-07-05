@@ -1158,6 +1158,9 @@ function makeSideState(){
     tauntTurns: 0,
     // 最後に「使った」技(かなしばり/アンコールの対象。行動阻害で出せなかった時は更新しない)
     lastMove: null,
+    // 場に出ている間に実際に使った技名の集合(とっておきの使用条件用)。交代でリセット=場に出た直後は空。
+    // 出典: Bulbapedia "Last Resort"=他の技をすべて1回以上使うと使用可能・使用履歴は交代でリセット
+    usedMoveNames: [],
     // かなしばり: {name, turns}(その技名を出せない) / アンコール: {move, turns}(その技しか出せない)
     disable: null,
     encore: null,
@@ -1344,8 +1347,60 @@ function pokeRound(num, q12){
 // 威力可変(power=null系)の威力を effects から動的に解決する。未対応の基準(体重系=データ無し等)は null。
 // 出典: Bulbapedia "Reversal/Flail"(48*HP/maxHP の段階表・GenV+) / "Gyro Ball"(min(150,floor(25*相手S/自分S)+1)) /
 //       "Electro Ball"(自分S/相手S比の段階表) / "Hard Press"(100*相手残りHP/最大HP)。すばやさは補正込み(effectiveSpeed)。
+// なげつけるの威力表(出典: Bulbapedia "Fling" の power-by-item 表・2026-07-05取得)
+// ITEMS_DATABASE(items_database.js)に収録のバトル用道具を対象。きのみ類=10/メガストーン=80 は
+// flingPowerFor 側でカテゴリ判定。表にない道具は既定30(タスク指定・根拠: Bulbapediaで威力が定義
+// されていない道具の実用上の既定値。多くの雑多な道具が30に分類されるため)。
+const FLING_POWER = {
+  // 威力10(Bulbapedia): こだわり系・タイプ強化の一部・各種微弱道具
+  kodawari_hachimaki:10, kodawari_megane:10, kodawari_scarf:10,
+  expert_belt:10, muscle_band:10, wise_glasses:10,
+  type_boost_normal:10, type_boost_ground:10, type_boost_bug:10, type_boost_fairy:10,
+  leftovers:10, focus_sash:10, focus_band:10, white_herb:10, mental_herb:10,
+  bright_powder:10, air_balloon:10, ooki_na_nekko:10, koukaku_lens:10, focus_lens:10,
+  sarasara_iwa:10, kireina_nukegara:10,
+  // 威力30: タイプ強化プレート類・くろいヘドロ・かいがらのすず・おうじゃのしるし・ピントレンズ・
+  //        でんきだま・かえんだま・どくどくだま・メトロノーム・ひかりのねんど・いのちのたま・パンチグローブ
+  life_orb:30, punching_glove:30,
+  type_boost_fire:30, type_boost_water:30, type_boost_electric:30, type_boost_grass:30,
+  type_boost_ice:30, type_boost_fighting:30, type_boost_psychic:30, type_boost_ghost:30,
+  type_boost_dark:30, type_boost_steel:30, black_sludge:30, shell_bell:30, kings_rock:30,
+  scope_lens:30, light_ball:30, flame_orb:30, toxic_orb:30, metronome:30, hikari_no_nendo:30,
+  // 威力40
+  eviolite:40, tsumetai_iwa:40,
+  // 威力50
+  type_boost_flying:50,
+  // 威力60
+  atsui_iwa:60, shimetta_iwa:60, rocky_helmet:60,
+  // 威力70
+  type_boost_poison:70, type_boost_dragon:70,
+  // 威力80: とつげきチョッキ・せんせいのツメ(メガストーンはカテゴリ判定で80)
+  assault_vest:80, quick_claw:80,
+  // 威力100
+  type_boost_rock:100,
+  // 威力130
+  kuroi_tekkyu:130,
+};
+// なげつけるの威力を持ち物から返す。出典: Bulbapedia "Fling"。itemKey空=0(呼出側でfails_ifが先に弾く想定)
+function flingPowerFor(itemKey){
+  if (!itemKey) return 0;
+  const it = ITEM_BY_KEY[itemKey];
+  if (!it) return 30;   // DB未収録の道具は既定30
+  const cat = String(it.category || '');
+  if (cat.startsWith('berry')) return 10;   // きのみ類は一律10(Bulbapedia)
+  if (cat === 'mega_stone') return 80;      // 全メガストーンは80(Bulbapedia)
+  const p = FLING_POWER[itemKey];
+  return p != null ? p : 30;                // 表にない道具は既定30
+}
 function variablePower(move, atk, def){
   const ef = ((move.battle_data && move.battle_data.effects) || []).find(e => e.kind === '威力可変');
+  // なげつける: 威力=持ち物で決まる(Bulbapedia "Fling")。持ち物なしは呼出前に fails_if で失敗するが、
+  // 安全のため持ち物なし時は null(=ダメージ計算不能)を返す。
+  const _flingEf = ((move.battle_data && move.battle_data.effects) || []).find(e => e.kind === 'なげつける');
+  if (_flingEf && atk.poke){
+    const fp = flingPowerFor(atk.item);
+    return fp > 0 ? fp : null;
+  }
   if (!ef || !atk.poke || !def.poke) return null;
 
   // じたばた/きしかいせい: P=floor(48*残りHP/最大HP) → P<2:200 / <5:150 / <10:100 / <17:80 / <33:40 / 他:20
@@ -3798,6 +3853,30 @@ function phaseApplyEffects(atkSide, defSide, move){
       if (def.slips.some(sl => sl.source === 'やどりぎのタネ')) continue;   // 重ねがけ不可
       def.slips.push({ source: 'やどりぎのタネ', fraction: (ef.fraction != null ? ef.fraction : 0.125), drains: true });
       log('9', `${pname(def)} に やどりぎのタネを 植えつけた！`);
+    } else if (ef.kind === 'なげつける'){
+      // なげつけるの追加効果(最小限・Bulbapedia "Fling" special-effects表)。
+      // どくバリ(type_boost_poison)=どく付与 / でんきだま(light_ball)=まひ付与 / おうじゃのしるし(kings_rock)=ひるみ。
+      // 威力は variablePower、道具消費は runSingleAttack/runTurn の命中後処理で担当。ここでは投げた道具
+      // (atk.item はこの時点でまだ残っている)の追加効果だけを対象に適用する。他の道具は威力のみ(効果なし)。
+      const _thrown = atk.item;
+      const _FLING_EFFECT = { type_boost_poison:'どく', light_ball:'まひ', kings_rock:'ひるみ' };
+      const _effLbl = _thrown && _FLING_EFFECT[_thrown];
+      if (_effLbl && def.poke && !def.fainted){
+        if (_effLbl === 'ひるみ'){
+          // ひるみは一過性フラグ。せいしんりょくはひるまない(ABILITY_DESC公式準拠)
+          if (sideAbility(def) !== 'せいしんりょく'){ def.flinched = true; log('9', `${pname(def)} は ひるんだ！`); }
+        } else {
+          const _map = {'どく':'poison','まひ':'paralysis'};
+          const _code = _map[_effLbl];
+          const _IMM = { poison:['どく','はがね'], paralysis:['でんき'] };
+          const _tg = sideTypes(def);
+          // タイプ無効・既に状態異常なら入れない(しんぴのまもり/フィールド/免疫特性は最小限実装では省略)
+          if (!((_IMM[_code]||[]).some(t => _tg.includes(t))) && (!def.status || def.status === 'none')){
+            def.status = _code;
+            log('9', `${pname(def)} は ${_effLbl} 状態になった！`);
+          }
+        }
+      }
     } else if (ef.kind === '持ち物排除'){
       // はたきおとす: 相手の道具をはたきおとす(このバトル中なくなる。restored_after_battle=戦闘後に戻る、はsimでは
       // リセット=持ち物再設定で表現される)。Bulbapedia "Knock Off"
@@ -4710,6 +4789,13 @@ function runSingleAttack(atkSide, moveIdx){
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
+  // なげつける: マジックルーム中は道具が使えず失敗(Embargo/Klutz/Magic Room が Fling を封じる。
+  // 出典: Bulbapedia "Fling" = "Embargo, Klutz, and Magic Room all prevent the usage of Fling")
+  if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'なげつける') && env.magicRoom){
+    log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(マジックルームで 道具が だせない)`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
   // ランダム技(ねごと): 自分のほかの技をランダムに1つくりだす(ねごと系・溜め技は呼べない=近似)。
   // 出典: Bulbapedia "Sleep Talk"
   const _randEf = ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'ランダム技');
@@ -4804,6 +4890,8 @@ function runSingleAttack(atkSide, moveIdx){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
+  if (!atk.usedMoveNames) atk.usedMoveNames = [];
+  if (!atk.usedMoveNames.includes(mv.name)) atk.usedMoveNames.push(mv.name);   // とっておき用(実際に使った技を記録)
   if (!releasing && !atk.rampage) consumePP(atk, mv, def);   // PP消費(段129/プレッシャー=段131)
   // こだわりロック開始(段135): こだわり道具持ちが技を使ったらその技に固定(わるあがきでは固定しない)
   if (!atk.choiceLock && !mv.struggle && atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].restriction === '選択技固定') atk.choiceLock = mv;
@@ -4890,6 +4978,11 @@ function runSingleAttack(atkSide, moveIdx){
   } else {
     const dmgRes = phaseDealDamage(atkSide, defSide, mv);
     if (!def.fainted) phaseApplyEffects(atkSide, defSide, mv);
+    // なげつける: 命中時(守り貫通/KO問わず)に持ち物を消費。食べた扱いにしない=lastConsumedItemには入れない。
+    // 出典: Bulbapedia "Fling" = 投げた道具はなくなる(守りで防がれても消費)
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'なげつける') && atk.item){
+      atk.item = null;
+    }
     // あばれ(げきりん等): 攻撃成功で進行(開始/消費/終了→こんらん) / こうかなし・失敗は中断
     if (dmgRes && !dmgRes.immune && !dmgRes.failed) progressRampage(atk, mv);
     else noteActionFailed(atk);
@@ -5023,6 +5116,7 @@ function clearVolatilesOnSwitch(st){
   st.flashFire = false;                     // もらいび発動状態も揮発
   st.flinched = false; st.pendingStatus = null;   // あくびは交代すれば不発(Bulbapedia "Yawn")
   st.rank = {atk:0,def:0,spatk:0,spdef:0,spd:0,acc:0,eva:0};
+  st.usedMoveNames = [];      // とっておきの使用履歴も交代でリセット(Bulbapedia "Last Resort")
   st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
   st.selectedMoveIdx = null;  // 新しいポケモンの技選択はUI/呼び出し側がやり直す
 }
@@ -5350,11 +5444,26 @@ function registerVirtualItems(){
 // 出典: ふいうち=ヤックン/Bulbapedia "Sucker Punch" / はやてがえし="Upper Hand" / きあいパンチ="Focus Punch"
 //       どげざつき=ヤックン(Champions調整: 優先度+1・前ターン与ダメ条件。本家Bulbapediaとは仕様が異なる=ヤックンが権威)
 function failsByCondition(atk, def, mv){
+  // とっておき(専用判定): 覚えている他の技をすべて1回以上使っていないと失敗。他の技がない(これ1技)でも失敗。
+  // 出典: Bulbapedia "Last Resort" / Showdown dex = "fails unless the user knows this move and at least one
+  //   other move, and has used all the other moves it knows at least once each since it became active"
+  //   (使用履歴は交代でリセット=clearVolatilesOnSwitch が st.usedMoveNames を空にする)
+  // TODO: 本筋は requires:[{type:'all_other_known_moves_used'}] 宣言をエンジンが汎用読みするのが望ましい。
+  //       現状は fails_if 宣言がデータに無いため、名称ベースの専用判定で暫定対応。
+  if (mv && mv.name === 'とっておき'){
+    const known = (atk.moves || []).filter(m => m && m.name !== 'とっておき');
+    if (!known.length) return true;   // 他に技を持たない=失敗
+    const used = atk.usedMoveNames || [];
+    if (!known.every(m => used.includes(m.name))) return true;   // 未使用の他技があれば失敗
+    return false;
+  }
   const fifs = (mv.battle_data && mv.battle_data.fails_if) || [];
   if (!fifs.length) return false;
   const dmv = (def && def.moves) ? def.moves[def.selectedMoveIdx] : null;
   return fifs.some(f => {
     switch (f.type) {
+      case 'user_has_no_throwable_item':   // なげつける: 持ち物がないと失敗。Bulbapedia "Fling"
+        return !atk.item;
       case 'target_not_selecting_attacking_move':   // ふいうち: 相手が攻撃技を選んでいない/交代/行動済みなら失敗
         return !def || def.movedThisTurn || def.switchedThisTurn || !dmv || dmv.category === '変化';
       case 'target_not_selecting_priority_move':    // はやてがえし: 相手が先制技(優先度>0)を選んでいなければ失敗
@@ -5825,6 +5934,11 @@ function runTurn(){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
       noteActionFailed(atk); continue;
     }
+    // なげつける: マジックルーム中は失敗(Bulbapedia "Fling" = Magic Room が Fling を封じる)
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'なげつける') && env.magicRoom){
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(マジックルームで 道具が だせない)`);
+      noteActionFailed(atk); continue;
+    }
     // ランダム技(ねごと): 自分のほかの技をランダムに1つくりだす(ねごと系・溜め技は呼べない=近似)。
     // 出典: Bulbapedia "Sleep Talk"
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'ランダム技')){
@@ -5907,6 +6021,8 @@ function runTurn(){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
+  if (!atk.usedMoveNames) atk.usedMoveNames = [];
+  if (!atk.usedMoveNames.includes(mv.name)) atk.usedMoveNames.push(mv.name);   // とっておき用(実際に使った技を記録)
     if (!releasing && !atk.rampage) consumePP(atk, mv, def);   // PP消費(段129/プレッシャー=段131)
     if (!atk.choiceLock && !mv.struggle && atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].restriction === '選択技固定') atk.choiceLock = mv;   // こだわりロック開始(段135)
     stanceChange(a.side, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
@@ -5998,6 +6114,11 @@ function runTurn(){
     const dmgRes = phaseDealDamage(a.side, a.opp, mv);
     // ★追加効果は「技が当たった」時だけ発動。こうかなし(タイプ無効)や計算不可なら発動しない(全技共通)。
     if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, a.opp, mv);
+    // なげつける: 命中時(守り貫通/KO問わず)に持ち物を消費。食べた扱いにしない=lastConsumedItemには入れない。
+    // 出典: Bulbapedia "Fling" = 投げた道具はなくなる(守りで防がれても消費)
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'なげつける') && atk.item){
+      atk.item = null;
+    }
     // あばれ(げきりん等): 攻撃成功で進行(開始/消費/終了→こんらん) / こうかなし・失敗は中断
     if (dmgRes && !dmgRes.immune && !dmgRes.failed) progressRampage(atk, mv);
     else noteActionFailed(atk);
