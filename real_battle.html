@@ -44,7 +44,7 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 /* 本家風カプセル: 自分=青紫/相手=クリムゾン・選択中=黄緑発光カーソル */
 .team-row .slot{position:relative;color:#fff;border:2px solid #ffffff22;border-radius:14px;
   padding:7px 10px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;text-align:left;
-  transform:skewX(-8deg);box-shadow:0 2px 7px #0006;transition:border-color .12s,box-shadow .12s;font-family:inherit;min-height:48px}
+  transform:skewX(-8deg);box-shadow:0 2px 7px #0006;transition:border-color .12s,box-shadow .12s;font-family:inherit;min-height:58px}
 .team-row .slot>*{transform:skewX(8deg)}
 #row-self .slot{background:linear-gradient(135deg,#4638ae,#6a5be0)}
 #row-opp .slot{background:linear-gradient(135deg,#a02150,#d63c78)}
@@ -53,7 +53,13 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 .team-row .slot img{width:38px;height:38px;object-fit:contain;flex:0 0 auto;margin-left:auto}
 .team-row .slot .cap-txt{display:flex;flex-direction:column;min-width:0}
 .team-row .slot .cap-txt strong{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.team-row .slot .cap-txt small{font-size:10px;color:#ffffffbb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team-row .slot .cap-txt small{font-size:10px;color:#ffffffbb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:3px}
+.team-row .slot .item-ic{width:14px;height:14px;object-fit:contain;image-rendering:pixelated}
+.team-row .slot .cap-g{margin-left:4px;font-size:11px}
+.team-row .slot .cap-g.m{color:#8fd0ff}
+.team-row .slot .cap-g.f{color:#ffa9cf}
+.team-row .slot .cap-types{display:flex;gap:3px;margin-top:2px;flex-wrap:nowrap;overflow:hidden}
+.team-row .slot .cap-type{font-size:8px;font-weight:800;color:#fff;border-radius:6px;padding:1px 6px;border:1px solid #ffffff44;white-space:nowrap;flex:0 0 auto}
 /* キャラ変更ボタン: ⟳だけだと分かりにくい→「⟳ かえる」の文字入りピルに(2026-07-05 阿部さん) */
 .team-row .slot .cap-change{flex:0 0 auto;font-size:10px;font-weight:800;background:#00000066;border-radius:10px;
   padding:4px 8px;border:1px solid #ffffff55;white-space:nowrap;line-height:1}
@@ -263,9 +269,9 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 .pbox .who{display:none}
 .pbox .row1{display:flex;align-items:center;gap:6px}
 /* CH: statbar内ミニアイコン(実機の丸顔アイコン) */
-.pbox .icn{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:#00000044;overflow:hidden;
+.pbox .icn{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:#00000044;overflow:hidden;
   display:flex;align-items:center;justify-content:center}
-.pbox .icn img{width:22px;height:22px;object-fit:contain}
+.pbox .icn img{width:34px;height:34px;object-fit:contain;image-rendering:pixelated}
 .pbox .nm{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 2px #0009;
   max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pbox .lv{display:none}   /* 実機statbarにLv表示なし(全員Lv50) */
@@ -889,7 +895,14 @@ function slotCapsuleHtml(id){
   const it = S.itemByKey(slotItem[id]);
   const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
   const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
-  return `<span class="cap-txt"><strong>${tPokeName(nm)}</strong><small>${it ? tItemName(it) : ''}</small></span>` +
+  const p = S.pokeByName(nm);
+  const tc = S.typeColors();
+  const g = slotGender[id];
+  const gHtml = g && g !== '—' ? `<span class="cap-g ${g === '♂' ? 'm' : 'f'}">${g}</span>` : '';
+  const types = p ? [p.type1, p.type2].filter(Boolean).map(t =>
+    `<span class="cap-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('') : '';
+  return `<span class="cap-txt"><strong>${tPokeName(nm)}${gHtml}</strong>` +
+    `<small>${it ? itemIconHtml(it) + tItemName(it) : ''}</small><span class="cap-types">${types}</span></span>` +
     `<img src="${src}" alt="" onerror="this.remove()">` +
     `<span class="cap-change">⟳ ${I18N.t('real_battle.sel_change','かえる')}</span>`;
 }
@@ -923,7 +936,7 @@ function renderSelDetail(id){
     itemChoicesRB().map(it => `<option value="${it.key}" ${slotItem[id] === it.key ? 'selected' : ''} title="${tItemDesc(it)}">${tItemName(it)}</option>`).join('');
   const mvs = (slotMoves[id] || autoMoves(p)).filter(Boolean);
   const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
-  const src = (spriteSrc === 'api' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
+  const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
   box.innerHTML =
     `<div class="sd-head"><img src="${src}" alt="" onerror="this.remove()"><div><strong>${tPokeName(nm)}</strong><div>${types}</div></div></div>` +
     `<div class="sd-moves">` + mvs.map((m, i) => {
@@ -1350,7 +1363,7 @@ function startBattle(){
 // ===== 描画 =====
 // キャラ画像ソース設定(2026-07-05 阿部さん): 'original'=うちの落書きSVG / 'api'=PokeAPIスプライト
 // APIモードは通常フォームのみ(メガ/特殊フォームは名前→フォームID対応が未整備なので自作SVG継続)
-let spriteSrc = localStorage.getItem('rb_sprite_src') || 'original';
+let spriteSrc = localStorage.getItem('rb_sprite_src') || 'api';   // 既定=公式(2026-07-06 阿部さん「全部公式スプライトに・切替は残す」)
 function setSpriteSrc(v){
   spriteSrc = (v === 'api' || v === 'home') ? v : 'original';
   localStorage.setItem('rb_sprite_src', spriteSrc);
@@ -1362,6 +1375,17 @@ function setSpriteSrc(v){
     selfIds().concat(oppIds()).forEach(id => { if (slotVal[id] && $(id)) $(id).innerHTML = slotCapsuleHtml(id); });
     if (typeof selectedSlot !== 'undefined') setSelectedSlot(selectedSlot);
   } catch(e) {}
+}
+// 小アイコン(HPボックス/控えバー/交代/選出)= 公式ドット絵優先・無ければ自作SVG
+function pokeIconSrc(nm){
+  const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
+  return (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
+}
+// 持ち物アイコン(PokeAPI item sprites=name_enスラッグ化。無い物はonerrorで消えて文字だけ残る)
+function itemIconHtml(it){
+  if (!it || !it.name_en) return '';
+  const slug = it.name_en.toLowerCase().replace(/[.'’]/g, '').replace(/ /g, '-');
+  return `<img class="item-ic" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/${slug}.png" alt="" onerror="this.remove()">`;
 }
 function spriteHtml(poke){
   const color = (S.typeColors()[poke.type1]) || '#3a4660';
@@ -1413,7 +1437,7 @@ function renderAll(){
     const icn = pb.querySelector('.icn');
     if (icn){
       const encI = encodeURIComponent(shown.name);
-      icn.innerHTML = `<img src="images/sim/${encI}.svg" alt="" onerror="this.remove()">`;
+      icn.innerHTML = `<img src="${pokeIconSrc(shown.name)}" alt="" onerror="this.remove()">`;
     }
     const max = S.realStat(st, 'hp') || 1;
     const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
@@ -1472,7 +1496,7 @@ function renderSideBars(){
       const pct = Math.round(hp / max * 100);
       const label = `${tPokeName(nm)} (${pct}%)`;
       html += `<div class="${cls}" title="${label}" aria-label="${label}">` +
-              `<img src="images/sim/${enc}.svg" alt="${tPokeName(nm)}" loading="lazy" onerror="this.parentElement.classList.add('noimg');this.remove()">` +
+              `<img src="${pokeIconSrc(nm)}" alt="${tPokeName(nm)}" loading="lazy" onerror="this.parentElement.classList.add('noimg');this.remove()">` +
               `</div>`;
     }
     iconsEl.innerHTML = html;
@@ -1705,7 +1729,7 @@ function showParty(forced){
     const enc = encodeURIComponent((e.illusionAs || e.poke).name);
     const nm = tPokeName((e.illusionAs || e.poke).name);
     return `<button data-i="${i}" ${dead ? 'disabled' : ''}>` +
-      `<div class="pt-name"><img src="images/sim/${enc}.svg" alt="" onerror="this.remove()">${nm}</div>` +
+      `<div class="pt-name"><img src="${pokeIconSrc((e.illusionAs || e.poke).name)}" alt="" onerror="this.remove()">${nm}</div>` +
       (dead
         ? `<div class="pt-fainted">${I18N.t('real_battle.party_fainted','ひんし')}</div>`
         : `<div class="pt-hp-wrap"><div class="${barCls}" style="width:${pct}%"></div></div>` +
