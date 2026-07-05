@@ -102,6 +102,8 @@
 - **語順の罠**: 「接頭辞だけ訳す」はNG(言語で語順が違う=`相手は {名前}` は英語で `The opposing {name}`)。**文ごと `{n}`等のプレースホルダ入りテンプレ**にして全言語版を持つ。
 - **追加=9言語1セット**(ja+en/fr/de/es/it/ko/zh-Hans/zh-Hant)。キーは `i18n/ui-*.json` に同時追加。出典=PokeAPI/公式名 or 独自transl+言語QA(でっち上げ禁止)。
 - **完了前に必ず**: ハーネス `tools/i18n_audit_playwright.js`(+実機スクショ)で残ja=0・JSエラー0を確認してから報告(PDCA Check)。
+- **★JSで組み立てるUI部品は「i18n:ready / i18n:changed での再描画」までがセット(2026-07-06 阿部さん実機で発覚)**: 初回描画がi18n準備前に走る(iframe/エンジン先行のレース)+ページ内の言語切替では`data-i18n`しか自動更新されない。動的部品(例: real_battleの選出カプセル)は必ず両イベントで作り直す。auditが通っても「切替経路」の漏れは別=言語切替も実機で1回踏む。
+- **★辞書の名前はPokeAPIの「完全名」を使う(2026-07-06 発覚・468件修正)**: PokeAPIのform_names(name)は『Hisuian Form』等の**フォームラベル**で、種名の代わりに使うと壊れる。正=`pokemon_name`(完全名 'Hisuian Samurott')。完全名が無い言語(es/it/ko/zh)は公式部品の合成「種名 (ラベル)」まで(でっち上げ禁止)。実装=`tools/_fetch_pokeapi_varieties.js`(full_names)+`tools/build_master.js`。
 - メモリ: `i18n-first-design`。
 
 ---
