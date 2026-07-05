@@ -3292,6 +3292,18 @@ renderTable();
   newCancel.addEventListener('click', () => {
     if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'stats-picker:cancel' }, '*');
   });
+
+  // 埋め込み親(real_battle等)向けの操作橋。party/POKE_MAP は let/const 宣言なので
+  // window越しに見えない=親からの直接代入は不可能。この橋だけが公式API(stats_onlyモード時のみ定義)。
+  window.__statsOnlyHas = name => !!POKE_MAP[name];
+  window.__statsOnlySet = (name, eff, nature, silent) => {
+    if (!POKE_MAP[name]) return false;
+    party[0] = name;
+    partyEvs[0] = { hp:0, atk:0, def:0, spatk:0, spdef:0, spd:0, ...(eff || {}) };
+    partyNatures[0] = nature || 'まじめ';
+    if (!silent) openStatPopup(0);   // silent=基準値だけ更新(確定後の「キャンセルで戻る先」を親が更新する用)
+    return true;
+  };
 })();
 </script>
 

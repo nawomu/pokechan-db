@@ -15,20 +15,22 @@
 *{box-sizing:border-box}
 body{margin:0;background:#0c1322;color:#e6edf3;font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
   display:flex;flex-direction:column;align-items:center;min-height:100vh}
-header{width:100%;max-width:760px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px 0}
+/* CH: 選出3カラム(230+280+230+gap)が760だと#setupの枠を突き破る→820に(2026-07-05 阿部さん「右がはみ出してる」) */
+header{width:100%;max-width:820px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px 0}
 header h1{font-size:15px;margin:0;color:#dbe3f2}
 header a{color:#58a6ff;font-size:12px;text-decoration:none}
-#game{width:100%;max-width:760px;padding:8px 14px 30px}
+#game{width:100%;max-width:820px;padding:8px 14px 30px}
 /* バトル中は左右2カラムのぶん横幅を広げる(設定画面は760pxのまま) */
-/* S1: 盤面560+ログ460+gap14+余白 = 1060px を維持 */
-body.in-battle #game,body.in-battle header{max-width:1060px}
+/* CH: 盤面640(16:9)+ログ460+gap14+余白 = 1150px(2026-07-05 阿部さん「チャンピオンズ実機と同じ縦横比に」) */
+body.in-battle #game,body.in-battle header{max-width:1150px}
 
 /* ===== チーム編成 ===== */
 #setup{background:#141927;border:1px solid #232a3a;border-radius:14px;padding:18px}
 #setup h2{font-size:14px;margin:0 0 10px;color:#9fb4d8}
 /* ===== CH: 選出画面=本家3カラム(左=自分/中央=詳細/右=相手。2026-07-05 阿部さん) ===== */
 #setup-top{display:flex;gap:16px;align-items:center;margin-bottom:10px;font-size:12px;color:#9fb4d8;flex-wrap:wrap}
-#setup-cols{display:grid;grid-template-columns:230px minmax(280px,1fr) 230px;gap:14px;margin-bottom:12px;align-items:start}
+/* 左右カラムは縮められるように(固定230pxだと狭い画面で右カラムが枠外へはみ出す=2026-07-05 阿部さん指摘) */
+#setup-cols{display:grid;grid-template-columns:minmax(170px,230px) minmax(250px,1fr) minmax(170px,230px);gap:14px;margin-bottom:12px;align-items:start}
 .col-title{font-size:12px;font-weight:900;color:#fff;text-align:center;border-radius:12px;padding:3px 0;margin-bottom:8px;
   transform:skewX(-8deg)}
 .col-title.self{background:linear-gradient(135deg,#4638ae,#6a5be0)}
@@ -60,9 +62,11 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 #sel-detail .sd-head strong{font-size:17px;display:block}
 #sel-detail .sd-type{display:inline-block;font-size:10px;font-weight:800;color:#fff;border-radius:9px;padding:2px 9px;
   margin:4px 4px 0 0;box-shadow:0 1px 2px #0007;border:1px solid #ffffff55}
-#sel-detail .sd-stats{display:block;width:100%;margin:4px 0 8px;padding:5px;border-radius:12px;font-size:12px;font-weight:800;
-  background:#22283add;color:#d4f542;border:1px solid #d4f54255;cursor:pointer;font-family:inherit}
-#sel-detail .sd-stats:hover{box-shadow:0 0 0 2px #d4f54288}
+/* 特性/もちものの変更セレクト(2026-07-05 阿部さん「持ち物と特性もクリックで変更できたら」) */
+#sel-detail .sd-row select{background:#00000042;color:#fff;border:1px solid #ffffff33;border-radius:8px;
+  padding:2px 6px;font-size:12px;font-weight:700;max-width:62%;font-family:inherit;cursor:pointer;text-align:right}
+#sel-detail .sd-row select:hover{border-color:#d4f542}
+#sel-detail .sd-row select option{color:#e6edf3;background:#141927;font-weight:400}
 #sel-detail .sd-moves{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
 #sel-detail .sd-move{position:relative;padding:6px 44px 6px 12px;border-radius:16px;border:2px solid #ffffff33;color:#fff;
   text-align:left;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 2px 6px #0005;
@@ -89,28 +93,19 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 #pp-list button:hover{border-color:#58a6ff;background:#1b2540}
 #pp-list img{width:54px;height:54px;object-fit:contain}
 #pp-close{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer}
-/* くわしく編成(技・持ち物の編集) */
+/* 能力値エディタ埋め込み(ビルダー=party_checkerのstats_onlyモードをiframeでそのまま使用。
+ * 2026-07-05 阿部さん「ビルダーの仕様をそのまま持ってくる」「くわしく編成に最初から開いておく」。
+ * 合計66pt・1能力32pt上限・スライダーUIはビルダー側の実装=二重管理しない。技/特性/持ち物は中央パネルで変更 */
 #detail-setup{margin-top:12px;border-top:1px solid #232a3a;padding-top:10px;display:none}
 #detail-setup.open{display:block}
-.ds-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
-.ds-row .ds-name{width:130px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:5px}
-.ds-row .ds-name img{width:26px;height:26px;object-fit:contain}
-.ds-row .mv-chip{font-size:10.5px;padding:4px 8px;border-radius:8px;border:1px solid #2a3450;background:#0c1322;
-  color:#e6edf3;cursor:pointer;max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.ds-row .mv-chip:hover{border-color:#58a6ff}
-.ds-row select{background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:4px;font-size:11px;max-width:150px}
+#ev-frame{width:100%;height:600px;border:0;border-radius:12px;background:#0c1322;display:block}
 #detail-toggle{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:8px;color:#9fb4d8;
   padding:6px 12px;cursor:pointer;font-size:12px;width:100%}
 /* わざ検索モーダル(ポケモン検索と同型) */
-/* 能力値設定モーダル(move-pickerと同型のオーバーレイ) */
+/* 能力値設定モーダル(バトル中⚙用。中身はビルダーの共通エディタiframe) */
 #stats-modal{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
-#stats-modal .sm-box{background:#141927;border:1px solid #2a3450;border-radius:14px;width:100%;max-width:420px;
-  display:flex;flex-direction:column;padding:16px;color:#e6edf3}
-#sm-rows .sm-row{display:flex;align-items:center;gap:10px;margin:4px 0;font-size:13px}
-#sm-rows .sm-row .lbl{flex:0 0 64px;font-weight:700;color:#9fb4d8}
-#sm-rows .sm-row input{width:76px;background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:5px 8px;font-size:13px}
-#sm-rows .sm-row .real{margin-left:auto;font-weight:900;font-style:italic;font-size:15px}
-#sm-close{margin-top:12px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer}
+#stats-modal .sm-box{background:transparent;border:0;width:100%;max-width:720px;display:flex;flex-direction:column;padding:0}
+#sm-frame{width:100%;height:640px;border:0;border-radius:14px}
 /* 技リスト上の能力値ボタン(コンパクト=盤面高さに収める) */
 #moves button.stats-open{padding:1px 10px;border-radius:12px;font-size:10px;font-weight:700;text-align:center;
   background:#22283add;color:#d4f542;border:1px solid #d4f54255}
@@ -316,8 +311,9 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 /* S1: 2カラム配置。ログは右配置(Showdown準拠)。
  * 注: 過去に「ログは左」という独自化の経緯があったが、今回の方針「Showdownと完全に同じに再現」により
  * Showdown準拠の右配置へ変更。order指定で左=盤面(order:0)/右=ログ(order:1)に揃える。 */
-/* CH: 盤面を少し横長に(560→600。640=16:9は「横長すぎ」で戻し=2026-07-05 阿部さん) */
-#battle-main{flex:0 0 600px;max-width:600px;min-width:0;order:0}
+/* CH: 盤面640×360=16:9(チャンピオンズ実機の画面比と同一)。
+ * 経緯: 07-05朝に一度640→「横長すぎ」で600に戻し→同日昼に阿部さん「実機と全く同じ縦横比に」で16:9確定(明示指示が上書き) */
+#battle-main{flex:0 0 640px;max-width:640px;min-width:0;order:0}
 /* S1: ログパネル 460×362px / bg:#eef2f5(Showdown実測値) / フォントVerdana限定指定 */
 /* CH: 盤面640化に合わせてログは伸縮(340〜460px)。狭ければ下に折返す(flex-wrap) */
 #battle-log-panel{flex:1 1 340px;min-width:340px;max-width:460px;height:362px;display:flex;flex-direction:column;order:1;
@@ -498,8 +494,9 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
         <div class="team-row" id="row-opp"></div>
       </div>
     </div>
-    <button id="detail-toggle" data-i18n="real_battle.detail_toggle_button">⚙ くわしく編成(わざ・もちもの をえらぶ)</button>
-    <div id="detail-setup"></div>
+    <!-- CH: くわしく編成=ビルダー共通の能力値エディタ(既定で開く)。わざ/特性/もちものは中央パネルで変更(2026-07-05 阿部さん) -->
+    <button id="detail-toggle">⚙ <span data-i18n="real_battle.stats_modal_title">能力値(努力値ポイント)</span></button>
+    <div id="detail-setup" class="open"></div>
     <!-- CH: キャラ画像ソース(バトル前にも選べる=2026-07-05 阿部さん)。バトル中の#sprite-srcと同期 -->
     <div style="margin-top:10px;font-size:12px;color:#8b94a7;display:flex;gap:8px;align-items:center">
       <span data-i18n="real_battle.sprite_src_label">キャラ画像:</span>
@@ -615,14 +612,10 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 </div>
 
 <!-- ポケモン検索モーダル(チーム編成用・ひらがな/カタカナどちらでも検索可) -->
-<!-- CH: 能力値設定モーダル(技リスト上の⚙ボタンから。simなのでバトル中でも振り直せる=2026-07-05 阿部さん) -->
+<!-- CH: 能力値設定モーダル(技リスト上の⚙ボタンから。simなのでバトル中でも振り直せる=2026-07-05 阿部さん)
+     中身=ビルダー(party_checker)のstats_only共通エディタiframe(66pt/32上限をビルダー側で担保) -->
 <div id="stats-modal">
-  <div class="sm-box">
-    <h3 id="sm-title" style="margin:0 0 10px;font-size:15px"></h3>
-    <div id="sm-rows"></div>
-    <div id="sm-nature" style="margin-top:8px;font-size:12px;color:#9fb4d8"></div>
-    <button id="sm-close" data-i18n="real_battle.mp_close_button">とじる</button>
-  </div>
+  <div class="sm-box" id="sm-holder"></div>
 </div>
 
 <div id="poke-picker">
@@ -754,10 +747,22 @@ let winStreak = 0;     // 連戦モードの連勝数
 const slotVal = {};    // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
 const slotMoves = {};  // 各スロットの技4つ(くわしく編成で変更可。ポケモンを変えると自動選定に戻る)
 const slotItem = {};   // 各スロットの持ち物key(既定=汎用メガストーン)
+const slotAbility = {}; // 各スロットの特性名(中央パネルで変更可=2026-07-05 阿部さん。既定=defaultAbilityRB)
 const slotGender = {}; // 各スロットの性別 '♂'/'♀'/'—'(2026-06-13 ビルダー連携)
 const slotNature = {}; // 各スロットの性格名(ビルダー由来。手動選択は'まじめ'=無補正)
 const slotEffort = {}; // 各スロットの努力値(Champions点 {hp,atk,...})。既定=全0
 const ZERO_EV = () => ({hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0});
+const EFFORT_KEYS = ['hp','atk','def','spatk','spdef','spd'];
+// 努力値ポイントをビルダー仕様にクランプ(1能力0〜32・合計66=Championsポイント制。エンジンは1pt=実数値+1)。
+// 旧モーダル(0〜252自由入力)時代の保存データが残っていても、ここで必ず仕様内に矯正される
+function clampEffortRB(e){
+  const out = ZERO_EV(); let left = 66;
+  EFFORT_KEYS.forEach(k => {
+    let v = Math.floor(Math.max(0, Math.min(32, +((e || {})[k]) || 0)));
+    v = Math.min(v, left); out[k] = v; left -= v;
+  });
+  return out;
+}
 // 無性別ポケモン(party_checkerと同じ。相手チーム=ランダム編成にも性別を割り振るため)
 const GENDERLESS_RB = new Set(["メタモン","ロトム","ヒートロトム","ウォッシュロトム","フロストロトム","スピンロトム",
   "カットロトム","ギルガルド(シールド)","ギルガルド(ブレード)","クレッフィ","ゴルーグ","メガゴルーグ",
@@ -780,6 +785,7 @@ function setSlot(id, name, keepCustom){
   if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
   if (!keepCustom || !slotGender[id]) slotGender[id] = genderOfRB(name);   // 性別(ビルダー由来は復元側でセット)
   if (!keepCustom){ slotNature[id] = 'まじめ'; slotEffort[id] = ZERO_EV(); }   // 手動選択は無補正・努力値0
+  if (!keepCustom || !slotAbility[id]) slotAbility[id] = defaultAbilityRB(S.pokeByName(name));   // ポケモンを変えたら特性も既定に
   $(id).innerHTML = slotCapsuleHtml(id);
   renderDetailSetup();
   if (typeof selectedSlot !== 'undefined' && selectedSlot === id) renderSelDetail(id);
@@ -802,8 +808,13 @@ function setSelectedSlot(id){
   selectedSlot = id;
   document.querySelectorAll('.team-row .slot').forEach(b => b.classList.toggle('selected', b.id === id));
   renderSelDetail(id);
+  renderDetailSetup();   // 下の能力値エディタも選択中スロットに追従
 }
-// 中央詳細パネル(本家の能力タブ風): タイプ/能力値ボタン/技4つ(クリックで変更)/特性/持ち物
+// 選べる持ち物リスト(メガストーンは汎用のみ。旧くわしく編成と同じ絞り込み)
+function itemChoicesRB(){
+  return S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any' || /リザードナイト/.test(it.name));
+}
+// 中央詳細パネル(本家の能力タブ風): タイプ/技4つ(クリックで変更)/特性・持ち物(セレクトで変更=2026-07-05 阿部さん)
 function renderSelDetail(id){
   const box = $('sel-detail');
   if (!box) return;
@@ -814,29 +825,40 @@ function renderSelDetail(id){
   const tc = S.typeColors();
   const types = [p.type1, p.type2].filter(Boolean).map(t =>
     `<span class="sd-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
-  const ab = defaultAbilityRB(p);
-  const it = S.itemByKey(slotItem[id]);
+  const curAb = slotAbility[id] || defaultAbilityRB(p);
+  const abilities = [p.ab1, p.ab2, p.ab3].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+  const abOpts = abilities.map(a =>
+    `<option value="${a}" ${a === curAb ? 'selected' : ''}>${(window.I18N && I18N.ability) ? I18N.ability(a) : a}</option>`).join('');
+  const itOpts = `<option value="">${I18N.t('real_battle.item_none_option','もちもの なし')}</option>` +
+    itemChoicesRB().map(it => `<option value="${it.key}" ${slotItem[id] === it.key ? 'selected' : ''} title="${tItemDesc(it)}">${tItemName(it)}</option>`).join('');
   const mvs = (slotMoves[id] || autoMoves(p)).filter(Boolean);
   const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
   const src = (spriteSrc === 'api' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
   box.innerHTML =
     `<div class="sd-head"><img src="${src}" alt="" onerror="this.remove()"><div><strong>${tPokeName(nm)}</strong><div>${types}</div></div></div>` +
-    `<button class="sd-stats">${I18N.t('real_battle.btn_stats','⚙ 能力値')}</button>` +
     `<div class="sd-moves">` + mvs.map((m, i) => {
       const col = tc[m.type] || '#3a4660';
       return `<button class="sd-move" data-i="${i}" style="background:linear-gradient(135deg,${col}dd,${col}99)">` +
         `<span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>${tMoveName(m)}` +
         `<span class="sd-pp">${m.pp || 0}/${m.pp || 0}</span></button>`;
     }).join('') + `</div>` +
-    `<div class="sd-row"><span>${I18N.t('real_battle.sel_ability','特性')}</span><b>${ab ? ((window.I18N && I18N.ability) ? I18N.ability(ab) : ab) : '—'}</b></div>` +
-    `<div class="sd-row"><span>${I18N.t('real_battle.sel_item','もちもの')}</span><b>${it ? tItemName(it) : '—'}</b></div>`;
-  box.querySelector('.sd-stats').addEventListener('click', () => openStatsModalForSlot(id));
+    `<div class="sd-row"><span>${I18N.t('real_battle.sel_ability','特性')}</span><select class="sd-ab">${abOpts}</select></div>` +
+    `<div class="sd-row"><span>${I18N.t('real_battle.sel_item','もちもの')}</span><select class="sd-item">${itOpts}</select></div>`;
   box.querySelectorAll('.sd-move').forEach(b => b.addEventListener('click', () => { SE.select(); openMovePicker(id, +b.dataset.i); }));
+  const abSel = box.querySelector('.sd-ab');
+  if (abSel) abSel.addEventListener('change', () => { SE.select(); slotAbility[id] = abSel.value; saveTeam(); });
+  const itSel = box.querySelector('.sd-item');
+  if (itSel) itSel.addEventListener('change', () => {
+    SE.select();
+    slotItem[id] = itSel.value;
+    if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);   // カプセルの持ち物表示も追従
+    saveTeam();
+  });
 }
 // 編成の保存/復元(localStorage): ポケモン名・技名・持ち物キー・人数(リロードしても残る)
 function saveTeam(){
   try {
-    const data = { size: teamSize, val: slotVal, item: slotItem, gender: slotGender, nature: slotNature, effort: slotEffort,
+    const data = { size: teamSize, val: slotVal, item: slotItem, ability: slotAbility, gender: slotGender, nature: slotNature, effort: slotEffort,
       moves: Object.fromEntries(Object.entries(slotMoves).map(([k, arr]) => [k, (arr || []).map(m => m && m.name)])) };
     localStorage.setItem('rb_team', JSON.stringify(data));
   } catch (e) {}
@@ -859,8 +881,12 @@ function loadTeam(){
       slotItem[id] = d.item && d.item[id] != null ? d.item[id] : 'mega_stone_any';
       slotGender[id] = (d.gender && d.gender[id]) || genderOfRB(d.val[id]);
       slotNature[id] = (d.nature && d.nature[id]) || 'まじめ';
-      slotEffort[id] = { ...ZERO_EV(), ...((d.effort && d.effort[id]) || {}) };
+      // 旧モーダル時代の252等が残っていても仕様値にクランプ(各32・計66=ビルダー仕様)
+      slotEffort[id] = clampEffortRB((d.effort && d.effort[id]) || {});
       const poke = S.pokeByName(d.val[id]);
+      // 特性: 保存値がその子の特性候補(ab1〜ab3)なら復元、でなければ既定
+      const _abSaved = d.ability && d.ability[id];
+      slotAbility[id] = (_abSaved && [poke.ab1, poke.ab2, poke.ab3].includes(_abSaved)) ? _abSaved : defaultAbilityRB(poke);
       const all = S.usableMoves(poke);
       const names = (d.moves && d.moves[id]) || [];
       const mvs = names.map(n => all.find(m => m.name === n)).filter(Boolean);
@@ -895,7 +921,8 @@ function loadHandoff(){
       slotItem[id] = e.item || 'mega_stone_any';
       slotGender[id] = e.gender || genderOfRB(e.name);
       slotNature[id] = e.nature || 'まじめ';
-      slotEffort[id] = { ...ZERO_EV(), ...(e.effort || {}) };
+      slotEffort[id] = clampEffortRB(e.effort || {});
+      slotAbility[id] = null;   // ビルダーhandoffは特性を持たない→setSlot(keepCustom)内で既定を補完
       setSlot(id, e.name, true);
     });
     // 相手チームはランダム
@@ -903,33 +930,104 @@ function loadHandoff(){
     return true;
   } catch (e) { return false; }
 }
-// くわしく編成: 6スロットぶんの技チップ+持ち物セレクト
+// ===== 能力値エディタ(ビルダー=party_checkerのstats_onlyモードをiframe埋め込み) =====
+// 「ビルダーの仕様をそのまま」(2026-07-05 阿部さん): 66pt/32上限/スライダー/性格ドロップダウンは
+// party_checker側の実装を共有=二重管理しない。確定/キャンセルはpostMessage(stats-picker:confirm/cancel)。
+// iframe側はlocalStorageを書かない(OK/Cancelはstats_onlyモードでpostMessage版に差し替わる)=ビルダーの保存チームは壊さない
+const effortStr = e => EFFORT_KEYS.map(k => `${k}:${(e && e[k]) || 0}`).join(',');
+function evFrameUrl(nm, effort, nature){
+  return `party_checker.html?stats_only=true&v=20260705b&poke=${encodeURIComponent(nm)}&effort=${encodeURIComponent(effortStr(effort))}` +
+    `&nature=${encodeURIComponent(nature || 'まじめ')}&slot=rb`;   // v=CloudflareのHTMLキャッシュ避け
+}
+// iframe内のエディタを対象ポケモンに合わせて開き直す(同一オリジン=直接呼び出し。リロード無し)。
+// iframe側のi18n初期化(__i18nReady)前に描画すると動的ラベルがjaのまま焼き付くため、準備完了までリトライして待つ
+function evFrameSync(ifr, nm, effort, nature){
+  if (!ifr) return;
+  const token = (ifr.__syncToken = (ifr.__syncToken || 0) + 1);   // 連打/スロット切替で古いリトライを無効化
+  const attempt = n => {
+    if (ifr.__syncToken !== token) return;
+    let ready = false;
+    try {
+      const w = ifr.contentWindow;
+      // party/POKE_MAP はlet/const宣言=window越しに不可視。橋(__statsOnlySet)経由でのみ操作できる
+      ready = !!(w && typeof w.__statsOnlySet === 'function' && w.__statsOnlyHas(nm) && w.__i18nReady);
+      if (ready){
+        w.__statsOnlySet(nm, clampEffortRB(effort), nature || 'まじめ');
+        // 埋め込みでは「閉じる」が無意味(背景クリックで消えると操作不能)→閉じられたら即開き直す
+        if (!w.__rbEvGuard){
+          w.__rbEvGuard = true;
+          const ov = w.document.getElementById('ev-ov');
+          if (ov) ov.addEventListener('click', e => { if (e.target === ov) setTimeout(() => { try { w.openStatPopup(0); } catch(_){} }, 0); });
+        }
+        return;
+      }
+    } catch(e){}
+    if (!ready && n < 40) setTimeout(() => attempt(n + 1), 150);
+  };
+  attempt(0);
+}
+// 選出画面下のエディタを選択中スロットに同期
+function evInlineSync(){
+  const ifr = $('ev-frame');
+  const id = selectedSlot, nm = slotVal[id];
+  if (!ifr || !nm) return;
+  slotEffort[id] = clampEffortRB(slotEffort[id]);
+  evFrameSync(ifr, nm, slotEffort[id], slotNature[id]);
+}
+// くわしく編成欄=能力値エディタ(既定で開いておく=2026-07-05 阿部さん)。iframeは言語切替時のみ作り直す
 function renderDetailSetup(){
   const box = $('detail-setup');
   if (!box) return;
-  const tc = S.typeColors();
-  const items = S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any' || /リザードナイト/.test(it.name));
-  box.innerHTML = selfIds().concat(oppIds()).map(id => {
-    const nm = slotVal[id]; if (!nm) return '';
-    const mvs = slotMoves[id] || [];
-    const chips = [0,1,2,3].map(i => {
-      const m = mvs[i];
-      return `<button class="mv-chip" data-slot="${id}" data-i="${i}" title="${m ? tMoveName(m) : I18N.t('real_battle.move_slot_empty_title','わざを えらぶ')}"
-        style="${m ? `border-left:4px solid ${tc[m.type] || '#3a4660'}` : ''}">${m ? tMoveName(m) : '—'}</button>`;
-    }).join('');
-    const opts = items.map(it => `<option value="${it.key}" ${slotItem[id] === it.key ? 'selected' : ''} title="${tItemDesc(it)}">${tItemName(it)}</option>`).join('');
-    return `<div class="ds-row"><span class="ds-name"><img src="images/sim/${encodeURIComponent(nm)}.svg" onerror="this.remove()">${id.startsWith('s') ? '🟢' : '🔴'}${tPokeName(nm)}</span>
-      ${chips}<select data-item="${id}"><option value="">${I18N.t('real_battle.item_none_option','もちもの なし')}</option>${opts}</select></div>`;
-  }).join('');
-  box.querySelectorAll('.mv-chip').forEach(b => b.addEventListener('click', () => {
-    SE.select();
-    openMovePicker(b.dataset.slot, +b.dataset.i);
-  }));
-  box.querySelectorAll('select[data-item]').forEach(sel => sel.addEventListener('change', () => {
-    slotItem[sel.dataset.item] = sel.value;
-    saveTeam();
-  }));
+  const nm = slotVal[selectedSlot];
+  if (!nm) return;
+  const lang = (window.I18N && I18N.lang) || 'ja';
+  let ifr = $('ev-frame');
+  if (!ifr || ifr.dataset.lang !== lang){
+    box.innerHTML = '';
+    ifr = document.createElement('iframe');
+    ifr.id = 'ev-frame';
+    ifr.dataset.lang = lang;
+    ifr.src = evFrameUrl(nm, slotEffort[selectedSlot], slotNature[selectedSlot]);
+    ifr.addEventListener('load', evInlineSync);
+    box.appendChild(ifr);
+    return;
+  }
+  evInlineSync();
 }
+// エディタからの確定/キャンセル(選出画面インライン+バトル中モーダルの両方をここで受ける)
+window.addEventListener('message', e => {
+  const d = e.data;
+  if (!d || typeof d.type !== 'string' || d.type.indexOf('stats-picker:') !== 0) return;
+  const inlineIfr = $('ev-frame'), modalIfr = $('sm-frame');
+  const isInline = inlineIfr && e.source === inlineIfr.contentWindow;
+  const isModal  = modalIfr  && e.source === modalIfr.contentWindow;
+  if (!isInline && !isModal) return;
+  if (d.type === 'stats-picker:confirm'){
+    const eff = clampEffortRB(d.effort), nat = d.nature || 'まじめ';
+    if (isInline){
+      const id = selectedSlot;
+      slotEffort[id] = eff;
+      slotNature[id] = nat;
+      saveTeam();
+      // iframe側の基準値も更新(以後のキャンセル=この確定値に戻る)
+      try { inlineIfr.contentWindow.__statsOnlySet(slotVal[id], eff, nat, true); } catch(_){}
+    } else {
+      // バトル中: 場の自分ポケモンに即時反映(HP最大値が縮んだら現在HPをクランプ)
+      const st = S.sides.self;
+      if (st && st.poke){
+        st.effort = eff;
+        st.natureIdx = S.natureIdxOf(nat);
+        const newMax = S.realStat(st, 'hp');
+        if (st.currentHp != null) st.currentHp = Math.min(st.currentHp, newMax);
+        renderAll();
+      }
+      $('stats-modal').style.display = 'none';
+    }
+  } else if (d.type === 'stats-picker:cancel'){
+    if (isInline) evInlineSync();   // 保存値に戻して開き直す(インラインは常時表示)
+    else $('stats-modal').style.display = 'none';
+  }
+});
 // わざモーダル(ひらがな検索→クリックでそのスロットの技を差し替え)
 function openMovePicker(slotId, idx){
   movePick = { slotId, idx };
@@ -1026,7 +1124,6 @@ function initSetup(){
   $('mp-q').addEventListener('input', () => renderMovePickList($('mp-q').value));
   $('mp-close').addEventListener('click', closeMovePicker);
   $('move-picker').addEventListener('click', e => { if (e.target === $('move-picker')) closeMovePicker(); });
-  $('sm-close').addEventListener('click', () => { $('stats-modal').style.display = 'none'; });
   $('stats-modal').addEventListener('click', e => { if (e.target === $('stats-modal')) $('stats-modal').style.display = 'none'; });
   if (loadHandoff()) { /* ビルダーから来た自分チームを反映済み */ }
   else if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
@@ -1101,21 +1198,21 @@ function buildSide(sideKey, ids){
   st.poke = lead;
   st.moves = (slotMoves[ids[0]] || autoMoves(lead)).filter(Boolean);
   st.selectedMoveIdx = 0;
-  st.item = slotItem[ids[0]] != null ? slotItem[ids[0]] : 'mega_stone_any';   // くわしく編成で変更可(既定=汎用メガストーン)
+  st.item = slotItem[ids[0]] != null ? slotItem[ids[0]] : 'mega_stone_any';   // 中央パネルで変更可(既定=汎用メガストーン)
   st.gender = slotGender[ids[0]] || genderOfRB(slotVal[ids[0]]);
   st.natureIdx = S.natureIdxOf(slotNature[ids[0]] || 'まじめ');   // 性格(ビルダー由来 or 無補正)
-  st.effort = { ...ZERO_EV(), ...(slotEffort[ids[0]] || {}) };    // 努力値(Champions点)
+  st.effort = clampEffortRB(slotEffort[ids[0]]);    // 努力値(Champions点・各32/計66に矯正)
   st.bench = ids.slice(1).map(id => {
     const p = S.pokeByName(slotVal[id]);
-    return { poke: p, effort: { ...ZERO_EV(), ...(slotEffort[id] || {}) }, natureIdx: S.natureIdxOf(slotNature[id] || 'まじめ'),
-      ability: defaultAbilityRB(p), item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
+    return { poke: p, effort: clampEffortRB(slotEffort[id]), natureIdx: S.natureIdxOf(slotNature[id] || 'まじめ'),
+      ability: slotAbility[id] || defaultAbilityRB(p), item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
       moves: (slotMoves[id] || autoMoves(p)).filter(Boolean), gender: slotGender[id] || genderOfRB(slotVal[id]),
       currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
   })
   // 保存チームに現プール外の名前が残っていた場合(pokeByName=null)の抜け殻エントリを捨てる。
   // 残すと「見えない控え」で実質人数が減る+ボールマーク欠け(2026-07-04 深掘りPDCAで発見)
   .filter(e => e.poke);
-  st.ability = defaultAbilityRB(lead);
+  st.ability = slotAbility[ids[0]] || defaultAbilityRB(lead);   // 中央パネルで選んだ特性(既定=特性1/メタモンはかわりもの)
   // PP管理(段129): 場の技+控えの技のPPを初期化(エンジンはst.ppがある時だけPPを見る)
   st.pp = st.moves.map(m => (m && m.pp) ? m.pp : 0);
   st.bench.forEach(e => { e.pp = (e.moves || []).map(m => (m && m.pp) ? m.pp : 0); });
@@ -1489,49 +1586,42 @@ function showParty(forced){
     doTurn(null);   // 交代をこのターンの行動に
   }));
 }
-// 能力値設定モーダル(2026-07-05 阿部さん): 努力値(Champions点)を振り直せる共通エディタ。
-// バトル中=場のポケモンに即時反映 / 選出画面=スロットの努力値を編集(バトル開始時に反映)
-function openStatsEditor(pokeName, state, effortObj, natureName, onChange){
-  const KEYS = [['hp','hp_full'],['atk','atk_full'],['def','def_full'],['spatk','sp_atk_full'],['spdef','sp_def_full'],['spd','spd_full']];
-  $('sm-title').textContent = `${I18N.t('real_battle.stats_modal_title','能力値(努力値ポイント)')} — ${tPokeName(pokeName)}`;
-  $('sm-rows').innerHTML = KEYS.map(([k, lk]) =>
-    `<div class="sm-row"><span class="lbl">${I18N.t('stats.' + lk, k)}</span>` +
-    `<input type="number" min="0" max="252" step="4" data-k="${k}" value="${(effortObj && effortObj[k]) || 0}">` +
-    `<span class="real" data-real="${k}">${S.realStat(state, k)}</span></div>`).join('');
-  $('sm-nature').textContent = `${I18N.t('real_battle.stats_nature_label','性格')}: ${natureName}`;
-  $('sm-rows').querySelectorAll('input').forEach(inp => inp.addEventListener('input', () => {
-    const k = inp.dataset.k;
-    const v = Math.max(0, Math.min(252, parseInt(inp.value, 10) || 0));
-    effortObj[k] = v;
-    $('sm-rows').querySelectorAll('.real').forEach(el => { el.textContent = S.realStat(state, el.dataset.real); });
-    if (onChange) onChange(k, v);
-  }));
-  $('stats-modal').style.display = 'flex';
+// 能力値設定モーダル(バトル中の⚙から): ビルダー共通エディタ(iframe)を開く。
+// 確定=場の自分ポケモンに即時反映(messageリスナー側)・キャンセル=閉じるだけ。上限はビルダー側で担保(66/32)
+// へんしん/メガ中でもビルダー側に居る名前で開く(無ければメガ前の姿にフォールバック)
+function evEditName(ifr, st){
+  try {
+    const has = ifr.contentWindow.__statsOnlyHas;
+    if (has && !has(st.poke.name) && st.megaBase && st.megaBase.name) return st.megaBase.name;
+  } catch(e){}
+  return st.poke.name;
 }
-// バトル中: 場の自分ポケモン(即時反映・HP最大値変更時は現在HPクランプ)
 function openStatsModal(){
   const st = S.sides.self;
   if (!st || !st.poke) return;
-  st.effort = st.effort || ZERO_EV();
-  const natureName = (S.natureList()[st.natureIdx || 0] || ['まじめ'])[0];
-  openStatsEditor(st.poke.name, st, st.effort, natureName, k => {
-    if (k === 'hp'){
-      const newMax = S.realStat(st, 'hp');
-      if (st.currentHp != null) st.currentHp = Math.min(st.currentHp, newMax);
+  st.effort = clampEffortRB(st.effort);
+  const nat = (S.natureList()[st.natureIdx || 0] || ['まじめ'])[0];
+  const nm = st.poke.name;
+  try {
+    const holder = $('sm-holder');
+    let ifr = $('sm-frame');
+    if (!ifr){
+      ifr = document.createElement('iframe');
+      ifr.id = 'sm-frame';
+      ifr.src = evFrameUrl(nm, st.effort, nat);
+      ifr.addEventListener('load', () => {
+        const cur = S.sides.self;
+        if (cur && cur.poke){
+          const nat2 = (S.natureList()[cur.natureIdx || 0] || ['まじめ'])[0];
+          evFrameSync(ifr, evEditName(ifr, cur), cur.effort, nat2);
+        }
+      });
+      holder.appendChild(ifr);
+    } else {
+      evFrameSync(ifr, evEditName(ifr, st), st.effort, nat);
     }
-    renderAll();
-  });
-}
-// 選出画面: スロットの努力値を編集(slotEffortに保存→バトル開始時にbuildSideが読む)
-function openStatsModalForSlot(id){
-  const nm = slotVal[id];
-  if (!nm) return;
-  slotEffort[id] = { ...ZERO_EV(), ...(slotEffort[id] || {}) };
-  const temp = S.makeSideState();
-  temp.poke = S.pokeByName(nm);
-  temp.effort = slotEffort[id];
-  temp.natureIdx = S.natureIdxOf(slotNature[id] || 'まじめ');
-  openStatsEditor(nm, temp, slotEffort[id], slotNature[id] || 'まじめ', () => saveTeam());
+  } catch(e){}
+  $('stats-modal').style.display = 'flex';
 }
 function toggleMega(){
   const st = S.sides.self;

@@ -5,8 +5,11 @@ const { chromium } = require('playwright');
   const p = await b.newPage({ viewport: { width: 1180, height: 980 }, deviceScaleFactor: 1 });
   p.on('pageerror',e=>errs.push('PAGEERR: '+e.message));
   p.on('console',m=>{ if(m.type()==='error' && !/404|Failed to load resource/.test(m.text())) errs.push('CONSOLE: '+m.text()); });
-  await p.goto('http://localhost:8000/real_battle.html', { waitUntil: 'networkidle' });
-  await p.waitForTimeout(500);
+  // networkidleはフレーク源(iframe群の読込でidleに達しない=release_checkと同じ教訓2026-07-05)→i18n+エンジン準備フラグ待ち
+  await p.goto('http://localhost:8000/real_battle.html', { waitUntil: 'domcontentloaded' });
+  await p.waitForFunction(() => window.__i18nReady === true, null, { timeout: 30000 }).catch(()=>{});
+  await p.waitForFunction(() => { try { return !!document.getElementById('engine-frame').contentWindow.__sim; } catch(e){ return false; } }, null, { timeout: 30000 });
+  await p.waitForTimeout(800);
   await p.check('#auto-msg').catch(()=>{});
   await p.locator('#msg-speed').selectOption('600').catch(()=>{});
   await p.locator('button:has-text("バトルスタート"), button:has-text("Battle Start")').first().click();
@@ -16,7 +19,8 @@ const { chromium } = require('playwright');
     if(!await adv()) break;
     await p.locator('#c-fight').click().catch(()=>{});
     await p.waitForTimeout(400);
-    const mv = p.locator('#moves button:not(.back):not([disabled])').first();
+    // .tcol=技カプセル本体。旧セレクタは先頭の⚙能力値ボタン(.stats-open)を踏んでモーダルが開き、以降のクリックが全部遮られてハングしていた
+    const mv = p.locator('#moves button.tcol:not([disabled])').first();
     if(await mv.isVisible().catch(()=>0)){ await mv.click(); turns++; } else break;
     await p.waitForTimeout(800);
   }
