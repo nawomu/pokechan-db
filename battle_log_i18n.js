@@ -125,6 +125,7 @@
   var TPL = {
     attack_dmg: { "en": "{atk} used {move}! {df} took {dmg} damage!{ohko} (HP {hp}{max})", "fr": "{atk} utilise {move} ! {df} perd {dmg} PV !{ohko} (PV {hp}{max})", "de": "{atk} setzt {move} ein! {df} erleidet {dmg} Schaden!{ohko} (KP {hp}{max})", "es": "¡{atk} usó {move}! ¡{df} recibió {dmg} de daño!{ohko} (PS {hp}{max})", "it": "{atk} usa {move}! {df} subisce {dmg} danni!{ohko} (PS {hp}{max})", "ko": "{atk}의 {move}! {df}에게 {dmg}의 데미지!{ohko} (HP {hp}{max})", "zh-Hans": "{atk}使用了{move}！{df}受到了{dmg}点伤害！{ohko}（HP {hp}{max}）", "zh-Hant": "{atk}使出了{move}！{df}受到了{dmg}點傷害！{ohko}（HP {hp}{max}）" },
     used_move: { "en": "{atk} used {move}!", "fr": "{atk} utilise {move} !", "de": "{atk} setzt {move} ein!", "es": "¡{atk} usó {move}!", "it": "{atk} usa {move}!", "ko": "{atk}의 {move}!", "zh-Hans": "{atk}使用了{move}！", "zh-Hant": "{atk}使出了{move}！" },
+    missed_by: { "en": "{p}'s {move} missed!", "fr": "{move} de {p} échoue !", "de": "Die Attacke {move} von {p} ging daneben!", "es": "¡{move} de {p} falló!", "it": "{move} di {p} ha fallito!", "ko": "{p}의 {move}이(가) 빗나갔다!", "zh-Hans": "{p}的{move}没有命中！", "zh-Hant": "{p}的{move}沒有命中！" },
     missed: { "en": "{move} missed!", "fr": "{move} échoue !", "de": "Die Attacke {move} ging daneben!", "es": "¡{move} falló!", "it": "{move} ha fallito!", "ko": "{move}이(가) 빗나갔다!", "zh-Hans": "{move}没有命中！", "zh-Hant": "{move}沒有命中！" },
     failed: { "en": "But it failed!", "fr": "Mais cela échoue !", "de": "Doch es schlug fehl!", "es": "¡Pero ha fallado!", "it": "Ma la mossa è fallita!", "ko": "하지만 실패했다!", "zh-Hans": "但是失败了！", "zh-Hant": "但是失敗了！" },
     faint: { "en": "{p} fainted!", "fr": "{p} est K.O. !", "de": "{p} wurde besiegt!", "es": "¡{p} se debilitó!", "it": "{p} è esausto!", "ko": "{p}은(는) 쓰러졌다!", "zh-Hans": "{p}倒下了！", "zh-Hant": "{p}倒下了！" },
@@ -442,6 +443,7 @@
       slots: { atk: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' }, df: { g: 3, kind: 'poke' }, dmg: { g: 4, kind: 'num' }, ohko: { g: 5, kind: 'raw' }, hp: { g: 6, kind: 'num' }, max: { g: 7, kind: 'raw' } },
       post: { ohko: function (v) { return v ? ' (OHKO!)' : ''; }, max: function (v) { return v ? '/' + v : ''; } } },
     { id: 'used_move', re: /^((?:相手の )?\S+) の (\S+)！$/, slots: { atk: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
+    { id: 'missed_by', re: /^((?:相手の )?\S+) の (\S+) は外れた！$/, slots: { p: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
     { id: 'missed', re: /^(\S+) は外れた！$/, slots: { move: { g: 1, kind: 'move' } } },
     { id: 'failed', re: /^((?:相手の )?\S+) の (\S+)！ しかし うまく きまらなかった！$/, slots: { atk: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
     { id: 'faint', re: /^((?:相手の )?\S+) は ひんしになった！$/, slots: { p: { g: 1, kind: 'poke' } } },
