@@ -3116,7 +3116,9 @@ function progressRampage(atk, mv){
     const d = Array.isArray(ef.duration) ? ef.duration : (ef.duration ? [ef.duration, ef.duration] : [2, 3]);
     const total = d[0] + Math.floor(Math.random() * (d[1] - d[0] + 1));
     atk.rampage = { move: mv, left: total - 1, noConfusion: noConf };
-    log('9', noConf ? `${pname(atk)} は さわぎだした！` : `${pname(atk)} は あばれだした！`);
+    // さわぐ=「さわぎだした！」は実機の公式メッセージ。あばれる/げきりんの開始告知は実機に無い
+    // (2026-07-05 阿部さん「あばれだした、と表示されて攻撃してないように見える」→実機準拠で開始は無言に)
+    if (noConf) log('9', `${pname(atk)} は さわぎだした！`);
   } else {
     atk.rampage.left--;
   }
@@ -4694,6 +4696,12 @@ function runSingleAttack(atkSide, moveIdx){
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
+  // 使用条件(requires user_has_eaten_berry: ゲップ=きのみを食べていないと失敗)。Bulbapedia "Belch"
+  if (((mv.battle_data && mv.battle_data.requires) || []).some(rq => rq.type === 'user_has_eaten_berry') && !ateBerry(atk)){
+    log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(きのみを 食べていない)`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
   // ランダム技(ねごと): 自分のほかの技をランダムに1つくりだす(ねごと系・溜め技は呼べない=近似)。
   // 出典: Bulbapedia "Sleep Talk"
   const _randEf = ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'ランダム技');
@@ -5329,6 +5337,12 @@ function registerVirtualItems(){
   } catch (e) {}
 }
 // そのポケモンのメガフォームを探す(POKEMON_LISTの「メガ◯◯」。X/Y分岐は専用ストーン以外ではXを既定=近似)
+// きのみを食べたか(ゲップの使用条件用。lastConsumedItem=自分で消費した道具のうちcategoryがberry系)。
+// このバトル中に食べていれば交代しても有効(Bulbapedia "Belch"=第7世代以降の仕様・lastConsumedItemはベンチにも保存される)
+function ateBerry(st){
+  const k = st && st.lastConsumedItem;
+  return !!(k && ITEM_BY_KEY[k] && String(ITEM_BY_KEY[k].category || '').startsWith('berry'));
+}
 function megaFormFor(poke){
   if (!poke) return null;
   return POKE_MAP_BY_NAME['メガ' + poke.name] || POKE_MAP_BY_NAME['メガ' + poke.name + 'X'] || null;
@@ -5481,6 +5495,8 @@ function aiScoreMove(sideKey, m){
   const foe = sideKey === 'self' ? 'opp' : 'self';
   const foeSt = sides[foe];
   const foeHp = foeSt.poke ? (foeSt.currentHp == null ? realStat(foeSt, 'hp') : foeSt.currentHp) : 0;
+  // 使用条件を満たさない技(きのみ未食のゲップ等)はAIが選ばない
+  if (((m.battle_data && m.battle_data.requires) || []).some(rq => rq.type === 'user_has_eaten_berry') && !ateBerry(st)) return 0;
   if (m.category !== '変化'){
     const r = calcDamage(sideKey, foe, m);
     if (!r || r.immune || r.max <= 0) return 0;
@@ -5760,6 +5776,11 @@ function runTurn(){
     const _reqS = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'self_status');
     if (_reqS && !(_reqS.value === 'ねむり' && atk.status === 'sleep')){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(${_reqS.value}状態ではない)`);
+      noteActionFailed(atk); continue;
+    }
+    // 使用条件(requires user_has_eaten_berry: ゲップ=きのみを食べていないと失敗)。Bulbapedia "Belch"
+    if (((mv.battle_data && mv.battle_data.requires) || []).some(rq => rq.type === 'user_has_eaten_berry') && !ateBerry(atk)){
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(きのみを 食べていない)`);
       noteActionFailed(atk); continue;
     }
     // ランダム技(ねごと): 自分のほかの技をランダムに1つくりだす(ねごと系・溜め技は呼べない=近似)。
@@ -8095,6 +8116,7 @@ window.__sim = {
   typeColors: () => (typeof TYPE_COLORS !== 'undefined' ? TYPE_COLORS : {}),
   statusJa: () => _STATUS_JA,
   sideTypes,   // 現在の実効タイプ(へんしん/タイプ変化込み)。相性ヒント表示用
+  ateBerry,    // ゲップの使用条件(きのみを食べたか)。技ボタンの無効化表示用
   // チャンピオンズ風の相性ヒント(◎ばつぐん/△いまひとつ/✕こうかなし)用の素の相性倍率。
   // 表示専用の簡易版=相性表のみ(特性/じゅうりょく等の実戦補正は見ない)
   typeEffPreview: (moveType, defTypes) => {

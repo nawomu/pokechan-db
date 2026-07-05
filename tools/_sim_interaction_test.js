@@ -797,6 +797,47 @@ console.log('\n=== 未実装/部分実装 特性・持ち物の確認 ===');
 }
 
 // ─────────────────────────────────────────────
+// S15: 使用条件つき技(requires)×きのみ — ゲップ
+// 出典: Bulbapedia "Belch" = きのみを食べた後でないと使えない(食べていれば交代後も可=第7世代以降)
+// 2026-07-05実装: requires user_has_eaten_berry をエンジン2箇所+AI+技ボタンで判定
+// ─────────────────────────────────────────────
+{
+  resetEnv();
+  const geppu = moveByKey('geppu');
+  if (!geppu){ check('S15-T0 ゲップがWAZA_MAPにある', false, 'geppuなし'); }
+  else {
+    const atk_be = freshSide('カビゴン', 'geppu');
+    fullHp(atk_be);
+    const def_be = freshSide('カイリキー', 'hataku');
+    fullHp(def_be);
+    E.sides.self = atk_be; E.sides.opp = def_be;
+    // きのみ未食 → 失敗(ダメージなし+失敗ログ)
+    const hp0 = def_be.currentHp;
+    E.runSingleAttack('self', 0);
+    const failLog = E.battleLog.some(e => /ゲップ！ しかし うまく きまらなかった！/.test(e.msg));
+    check('S15-T1 きのみ未食のゲップは失敗する', failLog && def_be.currentHp === hp0,
+      `log=${failLog} hp ${hp0}→${def_be.currentHp}`);
+    check('S15-T2 きのみ未食のゲップはAIが選ばない', E.aiScoreMove('self', geppu) === 0,
+      String(E.aiScoreMove('self', geppu)));
+    // きのみを食べた後 → 成功
+    E.battleLog.length = 0;
+    atk_be.lastConsumedItem = 'berry_sitrus';   // オボンのみを食べた状態
+    E.runSingleAttack('self', 0);
+    check('S15-T3 きのみを食べた後のゲップは通る', def_be.currentHp < hp0,
+      `hp ${hp0}→${def_be.currentHp}`);
+    check('S15-T4 食べたのがきのみ以外(ふうせん等)なら失敗のまま', (() => {
+      resetEnv();
+      const a2 = freshSide('カビゴン', 'geppu'); fullHp(a2);
+      const d2 = freshSide('カイリキー', 'hataku'); const dhp = fullHp(d2);
+      a2.lastConsumedItem = 'focus_sash';   // きのみでない消費アイテム
+      E.sides.self = a2; E.sides.opp = d2;
+      E.runSingleAttack('self', 0);
+      return d2.currentHp === dhp;
+    })(), '');
+  }
+}
+
+// ─────────────────────────────────────────────
 // 結果集計
 // ─────────────────────────────────────────────
 console.log('\n=== 結果 ===');
@@ -806,9 +847,9 @@ if (fails.length > 0) {
   fails.forEach(f => console.log('  ❌ ' + f));
 }
 
-console.log('\n=== 未実装・部分実装サマリー ===');
-console.log('  [未実装] ふしぎなまもり — バツグン以外の技を弾くロジックなし(ABILITY_CHANGE_NGのみ)');
-console.log('  [未実装] はりきり(Hustle) — こうげき×1.5・命中×0.8の実装なし');
-console.log('  [要確認] マジックガード×いのちのたま反動 — 砂嵐は対応済みだが反動はsimに判定なし');
+console.log('\n=== 実装済みメモ(2026-07-05更新) ===');
+console.log('  ふしぎなまもり/はりきり: 2026-07-05実装済み(S14で検証)');
+console.log('  マジックガード×いのちのたま反動: 2026-07-04修正済み(S13-T3で検証)');
+console.log('  ゲップ使用条件: 2026-07-05実装済み(S15で検証)');
 
 process.exit(fail > 0 ? 1 : 0);
