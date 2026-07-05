@@ -16,12 +16,10 @@
 body{margin:0;background:linear-gradient(160deg,#eceafa 0%,#dfdcf2 55%,#d4d0ec 100%);color:#3a3552;
   font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
   display:flex;flex-direction:column;align-items:center;min-height:100vh}
-/* バトル中は本家アリーナ同様ダーク */
-body.in-battle{background:#0c1322;color:#e6edf3}
+
 /* CH: 選出3カラム(230+280+230+gap)が760だと#setupの枠を突き破る→820に(2026-07-05 阿部さん「右がはみ出してる」) */
 header{width:100%;max-width:820px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px 0}
 header h1{font-size:15px;margin:0;color:#4a4470}
-body.in-battle header h1{color:#dbe3f2}
 header a{color:#58a6ff;font-size:12px;text-decoration:none}
 #game{width:100%;max-width:820px;padding:8px 14px 30px}
 /* バトル中は左右2カラムのぶん横幅を広げる(設定画面は760pxのまま) */
@@ -72,7 +70,8 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 #sel-detail .sd-empty{color:#ffffffaa;text-align:center;padding:60px 0}
 #sel-detail .sd-head{display:flex;gap:12px;align-items:center;margin-bottom:8px}
 #sel-detail .sd-head img{width:64px;height:64px;object-fit:contain}
-#sel-detail .sd-head strong{font-size:17px;display:block}
+#sel-detail .sd-head strong{font-size:17px;display:block;line-height:1.25;min-height:2.5em;overflow:hidden;
+  display:flex;align-items:center}/* 2行分を常時確保=名前の折返しでパネル全体がズレない(2026-07-06 阿部さん) */
 #sel-detail .sd-type{display:inline-block;font-size:10px;font-weight:800;color:#fff;border-radius:9px;padding:2px 9px;
   margin:4px 4px 0 0;box-shadow:0 1px 2px #0007;border:1px solid #ffffff55}
 /* 特性/もちもの/性格の変更セレクト(2026-07-05 阿部さん「持ち物と特性もクリックで変更できたら」) */
@@ -504,7 +503,8 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
 #party button.back{text-align:center;color:#8b94a7;font-weight:700;grid-column:1/-1;
   border-color:#2a3450;background:#161d2e;padding:9px}
 #party button.back:hover{border-color:#7aabff;background:#1e2d4a;color:#fff}
-#speed-row{margin-top:8px;font-size:11px;color:#9fb4d8;display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap/* バトル中のみ表示=ダーク面 */}
+#speed-row{margin-top:8px;font-size:11px;color:#6a5fa0;display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap}
+#speed-row select{background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;padding:3px 6px;font-size:11px}
 /* ===== CH: スマホ寸法上書き(必ず各コンポーネント定義より後=後勝ち) ===== */
 @media(max-width:880px){
   /* チャンピオンズ同配置(相手=右上/自分=左下)。幅を詰めて右側の技リストと非重畳にする */
@@ -659,19 +659,19 @@ body.in-battle #game,body.in-battle header{max-width:1150px}
       <label><input type="checkbox" id="auto-msg" checked> <span data-i18n="real_battle.auto_msg_label">自動でメッセージ送り</span></label>
       <span><span data-i18n="real_battle.msg_speed_label">送り速度:</span> <select id="msg-speed"><option value="2400" data-i18n="real_battle.msg_speed_slow">ゆっくり</option><option value="1600" selected data-i18n="real_battle.msg_speed_normal">ふつう</option><option value="1000" data-i18n="real_battle.msg_speed_fast">はやい</option></select></span>
       <!-- S6: 背景プリセット切替セレクト。将来の追加は option 1行+CSS 1プリセットで済む構造 -->
-      <span><span data-i18n="real_battle.backdrop_label">背景：</span> <select id="backdrop-sel" style="background:#161d2e;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:3px 6px;font-size:11px">
+      <span><span data-i18n="real_battle.backdrop_label">背景：</span> <select id="backdrop-sel">
         <option value="grass" data-i18n="real_battle.backdrop_grass">草原</option>
         <option value="cave" data-i18n="real_battle.backdrop_cave">洞窟</option>
         <option value="water" data-i18n="real_battle.backdrop_water">水辺</option>
         <option value="night" data-i18n="real_battle.backdrop_night">夜空</option>
       </select></span>
       <!-- CH: キャラ画像ソース切替(設定はバトル中も変更可・即反映) -->
-      <span><span data-i18n="real_battle.sprite_src_label">キャラ画像:</span> <select id="sprite-src" style="background:#161d2e;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:3px 6px;font-size:11px">
+      <span><span data-i18n="real_battle.sprite_src_label">キャラ画像:</span> <select id="sprite-src">
         <option value="original" data-i18n="real_battle.sprite_src_original">うちのオリジナル絵</option>
         <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
         <option value="home" data-i18n="real_battle.sprite_src_home">公式3D(Pokémon HOME)</option>
       </select> <span id="sprite-credit" style="display:none;font-size:10px"><a href="https://pokeapi.co/" style="color:#9ec5ff" data-i18n="real_battle.sprite_credit">画像出典: PokéAPI</a></span></span>
-      <button id="snd-toggle" style="margin-left:auto;background:#161d2e;border:1px solid #2a3450;border-radius:8px;color:#e6edf3;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
+      <button id="snd-toggle" style="margin-left:auto;background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
     </div>
     </div><!-- /battle-main -->
     <div id="battle-log-panel">
@@ -904,7 +904,7 @@ function slotCapsuleHtml(id){
   return `<span class="cap-txt"><strong>${tPokeName(nm)}${gHtml}</strong>` +
     `<small>${it ? itemIconHtml(it) + tItemName(it) : ''}</small><span class="cap-types">${types}</span></span>` +
     `<img src="${src}" alt="" onerror="this.remove()">` +
-    `<span class="cap-change">⟳ ${I18N.t('real_battle.sel_change','かえる')}</span>`;
+    `<span class="cap-change">📦 ${I18N.t('real_battle.box_title','ボックス')}</span>`;
 }
 function setSelectedSlot(id){
   selectedSlot = id;
@@ -1363,7 +1363,7 @@ function startBattle(){
 // ===== 描画 =====
 // キャラ画像ソース設定(2026-07-05 阿部さん): 'original'=うちの落書きSVG / 'api'=PokeAPIスプライト
 // APIモードは通常フォームのみ(メガ/特殊フォームは名前→フォームID対応が未整備なので自作SVG継続)
-let spriteSrc = localStorage.getItem('rb_sprite_src') || 'api';   // 既定=公式(2026-07-06 阿部さん「全部公式スプライトに・切替は残す」)
+let spriteSrc = localStorage.getItem('rb_sprite_src') || 'home';   // 既定=公式3D(Pokémon HOME)。「かっこいい、これ使いましょう」(2026-07-06 阿部さん)。小さいアイコン類はドット絵のまま
 function setSpriteSrc(v){
   spriteSrc = (v === 'api' || v === 'home') ? v : 'original';
   localStorage.setItem('rb_sprite_src', spriteSrc);
