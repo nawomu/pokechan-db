@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://pchamdb.com/real_battle.html">
 <script defer src="i18n/runtime.js?v=20260622"></script>
 <script src="pokechan_data.js?v=20260704c"></script>
-<script src="battle_log_i18n.js?v=20260704d"></script>
+<script src="battle_log_i18n.js?v=20260705c"></script>
 <script src="sprite_api_ids.js?v=20260705a"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
@@ -215,7 +215,7 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
   text-shadow:0 2px 4px #000c;pointer-events:none;animation:rbPop 1s forwards;z-index:5;white-space:nowrap}
 @keyframes rbPop{0%{opacity:0;transform:translateX(-50%) translateY(6px) scale(.6)}18%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1.18)}100%{opacity:0;transform:translateX(-50%) translateY(-46px) scale(1)}}
 .burst{position:absolute;left:50%;top:46%;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;
-  pointer-events:none;animation:rbBurst .55s forwards;z-index:4}
+  pointer-events:none;animation:rbBurst .85s forwards;z-index:4/* 被弾エフェクト少し長め */}
 @keyframes rbBurst{0%{transform:scale(.15);opacity:.9}100%{transform:scale(1.8);opacity:0}}
 #fx-flash{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:6}
 #fx-flash.on{animation:rbFlash .5s forwards}
@@ -224,12 +224,15 @@ body.in-battle #game,body.in-battle header{max-width:1060px}
 @keyframes rbMega{0%{opacity:0}25%{opacity:.95}55%{opacity:.6}100%{opacity:0}}
 @keyframes rbWeather{0%{transform:translateY(-8px)}100%{transform:translateY(8px)}}
 #weather-fx.live{animation:rbWeather 2.2s ease-in-out infinite alternate}
-@keyframes rbShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-9px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(4px)}}
+@keyframes rbShake{0%,100%{transform:translateX(0)}15%{transform:translateX(-10px)}30%{transform:translateX(9px)}45%{transform:translateX(-7px)}60%{transform:translateX(5px)}75%{transform:translateX(-3px)}90%{transform:translateX(2px)}}
+/* 攻撃予告: ぴょんぴょん2回はねる(2026-07-05 阿部さん「攻撃するぞーって予告」) */
+@keyframes rbPreAttack{0%,100%{transform:translateY(0)}18%{transform:translateY(-12px)}36%{transform:translateY(0)}54%{transform:translateY(-8px)}72%{transform:translateY(0)}}
 @keyframes rbLunge{0%{transform:none}40%{transform:translate(14px,-10px) scale(1.05)}100%{transform:none}}
 @keyframes rbLungeOpp{0%{transform:none}40%{transform:translate(-14px,10px) scale(1.05)}100%{transform:none}}
 @keyframes rbFaint{0%{opacity:1;transform:none}100%{opacity:0;transform:translateY(40px)}}
 @keyframes rbEnter{0%{opacity:0;transform:translateY(30px) scale(.5)}70%{transform:translateY(-6px) scale(1.06)}100%{opacity:1;transform:none}}
-.fighter.hit .sprite{animation:rbShake .5s}
+.fighter.hit .sprite{animation:rbShake .85s/* 被弾は少し長め(2026-07-05 阿部さん) */}
+.fighter.preattack .sprite{animation:rbPreAttack .7s}
 .fighter.lunge-self .sprite{animation:rbLunge .45s}
 .fighter.lunge-opp .sprite{animation:rbLungeOpp .45s}
 .fighter.faint .sprite{animation:rbFaint .7s forwards}
@@ -1192,7 +1195,7 @@ function nextSay(){
   // ダメージ/状態反映を含む行は fx内のsetHpBarがすぐ戻す=「演出→バーが出て減る」の実機の流れ
   $('field').classList.add('ch-busy');
   pushMsgLine(txt);   // 下部メッセージ欄(6行・直近が薄く残る)
-  logLine(txt);       // 左の流れるログにも積む
+  if (!line.noLog) logLine(txt);   // 右の流れるログにも積む(表示専用の差し込み行は除く)
   if (line.fx) line.fx();
   box.querySelector('.next').style.display = sayQueue.length || sayDone ? 'inline' : 'none';
   if ($('auto-msg').checked){
@@ -1356,7 +1359,19 @@ function doTurn(moveIdx){
   logPos = S.battleLog.length;
   S.runTurn();
   const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
-  const lines = fresh.map(e => lineWithFx(e.msg));
+  // CH: 攻撃行の前に「◯◯の こうげき！」を差し込み(2段表示=2026-07-05 阿部さん)。
+  // 表示専用(noLog)でエンジンログ/右ログは汚さない。攻撃側はぴょんぴょん予告(preattack)
+  const lines = [];
+  for (const e of fresh){
+    const am = e.msg.match(/^((?:相手の )?)(\S+) の \S+！/);
+    if (am && /ダメージ！/.test(e.msg)){
+      const introJa = `${am[1]}${am[2]} の こうげき！`;
+      const introSide = am[1] ? 'opp' : 'self';
+      lines.push({ text: (window.translateLogLine ? translateLogLine(introJa) : introJa),
+        fx: () => flash(introSide, 'preattack'), noLog: true });
+    }
+    lines.push(lineWithFx(e.msg));
+  }
   logTurnHeader(turnNo);   // 右ログに「Turn N」見出し
   say(lines, endOfTurn);
 }
