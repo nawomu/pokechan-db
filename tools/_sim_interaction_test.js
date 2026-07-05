@@ -838,6 +838,88 @@ console.log('\n=== 未実装/部分実装 特性・持ち物の確認 ===');
 }
 
 // ─────────────────────────────────────────────
+// S16: fails_if(相手の選択/行動・被弾・前ターン与ダメ)= 2026-07-05 490技監査で発覚した未実装ゲート
+// 出典: ふいうち=Bulbapedia "Sucker Punch" / きあいパンチ="Focus Punch" / はやてがえし="Upper Hand"
+//       どげざつき=ヤックン(Champions調整: 優先度+1・前ターン与ダメ条件)
+// ─────────────────────────────────────────────
+{
+  const byName = n => { const k = Object.keys(data.WAZA_MAP).find(k => data.WAZA_MAP[k].name === n); return k ? data.WAZA_MAP[k] : null; };
+  const fuiuchi = byName('ふいうち'), kiai = byName('きあいパンチ'), dogeza = byName('どげざつき');
+  const kousoku = byName('こうそくいどう'), denkou = byName('でんこうせっか');
+
+  // T1 ふいうち: 相手が変化技を選んでいると失敗
+  resetEnv();
+  let a = freshSide('カイリキー', 'hataku'); a.moves = [fuiuchi]; a.pp = [8]; fullHp(a);
+  let b = freshSide('カビゴン', 'hataku'); b.moves = [kousoku, moveByKey('hataku')]; b.pp = [30, 35]; const bhp = fullHp(b);
+  b.selectedMoveIdx = 0;   // 変化技(こうそくいどう)を選択
+  E.sides.self = a; E.sides.opp = b;
+  E.runSingleAttack('self', 0);
+  check('S16-T1 ふいうち: 相手が変化技選択なら失敗', b.currentHp === bhp && E.battleLog.some(e => /ふいうち！ しかし うまく きまらなかった/.test(e.msg)),
+    `hp=${bhp}→${b.currentHp}`);
+  // T2 ふいうち: 相手が攻撃技選択(未行動)なら通る
+  E.battleLog.length = 0;
+  b.selectedMoveIdx = 1; b.movedThisTurn = false;
+  E.runSingleAttack('self', 0);
+  check('S16-T2 ふいうち: 相手が攻撃技選択なら通る', b.currentHp < bhp, `hp=${bhp}→${b.currentHp}`);
+  // T3 ふいうち: 相手が行動済みなら失敗
+  resetEnv();
+  a = freshSide('カイリキー', 'hataku'); a.moves = [fuiuchi]; a.pp = [8]; fullHp(a);
+  b = freshSide('カビゴン', 'hataku'); const bhp3 = fullHp(b);
+  b.selectedMoveIdx = 0; b.movedThisTurn = true;
+  E.sides.self = a; E.sides.opp = b;
+  E.runSingleAttack('self', 0);
+  check('S16-T3 ふいうち: 相手が行動済みなら失敗', b.currentHp === bhp3, `hp=${bhp3}→${b.currentHp}`);
+
+  // T4 きあいパンチ: 行動前に被弾していると失敗(runTurnで実序列検証: 相手はたく→自分きあいパンチ-3)
+  resetEnv();
+  a = freshSide('カビゴン', 'hataku'); a.moves = [kiai]; a.pp = [20]; a.selectedMoveIdx = 0; fullHp(a);
+  b = freshSide('カイリキー', 'hataku'); b.selectedMoveIdx = 0; const bhp4 = fullHp(b);
+  E.sides.self = a; E.sides.opp = b;
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  const kiaiFailed = E.battleLog.some(e => /きあいパンチ！ しかし うまく きまらなかった/.test(e.msg));
+  check('S16-T4 きあいパンチ: 行動前に被弾で失敗', kiaiFailed && b.currentHp === bhp4,
+    E.battleLog.map(e=>e.msg).join('/').slice(0,120));
+  // T5 きあいパンチ: 被弾なし(相手が変化技)なら通る
+  resetEnv();
+  a = freshSide('カビゴン', 'hataku'); a.moves = [kiai]; a.pp = [20]; a.selectedMoveIdx = 0; fullHp(a);
+  b = freshSide('カイリキー', 'hataku'); b.moves = [kousoku]; b.pp = [30]; b.selectedMoveIdx = 0; const bhp5 = fullHp(b);
+  E.sides.self = a; E.sides.opp = b;
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  check('S16-T5 きあいパンチ: 被弾なしなら通る', b.currentHp < bhp5, `hp=${bhp5}→${b.currentHp}`);
+
+  // T6 どげざつき: 1ターン目(前ターン与ダメなし)は失敗・与ダメ翌ターンは通る(ヤックン=Champions調整)
+  if (dogeza){
+    resetEnv();
+    a = freshSide('カイリキー', 'hataku'); a.moves = [moveByKey('hataku'), dogeza]; a.pp = [35, 10]; fullHp(a);
+    b = freshSide('カビゴン', 'hataku'); b.moves = [kousoku]; b.pp = [30]; b.selectedMoveIdx = 0; const bhp6 = fullHp(b);
+    E.sides.self = a; E.sides.opp = b;
+    E.setRandom(mulberry32(5));
+    a.selectedMoveIdx = 1;   // T1: いきなりどげざつき→失敗
+    E.runTurn();
+    const t1fail = E.battleLog.some(e => /どげざつき！ しかし うまく きまらなかった/.test(e.msg));
+    check('S16-T6 どげざつき: 前ターン与ダメなしは失敗', t1fail && b.currentHp === bhp6, `hp=${bhp6}→${b.currentHp}`);
+    a.selectedMoveIdx = 0;   // T2: はたくで与ダメ
+    E.runTurn();
+    const hpAfterHataku = b.currentHp;
+    a.selectedMoveIdx = 1;   // T3: どげざつき→通る
+    E.battleLog.length = 0;
+    E.runTurn();
+    check('S16-T7 どげざつき: 与ダメ翌ターンは通る', b.currentHp < hpAfterHataku,
+      E.battleLog.map(e=>e.msg).join('/').slice(0,100));
+  } else {
+    check('S16-T6 どげざつき: WAZA_MAPに存在', false, 'dogezaなし');
+  }
+
+  // T8 ファストガード: 連続使用で失敗しやすくなる(consecutive_success_multiplier=0.3333追加の検証)
+  const fg = byName('ファストガード');
+  check('S16-T8 ファストガード: 連続使用ペナルティのデータ宣言',
+    !!(fg && fg.battle_data.effects[0].consecutive_success_multiplier === 0.3333),
+    JSON.stringify(fg && fg.battle_data.effects[0]).slice(0,120));
+}
+
+// ─────────────────────────────────────────────
 // 結果集計
 // ─────────────────────────────────────────────
 console.log('\n=== 結果 ===');

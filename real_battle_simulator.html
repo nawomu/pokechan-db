@@ -2467,12 +2467,14 @@ function applyDestinyBond(downed, killer){
 }
 
 // 技で受けたダメージを記録(倍返し=カウンター等用)。連続攻撃は最後の1発分(Bulbapedia "Counter")。
-function recordTaken(df, move, lastHitDmg){
+// attacker を渡すと「このターン相手にダメージを与えた」(どげざつき用)も同時に記録する
+function recordTaken(df, move, lastHitDmg, attacker){
   if (!(lastHitDmg > 0)) return;
   const t = df.tookThisTurn || (df.tookThisTurn = {phys:0, spec:0, any:0});
   if (move.category === '物理') t.phys = lastHitDmg;
   else if (move.category === '特殊') t.spec = lastHitDmg;
   t.any = lastHitDmg;
+  if (attacker) attacker.dealtDamageThisTurn = true;
 }
 
 // === フェーズ: ダメ計算 → HP 反映 (Atk-Base 〜 8) ===
@@ -2521,7 +2523,7 @@ function phaseDealDamage(atkSide, defSide, move){
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${pname(a)} の ${move.name}！ 受けたダメージを倍返し！ ${pname(df)} に ${dmg} ダメージ！ (残HP ${df.currentHp})`);
     if (df.currentHp <= 0){ df.fainted = true; log('8', `${pname(df)} は ひんしになった！`); applyDestinyBond(df, a); }
-    recordTaken(df, move, dmg);
+    recordTaken(df, move, dmg, a);
     return { variation: dmg, hits: 1, special: true };
   }
 
@@ -2557,7 +2559,7 @@ function phaseDealDamage(atkSide, defSide, move){
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${pname(a)} の ${move.name}！ ${pname(df)} に ${dmg} ダメージ！${ohkoEf ? '(一撃必殺！)' : ''} (残HP ${df.currentHp})`);
     if (df.currentHp <= 0){ df.fainted = true; log('8', `${pname(df)} は ひんしになった！`); applyDestinyBond(df, a); }
-    recordTaken(df, move, dmg);
+    recordTaken(df, move, dmg, a);
     return { variation: dmg, hits: 1, special: true };
   }
   // 急所判定(確率制・第7世代以降): 急所ランク = きゅうしょアップ状態(きあいだめ=+2) + 技の急所ランク(crit_stage=高急所技+1)。
@@ -2697,7 +2699,7 @@ function phaseDealDamage(atkSide, defSide, move){
     total += v; hits++; lastHit = v;
   }
   // 分身が受けた攻撃は倍返し(カウンター等)の対象に積まない(近似: 連続攻撃の混在時もまとめて積まない)
-  if (!def.subAbsorbed) recordTaken(def, move, lastHit); // 倍返し用(連続攻撃は最後の1発分)
+  if (!def.subAbsorbed) recordTaken(def, move, lastHit, atk); // 倍返し用(連続攻撃は最後の1発分)+与ダメ記録
   // じゅうでん消費: 指定タイプ(でんき)の技を実際に使ったら効果が切れる(実効タイプで判定)
   if (atk.chargeBoost && result.moveType === atk.chargeBoost.move_type) atk.chargeBoost = null;
   if (def.subAbsorbed){
@@ -4702,6 +4704,12 @@ function runSingleAttack(atkSide, moveIdx){
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
+  // 失敗条件(fails_if: 相手の選択/行動状況・自分の被弾・前ターン与ダメ)。データ宣言をエンジンが読む(2026-07-05・490技監査で発覚)
+  if (failsByCondition(atk, def, mv)){
+    log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
   // ランダム技(ねごと): 自分のほかの技をランダムに1つくりだす(ねごと系・溜め技は呼べない=近似)。
   // 出典: Bulbapedia "Sleep Talk"
   const _randEf = ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'ランダム技');
@@ -5337,6 +5345,32 @@ function registerVirtualItems(){
   } catch (e) {}
 }
 // そのポケモンのメガフォームを探す(POKEMON_LISTの「メガ◯◯」。X/Y分岐は専用ストーン以外ではXを既定=近似)
+// 失敗条件(battle_data.fails_if)のうち「相手の選択/行動状況・自分の被弾・前ターン与ダメ」系を判定する。
+// 2026-07-05の490技監査で「データ宣言済みなのにエンジンが読んでいない」ことが発覚した型を実装。
+// 出典: ふいうち=ヤックン/Bulbapedia "Sucker Punch" / はやてがえし="Upper Hand" / きあいパンチ="Focus Punch"
+//       どげざつき=ヤックン(Champions調整: 優先度+1・前ターン与ダメ条件。本家Bulbapediaとは仕様が異なる=ヤックンが権威)
+function failsByCondition(atk, def, mv){
+  const fifs = (mv.battle_data && mv.battle_data.fails_if) || [];
+  if (!fifs.length) return false;
+  const dmv = (def && def.moves) ? def.moves[def.selectedMoveIdx] : null;
+  return fifs.some(f => {
+    switch (f.type) {
+      case 'target_not_selecting_attacking_move':   // ふいうち: 相手が攻撃技を選んでいない/交代/行動済みなら失敗
+        return !def || def.movedThisTurn || def.switchedThisTurn || !dmv || dmv.category === '変化';
+      case 'target_not_selecting_priority_move':    // はやてがえし: 相手が先制技(優先度>0)を選んでいなければ失敗
+      case 'target_selected_move_not_priority':
+        return !def || def.movedThisTurn || def.switchedThisTurn || !dmv || movePriority(dmv, def) <= 0;
+      case 'target_already_acted_this_turn':
+        return !!(def && def.movedThisTurn);
+      case 'user_hit_by_move_before_acting_this_turn':   // きあいパンチ: 行動前に技のダメージを受けていたら失敗
+      case 'hit_by_attacking_move_before_use':
+        return !!(atk.tookThisTurn && atk.tookThisTurn.any > 0);
+      case 'no_damage_dealt_last_turn':             // どげざつき: 前のターンに相手へダメージを与えていなければ失敗
+        return !atk.dealtDamageLastTurn;
+      default: return false;   // その他の型は各所の専用ゲート/未対応(監査doc参照)
+    }
+  });
+}
 // きのみを食べたか(ゲップの使用条件用。lastConsumedItem=自分で消費した道具のうちcategoryがberry系)。
 // このバトル中に食べていれば交代しても有効(Bulbapedia "Belch"=第7世代以降の仕様・lastConsumedItemはベンチにも保存される)
 function ateBerry(st){
@@ -5630,6 +5664,9 @@ function runTurn(){
   ['self','opp'].forEach(s => {
     sides[s].lastTurnFailed = !!sides[s].failedThisTurn;
     sides[s].failedThisTurn = false;
+    // 「前ターンに相手へダメージを与えたか」(どげざつき用)も同じタイミングで確定
+    sides[s].dealtDamageLastTurn = !!sides[s].dealtDamageThisTurn;
+    sides[s].dealtDamageThisTurn = false;
     // 「このターン能力を下げられた」(うっぷんばらし用)もターン開始でリセット
     sides[s].statLoweredThisTurn = false;
     // 「このターン交代で出た」もターン開始でリセット
@@ -5781,6 +5818,11 @@ function runTurn(){
     // 使用条件(requires user_has_eaten_berry: ゲップ=きのみを食べていないと失敗)。Bulbapedia "Belch"
     if (((mv.battle_data && mv.battle_data.requires) || []).some(rq => rq.type === 'user_has_eaten_berry') && !ateBerry(atk)){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(きのみを 食べていない)`);
+      noteActionFailed(atk); continue;
+    }
+    // 失敗条件(fails_if: 相手の選択/行動状況・自分の被弾・前ターン与ダメ)。データ宣言をエンジンが読む(2026-07-05・490技監査で発覚)
+    if (failsByCondition(atk, def, mv)){
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
       noteActionFailed(atk); continue;
     }
     // ランダム技(ねごと): 自分のほかの技をランダムに1つくりだす(ねごと系・溜め技は呼べない=近似)。

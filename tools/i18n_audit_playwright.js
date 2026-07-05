@@ -105,8 +105,11 @@ function scanFn(lang) {
     const page = await ctx.newPage();
     for (const pg of pages) {
       try {
-        await page.goto(BASE + '/' + pg, { waitUntil: 'networkidle', timeout: 20000 });
-        await page.waitForTimeout(900); // i18n 適用 + 動的描画待ち
+        // networkidle待ちは大量lazy画像+リモートフォールバックのページ(全国図鑑等)で収束せず
+        // タイムアウト誤検出(残日本語1件フレーク)になる → i18n適用完了フラグ(__i18nReady)を直接待つ(2026-07-05)
+        await page.goto(BASE + '/' + pg, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.waitForFunction(() => window.__i18nReady === true, null, { timeout: 20000 }).catch(() => {});
+        await page.waitForTimeout(900); // 動的描画の残り(バトルログ等)待ち
         const raw = await page.evaluate(scanFn, lang);
         const leaks = applyAllowlist(raw);
         report[lang][pg] = leaks;

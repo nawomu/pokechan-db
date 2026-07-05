@@ -528,6 +528,7 @@
         });
         obs.observe(document.body, { childList: true, subtree: true });
       } catch (e) { /* 古いブラウザは無視 */ }
+      window.__i18nReady = true;   // イベントを聞き逃した後続(監査ハーネス等)向けの恒久フラグ(2026-07-05)
       document.dispatchEvent(new CustomEvent('i18n:ready', { detail: { lang: currentLang } }));
       readyCallbacks.forEach((cb) => { try { cb(); } catch (e) {} });
       setupAuditTool();
