@@ -78,8 +78,10 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #sel-detail .sd-type{display:inline-block;font-size:10px;font-weight:800;color:#fff;border-radius:9px;padding:2px 9px;
   margin:4px 4px 0 0;box-shadow:0 1px 2px #0007;border:1px solid #ffffff55}
 /* 特性/もちもの/性格の変更セレクト(2026-07-05 阿部さん「持ち物と特性もクリックで変更できたら」) */
-#sel-detail .sd-row select,#sel-detail .sd-ev select{background:#00000042;color:#fff;border:1px solid #ffffff33;border-radius:8px;
-  padding:2px 6px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+#sel-detail .sd-row select,#sel-detail .sd-ev select,#sel-detail button.sd-pick{background:#00000042;color:#fff;border:1px solid #ffffff33;border-radius:8px;
+  padding:2px 8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+#sel-detail button.sd-pick:hover{border-color:#d4f542}
+#sel-detail .sd-ev-top .sd-nature{flex:1 1 auto;min-width:0;text-align:left;overflow:hidden;white-space:nowrap}
 #sel-detail .sd-row select{max-width:62%;text-align:right}
 #sel-detail .sd-row select:hover,#sel-detail .sd-ev select:hover{border-color:#d4f542}
 #sel-detail .sd-row select option,#sel-detail .sd-ev select option{color:#e6edf3;background:#141927;font-weight:400}
@@ -97,6 +99,21 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   #setup-cols{grid-template-columns:1fr}
   #setup-center{order:3}
 }
+/* 共通選択モーダル(ライトラベンダー・説明つき) */
+#choice-modal{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:60;padding:40px 14px}
+#choice-modal .cm-box{background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:14px;width:100%;
+  max-width:560px;max-height:84vh;display:flex;flex-direction:column;padding:14px;box-shadow:0 14px 40px #00000055}
+#choice-modal .cm-head{display:flex;align-items:center;margin-bottom:8px}
+#choice-modal .cm-title{font-weight:800;font-size:15px;color:#4a4470}
+#choice-modal .cm-x{margin-left:auto;background:none;border:none;font-size:16px;color:#8a82c8;cursor:pointer}
+#choice-modal .cm-body{overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+#choice-modal .cm-group{font-size:11px;font-weight:800;color:#5a4fc4;margin:8px 2px 2px}
+#choice-modal .cm-row{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:9px;color:#3a3552;cursor:pointer;
+  padding:7px 10px;text-align:left;font-size:12px;display:flex;flex-direction:column;gap:2px;font-family:inherit}
+#choice-modal .cm-row b{font-size:12.5px}
+#choice-modal .cm-row span{font-size:10.5px;color:#5a5478;line-height:1.4}
+#choice-modal .cm-row:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
+#choice-modal .cm-row.sel{border-color:#5a4fc4;box-shadow:0 0 0 2px #b9e34d}
 /* ポケモン検索モーダル */
 #poke-picker{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
 #poke-picker .pp-box{background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:14px;width:100%;max-width:720px;
@@ -726,6 +743,13 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   <div class="sm-box" id="sm-holder"></div>
 </div>
 
+<!-- CH: 共通の選択モーダル(特性/持ち物/性格。説明つき・ジャンル分け=2026-07-06 阿部さん・ビルダーの持ち物モーダル方式) -->
+<div id="choice-modal">
+  <div class="cm-box">
+    <div class="cm-head"><span class="cm-title"></span><button class="cm-x">✕</button></div>
+    <div class="cm-body"></div>
+  </div>
+</div>
 <div id="poke-picker">
   <div class="pp-box">
     <!-- CH: ボックス(実機のBOXメタファー=2026-07-06 阿部さん)。タイプ表示つき5列・並び替えあり・タイプ絞り込みは無し -->
@@ -943,7 +967,33 @@ function setSelectedSlot(id){
 }
 // 選べる持ち物リスト(メガストーンは汎用のみ。旧くわしく編成と同じ絞り込み)
 function itemChoicesRB(){
-  return S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any' || /リザードナイト/.test(it.name));
+  // メガストーンは汎用(共通)1つだけ(2026-07-06 阿部さん)。バトル中のメガシンカは1体だけの制限は従来どおり
+  return S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any');
+}
+// 共通選択モーダル: groups=[{label, rows:[{key,name,desc,selected}]}]
+function openChoiceModal(title, groups, onPick){
+  const cm = $('choice-modal');
+  cm.querySelector('.cm-title').textContent = title;
+  cm.querySelector('.cm-body').innerHTML = groups.map(g =>
+    (g.label ? `<div class="cm-group">${g.label}</div>` : '') +
+    g.rows.map(r => `<button class="cm-row${r.selected ? ' sel' : ''}" data-k="${r.key}"><b>${r.name}</b>${r.desc ? `<span>${r.desc}</span>` : ''}</button>`).join('')
+  ).join('');
+  cm.style.display = 'flex';
+  cm.querySelectorAll('.cm-row').forEach(b => b.addEventListener('click', () => { SE.select(); cm.style.display = 'none'; onPick(b.dataset.k); }));
+}
+// 持ち物の5ジャンル(ビルダーのモーダル同様「ジャンル+説明」で探しやすく)
+const ITEMCAT_BUCKET = {attack_boost:'attack', type_boost:'attack', speed_boost:'speed',
+  defense_boost:'defense', survival:'defense', berry_resist:'heal', berry_status_cure:'heal', berry_hp_cure:'heal', hp_drain:'heal'};
+function openItemModal(current, onPick){
+  const buckets = {attack:[], speed:[], defense:[], heal:[], other:[]};
+  itemChoicesRB().forEach(it => { buckets[ITEMCAT_BUCKET[it.category] || 'other'].push(it); });
+  const g = [{label:'', rows:[{key:'', name:I18N.t('real_battle.item_none_option','もちもの なし'), desc:'', selected:!current}]}];
+  [['attack','itemcat_attack','こうげき強化'],['speed','itemcat_speed','すばやさ'],['defense','itemcat_defense','ぼうぎょ・たいきゅう'],
+   ['heal','itemcat_heal','きのみ・かいふく'],['other','itemcat_other','そのほか']].forEach(([b, k, ja]) => {
+    if (!buckets[b].length) return;
+    g.push({label:I18N.t('real_battle.' + k, ja), rows:buckets[b].map(it => ({key:it.key, name:tItemName(it), desc:tItemDesc(it), selected:current === it.key}))});
+  });
+  openChoiceModal(I18N.t('real_battle.sel_item','もちもの'), g, onPick);
 }
 // 中央詳細パネル(本家の能力タブ風): タイプ/技4つ(クリックで変更)/特性・持ち物(セレクトで変更=2026-07-05 阿部さん)
 function renderSelDetail(id){
@@ -960,10 +1010,6 @@ function renderSelDetail(id){
     `<span class="sd-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
   const curAb = slotAbility[id] || defaultAbilityRB(p);
   const abilities = [p.ab1, p.ab2, p.ab3].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
-  const abOpts = abilities.map(a =>
-    `<option value="${a}" ${a === curAb ? 'selected' : ''}>${(window.I18N && I18N.ability) ? I18N.ability(a) : a}</option>`).join('');
-  const itOpts = `<option value="">${I18N.t('real_battle.item_none_option','もちもの なし')}</option>` +
-    itemChoicesRB().map(it => `<option value="${it.key}" ${slotItem[id] === it.key ? 'selected' : ''} title="${tItemDesc(it)}">${tItemName(it)}</option>`).join('');
   const mvs = (slotMoves[id] || autoMoves(p)).filter(Boolean);
   const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
   const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
@@ -975,8 +1021,8 @@ function renderSelDetail(id){
         `<span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>${tMoveName(m)}` +
         `<span class="sd-pp">${m.pp || 0}/${m.pp || 0}</span></button>`;
     }).join('') + `</div>` +
-    `<div class="sd-row"><span>${I18N.t('real_battle.sel_ability','特性')}</span><select class="sd-ab">${abOpts}</select></div>` +
-    `<div class="sd-row"><span>${I18N.t('real_battle.sel_item','もちもの')}</span><select class="sd-item">${itOpts}</select></div>` +
+    `<div class="sd-row"><span>${I18N.t('real_battle.sel_ability','特性')}</span><button class="sd-ab sd-pick">${(window.I18N && I18N.ability) ? I18N.ability(curAb) : curAb} ▾</button></div>` +
+    `<div class="sd-row"><span>${I18N.t('real_battle.sel_item','もちもの')}</span><button class="sd-item sd-pick">${(S.itemByKey(slotItem[id]) ? tItemName(S.itemByKey(slotItem[id])) : I18N.t('real_battle.item_none_option','もちもの なし'))} ▾</button></div>` +
     `<div class="sd-ev"></div>`;
   // 能力値エディタ(パネル下段に一体・自動確定=2026-07-05 阿部さん)
   renderEvEditor(box.querySelector('.sd-ev'), {
@@ -986,14 +1032,21 @@ function renderSelDetail(id){
     apply: (eff, nature) => { slotEffort[id] = eff; slotNature[id] = nature; saveTeam(); },
   });
   box.querySelectorAll('.sd-move').forEach(b => b.addEventListener('click', () => { SE.select(); openMovePicker(id, +b.dataset.i); }));
-  const abSel = box.querySelector('.sd-ab');
-  if (abSel) abSel.addEventListener('change', () => { SE.select(); slotAbility[id] = abSel.value; saveTeam(); });
-  const itSel = box.querySelector('.sd-item');
-  if (itSel) itSel.addEventListener('change', () => {
+  // 特性/持ち物=説明つきモーダルで選ぶ(2026-07-06 阿部さん・ビルダー方式)
+  box.querySelector('.sd-ab').addEventListener('click', () => {
     SE.select();
-    slotItem[id] = itSel.value;
-    if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);   // カプセルの持ち物表示も追従
-    saveTeam();
+    openChoiceModal(I18N.t('real_battle.sel_ability','特性'),
+      [{label:'', rows:abilities.map(a => ({key:a, name:(window.I18N && I18N.ability) ? I18N.ability(a) : a,
+        desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (($('engine-frame').contentWindow.ABILITY_DESC || {})[a]) || '', selected:a === curAb}))}],
+      k => { slotAbility[id] = k; saveTeam(); renderSelDetail(id); });
+  });
+  box.querySelector('.sd-item').addEventListener('click', () => {
+    SE.select();
+    openItemModal(slotItem[id], k => {
+      slotItem[id] = k;
+      if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
+      saveTeam(); renderSelDetail(id);
+    });
   });
 }
 // 編成の保存/復元(localStorage): ポケモン名・技名・持ち物キー・人数(リロードしても残る)
@@ -1113,13 +1166,11 @@ function renderEvEditor(container, ctx){
   const maxFor = k => Math.min(32, 66 - (total - eff[k]));
   const tmp = S.makeSideState();
   tmp.poke = ctx.poke; tmp.effort = eff; tmp.natureIdx = S.natureIdxOf(natureName);
-  const natOpts = S.natureList().map(n => {
-    const fx = n[1] !== '—' ? ` (${EV_LETTER[n[1]]}↑${EV_LETTER[n[2]]}↓)` : '';
-    return `<option value="${n[0]}" ${n[0] === natureName ? 'selected' : ''}>${tNature(n[0])}${fx}</option>`;
-  }).join('');
+  const natFx = n => n[1] !== '—' ? ` (${EV_LETTER[n[1]]}↑${EV_LETTER[n[2]]}↓)` : '';
+  const curNat = S.natureList().find(n => n[0] === natureName) || ['まじめ','—','—'];
   container.classList.toggle('full', total >= 66);
   container.innerHTML =
-    `<div class="sd-ev-top"><select class="sd-nature">${natOpts}</select>` +
+    `<div class="sd-ev-top"><button class="sd-nature sd-pick">${tNature(natureName)}${natFx(curNat)} ▾</button>` +
     `<span class="sd-ev-budget"><b>${total}</b>/66</span>` +
     `<button class="sd-ev-reset">${I18N.t('buttons.reset','リセット')}</button></div>` +
     EFFORT_KEYS.map(k => {
@@ -1138,7 +1189,12 @@ function renderEvEditor(container, ctx){
     ctx.apply(clampEffortRB(newEff || eff), newNature || natureName);
     renderEvEditor(container, ctx);
   };
-  container.querySelector('.sd-nature').addEventListener('change', e => { SE.select(); commit(eff, e.target.value); });
+  container.querySelector('.sd-nature').addEventListener('click', () => {
+    SE.select();
+    openChoiceModal(I18N.t('real_battle.stats_nature_label','性格'),
+      [{label:'', rows:S.natureList().map(n => ({key:n[0], name:tNature(n[0]) + natFx(n), desc:'', selected:n[0] === natureName}))}],
+      k => commit(eff, k));
+  });
   container.querySelector('.sd-ev-reset').addEventListener('click', () => { SE.select(); commit(ZERO_EV()); });
   container.querySelectorAll('.sd-ev-row').forEach(row => {
     const k = row.dataset.k;
@@ -1280,6 +1336,8 @@ function initSetup(){
   $('mp-close').addEventListener('click', closeMovePicker);
   $('move-picker').addEventListener('click', e => { if (e.target === $('move-picker')) closeMovePicker(); });
   $('stats-modal').addEventListener('click', e => { if (e.target === $('stats-modal')) $('stats-modal').style.display = 'none'; });
+  $('choice-modal').addEventListener('click', e => { if (e.target === $('choice-modal')) $('choice-modal').style.display = 'none'; });
+  document.querySelector('#choice-modal .cm-x').addEventListener('click', () => { $('choice-modal').style.display = 'none'; });
   if (loadHandoff()) { /* ビルダーから来た自分チームを反映済み */ }
   else if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
   setSelectedSlot('s1');   // CH: 初期選択=自分の先頭(中央に詳細パネルを出す)
