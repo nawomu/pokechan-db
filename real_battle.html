@@ -197,7 +197,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #field-backdrop[data-preset="grass"]{
   background:
     radial-gradient(150% 70% at 50% 118%, #7ec25a 0%, #6db04c 30%, transparent 58%),
-    linear-gradient(180deg,#a9e0f5 0%,#cbecfb 14%,#e2f4e3 23%,#a9d57f 24%,#8cc35e 56%,#74b350 100%);
+    linear-gradient(180deg,#a9e0f5 0%,#cbecfb 18%,#a9d57f 24%,#8cc35e 56%,#74b350 100%);
   box-shadow:inset 0 -40px 60px #3a6e2f33, inset 0 18px 40px #ffffff22}
 /* プリセット2: cave = 洞窟(ダーク石壁グラデ) */
 #field-backdrop[data-preset="cave"]{
@@ -277,9 +277,11 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .pbox .icn img{width:38px;height:38px;object-fit:contain;image-rendering:pixelated}
 .pbox .nm{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 2px #0009;
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbox .ptypes{display:flex;gap:3px;flex:0 0 auto}
+.pbox .ptypes span{font-size:8px;font-weight:800;color:#fff;border-radius:6px;padding:1px 6px;border:1px solid #ffffff55;white-space:nowrap}
 .pbox .lv{display:none}   /* 実機statbarにLv表示なし(全員Lv50) */
 /* CH: HPバー=ダーク下地+ライム緑。%/数値テキストはバーの下に大きく出す */
-.pbox .hpbar{position:relative;width:calc(100% - 56px);margin-left:56px;height:10px;background:#00000066;border-radius:5px;border:none;/* 右寄せ=アイコンに被せない(2026-07-06 阿部さん) */
+.pbox .hpbar{position:relative;width:calc(100% - 66px);margin-left:66px !important;height:10px;background:#00000066;border-radius:5px;border:none;/* 右端寄せ=アイコンに被せない(skewの横ずれ込みで66px空け=2026-07-06 阿部さん) */
   margin:5px 0 0;overflow:visible}
 .pbox .hptext{position:absolute;right:0;top:11px;font-size:16px;font-weight:900;color:#fff;line-height:1.2;z-index:2;
   pointer-events:none;text-shadow:0 1px 3px #000c;font-style:italic}
@@ -439,8 +441,10 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #c-run{background:#22283add;font-size:10.5px;padding:7px 12px;font-weight:700;white-space:nowrap;text-align:center}
 #cmd button:disabled{opacity:.35;cursor:default}
 /* メガシンカ予約中: 黄色強調(既存ロジック維持) */
-#cmd button.mega-armed,#moves .mega-side.mega-armed{border-color:#fbbf24;box-shadow:0 0 0 3px #fbbf2466,0 3px 9px #0007;
-  background:linear-gradient(135deg,#a8871c,#ffd23e)}
+#cmd button.mega-armed,#moves .mega-side.mega-armed{border-color:#fff;
+  background:linear-gradient(135deg,#c99b1e,#ffe45e)}
+#moves .mega-side.mega-armed{animation:rbMegaPulse .9s infinite;transform:scale(1.1)}
+@keyframes rbMegaPulse{0%,100%{box-shadow:0 0 0 4px #fbbf2477,0 0 16px 6px #ffd94daa}50%{box-shadow:0 0 0 12px #fbbf2422,0 0 34px 16px #ffd94dee}}
 /* ===== CH: #moves 技カプセル縦リスト(チャンピオンズ準拠) ===== */
 /* 実機: 縦カプセル・左にタイプ・技名・右にPP・下に相性帯(◎ばつぐん/△いまひとつ)。選択中=黄緑発光 */
 #moves{position:absolute;right:14px;top:auto;bottom:10px;z-index:10;display:none;flex-direction:column;gap:4px;
@@ -637,7 +641,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
       <div class="pbox" id="pb-opp">
         <!-- .whoバッジ: A-2デフォルト=非表示。復活→ .pbox .who { display:none } を削除 -->
         <span class="who opp" data-i18n="real_battle.pbox_label_opp">あいて</span>
-        <div class="row1"><span class="icn"></span><strong class="nm">—</strong><span class="lv">Lv.50</span></div>
+        <div class="row1"><span class="icn"></span><strong class="nm">—</strong><span class="ptypes"></span><span class="lv">Lv.50</span></div>
         <!-- S2: 2層HPバー(外枠155×12px / prevhp=残像バー / hp=現在バー。両方hpbar直下に並置) -->
         <div class="hpbar">
           <div class="hptext">—%</div><!-- A-1=%のみ。data-hp/data-maxに実数値を保持 -->
@@ -650,7 +654,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
       </div>
       <div class="pbox" id="pb-self">
         <span class="who self" data-i18n="real_battle.pbox_label_self">じぶん</span>
-        <div class="row1"><span class="icn"></span><strong class="nm">—</strong><span class="lv">Lv.50</span></div>
+        <div class="row1"><span class="icn"></span><strong class="nm">—</strong><span class="ptypes"></span><span class="lv">Lv.50</span></div>
         <div class="hpbar">
           <div class="hptext">—%</div>
           <div class="prevhp"></div>
@@ -1409,8 +1413,18 @@ function setSpriteSrc(v){
   } catch(e) {}
 }
 // 小アイコン(HPボックス/控えバー/交代/選出)= 公式ドット絵優先・無ければ自作SVG
+function apiIdOf(nm){
+  if (typeof SPRITE_API_ID === 'undefined') return null;
+  if (SPRITE_API_ID[nm]) return SPRITE_API_ID[nm];
+  // Champions独自メガ(公式画像なし・自作SVGも未描画の38体)はベースの姿で代用
+  if (nm && nm.startsWith('メガ')){
+    const base = nm.replace(/^メガ/, '').replace(/[XY♂♀]$/, '');
+    if (SPRITE_API_ID[base]) return SPRITE_API_ID[base];
+  }
+  return null;
+}
 function pokeIconSrc(nm){
-  const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
+  const apiId = apiIdOf(nm);
   return (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
 }
 // 持ち物アイコン(PokeAPI item sprites=name_enスラッグ化。無い物はonerrorで消えて文字だけ残る)
@@ -1426,7 +1440,7 @@ function spriteHtml(poke){
   const enc = encodeURIComponent(poke.name);
   // APIモード: 対応表(sprite_api_ids.js=フォーム/メガ込み274体)にある名前はPokeAPI画像。
   // ローカルpoke画像→PokeAPI本家→自作SVG→サークルの順でフォールバック
-  const _apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[poke.name] : null;
+  const _apiId = apiIdOf(poke.name);
   if (spriteSrc === 'home' && _apiId){
     const n = _apiId;
     return `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${n}.png" alt="" style="display:none;height:150px" data-step="0"
@@ -1484,6 +1498,13 @@ function renderAll(){
     if (st.attracted) b.push('💕' + I18N.t('common.status_infatuation', 'メロメロ'));
     if (st.subHp > 0) b.push(I18N.t('common.bdg_substitute', 'みがわり'));
     pb.querySelector('.sts').innerHTML = b.map(x => `<span class="bdg">${x}</span>`).join('');
+    // 両者のタイプ表示(2026-07-06 阿部さん)
+    const tEl = pb.querySelector('.ptypes');
+    if (tEl){
+      const _tc2 = S.typeColors();
+      tEl.innerHTML = [shown.type1, shown.type2].filter(Boolean).map(t =>
+        `<span style="background:${_tc2[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
+    }
     // 自分の持ち物(2026-07-06 阿部さん): アイコン+名前。消費済みはグレー
     const heldEl = pb.querySelector('.held');
     if (heldEl){
@@ -2092,8 +2113,16 @@ function initBackdrop(){
 // ログ1行 → テキスト+演出(HPバー同期・タイプ色バースト・ダメージ数字・こうか/急所・状態異常・天候・メガ)
 // 交代の複合行「Xは引っ込んだ！ Yが場に出た！」を2拍(2行)に割る(言葉でじっくり見せる=2026-07-06 阿部さん)
 function splitBattleLines(msg){
-  const m = msg.match(/^((?:相手の )?\S+ は 引っ込んだ！) ((?:相手の )?\S+ が 場に出た！)$/);
-  return m ? [m[1], m[2]] : [msg];
+  const m = msg.match(/^(相手の )?(\S+) は 引っ込んだ！ (相手の )?(\S+) が 場に出た！$/);
+  // トレーナーの掛け声に言い換え(自分=もどれ/いけっ・相手=引っ込めた/くりだした)
+  const out2 = (pre, nm) => pre ? `相手は ${nm} を 引っ込めた！` : `もどれ！ ${nm}！`;
+  const in2 = (pre, nm) => pre ? `相手は ${nm} を くりだした！` : `いけっ！ ${nm}！`;
+  if (m) return [out2(m[1], m[2]), in2(m[3], m[4])];
+  const w = msg.match(/^(相手の )?(\S+) は 引っ込んだ！$/);
+  if (w) return [out2(w[1], w[2])];
+  const g = msg.match(/^(相手の )?(\S+) が 場に出た！$/);
+  if (g) return [in2(g[1], g[2])];
+  return [msg];
 }
 const _recallTimer = {};   // 交代1拍目のgone遅延タイマー(2拍目で必ずキャンセル=出た直後に消えるバグ根治)
 function lineWithFx(msg){
@@ -2157,17 +2186,17 @@ function lineWithFx(msg){
       setTimeout(() => { const f = $('f-' + side); if (f) f.classList.add('gone'); }, 680);
       SE.faint();
     }
-    if (/は 引っ込んだ！$/.test(msg)){
-      // 交代1拍目: 縮んで消える+HPボックスも引っ込める(2拍目の「場に出た！」で戻る)
-      const side = subjOpp ? 'opp' : 'self';
+    if (/は 引っ込んだ！$/.test(msg) || /^もどれ！/.test(msg) || /を 引っ込めた！$/.test(msg)){
+      // 交代1拍目: 縮んで消える+HPボックスも引っ込める(2拍目で戻る)
+      const side = (subjOpp || msg.startsWith('相手は')) ? 'opp' : 'self';
       flash(side, 'recall');
       const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
       clearTimeout(_recallTimer[side]);
       _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 400);
     }
-    if (/が 場に出た！/.test(msg)){
+    if (/が 場に出た！/.test(msg) || /^いけっ！ \S+！$/.test(msg) || /^相手は \S+ を くりだした！$/.test(msg)){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
-      const enterSide = /相手の \S+ が 場に出た/.test(msg) ? 'opp' : 'self';
+      const enterSide = (/相手の \S+ が 場に出た/.test(msg) || msg.startsWith('相手は')) ? 'opp' : 'self';
       clearTimeout(_recallTimer[enterSide]);   // 1拍目の遅延goneが登場後に発火して消すのを防ぐ
       const f = $('f-' + enterSide);
       f.classList.remove('gone', 'recall');
