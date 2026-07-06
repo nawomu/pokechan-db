@@ -2208,7 +2208,7 @@ function showParty(forced){
       const ff = $('f-self'); if (ff){ ff.classList.remove('recall', 'enter'); ff.classList.add('gone'); }
       const pbSelf = $('pb-self'); if (pbSelf) pbSelf.style.visibility = 'hidden';
       renderAll();   // 隠れたまま新しい子のスプライトを組む(表示は登場拍のenter fxが行う)
-      const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
+      const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
       say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
       return;
     }
@@ -2325,7 +2325,7 @@ function doTurn(moveIdx){
   });
   logPos = S.battleLog.length;
   S.runTurn();
-  const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
+  const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
   // CH: 攻撃行の前に「◯◯の こうげき！」を差し込み(2段表示=2026-07-05 阿部さん)。
   // 表示専用(noLog)でエンジンログ/右ログは汚さない。攻撃側はぴょんぴょん予告(preattack)
   const lines = [];
@@ -2502,6 +2502,18 @@ function initBackdrop(){
 
 // ログ1行 → テキスト+演出(HPバー同期・タイプ色バースト・ダメージ数字・こうか/急所・状態異常・天候・メガ)
 // 交代の複合行「Xは引っ込んだ！ Yが場に出た！」を2拍(2行)に割る(言葉でじっくり見せる=2026-07-06 阿部さん)
+// きあいのタスキ/がんじょう/こらえるの「もちこたえた！」はエンジンがダメージ計算中に先に出す=ダメージ行より前に来る。
+// 表示では「攻撃で1になった→タスキで耐えた」の順が自然なので、直後のダメージ行と入れ替える(2026-07-07 阿部さん)
+function reorderEndure(entries){
+  const isEndure = m => /(もちこたえた|こらえた)！$/.test(m);
+  const isDmg = m => /ダメージ！/.test(m);
+  for (let i = 0; i < entries.length - 1; i++){
+    if (isEndure(entries[i].msg) && isDmg(entries[i + 1].msg)){
+      const tmp = entries[i]; entries[i] = entries[i + 1]; entries[i + 1] = tmp;
+    }
+  }
+  return entries;
+}
 function splitBattleLines(msg){
   const m = msg.match(/^(相手の )?(\S+) は 引っ込んだ！ (相手の )?(\S+) が 場に出た！$/);
   // トレーナーの掛け声に言い換え(自分=もどれ/いけっ・相手=引っ込めた/くりだした)
