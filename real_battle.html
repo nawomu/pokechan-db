@@ -527,9 +527,9 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #moves .mv-top button:hover{border-color:#d4f542}
 #moves .mv-top button.on{color:#d4f542;border-color:#d4f54288}
 /* 様子を見るパネル(左側オーバーレイ): ランク変化/状態/天候・フィールド残りターン */
-#watch-panel{position:absolute;left:14px;top:auto;bottom:10px;z-index:12;display:none;max-width:270px;background:#141927ee;
-  border:1px solid #2a3450;border-radius:12px;padding:10px 12px;font-size:11.5px;color:#e6edf3;cursor:pointer;
-  box-shadow:0 4px 14px #0008}
+#watch-panel{position:absolute;left:14px;top:52px;bottom:auto;z-index:12;display:none;max-width:260px;background:#1a1f2e55;
+  border:1px solid #ffffff22;border-radius:12px;padding:9px 12px;font-size:11.5px;color:#eef2fb;cursor:pointer;
+  backdrop-filter:blur(2px);box-shadow:0 2px 8px #0004;text-shadow:0 1px 2px #0007}/* 左上・非常口ボタンの下・背景に馴染む薄い透明(2026-07-06 阿部さん) */
 #watch-panel .wp-row{margin:3px 0;line-height:1.5}
 #watch-panel .wp-row b{color:#9ec5ff}
 #mv-tip{position:absolute;left:14px;bottom:112px;z-index:12;display:none;max-width:300px;/* 自分HPボックスに被らない高さ */background:#141927ee;
@@ -2221,13 +2221,12 @@ function openStatsModal(){
 function toggleWatchPanel(btn){
   const w = $('watch-panel');
   if (w.style.display === 'block'){ w.style.display = 'none'; return; }
-  // 「様子を見る」ボタンのすぐ左横に出す(2026-07-06 阿部さん)。zoom補正あり
-  if (btn){
-    const fr = $('field').getBoundingClientRect(), br = btn.getBoundingClientRect();
-    const ratio = fr.height / 360;
-    w.style.top = Math.max(6, Math.round((br.top - fr.top) / ratio)) + 'px';
-    w.style.bottom = 'auto'; w.style.left = 'auto'; w.style.right = '246px';
-  }
+  // 左上の非常口ボタン(btn-exit)の真下に出す(2026-07-06 阿部さん)。zoom補正あり
+  const fr = $('field').getBoundingClientRect();
+  const ratio = fr.height / 360;
+  const ex = $('btn-exit');
+  const topPx = ex ? Math.round((ex.getBoundingClientRect().bottom - fr.top) / ratio) + 8 : 52;
+  w.style.top = topPx + 'px'; w.style.bottom = 'auto'; w.style.left = '14px'; w.style.right = 'auto';
   const RL = {atk:'A', def:'B', spatk:'C', spdef:'D', spd:'S', accuracy:'ACC', evasion:'EVA', crit:'CRIT'};
   const sj = S.statusJa();
   const _K = {burn:'common.status_burn', paralysis:'common.status_paralysis', poison:'common.status_poison',
@@ -2525,6 +2524,11 @@ function lineWithFx(msg){
       setHpBar(side, Math.max(0, cur - dmg), max);
       popText(side, '−' + dmg, '#f87171', 15);
       burstFx(side, '#c9a0e0'); flash(side, 'hit'); SE.hit();
+    }
+    // ②d ばけのかわ無効化: 化けの皮が剥がれる演出(白フラッシュ+👻+被弾揺れ+音)。所有者側=ばけのかわ持ち
+    if (/ばけのかわで無効化/.test(msg)){
+      const side = ['self', 'opp'].find(sd => { const st = S.sides[sd]; return st && (st.ability === 'ばけのかわ' || st.abilityOverride === 'ばけのかわ'); }) || lastTgt || 'self';
+      screenFlash('#ffffff'); popText(side, '👻 ばけのかわ！', '#d0b0ff', 15); flash(side, 'hit'); SE.status();
     }
     // ②c みがわり: 出現で人形化・被弾でエフェクト・破壊で元のすがたに戻す(2026-07-06 阿部さん)
     const subAppear = msg.match(/^(相手の )?\S+ の みがわりが あらわれた！/);

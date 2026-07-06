@@ -442,6 +442,7 @@
     bl_255: { "en":"😵 All your Pokémon have fainted… You lost…", "fr":"😵 Tous tes Pokémon sont K.O.… Tu as perdu…", "de":"😵 Alle deine Pokémon sind besiegt… Du hast verloren…", "es":"😵 Todos tus Pokémon se han debilitado… Has perdido…", "it":"😵 Tutti i tuoi Pokémon sono esausti… Hai perso…", "ko":"😵 내 포켓몬이 전부 쓰러졌다… 지고 말았다…", "zh-Hans":"😵 你的宝可梦全部倒下了……输掉了……", "zh-Hant":"😵 你的寶可夢全部倒下了… 輸掉了…" },
     bl_256: { "en":"Choose \"Run\" to go back to your team and try again!", "fr":"Choisis « Fuite » pour revenir à ton équipe et rejouer !", "de":"Wähle „Fliehen“, um zum Team zurückzukehren und erneut zu spielen!", "es":"¡Elige «Huir» para volver a tu equipo y jugar de nuevo!", "it":"Scegli \"Fuga\" per tornare alla squadra e rigiocare!", "ko":"'도망치기'로 팀 편성으로 돌아가 다시 플레이할 수 있어!", "zh-Hans":"选择“逃跑”回到队伍编成，可以再玩一次！", "zh-Hant":"選擇「逃跑」回到隊伍編成，可以再玩一次！" },
     bl_257: { "en":"⚔ Fight the next opponent! (Win streak: {n})", "fr":"⚔ Affronte l'adversaire suivant ! (Série de victoires : {n})", "de":"⚔ Kämpfe gegen den nächsten Gegner! (Siegesserie: {n})", "es":"⚔ ¡Lucha contra el próximo rival! (Racha de victorias: {n})", "it":"⚔ Affronta il prossimo avversario! (Serie di vittorie: {n})", "ko":"⚔ 다음 상대와 싸운다! (연승: {n})", "zh-Hans":"⚔ 与下一位对手战斗！（连胜：{n}）", "zh-Hant":"⚔ 與下一位對手戰鬥！（連勝：{n}）" },
+    bl_258: { "en":"Its Disguise took the hit!", "fr":"Le Fantômasque a encaissé le coup !", "de":"Die Kostümspuk-Hülle fing den Treffer ab!", "es":"¡Su Disfraz recibió el golpe!", "it":"Il Fantasmanto ha assorbito il colpo!", "ko":"탈바꿈이 공격을 막아냈다!", "zh-Hans":"画皮抵挡了攻击！", "zh-Hant":"畫皮抵擋了攻擊！" },
   };
 
   // ─── パターン(順に試す)。slots: テンプレ名→{g:捕捉番号, kind} ───
@@ -593,6 +594,7 @@
     { id: 'bl_255', re: /^😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…$/, slots: {  } },
     { id: 'bl_256', re: /^「にげる」から 編成にもどって もういちど あそべます$/, slots: {  } },
     { id: 'bl_257', re: /^⚔ つぎの相手と たたかう！\(連勝: (\d+)\)$/, slots: { "n": { g: 1, kind: "num" } } },
+    { id: 'bl_258', re: /^ばけのかわで無効化！$/, slots: {  } },
     { id: 'bl_151', re: /^((?:相手の )?\S+) は じゅうりょくが強くて (\S+) が だせない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_219', re: /^しかし うまく きまらなかった！\(すでに (\S+)\)$/, slots: { "n": { g: 1, kind: "cond" } } },
     { id: 'bl_208a', re: /^((?:相手の )?\S+) の場の (\S+) の効果が なくなった！$/, slots: { "p": { g: 1, kind: "poke" }, "sc": { g: 2, kind: "screen" } } },
