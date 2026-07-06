@@ -270,16 +270,16 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #pb-opp{background:linear-gradient(135deg,#b02458 0%,#d63c78 100%);right:16px;top:10px;left:auto;border:1px solid #ffffff33}
 #pb-self{background:linear-gradient(135deg,#4638ae 0%,#6a5be0 100%);left:16px;bottom:10px;top:auto;border:1px solid #ffffff33}
 .pbox .who{display:none}
-.pbox .row1{display:flex;align-items:center;gap:6px;position:relative;padding-left:44px}
+.pbox .row1{display:flex;align-items:center;gap:6px;position:relative;padding-left:50px}
 /* CH: statbar内ミニアイコン(実機の丸顔アイコン) */
 .pbox .icn{position:absolute;left:-2px;top:2px;width:40px;height:40px;border-radius:50%;background:#00000044;overflow:hidden;/* 左下に落として2行ぶち抜き(2026-07-06 阿部さん) */
   display:flex;align-items:center;justify-content:center}
 .pbox .icn img{width:38px;height:38px;object-fit:contain;image-rendering:pixelated}
 .pbox .nm{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 2px #0009;
-  max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pbox .lv{display:none}   /* 実機statbarにLv表示なし(全員Lv50) */
 /* CH: HPバー=ダーク下地+ライム緑。%/数値テキストはバーの下に大きく出す */
-.pbox .hpbar{position:relative;width:calc(100% - 44px);margin-left:44px;height:10px;background:#00000066;border-radius:5px;border:none;/* 左を削ってアイコンの場所に(2026-07-06 阿部さん) */
+.pbox .hpbar{position:relative;width:calc(100% - 56px);margin-left:56px;height:10px;background:#00000066;border-radius:5px;border:none;/* 右寄せ=アイコンに被せない(2026-07-06 阿部さん) */
   margin:5px 0 0;overflow:visible}
 .pbox .hptext{position:absolute;right:0;top:11px;font-size:16px;font-weight:900;color:#fff;line-height:1.2;z-index:2;
   pointer-events:none;text-shadow:0 1px 3px #000c;font-style:italic}
@@ -295,8 +295,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .pbox .hp,.pbox .prevhp{max-width:calc(100% - 2px)}
 /* 状態異常バッジ(バー下・%テキストの左に並ぶ) */
 .pbox .sts{position:absolute;left:12px;bottom:3px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap;transform:skewX(10deg)}
-.pbox .held{position:absolute;right:10px;top:4px;transform:skewX(10deg);display:flex;gap:3px;align-items:center;
-  font-size:8.5px;font-weight:700;color:#ffffffcc;white-space:nowrap;max-width:86px;overflow:hidden}/* 名前行の右端=数値と完全分離 */
+.pbox .held{position:absolute;right:118px;bottom:5px;transform:skewX(10deg);display:flex;gap:3px;align-items:center;
+  font-size:8.5px;font-weight:700;color:#ffffffcc;white-space:nowrap;max-width:76px;overflow:hidden;justify-content:flex-end}/* HP数値(右端)のすぐ左(2026-07-06 阿部さん) */
 .pbox .held img{width:14px;height:14px;object-fit:contain;image-rendering:pixelated}
 .pbox .held.used{opacity:.45;filter:grayscale(1)}
 .pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466}
@@ -1767,7 +1767,7 @@ function showMoves(){
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
     if (b.classList.contains('stats-open')){ openStatsModal(); return; }
-    if (b.classList.contains('watch-open')){ toggleWatchPanel(); return; }
+    if (b.classList.contains('watch-open')){ toggleWatchPanel(b); return; }
     if (b.classList.contains('desc-toggle')){
       localStorage.setItem('rb_move_detail', localStorage.getItem('rb_move_detail') === 'on' ? 'off' : 'on');
       showMoves(); return;
@@ -1830,7 +1830,15 @@ function openStatsModal(){
   if (!st || !st.poke) return;
   st.effort = clampEffortRB(st.effort);
   const holder = $('sm-holder');
-  holder.innerHTML = `<div class="sd-ev"></div><button id="sm-close">${I18N.t('real_battle.mp_close_button','とじる')}</button>`;
+  const curIt = S.itemByKey(st.item);
+  const itOpts = `<option value="">${I18N.t('real_battle.item_none_option','もちもの なし')}</option>` +
+    itemChoicesRB().map(x => `<option value="${x.key}" ${st.item === x.key ? 'selected' : ''}>${tItemName(x)}</option>`).join('');
+  holder.innerHTML = `<div style="font-weight:900;font-size:15px;margin-bottom:8px">${tPokeName(st.poke.name)}</div>` +
+    `<div class="sd-ev"></div>` +
+    `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px">` +
+    `<span style="color:#9fb4d8">${I18N.t('real_battle.sel_item','もちもの')}</span><select id="sm-item">${itOpts}</select></div>` +
+    `<button id="sm-close">${I18N.t('real_battle.mp_close_button','とじる')}</button>`;
+  holder.querySelector('#sm-item').addEventListener('change', e => { st.item = e.target.value || null; renderAll(); });
   renderEvEditor(holder.querySelector('.sd-ev'), {
     poke: st.poke,
     getEff: () => st.effort || ZERO_EV(),
@@ -1848,9 +1856,16 @@ function openStatsModal(){
   $('stats-modal').style.display = 'flex';
 }
 // 様子を見る: 両者のランク変化・状態異常と、天候/フィールド(残りターン)を表示(2026-07-06 阿部さん・実機のX)
-function toggleWatchPanel(){
+function toggleWatchPanel(btn){
   const w = $('watch-panel');
   if (w.style.display === 'block'){ w.style.display = 'none'; return; }
+  // 「様子を見る」ボタンのすぐ左横に出す(2026-07-06 阿部さん)。zoom補正あり
+  if (btn){
+    const fr = $('field').getBoundingClientRect(), br = btn.getBoundingClientRect();
+    const ratio = fr.height / 360;
+    w.style.top = Math.max(6, Math.round((br.top - fr.top) / ratio)) + 'px';
+    w.style.bottom = 'auto'; w.style.left = 'auto'; w.style.right = '246px';
+  }
   const RL = {atk:'A', def:'B', spatk:'C', spdef:'D', spd:'S', accuracy:'ACC', evasion:'EVA', crit:'CRIT'};
   const sj = S.statusJa();
   const _K = {burn:'common.status_burn', paralysis:'common.status_paralysis', poison:'common.status_poison',
@@ -2080,6 +2095,7 @@ function splitBattleLines(msg){
   const m = msg.match(/^((?:相手の )?\S+ は 引っ込んだ！) ((?:相手の )?\S+ が 場に出た！)$/);
   return m ? [m[1], m[2]] : [msg];
 }
+const _recallTimer = {};   // 交代1拍目のgone遅延タイマー(2拍目で必ずキャンセル=出た直後に消えるバグ根治)
 function lineWithFx(msg){
   const fx = () => {
     const hpM = msg.match(/\(残HP (\d+)(?:\/(\d+))?\)/);
@@ -2146,11 +2162,13 @@ function lineWithFx(msg){
       const side = subjOpp ? 'opp' : 'self';
       flash(side, 'recall');
       const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
-      setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 400);
+      clearTimeout(_recallTimer[side]);
+      _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 400);
     }
     if (/が 場に出た！/.test(msg)){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
       const enterSide = /相手の \S+ が 場に出た/.test(msg) ? 'opp' : 'self';
+      clearTimeout(_recallTimer[enterSide]);   // 1拍目の遅延goneが登場後に発火して消すのを防ぐ
       const f = $('f-' + enterSide);
       f.classList.remove('gone', 'recall');
       const pbEl = $('pb-' + enterSide); if (pbEl) pbEl.style.visibility = '';
