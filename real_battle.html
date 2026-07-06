@@ -115,6 +115,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   width:min(94vw,600px);max-height:70vh;display:flex;flex-direction:column;padding:12px 14px;box-shadow:0 14px 40px #00000066}
 #choice-modal .cm-head{display:flex;align-items:center;margin-bottom:8px}
 #choice-modal .cm-title{font-weight:800;font-size:15px;color:#4a4470}
+#choice-modal .cm-search{width:100%;background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:9px;
+  padding:8px 11px;font-size:14px;margin-bottom:8px;font-family:inherit;box-sizing:border-box}
 #choice-modal .cm-x{margin-left:auto;background:none;border:none;font-size:16px;color:#8a82c8;cursor:pointer}
 #choice-modal .cm-body{overflow-y:auto;display:flex;flex-direction:column;gap:5px}
 #choice-modal .cm-group{font-size:11px;font-weight:800;color:#5a4fc4;margin:8px 2px 2px}
@@ -227,7 +229,10 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   padding:6px 10px;text-align:left;font-size:12px}
 #mp-list button:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
 #mp-list .mp-top{display:flex;align-items:center;gap:6px;font-weight:800;white-space:nowrap;overflow:hidden}
-#mp-list .mp-top .t-pill{font-size:9.5px;padding:1px 7px;border-radius:8px;color:#fff;border:1px solid #ffffff66;flex:0 0 auto}
+#mp-list .mp-top .t-pill{font-size:9.5px;padding:1px 4px;border-radius:8px;color:#fff;border:1px solid #ffffff66;flex:0 0 auto;
+  width:52px;text-align:center;box-sizing:border-box}/* タイプ列を固定幅=技名を縦に揃える */
+#mp-list .mp-top .cat-badge{width:58px;box-sizing:border-box;justify-content:center;flex:0 0 auto}
+#mp-list .mp-top .mv-name{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis}/* 技名は固定2列の右で揃って始まる */
 /* 分類バッジ(物理=橙/特殊=青/変化=灰・アイコン付きでパッと見わかる=2026-07-06 阿部さん) */
 .cat-badge{font-size:10px;padding:1px 7px;border-radius:8px;color:#fff;border:1px solid #ffffff55;flex:0 0 auto;font-weight:800;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
 .cat-phys{background:#e0602e}.cat-spec{background:#4a7edb}.cat-stat{background:#7a8290}
@@ -1052,11 +1057,35 @@ function openChoiceModal(title, groups, onPick, anchor){
   const cm = $('choice-modal');
   const box = cm.querySelector('.cm-box');
   cm.querySelector('.cm-title').textContent = title;
-  cm.querySelector('.cm-body').innerHTML = groups.map(g =>
-    (g.label ? `<div class="cm-group">${g.label}</div>` : '') +
-    g.rows.map(r => `<button class="cm-row${r.selected ? ' sel' : ''}" data-k="${r.key}"><b>${r.icon || ''}${r.name}</b>${r.desc ? `<span>${r.desc}</span>` : ''}</button>`).join('')
+  const totalRows = groups.reduce((n, g) => n + g.rows.length, 0);
+  const bodyHtml = groups.map((g, gi) =>
+    (g.label ? `<div class="cm-group" data-cmgroup="${gi}">${g.label}</div>` : '') +
+    g.rows.map(r => {
+      const searchStr = ((r.name || '') + ' ' + (r.desc || '')).replace(/<[^>]*>/g, '');
+      return `<button class="cm-row${r.selected ? ' sel' : ''}" data-k="${r.key}" data-cmg="${gi}" data-search="${searchStr.replace(/"/g, '')}"><b>${r.icon || ''}${r.name}</b>${r.desc ? `<span>${r.desc}</span>` : ''}</button>`;
+    }).join('')
   ).join('');
+  // 項目が多い時(もちもの等)は文字検索ボックスを出す(2026-07-07 阿部さん)
+  const searchBox = totalRows > 12 ? `<input class="cm-search" placeholder="${I18N.t('real_battle.item_search_placeholder','なまえで さがす(ひらがなでもOK)…')}">` : '';
+  cm.querySelector('.cm-body').innerHTML = searchBox + bodyHtml;
   cm.style.display = 'block';
+  // 検索フィルタ: 名前/説明にマッチしない行を隠す。空になったグループ見出しも隠す
+  const sInput = cm.querySelector('.cm-search');
+  if (sInput){
+    const applyFilter = () => {
+      const q = sInput.value.trim();
+      const k = (typeof toKata === 'function') ? toKata(q) : q;
+      const groupHas = {};
+      cm.querySelectorAll('.cm-row').forEach(row => {
+        const hit = !q || row.dataset.search.includes(q) || (k && row.dataset.search.includes(k));
+        row.style.display = hit ? '' : 'none';
+        if (hit) groupHas[row.dataset.cmg] = true;
+      });
+      cm.querySelectorAll('.cm-group').forEach(gl => { gl.style.display = groupHas[gl.dataset.cmgroup] ? '' : 'none'; });
+    };
+    sInput.addEventListener('input', applyFilter);
+    setTimeout(() => sInput.focus(), 30);
+  }
   // 押したボタンの上に出す(マウス移動を最小に=2026-07-06 阿部さん)。入り切らなければ下/画面内にクランプ
   const w = box.offsetWidth, h = box.offsetHeight, vw = innerWidth, vh = innerHeight;
   let left = vw / 2 - w / 2, top = 60;
@@ -1409,7 +1438,7 @@ function renderMovePickList(query){
     ].filter(Boolean).join(' / ');
     return `<button data-n="${m.name}"><div class="mp-top"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>` +
       catBadge(m.category) +
-      `${tMoveName(m)}<span class="mp-meta">${meta}</span></div>` +
+      `<span class="mv-name">${tMoveName(m)}</span><span class="mp-meta">${meta}</span></div>` +
       (desc ? `<div class="mp-desc">${desc}</div>` : '') + `</button>`;
   }).join('') || `<div style="color:#8b94a7;padding:8px">${I18N.t('real_battle.move_not_found','みつからない…')}</div>`;
   $('mp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
