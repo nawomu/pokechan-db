@@ -65,6 +65,12 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .team-row .slot .cap-change{grid-column:1;grid-row:4;justify-self:start;align-self:end;font-size:11.5px;font-weight:800;/* 持ち物の下(2026-07-06 阿部さん) */
   background:#00000066;border-radius:11px;padding:5px 10px;border:1px solid #ffffff55;white-space:nowrap;line-height:1}
 .team-row .slot .cap-change:hover{background:#000000aa;border-color:#d4f542;color:#d4f542}
+/* 初手(先頭)バッジ=名前の右上・self側のみ(2026-07-06 阿部さん) */
+.team-row .slot .cap-lead{grid-column:2;grid-row:1;justify-self:end;align-self:start;font-size:10px;font-weight:800;
+  background:#00000055;border-radius:9px;padding:3px 8px;border:1px solid #ffffff44;white-space:nowrap;line-height:1;color:#ffffffcc}
+.team-row .slot .cap-lead.on{background:linear-gradient(135deg,#c9a227,#e8c84a);color:#3a2c00;border-color:#ffe98a}
+.team-row .slot .cap-lead:hover{border-color:#d4f542;color:#d4f542}
+.team-row .slot .cap-lead.on:hover{color:#3a2c00}
 /* 中央=選択中ポケモンの詳細パネル(本家の能力タブ風) */
 #sel-detail{background:linear-gradient(150deg,#41369fee 0%,#5d4fd6dd 100%);border:1px solid #ffffff26;border-radius:16px;
   padding:14px;color:#fff;min-height:280px;box-shadow:0 4px 14px #0007;transition:background .25s}
@@ -416,7 +422,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 @keyframes rbFaint{0%{opacity:1;transform:none}100%{opacity:0;transform:translateY(52px)}}
 @keyframes rbEnter{0%{opacity:0;transform:translateY(30px) scale(.5)}70%{transform:translateY(-6px) scale(1.06)}100%{opacity:1;transform:none}}
 /* 交代の引っ込み(ボールに戻る感じ=縮んで沈んで消える)。2026-07-06 阿部さん「いきなり消えていきなり出てくる」対策 */
-@keyframes rbRecall{0%{opacity:1;transform:none}100%{opacity:0;transform:translateY(-6px) scale(.12)}}/* ボールに吸い込まれる感じ(沈む=ひんし風と区別) */
+@keyframes rbRecall{0%{opacity:1;transform:none}55%{opacity:.9;transform:translateY(8px) scale(.7)}100%{opacity:0;transform:translateY(14px) scale(.12)}}/* 一度沈んでからボールに吸い込まれる(2026-07-06 阿部さん) */
 .fighter.hit .sprite{animation:rbShake .85s/* 被弾は少し長め(2026-07-05 阿部さん) */}
 .fighter.preattack .sprite{animation:rbPreAttack .7s}
 .fighter.lunge-self .sprite{animation:rbLunge .45s}
@@ -425,7 +431,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 /* ひんし後は交代まで消えたまま(2026-07-05 阿部さん「瀕死になったら画面から消えたほうがいい」) */
 .fighter.gone .sprite{opacity:0;transform:translateY(40px);pointer-events:none}
 .fighter.enter .sprite{animation:rbEnter .5s}
-.fighter.recall .sprite{animation:rbRecall .38s forwards}
+.fighter.recall .sprite{animation:rbRecall .52s forwards}
 
 /* ===== CH: メッセージ=盤面内オーバーレイ(箱なし・白文字+黒フチ=実機準拠) ===== */
 /* 左端は自分statbar(幅210+余白)を避けて非重畳にする(ダメージ行=statbarとメッセージが同時表示のため) */
@@ -1007,10 +1013,17 @@ function slotCapsuleHtml(id){
   const gHtml = g && g !== '—' ? `<span class="cap-g ${g === '♂' ? 'm' : 'f'}">${g}</span>` : '';
   const types = p ? [p.type1, p.type2].filter(Boolean).map(t =>
     `<span class="cap-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('') : '';
+  const isSelf = id[0] === 's';
+  const leadHtml = isSelf
+    ? (leadSlot === id
+        ? `<span class="cap-lead on">★ ${I18N.t('real_battle.lead_label','先頭')}</span>`
+        : `<span class="cap-lead">${I18N.t('real_battle.lead_set','先頭に')}</span>`)
+    : '';
   return `<strong class="cap-name">${tPokeName(nm)}${gHtml}</strong>` +
     `<span class="cap-mid"><span class="cap-types">${types}</span>` +
     `<small class="cap-item">${it ? itemIconHtml(it) + tItemName(it) : ''}</small></span>` +
     `<img src="${src}" alt="" onerror="this.remove()">` +
+    leadHtml +
     `<span class="cap-change">📦 ${I18N.t('real_battle.box_title','ボックス')}</span>`;
 }
 function setSelectedSlot(id){
@@ -1174,7 +1187,7 @@ function renderSelDetail(id){
 // 編成の保存/復元(localStorage): ポケモン名・技名・持ち物キー・人数(リロードしても残る)
 function saveTeam(){
   try {
-    const data = { size: teamSize, val: slotVal, item: slotItem, ability: slotAbility, gender: slotGender, nature: slotNature, effort: slotEffort,
+    const data = { size: teamSize, lead: leadSlot, val: slotVal, item: slotItem, ability: slotAbility, gender: slotGender, nature: slotNature, effort: slotEffort,
       moves: Object.fromEntries(Object.entries(slotMoves).map(([k, arr]) => [k, (arr || []).map(m => m && m.name)])) };
     localStorage.setItem('rb_team', JSON.stringify(data));
   } catch (e) {}
@@ -1184,6 +1197,7 @@ function loadTeam(){
     const d = JSON.parse(localStorage.getItem('rb_team') || 'null');
     if (!d || !d.val || !d.val.s1) return false;
     teamSize = d.size || 3;
+    leadSlot = (d.lead && selfIds().includes(d.lead)) ? d.lead : 's1';
     $('team-size').value = String(teamSize);
     renderTeamRows();
     selfIds().concat(oppIds()).forEach(id => {
@@ -1469,6 +1483,11 @@ function renderTeamRows(){
       // クリック=選択して中央に詳細表示 / ⟳(cap-change)クリック or 空スロット=ポケモン変更ピッカー
       b.addEventListener('click', e => {
         SE.select();
+        if (e.target.classList && e.target.classList.contains('cap-lead')){   // 初手を切り替え(self側のみ)
+          if (id[0] === 's' && slotVal[id]){ leadSlot = id; saveTeam();
+            selfIds().concat(oppIds()).forEach(x => { if (slotVal[x] && $(x)) $(x).innerHTML = slotCapsuleHtml(x); }); }
+          return;
+        }
         if (e.target.classList && e.target.classList.contains('cap-change')){ setSelectedSlot(id); openPicker(id); return; }
         if (!slotVal[id]){ setSelectedSlot(id); openPicker(id); return; }
         setSelectedSlot(id);
@@ -1483,6 +1502,7 @@ function initSetup(){
   renderTeamRows();
   $('team-size').addEventListener('change', () => {
     teamSize = +$('team-size').value;
+    if (!selfIds().includes(leadSlot)) leadSlot = 's1';   // 人数が減って範囲外になったら先頭へ
     renderTeamRows();
     randomize();   // 枠が変わるので選び直し(おまかせで埋める)
   });
@@ -1562,16 +1582,36 @@ function initSetup(){
 }
 
 // 技の自動セット: 覚える技から「タイプかぶりなしで威力上位」を4つ(変化技は1つまで混ぜる)
+// 自動選出で避けたい「一発の不利技」: 自分瀕死(だいばくはつ)/反動で次ターン動けない(はかいこうせん)/溜め技(ソーラービーム等)。
+// 威力は高いが初手セットには不向き=ある分だけ後回しにして、埋まらない時だけ使う(2026-07-06 阿部さん)
+function isDisadvMove(m){
+  const bd = m.battle_data || {};
+  return !!(bd.self_faint || bd.recharge || bd.charge);
+}
 function autoMoves(poke){
   const all = S.usableMoves(poke);
-  const dmg = all.filter(m => m.category !== '変化' && typeof m.power === 'number' && m.power > 0)
-                 .sort((a, b) => b.power - a.power);
+  const dmgAll = all.filter(m => m.category !== '変化' && typeof m.power === 'number' && m.power > 0)
+                    .sort((a, b) => b.power - a.power);
+  // 不利技を除いた候補を優先。足りなければ不利技も威力順で足す
+  const good = dmgAll.filter(m => !isDisadvMove(m));
+  const bad  = dmgAll.filter(isDisadvMove);
+  const pickFrom = (list, picked, types, typeFirst) => {
+    if (typeFirst) for (const m of list){ if (picked.length >= 4) break; if (!types.has(m.type)){ picked.push(m); types.add(m.type); } }
+    for (const m of list){ if (picked.length >= 4) break; if (!picked.includes(m)) picked.push(m); }
+  };
   const picked = [], types = new Set();
-  for (const m of dmg){ if (!types.has(m.type)){ picked.push(m); types.add(m.type); } if (picked.length === 4) break; }
-  for (const m of dmg){ if (picked.length >= 4) break; if (!picked.includes(m)) picked.push(m); }
+  pickFrom(good, picked, types, true);    // まず不利でない技をタイプ多様→威力順で
+  pickFrom(bad,  picked, types, false);   // それでも4未満なら不利技(だいばくはつ等)を威力順で補完
   // 攻撃技を1つも覚えない子(メタモン=へんしんのみ)は変化技で埋める(技ゼロで出ると毎ターン棒立ちになる)
   if (!picked.length) return all.slice(0, 4);
   return picked.slice(0, 4);
+}
+// 初手に出すスロット(self側のみ・既定=s1)。バトル開始時にこの子を先頭へ
+let leadSlot = 's1';
+function orderedSelfIds(){
+  const ids = selfIds();
+  if (!ids.includes(leadSlot) || !slotVal[leadSlot]) return ids;
+  return [leadSlot].concat(ids.filter(id => id !== leadSlot));
 }
 // 既定の特性: 基本は特性1。メタモンは隠れ特性かわりもの(シングル実戦の確定特性・チャンピオンズWiki準拠。
 // じゅうなん既定だと1ターン目にへんしんするだけの的になるため)
@@ -1615,7 +1655,7 @@ function startBattle(){
   ['f-self','f-opp'].forEach(id => { const f = $(id); if (f) f.classList.remove('gone','faint'); });   // 前試合のひんし退場を解除
   window._idSnap = null;   // 表示個体スナップも初期化(初回登場から素直に描く)
   hideResultBanner();   // 前試合の勝敗バナーを消す
-  buildSide('self', selfIds());
+  buildSide('self', orderedSelfIds());   // 初手に選んだ子を先頭に
   buildSide('opp',  oppIds());
   S.battleLog.length = 0;
   logPos = 0; gameOver = false;
@@ -2472,7 +2512,7 @@ function lineWithFx(msg){
       flash(side, 'recall');
       const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
       clearTimeout(_recallTimer[side]);
-      _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 400);
+      _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 540);
     }
     if (/が 場に出た！/.test(msg) || /^いけっ！ \S+！$/.test(msg) || /^相手は \S+ を くりだした！$/.test(msg)){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
