@@ -162,15 +162,20 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #moves button.stats-open{padding:1px 10px;border-radius:12px;font-size:10px;font-weight:700;text-align:center;
   background:#22283add;color:#d4f542;border:1px solid #d4f54255}
 #move-picker{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
-#move-picker .mp-box{background:#141927;border:1px solid #2a3450;border-radius:14px;width:100%;max-width:560px;
-  max-height:80vh;display:flex;flex-direction:column;padding:14px}
-#move-picker input{background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:9px;padding:9px 12px;
+#move-picker .mp-box{background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:14px;width:100%;max-width:600px;
+  max-height:84vh;display:flex;flex-direction:column;padding:14px;box-shadow:0 14px 40px #00000055}
+#move-picker input{background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:9px;padding:9px 12px;
   font-size:15px;margin-bottom:10px;width:100%}
 #mp-list{overflow-y:auto;display:flex;flex-direction:column;gap:4px}
-#mp-list button{background:#0c1322;border:1px solid #232a3a;border-radius:8px;color:#e6edf3;cursor:pointer;
-  padding:7px 10px;text-align:left;font-size:12px}
-#mp-list button:hover{border-color:#58a6ff;background:#1b2540}
-#mp-close{margin-top:10px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer}
+#mp-list button{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:9px;color:#3a3552;cursor:pointer;
+  padding:6px 10px;text-align:left;font-size:12px}
+#mp-list button:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
+#mp-list .mp-top{display:flex;align-items:center;gap:6px;font-weight:800;white-space:nowrap;overflow:hidden}
+#mp-list .mp-top .t-pill{font-size:9px;padding:1px 7px;border-radius:8px;color:#fff;border:1px solid #ffffff66;flex:0 0 auto}
+#mp-list .mp-top .mp-meta{margin-left:auto;font-weight:700;font-size:10.5px;color:#6a5fa0;flex:0 0 auto}
+#mp-list .mp-desc{font-size:10.5px;color:#5a5478;margin-top:2px;line-height:1.4;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+#mp-close{margin-top:10px;background:#8a82c8;border:1px solid #ffffff66;border-radius:20px;color:#fff;font-weight:700;padding:8px;cursor:pointer}
 #setup .btns{display:flex;gap:10px;margin-top:14px}
 #setup button{flex:1;padding:12px;border-radius:24px;border:2px solid #ffffff88;cursor:pointer;font-weight:800;font-size:14px;
   background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;box-shadow:0 3px 10px #5a4fc455}
@@ -1164,10 +1169,27 @@ function renderMovePickList(query){
   const tc = S.typeColors();
   const k = toKata(query.trim());
   const hits = k ? all.filter(m => m.name.includes(k) || m.name.includes(query.trim())) : all;
-  $('mp-list').innerHTML = hits.slice(0, 80).map(m =>
-    `<button data-n="${m.name}"><span style="color:${tc[m.type] || '#9fb4d8'};font-weight:700">[${tTypeName(m.type)}]</span>
-     ${tMoveName(m)} <span style="color:#8b94a7">${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'} / ${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'} / ${tCatName(m.category)} / ${I18N.t('real_battle.move_pp_label','PP')}${m.pp ?? '—'}</span></button>`
-  ).join('') || `<div style="color:#8b94a7;padding:8px">${I18N.t('real_battle.move_not_found','みつからない…')}</div>`;
+  // 並び: 攻撃技(物理/特殊混合)を威力の強い順→変化技は末尾(2026-07-06 阿部さん)
+  const sorted = hits.slice().sort((a, b) => {
+    const av = a.category === '変化' ? -1 : (a.power || 0);
+    const bv = b.category === '変化' ? -1 : (b.power || 0);
+    return bv - av;
+  });
+  $('mp-list').innerHTML = sorted.slice(0, 120).map(m => {
+    const col = tc[m.type] || '#3a4660';
+    const pri = (m.battle_data && m.battle_data.priority) || m.priority || 0;
+    const desc = (window.I18N && I18N.moveDesc && I18N.moveDesc(m.key)) || m.description || m.desc || '';
+    const meta = [
+      `${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'}`,
+      `${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'}`,
+      tCatName(m.category),
+      `${I18N.t('real_battle.move_pp_label','PP')}${m.pp ?? '—'}`,
+      pri ? `${I18N.t('real_battle.move_priority_label','優先度')}${pri > 0 ? '+' : ''}${pri}` : ''
+    ].filter(Boolean).join(' / ');
+    return `<button data-n="${m.name}"><div class="mp-top"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>` +
+      `${tMoveName(m)}<span class="mp-meta">${meta}</span></div>` +
+      (desc ? `<div class="mp-desc">${desc}</div>` : '') + `</button>`;
+  }).join('') || `<div style="color:#8b94a7;padding:8px">${I18N.t('real_battle.move_not_found','みつからない…')}</div>`;
   $('mp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
     const mv = all.find(m => m.name === b.dataset.n);
