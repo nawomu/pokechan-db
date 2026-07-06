@@ -1719,6 +1719,26 @@ function itemIconHtml(it){
   if (!slug) return '';
   return `<img class="item-ic" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/${slug}.png" alt="" onerror="this.remove()">`;
 }
+// みがわり人形(自作SVG=ライセンスクリーン・本家の緑の人形を踏襲)。みがわり中はこれに差し替える(2026-07-06 阿部さん)
+function substituteSpriteHtml(){
+  return `<svg viewBox="0 0 120 150" style="height:132px;display:inline-block;filter:drop-shadow(0 4px 6px #0005)" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="60" cy="140" rx="34" ry="7" fill="#00000022"/>
+    <!-- 耳 -->
+    <path d="M32 34 L26 8 L50 26 Z" fill="#8fbf5a" stroke="#5f8f3a" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M88 34 L94 8 L70 26 Z" fill="#8fbf5a" stroke="#5f8f3a" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- 体 -->
+    <ellipse cx="60" cy="82" rx="42" ry="46" fill="#9ec96a" stroke="#5f8f3a" stroke-width="3"/>
+    <!-- お腹(白) -->
+    <ellipse cx="60" cy="94" rx="24" ry="28" fill="#f4f6ea" stroke="#cdd6b4" stroke-width="2"/>
+    <!-- 顔 -->
+    <circle cx="46" cy="70" r="4.5" fill="#3a3a2a"/>
+    <circle cx="74" cy="70" r="4.5" fill="#3a3a2a"/>
+    <path d="M50 86 Q60 94 70 86" fill="none" stroke="#3a3a2a" stroke-width="3" stroke-linecap="round"/>
+    <!-- 手 -->
+    <ellipse cx="22" cy="88" rx="9" ry="12" fill="#8fbf5a" stroke="#5f8f3a" stroke-width="2.5"/>
+    <ellipse cx="98" cy="88" rx="9" ry="12" fill="#8fbf5a" stroke="#5f8f3a" stroke-width="2.5"/>
+  </svg>`;
+}
 function spriteHtml(poke){
   const color = (S.typeColors()[poke.type1]) || '#3a4660';
   // 仮アイコンには「ポケモン名」を出す(タイプ名だと名前と紛らわしい=2026-06-12 阿部さん指摘)
@@ -1762,9 +1782,10 @@ function renderAll(){
     // 同じ姿なら作り直さない(renderAllは頻繁に呼ばれる=毎回innerHTML再構築だと画像再読込でちらつく)。
     // 画像ソース設定(spriteSrc)が変わった時は作り直す
     const spriteEl = f.querySelector('.sprite');
-    const shownKey = spriteSrc + ':' + shown.name;
+    const subActive = (st.subHp || 0) > 0;   // みがわり中は人形のすがた(2026-07-06 阿部さん)
+    const shownKey = (subActive ? 'SUB' : spriteSrc) + ':' + shown.name;
     if (spriteEl.dataset.shown !== shownKey){
-      spriteEl.innerHTML = spriteHtml(shown);
+      spriteEl.innerHTML = subActive ? substituteSpriteHtml() : spriteHtml(shown);
       spriteEl.dataset.shown = shownKey;
     }
     // 名前はへんしん中も自分の名前(実機のニックネーム表示準拠=すがたは変身先・名前はメタモン)
