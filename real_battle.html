@@ -205,15 +205,24 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #move-picker .mp-box{background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:14px;width:100%;max-width:600px;
   max-height:84vh;display:flex;flex-direction:column;padding:14px;box-shadow:0 14px 40px #00000055}
 #move-picker input{background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:9px;padding:9px 12px;
-  font-size:15px;margin-bottom:10px;width:100%}
+  font-size:15px;margin-bottom:8px;width:100%}
+/* 分類フィルターチップ(2026-07-06 阿部さん) */
+#mp-catf{display:flex;gap:5px;margin-bottom:8px}
+#mp-catf button{flex:1;font-size:12px;font-weight:800;color:#fff;border-radius:9px;padding:6px 4px;border:1px solid #ffffff44;
+  cursor:pointer;font-family:inherit;opacity:.68;display:flex;align-items:center;justify-content:center;gap:4px}
+#mp-catf button.on{opacity:1;box-shadow:0 0 0 2px #7ba800;border-color:#d4f542}
+#mp-catf .cf-all{background:#5a5478}
 #mp-list{overflow-y:auto;display:flex;flex-direction:column;gap:4px}
 #mp-list button{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:9px;color:#3a3552;cursor:pointer;
   padding:6px 10px;text-align:left;font-size:12px}
 #mp-list button:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
 #mp-list .mp-top{display:flex;align-items:center;gap:6px;font-weight:800;white-space:nowrap;overflow:hidden}
-#mp-list .mp-top .t-pill{font-size:9px;padding:1px 7px;border-radius:8px;color:#fff;border:1px solid #ffffff66;flex:0 0 auto}
-#mp-list .mp-top .mp-meta{margin-left:auto;font-weight:700;font-size:10.5px;color:#6a5fa0;flex:0 0 auto}
-#mp-list .mp-desc{font-size:10.5px;color:#5a5478;margin-top:2px;line-height:1.4;
+#mp-list .mp-top .t-pill{font-size:9.5px;padding:1px 7px;border-radius:8px;color:#fff;border:1px solid #ffffff66;flex:0 0 auto}
+/* 分類バッジ(物理=橙/特殊=青/変化=灰・アイコン付きでパッと見わかる=2026-07-06 阿部さん) */
+.cat-badge{font-size:10px;padding:1px 7px;border-radius:8px;color:#fff;border:1px solid #ffffff55;flex:0 0 auto;font-weight:800;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.cat-phys{background:#e0602e}.cat-spec{background:#4a7edb}.cat-stat{background:#7a8290}
+#mp-list .mp-top .mp-meta{margin-left:auto;font-weight:800;font-size:12px;color:#544a86;flex:0 0 auto}
+#mp-list .mp-desc{font-size:11.5px;color:#544a70;margin-top:3px;line-height:1.45;
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 #mp-close{margin-top:10px;background:#8a82c8;border:1px solid #ffffff66;border-radius:20px;color:#fff;font-weight:700;padding:8px;cursor:pointer}
 #setup .btns{display:flex;gap:10px;margin-top:14px}
@@ -758,6 +767,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 <div id="move-picker">
   <div class="mp-box">
     <input id="mp-q" placeholder="わざのなまえで さがす(ひらがなでもOK)…" data-i18n-attr="placeholder:real_battle.mp_search_placeholder">
+    <div id="mp-catf"></div>
     <div id="mp-list"></div>
     <button id="mp-close" data-i18n="real_battle.mp_close_button">とじる</button>
   </div>
@@ -882,6 +892,9 @@ const tTypeName = ty => (window.I18N && window.I18N.type) ? window.I18N.type(ty)
 // 技の分類(物理/特殊/変化)の表示語。値はマスターのまま保持し、表示時だけ共有語彙キーで翻訳。
 const _CAT_KEY = {'物理':'common.cat_phys', '特殊':'common.cat_spec', '変化':'common.cat_stat'};
 const tCatName = c => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[c] || '', c) : c;
+const _CAT_ICON = {'物理':'💥', '特殊':'✨', '変化':'🔄'};
+const _CAT_CLS = {'物理':'cat-phys', '特殊':'cat-spec', '変化':'cat-stat'};
+const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_CAT_ICON[c] || ''}${tCatName(c)}</span>`;
 // 言語切替・i18n初期化時に「くわしく編成」を作り直す(option等の一度きり構築JS部品を追従させる。Sが未準備なら何もしない=冪等)
 ['i18n:changed', 'i18n:ready'].forEach(ev => document.addEventListener(ev, () => {
   if (typeof S !== 'undefined' && S){
@@ -892,6 +905,7 @@ const tCatName = c => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[c]
       renderSelDetail(selectedSlot);
       // ボックスを開いたまま言語切替された場合もチップ/一覧を作り直す
       if ($('poke-picker').style.display === 'flex'){ renderPickerTypeChips(); renderPickerList($('pp-q').value); }
+      if ($('move-picker').style.display === 'flex' && movePick){ renderMoveCatChips(); renderMovePickList($('mp-q').value); }
     } catch(e) {}
   }
   if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} }
@@ -1309,10 +1323,25 @@ function renderEvEditor(container, ctx){
   });
 }
 // わざモーダル(ひらがな検索→クリックでそのスロットの技を差し替え)
+let mpCat = null;   // 分類フィルター(null=すべて / '物理' / '特殊' / '変化')
+function renderMoveCatChips(){
+  const cats = [['物理', 'cat-phys'], ['特殊', 'cat-spec'], ['変化', 'cat-stat']];
+  $('mp-catf').innerHTML =
+    `<button class="cf-all${mpCat === null ? ' on' : ''}">${I18N.t('filter.all','すべて')}</button>` +
+    cats.map(([c, cls]) => `<button data-c="${c}" class="${cls}${mpCat === c ? ' on' : ''}">${_CAT_ICON[c]}${tCatName(c)}</button>`).join('');
+  $('mp-catf').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    mpCat = b.dataset.c || null;
+    renderMoveCatChips();
+    renderMovePickList($('mp-q').value);
+  }));
+}
 function openMovePicker(slotId, idx){
   movePick = { slotId, idx };
   $('move-picker').style.display = 'flex';
   $('mp-q').value = '';
+  mpCat = null;
+  renderMoveCatChips();
   renderMovePickList('');
   $('mp-q').focus();
 }
@@ -1323,7 +1352,8 @@ function renderMovePickList(query){
   const all = S.usableMoves(poke);
   const tc = S.typeColors();
   const k = toKata(query.trim());
-  const hits = k ? all.filter(m => m.name.includes(k) || m.name.includes(query.trim())) : all;
+  let hits = k ? all.filter(m => m.name.includes(k) || m.name.includes(query.trim())) : all;
+  if (mpCat) hits = hits.filter(m => m.category === mpCat);
   // 並び: 攻撃技(物理/特殊混合)を威力の強い順→変化技は末尾(2026-07-06 阿部さん)
   const sorted = hits.slice().sort((a, b) => {
     const av = a.category === '変化' ? -1 : (a.power || 0);
@@ -1337,11 +1367,11 @@ function renderMovePickList(query){
     const meta = [
       `${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'}`,
       `${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'}`,
-      tCatName(m.category),
       `${I18N.t('real_battle.move_pp_label','PP')}${m.pp ?? '—'}`,
       pri ? `${I18N.t('real_battle.move_priority_label','優先度')}${pri > 0 ? '+' : ''}${pri}` : ''
     ].filter(Boolean).join(' / ');
     return `<button data-n="${m.name}"><div class="mp-top"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>` +
+      catBadge(m.category) +
       `${tMoveName(m)}<span class="mp-meta">${meta}</span></div>` +
       (desc ? `<div class="mp-desc">${desc}</div>` : '') + `</button>`;
   }).join('') || `<div style="color:#8b94a7;padding:8px">${I18N.t('real_battle.move_not_found','みつからない…')}</div>`;
