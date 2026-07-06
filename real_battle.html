@@ -110,7 +110,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #choice-modal .cm-group{font-size:11px;font-weight:800;color:#5a4fc4;margin:8px 2px 2px}
 #choice-modal .cm-row{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:9px;color:#3a3552;cursor:pointer;
   padding:7px 10px;text-align:left;font-size:12px;display:flex;flex-direction:row;align-items:center;gap:10px;font-family:inherit}
-#choice-modal .cm-row b{font-size:13px;flex:0 0 auto;min-width:112px}
+#choice-modal .cm-row b{font-size:13px;flex:0 0 auto;min-width:112px;display:flex;align-items:center;gap:5px}
+#choice-modal .cm-row b .item-ic{width:20px;height:20px;object-fit:contain;image-rendering:pixelated;flex:0 0 auto}
 /* 性格マトリクス(本家踏襲): 行=上がる▲・列=下がる▼・対角=補正なし */
 #choice-modal .cm-matrix{display:grid;grid-template-columns:auto repeat(5,1fr);gap:4px;padding:2px;min-width:470px}
 #choice-modal .cm-mh,#choice-modal .cm-ml,#choice-modal .cm-mcorner{font-size:10px;font-weight:800;display:flex;
@@ -1006,7 +1007,7 @@ function openChoiceModal(title, groups, onPick, anchor){
   cm.querySelector('.cm-title').textContent = title;
   cm.querySelector('.cm-body').innerHTML = groups.map(g =>
     (g.label ? `<div class="cm-group">${g.label}</div>` : '') +
-    g.rows.map(r => `<button class="cm-row${r.selected ? ' sel' : ''}" data-k="${r.key}"><b>${r.name}</b>${r.desc ? `<span>${r.desc}</span>` : ''}</button>`).join('')
+    g.rows.map(r => `<button class="cm-row${r.selected ? ' sel' : ''}" data-k="${r.key}"><b>${r.icon || ''}${r.name}</b>${r.desc ? `<span>${r.desc}</span>` : ''}</button>`).join('')
   ).join('');
   cm.style.display = 'block';
   // 押したボタンの上に出す(マウス移動を最小に=2026-07-06 阿部さん)。入り切らなければ下/画面内にクランプ
@@ -1089,7 +1090,7 @@ function openItemModal(current, onPick, anchor, usedKeys){
   [['attack','itemcat_attack','こうげき強化'],['speed','itemcat_speed','すばやさ'],['defense','itemcat_defense','ぼうぎょ・たいきゅう'],
    ['heal','itemcat_heal','きのみ・かいふく'],['other','itemcat_other','そのほか']].forEach(([b, k, ja]) => {
     if (!buckets[b].length) return;
-    g.push({label:I18N.t('real_battle.' + k, ja), rows:buckets[b].map(it => ({key:it.key, name:tItemName(it), desc:tItemDesc(it), selected:current === it.key}))});
+    g.push({label:I18N.t('real_battle.' + k, ja), rows:buckets[b].map(it => ({key:it.key, name:tItemName(it), desc:tItemDesc(it), icon:itemIconHtml(it), selected:current === it.key}))});
   });
   openChoiceModal(I18N.t('real_battle.sel_item','もちもの'), g, onPick, anchor);
 }
