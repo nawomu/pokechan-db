@@ -135,6 +135,12 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .pp-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px;color:#4a4470}
 .pp-head b{font-size:15px;color:#5a4fc4}
 .pp-head select{margin-left:auto;background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;padding:4px 8px;font-size:12px}
+/* タイプ絞り込みチップ(2026-07-06 阿部さん) */
+#pp-typef{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 2px}
+#pp-typef button{font-size:10.5px;font-weight:800;color:#fff;border-radius:8px;padding:3px 9px;border:1px solid #ffffff44;
+  cursor:pointer;font-family:inherit;opacity:.72;line-height:1.3}
+#pp-typef button.on{opacity:1;box-shadow:0 0 0 2px #7ba800;border-color:#d4f542}
+#pp-typef button.tf-all{background:#5a5478}
 #poke-picker input{background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:9px;padding:9px 12px;
   font-size:15px;margin-bottom:10px;width:100%}
 #pp-list{overflow-y:auto;display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
@@ -780,6 +786,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
       </select>
     </div>
     <input id="pp-q" placeholder="なまえで さがす(ひらがなでもOK)…" data-i18n-attr="placeholder:real_battle.pp_search_placeholder">
+    <div id="pp-typef"></div>
     <div id="pp-list"></div>
     <button id="pp-close" data-i18n="real_battle.pp_close_button">とじる</button>
   </div>
@@ -882,6 +889,8 @@ const tCatName = c => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[c]
       // JSで組み立てるUI部品は i18n:ready/changed での再描画までがセット(2026-07-06 阿部さん英語モードで発覚)
       selfIds().concat(oppIds()).forEach(id => { if (slotVal[id] && $(id)) $(id).innerHTML = slotCapsuleHtml(id); });
       renderSelDetail(selectedSlot);
+      // ボックスを開いたまま言語切替された場合もチップ/一覧を作り直す
+      if ($('poke-picker').style.display === 'flex'){ renderPickerTypeChips(); renderPickerList($('pp-q').value); }
     } catch(e) {}
   }
   if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} }
@@ -1350,11 +1359,30 @@ function renderMovePickList(query){
     closeMovePicker();
   }));
 }
+let ppType = null;   // タイプ絞り込み(nullなら全タイプ)
+function renderPickerTypeChips(){
+  const tc = S.typeColors();
+  // ボックスに実在するタイプだけ・図鑑のタイプ定義順で
+  const present = new Set();
+  S.pokeList().filter(isPickable).forEach(p => { present.add(p.type1); if (p.type2) present.add(p.type2); });
+  const types = Object.keys(tc).filter(t => present.has(t));
+  $('pp-typef').innerHTML =
+    `<button class="tf-all${ppType === null ? ' on' : ''}">${I18N.t('filter.all','すべて')}</button>` +
+    types.map(t => `<button data-t="${t}" class="${ppType === t ? 'on' : ''}" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</button>`).join('');
+  $('pp-typef').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    ppType = b.dataset.t || null;
+    renderPickerTypeChips();
+    renderPickerList($('pp-q').value);
+  }));
+}
 function openPicker(id){
   pickerSlot = id;
   $('poke-picker').style.display = 'flex';
   const q = $('pp-q');
   q.value = '';
+  ppType = null;
+  renderPickerTypeChips();
   renderPickerList('');
   q.focus();
 }
@@ -1370,6 +1398,7 @@ function renderPickerList(query){
     const lang = (window.I18N && I18N.lang) || 'ja';
     pokes = pokes.slice().sort((a, b) => tPokeName(a.name).localeCompare(tPokeName(b.name), lang));
   }
+  if (ppType) pokes = pokes.filter(p => p.type1 === ppType || p.type2 === ppType);
   const k = toKata(query.trim());
   const hits = k ? pokes.filter(p => p.name.includes(k) || p.name.includes(query.trim())) : pokes;
   const tc = S.typeColors();
