@@ -422,7 +422,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 @keyframes rbFaint{0%{opacity:1;transform:none}100%{opacity:0;transform:translateY(52px)}}
 @keyframes rbEnter{0%{opacity:0;transform:translateY(30px) scale(.5)}70%{transform:translateY(-6px) scale(1.06)}100%{opacity:1;transform:none}}
 /* 交代の引っ込み(ボールに戻る感じ=縮んで沈んで消える)。2026-07-06 阿部さん「いきなり消えていきなり出てくる」対策 */
-@keyframes rbRecall{0%{opacity:1;transform:none}55%{opacity:.9;transform:translateY(8px) scale(.7)}100%{opacity:0;transform:translateY(14px) scale(.12)}}/* 一度沈んでからボールに吸い込まれる(2026-07-06 阿部さん) */
+@keyframes rbRecall{0%{opacity:1;transform:none}25%{opacity:1;transform:translateY(-10px) scale(1.04)}100%{opacity:0;transform:translateY(46px) scale(.1)}}/* ふわっと浮いてから ぐっと沈んで吸い込まれる=交代が分かる大きな動き(2026-07-06 阿部さん) */
 .fighter.hit .sprite{animation:rbShake .85s/* 被弾は少し長め(2026-07-05 阿部さん) */}
 .fighter.preattack .sprite{animation:rbPreAttack .7s}
 .fighter.lunge-self .sprite{animation:rbLunge .45s}
@@ -431,7 +431,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 /* ひんし後は交代まで消えたまま(2026-07-05 阿部さん「瀕死になったら画面から消えたほうがいい」) */
 .fighter.gone .sprite{opacity:0;transform:translateY(40px);pointer-events:none}
 .fighter.enter .sprite{animation:rbEnter .5s}
-.fighter.recall .sprite{animation:rbRecall .52s forwards}
+.fighter.recall .sprite{animation:rbRecall .62s forwards}
 
 /* ===== CH: メッセージ=盤面内オーバーレイ(箱なし・白文字+黒フチ=実機準拠) ===== */
 /* 左端は自分statbar(幅210+余白)を避けて非重畳にする(ダメージ行=statbarとメッセージが同時表示のため) */
@@ -2153,7 +2153,10 @@ function showParty(forced){
       pt.style.display = 'none';
       logPos = S.battleLog.length;
       S.attemptSwitch('self', +b.dataset.i, {ignoreTrapping: true, faintReplace: true});
-      renderAll();
+      // 新しい子は登場拍(いけっ！の声)まで隠す=前触れなくポンと出るのを防ぐ(2026-07-06 阿部さん)
+      const ff = $('f-self'); if (ff){ ff.classList.remove('recall', 'enter'); ff.classList.add('gone'); }
+      const pbSelf = $('pb-self'); if (pbSelf) pbSelf.style.visibility = 'hidden';
+      renderAll();   // 隠れたまま新しい子のスプライトを組む(表示は登場拍のenter fxが行う)
       const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
       say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
       return;
@@ -2459,6 +2462,9 @@ function splitBattleLines(msg){
   if (w) return [out2(w[1], w[2])];
   const g = msg.match(/^(相手の )?(\S+) が 場に出た！$/);
   if (g) return [in2(g[1], g[2])];
+  // 死に出し: 「たおれた (相手の)◯◯ の代わりに (相手の)△△ が 場に出た！」→ トレーナーの掛け声(いけっ/くりだした)
+  const dr = msg.match(/^たおれた (?:相手の )?\S+ の代わりに (相手の )?(\S+) が 場に出た！$/);
+  if (dr) return [in2(dr[1], dr[2])];
   return [msg];
 }
 const _recallTimer = {};   // 交代1拍目のgone遅延タイマー(2拍目で必ずキャンセル=出た直後に消えるバグ根治)
@@ -2493,6 +2499,18 @@ function lineWithFx(msg){
         if (d){ popText(side, '−' + (d[1] || d[2]), '#f87171', 15); flash(side, 'hit'); }
         else if (/回復/.test(msg)) popText(side, '＋', '#8ef5b0', 15);
       }
+    }
+    // ②b 混乱自傷「◯◯ は わけもわからず じぶんを こうげきした！ (N ダメージ)」: 残HP表記が無いので表示中HPから引く
+    const confM = msg.match(/^(相手の )?\S+ は わけもわからず じぶんを こうげきした！ \((\d+) ダメージ\)/);
+    if (confM){
+      const side = confM[1] ? 'opp' : 'self';
+      const pbC = $('pb-' + side), tC = pbC && pbC.querySelector('.hptext');
+      const dmg = +confM[2];
+      const max = tC ? +tC.dataset.max : (S.realStat(S.sides[side], 'hp') || 1);
+      const cur = tC ? +tC.dataset.hp : max;
+      setHpBar(side, Math.max(0, cur - dmg), max);
+      popText(side, '−' + dmg, '#f87171', 15);
+      burstFx(side, '#c9a0e0'); flash(side, 'hit'); SE.hit();
     }
     // ③ こうか・急所(直前のダメージ対象に重ねる)
     if (msg === 'こうかは ばつぐんだ！'){ screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18); SE.superEff(); }
@@ -2536,7 +2554,7 @@ function lineWithFx(msg){
       flash(side, 'recall');
       const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
       clearTimeout(_recallTimer[side]);
-      _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 540);
+      _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 640);
     }
     if (/が 場に出た！/.test(msg) || /^いけっ！ \S+！$/.test(msg) || /^相手は \S+ を くりだした！$/.test(msg)){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
@@ -2550,8 +2568,11 @@ function lineWithFx(msg){
       // 出た瞬間は「攻撃前のHP」を表示(この後のダメージ行fxが正しいタイミングで減らす)
       try {
         const stE = S.sides[enterSide];
+        const max = S.realStat(stE, 'hp') || 1;
         const snap = window._hpSnap && _hpSnap[enterSide] && _hpSnap[enterSide][stE.poke.name];
-        if (snap != null) setHpBar(enterSide, snap, S.realStat(stE, 'hp') || 1);
+        // スナップ(攻撃前HP)が無い死に出しは現在HPで(前の子の0%を引きずらない)
+        const hp = (snap != null) ? snap : (stE.currentHp == null ? max : Math.max(0, stE.currentHp));
+        setHpBar(enterSide, hp, max);
       } catch(e){}
       flash(enterSide, 'enter'); SE.enter();
     }
