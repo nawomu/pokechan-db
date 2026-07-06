@@ -287,6 +287,14 @@ body.in-battle #game,body.in-battle header{max-width:990px}
     radial-gradient(1px 1px at 41% 33%, #ffffff88, transparent)}
 /* S6: #weather-fx はbackdrop(z:0)の上・他演出要素より下(z:1)。天候絵文字オーバーレイ */
 #weather-fx{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.22;font-size:34px;letter-spacing:18px;line-height:1.3;text-align:center}
+/* 勝敗バナー(画面中央に大きくWIN/LOSE=2026-07-06 阿部さん) */
+#result-banner{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;pointer-events:none}
+#result-banner.show{display:flex}
+#result-banner .rb-txt{font-size:84px;font-weight:900;font-style:italic;letter-spacing:2px;color:#fff;
+  text-shadow:0 4px 0 #0004,0 0 26px currentColor;animation:rbResultPop .6s cubic-bezier(.2,1.5,.4,1) both;font-family:'Arial Black',sans-serif}
+#result-banner.win .rb-txt{color:#ffd54a}
+#result-banner.lose .rb-txt{color:#8fa2c4}
+@keyframes rbResultPop{0%{opacity:0;transform:scale(.3) rotate(-8deg)}100%{opacity:1;transform:scale(1) rotate(-6deg)}}
 .fighter{position:absolute;width:300px;transition:transform .2s}
 .fighter .platform{position:absolute;left:50%;transform:translateX(-50%);bottom:-6px;width:200px;height:34px;border-radius:50%;
   background:radial-gradient(ellipse at center,#3f6f2caa 0%,#3f6f2c55 55%,transparent 72%)}
@@ -675,6 +683,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
       <div id="weather-fx"></div>
       <div id="fx-flash"></div>
       <div id="turn-badge">Turn 1</div>
+      <div id="result-banner"></div>
       <!-- CH: バトル終了(常設・実機の左上exitアイコン相当。メッセージ中も押せる) -->
       <!-- 非常口ピクトグラム風のアイコンのみ(実機準拠・世界共通=2026-07-06 阿部さん)。ラベルはtitleで補助 -->
       <button id="btn-exit" data-i18n-attr="title:real_battle.exit_button" title="終了"><span>🏃</span><span class="exit-div"></span><span>⊖</span></button>
@@ -1605,6 +1614,7 @@ function startBattle(){
   ['c-fight','c-party','c-run'].forEach(id => { const b = $(id); if (b) { b.disabled = false; b.style.display = ''; } });
   ['f-self','f-opp'].forEach(id => { const f = $(id); if (f) f.classList.remove('gone','faint'); });   // 前試合のひんし退場を解除
   window._idSnap = null;   // 表示個体スナップも初期化(初回登場から素直に描く)
+  hideResultBanner();   // 前試合の勝敗バナーを消す
   buildSide('self', selfIds());
   buildSide('opp',  oppIds());
   S.battleLog.length = 0;
@@ -1724,7 +1734,9 @@ function renderAll(){
       const encI = encodeURIComponent(shown.name);
       icn.innerHTML = `<img src="${pokeIconSrc(shown.name)}" alt="" onerror="this.remove()">`;
     }
-    if (!frozenId){
+    // リプレイ中(busy)はHPバーをrenderAllで動かさない=各拍のfx(ダメージ/回復/反動)が正しい拍で動かす。
+    // renderAllはエンジンの最終HP(ターン終了時の値)を持つので、ここで入れると攻撃前に減って見える(2026-07-06 阿部さん)
+    if (!frozenId && !busy){
       const max = S.realStat(st, 'hp') || 1;
       const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
       setHpBar(side, hp, max);
@@ -2388,7 +2400,7 @@ function splitBattleLines(msg){
 const _recallTimer = {};   // 交代1拍目のgone遅延タイマー(2拍目で必ずキャンセル=出た直後に消えるバグ根治)
 function lineWithFx(msg){
   const fx = () => {
-    const hpM = msg.match(/\(残HP (\d+)(?:\/(\d+))?\)/);
+    const hpM = msg.match(/\(残(?:り)?HP (\d+)(?:\/(\d+))?\)/);
     const subjOpp = msg.startsWith('相手の');   // 行の主語(先頭)が相手側か
     // ① 攻撃のダメージ行: 「A の 技！ … ダメージ！」(対象=攻撃側の反対。連続ヒット・みがわりも同じ形)
     const atkLine = msg.match(/^(相手の )?\S+ の (\S+)！/);
@@ -2413,8 +2425,9 @@ function lineWithFx(msg){
         const side = subjOpp ? 'opp' : 'self';
         const max = hpM[2] ? +hpM[2] : (S.realStat(S.sides[side], 'hp') || 1);
         setHpBar(side, +hpM[1], max);
-        const d = msg.match(/で (\d+) ダメージ/);
-        if (d){ popText(side, '−' + d[1], '#f87171', 15); flash(side, 'hit'); }
+        const d = msg.match(/で (\d+) ダメージ|HPを (\d+) けずった/);
+        if (d){ popText(side, '−' + (d[1] || d[2]), '#f87171', 15); flash(side, 'hit'); }
+        else if (/回復/.test(msg)) popText(side, '＋', '#8ef5b0', 15);
       }
     }
     // ③ こうか・急所(直前のダメージ対象に重ねる)
@@ -2442,10 +2455,15 @@ function lineWithFx(msg){
     if (/は ひんしになった！/.test(msg)){
       const side = subjOpp ? 'opp' : 'self';
       setHpBar(side, 0, S.realStat(S.sides[side], 'hp') || 1);   // バーも0に(こんらん自傷等で同期漏れした時の保険)
-      flash(side, 'faint');
-      // 沈むアニメ後は交代まで消えたまま(faintクラスはflash()が800msで外すためgoneで固定)。statbarも引っ込める(登場拍で復帰)
-      setTimeout(() => { const f = $('f-' + side); if (f) f.classList.add('gone');
-        const pbF = $('pb-' + side); if (pbF) pbF.style.visibility = 'hidden'; }, 900);
+      const ff = $('f-' + side);
+      if (ff){
+        ff.classList.remove('recall', 'enter', 'hit', 'lunge-self', 'lunge-opp');
+        void ff.offsetWidth;
+        ff.classList.add('faint');   // rbFaint .95s forwards=沈んで消える
+        // 沈み切ったらgoneで固定。flash()を使うと800msでfaintが外れ100ms素に戻って再表示=ちらつく(2026-07-06 阿部さん)ため自前で。
+        setTimeout(() => { ff.classList.add('gone'); ff.classList.remove('faint');
+          const pbF = $('pb-' + side); if (pbF) pbF.style.visibility = 'hidden'; }, 940);
+      }
       SE.faint();
     }
     if (/は 引っ込んだ！$/.test(msg) || /^もどれ！/.test(msg) || /を 引っ込めた！$/.test(msg)){
@@ -2536,6 +2554,14 @@ function showNextOpponentButton(){
   }
   nb.textContent = `${I18N.t('real_battle.next_opponent_button','⚔ つぎの相手と たたかう！(連勝: ')}${winStreak})`;
 }
+// 勝敗を画面中央に大きく表示(WIN/LOSE)。次のバトル開始やリセットで消す
+function showResultBanner(won){
+  const el = $('result-banner');
+  if (!el) return;
+  el.className = 'show ' + (won ? 'win' : 'lose');
+  el.innerHTML = `<div class="rb-txt">${won ? 'WIN!' : 'LOSE...'}</div>`;
+}
+function hideResultBanner(){ const el = $('result-banner'); if (el) el.className = ''; }
 function endOfTurn(){
   renderAll();
   const dead = side => {
@@ -2548,6 +2574,7 @@ function endOfTurn(){
     bgmStop();
     const won = dead('opp');
     if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
+    showResultBanner(won);
     say([won ? `${I18N.t('real_battle.win_message1','🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！(連勝: ')}${winStreak})` : I18N.t('real_battle.lose_message1','😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…'),
          won ? I18N.t('real_battle.win_message2','「つぎの相手」で 連戦できます(チームは 全回復)') : I18N.t('real_battle.lose_message2','「にげる」から 編成にもどって もういちど あそべます')],
         () => { showCmd(true);
