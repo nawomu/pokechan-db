@@ -683,7 +683,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
         <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
         <option value="home" data-i18n="real_battle.sprite_src_home">公式3D(Pokémon HOME)</option>
       </select> <span id="sprite-credit" style="display:none;font-size:10px"><a href="https://pokeapi.co/" style="color:#9ec5ff" data-i18n="real_battle.sprite_credit">画像出典: PokéAPI</a></span></span>
-      <button id="snd-toggle" style="margin-left:auto;background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
+      <input type="range" id="snd-vol" min="0" max="1" step="0.05" title="🔊" style="margin-left:auto;width:110px;accent-color:#5a4fc4">
+      <button id="snd-toggle" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
     </div>
     </div><!-- /battle-main -->
     <div id="battle-log-panel">
@@ -1261,6 +1262,17 @@ function initSetup(){
   $('btn-exit').addEventListener('click', e => { e.stopPropagation(); bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
   // 音オン/オフ(設定はlocalStorageに保存)
   updateSndBtn();
+  // 音量スライダー(2026-07-06 阿部さん): 全SE/BGM共通のマスターゲイン。保存して次回も同じ音量
+  const volEl = $('snd-vol');
+  if (volEl){
+    volEl.value = String(sndVol);
+    volEl.addEventListener('input', () => {
+      sndVol = +volEl.value;
+      localStorage.setItem('rb_vol', String(sndVol));
+      if (masterVol) masterVol.gain.value = sndVol;
+    });
+    volEl.addEventListener('change', () => SE.select());   // 手を離したら試し音
+  }
   // キャラ画像ソース(編成/バトル中の両セレクトを同期・保存・即反映)
   ['sprite-src', 'sprite-src-setup'].forEach(id => {
     const el = $(id); if (!el) return;
@@ -1885,6 +1897,12 @@ function doTurn(moveIdx){
 // 2026-06-12 阿部さん「音とBGM入れたらそれっぽくなる」。autoplay制限があるので初回クリックで解錠。
 let AC = null, sndOn = localStorage.getItem('rb_snd') !== 'off';
 let bgmTimer = null, bgmStep = 0, masterBgm = null;
+let masterVol = null, sndVol = Math.min(1, Math.max(0, parseFloat(localStorage.getItem('rb_vol') || '0.7')));
+function dest(){   // 全SE/BGMの出口(音量スライダーが効くマスターゲイン)
+  const ctx = ac();
+  if (!masterVol){ masterVol = ctx.createGain(); masterVol.gain.value = sndVol; masterVol.connect(ctx.destination); }
+  return masterVol;
+}
 function ac(){
   if (!AC){ AC = new (window.AudioContext || window.webkitAudioContext)(); }
   if (AC.state === 'suspended') AC.resume();
@@ -1899,7 +1917,7 @@ function tone(type, freq, dur, vol, slideTo, when){
   if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
   g.gain.setValueAtTime(vol, t);
   g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  o.connect(g); g.connect(ctx.destination);
+  o.connect(g); g.connect(dest());
   o.start(t); o.stop(t + dur + 0.02);
 }
 // ノイズ(打撃用)
@@ -1913,7 +1931,7 @@ function noise(dur, vol, lowpass){
   const src = ctx.createBufferSource(); src.buffer = buf;
   const g = ctx.createGain(); g.gain.value = vol;
   const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lowpass || 1200;
-  src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t);
+  src.connect(f); f.connect(g); g.connect(dest()); src.start(t);
 }
 // 効果音いろいろ
 const SE = {
@@ -1936,7 +1954,7 @@ const BGM_LEAD = [440, 0, 523, 587, 659, 0, 587, 523, 440, 0, 392, 440, 523, 440
 function bgmStart(){
   if (!sndOn || bgmTimer) return;
   const ctx = ac();
-  masterBgm = ctx.createGain(); masterBgm.gain.value = 0.10; masterBgm.connect(ctx.destination);
+  masterBgm = ctx.createGain(); masterBgm.gain.value = 0.10; masterBgm.connect(dest());
   let next = ctx.currentTime + 0.05;
   const SPB = 0.13;   // 16分音符の長さ(≒115bpmの16ビート)
   bgmStep = 0;
