@@ -264,24 +264,24 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .trainer{display:none}
 /* ===== CH: statbar チャンピオンズ風(平行四辺形パネル) =====
  * 相手=右上クリムゾン+%のみ / 自分=左下青紫+数値。実機スクショ準拠(設計_リアルバトルUI_チャンピオンズ寄せ_2026-07-04.md) */
-.pbox{position:absolute;z-index:9;width:210px;padding:5px 12px 22px;font-family:Verdana,sans-serif;font-size:13px;color:#fff;
+.pbox{position:absolute;z-index:9;width:264px;padding:5px 12px 22px;font-family:Verdana,sans-serif;font-size:13px;color:#fff;
   transform:skewX(-10deg);border-radius:8px;box-shadow:0 3px 10px #0007;transition:opacity .3s;overflow:visible}
 .pbox>*{transform:skewX(10deg)}   /* パネルだけ斜めに・中身は水平に戻す */
 #pb-opp{background:linear-gradient(135deg,#b02458 0%,#d63c78 100%);right:16px;top:10px;left:auto;border:1px solid #ffffff33}
 #pb-self{background:linear-gradient(135deg,#4638ae 0%,#6a5be0 100%);left:16px;bottom:10px;top:auto;border:1px solid #ffffff33}
 .pbox .who{display:none}
-.pbox .row1{display:flex;align-items:center;gap:6px;position:relative;padding-left:50px}
+.pbox .row1{display:flex;align-items:center;gap:6px;position:relative;padding-left:58px}
 /* CH: statbar内ミニアイコン(実機の丸顔アイコン) */
-.pbox .icn{position:absolute;left:-2px;top:2px;width:40px;height:40px;border-radius:50%;background:#00000044;overflow:hidden;/* 左下に落として2行ぶち抜き(2026-07-06 阿部さん) */
+.pbox .icn{position:absolute;left:-4px;top:0;width:52px;height:52px;border-radius:50%;background:#00000044;overflow:hidden;/* 左いっぱいに大きく(2026-07-06 阿部さん) */
   display:flex;align-items:center;justify-content:center}
-.pbox .icn img{width:38px;height:38px;object-fit:contain;image-rendering:pixelated}
+.pbox .icn img{width:50px;height:50px;object-fit:contain;image-rendering:pixelated}
 .pbox .nm{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 2px #0009;
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pbox .ptypes{display:flex;gap:3px;flex:0 0 auto}
 .pbox .ptypes span{font-size:8px;font-weight:800;color:#fff;border-radius:6px;padding:1px 6px;border:1px solid #ffffff55;white-space:nowrap}
 .pbox .lv{display:none}   /* 実機statbarにLv表示なし(全員Lv50) */
 /* CH: HPバー=ダーク下地+ライム緑。%/数値テキストはバーの下に大きく出す */
-.pbox .hpbar{position:relative;width:calc(100% - 66px);margin-left:66px !important;height:10px;background:#00000066;border-radius:5px;border:none;/* 右端寄せ=アイコンに被せない(skewの横ずれ込みで66px空け=2026-07-06 阿部さん) */
+.pbox .hpbar{position:relative;width:calc(100% - 58px);margin-left:58px !important;height:10px;/* 名前の左端に揃えて左へ延長 */background:#00000066;border-radius:5px;border:none;/* 右端寄せ=アイコンに被せない(skewの横ずれ込みで66px空け=2026-07-06 阿部さん) */
   margin:5px 0 0;overflow:visible}
 .pbox .hptext{position:absolute;right:0;top:11px;font-size:16px;font-weight:900;color:#fff;line-height:1.2;z-index:2;
   pointer-events:none;text-shadow:0 1px 3px #000c;font-style:italic}
@@ -297,8 +297,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .pbox .hp,.pbox .prevhp{max-width:calc(100% - 2px)}
 /* 状態異常バッジ(バー下・%テキストの左に並ぶ) */
 .pbox .sts{position:absolute;left:12px;bottom:3px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap;transform:skewX(10deg)}
-.pbox .held{position:absolute;right:118px;bottom:5px;transform:skewX(10deg);display:flex;gap:3px;align-items:center;
-  font-size:8.5px;font-weight:700;color:#ffffffcc;white-space:nowrap;max-width:76px;overflow:hidden;justify-content:flex-end}/* HP数値(右端)のすぐ左(2026-07-06 阿部さん) */
+.pbox .held{position:absolute;right:110px;bottom:5px;transform:skewX(10deg);display:flex;gap:3px;align-items:center;
+  font-size:8.5px;font-weight:700;color:#ffffffcc;white-space:nowrap;max-width:96px;overflow:hidden;justify-content:flex-end}/* HP数値(右端)のすぐ左(2026-07-06 阿部さん) */
 .pbox .held img{width:14px;height:14px;object-fit:contain;image-rendering:pixelated}
 .pbox .held.used{opacity:.45;filter:grayscale(1)}
 .pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466}
@@ -1933,6 +1933,16 @@ function doTurn(moveIdx){
     if (act.type === 'switch') opp.switchChoice = act.index;
     else opp.selectedMoveIdx = act.index;
   }
+  // 演出用HPスナップショット: 交代で出た瞬間のバーは「攻撃前のHP」を出す
+  // (renderAllはエンジン最終状態=被弾後を入れてしまい、登場した瞬間に減って見えていた=2026-07-06 阿部さん)
+  window._hpSnap = {};
+  ['self', 'opp'].forEach(sd => {
+    const st0 = S.sides[sd]; const m = {};
+    [st0].concat(st0.bench || []).forEach(e => {
+      if (e && e.poke){ const mx = S.realStat(e, 'hp') || 1; m[e.poke.name] = e.currentHp == null ? mx : Math.max(0, e.currentHp); }
+    });
+    _hpSnap[sd] = m;
+  });
   logPos = S.battleLog.length;
   S.runTurn();
   const fresh = S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg));
@@ -2201,7 +2211,14 @@ function lineWithFx(msg){
       const f = $('f-' + enterSide);
       f.classList.remove('gone', 'recall');
       const pbEl = $('pb-' + enterSide); if (pbEl) pbEl.style.visibility = '';
-      renderAll(); flash(enterSide, 'enter'); SE.enter();
+      renderAll();
+      // 出た瞬間は「攻撃前のHP」を表示(この後のダメージ行fxが正しいタイミングで減らす)
+      try {
+        const stE = S.sides[enterSide];
+        const snap = window._hpSnap && _hpSnap[enterSide] && _hpSnap[enterSide][stE.poke.name];
+        if (snap != null) setHpBar(enterSide, snap, S.realStat(stE, 'hp') || 1);
+      } catch(e){}
+      flash(enterSide, 'enter'); SE.enter();
     }
     if (/メガシンカした！/.test(msg)){
       screenFlash('#ffd96b', true);
