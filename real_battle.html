@@ -1013,12 +1013,10 @@ function slotCapsuleHtml(id){
   const gHtml = g && g !== '—' ? `<span class="cap-g ${g === '♂' ? 'm' : 'f'}">${g}</span>` : '';
   const types = p ? [p.type1, p.type2].filter(Boolean).map(t =>
     `<span class="cap-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('') : '';
-  const isSelf = id[0] === 's';
-  const leadHtml = isSelf
-    ? (leadSlot === id
-        ? `<span class="cap-lead on">★ ${I18N.t('real_battle.lead_label','先頭')}</span>`
-        : `<span class="cap-lead">${I18N.t('real_battle.lead_set','先頭に')}</span>`)
-    : '';
+  const capSide = id[0] === 's' ? 'self' : 'opp';
+  const leadHtml = leadSlot[capSide] === id
+    ? `<span class="cap-lead on">★ ${I18N.t('real_battle.lead_label','1番目')}</span>`
+    : `<span class="cap-lead">${I18N.t('real_battle.lead_set','1番目に')}</span>`;
   return `<strong class="cap-name">${tPokeName(nm)}${gHtml}</strong>` +
     `<span class="cap-mid"><span class="cap-types">${types}</span>` +
     `<small class="cap-item">${it ? itemIconHtml(it) + tItemName(it) : ''}</small></span>` +
@@ -1197,7 +1195,10 @@ function loadTeam(){
     const d = JSON.parse(localStorage.getItem('rb_team') || 'null');
     if (!d || !d.val || !d.val.s1) return false;
     teamSize = d.size || 3;
-    leadSlot = (d.lead && selfIds().includes(d.lead)) ? d.lead : 's1';
+    leadSlot = {
+      self: (d.lead && d.lead.self && selfIds().includes(d.lead.self)) ? d.lead.self : 's1',
+      opp:  (d.lead && d.lead.opp && oppIds().includes(d.lead.opp))   ? d.lead.opp  : 'o1'
+    };
     $('team-size').value = String(teamSize);
     renderTeamRows();
     selfIds().concat(oppIds()).forEach(id => {
@@ -1483,8 +1484,8 @@ function renderTeamRows(){
       // クリック=選択して中央に詳細表示 / ⟳(cap-change)クリック or 空スロット=ポケモン変更ピッカー
       b.addEventListener('click', e => {
         SE.select();
-        if (e.target.classList && e.target.classList.contains('cap-lead')){   // 初手を切り替え(self側のみ)
-          if (id[0] === 's' && slotVal[id]){ leadSlot = id; saveTeam();
+        if (e.target.classList && e.target.classList.contains('cap-lead')){   // 1番目を切り替え(self/opp両方)
+          if (slotVal[id]){ leadSlot[id[0] === 's' ? 'self' : 'opp'] = id; saveTeam();
             selfIds().concat(oppIds()).forEach(x => { if (slotVal[x] && $(x)) $(x).innerHTML = slotCapsuleHtml(x); }); }
           return;
         }
@@ -1502,7 +1503,8 @@ function initSetup(){
   renderTeamRows();
   $('team-size').addEventListener('change', () => {
     teamSize = +$('team-size').value;
-    if (!selfIds().includes(leadSlot)) leadSlot = 's1';   // 人数が減って範囲外になったら先頭へ
+    if (!selfIds().includes(leadSlot.self)) leadSlot.self = 's1';   // 人数が減って範囲外になったら先頭へ
+    if (!oppIds().includes(leadSlot.opp))  leadSlot.opp  = 'o1';
     renderTeamRows();
     randomize();   // 枠が変わるので選び直し(おまかせで埋める)
   });
@@ -1606,12 +1608,13 @@ function autoMoves(poke){
   if (!picked.length) return all.slice(0, 4);
   return picked.slice(0, 4);
 }
-// 初手に出すスロット(self側のみ・既定=s1)。バトル開始時にこの子を先頭へ
-let leadSlot = 's1';
-function orderedSelfIds(){
-  const ids = selfIds();
-  if (!ids.includes(leadSlot) || !slotVal[leadSlot]) return ids;
-  return [leadSlot].concat(ids.filter(id => id !== leadSlot));
+// 初手(1番目)に出すスロット。self/opp両方選べる(2026-07-06 阿部さん)。既定=各サイド先頭
+let leadSlot = {self: 's1', opp: 'o1'};
+function orderedIds(side){
+  const ids = side === 'self' ? selfIds() : oppIds();
+  const lead = leadSlot[side];
+  if (!ids.includes(lead) || !slotVal[lead]) return ids;
+  return [lead].concat(ids.filter(id => id !== lead));
 }
 // 既定の特性: 基本は特性1。メタモンは隠れ特性かわりもの(シングル実戦の確定特性・チャンピオンズWiki準拠。
 // じゅうなん既定だと1ターン目にへんしんするだけの的になるため)
@@ -1655,8 +1658,8 @@ function startBattle(){
   ['f-self','f-opp'].forEach(id => { const f = $(id); if (f) f.classList.remove('gone','faint'); });   // 前試合のひんし退場を解除
   window._idSnap = null;   // 表示個体スナップも初期化(初回登場から素直に描く)
   hideResultBanner();   // 前試合の勝敗バナーを消す
-  buildSide('self', orderedSelfIds());   // 初手に選んだ子を先頭に
-  buildSide('opp',  oppIds());
+  buildSide('self', orderedIds('self'));   // 1番目に選んだ子を先頭に
+  buildSide('opp',  orderedIds('opp'));
   S.battleLog.length = 0;
   logPos = 0; gameOver = false;
   turnNo = 1; updateTurnBadge(); clearLog(); clearMsg();
