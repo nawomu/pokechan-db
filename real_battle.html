@@ -100,18 +100,18 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   #setup-center{order:3}
 }
 /* 共通選択モーダル(ライトラベンダー・説明つき) */
-#choice-modal{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:60;padding:40px 14px}
-#choice-modal .cm-box{background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:14px;width:100%;
-  max-width:560px;max-height:84vh;display:flex;flex-direction:column;padding:14px;box-shadow:0 14px 40px #00000055}
+#choice-modal{position:fixed;inset:0;background:#0006;display:none;z-index:60}
+#choice-modal .cm-box{position:fixed;background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:14px;
+  width:min(94vw,600px);max-height:70vh;display:flex;flex-direction:column;padding:12px 14px;box-shadow:0 14px 40px #00000066}
 #choice-modal .cm-head{display:flex;align-items:center;margin-bottom:8px}
 #choice-modal .cm-title{font-weight:800;font-size:15px;color:#4a4470}
 #choice-modal .cm-x{margin-left:auto;background:none;border:none;font-size:16px;color:#8a82c8;cursor:pointer}
 #choice-modal .cm-body{overflow-y:auto;display:flex;flex-direction:column;gap:5px}
 #choice-modal .cm-group{font-size:11px;font-weight:800;color:#5a4fc4;margin:8px 2px 2px}
 #choice-modal .cm-row{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:9px;color:#3a3552;cursor:pointer;
-  padding:7px 10px;text-align:left;font-size:12px;display:flex;flex-direction:column;gap:2px;font-family:inherit}
-#choice-modal .cm-row b{font-size:12.5px}
-#choice-modal .cm-row span{font-size:10.5px;color:#5a5478;line-height:1.4}
+  padding:7px 10px;text-align:left;font-size:12px;display:flex;flex-direction:row;align-items:center;gap:10px;font-family:inherit}
+#choice-modal .cm-row b{font-size:13px;flex:0 0 auto;min-width:112px}
+#choice-modal .cm-row span{font-size:12px;color:#4a4468;line-height:1.45;flex:1 1 auto}/* 説明は右側・大きめ・2行OK(2026-07-06 阿部さん) */
 #choice-modal .cm-row:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
 #choice-modal .cm-row.sel{border-color:#5a4fc4;box-shadow:0 0 0 2px #b9e34d}
 /* ポケモン検索モーダル */
@@ -173,7 +173,9 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #stats-modal .sm-box{background:#141927;border:1px solid #2a3450;border-radius:14px;width:100%;max-width:400px;
   display:flex;flex-direction:column;padding:14px;color:#e6edf3}
 #stats-modal .sm-box .sd-ev{border-top:0;padding-top:0;margin-top:0}
-#stats-modal .sm-box select{background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;padding:3px 6px;font-size:12px}
+#stats-modal .sm-box select,#stats-modal .sm-box button.sd-pick{background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;
+  padding:3px 8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;flex:none;width:auto}
+#stats-modal .sm-box button.sd-pick:hover{border-color:#d4f542}
 #sm-close{margin-top:12px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer;font-family:inherit}
 /* 技リスト上の能力値ボタン(コンパクト=盤面高さに収める) */
 #moves button.stats-open{padding:1px 10px;border-radius:12px;font-size:10px;font-weight:700;text-align:center;
@@ -253,8 +255,6 @@ body.in-battle #game,body.in-battle header{max-width:990px}
     radial-gradient(1px 1px at 55% 28%, #ffffffaa, transparent),
     radial-gradient(1.5px 1.5px at 71% 24%, #ffffff99, transparent),
     radial-gradient(1px 1px at 41% 33%, #ffffff88, transparent)}
-/* S6: #field::after の地平線ライン。#field-backdrop(z:0)の上に描画するためz-index:1を追加 */
-#field::after{content:"";position:absolute;left:0;right:0;top:44%;height:3px;z-index:1;background:linear-gradient(90deg,#0000,#ffffff44,#0000);pointer-events:none}
 /* S6: #weather-fx はbackdrop(z:0)の上・他演出要素より下(z:1)。天候絵文字オーバーレイ */
 #weather-fx{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.22;font-size:34px;letter-spacing:18px;line-height:1.3;text-align:center}
 .fighter{position:absolute;width:300px;transition:transform .2s}
@@ -317,8 +317,12 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .pbox .hp.low{background:linear-gradient(180deg,#f56a5a,#d63c2e)}
 /* %幅指定でも右端1pxの枠内に収める */
 .pbox .hp,.pbox .prevhp{max-width:calc(100% - 2px)}
-/* 状態異常バッジ(バー下・%テキストの左に並ぶ) */
-.pbox .sts{position:absolute;left:12px;bottom:3px;min-height:14px;display:flex;gap:3px;flex-wrap:wrap;transform:skewX(10deg)}
+/* 状態異常バッジはpbox外(ボール列の上に積む)へ移動=丸アイコンに被らない(2026-07-06 阿部さん) */
+.pbox .sts{display:none}
+.sts-float{position:absolute;z-index:9;display:flex;gap:3px;pointer-events:none;transition:opacity .3s}
+#sts-self{left:22px;bottom:116px;flex-direction:column-reverse;align-items:flex-start}/* leftbar(bottom:88)の真上・複数は上に積み上がる */
+#sts-opp{right:22px;top:116px;flex-direction:column;align-items:flex-end}
+.sts-float .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000077;color:#fbbf24;border:1px solid #fbbf2466;white-space:nowrap}
 .pbox .held{position:absolute;right:110px;bottom:5px;transform:skewX(10deg);display:flex;gap:3px;align-items:center;
   font-size:8.5px;font-weight:700;color:#ffffffcc;white-space:nowrap;max-width:96px;overflow:hidden;justify-content:flex-end}/* HP数値(右端)のすぐ左(2026-07-06 阿部さん) */
 .pbox .held img{width:14px;height:14px;object-fit:contain;image-rendering:pixelated}
@@ -349,7 +353,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 /* ===== CH: UI出し入れ(メッセージ/演出中は全UIを消す=実機準拠の肝) =====
  * say()開始で #field.ch-busy → statbar/ボール列/ターン帯をフェードアウト。
  * setHpBar(ダメージ反映)や完了で解除=バーが戻ってきて減る、の実機の流れを再現 */
-#field.ch-busy .pbox, #field.ch-busy #leftbar, #field.ch-busy #rightbar, #field.ch-busy #turn-badge{
+#field.ch-busy .pbox, #field.ch-busy #leftbar, #field.ch-busy #rightbar, #field.ch-busy #turn-badge, #field.ch-busy .sts-float{
   opacity:0;pointer-events:none}
 
 /* ===== ステージ演出v3(2026-06-12 阿部さん「演出強化」) ===== */
@@ -651,6 +655,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
       <!-- S3: leftbar(自分側・左端) / rightbar(相手側・右端) 控え6体アイコンバー -->
       <!-- A-3デフォルト: pbox内の.ballsを非表示にしてこちらに一本化。 -->
       <!-- 復活: pbox .balls の display:none を外す + 下記を削除 -->
+      <div id="sts-self" class="sts-float"></div>
+      <div id="sts-opp" class="sts-float"></div>
       <div id="leftbar">
         <div class="sbar-name" id="sbar-name-self" data-i18n="real_battle.pbox_label_self"></div>
         <div class="sbar-icons" id="sbar-icons-self"></div>
@@ -971,29 +977,64 @@ function itemChoicesRB(){
   return S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any');
 }
 // 共通選択モーダル: groups=[{label, rows:[{key,name,desc,selected}]}]
-function openChoiceModal(title, groups, onPick){
+function openChoiceModal(title, groups, onPick, anchor){
   const cm = $('choice-modal');
+  const box = cm.querySelector('.cm-box');
   cm.querySelector('.cm-title').textContent = title;
   cm.querySelector('.cm-body').innerHTML = groups.map(g =>
     (g.label ? `<div class="cm-group">${g.label}</div>` : '') +
     g.rows.map(r => `<button class="cm-row${r.selected ? ' sel' : ''}" data-k="${r.key}"><b>${r.name}</b>${r.desc ? `<span>${r.desc}</span>` : ''}</button>`).join('')
   ).join('');
-  cm.style.display = 'flex';
+  cm.style.display = 'block';
+  // 押したボタンの上に出す(マウス移動を最小に=2026-07-06 阿部さん)。入り切らなければ下/画面内にクランプ
+  const w = box.offsetWidth, h = box.offsetHeight, vw = innerWidth, vh = innerHeight;
+  let left = vw / 2 - w / 2, top = 60;
+  if (anchor && anchor.getBoundingClientRect){
+    const a = anchor.getBoundingClientRect();
+    left = Math.max(8, Math.min(a.left + a.width / 2 - w / 2, vw - w - 8));
+    top = a.top - h - 10;
+    if (top < 8) top = Math.min(a.bottom + 10, vh - h - 8);
+    top = Math.max(8, top);
+  }
+  box.style.left = left + 'px';
+  box.style.top = top + 'px';
+  // 選択中の行が見える位置までスクロール
+  const sel = cm.querySelector('.cm-row.sel');
+  if (sel) sel.scrollIntoView({ block: 'center' });
   cm.querySelectorAll('.cm-row').forEach(b => b.addEventListener('click', () => { SE.select(); cm.style.display = 'none'; onPick(b.dataset.k); }));
+}
+// 同サイドの他スロットが使用中の持ち物キー(1種類1個ルール用。メガストーンは除外)
+function usedItemsRB(id){
+  const sib = (id[0] === 's' ? selfIds() : oppIds()).filter(x => x !== id);
+  return new Set(sib.map(x => slotItem[x]).filter(k => k && k !== 'mega_stone_any'));
+}
+// 読込/おまかせ後の重複持ち物を矯正(先勝ち・後のスロットは汎用メガストーンへ)
+function dedupeItemsRB(){
+  [selfIds(), oppIds()].forEach(ids => {
+    const seen = new Set();
+    ids.forEach(id => {
+      const k = slotItem[id];
+      if (!k || k === 'mega_stone_any') return;
+      if (seen.has(k)) slotItem[id] = 'mega_stone_any';
+      else seen.add(k);
+    });
+  });
 }
 // 持ち物の5ジャンル(ビルダーのモーダル同様「ジャンル+説明」で探しやすく)
 const ITEMCAT_BUCKET = {attack_boost:'attack', type_boost:'attack', speed_boost:'speed',
   defense_boost:'defense', survival:'defense', berry_resist:'heal', berry_status_cure:'heal', berry_hp_cure:'heal', hp_drain:'heal'};
-function openItemModal(current, onPick){
+function openItemModal(current, onPick, anchor, usedKeys){
   const buckets = {attack:[], speed:[], defense:[], heal:[], other:[]};
-  itemChoicesRB().forEach(it => { buckets[ITEMCAT_BUCKET[it.category] || 'other'].push(it); });
+  // 同サイドで使用中の持ち物は出さない=1種類1個(メガストーンだけ共有可・2026-07-06 阿部さん)
+  itemChoicesRB().filter(it => it.key === 'mega_stone_any' || !(usedKeys && usedKeys.has(it.key)))
+    .forEach(it => { buckets[ITEMCAT_BUCKET[it.category] || 'other'].push(it); });
   const g = [{label:'', rows:[{key:'', name:I18N.t('real_battle.item_none_option','もちもの なし'), desc:'', selected:!current}]}];
   [['attack','itemcat_attack','こうげき強化'],['speed','itemcat_speed','すばやさ'],['defense','itemcat_defense','ぼうぎょ・たいきゅう'],
    ['heal','itemcat_heal','きのみ・かいふく'],['other','itemcat_other','そのほか']].forEach(([b, k, ja]) => {
     if (!buckets[b].length) return;
     g.push({label:I18N.t('real_battle.' + k, ja), rows:buckets[b].map(it => ({key:it.key, name:tItemName(it), desc:tItemDesc(it), selected:current === it.key}))});
   });
-  openChoiceModal(I18N.t('real_battle.sel_item','もちもの'), g, onPick);
+  openChoiceModal(I18N.t('real_battle.sel_item','もちもの'), g, onPick, anchor);
 }
 // 中央詳細パネル(本家の能力タブ風): タイプ/技4つ(クリックで変更)/特性・持ち物(セレクトで変更=2026-07-05 阿部さん)
 function renderSelDetail(id){
@@ -1033,20 +1074,20 @@ function renderSelDetail(id){
   });
   box.querySelectorAll('.sd-move').forEach(b => b.addEventListener('click', () => { SE.select(); openMovePicker(id, +b.dataset.i); }));
   // 特性/持ち物=説明つきモーダルで選ぶ(2026-07-06 阿部さん・ビルダー方式)
-  box.querySelector('.sd-ab').addEventListener('click', () => {
+  box.querySelector('.sd-ab').addEventListener('click', e => {
     SE.select();
     openChoiceModal(I18N.t('real_battle.sel_ability','特性'),
       [{label:'', rows:abilities.map(a => ({key:a, name:(window.I18N && I18N.ability) ? I18N.ability(a) : a,
         desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (S.abilityDescJa ? S.abilityDescJa(a) : '') || '', selected:a === curAb}))}],
-      k => { slotAbility[id] = k; saveTeam(); renderSelDetail(id); });
+      k => { slotAbility[id] = k; saveTeam(); renderSelDetail(id); }, e.currentTarget);
   });
-  box.querySelector('.sd-item').addEventListener('click', () => {
+  box.querySelector('.sd-item').addEventListener('click', e => {
     SE.select();
     openItemModal(slotItem[id], k => {
       slotItem[id] = k;
       if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
       saveTeam(); renderSelDetail(id);
-    });
+    }, e.currentTarget, usedItemsRB(id));
   });
 }
 // 編成の保存/復元(localStorage): ポケモン名・技名・持ち物キー・人数(リロードしても残る)
@@ -1088,6 +1129,7 @@ function loadTeam(){
       setSlot(id, d.val[id], true);
     });
     dedupeTeams();   // 過去の保存に同種重複が残っていたら引き直す
+    dedupeItemsRB(); // 過去の保存に持ち物重複が残っていたら矯正(1種類1個)
     return true;
   } catch (e) { return false; }
 }
@@ -1143,6 +1185,7 @@ function loadHandoff(){
       slotAbility[id] = null;   // ビルダーhandoffは特性を持たない→setSlot(keepCustom)内で既定を補完
       setSlot(id, e.name, true);
     });
+    dedupeItemsRB();
     // 相手チームはランダム
     oppIds().forEach(id => setSlot(id, rnd()));
     dedupeTeams();   // ビルダー側に同種が居ても1チーム1体に矯正
@@ -1189,11 +1232,11 @@ function renderEvEditor(container, ctx){
     ctx.apply(clampEffortRB(newEff || eff), newNature || natureName);
     renderEvEditor(container, ctx);
   };
-  container.querySelector('.sd-nature').addEventListener('click', () => {
+  container.querySelector('.sd-nature').addEventListener('click', e => {
     SE.select();
     openChoiceModal(I18N.t('real_battle.stats_nature_label','性格'),
       [{label:'', rows:S.natureList().map(n => ({key:n[0], name:tNature(n[0]) + natFx(n), desc:'', selected:n[0] === natureName}))}],
-      k => commit(eff, k));
+      k => commit(eff, k), e.currentTarget);
   });
   container.querySelector('.sd-ev-reset').addEventListener('click', () => { SE.select(); commit(ZERO_EV()); });
   container.querySelectorAll('.sd-ev-row').forEach(row => {
@@ -1577,7 +1620,8 @@ function renderAll(){
     if (st.confusion > 0) b.push(I18N.t('common.status_confusion', 'こんらん'));
     if (st.attracted) b.push('💕' + I18N.t('common.status_infatuation', 'メロメロ'));
     if (st.subHp > 0) b.push(I18N.t('common.bdg_substitute', 'みがわり'));
-    pb.querySelector('.sts').innerHTML = b.map(x => `<span class="bdg">${x}</span>`).join('');
+    const stsEl = $('sts-' + side);
+    if (stsEl) stsEl.innerHTML = b.map(x => `<span class="bdg">${x}</span>`).join('');
     // 両者のタイプ表示(2026-07-06 阿部さん)
     const tEl = pb.querySelector('.ptypes');
     if (tEl){
@@ -1931,15 +1975,21 @@ function openStatsModal(){
   if (!st || !st.poke) return;
   st.effort = clampEffortRB(st.effort);
   const holder = $('sm-holder');
-  const curIt = S.itemByKey(st.item);
-  const itOpts = `<option value="">${I18N.t('real_battle.item_none_option','もちもの なし')}</option>` +
-    itemChoicesRB().map(x => `<option value="${x.key}" ${st.item === x.key ? 'selected' : ''}>${tItemName(x)}</option>`).join('');
+  const itLabel = () => (S.itemByKey(st.item) ? tItemName(S.itemByKey(st.item)) : I18N.t('real_battle.item_none_option','もちもの なし'));
   holder.innerHTML = `<div style="font-weight:900;font-size:15px;margin-bottom:8px">${tPokeName(st.poke.name)}</div>` +
     `<div class="sd-ev"></div>` +
     `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px">` +
-    `<span style="color:#9fb4d8">${I18N.t('real_battle.sel_item','もちもの')}</span><select id="sm-item">${itOpts}</select></div>` +
+    `<span style="color:#9fb4d8">${I18N.t('real_battle.sel_item','もちもの')}</span><button id="sm-item" class="sd-pick">${itLabel()} ▾</button></div>` +
     `<button id="sm-close">${I18N.t('real_battle.mp_close_button','とじる')}</button>`;
-  holder.querySelector('#sm-item').addEventListener('change', e => { st.item = e.target.value || null; renderAll(); });
+  holder.querySelector('#sm-item').addEventListener('click', e => {
+    // 控えの持ち物と重複不可(1種類1個・メガストーンは共有可)
+    const used = new Set((st.bench || []).map(x => x.item).filter(k => k && k !== 'mega_stone_any'));
+    openItemModal(st.item, k => {
+      st.item = k || null; renderAll();
+      const btn = holder.querySelector('#sm-item');
+      if (btn) btn.textContent = itLabel() + ' ▾';
+    }, e.currentTarget, used);
+  });
   renderEvEditor(holder.querySelector('.sd-ev'), {
     poke: st.poke,
     getEff: () => st.effort || ZERO_EV(),
