@@ -104,6 +104,7 @@
 - **完了前に必ず**: ハーネス `tools/i18n_audit_playwright.js`(+実機スクショ)で残ja=0・JSエラー0を確認してから報告(PDCA Check)。
 - **★JSで組み立てるUI部品は「i18n:ready / i18n:changed での再描画」までがセット(2026-07-06 阿部さん実機で発覚)**: 初回描画がi18n準備前に走る(iframe/エンジン先行のレース)+ページ内の言語切替では`data-i18n`しか自動更新されない。動的部品(例: real_battleの選出カプセル)は必ず両イベントで作り直す。auditが通っても「切替経路」の漏れは別=言語切替も実機で1回踏む。
 - **★辞書の名前はPokeAPIの「完全名」を使う(2026-07-06 発覚・468件修正)**: PokeAPIのform_names(name)は『Hisuian Form』等の**フォームラベル**で、種名の代わりに使うと壊れる。正=`pokemon_name`(完全名 'Hisuian Samurott')。完全名が無い言語(es/it/ko/zh)は公式部品の合成「種名 (ラベル)」まで(でっち上げ禁止)。実装=`tools/_fetch_pokeapi_varieties.js`(full_names)+`tools/build_master.js`。
+- **★バトルログ/msgboxに出す行は「JA正典で生成→translateLogLineパターン翻訳」までがセット(2026-07-06 阿部さん実機EN切替で発覚)**: real_battleのバトル文は**表示時にtranslateLogLine(`battle_log_i18n.js`のPATTERNS/TPL)でパターン翻訳**する設計(案X)。新しく出す行(勝敗・つぎの相手・演出文など)を`I18N.t`だけで出すと**生成時の言語で固定=言語切替に追従しない**(JAで遊んでEN切替→その行だけJA residue)。必ず①JA正典の文字列で生成 ②`battle_log_i18n.js`にPATTERN(re+slots)とTPL(9言語)を追加 ③ログは`data-bl-src`にJA原文を保存(`logLine(text,type,srcJa)`)して`retranslateLogDom`が再翻訳できるようにする。動的ボタン(つぎの相手等)は`data-bl-src`対象外なので`i18n:changed`で作り直す。
 - メモリ: `i18n-first-design`。
 
 ---

@@ -427,11 +427,11 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .fighter.preattack .sprite{animation:rbPreAttack .7s}
 .fighter.lunge-self .sprite{animation:rbLunge .45s}
 .fighter.lunge-opp .sprite{animation:rbLungeOpp .45s}
-.fighter.faint .sprite{animation:rbFaint .95s forwards}
+.fighter.faint .sprite{animation:rbFaint 1.5s forwards}
 /* ひんし後は交代まで消えたまま(2026-07-05 阿部さん「瀕死になったら画面から消えたほうがいい」) */
 .fighter.gone .sprite{opacity:0;transform:translateY(40px);pointer-events:none}
-.fighter.enter .sprite{animation:rbEnter .5s}
-.fighter.recall .sprite{animation:rbRecall .62s forwards}
+.fighter.enter .sprite{animation:rbEnter .85s}
+.fighter.recall .sprite{animation:rbRecall 1s forwards}
 
 /* ===== CH: メッセージ=盤面内オーバーレイ(箱なし・白文字+黒フチ=実機準拠) ===== */
 /* 左端は自分statbar(幅210+余白)を避けて非重畳にする(ダメージ行=statbarとメッセージが同時表示のため) */
@@ -753,7 +753,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
     </div>
     <div id="speed-row">
       <label><input type="checkbox" id="auto-msg" checked> <span data-i18n="real_battle.auto_msg_label">自動でメッセージ送り</span></label>
-      <span><span data-i18n="real_battle.msg_speed_label">送り速度:</span> <select id="msg-speed"><option value="2800" data-i18n="real_battle.msg_speed_slow">ゆっくり</option><option value="2000" selected data-i18n="real_battle.msg_speed_normal">ふつう</option><option value="1100" data-i18n="real_battle.msg_speed_fast">はやい</option></select></span>
+      <span><span data-i18n="real_battle.msg_speed_label">送り速度:</span> <select id="msg-speed"><option value="3800" data-i18n="real_battle.msg_speed_slow">ゆっくり</option><option value="2900" selected data-i18n="real_battle.msg_speed_normal">ふつう</option><option value="1700" data-i18n="real_battle.msg_speed_fast">はやい</option></select></span>
       <!-- S6: 背景プリセット切替セレクト。将来の追加は option 1行+CSS 1プリセットで済む構造 -->
       <span><span data-i18n="real_battle.backdrop_label">背景：</span> <select id="backdrop-sel">
         <option value="grass" data-i18n="real_battle.backdrop_grass">草原</option>
@@ -871,7 +871,7 @@ function _isSmallLine(text){
   for (var i=0;i<_SMALL_PATS.length;i++) if (_SMALL_PATS[i].test(text)) return true;
   return false;
 }
-function logLine(text, type){ const s = document.getElementById('log-scroll'); if (!s || text == null || text === '') return;
+function logLine(text, type, srcJa){ const s = document.getElementById('log-scroll'); if (!s || text == null || text === '') return;
   // type 未指定時は内容でauto判定
   if (!type){ type = _isSmallLine(text) ? 'small' : 'normal'; }
   if (type === 'spacer'){
@@ -879,7 +879,7 @@ function logLine(text, type){ const s = document.getElementById('log-scroll'); i
   }
   const d = document.createElement('div');
   d.className = 'log-line battle-history' + (type === 'small' ? ' log-line-small' : '');
-  d.setAttribute('data-bl-src', text); // retranslateLogDom が参照するja原文
+  d.setAttribute('data-bl-src', srcJa != null ? srcJa : text); // retranslateLogDom が参照するja原文(常にJA正典)
   if (type === 'small'){
     const sm = document.createElement('small'); sm.textContent = text; d.appendChild(sm);
   } else {
@@ -924,6 +924,12 @@ const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_C
     } catch(e) {}
   }
   if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} }
+  // つぎの相手ボタンは動的生成=data-bl-src対象外。言語切替で作り直す(2026-07-06 阿部さん)
+  const _nb = document.getElementById('c-next');
+  if (_nb && _nb.dataset.streak != null){
+    const nbJa = `⚔ つぎの相手と たたかう！(連勝: ${_nb.dataset.streak})`;
+    _nb.textContent = window.translateLogLine ? translateLogLine(nbJa) : nbJa;
+  }
 })); // 2026-07-03: 対戦中の言語切替で盤面名前ラベルも即時再描画(#15統合)
 
 document.getElementById('engine-frame').addEventListener('load', () => {
@@ -1739,6 +1745,15 @@ function substituteSpriteHtml(){
     <ellipse cx="98" cy="88" rx="9" ry="12" fill="#8fbf5a" stroke="#5f8f3a" stroke-width="2.5"/>
   </svg>`;
 }
+// みがわりの人形↔元のすがたを拍レベルで切替(renderAllはみがわり出現/破壊の拍で呼ばれないため明示的に)
+function setSpriteSub(side, on){
+  const f = $('f-' + side); if (!f) return;
+  const spriteEl = f.querySelector('.sprite'); if (!spriteEl) return;
+  const st = S.sides[side]; if (!st || !st.poke) return;
+  const shown = st.illusionAs || st.poke;
+  if (on){ spriteEl.innerHTML = substituteSpriteHtml(); spriteEl.dataset.shown = 'SUB:' + shown.name; }
+  else { spriteEl.innerHTML = spriteHtml(shown); spriteEl.dataset.shown = spriteSrc + ':' + shown.name; }
+}
 function spriteHtml(poke){
   const color = (S.typeColors()[poke.type1]) || '#3a4660';
   // 仮アイコンには「ポケモン名」を出す(タイプ名だと名前と紛らわしい=2026-06-12 阿部さん指摘)
@@ -1955,7 +1970,7 @@ function nextSay(){
   // ダメージ/状態反映を含む行は fx内のsetHpBarがすぐ戻す=「演出→バーが出て減る」の実機の流れ
   $('field').classList.add('ch-busy');
   pushMsgLine(txt);   // 下部メッセージ欄(6行・直近が薄く残る)
-  if (!line.noLog) logLine(txt);   // 右の流れるログにも積む(表示専用の差し込み行は除く)
+  if (!line.noLog) logLine(txt, undefined, line.src != null ? line.src : txt);   // ログはJA原文で保存=言語切替で再翻訳できる
   if (line.fx) line.fx();
   // こうか(ばつぐん/いまひとつ/なし)・急所はダメージ行と同じ拍に重ねる。
   // 別拍だと「2回当たった」ように見える(2026-07-06 阿部さん「1発で効果抜群とかそれだけでいい」)
@@ -1966,7 +1981,7 @@ function nextSay(){
       if (!nx || !nx.src || !_EFF_JA.includes(nx.src)) break;
       sayQueue.shift();
       pushMsgLine(nx.text);
-      if (!nx.noLog) logLine(nx.text);
+      if (!nx.noLog) logLine(nx.text, undefined, nx.src != null ? nx.src : nx.text);
       if (nx.fx) nx.fx();
     }
   }
@@ -2512,6 +2527,19 @@ function lineWithFx(msg){
       popText(side, '−' + dmg, '#f87171', 15);
       burstFx(side, '#c9a0e0'); flash(side, 'hit'); SE.hit();
     }
+    // ②c みがわり: 出現で人形化・被弾でエフェクト・破壊で元のすがたに戻す(2026-07-06 阿部さん)
+    const subAppear = msg.match(/^(相手の )?\S+ の みがわりが あらわれた！/);
+    if (subAppear){
+      const side = subAppear[1] ? 'opp' : 'self';
+      setSpriteSub(side, true);      // ポケモンが消えて みがわり人形が出る
+      flash(side, 'enter'); popText(side, '🎭', null, 22); SE.enter();
+    }
+    const subHitM = msg.match(/(相手の )?\S+ の みがわりが (\d+) ダメージを 受けた！/);
+    if (subHitM){
+      const side = subHitM[1] ? 'opp' : 'self';   // みがわりの持ち主(df)側
+      burstFx(side, '#c9a0e0'); flash(side, 'hit'); popText(side, '−' + subHitM[2], '#e0b0ff', 15); SE.hit();
+      if (/みがわりは こわれた！/.test(msg)) setSpriteSub(side, false);   // 壊れたら元のポケモンに戻る
+    }
     // ③ こうか・急所(直前のダメージ対象に重ねる)
     if (msg === 'こうかは ばつぐんだ！'){ screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18); SE.superEff(); }
     else if (msg === 'こうかは いまひとつのようだ…'){ popText(lastTgt || 'opp', 'いまひとつ…', '#8b94a7', 13); SE.weak(); }
@@ -2544,7 +2572,7 @@ function lineWithFx(msg){
         ff.classList.add('faint');   // rbFaint .95s forwards=沈んで消える
         // 沈み切ったらgoneで固定。flash()を使うと800msでfaintが外れ100ms素に戻って再表示=ちらつく(2026-07-06 阿部さん)ため自前で。
         setTimeout(() => { ff.classList.add('gone'); ff.classList.remove('faint');
-          const pbF = $('pb-' + side); if (pbF) pbF.style.visibility = 'hidden'; }, 940);
+          const pbF = $('pb-' + side); if (pbF) pbF.style.visibility = 'hidden'; }, 1500);
       }
       SE.faint();
     }
@@ -2554,7 +2582,7 @@ function lineWithFx(msg){
       flash(side, 'recall');
       const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
       clearTimeout(_recallTimer[side]);
-      _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 640);
+      _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 1000);
     }
     if (/が 場に出た！/.test(msg) || /^いけっ！ \S+！$/.test(msg) || /^相手は \S+ を くりだした！$/.test(msg)){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
@@ -2637,7 +2665,9 @@ function showNextOpponentButton(){
       startBattle();             // buildSideが自分チームも作り直す=全回復
     });
   }
-  nb.textContent = `${I18N.t('real_battle.next_opponent_button','⚔ つぎの相手と たたかう！(連勝: ')}${winStreak})`;
+  nb.dataset.streak = winStreak;
+  const nbJa = `⚔ つぎの相手と たたかう！(連勝: ${winStreak})`;
+  nb.textContent = window.translateLogLine ? translateLogLine(nbJa) : nbJa;
 }
 // 勝敗を画面中央に大きく表示(WIN/LOSE)。次のバトル開始やリセットで消す
 function showResultBanner(won){
@@ -2660,8 +2690,11 @@ function endOfTurn(){
     const won = dead('opp');
     if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
     showResultBanner(won);
-    say([won ? `${I18N.t('real_battle.win_message1','🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！(連勝: ')}${winStreak})` : I18N.t('real_battle.lose_message1','😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…'),
-         won ? I18N.t('real_battle.win_message2','「つぎの相手」で 連戦できます(チームは 全回復)') : I18N.t('real_battle.lose_message2','「にげる」から 編成にもどって もういちど あそべます')],
+    // 勝ちは案内文なし(WIN!バナー+つぎの相手ボタンで足りる=2026-07-06 阿部さん)。負けだけ操作案内。
+    // JA正典で生成→lineWithFxで表示翻訳(ログはJA原文で保存され言語切替に追従)
+    const winJa = `🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！(連勝: ${winStreak})`;
+    say([lineWithFx(won ? winJa : '😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…')]
+        .concat(won ? [] : [lineWithFx('「にげる」から 編成にもどって もういちど あそべます')]),
         () => { showCmd(true);
           // 通常フローは技リスト1画面完結=たたかう/ポケモンは勝敗後のメニューに出さない(2026-07-06 阿部さん)
           ['c-fight','c-party'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });

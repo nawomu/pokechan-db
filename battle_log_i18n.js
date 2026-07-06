@@ -438,6 +438,10 @@
     bl_251: { "en":"Battle Start! Go, {p}!", "fr":"Combat lancé ! Vas-y, {p} !", "de":"Kampf startet! Los, {p}!", "es":"¡Empieza el combate! ¡Adelante, {p}!", "it":"La battaglia inizia! Vai, {p}!", "ko":"배틀 시작! 가랏, {p}!", "zh-Hans":"对战开始！上吧，{p}！", "zh-Hant":"對戰開始！上吧，{p}！" },
     bl_252: { "en":"The opposing {p} entered the battle!", "fr":"Le {p} adverse entre en combat !", "de":"Das gegnerische {p} wurde eingesetzt!", "es":"¡El {p} rival ha salido!", "it":"Il {p} avversario entra in campo!", "ko":"상대는 {p}을(를) 내보냈다!", "zh-Hans":"对手派出了{p}！", "zh-Hant":"對手派出了{p}！" },
     bl_253: { "en":"{p} has fainted… Please choose your next Pokémon!", "fr":"{p} est tombé… Choisis ton prochain Pokémon", "de":"{p} wurde besiegt… Wähle dein nächstes Pokémon!", "es":"{p} se ha debilitado… Elige tu próximo Pokémon", "it":"{p} è stato sconfitto… Scegli il prossimo Pokémon", "ko":"{p} 이/가 쓰러졌어… 다음 포켓몬을 골라줘", "zh-Hans":"{p} 倒下了……请选择下一只宝可梦吧", "zh-Hant":"{p} 倒下了… 請選擇下一隻寶可夢" },
+    bl_254: { "en":"🎉 All of the foe's Pokémon have fainted! You win! (Win streak: {n})", "fr":"🎉 Tous les Pokémon adverses sont K.O. ! Tu gagnes ! (Série de victoires : {n})", "de":"🎉 Alle gegnerischen Pokémon sind besiegt! Du gewinnst! (Siegesserie: {n})", "es":"🎉 ¡Todos los Pokémon rivales se han debilitado! ¡Ganaste! (Racha de victorias: {n})", "it":"🎉 Tutti i Pokémon avversari sono esausti! Hai vinto! (Serie di vittorie: {n})", "ko":"🎉 상대의 포켓몬을 전부 쓰러뜨렸다! 승리! (연승: {n})", "zh-Hans":"🎉 对手的宝可梦全部倒下了！你赢了！（连胜：{n}）", "zh-Hant":"🎉 對手的寶可夢全部倒下了！你贏了！（連勝：{n}）" },
+    bl_255: { "en":"😵 All your Pokémon have fainted… You lost…", "fr":"😵 Tous tes Pokémon sont K.O.… Tu as perdu…", "de":"😵 Alle deine Pokémon sind besiegt… Du hast verloren…", "es":"😵 Todos tus Pokémon se han debilitado… Has perdido…", "it":"😵 Tutti i tuoi Pokémon sono esausti… Hai perso…", "ko":"😵 내 포켓몬이 전부 쓰러졌다… 지고 말았다…", "zh-Hans":"😵 你的宝可梦全部倒下了……输掉了……", "zh-Hant":"😵 你的寶可夢全部倒下了… 輸掉了…" },
+    bl_256: { "en":"Choose \"Run\" to go back to your team and try again!", "fr":"Choisis « Fuite » pour revenir à ton équipe et rejouer !", "de":"Wähle „Fliehen“, um zum Team zurückzukehren und erneut zu spielen!", "es":"¡Elige «Huir» para volver a tu equipo y jugar de nuevo!", "it":"Scegli \"Fuga\" per tornare alla squadra e rigiocare!", "ko":"'도망치기'로 팀 편성으로 돌아가 다시 플레이할 수 있어!", "zh-Hans":"选择“逃跑”回到队伍编成，可以再玩一次！", "zh-Hant":"選擇「逃跑」回到隊伍編成，可以再玩一次！" },
+    bl_257: { "en":"⚔ Fight the next opponent! (Win streak: {n})", "fr":"⚔ Affronte l'adversaire suivant ! (Série de victoires : {n})", "de":"⚔ Kämpfe gegen den nächsten Gegner! (Siegesserie: {n})", "es":"⚔ ¡Lucha contra el próximo rival! (Racha de victorias: {n})", "it":"⚔ Affronta il prossimo avversario! (Serie di vittorie: {n})", "ko":"⚔ 다음 상대와 싸운다! (연승: {n})", "zh-Hans":"⚔ 与下一位对手战斗！（连胜：{n}）", "zh-Hant":"⚔ 與下一位對手戰鬥！（連勝：{n}）" },
   };
 
   // ─── パターン(順に試す)。slots: テンプレ名→{g:捕捉番号, kind} ───
@@ -585,6 +589,10 @@
     { id: 'bl_251', re: /^バトルスタート！ いけっ！ (.+)！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_252', re: /^相手は (.+) を くりだした！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_253', re: /^(.+) は たおれてしまった… つぎのポケモンを えらんでね$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_254', re: /^🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！\(連勝: (\d+)\)$/, slots: { "n": { g: 1, kind: "num" } } },
+    { id: 'bl_255', re: /^😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…$/, slots: {  } },
+    { id: 'bl_256', re: /^「にげる」から 編成にもどって もういちど あそべます$/, slots: {  } },
+    { id: 'bl_257', re: /^⚔ つぎの相手と たたかう！\(連勝: (\d+)\)$/, slots: { "n": { g: 1, kind: "num" } } },
     { id: 'bl_151', re: /^((?:相手の )?\S+) は じゅうりょくが強くて (\S+) が だせない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_219', re: /^しかし うまく きまらなかった！\(すでに (\S+)\)$/, slots: { "n": { g: 1, kind: "cond" } } },
     { id: 'bl_208a', re: /^((?:相手の )?\S+) の場の (\S+) の効果が なくなった！$/, slots: { "p": { g: 1, kind: "poke" }, "sc": { g: 2, kind: "screen" } } },
