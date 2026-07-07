@@ -115,7 +115,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #sel-detail .sd-row{display:flex;justify-content:space-between;font-size:12px;background:#00000033;border-radius:10px;
   padding:5px 12px;margin-top:5px}
 #sel-detail .sd-row span{color:#ffffffbb}
-@media(max-width:880px){
+/* 3カラムは横向きでは維持(iPhone横=844≒デスクトップ838で見やすい)。縦積みは縦持ちのみ(縦持ちは横向き案内が出る) */
+@media(max-width:880px) and (orientation:portrait){
   #setup-cols{grid-template-columns:1fr}
   #setup-center{order:3}
 }
@@ -951,7 +952,7 @@ document.getElementById('engine-frame').addEventListener('load', () => {
       w.__rbSwitchPick = idxs => idxs[0];
       w.__rbDeferFaintReplace = !location.search.includes('demo');
       initSetup();
-      fitField();
+      fitField(); fitSetup();
     }
   }, 100);
 });
@@ -1537,6 +1538,16 @@ function renderTeamRows(){
   });
 }
 // 盤面(内部640×360)をビューポートに合わせて相似拡大。デスクトップは最大1.55・スマホ横は幅/高さに収める(2026-07-07 阿部さん)
+// 選出画面の3カラムを狭い端末に合わせて縮小(配置は維持=デスクトップと同じ並び)。iPhone横(844)はほぼ等倍
+function fitSetup(){
+  const cols = document.getElementById('setup-cols');
+  const game = document.getElementById('game');
+  if (!cols || !game) return;
+  cols.style.zoom = '';  // いったん戻して自然幅を測る
+  const avail = Math.max(280, game.clientWidth - 40);
+  const natural = 760;   // 3カラムが窮屈にならない目安幅
+  cols.style.zoom = avail < natural ? Math.max(0.5, avail / natural) : '';
+}
 function fitField(){
   const f = document.getElementById('field');
   const game = document.getElementById('game');
@@ -1550,9 +1561,9 @@ function fitField(){
   f.style.zoom = z;
 }
 let _fitTimer = null;
-function scheduleFit(){ if (_fitTimer) cancelAnimationFrame(_fitTimer); _fitTimer = requestAnimationFrame(fitField); }
+function scheduleFit(){ if (_fitTimer) cancelAnimationFrame(_fitTimer); _fitTimer = requestAnimationFrame(() => { fitField(); fitSetup(); }); }
 window.addEventListener('resize', scheduleFit);
-window.addEventListener('orientationchange', () => setTimeout(fitField, 200));
+window.addEventListener('orientationchange', () => setTimeout(() => { fitField(); fitSetup(); }, 200));
 function initSetup(){
   const pokes = S.pokeList().filter(isPickable);   // メガフォームは直接選ばない(ストーンで変身)
   initBackdrop();   // S6: 背景プリセット初期化(localStorageから復元・セレクト配線)
