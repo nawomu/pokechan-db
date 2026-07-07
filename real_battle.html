@@ -622,8 +622,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #party button.back:hover{border-color:#7aabff;background:#1e2d4a;color:#fff}
 #speed-row{margin-top:8px;font-size:11px;color:#6a5fa0;display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap}
 #speed-row select{background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;padding:3px 6px;font-size:11px}
-/* ===== CH: スマホ寸法上書き(必ず各コンポーネント定義より後=後勝ち) ===== */
-@media(max-width:880px){
+/* ===== CH: スマホ寸法上書き。盤面内の再配置は縦持ちのみ(横向きはfitFieldのzoomが基準640×360を相似縮小=再配置不要)。2026-07-07 阿部さん iPhone横で相手が左に来る崩れを修正 ===== */
+@media(max-width:880px) and (orientation:portrait){
   /* チャンピオンズ同配置(相手=右上/自分=左下)。幅を詰めて右側の技リストと非重畳にする */
   #pb-opp{right:8px;top:6px;left:auto;width:134px}
   #pb-self{left:8px;bottom:6px;top:auto;width:134px}
@@ -763,7 +763,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
       </div>
       <div id="moves"></div>
       <div id="watch-panel"></div>
-      <div id="mv-tip"></div><!-- 技の説明ON時のホバー説明フロート(2026-07-06 阿部さん) -->
+      <div id="mv-tip"></div><!-- 技の説明ON時のホバー説明フロート(2026-07-06 阿部さん)。タッチではmouseleave無し=タップ/行動で消す -->
       <div id="party"></div>
     </div>
     <div id="speed-row">
@@ -2060,7 +2060,7 @@ function nextSay(){
     autoTimer = setTimeout(nextSay, +$('msg-speed').value);
   }
 }
-function advanceMsg(){ if (busy) nextSay(); }
+function advanceMsg(){ const t = $('mv-tip'); if (t) t.style.display = 'none'; if (busy) nextSay(); }
 
 // ===== コマンド =====
 function showCmd(on){
@@ -2192,6 +2192,7 @@ function showMoves(){
   } else $('mv-tip').style.display = 'none';
   mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
+    $('mv-tip').style.display = 'none';   // タップで説明フロートを消す(タッチでmouseleaveが来ないため)
     if (b.classList.contains('stats-open')){ openStatsModal(); return; }
     if (b.classList.contains('watch-open')){ toggleWatchPanel(b); return; }
     if (b.classList.contains('desc-toggle')){
@@ -2337,7 +2338,7 @@ function doTurn(moveIdx){
   if (busy || gameOver) return;
   if (S.sides.self.fainted) return;   // 死に出しの選択待ち中はターンを進めない
   // 行動が決まったらまずメニューをパッと消す(2026-07-06 阿部さん)
-  ['cmd', 'moves', 'party', 'watch-panel'].forEach(id => { $(id).style.display = 'none'; });
+  ['cmd', 'moves', 'party', 'watch-panel', 'mv-tip'].forEach(id => { $(id).style.display = 'none'; });
   const self = S.sides.self, opp = S.sides.opp;
   if (moveIdx != null) self.selectedMoveIdx = moveIdx;
   // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
