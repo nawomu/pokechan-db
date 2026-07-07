@@ -1563,11 +1563,11 @@ function calcDamage(atkSide, defSide, move, opts){
   const atkTypes = atkOrigTypes;
   const defTypes = sideTypes(def);
 
-  // ばけのかわ無効化
-  if (def.disguise){
+  // ばけのかわ(第8世代以降): 変化技以外の初撃はダメージを防ぐが最大HPの1/8削れて皮が剥がれる(Bulbapedia "Disguise"/ポケモンWiki)
+  if (def.disguise && move.category !== '変化'){
     const hp = realStat(def, 'hp');
     return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
-            immune:true, reason:'ばけのかわで無効化', recoil:0};
+            immune:true, disguiseBlock:true, reason:`${pname(def)} の ばけのかわが はがれた`, recoil:0};
   }
 
   // 技タイプ変更(mapping型): ウェザーボール=天気で / だいちのはどう=フィールド(自分が接地)で技のタイプが変わる。
@@ -2342,6 +2342,7 @@ function fireEntryAbility(s){
     applyIllusion(st);   // イリュージョン(段138): 登場時に化ける(バトル開始)
     const other = s === 'self' ? sides.opp : sides.self;
     const ab = sideAbility(st);
+    st.disguise = (ab === 'ばけのかわ');   // ばけのかわ: 場に出たら分身(皮)をまとう。この設定が無いとreal_battleで発動しなかった(2026-07-07 阿部さん)
     if (ab === 'いかく' && other.poke){
       other.rank.atk = Math.max(-6, (other.rank.atk||0) - 1);
       log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
@@ -2664,6 +2665,15 @@ function phaseDealDamage(atkSide, defSide, move){
   if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(sides[atkSide]);
   if (result.immune){
     log('8', `${result.reason}！`);
+    // ばけのかわ(第8世代): 皮が剥がれて最大HPの1/8ダメージ+以後は素通し(2026-07-07 阿部さん)
+    if (result.disguiseBlock){
+      const _d = sides[defSide];
+      _d.disguise = false;
+      const _m = realStat(_d, 'hp');
+      const _chip = Math.max(1, Math.floor(_m / 8));
+      _d.currentHp = Math.max(0, (_d.currentHp == null ? _m : _d.currentHp) - _chip);
+      log('8', `${pname(_d)} は ばけのかわで ${_chip} ダメージ！ (残HP ${_d.currentHp})`);
+    }
     // 吸収特性のおまけ発動(段111・ABILITY_DESC公式準拠): 回復1/4・ランク+1・もらいび=炎強化
     if (result.absorbAb){
       const _d = sides[defSide];
