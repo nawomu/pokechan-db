@@ -827,7 +827,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260707" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -2121,7 +2121,8 @@ function showMoves(){
         // 使用条件(ゲップ=きのみ未食)を満たさない技は選べない(実機準拠で選択不可)
         const needsBerry = ((m.battle_data && m.battle_data.requires) || []).some(r => r.type === 'user_has_eaten_berry')
           && S.ateBerry && !S.ateBerry(st);
-        const off = (ppNow != null && ppNow <= 0) || (lockName && m.name !== lockName) || needsBerry;
+        const disabledMove = st.disable && st.disable.name === m.name;   // かなしばり中の技は選べない(実機準拠)
+        const off = (ppNow != null && ppNow <= 0) || (lockName && m.name !== lockName) || needsBerry || disabledMove;
         const locked = lockName && m.name !== lockName;
         // PP残少(2以下): pp-low クラスで強調
         const ppLow = ppNow != null && ppNow <= 2 && !off;
@@ -2130,6 +2131,7 @@ function showMoves(){
         // 威力/命中等はホバーの説明フロートに集約(ボタンは常時スリム=2026-07-06 阿部さん)
         const subParts = [
           locked ? I18N.t('real_battle.move_stubbornlock_note','こだわり中') : '',
+          disabledMove ? I18N.t('real_battle.move_disabled_note','かなしばり中') : '',
           needsBerry ? I18N.t('real_battle.move_needs_berry','きのみを たべてから') : ''
         ].filter(Boolean).join(' / ');
         // カプセル背景=タイプ色グラデ(暗め→明るめ)
