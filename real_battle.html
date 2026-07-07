@@ -114,8 +114,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #sel-detail .sd-move:hover{border-color:#d4f542}
 #sel-detail .sd-move .t-pill{display:inline-block;font-size:9px;padding:1px 7px;border-radius:8px;margin-right:6px;border:1px solid #ffffff55}
 #sel-detail .sd-move .sd-pp{position:absolute;right:12px;top:6px;font-style:italic;font-weight:900;font-size:12px}
-#sel-detail .sd-row{display:flex;justify-content:space-between;font-size:12px;background:#00000033;border-radius:10px;
-  padding:5px 12px;margin-top:5px}
+#sel-detail .sd-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;background:transparent;
+  padding:1px 2px;margin-top:6px;gap:8px}/* 二重枠をやめて一重に=薄い外箱を廃止(2026-07-07 阿部さん) */
 #sel-detail .sd-row span{color:#ffffffbb}
 /* 3カラムは横向きでは維持(iPhone横=844≒デスクトップ838で見やすい)。縦積みは縦持ちのみ(縦持ちは横向き案内が出る) */
 @media(max-width:880px) and (orientation:portrait){
@@ -184,7 +184,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
  * #setup button の全体スタイル(flex:1/padding:12px)に負けないよう #sel-detail/#stats-modal 両スコープで上書き */
 .sd-ev{margin-top:8px;border-top:1px solid #ffffff22;padding-top:7px}
 .sd-ev-top{display:flex;align-items:center;gap:6px;margin-bottom:7px}
-#sel-detail .sd-ev-top .sd-nature,#stats-modal .sd-ev-top .sd-nature{padding:7px 10px;font-size:13px}/* 性格ボタンも一回り大きく(2026-07-07 阿部さん) */
+#sel-detail .sd-ev-top .sd-nature,#stats-modal .sd-ev-top .sd-nature{padding:3px 10px;font-size:12px}/* 特性/持ち物と同サイズに(2026-07-07 阿部さん) */
 .sd-ev-top .sd-nature{flex:1 1 auto;min-width:0}
 .sd-ev-budget{font-size:11px;color:#ffffffbb;font-weight:700;white-space:nowrap}
 .sd-ev-budget b{color:#ffe066;font-size:13px}
@@ -194,14 +194,14 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #sel-detail .sd-ev button:hover:not(:disabled),#stats-modal .sd-ev button:hover:not(:disabled){border-color:#d4f542}
 #sel-detail .sd-ev button:disabled,#stats-modal .sd-ev button:disabled{opacity:.3;cursor:default}
 #sel-detail .sd-ev .sd-ev-reset,#stats-modal .sd-ev .sd-ev-reset{padding:5px 11px;font-size:11.5px;font-weight:700}
-.sd-ev-row{display:grid;grid-template-columns:50px 30px 1fr 26px 30px 26px 48px;gap:4px;align-items:center;margin:6px 0}/* 矢印/数字/MINを拡大・値は左に詰め(2026-07-07 阿部さん) */
+.sd-ev-row{display:grid;grid-template-columns:50px 1fr 28px 34px 28px 52px;gap:5px;align-items:center;margin:7px 0}/* メーター廃止=値を左寄せ・矢印/数字/MINを大きく(2026-07-07 阿部さん) */
 .sd-ev-row .evl{font-weight:900;font-size:12px;white-space:nowrap;overflow:hidden}
 .sd-ev-row .evl small{font-size:8.5px;color:#ffffff99;margin-left:2px;font-weight:600}
 .sd-ev-row .evl.up{color:#ff8a8a}
 .sd-ev-row .evl.up small{color:#ff8a8a99}
 .sd-ev-row .evl.down{color:#8ac2ff}
 .sd-ev-row .evl.down small{color:#8ac2ff99}
-.sd-ev-row .real{text-align:right;font-weight:900;font-style:italic;font-size:13.5px}
+.sd-ev-row .real{text-align:left;font-weight:900;font-style:italic;font-size:14px;padding-left:2px}
 .sd-ev-row.has .real{color:#ffe066}
 .sd-ev-row.maxed .real{color:#ff9dbd}
 /* メーター: 4目盛り(1目盛り=8pt)。値は0〜32のまま=見た目だけギュッと */
@@ -1370,7 +1370,6 @@ function renderEvEditor(container, ctx){
       return `<div class="sd-ev-row${pts >= 32 ? ' maxed' : pts > 0 ? ' has' : ''}" data-k="${k}">` +
         `<span class="evl${nat[1] === k ? ' up' : nat[2] === k ? ' down' : ''}">${EV_LETTER[k]}<small>${I18N.t(EV_LABEL_KEY[k], k)}</small></span>` +
         `<span class="real">${S.realStat(tmp, k)}</span>` +
-        `<span class="bar"><span class="fill" style="width:${pts / 32 * 100}%"></span></span>` +
         `<button class="dec" ${pts <= 0 ? 'disabled' : ''}>◀</button><span class="pts">${pts}</span>` +
         `<button class="inc" ${pts >= mx ? 'disabled' : ''}>▶</button>` +
         `<button class="mm" ${!isMin && mx <= pts ? 'disabled' : ''}>${isMin ? 'MIN' : 'MAX'}</button></div>`;
@@ -1391,11 +1390,7 @@ function renderEvEditor(container, ctx){
     row.querySelector('.dec').addEventListener('click', () => set(eff[k] - 1));
     row.querySelector('.inc').addEventListener('click', () => set(eff[k] + 1));
     row.querySelector('.mm').addEventListener('click', () => { SE.select(); set(eff[k] > 0 && eff[k] >= maxFor(k) ? 0 : maxFor(k)); });
-    row.querySelector('.bar').addEventListener('pointerdown', ev => {
-      ev.preventDefault();
-      const r = ev.currentTarget.getBoundingClientRect();
-      set((ev.clientX - r.left) / r.width * 32);
-    });
+    // メーター(bar)は廃止=ドラッグ入力も廃止(2026-07-07 阿部さん)
   });
 }
 // わざモーダル(ひらがな検索→クリックでそのスロットの技を差し替え)
