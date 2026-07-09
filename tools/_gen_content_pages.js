@@ -455,14 +455,24 @@ ${rows}
 // 個別ページへのリンクは Champions 登場ポケモン(champions!=null)のみ(全国版に個別ページは無い)。
 // No を先頭(children[0])に置くことで listJs の 'no' ソート前提を維持。
 function genPokemonAllIndex(lang) {
-  const seen = new Set(), rows = [];
+  // ja名で重複フォームを間引いてから図鑑No順に並べる(2026-07-10 阿部さん: デフォルトはナンバー順。
+  // master順だとフォーム違いが末尾にまとまっていた。sortは安定=同Noはmaster順(デフォルトの姿が先))
+  const seen = new Set(), entries = [];
   for (const e of MASTER) {
     const ja = e.names && e.names.ja;
     if (ja == null || seen.has(ja)) continue;   // ja名で重複フォームは初出のみ(約1330行)
     seen.add(ja);
+    entries.push(e);
+  }
+  entries.sort((a, b) => (a.dex != null ? a.dex : 99999) - (b.dex != null ? b.dex : 99999));
+  const rows = [];
+  for (const e of entries) {
+    const ja = e.names.ja;
     const types = (e.types || []).filter(Boolean), s = e.stats || {};
     const total = (s.hp || 0) + (s.atk || 0) + (s.def || 0) + (s.spa || 0) + (s.spd || 0) + (s.spe || 0);
-    const nm = (e.names[lang] != null ? e.names[lang] : ja);   // master は9言語内蔵→辞書不要
+    // master は9言語内蔵→辞書不要。ja名の「(gmax)」は正式名「(キョダイマックス)」で表示
+    // (2026-07-10 阿部さん。画像ファイル名はja原名(gmax)のままなので imgCells には ja を渡す=参照不変)
+    const nm = (e.names[lang] != null ? e.names[lang] : ja).replace(/\(gmax\)/i, '(キョダイマックス)');
     const slug = champNames.has(ja) ? (pokeSlug(ja) || '') : '';   // Champions のみ個別ページへ
     const nameCell = slug ? `<a href="${esc(slug)}.html">${esc(nm)}</a>` : esc(nm);
     const dex = e.dex != null ? e.dex : '';
