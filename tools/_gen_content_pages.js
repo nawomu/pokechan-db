@@ -56,6 +56,32 @@ const abilSlug = ja => abilSlugMap.get(ja) || kebab(ja);
 const typeSlug = ja => typeSlugMap.get(ja) || kebab(ja);
 const pokeSlug = name => pokeSlugMap.get(name);
 
+// ---- 全国版マスター(master_pokemon.json) + ja名→PokeAPI id マップ ----
+// POKEMON_LIST(Champions 313体)には PokeAPI id が無いため、APIスプライト表示に必要な id を
+// master の names.ja → id から引く(313体は champions!=null で対応取れる・存在確認済み)。
+const MASTER = (() => { try { return require(path.join(ROOT, 'reference', 'master_pokemon.json')); } catch (e) { console.log('⚠ master_pokemon.json 無し: APIスプライトは非表示'); return []; } })();
+const jaToId = new Map(), champNames = new Set();
+for (const _e of MASTER) { if (_e && _e.names && _e.names.ja != null) { jaToId.set(_e.names.ja, _e.id); if (_e.champions != null) champNames.add(_e.names.ja); } }
+const isNumId = id => /^\d+$/.test(String(id));   // "c-026" 等の合成idは公式スプライト無し → 描画しない
+const pokeIdOf = jaName => jaToId.get(jaName);
+
+// 画像2列セル(オリジナル絵 + 公式スプライト)。名前の左に置く。No は別途先頭(children[0]=No前提)。
+// ・オリジナル絵: images/sim/{ja}.svg → .png → remove(real_battle_simulator.html と同パターン)
+// ・公式スプライト: images/poke/{id}.png → GitHub raw フォールバック → 非表示(pokemon_db_all.html と同パターン・idが数値の時のみ)
+const imgCells = (lang, jaName) => {
+  const sd = up(lang) + '/images/sim', e = enc(jaName);
+  const art = `<img src="${sd}/${e}.svg" alt="" loading="lazy" style="height:44px;max-width:48px;vertical-align:middle"`
+    + ` onerror="if(!this.dataset.png){this.dataset.png=1;this.src='${sd}/${e}.png';}else{this.remove();}">`;
+  const id = pokeIdOf(jaName);
+  let sprite = '';
+  if (isNumId(id)) {
+    const pd = up(lang) + '/images/poke', fb = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
+    sprite = `<img src="${pd}/${id}.png" alt="" loading="lazy" data-fb="${fb}" style="height:44px;max-width:48px;vertical-align:middle"`
+      + ` onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.dataset.fb='';}else{this.style.visibility='hidden';}">`;
+  }
+  return `<td class="img">${art}</td><td class="img">${sprite}</td>`;
+};
+
 // ---- パス/URL ----
 const dirPrefix = lang => (lang === 'ja' ? '' : lang + '/');
 const up = lang => (lang === 'ja' ? '..' : '../..');
@@ -80,6 +106,13 @@ function hreflang(kind, ja) {
   const links = GEN_LANGS.map(l => `<link rel="alternate" hreflang="${l}" href="${(kind === 'index') ? indexUrl(l, ja) : pageUrl(l, kind, ja)}">`);
   const xdef = (kind === 'index') ? indexUrl('ja', ja) : pageUrl('ja', kind, ja);
   links.push(`<link rel="alternate" hreflang="x-default" href="${xdef}">`);
+  return links.join('\n');
+}
+// 全国版一覧(all.html)は pokemon/{slug} でも index でもない固定URL → 専用の URL/hreflang
+const allUrl = lang => `https://pchamdb.com/${dirPrefix(lang)}pokemon/all.html`;
+function hreflangAll() {
+  const links = GEN_LANGS.map(l => `<link rel="alternate" hreflang="${l}" href="${allUrl(l)}">`);
+  links.push(`<link rel="alternate" hreflang="x-default" href="${allUrl('ja')}">`);
   return links.join('\n');
 }
 
@@ -336,7 +369,7 @@ function genPokemonIndex(lang) {
     const types = [p.type1, p.type2].filter(Boolean), total = p.hp + p.atk + p.def + p.spatk + p.spdef + p.spd;
     const abCell = [p.ab1, p.ab2, p.ab3].filter(Boolean).map(a => `<a href="${abilHref(lang, a)}" class="ab-chip" data-tip="${esc(tAbDesc(lang, a, ABID[a] || ''))}">${esc(tAbName(lang, a))}</a>`).join('');
     return `      <tr data-name="${esc(tPoke(lang, p.name))}" data-types="${esc(types.join(','))}">`
-      + `<td class="num">${esc(p.no)}</td><td class="name"><a href="${esc(pokeSlug(p.name))}.html">${esc(tPoke(lang, p.name))}</a></td>`
+      + `<td class="num">${esc(p.no)}</td>${imgCells(lang, p.name)}<td class="name"><a href="${esc(pokeSlug(p.name))}.html">${esc(tPoke(lang, p.name))}</a></td>`
       + `<td>${types.map(t => badge(lang, t)).join('')}</td><td class="abils">${abCell}</td>`
       + `<td class="num" data-v="${p.hp}">${p.hp}</td><td class="num" data-v="${p.atk}">${p.atk}</td><td class="num" data-v="${p.def}">${p.def}</td>`
       + `<td class="num" data-v="${p.spatk}">${p.spatk}</td><td class="num" data-v="${p.spdef}">${p.spdef}</td><td class="num" data-v="${p.spd}">${p.spd}</td>`
@@ -352,6 +385,7 @@ function genPokemonIndex(lang) {
   <article class="card">
     <h1>${esc(T(lang, 'pokemon_list'))}</h1>
     <p class="lead">${T(lang, 'pokemon_list_lead').replace('{n}', POKE.length)}</p>
+    <p class="to-all"><a href="all.html">${esc(T(lang, 'link_to_all'))}</a></p>
     <div class="list-controls">
       <input class="search" id="pkSearch" type="search" placeholder="${esc(T(lang, 'pk_search_ph'))}">
       <div class="type-filter chips" id="pkTypeFilter"><button class="all on" data-type="">${esc(T(lang, 'pk_all'))}</button>${typeBtns}</div>
@@ -359,7 +393,7 @@ function genPokemonIndex(lang) {
     </div>
     <div class="table-scroll"><table class="sortable list-table" id="pkTable">
       <thead><tr>
-        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
+        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
         <th>${esc(T(lang, 'col_ability'))}<span style="font-weight:400;font-size:11px;color:#888">${esc(T(lang, 'col_ability_hint'))}</span></th>
         <th class="num" data-k="hp">${esc(T(lang, 'col_hp'))}</th><th class="num" data-k="atk">${esc(T(lang, 'col_atk'))}</th><th class="num" data-k="def">${esc(T(lang, 'col_def'))}</th>
         <th class="num" data-k="spatk">${esc(T(lang, 'col_spatk'))}</th><th class="num" data-k="spdef">${esc(T(lang, 'col_spdef'))}</th><th class="num" data-k="spd">${esc(T(lang, 'col_spd'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
@@ -368,11 +402,66 @@ function genPokemonIndex(lang) {
 ${rows}
       </tbody>
     </table></div>
+    <p class="credit">${T(lang, 'poke_credit')}</p>
   </article>
   ${adBox(lang, 'content-pokemon-list')}
   <script>${listJs(T(lang, 'pk_count_unit'))}</script>
   <script>${TIP_JS}</script>` + FOOT(lang);
   writePage(lang, 'pokemon/index.html', body);
+}
+
+// ---- 全国版一覧(all.html): master_pokemon.json 全エントリ(ja名で重複間引き=約1330行) ----
+// 列: No / 絵(オリジナル) / 公式スプライト / 名前 / タイプ / 合計種族値。
+// 個別ページへのリンクは Champions 登場ポケモン(champions!=null)のみ(全国版に個別ページは無い)。
+// No を先頭(children[0])に置くことで listJs の 'no' ソート前提を維持。
+function genPokemonAllIndex(lang) {
+  const seen = new Set(), rows = [];
+  for (const e of MASTER) {
+    const ja = e.names && e.names.ja;
+    if (ja == null || seen.has(ja)) continue;   // ja名で重複フォームは初出のみ(約1330行)
+    seen.add(ja);
+    const types = (e.types || []).filter(Boolean), s = e.stats || {};
+    const total = (s.hp || 0) + (s.atk || 0) + (s.def || 0) + (s.spa || 0) + (s.spd || 0) + (s.spe || 0);
+    const nm = (e.names[lang] != null ? e.names[lang] : ja);   // master は9言語内蔵→辞書不要
+    const slug = champNames.has(ja) ? (pokeSlug(ja) || '') : '';   // Champions のみ個別ページへ
+    const nameCell = slug ? `<a href="${esc(slug)}.html">${esc(nm)}</a>` : esc(nm);
+    const dex = e.dex != null ? e.dex : '';
+    rows.push(`      <tr data-name="${esc(nm)}" data-types="${esc(types.join(','))}">`
+      + `<td class="num">${esc(dex)}</td>${imgCells(lang, ja)}`
+      + `<td class="name">${nameCell}</td>`
+      + `<td>${types.map(t => badge(lang, t)).join('')}</td>`
+      + `<td class="num" data-v="${total}"><b>${total}</b></td></tr>`);
+  }
+  const n = rows.length;
+  const typeBtns = TYPES.map(t => `<button class="tf t-${esc(t)}" data-type="${esc(t)}">${esc(tType(lang, t))}</button>`).join('');
+  const body = head(lang,
+    T(lang, 'pokemon_all_title').replace('{n}', n),
+    T(lang, 'pokemon_all_desc').replace('{n}', n),
+    allUrl(lang), hreflangAll()
+  ) + `
+  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'pokemon_list'))}</a> &gt; <b>${esc(T(lang, 'pokemon_all_list'))}</b></nav>
+  <article class="card">
+    <h1>${esc(T(lang, 'pokemon_all_list'))}</h1>
+    <p class="lead">${T(lang, 'pokemon_all_lead').replace('{n}', n)}</p>
+    <p class="to-champions"><a href="index.html">${esc(T(lang, 'link_to_champions'))}</a></p>
+    <div class="list-controls">
+      <input class="search" id="pkSearch" type="search" placeholder="${esc(T(lang, 'pk_search_ph'))}">
+      <div class="type-filter chips" id="pkTypeFilter"><button class="all on" data-type="">${esc(T(lang, 'pk_all'))}</button>${typeBtns}</div>
+      <span class="filter-count" id="pkCount"></span>
+    </div>
+    <div class="table-scroll"><table class="sortable list-table" id="pkTable">
+      <thead><tr>
+        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
+      </tr></thead>
+      <tbody id="pkBody">
+${rows.join('\n')}
+      </tbody>
+    </table></div>
+    <p class="credit">${T(lang, 'poke_credit')}</p>
+  </article>
+  ${adBox(lang, 'content-pokemon-list')}
+  <script>${listJs(T(lang, 'pk_count_unit'))}</script>` + FOOT(lang);
+  writePage(lang, 'pokemon/all.html', body);
 }
 
 // ===========================================================
@@ -419,9 +508,9 @@ function genTypeDetail(lang, t) {
 let n = 0;
 for (const lang of GEN_LANGS) {
   genAbilityIndex(lang); ALL_ABIL.forEach(ab => genAbilityDetail(lang, ab));
-  genPokemonIndex(lang); POKE.forEach(p => genPokemonDetail(lang, p));
+  genPokemonIndex(lang); genPokemonAllIndex(lang); POKE.forEach(p => genPokemonDetail(lang, p));
   TYPES.forEach(t => genTypeDetail(lang, t));
-  n += 1 + ALL_ABIL.length + 1 + POKE.length + TYPES.length;
-  console.log(`  [${lang}] ability ${1 + ALL_ABIL.length} / pokemon ${1 + POKE.length} / type ${TYPES.length}`);
+  n += 1 + ALL_ABIL.length + 1 /* pokemon index */ + 1 /* pokemon all */ + POKE.length + TYPES.length;
+  console.log(`  [${lang}] ability ${1 + ALL_ABIL.length} / pokemon ${2 + POKE.length} (list+all+${POKE.length} details) / type ${TYPES.length}`);
 }
 console.log(`✅ 生成完了: ${GEN_LANGS.join(',')} = 計 ${n} ページ`);
