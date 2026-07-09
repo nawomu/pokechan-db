@@ -62,24 +62,37 @@ const pokeSlug = name => pokeSlugMap.get(name);
 const MASTER = (() => { try { return require(path.join(ROOT, 'reference', 'master_pokemon.json')); } catch (e) { console.log('⚠ master_pokemon.json 無し: APIスプライトは非表示'); return []; } })();
 const jaToId = new Map(), champNames = new Set();
 for (const _e of MASTER) { if (_e && _e.names && _e.names.ja != null) { jaToId.set(_e.names.ja, _e.id); if (_e.champions != null) champNames.add(_e.names.ja); } }
-const isNumId = id => /^\d+$/.test(String(id));   // "c-026" 等の合成idは公式スプライト無し → 描画しない
 const pokeIdOf = jaName => jaToId.get(jaName);
+// 公式スプライト描画用の id を解決。数値 id はそのまま文字列化。
+// "c-026"(独自メガ等の合成id・PokeAPIに絵が無い)は数値部 26 をベース種のPokeAPI id として代用描画する。
+// 戻り値: 数値id文字列(例 "26") / 合成idはベース種 id に解決 / 解決不能なら null。
+const spriteIdOf = id => {
+  if (id == null) return null;
+  const s = String(id);
+  if (/^\d+$/.test(s)) return s;
+  const m = s.match(/^c-(\d+)$/);
+  return m ? String(parseInt(m[1], 10)) : null;
+};
 
-// 画像2列セル(オリジナル絵 + 公式スプライト)。名前の左に置く。No は別途先頭(children[0]=No前提)。
+// 画像3列セル(オリジナル絵 + 公式ドット絵 + 公式3D)。名前の左に置く。No は別途先頭(children[0]=No前提)。
 // ・オリジナル絵: images/sim/{ja}.svg → .png → remove(real_battle_simulator.html と同パターン)
-// ・公式スプライト: images/poke/{id}.png → GitHub raw フォールバック → 非表示(pokemon_db_all.html と同パターン・idが数値の時のみ)
+// ・公式ドット絵: images/poke/{id}.png → GitHub raw フォールバック → 非表示(pokemon_db_all.html と同パターン)
+// ・公式3D(Pokémon HOME): GitHub raw のみ。ローカルコピーは無いので onerror で要素 remove。
+// c-NNN は spriteIdOf でベース種 id に解決し、ドット絵/3D ともベースの姿で表示(代用・区別マークは付けない)。
 const imgCells = (lang, jaName) => {
   const sd = up(lang) + '/images/sim', e = enc(jaName);
   const art = `<img src="${sd}/${e}.svg" alt="" loading="lazy" style="height:44px;max-width:48px;vertical-align:middle"`
     + ` onerror="if(!this.dataset.png){this.dataset.png=1;this.src='${sd}/${e}.png';}else{this.remove();}">`;
-  const id = pokeIdOf(jaName);
-  let sprite = '';
-  if (isNumId(id)) {
+  const id = spriteIdOf(pokeIdOf(jaName));   // null または "26"(c-026 → "26")
+  let sprite = '', home = '';
+  if (id) {
     const pd = up(lang) + '/images/poke', fb = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
     sprite = `<img src="${pd}/${id}.png" alt="" loading="lazy" data-fb="${fb}" style="height:44px;max-width:48px;vertical-align:middle"`
       + ` onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.dataset.fb='';}else{this.style.visibility='hidden';}">`;
+    home = `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${id}.png" alt="" loading="lazy" style="height:44px;max-width:48px;vertical-align:middle"`
+      + ` onerror="this.remove();">`;
   }
-  return `<td class="img">${art}</td><td class="img">${sprite}</td>`;
+  return `<td class="img">${art}</td><td class="img">${sprite}</td><td class="img">${home}</td>`;
 };
 
 // ---- パス/URL ----
@@ -239,6 +252,32 @@ const MOVE_JS = `
   var active='kind',dir={power:-1,acc:-1,pp:-1,name:1};
   if(mvSort)mvSort.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;var k=b.getAttribute('data-sort');if(k!=='kind'&&active===k)dir[k]=-dir[k];active=k;[].forEach.call(mvSort.querySelectorAll('button'),function(x){x.classList.remove('on');});b.classList.add('on');sortBy(k,dir[k]||1);});
 })();`;
+// 画像クリックで拡大(ライトボックス)。両一覧の #pkBody に1リスナー(イベント委譲)。
+// オリジナル絵(SVG)/公式ドット絵/公式3D どれでもクリック→中央に大きく表示(最大 min(80vw,80vh))。
+// 背景半透明黒・もう一度クリック(どこでも)または ESC で閉じる。拡大時は行のポケモン名を横に表示。
+// CSS(content.css)は触れないのでスタイルはインラインで完結。タップ=click でスマホでも動く。
+const LIGHTBOX_JS = `
+(function(){
+  var body=document.getElementById('pkBody');
+  if(!body)return;
+  var ov=document.createElement('div');
+  ov.style.cssText='display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.82);z-index:99999;align-items:center;justify-content:center;gap:18px;padding:16px;box-sizing:border-box;cursor:zoom-out';
+  var img=document.createElement('img');
+  img.style.cssText='max-width:min(80vw,80vh);max-height:min(80vw,80vh);object-fit:contain;cursor:zoom-out';
+  var cap=document.createElement('div');
+  cap.style.cssText='color:#fff;font-size:22px;font-weight:700;line-height:1.4;max-width:240px;word-break:keep-all;text-shadow:0 2px 8px rgba(0,0,0,0.8);cursor:zoom-out';
+  ov.appendChild(img);ov.appendChild(cap);document.body.appendChild(ov);
+  function open(src,name){img.src=src;cap.textContent=name||'';ov.style.display='flex';}
+  function close(){if(ov.style.display==='none')return;ov.style.display='none';img.removeAttribute('src');}
+  body.addEventListener('click',function(e){
+    var im=e.target.closest('img');if(!im)return;
+    var src=im.src;if(!src||im.style.visibility==='hidden')return;   // 非表示(読込失敗)プレースホルダは除外
+    var tr=im.closest('tr');var name=tr?(tr.getAttribute('data-name')||''):'';
+    e.preventDefault();open(src,name);
+  });
+  ov.addEventListener('click',close);
+  document.addEventListener('keydown',function(ev){if(ev.key==='Escape'||ev.keyCode===27)close();});
+})();`;
 
 // ===========================================================
 // 1) 特性
@@ -393,7 +432,7 @@ function genPokemonIndex(lang) {
     </div>
     <div class="table-scroll"><table class="sortable list-table" id="pkTable">
       <thead><tr>
-        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
+        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th>${esc(T(lang, 'col_home'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
         <th>${esc(T(lang, 'col_ability'))}<span style="font-weight:400;font-size:11px;color:#888">${esc(T(lang, 'col_ability_hint'))}</span></th>
         <th class="num" data-k="hp">${esc(T(lang, 'col_hp'))}</th><th class="num" data-k="atk">${esc(T(lang, 'col_atk'))}</th><th class="num" data-k="def">${esc(T(lang, 'col_def'))}</th>
         <th class="num" data-k="spatk">${esc(T(lang, 'col_spatk'))}</th><th class="num" data-k="spdef">${esc(T(lang, 'col_spdef'))}</th><th class="num" data-k="spd">${esc(T(lang, 'col_spd'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
@@ -406,7 +445,8 @@ ${rows}
   </article>
   ${adBox(lang, 'content-pokemon-list')}
   <script>${listJs(T(lang, 'pk_count_unit'))}</script>
-  <script>${TIP_JS}</script>` + FOOT(lang);
+  <script>${TIP_JS}</script>
+  <script>${LIGHTBOX_JS}</script>` + FOOT(lang);
   writePage(lang, 'pokemon/index.html', body);
 }
 
@@ -451,7 +491,7 @@ function genPokemonAllIndex(lang) {
     </div>
     <div class="table-scroll"><table class="sortable list-table" id="pkTable">
       <thead><tr>
-        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
+        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th>${esc(T(lang, 'col_home'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
       </tr></thead>
       <tbody id="pkBody">
 ${rows.join('\n')}
@@ -460,7 +500,8 @@ ${rows.join('\n')}
     <p class="credit">${T(lang, 'poke_credit')}</p>
   </article>
   ${adBox(lang, 'content-pokemon-list')}
-  <script>${listJs(T(lang, 'pk_count_unit'))}</script>` + FOOT(lang);
+  <script>${listJs(T(lang, 'pk_count_unit'))}</script>
+  <script>${LIGHTBOX_JS}</script>` + FOOT(lang);
   writePage(lang, 'pokemon/all.html', body);
 }
 
