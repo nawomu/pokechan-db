@@ -420,6 +420,7 @@ function genPokemonIndex(lang) {
     T(lang, 'pokemon_list_desc').replace('{n}', POKE.length),
     indexUrl(lang, 'pokemon'), hreflang('index', 'pokemon')
   ) + `
+  <style>.wrap{max-width:1300px}</style><!-- 一覧は画像3列+種族値で幅が要る(2026-07-10 阿部さん「右が切れてる」)。狭い画面は従来どおり.table-scrollで横スクロール -->
   <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <b>${esc(T(lang, 'pokemon_list'))}</b></nav>
   <article class="card">
     <h1>${esc(T(lang, 'pokemon_list'))}</h1>
@@ -489,6 +490,7 @@ function genPokemonAllIndex(lang) {
     T(lang, 'pokemon_all_desc').replace('{n}', n),
     allUrl(lang), hreflangAll()
   ) + `
+  <style>.wrap{max-width:1300px}</style><!-- 一覧は画像3列で幅が要る(2026-07-10)。狭い画面は.table-scrollで横スクロール -->
   <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'pokemon_list'))}</a> &gt; <b>${esc(T(lang, 'pokemon_all_list'))}</b></nav>
   <article class="card">
     <h1>${esc(T(lang, 'pokemon_all_list'))}</h1>

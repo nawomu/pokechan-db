@@ -25,8 +25,10 @@ function burstGroup() {
   return `<g id="mega-burst">${parts.join('')}</g>`;
 }
 
+// メガヤンマ(ヤンマの進化系)もメガ進化ではないので除外(2026-07-10 全国版で追加されたため)
+const NOT_MEGA = new Set(['メガニウム.svg', 'メガヤンマ.svg']);
 const files = fs.readdirSync(DIR)
-  .filter(f => f.endsWith('.svg') && f.startsWith('メガ') && f !== 'メガニウム.svg');
+  .filter(f => f.endsWith('.svg') && f.startsWith('メガ') && !NOT_MEGA.has(f));
 
 let added = 0, skipped = 0;
 for (const f of files) {
