@@ -62,6 +62,10 @@ const pokeSlug = name => pokeSlugMap.get(name);
 const MASTER = (() => { try { return require(path.join(ROOT, 'reference', 'master_pokemon.json')); } catch (e) { console.log('⚠ master_pokemon.json 無し: APIスプライトは非表示'); return []; } })();
 const jaToId = new Map(), champNames = new Set();
 for (const _e of MASTER) { if (_e && _e.names && _e.names.ja != null) { jaToId.set(_e.names.ja, _e.id); if (_e.champions != null) champNames.add(_e.names.ja); } }
+// 全国版一覧の特性チップ用: master_abilities(9言語名+effect_ja/en)。ja名→エントリ(2026-07-10)
+const MASTER_AB = (() => { try { return require(path.join(ROOT, 'reference', 'master_abilities.json')); } catch (e) { return []; } })();
+const abByJa = new Map();
+for (const _a of MASTER_AB) { if (_a && _a.names && _a.names.ja != null) abByJa.set(_a.names.ja, _a); }
 const pokeIdOf = jaName => jaToId.get(jaName);
 // 公式スプライト描画用の id を解決。数値 id はそのまま文字列化。
 // "c-026"(独自メガ等の合成id・PokeAPIに絵が無い)は数値部 26 をベース種のPokeAPI id として代用描画する。
@@ -482,10 +486,21 @@ function genPokemonAllIndex(lang) {
     const slug = champNames.has(ja) ? (pokeSlug(ja) || '') : '';   // Champions のみ個別ページへ
     const nameCell = slug ? `<a href="${esc(slug)}.html">${esc(nm)}</a>` : esc(nm);
     const dex = e.dex != null ? e.dex : '';
+    // 特性チップ(チャンピオンズ一覧と同仕様=乗せると説明・2026-07-10 阿部さん「同じテーブルに」)。
+    // Champions特性=個別ページへリンク(tAbDesc)。それ以外=リンク無しspan(master_abilitiesの名前/効果・非jaはeffect_en)
+    const abCell = (e.abilities || []).filter(Boolean).map(a => {
+      if (ABID[a] != null) return `<a href="${abilHref(lang, a)}" class="ab-chip" data-tip="${esc(tAbDesc(lang, a, ABID[a] || ''))}">${esc(tAbName(lang, a))}</a>`;
+      const m = abByJa.get(a);
+      const nmA = m ? (m.names[lang] || a) : a;
+      const tip = m ? (lang === 'ja' ? (m.effect_ja || '') : (m.effect_en || m.effect_ja || '')) : '';
+      return `<span class="ab-chip" data-tip="${esc(tip)}">${esc(nmA)}</span>`;
+    }).join('');
     rows.push(`      <tr data-name="${esc(nm)}" data-types="${esc(types.join(','))}">`
       + `<td class="num">${esc(dex)}</td>${imgCells(lang, ja)}`
       + `<td class="name">${nameCell}</td>`
-      + `<td>${types.map(t => badge(lang, t)).join('')}</td>`
+      + `<td>${types.map(t => badge(lang, t)).join('')}</td><td class="abils">${abCell}</td>`
+      + `<td class="num" data-v="${s.hp || 0}">${s.hp || 0}</td><td class="num" data-v="${s.atk || 0}">${s.atk || 0}</td><td class="num" data-v="${s.def || 0}">${s.def || 0}</td>`
+      + `<td class="num" data-v="${s.spa || 0}">${s.spa || 0}</td><td class="num" data-v="${s.spd || 0}">${s.spd || 0}</td><td class="num" data-v="${s.spe || 0}">${s.spe || 0}</td>`
       + `<td class="num" data-v="${total}"><b>${total}</b></td></tr>`);
   }
   const n = rows.length;
@@ -512,7 +527,10 @@ function genPokemonAllIndex(lang) {
     </div>
     <div class="table-scroll"><table class="sortable list-table" id="pkTable">
       <thead><tr>
-        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th>${esc(T(lang, 'col_home'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
+        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th>${esc(T(lang, 'col_home'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
+        <th>${esc(T(lang, 'col_ability'))}<span style="font-weight:400;font-size:11px;color:#888">${esc(T(lang, 'col_ability_hint'))}</span></th>
+        <th class="num" data-k="hp">${esc(T(lang, 'col_hp'))}</th><th class="num" data-k="atk">${esc(T(lang, 'col_atk'))}</th><th class="num" data-k="def">${esc(T(lang, 'col_def'))}</th>
+        <th class="num" data-k="spatk">${esc(T(lang, 'col_spatk'))}</th><th class="num" data-k="spdef">${esc(T(lang, 'col_spdef'))}</th><th class="num" data-k="spd">${esc(T(lang, 'col_spd'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
       </tr></thead>
       <tbody id="pkBody">
 ${rows.join('\n')}
@@ -522,6 +540,7 @@ ${rows.join('\n')}
   </article>
   ${adBox(lang, 'content-pokemon-list')}
   <script>${listJs(T(lang, 'pk_count_unit'))}</script>
+  <script>${TIP_JS}</script>
   <script>${LIGHTBOX_JS}</script>` + FOOT(lang);
   writePage(lang, 'pokemon/all.html', body);
 }
