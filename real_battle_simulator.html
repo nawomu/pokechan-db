@@ -5845,18 +5845,12 @@ function runTurn(){
     const sMove = secondSide === 'self' ? selfMove : oppMove;
     const fp = movePriority(fMove, sides[firstSide]), sp = movePriority(sMove, sides[secondSide]);
     const fName = sides[firstSide].poke ? pname(sides[firstSide]) : '?';
-    let why;
-    if (quickClawSide === firstSide){
-      why = `せんせいのつめが 発動したため`;
-    } else if (fp !== sp){
-      why = `${fMove ? fMove.name : '技'} が 優先度${fp > 0 ? '+' : ''}${fp} のため`;
-    } else {
-      const fs = effectiveSpeed(sides[firstSide]), ss = effectiveSpeed(sides[secondSide]);
-      if (fs === ss) why = `すばやさ同値(${fs})・ランダムで`;
-      else if (env.trickRoom) why = `トリックルームで すばやさが低い方(${fs} < ${ss})が`;
-      else why = `すばやさが速い(${fs} > ${ss})ため`;
-    }
-    log('0b', `先攻: ${fName}（${why}）`);
+    // 理由は簡素に(実機準拠=数値を出さない・2026-07-10 阿部さん)。すばやさ勝ち/同速/トリルは理由なしで「先攻: ◯◯」だけ。
+    // 言及するのは 先制技(優先度+の技で先攻になった時) と せんせいのつめ のみ。
+    let why = null;
+    if (quickClawSide === firstSide) why = `せんせいのつめが 発動したため`;
+    else if (fp !== sp && fp > 0) why = `先制技`;
+    log('0b', why ? `先攻: ${fName}（${why}）` : `先攻: ${fName}`);
   }
 
   for (const a of order){

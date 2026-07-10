@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://pchamdb.com/online_battle.html">
 <script defer src="i18n/runtime.js?v=20260705"></script>
 <script src="pokechan_data.js?v=20260705a"></script>
-<script src="battle_log_i18n.js?v=20260706a"></script>
+<script src="battle_log_i18n.js?v=20260710d"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
@@ -167,6 +167,41 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #sprite-src-btns .ssb-row button[data-v="api"] img{width:60px;height:60px;margin:-7px}/* ドット素材は透過余白が大きい→拡大して見た目のサイズ感を揃える・負マージンで枠高は不変(2026-07-10 阿部さん) */
 #sprite-src-btns .ssb-row button:hover{border-color:#8a82c8}
 #sprite-src-btns .ssb-row button.on{border-color:#7ac142;box-shadow:0 0 0 3px #d4f54277;background:#f4ffdd}
+/* 行動選択タイマー(本家の右上COMMAND準拠・オンラインのみ) */
+#act-timer{align-self:flex-end;font-weight:900;font-size:13px;color:#fff;text-shadow:0 1px 3px #000d;letter-spacing:1px;padding:0 8px 2px}
+#act-timer.hurry{color:#ff8a7a;animation:pk-pulse 1s ease-in-out infinite}
+/* ★選出画面=本家準拠3カラム(2026-07-10 阿部さん)。z-indexは編集モーダル(50/60)より下=中央の編集を生かす */
+#pick-screen{position:fixed;inset:0;z-index:40;background:#2a2350ee;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow:auto}
+#pick-screen .pk-card{background:#f6f5fc;border-radius:16px;padding:14px 16px;max-width:960px;width:100%;max-height:94vh;overflow:auto}
+#pick-screen .pk-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+#pick-screen .pk-head h3{margin:0;color:#4638ae;font-size:15px;flex:1 1 auto}
+#pick-timer{font-weight:900;font-size:16px;color:#4638ae;background:#fff;border:2px solid #c9c3e6;border-radius:12px;padding:3px 12px;white-space:nowrap}
+#pick-timer.hurry{color:#fff;background:#e0564a;border-color:#ff9a8a;animation:pk-pulse 1s ease-in-out infinite}
+@keyframes pk-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+#pick-screen .pk-cols{display:grid;grid-template-columns:210px minmax(240px,1fr) 210px;gap:12px;align-items:start}
+@media(max-width:720px){#pick-screen .pk-cols{grid-template-columns:1fr}}
+#pick-screen .pk-colhead{font-weight:900;font-size:12px;color:#fff;text-align:center;border-radius:12px;padding:3px 0;margin-bottom:8px;transform:skewX(-8deg)}
+#pick-screen .pk-colhead.self{background:linear-gradient(135deg,#4638ae,#6a5be0)}
+#pick-screen .pk-colhead.opp{background:linear-gradient(135deg,#b02458,#d63c78)}
+#pick-mine,#pick-opp{display:flex;flex-direction:column;gap:6px}
+#pick-screen .pk-cell{position:relative;display:flex;align-items:center;gap:8px;background:#fff;border:2px solid #c9c3e6;border-radius:12px;
+  padding:5px 8px;text-align:left;font-family:inherit;min-height:52px}
+#pick-screen .pk-cell.mine{cursor:pointer;transition:border-color .12s,box-shadow .12s}
+#pick-screen .pk-cell.mine:hover{border-color:#8a82c8}
+#pick-screen .pk-cell.mine.selected{border-color:#7ac142;box-shadow:0 0 0 3px #d4f54277}
+#pick-screen .pk-cell.mine.picked{background:#f0ecff;border-color:#6a5be0}
+#pick-screen .pk-cell.opp{border-color:#e0a8c0;background:#fff6fa}
+#pick-screen .pk-cell img{width:44px;height:44px;object-fit:contain;image-rendering:pixelated;flex:0 0 auto}
+#pick-screen .pk-inf{display:flex;flex-direction:column;gap:3px;min-width:0}
+#pick-screen .pk-nm{font-size:12px;font-weight:800;color:#2d263c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#pick-screen .pk-g{margin-left:3px;font-size:11px}
+#pick-screen .pk-g.m{color:#4a90e0}
+#pick-screen .pk-g.f{color:#e0709a}
+#pick-screen .pk-t{display:inline-block;color:#fff;font-size:9px;font-weight:800;padding:1px 7px;border-radius:8px;margin-right:2px}
+#pick-screen .pk-badge{display:none;position:absolute;top:-9px;left:-9px;background:#e0564a;color:#fff;font-weight:900;border-radius:50%;
+  width:26px;height:26px;align-items:center;justify-content:center;font-size:14px;box-shadow:0 2px 6px #0006;border:2px solid #fff}
+#pick-ok{margin-top:10px;padding:10px 0;width:100%;border-radius:20px;border:0;background:#6a5be0;color:#fff;font-weight:900;font-size:15px;cursor:pointer;opacity:.5;font-family:inherit}
+#pick-status{display:block;margin-top:6px;color:#6a5fa0;font-weight:700;font-size:12px}
 /* ロビーの在室チップ+挑戦ボタン(2026-07-10 阿部さん) */
 .lobby-chip{display:inline-block;background:#efeafd;border:1px solid #c9c3e6;border-radius:10px;padding:3px 10px;margin:2px 5px 2px 0;font-weight:800;font-size:12.5px;color:#4a4470}
 .lobby-chip.waiting{background:#fff2e6;border-color:#f0b070}
@@ -484,13 +519,16 @@ body.in-battle #game,body.in-battle header{max-width:990px}
    右上のメニュー群と重ならない位置=自分バーの上・相手バーの下。data-pnameはonlineBeginでセット */
 body.online-names #pb-self::before{content:attr(data-pname);position:absolute;top:-19px;left:14px;transform:skewX(10deg);
   font-size:11.5px;font-weight:900;color:#fff;text-shadow:0 1px 3px #000d;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
-body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bottom:-19px;right:14px;transform:skewX(10deg);
+body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bottom:-19px;left:14px;transform:skewX(10deg);/* 右下はCOMMANDタイマーの席(本家準拠)なので左下へ */
   font-size:11.5px;font-weight:900;color:#fff;text-shadow:0 1px 3px #000d;white-space:nowrap;max-width:240px;overflow:hidden;text-overflow:ellipsis}
 /* 6体を横一列の丸マークで(実機のボールマーク準拠・スプライト入りで情報量は維持) */
 .sbar-icons{display:flex;gap:3px}
 .sbar-icons .sicon{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
   border-radius:50%;background:#00000055;border:1px solid #ffffff55;overflow:hidden;transition:opacity .3s,filter .3s}
 .sbar-icons .sicon img{width:19px;height:19px;object-fit:contain;display:block}
+.sbar-icons .sicon{position:relative}
+.sbar-icons .sicon.unknown{opacity:.65;filter:saturate(.6)}/* 未開示(相手の選出は分からない)=均一表示 */
+.sbar-icons .sicon .sic-x{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#ff5a4a;font-weight:900;font-size:15px;text-shadow:0 1px 2px #000c;pointer-events:none}
 /* 場に出ている個体を強調 */
 .sbar-icons .sicon.active{background:#ffffff55;box-shadow:0 0 0 2px #d4f542}
 /* 瀕死 */
@@ -935,7 +973,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710c" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710d" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1396,6 +1434,10 @@ function saveTeam(){
       moves: Object.fromEntries(Object.entries(slotMoves).map(([k, arr]) => [k, (arr || []).map(m => m && m.name)])) };
     localStorage.setItem('rb_team_online', JSON.stringify(data));
   } catch (e) {}
+  // ★選出中(チーム送信後〜開戦前)の編集は相手へ自動再送信(両者が同じチームデータで戦うロックステップ整合)
+  try {
+    if (window.RB_ONLINE && RB_ONLINE.active && !RB_ONLINE.started && RB_ONLINE.myTeamSent && !RB_ONLINE.applying) onlineScheduleTeamResend();
+  } catch (e) {}
   // ★種ビルド記憶を常に最新化(チーム内の編集も、bxプレビュー編集も、保存のたびmemoへ)
   try {
     selfIds().forEach(id => { if (slotVal[id]) captureSpecies(id); });
@@ -1750,9 +1792,10 @@ function renderBoxGrid(query){
   $('box-grid').querySelectorAll('button[data-n]').forEach(b => b.addEventListener('click', () => {
     SE.select();
     const nm = b.dataset.n;
-    // ★本家挙動(2026-07-10 阿部さん): チームに居る種をボックスでタップ=その枠を空ける(トグル)
+    // チームに居る種をボックスでタップ: いきなり外さず、そのスロットを選択(中央にステータス)+
+    // 「ボックスに もどす？」確認(ただ見たかっただけでも困らない=2026-07-10 阿部さんFB)
     const inSlot = selfIds().find(id => slotVal[id] === nm);
-    if (inSlot){ removeFromTeam(inSlot); return; }
+    if (inSlot){ const rect = b.getBoundingClientRect(); setSelectedSlot(inSlot); openUnsetConfirm(rect, inSlot); return; }
     // チームに居ない種=すぐ入れず中央にプレビュー(パラメータ表示+ビルド編集)。配置は左スロットタップ or 投入ボタン
     previewBoxPoke(nm);
   }));
@@ -1764,7 +1807,20 @@ function renderBoxGrid(query){
 // チームに居る種をボックスでタップ=その枠を空ける(トグル=本家挙動)。
 // ===================================================================
 let previewName = null;   // 中央パネルがボックスプレビュー表示中ならその種名
-function closeSwapConfirm(){ const el = $('swap-pop'); if (el) el.remove(); }
+let _popDocCloser = null;   // 外側クリックで閉じるdocリスナー(残留すると次のポップを即閉じする→必ずここで一元管理)
+function closeSwapConfirm(){
+  const el = $('swap-pop'); if (el) el.remove();
+  if (_popDocCloser){ document.removeEventListener('click', _popDocCloser); _popDocCloser = null; }
+}
+function armPopCloser(pop){
+  setTimeout(() => {
+    if ($('swap-pop') !== pop) return;   // 既に別のポップへ置き換わった
+    _popDocCloser = e => { if (!pop.contains(e.target)) closeSwapConfirm(); };
+    document.addEventListener('click', _popDocCloser);
+  }, 0);
+}
+// アンカーは要素でもrectスナップショットでも受ける(グリッド再描画で要素が外れても位置が取れるように)
+function _popAnchorRect(a){ return (a && a.getBoundingClientRect) ? a.getBoundingClientRect() : a; }
 function removeFromTeam(id){
   captureSpecies(id); saveSpeciesMemo();   // 外す前にビルドを記憶(戻したら復元)
   slotVal[id] = null;
@@ -1781,7 +1837,31 @@ function placePreviewTo(slotId){
   setSelectedSlot(slotId);
   renderBoxGrid($('box-q') ? $('box-q').value : '');
 }
-function openSwapConfirm(anchorEl, slotId){
+// チームから外す確認(ボックスで同種タップ時)。やめる=選択+ステータス表示だけ残る
+function openUnsetConfirm(anchor, slotId){
+  closeSwapConfirm();
+  const cur = slotVal[slotId]; if (!cur) return;
+  const pop = document.createElement('div');
+  pop.id = 'swap-pop';
+  const q = I18N.t('online_battle.unset_confirm', '{a} を ボックスに もどす？').replace('{a}', tPokeName(cur));
+  pop.innerHTML = `<div class="sp-q">${q}</div>` +
+    `<div class="sp-btns"><button class="sp-yes">${I18N.t('online_battle.unset_yes', 'もどす')}</button>` +
+    `<button class="sp-no">${I18N.t('online_battle.swap_no', 'やめる')}</button></div>`;
+  document.body.appendChild(pop);
+  const r = _popAnchorRect(anchor);
+  const pw = 240;
+  pop.style.left = Math.max(8, Math.min(window.innerWidth - pw - 8, r.left + r.width / 2 - pw / 2 + window.scrollX)) + 'px';
+  pop.style.top = (r.bottom + 6 + window.scrollY) + 'px';
+  pop.querySelector('.sp-yes').addEventListener('click', e => {
+    e.stopPropagation(); SE.select(); closeSwapConfirm();
+    removeFromTeam(slotId);
+  });
+  pop.querySelector('.sp-no').addEventListener('click', e => {
+    e.stopPropagation(); SE.select(); closeSwapConfirm();
+  });
+  armPopCloser(pop);   // 外側クリックで閉じる(次のtick配線・閉じ処理と一元管理)
+}
+function openSwapConfirm(anchor, slotId){
   closeSwapConfirm();
   const cur = slotVal[slotId], name = previewName;
   if (!name || cur === name) return;
@@ -1793,7 +1873,7 @@ function openSwapConfirm(anchorEl, slotId){
     `<div class="sp-btns"><button class="sp-yes">${I18N.t('online_battle.swap_yes', 'いれかえる')}</button>` +
     `<button class="sp-no">${I18N.t('online_battle.swap_no', 'やめる')}</button></div>`;
   document.body.appendChild(pop);
-  const r = anchorEl.getBoundingClientRect();
+  const r = _popAnchorRect(anchor);
   const pw = 240;
   pop.style.left = Math.max(8, Math.min(window.innerWidth - pw - 8, r.left + r.width / 2 - pw / 2 + window.scrollX)) + 'px';
   pop.style.top = (r.bottom + 6 + window.scrollY) + 'px';
@@ -1804,10 +1884,7 @@ function openSwapConfirm(anchorEl, slotId){
   pop.querySelector('.sp-no').addEventListener('click', e => {
     e.stopPropagation(); SE.select(); closeSwapConfirm();   // 入れ替えない(プレビューは出したまま)
   });
-  // 外側クリックで閉じる(次のtickで配線=この場のクリックで即閉じない)
-  setTimeout(() => document.addEventListener('click', function onDoc(e){
-    if (!pop.contains(e.target)){ closeSwapConfirm(); document.removeEventListener('click', onDoc); }
-  }), 0);
+  armPopCloser(pop);   // 外側クリックで閉じる(次のtick配線・閉じ処理と一元管理)
 }
 function previewBoxPoke(name){
   previewName = name;
@@ -1829,10 +1906,12 @@ function decorateBoxPreview(){
   const btn = document.createElement('button');
   btn.className = 'sd-bxadd';
   btn.textContent = I18N.t('online_battle.box_preview_add', '⚔ えらんでいる わくに いれる');
-  btn.addEventListener('click', () => {
+  btn.addEventListener('click', e => {
     SE.select();
     if (!selectedSlot || selectedSlot[0] !== 's' || !previewName) return;
-    placePreviewTo(selectedSlot);   // 明示ボタン=確認なしで選択中の枠へ(空き枠でも可)
+    // 埋まっている枠へは「いれかえる？」確認を挟む(2026-07-10 阿部さん)。空き枠は即配置
+    if (slotVal[selectedSlot] && slotVal[selectedSlot] !== previewName) openSwapConfirm(e.currentTarget, selectedSlot);
+    else placePreviewTo(selectedSlot);
   });
   box.appendChild(btn);
 }
@@ -1847,12 +1926,10 @@ function renderTeamRows(){
       // クリック=選択して中央に詳細表示(オンライン専用: ポケモン変更は常設ボックスパネルから行うのでポップアップは開かない)
       b.addEventListener('click', () => {
         SE.select();
-        // ★ボックスプレビュー中の自分枠タップ=配置(空き枠は即・埋まってる枠は「いれかえる？」確認)=本家準拠 2026-07-10
-        if (previewName && id[0] === 's'){
-          if (!slotVal[id]){ placePreviewTo(id); return; }
-          if (slotVal[id] !== previewName){ openSwapConfirm(b, id); return; }
-        }
-        // 「1番目に」バッジは撤去済み(選出画面で順番を決める=2026-07-10 阿部さん)。行クリックは選択のみ
+        // ★プレビュー中でもスロットタップ=選択(中央にステータス表示)が基本(2026-07-10 阿部さん
+        // 「左のポケモンが選べない」FBで修正)。空き枠タップだけはプレビュー中の子を配置。
+        // 埋まってる枠への入れ替えは中央の「わくに いれる」ボタン→確認ポップ経由。
+        if (previewName && id[0] === 's' && !slotVal[id]){ placePreviewTo(id); return; }
         setSelectedSlot(id);
       });
       row.appendChild(b);
@@ -2307,6 +2384,38 @@ function renderSideBars(){
     if (!iconsEl || !nameEl) return;
     // チーム全体(先頭+控え)
     const team = [st].concat(st.bench || []).filter(e => e && e.poke);
+    // ★オンライン: 選出3体でなくチーム6体を並べる(選出がバレない=本家仕様)。相手は場に出て初めて判明
+    if (window.RB_ONLINE && RB_ONLINE.started && RB_ONLINE.fullTeams){
+      const normNm = n => String(n || '').replace(/^メガ/, '').replace(/[XY]$/, '');
+      const baseOf = e => normNm((e.transformBase ? e.transformBase.poke : e.poke).name);
+      const revealed = RB_ONLINE.revealed[side];
+      if (st.poke) revealed.add(baseOf(st));
+      let html6 = '';
+      (RB_ONLINE.fullTeams[side] || []).forEach(nm => {
+        const n0 = normNm(nm);
+        const e = team.find(x => baseOf(x) === n0);
+        // 自分側=自分の選出は開示(知ってる情報)。相手側=場に出た子だけ開示
+        const known = side === 'self' ? !!e : (!!e && revealed.has(n0));
+        const dead = known && e && (e.fainted || (e.currentHp != null && e.currentHp <= 0));
+        const active = known && e === st && !!st.poke && !dead;
+        const cls = ['sicon', dead ? 'dead' : '', active ? 'active' : '', known ? '' : 'unknown'].filter(Boolean).join(' ');
+        let label = tPokeName(nm);
+        if (known && e && !dead){
+          const max = S.realStat(e, 'hp') || 1;
+          const hp = e.currentHp == null ? max : Math.max(0, e.currentHp);
+          label += ` (${Math.round(hp / max * 100)}%)`;
+        }
+        html6 += `<div class="${cls}" title="${label}" aria-label="${label}">` +
+          `<img src="${pokeIconSrc(nm)}" alt="${tPokeName(nm)}" loading="lazy" onerror="this.parentElement.classList.add('noimg');this.remove()">` +
+          (dead ? '<span class="sic-x">✕</span>' : '') + `</div>`;
+      });
+      iconsEl.innerHTML = html6;
+      const online = true;
+      nameEl.textContent = side === 'self'
+        ? ((online && LOBBY.name) || (window.I18N && I18N.t ? I18N.t('real_battle.pbox_label_self', 'じぶん') : 'じぶん'))
+        : ((online && RB_ONLINE.oppName) || (window.I18N && I18N.t ? I18N.t('real_battle.pbox_label_opp', 'あいて') : 'あいて'));
+      return;
+    }
     // 先頭ポケモン(場に出ている個体)
     const activePoke = st.poke ? st.poke.name : null;
     // CH: ボールマークは実機準拠=選出した数だけ(空スロットは出さない)。
@@ -2576,6 +2685,7 @@ function showMoves(){
     if (b.classList.contains('party-open')){ showParty(); return; }   // 交代へ(もどるで技リストに帰る)
     doTurn(+b.dataset.i);
   }));
+  if (window.RB_ONLINE && RB_ONLINE.started) actTimerStart();   // 本家準拠の45秒COMMANDタイマー(オンラインのみ)
 }
 function showParty(forced){
   const st = S.sides.self;
@@ -3305,6 +3415,44 @@ function engineWin(){ try { return $('engine-frame').contentWindow; } catch (e){
 function onlineSeedEngine(seed){ const w = engineWin(); if (w) w.Math.random = m32(seed >>> 0); }
 function onlineStatus(txt){ const el = $('online-status'); if (el) el.textContent = txt || ''; }
 const _olT = (k, ja) => I18N.t('real_battle.' + k, ja);
+// ★行動選択タイマー(オンライン=本家準拠45秒・右上COMMAND表示。時間切れ=選べる技の先頭を自動選択) 2026-07-10 阿部さん
+const RB_ACT = { t: null, left: 45, turn: -1 };
+function actTimerStop(){ if (RB_ACT.t){ clearInterval(RB_ACT.t); RB_ACT.t = null; } const el = $('act-timer'); if (el) el.remove(); }
+function actTimerRender(){
+  let el = $('act-timer');
+  if (!el){
+    const mv = $('moves'); if (!mv || mv.style.display === 'none') return;
+    el = document.createElement('div'); el.id = 'act-timer';
+    mv.insertBefore(el, mv.querySelector('.mv-top') || mv.firstChild);
+  }
+  el.textContent = 'COMMAND ' + RB_ACT.left;
+  el.classList.toggle('hurry', RB_ACT.left <= 10);
+}
+function actTimerStart(){
+  if (!(window.RB_ONLINE && RB_ONLINE.started) || gameOver || RB_ONLINE.myAction) return;
+  if (RB_ACT.turn !== turnNo){ RB_ACT.turn = turnNo; RB_ACT.left = 45; }   // 同ターン内の再描画ではリセットしない
+  actTimerRender();
+  if (RB_ACT.t) return;
+  RB_ACT.t = setInterval(() => {
+    if (!(window.RB_ONLINE && RB_ONLINE.started) || gameOver || RB_ONLINE.myAction){ actTimerStop(); return; }
+    RB_ACT.left = Math.max(0, RB_ACT.left - 1);
+    actTimerRender();
+    if (RB_ACT.left <= 0){
+      actTimerStop();
+      const b = document.querySelector('#moves button[data-i]:not([disabled])');   // わるあがき含む先頭の選べる技
+      if (b) b.click();
+    }
+  }, 1000);
+}
+// 選出中の編集をデバウンスして相手へ再送(saveTeamから呼ばれる)
+let _teamResendT = null;
+function onlineScheduleTeamResend(){
+  if (_teamResendT) clearTimeout(_teamResendT);
+  _teamResendT = setTimeout(() => {
+    _teamResendT = null;
+    try { if (window.RBOnline && RB_ONLINE.active && !RB_ONLINE.started) RBOnline.sendTeam(); } catch (e) {}
+  }, 400);
+}
 
 // --- スクリプト遅延ロード(オンラインを使う人だけsupabase-jsを読む) ---
 function _loadScript(src){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
@@ -3384,6 +3532,8 @@ function onlineSendTeamOnce(){
 }
 function onlineApplyOppTeam(d){
   if (!d || !d.val) return;
+  RB_ONLINE.applying = true;   // 適用中のsaveTeamで自分のチームを再送しない(相互再送ループ防止)
+  try {
   if (d.size && d.size !== teamSize){ teamSize = d.size; renderTeamRows(); }   // オンライン専用=セレクタ無し(6固定同士なら通常起きない)
   selfIds().forEach((sid, i) => {
     const oid = oppIds()[i]; if (!oid) return;
@@ -3402,6 +3552,7 @@ function onlineApplyOppTeam(d){
   });
   const li = selfIds().indexOf(d.lead || 's1');
   leadSlot.opp = oppIds()[li >= 0 ? li : 0];
+  } finally { RB_ONLINE.applying = false; }
   RB_ONLINE.oppTeamReady = true;
   onlineMaybeReady();
 }
@@ -3419,54 +3570,117 @@ function onlineMaybeReady(){
 }
 
 // ===== 見せ合い選出(お互いの6体を見て、自分の3体を順番つきでえらぶ) 2026-07-10 阿部さん仕様 =====
-const PICK = { mine: null, theirs: null, sel: [] };
+const PICK = { mine: null, theirs: null, sel: [], timer: null, left: 90 };
+// ★選出画面=本家チャンピオンズ/リアルバトル編成準拠の3カラム(2026-07-10 阿部さん)
+//   左=自分6体(クリック=選出トグル①②③+中央に詳細)/中央=#sel-detailノードを移動して技/特性/持ち物/性格/能力値を編集可
+//   (編集はspeciesMemo+チーム保存に共通反映・相手へ自動再送信=ロックステップ整合)/右=相手6体(スプライト+性別+タイプのみ・
+//   持ち物/順番/ステータス非公開・クリック不可)/選出タイマー90秒(本家1:30)=時間切れは先頭から自動選出
+function pickCellMine(id){
+  const nm = slotVal[id]; if (!nm) return '';
+  const p = S.pokeByName(nm); if (!p) return '';
+  const g = slotGender[id];
+  const gHtml = g && g !== '—' ? `<span class="pk-g ${g === '♂' ? 'm' : 'f'}">${g}</span>` : '';
+  const tps = [p.type1, p.type2].filter(Boolean).map(t =>
+    `<span class="pk-t" style="background:${(S.typeColors()[t]) || '#3a4660'}">${tTypeName(t)}</span>`).join('');
+  return `<button type="button" class="pk-cell mine" data-id="${id}">` +
+    `<img src="${pokeIconSrc(nm)}" onerror="this.remove()">` +
+    `<span class="pk-inf"><span class="pk-nm">${tPokeName(nm)}${gHtml}</span><span class="pk-ts">${tps}</span></span>` +
+    `<span class="pk-badge"></span></button>`;
+}
+function pickCellOpp(id){
+  const nm = slotVal[id]; if (!nm) return '';
+  const p = S.pokeByName(nm); if (!p) return '';
+  const g = slotGender[id];
+  const gHtml = g && g !== '—' ? `<span class="pk-g ${g === '♂' ? 'm' : 'f'}">${g}</span>` : '';
+  const tps = [p.type1, p.type2].filter(Boolean).map(t =>
+    `<span class="pk-t" style="background:${(S.typeColors()[t]) || '#3a4660'}">${tTypeName(t)}</span>`).join('');
+  return `<div class="pk-cell opp"><img src="${pokeIconSrc(nm)}" onerror="this.remove()">` +
+    `<span class="pk-inf"><span class="pk-ts">${gHtml}${tps}</span></span></div>`;
+}
+function pickTimerLabel(){
+  const m = Math.floor(PICK.left / 60), ss = String(PICK.left % 60).padStart(2, '0');
+  return `${m}:${ss}`;
+}
+function refreshPickBadges(ov){
+  ov.querySelectorAll('#pick-mine .pk-cell').forEach(c => {
+    const n = PICK.sel.indexOf(c.dataset.id);
+    const b = c.querySelector('.pk-badge');
+    b.style.display = n >= 0 ? 'flex' : 'none';
+    if (n >= 0) b.textContent = n + 1;
+    c.classList.toggle('picked', n >= 0);
+    c.classList.toggle('selected', selectedSlot === c.dataset.id);
+  });
+  const ok = $('pick-ok');
+  if (ok){ ok.disabled = PICK.sel.length !== 3; ok.style.opacity = PICK.sel.length === 3 ? '1' : '.5'; }
+}
+function confirmPick(){
+  if (PICK.sel.length !== 3 || PICK.mine) return;
+  PICK.mine = PICK.sel.map(id => selfIds().indexOf(id));   // 0..5のindexで送る(相手側でoppIdsに写す)
+  RBOnline.sendPick(PICK.mine);
+  const ok = $('pick-ok'); if (ok) ok.style.display = 'none';
+  const st = $('pick-status'); if (st) st.textContent = I18N.t('online_battle.pick_wait', '相手の せんしゅつを まっています…');
+  onlineTryStartPicked();
+}
+function closePickScreen(){
+  if (PICK.timer){ clearInterval(PICK.timer); PICK.timer = null; }
+  // 中央パネル(#sel-detail)を編成画面へ返す
+  const det = $('sel-detail'), center = $('setup-center');
+  if (det && center && det.parentElement !== center) center.insertBefore(det, $('sprite-src-btns'));
+  const ps = $('pick-screen'); if (ps) ps.remove();
+}
 function showPickScreen(){
   if ($('pick-screen') || RB_ONLINE.started) return;
   const ov = document.createElement('div');
   ov.id = 'pick-screen';
-  ov.style.cssText = 'position:fixed;inset:0;z-index:500;background:#2a2350ee;display:flex;align-items:center;justify-content:center;padding:16px';
-  const cell = (id, mine) => {
-    const nm = slotVal[id]; if (!nm) return '';
-    const p = S.pokeByName(nm); if (!p) return '';
-    const tps = [p.type1, p.type2].filter(Boolean).map(t => `<span style="background:${(S.typeColors()[t])||'#3a4660'};color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin:0 1px">${tTypeName(t)}</span>`).join('');
-    return `<div class="pk-cell" data-id="${id}" style="background:#fff;border:3px solid ${mine ? '#6a5be0' : '#c04070'};border-radius:12px;padding:6px;text-align:center;cursor:${mine ? 'pointer' : 'default'};position:relative;width:104px">` +
-      `<img src="${pokeIconSrc(nm)}" style="height:52px" onerror="this.remove()"><div style="font-size:11px;font-weight:800;color:#2d263c">${tPokeName(nm)}</div><div>${tps}</div>` +
-      `<span class="pk-badge" style="display:none;position:absolute;top:-8px;left:-8px;background:#e0564a;color:#fff;font-weight:900;border-radius:50%;width:24px;height:24px;line-height:24px;font-size:13px"></span></div>`;
-  };
-  ov.innerHTML = `<div style="background:#f6f5fc;border-radius:16px;padding:18px;max-width:820px;max-height:92vh;overflow:auto">` +
-    `<h3 style="margin:0 0 10px;color:#4638ae">${I18N.t('online_battle.pick_title', 'せんしゅつ! じぶんの3体を じゅんばんに えらんでね')}</h3>` +
-    `<div style="display:flex;gap:18px;flex-wrap:wrap">` +
-    `<div><div style="font-weight:900;color:#4638ae;margin-bottom:6px">${I18N.t('online_battle.team_header', 'バトルチーム')}</div><div id="pick-mine" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${selfIds().map(id => cell(id, true)).join('')}</div></div>` +
-    `<div><div style="font-weight:900;color:#c04070;margin-bottom:6px">${I18N.t('online_battle.pick_opp', 'あいての チーム')}</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${oppIds().map(id => cell(id, false)).join('')}</div></div></div>` +
-    `<div style="margin-top:14px;display:flex;gap:10px;align-items:center">` +
-    `<button id="pick-ok" disabled style="padding:10px 26px;border-radius:20px;border:0;background:#6a5be0;color:#fff;font-weight:900;font-size:15px;cursor:pointer;opacity:.5">⚔ ${I18N.t('online_battle.pick_confirm', 'けってい')}</button>` +
-    `<span id="pick-status" style="color:#6a5fa0;font-weight:700"></span></div></div>`;
+  ov.innerHTML = `<div class="pk-card">` +
+    `<div class="pk-head"><h3>${I18N.t('online_battle.pick_title', 'せんしゅつ! じぶんの3体を じゅんばんに えらんでね')}</h3>` +
+    `<span id="pick-timer">⏱ 1:30</span></div>` +
+    `<div class="pk-cols">` +
+    `<div class="pk-col"><div class="pk-colhead self">${I18N.t('online_battle.team_header', 'バトルチーム')}</div>` +
+    `<div id="pick-mine">${selfIds().map(pickCellMine).join('')}</div>` +
+    `<button id="pick-ok" disabled>⚔️ ${I18N.t('online_battle.pick_confirm', 'けってい')}</button>` +
+    `<span id="pick-status"></span></div>` +
+    `<div class="pk-col" id="pick-center"></div>` +
+    `<div class="pk-col"><div class="pk-colhead opp">${I18N.t('online_battle.pick_opp', 'あいての チーム')}</div>` +
+    `<div id="pick-opp">${oppIds().map(pickCellOpp).join('')}</div></div>` +
+    `</div></div>`;
   document.body.appendChild(ov);
   onlineStatus('');
+  // 中央=編成画面の詳細パネル(#sel-detail)をノードごと移動して流用(編集がそのままチーム/ビルド記憶に保存される)
+  const det = $('sel-detail');
+  if (det) $('pick-center').appendChild(det);
+  setSelectedSlot(selfIds()[0]);
   ov.querySelectorAll('#pick-mine .pk-cell').forEach(el => el.addEventListener('click', () => {
+    SE.select();
     const id = el.dataset.id;
-    const i = PICK.sel.indexOf(id);
-    if (i >= 0) PICK.sel.splice(i, 1);
-    else if (PICK.sel.length < 3) PICK.sel.push(id);
-    ov.querySelectorAll('#pick-mine .pk-cell').forEach(c => {
-      const n = PICK.sel.indexOf(c.dataset.id);
-      const b = c.querySelector('.pk-badge');
-      b.style.display = n >= 0 ? 'block' : 'none';
-      if (n >= 0) b.textContent = n + 1;
-      c.style.outline = n >= 0 ? '3px solid #e0564a' : 'none';
-    });
-    const ok = $('pick-ok');
-    ok.disabled = PICK.sel.length !== 3;
-    ok.style.opacity = PICK.sel.length === 3 ? '1' : '.5';
+    setSelectedSlot(id);   // 中央に詳細(編集可)
+    if (!PICK.mine){        // けってい前だけ選出トグル(もう一度押すと外れる)
+      const i = PICK.sel.indexOf(id);
+      if (i >= 0) PICK.sel.splice(i, 1);
+      else if (PICK.sel.length < 3) PICK.sel.push(id);
+    }
+    refreshPickBadges(ov);
   }));
-  $('pick-ok').addEventListener('click', () => {
-    if (PICK.sel.length !== 3 || PICK.mine) return;
-    PICK.mine = PICK.sel.map(id => selfIds().indexOf(id));   // 0..5のindexで送る(相手側でoppIdsに写す)
-    RBOnline.sendPick(PICK.mine);
-    $('pick-ok').style.display = 'none';
-    $('pick-status').textContent = I18N.t('online_battle.pick_wait', '相手の せんしゅつを まっています…');
-    onlineTryStartPicked();
-  });
+  refreshPickBadges(ov);
+  $('pick-ok').addEventListener('click', () => { SE.select(); confirmPick(); });
+  // ★選出タイマー90秒(本家1:30)。0で先頭から自動補完して自動けってい(相手側は相手のタイマーが強制)
+  PICK.left = 90;
+  $('pick-timer').textContent = '⏱ ' + pickTimerLabel();
+  PICK.timer = setInterval(() => {
+    PICK.left = Math.max(0, PICK.left - 1);
+    const t = $('pick-timer');
+    if (t){ t.textContent = '⏱ ' + pickTimerLabel(); t.classList.toggle('hurry', PICK.left <= 10); }
+    if (PICK.left <= 0){
+      clearInterval(PICK.timer); PICK.timer = null;
+      if (!PICK.mine){
+        selfIds().forEach(id => { if (PICK.sel.length < 3 && slotVal[id] && !PICK.sel.includes(id)) PICK.sel.push(id); });
+        refreshPickBadges(ov);
+        const st = $('pick-status');
+        if (st) st.textContent = I18N.t('online_battle.pick_timeout_auto', 'じかんぎれ！ のこりは じどうで えらんだよ');
+        confirmPick();
+      }
+    }
+  }, 1000);
 }
 function onlineTryStartPicked(){
   if (!PICK.mine || PICK.theirs == null || RB_ONLINE.started) return;
@@ -3474,7 +3688,7 @@ function onlineTryStartPicked(){
     self: PICK.mine.map(i => selfIds()[i]),
     opp:  PICK.theirs.map(i => oppIds()[i]),
   };
-  const ps = $('pick-screen'); if (ps) ps.remove();
+  closePickScreen();
   if (RBOnline.role === 'host'){
     const seed = (Math.random() * 0x7fffffff) | 0;
     RBOnline.sendStart(seed);
@@ -3491,8 +3705,15 @@ function onlineHostStart(){
   onlineBegin(seed);
 }
 function onlineBegin(seed){
-  const _ps = $('pick-screen'); if (_ps) _ps.remove();   // 選出画面を閉じる(ゲストのstart受信経路)
+  closePickScreen();   // 選出画面を閉じる(ゲストのstart受信経路・#sel-detailを編成画面へ返す)
   RB_ONLINE.started = true; RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null;
+  // ★控えバー=両サイド6体全部を表示(どの3体を選出したかは相手に分からない=本家仕様・2026-07-10 阿部さん)。
+  // 相手側は「場に出て初めて判明」: revealed(開示済み)に入るまで全マス均一表示。ひんしは✕。
+  RB_ONLINE.fullTeams = {
+    self: selfIds().map(id => slotVal[id]).filter(Boolean),
+    opp:  oppIds().map(id => slotVal[id]).filter(Boolean),
+  };
+  RB_ONLINE.revealed = { self: new Set(), opp: new Set() };
   document.body.classList.add('online-names');   // statbarに両者の名前プレートを出す(2026-07-10 阿部さん)
   try {
     $('pb-self').dataset.pname = '🧑 ' + (LOBBY.name || I18N.t('real_battle.pbox_label_self', 'じぶん'));
@@ -3531,6 +3752,7 @@ function onlineSubmitAction(moveIdx){
       ? { kind: 'switch', idx: self.switchChoice, mega: false }
       : { kind: 'lock', mega: false });
   RBOnline.sendAction(RB_ONLINE.myAction);
+  actTimerStop();   // 行動確定=COMMANDタイマー停止
   pushMsgLine(_olT('online_wait_action', '相手の こうどうを まっています…'));
   $('msgbox').style.display = 'block';
   if (RBOnline.role === 'host') onlineHostTryGo();
