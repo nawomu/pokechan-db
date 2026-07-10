@@ -201,11 +201,12 @@
   // (=同期タイミングのレースでも取りこぼさない)。部屋は既存のconnect(P1と同じ仕組み)。
   // ===================================================================
   var lobby = { channel: null, joined: false, name: null, last: null, rev: 0 };
-  function lobbyJoin(displayName, onState) {
+  // observeOnly=true なら presence購読だけ(在室一覧が見える)。あとから lobbyTrack(name) で入室(自分が載る)
+  function lobbyJoin(displayName, onState, observeOnly) {
     ensureClient();
     state.myId = myClientId();
-    lobby.name = String(displayName || 'Player').slice(0, 10);   // 上限10文字(Switchプロフィール準拠・国際名も収まる)
-    if (lobby.channel) return Promise.resolve();
+    if (!observeOnly) lobby.name = String(displayName || 'Player').slice(0, 10);   // 上限10文字(Switchプロフィール準拠)
+    if (lobby.channel) return observeOnly ? Promise.resolve() : lobbyTrack(displayName);
     var ch = sb.channel('pcham_lobby', { config: { presence: { key: state.myId } } });
     lobby.channel = ch;
     ch.on('presence', { event: 'sync' }, function () {
@@ -225,14 +226,21 @@
     return new Promise(function (resolve, reject) {
       ch.subscribe(function (status) {
         if (status === 'SUBSCRIBED') {
-          lobby.rev = 1;
-          lobby.last = { id: state.myId, name: lobby.name, st: 'idle', since: Date.now(), rev: 1 };
-          ch.track(lobby.last).then(function () { lobby.joined = true; resolve(); });
+          if (observeOnly) { resolve(); return; }   // 観戦=購読のみ(trackしない)
+          lobbyTrack(lobby.name).then(resolve, reject);
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           reject(new Error('lobby ' + status));
         }
       });
     });
+  }
+  // 入室(presenceに自分を載せる)。観戦中(購読済み)からの昇格にも使う
+  function lobbyTrack(displayName) {
+    if (!lobby.channel) return Promise.reject(new Error('lobby not subscribed'));
+    if (displayName) lobby.name = String(displayName).slice(0, 10);
+    lobby.rev = Math.max(1, lobby.rev + 1);
+    lobby.last = { id: state.myId, name: lobby.name || 'Player', st: 'idle', since: Date.now(), rev: lobby.rev };
+    return lobby.channel.track(lobby.last).then(function () { lobby.joined = true; });
   }
   function lobbySet(fields) {   // st/since/partner/room の部分更新(トラック載せ替え)
     if (!lobby.channel || !lobby.joined) { try { console.warn('[lobby] set skipped (not joined)'); } catch (e) {} return; }
@@ -263,6 +271,7 @@
     resign: function () { send('resign', {}); },
     ping: function () { send('ping', {}); },
     lobbyJoin: lobbyJoin,
+    lobbyTrack: lobbyTrack,
     lobbySet: lobbySet,
     lobbyLeave: lobbyLeave,
     get lobbyState() { try { return lobby.channel ? lobby.channel.presenceState() : null; } catch (e) { return null; } },

@@ -3472,7 +3472,7 @@ async function onlineEnsureLibs(){
   if (window.RBOnline) return;
   await _loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
   await _loadScript('online/supabase-config.js?v=20260710');
-  await _loadScript('online/rb_online.js?v=20260710b');
+  await _loadScript('online/rb_online.js?v=20260710e');
 }
 
 // --- 接続と役割 ---
@@ -3524,6 +3524,7 @@ function onlineLeave(){
   RB_ONLINE.myTeamSent = false; RB_ONLINE.oppTeamReady = false; RB_ONLINE.myReadySent = false; RB_ONLINE.peerReady = false;
   PICK.mine = null; PICK.theirs = null; PICK.sel = [];
   LOBBY.joined = false; LOBBY.ready = false; LOBBY.matching = false; LOBBY.members = [];
+  _observing = false;   // 復帰失敗時も入口の観戦購読が張り直せるように
   if (LOBBY.roomTimer){ clearTimeout(LOBBY.roomTimer); LOBBY.roomTimer = null; }
   // ★バトルが終わったらロビー入室状態に自動復帰(2026-07-10 阿部さん)。名前未入力なら入口へ
   if (LOBBY.name){
@@ -3870,8 +3871,11 @@ function renderLobbyEntry(){
   const wrap = $('online-panel'); if (!wrap) return;
   let savedName = '';
   try { savedName = localStorage.getItem('rb_online_name') || ''; } catch (e) {}
+  // ★入る前からロビーの中身(在室者・人数)が見える(観戦=presence購読のみ・2026-07-10 阿部さん)
   wrap.innerHTML =
-    `<div id="online-open" style="font-size:20px;font-weight:900;color:#4638ae;display:flex;align-items:center;gap:8px">🌐 ${esc2(_olT('online_lobby_title', 'オンラインたいせん(ロビー)'))}</div>` +
+    `<div id="online-open" style="font-size:20px;font-weight:900;color:#4638ae;display:flex;align-items:center;gap:8px">🌐 ${esc2(_olT('online_lobby_title', 'オンラインたいせん(ロビー)'))}` +
+    ` <span style="font-size:14px;color:#2e8b57;font-weight:800">🟢 <span id="lobby-count">…</span></span></div>` +
+    `<div id="lobby-waitlist" style="width:100%;max-width:560px;background:#ffffff88;border:1px solid #c9c3e6;border-radius:12px;padding:8px 12px;font-size:13px;color:#4a4470;min-height:34px"></div>` +
     `<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
     `<input id="online-name" placeholder="${esc2(_olT('online_name_ph', 'なまえ'))}" maxlength="10" value="${esc2(savedName)}" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:130px;font-size:15px">` +
     `<button id="lobby-enter" type="button" style="padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_lobby_enter', 'ロビーに はいる'))}</button>` +
@@ -3879,6 +3883,18 @@ function renderLobbyEntry(){
     `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>`;
   $('lobby-enter').addEventListener('click', lobbyEnter);
   $('online-name').addEventListener('keydown', e => { if (e.key === 'Enter') lobbyEnter(); });
+  renderLobbyList();
+  lobbyObserve();   // 一覧を購読(まだ自分は載らない)
+}
+// 観戦購読(1回だけ)。失敗しても静かに(入室時に再試行される)
+let _observing = false;
+async function lobbyObserve(){
+  if (_observing || LOBBY.joined) return;
+  _observing = true;
+  try {
+    await onlineEnsureLibs();
+    await RBOnline.lobbyJoin(null, lobbyOnState, true);
+  } catch (e) { _observing = false; }
 }
 async function lobbyEnter(){
   const name = ($('online-name') && $('online-name').value || '').trim();
@@ -3888,7 +3904,7 @@ async function lobbyEnter(){
   onlineStatus(_olT('online_connecting', 'せつぞくちゅう…'));
   try {
     await onlineEnsureLibs();
-    await RBOnline.lobbyJoin(name, lobbyOnState);
+    await RBOnline.lobbyJoin(name, lobbyOnState, false);   // 観戦済みなら内部でlobbyTrack昇格
     LOBBY.joined = true;
     renderLobbyMain();
   } catch (e){ onlineStatus(_olT('online_lobby_error', 'ロビーに はいれなかった: ') + (e && e.message || '')); }
@@ -3925,6 +3941,7 @@ function renderLobbyMain(){
 }
 function lobbyExit(){
   try { RBOnline.lobbyLeave(); } catch (e) {}
+  _observing = false;   // 入口に戻ったら観戦購読を張り直す(チャンネルは破棄済み)
   LOBBY.joined = false; LOBBY.ready = false; LOBBY.matching = false; LOBBY.members = [];
   if (LOBBY.roomTimer){ clearTimeout(LOBBY.roomTimer); LOBBY.roomTimer = null; }
   renderLobbyEntry();
@@ -3936,7 +3953,7 @@ function lobbyOnState(members){
 }
 function myLobbyId(){ try { return localStorage.getItem('rb_online_cid'); } catch (e){ return null; } }
 function renderLobbyList(){
-  const cnt = $('lobby-count'); if (cnt) cnt.textContent = String(LOBBY.members.length || 1);
+  const cnt = $('lobby-count'); if (cnt) cnt.textContent = String(LOBBY.members.length);
   const list = $('lobby-waitlist'); if (!list) return;
   const me = myLobbyId();
   // ロビーの「全員」を表示(2026-07-10 阿部さん)。自分が先頭・つぎに対戦待ち(⚔️)・あとは在室(🟢)。
@@ -3945,13 +3962,13 @@ function renderLobbyList(){
   const members = LOBBY.members.slice().sort((a, b) =>
     (a.id === me ? -1 : b.id === me ? 1 : 0) ||
     (rank(a) - rank(b)) || (a.since - b.since) || (a.id < b.id ? -1 : 1));
-  // ランプ色(2026-07-10 阿部さん): 🔴=たいせん待ち(誰でも申し込める)/🟢=あいことばで友だち待ち/🔵=準備中(見てるだけ)
+  // ランプ色(2026-07-10 阿部さん): 🔴=たいせん待ち(誰でも申し込める)/🟡=あいことばで友だち待ち/🟢=在室(右上の人数と同色)
   const chip = m => {
     const isMe = m.id === me;
-    const lamp = m.st === 'waiting' ? '🔴 ' : m.st === 'code' ? '🟢 ' : '🔵 ';
+    const lamp = m.st === 'waiting' ? '🔴 ' : m.st === 'code' ? '🟡 ' : '🟢 ';   // 在室=🟢(右上の人数と同色)・あいことば待ち=🟡・たいせん待ち=🔴
     const you = isMe ? esc2(_olT('online_lobby_you', '(あなた)')) : '';
     const base = `${lamp}${esc2(m.name || '?')}${you}`;
-    if (!isMe && m.st === 'waiting')
+    if (!isMe && m.st === 'waiting' && LOBBY.joined)
       return `<button type="button" class="lobby-vs" data-id="${esc2(m.id)}">${base}<span class="lv-go">▶ ${esc2(_olT('online_lobby_vs', 'たいせんする'))}</span></button>`;
     const title = m.st === 'code' ? ` title="${esc2(_olT('online_lobby_code_mark', 'あいことばで まってるよ'))}"` : '';
     return `<span class="lobby-chip${m.st === 'waiting' ? ' waiting' : ''}"${title}>${base}</span>`;
