@@ -164,6 +164,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   background:#fff;border:2px solid #c9c3e6;border-radius:12px;cursor:pointer;font-family:inherit;font-size:10.5px;font-weight:800;color:#4a4470;
   transition:border-color .12s,box-shadow .12s}
 #sprite-src-btns .ssb-row button img{width:46px;height:46px;object-fit:contain}
+#sprite-src-btns .ssb-row button[data-v="api"] img{width:60px;height:60px;margin:-7px}/* ドット素材は透過余白が大きい→拡大して見た目のサイズ感を揃える・負マージンで枠高は不変(2026-07-10 阿部さん) */
 #sprite-src-btns .ssb-row button:hover{border-color:#8a82c8}
 #sprite-src-btns .ssb-row button.on{border-color:#7ac142;box-shadow:0 0 0 3px #d4f54277;background:#f4ffdd}
 /* ロビーの在室チップ+挑戦ボタン(2026-07-10 阿部さん) */
@@ -759,9 +760,9 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
         <div id="sprite-src-btns">
           <div class="ssb-label" data-i18n="real_battle.sprite_src_label">キャラ画像:</div>
           <div class="ssb-row">
-            <button type="button" data-v="original"><img src="images/sim/%E3%83%94%E3%82%AB%E3%83%81%E3%83%A5%E3%82%A6.svg" alt=""><span data-i18n="real_battle.sprite_src_original_short">うちの絵</span></button>
-            <button type="button" data-v="api"><img src="images/poke/25.png" alt="" style="image-rendering:pixelated"><span data-i18n="real_battle.sprite_src_api_short">公式ドット</span></button>
-            <button type="button" data-v="home"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/25.png" alt=""><span data-i18n="real_battle.sprite_src_home_short">公式3D</span></button>
+            <button type="button" data-v="original"><img src="images/sim/%E3%83%94%E3%82%AB%E3%83%81%E3%83%A5%E3%82%A6.svg" alt=""><span data-i18n="real_battle.sprite_src_original_short">自作</span></button>
+            <button type="button" data-v="api"><img src="images/poke/25.png" alt="" style="image-rendering:pixelated"><span data-i18n="real_battle.sprite_src_api_short">PokeAPI</span></button>
+            <button type="button" data-v="home"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/25.png" alt=""><span data-i18n="real_battle.sprite_src_home_short">PokeAPI 3D</span></button>
           </div>
         </div>
       </div>
@@ -788,7 +789,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
     <!-- CH: 能力値エディタは中央パネル(#sel-detail)下段に一体化(2026-07-05 阿部さん「くっつけて・名前/適用なし」) -->
     <!-- キャラ画像セレクトは中央列の見本つき3ボタン(#sprite-src-btns)に移設(2026-07-10 阿部さん) -->
     <div class="btns">
-      <button class="sub" id="btn-random" data-i18n="real_battle.btn_random">🎲 おまかせ編成</button>
+      <!-- おまかせ編成ボタンは撤去(2026-07-10 阿部さん)。randomize()は初回チーム生成用に内部で残す -->
       <button id="btn-start" data-i18n="real_battle.btn_start">▶ バトルスタート！</button>
     </div>
   </div>
@@ -879,8 +880,8 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
       <!-- CH: キャラ画像ソース切替(設定はバトル中も変更可・即反映) -->
       <span><span data-i18n="real_battle.sprite_src_label">キャラ画像:</span> <select id="sprite-src">
         <option value="original" data-i18n="real_battle.sprite_src_original">うちのオリジナル絵</option>
-        <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
-        <option value="home" data-i18n="real_battle.sprite_src_home">公式3D(Pokémon HOME)</option>
+        <option value="api" data-i18n="real_battle.sprite_src_api">ドット絵(PokeAPI)</option>
+        <option value="home" data-i18n="real_battle.sprite_src_home">3D(Pokémon HOME)</option>
       </select> <span id="sprite-credit" style="display:none;font-size:10px"><a href="https://pokeapi.co/" style="color:#9ec5ff" data-i18n="real_battle.sprite_credit">画像出典: PokéAPI</a></span></span>
       <input type="range" id="snd-vol" min="0" max="1" step="0.05" title="🔊" style="margin-left:auto;width:110px;accent-color:#5a4fc4">
       <button id="snd-toggle" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
@@ -1934,7 +1935,6 @@ function initSetup(){
   if (loadHandoff()) { /* ビルダーから来た自分チームを反映済み */ }
   else if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
   setSelectedSlot('s1');   // CH: 初期選択=自分の先頭(中央に詳細パネルを出す)
-  $('btn-random').addEventListener('click', () => { randomize(); setSelectedSlot(selectedSlot); });
   $('btn-start').addEventListener('click', startBattle);
   // CH: msgboxが盤面内に入ったので、盤面のどこをタップしてもメッセージ送りできるようにする
   // (busy時のみ作用。msgbox個別のリスナーは二重発火するため廃止)
