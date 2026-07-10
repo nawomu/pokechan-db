@@ -845,7 +845,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710b" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1618,9 +1618,12 @@ function initSetup(){
   $('c-fight').addEventListener('click', () => { SE.select(); showMoves(); });
   $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
   $('c-run').addEventListener('click', () => {
-    // オンライン中の「にげる」=降参を相手へ通知して切断(2026-07-10)
-    if (window.RB_ONLINE && RB_ONLINE.started && !gameOver && window.RBOnline){ try { RBOnline.resign(); } catch(e) {} }
-    if (window.RB_ONLINE && RB_ONLINE.active) onlineLeave();
+    // オンライン中の「にげる」=降参を相手へ通知して切断(2026-07-10)。
+    // 切断はresign送信が流れるまで少し待つ(即disconnectだとメッセージが届かず相手が待ち続ける)
+    if (window.RB_ONLINE && RB_ONLINE.active){
+      if (RB_ONLINE.started && !gameOver && window.RBOnline){ try { RBOnline.resign(); } catch(e) {} }
+      setTimeout(() => onlineLeave(), 600);
+    }
     bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
   });
   // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
@@ -2125,7 +2128,13 @@ function showMoves(){
     let eff = 1, immune = false;
     try {
       const r = S.calcDamage('self', 'opp', m);
-      if (r && r.immune){ immune = true; }
+      // ばけのかわ(disguiseBlock)は「タイプ相性のこうかなし」ではない(技は当たって皮が剥がれる)
+      // →素のタイプ相性で帯を出す(2026-07-10 阿部さん発見・ポケモンWiki準拠)
+      if (r && r.immune && r.disguiseBlock){
+        const e2 = S.typeEffPreview ? S.typeEffPreview(m.type, oppTypes) : 1;
+        eff = e2; immune = (e2 === 0);
+      }
+      else if (r && r.immune){ immune = true; }
       else if (r && r.chips){
         const c = r.chips.find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
         eff = c ? c.factor : 1;
@@ -2400,7 +2409,10 @@ function toggleWeaknessPanel(btn){
     try {
       const dummy = { name: '__weakness', type: atkType, category: '物理', power: 40 };
       const r = S.calcDamage ? S.calcDamage('self', 'opp', dummy) : null;
-      if (r && r.immune){ immune = true; }
+      if (r && r.immune && r.disguiseBlock){   // ばけのかわ=タイプ無効ではない→素の相性で表示(2026-07-10)
+        eff = S.typeEffPreview ? S.typeEffPreview(atkType, defTypes) : 1; immune = (eff === 0);
+      }
+      else if (r && r.immune){ immune = true; }
       else if (r && Array.isArray(r.chips)){
         const c = r.chips.find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
         if (c) eff = c.factor;

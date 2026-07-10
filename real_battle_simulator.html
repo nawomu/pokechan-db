@@ -2354,7 +2354,7 @@ function fireEntryAbility(s){
     applyIllusion(st);   // イリュージョン(段138): 登場時に化ける(バトル開始)
     const other = s === 'self' ? sides.opp : sides.self;
     const ab = sideAbility(st);
-    st.disguise = (ab === 'ばけのかわ');   // ばけのかわ: 場に出たら分身(皮)をまとう。この設定が無いとreal_battleで発動しなかった(2026-07-07 阿部さん)
+    st.disguise = (ab === 'ばけのかわ') && st.disguiseBroken !== true;   // ばけのかわ: 場に出たら皮をまとう(剥がれ済みなら戻らない=Wiki準拠)
     if (ab === 'いかく' && other.poke){
       other.rank.atk = Math.max(-6, (other.rank.atk||0) - 1);
       log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
@@ -2682,6 +2682,7 @@ function phaseDealDamage(atkSide, defSide, move){
     if (result.disguiseBlock){
       const _d = sides[defSide];
       _d.disguise = false;
+      _d.disguiseBroken = true;   // 一度剥がれたらバトル中は戻らない(交代で退場しても再生しない=Wiki準拠)
       const _m = realStat(_d, 'hp');
       const _chip = Math.max(1, Math.floor(_m / 8));
       _d.currentHp = Math.max(0, (_d.currentHp == null ? _m : _d.currentHp) - _chip);
@@ -5093,7 +5094,7 @@ function startChargeIfNeeded(st, mv, releasing){
 //   ※かげふみは実装済み(cannotSwitchReason)。フェアリーロック/ありじごく/じりょく/きれいなぬけがら は未実装(park)。
 // ・壁(リフレクター等)・ねがいごと・みらいよちは「場(サイド)」に残る=ポケモンに付いて行かない。
 // 控えエントリ = ポケモンと一緒に移動する永続フィールドだけの入れ物
-const BENCH_FIELDS = ['poke','effort','natureIdx','ability','gender','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem','megaBase','heroAnnounce','pp'];
+const BENCH_FIELDS = ['poke','effort','natureIdx','ability','gender','item','moves','currentHp','fainted','status','sleepTurns','lastConsumedItem','megaBase','heroAnnounce','pp','disguiseBroken'];
 function packBenchEntry(st){
   const e = {};
   for (const k of BENCH_FIELDS) e[k] = st[k];
@@ -5398,6 +5399,9 @@ function attemptSwitch(sideKey, benchIdx, opts){
   st.bench[benchIdx] = packBenchEntry(st);   // 出ていたポケモンの永続フィールドを控え枠へ
   clearVolatilesOnSwitch(st);
   for (const k of BENCH_FIELDS) st[k] = entry[k];
+  // ばけのかわ: 入場者ごとに張り直す(ミミッキュ以外に前の皮が残るバグ根治=2026-07-10 阿部さん発見)。
+  // 一度剥がれたら(disguiseBroken)バトル中は戻らない(ポケモンWiki準拠)
+  st.disguise = (sideAbility(st) === 'ばけのかわ') && st.disguiseBroken !== true;
   if (st.currentHp == null) st.currentHp = realStat(st, 'hp');   // 未設定=満タンで出す
   st.switchedThisTurn = true;
   // 拘束(くろいまなざし等)は「かけた側が場を離れるまで」→ この側のポケモンが離れたので相手の拘束を解除
