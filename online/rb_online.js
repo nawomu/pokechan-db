@@ -93,7 +93,7 @@
     return new Promise(function (resolve, reject) {
       channel.subscribe(function (status) {
         if (status === 'SUBSCRIBED') {
-          channel.track({ id: state.myId, name: displayName || 'Player', online_at: Date.now() })
+          channel.track({ id: state.myId, name: String(displayName || 'Player').slice(0, 10), online_at: Date.now() })
             .then(function () {
               state.connected = true;
               log(t('online_connected_waiting', '接続しました。相手を待っています…'));
@@ -204,7 +204,7 @@
   function lobbyJoin(displayName, onState) {
     ensureClient();
     state.myId = myClientId();
-    lobby.name = String(displayName || 'Player').slice(0, 12);
+    lobby.name = String(displayName || 'Player').slice(0, 10);   // 上限10文字(Switchプロフィール準拠・国際名も収まる)
     if (lobby.channel) return Promise.resolve();
     var ch = sb.channel('pcham_lobby', { config: { presence: { key: state.myId } } });
     lobby.channel = ch;
