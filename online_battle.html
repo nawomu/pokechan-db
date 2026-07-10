@@ -3449,8 +3449,8 @@ function explosionFx(){
   o.type = 'sine';
   o.frequency.setValueAtTime(60, t);
   o.frequency.exponentialRampToValueAtTime(30, t + 0.5);
-  og.gain.setValueAtTime(0.35, t);
-  og.gain.exponentialRampToValueAtTime(0.001, t + 0.5);
+  og.gain.setValueAtTime(0.15, t);   // 低音強すぎFB(2026-07-11 阿部さん)→0.35から半分以下に
+  og.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
   o.connect(og); og.connect(dest()); o.start(t); o.stop(t + 0.55);
 }
 // 効果音いろいろ
@@ -3974,16 +3974,16 @@ function koSlowFx(koSide){
   SE.explosion();    // Wave4 B級⑥: 爆発音(大技/KO限定=KOは無条件)
   const bg = $('field-backdrop');
   const anims = _koCollectAnims(koSide);
-  anims.forEach(a => { try { a.pause(); } catch (e) {} });   // ヒットストップ120ms
-  if (bg){ bg.style.transition = 'filter .12s linear'; bg.style.filter = 'brightness(.5)'; }
+  anims.forEach(a => { try { a.pause(); } catch (e) {} });   // ヒットストップ200ms(じっくりFB=2026-07-11 阿部さん)
+  if (bg){ bg.style.transition = 'filter .18s linear'; bg.style.filter = 'brightness(.5)'; }
   setTimeout(() => {
-    anims.forEach(a => { try { a.playbackRate = 0.25; a.play(); } catch (e) {} });   // 250ms スロー(0.25x)
+    anims.forEach(a => { try { a.playbackRate = 0.15; a.play(); } catch (e) {} });   // 600ms スロー(0.15x=もっとゆっくり)
     setTimeout(() => {
       anims.forEach(a => { try { a.playbackRate = 1; } catch (e) {} });   // 復帰
-      if (bg){ bg.style.transition = 'filter .15s linear'; bg.style.filter = ''; }
-    }, 250);
-  }, 120);
-  return 470;   // dur=120(ヒットストップ)+250(スロー)+100(復帰バッファ)。次拍と衝突させない(_koFxDelayでホールド)
+      if (bg){ bg.style.transition = 'filter .25s linear'; bg.style.filter = ''; }
+    }, 600);
+  }, 200);
+  return 950;   // dur=200(タメ)+600(スロー)+150(復帰バッファ)。次拍と衝突させない(_koFxDelayでホールド)
 }
 // ===== Wave3: 壁パネル(リフレクター/ひかりのかべ/オーロラベール・設計 v2 ③-2章) =====
 // 持続は#f-側へのclass付与でCSS管理(::before/::afterの平行四辺形パネル)=renderAll等の再描画に耐える。
