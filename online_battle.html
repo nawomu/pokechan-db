@@ -86,6 +86,9 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #box-grid button.used:hover{opacity:.8;border-color:#ff7a63;box-shadow:0 0 0 2px #ff7a6355}
 /* ビルド済み(技/能力値等をいじって記憶あり)=黄色っぽいマスで判別(2026-07-10 阿部さん) */
 #box-grid button.memo{background:linear-gradient(150deg,#8a7a2e,#6a5a22);border-color:#e8c84a}
+/* メガのすがた=見るだけ(暗いマス・2026-07-10 阿部さん) */
+#box-grid button.megaview{background:linear-gradient(150deg,#241f38,#171226);border-color:#4a4466;filter:saturate(.8)}
+#box-grid button.megaview:hover{border-color:#8a7fd0;box-shadow:0 0 0 2px #8a7fd055}
 .team-row{display:flex;flex-direction:column;gap:8px}
 .team-row .tlabel{display:none}
 /* 本家風カプセル: 自分=青紫/相手=クリムゾン・選択中=黄緑発光カーソル
@@ -236,6 +239,10 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #choice-modal .cm-head .cm-search{flex:1 1 auto;margin-bottom:0;padding:6px 10px;font-size:13px}
 #choice-modal .cm-search{width:100%;background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:9px;
   padding:8px 11px;font-size:14px;margin-bottom:8px;font-family:inherit;box-sizing:border-box}
+#choice-modal .cm-inforow{display:block;width:100%;box-sizing:border-box;background:#efeafd;border:1px dashed #b9b2de;border-radius:9px;
+  padding:7px 10px;margin:3px 0;font-size:12.5px;color:#5a5480;text-align:left}
+#choice-modal .cm-inforow b{color:#6a4fc4}
+#choice-modal .cm-inforow span{display:block;font-weight:400;font-size:11.5px;margin-top:2px}
 #choice-modal .cm-x{margin-left:auto;background:none;border:none;font-size:16px;color:#8a82c8;cursor:pointer}
 #choice-modal .cm-body{overflow-y:auto;display:flex;flex-direction:column;gap:5px}
 #choice-modal .cm-group{font-size:10.5px;font-weight:800;color:#7a72b0;margin:7px 2px 1px}/* 見出しは控えめに(2026-07-07 阿部さん) */
@@ -1280,6 +1287,8 @@ function openChoiceModal(title, groups, onPick, anchor){
     (g.label ? `<div class="cm-group" data-cmgroup="${gi}">${g.label}</div>` : '') +
     g.rows.map(r => {
       const searchStr = ((r.name || '') + ' ' + (r.desc || '')).replace(/<[^>]*>/g, '');
+      if (r.info)   // 情報行(選択不可): メガシンカ後の特性表示など(2026-07-10 阿部さん)
+        return `<div class="cm-inforow" data-cmg="${gi}" data-search="${searchStr.replace(/"/g, '')}"><b>${r.icon || ''}${r.name}</b>${r.desc ? `<span>${r.desc}</span>` : ''}</div>`;
       return `<button class="cm-row${r.selected ? ' sel' : ''}" data-k="${r.key}" data-cmg="${gi}" data-search="${searchStr.replace(/"/g, '')}"><b>${r.icon || ''}${r.name}</b>${r.desc ? `<span>${r.desc}</span>` : ''}</button>`;
     }).join('')
   ).join('');
@@ -1437,9 +1446,15 @@ function renderSelDetail(id){
   // 特性/持ち物=説明つきモーダルで選ぶ(2026-07-06 阿部さん・ビルダー方式)
   box.querySelector('.sd-ab').addEventListener('click', e => {
     SE.select();
+    // メガシンカ後の特性も情報表示(選べない=バトル中にストーンで変身するだけ・2026-07-10 阿部さん)
+    const megas = S.pokeList().filter(x => x.mega && x.name.replace(/[XY]$/, '') === 'メガ' + nm);
+    const megaGroup = megas.length ? [{ label: I18N.t('online_battle.mega_ab_group', '⬡ メガシンカすると(バトル中に変身)'),
+      rows: megas.map(mp => ({ info: true, key: '',
+        name: `${tPokeName(mp.name)}: ${(window.I18N && I18N.ability) ? I18N.ability(mp.ab1) : mp.ab1}`,
+        desc: (window.I18N && I18N.abilityDesc && I18N.abilityDesc(mp.ab1)) || (S.abilityDescJa ? S.abilityDescJa(mp.ab1) : '') || '' })) }] : [];
     openChoiceModal(I18N.t('real_battle.sel_ability','特性'),
       [{label:'', rows:abilities.map(a => ({key:a, name:(window.I18N && I18N.ability) ? I18N.ability(a) : a,
-        desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (S.abilityDescJa ? S.abilityDescJa(a) : '') || '', selected:a === curAb}))}],
+        desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (S.abilityDescJa ? S.abilityDescJa(a) : '') || '', selected:a === curAb}))}].concat(megaGroup),
       k => { slotAbility[id] = k; saveTeam(); renderSelDetail(id); }, e.currentTarget);
   });
   box.querySelector('.sd-item').addEventListener('click', e => {
@@ -1796,7 +1811,8 @@ function renderBoxTypeChips(){
 function renderBoxGrid(query){
   // 自分チームに既にいる種=薄く表示(タップでその枠を空けるトグル=本家挙動・2026-07-10)
   const used = new Set(selfIds().map(id => slotVal[id]).filter(Boolean));
-  let pokes = S.pokeList().filter(isPickable);
+  // メガのすがたも「見るだけ」で載せる(選べない=暗いマス・クリックで能力値/特性の確認だけ=2026-07-10 阿部さん)
+  let pokes = S.pokeList().filter(p => isPickable(p) || p.mega);
   if (boxType) pokes = pokes.filter(p => p.type1 === boxType || p.type2 === boxType);
   if (boxSort === 'name'){   // 公式風ソート: ずかん順(既定)/なまえ順(表示言語で)
     const lang = (window.I18N && I18N.lang) || 'ja';
@@ -1812,14 +1828,16 @@ function renderBoxGrid(query){
     const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${enc}.svg`;
     const isUsed = used.has(p.name);
     const isCustom = !!(speciesMemo[p.name] && speciesMemo[p.name].custom);   // ビルド済み=黄色系マスで判別(2026-07-10 阿部さん)
+    const isMega = !!p.mega;   // メガ=見るだけ(暗いマス)
     const dispName = tPokeName(p.name);
-    return `<button data-n="${p.name}" class="${isUsed ? 'used' : ''}${isCustom ? ' memo' : ''}" title="${dispName}">` +
+    return `<button data-n="${p.name}" class="${isUsed ? 'used' : ''}${isCustom && !isMega ? ' memo' : ''}${isMega ? ' megaview' : ''}" title="${dispName}">` +
       `<img loading="lazy" src="${src}" onerror="this.remove()">` +
       `<span class="bx-name">${dispName}</span></button>`;
   }).join('') || `<div style="grid-column:1/-1;color:#ffffffaa;padding:10px;text-align:center">${I18N.t('real_battle.poke_not_found','みつからない…')}</div>`;
   $('box-grid').querySelectorAll('button[data-n]').forEach(b => b.addEventListener('click', () => {
     SE.select();
     const nm = b.dataset.n;
+    if (b.classList.contains('megaview')){ previewBoxPoke(nm); return; }   // メガ=確認だけ(チームに入れられない)
     // チームに居る種をボックスでタップ: いきなり外さず、そのスロットを選択(中央にステータス)+
     // 「ボックスに もどす？」確認(ただ見たかっただけでも困らない=2026-07-10 阿部さんFB)
     const inSlot = selfIds().find(id => slotVal[id] === nm);
@@ -1927,10 +1945,15 @@ function previewBoxPoke(name){
 }
 function decorateBoxPreview(){
   const box = $('sel-detail'); if (!box || !previewName) return;
+  const _pv = S.pokeByName(previewName);
+  const isMega = !!(_pv && _pv.mega);
   const bar = document.createElement('div');
   bar.className = 'sd-bxbar';
-  bar.textContent = '📦 ' + I18N.t('online_battle.box_preview_note', 'ボックスのポケモン(チームがい)。ここで きめた ビルドは きおくされるよ');
+  bar.textContent = isMega
+    ? '⬡ ' + I18N.t('online_battle.mega_view_note', 'メガシンカのすがた。バトル中に メガストーンで 変身するよ(チームには いれられない)')
+    : '📦 ' + I18N.t('online_battle.box_preview_note', 'ボックスのポケモン(チームがい)。ここで きめた ビルドは きおくされるよ');
   box.insertBefore(bar, box.firstChild);
+  if (isMega) return;   // メガは確認だけ=投入ボタンを出さない
   const btn = document.createElement('button');
   btn.className = 'sd-bxadd';
   btn.textContent = I18N.t('online_battle.box_preview_add', '⚔ えらんでいる わくに いれる');
