@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>オンライン対戦 接続テスト</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="rb_online.js"></script>
+<style>body{font-family:system-ui;padding:20px;max-width:520px}
+#log{background:#111;color:#0f0;padding:10px;height:200px;overflow:auto;font-size:12px;white-space:pre-wrap}
+input,button{font-size:15px;padding:6px 10px;margin:3px}</style>
+</head>
+<body>
+<h3>オンライン対戦 接続テスト</h3>
+<div>合言葉: <input id="code" value="test123"> 名前: <input id="name" value="P"></div>
+<button id="connect">接続</button>
+<button id="sendtest">テスト送信</button>
+<div>状態: <b id="role">-</b> / 相手: <b id="peer">いない</b></div>
+<div id="log"></div>
+<script>
+function L(m){ const el=document.getElementById('log'); el.textContent += m+'\n'; el.scrollTop=el.scrollHeight; }
+window.RBHooks = {
+  onStatus: L,
+  onPeerJoined: (role,name)=>{ document.getElementById('peer').textContent = name||'相手'; L('★相手入室: '+(name||'')); },
+  onPeerLeft: ()=>{ document.getElementById('peer').textContent='いない'; },
+  // テスト用: 相手の action メッセージを受けたら表示
+  onOpponentAction: (a)=>L('◀受信 action: '+JSON.stringify(a)),
+  playTurnResult: (log)=>L('◀受信 turnResult: '+JSON.stringify(log)),
+};
+document.getElementById('connect').onclick = async ()=>{
+  try{
+    const r = await RBOnline.connect(document.getElementById('code').value, document.getElementById('name').value);
+    document.getElementById('role').textContent = r.role;
+    L('接続OK role='+r.role);
+  }catch(e){ L('接続エラー: '+e.message); }
+};
+document.getElementById('sendtest').onclick = ()=>{
+  RBOnline.sendAction({kind:'move', moveIdx: Math.floor(Math.random()*4)});
+  L('▶送信 テストaction');
+};
+window.__testReady = true;
+</script>
+</body>
+</html>

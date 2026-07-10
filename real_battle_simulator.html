@@ -2231,17 +2231,22 @@ function effectiveSpeed(st){
 // 行動順を判定: 優先度 → (せんせいのつめ20%) → 素早さ (トリックルームで逆転) → 同速ランダム
 // 戻り値: 先手の side を 'self' or 'opp' で返す
 let quickClawSide = null;   // このターンせんせいのつめが発動した側(先攻理由ログ用)
+// ★オンライン(ロックステップ)用の正準サイド順(2026-07-10): 両クライアントは自分/相手が鏡写しなので、
+// 「側に依存する乱数消費」(同速タイ・つめ両ロール等)は __rbCanonFirst(=ホスト側)基準に固定して結果を一致させる。
+// 未設定(オフライン)は従来どおり self 優先=挙動不変
+function canonSides(){ return (typeof window !== 'undefined' && window.__rbCanonFirst === 'opp') ? ['opp', 'self'] : ['self', 'opp']; }
 function decideOrder(move1, move2){
   quickClawSide = null;
   const p1 = movePriority(move1, sides.self);
   const p2 = movePriority(move2, sides.opp);
   if (p1 !== p2) return p1 > p2 ? 'self' : 'opp';
+  const [cf, cs] = canonSides();
   // せんせいのつめ: 同じ優先度の中で20%の確率で先に動ける(両者発動なら通常判定。items_database宣言)
   if (!env.magicRoom){
-    const c1 = sides.self.item === 'quick_claw' && Math.random() < 0.2;
-    const c2 = sides.opp.item === 'quick_claw' && Math.random() < 0.2;
+    const c1 = sides[cf].item === 'quick_claw' && Math.random() < 0.2;
+    const c2 = sides[cs].item === 'quick_claw' && Math.random() < 0.2;
     if (c1 !== c2){
-      quickClawSide = c1 ? 'self' : 'opp';
+      quickClawSide = c1 ? cf : cs;
       return quickClawSide;
     }
   }
@@ -2251,7 +2256,7 @@ function decideOrder(move1, move2){
     const selfFaster = env.trickRoom ? (s1 < s2) : (s1 > s2);
     return selfFaster ? 'self' : 'opp';
   }
-  return Math.random() < 0.5 ? 'self' : 'opp';
+  return Math.random() < 0.5 ? cf : cs;
 }
 
 // ターン状態 (HP・付与済みステータス等の揮発状態を sides に注入)
@@ -6156,8 +6161,8 @@ function runTurn(){
   }
   // ターン終了処理
   phaseEndOfTurnSlip();
-  // 遅延状態(あくび等)のカウントダウン→発動
-  ['self','opp'].forEach(s => {
+  // 遅延状態(あくび等)のカウントダウン→発動(ねむりターンのロールがあるので正準順=オンラインの状態一致)
+  canonSides().forEach(s => {
     const st = sides[s];
     if (st.pendingStatus){
       if (st.pendingStatus.turns > 0) st.pendingStatus.turns--;
@@ -6534,8 +6539,10 @@ function runTurn(){
     const _liveIdxs = (st.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
     // リアルバトル(real_battle.html)のフック: 自分側の死に出しはターン後にプレイヤーがUIで選ぶ
     // (生きてる控えが2匹以上の時だけ保留。1匹ならそのまま自動で出す)
-    if (s === 'self' && _liveIdxs.length >= 2 &&
-        typeof window !== 'undefined' && window.__rbDeferFaintReplace){ return; }
+    // オンライン対戦(2026-07-10): 相手側も人間なので __rbDeferFaintReplaceOpp で同様に保留できる
+    if (_liveIdxs.length >= 2 && typeof window !== 'undefined' &&
+        ((s === 'self' && window.__rbDeferFaintReplace) ||
+         (s === 'opp' && window.__rbDeferFaintReplaceOpp))){ return; }
     const liveIdx = _liveIdxs.length ? chooseSwitchTarget(s, _liveIdxs) : -1;
     if (liveIdx < 0) return;
     attemptSwitch(s, liveIdx, {ignoreTrapping: true, faintReplace: true});

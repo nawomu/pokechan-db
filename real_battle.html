@@ -845,7 +845,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260708" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1617,7 +1617,12 @@ function initSetup(){
   document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') advanceMsg(); });
   $('c-fight').addEventListener('click', () => { SE.select(); showMoves(); });
   $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
-  $('c-run').addEventListener('click', () => { bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
+  $('c-run').addEventListener('click', () => {
+    // オンライン中の「にげる」=降参を相手へ通知して切断(2026-07-10)
+    if (window.RB_ONLINE && RB_ONLINE.started && !gameOver && window.RBOnline){ try { RBOnline.resign(); } catch(e) {} }
+    if (window.RB_ONLINE && RB_ONLINE.active) onlineLeave();
+    bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+  });
   // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
   $('btn-exit').addEventListener('click', e => { e.stopPropagation(); bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
   // 音オン/オフ(設定はlocalStorageに保存)
@@ -2258,6 +2263,16 @@ function showParty(forced){
     SE.select();
     if (b.classList.contains('back')){ showMoves(); return; }
     if (forced){
+      // ★オンライン: 選択を相手へ送り、両者の選択が揃ってから決められた順で適用(ロックステップ)
+      if (window.RB_ONLINE && RB_ONLINE.started && RB_ONLINE.pendingRep){
+        pt.style.display = 'none';
+        const _seed = (Math.random() * 0x7fffffff) | 0;
+        RB_ONLINE.pendingRep.selfIdx = +b.dataset.i;
+        RB_ONLINE.pendingRep.selfSeed = _seed;
+        RBOnline.sendFaintReplace(+b.dataset.i, _seed);
+        onlineTryApplyReplaces();
+        return;
+      }
       // 死に出し: その場で交代を実行してログを再生(ターン消費なし=実機どおり)
       pt.style.display = 'none';
       logPos = S.battleLog.length;
@@ -2434,12 +2449,18 @@ function doTurn(moveIdx){
   ['cmd', 'moves', 'party', 'watch-panel', 'weak-panel', 'mv-tip'].forEach(id => { $(id).style.display = 'none'; });
   const self = S.sides.self, opp = S.sides.opp;
   if (moveIdx != null) self.selectedMoveIdx = moveIdx;
+  // ★オンライン対戦(ロックステップ): 自分の行動を相手へ送り、両者の行動+共有シードが揃ってから実行
+  if (window.RB_ONLINE && RB_ONLINE.started){ onlineSubmitAction(moveIdx); return; }
   // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
   if (opp.poke && !opp.fainted){
     const act = S.aiChooseAction ? S.aiChooseAction('opp') : {type: 'move', index: S.aiChooseMove('opp')};
     if (act.type === 'switch') opp.switchChoice = act.index;
     else opp.selectedMoveIdx = act.index;
   }
+  executeTurn();
+}
+// 1ターンを実行して差分ログを再生する本体(オフライン=doTurnから直接/オンライン=両者の行動が揃ってから)
+function executeTurn(){
   // 演出用HPスナップショット: 交代で出た瞬間のバーは「攻撃前のHP」を出す
   // (renderAllはエンジン最終状態=被弾後を入れてしまい、登場した瞬間に減って見えていた=2026-07-06 阿部さん)
   window._hpSnap = {};
@@ -2889,8 +2910,15 @@ function endOfTurn(){
         () => { showCmd(true);
           // 通常フローは技リスト1画面完結=たたかう/ポケモンは勝敗後のメニューに出さない(2026-07-06 阿部さん)
           ['c-fight','c-party'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });
-          if (won) showNextOpponentButton();
+          // オンライン戦は「つぎの相手(AI連戦)」を出さない=もう一度は接続し直し(P1仕様)
+          if (won && !(window.RB_ONLINE && RB_ONLINE.started)) showNextOpponentButton();
+          if (window.RB_ONLINE && RB_ONLINE.started) onlineAfterGame();
         });
+    return;
+  }
+  // ★オンライン: 死に出しは両者が各自選ぶ(相手側はエンジンが保留済み=__rbDeferFaintReplaceOpp)
+  if (window.RB_ONLINE && RB_ONLINE.started && (S.sides.self.fainted || S.sides.opp.fainted)){
+    onlineBeginFaintReplace();
     return;
   }
   // 死に出し(自分側): エンジンが保留した交代先をプレイヤーが選ぶ(控え2匹以上の時だけ保留される)
@@ -2905,6 +2933,260 @@ function endOfTurn(){
   turnNo++; updateTurnBadge();   // 次のターンへ(Showdown風 Turnバッジ)
   showActionUI();   // 実機準拠=技リスト直行
 }
+
+// ===================================================================
+// ★オンライン対戦 P1(合言葉ルーム・Supabase・ロックステップ方式) 2026-07-10
+// 方式: 両者ともエンジンを回すが「両者の行動+共有乱数シード」で完全に同じ計算をする。
+//   - simテスト群がシード付きMath.randomで決定論なのを流用(mulberry32=tools/_sim_engine.jsと同じ)
+//   - ホスト=シードの発行者。ゲストの行動を受けてから turnGo(自分の行動+シード) を配る
+//   - 死に出しは各自が選び、選択+シードを共有して「ホスト側から」の固定順で両者が適用
+// 通信: online/rb_online.js(Supabase Realtime)。設計=設計_オンライン対戦_2026-07-07.md
+// ===================================================================
+const RB_ONLINE = { active: false, started: false, myAction: null, oppAction: null,
+  myTeamSent: false, oppTeamReady: false, myReadySent: false, peerReady: false, pendingRep: null, repInbox: null };
+// ★constはwindowプロパティにならない(window.RB_ONLINEはundefined)ため、ガードで参照できるよう明示的に載せる
+window.RB_ONLINE = RB_ONLINE;
+function m32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function engineWin(){ try { return $('engine-frame').contentWindow; } catch (e){ return null; } }
+function onlineSeedEngine(seed){ const w = engineWin(); if (w) w.Math.random = m32(seed >>> 0); }
+function onlineStatus(txt){ const el = $('online-status'); if (el) el.textContent = txt || ''; }
+const _olT = (k, ja) => I18N.t('real_battle.' + k, ja);
+
+// --- スクリプト遅延ロード(オンラインを使う人だけsupabase-jsを読む) ---
+function _loadScript(src){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
+async function onlineEnsureLibs(){
+  if (window.RBOnline) return;
+  await _loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+  await _loadScript('online/supabase-config.js?v=20260710');
+  await _loadScript('online/rb_online.js?v=20260710');
+}
+
+// --- 接続と役割 ---
+async function onlineConnect(){
+  const room = ($('online-room').value || '').trim();
+  const name = ($('online-name').value || '').trim() || 'Player';
+  if (!room){ onlineStatus(_olT('online_need_room', 'あいことばを いれてね')); return; }
+  onlineStatus(_olT('online_connecting', 'せつぞくちゅう…'));
+  try {
+    await onlineEnsureLibs();
+    window.RBHooks = {
+      getTeamPayload: () => onlineTeamPayload(),
+      onStatus: t => onlineStatus(t),
+      onPeerJoined: () => { onlineSendTeamOnce(); },
+      onPeerLeft: () => { if (RB_ONLINE.started && !gameOver) onlineOppGone(false); else onlineStatus(_olT('online_peer_left', '相手が退出しました')); },
+      applyOpponentTeam: d => onlineApplyOppTeam(d),
+      onOpponentAction: a => { RB_ONLINE.oppAction = a; onlineHostTryGo(); },
+      onTurnGo: (a, seed) => onlineGuestGo(a, seed),
+      onStart: seed => onlineBegin(seed),
+      onFaintReplace: (idx, seed) => { RB_ONLINE.repInbox = { idx: idx, seed: seed }; onlineTryApplyReplaces(); },
+      onPeerReady: () => { RB_ONLINE.peerReady = true; onlineMaybeReady(); },
+      onResign: () => onlineOppGone(true),
+    };
+    await RBOnline.connect(room, name);
+    RB_ONLINE.active = true;
+    $('online-connect').style.display = 'none';
+    if (RBOnline.peerPresent) onlineSendTeamOnce();
+  } catch (e){ onlineStatus(_olT('online_error', 'せつぞくに しっぱいしました: ') + (e && e.message || '')); }
+}
+function onlineLeave(){
+  try { if (window.RBOnline) RBOnline.disconnect(); } catch (e) {}
+  RB_ONLINE.active = false; RB_ONLINE.started = false;
+  RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null; RB_ONLINE.pendingRep = null; RB_ONLINE.repInbox = null;
+  RB_ONLINE.myTeamSent = false; RB_ONLINE.oppTeamReady = false; RB_ONLINE.myReadySent = false; RB_ONLINE.peerReady = false;
+  const c = $('online-connect'); if (c) c.style.display = '';
+  const st = $('online-start'); if (st) st.style.display = 'none';
+  onlineStatus('');
+}
+
+// --- チーム交換(自分のs枠→相手のo枠。saveTeamと同じ形) ---
+function onlineTeamPayload(){
+  const ids = selfIds();
+  const pick = obj => Object.fromEntries(ids.map(id => [id, obj[id]]));
+  return { size: teamSize, lead: leadSlot.self,
+    val: pick(slotVal), item: pick(slotItem), ability: pick(slotAbility), gender: pick(slotGender),
+    nature: pick(slotNature), effort: pick(slotEffort),
+    moves: Object.fromEntries(ids.map(id => [id, (slotMoves[id] || []).map(m => m && m.name)])) };
+}
+function onlineSendTeamOnce(){
+  if (!RB_ONLINE.active || RB_ONLINE.myTeamSent) return;
+  RBOnline.sendTeam();
+  RB_ONLINE.myTeamSent = true;
+  onlineStatus(_olT('online_team_sent', 'チームを送りました。相手のチームを待っています…'));
+  onlineMaybeReady();
+}
+function onlineApplyOppTeam(d){
+  if (!d || !d.val) return;
+  if (d.size && d.size !== teamSize){ teamSize = d.size; $('team-size').value = String(teamSize); renderTeamRows(); }
+  selfIds().forEach((sid, i) => {
+    const oid = oppIds()[i]; if (!oid) return;
+    const nm = d.val[sid]; if (!nm || !S.pokeByName(nm)) return;
+    slotItem[oid] = d.item && d.item[sid] != null ? d.item[sid] : 'mega_stone_any';
+    slotGender[oid] = (d.gender && d.gender[sid]) || genderOfRB(nm);
+    slotNature[oid] = (d.nature && d.nature[sid]) || 'まじめ';
+    slotEffort[oid] = clampEffortRB((d.effort && d.effort[sid]) || {});
+    const poke = S.pokeByName(nm);
+    const abS = d.ability && d.ability[sid];
+    slotAbility[oid] = (abS && [poke.ab1, poke.ab2, poke.ab3].includes(abS)) ? abS : defaultAbilityRB(poke);
+    const all = S.usableMoves(poke);
+    const mvs = ((d.moves && d.moves[sid]) || []).map(n => all.find(m => m.name === n)).filter(Boolean);
+    slotMoves[oid] = mvs.length === 4 ? mvs : autoMoves(poke);
+    setSlot(oid, nm, true);
+  });
+  const li = selfIds().indexOf(d.lead || 's1');
+  leadSlot.opp = oppIds()[li >= 0 ? li : 0];
+  RB_ONLINE.oppTeamReady = true;
+  onlineMaybeReady();
+}
+function onlineMaybeReady(){
+  if (!RB_ONLINE.active || RB_ONLINE.started) return;
+  if (!(RB_ONLINE.myTeamSent && RB_ONLINE.oppTeamReady)) return;
+  // 自分の準備完了を相手へ握手(1回だけ)。ホストは「相手もready」まで開始ボタンを出さない
+  // (readyなしだと、ゲストがチーム適用を終える前にホストが開始できてしまう=別チームで戦うレース)
+  if (!RB_ONLINE.myReadySent){ RB_ONLINE.myReadySent = true; try { RBOnline.sendReady(); } catch (e) {} }
+  if (RBOnline.role === 'host'){
+    if (!RB_ONLINE.peerReady){ onlineStatus(_olT('online_wait_peer_ready', '相手の じゅんびを まっています…')); return; }
+    const btn = $('online-start'); if (btn) btn.style.display = '';
+    onlineStatus(_olT('online_ready_host', 'じゅんびOK! 「たいせん かいし」を おしてね'));
+  } else {
+    onlineStatus(_olT('online_ready_guest', 'じゅんびOK! ホストの かいしを まっています…'));
+  }
+}
+
+// --- 開始(ホストがシードを配る) ---
+function onlineHostStart(){
+  if (!RB_ONLINE.active || RBOnline.role !== 'host' || RB_ONLINE.started) return;
+  const seed = (Math.random() * 0x7fffffff) | 0;
+  RBOnline.sendStart(seed);
+  onlineBegin(seed);
+}
+function onlineBegin(seed){
+  RB_ONLINE.started = true; RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null;
+  RB_ONLINE.pendingRep = null; RB_ONLINE.repInbox = null;
+  const w = engineWin();
+  if (w){
+    w.__rbDeferFaintReplace = true; w.__rbDeferFaintReplaceOpp = true;
+    // 正準サイド=ホスト側(側依存の乱数消費を両クライアントで同じ実体に割り当てる)
+    w.__rbCanonFirst = (RBOnline.role === 'host') ? 'self' : 'opp';
+  }
+  onlineSeedEngine(seed);
+  startBattle();
+}
+function onlineAfterGame(){
+  // 勝敗がついたら再戦は接続し直し(P1)。接続は残すが状態はリセット
+  RB_ONLINE.started = false;
+  onlineStatus(_olT('online_rematch_hint', 'もういちど あそぶには おたがいに「にげる」→ せつぞくし直してね'));
+}
+function onlineOppGone(resigned){
+  if (gameOver) return;
+  gameOver = true; bgmStop(); SE.win(); showResultBanner(true);
+  const ja = resigned ? '相手は こうさんした！ きみの かち！' : '相手が たいせんから 抜けた。きみの かち！';
+  say([lineWithFx(ja)], () => { showCmd(true); ['c-fight', 'c-party'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; }); onlineAfterGame(); });
+}
+
+// --- ターン(ロックステップ) ---
+function onlineSubmitAction(moveIdx){
+  if (RB_ONLINE.myAction) return;   // 二重送信ガード
+  const self = S.sides.self;
+  // moveIdx=null は2通り: ①交代(switchChoiceがセット済み) ②あばれる等のロック継続(エンジンが技を強制)
+  RB_ONLINE.myAction = (moveIdx != null)
+    ? { kind: 'move', idx: moveIdx, mega: !!self.megaChoice }
+    : (self.switchChoice != null
+      ? { kind: 'switch', idx: self.switchChoice, mega: false }
+      : { kind: 'lock', mega: false });
+  RBOnline.sendAction(RB_ONLINE.myAction);
+  pushMsgLine(_olT('online_wait_action', '相手の こうどうを まっています…'));
+  $('msgbox').style.display = 'block';
+  if (RBOnline.role === 'host') onlineHostTryGo();
+}
+function onlineHostTryGo(){
+  if (!RB_ONLINE.started || !window.RBOnline || RBOnline.role !== 'host') return;
+  if (!RB_ONLINE.myAction || !RB_ONLINE.oppAction) return;
+  const seed = (Math.random() * 0x7fffffff) | 0;
+  RBOnline.sendTurnGo(RB_ONLINE.myAction, seed, turnNo);
+  onlineRunTurn(seed);
+}
+function onlineGuestGo(hostAction, seed){
+  if (!RB_ONLINE.started) return;
+  RB_ONLINE.oppAction = hostAction;
+  onlineRunTurn(seed);
+}
+function onlineRunTurn(seed){
+  const opp = S.sides.opp, a = RB_ONLINE.oppAction || {};
+  if (a.kind === 'switch') opp.switchChoice = a.idx;
+  else if (a.kind === 'move' && a.idx != null) opp.selectedMoveIdx = a.idx;
+  // kind:'lock'(あばれる継続等)は何もセットしない=エンジンのロックが技を強制する
+  opp.megaChoice = !!a.mega;
+  RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null;
+  onlineSeedEngine(seed);
+  executeTurn();
+}
+
+// --- 死に出し(各自が選ぶ→両者そろってからホスト側優先の固定順で適用=両クライアントの状態一致) ---
+function onlineBeginFaintReplace(){
+  RB_ONLINE.pendingRep = { needSelf: !!S.sides.self.fainted, needOpp: !!S.sides.opp.fainted,
+    selfIdx: null, selfSeed: null, oppIdx: null, oppSeed: null };
+  if (RB_ONLINE.pendingRep.needSelf){
+    pushMsgLine(`${tPokeName(S.sides.self.poke.name)} ${I18N.t('real_battle.faint_replace_prompt', 'は たおれてしまった… つぎのポケモンを えらんでね')}`);
+    $('msgbox').style.display = 'block';
+    showParty(true);
+    setTimeout(() => { if (S.sides.self.fainted) $('msgbox').style.display = 'none'; }, 2200);
+  } else {
+    pushMsgLine(_olT('online_wait_replace', '相手が つぎのポケモンを えらんでいます…'));
+    $('msgbox').style.display = 'block';
+  }
+  onlineTryApplyReplaces();   // 相手の選択が先に届いていた場合(repInbox)を回収
+}
+function onlineTryApplyReplaces(){
+  const P = RB_ONLINE.pendingRep; if (!P) return;
+  if (P.needOpp && P.oppIdx == null && RB_ONLINE.repInbox){
+    P.oppIdx = RB_ONLINE.repInbox.idx; P.oppSeed = RB_ONLINE.repInbox.seed; RB_ONLINE.repInbox = null;
+  }
+  if (P.needSelf && P.selfIdx == null) return;
+  if (P.needOpp && P.oppIdx == null){
+    pushMsgLine(_olT('online_wait_replace', '相手が つぎのポケモンを えらんでいます…'));
+    $('msgbox').style.display = 'block';
+    return;
+  }
+  RB_ONLINE.pendingRep = null;
+  const mine = P.needSelf ? { side: 'self', idx: P.selfIdx, seed: P.selfSeed } : null;
+  const theirs = P.needOpp ? { side: 'opp', idx: P.oppIdx, seed: P.oppSeed } : null;
+  const order = (window.RBOnline && RBOnline.role === 'host') ? [mine, theirs] : [theirs, mine];
+  logPos = S.battleLog.length;
+  order.filter(Boolean).forEach(r => { onlineSeedEngine(r.seed); S.attemptSwitch(r.side, r.idx, { ignoreTrapping: true, faintReplace: true }); });
+  if (mine){
+    const ff = $('f-self'); if (ff){ ff.classList.remove('recall', 'enter'); ff.classList.add('gone'); }
+    const pb = $('pb-self'); if (pb) pb.style.visibility = 'hidden';
+  }
+  renderAll();
+  const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
+  say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
+}
+
+// --- 選出画面のUI(🌐ボタン+あいことばフォーム) ---
+function onlineInitUI(){
+  if ($('online-panel')) return;
+  const btns = document.querySelector('#setup .btns'); if (!btns) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'online-panel';
+  wrap.style.cssText = 'margin-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px';
+  wrap.innerHTML =
+    `<button id="online-open" type="button" style="padding:8px 14px;border-radius:18px;border:2px solid #6a5be0;background:#fff;color:#4638ae;font-weight:800;cursor:pointer">🌐 ${esc2(_olT('online_button', 'オンラインたいせん(あいことば)'))}</button>` +
+    `<span id="online-form" style="display:none;gap:6px;align-items:center;flex-wrap:wrap">` +
+    `<input id="online-room" placeholder="${esc2(_olT('online_room_ph', 'あいことば'))}" maxlength="24" style="padding:7px 10px;border:1px solid #c9c3e6;border-radius:8px;width:120px">` +
+    `<input id="online-name" placeholder="${esc2(_olT('online_name_ph', 'なまえ'))}" maxlength="12" style="padding:7px 10px;border:1px solid #c9c3e6;border-radius:8px;width:90px">` +
+    `<button id="online-connect" type="button" style="padding:7px 14px;border-radius:16px;border:0;background:#6a5be0;color:#fff;font-weight:800;cursor:pointer">${esc2(_olT('online_connect', 'せつぞく'))}</button>` +
+    `<button id="online-start" type="button" style="display:none;padding:7px 14px;border-radius:16px;border:0;background:#e0564a;color:#fff;font-weight:900;cursor:pointer">⚔ ${esc2(_olT('online_start', 'たいせん かいし'))}</button>` +
+    `<span id="online-status" style="color:#6a5fa0;font-weight:700"></span></span>`;
+  btns.parentNode.insertBefore(wrap, btns.nextSibling);
+  $('online-open').addEventListener('click', () => {
+    const f = $('online-form');
+    f.style.display = f.style.display === 'none' ? 'inline-flex' : 'none';
+  });
+  $('online-connect').addEventListener('click', onlineConnect);
+  $('online-start').addEventListener('click', onlineHostStart);
+}
+function esc2(s){ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+window.addEventListener('load', onlineInitUI);
 </script>
 </body>
 </html>
