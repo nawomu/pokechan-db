@@ -1,0 +1,3352 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title data-i18n="online_battle.page_title">オンラインバトル — PchamDB</title>
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://pchamdb.com/online_battle.html">
+<script defer src="i18n/runtime.js?v=20260705"></script>
+<script src="pokechan_data.js?v=20260705a"></script>
+<script src="battle_log_i18n.js?v=20260706a"></script>
+<script src="sprite_api_ids.js?v=20260706b"></script>
+<style>
+/* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
+*{box-sizing:border-box}
+/* 縦持ち(スマホ幅)は横向き案内を全画面表示=横長の盤面が崩れる前に横向きへ誘導(2026-07-07 阿部さん iPhone対応) */
+#rotate-hint{display:none}
+@media (orientation:portrait) and (max-width:820px){
+  #rotate-hint{display:flex;position:fixed;inset:0;z-index:9999;background:linear-gradient(160deg,#eceafa,#d4d0ec);
+    align-items:center;justify-content:center;text-align:center;padding:24px}
+  #rotate-hint .rh-ico{font-size:64px;animation:rhRot 2s ease-in-out infinite;display:inline-block}
+  #rotate-hint .rh-txt{font-size:20px;font-weight:900;color:#4a4470;margin-top:14px;line-height:1.6}
+  #rotate-hint .rh-txt span{font-size:13px;font-weight:600;color:#6a648c}
+  @keyframes rhRot{0%,55%{transform:rotate(0)}75%,100%{transform:rotate(90deg)}}
+}
+html{overflow-x:hidden}
+body{margin:0;background:linear-gradient(160deg,#eceafa 0%,#dfdcf2 55%,#d4d0ec 100%);color:#3a3552;
+  font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;
+  display:flex;flex-direction:column;align-items:center;min-height:100vh;
+  overflow-x:hidden;max-width:100vw;overscroll-behavior-x:none}/* タップで横にブヨンと動く(横バウンス)を固定=Safariのzoom横オーバーフロー対策(2026-07-07 阿部さん) */
+
+/* CH: 選出3カラム(230+280+230+gap)が760だと#setupの枠を突き破る→820に(2026-07-05 阿部さん「右がはみ出してる」) */
+header{width:100%;max-width:820px;display:flex;justify-content:space-between;align-items:center;padding:10px 14px 0}
+header h1{font-size:15px;margin:0;color:#4a4470}
+header a{color:#58a6ff;font-size:12px;text-decoration:none}
+header .hdr-left{display:flex;align-items:center;gap:8px;min-width:0}
+header .hdr-home{color:#6a5be0;font-size:13px;font-weight:800;white-space:nowrap}
+header .hdr-home:hover{color:#4638ae;text-decoration:underline}
+header .hdr-sep{color:#b9b2de;font-size:12px}
+#game{width:100%;max-width:820px;padding:8px 14px 30px}
+/* バトル中は左右2カラムのぶん横幅を広げる(設定画面は760pxのまま) */
+/* CH: 盤面640(16:9)+ログ460+gap14+余白 = 1150px(2026-07-05 阿部さん「チャンピオンズ実機と同じ縦横比に」) */
+body.in-battle #game,body.in-battle header{max-width:990px}
+
+/* ===== チーム編成 ===== */
+#setup{background:#f6f5fc;border:1px solid #c9c3e6;border-radius:14px;padding:18px;box-shadow:0 6px 18px #6a5be022}
+#setup h2{font-size:14px;margin:0 0 10px;color:#6a5fa0}
+/* ===== CH: 選出画面=本家3カラム(左=自分/中央=詳細/右=相手。2026-07-05 阿部さん) ===== */
+#setup-top{display:flex;gap:16px;align-items:center;margin-bottom:10px;font-size:12px;color:#6a5fa0;flex-wrap:wrap}
+/* 左右カラムは縮められるように(固定230pxだと狭い画面で右カラムが枠外へはみ出す=2026-07-05 阿部さん指摘) */
+#setup-cols{display:grid;grid-template-columns:minmax(170px,230px) minmax(250px,1fr) minmax(170px,230px);gap:14px;margin-bottom:12px;align-items:start}
+.col-title{font-size:12px;font-weight:900;color:#fff;text-align:center;border-radius:12px;padding:3px 0;margin-bottom:8px;
+  transform:skewX(-8deg)}
+.col-title.self{background:linear-gradient(135deg,#4638ae,#6a5be0)}
+.col-title.opp{background:linear-gradient(135deg,#b02458,#d63c78)}
+/* ===== オンライン専用: 人数セレクタ(#setup-top)はHTMLごと廃止(6体固定)・バトルスタートは隠す(2026-07-10) ===== */
+#btn-start{display:none}
+/* 相手列の跡地=常設ボックスパネル(チャンピオンズのボックス風・紫系・角丸)。相手カプセル自体(row-opp)は
+   データ構造(setSlot('o1'..)がinnerHTMLを書ける先)を残すためDOMには置くがdisplay:noneで隠す */
+.col-title.box{background:linear-gradient(135deg,#5a2d9e,#8a4fd6)}
+#box-panel{background:#2c2350;border:1px solid #6a4fc4;border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:6px}
+#box-q{width:100%;box-sizing:border-box;background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;
+  padding:6px 9px;font-size:12px;font-family:inherit}
+#box-typef{display:flex;flex-wrap:wrap;gap:3px}
+#box-typef button{font-size:9.5px;font-weight:800;color:#fff;border-radius:7px;padding:2px 7px;border:1px solid #ffffff44;
+  cursor:pointer;font-family:inherit;opacity:.72;line-height:1.3}
+#box-typef button.on{opacity:1;box-shadow:0 0 0 2px #d4a4ff;border-color:#d4f542}
+#box-typef button.tf-all{background:#5a4fa0}
+#box-grid{max-height:440px;overflow-y:auto;display:grid;grid-template-columns:repeat(2,1fr);gap:6px;padding:2px}
+#box-grid button{background:linear-gradient(150deg,#4a3a8a,#3a2d70);border:1px solid #6a4fc4;border-radius:10px;color:#fff;
+  cursor:pointer;padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10px;font-weight:700;
+  font-family:inherit;transition:border-color .12s,box-shadow .12s}
+#box-grid button img{width:44px;height:44px;object-fit:contain}
+#box-grid .bx-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#box-grid .bx-types{display:flex;gap:2px;flex-wrap:wrap;justify-content:center}
+#box-grid .bx-types span{font-size:7px;font-weight:800;color:#fff;border-radius:5px;padding:1px 4px;border:1px solid #ffffff44}
+#box-grid button:hover:not(.used){border-color:#d4f542;box-shadow:0 0 0 2px #d4f54255}
+#box-grid button.used{opacity:.35;cursor:default;filter:grayscale(.5)}
+.team-row{display:flex;flex-direction:column;gap:8px}
+.team-row .tlabel{display:none}
+/* 本家風カプセル: 自分=青紫/相手=クリムゾン・選択中=黄緑発光カーソル */
+.team-row .slot{position:relative;color:#fff;border:2px solid #ffffff22;border-radius:14px;
+  padding:6px 10px;cursor:pointer;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto auto;
+  column-gap:6px;row-gap:1px;font-size:13px;text-align:left;
+  transform:skewX(-8deg);box-shadow:0 2px 7px #0006;transition:border-color .12s,box-shadow .12s;font-family:inherit;min-height:62px}
+.team-row .slot>*{transform:skewX(8deg)}
+#row-self .slot{background:linear-gradient(135deg,#4638ae,#6a5be0)}
+#row-opp .slot{background:linear-gradient(135deg,#a02150,#d63c78)}
+.team-row .slot:hover{border-color:#d4f542}
+.team-row .slot.selected{border-color:#d4f542;box-shadow:0 0 0 3px #d4f54277,0 2px 7px #0006}
+.team-row .slot img{width:84px;height:84px;object-fit:contain;grid-column:2;grid-row:2/5;justify-self:end;align-self:center;margin:-10px -2px}/* 右列ぜんぶ使って大きく(2026-07-06 阿部さん) */
+.team-row .slot .cap-name{grid-column:1/3;grid-row:1;min-width:0}
+.team-row .slot .cap-mid{display:flex;flex-direction:column;gap:2px;min-width:0;grid-column:1;grid-row:2/4;justify-content:center}
+.team-row .slot .cap-name{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.team-row .slot .cap-item{font-size:12px;color:#ffffffdd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px;font-weight:700}
+.team-row .slot .item-ic{width:18px;height:18px;object-fit:contain;image-rendering:pixelated}
+.team-row .slot .cap-g{margin-left:4px;font-size:11px}
+.team-row .slot .cap-types{min-height:14px}
+.team-row .slot .cap-g.m{color:#8fd0ff}
+.team-row .slot .cap-g.f{color:#ffa9cf}
+.team-row .slot .cap-types{display:flex;gap:3px;margin-top:2px;flex-wrap:nowrap;overflow:hidden}
+.team-row .slot .cap-type{font-size:8px;font-weight:800;color:#fff;border-radius:6px;padding:1px 6px;border:1px solid #ffffff44;white-space:nowrap;flex:0 0 auto}
+/* ボックスボタン=右下に配置(名前を右端までフルに=2026-07-06 阿部さん) */
+.team-row .slot .cap-change{grid-column:1;grid-row:4;justify-self:start;align-self:end;font-size:11.5px;font-weight:800;/* 左寄せに戻す=スプライトに被らない(🔄は残す・2026-07-07 阿部さん) */
+  background:#00000066;border-radius:11px;padding:5px 10px;border:1px solid #ffffff55;white-space:nowrap;line-height:1}
+.team-row .slot .cap-change .cap-swap{font-size:12.5px;margin-left:1px;filter:saturate(1.2)}
+.team-row .slot .cap-change:hover{background:#000000aa;border-color:#d4f542;color:#d4f542}
+/* 初手(先頭)バッジ=名前の右上・self側のみ(2026-07-06 阿部さん) */
+.team-row .slot .cap-lead{grid-column:2;grid-row:1;justify-self:end;align-self:start;font-size:10px;font-weight:800;
+  background:#00000055;border-radius:9px;padding:3px 8px;border:1px solid #ffffff44;white-space:nowrap;line-height:1;color:#ffffffcc}
+.team-row .slot .cap-lead.on{background:linear-gradient(135deg,#c9a227,#e8c84a);color:#3a2c00;border-color:#ffe98a}
+.team-row .slot .cap-lead:hover{border-color:#d4f542;color:#d4f542}
+.team-row .slot .cap-lead.on:hover{color:#3a2c00}
+/* 中央=選択中ポケモンの詳細パネル(本家の能力タブ風) */
+#sel-detail{background:linear-gradient(150deg,#41369fee 0%,#5d4fd6dd 100%);border:1px solid #ffffff26;border-radius:16px;
+  padding:14px;color:#fff;min-height:280px;box-shadow:0 4px 14px #0007;transition:background .25s}
+/* 相手スロット選択中=相手カプセルと同じクリムゾン系に切替(2026-07-05 阿部さん) */
+#sel-detail.opp{background:linear-gradient(150deg,#96204dee 0%,#d63c78dd 100%)}
+#sel-detail .sd-empty{color:#ffffffaa;text-align:center;padding:60px 0}
+#sel-detail .sd-head{display:flex;gap:12px;align-items:center;margin-bottom:8px}
+#sel-detail .sd-head img{width:96px;height:96px;object-fit:contain;margin:-8px 0}
+#sel-detail .sd-head strong{font-size:17px;display:block;line-height:1.25;min-height:2.5em;overflow:hidden;
+  display:flex;align-items:center}/* 2行分を常時確保=名前の折返しでパネル全体がズレない(2026-07-06 阿部さん) */
+#sel-detail .sd-type{display:inline-block;font-size:10px;font-weight:800;color:#fff;border-radius:9px;padding:2px 9px;
+  margin:4px 4px 0 0;box-shadow:0 1px 2px #0007;border:1px solid #ffffff55}
+/* 特性/もちもの/性格の変更セレクト(2026-07-05 阿部さん「持ち物と特性もクリックで変更できたら」) */
+#sel-detail .sd-row select,#sel-detail .sd-ev select,#sel-detail button.sd-pick{background:#00000042;color:#fff;border:1px solid #ffffff33;border-radius:8px;
+  padding:2px 8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+#sel-detail button.sd-pick:hover{border-color:#d4f542}
+#sel-detail .sd-ev-top .sd-nature{flex:1 1 auto;min-width:0;text-align:left;overflow:hidden;white-space:nowrap}
+#sel-detail .sd-row select{max-width:62%;text-align:right}
+#sel-detail .sd-row select:hover,#sel-detail .sd-ev select:hover{border-color:#d4f542}
+#sel-detail .sd-row select option,#sel-detail .sd-ev select option{color:#e6edf3;background:#141927;font-weight:400}
+#sel-detail .sd-moves{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+#sel-detail .sd-move{position:relative;padding:6px 44px 6px 12px;border-radius:16px;border:2px solid #ffffff33;color:#fff;
+  text-align:left;font-size:12.5px;font-weight:800;cursor:pointer;font-family:inherit;box-shadow:0 2px 6px #0005;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#sel-detail .sd-move:hover{border-color:#d4f542}
+#sel-detail .sd-move .t-pill{display:inline-block;font-size:9px;padding:1px 7px;border-radius:8px;margin-right:6px;border:1px solid #ffffff55}
+#sel-detail .sd-move .sd-pp{position:absolute;right:12px;top:6px;font-style:italic;font-weight:900;font-size:12px}
+#sel-detail .sd-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;background:transparent;
+  padding:1px 2px;margin-top:6px;gap:8px}/* 二重枠をやめて一重に=薄い外箱を廃止(2026-07-07 阿部さん) */
+#sel-detail .sd-row span{color:#ffffffbb}
+/* 3カラムは横向きでは維持(iPhone横=844≒デスクトップ838で見やすい)。縦積みは縦持ちのみ(縦持ちは横向き案内が出る) */
+@media(max-width:880px) and (orientation:portrait){
+  #setup-cols{grid-template-columns:1fr}
+  #setup-center{order:3}
+}
+/* 共通選択モーダル(ライトラベンダー・説明つき) */
+#choice-modal{position:fixed;inset:0;background:#0006;display:none;z-index:60}
+#choice-modal .cm-box{position:fixed;background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:14px;
+  width:min(94vw,600px);max-height:90vh;display:flex;flex-direction:column;padding:12px 14px;box-shadow:0 14px 40px #00000066}
+#choice-modal .cm-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+#choice-modal .cm-title{font-weight:800;font-size:15px;color:#4a4470;flex:0 0 auto}
+#choice-modal .cm-head .cm-search{flex:1 1 auto;margin-bottom:0;padding:6px 10px;font-size:13px}
+#choice-modal .cm-search{width:100%;background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:9px;
+  padding:8px 11px;font-size:14px;margin-bottom:8px;font-family:inherit;box-sizing:border-box}
+#choice-modal .cm-x{margin-left:auto;background:none;border:none;font-size:16px;color:#8a82c8;cursor:pointer}
+#choice-modal .cm-body{overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+#choice-modal .cm-group{font-size:10.5px;font-weight:800;color:#7a72b0;margin:7px 2px 1px}/* 見出しは控えめに(2026-07-07 阿部さん) */
+#choice-modal .cm-row{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:9px;color:#3a3552;cursor:pointer;
+  padding:7px 10px;text-align:left;font-size:12px;display:flex;flex-direction:row;align-items:center;gap:10px;font-family:inherit}
+#choice-modal .cm-row b{font-size:14px;font-weight:900;flex:0 0 auto;min-width:118px;display:flex;align-items:center;gap:5px}/* 名前は主役=大きく(2026-07-07 阿部さん) */
+#choice-modal .cm-row b .item-ic{width:20px;height:20px;object-fit:contain;image-rendering:pixelated;flex:0 0 auto}
+/* 性格マトリクス(本家踏襲): 行=上がる▲・列=下がる▼・対角=補正なし */
+#choice-modal .cm-matrix{display:grid;grid-template-columns:auto repeat(5,1fr);gap:4px;padding:2px;min-width:470px}
+#choice-modal .cm-mh,#choice-modal .cm-ml,#choice-modal .cm-mcorner{font-size:10px;font-weight:800;display:flex;
+  align-items:center;justify-content:center;gap:2px;border-radius:8px;padding:5px 4px;color:#fff}
+#choice-modal .cm-mh{background:linear-gradient(135deg,#5a4fc4,#7b6ff0)}
+#choice-modal .cm-ml{background:linear-gradient(135deg,#4638ae,#5d4fd6);padding:5px 7px}
+#choice-modal .cm-mcorner{background:#b9b2de55;color:#5a5478}
+#choice-modal .cm-matrix .up{color:#ff9c9c;font-size:8px}
+#choice-modal .cm-matrix .dn{color:#bfe0ff;font-size:8px}
+#choice-modal .cm-mcorner .up{color:#e0576b}#choice-modal .cm-mcorner .dn{color:#4a7ec0}
+#choice-modal .cm-cell{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:8px;padding:8px 2px;
+  font-size:11.5px;font-weight:800;color:#3a3552;cursor:pointer;font-family:inherit;white-space:nowrap;overflow:hidden}
+#choice-modal .cm-cell:hover{border-color:#8ec00a}
+#choice-modal .cm-cell.sel{background:#c9f04c;border:2px solid #7ba800;color:#2c3600;padding:7px 1px}
+#choice-modal .cm-row span{font-size:11.5px;color:#6a6488;line-height:1.4;flex:1 1 auto}/* 説明は補足=控えめ・名前より小さく(2026-07-07 阿部さん) */
+#choice-modal .cm-row:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
+#choice-modal .cm-row.sel{border-color:#5a4fc4;box-shadow:0 0 0 2px #b9e34d}
+/* ポケモン検索モーダル */
+#poke-picker{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
+#poke-picker .pp-box{background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:14px;width:100%;max-width:720px;
+  max-height:84vh;display:flex;flex-direction:column;padding:14px;box-shadow:0 14px 40px #00000055}
+.pp-head{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:14px;color:#4a4470}
+.pp-head b{font-size:15px;color:#5a4fc4}
+.pp-head select{margin-left:auto;background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;padding:4px 8px;font-size:12px}
+/* タイプ絞り込みチップ(2026-07-06 阿部さん) */
+#pp-typef{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0 2px}
+#pp-typef button{font-size:10.5px;font-weight:800;color:#fff;border-radius:8px;padding:3px 9px;border:1px solid #ffffff44;
+  cursor:pointer;font-family:inherit;opacity:.72;line-height:1.3}
+#pp-typef button.on{opacity:1;box-shadow:0 0 0 2px #7ba800;border-color:#d4f542}
+#pp-typef button.tf-all{background:#5a5478}
+#poke-picker .pp-head input#pp-q{background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:9px;padding:7px 11px;
+  font-size:13px;margin:0;flex:1 1 auto;min-width:0;font-family:inherit}
+#poke-picker .pp-head select{flex:0 0 auto}
+#pp-list{overflow-y:auto;display:grid;grid-template-columns:repeat(6,1fr);gap:5px}/* 6列コンパクト(2026-07-07 阿部さん) */
+#pp-list button{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:8px;color:#3a3552;cursor:pointer;
+  padding:5px 3px;display:flex;flex-direction:column;align-items:center;gap:1px;font-size:10px;font-weight:700}
+#pp-list .pp-types{display:flex;gap:2px;flex-wrap:wrap;justify-content:center}
+#pp-list .pp-types span{font-size:7.5px;font-weight:800;color:#fff;border-radius:6px;padding:1px 4px;border:1px solid #ffffff44}
+#pp-list button:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
+#pp-list img{width:44px;height:44px;object-fit:contain}/* 6列コンパクト(2026-07-07 阿部さん) */
+#pp-close{margin-top:10px;background:#8a82c8;border:1px solid #ffffff66;border-radius:20px;color:#fff;font-weight:700;padding:8px;cursor:pointer}
+/* ===== 能力値コンパクトエディタ(中央パネル下段に一体・2026-07-05 阿部さん) =====
+ * ルール=ビルダー準拠(66pt/32上限/性格)。UI=名前なし・4目盛りメーター・MIN⇔MAXトグル1個・自動確定(適用ボタンなし)。
+ * #setup button の全体スタイル(flex:1/padding:12px)に負けないよう #sel-detail/#stats-modal 両スコープで上書き */
+.sd-ev{margin-top:8px;border-top:1px solid #ffffff22;padding-top:7px}
+.sd-ev-top{display:flex;align-items:center;gap:6px;margin-bottom:7px}
+#sel-detail .sd-ev-top .sd-nature,#stats-modal .sd-ev-top .sd-nature{padding:3px 10px;font-size:12px}/* 特性/持ち物と同サイズに(2026-07-07 阿部さん) */
+.sd-ev-top .sd-nature{flex:1 1 auto;min-width:0}
+.sd-ev-budget{font-size:11px;color:#ffffffbb;font-weight:700;white-space:nowrap}
+.sd-ev-budget b{color:#ffe066;font-size:13px}
+.sd-ev.full .sd-ev-budget b{color:#ff5ee0}
+#sel-detail .sd-ev button,#stats-modal .sd-ev button{flex:none;width:auto;padding:0;font-weight:900;font-size:11px;
+  background:#00000042;border:1px solid #ffffff33;color:#fff;border-radius:4px;cursor:pointer;font-family:inherit}
+#sel-detail .sd-ev button:hover:not(:disabled),#stats-modal .sd-ev button:hover:not(:disabled){border-color:#d4f542}
+#sel-detail .sd-ev button:disabled,#stats-modal .sd-ev button:disabled{opacity:.3;cursor:default}
+#sel-detail .sd-ev .sd-ev-reset,#stats-modal .sd-ev .sd-ev-reset{padding:5px 11px;font-size:11.5px;font-weight:700}
+.sd-ev-row{display:grid;grid-template-columns:46px 36px 1fr 26px 28px 26px 44px;gap:3px;align-items:center;margin:7px 0}/* 列幅を詰めMIN/MAXはみ出し解消・スペーサー1frが右余白を吸収(2026-07-07 阿部さん) */
+.sd-ev-row .evl{font-weight:900;font-size:13px;white-space:nowrap;overflow:hidden;display:flex;align-items:baseline;gap:2px}
+.sd-ev-row .evl small{font-size:9px;color:#ffffffaa;font-weight:600;align-self:center}/* サブは中央揃え(下がって見えるのを解消)(2026-07-07 阿部さん) */
+.sd-ev-row .evl.up{color:#ff8a8a}
+.sd-ev-row .evl.up small{color:#ff8a8a99}
+.sd-ev-row .evl.down{color:#8ac2ff}
+.sd-ev-row .evl.down small{color:#8ac2ff99}
+.sd-ev-row .real{text-align:right;font-weight:900;font-style:italic;font-size:14px}/* 固定40px内で右揃え=値の右端が揃う */
+.sd-ev-row.has .real{color:#ffe066}
+.sd-ev-row.maxed .real{color:#ff9dbd}
+/* メーター: 4目盛り(1目盛り=8pt)。値は0〜32のまま=見た目だけギュッと */
+.sd-ev-row .bar{position:relative;height:18px;background:#0d1117;border:1px solid #ffffff33;border-radius:4px;
+  overflow:hidden;cursor:pointer;touch-action:none}
+.sd-ev-row .bar::after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),#ffffff30 calc(25% - 1px),#ffffff30 25%)}
+.sd-ev-row .fill{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#ffe680,#c9b878)}
+.sd-ev.full .fill{background:linear-gradient(90deg,#ffb84d,#ff7733)}
+#sel-detail .sd-ev .dec,#sel-detail .sd-ev .inc,#stats-modal .sd-ev .dec,#stats-modal .sd-ev .inc{height:26px;font-size:12px}
+.sd-ev-row .pts{text-align:center;font-weight:900;font-size:14px}
+.sd-ev-row.has .pts{color:#ffe066}
+.sd-ev-row.maxed .pts{color:#ff6f6f}
+#sel-detail .sd-ev .mm,#stats-modal .sd-ev .mm{height:26px;font-size:10px;letter-spacing:0;padding:0 2px}
+/* わざ検索モーダル(ポケモン検索と同型) */
+/* 能力値設定モーダル(バトル中⚙用。中身=共通コンパクトエディタ) */
+#stats-modal{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
+#stats-modal .sm-box{background:#141927;border:1px solid #2a3450;border-radius:14px;width:100%;max-width:400px;
+  display:flex;flex-direction:column;padding:14px;color:#e6edf3}
+#stats-modal .sm-box .sd-ev{border-top:0;padding-top:0;margin-top:0}
+#stats-modal .sm-box select,#stats-modal .sm-box button.sd-pick{background:#0c1322;color:#e6edf3;border:1px solid #2a3450;border-radius:8px;
+  padding:3px 8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;flex:none;width:auto}
+#stats-modal .sm-box button.sd-pick:hover{border-color:#d4f542}
+#sm-close{margin-top:12px;background:#1a2030;border:1px solid #2a3450;border-radius:9px;color:#8b94a7;padding:8px;cursor:pointer;font-family:inherit}
+/* 技リスト上の能力値ボタン(コンパクト=盤面高さに収める) */
+#moves button.stats-open{padding:1px 10px;border-radius:12px;font-size:10px;font-weight:700;text-align:center;
+  background:#22283add;color:#d4f542;border:1px solid #d4f54255}
+#move-picker{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:14px 14px}
+#move-picker .mp-box{background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:14px;width:100%;max-width:600px;
+  max-height:94vh;display:flex;flex-direction:column;padding:14px;box-shadow:0 14px 40px #00000055}
+#move-picker input{background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:9px;padding:9px 12px;
+  font-size:15px;margin-bottom:8px;width:100%}
+/* 分類フィルターチップ(2026-07-06 阿部さん) */
+#mp-catf{display:flex;gap:5px;margin-bottom:8px}
+#mp-catf button{flex:1;font-size:12px;font-weight:800;color:#fff;border-radius:9px;padding:6px 4px;border:1px solid #ffffff44;
+  cursor:pointer;font-family:inherit;opacity:.68;display:flex;align-items:center;justify-content:center;gap:4px}
+#mp-catf button.on{opacity:1;box-shadow:0 0 0 2px #7ba800;border-color:#d4f542}
+#mp-catf .cf-all{background:#5a5478}
+#mp-list{overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+#mp-list button{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:9px;color:#3a3552;cursor:pointer;
+  padding:6px 10px;text-align:left;font-size:12px}
+#mp-list button:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
+#mp-list .mp-top{display:flex;align-items:center;gap:6px;font-weight:800;white-space:nowrap;overflow:hidden}
+#mp-list .mp-top .t-pill{font-size:9.5px;padding:1px 4px;border-radius:8px;color:#fff;border:1px solid #ffffff66;flex:0 0 auto;
+  width:52px;text-align:center;box-sizing:border-box}/* タイプ列を固定幅=技名を縦に揃える */
+#mp-list .mp-top .cat-badge{width:58px;box-sizing:border-box;justify-content:center;flex:0 0 auto}
+#mp-list .mp-top .mv-name{flex:1 1 auto;overflow:hidden;text-overflow:ellipsis;font-size:14.5px;font-weight:900}/* 技名は主役=大きく(2026-07-07 阿部さん) */
+/* 分類バッジ(物理=橙/特殊=青/変化=灰・アイコン付きでパッと見わかる=2026-07-06 阿部さん) */
+.cat-badge{font-size:10px;padding:1px 7px;border-radius:8px;color:#fff;border:1px solid #ffffff55;flex:0 0 auto;font-weight:800;display:inline-flex;align-items:center;gap:3px;white-space:nowrap}
+.cat-phys{background:#e0602e}.cat-spec{background:#4a7edb}.cat-stat{background:#7a8290}
+#mp-list .mp-top .mp-meta{margin-left:auto;font-weight:800;font-size:12px;color:#544a86;flex:0 0 auto}
+#mp-list .mp-desc{font-size:11px;color:#6a6488;margin-top:2px;line-height:1.4}/* 説明は補足=小さく控えめに(2026-07-07 阿部さん) */
+#mp-close{margin-top:10px;background:#8a82c8;border:1px solid #ffffff66;border-radius:20px;color:#fff;font-weight:700;padding:8px;cursor:pointer}
+#setup .btns{display:flex;gap:10px;margin-top:14px}
+#setup button{flex:1;padding:12px;border-radius:24px;border:2px solid #ffffff88;cursor:pointer;font-weight:800;font-size:14px;
+  background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;box-shadow:0 3px 10px #5a4fc455}
+#setup button.sub{flex:0 0 auto;font-weight:700;font-size:12px;background:#8a82c8}
+#setup button:hover{border-color:#d4f542;box-shadow:0 0 0 3px #d4f54266}
+
+/* ===== バトル画面 ===== */
+/* S1: 3ブロックレイアウト化・盤面560×360/ログ460×362 (Showdown実測値) */
+#battle{display:none;gap:14px;flex-direction:column/* ログは下段(2026-07-06 阿部さん「バトル画面を大きく迫力を」) */}
+/* S1: 盤面サイズ 600×430 → 560×360 に変更(Showdown準拠) */
+/* font-familyはShowdown準拠でVerdanaを盤面内に限定適用(body全体は日本語フォントを維持) */
+/* S6: backgroundをfieldから除去し#field-backdropに委譲(プリセット切替の器として分離) */
+#field{position:relative;width:640px;height:360px;border:1px solid #2a3550;border-radius:14px;overflow:hidden;
+  font-family:Verdana,sans-serif;background:#1a2a1a/* fallback(backdrop読込前のちらつき防止) */;
+  transform-origin:top center}/* 内部640×360固定=どの画面でもJSのzoomで相似拡大(2026-07-07 阿部さん iPhone対応) */
+/* S6: 背景プリセット構造 — #field-backdrop (z-index:0 / position:absolute;inset:0 / opacity:0.8)
+ * Showdown準拠: .backdrop div を差し替えることで背景を1行で切り替え可能にする器。
+ * うちの独自化ポイント: Showdownは外部画像だがうちはCSSグラデのみで構成(ファイル不要・権利フリー)。
+ * ダーク基調を維持(うち独自): Showdownは白系だがうちは暗め=現状維持。
+ * [阿部さん確認事項] ページ全体の背景トーン: SDは白系だがうちはダーク基調=現状維持(独自化ポイント)。
+ */
+#field-backdrop{position:absolute;inset:0;z-index:0;opacity:0.8;pointer-events:none;
+  transition:background 0.5s ease}
+/* プリセット1: grass = 草原グラデ(現状の#field背景をそのまま移植・第1プリセット) */
+#field-backdrop[data-preset="grass"]{
+  background:
+    radial-gradient(150% 70% at 50% 118%, #7ec25a 0%, #6db04c 30%, transparent 58%),
+    linear-gradient(180deg,#a9e0f5 0%,#cbecfb 18%,#a9d57f 24%,#8cc35e 56%,#74b350 100%);
+  box-shadow:inset 0 -40px 60px #3a6e2f33, inset 0 18px 40px #ffffff22}
+/* プリセット2: cave = 洞窟(ダーク石壁グラデ) */
+#field-backdrop[data-preset="cave"]{
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 90%, #3a3020 0%, #2a2218 40%, transparent 70%),
+    linear-gradient(180deg,#1a1510 0%,#2a2018 25%,#38301e 50%,#4a3c26 72%,#3a3020 100%);
+  box-shadow:inset 0 -40px 80px #0006, inset 0 30px 60px #0004}
+/* プリセット3: water = 水辺(水面グラデ) */
+#field-backdrop[data-preset="water"]{
+  background:
+    radial-gradient(ellipse 100% 50% at 50% 110%, #2a6a8a 0%, #1a4e72 30%, transparent 60%),
+    linear-gradient(180deg,#a8d4e8 0%,#b8e0f0 12%,#d0ecf8 23%,#8ab8d4 24%,#5a9ec0 52%,#3a7ea8 100%);
+  box-shadow:inset 0 -40px 60px #1a5a8a44, inset 0 18px 40px #ffffff33}
+/* プリセット4: night = 夜空グラデ */
+#field-backdrop[data-preset="night"]{
+  background:
+    radial-gradient(ellipse 80% 50% at 50% 110%, #2a2438 0%, #1a1830 35%, transparent 65%),
+    linear-gradient(180deg,#0a0818 0%,#12102a 20%,#1c1840 40%,#2a2438 55%,#1e1c30 75%,#14121e 100%);
+  box-shadow:inset 0 -30px 60px #0a0816cc, inset 0 0 80px #ffffff0a}
+/* 夜空の星をCSS疑似要素で演出(Showdown非依存・うちの独自エフェクト) */
+#field-backdrop[data-preset="night"]::before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+  background-image:
+    radial-gradient(1px 1px at 15% 12%, #ffffffcc, transparent),
+    radial-gradient(1px 1px at 32% 8%, #ffffffaa, transparent),
+    radial-gradient(1.5px 1.5px at 48% 18%, #ffffff99, transparent),
+    radial-gradient(1px 1px at 63% 6%, #ffffffbb, transparent),
+    radial-gradient(1px 1px at 78% 14%, #ffffffaa, transparent),
+    radial-gradient(1px 1px at 88% 9%, #ffffff88, transparent),
+    radial-gradient(1px 1px at 22% 22%, #ffffffcc, transparent),
+    radial-gradient(1px 1px at 55% 28%, #ffffffaa, transparent),
+    radial-gradient(1.5px 1.5px at 71% 24%, #ffffff99, transparent),
+    radial-gradient(1px 1px at 41% 33%, #ffffff88, transparent)}
+/* S6: #weather-fx はbackdrop(z:0)の上・他演出要素より下(z:1)。天候絵文字オーバーレイ */
+#weather-fx{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.22;font-size:34px;letter-spacing:18px;line-height:1.3;text-align:center}
+/* 勝敗バナー(画面中央に大きくWIN/LOSE=2026-07-06 阿部さん) */
+#result-banner{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;pointer-events:none}
+#result-banner.show{display:flex}
+#result-banner .rb-txt{font-size:84px;font-weight:900;font-style:italic;letter-spacing:2px;color:#fff;
+  text-shadow:0 4px 0 #0004,0 0 26px currentColor;animation:rbResultPop .6s cubic-bezier(.2,1.5,.4,1) both;font-family:'Arial Black',sans-serif}
+#result-banner.win .rb-txt{color:#ffd54a}
+#result-banner.lose .rb-txt{color:#8fa2c4}
+@keyframes rbResultPop{0%{opacity:0;transform:scale(.3) rotate(-8deg)}100%{opacity:1;transform:scale(1) rotate(-6deg)}}
+.fighter{position:absolute;width:300px;transition:transform .2s}
+.fighter .platform{position:absolute;left:50%;transform:translateX(-50%);bottom:-6px;width:200px;height:34px;border-radius:50%;
+  background:radial-gradient(ellipse at center,#3f6f2caa 0%,#3f6f2c55 55%,transparent 72%)}
+.fighter .sprite{position:relative;display:flex;justify-content:center;align-items:flex-end;height:120px}
+.fighter .sprite img{max-height:118px;max-width:150px;filter:drop-shadow(0 6px 6px #0009);transition:transform .15s}
+.fighter .sprite .circ{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:800;color:#fff;background:#3a4660;box-shadow:inset 0 -8px 16px #0007,0 5px 8px #000a}
+/* CH: 敵=中央やや右(メニューとは重ねない)/自分=左寄り(2026-07-05 阿部さん「相手は少し右・手持ちは少し左」) */
+/* 配置調整(2026-07-06 阿部さん): 相手=もう少し右+下げて地平線(46.5%)の草に乗せる。
+ * 自分=少し左+下に戻す(浮いて見えない高さ・左下HPボックスとは非重畳を維持) */
+#f-opp{top:58px;right:100px;transform:scale(.95);transform-origin:center bottom}
+#f-self{bottom:64px;left:44px;transform:scale(1.2);transform-origin:center bottom}
+/* 味方は右向き(全スプライトが左向き素材なので反転して相手の方を向かせる=2026-07-06 阿部さん) */
+#f-self .sprite img{transform:scaleX(-1)}
+#f-opp .platform{width:150px;height:24px}
+#f-self .platform{width:236px;height:40px}
+/* CH: バトル終了ボタン(左上・実機のexitアイコン風。ch-busyでも消えない=いつでも離脱できる) */
+#btn-exit .exit-div{width:1px;height:12px;background:#ffffff55;margin:0 2px}
+#btn-exit{position:absolute;top:8px;left:10px;z-index:12;display:flex;gap:3px;align-items:center;
+  background:#000000aa;border:1px solid #ffffff33;border-radius:14px;color:#fff;font-size:11px;font-weight:700;
+  padding:3px 10px;cursor:pointer;transition:background .15s,border-color .15s;font-family:inherit}
+#btn-exit:hover{background:#333333cc;border-color:#d4f542}
+/* CH: ターンバッジは上中央の細帯へ(右上かぶり解消=右上はstatbar専用にする) */
+#turn-badge{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:7;background:#000000aa;color:#fff;font-weight:900;
+  font-size:11px;padding:2px 12px;border-radius:10px;box-shadow:0 2px 5px #0004;border:1px solid #ffffff22}
+/* CH: トレーナーチップは廃止(チャンピオンズはバトル中に出さない・statbarの名前で足りる) */
+.trainer{display:none}
+/* ===== CH: statbar チャンピオンズ風(平行四辺形パネル) =====
+ * 相手=右上クリムゾン+%のみ / 自分=左下青紫+数値。実機スクショ準拠(設計_リアルバトルUI_チャンピオンズ寄せ_2026-07-04.md) */
+.pbox{position:absolute;z-index:9;width:264px;padding:5px 12px 22px;font-family:Verdana,sans-serif;font-size:13px;color:#fff;
+  transform:skewX(-10deg);border-radius:8px;box-shadow:0 3px 10px #0007;transition:opacity .3s;overflow:visible}
+.pbox>*{transform:skewX(10deg)}   /* パネルだけ斜めに・中身は水平に戻す */
+#pb-opp{background:linear-gradient(135deg,#b02458 0%,#d63c78 100%);right:16px;top:10px;left:auto;border:1px solid #ffffff33}
+#pb-self{background:linear-gradient(135deg,#4638ae 0%,#6a5be0 100%);left:16px;bottom:10px;top:auto;border:1px solid #ffffff33}
+.pbox .who{display:none}
+.pbox .row1{display:flex;align-items:center;gap:6px;position:relative;padding-left:58px}
+/* CH: statbar内ミニアイコン(実機の丸顔アイコン) */
+.pbox .icn{position:absolute;left:-4px;top:0;width:52px;height:52px;border-radius:50%;background:#00000044;overflow:hidden;/* 左いっぱいに大きく(2026-07-06 阿部さん) */
+  display:flex;align-items:center;justify-content:center}
+.pbox .icn img{width:50px;height:50px;object-fit:contain;image-rendering:pixelated}
+.pbox .nm{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 2px #0009;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pbox .ptypes{display:flex;gap:3px;flex:0 0 auto}
+.pbox .ptypes span{font-size:8px;font-weight:800;color:#fff;border-radius:6px;padding:1px 6px;border:1px solid #ffffff55;white-space:nowrap}
+.pbox .lv{display:none}   /* 実機statbarにLv表示なし(全員Lv50) */
+/* CH: HPバー=ダーク下地+ライム緑。%/数値テキストはバーの下に大きく出す */
+.pbox .hpbar{position:relative;width:calc(100% - 58px);margin-left:58px !important;height:10px;/* 名前の左端に揃えて左へ延長 */background:#00000066;border-radius:5px;border:none;/* 右端寄せ=アイコンに被せない(skewの横ずれ込みで66px空け=2026-07-06 阿部さん) */
+  margin:5px 0 0;overflow:visible}
+.pbox .hptext{position:absolute;right:0;top:11px;font-size:16px;font-weight:900;color:#fff;line-height:1.2;z-index:2;
+  pointer-events:none;text-shadow:0 1px 3px #000c;font-style:italic}
+.pbox .hptext small{font-size:11px;font-weight:700;opacity:.85}
+/* prevhp=残像バー(黄色・遅れて縮む) / hp=現在バー(即時) — 2層演出はShowdown版の仕組みを踏襲 */
+.pbox .prevhp{position:absolute;top:1px;left:1px;height:8px;border-radius:4px;background:#d0c000;
+  transition:width 1.2s ease-out;width:0;z-index:1}
+.pbox .hp{position:absolute;top:1px;left:1px;height:8px;border-radius:4px;background:linear-gradient(180deg,#b5f542,#8ed62a);
+  transition:width .3s ease-out;width:0;z-index:2}
+.pbox .hp.mid{background:linear-gradient(180deg,#f5d442,#e0b81e)}
+.pbox .hp.low{background:linear-gradient(180deg,#f56a5a,#d63c2e)}
+/* %幅指定でも右端1pxの枠内に収める */
+.pbox .hp,.pbox .prevhp{max-width:calc(100% - 2px)}
+/* 状態異常バッジはpbox外(ボール列の上に積む)へ移動=丸アイコンに被らない(2026-07-06 阿部さん) */
+.pbox .sts{display:none}
+.sts-float{position:absolute;z-index:9;display:flex;gap:3px;pointer-events:none;transition:opacity .3s}
+#sts-self{left:22px;bottom:116px;flex-direction:column-reverse;align-items:flex-start}/* leftbar(bottom:88)の真上・複数は上に積み上がる */
+#sts-opp{right:22px;top:116px;flex-direction:column;align-items:flex-end}
+.sts-float .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000077;color:#fbbf24;border:1px solid #fbbf2466;white-space:nowrap}
+.pbox .held{position:absolute;right:110px;bottom:5px;transform:skewX(10deg);display:flex;gap:3px;align-items:center;
+  font-size:8.5px;font-weight:700;color:#ffffffcc;white-space:nowrap;max-width:96px;overflow:hidden;justify-content:flex-end}/* HP数値(右端)のすぐ左(2026-07-06 阿部さん) */
+.pbox .held img{width:14px;height:14px;object-fit:contain;image-rendering:pixelated}
+.pbox .held.used{opacity:.45;filter:grayscale(1)}
+.pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466}
+.pbox .balls{display:none}
+
+/* ===== CH: leftbar / rightbar (残りポケモンのボールマーク列=statbarに隣接) ===== */
+/* 相手=statbar直下(右上) / 自分=statbar直上(左下)。実機のボールマーク行に対応 */
+#leftbar,#rightbar{position:absolute;z-index:9;display:flex;flex-direction:row;
+  align-items:center;gap:3px;pointer-events:none;transition:opacity .3s}
+#leftbar{left:22px;bottom:88px;top:auto}
+#rightbar{right:22px;top:88px;bottom:auto}
+/* トレーナー名ラベルは非表示(かぶり解消。statbarの名前で足りる) */
+.sbar-name{display:none}
+/* 6体を横一列の丸マークで(実機のボールマーク準拠・スプライト入りで情報量は維持) */
+.sbar-icons{display:flex;gap:3px}
+.sbar-icons .sicon{width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+  border-radius:50%;background:#00000055;border:1px solid #ffffff55;overflow:hidden;transition:opacity .3s,filter .3s}
+.sbar-icons .sicon img{width:19px;height:19px;object-fit:contain;display:block}
+/* 場に出ている個体を強調 */
+.sbar-icons .sicon.active{background:#ffffff55;box-shadow:0 0 0 2px #d4f542}
+/* 瀕死 */
+.sbar-icons .sicon.dead{opacity:0.35;filter:grayscale(100%) brightness(.5)}
+/* スプライト画像なしのフォールバック=白● (空マークと区別して「残っている」が読めるように) */
+.sbar-icons .sicon.noimg::after{content:'●';color:#fff;font-size:11px;line-height:1;text-shadow:0 1px 2px #0009}
+
+/* ===== CH: UI出し入れ(メッセージ/演出中は全UIを消す=実機準拠の肝) =====
+ * say()開始で #field.ch-busy → statbar/ボール列/ターン帯をフェードアウト。
+ * setHpBar(ダメージ反映)や完了で解除=バーが戻ってきて減る、の実機の流れを再現 */
+#field.ch-busy .pbox, #field.ch-busy #leftbar, #field.ch-busy #rightbar, #field.ch-busy #turn-badge, #field.ch-busy .sts-float{
+  opacity:0;pointer-events:none}
+
+/* ===== ステージ演出v3(2026-06-12 阿部さん「演出強化」) ===== */
+.popnum{position:absolute;left:50%;top:8px;transform:translateX(-50%);font-weight:900;font-size:20px;
+  text-shadow:0 2px 4px #000c;pointer-events:none;animation:rbPop 1s forwards;z-index:5;white-space:nowrap}
+@keyframes rbPop{0%{opacity:0;transform:translateX(-50%) translateY(6px) scale(.6)}18%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1.18)}100%{opacity:0;transform:translateX(-50%) translateY(-46px) scale(1)}}
+.burst{position:absolute;left:50%;top:46%;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;
+  pointer-events:none;animation:rbBurst .85s forwards;z-index:4/* 被弾エフェクト少し長め */}
+@keyframes rbBurst{0%{transform:scale(.15);opacity:.9}100%{transform:scale(1.8);opacity:0}}
+#fx-flash{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:6}
+#fx-flash.on{animation:rbFlash .5s forwards}
+#fx-flash.mega{animation:rbMega 1s forwards}
+@keyframes rbFlash{0%{opacity:.75}100%{opacity:0}}
+@keyframes rbMega{0%{opacity:0}25%{opacity:.95}55%{opacity:.6}100%{opacity:0}}
+@keyframes rbWeather{0%{transform:translateY(-8px)}100%{transform:translateY(8px)}}
+#weather-fx.live{animation:rbWeather 2.2s ease-in-out infinite alternate}
+@keyframes rbShake{0%,100%{transform:translateX(0)}15%{transform:translateX(-10px)}30%{transform:translateX(9px)}45%{transform:translateX(-7px)}60%{transform:translateX(5px)}75%{transform:translateX(-3px)}90%{transform:translateX(2px)}}
+/* 攻撃予告: ぴょんぴょん2回はねる(2026-07-05 阿部さん「攻撃するぞーって予告」) */
+@keyframes rbPreAttack{0%,100%{transform:translateY(0)}18%{transform:translateY(-12px)}36%{transform:translateY(0)}54%{transform:translateY(-8px)}72%{transform:translateY(0)}}
+@keyframes rbLunge{0%{transform:none}40%{transform:translate(14px,-10px) scale(1.05)}100%{transform:none}}
+@keyframes rbLungeOpp{0%{transform:none}40%{transform:translate(-14px,10px) scale(1.05)}100%{transform:none}}
+@keyframes rbFaint{0%{opacity:1;transform:none}100%{opacity:0;transform:translateY(52px)}}
+@keyframes rbEnter{0%{opacity:0;transform:translateY(30px) scale(.5)}70%{transform:translateY(-6px) scale(1.06)}100%{opacity:1;transform:none}}
+/* 交代の引っ込み(ボールに戻る感じ=縮んで沈んで消える)。2026-07-06 阿部さん「いきなり消えていきなり出てくる」対策 */
+@keyframes rbRecall{0%{opacity:1;transform:none}25%{opacity:1;transform:translateY(-10px) scale(1.04)}100%{opacity:0;transform:translateY(46px) scale(.1)}}/* ふわっと浮いてから ぐっと沈んで吸い込まれる=交代が分かる大きな動き(2026-07-06 阿部さん) */
+.fighter.hit .sprite{animation:rbShake .85s/* 被弾は少し長め(2026-07-05 阿部さん) */}
+.fighter.preattack .sprite{animation:rbPreAttack .7s}
+.fighter.lunge-self .sprite{animation:rbLunge .45s}
+.fighter.lunge-opp .sprite{animation:rbLungeOpp .45s}
+.fighter.faint .sprite{animation:rbFaint 1.5s forwards}
+/* ひんし後は交代まで消えたまま(2026-07-05 阿部さん「瀕死になったら画面から消えたほうがいい」) */
+.fighter.gone .sprite{opacity:0;transform:translateY(40px);pointer-events:none}
+.fighter.enter .sprite{animation:rbEnter .85s}
+.fighter.recall .sprite{animation:rbRecall 1s forwards}
+
+/* ===== CH: メッセージ=盤面内オーバーレイ(箱なし・白文字+黒フチ=実機準拠) ===== */
+/* 左端は自分statbar(幅210+余白)を避けて非重畳にする(ダメージ行=statbarとメッセージが同時表示のため) */
+#msgbox{position:absolute;left:244px;right:14px;bottom:6px;z-index:11;background:transparent;border:none;
+  padding:0 0 4px;cursor:pointer;min-height:2.6em;display:none/* メッセージ再生中だけ表示(say/nextSayが切替) */}
+#msg-lines{line-height:1.5;font-size:17px;display:flex;flex-direction:column;justify-content:flex-end}
+/* 実機は現在の1行だけを出す(履歴は右のバトルログパネルにある) */
+#msg-lines .ml-line{display:none}
+#msg-lines .ml-line:last-child{display:block;margin:0;color:#fff;font-weight:800;
+  text-shadow:-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,1px 1px 0 #000,0 2px 5px #000d}
+#msgbox .next{position:absolute;right:2px;bottom:-4px;color:#fff;animation:blink 1s infinite;font-size:11px;
+  text-shadow:0 0 3px #000,0 1px 2px #000}
+/* S1: 2カラム配置。ログは右配置(Showdown準拠)。
+ * 注: 過去に「ログは左」という独自化の経緯があったが、今回の方針「Showdownと完全に同じに再現」により
+ * Showdown準拠の右配置へ変更。order指定で左=盤面(order:0)/右=ログ(order:1)に揃える。 */
+/* CH: 盤面640×360=16:9(チャンピオンズ実機の画面比と同一)。
+ * 経緯: 07-05朝に一度640→「横長すぎ」で600に戻し→同日昼に阿部さん「実機と全く同じ縦横比に」で16:9確定(明示指示が上書き) */
+#battle-main{flex:0 0 auto;width:100%;max-width:none;min-width:0;order:0}
+/* 盤面は内部座標640×360のまま。zoomはfitField()がビューポートに合わせて設定(既定1.45相当=デスクトップ)。margin:autoで中央寄せ */
+#field{zoom:1.45;margin:0 auto}
+/* S1: ログパネル 460×362px / bg:#eef2f5(Showdown実測値) / フォントVerdana限定指定 */
+/* CH: 盤面640化に合わせてログは伸縮(340〜460px)。狭ければ下に折返す(flex-wrap) */
+#battle-log-panel{flex:0 0 auto;width:100%;min-width:0;max-width:none;height:230px;display:flex;flex-direction:column;order:1;
+  background:#eef2f5;border:1px solid #aaaaaa;border-radius:0;
+  font-family:Verdana,sans-serif;color:#000;overflow:hidden}
+/* S1: ログヘッダーをShowdown配色に合わせる(bg:#e0e7ea=ターン見出し色で統一) */
+#log-head{flex:0 0 auto;padding:8px 12px;font-weight:800;font-size:13px;color:#000;
+  background:#e0e7ea;border-bottom:1px solid #aaaaaa}
+/* S1: ログスクロール領域・文字色をShowdown準拠の黒に */
+#log-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:6px 12px 12px;font-size:13px;line-height:1.55;
+  color:#000}
+/* S4: ターン見出し h2.battle-history(旧 div.log-turn を置き換え) */
+#log-scroll h2.battle-history{display:block;margin:0 -12px;padding:0 12px;
+  background:#e0e7ea;color:#000;font-size:17px;font-weight:bold;
+  height:31px;line-height:31px;border-radius:0}
+/* S4: spacer(ターン内区切り空行) */
+#log-scroll .spacer.battle-history{display:block;height:0.6em;margin:0;padding:0}
+/* S4: 通常行 */
+#log-scroll .log-line{color:#000;margin:1px 0}
+/* S4: 効果行(small) — Showdown 13.3px×0.8 ≒ 10.6px。グレー寄りで控えめに */
+#log-scroll .log-line-small{margin:0 0 1px;color:#333}
+#log-scroll .log-line-small small{font-size:smaller;color:#555}
+/* 後方互換: S1で設定した旧div.log-turnスタイルを残しておく(JS切替後は使われない) */
+#log-scroll .log-turn{display:block;margin:0 -12px 0;padding:0 12px;
+  background:#e0e7ea;color:#000;font-size:17px;font-weight:bold;
+  height:31px;line-height:31px;border-radius:0}
+#log-scroll .log-turn:first-child{margin-top:0}
+/* S1: スマホ縦積み維持(≤880px。不変条件) */
+@media(max-width:880px){
+/* CH: スマホ配置の寸法上書きは後勝ちにするためstyle末尾の media ブロックにある(#moves等の定義より後) */
+  #battle{flex-direction:column}
+  #battle-main{flex:1 1 auto;width:100%;max-width:100%;order:0}
+  #battle-log-panel{flex:0 0 auto;width:100%;height:auto;max-height:240px;min-width:0;order:1}
+}
+@keyframes blink{50%{opacity:0}}
+/* ===== CH: コマンド/技/交代 = 盤面右側の縦オーバーレイ(チャンピオンズ準拠) ===== */
+/* #cmd: たたかう(緑)/ポケモン(紫) の丸ピル縦並び+COMMANDラベル。実機スクショ準拠 */
+#cmd{position:absolute;right:14px;top:auto;bottom:14px;z-index:10;display:flex;flex-direction:column;gap:7px;
+  width:190px;margin:0}
+/* COMMANDラベルは削除(2026-07-05 阿部さん「白い文字はいらない」) */
+#cmd button{position:relative;padding:12px 16px;border-radius:26px;border:2px solid #ffffff44;color:#fff;
+  font-weight:900;font-size:14px;text-align:left;cursor:pointer;box-shadow:0 3px 9px #0007;
+  transition:box-shadow .15s,border-color .15s,transform .1s;font-family:inherit}
+#cmd button:hover:not(:disabled){border-color:#d4f542;box-shadow:0 0 0 3px #d4f54288,0 3px 9px #0007;transform:translateX(-3px)}
+#cmd button:hover:not(:disabled)::before{content:'▶';position:absolute;left:-18px;top:50%;transform:translateY(-50%);
+  color:#ffd400;font-size:13px;text-shadow:0 1px 3px #000}
+#c-fight{background:linear-gradient(135deg,#1f8f3a,#3fc45c)}
+#c-party{background:linear-gradient(135deg,#4638ae,#7b6ff0)}
+/* メガシンカ=技リスト左横の丸ボタン(実機のR位置=2026-07-06 阿部さん) */
+#moves .mega-side{position:absolute;left:-86px;bottom:64px;width:74px;height:74px;border-radius:50%;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:0;
+  background:linear-gradient(135deg,#7a6116,#c9a227);border:2px solid #ffffff55;color:#fff;cursor:pointer;
+  box-shadow:0 3px 9px #0007;font-family:inherit}
+#moves .mega-side:hover{border-color:#d4f542;box-shadow:0 0 0 3px #d4f54288,0 3px 9px #0007}
+#moves .mega-side .ms-icon{font-size:24px;line-height:1}
+#moves .mega-side .ms-label{font-size:8.5px;font-weight:800;line-height:1;letter-spacing:.3px}
+#c-run{background:#22283add;font-size:10.5px;padding:7px 12px;font-weight:700;white-space:nowrap;text-align:center}
+#cmd button:disabled{opacity:.35;cursor:default}
+/* メガシンカ予約中: 黄色強調(既存ロジック維持) */
+#cmd button.mega-armed,#moves .mega-side.mega-armed{border-color:#fff;
+  background:linear-gradient(135deg,#c99b1e,#ffe45e)}
+#moves .mega-side.mega-armed{animation:rbMegaPulse .9s infinite;transform:scale(1.1)}
+@keyframes rbMegaPulse{0%,100%{box-shadow:0 0 0 4px #fbbf2477,0 0 16px 6px #ffd94daa}50%{box-shadow:0 0 0 12px #fbbf2422,0 0 34px 16px #ffd94dee}}
+/* ===== CH: #moves 技カプセル縦リスト(チャンピオンズ準拠) ===== */
+/* 実機: 縦カプセル・左にタイプ・技名・右にPP・下に相性帯(◎ばつぐん/△いまひとつ)。選択中=黄緑発光 */
+#moves{position:absolute;right:14px;top:auto;bottom:10px;z-index:10;display:none;flex-direction:column;gap:4px;
+  width:224px;margin:0}
+/* 上段の小ボタン列(様子を見る/技の説明/⚙)=実機のX/Y行相当 */
+#moves .mv-top{display:flex;gap:4px}
+#moves .mv-top button{flex:1 1 auto;padding:2px 4px;border-radius:12px;font-size:9.5px;font-weight:700;text-align:center;}
+#moves .mv-top button.stats-open{flex:0 0 auto;font-size:15px;padding:1px 10px}
+#moves .mv-top button{
+  background:#22283add;color:#dbe3f2;border:1px solid #ffffff33;cursor:pointer;font-family:inherit;white-space:nowrap}
+#moves .mv-top button:hover{border-color:#d4f542}
+#moves .mv-top button.on{color:#d4f542;border-color:#d4f54288}
+/* 様子を見るパネル(左側オーバーレイ): ランク変化/状態/天候・フィールド残りターン */
+#watch-panel{position:absolute;left:14px;top:52px;bottom:auto;z-index:12;display:none;max-width:260px;background:#1a1f2e55;
+  border:1px solid #ffffff22;border-radius:12px;padding:9px 12px;font-size:11.5px;color:#eef2fb;cursor:pointer;
+  backdrop-filter:blur(2px);box-shadow:0 2px 8px #0004;text-shadow:0 1px 2px #0007}/* 左上・非常口ボタンの下・背景に馴染む薄い透明(2026-07-06 阿部さん) */
+#watch-panel .wp-row{margin:3px 0;line-height:1.5}
+#watch-panel .wp-row b{color:#9ec5ff}
+#mv-tip{position:absolute;left:14px;bottom:112px;z-index:12;display:none;max-width:300px;/* 自分HPボックスに被らない高さ */background:#141927ee;
+  border:1px solid #2a3450;border-radius:12px;padding:9px 12px;font-size:11px;line-height:1.55;color:#e6edf3;
+  box-shadow:0 4px 14px #0008;pointer-events:none}
+#watch-panel .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466;margin-left:3px}
+/* 弱点パネル(左側オーバーレイ): 相手への18タイプ相性を3区分で表示(2026-07-08 B1・watch-panel踏襲) */
+#weak-panel{position:absolute;left:14px;top:52px;bottom:auto;z-index:12;display:none;max-width:260px;background:#1a1f2e55;
+  border:1px solid #ffffff22;border-radius:12px;padding:9px 12px;font-size:11.5px;color:#eef2fb;cursor:pointer;
+  backdrop-filter:blur(2px);box-shadow:0 2px 8px #0004;text-shadow:0 1px 2px #0007}
+#weak-panel .wp-row{margin:3px 0;line-height:1.5}
+#weak-panel .wp-row b{color:#9ec5ff}
+#weak-panel .wp-types{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+#weak-panel .wp-t{display:inline-block;font-size:9px;padding:2px 7px;border-radius:9px;color:#fff;
+  box-shadow:0 1px 2px #0007;border:1px solid #ffffff55;position:relative}
+#weak-panel .wp-m{font-size:8.5px;font-weight:800;color:#fde68a;margin-left:3px}
+#moves button{position:relative;padding:3px 14px 3px 12px;border-radius:18px;border:2px solid #ffffff33;
+  background:linear-gradient(135deg,#4638aeee,#6a5be0ee);color:#fff;text-align:left;cursor:pointer;
+  font-family:inherit;box-shadow:0 3px 8px #0006;
+  transition:box-shadow .12s,border-color .12s,transform .1s}
+#moves button:hover:not(:disabled){border-color:#d4f542;box-shadow:0 0 0 3px #d4f54288,0 3px 8px #0006;transform:translateX(-3px)}
+#moves button:disabled{opacity:.38;cursor:default}
+#moves button.tcol:not(:disabled){color:#fff;text-shadow:0 1px 3px #0009}
+/* 技名(上段・bold) */
+#moves .mv-name{font-weight:800;font-size:12.5px;line-height:1.25;display:block;padding-right:44px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* タイプバッジ(技名の左・実機の丸タイプアイコン相当) */
+#moves .t-pill{display:inline-block;font-size:9px;padding:2px 7px;border-radius:9px;
+  color:#fff;margin-right:5px;vertical-align:middle;box-shadow:0 1px 2px #0007;border:1px solid #ffffff55}
+/* mv-sub: 相性ヒント帯(◎ばつぐん等)+威力/命中の小字。1行固定(折返しでカプセル高が暴れるのを防ぐ) */
+#moves .mv-sub{font-size:10px;color:#ffffffcc;margin-top:1px;display:block;line-height:16px;height:17px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}/* 相性帯の有無でボタン高が揃うよう固定高 */
+#moves .mv-eff{display:inline-block;font-size:10px;font-weight:800;padding:1px 8px;border-radius:8px;
+  margin-right:5px;background:#00000044;border:1px solid #ffffff33}
+#moves .mv-eff.eff-hyper{color:#fff;background:linear-gradient(90deg,#e0b400,#ffd400);border-color:#fff8;text-shadow:0 1px 2px #0008}
+#moves .mv-eff.eff-super{color:#ffe14d;border-color:#ffe14d88}
+#moves .mv-eff.eff-weak{color:#c9b8ff}
+#moves .mv-eff.eff-no{color:#ff9c9c}
+/* PP表示: 実機準拠=右側に大きめ */
+#moves .mv-pp{position:absolute;right:14px;top:6px;font-size:12px;font-weight:900;
+  color:#fff;font-style:italic;text-shadow:0 1px 2px #0009}
+#moves .mv-pp.pp-low{color:#ffb3a7}
+/* もどるボタン */
+#moves button.back{text-align:center;color:#e6edf3;font-weight:700;padding:5px;font-size:12px;
+  background:#22283add;border-radius:16px}
+/* ===== CH: #party 交代リスト(選出画面の青カプセル準拠) ===== */
+#party{position:absolute;right:14px;top:auto;bottom:10px;z-index:10;display:none;flex-direction:column;gap:7px;
+  width:250px;margin:0;max-height:300px;overflow-y:auto}
+#party button{padding:8px 14px;border-radius:18px;border:2px solid #ffffff33;
+  background:linear-gradient(135deg,#4638aeee,#6a5be0ee);
+  color:#fff;text-align:left;cursor:pointer;font-family:inherit;box-shadow:0 3px 8px #0006;
+  transition:box-shadow .12s,border-color .12s,transform .1s}
+#party button:hover:not(:disabled){border-color:#d4f542;box-shadow:0 0 0 3px #d4f54288,0 3px 8px #0006;transform:translateX(-3px)}
+#party button:disabled{opacity:.4;cursor:default}
+/* 控えポケモン名 */
+#party .pt-name{font-weight:800;font-size:13px;display:flex;align-items:center;gap:6px}
+#party .pt-name img{width:28px;height:28px;object-fit:contain;flex:0 0 auto}
+#party .pt-types{display:flex;gap:3px;margin-left:auto}
+#party .pt-type{font-size:8.5px;font-weight:800;color:#fff;border-radius:7px;padding:1px 7px;border:1px solid #ffffff44;white-space:nowrap}
+/* ミニHPバー(交代画面) */
+#party .pt-hp-wrap{margin-top:5px;height:6px;background:#1d2433;border-radius:3px;
+  border:1px solid #2a3450;overflow:hidden}
+#party .pt-hp-bar{height:100%;border-radius:3px;background:#00bb51;transition:width .3s}
+#party .pt-hp-bar.mid{background:#d0c000}
+#party .pt-hp-bar.low{background:#c82315}
+/* HP%テキスト */
+#party .pt-hp-text{font-size:10px;color:#9fb4d8;margin-top:2px}
+/* ひんし表示 */
+#party .pt-fainted{font-size:11px;color:#f87171;font-weight:700}
+/* もどるボタン */
+#party button.back{text-align:center;color:#8b94a7;font-weight:700;grid-column:1/-1;
+  border-color:#2a3450;background:#161d2e;padding:9px}
+#party button.back:hover{border-color:#7aabff;background:#1e2d4a;color:#fff}
+#speed-row{margin-top:8px;font-size:11px;color:#6a5fa0;display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap}
+#speed-row select{background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;padding:3px 6px;font-size:11px}
+/* ===== CH: スマホ寸法上書き。盤面内の再配置は縦持ちのみ(横向きはfitFieldのzoomが基準640×360を相似縮小=再配置不要)。2026-07-07 阿部さん iPhone横で相手が左に来る崩れを修正 ===== */
+@media(max-width:880px) and (orientation:portrait){
+  /* チャンピオンズ同配置(相手=右上/自分=左下)。幅を詰めて右側の技リストと非重畳にする */
+  #pb-opp{right:8px;top:6px;left:auto;width:134px}
+  #pb-self{left:8px;bottom:6px;top:auto;width:134px}
+  #pb-self .nm,#pb-opp .nm{max-width:82px;font-size:11.5px}
+  #rightbar{right:14px;top:64px}
+  #leftbar{left:14px;bottom:74px}
+  #moves,#party{width:188px}
+  #cmd{width:150px}
+  #msgbox{left:170px}
+  #msg-lines .ml-line:last-child{font-size:14px}
+  .pbox .hptext{font-size:13px}
+  /* 敵は左寄せ(右のメニューと重ねない。box300px中央にスプライトが来るのでマイナス寄せ) */
+  #f-opp{right:auto;left:-40px;top:56px;transform:scale(.68)}
+}
+/* スマホ横画面はfitField()のzoomで盤面(メニュー込み)を丸ごと相似縮小するため、個別の再配置クエリは廃止(2026-07-07 阿部さん) */
+</style>
+</head>
+<body>
+<header>
+  <div class="hdr-left">
+    <a href="index.html" class="hdr-home" title="PchamDB トップに戻る" data-i18n="checker.nav_pchamdb_home" data-i18n-attr="title:checker.nav_pchamdb_home_title">🏠 PchamDB</a>
+    <span class="hdr-sep">›</span>
+    <h1 data-i18n="online_battle.header_title">🌐 オンラインバトル</h1>
+  </div>
+  <a href="real_battle.html" data-i18n="online_battle.header_link_real">🎮 リアルバトル(vs AI)へ</a>
+</header>
+<div id="rotate-hint" aria-hidden="true">
+  <div class="rh-inner">
+    <div class="rh-ico">📱</div>
+    <div class="rh-txt" data-i18n="real_battle.rotate_hint">よこむきにしてね<br><span>リアルバトルは 横向きで あそべます</span></div>
+  </div>
+</div>
+<div id="game">
+
+  <!-- チーム編成(オンライン専用: 左=バトルチーム6体/中央=選択中の詳細/右=常設ボックス。相手列UIは無し=2026-07-10) -->
+  <div id="setup">
+    <h2 data-i18n="online_battle.setup_heading">バトルチーム(6体)を右のボックスから えらんで、下の 🌐オンライン対戦 で あいことばを 入力しよう！(技は自動セット・⚙くわしく編成で変更OK)</h2>
+    <!-- 人数セレクタ(#team-size)は廃止=常に6体固定(オンラインはフルバトル・2026-07-10) -->
+    <div id="setup-cols">
+      <div id="setup-left">
+        <div class="col-title self" data-i18n="online_battle.team_header">バトルチーム</div>
+        <div class="team-row" id="row-self"></div>
+      </div>
+      <div id="setup-center"><div id="sel-detail"></div></div>
+      <div id="setup-right">
+        <!-- 相手列(o1..)は内部データ構造だけ温存(setSlot('o1'..)がinnerHTMLを書ける先が必要)。UIは出さないのでdisplay:none -->
+        <div class="col-title opp" style="display:none" data-i18n="real_battle.team_label_opp">相手</div>
+        <div class="team-row" id="row-opp" style="display:none" aria-hidden="true"></div>
+        <!-- 常設ボックスパネル(チャンピオンズ風・紫系)。検索+タイプ絞り込み+縦スクロールグリッド。
+             クリックで選択中のチームスロット(selectedSlot)にセット(setSlot流用)。チーム内同種は薄く+クリック無効 -->
+        <div class="col-title box" data-i18n="real_battle.box_title">📦 ボックス</div>
+        <div id="box-panel">
+          <input id="box-q" placeholder="なまえで さがす(ひらがなでもOK)…" data-i18n-attr="placeholder:real_battle.pp_search_placeholder">
+          <div id="box-typef"></div>
+          <div id="box-grid"></div>
+        </div>
+      </div>
+    </div>
+    <!-- CH: 能力値エディタは中央パネル(#sel-detail)下段に一体化(2026-07-05 阿部さん「くっつけて・名前/適用なし」) -->
+    <!-- CH: キャラ画像ソース(バトル前にも選べる=2026-07-05 阿部さん)。バトル中の#sprite-srcと同期 -->
+    <div style="margin-top:10px;font-size:12px;color:#6a5fa0;display:flex;gap:8px;align-items:center">
+      <span data-i18n="real_battle.sprite_src_label">キャラ画像:</span>
+      <select id="sprite-src-setup" style="background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;padding:4px 8px">
+        <option value="original" data-i18n="real_battle.sprite_src_original">うちのオリジナル絵</option>
+        <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
+        <option value="home" data-i18n="real_battle.sprite_src_home">公式3D(Pokémon HOME)</option>
+      </select>
+    </div>
+    <div class="btns">
+      <button class="sub" id="btn-random" data-i18n="real_battle.btn_random">🎲 おまかせ編成</button>
+      <button id="btn-start" data-i18n="real_battle.btn_start">▶ バトルスタート！</button>
+    </div>
+  </div>
+
+  <!-- バトル画面 -->
+  <div id="battle">
+    <div id="battle-main">
+    <div id="field">
+      <!-- S6: 背景プリセット構造(Showdown .backdrop 準拠)。data-preset="grass/cave/water/night"で切替。
+           Showdown画像流用なし=CSSグラデで自前実装。将来の追加は CSS 1プリセット追記+option1行で済む。 -->
+      <div id="field-backdrop" data-preset="grass"></div>
+      <div id="weather-fx"></div>
+      <div id="fx-flash"></div>
+      <div id="turn-badge">Turn 1</div>
+      <div id="result-banner"></div>
+      <!-- CH: バトル終了(常設・実機の左上exitアイコン相当。メッセージ中も押せる) -->
+      <!-- 非常口ピクトグラム風のアイコンのみ(実機準拠・世界共通=2026-07-06 阿部さん)。ラベルはtitleで補助 -->
+      <button id="btn-exit" data-i18n-attr="title:real_battle.exit_button" title="終了"><span>🏃</span><span class="exit-div"></span><span>⊖</span></button>
+      <div class="trainer tn-opp"><span class="ava">🤖</span><span class="tnm" data-i18n="real_battle.pbox_label_opp">あいて</span></div>
+      <div class="trainer tn-self"><span class="ava">🧑</span><span class="tnm" data-i18n="real_battle.pbox_label_self">じぶん</span></div>
+      <div class="fighter" id="f-opp"><div class="platform"></div><div class="sprite"></div></div>
+      <div class="fighter" id="f-self"><div class="platform"></div><div class="sprite"></div></div>
+      <!-- S3: leftbar(自分側・左端) / rightbar(相手側・右端) 控え6体アイコンバー -->
+      <!-- A-3デフォルト: pbox内の.ballsを非表示にしてこちらに一本化。 -->
+      <!-- 復活: pbox .balls の display:none を外す + 下記を削除 -->
+      <div id="sts-self" class="sts-float"></div>
+      <div id="sts-opp" class="sts-float"></div>
+      <div id="leftbar">
+        <div class="sbar-name" id="sbar-name-self" data-i18n="real_battle.pbox_label_self"></div>
+        <div class="sbar-icons" id="sbar-icons-self"></div>
+      </div>
+      <div id="rightbar">
+        <div class="sbar-name" id="sbar-name-opp" data-i18n="real_battle.pbox_label_opp"></div>
+        <div class="sbar-icons" id="sbar-icons-opp"></div>
+      </div>
+      <!-- S2: statbarオーバーレイ化(Showdown準拠)。.whoバッジはA-2=削除(display:noneで残す) -->
+      <div class="pbox" id="pb-opp">
+        <!-- .whoバッジ: A-2デフォルト=非表示。復活→ .pbox .who { display:none } を削除 -->
+        <span class="who opp" data-i18n="real_battle.pbox_label_opp">あいて</span>
+        <div class="row1"><span class="icn"></span><strong class="nm">—</strong><span class="ptypes"></span><span class="lv">Lv.50</span></div>
+        <!-- S2: 2層HPバー(外枠155×12px / prevhp=残像バー / hp=現在バー。両方hpbar直下に並置) -->
+        <div class="hpbar">
+          <div class="hptext">—%</div><!-- A-1=%のみ。data-hp/data-maxに実数値を保持 -->
+          <div class="prevhp"></div><!-- 残像バー(黄色・遅れて縮む) -->
+          <div class="hp"></div><!-- 現在バー(緑/黄/赤・即時縮む) -->
+          <div class="status"></div><!-- 状態異常バッジはここにも入れられる(将来用) -->
+        </div>
+        <div class="sts"></div>
+        <div class="balls"></div>
+      </div>
+      <div class="pbox" id="pb-self">
+        <span class="who self" data-i18n="real_battle.pbox_label_self">じぶん</span>
+        <div class="row1"><span class="icn"></span><strong class="nm">—</strong><span class="ptypes"></span><span class="lv">Lv.50</span></div>
+        <div class="hpbar">
+          <div class="hptext">—%</div>
+          <div class="prevhp"></div>
+          <div class="hp"></div>
+          <div class="status"></div>
+        </div>
+        <div class="sts"></div>
+        <div class="held"></div><!-- 自分の持ち物(アイコン+名前・消費でグレー=2026-07-06 阿部さん) -->
+        <div class="balls"></div>
+      </div>
+      <!-- CH: メッセージ/コマンド/技/交代は盤面内オーバーレイ(チャンピオンズ準拠の出し入れ)。
+           id参照のJSは移動の影響なし -->
+      <div id="msgbox"><div id="msg-lines"></div><span class="next" style="display:none"></span></div><!-- ▼つぎへ表記は廃止(2026-07-06 阿部さん)。クリック送り自体は盤面クリックで従来どおり -->
+      <div id="cmd">
+        <button id="c-fight" data-i18n="real_battle.cmd_fight">⚔ たたかう</button>
+        <button id="c-party" data-i18n="real_battle.cmd_party">🔄 ポケモン</button>
+        <button id="c-run" data-i18n="real_battle.cmd_run">🏃 にげる(編成にもどる)</button>
+      </div>
+      <div id="moves"></div>
+      <div id="watch-panel"></div>
+      <div id="weak-panel"></div><!-- 弱点ボタン用: 相手へのタイプ相性パネル(2026-07-08 B1) -->
+      <div id="mv-tip"></div><!-- 技の説明ON時のホバー説明フロート(2026-07-06 阿部さん)。タッチではmouseleave無し=タップ/行動で消す -->
+      <div id="party"></div>
+    </div>
+    <div id="speed-row">
+      <label><input type="checkbox" id="auto-msg" checked> <span data-i18n="real_battle.auto_msg_label">自動でメッセージ送り</span></label>
+      <span><span data-i18n="real_battle.msg_speed_label">送り速度:</span> <select id="msg-speed"><option value="3800" data-i18n="real_battle.msg_speed_slow">ゆっくり</option><option value="2900" selected data-i18n="real_battle.msg_speed_normal">ふつう</option><option value="1700" data-i18n="real_battle.msg_speed_fast">はやい</option></select></span>
+      <!-- S6: 背景プリセット切替セレクト。将来の追加は option 1行+CSS 1プリセットで済む構造 -->
+      <span><span data-i18n="real_battle.backdrop_label">背景：</span> <select id="backdrop-sel">
+        <option value="grass" data-i18n="real_battle.backdrop_grass">草原</option>
+        <option value="cave" data-i18n="real_battle.backdrop_cave">洞窟</option>
+        <option value="water" data-i18n="real_battle.backdrop_water">水辺</option>
+        <option value="night" data-i18n="real_battle.backdrop_night">夜空</option>
+      </select></span>
+      <!-- CH: キャラ画像ソース切替(設定はバトル中も変更可・即反映) -->
+      <span><span data-i18n="real_battle.sprite_src_label">キャラ画像:</span> <select id="sprite-src">
+        <option value="original" data-i18n="real_battle.sprite_src_original">うちのオリジナル絵</option>
+        <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
+        <option value="home" data-i18n="real_battle.sprite_src_home">公式3D(Pokémon HOME)</option>
+      </select> <span id="sprite-credit" style="display:none;font-size:10px"><a href="https://pokeapi.co/" style="color:#9ec5ff" data-i18n="real_battle.sprite_credit">画像出典: PokéAPI</a></span></span>
+      <input type="range" id="snd-vol" min="0" max="1" step="0.05" title="🔊" style="margin-left:auto;width:110px;accent-color:#5a4fc4">
+      <button id="snd-toggle" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
+    </div>
+    </div><!-- /battle-main -->
+    <div id="battle-log-panel">
+      <div id="log-head" data-i18n="real_battle.log_head">バトルログ</div>
+      <div id="log-scroll"></div>
+    </div>
+  </div>
+</div>
+
+<!-- わざ検索モーダル(くわしく編成用) -->
+<div id="move-picker">
+  <div class="mp-box">
+    <input id="mp-q" placeholder="わざのなまえで さがす(ひらがなでもOK)…" data-i18n-attr="placeholder:real_battle.mp_search_placeholder">
+    <div id="mp-catf"></div>
+    <div id="mp-list"></div>
+    <button id="mp-close" data-i18n="real_battle.mp_close_button">とじる</button>
+  </div>
+</div>
+
+<!-- ポケモン検索モーダル(チーム編成用・ひらがな/カタカナどちらでも検索可) -->
+<!-- CH: 能力値設定モーダル(技リスト上の⚙ボタンから。simなのでバトル中でも振り直せる=2026-07-05 阿部さん)
+     中身=ビルダー(party_checker)のstats_only共通エディタiframe(66pt/32上限をビルダー側で担保) -->
+<div id="stats-modal">
+  <div class="sm-box" id="sm-holder"></div>
+</div>
+
+<!-- CH: 共通の選択モーダル(特性/持ち物/性格。説明つき・ジャンル分け=2026-07-06 阿部さん・ビルダーの持ち物モーダル方式) -->
+<div id="choice-modal">
+  <div class="cm-box">
+    <div class="cm-head"><span class="cm-title"></span><button class="cm-x">✕</button></div>
+    <div class="cm-body"></div>
+  </div>
+</div>
+<div id="poke-picker">
+  <div class="pp-box">
+    <!-- CH: ボックス(実機のBOXメタファー=2026-07-06 阿部さん)。タイプ表示つき5列・並び替えあり・タイプ絞り込みは無し -->
+    <div class="pp-head">📦 <b data-i18n="real_battle.box_title">ボックス</b>
+      <input id="pp-q" placeholder="なまえで さがす(ひらがなでもOK)…" data-i18n-attr="placeholder:real_battle.pp_search_placeholder">
+      <select id="pp-sort">
+        <option value="dex" data-i18n="real_battle.box_sort_dex">ずかん順</option>
+        <option value="name" data-i18n="real_battle.box_sort_name">なまえ順</option>
+      </select>
+    </div>
+    <div id="pp-typef"></div>
+    <div id="pp-list"></div>
+    <button id="pp-close" data-i18n="real_battle.pp_close_button">とじる</button>
+  </div>
+</div>
+
+<!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710c" style="display:none"></iframe>
+
+<script>
+let S = null;           // __sim ブリッジ
+let busy = false;       // メッセージ再生中
+let msgQueue = [];      // 表示待ちのログ行
+let logPos = 0;         // battleLog の読み取り位置
+let gameOver = false;
+let turnNo = 1;         // ターン数(Showdown風 Turn バッジ表示用)
+function updateTurnBadge(){ const b = document.getElementById('turn-badge'); if (b) b.textContent = 'Turn ' + turnNo; }
+// ===== 流れるバトルログ(Showdown風・右カラム。履歴が積み上がって残る) =====
+// S4: 4層マークアップ化。ターン見出し=h2.battle-history / 通常行=div.log-line.battle-history /
+//     効果行=div.log-line.log-line-small.battle-history / spacer=div.spacer.battle-history
+// retranslateLogDom は .log-line の textContent を走査するため .log-line クラスは必ず維持する。
+// XSS対策: テキストはすべて textContent / createTextNode で挿入し innerHTML に生文字列を流さない。
+let lastLogTurn = 0;
+function clearLog(){ const s = document.getElementById('log-scroll'); if (s) s.innerHTML = ''; lastLogTurn = 0; }
+function logTurnHeader(n){ const s = document.getElementById('log-scroll'); if (!s || n === lastLogTurn) return; lastLogTurn = n;
+  // spacer before turn h2 (ターン間の区切り空行)
+  if (lastLogTurn > 0){ const sp = document.createElement('div'); sp.className = 'spacer battle-history'; sp.appendChild(document.createElement('br')); s.appendChild(sp); }
+  const h = document.createElement('h2'); h.className = 'battle-history'; h.textContent = 'Turn ' + n; s.appendChild(h);
+  // spacer after turn h2
+  { const sp = document.createElement('div'); sp.className = 'spacer battle-history'; sp.appendChild(document.createElement('br')); s.appendChild(sp); }
+  s.scrollTop = s.scrollHeight; }
+// S4: logLine(text, type) — type: 'normal'(省略時) / 'small'(効果行) / 'spacer'(区切り空行)
+// 技名の <strong> はセグメント分割で安全に挿入(textContent ベースを維持)。
+// 技使用行パターン: 「〇〇の 〇〇！」または「〇〇 の 〇〇！」で始まり技名が「！」で終わる
+function _logMoveSplit(text, container){
+  // 「Aの B！」または「A の B！」: 末尾「！」まで技名(最後の「！」区切り)
+  // パターン: "{ポケモン名}の {技名}！" か "{ポケモン名} の {技名}！"
+  const m = text.match(/^(.+?)(の |の)(\S+？?！)(.*)$/);
+  if (!m){ container.textContent = text; return; }
+  const prefix = m[1] + m[2];
+  const moveName = m[3];
+  const suffix = m[4];
+  container.appendChild(document.createTextNode(prefix));
+  const strong = document.createElement('strong');
+  strong.textContent = moveName;
+  container.appendChild(strong);
+  if (suffix) container.appendChild(document.createTextNode(suffix));
+}
+// 効果行(small)として扱うパターン
+const _SMALL_PATS = [
+  /^こうかは ばつぐんだ！$/,
+  /^こうかは いまひとつのようだ…$/,
+  /^こうかは こうかなし…$/,
+  /^きゅうしょに あたった！$/,
+];
+function _isSmallLine(text){
+  for (var i=0;i<_SMALL_PATS.length;i++) if (_SMALL_PATS[i].test(text)) return true;
+  return false;
+}
+function logLine(text, type, srcJa){ const s = document.getElementById('log-scroll'); if (!s || text == null || text === '') return;
+  // type 未指定時は内容でauto判定
+  if (!type){ type = _isSmallLine(text) ? 'small' : 'normal'; }
+  if (type === 'spacer'){
+    const sp = document.createElement('div'); sp.className = 'spacer battle-history'; sp.appendChild(document.createElement('br')); s.appendChild(sp); s.scrollTop = s.scrollHeight; return;
+  }
+  const d = document.createElement('div');
+  d.className = 'log-line battle-history' + (type === 'small' ? ' log-line-small' : '');
+  d.setAttribute('data-bl-src', srcJa != null ? srcJa : text); // retranslateLogDom が参照するja原文(常にJA正典)
+  if (type === 'small'){
+    const sm = document.createElement('small'); sm.textContent = text; d.appendChild(sm);
+  } else {
+    // 技使用行は技名を strong にする試み(失敗してもフォールバックで全文 textContent)
+    const isMoveUse = /^(.+?)(の |の )(\S+！)/.test(text);
+    if (isMoveUse) { try { _logMoveSplit(text, d); } catch(e){ d.textContent = text; } }
+    else { d.textContent = text; }
+  }
+  s.appendChild(d); s.scrollTop = s.scrollHeight; }
+// メッセージ欄(下部・6行)に1行積む。直近が薄く残って見える
+function pushMsgLine(text){ const ml = document.getElementById('msg-lines'); if (!ml || text == null) return;
+  const d = document.createElement('div'); d.className = 'ml-line'; d.textContent = text; ml.appendChild(d);
+  while (ml.children.length > 40) ml.removeChild(ml.firstChild);
+  ml.scrollTop = ml.scrollHeight; }
+function clearMsg(){ const ml = document.getElementById('msg-lines'); if (ml) ml.innerHTML = ''; }
+
+const $ = id => document.getElementById(id);
+
+// I18N 表示ヘルパー(マスターDBの固有名詞は直書きせずDB辞書から描画。jaや未登録はjaにフォールバック)
+const tPokeName = nm => (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(nm) : nm;
+const tMoveName = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.key, m.name) : m.name;
+const tItemName = it => (window.I18N && window.I18N.item) ? window.I18N.item(it.name) : it.name;
+const tItemDesc = it => ((window.I18N && window.I18N.itemDesc && window.I18N.itemDesc(it.name)) || it.effect || '');
+const tTypeName = ty => (window.I18N && window.I18N.type) ? window.I18N.type(ty) : ty;
+// 技の分類(物理/特殊/変化)の表示語。値はマスターのまま保持し、表示時だけ共有語彙キーで翻訳。
+const _CAT_KEY = {'物理':'common.cat_phys', '特殊':'common.cat_spec', '変化':'common.cat_stat'};
+const tCatName = c => (window.I18N && window.I18N.t) ? window.I18N.t(_CAT_KEY[c] || '', c) : c;
+const _CAT_ICON = {'物理':'💥', '特殊':'✨', '変化':'🔄'};
+const _CAT_CLS = {'物理':'cat-phys', '特殊':'cat-spec', '変化':'cat-stat'};
+const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_CAT_ICON[c] || ''}${tCatName(c)}</span>`;
+// 言語切替・i18n初期化時に「くわしく編成」を作り直す(option等の一度きり構築JS部品を追従させる。Sが未準備なら何もしない=冪等)
+['i18n:changed', 'i18n:ready'].forEach(ev => document.addEventListener(ev, () => {
+  if (typeof S !== 'undefined' && S){
+    try {
+      // カプセルは初回描画がi18n準備前に走ることがある(エンジンiframe先行のレース)ため、ここで必ず作り直す。
+      // JSで組み立てるUI部品は i18n:ready/changed での再描画までがセット(2026-07-06 阿部さん英語モードで発覚)
+      selfIds().concat(oppIds()).forEach(id => { if (slotVal[id] && $(id)) $(id).innerHTML = slotCapsuleHtml(id); });
+      renderSelDetail(selectedSlot);
+      // ボックスを開いたまま言語切替された場合もチップ/一覧を作り直す
+      if ($('poke-picker').style.display === 'flex'){ renderPickerTypeChips(); renderPickerList($('pp-q').value); }
+      if ($('move-picker').style.display === 'flex' && movePick){ renderMoveCatChips(); renderMovePickList($('mp-q').value); }
+      // ★オンライン専用: 常設ボックスパネルも言語切替で作り直す(タイプ名/ポケモン名/「すべて」表記が追従)
+      if ($('box-grid')){ renderBoxTypeChips(); renderBoxGrid($('box-q') ? $('box-q').value : ''); }
+    } catch(e) {}
+  }
+  if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} }
+  // 弱点/様子パネルは開くたびに最新言語で再生成する設計=言語切替時は一旦閉じて古い言語を残さない(B1)
+  ['weak-panel', 'watch-panel'].forEach(id => { const _p = document.getElementById(id); if (_p) _p.style.display = 'none'; });
+  // つぎの相手ボタンは動的生成=data-bl-src対象外。言語切替で作り直す(2026-07-06 阿部さん)
+  const _nb = document.getElementById('c-next');
+  if (_nb && _nb.dataset.streak != null){
+    const nbJa = `⚔ つぎの相手と たたかう！(連勝: ${_nb.dataset.streak})`;
+    _nb.textContent = window.translateLogLine ? translateLogLine(nbJa) : nbJa;
+  }
+})); // 2026-07-03: 対戦中の言語切替で盤面名前ラベルも即時再描画(#15統合)
+
+document.getElementById('engine-frame').addEventListener('load', () => {
+  const w = $('engine-frame').contentWindow;
+  const wait = setInterval(() => {
+    if (w.__sim){
+      clearInterval(wait);
+      S = w.__sim;
+      // ひんし時の死に出し: 控えが2匹以上ならエンジンは保留し、ターン後にプレイヤーがUIで選ぶ
+      // (1匹なら __rbSwitchPick=先頭 で自動。promptは出さない。デモ自動バトル中は全自動)
+      w.__rbSwitchPick = idxs => idxs[0];
+      w.__rbDeferFaintReplace = !location.search.includes('demo');
+      initSetup();
+      fitField(); fitSetup();
+    }
+  }, 100);
+});
+
+// ===== チーム編成 =====
+let teamSize = 6;      // オンライン専用=常に6体固定(フルバトル。人数セレクタは廃止・2026-07-10)
+const selfIds = () => Array.from({length: teamSize}, (_, i) => 's' + (i + 1));
+const oppIds  = () => Array.from({length: teamSize}, (_, i) => 'o' + (i + 1));
+// バトル中の変身でしか現れない姿=最初から手持ちに置けない(イルカマン=ナイーブ始動/ギルガルド=シールド始動)。
+// メガと同じく抽選・選択プールから除外する。
+const BATTLE_ONLY_FORMS = new Set(['イルカマン(マイティ)', 'ギルガルド(ブレード)']);
+const isPickable = p => !p.mega && !BATTLE_ONLY_FORMS.has(p.name);
+// 変身結果の姿を「始動の姿」へ戻す(保存データ/引き継ぎに古い姿が残っていても矯正)
+const FORM_REVERT = {'イルカマン(マイティ)': 'イルカマン(ナイーブ)', 'ギルガルド(ブレード)': 'ギルガルド(シールド)'};
+let winStreak = 0;     // 連戦モードの連勝数
+const slotVal = {};    // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
+const slotMoves = {};  // 各スロットの技4つ(くわしく編成で変更可。ポケモンを変えると自動選定に戻る)
+const slotItem = {};   // 各スロットの持ち物key(既定=汎用メガストーン)
+const slotAbility = {}; // 各スロットの特性名(中央パネルで変更可=2026-07-05 阿部さん。既定=defaultAbilityRB)
+const slotGender = {}; // 各スロットの性別 '♂'/'♀'/'—'(2026-06-13 ビルダー連携)
+const slotNature = {}; // 各スロットの性格名(ビルダー由来。手動選択は'まじめ'=無補正)
+const slotEffort = {}; // 各スロットの努力値(Champions点 {hp,atk,...})。既定=全0
+const ZERO_EV = () => ({hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0});
+const EFFORT_KEYS = ['hp','atk','def','spatk','spdef','spd'];
+// 努力値ポイントをビルダー仕様にクランプ(1能力0〜32・合計66=Championsポイント制。エンジンは1pt=実数値+1)。
+// 旧モーダル(0〜252自由入力)時代の保存データが残っていても、ここで必ず仕様内に矯正される
+function clampEffortRB(e){
+  const out = ZERO_EV(); let left = 66;
+  EFFORT_KEYS.forEach(k => {
+    let v = Math.floor(Math.max(0, Math.min(32, +((e || {})[k]) || 0)));
+    v = Math.min(v, left); out[k] = v; left -= v;
+  });
+  return out;
+}
+// 無性別ポケモン(party_checkerと同じ。相手チーム=ランダム編成にも性別を割り振るため)
+const GENDERLESS_RB = new Set(["メタモン","ロトム","ヒートロトム","ウォッシュロトム","フロストロトム","スピンロトム",
+  "カットロトム","ギルガルド(シールド)","ギルガルド(ブレード)","クレッフィ","ゴルーグ","メガゴルーグ",
+  "ポットデス","ブリジュラス","ミミズズ","キョジオーン"]);
+function genderOfRB(name){
+  if (!name) return '';
+  if (GENDERLESS_RB.has(name)) return '—';
+  if (name.includes('♂')) return '♂';
+  if (name.includes('♀')) return '♀';
+  return Math.random() < 0.5 ? '♂' : '♀';
+}
+let pickerSlot = null;
+let movePick = null;   // {slotId, idx} わざモーダルの編集先
+// ひらがな→カタカナ(検索用正規化。「ぴかちゅう」でピカチュウにヒット)
+const toKata = s => s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
+function setSlot(id, name, keepCustom){
+  name = FORM_REVERT[name] || name;   // 変身でしか出ない姿は始動の姿に矯正(イルカマン=ナイーブ/ギルガルド=シールド)
+  slotVal[id] = name;
+  if (!keepCustom) slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
+  if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
+  if (!keepCustom || !slotGender[id]) slotGender[id] = genderOfRB(name);   // 性別(ビルダー由来は復元側でセット)
+  if (!keepCustom){ slotNature[id] = 'まじめ'; slotEffort[id] = ZERO_EV(); }   // 手動選択は無補正・努力値0
+  if (!keepCustom || !slotAbility[id]) slotAbility[id] = defaultAbilityRB(S.pokeByName(name));   // ポケモンを変えたら特性も既定に
+  $(id).innerHTML = slotCapsuleHtml(id);
+  if (typeof selectedSlot !== 'undefined' && selectedSlot === id) renderSelDetail(id);
+  saveTeam();
+}
+// ===== CH: 選出画面の本家寄せ(2026-07-05 阿部さん: 左=自分/右=相手/中央=選択中の詳細) =====
+let selectedSlot = 's1';
+// カプセルの中身(名前+持ち物+スプライト+変更ボタン)。スプライトはキャラ画像設定に追従
+function slotCapsuleHtml(id){
+  const nm = slotVal[id];
+  if (!nm) return `<span class="cap-txt"><strong>—</strong></span>`;
+  const it = S.itemByKey(slotItem[id]);
+  const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
+  const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
+  const p = S.pokeByName(nm);
+  const tc = S.typeColors();
+  const g = slotGender[id];
+  const gHtml = g && g !== '—' ? `<span class="cap-g ${g === '♂' ? 'm' : 'f'}">${g}</span>` : '';
+  const types = p ? [p.type1, p.type2].filter(Boolean).map(t =>
+    `<span class="cap-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('') : '';
+  const capSide = id[0] === 's' ? 'self' : 'opp';
+  const leadHtml = leadSlot[capSide] === id
+    ? `<span class="cap-lead on">★ ${I18N.t('real_battle.lead_label','1番目')}</span>`
+    : `<span class="cap-lead">${I18N.t('real_battle.lead_set','1番目に')}</span>`;
+  return `<strong class="cap-name">${tPokeName(nm)}${gHtml}</strong>` +
+    `<span class="cap-mid"><span class="cap-types">${types}</span>` +
+    `<small class="cap-item">${it ? itemIconHtml(it) + tItemName(it) : ''}</small></span>` +
+    `<img src="${src}" alt="" onerror="this.remove()">` +
+    leadHtml +
+    `<span class="cap-change">📦 ${I18N.t('real_battle.box_title','ボックス')} <span class="cap-swap">🔄</span></span>`;
+}
+function setSelectedSlot(id){
+  selectedSlot = id;
+  document.querySelectorAll('.team-row .slot').forEach(b => b.classList.toggle('selected', b.id === id));
+  renderSelDetail(id);   // 中央パネル(能力値エディタ込み)を選択中スロットに追従
+  // ★オンライン専用: 選択中スロットが変わったら常設ボックスの「使用済み(薄く)」判定も引き直す
+  if ($('box-grid')) renderBoxGrid($('box-q') ? $('box-q').value : '');
+}
+// 選べる持ち物リスト(メガストーンは汎用のみ。旧くわしく編成と同じ絞り込み)
+function itemChoicesRB(){
+  // メガストーンは汎用(共通)1つだけ(2026-07-06 阿部さん)。バトル中のメガシンカは1体だけの制限は従来どおり
+  return S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any');
+}
+// 共通選択モーダル: groups=[{label, rows:[{key,name,desc,selected}]}]
+function openChoiceModal(title, groups, onPick, anchor){
+  const cm = $('choice-modal');
+  const box = cm.querySelector('.cm-box');
+  cm.querySelector('.cm-title').textContent = title;
+  const totalRows = groups.reduce((n, g) => n + g.rows.length, 0);
+  const bodyHtml = groups.map((g, gi) =>
+    (g.label ? `<div class="cm-group" data-cmgroup="${gi}">${g.label}</div>` : '') +
+    g.rows.map(r => {
+      const searchStr = ((r.name || '') + ' ' + (r.desc || '')).replace(/<[^>]*>/g, '');
+      return `<button class="cm-row${r.selected ? ' sel' : ''}" data-k="${r.key}" data-cmg="${gi}" data-search="${searchStr.replace(/"/g, '')}"><b>${r.icon || ''}${r.name}</b>${r.desc ? `<span>${r.desc}</span>` : ''}</button>`;
+    }).join('')
+  ).join('');
+  cm.querySelector('.cm-body').innerHTML = bodyHtml;
+  // 項目が多い時(もちもの等)は文字検索をヘッダー行に出す=縦幅節約(2026-07-07 阿部さん)
+  const head = cm.querySelector('.cm-head');
+  const oldSearch = head.querySelector('.cm-search'); if (oldSearch) oldSearch.remove();
+  if (totalRows > 12){
+    const inp = document.createElement('input');
+    inp.className = 'cm-search';
+    inp.placeholder = I18N.t('real_battle.item_search_placeholder','なまえで さがす(ひらがなでもOK)…');
+    head.insertBefore(inp, head.querySelector('.cm-x'));
+  }
+  cm.style.display = 'block';
+  // 検索フィルタ: 名前/説明にマッチしない行を隠す。空になったグループ見出しも隠す(検索はヘッダー行)
+  const sInput = cm.querySelector('.cm-head .cm-search');
+  if (sInput){
+    const applyFilter = () => {
+      const q = sInput.value.trim();
+      const k = (typeof toKata === 'function') ? toKata(q) : q;
+      const groupHas = {};
+      cm.querySelectorAll('.cm-row').forEach(row => {
+        const hit = !q || row.dataset.search.includes(q) || (k && row.dataset.search.includes(k));
+        row.style.display = hit ? '' : 'none';
+        if (hit) groupHas[row.dataset.cmg] = true;
+      });
+      cm.querySelectorAll('.cm-group').forEach(gl => { gl.style.display = groupHas[gl.dataset.cmgroup] ? '' : 'none'; });
+    };
+    sInput.addEventListener('input', applyFilter);
+    // 自動フォーカスしない=キーボードが勝手に出るのを防ぐ(タップで出す)(2026-07-07 阿部さん)
+  }
+  // 押したボタンの上に出す(マウス移動を最小に=2026-07-06 阿部さん)。入り切らなければ下/画面内にクランプ
+  const w = box.offsetWidth, h = box.offsetHeight, vw = innerWidth, vh = innerHeight;
+  let left = vw / 2 - w / 2, top = 60;
+  if (anchor && anchor.getBoundingClientRect){
+    const a = anchor.getBoundingClientRect();
+    left = Math.max(8, Math.min(a.left + a.width / 2 - w / 2, vw - w - 8));
+    top = a.top - h - 10;
+    if (top < 8) top = 8;   // 入り切らない時は画面上部に出す(下に落とさない=2026-07-06 阿部さん)
+  }
+  box.style.left = left + 'px';
+  box.style.top = top + 'px';
+  // 選択中の行が見える位置までスクロール
+  const sel = cm.querySelector('.cm-row.sel');
+  if (sel) sel.scrollIntoView({ block: 'center' });
+  cm.querySelectorAll('.cm-row').forEach(b => b.addEventListener('click', () => { SE.select(); cm.style.display = 'none'; onPick(b.dataset.k); }));
+}
+// 同サイドの他スロットが使用中の持ち物キー(1種類1個ルール用。メガストーンは除外)
+function usedItemsRB(id){
+  const sib = (id[0] === 's' ? selfIds() : oppIds()).filter(x => x !== id);
+  return new Set(sib.map(x => slotItem[x]).filter(k => k && k !== 'mega_stone_any'));
+}
+// 読込/おまかせ後の重複持ち物を矯正(先勝ち・後のスロットは汎用メガストーンへ)
+function dedupeItemsRB(){
+  [selfIds(), oppIds()].forEach(ids => {
+    const seen = new Set();
+    ids.forEach(id => {
+      const k = slotItem[id];
+      if (!k || k === 'mega_stone_any') return;
+      if (seen.has(k)) slotItem[id] = 'mega_stone_any';
+      else seen.add(k);
+    });
+  });
+}
+// 性格選択=本家の能力補正マトリクス踏襲(行=上がる能力・列=下がる能力・対角=補正なし)(2026-07-06 阿部さん)
+const NAT_AXIS = ['atk', 'def', 'spatk', 'spdef', 'spd'];
+const NAT_NEUTRAL_DIAG = {atk:'がんばりや', def:'すなお', spatk:'てれや', spdef:'きまぐれ', spd:'まじめ'};
+function openNatureModal(current, onPick, anchor){
+  const cm = $('choice-modal');
+  const box = cm.querySelector('.cm-box');
+  cm.querySelector('.cm-title').textContent = I18N.t('real_battle.stats_nature_label', '性格');
+  const byUD = {};
+  S.natureList().forEach(n => { if (n[1] !== '—') byUD[n[1] + '/' + n[2]] = n[0]; });
+  NAT_AXIS.forEach(k => { byUD[k + '/' + k] = NAT_NEUTRAL_DIAG[k]; });
+  const statNm = k => I18N.t(EV_LABEL_KEY[k], {atk:'こうげき', def:'ぼうぎょ', spatk:'とくこう', spdef:'とくぼう', spd:'すばやさ'}[k]);
+  let html = '<div class="cm-matrix">' +
+    `<div class="cm-mcorner"><span class="up">▲</span>＼<span class="dn">▼</span></div>` +
+    NAT_AXIS.map(k => `<div class="cm-mh">${statNm(k)}<span class="dn">▼</span></div>`).join('');
+  NAT_AXIS.forEach(up => {
+    html += `<div class="cm-ml"><span class="up">▲</span>${statNm(up)}</div>` +
+      NAT_AXIS.map(dn => {
+        const nm = byUD[up + '/' + dn];
+        return nm ? `<button class="cm-cell${nm === current ? ' sel' : ''}" data-k="${nm}">${tNature(nm)}</button>` : '<span></span>';
+      }).join('');
+  });
+  cm.querySelector('.cm-body').innerHTML = html + '</div>';
+  cm.style.display = 'block';
+  const w = box.offsetWidth, h = box.offsetHeight, vw = innerWidth;
+  let left = vw / 2 - w / 2, top = 60;
+  if (anchor && anchor.getBoundingClientRect){
+    const a = anchor.getBoundingClientRect();
+    left = Math.max(8, Math.min(a.left + a.width / 2 - w / 2, vw - w - 8));
+    top = a.top - h - 10;
+    if (top < 8) top = 8;
+  }
+  box.style.left = left + 'px';
+  box.style.top = top + 'px';
+  cm.querySelectorAll('.cm-cell').forEach(b => b.addEventListener('click', () => { SE.select(); cm.style.display = 'none'; onPick(b.dataset.k); }));
+}
+// 持ち物の5ジャンル(ビルダーのモーダル同様「ジャンル+説明」で探しやすく)
+const ITEMCAT_BUCKET = {attack_boost:'attack', type_boost:'attack', speed_boost:'speed',
+  defense_boost:'defense', survival:'defense', berry_resist:'heal', berry_status_cure:'heal', berry_hp_cure:'heal', hp_drain:'heal'};
+function openItemModal(current, onPick, anchor, usedKeys){
+  const buckets = {attack:[], speed:[], defense:[], heal:[], other:[]};
+  // 同サイドで使用中の持ち物は出さない=1種類1個(メガストーンだけ共有可・2026-07-06 阿部さん)
+  itemChoicesRB().filter(it => it.key === 'mega_stone_any' || !(usedKeys && usedKeys.has(it.key)))
+    .forEach(it => { buckets[ITEMCAT_BUCKET[it.category] || 'other'].push(it); });
+  const g = [{label:'', rows:[{key:'', name:I18N.t('real_battle.item_none_option','もちもの なし'), desc:'', selected:!current}]}];
+  [['attack','itemcat_attack','こうげき強化'],['speed','itemcat_speed','すばやさ'],['defense','itemcat_defense','ぼうぎょ・たいきゅう'],
+   ['heal','itemcat_heal','きのみ・かいふく'],['other','itemcat_other','そのほか']].forEach(([b, k, ja]) => {
+    if (!buckets[b].length) return;
+    g.push({label:I18N.t('real_battle.' + k, ja), rows:buckets[b].map(it => ({key:it.key, name:tItemName(it), desc:tItemDesc(it), icon:itemIconHtml(it), selected:current === it.key}))});
+  });
+  openChoiceModal(I18N.t('real_battle.sel_item','もちもの'), g, onPick, anchor);
+}
+// 中央詳細パネル(本家の能力タブ風): タイプ/技4つ(クリックで変更)/特性・持ち物(セレクトで変更=2026-07-05 阿部さん)
+function renderSelDetail(id){
+  const box = $('sel-detail');
+  if (!box) return;
+  // 相手スロット選択中はパネルを相手色(クリムゾン)に(どちら側を見ているか一目で分かるように=2026-07-05 阿部さん)
+  box.classList.toggle('opp', String(id).startsWith('o'));
+  const nm = slotVal[id];
+  if (!nm){ box.innerHTML = `<div class="sd-empty">${I18N.t('real_battle.sel_empty','ポケモンを えらんでね')}</div>`; return; }
+  const p = S.pokeByName(nm);
+  if (!p){ box.innerHTML = ''; return; }
+  const tc = S.typeColors();
+  const types = [p.type1, p.type2].filter(Boolean).map(t =>
+    `<span class="sd-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
+  const curAb = slotAbility[id] || defaultAbilityRB(p);
+  const abilities = [p.ab1, p.ab2, p.ab3].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+  const mvs = (slotMoves[id] || autoMoves(p)).filter(Boolean);
+  const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
+  const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
+  box.innerHTML =
+    `<div class="sd-head"><img src="${src}" alt="" onerror="this.remove()"><div><strong>${tPokeName(nm)}</strong><div>${types}</div></div></div>` +
+    `<div class="sd-moves">` + mvs.map((m, i) => {
+      const col = tc[m.type] || '#3a4660';
+      return `<button class="sd-move" data-i="${i}" style="background:linear-gradient(135deg,${col}dd,${col}99)">` +
+        `<span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>${tMoveName(m)}` +
+        `<span class="sd-pp">${m.pp || 0}/${m.pp || 0}</span></button>`;
+    }).join('') + `</div>` +
+    `<div class="sd-row"><span>${I18N.t('real_battle.sel_ability','特性')}</span><button class="sd-ab sd-pick">${(window.I18N && I18N.ability) ? I18N.ability(curAb) : curAb} ▾</button></div>` +
+    `<div class="sd-row"><span>${I18N.t('real_battle.sel_item','もちもの')}</span><button class="sd-item sd-pick">${(S.itemByKey(slotItem[id]) ? tItemName(S.itemByKey(slotItem[id])) : I18N.t('real_battle.item_none_option','もちもの なし'))} ▾</button></div>` +
+    `<div class="sd-ev"></div>`;
+  // 能力値エディタ(パネル下段に一体・自動確定=2026-07-05 阿部さん)
+  renderEvEditor(box.querySelector('.sd-ev'), {
+    poke: p,
+    getEff: () => slotEffort[id] || ZERO_EV(),
+    getNature: () => slotNature[id],
+    apply: (eff, nature) => { slotEffort[id] = eff; slotNature[id] = nature; saveTeam(); },
+  });
+  box.querySelectorAll('.sd-move').forEach(b => b.addEventListener('click', () => { SE.select(); openMovePicker(id, +b.dataset.i); }));
+  // 特性/持ち物=説明つきモーダルで選ぶ(2026-07-06 阿部さん・ビルダー方式)
+  box.querySelector('.sd-ab').addEventListener('click', e => {
+    SE.select();
+    openChoiceModal(I18N.t('real_battle.sel_ability','特性'),
+      [{label:'', rows:abilities.map(a => ({key:a, name:(window.I18N && I18N.ability) ? I18N.ability(a) : a,
+        desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (S.abilityDescJa ? S.abilityDescJa(a) : '') || '', selected:a === curAb}))}],
+      k => { slotAbility[id] = k; saveTeam(); renderSelDetail(id); }, e.currentTarget);
+  });
+  box.querySelector('.sd-item').addEventListener('click', e => {
+    SE.select();
+    openItemModal(slotItem[id], k => {
+      slotItem[id] = k;
+      if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
+      saveTeam(); renderSelDetail(id);
+    }, e.currentTarget, usedItemsRB(id));
+  });
+}
+// 編成の保存/復元(localStorage): ポケモン名・技名・持ち物キー・人数(リロードしても残る)
+// キーはreal_battle.html('rb_team')とは別の名前空間にする(オンラインは常に6体固定=teamSizeが食い違う事故を避ける)
+function saveTeam(){
+  try {
+    const data = { size: teamSize, lead: leadSlot, val: slotVal, item: slotItem, ability: slotAbility, gender: slotGender, nature: slotNature, effort: slotEffort,
+      moves: Object.fromEntries(Object.entries(slotMoves).map(([k, arr]) => [k, (arr || []).map(m => m && m.name)])) };
+    localStorage.setItem('rb_team_online', JSON.stringify(data));
+  } catch (e) {}
+}
+function loadTeam(){
+  try {
+    const d = JSON.parse(localStorage.getItem('rb_team_online') || 'null');
+    if (!d || !d.val || !d.val.s1) return false;
+    teamSize = 6;   // オンライン専用=常に6体固定(保存データのsizeは無視)
+    leadSlot = {
+      self: (d.lead && d.lead.self && selfIds().includes(d.lead.self)) ? d.lead.self : 's1',
+      opp:  (d.lead && d.lead.opp && oppIds().includes(d.lead.opp))   ? d.lead.opp  : 'o1'
+    };
+    renderTeamRows();
+    selfIds().concat(oppIds()).forEach(id => {
+      // 保存チームにメガのすがたが残っていたら基本のすがたへ矯正(メガはバトル中のみ=2026-07-05 阿部さん)
+      const _p0 = d.val[id] && S.pokeByName(d.val[id]);
+      if (_p0 && (_p0.mega || _p0.form === 'メガ進化')){
+        const _base = d.val[id].replace(/^メガ/, '').replace(/[XY]$/, '');
+        if (S.pokeByName(_base)) d.val[id] = _base;
+      }
+      if (!d.val[id] || !S.pokeByName(d.val[id])) return;
+      slotItem[id] = d.item && d.item[id] != null ? d.item[id] : 'mega_stone_any';
+      slotGender[id] = (d.gender && d.gender[id]) || genderOfRB(d.val[id]);
+      slotNature[id] = (d.nature && d.nature[id]) || 'まじめ';
+      // 旧モーダル時代の252等が残っていても仕様値にクランプ(各32・計66=ビルダー仕様)
+      slotEffort[id] = clampEffortRB((d.effort && d.effort[id]) || {});
+      const poke = S.pokeByName(d.val[id]);
+      // 特性: 保存値がその子の特性候補(ab1〜ab3)なら復元、でなければ既定
+      const _abSaved = d.ability && d.ability[id];
+      slotAbility[id] = (_abSaved && [poke.ab1, poke.ab2, poke.ab3].includes(_abSaved)) ? _abSaved : defaultAbilityRB(poke);
+      const all = S.usableMoves(poke);
+      const names = (d.moves && d.moves[id]) || [];
+      const mvs = names.map(n => all.find(m => m.name === n)).filter(Boolean);
+      slotMoves[id] = mvs.length === 4 ? mvs : autoMoves(poke);
+      setSlot(id, d.val[id], true);
+    });
+    dedupeTeams();   // 過去の保存に同種重複が残っていたら引き直す
+    dedupeItemsRB(); // 過去の保存に持ち物重複が残っていたら矯正(1種類1個)
+    return true;
+  } catch (e) { return false; }
+}
+// 同じポケモンは1チーム1体まで(2026-07-06 阿部さん)。重複していた2体目以降をランダムな未使用種に引き直す
+function dedupeTeams(){
+  const all = S.pokeList().filter(isPickable).map(p => p.name);
+  [selfIds(), oppIds()].forEach(ids => {
+    const seen = new Set();
+    ids.forEach(id => {
+      const nm = slotVal[id];
+      if (!nm) return;
+      if (seen.has(nm)){
+        const pool = all.filter(n => !seen.has(n) && !ids.some(x => slotVal[x] === n));
+        if (pool.length) setSlot(id, pool[Math.floor(Math.random() * pool.length)]);
+      }
+      seen.add(slotVal[id]);
+    });
+  });
+}
+// チームビルダー(party_checker.html)からの受け取り(2026-06-13)。自分チームだけ反映・相手はランダム。
+// 一度読んだら handoff キーは消す(リロードで毎回上書きしないため。rb_teamには保存される)
+function loadHandoff(){
+  try {
+    const d = JSON.parse(localStorage.getItem('pokechan_realbattle_handoff_v1') || 'null');
+    if (!d || !Array.isArray(d.party)) return false;
+    const picks = d.party.filter(e => e && e.name && S.pokeByName(e.name)).slice(0, 6);
+    if (!picks.length) return false;
+    localStorage.removeItem('pokechan_realbattle_handoff_v1');
+    teamSize = 6;   // オンライン専用=常に6体固定(ビルダーの手持ちが6未満でも残り枠はランダム補完)
+    renderTeamRows();
+    const pokes = S.pokeList().filter(isPickable);
+    // 重複なしランダム(同名2体は交代リストで紛らわしい): 使った名前を除外しながら引く
+    const used = new Set(picks.map(e => e && e.name).filter(Boolean));
+    const rnd = () => {
+      const cand = pokes.filter(p => !used.has(p.name));
+      const nm = (cand.length ? cand : pokes)[Math.floor(Math.random() * (cand.length ? cand.length : pokes.length))].name;
+      used.add(nm);
+      return nm;
+    };
+    // 自分チーム = ビルダーの編成(技keyを解決・足りなければ自動補完)
+    selfIds().forEach((id, i) => {
+      const e = picks[i];
+      if (!e){ setSlot(id, rnd()); return; }
+      const poke = S.pokeByName(e.name);
+      const all = S.usableMoves(poke);
+      const byKey = (e.moves || []).map(k => all.find(m => m && (m.key === k || m.name === k))).filter(Boolean);
+      slotMoves[id] = byKey.length ? byKey.slice(0, 4) : autoMoves(poke);
+      slotItem[id] = e.item || 'mega_stone_any';
+      slotGender[id] = e.gender || genderOfRB(e.name);
+      slotNature[id] = e.nature || 'まじめ';
+      slotEffort[id] = clampEffortRB(e.effort || {});
+      slotAbility[id] = null;   // ビルダーhandoffは特性を持たない→setSlot(keepCustom)内で既定を補完
+      setSlot(id, e.name, true);
+    });
+    dedupeItemsRB();
+    // 相手チームはランダム
+    oppIds().forEach(id => setSlot(id, rnd()));
+    dedupeTeams();   // ビルダー側に同種が居ても1チーム1体に矯正
+    return true;
+  } catch (e) { return false; }
+}
+// ===== 能力値コンパクトエディタ(中央パネル直下に一体化・2026-07-05 阿部さん) =====
+// ルールはビルダー準拠(合計66pt/1能力32pt/1pt=実数値+1・性格補正)。UIは指示どおりコンパクト独自:
+// ポケモン名なし/メーター4目盛り(1目盛り=8pt)/MIN⇔MAXトグル1個/適用・キャンセルなし=触った瞬間に確定保存
+const EV_LETTER = {hp:'H', atk:'A', def:'B', spatk:'C', spdef:'D', spd:'S'};
+const EV_LABEL_KEY = {hp:'stats.hp_full', atk:'stats.atk_full', def:'stats.def_full',
+  spatk:'stats.sp_atk_full', spdef:'stats.sp_def_full', spd:'stats.spd_full'};
+const tNature = n => (window.I18N && I18N.nature) ? I18N.nature(n) : n;
+// ctx = { poke, getEff(), getNature(), apply(eff, nature) } — applyは変更のたびに即呼ばれる(自動確定)
+function renderEvEditor(container, ctx){
+  if (!container || !ctx.poke) return;
+  const eff = clampEffortRB(ctx.getEff());
+  const natureName = ctx.getNature() || 'まじめ';
+  const nat = S.natureList().find(n => n[0] === natureName) || ['まじめ','—','—'];
+  const total = EFFORT_KEYS.reduce((s, k) => s + eff[k], 0);
+  const maxFor = k => Math.min(32, 66 - (total - eff[k]));
+  const tmp = S.makeSideState();
+  tmp.poke = ctx.poke; tmp.effort = eff; tmp.natureIdx = S.natureIdxOf(natureName);
+  const natFx = n => n[1] !== '—' ? ` (${EV_LETTER[n[1]]}↑${EV_LETTER[n[2]]}↓)` : '';
+  const curNat = S.natureList().find(n => n[0] === natureName) || ['まじめ','—','—'];
+  container.classList.toggle('full', total >= 66);
+  container.innerHTML =
+    `<div class="sd-ev-top"><button class="sd-nature sd-pick">${tNature(natureName)}${natFx(curNat)} ▾</button>` +
+    `<span class="sd-ev-budget"><b>${total}</b>/66</span>` +
+    `<button class="sd-ev-reset">${I18N.t('buttons.reset','リセット')}</button></div>` +
+    EFFORT_KEYS.map(k => {
+      const pts = eff[k], mx = maxFor(k);
+      const isMin = pts > 0 && pts >= mx;   // これ以上盛れない→MINに切り替わる(1ボタントグル)
+      return `<div class="sd-ev-row${pts >= 32 ? ' maxed' : pts > 0 ? ' has' : ''}" data-k="${k}">` +
+        `<span class="evl${nat[1] === k ? ' up' : nat[2] === k ? ' down' : ''}">${EV_LETTER[k]}<small>${I18N.t(EV_LABEL_KEY[k], k)}</small></span>` +
+        `<span class="real">${S.realStat(tmp, k)}</span><span class="sp"></span>` +
+        `<button class="dec" ${pts <= 0 ? 'disabled' : ''}>◀</button><span class="pts">${pts}</span>` +
+        `<button class="inc" ${pts >= mx ? 'disabled' : ''}>▶</button>` +
+        `<button class="mm" ${!isMin && mx <= pts ? 'disabled' : ''}>${isMin ? 'MIN' : 'MAX'}</button></div>`;
+    }).join('');
+  // どの操作も即確定(適用ボタン無し=他のポケモンに移っても設定が残る)
+  const commit = (newEff, newNature) => {
+    ctx.apply(clampEffortRB(newEff || eff), newNature || natureName);
+    renderEvEditor(container, ctx);
+  };
+  container.querySelector('.sd-nature').addEventListener('click', e => {
+    SE.select();
+    openNatureModal(natureName, k => commit(eff, k), e.currentTarget);
+  });
+  container.querySelector('.sd-ev-reset').addEventListener('click', () => { SE.select(); commit(ZERO_EV()); });
+  container.querySelectorAll('.sd-ev-row').forEach(row => {
+    const k = row.dataset.k;
+    const set = v => commit({ ...eff, [k]: Math.max(0, Math.min(maxFor(k), Math.round(v))) });
+    row.querySelector('.dec').addEventListener('click', () => set(eff[k] - 1));
+    row.querySelector('.inc').addEventListener('click', () => set(eff[k] + 1));
+    row.querySelector('.mm').addEventListener('click', () => { SE.select(); set(eff[k] > 0 && eff[k] >= maxFor(k) ? 0 : maxFor(k)); });
+    // メーター(bar)は廃止=ドラッグ入力も廃止(2026-07-07 阿部さん)
+  });
+}
+// わざモーダル(ひらがな検索→クリックでそのスロットの技を差し替え)
+let mpCat = null;   // 分類フィルター(null=すべて / '物理' / '特殊' / '変化')
+function renderMoveCatChips(){
+  const cats = [['物理', 'cat-phys'], ['特殊', 'cat-spec'], ['変化', 'cat-stat']];
+  $('mp-catf').innerHTML =
+    `<button class="cf-all${mpCat === null ? ' on' : ''}">${I18N.t('filter.all','すべて')}</button>` +
+    cats.map(([c, cls]) => `<button data-c="${c}" class="${cls}${mpCat === c ? ' on' : ''}">${_CAT_ICON[c]}${tCatName(c)}</button>`).join('');
+  $('mp-catf').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    mpCat = b.dataset.c || null;
+    renderMoveCatChips();
+    renderMovePickList($('mp-q').value);
+  }));
+}
+function openMovePicker(slotId, idx){
+  movePick = { slotId, idx };
+  $('move-picker').style.display = 'flex';
+  $('mp-q').value = '';
+  mpCat = null;
+  renderMoveCatChips();
+  renderMovePickList('');
+  // 自動フォーカスしない(キーボードが勝手に出ない=2026-07-07 阿部さん)
+}
+function closeMovePicker(){ $('move-picker').style.display = 'none'; movePick = null; }
+function renderMovePickList(query){
+  if (!movePick) return;
+  const poke = S.pokeByName(slotVal[movePick.slotId]);
+  const all = S.usableMoves(poke);
+  const tc = S.typeColors();
+  const k = toKata(query.trim());
+  let hits = k ? all.filter(m => m.name.includes(k) || m.name.includes(query.trim())) : all;
+  if (mpCat) hits = hits.filter(m => m.category === mpCat);
+  // 並び: 攻撃技(物理/特殊混合)を威力の強い順→変化技は末尾(2026-07-06 阿部さん)
+  const sorted = hits.slice().sort((a, b) => {
+    const av = a.category === '変化' ? -1 : (a.power || 0);
+    const bv = b.category === '変化' ? -1 : (b.power || 0);
+    return bv - av;
+  });
+  $('mp-list').innerHTML = sorted.slice(0, 120).map(m => {
+    const col = tc[m.type] || '#3a4660';
+    const pri = (m.battle_data && m.battle_data.priority) || m.priority || 0;
+    const desc = (window.I18N && I18N.moveDesc && I18N.moveDesc(m.key)) || m.description || m.desc || '';
+    const meta = [
+      `${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'}`,
+      `${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'}`,
+      `${I18N.t('real_battle.move_pp_label','PP')}${m.pp ?? '—'}`,
+      pri ? `${I18N.t('real_battle.move_priority_label','優先度')}${pri > 0 ? '+' : ''}${pri}` : ''
+    ].filter(Boolean).join(' / ');
+    return `<button data-n="${m.name}"><div class="mp-top"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>` +
+      catBadge(m.category) +
+      `<span class="mv-name">${tMoveName(m)}</span><span class="mp-meta">${meta}</span></div>` +
+      (desc ? `<div class="mp-desc">${desc}</div>` : '') + `</button>`;
+  }).join('') || `<div style="color:#8b94a7;padding:8px">${I18N.t('real_battle.move_not_found','みつからない…')}</div>`;
+  $('mp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    const mv = all.find(m => m.name === b.dataset.n);
+    if (mv && movePick){
+      const arr = slotMoves[movePick.slotId];
+      // 同じ技を2枠に入れない(既にある場合は入れ替え)
+      const dup = arr.findIndex(m => m && m.name === mv.name);
+      if (dup >= 0 && dup !== movePick.idx) arr[dup] = arr[movePick.idx];
+      arr[movePick.idx] = mv;
+      renderSelDetail(movePick.slotId);
+      saveTeam();
+    }
+    closeMovePicker();
+  }));
+}
+let ppType = null;   // タイプ絞り込み(nullなら全タイプ)
+function renderPickerTypeChips(){
+  const tc = S.typeColors();
+  // ボックスに実在するタイプだけ・図鑑のタイプ定義順で
+  const present = new Set();
+  S.pokeList().filter(isPickable).forEach(p => { present.add(p.type1); if (p.type2) present.add(p.type2); });
+  const types = Object.keys(tc).filter(t => present.has(t));
+  $('pp-typef').innerHTML =
+    `<button class="tf-all${ppType === null ? ' on' : ''}">${I18N.t('filter.all','すべて')}</button>` +
+    types.map(t => `<button data-t="${t}" class="${ppType === t ? 'on' : ''}" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</button>`).join('');
+  $('pp-typef').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    ppType = b.dataset.t || null;
+    renderPickerTypeChips();
+    renderPickerList($('pp-q').value);
+  }));
+}
+function openPicker(id){
+  pickerSlot = id;
+  $('poke-picker').style.display = 'flex';
+  const q = $('pp-q');
+  q.value = '';
+  ppType = null;
+  renderPickerTypeChips();
+  renderPickerList('');
+  // 自動フォーカスしない(キーボードが勝手に出ない=2026-07-07 阿部さん)
+}
+function closePicker(){ $('poke-picker').style.display = 'none'; pickerSlot = null; }
+function renderPickerList(query){
+  // 同じポケモンは1チームに1体まで(2026-07-06 阿部さん)。同サイドの他スロットで使用中の種は選択肢から外す
+  const side = pickerSlot && pickerSlot.startsWith('s') ? selfIds() : oppIds();
+  const used = new Set(side.filter(id => id !== pickerSlot).map(id => slotVal[id]).filter(Boolean));
+  let pokes = S.pokeList().filter(isPickable).filter(p => !used.has(p.name));
+  // 並び替え(ボックス化=2026-07-06 阿部さん): ずかん順(既定)/なまえ順(表示言語で)
+  const sortSel = $('pp-sort');
+  if (sortSel && sortSel.value === 'name'){
+    const lang = (window.I18N && I18N.lang) || 'ja';
+    pokes = pokes.slice().sort((a, b) => tPokeName(a.name).localeCompare(tPokeName(b.name), lang));
+  }
+  if (ppType) pokes = pokes.filter(p => p.type1 === ppType || p.type2 === ppType);
+  const k = toKata(query.trim());
+  const hits = k ? pokes.filter(p => p.name.includes(k) || p.name.includes(query.trim())) : pokes;
+  const tc = S.typeColors();
+  // 全件表示(以前はslice(0,120)でミミッキュ等の後方が「居ない」ように見えた=2026-07-06 阿部さん)
+  $('pp-list').innerHTML = hits.map(p => {
+    const enc = encodeURIComponent(p.name);
+    // キャラ画像設定に追従(選択画面でも=2026-07-05 阿部さん)。API対応表にある名前はPokeAPI画像
+    const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[p.name] : null;
+    const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${enc}.svg`;
+    const types = [p.type1, p.type2].filter(Boolean).map(t =>
+      `<span style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
+    return `<button data-n="${p.name}"><img loading="lazy" src="${src}" onerror="this.remove()">${tPokeName(p.name)}<span class="pp-types">${types}</span></button>`;
+  }).join('') || `<div style="color:#8b94a7;padding:10px">${I18N.t('real_battle.poke_not_found','みつからない…')}</div>`;
+  $('pp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    setSlot(pickerSlot, b.dataset.n);
+    closePicker();
+  }));
+}
+// ===================================================================
+// ★オンライン専用: 常設ボックスパネル(#box-panel。旧#poke-pickerモーダルのフィルタロジックを流用)
+// モーダルではなく右列に常設。クリックで「選択中のチームスロット(selectedSlot)」に直接setSlotする。
+// チーム内に既にいる種は選択肢から除外せず「薄く表示+クリック無効(used)」にする(2026-07-10)
+// ===================================================================
+let boxType = null;   // タイプ絞り込み(nullなら全タイプ)
+function renderBoxTypeChips(){
+  const tc = S.typeColors();
+  const present = new Set();
+  S.pokeList().filter(isPickable).forEach(p => { present.add(p.type1); if (p.type2) present.add(p.type2); });
+  const types = Object.keys(tc).filter(t => present.has(t));
+  $('box-typef').innerHTML =
+    `<button class="tf-all${boxType === null ? ' on' : ''}">${I18N.t('filter.all','すべて')}</button>` +
+    types.map(t => `<button data-t="${t}" class="${boxType === t ? 'on' : ''}" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</button>`).join('');
+  $('box-typef').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    boxType = b.dataset.t || null;
+    renderBoxTypeChips();
+    renderBoxGrid($('box-q').value);
+  }));
+}
+function renderBoxGrid(query){
+  // 自分チーム(selectedSlot自身は除く)に既にいる種=クリック無効・薄く表示(1チーム1体ルール)
+  const used = new Set(selfIds().filter(id => id !== selectedSlot).map(id => slotVal[id]).filter(Boolean));
+  let pokes = S.pokeList().filter(isPickable);
+  if (boxType) pokes = pokes.filter(p => p.type1 === boxType || p.type2 === boxType);
+  const q = (query || '').trim();
+  const k = toKata(q);
+  const hits = k ? pokes.filter(p => p.name.includes(k) || p.name.includes(q)) : pokes;
+  const tc = S.typeColors();
+  $('box-grid').innerHTML = hits.map(p => {
+    const enc = encodeURIComponent(p.name);
+    const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[p.name] : null;
+    const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${enc}.svg`;
+    const types = [p.type1, p.type2].filter(Boolean).map(t =>
+      `<span style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
+    const isUsed = used.has(p.name);
+    return `<button data-n="${p.name}" class="${isUsed ? 'used' : ''}"${isUsed ? ' disabled' : ''}>` +
+      `<img loading="lazy" src="${src}" onerror="this.remove()">` +
+      `<span class="bx-name">${tPokeName(p.name)}</span><span class="bx-types">${types}</span></button>`;
+  }).join('') || `<div style="grid-column:1/-1;color:#ffffffaa;padding:10px;text-align:center">${I18N.t('real_battle.poke_not_found','みつからない…')}</div>`;
+  $('box-grid').querySelectorAll('button:not(.used)').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    if (!selectedSlot || selectedSlot[0] !== 's') return;   // 自分側の枠が選択中の時だけ受け付ける(相手枠はUI非表示なので通常起きない)
+    setSlot(selectedSlot, b.dataset.n);
+    renderBoxGrid($('box-q').value);   // セット直後、選んだ種が別枠でも使用済みなら薄く反映
+  }));
+}
+function renderTeamRows(){
+  // 人数ぶんのスロットボタンを作り直す(既存の選択は引き継ぐ)
+  [['row-self', selfIds()], ['row-opp', oppIds()]].forEach(([rowId, ids]) => {
+    const row = $(rowId);
+    row.querySelectorAll('.slot').forEach(b => b.remove());
+    ids.forEach(id => {
+      const b = document.createElement('button');
+      b.className = 'slot'; b.id = id;
+      // クリック=選択して中央に詳細表示(オンライン専用: ポケモン変更は常設ボックスパネルから行うのでポップアップは開かない)
+      b.addEventListener('click', e => {
+        SE.select();
+        if (e.target.closest && e.target.closest('.cap-lead')){   // 1番目を切り替え(self/opp両方)
+          if (slotVal[id]){ leadSlot[id[0] === 's' ? 'self' : 'opp'] = id; saveTeam();
+            selfIds().concat(oppIds()).forEach(x => { if (slotVal[x] && $(x)) $(x).innerHTML = slotCapsuleHtml(x); }); }
+          return;
+        }
+        setSelectedSlot(id);   // cap-change(📦)クリックも含めて選択のみ。右の常設ボックスをクリックしてセットする
+      });
+      row.appendChild(b);
+    });
+  });
+}
+// 盤面(内部640×360)をビューポートに合わせて相似拡大。デスクトップは最大1.55・スマホ横は幅/高さに収める(2026-07-07 阿部さん)
+// 選出画面の3カラムを狭い端末に合わせて縮小(配置は維持=デスクトップと同じ並び)。iPhone横(844)はほぼ等倍
+function fitSetup(){
+  const cols = document.getElementById('setup-cols');
+  const game = document.getElementById('game');
+  if (!cols || !game) return;
+  cols.style.zoom = '';  // いったん戻して自然幅を測る
+  const avail = Math.max(280, game.clientWidth - 40);
+  const natural = 760;   // 3カラムが窮屈にならない目安幅
+  cols.style.zoom = avail < natural ? Math.max(0.5, avail / natural) : '';
+}
+function fitField(){
+  const f = document.getElementById('field');
+  const game = document.getElementById('game');
+  if (!f || !game) return;
+  const availW = Math.max(200, game.clientWidth - 4);
+  // バトル中はヘッダー/コントロール/最小ログ分を除いた高さを盤面に回す(横向きスマホで盤面を大きく)
+  const reserve = document.body.classList.contains('in-battle') ? 96 : 120;
+  const availH = Math.max(180, window.innerHeight - reserve);
+  let z = Math.min(availW / 640, availH / 360);
+  z = Math.max(0.42, Math.min(1.55, z));
+  f.style.zoom = z;
+}
+let _fitTimer = null;
+function scheduleFit(){ if (_fitTimer) cancelAnimationFrame(_fitTimer); _fitTimer = requestAnimationFrame(() => { fitField(); fitSetup(); }); }
+window.addEventListener('resize', scheduleFit);
+window.addEventListener('orientationchange', () => setTimeout(() => { fitField(); fitSetup(); }, 200));
+function initSetup(){
+  const pokes = S.pokeList().filter(isPickable);   // メガフォームは直接選ばない(ストーンで変身)
+  initBackdrop();   // S6: 背景プリセット初期化(localStorageから復元・セレクト配線)
+  renderTeamRows();
+  // ★オンライン専用: 人数セレクタは廃止(常に6体固定)。相手列モーダル(poke-picker)の代わりに
+  // 常設ボックスパネル(#box-panel)を配線する。selectedSlotが変わるたびrenderBoxGridも呼ぶ(setSelectedSlot内)
+  renderBoxTypeChips();
+  renderBoxGrid('');
+  $('box-q').addEventListener('input', () => renderBoxGrid($('box-q').value));
+  $('pp-q').addEventListener('input', () => renderPickerList($('pp-q').value));
+  $('pp-sort').addEventListener('change', () => renderPickerList($('pp-q').value));
+  $('pp-close').addEventListener('click', closePicker);
+  $('poke-picker').addEventListener('click', e => { if (e.target === $('poke-picker')) closePicker(); });
+  $('mp-q').addEventListener('input', () => renderMovePickList($('mp-q').value));
+  $('mp-close').addEventListener('click', closeMovePicker);
+  $('move-picker').addEventListener('click', e => { if (e.target === $('move-picker')) closeMovePicker(); });
+  $('stats-modal').addEventListener('click', e => { if (e.target === $('stats-modal')) $('stats-modal').style.display = 'none'; });
+  $('choice-modal').addEventListener('click', e => { if (e.target === $('choice-modal')) $('choice-modal').style.display = 'none'; });
+  document.querySelector('#choice-modal .cm-x').addEventListener('click', () => { $('choice-modal').style.display = 'none'; });
+  if (loadHandoff()) { /* ビルダーから来た自分チームを反映済み */ }
+  else if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
+  setSelectedSlot('s1');   // CH: 初期選択=自分の先頭(中央に詳細パネルを出す)
+  $('btn-random').addEventListener('click', () => { randomize(); setSelectedSlot(selectedSlot); });
+  $('btn-start').addEventListener('click', startBattle);
+  // CH: msgboxが盤面内に入ったので、盤面のどこをタップしてもメッセージ送りできるようにする
+  // (busy時のみ作用。msgbox個別のリスナーは二重発火するため廃止)
+  $('field').addEventListener('click', advanceMsg);
+  document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') advanceMsg(); });
+  $('c-fight').addEventListener('click', () => { SE.select(); showMoves(); });
+  $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
+  $('c-run').addEventListener('click', () => {
+    // オンライン中の「にげる」=降参を相手へ通知して切断(2026-07-10)。
+    // 切断はresign送信が流れるまで少し待つ(即disconnectだとメッセージが届かず相手が待ち続ける)
+    if (window.RB_ONLINE && RB_ONLINE.active){
+      if (RB_ONLINE.started && !gameOver && window.RBOnline){ try { RBOnline.resign(); } catch(e) {} }
+      setTimeout(() => onlineLeave(), 600);
+    }
+    bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+  });
+  // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
+  $('btn-exit').addEventListener('click', e => { e.stopPropagation(); bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
+  // 音オン/オフ(設定はlocalStorageに保存)
+  updateSndBtn();
+  // 音量スライダー(2026-07-06 阿部さん): 全SE/BGM共通のマスターゲイン。保存して次回も同じ音量
+  const volEl = $('snd-vol');
+  if (volEl){
+    volEl.value = String(sndVol);
+    volEl.addEventListener('input', () => {
+      sndVol = +volEl.value;
+      localStorage.setItem('rb_vol', String(sndVol));
+      if (masterVol) masterVol.gain.value = sndVol;
+    });
+    volEl.addEventListener('change', () => SE.select());   // 手を離したら試し音
+  }
+  // キャラ画像ソース(編成/バトル中の両セレクトを同期・保存・即反映)
+  ['sprite-src', 'sprite-src-setup'].forEach(id => {
+    const el = $(id); if (!el) return;
+    el.value = spriteSrc;
+    el.addEventListener('change', () => setSpriteSrc(el.value));
+  });
+  setSpriteSrc(spriteSrc);   // クレジット表示等の初期反映
+  $('snd-toggle').addEventListener('click', () => {
+    sndOn = !sndOn;
+    localStorage.setItem('rb_snd', sndOn ? 'on' : 'off');
+    updateSndBtn();
+    if (sndOn){ SE.select(); if ($('battle').style.display !== 'none' && !gameOver) bgmStart(); }
+    else bgmStop();
+  });
+  // 同じポケモンを1チームに2体引かない(重複すると交代リストで「HP満タンの同名」が出て混乱する=2026-07-05 阿部さん)
+  function sampleUnique(n){
+    const arr = pokes.slice();
+    for (let i = arr.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
+    return arr.slice(0, n).map(p => p.name);
+  }
+  function randomize(){
+    const mine = sampleUnique(teamSize), opp = sampleUnique(teamSize);
+    selfIds().forEach((id, i) => setSlot(id, mine[i]));
+    oppIds().forEach((id, i) => setSlot(id, opp[i]));
+  }
+  window.__randomizeOpp = () => {   // 連戦モード: 相手チームだけ引き直す(重複なし)
+    const opp = sampleUnique(teamSize);
+    oppIds().forEach((id, i) => setSlot(id, opp[i]));
+  };
+  // デモ自動バトル(?demo=1): 演出確認用。おまかせ編成で開始し、技0を選び続ける
+  if (location.search.includes('demo')){
+    $('auto-msg').checked = true;
+    $('msg-speed').value = '600';
+    startBattle();
+    setInterval(() => { if (!busy && !gameOver && $('battle').style.display !== 'none') doTurn(0); }, 1200);
+  }
+}
+
+// 技の自動セット: 覚える技から「タイプかぶりなしで威力上位」を4つ(変化技は1つまで混ぜる)
+// 自動選出で避けたい「一発の不利技」: 自分瀕死(だいばくはつ)/反動で次ターン動けない(はかいこうせん)/溜め技(ソーラービーム等)。
+// 威力は高いが初手セットには不向き=ある分だけ後回しにして、埋まらない時だけ使う(2026-07-06 阿部さん)
+function isDisadvMove(m){
+  const bd = m.battle_data || {};
+  return !!(bd.self_faint || bd.recharge || bd.charge);
+}
+function autoMoves(poke){
+  const all = S.usableMoves(poke);
+  const dmgAll = all.filter(m => m.category !== '変化' && typeof m.power === 'number' && m.power > 0)
+                    .sort((a, b) => b.power - a.power);
+  // 不利技を除いた候補を優先。足りなければ不利技も威力順で足す
+  const good = dmgAll.filter(m => !isDisadvMove(m));
+  const bad  = dmgAll.filter(isDisadvMove);
+  const pickFrom = (list, picked, types, typeFirst) => {
+    if (typeFirst) for (const m of list){ if (picked.length >= 4) break; if (!types.has(m.type)){ picked.push(m); types.add(m.type); } }
+    for (const m of list){ if (picked.length >= 4) break; if (!picked.includes(m)) picked.push(m); }
+  };
+  const picked = [], types = new Set();
+  pickFrom(good, picked, types, true);    // まず不利でない技をタイプ多様→威力順で
+  pickFrom(bad,  picked, types, false);   // それでも4未満なら不利技(だいばくはつ等)を威力順で補完
+  // 攻撃技を1つも覚えない子(メタモン=へんしんのみ)は変化技で埋める(技ゼロで出ると毎ターン棒立ちになる)
+  if (!picked.length) return all.slice(0, 4);
+  return picked.slice(0, 4);
+}
+// 初手(1番目)に出すスロット。self/opp両方選べる(2026-07-06 阿部さん)。既定=各サイド先頭
+let leadSlot = {self: 's1', opp: 'o1'};
+function orderedIds(side){
+  // オンライン選出(6体から3体えらぶ)の確定後は、選出した3体だけでバトルを組む(2026-07-10 阿部さん仕様)
+  if (window._pickOverride && _pickOverride[side]) return _pickOverride[side];
+  const ids = side === 'self' ? selfIds() : oppIds();
+  const lead = leadSlot[side];
+  if (!ids.includes(lead) || !slotVal[lead]) return ids;
+  return [lead].concat(ids.filter(id => id !== lead));
+}
+// 既定の特性: 基本は特性1。メタモンは隠れ特性かわりもの(シングル実戦の確定特性・チャンピオンズWiki準拠。
+// じゅうなん既定だと1ターン目にへんしんするだけの的になるため)
+function defaultAbilityRB(p){
+  if (p && p.name === 'メタモン') return p.ab3 || p.ab2 || p.ab1 || '';
+  return (p && p.ab1) || '';
+}
+
+function buildSide(sideKey, ids){
+  const st = S.makeSideState();
+  const lead = S.pokeByName(slotVal[ids[0]]);
+  st.poke = lead;
+  st.moves = (slotMoves[ids[0]] || autoMoves(lead)).filter(Boolean);
+  st.selectedMoveIdx = 0;
+  st.item = slotItem[ids[0]] != null ? slotItem[ids[0]] : 'mega_stone_any';   // 中央パネルで変更可(既定=汎用メガストーン)
+  st.gender = slotGender[ids[0]] || genderOfRB(slotVal[ids[0]]);
+  st.natureIdx = S.natureIdxOf(slotNature[ids[0]] || 'まじめ');   // 性格(ビルダー由来 or 無補正)
+  st.effort = clampEffortRB(slotEffort[ids[0]]);    // 努力値(Champions点・各32/計66に矯正)
+  st.bench = ids.slice(1).map(id => {
+    const p = S.pokeByName(slotVal[id]);
+    return { poke: p, effort: clampEffortRB(slotEffort[id]), natureIdx: S.natureIdxOf(slotNature[id] || 'まじめ'),
+      ability: slotAbility[id] || defaultAbilityRB(p), item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
+      moves: (slotMoves[id] || autoMoves(p)).filter(Boolean), gender: slotGender[id] || genderOfRB(slotVal[id]),
+      currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
+  })
+  // 保存チームに現プール外の名前が残っていた場合(pokeByName=null)の抜け殻エントリを捨てる。
+  // 残すと「見えない控え」で実質人数が減る+ボールマーク欠け(2026-07-04 深掘りPDCAで発見)
+  .filter(e => e.poke);
+  st.ability = slotAbility[ids[0]] || defaultAbilityRB(lead);   // 中央パネルで選んだ特性(既定=特性1/メタモンはかわりもの)
+  // PP管理(段129): 場の技+控えの技のPPを初期化(エンジンはst.ppがある時だけPPを見る)
+  st.pp = st.moves.map(m => (m && m.pp) ? m.pp : 0);
+  st.bench.forEach(e => { e.pp = (e.moves || []).map(m => (m && m.pp) ? m.pp : 0); });
+  S.sides[sideKey] = st;
+}
+
+function startBattle(){
+  // 前試合の残骸を掃除: 勝敗で無効化したボタンを戻し、「つぎの相手」ボタンが残っていれば消す
+  // (勝利→にげる→再スタートの経路では c-next のクリックハンドラを通らないため)
+  const _nb = $('c-next'); if (_nb) _nb.remove();
+  ['c-fight','c-party','c-run'].forEach(id => { const b = $(id); if (b) { b.disabled = false; b.style.display = ''; } });
+  ['f-self','f-opp'].forEach(id => { const f = $(id); if (f) f.classList.remove('gone','faint'); });   // 前試合のひんし退場を解除
+  window._idSnap = null;   // 表示個体スナップも初期化(初回登場から素直に描く)
+  hideResultBanner();   // 前試合の勝敗バナーを消す
+  buildSide('self', orderedIds('self'));   // 1番目に選んだ子を先頭に
+  buildSide('opp',  orderedIds('opp'));
+  S.battleLog.length = 0;
+  logPos = 0; gameOver = false;
+  turnNo = 1; updateTurnBadge(); clearLog(); clearMsg();
+  document.body.classList.add('in-battle');
+  $('setup').style.display = 'none';
+  $('battle').style.display = 'flex';
+  fitField();
+  // 開始メッセージの名前はへんしん(かわりもの)前に確定させる(いけっ！はメタモンの名前で言う)
+  const selfName0 = tPokeName(S.sides.self.poke.name), oppName0 = tPokeName(S.sides.opp.poke.name);
+  // Init-A: バトル開始時の登場特性(いかく/天候/かわりもの=メタモンのへんしん等)を発動(実機準拠)。
+  // 交代・死に出しはエンジンのattemptSwitch内で発動済み=開始時だけここで呼ぶ
+  if (S.phaseInitA) S.phaseInitA();
+  const initLines = S.battleLog.filter(e => !/^───/.test(e.msg)).flatMap(e => splitBattleLines(e.msg).map(lineWithFx));
+  logPos = S.battleLog.length;
+  renderAll();   // renderAll内でrenderSideBarsも呼ばれる(へんしん済みのすがたで描画)
+  setWeatherFx(null);
+  bgmStart();
+  say([I18N.t('real_battle.battle_start_self','バトルスタート！ いけっ！ {n}！').replace('{n}', selfName0), I18N.t('real_battle.battle_start_opp','相手は {n} を くりだした！').replace('{n}', oppName0)].concat(initLines), () => showActionUI());
+}
+
+// ===== 描画 =====
+// キャラ画像ソース設定(2026-07-05 阿部さん): 'original'=うちの落書きSVG / 'api'=PokeAPIスプライト
+// APIモードは通常フォームのみ(メガ/特殊フォームは名前→フォームID対応が未整備なので自作SVG継続)
+let spriteSrc = localStorage.getItem('rb_sprite_src') || 'home';   // 既定=公式3D(Pokémon HOME)。「かっこいい、これ使いましょう」(2026-07-06 阿部さん)。小さいアイコン類はドット絵のまま
+function setSpriteSrc(v){
+  spriteSrc = (v === 'api' || v === 'home') ? v : 'original';
+  localStorage.setItem('rb_sprite_src', spriteSrc);
+  ['sprite-src', 'sprite-src-setup'].forEach(id => { const el = $(id); if (el && el.value !== spriteSrc) el.value = spriteSrc; });
+  const cr = $('sprite-credit'); if (cr) cr.style.display = spriteSrc !== 'original' ? 'inline' : 'none';
+  if (document.body.classList.contains('in-battle')){ try { renderAll(); } catch(e) {} }
+  // 選出画面のカプセル/詳細パネルのスプライトも追従
+  try {
+    selfIds().concat(oppIds()).forEach(id => { if (slotVal[id] && $(id)) $(id).innerHTML = slotCapsuleHtml(id); });
+    if (typeof selectedSlot !== 'undefined') setSelectedSlot(selectedSlot);
+  } catch(e) {}
+}
+// 小アイコン(HPボックス/控えバー/交代/選出)= 公式ドット絵優先・無ければ自作SVG
+function apiIdOf(nm){
+  if (typeof SPRITE_API_ID === 'undefined') return null;
+  if (SPRITE_API_ID[nm]) return SPRITE_API_ID[nm];
+  // Champions独自メガ(公式画像なし・自作SVGも未描画の38体)はベースの姿で代用
+  if (nm && nm.startsWith('メガ')){
+    const base = nm.replace(/^メガ/, '').replace(/[XY♂♀]$/, '');
+    if (SPRITE_API_ID[base]) return SPRITE_API_ID[base];
+  }
+  return null;
+}
+function pokeIconSrc(nm){
+  const apiId = apiIdOf(nm);
+  return (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
+}
+// 持ち物アイコン(PokeAPI item sprites=name_enスラッグ化。無い物はonerrorで消えて文字だけ残る)
+function itemIconHtml(it){
+  if (!it) return '';
+  // 汎用メガストーン(name_enなし)はキーストーン画像で代用(メガシンカの象徴)
+  const slug = it.key === 'mega_stone_any' ? 'key-stone'
+    : it.name_en ? it.name_en.toLowerCase().replace(/[.'’]/g, '').replace(/ /g, '-') : '';
+  if (!slug) return '';
+  return `<img class="item-ic" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/${slug}.png" alt="" onerror="this.remove()">`;
+}
+// みがわり人形(自作SVG=ライセンスクリーン・本家の緑の人形を踏襲)。みがわり中はこれに差し替える(2026-07-06 阿部さん)
+function substituteSpriteHtml(){
+  return `<svg viewBox="0 0 120 150" style="height:132px;display:inline-block;filter:drop-shadow(0 4px 6px #0005)" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="60" cy="140" rx="34" ry="7" fill="#00000022"/>
+    <!-- 耳 -->
+    <path d="M32 34 L26 8 L50 26 Z" fill="#8fbf5a" stroke="#5f8f3a" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M88 34 L94 8 L70 26 Z" fill="#8fbf5a" stroke="#5f8f3a" stroke-width="2.5" stroke-linejoin="round"/>
+    <!-- 体 -->
+    <ellipse cx="60" cy="82" rx="42" ry="46" fill="#9ec96a" stroke="#5f8f3a" stroke-width="3"/>
+    <!-- お腹(白) -->
+    <ellipse cx="60" cy="94" rx="24" ry="28" fill="#f4f6ea" stroke="#cdd6b4" stroke-width="2"/>
+    <!-- 顔 -->
+    <circle cx="46" cy="70" r="4.5" fill="#3a3a2a"/>
+    <circle cx="74" cy="70" r="4.5" fill="#3a3a2a"/>
+    <path d="M50 86 Q60 94 70 86" fill="none" stroke="#3a3a2a" stroke-width="3" stroke-linecap="round"/>
+    <!-- 手 -->
+    <ellipse cx="22" cy="88" rx="9" ry="12" fill="#8fbf5a" stroke="#5f8f3a" stroke-width="2.5"/>
+    <ellipse cx="98" cy="88" rx="9" ry="12" fill="#8fbf5a" stroke="#5f8f3a" stroke-width="2.5"/>
+  </svg>`;
+}
+// みがわりの人形↔元のすがたを拍レベルで切替(renderAllはみがわり出現/破壊の拍で呼ばれないため明示的に)
+function setSpriteSub(side, on){
+  const f = $('f-' + side); if (!f) return;
+  const spriteEl = f.querySelector('.sprite'); if (!spriteEl) return;
+  const st = S.sides[side]; if (!st || !st.poke) return;
+  const shown = st.illusionAs || st.poke;
+  if (on){ spriteEl.innerHTML = substituteSpriteHtml(); spriteEl.dataset.shown = 'SUB:' + shown.name; }
+  else { spriteEl.innerHTML = spriteHtml(shown); spriteEl.dataset.shown = spriteSrc + ':' + shown.name; }
+}
+function spriteHtml(poke, st){
+  const color = (S.typeColors()[poke.type1]) || '#3a4660';
+  // 仮アイコンには「ポケモン名」を出す(タイプ名だと名前と紛らわしい=2026-06-12 阿部さん指摘)
+  const short = poke.name.length > 6 ? poke.name.slice(0, 6) : poke.name;
+  // ばけのかわが剥がれたミミッキュは「ばれたすがた」(首カクン絵/公式id 10143)で描く(2026-07-10 阿部さん)。
+  // st.disguise は登場でtrue・剥がれてfalse(エンジン)。未定義(他ポケ)は===falseにならない
+  const _BUSTED = { 'ミミッキュ': { ja: 'ばれたすがた', apiId: '10143' } };
+  const _bust = (st && st.disguise === false && _BUSTED[poke.name]) ? _BUSTED[poke.name] : null;
+  const enc = encodeURIComponent(_bust ? _bust.ja : poke.name);
+  // APIモード: 対応表(sprite_api_ids.js=フォーム/メガ込み274体)にある名前はPokeAPI画像。
+  // ローカルpoke画像→PokeAPI本家→自作SVG→サークルの順でフォールバック
+  const _apiId = _bust ? _bust.apiId : apiIdOf(poke.name);
+  if (spriteSrc === 'home' && _apiId){
+    const n = _apiId;
+    return `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${n}.png" alt="" style="display:none;height:150px" data-step="0"
+        onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'"
+        onerror="if(this.dataset.step==='0'){this.dataset.step='1';this.style.imageRendering='pixelated';this.style.height='112px';this.src='images/poke/${n}.png';}else if(this.dataset.step==='1'){this.dataset.step='2';this.style.imageRendering='auto';this.src='images/sim/${enc}.svg';}else{this.remove();}">
+      <span class="circ" style="background:${color};font-size:${short.length > 4 ? 11 : 13}px">${short}</span>`;
+  }
+  if (spriteSrc === 'api' && _apiId){
+    const n = _apiId;
+    return `<img src="images/poke/${n}.png" alt="" style="display:none;image-rendering:pixelated;height:112px" data-step="0"
+        onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'"
+        onerror="if(this.dataset.step==='0'){this.dataset.step='1';this.src='https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${n}.png';}else if(this.dataset.step==='1'){this.dataset.step='2';this.style.imageRendering='auto';this.src='images/sim/${enc}.svg';}else{this.remove();}">
+      <span class="circ" style="background:${color};font-size:${short.length > 4 ? 11 : 13}px">${short}</span>`;
+  }
+  // オリジナル: SVG(忠実トレース版)優先→PNGに切替→どちらも無ければタイプ色サークル
+  return `<img src="images/sim/${enc}.svg" alt="" style="display:none"
+      onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'"
+      onerror="if(!this.dataset.png){this.dataset.png=1;this.src='images/sim/${enc}.png';}else{this.remove();}">
+    <span class="circ" style="background:${color};font-size:${short.length > 4 ? 11 : 13}px">${short}</span>`;
+}
+function renderAll(){
+  ['self', 'opp'].forEach(side => {
+    let st = S.sides[side];
+    const f = $('f-' + side), pb = $('pb-' + side);
+    if (!st.poke) return;
+    let frozenId = false;
+    if (window._idSnap && _idSnap[side] && st.poke !== _idSnap[side]){
+      // ターン再生中はスナップ個体(交代/ひんし前の子)を表示。控えに残る同一オブジェクトを探す(無ければ現状表示)
+      const old = [S.sides[side]].concat(S.sides[side].bench || []).find(e => e && e.poke === _idSnap[side]);
+      if (old){ st = old; frozenId = true; }
+    }
+    const shown = st.illusionAs || st.poke;   // イリュージョン(段138)/へんしん(メタモン): 化けている・変身した姿を表示
+    // 同じ姿なら作り直さない(renderAllは頻繁に呼ばれる=毎回innerHTML再構築だと画像再読込でちらつく)。
+    // 画像ソース設定(spriteSrc)が変わった時は作り直す
+    const spriteEl = f.querySelector('.sprite');
+    const subActive = (st.subHp || 0) > 0;   // みがわり中は人形のすがた(2026-07-06 阿部さん)
+    // ばけのかわの絵: リプレイ中(busy)は表示スナップ(_dgSnap)基準=「はがれた」の拍まで皮のまま。
+    // 非リプレイ時はエンジン状態(engine先読みの絵バレ防止=2026-07-10 阿部さん)
+    const bustShown = (busy && window._dgSnap) ? (_dgSnap[side] === false) : (st.disguise === false);
+    const shownKey = (subActive ? 'SUB' : spriteSrc) + ':' + shown.name + (bustShown ? ':busted' : '');
+    if (spriteEl.dataset.shown !== shownKey){
+      spriteEl.innerHTML = subActive ? substituteSpriteHtml() : spriteHtml(shown, { disguise: bustShown ? false : true });
+      spriteEl.dataset.shown = shownKey;
+    }
+    // 名前はへんしん中も自分の名前(実機のニックネーム表示準拠=すがたは変身先・名前はメタモン)
+    const named = st.illusionAs || (st.transformBase ? st.transformBase.poke : st.poke);
+    const _g = (!st.illusionAs && !st.transformBase && st.gender && st.gender !== '—') ? ' ' + st.gender : '';   // 性別記号(化け中・へんしん中は出さない)
+    pb.querySelector('.nm').innerHTML = tPokeName(named.name) + (_g ? `<span style="color:${st.gender === '♂' ? '#a8d4ff' : '#ffd0e0'};font-weight:900">${_g}</span>` : '');
+    // CH: statbar内ミニアイコン(実機の丸顔アイコン)。すがた=見えている姿(shown)
+    const icn = pb.querySelector('.icn');
+    if (icn){
+      const encI = encodeURIComponent(shown.name);
+      icn.innerHTML = `<img src="${pokeIconSrc(shown.name)}" alt="" onerror="this.remove()">`;
+    }
+    // リプレイ中(busy)はHPバーをrenderAllで動かさない=各拍のfx(ダメージ/回復/反動)が正しい拍で動かす。
+    // renderAllはエンジンの最終HP(ターン終了時の値)を持つので、ここで入れると攻撃前に減って見える(2026-07-06 阿部さん)
+    if (!frozenId && !busy){
+      const max = S.realStat(st, 'hp') || 1;
+      const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
+      setHpBar(side, hp, max);
+    }
+    // 状態バッジ(最小限: 状態異常+こんらん+みがわり)
+    const sj = S.statusJa();
+    const _STBADGE_KEY = {burn:'common.status_burn', paralysis:'common.status_paralysis', poison:'common.status_poison',
+      badpoison:'common.status_toxic', sleep:'common.status_sleep', freeze:'common.status_freeze'};
+    const b = [];
+    if (sj[st.status]) b.push(I18N.t(_STBADGE_KEY[st.status] || '', sj[st.status]));
+    if (st.confusion > 0) b.push(I18N.t('common.status_confusion', 'こんらん'));
+    if (st.attracted) b.push('💕' + I18N.t('common.status_infatuation', 'メロメロ'));
+    if (st.subHp > 0) b.push(I18N.t('common.bdg_substitute', 'みがわり'));
+    const stsEl = $('sts-' + side);
+    if (stsEl) stsEl.innerHTML = b.map(x => `<span class="bdg">${x}</span>`).join('');
+    // 両者のタイプ表示(2026-07-06 阿部さん)
+    const tEl = pb.querySelector('.ptypes');
+    if (tEl){
+      const _tc2 = S.typeColors();
+      tEl.innerHTML = [shown.type1, shown.type2].filter(Boolean).map(t =>
+        `<span style="background:${_tc2[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
+    }
+    // 自分の持ち物(2026-07-06 阿部さん): アイコン+名前。消費済みはグレー
+    const heldEl = pb.querySelector('.held');
+    if (heldEl){
+      if (side === 'self'){
+        const cur = S.itemByKey(st.item);
+        const usedIt = !cur && st.lastConsumedItem ? S.itemByKey(st.lastConsumedItem) : null;
+        const showIt = cur || usedIt;
+        heldEl.className = 'held' + (usedIt ? ' used' : '');
+        heldEl.innerHTML = showIt ? itemIconHtml(showIt) + tItemName(showIt) : '';
+      } else heldEl.innerHTML = '';
+    }
+    // 残りポケモン(手持ちアイコン列 pbox内.balls): S3でleftbar/rightbarに一本化のため非表示
+    // (復活: pbox .balls の display:none を外す + 下記をコメントアウト解除)
+    // const team = [st].concat(st.bench || []).filter(e => e && e.poke);
+    // const ballsHtml = team.map(e => {
+    //   const dead = e.fainted || (e.currentHp != null && e.currentHp <= 0);
+    //   const nm = (e.illusionAs || e.poke).name;
+    //   const enc = encodeURIComponent(nm);
+    //   return `<span class="tball${dead ? ' dead' : ''}" title="${tPokeName(nm)}"><img src="images/sim/${enc}.svg" alt="" onerror="this.remove()"></span>`;
+    // }).join('');
+    // pb.querySelector('.balls').innerHTML = ballsHtml;
+  });
+  // S3: leftbar / rightbar の更新(renderAll呼び出しごとに同期)
+  renderSideBars();
+}
+
+// S3: leftbar/rightbar 描画。場に出ている個体=.active / ひんし=.dead
+function renderSideBars(){
+  ['self', 'opp'].forEach(side => {
+    const st = S && S.sides && S.sides[side];
+    if (!st) return;
+    const iconsEl = document.getElementById('sbar-icons-' + side);
+    const nameEl  = document.getElementById('sbar-name-' + side);
+    if (!iconsEl || !nameEl) return;
+    // チーム全体(先頭+控え)
+    const team = [st].concat(st.bench || []).filter(e => e && e.poke);
+    // 先頭ポケモン(場に出ている個体)
+    const activePoke = st.poke ? st.poke.name : null;
+    // CH: ボールマークは実機準拠=選出した数だけ(空スロットは出さない)。
+    // 画像なしでも「残数」が読めるよう●フォールバック(noimg)を敷く
+    let html = '';
+    for (let i = 0; i < team.length; i++){
+      const e = team[i];
+      // 手持ちアイコンはへんしん中も元のすがた(実機準拠: 手持ち画面はメタモンのまま)
+      const nm = (e.illusionAs || (e.transformBase ? e.transformBase.poke : e.poke)).name;
+      const enc = encodeURIComponent(nm);
+      const dead = e.fainted || (e.currentHp != null && e.currentHp <= 0);
+      // 場に出ている=先頭(i===0)かつひんし未
+      const active = (i === 0 && !dead);
+      const cls = ['sicon', dead ? 'dead' : '', active ? 'active' : ''].filter(Boolean).join(' ');
+      const max = S.realStat(e, 'hp') || 1;
+      const hp  = e.currentHp == null ? max : Math.max(0, e.currentHp);
+      const pct = Math.round(hp / max * 100);
+      const label = `${tPokeName(nm)} (${pct}%)`;
+      html += `<div class="${cls}" title="${label}" aria-label="${label}">` +
+              `<img src="${pokeIconSrc(nm)}" alt="${tPokeName(nm)}" loading="lazy" onerror="this.parentElement.classList.add('noimg');this.remove()">` +
+              `</div>`;
+    }
+    iconsEl.innerHTML = html;
+    // トレーナー名はi18nキーから
+    nameEl.textContent = side === 'self'
+      ? (window.I18N && I18N.t ? I18N.t('real_battle.pbox_label_self', 'じぶん') : 'じぶん')
+      : (window.I18N && I18N.t ? I18N.t('real_battle.pbox_label_opp', 'あいて') : 'あいて');
+  });
+}
+function setHpBar(side, hp, max){
+  const pb = $('pb-' + side);
+  const pct = Math.max(0, Math.min(100, hp / max * 100));
+  // CH: ダメージ反映=statbarを戻す(メッセージ中の全消しから復帰して減るバーを見せる=実機の流れ)
+  $('field').classList.remove('ch-busy');
+  // 2層HPバー(Showdown版の演出を踏襲): prevhp=残像(遅れて縮む) / hp=現在(即時)
+  // CH: パネル幅が可変(PC210/スマホ170)になったため px指定→%指定に変更
+  const newW = pct.toFixed(1) + '%';
+  const hpEl = pb.querySelector('.hp');
+  const prevEl = pb.querySelector('.prevhp');
+  if (hpEl && prevEl) {
+    const oldW = prevEl.style.width || '100%';
+    // prevhpを旧幅に固定(アニメ開始点)
+    prevEl.style.transition = 'none';
+    prevEl.style.width = oldW;
+    requestAnimationFrame(() => {
+      hpEl.style.width = newW;
+      hpEl.className = 'hp' + (pct <= 25 ? ' low' : pct <= 50 ? ' mid' : '');
+      requestAnimationFrame(() => {
+        prevEl.style.transition = ''; // CSSに戻す(1.2s ease-out)
+        prevEl.style.width = newW;
+      });
+    });
+  }
+  // CH: 実機準拠のHP表示=自分は数値(171/171)・相手は%のみ(ゲームと同じ=2026-07-04 阿部さん)
+  // 実数値はdata属性に保持(後から切替可能)
+  const t = pb.querySelector('.hptext');
+  if (t) {
+    if (side === 'self'){
+      t.innerHTML = `${Math.round(hp)}<small>/${Math.round(max)}</small>`;
+    } else {
+      // 生きている限り0%と表示しない(実機の最低1%表示)
+      const pd = hp > 0 ? Math.max(1, Math.round(pct)) : 0;
+      t.innerHTML = `${pd}<small>%</small>`;
+    }
+    t.dataset.hp = hp;
+    t.dataset.max = max;
+  }
+}
+
+// ===== メッセージ送り =====
+let sayQueue = [], sayDone = null, autoTimer = null;
+function say(lines, done){
+  sayQueue = lines.slice();
+  sayDone = done || null;
+  busy = true;
+  showCmd(false);
+  $('msgbox').style.display = 'block';   // CH: メッセージ再生中だけ出す(実機準拠。残留するとボタンを塞ぐ)
+  nextSay();
+}
+function nextSay(){
+  if (autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+  if (!sayQueue.length){
+    busy = false;
+    $('msgbox').querySelector('.next').style.display = 'none';
+    $('msgbox').style.display = 'none';        // CH: メッセージ退場(コマンドUIに舞台を返す)
+    $('field').classList.remove('ch-busy');    // CH: メッセージ完了=UIを戻す
+    if (sayDone){ const d = sayDone; sayDone = null; d(); }
+    return;
+  }
+  const line = sayQueue.shift();
+  const box = $('msgbox');
+  const txt = line.text != null ? line.text : line;
+  // CH: 行ごとにいったん全UIを消す(実機の「メッセージ中はUI退場」)。
+  // ダメージ/状態反映を含む行は fx内のsetHpBarがすぐ戻す=「演出→バーが出て減る」の実機の流れ
+  $('field').classList.add('ch-busy');
+  pushMsgLine(txt);   // 下部メッセージ欄(6行・直近が薄く残る)
+  if (!line.noLog) logLine(txt, undefined, line.src != null ? line.src : txt);   // ログはJA原文で保存=言語切替で再翻訳できる
+  if (line.fx) line.fx();
+  // こうか(ばつぐん/いまひとつ/なし)・急所はダメージ行と同じ拍に重ねる。
+  // 別拍だと「2回当たった」ように見える(2026-07-06 阿部さん「1発で効果抜群とかそれだけでいい」)
+  if (line.src && /ダメージ！/.test(line.src)){
+    const _EFF_JA = ['こうかは ばつぐんだ！', 'こうかは いまひとつのようだ…', 'こうかは こうかなし…', 'きゅうしょに あたった！'];
+    while (sayQueue.length){
+      const nx = sayQueue[0];
+      if (!nx || !nx.src || !_EFF_JA.includes(nx.src)) break;
+      sayQueue.shift();
+      pushMsgLine(nx.text);
+      if (!nx.noLog) logLine(nx.text, undefined, nx.src != null ? nx.src : nx.text);
+      if (nx.fx) nx.fx();
+    }
+  }
+  box.querySelector('.next').style.display = 'none';   // ▼表記廃止(盤面クリック/自動送りは従来どおり)
+  if ($('auto-msg').checked){
+    autoTimer = setTimeout(nextSay, +$('msg-speed').value);
+  }
+}
+function advanceMsg(){ const t = $('mv-tip'); if (t) t.style.display = 'none'; if (busy) nextSay(); }
+
+// ===== コマンド =====
+function showCmd(on){
+  // あばれ継続中(げきりん/あばれる/さわぐ)は技選択なしで自動続行(実機準拠。エンジン側が技を強制する)
+  if (on && !gameOver && S.sides.self.rampage && !S.sides.self.fainted){
+    setTimeout(() => doTurn(null), 450);
+    return;
+  }
+  $('cmd').style.display = on ? 'flex' : 'none';   // CH: 右側縦並び
+  $('moves').style.display = 'none';
+  $('party').style.display = 'none';
+}
+// 実機準拠: メッセージ後は技リストを直接開く(たたかう→技の2段階を廃止=2026-07-06 阿部さん)。
+// あばれ継続(げきりん等)はここで自動続行。「様子を見る」からコマンドメニュー(たたかう/ポケモン/にげる)へ
+function showActionUI(){
+  if (!gameOver && S.sides.self.rampage && !S.sides.self.fainted){
+    setTimeout(() => doTurn(null), 450);
+    return;
+  }
+  showMoves();
+}
+function showMoves(){
+  const st = S.sides.self;
+  const tc = S.typeColors();
+  $('cmd').style.display = 'none';
+  $('party').style.display = 'none';        // 相互排他(重なるとクリックが食われて固まる=2026-07-06)
+  $('watch-panel').style.display = 'none';
+  $('weak-panel').style.display = 'none';
+  const mv = $('moves');
+  mv.style.display = 'flex';   // CH: 縦カプセルリスト
+  const ppOf = i => (st.pp ? st.pp[i] : null);
+  const lockName = st.choiceLock ? st.choiceLock.name : null;   // こだわりロック(段135)
+  const allOut = st.pp && st.moves.every((m, i) => !m || st.pp[i] <= 0);
+  // CH: 相性ヒント(実機の★/◎/△/✕帯)。エンジンのcalcDamageで判定=DB同様に特性込み
+  // (ちょすい/ふゆう等の無効も✕になる=2026-07-05 阿部さん「DBの特性×0をそのままバトルで」)。
+  // calcDamageが使えない場合は素の相性表(typeEffPreview)にフォールバック
+  const oppTypes = (S.sideTypes && S.sides.opp && S.sides.opp.poke) ? S.sideTypes(S.sides.opp) : [];
+  const effBand = m => {
+    if (!m || m.category === '変化') return '';
+    let eff = 1, immune = false;
+    try {
+      const r = S.calcDamage('self', 'opp', m);
+      // ばけのかわ(disguiseBlock)は「タイプ相性のこうかなし」ではない(技は当たって皮が剥がれる)
+      // →素のタイプ相性で帯を出す(2026-07-10 阿部さん発見・ポケモンWiki準拠)
+      if (r && r.immune && r.disguiseBlock){
+        const e2 = S.typeEffPreview ? S.typeEffPreview(m.type, oppTypes) : 1;
+        eff = e2; immune = (e2 === 0);
+      }
+      else if (r && r.immune){ immune = true; }
+      else if (r && r.chips){
+        const c = r.chips.find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
+        eff = c ? c.factor : 1;
+      }
+    } catch(e){
+      eff = S.typeEffPreview ? S.typeEffPreview(m.type, oppTypes) : 1;
+      immune = eff === 0;
+    }
+    if (immune || eff === 0) return `<span class="mv-eff eff-no">✕ ${I18N.t('real_battle.no_effect','こうかなし')}</span>`;
+    // 4倍=★ちょうばつぐん(チャンピオンズ実機準拠。en公式=Extremely effective / Game8・Kotaku裏取り済み)
+    if (eff >= 4) return `<span class="mv-eff eff-hyper">★ ${I18N.t('real_battle.eff_hyper','ちょうばつぐん')}</span>`;
+    if (eff > 1)  return `<span class="mv-eff eff-super">◎ ${I18N.t('real_battle.chip_super_effective','こうかばつぐん')}</span>`;
+    if (eff < 1)  return `<span class="mv-eff eff-weak">△ ${I18N.t('real_battle.chip_not_very_effective','こうかいまひとつ')}</span>`;
+    return '';
+  };
+  // CH: 技カプセル(チャンピオンズ準拠)
+  // - 上段: タイプバッジ + 技名 / 右上: PP大きめ / 下段: 相性帯 + 威力/命中
+  // - カプセル背景はタイプ色グラデ・disabled時(PP切れ/こだわり外)はグレーアウト
+  // 上段=様子を見る/技の説明(トグル)/⚙能力値(実機のX/Y行相当=2026-07-06 阿部さん)
+  const detailOn = localStorage.getItem('rb_move_detail') === 'on';
+  const statsBtn = `<div class="mv-top">` +
+    `<button class="watch-open">${I18N.t('real_battle.watch_button','👀 様子を見る')}</button>` +
+    `<button class="weak-open">${I18N.t('real_battle.weakness_button','🎯 弱点')}</button>` +
+    `<button class="desc-toggle${detailOn ? ' on' : ''}">${I18N.t('real_battle.movedesc_button','📖 技の説明')}</button>` +
+    `<button class="stats-open">⚙</button></div>`;
+  // メガシンカ=技リストの左横の丸ボタン(実機のRボタン位置=2026-07-06 阿部さん)。使える時だけ出す
+  const megaSide = (S.canMegaEvolve(st) || st.megaChoice)
+    ? `<button class="mega-side${st.megaChoice ? ' mega-armed' : ''}"><span class="ms-icon">⬡</span><span class="ms-label">${I18N.t('real_battle.cmd_mega','⬡ メガシンカ').replace('⬡ ', '')}</span></button>`
+    : '';
+  mv.innerHTML = megaSide + statsBtn + (allOut
+    ? `<button data-i="0"><span class="mv-name"><strong>${I18N.t('real_battle.move_last_resort','わるあがき')}</strong></span><div class="mv-sub">${I18N.t('real_battle.move_last_resort_desc','PPが ぜんぶ なくなった！ 威力50 / 反動あり')}</div></button>`
+    : st.moves.map((m, i) => {
+        const col = tc[m.type] || '#3a4660';
+        const ppNow = ppOf(i);
+        const ppMax = m.pp || 0;
+        // 使用条件(ゲップ=きのみ未食)を満たさない技は選べない(実機準拠で選択不可)
+        const needsBerry = ((m.battle_data && m.battle_data.requires) || []).some(r => r.type === 'user_has_eaten_berry')
+          && S.ateBerry && !S.ateBerry(st);
+        const disabledMove = st.disable && st.disable.name === m.name;   // かなしばり中の技は選べない(実機準拠)
+        const off = (ppNow != null && ppNow <= 0) || (lockName && m.name !== lockName) || needsBerry || disabledMove;
+        const locked = lockName && m.name !== lockName;
+        // PP残少(2以下): pp-low クラスで強調
+        const ppLow = ppNow != null && ppNow <= 2 && !off;
+        const ppCls = 'mv-pp' + (ppLow ? ' pp-low' : '');
+        const ppTxt = ppNow != null ? `${ppNow}/${ppMax}` : '';
+        // 威力/命中等はホバーの説明フロートに集約(ボタンは常時スリム=2026-07-06 阿部さん)
+        const subParts = [
+          locked ? I18N.t('real_battle.move_stubbornlock_note','こだわり中') : '',
+          disabledMove ? I18N.t('real_battle.move_disabled_note','かなしばり中') : '',
+          needsBerry ? I18N.t('real_battle.move_needs_berry','きのみを たべてから') : ''
+        ].filter(Boolean).join(' / ');
+        // カプセル背景=タイプ色グラデ(暗め→明るめ)
+        const btnStyle = off ? '' : `background:linear-gradient(135deg,${col}dd 0%,${col}99 100%)`;
+        return `<button class="tcol" data-i="${i}" ${off ? 'disabled' : ''} style="${btnStyle}">` +
+          `<span class="mv-name"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span><strong>${tMoveName(m)}${lockName === m.name ? ' 🔒' : ''}</strong></span>` +
+          `<div class="mv-sub">${effBand(m)}${subParts}&nbsp;</div>` +
+          (ppTxt ? `<span class="${ppCls}">${ppTxt}</span>` : '') +
+          `</button>`;
+      }).join(''))
+    + `<button class="back party-open">${I18N.t('real_battle.cmd_party','🔄 ポケモン')}</button>`;
+  // 技の説明ON: ホバーした技の「左横」にフロート(威力/命中/分類/優先度+説明文を集約=2026-07-06 阿部さん)
+  if (detailOn){
+    const tip = $('mv-tip');
+    mv.querySelectorAll('button.tcol').forEach(b => {
+      const m = st.moves[+b.dataset.i];
+      if (!m) return;
+      const desc = (window.I18N && I18N.moveDesc && I18N.moveDesc(m.key)) || m.desc || m.description || '';
+      const pri = (m.battle_data && m.battle_data.priority) || m.priority || 0;
+      const head = [
+        `${I18N.t('real_battle.move_power_label','威力')}${m.power ?? '—'}`,
+        `${I18N.t('real_battle.move_accuracy_label','命中')}${m.accuracy ?? '—'}`,
+        tCatName(m.category),
+        pri ? `${I18N.t('real_battle.move_priority_label','優先度')}${pri > 0 ? '+' : ''}${pri}` : ''
+      ].filter(Boolean).join(' / ');
+      b.addEventListener('mouseenter', () => {
+        tip.innerHTML = `<b>${head}</b>` + (desc ? `<div style="margin-top:4px">${desc}</div>` : '');
+        // ホバー中の技ボタンの左横に(zoom補正: rectはzoom後px→フィールド内部座標へ換算)
+        const fr = $('field').getBoundingClientRect(), br = b.getBoundingClientRect();
+        const ratio = fr.height / 360;
+        tip.style.top = Math.max(6, Math.round((br.top - fr.top) / ratio)) + 'px';
+        tip.style.bottom = 'auto';
+        tip.style.left = 'auto';
+        tip.style.right = '246px';
+        tip.style.display = 'block';
+      });
+      b.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
+    });
+  } else $('mv-tip').style.display = 'none';
+  mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    $('mv-tip').style.display = 'none';   // タップで説明フロートを消す(タッチでmouseleaveが来ないため)
+    if (b.classList.contains('stats-open')){ openStatsModal(); return; }
+    if (b.classList.contains('watch-open')){ toggleWatchPanel(b); return; }
+    if (b.classList.contains('weak-open')){ toggleWeaknessPanel(b); return; }   // 相手へのタイプ相性(B1)
+    if (b.classList.contains('desc-toggle')){
+      localStorage.setItem('rb_move_detail', localStorage.getItem('rb_move_detail') === 'on' ? 'off' : 'on');
+      showMoves(); return;
+    }
+    if (b.classList.contains('mega-side')){ toggleMega(); return; }
+    if (b.classList.contains('party-open')){ showParty(); return; }   // 交代へ(もどるで技リストに帰る)
+    doTurn(+b.dataset.i);
+  }));
+}
+function showParty(forced){
+  const st = S.sides.self;
+  $('cmd').style.display = 'none';
+  $('moves').style.display = 'none';        // 相互排他
+  $('watch-panel').style.display = 'none';
+  $('weak-panel').style.display = 'none';
+  const pt = $('party');
+  pt.style.display = 'flex';   // CH: 縦カプセルリスト(選出画面の青カプセル準拠)
+  // S5: 交代画面ボタン Showdown準拠デザイン(09_switch準拠)
+  // - アイコン画像+名前+ミニHPバー+HP%テキスト を縦積みで表示
+  pt.innerHTML = (st.bench || []).map((e, i) => {
+    if (!e || !e.poke) return '';
+    const max = S.realStat(e, 'hp') || 1;
+    const hp = e.currentHp == null ? max : Math.max(0, e.currentHp);
+    const dead = e.fainted || hp <= 0;
+    const pct = Math.round(hp / max * 100);
+    const barCls = 'pt-hp-bar' + (pct <= 25 ? ' low' : pct <= 50 ? ' mid' : '');
+    const enc = encodeURIComponent((e.illusionAs || e.poke).name);
+    const nm = tPokeName((e.illusionAs || e.poke).name);
+    const _tc = S.typeColors();
+    const _tp = [e.poke.type1, e.poke.type2].filter(Boolean).map(t =>
+      `<span class="pt-type" style="background:${_tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
+    return `<button data-i="${i}" ${dead ? 'disabled' : ''}>` +
+      `<div class="pt-name"><img src="${pokeIconSrc((e.illusionAs || e.poke).name)}" alt="" onerror="this.remove()">${nm}<span class="pt-types">${_tp}</span></div>` +
+      (dead
+        ? `<div class="pt-fainted">${I18N.t('real_battle.party_fainted','ひんし')}</div>`
+        : `<div class="pt-hp-wrap"><div class="${barCls}" style="width:${pct}%"></div></div>` +
+          `<div class="pt-hp-text">${pct}% (${hp}/${max})</div>`) +
+      `</button>`;
+  }).join('') + (forced ? '' : `<button class="back">${I18N.t('real_battle.move_back_button','← もどる')}</button>`);
+  pt.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    if (b.classList.contains('back')){ showMoves(); return; }
+    if (forced){
+      // ★オンライン: 選択を相手へ送り、両者の選択が揃ってから決められた順で適用(ロックステップ)
+      if (window.RB_ONLINE && RB_ONLINE.started && RB_ONLINE.pendingRep){
+        pt.style.display = 'none';
+        const _seed = (Math.random() * 0x7fffffff) | 0;
+        RB_ONLINE.pendingRep.selfIdx = +b.dataset.i;
+        RB_ONLINE.pendingRep.selfSeed = _seed;
+        RBOnline.sendFaintReplace(+b.dataset.i, _seed);
+        onlineTryApplyReplaces();
+        return;
+      }
+      // 死に出し: その場で交代を実行してログを再生(ターン消費なし=実機どおり)
+      pt.style.display = 'none';
+      logPos = S.battleLog.length;
+      S.attemptSwitch('self', +b.dataset.i, {ignoreTrapping: true, faintReplace: true});
+      // 新しい子は登場拍(いけっ！の声)まで隠す=前触れなくポンと出るのを防ぐ(2026-07-06 阿部さん)
+      const ff = $('f-self'); if (ff){ ff.classList.remove('recall', 'enter'); ff.classList.add('gone'); }
+      const pbSelf = $('pb-self'); if (pbSelf) pbSelf.style.visibility = 'hidden';
+      renderAll();   // 隠れたまま新しい子のスプライトを組む(表示は登場拍のenter fxが行う)
+      const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
+      say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
+      return;
+    }
+    S.sides.self.switchChoice = +b.dataset.i;
+    doTurn(null);   // 交代をこのターンの行動に
+  }));
+}
+// 能力値設定モーダル(バトル中の⚙から): ビルダー共通エディタ(iframe)を開く。
+// 確定=場の自分ポケモンに即時反映(messageリスナー側)・キャンセル=閉じるだけ。上限はビルダー側で担保(66/32)
+function openStatsModal(){
+  const st = S.sides.self;
+  if (!st || !st.poke) return;
+  st.effort = clampEffortRB(st.effort);
+  const holder = $('sm-holder');
+  const itLabel = () => (S.itemByKey(st.item) ? tItemName(S.itemByKey(st.item)) : I18N.t('real_battle.item_none_option','もちもの なし'));
+  holder.innerHTML = `<div style="font-weight:900;font-size:15px;margin-bottom:8px">${tPokeName(st.poke.name)}</div>` +
+    `<div class="sd-ev"></div>` +
+    `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:12px">` +
+    `<span style="color:#9fb4d8">${I18N.t('real_battle.sel_item','もちもの')}</span><button id="sm-item" class="sd-pick">${itLabel()} ▾</button></div>` +
+    `<button id="sm-close">${I18N.t('real_battle.mp_close_button','とじる')}</button>`;
+  holder.querySelector('#sm-item').addEventListener('click', e => {
+    // 控えの持ち物と重複不可(1種類1個・メガストーンは共有可)
+    const used = new Set((st.bench || []).map(x => x.item).filter(k => k && k !== 'mega_stone_any'));
+    openItemModal(st.item, k => {
+      st.item = k || null; renderAll();
+      const btn = holder.querySelector('#sm-item');
+      if (btn) btn.textContent = itLabel() + ' ▾';
+    }, e.currentTarget, used);
+  });
+  renderEvEditor(holder.querySelector('.sd-ev'), {
+    poke: st.poke,
+    getEff: () => st.effort || ZERO_EV(),
+    getNature: () => (S.natureList()[st.natureIdx || 0] || ['まじめ'])[0],
+    apply: (eff, nature) => {
+      // バトル中は場の自分ポケモンに即時反映(HP最大値が縮んだら現在HPをクランプ)
+      st.effort = eff;
+      st.natureIdx = S.natureIdxOf(nature);
+      const newMax = S.realStat(st, 'hp');
+      if (st.currentHp != null) st.currentHp = Math.min(st.currentHp, newMax);
+      renderAll();
+    },
+  });
+  holder.querySelector('#sm-close').addEventListener('click', () => { $('stats-modal').style.display = 'none'; });
+  $('stats-modal').style.display = 'flex';
+}
+// 様子を見る: 両者のランク変化・状態異常と、天候/フィールド(残りターン)を表示(2026-07-06 阿部さん・実機のX)
+function toggleWatchPanel(btn){
+  const w = $('watch-panel');
+  if (w.style.display === 'block'){ w.style.display = 'none'; return; }
+  $('weak-panel').style.display = 'none';   // 弱点パネルとは排他(同じ位置に出す)
+  // 左上の非常口ボタン(btn-exit)の真下に出す(2026-07-06 阿部さん)。zoom補正あり
+  const fr = $('field').getBoundingClientRect();
+  const ratio = fr.height / 360;
+  const ex = $('btn-exit');
+  const topPx = ex ? Math.round((ex.getBoundingClientRect().bottom - fr.top) / ratio) + 8 : 52;
+  w.style.top = topPx + 'px'; w.style.bottom = 'auto'; w.style.left = '14px'; w.style.right = 'auto';
+  const RL = {atk:'A', def:'B', spatk:'C', spdef:'D', spd:'S', accuracy:'ACC', evasion:'EVA', crit:'CRIT'};
+  const sj = S.statusJa();
+  const _K = {burn:'common.status_burn', paralysis:'common.status_paralysis', poison:'common.status_poison',
+    badpoison:'common.status_toxic', sleep:'common.status_sleep', freeze:'common.status_freeze'};
+  const row = side => {
+    const st = S.sides[side];
+    if (!st || !st.poke) return '';
+    const parts = [];
+    Object.entries(st.rank || {}).forEach(([k, v]) => { if (v) parts.push(`<span class="bdg">${RL[k] || k}${v > 0 ? '+' : ''}${v}</span>`); });
+    if (sj[st.status]) parts.push(`<span class="bdg">${I18N.t(_K[st.status] || '', sj[st.status])}</span>`);
+    if (st.confusion > 0) parts.push(`<span class="bdg">${I18N.t('common.status_confusion','こんらん')}</span>`);
+    if (st.subHp > 0) parts.push(`<span class="bdg">${I18N.t('common.bdg_substitute','みがわり')}</span>`);
+    return `<div class="wp-row"><b>${tPokeName((st.illusionAs || st.poke).name)}</b>${parts.join('') || ' ' + I18N.t('real_battle.watch_none','とくに 変化なし')}</div>`;
+  };
+  const envRows = [];
+  const turnsTxt = n => n != null ? ' (' + I18N.t('real_battle.watch_turns_left','のこり{n}ターン').replace('{n}', n) + ')' : '';
+  const env = S.env || {};
+  if (env.weather && env.weather !== 'none')
+    envRows.push(`<div class="wp-row">☀ ${I18N.t('real_battle.env_weather_' + env.weather, env.weather)}${turnsTxt(env.weatherTurns)}</div>`);
+  if (env.field && env.field !== 'none')
+    envRows.push(`<div class="wp-row">🌐 ${I18N.t('real_battle.env_field_' + env.field, env.field)}${turnsTxt(env.fieldTurns)}</div>`);
+  w.innerHTML = row('opp') + row('self') + envRows.join('');
+  w.style.display = 'block';
+  w.onclick = () => { w.style.display = 'none'; };
+}
+// 弱点パネル(2026-07-08 B1): 相手の場のポケモンに対する18タイプ相性を
+// こうかばつぐん / いまひとつ / こうかなし の3区分で表示。toggleWatchPanel を踏襲(位置・zoom補正・クリックで閉じる)。
+// 倍率は calcDamage('self','opp',ダミー技) の immune/eff-up/eff-down で「特性込み」を優先し、
+// 例外/非反応時は typeEffPreview(素相性)にフォールバック(ベストエフォート・spec§2準拠)。
+function toggleWeaknessPanel(btn){
+  const w = $('weak-panel');
+  if (w.style.display === 'block'){ w.style.display = 'none'; return; }
+  $('watch-panel').style.display = 'none';   // 様子を見るパネルとは排他(同じ位置に出す)
+  // 左上の非常口ボタン(btn-exit)の真下に出す(zoom補正あり・toggleWatchPanelと同じ位置計算)
+  const fr = $('field').getBoundingClientRect();
+  const ratio = fr.height / 360;
+  const ex = $('btn-exit');
+  const topPx = ex ? Math.round((ex.getBoundingClientRect().bottom - fr.top) / ratio) + 8 : 52;
+  w.style.top = topPx + 'px'; w.style.bottom = 'auto'; w.style.left = '14px'; w.style.right = 'auto';
+
+  const opp = S.sides.opp;
+  // 相手の実効タイプ(sideTypes優先・無ければポケモン素タイプ)
+  const defTypes = (S.sideTypes && opp && opp.poke) ? S.sideTypes(opp)
+    : (opp && opp.poke ? [opp.poke.type1, opp.poke.type2].filter(Boolean) : []);
+  const tc = (S.typeColors && S.typeColors()) || (typeof TYPE_COLORS !== 'undefined' ? TYPE_COLORS : {});
+  const TYPES18 = (typeof TYPES !== 'undefined') ? TYPES : [];
+
+  // 相手が場にいない/入替中=無害に(空メッセージ)
+  if (!opp || !opp.poke || !defTypes.length){
+    w.innerHTML = `<div class="wp-row">${I18N.t('real_battle.weakness_empty','あいては いないようだ')}</div>`;
+    w.style.display = 'block';
+    w.onclick = () => { w.style.display = 'none'; };
+    return;
+  }
+
+  // 18タイプそれぞれについて相手への倍率を計算(特性込み優先→素相性フォールバック)
+  const buckets = { super: [], weak: [], none: [] };
+  TYPES18.forEach(atkType => {
+    let eff = 1, immune = false;
+    try {
+      const dummy = { name: '__weakness', type: atkType, category: '物理', power: 40 };
+      const r = S.calcDamage ? S.calcDamage('self', 'opp', dummy) : null;
+      if (r && r.immune && r.disguiseBlock){   // ばけのかわ=タイプ無効ではない→素の相性で表示(2026-07-10)
+        eff = S.typeEffPreview ? S.typeEffPreview(atkType, defTypes) : 1; immune = (eff === 0);
+      }
+      else if (r && r.immune){ immune = true; }
+      else if (r && Array.isArray(r.chips)){
+        const c = r.chips.find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
+        if (c) eff = c.factor;
+        else { eff = S.typeEffPreview ? S.typeEffPreview(atkType, defTypes) : 1; if (eff === 0) immune = true; }
+      } else {
+        eff = S.typeEffPreview ? S.typeEffPreview(atkType, defTypes) : 1; if (eff === 0) immune = true;
+      }
+    } catch(e){
+      eff = S.typeEffPreview ? S.typeEffPreview(atkType, defTypes) : 1; immune = eff === 0;
+    }
+    const mult = immune ? 0 : eff;
+    const col = tc[atkType] || '#3a4660';
+    const badge = `<span class="wp-t" style="background:${col}">${tTypeName(atkType)}</span>`;
+    if (mult === 0){
+      buckets.none.push(badge);
+    } else if (mult > 1){
+      const m = mult >= 4 ? I18N.t('real_battle.weakness_4x','4倍') : `×${mult}`;
+      buckets.super.push(`${badge}<span class="wp-m">${m}</span>`);
+    } else if (mult < 1){
+      const m = mult <= 0.25 ? I18N.t('real_battle.weakness_quarter','1/4') : `×${mult}`;
+      buckets.weak.push(`${badge}<span class="wp-m">${m}</span>`);
+    }   // ×1(等倍)は省略
+  });
+
+  const section = (title, arr) => arr.length
+    ? `<div class="wp-row"><b>${title}</b><div class="wp-types">${arr.join('')}</div></div>` : '';
+  w.innerHTML =
+    section(I18N.t('real_battle.weakness_title_super','こうかばつぐん'), buckets.super) +
+    section(I18N.t('real_battle.weakness_title_weak','いまひとつ'), buckets.weak) +
+    section(I18N.t('real_battle.weakness_title_none','こうかなし'), buckets.none);
+  w.style.display = 'block';
+  w.onclick = () => { w.style.display = 'none'; };
+}
+function toggleMega(){
+  const st = S.sides.self;
+  if (st.megaChoice){ st.megaChoice = false; }
+  else if (S.canMegaEvolve(st)){ st.megaChoice = true; }
+  showMoves();
+}
+
+// ===== ターン実行→ログを1行ずつ実機テンポで再生 =====
+function doTurn(moveIdx){
+  if (busy || gameOver) return;
+  if (S.sides.self.fainted) return;   // 死に出しの選択待ち中はターンを進めない
+  // 行動が決まったらまずメニューをパッと消す(2026-07-06 阿部さん)
+  ['cmd', 'moves', 'party', 'watch-panel', 'weak-panel', 'mv-tip'].forEach(id => { $(id).style.display = 'none'; });
+  const self = S.sides.self, opp = S.sides.opp;
+  if (moveIdx != null) self.selectedMoveIdx = moveIdx;
+  // ★オンライン対戦(ロックステップ): 自分の行動を相手へ送り、両者の行動+共有シードが揃ってから実行
+  if (window.RB_ONLINE && RB_ONLINE.started){ onlineSubmitAction(moveIdx); return; }
+  // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
+  if (opp.poke && !opp.fainted){
+    const act = S.aiChooseAction ? S.aiChooseAction('opp') : {type: 'move', index: S.aiChooseMove('opp')};
+    if (act.type === 'switch') opp.switchChoice = act.index;
+    else opp.selectedMoveIdx = act.index;
+  }
+  executeTurn();
+}
+// 1ターンを実行して差分ログを再生する本体(オフライン=doTurnから直接/オンライン=両者の行動が揃ってから)
+function executeTurn(){
+  // 演出用HPスナップショット: 交代で出た瞬間のバーは「攻撃前のHP」を出す
+  // (renderAllはエンジン最終状態=被弾後を入れてしまい、登場した瞬間に減って見えていた=2026-07-06 阿部さん)
+  window._hpSnap = {};
+  // 表示個体スナップ: エンジンは1ターン分を先に計算し終えるので、renderAllが最終状態(交代後の子)を
+  // 先に描いてしまう(=ひんし前にstatbarの名前が次の子になる)。登場拍(enter fx)までは旧個体を表示し続ける
+  window._idSnap = {self: S.sides.self && S.sides.self.poke, opp: S.sides.opp && S.sides.opp.poke};
+  // ばけのかわ表示スナップ: エンジンは剥がれ済みでも、絵は「はがれた」の拍まで皮のまま(2026-07-10 阿部さん)
+  window._dgSnap = {self: S.sides.self && S.sides.self.disguise, opp: S.sides.opp && S.sides.opp.disguise};
+  ['self', 'opp'].forEach(sd => {
+    const st0 = S.sides[sd]; const m = {};
+    [st0].concat(st0.bench || []).forEach(e => {
+      if (e && e.poke){ const mx = S.realStat(e, 'hp') || 1; m[e.poke.name] = e.currentHp == null ? mx : Math.max(0, e.currentHp); }
+    });
+    _hpSnap[sd] = m;
+  });
+  logPos = S.battleLog.length;
+  S.runTurn();
+  const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
+  // CH: 攻撃行の前に「◯◯の こうげき！」を差し込み(2段表示=2026-07-05 阿部さん)。
+  // 表示専用(noLog)でエンジンログ/右ログは汚さない。攻撃側はぴょんぴょん予告(preattack)
+  const lines = [];
+  for (const e of fresh){
+    const am = e.msg.match(/^((?:相手の )?)(\S+) の \S+！/);
+    if (am && /ダメージ！/.test(e.msg)){
+      const introJa = `${am[1]}${am[2]} の こうげき！`;
+      const introSide = am[1] ? 'opp' : 'self';
+      lines.push({ text: (window.translateLogLine ? translateLogLine(introJa) : introJa),
+        fx: () => flash(introSide, 'preattack'), noLog: true });
+    }
+    splitBattleLines(e.msg).forEach(t => lines.push(lineWithFx(t)));
+  }
+  logTurnHeader(turnNo);   // 右ログに「Turn N」見出し
+  say(lines, endOfTurn);
+}
+// ===== サウンド(Web Audio合成・ファミコン風 — ファイル不要・全部自作波形=権利フリー) =====
+// 2026-06-12 阿部さん「音とBGM入れたらそれっぽくなる」。autoplay制限があるので初回クリックで解錠。
+let AC = null, sndOn = localStorage.getItem('rb_snd') !== 'off';
+let bgmTimer = null, bgmStep = 0, masterBgm = null;
+let masterVol = null, sndVol = Math.min(1, Math.max(0, parseFloat(localStorage.getItem('rb_vol') || '0.7')));
+function dest(){   // 全SE/BGMの出口(音量スライダーが効くマスターゲイン)
+  const ctx = ac();
+  if (!masterVol){ masterVol = ctx.createGain(); masterVol.gain.value = sndVol; masterVol.connect(ctx.destination); }
+  return masterVol;
+}
+function ac(){
+  if (!AC){ AC = new (window.AudioContext || window.webkitAudioContext)(); }
+  if (AC.state === 'suspended') AC.resume();
+  return AC;
+}
+// 単音(波形・周波数・長さ・音量・ピッチスライド先)
+function tone(type, freq, dur, vol, slideTo, when){
+  if (!sndOn) return;
+  const ctx = ac(), t = when != null ? when : ctx.currentTime;
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(g); g.connect(dest());
+  o.start(t); o.stop(t + dur + 0.02);
+}
+// ノイズ(打撃用)
+function noise(dur, vol, lowpass){
+  if (!sndOn) return;
+  const ctx = ac(), t = ctx.currentTime;
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const g = ctx.createGain(); g.gain.value = vol;
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lowpass || 1200;
+  src.connect(f); f.connect(g); g.connect(dest()); src.start(t);
+}
+// 効果音いろいろ
+const SE = {
+  select(){ tone('square', 880, 0.06, 0.12); },
+  hit(){ noise(0.16, 0.5, 900); tone('square', 180, 0.12, 0.2, 70); },
+  superEff(){ noise(0.25, 0.6, 2200); tone('square', 320, 0.22, 0.25, 60); tone('square', 480, 0.18, 0.18, 90); },
+  weak(){ noise(0.1, 0.25, 500); tone('triangle', 140, 0.14, 0.18, 90); },
+  crit(){ tone('sawtooth', 1400, 0.1, 0.22, 500); noise(0.2, 0.5, 3000); tone('square', 250, 0.2, 0.2, 60); },
+  faint(){ tone('square', 520, 0.5, 0.22, 65); tone('triangle', 260, 0.55, 0.18, 40); },
+  heal(){ [523, 659, 784, 1047].forEach((f, i) => tone('square', f, 0.12, 0.14, null, ac().currentTime + i * 0.09)); },
+  status(){ tone('square', 330, 0.1, 0.16, 392); tone('square', 392, 0.1, 0.16, 330, null); },
+  mega(){ [440, 554, 659, 880, 1109].forEach((f, i) => tone('square', f, 0.16, 0.16, null, ac().currentTime + i * 0.08)); noise(0.5, 0.25, 4000); },
+  enter(){ tone('square', 392, 0.07, 0.14, 784); },
+  win(){ [523, 523, 523, 659, 784, 1047].forEach((f, i) => tone('square', f, i === 5 ? 0.5 : 0.13, 0.16, null, ac().currentTime + i * 0.13)); },
+  lose(){ [392, 370, 349, 330].forEach((f, i) => tone('triangle', f, 0.3, 0.18, null, ac().currentTime + i * 0.28)); },
+};
+// バトルBGM: 8bit風2小節ループ(Am)。スケジューラで16分音符を先読み再生
+const BGM_BASS = [110, 0, 110, 0, 165, 0, 110, 0, 131, 0, 131, 0, 98, 0, 98, 123];           // A E C G…
+const BGM_LEAD = [440, 0, 523, 587, 659, 0, 587, 523, 440, 0, 392, 440, 523, 440, 392, 330]; // 戦闘っぽい旋律
+function bgmStart(){
+  if (!sndOn || bgmTimer) return;
+  const ctx = ac();
+  masterBgm = ctx.createGain(); masterBgm.gain.value = 0.10; masterBgm.connect(dest());
+  let next = ctx.currentTime + 0.05;
+  const SPB = 0.13;   // 16分音符の長さ(≒115bpmの16ビート)
+  bgmStep = 0;
+  bgmTimer = setInterval(() => {
+    if (!sndOn){ bgmStop(); return; }
+    while (next < ctx.currentTime + 0.2){
+      const i = bgmStep % 16;
+      const b = BGM_BASS[i], l = BGM_LEAD[i];
+      if (b){ const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'triangle'; o.frequency.value = b;
+        g.gain.setValueAtTime(0.9, next); g.gain.exponentialRampToValueAtTime(0.001, next + SPB * 0.9);
+        o.connect(g); g.connect(masterBgm); o.start(next); o.stop(next + SPB); }
+      if (l){ const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = 'square'; o.frequency.value = l;
+        g.gain.setValueAtTime(0.35, next); g.gain.exponentialRampToValueAtTime(0.001, next + SPB * 0.85);
+        o.connect(g); g.connect(masterBgm); o.start(next); o.stop(next + SPB); }
+      if (i % 4 === 0){ // ハイハット代わりのノイズチック
+        const len = Math.floor(ctx.sampleRate * 0.03), buf = ctx.createBuffer(1, len, ctx.sampleRate);
+        const d = buf.getChannelData(0); for (let k = 0; k < len; k++) d[k] = (Math.random() * 2 - 1) * (1 - k / len);
+        const s = ctx.createBufferSource(); s.buffer = buf;
+        const g = ctx.createGain(); g.gain.value = 0.12; s.connect(g); g.connect(masterBgm); s.start(next); }
+      next += SPB; bgmStep++;
+    }
+  }, 40);
+}
+function bgmStop(){
+  if (bgmTimer){ clearInterval(bgmTimer); bgmTimer = null; }
+  if (masterBgm){ try { masterBgm.disconnect(); } catch (e) {} masterBgm = null; }
+}
+function updateSndBtn(){ const b = $('snd-toggle'); if (b) b.textContent = sndOn ? I18N.t('real_battle.snd_toggle_on','🔊 音オン') : I18N.t('real_battle.snd_toggle_off','🔇 音オフ'); }
+
+// ===== ステージ演出v3のヘルパー =====
+let lastTgt = null;   // 直前のダメージ対象(「こうかは…」「きゅうしょ」は直後の行で飛んでくる)
+function popText(side, text, color, size){
+  const f = $('f-' + side);
+  const el = document.createElement('div');
+  el.className = 'popnum';
+  el.textContent = text;
+  if (color) el.style.color = color;
+  if (size) el.style.fontSize = size + 'px';
+  f.appendChild(el);
+  setTimeout(() => el.remove(), 1100);
+}
+function burstFx(side, color){
+  const f = $('f-' + side);
+  const el = document.createElement('div');
+  el.className = 'burst';
+  el.style.background = `radial-gradient(circle, ${color}cc 0%, ${color}55 45%, transparent 70%)`;
+  f.appendChild(el);
+  setTimeout(() => el.remove(), 650);
+}
+function screenFlash(color, mega){
+  const el = $('fx-flash');
+  el.style.background = color;
+  el.className = '';
+  void el.offsetWidth;
+  el.className = mega ? 'mega' : 'on';
+}
+const _WEATHER_FX = {sun: ['☀️', '#3a2c14'], rain: ['💧', '#14263a'], sand: ['🌪️', '#34290f'], snow: ['❄️', '#1a2a3c']};
+function setWeatherFx(kind){
+  const el = $('weather-fx');
+  if (!kind){ el.textContent = ''; el.classList.remove('live'); $('field').style.boxShadow = ''; return; }
+  const [emo, tint] = _WEATHER_FX[kind];
+  el.textContent = (emo + ' ').repeat(24);
+  el.classList.add('live');
+  $('field').style.boxShadow = `inset 0 0 80px 20px ${tint}`;
+}
+// S6: 背景プリセット切替 ---------------------------------------------------
+// setBackdrop(preset): #field-backdrop の data-preset 属性を切り替えるだけ。
+// CSSが data-preset 値に応じて背景グラデを適用(将来の追加はCSS1プリセット+option1行)。
+// preset: 'grass' | 'cave' | 'water' | 'night'(初期値='grass')。
+const _BACKDROP_PRESETS = ['grass', 'cave', 'water', 'night'];
+function setBackdrop(preset){
+  const el = $('field-backdrop');
+  if (!el) return;
+  const p = _BACKDROP_PRESETS.includes(preset) ? preset : 'grass';
+  el.dataset.preset = p;
+  // セレクトと同期
+  const sel = $('backdrop-sel');
+  if (sel && sel.value !== p) sel.value = p;
+  // 設定をlocalStorageに保存(リロードで復元)
+  try { localStorage.setItem('rb_backdrop', p); } catch (e) {}
+}
+function initBackdrop(){
+  // localStorageから復元(保存値があればそれを適用、なければ'grass')
+  let saved = 'grass';
+  try { saved = localStorage.getItem('rb_backdrop') || 'grass'; } catch (e) {}
+  setBackdrop(saved);
+  // セレクトのchange → setBackdrop
+  const sel = $('backdrop-sel');
+  if (sel){
+    sel.value = saved;
+    sel.addEventListener('change', () => setBackdrop(sel.value));
+  }
+}
+
+// ログ1行 → テキスト+演出(HPバー同期・タイプ色バースト・ダメージ数字・こうか/急所・状態異常・天候・メガ)
+// 交代の複合行「Xは引っ込んだ！ Yが場に出た！」を2拍(2行)に割る(言葉でじっくり見せる=2026-07-06 阿部さん)
+// きあいのタスキ/がんじょう/こらえるの「もちこたえた！」はエンジンがダメージ計算中に先に出す=ダメージ行より前に来る。
+// 表示では「攻撃で1になった→タスキで耐えた」の順が自然なので、直後のダメージ行と入れ替える(2026-07-07 阿部さん)
+function reorderEndure(entries){
+  const isEndure = m => /(もちこたえた|こらえた)！$/.test(m);
+  const isDmg = m => /ダメージ！/.test(m);
+  for (let i = 0; i < entries.length - 1; i++){
+    if (isEndure(entries[i].msg) && isDmg(entries[i + 1].msg)){
+      const tmp = entries[i]; entries[i] = entries[i + 1]; entries[i + 1] = tmp;
+    }
+  }
+  return entries;
+}
+function splitBattleLines(msg){
+  const m = msg.match(/^(相手の )?(\S+) は 引っ込んだ！ (相手の )?(\S+) が 場に出た！$/);
+  // トレーナーの掛け声に言い換え(自分=もどれ/いけっ・相手=引っ込めた/くりだした)
+  const out2 = (pre, nm) => pre ? `相手は ${nm} を 引っ込めた！` : `もどれ！ ${nm}！`;
+  const in2 = (pre, nm) => pre ? `相手は ${nm} を くりだした！` : `いけっ！ ${nm}！`;
+  if (m) return [out2(m[1], m[2]), in2(m[3], m[4])];
+  const w = msg.match(/^(相手の )?(\S+) は 引っ込んだ！$/);
+  if (w) return [out2(w[1], w[2])];
+  const g = msg.match(/^(相手の )?(\S+) が 場に出た！$/);
+  if (g) return [in2(g[1], g[2])];
+  // 死に出し: 「たおれた (相手の)◯◯ の代わりに (相手の)△△ が 場に出た！」→ トレーナーの掛け声(いけっ/くりだした)
+  const dr = msg.match(/^たおれた (?:相手の )?\S+ の代わりに (相手の )?(\S+) が 場に出た！$/);
+  if (dr) return [in2(dr[1], dr[2])];
+  return [msg];
+}
+const _recallTimer = {};   // 交代1拍目のgone遅延タイマー(2拍目で必ずキャンセル=出た直後に消えるバグ根治)
+function lineWithFx(msg){
+  const fx = () => {
+    const hpM = msg.match(/\(残(?:り)?HP (\d+)(?:\/(\d+))?\)/);
+    const subjOpp = msg.startsWith('相手の');   // 行の主語(先頭)が相手側か
+    // ① 攻撃のダメージ行: 「A の 技！ … ダメージ！」(対象=攻撃側の反対。連続ヒット・みがわりも同じ形)
+    const atkLine = msg.match(/^(相手の )?\S+ の (\S+)！/);
+    if (atkLine && /ダメージ！/.test(msg) && !/で \d+ ダメージ/.test(msg)){
+      const atkSide = atkLine[1] ? 'opp' : 'self';
+      const tgt = atkSide === 'self' ? 'opp' : 'self';
+      lastTgt = tgt;
+      if (hpM){
+        const max = hpM[2] ? +hpM[2] : (S.realStat(S.sides[tgt], 'hp') || 1);
+        setHpBar(tgt, +hpM[1], max);   // 1発ごとにターゲット側のバーを減らす
+      }
+      const mv = (S.sides[atkSide].moves || []).find(m => m && m.name === atkLine[2]);
+      burstFx(tgt, mv ? (S.typeColors()[mv.type] || '#9fb4d8') : '#9fb4d8');
+      const d = msg.match(/(?:に|合計) (\d+) ダメージ/);
+      if (d) popText(tgt, '−' + d[1], '#fff');
+      flash(tgt, 'hit');
+      flash(atkSide, atkSide === 'self' ? 'lunge-self' : 'lunge-opp');
+      SE.hit();
+    } else {
+      // ② スリップ系の残HP行(やけど/すなあらし/さめはだ等): 主語側が減る
+      if (hpM){
+        const side = subjOpp ? 'opp' : 'self';
+        const max = hpM[2] ? +hpM[2] : (S.realStat(S.sides[side], 'hp') || 1);
+        setHpBar(side, +hpM[1], max);
+        const d = msg.match(/で (\d+) ダメージ|HPを (\d+) けずった/);
+        if (d){ popText(side, '−' + (d[1] || d[2]), '#f87171', 15); flash(side, 'hit'); }
+        else if (/回復/.test(msg)) popText(side, '＋', '#8ef5b0', 15);
+      }
+    }
+    // ②b 混乱自傷「◯◯ は わけもわからず じぶんを こうげきした！ (N ダメージ)」: 残HP表記が無いので表示中HPから引く
+    const confM = msg.match(/^(相手の )?\S+ は わけもわからず じぶんを こうげきした！ \((\d+) ダメージ\)/);
+    if (confM){
+      const side = confM[1] ? 'opp' : 'self';
+      const pbC = $('pb-' + side), tC = pbC && pbC.querySelector('.hptext');
+      const dmg = +confM[2];
+      const max = tC ? +tC.dataset.max : (S.realStat(S.sides[side], 'hp') || 1);
+      const cur = tC ? +tC.dataset.hp : max;
+      setHpBar(side, Math.max(0, cur - dmg), max);
+      popText(side, '−' + dmg, '#f87171', 15);
+      burstFx(side, '#c9a0e0'); flash(side, 'hit'); SE.hit();
+    }
+    // ②d ばけのかわが剥がれる演出(白フラッシュ+👻+被弾揺れ+音)。「◯◯ の ばけのかわが はがれた！」の拍
+    if (/ばけのかわが はがれた！$/.test(msg)){
+      const side = msg.startsWith('相手の') ? 'opp' : 'self';
+      screenFlash('#ffffff'); popText(side, '👻 ばけのかわ！', '#d0b0ff', 15); flash(side, 'hit'); SE.status();
+      if (window._dgSnap) _dgSnap[side] = false;   // 表示スナップもこの拍で剥がす(以降のrenderAllはばれた絵)
+      // 剥がれた拍で「ばれたすがた」(首カクン)へ即差し替え(renderAllを待たない=2026-07-10 阿部さん)。
+      // エンジンは1ターン分計算済み=st.disguiseは既にfalseなのでspriteHtmlがばれた絵を返す
+      const _st = S.sides[side], _f = $('f-' + side);
+      const _spr = _f && _f.querySelector('.sprite');
+      if (_st && _st.poke && _spr && !((_st.subHp || 0) > 0)){
+        const _shown = _st.illusionAs || _st.poke;
+        _spr.innerHTML = spriteHtml(_shown, _st);
+        _spr.dataset.shown = spriteSrc + ':' + _shown.name + ':busted';
+      }
+    }
+    // ②c みがわり: 出現で人形化・被弾でエフェクト・破壊で元のすがたに戻す(2026-07-06 阿部さん)
+    const subAppear = msg.match(/^(相手の )?\S+ の みがわりが あらわれた！/);
+    if (subAppear){
+      const side = subAppear[1] ? 'opp' : 'self';
+      setSpriteSub(side, true);      // ポケモンが消えて みがわり人形が出る
+      flash(side, 'enter'); popText(side, '🎭', null, 22); SE.enter();
+    }
+    const subHitM = msg.match(/(相手の )?\S+ の みがわりが (\d+) ダメージを 受けた！/);
+    if (subHitM){
+      const side = subHitM[1] ? 'opp' : 'self';   // みがわりの持ち主(df)側
+      burstFx(side, '#c9a0e0'); flash(side, 'hit'); popText(side, '−' + subHitM[2], '#e0b0ff', 15); SE.hit();
+      if (/みがわりは こわれた！/.test(msg)) setSpriteSub(side, false);   // 壊れたら元のポケモンに戻る
+    }
+    // ③ こうか・急所(直前のダメージ対象に重ねる)
+    if (msg === 'こうかは ばつぐんだ！'){ screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18); SE.superEff(); }
+    else if (msg === 'こうかは いまひとつのようだ…'){ popText(lastTgt || 'opp', 'いまひとつ…', '#8b94a7', 13); SE.weak(); }
+    else if (msg === 'きゅうしょに あたった！'){ screenFlash('#ffd96b'); popText(lastTgt || 'opp', '急所!', '#ff8866', 17); SE.crit(); }
+    // ④ 状態異常・こんらん: 絵文字を浮かべる
+    // メロメロ(段139)の演出
+    if (/メロメロに なった！/.test(msg)){ popText(msg.includes('相手の') ? 'opp' : 'self', '💕', null, 26); renderAll(); }
+    if (/は メロメロだ！|メロメロで 技が だせなかった/.test(msg)){ popText(msg.startsWith('相手の') ? 'opp' : 'self', '💕', null, 22); }
+    const stM = msg.match(/は (もうどく|どく|まひ|やけど|こおり|ねむり|ねむけ) 状態になった！|は (こんらん)した！/);
+    if (stM){
+      const side = subjOpp ? 'opp' : 'self';
+      const emo = {もうどく:'💜', どく:'💜', まひ:'⚡', やけど:'🔥', こおり:'❄️', ねむり:'💤', ねむけ:'💤', こんらん:'💫'}[stM[1] || stM[2]];
+      if (emo){ popText(side, emo, null, 24); SE.status(); }
+      renderAll();
+    }
+    // ⑤ 天候(開始で常時オーバーレイ・終了で消す)
+    if (/日差しが強くなった|天気が にほんばれ/.test(msg)) setWeatherFx('sun');
+    else if (/あめが降り始めた|天気が あめ に/.test(msg)) setWeatherFx('rain');
+    else if (/すなあらしが舞い始めた|天気が すなあらし/.test(msg)) setWeatherFx('sand');
+    else if (/ゆきが降り始めた|天気が ゆき に/.test(msg)) setWeatherFx('snow');
+    else if (/天気が 元に戻った/.test(msg)) setWeatherFx(null);
+    // ⑥ ひんし・登場・メガシンカ
+    if (/は ひんしになった！/.test(msg)){
+      const side = subjOpp ? 'opp' : 'self';
+      setHpBar(side, 0, S.realStat(S.sides[side], 'hp') || 1);   // バーも0に(こんらん自傷等で同期漏れした時の保険)
+      const ff = $('f-' + side);
+      if (ff){
+        ff.classList.remove('recall', 'enter', 'hit', 'lunge-self', 'lunge-opp');
+        void ff.offsetWidth;
+        ff.classList.add('faint');   // rbFaint .95s forwards=沈んで消える
+        // 沈み切ったらgoneで固定。flash()を使うと800msでfaintが外れ100ms素に戻って再表示=ちらつく(2026-07-06 阿部さん)ため自前で。
+        setTimeout(() => { ff.classList.add('gone'); ff.classList.remove('faint');
+          const pbF = $('pb-' + side); if (pbF) pbF.style.visibility = 'hidden'; }, 1500);
+      }
+      SE.faint();
+    }
+    if (/は 引っ込んだ！$/.test(msg) || /^もどれ！/.test(msg) || /を 引っ込めた！$/.test(msg)){
+      // 交代1拍目: 縮んで消える+HPボックスも引っ込める(2拍目で戻る)
+      const side = (subjOpp || msg.startsWith('相手は')) ? 'opp' : 'self';
+      flash(side, 'recall');
+      const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
+      clearTimeout(_recallTimer[side]);
+      _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 1000);
+    }
+    if (/が 場に出た！/.test(msg) || /^いけっ！ \S+！$/.test(msg) || /^相手は \S+ を くりだした！$/.test(msg)){
+      // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
+      const enterSide = (/相手の \S+ が 場に出た/.test(msg) || msg.startsWith('相手は')) ? 'opp' : 'self';
+      if (window._idSnap) _idSnap[enterSide] = null;   // 表示固定を解除(この拍から新しい子)
+      clearTimeout(_recallTimer[enterSide]);   // 1拍目の遅延goneが登場後に発火して消すのを防ぐ
+      const f = $('f-' + enterSide);
+      f.classList.remove('gone', 'recall');
+      const pbEl = $('pb-' + enterSide); if (pbEl) pbEl.style.visibility = '';
+      renderAll();
+      // 出た瞬間は「攻撃前のHP」を表示(この後のダメージ行fxが正しいタイミングで減らす)
+      try {
+        const stE = S.sides[enterSide];
+        const max = S.realStat(stE, 'hp') || 1;
+        const snap = window._hpSnap && _hpSnap[enterSide] && _hpSnap[enterSide][stE.poke.name];
+        // スナップ(攻撃前HP)が無い死に出しは現在HPで(前の子の0%を引きずらない)
+        const hp = (snap != null) ? snap : (stE.currentHp == null ? max : Math.max(0, stE.currentHp));
+        setHpBar(enterSide, hp, max);
+      } catch(e){}
+      flash(enterSide, 'enter'); SE.enter();
+    }
+    if (/メガシンカした！/.test(msg)){
+      const mgSide = subjOpp ? 'opp' : 'self';
+      if (window._idSnap) _idSnap[mgSide] = S.sides[mgSide].poke;   // メガの姿はこの拍から表示
+      screenFlash('#ffd96b', true);
+      renderAll();
+      flash(subjOpp ? 'opp' : 'self', 'enter');
+      SE.mega();
+    }
+    // バトルスイッチ(ギルガルド): フォルムチェンジでスプライト・能力表示を更新
+    if (/フォルム チェンジ！/.test(msg)){
+      const side = msg.includes('相手の') ? 'opp' : 'self';
+      renderAll();
+      flash(side, 'enter');
+      SE.enter();
+    }
+    // イリュージョン解除(ゾロアーク): 正体バレで姿を戻す
+    if (/イリュージョンが とけた！/.test(msg)){
+      renderAll();
+      flash(msg.includes('相手の') ? 'opp' : 'self', 'enter');
+      SE.status();
+    }
+    // マイティチェンジ(イルカマン): ヒーロー初登場はメガ並みの演出で
+    if (/変身して 帰ってきた！/.test(msg)){
+      screenFlash('#7dd3fc', true);
+      renderAll();
+      flash(subjOpp ? 'opp' : 'self', 'enter');
+      SE.mega();
+    }
+    if (/回復/.test(msg)){ renderAll(); if (hpM){ popText(subjOpp ? 'opp' : 'self', '＋', '#4ade80', 18); SE.heal(); } }
+  };
+  return { text: (window.translateLogLine ? translateLogLine(msg) : msg), fx, src: msg };   // src=ja原文(演出合流の判定用)
+}
+function flash(side, cls){
+  const f = $('f-' + side);
+  f.classList.remove(cls);
+  void f.offsetWidth;
+  f.classList.add(cls);
+  setTimeout(() => f.classList.remove(cls), 800);
+}
+// 連戦モード(段: 連戦): 勝利後にコマンド欄を「つぎの相手」に差し替える
+function showNextOpponentButton(){
+  const cmd = $('cmd');
+  cmd.style.display = 'flex';
+  cmd.querySelectorAll('button').forEach(b => b.disabled = true);
+  $('c-run').disabled = false;   // 勝利後も「編成にもどる」で終了できる(2026-07-05 阿部さん)
+  let nb = $('c-next');
+  if (!nb){
+    nb = document.createElement('button');
+    nb.id = 'c-next';
+    nb.style.borderColor = '#4ade80';
+    nb.style.background = 'linear-gradient(135deg,#1f8f3a,#3fc45c)';
+    cmd.prepend(nb);
+    nb.addEventListener('click', () => {
+      SE.select();
+      window.__randomizeOpp();   // 相手だけ引き直し
+      gameOver = false;
+      nb.remove();
+      cmd.querySelectorAll('button').forEach(b => b.disabled = false);
+      startBattle();             // buildSideが自分チームも作り直す=全回復
+    });
+  }
+  nb.dataset.streak = winStreak;
+  const nbJa = `⚔ つぎの相手と たたかう！(連勝: ${winStreak})`;
+  nb.textContent = window.translateLogLine ? translateLogLine(nbJa) : nbJa;
+}
+// 勝敗を画面中央に大きく表示(WIN/LOSE)。次のバトル開始やリセットで消す
+function showResultBanner(won){
+  const el = $('result-banner');
+  if (!el) return;
+  el.className = 'show ' + (won ? 'win' : 'lose');
+  el.innerHTML = `<div class="rb-txt">${won ? 'WIN!' : 'LOSE...'}</div>`;
+}
+function hideResultBanner(){ const el = $('result-banner'); if (el) el.className = ''; }
+function endOfTurn(){
+  renderAll();
+  const dead = side => {
+    const st = S.sides[side];
+    const all = [st].concat(st.bench || []);
+    return all.every(e => !e || !e.poke || e.fainted || (e.currentHp != null && e.currentHp <= 0));
+  };
+  if (dead('opp') || dead('self')){
+    gameOver = true;
+    bgmStop();
+    const won = dead('opp');
+    if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
+    showResultBanner(won);
+    // 勝ちは案内文なし(WIN!バナー+つぎの相手ボタンで足りる=2026-07-06 阿部さん)。負けだけ操作案内。
+    // JA正典で生成→lineWithFxで表示翻訳(ログはJA原文で保存され言語切替に追従)
+    const winJa = `🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！(連勝: ${winStreak})`;
+    say([lineWithFx(won ? winJa : '😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…')]
+        .concat(won ? [] : [lineWithFx('「にげる」から 編成にもどって もういちど あそべます')]),
+        () => { showCmd(true);
+          // 通常フローは技リスト1画面完結=たたかう/ポケモンは勝敗後のメニューに出さない(2026-07-06 阿部さん)
+          ['c-fight','c-party'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });
+          // オンライン戦は「つぎの相手(AI連戦)」を出さない=もう一度は接続し直し(P1仕様)
+          if (won && !(window.RB_ONLINE && RB_ONLINE.started)) showNextOpponentButton();
+          if (window.RB_ONLINE && RB_ONLINE.started) onlineAfterGame();
+        });
+    return;
+  }
+  // ★オンライン: 死に出しは両者が各自選ぶ(相手側はエンジンが保留済み=__rbDeferFaintReplaceOpp)
+  if (window.RB_ONLINE && RB_ONLINE.started && (S.sides.self.fainted || S.sides.opp.fainted)){
+    onlineBeginFaintReplace();
+    return;
+  }
+  // 死に出し(自分側): エンジンが保留した交代先をプレイヤーが選ぶ(控え2匹以上の時だけ保留される)
+  if (S.sides.self.fainted){
+    pushMsgLine(`${tPokeName(S.sides.self.poke.name)} ${I18N.t('real_battle.faint_replace_prompt','は たおれてしまった… つぎのポケモンを えらんでね')}`);
+    $('msgbox').style.display = 'block';   // CH: sayを経由しない案内なので明示的に出す(出さないと選択理由が見えない)
+    showParty(true);
+    // 案内は一度見せたら引っ込める(交代リストに文字が被る=2026-07-06 阿部さん「一回出たら消えていい」)
+    setTimeout(() => { if (S.sides.self.fainted) $('msgbox').style.display = 'none'; }, 2200);
+    return;
+  }
+  turnNo++; updateTurnBadge();   // 次のターンへ(Showdown風 Turnバッジ)
+  showActionUI();   // 実機準拠=技リスト直行
+}
+
+// ===================================================================
+// ★オンライン対戦 P1(合言葉ルーム・Supabase・ロックステップ方式) 2026-07-10
+// 方式: 両者ともエンジンを回すが「両者の行動+共有乱数シード」で完全に同じ計算をする。
+//   - simテスト群がシード付きMath.randomで決定論なのを流用(mulberry32=tools/_sim_engine.jsと同じ)
+//   - ホスト=シードの発行者。ゲストの行動を受けてから turnGo(自分の行動+シード) を配る
+//   - 死に出しは各自が選び、選択+シードを共有して「ホスト側から」の固定順で両者が適用
+// 通信: online/rb_online.js(Supabase Realtime)。設計=設計_オンライン対戦_2026-07-07.md
+// ===================================================================
+const RB_ONLINE = { active: false, started: false, myAction: null, oppAction: null,
+  myTeamSent: false, oppTeamReady: false, myReadySent: false, peerReady: false, pendingRep: null, repInbox: null };
+// ★constはwindowプロパティにならない(window.RB_ONLINEはundefined)ため、ガードで参照できるよう明示的に載せる
+window.RB_ONLINE = RB_ONLINE;
+function m32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+function engineWin(){ try { return $('engine-frame').contentWindow; } catch (e){ return null; } }
+function onlineSeedEngine(seed){ const w = engineWin(); if (w) w.Math.random = m32(seed >>> 0); }
+function onlineStatus(txt){ const el = $('online-status'); if (el) el.textContent = txt || ''; }
+const _olT = (k, ja) => I18N.t('real_battle.' + k, ja);
+
+// --- スクリプト遅延ロード(オンラインを使う人だけsupabase-jsを読む) ---
+function _loadScript(src){ return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
+async function onlineEnsureLibs(){
+  if (window.RBOnline) return;
+  await _loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+  await _loadScript('online/supabase-config.js?v=20260710');
+  await _loadScript('online/rb_online.js?v=20260710');
+}
+
+// --- 接続と役割 ---
+async function onlineConnect(){
+  const room = ($('online-room').value || '').trim();
+  const name = ($('online-name').value || '').trim() || 'Player';
+  if (!room){ onlineStatus(_olT('online_need_room', 'あいことばを いれてね')); return; }
+  onlineStatus(_olT('online_connecting', 'せつぞくちゅう…'));
+  try {
+    await onlineEnsureLibs();
+    window.RBHooks = {
+      getTeamPayload: () => onlineTeamPayload(),
+      onStatus: t => onlineStatus(t),
+      onPeerJoined: () => { onlineSendTeamOnce(); },
+      onPeerLeft: () => { if (RB_ONLINE.started && !gameOver) onlineOppGone(false); else onlineStatus(_olT('online_peer_left', '相手が退出しました')); },
+      applyOpponentTeam: d => onlineApplyOppTeam(d),
+      onOpponentAction: a => { RB_ONLINE.oppAction = a; onlineHostTryGo(); },
+      onTurnGo: (a, seed) => onlineGuestGo(a, seed),
+      onStart: seed => onlineBegin(seed),
+      onFaintReplace: (idx, seed) => { RB_ONLINE.repInbox = { idx: idx, seed: seed }; onlineTryApplyReplaces(); },
+      onPeerReady: () => { RB_ONLINE.peerReady = true; onlineMaybeReady(); },
+      onPeerPick: order => { PICK.theirs = order; const st = $('pick-status'); if (st && !PICK.mine) st.textContent = ''; onlineTryStartPicked(); },
+      onResign: () => onlineOppGone(true),
+    };
+    await RBOnline.connect(room, name);
+    RB_ONLINE.active = true;
+    $('online-connect').style.display = 'none';
+    if (RBOnline.peerPresent) onlineSendTeamOnce();
+  } catch (e){ onlineStatus(_olT('online_error', 'せつぞくに しっぱいしました: ') + (e && e.message || '')); }
+}
+function onlineLeave(){
+  try { if (window.RBOnline) RBOnline.disconnect(); } catch (e) {}
+  RB_ONLINE.active = false; RB_ONLINE.started = false;
+  RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null; RB_ONLINE.pendingRep = null; RB_ONLINE.repInbox = null;
+  RB_ONLINE.myTeamSent = false; RB_ONLINE.oppTeamReady = false; RB_ONLINE.myReadySent = false; RB_ONLINE.peerReady = false;
+  const c = $('online-connect'); if (c) c.style.display = '';
+  const st = $('online-start'); if (st) st.style.display = 'none';
+  onlineStatus('');
+}
+
+// --- チーム交換(自分のs枠→相手のo枠。saveTeamと同じ形) ---
+function onlineTeamPayload(){
+  const ids = selfIds();
+  const pick = obj => Object.fromEntries(ids.map(id => [id, obj[id]]));
+  return { size: teamSize, lead: leadSlot.self,
+    val: pick(slotVal), item: pick(slotItem), ability: pick(slotAbility), gender: pick(slotGender),
+    nature: pick(slotNature), effort: pick(slotEffort),
+    moves: Object.fromEntries(ids.map(id => [id, (slotMoves[id] || []).map(m => m && m.name)])) };
+}
+function onlineSendTeamOnce(){
+  if (!RB_ONLINE.active || RB_ONLINE.myTeamSent) return;
+  RBOnline.sendTeam();
+  RB_ONLINE.myTeamSent = true;
+  onlineStatus(_olT('online_team_sent', 'チームを送りました。相手のチームを待っています…'));
+  onlineMaybeReady();
+}
+function onlineApplyOppTeam(d){
+  if (!d || !d.val) return;
+  if (d.size && d.size !== teamSize){ teamSize = d.size; renderTeamRows(); }   // オンライン専用=セレクタ無し(6固定同士なら通常起きない)
+  selfIds().forEach((sid, i) => {
+    const oid = oppIds()[i]; if (!oid) return;
+    const nm = d.val[sid]; if (!nm || !S.pokeByName(nm)) return;
+    slotItem[oid] = d.item && d.item[sid] != null ? d.item[sid] : 'mega_stone_any';
+    slotGender[oid] = (d.gender && d.gender[sid]) || genderOfRB(nm);
+    slotNature[oid] = (d.nature && d.nature[sid]) || 'まじめ';
+    slotEffort[oid] = clampEffortRB((d.effort && d.effort[sid]) || {});
+    const poke = S.pokeByName(nm);
+    const abS = d.ability && d.ability[sid];
+    slotAbility[oid] = (abS && [poke.ab1, poke.ab2, poke.ab3].includes(abS)) ? abS : defaultAbilityRB(poke);
+    const all = S.usableMoves(poke);
+    const mvs = ((d.moves && d.moves[sid]) || []).map(n => all.find(m => m.name === n)).filter(Boolean);
+    slotMoves[oid] = mvs.length === 4 ? mvs : autoMoves(poke);
+    setSlot(oid, nm, true);
+  });
+  const li = selfIds().indexOf(d.lead || 's1');
+  leadSlot.opp = oppIds()[li >= 0 ? li : 0];
+  RB_ONLINE.oppTeamReady = true;
+  onlineMaybeReady();
+}
+function onlineMaybeReady(){
+  if (!RB_ONLINE.active || RB_ONLINE.started) return;
+  if (!(RB_ONLINE.myTeamSent && RB_ONLINE.oppTeamReady)) return;
+  // 自分の準備完了を相手へ握手(1回だけ)。ホストは「相手もready」まで開始ボタンを出さない
+  // (readyなしだと、ゲストがチーム適用を終える前にホストが開始できてしまう=別チームで戦うレース)
+  if (!RB_ONLINE.myReadySent){ RB_ONLINE.myReadySent = true; try { RBOnline.sendReady(); } catch (e) {} }
+  // 両者じゅんびOK→見せ合い選出へ(6体を見せ合って3体えらぶ=本家準拠。開始ボタンは選出確定後に自動)
+  if (RBOnline.role === 'host' && !RB_ONLINE.peerReady){
+    onlineStatus(_olT('online_wait_peer_ready', '相手の じゅんびを まっています…')); return;
+  }
+  if (RBOnline.role === 'guest' || RB_ONLINE.peerReady) showPickScreen();
+}
+
+// ===== 見せ合い選出(お互いの6体を見て、自分の3体を順番つきでえらぶ) 2026-07-10 阿部さん仕様 =====
+const PICK = { mine: null, theirs: null, sel: [] };
+function showPickScreen(){
+  if ($('pick-screen') || RB_ONLINE.started) return;
+  const ov = document.createElement('div');
+  ov.id = 'pick-screen';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:500;background:#2a2350ee;display:flex;align-items:center;justify-content:center;padding:16px';
+  const cell = (id, mine) => {
+    const nm = slotVal[id]; if (!nm) return '';
+    const p = S.pokeByName(nm); if (!p) return '';
+    const tps = [p.type1, p.type2].filter(Boolean).map(t => `<span style="background:${(S.typeColors()[t])||'#3a4660'};color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin:0 1px">${tTypeName(t)}</span>`).join('');
+    return `<div class="pk-cell" data-id="${id}" style="background:#fff;border:3px solid ${mine ? '#6a5be0' : '#c04070'};border-radius:12px;padding:6px;text-align:center;cursor:${mine ? 'pointer' : 'default'};position:relative;width:104px">` +
+      `<img src="${pokeIconSrc(nm)}" style="height:52px" onerror="this.remove()"><div style="font-size:11px;font-weight:800;color:#2d263c">${tPokeName(nm)}</div><div>${tps}</div>` +
+      `<span class="pk-badge" style="display:none;position:absolute;top:-8px;left:-8px;background:#e0564a;color:#fff;font-weight:900;border-radius:50%;width:24px;height:24px;line-height:24px;font-size:13px"></span></div>`;
+  };
+  ov.innerHTML = `<div style="background:#f6f5fc;border-radius:16px;padding:18px;max-width:820px;max-height:92vh;overflow:auto">` +
+    `<h3 style="margin:0 0 10px;color:#4638ae">${I18N.t('online_battle.pick_title', 'せんしゅつ! じぶんの3体を じゅんばんに えらんでね')}</h3>` +
+    `<div style="display:flex;gap:18px;flex-wrap:wrap">` +
+    `<div><div style="font-weight:900;color:#4638ae;margin-bottom:6px">${I18N.t('online_battle.team_header', 'バトルチーム')}</div><div id="pick-mine" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${selfIds().map(id => cell(id, true)).join('')}</div></div>` +
+    `<div><div style="font-weight:900;color:#c04070;margin-bottom:6px">${I18N.t('online_battle.pick_opp', 'あいての チーム')}</div><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${oppIds().map(id => cell(id, false)).join('')}</div></div></div>` +
+    `<div style="margin-top:14px;display:flex;gap:10px;align-items:center">` +
+    `<button id="pick-ok" disabled style="padding:10px 26px;border-radius:20px;border:0;background:#6a5be0;color:#fff;font-weight:900;font-size:15px;cursor:pointer;opacity:.5">⚔ ${I18N.t('online_battle.pick_confirm', 'けってい')}</button>` +
+    `<span id="pick-status" style="color:#6a5fa0;font-weight:700"></span></div></div>`;
+  document.body.appendChild(ov);
+  onlineStatus('');
+  ov.querySelectorAll('#pick-mine .pk-cell').forEach(el => el.addEventListener('click', () => {
+    const id = el.dataset.id;
+    const i = PICK.sel.indexOf(id);
+    if (i >= 0) PICK.sel.splice(i, 1);
+    else if (PICK.sel.length < 3) PICK.sel.push(id);
+    ov.querySelectorAll('#pick-mine .pk-cell').forEach(c => {
+      const n = PICK.sel.indexOf(c.dataset.id);
+      const b = c.querySelector('.pk-badge');
+      b.style.display = n >= 0 ? 'block' : 'none';
+      if (n >= 0) b.textContent = n + 1;
+      c.style.outline = n >= 0 ? '3px solid #e0564a' : 'none';
+    });
+    const ok = $('pick-ok');
+    ok.disabled = PICK.sel.length !== 3;
+    ok.style.opacity = PICK.sel.length === 3 ? '1' : '.5';
+  }));
+  $('pick-ok').addEventListener('click', () => {
+    if (PICK.sel.length !== 3 || PICK.mine) return;
+    PICK.mine = PICK.sel.map(id => selfIds().indexOf(id));   // 0..5のindexで送る(相手側でoppIdsに写す)
+    RBOnline.sendPick(PICK.mine);
+    $('pick-ok').style.display = 'none';
+    $('pick-status').textContent = I18N.t('online_battle.pick_wait', '相手の せんしゅつを まっています…');
+    onlineTryStartPicked();
+  });
+}
+function onlineTryStartPicked(){
+  if (!PICK.mine || PICK.theirs == null || RB_ONLINE.started) return;
+  window._pickOverride = {
+    self: PICK.mine.map(i => selfIds()[i]),
+    opp:  PICK.theirs.map(i => oppIds()[i]),
+  };
+  const ps = $('pick-screen'); if (ps) ps.remove();
+  if (RBOnline.role === 'host'){
+    const seed = (Math.random() * 0x7fffffff) | 0;
+    RBOnline.sendStart(seed);
+    onlineBegin(seed);
+  }
+  // ゲストはホストのstart(シード)待ち=onStartでonlineBegin
+}
+
+// --- 開始(ホストがシードを配る) ---
+function onlineHostStart(){
+  if (!RB_ONLINE.active || RBOnline.role !== 'host' || RB_ONLINE.started) return;
+  const seed = (Math.random() * 0x7fffffff) | 0;
+  RBOnline.sendStart(seed);
+  onlineBegin(seed);
+}
+function onlineBegin(seed){
+  const _ps = $('pick-screen'); if (_ps) _ps.remove();   // 選出画面を閉じる(ゲストのstart受信経路)
+  RB_ONLINE.started = true; RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null;
+  RB_ONLINE.pendingRep = null; RB_ONLINE.repInbox = null;
+  const w = engineWin();
+  if (w){
+    w.__rbDeferFaintReplace = true; w.__rbDeferFaintReplaceOpp = true;
+    // 正準サイド=ホスト側(側依存の乱数消費を両クライアントで同じ実体に割り当てる)
+    w.__rbCanonFirst = (RBOnline.role === 'host') ? 'self' : 'opp';
+  }
+  onlineSeedEngine(seed);
+  startBattle();
+}
+function onlineAfterGame(){
+  // 勝敗がついたら再戦は接続し直し(P1)。接続は残すが状態はリセット
+  RB_ONLINE.started = false;
+  onlineStatus(_olT('online_rematch_hint', 'もういちど あそぶには おたがいに「にげる」→ せつぞくし直してね'));
+}
+function onlineOppGone(resigned){
+  if (gameOver) return;
+  gameOver = true; bgmStop(); SE.win(); showResultBanner(true);
+  const ja = resigned ? '相手は こうさんした！ きみの かち！' : '相手が たいせんから 抜けた。きみの かち！';
+  say([lineWithFx(ja)], () => { showCmd(true); ['c-fight', 'c-party'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; }); onlineAfterGame(); });
+}
+
+// --- ターン(ロックステップ) ---
+function onlineSubmitAction(moveIdx){
+  if (RB_ONLINE.myAction) return;   // 二重送信ガード
+  const self = S.sides.self;
+  // moveIdx=null は2通り: ①交代(switchChoiceがセット済み) ②あばれる等のロック継続(エンジンが技を強制)
+  RB_ONLINE.myAction = (moveIdx != null)
+    ? { kind: 'move', idx: moveIdx, mega: !!self.megaChoice }
+    : (self.switchChoice != null
+      ? { kind: 'switch', idx: self.switchChoice, mega: false }
+      : { kind: 'lock', mega: false });
+  RBOnline.sendAction(RB_ONLINE.myAction);
+  pushMsgLine(_olT('online_wait_action', '相手の こうどうを まっています…'));
+  $('msgbox').style.display = 'block';
+  if (RBOnline.role === 'host') onlineHostTryGo();
+}
+function onlineHostTryGo(){
+  if (!RB_ONLINE.started || !window.RBOnline || RBOnline.role !== 'host') return;
+  if (!RB_ONLINE.myAction || !RB_ONLINE.oppAction) return;
+  const seed = (Math.random() * 0x7fffffff) | 0;
+  RBOnline.sendTurnGo(RB_ONLINE.myAction, seed, turnNo);
+  onlineRunTurn(seed);
+}
+function onlineGuestGo(hostAction, seed){
+  if (!RB_ONLINE.started) return;
+  RB_ONLINE.oppAction = hostAction;
+  onlineRunTurn(seed);
+}
+function onlineRunTurn(seed){
+  const opp = S.sides.opp, a = RB_ONLINE.oppAction || {};
+  if (a.kind === 'switch') opp.switchChoice = a.idx;
+  else if (a.kind === 'move' && a.idx != null) opp.selectedMoveIdx = a.idx;
+  // kind:'lock'(あばれる継続等)は何もセットしない=エンジンのロックが技を強制する
+  opp.megaChoice = !!a.mega;
+  RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null;
+  onlineSeedEngine(seed);
+  executeTurn();
+}
+
+// --- 死に出し(各自が選ぶ→両者そろってからホスト側優先の固定順で適用=両クライアントの状態一致) ---
+function onlineBeginFaintReplace(){
+  RB_ONLINE.pendingRep = { needSelf: !!S.sides.self.fainted, needOpp: !!S.sides.opp.fainted,
+    selfIdx: null, selfSeed: null, oppIdx: null, oppSeed: null };
+  if (RB_ONLINE.pendingRep.needSelf){
+    pushMsgLine(`${tPokeName(S.sides.self.poke.name)} ${I18N.t('real_battle.faint_replace_prompt', 'は たおれてしまった… つぎのポケモンを えらんでね')}`);
+    $('msgbox').style.display = 'block';
+    showParty(true);
+    setTimeout(() => { if (S.sides.self.fainted) $('msgbox').style.display = 'none'; }, 2200);
+  } else {
+    pushMsgLine(_olT('online_wait_replace', '相手が つぎのポケモンを えらんでいます…'));
+    $('msgbox').style.display = 'block';
+  }
+  onlineTryApplyReplaces();   // 相手の選択が先に届いていた場合(repInbox)を回収
+}
+function onlineTryApplyReplaces(){
+  const P = RB_ONLINE.pendingRep; if (!P) return;
+  if (P.needOpp && P.oppIdx == null && RB_ONLINE.repInbox){
+    P.oppIdx = RB_ONLINE.repInbox.idx; P.oppSeed = RB_ONLINE.repInbox.seed; RB_ONLINE.repInbox = null;
+  }
+  if (P.needSelf && P.selfIdx == null) return;
+  if (P.needOpp && P.oppIdx == null){
+    pushMsgLine(_olT('online_wait_replace', '相手が つぎのポケモンを えらんでいます…'));
+    $('msgbox').style.display = 'block';
+    return;
+  }
+  RB_ONLINE.pendingRep = null;
+  const mine = P.needSelf ? { side: 'self', idx: P.selfIdx, seed: P.selfSeed } : null;
+  const theirs = P.needOpp ? { side: 'opp', idx: P.oppIdx, seed: P.oppSeed } : null;
+  const order = (window.RBOnline && RBOnline.role === 'host') ? [mine, theirs] : [theirs, mine];
+  logPos = S.battleLog.length;
+  order.filter(Boolean).forEach(r => { onlineSeedEngine(r.seed); S.attemptSwitch(r.side, r.idx, { ignoreTrapping: true, faintReplace: true }); });
+  if (mine){
+    const ff = $('f-self'); if (ff){ ff.classList.remove('recall', 'enter'); ff.classList.add('gone'); }
+    const pb = $('pb-self'); if (pb) pb.style.visibility = 'hidden';
+  }
+  renderAll();
+  const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
+  say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
+}
+
+// --- 選出画面のUI(🌐ボタン+あいことばフォーム) ---
+// ★オンライン専用: real_battle.htmlでは他の選択肢に紛れないよう🌐ボタンで折りたたんでいたが、
+// このページはオンライン対戦が唯一の目的なので主役に昇格(大きく・カード化・あいことばフォームは最初から開く)2026-07-10
+function onlineInitUI(){
+  if ($('online-panel')) return;
+  const btns = document.querySelector('#setup .btns'); if (!btns) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'online-panel';
+  wrap.style.cssText = 'margin-top:16px;display:flex;flex-direction:column;gap:12px;align-items:center;font-size:15px;'
+    + 'background:linear-gradient(150deg,#efeafd,#e0d6fb);border:3px solid #6a5be0;border-radius:20px;padding:20px;'
+    + 'box-shadow:0 6px 20px #5a4fc455';
+  wrap.innerHTML =
+    `<div id="online-open" style="font-size:20px;font-weight:900;color:#4638ae;display:flex;align-items:center;gap:8px">🌐 ${esc2(_olT('online_button', 'オンラインたいせん(あいことば)'))}</div>` +
+    `<span id="online-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
+    `<input id="online-room" placeholder="${esc2(_olT('online_room_ph', 'あいことば'))}" maxlength="24" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:150px;font-size:15px">` +
+    `<input id="online-name" placeholder="${esc2(_olT('online_name_ph', 'なまえ'))}" maxlength="12" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:110px;font-size:15px">` +
+    `<button id="online-connect" type="button" style="padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_connect', 'せつぞく'))}</button>` +
+    `<button id="online-start" type="button" style="display:none;padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#e0564a,#ff7a63);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #e0564a55">⚔ ${esc2(_olT('online_start', 'たいせん かいし'))}</button>` +
+    `</span>` +
+    `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>`;
+  btns.parentNode.insertBefore(wrap, btns.nextSibling);
+  $('online-connect').addEventListener('click', onlineConnect);
+  $('online-start').addEventListener('click', onlineHostStart);
+}
+function esc2(s){ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
+window.addEventListener('load', onlineInitUI);
+</script>
+</body>
+</html>

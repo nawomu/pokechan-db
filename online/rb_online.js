@@ -165,6 +165,9 @@
       case 'ready':                        // 「チーム交換が済んで開始できる」の握手(レース防止)
         try { (h.onPeerReady || function () {})(); } catch (e) {}
         break;
+      case 'pick':                         // 選出(見せ合い後に選んだ3体のスロット順=オンラインバトル用)
+        try { (h.onPeerPick || function () {})(m.order); } catch (e) {}
+        break;
       case 'turnResult':                   // (旧設計の互換用・現行ロックステップでは未使用)
         try { (h.playTurnResult || function () {})(m.log); } catch (e) {}
         break;
@@ -197,6 +200,7 @@
     sendTurnGo: function (action, seed, turn) { send('turnGo', { action: action, seed: seed, turn: turn }); },
     sendStart: function (seed) { send('start', { seed: seed }); },
     sendReady: function () { send('ready', {}); },
+    sendPick: function (order) { send('pick', { order: order }); },
     sendTurnResult: function (logDiff) { send('turnResult', { log: logDiff }); },
     sendFaintReplace: function (benchIdx, seed) { send('faintReplace', { benchIdx: benchIdx, seed: seed }); },
     resign: function () { send('resign', {}); },
