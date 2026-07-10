@@ -219,7 +219,7 @@
         (st[k] || []).forEach(function (m) {
           if (m && m.id && (!e || (m.rev || 0) > (e.rev || 0) || ((m.rev || 0) === (e.rev || 0) && (m.since || 0) >= (e.since || 0)))) e = m;
         });
-        if (e) members.push({ id: e.id, name: e.name, st: e.st || 'idle', since: e.since || 0, partner: e.partner || null, room: e.room || null });
+        if (e) members.push({ id: e.id, name: e.name, st: e.st || 'idle', since: e.since || 0, partner: e.partner || null, room: e.room || null, codeHash: e.codeHash || null });
       });
       try { (onState || function () {})(members); } catch (e) {}
     });
