@@ -10,7 +10,7 @@ const { chromium } = require('playwright');
 const BASE = 'http://127.0.0.1:8000';
 const PAGES = [
   'index.html', 'pokemon_db_v9.html', 'party_checker.html', 'waza-list.html', 'items_list.html',
-  'type_chart.html', 'news.html', 'battle_simulator.html', 'real_battle.html', 'real_battle_simulator.html',
+  'type_chart.html', 'news.html', 'battle_simulator.html', 'real_battle.html', 'online_battle.html', 'real_battle_simulator.html',
   'how_to_use.html', 'db_guide.html', 'builder_guide.html', 'making.html', 'sitemap.html',
   'contact.html', 'privacy.html', 'terms.html', 'disclaimer.html',
   // 全国版・全部入りページ
