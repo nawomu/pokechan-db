@@ -1185,7 +1185,9 @@ function openNatureModal(current, onPick, anchor){
     html += `<div class="cm-ml"><span class="up">▲</span>${statNm(up)}</div>` +
       NAT_AXIS.map(dn => {
         const nm = byUD[up + '/' + dn];
-        return nm ? `<button class="cm-cell${nm === current ? ' sel' : ''}" data-k="${nm}">${tNature(nm)}</button>` : '<span></span>';
+        // マスも性格名でなく補正表記(B↑A↓/±0)で表示(2026-07-10 阿部さん)。名前はホバーtitleに残す
+        const fx = up === dn ? '±0' : `${EV_LETTER[up]}↑${EV_LETTER[dn]}↓`;
+        return nm ? `<button class="cm-cell${nm === current ? ' sel' : ''}" data-k="${nm}" title="${tNature(nm)}">${fx}</button>` : '<span></span>';
       }).join('');
   });
   cm.querySelector('.cm-body').innerHTML = html + '</div>';
@@ -2669,6 +2671,7 @@ function updateSndBtn(){ const b = $('snd-toggle'); if (b) b.textContent = sndOn
 
 // ===== ステージ演出v3のヘルパー =====
 let lastTgt = null;   // 直前のダメージ対象(「こうかは…」「きゅうしょ」は直後の行で飛んでくる)
+let _hitFxDelay = 0;  // Wave1: 直前の飛翔体の飛翔ms(こうか/きゅうしょ行のflash/soundを着弾と同じ拍に重ねる用)
 function popText(side, text, color, size){
   const f = $('f-' + side);
   const el = document.createElement('div');
@@ -2686,6 +2689,129 @@ function burstFx(side, color){
   el.style.background = `radial-gradient(circle, ${color}cc 0%, ${color}55 45%, transparent 70%)`;
   f.appendChild(el);
   setTimeout(() => el.remove(), 650);
+}
+// ===== Wave1: 攻撃演出(技クラス別の飛翔体→着弾) 2026-07-10 阿部さん「音とエフェクトを派手に」 =====
+// 技クラス判定: sound>punch>slash>bullet>wind>wave(波動)>bite>kick>物理汎用/特殊汎用(設計_バトル演出強化_2026-07-10.md の優先順)
+function moveClassOf(mv){
+  const f = (mv && mv.flags) || {};
+  if (f.sound) return 'sound';
+  if (f.punch) return 'punch';
+  if (f.slicing || f.slash) return 'slash';
+  if (f.bullet || f.ball) return 'bullet';
+  if (f.wind) return 'wind';
+  if (f.pulse) return 'wave';
+  if (f.bite) return 'bite';
+  if (mv && /キック|蹴/.test(mv.name || '')) return 'kick';
+  return (mv && mv.category === '特殊') ? 'spec' : 'phys';
+}
+const _RB_CLS_ICON = { sound: '🎵', punch: '👊', slash: '⚔️', wind: '🌀', bite: '🦷', kick: '🦵' };
+const _RB_CLS_DOT = { bullet: 1, phys: 1 };
+const _RB_BEAM_CLS = { wave: 1, spec: 1 };
+// 攻撃側/対象側のスプライト中心を画面座標(fixed基準)で返す。#fieldのzoom/scaleの影響を受けない
+function fxPoint(side){
+  const f = $('f-' + side);
+  const sp = (f && f.querySelector('.sprite')) || f;
+  const r = sp.getBoundingClientRect();
+  return { x: r.left + r.width / 2, y: r.top + r.height * 0.5 };
+}
+function spawnProjectile(from, to, cls, color, hitFrac){
+  const el = document.createElement('div');
+  const isDot = _RB_CLS_DOT[cls];
+  el.className = 'rb-proj' + (isDot ? ' rb-proj-dot' + (cls === 'phys' ? ' rb-proj-dot-lg' : '') : '');
+  if (!isDot) el.textContent = _RB_CLS_ICON[cls] || '●';
+  el.style.setProperty('--pc', color);
+  el.style.left = from.x + 'px';
+  el.style.top = from.y + 'px';
+  document.body.appendChild(el);
+  const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
+  const dur = 190;
+  try {
+    const anim = el.animate([
+      { transform: 'translate(-50%,-50%) scale(.5)', opacity: 0 },
+      { transform: `translate(calc(-50% + ${dx * 0.3}px), calc(-50% + ${dy * 0.3}px)) scale(1)`, opacity: 1, offset: 0.25 },
+      { transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(${hitFrac < 1 ? 0.7 : 1.1})`, opacity: hitFrac < 1 ? 0 : 1 },
+    ], { duration: dur, easing: 'ease-in' });
+    anim.onfinish = () => el.remove();
+  } catch (e) { /* WAAPI非対応環境の保険 */ }
+  setTimeout(() => el.remove(), dur + 80);
+  return dur;
+}
+function spawnBeam(from, to, cls, color, hitFrac){
+  const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
+  const dist = Math.hypot(dx, dy);
+  const ang = Math.atan2(dy, dx) * 180 / Math.PI;
+  const el = document.createElement('div');
+  el.className = 'rb-beam' + (cls === 'wave' ? ' rb-beam-wave' : '');
+  el.style.setProperty('--bc', color);
+  el.style.left = from.x + 'px';
+  el.style.top = from.y + 'px';
+  el.style.transform = `rotate(${ang}deg)`;
+  document.body.appendChild(el);
+  const dur = 180;
+  try {
+    const anim = el.animate([
+      { width: '0px', opacity: 0.95 },
+      { width: dist + 'px', opacity: hitFrac < 1 ? 0.25 : 1 },
+    ], { duration: dur, easing: 'ease-out' });
+    anim.onfinish = () => el.remove();
+  } catch (e) {}
+  setTimeout(() => el.remove(), dur + 80);
+  return dur;
+}
+// 攻撃側→対象側へ飛翔体/ビームを飛ばす。hit=trueなら着弾後にshake+クラス別ヒット音、false(外れ)なら
+// 途中でフェード+スカ音(ログの「外れた！」文言は変えず、演出だけ足す)。戻り値=飛翔にかかったms(着弾拍の同期用)
+function attackFx(atkSide, tgtSide, mv, hit){
+  const cls = moveClassOf(mv);
+  const color = (S.typeColors() && mv && S.typeColors()[mv.type]) || '#9fb4d8';
+  const from = fxPoint(atkSide), to = fxPoint(tgtSide);
+  const hitFrac = hit ? 1 : 0.55;
+  const dur = _RB_BEAM_CLS[cls] ? spawnBeam(from, to, cls, color, hitFrac) : spawnProjectile(from, to, cls, color, hitFrac);
+  if (hit) setTimeout(() => { fieldShake(); SE.hitClass(cls); }, dur);
+  else setTimeout(() => SE.miss(), Math.round(dur * 0.7));
+  return dur;
+}
+// 軽い画面(盤面)シェイク。既存の被弾スプライトshake(rbShake)より控えめな振れ幅で#field全体に足す
+function fieldShake(){
+  const f = $('field');
+  if (!f) return;
+  f.classList.remove('rb-shake');
+  void f.offsetWidth;
+  f.classList.add('rb-shake');
+  setTimeout(() => f.classList.remove('rb-shake'), 320);
+}
+// ===== Wave2: 状態演出のヘルパー =====
+// ランク変化: 緑↑/紫↓の粒子(段数で個数)+上昇/下降スイープ音
+function rankFx(side, up, stage){
+  const f = $('f-' + side);
+  if (!f) return;
+  const n = Math.min(3, Math.max(1, stage || 1));
+  for (let i = 0; i < n; i++){
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'rb-rankp ' + (up ? 'rb-rankp-up' : 'rb-rankp-down');
+      el.textContent = up ? '↑' : '↓';
+      el.style.marginLeft = (Math.random() * 30 - 15) + 'px';
+      f.appendChild(el);
+      setTimeout(() => el.remove(), 900);
+    }, i * 90);
+  }
+  up ? SE.rankUp() : SE.rankDown();
+}
+// 回復のキラキラ(緑の星が数個舞う)。SE.heal()(ハープ風)は既存のまま呼び出し元で鳴らす
+function sparkleFx(side){
+  const f = $('f-' + side);
+  if (!f) return;
+  for (let i = 0; i < 5; i++){
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'rb-sparkle';
+      el.textContent = '✨';
+      el.style.left = (15 + Math.random() * 70) + '%';
+      el.style.top = (30 + Math.random() * 40) + '%';
+      f.appendChild(el);
+      setTimeout(() => el.remove(), 700);
+    }, i * 60);
+  }
 }
 function screenFlash(color, mega){
   const el = $('fx-flash');
@@ -2777,12 +2903,17 @@ function lineWithFx(msg){
         setHpBar(tgt, +hpM[1], max);   // 1発ごとにターゲット側のバーを減らす
       }
       const mv = (S.sides[atkSide].moves || []).find(m => m && m.name === atkLine[2]);
-      burstFx(tgt, mv ? (S.typeColors()[mv.type] || '#9fb4d8') : '#9fb4d8');
-      const d = msg.match(/(?:に|合計) (\d+) ダメージ/);
-      if (d) popText(tgt, '−' + d[1], '#fff');
-      flash(tgt, 'hit');
+      const _atkColor = mv ? (S.typeColors()[mv.type] || '#9fb4d8') : '#9fb4d8';
       flash(atkSide, atkSide === 'self' ? 'lunge-self' : 'lunge-opp');
-      SE.hit();
+      // Wave1: 技クラス別の飛翔体→着弾に合わせてburst/ダメージ数字/shake/ヒット音を鳴らす(攻撃演出強化・2026-07-10)
+      const _atkDur = attackFx(atkSide, tgt, mv, true);
+      _hitFxDelay = _atkDur;   // 直後に合流する「こうかは…」「きゅうしょ」行も同じ拍に重ねる(2026-06-07の同拍方針を維持)
+      setTimeout(() => {
+        burstFx(tgt, _atkColor);
+        const d = msg.match(/(?:に|合計) (\d+) ダメージ/);
+        if (d) popText(tgt, '−' + d[1], '#fff');
+        flash(tgt, 'hit');
+      }, _atkDur);
     } else {
       // ② スリップ系の残HP行(やけど/すなあらし/さめはだ等): 主語側が減る
       if (hpM){
@@ -2793,6 +2924,15 @@ function lineWithFx(msg){
         if (d){ popText(side, '−' + (d[1] || d[2]), '#f87171', 15); flash(side, 'hit'); }
         else if (/回復/.test(msg)) popText(side, '＋', '#8ef5b0', 15);
       }
+    }
+    // ①b Wave1: 攻撃が外れた「(相手の )?Name の Move は外れた！」→ 飛翔体がすり抜けてフェード+スカ音(ログ文言は不変)
+    const missM = msg.match(/^(相手の )?\S+ の (\S+) は外れた！$/);
+    if (missM){
+      const atkSide = missM[1] ? 'opp' : 'self';
+      const tgt = atkSide === 'self' ? 'opp' : 'self';
+      const mv = (S.sides[atkSide].moves || []).find(m => m && m.name === missM[2]);
+      flash(atkSide, atkSide === 'self' ? 'lunge-self' : 'lunge-opp');
+      attackFx(atkSide, tgt, mv, false);
     }
     // ②b 混乱自傷「◯◯ は わけもわからず じぶんを こうげきした！ (N ダメージ)」: 残HP表記が無いので表示中HPから引く
     const confM = msg.match(/^(相手の )?\S+ は わけもわからず じぶんを こうげきした！ \((\d+) ダメージ\)/);
@@ -2834,10 +2974,10 @@ function lineWithFx(msg){
       burstFx(side, '#c9a0e0'); flash(side, 'hit'); popText(side, '−' + subHitM[2], '#e0b0ff', 15); SE.hit();
       if (/みがわりは こわれた！/.test(msg)) setSpriteSub(side, false);   // 壊れたら元のポケモンに戻る
     }
-    // ③ こうか・急所(直前のダメージ対象に重ねる)
-    if (msg === 'こうかは ばつぐんだ！'){ screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18); SE.superEff(); }
-    else if (msg === 'こうかは いまひとつのようだ…'){ popText(lastTgt || 'opp', 'いまひとつ…', '#8b94a7', 13); SE.weak(); }
-    else if (msg === 'きゅうしょに あたった！'){ screenFlash('#ffd96b'); popText(lastTgt || 'opp', '急所!', '#ff8866', 17); SE.crit(); }
+    // ③ こうか・急所(直前のダメージ対象に重ねる。Wave1の飛翔体着弾と同じ拍になるよう_hitFxDelay分だけ揃える)
+    if (msg === 'こうかは ばつぐんだ！'){ setTimeout(() => { screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18); SE.superEff(); }, _hitFxDelay); }
+    else if (msg === 'こうかは いまひとつのようだ…'){ setTimeout(() => { popText(lastTgt || 'opp', 'いまひとつ…', '#8b94a7', 13); SE.weak(); }, _hitFxDelay); }
+    else if (msg === 'きゅうしょに あたった！'){ setTimeout(() => { screenFlash('#ffd96b'); popText(lastTgt || 'opp', '急所!', '#ff8866', 17); SE.crit(); }, _hitFxDelay); }
     // ④ 状態異常・こんらん: 絵文字を浮かべる
     // メロメロ(段139)の演出
     if (/メロメロに なった！/.test(msg)){ popText(msg.includes('相手の') ? 'opp' : 'self', '💕', null, 26); renderAll(); }
@@ -2845,9 +2985,28 @@ function lineWithFx(msg){
     const stM = msg.match(/は (もうどく|どく|まひ|やけど|こおり|ねむり|ねむけ) 状態になった！|は (こんらん)した！/);
     if (stM){
       const side = subjOpp ? 'opp' : 'self';
-      const emo = {もうどく:'💜', どく:'💜', まひ:'⚡', やけど:'🔥', こおり:'❄️', ねむり:'💤', ねむけ:'💤', こんらん:'💫'}[stM[1] || stM[2]];
-      if (emo){ popText(side, emo, null, 24); SE.status(); }
+      const key = stM[1] || stM[2];
+      const emo = {もうどく:'💜', どく:'💜', まひ:'⚡', やけど:'🔥', こおり:'❄️', ねむり:'💤', ねむけ:'💤', こんらん:'💫'}[key];
+      // Wave2: 状態異常の色フラッシュ+専用短音(まひ=ビリッ/やけど=ジュッ/こおり=キン/ねむり=Zz/どく=ボコッ・2026-07-10)
+      const fxc = {もうどく:'#7c3aed', どく:'#a855f7', まひ:'#facc15', やけど:'#f97316', こおり:'#67e8f9', ねむり:'#818cf8', ねむけ:'#818cf8', こんらん:'#e879f9'}[key];
+      if (emo){ popText(side, emo, null, 24); burstFx(side, fxc || '#c9a0e0'); SE.ailment(key); }
       renderAll();
+    }
+    // ④b Wave2: ランク変化(緑↑/紫↓の粒子+上昇/下降音・段数で粒子数)。
+    // ひらがな「あがった/さがった」はランク変化専用の語(「飛び上がった」等は漢字「上がった」)なので誤爆しない(裏取り済み)
+    const rkM = msg.match(/(あがった|さがった)！/);
+    if (rkM){
+      const up = rkM[1] === 'あがった';
+      let rkSide = subjOpp ? 'opp' : 'self';
+      // いかく等「Aの いかくで (相手の)?B のこうげきがさがった！」は対象がBなので「いかくで」以降の相手の有無で判定
+      const ikIdx = msg.indexOf('いかくで');
+      if (ikIdx >= 0) rkSide = msg.indexOf('相手の', ikIdx) >= 0 ? 'opp' : 'self';
+      const stgM = msg.match(/([+-]?\d+)\s*(?:あがった|さがった)/);
+      const big = /ぐーんと|最大まで|最低まで/.test(msg);
+      const stage = stgM ? Math.abs(+stgM[1]) : (big ? 2 : 1);
+      rankFx(rkSide, up, stage);
+      // ムラっけ「◯◯が ぐーんとあがり ◯◯が さがった！」は1行に上げ下げ両方=上げ側も別途出す
+      if (/ムラっけ/.test(msg) && /ぐーんとあがり/.test(msg)) rankFx(rkSide, true, 2);
     }
     // ⑤ 天候(開始で常時オーバーレイ・終了で消す)
     if (/日差しが強くなった|天気が にほんばれ/.test(msg)) setWeatherFx('sun');
@@ -2926,7 +3085,7 @@ function lineWithFx(msg){
       flash(subjOpp ? 'opp' : 'self', 'enter');
       SE.mega();
     }
-    if (/回復/.test(msg)){ renderAll(); if (hpM){ popText(subjOpp ? 'opp' : 'self', '＋', '#4ade80', 18); SE.heal(); } }
+    if (/回復/.test(msg)){ renderAll(); if (hpM){ const hSide = subjOpp ? 'opp' : 'self'; popText(hSide, '＋', '#4ade80', 18); sparkleFx(hSide); SE.heal(); } }
   };
   return { text: (window.translateLogLine ? translateLogLine(msg) : msg), fx, src: msg };   // src=ja原文(演出合流の判定用)
 }

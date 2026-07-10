@@ -74,7 +74,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #box-typef button.on,#box-sort button.on{opacity:1;box-shadow:0 0 0 2px #d4a4ff;border-color:#d4f542}
 #box-typef button.tf-all,#box-sort button{background:#5a4fa0}
 /* ボックス本体=本家風の高密度グリッド(4〜5列・正方形マス・スプライトのみ+名前。タイプバッジはマスから撤去=2026-07-10) */
-#box-grid{max-height:440px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:5px;padding:2px}
+#box-grid{max-height:440px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:5px;padding:2px;align-content:start}/* 固定高でも行を引き伸ばさず上詰め(フィルタ時に飛び飛びになるのを防ぐ=2026-07-10 阿部さん) */
 #box-grid button{background:linear-gradient(150deg,#4a3a8a,#3a2d70);border:1px solid #6a4fc4;border-radius:8px;color:#fff;
   cursor:pointer;padding:3px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:8.5px;font-weight:700;
   font-family:inherit;transition:border-color .12s,box-shadow .12s;aspect-ratio:1;width:100%}
@@ -1362,7 +1362,9 @@ function openNatureModal(current, onPick, anchor){
     html += `<div class="cm-ml"><span class="up">▲</span>${statNm(up)}</div>` +
       NAT_AXIS.map(dn => {
         const nm = byUD[up + '/' + dn];
-        return nm ? `<button class="cm-cell${nm === current ? ' sel' : ''}" data-k="${nm}">${tNature(nm)}</button>` : '<span></span>';
+        // マスも性格名でなく補正表記(B↑A↓/±0)で表示(2026-07-10 阿部さん)。名前はホバーtitleに残す
+        const fx = up === dn ? '±0' : `${EV_LETTER[up]}↑${EV_LETTER[dn]}↓`;
+        return nm ? `<button class="cm-cell${nm === current ? ' sel' : ''}" data-k="${nm}" title="${tNature(nm)}">${fx}</button>` : '<span></span>';
       }).join('');
   });
   cm.querySelector('.cm-body').innerHTML = html + '</div>';
