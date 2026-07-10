@@ -1889,6 +1889,7 @@ function renderBoxGrid(query){
       `<img loading="lazy" src="${src}" onerror="this.remove()">` +
       `<span class="bx-name">${dispName}</span></button>`;
   }).join('') || `<div style="grid-column:1/-1;color:#ffffffaa;padding:10px;text-align:center">${I18N.t('real_battle.poke_not_found','みつからない…')}</div>`;
+  syncBoxHeight();   // フィルタ/ソートで件数が変わっても高さは中央列に追従(伸縮バグ根治=2026-07-10 阿部さん)
   $('box-grid').querySelectorAll('button[data-n]').forEach(b => b.addEventListener('click', () => {
     SE.select();
     const nm = b.dataset.n;
@@ -2067,6 +2068,7 @@ function syncBoxHeight(){
   }
   const zoom = parseFloat(cols.style.zoom) || 1;   // fitSetup縮小中はrectがzoom後座標になるため割り戻す
   const h = Math.max(180, Math.round((det.getBoundingClientRect().bottom - grid.getBoundingClientRect().top) / zoom) - 9);
+  if (Math.abs((parseInt(grid.style.height) || 0) - h) < 2) return;   // 冪等(ResizeObserverループ防止)
   grid.style.height = h + 'px'; grid.style.maxHeight = h + 'px';   // -9 = #box-panelの下padding8+border1
 }
 function fitField(){
@@ -2125,6 +2127,13 @@ function initSetup(){
   // →遅延で数回재同期+読み込み完了でも同期(2026-07-10 阿部さん「ボックスが小さくなった」根治)
   [400, 1200, 2600].forEach(ms => setTimeout(syncBoxHeight, ms));
   window.addEventListener('load', () => setTimeout(syncBoxHeight, 200));
+  // ★中央列のサイズ変化(画像読込/言語切替/パネル差し替え)を常時追従=伸縮バグの構造的根治
+  try {
+    if (window.ResizeObserver){
+      const ro = new ResizeObserver(() => { try { syncBoxHeight(); } catch (e) {} });
+      ro.observe($('setup-center'));
+    }
+  } catch (e) {}
   $('btn-start').addEventListener('click', startBattle);
   // CH: msgboxが盤面内に入ったので、盤面のどこをタップしてもメッセージ送りできるようにする
   // (busy時のみ作用。msgbox個別のリスナーは二重発火するため廃止)
@@ -4372,9 +4381,11 @@ function renderLobbyEntry(){
     `<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
     `<input id="online-name" placeholder="${esc2(_olT('online_name_ph', 'なまえ'))}" maxlength="10" value="${esc2(savedName)}" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:130px;font-size:15px">` +
     `<button id="lobby-enter" type="button" style="padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_lobby_enter', 'ロビーに はいる'))}</button>` +
+    `<button id="lobby-vs-ai" type="button" style="padding:13px 20px;border-radius:22px;border:0;background:linear-gradient(90deg,#2e8b57,#4aab77);color:#fff;font-weight:900;font-size:15px;cursor:pointer">🤖 ${esc2(_olT('online_lobby_vs_ai', 'AIと たいせん'))}</button>` +
     `</span>` +
     `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>`;
   $('lobby-enter').addEventListener('click', lobbyEnter);
+  $('lobby-vs-ai').addEventListener('click', lobbyVsAi);
   $('online-name').addEventListener('keydown', e => { if (e.key === 'Enter') lobbyEnter(); });
   renderLobbyList();
   lobbyObserve();   // 一覧を購読(まだ自分は載らない)
@@ -4413,6 +4424,7 @@ function renderLobbyMain(){
     `<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
     `<button id="lobby-ready" type="button" style="${btnCss};background:linear-gradient(90deg,#e0564a,#ff7a63);box-shadow:0 4px 10px #e0564a55">⚔️ ${esc2(_olT('online_lobby_ready', 'じゅんびOK(相手を まつ)'))}</button>` +
     `<button id="lobby-code-toggle" type="button" style="${btnCss};background:#8a82c8">🔑 ${esc2(_olT('online_lobby_use_code', 'あいことばで たいせん'))}</button>` +
+    `<button id="lobby-vs-ai" type="button" style="${btnCss};background:linear-gradient(90deg,#2e8b57,#4aab77)">🤖 ${esc2(_olT('online_lobby_vs_ai', 'AIと たいせん'))}</button>` +
     `<button id="lobby-leave" type="button" style="${btnCss};background:#b0aacb;font-size:13px;padding:10px 16px">${esc2(_olT('online_lobby_leave', 'ロビーを でる'))}</button>` +
     `</span>` +
     `<span id="online-form" style="display:none;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
@@ -4428,9 +4440,18 @@ function renderLobbyMain(){
     if (f.style.display === 'flex') $('online-room').focus();
   });
   $('lobby-leave').addEventListener('click', lobbyExit);
+  $('lobby-vs-ai').addEventListener('click', lobbyVsAi);
   $('online-connect').addEventListener('click', onlineConnect);
   $('online-room').addEventListener('keydown', e => { if (e.key === 'Enter') onlineConnect(); });
   renderLobbyList();
+}
+// 🤖AIと対戦(2026-07-10 阿部さん「誰もいなかったらAIと」): オンライン非接続のまま、
+// このページのバトルチームでオフラインバトル(相手=おまかせ編成のAI)。real_battle由来のstartBattleを流用
+function lobbyVsAi(){
+  SE.select();
+  if (window.RB_ONLINE && RB_ONLINE.active) return;
+  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
+  startBattle();
 }
 function lobbyExit(){
   try { RBOnline.lobbyLeave(); } catch (e) {}
