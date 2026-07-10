@@ -5953,6 +5953,17 @@ function runTurn(){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(きのみを 食べていない)`);
       noteActionFailed(atk); continue;
     }
+    // ★対象がひんしでいない技は不発(反動死などで先に相手が倒れた時の後攻=Bulbapedia "But there was no target")。
+    // 自分/場を対象にする変化技(つるぎのまい・ステルスロック等)はそのまま出せる。
+    // (2026-07-10 阿部さん報告: 反動でひんしのミミッキュに じしんが当たり「ひんしになった！」が2回出た)
+    {
+      const _noTgt = def && (def.fainted || (def.currentHp != null && def.currentHp <= 0));
+      const _fieldOk = mv.category === '変化' && ['自分', '味方の場', '全体の場', '相手の場', '味方全体', '味方1体', '自分か味方'].includes(mv.target);
+      if (_noTgt && !_fieldOk){
+        log('0c', `${pname(atk)} の ${mv.name}！ しかし あいてが いなかった…`);
+        noteActionFailed(atk); continue;
+      }
+    }
     // 失敗条件(fails_if: 相手の選択/行動状況・自分の被弾・前ターン与ダメ)。データ宣言をエンジンが読む(2026-07-05・490技監査で発覚)
     if (failsByCondition(atk, def, mv)){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);

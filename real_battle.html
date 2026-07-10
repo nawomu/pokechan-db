@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://pchamdb.com/real_battle.html">
 <script defer src="i18n/runtime.js?v=20260705"></script>
 <script src="pokechan_data.js?v=20260705a"></script>
-<script src="battle_log_i18n.js?v=20260710d"></script>
+<script src="battle_log_i18n.js?v=20260710e"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
@@ -459,6 +459,29 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .fighter.enter .sprite{animation:rbEnter .85s}
 .fighter.recall .sprite{animation:rbRecall 1s forwards}
 
+/* ===== バトル演出強化(Wave1攻撃/Wave2状態) 2026-07-10 阿部さん「音とエフェクトを派手に」 =====
+ * 飛翔体・ビームは#field外(position:fixed)にappendして画面座標(getBoundingClientRect)で動かす
+ * =#fieldのzoom:1.45やCSS scale変換の影響を受けず正確に飛ばせる(2026-07-10) */
+.rb-proj{position:fixed;z-index:55;font-size:24px;line-height:1;pointer-events:none;left:0;top:0;
+  filter:drop-shadow(0 0 6px var(--pc,#fff)) drop-shadow(0 0 2px #fff)}
+.rb-proj-dot{width:12px;height:12px;border-radius:50%;background:var(--pc,#fff);
+  box-shadow:0 0 10px 3px var(--pc,#fff);filter:none}
+.rb-proj-dot-lg{width:20px;height:20px;box-shadow:0 0 14px 4px var(--pc,#fff)}
+.rb-beam{position:fixed;z-index:55;height:5px;top:0;left:0;border-radius:3px;pointer-events:none;
+  transform-origin:0 50%;background:linear-gradient(90deg, var(--bc,#fff) 0%, #ffffffcc 100%);
+  box-shadow:0 0 10px 3px var(--bc,#fff)}
+.rb-beam-wave{height:7px;background:repeating-linear-gradient(90deg, var(--bc,#fff) 0 8px, transparent 8px 14px);
+  box-shadow:0 0 12px 4px var(--bc,#fff)}
+@keyframes rbFieldShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(1px)}}
+#field.rb-shake{animation:rbFieldShake .28s}
+.rb-rankp{position:absolute;left:50%;bottom:30%;font-weight:900;font-size:22px;pointer-events:none;
+  animation:rbRankFloat .9s ease-out forwards;z-index:5}
+.rb-rankp-up{color:#4ade80;text-shadow:0 0 6px #4ade8099}
+.rb-rankp-down{color:#c084fc;text-shadow:0 0 6px #c084fc99}
+@keyframes rbRankFloat{0%{opacity:0;transform:translate(-50%,0) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-60px) scale(1.1)}}
+.rb-sparkle{position:absolute;font-size:16px;pointer-events:none;animation:rbSparkle .7s ease-out forwards;z-index:5}
+@keyframes rbSparkle{0%{opacity:0;transform:scale(.4) translateY(6px)}30%{opacity:1}100%{opacity:0;transform:scale(1.1) translateY(-18px)}}
+
 /* ===== CH: メッセージ=盤面内オーバーレイ(箱なし・白文字+黒フチ=実機準拠) ===== */
 /* 左端は自分statbar(幅210+余白)を避けて非重畳にする(ダメージ行=statbarとメッセージが同時表示のため) */
 #msgbox{position:absolute;left:244px;right:14px;bottom:6px;z-index:11;background:transparent;border:none;
@@ -595,6 +618,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #moves .mv-eff.eff-super{color:#ffe14d;border-color:#ffe14d88}
 #moves .mv-eff.eff-weak{color:#c9b8ff}
 #moves .mv-eff.eff-no{color:#ff9c9c}
+.mv-eff.eff-stab{background:#c9a227;color:#fff}/* タイプ一致×1.5(2026-07-10 阿部さん) */
 /* PP表示: 実機準拠=右側に大きめ */
 #moves .mv-pp{position:absolute;right:14px;top:6px;font-size:12px;font-weight:900;
   color:#fff;font-style:italic;text-shadow:0 1px 2px #0009}
@@ -845,7 +869,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710d" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710e" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -2186,6 +2210,9 @@ function showMoves(){
         const ppCls = 'mv-pp' + (ppLow ? ' pp-low' : '');
         const ppTxt = ppNow != null ? `${ppNow}/${ppMax}` : '';
         // 威力/命中等はホバーの説明フロートに集約(ボタンは常時スリム=2026-07-06 阿部さん)
+        // タイプ一致(STAB)=×1.5 を明示(2026-07-10 阿部さん「こうかばつぐんみたいに書いて」)。変化技は対象外
+        const stab = m.category !== '変化' && (S.sideTypes ? S.sideTypes(st) : [st.poke.type1, st.poke.type2].filter(Boolean)).includes(m.type)
+          ? `<span class="mv-eff eff-stab">✨ ${I18N.t('real_battle.chip_stab','タイプ一致')} ×1.5</span>` : '';
         const subParts = [
           locked ? I18N.t('real_battle.move_stubbornlock_note','こだわり中') : '',
           disabledMove ? I18N.t('real_battle.move_disabled_note','かなしばり中') : '',
@@ -2195,7 +2222,7 @@ function showMoves(){
         const btnStyle = off ? '' : `background:linear-gradient(135deg,${col}dd 0%,${col}99 100%)`;
         return `<button class="tcol" data-i="${i}" ${off ? 'disabled' : ''} style="${btnStyle}">` +
           `<span class="mv-name"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span><strong>${tMoveName(m)}${lockName === m.name ? ' 🔒' : ''}</strong></span>` +
-          `<div class="mv-sub">${effBand(m)}${subParts}&nbsp;</div>` +
+          `<div class="mv-sub">${effBand(m)}${stab}${subParts}&nbsp;</div>` +
           (ppTxt ? `<span class="${ppCls}">${ppTxt}</span>` : '') +
           `</button>`;
       }).join(''))
@@ -2566,6 +2593,41 @@ const SE = {
   enter(){ tone('square', 392, 0.07, 0.14, 784); },
   win(){ [523, 523, 523, 659, 784, 1047].forEach((f, i) => tone('square', f, i === 5 ? 0.5 : 0.13, 0.16, null, ac().currentTime + i * 0.13)); },
   lose(){ [392, 370, 349, 330].forEach((f, i) => tone('triangle', f, 0.3, 0.18, null, ac().currentTime + i * 0.28)); },
+  // ===== 演出強化(Wave1/2・2026-07-10) =====
+  miss(){ tone('sine', 340, 0.09, 0.14, 140); noise(0.05, 0.1, 500); },   // スカッ(短く上品に)
+  // 技クラス別ヒット音(基本のhit()に色付けを足す。音量は既存hit以下)
+  hitClass(cls){
+    noise(0.15, 0.42, 900);
+    const fns = {
+      punch: () => tone('square', 150, 0.13, 0.22, 50),
+      slash: () => tone('sawtooth', 900, 0.08, 0.16, 220),
+      bullet: () => tone('square', 720, 0.05, 0.15, 300),
+      wind: () => tone('sine', 500, 0.16, 0.13, 220),
+      bite: () => tone('square', 200, 0.1, 0.2, 90),
+      kick: () => tone('square', 160, 0.12, 0.22, 60),
+      sound: () => { tone('triangle', 587, 0.12, 0.16, 784); tone('triangle', 784, 0.1, 0.11, null, ac().currentTime + 0.06); },
+      wave: () => { tone('sine', 300, 0.2, 0.15, 520); tone('sine', 460, 0.16, 0.11, null, ac().currentTime + 0.05); },
+      spec: () => tone('sine', 440, 0.18, 0.17, 660),
+      phys: () => tone('square', 180, 0.12, 0.2, 70),
+    };
+    (fns[cls] || fns.phys)();
+  },
+  rankUp(){ tone('sine', 440, 0.16, 0.15, 900); },     // ウィーン(上昇スイープ)
+  rankDown(){ tone('sine', 440, 0.18, 0.15, 210); },   // ウィーン(下降スイープ)
+  // 状態異常ごとの専用短音(まひ=ビリッ/やけど=ジュッ/こおり=キン/ねむり=Zz/どく=ボコッ)
+  ailment(key){
+    const fns = {
+      まひ: () => { noise(0.05, 0.26, 4200); tone('square', 950, 0.04, 0.13, 300); },
+      やけど: () => { noise(0.14, 0.28, 1400); tone('sawtooth', 230, 0.11, 0.12, 70); },
+      こおり: () => tone('sine', 1900, 0.14, 0.15, 2800),
+      ねむり: () => tone('sine', 330, 0.18, 0.1, 260),
+      ねむけ: () => tone('sine', 330, 0.18, 0.1, 260),
+      どく: () => { noise(0.12, 0.26, 650); tone('square', 160, 0.12, 0.15, 90); },
+      もうどく: () => { noise(0.14, 0.28, 600); tone('square', 140, 0.14, 0.17, 80); },
+      こんらん: () => { tone('triangle', 500, 0.1, 0.13, 700); tone('triangle', 400, 0.1, 0.1, 300, null); },
+    };
+    (fns[key] || (() => {}))();
+  },
 };
 // バトルBGM: 8bit風2小節ループ(Am)。スケジューラで16分音符を先読み再生
 const BGM_BASS = [110, 0, 110, 0, 165, 0, 110, 0, 131, 0, 131, 0, 98, 0, 98, 123];           // A E C G…
