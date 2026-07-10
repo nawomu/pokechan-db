@@ -476,8 +476,9 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   box-shadow:0 0 10px 3px var(--bc,#fff)}
 .rb-beam-wave{height:7px;background:repeating-linear-gradient(90deg, var(--bc,#fff) 0 8px, transparent 8px 14px);
   box-shadow:0 0 12px 4px var(--bc,#fff)}
-@keyframes rbFieldShake{0%,100%{transform:translateX(0)}20%{transform:translateX(-4px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(1px)}}
-#field.rb-shake{animation:rbFieldShake .28s}
+/* mag強弱スケール(Wave2.5 S級): --shake-magはfieldShake(mag)がJSから設定(既定1=従来と同じ振れ幅) */
+@keyframes rbFieldShake{0%,100%{transform:translateX(0)}20%{transform:translateX(calc(-4px * var(--shake-mag,1)))}40%{transform:translateX(calc(3px * var(--shake-mag,1)))}60%{transform:translateX(calc(-2px * var(--shake-mag,1)))}80%{transform:translateX(calc(1px * var(--shake-mag,1)))}}
+#field.rb-shake{animation-name:rbFieldShake;animation-duration:.28s}
 .rb-rankp{position:absolute;left:50%;bottom:30%;font-weight:900;font-size:22px;pointer-events:none;
   animation:rbRankFloat .9s ease-out forwards;z-index:5}
 .rb-rankp-up{color:#4ade80;text-shadow:0 0 6px #4ade8099}
@@ -485,6 +486,85 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 @keyframes rbRankFloat{0%{opacity:0;transform:translate(-50%,0) scale(.6)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-60px) scale(1.1)}}
 .rb-sparkle{position:absolute;font-size:16px;pointer-events:none;animation:rbSparkle .7s ease-out forwards;z-index:5}
 @keyframes rbSparkle{0%{opacity:0;transform:scale(.4) translateY(6px)}30%{opacity:1}100%{opacity:0;transform:scale(1.1) translateY(-18px)}}
+
+/* ===== Wave2.5(接触突進+S級技法)/Wave3(メガ儀式+壁+A級技法) 2026-07-10 設計v2 ===== */
+/* --- 接触技=本体クローンの突進(chargeFx)。飛翔体と同じくbody直下fixed(z:55)で#fieldの変換を回避 --- */
+.rb-chargeclone{position:fixed;z-index:55;pointer-events:none;margin:0}
+/* --- 被弾ノックバック(.fighter外側に掛ける=.spriteのrbShake/squash&stretchと別要素で衝突しない) --- */
+@keyframes rbKnockbackSelf{0%{transform:scale(1.2) translate(0,0) rotate(0deg)}30%{transform:scale(1.2) translate(-12px,4px) rotate(-3deg)}100%{transform:scale(1.2) translate(0,0) rotate(0deg)}}
+@keyframes rbKnockbackOpp{0%{transform:scale(.95) translate(0,0) rotate(0deg)}30%{transform:scale(.95) translate(12px,-4px) rotate(3deg)}100%{transform:scale(.95) translate(0,0) rotate(0deg)}}
+.fighter.rb-knockback-self{animation:rbKnockbackSelf .28s cubic-bezier(.22,1,.36,1)}
+.fighter.rb-knockback-opp{animation:rbKnockbackOpp .28s cubic-bezier(.22,1,.36,1)}
+/* --- burstFx多層化: 破片パーティクル/衝撃リング/クラス別グリフ --- */
+.rb-burstp{position:absolute;left:50%;top:46%;border-radius:50%;pointer-events:none;z-index:4;box-shadow:0 0 4px 1px currentColor}
+.rb-burstring{position:absolute;left:50%;top:46%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;
+  border-width:5px;border-style:solid;pointer-events:none;z-index:4;box-sizing:border-box}
+.rb-burstglyph-slash{position:absolute;left:50%;top:46%;width:46px;height:5px;margin:-2px 0 0 -23px;
+  background:linear-gradient(90deg,transparent,#fff,transparent);pointer-events:none;z-index:5;animation:rbGlyphSlash .26s ease-out forwards}
+@keyframes rbGlyphSlash{0%{opacity:0;transform:rotate(45deg) scaleX(.3)}40%{opacity:1;transform:rotate(45deg) scaleX(1.15)}100%{opacity:0;transform:rotate(45deg) scaleX(1)}}
+.rb-burstglyph-star{position:absolute;left:50%;top:40%;font-size:30px;color:#fff;text-shadow:0 0 8px #fff;
+  pointer-events:none;z-index:5;animation:rbGlyphStar .26s ease-out forwards}
+@keyframes rbGlyphStar{0%{opacity:0;transform:translate(-50%,-50%) scale(1)}40%{opacity:1;transform:translate(-50%,-50%) scale(2)}100%{opacity:0;transform:translate(-50%,-50%) scale(2)}}
+/* --- Wave3 A級: 被弾スプライトの点滅+スカッシュ&ストレッチ(体積保存 x*y≈1)。.sprite img/.circに掛ける=
+   .spriteのrbShake(transform:translateX)・#f-self/#f-oppのscaleと別要素で衝突しない --- */
+@keyframes rbHitFlash{0%,100%{filter:none}25%{filter:brightness(4) saturate(0)}50%{filter:none}75%{filter:brightness(4) saturate(0)}}
+.fighter.hit .sprite{animation:rbShake .85s, rbHitFlash .16s linear}
+.fighter.hit-big .sprite{animation:rbShake .85s, rbHitFlash .16s linear}
+@keyframes rbSquash{0%{transform:scale(1,1)}25%{transform:scale(1.12,.88)}55%{transform:scale(.96,1.04)}100%{transform:scale(1,1)}}
+@keyframes rbSquashFlip{0%{transform:scaleX(-1) scale(1,1)}25%{transform:scaleX(-1) scale(1.12,.88)}55%{transform:scaleX(-1) scale(.96,1.04)}100%{transform:scaleX(-1) scale(1,1)}}
+@keyframes rbSquashBig{0%{transform:scale(1,1)}25%{transform:scale(1.32,.76)}55%{transform:scale(.9,1.09)}100%{transform:scale(1,1)}}
+@keyframes rbSquashBigFlip{0%{transform:scaleX(-1) scale(1,1)}25%{transform:scaleX(-1) scale(1.32,.76)}55%{transform:scaleX(-1) scale(.9,1.09)}100%{transform:scaleX(-1) scale(1,1)}}
+.fighter.hit .sprite .circ{animation:rbSquash .18s cubic-bezier(.34,1.56,.64,1)}
+#f-opp.hit .sprite img{animation:rbSquash .18s cubic-bezier(.34,1.56,.64,1)}
+#f-self.hit .sprite img{animation:rbSquashFlip .18s cubic-bezier(.34,1.56,.64,1)}
+.fighter.hit-big .sprite .circ{animation:rbSquashBig .18s cubic-bezier(.34,1.56,.64,1)}
+#f-opp.hit-big .sprite img{animation:rbSquashBig .18s cubic-bezier(.34,1.56,.64,1)}
+#f-self.hit-big .sprite img{animation:rbSquashBigFlip .18s cubic-bezier(.34,1.56,.64,1)}
+/* --- popText拡張: 急所(傾き復帰+オーバーシュート)/ばつぐん(金色glow) --- */
+.popnum-crit{font-weight:900;animation:rbPopCrit .6s cubic-bezier(.34,1.56,.64,1) forwards}
+@keyframes rbPopCrit{0%{opacity:0;transform:translateX(-50%) translateY(6px) scale(0) rotate(-8deg)}
+  25%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1.3) rotate(4deg)}
+  45%{transform:translateX(-50%) translateY(-10px) scale(1) rotate(0)}
+  100%{opacity:0;transform:translateX(-50%) translateY(-46px) scale(1) rotate(0)}}
+.popnum-se{color:#ffd54a;text-shadow:0 0 10px #ffd54a,0 0 4px #fff,0 2px 4px #000c;animation:rbPopSe .6s cubic-bezier(.34,1.56,.64,1) forwards}
+@keyframes rbPopSe{0%{opacity:0;transform:translateX(-50%) translateY(6px) scale(0)}
+  25%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1.3)}
+  45%{transform:translateX(-50%) translateY(-10px) scale(1)}
+  100%{opacity:0;transform:translateX(-50%) translateY(-46px) scale(1)}}
+/* --- Wave3: メガシンカ儀式(光柱/収束玉/シルエット/虹リング/桃霧/DNAシンボル)。全て#f-側内append --- */
+.rb-mega-pillar{position:absolute;left:50%;bottom:0;width:36px;height:140%;margin-left:-18px;pointer-events:none;z-index:4;
+  transform-origin:bottom;background:linear-gradient(180deg,#fff 0%,#fff8 55%,transparent 100%);
+  animation:rbMegaPillar .48s ease-out forwards}
+@keyframes rbMegaPillar{0%{transform:scaleY(0);opacity:0}30%{opacity:.9}100%{transform:scaleY(1);opacity:0}}
+.rb-mega-orb{position:absolute;left:50%;top:46%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
+  background:#fff;box-shadow:0 0 12px 5px #fff;pointer-events:none;z-index:5;animation:rbMegaOrb .42s cubic-bezier(.5,0,.8,.5) forwards}
+@keyframes rbMegaOrb{0%{transform:translate(var(--ox),var(--oy)) scale(2);opacity:.9}100%{transform:translate(0,0) scale(.3);opacity:.2}}
+.rb-mega-silhouette{filter:brightness(0) invert(1) drop-shadow(0 0 12px #fff);transition:filter .3s}
+.rb-mega-ring{position:absolute;left:50%;top:46%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;pointer-events:none;z-index:5;
+  background:conic-gradient(from 0deg,#ff9bd6,#ffe08a,#9bffe4,#9bb8ff,#ff9bd6);
+  -webkit-mask:radial-gradient(circle,transparent 60%,#000 62%);mask:radial-gradient(circle,transparent 60%,#000 62%);
+  animation:rbMegaRing .5s cubic-bezier(0,.6,.4,1) forwards}
+@keyframes rbMegaRing{0%{transform:scale(0);opacity:1}100%{transform:scale(5);opacity:0}}
+.rb-mega-mist{position:absolute;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;pointer-events:none;z-index:4;
+  background:radial-gradient(circle,#ff9bd6cc 0%,#ff9bd655 45%,transparent 70%);animation:rbMegaMist .5s ease-out forwards}
+@keyframes rbMegaMist{0%{transform:scale(.3);opacity:.9}100%{transform:scale(1.8);opacity:0}}
+.rb-mega-dna{position:absolute;left:50%;top:40%;font-size:34px;color:#fff;text-shadow:0 0 14px #ffd96b,0 0 4px #fff;
+  pointer-events:none;z-index:6;animation:rbMegaDna .26s ease-out forwards}
+@keyframes rbMegaDna{0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-20deg)}
+  50%{opacity:1;transform:translate(-50%,-50%) scale(1.3) rotate(6deg)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.1) rotate(0)}}
+/* --- Wave3: 壁パネル(リフレクター=銀/ひかりのかべ=金/オーロラベール=水色。実測準拠の半透明ガラス板) ---
+ * ::before=リフレクター/オーロラベール(視覚上ほぼ同時に張られない=Bulbapedia準拠なので同じ枠を共用可)、::after=ひかりのかべ */
+.rb-wall-reflect::before, .rb-wall-screen::after, .rb-wall-veil::before{
+  content:'';position:absolute;left:50%;bottom:-8px;width:170px;height:100px;margin-left:-85px;
+  transform:skewX(-15deg);pointer-events:none;z-index:3;border-radius:4px;
+  background-image:linear-gradient(105deg, transparent 40%, rgba(255,255,255,.6) 50%, transparent 60%);
+  animation:rbWallPop .7s ease-out}
+.rb-wall-reflect::before{background-color:rgba(238,238,238,.35);border:1px solid #888}
+.rb-wall-screen::after{background-color:rgba(220,220,0,.35);border:1px solid #AAAA00}
+.rb-wall-veil::before{background-color:rgba(136,238,255,.35);border:1px solid #59c8e6}
+@keyframes rbWallPop{0%{opacity:0;transform:skewX(-15deg) scaleY(0)}35%{opacity:1;transform:skewX(-15deg) scaleY(1.08)}
+  60%{opacity:.85}100%{opacity:1;transform:skewX(-15deg) scaleY(1)}}
 
 /* ===== CH: メッセージ=盤面内オーバーレイ(箱なし・白文字+黒フチ=実機準拠) ===== */
 /* 左端は自分statbar(幅210+余白)を避けて非重畳にする(ダメージ行=statbarとメッセージが同時表示のため) */
@@ -1831,7 +1911,7 @@ function startBattle(){
   // (勝利→にげる→再スタートの経路では c-next のクリックハンドラを通らないため)
   const _nb = $('c-next'); if (_nb) _nb.remove();
   ['c-fight','c-party','c-run'].forEach(id => { const b = $(id); if (b) { b.disabled = false; b.style.display = ''; } });
-  ['f-self','f-opp'].forEach(id => { const f = $(id); if (f) f.classList.remove('gone','faint'); });   // 前試合のひんし退場を解除
+  ['f-self','f-opp'].forEach(id => { const f = $(id); if (f) f.classList.remove('gone','faint','rb-wall-reflect','rb-wall-screen','rb-wall-veil'); });   // 前試合のひんし退場/壁パネルを解除
   window._idSnap = null;   // 表示個体スナップも初期化(初回登場から素直に描く)
   hideResultBanner();   // 前試合の勝敗バナーを消す
   buildSide('self', orderedIds('self'));   // 1番目に選んだ子を先頭に
@@ -2165,7 +2245,10 @@ function nextSay(){
   }
   box.querySelector('.next').style.display = 'none';   // ▼表記廃止(盤面クリック/自動送りは従来どおり)
   if ($('auto-msg').checked){
-    autoTimer = setTimeout(nextSay, +$('msg-speed').value);
+    // Wave3: メガシンカ演出の拍(_megaFxDelay)はmsg-speedより長ければそちらを優先=専用ホールド(次行を待たせる)
+    const _hold = Math.max(+$('msg-speed').value, _megaFxDelay || 0);
+    _megaFxDelay = 0;
+    autoTimer = setTimeout(nextSay, _hold);
   }
 }
 function advanceMsg(){ const t = $('mv-tip'); if (t) t.style.display = 'none'; if (busy) nextSay(); }
@@ -2766,6 +2849,21 @@ function noise(dur, vol, lowpass){
   const f = ctx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = lowpass || 1200;
   src.connect(f); f.connect(g); g.connect(dest()); src.start(t);
 }
+// ノイズ+lowpassスイープ(メガシンカ等のロング音の「うねり」用。Wave3・2026-07-10)
+function noiseSweep(dur, vol, fromHz, toHz){
+  if (!sndOn) return;
+  const ctx = ac(), t = ctx.currentTime;
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const g = ctx.createGain(); g.gain.value = vol;
+  const f = ctx.createBiquadFilter(); f.type = 'lowpass';
+  f.frequency.setValueAtTime(fromHz, t);
+  f.frequency.linearRampToValueAtTime(toHz, t + dur);
+  src.connect(f); f.connect(g); g.connect(dest()); src.start(t);
+}
 // 効果音いろいろ
 const SE = {
   select(){ tone('square', 880, 0.06, 0.12); },
@@ -2776,15 +2874,18 @@ const SE = {
   faint(){ tone('square', 520, 0.5, 0.22, 65); tone('triangle', 260, 0.55, 0.18, 40); },
   heal(){ [523, 659, 784, 1047].forEach((f, i) => tone('square', f, 0.12, 0.14, null, ac().currentTime + i * 0.09)); },
   status(){ tone('square', 330, 0.1, 0.16, 392); tone('square', 392, 0.1, 0.16, 330, null); },
-  mega(){ [440, 554, 659, 880, 1109].forEach((f, i) => tone('square', f, 0.16, 0.16, null, ac().currentTime + i * 0.08)); noise(0.5, 0.25, 4000); },
+  mega(){ [440, 554, 659, 880, 1109].forEach((f, i) => tone('square', f, 0.16, 0.16, null, ac().currentTime + i * 0.08)); noise(0.5, 0.25, 4000);
+    noiseSweep(1.2, 0.16, 200, 2200); },   // Wave3: ロングスウェル(儀式演出の全長にわたるうねり)
   enter(){ tone('square', 392, 0.07, 0.14, 784); },
   win(){ [523, 523, 523, 659, 784, 1047].forEach((f, i) => tone('square', f, i === 5 ? 0.5 : 0.13, 0.16, null, ac().currentTime + i * 0.13)); },
   lose(){ [392, 370, 349, 330].forEach((f, i) => tone('triangle', f, 0.3, 0.18, null, ac().currentTime + i * 0.28)); },
   // ===== 演出強化(Wave1/2・2026-07-10) =====
   miss(){ tone('sine', 340, 0.09, 0.14, 140); noise(0.05, 0.1, 500); },   // スカッ(短く上品に)
-  // 技クラス別ヒット音(基本のhit()に色付けを足す。音量は既存hit以下)
-  hitClass(cls){
-    noise(0.15, 0.42, 900);
+  // 技クラス別ヒット音(基本のhit()に色付けを足す。音量は既存hit以下)。
+  // intensity('up'=ばつぐん/'crit'=急所)指定時はノイズを太く+高域クリックを重ねる(Wave2.5 SEレイヤー合成)
+  hitClass(cls, intensity){
+    const boost = intensity === 'up' || intensity === 'crit';
+    noise(boost ? 0.2 : 0.15, boost ? 0.52 : 0.42, 900);
     const fns = {
       punch: () => tone('square', 150, 0.13, 0.22, 50),
       slash: () => tone('sawtooth', 900, 0.08, 0.16, 220),
@@ -2798,6 +2899,7 @@ const SE = {
       phys: () => tone('square', 180, 0.12, 0.2, 70),
     };
     (fns[cls] || fns.phys)();
+    if (boost) tone('square', 2400, 0.03, 0.12, 1800);   // 高域クリック(強打の一枚上の輪郭)
   },
   rankUp(){ tone('sine', 440, 0.16, 0.15, 900); },     // ウィーン(上昇スイープ)
   rankDown(){ tone('sine', 440, 0.18, 0.15, 210); },   // ウィーン(下降スイープ)
@@ -2857,23 +2959,92 @@ function updateSndBtn(){ const b = $('snd-toggle'); if (b) b.textContent = sndOn
 // ===== ステージ演出v3のヘルパー =====
 let lastTgt = null;   // 直前のダメージ対象(「こうかは…」「きゅうしょ」は直後の行で飛んでくる)
 let _hitFxDelay = 0;  // Wave1: 直前の飛翔体の飛翔ms(こうか/きゅうしょ行のflash/soundを着弾と同じ拍に重ねる用)
-function popText(side, text, color, size){
+let _megaFxDelay = 0; // Wave3: メガシンカ演出の総dur(次行のsayをこの分だけホールドする専用レーン)
+// popText: variant('crit'=急所/'se'=ばつぐん)指定でポップイン強化(傾き復帰・金色glow等・Wave3 A級)
+function popText(side, text, color, size, variant){
   const f = $('f-' + side);
   const el = document.createElement('div');
-  el.className = 'popnum';
+  el.className = 'popnum' + (variant ? ' popnum-' + variant : '');
   el.textContent = text;
   if (color) el.style.color = color;
   if (size) el.style.fontSize = size + 'px';
   f.appendChild(el);
   setTimeout(() => el.remove(), 1100);
 }
-function burstFx(side, color){
+// burstFx: 多層バースト(Wave2.5 S級)。既存radial-gradientの上に破片パーティクル+衝撃リング+クラス別グリフを重ねる。
+// intensity: 'normal'(既定)/'up'(ばつぐん=粒子2倍+2重リング)/'crit'(急所=同様)/'down'(いまひとつ=粒子半減)
+function burstFx(side, color, cls, intensity){
   const f = $('f-' + side);
+  if (!f) return;
   const el = document.createElement('div');
   el.className = 'burst';
   el.style.background = `radial-gradient(circle, ${color}cc 0%, ${color}55 45%, transparent 70%)`;
   f.appendChild(el);
   setTimeout(() => el.remove(), 650);
+  const big = intensity === 'up' || intensity === 'crit';
+  const n = intensity === 'down' ? 3 : (big ? 8 : 5);
+  spawnBurstParticles(f, color, n);
+  spawnBurstRing(f, color);
+  if (big) setTimeout(() => spawnBurstRing(f, color), 60);   // 2重リング
+  if (cls) spawnBurstGlyph(f, cls);
+}
+// 破片パーティクル(4-8pxの粒が放射状に飛び散る。疑似重力で下に膨らむ弧)
+function spawnBurstParticles(f, color, n){
+  for (let i = 0; i < n; i++){
+    const el = document.createElement('div');
+    el.className = 'rb-burstp';
+    el.style.background = color;
+    el.style.color = color;   // box-shadowのcurrentColorが拾う(発光の色をパーティクルと揃える)
+    const size = 4 + Math.random() * 4;
+    el.style.width = size + 'px'; el.style.height = size + 'px';
+    const ang = Math.random() * Math.PI * 2;
+    const r = 40 + Math.random() * 50;
+    const dxp = Math.cos(ang) * r, dyp = Math.sin(ang) * r + 40;
+    f.appendChild(el);
+    const dur = 350 + Math.random() * 250;
+    try {
+      const anim = el.animate([
+        { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
+        { transform: `translate(calc(-50% + ${dxp}px), calc(-50% + ${dyp}px)) scale(0)`, opacity: 0 },
+      ], { duration: dur, easing: 'cubic-bezier(0,.9,.57,1)' });
+      anim.onfinish = () => el.remove();
+    } catch (e) {}
+    setTimeout(() => el.remove(), dur + 60);
+  }
+}
+// 衝撃リング(円が拡大しながら消える)
+function spawnBurstRing(f, color){
+  const el = document.createElement('div');
+  el.className = 'rb-burstring';
+  el.style.borderColor = color;
+  f.appendChild(el);
+  try {
+    const anim = el.animate([
+      { transform: 'translate(-50%,-50%) scale(.2)', opacity: 1 },
+      { transform: 'translate(-50%,-50%) scale(4)', opacity: 0 },
+    ], { duration: 300, easing: 'cubic-bezier(0,.5,.5,1)' });
+    anim.onfinish = () => el.remove();
+  } catch (e) {}
+  setTimeout(() => el.remove(), 360);
+}
+// クラス別グリフ(slash=斬線2本ずらし/punch・kick・bite=星ヒットマーク)
+function spawnBurstGlyph(f, cls){
+  if (cls === 'slash'){
+    for (let i = 0; i < 2; i++){
+      setTimeout(() => {
+        const el = document.createElement('div');
+        el.className = 'rb-burstglyph-slash';
+        f.appendChild(el);
+        setTimeout(() => el.remove(), 260);
+      }, i * 60);
+    }
+  } else if (cls === 'punch' || cls === 'kick' || cls === 'bite'){
+    const el = document.createElement('div');
+    el.className = 'rb-burstglyph-star';
+    el.textContent = '✦';
+    f.appendChild(el);
+    setTimeout(() => el.remove(), 260);
+  }
 }
 // ===== Wave1: 攻撃演出(技クラス別の飛翔体→着弾) 2026-07-10 阿部さん「音とエフェクトを派手に」 =====
 // 技クラス判定: sound>punch>slash>bullet>wind>wave(波動)>bite>kick>物理汎用/特殊汎用(設計_バトル演出強化_2026-07-10.md の優先順)
@@ -2945,24 +3116,110 @@ function spawnBeam(from, to, cls, color, hitFrac){
 }
 // 攻撃側→対象側へ飛翔体/ビームを飛ばす。hit=trueなら着弾後にshake+クラス別ヒット音、false(外れ)なら
 // 途中でフェード+スカ音(ログの「外れた！」文言は変えず、演出だけ足す)。戻り値=飛翔にかかったms(着弾拍の同期用)
+// Wave2.5(2026-07-10 阿部さん最優先): 接触技(mv.contact===true。データ駆動・技名推測禁止)は
+// 飛翔体でなく本体クローンの突進(chargeFx)にする。非接触/mv不明は従来の飛翔体/ビームのまま。
 function attackFx(atkSide, tgtSide, mv, hit){
+  if (mv && mv.contact === true) return chargeFx(atkSide, tgtSide, mv, hit);
   const cls = moveClassOf(mv);
   const color = (S.typeColors() && mv && S.typeColors()[mv.type]) || '#9fb4d8';
   const from = fxPoint(atkSide), to = fxPoint(tgtSide);
   const hitFrac = hit ? 1 : 0.55;
   const dur = _RB_BEAM_CLS[cls] ? spawnBeam(from, to, cls, color, hitFrac) : spawnProjectile(from, to, cls, color, hitFrac);
-  if (hit) setTimeout(() => { fieldShake(); SE.hitClass(cls); }, dur);
+  if (hit) setTimeout(() => { fieldShake(1); SE.hitClass(cls); }, dur);
   else setTimeout(() => SE.miss(), Math.round(dur * 0.7));
   return dur;
 }
-// 軽い画面(盤面)シェイク。既存の被弾スプライトshake(rbShake)より控えめな振れ幅で#field全体に足す
-function fieldShake(){
+// ===== Wave2.5: 接触技=本体クローンの突進(設計_バトル演出強化_2026-07-10.md v2 ②章) =====
+// 本体は動かさずクローンをbody直下fixedで飛ばす(#f-側のzoom/scaleの割り戻し不要=安全策)。
+// 演出例外(交代/ひんしの割込み等)でも必ずクローン除去+本体visibility復帰する(保険タイマー併用)。
+function chargeFx(atkSide, tgtSide, mv, hit){
+  const cls = moveClassOf(mv);
+  const color = (S.typeColors() && mv && S.typeColors()[mv.type]) || '#9fb4d8';
+  const atkEl = $('f-' + atkSide);
+  const sp = atkEl && atkEl.querySelector('.sprite');
+  if (!sp || typeof sp.animate !== 'function'){
+    // 保険: クローン化できない環境は従来の飛翔体にフォールバック(技名推測はしない=クラス別演出は維持)
+    const from = fxPoint(atkSide), to = fxPoint(tgtSide);
+    const dur = spawnProjectile(from, to, cls, color, hit ? 1 : 0.55);
+    if (hit) setTimeout(() => { fieldShake(1); SE.hitClass(cls); }, dur); else setTimeout(() => SE.miss(), Math.round(dur * 0.7));
+    return dur;
+  }
+  const from = fxPoint(atkSide), to = fxPoint(tgtSide);
+  const hitFrac = hit ? 0.92 : 0.70;
+  const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
+  const back = (dx >= 0 ? -1 : 1) * 10;   // アンティシペーション: 相手と逆方向へ少し引く
+  const r = sp.getBoundingClientRect();
+  const clone = sp.cloneNode(true);
+  clone.className = 'rb-chargeclone';
+  clone.style.width = r.width + 'px';
+  clone.style.height = r.height + 'px';
+  clone.style.left = r.left + 'px';
+  clone.style.top = r.top + 'px';
+  document.body.appendChild(clone);
+  sp.style.visibility = 'hidden';   // display:noneは使わない(レイアウト/fxPointを保持=盤面が崩れない)
+  let done = false;
+  const cleanup = () => { if (done) return; done = true; try { clone.remove(); } catch (e) {} sp.style.visibility = ''; };
+  const safety = setTimeout(cleanup, 900);   // 例外(交代等の割込み)でも必ず盤面を復帰させる保険
+  const returnHome = () => {
+    clearTimeout(safety);
+    try {
+      const anim = clone.animate([
+        { transform: `translate(${dx}px, ${dy}px)`, opacity: hit ? 1 : 0.4 },
+        { transform: 'translate(0,0)', opacity: 1 },
+      ], { duration: 200, easing: 'cubic-bezier(0,0,.2,1)' });
+      anim.onfinish = cleanup; anim.oncancel = cleanup;
+    } catch (e) { cleanup(); }
+    setTimeout(cleanup, 260);   // onfinish不発の保険
+  };
+  const onImpact = () => {
+    if (hit){
+      burstFx(tgtSide, color, cls, 'normal');
+      const icon = _RB_CLS_ICON[cls];
+      if (icon) popText(tgtSide, icon, null, 26);
+      SE.hitClass(cls);
+      fieldShake(1);
+      knockbackFx(tgtSide, dx, dy);
+      // ヒットストップ簡易版: 帰還アニメの開始を60-80ms遅らせる(周辺演出は止めない)
+      setTimeout(returnHome, 60 + Math.round(Math.random() * 20));
+    } else {
+      SE.miss();
+      returnHome();
+    }
+  };
+  try {
+    const anim = clone.animate([
+      { transform: `translate(${back}px,0)`, offset: 0 },
+      { transform: `translate(${dx * 0.6}px, ${dy * 0.6 - 18}px)`, offset: 0.72 },
+      { transform: `translate(${dx}px, ${dy}px)`, offset: 1, opacity: hit ? 1 : 0.4 },
+    ], { duration: 230, easing: 'cubic-bezier(.4,0,1,1)' });
+    anim.onfinish = onImpact; anim.oncancel = cleanup;
+  } catch (e) { cleanup(); return 0; }
+  return 230;   // dur=着弾までの経過ms(こうか/きゅうしょ行の同拍合流に使う既存の_hitFxDelay契約を維持)
+}
+// 被弾ノックバック(Wave2.5 S級): 攻撃方向へ一瞬押されて弾む。.fighter(外側)に掛けるので
+// .sprite側のrbShake/squash&stretchアニメ(別要素)と衝突しない
+function knockbackFx(side, dx, dy){
+  const f = $('f-' + side);
+  if (!f) return;
+  const cls = side === 'self' ? 'rb-knockback-self' : 'rb-knockback-opp';
+  f.classList.remove(cls);
+  void f.offsetWidth;
+  f.classList.add(cls);
+  setTimeout(() => f.classList.remove(cls), 280);
+}
+// 軽い画面(盤面)シェイク。既存の被弾スプライトshake(rbShake)より控えめな振れ幅で#field全体に足す。
+// mag(Wave2.5 S級・強弱スケール): 1.0=通常/1.6=ばつぐん・急所(durationも1.5倍)/0.5=いまひとつ級の弱打
+function fieldShake(mag){
   const f = $('field');
   if (!f) return;
+  const m = mag != null ? mag : 1;
+  f.style.setProperty('--shake-mag', m);
   f.classList.remove('rb-shake');
   void f.offsetWidth;
+  const dur = m > 1 ? 420 : (m < 1 ? 200 : 280);
+  f.style.animationDuration = dur + 'ms';
   f.classList.add('rb-shake');
-  setTimeout(() => f.classList.remove('rb-shake'), 320);
+  setTimeout(() => { f.classList.remove('rb-shake'); f.style.animationDuration = ''; }, dur + 40);
 }
 // ===== Wave2: 状態演出のヘルパー =====
 // ランク変化: 緑↑/紫↓の粒子(段数で個数)+上昇/下降スイープ音
@@ -3004,6 +3261,79 @@ function screenFlash(color, mega){
   el.className = '';
   void el.offsetWidth;
   el.className = mega ? 'mega' : 'on';
+}
+// ===== Wave3: メガシンカ儀式演出(設計_バトル演出強化_2026-07-10.md v2 ③章・特例1.5-2.0s) =====
+// 「収束→シルエット→爆発」の3拍構造。戻り値=総dur(_megaFxDelayとしてnextSayの自動送りをホールドする)。
+// 全エフェクトは#f-側内にappend(側スケールの影響はサイズ係数側で吸収)。エンジン状態は読まない(行検知のみ)。
+function megaFx(side){
+  const f = $('f-' + side);
+  if (!f) return 0;
+  const DUR = 1700;
+  screenFlash('#835BA5', true);   // t=0: 紫オーバーレイ(既存rbMega keyframeを流用)
+  setTimeout(() => {   // t=200: 光柱
+    const pillar = document.createElement('div');
+    pillar.className = 'rb-mega-pillar';
+    f.appendChild(pillar);
+    setTimeout(() => pillar.remove(), 480);
+  }, 200);
+  setTimeout(() => {   // t=300: 収束する発光玉×5(ポケモン周囲→中心)
+    for (let i = 0; i < 5; i++){
+      const orb = document.createElement('div');
+      orb.className = 'rb-mega-orb';
+      const ang = (Math.PI * 2 / 5) * i;
+      orb.style.setProperty('--ox', Math.cos(ang) * 70 + 'px');
+      orb.style.setProperty('--oy', Math.sin(ang) * 70 + 'px');
+      f.appendChild(orb);
+      setTimeout(() => orb.remove(), 420);
+    }
+  }, 300);
+  const sp = f.querySelector('.sprite');
+  setTimeout(() => { if (sp) sp.classList.add('rb-mega-silhouette'); }, 500);   // t=500: シルエット化
+  // t=700: スプライト差し替えは呼び出し元(renderAll)に任せる(変身の瞬間を見せない=見た目はシルエットのまま)
+  setTimeout(() => {   // t=900: 爆発(収束玉→拡散)+虹リング+桃霧玉
+    if (sp) sp.classList.remove('rb-mega-silhouette');
+    burstFx(side, '#ffd96b', null, 'up');
+    const ring = document.createElement('div');
+    ring.className = 'rb-mega-ring';
+    f.appendChild(ring);
+    setTimeout(() => ring.remove(), 520);
+    for (let i = 0; i < 4; i++){
+      const mist = document.createElement('div');
+      mist.className = 'rb-mega-mist';
+      mist.style.left = (30 + Math.random() * 40) + '%';
+      mist.style.top = (20 + Math.random() * 40) + '%';
+      f.appendChild(mist);
+      setTimeout(() => mist.remove(), 500);
+    }
+  }, 900);
+  setTimeout(() => fieldShake(1.6), 1000);   // t=1000: filter解除+shake
+  setTimeout(() => {   // t=1300: 仕上げ(独自のDNA型シンボル・公式アセット複製なし)
+    const dna = document.createElement('div');
+    dna.className = 'rb-mega-dna';
+    dna.textContent = '✦';
+    f.appendChild(dna);
+    setTimeout(() => dna.remove(), 260);
+  }, 1300);
+  // 全要素は各自のtimeoutで一括remove(失敗しても盤面を壊さない=class常駐なし)
+  return DUR;
+}
+// ===== Wave3: 壁パネル(リフレクター/ひかりのかべ/オーロラベール・設計 v2 ③-2章) =====
+// 持続は#f-側へのclass付与でCSS管理(::before/::afterの平行四辺形パネル)=renderAll等の再描画に耐える。
+// 交代・ひんしでは消さない(壁は側に付く)。新バトル初期化時のみstartBattle()側でclass除去する。
+const _WALL_CLASS = { リフレクター: 'rb-wall-reflect', ひかりのかべ: 'rb-wall-screen', オーロラベール: 'rb-wall-veil' };
+function showWallFx(side, name){
+  const f = $('f-' + side), cls = _WALL_CLASS[name];
+  if (!f || !cls) return;
+  f.classList.remove(cls);
+  void f.offsetWidth;
+  f.classList.add(cls);   // 再付与でCSSのpop込みkeyframeを再生(一瞬強く光って薄く常駐)
+  tone('triangle', 660, 0.1, 0.14, 880);
+  tone('triangle', 880, 0.12, 0.12, null, ac().currentTime + 0.05);
+}
+function hideWallFx(side, name){
+  const f = $('f-' + side), cls = _WALL_CLASS[name];
+  if (!f || !cls) return;
+  f.classList.remove(cls);
 }
 const _WEATHER_FX = {sun: ['☀️', '#3a2c14'], rain: ['💧', '#14263a'], sand: ['🌪️', '#34290f'], snow: ['❄️', '#1a2a3c']};
 function setWeatherFx(kind){
@@ -3083,21 +3413,29 @@ function lineWithFx(msg){
       const atkSide = atkLine[1] ? 'opp' : 'self';
       const tgt = atkSide === 'self' ? 'opp' : 'self';
       lastTgt = tgt;
+      let _tgtMax = null;
       if (hpM){
-        const max = hpM[2] ? +hpM[2] : (S.realStat(S.sides[tgt], 'hp') || 1);
-        setHpBar(tgt, +hpM[1], max);   // 1発ごとにターゲット側のバーを減らす
+        _tgtMax = hpM[2] ? +hpM[2] : (S.realStat(S.sides[tgt], 'hp') || 1);
+        setHpBar(tgt, +hpM[1], _tgtMax);   // 1発ごとにターゲット側のバーを減らす
       }
       const mv = (S.sides[atkSide].moves || []).find(m => m && m.name === atkLine[2]);
       const _atkColor = mv ? (S.typeColors()[mv.type] || '#9fb4d8') : '#9fb4d8';
+      const _atkCls = moveClassOf(mv);
+      // 接触技(chargeFx)は着弾拍でburst/popText/hit揺れを自前で鳴らす(本体クローンが飛ぶ)ので、
+      // 非接触(飛翔体/ビーム)側だけこのsetTimeoutで従来どおり重ねる(重複演出防止)
+      const _isContact = mv && mv.contact === true;
       flash(atkSide, atkSide === 'self' ? 'lunge-self' : 'lunge-opp');
-      // Wave1: 技クラス別の飛翔体→着弾に合わせてburst/ダメージ数字/shake/ヒット音を鳴らす(攻撃演出強化・2026-07-10)
+      // Wave1/2.5: 技クラス別の飛翔体(または接触技=突進クローン)→着弾に合わせてburst/ダメージ数字/shake/ヒット音
       const _atkDur = attackFx(atkSide, tgt, mv, true);
       _hitFxDelay = _atkDur;   // 直後に合流する「こうかは…」「きゅうしょ」行も同じ拍に重ねる(2026-06-07の同拍方針を維持)
+      const d = msg.match(/(?:に|合計) (\d+) ダメージ/);
+      // Wave3 A級: ダメージ%で被弾リアクションを強弱(小=hit/大=hit-big=スカッシュ&ストレッチ係数1.4)
+      const _hpPct = (d && _tgtMax) ? (+d[1] / _tgtMax) : 0;
+      const _hitCls = _hpPct >= 0.28 ? 'hit-big' : 'hit';
       setTimeout(() => {
-        burstFx(tgt, _atkColor);
-        const d = msg.match(/(?:に|合計) (\d+) ダメージ/);
+        if (!_isContact) burstFx(tgt, _atkColor, _atkCls, 'normal');
         if (d) popText(tgt, '−' + d[1], '#fff');
-        flash(tgt, 'hit');
+        flash(tgt, _hitCls);
       }, _atkDur);
     } else {
       // ② スリップ系の残HP行(やけど/すなあらし/さめはだ等): 主語側が減る
@@ -3160,9 +3498,11 @@ function lineWithFx(msg){
       if (/みがわりは こわれた！/.test(msg)) setSpriteSub(side, false);   // 壊れたら元のポケモンに戻る
     }
     // ③ こうか・急所(直前のダメージ対象に重ねる。Wave1の飛翔体着弾と同じ拍になるよう_hitFxDelay分だけ揃える)
-    if (msg === 'こうかは ばつぐんだ！'){ setTimeout(() => { screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18); SE.superEff(); }, _hitFxDelay); }
+    // Wave2.5 S級: ばつぐん/急所は多層バースト追加+fieldShake強化(--shake-mag 1.6・duration1.5倍)で増量。
+    // いまひとつは増量しない(全攻撃で最大演出はインフレ禁止=設計原則)
+    if (msg === 'こうかは ばつぐんだ！'){ setTimeout(() => { screenFlash('#ffffff'); popText(lastTgt || 'opp', 'ばつぐん!', '#fbbf24', 18, 'se'); SE.superEff(); fieldShake(1.6); if (lastTgt) spawnBurstParticles($('f-' + lastTgt), '#fbbf24', 6); }, _hitFxDelay); }
     else if (msg === 'こうかは いまひとつのようだ…'){ setTimeout(() => { popText(lastTgt || 'opp', 'いまひとつ…', '#8b94a7', 13); SE.weak(); }, _hitFxDelay); }
-    else if (msg === 'きゅうしょに あたった！'){ setTimeout(() => { screenFlash('#ffd96b'); popText(lastTgt || 'opp', '急所!', '#ff8866', 17); SE.crit(); }, _hitFxDelay); }
+    else if (msg === 'きゅうしょに あたった！'){ setTimeout(() => { screenFlash('#ffd96b'); popText(lastTgt || 'opp', '急所!', '#ff8866', 17, 'crit'); SE.crit(); fieldShake(1.6); if (lastTgt) spawnBurstRing($('f-' + lastTgt), '#ff8866'); }, _hitFxDelay); }
     // ④ 状態異常・こんらん: 絵文字を浮かべる
     // メロメロ(段139)の演出
     if (/メロメロに なった！/.test(msg)){ popText(msg.includes('相手の') ? 'opp' : 'self', '💕', null, 26); renderAll(); }
@@ -3245,11 +3585,20 @@ function lineWithFx(msg){
     if (/メガシンカした！/.test(msg)){
       const mgSide = subjOpp ? 'opp' : 'self';
       if (window._idSnap) _idSnap[mgSide] = S.sides[mgSide].poke;   // メガの姿はこの拍から表示
-      screenFlash('#ffd96b', true);
-      renderAll();
-      flash(subjOpp ? 'opp' : 'self', 'enter');
+      // Wave3: 儀式演出(収束→シルエット→爆発・特例1.5-2.0s)。dur戻り値で次行のsay自動送りをホールドする
+      const _mDur = megaFx(mgSide);
+      _megaFxDelay = _mDur;
+      setTimeout(() => { renderAll(); flash(mgSide, 'enter'); }, 700);   // t=700: シルエットのうちにスプライト差し替え(変身の瞬間を見せない)
       SE.mega();
     }
+    // Wave3: 壁パネル(リフレクター/ひかりのかべ/オーロラベール)の出し入れ。エンジン状態は読まずログ行だけで判定
+    const wallUpM = msg.match(/^(相手の )?\S+ の場に (リフレクター|ひかりのかべ|オーロラベール) が 張られた！$/);
+    if (wallUpM) showWallFx(wallUpM[1] ? 'opp' : 'self', wallUpM[2]);
+    const wallDownM = msg.match(/^(相手の )?\S+ の場の (リフレクター|ひかりのかべ|オーロラベール) の効果が なくなった！$/);
+    if (wallDownM) hideWallFx(wallDownM[1] ? 'opp' : 'self', wallDownM[2]);
+    // 技で壊された場合の文言は常に「相手の場の…」表記(既存の他fx同様、subjOpp慣習=「相手の」接頭で側を読む)
+    const wallBreakM = msg.match(/^相手の場の (リフレクター|ひかりのかべ|オーロラベール) が こわれて消えた！$/);
+    if (wallBreakM) hideWallFx('opp', wallBreakM[1]);
     // バトルスイッチ(ギルガルド): フォルムチェンジでスプライト・能力表示を更新
     if (/フォルム チェンジ！/.test(msg)){
       const side = msg.includes('相手の') ? 'opp' : 'self';
