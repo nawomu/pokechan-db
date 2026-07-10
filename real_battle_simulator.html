@@ -1638,16 +1638,18 @@ function calcDamage(atkSide, defSide, move, opts){
   });
   if (eff === 0){
     const hp = realStat(def, 'hp');
+    // 純タイプ無効(0倍)→ 標準無効文(no_effect_t にマッチ=即翻訳される)
     return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
-            immune:true, reason:'こうかなし', recoil:0};
+            immune:true, reason:`${pname(def)} には こうかが ないようだ…`, recoil:0};
   }
   // ふしぎなまもり: こうかばつぐん(相性>1)の攻撃技しか受けない(Bulbapedia "Wonder Guard")。
   // わるあがきは貫通・かたやぶり系は特性ごと無視(defAbilityVsが無効化済みの名前を返さない)。
   // 状態異常技/天候等の間接ダメージは対象外(ここは攻撃技のダメージ計算のみ)
   if (eff <= 1 && defAbilityVs(def, atk) === 'ふしぎなまもり' && move.name !== 'わるあがき'){
     const hp = realStat(def, 'hp');
+    // ふしぎなまもり: 標準無効文＋理由(no_effect_ability にマッチ)
     return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
-            immune:true, reason:'ふしぎなまもり', recoil:0};
+            immune:true, reason:`${pname(def)} には こうかが ないようだ…（とくせい ふしぎなまもりのため）`, recoil:0};
   }
   // 浮いている相手にじめん技はこうかなし(段123: ふゆう/でんじふゆう=isGrounded基準に統一。
   // ひこうタイプは相性表(eff=0)で処理済み。じゅうりょく/ねをはるはisGroundedが打ち消す)
@@ -1656,9 +1658,13 @@ function calcDamage(atkSide, defSide, move, opts){
     const _isLevitate = sideAbility(def) === 'ふゆう' && !(def.magnetRise > 0);
     if (!(_isLevitate && _BREAKER.includes(sideAbility(atk)))){
       const hp = realStat(def, 'hp');
-      const why = _isLevitate ? 'ふゆうで 浮いている' : 'でんじふゆうで 浮いている';
+      // 浮いている相手にじめん技は無効→標準無効文＋理由
+      //  ふゆう(特性)=no_effect_ability / でんじふゆう(状態)=no_effect_levitate_state
+      const reason = _isLevitate
+        ? `${pname(def)} には こうかが ないようだ…（とくせい ふゆうのため）`
+        : `${pname(def)} には こうかが ないようだ…（でんじふゆうで 浮いているため）`;
       return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
-              immune:true, reason:`こうかなし(${why})`, recoil:0};
+              immune:true, reason, recoil:0};
     }
   }
   // タイプ吸収/無効の特性(受け側・段111・ABILITY_DESC公式準拠)。おまけ(回復/ランク/もらいび)は phaseDealDamage 側で発動
@@ -1670,8 +1676,9 @@ function calcDamage(atkSide, defSide, move, opts){
         || (_dAb === 'ぼうだん' && move.flags && (move.flags.bullet || move.flags.ball))   // ぼうだん(段134): 弾の技を無効化
         || (_dAb === 'ぼうじん' && move.flags && move.flags.powder)){   // ぼうじん: 粉技(flags.powder)を完全無効(Bulbapedia "Overcoat")
       const hp = realStat(def, 'hp');
+      // タイプ吸収/無効特性→標準無効文＋理由(no_effect_ability にマッチ)。おまけ発動は absorbAb で phaseDealDamage 側へ
       return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
-              immune:true, reason:`${pname(def)} は ${_dAb}で 効かない`, absorbAb:_dAb, recoil:0};
+              immune:true, reason:`${pname(def)} には こうかが ないようだ…（とくせい ${_dAb}のため）`, absorbAb:_dAb, recoil:0};
     }
   }
 
@@ -2664,7 +2671,8 @@ function phaseDealDamage(atkSide, defSide, move){
   // たくわえ消費(はきだす): 撃ったら(こうかなしでも)たくわえは消え、上がったランクも戻る
   if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(sides[atkSide]);
   if (result.immune){
-    log('8', `${result.reason}！`);
+    // reason は完結した無効文(「…」/「）」で終わる)なのでそのまま出す(no_effect_* にマッチ=翻訳される)
+    log('8', result.reason);
     // ばけのかわ(第8世代): 皮が剥がれて最大HPの1/8ダメージ+以後は素通し(2026-07-07 阿部さん)
     if (result.disguiseBlock){
       const _d = sides[defSide];

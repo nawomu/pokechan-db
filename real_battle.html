@@ -563,6 +563,16 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   border:1px solid #2a3450;border-radius:12px;padding:9px 12px;font-size:11px;line-height:1.55;color:#e6edf3;
   box-shadow:0 4px 14px #0008;pointer-events:none}
 #watch-panel .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466;margin-left:3px}
+/* 弱点パネル(左側オーバーレイ): 相手への18タイプ相性を3区分で表示(2026-07-08 B1・watch-panel踏襲) */
+#weak-panel{position:absolute;left:14px;top:52px;bottom:auto;z-index:12;display:none;max-width:260px;background:#1a1f2e55;
+  border:1px solid #ffffff22;border-radius:12px;padding:9px 12px;font-size:11.5px;color:#eef2fb;cursor:pointer;
+  backdrop-filter:blur(2px);box-shadow:0 2px 8px #0004;text-shadow:0 1px 2px #0007}
+#weak-panel .wp-row{margin:3px 0;line-height:1.5}
+#weak-panel .wp-row b{color:#9ec5ff}
+#weak-panel .wp-types{display:flex;flex-wrap:wrap;gap:4px;margin-top:3px}
+#weak-panel .wp-t{display:inline-block;font-size:9px;padding:2px 7px;border-radius:9px;color:#fff;
+  box-shadow:0 1px 2px #0007;border:1px solid #ffffff55;position:relative}
+#weak-panel .wp-m{font-size:8.5px;font-weight:800;color:#fde68a;margin-left:3px}
 #moves button{position:relative;padding:3px 14px 3px 12px;border-radius:18px;border:2px solid #ffffff33;
   background:linear-gradient(135deg,#4638aeee,#6a5be0ee);color:#fff;text-align:left;cursor:pointer;
   font-family:inherit;box-shadow:0 3px 8px #0006;
@@ -763,6 +773,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
       </div>
       <div id="moves"></div>
       <div id="watch-panel"></div>
+      <div id="weak-panel"></div><!-- 弱点ボタン用: 相手へのタイプ相性パネル(2026-07-08 B1) -->
       <div id="mv-tip"></div><!-- 技の説明ON時のホバー説明フロート(2026-07-06 阿部さん)。タッチではmouseleave無し=タップ/行動で消す -->
       <div id="party"></div>
     </div>
@@ -834,7 +845,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260707" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260708" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -939,6 +950,8 @@ const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_C
     } catch(e) {}
   }
   if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} }
+  // 弱点/様子パネルは開くたびに最新言語で再生成する設計=言語切替時は一旦閉じて古い言語を残さない(B1)
+  ['weak-panel', 'watch-panel'].forEach(id => { const _p = document.getElementById(id); if (_p) _p.style.display = 'none'; });
   // つぎの相手ボタンは動的生成=data-bl-src対象外。言語切替で作り直す(2026-07-06 阿部さん)
   const _nb = document.getElementById('c-next');
   if (_nb && _nb.dataset.streak != null){
@@ -1824,14 +1837,18 @@ function setSpriteSub(side, on){
   if (on){ spriteEl.innerHTML = substituteSpriteHtml(); spriteEl.dataset.shown = 'SUB:' + shown.name; }
   else { spriteEl.innerHTML = spriteHtml(shown); spriteEl.dataset.shown = spriteSrc + ':' + shown.name; }
 }
-function spriteHtml(poke){
+function spriteHtml(poke, st){
   const color = (S.typeColors()[poke.type1]) || '#3a4660';
   // 仮アイコンには「ポケモン名」を出す(タイプ名だと名前と紛らわしい=2026-06-12 阿部さん指摘)
   const short = poke.name.length > 6 ? poke.name.slice(0, 6) : poke.name;
-  const enc = encodeURIComponent(poke.name);
+  // ばけのかわが剥がれたミミッキュは「ばれたすがた」(首カクン絵/公式id 10143)で描く(2026-07-10 阿部さん)。
+  // st.disguise は登場でtrue・剥がれてfalse(エンジン)。未定義(他ポケ)は===falseにならない
+  const _BUSTED = { 'ミミッキュ': { ja: 'ばれたすがた', apiId: '10143' } };
+  const _bust = (st && st.disguise === false && _BUSTED[poke.name]) ? _BUSTED[poke.name] : null;
+  const enc = encodeURIComponent(_bust ? _bust.ja : poke.name);
   // APIモード: 対応表(sprite_api_ids.js=フォーム/メガ込み274体)にある名前はPokeAPI画像。
   // ローカルpoke画像→PokeAPI本家→自作SVG→サークルの順でフォールバック
-  const _apiId = apiIdOf(poke.name);
+  const _apiId = _bust ? _bust.apiId : apiIdOf(poke.name);
   if (spriteSrc === 'home' && _apiId){
     const n = _apiId;
     return `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${n}.png" alt="" style="display:none;height:150px" data-step="0"
@@ -1868,9 +1885,9 @@ function renderAll(){
     // 画像ソース設定(spriteSrc)が変わった時は作り直す
     const spriteEl = f.querySelector('.sprite');
     const subActive = (st.subHp || 0) > 0;   // みがわり中は人形のすがた(2026-07-06 阿部さん)
-    const shownKey = (subActive ? 'SUB' : spriteSrc) + ':' + shown.name;
+    const shownKey = (subActive ? 'SUB' : spriteSrc) + ':' + shown.name + (st.disguise === false ? ':busted' : '');
     if (spriteEl.dataset.shown !== shownKey){
-      spriteEl.innerHTML = subActive ? substituteSpriteHtml() : spriteHtml(shown);
+      spriteEl.innerHTML = subActive ? substituteSpriteHtml() : spriteHtml(shown, st);
       spriteEl.dataset.shown = shownKey;
     }
     // 名前はへんしん中も自分の名前(実機のニックネーム表示準拠=すがたは変身先・名前はメタモン)
@@ -2088,6 +2105,7 @@ function showMoves(){
   $('cmd').style.display = 'none';
   $('party').style.display = 'none';        // 相互排他(重なるとクリックが食われて固まる=2026-07-06)
   $('watch-panel').style.display = 'none';
+  $('weak-panel').style.display = 'none';
   const mv = $('moves');
   mv.style.display = 'flex';   // CH: 縦カプセルリスト
   const ppOf = i => (st.pp ? st.pp[i] : null);
@@ -2125,6 +2143,7 @@ function showMoves(){
   const detailOn = localStorage.getItem('rb_move_detail') === 'on';
   const statsBtn = `<div class="mv-top">` +
     `<button class="watch-open">${I18N.t('real_battle.watch_button','👀 様子を見る')}</button>` +
+    `<button class="weak-open">${I18N.t('real_battle.weakness_button','🎯 弱点')}</button>` +
     `<button class="desc-toggle${detailOn ? ' on' : ''}">${I18N.t('real_battle.movedesc_button','📖 技の説明')}</button>` +
     `<button class="stats-open">⚙</button></div>`;
   // メガシンカ=技リストの左横の丸ボタン(実機のRボタン位置=2026-07-06 阿部さん)。使える時だけ出す
@@ -2195,6 +2214,7 @@ function showMoves(){
     $('mv-tip').style.display = 'none';   // タップで説明フロートを消す(タッチでmouseleaveが来ないため)
     if (b.classList.contains('stats-open')){ openStatsModal(); return; }
     if (b.classList.contains('watch-open')){ toggleWatchPanel(b); return; }
+    if (b.classList.contains('weak-open')){ toggleWeaknessPanel(b); return; }   // 相手へのタイプ相性(B1)
     if (b.classList.contains('desc-toggle')){
       localStorage.setItem('rb_move_detail', localStorage.getItem('rb_move_detail') === 'on' ? 'off' : 'on');
       showMoves(); return;
@@ -2209,6 +2229,7 @@ function showParty(forced){
   $('cmd').style.display = 'none';
   $('moves').style.display = 'none';        // 相互排他
   $('watch-panel').style.display = 'none';
+  $('weak-panel').style.display = 'none';
   const pt = $('party');
   pt.style.display = 'flex';   // CH: 縦カプセルリスト(選出画面の青カプセル準拠)
   // S5: 交代画面ボタン Showdown準拠デザイン(09_switch準拠)
@@ -2295,6 +2316,7 @@ function openStatsModal(){
 function toggleWatchPanel(btn){
   const w = $('watch-panel');
   if (w.style.display === 'block'){ w.style.display = 'none'; return; }
+  $('weak-panel').style.display = 'none';   // 弱点パネルとは排他(同じ位置に出す)
   // 左上の非常口ボタン(btn-exit)の真下に出す(2026-07-06 阿部さん)。zoom補正あり
   const fr = $('field').getBoundingClientRect();
   const ratio = fr.height / 360;
@@ -2326,6 +2348,77 @@ function toggleWatchPanel(btn){
   w.style.display = 'block';
   w.onclick = () => { w.style.display = 'none'; };
 }
+// 弱点パネル(2026-07-08 B1): 相手の場のポケモンに対する18タイプ相性を
+// こうかばつぐん / いまひとつ / こうかなし の3区分で表示。toggleWatchPanel を踏襲(位置・zoom補正・クリックで閉じる)。
+// 倍率は calcDamage('self','opp',ダミー技) の immune/eff-up/eff-down で「特性込み」を優先し、
+// 例外/非反応時は typeEffPreview(素相性)にフォールバック(ベストエフォート・spec§2準拠)。
+function toggleWeaknessPanel(btn){
+  const w = $('weak-panel');
+  if (w.style.display === 'block'){ w.style.display = 'none'; return; }
+  $('watch-panel').style.display = 'none';   // 様子を見るパネルとは排他(同じ位置に出す)
+  // 左上の非常口ボタン(btn-exit)の真下に出す(zoom補正あり・toggleWatchPanelと同じ位置計算)
+  const fr = $('field').getBoundingClientRect();
+  const ratio = fr.height / 360;
+  const ex = $('btn-exit');
+  const topPx = ex ? Math.round((ex.getBoundingClientRect().bottom - fr.top) / ratio) + 8 : 52;
+  w.style.top = topPx + 'px'; w.style.bottom = 'auto'; w.style.left = '14px'; w.style.right = 'auto';
+
+  const opp = S.sides.opp;
+  // 相手の実効タイプ(sideTypes優先・無ければポケモン素タイプ)
+  const defTypes = (S.sideTypes && opp && opp.poke) ? S.sideTypes(opp)
+    : (opp && opp.poke ? [opp.poke.type1, opp.poke.type2].filter(Boolean) : []);
+  const tc = (S.typeColors && S.typeColors()) || (typeof TYPE_COLORS !== 'undefined' ? TYPE_COLORS : {});
+  const TYPES18 = (typeof TYPES !== 'undefined') ? TYPES : [];
+
+  // 相手が場にいない/入替中=無害に(空メッセージ)
+  if (!opp || !opp.poke || !defTypes.length){
+    w.innerHTML = `<div class="wp-row">${I18N.t('real_battle.weakness_empty','あいては いないようだ')}</div>`;
+    w.style.display = 'block';
+    w.onclick = () => { w.style.display = 'none'; };
+    return;
+  }
+
+  // 18タイプそれぞれについて相手への倍率を計算(特性込み優先→素相性フォールバック)
+  const buckets = { super: [], weak: [], none: [] };
+  TYPES18.forEach(atkType => {
+    let eff = 1, immune = false;
+    try {
+      const dummy = { name: '__weakness', type: atkType, category: '物理', power: 40 };
+      const r = S.calcDamage ? S.calcDamage('self', 'opp', dummy) : null;
+      if (r && r.immune){ immune = true; }
+      else if (r && Array.isArray(r.chips)){
+        const c = r.chips.find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
+        if (c) eff = c.factor;
+        else { eff = S.typeEffPreview ? S.typeEffPreview(atkType, defTypes) : 1; if (eff === 0) immune = true; }
+      } else {
+        eff = S.typeEffPreview ? S.typeEffPreview(atkType, defTypes) : 1; if (eff === 0) immune = true;
+      }
+    } catch(e){
+      eff = S.typeEffPreview ? S.typeEffPreview(atkType, defTypes) : 1; immune = eff === 0;
+    }
+    const mult = immune ? 0 : eff;
+    const col = tc[atkType] || '#3a4660';
+    const badge = `<span class="wp-t" style="background:${col}">${tTypeName(atkType)}</span>`;
+    if (mult === 0){
+      buckets.none.push(badge);
+    } else if (mult > 1){
+      const m = mult >= 4 ? I18N.t('real_battle.weakness_4x','4倍') : `×${mult}`;
+      buckets.super.push(`${badge}<span class="wp-m">${m}</span>`);
+    } else if (mult < 1){
+      const m = mult <= 0.25 ? I18N.t('real_battle.weakness_quarter','1/4') : `×${mult}`;
+      buckets.weak.push(`${badge}<span class="wp-m">${m}</span>`);
+    }   // ×1(等倍)は省略
+  });
+
+  const section = (title, arr) => arr.length
+    ? `<div class="wp-row"><b>${title}</b><div class="wp-types">${arr.join('')}</div></div>` : '';
+  w.innerHTML =
+    section(I18N.t('real_battle.weakness_title_super','こうかばつぐん'), buckets.super) +
+    section(I18N.t('real_battle.weakness_title_weak','いまひとつ'), buckets.weak) +
+    section(I18N.t('real_battle.weakness_title_none','こうかなし'), buckets.none);
+  w.style.display = 'block';
+  w.onclick = () => { w.style.display = 'none'; };
+}
 function toggleMega(){
   const st = S.sides.self;
   if (st.megaChoice){ st.megaChoice = false; }
@@ -2338,7 +2431,7 @@ function doTurn(moveIdx){
   if (busy || gameOver) return;
   if (S.sides.self.fainted) return;   // 死に出しの選択待ち中はターンを進めない
   // 行動が決まったらまずメニューをパッと消す(2026-07-06 阿部さん)
-  ['cmd', 'moves', 'party', 'watch-panel', 'mv-tip'].forEach(id => { $(id).style.display = 'none'; });
+  ['cmd', 'moves', 'party', 'watch-panel', 'weak-panel', 'mv-tip'].forEach(id => { $(id).style.display = 'none'; });
   const self = S.sides.self, opp = S.sides.opp;
   if (moveIdx != null) self.selectedMoveIdx = moveIdx;
   // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
@@ -2615,6 +2708,15 @@ function lineWithFx(msg){
     if (/ばけのかわが はがれた！$/.test(msg)){
       const side = msg.startsWith('相手の') ? 'opp' : 'self';
       screenFlash('#ffffff'); popText(side, '👻 ばけのかわ！', '#d0b0ff', 15); flash(side, 'hit'); SE.status();
+      // 剥がれた拍で「ばれたすがた」(首カクン)へ即差し替え(renderAllを待たない=2026-07-10 阿部さん)。
+      // エンジンは1ターン分計算済み=st.disguiseは既にfalseなのでspriteHtmlがばれた絵を返す
+      const _st = S.sides[side], _f = $('f-' + side);
+      const _spr = _f && _f.querySelector('.sprite');
+      if (_st && _st.poke && _spr && !((_st.subHp || 0) > 0)){
+        const _shown = _st.illusionAs || _st.poke;
+        _spr.innerHTML = spriteHtml(_shown, _st);
+        _spr.dataset.shown = spriteSrc + ':' + _shown.name + ':busted';
+      }
     }
     // ②c みがわり: 出現で人形化・被弾でエフェクト・破壊で元のすがたに戻す(2026-07-06 阿部さん)
     const subAppear = msg.match(/^(相手の )?\S+ の みがわりが あらわれた！/);
