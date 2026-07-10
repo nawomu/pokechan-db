@@ -1371,11 +1371,13 @@ function renderEvEditor(container, ctx){
   const maxFor = k => Math.min(32, 66 - (total - eff[k]));
   const tmp = S.makeSideState();
   tmp.poke = ctx.poke; tmp.effort = eff; tmp.natureIdx = S.natureIdxOf(natureName);
-  const natFx = n => n[1] !== '—' ? ` (${EV_LETTER[n[1]]}↑${EV_LETTER[n[2]]}↓)` : '';
+  // 性格表記=名前をやめて補正だけ(2026-07-10 阿部さん「ずぶとい→B↑A↓だけでいい」)。補正なし(がんばりや等)=±0。
+  // 名前はtitle(ホバー)に残す
+  const natFx = n => n[1] !== '—' ? `${EV_LETTER[n[1]]}↑${EV_LETTER[n[2]]}↓` : '±0';
   const curNat = S.natureList().find(n => n[0] === natureName) || ['まじめ','—','—'];
   container.classList.toggle('full', total >= 66);
   container.innerHTML =
-    `<div class="sd-ev-top"><button class="sd-nature sd-pick">${tNature(natureName)}${natFx(curNat)} ▾</button>` +
+    `<div class="sd-ev-top"><button class="sd-nature sd-pick" title="${tNature(natureName)}">${natFx(curNat)} ▾</button>` +
     `<span class="sd-ev-budget"><b>${total}</b>/66</span>` +
     `<button class="sd-ev-reset">${I18N.t('buttons.reset','リセット')}</button></div>` +
     EFFORT_KEYS.map(k => {
@@ -3204,7 +3206,8 @@ function onlineInitUI(){
   $('online-start').addEventListener('click', onlineHostStart);
 }
 function esc2(s){ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
-window.addEventListener('load', onlineInitUI);
+// オンライン対戦UIは撤去(2026-07-10 阿部さん: リアルバトル=1人用に一本化。オンラインは online_battle.html へ)
+// window.addEventListener('load', onlineInitUI);
 </script>
 </body>
 </html>

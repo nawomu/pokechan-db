@@ -786,7 +786,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 
   <!-- チーム編成(オンライン専用: 左=バトルチーム6体/中央=選択中の詳細/右=常設ボックス。相手列UIは無し=2026-07-10) -->
   <div id="setup">
-    <h2 data-i18n="online_battle.setup_heading">バトルチーム(6体)を右のボックスから えらんで、下の 🌐ロビー で たいせんしよう！(技は自動セット・くわしい編成は真ん中のパネルでOK)</h2>
+    <h2 data-i18n="online_battle.setup_heading">バトルチーム(3〜6体)を右のボックスから えらんで、下の 🌐ロビー で たいせんしよう！(技は自動セット・くわしい編成は真ん中のパネルでOK)</h2>
     <!-- 人数セレクタ(#team-size)は廃止=常に6体固定(オンラインはフルバトル・2026-07-10) -->
     <div id="setup-cols">
       <div id="setup-left">
@@ -1569,11 +1569,13 @@ function renderEvEditor(container, ctx){
   const maxFor = k => Math.min(32, 66 - (total - eff[k]));
   const tmp = S.makeSideState();
   tmp.poke = ctx.poke; tmp.effort = eff; tmp.natureIdx = S.natureIdxOf(natureName);
-  const natFx = n => n[1] !== '—' ? ` (${EV_LETTER[n[1]]}↑${EV_LETTER[n[2]]}↓)` : '';
+  // 性格表記=名前をやめて補正だけ(2026-07-10 阿部さん「ずぶとい→B↑A↓だけでいい」)。補正なし(がんばりや等)=±0。
+  // 名前はtitle(ホバー)に残す
+  const natFx = n => n[1] !== '—' ? `${EV_LETTER[n[1]]}↑${EV_LETTER[n[2]]}↓` : '±0';
   const curNat = S.natureList().find(n => n[0] === natureName) || ['まじめ','—','—'];
   container.classList.toggle('full', total >= 66);
   container.innerHTML =
-    `<div class="sd-ev-top"><button class="sd-nature sd-pick">${tNature(natureName)}${natFx(curNat)} ▾</button>` +
+    `<div class="sd-ev-top"><button class="sd-nature sd-pick" title="${tNature(natureName)}">${natFx(curNat)} ▾</button>` +
     `<span class="sd-ev-budget"><b>${total}</b>/66</span>` +
     `<button class="sd-ev-reset">${I18N.t('buttons.reset','リセット')}</button></div>` +
     EFFORT_KEYS.map(k => {
@@ -1908,8 +1910,11 @@ function decorateBoxPreview(){
   btn.textContent = I18N.t('online_battle.box_preview_add', '⚔ えらんでいる わくに いれる');
   btn.addEventListener('click', e => {
     SE.select();
-    if (!selectedSlot || selectedSlot[0] !== 's' || !previewName) return;
-    // 埋まっている枠へは「いれかえる？」確認を挟む(2026-07-10 阿部さん)。空き枠は即配置
+    if (!previewName) return;
+    // 「バトルチームに くわえる」(2026-07-10 阿部さん): 空き枠があればそこへ。満員なら選択中の枠へ(入れ替え確認)
+    const empty = selfIds().find(id => !slotVal[id]);
+    if (empty){ placePreviewTo(empty); return; }
+    if (!selectedSlot || selectedSlot[0] !== 's') return;
     if (slotVal[selectedSlot] && slotVal[selectedSlot] !== previewName) openSwapConfirm(e.currentTarget, selectedSlot);
     else placePreviewTo(selectedSlot);
   });
@@ -3497,11 +3502,11 @@ async function onlineConnectRoom(room, name){
   RB_ONLINE.active = true;
   if (RBOnline.peerPresent) onlineSendTeamOnce();
 }
-function teamComplete(){ return selfIds().every(id => slotVal[id]); }   // 空き枠あり=対戦に出られない(2026-07-10)
+function teamComplete(){ return selfIds().filter(id => slotVal[id]).length >= 3; }   // 最低3体でOK(本家準拠・2026-07-10 阿部さん)。選出で3体えらぶので3体未満は不可
 async function onlineConnect(){   // あいことば(P1)経路: ロビー内の🔑フォームから
   const room = ($('online-room') && $('online-room').value || '').trim();
   const name = LOBBY.name || 'Player';
-  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームを 6体 そろえてね')); return; }
+  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
   if (!room){ onlineStatus(_olT('online_need_room', 'あいことばを いれてね')); return; }
   try {
     if (LOBBY.joined){ try { RBOnline.lobbySet({ st: 'code', partner: null, room: null }); } catch (e2) {} }   // 🟢あいことば待ち表示
@@ -3552,7 +3557,12 @@ function onlineApplyOppTeam(d){
   if (d.size && d.size !== teamSize){ teamSize = d.size; renderTeamRows(); }   // オンライン専用=セレクタ無し(6固定同士なら通常起きない)
   selfIds().forEach((sid, i) => {
     const oid = oppIds()[i]; if (!oid) return;
-    const nm = d.val[sid]; if (!nm || !S.pokeByName(nm)) return;
+    const nm = d.val[sid];
+    if (!nm || !S.pokeByName(nm)){   // 3〜5体チーム: 空きスロットは相手側でも空にする(旧データ残り防止)
+      slotVal[oid] = null;
+      if ($(oid)) $(oid).innerHTML = slotCapsuleHtml(oid);
+      return;
+    }
     slotItem[oid] = d.item && d.item[sid] != null ? d.item[sid] : 'mega_stone_any';
     slotGender[oid] = (d.gender && d.gender[sid]) || genderOfRB(nm);
     slotNature[oid] = (d.nature && d.nature[sid]) || 'まじめ';
@@ -3959,7 +3969,7 @@ function renderLobbyList(){
 // 待っている人を選んで挑戦(2026-07-10 阿部さん)。自分がready(waiting)でなくてもOK
 function lobbyChallenge(target){
   if (LOBBY.matching || (window.RB_ONLINE && RB_ONLINE.active)) return;
-  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームを 6体 そろえてね')); return; }
+  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
   const me = myLobbyId(); if (!me || !target || target.id === me) return;
   const room = 'm_' + [me, target.id].sort().join('_');
   RBOnline.lobbySet({ st: 'matched', partner: target.id, room: room });
@@ -3973,7 +3983,7 @@ function lobbySyncReadyBtn(){
 function lobbyToggleReady(){
   SE.select();
   if (LOBBY.matching) return;
-  if (!LOBBY.ready && !teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームを 6体 そろえてね')); return; }
+  if (!LOBBY.ready && !teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
   LOBBY.ready = !LOBBY.ready;
   RBOnline.lobbySet(LOBBY.ready ? { st: 'waiting', since: Date.now(), partner: null, room: null } : { st: 'idle', partner: null, room: null });
   lobbySyncReadyBtn();
