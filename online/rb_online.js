@@ -192,6 +192,63 @@
     state.peerId = null;
   }
 
+  // ===================================================================
+  // ★P2: 公開ロビー(Presenceのみ・2026-07-10)
+  // 全員が 'pcham_lobby' チャンネルの presence に {id,name,st,since,partner,room} を載せる。
+  //   st: 'idle'(見てるだけ) | 'waiting'(準備OK=対戦待ち) | 'matched'(相手確定→部屋へ移動中)
+  // マッチングはクライアント側で決定的に計算(waiting列をsince順に並べ隣同士をペア)。
+  // 片方が 'matched'(partner=相手id, room)を載せれば、相手はそれを見て同じ部屋へ来られる
+  // (=同期タイミングのレースでも取りこぼさない)。部屋は既存のconnect(P1と同じ仕組み)。
+  // ===================================================================
+  var lobby = { channel: null, joined: false, name: null, last: null, rev: 0 };
+  function lobbyJoin(displayName, onState) {
+    ensureClient();
+    state.myId = myClientId();
+    lobby.name = String(displayName || 'Player').slice(0, 12);
+    if (lobby.channel) return Promise.resolve();
+    var ch = sb.channel('pcham_lobby', { config: { presence: { key: state.myId } } });
+    lobby.channel = ch;
+    ch.on('presence', { event: 'sync' }, function () {
+      var st = ch.presenceState();
+      var members = [];
+      Object.keys(st || {}).forEach(function (k) {
+        // ★再track(状態更新)すると同じキーの配列に旧metaが残り新metaが追加される
+        //   → rev(track毎に増えるカウンタ)最大のmetaを採用。arr[0]だと古い状態を読み続けてマッチしない
+        var e = null;
+        (st[k] || []).forEach(function (m) {
+          if (m && m.id && (!e || (m.rev || 0) > (e.rev || 0) || ((m.rev || 0) === (e.rev || 0) && (m.since || 0) >= (e.since || 0)))) e = m;
+        });
+        if (e) members.push({ id: e.id, name: e.name, st: e.st || 'idle', since: e.since || 0, partner: e.partner || null, room: e.room || null });
+      });
+      try { (onState || function () {})(members); } catch (e) {}
+    });
+    return new Promise(function (resolve, reject) {
+      ch.subscribe(function (status) {
+        if (status === 'SUBSCRIBED') {
+          lobby.rev = 1;
+          lobby.last = { id: state.myId, name: lobby.name, st: 'idle', since: Date.now(), rev: 1 };
+          ch.track(lobby.last).then(function () { lobby.joined = true; resolve(); });
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          reject(new Error('lobby ' + status));
+        }
+      });
+    });
+  }
+  function lobbySet(fields) {   // st/since/partner/room の部分更新(トラック載せ替え)
+    if (!lobby.channel || !lobby.joined) { try { console.warn('[lobby] set skipped (not joined)'); } catch (e) {} return; }
+    lobby.last = Object.assign({}, lobby.last || { id: state.myId, name: lobby.name }, fields || {}, { rev: ++lobby.rev });
+    try {
+      return lobby.channel.track(lobby.last).then(function (res) {
+        if (res !== 'ok') { try { console.warn('[lobby] track result:', res); } catch (e) {} }
+        return res;
+      });
+    } catch (e) { try { console.warn('[lobby] track error:', e && e.message); } catch (e2) {} }
+  }
+  function lobbyLeave() {
+    try { if (lobby.channel) { lobby.channel.untrack(); sb.removeChannel(lobby.channel); } } catch (e) {}
+    lobby.channel = null; lobby.joined = false; lobby.last = null;
+  }
+
   global.RBOnline = {
     connect: connect,
     disconnect: disconnect,
@@ -205,6 +262,10 @@
     sendFaintReplace: function (benchIdx, seed) { send('faintReplace', { benchIdx: benchIdx, seed: seed }); },
     resign: function () { send('resign', {}); },
     ping: function () { send('ping', {}); },
+    lobbyJoin: lobbyJoin,
+    lobbySet: lobbySet,
+    lobbyLeave: lobbyLeave,
+    get lobbyState() { try { return lobby.channel ? lobby.channel.presenceState() : null; } catch (e) { return null; } },
     get role() { return state.role; },
     get connected() { return state.connected; },
     get peerPresent() { return state.peerPresent; },

@@ -64,15 +64,15 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #box-search-row{display:flex;gap:6px;align-items:center}
 #box-q{flex:1 1 auto;min-width:0;box-sizing:border-box;background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;
   padding:0 9px;height:28px;font-size:12px;font-family:inherit}
-#box-typef-toggle{flex:0 0 auto;height:28px;padding:0 9px;font-size:11px;font-weight:800;color:#fff;background:#5a4fa0;
+#box-typef-toggle,#box-sort-toggle{flex:0 0 auto;height:28px;padding:0 9px;font-size:11px;font-weight:800;color:#fff;background:#5a4fa0;
   border:1px solid #6a4fc4;border-radius:8px;cursor:pointer;font-family:inherit;white-space:nowrap}
-#box-typef-toggle.on{background:#7a5fd0;border-color:#d4f542}
-#box-typef{display:none;flex-wrap:wrap;gap:3px}
-#box-typef.open{display:flex}
-#box-typef button{font-size:9.5px;font-weight:800;color:#fff;border-radius:7px;padding:2px 6px;border:1px solid #ffffff44;
+#box-typef-toggle.on,#box-sort-toggle.on{background:#7a5fd0;border-color:#d4f542}
+#box-typef,#box-sort{display:none;flex-wrap:wrap;gap:3px}
+#box-typef.open,#box-sort.open{display:flex}
+#box-typef button,#box-sort button{font-size:9.5px;font-weight:800;color:#fff;border-radius:7px;padding:2px 6px;border:1px solid #ffffff44;
   cursor:pointer;font-family:inherit;opacity:.72;line-height:1.3}
-#box-typef button.on{opacity:1;box-shadow:0 0 0 2px #d4a4ff;border-color:#d4f542}
-#box-typef button.tf-all{background:#5a4fa0}
+#box-typef button.on,#box-sort button.on{opacity:1;box-shadow:0 0 0 2px #d4a4ff;border-color:#d4f542}
+#box-typef button.tf-all,#box-sort button{background:#5a4fa0}
 /* ボックス本体=本家風の高密度グリッド(4〜5列・正方形マス・スプライトのみ+名前。タイプバッジはマスから撤去=2026-07-10) */
 #box-grid{max-height:440px;overflow-y:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:5px;padding:2px}
 #box-grid button{background:linear-gradient(150deg,#4a3a8a,#3a2d70);border:1px solid #6a4fc4;border-radius:8px;color:#fff;
@@ -81,7 +81,11 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #box-grid button img{width:30px;height:30px;object-fit:contain}
 #box-grid .bx-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 #box-grid button:hover:not(.used){border-color:#d4f542;box-shadow:0 0 0 2px #d4f54255}
-#box-grid button.used{opacity:.35;cursor:default;filter:grayscale(.5)}
+/* チーム内の種=薄表示。もう一度タップでその枠を空ける(本家トグル=2026-07-10)ためクリック可・ホバーは赤系 */
+#box-grid button.used{opacity:.45;cursor:pointer;filter:grayscale(.4)}
+#box-grid button.used:hover{opacity:.8;border-color:#ff7a63;box-shadow:0 0 0 2px #ff7a6355}
+/* ビルド済み(技/能力値等をいじって記憶あり)=黄色っぽいマスで判別(2026-07-10 阿部さん) */
+#box-grid button.memo{background:linear-gradient(150deg,#8a7a2e,#6a5a22);border-color:#e8c84a}
 .team-row{display:flex;flex-direction:column;gap:8px}
 .team-row .tlabel{display:none}
 /* 本家風カプセル: 自分=青紫/相手=クリムゾン・選択中=黄緑発光カーソル
@@ -103,6 +107,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .team-row .slot .cap-mid{display:flex;flex-direction:column;gap:2px;min-width:0;grid-column:1;grid-row:2/4;justify-content:center}
 .team-row .slot .cap-name{font-size:13px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .team-row .slot .cap-item{font-size:12px;color:#ffffffdd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:flex;align-items:center;gap:4px;font-weight:700}
+.team-row .slot .cap-noitem{color:#ffe14d}/* 持ち物なしは黄色で目立たせる(2026-07-10 阿部さん) */
+.team-row .slot .cap-empty{grid-column:1/3;grid-row:1/5;justify-self:center;align-self:center;font-size:34px;font-weight:900;color:#ffffff66}/* 空き枠の＋(本家風) */
 .team-row .slot .item-ic{width:18px;height:18px;object-fit:contain;image-rendering:pixelated}
 .team-row .slot .cap-g{margin-left:4px;font-size:11px}
 .team-row .slot .cap-types{min-height:14px}
@@ -150,6 +156,30 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #sel-detail .sd-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;background:transparent;
   padding:1px 2px;margin-top:6px;gap:8px}/* 二重枠をやめて一重に=薄い外箱を廃止(2026-07-07 阿部さん) */
 #sel-detail .sd-row span{color:#ffffffbb}
+/* キャラ画像=見本つき3ボタン(中央列の下・2026-07-10 阿部さん) */
+#sprite-src-btns{margin-top:10px}
+#sprite-src-btns .ssb-label{font-size:12px;font-weight:800;color:#6a5fa0;margin-bottom:6px}
+#sprite-src-btns .ssb-row{display:flex;gap:8px}
+#sprite-src-btns .ssb-row button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px 6px;
+  background:#fff;border:2px solid #c9c3e6;border-radius:12px;cursor:pointer;font-family:inherit;font-size:10.5px;font-weight:800;color:#4a4470;
+  transition:border-color .12s,box-shadow .12s}
+#sprite-src-btns .ssb-row button img{width:46px;height:46px;object-fit:contain}
+#sprite-src-btns .ssb-row button:hover{border-color:#8a82c8}
+#sprite-src-btns .ssb-row button.on{border-color:#7ac142;box-shadow:0 0 0 3px #d4f54277;background:#f4ffdd}
+/* ★入れ替え確認ポップオーバー+ボックスプレビュー(2026-07-10 阿部さん) */
+#swap-pop{position:absolute;z-index:70;width:240px;background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #6a5be0;
+  border-radius:12px;padding:10px 12px;box-shadow:0 10px 30px #00000055;font-size:13px;color:#3a3552}
+#swap-pop .sp-q{font-weight:800;margin-bottom:8px;line-height:1.5}
+#swap-pop .sp-btns{display:flex;gap:8px}
+#swap-pop .sp-btns button{flex:1;padding:7px 0;border-radius:14px;border:0;font-weight:800;font-size:12.5px;cursor:pointer;font-family:inherit}
+#swap-pop .sp-yes{background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff}
+#swap-pop .sp-no{background:#cfc9ea;color:#4a4470}
+#swap-pop .sp-btns button:hover{box-shadow:0 0 0 2px #d4f542}
+#sel-detail.bx{border:2px dashed #d4a4ff}
+#sel-detail .sd-bxbar{font-size:11px;font-weight:800;color:#ffe9a8;background:#00000038;border-radius:9px;padding:5px 9px;margin-bottom:8px;line-height:1.5}
+#sel-detail .sd-bxadd{display:block;width:100%;margin-top:10px;padding:10px 0;border-radius:16px;border:2px solid #ffffff55;cursor:pointer;
+  font-weight:900;font-size:14px;font-family:inherit;background:linear-gradient(90deg,#d4f542,#aee830);color:#2d2a54;box-shadow:0 3px 10px #0005}
+#sel-detail .sd-bxadd:hover{border-color:#fff}
 /* 3カラムは横向きでは維持(iPhone横=844≒デスクトップ838で見やすい)。縦積みは縦持ちのみ(縦持ちは横向き案内が出る) */
 @media(max-width:880px) and (orientation:portrait){
   #setup-cols{grid-template-columns:1fr}
@@ -705,14 +735,24 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 
   <!-- チーム編成(オンライン専用: 左=バトルチーム6体/中央=選択中の詳細/右=常設ボックス。相手列UIは無し=2026-07-10) -->
   <div id="setup">
-    <h2 data-i18n="online_battle.setup_heading">バトルチーム(6体)を右のボックスから えらんで、下の 🌐オンライン対戦 で あいことばを 入力しよう！(技は自動セット・⚙くわしく編成で変更OK)</h2>
+    <h2 data-i18n="online_battle.setup_heading">バトルチーム(6体)を右のボックスから えらんで、下の 🌐ロビー で たいせんしよう！(技は自動セット・くわしい編成は真ん中のパネルでOK)</h2>
     <!-- 人数セレクタ(#team-size)は廃止=常に6体固定(オンラインはフルバトル・2026-07-10) -->
     <div id="setup-cols">
       <div id="setup-left">
         <div class="col-title self" data-i18n="online_battle.team_header">バトルチーム</div>
         <div class="team-row" id="row-self"></div>
       </div>
-      <div id="setup-center"><div id="sel-detail"></div></div>
+      <div id="setup-center"><div id="sel-detail"></div>
+        <!-- キャラ画像=見本つき3ボタン(2026-07-10 阿部さん: セレクトでなくピカチュウ見本をタップで切替・中央の空きへ配置) -->
+        <div id="sprite-src-btns">
+          <div class="ssb-label" data-i18n="real_battle.sprite_src_label">キャラ画像:</div>
+          <div class="ssb-row">
+            <button type="button" data-v="original"><img src="images/sim/%E3%83%94%E3%82%AB%E3%83%81%E3%83%A5%E3%82%A6.svg" alt=""><span data-i18n="real_battle.sprite_src_original_short">うちの絵</span></button>
+            <button type="button" data-v="api"><img src="images/poke/25.png" alt="" style="image-rendering:pixelated"><span data-i18n="real_battle.sprite_src_api_short">公式ドット</span></button>
+            <button type="button" data-v="home"><img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/25.png" alt=""><span data-i18n="real_battle.sprite_src_home_short">公式3D</span></button>
+          </div>
+        </div>
+      </div>
       <div id="setup-right">
         <!-- 相手列(o1..)は内部データ構造だけ温存(setSlot('o1'..)がinnerHTMLを書ける先が必要)。UIは出さないのでdisplay:none -->
         <div class="col-title opp" style="display:none" data-i18n="real_battle.team_label_opp">相手</div>
@@ -721,25 +761,20 @@ body.in-battle #game,body.in-battle header{max-width:990px}
              クリックで選択中のチームスロット(selectedSlot)にセット(setSlot流用)。チーム内同種は薄く+クリック無効 -->
         <div class="col-title box" data-i18n="real_battle.box_title">📦 ボックス</div>
         <div id="box-panel">
+          <!-- 公式ボックス風の2ボタン=フィルター(タイプ絞り込み)+ソート(並び替え)(2026-07-10 阿部さん) -->
           <div id="box-search-row">
             <input id="box-q" placeholder="なまえで さがす(ひらがなでもOK)…" data-i18n-attr="placeholder:real_battle.pp_search_placeholder">
-            <button id="box-typef-toggle" type="button">🔍 <span data-i18n="table.type">タイプ</span> ▾</button>
+            <button id="box-typef-toggle" type="button"><span data-i18n="real_battle.box_filter_btn">フィルター</span> ▾</button>
+            <button id="box-sort-toggle" type="button"><span data-i18n="real_battle.box_sort_btn">ソート</span> ▾</button>
           </div>
           <div id="box-typef"></div>
+          <div id="box-sort"></div>
           <div id="box-grid"></div>
         </div>
       </div>
     </div>
     <!-- CH: 能力値エディタは中央パネル(#sel-detail)下段に一体化(2026-07-05 阿部さん「くっつけて・名前/適用なし」) -->
-    <!-- CH: キャラ画像ソース(バトル前にも選べる=2026-07-05 阿部さん)。バトル中の#sprite-srcと同期 -->
-    <div style="margin-top:10px;font-size:12px;color:#6a5fa0;display:flex;gap:8px;align-items:center">
-      <span data-i18n="real_battle.sprite_src_label">キャラ画像:</span>
-      <select id="sprite-src-setup" style="background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;padding:4px 8px">
-        <option value="original" data-i18n="real_battle.sprite_src_original">うちのオリジナル絵</option>
-        <option value="api" data-i18n="real_battle.sprite_src_api">公式風スプライト(PokeAPI)</option>
-        <option value="home" data-i18n="real_battle.sprite_src_home">公式3D(Pokémon HOME)</option>
-      </select>
-    </div>
+    <!-- キャラ画像セレクトは中央列の見本つき3ボタン(#sprite-src-btns)に移設(2026-07-10 阿部さん) -->
     <div class="btns">
       <button class="sub" id="btn-random" data-i18n="real_battle.btn_random">🎲 おまかせ編成</button>
       <button id="btn-start" data-i18n="real_battle.btn_start">▶ バトルスタート！</button>
@@ -990,7 +1025,12 @@ const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_C
       if ($('poke-picker').style.display === 'flex'){ renderPickerTypeChips(); renderPickerList($('pp-q').value); }
       if ($('move-picker').style.display === 'flex' && movePick){ renderMoveCatChips(); renderMovePickList($('mp-q').value); }
       // ★オンライン専用: 常設ボックスパネルも言語切替で作り直す(タイプ名/ポケモン名/「すべて」表記が追従)
-      if ($('box-grid')){ renderBoxTypeChips(); renderBoxGrid($('box-q') ? $('box-q').value : ''); syncBoxHeight(); }
+      if ($('box-grid')){ renderBoxTypeChips(); renderBoxSortChips(); renderBoxGrid($('box-q') ? $('box-q').value : ''); syncBoxHeight(); }
+      // ★ロビーパネル(JS組み立て)も言語切替で作り直す(部屋接続後は状態を壊さないので触らない)
+      if ($('online-panel') && !(window.RB_ONLINE && RB_ONLINE.active)){
+        if (LOBBY.joined){ renderLobbyMain(); lobbySyncReadyBtn(); if (LOBBY.ready) onlineStatus(_olT('online_lobby_wait_status', 'あいてを まっています…')); }
+        else renderLobbyEntry();
+      }
     } catch(e) {}
   }
   if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} }
@@ -1065,14 +1105,54 @@ let pickerSlot = null;
 let movePick = null;   // {slotId, idx} わざモーダルの編集先
 // ひらがな→カタカナ(検索用正規化。「ぴかちゅう」でピカチュウにヒット)
 const toKata = s => s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
+// ★種ごとのビルド記憶(2026-07-10 阿部さん「入れ替えたら能力値がリセットされる→記憶して」)
+// チームから外しても技/特性/持ち物/性別/性格/努力値を種名キーで保持し、再度入れたら復元する。
+// ボックス側のプレビュー編集(bx仮スロット)もここに保存。localStorage(rb_species_memo_online)で永続化。
+let speciesMemo = {};
+function loadSpeciesMemo(){ try { speciesMemo = JSON.parse(localStorage.getItem('rb_species_memo_online') || '{}') || {}; } catch (e){ speciesMemo = {}; } }
+function saveSpeciesMemo(){ try { localStorage.setItem('rb_species_memo_online', JSON.stringify(speciesMemo)); } catch (e) {} }
+function captureSpecies(id){   // 保存はしない(呼び出し側でsaveSpeciesMemo)
+  const nm = slotVal[id]; if (!nm) return;
+  const memo = { moves: (slotMoves[id] || []).map(m => m && m.name).filter(Boolean), item: slotItem[id] || null,
+    ability: slotAbility[id] || null, gender: slotGender[id] || null, nature: slotNature[id] || 'まじめ',
+    effort: Object.assign({}, slotEffort[id] || {}) };
+  // 「いじったビルドか」を判定(既定=技自動/まじめ/努力値0/汎用メガストーン/既定特性 から1つでも変えていればtrue)。
+  // ボックスのマスを黄色っぽくして判別する材料(2026-07-10 阿部さん)
+  const poke = S.pokeByName(nm);
+  const evTouched = Object.values(memo.effort).some(v => v > 0);
+  const autoNames = poke ? autoMoves(poke).map(m => m && m.name).filter(Boolean) : [];
+  const movesTouched = memo.moves.join('|') !== autoNames.join('|');
+  memo.custom = evTouched || movesTouched || memo.nature !== 'まじめ'
+    || (memo.item && memo.item !== 'mega_stone_any')
+    || (poke && memo.ability !== defaultAbilityRB(poke));
+  speciesMemo[nm] = memo;
+}
+function applySpeciesMemo(id, name){
+  const m = speciesMemo[name]; const poke = S.pokeByName(name);
+  if (!m || !poke) return false;
+  const all = S.usableMoves(poke);
+  const mvs = (m.moves || []).map(n => all.find(x => x.name === n)).filter(Boolean);
+  slotMoves[id] = mvs.length ? mvs : autoMoves(poke);
+  slotItem[id] = m.item || slotItem[id] || 'mega_stone_any';
+  slotGender[id] = m.gender || genderOfRB(name);
+  slotNature[id] = m.nature || 'まじめ';
+  slotEffort[id] = clampEffortRB(m.effort || {});
+  slotAbility[id] = (m.ability && [poke.ab1, poke.ab2, poke.ab3].includes(m.ability)) ? m.ability : defaultAbilityRB(poke);
+  return true;
+}
 function setSlot(id, name, keepCustom){
   name = FORM_REVERT[name] || name;   // 変身でしか出ない姿は始動の姿に矯正(イルカマン=ナイーブ/ギルガルド=シールド)
+  if (id[0] === 's' && slotVal[id] && slotVal[id] !== name){ captureSpecies(id); saveSpeciesMemo(); }   // 出ていく種のビルドを記憶
   slotVal[id] = name;
-  if (!keepCustom) slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
-  if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
-  if (!keepCustom || !slotGender[id]) slotGender[id] = genderOfRB(name);   // 性別(ビルダー由来は復元側でセット)
-  if (!keepCustom){ slotNature[id] = 'まじめ'; slotEffort[id] = ZERO_EV(); }   // 手動選択は無補正・努力値0
-  if (!keepCustom || !slotAbility[id]) slotAbility[id] = defaultAbilityRB(S.pokeByName(name));   // ポケモンを変えたら特性も既定に
+  // 手動選択(=keepCustomなし)でも、その種のビルド記憶があれば復元する(リセットさせない)
+  const restored = (!keepCustom && id[0] === 's') ? applySpeciesMemo(id, name) : false;
+  if (!restored){
+    if (!keepCustom) slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
+    if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
+    if (!keepCustom || !slotGender[id]) slotGender[id] = genderOfRB(name);   // 性別(ビルダー由来は復元側でセット)
+    if (!keepCustom){ slotNature[id] = 'まじめ'; slotEffort[id] = ZERO_EV(); }   // 手動選択は無補正・努力値0
+    if (!keepCustom || !slotAbility[id]) slotAbility[id] = defaultAbilityRB(S.pokeByName(name));   // ポケモンを変えたら特性も既定に
+  }
   $(id).innerHTML = slotCapsuleHtml(id);
   if (typeof selectedSlot !== 'undefined' && selectedSlot === id) renderSelDetail(id);
   saveTeam();
@@ -1082,30 +1162,28 @@ let selectedSlot = 's1';
 // カプセルの中身(名前+持ち物+スプライト+変更ボタン)。スプライトはキャラ画像設定に追従
 function slotCapsuleHtml(id){
   const nm = slotVal[id];
-  if (!nm) return `<span class="cap-txt"><strong>—</strong></span>`;
+  if (!nm) return `<span class="cap-empty">＋</span>`;   // 空き枠=本家風の＋(ボックスから選んでタップで配置)
   const it = S.itemByKey(slotItem[id]);
-  const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
-  const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
+  const src = setupSpriteSrc(nm, true);   // カプセルは大きい画像=homeモードで3D(2026-07-10)
   const p = S.pokeByName(nm);
   const tc = S.typeColors();
   const g = slotGender[id];
   const gHtml = g && g !== '—' ? `<span class="cap-g ${g === '♂' ? 'm' : 'f'}">${g}</span>` : '';
   const types = p ? [p.type1, p.type2].filter(Boolean).map(t =>
     `<span class="cap-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('') : '';
-  const capSide = id[0] === 's' ? 'self' : 'opp';
-  const leadHtml = leadSlot[capSide] === id
-    ? `<span class="cap-lead on">★ ${I18N.t('real_battle.lead_label','1番目')}</span>`
-    : `<span class="cap-lead">${I18N.t('real_battle.lead_set','1番目に')}</span>`;
-  // 元のreal_battle由来デザインに復元(2026-07-10 阿部さん方針転換)。変更点は📦ボックス変更ボタンの撤去のみ
-  // (ボックスが右列に常設されたので不要=行クリックで選択→右の常設ボックスからセット)
+  // 「1番目に」バッジは撤去(2026-07-10 阿部さん: オンラインは選出画面で3体の順番を決めるので不要。leadSlotは内部既定=s1のまま)
+  // 持ち物未選択は空欄でなく「もちもの なし」を黄色字で明示(2026-07-10 阿部さん)
+  const itemHtml = it ? itemIconHtml(it) + tItemName(it)
+    : `<span class="cap-noitem">${I18N.t('real_battle.item_none_option','もちもの なし')}</span>`;
   return `<strong class="cap-name">${tPokeName(nm)}${gHtml}</strong>` +
     `<span class="cap-mid"><span class="cap-types">${types}</span>` +
-    `<small class="cap-item">${it ? itemIconHtml(it) + tItemName(it) : ''}</small></span>` +
-    `<img src="${src}" alt="" onerror="this.remove()">` +
-    leadHtml;
+    `<small class="cap-item">${itemHtml}</small></span>` +
+    `<img src="${src}" alt="" onerror="this.remove()">`;
 }
 function setSelectedSlot(id){
   selectedSlot = id;
+  previewName = null; delete slotVal['bx'];   // チーム枠クリックでボックスプレビュー解除
+  closeSwapConfirm();
   document.querySelectorAll('.team-row .slot').forEach(b => b.classList.toggle('selected', b.id === id));
   renderSelDetail(id);   // 中央パネル(能力値エディタ込み)を選択中スロットに追従
   // ★オンライン専用: 選択中スロットが変わったら常設ボックスの「使用済み(薄く)」判定も引き直す
@@ -1176,7 +1254,7 @@ function openChoiceModal(title, groups, onPick, anchor){
 }
 // 同サイドの他スロットが使用中の持ち物キー(1種類1個ルール用。メガストーンは除外)
 function usedItemsRB(id){
-  const sib = (id[0] === 's' ? selfIds() : oppIds()).filter(x => x !== id);
+  const sib = (id[0] === 'o' ? oppIds() : selfIds()).filter(x => x !== id);   // 'bx'(ボックスプレビュー)は自分側扱い
   return new Set(sib.map(x => slotItem[x]).filter(k => k && k !== 'mega_stone_any'));
 }
 // 読込/おまかせ後の重複持ち物を矯正(先勝ち・後のスロットは汎用メガストーンへ)
@@ -1248,6 +1326,7 @@ function renderSelDetail(id){
   if (!box) return;
   // 相手スロット選択中はパネルを相手色(クリムゾン)に(どちら側を見ているか一目で分かるように=2026-07-05 阿部さん)
   box.classList.toggle('opp', String(id).startsWith('o'));
+  box.classList.toggle('bx', id === 'bx');   // ボックスプレビュー中は破線枠で区別
   const nm = slotVal[id];
   if (!nm){ box.innerHTML = `<div class="sd-empty">${I18N.t('real_battle.sel_empty','ポケモンを えらんでね')}</div>`; return; }
   const p = S.pokeByName(nm);
@@ -1258,8 +1337,7 @@ function renderSelDetail(id){
   const curAb = slotAbility[id] || defaultAbilityRB(p);
   const abilities = [p.ab1, p.ab2, p.ab3].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
   const mvs = (slotMoves[id] || autoMoves(p)).filter(Boolean);
-  const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
-  const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
+  const src = setupSpriteSrc(nm, true);   // 詳細パネルも大きい画像=homeモードで3D(2026-07-10)
   box.innerHTML =
     `<div class="sd-head"><img src="${src}" alt="" onerror="this.remove()"><div><strong>${tPokeName(nm)}</strong><div class="sd-types">${types}</div></div></div>` +
     `<div class="sd-moves">` + mvs.map((m, i) => {
@@ -1295,6 +1373,7 @@ function renderSelDetail(id){
       saveTeam(); renderSelDetail(id);
     }, e.currentTarget, usedItemsRB(id));
   });
+  if (id === 'bx') decorateBoxPreview();   // ボックスプレビュー装飾(帯+「わくに いれる」ボタン)は再描画のたび付け直す
 }
 // 編成の保存/復元(localStorage): ポケモン名・技名・持ち物キー・人数(リロードしても残る)
 // キーはreal_battle.html('rb_team')とは別の名前空間にする(オンラインは常に6体固定=teamSizeが食い違う事故を避ける)
@@ -1304,11 +1383,24 @@ function saveTeam(){
       moves: Object.fromEntries(Object.entries(slotMoves).map(([k, arr]) => [k, (arr || []).map(m => m && m.name)])) };
     localStorage.setItem('rb_team_online', JSON.stringify(data));
   } catch (e) {}
+  // ★種ビルド記憶を常に最新化(チーム内の編集も、bxプレビュー編集も、保存のたびmemoへ)
+  try {
+    selfIds().forEach(id => { if (slotVal[id]) captureSpecies(id); });
+    if (slotVal['bx']) captureSpecies('bx');
+    saveSpeciesMemo();
+    refreshBoxMemoTint();   // ボックスマスの「ビルド済み=黄色」を追従(classだけ更新=軽量)
+  } catch (e) {}
+}
+function refreshBoxMemoTint(){
+  const grid = $('box-grid'); if (!grid) return;
+  grid.querySelectorAll('button[data-n]').forEach(b =>
+    b.classList.toggle('memo', !!(speciesMemo[b.dataset.n] && speciesMemo[b.dataset.n].custom)));
 }
 function loadTeam(){
   try {
     const d = JSON.parse(localStorage.getItem('rb_team_online') || 'null');
-    if (!d || !d.val || !d.val.s1) return false;
+    // 空きスロット許容(本家トグルで枠を空けられる=2026-07-10)。自分側に1体も居ない保存だけ不採用
+    if (!d || !d.val || !selfIds().some(id => d.val[id] && S.pokeByName(d.val[id]))) return false;
     teamSize = 6;   // オンライン専用=常に6体固定(保存データのsizeは無視)
     leadSlot = {
       self: (d.lead && d.lead.self && selfIds().includes(d.lead.self)) ? d.lead.self : 's1',
@@ -1322,7 +1414,11 @@ function loadTeam(){
         const _base = d.val[id].replace(/^メガ/, '').replace(/[XY]$/, '');
         if (S.pokeByName(_base)) d.val[id] = _base;
       }
-      if (!d.val[id] || !S.pokeByName(d.val[id])) return;
+      if (!d.val[id] || !S.pokeByName(d.val[id])){   // 空き枠として復元(＋表示)
+        slotVal[id] = null;
+        if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
+        return;
+      }
       slotItem[id] = d.item && d.item[id] != null ? d.item[id] : 'mega_stone_any';
       slotGender[id] = (d.gender && d.gender[id]) || genderOfRB(d.val[id]);
       slotNature[id] = (d.nature && d.nature[id]) || 'まじめ';
@@ -1587,6 +1683,18 @@ function renderPickerList(query){
 // チーム内に既にいる種は選択肢から除外せず「薄く表示+クリック無効(used)」にする(2026-07-10)
 // ===================================================================
 let boxType = null;   // タイプ絞り込み(nullなら全タイプ)
+let boxSort = 'dex';  // 並び替え: 'dex'=ずかん順(既定) / 'name'=なまえ順(表示言語)。公式風ソートボタン(2026-07-10 阿部さん)
+function renderBoxSortChips(){
+  $('box-sort').innerHTML =
+    `<button data-s="dex" class="${boxSort === 'dex' ? 'on' : ''}">${I18N.t('real_battle.box_sort_dex','ずかん順')}</button>` +
+    `<button data-s="name" class="${boxSort === 'name' ? 'on' : ''}">${I18N.t('real_battle.box_sort_name','なまえ順')}</button>`;
+  $('box-sort').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    SE.select();
+    boxSort = b.dataset.s;
+    renderBoxSortChips();
+    renderBoxGrid($('box-q').value);
+  }));
+}
 function renderBoxTypeChips(){
   const tc = S.typeColors();
   const present = new Set();
@@ -1603,10 +1711,14 @@ function renderBoxTypeChips(){
   }));
 }
 function renderBoxGrid(query){
-  // 自分チーム(selectedSlot自身は除く)に既にいる種=クリック無効・薄く表示(1チーム1体ルール)
-  const used = new Set(selfIds().filter(id => id !== selectedSlot).map(id => slotVal[id]).filter(Boolean));
+  // 自分チームに既にいる種=薄く表示(タップでその枠を空けるトグル=本家挙動・2026-07-10)
+  const used = new Set(selfIds().map(id => slotVal[id]).filter(Boolean));
   let pokes = S.pokeList().filter(isPickable);
   if (boxType) pokes = pokes.filter(p => p.type1 === boxType || p.type2 === boxType);
+  if (boxSort === 'name'){   // 公式風ソート: ずかん順(既定)/なまえ順(表示言語で)
+    const lang = (window.I18N && I18N.lang) || 'ja';
+    pokes = pokes.slice().sort((a, b) => tPokeName(a.name).localeCompare(tPokeName(b.name), lang));
+  }
   const q = (query || '').trim();
   const k = toKata(q);
   const hits = k ? pokes.filter(p => p.name.includes(k) || p.name.includes(q)) : pokes;
@@ -1616,17 +1728,100 @@ function renderBoxGrid(query){
     const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[p.name] : null;
     const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${enc}.svg`;
     const isUsed = used.has(p.name);
+    const isCustom = !!(speciesMemo[p.name] && speciesMemo[p.name].custom);   // ビルド済み=黄色系マスで判別(2026-07-10 阿部さん)
     const dispName = tPokeName(p.name);
-    return `<button data-n="${p.name}" class="${isUsed ? 'used' : ''}"${isUsed ? ' disabled' : ''} title="${dispName}">` +
+    return `<button data-n="${p.name}" class="${isUsed ? 'used' : ''}${isCustom ? ' memo' : ''}" title="${dispName}">` +
       `<img loading="lazy" src="${src}" onerror="this.remove()">` +
       `<span class="bx-name">${dispName}</span></button>`;
   }).join('') || `<div style="grid-column:1/-1;color:#ffffffaa;padding:10px;text-align:center">${I18N.t('real_battle.poke_not_found','みつからない…')}</div>`;
-  $('box-grid').querySelectorAll('button:not(.used)').forEach(b => b.addEventListener('click', () => {
+  $('box-grid').querySelectorAll('button[data-n]').forEach(b => b.addEventListener('click', () => {
     SE.select();
-    if (!selectedSlot || selectedSlot[0] !== 's') return;   // 自分側の枠が選択中の時だけ受け付ける(相手枠はUI非表示なので通常起きない)
-    setSlot(selectedSlot, b.dataset.n);
-    renderBoxGrid($('box-q').value);   // セット直後、選んだ種が別枠でも使用済みなら薄く反映
+    const nm = b.dataset.n;
+    // ★本家挙動(2026-07-10 阿部さん): チームに居る種をボックスでタップ=その枠を空ける(トグル)
+    const inSlot = selfIds().find(id => slotVal[id] === nm);
+    if (inSlot){ removeFromTeam(inSlot); return; }
+    // チームに居ない種=すぐ入れず中央にプレビュー(パラメータ表示+ビルド編集)。配置は左スロットタップ or 投入ボタン
+    previewBoxPoke(nm);
   }));
+}
+// ===================================================================
+// ★ボックスプレビュー+配置/入れ替え(本家準拠・2026-07-10 阿部さん)
+// ボックスをクリック→中央にその子のパラメータ(bx仮スロット=ビルド編集可・speciesMemoに自動保存)。
+// プレビュー中に左の空きスロットをタップ=配置/埋まってるスロットをタップ=「いれかえる？」確認。
+// チームに居る種をボックスでタップ=その枠を空ける(トグル=本家挙動)。
+// ===================================================================
+let previewName = null;   // 中央パネルがボックスプレビュー表示中ならその種名
+function closeSwapConfirm(){ const el = $('swap-pop'); if (el) el.remove(); }
+function removeFromTeam(id){
+  captureSpecies(id); saveSpeciesMemo();   // 外す前にビルドを記憶(戻したら復元)
+  slotVal[id] = null;
+  $(id).innerHTML = slotCapsuleHtml(id);
+  if (selectedSlot === id) renderSelDetail(id);
+  saveTeam();
+  renderBoxGrid($('box-q') ? $('box-q').value : '');
+}
+function placePreviewTo(slotId){
+  const name = previewName; if (!name) return;
+  saveTeam();   // bxの最新編集をmemoへ(setSlotのapplySpeciesMemoで拾う)
+  previewName = null; delete slotVal['bx'];
+  setSlot(slotId, name);
+  setSelectedSlot(slotId);
+  renderBoxGrid($('box-q') ? $('box-q').value : '');
+}
+function openSwapConfirm(anchorEl, slotId){
+  closeSwapConfirm();
+  const cur = slotVal[slotId], name = previewName;
+  if (!name || cur === name) return;
+  const pop = document.createElement('div');
+  pop.id = 'swap-pop';
+  const q = I18N.t('online_battle.swap_confirm', '{a} ⇄ {b} いれかえる？')
+    .replace('{a}', tPokeName(cur || '—')).replace('{b}', tPokeName(name));
+  pop.innerHTML = `<div class="sp-q">${q}</div>` +
+    `<div class="sp-btns"><button class="sp-yes">${I18N.t('online_battle.swap_yes', 'いれかえる')}</button>` +
+    `<button class="sp-no">${I18N.t('online_battle.swap_no', 'やめる')}</button></div>`;
+  document.body.appendChild(pop);
+  const r = anchorEl.getBoundingClientRect();
+  const pw = 240;
+  pop.style.left = Math.max(8, Math.min(window.innerWidth - pw - 8, r.left + r.width / 2 - pw / 2 + window.scrollX)) + 'px';
+  pop.style.top = (r.bottom + 6 + window.scrollY) + 'px';
+  pop.querySelector('.sp-yes').addEventListener('click', e => {
+    e.stopPropagation(); SE.select(); closeSwapConfirm();
+    placePreviewTo(slotId);
+  });
+  pop.querySelector('.sp-no').addEventListener('click', e => {
+    e.stopPropagation(); SE.select(); closeSwapConfirm();   // 入れ替えない(プレビューは出したまま)
+  });
+  // 外側クリックで閉じる(次のtickで配線=この場のクリックで即閉じない)
+  setTimeout(() => document.addEventListener('click', function onDoc(e){
+    if (!pop.contains(e.target)){ closeSwapConfirm(); document.removeEventListener('click', onDoc); }
+  }), 0);
+}
+function previewBoxPoke(name){
+  previewName = name;
+  slotVal['bx'] = name;
+  if (!applySpeciesMemo('bx', name)){
+    const p = S.pokeByName(name);
+    slotMoves['bx'] = autoMoves(p); slotItem['bx'] = 'mega_stone_any';
+    slotGender['bx'] = genderOfRB(name); slotNature['bx'] = 'まじめ'; slotEffort['bx'] = ZERO_EV();
+    slotAbility['bx'] = defaultAbilityRB(p);
+  }
+  renderSelDetail('bx');   // 末尾のbxフックでプレビュー装飾(帯+投入ボタン)が付く
+}
+function decorateBoxPreview(){
+  const box = $('sel-detail'); if (!box || !previewName) return;
+  const bar = document.createElement('div');
+  bar.className = 'sd-bxbar';
+  bar.textContent = '📦 ' + I18N.t('online_battle.box_preview_note', 'ボックスのポケモン(チームがい)。ここで きめた ビルドは きおくされるよ');
+  box.insertBefore(bar, box.firstChild);
+  const btn = document.createElement('button');
+  btn.className = 'sd-bxadd';
+  btn.textContent = I18N.t('online_battle.box_preview_add', '⚔ えらんでいる わくに いれる');
+  btn.addEventListener('click', () => {
+    SE.select();
+    if (!selectedSlot || selectedSlot[0] !== 's' || !previewName) return;
+    placePreviewTo(selectedSlot);   // 明示ボタン=確認なしで選択中の枠へ(空き枠でも可)
+  });
+  box.appendChild(btn);
 }
 function renderTeamRows(){
   // 人数ぶんのスロットボタンを作り直す(既存の選択は引き継ぐ)
@@ -1637,14 +1832,15 @@ function renderTeamRows(){
       const b = document.createElement('button');
       b.className = 'slot'; b.id = id;
       // クリック=選択して中央に詳細表示(オンライン専用: ポケモン変更は常設ボックスパネルから行うのでポップアップは開かない)
-      b.addEventListener('click', e => {
+      b.addEventListener('click', () => {
         SE.select();
-        if (e.target.closest && e.target.closest('.cap-lead')){   // 1番目を切り替え(self/opp両方)
-          if (slotVal[id]){ leadSlot[id[0] === 's' ? 'self' : 'opp'] = id; saveTeam();
-            selfIds().concat(oppIds()).forEach(x => { if (slotVal[x] && $(x)) $(x).innerHTML = slotCapsuleHtml(x); }); }
-          return;
+        // ★ボックスプレビュー中の自分枠タップ=配置(空き枠は即・埋まってる枠は「いれかえる？」確認)=本家準拠 2026-07-10
+        if (previewName && id[0] === 's'){
+          if (!slotVal[id]){ placePreviewTo(id); return; }
+          if (slotVal[id] !== previewName){ openSwapConfirm(b, id); return; }
         }
-        setSelectedSlot(id);   // 📦ボックス変更ボタンは撤去済み(常設ボックスへ一本化・2026-07-10)。行クリックは選択のみ
+        // 「1番目に」バッジは撤去済み(選出画面で順番を決める=2026-07-10 阿部さん)。行クリックは選択のみ
+        setSelectedSlot(id);
       });
       row.appendChild(b);
     });
@@ -1665,7 +1861,7 @@ function fitSetup(){
 // 「高さも真ん中の欄と縦幅揃えたら見た目が整う」)。グリッドにheightを直接与える=内容が少なくても下端一致。
 // 縦積み(縦持ちスマホ=1カラム)ではCSS既定(max-height:440px)に戻す
 function syncBoxHeight(){
-  const det = $('sel-detail'), grid = $('box-grid'), cols = $('setup-cols');
+  const det = $('setup-center'), grid = $('box-grid'), cols = $('setup-cols');   // 基準=中央列ぜんぶ(詳細+キャラ画像ボタン)
   if (!det || !grid || !cols) return;
   if (!grid.offsetParent || matchMedia('(max-width:880px) and (orientation:portrait)').matches){
     grid.style.height = grid.style.maxHeight = ''; return;
@@ -1692,20 +1888,27 @@ window.addEventListener('resize', scheduleFit);
 window.addEventListener('orientationchange', () => setTimeout(() => { fitField(); fitSetup(); syncBoxHeight(); }, 200));
 function initSetup(){
   const pokes = S.pokeList().filter(isPickable);   // メガフォームは直接選ばない(ストーンで変身)
+  loadSpeciesMemo();   // 種ごとのビルド記憶(入れ替えても能力値等を保持=2026-07-10 阿部さん)
   initBackdrop();   // S6: 背景プリセット初期化(localStorageから復元・セレクト配線)
   renderTeamRows();
   // ★オンライン専用: 人数セレクタは廃止(常に6体固定)。相手列モーダル(poke-picker)の代わりに
   // 常設ボックスパネル(#box-panel)を配線する。selectedSlotが変わるたびrenderBoxGridも呼ぶ(setSelectedSlot内)
   renderBoxTypeChips();
+  renderBoxSortChips();
   renderBoxGrid('');
   $('box-q').addEventListener('input', () => renderBoxGrid($('box-q').value));
-  // タイプ絞り込みチップは既定で畳んでおく(密度アップ・2026-07-10)。検索欄横の小トグルで開閉
-  $('box-typef-toggle').addEventListener('click', () => {
-    SE.select();
-    const open = $('box-typef').classList.toggle('open');
-    $('box-typef-toggle').classList.toggle('on', open);
-    syncBoxHeight();   // チップ展開ぶんグリッドを縮めて下端を中央パネルに揃えたまま保つ
-  });
+  // フィルター/ソートのチップ列は既定で畳んでおく(密度アップ)。検索欄横の小トグルで開閉(同時に開くのは片方だけ)
+  const _boxToggle = (btnId, panelId, otherBtnId, otherPanelId) => {
+    $(btnId).addEventListener('click', () => {
+      SE.select();
+      const open = $(panelId).classList.toggle('open');
+      $(btnId).classList.toggle('on', open);
+      if (open){ $(otherPanelId).classList.remove('open'); $(otherBtnId).classList.remove('on'); }
+      syncBoxHeight();   // チップ展開ぶんグリッドを縮めて下端を中央パネルに揃えたまま保つ
+    });
+  };
+  _boxToggle('box-typef-toggle', 'box-typef', 'box-sort-toggle', 'box-sort');
+  _boxToggle('box-sort-toggle', 'box-sort', 'box-typef-toggle', 'box-typef');
   $('pp-q').addEventListener('input', () => renderPickerList($('pp-q').value));
   $('pp-sort').addEventListener('change', () => renderPickerList($('pp-q').value));
   $('pp-close').addEventListener('click', closePicker);
@@ -1751,13 +1954,11 @@ function initSetup(){
     });
     volEl.addEventListener('change', () => SE.select());   // 手を離したら試し音
   }
-  // キャラ画像ソース(編成/バトル中の両セレクトを同期・保存・即反映)
-  ['sprite-src', 'sprite-src-setup'].forEach(id => {
-    const el = $(id); if (!el) return;
-    el.value = spriteSrc;
-    el.addEventListener('change', () => setSpriteSrc(el.value));
-  });
-  setSpriteSrc(spriteSrc);   // クレジット表示等の初期反映
+  // キャラ画像ソース(編成=見本つき3ボタン/バトル中=セレクト。保存・即反映で同期)
+  { const el = $('sprite-src'); if (el){ el.value = spriteSrc; el.addEventListener('change', () => setSpriteSrc(el.value)); } }
+  document.querySelectorAll('#sprite-src-btns button').forEach(b =>
+    b.addEventListener('click', () => { SE.select(); setSpriteSrc(b.dataset.v); }));
+  setSpriteSrc(spriteSrc);   // クレジット表示・ボタン強調等の初期反映
   $('snd-toggle').addEventListener('click', () => {
     sndOn = !sndOn;
     localStorage.setItem('rb_snd', sndOn ? 'on' : 'off');
@@ -1892,16 +2093,26 @@ function startBattle(){
 // キャラ画像ソース設定(2026-07-05 阿部さん): 'original'=うちの落書きSVG / 'api'=PokeAPIスプライト
 // APIモードは通常フォームのみ(メガ/特殊フォームは名前→フォームID対応が未整備なので自作SVG継続)
 let spriteSrc = localStorage.getItem('rb_sprite_src') || 'home';   // 既定=公式3D(Pokémon HOME)。「かっこいい、これ使いましょう」(2026-07-06 阿部さん)。小さいアイコン類はドット絵のまま
+// 編成画面の画像src(2026-07-10 阿部さん「3Dとドットが切り替わらない」根治=homeを区別)。
+// bigな画像(カプセル84px/詳細96px)だけHOME 3Dを使い、小さいマス(ボックス30px等)はドット絵のまま(490体の遠隔読込を避ける)
+function setupSpriteSrc(nm, big){
+  const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
+  if (!apiId || spriteSrc === 'original') return `images/sim/${encodeURIComponent(nm)}.svg`;
+  if (spriteSrc === 'home' && big) return `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${apiId}.png`;
+  return `images/poke/${apiId}.png`;
+}
 function setSpriteSrc(v){
   spriteSrc = (v === 'api' || v === 'home') ? v : 'original';
   localStorage.setItem('rb_sprite_src', spriteSrc);
-  ['sprite-src', 'sprite-src-setup'].forEach(id => { const el = $(id); if (el && el.value !== spriteSrc) el.value = spriteSrc; });
+  const el = $('sprite-src'); if (el && el.value !== spriteSrc) el.value = spriteSrc;   // バトル中セレクトと同期
+  document.querySelectorAll('#sprite-src-btns button').forEach(b => b.classList.toggle('on', b.dataset.v === spriteSrc));
   const cr = $('sprite-credit'); if (cr) cr.style.display = spriteSrc !== 'original' ? 'inline' : 'none';
   if (document.body.classList.contains('in-battle')){ try { renderAll(); } catch(e) {} }
-  // 選出画面のカプセル/詳細パネルのスプライトも追従
+  // 選出画面のカプセル/詳細パネル/ボックスのスプライトも追従
   try {
     selfIds().concat(oppIds()).forEach(id => { if (slotVal[id] && $(id)) $(id).innerHTML = slotCapsuleHtml(id); });
     if (typeof selectedSlot !== 'undefined') setSelectedSlot(selectedSlot);
+    if ($('box-grid')) renderBoxGrid($('box-q') ? $('box-q').value : '');
   } catch(e) {}
 }
 // 小アイコン(HPボックス/控えバー/交代/選出)= 公式ドット絵優先・無ければ自作SVG
@@ -3088,45 +3299,57 @@ async function onlineEnsureLibs(){
   if (window.RBOnline) return;
   await _loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
   await _loadScript('online/supabase-config.js?v=20260710');
-  await _loadScript('online/rb_online.js?v=20260710');
+  await _loadScript('online/rb_online.js?v=20260710b');
 }
 
 // --- 接続と役割 ---
-async function onlineConnect(){
-  const room = ($('online-room').value || '').trim();
-  const name = ($('online-name').value || '').trim() || 'Player';
-  if (!room){ onlineStatus(_olT('online_need_room', 'あいことばを いれてね')); return; }
+// P2ロビー化(2026-07-10 阿部さん): 接続コアを部屋名+名前で呼べるよう分離。
+// あいことば(P1)もロビーマッチ(P2)も、この同じコアで部屋チャンネルに入る。
+function ensureRBHooks(){
+  window.RBHooks = {
+    getTeamPayload: () => onlineTeamPayload(),
+    onStatus: t => onlineStatus(t),
+    onPeerJoined: () => { lobbyRoomPeerArrived(); onlineSendTeamOnce(); },
+    onPeerLeft: () => { if (RB_ONLINE.started && !gameOver) onlineOppGone(false); else onlineStatus(_olT('online_peer_left', '相手が退出しました')); },
+    applyOpponentTeam: d => onlineApplyOppTeam(d),
+    onOpponentAction: a => { RB_ONLINE.oppAction = a; onlineHostTryGo(); },
+    onTurnGo: (a, seed) => onlineGuestGo(a, seed),
+    onStart: seed => onlineBegin(seed),
+    onFaintReplace: (idx, seed) => { RB_ONLINE.repInbox = { idx: idx, seed: seed }; onlineTryApplyReplaces(); },
+    onPeerReady: () => { RB_ONLINE.peerReady = true; onlineMaybeReady(); },
+    onPeerPick: order => { PICK.theirs = order; const st = $('pick-status'); if (st && !PICK.mine) st.textContent = ''; onlineTryStartPicked(); },
+    onResign: () => onlineOppGone(true),
+  };
+}
+async function onlineConnectRoom(room, name){
   onlineStatus(_olT('online_connecting', 'せつぞくちゅう…'));
+  await onlineEnsureLibs();
+  ensureRBHooks();
+  await RBOnline.connect(room, name);
+  RB_ONLINE.active = true;
+  if (RBOnline.peerPresent) onlineSendTeamOnce();
+}
+function teamComplete(){ return selfIds().every(id => slotVal[id]); }   // 空き枠あり=対戦に出られない(2026-07-10)
+async function onlineConnect(){   // あいことば(P1)経路: ロビー内の🔑フォームから
+  const room = ($('online-room') && $('online-room').value || '').trim();
+  const name = LOBBY.name || 'Player';
+  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームを 6体 そろえてね')); return; }
+  if (!room){ onlineStatus(_olT('online_need_room', 'あいことばを いれてね')); return; }
   try {
-    await onlineEnsureLibs();
-    window.RBHooks = {
-      getTeamPayload: () => onlineTeamPayload(),
-      onStatus: t => onlineStatus(t),
-      onPeerJoined: () => { onlineSendTeamOnce(); },
-      onPeerLeft: () => { if (RB_ONLINE.started && !gameOver) onlineOppGone(false); else onlineStatus(_olT('online_peer_left', '相手が退出しました')); },
-      applyOpponentTeam: d => onlineApplyOppTeam(d),
-      onOpponentAction: a => { RB_ONLINE.oppAction = a; onlineHostTryGo(); },
-      onTurnGo: (a, seed) => onlineGuestGo(a, seed),
-      onStart: seed => onlineBegin(seed),
-      onFaintReplace: (idx, seed) => { RB_ONLINE.repInbox = { idx: idx, seed: seed }; onlineTryApplyReplaces(); },
-      onPeerReady: () => { RB_ONLINE.peerReady = true; onlineMaybeReady(); },
-      onPeerPick: order => { PICK.theirs = order; const st = $('pick-status'); if (st && !PICK.mine) st.textContent = ''; onlineTryStartPicked(); },
-      onResign: () => onlineOppGone(true),
-    };
-    await RBOnline.connect(room, name);
-    RB_ONLINE.active = true;
-    $('online-connect').style.display = 'none';
-    if (RBOnline.peerPresent) onlineSendTeamOnce();
+    await onlineConnectRoom(room, name);
+    lobbySetUiConnected();
   } catch (e){ onlineStatus(_olT('online_error', 'せつぞくに しっぱいしました: ') + (e && e.message || '')); }
 }
 function onlineLeave(){
   try { if (window.RBOnline) RBOnline.disconnect(); } catch (e) {}
+  try { if (window.RBOnline) RBOnline.lobbyLeave(); } catch (e) {}
   RB_ONLINE.active = false; RB_ONLINE.started = false;
   RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null; RB_ONLINE.pendingRep = null; RB_ONLINE.repInbox = null;
   RB_ONLINE.myTeamSent = false; RB_ONLINE.oppTeamReady = false; RB_ONLINE.myReadySent = false; RB_ONLINE.peerReady = false;
-  const c = $('online-connect'); if (c) c.style.display = '';
-  const st = $('online-start'); if (st) st.style.display = 'none';
-  onlineStatus('');
+  // ロビー状態もリセットして入口へ(にげる後にもう一度ロビーから入り直せるように=2026-07-10)
+  LOBBY.joined = false; LOBBY.ready = false; LOBBY.matching = false; LOBBY.members = [];
+  if (LOBBY.roomTimer){ clearTimeout(LOBBY.roomTimer); LOBBY.roomTimer = null; }
+  renderLobbyEntry();
 }
 
 // --- チーム交換(自分のs枠→相手のo枠。saveTeamと同じ形) ---
@@ -3357,9 +3580,14 @@ function onlineTryApplyReplaces(){
   say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
 }
 
-// --- 選出画面のUI(🌐ボタン+あいことばフォーム) ---
-// ★オンライン専用: real_battle.htmlでは他の選択肢に紛れないよう🌐ボタンで折りたたんでいたが、
-// このページはオンライン対戦が唯一の目的なので主役に昇格(大きく・カード化・あいことばフォームは最初から開く)2026-07-10
+// ===================================================================
+// --- オンラインパネル=ロビー方式(P2・2026-07-10 阿部さん) ---
+// 流れ: なまえを入れて[ロビーに はいる] → ロビー内で
+//   ①[じゅんびOK] = 対戦待ち(waiting)。待ち同士をsince順の隣ペアで自動マッチ→専用部屋へ
+//   ②[🔑あいことばで たいせん] = P1の合言葉ルーム(身内用)をロビー内の別入口として温存
+// マッチ後は既存フロー(チーム交換→見せ合い選出→ロックステップ)がそのまま動く。
+// ===================================================================
+const LOBBY = { joined: false, name: '', ready: false, matching: false, members: [], roomTimer: null };
 function onlineInitUI(){
   if ($('online-panel')) return;
   const btns = document.querySelector('#setup .btns'); if (!btns) return;
@@ -3368,18 +3596,154 @@ function onlineInitUI(){
   wrap.style.cssText = 'margin-top:16px;display:flex;flex-direction:column;gap:12px;align-items:center;font-size:15px;'
     + 'background:linear-gradient(150deg,#efeafd,#e0d6fb);border:3px solid #6a5be0;border-radius:20px;padding:20px;'
     + 'box-shadow:0 6px 20px #5a4fc455';
+  btns.parentNode.insertBefore(wrap, btns.nextSibling);
+  renderLobbyEntry();
+}
+// 入口: なまえ+[ロビーに はいる]
+function renderLobbyEntry(){
+  const wrap = $('online-panel'); if (!wrap) return;
+  let savedName = '';
+  try { savedName = localStorage.getItem('rb_online_name') || ''; } catch (e) {}
   wrap.innerHTML =
-    `<div id="online-open" style="font-size:20px;font-weight:900;color:#4638ae;display:flex;align-items:center;gap:8px">🌐 ${esc2(_olT('online_button', 'オンラインたいせん(あいことば)'))}</div>` +
-    `<span id="online-form" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
-    `<input id="online-room" placeholder="${esc2(_olT('online_room_ph', 'あいことば'))}" maxlength="24" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:150px;font-size:15px">` +
-    `<input id="online-name" placeholder="${esc2(_olT('online_name_ph', 'なまえ'))}" maxlength="12" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:110px;font-size:15px">` +
-    `<button id="online-connect" type="button" style="padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_connect', 'せつぞく'))}</button>` +
-    `<button id="online-start" type="button" style="display:none;padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#e0564a,#ff7a63);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #e0564a55">⚔ ${esc2(_olT('online_start', 'たいせん かいし'))}</button>` +
+    `<div id="online-open" style="font-size:20px;font-weight:900;color:#4638ae;display:flex;align-items:center;gap:8px">🌐 ${esc2(_olT('online_lobby_title', 'オンラインたいせん(ロビー)'))}</div>` +
+    `<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
+    `<input id="online-name" placeholder="${esc2(_olT('online_name_ph', 'なまえ'))}" maxlength="12" value="${esc2(savedName)}" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:130px;font-size:15px">` +
+    `<button id="lobby-enter" type="button" style="padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_lobby_enter', 'ロビーに はいる'))}</button>` +
     `</span>` +
     `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>`;
-  btns.parentNode.insertBefore(wrap, btns.nextSibling);
+  $('lobby-enter').addEventListener('click', lobbyEnter);
+  $('online-name').addEventListener('keydown', e => { if (e.key === 'Enter') lobbyEnter(); });
+}
+async function lobbyEnter(){
+  const name = ($('online-name') && $('online-name').value || '').trim();
+  if (!name){ onlineStatus(_olT('online_lobby_need_name', 'なまえを いれてね')); return; }
+  LOBBY.name = name;
+  try { localStorage.setItem('rb_online_name', name); } catch (e) {}
+  onlineStatus(_olT('online_connecting', 'せつぞくちゅう…'));
+  try {
+    await onlineEnsureLibs();
+    await RBOnline.lobbyJoin(name, lobbyOnState);
+    LOBBY.joined = true;
+    renderLobbyMain();
+  } catch (e){ onlineStatus(_olT('online_lobby_error', 'ロビーに はいれなかった: ') + (e && e.message || '')); }
+}
+// ロビー本体: 在室数+対戦待ちリスト+[じゅんびOK]/[🔑あいことば]/[ロビーを でる]
+function renderLobbyMain(){
+  const wrap = $('online-panel'); if (!wrap) return;
+  const btnCss = 'padding:12px 20px;border-radius:22px;border:0;color:#fff;font-weight:900;font-size:15px;cursor:pointer;font-family:inherit';
+  wrap.innerHTML =
+    `<div id="online-open" style="font-size:20px;font-weight:900;color:#4638ae;display:flex;align-items:center;gap:8px">🌐 ${esc2(_olT('online_lobby_title', 'オンラインたいせん(ロビー)'))}` +
+    ` <span style="font-size:14px;color:#2e8b57;font-weight:800">🟢 <span id="lobby-count">1</span></span></div>` +
+    `<div id="lobby-waitlist" style="width:100%;max-width:560px;background:#ffffff88;border:1px solid #c9c3e6;border-radius:12px;padding:8px 12px;font-size:13px;color:#4a4470;min-height:34px"></div>` +
+    `<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
+    `<button id="lobby-ready" type="button" style="${btnCss};background:linear-gradient(90deg,#e0564a,#ff7a63);box-shadow:0 4px 10px #e0564a55">⚔️ ${esc2(_olT('online_lobby_ready', 'じゅんびOK(相手を まつ)'))}</button>` +
+    `<button id="lobby-code-toggle" type="button" style="${btnCss};background:#8a82c8">🔑 ${esc2(_olT('online_lobby_use_code', 'あいことばで たいせん'))}</button>` +
+    `<button id="lobby-leave" type="button" style="${btnCss};background:#b0aacb;font-size:13px;padding:10px 16px">${esc2(_olT('online_lobby_leave', 'ロビーを でる'))}</button>` +
+    `</span>` +
+    `<span id="online-form" style="display:none;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
+    `<input id="online-room" placeholder="${esc2(_olT('online_room_ph', 'あいことば'))}" maxlength="24" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:150px;font-size:15px">` +
+    `<button id="online-connect" type="button" style="${btnCss};background:linear-gradient(90deg,#5a4fc4,#7b6ff0);box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_connect', 'せつぞく'))}</button>` +
+    `</span>` +
+    `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>`;
+  $('lobby-ready').addEventListener('click', lobbyToggleReady);
+  $('lobby-code-toggle').addEventListener('click', () => {
+    SE.select();
+    const f = $('online-form');
+    f.style.display = f.style.display === 'none' ? 'flex' : 'none';
+    if (f.style.display === 'flex') $('online-room').focus();
+  });
+  $('lobby-leave').addEventListener('click', lobbyExit);
   $('online-connect').addEventListener('click', onlineConnect);
-  $('online-start').addEventListener('click', onlineHostStart);
+  $('online-room').addEventListener('keydown', e => { if (e.key === 'Enter') onlineConnect(); });
+  renderLobbyList();
+}
+function lobbyExit(){
+  try { RBOnline.lobbyLeave(); } catch (e) {}
+  LOBBY.joined = false; LOBBY.ready = false; LOBBY.matching = false; LOBBY.members = [];
+  if (LOBBY.roomTimer){ clearTimeout(LOBBY.roomTimer); LOBBY.roomTimer = null; }
+  renderLobbyEntry();
+}
+function lobbyOnState(members){
+  LOBBY.members = members || [];
+  renderLobbyList();
+  lobbyTryMatch();
+}
+function myLobbyId(){ try { return localStorage.getItem('rb_online_cid'); } catch (e){ return null; } }
+function renderLobbyList(){
+  const cnt = $('lobby-count'); if (cnt) cnt.textContent = String(LOBBY.members.length || 1);
+  const list = $('lobby-waitlist'); if (!list) return;
+  const me = myLobbyId();
+  const waiting = LOBBY.members.filter(m => m.st === 'waiting').sort((a, b) => a.since - b.since || (a.id < b.id ? -1 : 1));
+  if (!waiting.length){
+    list.textContent = _olT('online_lobby_none', 'いま たいせんまちの人は いないよ。じゅんびOKで まってみよう！');
+    return;
+  }
+  list.innerHTML = `<b>${esc2(_olT('online_lobby_waitlist', 'たいせんまち'))}:</b> ` + waiting.map(m =>
+    `<span style="display:inline-block;background:#efeafd;border:1px solid #c9c3e6;border-radius:10px;padding:2px 10px;margin:2px 4px 2px 0;font-weight:800">⚔️ ${esc2(m.name || '?')}${m.id === me ? esc2(_olT('online_lobby_you', '(あなた)')) : ''}</span>`).join('');
+}
+function lobbySyncReadyBtn(){
+  const b = $('lobby-ready'); if (!b) return;
+  b.textContent = LOBBY.ready ? '⏳ ' + _olT('online_lobby_ready_cancel', 'まつのを やめる') : '⚔️ ' + _olT('online_lobby_ready', 'じゅんびOK(相手を まつ)');
+  b.style.background = LOBBY.ready ? '#7a8290' : 'linear-gradient(90deg,#e0564a,#ff7a63)';
+}
+function lobbyToggleReady(){
+  SE.select();
+  if (LOBBY.matching) return;
+  if (!LOBBY.ready && !teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームを 6体 そろえてね')); return; }
+  LOBBY.ready = !LOBBY.ready;
+  RBOnline.lobbySet(LOBBY.ready ? { st: 'waiting', since: Date.now(), partner: null, room: null } : { st: 'idle', partner: null, room: null });
+  lobbySyncReadyBtn();
+  onlineStatus(LOBBY.ready ? _olT('online_lobby_wait_status', 'あいてを まっています…') : '');
+  lobbyTryMatch();
+}
+// マッチング: ①誰かが自分をpartner指名してmatched→その部屋へ ②waiting列(since順)の隣ペア=決定的に同じ部屋名を計算
+function lobbyTryMatch(){
+  if (!LOBBY.ready || LOBBY.matching || (window.RB_ONLINE && RB_ONLINE.active)) return;
+  const me = myLobbyId(); if (!me) return;
+  const inviter = LOBBY.members.find(m => m.st === 'matched' && m.partner === me && m.room);
+  if (inviter){ lobbyGoRoom(inviter.room, inviter); return; }
+  const waiting = LOBBY.members.filter(m => m.st === 'waiting').sort((a, b) => a.since - b.since || (a.id < b.id ? -1 : 1));
+  const idx = waiting.findIndex(m => m.id === me);
+  if (idx < 0) return;
+  const partner = (idx % 2 === 0) ? waiting[idx + 1] : waiting[idx - 1];
+  if (!partner) return;
+  const room = 'm_' + [me, partner.id].sort().join('_');
+  RBOnline.lobbySet({ st: 'matched', partner: partner.id, room: room });
+  lobbyGoRoom(room, partner);
+}
+async function lobbyGoRoom(room, partner){
+  if (LOBBY.matching) return;
+  LOBBY.matching = true;
+  onlineStatus(_olT('online_lobby_matched', 'あいてが みつかった！ {name} さんと たいせん！').replace('{name}', partner && partner.name || '?'));
+  try { await onlineConnectRoom(room, LOBBY.name); } catch (e){
+    LOBBY.matching = false;
+    onlineStatus(_olT('online_error', 'せつぞくに しっぱいしました: ') + (e && e.message || ''));
+    return;
+  }
+  lobbySetUiConnected();
+  // 相手が部屋に来なければ15秒でロビー待機に戻る(相手が直前に離脱したケース)
+  LOBBY.roomTimer = setTimeout(() => {
+    if (window.RBOnline && !RBOnline.peerPresent && !RB_ONLINE.started){
+      try { RBOnline.disconnect(); } catch (e) {}
+      RB_ONLINE.active = false; RB_ONLINE.myTeamSent = false;
+      LOBBY.matching = false;
+      RBOnline.lobbySet({ st: LOBBY.ready ? 'waiting' : 'idle', since: Date.now(), partner: null, room: null });
+      renderLobbyMain();
+      lobbySyncReadyBtn();
+      onlineStatus(_olT('online_lobby_room_timeout', 'あいてと つながらなかった… もういちど まってみてね'));
+    }
+  }, 15000);
+}
+// 部屋に相手が来た=マッチ成立確定。ロビーからは退室(在席一覧を汚さない)
+function lobbyRoomPeerArrived(){
+  if (LOBBY.roomTimer){ clearTimeout(LOBBY.roomTimer); LOBBY.roomTimer = null; }
+  if (LOBBY.joined){ try { RBOnline.lobbyLeave(); } catch (e) {} LOBBY.joined = false; }
+}
+// 部屋接続後のパネル表示(ボタン類を引っ込めてステータスだけに)
+function lobbySetUiConnected(){
+  ['lobby-ready', 'lobby-code-toggle', 'lobby-leave', 'online-form', 'lobby-waitlist'].forEach(id => {
+    const el = $(id); if (el) el.style.display = 'none';
+  });
 }
 function esc2(s){ return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;'); }
 window.addEventListener('load', onlineInitUI);
