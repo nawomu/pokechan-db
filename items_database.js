@@ -102,9 +102,12 @@ window.ITEMS_DATABASE = {
       "applies_to": "damage",
       "drawback": "max_hp / 10 reaction damage",
       "source_q12": "vgc-champions-calc",
-      "implemented_in_pokechan": false,
+      "implemented_in_pokechan": true,
       "verify": false,
-      "notes": "ポケチャン未実装"
+      "acquisition": "frontier_shop",
+      "acquisition_note": "フロンティアショップ 1,000VP",
+      "source": "regulation_mb_2026-06 (yakkun.com/ch/item.htm 確認2026-07-11)",
+      "notes": "レギュレーションM-Bのショップに追加・実装確認済(ヤックン2026-07-11時点)"
     },
     {
       "key": "expert_belt",
@@ -116,9 +119,12 @@ window.ITEMS_DATABASE = {
       "factor": 1.2,
       "applies_to": "super_effective_damage",
       "source_q12": "vgc-champions-calc",
-      "implemented_in_pokechan": false,
+      "implemented_in_pokechan": true,
       "verify": false,
-      "notes": "ポケチャン未実装"
+      "acquisition": "frontier_shop",
+      "acquisition_note": "フロンティアショップ 1,000VP",
+      "source": "regulation_mb_2026-06 (yakkun.com/ch/item.htm 確認2026-07-11)",
+      "notes": "レギュレーションM-Bのショップに追加・実装確認済(ヤックン2026-07-11時点)"
     },
     {
       "key": "muscle_band",
@@ -130,9 +136,12 @@ window.ITEMS_DATABASE = {
       "factor": 1.1,
       "applies_to": "physical_damage",
       "source_q12": "spec_pokemon_main",
-      "implemented_in_pokechan": false,
+      "implemented_in_pokechan": true,
       "verify": false,
-      "notes": "ポケチャン未実装"
+      "acquisition": "frontier_shop",
+      "acquisition_note": "フロンティアショップ 700VP",
+      "source": "regulation_mb_2026-06 (yakkun.com/ch/item.htm 確認2026-07-11)",
+      "notes": "レギュレーションM-Bのショップに追加・実装確認済(ヤックン2026-07-11時点)"
     },
     {
       "key": "wise_glasses",
@@ -144,9 +153,12 @@ window.ITEMS_DATABASE = {
       "factor": 1.1,
       "applies_to": "special_damage",
       "source_q12": "spec_pokemon_main",
-      "implemented_in_pokechan": false,
+      "implemented_in_pokechan": true,
       "verify": false,
-      "notes": "ポケチャン未実装"
+      "acquisition": "frontier_shop",
+      "acquisition_note": "フロンティアショップ 700VP",
+      "source": "regulation_mb_2026-06 (yakkun.com/ch/item.htm 確認2026-07-11)",
+      "notes": "レギュレーションM-Bのショップに追加・実装確認済(ヤックン2026-07-11時点)"
     },
     {
       "key": "punching_glove",

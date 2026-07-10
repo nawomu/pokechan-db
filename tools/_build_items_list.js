@@ -24,7 +24,8 @@ const MB_NEW_KEYS = new Set([
   'mega_stone_scolipede', 'mega_stone_scrafty', 'mega_stone_eelektross', 'mega_stone_pyroar',
   'mega_stone_malamar', 'mega_stone_barbaracle', 'mega_stone_dragalge', 'mega_stone_falinks',
   'metronome', 'ooki_na_nekko', 'koukaku_lens', 'focus_lens', 'hikari_no_nendo',
-  'atsui_iwa', 'sarasara_iwa', 'shimetta_iwa', 'tsumetai_iwa', 'kireina_nukegara', 'kuroi_tekkyu'
+  'atsui_iwa', 'sarasara_iwa', 'shimetta_iwa', 'tsumetai_iwa', 'kireina_nukegara', 'kuroi_tekkyu',
+  'life_orb', 'expert_belt', 'muscle_band', 'wise_glasses'   // 2026-07-11 レギュMBショップ追加を確認(ヤックン)
 ]);
 
 const byCat = {};
