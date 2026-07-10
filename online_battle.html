@@ -4649,6 +4649,17 @@ function refreshPickBadges(ov){
 }
 function confirmPick(){
   if (PICK.sel.length !== 3 || PICK.mine) return;
+  if (PICK.aiMode){   // ★AI戦: 相手選出はランダム3体(順番もランダム)→そのまま開戦(オフライン)
+    const aliveOpp = oppIds().filter(id => slotVal[id]);
+    const shuffled = aliveOpp.slice();
+    for (let i = shuffled.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
+    window._pickOverride = { self: PICK.sel.slice(), opp: shuffled.slice(0, Math.min(3, shuffled.length)) };
+    PICK.mine = PICK.sel.map(id => selfIds().indexOf(id));
+    closePickScreen();
+    PICK.aiMode = false;
+    startBattle();
+    return;
+  }
   PICK.mine = PICK.sel.map(id => selfIds().indexOf(id));   // 0..5のindexで送る(相手側でoppIdsに写す)
   RBOnline.sendPick(PICK.mine);
   const ok = $('pick-ok'); if (ok) ok.style.display = 'none';
@@ -4657,6 +4668,7 @@ function confirmPick(){
 }
 function closePickScreen(){
   if (PICK.timer){ clearInterval(PICK.timer); PICK.timer = null; }
+  // aiModeはconfirmPick(AI分岐)側でリセット。ここでは触らない(オンライン経路と共用のため)
   // 中央パネル(#sel-detail)を編成画面へ返す
   const det = $('sel-detail'), center = $('setup-center');
   if (det && center && det.parentElement !== center) center.insertBefore(det, $('sprite-src-btns'));
@@ -4982,7 +4994,19 @@ function lobbyVsAi(){
   SE.select();
   if (window.RB_ONLINE && RB_ONLINE.active) return;
   if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
-  startBattle();
+  // ★AI戦も見せ合い選出を挟む(2026-07-11 阿部さん「6体同士でいきなりでなく3体選んで開始」)
+  // 相手(AI)の6体が空いていたら未使用種でランダム補充してから選出画面へ
+  const usedNames = new Set(selfIds().concat(oppIds()).map(id => slotVal[id]).filter(Boolean));
+  const pool = S.pokeList().filter(isPickable).filter(pk => !usedNames.has(pk.name));
+  oppIds().forEach(id => {
+    if (!slotVal[id] && pool.length){
+      const i = Math.floor(Math.random() * pool.length);
+      setSlot(id, pool.splice(i, 1)[0].name);
+    }
+  });
+  RB_ONLINE.oppName = 'AI';   // 選出画面右の見出し/バトル中プレートに表示(言語中立)
+  PICK.aiMode = true; PICK.mine = null; PICK.theirs = null; PICK.sel = [];
+  showPickScreen();
 }
 function lobbyExit(){
   try { RBOnline.lobbyLeave(); } catch (e) {}
