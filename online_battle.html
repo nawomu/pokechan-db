@@ -1133,7 +1133,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710e" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710f" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1263,7 +1263,14 @@ document.getElementById('engine-frame').addEventListener('load', () => {
       S = w.__sim;
       // ひんし時の死に出し: 控えが2匹以上ならエンジンは保留し、ターン後にプレイヤーがUIで選ぶ
       // (1匹なら __rbSwitchPick=先頭 で自動。promptは出さない。デモ自動バトル中は全自動)
-      w.__rbSwitchPick = idxs => idxs[0];
+      // ★2026-07-10: バトンタッチ/とんぼがえり等の自分交代は事前選択方式(ロックステップ=技選択直後に選ぶ)。
+      // 自分側=RB_PIVOT.selfIdx(このクライアントで選んだbench idx)/相手側=RB_PIVOT.oppIdx(オンラインで相手から受信)。
+      // どちらも未設定(非対応move/デモAI)なら従来どおり先頭(idxs[0])。
+      w.__rbSwitchPick = (idxs, side) => {
+        if (side === 'self' && RB_PIVOT.selfIdx != null) return RB_PIVOT.selfIdx;
+        if (side === 'opp' && RB_PIVOT.oppIdx != null) return RB_PIVOT.oppIdx;
+        return idxs[0];
+      };
       w.__rbDeferFaintReplace = !location.search.includes('demo');
       initSetup();
       fitField(); fitSetup(); syncBoxHeight();   // zoom確定後にボックス高さを揃える(順序が逆だと数px残る)
@@ -2898,9 +2905,22 @@ function showMoves(){
     }
     if (b.classList.contains('mega-side')){ toggleMega(); return; }
     if (b.classList.contains('party-open')){ showParty(); return; }   // 交代へ(もどるで技リストに帰る)
-    doTurn(+b.dataset.i);
+    const mi = +b.dataset.i;
+    // 自分交代技(とんぼがえり等): 控えに生きてる子が2匹以上いる時だけ「だれに かわる?」を先に聞く
+    if (!allOut && moveHasPivotSwitch(st.moves[mi])){ maybeStartPivot(mi); return; }
+    doTurn(mi);
   }));
   if (window.RB_ONLINE && RB_ONLINE.started) actTimerStart();   // 本家準拠の45秒COMMANDタイマー(オンラインのみ)
+}
+// 自分交代技の交代先選択(事前選択方式): 控えが2匹以上生きていれば選択UIを出す。1匹以下は従来どおり自動(先頭)
+function maybeStartPivot(moveIdx){
+  const st = S.sides.self;
+  const liveIdxs = (st.bench || []).map((e, i) => ({e, i}))
+    .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+  RB_PIVOT.selfIdx = liveIdxs.length ? liveIdxs[0] : null;   // 既定=控え筆頭(選択UIを出さない場合のフォールバック)
+  if (liveIdxs.length < 2){ doTurn(moveIdx); return; }
+  RB_PIVOT.pendingMoveIdx = moveIdx;
+  showParty(false, true);   // pivot=true(3カラム交代画面を選択モードで流用。やめる=技選択に戻る)
 }
 // ===== 交代画面(本家チャンピオンズ実機準拠3カラム) 2026-07-10 阿部さん =====
 // 左=じぶんのチーム(場に出ている子含む・タップで選択→行の下に交代する/やめる確認)/
@@ -2908,6 +2928,14 @@ function showMoves(){
 // 「交代する」の実処理は元のボタンclickハンドラと同じ経路(doSwitchTo=旧ロジックをそのまま踏襲)。
 let swForced = false;      // 今開いている交代画面が死に出し強制か(もどるボタンの有無に使う)
 let swSelected = null;     // 選択中の控えindex(st.bench基準)。null=未選択(中央は場に出ている子を表示)
+// ★2026-07-10 阿部さん: バトンタッチ/とんぼがえり等の自分交代の交代先選択(事前選択方式=ロックステップの技選択直後に選ぶ)
+let swPivot = false;       // 今開いている交代画面が自分交代の交代先選択モードか(もどるで技リストに帰れる=swForcedと違う)
+// selfIdx=engineへ渡す自分の事前選択bench idx / oppIdx=オンラインで相手から受信した選択(onlineRunTurnがセット)
+const RB_PIVOT = { pendingMoveIdx: null, selfIdx: null, oppIdx: null };
+// 自分交代(とんぼがえり/ボルトチェンジ/クイックターン/すてゼリフ/バトンタッチ)を持つ技か
+function moveHasPivotSwitch(m){
+  return !!(m && m.battle_data && Array.isArray(m.battle_data.effects) && m.battle_data.effects.some(e => e.kind === '自分交代'));
+}
 function partyRowsMine(st){
   const rows = [];
   if (st && st.poke) rows.push({ entry: st, idx: null, active: true });
@@ -3024,7 +3052,9 @@ function swOppHtml(){
 function renderPartyScreen(){
   const st = S.sides.self;
   const pt = $('party');
-  pt.innerHTML = `<div class="sw-card"><div class="sw-head" id="sw-head"><h3>${I18N.t('real_battle.party_screen_title', 'ポケモンを えらんでね')}</h3></div>` +
+  pt.innerHTML = `<div class="sw-card"><div class="sw-head" id="sw-head"><h3>${swPivot
+      ? I18N.t('real_battle.party_screen_title_pivot', 'だれに かわる？')
+      : I18N.t('real_battle.party_screen_title', 'ポケモンを えらんでね')}</h3></div>` +
     `<div class="sw-cols">` +
     `<div class="sw-col"><div class="sw-colhead self">${I18N.t('real_battle.party_team_header', 'じぶんの チーム')}</div>` +
     `<div class="sw-mine">${swMineHtml(st)}</div></div>` +
@@ -3047,11 +3077,25 @@ function wireSwEvents(){
     });
   });
   const yes = pt.querySelector('.sw-confirm .sw-yes');
-  if (yes) yes.addEventListener('click', () => { SE.select(); doSwitchTo(swSelected); });
+  if (yes) yes.addEventListener('click', () => {
+    SE.select();
+    if (swPivot){ finishPivotPick(swSelected); return; }
+    doSwitchTo(swSelected);
+  });
   const no = pt.querySelector('.sw-confirm .sw-no');
   if (no) no.addEventListener('click', () => { SE.select(); swSelected = null; renderPartyScreen(); });
   const back = pt.querySelector('.sw-back');
-  if (back) back.addEventListener('click', () => { SE.select(); showMoves(); });
+  if (back) back.addEventListener('click', () => { SE.select(); swPivot = false; RB_PIVOT.pendingMoveIdx = null; showMoves(); });
+}
+// 自分交代技の交代先選択の確定: 選んだbench idxをRB_PIVOT.selfIdxへ(engine __rbSwitchPickが読む)、保留していた技を実行
+// (オンライン中はdoTurn→onlineSubmitActionがRB_PIVOT.selfIdxをmyActionへ載せて相手へ送る)
+function finishPivotPick(idx){
+  if (idx == null) return;
+  swPivot = false;
+  $('party').style.display = 'none';
+  RB_PIVOT.selfIdx = idx;
+  const mi = RB_PIVOT.pendingMoveIdx; RB_PIVOT.pendingMoveIdx = null;
+  doTurn(mi);
 }
 // 「交代する」の実処理: 旧showPartyのボタンclickハンドラと同じ経路を厳密に踏襲(data-iに相当するidxを引数化しただけ)
 function doSwitchTo(idx){
@@ -3084,12 +3128,13 @@ function doSwitchTo(idx){
   S.sides.self.switchChoice = idx;
   doTurn(null);   // 交代をこのターンの行動に
 }
-function showParty(forced){
+function showParty(forced, pivot){
   $('cmd').style.display = 'none';
   $('moves').style.display = 'none';        // 相互排他
   $('watch-panel').style.display = 'none';
   $('weak-panel').style.display = 'none';
   swForced = !!forced;
+  swPivot = !!pivot;
   swSelected = null;
   const pt = $('party');
   pt.style.display = 'flex';   // CH: フルスクリーン3カラム(選出画面pick-screen準拠)
@@ -3261,6 +3306,8 @@ function doTurn(moveIdx){
   // ★オンライン対戦(ロックステップ): 自分の行動を相手へ送り、両者の行動+共有シードが揃ってから実行
   if (window.RB_ONLINE && RB_ONLINE.started){ onlineSubmitAction(moveIdx); return; }
   // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
+  // (デモ/非オンライン時はopp側の交代先は選べないのでAI任意=先頭。前回オンライン戦の受信値が残っていたら捨てる)
+  RB_PIVOT.oppIdx = null;
   if (opp.poke && !opp.fainted){
     const act = S.aiChooseAction ? S.aiChooseAction('opp') : {type: 'move', index: S.aiChooseMove('opp')};
     if (act.type === 'switch') opp.switchChoice = act.index;
@@ -4622,8 +4669,10 @@ function onlineSubmitAction(moveIdx){
   if (RB_ONLINE.myAction) return;   // 二重送信ガード
   const self = S.sides.self;
   // moveIdx=null は2通り: ①交代(switchChoiceがセット済み) ②あばれる等のロック継続(エンジンが技を強制)
+  // 自分交代技(とんぼがえり等)を選んだ時はRB_PIVOT.selfIdxに事前選択済み(2026-07-10)。
+  // pivotIdxとして一緒に相手へ送り、両クライアントで同じ子が出るようにする(ロックステップ非分岐)
   RB_ONLINE.myAction = (moveIdx != null)
-    ? { kind: 'move', idx: moveIdx, mega: !!self.megaChoice }
+    ? { kind: 'move', idx: moveIdx, mega: !!self.megaChoice, pivotIdx: RB_PIVOT.selfIdx }
     : (self.switchChoice != null
       ? { kind: 'switch', idx: self.switchChoice, mega: false }
       : { kind: 'lock', mega: false });
@@ -4651,6 +4700,9 @@ function onlineRunTurn(seed){
   else if (a.kind === 'move' && a.idx != null) opp.selectedMoveIdx = a.idx;
   // kind:'lock'(あばれる継続等)は何もセットしない=エンジンのロックが技を強制する
   opp.megaChoice = !!a.mega;
+  // 相手が自分交代技を選んでいたら、相手が選んだ交代先(pivotIdx)をこちらの__rbSwitchPickにも使わせる
+  // (2026-07-10・ロックステップ=両クライアントで同じ子が出る必要がある)
+  RB_PIVOT.oppIdx = (a.kind === 'move' && a.pivotIdx != null) ? a.pivotIdx : null;
   RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null;
   onlineSeedEngine(seed);
   executeTurn();

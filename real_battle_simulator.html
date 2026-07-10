@@ -5326,16 +5326,19 @@ function applyEntryHazards(sideKey){
 
 // 交代先の選択: 自分側で生きている控えが2体以上いる時はポップアップで選ばせる(実機の交代先選択の簡易版)。
 // 相手側・テスト実行時(vm=promptがダミー)は最初の生き控え。2026-06-12 阿部さん要望(クイックターン等で選びたい)
+// ★2026-07-10 阿部さん: バトンタッチ/とんぼがえり等の自分交代は交代先をプレイヤーが選べるようにする。
+// フックは自分側・相手側どちらの交代でも呼ぶ(side引数追加=後方互換・引数を見ないページ側フックは従来どおりidxs[0]扱い)。
+// ページ側フック(__rbSwitchPick)で side==='self' なら自分の事前選択/'opp' ならオンラインで相手から受信した選択を返す。
 function chooseSwitchTarget(sideKey, liveIdxs){
   if (liveIdxs.length <= 1) return liveIdxs[0];
+  // リアルバトル(real_battle.html)/オンライン(online_battle.html)からのフック: promptを出さずに親ページが選ぶ
+  // (promptはヘッドレス/iframe内でJSをブロックする・ゲーム画面にブラウザダイアログは不格好)
+  if (typeof window !== 'undefined' && typeof window.__rbSwitchPick === 'function'){
+    const p = window.__rbSwitchPick(liveIdxs, sideKey);
+    if (liveIdxs.includes(p)) return p;
+    return liveIdxs[0];
+  }
   if (sideKey === 'self'){
-    // リアルバトル(real_battle.html)からのフック: promptを出さずに親ページが選ぶ
-    // (promptはヘッドレス/iframe内でJSをブロックする・ゲーム画面にブラウザダイアログは不格好)
-    if (typeof window !== 'undefined' && typeof window.__rbSwitchPick === 'function'){
-      const p = window.__rbSwitchPick(liveIdxs);
-      if (liveIdxs.includes(p)) return p;
-      return liveIdxs[0];
-    }
     const st = sides[sideKey];
     const menu = liveIdxs.map(i => `${i + 1}: ${st.bench[i].poke.name}`).join(' / ');
     const ans = prompt(`どの控えと交代しますか？ 番号を入力してください (${menu})`, String(liveIdxs[0] + 1));
