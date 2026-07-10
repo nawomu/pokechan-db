@@ -420,7 +420,12 @@ function genPokemonIndex(lang) {
     T(lang, 'pokemon_list_desc').replace('{n}', POKE.length),
     indexUrl(lang, 'pokemon'), hreflang('index', 'pokemon')
   ) + `
-  <style>.wrap{max-width:1300px}</style><!-- 一覧は画像3列+種族値で幅が要る(2026-07-10 阿部さん「右が切れてる」)。狭い画面は従来どおり.table-scrollで横スクロール -->
+  <style>/* 一覧は画像3列+種族値で幅が要る(2026-07-10)。サイド広告(固定160px)と被らないよう
+   広告を画面端に寄せ、コンテンツは「画面幅-広告ぶん」で可変(上限1300px)。1240px未満=広告非表示なので通常幅 */
+  @media (min-width:1240px){
+    .side-rail.left{left:12px}.side-rail.right{right:12px}
+    .wrap{max-width:min(1300px, calc(100vw - 404px))}
+  }</style>
   <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <b>${esc(T(lang, 'pokemon_list'))}</b></nav>
   <article class="card">
     <h1>${esc(T(lang, 'pokemon_list'))}</h1>
@@ -490,7 +495,11 @@ function genPokemonAllIndex(lang) {
     T(lang, 'pokemon_all_desc').replace('{n}', n),
     allUrl(lang), hreflangAll()
   ) + `
-  <style>.wrap{max-width:1300px}</style><!-- 一覧は画像3列で幅が要る(2026-07-10)。狭い画面は.table-scrollで横スクロール -->
+  <style>/* 全国版一覧も同じ広告回避の可変幅(2026-07-10) */
+  @media (min-width:1240px){
+    .side-rail.left{left:12px}.side-rail.right{right:12px}
+    .wrap{max-width:min(1300px, calc(100vw - 404px))}
+  }</style>
   <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'pokemon_list'))}</a> &gt; <b>${esc(T(lang, 'pokemon_all_list'))}</b></nav>
   <article class="card">
     <h1>${esc(T(lang, 'pokemon_all_list'))}</h1>
