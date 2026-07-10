@@ -62,7 +62,8 @@ const pages = onlyPage ? [onlyPage] : PAGES;
 
 // 許可リストに一致するテキストを除外する
 function applyAllowlist(findings) {
-  return findings.filter(f => !ALLOWLIST.some(re => re.test(f.text)));
+  // セレクトボタン等の末尾装飾(▾/▼)を剥がしてから許可リスト照合(例:「もらいびこんじょう ▾」=独自特性+開閉マーク)
+  return findings.filter(f => { const t = String(f.text).replace(/[  ]*[▾▼]$/, ''); return !ALLOWLIST.some(re => re.test(t)); });
 }
 
 // ページ内で実行: 日本語が残ったテキスト/属性を収集(data-i18n-audit-skip は除外)
