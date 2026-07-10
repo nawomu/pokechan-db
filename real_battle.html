@@ -845,7 +845,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710b" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260710c" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1893,9 +1893,12 @@ function renderAll(){
     // 画像ソース設定(spriteSrc)が変わった時は作り直す
     const spriteEl = f.querySelector('.sprite');
     const subActive = (st.subHp || 0) > 0;   // みがわり中は人形のすがた(2026-07-06 阿部さん)
-    const shownKey = (subActive ? 'SUB' : spriteSrc) + ':' + shown.name + (st.disguise === false ? ':busted' : '');
+    // ばけのかわの絵: リプレイ中(busy)は表示スナップ(_dgSnap)基準=「はがれた」の拍まで皮のまま。
+    // 非リプレイ時はエンジン状態(engine先読みの絵バレ防止=2026-07-10 阿部さん)
+    const bustShown = (busy && window._dgSnap) ? (_dgSnap[side] === false) : (st.disguise === false);
+    const shownKey = (subActive ? 'SUB' : spriteSrc) + ':' + shown.name + (bustShown ? ':busted' : '');
     if (spriteEl.dataset.shown !== shownKey){
-      spriteEl.innerHTML = subActive ? substituteSpriteHtml() : spriteHtml(shown, st);
+      spriteEl.innerHTML = subActive ? substituteSpriteHtml() : spriteHtml(shown, { disguise: bustShown ? false : true });
       spriteEl.dataset.shown = shownKey;
     }
     // 名前はへんしん中も自分の名前(実機のニックネーム表示準拠=すがたは変身先・名前はメタモン)
@@ -2479,6 +2482,8 @@ function executeTurn(){
   // 表示個体スナップ: エンジンは1ターン分を先に計算し終えるので、renderAllが最終状態(交代後の子)を
   // 先に描いてしまう(=ひんし前にstatbarの名前が次の子になる)。登場拍(enter fx)までは旧個体を表示し続ける
   window._idSnap = {self: S.sides.self && S.sides.self.poke, opp: S.sides.opp && S.sides.opp.poke};
+  // ばけのかわ表示スナップ: エンジンは剥がれ済みでも、絵は「はがれた」の拍まで皮のまま(2026-07-10 阿部さん)
+  window._dgSnap = {self: S.sides.self && S.sides.self.disguise, opp: S.sides.opp && S.sides.opp.disguise};
   ['self', 'opp'].forEach(sd => {
     const st0 = S.sides[sd]; const m = {};
     [st0].concat(st0.bench || []).forEach(e => {
@@ -2741,6 +2746,7 @@ function lineWithFx(msg){
     if (/ばけのかわが はがれた！$/.test(msg)){
       const side = msg.startsWith('相手の') ? 'opp' : 'self';
       screenFlash('#ffffff'); popText(side, '👻 ばけのかわ！', '#d0b0ff', 15); flash(side, 'hit'); SE.status();
+      if (window._dgSnap) _dgSnap[side] = false;   // 表示スナップもこの拍で剥がす(以降のrenderAllはばれた絵)
       // 剥がれた拍で「ばれたすがた」(首カクン)へ即差し替え(renderAllを待たない=2026-07-10 阿部さん)。
       // エンジンは1ターン分計算済み=st.disguiseは既にfalseなのでspriteHtmlがばれた絵を返す
       const _st = S.sides[side], _f = $('f-' + side);
