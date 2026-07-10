@@ -87,8 +87,10 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 /* 本家風カプセル: 自分=青紫/相手=クリムゾン・選択中=黄緑発光カーソル
    (2026-07-10 阿部さん方針転換: スリム化はやりすぎだった=元のreal_battle由来デザインに戻す。
    変更点は「📦ボックス 🔄」変更ボタンの撤去のみ=ボックスが右に常設されたので不要) */
-.team-row .slot{position:relative;color:#fff;border:2px solid #ffffff22;border-radius:14px;
-  padding:6px 10px;cursor:pointer;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto auto;
+/* 2026-07-10: 見た目は承認済みデザイン(radius24・白ボーダー)を明示継承しつつ、📦ボックスボタン撤去で空いた
+   下部ぶん縦paddingを詰めてカードを少しスリムに(阿部さん) */
+.team-row .slot{position:relative;color:#fff;border:2px solid #ffffff88;border-radius:24px;
+  padding:6px 12px;cursor:pointer;display:grid;grid-template-columns:1fr auto;grid-template-rows:auto auto auto auto;
   column-gap:6px;row-gap:1px;font-size:13px;text-align:left;
   transform:skewX(-8deg);box-shadow:0 2px 7px #0006;transition:border-color .12s,box-shadow .12s;font-family:inherit;min-height:62px}
 .team-row .slot>*{transform:skewX(8deg)}
@@ -126,6 +128,10 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   display:flex;align-items:center}/* 2行分を常時確保=名前の折返しでパネル全体がズレない(2026-07-06 阿部さん) */
 #sel-detail .sd-type{display:inline-block;font-size:10px;font-weight:800;color:#fff;border-radius:9px;padding:2px 9px;
   margin:4px 4px 0 0;box-shadow:0 1px 2px #0007;border:1px solid #ffffff55}
+/* タイプは常に縦積み(1行1バッジ)+2段ぶんの高さを確保=単タイプ/複合タイプでパネル全体の高さが変わらない
+   (2026-07-10 阿部さん「2段をデフォルトに・縦表示に統一」) */
+#sel-detail .sd-types{display:flex;flex-direction:column;align-items:flex-start;gap:3px;margin-top:4px;min-height:45px}
+#sel-detail .sd-types .sd-type{margin:0}
 /* 特性/もちもの/性格の変更セレクト(2026-07-05 阿部さん「持ち物と特性もクリックで変更できたら」) */
 #sel-detail .sd-row select,#sel-detail .sd-ev select,#sel-detail button.sd-pick{background:#00000042;color:#fff;border:1px solid #ffffff33;border-radius:8px;
   padding:2px 8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
@@ -283,10 +289,13 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #mp-list .mp-desc{font-size:11px;color:#6a6488;margin-top:2px;line-height:1.4}/* 説明は補足=小さく控えめに(2026-07-07 阿部さん) */
 #mp-close{margin-top:10px;background:#8a82c8;border:1px solid #ffffff66;border-radius:20px;color:#fff;font-weight:700;padding:8px;cursor:pointer}
 #setup .btns{display:flex;gap:10px;margin-top:14px}
-#setup button{flex:1;padding:12px;border-radius:24px;border:2px solid #ffffff88;cursor:pointer;font-weight:800;font-size:14px;
+/* 2026-07-10: 「#setup button」全域指定だと常設ボックスのマス/タイプトグル/チームカードまで
+   padding:12px・radius:24px・flex:1 が勝ってしまい表示がズレる(マスが縦長ピル化・.selectedの黄緑リングも潰れる)
+   → .btns(おまかせ編成/スタート)だけにスコープ */
+#setup .btns button{flex:1;padding:12px;border-radius:24px;border:2px solid #ffffff88;cursor:pointer;font-weight:800;font-size:14px;
   background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;box-shadow:0 3px 10px #5a4fc455}
-#setup button.sub{flex:0 0 auto;font-weight:700;font-size:12px;background:#8a82c8}
-#setup button:hover{border-color:#d4f542;box-shadow:0 0 0 3px #d4f54266}
+#setup .btns button.sub{flex:0 0 auto;font-weight:700;font-size:12px;background:#8a82c8}
+#setup .btns button:hover{border-color:#d4f542;box-shadow:0 0 0 3px #d4f54266}
 
 /* ===== バトル画面 ===== */
 /* S1: 3ブロックレイアウト化・盤面560×360/ログ460×362 (Showdown実測値) */
@@ -714,7 +723,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
         <div id="box-panel">
           <div id="box-search-row">
             <input id="box-q" placeholder="なまえで さがす(ひらがなでもOK)…" data-i18n-attr="placeholder:real_battle.pp_search_placeholder">
-            <button id="box-typef-toggle" type="button">🔍 タイプ ▾</button>
+            <button id="box-typef-toggle" type="button">🔍 <span data-i18n="table.type">タイプ</span> ▾</button>
           </div>
           <div id="box-typef"></div>
           <div id="box-grid"></div>
@@ -981,7 +990,7 @@ const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_C
       if ($('poke-picker').style.display === 'flex'){ renderPickerTypeChips(); renderPickerList($('pp-q').value); }
       if ($('move-picker').style.display === 'flex' && movePick){ renderMoveCatChips(); renderMovePickList($('mp-q').value); }
       // ★オンライン専用: 常設ボックスパネルも言語切替で作り直す(タイプ名/ポケモン名/「すべて」表記が追従)
-      if ($('box-grid')){ renderBoxTypeChips(); renderBoxGrid($('box-q') ? $('box-q').value : ''); }
+      if ($('box-grid')){ renderBoxTypeChips(); renderBoxGrid($('box-q') ? $('box-q').value : ''); syncBoxHeight(); }
     } catch(e) {}
   }
   if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} }
@@ -1006,7 +1015,7 @@ document.getElementById('engine-frame').addEventListener('load', () => {
       w.__rbSwitchPick = idxs => idxs[0];
       w.__rbDeferFaintReplace = !location.search.includes('demo');
       initSetup();
-      fitField(); fitSetup();
+      fitField(); fitSetup(); syncBoxHeight();   // zoom確定後にボックス高さを揃える(順序が逆だと数px残る)
     }
   }, 100);
 });
@@ -1101,6 +1110,7 @@ function setSelectedSlot(id){
   renderSelDetail(id);   // 中央パネル(能力値エディタ込み)を選択中スロットに追従
   // ★オンライン専用: 選択中スロットが変わったら常設ボックスの「使用済み(薄く)」判定も引き直す
   if ($('box-grid')) renderBoxGrid($('box-q') ? $('box-q').value : '');
+  if (typeof syncBoxHeight === 'function') syncBoxHeight();   // 詳細パネルの高さ変化にボックス下端を追従
 }
 // 選べる持ち物リスト(メガストーンは汎用のみ。旧くわしく編成と同じ絞り込み)
 function itemChoicesRB(){
@@ -1251,7 +1261,7 @@ function renderSelDetail(id){
   const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
   const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
   box.innerHTML =
-    `<div class="sd-head"><img src="${src}" alt="" onerror="this.remove()"><div><strong>${tPokeName(nm)}</strong><div>${types}</div></div></div>` +
+    `<div class="sd-head"><img src="${src}" alt="" onerror="this.remove()"><div><strong>${tPokeName(nm)}</strong><div class="sd-types">${types}</div></div></div>` +
     `<div class="sd-moves">` + mvs.map((m, i) => {
       const col = tc[m.type] || '#3a4660';
       return `<button class="sd-move" data-i="${i}" style="background:linear-gradient(135deg,${col}dd,${col}99)">` +
@@ -1651,6 +1661,19 @@ function fitSetup(){
   const natural = 760;   // 3カラムが窮屈にならない目安幅
   cols.style.zoom = avail < natural ? Math.max(0.5, avail / natural) : '';
 }
+// ★オンライン専用: 常設ボックスパネルの下端を中央の詳細パネル(#sel-detail)の下端に揃える(2026-07-10 阿部さん
+// 「高さも真ん中の欄と縦幅揃えたら見た目が整う」)。グリッドにheightを直接与える=内容が少なくても下端一致。
+// 縦積み(縦持ちスマホ=1カラム)ではCSS既定(max-height:440px)に戻す
+function syncBoxHeight(){
+  const det = $('sel-detail'), grid = $('box-grid'), cols = $('setup-cols');
+  if (!det || !grid || !cols) return;
+  if (!grid.offsetParent || matchMedia('(max-width:880px) and (orientation:portrait)').matches){
+    grid.style.height = grid.style.maxHeight = ''; return;
+  }
+  const zoom = parseFloat(cols.style.zoom) || 1;   // fitSetup縮小中はrectがzoom後座標になるため割り戻す
+  const h = Math.max(180, Math.round((det.getBoundingClientRect().bottom - grid.getBoundingClientRect().top) / zoom) - 9);
+  grid.style.height = h + 'px'; grid.style.maxHeight = h + 'px';   // -9 = #box-panelの下padding8+border1
+}
 function fitField(){
   const f = document.getElementById('field');
   const game = document.getElementById('game');
@@ -1664,9 +1687,9 @@ function fitField(){
   f.style.zoom = z;
 }
 let _fitTimer = null;
-function scheduleFit(){ if (_fitTimer) cancelAnimationFrame(_fitTimer); _fitTimer = requestAnimationFrame(() => { fitField(); fitSetup(); }); }
+function scheduleFit(){ if (_fitTimer) cancelAnimationFrame(_fitTimer); _fitTimer = requestAnimationFrame(() => { fitField(); fitSetup(); syncBoxHeight(); }); }
 window.addEventListener('resize', scheduleFit);
-window.addEventListener('orientationchange', () => setTimeout(() => { fitField(); fitSetup(); }, 200));
+window.addEventListener('orientationchange', () => setTimeout(() => { fitField(); fitSetup(); syncBoxHeight(); }, 200));
 function initSetup(){
   const pokes = S.pokeList().filter(isPickable);   // メガフォームは直接選ばない(ストーンで変身)
   initBackdrop();   // S6: 背景プリセット初期化(localStorageから復元・セレクト配線)
@@ -1681,6 +1704,7 @@ function initSetup(){
     SE.select();
     const open = $('box-typef').classList.toggle('open');
     $('box-typef-toggle').classList.toggle('on', open);
+    syncBoxHeight();   // チップ展開ぶんグリッドを縮めて下端を中央パネルに揃えたまま保つ
   });
   $('pp-q').addEventListener('input', () => renderPickerList($('pp-q').value));
   $('pp-sort').addEventListener('change', () => renderPickerList($('pp-q').value));
