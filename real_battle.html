@@ -11,6 +11,7 @@
 <script src="battle_log_i18n.js?v=20260711a"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <script src="preset_builds.js?v=20260711a"></script>
+<script src="move_fx_map.js?v=20260711c"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -506,6 +507,40 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .rb-burstglyph-star{position:absolute;left:50%;top:40%;font-size:30px;color:#fff;text-shadow:0 0 8px #fff;
   pointer-events:none;z-index:5;animation:rbGlyphStar .26s ease-out forwards}
 @keyframes rbGlyphStar{0%{opacity:0;transform:translate(-50%,-50%) scale(1)}40%{opacity:1;transform:translate(-50%,-50%) scale(2)}100%{opacity:0;transform:translate(-50%,-50%) scale(2)}}
+/* ===== タスクC(2026-07-11): 技→エフェクト形状(shape・全27種+専用爆発1種)。
+   設計=設計_技エフェクト対応表_2026-07-11.md。moveClassOf(動き=飛翔/突進/ビームの判定)は変えず、
+   その後段のshapeOf(mv)が決めた「絵のグリフ」をここで描く(spawnBurstGlyph一般化+spawnProjectile/spawnBeamのアイコン差し替え) ===== */
+.rb-burstglyph-emoji{position:absolute;left:50%;top:40%;font-size:28px;pointer-events:none;z-index:5;
+  text-shadow:0 0 8px #fff9;animation:rbGlyphStar .26s ease-out forwards}
+/* drill: 高速回転する縞ディスク(つのドリル/ドリルライナー/ドリルくちばし等の着弾) */
+.rb-burstglyph-drill{position:absolute;left:50%;top:46%;width:26px;height:26px;margin:-13px 0 0 -13px;
+  border-radius:50%;pointer-events:none;z-index:5;background:repeating-linear-gradient(45deg,#fff 0 3px,transparent 3px 7px);
+  filter:drop-shadow(0 0 6px #fff9);animation:rbGlyphDrill .3s linear forwards}
+@keyframes rbGlyphDrill{0%{opacity:0;transform:rotate(0deg) scale(.4)}30%{opacity:1}100%{opacity:0;transform:rotate(340deg) scale(1.2)}}
+/* psi/dragon: 渦(conic-gradientの回転スパイラル。エスパー/竜のエネルギー) */
+.rb-burstglyph-spiral{position:absolute;left:50%;top:46%;width:30px;height:30px;margin:-15px 0 0 -15px;
+  border-radius:50%;pointer-events:none;z-index:5;animation:rbGlyphSpiral .32s ease-out forwards}
+@keyframes rbGlyphSpiral{0%{opacity:0;transform:rotate(0deg) scale(.3)}35%{opacity:.95}100%{opacity:0;transform:rotate(200deg) scale(1.5)}}
+/* dust: 土煙(丸いradial-gradient)+地割れ(クラック線)。じめん物理・爆発全般の既定 */
+.rb-burstglyph-dust{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;
+  border-radius:50%;pointer-events:none;z-index:4;background:radial-gradient(circle,#a97c50cc 0%,#7a5a3855 55%,transparent 75%);
+  animation:rbGlyphDust .5s ease-out forwards}
+@keyframes rbGlyphDust{0%{opacity:0;transform:scale(.2)}30%{opacity:.9}100%{opacity:0;transform:scale(1.6)}}
+.rb-burstglyph-crack{position:absolute;left:50%;top:56%;width:52px;height:14px;margin:-7px 0 0 -26px;pointer-events:none;z-index:4;
+  background:linear-gradient(100deg,transparent 45%,#3a2a18 47%,transparent 49%),linear-gradient(70deg,transparent 60%,#3a2a18 62%,transparent 64%);
+  animation:rbGlyphDust .5s ease-out forwards}
+/* explosion: だいばくはつ/じばく専用(2026-07-11 阿部さん承認=dust流用でなく専用の閃光+爆風) */
+.rb-burstglyph-explosion{position:absolute;left:50%;top:50%;width:130px;height:130px;margin:-65px 0 0 -65px;
+  border-radius:50%;pointer-events:none;z-index:4;background:radial-gradient(circle,#fff 0%,#ffb350cc 30%,#c2410ccc 55%,transparent 75%);
+  animation:rbGlyphExplosion .6s ease-out forwards}
+@keyframes rbGlyphExplosion{0%{opacity:0;transform:scale(.1)}20%{opacity:1}100%{opacity:0;transform:scale(2.2)}}
+/* 飛翔体側: orb/sand/dust/explosion(絵文字を持たない=既存.rb-proj-dotの発展形)。drillは回転縞 */
+.rb-proj-drill{background:repeating-linear-gradient(45deg,var(--pc,#fff) 0 3px,transparent 3px 7px)}
+/* ビーム側: shapeごとの見た目バリエーション(既存.rb-beamに重ねるmodifierクラス) */
+.rb-beam-gust{height:6px;background:repeating-linear-gradient(90deg, var(--bc,#fff) 0 5px, transparent 5px 11px);box-shadow:0 0 10px 3px var(--bc,#fff)}
+.rb-beam-dragon{height:8px;background:repeating-linear-gradient(90deg, var(--bc,#fff) 0 10px, #ffffffcc 10px 14px, var(--bc,#fff) 14px 24px);box-shadow:0 0 14px 4px var(--bc,#fff)}
+.rb-beam-spark{height:6px;background:repeating-linear-gradient(115deg, var(--bc,#fff) 0 4px, #fff9 4px 6px, transparent 6px 10px);box-shadow:0 0 12px 4px var(--bc,#fff)}
+.rb-beam-thick{height:9px;box-shadow:0 0 16px 5px var(--bc,#fff)}
 /* --- Wave3 A級: 被弾スプライトの点滅+スカッシュ&ストレッチ(体積保存 x*y≈1)。.sprite img/.circに掛ける=
    .spriteのrbShake(transform:translateX)・#f-self/#f-oppのscaleと別要素で衝突しない --- */
 @keyframes rbHitFlash{0%,100%{filter:none}25%{filter:brightness(4) saturate(0)}50%{filter:none}75%{filter:brightness(4) saturate(0)}}
@@ -3131,9 +3166,10 @@ function popText(side, text, color, size, variant){
   f.appendChild(el);
   setTimeout(() => el.remove(), 1100);
 }
-// burstFx: 多層バースト(Wave2.5 S級)。既存radial-gradientの上に破片パーティクル+衝撃リング+クラス別グリフを重ねる。
+// burstFx: 多層バースト(Wave2.5 S級)。既存radial-gradientの上に破片パーティクル+衝撃リング+形状(shape)別グリフを重ねる。
 // intensity: 'normal'(既定)/'up'(ばつぐん=粒子2倍+2重リング)/'crit'(急所=同様)/'down'(いまひとつ=粒子半減)
-function burstFx(side, color, cls, intensity){
+// shape(タスクC 2026-07-11): shapeOf(mv)の解決結果(fist/blade/flame/...等28種)。省略時はグリフ無し(従来どおり)
+function burstFx(side, color, shape, intensity){
   const f = $('f-' + side);
   if (!f) return;
   const el = document.createElement('div');
@@ -3146,7 +3182,7 @@ function burstFx(side, color, cls, intensity){
   spawnBurstParticles(f, color, n);
   spawnBurstRing(f, color);
   if (big) setTimeout(() => spawnBurstRing(f, color), 60);   // 2重リング
-  if (cls) spawnBurstGlyph(f, cls);
+  if (shape) spawnBurstGlyph(f, shape);
 }
 // 破片パーティクル(4-8pxの粒が放射状に飛び散る。疑似重力で下に膨らむ弧)
 function spawnBurstParticles(f, color, n){
@@ -3187,9 +3223,15 @@ function spawnBurstRing(f, color){
   } catch (e) {}
   setTimeout(() => el.remove(), 360);
 }
-// クラス別グリフ(slash=斬線2本ずらし/punch・kick・bite=星ヒットマーク)
-function spawnBurstGlyph(f, cls){
-  if (cls === 'slash'){
+// 形状(shape)別グリフ(タスクC 2026-07-11・設計_技エフェクト対応表_2026-07-11.md)。
+// blade=斬線2本ずらし(既存流用) / drill=回転縞ディスク / psi・dragon=渦スパイラル(色違い) /
+// dust=土煙+地割れ / explosion=だいばくはつ/じばく専用の閃光+爆風(dust流用でなく専用形状=阿部さん承認) /
+// orb・sand=絵文字なし(burstFx既存の球+粒子+リングそのままで足りる=専用グリフは追加しない) /
+// それ以外(fist/foot/fang/note/heart/star/skull/gear/ice/web/leaf/seed/feather/gust/water/flame/spark/rock/sting)
+// =絵文字ポップ(_SHAPE_ICON)
+function spawnBurstGlyph(f, shape){
+  if (!shape) return;
+  if (shape === 'blade'){
     for (let i = 0; i < 2; i++){
       setTimeout(() => {
         const el = document.createElement('div');
@@ -3198,12 +3240,47 @@ function spawnBurstGlyph(f, cls){
         setTimeout(() => el.remove(), 260);
       }, i * 60);
     }
-  } else if (cls === 'punch' || cls === 'kick' || cls === 'bite'){
+    return;
+  }
+  if (shape === 'drill'){
     const el = document.createElement('div');
-    el.className = 'rb-burstglyph-star';
-    el.textContent = '✦';
+    el.className = 'rb-burstglyph-drill';
     f.appendChild(el);
-    setTimeout(() => el.remove(), 260);
+    setTimeout(() => el.remove(), 320);
+    return;
+  }
+  if (shape === 'psi' || shape === 'dragon'){
+    const el = document.createElement('div');
+    el.className = 'rb-burstglyph-spiral';
+    el.style.background = shape === 'dragon'
+      ? 'conic-gradient(from 0deg,#7c3aed,#60a5fa,#7c3aed)'
+      : 'conic-gradient(from 0deg,#a78bfa,#f0abfc,#a78bfa)';
+    f.appendChild(el);
+    setTimeout(() => el.remove(), 340);
+    return;
+  }
+  if (shape === 'dust' || shape === 'explosion'){
+    const big = shape === 'explosion';
+    const el = document.createElement('div');
+    el.className = big ? 'rb-burstglyph-explosion' : 'rb-burstglyph-dust';
+    f.appendChild(el);
+    setTimeout(() => el.remove(), big ? 620 : 520);
+    if (!big){
+      const crack = document.createElement('div');
+      crack.className = 'rb-burstglyph-crack';
+      f.appendChild(crack);
+      setTimeout(() => crack.remove(), 520);
+    }
+    return;
+  }
+  if (shape === 'orb' || shape === 'sand') return;   // burstFx本体(球+粒子+リング)で十分=専用グリフ無し
+  const icon = _SHAPE_ICON[shape];
+  if (icon){
+    const el = document.createElement('div');
+    el.className = 'rb-burstglyph-emoji';
+    el.textContent = icon;
+    f.appendChild(el);
+    setTimeout(() => el.remove(), 280);
   }
 }
 // ===== Wave1: 攻撃演出(技クラス別の飛翔体→着弾) 2026-07-10 阿部さん「音とエフェクトを派手に」 =====
@@ -3223,6 +3300,42 @@ function moveClassOf(mv){
 const _RB_CLS_ICON = { sound: '🎵', punch: '👊', slash: '⚔️', wind: '🌀', bite: '🦷', kick: '🦵' };
 const _RB_CLS_DOT = { bullet: 1, phys: 1 };
 const _RB_BEAM_CLS = { wave: 1, spec: 1 };
+// ===== タスクC(2026-07-11): 技→エフェクト形状(shape)。設計=設計_技エフェクト対応表_2026-07-11.md =====
+// moveClassOfの後段。動き(飛翔体/突進/ビームの別)は変えない=moveClassOf+mv.contactがそのまま握る。
+// shapeOfは「絵のグリフ」だけを決める。解決順=overrides(技名完全一致)→flagOrder(moveClassOfと同一優先順)→defaults[タイプ][分類]。
+// データ=move_fx_map.js(window.MOVE_FX_MAP。元=reference/move_fx_map_draft_v1.json)。326技(攻撃技全数)で必ず何か返る(カバレッジ機械照合済み)。
+const _SHAPE_FLAG_ORDER = [
+  { shape: 'note',  test: f => !!f.sound },
+  { shape: 'fist',  test: f => !!f.punch },
+  { shape: 'blade', test: f => !!(f.slicing || f.slash) },
+  { shape: 'orb',   test: f => !!(f.bullet || f.ball) },
+  { shape: 'gust',  test: f => !!f.wind },
+  { shape: 'psi',   test: f => !!f.pulse },
+  { shape: 'fang',  test: f => !!f.bite },
+];
+function shapeOf(mv){
+  if (!mv) return null;
+  const map = window.MOVE_FX_MAP;
+  if (map && map.overrides && map.overrides[mv.name]) return map.overrides[mv.name];
+  const f = mv.flags || {};
+  for (const rule of _SHAPE_FLAG_ORDER) if (rule.test(f)) return rule.shape;
+  if (/キック|蹴/.test(mv.name || '')) return 'foot';
+  const d = map && map.defaults && map.defaults[mv.type];
+  return (d && d[mv.category]) || null;
+}
+// shape別アイコン(絵文字)。blade/orb/sand/dust/explosion/drillは絵文字を持たず専用css(spawnBurstGlyph/spawnProjectile/spawnBeam側で分岐)。
+// psi/dragon/beamは既定でビーム描画(_RB_BEAM_SHAPES)になるためここのアイコンは主に接触技着弾popText用のフォールバック。
+const _SHAPE_ICON = {
+  fist:'👊', foot:'🦵', fang:'🦷', note:'🎵', heart:'💗', star:'⭐', skull:'💀', gear:'⚙️',
+  ice:'❄️', web:'🕸️', leaf:'🍃', seed:'🌰', feather:'🪶', gust:'🌀', water:'💧', flame:'🔥',
+  spark:'⚡', rock:'🪨', sting:'🪡', blade:'⚔️', psi:'🔮', dragon:'🐉', beam:'✨',
+};
+// 飛翔体でなく線状ビームで見せるべき形状(設計docの③6-2「追記ルール」=既存_RB_BEAM_CLS(wave/spec)にOR結合)
+const _RB_BEAM_SHAPES = { beam:1, psi:1, dragon:1, gust:1, note:1, spark:1 };
+// ビーム系のうち専用モディファイアclassを持つもの(無指定は既存.rb-beamのまま)
+const _RB_BEAM_SHAPE_CLASS = { psi: 'rb-beam-wave', dragon: 'rb-beam-dragon', gust: 'rb-beam-gust', spark: 'rb-beam-spark', beam: 'rb-beam-thick' };
+// 飛翔体で「ボール(css)」として見せる形状(絵文字を持たない=既存bullet/ball系の発展形)。drillは回転縞バリアント付き
+const _RB_PROJ_DOT_SHAPES = { orb:1, sand:1, dust:1, explosion:1, drill:1 };
 // 攻撃側/対象側のスプライト中心を画面座標(fixed基準)で返す。#fieldのzoom/scaleの影響を受けない
 function fxPoint(side){
   const f = $('f-' + side);
@@ -3230,11 +3343,12 @@ function fxPoint(side){
   const r = sp.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height * 0.5 };
 }
-function spawnProjectile(from, to, cls, color, hitFrac){
+function spawnProjectile(from, to, cls, color, hitFrac, shape){
   const el = document.createElement('div');
-  const isDot = _RB_CLS_DOT[cls];
-  el.className = 'rb-proj' + (isDot ? ' rb-proj-dot' + (cls === 'phys' ? ' rb-proj-dot-lg' : '') : '');
-  if (!isDot) el.textContent = _RB_CLS_ICON[cls] || '●';
+  const isDot = shape ? _RB_PROJ_DOT_SHAPES[shape] : _RB_CLS_DOT[cls];
+  const icon = shape ? _SHAPE_ICON[shape] : _RB_CLS_ICON[cls];
+  el.className = 'rb-proj' + (isDot ? ' rb-proj-dot' + (shape === 'drill' ? ' rb-proj-drill' : (!shape && cls === 'phys') ? ' rb-proj-dot-lg' : '') : '');
+  if (!isDot) el.textContent = icon || '●';
   el.style.setProperty('--pc', color);
   el.style.left = from.x + 'px';
   el.style.top = from.y + 'px';
@@ -3252,12 +3366,13 @@ function spawnProjectile(from, to, cls, color, hitFrac){
   setTimeout(() => el.remove(), dur + 80);
   return dur;
 }
-function spawnBeam(from, to, cls, color, hitFrac){
+function spawnBeam(from, to, cls, color, hitFrac, shape){
   const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
   const dist = Math.hypot(dx, dy);
   const ang = Math.atan2(dy, dx) * 180 / Math.PI;
   const el = document.createElement('div');
-  el.className = 'rb-beam' + (cls === 'wave' ? ' rb-beam-wave' : '');
+  const variant = (shape && _RB_BEAM_SHAPE_CLASS[shape]) || (cls === 'wave' ? 'rb-beam-wave' : '');
+  el.className = 'rb-beam' + (variant ? ' ' + variant : '');
   el.style.setProperty('--bc', color);
   el.style.left = from.x + 'px';
   el.style.top = from.y + 'px';
@@ -3281,10 +3396,12 @@ function spawnBeam(from, to, cls, color, hitFrac){
 function attackFx(atkSide, tgtSide, mv, hit){
   if (mv && mv.contact === true) return chargeFx(atkSide, tgtSide, mv, hit);
   const cls = moveClassOf(mv);
+  const shape = shapeOf(mv);
   const color = (S.typeColors() && mv && S.typeColors()[mv.type]) || '#9fb4d8';
   const from = fxPoint(atkSide), to = fxPoint(tgtSide);
   const hitFrac = hit ? 1 : 0.55;
-  const dur = _RB_BEAM_CLS[cls] ? spawnBeam(from, to, cls, color, hitFrac) : spawnProjectile(from, to, cls, color, hitFrac);
+  const useBeam = _RB_BEAM_CLS[cls] || (shape && _RB_BEAM_SHAPES[shape]);
+  const dur = useBeam ? spawnBeam(from, to, cls, color, hitFrac, shape) : spawnProjectile(from, to, cls, color, hitFrac, shape);
   if (hit) setTimeout(() => { fieldShake(1); SE.hitClass(cls); }, dur);
   else setTimeout(() => SE.miss(), Math.round(dur * 0.7));
   return dur;
@@ -3294,13 +3411,14 @@ function attackFx(atkSide, tgtSide, mv, hit){
 // 演出例外(交代/ひんしの割込み等)でも必ずクローン除去+本体visibility復帰する(保険タイマー併用)。
 function chargeFx(atkSide, tgtSide, mv, hit){
   const cls = moveClassOf(mv);
+  const shape = shapeOf(mv);
   const color = (S.typeColors() && mv && S.typeColors()[mv.type]) || '#9fb4d8';
   const atkEl = $('f-' + atkSide);
   const sp = atkEl && atkEl.querySelector('.sprite');
   if (!sp || typeof sp.animate !== 'function'){
-    // 保険: クローン化できない環境は従来の飛翔体にフォールバック(技名推測はしない=クラス別演出は維持)
+    // 保険: クローン化できない環境は従来の飛翔体にフォールバック(技名推測はしない=形状別演出は維持)
     const from = fxPoint(atkSide), to = fxPoint(tgtSide);
-    const dur = spawnProjectile(from, to, cls, color, hit ? 1 : 0.55);
+    const dur = spawnProjectile(from, to, cls, color, hit ? 1 : 0.55, shape);
     if (hit) setTimeout(() => { fieldShake(1); SE.hitClass(cls); }, dur); else setTimeout(() => SE.miss(), Math.round(dur * 0.7));
     return dur;
   }
@@ -3333,8 +3451,8 @@ function chargeFx(atkSide, tgtSide, mv, hit){
   };
   const onImpact = () => {
     if (hit){
-      burstFx(tgtSide, color, cls, 'normal');
-      const icon = _RB_CLS_ICON[cls];
+      burstFx(tgtSide, color, shape, 'normal');
+      const icon = _SHAPE_ICON[shape] || _RB_CLS_ICON[cls];
       if (icon) popText(tgtSide, icon, null, 26);
       SE.hitClass(cls);
       fieldShake(1);
@@ -3657,6 +3775,7 @@ function lineWithFx(msg){
       const mv = (S.sides[atkSide].moves || []).find(m => m && m.name === atkLine[2]);
       const _atkColor = mv ? (S.typeColors()[mv.type] || '#9fb4d8') : '#9fb4d8';
       const _atkCls = moveClassOf(mv);
+      const _atkShape = shapeOf(mv);   // タスクC 2026-07-11: burstFxのグリフは形状(shape)ベースに
       // 接触技(chargeFx)は着弾拍でburst/popText/hit揺れを自前で鳴らす(本体クローンが飛ぶ)ので、
       // 非接触(飛翔体/ビーム)側だけこのsetTimeoutで従来どおり重ねる(重複演出防止)
       const _isContact = mv && mv.contact === true;
@@ -3670,7 +3789,7 @@ function lineWithFx(msg){
       const _hitCls = _hpPct >= 0.28 ? 'hit-big' : 'hit';
       _lastHitBig = _hpPct >= 0.28;   // Wave4 B級: 「大技」判定(爆発音=ばつぐん/急所行と合わせて大技/KO限定で鳴らす)
       setTimeout(() => {
-        if (!_isContact) burstFx(tgt, _atkColor, _atkCls, 'normal');
+        if (!_isContact) burstFx(tgt, _atkColor, _atkShape, 'normal');
         if (d) popText(tgt, '−' + d[1], '#fff');
         flash(tgt, _hitCls);
       }, _atkDur);
