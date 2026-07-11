@@ -439,6 +439,247 @@ function flash(side, cls){
   setTimeout(() => f.classList.remove(cls), 800);
 }
 
+// ===== 演出ツクール Step2b(2026-07-11・設計_演出ツクール_2026-07-11.md 1-4「シーン」)=====
+// real_battle.html/online_battle.htmlに二重定義されていた「シーン演出」(登場/メガ儀式/ひんし/KOスロー/勝敗等)を
+// 1本化。Step2aと同じ判断基準(グローバル直参照温存=$/S/SE/tone/ac/_recallTimer・純リファクタで挙動不変)。
+// 依存の補足: tone()/ac()(WebAudio合成音の下請け)・_recallTimer(交代1拍目のgone遅延タイマー・オブジェクト)は
+// 両ページで同名同内容のグローバルとして既に定義されている前提(Step2aのSE/$と同じ扱い。注入点は新設しない)。
+// ランク変化: 緑↑/紫↓の粒子(段数で個数)+上昇/下降スイープ音
+function rankFx(side, up, stage){
+  const f = $('f-' + side);
+  if (!f) return;
+  const n = Math.min(3, Math.max(1, stage || 1));
+  for (let i = 0; i < n; i++){
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'rb-rankp ' + (up ? 'rb-rankp-up' : 'rb-rankp-down');
+      el.textContent = up ? '↑' : '↓';
+      el.style.marginLeft = (Math.random() * 30 - 15) + 'px';
+      f.appendChild(el);
+      setTimeout(() => el.remove(), 900);
+    }, i * 90);
+  }
+  up ? SE.rankUp() : SE.rankDown();
+}
+// 回復のキラキラ(緑の星が数個舞う)。SE.heal()(ハープ風)は既存のまま呼び出し元で鳴らす
+function sparkleFx(side){
+  const f = $('f-' + side);
+  if (!f) return;
+  for (let i = 0; i < 5; i++){
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'rb-sparkle';
+      el.textContent = '✨';
+      el.style.left = (15 + Math.random() * 70) + '%';
+      el.style.top = (30 + Math.random() * 40) + '%';
+      f.appendChild(el);
+      setTimeout(() => el.remove(), 700);
+    }, i * 60);
+  }
+}
+function screenFlash(color, mega){
+  const el = $('fx-flash');
+  el.style.background = color;
+  el.className = '';
+  void el.offsetWidth;
+  el.className = mega ? 'mega' : 'on';
+}
+// ===== Wave3: メガシンカ儀式演出(設計_バトル演出強化_2026-07-10.md v2 ③章・特例1.5-2.0s) =====
+// 「収束→シルエット→爆発」の3拍構造。戻り値=総dur(_megaFxDelayとしてnextSayの自動送りをホールドする)。
+// 全エフェクトは#f-側内にappend(側スケールの影響はサイズ係数側で吸収)。エンジン状態は読まない(行検知のみ)。
+// scene:mega_evolve(演出ツクール1-4)のトレース発火点。
+function megaFx(side){
+  if (window.__fxTrace) window.__fxTrace.push({k:'megaFx', side, t: performance.now()});
+  const f = $('f-' + side);
+  if (!f) return 0;
+  const DUR = 1700;
+  screenFlash('#835BA5', true);   // t=0: 紫オーバーレイ(既存rbMega keyframeを流用)
+  setTimeout(() => {   // t=200: 光柱
+    const pillar = document.createElement('div');
+    pillar.className = 'rb-mega-pillar';
+    f.appendChild(pillar);
+    setTimeout(() => pillar.remove(), 480);
+  }, 200);
+  setTimeout(() => {   // t=300: 収束する発光玉×5(ポケモン周囲→中心)
+    for (let i = 0; i < 5; i++){
+      const orb = document.createElement('div');
+      orb.className = 'rb-mega-orb';
+      const ang = (Math.PI * 2 / 5) * i;
+      orb.style.setProperty('--ox', Math.cos(ang) * 70 + 'px');
+      orb.style.setProperty('--oy', Math.sin(ang) * 70 + 'px');
+      f.appendChild(orb);
+      setTimeout(() => orb.remove(), 420);
+    }
+  }, 300);
+  const sp = f.querySelector('.sprite');
+  setTimeout(() => { if (sp) sp.classList.add('rb-mega-silhouette'); }, 500);   // t=500: シルエット化
+  // t=700: スプライト差し替えは呼び出し元(renderAll)に任せる(変身の瞬間を見せない=見た目はシルエットのまま)
+  setTimeout(() => {   // t=900: 爆発(収束玉→拡散)+虹リング+桃霧玉
+    if (sp) sp.classList.remove('rb-mega-silhouette');
+    burstFx(side, '#ffd96b', null, 'up');
+    const ring = document.createElement('div');
+    ring.className = 'rb-mega-ring';
+    f.appendChild(ring);
+    setTimeout(() => ring.remove(), 520);
+    for (let i = 0; i < 4; i++){
+      const mist = document.createElement('div');
+      mist.className = 'rb-mega-mist';
+      mist.style.left = (30 + Math.random() * 40) + '%';
+      mist.style.top = (20 + Math.random() * 40) + '%';
+      f.appendChild(mist);
+      setTimeout(() => mist.remove(), 500);
+    }
+  }, 900);
+  setTimeout(() => fieldShake(1.6), 1000);   // t=1000: filter解除+shake
+  setTimeout(() => {   // t=1300: 仕上げ(独自のDNA型シンボル・公式アセット複製なし)
+    const dna = document.createElement('div');
+    dna.className = 'rb-mega-dna';
+    dna.textContent = '✦';
+    f.appendChild(dna);
+    setTimeout(() => dna.remove(), 260);
+  }, 1300);
+  // 全要素は各自のtimeoutで一括remove(失敗しても盤面を壊さない=class常駐なし)
+  return DUR;
+}
+// ===== Wave4 B級: KOスロー(とどめ演出・設計 v2 ①/④章)。ひんし行限定・dur戻り値で次拍をホールド(_koFxDelay) =====
+// getAnimationsの対象は「戦闘の飛翔体/バースト/ポップ数字/倒れなかった側の.fighter」だけに絞る。
+// #moves の常駐パルス(.mega-armed)や壁パネルの::before/::after一撃popは対象外(壁パネルは疑似要素=そもそも
+// querySelectorAllで拾えない/常駐UIは選択子に含めない)。倒れた側の.fighterはrbFaint(沈み演出)の1500ms固定
+// タイマーと噛み合わせる必要がないよう意図的に除外(スロー化すると沈み切る前にgoneで隠れて不自然になる事故を防ぐ)。
+// .rb-chargeclone(突進クローン)も意図的に除外(実機PDCAで発覚・2026-07-10): chargeFxは
+// 「lunge→(onfinish)→returnHome→(onfinish)cleanup=visibility復帰」の2段WAAPIアニメ連鎖で、
+// pause→playbackRate操作を挟むとonfinishの発火タイミングが崩れ、cleanupが呼ばれず本体spriteが
+// visibility:hiddenのまま・クローンが盤面に残留するリークを実機で確認したため(=まさに巻き込み事故)。
+function _koCollectAnims(koSide){
+  const otherSide = koSide === 'self' ? 'opp' : 'self';
+  const sel = `#f-${otherSide},#f-${otherSide} *,.rb-proj,.rb-proj-dot,.rb-beam,.rb-beam-wave,` +
+    `.popnum,.burst,.rb-burstp,.rb-burstring,[class*="rb-burstglyph"],[class*="rb-mega-"]`;
+  const seen = new Set(), anims = [];
+  document.querySelectorAll(sel).forEach(el => {
+    if (seen.has(el)) return; seen.add(el);
+    try { el.getAnimations().forEach(a => { if (a.playState === 'running') anims.push(a); }); } catch (e) {}
+  });
+  return anims;
+}
+// scene:ko_slowmo(演出ツクール1-4)のトレース発火点。
+function koSlowFx(koSide){
+  if (window.__fxTrace) window.__fxTrace.push({k:'koSlowFx', koSide, t: performance.now()});
+  impactFrameFx();   // Wave4 B級①: 白黒反転50ms(急所/KO級限定)
+  SE.explosion();    // Wave4 B級⑥: 爆発音(大技/KO限定=KOは無条件)
+  const bg = $('field-backdrop');
+  const anims = _koCollectAnims(koSide);
+  anims.forEach(a => { try { a.pause(); } catch (e) {} });   // ヒットストップ200ms(じっくりFB=2026-07-11 阿部さん)
+  if (bg){ bg.style.transition = 'filter .18s linear'; bg.style.filter = 'brightness(.5)'; }
+  setTimeout(() => {
+    anims.forEach(a => { try { a.playbackRate = 0.15; a.play(); } catch (e) {} });   // 600ms スロー(0.15x=もっとゆっくり)
+    setTimeout(() => {
+      anims.forEach(a => { try { a.playbackRate = 1; } catch (e) {} });   // 復帰
+      if (bg){ bg.style.transition = 'filter .25s linear'; bg.style.filter = ''; }
+    }, 600);
+  }, 200);
+  return 950;   // dur=200(タメ)+600(スロー)+150(復帰バッファ)。次拍と衝突させない(_koFxDelayでホールド)
+}
+// ===== Wave3: 壁パネル(リフレクター/ひかりのかべ/オーロラベール・設計 v2 ③-2章) =====
+// 持続は#f-側へのclass付与でCSS管理(::before/::afterの平行四辺形パネル)=renderAll等の再描画に耐える。
+// 交代・ひんしでは消さない(壁は側に付く)。新バトル初期化時のみstartBattle()側でclass除去する。
+const _WALL_CLASS = { リフレクター: 'rb-wall-reflect', ひかりのかべ: 'rb-wall-screen', オーロラベール: 'rb-wall-veil' };
+function showWallFx(side, name){
+  const f = $('f-' + side), cls = _WALL_CLASS[name];
+  if (!f || !cls) return;
+  f.classList.remove(cls);
+  void f.offsetWidth;
+  f.classList.add(cls);   // 再付与でCSSのpop込みkeyframeを再生(一瞬強く光って薄く常駐)
+  tone('triangle', 660, 0.1, 0.14, 880);
+  tone('triangle', 880, 0.12, 0.12, null, ac().currentTime + 0.05);
+}
+function hideWallFx(side, name){
+  const f = $('f-' + side), cls = _WALL_CLASS[name];
+  if (!f || !cls) return;
+  f.classList.remove(cls);
+}
+const _WEATHER_FX = {sun: ['☀️', '#3a2c14'], rain: ['💧', '#14263a'], sand: ['🌪️', '#34290f'], snow: ['❄️', '#1a2a3c']};
+// scene:weather_*(演出ツクール1-4)のトレース発火点(kind=null=天候解除も記録する)。
+function setWeatherFx(kind){
+  if (window.__fxTrace) window.__fxTrace.push({k:'setWeatherFx', kind, t: performance.now()});
+  const el = $('weather-fx');
+  if (!kind){ el.textContent = ''; el.classList.remove('live'); $('field').style.boxShadow = ''; return; }
+  const [emo, tint] = _WEATHER_FX[kind];
+  el.textContent = (emo + ' ').repeat(24);
+  el.classList.add('live');
+  $('field').style.boxShadow = `inset 0 0 80px 20px ${tint}`;
+}
+// S6: 背景プリセット切替 ---------------------------------------------------
+// setBackdrop(preset): #field-backdrop の data-preset 属性を切り替えるだけ。
+// CSSが data-preset 値に応じて背景グラデを適用(将来の追加はCSS1プリセット+option1行)。
+// preset: 'grass' | 'cave' | 'water' | 'night'(初期値='grass')。
+const _BACKDROP_PRESETS = ['grass', 'cave', 'water', 'night'];
+function setBackdrop(preset){
+  const el = $('field-backdrop');
+  if (!el) return;
+  const p = _BACKDROP_PRESETS.includes(preset) ? preset : 'grass';
+  el.dataset.preset = p;
+  // セレクトと同期
+  const sel = $('backdrop-sel');
+  if (sel && sel.value !== p) sel.value = p;
+  // 設定をlocalStorageに保存(リロードで復元)
+  try { localStorage.setItem('rb_backdrop', p); } catch (e) {}
+}
+function initBackdrop(){
+  // localStorageから復元(保存値があればそれを適用、なければ'grass')
+  let saved = 'grass';
+  try { saved = localStorage.getItem('rb_backdrop') || 'grass'; } catch (e) {}
+  setBackdrop(saved);
+  // セレクトのchange → setBackdrop
+  const sel = $('backdrop-sel');
+  if (sel){
+    sel.value = saved;
+    sel.addEventListener('change', () => setBackdrop(sel.value));
+  }
+}
+// 勝敗を画面中央に大きく表示(WIN/LOSE)。次のバトル開始やリセットで消す。scene:win/scene:lose のトレース発火点
+// (won=true/falseで区別)。hideResultBanner()も両ページ同一実装だったため一緒に移設(先の調査で「online側だけ
+// AI戦タイマー再アームを併記」と見えたのは単一行関数へのawk抽出誤検出=実際は完全同一。この段落で訂正)。
+function showResultBanner(won){
+  if (window.__fxTrace) window.__fxTrace.push({k:'showResultBanner', won: !!won, t: performance.now()});
+  const el = $('result-banner');
+  if (!el) return;
+  el.className = 'show ' + (won ? 'win' : 'lose');
+  el.innerHTML = `<div class="rb-txt">${won ? 'WIN!' : 'LOSE...'}</div>`;
+}
+function hideResultBanner(){ const el = $('result-banner'); if (el) el.className = ''; }
+// ===== シーン演出(登場/引っ込め/ひんし)。real_battle.html/online_battle.htmlの行fxディスパッチャ(この2ページに
+// 残置=msgbox/say系で state強結合)から、DOM操作のみの部分だけを切り出し(呼び出し順序は元のまま不変)。
+// 交代/死に出し共通の登場演出。scene:send_out(演出ツクール1-4)のトレース発火点。
+function sendOutFx(side){
+  if (window.__fxTrace) window.__fxTrace.push({k:'sendOutFx', side, t: performance.now()});
+  flash(side, 'enter');
+  SE.enter();
+}
+// 引っ込める演出。scene:recall(演出ツクール1-4)のトレース発火点。1拍目で縮んで消え、2拍目(登場)で
+// _recallTimer経由でキャンセルされなければ1000ms後にgoneへ固定する(呼び出し元の交代1拍目if分岐から丸ごと移設)。
+function recallFx(side){
+  if (window.__fxTrace) window.__fxTrace.push({k:'recallFx', side, t: performance.now()});
+  flash(side, 'recall');
+  const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
+  clearTimeout(_recallTimer[side]);
+  _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 1000);
+}
+// ひんし退場演出(沈んで消える)。scene:faint(演出ツクール1-4)のトレース発火点。呼び出し元(ひんし行if分岐)は
+// このあとに続けて`_koFxDelay = koSlowFx(side)`を呼ぶ(HPバー同期setHpBarは呼び出し元に残置=state更新のため)。
+function faintFx(side){
+  if (window.__fxTrace) window.__fxTrace.push({k:'faintFx', side, t: performance.now()});
+  const ff = $('f-' + side);
+  if (ff){
+    ff.classList.remove('recall', 'enter', 'hit', 'lunge-self', 'lunge-opp');
+    void ff.offsetWidth;
+    ff.classList.add('faint');   // rbFaint .95s forwards=沈んで消える
+    // 沈み切ったらgoneで固定。flash()を使うと800msでfaintが外れ100ms素に戻って再表示=ちらつく(2026-07-06 阿部さん)ため自前で。
+    setTimeout(() => { ff.classList.add('gone'); ff.classList.remove('faint');
+      const pbF = $('pb-' + side); if (pbF) pbF.style.visibility = 'hidden'; }, 1500);
+  }
+  SE.faint();
+}
+
 // ===== 演出ツクール Step4(2026-07-11・設計_演出ツクール_2026-07-11.md 1-2 cuePlayer=上書きオーバーレイ方式) =====
 // fx_editor.htmlで人間が調整したキューシート(window.BATTLE_FX_CUES・battle_fx_cues.js)を本番
 // (real_battle.html/online_battle.html)が再生するための共有プレイヤー。fx_editor.htmlのdispatchCue()と
