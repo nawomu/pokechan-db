@@ -2918,23 +2918,6 @@ function phaseDealDamage(atkSide, defSide, move){
     atk.currentHp = Math.min(amax, atk.currentHp + heal);
     log('9', `${pname(atk)} は 吸収して ${heal} 回復！ (残HP ${atk.currentHp})`);
   }
-  // 技固有の反動: 与ダメ合計の fraction だけ自分も受ける(※厳密な丸め 0.33 vs 1/3 は権威確認=park)
-  const recoilEf = _effs.find(e => e.kind === '反動');
-  // いしあたま: 反動技の反動を受けない(ABILITY_DESC公式準拠・段110)
-  if (recoilEf && total > 0 && sideAbility(atk) !== 'いしあたま'){
-    const dmg = Math.max(1, Math.floor(total * (recoilEf.fraction || 0)));
-    atk.currentHp = Math.max(0, atk.currentHp - dmg);
-    log('9', `${pname(atk)} は 反動で ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
-    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
-  }
-  // 反動ダメージ (ゴツメ・たま=持ち物由来。calcDamageが計算済み)
-  if (result.recoil > 0){
-    atk.currentHp = Math.max(0, atk.currentHp - result.recoil);
-    const _recoilLabel = result.helmetRecoil > 0 && result.orbRecoil > 0 ? 'ゴツゴツメット+いのちのたまの反動'
-                       : result.helmetRecoil > 0 ? 'ゴツゴツメットの反動' : 'いのちのたまの反動';
-    log('9', `${pname(atk)} は ${_recoilLabel}で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
-    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
-  }
   // ★ふうせん: 攻撃技でダメージを受けると割れて効果消失(items_database宣言。出典: ポケモンWiki「ふうせん」)
   // total > 0 かつ本体が受けた(分身が受けた場合は割れない)
   if (def.poke && !env.magicRoom && def.item && ITEM_BY_KEY[def.item] &&
@@ -2943,15 +2926,10 @@ function phaseDealDamage(atkSide, defSide, move){
     def.item = '';               // アイテム喪失(ふうせんは一度割れると消える)
     log('9', `${pname(def)} の ふうせんが 割れた！`);
   }
-  // わるあがき反動(段129): 自分の最大HPの1/4(第4世代以降)。いしあたま等でも防げない
-  if (move.struggle && total > 0 && atk.poke && !atk.fainted){
-    const _sMax = realStat(atk, 'hp');
-    const _sDmg = Math.max(1, Math.floor(_sMax / 4));
-    atk.currentHp = Math.max(0, atk.currentHp - _sDmg);
-    log('9', `${pname(atk)} は わるあがきの 反動で ${_sDmg} ダメージ！ (残HP ${atk.currentHp})`);
-    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
-  }
   // ひんし判定(防御側)
+  // ★A.4残(2026-07-11・権威=ポケモンWiki/reference/_aizuchi_win_rule): 相打ち時の表示順は
+  // 「被弾側のひんし告知→反動→反動側のひんし告知」。従来は反動→反動側ひんし→最後に被弾側ひんし、
+  // という逆順だったため、防御側ひんしブロックを反動処理の前へ移動した(ブロック内容は不変)。
   if (def.currentHp <= 0){
     def.fainted = true;
     log('8', `${pname(def)} は ひんしになった！`);
@@ -2962,6 +2940,32 @@ function phaseDealDamage(atkSide, defSide, move){
       atk.rank.atk = (atk.rank.atk || 0) + 1;
       log('9', `${pname(atk)} は じしんかじょうで こうげきが あがった！`);
     }
+  }
+  // 技固有の反動: 与ダメ合計の fraction だけ自分も受ける(※厳密な丸め 0.33 vs 1/3 は権威確認=park)
+  // !atk.fainted ガード(A.4残): みちづれで先に倒れた攻撃側には反動が発生しない(既にひんし)
+  const recoilEf = _effs.find(e => e.kind === '反動');
+  // いしあたま: 反動技の反動を受けない(ABILITY_DESC公式準拠・段110)
+  if (recoilEf && total > 0 && !atk.fainted && sideAbility(atk) !== 'いしあたま'){
+    const dmg = Math.max(1, Math.floor(total * (recoilEf.fraction || 0)));
+    atk.currentHp = Math.max(0, atk.currentHp - dmg);
+    log('9', `${pname(atk)} は 反動で ${dmg} ダメージ！ (残HP ${atk.currentHp})`);
+    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
+  }
+  // 反動ダメージ (ゴツメ・たま=持ち物由来。calcDamageが計算済み)
+  if (result.recoil > 0 && !atk.fainted){
+    atk.currentHp = Math.max(0, atk.currentHp - result.recoil);
+    const _recoilLabel = result.helmetRecoil > 0 && result.orbRecoil > 0 ? 'ゴツゴツメット+いのちのたまの反動'
+                       : result.helmetRecoil > 0 ? 'ゴツゴツメットの反動' : 'いのちのたまの反動';
+    log('9', `${pname(atk)} は ${_recoilLabel}で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
+    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
+  }
+  // わるあがき反動(段129): 自分の最大HPの1/4(第4世代以降)。いしあたま等でも防げない
+  if (move.struggle && total > 0 && atk.poke && !atk.fainted){
+    const _sMax = realStat(atk, 'hp');
+    const _sDmg = Math.max(1, Math.floor(_sMax / 4));
+    atk.currentHp = Math.max(0, atk.currentHp - _sDmg);
+    log('9', `${pname(atk)} は わるあがきの 反動で ${_sDmg} ダメージ！ (残HP ${atk.currentHp})`);
+    if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
   }
   return {...result, variation: total, hits};
 }
