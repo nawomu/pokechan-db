@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>演出ツクール(fx_editor) - PchamDB</title>
+<!--
+  演出ツクール Step3 MVP(2026-07-11)。設計書=設計_演出ツクール_2026-07-11.md 1-3/1-4/1-6/2章。
+  ローカル専用の開発ツール。公開ナビには載せない(index.htmlへリンクを足さない)。ja UIのみ・i18n対象外。
+  既存ファイル(fx_primitives.js / move_fx_map.js / pokechan_data.js)は script src で読み込むだけで一切編集しない。
+-->
+<script src="pokechan_data.js?v=20260705a"></script>
+<script src="move_fx_map.js?v=20260711c"></script>
+<script src="fx_primitives.js?v=20260711a"></script>
+<style>
+/* ===================================================================
+   ベースレイアウト(fx_editor独自・ダーク開発ツール基調)
+   =================================================================== */
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:#0d1117;color:#d8dee9;font-family:'Segoe UI',Meiryo,-apple-system,sans-serif;font-size:13px}
+button,input,select{font-family:inherit;font-size:12px}
+h1,h2,h3{margin:0}
+#topbar{height:46px;display:flex;align-items:center;gap:14px;padding:0 16px;background:#161b22;border-bottom:1px solid #2a313c;position:sticky;top:0;z-index:50}
+#topbar h1{font-size:15px;font-weight:800;color:#e6edf3;white-space:nowrap}
+#topbar .sub{font-size:11px;color:#7d8590}
+#topbar .spacer{flex:1}
+#topbar button{background:#21262d;color:#d8dee9;border:1px solid #30363d;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700}
+#topbar button:hover{border-color:#58a6ff;color:#58a6ff}
+#toast{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);background:#1f6feb;color:#fff;
+  padding:8px 16px;border-radius:8px;font-weight:700;font-size:12px;box-shadow:0 4px 14px #0008;
+  opacity:0;pointer-events:none;transition:opacity .25s;z-index:200}
+#toast.show{opacity:1}
+
+#app{display:grid;grid-template-columns:300px 1fr 300px;grid-template-rows:minmax(0,1fr) 250px;
+  grid-template-areas:"lib preview insp" "timeline timeline timeline";
+  gap:10px;padding:10px;height:calc(100vh - 46px);min-height:640px}
+.panel{background:#161b22;border:1px solid #2a313c;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+.panel-head{padding:8px 12px;border-bottom:1px solid #2a313c;font-weight:800;font-size:12px;color:#e6edf3;
+  display:flex;align-items:center;gap:8px;flex:0 0 auto}
+.panel-body{flex:1;overflow:auto;padding:8px}
+
+/* ---- ライブラリ ---- */
+#panel-lib{grid-area:lib}
+.lib-tabs{display:flex;gap:4px}
+.lib-tab{background:#21262d;border:1px solid #30363d;color:#8b949e;border-radius:6px;padding:3px 10px;cursor:pointer;font-weight:700}
+.lib-tab.active{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.lib-filters{display:flex;flex-direction:column;gap:6px;padding:8px;border-bottom:1px solid #2a313c;flex:0 0 auto}
+.lib-filters input[type=text],.lib-filters select{background:#0d1117;color:#d8dee9;border:1px solid #30363d;border-radius:6px;padding:5px 7px;width:100%}
+.lib-filters .row{display:flex;gap:6px}
+.lib-filters .row select{flex:1}
+.lib-filters label{display:flex;align-items:center;gap:5px;color:#8b949e;font-size:11px}
+.lib-list{list-style:none;margin:0;padding:0}
+.lib-row{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:6px;cursor:pointer;border:1px solid transparent}
+.lib-row:hover{background:#1c2129}
+.lib-row.selected{background:#1f2b3d;border-color:#1f6feb}
+.lib-row .tychip{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.lib-row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+.lib-row .cat{font-size:9.5px;color:#7d8590;flex:0 0 auto}
+.lib-row .shp{font-size:9.5px;color:#58a6ff;flex:0 0 auto;font-family:monospace}
+.lib-row .star{color:#f0c419;flex:0 0 auto;font-size:12px}
+.lib-empty{color:#7d8590;padding:16px;text-align:center;font-size:12px}
+
+/* ---- プレビュー盤面 ---- */
+#panel-preview{grid-area:preview;align-items:center}
+#panel-preview .panel-body{display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:10px;overflow:auto}
+#preview-title{font-size:13px;font-weight:800;color:#e6edf3;text-align:center}
+#preview-title .mvtype{font-size:11px;font-weight:700;padding:1px 8px;border-radius:8px;margin-left:6px;color:#0d1117}
+#preview-sub{font-size:11px;color:#7d8590;text-align:center}
+.playbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center}
+.playbar button{background:#21262d;color:#d8dee9;border:1px solid #30363d;border-radius:6px;padding:6px 12px;cursor:pointer;font-weight:700}
+.playbar button.primary{background:#238636;border-color:#238636;color:#fff}
+.playbar button.primary:hover{background:#2ea043}
+.playbar button.danger{background:#3a2020;border-color:#5a2a2a}
+.playbar button:hover{border-color:#58a6ff}
+.playbar .speedgrp{display:flex;gap:3px;background:#0d1117;border:1px solid #30363d;border-radius:6px;padding:2px}
+.playbar .speedgrp button{background:transparent;border:none;padding:4px 9px;border-radius:4px}
+.playbar .speedgrp button.on{background:#1f6feb;color:#fff}
+
+/* ---- バトル盤面(コピー元: real_battle.html #field/.fighter/.platform/.sprite/.circ・座標/寸法は同一値を流用) ---- */
+#field{position:relative;width:640px;height:360px;border:1px solid #2a3550;border-radius:14px;overflow:hidden;
+  font-family:Verdana,sans-serif;flex:0 0 auto;
+  background:radial-gradient(120% 70% at 50% 115%,#233047 0%,#1a2233 45%,#12131c 100%)}
+.fighter{position:absolute;width:300px;transition:transform .2s}
+.fighter .platform{position:absolute;left:50%;transform:translateX(-50%);bottom:-6px;width:200px;height:34px;border-radius:50%;
+  background:radial-gradient(ellipse at center,#3f6f2caa 0%,#3f6f2c55 55%,transparent 72%)}
+.fighter .sprite{position:relative;display:flex;justify-content:center;align-items:flex-end;height:120px}
+.fighter .sprite .circ{width:84px;height:84px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-weight:800;color:#fff;background:#3a4660;box-shadow:inset 0 -8px 16px #0007,0 5px 8px #000a;font-size:13px}
+#f-opp{top:58px;right:100px;transform:scale(.95);transform-origin:center bottom}
+#f-self{bottom:64px;left:44px;transform:scale(1.2);transform-origin:center bottom}
+#f-opp .platform{width:150px;height:24px}
+#f-self .platform{width:236px;height:40px}
+.fixlabel{position:absolute;font-size:10px;color:#7d8590;pointer-events:none}
+#f-opp .fixlabel{top:-14px;left:50%;transform:translateX(-50%)}
+#f-self .fixlabel{top:-14px;left:50%;transform:translateX(-50%)}
+
+/* ---- 演出プリミティブが要求するCSS(コピー元: real_battle.html。fx_primitives.jsの各関数が
+   これらのクラス名/keyframesを直接操作するため、見た目を再現するにはそのまま持ってくる必要がある) ---- */
+.popnum{position:absolute;left:50%;top:8px;transform:translateX(-50%);font-weight:900;font-size:20px;
+  text-shadow:0 2px 4px #000c;pointer-events:none;animation:rbPop 1s forwards;z-index:5;white-space:nowrap;color:#fff}
+@keyframes rbPop{0%{opacity:0;transform:translateX(-50%) translateY(6px) scale(.6)}18%{opacity:1;transform:translateX(-50%) translateY(-6px) scale(1.18)}100%{opacity:0;transform:translateX(-50%) translateY(-46px) scale(1)}}
+.burst{position:absolute;left:50%;top:46%;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;
+  pointer-events:none;animation:rbBurst .85s forwards;z-index:4}
+@keyframes rbBurst{0%{transform:scale(.15);opacity:.9}100%{transform:scale(1.8);opacity:0}}
+@keyframes rbShake{0%,100%{transform:translateX(0)}15%{transform:translateX(-10px)}30%{transform:translateX(9px)}45%{transform:translateX(-7px)}60%{transform:translateX(5px)}75%{transform:translateX(-3px)}90%{transform:translateX(2px)}}
+@keyframes rbHitFlash{0%,100%{filter:none}25%{filter:brightness(4) saturate(0)}50%{filter:none}75%{filter:brightness(4) saturate(0)}}
+.fighter.hit .sprite{animation:rbShake .85s, rbHitFlash .16s linear}
+.fighter.hit-big .sprite{animation:rbShake .85s, rbHitFlash .16s linear}
+.fighter.hit .sprite .circ{animation:rbSquash .18s cubic-bezier(.34,1.56,.64,1)}
+@keyframes rbSquash{0%{transform:scale(1,1)}25%{transform:scale(1.12,.88)}55%{transform:scale(.96,1.04)}100%{transform:scale(1,1)}}
+.rb-proj{position:fixed;z-index:55;font-size:24px;line-height:1;pointer-events:none;left:0;top:0;
+  filter:drop-shadow(0 0 6px var(--pc,#fff)) drop-shadow(0 0 2px #fff)}
+.rb-proj-dot{width:12px;height:12px;border-radius:50%;background:var(--pc,#fff);
+  box-shadow:0 0 10px 3px var(--pc,#fff);filter:none}
+.rb-proj-dot-lg{width:20px;height:20px;box-shadow:0 0 14px 4px var(--pc,#fff)}
+.rb-proj-drill{background:repeating-linear-gradient(45deg,var(--pc,#fff) 0 3px,transparent 3px 7px)}
+.rb-beam{position:fixed;z-index:55;height:5px;top:0;left:0;border-radius:3px;pointer-events:none;
+  transform-origin:0 50%;background:linear-gradient(90deg, var(--bc,#fff) 0%, #ffffffcc 100%);
+  box-shadow:0 0 10px 3px var(--bc,#fff)}
+.rb-beam-wave{height:7px;background:repeating-linear-gradient(90deg, var(--bc,#fff) 0 8px, transparent 8px 14px);box-shadow:0 0 12px 4px var(--bc,#fff)}
+.rb-beam-gust{height:6px;background:repeating-linear-gradient(90deg, var(--bc,#fff) 0 5px, transparent 5px 11px);box-shadow:0 0 10px 3px var(--bc,#fff)}
+.rb-beam-dragon{height:8px;background:repeating-linear-gradient(90deg, var(--bc,#fff) 0 10px, #ffffffcc 10px 14px, var(--bc,#fff) 14px 24px);box-shadow:0 0 14px 4px var(--bc,#fff)}
+.rb-beam-spark{height:6px;background:repeating-linear-gradient(115deg, var(--bc,#fff) 0 4px, #fff9 4px 6px, transparent 6px 10px);box-shadow:0 0 12px 4px var(--bc,#fff)}
+.rb-beam-thick{height:9px;box-shadow:0 0 16px 5px var(--bc,#fff)}
+.rb-chargeclone{position:fixed;z-index:55;pointer-events:none;margin:0}
+@keyframes rbKnockbackSelf{0%{transform:scale(1.2) translate(0,0) rotate(0deg)}30%{transform:scale(1.2) translate(-12px,4px) rotate(-3deg)}100%{transform:scale(1.2) translate(0,0) rotate(0deg)}}
+@keyframes rbKnockbackOpp{0%{transform:scale(.95) translate(0,0) rotate(0deg)}30%{transform:scale(.95) translate(12px,-4px) rotate(3deg)}100%{transform:scale(.95) translate(0,0) rotate(0deg)}}
+.fighter.rb-knockback-self{animation:rbKnockbackSelf .28s cubic-bezier(.22,1,.36,1)}
+.fighter.rb-knockback-opp{animation:rbKnockbackOpp .28s cubic-bezier(.22,1,.36,1)}
+.rb-burstp{position:absolute;left:50%;top:46%;border-radius:50%;pointer-events:none;z-index:4;box-shadow:0 0 4px 1px currentColor}
+.rb-burstring{position:absolute;left:50%;top:46%;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;
+  border-width:5px;border-style:solid;pointer-events:none;z-index:4;box-sizing:border-box}
+.rb-burstglyph-slash{position:absolute;left:50%;top:46%;width:46px;height:5px;margin:-2px 0 0 -23px;
+  background:linear-gradient(90deg,transparent,#fff,transparent);pointer-events:none;z-index:5;animation:rbGlyphSlash .26s ease-out forwards}
+@keyframes rbGlyphSlash{0%{opacity:0;transform:rotate(45deg) scaleX(.3)}40%{opacity:1;transform:rotate(45deg) scaleX(1.15)}100%{opacity:0;transform:rotate(45deg) scaleX(1)}}
+.rb-burstglyph-emoji{position:absolute;left:50%;top:40%;font-size:28px;pointer-events:none;z-index:5;
+  text-shadow:0 0 8px #fff9;animation:rbGlyphStar .26s ease-out forwards}
+@keyframes rbGlyphStar{0%{opacity:0;transform:translate(-50%,-50%) scale(1)}40%{opacity:1;transform:translate(-50%,-50%) scale(2)}100%{opacity:0;transform:translate(-50%,-50%) scale(2)}}
+.rb-burstglyph-drill{position:absolute;left:50%;top:46%;width:26px;height:26px;margin:-13px 0 0 -13px;
+  border-radius:50%;pointer-events:none;z-index:5;background:repeating-linear-gradient(45deg,#fff 0 3px,transparent 3px 7px);
+  filter:drop-shadow(0 0 6px #fff9);animation:rbGlyphDrill .3s linear forwards}
+@keyframes rbGlyphDrill{0%{opacity:0;transform:rotate(0deg) scale(.4)}30%{opacity:1}100%{opacity:0;transform:rotate(340deg) scale(1.2)}}
+.rb-burstglyph-spiral{position:absolute;left:50%;top:46%;width:30px;height:30px;margin:-15px 0 0 -15px;
+  border-radius:50%;pointer-events:none;z-index:5;animation:rbGlyphSpiral .32s ease-out forwards}
+@keyframes rbGlyphSpiral{0%{opacity:0;transform:rotate(0deg) scale(.3)}35%{opacity:.95}100%{opacity:0;transform:rotate(200deg) scale(1.5)}}
+.rb-burstglyph-dust{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;
+  border-radius:50%;pointer-events:none;z-index:4;background:radial-gradient(circle,#a97c50cc 0%,#7a5a3855 55%,transparent 75%);
+  animation:rbGlyphDust .5s ease-out forwards}
+@keyframes rbGlyphDust{0%{opacity:0;transform:scale(.2)}30%{opacity:.9}100%{opacity:0;transform:scale(1.6)}}
+.rb-burstglyph-crack{position:absolute;left:50%;top:56%;width:52px;height:14px;margin:-7px 0 0 -26px;pointer-events:none;z-index:4;
+  background:linear-gradient(100deg,transparent 45%,#3a2a18 47%,transparent 49%),linear-gradient(70deg,transparent 60%,#3a2a18 62%,transparent 64%);
+  animation:rbGlyphDust .5s ease-out forwards}
+.rb-burstglyph-explosion{position:absolute;left:50%;top:50%;width:130px;height:130px;margin:-65px 0 0 -65px;
+  border-radius:50%;pointer-events:none;z-index:4;background:radial-gradient(circle,#fff 0%,#ffb350cc 30%,#c2410ccc 55%,transparent 75%);
+  animation:rbGlyphExplosion .6s ease-out forwards}
+@keyframes rbGlyphExplosion{0%{opacity:0;transform:scale(.1)}20%{opacity:1}100%{opacity:0;transform:scale(2.2)}}
+.rb-impact{filter:invert(1) grayscale(1) contrast(1.6) !important;transition:none !important}
+
+/* ---- インスペクタ ---- */
+#panel-insp{grid-area:insp}
+.insp-empty{color:#7d8590;padding:16px;text-align:center;font-size:12px}
+.insp-field{display:flex;flex-direction:column;gap:3px;margin-bottom:10px}
+.insp-field label{font-size:10.5px;color:#8b949e;font-weight:700}
+.insp-field input,.insp-field select{background:#0d1117;color:#d8dee9;border:1px solid #30363d;border-radius:6px;padding:5px 7px}
+.insp-field .hint{font-size:9.5px;color:#5a6474}
+.insp-section-title{font-size:11px;font-weight:800;color:#58a6ff;margin:6px 0 8px;padding-top:8px;border-top:1px solid #2a313c}
+.insp-mvline{font-size:11px;color:#8b949e;margin-bottom:8px;line-height:1.6}
+.insp-actions{display:flex;gap:6px;margin-top:10px}
+.insp-actions button{flex:1;background:#21262d;color:#d8dee9;border:1px solid #30363d;border-radius:6px;padding:6px;cursor:pointer;font-weight:700}
+.insp-actions button:hover{border-color:#58a6ff}
+.insp-actions button.reset{color:#f0836b}
+
+/* ---- タイムライン ---- */
+#panel-timeline{grid-area:timeline}
+#panel-timeline .panel-head{justify-content:space-between}
+#tl-wrap{flex:1;overflow:auto;padding:6px 10px 10px}
+.tl-row{display:flex;align-items:stretch;border-bottom:1px solid #1c2129}
+.tl-row-label{width:64px;flex:0 0 64px;display:flex;align-items:center;font-size:10.5px;color:#8b949e;font-weight:800;
+  text-transform:uppercase;letter-spacing:.5px}
+.tl-row-track{position:relative;height:34px;flex:0 0 auto}
+.tl-ruler{display:flex;height:18px;position:relative;margin-left:64px}
+.tl-ruler .tick{position:absolute;top:0;bottom:0;border-left:1px solid #232a35;font-size:9px;color:#5a6474;padding-left:3px}
+.tl-ruler .tick.major{border-left-color:#3a4352}
+.tl-cue{position:absolute;top:4px;bottom:4px;border-radius:5px;cursor:grab;display:flex;align-items:center;
+  padding:0 5px;font-size:9.5px;font-weight:800;color:#0d1117;white-space:nowrap;overflow:hidden;
+  border:1px solid #ffffff33;user-select:none}
+.tl-cue:active{cursor:grabbing}
+.tl-cue.selected{outline:2px solid #fff;outline-offset:1px;z-index:3}
+.tl-cue-atk{background:#f0836b}
+.tl-cue-glyph{background:#f0c419}
+.tl-cue-sound{background:#58a6ff}
+.tl-cue-screen{background:#bc8cff}
+.tl-cue-def{background:#3fb950}
+.tl-cue-text{background:#8b949e}
+.tl-cue-handle{position:absolute;right:0;top:0;bottom:0;width:8px;cursor:ew-resize;background:#00000022}
+.tl-cue-handle:hover{background:#00000055}
+.tl-playhead{position:absolute;top:0;bottom:0;width:2px;background:#ff4d4f;pointer-events:none;z-index:10;display:none}
+
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:#0d1117}
+::-webkit-scrollbar-thumb{background:#30363d;border-radius:5px}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>🎬 演出ツクール</h1>
+  <span class="sub">fx_editor.html・ローカル専用ツール(公開ナビ非掲載)・step3 MVP</span>
+  <div class="spacer"></div>
+  <button id="btn-export">⬇ 書き出し(JSON)</button>
+</div>
+
+<div id="app">
+
+  <!-- ライブラリ -->
+  <div class="panel" id="panel-lib">
+    <div class="panel-head">
+      <div class="lib-tabs">
+        <button class="lib-tab active" data-tab="move">技</button>
+        <button class="lib-tab" data-tab="pattern">適正(36)</button>
+      </div>
+    </div>
+    <div class="lib-filters">
+      <input type="text" id="f-search" placeholder="技名で検索…">
+      <div class="row">
+        <select id="f-type"><option value="">タイプ:すべて</option></select>
+        <select id="f-cat">
+          <option value="">分類:すべて</option>
+          <option value="物理">物理</option>
+          <option value="特殊">特殊</option>
+        </select>
+      </div>
+      <label><input type="checkbox" id="f-star"> 調整済み⭐のみ</label>
+    </div>
+    <div class="panel-body">
+      <ul class="lib-list" id="lib-list"></ul>
+    </div>
+  </div>
+
+  <!-- プレビュー盤面 -->
+  <div class="panel" id="panel-preview">
+    <div class="panel-head">プレビュー盤面(マスターキャラ・HP無限/バトルロジック無し)</div>
+    <div class="panel-body">
+      <div id="preview-title">技を選んでください</div>
+      <div id="preview-sub"></div>
+      <div id="field">
+        <div class="fighter" id="f-opp"><span class="fixlabel">あいて</span><div class="platform"></div><div class="sprite"><span class="circ" id="circ-opp" style="background:#3a4660">?</span></div></div>
+        <div class="fighter" id="f-self"><span class="fixlabel">じぶん</span><div class="platform"></div><div class="sprite"><span class="circ" id="circ-self" style="background:#3a4660">?</span></div></div>
+      </div>
+      <div class="playbar">
+        <button class="primary" id="btn-play">▶ ループ再生</button>
+        <button class="danger" id="btn-stop">⏹ 停止</button>
+        <div class="speedgrp" id="speedgrp">
+          <button data-speed="0.25">0.25×</button>
+          <button data-speed="0.5">0.5×</button>
+          <button data-speed="1" class="on">1×</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- インスペクタ -->
+  <div class="panel" id="panel-insp">
+    <div class="panel-head">インスペクタ</div>
+    <div class="panel-body" id="insp-body">
+      <div class="insp-empty">技を選ぶか、タイムラインのキューをクリックしてください</div>
+    </div>
+  </div>
+
+  <!-- タイムライン -->
+  <div class="panel" id="panel-timeline">
+    <div class="panel-head">
+      <span>タイムライン(バーをドラッグ=移動 / 右端をドラッグ=長さ変更・50msスナップ)</span>
+      <span id="tl-total" style="color:#7d8590;font-weight:600"></span>
+    </div>
+    <div id="tl-wrap">
+      <div class="tl-ruler" id="tl-ruler"></div>
+      <div id="tl-rows"></div>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+// =====================================================================
+// スタブ(fx_primitives.jsが呼び出し時に参照するグローバル。real_battle.html/
+// online_battle.htmlでは本物のS/SEブリッジ・engineが定義されているが、
+// このツクールはバトルロジック非搭載(設計1-6)なので最小限の代替を用意する)
+// =====================================================================
+const $ = id => document.getElementById(id);
+
+// ---- S スタブ: 本番はS.typeColors()が__simブリッジ経由でTYPE_COLORSを返す。
+// エディタはpokechan_data.jsのTYPE_COLORSをそのまま返せば同じ結果になる。 ----
+const S = { typeColors: () => TYPE_COLORS };
+
+// ---- SE スタブ: fx_primitives.jsが実際に参照するのは SE.hitClass(cls) と SE.miss() のみ
+// (attackFx/chargeFx内)。WebAudioの短いビープで最小実装。落ちないようtry/catchで保険。 ----
+let _actxCache = null;
+function _actx(){ return _actxCache || (_actxCache = new (window.AudioContext || window.webkitAudioContext)()); }
+function _beep(freq, dur, vol){
+  try{
+    const ctx = _actx();
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'square'; o.frequency.value = freq;
+    g.gain.setValueAtTime(vol || 0.14, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(); o.stop(ctx.currentTime + dur);
+  }catch(e){ console.log('[SEスタブ・無音フォールバック]', freq, dur); }
+}
+const _CLS_FREQ = { punch:150, slash:900, bullet:720, wind:500, bite:200, kick:160, sound:650, wave:380, spec:440, phys:180 };
+const SE = {
+  hitClass(cls){ _beep(_CLS_FREQ[cls] || _CLS_FREQ.phys, 0.12, 0.13); },
+  miss(){ _beep(340, 0.09, 0.1); },
+  hit(){ _beep(300, 0.1, 0.12); },
+  status(){ _beep(360, 0.1, 0.12); },
+  enter(){ _beep(392, 0.08, 0.1); },
+};
+
+// =====================================================================
+// データ準備
+// =====================================================================
+const ALL_MOVES = Object.values(WAZA_MAP).filter(m => m.category === '物理' || m.category === '特殊');
+ALL_MOVES.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+const TYPE_LIST = Object.keys(TYPE_COLORS);
+const CAT_LIST = ['物理', '特殊'];
+// 27種+専用爆発1種(タスクC=設計_技エフェクト対応表_2026-07-11.md準拠。fx_primitives.js _SHAPE_ICON等から収集)
+const SHAPE_VOCAB = ['fist','foot','fang','note','heart','star','skull','gear','ice','web','leaf','seed','feather',
+  'gust','water','flame','spark','rock','sting','blade','psi','dragon','beam','orb','sand','dust','explosion','drill'];
+const CLS_VOCAB = ['phys','spec','punch','slash','bullet','wind','bite','kick','sound','wave'];
+
+// =====================================================================
+// キューシート自動生成(設計1-1のスキーマに合わせる。トラック=atk/glyph/sound/screen/def/text)
+// 「現行の自動演出(attackFx/chargeFxの内部タイミング)を分解したキュー列」を作る(仕様書の指定どおり)。
+// =====================================================================
+let _cueSeq = 1;
+function newCue(track, action, t, dur, params){
+  return { id: 'c' + (_cueSeq++), track, action, t, dur, params: params || {} };
+}
+function autoCuesForMove(mv){
+  const cls = moveClassOf(mv);
+  const shape = shapeOf(mv);
+  const isContact = !!(mv && mv.contact === true);
+  const useBeam = _RB_BEAM_CLS[cls] || (shape && _RB_BEAM_SHAPES[shape]);
+  const cues = [];
+  if (isContact){
+    // chargeFx分解: t=0 突進(230ms相当・見た目を480msへ拡張して編集しやすくする)→ t=260 着弾拍(burst/se/shake/knockback/popnum)
+    cues.push(newCue('atk', 'charge', 0, 480, { shape, cls }));
+    cues.push(newCue('glyph', 'burst', 260, 250, { shape, intensity: 'normal', at: 'opp' }));
+    cues.push(newCue('sound', 'se', 260, 120, { cls }));
+    cues.push(newCue('screen', 'shake', 260, 280, { mag: 1 }));
+    cues.push(newCue('def', 'knockback', 260, 280, { at: 'opp' }));
+    cues.push(newCue('text', 'popnum', 260, 280, { at: 'opp', text: '−42' }));
+  } else {
+    const projDur = useBeam ? 180 : 190;
+    cues.push(newCue('atk', useBeam ? 'beam' : 'projectile', 0, projDur, { shape, cls }));
+    cues.push(newCue('glyph', 'burst', projDur, 250, { shape, intensity: 'normal', at: 'opp' }));
+    cues.push(newCue('sound', 'se', projDur, 120, { cls }));
+    cues.push(newCue('screen', 'shake', projDur, 280, { mag: 1 }));
+    cues.push(newCue('def', 'hitreact', projDur, 200, { at: 'opp' }));
+    cues.push(newCue('text', 'popnum', projDur, 280, { at: 'opp', text: '−42' }));
+  }
+  return { dur: computeSheetDur({ cues }), cues };
+}
+function computeSheetDur(sheet){
+  let m = 0;
+  (sheet.cues || []).forEach(c => { m = Math.max(m, c.t + c.dur); });
+  return m + 120;
+}
+
+// =====================================================================
+// ドラフト保存(localStorage 'fx_cues_draft')。キー=`move:技名` / `pattern:タイプ分類`
+// =====================================================================
+const DRAFT_KEY = 'fx_cues_draft';
+let cueDraftStore = {};
+(function loadDraft(){
+  try{
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (raw) cueDraftStore = JSON.parse(raw) || {};
+  }catch(e){ console.warn('draft load failed', e); cueDraftStore = {}; }
+})();
+let _saveTimer = null;
+function scheduleSaveDraft(){
+  if (_saveTimer) clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(() => {
+    try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(cueDraftStore)); }catch(e){ console.warn('draft save failed', e); }
+  }, 250);
+}
+
+// =====================================================================
+// 選択状態
+// =====================================================================
+let currentKey = null;     // "move:フレアドライブ" 等
+let currentMv = null;      // {name,type,category,flags,contact,...}
+let currentSheet = null;   // {dur, cues:[...]}(ドラフトなら参照そのもの=編集が即反映)
+let isDraft = false;
+let selectedCueId = null;
+let activeTab = 'move';
+
+function loadSheetForCurrent(){
+  if (cueDraftStore[currentKey]){
+    currentSheet = cueDraftStore[currentKey];
+    isDraft = true;
+  } else {
+    currentSheet = autoCuesForMove(currentMv);
+    isDraft = false;
+  }
+  selectedCueId = null;
+}
+function markDirty(){
+  if (!isDraft){
+    cueDraftStore[currentKey] = currentSheet;
+    isDraft = true;
+  }
+  currentSheet.dur = computeSheetDur(currentSheet);
+  scheduleSaveDraft();
+  renderLibList();   // ⭐バッジ更新
+}
+function resetCurrentToAuto(){
+  delete cueDraftStore[currentKey];
+  loadSheetForCurrent();
+  scheduleSaveDraft();
+  renderAll();
+  toast('自動演出に戻しました');
+}
+
+function selectMove(mv){
+  stopPlay();
+  currentKey = 'move:' + mv.name;
+  currentMv = mv;
+  loadSheetForCurrent();
+  renderAll();
+}
+function selectPattern(type, cat){
+  stopPlay();
+  currentKey = 'pattern:' + type + cat;
+  currentMv = { name: '(適正)' + type + cat, type, category: cat, flags: {}, contact: false, power: 80 };
+  loadSheetForCurrent();
+  renderAll();
+}
+
+// =====================================================================
+// ライブラリ描画
+// =====================================================================
+function initTypeFilter(){
+  const sel = $('f-type');
+  TYPE_LIST.forEach(t => {
+    const o = document.createElement('option');
+    o.value = t; o.textContent = t;
+    sel.appendChild(o);
+  });
+}
+function libFilteredMoves(){
+  const q = $('f-search').value.trim();
+  const ty = $('f-type').value;
+  const cat = $('f-cat').value;
+  const starOnly = $('f-star').checked;
+  return ALL_MOVES.filter(m => {
+    if (q && !m.name.includes(q)) return false;
+    if (ty && m.type !== ty) return false;
+    if (cat && m.category !== cat) return false;
+    if (starOnly && !cueDraftStore['move:' + m.name]) return false;
+    return true;
+  });
+}
+function libPatternRows(){
+  const rows = [];
+  TYPE_LIST.forEach(ty => CAT_LIST.forEach(cat => rows.push({ type: ty, category: cat })));
+  const starOnly = $('f-star').checked;
+  const q = $('f-search').value.trim();
+  return rows.filter(r => {
+    if (starOnly && !cueDraftStore['pattern:' + r.type + r.category]) return false;
+    if (q && !(r.type + r.category).includes(q)) return false;
+    return true;
+  });
+}
+function renderLibList(){
+  const ul = $('lib-list');
+  ul.innerHTML = '';
+  if (activeTab === 'move'){
+    const rows = libFilteredMoves();
+    if (!rows.length){ ul.innerHTML = '<div class="lib-empty">該当技なし</div>'; return; }
+    rows.forEach(mv => {
+      const key = 'move:' + mv.name;
+      const shape = shapeOf(mv) || '-';
+      const li = document.createElement('li');
+      li.className = 'lib-row' + (key === currentKey ? ' selected' : '');
+      li.innerHTML = `<span class="tychip" style="background:${TYPE_COLORS[mv.type] || '#888'}"></span>
+        <span class="nm">${mv.name}</span><span class="cat">${mv.category}</span>
+        <span class="shp">${shape}</span>
+        <span class="star">${cueDraftStore[key] ? '⭐' : ''}</span>`;
+      li.addEventListener('click', () => selectMove(mv));
+      ul.appendChild(li);
+    });
+  } else {
+    const rows = libPatternRows();
+    if (!rows.length){ ul.innerHTML = '<div class="lib-empty">該当なし</div>'; return; }
+    rows.forEach(r => {
+      const key = 'pattern:' + r.type + r.category;
+      const shape = (MOVE_FX_MAP.defaults[r.type] || {})[r.category] || '-';
+      const li = document.createElement('li');
+      li.className = 'lib-row' + (key === currentKey ? ' selected' : '');
+      li.innerHTML = `<span class="tychip" style="background:${TYPE_COLORS[r.type] || '#888'}"></span>
+        <span class="nm">${r.type}${r.category}</span><span class="cat">既定36</span>
+        <span class="shp">${shape}</span>
+        <span class="star">${cueDraftStore[key] ? '⭐' : ''}</span>`;
+      li.addEventListener('click', () => selectPattern(r.type, r.category));
+      ul.appendChild(li);
+    });
+  }
+}
+document.querySelectorAll('.lib-tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeTab = btn.dataset.tab;
+    document.querySelectorAll('.lib-tab').forEach(b => b.classList.toggle('active', b === btn));
+    renderLibList();
+  });
+});
+// 注意(実機デバッグで発覚・2026-07-11): #f-searchに'change'まで貼ると、ライブラリ行を
+// クリックした際「mousedown→(検索欄からフォーカスが外れてvalue変更ずみのchangeが発火)→
+// renderLibList()がリスト行DOMを丸ごと作り直す→mouseupの対象が消えてブラウザがclickを
+// 合成できない」という"ドラッグ中の再構築"と同種の罠でクリックが無反応になる。
+// 検索欄は'input'だけで十分(タイプ中に随時絞り込まれる)。select/checkboxは'change'のみでよい。
+$('f-search').addEventListener('input', renderLibList);
+['f-type', 'f-cat', 'f-star'].forEach(id => {
+  $(id).addEventListener('change', renderLibList);
+});
+
+// =====================================================================
+// プレビュー見出し
+// =====================================================================
+function renderPreviewHeader(){
+  if (!currentMv){ $('preview-title').textContent = '技を選んでください'; $('preview-sub').textContent = ''; return; }
+  const tc = TYPE_COLORS[currentMv.type] || '#888';
+  $('preview-title').innerHTML = `${currentMv.name}
+    <span class="mvtype" style="background:${tc}">${currentMv.type}</span>
+    <span class="mvtype" style="background:#30363d;color:#d8dee9">${currentMv.category}</span>`;
+  const shape = shapeOf(currentMv) || '-';
+  const cls = moveClassOf(currentMv);
+  $('preview-sub').textContent = `shape=${shape} / class=${cls} / contact=${!!currentMv.contact} ${isDraft ? '・⭐調整済み(ドラフト)' : '・自動生成'}`;
+  $('circ-self').style.background = tc;
+  $('circ-self').textContent = 'じぶん';
+  $('circ-opp').style.background = tc;
+  $('circ-opp').textContent = 'あいて';
+}
+
+// =====================================================================
+// インスペクタ
+// =====================================================================
+function findCue(id){ return (currentSheet.cues || []).find(c => c.id === id); }
+function selectCue(id){
+  selectedCueId = id;
+  renderTimeline();
+  renderInspector();
+}
+// ドラッグ開始時専用の軽量選択: renderTimeline()(=タイムラインDOMの全再構築)を呼ばない。
+// 理由: pointerdownハンドラの中でDOMを作り直すと、ドラッグ中のelが差し替わってしまい、
+// 同じelに紐付けたpointermove/pointerupが以後発火しなくなる(ドラッグが1pxも動かないバグの原因だった)。
+// 選択の見た目(outline)だけクラス切り替えで更新し、タイムラインの再構築はドラッグ終了後に任せる。
+function selectCueLight(id){
+  selectedCueId = id;
+  document.querySelectorAll('.tl-cue').forEach(el => el.classList.toggle('selected', el.dataset.id === id));
+  renderInspector();
+}
+function renderInspector(){
+  const body = $('insp-body');
+  if (!currentMv){ body.innerHTML = '<div class="insp-empty">技を選ぶか、タイムラインのキューをクリックしてください</div>'; return; }
+  let html = `<div class="insp-mvline"><b>${currentMv.name}</b><br>この編集は「${currentKey}」に効きます${currentKey.startsWith('pattern:') ? '(このタイプ×分類の未上書き技すべて)' : '(この技のみ・個別上書き)'}。</div>`;
+  html += `<div class="insp-actions"><button class="reset" id="btn-reset-auto" ${isDraft ? '' : 'disabled'}>↺ 自動演出に戻す</button></div>`;
+  const cue = selectedCueId ? findCue(selectedCueId) : null;
+  if (!cue){
+    html += '<div class="insp-empty">タイムラインのキューをクリックすると、ここでt/dur/パラメータを編集できます</div>';
+    body.innerHTML = html;
+    const btnReset = $('btn-reset-auto');
+    if (btnReset) btnReset.addEventListener('click', resetCurrentToAuto);
+    return;
+  }
+  const p = cue.params || {};
+  html += `<div class="insp-section-title">選択中: ${cue.track} / ${cue.action}</div>`;
+  html += fieldNum('t', 't (開始ms)', cue.t, 0);
+  html += fieldNum('dur', 'dur (長さms)', cue.dur, 20);
+  if ('shape' in p || cue.track === 'atk' || cue.track === 'glyph') html += fieldShapeSelect(p.shape || '');
+  if ('cls' in p || cue.track === 'sound' || cue.track === 'atk') html += fieldClsSelect(p.cls || 'phys');
+  if (cue.track === 'glyph' || cue.track === 'def' || cue.track === 'text') html += fieldAtSelect(p.at || 'opp');
+  if (cue.track === 'screen') html += fieldNum('mag', 'mag(揺れ強さ)', p.mag != null ? p.mag : 1, 0, 0.1);
+  if (cue.track === 'text') html += fieldText('text', 'テキスト', p.text || '');
+  html += `<div class="insp-field"><label>scale(見た目倍率・書き出しのみ反映)</label>
+    <input type="number" step="0.1" min="0.1" id="ins-scale" value="${p.scale != null ? p.scale : 1}"></div>`;
+  body.innerHTML = html;
+  wireInspectorEvents(cue);
+  const btnReset = $('btn-reset-auto');
+  if (btnReset) btnReset.addEventListener('click', resetCurrentToAuto);
+}
+function fieldNum(key, label, val, min, step){
+  return `<div class="insp-field"><label>${label}</label><input type="number" id="ins-${key}" value="${val}" min="${min}" step="${step || 10}"></div>`;
+}
+function fieldText(key, label, val){
+  return `<div class="insp-field"><label>${label}</label><input type="text" id="ins-${key}" value="${val}"></div>`;
+}
+function fieldShapeSelect(val){
+  const opts = ['(なし)'].concat(SHAPE_VOCAB).map(s => {
+    const v = s === '(なし)' ? '' : s;
+    return `<option value="${v}" ${v === val ? 'selected' : ''}>${s}</option>`;
+  }).join('');
+  return `<div class="insp-field"><label>shape(上書き・絵のグリフ)</label><select id="ins-shape">${opts}</select></div>`;
+}
+function fieldClsSelect(val){
+  const opts = CLS_VOCAB.map(c => `<option value="${c}" ${c === val ? 'selected' : ''}>${c}</option>`).join('');
+  return `<div class="insp-field"><label>cls(技クラス・音/飛翔の見た目)</label><select id="ins-cls">${opts}</select></div>`;
+}
+function fieldAtSelect(val){
+  return `<div class="insp-field"><label>at(効果を受ける側)</label>
+    <select id="ins-at"><option value="opp" ${val === 'opp' ? 'selected' : ''}>opp(あいて=既定・攻撃対象)</option>
+    <option value="self" ${val === 'self' ? 'selected' : ''}>self(じぶん)</option></select></div>`;
+}
+function wireInspectorEvents(cue){
+  const bind = (id, fn) => { const el = $(id); if (el) el.addEventListener('change', fn); };
+  bind('ins-t', e => { cue.t = Math.max(0, snap50(+e.target.value || 0)); onCueEdited(cue); });
+  bind('ins-dur', e => { cue.dur = Math.max(20, snap50(+e.target.value || 20)); onCueEdited(cue); });
+  bind('ins-shape', e => { cue.params.shape = e.target.value || null; onCueEdited(cue); });
+  bind('ins-cls', e => { cue.params.cls = e.target.value; onCueEdited(cue); });
+  bind('ins-at', e => { cue.params.at = e.target.value; onCueEdited(cue); });
+  bind('ins-mag', e => { cue.params.mag = +e.target.value; onCueEdited(cue); });
+  bind('ins-text', e => { cue.params.text = e.target.value; onCueEdited(cue); });
+  bind('ins-scale', e => { cue.params.scale = +e.target.value; onCueEdited(cue); });
+}
+function onCueEdited(cue){
+  markDirty();
+  renderTimeline();
+  renderInspector();
+  renderTlTotal();
+}
+
+// =====================================================================
+// タイムライン(トラック=atk/glyph/sound/screen/def/text。設計1-1のスキーマ準拠)
+// =====================================================================
+const TRACKS = ['atk', 'glyph', 'sound', 'screen', 'def', 'text'];
+const PX_PER_MS = 0.6;          // 固定スケール(ドラッグ中にスケールが動かないよう固定=触り心地優先)
+const TL_VISIBLE_MS = 1600;     // タイムライン表示上の可視幅(実尺がこれより短くても余白を見せる)
+
+function snap50(ms){ return Math.round(ms / 50) * 50; }
+
+function renderTlRuler(){
+  const ruler = $('tl-ruler');
+  ruler.innerHTML = '';
+  ruler.style.width = (TL_VISIBLE_MS * PX_PER_MS) + 'px';
+  for (let t = 0; t <= TL_VISIBLE_MS; t += 100){
+    const tick = document.createElement('div');
+    tick.className = 'tick' + (t % 200 === 0 ? ' major' : '');
+    tick.style.left = (t * PX_PER_MS) + 'px';
+    if (t % 200 === 0) tick.textContent = t + 'ms';
+    ruler.appendChild(tick);
+  }
+}
+function renderTimeline(){
+  const rows = $('tl-rows');
+  rows.innerHTML = '';
+  const width = TL_VISIBLE_MS * PX_PER_MS;
+  TRACKS.forEach(track => {
+    const row = document.createElement('div');
+    row.className = 'tl-row';
+    const label = document.createElement('div');
+    label.className = 'tl-row-label';
+    label.textContent = track;
+    row.appendChild(label);
+    const trackEl = document.createElement('div');
+    trackEl.className = 'tl-row-track';
+    trackEl.style.width = width + 'px';
+    trackEl.dataset.track = track;
+    row.appendChild(trackEl);
+    rows.appendChild(row);
+  });
+  if (currentSheet){
+    currentSheet.cues.forEach(cue => {
+      const trackEl = rows.querySelector(`.tl-row-track[data-track="${cue.track}"]`);
+      if (trackEl) makeCueBar(cue, trackEl);
+    });
+  }
+}
+function renderTlTotal(){
+  $('tl-total').textContent = currentSheet ? ('総尺 ' + computeSheetDur(currentSheet) + 'ms') : '';
+}
+function positionBar(el, cue){
+  el.style.left = (cue.t * PX_PER_MS) + 'px';
+  el.style.width = Math.max(10, cue.dur * PX_PER_MS) + 'px';
+}
+function makeCueBar(cue, trackEl){
+  const el = document.createElement('div');
+  el.className = 'tl-cue tl-cue-' + cue.track + (cue.id === selectedCueId ? ' selected' : '');
+  el.dataset.id = cue.id;
+  el.title = `${cue.track}/${cue.action}  t=${cue.t}ms dur=${cue.dur}ms`;
+  el.textContent = cue.action;
+  positionBar(el, cue);
+  const handle = document.createElement('div');
+  handle.className = 'tl-cue-handle';
+  el.appendChild(handle);
+  trackEl.appendChild(el);
+
+  // バー本体ドラッグ = t(開始時刻)を移動。50msスナップ。
+  el.addEventListener('pointerdown', ev => {
+    if (ev.target === handle) return;
+    ev.preventDefault();
+    selectCueLight(cue.id);
+    const startX = ev.clientX;
+    const origT = cue.t;
+    let moved = false;
+    try{ el.setPointerCapture(ev.pointerId); }catch(e){}
+    function onMove(e){
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 2) moved = true;
+      cue.t = Math.max(0, snap50(origT + dx / PX_PER_MS));
+      positionBar(el, cue);
+    }
+    function onUp(){
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      if (moved){ markDirty(); renderTlTotal(); renderInspector(); }
+    }
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+  });
+
+  // 右端ハンドルドラッグ = dur(長さ)を変更。50msスナップ。
+  handle.addEventListener('pointerdown', ev => {
+    ev.preventDefault(); ev.stopPropagation();
+    selectCueLight(cue.id);
+    const startX = ev.clientX;
+    const origDur = cue.dur;
+    try{ handle.setPointerCapture(ev.pointerId); }catch(e){}
+    function onMove(e){
+      const dx = e.clientX - startX;
+      cue.dur = Math.max(20, snap50(origDur + dx / PX_PER_MS));
+      positionBar(el, cue);
+    }
+    function onUp(){
+      handle.removeEventListener('pointermove', onMove);
+      handle.removeEventListener('pointerup', onUp);
+      markDirty(); renderTlTotal(); renderInspector();
+    }
+    handle.addEventListener('pointermove', onMove);
+    handle.addEventListener('pointerup', onUp);
+  });
+}
+
+// =====================================================================
+// cuePlayer: キューを個々のプリミティブへ直接ディスパッチ(attackFx/chargeFxを丸ごと
+// 呼ぶのではなく分解再生=仕様書の指定どおり。人間がタイミングを調整できるようにする)
+// =====================================================================
+function cueChargeMotion(dur, params){
+  const sp = document.querySelector('#f-self .sprite');
+  if (!sp || typeof sp.animate !== 'function') return;
+  const from = fxPoint('self'), to = fxPoint('opp');
+  const hitFrac = 0.85;
+  const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
+  const r = sp.getBoundingClientRect();
+  const clone = sp.cloneNode(true);
+  clone.className = 'rb-chargeclone';
+  clone.style.width = r.width + 'px'; clone.style.height = r.height + 'px';
+  clone.style.left = r.left + 'px'; clone.style.top = r.top + 'px';
+  document.body.appendChild(clone);
+  sp.style.visibility = 'hidden';
+  let done = false;
+  const cleanup = () => { if (done) return; done = true; try{ clone.remove(); }catch(e){} sp.style.visibility = ''; };
+  setTimeout(cleanup, dur + 300);
+  try{
+    const anim = clone.animate([
+      { transform: 'translate(0,0)', offset: 0 },
+      { transform: `translate(${dx}px, ${dy}px)`, offset: 0.55 },
+      { transform: `translate(${dx}px, ${dy}px)`, offset: 0.62 },
+      { transform: 'translate(0,0)', offset: 1 },
+    ], { duration: Math.max(80, dur), easing: 'cubic-bezier(.3,0,.2,1)' });
+    anim.onfinish = cleanup; anim.oncancel = cleanup;
+  }catch(e){ cleanup(); }
+}
+function dispatchCue(cue, mv){
+  const p = cue.params || {};
+  const shape = p.shape || shapeOf(mv);
+  const cls = p.cls || moveClassOf(mv);
+  const color = (S.typeColors() && mv && S.typeColors()[mv.type]) || '#9fb4d8';
+  const atSide = p.at || 'opp';
+  try{
+    if (cue.track === 'atk'){
+      if (cue.action === 'projectile') spawnProjectile(fxPoint('self'), fxPoint('opp'), cls, color, 1, shape);
+      else if (cue.action === 'beam') spawnBeam(fxPoint('self'), fxPoint('opp'), cls, color, 1, shape);
+      else if (cue.action === 'charge') cueChargeMotion(cue.dur, p);
+    } else if (cue.track === 'glyph' && cue.action === 'burst'){
+      burstFx(atSide, color, shape, p.intensity || 'normal');
+    } else if (cue.track === 'sound' && cue.action === 'se'){
+      SE.hitClass(cls);
+    } else if (cue.track === 'screen' && cue.action === 'shake'){
+      fieldShake(p.mag != null ? p.mag : 1);
+    } else if (cue.track === 'def'){
+      if (cue.action === 'knockback'){
+        const from = fxPoint('self'), to = fxPoint('opp');
+        const dx = (to.x - from.x) * 0.15, dy = (to.y - from.y) * 0.15;
+        knockbackFx(atSide, atSide === 'opp' ? -dx : dx, atSide === 'opp' ? -dy : dy);
+      } else if (cue.action === 'hitreact'){
+        flash(atSide, p.big ? 'hit-big' : 'hit');
+      }
+    } else if (cue.track === 'text' && cue.action === 'popnum'){
+      popText(atSide, p.text || '−42', p.color || '#fff', p.size || 16);
+    }
+  }catch(e){ console.error('[cue dispatch error]', cue, e); }
+}
+function resetPreviewPositions(){
+  document.querySelectorAll('.rb-chargeclone').forEach(el => el.remove());
+  document.querySelectorAll('.rb-proj,.rb-beam,.burst,.popnum,.rb-burstp,.rb-burstring').forEach(el => el.remove());
+  document.querySelectorAll('[class^="rb-burstglyph"]').forEach(el => el.remove());
+  ['self', 'opp'].forEach(side => {
+    const f = $('f-' + side);
+    if (!f) return;
+    const sp = f.querySelector('.sprite');
+    if (sp) sp.style.visibility = '';
+    f.classList.remove('hit', 'hit-big', 'rb-knockback-self', 'rb-knockback-opp', 'rb-impact');
+  });
+  const field = $('field');
+  if (field){ field.style.transform = ''; field.style.filter = ''; field.classList.remove('rb-impact'); }
+}
+
+// =====================================================================
+// 再生ループ(設計1-3=編集の基本ループ再生。毎周回の頭でcurrentSheetを読み直す=編集がホットリロードされる)
+// =====================================================================
+const playState = { playing: false, speed: 1, timers: [] };
+function clearTimers(){ playState.timers.forEach(clearTimeout); playState.timers = []; }
+function updatePlayButtons(){
+  $('btn-play').disabled = !currentSheet;
+  $('btn-play').textContent = playState.playing ? '▶ 再生中…' : '▶ ループ再生';
+}
+function scheduleRound(){
+  if (!playState.playing || !currentSheet) return;
+  resetPreviewPositions();
+  const sheet = currentSheet;   // ★毎周回の頭で読み直す(この時点で最新のドラフト状態=編集が即反映)
+  const mv = currentMv;
+  const speed = playState.speed;
+  const total = computeSheetDur(sheet);
+  sheet.cues.forEach(cue => {
+    const timer = setTimeout(() => { if (playState.playing) dispatchCue(cue, mv); }, cue.t / speed);
+    playState.timers.push(timer);
+  });
+  const t2 = setTimeout(() => {
+    if (!playState.playing) return;
+    const t3 = setTimeout(scheduleRound, 300 / speed);   // 周回間の間(設計1-3=300ms)
+    playState.timers.push(t3);
+  }, total / speed);
+  playState.timers.push(t2);
+}
+function startPlay(){
+  if (playState.playing || !currentSheet) return;
+  try{ _actx().resume && _actx().resume(); }catch(e){}
+  playState.playing = true;
+  updatePlayButtons();
+  scheduleRound();
+}
+function stopPlay(){
+  playState.playing = false;
+  clearTimers();
+  resetPreviewPositions();
+  updatePlayButtons();
+}
+$('btn-play').addEventListener('click', startPlay);
+$('btn-stop').addEventListener('click', stopPlay);
+document.querySelectorAll('#speedgrp button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    playState.speed = +btn.dataset.speed;
+    document.querySelectorAll('#speedgrp button').forEach(b => b.classList.toggle('on', b === btn));
+    if (playState.playing){ clearTimers(); resetPreviewPositions(); scheduleRound(); }
+  });
+});
+
+// =====================================================================
+// 書き出し
+// =====================================================================
+function exportJson(){
+  const out = {};
+  Object.keys(cueDraftStore).forEach(k => { out[k] = cueDraftStore[k]; });
+  const json = JSON.stringify(out, null, 2);
+  try{
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'battle_fx_cues.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }catch(e){ console.warn('download failed', e); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(json).catch(() => {});
+  }
+  window.__fxEditorLastExport = json;   // Playwright検証用フック
+  toast('書き出しました(' + Object.keys(out).length + '件・ダウンロード+クリップボード)');
+}
+$('btn-export').addEventListener('click', exportJson);
+
+let _toastTimer = null;
+function toast(msg){
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+// =====================================================================
+// 初期化
+// =====================================================================
+function renderAll(){
+  renderPreviewHeader();
+  renderTimeline();
+  renderTlTotal();
+  renderInspector();
+  updatePlayButtons();
+  renderLibList();
+}
+initTypeFilter();
+renderTlRuler();
+renderLibList();
+// 初期選択: 設計docの例に登場する「フレアドライブ」があればそれを、無ければ先頭の技を選ぶ
+const _defaultMv = ALL_MOVES.find(m => m.name === 'フレアドライブ') || ALL_MOVES[0];
+if (_defaultMv) selectMove(_defaultMv);
+
+window.addEventListener('error', e => { console.error('[fx_editor uncaught]', e.message, e.filename, e.lineno); });
+</script>
+</body>
+</html>
