@@ -5701,6 +5701,9 @@ function aiScoreMove(sideKey, m){
     // fails_if(ふいうち/はやてがえし/どげざつき/とっておき/なげつける等)=相手の手/自分の状況で不発なら選ばない。
     // opp AIはプレイヤーの手が確定した後に選ぶので、相手依存(ふいうち=相手が攻撃技か)の判定も正確。
     if (failsByCondition(st, foeSt, m)) return 0;
+    // 遅延攻撃(みらいよち/はめつのねがい): すでに予知中の再使用は失敗(ポケモンWiki「みらいよち」=重ねがけ不可)
+    // →予知中はAIが選ばない(2026-07-11 阿部さん実プレイでAIが無駄撃ちを繰り返した)
+    if ((bd.effects || []).some(e => e.kind === '遅延攻撃') && st.futureSight) return 0;
   }
   if (m.category !== '変化'){
     const r = calcDamage(sideKey, foe, m);
@@ -5872,7 +5875,9 @@ function runTurn(){
     {side:secondSide, move: secondSide==='self'?selfMove:oppMove, opp:firstSide},
   ];
   // 先攻になった理由をログに出す(優先度 or すばやさ or トリックルーム or 同速ランダム)
-  {
+  // ★両者が技を出すターンだけ(2026-07-11 阿部さんFB): 交代などで片方しか行動しないターンは
+  // 先攻も後攻もない(交代側は技を出さない)し、「先攻: 交代で出た子」はすばやさ情報のリークにもなる→出さない。
+  if (selfMove && oppMove){
     const fMove = firstSide === 'self' ? selfMove : oppMove;
     const sMove = secondSide === 'self' ? selfMove : oppMove;
     const fp = movePriority(fMove, sides[firstSide]), sp = movePriority(sMove, sides[secondSide]);
