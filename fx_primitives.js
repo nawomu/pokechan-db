@@ -9,6 +9,7 @@
 //   S.typeColors()      … タイプ別カラー(両ページとも `let S` のsimブリッジ経由)
 //   SE.hitClass/miss    … WebAudio合成SE(両ページとも `const SE = {...}`)
 //   window.MOVE_FX_MAP   … move_fx_map.js(shapeOf解決用)
+//   window.BATTLE_FX_CUES … battle_fx_cues.js(演出ツクールStep4・resolveCueSheet/playCueSheet解決用)
 // これらは呼び出し時(setTimeout/イベント経由)に解決されるため、<script>タグの読み込み順に依存しない
 // (クラシックscript間はグローバル宣言環境を共有する)。
 //
@@ -436,4 +437,137 @@ function flash(side, cls){
   void f.offsetWidth;
   f.classList.add(cls);
   setTimeout(() => f.classList.remove(cls), 800);
+}
+
+// ===== 演出ツクール Step4(2026-07-11・設計_演出ツクール_2026-07-11.md 1-2 cuePlayer=上書きオーバーレイ方式) =====
+// fx_editor.htmlで人間が調整したキューシート(window.BATTLE_FX_CUES・battle_fx_cues.js)を本番
+// (real_battle.html/online_battle.html)が再生するための共有プレイヤー。fx_editor.htmlのdispatchCue()と
+// 同じディスパッチを移植(挙動を合わせる。fx_editor.html自体は今回未改修=重複実装は将来の共通化タスク)。
+
+// resolveCueSheet(mv): window.BATTLE_FX_CUES からこの技用のシートを解決する。
+// 優先順=move:技名(個別上書き) → pattern:タイプ+分類(一括既定・fx_editor.htmlの'pattern:'+type+category形式と同一)。
+// どちらもdone===trueのシートのみ採用(ドラフト中=書き出し前の未完成シートは本番に出さない)。無ければnull
+// (=呼び出し側は従来のattackFx/chargeFx経路のまま=シート無し技は完全不変)。
+function resolveCueSheet(mv){
+  const map = window.BATTLE_FX_CUES;
+  if (!mv || !map) return null;
+  const byMove = map['move:' + mv.name];
+  if (byMove && byMove.done === true) return byMove;
+  const byPattern = map['pattern:' + mv.type + mv.category];
+  if (byPattern && byPattern.done === true) return byPattern;
+  return null;
+}
+// キューシートの「着弾拍」= 従来のattackFx/chargeFxが返していた_hitFxDelay相当(ms)。atk(突進/飛翔)以外の
+// トラック(glyph/sound/screen/def)で最も早く発火するキューのtを着弾とみなす(1-1のサンプルもこの形=
+// 非atkトラックが同じtに集まる設計)。無ければ総尺の半分にフォールバック。
+function _cueImpactTime(sheet){
+  let best = null;
+  (sheet.cues || []).forEach(c => {
+    if (c.track === 'glyph' || c.track === 'sound' || c.track === 'screen' || c.track === 'def'){
+      if (best == null || c.t < best) best = c.t;
+    }
+  });
+  return best != null ? best : Math.round((sheet.dur || 600) / 2);
+}
+// fx_editor.htmlのcueChargeMotion()の本番版。エディタは常にself(攻撃側固定)→opp(標的固定)でプレビュー
+// するが、本番は自分/相手どちらが攻撃側にもなるため、atkSide/tgtSideを引数で渡す。アニメの中身
+// (移動量・easing・cleanup)はエディタ版とロジック同一(コピー)。
+function _cueChargeMotionProd(atkSide, tgtSide, dur, params){
+  const sp = document.querySelector('#f-' + atkSide + ' .sprite');
+  if (!sp || typeof sp.animate !== 'function') return;
+  const from = fxPoint(atkSide), to = fxPoint(tgtSide);
+  const hitFrac = 0.85;
+  const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
+  const r = sp.getBoundingClientRect();
+  const clone = sp.cloneNode(true);
+  clone.className = 'rb-chargeclone';
+  clone.style.width = r.width + 'px'; clone.style.height = r.height + 'px';
+  clone.style.left = r.left + 'px'; clone.style.top = r.top + 'px';
+  document.body.appendChild(clone);
+  sp.style.visibility = 'hidden';
+  let done = false;
+  const cleanup = () => { if (done) return; done = true; try { clone.remove(); } catch (e) {} sp.style.visibility = ''; };
+  setTimeout(cleanup, dur + 300);
+  try {
+    const anim = clone.animate([
+      { transform: 'translate(0,0)', offset: 0 },
+      { transform: `translate(${dx}px, ${dy}px)`, offset: 0.55 },
+      { transform: `translate(${dx}px, ${dy}px)`, offset: 0.62 },
+      { transform: 'translate(0,0)', offset: 1 },
+    ], { duration: Math.max(80, dur), easing: 'cubic-bezier(.3,0,.2,1)' });
+    anim.onfinish = cleanup; anim.oncancel = cleanup;
+  } catch (e) { cleanup(); }
+}
+// 画面シェイクの持続(fx_editor.htmlのsustainedFieldShake()の本番版)。エディタ側はループ再生中の
+// playState.playingを見て途中停止するが、本番は単発再生なので経過時間だけで自然に終わる同一ロジック。
+function _cueSustainedFieldShake(mag, durMs){
+  fieldShake(mag);
+  if (!durMs || durMs <= 280) return;   // 既定尺(280ms)以下は単発のまま(fieldShake内蔵の減衰で従来どおり)
+  const stepMs = 90;
+  let elapsed = 0;
+  const timer = setInterval(() => {
+    elapsed += stepMs;
+    if (elapsed >= durMs){ clearInterval(timer); return; }
+    fieldShake(mag);
+  }, stepMs);
+}
+// 1キューをプリミティブへディスパッチ(fx_editor.htmlのdispatchCue()を移植・ロジック同一)。
+// info = {mv, color, atkSide, tgtSide, dmgText, hitCls}。キューシートは常に「self=攻撃側固定」で
+// 書かれている(エディタの視点=盤面は常に自分が攻める向き)ため、cue.params.at('self'/'opp')は
+// 本番のatkSide/tgtSideへ解決する('opp'既定=標的)。
+function _dispatchCueProd(cue, info){
+  const p = cue.params || {};
+  const mv = info.mv;
+  const shape = p.shape || shapeOf(mv);
+  const cls = p.cls || moveClassOf(mv);
+  const color = info.color;
+  const atSide = (p.at === 'self') ? info.atkSide : info.tgtSide;
+  try {
+    if (cue.track === 'atk'){
+      if (cue.action === 'projectile') spawnProjectile(fxPoint(info.atkSide), fxPoint(info.tgtSide), cls, color, 1, shape);
+      else if (cue.action === 'beam') spawnBeam(fxPoint(info.atkSide), fxPoint(info.tgtSide), cls, color, 1, shape);
+      else if (cue.action === 'charge') _cueChargeMotionProd(info.atkSide, info.tgtSide, cue.dur, p);
+    } else if (cue.track === 'glyph' && cue.action === 'burst'){
+      const off = p.offset || { x: 0, y: 0 };
+      const gf = $('f-' + atSide);
+      if (gf){ gf.style.setProperty('--fx-ox', (off.x || 0) + 'px'); gf.style.setProperty('--fx-oy', (off.y || 0) + 'px'); }
+      burstFx(atSide, color, shape, p.intensity || 'normal', cue.dur);
+    } else if (cue.track === 'sound' && cue.action === 'se'){
+      SE.hitClass(cls);
+    } else if (cue.track === 'screen' && cue.action === 'shake'){
+      _cueSustainedFieldShake(p.mag != null ? p.mag : 1, cue.dur);
+    } else if (cue.track === 'def'){
+      if (cue.action === 'knockback'){
+        const from = fxPoint(info.atkSide), to = fxPoint(info.tgtSide);
+        const dx = (to.x - from.x) * 0.15, dy = (to.y - from.y) * 0.15;
+        knockbackFx(atSide, atSide === info.tgtSide ? -dx : dx, atSide === info.tgtSide ? -dy : dy);
+      } else if (cue.action === 'hitreact'){
+        // hitCls(実際のダメージ%由来。呼び出し側=lineWithFxが計算した値)を優先。無ければp.bigフラグへフォールバック。
+        flash(atSide, info.hitCls || (p.big ? 'hit-big' : 'hit'));
+      }
+    } else if (cue.track === 'text' && cue.action === 'popnum'){
+      // dmgText(実際のダメージ数値。呼び出し側から渡される)を優先。無ければキューの固定文言(エディタのプレビュー既定値)。
+      popText(atSide, info.dmgText != null ? info.dmgText : (p.text || ''), p.color || '#fff', p.size || 16, null, cue.dur);
+    }
+  } catch (e) { console.error('[playCueSheet dispatch error]', cue, e); }
+}
+// playCueSheet(sheet, ctx): 本番cuePlayer本体。キューシートのcues[]をタイミングどおり一括setTimeout予約する。
+// ctx = {atkSide, tgtSide, mv, color, dmgText, hitCls}。戻り値=着弾拍ms(_cueImpactTime。呼び出し側の
+// 「_hitFxDelay」契約=従来のattackFx/chargeFxの戻り値と同じ役割で使う=こうか/急所行の同拍合流に流用可能)。
+// __board(エディタの立ち位置)は見ない=本番の配置は本番のまま(設計4章の指定どおり)。
+function playCueSheet(sheet, ctx){
+  ctx = ctx || {};
+  const info = {
+    mv: ctx.mv,
+    color: ctx.color || (S.typeColors() && ctx.mv && S.typeColors()[ctx.mv.type]) || '#9fb4d8',
+    atkSide: ctx.atkSide,
+    tgtSide: ctx.tgtSide,
+    dmgText: ctx.dmgText,
+    hitCls: ctx.hitCls,
+  };
+  if (window.__fxTrace) window.__fxTrace.push({ k: 'playCueSheet', mv: ctx.mv && ctx.mv.name, t: performance.now() });
+  (sheet.cues || []).forEach(cue => {
+    setTimeout(() => _dispatchCueProd(cue, info), Math.max(0, cue.t || 0));
+  });
+  return _cueImpactTime(sheet);
 }

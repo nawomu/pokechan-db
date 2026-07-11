@@ -12,6 +12,7 @@
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
+<script src="battle_fx_cues.js?v=20260711a"></script>
 <script src="fx_primitives.js?v=20260711a"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
@@ -3459,19 +3460,32 @@ function lineWithFx(msg){
       // 非接触(飛翔体/ビーム)側だけこのsetTimeoutで従来どおり重ねる(重複演出防止)
       const _isContact = mv && mv.contact === true;
       flash(atkSide, atkSide === 'self' ? 'lunge-self' : 'lunge-opp');
-      // Wave1/2.5: 技クラス別の飛翔体(または接触技=突進クローン)→着弾に合わせてburst/ダメージ数字/shake/ヒット音
-      const _atkDur = attackFx(atkSide, tgt, mv, true);
-      _hitFxDelay = _atkDur;   // 直後に合流する「こうかは…」「きゅうしょ」行も同じ拍に重ねる(2026-06-07の同拍方針を維持)
       const d = msg.match(/(?:に|合計) (\d+) ダメージ/);
       // Wave3 A級: ダメージ%で被弾リアクションを強弱(小=hit/大=hit-big=スカッシュ&ストレッチ係数1.4)
       const _hpPct = (d && _tgtMax) ? (+d[1] / _tgtMax) : 0;
       const _hitCls = _hpPct >= 0.28 ? 'hit-big' : 'hit';
       _lastHitBig = _hpPct >= 0.28;   // Wave4 B級: 「大技」判定(爆発音=ばつぐん/急所行と合わせて大技/KO限定で鳴らす)
-      setTimeout(() => {
-        if (!_isContact) burstFx(tgt, _atkColor, _atkShape, 'normal');
-        if (d) popText(tgt, '−' + d[1], '#fff');
-        flash(tgt, _hitCls);
-      }, _atkDur);
+      // ★演出ツクールStep4(2026-07-11・設計_演出ツクール_2026-07-11.md 1-2=上書きオーバーレイ方式):
+      // window.BATTLE_FX_CUES にこの技の調整済みキューシート(move:技名 or pattern:タイプ分類・done===true)が
+      // あればplayCueSheetで再生し、従来のattackFx+burst/popText/flashのsetTimeoutは丸ごとスキップする
+      // (二重演出防止)。シートが無い技は従来経路のまま=挙動完全不変。missはシート未対応(シンプル優先=
+      // 設計docの指定どおり・従来のattackFx(...,false)のまま=下のmissM分岐は無改変)。
+      const _cueSheet = resolveCueSheet(mv);
+      if (_cueSheet){
+        _hitFxDelay = playCueSheet(_cueSheet, {
+          atkSide, tgtSide: tgt, mv, color: _atkColor,
+          dmgText: d ? ('−' + d[1]) : null, hitCls: _hitCls,
+        });
+      } else {
+        // Wave1/2.5: 技クラス別の飛翔体(または接触技=突進クローン)→着弾に合わせてburst/ダメージ数字/shake/ヒット音
+        const _atkDur = attackFx(atkSide, tgt, mv, true);
+        _hitFxDelay = _atkDur;   // 直後に合流する「こうかは…」「きゅうしょ」行も同じ拍に重ねる(2026-06-07の同拍方針を維持)
+        setTimeout(() => {
+          if (!_isContact) burstFx(tgt, _atkColor, _atkShape, 'normal');
+          if (d) popText(tgt, '−' + d[1], '#fff');
+          flash(tgt, _hitCls);
+        }, _atkDur);
+      }
     } else {
       // ② スリップ系の残HP行(やけど/すなあらし/さめはだ等): 主語側が減る
       if (hpM){
