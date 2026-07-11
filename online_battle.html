@@ -849,9 +849,8 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 /* 相手セル(クリムゾン・名前は非公開のまま=pick-oppと同じ) */
 #party .sw-opp-list .slot{background:linear-gradient(135deg,#a02150,#d63c78);cursor:default;width:100%;box-sizing:border-box;min-height:88px}
 #party .sw-opp-list .slot.dead{opacity:.6}
-/* 未登場=スプライトを黒塗り+タイプ非表示(2026-07-11 阿部さん) */
-#party .sw-opp-list .slot.sw-hidden img{filter:brightness(0);opacity:.5}
-#party .sw-opp-list .slot.sw-hidden .cap-types{visibility:hidden}
+/* 未登場=自分の選外と同じうっすらフィルター(シルエットで隠さない・見せ合いで一回見ている 2026-07-11 阿部さんFB) */
+#party .sw-opp-list .slot.sw-ghost{opacity:.35;filter:grayscale(.75);pointer-events:none}
 /* HPバー(カプセル4段目=cap-mid[row2/4]の下・row4に配置) */
 #party .slot .sw-hpwrap{grid-column:1;grid-row:4;display:flex;align-items:center;gap:5px;margin-top:2px}
 #party .slot .sw-hpbar-bg{flex:1 1 auto;height:6px;background:#00000045;border-radius:3px;overflow:hidden}
@@ -3045,21 +3044,23 @@ function swCurrentDetailEntry(st){
 }
 // 右=あいてのチーム。オンライン(見せ合い選出=6体既知)は「場に出て判明した子」だけ開示・未判明はシルエット均一表示。
 // real_battle(1人用)/オンライン未開始は選出チームをそのまま表示(隠す情報が無い)。
-// 相手セル(クリムゾンカプセル・名前は絶対非公開=性別のみ)。unknown=スプライト黒塗り+タイプ非表示のシルエット
+// 相手セル(クリムゾンカプセル・名前は絶対非公開=性別のみ)。
+// ★2026-07-11 阿部さんFB: 見せ合い選出で一回見ているのでシルエットで隠さない=選出画面と同じ見せ方。
+// 未登場の子は自分の選外と同じうっすらフィルター(sw-ghost)で「まだ出てきていない」だけ表す。
 function swOppSlotHtml(nm, entry, known){
   const p = S.pokeByName(nm);
   if (!p) return '';
   const src = setupSpriteSrc(nm, true);
-  if (!known){
-    return `<div class="slot sw-hidden"><strong class="cap-name">？</strong>` +
-      `<span class="cap-mid"><span class="cap-types"></span><small class="cap-item"></small></span>` +
-      `<img src="${src}" alt="" onerror="this.remove()"></div>`;
-  }
   const tc = S.typeColors();
-  const g = entry.gender;
-  const gHtml = g && g !== '—' ? `<span class="cap-g ${g === '♂' ? 'm' : 'f'}">${g}</span>` : '';
   const tps = [p.type1, p.type2].filter(Boolean).map(t =>
     `<span class="cap-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
+  if (!known || !entry){
+    return `<div class="slot sw-ghost"><strong class="cap-name"></strong>` +
+      `<span class="cap-mid"><span class="cap-types">${tps}</span><small class="cap-item"></small></span>` +
+      `<img src="${src}" alt="" onerror="this.remove()"></div>`;
+  }
+  const g = entry.gender;
+  const gHtml = g && g !== '—' ? `<span class="cap-g ${g === '♂' ? 'm' : 'f'}">${g}</span>` : '';
   const dead = entry.fainted || (entry.currentHp != null && entry.currentHp <= 0);
   const max = S.realStat(entry, 'hp') || 1;
   const hp = entry.currentHp == null ? max : Math.max(0, entry.currentHp);
