@@ -4543,6 +4543,7 @@ const battleHistory = [];
 const HISTORY_MAX = 50;
 // まねっこ用: 戦闘でだれかが直前に使った技(どちらの側でも)。技を「使った」扱いの瞬間に更新
 let lastMoveAnywhere = null;
+let lastMoveAnywhereSide = null;   // 最後に技を出した側('self'/'opp')。相打ち勝敗の判定用(2026-07-11 A.4)
 
 function snapshotBattleState(){
   const snap = (st)=>({
@@ -4923,6 +4924,7 @@ function runSingleAttack(atkSide, moveIdx){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
+  lastMoveAnywhereSide = atkSide;   // 相打ち勝敗の判定用(A.4 2026-07-11)
   if (!atk.usedMoveNames) atk.usedMoveNames = [];
   if (!atk.usedMoveNames.includes(mv.name)) atk.usedMoveNames.push(mv.name);   // とっておき用(実際に使った技を記録)
   // PP消費は行動不能ブロック直後に前倒し済み(段129・失敗技でも消費=無限バトル根治 2026-07-11)
@@ -6098,6 +6100,7 @@ function runTurn(){
   if (mv.name !== 'みちづれ') atk.dbondPrev = false;
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
+  lastMoveAnywhereSide = a.side;   // 相打ち勝敗の判定用(A.4 2026-07-11)
   if (!atk.usedMoveNames) atk.usedMoveNames = [];
   if (!atk.usedMoveNames.includes(mv.name)) atk.usedMoveNames.push(mv.name);   // とっておき用(実際に使った技を記録)
     // PP消費はひるみブロック直後に前倒し済み(段129・失敗技でも消費=無限バトル根治 2026-07-11)
@@ -8346,6 +8349,8 @@ function attachBattleControl(){
 // const宣言はwindowに載らないため、必要なものをここで明示的に公開する。
 window.__sim = {
   sides, env, battleLog,
+  // 相打ち(両者全滅)の勝敗判定用(A.4 2026-07-11): 最後に技を出した側とその技
+  getLastMoveInfo: () => ({ side: lastMoveAnywhereSide, move: lastMoveAnywhere }),
   abilityDescJa: n => (typeof ABILITY_DESC !== 'undefined' && ABILITY_DESC[n]) || '',   // const宣言はwindow不可視のため橋(2026-07-06)
   runTurn, calcDamage, realStat, makeSideState, usableMoves,
   aiChooseMove, aiChooseAction, aiScoreMove, attemptSwitch, megaEvolve, canMegaEvolve, resetBattle,

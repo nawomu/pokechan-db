@@ -1030,7 +1030,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260711e" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260711f" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -4033,7 +4033,20 @@ function endOfTurn(){
   if (dead('opp') || dead('self')){
     gameOver = true;
     bgmStop();
-    const won = dead('opp');
+    // ★相打ち(両者全滅)の勝敗規則(A.4 2026-07-11・権威=ポケモンWiki「ターン」「だいばくはつ」「みちづれ」。
+    // 詳細=reference/_aizuchi_win_rule_2026-07-11.md。従来はdead('opp')だけ見て相打ち=常に勝ち扱いだった):
+    // ・反動(フレアドライブ等)での相打ち=最後に技を出した側(攻撃側)の勝ち
+    // ・自爆技(じばく/だいばくはつ/いのちがけ=effects kind「自分瀕死」)での相打ち=使った側の負け
+    // ・みちづれ相打ちは「最後の技=倒した側の攻撃」なので攻撃側の勝ち=みちづれ使用側の負け(公式と同結果)
+    // ロックステップでも決定的(両クライアントが同じエンジン状態から同じ判定になる)
+    let won = dead('opp');
+    if (dead('opp') && dead('self') && S.getLastMoveInfo){
+      const lm = S.getLastMoveInfo();
+      if (lm && lm.side && lm.move){
+        const suicide = ((lm.move.battle_data && lm.move.battle_data.effects) || []).some(e => e.kind === '自分瀕死');
+        won = suicide ? lm.side !== 'self' : lm.side === 'self';
+      }
+    }
     if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
     showResultBanner(won);
     // 勝ちは案内文なし(WIN!バナー+つぎの相手ボタンで足りる=2026-07-06 阿部さん)。負けだけ操作案内。
