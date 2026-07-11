@@ -4791,6 +4791,12 @@ function runSingleAttack(atkSide, moveIdx){
     log('0c', `${pname(atk)} は メロメロだ！`);
     if (Math.random() < 0.5){ noteActionFailed(atk); log('0c', `${pname(atk)} は メロメロで 技が だせなかった！`); renderBattleLog(); renderBoth(); return; }
   }
+  // ★PP消費(段129・本家準拠 2026-07-11): 行動不能(ねむり/こおり/まひ/メロメロ)を抜けた=技が「出た」ので、
+  // このあと命中しなくても・失敗しても・無効化されてもPPは消費される(出典: ポケモンWiki「PP」/WebSearch裏取り)。
+  // 従来は失敗分岐(requires/failsByCondition/なげつける等)がconsumePP(末尾)に到達せず、失敗し続けても
+  // PPが減らない→わるあがきに落ちない→299ターン無限バトルになっていた(検証WF #A)。ここで前倒し消費して根治。
+  // ここはランダム技(ねごと)/直前技模倣(まねっこ)の置換より前=「呼び出した技自身」のPPを消費する(本家準拠)。
+  if (!releasing && !atk.rampage) consumePP(atk, mv, def);
   // 使用条件(requires: オーロラベール=ゆきの時だけ等)。満たさなければ失敗(Bulbapedia "Aurora Veil")
   const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
   if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
@@ -4919,7 +4925,7 @@ function runSingleAttack(atkSide, moveIdx){
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
   if (!atk.usedMoveNames) atk.usedMoveNames = [];
   if (!atk.usedMoveNames.includes(mv.name)) atk.usedMoveNames.push(mv.name);   // とっておき用(実際に使った技を記録)
-  if (!releasing && !atk.rampage) consumePP(atk, mv, def);   // PP消費(段129/プレッシャー=段131)
+  // PP消費は行動不能ブロック直後に前倒し済み(段129・失敗技でも消費=無限バトル根治 2026-07-11)
   // こだわりロック開始(段135): こだわり道具持ちが技を使ったらその技に固定(わるあがきでは固定しない)
   if (!atk.choiceLock && !mv.struggle && atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].restriction === '選択技固定') atk.choiceLock = mv;
   stanceChange(atkSide, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
@@ -5936,6 +5942,11 @@ function runTurn(){
       }
       continue;
     }
+    // ★PP消費(段129・本家準拠 2026-07-11): 行動不能(ねむり/こおり/まひ/メロメロ/こんらん自傷/ひるみ)を
+    // 抜けた=技が「出た」ので、命中しなくても・失敗しても・無効化されてもPPは消費される(出典: ポケモンWiki「PP」)。
+    // 従来は失敗分岐(requires/failsByCondition/なげつける等)がconsumePP(末尾)に到達せず無限バトルの温床だった。
+    // 置換前(ねごと/まねっこ)なので「呼び出した技自身」のPPを消費する(本家準拠)。オフラインAI戦/ロックステップ共通。
+    if (!releasing && !atk.rampage) consumePP(atk, mv, def);
     // ねこだまし/であいがしら: 場に出た最初のターン(turnsOut===0)以外は失敗
     if (isFirstTurnOnlyMove(mv) && atk.turnsOut > 0){
       log('0c', `${pname(atk)} の ${mv.name} は 場に出た最初のターンしか出せない！`); continue;
@@ -6061,7 +6072,7 @@ function runTurn(){
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
   if (!atk.usedMoveNames) atk.usedMoveNames = [];
   if (!atk.usedMoveNames.includes(mv.name)) atk.usedMoveNames.push(mv.name);   // とっておき用(実際に使った技を記録)
-    if (!releasing && !atk.rampage) consumePP(atk, mv, def);   // PP消費(段129/プレッシャー=段131)
+    // PP消費はひるみブロック直後に前倒し済み(段129・失敗技でも消費=無限バトル根治 2026-07-11)
     if (!atk.choiceLock && !mv.struggle && atk.item && ITEM_BY_KEY[atk.item] && ITEM_BY_KEY[atk.item].restriction === '選択技固定') atk.choiceLock = mv;   // こだわりロック開始(段135)
     stanceChange(a.side, mv);   // バトルスイッチ(段120): 技を繰り出す直前にフォルムチェンジ
     proteanChange(atk, mv);     // へんげんじざい/リベロ(段122): 技を出す直前にタイプ変化
