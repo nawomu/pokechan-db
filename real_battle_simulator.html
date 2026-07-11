@@ -5544,12 +5544,17 @@ function megaEvolve(sideKey){
   const mf = canMegaEvolve(st);
   if (!mf) return false;
   const stone = ITEM_BY_KEY[st.item];
+  // ★主語=進化前の名前(検証WF #A.3 2026-07-11)。従来はst.poke差替の「後」にpname(st)を呼んでいたため
+  // 主語がメガ名になっていた(「メガリザードンXの…が反応…」)。差替前にpname(st)で進化前名を確保する。
+  const baseName = pname(st);
   st.megaBase = st.poke;
   st.poke = mf;
   st.ability = mf.ab1 || '';
   st.megaUsed = true;
   st.megaChoice = false;
-  log('0a', `${pname(st)} の ${stone.name}が 反応している！ ${mf.name} に メガシンカした！`);
+  // 目標=メガ名(差替後のpname(st)=side prefix込み・${mf.name}だと「相手の」が付かず不整合だった)。
+  // i18nパターンbl_22は元から{p}=進化前名・{p3}=メガ名を期待して書かれているので、この修正だけで9言語とも正しく出る。
+  log('0a', `${baseName} の ${stone.name}が 反応している！ ${pname(st)} に メガシンカした！`);
   // メガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)はその瞬間に発動する(段127・実機準拠)
   fireEntryAbility(sideKey);
   return true;
