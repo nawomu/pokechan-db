@@ -4361,7 +4361,7 @@ async function onlineEnsureLibs(){
   if (window.RBOnline) return;
   await _loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
   await _loadScript('online/supabase-config.js?v=20260710');
-  await _loadScript('online/rb_online.js?v=20260710e');
+  await _loadScript('online/rb_online.js?v=20260711a');
 }
 
 // --- 接続と役割 ---
@@ -4845,6 +4845,12 @@ async function lobbyObserve(){
 async function lobbyEnter(){
   const name = ($('online-name') && $('online-name').value || '').trim();
   if (!name){ onlineStatus(_olT('online_lobby_need_name', 'なまえを いれてね')); return; }
+  // ★不適切ワードフィルタ(2026-07-11 阿部さん): libがまだ無ければ先にロードしてからチェック
+  try { await onlineEnsureLibs(); } catch (e) {}
+  if (window.RBOnline && RBOnline.isNameNg && RBOnline.isNameNg(name)){
+    onlineStatus(I18N.t('online.name_ng', 'そのなまえは つかえないよ'));
+    return;
+  }
   LOBBY.name = name;
   try { localStorage.setItem('rb_online_name', name); } catch (e) {}
   onlineStatus(_olT('online_connecting', 'せつぞくちゅう…'));

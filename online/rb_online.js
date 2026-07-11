@@ -199,8 +199,30 @@
   // マッチングはクライアント側で決定的に計算(waiting列をsince順に並べ隣同士をペア)。
   // 片方が 'matched'(partner=相手id, room)を載せれば、相手はそれを見て同じ部屋へ来られる
   // (=同期タイミングのレースでも取りこぼさない)。部屋は既存のconnect(P1と同じ仕組み)。
+  //
+  // ★heartbeat(残留ゴースト対策・2026-07-11 阿部さん): タブが開きっぱなしの古いクライアントが
+  //   一覧に残り続ける問題への対策。入室中は HB_INTERVAL_MS おきに meta へ hb(epoch ms)を入れて
+  //   re-track(rev+1)する。一覧側(sync)は hb が HB_STALE_MS より古いエントリを除外する。
+  //   互換: hb が無い(旧バージョン)エントリは since が新しければ表示し、時間が経てば自然に消える。
   // ===================================================================
-  var lobby = { channel: null, joined: false, name: null, last: null, rev: 0 };
+  var HB_INTERVAL_MS = 30000;
+  var HB_STALE_MS = 90000;
+  var lobby = { channel: null, joined: false, name: null, last: null, rev: 0, hbTimer: null };
+  function lobbyIsFresh(e, now) {
+    if (e.hb) return (now - e.hb) < HB_STALE_MS;
+    // hb無し(旧バージョン)= joined直後(sinceが新しい)だけ表示。時間経過で自然に消える
+    return !!e.since && (now - e.since) < HB_STALE_MS;
+  }
+  function lobbyStartHeartbeat() {
+    if (lobby.hbTimer) return;
+    lobby.hbTimer = setInterval(function () {
+      if (!lobby.joined) return;
+      lobbySet({ hb: Date.now() });
+    }, HB_INTERVAL_MS);
+  }
+  function lobbyStopHeartbeat() {
+    if (lobby.hbTimer) { clearInterval(lobby.hbTimer); lobby.hbTimer = null; }
+  }
   // observeOnly=true なら presence購読だけ(在室一覧が見える)。あとから lobbyTrack(name) で入室(自分が載る)
   function lobbyJoin(displayName, onState, observeOnly) {
     ensureClient();
@@ -212,6 +234,7 @@
     ch.on('presence', { event: 'sync' }, function () {
       var st = ch.presenceState();
       var members = [];
+      var now = Date.now();
       Object.keys(st || {}).forEach(function (k) {
         // ★再track(状態更新)すると同じキーの配列に旧metaが残り新metaが追加される
         //   → rev(track毎に増えるカウンタ)最大のmetaを採用。arr[0]だと古い状態を読み続けてマッチしない
@@ -219,7 +242,7 @@
         (st[k] || []).forEach(function (m) {
           if (m && m.id && (!e || (m.rev || 0) > (e.rev || 0) || ((m.rev || 0) === (e.rev || 0) && (m.since || 0) >= (e.since || 0)))) e = m;
         });
-        if (e) members.push({ id: e.id, name: e.name, st: e.st || 'idle', since: e.since || 0, partner: e.partner || null, room: e.room || null, codeHash: e.codeHash || null });
+        if (e && lobbyIsFresh(e, now)) members.push({ id: e.id, name: e.name, st: e.st || 'idle', since: e.since || 0, partner: e.partner || null, room: e.room || null, codeHash: e.codeHash || null, hb: e.hb || null });
       });
       try { (onState || function () {})(members); } catch (e) {}
     });
@@ -239,8 +262,8 @@
     if (!lobby.channel) return Promise.reject(new Error('lobby not subscribed'));
     if (displayName) lobby.name = String(displayName).slice(0, 10);
     lobby.rev = Math.max(1, lobby.rev + 1);
-    lobby.last = { id: state.myId, name: lobby.name || 'Player', st: 'idle', since: Date.now(), rev: lobby.rev };
-    return lobby.channel.track(lobby.last).then(function () { lobby.joined = true; });
+    lobby.last = { id: state.myId, name: lobby.name || 'Player', st: 'idle', since: Date.now(), rev: lobby.rev, hb: Date.now() };
+    return lobby.channel.track(lobby.last).then(function () { lobby.joined = true; lobbyStartHeartbeat(); });
   }
   function lobbySet(fields) {   // st/since/partner/room の部分更新(トラック載せ替え)
     if (!lobby.channel || !lobby.joined) { try { console.warn('[lobby] set skipped (not joined)'); } catch (e) {} return; }
@@ -253,8 +276,46 @@
     } catch (e) { try { console.warn('[lobby] track error:', e && e.message); } catch (e2) {} }
   }
   function lobbyLeave() {
+    lobbyStopHeartbeat();
     try { if (lobby.channel) { lobby.channel.untrack(); sb.removeChannel(lobby.channel); } } catch (e) {}
     lobby.channel = null; lobby.joined = false; lobby.last = null;
+  }
+
+  // ===================================================================
+  // ★なまえの不適切ワードフィルタ(2026-07-11 阿部さん)
+  //   正規化(小文字化・全角→半角・カタカナ→ひらがな)してから部分一致で判定。
+  //   過剰に攻めない=誤爆で普通の名前を弾かない方を優先(代表的な語のみ・約60語)。
+  // ===================================================================
+  var NG_WORDS = [
+    // 死・暴力
+    '死ね', 'しね', '殺す', 'ころす', '自殺', 'じさつ', 'くたばれ', 'ぶっころ',
+    // 差別・ヘイト
+    'きちがい', 'ちょん公', 'ちょんこ', 'くろんぼ', 'めくら', 'かたわ', 'びっこ',
+    // 侮辱
+    '馬鹿', 'ばか', '阿呆', 'あほ', 'くそ', '糞', '屑', 'くず', 'でぶ', 'ぶす', 'きもい', 'うざい', 'ゴミ',
+    // 性的
+    'ちんこ', 'ちんぽ', 'まんこ', 'おっぱい', 'せっくす', 'sex', 'れいぷ', 'rape', 'ポルノ', 'porn',
+    '童貞', 'しゃせい', 'ぼっき', 'ふぇら', 'ぬーど', 'nude',
+    // 英語(侮辱・差別・性的)
+    'fuck', 'shit', 'bitch', 'asshole', 'cunt', 'whore', 'slut', 'faggot', 'nigger', 'nigga',
+    'retard', 'dumbass', 'motherfucker', 'bastard', 'dick', 'pussy', 'cock', 'kys',
+  ];
+  // 全角英数記号→半角、全角スペース→半角、カタカナ→ひらがな、小文字化
+  function normalizeNameForFilter(s) {
+    s = String(s == null ? '' : s);
+    s = s.replace(/[！-～]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0xFEE0); });
+    s = s.replace(/　/g, ' ');
+    s = s.replace(/[ァ-ヶ]/g, function (c) { return String.fromCharCode(c.charCodeAt(0) - 0x60); });
+    return s.toLowerCase();
+  }
+  var NG_WORDS_NORM = NG_WORDS.map(normalizeNameForFilter);
+  function isNameNg(name) {
+    var n = normalizeNameForFilter(name);
+    if (!n) return false;
+    for (var i = 0; i < NG_WORDS_NORM.length; i++) {
+      if (n.indexOf(NG_WORDS_NORM[i]) !== -1) return true;
+    }
+    return false;
   }
 
   global.RBOnline = {
@@ -274,6 +335,7 @@
     lobbyTrack: lobbyTrack,
     lobbySet: lobbySet,
     lobbyLeave: lobbyLeave,
+    isNameNg: isNameNg,
     get lobbyState() { try { return lobby.channel ? lobby.channel.presenceState() : null; } catch (e) { return null; } },
     get role() { return state.role; },
     get connected() { return state.connected; },
