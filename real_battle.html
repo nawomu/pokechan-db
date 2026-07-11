@@ -13,7 +13,7 @@
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
 <script src="battle_fx_cues.js?v=20260711a"></script>
-<script src="fx_primitives.js?v=20260711b"></script>
+<script src="fx_primitives.js?v=20260711c"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -1189,6 +1189,17 @@ document.getElementById('engine-frame').addEventListener('load', () => {
     }
   }, 100);
 });
+
+// ===== 演出ツクール Step5(2026-07-11・設計1-5バトルトレース・簡易版) =====
+// ?fxtrace=1 の時だけ window.__fxTrace(fx_primitives.jsの各関数が発火順に積んでいる配列)を
+// 2秒ごとにlocalStorage('fx_trace_last')へ保存する。通常時(パラメータ無し)はこのifを通らない=
+// ゼロコスト(setIntervalすら作らない)。fx_editor.htmlの「🎬最後のバトルのトレースを読み込む」が読む。
+if (location.search.includes('fxtrace')){
+  window.__fxTrace = window.__fxTrace || [];
+  setInterval(() => {
+    try { localStorage.setItem('fx_trace_last', JSON.stringify(window.__fxTrace)); } catch (e) {}
+  }, 2000);
+}
 
 // ===== チーム編成 =====
 let teamSize = 3;      // 3体 or 6体(フルバトル)
@@ -3410,14 +3421,20 @@ function lineWithFx(msg){
     if (/は ひんしになった！/.test(msg)){
       const side = subjOpp ? 'opp' : 'self';
       setHpBar(side, 0, S.realStat(S.sides[side], 'hp') || 1);   // バーも0に(こんらん自傷等で同期漏れした時の保険)
-      faintFx(side);   // scene:faint(fx_primitives.js・演出ツクール Step2b) = ff classList沈み演出+SE.faint()
+      // scene:faint(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のfaintFxのまま(挙動不変)。
+      const _fnSheet = resolveSceneSheet('faint');
+      if (_fnSheet) playSceneCueSheet(_fnSheet, { side }); else faintFx(side);
       // Wave4 B級: KOスロー(インパクトフレーム+爆発音+ヒットストップ→スロー→復帰・dur戻り値で次拍をホールド)
-      _koFxDelay = koSlowFx(side);
+      // scene:ko_slowmo(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のkoSlowFxのまま(挙動不変)。
+      const _koSheet = resolveSceneSheet('ko_slowmo');
+      _koFxDelay = _koSheet ? playSceneCueSheet(_koSheet, { side }) : koSlowFx(side);
     }
     if (/は 引っ込んだ！$/.test(msg) || /^もどれ！/.test(msg) || /を 引っ込めた！$/.test(msg)){
       // 交代1拍目: 縮んで消える+HPボックスも引っ込める(2拍目で戻る)
       const side = (subjOpp || msg.startsWith('相手は')) ? 'opp' : 'self';
-      recallFx(side);   // scene:recall(fx_primitives.js・演出ツクール Step2b)
+      // scene:recall(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のrecallFxのまま(挙動不変)。
+      const _rcSheet = resolveSceneSheet('recall');
+      if (_rcSheet) playSceneCueSheet(_rcSheet, { side }); else recallFx(side);
     }
     if (/が 場に出た！/.test(msg) || /^いけっ！ \S+！$/.test(msg) || /^相手は \S+ を くりだした！$/.test(msg)){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
@@ -3437,13 +3454,18 @@ function lineWithFx(msg){
         const hp = (snap != null) ? snap : (stE.currentHp == null ? max : Math.max(0, stE.currentHp));
         setHpBar(enterSide, hp, max);
       } catch(e){}
-      sendOutFx(enterSide);   // scene:send_out(fx_primitives.js・演出ツクール Step2b) = flash('enter')+SE.enter()
+      // scene:send_out(演出ツクールStep5・上書きオーバーレイ): done:trueの調整済みシートがあれば
+      // playSceneCueSheetで再生、無ければ従来のsendOutFx(=flash('enter')+SE.enter())のまま(挙動不変)。
+      const _soSheet = resolveSceneSheet('send_out');
+      if (_soSheet) playSceneCueSheet(_soSheet, { side: enterSide }); else sendOutFx(enterSide);
     }
     if (/メガシンカした！/.test(msg)){
       const mgSide = subjOpp ? 'opp' : 'self';
       if (window._idSnap) _idSnap[mgSide] = S.sides[mgSide].poke;   // メガの姿はこの拍から表示
       // Wave3: 儀式演出(収束→シルエット→爆発・特例1.5-2.0s)。dur戻り値で次行のsay自動送りをホールドする
-      const _mDur = megaFx(mgSide);
+      // scene:mega_evolve(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のmegaFxのまま(挙動不変)。
+      const _meSheet = resolveSceneSheet('mega_evolve');
+      const _mDur = _meSheet ? playSceneCueSheet(_meSheet, { side: mgSide }) : megaFx(mgSide);
       _megaFxDelay = _mDur;
       setTimeout(() => { renderAll(); flash(mgSide, 'enter'); }, 700);   // t=700: シルエットのうちにスプライト差し替え(変身の瞬間を見せない)
       SE.mega();
@@ -3533,7 +3555,9 @@ function endOfTurn(){
       }
     }
     if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
-    showResultBanner(won);
+    // scene:win/scene:lose(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
+    const _wlSheet = resolveSceneSheet(won ? 'win' : 'lose');
+    if (_wlSheet) playSceneCueSheet(_wlSheet, { won }); else showResultBanner(won);
     // 勝ちは案内文なし(WIN!バナー+つぎの相手ボタンで足りる=2026-07-06 阿部さん)。負けだけ操作案内。
     // JA正典で生成→lineWithFxで表示翻訳(ログはJA原文で保存され言語切替に追従)
     const winJa = `🎉 相手のポケモンは ぜんぶ たおれた！ きみの かち！(連勝: ${winStreak})`;
@@ -3710,7 +3734,9 @@ function onlineAfterGame(){
 }
 function onlineOppGone(resigned){
   if (gameOver) return;
-  gameOver = true; bgmStop(); SE.win(); showResultBanner(true);
+  gameOver = true; bgmStop(); SE.win();
+  // scene:win(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
+  { const _wlSheet2 = resolveSceneSheet('win'); if (_wlSheet2) playSceneCueSheet(_wlSheet2, { won: true }); else showResultBanner(true); }
   const ja = resigned ? '相手は こうさんした！ きみの かち！' : '相手が たいせんから 抜けた。きみの かち！';
   say([lineWithFx(ja)], () => { showCmd(true); ['c-fight', 'c-party'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; }); onlineAfterGame(); });
 }

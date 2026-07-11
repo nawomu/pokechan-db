@@ -12,7 +12,7 @@
 -->
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
-<script src="fx_primitives.js?v=20260711a"></script>
+<script src="fx_primitives.js?v=20260711c"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <style>
 /* ===================================================================
@@ -37,6 +37,17 @@ h1,h2,h3{margin:0}
   padding:8px 16px;border-radius:8px;font-weight:700;font-size:12px;box-shadow:0 4px 14px #0008;
   opacity:0;pointer-events:none;transition:opacity .25s;z-index:200}
 #toast.show{opacity:1}
+
+/* ---- バトルトレース(演出ツクール v2.1・1-5簡易版) ---- */
+#trace-panel{position:fixed;top:46px;left:0;right:0;background:#161b22;border-bottom:1px solid #2a313c;
+  padding:10px 16px;z-index:90;display:none;flex-wrap:wrap;gap:6px;align-items:center;box-shadow:0 6px 16px #0008}
+#trace-panel.show{display:flex}
+.trace-chip{background:#21262d;border:1px solid #30363d;color:#d8dee9;border-radius:14px;padding:5px 12px;
+  cursor:pointer;font-weight:700;font-size:11px;white-space:nowrap}
+.trace-chip:hover:not(:disabled){border-color:#58a6ff;color:#58a6ff}
+.trace-chip:disabled{opacity:.4;cursor:default}
+.trace-chip::after{content:'→';margin-left:6px;opacity:.4}
+.trace-chip:last-child::after{content:''}
 
 /* ---- 上下2ペイン+スプリッター(阿部さんFB2026-07-11 §7): #appはただの縦flexの器。
    上ペイン(#app-top=ライブラリ/プレビュー/インスペクタの3カラムgrid)と下ペイン(タイムライン)の
@@ -238,6 +249,53 @@ h1,h2,h3{margin:0}
 @keyframes rbGlyphExplosion{0%{opacity:0;transform:scale(.1)}20%{opacity:1}100%{opacity:0;transform:scale(2.2)}}
 .rb-impact{filter:invert(1) grayscale(1) contrast(1.6) !important;transition:none !important}
 
+/* ---- シーン対応(演出ツクール v2.1・2026-07-11): 登場/引っ込め/ひんし/メガシンカ/勝敗/天候の
+   CSS(コピー元: real_battle.html。fx_primitives.jsのsendOutFx/recallFx/faintFx/megaFx/
+   showResultBanner/setWeatherFxが直接操作するクラス名/keyframesなので、そのまま持ってくる) ---- */
+#weather-fx{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.22;font-size:34px;letter-spacing:18px;line-height:1.3;text-align:center}
+@keyframes rbWeather{0%{transform:translateY(-8px)}100%{transform:translateY(8px)}}
+#weather-fx.live{animation:rbWeather 2.2s ease-in-out infinite alternate}
+#result-banner{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;pointer-events:none}
+#result-banner.show{display:flex}
+#result-banner .rb-txt{font-size:64px;font-weight:900;font-style:italic;letter-spacing:2px;color:#fff;
+  text-shadow:0 4px 0 #0004,0 0 26px currentColor;animation:rbResultPop .6s cubic-bezier(.2,1.5,.4,1) both;font-family:'Arial Black',sans-serif}
+#result-banner.win .rb-txt{color:#ffd54a}
+#result-banner.lose .rb-txt{color:#8fa2c4}
+@keyframes rbResultPop{0%{opacity:0;transform:scale(.3) rotate(-8deg)}100%{opacity:1;transform:scale(1) rotate(-6deg)}}
+#fx-flash{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:6}
+#fx-flash.on{animation:rbFlash .5s forwards}
+#fx-flash.mega{animation:rbMega 1s forwards}
+@keyframes rbFlash{0%{opacity:.75}100%{opacity:0}}
+@keyframes rbMega{0%{opacity:0}25%{opacity:.95}55%{opacity:.6}100%{opacity:0}}
+@keyframes rbFaint{0%{opacity:1;transform:none}100%{opacity:0;transform:translateY(52px)}}
+@keyframes rbEnter{0%{opacity:0;transform:translateY(30px) scale(.5)}70%{transform:translateY(-6px) scale(1.06)}100%{opacity:1;transform:none}}
+@keyframes rbRecall{0%{opacity:1;transform:none}25%{opacity:1;transform:translateY(-10px) scale(1.04)}100%{opacity:0;transform:translateY(46px) scale(.1)}}
+.fighter.faint .sprite{animation:rbFaint 1.5s forwards}
+.fighter.gone .sprite{opacity:0;transform:translateY(40px);pointer-events:none}
+.fighter.enter .sprite{animation:rbEnter .85s}
+.fighter.recall .sprite{animation:rbRecall 1s forwards}
+.rb-mega-pillar{position:absolute;left:50%;bottom:0;width:36px;height:140%;margin-left:-18px;pointer-events:none;z-index:4;
+  transform-origin:bottom;background:linear-gradient(180deg,#fff 0%,#fff8 55%,transparent 100%);
+  animation:rbMegaPillar .48s ease-out forwards}
+@keyframes rbMegaPillar{0%{transform:scaleY(0);opacity:0}30%{opacity:.9}100%{transform:scaleY(1);opacity:0}}
+.rb-mega-orb{position:absolute;left:50%;top:46%;width:14px;height:14px;margin:-7px 0 0 -7px;border-radius:50%;
+  background:#fff;box-shadow:0 0 12px 5px #fff;pointer-events:none;z-index:5;animation:rbMegaOrb .42s cubic-bezier(.5,0,.8,.5) forwards}
+@keyframes rbMegaOrb{0%{transform:translate(var(--ox),var(--oy)) scale(2);opacity:.9}100%{transform:translate(0,0) scale(.3);opacity:.2}}
+.rb-mega-silhouette{filter:brightness(0) invert(1) drop-shadow(0 0 12px #fff);transition:filter .3s}
+.rb-mega-ring{position:absolute;left:50%;top:46%;width:24px;height:24px;margin:-12px 0 0 -12px;border-radius:50%;pointer-events:none;z-index:5;
+  background:conic-gradient(from 0deg,#ff9bd6,#ffe08a,#9bffe4,#9bb8ff,#ff9bd6);
+  -webkit-mask:radial-gradient(circle,transparent 60%,#000 62%);mask:radial-gradient(circle,transparent 60%,#000 62%);
+  animation:rbMegaRing .5s cubic-bezier(0,.6,.4,1) forwards}
+@keyframes rbMegaRing{0%{transform:scale(0);opacity:1}100%{transform:scale(5);opacity:0}}
+.rb-mega-mist{position:absolute;width:60px;height:60px;margin:-30px 0 0 -30px;border-radius:50%;pointer-events:none;z-index:4;
+  background:radial-gradient(circle,#ff9bd6cc 0%,#ff9bd655 45%,transparent 70%);animation:rbMegaMist .5s ease-out forwards}
+@keyframes rbMegaMist{0%{transform:scale(.3);opacity:.9}100%{transform:scale(1.8);opacity:0}}
+.rb-mega-dna{position:absolute;left:50%;top:40%;font-size:34px;color:#fff;text-shadow:0 0 14px #ffd96b,0 0 4px #fff;
+  pointer-events:none;z-index:6;animation:rbMegaDna .26s ease-out forwards}
+@keyframes rbMegaDna{0%{opacity:0;transform:translate(-50%,-50%) scale(.4) rotate(-20deg)}
+  50%{opacity:1;transform:translate(-50%,-50%) scale(1.3) rotate(6deg)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1.1) rotate(0)}}
+
 /* ---- インスペクタ ---- */
 #panel-insp{grid-area:insp}
 .insp-empty{color:#7d8590;padding:16px;text-align:center;font-size:12px}
@@ -291,8 +349,17 @@ h1,h2,h3{margin:0}
   <h1>🎬 演出ツクール</h1>
   <span class="sub">fx_editor.html・ローカル専用ツール(公開ナビ非掲載)・step3 MVP</span>
   <div class="spacer"></div>
+  <button id="btn-trace">🎬 最後のバトルのトレースを読み込む</button>
   <span id="export-status"></span>
   <button id="btn-export">⬇ 書き出し(JSON)</button>
+</div>
+<!-- バトルトレース(演出ツクール v2.1・1-5簡易版): real_battle.html?fxtrace=1 が2秒ごとに
+     localStorage('fx_trace_last')へ保存した window.__fxTrace を読み、発火順のチップ列を表示する。
+     チップをクリックすると該当のmove:/scene:をライブラリで開く(=「実物のバトルから入る」入口)。 -->
+<div id="trace-panel">
+  <strong style="color:#e6edf3;font-size:11px;white-space:nowrap">直前のバトルの流れ:</strong>
+  <div id="trace-body" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;flex:1"></div>
+  <button id="btn-trace-close" style="background:transparent;border:none;color:#7d8590;cursor:pointer;font-size:16px">✕</button>
 </div>
 
 <div id="app">
@@ -304,6 +371,7 @@ h1,h2,h3{margin:0}
       <div class="lib-tabs">
         <button class="lib-tab active" data-tab="move">技</button>
         <button class="lib-tab" data-tab="pattern">適正(36)</button>
+        <button class="lib-tab" data-tab="scene">シーン</button>
       </div>
     </div>
     <div class="lib-filters">
@@ -337,6 +405,9 @@ h1,h2,h3{margin:0}
       <div id="preview-desc"></div>
       <div id="preview-sub"></div>
       <div id="field">
+        <div id="weather-fx"></div>
+        <div id="fx-flash"></div>
+        <div id="result-banner"></div>
         <div class="pbox" id="pb-opp">
           <div class="row1"><span class="icn"><img id="icn-opp" alt=""></span><strong class="nm">ミミッキュ</strong></div>
           <div class="hpbar"><div class="hptext" id="hptext-opp">100<small>%</small></div><div class="prevhp"></div><div class="hp"></div></div>
@@ -439,6 +510,27 @@ const CAT_LIST = ['物理', '特殊'];
 const SHAPE_VOCAB = ['fist','foot','fang','note','heart','star','skull','gear','ice','web','leaf','seed','feather',
   'gust','water','flame','spark','rock','sting','blade','psi','dragon','beam','orb','sand','dust','explosion','drill'];
 const CLS_VOCAB = ['phys','spec','punch','slash','bullet','wind','bite','kick','sound','wave'];
+// SEの名前(scene:*のsoundトラックが使うSEスタブ名。fx_primitives.jsの_dispatchSceneCueProdが
+// SE[p.name]()で呼ぶ。上のスタブSEオブジェクト(このファイル冒頭)が実装済みの名前だけを候補にする)
+const SE_NAME_VOCAB = ['enter', 'miss', 'hit', 'status'];
+
+// =====================================================================
+// シーン(演出ツクール v2.1・2026-07-11「シーン対応」)。設計1-4のバトル進行順に並べる。
+// 各エントリのside: プレビューで演出を掛ける対象(マスターキャラは常にself=ピカチュウ/opp=ミミッキュの
+// 2体のみ。design1-6「プレビューはマスターキャラのまま」=メガ儀式もピカチュウに掛かってよい)。
+// ko_slowmoだけ既定side='opp'(「あいてがひんしになった直後のとどめスロー」を想定した既定値。
+// インスペクタでside自体は変更できないが、プレビューの意味としては違和感のない既定)。
+// =====================================================================
+const SCENE_LIST = [
+  { key: 'send_out',     label: '登場',           side: 'self' },
+  { key: 'recall',       label: '引っ込め',        side: 'self' },
+  { key: 'mega_evolve',  label: 'メガシンカ儀式',   side: 'self' },
+  { key: 'faint',        label: 'ひんし退場',       side: 'opp' },
+  { key: 'ko_slowmo',    label: 'KOスロー',        side: 'opp' },
+  { key: 'win',          label: '勝利バナー',       side: null, won: true },
+  { key: 'lose',         label: '敗北バナー',       side: null, won: false },
+  { key: 'weather_rain', label: '天候(あめ)開始',   side: null },
+];
 
 // =====================================================================
 // キューシート自動生成(設計1-1のスキーマに合わせる。トラック=atk/glyph/sound/screen/def/text)
@@ -479,6 +571,48 @@ function computeSheetDur(sheet){
   let m = 0;
   (sheet.cues || []).forEach(c => { m = Math.max(m, c.t + c.dur); });
   return m + 120;
+}
+// =====================================================================
+// シーンの自動キュー分解(演出ツクール v2.1「1. エディタのシーンタブ」)。design1-4/1-5の指定どおり、
+// 該当するfx_primitives.jsの関数の内部タイミングをキュー列に展開する。トラック語彙は既存の
+// atk/glyph/sound/screen/def/text(TRACKS定数)をそのまま流用=タイムラインUIは1行も増やさず動く。
+// mega_evolveの内訳(設計docに明記): screenFlash@0 / 柱@200 / オーブ@300 / シルエット@500 /
+// バースト(climax)@900 / 揺れ@1000 / DNA@1300。他は1〜3キューの簡素なもの。
+// dispatch側=fx_primitives.jsの_dispatchSceneCueProd(track/actionのペアが対応表)。
+// =====================================================================
+function autoCuesForScene(key){
+  const cues = [];
+  if (key === 'send_out'){
+    cues.push(newCue('def', 'flash', 0, 800, { cls: 'enter' }));
+    cues.push(newCue('sound', 'se', 0, 100, { name: 'enter' }));
+  } else if (key === 'recall'){
+    cues.push(newCue('def', 'flash', 0, 800, { cls: 'recall' }));
+    cues.push(newCue('def', 'hidebox', 0, 20, {}));
+    cues.push(newCue('def', 'gone', 1000, 20, {}));
+  } else if (key === 'mega_evolve'){
+    cues.push(newCue('screen', 'flash', 0, 20, { color: '#835BA5', mega: true }));
+    cues.push(newCue('glyph', 'pillar', 200, 480, {}));
+    cues.push(newCue('glyph', 'orbs', 300, 420, {}));
+    cues.push(newCue('glyph', 'silhouette', 500, 400, {}));
+    cues.push(newCue('glyph', 'climax', 900, 520, { color: '#ffd96b' }));
+    cues.push(newCue('screen', 'shake', 1000, 20, { mag: 1.6 }));
+    cues.push(newCue('glyph', 'dna', 1300, 260, {}));
+  } else if (key === 'faint'){
+    cues.push(newCue('def', 'faintstart', 0, 1500, {}));
+    cues.push(newCue('sound', 'se', 0, 100, { name: 'status' }));
+    cues.push(newCue('def', 'gonefaint', 1500, 20, {}));
+  } else if (key === 'ko_slowmo'){
+    cues.push(newCue('screen', 'impactframe', 0, 50, {}));
+    cues.push(newCue('sound', 'se', 0, 100, { name: 'hit' }));
+    cues.push(newCue('screen', 'slowmo', 200, 600, {}));
+  } else if (key === 'win'){
+    cues.push(newCue('text', 'banner', 0, 20, { won: true }));
+  } else if (key === 'lose'){
+    cues.push(newCue('text', 'banner', 0, 20, { won: false }));
+  } else if (key === 'weather_rain'){
+    cues.push(newCue('glyph', 'weather', 0, 20, { kind: 'rain' }));
+  }
+  return { dur: computeSheetDur({ cues }), cues };
 }
 
 // =====================================================================
@@ -665,6 +799,9 @@ function loadSheetForCurrent(){
   if (cueDraftStore[currentKey]){
     currentSheet = cueDraftStore[currentKey];
     isDraft = true;
+  } else if (currentMv && currentMv.isScene){
+    currentSheet = autoCuesForScene(currentMv.sceneKey);
+    isDraft = false;
   } else {
     currentSheet = autoCuesForMove(currentMv);
     isDraft = false;
@@ -700,6 +837,20 @@ function selectPattern(type, cat){
   stopPlay();
   currentKey = 'pattern:' + type + cat;
   currentMv = { name: '(適正)' + type + cat, type, category: cat, flags: {}, contact: false, power: 80 };
+  loadSheetForCurrent();
+  renderAll();
+  startPlay();
+}
+// シーン選択(演出ツクール v2.1「1. エディタのシーンタブ」)。selectPattern同様、currentMvに
+// isScene:trueの合成オブジェクトを入れることで、renderInspector/renderLibList等の既存コードを
+// (currentMvが存在する前提のまま)変更なしで再利用できるようにする(=新規分岐を最小化)。
+function selectScene(meta){
+  stopPlay();
+  currentKey = 'scene:' + meta.key;
+  currentMv = {
+    name: meta.label, type: null, category: null, flags: {}, contact: false,
+    isScene: true, sceneKey: meta.key, sceneSide: meta.side || 'self', sceneWon: meta.won,
+  };
   loadSheetForCurrent();
   renderAll();
   startPlay();
@@ -758,9 +909,35 @@ function renderProgressCounter(allKeys){
   allKeys.forEach(k => { const s = entryStatus(k); if (s === 'done') doneN++; else if (s === 'draft') draftN++; });
   el.innerHTML = `<b class="done-n">✅${doneN}</b> / <b class="draft-n">⭐${draftN}</b> / 全${allKeys.length}`;
 }
+// シーン一覧の絞り込み(検索=キー/ラベル一致・状態=⭐/✅と同じ仕組み)
+function libSceneRows(){
+  const q = $('f-search').value.trim();
+  const statusFilter = $('f-status').value;
+  return SCENE_LIST.filter(s => {
+    if (q && !(s.key + s.label).includes(q)) return false;
+    if (statusFilter && entryStatus('scene:' + s.key) !== statusFilter) return false;
+    return true;
+  });
+}
 function renderLibList(){
   const ul = $('lib-list');
   ul.innerHTML = '';
+  if (activeTab === 'scene'){
+    renderProgressCounter(SCENE_LIST.map(s => 'scene:' + s.key));
+    const rows = libSceneRows();
+    if (!rows.length){ ul.innerHTML = '<div class="lib-empty">該当なし</div>'; return; }
+    rows.forEach(s => {
+      const key = 'scene:' + s.key;
+      const li = document.createElement('li');
+      li.className = 'lib-row' + (key === currentKey ? ' selected' : '');
+      li.innerHTML = `<span class="tychip" style="background:#58a6ff"></span>
+        <span class="nm">${s.label}</span><span class="shp">${key}</span>
+        ${statusBadgeHtml(entryStatus(key))}`;
+      li.addEventListener('click', () => selectScene(s));
+      ul.appendChild(li);
+    });
+    return;
+  }
   if (activeTab === 'move'){
     renderProgressCounter(ALL_MOVES.map(mv => 'move:' + mv.name));
     const rows = libFilteredMoves();
@@ -823,6 +1000,14 @@ function renderPreviewHeader(){
     $('preview-stats').innerHTML = '';
     $('preview-desc').textContent = '';
     $('preview-sub').textContent = '';
+    return;
+  }
+  if (currentMv.isScene){
+    $('preview-title').innerHTML = `${currentMv.name}
+      <span class="mvtype" style="background:#58a6ff;color:#0d1117">シーン</span>`;
+    $('preview-stats').innerHTML = '';
+    $('preview-desc').textContent = `この編集は「${currentKey}」に効きます(バトル中の${currentMv.name}すべてに反映)。`;
+    $('preview-sub').textContent = `対象=${currentMv.sceneSide === 'opp' ? 'あいて(ミミッキュ)' : currentMv.sceneSide === 'self' ? 'じぶん(ピカチュウ)' : '(側なし・バナー/天候)'} ${isDraft ? '・⭐調整済み(ドラフト)' : '・自動生成'}`;
     return;
   }
   const tc = TYPE_COLORS[currentMv.type] || '#888';
@@ -898,7 +1083,9 @@ function renderInspector(){
   const body = $('insp-body');
   if (!currentMv){ body.innerHTML = '<div class="insp-empty">技を選ぶか、タイムラインのキューをクリックしてください</div>'; return; }
   const doneNow = !!(isDraft && currentSheet.done);
-  let html = `<div class="insp-mvline"><b>${currentMv.name}</b><br>この編集は「${currentKey}」に効きます${currentKey.startsWith('pattern:') ? '(このタイプ×分類の未上書き技すべて)' : '(この技のみ・個別上書き)'}。</div>`;
+  const _mvlineNote = currentKey.startsWith('pattern:') ? '(このタイプ×分類の未上書き技すべて)'
+    : currentKey.startsWith('scene:') ? '(バトル中のこのシーンすべて)' : '(この技のみ・個別上書き)';
+  let html = `<div class="insp-mvline"><b>${currentMv.name}</b><br>この編集は「${currentKey}」に効きます${_mvlineNote}。</div>`;
   html += `<div class="insp-actions">
     <button class="reset" id="btn-reset-auto" ${isDraft ? '' : 'disabled'}>↺ 自動演出に戻す</button>
     <button class="done-toggle${doneNow ? ' done-on' : ''}" id="btn-toggle-done">${doneNow ? '↩ 完了を解除' : '✅ この技を完了にする'}</button>
@@ -927,19 +1114,29 @@ function renderInspector(){
     return;
   }
   const p = cue.params || {};
+  const isScene = !!currentMv.isScene;
   html += `<div class="insp-section-title">選択中: ${cue.track} / ${cue.action}</div>`;
   html += fieldNum('t', 't (開始ms)', cue.t, 0);
   html += fieldNum('dur', 'dur (長さms)', cue.dur, 20);
-  if ('shape' in p || cue.track === 'atk' || cue.track === 'glyph') html += fieldShapeSelect(p.shape || '');
-  if ('cls' in p || cue.track === 'sound' || cue.track === 'atk') html += fieldClsSelect(p.cls || 'phys');
-  if (cue.track === 'glyph' || cue.track === 'def' || cue.track === 'text') html += fieldAtSelect(p.at || 'opp');
-  if (cue.track === 'glyph'){
-    const off = p.offset || { x: 0, y: 0 };
-    html += `<div class="insp-field"><label>offset.x(出る位置オフセットpx・盤面の◎ドラッグでも変更可)</label><input type="number" id="ins-offx" value="${off.x || 0}" step="5"></div>`;
-    html += `<div class="insp-field"><label>offset.y</label><input type="number" id="ins-offy" value="${off.y || 0}" step="5"></div>`;
+  // shape/cls/at/offsetは「技(move/pattern)」のatk・glyph(burst)キュー専用のパラメータ。
+  // シーンのglyph(pillar/orbs/silhouette/climax/dna)やdef(flash/gone等)は別の語彙(下のSE名選択等)を
+  // 使うため、技コンテキストの時だけ出す(阿部さんに"効かない欄"を見せない=編集画面の意味を合わせる)。
+  if (!isScene){
+    if (cue.track === 'atk' || (cue.track === 'glyph' && cue.action === 'burst')) html += fieldShapeSelect(p.shape || '');
+    if (cue.track === 'atk') html += fieldClsSelect(p.cls || 'phys');   // soundトラックのclsは下の共通ブロックで扱う(重複防止)
+    if (cue.track === 'glyph' || cue.track === 'def' || cue.track === 'text') html += fieldAtSelect(p.at || 'opp');
+    if (cue.track === 'glyph' && cue.action === 'burst'){
+      const off = p.offset || { x: 0, y: 0 };
+      html += `<div class="insp-field"><label>offset.x(出る位置オフセットpx・盤面の◎ドラッグでも変更可)</label><input type="number" id="ins-offx" value="${off.x || 0}" step="5"></div>`;
+      html += `<div class="insp-field"><label>offset.y</label><input type="number" id="ins-offy" value="${off.y || 0}" step="5"></div>`;
+    }
   }
-  if (cue.track === 'screen') html += fieldNum('mag', 'mag(揺れ強さ)', p.mag != null ? p.mag : 1, 0, 0.1);
-  if (cue.track === 'text') html += fieldText('text', 'テキスト', p.text || '');
+  if (cue.track === 'sound' && cue.action === 'se'){
+    // 技のsoundキューはcls(hitClass用)、シーンのsoundキューはname(SE[name]()用)。パラメータのキーで判別。
+    html += ('name' in p) ? fieldSeNameSelect(p.name || 'enter') : fieldClsSelect(p.cls || 'phys');
+  }
+  if (cue.track === 'screen' && cue.action === 'shake') html += fieldNum('mag', 'mag(揺れ強さ)', p.mag != null ? p.mag : 1, 0, 0.1);
+  if (cue.track === 'text' && cue.action === 'popnum') html += fieldText('text', 'テキスト', p.text || '');
   html += `<div class="insp-field"><label>scale(見た目倍率・書き出しのみ反映)</label>
     <input type="number" step="0.1" min="0.1" id="ins-scale" value="${p.scale != null ? p.scale : 1}"></div>`;
   body.innerHTML = html;
@@ -963,6 +1160,10 @@ function fieldClsSelect(val){
   const opts = CLS_VOCAB.map(c => `<option value="${c}" ${c === val ? 'selected' : ''}>${c}</option>`).join('');
   return `<div class="insp-field"><label>cls(技クラス・音/飛翔の見た目)</label><select id="ins-cls">${opts}</select></div>`;
 }
+function fieldSeNameSelect(val){
+  const opts = SE_NAME_VOCAB.map(n => `<option value="${n}" ${n === val ? 'selected' : ''}>${n}</option>`).join('');
+  return `<div class="insp-field"><label>name(SEの種類・シーン専用)</label><select id="ins-sename">${opts}</select></div>`;
+}
 function fieldAtSelect(val){
   return `<div class="insp-field"><label>at(効果を受ける側)</label>
     <select id="ins-at"><option value="opp" ${val === 'opp' ? 'selected' : ''}>opp(あいて=既定・攻撃対象)</option>
@@ -974,6 +1175,7 @@ function wireInspectorEvents(cue){
   bind('ins-dur', e => { cue.dur = Math.max(20, snap50(+e.target.value || 20)); onCueEdited(cue); });
   bind('ins-shape', e => { cue.params.shape = e.target.value || null; onCueEdited(cue); });
   bind('ins-cls', e => { cue.params.cls = e.target.value; onCueEdited(cue); });
+  bind('ins-sename', e => { cue.params.name = e.target.value; onCueEdited(cue); });
   bind('ins-at', e => { cue.params.at = e.target.value; onCueEdited(cue); });
   bind('ins-offx', e => { cue.params.offset = Object.assign({ x: 0, y: 0 }, cue.params.offset || {}); cue.params.offset.x = +e.target.value || 0; onCueEdited(cue); });
   bind('ins-offy', e => { cue.params.offset = Object.assign({ x: 0, y: 0 }, cue.params.offset || {}); cue.params.offset.y = +e.target.value || 0; onCueEdited(cue); });
@@ -1128,92 +1330,21 @@ function makeCueBar(cue, trackEl){
 }
 
 // =====================================================================
-// cuePlayer: キューを個々のプリミティブへ直接ディスパッチ(attackFx/chargeFxを丸ごと
-// 呼ぶのではなく分解再生=仕様書の指定どおり。人間がタイミングを調整できるようにする)
-// =====================================================================
-function cueChargeMotion(dur, params){
-  const sp = document.querySelector('#f-self .sprite');
-  if (!sp || typeof sp.animate !== 'function') return;
-  const from = fxPoint('self'), to = fxPoint('opp');
-  const hitFrac = 0.85;
-  const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
-  const r = sp.getBoundingClientRect();
-  const clone = sp.cloneNode(true);
-  clone.className = 'rb-chargeclone';
-  clone.style.width = r.width + 'px'; clone.style.height = r.height + 'px';
-  clone.style.left = r.left + 'px'; clone.style.top = r.top + 'px';
-  document.body.appendChild(clone);
-  sp.style.visibility = 'hidden';
-  let done = false;
-  const cleanup = () => { if (done) return; done = true; try{ clone.remove(); }catch(e){} sp.style.visibility = ''; };
-  setTimeout(cleanup, dur + 300);
-  try{
-    const anim = clone.animate([
-      { transform: 'translate(0,0)', offset: 0 },
-      { transform: `translate(${dx}px, ${dy}px)`, offset: 0.55 },
-      { transform: `translate(${dx}px, ${dy}px)`, offset: 0.62 },
-      { transform: 'translate(0,0)', offset: 1 },
-    ], { duration: Math.max(80, dur), easing: 'cubic-bezier(.3,0,.2,1)' });
-    anim.onfinish = cleanup; anim.oncancel = cleanup;
-  }catch(e){ cleanup(); }
-}
+// cuePlayer: キューを個々のプリミティブへ直接ディスパッチ。
+// 演出ツクール v2.1「3. エディタ共通化」(2026-07-11): 以前はここに本番(fx_primitives.js
+// _dispatchCueProd)とほぼ同じロジックが重複実装されていた(Step4のコメントが明記していた
+// 「将来の共通化タスク」)。本番と全く同じ関数(_dispatchCueProd/_cueChargeMotionProd/
+// _cueSustainedFieldShake)を再利用する薄いラッパーに置き換え、重複をここで解消する。
+// 差分(エディタ専用のHPバーpulse演出・STOPボタンでの即時打ち切り)はinfo.onDef/info.shouldContinue
+// という「ctxオプション」で吸収する(fx_primitives.js側は省略時=undefined=本番の挙動は不変)。
 function dispatchCue(cue, mv){
-  const p = cue.params || {};
-  const shape = p.shape || shapeOf(mv);
-  const cls = p.cls || moveClassOf(mv);
   const color = (S.typeColors() && mv && S.typeColors()[mv.type]) || '#9fb4d8';
-  const atSide = p.at || 'opp';
-  try{
-    if (cue.track === 'atk'){
-      if (cue.action === 'projectile') spawnProjectile(fxPoint('self'), fxPoint('opp'), cls, color, 1, shape);
-      else if (cue.action === 'beam') spawnBeam(fxPoint('self'), fxPoint('opp'), cls, color, 1, shape);
-      else if (cue.action === 'charge') cueChargeMotion(cue.dur, p);
-    } else if (cue.track === 'glyph' && cue.action === 'burst'){
-      // 盤面ドラッグ(阿部さんFB2026-07-11 §2): params.offsetを対象側のfighterにCSS変数として
-      // 渡してから発火する(fx_primitives.jsは触らず、このファイル内でコピーしたCSSだけがoffsetを見る)
-      const off = p.offset || { x: 0, y: 0 };
-      const gf = $('f-' + atSide);
-      if (gf){ gf.style.setProperty('--fx-ox', (off.x || 0) + 'px'); gf.style.setProperty('--fx-oy', (off.y || 0) + 'px'); }
-      // バーのdur=実アニメ尺(阿部さんFB2026-07-11 §10)。fx_primitives.jsのburstFxに5個目の引数として渡す
-      // (省略時=fx_primitives.js側の従来固定タイミング。ここでは常にcue.durを渡すので常に伸縮が効く)。
-      burstFx(atSide, color, shape, p.intensity || 'normal', cue.dur);
-    } else if (cue.track === 'sound' && cue.action === 'se'){
-      SE.hitClass(cls);
-    } else if (cue.track === 'screen' && cue.action === 'shake'){
-      sustainedFieldShake(p.mag != null ? p.mag : 1, cue.dur);
-    } else if (cue.track === 'def'){
-      if (cue.action === 'knockback'){
-        const from = fxPoint('self'), to = fxPoint('opp');
-        const dx = (to.x - from.x) * 0.15, dy = (to.y - from.y) * 0.15;
-        knockbackFx(atSide, atSide === 'opp' ? -dx : dx, atSide === 'opp' ? -dy : dy);
-        pulseHpBar(atSide);
-      } else if (cue.action === 'hitreact'){
-        flash(atSide, p.big ? 'hit-big' : 'hit');
-        pulseHpBar(atSide);
-      }
-    } else if (cue.track === 'text' && cue.action === 'popnum'){
-      // バーのdur=実アニメ尺(阿部さんFB2026-07-11 §10)。popTextの6個目の引数として渡す。
-      popText(atSide, p.text || '−42', p.color || '#fff', p.size || 16, null, cue.dur);
-      pulseHpBar(atSide);
-    }
-  }catch(e){ console.error('[cue dispatch error]', cue, e); }
-}
-// ---- 画面シェイクの持続(阿部さんFB2026-07-11 §10): fx_primitives.jsのfieldShakeはtrauma連続減衰の
-// 物理モデルで、単発の「dur」引数を持たない(既存確認済み・トラウマ加算+rAF毎フレーム減衰=real_battle/
-// online_battleと共有する挙動なので物理モデル自体は変えない)。バーのdurを尊重するため、fx_editor側だけで
-// 短い間隔(90ms)でfieldShakeを再トリガーして揺れを持続させる(fx_primitives.js側は無改変)。 ----
-let _shakeSustainTimer = null;
-function sustainedFieldShake(mag, durMs){
-  fieldShake(mag);
-  if (_shakeSustainTimer){ clearInterval(_shakeSustainTimer); _shakeSustainTimer = null; }
-  if (!durMs || durMs <= 280) return;   // 既定尺(280ms)以下は単発のままで従来どおり
-  const stepMs = 90;
-  let elapsed = 0;
-  _shakeSustainTimer = setInterval(() => {
-    elapsed += stepMs;
-    if (elapsed >= durMs || !playState.playing){ clearInterval(_shakeSustainTimer); _shakeSustainTimer = null; return; }
-    fieldShake(mag);
-  }, stepMs);
+  const info = {
+    mv, color, atkSide: 'self', tgtSide: 'opp', dmgText: null, hitCls: null,
+    onDef: pulseHpBar,                         // エディタ専用: HPバーが少し減る演出(本番には無い)
+    shouldContinue: () => playState.playing,   // エディタ専用: STOP押下で持続シェイクを即打ち切る
+  };
+  _dispatchCueProd(cue, info);
 }
 // ---- HPバー演出(阿部さんFB2026-07-11 §5): HP無限プレビューなので値は満タン基準。
 // ダメージ系キュー(popnum/knockback/hitreact)の拍で少し減らし、周回の頭(resetPreviewPositions)で
@@ -1239,21 +1370,31 @@ function resetHpBars(){
 }
 function resetPreviewPositions(){
   resetHpBars();
-  if (_shakeSustainTimer){ clearInterval(_shakeSustainTimer); _shakeSustainTimer = null; }
+  // 持続シェイクのタイマー自体はfx_primitives.js _cueSustainedFieldShake内部(shouldContinue経由で
+  // playState.playingを見ているので、STOP後は最大90ms以内に自然停止=ここで強制停止する変数は無い)。
   document.querySelectorAll('.rb-chargeclone').forEach(el => el.remove());
   document.querySelectorAll('.rb-proj,.rb-beam,.burst,.popnum,.rb-burstp,.rb-burstring').forEach(el => el.remove());
   document.querySelectorAll('[class^="rb-burstglyph"]').forEach(el => el.remove());
+  // シーン対応(演出ツクール v2.1): メガ儀式の残留要素・fighterの状態クラス(faint/gone/enter/recall)・
+  // fx-flash/weather-fx/result-bannerを毎周回の頭で元に戻す(design1-6「毎周回同じ条件で再生」)。
+  document.querySelectorAll('.rb-mega-pillar,.rb-mega-orb,.rb-mega-ring,.rb-mega-mist,.rb-mega-dna').forEach(el => el.remove());
   ['self', 'opp'].forEach(side => {
     const f = $('f-' + side);
     if (!f) return;
     const sp = f.querySelector('.sprite');
-    if (sp) sp.style.visibility = '';
-    f.classList.remove('hit', 'hit-big', 'rb-knockback-self', 'rb-knockback-opp', 'rb-impact');
+    if (sp){ sp.style.visibility = ''; sp.classList.remove('rb-mega-silhouette'); }
+    f.classList.remove('hit', 'hit-big', 'rb-knockback-self', 'rb-knockback-opp', 'rb-impact',
+      'faint', 'gone', 'enter', 'recall');
     f.style.removeProperty('--fx-ox');
     f.style.removeProperty('--fx-oy');
+    const pb = $('pb-' + side);
+    if (pb) pb.style.visibility = '';
   });
   const field = $('field');
   if (field){ field.style.transform = ''; field.style.filter = ''; field.classList.remove('rb-impact'); }
+  const flashEl = $('fx-flash'); if (flashEl) flashEl.className = '';
+  setWeatherFx(null);
+  hideResultBanner();
 }
 
 // =====================================================================
@@ -1279,9 +1420,18 @@ function scheduleRound(startMs){
   playState.roundStartPerf = performance.now();
   playState.roundStartLogicalMs = Math.min(startMs, total);
   ensurePlayheadRAF();
+  // シーン対応(演出ツクール v2.1): mv.isSceneの時は本番と同じ_dispatchSceneCueProd(fx_primitives.js)
+  // を1キューずつ呼ぶ(playSceneCueSheetは使わない=このscheduleRound自身のsetTimeout管理
+  // (playState.timers/STOPでの一括clearTimers)に乗せたいため。本番側のplaySceneCueSheetは
+  // real_battle.html/online_battle.htmlの単発再生専用=エディタのループ再生とは呼び分ける)。
+  const isScene = mv && mv.isScene;
+  const sceneCtx = isScene ? { side: mv.sceneSide || 'self', won: mv.sceneWon } : null;
   sheet.cues.forEach(cue => {
     if (cue.t < startMs) return;
-    const timer = setTimeout(() => { if (playState.playing) dispatchCue(cue, mv); }, (cue.t - startMs) / speed);
+    const timer = setTimeout(() => {
+      if (!playState.playing) return;
+      if (isScene) _dispatchSceneCueProd(cue, sceneCtx); else dispatchCue(cue, mv);
+    }, (cue.t - startMs) / speed);
     playState.timers.push(timer);
   });
   const t2 = setTimeout(() => {
@@ -1510,6 +1660,78 @@ function initSplitter(){
   });
 }
 window.addEventListener('resize', () => applySplit(_splitBottomH));
+
+// =====================================================================
+// バトルトレース(演出ツクール v2.1「4. バトルトレース読込・簡易版」設計1-5)。
+// real_battle.html?fxtrace=1 が2秒ごとにlocalStorage('fx_trace_last')へ保存したwindow.__fxTraceを
+// 読み、発火順のチップ列を表示する。チップをクリックすると該当のmove:/scene:をライブラリで開く
+// (=「実物のバトルから入る」入口。設計docの「原理: インスタンスをクリック→保存はパターンに効く」)。
+// =====================================================================
+function _traceSideJa(side){ return side === 'opp' ? '(あいて)' : side === 'self' ? '(じぶん)' : ''; }
+const TRACE_CHIP_MAP = {
+  sendOutFx: e => ({ label: '登場' + _traceSideJa(e.side), targetKey: 'scene:send_out' }),
+  recallFx: e => ({ label: '引っ込め' + _traceSideJa(e.side), targetKey: 'scene:recall' }),
+  megaFx: e => ({ label: 'メガシンカ' + _traceSideJa(e.side), targetKey: 'scene:mega_evolve' }),
+  faintFx: e => ({ label: 'ひんし' + _traceSideJa(e.side), targetKey: 'scene:faint' }),
+  koSlowFx: e => ({ label: 'KOスロー' + _traceSideJa(e.koSide), targetKey: 'scene:ko_slowmo' }),
+  showResultBanner: e => ({ label: e.won ? 'WIN!' : 'LOSE...', targetKey: 'scene:' + (e.won ? 'win' : 'lose') }),
+  attackFx: e => ({ label: e.mv || '(技)', targetKey: e.mv ? ('move:' + e.mv) : null }),
+  chargeFx: e => ({ label: e.mv || '(技)', targetKey: e.mv ? ('move:' + e.mv) : null }),
+};
+function loadTraceChips(){
+  const body = $('trace-body');
+  let raw = null;
+  try{ raw = localStorage.getItem('fx_trace_last'); }catch(e){}
+  let arr = null;
+  if (raw){ try{ arr = JSON.parse(raw); }catch(e){ arr = null; } }
+  if (!Array.isArray(arr) || !arr.length){
+    body.innerHTML = '<span style="color:#7d8590;font-size:11.5px">real_battle.html?fxtrace=1 でバトルを1回遊ぶと、ここに流れが出ます</span>';
+    return;
+  }
+  body.innerHTML = '';
+  const rows = arr.filter(e => TRACE_CHIP_MAP[e.k]).map(e => TRACE_CHIP_MAP[e.k](e));
+  if (!rows.length){
+    body.innerHTML = '<span style="color:#7d8590;font-size:11.5px">対応する発火が記録されていません(トレースはあるが空)</span>';
+    return;
+  }
+  rows.forEach(info => {
+    const chip = document.createElement('button');
+    chip.className = 'trace-chip';
+    chip.textContent = info.label;
+    if (info.targetKey){
+      chip.addEventListener('click', () => openTraceTarget(info.targetKey));
+    } else {
+      chip.disabled = true;
+    }
+    body.appendChild(chip);
+  });
+}
+function openTraceTarget(key){
+  $('trace-panel').classList.remove('show');
+  if (key.startsWith('move:')){
+    const name = key.slice(5);
+    const mv = ALL_MOVES.find(m => m.name === name);
+    if (!mv) return;
+    activeTab = 'move';
+    document.querySelectorAll('.lib-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'move'));
+    renderLibList();
+    selectMove(mv);
+  } else if (key.startsWith('scene:')){
+    const sceneKey = key.slice(6);
+    const meta = SCENE_LIST.find(s => s.key === sceneKey);
+    if (!meta) return;
+    activeTab = 'scene';
+    document.querySelectorAll('.lib-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'scene'));
+    renderLibList();
+    selectScene(meta);
+  }
+}
+$('btn-trace').addEventListener('click', () => {
+  const panel = $('trace-panel');
+  const showing = panel.classList.toggle('show');
+  if (showing) loadTraceChips();
+});
+$('btn-trace-close').addEventListener('click', () => $('trace-panel').classList.remove('show'));
 
 initTypeFilter();
 renderTlRuler();

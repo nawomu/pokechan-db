@@ -488,56 +488,65 @@ function screenFlash(color, mega){
 // 「収束→シルエット→爆発」の3拍構造。戻り値=総dur(_megaFxDelayとしてnextSayの自動送りをホールドする)。
 // 全エフェクトは#f-側内にappend(側スケールの影響はサイズ係数側で吸収)。エンジン状態は読まない(行検知のみ)。
 // scene:mega_evolve(演出ツクール1-4)のトレース発火点。
+// 演出ツクール Step5(2026-07-11・シーン対応): 内部の各拍(柱/オーブ/シルエット/爆発/DNA)を
+// _megaStep*として関数化(純リファクタ=megaFx自体の呼び出し順序・引数・タイミングは1msも変えない)。
+// _dispatchSceneCueProd(このファイル末尾)がscene:mega_evolveのキュー再生でも同じ関数を呼ぶことで、
+// 「自動演出(このmegaFx)」と「人間が調整したキューシート」が常に同じコードパスを通る(二重実装を作らない)。
+function _megaStepPillar(f){
+  const pillar = document.createElement('div');
+  pillar.className = 'rb-mega-pillar';
+  f.appendChild(pillar);
+  setTimeout(() => pillar.remove(), 480);
+}
+function _megaStepOrbs(f){
+  for (let i = 0; i < 5; i++){
+    const orb = document.createElement('div');
+    orb.className = 'rb-mega-orb';
+    const ang = (Math.PI * 2 / 5) * i;
+    orb.style.setProperty('--ox', Math.cos(ang) * 70 + 'px');
+    orb.style.setProperty('--oy', Math.sin(ang) * 70 + 'px');
+    f.appendChild(orb);
+    setTimeout(() => orb.remove(), 420);
+  }
+}
+function _megaStepSilhouetteOn(sp){ if (sp) sp.classList.add('rb-mega-silhouette'); }
+function _megaStepClimax(side, f, sp){
+  if (sp) sp.classList.remove('rb-mega-silhouette');
+  burstFx(side, '#ffd96b', null, 'up');
+  const ring = document.createElement('div');
+  ring.className = 'rb-mega-ring';
+  f.appendChild(ring);
+  setTimeout(() => ring.remove(), 520);
+  for (let i = 0; i < 4; i++){
+    const mist = document.createElement('div');
+    mist.className = 'rb-mega-mist';
+    mist.style.left = (30 + Math.random() * 40) + '%';
+    mist.style.top = (20 + Math.random() * 40) + '%';
+    f.appendChild(mist);
+    setTimeout(() => mist.remove(), 500);
+  }
+}
+function _megaStepDna(f){
+  const dna = document.createElement('div');
+  dna.className = 'rb-mega-dna';
+  dna.textContent = '✦';
+  f.appendChild(dna);
+  setTimeout(() => dna.remove(), 260);
+}
 function megaFx(side){
   if (window.__fxTrace) window.__fxTrace.push({k:'megaFx', side, t: performance.now()});
   const f = $('f-' + side);
   if (!f) return 0;
   const DUR = 1700;
   screenFlash('#835BA5', true);   // t=0: 紫オーバーレイ(既存rbMega keyframeを流用)
-  setTimeout(() => {   // t=200: 光柱
-    const pillar = document.createElement('div');
-    pillar.className = 'rb-mega-pillar';
-    f.appendChild(pillar);
-    setTimeout(() => pillar.remove(), 480);
-  }, 200);
-  setTimeout(() => {   // t=300: 収束する発光玉×5(ポケモン周囲→中心)
-    for (let i = 0; i < 5; i++){
-      const orb = document.createElement('div');
-      orb.className = 'rb-mega-orb';
-      const ang = (Math.PI * 2 / 5) * i;
-      orb.style.setProperty('--ox', Math.cos(ang) * 70 + 'px');
-      orb.style.setProperty('--oy', Math.sin(ang) * 70 + 'px');
-      f.appendChild(orb);
-      setTimeout(() => orb.remove(), 420);
-    }
-  }, 300);
+  setTimeout(() => _megaStepPillar(f), 200);      // t=200: 光柱
+  setTimeout(() => _megaStepOrbs(f), 300);        // t=300: 収束する発光玉×5(ポケモン周囲→中心)
   const sp = f.querySelector('.sprite');
-  setTimeout(() => { if (sp) sp.classList.add('rb-mega-silhouette'); }, 500);   // t=500: シルエット化
+  setTimeout(() => _megaStepSilhouetteOn(sp), 500);   // t=500: シルエット化
   // t=700: スプライト差し替えは呼び出し元(renderAll)に任せる(変身の瞬間を見せない=見た目はシルエットのまま)
-  setTimeout(() => {   // t=900: 爆発(収束玉→拡散)+虹リング+桃霧玉
-    if (sp) sp.classList.remove('rb-mega-silhouette');
-    burstFx(side, '#ffd96b', null, 'up');
-    const ring = document.createElement('div');
-    ring.className = 'rb-mega-ring';
-    f.appendChild(ring);
-    setTimeout(() => ring.remove(), 520);
-    for (let i = 0; i < 4; i++){
-      const mist = document.createElement('div');
-      mist.className = 'rb-mega-mist';
-      mist.style.left = (30 + Math.random() * 40) + '%';
-      mist.style.top = (20 + Math.random() * 40) + '%';
-      f.appendChild(mist);
-      setTimeout(() => mist.remove(), 500);
-    }
-  }, 900);
+  setTimeout(() => _megaStepClimax(side, f, sp), 900);   // t=900: 爆発(収束玉→拡散)+虹リング+桃霧玉
   setTimeout(() => fieldShake(1.6), 1000);   // t=1000: filter解除+shake
-  setTimeout(() => {   // t=1300: 仕上げ(独自のDNA型シンボル・公式アセット複製なし)
-    const dna = document.createElement('div');
-    dna.className = 'rb-mega-dna';
-    dna.textContent = '✦';
-    f.appendChild(dna);
-    setTimeout(() => dna.remove(), 260);
-  }, 1300);
+  setTimeout(() => _megaStepDna(f), 1300);   // t=1300: 仕上げ(独自のDNA型シンボル・公式アセット複製なし)
   // 全要素は各自のtimeoutで一括remove(失敗しても盤面を壊さない=class常駐なし)
   return DUR;
 }
@@ -562,21 +571,33 @@ function _koCollectAnims(koSide){
   return anims;
 }
 // scene:ko_slowmo(演出ツクール1-4)のトレース発火点。
-function koSlowFx(koSide){
-  if (window.__fxTrace) window.__fxTrace.push({k:'koSlowFx', koSide, t: performance.now()});
+// 演出ツクール Step5(2026-07-11・シーン対応): 「タメ→スロー→復帰」を_koStepImpact/_koStepSlowに
+// 関数化(純リファクタ=koSlowFx自体のタイミング・引数は1msも変えない=tameMs/slowMsの既定値200/600は
+// 元のsetTimeoutオフセットそのまま)。_dispatchSceneCueProd(このファイル末尾)がscene:ko_slowmoの
+// キュー再生でも_koStepSlowを呼ぶ(cue.t側で「タメ」を表現するのでtameMs=0で呼ぶ・後述コメント参照)。
+function _koStepImpact(){
   impactFrameFx();   // Wave4 B級①: 白黒反転50ms(急所/KO級限定)
   SE.explosion();    // Wave4 B級⑥: 爆発音(大技/KO限定=KOは無条件)
+}
+function _koStepSlow(koSide, tameMs, slowMs){
+  tameMs = tameMs != null ? tameMs : 200;
+  slowMs = slowMs != null ? slowMs : 600;
   const bg = $('field-backdrop');
   const anims = _koCollectAnims(koSide);
-  anims.forEach(a => { try { a.pause(); } catch (e) {} });   // ヒットストップ200ms(じっくりFB=2026-07-11 阿部さん)
+  anims.forEach(a => { try { a.pause(); } catch (e) {} });   // ヒットストップ(じっくりFB=2026-07-11 阿部さん)
   if (bg){ bg.style.transition = 'filter .18s linear'; bg.style.filter = 'brightness(.5)'; }
   setTimeout(() => {
-    anims.forEach(a => { try { a.playbackRate = 0.15; a.play(); } catch (e) {} });   // 600ms スロー(0.15x=もっとゆっくり)
+    anims.forEach(a => { try { a.playbackRate = 0.15; a.play(); } catch (e) {} });   // スロー(0.15x=もっとゆっくり)
     setTimeout(() => {
       anims.forEach(a => { try { a.playbackRate = 1; } catch (e) {} });   // 復帰
       if (bg){ bg.style.transition = 'filter .25s linear'; bg.style.filter = ''; }
-    }, 600);
-  }, 200);
+    }, slowMs);
+  }, tameMs);
+}
+function koSlowFx(koSide){
+  if (window.__fxTrace) window.__fxTrace.push({k:'koSlowFx', koSide, t: performance.now()});
+  _koStepImpact();
+  _koStepSlow(koSide, 200, 600);
   return 950;   // dur=200(タメ)+600(スロー)+150(復帰バッファ)。次拍と衝突させない(_koFxDelayでホールド)
 }
 // ===== Wave3: 壁パネル(リフレクター/ひかりのかべ/オーロラベール・設計 v2 ③-2章) =====
@@ -741,21 +762,29 @@ function _cueChargeMotionProd(atkSide, tgtSide, dur, params){
 }
 // 画面シェイクの持続(fx_editor.htmlのsustainedFieldShake()の本番版)。エディタ側はループ再生中の
 // playState.playingを見て途中停止するが、本番は単発再生なので経過時間だけで自然に終わる同一ロジック。
-function _cueSustainedFieldShake(mag, durMs){
+// shouldContinue(演出ツクールStep6・エディタ共通化2026-07-11): 省略時=undefined=従来どおり最後まで
+// 続く(本番の挙動は1msも変わらない=絶対条件)。指定時のみ毎ステップでfalseを返すと即座に打ち切る
+// (fx_editor.htmlのSTOP押下時=ループ再生停止に使う。fx_editor.html自身のsustainedFieldShakeは
+// この関数へ委譲するために廃止=重複実装の解消)。
+function _cueSustainedFieldShake(mag, durMs, shouldContinue){
   fieldShake(mag);
   if (!durMs || durMs <= 280) return;   // 既定尺(280ms)以下は単発のまま(fieldShake内蔵の減衰で従来どおり)
   const stepMs = 90;
   let elapsed = 0;
   const timer = setInterval(() => {
     elapsed += stepMs;
-    if (elapsed >= durMs){ clearInterval(timer); return; }
+    if (elapsed >= durMs || (shouldContinue && !shouldContinue())){ clearInterval(timer); return; }
     fieldShake(mag);
   }, stepMs);
 }
 // 1キューをプリミティブへディスパッチ(fx_editor.htmlのdispatchCue()を移植・ロジック同一)。
-// info = {mv, color, atkSide, tgtSide, dmgText, hitCls}。キューシートは常に「self=攻撃側固定」で
-// 書かれている(エディタの視点=盤面は常に自分が攻める向き)ため、cue.params.at('self'/'opp')は
-// 本番のatkSide/tgtSideへ解決する('opp'既定=標的)。
+// info = {mv, color, atkSide, tgtSide, dmgText, hitCls, onDef, shouldContinue}。キューシートは常に
+// 「self=攻撃側固定」で書かれている(エディタの視点=盤面は常に自分が攻める向き)ため、
+// cue.params.at('self'/'opp')は本番のatkSide/tgtSideへ解決する('opp'既定=標的)。
+// onDef/shouldContinue(演出ツクールStep6・エディタ共通化2026-07-11): 省略時=undefined=本番の挙動は
+// 1msも変わらない(絶対条件)。fx_editor.htmlがこの同じ関数を再利用するための差分吸収フック
+// (onDef=def/textトラック発火のたびに呼ぶコールバック=エディタのHPバーpulse演出用。
+// shouldContinue=screenトラックshakeの持続を毎ステップ問い合わせる関数=エディタのSTOP即時反映用)。
 function _dispatchCueProd(cue, info){
   const p = cue.params || {};
   const mv = info.mv;
@@ -776,7 +805,7 @@ function _dispatchCueProd(cue, info){
     } else if (cue.track === 'sound' && cue.action === 'se'){
       SE.hitClass(cls);
     } else if (cue.track === 'screen' && cue.action === 'shake'){
-      _cueSustainedFieldShake(p.mag != null ? p.mag : 1, cue.dur);
+      _cueSustainedFieldShake(p.mag != null ? p.mag : 1, cue.dur, info.shouldContinue);
     } else if (cue.track === 'def'){
       if (cue.action === 'knockback'){
         const from = fxPoint(info.atkSide), to = fxPoint(info.tgtSide);
@@ -786,9 +815,11 @@ function _dispatchCueProd(cue, info){
         // hitCls(実際のダメージ%由来。呼び出し側=lineWithFxが計算した値)を優先。無ければp.bigフラグへフォールバック。
         flash(atSide, info.hitCls || (p.big ? 'hit-big' : 'hit'));
       }
+      if (info.onDef) info.onDef(atSide);
     } else if (cue.track === 'text' && cue.action === 'popnum'){
       // dmgText(実際のダメージ数値。呼び出し側から渡される)を優先。無ければキューの固定文言(エディタのプレビュー既定値)。
       popText(atSide, info.dmgText != null ? info.dmgText : (p.text || ''), p.color || '#fff', p.size || 16, null, cue.dur);
+      if (info.onDef) info.onDef(atSide);
     }
   } catch (e) { console.error('[playCueSheet dispatch error]', cue, e); }
 }
@@ -811,4 +842,100 @@ function playCueSheet(sheet, ctx){
     setTimeout(() => _dispatchCueProd(cue, info), Math.max(0, cue.t || 0));
   });
   return _cueImpactTime(sheet);
+}
+
+// ===== 演出ツクール Step5(2026-07-11・設計_演出ツクール_2026-07-11.md 1-4「シーン」) =====
+// シーン(登場/引っ込め/メガシンカ/ひんし/KOスロー/勝敗バナー)のキューシート再生。moveの
+// resolveCueSheet/playCueSheet(Step4)と同じ「上書きオーバーレイ」思想をシーンにも適用する。
+// キーは 'scene:' + シーンキー('send_out'/'recall'/'mega_evolve'/'faint'/'ko_slowmo'/'win'/'lose'/
+// 'weather_rain'等)。done===trueのシートのみ本番採用(ドラフト中は従来のsendOutFx/recallFx/megaFx/
+// faintFx/koSlowFx/showResultBannerの直接呼び出しのまま=挙動完全不変)。
+
+// resolveSceneSheet(key): window.BATTLE_FX_CUES から 'scene:'+key のシートを解決する。
+// resolveCueSheet(mv)と同じ形(done===trueのみ採用・無ければnull=呼び出し側は従来関数のまま)。
+function resolveSceneSheet(key){
+  const map = window.BATTLE_FX_CUES;
+  if (!map || !key) return null;
+  const sheet = map['scene:' + key];
+  return (sheet && sheet.done === true) ? sheet : null;
+}
+// 1シーンキューをプリミティブへディスパッチ。ctx = {side, won}。track/actionの語彙は既存の
+// atk/glyph/sound/screen/def/textをそのまま流用する(fx_editor.htmlのタイムラインUIが新設なしで動く)。
+// mega/koのglyph・screenアクションはmegaFx/koSlowFxからStep5で切り出した_megaStep*/_koStep*を再利用
+// (=自動演出と同じ関数を呼ぶので二重実装にならない)。send_out/recall/faintのdef/soundアクションは
+// sendOutFx/recallFx/faintFxのDOM操作をそのまま複製(これらは元々数行の単純な処理で、関数を分割する
+// ほどの内部タイミングを持たないため=設計docの「他は1〜3キューの簡素なもの」に対応)。
+function _dispatchSceneCueProd(cue, ctx){
+  ctx = ctx || {};
+  const side = ctx.side || 'self';
+  const p = cue.params || {};
+  try {
+    if (cue.track === 'def' && cue.action === 'flash'){
+      flash(side, p.cls || 'enter');
+    } else if (cue.track === 'def' && cue.action === 'hidebox'){
+      const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
+    } else if (cue.track === 'def' && cue.action === 'gone'){
+      const f = $('f-' + side);
+      if (f){ f.classList.remove('recall'); f.classList.add('gone'); }
+    } else if (cue.track === 'def' && cue.action === 'faintstart'){
+      const ff = $('f-' + side);
+      if (ff){
+        ff.classList.remove('recall', 'enter', 'hit', 'lunge-self', 'lunge-opp');
+        void ff.offsetWidth;
+        ff.classList.add('faint');
+      }
+    } else if (cue.track === 'def' && cue.action === 'gonefaint'){
+      const ff = $('f-' + side);
+      if (ff){ ff.classList.add('gone'); ff.classList.remove('faint'); }
+      const pbF = $('pb-' + side); if (pbF) pbF.style.visibility = 'hidden';
+    } else if (cue.track === 'sound' && cue.action === 'se'){
+      const name = p.name || 'enter';
+      if (SE[name]) SE[name]();
+    } else if (cue.track === 'screen' && cue.action === 'flash'){
+      screenFlash(p.color || '#835BA5', !!p.mega);
+    } else if (cue.track === 'screen' && cue.action === 'impactframe'){
+      impactFrameFx();
+    } else if (cue.track === 'screen' && cue.action === 'shake'){
+      fieldShake(p.mag != null ? p.mag : 1);
+    } else if (cue.track === 'screen' && cue.action === 'slowmo'){
+      // tameMs=0(このキュー自体がplaySceneCueSheetのsetTimeoutで既にcue.t分待たされている=
+      // タメはスケジューリング側が担う)。slowMs=cue.dur(編集可能)。
+      _koStepSlow(side, 0, cue.dur);
+    } else if (cue.track === 'glyph' && cue.action === 'pillar'){
+      const f = $('f-' + side); if (f) _megaStepPillar(f);
+    } else if (cue.track === 'glyph' && cue.action === 'orbs'){
+      const f = $('f-' + side); if (f) _megaStepOrbs(f);
+    } else if (cue.track === 'glyph' && cue.action === 'silhouette'){
+      const f = $('f-' + side), sp = f && f.querySelector('.sprite');
+      _megaStepSilhouetteOn(sp);
+    } else if (cue.track === 'glyph' && cue.action === 'climax'){
+      const f = $('f-' + side), sp = f && f.querySelector('.sprite');
+      _megaStepClimax(side, f, sp);
+    } else if (cue.track === 'glyph' && cue.action === 'dna'){
+      const f = $('f-' + side); if (f) _megaStepDna(f);
+    } else if (cue.track === 'glyph' && cue.action === 'weather'){
+      setWeatherFx(p.kind || 'rain');   // ライブラリ用(本番の呼び出し箇所上書き対象外=エディタプレビュー専用)
+    } else if (cue.track === 'text' && cue.action === 'banner'){
+      // ctx.won(実際の勝敗。呼び出し側から渡される)を優先。無ければキューの固定値(エディタのプレビュー既定値)。
+      showResultBanner(ctx.won != null ? ctx.won : !!p.won);
+    }
+  } catch (e) { console.error('[playSceneCueSheet dispatch error]', cue, e); }
+}
+// playSceneCueSheet(sheet, ctx): 本番シーンcuePlayer本体。playCueSheetのシーン版。
+// ctx = {side, won}。戻り値=総dur(sheet.dur。megaFx/koSlowFxの戻り値と同じ役割=_megaFxDelay/
+// _koFxDelayのホールドにそのまま使える)。
+// 'def'/'gone'キューはrecallFx()と同じ安全装置(_recallTimer)へタイマーを登録する(交代1拍目→
+// すぐ2拍目の死に出しが来た場合に「1000ms後のgone」を打ち消すため。real_battle.html/online_battle.html
+// の「場に出た」ハンドラが既存のclearTimeout(_recallTimer[enterSide])でそのまま拾える=呼び出し元の
+// 安全装置を変えずに済む)。_recallTimerは両ページの既存グローバル(fx_primitives.jsの他関数と同じ前提)。
+function playSceneCueSheet(sheet, ctx){
+  ctx = ctx || {};
+  if (window.__fxTrace) window.__fxTrace.push({ k: 'playSceneCueSheet', side: ctx.side, t: performance.now() });
+  (sheet.cues || []).forEach(cue => {
+    const timer = setTimeout(() => _dispatchSceneCueProd(cue, ctx), Math.max(0, cue.t || 0));
+    if (cue.track === 'def' && cue.action === 'gone' && ctx.side && typeof _recallTimer !== 'undefined'){
+      _recallTimer[ctx.side] = timer;
+    }
+  });
+  return sheet.dur || 0;
 }
