@@ -10,6 +10,7 @@
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="battle_log_i18n.js?v=20260711a"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
+<script src="preset_builds.js?v=20260711a"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -1184,6 +1185,48 @@ function setSlot(id, name, keepCustom){
   if (typeof selectedSlot !== 'undefined' && selectedSlot === id) renderSelDetail(id);
   saveTeam();
 }
+// ===== 相手(AI)チーム=実戦プリセットビルドから生成(タスクB②・2026-07-11) =====
+// window.PRESET_BUILDS(preset_builds.js。元データreference/preset_builds_draft_v2.json)=
+// 実戦データから作った58ビルド(1種=1ビルド)。ランダム種+自動技より強いビルド
+// (特性/性格/EV/持ち物/技4)を丸ごと当てて相手(AI)を強くする。自分側(mine)は従来どおりランダムのまま。
+function pickPresetBuildsRB(n){
+  const list = (Array.isArray(window.PRESET_BUILDS) ? window.PRESET_BUILDS.slice() : []);
+  for (let i = list.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [list[i], list[j]] = [list[j], list[i]]; }
+  return list.slice(0, n);
+}
+// プリセット1件をスロットへ丸ごと適用(特性/性格/EV/持ち物/技4)。setSlotの自動生成(技のみ)を上書きする。
+// build.species がメガ名(例メガカイリュー)の場合、編成には直接置けない(isPickable=メガは選択プール外)ため、
+// メガストーンのapplies_to(進化前の種=カイリュー)を置いてバトル中にメガシンカさせる(既存エンジンがそのまま処理)。
+// この時build.ability/build.movesはメガシンカ後の値である(実測=23/58ビルドで検証済)ため、
+// 特性は進化前の種の既定特性(defaultAbilityRB)に差し替え、技は元データ(メガ名)の学習リストから検索する
+// (進化前の種の学習リストだけではメガ専用技=例クチートの「ふいうち」等が見つからないため)。
+function applyPresetToSlot(id, build){
+  if (!build || !build.species) return false;
+  const srcPoke = S.pokeByName(build.species);   // JSON上の種(メガ名の場合あり=技検索の基準)
+  if (!srcPoke) return false;
+  const itDef = (S.itemsList() || []).find(it => it.name === build.item);
+  let speciesName = build.species;
+  let abilityName = build.ability;
+  if (srcPoke.mega && itDef && itDef.applies_to){
+    speciesName = itDef.applies_to;   // 進化前の姿を編成に置く(メガは直接置けない)
+    abilityName = defaultAbilityRB(S.pokeByName(speciesName));   // メガ前の特性=種の既定特性
+  }
+  const poke = S.pokeByName(speciesName);
+  if (!poke) return false;
+  slotVal[id] = speciesName;
+  slotItem[id] = itDef ? itDef.key : 'mega_stone_any';
+  slotAbility[id] = abilityName || defaultAbilityRB(poke);
+  slotNature[id] = build.nature || 'まじめ';
+  slotEffort[id] = clampEffortRB(build.ev || {});
+  slotGender[id] = genderOfRB(speciesName);
+  const learnable = S.usableMoves(srcPoke);   // 技は元データ(メガ名なら メガの学習リスト)で検索
+  const mvs = (build.moves || []).map(nm => learnable.find(m => m.name === nm)).filter(Boolean);
+  slotMoves[id] = mvs.length ? mvs : autoMoves(poke);
+  if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
+  if (typeof selectedSlot !== 'undefined' && selectedSlot === id) renderSelDetail(id);
+  saveTeam();
+  return true;
+}
 // ===== CH: 選出画面の本家寄せ(2026-07-05 阿部さん: 左=自分/右=相手/中央=選択中の詳細) =====
 let selectedSlot = 's1';
 // カプセルの中身(名前+持ち物+スプライト+変更ボタン)。スプライトはキャラ画像設定に追従
@@ -1825,14 +1868,25 @@ function initSetup(){
     return arr.slice(0, n).map(p => p.name);
   }
   function randomize(){
-    const mine = sampleUnique(teamSize), opp = sampleUnique(teamSize);
+    const mine = sampleUnique(teamSize);
     selfIds().forEach((id, i) => setSlot(id, mine[i]));
-    oppIds().forEach((id, i) => setSlot(id, opp[i]));
+    randomizeOppTeam();
   }
-  window.__randomizeOpp = () => {   // 連戦モード: 相手チームだけ引き直す(重複なし)
-    const opp = sampleUnique(teamSize);
-    oppIds().forEach((id, i) => setSlot(id, opp[i]));
-  };
+  // 相手(AI)チーム=実戦プリセット58ビルドを優先して埋める(タスクB②)。
+  // プリセットが尽きた/種の解決に失敗した枠だけランダム種+自動技でフォールバック補充する
+  // (フォールバック分もプリセットで既に使った種と重ならないよう除外する)。
+  function randomizeOppTeam(){
+    const builds = pickPresetBuildsRB(teamSize);
+    const usedNames = new Set();
+    oppIds().forEach((id, i) => {
+      if (applyPresetToSlot(id, builds[i])){ usedNames.add(slotVal[id]); return; }
+      const fallback = pokes.filter(p => !usedNames.has(p.name));
+      const pick = fallback.length ? fallback[Math.floor(Math.random() * fallback.length)].name : sampleUnique(1)[0];
+      usedNames.add(pick);
+      setSlot(id, pick);
+    });
+  }
+  window.__randomizeOpp = randomizeOppTeam;   // 連戦モード: 相手チームだけ引き直す(プリセット優先・重複なし)
   // デモ自動バトル(?demo=1): 演出確認用。おまかせ編成で開始し、技0を選び続ける
   if (location.search.includes('demo')){
     $('auto-msg').checked = true;
