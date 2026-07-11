@@ -16,37 +16,49 @@
 // バトルトレース(設計1-5)の足がかり。フォーマット: {k, mv, shape, t: performance.now()} 等。
 
 // popText: variant('crit'=急所/'se'=ばつぐん)指定でポップイン強化(傾き復帰・金色glow等・Wave3 A級)
-function popText(side, text, color, size, variant){
+// durMs(阿部さんFB2026-07-11 §10・演出ツクールのバーduration配線): 省略時=従来どおり固定1s(本番の挙動は
+// 1msも変わらない=絶対条件)。指定時のみ.popnumのCSSアニメ(既定rbPop 1s)をdurMsへ引き伸ばす。
+function popText(side, text, color, size, variant, durMs){
   const f = $('f-' + side);
   const el = document.createElement('div');
   el.className = 'popnum' + (variant ? ' popnum-' + variant : '');
   el.textContent = text;
   if (color) el.style.color = color;
   if (size) el.style.fontSize = size + 'px';
+  if (durMs) el.style.animationDuration = durMs + 'ms';
   f.appendChild(el);
-  setTimeout(() => el.remove(), 1100);
+  setTimeout(() => el.remove(), durMs ? durMs + 100 : 1100);
 }
 // burstFx: 多層バースト(Wave2.5 S級)。既存radial-gradientの上に破片パーティクル+衝撃リング+形状(shape)別グリフを重ねる。
 // intensity: 'normal'(既定)/'up'(ばつぐん=粒子2倍+2重リング)/'crit'(急所=同様)/'down'(いまひとつ=粒子半減)
 // shape(タスクC 2026-07-11): shapeOf(mv)の解決結果(fist/blade/flame/...等28種)。省略時はグリフ無し(従来どおり)
-function burstFx(side, color, shape, intensity){
+// durMs(阿部さんFB2026-07-11 §10): 省略時=従来どおり固定タイミング(本番の挙動は1msも変わらない=絶対条件)。
+// 指定時のみ _BURST_DEFAULT_MS(=従来の球の除去タイミング650ms)を基準にscale=durMs/650を全サブ要素
+// (球のCSSアニメ・粒子/リング/グリフのJS animate・setTimeout除去)へ比例配分する。
+const _BURST_DEFAULT_MS = 650;
+function burstFx(side, color, shape, intensity, durMs){
   const f = $('f-' + side);
   if (!f) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'burstFx', shape, intensity, t: performance.now()});
+  const scale = durMs ? (durMs / _BURST_DEFAULT_MS) : 1;
   const el = document.createElement('div');
   el.className = 'burst';
   el.style.background = `radial-gradient(circle, ${color}cc 0%, ${color}55 45%, transparent 70%)`;
+  if (durMs) el.style.animationDuration = Math.round(850 * scale) + 'ms';   // CSS既定rbBurst .85s基準
   f.appendChild(el);
-  setTimeout(() => el.remove(), 650);
+  setTimeout(() => el.remove(), durMs ? Math.round(650 * scale) : 650);
   const big = intensity === 'up' || intensity === 'crit';
   const n = intensity === 'down' ? 3 : (big ? 8 : 5);
-  spawnBurstParticles(f, color, n);
-  spawnBurstRing(f, color);
-  if (big) setTimeout(() => spawnBurstRing(f, color), 60);   // 2重リング
-  if (shape) spawnBurstGlyph(f, shape);
+  spawnBurstParticles(f, color, n, scale);
+  spawnBurstRing(f, color, scale);
+  if (big) setTimeout(() => spawnBurstRing(f, color, scale), durMs ? Math.round(60 * scale) : 60);   // 2重リング
+  if (shape) spawnBurstGlyph(f, shape, scale);
 }
 // 破片パーティクル(4-8pxの粒が放射状に飛び散る。疑似重力で下に膨らむ弧)
-function spawnBurstParticles(f, color, n){
+// scale(阿部さんFB2026-07-11 §10): 省略時=1=従来どおり(呼び出し側の互換=real_battle/online_battleの
+// 直呼び出し箇所は3引数のままで無改変)。
+function spawnBurstParticles(f, color, n, scale){
+  scale = scale || 1;
   for (let i = 0; i < n; i++){
     const el = document.createElement('div');
     el.className = 'rb-burstp';
@@ -58,7 +70,7 @@ function spawnBurstParticles(f, color, n){
     const r = 40 + Math.random() * 50;
     const dxp = Math.cos(ang) * r, dyp = Math.sin(ang) * r + 40;
     f.appendChild(el);
-    const dur = 350 + Math.random() * 250;
+    const dur = (350 + Math.random() * 250) * scale;
     try {
       const anim = el.animate([
         { transform: 'translate(-50%,-50%) scale(1)', opacity: 1 },
@@ -69,20 +81,22 @@ function spawnBurstParticles(f, color, n){
     setTimeout(() => el.remove(), dur + 60);
   }
 }
-// 衝撃リング(円が拡大しながら消える)
-function spawnBurstRing(f, color){
+// 衝撃リング(円が拡大しながら消える)。scale=省略時1=従来どおり(real_battle/online_battleの直呼び出しは2引数のまま)
+function spawnBurstRing(f, color, scale){
+  scale = scale || 1;
   const el = document.createElement('div');
   el.className = 'rb-burstring';
   el.style.borderColor = color;
   f.appendChild(el);
+  const dur = Math.round(300 * scale);
   try {
     const anim = el.animate([
       { transform: 'translate(-50%,-50%) scale(.2)', opacity: 1 },
       { transform: 'translate(-50%,-50%) scale(4)', opacity: 0 },
-    ], { duration: 300, easing: 'cubic-bezier(0,.5,.5,1)' });
+    ], { duration: dur, easing: 'cubic-bezier(0,.5,.5,1)' });
     anim.onfinish = () => el.remove();
   } catch (e) {}
-  setTimeout(() => el.remove(), 360);
+  setTimeout(() => el.remove(), Math.round(360 * scale));
 }
 // 形状(shape)別グリフ(タスクC 2026-07-11・設計_技エフェクト対応表_2026-07-11.md)。
 // blade=斬線2本ずらし(既存流用) / drill=回転縞ディスク / psi・dragon=渦スパイラル(色違い) /
@@ -90,7 +104,11 @@ function spawnBurstRing(f, color){
 // orb・sand=絵文字なし(burstFx既存の球+粒子+リングそのままで足りる=専用グリフは追加しない) /
 // それ以外(fist/foot/fang/note/heart/star/skull/gear/ice/web/leaf/seed/feather/gust/water/flame/spark/rock/sting)
 // =絵文字ポップ(_SHAPE_ICON)
-function spawnBurstGlyph(f, shape){
+// scale(阿部さんFB2026-07-11 §10): 省略時=1=従来どおり(real_battle/online_battleからの直呼び出しは無し=
+// burstFx経由のみだが念のため同じ既定値パターンで統一)。指定時は各shapeのCSSアニメ(既定値をコメントに明記)と
+// setTimeout除去タイミングを比例して引き伸ばす。
+function spawnBurstGlyph(f, shape, scale){
+  scale = scale || 1;
   if (!shape) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'spawnBurstGlyph', shape, t: performance.now()});
   if (shape === 'blade'){
@@ -98,17 +116,19 @@ function spawnBurstGlyph(f, shape){
       setTimeout(() => {
         const el = document.createElement('div');
         el.className = 'rb-burstglyph-slash';
+        if (scale !== 1) el.style.animationDuration = Math.round(260 * scale) + 'ms';   // CSS既定rbGlyphSlash .26s
         f.appendChild(el);
-        setTimeout(() => el.remove(), 260);
-      }, i * 60);
+        setTimeout(() => el.remove(), Math.round(260 * scale));
+      }, Math.round(i * 60 * scale));
     }
     return;
   }
   if (shape === 'drill'){
     const el = document.createElement('div');
     el.className = 'rb-burstglyph-drill';
+    if (scale !== 1) el.style.animationDuration = Math.round(300 * scale) + 'ms';   // CSS既定rbGlyphDrill .3s
     f.appendChild(el);
-    setTimeout(() => el.remove(), 320);
+    setTimeout(() => el.remove(), Math.round(320 * scale));
     return;
   }
   if (shape === 'psi' || shape === 'dragon'){
@@ -117,21 +137,24 @@ function spawnBurstGlyph(f, shape){
     el.style.background = shape === 'dragon'
       ? 'conic-gradient(from 0deg,#7c3aed,#60a5fa,#7c3aed)'
       : 'conic-gradient(from 0deg,#a78bfa,#f0abfc,#a78bfa)';
+    if (scale !== 1) el.style.animationDuration = Math.round(320 * scale) + 'ms';   // CSS既定rbGlyphSpiral .32s
     f.appendChild(el);
-    setTimeout(() => el.remove(), 340);
+    setTimeout(() => el.remove(), Math.round(340 * scale));
     return;
   }
   if (shape === 'dust' || shape === 'explosion'){
     const big = shape === 'explosion';
     const el = document.createElement('div');
     el.className = big ? 'rb-burstglyph-explosion' : 'rb-burstglyph-dust';
+    if (scale !== 1) el.style.animationDuration = Math.round((big ? 600 : 500) * scale) + 'ms';   // CSS既定.6s/.5s
     f.appendChild(el);
-    setTimeout(() => el.remove(), big ? 620 : 520);
+    setTimeout(() => el.remove(), Math.round((big ? 620 : 520) * scale));
     if (!big){
       const crack = document.createElement('div');
       crack.className = 'rb-burstglyph-crack';
+      if (scale !== 1) crack.style.animationDuration = Math.round(500 * scale) + 'ms';   // crackもrbGlyphDust .5s流用
       f.appendChild(crack);
-      setTimeout(() => crack.remove(), 520);
+      setTimeout(() => crack.remove(), Math.round(520 * scale));
     }
     return;
   }
@@ -141,8 +164,9 @@ function spawnBurstGlyph(f, shape){
     const el = document.createElement('div');
     el.className = 'rb-burstglyph-emoji';
     el.textContent = icon;
+    if (scale !== 1) el.style.animationDuration = Math.round(260 * scale) + 'ms';   // CSS既定rbGlyphStar .26s
     f.appendChild(el);
-    setTimeout(() => el.remove(), 280);
+    setTimeout(() => el.remove(), Math.round(280 * scale));
   }
 }
 // ===== Wave1: 攻撃演出(技クラス別の飛翔体→着弾) 2026-07-10 阿部さん「音とエフェクトを派手に」 =====
