@@ -5679,6 +5679,24 @@ function aiScoreMove(sideKey, m){
   const foeHp = foeSt.poke ? (foeSt.currentHp == null ? realStat(foeSt, 'hp') : foeSt.currentHp) : 0;
   // 使用条件を満たさない技(きのみ未食のゲップ等)はAIが選ばない
   if (((m.battle_data && m.battle_data.requires) || []).some(rq => rq.type === 'user_has_eaten_berry') && !ateBerry(st)) return 0;
+  // ★不発確定の技はAIが選ばない(検証WF #A.2 2026-07-11)。失敗技でもPP消費するようになった(段129)ため、
+  // AIが不発技を撃ち続けて無駄にPP/ターンを浪費するのを防ぐ。判定は既存の失敗ゲートを再利用(useMove/runTurnと同型)。
+  {
+    const bd = m.battle_data || {};
+    // requires 天気(オーロラベール等): 天気が合わなければ必ず失敗
+    const rqW = (bd.requires || []).find(rq => rq.type === 'weather');
+    if (rqW && (_WMAP[rqW.value] || rqW.value) !== env.weather) return 0;
+    // requires 自分の状態(いびき/ねごと=ねむり時のみ): 満たさなければ失敗
+    const rqS = (bd.requires || []).find(rq => rq.type === 'self_status');
+    if (rqS && !(rqS.value === 'ねむり' && st.status === 'sleep')) return 0;
+    // ねこだまし/であいがしら: 場に出た最初のターン以外は失敗
+    if (isFirstTurnOnlyMove(m) && st.turnsOut > 0) return 0;
+    // たくわえ依存(はきだす/のみこむ): たくわえが無ければ失敗
+    if ((bd.effects || []).some(e => e.kind === 'たくわえ消費') && !(st.stockpile || 0)) return 0;
+    // fails_if(ふいうち/はやてがえし/どげざつき/とっておき/なげつける等)=相手の手/自分の状況で不発なら選ばない。
+    // opp AIはプレイヤーの手が確定した後に選ぶので、相手依存(ふいうち=相手が攻撃技か)の判定も正確。
+    if (failsByCondition(st, foeSt, m)) return 0;
+  }
   if (m.category !== '変化'){
     const r = calcDamage(sideKey, foe, m);
     if (!r || r.immune || r.max <= 0) return 0;
