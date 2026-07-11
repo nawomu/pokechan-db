@@ -10,7 +10,7 @@
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="battle_log_i18n.js?v=20260711a"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
-<script src="preset_builds.js?v=20260711a"></script>
+<script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
 <script src="fx_primitives.js?v=20260711a"></script>
 <style>
@@ -144,6 +144,11 @@ body.in-battle #game,body.in-battle header{max-width:990px}
    (2026-07-10 阿部さん「2段をデフォルトに・縦表示に統一」) */
 #sel-detail .sd-types{display:flex;flex-direction:column;align-items:flex-start;gap:3px;margin-top:4px;min-height:45px}
 #sel-detail .sd-types .sd-type{margin:0}
+/* おすすめビルド=実戦プリセット(58〜60ビルド)を1タップで反映(タスクB①・2026-07-11) */
+#sel-detail .sd-preset-btn{display:block;width:100%;margin:0 0 8px;padding:8px 10px;border-radius:12px;
+  border:2px solid #ffe066;background:linear-gradient(135deg,#ffd23f,#ff9f1c);color:#3a2600;font-weight:900;
+  font-size:13px;font-family:inherit;cursor:pointer;box-shadow:0 2px 8px #0006;text-align:center}
+#sel-detail .sd-preset-btn:hover{border-color:#fff;filter:brightness(1.06)}
 /* 特性/もちもの/性格の変更セレクト(2026-07-05 阿部さん「持ち物と特性もクリックで変更できたら」) */
 #sel-detail .sd-row select,#sel-detail .sd-ev select,#sel-detail button.sd-pick{background:#00000042;color:#fff;border:1px solid #ffffff33;border-radius:8px;
   padding:2px 8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
@@ -1437,6 +1442,33 @@ function applyPresetToSlot(id, build){
   saveTeam();
   return true;
 }
+// ★プレイヤー自身も60ビルドを1タップで使えるように(タスクB①・2026-07-11)。
+// 選択中の種(進化前の姿)に対して、直接一致 + メガ進化後を逆引き(items_database.jsのmega_stone.applies_to)して
+// PRESET_BUILDSから候補を集める。例: 「クチート」を選んでいても「メガクチート」ビルドがヒットする。
+// 自分側(s*)/bxプレビューへ適用した場合はsaveTeam()内のcaptureSpecies経由でspeciesMemoにも自動記憶される。
+function findPresetsForSpecies(name){
+  if (!name || !Array.isArray(window.PRESET_BUILDS)) return [];
+  const items = S.itemsList() || [];
+  const out = [];
+  for (const b of window.PRESET_BUILDS){
+    if (b.species === name){ out.push(b); continue; }
+    if (b.species && b.species.startsWith('メガ')){
+      const it = items.find(i => i.name === b.item);
+      if (it && it.applies_to === name) out.push(b);
+    }
+  }
+  return out;
+}
+// おすすめビルドボタンの適用本体(単一候補ならそのまま/複数候補なら選択モーダル経由)
+function applyRecommendedBuild(id, presets, anchor){
+  if (!presets || !presets.length) return;
+  if (presets.length === 1){ applyPresetToSlot(id, presets[0]); SE.select(); return; }
+  openChoiceModal(I18N.t('real_battle.preset_btn','⭐おすすめビルド'),
+    [{ label: '', rows: presets.map(b => ({ key: String(b.id), name: tPokeName(b.species),
+      desc: b.role || '' })) }],
+    k => { const chosen = presets.find(b => String(b.id) === k); if (chosen) applyPresetToSlot(id, chosen); },
+    anchor);
+}
 // ===== CH: 選出画面の本家寄せ(2026-07-05 阿部さん: 左=自分/右=相手/中央=選択中の詳細) =====
 let selectedSlot = 's1';
 // カプセルの中身(名前+持ち物+スプライト+変更ボタン)。スプライトはキャラ画像設定に追従
@@ -1623,9 +1655,12 @@ function renderSelDetail(id){
   const mvs = (slotMoves[id] || autoMoves(p)).filter(Boolean);
   const src = setupSpriteSrc(nm, true);   // 詳細パネルも大きい画像=homeモードで3D(2026-07-10)
   const weakRow = (typeof weakChipsFor === 'function') ? weakChipsFor([p.type1, p.type2].filter(Boolean)) : '';
+  // ★おすすめビルド(実戦58〜60ビルド)を1タップで反映(タスクB①・2026-07-11)。この種にプリセットがある時だけ出す
+  const presetMatches = findPresetsForSpecies(nm);
   box.innerHTML =
     `<div class="sd-head"><img src="${src}" alt="" onerror="this.remove()"><div><strong>${tPokeName(nm)}</strong><div class="sd-types">${types}</div></div></div>` +
     (weakRow ? `<div class="sd-weak"><span class="sd-weak-l">${I18N.t('online_battle.weak_label', '弱点')}:</span>${weakRow}</div>` : '') +
+    (presetMatches.length ? `<button class="sd-preset-btn" type="button">${I18N.t('real_battle.preset_btn','⭐おすすめビルド')}</button>` : '') +
     `<div class="sd-moves">` + mvs.map((m, i) => {
       const col = tc[m.type] || '#3a4660';
       return `<button class="sd-move" data-i="${i}" style="background:linear-gradient(135deg,${col}dd,${col}99)">` +
@@ -1643,6 +1678,9 @@ function renderSelDetail(id){
     apply: (eff, nature) => { slotEffort[id] = eff; slotNature[id] = nature; saveTeam(); },
   });
   box.querySelectorAll('.sd-move').forEach(b => b.addEventListener('click', () => { SE.select(); openMovePicker(id, +b.dataset.i); }));
+  // おすすめビルドボタン(候補が複数ある種=メガX/Y違い等は選択モーダル経由)
+  { const presetBtn = box.querySelector('.sd-preset-btn');
+    if (presetBtn) presetBtn.addEventListener('click', e => applyRecommendedBuild(id, presetMatches, e.currentTarget)); }
   // 特性/持ち物=説明つきモーダルで選ぶ(2026-07-06 阿部さん・ビルダー方式)
   box.querySelector('.sd-ab').addEventListener('click', e => {
     SE.select();
