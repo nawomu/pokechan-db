@@ -317,13 +317,36 @@ function chargeFx(atkSide, tgtSide, mv, hit){
   const hitFrac = hit ? 0.92 : 0.70;
   const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
   const back = (dx >= 0 ? -1 : 1) * 10;   // アンティシペーション: 相手と逆方向へ少し引く
+  // #f-<atkSide>の奥行きscale(自分側1.2/相手側0.95)+#field側のzoom(fitField()で画面幅に応じ可変)を
+  // クローンに焼き込む補正: body直下fixedのクローンはどちらの影響も外に出るため、素のまま置くと本体より
+  // 縮んで左上へジャンプして見える(実測dx=-132,dy=-39,width115→96)。#f-<atkSide>のtransformだけ読むと
+  // #fieldのzoomを取りこぼす(本番で実測=1.2だけでは足りず1.54倍ズレが残った)ので、「最終描画幅÷レイアウト
+  // 幅(offsetWidthはtransform/zoomどちらの影響も受けない生の値)」の比で複合スケールを丸ごと求める。
   const r = sp.getBoundingClientRect();
+  const scale = sp.offsetWidth ? (r.width / sp.offsetWidth) : 1;
+  const origImg = sp.querySelector('img');
+  const origImgCS = origImg ? getComputedStyle(origImg) : null;   // クローン化で失う祖先依存の値を後で焼き込むために先取り
   const clone = sp.cloneNode(true);
   clone.className = 'rb-chargeclone';
-  clone.style.width = r.width + 'px';
-  clone.style.height = r.height + 'px';
+  clone.style.width = (r.width / scale) + 'px';
+  clone.style.height = (r.height / scale) + 'px';
   clone.style.left = r.left + 'px';
   clone.style.top = r.top + 'px';
+  clone.style.transformOrigin = '0 0';   // 左上を基準にscale(左上をr.left/topへピン留めしたまま拡縮)
+  // className上書きで'sprite'クラス+`.fighter`/`#f-<side>`祖先を失う三重ズレ: ①`.fighter .sprite{display:
+  // flex;justify-content:center;align-items:flex-end}`が効かず中のimgが左上に落ちる ②`.fighter .sprite
+  // img{max-height:118px;max-width:150px}`が効かずimg自身のinline style(height:150px等・spriteHtml()由来)
+  // がそのまま出て元より大きく映る ③`#f-self .sprite img{transform:scaleX(-1)}`が効かず自分側の反転が戻る。
+  // いずれもスケール補正だけでは直らない。祖先依存の値を実測してインラインで焼き込む(ハードコード禁止)。
+  clone.style.display = 'flex';
+  clone.style.justifyContent = 'center';
+  clone.style.alignItems = 'flex-end';
+  const cloneImg = clone.querySelector('img');
+  if (cloneImg && origImgCS){
+    cloneImg.style.maxHeight = origImgCS.maxHeight;
+    cloneImg.style.maxWidth = origImgCS.maxWidth;
+    cloneImg.style.transform = origImgCS.transform === 'none' ? '' : origImgCS.transform;
+  }
   document.body.appendChild(clone);
   sp.style.visibility = 'hidden';   // display:noneは使わない(レイアウト/fxPointを保持=盤面が崩れない)
   let done = false;
@@ -333,8 +356,8 @@ function chargeFx(atkSide, tgtSide, mv, hit){
     clearTimeout(safety);
     try {
       const anim = clone.animate([
-        { transform: `translate(${dx}px, ${dy}px)`, opacity: hit ? 1 : 0.4 },
-        { transform: 'translate(0,0)', opacity: 1 },
+        { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, opacity: hit ? 1 : 0.4 },
+        { transform: `translate(0,0) scale(${scale})`, opacity: 1 },
       ], { duration: 200, easing: 'cubic-bezier(0,0,.2,1)' });
       anim.onfinish = cleanup; anim.oncancel = cleanup;
     } catch (e) { cleanup(); }
@@ -357,9 +380,9 @@ function chargeFx(atkSide, tgtSide, mv, hit){
   };
   try {
     const anim = clone.animate([
-      { transform: `translate(${back}px,0)`, offset: 0 },
-      { transform: `translate(${dx * 0.6}px, ${dy * 0.6 - 18}px)`, offset: 0.72 },
-      { transform: `translate(${dx}px, ${dy}px)`, offset: 1, opacity: hit ? 1 : 0.4 },
+      { transform: `translate(${back}px,0) scale(${scale})`, offset: 0 },
+      { transform: `translate(${dx * 0.6}px, ${dy * 0.6 - 18}px) scale(${scale})`, offset: 0.72 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, offset: 1, opacity: hit ? 1 : 0.4 },
     ], { duration: 230, easing: 'cubic-bezier(.4,0,1,1)' });
     anim.onfinish = onImpact; anim.oncancel = cleanup;
   } catch (e) { cleanup(); return 0; }
@@ -740,11 +763,31 @@ function _cueChargeMotionProd(atkSide, tgtSide, dur, params){
   const from = fxPoint(atkSide), to = fxPoint(tgtSide);
   const hitFrac = 0.85;
   const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
+  // #f-<atkSide>の奥行きscale(自分側1.2/相手側0.95)+#field側のzoom(fitField()で画面幅に応じ可変)を
+  // クローンに焼き込む補正(chargeFxと同じ根治): #f-<atkSide>のtransformだけ読むと#fieldのzoomを取りこぼす
+  // ので、「最終描画幅÷レイアウト幅(offsetWidthはtransform/zoomどちらの影響も受けない生の値)」の比で
+  // 複合スケールを丸ごと求める。
   const r = sp.getBoundingClientRect();
+  const scale = sp.offsetWidth ? (r.width / sp.offsetWidth) : 1;
+  const origImg = sp.querySelector('img');
+  const origImgCS = origImg ? getComputedStyle(origImg) : null;   // クローン化で失う祖先依存の値を後で焼き込むために先取り
   const clone = sp.cloneNode(true);
   clone.className = 'rb-chargeclone';
-  clone.style.width = r.width + 'px'; clone.style.height = r.height + 'px';
+  clone.style.width = (r.width / scale) + 'px'; clone.style.height = (r.height / scale) + 'px';
   clone.style.left = r.left + 'px'; clone.style.top = r.top + 'px';
+  clone.style.transformOrigin = '0 0';   // 左上を基準にscale(左上をr.left/topへピン留めしたまま拡縮)
+  // className上書きで'sprite'クラス+`.fighter`/`#f-<side>`祖先を失う三重ズレ(chargeFxと同じ根治): ①中央/
+  // 下寄せflexが効かず左上に落ちる ②img自身のmax-height/max-width上限が効かずinline style由来の生サイズで
+  // 大きく映る ③自分側の反転(scaleX(-1))が戻る。祖先依存の値を実測してインラインで焼き込む(ハードコード禁止)。
+  clone.style.display = 'flex';
+  clone.style.justifyContent = 'center';
+  clone.style.alignItems = 'flex-end';
+  const cloneImg = clone.querySelector('img');
+  if (cloneImg && origImgCS){
+    cloneImg.style.maxHeight = origImgCS.maxHeight;
+    cloneImg.style.maxWidth = origImgCS.maxWidth;
+    cloneImg.style.transform = origImgCS.transform === 'none' ? '' : origImgCS.transform;
+  }
   document.body.appendChild(clone);
   sp.style.visibility = 'hidden';
   let done = false;
@@ -752,10 +795,10 @@ function _cueChargeMotionProd(atkSide, tgtSide, dur, params){
   setTimeout(cleanup, dur + 300);
   try {
     const anim = clone.animate([
-      { transform: 'translate(0,0)', offset: 0 },
-      { transform: `translate(${dx}px, ${dy}px)`, offset: 0.55 },
-      { transform: `translate(${dx}px, ${dy}px)`, offset: 0.62 },
-      { transform: 'translate(0,0)', offset: 1 },
+      { transform: `translate(0,0) scale(${scale})`, offset: 0 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, offset: 0.55 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, offset: 0.62 },
+      { transform: `translate(0,0) scale(${scale})`, offset: 1 },
     ], { duration: Math.max(80, dur), easing: 'cubic-bezier(.3,0,.2,1)' });
     anim.onfinish = cleanup; anim.oncancel = cleanup;
   } catch (e) { cleanup(); }

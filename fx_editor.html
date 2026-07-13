@@ -12,7 +12,7 @@
 -->
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
-<script src="fx_primitives.js?v=20260711c"></script>
+<script src="fx_primitives.js?v=20260713a"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <style>
 /* ===================================================================
@@ -445,7 +445,7 @@ h1,h2,h3{margin:0}
   <!-- タイムライン -->
   <div class="panel" id="panel-timeline">
     <div class="panel-head">
-      <span>タイムライン(バーをドラッグ=移動 / 右端をドラッグ=長さ変更・50msスナップ / ルーラークリック=その時刻から再生ループ開始)</span>
+      <span>タイムライン(バーをドラッグ=移動 / 右端をドラッグ=長さ変更・50msスナップ / ルーラークリック=その時刻から再生ループ開始 / ルーラーをドラッグ=再生ヘッドを左右に移動)</span>
       <span>
         <span id="tl-playhead-time" style="color:#ff4d4f;font-weight:800;margin-right:12px">0ms</span>
         <span id="tl-total" style="color:#7d8590;font-weight:600"></span>
@@ -1500,15 +1500,54 @@ function updatePlayheadHeight(){
   el.style.top = '0px';
   el.style.height = (ruler.offsetHeight + rowsEl.offsetHeight) + 'px';
 }
-// ルーラークリック=シーク(設計1-1ヘッダに明記した挙動: クリック時刻から周回を開始)
-$('tl-ruler').addEventListener('click', ev => {
-  if (!currentSheet) return;
+// ルーラー操作=クリックとドラッグを1つのmousedownで判定(設計1-1ヘッダに明記した挙動+阿部さんFB追加分)
+// - クリック(移動量<4px): 従来通りその時刻から再生ループ開始
+// - ドラッグ(移動量>=4px): 再生ヘッドを追従させ、離した位置で一時停止のまま留める(再生は自動開始しない)
+function tlRulerMsFromClientX(clientX){
   const rect = $('tl-ruler').getBoundingClientRect();
-  const ms = Math.max(0, Math.min(computeSheetDur(currentSheet), (ev.clientX - rect.left) / PX_PER_MS));
-  clearTimers();
-  playState.playing = true;
-  updatePlayButtons();
-  scheduleRound(ms);
+  return Math.max(0, Math.min(computeSheetDur(currentSheet), (clientX - rect.left) / PX_PER_MS));
+}
+$('tl-ruler').addEventListener('mousedown', ev => {
+  if (!currentSheet) return;
+  const startX = ev.clientX;
+  let dragging = true;
+  let moved = false;
+  ev.preventDefault();
+  document.body.style.userSelect = 'none';
+  $('tl-ruler').style.cursor = 'ew-resize';
+  function onMove(mv){
+    if (!dragging) return;
+    if (!moved && Math.abs(mv.clientX - startX) > 4){
+      moved = true;
+      // ドラッグ開始を検知した時点で再生中ならRAFループとぶつからないよう停止する
+      if (playState.playing){
+        playState.playing = false;
+        clearTimers();
+        updatePlayButtons();
+      }
+    }
+    if (moved){
+      setPlayheadPos(tlRulerMsFromClientX(mv.clientX));
+    }
+  }
+  function onUp(up){
+    dragging = false;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.userSelect = '';
+    $('tl-ruler').style.cursor = 'pointer';
+    if (!moved){
+      // 移動なし=クリック扱い: その時刻から再生ループ開始
+      const ms = tlRulerMsFromClientX(up.clientX);
+      clearTimers();
+      playState.playing = true;
+      updatePlayButtons();
+      scheduleRound(ms);
+    }
+    // moved===true の場合はドラッグ確定=その位置に留めて一時停止のまま(自動再生しない)
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
 });
 
 // =====================================================================
