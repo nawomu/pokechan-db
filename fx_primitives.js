@@ -703,7 +703,18 @@ function sendOutFx(side){
 // _recallTimer経由でキャンセルされなければ1000ms後にgoneへ固定する(呼び出し元の交代1拍目if分岐から丸ごと移設)。
 function recallFx(side){
   if (window.__fxTrace) window.__fxTrace.push({k:'recallFx', side, t: performance.now()});
-  flash(side, 'recall');
+  const f0 = $('f-' + side);
+  if (f0){
+    // flash()は800ms後に自前でclsを外す仕様だが、rbRecallは1s(forwards)かけて沈み切る演出。
+    // 800ms時点でflash()がrecallを剥がすと、沈みきる前に素の姿(不透明度1・原位置)へ一瞬ポップして戻り、
+    // その後1000ms時点の_recallTimerでgoneが付いて再度消える=「沈んで消える→一瞬戻る→また消える」の
+    // ちらつきになっていた(2026-07-13発覚)。faintFxが同じ理由でflash()を避けているのと同じ対策として、
+    // ここもflash()を使わず自前でclassを付け外しし、_recallTimerの1000ms(rbRecallの尺と一致)まで
+    // recallクラスを保持し続ける。
+    f0.classList.remove('recall');
+    void f0.offsetWidth;
+    f0.classList.add('recall');   // rbRecall 1s forwards=浮いてから沈んで消える
+  }
   const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
   clearTimeout(_recallTimer[side]);
   _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 1000);
