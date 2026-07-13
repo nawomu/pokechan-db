@@ -13,7 +13,7 @@
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
 <script src="battle_fx_cues.js?v=20260713a"></script>
-<script src="fx_primitives.js?v=20260713b"></script>
+<script src="fx_primitives.js?v=20260713c"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -2898,7 +2898,9 @@ function nextSay(){
   if ($('auto-msg').checked){
     // Wave3/4: メガシンカ演出(_megaFxDelay)・KOスロー演出(_koFxDelay)・交代の引っ込め演出(_recallFxDelay)は
     // msg-speedより長ければそちらを優先=専用ホールド(次行を待たせる。送り速度:はやいでも退場が完全に終わってから登場させる)
-    const _hold = Math.max(+$('msg-speed').value, _megaFxDelay || 0, _koFxDelay || 0, _recallFxDelay || 0);
+    // 予告(preattack)行はline.holdで送り速度を上書き=技が出るまでの間を短縮(2026-07-13)
+    const _hold = (line.hold != null) ? line.hold
+      : Math.max(+$('msg-speed').value, _megaFxDelay || 0, _koFxDelay || 0, _recallFxDelay || 0);
     _megaFxDelay = 0;
     _koFxDelay = 0;
     _recallFxDelay = 0;
@@ -3548,8 +3550,9 @@ function executeTurn(){
     if (am && /ダメージ！/.test(e.msg)){
       const introJa = `${am[1]}${am[2]} の こうげき！`;
       const introSide = am[1] ? 'opp' : 'self';
+      // 予告のぴょんぴょん(.7s)+一拍だけ待って技を出す(送り速度=ふつうの約2.9秒だと予告後に間が空きすぎる=2026-07-13)
       lines.push({ text: (window.translateLogLine ? translateLogLine(introJa) : introJa),
-        fx: () => flash(introSide, 'preattack'), noLog: true });
+        fx: () => flash(introSide, 'preattack'), noLog: true, hold: 850 });
     }
     splitBattleLines(e.msg).forEach(t => lines.push(lineWithFx(t)));
   }
@@ -3834,8 +3837,9 @@ function lineWithFx(msg){
         const _atkDur = attackFx(atkSide, tgt, mv, true);
         _hitFxDelay = _atkDur;   // 直後に合流する「こうかは…」「きゅうしょ」行も同じ拍に重ねる(2026-06-07の同拍方針を維持)
         setTimeout(() => {
-          if (!_isContact) burstFx(tgt, _atkColor, _atkShape, 'normal');
-          if (d) popText(tgt, '−' + d[1], '#fff');
+          // フレアドライブの尺(burst=1950ms/popnum=2000ms)をdone:trueシート未対応の全技デフォルトに(2026-07-13 阿部さん)
+          if (!_isContact) burstFx(tgt, _atkColor, _atkShape, 'normal', 1950);
+          if (d) popText(tgt, '−' + d[1], '#fff', undefined, undefined, 2000);
           flash(tgt, _hitCls);
         }, _atkDur);
       }

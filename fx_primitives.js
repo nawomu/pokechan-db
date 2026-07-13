@@ -365,7 +365,8 @@ function chargeFx(atkSide, tgtSide, mv, hit){
   };
   const onImpact = () => {
     if (hit){
-      burstFx(tgtSide, color, shape, 'normal');
+      // フレアドライブの尺(burst=1950ms)をdone:trueシート未対応の全技デフォルトに(2026-07-13 阿部さん)
+      burstFx(tgtSide, color, shape, 'normal', 1950);
       const icon = _SHAPE_ICON[shape] || _RB_CLS_ICON[cls];
       if (icon) popText(tgtSide, icon, null, 26);
       SE.hitClass(cls);
