@@ -1718,6 +1718,7 @@ function renderSelDetail(id){
       slotItem[id] = k;
       if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
       saveTeam(); renderSelDetail(id);
+      refreshPickMineCards();   // 選出画面(#pick-screen)が開いていれば左カードのもちもの表示も同期(2026-07-13)
     }, e.currentTarget, usedItemsRB(id));
   });
   if (id === 'bx') decorateBoxPreview();   // ボックスプレビュー装飾(帯+「わくに いれる」ボタン)は再描画のたび付け直す
@@ -2895,10 +2896,12 @@ function nextSay(){
   }
   box.querySelector('.next').style.display = 'none';   // ▼表記廃止(盤面クリック/自動送りは従来どおり)
   if ($('auto-msg').checked){
-    // Wave3/4: メガシンカ演出(_megaFxDelay)・KOスロー演出(_koFxDelay)はmsg-speedより長ければそちらを優先=専用ホールド(次行を待たせる)
-    const _hold = Math.max(+$('msg-speed').value, _megaFxDelay || 0, _koFxDelay || 0);
+    // Wave3/4: メガシンカ演出(_megaFxDelay)・KOスロー演出(_koFxDelay)・交代の引っ込め演出(_recallFxDelay)は
+    // msg-speedより長ければそちらを優先=専用ホールド(次行を待たせる。送り速度:はやいでも退場が完全に終わってから登場させる)
+    const _hold = Math.max(+$('msg-speed').value, _megaFxDelay || 0, _koFxDelay || 0, _recallFxDelay || 0);
     _megaFxDelay = 0;
     _koFxDelay = 0;
+    _recallFxDelay = 0;
     autoTimer = setTimeout(nextSay, _hold);
   }
 }
@@ -3043,7 +3046,11 @@ function showMoves(){
       b.addEventListener('mouseleave', () => { tip.style.display = 'none'; });
     });
   } else $('mv-tip').style.display = 'none';
-  mv.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+  mv.querySelectorAll('button').forEach(b => b.addEventListener('click', e => {
+    // ★e.stopPropagation()必須(2026-07-13): #moves は #field の子孫なので、このクリックがdoTurn→say()で
+    // 新しいメッセージ列を出した直後に #field の click(advanceMsg)へバブルし、技を選んだ同じクリックで
+    // その行動の1コマ目を即座に送ってしまう(_recallFxDelay/_megaFxDelay等のホールドが効く前に先送りされる)。
+    e.stopPropagation();
     SE.select();
     $('mv-tip').style.display = 'none';   // タップで説明フロートを消す(タッチでmouseleaveが来ないため)
     if (b.classList.contains('stats-open')){ openStatsModal(); return; }
@@ -3268,7 +3275,12 @@ function wireSwEvents(){
     });
   });
   const yes = pt.querySelector('.sw-confirm .sw-yes');
-  if (yes) yes.addEventListener('click', () => {
+  // ★e.stopPropagation()必須(2026-07-13): #party は #field の子孫なので、このクリックが
+  // doSwitchTo→say()で新しいメッセージ列を出した直後に #field の click(advanceMsg)へバブルし、
+  // 「交代する」を押した同じクリックで1コマ目(引っ込め=recall行)を即座に送ってしまう(_recallFxDelayの
+  // ホールドが効く前に advanceMsg→nextSay が先に走る)＝退場が一瞬でポップするバグの実バグ源。
+  if (yes) yes.addEventListener('click', e => {
+    e.stopPropagation();
     SE.select();
     if (swPivot){ finishPivotPick(swSelected); return; }
     doSwitchTo(swSelected);
@@ -3736,6 +3748,7 @@ let lastTgt = null;   // 直前のダメージ対象(「こうかは…」「き
 let _hitFxDelay = 0;  // Wave1: 直前の飛翔体の飛翔ms(こうか/きゅうしょ行のflash/soundを着弾と同じ拍に重ねる用)
 let _megaFxDelay = 0; // Wave3: メガシンカ演出の総dur(次行のsayをこの分だけホールドする専用レーン)
 let _koFxDelay = 0;   // Wave4 B級: KOスロー演出の総dur(次行のsayをこの分だけホールドする専用レーン。_megaFxDelayと同じ仕組み)
+let _recallFxDelay = 0; // 交代の引っ込め演出(rbRecall 1s)を最低1150ms(1s+一拍)ホールドし、登場と重ならず完全に終わってから次行(登場)へ進める(2026-07-13。自動送りがrbRecallより速く送ってしまい退場が一瞬でポップして見える事故の対策)
 let _lastHitBig = false; // Wave4 B級: 直前のダメージ行が「大技」級(hpPct>=0.28)だったか。ばつぐん/急所行での爆発音の大技判定に使う
 // ===== fx_primitives.js へ移設(演出ツクール Step2a 2026-07-11) =====
 // popText/burstFx/spawnBurstParticles/spawnBurstRing/spawnBurstGlyph/moveClassOf/shapeOf/
@@ -3946,7 +3959,10 @@ function lineWithFx(msg){
       const side = (subjOpp || msg.startsWith('相手は')) ? 'opp' : 'self';
       // scene:recall(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のrecallFxのまま(挙動不変)。
       const _rcSheet = resolveSceneSheet('recall');
-      if (_rcSheet) playSceneCueSheet(_rcSheet, { side }); else recallFx(side);
+      let _rcDur;
+      if (_rcSheet) _rcDur = playSceneCueSheet(_rcSheet, { side }); else recallFx(side);
+      // 退場(引っ込め)が完全に終わってから登場が始まるよう、最低1150ms(rbRecall 1s+一拍)は次行(登場)へ進ませない(2026-07-13)
+      _recallFxDelay = Math.max(_rcDur || 0, 1150);
     }
     if (/が 場に出た！/.test(msg) || /^いけっ！ \S+！$/.test(msg) || /^相手は \S+ を くりだした！$/.test(msg)){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
@@ -4371,6 +4387,32 @@ function refreshPickBadges(ov){
   const ok = $('pick-ok');
   if (ok){ ok.disabled = PICK.sel.length !== 3; ok.style.opacity = PICK.sel.length === 3 ? '1' : '.5'; }
 }
+// #pick-mine の各セルへクリック(選出トグル+中央詳細に表示)を配線。showPickScreenの初回描画と
+// refreshPickMineCards()の作り直し後の再配線で共用(2026-07-13)
+function bindPickMineClicks(ov){
+  ov.querySelectorAll('#pick-mine .slot').forEach(el => el.addEventListener('click', () => {
+    SE.select();
+    const id = el.dataset.id;
+    setSelectedSlot(id);   // 中央に詳細(編集可)
+    if (!PICK.mine){        // けってい前だけ選出トグル(もう一度押すと外れる)
+      const i = PICK.sel.indexOf(id);
+      if (i >= 0) PICK.sel.splice(i, 1);
+      else if (PICK.sel.length < 3) PICK.sel.push(id);
+    }
+    refreshPickBadges(ov);
+  }));
+}
+// ★バグ修正(2026-07-13): 選出画面(#pick-screen)の中央詳細パネルでもちもの等を変更しても、
+// 左の「バトルチーム」カード(#pick-mine)は#pick-mineでなく編成画面側の要素($(id))を更新するだけで
+// 取り残されて古い表示のままだった。もちもの変更後にこれを呼び、#pick-mineを丸ごと作り直して同期する。
+// 選出画面が開いていない時(通常の編成画面)は何もしない=既存動作は不変。
+function refreshPickMineCards(){
+  const ov = $('pick-screen'), mine = $('pick-mine');
+  if (!ov || !mine) return;
+  mine.innerHTML = selfIds().map(pickCellMine).join('');
+  bindPickMineClicks(ov);
+  refreshPickBadges(ov);
+}
 function confirmPick(){
   if (PICK.sel.length !== 3 || PICK.mine) return;
   if (PICK.aiMode){   // ★AI戦: 相手選出はランダム3体(順番もランダム)→そのまま開戦(オフライン)
@@ -4420,17 +4462,7 @@ function showPickScreen(){
   const det = $('sel-detail');
   if (det) $('pick-center').appendChild(det);
   setSelectedSlot(selfIds()[0]);
-  ov.querySelectorAll('#pick-mine .slot').forEach(el => el.addEventListener('click', () => {
-    SE.select();
-    const id = el.dataset.id;
-    setSelectedSlot(id);   // 中央に詳細(編集可)
-    if (!PICK.mine){        // けってい前だけ選出トグル(もう一度押すと外れる)
-      const i = PICK.sel.indexOf(id);
-      if (i >= 0) PICK.sel.splice(i, 1);
-      else if (PICK.sel.length < 3) PICK.sel.push(id);
-    }
-    refreshPickBadges(ov);
-  }));
+  bindPickMineClicks(ov);
   refreshPickBadges(ov);
   // 相手セル: ホバー/タップで弱点フロート(タイプから防御相性を計算=名前は非公開のまま)
   const wkTip = document.createElement('div');
