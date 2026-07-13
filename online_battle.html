@@ -1174,7 +1174,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260711g" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260713a" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1392,7 +1392,7 @@ function applySpeciesMemo(id, name){
   const all = S.usableMoves(poke);
   const mvs = (m.moves || []).map(n => all.find(x => x.name === n)).filter(Boolean);
   slotMoves[id] = mvs.length ? mvs : autoMoves(poke);
-  slotItem[id] = m.item || slotItem[id] || 'mega_stone_any';
+  slotItem[id] = normalizeMegaItemKey(m.item) || slotItem[id] || 'mega_stone_any';
   slotGender[id] = m.gender || genderOfRB(name);
   slotNature[id] = m.nature || 'まじめ';
   slotEffort[id] = clampEffortRB(m.effort || {});
@@ -1446,7 +1446,8 @@ function applyPresetToSlot(id, build){
   const poke = S.pokeByName(speciesName);
   if (!poke) return false;
   slotVal[id] = speciesName;
-  slotItem[id] = itDef ? itDef.key : 'mega_stone_any';
+  // メガストーンは汎用(mega_stone_any)に正規化(プリセットは種専用ストーン名を持つため=FIX2 2026-07-13)
+  slotItem[id] = itDef ? normalizeMegaItemKey(itDef.key) : 'mega_stone_any';
   slotAbility[id] = abilityName || defaultAbilityRB(poke);
   slotNature[id] = build.nature || 'まじめ';
   slotEffort[id] = clampEffortRB(build.ev || {});
@@ -1523,6 +1524,14 @@ function setSelectedSlot(id){
 function itemChoicesRB(){
   // メガストーンは汎用(共通)1つだけ(2026-07-06 阿部さん)。バトル中のメガシンカは1体だけの制限は従来どおり
   return S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any');
+}
+// 持ち物keyを汎用メガストーン規則に正規化(メガストーンは種専用でなく共通1つだけ=2026-07-06 阿部さん)。
+// おすすめビルド/保存データ/相手からの受信データ等、外部由来のitem keyは必ずここを通してから slotItem へ入れる
+// (種専用ストーン=例「マフォクシナイト」「メタグロスナイト」のkeyが漏れて手動編集メニューと矛盾するのを防ぐ)。
+function normalizeMegaItemKey(key){
+  if (!key || !S) return key;
+  const it = S.itemByKey(key);
+  return (it && it.category === 'mega_stone') ? 'mega_stone_any' : key;
 }
 // 共通選択モーダル: groups=[{label, rows:[{key,name,desc,selected}]}]
 function openChoiceModal(title, groups, onPick, anchor){
@@ -1771,7 +1780,7 @@ function loadTeam(){
         if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
         return;
       }
-      slotItem[id] = d.item && d.item[id] != null ? d.item[id] : 'mega_stone_any';
+      slotItem[id] = d.item && d.item[id] != null ? normalizeMegaItemKey(d.item[id]) : 'mega_stone_any';
       slotGender[id] = (d.gender && d.gender[id]) || genderOfRB(d.val[id]);
       slotNature[id] = (d.nature && d.nature[id]) || 'まじめ';
       // 旧モーダル時代の252等が残っていても仕様値にクランプ(各32・計66=ビルダー仕様)
@@ -1835,7 +1844,7 @@ function loadHandoff(){
       const all = S.usableMoves(poke);
       const byKey = (e.moves || []).map(k => all.find(m => m && (m.key === k || m.name === k))).filter(Boolean);
       slotMoves[id] = byKey.length ? byKey.slice(0, 4) : autoMoves(poke);
-      slotItem[id] = e.item || 'mega_stone_any';
+      slotItem[id] = normalizeMegaItemKey(e.item) || 'mega_stone_any';
       slotGender[id] = e.gender || genderOfRB(e.name);
       slotNature[id] = e.nature || 'まじめ';
       slotEffort[id] = clampEffortRB(e.effort || {});
@@ -3545,16 +3554,20 @@ function executeTurn(){
   // CH: 攻撃行の前に「◯◯の こうげき！」を差し込み(2段表示=2026-07-05 阿部さん)。
   // 表示専用(noLog)でエンジンログ/右ログは汚さない。攻撃側はぴょんぴょん予告(preattack)
   const lines = [];
-  for (const e of fresh){
+  for (let i = 0; i < fresh.length; i++){
+    const e = fresh[i];
     const am = e.msg.match(/^((?:相手の )?)(\S+) の \S+！/);
-    if (am && /ダメージ！/.test(e.msg)){
+    // ばけのかわブロック: 「◯◯の 技！」の直後に「…ばけのかわが はがれた！」が続く形で判別する
+    // (かたやぶり等の入場宣言も同じ「◯◯の 特性名！」の裸行なので、次の行の内容で狙い撃ちする=2026-07-13 阿部さん報告)
+    const nextIsDisguiseBreak = !!(fresh[i + 1] && /ばけのかわが はがれた！$/.test(fresh[i + 1].msg));
+    if (am && (/ダメージ！/.test(e.msg) || nextIsDisguiseBreak)){
       const introJa = `${am[1]}${am[2]} の こうげき！`;
       const introSide = am[1] ? 'opp' : 'self';
       // 予告のぴょんぴょん(.7s)+一拍だけ待って技を出す(送り速度=ふつうの約2.9秒だと予告後に間が空きすぎる=2026-07-13)
       lines.push({ text: (window.translateLogLine ? translateLogLine(introJa) : introJa),
         fx: () => flash(introSide, 'preattack'), noLog: true, hold: 850 });
     }
-    splitBattleLines(e.msg).forEach(t => lines.push(lineWithFx(t)));
+    splitBattleLines(e.msg).forEach(t => lines.push(lineWithFx(t, { forceAttackFx: nextIsDisguiseBreak })));
   }
   logTurnHeader(turnNo);   // 右ログに「Turn N」見出し
   say(lines, endOfTurn);
@@ -3793,13 +3806,18 @@ function splitBattleLines(msg){
   return [msg];
 }
 const _recallTimer = {};   // 交代1拍目のgone遅延タイマー(2拍目で必ずキャンセル=出た直後に消えるバグ根治)
-function lineWithFx(msg){
+function lineWithFx(msg, opts){
+  opts = opts || {};
   const fx = () => {
     const hpM = msg.match(/\(残(?:り)?HP (\d+)(?:\/(\d+))?\)/);
     const subjOpp = msg.startsWith('相手の');   // 行の主語(先頭)が相手側か
     // ① 攻撃のダメージ行: 「A の 技！ … ダメージ！」(対象=攻撃側の反対。連続ヒット・みがわりも同じ形)
+    // ばけのかわブロック時は「A の 技！」だけで行が終わる(実HPには0ダメージ=残HP表記なし)。
+    // それでも技自体は当たっている演出なので同じ攻撃fxを出す。呼び出し元(executeTurn)が次行を見て
+    // 「ばけのかわが はがれた！」直前の行だけに絞ってforceAttackFxを立てる(かたやぶり等の裸の入場宣言
+    // 「◯◯の 特性名！」と見分けがつかないテキスト形なので、テキストの形だけでは判定しない=2026-07-13)
     const atkLine = msg.match(/^(相手の )?\S+ の (\S+)！/);
-    if (atkLine && /ダメージ！/.test(msg) && !/で \d+ ダメージ/.test(msg)){
+    if (atkLine && ((/ダメージ！/.test(msg) && !/で \d+ ダメージ/.test(msg)) || opts.forceAttackFx)){
       const atkSide = atkLine[1] ? 'opp' : 'self';
       const tgt = atkSide === 'self' ? 'opp' : 'self';
       lastTgt = tgt;
@@ -4304,7 +4322,7 @@ function onlineApplyOppTeam(d){
       if ($(oid)) $(oid).innerHTML = slotCapsuleHtml(oid);
       return;
     }
-    slotItem[oid] = d.item && d.item[sid] != null ? d.item[sid] : 'mega_stone_any';
+    slotItem[oid] = d.item && d.item[sid] != null ? normalizeMegaItemKey(d.item[sid]) : 'mega_stone_any';
     slotGender[oid] = (d.gender && d.gender[sid]) || genderOfRB(nm);
     slotNature[oid] = (d.nature && d.nature[sid]) || 'まじめ';
     slotEffort[oid] = clampEffortRB((d.effort && d.effort[sid]) || {});

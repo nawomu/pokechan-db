@@ -2676,8 +2676,13 @@ function phaseDealDamage(atkSide, defSide, move){
   // たくわえ消費(はきだす): 撃ったら(こうかなしでも)たくわえは消え、上がったランクも戻る
   if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(sides[atkSide]);
   if (result.immune){
-    // reason は完結した無効文(「…」/「）」で終わる)なのでそのまま出す(no_effect_* にマッチ=翻訳される)
-    log('8', result.reason);
+    // ばけのかわ(第8世代)は技自体は当たっている(皮が身代わりに剥がれる)ので、無効文の前に
+    // 技の使用そのものを告知する(「◯◯の 技！」)。表示側(real_battle/online_battle)がこの行を
+    // 拾って予告(ぴょんぴょん)+攻撃演出を出す→そのあとで「ばけのかわが はがれた！」が続く(2026-07-13 阿部さん報告)
+    if (result.disguiseBlock) log('8', `${pname(sides[atkSide])} の ${move.name}！`);
+    // reason は完結した無効文(「…」/「）」で終わる)なのでそのまま出す(no_effect_* にマッチ=翻訳される)。
+    // ばけのかわのreasonだけ「！」で結ぶ(はがれた演出fx/i18nパターンbl_258が「はがれた！」終わりを前提のため)
+    log('8', result.reason + (result.disguiseBlock ? '！' : ''));
     // ばけのかわ(第8世代): 皮が剥がれて最大HPの1/8ダメージ+以後は素通し(2026-07-07 阿部さん)
     if (result.disguiseBlock){
       const _d = sides[defSide];
