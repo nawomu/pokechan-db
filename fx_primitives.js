@@ -19,13 +19,41 @@
 // popText: variant('crit'=急所/'se'=ばつぐん)指定でポップイン強化(傾き復帰・金色glow等・Wave3 A級)
 // durMs(阿部さんFB2026-07-11 §10・演出ツクールのバーduration配線): 省略時=従来どおり固定1s(本番の挙動は
 // 1msも変わらない=絶対条件)。指定時のみ.popnumのCSSアニメ(既定rbPop 1s)をdurMsへ引き伸ばす。
-function popText(side, text, color, size, variant, durMs){
+// opts(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-1・不満B「数字の大きさ/消え方」):
+// {holdMs, fadeMs, rise}のいずれかが指定された時だけWAAPI 3相(ポップイン180ms固定→ホールド→フェード)へ
+// 切替える。省略時(=本番の既存呼び出し・cueシート無し技)は従来のCSS rbPop経由のまま1msも変えない。
+// variant(crit/se)指定時は新パラメータを無視して従来経路(まず通常数字だけ・§2-1点3)。
+const _POPTEXT_POPIN_MS = 180;   // rbPopの0〜18%(ポップイン)を再現する固定尺
+function popText(side, text, color, size, variant, durMs, opts){
   const f = $('f-' + side);
   const el = document.createElement('div');
   el.className = 'popnum' + (variant ? ' popnum-' + variant : '');
   el.textContent = text;
   if (color) el.style.color = color;
   if (size) el.style.fontSize = size + 'px';
+  const useWaapi = !variant && opts && (opts.holdMs != null || opts.fadeMs != null || opts.rise != null) && typeof el.animate === 'function';
+  if (useWaapi){
+    const holdMs = opts.holdMs != null ? opts.holdMs : 0;
+    const fadeMs = opts.fadeMs != null ? opts.fadeMs : 800;
+    const rise = opts.rise != null ? opts.rise : 46;
+    const total = _POPTEXT_POPIN_MS + holdMs + fadeMs;
+    const popInFrac = _POPTEXT_POPIN_MS / total;
+    const holdEndFrac = (_POPTEXT_POPIN_MS + holdMs) / total;
+    el.style.animation = 'none';   // CSSのrbPop(既定1s)とWAAPIの二重適用を防ぐ
+    f.appendChild(el);
+    // ★罠: rbPopは全キーフレームにtranslateX(-50%)を含む(centering)。WAAPI側でも毎キーフレームに
+    // 明記しないと横位置が飛ぶ(設計docの罠として明記済み)。
+    try {
+      el.animate([
+        { opacity: 0, transform: 'translateX(-50%) translateY(6px) scale(.6)', offset: 0 },
+        { opacity: 1, transform: 'translateX(-50%) translateY(-6px) scale(1.18)', offset: popInFrac },
+        { opacity: 1, transform: 'translateX(-50%) translateY(-6px) scale(1.18)', offset: holdEndFrac },
+        { opacity: 0, transform: `translateX(-50%) translateY(${-(6 + rise)}px) scale(1)`, offset: 1 },
+      ], { duration: total, easing: 'ease', fill: 'forwards' });
+    } catch (e) {}
+    setTimeout(() => el.remove(), total + 100);
+    return;
+  }
   if (durMs) el.style.animationDuration = durMs + 'ms';
   f.appendChild(el);
   setTimeout(() => el.remove(), durMs ? durMs + 100 : 1100);
@@ -43,8 +71,11 @@ function popText(side, text, color, size, variant, durMs){
 // offset(2026-07-15): 出現位置オフセット{x,y}px。--fx-ox/--fx-oyはここで毎回セット(省略時=0px)する。
 // 理由=cueシートのoffsetが#f-<side>に残ったままだと、後続のcueシート無し技(レガシー経路)のburstまで
 // ズレて出る(本番CSSがvarを消費するようになった2026-07-15以降のリーク)。毎回リセット=省略時旧挙動一致。
+// particles(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-2): 粒の数の上書き。省略時(null/undefined)
+// =従来どおりintensity由来のn(呼び出し側=real_battle/online_battleの直呼び出し箇所は7引数のままで無改変)。
+// clampはこの関数の外(_dispatchCueProd)で行う=sizeScaleと同じ方針(直接呼び出し側は素通し)。
 const _BURST_DEFAULT_MS = 650;
-function burstFx(side, color, shape, intensity, durMs, sizeScale, offset){
+function burstFx(side, color, shape, intensity, durMs, sizeScale, offset, particles){
   const f = $('f-' + side);
   if (!f) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'burstFx', shape, intensity, t: performance.now()});
@@ -61,7 +92,8 @@ function burstFx(side, color, shape, intensity, durMs, sizeScale, offset){
   f.appendChild(el);
   setTimeout(() => el.remove(), durMs ? Math.round(650 * scale) : 650);
   const big = intensity === 'up' || intensity === 'crit';
-  const n = intensity === 'down' ? 3 : (big ? 8 : 5);
+  let n = intensity === 'down' ? 3 : (big ? 8 : 5);
+  if (particles != null) n = particles;
   spawnBurstParticles(f, color, n, scale, sizeScale);
   spawnBurstRing(f, color, scale, sizeScale);
   if (big) setTimeout(() => spawnBurstRing(f, color, scale, sizeScale), durMs ? Math.round(60 * scale) : 60);   // 2重リング
@@ -791,14 +823,28 @@ function _cueImpactTime(sheet){
   });
   return best != null ? best : Math.round((sheet.dur || 600) / 2);
 }
-// fx_editor.htmlのcueChargeMotion()の本番版。エディタは常にself(攻撃側固定)→opp(標的固定)でプレビュー
-// するが、本番は自分/相手どちらが攻撃側にもなるため、atkSide/tgtSideを引数で渡す。アニメの中身
-// (移動量・easing・cleanup)はエディタ版とロジック同一(コピー)。
+// fx_editor.htmlのdispatchCue()は本関数(_dispatchCueProd経由)へ完全委譲しているため、エディタと本番は
+// 同一コードパス(重複実装なし)。アニメの中身(移動量・easing・cleanup)はエディタ/本番で分岐しない。
+// impactFrac/dwellFrac/reachFrac/easing(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-3・
+// 不満C「突進の調整」): paramsから読む。全て省略時=現行値(0.55/0.62/0.85/standard)=旧挙動と完全一致。
+const _CHARGE_EASING = {
+  standard: 'cubic-bezier(.3,0,.2,1)',   // 現行(既定)
+  sharp: 'cubic-bezier(.5,0,.15,1)',     // 鋭く踏み込む
+  heavy: 'cubic-bezier(.7,.05,.3,1)',    // 重い助走
+};
 function _cueChargeMotionProd(atkSide, tgtSide, dur, params){
   const sp = document.querySelector('#f-' + atkSide + ' .sprite');
   if (!sp || typeof sp.animate !== 'function') return;
+  const p = params || {};
+  let impactFrac = p.impactFrac != null ? p.impactFrac : 0.55;
+  impactFrac = Math.min(0.98, Math.max(0.1, impactFrac));
+  let dwellFrac = p.dwellFrac != null ? p.dwellFrac : 0.62;
+  if (!(dwellFrac > impactFrac && dwellFrac < 1)) dwellFrac = Math.min(0.999, impactFrac + 0.07);
+  let reachFrac = p.reachFrac != null ? p.reachFrac : 0.85;
+  reachFrac = Math.min(1.2, Math.max(0.3, reachFrac));
+  const chargeEasing = _CHARGE_EASING[p.easing] || _CHARGE_EASING.standard;
   const from = fxPoint(atkSide), to = fxPoint(tgtSide);
-  const hitFrac = 0.85;
+  const hitFrac = reachFrac;
   const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
   // #f-<atkSide>の奥行きscale(自分側1.2/相手側0.95)+#field側のzoom(fitField()で画面幅に応じ可変)を
   // クローンに焼き込む補正(chargeFxと同じ根治): #f-<atkSide>のtransformだけ読むと#fieldのzoomを取りこぼす
@@ -833,10 +879,10 @@ function _cueChargeMotionProd(atkSide, tgtSide, dur, params){
   try {
     const anim = clone.animate([
       { transform: `translate(0,0) scale(${scale})`, offset: 0 },
-      { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, offset: 0.55 },
-      { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, offset: 0.62 },
+      { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, offset: impactFrac },
+      { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, offset: dwellFrac },
       { transform: `translate(0,0) scale(${scale})`, offset: 1 },
-    ], { duration: Math.max(80, dur), easing: 'cubic-bezier(.3,0,.2,1)' });
+    ], { duration: Math.max(80, dur), easing: chargeEasing });
     anim.onfinish = cleanup; anim.oncancel = cleanup;
   } catch (e) { cleanup(); }
 }
@@ -881,8 +927,11 @@ function _dispatchCueProd(cue, info){
       // sizeScale(2026-07-15・設計_ツクール強化_炎サイズ配線とスクラブ_2026-07-15.md §2-1): 見た目倍率。
       // clamp(0.1〜6)=SSOT残存値(scale:100等)や入力事故で画面が壊れるのを防ぐ。省略時=1=従来どおり。
       // offsetは--fx-ox/--fx-oyをburstFx側で毎回セット(レガシー経路へのリーク防止・burstFx冒頭コメント参照)。
+      // particles(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-2): clamp(0〜24)。省略時=undefined=
+      // burstFx側でintensity由来のnのまま(従来どおり)。
       const sizeScale = p.scale != null ? Math.min(6, Math.max(0.1, p.scale)) : 1;
-      burstFx(atSide, color, shape, p.intensity || 'normal', cue.dur, sizeScale, p.offset);
+      const particles = p.particles != null ? Math.min(24, Math.max(0, p.particles)) : undefined;
+      burstFx(atSide, color, shape, p.intensity || 'normal', cue.dur, sizeScale, p.offset, particles);
     } else if (cue.track === 'sound' && cue.action === 'se'){
       SE.hitClass(cls);
     } else if (cue.track === 'screen' && cue.action === 'shake'){
@@ -899,7 +948,11 @@ function _dispatchCueProd(cue, info){
       if (info.onDef) info.onDef(atSide);
     } else if (cue.track === 'text' && cue.action === 'popnum'){
       // dmgText(実際のダメージ数値。呼び出し側から渡される)を優先。無ければキューの固定文言(エディタのプレビュー既定値)。
-      popText(atSide, info.dmgText != null ? info.dmgText : (p.text || ''), p.color || '#fff', p.size || 16, null, cue.dur);
+      // size clamp(8〜96)・holdMs/fadeMs/rise(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-1)は
+      // いずれか指定時のみpopOptsを渡す(popText側のWAAPI切替条件と同じ=undefined透過で従来経路を保つ)。
+      const sz = p.size != null ? Math.min(96, Math.max(8, p.size)) : 16;
+      const popOpts = (p.holdMs != null || p.fadeMs != null || p.rise != null) ? { holdMs: p.holdMs, fadeMs: p.fadeMs, rise: p.rise } : undefined;
+      popText(atSide, info.dmgText != null ? info.dmgText : (p.text || ''), p.color || '#fff', sz, null, cue.dur, popOpts);
       if (info.onDef) info.onDef(atSide);
     }
   } catch (e) { console.error('[playCueSheet dispatch error]', cue, e); }

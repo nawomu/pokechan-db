@@ -12,7 +12,7 @@
 -->
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
-<script src="fx_primitives.js?v=20260715a"></script>
+<script src="fx_primitives.js?v=20260715b"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <style>
 /* ===================================================================
@@ -1130,6 +1130,18 @@ function renderInspector(){
       const off = p.offset || { x: 0, y: 0 };
       html += `<div class="insp-field"><label>offset.x(出る位置オフセットpx・盤面の◎ドラッグでも変更可)</label><input type="number" id="ins-offx" value="${off.x || 0}" step="5"></div>`;
       html += `<div class="insp-field"><label>offset.y</label><input type="number" id="ins-offy" value="${off.y || 0}" step="5"></div>`;
+      // intensity/particles(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-2): ディスパッチは
+      // 既にp.intensity/p.particlesを読む(fx_primitives.js側)ので、ここはUI欄+保存配線のみ。
+      html += fieldIntensitySelect(p.intensity || 'normal');
+      html += `<div class="insp-field"><label>particles(粒の数・空欄=既定)</label><input type="number" id="ins-particles" min="0" max="24" step="1" value="${p.particles != null ? p.particles : ''}"></div>`;
+    }
+    if (cue.track === 'atk' && cue.action === 'charge'){
+      // impactFrac/dwellFrac/reachFrac/easing(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-3・
+      // 不満C「突進の調整」): 省略時=現行値のまま(_cueChargeMotionProd側のデフォルトと一致)。
+      html += fieldNum('impactFrac', 'impactFrac(踏み込み到達・既定0.55)', p.impactFrac != null ? p.impactFrac : 0.55, 0.1, 0.01);
+      html += fieldNum('dwellFrac', 'dwellFrac(接触滞留の終端・既定0.62)', p.dwellFrac != null ? p.dwellFrac : 0.62, 0.1, 0.01);
+      html += fieldNum('reachFrac', 'reachFrac(踏み込み距離・既定0.85)', p.reachFrac != null ? p.reachFrac : 0.85, 0.3, 0.01);
+      html += fieldEasingSelect(p.easing || 'standard');
     }
   }
   if (cue.track === 'sound' && cue.action === 'se'){
@@ -1137,7 +1149,15 @@ function renderInspector(){
     html += ('name' in p) ? fieldSeNameSelect(p.name || 'enter') : fieldClsSelect(p.cls || 'phys');
   }
   if (cue.track === 'screen' && cue.action === 'shake') html += fieldNum('mag', 'mag(揺れ強さ)', p.mag != null ? p.mag : 1, 0, 0.1);
-  if (cue.track === 'text' && cue.action === 'popnum') html += fieldText('text', 'テキスト', p.text || '');
+  if (cue.track === 'text' && cue.action === 'popnum'){
+    // size/holdMs/fadeMs/rise(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-1・不満B「数字の
+    // 大きさ/消え方」): いずれか触ると popText がWAAPI 3相へ切替わる(fx_primitives.js側の仕様)。
+    html += fieldText('text', 'テキスト', p.text || '');
+    html += fieldNum('size', 'size(px・既定16)', p.size != null ? p.size : 16, 8, 1);
+    html += fieldNum('holdMs', 'holdMs(留まる時間ms・既定0)', p.holdMs != null ? p.holdMs : 0, 0, 10);
+    html += fieldNum('fadeMs', 'fadeMs(消える時間ms・既定800)', p.fadeMs != null ? p.fadeMs : 800, 0, 10);
+    html += fieldNum('rise', 'rise(消えながら上昇するpx・既定46)', p.rise != null ? p.rise : 46, 0, 1);
+  }
   html += `<div class="insp-field"><label>scale(見た目倍率 1=標準)</label>
     <input type="number" step="0.1" min="0.1" max="6" id="ins-scale" value="${p.scale != null ? p.scale : 1}"></div>`;
   body.innerHTML = html;
@@ -1170,6 +1190,18 @@ function fieldAtSelect(val){
     <select id="ins-at"><option value="opp" ${val === 'opp' ? 'selected' : ''}>opp(あいて=既定・攻撃対象)</option>
     <option value="self" ${val === 'self' ? 'selected' : ''}>self(じぶん)</option></select></div>`;
 }
+// intensity(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-2): burstFx/dispatchが既に読む語彙(normal/up/crit/down)。
+function fieldIntensitySelect(val){
+  const vocab = [['normal', 'normal(標準)'], ['up', 'up(ばつぐん風・粒2倍+2重リング)'], ['crit', 'crit(急所風・up同様)'], ['down', 'down(いまひとつ風・粒半減)']];
+  const opts = vocab.map(([v, label]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${label}</option>`).join('');
+  return `<div class="insp-field"><label>intensity(強さ)</label><select id="ins-intensity">${opts}</select></div>`;
+}
+// easing(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-3): _cueChargeMotionProdの_CHARGE_EASINGと同じ語彙。
+function fieldEasingSelect(val){
+  const vocab = [['standard', 'standard(現行)'], ['sharp', 'sharp(鋭く踏み込む)'], ['heavy', 'heavy(重い助走)']];
+  const opts = vocab.map(([v, label]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${label}</option>`).join('');
+  return `<div class="insp-field"><label>easing(踏み込みの質感)</label><select id="ins-easing">${opts}</select></div>`;
+}
 function wireInspectorEvents(cue){
   const bind = (id, fn) => { const el = $(id); if (el) el.addEventListener('change', fn); };
   bind('ins-t', e => { cue.t = Math.max(0, snap50(+e.target.value || 0)); onCueEdited(cue); });
@@ -1180,6 +1212,16 @@ function wireInspectorEvents(cue){
   bind('ins-at', e => { cue.params.at = e.target.value; onCueEdited(cue); });
   bind('ins-offx', e => { cue.params.offset = Object.assign({ x: 0, y: 0 }, cue.params.offset || {}); cue.params.offset.x = +e.target.value || 0; onCueEdited(cue); });
   bind('ins-offy', e => { cue.params.offset = Object.assign({ x: 0, y: 0 }, cue.params.offset || {}); cue.params.offset.y = +e.target.value || 0; onCueEdited(cue); });
+  bind('ins-intensity', e => { cue.params.intensity = e.target.value; onCueEdited(cue); });
+  bind('ins-particles', e => { const v = e.target.value; cue.params.particles = v === '' ? undefined : Math.max(0, Math.min(24, +v)); onCueEdited(cue); });
+  bind('ins-size', e => { cue.params.size = +e.target.value || 16; onCueEdited(cue); });
+  bind('ins-holdMs', e => { cue.params.holdMs = Math.max(0, +e.target.value || 0); onCueEdited(cue); });
+  bind('ins-fadeMs', e => { cue.params.fadeMs = Math.max(0, +e.target.value || 0); onCueEdited(cue); });
+  bind('ins-rise', e => { cue.params.rise = +e.target.value || 0; onCueEdited(cue); });
+  bind('ins-impactFrac', e => { cue.params.impactFrac = +e.target.value; onCueEdited(cue); });
+  bind('ins-dwellFrac', e => { cue.params.dwellFrac = +e.target.value; onCueEdited(cue); });
+  bind('ins-reachFrac', e => { cue.params.reachFrac = +e.target.value; onCueEdited(cue); });
+  bind('ins-easing', e => { cue.params.easing = e.target.value; onCueEdited(cue); });
   bind('ins-mag', e => { cue.params.mag = +e.target.value; onCueEdited(cue); });
   bind('ins-text', e => { cue.params.text = e.target.value; onCueEdited(cue); });
   bind('ins-scale', e => { cue.params.scale = +e.target.value; onCueEdited(cue); });
