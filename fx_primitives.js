@@ -36,40 +36,53 @@ function popText(side, text, color, size, variant, durMs){
 // durMs(阿部さんFB2026-07-11 §10): 省略時=従来どおり固定タイミング(本番の挙動は1msも変わらない=絶対条件)。
 // 指定時のみ _BURST_DEFAULT_MS(=従来の球の除去タイミング650ms)を基準にscale=durMs/650を全サブ要素
 // (球のCSSアニメ・粒子/リング/グリフのJS animate・setTimeout除去)へ比例配分する。
+// sizeScale(阿部さんFB2026-07-15・設計_ツクール強化_炎サイズ配線とスクラブ_2026-07-15.md §2-1):
+// 見た目倍率(乗数)。省略時=1=従来どおり(呼び出し側の互換=real_battle/online_battleの直呼び出し
+// 箇所は5引数のままで無改変)。時間用の既存 scale(=durMs/650)とは別物=混同しないこと。
+// clampはこの関数の外(_dispatchCueProd)で行う=直接呼び出し側は素通し。
+// offset(2026-07-15): 出現位置オフセット{x,y}px。--fx-ox/--fx-oyはここで毎回セット(省略時=0px)する。
+// 理由=cueシートのoffsetが#f-<side>に残ったままだと、後続のcueシート無し技(レガシー経路)のburstまで
+// ズレて出る(本番CSSがvarを消費するようになった2026-07-15以降のリーク)。毎回リセット=省略時旧挙動一致。
 const _BURST_DEFAULT_MS = 650;
-function burstFx(side, color, shape, intensity, durMs){
+function burstFx(side, color, shape, intensity, durMs, sizeScale, offset){
   const f = $('f-' + side);
   if (!f) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'burstFx', shape, intensity, t: performance.now()});
   const scale = durMs ? (durMs / _BURST_DEFAULT_MS) : 1;
+  sizeScale = sizeScale || 1;
+  const off = offset || { x: 0, y: 0 };
+  f.style.setProperty('--fx-ox', (off.x || 0) + 'px');
+  f.style.setProperty('--fx-oy', (off.y || 0) + 'px');
   const el = document.createElement('div');
   el.className = 'burst';
   el.style.background = `radial-gradient(circle, ${color}cc 0%, ${color}55 45%, transparent 70%)`;
   if (durMs) el.style.animationDuration = Math.round(850 * scale) + 'ms';   // CSS既定rbBurst .85s基準
+  if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
   f.appendChild(el);
   setTimeout(() => el.remove(), durMs ? Math.round(650 * scale) : 650);
   const big = intensity === 'up' || intensity === 'crit';
   const n = intensity === 'down' ? 3 : (big ? 8 : 5);
-  spawnBurstParticles(f, color, n, scale);
-  spawnBurstRing(f, color, scale);
-  if (big) setTimeout(() => spawnBurstRing(f, color, scale), durMs ? Math.round(60 * scale) : 60);   // 2重リング
-  if (shape) spawnBurstGlyph(f, shape, scale);
+  spawnBurstParticles(f, color, n, scale, sizeScale);
+  spawnBurstRing(f, color, scale, sizeScale);
+  if (big) setTimeout(() => spawnBurstRing(f, color, scale, sizeScale), durMs ? Math.round(60 * scale) : 60);   // 2重リング
+  if (shape) spawnBurstGlyph(f, shape, scale, sizeScale);
 }
 // 破片パーティクル(4-8pxの粒が放射状に飛び散る。疑似重力で下に膨らむ弧)
 // scale(阿部さんFB2026-07-11 §10): 省略時=1=従来どおり(呼び出し側の互換=real_battle/online_battleの
-// 直呼び出し箇所は3引数のままで無改変)。
-function spawnBurstParticles(f, color, n, scale){
+// 直呼び出し箇所は3引数のままで無改変)。sizeScale(2026-07-15): 省略時=1=従来どおり。粒サイズ/拡散距離に乗算。
+function spawnBurstParticles(f, color, n, scale, sizeScale){
   scale = scale || 1;
+  sizeScale = sizeScale || 1;
   for (let i = 0; i < n; i++){
     const el = document.createElement('div');
     el.className = 'rb-burstp';
     el.style.background = color;
     el.style.color = color;   // box-shadowのcurrentColorが拾う(発光の色をパーティクルと揃える)
-    const size = 4 + Math.random() * 4;
+    const size = (4 + Math.random() * 4) * sizeScale;
     el.style.width = size + 'px'; el.style.height = size + 'px';
     const ang = Math.random() * Math.PI * 2;
-    const r = 40 + Math.random() * 50;
-    const dxp = Math.cos(ang) * r, dyp = Math.sin(ang) * r + 40;
+    const r = (40 + Math.random() * 50) * sizeScale;
+    const dxp = Math.cos(ang) * r, dyp = Math.sin(ang) * r + 40 * sizeScale;
     f.appendChild(el);
     const dur = (350 + Math.random() * 250) * scale;
     try {
@@ -82,12 +95,15 @@ function spawnBurstParticles(f, color, n, scale){
     setTimeout(() => el.remove(), dur + 60);
   }
 }
-// 衝撃リング(円が拡大しながら消える)。scale=省略時1=従来どおり(real_battle/online_battleの直呼び出しは2引数のまま)
-function spawnBurstRing(f, color, scale){
+// 衝撃リング(円が拡大しながら消える)。scale=省略時1=従来どおり(real_battle/online_battleの直呼び出しは2引数のまま)。
+// sizeScale(2026-07-15): 省略時=1=従来どおり。リングの基準サイズ(.rb-burstringのwidth/height/margin)に効かせる。
+function spawnBurstRing(f, color, scale, sizeScale){
   scale = scale || 1;
+  sizeScale = sizeScale || 1;
   const el = document.createElement('div');
   el.className = 'rb-burstring';
   el.style.borderColor = color;
+  if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
   f.appendChild(el);
   const dur = Math.round(300 * scale);
   try {
@@ -108,8 +124,11 @@ function spawnBurstRing(f, color, scale){
 // scale(阿部さんFB2026-07-11 §10): 省略時=1=従来どおり(real_battle/online_battleからの直呼び出しは無し=
 // burstFx経由のみだが念のため同じ既定値パターンで統一)。指定時は各shapeのCSSアニメ(既定値をコメントに明記)と
 // setTimeout除去タイミングを比例して引き伸ばす。
-function spawnBurstGlyph(f, shape, scale){
+// sizeScale(2026-07-15): 省略時=1=従来どおり。各グリフ要素に--fx-burst-scaleを乗せ、対応CSS(width/height/
+// margin/font-sizeをvar(--fx-burst-scale,1)化済み)に効かせる。時間用scaleとは別軸(混同しないこと)。
+function spawnBurstGlyph(f, shape, scale, sizeScale){
   scale = scale || 1;
+  sizeScale = sizeScale || 1;
   if (!shape) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'spawnBurstGlyph', shape, t: performance.now()});
   if (shape === 'blade'){
@@ -118,6 +137,7 @@ function spawnBurstGlyph(f, shape, scale){
         const el = document.createElement('div');
         el.className = 'rb-burstglyph-slash';
         if (scale !== 1) el.style.animationDuration = Math.round(260 * scale) + 'ms';   // CSS既定rbGlyphSlash .26s
+        if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
         f.appendChild(el);
         setTimeout(() => el.remove(), Math.round(260 * scale));
       }, Math.round(i * 60 * scale));
@@ -128,6 +148,7 @@ function spawnBurstGlyph(f, shape, scale){
     const el = document.createElement('div');
     el.className = 'rb-burstglyph-drill';
     if (scale !== 1) el.style.animationDuration = Math.round(300 * scale) + 'ms';   // CSS既定rbGlyphDrill .3s
+    if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
     f.appendChild(el);
     setTimeout(() => el.remove(), Math.round(320 * scale));
     return;
@@ -139,6 +160,7 @@ function spawnBurstGlyph(f, shape, scale){
       ? 'conic-gradient(from 0deg,#7c3aed,#60a5fa,#7c3aed)'
       : 'conic-gradient(from 0deg,#a78bfa,#f0abfc,#a78bfa)';
     if (scale !== 1) el.style.animationDuration = Math.round(320 * scale) + 'ms';   // CSS既定rbGlyphSpiral .32s
+    if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
     f.appendChild(el);
     setTimeout(() => el.remove(), Math.round(340 * scale));
     return;
@@ -148,12 +170,14 @@ function spawnBurstGlyph(f, shape, scale){
     const el = document.createElement('div');
     el.className = big ? 'rb-burstglyph-explosion' : 'rb-burstglyph-dust';
     if (scale !== 1) el.style.animationDuration = Math.round((big ? 600 : 500) * scale) + 'ms';   // CSS既定.6s/.5s
+    if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
     f.appendChild(el);
     setTimeout(() => el.remove(), Math.round((big ? 620 : 520) * scale));
     if (!big){
       const crack = document.createElement('div');
       crack.className = 'rb-burstglyph-crack';
       if (scale !== 1) crack.style.animationDuration = Math.round(500 * scale) + 'ms';   // crackもrbGlyphDust .5s流用
+      if (sizeScale !== 1) crack.style.setProperty('--fx-burst-scale', sizeScale);
       f.appendChild(crack);
       setTimeout(() => crack.remove(), Math.round(520 * scale));
     }
@@ -166,6 +190,7 @@ function spawnBurstGlyph(f, shape, scale){
     el.className = 'rb-burstglyph-emoji';
     el.textContent = icon;
     if (scale !== 1) el.style.animationDuration = Math.round(260 * scale) + 'ms';   // CSS既定rbGlyphStar .26s
+    if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
     f.appendChild(el);
     setTimeout(() => el.remove(), Math.round(280 * scale));
   }
@@ -853,10 +878,11 @@ function _dispatchCueProd(cue, info){
       else if (cue.action === 'beam') spawnBeam(fxPoint(info.atkSide), fxPoint(info.tgtSide), cls, color, 1, shape);
       else if (cue.action === 'charge') _cueChargeMotionProd(info.atkSide, info.tgtSide, cue.dur, p);
     } else if (cue.track === 'glyph' && cue.action === 'burst'){
-      const off = p.offset || { x: 0, y: 0 };
-      const gf = $('f-' + atSide);
-      if (gf){ gf.style.setProperty('--fx-ox', (off.x || 0) + 'px'); gf.style.setProperty('--fx-oy', (off.y || 0) + 'px'); }
-      burstFx(atSide, color, shape, p.intensity || 'normal', cue.dur);
+      // sizeScale(2026-07-15・設計_ツクール強化_炎サイズ配線とスクラブ_2026-07-15.md §2-1): 見た目倍率。
+      // clamp(0.1〜6)=SSOT残存値(scale:100等)や入力事故で画面が壊れるのを防ぐ。省略時=1=従来どおり。
+      // offsetは--fx-ox/--fx-oyをburstFx側で毎回セット(レガシー経路へのリーク防止・burstFx冒頭コメント参照)。
+      const sizeScale = p.scale != null ? Math.min(6, Math.max(0.1, p.scale)) : 1;
+      burstFx(atSide, color, shape, p.intensity || 'normal', cue.dur, sizeScale, p.offset);
     } else if (cue.track === 'sound' && cue.action === 'se'){
       SE.hitClass(cls);
     } else if (cue.track === 'screen' && cue.action === 'shake'){

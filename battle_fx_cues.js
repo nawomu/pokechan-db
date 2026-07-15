@@ -4,7 +4,7 @@
 // real_battle.html / online_battle.html の resolveCueSheet/playCueSheet(fx_primitives.js)が読む。
 // キー = move:技名(個別上書き) / pattern:タイプ+分類(一括既定) / __board(エディタの立ち位置・本番では無視)。
 // done===true のシートだけ本番で再生される(ドラフト中は従来の自動演出のまま=挙動不変)。
-// 生成: 2026-07-13T03:44:40.690Z
+// 生成: 2026-07-15T12:55:03.900Z
 window.BATTLE_FX_CUES = {
   "move:はたく": {
     "dur": 1380,
@@ -105,7 +105,7 @@ window.BATTLE_FX_CUES = {
             "x": -4,
             "y": 21
           },
-          "scale": 100
+          "scale": 2
         }
       },
       {
