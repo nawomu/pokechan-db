@@ -1501,9 +1501,53 @@ function updatePlayheadHeight(){
   el.style.top = '0px';
   el.style.height = (ruler.offsetHeight + rowsEl.offsetHeight) + 'px';
 }
+// =====================================================================
+// タイムラインスクラブ(段階A・スナップショット簡易版。設計_ツクール強化_炎サイズ配線とスクラブ_
+// 2026-07-15.md §3-1)。ルーラーをドラッグした時刻までのキューを盤面へ同期dispatchし、「その瞬間の絵」
+// を見せる(紙芝居感=不満B対策)。限界(設計書記載・承知の上): 進行中cue(t<target<t+dur)の途中状態は
+// 出ない(未発火 or 最終状態のまま)=段階B(WAAPI currentTimeシーク)で初めて解決する。
+// fx_primitives.jsには一切触れない(本番無風・絶対条件)。
+// =====================================================================
+// scrubToTime: 盤面を毎回リセット(resetPreviewPositions=既存の周回頭リセット処理をそのまま流用)して
+// から、t<=targetMsのキューをt昇順で同期dispatchする。毎回フルリセットしてから引き直すので、往復して
+// も残留要素が増殖しない(要件4)。
+// スキップするトラック:
+//  - sound: スクラブ中に鳴らすとドラッグのたびビビビと不快(設計書の明記どおり)。
+//  - screen/shake: fieldShakeは持続・減衰モデル(rAF駆動)でスナップショットと相性が悪く、スクラブでは
+//    違和感が出るためスキップ(揺れの確認は従来どおり▶再生で)。
+function scrubToTime(targetMs){
+  if (!currentSheet) return;
+  resetPreviewPositions();
+  const mv = currentMv;
+  const isScene = mv && mv.isScene;
+  const sceneCtx = isScene ? { side: mv.sceneSide || 'self', won: mv.sceneWon } : null;
+  const cues = (currentSheet.cues || [])
+    .filter(c => c.t <= targetMs)
+    .slice()
+    .sort((a, b) => a.t - b.t);
+  cues.forEach(cue => {
+    if (cue.track === 'sound') return;
+    if (cue.track === 'screen' && cue.action === 'shake') return;
+    if (isScene) _dispatchSceneCueProd(cue, sceneCtx); else dispatchCue(cue, mv);
+  });
+}
+// ドラッグ中の間引き: mousemoveのたびにフルdispatchすると重い(+視覚的にもチラつく)ので、rAF1回に
+// つき最大1回だけ再描画する。連続するmousemoveは最新の狙い時刻だけを覚えておき、直前のrAFが未実行
+// ならそのまま待たせる(取りこぼし無し=次のrAFで最新値を使う)。
+let _scrubRAF = null;
+let _scrubPendingMs = null;
+function scrubToTimeThrottled(targetMs){
+  _scrubPendingMs = targetMs;
+  if (_scrubRAF != null) return;
+  _scrubRAF = requestAnimationFrame(() => {
+    _scrubRAF = null;
+    if (_scrubPendingMs != null) scrubToTime(_scrubPendingMs);
+  });
+}
 // ルーラー操作=クリックとドラッグを1つのmousedownで判定(設計1-1ヘッダに明記した挙動+阿部さんFB追加分)
 // - クリック(移動量<4px): 従来通りその時刻から再生ループ開始
 // - ドラッグ(移動量>=4px): 再生ヘッドを追従させ、離した位置で一時停止のまま留める(再生は自動開始しない)
+//   ドラッグ中は盤面もscrubToTimeThrottledで追従させる(阿部さんFB2026-07-15=紙芝居感の解消)。
 function tlRulerMsFromClientX(clientX){
   const rect = $('tl-ruler').getBoundingClientRect();
   return Math.max(0, Math.min(computeSheetDur(currentSheet), (clientX - rect.left) / PX_PER_MS));
@@ -1528,7 +1572,9 @@ $('tl-ruler').addEventListener('mousedown', ev => {
       }
     }
     if (moved){
-      setPlayheadPos(tlRulerMsFromClientX(mv.clientX));
+      const ms = tlRulerMsFromClientX(mv.clientX);
+      setPlayheadPos(ms);
+      scrubToTimeThrottled(ms);
     }
   }
   function onUp(up){
@@ -1544,8 +1590,13 @@ $('tl-ruler').addEventListener('mousedown', ev => {
       playState.playing = true;
       updatePlayButtons();
       scheduleRound(ms);
+    } else {
+      // ドラッグ確定=その位置に留めて一時停止のまま(自動再生しない)。rAF間引きの取りこぼし防止に、
+      // 離した瞬間の時刻で最終スナップショットを確実に反映する(保留中のrAFはキャンセルして二重描画を防ぐ)。
+      if (_scrubRAF != null){ cancelAnimationFrame(_scrubRAF); _scrubRAF = null; }
+      _scrubPendingMs = null;
+      scrubToTime(tlRulerMsFromClientX(up.clientX));
     }
-    // moved===true の場合はドラッグ確定=その位置に留めて一時停止のまま(自動再生しない)
   }
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
