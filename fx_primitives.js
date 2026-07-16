@@ -160,8 +160,9 @@ function spawnBurstRing(f, color, scale, sizeScale){
 // 形状(shape)別グリフ(タスクC 2026-07-11・設計_技エフェクト対応表_2026-07-11.md)。
 // blade=斬線2本ずらし(既存流用) / drill=回転縞ディスク / psi・dragon=渦スパイラル(色違い) /
 // dust=土煙+地割れ / explosion=だいばくはつ/じばく専用の閃光+爆風(dust流用でなく専用形状=阿部さん承認) /
+// fang=白い鋭い牙2本(2026-07-16 阿部さんFB=人間の歯🦷でなく狼/サメ型の牙の専用CSS) /
 // orb・sand=絵文字なし(burstFx既存の球+粒子+リングそのままで足りる=専用グリフは追加しない) /
-// それ以外(fist/foot/fang/note/heart/star/skull/gear/ice/web/leaf/seed/feather/gust/water/flame/spark/rock/sting)
+// それ以外(fist/foot/palm/note/heart/star/skull/gear/ice/web/leaf/seed/feather/gust/water/flame/spark/rock/sting)
 // =絵文字ポップ(_SHAPE_ICON)
 // scale(阿部さんFB2026-07-11 §10): 省略時=1=従来どおり(real_battle/online_battleからの直呼び出しは無し=
 // burstFx経由のみだが念のため同じ既定値パターンで統一)。指定時は各shapeのCSSアニメ(既定値をコメントに明記)と
@@ -225,6 +226,16 @@ function spawnBurstGlyph(f, shape, scale, sizeScale){
     }
     return;
   }
+  if (shape === 'fang'){
+    // fang: 白い鋭い牙2本(2026-07-16 阿部さんFB=人間の歯🦷から狼/サメ型の牙へ差し替え)
+    const el = document.createElement('div');
+    el.className = 'rb-burstglyph-fang';
+    if (scale !== 1) el.style.animationDuration = Math.round(280 * scale) + 'ms';   // CSS既定rbGlyphFang .28s
+    if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
+    f.appendChild(el);
+    _fxAutoRemove(el, Math.round(300 * scale));
+    return;
+  }
   if (shape === 'orb' || shape === 'sand') return;   // burstFx本体(球+粒子+リング)で十分=専用グリフ無し
   const icon = _SHAPE_ICON[shape];
   if (icon){
@@ -279,8 +290,10 @@ function shapeOf(mv){
 }
 // shape別アイコン(絵文字)。blade/orb/sand/dust/explosion/drillは絵文字を持たず専用css(spawnBurstGlyph/spawnProjectile/spawnBeam側で分岐)。
 // psi/dragon/beamは既定でビーム描画(_RB_BEAM_SHAPES)になるためここのアイコンは主に接触技着弾popText用のフォールバック。
+// fang: 保険用(spawnBurstGlyphのcustom分岐でrb-burstglyph-fangに差し替え済み=通常はここに来ない)。
+// palm(2026-07-16・はたく/はたきおとす/スイープビンタ=平手): 拳👊と区別する絵文字✋。
 const _SHAPE_ICON = {
-  fist:'👊', foot:'🦵', fang:'🦷', note:'🎵', heart:'💗', star:'⭐', skull:'💀', gear:'⚙️',
+  fist:'👊', foot:'🦵', fang:'🦷', palm:'✋', note:'🎵', heart:'💗', star:'⭐', skull:'💀', gear:'⚙️',
   ice:'❄️', web:'🕸️', leaf:'🍃', seed:'🌰', feather:'🪶', gust:'🌀', water:'💧', flame:'🔥',
   spark:'⚡', rock:'🪨', sting:'🪡', blade:'⚔️', psi:'🔮', dragon:'🐉', beam:'✨',
 };
