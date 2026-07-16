@@ -297,7 +297,11 @@ function fxPoint(side){
   const r = sp.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height * 0.5 };
 }
-function spawnProjectile(from, to, cls, color, hitFrac, shape){
+// durMs(2026-07-16 阿部さん「フレアドライブ基準を全技デフォルトに・ビーム/飛翔の発射→着弾を長くしたい」):
+// 末尾省略可能引数。省略時=undefined=従来どおり190固定(real_battle/online_battleのattackFxAuto経由=
+// 直呼び出し箇所は引数を増やしていないので1msも変わらない)。指定時のみ内部durを上書き(clamp 60〜2000ms=
+// 極端値で演出が壊れる/凍りつくのを防ぐ)。呼び出し元=_dispatchCueProd(cue.durをキューシートから渡す)。
+function spawnProjectile(from, to, cls, color, hitFrac, shape, durMs){
   if (window.__fxTrace) window.__fxTrace.push({k:'spawnProjectile', cls, shape, t: performance.now()});
   const el = document.createElement('div');
   const isDot = shape ? _RB_PROJ_DOT_SHAPES[shape] : _RB_CLS_DOT[cls];
@@ -309,7 +313,7 @@ function spawnProjectile(from, to, cls, color, hitFrac, shape){
   el.style.top = from.y + 'px';
   document.body.appendChild(el);
   const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
-  const dur = 190;
+  const dur = durMs != null ? Math.min(2000, Math.max(60, durMs)) : 190;
   try {
     const anim = el.animate([
       { transform: 'translate(-50%,-50%) scale(.5)', opacity: 0 },
@@ -321,7 +325,8 @@ function spawnProjectile(from, to, cls, color, hitFrac, shape){
   _fxAutoRemove(el, dur + 80);
   return dur;
 }
-function spawnBeam(from, to, cls, color, hitFrac, shape){
+// durMs: spawnProjectileと同じ契約(省略時=undefined=従来180固定・指定時のみclamp 60〜2000で上書き)。
+function spawnBeam(from, to, cls, color, hitFrac, shape, durMs){
   if (window.__fxTrace) window.__fxTrace.push({k:'spawnBeam', cls, shape, t: performance.now()});
   const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
   const dist = Math.hypot(dx, dy);
@@ -334,7 +339,7 @@ function spawnBeam(from, to, cls, color, hitFrac, shape){
   el.style.top = from.y + 'px';
   el.style.transform = `rotate(${ang}deg)`;
   document.body.appendChild(el);
-  const dur = 180;
+  const dur = durMs != null ? Math.min(2000, Math.max(60, durMs)) : 180;
   try {
     const anim = el.animate([
       { width: '0px', opacity: 0.95 },
@@ -824,8 +829,9 @@ function resolveCueSheet(mv){
   const byPattern = map['pattern:' + mv.type + mv.category];
   if (byPattern && byPattern.done === true) return byPattern;
   // class:(タイプ非依存の大分類の共通デフォルト・2026-07-16 阿部さん「全物理技をフレアドライブ基準で統一」)。
-  // 今は「物理・接触=殴ってぶつかる系」のみ(atk=charge突進が正しい技クラス)。飛翔の物理非接触・ビームの
-  // 特殊は演出手段(projectile/beam)が違うので別class(ステップ2で追加予定)。move:個別上書きが最優先。
+  // 「物理・接触=殴ってぶつかる系」(atk=charge突進)/「物理・非接触=飛翔体」(atk=projectile)/
+  // 「特殊=ビーム」(atk=beam)の3class(ステップ2で phys_ranged/special を追加・2026-07-16)。
+  // 変化技等は対象外(class無し=フォールバック無し=従来の自動演出のまま)。move:個別上書きが最優先。
   const clsKey = _cueClassKey(mv);
   if (clsKey){
     const byClass = map['class:' + clsKey];
@@ -833,10 +839,11 @@ function resolveCueSheet(mv){
   }
   return null;
 }
-// 技→大分類キー(class:の後半)。物理・接触のみ 'phys_contact' を返す(それ以外は空=classフォールバック無し)。
-// ステップ2で 'phys_ranged'(物理非接触=飛翔)/'special'(特殊=ビーム)を足す想定。
+// 技→大分類キー(class:の後半)。物理・接触='phys_contact'/物理・非接触='phys_ranged'/特殊='special'。
+// それ以外(変化技等)は空文字=classフォールバック無し。
 function _cueClassKey(mv){
-  if (mv.category === '物理' && mv.contact === true) return 'phys_contact';
+  if (mv.category === '物理') return mv.contact === true ? 'phys_contact' : 'phys_ranged';
+  if (mv.category === '特殊') return 'special';
   return '';
 }
 // キューシートの「着弾拍」= 従来のattackFx/chargeFxが返していた_hitFxDelay相当(ms)。atk(突進/飛翔)以外の
@@ -952,8 +959,10 @@ function _dispatchCueProd(cue, info){
   const atSide = (p.at === 'self') ? info.atkSide : info.tgtSide;
   try {
     if (cue.track === 'atk'){
-      if (cue.action === 'projectile') spawnProjectile(fxPoint(info.atkSide), fxPoint(info.tgtSide), cls, color, 1, shape);
-      else if (cue.action === 'beam') spawnBeam(fxPoint(info.atkSide), fxPoint(info.tgtSide), cls, color, 1, shape);
+      // cue.dur(2026-07-16 阿部さん): キューシートにdurがあれば発射→着弾の飛翔尺として渡す
+      // (spawnProjectile/spawnBeamの末尾省略可能引数。無ければundefinedのまま渡り従来どおり190/180固定)。
+      if (cue.action === 'projectile') spawnProjectile(fxPoint(info.atkSide), fxPoint(info.tgtSide), cls, color, 1, shape, cue.dur);
+      else if (cue.action === 'beam') spawnBeam(fxPoint(info.atkSide), fxPoint(info.tgtSide), cls, color, 1, shape, cue.dur);
       else if (cue.action === 'charge') _cueChargeMotionProd(info.atkSide, info.tgtSide, cue.dur, p);
     } else if (cue.track === 'glyph' && cue.action === 'burst'){
       // sizeScale(2026-07-15・設計_ツクール強化_炎サイズ配線とスクラブ_2026-07-15.md §2-1): 見た目倍率。

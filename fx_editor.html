@@ -12,7 +12,7 @@
 -->
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
-<script src="fx_primitives.js?v=20260716b"></script>
+<script src="fx_primitives.js?v=20260716c"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <style>
 /* ===================================================================
@@ -1125,7 +1125,11 @@ function renderInspector(){
   const isScene = !!currentMv.isScene;
   html += `<div class="insp-section-title">選択中: ${cue.track} / ${cue.action}</div>`;
   html += fieldNum('t', 't (開始ms)', cue.t, 0);
-  html += fieldNum('dur', 'dur (長さms)', cue.dur, 20);
+  // atk projectile/beamのdurは「発射→着弾の時間」そのもの(2026-07-16 阿部さん・spawnProjectile/spawnBeamの
+  // durMs可変対応とセット)。他トラックのdurと役割が違うので、ここだけラベルを分けて誤解を防ぐ。
+  const durLabel = (cue.track === 'atk' && (cue.action === 'projectile' || cue.action === 'beam'))
+    ? 'dur (発射→着弾の時間ms)' : 'dur (長さms)';
+  html += fieldNum('dur', durLabel, cue.dur, 20);
   // shape/cls/at/offsetは「技(move/pattern)」のatk・glyph(burst)キュー専用のパラメータ。
   // シーンのglyph(pillar/orbs/silhouette/climax/dna)やdef(flash/gone等)は別の語彙(下のSE名選択等)を
   // 使うため、技コンテキストの時だけ出す(阿部さんに"効かない欄"を見せない=編集画面の意味を合わせる)。
@@ -1585,8 +1589,10 @@ function _scrubCueSpan(cue){
   }
   if (cue.track === 'glyph' && cue.action === 'burst') return (cue.dur || 650) + 150;   // 粒子ランダム上振れ+2重リング遅延ぶんの余韻
   if (cue.track === 'atk' && cue.action === 'charge') return (cue.dur || 230) + 60;
-  if (cue.track === 'atk' && cue.action === 'projectile') return 190 + 90;   // spawnProjectileの固定dur(fx_primitives.js)
-  if (cue.track === 'atk' && cue.action === 'beam') return 180 + 90;         // spawnBeamの固定dur(fx_primitives.js)
+  // 2026-07-16(阿部さん・ビーム/飛翔の発射→着弾を可変に): cue.dur指定時はそれが実飛翔尺になる
+  // (spawnProjectile/spawnBeamのdurMs引数)。省略時のみ従来の固定190/180にフォールバック。
+  if (cue.track === 'atk' && cue.action === 'projectile') return (cue.dur != null ? cue.dur : 190) + 90;
+  if (cue.track === 'atk' && cue.action === 'beam') return (cue.dur != null ? cue.dur : 180) + 90;
   if (cue.track === 'def' && cue.action === 'knockback') return 280 + 60;
   if (cue.track === 'def' && cue.action === 'hitreact') return 800;   // flash()の800ms自動解除(既知の罠)に合わせる
   return (cue.dur || 300) + 150;   // それ以外(シーン演出等)は既定の余韻つきフォールバック

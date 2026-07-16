@@ -4,7 +4,7 @@
 // real_battle.html / online_battle.html の resolveCueSheet/playCueSheet(fx_primitives.js)が読む。
 // キー = move:技名(個別上書き) / pattern:タイプ+分類(一括既定) / __board(エディタの立ち位置・本番では無視)。
 // done===true のシートだけ本番で再生される(ドラフト中は従来の自動演出のまま=挙動不変)。
-// 生成: 2026-07-16T04:04:04.621Z
+// 生成: 2026-07-16T04:12:15.687Z
 window.BATTLE_FX_CUES = {
   "move:フレアドライブ": {
     "dur": 2270,
@@ -124,6 +124,162 @@ window.BATTLE_FX_CUES = {
         "dur": 100,
         "params": {
           "cls": "phys"
+        }
+      },
+      {
+        "id": "c4",
+        "track": "screen",
+        "action": "shake",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "mag": 1
+        }
+      },
+      {
+        "id": "c5",
+        "track": "def",
+        "action": "knockback",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "at": "opp"
+        }
+      },
+      {
+        "id": "c6",
+        "track": "text",
+        "action": "popnum",
+        "t": 600,
+        "dur": 1550,
+        "params": {
+          "at": "opp",
+          "text": "−42",
+          "scale": 1,
+          "size": 25,
+          "rise": 20,
+          "fadeMs": 2000
+        }
+      }
+    ]
+  },
+  "class:phys_ranged": {
+    "dur": 2270,
+    "done": true,
+    "_note": "物理・非接触(飛翔体で殴る系。例=いわおとし)の全技共通デフォルト(2026-07-16 阿部さん「フレアドライブ基準を全技のデフォルトにしたい」)。burst/sound/screen/def/popnumのタイミング枠はclass:phys_contactと同一(着弾拍=t350/burst t550/popnum t600)。atkだけprojectile(発射→着弾=t0 dur550でburstのt550に着弾が合うように)。shapeはあえて持たずshapeOf(mv)が技ごとの絵を出す。clsは接触系と同じ'phys'固定(汎用の物理ヒット音)。resolveCueSheetの3段目(move:→pattern:→class:)。move:個別上書きが優先。",
+    "cues": [
+      {
+        "id": "c1",
+        "track": "atk",
+        "action": "projectile",
+        "t": 0,
+        "dur": 550,
+        "params": {
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c2",
+        "track": "glyph",
+        "action": "burst",
+        "t": 550,
+        "dur": 1600,
+        "params": {
+          "intensity": "normal",
+          "at": "opp",
+          "offset": {
+            "x": -9,
+            "y": 24
+          },
+          "scale": 2
+        }
+      },
+      {
+        "id": "c3",
+        "track": "sound",
+        "action": "se",
+        "t": 350,
+        "dur": 100,
+        "params": {
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c4",
+        "track": "screen",
+        "action": "shake",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "mag": 1
+        }
+      },
+      {
+        "id": "c5",
+        "track": "def",
+        "action": "knockback",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "at": "opp"
+        }
+      },
+      {
+        "id": "c6",
+        "track": "text",
+        "action": "popnum",
+        "t": 600,
+        "dur": 1550,
+        "params": {
+          "at": "opp",
+          "text": "−42",
+          "scale": 1,
+          "size": 25,
+          "rise": 20,
+          "fadeMs": 2000
+        }
+      }
+    ]
+  },
+  "class:special": {
+    "dur": 2270,
+    "done": true,
+    "_note": "特殊(ビームで撃つ系。例=10まんボルト)の全技共通デフォルト(2026-07-16 阿部さん「特殊技はビームの発射→着弾の時間が固定で変えられない。これを長くできるようにしたい」)。burst/sound/screen/def/popnumのタイミング枠はclass:phys_contactと同一。atkだけbeam(発射→着弾=t0 dur550でburstのt550に着弾が合うように・阿部さんが後でエディタのdur欄で伸ばせる=spawnBeamのdurMs可変対応とセット)。shapeはあえて持たずshapeOf(mv)が技ごとの絵(でんき→spark等)を出す。clsは'spec'固定(soundフラグ技のhitClassも含め、class:の汎用デフォルト段ではmoveClassOfの個別flagに寄せずphys_contactと同じ考え方で固定=一括既定の一貫性)。resolveCueSheetの3段目(move:→pattern:→class:)。move:/pattern:個別上書きが優先。",
+    "cues": [
+      {
+        "id": "c1",
+        "track": "atk",
+        "action": "beam",
+        "t": 0,
+        "dur": 550,
+        "params": {
+          "cls": "spec"
+        }
+      },
+      {
+        "id": "c2",
+        "track": "glyph",
+        "action": "burst",
+        "t": 550,
+        "dur": 1600,
+        "params": {
+          "intensity": "normal",
+          "at": "opp",
+          "offset": {
+            "x": -9,
+            "y": 24
+          },
+          "scale": 2
+        }
+      },
+      {
+        "id": "c3",
+        "track": "sound",
+        "action": "se",
+        "t": 350,
+        "dur": 100,
+        "params": {
+          "cls": "spec"
         }
       },
       {
