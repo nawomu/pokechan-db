@@ -486,11 +486,18 @@
     { id: 'withdrew', re: /^((?:相手の )?\S+) は 引っ込んだ！$/, slots: { p: { g: 1, kind: 'poke' } } },
     { id: 'switch_voluntary', re: /^((?:相手の )?\S+) は 引っ込んだ！ ((?:相手の )?\S+) が 場に出た！$/, slots: { out: { g: 1, kind: 'poke' }, 'in': { g: 2, kind: 'poke' } } },
     { id: 'no_target', re: /^((?:相手の )?\S+) の (\S+)！ しかし あいてが いなかった…$/, slots: { p: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
-    { id: 'turn_first', re: /^先攻: ((?:相手の )?\S+)$/, slots: { p: { g: 1, kind: 'poke' } } },
+    // ★2026-07-16修正: \S+ は全角括弧も飲み込むため、turn_first_prio/fast/tie/bl_245(いずれも
+    // "先攻: X（…）"形式)より先にこの汎用パターンが誤マッチし、括弧の中身ごと1つのポケモン名として
+    // 扱われて先制技/すばやさ内訳が翻訳されないまま残る不具合があった。「（」を除外して住み分ける。
+    { id: 'turn_first', re: /^先攻: ((?:相手の )?[^\s（]+)$/, slots: { p: { g: 1, kind: 'poke' } } },
     { id: 'turn_first_prio', re: /^先攻: ((?:相手の )?\S+)（先制技）$/, slots: { p: { g: 1, kind: 'poke' } } },
     { id: 'turn_first_fast', re: /^先攻: ((?:相手の )?\S+)（すばやさが速い\((\d+) > (\d+)\)ため）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' }, b: { g: 3, kind: 'num' } } },
     { id: 'turn_first_tie', re: /^先攻: ((?:相手の )?\S+)（すばやさ同値\((\d+)\)・ランダムで）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' } } },
     { id: 'statmove_used', re: /^((?:相手の )?\S+) は (\S+) を使った！ \(変化技は MVP では効果未実装\)$/, slots: { p: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
+    // ★2026-07-16追加: real_battle_simulator.htmlの変化技使用行はMVP注記なしの
+    // 「X は Y を使った！」で出力される(旧statmove_usedのサフィックス無し版)。
+    // このパターンが無かったため未翻訳(ja残留)になっていた。used_moveと同じ訳文(TPL共有)。
+    { id: 'used_move', re: /^((?:相手の )?\S+) は (\S+) を使った！$/, slots: { atk: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
     { id: 'stat_rose', re: /^((?:相手の )?\S+) の (.+?) ランクが ([+-]?\d+) あがった！$/, slots: { p: { g: 1, kind: 'poke' }, stat: { g: 2, kind: 'stat' }, n: { g: 3, kind: 'raw' } } },
     { id: 'stat_fell', re: /^((?:相手の )?\S+) の (.+?) ランクが ([+-]?\d+) さがった！$/, slots: { p: { g: 1, kind: 'poke' }, stat: { g: 2, kind: 'stat' }, n: { g: 3, kind: 'raw' } } },
     { id: 'stat_max', re: /^((?:相手の )?\S+) の (.+?) ランクが 最大まであがった！$/, slots: { p: { g: 1, kind: 'poke' }, stat: { g: 2, kind: 'stat' } } },
