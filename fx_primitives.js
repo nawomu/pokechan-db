@@ -751,6 +751,38 @@ function setWeatherFx(kind){
   el.classList.add('live');
   $('field').style.boxShadow = `inset 0 0 80px 20px ${tint}`;
 }
+// ===== 変化技演出Phase1(2026-07-16・設計_変化技演出_2026-07-16.md §2): フィールド(グラス/エレキ/
+// サイコ/ミストフィールド)の地面演出。setWeatherFxと同じライフサイクル(持続=null解除まで出っぱなし)。
+// #field内の#terrain-fx(盤面下半分の帯オーバーレイ)にkind別のCSS背景(グラデ・setWeatherFxの
+// boxShadow相当)を乗せ、種類に応じた粒(葉っぱ/スパーク/紫の煙/白ピンクの霧)をsetIntervalで地面から
+// 生やし続ける(_fxAutoRemoveで自然消滅=chargeクローン等と同じ後始末パターン)。
+// kind: 'grass'|'electric'|'psychic'|'misty'|null(解除)。
+const _TERRAIN_FX = { grass: 1, electric: 1, psychic: 1, misty: 1 };
+let _terrainFxInterval = null;
+function setTerrainFx(kind){
+  if (window.__fxTrace) window.__fxTrace.push({k:'setTerrainFx', kind, t: performance.now()});
+  const el = $('terrain-fx');
+  if (!el) return;
+  if (_terrainFxInterval){ clearInterval(_terrainFxInterval); _terrainFxInterval = null; }
+  if (!kind || !_TERRAIN_FX[kind]){
+    el.classList.remove('live');
+    delete el.dataset.terrain;
+    el.querySelectorAll('.rb-terrainp').forEach(p => p.remove());
+    return;
+  }
+  el.classList.add('live');
+  el.dataset.terrain = kind;
+  const spawn = () => {
+    const p = document.createElement('div');
+    p.className = 'rb-terrainp rb-terrainp-' + kind;
+    if (kind === 'grass') p.textContent = '🍃';
+    p.style.left = (8 + Math.random() * 84) + '%';
+    el.appendChild(p);
+    _fxAutoRemove(p, 1700);
+  };
+  spawn();
+  _terrainFxInterval = setInterval(spawn, kind === 'misty' ? 1400 : 650);
+}
 // S6: 背景プリセット切替 ---------------------------------------------------
 // setBackdrop(preset): #field-backdrop の data-preset 属性を切り替えるだけ。
 // CSSが data-preset 値に応じて背景グラデを適用(将来の追加はCSS1プリセット+option1行)。
@@ -995,8 +1027,23 @@ function _dispatchCueProd(cue, info){
       const sizeScale = p.scale != null ? Math.min(6, Math.max(0.1, p.scale)) : 1;
       const particles = p.particles != null ? Math.min(24, Math.max(0, p.particles)) : undefined;
       burstFx(atSide, color, shape, p.intensity || 'normal', cue.dur, sizeScale, p.offset, particles);
+    } else if (cue.track === 'glyph' && cue.action === 'rank'){
+      // 変化技演出Phase1(2026-07-16): 能力ランク変化(つるぎのまい等)。up省略時=true(上昇)扱い=
+      // 未指定でも矢印だけは出る安全側デフォルト(自動生成は必ずup/stageを明示するので実運用では常に指定される)。
+      rankFx(atSide, p.up !== false, Math.min(3, Math.max(1, p.stage || 1)));
+    } else if (cue.track === 'glyph' && cue.action === 'sparkle'){
+      sparkleFx(atSide);   // 変化技演出Phase1: 回復(じこさいせい等)のキラキラ
+    } else if (cue.track === 'glyph' && cue.action === 'wall'){
+      // 変化技演出Phase1: 壁設置(リフレクター/ひかりのかべ/オーロラベール)。show省略時=true(張る)。
+      if (p.show !== false) showWallFx(atSide, p.name); else hideWallFx(atSide, p.name);
+    } else if (cue.track === 'glyph' && cue.action === 'terrain'){
+      setTerrainFx(p.kind || null);   // 変化技演出Phase1: フィールド展開(グラス/エレキ/サイコ/ミスト)
+    } else if (cue.track === 'glyph' && cue.action === 'weather'){
+      setWeatherFx(p.kind || null);   // 変化技演出Phase1: 天候変化(あまごい等)。scene側と同形をmove側にも
     } else if (cue.track === 'sound' && cue.action === 'se'){
-      SE.hitClass(cls);
+      // 変化技演出Phase1: p.nameがあればSE[name]()(scene側_dispatchSceneCueProdと同形=rankUp/rankDown等の
+      // 専用SEを鳴らせる)。p.name無し=従来どおりSE.hitClass(cls)(攻撃技の後方互換=1msも変えない)。
+      if ('name' in p){ if (SE[p.name]) SE[p.name](); } else SE.hitClass(cls);
     } else if (cue.track === 'screen' && cue.action === 'shake'){
       _cueSustainedFieldShake(p.mag != null ? p.mag : 1, cue.dur, info.shouldContinue);
     } else if (cue.track === 'def'){

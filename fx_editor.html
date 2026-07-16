@@ -12,7 +12,7 @@
 -->
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
-<script src="fx_primitives.js?v=20260716e"></script>
+<script src="fx_primitives.js?v=20260716f"></script>
 <!-- 本番のclass:テンプレ(全技デフォルト演出)を読む=エディタの自動生成がそこから複製する(2026-07-16 阿部さん・エディタと本番の見た目を一致させる) -->
 <script src="battle_fx_cues.js?v=20260716c"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
@@ -266,6 +266,23 @@ h1,h2,h3{margin:0}
 #weather-fx{position:absolute;inset:0;z-index:1;pointer-events:none;opacity:.22;font-size:34px;letter-spacing:18px;line-height:1.3;text-align:center}
 @keyframes rbWeather{0%{transform:translateY(-8px)}100%{transform:translateY(8px)}}
 #weather-fx.live{animation:rbWeather 2.2s ease-in-out infinite alternate}
+/* 変化技演出Phase1(2026-07-16・設計_変化技演出_2026-07-16.md §2): フィールド(グラス/エレキ/サイコ/
+   ミストフィールド)の地面演出。fx_primitives.jsのsetTerrainFxが操作(#weather-fxと同じ持続ライフサイクル)。*/
+#terrain-fx{position:absolute;left:0;right:0;bottom:0;height:46%;z-index:1;pointer-events:none;opacity:0;transition:opacity .35s;overflow:hidden}
+#terrain-fx.live{opacity:1}
+#terrain-fx[data-terrain="grass"]{background:linear-gradient(to top,rgba(74,222,128,.34),transparent 88%)}
+#terrain-fx[data-terrain="electric"]{background:linear-gradient(to top,rgba(250,204,21,.3),transparent 88%)}
+#terrain-fx[data-terrain="psychic"]{background:radial-gradient(ellipse at 50% 100%,rgba(168,85,247,.55),transparent 75%)}
+#terrain-fx[data-terrain="misty"]{background:radial-gradient(ellipse at 50% 100%,rgba(244,114,182,.4),rgba(255,255,255,.3) 55%,transparent 85%)}
+.rb-terrainp{position:absolute;bottom:2%;pointer-events:none}
+.rb-terrainp-grass{font-size:24px;line-height:1;filter:drop-shadow(0 0 4px rgba(74,222,128,.9));animation:rbTerrainRise 1.5s ease-out forwards}
+.rb-terrainp-electric{width:22px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#fde047,transparent);box-shadow:0 0 6px 1px #fde047;animation:rbTerrainSpark .6s ease-out forwards}
+.rb-terrainp-psychic{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle,rgba(216,180,254,.95),transparent 70%);animation:rbTerrainSmoke 1.6s ease-out forwards}
+.rb-terrainp-misty{width:52px;height:18px;border-radius:50%;background:rgba(255,255,255,.65);filter:blur(2px);animation:rbTerrainDrift 1.8s ease-in-out forwards}
+@keyframes rbTerrainRise{0%{transform:translateY(0) scale(.7);opacity:0}15%{opacity:1}100%{transform:translateY(-80px) scale(1);opacity:0}}
+@keyframes rbTerrainSpark{0%{transform:translateX(0) scaleX(.3);opacity:0}25%{opacity:1}100%{transform:translateX(50px) scaleX(1.4);opacity:0}}
+@keyframes rbTerrainSmoke{0%{transform:translateY(0) scale(.5);opacity:0}20%{opacity:.9}100%{transform:translateY(-70px) scale(1.6);opacity:0}}
+@keyframes rbTerrainDrift{0%{transform:translateX(-20px);opacity:0}20%{opacity:.8}100%{transform:translateX(60px);opacity:0}}
 #result-banner{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;pointer-events:none}
 #result-banner.show{display:flex}
 #result-banner .rb-txt{font-size:64px;font-weight:900;font-style:italic;letter-spacing:2px;color:#fff;
@@ -408,6 +425,7 @@ h1,h2,h3{margin:0}
           <option value="">分類:すべて</option>
           <option value="物理">物理</option>
           <option value="特殊">特殊</option>
+          <option value="変化">変化</option>
         </select>
       </div>
       <select id="f-status">
@@ -433,6 +451,7 @@ h1,h2,h3{margin:0}
       <div id="field">
         <div id="fx-editor-ko-darken"></div>
         <div id="weather-fx"></div>
+        <div id="terrain-fx"></div>
         <div id="fx-flash"></div>
         <div id="result-banner"></div>
         <div class="pbox" id="pb-opp">
@@ -503,9 +522,27 @@ const $ = id => document.getElementById(id);
 const S = { typeColors: () => TYPE_COLORS };
 
 // ---- SE スタブ: fx_primitives.jsが実際に参照するのは SE.hitClass(cls) と SE.miss() のみ
-// (attackFx/chargeFx内)。WebAudioの短いビープで最小実装。落ちないようtry/catchで保険。 ----
+// (attackFx/chargeFx内)。WebAudioの短いビープで最小実装。落ちないようtry/catchで保険。
+// rankUp/rankDown(2026-07-16・変化技演出Phase1): _dispatchCueProdのsound/se{name}拡張で呼ばれる
+// (glyph/rankの自動生成が付随させるSE)。本番SE.rankUp/rankDownの上昇/下降スイープ音を単純ビープで近似。----
 let _actxCache = null;
 function _actx(){ return _actxCache || (_actxCache = new (window.AudioContext || window.webkitAudioContext)()); }
+// ac()/tone()(2026-07-16・変化技演出Phase1): fx_primitives.jsのshowWallFx/hideWallFxが直接呼ぶ
+// real_battle.html/online_battle.html本番グローバル(ac()/tone())をエディタにも最小実装する。
+// 壁パネル(リフレクター等)cueを初めて配線したことで露見(引数契約=type/freq/dur/vol/slideTo/whenは本番と同じ)。
+function ac(){ return _actx(); }
+function tone(type, freq, dur, vol, slideTo, when){
+  try{
+    const ctx = ac(), t = when != null ? when : ctx.currentTime;
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, t);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(Math.max(20, slideTo), t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(ctx.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }catch(e){ console.log('[toneスタブ・無音フォールバック]', type, freq); }
+}
 function _beep(freq, dur, vol){
   try{
     const ctx = _actx();
@@ -524,12 +561,17 @@ const SE = {
   hit(){ _beep(300, 0.1, 0.12); },
   status(){ _beep(360, 0.1, 0.12); },
   enter(){ _beep(392, 0.08, 0.1); },
+  rankUp(){ _beep(700, 0.16, 0.13); },
+  rankDown(){ _beep(280, 0.18, 0.13); },
 };
 
 // =====================================================================
 // データ準備
 // =====================================================================
-const ALL_MOVES = Object.values(WAZA_MAP).filter(m => m.category === '物理' || m.category === '特殊');
+// 変化技演出Phase1(2026-07-16・設計_変化技演出_2026-07-16.md §2-1): 変化技172技をリストに解禁。
+// CAT_LIST(下)は「適正(36)」パターンタブ生成専用(タイプ×物理/特殊のclass:テンプレしか無い)なので
+// 変化は加えない=技リストの絞り込み(f-cat)だけに変化を追加する。
+const ALL_MOVES = Object.values(WAZA_MAP).filter(m => m.category === '物理' || m.category === '特殊' || m.category === '変化');
 ALL_MOVES.sort((a, b) => a.name.localeCompare(b.name, 'ja'));
 const TYPE_LIST = Object.keys(TYPE_COLORS);
 const CAT_LIST = ['物理', '特殊'];
@@ -539,7 +581,8 @@ const SHAPE_VOCAB = ['fist','foot','fang','palm','note','heart','star','skull','
 const CLS_VOCAB = ['phys','spec','punch','slash','bullet','wind','bite','kick','sound','wave'];
 // SEの名前(scene:*のsoundトラックが使うSEスタブ名。fx_primitives.jsの_dispatchSceneCueProdが
 // SE[p.name]()で呼ぶ。上のスタブSEオブジェクト(このファイル冒頭)が実装済みの名前だけを候補にする)
-const SE_NAME_VOCAB = ['enter', 'miss', 'hit', 'status'];
+// rankUp/rankDown(2026-07-16・変化技演出Phase1): 変化技のsound/se{name}(glyph/rankの自動生成が付随させる)。
+const SE_NAME_VOCAB = ['enter', 'miss', 'hit', 'status', 'rankUp', 'rankDown'];
 
 // =====================================================================
 // シーン(演出ツクール v2.1・2026-07-11「シーン対応」)。設計1-4のバトル進行順に並べる。
@@ -586,7 +629,62 @@ function autoCuesForMove(mv){
     });
     return { dur: computeSheetDur({ cues }), cues };
   }
+  // 変化技演出Phase1(2026-07-16・設計_変化技演出_2026-07-16.md §2-4): clsKeyが空=変化技(物理/特殊の
+  // class:テンプレが無い技)は、attackFx/chargeFx由来のフォールバック(誤って灰色弾+ダメージ数字を出す)
+  // でなく、mv.battle_data.effectsを読んで意味のあるcueへ分解する。
+  if (!clsKey && mv && mv.category === '変化' && mv.battle_data){
+    return _autoCuesForStatusMove(mv);
+  }
   return _autoCuesForMoveFallback(mv);
+}
+// 変化技のeffects→cue分解(設計§2-3・調査確定の6kind=能力ランク変化/回復/壁設置/天候変化/フィールド展開/
+// 状態付与のみ対応。ロングテールkind=まもり/設置/その他はスキップ=このエディタでは自動生成しない)。
+// atkトラックは絶対に入れない(誤生成バグの裏返し対策=設計の絶対条件)。
+// at既定は'opp'(_dispatchCueProd側)なので、自分に効く効果(self/team/ally)は必ずat:'self'を明示する。
+const _TERRAIN_MOVE_KIND = { グラスフィールド: 'grass', エレキフィールド: 'electric', サイコフィールド: 'psychic', ミストフィールド: 'misty' };
+const _WEATHER_MOVE_KIND = { あめ: 'rain', にほんばれ: 'sun', すなあらし: 'sand', ゆき: 'snow', ゆきげしき: 'snow' };
+function _statusMoveAtSide(target){
+  return (target === 'self' || target === 'team' || target === 'ally') ? 'self' : 'opp';
+}
+function _autoCuesForStatusMove(mv){
+  const effects = (mv.battle_data && mv.battle_data.effects) || [];
+  const cues = [];
+  let slot = 0;
+  effects.forEach(ef => {
+    const t = slot * 200;
+    if (ef.kind === '能力ランク変化'){
+      const at = _statusMoveAtSide(ef.target);
+      const up = (ef.stages || 0) > 0;
+      const stage = Math.min(3, Math.max(1, Math.abs(ef.stages || 1)));
+      cues.push(newCue('glyph', 'rank', t, 900, { at, up, stage }));
+      cues.push(newCue('sound', 'se', t, 120, { name: up ? 'rankUp' : 'rankDown' }));
+      slot++;
+    } else if (ef.kind === '回復'){
+      cues.push(newCue('glyph', 'sparkle', t, 700, { at: 'self' }));
+      cues.push(newCue('text', 'popnum', t, 1000, { at: 'self', text: '＋', color: '#8ef5b0' }));
+      slot++;
+    } else if (ef.kind === '壁設置'){
+      cues.push(newCue('glyph', 'wall', t, 300, { name: ef.value, show: true, at: 'self' }));
+      slot++;
+    } else if (ef.kind === '天候変化'){
+      cues.push(newCue('glyph', 'weather', t, 20, { kind: _WEATHER_MOVE_KIND[ef.value] || null }));
+      slot++;
+    } else if (ef.kind === 'フィールド展開'){
+      cues.push(newCue('glyph', 'terrain', t, 20, { kind: _TERRAIN_MOVE_KIND[ef.value] || null }));
+      slot++;
+    } else if (ef.kind === '状態付与'){
+      const at = _statusMoveAtSide(ef.target);
+      cues.push(newCue('def', 'hitreact', t, 200, { at }));
+      cues.push(newCue('text', 'popnum', t, 900, { at, text: (ef.value || '') + '！', color: '#fff' }));
+      slot++;
+    }
+    // その他のkind(まもり/設置/優先技無効/場の威力補正 等ロングテール)はスキップ=自動分解未対応
+  });
+  if (cues.length === 0){
+    // 1つもcueが生えない変化技(効果が上のいずれにも当たらない)は最小シート(効果音のみ)にする
+    cues.push(newCue('sound', 'se', 0, 100, { name: 'status' }));
+  }
+  return { dur: computeSheetDur({ cues }), cues };
 }
 // 従来の自動生成(class:テンプレが無い技=変化技等のフォールバック・保険)。
 function _autoCuesForMoveFallback(mv){
@@ -1178,7 +1276,21 @@ function renderInspector(){
   if (!isScene){
     if (cue.track === 'atk' || (cue.track === 'glyph' && cue.action === 'burst')) html += fieldShapeSelect(p.shape || '');
     if (cue.track === 'atk') html += fieldClsSelect(p.cls || 'phys');   // soundトラックのclsは下の共通ブロックで扱う(重複防止)
-    if (cue.track === 'glyph' || cue.track === 'def' || cue.track === 'text') html += fieldAtSelect(p.at || 'opp');
+    // 変化技演出Phase1(2026-07-16): weather/terrainは場全体に効く(側の概念が無い)のでat欄を出さない
+    // (glyph全般に出していたfieldAtSelectの条件からこの2アクションだけ除外=阿部さんに"効かない欄"を見せない)。
+    if ((cue.track === 'glyph' && cue.action !== 'weather' && cue.action !== 'terrain') || cue.track === 'def' || cue.track === 'text') html += fieldAtSelect(p.at || 'opp');
+    if (cue.track === 'glyph' && cue.action === 'rank'){
+      // 変化技演出Phase1: 能力ランク変化(つるぎのまい等)。up/stageはrankFx(atSide, up, stage)へそのまま渡る。
+      html += fieldBool('up', 'up(オン=↑上昇・オフ=↓下降)', p.up !== false);
+      html += fieldNum('stage', 'stage(段数1〜3)', p.stage != null ? p.stage : 1, 1, 1);
+    }
+    if (cue.track === 'glyph' && cue.action === 'wall'){
+      // 変化技演出Phase1: 壁設置(リフレクター/ひかりのかべ/オーロラベール)。show=falseで解除(hideWallFx)側も編集可。
+      html += fieldWallNameSelect(p.name || 'リフレクター');
+      html += fieldBool('show', 'show(オン=張る・オフ=解除)', p.show !== false);
+    }
+    if (cue.track === 'glyph' && cue.action === 'weather') html += fieldWeatherKindSelect(p.kind || 'rain');
+    if (cue.track === 'glyph' && cue.action === 'terrain') html += fieldTerrainKindSelect(p.kind || 'grass');
     if (cue.track === 'glyph' && cue.action === 'burst'){
       const off = p.offset || { x: 0, y: 0 };
       html += `<div class="insp-field"><label>offset.x(出る位置オフセットpx・盤面の◎ドラッグでも変更可)</label><input type="number" id="ins-offx" value="${off.x || 0}" step="5"></div>`;
@@ -1273,9 +1385,23 @@ function fieldEasingSelect(val){
 // weather: setWeatherFx(p.kind) → _WEATHER_FX の4種。def:flash: flash(side,p.cls) → CSSクラス。
 // screen:flash: screenFlash(p.color, !!p.mega) → color=hex・mega=真偽。
 function fieldWeatherKindSelect(val){
-  const vocab = [['rain','rain(あめ)'],['sun','sun(ひざし)'],['sand','sand(すなあらし)'],['snow','snow(あられ)']];
+  // ''(かいじょ)を追加(2026-07-16・変化技演出Phase1): move側glyph/weatherはkind:nullで天候解除も表現できる
+  // (setWeatherFx(p.kind||null))。シーン側(scene:weather_rain)は既定rainのままなので影響しない。
+  const vocab = [['','(かいじょ=天候をなくす)'],['rain','rain(あめ)'],['sun','sun(ひざし)'],['sand','sand(すなあらし)'],['snow','snow(あられ)']];
   const opts = vocab.map(([v, label]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${label}</option>`).join('');
   return `<div class="insp-field"><label>kind(天候の種類)</label><select id="ins-kind">${opts}</select></div>`;
+}
+// 変化技演出Phase1(2026-07-16): glyph/wallのname(壁の種類)。fx_primitives.jsの_WALL_CLASSと同じ3種。
+function fieldWallNameSelect(val){
+  const vocab = [['リフレクター','リフレクター(物理半減)'],['ひかりのかべ','ひかりのかべ(特殊半減)'],['オーロラベール','オーロラベール(両方半減)']];
+  const opts = vocab.map(([v, label]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${label}</option>`).join('');
+  return `<div class="insp-field"><label>name(壁の種類)</label><select id="ins-wallname">${opts}</select></div>`;
+}
+// 変化技演出Phase1(2026-07-16): glyph/terrainのkind。fx_primitives.jsのsetTerrainFxが読む4種+解除。
+function fieldTerrainKindSelect(val){
+  const vocab = [['','(かいじょ=フィールドをなくす)'],['grass','grass(グラスフィールド=葉っぱ)'],['electric','electric(エレキフィールド=スパーク)'],['psychic','psychic(サイコフィールド=紫のもや)'],['misty','misty(ミストフィールド=白ピンクの霧)']];
+  const opts = vocab.map(([v, label]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${label}</option>`).join('');
+  return `<div class="insp-field"><label>kind(フィールドの種類)</label><select id="ins-kind">${opts}</select></div>`;
 }
 function fieldFlashClsSelect(val){
   const vocab = [['enter','enter(登場フラッシュ)'],['recall','recall(引っ込めフラッシュ)'],['faint','faint(ひんし沈み)']];
@@ -1318,6 +1444,11 @@ function wireInspectorEvents(cue){
   bind('ins-flashcls', e => { cue.params.cls = e.target.value; onCueEdited(cue); });
   bind('ins-color', e => { cue.params.color = e.target.value; onCueEdited(cue); });
   bind('ins-mega', e => { cue.params.mega = e.target.checked; onCueEdited(cue); });
+  // 変化技演出Phase1(2026-07-16): glyph/rank(up・stage)/glyph/wall(name・show)のパラメータ保存。
+  bind('ins-up', e => { cue.params.up = e.target.checked; onCueEdited(cue); });
+  bind('ins-stage', e => { cue.params.stage = Math.min(3, Math.max(1, +e.target.value || 1)); onCueEdited(cue); });
+  bind('ins-wallname', e => { cue.params.name = e.target.value; onCueEdited(cue); });
+  bind('ins-show', e => { cue.params.show = e.target.checked; onCueEdited(cue); });
 }
 function onCueEdited(cue){
   markDirty();
@@ -1549,6 +1680,8 @@ function resetPreviewPositions(){
   document.querySelectorAll('.rb-chargeclone').forEach(el => el.remove());
   document.querySelectorAll('.rb-proj,.rb-beam,.burst,.popnum,.rb-burstp,.rb-burstring').forEach(el => el.remove());
   document.querySelectorAll('[class^="rb-burstglyph"]').forEach(el => el.remove());
+  // 変化技演出Phase1(2026-07-16): ランク矢印/回復キラキラの残留粒子(短命だが再生中断時に取り残ることがある)。
+  document.querySelectorAll('.rb-rankp,.rb-sparkle').forEach(el => el.remove());
   // シーン対応(演出ツクール v2.1): メガ儀式の残留要素・fighterの状態クラス(faint/gone/enter/recall)・
   // fx-flash/weather-fx/result-bannerを毎周回の頭で元に戻す(design1-6「毎周回同じ条件で再生」)。
   document.querySelectorAll('.rb-mega-pillar,.rb-mega-orb,.rb-mega-ring,.rb-mega-mist,.rb-mega-dna').forEach(el => el.remove());
@@ -1558,7 +1691,9 @@ function resetPreviewPositions(){
     const sp = f.querySelector('.sprite');
     if (sp){ sp.style.visibility = ''; sp.classList.remove('rb-mega-silhouette'); }
     f.classList.remove('hit', 'hit-big', 'rb-knockback-self', 'rb-knockback-opp', 'rb-impact',
-      'faint', 'gone', 'enter', 'recall');
+      'faint', 'gone', 'enter', 'recall',
+      // 変化技演出Phase1(2026-07-16): 壁パネル(リフレクター等)は天候と同じ持続系=毎周回頭で必ず解除する。
+      'rb-wall-reflect', 'rb-wall-screen', 'rb-wall-veil');
     f.style.removeProperty('--fx-ox');
     f.style.removeProperty('--fx-oy');
     const pb = $('pb-' + side);
@@ -1569,6 +1704,7 @@ function resetPreviewPositions(){
   const flashEl = $('fx-flash'); if (flashEl) flashEl.className = '';
   _editorClearKoDarken();   // 小物v2.2・タスク1: ko_slowmo暗転を毎周回頭/STOPで確実に解除
   setWeatherFx(null);
+  setTerrainFx(null);   // 変化技演出Phase1(2026-07-16): フィールド演出も天候と同じ持続系=毎周回頭で必ず解除する
   hideResultBanner();
 }
 

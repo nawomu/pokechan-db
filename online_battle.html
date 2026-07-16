@@ -13,7 +13,7 @@
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
 <script src="battle_fx_cues.js?v=20260716c"></script>
-<script src="fx_primitives.js?v=20260716e"></script>
+<script src="fx_primitives.js?v=20260716f"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -559,6 +559,23 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 @keyframes rbMega{0%{opacity:0}25%{opacity:.95}55%{opacity:.6}100%{opacity:0}}
 @keyframes rbWeather{0%{transform:translateY(-8px)}100%{transform:translateY(8px)}}
 #weather-fx.live{animation:rbWeather 2.2s ease-in-out infinite alternate}
+/* 変化技演出Phase1(2026-07-16・設計_変化技演出_2026-07-16.md §2): フィールド(グラス/エレキ/サイコ/
+   ミストフィールド)の地面演出。fx_primitives.jsのsetTerrainFxが操作(#weather-fxと同じ持続ライフサイクル)。*/
+#terrain-fx{position:absolute;left:0;right:0;bottom:0;height:46%;z-index:1;pointer-events:none;opacity:0;transition:opacity .35s;overflow:hidden}
+#terrain-fx.live{opacity:1}
+#terrain-fx[data-terrain="grass"]{background:linear-gradient(to top,rgba(74,222,128,.34),transparent 88%)}
+#terrain-fx[data-terrain="electric"]{background:linear-gradient(to top,rgba(250,204,21,.3),transparent 88%)}
+#terrain-fx[data-terrain="psychic"]{background:radial-gradient(ellipse at 50% 100%,rgba(168,85,247,.55),transparent 75%)}
+#terrain-fx[data-terrain="misty"]{background:radial-gradient(ellipse at 50% 100%,rgba(244,114,182,.4),rgba(255,255,255,.3) 55%,transparent 85%)}
+.rb-terrainp{position:absolute;bottom:2%;pointer-events:none}
+.rb-terrainp-grass{font-size:24px;line-height:1;filter:drop-shadow(0 0 4px rgba(74,222,128,.9));animation:rbTerrainRise 1.5s ease-out forwards}
+.rb-terrainp-electric{width:22px;height:4px;border-radius:2px;background:linear-gradient(90deg,transparent,#fde047,transparent);box-shadow:0 0 6px 1px #fde047;animation:rbTerrainSpark .6s ease-out forwards}
+.rb-terrainp-psychic{width:30px;height:30px;border-radius:50%;background:radial-gradient(circle,rgba(216,180,254,.95),transparent 70%);animation:rbTerrainSmoke 1.6s ease-out forwards}
+.rb-terrainp-misty{width:52px;height:18px;border-radius:50%;background:rgba(255,255,255,.65);filter:blur(2px);animation:rbTerrainDrift 1.8s ease-in-out forwards}
+@keyframes rbTerrainRise{0%{transform:translateY(0) scale(.7);opacity:0}15%{opacity:1}100%{transform:translateY(-80px) scale(1);opacity:0}}
+@keyframes rbTerrainSpark{0%{transform:translateX(0) scaleX(.3);opacity:0}25%{opacity:1}100%{transform:translateX(50px) scaleX(1.4);opacity:0}}
+@keyframes rbTerrainSmoke{0%{transform:translateY(0) scale(.5);opacity:0}20%{opacity:.9}100%{transform:translateY(-70px) scale(1.6);opacity:0}}
+@keyframes rbTerrainDrift{0%{transform:translateX(-20px);opacity:0}20%{opacity:.8}100%{transform:translateX(60px);opacity:0}}
 @keyframes rbShake{0%,100%{transform:translateX(0)}15%{transform:translateX(-10px)}30%{transform:translateX(9px)}45%{transform:translateX(-7px)}60%{transform:translateX(5px)}75%{transform:translateX(-3px)}90%{transform:translateX(2px)}}
 /* 攻撃予告: ぴょんぴょん2回はねる(2026-07-05 阿部さん「攻撃するぞーって予告」) */
 @keyframes rbPreAttack{0%,100%{transform:translateY(0)}18%{transform:translateY(-12px)}36%{transform:translateY(0)}54%{transform:translateY(-8px)}72%{transform:translateY(0)}}
@@ -1050,6 +1067,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
            Showdown画像流用なし=CSSグラデで自前実装。将来の追加は CSS 1プリセット追記+option1行で済む。 -->
       <div id="field-backdrop" data-preset="grass"></div>
       <div id="weather-fx"></div>
+      <div id="terrain-fx"></div>
       <div id="fx-flash"></div>
       <div id="turn-badge">Turn 1</div>
       <div id="result-banner"></div>
