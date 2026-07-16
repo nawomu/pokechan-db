@@ -2835,6 +2835,14 @@ function phaseDealDamage(atkSide, defSide, move){
   // ばけのかわが1発目をブロック済み(_disguiseFirstHitBroken)ならループ内で告知済みなので二重に出さない。
   else if (!_disguiseFirstHitBroken) log('8', `${pname(atk)} の ${move.name}！ ${pname(def)} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   if (critRoll && total > 0) log('8', `きゅうしょに あたった！`);
+  // こうか表示(段119・実機準拠メッセージ。出典: ポケモンWiki「相性」)。本体にダメージが入った時のみの近似。
+  // ★位置(2026-07-16 阿部さん実機FB): 従来は特性発動(いかりのつぼ等)の後に出ていた=表示で
+  // 「タスキでもちこたえた→こうかはばつぐんだ」の不自然な順に見えた。実機準拠で急所行の直後
+  // (=ダメージの拍)に出す。表示側reorderEndureがタスキ行をこの後ろへ送る(real_battle/online_battle)。
+  if (total > 0 && !def.subAbsorbed){
+    const _effChip = (result.chips || []).find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
+    if (_effChip) log('8', _effChip.kind === 'eff-up' ? 'こうかは ばつぐんだ！' : 'こうかは いまひとつのようだ…');
+  }
   // いかりのつぼ(段134・ABILITY_DESC公式準拠): 急所を受けるとこうげきが最大ランクに
   // (確率ロール critRoll だけでなく、UI急所トグル・確定急所技も「急所を受けた」扱い。シェルアーマーで急所無効なら発動しない)
   const _critHit = (critRoll || atk.critical || !!(move.battle_data && move.battle_data.must_crit))
@@ -2849,11 +2857,6 @@ function phaseDealDamage(atkSide, defSide, move){
       result.moveType === 'あく' && sideAbility(def) === 'せいぎのこころ' && (def.rank.atk || 0) < 6){
     def.rank.atk = (def.rank.atk || 0) + 1;
     log('9', `${pname(def)} の せいぎのこころ！ こうげきが あがった！`);
-  }
-  // こうか表示(段119・実機準拠メッセージ。出典: ポケモンWiki「相性」)。本体にダメージが入った時のみの近似
-  if (total > 0 && !def.subAbsorbed){
-    const _effChip = (result.chips || []).find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
-    if (_effChip) log('8', _effChip.kind === 'eff-up' ? 'こうかは ばつぐんだ！' : 'こうかは いまひとつのようだ…');
   }
   // 接触反応特性(受け側・段112・ABILITY_DESC公式準拠): 直接攻撃(move.contact)を本体が受けた時に発動
   // ★パンチグローブ: パンチ技は接触判定が消える=接触反応特性・ゴツゴツメット等の対象外(items_database宣言。出典: ポケモンWiki「パンチグローブ」)
