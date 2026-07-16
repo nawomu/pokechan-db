@@ -8,12 +8,12 @@
 <link rel="canonical" href="https://pchamdb.com/online_battle.html">
 <script defer src="i18n/runtime.js?v=20260705"></script>
 <script src="pokechan_data.js?v=20260705a"></script>
-<script src="battle_log_i18n.js?v=20260711a"></script>
+<script src="battle_log_i18n.js?v=20260716a"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
 <script src="battle_fx_cues.js?v=20260716c"></script>
-<script src="fx_primitives.js?v=20260716d"></script>
+<script src="fx_primitives.js?v=20260716e"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -1183,7 +1183,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260713a" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260716a" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -3576,7 +3576,12 @@ function executeTurn(){
       lines.push({ text: (window.translateLogLine ? translateLogLine(introJa) : introJa),
         fx: () => flash(introSide, 'preattack'), noLog: true, hold: 850 });
     }
-    splitBattleLines(e.msg).forEach(t => lines.push(lineWithFx(t, { forceAttackFx: nextIsDisguiseBreak })));
+    // ★2026-07-16連続技演出: エンジンのlog entry(e)が持つmultiHit/hitIndex/hitCountをそのままoptsへ渡す
+    // (real_battle_simulator.htmlのphaseDealDamageが各ヒット行に載せたメタ)。表示側はこれを見て
+    // 速い連打演出(圧縮ストライク)に切替える。省略時=undefined=従来の単発演出のまま(不変)。
+    splitBattleLines(e.msg).forEach(t => lines.push(lineWithFx(t, {
+      forceAttackFx: nextIsDisguiseBreak, multiHit: e.multiHit, hitIndex: e.hitIndex, hitCount: e.hitCount,
+    })));
   }
   logTurnHeader(turnNo);   // 右ログに「Turn N」見出し
   say(lines, endOfTurn);
@@ -3853,20 +3858,28 @@ function lineWithFx(msg, opts){
       // あればplayCueSheetで再生し、従来のattackFx+burst/popText/flashのsetTimeoutは丸ごとスキップする
       // (二重演出防止)。シートが無い技は従来経路のまま=挙動完全不変。missはシート未対応(シンプル優先=
       // 設計docの指定どおり・従来のattackFx(...,false)のまま=下のmissM分岐は無改変)。
+      // ★2026-07-16連続技演出: 連続技(opts.multiHit)は圧縮した速いストライクで再生する
+      // (フル尺2.3秒×N発は長すぎる=案A採用。突進/飛翔/ビームの尺+burst/popnumをまとめて圧縮係数で縮める)。
+      // 単発技(opts.multiHit未設定)はscale/speedMul省略=既存関数側で1扱い=1msも変わらない(不変)。
+      const _mhScale = opts.multiHit ? 0.4 : undefined;
       const _cueSheet = resolveCueSheet(mv);
       if (_cueSheet){
         _hitFxDelay = playCueSheet(_cueSheet, {
           atkSide, tgtSide: tgt, mv, color: _atkColor,
           dmgText: d ? ('−' + d[1]) : null, hitCls: _hitCls,
+          scale: _mhScale,
         });
       } else {
         // Wave1/2.5: 技クラス別の飛翔体(または接触技=突進クローン)→着弾に合わせてburst/ダメージ数字/shake/ヒット音
-        const _atkDur = attackFx(atkSide, tgt, mv, true);
+        const _atkDur = attackFx(atkSide, tgt, mv, true, _mhScale);
         _hitFxDelay = _atkDur;   // 直後に合流する「こうかは…」「きゅうしょ」行も同じ拍に重ねる(2026-06-07の同拍方針を維持)
         setTimeout(() => {
-          // フレアドライブの尺(burst=1950ms/popnum=2000ms)をdone:trueシート未対応の全技デフォルトに(2026-07-13 阿部さん)
-          if (!_isContact) burstFx(tgt, _atkColor, _atkShape, 'normal', 1950);
-          if (d) popText(tgt, '−' + d[1], '#fff', undefined, undefined, 2000);
+          // フレアドライブの尺(burst=1950ms/popnum=2000ms)をdone:trueシート未対応の全技デフォルトに(2026-07-13 阿部さん)。
+          // 連続技はburst/popnumも圧縮係数で縮める(2026-07-16)
+          const _burstMs = _mhScale ? Math.round(1950 * _mhScale) : 1950;
+          const _popMs = _mhScale ? Math.round(2000 * _mhScale) : 2000;
+          if (!_isContact) burstFx(tgt, _atkColor, _atkShape, 'normal', _burstMs);
+          if (d) popText(tgt, '−' + d[1], '#fff', undefined, undefined, _popMs);
           flash(tgt, _hitCls);
         }, _atkDur);
       }
@@ -4059,7 +4072,11 @@ function lineWithFx(msg, opts){
     }
     if (/回復/.test(msg)){ renderAll(); if (hpM){ const hSide = subjOpp ? 'opp' : 'self'; popText(hSide, '＋', '#4ade80', 18); sparkleFx(hSide); SE.heal(); } }
   };
-  return { text: (window.translateLogLine ? translateLogLine(msg) : msg), fx, src: msg };   // src=ja原文(演出合流の判定用)
+  // ★2026-07-16連続技演出: 連続技の各ヒット行はline.holdで送り速度を短く上書きし、パッパッと連打に見せる
+  // (W3のpreattack予告と同じ機構=line.holdがsay()側の$('msg-speed')より優先される・2026-07-13で導入済み)。
+  // 省略時(単発技)は従来どおり$('msg-speed')に従う(不変)。
+  const _mhHold = opts.multiHit ? 420 : undefined;
+  return { text: (window.translateLogLine ? translateLogLine(msg) : msg), fx, src: msg, hold: _mhHold };   // src=ja原文(演出合流の判定用)
 }
 // flash: fx_primitives.js へ移設(演出ツクール Step2a 2026-07-11)。定義はそちらを参照。
 // 連戦モード(段: 連戦): 勝利後にコマンド欄を「つぎの相手」に差し替える

@@ -367,8 +367,11 @@ function spawnBeam(from, to, cls, color, hitFrac, shape, durMs){
 // 途中でフェード+スカ音(ログの「外れた！」文言は変えず、演出だけ足す)。戻り値=飛翔にかかったms(着弾拍の同期用)
 // Wave2.5(2026-07-10 阿部さん最優先): 接触技(mv.contact===true。データ駆動・技名推測禁止)は
 // 飛翔体でなく本体クローンの突進(chargeFx)にする。非接触/mv不明は従来の飛翔体/ビームのまま。
-function attackFx(atkSide, tgtSide, mv, hit){
-  if (mv && mv.contact === true) return chargeFx(atkSide, tgtSide, mv, hit);
+// speedMul(2026-07-16連続技演出): 末尾省略可能引数。省略時=undefined=1として扱う=全既存呼び出しは
+// 1msも変わらない(不変)。連続技の各ヒットだけ呼び出し元(lineWithFx)が0.4前後を渡して尺を圧縮する。
+function attackFx(atkSide, tgtSide, mv, hit, speedMul){
+  const _sm = speedMul != null ? speedMul : 1;
+  if (mv && mv.contact === true) return chargeFx(atkSide, tgtSide, mv, hit, _sm);
   const cls = moveClassOf(mv);
   const shape = shapeOf(mv);
   if (window.__fxTrace) window.__fxTrace.push({k:'attackFx', mv: mv && mv.name, shape, t: performance.now()});
@@ -376,7 +379,8 @@ function attackFx(atkSide, tgtSide, mv, hit){
   const from = fxPoint(atkSide), to = fxPoint(tgtSide);
   const hitFrac = hit ? 1 : 0.55;
   const useBeam = _RB_BEAM_CLS[cls] || (shape && _RB_BEAM_SHAPES[shape]);
-  const dur = useBeam ? spawnBeam(from, to, cls, color, hitFrac, shape) : spawnProjectile(from, to, cls, color, hitFrac, shape);
+  const _durMs = _sm !== 1 ? Math.round((useBeam ? 180 : 190) * _sm) : undefined;
+  const dur = useBeam ? spawnBeam(from, to, cls, color, hitFrac, shape, _durMs) : spawnProjectile(from, to, cls, color, hitFrac, shape, _durMs);
   if (hit) setTimeout(() => { fieldShake(1); SE.hitClass(cls); }, dur);
   else setTimeout(() => SE.miss(), Math.round(dur * 0.7));
   return dur;
@@ -384,7 +388,10 @@ function attackFx(atkSide, tgtSide, mv, hit){
 // ===== Wave2.5: 接触技=本体クローンの突進(設計_バトル演出強化_2026-07-10.md v2 ②章) =====
 // 本体は動かさずクローンをbody直下fixedで飛ばす(#f-側のzoom/scaleの割り戻し不要=安全策)。
 // 演出例外(交代/ひんしの割込み等)でも必ずクローン除去+本体visibility復帰する(保険タイマー併用)。
-function chargeFx(atkSide, tgtSide, mv, hit){
+// speedMul(2026-07-16連続技演出): 末尾省略可能引数。省略時=undefined→1扱い=既存呼び出しは1msも
+// 変わらない(不変)。連続技の各ヒットは0.4前後を渡し、突進/帰還/バーストの尺をまとめて圧縮する。
+function chargeFx(atkSide, tgtSide, mv, hit, speedMul){
+  const _sm = speedMul != null ? speedMul : 1;
   const cls = moveClassOf(mv);
   const shape = shapeOf(mv);
   if (window.__fxTrace) window.__fxTrace.push({k:'chargeFx', mv: mv && mv.name, shape, t: performance.now()});
@@ -394,7 +401,8 @@ function chargeFx(atkSide, tgtSide, mv, hit){
   if (!sp || typeof sp.animate !== 'function'){
     // 保険: クローン化できない環境は従来の飛翔体にフォールバック(技名推測はしない=形状別演出は維持)
     const from = fxPoint(atkSide), to = fxPoint(tgtSide);
-    const dur = spawnProjectile(from, to, cls, color, hit ? 1 : 0.55, shape);
+    const _durMs = _sm !== 1 ? Math.round(190 * _sm) : undefined;
+    const dur = spawnProjectile(from, to, cls, color, hit ? 1 : 0.55, shape, _durMs);
     if (hit) setTimeout(() => { fieldShake(1); SE.hitClass(cls); }, dur); else setTimeout(() => SE.miss(), Math.round(dur * 0.7));
     return dur;
   }
@@ -440,29 +448,30 @@ function chargeFx(atkSide, tgtSide, mv, hit){
   // フラグはfx_editor.htmlのresetPreviewPositions()の頭で必ずfalseに戻る(=次のスクラブ/リセット/
   // 再生開始/技切替で本掃除される)ので、doneを立てずに素通りしても取り残しにはならない。
   const cleanup = () => { if (window.__FX_SCRUB__) return; if (done) return; done = true; try { clone.remove(); } catch (e) {} sp.style.visibility = ''; };
-  const safety = setTimeout(cleanup, 900);   // 例外(交代等の割込み)でも必ず盤面を復帰させる保険
+  const safety = setTimeout(cleanup, Math.round(900 * _sm));   // 例外(交代等の割込み)でも必ず盤面を復帰させる保険
   const returnHome = () => {
     clearTimeout(safety);
     try {
       const anim = clone.animate([
         { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, opacity: hit ? 1 : 0.4 },
         { transform: `translate(0,0) scale(${scale})`, opacity: 1 },
-      ], { duration: 200, easing: 'cubic-bezier(0,0,.2,1)' });
+      ], { duration: Math.round(200 * _sm), easing: 'cubic-bezier(0,0,.2,1)' });
       anim.onfinish = cleanup; anim.oncancel = cleanup;
     } catch (e) { cleanup(); }
-    setTimeout(cleanup, 260);   // onfinish不発の保険
+    setTimeout(cleanup, Math.round(260 * _sm));   // onfinish不発の保険
   };
   const onImpact = () => {
     if (hit){
-      // フレアドライブの尺(burst=1950ms)をdone:trueシート未対応の全技デフォルトに(2026-07-13 阿部さん)
-      burstFx(tgtSide, color, shape, 'normal', 1950);
+      // フレアドライブの尺(burst=1950ms)をdone:trueシート未対応の全技デフォルトに(2026-07-13 阿部さん)。
+      // 連続技(_sm<1)はburstもまとめて圧縮=1発ずつの残像が重ならないようにする(2026-07-16)
+      burstFx(tgtSide, color, shape, 'normal', Math.round(1950 * _sm));
       const icon = _SHAPE_ICON[shape] || _RB_CLS_ICON[cls];
       if (icon) popText(tgtSide, icon, null, 26);
       SE.hitClass(cls);
       fieldShake(1);
       knockbackFx(tgtSide, dx, dy);
       // ヒットストップ簡易版: 帰還アニメの開始を60-80ms遅らせる(周辺演出は止めない)
-      setTimeout(returnHome, 60 + Math.round(Math.random() * 20));
+      setTimeout(returnHome, Math.round((60 + Math.round(Math.random() * 20)) * _sm));
     } else {
       SE.miss();
       returnHome();
@@ -473,10 +482,10 @@ function chargeFx(atkSide, tgtSide, mv, hit){
       { transform: `translate(${back}px,0) scale(${scale})`, offset: 0 },
       { transform: `translate(${dx * 0.6}px, ${dy * 0.6 - 18}px) scale(${scale})`, offset: 0.72 },
       { transform: `translate(${dx}px, ${dy}px) scale(${scale})`, offset: 1, opacity: hit ? 1 : 0.4 },
-    ], { duration: 230, easing: 'cubic-bezier(.4,0,1,1)' });
+    ], { duration: Math.round(230 * _sm), easing: 'cubic-bezier(.4,0,1,1)' });
     anim.onfinish = onImpact; anim.oncancel = cleanup;
   } catch (e) { cleanup(); return 0; }
-  return 230;   // dur=着弾までの経過ms(こうか/きゅうしょ行の同拍合流に使う既存の_hitFxDelay契約を維持)
+  return Math.round(230 * _sm);   // dur=着弾までの経過ms(こうか/きゅうしょ行の同拍合流に使う既存の_hitFxDelay契約を維持)
 }
 // 被弾ノックバック(Wave2.5 S級): 攻撃方向へ一瞬押されて弾む。.fighter(外側)に掛けるので
 // .sprite側のrbShake/squash&stretchアニメ(別要素)と衝突しない
@@ -1015,8 +1024,12 @@ function _dispatchCueProd(cue, info){
 // ctx = {atkSide, tgtSide, mv, color, dmgText, hitCls}。戻り値=着弾拍ms(_cueImpactTime。呼び出し側の
 // 「_hitFxDelay」契約=従来のattackFx/chargeFxの戻り値と同じ役割で使う=こうか/急所行の同拍合流に流用可能)。
 // __board(エディタの立ち位置)は見ない=本番の配置は本番のまま(設計4章の指定どおり)。
+// ctx.scale(2026-07-16連続技演出): 省略時=undefined→1扱い=既存呼び出しは1msも変わらない(不変)。
+// 連続技の各ヒットはlineWithFxが0.4前後を渡し、キューのt(スケジュール)とdur(各アクションの尺)を
+// まとめて縮める(_dispatchCueProd自体は無改変=個々のプリミティブの意味は変えず時間だけ圧縮)。
 function playCueSheet(sheet, ctx){
   ctx = ctx || {};
+  const scale = ctx.scale != null ? ctx.scale : 1;
   const info = {
     mv: ctx.mv,
     color: ctx.color || (S.typeColors() && ctx.mv && S.typeColors()[ctx.mv.type]) || '#9fb4d8',
@@ -1027,9 +1040,13 @@ function playCueSheet(sheet, ctx){
   };
   if (window.__fxTrace) window.__fxTrace.push({ k: 'playCueSheet', mv: ctx.mv && ctx.mv.name, t: performance.now() });
   (sheet.cues || []).forEach(cue => {
-    setTimeout(() => _dispatchCueProd(cue, info), Math.max(0, cue.t || 0));
+    const c = scale !== 1 ? Object.assign({}, cue, {
+      t: Math.round((cue.t || 0) * scale),
+      dur: cue.dur != null ? Math.round(cue.dur * scale) : cue.dur,
+    }) : cue;
+    setTimeout(() => _dispatchCueProd(c, info), Math.max(0, c.t || 0));
   });
-  return _cueImpactTime(sheet);
+  return scale !== 1 ? Math.round(_cueImpactTime(sheet) * scale) : _cueImpactTime(sheet);
 }
 
 // ===== 演出ツクール Step5(2026-07-11・設計_演出ツクール_2026-07-11.md 1-4「シーン」) =====

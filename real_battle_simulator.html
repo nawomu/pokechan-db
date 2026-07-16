@@ -987,7 +987,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="items_database.js"></script>
-<script src="battle_log_i18n.js?v=20260706a"></script>
+<script src="battle_log_i18n.js?v=20260716a"></script>
 <script>
 'use strict';
 
@@ -1564,7 +1564,10 @@ function calcDamage(atkSide, defSide, move, opts){
   const defTypes = sideTypes(def);
 
   // ばけのかわ(第8世代以降): 変化技以外の初撃はダメージを防ぐが最大HPの1/8削れて皮が剥がれる(Bulbapedia "Disguise"/ポケモンWiki)
-  if (def.disguise && move.category !== '変化'){
+  // ★opts.deferDisguise(2026-07-16連続技演出): 連続技(の可能性がある技)はここでブロックせず、
+  // phaseDealDamageのヒットループ内(h===0)で1発目だけブロック→2発目以降は通常ダメージにする。
+  // 単発技はdeferDisguiseが立たない=このブロックが従来どおり効く(不変)。
+  if (def.disguise && move.category !== '変化' && !(opts && opts.deferDisguise)){
     const hp = realStat(def, 'hp');
     return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
             immune:true, disguiseBlock:true, reason:`${pname(def)} の ばけのかわが はがれた`, recoil:0};
@@ -2274,8 +2277,10 @@ function ensureBattleState(){
 
 // バトルログ
 const battleLog = [];
-function log(phase, msg){
-  battleLog.push({phase, msg});
+// meta(第3引数・省略可): 連続技の各ヒット行に multiHit:true/hitIndex/hitCount 等の目印を載せる。
+// 省略時は従来どおり{phase,msg}のみ(既存呼び出しは無改変=完全互換・2026-07-16連続技演出)
+function log(phase, msg, meta){
+  battleLog.push(meta ? {phase, msg, ...meta} : {phase, msg});
 }
 // ログ表示用の名前: 相手側のポケモンには「相手の」を付ける(同名対決でもどちらか分かるように。
 // 実機の「あいての ○○」表記に準拠。2026-06-12 阿部さん要望)
@@ -2670,8 +2675,15 @@ function phaseDealDamage(atkSide, defSide, move){
       }
     }
   }
+  // ★2026-07-16連続技演出: この技が連続攻撃(の可能性)を持つか先読みして、calcDamageのばけのかわブロックを
+  // 一旦見送る(deferDisguise)。連続技かどうかの最終判定(hitCount)は下の連続攻撃ブロックで行うが、
+  // その判定材料(multiEfの有無・おやこあい発動条件)は先取りできる=同じ条件をここでも見る。
+  const _preMultiEf = _e0.find(e => e.kind === '連続攻撃');
+  const _mayParentalBond = !beatUpPowers && !_preMultiEf && sideAbility(sides[atkSide]) === 'おやこあい' &&
+    move.category !== '変化' && typeof move.power === 'number' && move.power > 0;
+  const _mayMultiHit = !!_preMultiEf || _mayParentalBond;
   const result = calcDamage(atkSide, defSide, move,
-    (critRoll || beatUpPowers) ? {crit: critRoll, powerOverride: beatUpPowers ? beatUpPowers[0] : undefined} : undefined);
+    (critRoll || beatUpPowers || _mayMultiHit) ? {crit: critRoll, powerOverride: beatUpPowers ? beatUpPowers[0] : undefined, deferDisguise: _mayMultiHit} : undefined);
   if (!result) return null;
   // たくわえ消費(はきだす): 撃ったら(こうかなしでも)たくわえは消え、上がったランクも戻る
   if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(sides[atkSide]);
@@ -2755,12 +2767,28 @@ function phaseDealDamage(atkSide, defSide, move){
   // 出典: ポケモンWiki「トリプルアクセル」「ネズミざん」。急所は技1回につき1判定の近似(既存コメント②)
   const _stopOnMiss = multiEf && multiEf.stop_on_miss;
   const _pph = (multiEf && multiEf.power_per_hit) || null;
-  let total = 0, hits = 0, lastHit = 0;
+  let total = 0, hits = 0, lastHit = 0, landedHits = 0, _disguiseFirstHitBroken = false;
   for (let h = 0; h < hitCount; h++){
     if (def.currentHp <= 0) break;
     if (_stopOnMiss && h > 0){
       const _hc = phaseHitCheck(move, atk, def);
       if (!_hc.hit){ log('8', `${hits + 1}発目は はずれて 攻撃が 止まった！`); break; }
+    }
+    // ばけのかわ(連続技・2026-07-16): 1発目だけダメージを防いで皮が剥がれる。2発目以降は通常ダメージ
+    // (Bulbapedia "Disguise" — multi-strike moves only prevent the first hit)。
+    // calcDamage側はdeferDisguiseでこの技をブロックせずに来ているので、ここで1発目だけ処理する。
+    // 単発技はdeferDisguiseが立たずcalcDamageが既にブロック済み=ここには来ない(不変)。
+    if (h === 0 && def.disguise && move.category !== '変化'){
+      log('8', `${pname(atk)} の ${move.name}！`, {multiHit: hitCount > 1, hitIndex: h, hitCount});
+      log('8', `${pname(def)} の ばけのかわが はがれた！`, {multiHit: hitCount > 1, hitIndex: h, hitCount});
+      def.disguise = false;
+      def.disguiseBroken = true;   // 一度剥がれたらバトル中は戻らない(交代で退場しても再生しない=Wiki準拠)
+      const _dm = realStat(def, 'hp');
+      const _chip = Math.max(1, Math.floor(_dm / 8));
+      def.currentHp = Math.max(0, (def.currentHp == null ? _dm : def.currentHp) - _chip);
+      log('8', `${pname(def)} は ばけのかわで ${_chip} ダメージ！ (残HP ${def.currentHp})`, {multiHit: hitCount > 1, hitIndex: h, hitCount});
+      hits++; lastHit = 0; _disguiseFirstHitBroken = true;
+      continue;   // このヒットの通常ダメージ処理(v計算/HP減算)はスキップ=このヒットは0ダメージで確定
     }
     // ふくろだたき: 2発目以降はそのメンバーの威力で計算し直す(1発目は result がその威力で計算済み)
     const _hitRes = (beatUpPowers && h > 0)
@@ -2783,7 +2811,14 @@ function phaseDealDamage(atkSide, defSide, move){
     if (def.enduring && v >= def.currentHp){ v = def.currentHp - 1; log('8', `${pname(def)} は こうげきを こらえた！`); }
     v = sashCheck(def, v, atk);   // きあいのタスキ(満タン時のみ・消費)。atk=かたやぶり判定用
     def.currentHp = Math.max(0, def.currentHp - v);
-    total += v; hits++; lastHit = v;
+    total += v; hits++; lastHit = v; landedHits++;
+    // ★2026-07-16連続技演出: 連続技(hitCount>1)は各ヒットを単発と同じダメージ行フォーマットで1行ずつ出す
+    // (i18n流用=既存の単発ダメージ行パターンにマッチ)。表示側はmultiHit:trueを見て速い連打演出に切替える。
+    // 単発技(hitCount===1)はここを通らず、従来どおり下のsummaryブロックだけが1行出す(不変)。
+    if (hitCount > 1){
+      log('8', `${pname(atk)} の ${move.name}！ ${pname(def)} に ${v} ダメージ！ (残HP ${def.currentHp}/${result.hp})`,
+          {multiHit: true, hitIndex: h, hitCount});
+    }
   }
   // 分身が受けた攻撃は倍返し(カウンター等)の対象に積まない(近似: 連続攻撃の混在時もまとめて積まない)
   if (!def.subAbsorbed) recordTaken(def, move, lastHit, atk); // 倍返し用(連続攻撃は最後の1発分)+与ダメ記録
@@ -2793,8 +2828,12 @@ function phaseDealDamage(atkSide, defSide, move){
     // 分身が受けた(連続攻撃でこわれて本体にも当たった混在時は合計表記の近似)
     log('8', `${pname(atk)} の ${move.name}！ ${pname(def)} の みがわりが ${total} ダメージを 受けた！${def.subHp <= 0 ? ' みがわりは こわれた！' : ''}`);
   }
-  else if (hitCount > 1) log('8', `${pname(atk)} の ${move.name}！ ${hits}回ヒット 合計 ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
-  else log('8', `${pname(atk)} の ${move.name}！ ${pname(def)} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
+  // ★2026-07-16連続技演出: 連続技は各ヒットを既に1行ずつ出しているので(上のループ内)、ここは合計だけの
+  // summary行(攻撃fxを誘発しない「N の Y！」で始まらない文)にする。新i18nパターン1つ(battle_log_i18n.js)。
+  else if (hitCount > 1) log('8', `${hits}回 あたった！(合計 ${total} ダメージ)`, {multiHitSummary: true, hitCount, hits, total});
+  // 単発技(hitCount===1)は従来どおり不変。ただしhits_by(ふくろだたき)が1体だけでhitCount===1に落ちても
+  // ばけのかわが1発目をブロック済み(_disguiseFirstHitBroken)ならループ内で告知済みなので二重に出さない。
+  else if (!_disguiseFirstHitBroken) log('8', `${pname(atk)} の ${move.name}！ ${pname(def)} に ${total} ダメージ！ (残HP ${def.currentHp}/${result.hp})`);
   if (critRoll && total > 0) log('8', `きゅうしょに あたった！`);
   // いかりのつぼ(段134・ABILITY_DESC公式準拠): 急所を受けるとこうげきが最大ランクに
   // (確率ロール critRoll だけでなく、UI急所トグル・確定急所技も「急所を受けた」扱い。シェルアーマーで急所無効なら発動しない)
@@ -2836,18 +2875,22 @@ function phaseDealDamage(atkSide, defSide, move){
       atk.attracted = true;
       log('9', `${pname(def)} の メロメロボディ！ ${pname(atk)} は メロメロに なった！`);
     }
-    // さめはだ=接触してきた相手に最大HPの1/8
+    // さめはだ=接触してきた相手に最大HPの1/8。連続技は接触ヒットごとに発動(2026-07-16・landedHitsは
+    // ばけのかわで防がれた発を含まない実ヒット数=Bulbapedia "Rough Skin"はマルチヒットのたびに発動)
     if (_cAb === 'さめはだ'){
       const _rMax = realStat(atk, 'hp');
-      const _rDmg = Math.max(1, Math.floor(_rMax / 8));
+      const _rUnit = Math.max(1, Math.floor(_rMax / 8));
+      const _rDmg = _rUnit * Math.max(1, landedHits);
       atk.currentHp = Math.max(0, atk.currentHp - _rDmg);
       log('9', `${pname(atk)} は さめはだで ${_rDmg} ダメージ！ (残HP ${atk.currentHp})`);
       if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
     }
     // てつのトゲ(Iron Barbs): さめはだと同一機構。接触してきた相手に最大HPの1/8(Bulbapedia "Iron Barbs")
+    // 連続技は接触ヒットごとに発動(landedHits分)
     if (_cAb === 'てつのトゲ'){
       const _tbMax = realStat(atk, 'hp');
-      const _tbDmg = Math.max(1, Math.floor(_tbMax / 8));
+      const _tbUnit = Math.max(1, Math.floor(_tbMax / 8));
+      const _tbDmg = _tbUnit * Math.max(1, landedHits);
       atk.currentHp = Math.max(0, atk.currentHp - _tbDmg);
       log('9', `${pname(atk)} は てつのトゲで ${_tbDmg} ダメージ！ (残HP ${atk.currentHp})`);
       if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
@@ -2957,11 +3000,15 @@ function phaseDealDamage(atkSide, defSide, move){
     if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
   }
   // 反動ダメージ (ゴツメ・たま=持ち物由来。calcDamageが計算済み)
-  if (result.recoil > 0 && !atk.fainted){
-    atk.currentHp = Math.max(0, atk.currentHp - result.recoil);
-    const _recoilLabel = result.helmetRecoil > 0 && result.orbRecoil > 0 ? 'ゴツゴツメット+いのちのたまの反動'
-                       : result.helmetRecoil > 0 ? 'ゴツゴツメットの反動' : 'いのちのたまの反動';
-    log('9', `${pname(atk)} は ${_recoilLabel}で ${result.recoil} ダメージ！ (残HP ${atk.currentHp})`);
+  // ★2026-07-16連続技演出: ゴツゴツメットは接触ヒットごとに発動(landedHits倍)。いのちのたまは技1回に
+  // つき1回のみ(発ごとではない=Bulbapedia "Life Orb")なので orbRecoil は倍率をかけない(従来どおり)。
+  const _scaledHelmet = (result.helmetRecoil || 0) * landedHits;
+  const _scaledRecoil = _scaledHelmet + (result.orbRecoil || 0);
+  if (_scaledRecoil > 0 && !atk.fainted){
+    atk.currentHp = Math.max(0, atk.currentHp - _scaledRecoil);
+    const _recoilLabel = _scaledHelmet > 0 && result.orbRecoil > 0 ? 'ゴツゴツメット+いのちのたまの反動'
+                       : _scaledHelmet > 0 ? 'ゴツゴツメットの反動' : 'いのちのたまの反動';
+    log('9', `${pname(atk)} は ${_recoilLabel}で ${_scaledRecoil} ダメージ！ (残HP ${atk.currentHp})`);
     if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
   }
   // わるあがき反動(段129): 自分の最大HPの1/4(第4世代以降)。いしあたま等でも防げない
