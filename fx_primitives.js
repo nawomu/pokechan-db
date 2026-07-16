@@ -798,6 +798,77 @@ function setTerrainFx(kind){
   spawn();
   _terrainFxInterval = setInterval(spawn, kind === 'misty' ? 1400 : 650);
 }
+// ===== エフェクト絵の体系整理(2026-07-16・設計_エフェクト絵の体系整理_2026-07-16.md §2): 新プリミティブ3種 =====
+// 「同じ意味=同じ絵」の正典拡張(STATUS_FX/wall/weather/terrainと同じ1本化の作法)。3関数とも純追加=
+// 既存関数への影響ゼロ・省略時挙動なし(呼ばれない限り何も起きない)。cue語彙はglyph/shield・glyph/note・glyph/bind
+// (_dispatchCueProdへ新action追加のみ・既存cueは1msも不変)。
+// A. shieldFx: まもる系(まもる/みきり/ワイドガード/ファストガード/ニードルガード/キングシールド/トーチカ)。
+// 本家風の丸っぽい半透明バリアドームが「ポンッ」と展開→軽くふるえ→フェード(計900ms)。
+// color省略時=#7dd3fc(まもる基準色)。キングシールド=金/トーチカ=紫等はcueのparams.colorで可変。
+function shieldFx(side, color){
+  const f = $('f-' + side);
+  if (!f) return;
+  if (window.__fxTrace) window.__fxTrace.push({k:'shieldFx', side, color, t: performance.now()});
+  const c = color || '#7dd3fc';
+  const el = document.createElement('div');
+  el.className = 'rb-shield';
+  // burstFx既存パターン(色+アルファ接尾辞のインライン合成)を踏襲=CSS var文字列結合の罠を踏まない
+  el.style.background = `radial-gradient(ellipse at 50% 50%, ${c}66 0%, ${c}33 55%, transparent 78%)`;
+  el.style.borderColor = c;
+  el.style.boxShadow = `0 0 16px 4px ${c}66`;
+  f.appendChild(el);
+  _fxAutoRemove(el, 900);
+}
+// B. noteFx: 音技24統一(flags.sound技)。対象から音符(♪♫交互)が4個、ふわふわ波打ちながら上方向へ
+// 飛んでいく(左右にsin揺れ・800ms前後で消える)。色はタイプ色(呼び出し元がinfo.colorを渡す)。
+function noteFx(side, color){
+  const f = $('f-' + side);
+  if (!f) return;
+  if (window.__fxTrace) window.__fxTrace.push({k:'noteFx', side, color, t: performance.now()});
+  const c = color || '#fbbf24';
+  const glyphs = ['♪', '♫', '♪', '♫'];
+  for (let i = 0; i < 4; i++){
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'rb-note';
+      el.textContent = glyphs[i % glyphs.length];
+      el.style.color = c;
+      el.style.left = (38 + Math.random() * 24) + '%';
+      f.appendChild(el);
+      const dx = Math.random() * 30 - 15;
+      const rot = Math.random() * 24 - 12;
+      const dur = 750 + Math.random() * 120;
+      try {
+        const anim = el.animate([
+          { transform: 'translate(-50%,0) translateY(0) rotate(0deg)', opacity: 0 },
+          { transform: `translate(-50%,0) translateY(-16px) translateX(${dx * 0.3}px) rotate(${rot * 0.4}deg)`, opacity: 1, offset: 0.2 },
+          { transform: `translate(-50%,0) translateY(-40px) translateX(${-dx * 0.5}px) rotate(${-rot * 0.6}deg)`, opacity: 1, offset: 0.6 },
+          { transform: `translate(-50%,0) translateY(-64px) translateX(${dx}px) rotate(${rot}deg)`, opacity: 0 },
+        ], { duration: dur, easing: 'ease-in-out' });
+        anim.onfinish = () => el.remove();
+      } catch (e) {}
+      _fxAutoRemove(el, dur + 80);
+    }, i * 110);
+  }
+}
+// C. bindFx: 縛り系(バインド状態付与/拘束/自分拘束)。楕円リング2〜3本が対象に巻き付いてキュッと締まる
+// (scale 1.4→0.9で縮む・700ms)。色既定#a78bfa(バインド)。拘束(暗色)/自分拘束(緑)等はcueのcolorで可変。
+function bindFx(side, color){
+  const f = $('f-' + side);
+  if (!f) return;
+  if (window.__fxTrace) window.__fxTrace.push({k:'bindFx', side, color, t: performance.now()});
+  const c = color || '#a78bfa';
+  for (let i = 0; i < 3; i++){
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'rb-bindring';
+      el.style.borderColor = c;
+      el.style.top = (30 + i * 14) + '%';
+      f.appendChild(el);
+      _fxAutoRemove(el, 700);
+    }, i * 70);
+  }
+}
 // S6: 背景プリセット切替 ---------------------------------------------------
 // setBackdrop(preset): #field-backdrop の data-preset 属性を切り替えるだけ。
 // CSSが data-preset 値に応じて背景グラデを適用(将来の追加はCSS1プリセット+option1行)。
@@ -1055,6 +1126,12 @@ function _dispatchCueProd(cue, info){
       setTerrainFx(p.kind || null);   // 変化技演出Phase1: フィールド展開(グラス/エレキ/サイコ/ミスト)
     } else if (cue.track === 'glyph' && cue.action === 'weather'){
       setWeatherFx(p.kind || null);   // 変化技演出Phase1: 天候変化(あまごい等)。scene側と同形をmove側にも
+    } else if (cue.track === 'glyph' && cue.action === 'shield'){
+      shieldFx(atSide, p.color);   // エフェクト絵の体系整理(2026-07-16)新規A: まもる系バリアドーム
+    } else if (cue.track === 'glyph' && cue.action === 'note'){
+      noteFx(atSide, p.color || info.color);   // 新規B: 音技24統一の音符ウェーブ
+    } else if (cue.track === 'glyph' && cue.action === 'bind'){
+      bindFx(atSide, p.color || info.color);   // 新規C: 縛り系の巻き付きリング
     } else if (cue.track === 'sound' && cue.action === 'se'){
       // 変化技演出Phase1: p.nameがあればSE[name]()(scene側_dispatchSceneCueProdと同形=rankUp/rankDown等の
       // 専用SEを鳴らせる)。p.name無し=従来どおりSE.hitClass(cls)(攻撃技の後方互換=1msも変えない)。

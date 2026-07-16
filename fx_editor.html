@@ -12,7 +12,7 @@
 -->
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
-<script src="fx_primitives.js?v=20260716g"></script>
+<script src="fx_primitives.js?v=20260716h"></script>
 <!-- 本番のclass:テンプレ(全技デフォルト演出)を読む=エディタの自動生成がそこから複製する(2026-07-16 阿部さん・エディタと本番の見た目を一致させる) -->
 <script src="battle_fx_cues.js?v=20260716c"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
@@ -306,6 +306,21 @@ h1,h2,h3{margin:0}
 .rb-wall-veil::before{background-color:rgba(136,238,255,.35);border:1px solid #59c8e6}
 @keyframes rbWallPop{0%{opacity:0;transform:skewX(-15deg) scaleY(0)}35%{opacity:1;transform:skewX(-15deg) scaleY(1.08)}
   60%{opacity:.85}100%{opacity:1;transform:skewX(-15deg) scaleY(1)}}
+/* --- エフェクト絵の体系整理(設計_エフェクト絵の体系整理_2026-07-16.md §2): 新プリミティブ3種 ---
+ * A. shieldFx=まもる系の本家風バリアドーム。B. noteFx=音技24統一の音符ウェーブ。C. bindFx=縛り系の巻き付きリング。
+ * 色はJS側(shieldFx/noteFx/bindFx)で`${color}アルファ`のインライン合成(burstFx既存パターンと同じ=CSSはグレースケール既定値のみ持つ)。 */
+.rb-shield{position:absolute;left:50%;top:46%;width:150px;height:110px;margin:-55px 0 0 -75px;border-radius:50%;
+  pointer-events:none;z-index:5;box-sizing:border-box;border:3px solid #7dd3fc;
+  animation:rbShieldPop .9s cubic-bezier(.34,1.2,.4,1) forwards}
+@keyframes rbShieldPop{0%{opacity:0;transform:scale(.3)}22%{opacity:1;transform:scale(1.08)}
+  32%{transform:scale(.96)}42%{transform:scale(1.03)}52%{transform:scale(1)}75%{opacity:.85}100%{opacity:0;transform:scale(1.04)}}
+.rb-note{position:absolute;bottom:32%;left:50%;font-size:22px;font-weight:900;pointer-events:none;z-index:5;
+  text-shadow:0 0 8px currentColor,0 2px 3px #0008}
+.rb-bindring{position:absolute;left:50%;top:38%;width:120px;height:34px;margin:-17px 0 0 -60px;border-radius:50%;
+  border:4px solid #a78bfa;pointer-events:none;z-index:5;box-sizing:border-box;
+  animation:rbBindRing .7s cubic-bezier(.3,0,.2,1) forwards}
+@keyframes rbBindRing{0%{opacity:0;transform:scale(1.4)}25%{opacity:1;transform:scale(1.1)}
+  70%{opacity:1;transform:scale(.9)}100%{opacity:0;transform:scale(.85)}}
 #result-banner{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center;pointer-events:none}
 #result-banner.show{display:flex}
 #result-banner .rb-txt{font-size:64px;font-weight:900;font-style:italic;letter-spacing:2px;color:#fff;
@@ -668,8 +683,10 @@ function autoCuesForMove(mv){
 // ★正典はSTATUS_FX(fx_primitives.js)=攻撃技の追加効果(まひ⚡/やけど🔥/どく💜/ねむりZzz等)が本番で
 // 出している絵と同一のものを引く(二重定義しない)。正典に無い残りのvalue(状態異常でない疑似状態)だけ
 // ここで補完(データの状態付与value全22種をカバー)。複合値は先頭要素の絵。エディタのtext欄でいつでも変更可。
+// 'バインド'(2026-07-16・設計_エフェクト絵の体系整理_2026-07-16.md §3): 絵文字🌀でなくbindFx(巻き付き
+// リング)に格上げしたため、このマップからは外し「状態付与」分岐側で個別分岐する(下記参照・二重管理防止)。
 const _STATUS_POP_EXTRA = {
-  'ひるみ': '💥', 'バインド': '🌀', 'ちいさくなる': '🔍', 'きゅうしょアップ': '🎯',
+  'ひるみ': '💥', 'ちいさくなる': '🔍', 'きゅうしょアップ': '🎯',
   'のろい': '👻', 'おいかぜ': '💨', 'でんじふゆう': '🧲', 'うちおとす': '⬇️',
   'しおづけ': '🧂', 'みがわり': '🎭', 'あめまみれ': '💧', 'かいふくふうじ': '🚫',
 };
@@ -687,6 +704,13 @@ function _autoCuesForStatusMove(mv){
   const effects = (mv.battle_data && mv.battle_data.effects) || [];
   const cues = [];
   let slot = 0;
+  // 音技24統一(2026-07-16・設計_エフェクト絵の体系整理_2026-07-16.md §2-B): flags.soundを持つ変化技は
+  // 先頭にnoteFx(音符ウェーブ)を追加する。既存分解と共存(例: いやなおと=note+ランク矢印)。
+  // ほろびのうたはkind分解が下のどれにも当たらないため、これだけが唯一のcueになる(=音符のみ・阿部さん確定)。
+  if (mv.flags && mv.flags.sound){
+    cues.push(newCue('glyph', 'note', slot * 200, 800, { at: 'self' }));
+    slot++;
+  }
   effects.forEach(ef => {
     const t = slot * 200;
     if (ef.kind === '能力ランク変化'){
@@ -714,13 +738,60 @@ function _autoCuesForStatusMove(mv){
       cues.push(newCue('def', 'hitreact', t, 200, { at }));
       // 状態の絵ポップ(2026-07-16 阿部さん「文字は全部絵」=言語非依存・多言語化不要)。全22valueをマップで
       // カバー(_STATUS_POP_ICON)。万一マップ外の新valueが来た時だけ文字フォールバック(でっち上げ防止)。
-      const _icon = _statusPopIcon(ef.value);
-      cues.push(newCue('text', 'popnum', t, 900, _icon
-        ? { at, text: _icon, color: '#fff', size: 24 }
-        : { at, text: (ef.value || '') + '！', color: '#fff' }));
+      // バインド(2026-07-16・設計_エフェクト絵の体系整理_2026-07-16.md §3): 絵文字🌀でなくbindFxへ格上げ
+      // (縛り系=巻き付きリング。既定色=バインド基準の紫)。複合値(先頭要素判定)は他のvalueと同じ扱い。
+      const _val0 = String(ef.value || '').split(',')[0];
+      if (_val0 === 'バインド'){
+        cues.push(newCue('glyph', 'bind', t, 700, { at }));
+      } else {
+        const _icon = _statusPopIcon(ef.value);
+        cues.push(newCue('text', 'popnum', t, 900, _icon
+          ? { at, text: _icon, color: '#fff', size: 24 }
+          : { at, text: (ef.value || '') + '！', color: '#fff' }));
+      }
+      slot++;
+    } else if (ef.kind === 'まもり' || ef.kind === '範囲まもり'){
+      // 新規A(2026-07-16): まもる系7技=本家風バリアドーム。まもる/みきり/ワイドガード/ファストガード/
+      // ニードルガード/キングシールド/トーチカ。色は既定(#7dd3fc)のまま(個別色分けはW-c以降の任意項目)。
+      cues.push(newCue('glyph', 'shield', t, 900, { at: 'self' }));
+      cues.push(newCue('sound', 'se', t, 120, { name: 'status' }));
+      slot++;
+    } else if (ef.kind === '拘束'){
+      // 新規C(2026-07-16): 相手を縛る拘束(くろいまなざし/とおせんぼう等)。暗色=威圧的な締め付け。
+      cues.push(newCue('glyph', 'bind', t, 700, { at: 'opp', color: '#475569' }));
+      slot++;
+    } else if (ef.kind === '自分拘束'){
+      // 新規C(2026-07-16): 自分を縛る拘束(ねをはる/はいすいのじん)。緑=根を張るイメージ。
+      cues.push(newCue('glyph', 'bind', t, 700, { at: 'self', color: '#4ade80' }));
+      slot++;
+    } else if (ef.kind === 'やどりぎ'){
+      // ロングテール絵(2026-07-16・設計§3): やどりぎのタネ=🌱
+      const at = _statusMoveAtSide(ef.target);
+      cues.push(newCue('def', 'hitreact', t, 200, { at }));
+      cues.push(newCue('text', 'popnum', t, 900, { at, text: '🌱', color: '#4ade80', size: 24 }));
+      slot++;
+    } else if (ef.kind === 'みちづれ'){
+      // ロングテール絵(2026-07-16・設計§3): みちづれ=👻⛓
+      cues.push(newCue('text', 'popnum', t, 900, { at: 'self', text: '👻⛓', color: '#fff', size: 24 }));
+      slot++;
+    } else if (ef.kind === 'ちょうはつ' || ef.kind === 'いちゃもん'){
+      // ロングテール絵(2026-07-16・設計§3): ちょうはつ/いちゃもん=💢
+      const at = _statusMoveAtSide(ef.target);
+      cues.push(newCue('def', 'hitreact', t, 200, { at }));
+      cues.push(newCue('text', 'popnum', t, 900, { at, text: '💢', color: '#fff', size: 24 }));
+      slot++;
+    } else if (ef.kind === 'アンコール'){
+      // ロングテール絵(2026-07-16・設計§3): アンコール=👏
+      const at = _statusMoveAtSide(ef.target);
+      cues.push(newCue('def', 'hitreact', t, 200, { at }));
+      cues.push(newCue('text', 'popnum', t, 900, { at, text: '👏', color: '#fff', size: 24 }));
+      slot++;
+    } else if (ef.kind === 'じゅうりょく'){
+      // ロングテール絵(2026-07-16・設計§3): じゅうりょく=⬇️(target='field'=場全体だが、popupは使用者側に出す)
+      cues.push(newCue('text', 'popnum', t, 900, { at: 'self', text: '⬇️', color: '#fff', size: 24 }));
       slot++;
     }
-    // その他のkind(まもり/設置/優先技無効/場の威力補正 等ロングテール)はスキップ=自動分解未対応
+    // その他のkind(設置/優先技無効/場の威力補正 等ロングテール)はスキップ=自動分解未対応
   });
   if (cues.length === 0){
     // 1つもcueが生えない変化技(効果が上のいずれにも当たらない)は最小シート(効果音のみ)にする
@@ -1333,6 +1404,13 @@ function renderInspector(){
     }
     if (cue.track === 'glyph' && cue.action === 'weather') html += fieldWeatherKindSelect(p.kind || 'rain');
     if (cue.track === 'glyph' && cue.action === 'terrain') html += fieldTerrainKindSelect(p.kind || 'grass');
+    if (cue.track === 'glyph' && (cue.action === 'shield' || cue.action === 'note' || cue.action === 'bind')){
+      // 新プリミティブ3種(2026-07-16・設計_エフェクト絵の体系整理_2026-07-16.md §2)のcolor欄。
+      // at欄は上のfieldAtSelect(glyph全般)で既に出る=ここではcolorだけ足す。省略時の既定色はfx_primitives.js側
+      // (shieldFx=#7dd3fc・noteFx=タイプ色/#fbbf24・bindFx=#a78bfa)と揃える(表示上のプレビューを一致させる)。
+      const _defColor = cue.action === 'shield' ? '#7dd3fc' : cue.action === 'bind' ? '#a78bfa' : '#fbbf24';
+      html += fieldColor('color', 'color(演出色・省略時は既定色)', p.color || _defColor);
+    }
     if (cue.track === 'glyph' && cue.action === 'burst'){
       const off = p.offset || { x: 0, y: 0 };
       html += `<div class="insp-field"><label>offset.x(出る位置オフセットpx・盤面の◎ドラッグでも変更可)</label><input type="number" id="ins-offx" value="${off.x || 0}" step="5"></div>`;
@@ -1724,6 +1802,10 @@ function resetPreviewPositions(){
   document.querySelectorAll('[class^="rb-burstglyph"]').forEach(el => el.remove());
   // 変化技演出Phase1(2026-07-16): ランク矢印/回復キラキラの残留粒子(短命だが再生中断時に取り残ることがある)。
   document.querySelectorAll('.rb-rankp,.rb-sparkle').forEach(el => el.remove());
+  // エフェクト絵の体系整理(2026-07-16・設計_エフェクト絵の体系整理_2026-07-16.md §2)新プリミティブ3種の
+  // 残留要素。shieldFx(900ms)/noteFx(800ms前後)/bindFx(700ms)は短命だが、再生中断・技切替の直後だと
+  // 消滅タイマーより早く次の技のプレビューが始まり得るため、他の短命粒子と同じく毎周回頭で掃除する。
+  document.querySelectorAll('.rb-shield,.rb-note,.rb-bindring').forEach(el => el.remove());
   // シーン対応(演出ツクール v2.1): メガ儀式の残留要素・fighterの状態クラス(faint/gone/enter/recall)・
   // fx-flash/weather-fx/result-bannerを毎周回の頭で元に戻す(design1-6「毎周回同じ条件で再生」)。
   document.querySelectorAll('.rb-mega-pillar,.rb-mega-orb,.rb-mega-ring,.rb-mega-mist,.rb-mega-dna').forEach(el => el.remove());
