@@ -725,6 +725,21 @@ function koSlowFx(koSide){
 // ===== Wave3: 壁パネル(リフレクター/ひかりのかべ/オーロラベール・設計 v2 ③-2章) =====
 // 持続は#f-側へのclass付与でCSS管理(::before/::afterの平行四辺形パネル)=renderAll等の再描画に耐える。
 // 交代・ひんしでは消さない(壁は側に付く)。新バトル初期化時のみstartBattle()側でclass除去する。
+// 状態異常の絵/色の正典(2026-07-16 阿部さん「攻撃技の既存エフェクトと変化技を全部合わせる」=SSOT 1本化)。
+// 従来real_battle/online_battleのlineWithFxにインラインで二重定義されていたものを集約。エディタの変化技
+// 自動生成(_autoCuesForStatusMove)も同じマップを読む=二度とズレない。ねむり/ねむけは💤→Zzz/Zz…
+// (2026-07-16 阿部さん「文字でなくZzz・言語非依存」)。iconはpopText・colorはburstFx用。
+const STATUS_FX = {
+  もうどく: { icon: '💜', color: '#7c3aed' },
+  どく:     { icon: '💜', color: '#a855f7' },
+  まひ:     { icon: '⚡', color: '#facc15' },
+  やけど:   { icon: '🔥', color: '#f97316' },
+  こおり:   { icon: '❄️', color: '#67e8f9' },
+  ねむり:   { icon: 'Zzz', color: '#818cf8' },
+  ねむけ:   { icon: 'Zz…', color: '#818cf8' },
+  こんらん: { icon: '💫', color: '#e879f9' },
+  メロメロ: { icon: '💕', color: '#f9a8d4' },
+};
 const _WALL_CLASS = { リフレクター: 'rb-wall-reflect', ひかりのかべ: 'rb-wall-screen', オーロラベール: 'rb-wall-veil' };
 function showWallFx(side, name){
   const f = $('f-' + side), cls = _WALL_CLASS[name];

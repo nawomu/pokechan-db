@@ -12,7 +12,7 @@
 -->
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
-<script src="fx_primitives.js?v=20260716f"></script>
+<script src="fx_primitives.js?v=20260716g"></script>
 <!-- 本番のclass:テンプレ(全技デフォルト演出)を読む=エディタの自動生成がそこから複製する(2026-07-16 阿部さん・エディタと本番の見た目を一致させる) -->
 <script src="battle_fx_cues.js?v=20260716c"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
@@ -664,6 +664,20 @@ function autoCuesForMove(mv){
 // 状態付与のみ対応。ロングテールkind=まもり/設置/その他はスキップ=このエディタでは自動生成しない)。
 // atkトラックは絶対に入れない(誤生成バグの裏返し対策=設計の絶対条件)。
 // at既定は'opp'(_dispatchCueProd側)なので、自分に効く効果(self/team/ally)は必ずat:'self'を明示する。
+// 状態付与ポップの絵(2026-07-16 阿部さん「文字は全部絵」+「攻撃技の既存エフェクトと全部合わせる」)。
+// ★正典はSTATUS_FX(fx_primitives.js)=攻撃技の追加効果(まひ⚡/やけど🔥/どく💜/ねむりZzz等)が本番で
+// 出している絵と同一のものを引く(二重定義しない)。正典に無い残りのvalue(状態異常でない疑似状態)だけ
+// ここで補完(データの状態付与value全22種をカバー)。複合値は先頭要素の絵。エディタのtext欄でいつでも変更可。
+const _STATUS_POP_EXTRA = {
+  'ひるみ': '💥', 'バインド': '🌀', 'ちいさくなる': '🔍', 'きゅうしょアップ': '🎯',
+  'のろい': '👻', 'おいかぜ': '💨', 'でんじふゆう': '🧲', 'うちおとす': '⬇️',
+  'しおづけ': '🧂', 'みがわり': '🎭', 'あめまみれ': '💧', 'かいふくふうじ': '🚫',
+};
+function _statusPopIcon(value){
+  if (!value) return null;
+  const one = v => (STATUS_FX[v] || {}).icon || _STATUS_POP_EXTRA[v] || null;
+  return one(value) || one(String(value).split(',')[0]);   // 複合値(トライアタック=まひ,やけど,こおり等)は先頭の絵
+}
 const _TERRAIN_MOVE_KIND = { グラスフィールド: 'grass', エレキフィールド: 'electric', サイコフィールド: 'psychic', ミストフィールド: 'misty' };
 const _WEATHER_MOVE_KIND = { あめ: 'rain', にほんばれ: 'sun', すなあらし: 'sand', ゆき: 'snow', ゆきげしき: 'snow' };
 function _statusMoveAtSide(target){
@@ -698,7 +712,12 @@ function _autoCuesForStatusMove(mv){
     } else if (ef.kind === '状態付与'){
       const at = _statusMoveAtSide(ef.target);
       cues.push(newCue('def', 'hitreact', t, 200, { at }));
-      cues.push(newCue('text', 'popnum', t, 900, { at, text: (ef.value || '') + '！', color: '#fff' }));
+      // 状態の絵ポップ(2026-07-16 阿部さん「文字は全部絵」=言語非依存・多言語化不要)。全22valueをマップで
+      // カバー(_STATUS_POP_ICON)。万一マップ外の新valueが来た時だけ文字フォールバック(でっち上げ防止)。
+      const _icon = _statusPopIcon(ef.value);
+      cues.push(newCue('text', 'popnum', t, 900, _icon
+        ? { at, text: _icon, color: '#fff', size: 24 }
+        : { at, text: (ef.value || '') + '！', color: '#fff' }));
       slot++;
     }
     // その他のkind(まもり/設置/優先技無効/場の威力補正 等ロングテール)はスキップ=自動分解未対応
