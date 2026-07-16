@@ -3474,10 +3474,15 @@ function initGodHand(){
     if (caret) caret.textContent = open ? '▸' : '▾';
     if (!open) ghRenderAll();
   });
+  // ★神の手の視覚演出(2026-07-16 S3再テストで発覚): env反映だけでなく盤面演出も同時に切り替える。
+  // setWeatherFx/setTerrainFxは本来ログ行/cue経由でしか呼ばれない=神の手の直接セットでは絵が出なかった。
+  // エンジンenv値→fxのkind語彙のマップ(sunny→sun / grassy→grass。他は同名)。
+  const _GH_WFX = { sunny: 'sun', rain: 'rain', sand: 'sand', snow: 'snow' };
+  const _GH_TFX = { grassy: 'grass', electric: 'electric', psychic: 'psychic', misty: 'misty' };
   const wSel = $('gh-weather');
-  if (wSel) wSel.addEventListener('change', () => { if (S && S.env){ S.env.weather = wSel.value; S.env.weatherTurns = null; renderAll(); } });
+  if (wSel) wSel.addEventListener('change', () => { if (S && S.env){ S.env.weather = wSel.value; S.env.weatherTurns = null; setWeatherFx(_GH_WFX[wSel.value] || null); renderAll(); } });
   const fSel = $('gh-field');
-  if (fSel) fSel.addEventListener('change', () => { if (S && S.env){ S.env.field = fSel.value; S.env.fieldTurns = null; renderAll(); } });
+  if (fSel) fSel.addEventListener('change', () => { if (S && S.env){ S.env.field = fSel.value; S.env.fieldTurns = null; setTerrainFx(_GH_TFX[fSel.value] || null); renderAll(); } });
   const br = $('gh-battle-reset');
   if (br) br.addEventListener('click', () => { if (document.body.classList.contains('in-battle')) startBattle(); });
   const fr = $('gh-full-reset');
