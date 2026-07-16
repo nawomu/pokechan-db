@@ -13,6 +13,8 @@
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
 <script src="fx_primitives.js?v=20260716c"></script>
+<!-- 本番のclass:テンプレ(全技デフォルト演出)を読む=エディタの自動生成がそこから複製する(2026-07-16 阿部さん・エディタと本番の見た目を一致させる) -->
+<script src="battle_fx_cues.js?v=20260716c"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <style>
 /* ===================================================================
@@ -547,7 +549,29 @@ let _cueSeq = 1;
 function newCue(track, action, t, dur, params){
   return { id: 'c' + (_cueSeq++), track, action, t, dur, params: params || {} };
 }
+// 2026-07-16(阿部さん「フレアドライブ基準を全技デフォルトに」): 本番ランタイムのclass:テンプレ
+// (reference/battle_fx_cues.json→battle_fx_cues.js→window.BATTLE_FX_CUES)を複製してエディタの自動生成
+// デフォルトにする=エディタのプレビューと本番の見た目を単一ソースで一致させる。10まんボルト等が本番と
+// 違って見えた不具合の根治(旧autoCuesForMoveがclassとは別のタイミングをハードコードしていた)。
+// classが無い技(変化技=_cueClassKeyが空)や、まだ本番シートを読めない環境は従来のフォールバック生成。
 function autoCuesForMove(mv){
+  const clsKey = (typeof _cueClassKey === 'function') ? _cueClassKey(mv) : '';
+  const tmpl = clsKey && window.BATTLE_FX_CUES && window.BATTLE_FX_CUES['class:' + clsKey];
+  if (tmpl && Array.isArray(tmpl.cues)){
+    const shp = shapeOf(mv);
+    const cues = tmpl.cues.map(c => {
+      const nc = newCue(c.track, c.action, c.t, c.dur, JSON.parse(JSON.stringify(c.params || {})));
+      // class:テンプレはshapeを持たず本番はshapeOf(mv)で補完する。エディタでもshape欄を埋めておく
+      // (atk/glyph=絵が出るトラック)と分かりやすい。補完先が同じなので見た目はどちらでも同一。
+      if ((c.track === 'atk' || (c.track === 'glyph' && c.action === 'burst')) && nc.params.shape == null) nc.params.shape = shp;
+      return nc;
+    });
+    return { dur: computeSheetDur({ cues }), cues };
+  }
+  return _autoCuesForMoveFallback(mv);
+}
+// 従来の自動生成(class:テンプレが無い技=変化技等のフォールバック・保険)。
+function _autoCuesForMoveFallback(mv){
   const cls = moveClassOf(mv);
   const shape = shapeOf(mv);
   const isContact = !!(mv && mv.contact === true);
