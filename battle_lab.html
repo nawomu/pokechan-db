@@ -389,8 +389,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .pbox .icn img{width:50px;height:50px;object-fit:contain;image-rendering:pixelated}
 .pbox .nm{font-weight:800;font-size:13px;color:#fff;text-shadow:0 1px 2px #0009;
   max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.pbox .ptypes{display:flex;gap:3px;flex:0 0 auto}
-.pbox .ptypes span{font-size:8px;font-weight:800;color:#fff;border-radius:6px;padding:1px 6px;border:1px solid #ffffff55;white-space:nowrap}
+.pbox .ptypes{display:flex;gap:2px;flex:0 0 auto}
+.pbox .ptypes span{font-size:7px;font-weight:800;color:#fff;border-radius:6px;padding:1px 4px;border:1px solid #ffffff55;white-space:nowrap}
 .pbox .lv{display:none}   /* 実機statbarにLv表示なし(全員Lv50) */
 /* CH: HPバー=ダーク下地+ライム緑。%/数値テキストはバーの下に大きく出す */
 .pbox .hpbar{position:relative;width:calc(100% - 58px);margin-left:58px !important;height:10px;/* 名前の左端に揃えて左へ延長 */background:#00000066;border-radius:5px;border:none;/* 右端寄せ=アイコンに被せない(skewの横ずれ込みで66px空け=2026-07-06 阿部さん) */
@@ -967,7 +967,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 <div id="rotate-hint" aria-hidden="true">
   <div class="rh-inner">
     <div class="rh-ico">📱</div>
-    <div class="rh-txt" data-i18n="real_battle.rotate_hint">よこむきにしてね<br><span>リアルバトルは 横向きで あそべます</span></div>
+    <div class="rh-txt" data-i18n-html="real_battle.rotate_hint">よこむきにしてね<br><span>リアルバトルは 横向きで あそべます</span></div>
   </div>
 </div>
 <div id="game">
@@ -1292,6 +1292,9 @@ const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_C
     } catch(e) {}
   }
   if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} }
+  // ★2026-07-16バグ修正: 交代画面(#party)を開いたまま言語切替すると「いま えらぶのは」バッジ等が
+  // 動的innerHTMLのため古い言語のまま残っていた。開いていれば同じ状態のまま作り直す(他のJS組立部品と同じ扱い)
+  if ($('party').style.display === 'flex'){ try { renderPartyScreen(); } catch(e) {} }
   // 弱点/様子パネルは開くたびに最新言語で再生成する設計=言語切替時は一旦閉じて古い言語を残さない(B1)
   ['weak-panel', 'watch-panel'].forEach(id => { const _p = document.getElementById(id); if (_p) _p.style.display = 'none'; });
   // つぎの相手ボタンは動的生成=data-bl-src対象外。言語切替で作り直す(2026-07-06 阿部さん)
@@ -1383,7 +1386,9 @@ function setSlot(id, name, keepCustom){
   name = FORM_REVERT[name] || name;   // 変身でしか出ない姿は始動の姿に矯正(イルカマン=ナイーブ/ギルガルド=シールド)
   slotVal[id] = name;
   if (!keepCustom) slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
-  if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
+  // ★2026-07-16バグ修正: `!slotItem[id]`だと空文字""(=意図的な「もちもの なし」)も未設定と誤判定して
+  // 汎用メガストーンへ引き戻していた(loadTeam→setSlot経由でリロードのたび復活)。未設定=null/undefinedのみ既定を当てる
+  if (slotItem[id] == null) slotItem[id] = 'mega_stone_any';
   if (!keepCustom || !slotGender[id]) slotGender[id] = genderOfRB(name);   // 性別(ビルダー由来は復元側でセット)
   if (!keepCustom){ slotNature[id] = 'まじめ'; slotEffort[id] = ZERO_EV(); }   // 手動選択は無補正・努力値0
   if (!keepCustom || !slotAbility[id]) slotAbility[id] = defaultAbilityRB(S.pokeByName(name));   // ポケモンを変えたら特性も既定に
@@ -1695,9 +1700,12 @@ function renderSelDetail(id){
 // ★バトルラボ: 保存キーはreal_battleの`rb_team`と完全分離(自分/相手それぞれ別キー=設計§4)
 function saveTeam(){
   try {
-    const pack = ids => ({
+    // ★2026-07-16バグ修正: 以前は`ids === selfIds()`で比較していたが、selfIds()は毎回新しい配列を
+    // 返す(Array.from)ため参照が一致せず常にfalse=常にleadSlot.oppが両サイドに保存されていた
+    // (自分側の「1番目」変更がリロード後に消える原因)。sideを直接渡す形に修正。
+    const pack = (ids, side) => ({
       size: teamSize,
-      lead: leadSlot[ids === selfIds() ? 'self' : 'opp'],
+      lead: leadSlot[side],
       val: Object.fromEntries(ids.map(id => [id, slotVal[id]])),
       item: Object.fromEntries(ids.map(id => [id, slotItem[id]])),
       ability: Object.fromEntries(ids.map(id => [id, slotAbility[id]])),
@@ -1706,8 +1714,8 @@ function saveTeam(){
       effort: Object.fromEntries(ids.map(id => [id, slotEffort[id]])),
       moves: Object.fromEntries(ids.map(id => [id, (slotMoves[id] || []).map(m => m && m.name)])),
     });
-    localStorage.setItem('rb_team_lab_self', JSON.stringify(pack(selfIds())));
-    localStorage.setItem('rb_team_lab_opp', JSON.stringify(pack(oppIds())));
+    localStorage.setItem('rb_team_lab_self', JSON.stringify(pack(selfIds(), 'self')));
+    localStorage.setItem('rb_team_lab_opp', JSON.stringify(pack(oppIds(), 'opp')));
   } catch (e) {}
 }
 function loadTeam(){
@@ -2111,7 +2119,11 @@ function initSetup(){
   document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') advanceMsg(); });
   $('c-fight').addEventListener('click', () => { SE.select(); showMoves(); });
   $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
-  $('c-run').addEventListener('click', () => {
+  // ★2026-07-16追加: バトル中いつでも編成にもどれる導線(ラボは実験室=組み直したい)。誤タップでバトルを
+  // 失わないよう確認ポップを挟む(バトルが既に終わっている=gameOverなら失う物が無いので確認なしでそのまま戻す)。
+  // c-run(コマンド欄の「にげる」)とbtn-exit(左上の常設ボタン)は同じ動作なので1つにまとめる。
+  function exitBattleToSetup(){
+    if (!gameOver && !confirm(I18N.t('battle_lab.confirm_exit_battle', 'バトルをやめて 編成にもどります。よろしいですか？'))) return;
     // オンライン中の「にげる」=降参を相手へ通知して切断(2026-07-10)。
     // 切断はresign送信が流れるまで少し待つ(即disconnectだとメッセージが届かず相手が待ち続ける)
     if (window.RB_ONLINE && RB_ONLINE.active){
@@ -2120,9 +2132,10 @@ function initSetup(){
     }
     if (labSwapped) labSwapSides();   // ★バトルラボ: 編成画面に戻る時は必ず真の対応関係に戻す
     bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
-  });
+  }
+  $('c-run').addEventListener('click', exitBattleToSetup);
   // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
-  $('btn-exit').addEventListener('click', e => { e.stopPropagation(); if (labSwapped) labSwapSides(); bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
+  $('btn-exit').addEventListener('click', e => { e.stopPropagation(); exitBattleToSetup(); });
   // 音オン/オフ(設定はlocalStorageに保存)
   updateSndBtn();
   // 音量スライダー(2026-07-06 阿部さん): 全SE/BGM共通のマスターゲイン。保存して次回も同じ音量
