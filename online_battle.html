@@ -1216,7 +1216,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260716b" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260716c" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -3602,7 +3602,11 @@ function executeTurn(){
     // ばけのかわブロック: 「◯◯の 技！」の直後に「…ばけのかわが はがれた！」が続く形で判別する
     // (かたやぶり等の入場宣言も同じ「◯◯の 特性名！」の裸行なので、次の行の内容で狙い撃ちする=2026-07-13 阿部さん報告)
     const nextIsDisguiseBreak = !!(fresh[i + 1] && /ばけのかわが はがれた！$/.test(fresh[i + 1].msg));
-    if (am && (/ダメージ！/.test(e.msg) || nextIsDisguiseBreak)){
+    // まもる系ブロック: 同じ形(「◯◯の 技！」の直後に「…こうげきを 防いだ！」)。技告知を消さず、
+    // 予告+攻撃演出を出してから防がれる流れを見せる(2026-07-16 阿部さんFB=心理戦の情報が消えていた)
+    const nextIsProtectBlock = !!(fresh[i + 1] && /こうげきを 防いだ！$/.test(fresh[i + 1].msg));
+    const nextIsBlockAnnounce = nextIsDisguiseBreak || nextIsProtectBlock;
+    if (am && (/ダメージ！/.test(e.msg) || nextIsBlockAnnounce)){
       const introJa = `${am[1]}${am[2]} の こうげき！`;
       const introSide = am[1] ? 'opp' : 'self';
       // 予告のぴょんぴょん(.7s)+一拍だけ待って技を出す(送り速度=ふつうの約2.9秒だと予告後に間が空きすぎる=2026-07-13)
@@ -3613,7 +3617,7 @@ function executeTurn(){
     // (real_battle_simulator.htmlのphaseDealDamageが各ヒット行に載せたメタ)。表示側はこれを見て
     // 速い連打演出(圧縮ストライク)に切替える。省略時=undefined=従来の単発演出のまま(不変)。
     splitBattleLines(e.msg).forEach(t => lines.push(lineWithFx(t, {
-      forceAttackFx: nextIsDisguiseBreak, multiHit: e.multiHit, hitIndex: e.hitIndex, hitCount: e.hitCount,
+      forceAttackFx: nextIsBlockAnnounce, multiHit: e.multiHit, hitIndex: e.hitIndex, hitCount: e.hitCount,
     })));
   }
   logTurnHeader(turnNo);   // 右ログに「Turn N」見出し

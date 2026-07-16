@@ -253,10 +253,18 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   cursor:pointer;font-family:inherit;opacity:.68;display:flex;align-items:center;justify-content:center;gap:4px}
 #mp-catf button.on{opacity:1;box-shadow:0 0 0 2px #7ba800;border-color:#d4f542}
 #mp-catf .cf-all{background:#5a5478}
+/* おぼえる技だけトグル(2026-07-16 阿部さんFB) */
+#mp-learnf{display:flex;margin-bottom:8px}
+#mp-learnf button{width:100%;font-size:12px;font-weight:800;color:#fff;border-radius:9px;padding:6px 4px;border:1px solid #ffffff44;
+  cursor:pointer;font-family:inherit;opacity:.68;background:#5a5478}
+#mp-learnf button.on{opacity:1;box-shadow:0 0 0 2px #7ba800;border-color:#d4f542;background:#4a8f3c}
 #mp-list{overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+#mp-list .mp-group-head{font-size:12px;font-weight:800;color:#544a86;padding:6px 4px 2px;margin-top:2px}
+#mp-list .mp-group-head:first-child{margin-top:0}
 #mp-list button{background:#ffffffdd;border:1px solid #cfc9ea;border-radius:9px;color:#3a3552;cursor:pointer;
   padding:6px 10px;text-align:left;font-size:12px}
 #mp-list button:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
+#mp-list button.mp-unlearnable{opacity:.55}
 #mp-list .mp-top{display:flex;align-items:center;gap:6px;font-weight:800;white-space:nowrap;overflow:hidden}
 #mp-list .mp-top .t-pill{font-size:9.5px;padding:1px 4px;border-radius:8px;color:#fff;border:1px solid #ffffff66;flex:0 0 auto;
   width:52px;text-align:center;box-sizing:border-box}/* タイプ列を固定幅=技名を縦に揃える */
@@ -1128,6 +1136,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   <div class="mp-box">
     <input id="mp-q" placeholder="わざのなまえで さがす(ひらがなでもOK)…" data-i18n-attr="placeholder:real_battle.mp_search_placeholder">
     <div id="mp-catf"></div>
+    <div id="mp-learnf"></div>
     <div id="mp-list"></div>
     <button id="mp-close" data-i18n="real_battle.mp_close_button">とじる</button>
   </div>
@@ -1164,7 +1173,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260716b" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260716c" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1845,6 +1854,8 @@ function renderEvEditor(container, ctx){
 }
 // わざモーダル(ひらがな検索→クリックでそのスロットの技を差し替え)
 let mpCat = null;   // 分類フィルター(null=すべて / '物理' / '特殊' / '変化')
+// ✅おぼえる技だけトグル(既定OFF=全部表示・状態はlocalStorageで記憶・2026-07-16 阿部さんFB)
+let mpLearnableOnly = localStorage.getItem('lab_moves_learnable_only') === '1';
 function renderMoveCatChips(){
   const cats = [['物理', 'cat-phys'], ['特殊', 'cat-spec'], ['変化', 'cat-stat']];
   $('mp-catf').innerHTML =
@@ -1857,31 +1868,54 @@ function renderMoveCatChips(){
     renderMovePickList($('mp-q').value);
   }));
 }
+function renderMoveLearnToggle(){
+  $('mp-learnf').innerHTML =
+    `<button class="${mpLearnableOnly ? 'on' : ''}">${I18N.t('battle_lab.mp_learnable_only_toggle', '✅おぼえる技だけ')}</button>`;
+  $('mp-learnf').querySelector('button').addEventListener('click', () => {
+    SE.select();
+    mpLearnableOnly = !mpLearnableOnly;
+    localStorage.setItem('lab_moves_learnable_only', mpLearnableOnly ? '1' : '0');
+    renderMoveLearnToggle();
+    renderMovePickList($('mp-q').value);
+  });
+}
 function openMovePicker(slotId, idx){
   movePick = { slotId, idx };
   $('move-picker').style.display = 'flex';
   $('mp-q').value = '';
   mpCat = null;
   renderMoveCatChips();
+  renderMoveLearnToggle();
   renderMovePickList('');
   // 自動フォーカスしない(キーボードが勝手に出ない=2026-07-07 阿部さん)
 }
 function closeMovePicker(){ $('move-picker').style.display = 'none'; movePick = null; }
+// そのポケモンが本来おぼえる技かどうか(learnersに編成中スロットの種名がそのまま含まれるか=完全一致)。
+// メガ個体名(「メガガブリアス」等)はPOKEMON_LISTでmega:trueの別エントリとしてlearnersに入るが、
+// 手持ちスロットは常にmega=false(isPickableでメガを除外)の姿の名前なので、完全一致なら誤判定しない
+// (実データ確認: 部分一致だと「メガガブリアス」の文字列に「ガブリアス」が含まれてしまい誤って✅になる=NG。2026-07-16)
+function isMoveLearnableBy(m, pokeName){
+  return !!(pokeName && m.learners && m.learners.includes(pokeName));
+}
 function renderMovePickList(query){
   if (!movePick) return;
-  // ★バトルラボ: 習得可否を無視して全498技(WAZA_MAP)から選べる(テスト用途の核心=設計§3)
+  // ★バトルラボ: 習得可否を無視して全498技(WAZA_MAP)から選べる(テスト用途の核心=設計§3)。
+  // ただし「本来おぼえる技」か「おぼえない技(ラボ専用)」かはセクション分けして見分けられるようにする(2026-07-16 阿部さんFB)
   const all = Object.values(WAZA_MAP);
   const tc = S.typeColors();
   const k = toKata(query.trim());
   let hits = k ? all.filter(m => m.name.includes(k) || m.name.includes(query.trim())) : all;
   if (mpCat) hits = hits.filter(m => m.category === mpCat);
   // 並び: 攻撃技(物理/特殊混合)を威力の強い順→変化技は末尾(2026-07-06 阿部さん)
-  const sorted = hits.slice().sort((a, b) => {
+  const sortFn = (a, b) => {
     const av = a.category === '変化' ? -1 : (a.power || 0);
     const bv = b.category === '変化' ? -1 : (b.power || 0);
     return bv - av;
-  });
-  $('mp-list').innerHTML = sorted.slice(0, 120).map(m => {
+  };
+  const curName = slotVal[movePick.slotId];
+  const learnable = hits.filter(m => isMoveLearnableBy(m, curName)).sort(sortFn);
+  const unlearnable = mpLearnableOnly ? [] : hits.filter(m => !isMoveLearnableBy(m, curName)).sort(sortFn);
+  const renderBtn = (m, isUnlearnable) => {
     const col = tc[m.type] || '#3a4660';
     const pri = (m.battle_data && m.battle_data.priority) || m.priority || 0;
     const desc = (window.I18N && I18N.moveDesc && I18N.moveDesc(m.key)) || m.description || m.desc || '';
@@ -1891,11 +1925,21 @@ function renderMovePickList(query){
       `${I18N.t('real_battle.move_pp_label','PP')}${m.pp ?? '—'}`,
       pri ? `${I18N.t('real_battle.move_priority_label','優先度')}${pri > 0 ? '+' : ''}${pri}` : ''
     ].filter(Boolean).join(' / ');
-    return `<button data-n="${m.name}"><div class="mp-top"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>` +
+    return `<button data-n="${m.name}" class="${isUnlearnable ? 'mp-unlearnable' : ''}"><div class="mp-top"><span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>` +
       catBadge(m.category) +
-      `<span class="mv-name">${tMoveName(m)}</span><span class="mp-meta">${meta}</span></div>` +
+      `<span class="mv-name">${isUnlearnable ? '🧪 ' : ''}${tMoveName(m)}</span><span class="mp-meta">${meta}</span></div>` +
       (desc ? `<div class="mp-desc">${desc}</div>` : '') + `</button>`;
-  }).join('') || `<div style="color:#8b94a7;padding:8px">${I18N.t('real_battle.move_not_found','みつからない…')}</div>`;
+  };
+  let html = '';
+  if (learnable.length){
+    html += `<div class="mp-group-head">${I18N.t('battle_lab.mp_group_learnable', '✅ おぼえる技')}</div>`;
+    html += learnable.slice(0, 120).map(m => renderBtn(m, false)).join('');
+  }
+  if (unlearnable.length){
+    html += `<div class="mp-group-head">${I18N.t('battle_lab.mp_group_unlearnable', '🧪 おぼえない技(ラボ専用)')}</div>`;
+    html += unlearnable.slice(0, 120).map(m => renderBtn(m, true)).join('');
+  }
+  $('mp-list').innerHTML = html || `<div style="color:#8b94a7;padding:8px">${I18N.t('real_battle.move_not_found','みつからない…')}</div>`;
   $('mp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     SE.select();
     const mv = all.find(m => m.name === b.dataset.n);
@@ -3223,7 +3267,11 @@ function executeTurn(){
     // ばけのかわブロック: 「◯◯の 技！」の直後に「…ばけのかわが はがれた！」が続く形で判別する
     // (かたやぶり等の入場宣言も同じ「◯◯の 特性名！」の裸行なので、次の行の内容で狙い撃ちする=2026-07-13 阿部さん報告)
     const nextIsDisguiseBreak = !!(fresh[i + 1] && /ばけのかわが はがれた！$/.test(fresh[i + 1].msg));
-    if (am && (/ダメージ！/.test(e.msg) || nextIsDisguiseBreak)){
+    // まもる系ブロック: 同じ形(「◯◯の 技！」の直後に「…こうげきを 防いだ！」)。技告知を消さず、
+    // 予告+攻撃演出を出してから防がれる流れを見せる(2026-07-16 阿部さんFB=心理戦の情報が消えていた)
+    const nextIsProtectBlock = !!(fresh[i + 1] && /こうげきを 防いだ！$/.test(fresh[i + 1].msg));
+    const nextIsBlockAnnounce = nextIsDisguiseBreak || nextIsProtectBlock;
+    if (am && (/ダメージ！/.test(e.msg) || nextIsBlockAnnounce)){
       const introJa = `${am[1]}${am[2]} の こうげき！`;
       const introSide = am[1] ? 'opp' : 'self';
       // 予告のぴょんぴょん(.7s)+一拍だけ待って技を出す(送り速度=ふつうの約2.9秒だと予告後に間が空きすぎる=2026-07-13)
@@ -3234,7 +3282,7 @@ function executeTurn(){
     // (real_battle_simulator.htmlのphaseDealDamageが各ヒット行に載せたメタ)。表示側はこれを見て
     // 速い連打演出(圧縮ストライク)に切替える。省略時=undefined=従来の単発演出のまま(不変)。
     splitBattleLines(e.msg).forEach(t => lines.push(lineWithFx(t, {
-      forceAttackFx: nextIsDisguiseBreak, multiHit: e.multiHit, hitIndex: e.hitIndex, hitCount: e.hitCount,
+      forceAttackFx: nextIsBlockAnnounce, multiHit: e.multiHit, hitIndex: e.hitIndex, hitCount: e.hitCount,
     })));
   }
   logTurnHeader(turnNo);   // 右ログに「Turn N」見出し
