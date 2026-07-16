@@ -740,6 +740,10 @@ const STATUS_FX = {
   こんらん: { icon: '💫', color: '#e879f9' },
   メロメロ: { icon: '💕', color: '#f9a8d4' },
 };
+// まもる系のバリア色(2026-07-17 阿部さんFB「まもる時のバリアはまだ?」=本番/ラボの守り行にshieldFxを配線。
+// 表示側(real_battle/online_battle/battle_lab)のlineWithFxが「守りの体勢に入った！」行で参照する共有マップ)。
+const SHIELD_FX_COLOR = { まもる: '#7dd3fc', みきり: '#7dd3fc', ワイドガード: '#60a5fa', ファストガード: '#93c5fd',
+  ニードルガード: '#8bd46a', キングシールド: '#f0c420', トーチカ: '#c084fc' };
 const _WALL_CLASS = { リフレクター: 'rb-wall-reflect', ひかりのかべ: 'rb-wall-screen', オーロラベール: 'rb-wall-veil' };
 function showWallFx(side, name){
   const f = $('f-' + side), cls = _WALL_CLASS[name];
@@ -1154,6 +1158,11 @@ function _dispatchCueProd(cue, info){
       // いずれか指定時のみpopOptsを渡す(popText側のWAAPI切替条件と同じ=undefined透過で従来経路を保つ)。
       const sz = p.size != null ? Math.min(96, Math.max(8, p.size)) : 16;
       const popOpts = (p.holdMs != null || p.fadeMs != null || p.rise != null) ? { holdMs: p.holdMs, fadeMs: p.fadeMs, rise: p.rise } : undefined;
+      // ★実ダメージが無い再生(まもる/ばけのかわ等の技告知行でのcue再生=呼び出し側がdmgText:nullを明示)は
+      // popnumを出さない(2026-07-17 阿部さんFB: 防がれたのに見本値−42が出て驚く。ポップは常に「実際に
+      // 与えた数字」だけ=通常攻撃はsimの計算済み実ダメージ行から取るので従来どおり)。
+      // エディタのプレビューはdmgText未定義(undefined)=従来どおりp.textの見本を出す(nullと区別)。
+      if (info.dmgText === null) { if (info.onDef) info.onDef(atSide); return; }
       popText(atSide, info.dmgText != null ? info.dmgText : (p.text || ''), p.color || '#fff', sz, null, cue.dur, popOpts);
       if (info.onDef) info.onDef(atSide);
     }
