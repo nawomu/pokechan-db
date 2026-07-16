@@ -823,7 +823,21 @@ function resolveCueSheet(mv){
   if (byMove && byMove.done === true) return byMove;
   const byPattern = map['pattern:' + mv.type + mv.category];
   if (byPattern && byPattern.done === true) return byPattern;
+  // class:(タイプ非依存の大分類の共通デフォルト・2026-07-16 阿部さん「全物理技をフレアドライブ基準で統一」)。
+  // 今は「物理・接触=殴ってぶつかる系」のみ(atk=charge突進が正しい技クラス)。飛翔の物理非接触・ビームの
+  // 特殊は演出手段(projectile/beam)が違うので別class(ステップ2で追加予定)。move:個別上書きが最優先。
+  const clsKey = _cueClassKey(mv);
+  if (clsKey){
+    const byClass = map['class:' + clsKey];
+    if (byClass && byClass.done === true) return byClass;
+  }
   return null;
+}
+// 技→大分類キー(class:の後半)。物理・接触のみ 'phys_contact' を返す(それ以外は空=classフォールバック無し)。
+// ステップ2で 'phys_ranged'(物理非接触=飛翔)/'special'(特殊=ビーム)を足す想定。
+function _cueClassKey(mv){
+  if (mv.category === '物理' && mv.contact === true) return 'phys_contact';
+  return '';
 }
 // キューシートの「着弾拍」= 従来のattackFx/chargeFxが返していた_hitFxDelay相当(ms)。atk(突進/飛翔)以外の
 // トラック(glyph/sound/screen/def)で最も早く発火するキューのtを着弾とみなす(1-1のサンプルもこの形=

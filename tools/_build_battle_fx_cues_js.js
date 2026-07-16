@@ -35,7 +35,7 @@ if (data == null || typeof data !== 'object' || Array.isArray(data)) {
 let sheetCount = 0, doneCount = 0;
 for (const [key, sheet] of Object.entries(data)) {
   if (key === '__board') continue;
-  if (!/^(move|pattern|scene):/.test(key)) continue;
+  if (!/^(move|pattern|class|scene):/.test(key)) continue;
   sheetCount++;
   if (!sheet || !Array.isArray(sheet.cues)) {
     console.error(`想定外: ${key} に cues 配列が無い。中断。`);

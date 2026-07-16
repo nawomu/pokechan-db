@@ -4,80 +4,10 @@
 // real_battle.html / online_battle.html の resolveCueSheet/playCueSheet(fx_primitives.js)が読む。
 // キー = move:技名(個別上書き) / pattern:タイプ+分類(一括既定) / __board(エディタの立ち位置・本番では無視)。
 // done===true のシートだけ本番で再生される(ドラフト中は従来の自動演出のまま=挙動不変)。
-// 生成: 2026-07-15T12:55:03.900Z
+// 生成: 2026-07-16T04:04:04.621Z
 window.BATTLE_FX_CUES = {
-  "move:はたく": {
-    "dur": 1380,
-    "done": true,
-    "cues": [
-      {
-        "id": "c1",
-        "track": "atk",
-        "action": "charge",
-        "t": 0,
-        "dur": 480,
-        "params": {
-          "shape": "fist",
-          "cls": "phys"
-        }
-      },
-      {
-        "id": "c2",
-        "track": "glyph",
-        "action": "burst",
-        "t": 260,
-        "dur": 650,
-        "params": {
-          "shape": "fist",
-          "intensity": "normal",
-          "at": "opp"
-        }
-      },
-      {
-        "id": "c3",
-        "track": "sound",
-        "action": "se",
-        "t": 260,
-        "dur": 120,
-        "params": {
-          "cls": "phys"
-        }
-      },
-      {
-        "id": "c4",
-        "track": "screen",
-        "action": "shake",
-        "t": 260,
-        "dur": 280,
-        "params": {
-          "mag": 1
-        }
-      },
-      {
-        "id": "c5",
-        "track": "def",
-        "action": "knockback",
-        "t": 260,
-        "dur": 280,
-        "params": {
-          "at": "opp"
-        }
-      },
-      {
-        "id": "c6",
-        "track": "text",
-        "action": "popnum",
-        "t": 260,
-        "dur": 1000,
-        "params": {
-          "at": "opp",
-          "text": "−42"
-        }
-      }
-    ]
-  },
   "move:フレアドライブ": {
-    "dur": 2580,
+    "dur": 2270,
     "done": true,
     "cues": [
       {
@@ -85,7 +15,7 @@ window.BATTLE_FX_CUES = {
         "track": "atk",
         "action": "charge",
         "t": 0,
-        "dur": 550,
+        "dur": 800,
         "params": {
           "shape": "flame",
           "cls": "phys"
@@ -95,15 +25,15 @@ window.BATTLE_FX_CUES = {
         "id": "c2",
         "track": "glyph",
         "action": "burst",
-        "t": 260,
-        "dur": 1950,
+        "t": 550,
+        "dur": 1600,
         "params": {
           "shape": "flame",
           "intensity": "normal",
           "at": "opp",
           "offset": {
-            "x": -4,
-            "y": 21
+            "x": -9,
+            "y": 24
           },
           "scale": 2
         }
@@ -112,8 +42,8 @@ window.BATTLE_FX_CUES = {
         "id": "c3",
         "track": "sound",
         "action": "se",
-        "t": 260,
-        "dur": 120,
+        "t": 350,
+        "dur": 100,
         "params": {
           "cls": "phys"
         }
@@ -122,7 +52,7 @@ window.BATTLE_FX_CUES = {
         "id": "c4",
         "track": "screen",
         "action": "shake",
-        "t": 260,
+        "t": 350,
         "dur": 280,
         "params": {
           "mag": 1
@@ -132,7 +62,7 @@ window.BATTLE_FX_CUES = {
         "id": "c5",
         "track": "def",
         "action": "knockback",
-        "t": 260,
+        "t": 350,
         "dur": 280,
         "params": {
           "at": "opp"
@@ -142,11 +72,93 @@ window.BATTLE_FX_CUES = {
         "id": "c6",
         "track": "text",
         "action": "popnum",
-        "t": 460,
-        "dur": 2000,
+        "t": 600,
+        "dur": 1550,
         "params": {
           "at": "opp",
-          "text": "−42"
+          "text": "−42",
+          "scale": 1,
+          "size": 25,
+          "rise": 20,
+          "fadeMs": 2000
+        }
+      }
+    ]
+  },
+  "class:phys_contact": {
+    "dur": 2270,
+    "done": true,
+    "_note": "物理・接触(殴ってぶつかる系)の全技共通デフォルト(2026-07-16 阿部さん)。フレアドライブ基準のタイミング/位置。shapeはあえて持たず shapeOf(mv) が技ごとの絵(fist/water/fang...)を出す。resolveCueSheetの3段目(move:→pattern:→class:)。move:個別上書きが優先。",
+    "cues": [
+      {
+        "id": "c1",
+        "track": "atk",
+        "action": "charge",
+        "t": 0,
+        "dur": 800,
+        "params": {
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c2",
+        "track": "glyph",
+        "action": "burst",
+        "t": 550,
+        "dur": 1600,
+        "params": {
+          "intensity": "normal",
+          "at": "opp",
+          "offset": {
+            "x": -9,
+            "y": 24
+          },
+          "scale": 2
+        }
+      },
+      {
+        "id": "c3",
+        "track": "sound",
+        "action": "se",
+        "t": 350,
+        "dur": 100,
+        "params": {
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c4",
+        "track": "screen",
+        "action": "shake",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "mag": 1
+        }
+      },
+      {
+        "id": "c5",
+        "track": "def",
+        "action": "knockback",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "at": "opp"
+        }
+      },
+      {
+        "id": "c6",
+        "track": "text",
+        "action": "popnum",
+        "t": 600,
+        "dur": 1550,
+        "params": {
+          "at": "opp",
+          "text": "−42",
+          "scale": 1,
+          "size": 25,
+          "rise": 20,
+          "fadeMs": 2000
         }
       }
     ]
