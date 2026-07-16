@@ -12,7 +12,7 @@
 -->
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
-<script src="fx_primitives.js?v=20260716d"></script>
+<script src="fx_primitives.js?v=20260716e"></script>
 <!-- 本番のclass:テンプレ(全技デフォルト演出)を読む=エディタの自動生成がそこから複製する(2026-07-16 阿部さん・エディタと本番の見た目を一致させる) -->
 <script src="battle_fx_cues.js?v=20260716c"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
@@ -276,6 +276,14 @@ h1,h2,h3{margin:0}
 #fx-flash{position:absolute;inset:0;pointer-events:none;opacity:0;z-index:6}
 #fx-flash.on{animation:rbFlash .5s forwards}
 #fx-flash.mega{animation:rbMega 1s forwards}
+/* 演出ツクール小物v2.2(2026-07-16)・タスク1: ko_slowmo暗転用の薄暗がりオーバーレイ。
+   本番は fx_primitives.js の _koStepSlow が #field-backdrop に brightness(.5) を掛けて暗転するが、
+   エディタの #field には背景レイヤとしての #field-backdrop が無い(背景グラデは #field 直書き・かつ
+   weather が #field の boxShadow を使うため #field-backdrop を新設すると weather と衝突する)。
+   代わりに #field の最背面(z-index:0)にこの黒オーバーレイを置く。fighters(.fighter=position:absolute・
+   z-auto)はDOM順で後ろ・かつstep7で同順序のためオーバーレイの上に重なる=本番と同じくspriteは暗くしない。
+   weather(z1)/fx-flash(z6)/pbox(z9)等も正値zで上=暗くならない。opacity を JS で本番と同じタイミングで動かす。*/
+#fx-editor-ko-darken{position:absolute;inset:0;z-index:0;pointer-events:none;background:#000;opacity:0}
 @keyframes rbFlash{0%{opacity:.75}100%{opacity:0}}
 @keyframes rbMega{0%{opacity:0}25%{opacity:.95}55%{opacity:.6}100%{opacity:0}}
 @keyframes rbFaint{0%{opacity:1;transform:none}100%{opacity:0;transform:translateY(52px)}}
@@ -423,6 +431,7 @@ h1,h2,h3{margin:0}
       <div id="preview-desc"></div>
       <div id="preview-sub"></div>
       <div id="field">
+        <div id="fx-editor-ko-darken"></div>
         <div id="weather-fx"></div>
         <div id="fx-flash"></div>
         <div id="result-banner"></div>
@@ -1188,6 +1197,19 @@ function renderInspector(){
       html += fieldEasingSelect(p.easing || 'standard');
     }
   }
+  // 演出ツクール小物v2.2(2026-07-16)・タスク2: シーンキューの細部パラメータ欄。
+  // 「実際にdispatch(_dispatchSceneCueProd)が読むparamsだけ」を出す。メガ儀式の glyph pillar/orbs/
+  // silhouette/climax/dna は dispatch が params を一切読まず固定値(colorも_megaStepClimax内でhardcoded)
+  // なので編集欄は作らない=存在しないパラメータをでっち上げない。weatherのkind / def:flashのcls /
+  // screen:flashのcolor,mega を追加(screen:shakeのmag・sound:seのnameは既存欄がそのまま共用)。
+  if (isScene){
+    if (cue.track === 'glyph' && cue.action === 'weather') html += fieldWeatherKindSelect(p.kind || 'rain');
+    if (cue.track === 'def' && cue.action === 'flash') html += fieldFlashClsSelect(p.cls || 'enter');
+    if (cue.track === 'screen' && cue.action === 'flash'){
+      html += fieldColor('color', 'color(画面フラッシュ色)', p.color || '#835BA5');
+      html += fieldBool('mega', 'mega(メガ儀式フラッシュ=長めに光る)', !!p.mega);
+    }
+  }
   if (cue.track === 'sound' && cue.action === 'se'){
     // 技のsoundキューはcls(hitClass用)、シーンのsoundキューはname(SE[name]()用)。パラメータのキーで判別。
     html += ('name' in p) ? fieldSeNameSelect(p.name || 'enter') : fieldClsSelect(p.cls || 'phys');
@@ -1246,6 +1268,28 @@ function fieldEasingSelect(val){
   const opts = vocab.map(([v, label]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${label}</option>`).join('');
   return `<div class="insp-field"><label>easing(踏み込みの質感)</label><select id="ins-easing">${opts}</select></div>`;
 }
+// ---- シーンキュー細部パラメータ(演出ツクール小物v2.2・2026-07-16・タスク2) ----
+// いずれも fx_primitives.js の _dispatchSceneCueProd が実際に読む語彙のみ。
+// weather: setWeatherFx(p.kind) → _WEATHER_FX の4種。def:flash: flash(side,p.cls) → CSSクラス。
+// screen:flash: screenFlash(p.color, !!p.mega) → color=hex・mega=真偽。
+function fieldWeatherKindSelect(val){
+  const vocab = [['rain','rain(あめ)'],['sun','sun(ひざし)'],['sand','sand(すなあらし)'],['snow','snow(あられ)']];
+  const opts = vocab.map(([v, label]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${label}</option>`).join('');
+  return `<div class="insp-field"><label>kind(天候の種類)</label><select id="ins-kind">${opts}</select></div>`;
+}
+function fieldFlashClsSelect(val){
+  const vocab = [['enter','enter(登場フラッシュ)'],['recall','recall(引っ込めフラッシュ)'],['faint','faint(ひんし沈み)']];
+  const opts = vocab.map(([v, label]) => `<option value="${v}" ${v === val ? 'selected' : ''}>${label}</option>`).join('');
+  return `<div class="insp-field"><label>cls(フラッシュのクラス)</label><select id="ins-flashcls">${opts}</select></div>`;
+}
+function fieldColor(key, label, val){
+  // type=color は #rrggbb が必須(3桁や色名は黒扱い)。不正値は既定色へフォールバックして安全に。
+  const safe = /^#[0-9a-fA-F]{6}$/.test(val) ? val : '#835BA5';
+  return `<div class="insp-field"><label>${label}</label><input type="color" id="ins-${key}" value="${safe}"></div>`;
+}
+function fieldBool(key, label, val){
+  return `<div class="insp-field"><label><input type="checkbox" id="ins-${key}" ${val ? 'checked' : ''} style="width:auto;margin-right:6px">${label}</label></div>`;
+}
 function wireInspectorEvents(cue){
   const bind = (id, fn) => { const el = $(id); if (el) el.addEventListener('change', fn); };
   bind('ins-t', e => { cue.t = Math.max(0, snap50(+e.target.value || 0)); onCueEdited(cue); });
@@ -1269,6 +1313,11 @@ function wireInspectorEvents(cue){
   bind('ins-mag', e => { cue.params.mag = +e.target.value; onCueEdited(cue); });
   bind('ins-text', e => { cue.params.text = e.target.value; onCueEdited(cue); });
   bind('ins-scale', e => { cue.params.scale = +e.target.value; onCueEdited(cue); });
+  // シーンキュー細部(小物v2.2・タスク2): dispatchが読む params へ保存。colorはhex・megaは真偽。
+  bind('ins-kind', e => { cue.params.kind = e.target.value; onCueEdited(cue); });
+  bind('ins-flashcls', e => { cue.params.cls = e.target.value; onCueEdited(cue); });
+  bind('ins-color', e => { cue.params.color = e.target.value; onCueEdited(cue); });
+  bind('ins-mega', e => { cue.params.mega = e.target.checked; onCueEdited(cue); });
 }
 function onCueEdited(cue){
   markDirty();
@@ -1433,6 +1482,39 @@ function dispatchCue(cue, mv){
   };
   _dispatchCueProd(cue, info);
 }
+// =====================================================================
+// 演出ツクール小物v2.2(2026-07-16)・タスク1: ko_slowmo の暗転をエディタ盤面にも再現。
+// 本番のシーンディスパッチ(_dispatchSceneCueProd)をそのまま呼んだ上で、screen/slowmo キューの時だけ
+// エディタ独自の薄暗がりオーバーレイ(#fx-editor-ko-darken)を本番 _koStepSlow と同じタイミング
+// (0.18sで暗く→dur後0.25sで戻す)で動かす。scrub=true(スクラブ中)は復帰タイマーを仕込まず、
+// resetPreviewPositions の毎回掃除に任せる(スクラブアウトで自然に消える=シーク不能なsetTimeoutを避ける)。
+function _editorSceneDispatch(cue, ctx, scrub){
+  _dispatchSceneCueProd(cue, ctx);   // 本番のシーンディスパッチ(暗転はエディタでは効かない=下で補完)
+  if (cue.track === 'screen' && cue.action === 'slowmo') _editorKoDarken(scrub, cue.dur);
+}
+let _koDarkenTimer = null;
+function _editorKoDarken(scrub, durMs){
+  const ov = $('fx-editor-ko-darken');
+  if (!ov) return;
+  if (_koDarkenTimer){ clearTimeout(_koDarkenTimer); _koDarkenTimer = null; }
+  if (scrub){
+    ov.style.transition = 'none';   // スクラブ中は即時(毎ステップreset→再暗転を繰り返すので遷移でチラつかせない)
+    ov.style.opacity = '.5';
+  } else {
+    ov.style.transition = 'opacity .18s linear';
+    ov.style.opacity = '.5';   // 本番 brightness(.5) ≒ 盤面を半分暗く(spriteは重なり位置のまま明るい)
+    _koDarkenTimer = setTimeout(() => {   // 復帰=本番 _koStepSlow の slowMs(=cue.dur)後・0.25s
+      _koDarkenTimer = null;
+      ov.style.transition = 'opacity .25s linear';
+      ov.style.opacity = '';
+    }, durMs || 600);
+  }
+}
+function _editorClearKoDarken(){
+  if (_koDarkenTimer){ clearTimeout(_koDarkenTimer); _koDarkenTimer = null; }
+  const ov = $('fx-editor-ko-darken');
+  if (ov){ ov.style.transition = 'none'; ov.style.opacity = ''; }
+}
 // ---- HPバー演出(阿部さんFB2026-07-11 §5): HP無限プレビューなので値は満タン基準。
 // ダメージ系キュー(popnum/knockback/hitreact)の拍で少し減らし、周回の頭(resetPreviewPositions)で
 // 瞬時に満タンへ戻す(=毎周回同じ条件で再生されるループ再生と相性が良い・設計1-6の指定どおり)。 ----
@@ -1485,6 +1567,7 @@ function resetPreviewPositions(){
   const field = $('field');
   if (field){ field.style.transform = ''; field.style.filter = ''; field.classList.remove('rb-impact'); }
   const flashEl = $('fx-flash'); if (flashEl) flashEl.className = '';
+  _editorClearKoDarken();   // 小物v2.2・タスク1: ko_slowmo暗転を毎周回頭/STOPで確実に解除
   setWeatherFx(null);
   hideResultBanner();
 }
@@ -1522,7 +1605,7 @@ function scheduleRound(startMs){
     if (cue.t < startMs) return;
     const timer = setTimeout(() => {
       if (!playState.playing) return;
-      if (isScene) _dispatchSceneCueProd(cue, sceneCtx); else dispatchCue(cue, mv);
+      if (isScene) _editorSceneDispatch(cue, sceneCtx, false); else dispatchCue(cue, mv);   // 小物v2.2・タスク1: エディタ盤面へ暗転反映
     }, (cue.t - startMs) / speed);
     playState.timers.push(timer);
   });
@@ -1647,7 +1730,7 @@ function scrubToTime(targetMs){
     if (cue.track === 'screen' && cue.action === 'shake') return;
     const localT = targetMs - cue.t;
     const before = document.getAnimations();   // dispatch前後の差分でこのcueが生成したAnimationだけを捕まえる
-    if (isScene) _dispatchSceneCueProd(cue, sceneCtx); else dispatchCue(cue, mv);
+    if (isScene) _editorSceneDispatch(cue, sceneCtx, true); else dispatchCue(cue, mv);   // 小物v2.2・タスク1: スクラブ中にも暗転反映
     const after = document.getAnimations();
     after.forEach(anim => {
       if (before.indexOf(anim) !== -1) return;   // dispatch前から存在した無関係のアニメには触らない
@@ -1922,6 +2005,24 @@ window.addEventListener('resize', () => applySplit(_splitBottomH));
 // (=「実物のバトルから入る」入口。設計docの「原理: インスタンスをクリック→保存はパターンに効く」)。
 // =====================================================================
 function _traceSideJa(side){ return side === 'opp' ? '(あいて)' : side === 'self' ? '(じぶん)' : ''; }
+// 演出ツクール小物v2.2(2026-07-16)・タスク3: done:trueシート適用中シーンのトレースチップ化の補助。
+// 本番でdone:trueシートが適用されたシーンは sendOutFx/megaFx 等の直接関数でなく playSceneCueSheet
+// (fx_primitives.js)経由で再生され、トレースには {k:'playSceneCueSheet', side} しか積まれない
+// (シーンキーを含まない=fx_primitives.js編集禁止なのでエディタ側で補完する)。エディタが読んだ
+// battle_fx_cues.js(本番と同一ファイル)と照合し、done:true のシーンが1種類だけならそのシーンに確定
+// =クリックで直行(そのシーンしかplaySceneCueSheet経由で発火し得ないため)。複数あれば {side} だけでは
+// 特定不能=シーンタブへ飛ばす。※完全な個別特定には fx_primitives.js 側で push にキーを含める改修が必要(本スコープ外)。
+function _doneSceneKeys(){
+  const map = window.BATTLE_FX_CUES;
+  if (!map) return [];
+  const keys = [];
+  Object.keys(map).forEach(k => {
+    if (!k.startsWith('scene:')) return;
+    if (map[k] && map[k].done === true) keys.push(k.slice(6));
+  });
+  return keys;
+}
+function _sceneLabelJa(key){ const m = SCENE_LIST.find(s => s.key === key); return m ? m.label : key; }
 const TRACE_CHIP_MAP = {
   sendOutFx: e => ({ label: '登場' + _traceSideJa(e.side), targetKey: 'scene:send_out' }),
   recallFx: e => ({ label: '引っ込め' + _traceSideJa(e.side), targetKey: 'scene:recall' }),
@@ -1931,6 +2032,16 @@ const TRACE_CHIP_MAP = {
   showResultBanner: e => ({ label: e.won ? 'WIN!' : 'LOSE...', targetKey: 'scene:' + (e.won ? 'win' : 'lose') }),
   attackFx: e => ({ label: e.mv || '(技)', targetKey: e.mv ? ('move:' + e.mv) : null }),
   chargeFx: e => ({ label: e.mv || '(技)', targetKey: e.mv ? ('move:' + e.mv) : null }),
+  // 小物v2.2・タスク3: done:trueシート適用中シーン(直接関数でなくplaySceneCueSheet経由)。{side}のみで
+  // キーが無いので、doneシーン1種類なら確定・複数ならシーンタブへ(targetKey='scene:'=空キー)。
+  playSceneCueSheet: e => {
+    const doneKeys = _doneSceneKeys();
+    if (doneKeys.length === 1){
+      const k = doneKeys[0];
+      return { label: _sceneLabelJa(k) + _traceSideJa(e.side), targetKey: 'scene:' + k };
+    }
+    return { label: '🎬シーン' + _traceSideJa(e.side), targetKey: 'scene:' };
+  },
 };
 function loadTraceChips(){
   const body = $('trace-body');
@@ -1972,12 +2083,13 @@ function openTraceTarget(key){
     selectMove(mv);
   } else if (key.startsWith('scene:')){
     const sceneKey = key.slice(6);
-    const meta = SCENE_LIST.find(s => s.key === sceneKey);
-    if (!meta) return;
+    // 小物v2.2・タスク3: 空キー('scene:'=doneシーン複数で特定できなかったplaySceneCueSheet)なら
+    // とりあえずシーンタブを開いて選択は維持(利用者が一覧から選ぶ)。特定できていればそのシーンへ直行。
     activeTab = 'scene';
     document.querySelectorAll('.lib-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === 'scene'));
     renderLibList();
-    selectScene(meta);
+    const meta = SCENE_LIST.find(s => s.key === sceneKey);
+    if (meta) selectScene(meta);
   }
 }
 $('btn-trace').addEventListener('click', () => {
