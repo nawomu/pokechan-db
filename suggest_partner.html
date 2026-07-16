@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title data-i18n="suggest.page_title">相性補完サジェスト — PchamDB</title>
+<meta name="theme-color" content="#1F4E79">
+<meta name="description" content="選んだポケモンの弱点を補う相棒を、スマホでパパッと見つけるページ。パーティの共通弱点を集計し、カバー力の高いポケモンをスコア順でおすすめ。">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://pchamdb.com/suggest_partner.html">
+
+<link rel="stylesheet" href="site-footer.css?v=20260716">
+<script defer src="i18n/runtime.js?v=20260716"></script>
+<script src="pokechan_data.js?v=20260716"></script>
+<script src="sprite_api_ids.js?v=20260716"></script>
+
+<style>
+:root{
+  --hdr:#1F4E79;
+  --hdr2:#2A5A89;
+  --accent:#2E86C1;
+  --darkest:#0F2940;
+  --bg:#DDE3EC;
+  --card:#ffffff;
+  --border:#c3cdda;
+  --text:#1F4E79;
+  --muted:#5b6b7e;
+  --danger:#C03028;
+  --danger-bg:#fde8e6;
+  --ok:#2e7d32;
+  --chip:#eef3f9;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:"Hiragino Sans","Noto Sans JP",system-ui,-apple-system,sans-serif;
+  font-size:15px;line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:720px;margin:0 auto;padding:0 12px 32px}
+
+/* ===== ヘッダー ===== */
+.tc-header{
+  background:linear-gradient(135deg,var(--darkest),var(--hdr));
+  color:#fff;padding:10px 12px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  flex-wrap:wrap;position:sticky;top:0;z-index:20;
+  box-shadow:0 2px 6px rgba(0,0,0,.15);
+}
+.tc-header h1{font-size:15px;margin:0;font-weight:700;display:flex;align-items:center;gap:6px;min-width:0}
+.tc-home{color:#9fd0ff;font-weight:800;font-size:13px;text-decoration:none;white-space:nowrap}
+.tc-home:hover{color:#cfe8ff;text-decoration:underline}
+.tc-sep{color:#6f93b0;font-size:12px}
+.tc-page-title{color:#fff;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tc-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tc-nav-btn{
+  color:#fff;background:rgba(255,255,255,.12);
+  text-decoration:none;font-size:11px;padding:5px 8px;border-radius:6px;
+  border:1px solid rgba(255,255,255,.18);white-space:nowrap;
+}
+.tc-nav-btn:hover{background:rgba(255,255,255,.22)}
+#i18n-switcher-mount{margin-left:2px;display:inline-flex;align-items:center}
+
+/* ===== セクション ===== */
+.intro{padding:14px 2px 6px}
+.intro h2{font-size:16px;margin:0 0 4px;color:var(--hdr)}
+.intro p{margin:0;font-size:12.5px;color:var(--muted)}
+
+/* ===== 検索 ===== */
+.search-box{position:relative;margin-top:12px}
+.search-box input{
+  width:100%;font-size:16px;padding:13px 14px;border:2px solid var(--accent);
+  border-radius:10px;background:var(--card);color:var(--text);outline:none;
+}
+.search-box input:focus{border-color:var(--hdr);box-shadow:0 0 0 3px rgba(46,140,193,.18)}
+.dd{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:15;
+  background:var(--card);border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 24px rgba(15,41,64,.18);max-height:320px;overflow:auto;display:none;
+}
+.dd.open{display:block}
+.dd-item{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:8px 12px;border:0;background:transparent;cursor:pointer;border-bottom:1px solid #eef1f5;
+  font-size:14px;color:var(--text);
+}
+.dd-item:last-child{border-bottom:0}
+.dd-item:hover,.dd-item.active{background:#eef5fb}
+.dd-item img{width:34px;height:34px;flex:0 0 auto;object-fit:contain}
+.dd-item .nm{font-weight:700;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-item .types{display:flex;gap:3px;flex:0 0 auto}
+.dd-item[data-disabled="1"]{opacity:.4;cursor:default}
+.dd-empty{padding:14px;text-align:center;color:var(--muted);font-size:13px}
+
+/* ===== 選択チップ ===== */
+.section{margin-top:18px}
+.section-title{
+  font-size:13px;font-weight:700;color:var(--hdr2);
+  display:flex;align-items:center;gap:6px;margin:0 0 8px;
+}
+.section-title .hint{font-weight:400;font-size:11px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;min-height:8px}
+.chip{
+  display:flex;align-items:center;gap:7px;background:var(--card);
+  border:2px solid var(--accent);border-radius:999px;padding:4px 6px 4px 4px;
+}
+.chip img{width:32px;height:32px;object-fit:contain}
+.chip .chip-name{font-size:13px;font-weight:700;max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip .chip-types{display:flex;gap:2px}
+.chip .chip-x{
+  border:0;background:#eaf1f8;color:var(--hdr);font-size:16px;line-height:1;
+  width:22px;height:22px;border-radius:50%;cursor:pointer;margin-left:2px;
+  display:flex;align-items:center;justify-content:center;
+}
+.chip .chip-x:hover{background:var(--danger);color:#fff}
+.sel-empty{font-size:12.5px;color:var(--muted);padding:6px 2px}
+
+/* ===== 弱点サマリ ===== */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:8px}
+.weak-grid{display:flex;flex-wrap:wrap;gap:6px}
+.weak-badge{
+  display:flex;align-items:center;gap:5px;padding:5px 9px;border-radius:8px;
+  color:#fff;font-size:12px;font-weight:700;min-width:54px;justify-content:center;
+}
+.weak-badge .cnt{background:rgba(0,0,0,.28);border-radius:5px;padding:0 5px;font-size:11px}
+.weak-badge.danger{outline:3px solid var(--danger);outline-offset:1px;box-shadow:0 0 0 1px #fff inset}
+.weak-empty{font-size:12.5px;color:var(--muted);padding:4px 2px}
+
+/* ===== ランキング ===== */
+.rank-list{display:flex;flex-direction:column;gap:8px;margin-top:8px}
+.rank-row{
+  display:flex;align-items:center;gap:10px;background:var(--card);
+  border:1px solid var(--border);border-radius:12px;padding:8px 10px;cursor:pointer;
+  text-align:left;width:100%;color:var(--text);
+}
+.rank-row:hover{border-color:var(--accent);box-shadow:0 4px 14px rgba(46,140,193,.16)}
+.rank-row[data-disabled="1"]{opacity:.5;cursor:default}
+.rank-row img{width:46px;height:46px;object-fit:contain;flex:0 0 auto}
+.rank-main{flex:1 1 auto;min-width:0}
+.rank-name{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rank-name .types{display:flex;gap:3px}
+.rank-covers{margin-top:4px;display:flex;flex-wrap:wrap;gap:3px;align-items:center}
+.rank-covers .lbl{font-size:10.5px;color:var(--muted);margin-right:2px}
+.mini-badge{
+  font-size:10px;font-weight:700;color:#fff;padding:1px 5px;border-radius:5px;
+}
+.rank-score{flex:0 0 auto;text-align:right}
+.rank-score .num{font-size:18px;font-weight:800;color:var(--ok);line-height:1}
+.rank-score .lbl{font-size:9.5px;color:var(--muted);display:block;margin-top:2px}
+.rank-empty{font-size:12.5px;color:var(--muted);padding:8px 2px;text-align:center}
+
+.type-badge{
+  display:inline-block;color:#fff;font-size:10.5px;font-weight:700;
+  padding:1px 6px;border-radius:5px;line-height:1.5;
+}
+
+.notice{font-size:11.5px;color:var(--muted);margin-top:6px}
+
+/* ===== 下部リンク ===== */
+.links{
+  margin-top:24px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center;
+}
+.links a{
+  display:inline-block;background:var(--card);border:1px solid var(--border);
+  color:var(--hdr);text-decoration:none;font-size:12.5px;font-weight:700;
+  padding:8px 12px;border-radius:8px;
+}
+.links a:hover{border-color:var(--accent);background:#eef5fb}
+
+@media(max-width:420px){
+  .tc-nav-btn{padding:4px 6px;font-size:10.5px}
+  .rank-row img{width:40px;height:40px}
+}
+</style>
+</head>
+<body>
+
+<header class="tc-header">
+  <h1>
+    <a href="index.html" class="tc-home" title="PchamDB トップに戻る" data-i18n="suggest.home" data-i18n-attr="title:suggest.home_title">🏠 PchamDB</a>
+    <span class="tc-sep">›</span>
+    <span class="tc-page-title" data-i18n="suggest.header_title">🤝 相性補完サジェスト</span>
+  </h1>
+  <nav class="tc-nav">
+    <a class="tc-nav-btn" href="party_checker.html" target="_blank" rel="noopener" data-i18n="suggest.nav_builder">🎯 ビルダー</a>
+    <a class="tc-nav-btn" href="real_battle.html" target="_blank" rel="noopener" data-i18n="suggest.nav_battle">🎮 バトル</a>
+    <a class="tc-nav-btn" href="type_chart.html" target="_blank" rel="noopener" data-i18n="suggest.nav_chart">📊 相性表</a>
+    <span id="i18n-switcher-mount"></span>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="intro">
+    <p data-i18n="suggest.intro">手持ちのポケモンを選ぶと、パーティの弱点をまとめ、それをカバーしてくれる相棒をスコア順におすすめします。スマホでパパッと「あと誰がいい？」を解決するためのページです。</p>
+  </div>
+
+  <!-- 検索 -->
+  <div class="search-box">
+    <input id="search" type="text" autocomplete="off" placeholder="ポケモン名で検索（ひらがなOK）"
+      data-i18n-attr="placeholder:suggest.search_placeholder">
+    <div class="dd" id="dropdown" role="listbox"></div>
+  </div>
+
+  <!-- 選択チップ -->
+  <div class="section">
+    <div class="section-title">
+      <span data-i18n="suggest.selected_label">選択中（最大5体）</span>
+      <span class="hint" id="selected-count"></span>
+    </div>
+    <div class="chips" id="chips"></div>
+  </div>
+
+  <!-- 弱点サマリ -->
+  <div class="section">
+    <div class="section-title">
+      <span data-i18n="suggest.weakness_title">⚠️ パーティの弱点まとめ</span>
+    </div>
+    <div class="card">
+      <div id="weak-summary" class="weak-grid"></div>
+      <p class="notice" data-i18n="suggest.weakness_hint">赤い枠＝2体以上が共通で弱いタイプ（要カバー）。数字は「弱点どうしの重なり」（×4=二重弱点は2カウント）。</p>
+    </div>
+  </div>
+
+  <!-- 補完候補ランキング -->
+  <div class="section">
+    <div class="section-title">
+      <span data-i18n="suggest.ranking_title">🌟 おすすめの相棒（上位20）</span>
+    </div>
+    <div class="card" style="padding:8px">
+      <div id="rank-list" class="rank-list"></div>
+    </div>
+    <p class="notice" data-i18n="suggest.ranking_hint">スコア＝危険タイプを 半減(+2)／無効(+3)／等倍(0)／弱点(−2) で集計。同点なら種族値合計が高い順。行をタップで選択に追加できます。</p>
+  </div>
+
+  <!-- 他ページへのリンク -->
+  <div class="links">
+    <a href="party_checker.html" data-i18n="suggest.link_builder">🎯 チームビルダー</a>
+    <a href="real_battle.html" data-i18n="suggest.link_battle">🎮 リアルバトル</a>
+    <a href="type_chart.html" data-i18n="suggest.link_chart">📊 タイプ相性表</a>
+    <a href="pokemon_db_v9.html" data-i18n="suggest.link_db">🗄️ ポケモンDB</a>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p class="unofficial" data-i18n="footer.unofficial">⚠️ 当サイトは非公式ファンサイトです</p>
+  <p data-i18n="footer.not_affiliated">任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズなど関連企業とは一切関係ありません。</p>
+  <div class="footer-links">
+    <a href="making.html" data-i18n="nav.making">制作の裏側</a> ·
+    <a href="terms.html" target="_blank" rel="noopener" data-i18n="nav.terms">利用規約</a> ·
+    <a href="privacy.html" target="_blank" rel="noopener" data-i18n="nav.privacy">プライバシーポリシー</a> ·
+    <a href="disclaimer.html" target="_blank" rel="noopener" data-i18n="nav.disclaimer">免責事項</a> ·
+    <a href="contact.html" data-i18n="nav.contact">お問い合わせ</a> ·
+    <a href="sitemap.html" data-i18n="nav.sitemap">サイトマップ</a>
+  </div>
+  <p class="copyright">
+    ポケモン・Pokémon・ポケットモンスター・モンスターボール・ポケモンチャンピオンズ等の<br>
+    商標および著作権は、任天堂株式会社・株式会社ポケモン・ゲームフリーク株式会社・<br>
+    株式会社クリーチャーズに帰属します。<br><br>
+    © 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc.<br>
+    © 2026 PchamDB
+  </p>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ データ準備 ============ */
+  // real_battle.html:1250-1255 の編成プール作法（メガ／変身専用フォルムを除外）
+  var BATTLE_ONLY_FORMS = new Set(['イルカマン(マイティ)', 'ギルガルド(ブレード)']);
+  function isPickable(p){ return !!p && !p.mega && !BATTLE_ONLY_FORMS.has(p.name); }
+
+  // POKEMON_LIST は Champions ロスター（313体）。その上でメガ等を除外＝real_battle と同じ編成プール。
+  var POOL = [];
+  if (typeof POKEMON_LIST !== 'undefined'){
+    POOL = POKEMON_LIST.filter(isPickable);
+  }
+  // 注意: ここで `var TYPES = (typeof TYPES!=='undefined')?TYPES:[]` と書くと、
+  // var 宣言のホイスティングによりこのIIFEスコープに TYPES が巻き上げられ、
+  // typeof TYPES は常に 'undefined'(未初期化のローカル)になってグローバルの
+  // pokechan_data.js の TYPES を握りつぶす(=タイプバッジが全滅する)。
+  // グローバルの TYPES(pokechan_data.jsで定義済み)をそのまま使う。
+
+  /* ============ i18n ヘルパ（real_battle.html の作法） ============ */
+  function t(key, fb){ return (window.I18N && I18N.t) ? I18N.t(key, fb) : fb; }
+  function tPokeName(nm){ return (window.I18N && I18N.pokemon) ? I18N.pokemon(nm) : nm; }
+  function tTypeName(ty, fmt){ return (window.I18N && I18N.type) ? I18N.type(ty, fmt) : ty; }
+  function tTypeFull(ty){ return tTypeName(ty, 'full'); }
+  function tTypeShort(ty){ return tTypeName(ty, 'short3'); }
+
+  // ひらがな→カタカナ（検索用。ポケモン名は主にカタカナ）
+  function toKata(s){ return (s || '').replace(/[ぁ-ゟ]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) + 0x60); }); }
+
+  /* ============ スプライト（real_battle.html:2161-2174 の作法） ============ */
+  function apiIdOf(nm){
+    if (typeof SPRITE_API_ID === 'undefined') return null;
+    if (SPRITE_API_ID[nm]) return SPRITE_API_ID[nm];
+    if (nm && nm.indexOf('メガ') === 0){
+      var base = nm.replace(/^メガ/, '').replace(/[XY♂♀]$/, '');
+      if (SPRITE_API_ID[base]) return SPRITE_API_ID[base];
+    }
+    return null;
+  }
+  function pokeIconSrc(nm){
+    var id = apiIdOf(nm);
+    return id ? ('images/poke/' + id + '.png') : ('images/sim/' + encodeURIComponent(nm) + '.svg');
+  }
+  function pokeIconHtml(nm){
+    return '<img loading="lazy" src="' + pokeIconSrc(nm) + '" alt="" onerror="this.remove()">';
+  }
+
+  /* ============ タイプ相性（resist 配列使用） ============
+     resist[攻撃i] = その攻撃タイプでこのポケモンを殴った時の被ダメ倍率
+     0=無効 / 0.25=二重半減 / 0.5=半減 / 1=等倍 / 2=弱点 / 4=二重弱点
+     （TYPE_CHART[攻撃行][防御列] の複合積を事前計算したもの＝向きは pokechan_data の正）
+  */
+  var RES = { ZERO:0, QTR:0.25, HALF:0.5, ONE:1, WEAK:2, DBL:4 };
+
+  // 選択メンバーの弱点サマリ（各攻撃タイプの「弱点の重なり」。×4は2カウント）
+  function weaknessCounts(members){
+    var counts = new Array(18).fill(0);
+    for (var k=0;k<members.length;k++){
+      var r = members[k].resist;
+      if (!r) continue;
+      for (var i=0;i<18;i++){
+        var v = r[i];
+        if (v === RES.WEAK) counts[i] += 1;
+        else if (v === RES.DBL) counts[i] += 2; // 二重弱点は2カウント
+      }
+    }
+    return counts;
+  }
+
+  // 補完スコア：危険タイプに対する候補の寄与（半減+2 / 無効+3 / 等倍0 / 弱点-2）
+  function coverScore(cand, dangerIdx){
+    var score = 0, covers = [];
+    var r = cand.resist;
+    if (!r) return { score:0, covers:[] };
+    for (var k=0;k<dangerIdx.length;k++){
+      var i = dangerIdx[k];
+      var v = r[i];
+      if (v === RES.ZERO){ score += 3; covers.push(i); }
+      else if (v === RES.HALF || v === RES.QTR){ score += 2; covers.push(i); }
+      else if (v === RES.ONE){ score += 0; }
+      else if (v === RES.WEAK || v === RES.DBL){ score -= 2; }
+    }
+    return { score:score, covers:covers };
+  }
+
+  /* ============ 状態 ============ */
+  var MAX_SEL = 5;
+  var selected = []; // POKEMON_LIST オブジェクト参照の配列
+  var ddActive = -1; // ドロップダウンのキーボード選択
+
+  function selectedNames(){ return new Set(selected.map(function(p){ return p.name; })); }
+
+  function addPokemon(p){
+    if (!p) return;
+    if (selected.length >= MAX_SEL) return;
+    if (selectedNames().has(p.name)) return;
+    selected.push(p);
+    renderAll();
+  }
+  function removePokemon(name){
+    selected = selected.filter(function(p){ return p.name !== name; });
+    renderAll();
+  }
+  // name から POOL の実体を引く
+  function findInPool(name){ for (var i=0;i<POOL.length;i++){ if (POOL[i].name === name) return POOL[i]; } return null; }
+
+  /* ============ タイプバッジ ============ */
+  function typeColor(ty){ return (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[ty]) ? TYPE_COLORS[ty] : '#888'; }
+  function typeBadgeFull(ty){ return '<span class="type-badge" style="background:' + typeColor(ty) + '">' + esc(tTypeFull(ty)) + '</span>'; }
+  function typeBadgeShort(ty){ return '<span class="type-badge" style="background:' + typeColor(ty) + '">' + esc(tTypeShort(ty)) + '</span>'; }
+  function pokeTypes(p){
+    var out = typeBadgeShort(p.type1);
+    if (p.type2) out += typeBadgeShort(p.type2);
+    return out;
+  }
+
+  function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  /* ============ 検索ドロップダウン ============ */
+  var searchInput = document.getElementById('search');
+  var dropdown = document.getElementById('dropdown');
+  var lastQuery = '';
+
+  function matchQuery(p, q){
+    var disp = tPokeName(p.name).toLowerCase();
+    var ja = p.name;
+    var qk = toKata(q);
+    if (!q) return false;
+    if (q.length === 0) return false;
+    if (disp.indexOf(q) >= 0) return true;
+    if (ja.indexOf(q) >= 0) return true;
+    if (qk && ja.indexOf(qk) >= 0) return true;
+    if (qk && toKata(disp).indexOf(qk) >= 0) return true;
+    return false;
+  }
+
+  function renderDropdown(){
+    var q = searchInput.value.trim().toLowerCase();
+    lastQuery = q;
+    if (!q){ dropdown.classList.remove('open'); dropdown.innerHTML=''; ddActive=-1; return; }
+    var used = selectedNames();
+    var hits = [];
+    for (var i=0;i<POOL.length;i++){
+      var p = POOL[i];
+      if (matchQuery(p, q)) hits.push(p);
+      if (hits.length >= 30) break;
+    }
+    if (hits.length === 0){
+      dropdown.innerHTML = '<div class="dd-empty">' + esc(t('suggest.search_no_match','見つかりません')) + '</div>';
+      dropdown.classList.add('open'); ddActive=-1; return;
+    }
+    var html = '';
+    for (var j=0;j<hits.length;j++){
+      var pp = hits[j];
+      var dis = used.has(pp.name) || selected.length >= MAX_SEL;
+      html += '<button type="button" class="dd-item" data-n="' + esc(pp.name) + '"' + (dis?' data-disabled="1"':'') + '>'
+        + pokeIconHtml(pp.name)
+        + '<span class="nm">' + esc(tPokeName(pp.name)) + '</span>'
+        + '<span class="types">' + pokeTypes(pp) + '</span>'
+        + '</button>';
+    }
+    dropdown.innerHTML = html;
+    dropdown.classList.add('open');
+    ddActive = -1;
+  }
+
+  dropdown.addEventListener('click', function(e){
+    var btn = e.target.closest('.dd-item');
+    if (!btn) return;
+    if (btn.getAttribute('data-disabled') === '1') return;
+    var p = findInPool(btn.getAttribute('data-n'));
+    if (p){ addPokemon(p); searchInput.value=''; renderDropdown(); searchInput.focus(); }
+  });
+  searchInput.addEventListener('input', renderDropdown);
+  searchInput.addEventListener('focus', renderDropdown);
+  // 外部クリックで閉じる
+  document.addEventListener('click', function(e){
+    if (!e.target.closest('.search-box')) dropdown.classList.remove('open');
+  });
+  // キーボード操作（簡易）
+  searchInput.addEventListener('keydown', function(e){
+    var items = dropdown.querySelectorAll('.dd-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown'){
+      e.preventDefault();
+      ddActive = Math.min(ddActive+1, items.length-1);
+      updateDdActive(items);
+    } else if (e.key === 'ArrowUp'){
+      e.preventDefault();
+      ddActive = Math.max(ddActive-1, 0);
+      updateDdActive(items);
+    } else if (e.key === 'Enter'){
+      if (ddActive >= 0 && items[ddActive] && items[ddActive].getAttribute('data-disabled') !== '1'){
+        e.preventDefault();
+        items[ddActive].click();
+      }
+    } else if (e.key === 'Escape'){
+      dropdown.classList.remove('open');
+    }
+  });
+  function updateDdActive(items){
+    for (var i=0;i<items.length;i++) items[i].classList.toggle('active', i===ddActive);
+    if (items[ddActive]) items[ddActive].scrollIntoView({block:'nearest'});
+  }
+
+  /* ============ チップ描画 ============ */
+  function renderChips(){
+    var el = document.getElementById('chips');
+    var cnt = document.getElementById('selected-count');
+    cnt.textContent = selected.length + ' / ' + MAX_SEL;
+    if (selected.length === 0){
+      el.innerHTML = '<div class="sel-empty">' + esc(t('suggest.selected_empty','上でポケモンを検索して選ぶと、ここに弱点まとめとおすすめ相棒が出ます。')) + '</div>';
+      return;
+    }
+    var html = '';
+    for (var i=0;i<selected.length;i++){
+      var p = selected[i];
+      html += '<div class="chip" title="' + esc(tPokeName(p.name)) + '">'
+        + pokeIconHtml(p.name)
+        + '<span class="chip-name">' + esc(tPokeName(p.name)) + '</span>'
+        + '<span class="chip-types">' + pokeTypes(p) + '</span>'
+        + '<button type="button" class="chip-x" data-rm="' + esc(p.name) + '" aria-label="remove" title="' + esc(t('suggest.remove','外す')) + '">×</button>'
+        + '</div>';
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('.chip-x').forEach(function(btn){
+      btn.addEventListener('click', function(){ removePokemon(btn.getAttribute('data-rm')); });
+    });
+  }
+
+  /* ============ 弱点サマリ描画 ============ */
+  function renderWeak(){
+    var el = document.getElementById('weak-summary');
+    if (selected.length === 0){
+      el.innerHTML = '<div class="weak-empty">' + esc(t('suggest.weakness_need_select','ポケモンを選ぶと、パーティが共通して弱いタイプがここに出ます。')) + '</div>';
+      return null;
+    }
+    var counts = weaknessCounts(selected);
+    // 危険な順（カウント降順）に並べる。0は表示しない。
+    var order = [];
+    for (var i=0;i<18;i++){ if (counts[i] > 0) order.push(i); }
+    order.sort(function(a,b){ return counts[b]-counts[a]; });
+
+    if (order.length === 0){
+      el.innerHTML = '<div class="weak-empty">' + esc(t('suggest.no_common_weakness','目立った共通弱点はありません。')) + '</div>';
+      return counts;
+    }
+    var html = '';
+    for (var k=0;k<order.length;k++){
+      var ti = order[k];
+      var danger = counts[ti] >= 2; // 2体以上が共通で弱い＝赤
+      html += '<div class="weak-badge' + (danger?' danger':'') + '" style="background:' + typeColor(TYPES[ti]) + '" '
+        + 'title="' + esc(tTypeFull(TYPES[ti])) + '">'
+        + '<span>' + esc(tTypeShort(TYPES[ti])) + '</span>'
+        + '<span class="cnt">' + counts[ti] + '</span>'
+        + '</div>';
+    }
+    el.innerHTML = html;
+    return counts;
+  }
+
+  /* ============ 補完候補ランキング描画 ============ */
+  function renderRank(counts){
+    var el = document.getElementById('rank-list');
+    if (selected.length === 0){
+      el.innerHTML = '<div class="rank-empty">' + esc(t('suggest.ranking_empty','ポケモンを選ぶと、弱点を補うおすすめ相棒がここに出ます。')) + '</div>';
+      return;
+    }
+    // 危険タイプ（弱点カウント>=1）
+    var danger = [];
+    for (var i=0;i<18;i++){ if (counts[i] >= 1) danger.push(i); }
+    danger.sort(function(a,b){ return counts[b]-counts[a]; });
+
+    if (danger.length === 0){
+      el.innerHTML = '<div class="rank-empty">' + esc(t('suggest.ranking_no_danger','補うべき弱点がないためおすすめはありません。')) + '</div>';
+      return;
+    }
+
+    var used = selectedNames();
+    var cands = [];
+    for (var j=0;j<POOL.length;j++){
+      var p = POOL[j];
+      if (used.has(p.name)) continue;
+      var cs = coverScore(p, danger);
+      cands.push({ p:p, score:cs.score, covers:cs.covers });
+    }
+    cands.sort(function(a,b){
+      if (b.score !== a.score) return b.score - a.score;       // スコア降順
+      if (b.covers.length !== a.covers.length) return b.covers.length - a.covers.length; // カバー数降順
+      return (b.p.total||0) - (a.p.total||0);                  // 種族値合計降順
+    });
+    var top = cands.slice(0, 20);
+
+    if (top.length === 0 || top[0].score <= 0){
+      // 全員スコア0以下＝有力候補なし。0以上だけ表示し、無ければ案内。
+      var positives = top.filter(function(c){ return c.score > 0; });
+      if (positives.length === 0){
+        el.innerHTML = '<div class="rank-empty">' + esc(t('suggest.ranking_no_good','弱点をうまくカバーできる候補が見つかりません。選び方を変えてみてください。')) + '</div>';
+        return;
+      }
+      top = positives;
+    }
+
+    var full = selected.length >= MAX_SEL;
+    var html = '';
+    for (var m=0;m<top.length;m++){
+      var c = top[m];
+      var coversHtml = '';
+      for (var n=0;n<c.covers.length;n++){
+        var ti2 = c.covers[n];
+        coversHtml += '<span class="mini-badge" style="background:' + typeColor(TYPES[ti2]) + '">' + esc(tTypeShort(TYPES[ti2])) + '</span>';
+      }
+      html += '<button type="button" class="rank-row" data-n="' + esc(c.p.name) + '"' + (full?' data-disabled="1"':'') + '>'
+        + pokeIconHtml(c.p.name)
+        + '<span class="rank-main">'
+          + '<span class="rank-name">' + esc(tPokeName(c.p.name)) + '<span class="types">' + pokeTypes(c.p) + '</span></span>'
+          + (coversHtml ? '<span class="rank-covers"><span class="lbl">' + esc(t('suggest.covers_label','カバー：')) + '</span>' + coversHtml + '</span>' : '')
+        + '</span>'
+        + '<span class="rank-score"><span class="num">+' + c.score + '</span><span class="lbl">' + esc(t('suggest.score_label','補完')) + '</span></span>'
+        + '</button>';
+    }
+    el.innerHTML = html;
+    el.querySelectorAll('.rank-row').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        if (btn.getAttribute('data-disabled') === '1') return;
+        var p = findInPool(btn.getAttribute('data-n'));
+        if (p){ addPokemon(p); }
+      });
+    });
+  }
+
+  /* ============ 全体再描画 ============ */
+  function renderAll(){
+    renderChips();
+    var counts = renderWeak();
+    if (counts){ renderRank(counts); }
+    else { renderRank(new Array(18).fill(0)); }
+  }
+
+  /* ============ i18n 連動（ready/changed 両方で再描画＝取りこぼし防止） ============ */
+  function onI18n(){
+    // data-i18n の静的要素は runtime が applyDOM() で処理。動的部品だけ再描画。
+    renderAll();
+    renderDropdown(); // 表示名が言語で変わるので候補も再描画
+  }
+  document.addEventListener('i18n:ready', onI18n);
+  document.addEventListener('i18n:changed', onI18n);
+
+  /* ============ 初期描画 ============ */
+  // runtime の準備を待たず、まず ja フォールバックで描画（i18n:ready で上書きされる）
+  if (POOL.length === 0){
+    document.getElementById('rank-list').innerHTML =
+      '<div class="rank-empty">データが読み込めませんでした（pokechan_data.js を確認してください）。</div>';
+  } else {
+    renderAll();
+  }
+})();
+</script>
+</body>
+</html>
