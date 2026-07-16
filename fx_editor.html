@@ -12,7 +12,7 @@
 -->
 <script src="pokechan_data.js?v=20260705a"></script>
 <script src="move_fx_map.js?v=20260711c"></script>
-<script src="fx_primitives.js?v=20260715b"></script>
+<script src="fx_primitives.js?v=20260716a"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <style>
 /* ===================================================================
@@ -324,9 +324,9 @@ h1,h2,h3{margin:0}
 .tl-ruler .tick.major{border-left-color:#3a4352}
 .tl-cue{position:absolute;top:4px;bottom:4px;border-radius:5px;cursor:grab;display:flex;align-items:center;
   padding:0 5px;font-size:9.5px;font-weight:800;color:#0d1117;white-space:nowrap;overflow:hidden;
-  border:1px solid #ffffff33;user-select:none}
+  border:1px solid #ffffff33;user-select:none;z-index:5}
 .tl-cue:active{cursor:grabbing}
-.tl-cue.selected{outline:2px solid #fff;outline-offset:1px;z-index:3;filter:brightness(1.25)}
+.tl-cue.selected{outline:2px solid #fff;outline-offset:1px;z-index:6;filter:brightness(1.25)}
 .tl-rubberband{position:fixed;border:1px solid #58a6ffcc;background:#58a6ff26;pointer-events:none;z-index:80}
 .tl-cue-atk{background:#f0836b}
 .tl-cue-glyph{background:#f0c419}
@@ -336,7 +336,14 @@ h1,h2,h3{margin:0}
 .tl-cue-text{background:#8b949e}
 .tl-cue-handle{position:absolute;right:0;top:0;bottom:0;width:8px;cursor:ew-resize;background:#00000022}
 .tl-cue-handle:hover{background:#00000055}
-.tl-playhead{position:absolute;top:0;bottom:0;width:2px;background:#ff4d4f;pointer-events:none;z-index:10;display:none}
+/* 実装B(2026-07-16・阿部さんFB2026-07-15「赤いバーはルーラーの所しかドラッグできない」): 赤線本体は
+   タイムライン全体(ルーラー+行エリア)を縦に貫く当たり判定つきの帯にする。細い可視線(幅2px)は従来位置
+   のまま::afterで描画し、当たり判定だけ左右に広げる(±5px程度・width12px/margin-left:-5px)。
+   z-index=4はcueバー(5〜6)より低く設定(★罠=cueバーのドラッグ/リサイズを壊さない。バー側が視覚的にも
+   クリック優先度でも上に来る=バーの真上では赤線を直接掴めないが、ルーラー行(バーが無い帯)では常に掴める)。*/
+.tl-playhead{position:absolute;top:0;bottom:0;width:12px;margin-left:-5px;z-index:4;display:none;
+  cursor:ew-resize;pointer-events:auto}
+.tl-playhead::after{content:'';position:absolute;top:0;bottom:0;left:5px;width:2px;background:#ff4d4f;pointer-events:none}
 
 ::-webkit-scrollbar{width:10px;height:10px}
 ::-webkit-scrollbar-track{background:#0d1117}
@@ -445,7 +452,7 @@ h1,h2,h3{margin:0}
   <!-- タイムライン -->
   <div class="panel" id="panel-timeline">
     <div class="panel-head">
-      <span>タイムライン(バーをドラッグ=移動 / 右端をドラッグ=長さ変更・50msスナップ / ルーラークリック=その時刻から再生ループ開始 / ルーラーをドラッグ=再生ヘッドを左右に移動)</span>
+      <span>タイムライン(バーをドラッグ=移動 / 右端をドラッグ=長さ変更・50msスナップ / ルーラークリック=その時刻から再生ループ開始 / 赤いバーや空白部分は行エリアも含めどこでもドラッグでヘッド移動+その瞬間の静止画をプレビュー)</span>
       <span>
         <span id="tl-playhead-time" style="color:#ff4d4f;font-weight:800;margin-right:12px">0ms</span>
         <span id="tl-total" style="color:#7d8590;font-weight:600"></span>
@@ -1412,6 +1419,11 @@ function resetHpBars(){
   });
 }
 function resetPreviewPositions(){
+  // 段階B(2026-07-16)のスクラブ凍結フラグをここで必ず解除する。resetPreviewPositions()はスクラブ開始時
+  // /▶再生の各周回頭/STOP/技切替(stopPlay経由)の**全経路が必ず通る唯一の入口**なので、ここに置けば
+  // 「次のスクラブ/リセット/再生開始/技切替の頭で必ずfalseに戻す」を漏れなく満たせる(設計書§3-2)。
+  // fx_primitives.jsの_fxAutoRemove/chargeクローンcleanupが見るのと同じグローバルフラグ。
+  window.__FX_SCRUB__ = false;
   resetHpBars();
   // 持続シェイクのタイマー自体はfx_primitives.js _cueSustainedFieldShake内部(shouldContinue経由で
   // playState.playingを見ているので、STOP後は最大90ms以内に自然停止=ここで強制停止する変数は無い)。
@@ -1544,33 +1556,64 @@ function updatePlayheadHeight(){
   el.style.height = (ruler.offsetHeight + rowsEl.offsetHeight) + 'px';
 }
 // =====================================================================
-// タイムラインスクラブ(段階A・スナップショット簡易版。設計_ツクール強化_炎サイズ配線とスクラブ_
-// 2026-07-15.md §3-1)。ルーラーをドラッグした時刻までのキューを盤面へ同期dispatchし、「その瞬間の絵」
-// を見せる(紙芝居感=不満B対策)。限界(設計書記載・承知の上): 進行中cue(t<target<t+dur)の途中状態は
-// 出ない(未発火 or 最終状態のまま)=段階B(WAAPI currentTimeシーク)で初めて解決する。
-// fx_primitives.jsには一切触れない(本番無風・絶対条件)。
-// =====================================================================
-// scrubToTime: 盤面を毎回リセット(resetPreviewPositions=既存の周回頭リセット処理をそのまま流用)して
-// から、t<=targetMsのキューをt昇順で同期dispatchする。毎回フルリセットしてから引き直すので、往復して
-// も残留要素が増殖しない(要件4)。
-// スキップするトラック:
+// タイムラインスクラブ(段階B・本物のシーク。設計_ツクール強化_炎サイズ配線とスクラブ_2026-07-15.md
+// §3-2+阿部さんFB2026-07-15「chargeの途中位置/burstの途中が出ない」)。ルーラー/赤線/行エリアをドラッグ
+// した時刻までのキューを盤面へ同期dispatchし、そのdispatchで生成されたAnimation(WAAPI el.animate()も
+// CSS keyframeアニメも document.getAnimations() で同じ形で取れる)を currentTime シーク+pause して
+// 「その瞬間の途中状態」を静止画として見せる。段階A(スナップショットのみ・cue.t<=targetMsで最終状態or
+// 未発火)からの差分はこの2点: ①途中状態を見せる ②発火済みで既に消えたcueは出さない(_scrubCueSpan)。
+// スキップするトラック(段階Aから継続):
 //  - sound: スクラブ中に鳴らすとドラッグのたびビビビと不快(設計書の明記どおり)。
 //  - screen/shake: fieldShakeは持続・減衰モデル(rAF駆動)でスナップショットと相性が悪く、スクラブでは
-//    違和感が出るためスキップ(揺れの確認は従来どおり▶再生で)。
+//    違和感が出るためスキップ(揺れの確認は従来どおり▶再生で)。#field.style.filter直操作系も同様に
+//    シーク不能(色収差風シェイク=chromaticAberrationFx。fieldShake経由なので上のscreen/shakeスキップで
+//    自動的に併せて回避される)。
+// fx_primitives.jsへの改修は_fxAutoRemove(最小侵襲・省略時=window.__FX_SCRUB__未定義=従来のsetTimeout
+// と1msも変わらない)に留める(設計書§3-2「最小侵襲」)。
+function _scrubCueSpan(cue){
+  // cueの「実際に見えている時間幅」の見積もり。cue.durだけでなく、プリミティブの実尺が分かる箇所
+  // (popnumのWAAPI総尺=180(_POPTEXT_POPIN_MS)+holdMs+fadeMs・burstの既定650ms等)は実尺+少しの
+  // マージンを使う。この幅を過ぎたcue(=発火済みで既に消えたcue)はscrub対象から外す。
+  const p = cue.params || {};
+  if (cue.track === 'text' && cue.action === 'popnum'){
+    if (p.holdMs != null || p.fadeMs != null || p.rise != null){
+      const holdMs = p.holdMs != null ? p.holdMs : 0;
+      const fadeMs = p.fadeMs != null ? p.fadeMs : 800;
+      return _POPTEXT_POPIN_MS + holdMs + fadeMs;   // popTextのWAAPI3相総尺(fx_primitives.js準拠)
+    }
+    return (cue.dur || 1000) + 50;
+  }
+  if (cue.track === 'glyph' && cue.action === 'burst') return (cue.dur || 650) + 150;   // 粒子ランダム上振れ+2重リング遅延ぶんの余韻
+  if (cue.track === 'atk' && cue.action === 'charge') return (cue.dur || 230) + 60;
+  if (cue.track === 'atk' && cue.action === 'projectile') return 190 + 90;   // spawnProjectileの固定dur(fx_primitives.js)
+  if (cue.track === 'atk' && cue.action === 'beam') return 180 + 90;         // spawnBeamの固定dur(fx_primitives.js)
+  if (cue.track === 'def' && cue.action === 'knockback') return 280 + 60;
+  if (cue.track === 'def' && cue.action === 'hitreact') return 800;   // flash()の800ms自動解除(既知の罠)に合わせる
+  return (cue.dur || 300) + 150;   // それ以外(シーン演出等)は既定の余韻つきフォールバック
+}
 function scrubToTime(targetMs){
   if (!currentSheet) return;
-  resetPreviewPositions();
+  resetPreviewPositions();     // ここでwindow.__FX_SCRUB__=falseに戻り、盤面も全掃除される(前回の静止画を消す)
+  window.__FX_SCRUB__ = true;  // ここから静止画を保持する(次のresetPreviewPositions呼び出しまで維持=setTimeout
+                                // 自己removeとchargeクローンcleanupがこのフラグを見てスキップする)
   const mv = currentMv;
   const isScene = mv && mv.isScene;
   const sceneCtx = isScene ? { side: mv.sceneSide || 'self', won: mv.sceneWon } : null;
   const cues = (currentSheet.cues || [])
-    .filter(c => c.t <= targetMs)
+    .filter(c => c.t <= targetMs && targetMs < c.t + _scrubCueSpan(c))
     .slice()
     .sort((a, b) => a.t - b.t);
   cues.forEach(cue => {
     if (cue.track === 'sound') return;
     if (cue.track === 'screen' && cue.action === 'shake') return;
+    const localT = targetMs - cue.t;
+    const before = document.getAnimations();   // dispatch前後の差分でこのcueが生成したAnimationだけを捕まえる
     if (isScene) _dispatchSceneCueProd(cue, sceneCtx); else dispatchCue(cue, mv);
+    const after = document.getAnimations();
+    after.forEach(anim => {
+      if (before.indexOf(anim) !== -1) return;   // dispatch前から存在した無関係のアニメには触らない
+      try { anim.currentTime = localT; anim.pause(); } catch (e) {}
+    });
   });
 }
 // ドラッグ中の間引き: mousemoveのたびにフルdispatchすると重い(+視覚的にもチラつく)ので、rAF1回に
@@ -1643,6 +1686,32 @@ $('tl-ruler').addEventListener('mousedown', ev => {
   document.addEventListener('mousemove', onMove);
   document.addEventListener('mouseup', onUp);
 });
+// 実装B(2026-07-16・阿部さんFB2026-07-15「赤いバーはルーラーの所しかドラッグできない」): 赤線要素自体を
+// 直接つかんでドラッグできるようにする(CSSで当たり判定を±5px程度に拡張済み)。ルーラードラッグと違い
+// こちらは**ドラッグ専用**(移動が無いクリックでも再生ループは開始しない=掴んだだけで動かさなかった時に
+// 再生が始まると事故になる。ヘッドを動かす操作は常にscrubToTimeのみで完結させる)。
+$('tl-playhead').addEventListener('mousedown', ev => {
+  if (!currentSheet) return;
+  ev.preventDefault();
+  ev.stopPropagation();   // #tl-wrap配下への波及防止(既知の罠=クリックバブリングに注意)
+  if (playState.playing){ playState.playing = false; clearTimers(); updatePlayButtons(); }
+  document.body.style.userSelect = 'none';
+  function onMove(mv){
+    const ms = tlRulerMsFromClientX(mv.clientX);
+    setPlayheadPos(ms);
+    scrubToTimeThrottled(ms);
+  }
+  function onUp(up){
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.body.style.userSelect = '';
+    if (_scrubRAF != null){ cancelAnimationFrame(_scrubRAF); _scrubRAF = null; }
+    _scrubPendingMs = null;
+    scrubToTime(tlRulerMsFromClientX(up.clientX));
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+});
 
 // =====================================================================
 // 書き出し
@@ -1698,9 +1767,13 @@ function renderAll(){
 
 // ---- ラバーバンド選択(阿部さんFB2026-07-11 §8): タイムラインの空白(バーの無い所)からドラッグすると
 // 半透明の矩形が出て、囲んだ(画面座標で交差した)バーをまとめて選択する。トラックをまたいでよい。
-// 空白を単にクリックしただけ(ドラッグ無し)の場合もこの経路を通り、結果的に「空白クリック=全解除」になる。 ----
+// 空白を単にクリックしただけ(ドラッグ無し)の場合もこの経路を通り、結果的に「空白クリック=全解除」になる。
+// 実装B(2026-07-16・阿部さんFB2026-07-15): 同じ空白mousedownで赤線ドラッグと同じヘッド追従+スクラブも
+// 行う(矩形選択のロジック自体は不変=既存機能を壊さない・独立に並行して動く)。行エリア発の操作は
+// クリック/ドラッグのどちらでも「ヘッド移動+スクラブのみ」(再生ループは絶対に開始しない)。 ----
 function startRubberBand(ev){
   if (!currentSheet) return;
+  if (playState.playing){ playState.playing = false; clearTimers(); updatePlayButtons(); }   // 追従とRAFがぶつからないよう先に止める
   const startX = ev.clientX, startY = ev.clientY;
   const mod = ev.shiftKey || ev.metaKey || ev.ctrlKey;
   if (!mod) clearCueSelection();
@@ -1715,8 +1788,14 @@ function startRubberBand(ev){
     lastRect = { left, top, right: left + w, bottom: top + h };
   }
   updateRect(startX, startY);
-  function onMove(e){ updateRect(e.clientX, e.clientY); }
-  function onUp(){
+  function scrubFollow(clientX){
+    const ms = tlRulerMsFromClientX(clientX);
+    setPlayheadPos(ms);
+    scrubToTimeThrottled(ms);
+  }
+  scrubFollow(startX);
+  function onMove(e){ updateRect(e.clientX, e.clientY); scrubFollow(e.clientX); }
+  function onUp(e){
     document.removeEventListener('pointermove', onMove);
     document.removeEventListener('pointerup', onUp);
     rb.remove();
@@ -1728,6 +1807,9 @@ function startRubberBand(ev){
     syncCueBarSelectionClasses();
     renderInspector();
     updateGlyphHandle();
+    if (_scrubRAF != null){ cancelAnimationFrame(_scrubRAF); _scrubRAF = null; }
+    _scrubPendingMs = null;
+    scrubToTime(tlRulerMsFromClientX(e.clientX));
   }
   document.addEventListener('pointermove', onMove);
   document.addEventListener('pointerup', onUp);

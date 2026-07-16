@@ -16,6 +16,16 @@
 // トレースフック: window.__fxTrace が配列の時だけ発火記録を積む(本番は未設定=ゼロコスト)。
 // バトルトレース(設計1-5)の足がかり。フォーマット: {k, mv, shape, t: performance.now()} 等。
 
+// _fxAutoRemove: 演出要素の自己remove用ヘルパー(2026-07-16・設計_ツクール強化_炎サイズ配線とスクラブ_
+// 2026-07-15.md §3-2 段階B「本物のシーク」)。fx_editor.htmlがスクラブで止めた静止画が、このタイマーで
+// 消えてしまわないようにする。window.__FX_SCRUB__ が真の間だけ remove() をスキップする(=フラグが立って
+// いる間は要素をそのまま残す。フラグはfx_editor.html側がresetPreviewPositions()の頭で必ずfalseへ戻す)。
+// 省略時(フラグ未定義=本番real_battle.html/online_battle.html)は `setTimeout(() => el.remove(), ms)` と
+// 完全に同一(1msも挙動を変えない=絶対条件)。
+function _fxAutoRemove(el, ms){
+  setTimeout(() => { if (window.__FX_SCRUB__) return; el.remove(); }, ms);
+}
+
 // popText: variant('crit'=急所/'se'=ばつぐん)指定でポップイン強化(傾き復帰・金色glow等・Wave3 A級)
 // durMs(阿部さんFB2026-07-11 §10・演出ツクールのバーduration配線): 省略時=従来どおり固定1s(本番の挙動は
 // 1msも変わらない=絶対条件)。指定時のみ.popnumのCSSアニメ(既定rbPop 1s)をdurMsへ引き伸ばす。
@@ -51,12 +61,12 @@ function popText(side, text, color, size, variant, durMs, opts){
         { opacity: 0, transform: `translateX(-50%) translateY(${-(6 + rise)}px) scale(1)`, offset: 1 },
       ], { duration: total, easing: 'ease', fill: 'forwards' });
     } catch (e) {}
-    setTimeout(() => el.remove(), total + 100);
+    _fxAutoRemove(el, total + 100);
     return;
   }
   if (durMs) el.style.animationDuration = durMs + 'ms';
   f.appendChild(el);
-  setTimeout(() => el.remove(), durMs ? durMs + 100 : 1100);
+  _fxAutoRemove(el, durMs ? durMs + 100 : 1100);
 }
 // burstFx: 多層バースト(Wave2.5 S級)。既存radial-gradientの上に破片パーティクル+衝撃リング+形状(shape)別グリフを重ねる。
 // intensity: 'normal'(既定)/'up'(ばつぐん=粒子2倍+2重リング)/'crit'(急所=同様)/'down'(いまひとつ=粒子半減)
@@ -90,7 +100,7 @@ function burstFx(side, color, shape, intensity, durMs, sizeScale, offset, partic
   if (durMs) el.style.animationDuration = Math.round(850 * scale) + 'ms';   // CSS既定rbBurst .85s基準
   if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
   f.appendChild(el);
-  setTimeout(() => el.remove(), durMs ? Math.round(650 * scale) : 650);
+  _fxAutoRemove(el, durMs ? Math.round(650 * scale) : 650);
   const big = intensity === 'up' || intensity === 'crit';
   let n = intensity === 'down' ? 3 : (big ? 8 : 5);
   if (particles != null) n = particles;
@@ -124,7 +134,7 @@ function spawnBurstParticles(f, color, n, scale, sizeScale){
       ], { duration: dur, easing: 'cubic-bezier(0,.9,.57,1)' });
       anim.onfinish = () => el.remove();
     } catch (e) {}
-    setTimeout(() => el.remove(), dur + 60);
+    _fxAutoRemove(el, dur + 60);
   }
 }
 // 衝撃リング(円が拡大しながら消える)。scale=省略時1=従来どおり(real_battle/online_battleの直呼び出しは2引数のまま)。
@@ -145,7 +155,7 @@ function spawnBurstRing(f, color, scale, sizeScale){
     ], { duration: dur, easing: 'cubic-bezier(0,.5,.5,1)' });
     anim.onfinish = () => el.remove();
   } catch (e) {}
-  setTimeout(() => el.remove(), Math.round(360 * scale));
+  _fxAutoRemove(el, Math.round(360 * scale));
 }
 // 形状(shape)別グリフ(タスクC 2026-07-11・設計_技エフェクト対応表_2026-07-11.md)。
 // blade=斬線2本ずらし(既存流用) / drill=回転縞ディスク / psi・dragon=渦スパイラル(色違い) /
@@ -171,7 +181,7 @@ function spawnBurstGlyph(f, shape, scale, sizeScale){
         if (scale !== 1) el.style.animationDuration = Math.round(260 * scale) + 'ms';   // CSS既定rbGlyphSlash .26s
         if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
         f.appendChild(el);
-        setTimeout(() => el.remove(), Math.round(260 * scale));
+        _fxAutoRemove(el, Math.round(260 * scale));
       }, Math.round(i * 60 * scale));
     }
     return;
@@ -182,7 +192,7 @@ function spawnBurstGlyph(f, shape, scale, sizeScale){
     if (scale !== 1) el.style.animationDuration = Math.round(300 * scale) + 'ms';   // CSS既定rbGlyphDrill .3s
     if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
     f.appendChild(el);
-    setTimeout(() => el.remove(), Math.round(320 * scale));
+    _fxAutoRemove(el, Math.round(320 * scale));
     return;
   }
   if (shape === 'psi' || shape === 'dragon'){
@@ -194,7 +204,7 @@ function spawnBurstGlyph(f, shape, scale, sizeScale){
     if (scale !== 1) el.style.animationDuration = Math.round(320 * scale) + 'ms';   // CSS既定rbGlyphSpiral .32s
     if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
     f.appendChild(el);
-    setTimeout(() => el.remove(), Math.round(340 * scale));
+    _fxAutoRemove(el, Math.round(340 * scale));
     return;
   }
   if (shape === 'dust' || shape === 'explosion'){
@@ -204,14 +214,14 @@ function spawnBurstGlyph(f, shape, scale, sizeScale){
     if (scale !== 1) el.style.animationDuration = Math.round((big ? 600 : 500) * scale) + 'ms';   // CSS既定.6s/.5s
     if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
     f.appendChild(el);
-    setTimeout(() => el.remove(), Math.round((big ? 620 : 520) * scale));
+    _fxAutoRemove(el, Math.round((big ? 620 : 520) * scale));
     if (!big){
       const crack = document.createElement('div');
       crack.className = 'rb-burstglyph-crack';
       if (scale !== 1) crack.style.animationDuration = Math.round(500 * scale) + 'ms';   // crackもrbGlyphDust .5s流用
       if (sizeScale !== 1) crack.style.setProperty('--fx-burst-scale', sizeScale);
       f.appendChild(crack);
-      setTimeout(() => crack.remove(), Math.round(520 * scale));
+      _fxAutoRemove(crack, Math.round(520 * scale));
     }
     return;
   }
@@ -224,7 +234,7 @@ function spawnBurstGlyph(f, shape, scale, sizeScale){
     if (scale !== 1) el.style.animationDuration = Math.round(260 * scale) + 'ms';   // CSS既定rbGlyphStar .26s
     if (sizeScale !== 1) el.style.setProperty('--fx-burst-scale', sizeScale);
     f.appendChild(el);
-    setTimeout(() => el.remove(), Math.round(280 * scale));
+    _fxAutoRemove(el, Math.round(280 * scale));
   }
 }
 // ===== Wave1: 攻撃演出(技クラス別の飛翔体→着弾) 2026-07-10 阿部さん「音とエフェクトを派手に」 =====
@@ -308,7 +318,7 @@ function spawnProjectile(from, to, cls, color, hitFrac, shape){
     ], { duration: dur, easing: 'ease-in' });
     anim.onfinish = () => el.remove();
   } catch (e) { /* WAAPI非対応環境の保険 */ }
-  setTimeout(() => el.remove(), dur + 80);
+  _fxAutoRemove(el, dur + 80);
   return dur;
 }
 function spawnBeam(from, to, cls, color, hitFrac, shape){
@@ -332,7 +342,7 @@ function spawnBeam(from, to, cls, color, hitFrac, shape){
     ], { duration: dur, easing: 'ease-out' });
     anim.onfinish = () => el.remove();
   } catch (e) {}
-  setTimeout(() => el.remove(), dur + 80);
+  _fxAutoRemove(el, dur + 80);
   return dur;
 }
 // 攻撃側→対象側へ飛翔体/ビームを飛ばす。hit=trueなら着弾後にshake+クラス別ヒット音、false(外れ)なら
@@ -407,7 +417,11 @@ function chargeFx(atkSide, tgtSide, mv, hit){
   document.body.appendChild(clone);
   sp.style.visibility = 'hidden';   // display:noneは使わない(レイアウト/fxPointを保持=盤面が崩れない)
   let done = false;
-  const cleanup = () => { if (done) return; done = true; try { clone.remove(); } catch (e) {} sp.style.visibility = ''; };
+  // 2026-07-16(段階B): スクラブで止めた静止画はクローンが本体の代わりに見えている状態なので、
+  // __FX_SCRUB__が真の間はcleanup(クローン除去+本体sprite可視化)を丸ごとスキップする(=静止画を保つ)。
+  // フラグはfx_editor.htmlのresetPreviewPositions()の頭で必ずfalseに戻る(=次のスクラブ/リセット/
+  // 再生開始/技切替で本掃除される)ので、doneを立てずに素通りしても取り残しにはならない。
+  const cleanup = () => { if (window.__FX_SCRUB__) return; if (done) return; done = true; try { clone.remove(); } catch (e) {} sp.style.visibility = ''; };
   const safety = setTimeout(cleanup, 900);   // 例外(交代等の割込み)でも必ず盤面を復帰させる保険
   const returnHome = () => {
     clearTimeout(safety);
@@ -537,7 +551,7 @@ function rankFx(side, up, stage){
       el.textContent = up ? '↑' : '↓';
       el.style.marginLeft = (Math.random() * 30 - 15) + 'px';
       f.appendChild(el);
-      setTimeout(() => el.remove(), 900);
+      _fxAutoRemove(el, 900);
     }, i * 90);
   }
   up ? SE.rankUp() : SE.rankDown();
@@ -554,7 +568,7 @@ function sparkleFx(side){
       el.style.left = (15 + Math.random() * 70) + '%';
       el.style.top = (30 + Math.random() * 40) + '%';
       f.appendChild(el);
-      setTimeout(() => el.remove(), 700);
+      _fxAutoRemove(el, 700);
     }, i * 60);
   }
 }
@@ -577,7 +591,7 @@ function _megaStepPillar(f){
   const pillar = document.createElement('div');
   pillar.className = 'rb-mega-pillar';
   f.appendChild(pillar);
-  setTimeout(() => pillar.remove(), 480);
+  _fxAutoRemove(pillar, 480);
 }
 function _megaStepOrbs(f){
   for (let i = 0; i < 5; i++){
@@ -587,7 +601,7 @@ function _megaStepOrbs(f){
     orb.style.setProperty('--ox', Math.cos(ang) * 70 + 'px');
     orb.style.setProperty('--oy', Math.sin(ang) * 70 + 'px');
     f.appendChild(orb);
-    setTimeout(() => orb.remove(), 420);
+    _fxAutoRemove(orb, 420);
   }
 }
 function _megaStepSilhouetteOn(sp){ if (sp) sp.classList.add('rb-mega-silhouette'); }
@@ -597,14 +611,14 @@ function _megaStepClimax(side, f, sp){
   const ring = document.createElement('div');
   ring.className = 'rb-mega-ring';
   f.appendChild(ring);
-  setTimeout(() => ring.remove(), 520);
+  _fxAutoRemove(ring, 520);
   for (let i = 0; i < 4; i++){
     const mist = document.createElement('div');
     mist.className = 'rb-mega-mist';
     mist.style.left = (30 + Math.random() * 40) + '%';
     mist.style.top = (20 + Math.random() * 40) + '%';
     f.appendChild(mist);
-    setTimeout(() => mist.remove(), 500);
+    _fxAutoRemove(mist, 500);
   }
 }
 function _megaStepDna(f){
@@ -612,7 +626,7 @@ function _megaStepDna(f){
   dna.className = 'rb-mega-dna';
   dna.textContent = '✦';
   f.appendChild(dna);
-  setTimeout(() => dna.remove(), 260);
+  _fxAutoRemove(dna, 260);
 }
 function megaFx(side){
   if (window.__fxTrace) window.__fxTrace.push({k:'megaFx', side, t: performance.now()});
@@ -874,7 +888,11 @@ function _cueChargeMotionProd(atkSide, tgtSide, dur, params){
   document.body.appendChild(clone);
   sp.style.visibility = 'hidden';
   let done = false;
-  const cleanup = () => { if (done) return; done = true; try { clone.remove(); } catch (e) {} sp.style.visibility = ''; };
+  // 2026-07-16(段階B): スクラブで止めた静止画はクローンが本体の代わりに見えている状態なので、
+  // __FX_SCRUB__が真の間はcleanup(クローン除去+本体sprite可視化)を丸ごとスキップする(=静止画を保つ)。
+  // フラグはfx_editor.htmlのresetPreviewPositions()の頭で必ずfalseに戻る(=次のスクラブ/リセット/
+  // 再生開始/技切替で本掃除される)ので、doneを立てずに素通りしても取り残しにはならない。
+  const cleanup = () => { if (window.__FX_SCRUB__) return; if (done) return; done = true; try { clone.remove(); } catch (e) {} sp.style.visibility = ''; };
   setTimeout(cleanup, dur + 300);
   try {
     const anim = clone.animate([
