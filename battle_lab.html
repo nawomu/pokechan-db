@@ -735,6 +735,12 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   padding:4px 14px;border-radius:14px;font-weight:900;font-size:12px;color:#fff;box-shadow:0 2px 8px #0007;white-space:nowrap}
 #lab-turn-indicator.self{background:linear-gradient(135deg,#2b6de0,#4f9dff);border:2px solid #ffffff55}
 #lab-turn-indicator.opp{background:linear-gradient(135deg,#c0304a,#e0564a);border:2px solid #ffffff55}
+/* ★L5(2026-07-17): 両方AI観戦中の表示(🤖 オートたたかい) */
+#lab-turn-indicator.watching{background:linear-gradient(135deg,#4a4a5e,#6b6b82);border:2px solid #ffffff55}
+/* ★A4(2026-07-17): 直前ターンのダメージピン留め(ログ上部・小さく) */
+#log-pin{flex:0 0 auto;padding:4px 12px;background:#f5f2e6;border-bottom:1px solid #d9d2b8;font-size:11px;line-height:1.5;color:#4a4430}
+#log-pin .pin-title{font-weight:800;color:#8a7b3a;font-size:10px}
+#log-pin .pin-line{white-space:normal}
 /* ★Lab-3-A(2026-07-17): 手動⇔AI切替+観戦オート。ターンインジケータの真下に常設(バトル中いつでも押せる) */
 #lab-ai-row{position:absolute;left:50%;top:34px;transform:translateX(-50%);z-index:12;display:none;gap:6px;white-space:nowrap}
 body.in-battle #lab-ai-row{display:flex}
@@ -855,7 +861,9 @@ body.in-battle #lab-ai-row{display:flex}
 #party .sw-col-self .slot{background:linear-gradient(135deg,#4638ae,#6a5be0)}
 #party .sw-col-opp .slot{background:linear-gradient(135deg,#a02150,#d63c78)}
 #party .sw-mine .slot{width:100%;box-sizing:border-box}
-#party .sw-mine .slot.active,#party .sw-mine .slot.dead{cursor:default}
+/* ★A1(2026-07-17 阿部さんFB): 場のポケモンもクリック→中央エディタで編集できる=activeもpointerに */
+#party .sw-mine .slot.active{cursor:pointer}
+#party .sw-mine .slot.dead{cursor:default}
 #party .sw-mine .slot.selected{border-color:#7ac142;box-shadow:0 0 0 3px #d4f54277,0 2px 7px #0006}
 #party .sw-mine .slot.dead{opacity:.6}
 /* 閲覧専用セル。★2026-07-16 阿部さんFB: ラボは秘匿不要=名前も表示+クリックで中央詳細を閲覧可
@@ -1024,6 +1032,11 @@ body.in-battle #lab-ai-row{display:flex}
       <select id="team-size" style="background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;padding:4px">
         <option value="3" selected data-i18n="real_battle.team_size_option_3">3体ずつ</option><option value="6" data-i18n="real_battle.team_size_option_6">6体ずつ(フルバトル)</option>
       </select></span>
+      <!-- ★A5(2026-07-17 阿部さんFB): 同種制限解除トグル(既定OFF)。ONでピッカーの「使用中の種は除外」をスキップ -->
+      <label style="display:inline-flex;align-items:center;gap:5px;margin-left:12px;cursor:pointer">
+        <input type="checkbox" id="allow-dupes">
+        <span data-i18n="battle_lab.allow_dupes">おなじポケモンも えらべる</span>
+      </label>
     </div>
     <div id="setup-cols">
       <div id="setup-left">
@@ -1126,6 +1139,8 @@ body.in-battle #lab-ai-row{display:flex}
         <button type="button" id="lab-ai-self" class="lab-ai-btn self-side"></button>
         <button type="button" id="lab-ai-opp" class="lab-ai-btn opp-side"></button>
         <button type="button" id="lab-auto-toggle" class="lab-ai-btn" style="display:none"></button>
+        <!-- ★A3(2026-07-17 阿部さんFB): 1手もどす(スナップショットがある時だけ表示・深さ1) -->
+        <button type="button" id="lab-undo-btn" class="lab-ai-btn" style="display:none"></button>
       </div>
       <div id="cmd">
         <button id="c-fight" data-i18n="real_battle.cmd_fight">⚔ たたかう</button>
@@ -1194,6 +1209,9 @@ body.in-battle #lab-ai-row{display:flex}
     </div><!-- /battle-main -->
     <div id="battle-log-panel">
       <div id="log-head" data-i18n="real_battle.log_head">バトルログ</div>
+      <!-- ★A4(2026-07-17 阿部さんFB): 直前ターンのダメージ行ピン留め(技比較用・次ターンで置き換え)。
+           行はJA正典を保持(data-bl-src)し、表示はtranslateLogLine経由=言語切替はi18n:changedで作り直す -->
+      <div id="log-pin" style="display:none"></div>
       <div id="log-scroll"></div>
     </div>
   </div>
@@ -1366,6 +1384,14 @@ const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_C
     if (_rc && _rc.style.display !== 'none') _rc.textContent = I18N.t('battle_lab.revive_continue', '♻ ふっかつして つづける');
     const _eb = document.getElementById('c-end-battle');
     if (_eb && _eb.style.display !== 'none') _eb.textContent = I18N.t('battle_lab.end_battle', 'おわる');
+  } catch (e) {}
+  // ★A3/A4/L5(2026-07-17): 1手もどすボタン・ダメージピン・観戦中インジケータも言語切替に追従
+  try { if (typeof updateLabUndoButton === 'function') updateLabUndoButton(); } catch (e) {}
+  try { if (typeof renderDmgPin === 'function') renderDmgPin(); } catch (e) {}
+  try {
+    const _ind = document.getElementById('lab-turn-indicator');
+    if (_ind && _ind.className === 'watching' && _ind.style.display !== 'none')
+      _ind.textContent = I18N.t('battle_lab.watching', '🤖 オートたたかい');
   } catch (e) {}
 })); // 2026-07-03: 対戦中の言語切替で盤面名前ラベルも即時再描画(#15統合)
 
@@ -2116,10 +2142,16 @@ function closePicker(){ $('poke-picker').style.display = 'none'; pickerSlot = nu
 function renderPickerList(query){
   // 同じポケモンは1チームに1体まで(2026-07-06 阿部さん)。同サイドの他スロットで使用中の種は選択肢から外す
   // ★Lab-3-B: バトル追加モードは「その真の側の場+控え」で使用中の種を除外する(同じ考え方を流用)
+  // ★A5(2026-07-17 阿部さんFB): 「おなじポケモンも えらべる」ON=使用中除外をスキップ(編成/バトル追加両モード)
+  const _dupeOk = (() => { const c = $('allow-dupes'); return !!(c && c.checked); })();
   let used;
-  if (pickerBattleAddSide){
+  if (_dupeOk){
+    used = new Set();
+  } else if (pickerBattleAddSide){
     const st = trueSideState(pickerBattleAddSide);
-    used = new Set((st ? [st].concat(st.bench || []) : []).filter(e => e && e.poke).map(e => (e.illusionAs || e.poke).name));
+    // ★L3(2026-07-17): 重複判定は実体の種名(e.poke.name)で行う(illusionAs=イリュージョンの見た目名だと
+    // 「化けている名前」が使用中扱いになり実体と二重に取れてしまう)
+    used = new Set((st ? [st].concat(st.bench || []) : []).filter(e => e && e.poke).map(e => e.poke.name));
   } else {
     const side = pickerSlot && pickerSlot.startsWith('s') ? selfIds() : oppIds();
     used = new Set(side.filter(id => id !== pickerSlot).map(id => slotVal[id]).filter(Boolean));
@@ -2248,6 +2280,9 @@ function initSetup(){
   });
   $('pp-q').addEventListener('input', () => renderPickerList($('pp-q').value));
   $('pp-sort').addEventListener('change', () => renderPickerList($('pp-q').value));
+  // ★A5(2026-07-17): 同種制限解除トグル。ピッカーを開いたまま切り替えても一覧を作り直す
+  { const ad = $('allow-dupes');
+    if (ad) ad.addEventListener('change', () => { if ($('poke-picker').style.display === 'flex') renderPickerList($('pp-q').value); }); }
   $('pp-close').addEventListener('click', closePicker);
   $('poke-picker').addEventListener('click', e => { if (e.target === $('poke-picker')) closePicker(); });
   $('mp-q').addEventListener('input', () => renderMovePickList($('mp-q').value));
@@ -2265,10 +2300,11 @@ function initSetup(){
   // (busy時のみ作用。msgbox個別のリスナーは二重発火するため廃止)
   $('field').addEventListener('click', advanceMsg);
   document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') advanceMsg(); });
-  // ★2026-07-17 阿部さんFB: 両側HPボックスの⚙(能力値/もちもの)。#field子孫なのでstopPropagation必須
+  // ★2026-07-17 阿部さんFB: 両側HPボックスの⚙。#field子孫なのでstopPropagation必須
   // (#fieldのclick=advanceMsgへバブると誤ってメッセージ送りが起きる=既知の罠・fx-editor-cue-integration参照)
+  // ★A1(2026-07-17午後 阿部さんFB): 導線をstatsモーダルから交代画面(中央エディタ)に変更=編集画面を一本化
   document.querySelectorAll('.pb-gear').forEach(b => {
-    b.addEventListener('click', e => { e.stopPropagation(); SE.select(); openStatsModal(b.dataset.side); });
+    b.addEventListener('click', e => { e.stopPropagation(); SE.select(); openPartyEditorFor(b.dataset.side, null); });
   });
   $('c-fight').addEventListener('click', () => { SE.select(); showMoves(); });
   $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
@@ -2276,7 +2312,8 @@ function initSetup(){
   // 失わないよう確認ポップを挟む(バトルが既に終わっている=gameOverなら失う物が無いので確認なしでそのまま戻す)。
   // c-run(コマンド欄の「にげる」)とbtn-exit(左上の常設ボタン)は同じ動作なので1つにまとめる。
   function exitBattleToSetup(){
-    if (!gameOver && !confirm(I18N.t('battle_lab.confirm_exit_battle', 'バトルをやめて 編成にもどります。よろしいですか？'))) return;
+    // ★L1(2026-07-17): 全滅の「つづける/おわる」選択中(labChoicePending)も失う物が無い=確認なしで抜けられる
+    if (!gameOver && !labChoicePending && !confirm(I18N.t('battle_lab.confirm_exit_battle', 'バトルをやめて 編成にもどります。よろしいですか？'))) return;
     // オンライン中の「にげる」=降参を相手へ通知して切断(2026-07-10)。
     // 切断はresign送信が流れるまで少し待つ(即disconnectだとメッセージが届かず相手が待ち続ける)
     if (window.RB_ONLINE && RB_ONLINE.active){
@@ -2284,7 +2321,16 @@ function initSetup(){
       setTimeout(() => onlineLeave(), 600);
     }
     if (labSwapped) labSwapSides();   // ★バトルラボ: 編成画面に戻る時は必ず真の対応関係に戻す
+    // ★H1(2026-07-17): 観戦オート/仕切り直しポーリングが裏で回り続けないよう必ず破棄+全滅選択状態も解除
+    if (labAutoTimer){ clearTimeout(labAutoTimer); labAutoTimer = null; }
+    try { labClearAIResyncTimer(); } catch (e) {}
+    labChoicePending = false;
+    labReviveFlow = false; labForcedQueue = [];
+    labUndoSnap = null;
+    ['c-revive-continue', 'c-end-battle'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });
+    try { closePicker(); } catch (e) {}   // バトル追加モードのピッカーが開いたままなら閉じる
     bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+    try { updateLabUndoButton(); renderDmgPin(); } catch (e) {}   // ★A3/A4: バトル外=ボタン/ピンを畳む
   }
   $('c-run').addEventListener('click', exitBattleToSetup);
   // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
@@ -2439,7 +2485,9 @@ function startBattle(){
   $('battle').style.display = 'flex';
   fitField();
   // 開始メッセージの名前はへんしん(かわりもの)前に確定させる(いけっ！はメタモンの名前で言う)
-  const selfName0 = tPokeName(S.sides.self.poke.name), oppName0 = tPokeName(S.sides.opp.poke.name);
+  // ★A2(2026-07-17): JA正典名で保持(開始行をlineWithFx=登場fx+translateLogLine表示翻訳に乗せるため。
+  // battle_log_i18n.jsのbl_251/bl_252パターンが名前スロットを翻訳する)
+  const selfNameRaw = S.sides.self.poke.name, oppNameRaw = S.sides.opp.poke.name;
   // Init-A: バトル開始時の登場特性(いかく/天候/かわりもの=メタモンのへんしん等)を発動(実機準拠)。
   // 交代・死に出しはエンジンのattemptSwitch内で発動済み=開始時だけここで呼ぶ
   if (S.phaseInitA) S.phaseInitA();
@@ -2449,13 +2497,23 @@ function startBattle(){
   renderAll();   // renderAll内でrenderSideBarsも呼ばれる(へんしん済みのすがたで描画)
   labSwapped = false;   // ★バトルラボ: 新しいバトル開始時にswap状態を必ずリセット
   labChoicePending = false;   // ★Lab-3-C: 前試合の全滅ふっかつ選択待ちが残っていたら必ず解除
+  labReviveFlow = false; labForcedQueue = [];   // ★H4: 前試合の復活経由フラグ/死に出しキューも破棄
+  labUndoSnap = null; try { updateLabUndoButton(); } catch (e) {}   // ★A3: 前試合の1手もどすは無効化
+  labDmgPin = []; try { renderDmgPin(); } catch (e) {}              // ★A4: 前試合のダメージピンも消す
   if (labAutoTimer){ clearTimeout(labAutoTimer); labAutoTimer = null; }   // ★Lab-3-A: 前試合の観戦オート予約を破棄
   try { labClearAIResyncTimer(); } catch (e) {}   // ★Lab-3-A: 前試合のAIトグル仕切り直しポーリングも破棄
   try { updateLabAIButtons(); } catch (e) {}
   try { ghRenderAll(); } catch (e) {}   // ★バトルラボ: 神の手パネルも開戦時の状態で作り直す
   setWeatherFx(null);
   bgmStart();
-  say([I18N.t('real_battle.battle_start_self','バトルスタート！ いけっ！ {n}！').replace('{n}', selfName0), I18N.t('real_battle.battle_start_opp','相手は {n} を くりだした！').replace('{n}', oppName0)].concat(initLines), () => labBeginTurn());
+  // ★A2(2026-07-17 阿部さんFB「最初からその場にもうでている」): 開始時も交代入場と同じ登場アニメ。
+  // 両側をいったん隠し(gone+HPボックス非表示)、開始行(lineWithFxの登場fx)がenter演出つきで出す
+  ['self', 'opp'].forEach(sd => {
+    const f = $('f-' + sd); if (f){ f.classList.remove('recall', 'enter'); f.classList.add('gone'); }
+    const pb = $('pb-' + sd); if (pb) pb.style.visibility = 'hidden';
+  });
+  say([lineWithFx(`バトルスタート！ いけっ！ ${selfNameRaw}！`),
+       lineWithFx(`相手は ${oppNameRaw} を くりだした！`)].concat(initLines), () => labBeginTurn());
 }
 
 // ===== 描画 =====
@@ -2710,11 +2768,22 @@ function renderSideBars(){
       const hp  = e.currentHp == null ? max : Math.max(0, e.currentHp);
       const pct = Math.round(hp / max * 100);
       const label = `${tPokeName(nm)} (${pct}%)`;
-      html += `<div class="${cls}" title="${label}" aria-label="${label}">` +
+      // ★A1(2026-07-17 阿部さんFB): 丸アイコンクリック→交代画面の中央エディタでその子を選択(data-bi=-1は場の子)
+      html += `<div class="${cls}" title="${label}" aria-label="${label}" data-bi="${i === 0 ? -1 : i - 1}">` +
               `<img src="${pokeIconSrc(nm)}" alt="${tPokeName(nm)}" loading="lazy" onerror="this.parentElement.classList.add('noimg');this.remove()">` +
               `</div>`;
     }
     iconsEl.innerHTML = html;
+    // ★A1: クリック配線(#field子孫=stopPropagation必須)。i=0(場の子)はbenchIdx=null換算
+    iconsEl.querySelectorAll('.sicon[data-bi]').forEach(ic => {
+      ic.style.cursor = 'pointer';
+      ic.addEventListener('click', e => {
+        e.stopPropagation();
+        SE.select();
+        const bi = +ic.dataset.bi;
+        openPartyEditorFor(side, bi === -1 ? null : bi);
+      });
+    });
     // トレーナー名はi18nキーから
     nameEl.textContent = side === 'self'
       ? (window.I18N && I18N.t ? I18N.t('real_battle.pbox_label_self', 'じぶん') : 'じぶん')
@@ -3041,19 +3110,21 @@ function swBattleCapsuleHtml(entry, opts){
   const hpHtml = dead ? '' : `<span class="sw-hpwrap"><span class="sw-hpbar-bg"><span class="${barCls}" style="width:${pct}%"></span></span>` +
     `<span class="sw-hptext">${pct}% (${hp}/${max})</span></span>`;
   const selected = !opts.active && swSelected === opts.idx;
-  const disabled = opts.active || dead;
   const cls = ['slot', opts.active ? 'active' : '', dead ? 'dead' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
-  // ★Lab-3-C(2026-07-17): ひんしの控え(場に出ていない・死んでいる)には♻ふっかつを出す。押すとlabRevive→
-  // 再描画で「ひんし」でなくなり、以後は普通にタップ→交代する、の既存フローに合流する(設計§3経路1)。
-  const reviveBtn = (!opts.active && dead)
-    ? `<button type="button" class="sw-revive" data-i="${opts.idx}">${I18N.t('battle_lab.revive', '♻ ふっかつ')}</button>` : '';
+  // ★Lab-3-C(2026-07-17): ひんしの行には♻ふっかつを出す。押すとlabRevive→再描画で「ひんし」でなくなり、
+  // 以後は普通にタップ→交代する、の既存フローに合流する(設計§3経路1)。
+  // ★M4(2026-07-17レビューWF): 場のひんし行(active && dead)にも出す=1体編成(控えゼロ)の側が全滅→
+  // つづける、の時にその場で復活してバトル続行できる(data-i=-1が「場の子」の目印)。
+  const reviveBtn = dead
+    ? `<button type="button" class="sw-revive" data-i="${opts.active ? -1 : opts.idx}">${I18N.t('battle_lab.revive', '♻ ふっかつ')}</button>` : '';
   const inner = `<strong class="cap-name">${tPokeName(named.name)}${gHtml}</strong>` +
     `<span class="cap-mid"><span class="cap-types">${types}</span><small class="cap-item">${itemHtml}</small></span>` +
     `<img src="${src}" alt="" onerror="this.remove()">` + tag + hpHtml + reviveBtn;
-  // ♻ふっかつボタンを内包するのでbutton-in-buttonを避け、死んでいる控え行だけdivにする
-  // (どのみち死んでいる間はdisabled=交代先に選べない。復活後の再描画で通常のbutton版に戻る)。
-  if (!opts.active && dead) return `<div class="${cls}" data-i="${opts.idx}">${inner}</div>`;
-  return `<button type="button" class="${cls}" ${opts.active ? '' : `data-i="${opts.idx}"`} ${disabled ? 'disabled' : ''}>${inner}</button>`;
+  // ♻ふっかつボタンを内包するのでbutton-in-buttonを避け、死んでいる行(場/控えとも)はdivにする
+  // (どのみち死んでいる間は交代先に選べない。復活後の再描画で通常のbutton版に戻る)。
+  if (dead) return `<div class="${cls}" ${opts.active ? '' : `data-i="${opts.idx}"`}>${inner}</div>`;
+  // ★A1(2026-07-17 阿部さんFB): 場の子(active)もクリック可=中央エディタで編集(交代確認は出ない=swSelected対象外)
+  return `<button type="button" class="${cls}" ${opts.active ? '' : `data-i="${opts.idx}"`}>${inner}</button>`;
 }
 // ★Lab-3-C: ひんし復活の共通ヘルパー(3経路すべてが通る)。BENCH_FIELDSに沿った最小セットのみ更新
 // (実機/エンジンの復帰慣習=currentHp=null(次回満タン換算)/fainted=false/status='none'/sleepTurns=null。
@@ -3064,6 +3135,10 @@ function labRevive(entry){
   entry.fainted = false;
   entry.status = 'none';
   entry.sleepTurns = null;
+  // ★L4(2026-07-17): もうどくカウンタもリセット(エンジンの実フィールド=badpoisonCounter。
+  // toxicCounterは神の手が使っている別名なので両方消しておく)
+  entry.badpoisonCounter = 0;
+  entry.toxicCounter = null;
 }
 // ★バトルラボ: 死に出し(強制)/自分交代技(pivot)はそのまま「交代する/やめる」。
 // 任意タイミングの交代(神の手の一部・設計§7阿部さん確定)は毎回「⏩ターンも進める/⏸このまま」を選ばせる。
@@ -3225,11 +3300,16 @@ function swOppSlotHtml(nm, entry, known, opts){
   const clickable = opts.idx != null;
   const selected = clickable && opts.selected;
   const cls = ['slot', dead ? 'dead' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
-  const tag_ = clickable ? `<button type="button" class="${cls}" data-i="${opts.idx}">` : `<div class="${cls}">`;
-  const closeTag = clickable ? '</button>' : '</div>';
+  // ★L2(2026-07-17): 閲覧側列のひんし行にも♻ふっかつを出す(＋ついかと対称=どちらの列からでも復活可)。
+  // button-in-button回避のため、ひんし行はdivで包む(data-iは残す=中央詳細の閲覧クリックはそのまま効く)
+  const reviveBtn = (dead && clickable)
+    ? `<button type="button" class="sw-revive" data-i="${opts.idx}">${I18N.t('battle_lab.revive', '♻ ふっかつ')}</button>` : '';
+  const useDiv = !clickable || dead;
+  const tag_ = useDiv ? `<div class="${cls}" ${clickable ? `data-i="${opts.idx}"` : ''}>` : `<button type="button" class="${cls}" data-i="${opts.idx}">`;
+  const closeTag = useDiv ? '</div>' : '</button>';
   return `${tag_}<strong class="cap-name">${tPokeName(nm)}${gHtml}</strong>` +
     `<span class="cap-mid"><span class="cap-types">${tps}</span><small class="cap-item">${itemHtml}</small></span>` +
-    `<img src="${src}" alt="" onerror="this.remove()">` + tag + hpHtml + closeTag;
+    `<img src="${src}" alt="" onerror="this.remove()">` + tag + hpHtml + reviveBtn + closeTag;
 }
 function swOppHtml(){
   const opp = S.sides.opp;
@@ -3308,6 +3388,15 @@ function wireSwEvents(){
       renderPartyScreen();
     });
   });
+  // ★A1(2026-07-17 阿部さんFB): 場の子(active)クリック→中央エディタを場の子に戻す(swSelected解除=交代確認なし)
+  pt.querySelectorAll('.sw-mine .slot.active:not(.dead)').forEach(b => {
+    b.addEventListener('click', () => {
+      SE.select();
+      swSelected = null;
+      swDetailSrc = 'mine';
+      renderPartyScreen();
+    });
+  });
   // ★バトルラボ(2026-07-16): あいて列(閲覧専用)クリック→中央詳細を切り替え。交代先には出来ない
   // (swOppSelectedはswSelectedと独立=confirmボタンの表示条件に影響しない)。
   pt.querySelectorAll('.sw-opp-list .slot[data-i]').forEach(b => {
@@ -3322,17 +3411,45 @@ function wireSwEvents(){
   pt.querySelectorAll('.party-add-member').forEach(b => {
     b.addEventListener('click', e => { e.stopPropagation(); SE.select(); openBattlePicker(b.dataset.side); });
   });
-  // ★Lab-3-C: ひんしの控えの♻ふっかつ(labRevive→再描画。以後は普通に選んで交代できる)
-  pt.querySelectorAll('.sw-mine .sw-revive').forEach(b => {
-    b.addEventListener('click', e => {
-      e.stopPropagation();
-      SE.select();
-      const bench = (S.sides.self.bench || []);   // 今のばん側=交代画面が対象にしている真の側
-      labRevive(bench[+b.dataset.i]);
-      renderPartyScreen();
-      try { ghRenderAll(); } catch (e) {}
-    });
+  // ★L7(2026-07-17): ひんし行はdiv=既存のbuttonワイヤリング外。クリックが#fieldへバブルして
+  // advanceMsg(メッセージ送り)を誤爆させないよう、div側でも止める
+  pt.querySelectorAll('div.slot.dead').forEach(d => {
+    d.addEventListener('click', e => e.stopPropagation());
   });
+  // ★Lab-3-C: ひんしの♻ふっかつ(labRevive→再描画。以後は普通に選んで交代できる)。
+  // data-i=-1は「場に出ている子」(★M4: 1体編成の全滅→つづける、でその場復活してバトル続行)。
+  // ★L2: 閲覧側列(.sw-opp-list)のひんし行にも同じボタンが出る=S.sides.opp系を対象に同処理。
+  const wireRevive = (sel, rootStOf) => {
+    pt.querySelectorAll(sel).forEach(b => {
+      b.addEventListener('click', e => {
+        e.stopPropagation();
+        SE.select();
+        const rootSt = rootStOf();
+        const i = +b.dataset.i;
+        const entry = i === -1 ? rootSt : (rootSt.bench || [])[i];
+        labRevive(entry);
+        if (i === -1){
+          // 場の子をその場復活: 盤面スプライト/HPボックスの退場状態も解除して見えるようにする
+          const physSide = rootSt === S.sides.self ? 'self' : 'opp';
+          const ff = $('f-' + physSide); if (ff) ff.classList.remove('gone', 'faint', 'recall', 'enter');
+          const pb = $('pb-' + physSide); if (pb) pb.style.visibility = 'visible';
+        }
+        try { renderAll(); } catch (e2) {}
+        try { ghRenderAll(); } catch (e2) {}
+        // ★M4: 強制交代画面(swForced)で「場の子」を復活させた=交代不要になった。
+        // 画面を閉じて死に出しキューの続き(残りの側/なければ次ターン)へ進む
+        if (i === -1 && swForced){
+          $('party').style.display = 'none';
+          $('msgbox').style.display = 'none';   // 「たおれてしまった…えらんでね」の案内も引っ込める
+          labRunForcedQueue();
+          return;
+        }
+        renderPartyScreen();
+      });
+    });
+  };
+  wireRevive('.sw-mine .sw-revive', () => S.sides.self);
+  wireRevive('.sw-opp-list .sw-revive', () => S.sides.opp);
   const yes = pt.querySelector('.sw-confirm .sw-yes');
   // ★e.stopPropagation()必須(2026-07-13): #party は #field の子孫なので、このクリックが
   // doSwitchTo→say()で新しいメッセージ列を出した直後に #field の click(advanceMsg)へバブルし、
@@ -3439,6 +3556,18 @@ function showParty(forced, pivot){
   swDetailSrc = 'mine';
   const pt = $('party');
   pt.style.display = 'flex';   // CH: フルスクリーン3カラム(選出画面pick-screen準拠)
+  renderPartyScreen();
+}
+// ★A1(2026-07-17 阿部さんFB「数値の設定の画面は、ポケモン選択の画面がそのままでよい」):
+// ⚙(HPボックス)/控えバーの丸アイコンから交代画面を開き、その子を中央エディタで選択状態にする。
+// side='self'|'opp'(S.sidesの物理キー=クリックしたボックス/バーが表示している側)・benchIdx=null(場の子)or控えindex。
+// 強制交代/交代先選択のパーティ画面が開いている最中は割り込まない(既存フロー破壊防止)。
+function openPartyEditorFor(side, benchIdx){
+  if (!document.body.classList.contains('in-battle')) return;
+  if ((swForced || swPivot) && $('party').style.display === 'flex') return;
+  showParty(false, false);
+  if (side === 'opp'){ swDetailSrc = 'opp'; swOppSelected = benchIdx == null ? -1 : benchIdx; }
+  else { swDetailSrc = 'mine'; swSelected = benchIdx == null ? null : benchIdx; }
   renderPartyScreen();
 }
 // 能力値設定モーダル(バトル中の⚙から): ビルダー共通エディタ(iframe)を開く。
@@ -3650,14 +3779,25 @@ function injectAiAction(side){
   if (!S.aiChooseAction) return;
   const st = S.sides[side];
   if (!st || !st.poke) return;
+  if (st.fainted) return;   // ★H2(2026-07-17): ひんしのまま技/交代を注入しない(死に出し解決が先)
   const act = S.aiChooseAction(side);
   if (!act) return;
-  if (act.type === 'switch') st.switchChoice = act.index;
-  else st.selectedMoveIdx = act.index;
+  // ★H3(2026-07-17): エンジンはswitchChoice最優先(real_battle_simulator 5919-5928)。
+  // 前ターンのstale値が残らないよう、注入時に必ずもう一方をクリアする。
+  if (act.type === 'switch'){ st.switchChoice = act.index; }
+  else { st.selectedMoveIdx = act.index; st.switchChoice = null; }
 }
 // 両側AIのターンを丸ごと実行(観戦モード)。
 function labRunAiTurn(){
   if (labSwapped) labSwapSides();   // 常に非swapから注入する(§0禁止事項)
+  // ★H2(2026-07-17): どちらかの場がひんしのまま(復活経由等の取りこぼし)ならターンを回さず死に出し解決へ
+  if (S.sides.self.fainted || S.sides.opp.fainted){
+    labForcedQueue = [];
+    if (S.sides.self.fainted) labForcedQueue.push('self');
+    if (S.sides.opp.fainted) labForcedQueue.push('opp');
+    labRunForcedQueue();
+    return;
+  }
   injectAiAction('self');
   injectAiAction('opp');
   executeTurn();
@@ -3667,18 +3807,27 @@ function labScheduleAiTurn(){
   if (labAutoTimer){ clearTimeout(labAutoTimer); labAutoTimer = null; }
   labAutoTimer = setTimeout(() => {
     labAutoTimer = null;
-    if (busy || gameOver || labChoicePending) return;
+    // ★H1(2026-07-17): バトルを抜けた後は裏で回さない
+    if (!document.body.classList.contains('in-battle')) return;
+    if (gameOver || labChoicePending) return;
     if (!(labAI.self && labAI.opp) || !labAutoRun) return;   // 待っている間に状態が変わっていたら中止
+    // ★L10(2026-07-17): busyでdropすると再開の芽が無い→回復するまで500msで再スケジュール
+    if (busy){ labAutoTimer = setTimeout(() => { labAutoTimer = null; labScheduleAiTurn(); }, 500); return; }
     labRunAiTurn();
   }, 1200);
 }
 // ★ターン開始(行動収集)の入口。以前は各所からshowActionUI()を直接呼んでいたが、AI対応のため
 // 「ターン開始」を表す入口をここに一本化した(設計§1手順1)。手動側だけUIを見せる/両方AIならUIなしで進む。
 function labBeginTurn(){
+  if (!document.body.classList.contains('in-battle')) return;   // ★H1: バトル外では何もしない
   if (labSwapped) labSwapSides();   // 常に非swap保証から始める
   labClearAIResyncTimer();   // ここに来た=最新のlabAIで行動収集が始まる=保留中の仕切り直しは不要になった
   updateLabAIButtons();
   if (labAI.self && labAI.opp){
+    // ★L5(2026-07-17 阿部さんFB): 観戦中はターン表示を「🤖 オートたたかい」に(手動に戻れば従来表示)
+    const ind = $('lab-turn-indicator');
+    if (ind){ ind.style.display = 'block'; ind.className = 'watching';
+      ind.textContent = I18N.t('battle_lab.watching', '🤖 オートたたかい'); }
     if (!labAutoRun) return;   // 観戦一時停止中: ▶を押すまで何もしない
     labScheduleAiTurn();
     return;
@@ -3723,7 +3872,11 @@ function labApplyAIResync(){
   if (uiOpen){
     ['cmd', 'moves', 'party', 'watch-panel', 'weak-panel', 'mv-tip'].forEach(id => { $(id).style.display = 'none'; });
     RB_PIVOT.selfIdx = null; RB_PIVOT.trueSide = null; RB_PIVOT.pendingMoveIdx = null;
+    try { closePicker(); } catch (e) {}   // ★L6: バトル追加ピッカーが開いていたら一緒に閉じる
   }
+  // ★H3(2026-07-17): 収集中に選ばれた行動の残骸を必ず破棄する。エンジンはswitchChoice最優先
+  // (real_battle_simulator 5919-5928)なので、放置すると「取り消したはずの交代」が次のターンで実行される。
+  ['self', 'opp'].forEach(k => { S.sides[k].switchChoice = null; S.sides[k].selectedMoveIdx = null; });
   labBeginTurn();
   return true;
 }
@@ -3754,7 +3907,86 @@ function initLabAI(){
   if (selfBtn) selfBtn.addEventListener('click', e => { e.stopPropagation(); SE.select(); toggleLabAI('self'); });
   if (oppBtn) oppBtn.addEventListener('click', e => { e.stopPropagation(); SE.select(); toggleLabAI('opp'); });
   if (autoBtn) autoBtn.addEventListener('click', e => { e.stopPropagation(); SE.select(); toggleLabAutoRun(); });
+  const undoBtn = $('lab-undo-btn');
+  if (undoBtn) undoBtn.addEventListener('click', e => { e.stopPropagation(); SE.select(); labUndoTurn(); });
   updateLabAIButtons();
+  updateLabUndoButton();
+}
+
+// ===== ★A3(2026-07-17 阿部さんFB): 1手もどす(深さ1) =====
+// sides本体の巻き戻しはエンジンの undoBattle()(runTurnごとにpushHistoryされるbattleHistoryのpop・
+// sides.self/oppの「中身」をin-placeで書き戻す=labSwapSidesの参照スワップと衝突しない)を流用し、
+// エンジンが持たない env / ページ表示(ターン番号・右ログDOM・ダメージピン)は labUndoSnap から復元する。
+let labUndoSnap = null;
+function updateLabUndoButton(){
+  const b = $('lab-undo-btn'); if (!b) return;
+  const show = !!labUndoSnap && document.body.classList.contains('in-battle') && !gameOver;
+  b.style.display = show ? '' : 'none';
+  b.textContent = I18N.t('battle_lab.undo', '↩ 1手もどす');
+}
+function labUndoTurn(){
+  if (!labUndoSnap || busy || gameOver || labChoicePending) return;
+  if (!document.body.classList.contains('in-battle')) return;
+  const w = engineWin();
+  if (!w || typeof w.undoBattle !== 'function') return;
+  if (labSwapped) labSwapSides();   // 復元は必ず真の対応関係で(参照は差し替えず中身を書き戻す)
+  const snap = labUndoSnap; labUndoSnap = null;   // 深さ1=連打で2手は戻れない
+  // 収集中のUI/キュー/行動の残骸を全部畳む
+  ['cmd', 'moves', 'party', 'watch-panel', 'weak-panel', 'mv-tip'].forEach(id => { $(id).style.display = 'none'; });
+  try { closePicker(); } catch (e) {}
+  labForcedQueue = []; labReviveFlow = false;
+  RB_PIVOT.selfIdx = null; RB_PIVOT.trueSide = null; RB_PIVOT.pendingMoveIdx = null;
+  w.undoBattle();   // sides中身の巻き戻し+battleLogをスナップショット時点へ(エンジン実装=4696-4785)
+  ['self', 'opp'].forEach(k => { S.sides[k].switchChoice = null; S.sides[k].selectedMoveIdx = null; });
+  // env(天候/フィールド/ターン系)はエンジンundo対象外=ページ側スナップショットから中身を書き戻す
+  try {
+    Object.keys(S.env).forEach(k => { delete S.env[k]; });
+    Object.assign(S.env, snap.env);
+  } catch (e) {}
+  // 表示の巻き戻し: ターン番号・右ログDOM・ダメージピン(logPosはエンジンlog末尾へ同期)
+  turnNo = snap.turnNo; updateTurnBadge();
+  lastLogTurn = snap.lastLogTurn;
+  const ls = document.getElementById('log-scroll'); if (ls) ls.innerHTML = snap.logHtml;
+  labDmgPin = snap.pin || []; renderDmgPin();
+  logPos = S.battleLog.length;
+  window._idSnap = null; window._hpSnap = {};
+  // ひんし退場クラス/HPボックス非表示が残っていたら解除(巻き戻しで生き返っているため)
+  ['self', 'opp'].forEach(sd => {
+    const f = $('f-' + sd); if (f) f.classList.remove('gone', 'faint', 'recall', 'enter');
+    const pb = $('pb-' + sd); if (pb) pb.style.visibility = 'visible';
+  });
+  // 天候/フィールドの盤面演出も復元値に合わせる(神の手と同じマップ)
+  try { setWeatherFx(({sunny: 'sun', rain: 'rain', sand: 'sand', snow: 'snow'})[S.env.weather] || null); } catch (e) {}
+  try { setTerrainFx(({grassy: 'grass', electric: 'electric', psychic: 'psychic', misty: 'misty'})[S.env.field] || null); } catch (e) {}
+  hideResultBanner();
+  renderAll();
+  try { ghRenderAll(); } catch (e) {}
+  updateLabUndoButton();
+  labBeginTurn();
+}
+
+// ===== ★A4(2026-07-17 阿部さんFB): 直前ターンのダメージ行ピン留め(技比較用) =====
+// JA正典(labDmgPin)を保持し、表示は必ずtranslateLogLine経由(生ja直書き禁止)。
+// 言語切替はi18n:changedリスナーがrenderDmgPin()を呼び直す(data-bl-srcも行に持たせる)。
+let labDmgPin = [];
+function renderDmgPin(){
+  const el = document.getElementById('log-pin'); if (!el) return;
+  if (!labDmgPin.length || !document.body.classList.contains('in-battle')){
+    el.style.display = 'none'; el.innerHTML = ''; return;
+  }
+  el.style.display = 'block';
+  el.innerHTML = '';
+  const t = document.createElement('div');
+  t.className = 'pin-title';
+  t.textContent = I18N.t('battle_lab.pin_title', '📌 まえのターンのダメージ');
+  el.appendChild(t);
+  labDmgPin.forEach(src => {
+    const d = document.createElement('div');
+    d.className = 'pin-line';
+    d.setAttribute('data-bl-src', src);   // JA原文を保持(バトルログの流儀=retranslateと同じ思想)
+    d.textContent = window.translateLogLine ? translateLogLine(src) : src;
+    el.appendChild(d);
+  });
 }
 function doTurn(moveIdx){
   if (busy || gameOver || labChoicePending) return;
@@ -3785,6 +4017,17 @@ function doTurn(moveIdx){
 }
 // 1ターンを実行して差分ログを再生する本体(オフライン=doTurnから直接/オンライン=両者の行動が揃ってから)
 function executeTurn(){
+  // ★A3(2026-07-17 阿部さんFB): 1手もどす用スナップショット(深さ1)。sides本体はエンジンのbattleHistory
+  // (runTurnが毎ターンpushHistory)を流用し、エンジンが巻き戻さない env(天候/フィールド/ターン系)と
+  // ページ表示(ターン番号/右ログDOM/ダメージピン)だけこちらで控える
+  try {
+    labUndoSnap = {
+      env: JSON.parse(JSON.stringify(S.env)),
+      turnNo, lastLogTurn,
+      logHtml: (document.getElementById('log-scroll') || {innerHTML: ''}).innerHTML,
+      pin: labDmgPin.slice(),
+    };
+  } catch (e) { labUndoSnap = null; }
   // 演出用HPスナップショット: 交代で出た瞬間のバーは「攻撃前のHP」を出す
   // (renderAllはエンジン最終状態=被弾後を入れてしまい、登場した瞬間に減って見えていた=2026-07-06 阿部さん)
   window._hpSnap = {};
@@ -3803,6 +4046,10 @@ function executeTurn(){
   logPos = S.battleLog.length;
   S.runTurn();
   const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
+  // ★A4(2026-07-17 阿部さんFB): このターンの攻撃ダメージ行をピン留め(次ターンで置き換え=技比較用)
+  labDmgPin = fresh.map(e => e.msg).filter(m => / に \d+ ダメージ！/.test(m)).slice(0, 8);
+  renderDmgPin();
+  updateLabUndoButton();   // ★A3: スナップショットが出来た=1手もどすを出す
   // CH: 攻撃行の前に「◯◯の こうげき！」を差し込み(2段表示=2026-07-05 阿部さん)。
   // 表示専用(noLog)でエンジンログ/右ログは汚さない。攻撃側はぴょんぴょん予告(preattack)
   const lines = [];
@@ -4375,7 +4622,8 @@ function lineWithFx(msg, opts){
       // 退場(引っ込め)が完全に終わってから登場が始まるよう、最低1150ms(rbRecall 1s+一拍)は次行(登場)へ進ませない(2026-07-13)
       _recallFxDelay = Math.max(_rcDur || 0, 1150);
     }
-    if (/が 場に出た！/.test(msg) || /^いけっ！ \S+！$/.test(msg) || /^相手は \S+ を くりだした！$/.test(msg)){
+    // ★A2(2026-07-17 阿部さんFB): 開始行「バトルスタート！ いけっ！ ◯◯！」でも交代と同じ登場fxを出す
+    if (/が 場に出た！/.test(msg) || /^(?:バトルスタート！ )?いけっ！ \S+！$/.test(msg) || /^相手は \S+ を くりだした！$/.test(msg)){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
       const enterSide = (/相手の \S+ が 場に出た/.test(msg) || msg.startsWith('相手は')) ? 'opp' : 'self';
       if (window._idSnap) _idSnap[enterSide] = null;   // 表示固定を解除(この拍から新しい子)
@@ -4557,9 +4805,29 @@ function labAutoFaintReplace(side){
 // ★Lab-3-C: 全滅からの「ふっかつしてつづける」もこのキューを再利用する(labReviveContinue参照)。
 // その側に生きた控えが無ければlabAutoFaintReplaceがfalseを返し、自然にUI(♻ふっかつ付き交代画面)へ落ちる。
 let labForcedQueue = [];
+// ★H4: 「ふっかつしてつづける」経由の死に出し中はtrue=全滅側でも(♻ふっかつ付き)強制交代画面を出してよい。
+// 通常経由(ターン中の死に出し)で全滅側に当たったら「つづける/おわる」の選択へ回す(スタール根治)。
+let labReviveFlow = false;
 function labRunForcedQueue(){
-  if (!labForcedQueue.length){ turnNo++; updateTurnBadge(); labBeginTurn(); return; }
+  if (labSwapped) labSwapSides();   // 判定(labSideDead/fainted)は非swap前提=先に真の対応へ揃える
+  if (!labForcedQueue.length){
+    // ★M1(2026-07-17): 死に出しで出た子がステルスロック等で即ひんしになった場合の再キュー。
+    // 無限にならない: 生き控えが残る限り死に出しは前進し、全滅したら下のH4分岐で選択へ抜ける。
+    const reNeed = ['self', 'opp'].filter(k => S.sides[k].fainted);
+    if (reNeed.length){ labForcedQueue = reNeed; }
+    else { labReviveFlow = false; turnNo++; updateTurnBadge(); labBeginTurn(); return; }
+  }
   const side = labForcedQueue.shift();
+  // ★H4(2026-07-17 ソーク実測): その側が全滅している(生き控えゼロ)のに通常の強制交代画面を出すと
+  // 選べるカードが無くスタールする(復活経由の2回目全滅で実測)。「つづける/おわる」の選択へ回す。
+  // labReviveFlow中(=既に「つづける」を選んだ後)は例外: ♻ふっかつ付きの交代画面を出すのが正
+  if (labSideDead(side) && !labReviveFlow){
+    labForcedQueue = [];
+    labChoicePending = true;
+    bgmStop();
+    showLabGameOverChoice();
+    return;
+  }
   if (labAI[side] && labAutoFaintReplace(side)) return;
   if ((side === 'opp') !== labSwapped) labSwapSides();   // side==='opp'ならswap、'self'ならswap解除、を保証
   pushMsgLine(`${tPokeName(S.sides.self.poke.name)} ${I18N.t('real_battle.faint_replace_prompt','は たおれてしまった… つぎのポケモンを えらんでね')}`);
@@ -4602,6 +4870,8 @@ function showLabGameOverChoice(){
 function labEndBattleChoice(){
   gameOver = true;
   labChoicePending = false;
+  labReviveFlow = false;
+  labUndoSnap = null; try { updateLabUndoButton(); } catch (e) {}   // ★A3: 勝敗確定後は戻さない
   const rc = $('c-revive-continue'); if (rc) rc.style.display = 'none';
   const eb = $('c-end-battle'); if (eb) eb.style.display = 'none';
 }
@@ -4610,13 +4880,20 @@ function labEndBattleChoice(){
 function labReviveContinue(){
   labChoicePending = false;
   hideResultBanner();
+  // 任意確認(2026-07-17レビューWF): scene cue(win/lose演出シート)由来のオーバーレイが残っていたら掃除
+  // (シート未設定なら従来showResultBannerのみ=上のhideResultBannerで済んでいる)
+  try { if (typeof clearSceneCueFx === 'function') clearSceneCueFx(); } catch (e) {}
   const rc = $('c-revive-continue'); if (rc) rc.style.display = 'none';
   const eb = $('c-end-battle'); if (eb) eb.style.display = 'none';
   ['c-fight','c-party'].forEach(id => { const b = $(id); if (b) b.style.display = ''; });
+  // ★M2(2026-07-17): つづける=バトル続行なのでBGMも再開(snd-toggleの流儀=sndOnの時だけ)
+  if (sndOn) bgmStart();
+  if (labSwapped) labSwapSides();   // 判定は非swap前提
+  labReviveFlow = true;   // ★H4: この死に出しは復活経由=全滅側でも♻ふっかつ付き交代画面を出してよい
   labForcedQueue = [];
-  if (labSideDead('self')) labForcedQueue.push('self');
-  if (labSideDead('opp')) labForcedQueue.push('opp');
-  if (!labForcedQueue.length){ labBeginTurn(); return; }   // 理論上到達しない保険
+  // ★H2(2026-07-17): 相打ち/全滅時、非全滅側でも場のポケモンがひんしなら取りこぼさず一緒に死に出しへ
+  ['self', 'opp'].forEach(k => { if (labSideDead(k) || S.sides[k].fainted) labForcedQueue.push(k); });
+  if (!labForcedQueue.length){ labReviveFlow = false; labBeginTurn(); return; }   // 理論上到達しない保険
   labRunForcedQueue();
 }
 
