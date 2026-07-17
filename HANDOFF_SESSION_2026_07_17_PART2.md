@@ -33,6 +33,20 @@
 - 調査=WF4並列(file:line裏取り)→設計doc=`設計_Lab3_無限バトル_2026-07-17.md`→実装=Sonnetエージェント1体(battle_lab+i18n直列)+GLM隔離worktree(fx_primitives)→検証=親(Fable)がPlaywrightループ→修正はSendMessageで同一エージェントに差し戻し(3往復で20/20)。
 - 別件: Kimi K3調査済み(`kimi_セットアップメモ_2026-07-17.md`=料金/Claude Code乗せ換え手順。阿部さんのアカウント作成待ち)。
 
+## 4.5 第2ラウンド(同日午後・使い倒し自己チェック+阿部さん追加FB)
+
+阿部さん「ループ/ゴール/WF/分担でガンガン自己チェックを回せ+細かいのも全部自走で」→敵対レビューWF(4レンズ・findings 20超)+8分ソークテスト+スクショ目視で洗い出し→全部修正+新機能まで実装・検証:
+
+**修正(レビュー/ソークで検出)**: H1=退出後もオートが裏で無限進行(in-battleガード+退出時タイマー掃除)/H2=相打ち時に非全滅側のひんし場ポケモン取りこぼし(labReviveContinueがst.fainted側もキュー)/H3=resyncがstale switchChoiceを破棄せず「取り消した交代」が実行される/H4=復活経由の2回目全滅でスタール(labSideDeadならchoiceへ・labReviveFlow中は例外)/M1=AI死に出し直後のステロ即死の再死に出し/M2=継続後BGM無音/M4=1体編成の全滅→場のひんし行にも♻/L群10件(退出確認・閲覧側♻・illusion重複・toxicCounter・観戦インジケータ「🤖オートたたかい」・picker掃除・divバブル・busy再スケジュール等)。
+
+**新機能(阿部さん午後FB)**: ①**⚙と控えバー丸アイコン→交代画面で編集に一本化**(openPartyEditorFor・場の子も中央エディタで編集可=「数値の設定は選択画面でよいのでは」) ②**開始時の登場アニメ**(交代と同じ下から・lineWithFx流用) ③**↩1手もどす**(エンジン既存undoBattle流用+ページ側env/ログ/ピンのスナップショット・深さ1) ④**📌ダメージピン**(直前ターンのダメージ行をログ上部に・data-bl-src翻訳準拠) ⑤**同種解除トグル**(おなじポケモンもえらべる・既定OFF)。新i18nキー4個×9言語。
+
+**小物(別エージェント)**: suggest_partner.htmlをrelease_check監査対象に登録(緑確認済み)/fx_editorのglyph:climaxにcolor編集欄(プレビュー実機確認済み)。
+
+**検証**: 拡張ハーネス32/32パス・JSエラー0・release_check緑・**ソーク8分=スタール0/全滅→継続2回/復活20回**。偽陽性の棄却=L11(win演出cueシート現存せず)/L12(狭幅重なり=600pxで非干渉を実測)。
+
+**★このラウンドの罠メモ**: swForcedは残留フラグ(前ラウンド)に加え、**「つづける」経由の死に出しはlabReviveFlowフラグでH4分岐から除外**しないとchoice⇄つづけるの無限ループになる/エンジンに既存undoBattle(pushHistory)がありundo自作不要/ネイティブconfirmはPlaywrightが自動キャンセル(dialogハンドラ必須)/msg-speed option[0]=3800ms(検証は1700固定)。
+
 ## 5. 🙋 阿部さんに確認してほしいこと
 
 1. **バトルラボの無限バトル**(https://pchamdb.com/battle_lab.html ⌘+Shift+R): AIトグルの位置と押し心地/オート観戦の速さ(1.2s)/「＋ついか」の場所/全滅時の2ボタンの文言
