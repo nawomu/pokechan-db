@@ -632,9 +632,9 @@ function _megaStepOrbs(f){
   }
 }
 function _megaStepSilhouetteOn(sp){ if (sp) sp.classList.add('rb-mega-silhouette'); }
-function _megaStepClimax(side, f, sp){
+function _megaStepClimax(side, f, sp, color){
   if (sp) sp.classList.remove('rb-mega-silhouette');
-  burstFx(side, '#ffd96b', null, 'up');
+  burstFx(side, color || '#ffd96b', null, 'up');
   const ring = document.createElement('div');
   ring.className = 'rb-mega-ring';
   f.appendChild(ring);
@@ -1263,7 +1263,7 @@ function _dispatchSceneCueProd(cue, ctx){
       _megaStepSilhouetteOn(sp);
     } else if (cue.track === 'glyph' && cue.action === 'climax'){
       const f = $('f-' + side), sp = f && f.querySelector('.sprite');
-      _megaStepClimax(side, f, sp);
+      _megaStepClimax(side, f, sp, p.color);
     } else if (cue.track === 'glyph' && cue.action === 'dna'){
       const f = $('f-' + side); if (f) _megaStepDna(f);
     } else if (cue.track === 'glyph' && cue.action === 'weather'){
