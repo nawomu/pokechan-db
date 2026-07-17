@@ -420,6 +420,13 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .pbox .held.used{opacity:.45;filter:grayscale(1)}
 .pbox .sts .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466}
 .pbox .balls{display:none}
+/* ★2026-07-17 阿部さんFB: 両側HPボックスの能力値調整⚙。位置はCSSの固定pxでは
+   持ち物テキストの長さ/画面幅で必ず重なるため、JS(positionPbGears・renderAllから毎回呼ぶ)で
+   アイコン右端〜持ち物orHP数値の左端の「すき間」に動的配置する。ここは見た目(丸ボタン)だけ */
+.pbox .pb-gear{position:absolute;top:4px;left:4px;transform:skewX(10deg);width:15px;height:15px;line-height:13px;
+  padding:0;font-size:9px;border-radius:50%;border:1px solid #ffffff55;background:#00000066;color:#fff;
+  cursor:pointer;z-index:3}
+.pbox .pb-gear:hover{border-color:#d4f542}
 
 /* ===== CH: leftbar / rightbar (残りポケモンのボールマーク列=statbarに隣接) ===== */
 /* 相手=statbar直下(右上) / 自分=statbar直上(左下)。実機のボールマーク行に対応 */
@@ -764,16 +771,18 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   background:#22283add;color:#dbe3f2;border:1px solid #ffffff33;cursor:pointer;font-family:inherit;white-space:nowrap}
 #moves .mv-top button:hover{border-color:#d4f542}
 #moves .mv-top button.on{color:#d4f542;border-color:#d4f54288}
-/* 様子を見るパネル(左側オーバーレイ): ランク変化/状態/天候・フィールド残りターン */
-#watch-panel{position:absolute;left:14px;top:52px;bottom:auto;z-index:12;display:none;max-width:260px;background:#1a1f2e55;
-  border:1px solid #ffffff22;border-radius:12px;padding:9px 12px;font-size:11.5px;color:#eef2fb;cursor:pointer;
+/* 様子を見るパネル(左側オーバーレイ): ランク変化/状態/天候・フィールド残りターン。
+   ★2026-07-17 阿部さんFB: バトル中は常時表示に変更→一回り小さく・詰めてコンパクト化。
+   操作不要(クリック不要)なのでpointer-events:noneにして盤面クリック(メッセージ送り)を妨げない */
+#watch-panel{position:absolute;left:14px;top:52px;bottom:auto;z-index:12;display:none;max-width:196px;background:#1a1f2e4d;
+  border:1px solid #ffffff1c;border-radius:10px;padding:5px 8px;font-size:10px;color:#eef2fb;cursor:default;pointer-events:none;
   backdrop-filter:blur(2px);box-shadow:0 2px 8px #0004;text-shadow:0 1px 2px #0007}/* 左上・非常口ボタンの下・背景に馴染む薄い透明(2026-07-06 阿部さん) */
-#watch-panel .wp-row{margin:3px 0;line-height:1.5}
+#watch-panel .wp-row{margin:1.5px 0;line-height:1.3}
 #watch-panel .wp-row b{color:#9ec5ff}
 #mv-tip{position:absolute;left:14px;bottom:112px;z-index:12;display:none;max-width:300px;/* 自分HPボックスに被らない高さ */background:#141927ee;
   border:1px solid #2a3450;border-radius:12px;padding:9px 12px;font-size:11px;line-height:1.55;color:#e6edf3;
   box-shadow:0 4px 14px #0008;pointer-events:none}
-#watch-panel .bdg{font-size:9px;padding:1px 6px;border-radius:7px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466;margin-left:3px}
+#watch-panel .bdg{font-size:8px;padding:1px 5px;border-radius:6px;background:#00000055;color:#fbbf24;border:1px solid #fbbf2466;margin-left:2px}
 /* 弱点パネル(左側オーバーレイ): 相手への18タイプ相性を3区分で表示(2026-07-08 B1・watch-panel踏襲) */
 #weak-panel{position:absolute;left:14px;top:52px;bottom:auto;z-index:12;display:none;max-width:260px;background:#1a1f2e55;
   border:1px solid #ffffff22;border-radius:12px;padding:9px 12px;font-size:11.5px;color:#eef2fb;cursor:pointer;
@@ -937,6 +946,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   #pb-opp{right:8px;top:6px;left:auto;width:134px}
   #pb-self{left:8px;bottom:6px;top:auto;width:134px}
   #pb-self .nm,#pb-opp .nm{max-width:82px;font-size:11.5px}
+  /* ★2026-07-17: スマホ幅では⚙を一回り小さく(位置はJS=positionPbGearsが毎回動的計算するのでここでは大きさのみ) */
+  .pbox .pb-gear{width:13px;height:13px;line-height:11px;font-size:8px}
   #rightbar{right:14px;top:64px}
   #leftbar{left:14px;bottom:74px}
   #moves{width:188px}
@@ -1069,6 +1080,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
           <div class="status"></div><!-- 状態異常バッジはここにも入れられる(将来用) -->
         </div>
         <div class="sts"></div>
+        <!-- ★2026-07-17 阿部さんFB: 相手側の能力値調整⚙(HPボックス同等位置)。#field子孫なのでstopPropagation必須 -->
+        <button class="pb-gear" data-side="opp">⚙</button>
         <div class="balls"></div>
       </div>
       <div class="pbox" id="pb-self">
@@ -1081,6 +1094,8 @@ body.in-battle #game,body.in-battle header{max-width:990px}
           <div class="status"></div>
         </div>
         <div class="sts"></div>
+        <!-- ★2026-07-17 阿部さんFB: 自分側の能力値調整⚙(持ち物表示の左横。技メニュー横の⚙とは別=HPボックスから直接開けるショートカット) -->
+        <button class="pb-gear" data-side="self">⚙</button>
         <div class="held"></div><!-- 自分の持ち物(アイコン+名前・消費でグレー=2026-07-06 阿部さん) -->
         <div class="balls"></div>
       </div>
@@ -1311,8 +1326,10 @@ const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_C
   // ★2026-07-16バグ修正: 交代画面(#party)を開いたまま言語切替すると「いま えらぶのは」バッジ等が
   // 動的innerHTMLのため古い言語のまま残っていた。開いていれば同じ状態のまま作り直す(他のJS組立部品と同じ扱い)
   if ($('party').style.display === 'flex'){ try { renderPartyScreen(); } catch(e) {} }
-  // 弱点/様子パネルは開くたびに最新言語で再生成する設計=言語切替時は一旦閉じて古い言語を残さない(B1)
-  ['weak-panel', 'watch-panel'].forEach(id => { const _p = document.getElementById(id); if (_p) _p.style.display = 'none'; });
+  // 弱点パネルは開くたびに最新言語で再生成する設計=言語切替時は一旦閉じて古い言語を残さない(B1)
+  const _wp = document.getElementById('weak-panel'); if (_wp) _wp.style.display = 'none';
+  // ★2026-07-17: 様子を見るパネルは常時表示化(閉じずに新しい言語で作り直す=renderWatchPanel自体が最新言語を読む)
+  try { renderWatchPanel(); } catch(e) {}
   // つぎの相手ボタンは動的生成=data-bl-src対象外。言語切替で作り直す(2026-07-06 阿部さん)
   const _nb = document.getElementById('c-next');
   if (_nb && _nb.dataset.streak != null){
@@ -2160,6 +2177,11 @@ function initSetup(){
   // (busy時のみ作用。msgbox個別のリスナーは二重発火するため廃止)
   $('field').addEventListener('click', advanceMsg);
   document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') advanceMsg(); });
+  // ★2026-07-17 阿部さんFB: 両側HPボックスの⚙(能力値/もちもの)。#field子孫なのでstopPropagation必須
+  // (#fieldのclick=advanceMsgへバブると誤ってメッセージ送りが起きる=既知の罠・fx-editor-cue-integration参照)
+  document.querySelectorAll('.pb-gear').forEach(b => {
+    b.addEventListener('click', e => { e.stopPropagation(); SE.select(); openStatsModal(b.dataset.side); });
+  });
   $('c-fight').addEventListener('click', () => { SE.select(); showMoves(); });
   $('c-party').addEventListener('click', () => { SE.select(); showParty(); });
   // ★2026-07-16追加: バトル中いつでも編成にもどれる導線(ラボは実験室=組み直したい)。誤タップでバトルを
@@ -2333,6 +2355,7 @@ function startBattle(){
   if (S.phaseInitA) S.phaseInitA();
   const initLines = S.battleLog.filter(e => !/^───/.test(e.msg)).flatMap(e => splitBattleLines(e.msg).map(lineWithFx));
   logPos = S.battleLog.length;
+  watchPanelHidden = false;   // ★2026-07-17: 新しいバトル開始時は必ず様子を見るパネルを表示状態に戻す
   renderAll();   // renderAll内でrenderSideBarsも呼ばれる(へんしん済みのすがたで描画)
   labSwapped = false;   // ★バトルラボ: 新しいバトル開始時にswap状態を必ずリセット
   try { ghRenderAll(); } catch (e) {}   // ★バトルラボ: 神の手パネルも開戦時の状態で作り直す
@@ -2528,6 +2551,41 @@ function renderAll(){
   });
   // S3: leftbar / rightbar の更新(renderAll呼び出しごとに同期)
   renderSideBars();
+  // ★2026-07-17 阿部さんFB: 両側HPボックスの⚙をアイコン〜持ち物/HP数値のすき間に動的配置(renderAllのたびに再計算)
+  try { positionPbGears(); } catch (e) {}
+  // ★2026-07-17 阿部さんFB: 様子を見るパネルは常時表示→renderAllのたびに自動更新(ターン解決/交代/神の手すべてrenderAll経由)。
+  // ただしメッセージ再生中(busy)はエンジンが先に最終状態を持ってしまう=見えている演出より先にランク変化がバレる(HPバーと同じ理由の凍結)ので、
+  // busy中は更新をスキップ(表示中の内容はそのまま維持)し、再生完了後(showMoves()→renderWatchPanel())で最新化する。
+  if (!busy) try { renderWatchPanel(); } catch (e) {}
+}
+// ★2026-07-17 阿部さんFB: HPボックス⚙の動的配置。pboxはtransform:skewXで斜めに描画されるが、
+// 直接の子要素(row1/hpbar/held/pb-gear自身)は.pbox>*{transform:skewX(10deg)}で打ち消されているため、
+// offsetLeft/offsetWidth(レイアウト値=transformの影響を受けない)をそのまま同じ座標系で比較できる=
+// zoom(fitField)やskewの変換計算が不要。アイコン右端〜(自分側は持ち物/両側ともHP数値)の左端の
+// すき間に置く。すき間が無ければアイコンのすぐ右に詰める(重ならない優先)。
+function positionPbGears(){
+  ['self', 'opp'].forEach(side => {
+    const pb = $('pb-' + side);
+    const gear = pb && pb.querySelector('.pb-gear');
+    const row1 = pb && pb.querySelector('.row1');
+    const icn = pb && pb.querySelector('.icn');
+    const hpbar = pb && pb.querySelector('.hpbar');
+    const hptext = pb && pb.querySelector('.hptext');
+    if (!gear || !row1 || !icn || !hpbar || !hptext) return;
+    const iconRight = row1.offsetLeft + icn.offsetLeft + icn.offsetWidth;
+    const held = side === 'self' ? pb.querySelector('.held') : null;
+    const numLeft = hpbar.offsetLeft + hptext.offsetLeft;   // HP数値(166/166・100%)の左端
+    const boundaryLeft = (held && held.offsetWidth > 0) ? held.offsetLeft : numLeft;
+    const gearW = gear.offsetWidth || 15;
+    let left = boundaryLeft - 4 - gearW;
+    if (left < iconRight + 2) left = iconRight + 2;   // すき間が狭い時はアイコンのすぐ右で妥協(重なりゼロ優先)
+    gear.style.left = Math.round(left) + 'px';
+    gear.style.right = 'auto';
+    const numTop = hpbar.offsetTop + hptext.offsetTop;
+    const numH = hptext.offsetHeight || 16;
+    gear.style.top = Math.round(numTop + (numH - gearW) / 2) + 'px';
+    gear.style.bottom = 'auto';
+  });
 }
 
 // S3: leftbar/rightbar 描画。場に出ている個体=.active / ひんし=.dead
@@ -2692,7 +2750,7 @@ function showMoves(){
   const tc = S.typeColors();
   $('cmd').style.display = 'none';
   $('party').style.display = 'none';        // 相互排他(重なるとクリックが食われて固まる=2026-07-06)
-  $('watch-panel').style.display = 'none';
+  try { renderWatchPanel(); } catch(e) {}   // ★2026-07-17: 常時表示化=閉じずに最新状態で作り直す(watchPanelHiddenなら内部でnone)
   $('weak-panel').style.display = 'none';
   const mv = $('moves');
   mv.style.display = 'flex';   // CH: 縦カプセルリスト
@@ -2736,7 +2794,7 @@ function showMoves(){
   // 上段=様子を見る/技の説明(トグル)/⚙能力値(実機のX/Y行相当=2026-07-06 阿部さん)
   const detailOn = localStorage.getItem('rb_move_detail') === 'on';
   const statsBtn = `<div class="mv-top">` +
-    `<button class="watch-open">${I18N.t('real_battle.watch_button','👀 様子を見る')}</button>` +
+    `<button class="watch-open${watchPanelHidden ? '' : ' on'}">${I18N.t('real_battle.watch_button','👀 様子を見る')}</button>` +
     `<button class="weak-open">${I18N.t('real_battle.weakness_button','🎯 弱点')}</button>` +
     `<button class="desc-toggle${detailOn ? ' on' : ''}">${I18N.t('real_battle.movedesc_button','📖 技の説明')}</button>` +
     `<button class="stats-open">⚙</button></div>`;
@@ -3252,8 +3310,11 @@ function showParty(forced, pivot){
 }
 // 能力値設定モーダル(バトル中の⚙から): ビルダー共通エディタ(iframe)を開く。
 // 確定=場の自分ポケモンに即時反映(messageリスナー側)・キャンセル=閉じるだけ。上限はビルダー側で担保(66/32)
-function openStatsModal(){
-  const st = S.sides.self;
+// ★2026-07-17 阿部さんFB: side='self'|'opp'を渡すとその側の能力値/もちものを開ける(既定=自分)。
+// HPボックスの⚙(pb-gear)は物理的にそのボックスが表示している側(=S.sides[side]、labSwapped中もその時点の表示と一致)を開く。
+function openStatsModal(side){
+  side = (side === 'opp') ? 'opp' : 'self';
+  const st = S.sides[side];
   if (!st || !st.poke) return;
   st.effort = clampEffortRB(st.effort);
   const holder = $('sm-holder');
@@ -3289,10 +3350,17 @@ function openStatsModal(){
   $('stats-modal').style.display = 'flex';
 }
 // 様子を見る: 両者のランク変化・状態異常と、天候/フィールド(残りターン)を表示(2026-07-06 阿部さん・実機のX)
-function toggleWatchPanel(btn){
+// ★2026-07-17 阿部さんFB: バトル中は常時表示に変更。toggleWatchPanelを「内容の再構築+表示」(renderWatchPanel)と
+// 「👀ボタンで一時的に隠す/出す」(toggleWatchPanel)に分離。renderAll()/showMoves()/言語切替などから自動的に呼ばれる。
+let watchPanelHidden = false;   // 👀ボタンでユーザーが一時的に隠した状態(バトル開始のたびにリセット)
+function renderWatchPanel(){
   const w = $('watch-panel');
-  if (w.style.display === 'block'){ w.style.display = 'none'; return; }
-  $('weak-panel').style.display = 'none';   // 弱点パネルとは排他(同じ位置に出す)
+  if (!w) return;
+  if (watchPanelHidden || !document.body.classList.contains('in-battle') ||
+      !S || !S.sides || !S.sides.self || !S.sides.self.poke || !S.sides.opp || !S.sides.opp.poke){
+    w.style.display = 'none';
+    return;
+  }
   // 左上の非常口ボタン(btn-exit)の真下に出す(2026-07-06 阿部さん)。zoom補正あり
   const fr = $('field').getBoundingClientRect();
   const ratio = fr.height / 360;
@@ -3322,7 +3390,13 @@ function toggleWatchPanel(btn){
     envRows.push(`<div class="wp-row">🌐 ${I18N.t('real_battle.env_field_' + env.field, env.field)}${turnsTxt(env.fieldTurns)}</div>`);
   w.innerHTML = row('opp') + row('self') + envRows.join('');
   w.style.display = 'block';
-  w.onclick = () => { w.style.display = 'none'; };
+}
+// 👀ボタン: 常時表示パネルを一時的に隠す/出すトグルに再定義(2026-07-17 阿部さんFB)
+function toggleWatchPanel(btn){
+  watchPanelHidden = !watchPanelHidden;
+  if (!watchPanelHidden) $('weak-panel').style.display = 'none';   // 弱点パネルとは排他(同じ位置に出す)
+  if (btn) btn.classList.toggle('on', !watchPanelHidden);
+  renderWatchPanel();
 }
 // 弱点パネル(2026-07-08 B1): 相手の場のポケモンに対する18タイプ相性を
 // こうかばつぐん / いまひとつ / こうかなし の3区分で表示。toggleWatchPanel を踏襲(位置・zoom補正・クリックで閉じる)。
@@ -3330,7 +3404,9 @@ function toggleWatchPanel(btn){
 // 例外/非反応時は typeEffPreview(素相性)にフォールバック(ベストエフォート・spec§2準拠)。
 function toggleWeaknessPanel(btn){
   const w = $('weak-panel');
-  if (w.style.display === 'block'){ w.style.display = 'none'; return; }
+  // ★2026-07-17: 様子を見るパネルは常時表示化。弱点パネルと同じ位置に出すため一時的に隠し、
+  // 弱点パネルを閉じたら(トグルオフ/クリックで閉じる)renderWatchPanel()で復帰させる
+  if (w.style.display === 'block'){ w.style.display = 'none'; try { renderWatchPanel(); } catch(e) {} return; }
   $('watch-panel').style.display = 'none';   // 様子を見るパネルとは排他(同じ位置に出す)
   // 左上の非常口ボタン(btn-exit)の真下に出す(zoom補正あり・toggleWatchPanelと同じ位置計算)
   const fr = $('field').getBoundingClientRect();
@@ -3350,7 +3426,7 @@ function toggleWeaknessPanel(btn){
   if (!opp || !opp.poke || !defTypes.length){
     w.innerHTML = `<div class="wp-row">${I18N.t('real_battle.weakness_empty','あいては いないようだ')}</div>`;
     w.style.display = 'block';
-    w.onclick = () => { w.style.display = 'none'; };
+    w.onclick = () => { w.style.display = 'none'; try { renderWatchPanel(); } catch(e) {} };
     return;
   }
 
@@ -3396,7 +3472,7 @@ function toggleWeaknessPanel(btn){
     section(I18N.t('real_battle.weakness_title_weak','いまひとつ'), buckets.weak) +
     section(I18N.t('real_battle.weakness_title_none','こうかなし'), buckets.none);
   w.style.display = 'block';
-  w.onclick = () => { w.style.display = 'none'; };
+  w.onclick = () => { w.style.display = 'none'; try { renderWatchPanel(); } catch(e) {} };
 }
 function toggleMega(){
   const st = S.sides.self;
