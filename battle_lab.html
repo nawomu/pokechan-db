@@ -197,16 +197,17 @@ body.in-battle #game,body.in-battle header{max-width:990px}
  * #setup button の全体スタイル(flex:1/padding:12px)に負けないよう #sel-detail/#stats-modal 両スコープで上書き */
 .sd-ev{margin-top:8px;border-top:1px solid #ffffff22;padding-top:7px}
 .sd-ev-top{display:flex;align-items:center;gap:6px;margin-bottom:7px}
-#sel-detail .sd-ev-top .sd-nature,#stats-modal .sd-ev-top .sd-nature{padding:3px 10px;font-size:12px}/* 特性/持ち物と同サイズに(2026-07-07 阿部さん) */
+#sel-detail .sd-ev-top .sd-nature,#stats-modal .sd-ev-top .sd-nature,#party .sw-detail .sd-ev-top .sd-nature{padding:3px 10px;font-size:12px}/* 特性/持ち物と同サイズに(2026-07-07 阿部さん) */
 .sd-ev-top .sd-nature{flex:1 1 auto;min-width:0}
 .sd-ev-budget{font-size:11px;color:#ffffffbb;font-weight:700;white-space:nowrap}
 .sd-ev-budget b{color:#ffe066;font-size:13px}
 .sd-ev.full .sd-ev-budget b{color:#ff5ee0}
-#sel-detail .sd-ev button,#stats-modal .sd-ev button{flex:none;width:auto;padding:0;font-weight:900;font-size:11px;
+/* ★2026-07-17再設計item4: #party .sw-detail(バトル中の中央詳細パネル)にも編成画面と同じsd-evボタン装飾を適用 */
+#sel-detail .sd-ev button,#stats-modal .sd-ev button,#party .sw-detail .sd-ev button{flex:none;width:auto;padding:0;font-weight:900;font-size:11px;
   background:#00000042;border:1px solid #ffffff33;color:#fff;border-radius:4px;cursor:pointer;font-family:inherit}
-#sel-detail .sd-ev button:hover:not(:disabled),#stats-modal .sd-ev button:hover:not(:disabled){border-color:#d4f542}
-#sel-detail .sd-ev button:disabled,#stats-modal .sd-ev button:disabled{opacity:.3;cursor:default}
-#sel-detail .sd-ev .sd-ev-reset,#stats-modal .sd-ev .sd-ev-reset{padding:5px 11px;font-size:11.5px;font-weight:700}
+#sel-detail .sd-ev button:hover:not(:disabled),#stats-modal .sd-ev button:hover:not(:disabled),#party .sw-detail .sd-ev button:hover:not(:disabled){border-color:#d4f542}
+#sel-detail .sd-ev button:disabled,#stats-modal .sd-ev button:disabled,#party .sw-detail .sd-ev button:disabled{opacity:.3;cursor:default}
+#sel-detail .sd-ev .sd-ev-reset,#stats-modal .sd-ev .sd-ev-reset,#party .sw-detail .sd-ev .sd-ev-reset{padding:5px 11px;font-size:11.5px;font-weight:700}
 .sd-ev-row{display:grid;grid-template-columns:46px 36px 1fr 26px 28px 26px 44px;gap:3px;align-items:center;margin:7px 0}/* 列幅を詰めMIN/MAXはみ出し解消・スペーサー1frが右余白を吸収(2026-07-07 阿部さん) */
 .sd-ev-row .evl{font-weight:900;font-size:13px;white-space:nowrap;overflow:hidden;display:flex;align-items:baseline;gap:2px}
 .sd-ev-row .evl small{font-size:9px;color:#ffffffaa;font-weight:600;align-self:center}/* サブは中央揃え(下がって見えるのを解消)(2026-07-07 阿部さん) */
@@ -224,11 +225,11 @@ body.in-battle #game,body.in-battle header{max-width:990px}
   background:repeating-linear-gradient(90deg,transparent 0,transparent calc(25% - 1px),#ffffff30 calc(25% - 1px),#ffffff30 25%)}
 .sd-ev-row .fill{position:absolute;left:0;top:0;height:100%;background:linear-gradient(90deg,#ffe680,#c9b878)}
 .sd-ev.full .fill{background:linear-gradient(90deg,#ffb84d,#ff7733)}
-#sel-detail .sd-ev .dec,#sel-detail .sd-ev .inc,#stats-modal .sd-ev .dec,#stats-modal .sd-ev .inc{height:26px;font-size:12px}
+#sel-detail .sd-ev .dec,#sel-detail .sd-ev .inc,#stats-modal .sd-ev .dec,#stats-modal .sd-ev .inc,#party .sw-detail .sd-ev .dec,#party .sw-detail .sd-ev .inc{height:26px;font-size:12px}
 .sd-ev-row .pts{text-align:center;font-weight:900;font-size:14px}
 .sd-ev-row.has .pts{color:#ffe066}
 .sd-ev-row.maxed .pts{color:#ff6f6f}
-#sel-detail .sd-ev .mm,#stats-modal .sd-ev .mm{height:26px;font-size:10px;letter-spacing:0;padding:0 2px}
+#sel-detail .sd-ev .mm,#stats-modal .sd-ev .mm,#party .sw-detail .sd-ev .mm{height:26px;font-size:10px;letter-spacing:0;padding:0 2px}
 /* わざ検索モーダル(ポケモン検索と同型) */
 /* 能力値設定モーダル(バトル中⚙用。中身=共通コンパクトエディタ) */
 #stats-modal{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:40px 14px}
@@ -832,14 +833,17 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #party .sw-colhead.opp{background:linear-gradient(135deg,#b02458,#d63c78)}
 #party .sw-mine,#party .sw-opp-list{display:flex;flex-direction:column;gap:8px}
 /* ★2026-07-11: 交代画面のセル=編成カプセル(.team-row .slot/slotCapsuleHtml)をそのまま流用(online_battle.htmlと同じ見た目に統一)。
-   自分=青紫/相手=クリムゾン。HTML側で.sw-mine/.sw-opp-listにteam-rowクラスを付与し、.team-row .slotの基本グリッド/スキュー/枠線を継承する */
-#party .sw-mine .slot{background:linear-gradient(135deg,#4638ae,#6a5be0);width:100%;box-sizing:border-box}
+   ★2026-07-17再設計: 色は「今のばんの側(mine/opp-list=編集可否)」でなく「真の左右(sw-col-self/sw-col-opp)」で決める。
+   自分=常に青紫(左列)/相手=常に赤(右列)。mine/opp-listクラスは編集可否(役割)だけを担い、色は担わない。 */
+#party .sw-col-self .slot{background:linear-gradient(135deg,#4638ae,#6a5be0)}
+#party .sw-col-opp .slot{background:linear-gradient(135deg,#a02150,#d63c78)}
+#party .sw-mine .slot{width:100%;box-sizing:border-box}
 #party .sw-mine .slot.active,#party .sw-mine .slot.dead{cursor:default}
 #party .sw-mine .slot.selected{border-color:#7ac142;box-shadow:0 0 0 3px #d4f54277,0 2px 7px #0006}
 #party .sw-mine .slot.dead{opacity:.6}
-/* 相手セル(クリムゾン)。★2026-07-16 阿部さんFB: ラボは秘匿不要=名前も表示+クリックで中央詳細を閲覧可
-   (交代はできない=常に閲覧専用。data-i付きのみ<button>=クリック可)。 */
-#party .sw-opp-list .slot{background:linear-gradient(135deg,#a02150,#d63c78);width:100%;box-sizing:border-box;min-height:88px}
+/* 閲覧専用セル。★2026-07-16 阿部さんFB: ラボは秘匿不要=名前も表示+クリックで中央詳細を閲覧可
+   (交代はできない=常に閲覧専用。data-i付きのみ<button>=クリック可)。★2026-07-17: どちらの列に出ても閲覧専用の見た目は不変 */
+#party .sw-opp-list .slot{width:100%;box-sizing:border-box;min-height:88px}
 #party .sw-opp-list div.slot{cursor:default}
 #party .sw-opp-list .slot.selected{border-color:#ffe066;box-shadow:0 0 0 3px #ffe06677,0 2px 7px #0006}
 #party .sw-opp-list .slot.dead{opacity:.6}
@@ -885,11 +889,19 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #party .sw-detail .sw-dtypes{display:flex;gap:4px;margin-top:4px}
 #party .sw-detail .sw-dtype{font-size:10px;font-weight:800;color:#fff;border-radius:9px;padding:2px 9px;display:inline-block}
 #party .sw-detail .sw-dmoves{display:flex;flex-direction:column;gap:6px;margin:8px 0}
-#party .sw-detail .sw-dmove{position:relative;padding:6px 44px 6px 12px;border-radius:16px;border:2px solid #ffffff33;color:#fff;
-  font-size:12.5px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ★2026-07-17再設計item4: sw-dmoveは<button>化(バトル中も技をクリック→差し替え)。display:block/text-align:left/
+   font-family:inheritはブラウザ既定のbutton見た目を打ち消すため必須(元は読み取り専用<div>だった) */
+#party .sw-detail .sw-dmove{position:relative;display:block;width:100%;text-align:left;padding:6px 44px 6px 12px;
+  border-radius:16px;border:2px solid #ffffff33;color:#fff;font-size:12.5px;font-weight:800;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;font-family:inherit;cursor:pointer;box-shadow:0 2px 6px #0005}
+#party .sw-detail .sw-dmove:hover{border-color:#d4f542}
 #party .sw-detail .sw-dmove .t-pill{display:inline-block;font-size:9px;padding:1px 7px;border-radius:8px;margin-right:6px;border:1px solid #ffffff55}
 #party .sw-detail .sw-dmove .sw-dpp{position:absolute;right:12px;top:6px;font-style:italic;font-weight:900;font-size:12px}
 #party .sw-detail .sw-drow{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:1px 2px;margin-top:6px;gap:8px}
+/* 特性/持ち物ピッカー(編成画面のsd-pickをこの中央パネルにも適用) */
+#party .sw-detail button.sd-pick{background:#00000042;color:#fff;border:1px solid #ffffff33;border-radius:8px;
+  padding:2px 8px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+#party .sw-detail button.sd-pick:hover{border-color:#d4f542}
 #party .sw-detail .sw-drow span:first-child{color:#ffffffbb}
 #speed-row{margin-top:8px;font-size:11px;color:#6a5fa0;display:flex;gap:10px 14px;align-items:center;flex-wrap:wrap}
 #speed-row select{background:#fff;color:#3a3552;border:1px solid #c9c3e6;border-radius:8px;padding:3px 6px;font-size:11px}
@@ -1383,7 +1395,7 @@ function genderOfRB(name){
   return Math.random() < 0.5 ? '♂' : '♀';
 }
 let pickerSlot = null;
-let movePick = null;   // {slotId, idx} わざモーダルの編集先
+let movePick = null;   // {slotId, idx} 編成モーダルの編集先 / {entry, idx} バトル中(中央詳細パネル)の編集先(2026-07-17)
 // ひらがな→カタカナ(検索用正規化。「ぴかちゅう」でピカチュウにヒット)
 const toKata = s => s.replace(/[ぁ-ゖ]/g, c => String.fromCharCode(c.charCodeAt(0) + 0x60));
 function setSlot(id, name, keepCustom){
@@ -1915,6 +1927,18 @@ function openMovePicker(slotId, idx){
   renderMovePickList('');
   // 自動フォーカスしない(キーボードが勝手に出ない=2026-07-07 阿部さん)
 }
+// ★バトルラボ(2026-07-17再設計item4): 中央詳細パネル(バトル中・任意のポケモン)から技を差し替える版。
+// 編成画面(slotMoves系)とは別データ=生きたエンジンstateのentry.movesを直接書き換える。既存openMovePickerの
+// UI(renderMovePickList/カテゴリ・✅おぼえる技だけ等)をそのまま流用(movePick.entryの有無で分岐するだけ)。
+function openBattleMovePicker(entry, idx){
+  movePick = { entry, idx };
+  $('move-picker').style.display = 'flex';
+  $('mp-q').value = '';
+  mpCat = null;
+  renderMoveCatChips();
+  renderMoveLearnToggle();
+  renderMovePickList('');
+}
 function closeMovePicker(){ $('move-picker').style.display = 'none'; movePick = null; }
 // そのポケモンが本来おぼえる技かどうか(learnersに編成中スロットの種名がそのまま含まれるか=完全一致)。
 // メガ個体名(「メガガブリアス」等)はPOKEMON_LISTでmega:trueの別エントリとしてlearnersに入るが、
@@ -1938,7 +1962,7 @@ function renderMovePickList(query){
     const bv = b.category === '変化' ? -1 : (b.power || 0);
     return bv - av;
   };
-  const curName = slotVal[movePick.slotId];
+  const curName = movePick.entry ? (movePick.entry.illusionAs || movePick.entry.poke).name : slotVal[movePick.slotId];
   const learnable = hits.filter(m => isMoveLearnableBy(m, curName)).sort(sortFn);
   const unlearnable = mpLearnableOnly ? [] : hits.filter(m => !isMoveLearnableBy(m, curName)).sort(sortFn);
   const renderBtn = (m, isUnlearnable) => {
@@ -1970,13 +1994,28 @@ function renderMovePickList(query){
     SE.select();
     const mv = all.find(m => m.name === b.dataset.n);
     if (mv && movePick){
-      const arr = slotMoves[movePick.slotId];
-      // 同じ技を2枠に入れない(既にある場合は入れ替え)
-      const dup = arr.findIndex(m => m && m.name === mv.name);
-      if (dup >= 0 && dup !== movePick.idx) arr[dup] = arr[movePick.idx];
-      arr[movePick.idx] = mv;
-      renderSelDetail(movePick.slotId);
-      saveTeam();
+      if (movePick.entry){
+        // ★バトルラボ(2026-07-17): バトル中の技差し替え=生きたentry.movesを直接書き換え(次の行動から反映)。
+        // PP配列(entry.pp)は技ごとの独立トラッキングなので、差し替え時に新しい技の最大PPへリセットする
+        // (real_battle_simulator.htmlのinitPPは戦闘開始時にしか走らない=放置すると旧技のPP残量が残る)。
+        const entry = movePick.entry;
+        const arr = entry.moves || (entry.moves = []);
+        const pp = entry.pp || (entry.pp = []);
+        const dup = arr.findIndex(m => m && m.name === mv.name);
+        if (dup >= 0 && dup !== movePick.idx){ arr[dup] = arr[movePick.idx]; pp[dup] = pp[movePick.idx]; }
+        arr[movePick.idx] = mv;
+        pp[movePick.idx] = mv.pp || 0;
+        renderPartyScreen();
+        try { renderAll(); } catch (e) {}
+      } else {
+        const arr = slotMoves[movePick.slotId];
+        // 同じ技を2枠に入れない(既にある場合は入れ替え)
+        const dup = arr.findIndex(m => m && m.name === mv.name);
+        if (dup >= 0 && dup !== movePick.idx) arr[dup] = arr[movePick.idx];
+        arr[movePick.idx] = mv;
+        renderSelDetail(movePick.slotId);
+        saveTeam();
+      }
     }
     closeMovePicker();
   }));
@@ -2874,8 +2913,11 @@ function swMineHtml(st){
     return (!row.active && swSelected === row.idx) ? html + swConfirmHtml() : html;
   }).join('');
 }
-// 中央=読み取り専用詳細カード(renderSelDetailは編成用の編集UIなので流用しない・簡易な閲覧専用カードを新設)
-// ★バトルラボ(2026-07-16): side='self'|'opp'(真の自分/相手。labSwapped中の入れ替えを解いた実体)を渡すと、
+// 中央=編集可能詳細カード(2026-07-17再設計 阿部さんFB item4: 編成画面の中央パネル=renderSelDetail系を
+// ベースに、技4枠クリック→ピッカー/特性・持ち物セレクト/能力値エディタ66Pを流用。バトル中の変更は次の行動
+// から反映(エンジンstateの該当ポケモンのmoves/ability/item/実数値を直接書き換える=生きた参照そのもの)。
+// 場に出ている子・控え・相手側もすべて編集可(ラボの思想=秘匿/制約なし)。
+// ★バトルラボ(2026-07-16由来): side='self'|'opp'(真の自分/相手。labSwapped中の入れ替えを解いた実体)を渡すと、
 // 「いまどちら側を表示中か」がひと目で分かる色バッジを頭に出す(阿部さんFB item2「どちら側か分かる見出し色」)。
 function swDetailHtml(entry, side){
   const sideCls = side === 'opp' ? 'sw-detail-opp' : side === 'self' ? 'sw-detail-self' : '';
@@ -2888,14 +2930,15 @@ function swDetailHtml(entry, side){
   const tc = S.typeColors();
   const types = [p.type1, p.type2].filter(Boolean).map(t =>
     `<span class="sw-dtype" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
-  const mvs = (entry.moves || []).filter(Boolean);
-  const movesHtml = mvs.map((m, i) => {
+  // ★編集可能: indexはfilter前の元位置を保持(data-i=entry.moves/entry.ppの実インデックスと一致させる)
+  const movesHtml = (entry.moves || []).map((m, i) => {
+    if (!m) return '';
     const col = tc[m.type] || '#3a4660';
     const ppNow = entry.pp ? entry.pp[i] : null;
     const ppMax = m.pp || 0;
-    return `<div class="sw-dmove" style="background:linear-gradient(135deg,${col}dd,${col}99)">` +
+    return `<button type="button" class="sw-dmove" data-i="${i}" style="background:linear-gradient(135deg,${col}dd,${col}99)">` +
       `<span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>${tMoveName(m)}` +
-      (ppNow != null ? `<span class="sw-dpp">${ppNow}/${ppMax}</span>` : '') + `</div>`;
+      (ppNow != null ? `<span class="sw-dpp">${ppNow}/${ppMax}</span>` : '') + `</button>`;
   }).join('');
   const ab = entry.ability || p.ab1;
   const it = S.itemByKey(entry.item);
@@ -2903,9 +2946,61 @@ function swDetailHtml(entry, side){
   return `<div class="sw-detail ${sideCls}">` + badge +
     `<div class="sw-dhead"><img src="${src}" alt="" onerror="this.remove()"><div><strong>${tPokeName(named.name)}</strong><div class="sw-dtypes">${types}</div></div></div>` +
     `<div class="sw-dmoves">${movesHtml}</div>` +
-    `<div class="sw-drow"><span>${I18N.t('real_battle.sel_ability', '特性')}</span><span>${(window.I18N && I18N.ability) ? I18N.ability(ab) : ab}</span></div>` +
-    `<div class="sw-drow"><span>${I18N.t('real_battle.sel_item', 'もちもの')}</span><span>${it ? tItemName(it) : I18N.t('real_battle.item_none_option', 'もちもの なし')}</span></div>` +
+    `<div class="sw-drow"><span>${I18N.t('real_battle.sel_ability', '特性')}</span><button type="button" class="sw-dab sd-pick">${(window.I18N && I18N.ability) ? I18N.ability(ab) : ab} ▾</button></div>` +
+    `<div class="sw-drow"><span>${I18N.t('real_battle.sel_item', 'もちもの')}</span><button type="button" class="sw-ditem sd-pick">${it ? tItemName(it) : I18N.t('real_battle.item_none_option', 'もちもの なし')} ▾</button></div>` +
+    `<div class="sd-ev"></div>` +
     `</div>`;
+}
+// ★中央詳細パネルの編集ハンドラ配線(2026-07-17): entry=表示中の生きたエンジンstate参照・rootSt=それが
+// 属する側の永続オブジェクト(S.sides.self/opp=アクティブ/控え共通の器。控え=rootSt.bench[i])。
+// entry自体を直接書き換える=次の行動からそのまま反映(engineはmoves/ability/item/effort/natureIdxを毎回
+// live読みするため・real_battle_simulator.htmlのBENCH_FIELDS/realStat/sideAbility参照)。
+function wireSwDetailEvents(entry, side, rootSt){
+  const box = $('party').querySelector('.sw-detail');
+  if (!box || !entry || !entry.poke) return;
+  box.querySelectorAll('.sw-dmove[data-i]').forEach(b => {
+    b.addEventListener('click', () => { SE.select(); openBattleMovePicker(entry, +b.dataset.i); });
+  });
+  const abBtn = box.querySelector('.sw-dab');
+  if (abBtn) abBtn.addEventListener('click', e => {
+    SE.select();
+    const curAb = entry.ability || entry.poke.ab1;
+    const abilities = Object.keys(ABILITY_DESC);
+    openChoiceModal(I18N.t('real_battle.sel_ability', '特性'),
+      [{label:'', rows:abilities.map(a => ({key:a, name:(window.I18N && I18N.ability) ? I18N.ability(a) : a,
+        desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (S.abilityDescJa ? S.abilityDescJa(a) : '') || '', selected:a === curAb}))}],
+      k => {
+        entry.ability = k;
+        entry.abilityOverride = null;   // トレース等の一時上書きが残っていたら解除(実験なので明示指定を優先)
+        renderPartyScreen();
+        try { renderAll(); } catch (e) {}
+      }, e.currentTarget);
+  });
+  const itBtn = box.querySelector('.sw-ditem');
+  if (itBtn) itBtn.addEventListener('click', e => {
+    SE.select();
+    // 1種類1個(メガストーンは共有可)。同じ側の場+控え(自分自身は除く)で重複禁止=編成画面の流儀を踏襲
+    const used = new Set([rootSt].concat(rootSt.bench || [])
+      .filter(x => x && x !== entry && x.item && x.item !== 'mega_stone_any').map(x => x.item));
+    openItemModal(entry.item, k => {
+      entry.item = k;
+      renderPartyScreen();
+      try { renderAll(); } catch (e) {}
+    }, e.currentTarget, used);
+  });
+  const evBox = box.querySelector('.sd-ev');
+  if (evBox) renderEvEditor(evBox, {
+    poke: entry.poke,
+    getEff: () => entry.effort || ZERO_EV(),
+    getNature: () => (S.natureList()[entry.natureIdx || 0] || ['まじめ'])[0],
+    apply: (eff, nature) => {
+      entry.effort = eff;
+      entry.natureIdx = S.natureIdxOf(nature);
+      const newMax = S.realStat(entry, 'hp');
+      if (entry.currentHp != null) entry.currentHp = Math.min(entry.currentHp, newMax);
+      try { renderAll(); } catch (e) {}
+    },
+  });
 }
 // ★バトルラボ: 中央詳細はswDetailSrcで「今のばん側(mine)」/「あいての列(opp)」のどちらの選択を見るか切り替える。
 // opp列は常に閲覧専用(交代先には出来ない=swSelectedとは独立)。
@@ -2994,21 +3089,18 @@ function swOppHtml(){
 function renderPartyScreen(){
   const st = S.sides.self;
   const pt = $('party');
-  // ★バトルラボ(2026-07-16 阿部さんFB item1/4): S.sides.self/oppはlabSwappedで真の対応関係が入れ替わっている
-  // (今のばんの側=常にS.sides.self)。左右の見出しは「じぶん/あいて」を固定せず、いま何を表示中かの真の身元
-  // (labSwapped)で動的に決める。これが無いと「相手のばんなのに左が"じぶんのチーム"と出て選べないように見える」
-  // (=交代自体は既に動いていたが見出しが実体と食い違って"選べない"に見えていた=報告バグの正体)。
-  const mineIsOpp = labSwapped;   // true=S.sides.self(=左・操作可能列)は真の「あいて」を表示している
-  const mineHeadCls = mineIsOpp ? 'opp' : 'self';
-  const mineHeadTxt = mineIsOpp
-    ? I18N.t('real_battle.party_opp_header', 'あいての チーム')
-    : I18N.t('real_battle.party_team_header', 'じぶんの チーム');
-  const oppHeadCls = mineIsOpp ? 'self' : 'opp';
-  const oppHeadTxt = mineIsOpp
-    ? I18N.t('real_battle.party_team_header', 'じぶんの チーム')
-    : I18N.t('real_battle.party_opp_header', 'あいての チーム');
+  // ★バトルラボ再設計(2026-07-17 阿部さんFB): 左右・色は「真の自分/あいて」に完全固定し、ばんが変わっても
+  // 絶対に入れ替えない(見出しもカードの色も常に左=青紫/右=赤)。動くのは「どちらの列に交代できるカードを
+  // 出すか」だけ。S.sides.self/oppはlabSwappedで真の対応関係が入れ替わっている(今のばんの側=常にS.sides.self)
+  // ので、activeIsOpp(=labSwapped)で「編集可能ブロック(mine)」と「閲覧専用ブロック(opp)」をどちらの
+  // 物理列(左=真の自分/右=真のあいて)に置くかだけを切り替える。中身の生成(swMineHtml/swOppHtml)は不変。
+  const activeIsOpp = labSwapped;   // true=今のばんは真の「あいて」(S.sides.selfが真のあいてのデータを保持中)
+  const mineBlockHtml = `<div class="sw-mine team-row">${swMineHtml(st)}</div>`;    // 編集可能=今のばんの側
+  const oppBlockHtml = `<div class="sw-opp-list team-row">${swOppHtml()}</div>`;    // 閲覧専用=今のばんでない側
+  const leftBodyHtml = activeIsOpp ? oppBlockHtml : mineBlockHtml;     // 左列=常に真の自分の中身
+  const rightBodyHtml = activeIsOpp ? mineBlockHtml : oppBlockHtml;    // 右列=常に真のあいての中身
   // 中央詳細の「どちら側を表示中か」も同じ真の身元で解決(swDetailSrc='mine'→今のばん側/'opp'→閲覧専用列)
-  const detailSide = swDetailSrc === 'opp' ? (mineIsOpp ? 'self' : 'opp') : (mineIsOpp ? 'opp' : 'self');
+  const detailSide = swDetailSrc === 'opp' ? (activeIsOpp ? 'self' : 'opp') : (activeIsOpp ? 'opp' : 'self');
   // ★item4: 今のばんの側がどちらかを画面見出しに明示(#lab-turn-indicatorは#partyの背後に隠れるためここにも出す)
   const turnTxt = labSwapped
     ? I18N.t('battle_lab.party_turn_opp', 'いま えらぶのは: あいて🔴')
@@ -3019,11 +3111,11 @@ function renderPartyScreen(){
     `<span class="sw-turn-badge ${labSwapped ? 'opp' : 'self'}">${turnTxt}</span>` +
     `</div>` +
     `<div class="sw-cols">` +
-    `<div class="sw-col"><div class="sw-colhead ${mineHeadCls}">${mineHeadTxt}</div>` +
-    `<div class="sw-mine team-row">${swMineHtml(st)}</div></div>` +
+    `<div class="sw-col sw-col-self"><div class="sw-colhead self">${I18N.t('real_battle.party_team_header', 'じぶんの チーム')}</div>` +
+    leftBodyHtml + `</div>` +
     `<div class="sw-col">${swDetailHtml(swCurrentDetailEntry(st), detailSide)}</div>` +
-    `<div class="sw-col"><div class="sw-colhead ${oppHeadCls}">${oppHeadTxt}</div>` +
-    `<div class="sw-opp-list team-row">${swOppHtml()}</div></div>` +
+    `<div class="sw-col sw-col-opp"><div class="sw-colhead opp">${I18N.t('real_battle.party_opp_header', 'あいての チーム')}</div>` +
+    rightBodyHtml + `</div>` +
     `</div>` +
     (swForced ? '' : `<button type="button" class="sw-back">${I18N.t('real_battle.move_back_button', '← もどる')}</button>`) +
     `</div>`;
@@ -3070,6 +3162,13 @@ function wireSwEvents(){
   if (no) no.addEventListener('click', () => { SE.select(); swSelected = null; renderPartyScreen(); });
   const back = pt.querySelector('.sw-back');
   if (back) back.addEventListener('click', () => { SE.select(); swPivot = false; RB_PIVOT.pendingMoveIdx = null; showMoves(); });
+  // ★中央詳細パネル(2026-07-17再設計 item4): 表示中エントリの生きた参照+それが属する側の器(rootSt)を
+  // renderPartyScreenと同じ規則で再計算して配線(swDetailSrc='mine'→S.sides.self系/'opp'→S.sides.opp系)。
+  const st0 = S.sides.self;
+  const dEntry = swCurrentDetailEntry(st0);
+  const dRootSt = swDetailSrc === 'opp' ? S.sides.opp : S.sides.self;
+  const dSide = swDetailSrc === 'opp' ? (labSwapped ? 'self' : 'opp') : (labSwapped ? 'opp' : 'self');
+  wireSwDetailEvents(dEntry, dSide, dRootSt);
 }
 // 自分交代技の交代先選択の確定: 選んだbench idxをRB_PIVOT.selfIdxへ(engine __rbSwitchPickが読む)、保留していた技を実行
 function finishPivotPick(idx){
