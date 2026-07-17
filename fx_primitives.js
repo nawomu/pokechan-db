@@ -873,6 +873,26 @@ function bindFx(side, color){
     }, i * 70);
   }
 }
+// ===== 特性発動バナー(2026-07-17・設計_特性・場エフェクト増強_2026-07-17.md §2 P1「本命」) =====
+// abilityFx(side, abilityName): 対象側(#f-<side>=既存fxと同じ器)に「⭐ {特性名}」の帯バナーが
+// スライドイン→1.1s滞在→フェード(計1.45s)。色=側色ベース(自分=青紫グラデ/相手=紅グラデ。既存
+// #pb-self/#pb-oppのグラデ配色と揃える=同じ側色語彙)。i18n: 呼び出し元(lineWithFx)がI18N.ability
+// (既存辞書)で表示時翻訳した名前を渡す想定=このプリミティブは文字列をそのまま出すだけ(文を作らない)。
+// #pb-<side>(HPボックス本体)には乗せない: .pbox はskewX(-10deg)+子要素counter-skewを持ち、
+// アニメのtransform(translateX/scale)が counter-skew を上書きして表示が歪む罠があるため、
+// 他の全fx(popText/rankFx/shieldFx等)と同じ$('f-'+side)に統一する(=HPボックスのすぐ外側・同じ側)。
+const _ABILITY_FX_CLASS = { self: 'rb-ability-banner-self', opp: 'rb-ability-banner-opp' };
+function abilityFx(side, abilityName){
+  const f = $('f-' + side);
+  if (!f || !abilityName) return;
+  if (window.__fxTrace) window.__fxTrace.push({k:'abilityFx', side, abilityName, t: performance.now()});
+  const el = document.createElement('div');
+  el.className = 'rb-ability-banner ' + (_ABILITY_FX_CLASS[side] || _ABILITY_FX_CLASS.self);
+  el.textContent = '⭐ ' + abilityName;
+  f.appendChild(el);
+  _fxAutoRemove(el, 1450);
+  SE.status();   // SE.status系の短い音(設計§2指定)
+}
 // S6: 背景プリセット切替 ---------------------------------------------------
 // setBackdrop(preset): #field-backdrop の data-preset 属性を切り替えるだけ。
 // CSSが data-preset 値に応じて背景グラデを適用(将来の追加はCSS1プリセット+option1行)。

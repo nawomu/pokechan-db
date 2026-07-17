@@ -1567,7 +1567,9 @@ function calcDamage(atkSide, defSide, move, opts){
   // ★opts.deferDisguise(2026-07-16連続技演出): 連続技(の可能性がある技)はここでブロックせず、
   // phaseDealDamageのヒットループ内(h===0)で1発目だけブロック→2発目以降は通常ダメージにする。
   // 単発技はdeferDisguiseが立たない=このブロックが従来どおり効く(不変)。
-  if (def.disguise && move.category !== '変化' && !(opts && opts.deferDisguise)){
+  // H1(2026-07-18): かたやぶり系(_BREAKER)はばけのかわも無視して通常ダメージを通す
+  // (皮は消費されない・剥がれ処理も1/8自傷も起きない。出典: Bulbapedia "Mold Breaker"/ポケモンWiki「かたやぶり」)
+  if (def.disguise && move.category !== '変化' && !(opts && opts.deferDisguise) && !_BREAKER.includes(sideAbility(atk))){
     const hp = realStat(def, 'hp');
     return {min:0, max:0, variations:Array(16).fill(0), hp, koHits:'∞', koType:'immune',
             immune:true, disguiseBlock:true, reason:`${pname(def)} の ばけのかわが はがれた`, recoil:0};
@@ -2361,8 +2363,11 @@ function fireEntryAbility(s){
     const ab = sideAbility(st);
     st.disguise = (ab === 'ばけのかわ') && st.disguiseBroken !== true;   // ばけのかわ: 場に出たら皮をまとう(剥がれ済みなら戻らない=Wiki準拠)
     if (ab === 'いかく' && other.poke){
-      other.rank.atk = Math.max(-6, (other.rank.atk||0) - 1);
-      log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
+      // H2/H3/H4(2026-07-18): 共有パイプライン経由に変更(まけんき/かちき/あまのじゃく/ミラーアーマーが反応するように)。
+      // 出典: Bulbapedia "Intimidate"/"Defiant"/"Mirror Armor"
+      applyRankStageGuarded(other, st, 'atk', -1, 'Init-A', () => {
+        log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
+      });
     } else if (ab === 'かわりもの' && other.poke){
       // かわりもの(メタモン隠れ特性): 場に出たとき正面の相手にへんしんする(ターン消費なし)。
       // 出典: ポケモンWiki「かわりもの」/ Bulbapedia "Imposter"。失敗条件はcanTransformInto(発動しないだけでログなし)
@@ -2409,6 +2414,11 @@ function fireEntryAbility(s){
     } else if (ab === 'サイコメイカー'){
       env.field = 'psychic';
       log('Init-A', `${pname(st)} の サイコメイカーで 足下に不思議な空間が広がった！`);
+    } else if (ab === 'おみとおし' && other.poke && other.item && ITEM_BY_KEY[other.item]){
+      // おみとおし(段113・ABILITY_DESC公式準拠): 場に出た時、相手の持ち物を見抜く。
+      // ★2026-07-18(H9件目): 元々attemptSwitch(交代)にだけ実装されていたのをここへ集約し、
+      // 交代でもバトル開始/メガシンカでも同じ1関数から発動するようにした。
+      log('Init-A', `${pname(st)} は おみとおしで ${pname(other)} の ${ITEM_BY_KEY[other.item].name}を 見抜いた！`);
     }
   }
 }
@@ -2426,7 +2436,10 @@ function phaseHitCheck(move, atk, def){
   }
   // 半無敵(そらをとぶ/あなをほる等の溜め中=空中/地中/水中/消失)は原則すべての技が外れる。
   // 例外=当たる技: 防御側の vulnerable_to 列挙(じしん→あなをほる等) または 攻撃側の「半無敵命中」宣言(どちらのデータでも可)。
-  if (def && def.charging && def.charging.semi && !_selfOrField){
+  // H14(2026-07-18): ノーガード(段132・出典 Bulbapedia "No Guard")はどちらが持っていても必ず命中する特性なので、
+  // この早期returnより先に判定する(後段2495行台のノーガード必中ショートカットに到達させる=順序の入替)。
+  if (def && def.charging && def.charging.semi && !_selfOrField &&
+      sideAbility(atk) !== 'ノーガード' && sideAbility(def) !== 'ノーガード'){
     const _se = (move.battle_data && move.battle_data.effects) || [];
     const canHit = (def.charging.vulnerableTo || []).includes(move.name)
       || _se.some(e => e.kind === '半無敵命中' && (e.hits_state || []).includes(def.charging.semi));
@@ -2778,7 +2791,7 @@ function phaseDealDamage(atkSide, defSide, move){
     // (Bulbapedia "Disguise" — multi-strike moves only prevent the first hit)。
     // calcDamage側はdeferDisguiseでこの技をブロックせずに来ているので、ここで1発目だけ処理する。
     // 単発技はdeferDisguiseが立たずcalcDamageが既にブロック済み=ここには来ない(不変)。
-    if (h === 0 && def.disguise && move.category !== '変化'){
+    if (h === 0 && def.disguise && move.category !== '変化' && !_BREAKER.includes(sideAbility(atk))){
       log('8', `${pname(atk)} の ${move.name}！`, {multiHit: hitCount > 1, hitIndex: h, hitCount});
       log('8', `${pname(def)} の ばけのかわが はがれた！`, {multiHit: hitCount > 1, hitIndex: h, hitCount});
       def.disguise = false;
@@ -2791,12 +2804,19 @@ function phaseDealDamage(atkSide, defSide, move){
       continue;   // このヒットの通常ダメージ処理(v計算/HP減算)はスキップ=このヒットは0ダメージで確定
     }
     // ふくろだたき: 2発目以降はそのメンバーの威力で計算し直す(1発目は result がその威力で計算済み)
+    // H11(2026-07-18): 上記のどれにも当たらない通常の連続技(2〜5発技等)も、2発目以降はcalcDamageを
+    // 呼び直して現在のHP等を見た値に再評価する。マルチスケイル(HP満タン時だけ半減)のような「呼び出し時点の
+    // 状態」に依存する補正が、1発目のダメージが入った後の2発目以降で正しく外れるようにするため
+    // (出典: Bulbapedia "Multiscale" — multi-strike moves only get the boost on the hit where HP is still full)。
+    // さめはだ/ゴツメ反動は元々ヒットループ側で別途per-hit計算されており、この変更の影響を受けない。
     const _hitRes = (beatUpPowers && h > 0)
       ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: beatUpPowers[h]}) || result)
       : (_pph && h > 0 && _pph[h] != null)
       ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: _pph[h]}) || result)
       : (_parentalBond && h === 1)
       ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: Math.max(1, Math.floor(move.power * 0.25))}) || result)
+      : (h > 0)
+      ? (calcDamage(atkSide, defSide, move, {crit: critRoll}) || result)
       : result;
     let v = _hitRes.variations[Math.floor(Math.random() * _hitRes.variations.length)];
     // みがわり: 分身がダメージを肩代わり(超過分は消える)。連続攻撃で分身がこわれたら残りは本体に当たる
@@ -3118,6 +3138,58 @@ function defAbilityVs(def, atk){
   return a;
 }
 
+// === 能力ランク低下の共有パイプライン(段114/段127・2026-07-18 H2/H3/H4修正) ===
+// いかく(Init-A)も技由来の能力ランク変化(phaseApplyEffects)も、必ずここを通す。
+// クリアボディ/しろいけむり/はとむねでの無効化・ミラーアーマーでの跳ね返し・あまのじゃくでの符号反転・
+// かちき/まけんきの反応まで一括で処理することで、いかく等ハードコードされた変化でもこれらの特性が正しく反応する。
+// target=変化を受ける側 / source=変化の発生源(相手起因ならtargetと別オブジェクト。自分要因ならsource===target)。
+// rk=simの内部ランクキー(atk/def/spatk/spdef/spd/acc/eva) / rawStages=あまのじゃく反転前の変化量(負値=下降)。
+// phase=logのフェーズ文字列(呼び出し元に合わせる。いかく等場出し時は'Init-A'/技効果は'9') / onSuccessLog(sgApplied)=
+// 「原因の一行」(いかくで～/技名で～ 等、呼び出し側ごとに文言が違う)を呼び出し側が出すためのコールバック。
+// 戻り値: {sg:適用を試みた変化量(あまのじゃく反転後), applied:クランプ後の実差分, blocked:'mirror'|'clearbody'|'hatomune'|null}
+function applyRankStageGuarded(target, source, rk, rawStages, phase, onSuccessLog){
+  if (!target || !target.poke || target.rank[rk] === undefined) return {sg:0, applied:0, blocked:null};
+  const fromOpponent = !!source && source.poke && source !== target;
+  let sg = rawStages;
+  if (sideAbility(target) === 'あまのじゃく' && sg !== 0) sg = -sg;   // あまのじゃく(段140): 変動の符号を反転
+  if (sg < 0 && fromOpponent){
+    // ミラーアーマー(段138・出典: ポケモンWiki「ミラーアーマー」/Bulbapedia "Mirror Armor"):
+    // 相手(の技・特性)からの能力低下を発生源へ跳ね返す。自分は無変化。
+    if (sideAbility(target) === 'ミラーアーマー' && source.rank[rk] !== undefined){
+      log(phase || '9', `${pname(target)} は ミラーアーマーで 能力低下を 跳ね返した！`);
+      applyRankStageGuarded(source, source, rk, rawStages, phase);   // 跳ね返り先は自己要因扱い(再度ここではガードしない)
+      return {sg, applied:0, blocked:'mirror'};
+    }
+    // クリアボディ/しろいけむり: 敵からのランク低下を無効化(段114・ABILITY_DESC公式準拠。自分で下げる分は通る)
+    if (['クリアボディ', 'しろいけむり'].includes(defAbilityVs(target, source))){
+      log(phase || '9', `${pname(target)} は ${sideAbility(target)}で 能力が下がらない！`);
+      return {sg, applied:0, blocked:'clearbody'};
+    }
+    // はとむね(段138・ABILITY_DESC): 敵からのぼうぎょ低下を無効化(かたやぶりは無視)
+    if (rk === 'def' && defAbilityVs(target, source) === 'はとむね'){
+      log(phase || '9', `${pname(target)} は はとむねで ぼうぎょが下がらない！`);
+      return {sg, applied:0, blocked:'hatomune'};
+    }
+  }
+  const before = target.rank[rk] || 0;
+  target.rank[rk] = Math.max(-6, Math.min(6, before + sg));
+  const applied = target.rank[rk] - before;
+  if (applied < 0) target.statLoweredThisTurn = true;   // うっぷんばらし用(実際に下がった時だけ)
+  if (onSuccessLog) onSuccessLog(sg, applied);
+  // かちき/まけんき: 敵に能力ランクを下げられると とくこう/こうげき+2(段114・ABILITY_DESC公式準拠)
+  if (applied < 0 && fromOpponent){
+    const dAb114 = sideAbility(target);
+    if (dAb114 === 'かちき'){
+      target.rank.spatk = Math.min(6, (target.rank.spatk || 0) + 2);
+      log(phase || '9', `${pname(target)} の かちき！ とくこう+2！`);
+    } else if (dAb114 === 'まけんき'){
+      target.rank.atk = Math.min(6, (target.rank.atk || 0) + 2);
+      log(phase || '9', `${pname(target)} の まけんき！ こうげき+2！`);
+    }
+  }
+  return {sg, applied, blocked:null};
+}
+
 // === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
 // まもる系: 守っている技がこの技を防ぐか(データ宣言を読む。フェイント等 protect:false は呼び出し側で素通り)
 //   blocks_priority_only=先制技(優先度>0)だけ防ぐ(ファストガード) / blocks_status_moves:false=変化技は防がない(キングシールド/トーチカ)
@@ -3295,6 +3367,41 @@ function phaseApplyEffects(atkSide, defSide, move){
   if (sideAbility(atk) === 'ちからずく') return;
   // 防御側ひんし時は付与しない
   if (def.fainted) return;
+  // H6/H7(2026-07-18): タイプ吸収特性は相手向けの変化技(状態異常/能力ランク宣言)も吸収する。
+  // 変化技はcalcDamageの吸収チェック(1673-1686)を通らないため、ここで同じ_ABSORB規約を見て、
+  // 吸収時はダメージ経路と同じおまけ効果(回復1/4・ランク+1・もらいび=炎強化)を発動し、以降の効果適用
+  // (状態異常/ランク変化等)を丸ごとスキップする。自分向け(target:自分等)の変化技は対象外(defは常に相手側)。
+  // 出典: Bulbapedia "Sap Sipper"(Spore等の状態技も吸収)/"Lightning Rod"(でんじは等も吸収)
+  if (move.category === '変化' &&
+      ['1体選択', 'ランダム1体', '相手全体', '自分以外全体', '相手の場'].includes(move.target)){
+    const _dAbS = defAbilityVs(def, atk);
+    const _ABSORB_S = {'ちょすい': 'みず', 'ちくでん': 'でんき', 'もらいび': 'ほのお', 'そうしょく': 'くさ', 'ひらいしん': 'でんき', 'でんきエンジン': 'でんき', 'かんそうはだ': 'みず'};
+    if (_ABSORB_S[_dAbS] === move.type){
+      if (_dAbS === 'ちょすい' || _dAbS === 'ちくでん' || _dAbS === 'かんそうはだ'){
+        const _m = realStat(def, 'hp');
+        if (def.currentHp != null && def.currentHp < _m){
+          const _b = def.currentHp;
+          def.currentHp = Math.min(_m, def.currentHp + Math.max(1, Math.floor(_m / 4)));
+          log('9', `${pname(def)} は ${_dAbS}で HPを ${def.currentHp - _b} 回復！ (残HP ${def.currentHp})`);
+        } else {
+          log('9', `${pname(def)} には こうかが ないようだ…（とくせい ${_dAbS}のため）`);
+        }
+      } else if (_dAbS === 'そうしょく'){
+        def.rank.atk = Math.min(6, (def.rank.atk || 0) + 1);
+        log('9', `${pname(def)} は そうしょくで こうげき+1！`);
+      } else if (_dAbS === 'ひらいしん'){
+        def.rank.spatk = Math.min(6, (def.rank.spatk || 0) + 1);
+        log('9', `${pname(def)} は ひらいしんで とくこう+1！`);
+      } else if (_dAbS === 'でんきエンジン'){
+        def.rank.spd = Math.min(6, (def.rank.spd || 0) + 1);
+        log('9', `${pname(def)} は でんきエンジンで すばやさ+1！`);
+      } else if (_dAbS === 'もらいび' && !def.flashFire){
+        def.flashFire = true;
+        log('9', `${pname(def)} は もらいびで ほのおの力が 強まった！`);
+      }
+      return;
+    }
+  }
   // HPコスト技(はらだいこ/ソウルビート/みがわり等の変化技): HPがコスト以下・もうランク最大なら技ごと失敗。
   // (Bulbapedia "Belly Drum"/"Clangorous Soul" + PS実装: hp <= cost で失敗=支払いなし)
   // てっていこうせん(攻撃・always_pays_even_if_blocked)は対象外=自分がひんしになってでも撃つ(applyHpCostが担当)。
@@ -3894,33 +4001,12 @@ function phaseApplyEffects(atkSide, defSide, move){
             target.rank[rk] = _contrary ? -6 : 6;
             log('9', `${pname(target)} の ${RANK_KEY_JA[k]||k} ランクが ${_contrary ? '最低までさがった' : '最大まであがった'}！`);
           } else {
-            let sg = ef.stages || 0;
-            if (_contrary && sg !== 0) sg = -sg;   // あまのじゃく(段140): 上がる⇄下がるを反転(以降のガードは反転後の符号で判定)
-            // クリアボディ/しろいけむり: 敵からのランク低下を無効化(段114・ABILITY_DESC公式準拠。自分で下げる分は通る)
-            if (sg < 0 && target !== atk && ['クリアボディ', 'しろいけむり'].includes(defAbilityVs(target, atk))){
-              log('9', `${pname(target)} は ${sideAbility(target)}で 能力が下がらない！`);
-              continue;
-            }
-            // はとむね(段138・ABILITY_DESC): 敵からのぼうぎょ低下を無効化(かたやぶりは無視)
-            if (sg < 0 && target !== atk && rk === 'def' && defAbilityVs(target, atk) === 'はとむね'){
-              log('9', `${pname(target)} は はとむねで ぼうぎょが下がらない！`);
-              continue;
-            }
-            const beforeRk = target.rank[rk] || 0;
-            target.rank[rk] = Math.max(-6, Math.min(6, beforeRk + sg));
-            if (sg < 0 && target.rank[rk] < beforeRk) target.statLoweredThisTurn = true;   // うっぷんばらし用(実際に下がった時だけ)
-            log('9', `${pname(target)} の ${RANK_KEY_JA[k]||k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
-            // かちき/まけんき: 敵に能力ランクを下げられると とくこう/こうげき+2(段114・ABILITY_DESC公式準拠)
-            if (sg < 0 && target.rank[rk] < beforeRk && target !== atk){
-              const _dAb114 = sideAbility(target);
-              if (_dAb114 === 'かちき'){
-                target.rank.spatk = Math.min(6, (target.rank.spatk || 0) + 2);
-                log('9', `${pname(target)} の かちき！ とくこう+2！`);
-              } else if (_dAb114 === 'まけんき'){
-                target.rank.atk = Math.min(6, (target.rank.atk || 0) + 2);
-                log('9', `${pname(target)} の まけんき！ こうげき+2！`);
-              }
-            }
+            // H2/H3/H4(2026-07-18): 共有パイプライン(applyRankStageGuarded)経由に変更。
+            // クリアボディ/しろいけむり/はとむねの無効化・ミラーアーマーの跳ね返し・かちき/まけんきの反応は
+            // 共有関数側で一括処理(あまのじゃく反転もそちら任せなので_contraryはこの分岐では未使用)。
+            applyRankStageGuarded(target, atk, rk, ef.stages || 0, '9', (sg) => {
+              log('9', `${pname(target)} の ${RANK_KEY_JA[k]||k} ランクが ${sg>0?'+':''}${sg} ${sg>0?'あがった':'さがった'}！`);
+            });
           }
         }
       }
@@ -4531,7 +4617,11 @@ function phaseSlipFor(s){
   const st = sides[s];
   if (!st.poke || st.fainted) return;
   const max = realStat(st, 'hp');
-  if (st.status === 'burn'){
+  // H8(2026-07-18): マジックガード(段111・出典 Bulbapedia "Magic Guard")は間接ダメージ全般を受けない
+  // (状態異常の付与自体は防がない=やけど/どく状態にはなるがスリップダメージが0になるだけ)。
+  // 既存のすなあらし(下記)/ゴツゴツメット・いのちのたま反動(1929行台の_atkMagicGuard)と同じ規約に合わせる。
+  const _magicGuard = sideAbility(st) === 'マジックガード';
+  if (st.status === 'burn' && !_magicGuard){
     const d = Math.max(1, Math.floor(max / 16));
     st.currentHp = Math.max(0, st.currentHp - d);
     log('10a', `${pname(st)} は やけどで ${d} ダメージ！ (残HP ${st.currentHp})`);
@@ -4541,15 +4631,18 @@ function phaseSlipFor(s){
       st.currentHp = Math.min(max, st.currentHp + Math.max(1, Math.floor(max / 8)));
       log('10a', `${pname(st)} は ポイズンヒールで HPを 回復！ (残HP ${st.currentHp})`);
     }
-  } else if (st.status === 'poison'){
+  } else if (st.status === 'poison' && !_magicGuard){
     const d = Math.max(1, Math.floor(max / 8));
     st.currentHp = Math.max(0, st.currentHp - d);
     log('10a', `${pname(st)} は どくで ${d} ダメージ！ (残HP ${st.currentHp})`);
   } else if (st.status === 'badpoison'){
+    // もうどくカウンタは特性に関わらず進行させる(交代でリセット。マジックガードはダメージだけ防ぐ)
     st.badpoisonCounter = (st.badpoisonCounter || 0) + 1;
-    const d = Math.max(1, Math.floor(max * st.badpoisonCounter / 16));
-    st.currentHp = Math.max(0, st.currentHp - d);
-    log('10a', `${pname(st)} は もうどくで ${d} ダメージ！ (残HP ${st.currentHp})`);
+    if (!_magicGuard){
+      const d = Math.max(1, Math.floor(max * st.badpoisonCounter / 16));
+      st.currentHp = Math.max(0, st.currentHp - d);
+      log('10a', `${pname(st)} は もうどくで ${d} ダメージ！ (残HP ${st.currentHp})`);
+    }
   }
   if (st.currentHp <= 0){
     st.fainted = true;
@@ -4571,16 +4664,21 @@ function phaseSlipFor(s){
   if (st.slips && st.slips.length && !st.fainted){
     const other = sides[s === 'self' ? 'opp' : 'self'];
     for (const sl of st.slips){
-      const d = Math.max(1, Math.floor(max * sl.fraction));
-      st.currentHp = Math.max(0, st.currentHp - d);
-      log('10a', `${pname(st)} は ${sl.source}で ${d} ダメージ！ (残HP ${st.currentHp})`);
-      if (sl.drains && other.poke && !other.fainted){
-        const oMax = realStat(other, 'hp');
-        if (other.currentHp == null) other.currentHp = oMax;
-        const healed = Math.min(oMax - other.currentHp, d);
-        if (healed > 0){
-          other.currentHp += healed;
-          log('10a', `${pname(other)} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
+      // H8(2026-07-18): マジックガードはやどりぎ/しおづけ/のろい/バインド等スリップ全般のダメージを受けない
+      // (吸収側がダメージ0なので、やどりぎの吸い取り回復も0=Bulbapedia "Magic Guard"/"Seeding")。
+      // トラップ継続(turns)自体は特性に関わらず進む=ダメージだけを防ぐ。
+      if (!_magicGuard){
+        const d = Math.max(1, Math.floor(max * sl.fraction));
+        st.currentHp = Math.max(0, st.currentHp - d);
+        log('10a', `${pname(st)} は ${sl.source}で ${d} ダメージ！ (残HP ${st.currentHp})`);
+        if (sl.drains && other.poke && !other.fainted){
+          const oMax = realStat(other, 'hp');
+          if (other.currentHp == null) other.currentHp = oMax;
+          const healed = Math.min(oMax - other.currentHp, d);
+          if (healed > 0){
+            other.currentHp += healed;
+            log('10a', `${pname(other)} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
+          }
         }
       }
       if (sl.turns != null){
@@ -5490,29 +5588,11 @@ function attemptSwitch(sideKey, benchIdx, opts){
     st.heroAnnounce = false;
     log('9', `${pname(st)} は 変身して 帰ってきた！`);
   }
-  // おみとおし: 場に出た時、相手の持ち物を見抜く(段113・ABILITY_DESC公式準拠)
-  {
-    const _oppSt = sides[sideKey === 'self' ? 'opp' : 'self'];
-    if (sideAbility(st) === 'おみとおし' && _oppSt.poke && _oppSt.item && ITEM_BY_KEY[_oppSt.item]){
-      log('9', `${pname(st)} は おみとおしで ${pname(_oppSt)} の ${ITEM_BY_KEY[_oppSt.item].name}を 見抜いた！`);
-    }
-    // イリュージョン(段138): 交代で場に出た時も化ける
-    applyIllusion(st);
-    // トレース(段122): 交代で場に出た時も相手の特性をコピー(phaseInitAと同条件)
-    if (sideAbility(st) === 'トレース' && _oppSt.poke){
-      const _tAb = sideAbility(_oppSt);
-      if (_tAb && !['トレース', 'バトルスイッチ', 'マイティチェンジ'].includes(_tAb)){
-        st.abilityOverride = _tAb;
-        log('9', `${pname(st)} は トレースで ${pname(_oppSt)} の ${_tAb}を コピーした！`);
-      }
-    }
-    // かわりもの(メタモン): 交代で場に出た時も正面の相手にへんしんする(Init-Aと同条件)
-    if (sideAbility(st) === 'かわりもの' && _oppSt.poke && canTransformInto(st, _oppSt)){
-      const _tg = pname(_oppSt);
-      applyTransform(st, _oppSt);
-      log('9', `${pname(st)} は かわりもので ${_tg} に へんしんした！`);
-    }
-  }
+  // 場に出た時の特性発動(段127・H9件目=2026-07-18修正): いかく/ひでり/あめふらし/すなおこし/ゆきふらし/
+  // 各種メイカー/プレッシャー/おみとおし/イリュージョン/トレース/かわりもの等をInit-Aと同じ1関数から発動する。
+  // 以前はここに個別実装(おみとおし/イリュージョン/トレース/かわりもの)だけがあり、交代時にいかく等の
+  // Init-A特性群がまるごと発動していなかった(実機は交代のたびに毎回発動)。fireEntryAbilityへ統合して二重発動を防ぐ。
+  fireEntryAbility(sideKey);
   // いやしのねがい: 出てきたポケモンが全回復(設置物のダメージの後=回復で帳消しにできる)。
   // 実機(第8世代以降)は「健康なポケモンには持ち越し」だが、simは最初に出たポケモンに適用する近似。
   if (st.healingWish && !st.fainted && st.poke){
