@@ -27,12 +27,21 @@
     es: 'el {n} rival', it: 'il {n} avversario', ko: '상대의 {n}',
     'zh-Hans': '对手的{n}', 'zh-Hant': '對手的{n}',
   };
+  // 「じぶんの 」接頭の言語別テンプレ(2026-07-18: ミラーマッチの先攻行でどちらか分かるように。
+  // 人称は本ファイル既存の流儀=tu/ton/dein系のくだけた二人称に合わせる)
+  var SELF = {
+    ja: 'じぶんの {n}', en: 'your {n}', fr: 'ton {n}', de: 'dein {n}',
+    es: 'tu {n}', it: 'il tuo {n}', ko: '내 {n}',
+    'zh-Hans': '我方的{n}', 'zh-Hant': '我方的{n}',
+  };
   function tPokeToken(raw, lang) {
-    var opp = false, n = raw;
+    var opp = false, self = false, n = raw;
     if (n.indexOf('相手の ') === 0) { opp = true; n = n.slice(4); }
+    else if (n.indexOf('じぶんの ') === 0) { self = true; n = n.slice(5); }
     var tr = (I18N() && I18N().pokemon) ? I18N().pokemon(n) : n;
-    if (!opp) return tr;
-    return (OPP[lang] || OPP.en).replace('{n}', tr);
+    if (opp) return (OPP[lang] || OPP.en).replace('{n}', tr);
+    if (self) return (SELF[lang] || SELF.en).replace('{n}', tr);
+    return tr;
   }
   function tSlot(raw, kind, lang) {
     if (raw == null) return '';
@@ -149,6 +158,7 @@
     switch_voluntary: { "en": "{out} withdrew! {in} was sent out!", "fr": "{out} est rappelé ! {in} entre en jeu !", "de": "{out} wurde zurückgerufen! {in} kommt ins Spiel!", "es": "¡{out} se retiró! ¡Sale {in}!", "it": "{out} si ritira! Entra {in}!", "ko": "{out}이(가) 들어갔다! {in}이(가) 나왔다!", "zh-Hans": "{out}收回了！{in}上场了！", "zh-Hant": "{out}收回了！{in}上場了！" },
     no_target: { "en": "{p} used {move}! But there was no target...", "fr": "{p} utilise {move} ! Mais il n'y a aucune cible...", "de": "{p} setzt {move} ein! Aber da war kein Ziel...", "es": "¡{p} usó {move}! Pero no había objetivo...", "it": "{p} usa {move}! Ma non c'era alcun bersaglio...", "ko": "{p}의 {move}! 하지만 상대가 없었다…", "zh-Hans": "{p}使用了{move}！但是没有目标…", "zh-Hant": "{p}使用了{move}！但是沒有目標…" },
     turn_first: { "en": "Moves first: {p}", "fr": "Agit en premier : {p}", "de": "Zuerst dran: {p}", "es": "Actúa primero: {p}", "it": "Agisce per primo: {p}", "ko": "선공: {p}", "zh-Hans": "先手：{p}", "zh-Hant": "先手：{p}" },
+    turn_first_claw: { "en": "Moves first: {p} (Quick Claw activated)", "fr": "Agit en premier : {p} (Vive Griffe s’est activée)", "de": "Zuerst dran: {p} (Flinkklaue wurde ausgelöst)", "es": "Actúa primero: {p} (se activó la Garra Rápida)", "it": "Agisce per primo: {p} (si sono attivati i Rapidartigli)", "ko": "선공: {p} (선제의손톱 발동)", "zh-Hans": "先手：{p}（先制之爪发动了）", "zh-Hant": "先手：{p}（先制之爪發動了）" },
     turn_first_prio: { "en": "Moves first: {p} (priority move)", "fr": "Agit en premier : {p} (capacité prioritaire)", "de": "Zuerst dran: {p} (Erstschlag-Attacke)", "es": "Actúa primero: {p} (movimiento con prioridad)", "it": "Agisce per primo: {p} (mossa con priorità)", "ko": "선공: {p} (선제 기술)", "zh-Hans": "先手：{p}（先制招式）", "zh-Hant": "先手：{p}（先制招式）" },
     turn_first_fast: { "en": "{p} moves first (Speed {a} > {b})", "fr": "{p} agit en premier (Vitesse {a} > {b})", "de": "{p} ist zuerst dran (Initiative {a} > {b})", "es": "{p} actúa primero (Velocidad {a} > {b})", "it": "{p} agisce per primo (Velocità {a} > {b})", "ko": "{p}이(가) 먼저 행동 (스피드 {a} > {b})", "zh-Hans": "{p}先行动（速度 {a} > {b}）", "zh-Hant": "{p}先行動（速度 {a} > {b}）" },
     turn_first_tie: { "en": "{p} moves first (Speed tie {a}, random)", "fr": "{p} agit en premier (Vitesse égale {a}, au hasard)", "de": "{p} ist zuerst dran (Initiative-Gleichstand {a}, zufällig)", "es": "{p} actúa primero (empate de Velocidad {a}, al azar)", "it": "{p} agisce per primo (parità di Velocità {a}, casuale)", "ko": "{p}이(가) 먼저 행동 (스피드 동일 {a}, 무작위)", "zh-Hans": "{p}先行动（速度相同 {a}，随机）", "zh-Hant": "{p}先行動（速度相同 {a}，隨機）" },
@@ -489,10 +499,12 @@
     // ★2026-07-16修正: \S+ は全角括弧も飲み込むため、turn_first_prio/fast/tie/bl_245(いずれも
     // "先攻: X（…）"形式)より先にこの汎用パターンが誤マッチし、括弧の中身ごと1つのポケモン名として
     // 扱われて先制技/すばやさ内訳が翻訳されないまま残る不具合があった。「（」を除外して住み分ける。
-    { id: 'turn_first', re: /^先攻: ((?:相手の )?[^\s（]+)$/, slots: { p: { g: 1, kind: 'poke' } } },
-    { id: 'turn_first_prio', re: /^先攻: ((?:相手の )?\S+)（先制技）$/, slots: { p: { g: 1, kind: 'poke' } } },
-    { id: 'turn_first_fast', re: /^先攻: ((?:相手の )?\S+)（すばやさが速い\((\d+) > (\d+)\)ため）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' }, b: { g: 3, kind: 'num' } } },
-    { id: 'turn_first_tie', re: /^先攻: ((?:相手の )?\S+)（すばやさ同値\((\d+)\)・ランダムで）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' } } },
+    // ★2026-07-18: 自分側の先攻行は「先攻: じぶんの ◯◯」に(ミラーマッチ判別・阿部さんFB)。
+    // 接頭辞なしの旧文言も引き続きマッチ(過去ログ・巻き戻し表示の互換)。訳はtPokeTokenのSELFテンプレ。
+    { id: 'turn_first', re: /^先攻: ((?:相手の |じぶんの )?[^\s（]+)$/, slots: { p: { g: 1, kind: 'poke' } } },
+    { id: 'turn_first_prio', re: /^先攻: ((?:相手の |じぶんの )?\S+)（先制技）$/, slots: { p: { g: 1, kind: 'poke' } } },
+    { id: 'turn_first_fast', re: /^先攻: ((?:相手の |じぶんの )?\S+)（すばやさが速い\((\d+) > (\d+)\)ため）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' }, b: { g: 3, kind: 'num' } } },
+    { id: 'turn_first_tie', re: /^先攻: ((?:相手の |じぶんの )?\S+)（すばやさ同値\((\d+)\)・ランダムで）$/, slots: { p: { g: 1, kind: 'poke' }, a: { g: 2, kind: 'num' } } },
     { id: 'statmove_used', re: /^((?:相手の )?\S+) は (\S+) を使った！ \(変化技は MVP では効果未実装\)$/, slots: { p: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
     // ★2026-07-16追加: real_battle_simulator.htmlの変化技使用行はMVP注記なしの
     // 「X は Y を使った！」で出力される(旧statmove_usedのサフィックス無し版)。
@@ -640,7 +652,10 @@
     { id: 'bl_182', re: /^((?:相手の )?\S+) は マジックミラーで (\S+) を 跳ね返した！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_183', re: /^((?:相手の )?\S+) は また 音の技が だせるようになった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_189', re: /^((?:相手の )?\S+) は もらいびで ほのおの力が 強まった！$/, slots: { "p": { g: 1, kind: "poke" } } },
-    { id: 'bl_245', re: /^先攻: ((?:相手の )?\S+)（(\S+) が 優先度([+-]?\d+) のため）$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" }, "n": { g: 3, kind: "raw" } } },
+    { id: 'bl_245', re: /^先攻: ((?:相手の |じぶんの )?\S+)（(\S+) が 優先度([+-]?\d+) のため）$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" }, "n": { g: 3, kind: "raw" } } },
+    // ★2026-07-18追加: せんせいのつめ発動の先攻行(real_battle_simulator.html 6051)のパターンが無く
+    // 未翻訳(ja残留)だった既存漏れを、じぶんの/相手の接頭対応と同時に補完。
+    { id: 'turn_first_claw', re: /^先攻: ((?:相手の |じぶんの )?\S+)（せんせいのつめが 発動したため）$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_38', re: /^((?:相手の )?\S+) の シンクロ！ ((?:相手の )?\S+) も (\S+) 状態になった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" }, "n": { g: 3, kind: "cond" } } },
     { id: 'bl_52', re: /^((?:相手の )?\S+) の ムラっけ！ (\S+)が ぐーんとあがった！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "stat" } } },
     { id: 'bl_57', re: /^((?:相手の )?\S+) の 技は このターン (\S+)タイプに なる！$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "type" } } },

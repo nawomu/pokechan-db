@@ -6039,7 +6039,12 @@ function runTurn(){
     const fMove = firstSide === 'self' ? selfMove : oppMove;
     const sMove = secondSide === 'self' ? selfMove : oppMove;
     const fp = movePriority(fMove, sides[firstSide]), sp = movePriority(sMove, sides[secondSide]);
-    const fName = sides[firstSide].poke ? pname(sides[firstSide]) : '?';
+    // ミラーマッチ(両側同じポケモン)で「先攻: ◯◯」がどちらか分からない(2026-07-18 阿部さんFB)
+    // → 自分側は「じぶんの ◯◯」を明示(相手側はpnameが「相手の ◯◯」を付ける既存仕様)。
+    //   翻訳はbattle_log_i18n.jsのturn_first系パターンが「じぶんの 」接頭を解釈(SELFテンプレ)。
+    const fName = sides[firstSide].poke
+      ? (firstSide === 'self' ? `じぶんの ${pname(sides[firstSide])}` : pname(sides[firstSide]))
+      : '?';
     // 理由は簡素に(実機準拠=数値を出さない・2026-07-10 阿部さん)。すばやさ勝ち/同速/トリルは理由なしで「先攻: ◯◯」だけ。
     // 言及するのは 先制技(優先度+の技で先攻になった時) と せんせいのつめ のみ。
     let why = null;

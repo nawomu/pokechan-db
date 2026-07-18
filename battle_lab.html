@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <script defer src="i18n/runtime.js?v=20260705"></script>
 <script src="pokechan_data.js?v=20260705a"></script>
-<script src="battle_log_i18n.js?v=20260716b"></script>
+<script src="battle_log_i18n.js?v=20260718a"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
@@ -938,6 +938,15 @@ body.in-battle #lab-ai-row{display:flex}
 /* 中央=読み取り専用詳細カード(sel-detailの見た目を流用・編集UIなし) */
 #party .sw-detail{background:linear-gradient(150deg,#41369fee 0%,#5d4fd6dd 100%);border-radius:16px;padding:12px 14px;color:#fff}
 #party .sw-detail .sw-empty{color:#ffffffaa;text-align:center;padding:60px 0}
+/* ★2026-07-18 阿部さんFB: 中央詳細パネルのタイプ相性表(受け側=このポケモンが受ける倍率・特性込み)。
+ * 能力値エディタ下の空きスペースにコンパクトに常設。編成(#sel-detail)/交代・選出(#party .sw-detail)共通。 */
+.sd-matchup{margin-top:8px;padding:6px 9px;border-radius:10px;background:#00000012;font-size:10px}
+#party .sw-detail .sd-matchup{background:#00000028}
+.sd-matchup .smu-row{display:flex;align-items:flex-start;gap:6px;margin:2px 0;line-height:1.6}
+.sd-matchup .smu-row b{flex:0 0 auto;font-size:9.5px;opacity:.85;padding-top:1px}
+.sd-matchup .smu-types{display:flex;flex-wrap:wrap;gap:3px}
+.sd-matchup .smu-t{display:inline-block;font-size:9px;padding:1px 6px;border-radius:8px;color:#fff;font-weight:800;text-shadow:0 1px 1px #0007}
+.sd-matchup .smu-m{font-size:8.5px;font-weight:800;margin-left:2px;opacity:.9}
 /* ★バトルラボ(2026-07-16): 中央詳細が今どちら側(真の自分/あいて)を表示中か分かるバッジ+枠色(阿部さんFB item2) */
 #party .sw-detail-badge{font-size:10px;font-weight:900;color:#fff;text-align:center;border-radius:9px;padding:3px 12px;
   margin-bottom:8px;display:inline-block}
@@ -1287,7 +1296,7 @@ body.in-battle #lab-ai-row{display:flex}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260718c" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260718d" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1525,6 +1534,7 @@ function setSlot(id, name, keepCustom){
   // ★2026-07-16バグ修正: `!slotItem[id]`だと空文字""(=意図的な「もちもの なし」)も未設定と誤判定して
   // 汎用メガストーンへ引き戻していた(loadTeam→setSlot経由でリロードのたび復活)。未設定=null/undefinedのみ既定を当てる
   if (slotItem[id] == null) slotItem[id] = 'mega_stone_any';
+  else slotItem[id] = normMegaKeyRB(slotItem[id]);   // ★2026-07-18: 個別メガストーンキーの自己修復(全経路の関所)
   if (!keepCustom || !slotGender[id]) slotGender[id] = genderOfRB(name);   // 性別(ビルダー由来は復元側でセット)
   if (!keepCustom){ slotNature[id] = 'まじめ'; slotEffort[id] = ZERO_EV(); }   // 手動選択は無補正・努力値0
   if (!keepCustom || !slotAbility[id]) slotAbility[id] = defaultAbilityRB(S.pokeByName(name));   // ポケモンを変えたら特性も既定に
@@ -1561,7 +1571,7 @@ function applyPresetToSlot(id, build){
   const poke = S.pokeByName(speciesName);
   if (!poke) return false;
   slotVal[id] = speciesName;
-  slotItem[id] = itDef ? itDef.key : 'mega_stone_any';
+  slotItem[id] = itDef ? normMegaKeyRB(itDef.key) : 'mega_stone_any';   // ★2026-07-18: プリセットの個別ストーンも汎用へ
   slotAbility[id] = abilityName || defaultAbilityRB(poke);
   slotNature[id] = build.nature || 'まじめ';
   slotEffort[id] = clampEffortRB(build.ev || {});
@@ -1635,6 +1645,15 @@ function setSelectedSlot(id){
 function itemChoicesRB(){
   // メガストーンは汎用(共通)1つだけ(2026-07-06 阿部さん)。バトル中のメガシンカは1体だけの制限は従来どおり
   return S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any');
+}
+// ★2026-07-18 阿部さんFB(メタグロスナイト表示): メガストーンは汎用mega_stone_anyに統一(2026-07-13確定)なのに、
+// 保存編成(rb_team_lab_*)/プリセット/ビルダーhandoff/オンライン相手チーム由来の個別ストーンキーが読込・設定経路で
+// 素通りしていた。itemキーが入ってくる全経路(loadTeam/setSlot/applyPresetToSlot/buildSide/各エディタ書き込み)で
+// この正規化を通す=既存の保存データもリロードで自己修復(real_battleのFORM_REVERT矯正と同じ流儀)。
+function normMegaKeyRB(k){
+  if (!k || k === 'mega_stone_any') return k;
+  const it = (typeof S !== 'undefined' && S.itemByKey) ? S.itemByKey(k) : null;
+  return (it && it.category === 'mega_stone') ? 'mega_stone_any' : k;
 }
 // 共通選択モーダル: groups=[{label, rows:[{key,name,desc,selected}]}]
 function openChoiceModal(title, groups, onPick, anchor){
@@ -1779,8 +1798,11 @@ function renderSelDetail(id){
   const types = [p.type1, p.type2].filter(Boolean).map(t =>
     `<span class="sd-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
   const curAb = slotAbility[id] || defaultAbilityRB(p);
-  // ★バトルラボ: その種の特性に限らず、全特性(ABILITY_DESC)から自由に選べる(設計§3)
-  const abilities = Object.keys(ABILITY_DESC);
+  // ★バトルラボ: その種の特性に限らず、全特性(ABILITY_DESC)から自由に選べる(設計§3)。
+  // ★2026-07-18 阿部さんFB: モーダルは2段構成に(上=このポケモン本来の特性ab1/ab2/ab3・下=ほかの全特性。
+  // どちらも選択可能・技ピッカーのおぼえる技/おぼえない技と同じセクション流儀)
+  const nativeAbs = [p.ab1, p.ab2, p.ab3].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+  const abilities = Object.keys(ABILITY_DESC).filter(a => !nativeAbs.includes(a));
   const mvs = (slotMoves[id] || autoMoves(p)).filter(Boolean);
   const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
   const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${encodeURIComponent(nm)}.svg`;
@@ -1797,7 +1819,8 @@ function renderSelDetail(id){
     }).join('') + `</div>` +
     `<div class="sd-row"><span>${I18N.t('real_battle.sel_ability','特性')}</span><button class="sd-ab sd-pick">${(window.I18N && I18N.ability) ? I18N.ability(curAb) : curAb} ▾</button></div>` +
     `<div class="sd-row"><span>${I18N.t('real_battle.sel_item','もちもの')}</span><button class="sd-item sd-pick">${(S.itemByKey(slotItem[id]) ? tItemName(S.itemByKey(slotItem[id])) : I18N.t('real_battle.item_none_option','もちもの なし'))} ▾</button></div>` +
-    `<div class="sd-ev"></div>`;
+    `<div class="sd-ev"></div>` +
+    matchupChipsHtml(p, curAb);   // ★2026-07-18: 編成側にも同じ相性表(特性変更→renderSelDetail再描画で追従)
   // 能力値エディタ(パネル下段に一体・自動確定=2026-07-05 阿部さん)
   renderEvEditor(box.querySelector('.sd-ev'), {
     poke: p,
@@ -1818,15 +1841,18 @@ function renderSelDetail(id){
       rows: megas.map(mp => ({ info: true, key: '',
         name: `${tPokeName(mp.name)}: ${(window.I18N && I18N.ability) ? I18N.ability(mp.ab1) : mp.ab1}`,
         desc: (window.I18N && I18N.abilityDesc && I18N.abilityDesc(mp.ab1)) || (S.abilityDescJa ? S.abilityDescJa(mp.ab1) : '') || '' })) }] : [];
+    // 行データは本来/その他の両セクション共通(選択中ハイライト.selもそのまま)
+    const abRow = a => ({key:a, name:(window.I18N && I18N.ability) ? I18N.ability(a) : a,
+      desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (S.abilityDescJa ? S.abilityDescJa(a) : '') || '', selected:a === curAb});
     openChoiceModal(I18N.t('real_battle.sel_ability','特性'),
-      [{label:'', rows:abilities.map(a => ({key:a, name:(window.I18N && I18N.ability) ? I18N.ability(a) : a,
-        desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (S.abilityDescJa ? S.abilityDescJa(a) : '') || '', selected:a === curAb}))}].concat(megaGroup),
+      [{label: I18N.t('battle_lab.native_abilities','✅ このポケモンの とくせい'), rows: nativeAbs.map(abRow)},
+       {label: I18N.t('battle_lab.other_abilities','🧪 ほかの とくせい'), rows: abilities.map(abRow)}].concat(megaGroup),
       k => { slotAbility[id] = k; saveTeam(); renderSelDetail(id); }, e.currentTarget);
   });
   box.querySelector('.sd-item').addEventListener('click', e => {
     SE.select();
     openItemModal(slotItem[id], k => {
-      slotItem[id] = k;
+      slotItem[id] = normMegaKeyRB(k);   // ★2026-07-18: 念のため書き込み口でも正規化(ピッカーは汎用のみだが統一)
       if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
       saveTeam(); renderSelDetail(id);
     }, e.currentTarget, usedItemsRB(id));
@@ -1876,7 +1902,7 @@ function loadTeam(){
         if (S.pokeByName(_base)) d.val[id] = _base;
       }
       if (!d.val[id] || !S.pokeByName(d.val[id])) return;
-      slotItem[id] = d.item && d.item[id] != null ? d.item[id] : 'mega_stone_any';
+      slotItem[id] = normMegaKeyRB(d.item && d.item[id] != null ? d.item[id] : 'mega_stone_any');   // ★2026-07-18: 保存データの個別ストーンを自己修復
       slotGender[id] = (d.gender && d.gender[id]) || genderOfRB(d.val[id]);
       slotNature[id] = (d.nature && d.nature[id]) || 'まじめ';
       slotEffort[id] = clampEffortRB((d.effort && d.effort[id]) || {});
@@ -1941,7 +1967,7 @@ function loadHandoff(){
       const all = S.usableMoves(poke);
       const byKey = (e.moves || []).map(k => all.find(m => m && (m.key === k || m.name === k))).filter(Boolean);
       slotMoves[id] = byKey.length ? byKey.slice(0, 4) : autoMoves(poke);
-      slotItem[id] = e.item || 'mega_stone_any';
+      slotItem[id] = normMegaKeyRB(e.item || 'mega_stone_any');   // ★2026-07-18: ビルダーhandoffの個別ストーンも汎用へ
       slotGender[id] = e.gender || genderOfRB(e.name);
       slotNature[id] = e.nature || 'まじめ';
       slotEffort[id] = clampEffortRB(e.effort || {});
@@ -2489,14 +2515,14 @@ function buildSide(sideKey, ids){
   st.poke = lead;
   st.moves = (slotMoves[ids[0]] || autoMoves(lead)).filter(Boolean);
   st.selectedMoveIdx = 0;
-  st.item = slotItem[ids[0]] != null ? slotItem[ids[0]] : 'mega_stone_any';   // 中央パネルで変更可(既定=汎用メガストーン)
+  st.item = normMegaKeyRB(slotItem[ids[0]] != null ? slotItem[ids[0]] : 'mega_stone_any');   // 中央パネルで変更可(既定=汎用メガストーン。個別ストーンは汎用へ正規化=2026-07-18)
   st.gender = slotGender[ids[0]] || genderOfRB(slotVal[ids[0]]);
   st.natureIdx = S.natureIdxOf(slotNature[ids[0]] || 'まじめ');   // 性格(ビルダー由来 or 無補正)
   st.effort = clampEffortRB(slotEffort[ids[0]]);    // 努力値(Champions点・各32/計66に矯正)
   st.bench = ids.slice(1).map(id => {
     const p = S.pokeByName(slotVal[id]);
     return { poke: p, effort: clampEffortRB(slotEffort[id]), natureIdx: S.natureIdxOf(slotNature[id] || 'まじめ'),
-      ability: slotAbility[id] || defaultAbilityRB(p), item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
+      ability: slotAbility[id] || defaultAbilityRB(p), item: normMegaKeyRB(slotItem[id] != null ? slotItem[id] : 'mega_stone_any'),
       moves: (slotMoves[id] || autoMoves(p)).filter(Boolean), gender: slotGender[id] || genderOfRB(slotVal[id]),
       currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
   })
@@ -3213,6 +3239,39 @@ function swMineHtml(st){
 // 場に出ている子・控え・相手側もすべて編集可(ラボの思想=秘匿/制約なし)。
 // ★バトルラボ(2026-07-16由来): side='self'|'opp'(真の自分/相手。labSwapped中の入れ替えを解いた実体)を渡すと、
 // 「いまどちら側を表示中か」がひと目で分かる色バッジを頭に出す(阿部さんFB item2「どちら側か分かる見出し色」)。
+// ★2026-07-18 阿部さんFB: 選択中ポケモンのタイプ相性(受け側)をコンパクトなチップ表で。
+// 弱点パネル(toggleWeaknessPanel・2026-07-10)の3区分の流儀を踏襲するが、あちらは「場の相手へ攻める」
+// calcDamage計算・こちらは任意のポケモン(控え/編成中含む)の「受ける」相性なので、素相性
+// (S.typeEffPreview)+特性の無効化(エンジン1679の_ABSORBマップ/ふゆう/ふしぎなまもりと同じ規則)で算出。
+// 特性を編集すると呼び出し元(renderSelDetail/renderPartyScreen)が再描画=自動で追従再計算される。
+// 倍率変更系(あついしぼう等)は弱点パネル同様に反映しない(無効化=×0のみ特性込み)。
+const _MU_ABSORB = {'ちょすい': 'みず', 'ちくでん': 'でんき', 'もらいび': 'ほのお', 'そうしょく': 'くさ',
+  'ひらいしん': 'でんき', 'でんきエンジン': 'でんき', 'かんそうはだ': 'みず'};
+function matchupChipsHtml(p, ability){
+  if (!p) return '';
+  const types = [p.type1, p.type2].filter(Boolean);
+  if (!types.length || !S.typeEffPreview) return '';
+  const tc = (S.typeColors && S.typeColors()) || (typeof TYPE_COLORS !== 'undefined' ? TYPE_COLORS : {});
+  const TYPES18 = (typeof TYPES !== 'undefined') ? TYPES : [];
+  const buckets = { weak: [], strong: [], none: [] };
+  TYPES18.forEach(atkType => {
+    let eff = S.typeEffPreview(atkType, types);
+    if (ability === 'ふゆう' && atkType === 'じめん') eff = 0;
+    if (_MU_ABSORB[ability] === atkType) eff = 0;
+    if (ability === 'ふしぎなまもり' && eff <= 1) eff = 0;
+    const badge = `<span class="smu-t" style="background:${tc[atkType] || '#3a4660'}">${tTypeName(atkType)}</span>`;
+    if (eff === 0) buckets.none.push(badge);
+    else if (eff > 1) buckets.weak.push(`${badge}<span class="smu-m">${eff >= 4 ? I18N.t('real_battle.weakness_4x','4倍') : '×' + eff}</span>`);
+    else if (eff < 1) buckets.strong.push(`${badge}<span class="smu-m">${eff <= 0.25 ? I18N.t('real_battle.weakness_quarter','1/4') : '×' + eff}</span>`);
+    // 等倍(×1)は省略=コンパクト優先(弱点パネルと同じ)
+  });
+  const row = (label, arr) => arr.length
+    ? `<div class="smu-row"><b>${label}</b><div class="smu-types">${arr.join('')}</div></div>` : '';
+  const html = row(I18N.t('battle_lab.matchup_weak','⚠ よわい'), buckets.weak) +
+    row(I18N.t('battle_lab.matchup_strong','🛡 つよい'), buckets.strong) +
+    row(I18N.t('real_battle.weakness_title_none','こうかなし'), buckets.none);
+  return html ? `<div class="sd-matchup">${html}</div>` : '';
+}
 function swDetailHtml(entry, side){
   const sideCls = side === 'opp' ? 'sw-detail-opp' : side === 'self' ? 'sw-detail-self' : '';
   const badge = sideCls ? `<div class="sw-detail-badge ${sideCls}">${side === 'opp'
@@ -3243,6 +3302,7 @@ function swDetailHtml(entry, side){
     `<div class="sw-drow"><span>${I18N.t('real_battle.sel_ability', '特性')}</span><button type="button" class="sw-dab sd-pick">${(window.I18N && I18N.ability) ? I18N.ability(ab) : ab} ▾</button></div>` +
     `<div class="sw-drow"><span>${I18N.t('real_battle.sel_item', 'もちもの')}</span><button type="button" class="sw-ditem sd-pick">${it ? tItemName(it) : I18N.t('real_battle.item_none_option', 'もちもの なし')} ▾</button></div>` +
     `<div class="sd-ev"></div>` +
+    matchupChipsHtml(p, entry.abilityOverride || ab) +   // ★2026-07-18: 相性表(特性込み・トレース等の一時上書きも反映)
     `</div>`;
 }
 // ★中央詳細パネルの編集ハンドラ配線(2026-07-17): entry=表示中の生きたエンジンstate参照・rootSt=それが
@@ -3259,10 +3319,14 @@ function wireSwDetailEvents(entry, side, rootSt){
   if (abBtn) abBtn.addEventListener('click', e => {
     SE.select();
     const curAb = entry.ability || entry.poke.ab1;
-    const abilities = Object.keys(ABILITY_DESC);
+    // ★2026-07-18 阿部さんFB: 編成側(renderSelDetail)と同じ2段構成(上=本来の特性ab1/ab2/ab3・下=ほかの全特性)
+    const nativeAbs = [entry.poke.ab1, entry.poke.ab2, entry.poke.ab3].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
+    const abilities = Object.keys(ABILITY_DESC).filter(a => !nativeAbs.includes(a));
+    const abRow = a => ({key:a, name:(window.I18N && I18N.ability) ? I18N.ability(a) : a,
+      desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (S.abilityDescJa ? S.abilityDescJa(a) : '') || '', selected:a === curAb});
     openChoiceModal(I18N.t('real_battle.sel_ability', '特性'),
-      [{label:'', rows:abilities.map(a => ({key:a, name:(window.I18N && I18N.ability) ? I18N.ability(a) : a,
-        desc:(window.I18N && I18N.abilityDesc && I18N.abilityDesc(a)) || (S.abilityDescJa ? S.abilityDescJa(a) : '') || '', selected:a === curAb}))}],
+      [{label: I18N.t('battle_lab.native_abilities','✅ このポケモンの とくせい'), rows: nativeAbs.map(abRow)},
+       {label: I18N.t('battle_lab.other_abilities','🧪 ほかの とくせい'), rows: abilities.map(abRow)}],
       k => {
         entry.ability = k;
         entry.abilityOverride = null;   // トレース等の一時上書きが残っていたら解除(実験なので明示指定を優先)
@@ -3277,7 +3341,7 @@ function wireSwDetailEvents(entry, side, rootSt){
     const used = new Set([rootSt].concat(rootSt.bench || [])
       .filter(x => x && x !== entry && x.item && x.item !== 'mega_stone_any').map(x => x.item));
     openItemModal(entry.item, k => {
-      entry.item = k;
+      entry.item = normMegaKeyRB(k);   // ★2026-07-18: 個別メガストーンキーはエンジンentryにも残さない
       renderPartyScreen();
       try { renderAll(); } catch (e) {}
     }, e.currentTarget, used);
@@ -3638,7 +3702,7 @@ function openStatsModal(side){
     // 控えの持ち物と重複不可(1種類1個・メガストーンは共有可)
     const used = new Set((st.bench || []).map(x => x.item).filter(k => k && k !== 'mega_stone_any'));
     openItemModal(st.item, k => {
-      st.item = k || null; renderAll();
+      st.item = k ? normMegaKeyRB(k) : null; renderAll();   // ★2026-07-18: ⚙経由の書き込みも正規化
       const btn = holder.querySelector('#sm-item');
       if (btn) btn.textContent = itLabel() + ' ▾';
     }, e.currentTarget, used);
@@ -4103,7 +4167,7 @@ function executeTurn(){
   const lines = [];
   for (let i = 0; i < fresh.length; i++){
     const e = fresh[i];
-    const am = e.msg.match(/^((?:相手の )?)(\S+) の \S+！/);
+    const am = e.msg.match(/^((?:相手の )?)(\S+) の (\S+)！/);
     // ばけのかわブロック: 「◯◯の 技！」の直後に「…ばけのかわが はがれた！」が続く形で判別する
     // (かたやぶり等の入場宣言も同じ「◯◯の 特性名！」の裸行なので、次の行の内容で狙い撃ちする=2026-07-13 阿部さん報告)
     const nextIsDisguiseBreak = !!(fresh[i + 1] && /ばけのかわが はがれた！$/.test(fresh[i + 1].msg));
@@ -4112,7 +4176,15 @@ function executeTurn(){
     const nextIsProtectBlock = !!(fresh[i + 1] && /こうげきを 防いだ！$/.test(fresh[i + 1].msg));
     const nextIsBlockAnnounce = nextIsDisguiseBreak || nextIsProtectBlock;
     if (am && (/ダメージ！/.test(e.msg) || nextIsBlockAnnounce)){
-      const introJa = `${am[1]}${am[2]} の こうげき！`;
+      // ★2026-07-18 阿部さんFB: 予告は技名入り「{名} の {技名}！」に(「こうげき！」だと何の技か分からない)。
+      // 技名は攻撃行そのもの(am[3])から取る=selectedMoveIdx/AI注入を追いかけない(行が正・両側共通)。
+      // i18n: 標準の技使用行と同じJA正典形式なのでbattle_log_i18nの既存used_moveパターンで翻訳される(新パターン不要)。
+      // 二重表示の扱い: ①変化技=このifはダメージ/ブロック行限定なので予告は出ず、エンジンの裸使用行(2694)に
+      // 任せる(選択理由: 予告を変化技にも出すと同文2連になるだけで情報が増えない)。②ばけのかわ/まもるブロック
+      // (nextIsBlockAnnounce)はエンジン行自体が同文の裸使用行=予告(ぴょんぴょん)→同文のまま攻撃fx、と
+      // 表示上は1本に見える(リズム維持・重複感なし)。予告行はnoLog+lineWithFx非経由=attack fx/Phase2の
+      // 変化技cueフックは誤発火しない(本物の行だけが発火する)。
+      const introJa = `${am[1]}${am[2]} の ${am[3]}！`;
       const introSide = am[1] ? 'opp' : 'self';
       // 予告のぴょんぴょん(.7s)+一拍だけ待って技を出す(送り速度=ふつうの約2.9秒だと予告後に間が空きすぎる=2026-07-13)
       lines.push({ text: (window.translateLogLine ? translateLogLine(introJa) : introJa),
@@ -5150,7 +5222,7 @@ function onlineApplyOppTeam(d){
   selfIds().forEach((sid, i) => {
     const oid = oppIds()[i]; if (!oid) return;
     const nm = d.val[sid]; if (!nm || !S.pokeByName(nm)) return;
-    slotItem[oid] = d.item && d.item[sid] != null ? d.item[sid] : 'mega_stone_any';
+    slotItem[oid] = normMegaKeyRB(d.item && d.item[sid] != null ? d.item[sid] : 'mega_stone_any');   // ★2026-07-18: 相手チーム由来も正規化
     slotGender[oid] = (d.gender && d.gender[sid]) || genderOfRB(nm);
     slotNature[oid] = (d.nature && d.nature[sid]) || 'まじめ';
     slotEffort[oid] = clampEffortRB((d.effort && d.effort[sid]) || {});
