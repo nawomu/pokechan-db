@@ -1632,9 +1632,10 @@ function calcDamage(atkSide, defSide, move, opts){
     defTypes.forEach(dt=>{
       const dtIdx = TYPES.indexOf(dt);
       if (dtIdx < 0) return;
-      // じゅうりょく: ひこうも地面にいる扱い→じめん技の「こうかなし」だけ消える(等倍。Bulbapedia "Gravity")
-      // ねをはる(rooted)も同じ=根をはった ひこうに じめん技が当たる(Bulbapedia "Ingrain")
-      if ((env.gravity || (def && def.rooted)) && mt === 'じめん' && dt === 'ひこう') return;
+      // 接地扱いのひこうタイプ→じめん技の「こうかなし」だけ消える(等倍。Bulbapedia "Gravity"/"Ingrain"/"Iron Ball")
+      // 判定はisGroundedに統一(じゅうりょく/ねをはる/くろいてっきゅう全対応。2026-07-18: 従来はgravity/rootedの
+      // 直書きで くろいてっきゅう持ちのひこうタイプに じめん技が無効のままだったバグを修正・ヤックン全数照合で発見)
+      if (def && isGrounded(def) && mt === 'じめん' && dt === 'ひこう') return;
       if (matchOvr && dt === matchOvr.against_type){ eff *= 2; return; }
       // きもったま(攻撃側): ノーマル/かくとう技がゴーストに当たる(ABILITY_DESC公式準拠・段111)
       if (dt === 'ゴースト' && (moveType === 'ノーマル' || moveType === 'かくとう') && sideAbility(atk) === 'きもったま') return;
@@ -2233,9 +2234,9 @@ function effectiveSpeed(st){
   return s;
 }
 
-// 行動順を判定: 優先度 → (せんせいのつめ20%) → 素早さ (トリックルームで逆転) → 同速ランダム
+// 行動順を判定: 優先度 → (せんせいのツメ20%) → 素早さ (トリックルームで逆転) → 同速ランダム
 // 戻り値: 先手の side を 'self' or 'opp' で返す
-let quickClawSide = null;   // このターンせんせいのつめが発動した側(先攻理由ログ用)
+let quickClawSide = null;   // このターンせんせいのツメが発動した側(先攻理由ログ用)
 // ★オンライン(ロックステップ)用の正準サイド順(2026-07-10): 両クライアントは自分/相手が鏡写しなので、
 // 「側に依存する乱数消費」(同速タイ・つめ両ロール等)は __rbCanonFirst(=ホスト側)基準に固定して結果を一致させる。
 // 未設定(オフライン)は従来どおり self 優先=挙動不変
@@ -2246,7 +2247,7 @@ function decideOrder(move1, move2){
   const p2 = movePriority(move2, sides.opp);
   if (p1 !== p2) return p1 > p2 ? 'self' : 'opp';
   const [cf, cs] = canonSides();
-  // せんせいのつめ: 同じ優先度の中で20%の確率で先に動ける(両者発動なら通常判定。items_database宣言)
+  // せんせいのツメ: 同じ優先度の中で20%の確率で先に動ける(両者発動なら通常判定。items_database宣言)
   if (!env.magicRoom){
     const c1 = sides[cf].item === 'quick_claw' && Math.random() < 0.2;
     const c2 = sides[cs].item === 'quick_claw' && Math.random() < 0.2;
@@ -2994,11 +2995,8 @@ function phaseDealDamage(atkSide, defSide, move){
   if (drainEf && total > 0 && !(atk.healBlockTurns > 0)){   // かいふくふうじ中は吸収回復もできない
     const amax = realStat(atk, 'hp');
     let heal = Math.max(1, Math.floor(total * (drainEf.fraction || 0.5)));
-    // ★2026-06-19 おおきなねっこ: HP吸収量が1.3倍になる(items_database.js宣言)
-    const _drainItem = ITEM_BY_KEY[atk.item];
-    if (_drainItem && _drainItem.key === 'ooki_na_nekko') {
-      heal = Math.floor(heal * 1.3);
-    }
+    // ★2026-06-19 おおきなねっこ: HP吸収量が1.3倍になる(items_database.js宣言・2026-07-18に共通ヘルパー化)
+    heal = bigRootBoost(atk, heal);
     atk.currentHp = Math.min(amax, atk.currentHp + heal);
     log('9', `${pname(atk)} は 吸収して ${heal} 回復！ (残HP ${atk.currentHp})`);
   }
@@ -3108,6 +3106,14 @@ function isGrounded(st){
   if (sideTypes(st).includes('ひこう')) return false;
   if (sideAbility(st) === 'ふゆう') return false;
   return true;
+}
+
+// おおきなねっこ: HP吸収・回復系の量が1.3倍(items_database.js宣言・ヤックン明記=吸収技/やどりぎの吸い取り/
+// ねをはる/アクアリングが対象。出典: Bulbapedia "Big Root")。丸めは既存の吸収ブーストと同じfloor。
+// 2026-07-18: 従来は吸収kindのみに直書きで、ねをはる/アクアリング/やどりぎに掛かっていなかった→共通ヘルパー化。
+function bigRootBoost(st, amount){
+  const it = st && st.item ? ITEM_BY_KEY[st.item] : null;
+  return (it && it.key === 'ooki_na_nekko') ? Math.floor(amount * 1.3) : amount;
 }
 
 // 現在のタイプ(みずびたし/ハロウィン/もえつきる等のタイプ変化を反映)。
@@ -4687,7 +4693,8 @@ function phaseSlipFor(s){
         if (sl.drains && other.poke && !other.fainted){
           const oMax = realStat(other, 'hp');
           if (other.currentHp == null) other.currentHp = oMax;
-          const healed = Math.min(oMax - other.currentHp, d);
+          // おおきなねっこ(吸い取る側=other): やどりぎの回復量1.3倍(削り量dは不変・2026-07-18 ヤックン全数照合)
+          const healed = Math.min(oMax - other.currentHp, bigRootBoost(other, d));
           if (healed > 0){
             other.currentHp += healed;
             log('10a', `${pname(other)} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
@@ -6046,9 +6053,9 @@ function runTurn(){
       ? (firstSide === 'self' ? `じぶんの ${pname(sides[firstSide])}` : pname(sides[firstSide]))
       : '?';
     // 理由は簡素に(実機準拠=数値を出さない・2026-07-10 阿部さん)。すばやさ勝ち/同速/トリルは理由なしで「先攻: ◯◯」だけ。
-    // 言及するのは 先制技(優先度+の技で先攻になった時) と せんせいのつめ のみ。
+    // 言及するのは 先制技(優先度+の技で先攻になった時) と せんせいのツメ のみ。
     let why = null;
-    if (quickClawSide === firstSide) why = `せんせいのつめが 発動したため`;
+    if (quickClawSide === firstSide) why = `せんせいのツメが 発動したため`;
     else if (fp !== sp && fp > 0) why = `先制技`;
     log('0b', why ? `先攻: ${fName}（${why}）` : `先攻: ${fName}`);
   }
@@ -6544,22 +6551,24 @@ function runTurn(){
       }
     }
     // ねをはる: ターン終了ごとに最大HPの1/16回復(データのfraction 0.0625=1/16。出典: Bulbapedia "Ingrain")
+    // おおきなねっこ所持で1.3倍(ヤックン明記・2026-07-18)
     if (st.rooted && st.poke && !st.fainted){
       const _max = realStat(st, 'hp');
       if (st.currentHp == null) st.currentHp = _max;
       if (st.currentHp < _max){
         const _before = st.currentHp;
-        st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max / 16)));
+        st.currentHp = Math.min(_max, st.currentHp + bigRootBoost(st, Math.max(1, Math.floor(_max / 16))));
         log('10', `${pname(st)} は ねをはって HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
       }
     }
     // アクアリング: ターン終了ごとに最大HPの1/16回復(ポケモンWiki「アクアリング」)
+    // おおきなねっこ所持で1.3倍(ヤックン明記・2026-07-18)
     if (st.aquaRing && st.poke && !st.fainted){
       const _max = realStat(st, 'hp');
       if (st.currentHp == null) st.currentHp = _max;
       if (st.currentHp < _max){
         const _before = st.currentHp;
-        st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max / 16)));
+        st.currentHp = Math.min(_max, st.currentHp + bigRootBoost(st, Math.max(1, Math.floor(_max / 16))));
         log('10', `${pname(st)} は アクアリングで HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
       }
     }

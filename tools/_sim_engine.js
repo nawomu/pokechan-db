@@ -103,4 +103,50 @@ function buildEngine() {
   return sandbox.__engine;
 }
 
-module.exports = { buildEngine, mulberry32, absorber, ROOT };
+// ★Phase A: Champions版/全部版どちらのデータでも動くブリッジヘルパー
+// (全部版=pokechan_data_all.jsは技キーがPokeAPIスラッグ(pound等)でChampions独自ローマ字(hataku等)と別物。
+//  name(和名)は498/498一致しているのでnameで橋渡しする。)
+let _champDataCache = null;
+function _champData() {
+  if (!_champDataCache) _champDataCache = require(path.join(ROOT, 'pokechan_data.js'));
+  return _champDataCache;
+}
+
+const _moveNameIndexCache = new WeakMap();
+function _moveNameIndex(data) {
+  let idx = _moveNameIndexCache.get(data);
+  if (!idx) {
+    idx = new Map();
+    if (data && data.WAZA_MAP) {
+      for (const k in data.WAZA_MAP) {
+        const m = data.WAZA_MAP[k];
+        if (m && m.name && !idx.has(m.name)) idx.set(m.name, m);
+      }
+    }
+    _moveNameIndexCache.set(data, idx);
+  }
+  return idx;
+}
+
+// champKey(Championsローマ字キー。例: 'hataku')から、現在読み込み中のdata(Champions版 or 全部版)の技を引く。
+// ①現データに同キーがあればそれ ②なければChampionsのWAZA_MAPでchampKey→和名を引き、現データを和名で検索 ③どちらも無ければnull。
+function moveByChampKey(data, champKey) {
+  if (data && data.WAZA_MAP && data.WAZA_MAP[champKey]) return data.WAZA_MAP[champKey];
+  const champ = _champData();
+  const champMove = champ.WAZA_MAP && champ.WAZA_MAP[champKey];
+  if (!champMove) return null;
+  const idx = _moveNameIndex(data);
+  return idx.get(champMove.name) || null;
+}
+
+// ポケモン名から検索。完全一致→無ければ「(」前方一致フォールバック(全部版のミミッキュ(ばけたすがた)対策=
+// Championsは'ミミッキュ'単体、全部版は'ミミッキュ(ばけたすがた)'という形のフォーム名で登録されている)。
+function pokeByName(data, name) {
+  if (!data || !data.POKEMON_LIST) return null;
+  let p = data.POKEMON_LIST.find(x => x.name === name);
+  if (p) return p;
+  p = data.POKEMON_LIST.find(x => x.name.startsWith(name + '('));
+  return p || null;
+}
+
+module.exports = { buildEngine, mulberry32, absorber, ROOT, moveByChampKey, pokeByName };

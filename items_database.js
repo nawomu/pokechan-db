@@ -906,7 +906,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "quick_claw",
-      "name": "せんせいのつめ",
+      "name": "せんせいのツメ",
       "name_en": "Quick Claw",
       "category": "speed_boost",
       "effect": "20%の確率で同じ優先度の技の中で最初に行動できる。",
@@ -1376,7 +1376,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "mega_stone_chandelure",
-      "name": "シャンデナイト",
+      "name": "シャンデラナイト",
       "name_en": "Chandelureite",
       "category": "mega_stone",
       "effect": "シャンデラ を メガシャンデラ にメガシンカさせる (戦闘中1回)",
@@ -1438,7 +1438,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "mega_stone_chesnaught",
-      "name": "ブリガロンナイト",
+      "name": "ブリガロナイト",
       "name_en": "Chesnaughtite",
       "category": "mega_stone",
       "effect": "ブリガロン を メガブリガロン にメガシンカさせる (戦闘中1回)",
@@ -1653,7 +1653,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "mega_stone_drampa",
-      "name": "ジジーロンナイト",
+      "name": "ジジーロナイト",
       "name_en": "Drampaite",
       "category": "mega_stone",
       "effect": "ジジーロン を メガジジーロン にメガシンカさせる (戦闘中1回)",
@@ -1715,7 +1715,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "mega_stone_glimmora",
-      "name": "キラフロナイト",
+      "name": "キラフロルナイト",
       "name_en": "Glimmoraite",
       "category": "mega_stone",
       "effect": "キラフロル を メガキラフロル にメガシンカさせる (戦闘中1回)",
@@ -1961,7 +1961,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "mega_stone_abomasnow",
-      "name": "ユキノオーナイト",
+      "name": "ユキノオナイト",
       "name_en": "Abomasnowite",
       "category": "mega_stone",
       "effect": "ユキノオー をメガシンカさせる (戦闘中1回)",
@@ -2756,7 +2756,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "mega_stone_sceptile",
-      "name": "ジュカイナイト",
+      "name": "ジュカインナイト",
       "name_en": "Sceptilite",
       "category": "mega_stone",
       "effect": "メガジュカインをメガシンカさせる (戦闘中1回)",
@@ -2973,7 +2973,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "mega_stone_scrafty",
-      "name": "ズルズキンナイト",
+      "name": "ズルズキナイト",
       "name_en": "Scraftinite",
       "category": "mega_stone",
       "effect": "メガズルズキンをメガシンカさせる (戦闘中1回)",
@@ -3065,7 +3065,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "mega_stone_malamar",
-      "name": "カラマネロナイト",
+      "name": "カラマネナイト",
       "name_en": "Malamarite",
       "category": "mega_stone",
       "effect": "メガカラマネロをメガシンカさせる (戦闘中1回)",
@@ -3127,7 +3127,7 @@ window.ITEMS_DATABASE = {
     },
     {
       "key": "mega_stone_dragalge",
-      "name": "ドラミドロナイト",
+      "name": "ドラミドナイト",
       "name_en": "Dragalgite",
       "category": "mega_stone",
       "effect": "メガドラミドロをメガシンカさせる (戦闘中1回)",

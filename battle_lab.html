@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex, nofollow">
 <script defer src="i18n/runtime.js?v=20260705"></script>
 <script src="pokechan_data.js?v=20260705a"></script>
-<script src="battle_log_i18n.js?v=20260718a"></script>
+<script src="battle_log_i18n.js?v=20260718b"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
@@ -1296,7 +1296,7 @@ body.in-battle #lab-ai-row{display:flex}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260718d" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260718e" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1780,7 +1780,9 @@ function openItemModal(current, onPick, anchor, usedKeys){
   [['attack','itemcat_attack','こうげき強化'],['speed','itemcat_speed','すばやさ'],['defense','itemcat_defense','ぼうぎょ・たいきゅう'],
    ['heal','itemcat_heal','きのみ・かいふく'],['other','itemcat_other','そのほか']].forEach(([b, k, ja]) => {
     if (!buckets[b].length) return;
-    g.push({label:I18N.t('real_battle.' + k, ja), rows:buckets[b].map(it => ({key:it.key, name:tItemName(it), desc:tItemDesc(it), icon:itemIconHtml(it), selected:current === it.key}))});
+    // ★2026-07-18: ラボはサンドボックス仕様=ポケチャン未実装アイテムも選べる(itemChoicesRBは絞り込まない)が、
+    // 技ピッカーの「🧪 おぼえない技」と同じ流儀で未実装には🧪印を付けて分かるようにする(新i18nキー不要)。
+    g.push({label:I18N.t('real_battle.' + k, ja), rows:buckets[b].map(it => ({key:it.key, name:(it.implemented_in_pokechan === false ? '🧪 ' : '') + tItemName(it), desc:tItemDesc(it), icon:itemIconHtml(it), selected:current === it.key}))});
   });
   openChoiceModal(I18N.t('real_battle.sel_item','もちもの'), g, onPick, anchor);
 }

@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://pchamdb.com/real_battle.html">
 <script defer src="i18n/runtime.js?v=20260705"></script>
 <script src="pokechan_data.js?v=20260705a"></script>
-<script src="battle_log_i18n.js?v=20260718a"></script>
+<script src="battle_log_i18n.js?v=20260718b"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
@@ -1124,7 +1124,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260718d" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260718e" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1369,6 +1369,7 @@ function applyPresetToSlot(id, build){
   if (!poke) return false;
   slotVal[id] = speciesName;
   slotItem[id] = itDef ? itDef.key : 'mega_stone_any';
+  clearUnimplementedItemRB(id);   // ★2026-07-18: プリセットの未実装アイテムはnullへ矯正
   slotAbility[id] = abilityName || defaultAbilityRB(poke);
   slotNature[id] = build.nature || 'まじめ';
   slotEffort[id] = clampEffortRB(build.ev || {});
@@ -1441,7 +1442,19 @@ function setSelectedSlot(id){
 // 選べる持ち物リスト(メガストーンは汎用のみ。旧くわしく編成と同じ絞り込み)
 function itemChoicesRB(){
   // メガストーンは汎用(共通)1つだけ(2026-07-06 阿部さん)。バトル中のメガシンカは1体だけの制限は従来どおり
-  return S.itemsList().filter(it => it.category !== 'mega_stone' || it.key === 'mega_stone_any');
+  // ★2026-07-18: ポケチャン未実装の持ち物(こだわりハチマキ/メガネ/パンチグローブ/くろいヘドロ/とつげきチョッキ/
+  // しんかのきせき/ふうせん/ゴツゴツメット/かえんだま/どくどくだま)はリアルバトルでは選べない(実機準拠)。
+  // ラボ(battle_lab.html)はサンドボックス仕様なのでこのフィルタを入れない=🧪印だけ付けて選択可のまま。
+  return S.itemsList().filter(it => (it.category !== 'mega_stone' || it.key === 'mega_stone_any') && it.implemented_in_pokechan !== false);
+}
+// ★2026-07-18: 保存ビルド/プリセット/受信データ由来の未実装アイテムが装備されていたらnull(既定=もちものなし)へ矯正
+// (normMegaKeyRBと同じ自己修復の流儀。ピッカーはitemChoicesRBで既に未実装を除外しているが、外部由来データは素通りするため)
+function clearUnimplementedItemRB(id, store){
+  const s = store || slotItem;
+  const k = s[id];
+  if (!k || !S || !S.itemByKey) return;
+  const it = S.itemByKey(k);
+  if (it && it.implemented_in_pokechan === false) s[id] = null;
 }
 // 共通選択モーダル: groups=[{label, rows:[{key,name,desc,selected}]}]
 function openChoiceModal(title, groups, onPick, anchor){
@@ -1666,6 +1679,7 @@ function loadTeam(){
       }
       if (!d.val[id] || !S.pokeByName(d.val[id])) return;
       slotItem[id] = d.item && d.item[id] != null ? d.item[id] : 'mega_stone_any';
+      clearUnimplementedItemRB(id);   // ★2026-07-18: 保存データの未実装アイテムはnullへ矯正
       slotGender[id] = (d.gender && d.gender[id]) || genderOfRB(d.val[id]);
       slotNature[id] = (d.nature && d.nature[id]) || 'まじめ';
       // 旧モーダル時代の252等が残っていても仕様値にクランプ(各32・計66=ビルダー仕様)
@@ -1731,6 +1745,7 @@ function loadHandoff(){
       const byKey = (e.moves || []).map(k => all.find(m => m && (m.key === k || m.name === k))).filter(Boolean);
       slotMoves[id] = byKey.length ? byKey.slice(0, 4) : autoMoves(poke);
       slotItem[id] = e.item || 'mega_stone_any';
+      clearUnimplementedItemRB(id);   // ★2026-07-18: ビルダーhandoffの未実装アイテムはnullへ矯正
       slotGender[id] = e.gender || genderOfRB(e.name);
       slotNature[id] = e.nature || 'まじめ';
       slotEffort[id] = clampEffortRB(e.effort || {});
@@ -3947,6 +3962,7 @@ function onlineApplyOppTeam(d){
     const oid = oppIds()[i]; if (!oid) return;
     const nm = d.val[sid]; if (!nm || !S.pokeByName(nm)) return;
     slotItem[oid] = d.item && d.item[sid] != null ? d.item[sid] : 'mega_stone_any';
+    clearUnimplementedItemRB(oid);   // ★2026-07-18: 受信データの未実装アイテムはnullへ矯正
     slotGender[oid] = (d.gender && d.gender[sid]) || genderOfRB(nm);
     slotNature[oid] = (d.nature && d.nature[sid]) || 'まじめ';
     slotEffort[oid] = clampEffortRB((d.effort && d.effort[sid]) || {});
