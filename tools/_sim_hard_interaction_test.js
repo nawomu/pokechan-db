@@ -382,6 +382,10 @@ console.log('\n=== H12: さめはだ × 連続技(ヒット毎反動) [出典: b
 // 出典: https://bulbapedia.bulbagarden.net/wiki/No_Guard_(Ability) / .../One-hit_knockout_move
 // 研究確定(★expected_initialは誤り★): ノーガードは一撃必殺技にも有効=命中判定をスキップして必ず当たる。
 // 多数seedで100%命中するはず。技=つのドリル(ぜったいれいどのような命中率固定条件を持たない一撃技)。
+// H13-c/d/e(2026-07-18追加): 上のコメント(修正前2500行台)は「命中率固定(fixAcc)=一撃必殺は対象外」と
+// 書きつつ、実装は逆に「fixAccが無い時だけノーガード必中」になっていた(唯一fixAccを持つぜったいれいどだけが
+// 除外される保守実装)。Bulbapedia "No Guard"はOHKO技もfixAcc技も区別なく必中にするので、ぜったいれいど自身
+// でも確認する(H13-a/bのつのドリルはfixAcc非保持なのでこの食い違いを踏めていなかった)。
 // ─────────────────────────────────────────────
 console.log('\n=== H13: ノーガード × 一撃必殺技 [出典: bulbapedia.bulbagarden.net/wiki/No_Guard_(Ability)] ===');
 {
@@ -417,6 +421,54 @@ console.log('\n=== H13: ノーガード × 一撃必殺技 [出典: bulbapedia.b
   }
   check(`H13-b 比較対照: ノーガードなしは通常の一撃式(約30%)で外れが多数出る(${N}回中${hitsNormal}回・0<hitsNormal<${N}であること)`,
     hitsNormal > 0 && hitsNormal < N, `hitsNormal=${hitsNormal}/${N}`);
+
+  // H13-c: ぜったいれいど(命中率固定=fixAcc宣言あり)自身もノーガードで必中になるか。
+  // 出典: https://bulbapedia.bulbagarden.net/wiki/No_Guard_(Ability) — No Guardは命中率計算そのものを
+  // スキップするので、fixAccを持つ技(ぜったいれいど=こおり以外20%/こおり30%)も例外なく必中になる。
+  resetEnv();
+  const atkC = freshSide('カイロス', 'zettaireido', { ability: 'ノーガード' });   // こおりタイプでない攻撃者
+  fullHp(atkC);
+  const defC = freshSide('カビゴン', 'hataku', { ability: 'あついしぼう' });      // 一撃無効特性なし・こおりタイプでもない
+  fullHp(defC);
+  E.sides.self = atkC; E.sides.opp = defC;
+  let hitsC = 0;
+  for (let seed = 0; seed < N; seed++) {
+    E.setRandom(mulberry32(seed));
+    const r = E.phaseHitCheck(moveByKey('zettaireido'), atkC, defC);
+    if (r.hit) hitsC++;
+  }
+  check(`H13-c [出典: bulbapedia.bulbagarden.net/wiki/No_Guard_(Ability)] ノーガードはぜったいれいど(命中率固定=fixAcc宣言あり)も必中化する(${N}回中${hitsC}回命中=100%のはず)`,
+    hitsC === N, `hitsC=${hitsC}/${N}`);
+
+  // 比較対照(H13-d): ノーガードなしなら、こおりタイプでない攻撃者は命中率固定(fixAcc)により20%のまま
+  //(=修正はノーガード時だけの上書きで、fixAcc自体の計算は変えていないことの確認)。
+  // 出典: https://bulbapedia.bulbagarden.net/wiki/Sheer_Cold — 自分がこおりタイプでない場合は命中率20%(第7世代以降)。
+  resetEnv();
+  const atkD = freshSide('カイロス', 'zettaireido', { ability: 'かいりきバサミ' });
+  fullHp(atkD);
+  const defD = freshSide('カビゴン', 'hataku', { ability: 'あついしぼう' });
+  fullHp(defD);
+  E.sides.self = atkD; E.sides.opp = defD;
+  let hitsD = 0;
+  for (let seed = 0; seed < N; seed++) {
+    E.setRandom(mulberry32(seed));
+    const r = E.phaseHitCheck(moveByKey('zettaireido'), atkD, defD);
+    if (r.hit) hitsD++;
+  }
+  check(`H13-d 比較対照: ノーガードなしのぜったいれいどは命中率固定(こおり以外=20%)のまま(${N}回中${hitsD}回・0<hitsD<${N}であること)`,
+    hitsD > 0 && hitsD < N, `hitsD=${hitsD}/${N}`);
+
+  // H13-e(範囲外メモ・skip): ぜったいれいど固有の「こおりタイプの相手には無効」宣言
+  // (battle_data.immune=[{type:'target_is_type', values:['こおり']}])は、フェーズ0c(命中判定=今回の修正箇所)にも
+  // フェーズ8(ダメ計算・moveTypeEffベースのOHKO無効判定=phaseDealDamage 2626行付近)にも接続されていない
+  //(moveTypeEff('こおり',['こおり'])=0.5倍でありimmune扱いされず、battle_data.immune配列はAIヒューリスティック
+  // (aiStatusImmune等)からしか参照されない=ダメージ適用では未使用)。実測: オニゴーリ(ノーガード)のぜったいれいど
+  // をバイバニラ(こおりタイプ)へ撃つとimmuneにならずKOする(2026-07-18確認)。
+  // これは今回の修正(命中率のみ)とは独立した既存の別ギャップ=最小差分の方針により本タスクでは未修正・報告のみ。
+  // 出典(権威仕様): https://bulbapedia.bulbagarden.net/wiki/Sheer_Cold 「This move cannot target an Ice-type Pokémon.」
+  skipCase('H13-e ぜったいれいど: こおりタイプの相手への無効判定はダメ計算側で未接続(既存の別ギャップ・本修正の範囲外)',
+    '出典: bulbapedia.bulbagarden.net/wiki/Sheer_Cold。battle_data.immune(target_is_type)がphaseDealDamageの' +
+    'OHKO分岐から未参照のため実測でも無効化されない(2026-07-18確認・本diffでは不変更)');
 }
 
 // ─────────────────────────────────────────────

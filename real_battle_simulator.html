@@ -2497,13 +2497,16 @@ function phaseHitCheck(move, atk, def){
   if (sideAbility(atk) === 'はりきり' && move.category === '物理') acc = acc * 0.8;
   // 命中・回避ランク補正(段108・従来はランク0前提でかげぶんしん等が効いていなかった)
   // 実効命中 = 技の命中 × ランク補正((命中-回避)を-6..+6に丸め、+n=(3+n)/3・-n=3/(3+n))
-  // ノーガード(どちらかが持つ)=必ず命中(命中率固定=一撃必殺は対象外の保守実装・要権威確認はpark)
+  // ノーガード(どちらかが持つ)=必ず命中。一撃必殺(ぜったいれいど等の命中率固定=fixAcc技も含む)も対象。
+  // 出典: Bulbapedia "No Guard"(OHKO技もノーガード下では必中になる)。
+  // ※ぜったいれいど固有の「こおりタイプには無効/がんじょう無効」等は命中判定でなく別処理(ダメージ計算側)の
+  //   無効判定なので、ここで必中にしても維持される(必中になるのは命中率の部分のみ)。
   // するどいめ=相手の回避ランク上昇と自分の命中ランク低下を無視(第6世代以降)
   // 出典: ポケモンWiki「命中」/Bulbapedia "Accuracy"・ABILITY_DESC(公式準拠)
   {
     const _aAb = sideAbility(atk);
     const _dAb = def ? sideAbility(def) : '';
-    if ((_aAb === 'ノーガード' || _dAb === 'ノーガード') && !fixAcc) return {hit: true};
+    if (_aAb === 'ノーガード' || _dAb === 'ノーガード') return {hit: true};
     let _accR = (atk.rank && atk.rank.acc) || 0;
     let _evaR = (def && def.rank && def.rank.eva) || 0;
     if (_aAb === 'するどいめ'){
