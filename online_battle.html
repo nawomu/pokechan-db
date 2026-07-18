@@ -13,7 +13,7 @@
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
 <script src="battle_fx_cues.js?v=20260716c"></script>
-<script src="fx_primitives.js?v=20260718b"></script>
+<script src="fx_primitives.js?v=20260718c"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -2595,6 +2595,7 @@ function startBattle(){
   ['c-fight','c-party','c-run'].forEach(id => { const b = $(id); if (b) { b.disabled = false; b.style.display = ''; } });
   ['f-self','f-opp'].forEach(id => { const f = $(id); if (f) f.classList.remove('gone','faint','rb-wall-reflect','rb-wall-screen','rb-wall-veil'); });   // 前試合のひんし退場/壁パネルを解除
   clearHazardFx('self'); clearHazardFx('opp');   // P2: 前試合の設置物アイコンも全クリア(2026-07-18)
+  _statusCueSup = false;   // 変化技Phase2: 前試合の抑制ウィンドウが残らないようリセット(2026-07-18)
   window._idSnap = null;   // 表示個体スナップも初期化(初回登場から素直に描く)
   hideResultBanner();   // 前試合の勝敗バナーを消す
   buildSide('self', orderedIds('self'));   // 1番目に選んだ子を先頭に
@@ -3911,9 +3912,39 @@ function splitBattleLines(msg){
   return [msg];
 }
 const _recallTimer = {};   // 交代1拍目のgone遅延タイマー(2拍目で必ずキャンセル=出た直後に消えるバグ根治)
+// ★変化技Phase2(2026-07-18・設計_変化技演出_2026-07-16.md §2 Phase2): 変化技cueシートの抑制ウィンドウ。
+// lineWithFxはログ順に呼ばれる(flatMap)ので、ビルド時にこのフラグを立て/降ろしして各行のfxに焼き込む。
+// done:trueの変化技シートが1枚も無い現状は常にfalse=従来挙動と完全同一(回帰の要)。
+let _statusCueSup = false;
 function lineWithFx(msg, opts){
   opts = opts || {};
+  // ★変化技Phase2: 変化技の使用行(裸の「A の 技！」)で move:個別・done:true のシートだけを引く
+  // (resolveStatusCueSheet=pattern:/class:フォールバック無し=調整した技だけ変わる安全設計・設計§2)。
+  // シートがあれば使用行でplayCueSheet再生し、後続の効果行の「一過性」演出(rank矢印/状態pop/キラキラ/
+  // シールド等)を境界行まで抑制する(二重演出防止)。持続系(天候/フィールド/壁/設置アイコン)と状態同期
+  // (HPバー/renderAll/みがわり姿)は抑制しない(シートが持たない場合に消えてしまうため=安全側)。
+  // 境界行=次の技使用行/ダメージを含む行/外れ/交代/登場/ひんし行(=次のアクションの開始)。
+  let _stPlay = null;
+  {
+    const useM = !opts.forceAttackFx && msg.match(/^(相手の )?\S+ の (\S+)！$/);
+    if (useM){
+      // 裸の「A の ◯◯！」形は特性の入場宣言(かたやぶり等)とも同形→movesに実在する変化技のみ採用
+      const s = useM[1] ? 'opp' : 'self';
+      const mv = (S.sides[s].moves || []).find(m => m && m.name === useM[2]);
+      const sheet = (mv && mv.category === '変化') ? resolveStatusCueSheet(mv) : null;
+      _statusCueSup = !!sheet;   // シート無しの使用行/特性宣言行はウィンドウ終了(false)
+      if (sheet) _stPlay = { sheet, atkSide: s, tgtSide: s === 'self' ? 'opp' : 'self', mv };
+    } else if (/ダメージ|は外れた！$|は 引っ込んだ！$|^もどれ！|を 引っ込めた！$|が 場に出た！|^いけっ！|を くりだした！$|は ひんしになった！/.test(msg)){
+      _statusCueSup = false;
+    }
+  }
+  const _sup = _statusCueSup && !_stPlay;   // 使用行自身は抑制しない(この行がシートを再生する)
   const fx = () => {
+    // ★変化技Phase2: 使用行のcueシート再生。dmgTextは渡さない(undefined)=popnumはシートの
+    // text/textKey(見本文言・i18n解決)をそのまま出す(dmgText:null明示=popnum全抑制、とは別の契約)。
+    if (_stPlay){
+      playCueSheet(_stPlay.sheet, { atkSide: _stPlay.atkSide, tgtSide: _stPlay.tgtSide, mv: _stPlay.mv });
+    }
     const hpM = msg.match(/\(残(?:り)?HP (\d+)(?:\/(\d+))?\)/);
     const subjOpp = msg.startsWith('相手の');   // 行の主語(先頭)が相手側か
     // ① 攻撃のダメージ行: 「A の 技！ … ダメージ！」(対象=攻撃側の反対。連続ヒット・みがわりも同じ形)
@@ -3984,7 +4015,9 @@ function lineWithFx(msg, opts){
         // うけた！ Nダメージ！」は「で」を挟まない形で従来のdマッチから漏れていた(バーだけ減る)→追加。
         // P0-4: やどりぎ等「HPを N 吸いとった！」(吸収回復)は「けずった」でないので漏れていた→+N緑+sparkleFxを追加。
         const d = msg.match(/で (\d+) ダメージ|HPを (\d+) けずった|の こうげきを うけた！ (\d+) ダメージ|HPを (\d+) 吸いとった/);
-        if (d && d[4]){ popText(side, '＋' + d[4], '#4ade80', 15); sparkleFx(side); }
+        // 変化技Phase2: _sup中はpop/キラキラだけ抑制(HPバー同期=上のsetHpBarは常に実行=状態は正)
+        if (_sup){}
+        else if (d && d[4]){ popText(side, '＋' + d[4], '#4ade80', 15); sparkleFx(side); }
         else if (d){ popText(side, '−' + (d[1] || d[2] || d[3]), '#f87171', 15); flash(side, 'hit'); }
         else if (/回復/.test(msg)) popText(side, '＋', '#8ef5b0', 15);
       }
@@ -4037,8 +4070,8 @@ function lineWithFx(msg, opts){
     const subAppear = msg.match(/^(相手の )?\S+ の みがわりが あらわれた！/);
     if (subAppear){
       const side = subAppear[1] ? 'opp' : 'self';
-      setSpriteSub(side, true);      // ポケモンが消えて みがわり人形が出る
-      flash(side, 'enter'); popText(side, '🎭', null, 22); SE.enter();
+      setSpriteSub(side, true);      // ポケモンが消えて みがわり人形が出る(状態=抑制しない)
+      if (!_sup){ flash(side, 'enter'); popText(side, '🎭', null, 22); SE.enter(); }   // 変化技Phase2: 一過性のみ抑制
     }
     const subHitM = msg.match(/(相手の )?\S+ の みがわりが (\d+) ダメージを 受けた！/);
     if (subHitM){
@@ -4055,7 +4088,7 @@ function lineWithFx(msg, opts){
     else if (msg === 'きゅうしょに あたった！'){ setTimeout(() => { impactFrameFx(); screenFlash('#ffd96b'); popText(lastTgt || 'opp', '急所!', '#ff8866', 17, 'crit'); SE.crit(); if (_lastHitBig) SE.explosion(); fieldShake(1.6); if (lastTgt) spawnBurstRing($('f-' + lastTgt), '#ff8866'); }, _hitFxDelay); }
     // ④ 状態異常・こんらん: 絵文字を浮かべる
     // メロメロ(段139)の演出
-    if (/メロメロに なった！/.test(msg)){ popText(msg.includes('相手の') ? 'opp' : 'self', '💕', null, 26); renderAll(); }
+    if (/メロメロに なった！/.test(msg)){ if (!_sup) popText(msg.includes('相手の') ? 'opp' : 'self', '💕', null, 26); renderAll(); }
     if (/は メロメロだ！|メロメロで 技が だせなかった/.test(msg)){ popText(msg.startsWith('相手の') ? 'opp' : 'self', '💕', null, 22); }
     const stM = msg.match(/は (もうどく|どく|まひ|やけど|こおり|ねむり|ねむけ) 状態になった！|は (こんらん)した！/);
     if (stM){
@@ -4066,13 +4099,13 @@ function lineWithFx(msg, opts){
       const emo = (STATUS_FX[key] || {}).icon;
       // Wave2: 状態異常の色フラッシュ+専用短音(まひ=ビリッ/やけど=ジュッ/こおり=キン/ねむり=Zz/どく=ボコッ・2026-07-10)
       const fxc = (STATUS_FX[key] || {}).color;
-      if (emo){ popText(side, emo, null, 24); burstFx(side, fxc || '#c9a0e0'); SE.ailment(key); }
+      if (emo && !_sup){ popText(side, emo, null, 24); burstFx(side, fxc || '#c9a0e0'); SE.ailment(key); }   // 変化技Phase2: renderAll(状態)は常に実行
       renderAll();
     }
     // ④b Wave2: ランク変化(緑↑/紫↓の粒子+上昇/下降音・段数で粒子数)。
     // ひらがな「あがった/さがった」はランク変化専用の語(「飛び上がった」等は漢字「上がった」)なので誤爆しない(裏取り済み)
     const rkM = msg.match(/(あがった|さがった)！/);
-    if (rkM){
+    if (rkM && !_sup){
       const up = rkM[1] === 'あがった';
       let rkSide = subjOpp ? 'opp' : 'self';
       // いかく等「Aの いかくで (相手の)?B のこうげきがさがった！」は対象がBなので「いかくで」以降の相手の有無で判定
@@ -4089,7 +4122,7 @@ function lineWithFx(msg, opts){
     // でんきエンジン/あめまみれ/ねばねばネット等)は「あがった/さがった」を含まないので上のrkMから漏れる。
     // 能力名+符号付き数字を全部拾って各方向にrankFxを発火する(1行に2箇所ある「くだけるよろい」も両方出す)。
     const pnRankMs = [...msg.matchAll(/(?:こうげき|ぼうぎょ|とくこう|とくぼう|すばやさ)([+-]\d+)/g)];
-    if (pnRankMs.length){
+    if (pnRankMs.length && !_sup){
       const pnSide = subjOpp ? 'opp' : 'self';
       pnRankMs.forEach(m => rankFx(pnSide, m[1][0] === '+', Math.abs(+m[1])));
     }
@@ -4195,7 +4228,7 @@ function lineWithFx(msg, opts){
     // まもる系: 「X は まもる で 守りの体勢に入った！」→バリアドーム(shieldFx・2026-07-17 阿部さんFB。
     // 色=SHIELD_FX_COLOR(fx_primitives.js共有・キングシールド=金等)。技名はここでは表示済みja正文から取る)
     const protM = msg.match(/^(相手の )?\S+ は (\S+) で 守りの体勢に入った！$/);
-    if (protM) shieldFx(protM[1] ? 'opp' : 'self', SHIELD_FX_COLOR[protM[2]]);
+    if (protM && !_sup) shieldFx(protM[1] ? 'opp' : 'self', SHIELD_FX_COLOR[protM[2]]);
     const wallUpM = msg.match(/^(相手の )?\S+ の場に (リフレクター|ひかりのかべ|オーロラベール) が 張られた！$/);
     if (wallUpM) showWallFx(wallUpM[1] ? 'opp' : 'self', wallUpM[2]);
     const wallDownM = msg.match(/^(相手の )?\S+ の場の (リフレクター|ひかりのかべ|オーロラベール) の効果が なくなった！$/);
@@ -4216,23 +4249,22 @@ function lineWithFx(msg, opts){
     if (/の場の 設置物が 消えた！$/.test(msg)) clearHazardFx(subjOpp ? 'opp' : 'self');
     if (/は どくびしを 吸収した！$/.test(msg)) hazardFx(subjOpp ? 'opp' : 'self', 'toxic', 0);
     // P2小演出(2026-07-18・設計§4): やどりぎ植え付け(常駐なし・popのみ)。行の主語=植えられた側(pname(def))
-    if (/に やどりぎのタネを 植えつけた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🌱', null, 24);
+    if (!_sup && /に やどりぎのタネを 植えつけた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🌱', null, 24);
     // P2小演出: ほろびのうたカウント(3→2→1の数字pop。行は側ごとに出る=各行の主語側へ。0はひんし行と同拍)
     const perishM = msg.match(/の ほろびのカウントが (\d)になった！/);
-    if (perishM) popText(subjOpp ? 'opp' : 'self', perishM[1], '#c084fc', 30);
+    if (perishM && !_sup) popText(subjOpp ? 'opp' : 'self', perishM[1], '#c084fc', 30);
     // P2小演出: へんしん/かわりもの「◯◯ は (かわりもので )?◯◯ に へんしんした！」=白フラッシュ+renderAll
     // (スプライトの差し替わりを見せる)。かわりもの行は_ABILITY_GENERIC_REのバナーも同じ行に乗る(そのまま)
     if (/に へんしんした！$/.test(msg)){
       const _hnSide = subjOpp ? 'opp' : 'self';
-      screenFlash('#ffffff');
-      renderAll();
-      flash(_hnSide, 'enter');
-      SE.status();
+      if (!_sup) screenFlash('#ffffff');   // 変化技Phase2: フラッシュ/SEは一過性=抑制対象
+      renderAll();                         // スプライト差し替え(状態)は常に実行
+      if (!_sup){ flash(_hnSide, 'enter'); SE.status(); }
     }
     // P2小演出: 道具系。はたきおとす/どろぼう成立行=主語が攻撃側なので対象(道具が飛ぶ側)は反対側。
     // トリックは両者交換=両側に🎒。ふうせん割れは主語側(持ち主)に💥
-    if (/を はたきおとした！$/.test(msg) || /を うばいとった！$/.test(msg)) popText(subjOpp ? 'self' : 'opp', '🎒', null, 24);
-    if (/おたがいの 道具を 入れかえた！/.test(msg)){ popText('self', '🎒', null, 22); popText('opp', '🎒', null, 22); }
+    if (!_sup && (/を はたきおとした！$/.test(msg) || /を うばいとった！$/.test(msg))) popText(subjOpp ? 'self' : 'opp', '🎒', null, 24);
+    if (!_sup && /おたがいの 道具を 入れかえた！/.test(msg)){ popText('self', '🎒', null, 22); popText('opp', '🎒', null, 22); }
     if (/の ふうせんが 割れた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '💥', null, 26);
     // バトルスイッチ(ギルガルド): フォルムチェンジでスプライト・能力表示を更新
     if (/フォルム チェンジ！/.test(msg)){
@@ -4254,7 +4286,7 @@ function lineWithFx(msg, opts){
       flash(subjOpp ? 'opp' : 'self', 'enter');
       SE.mega();
     }
-    if (/回復/.test(msg)){ renderAll(); if (hpM){ const hSide = subjOpp ? 'opp' : 'self'; popText(hSide, '＋', '#4ade80', 18); sparkleFx(hSide); SE.heal(); } }
+    if (/回復/.test(msg)){ renderAll(); if (hpM && !_sup){ const hSide = subjOpp ? 'opp' : 'self'; popText(hSide, '＋', '#4ade80', 18); sparkleFx(hSide); SE.heal(); } }   // 変化技Phase2: renderAll(状態)は常に実行
   };
   // ★2026-07-16連続技演出: 連続技の各ヒット行はline.holdで送り速度を短く上書きし、パッパッと連打に見せる
   // (W3のpreattack予告と同じ機構=line.holdがsay()側の$('msg-speed')より優先される・2026-07-13で導入済み)。

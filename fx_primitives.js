@@ -1039,6 +1039,16 @@ function resolveCueSheet(mv){
   }
   return null;
 }
+// ★変化技Phase2(2026-07-18・設計_変化技演出_2026-07-16.md §2 Phase2): 変化技用のシート解決。
+// resolveCueSheet(攻撃技用)と違い move:個別のみ(pattern:/class:フォールバック無し)=
+// 「調整した技だけ変わる安全設計」(設計§2 Phase2の指定)。done===trueのみ採用も同じ。
+// 現状done:trueの変化技シートは未作成=常にnull=呼び出し側は従来の正規表現fx経路のまま(完全不変)。
+function resolveStatusCueSheet(mv){
+  const map = window.BATTLE_FX_CUES;
+  if (!mv || !map) return null;
+  const sheet = map['move:' + mv.name];
+  return (sheet && sheet.done === true) ? sheet : null;
+}
 // 技→大分類キー(class:の後半)。物理・接触='phys_contact'/物理・非接触='phys_ranged'/特殊='special'。
 // それ以外(変化技等)は空文字=classフォールバック無し。
 function _cueClassKey(mv){
@@ -1219,7 +1229,15 @@ function _dispatchCueProd(cue, info){
       // 与えた数字」だけ=通常攻撃はsimの計算済み実ダメージ行から取るので従来どおり)。
       // エディタのプレビューはdmgText未定義(undefined)=従来どおりp.textの見本を出す(nullと区別)。
       if (info.dmgText === null) { if (info.onDef) info.onDef(atSide); return; }
-      popText(atSide, info.dmgText != null ? info.dmgText : (p.text || ''), p.color || '#fff', sz, null, cue.dur, popOpts);
+      // ★変化技Phase2(2026-07-18・設計_変化技演出_2026-07-16.md §2 Phase2の必須条件): popnumの固定文言は
+      // 生ja直書き(p.text)でなく p.textKey(i18nキー・'fxcue.'名前空間)で持ち、表示時にI18N.tで解決する
+      // (i18n-first。popは一過性1秒=言語切替の再翻訳は不要)。textKey無し=従来どおりp.text(既存の攻撃技
+      // シート/エディタプレビューは1msも不変=後方互換)。数字・記号だけのtext(＋/−42等)は言語非依存なので
+      // textのままで可(設計§2の指定)。ja正文はI18N.tの第2引数(フォールバック)としてp.textに残す。
+      const _cueTxt = p.textKey
+        ? ((window.I18N && window.I18N.t) ? window.I18N.t('fxcue.' + p.textKey, p.text || '') : (p.text || ''))
+        : (p.text || '');
+      popText(atSide, info.dmgText != null ? info.dmgText : _cueTxt, p.color || '#fff', sz, null, cue.dur, popOpts);
       if (info.onDef) info.onDef(atSide);
     }
   } catch (e) { console.error('[playCueSheet dispatch error]', cue, e); }
