@@ -13,7 +13,7 @@
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
 <script src="battle_fx_cues.js?v=20260716c"></script>
-<script src="fx_primitives.js?v=20260717c"></script>
+<script src="fx_primitives.js?v=20260718b"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -771,6 +771,15 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
  * flash(side,'endure')でこのclassが.fighterに一瞬付き800ms後に自動で外れる(既存flash()の契約どおり)。 */
 #f-opp.endure .sprite img,#f-self.endure .sprite img{animation:rbEndureFlash .35s ease}
 @keyframes rbEndureFlash{0%{filter:brightness(1)}30%{filter:brightness(2.4) saturate(0)}100%{filter:brightness(1)}}
+/* P2: 設置物の常駐ミニアイコン(hazardFx・2026-07-18 設計_特性・場エフェクト増強_2026-07-17.md §4)。
+ * #f-<side>の下端(platformの脇)に🪨△☠🕸を控えめに常駐。renderAllは.sprite内しか触らない=常駐に耐える。 */
+.rb-hazards{position:absolute;left:50%;bottom:-14px;transform:translateX(-50%);display:flex;gap:3px;
+  pointer-events:none;z-index:2;font-size:13px;line-height:1;filter:drop-shadow(0 1px 2px #0008);opacity:.9}
+.rb-hazard{animation:rbHazardPop .4s ease}
+@keyframes rbHazardPop{0%{opacity:0;transform:translateY(6px) scale(.5)}100%{opacity:1;transform:none}}
+.rb-hazard-spikes{color:#e3e3e3;font-size:11px;font-weight:900}
+.rb-hazard-toxic{color:#c084fc}
+.rb-hazard-web{font-size:14px}
 
 /* ===== Wave4 B級(juiceパス・2026-07-10 設計_バトル演出強化_2026-07-10.md v2): インパクトフレーム =====
  * 急所/KO級限定(通常打には出さない=特別感の温存)。transition:noneが命(class付与→50msでremove・JS側)。
@@ -1232,7 +1241,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260718b" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260718c" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1317,12 +1326,9 @@ const tAbilityName = nm => (window.I18N && window.I18N.ability) ? window.I18N.ab
 // 特性名リスト(2026-07-17・設計_特性・場エフェクト増強_2026-07-17.md §2): ABILITY_DESC辞書(pokechan_data.js)の
 // JA名から動的生成(ハードコードしない)。長い名前を先に並べる(部分一致の罠=「かちき」の中に「ち」だけ拾う等を回避)。
 // lineWithFxの汎用マッチ(_ABILITY_GENERIC_RE)がこの一覧をそのまま使う=辞書が増えても自動で拾う。
-// ★ABILITY_DESC(pokechan_data.js)にメイカー4種(エレキ/グラス/ミスト/サイコメイカー)が未収録と判明
-// (2026-07-17実測=辞書の抜け・別件のSSOT不備)。P1バナーがフィールド展開特性を取りこぼさないよう
-// ここだけ既知の補完(辞書修正はSSOT側の別作業=このパッチの対象外)。
+// メイカー4種(エレキ/グラス/ミスト/サイコメイカー)はABILITY_DESC(SSOT)に追加済み(2026-07-18)=
+// 2026-07-17の手動補完(ローカルconcat)は撤去。以降の特性追加も辞書に入れれば自動で拾われる。
 const _ABILITY_NAMES = (typeof ABILITY_DESC !== 'undefined' ? Object.keys(ABILITY_DESC) : [])
-  .concat(['エレキメイカー', 'グラスメイカー', 'ミストメイカー', 'サイコメイカー'])
-  .filter((v, i, a) => a.indexOf(v) === i)
   .sort((a, b) => b.length - a.length);
 const _ABILITY_RE_SRC = _ABILITY_NAMES.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
 // 「Aの/はプレッシャー」のように名前の直後に特性名が来て、直後が「で/！/を」で終わる行を広く拾う
@@ -2588,6 +2594,7 @@ function startBattle(){
   const _nb = $('c-next'); if (_nb) _nb.remove();
   ['c-fight','c-party','c-run'].forEach(id => { const b = $(id); if (b) { b.disabled = false; b.style.display = ''; } });
   ['f-self','f-opp'].forEach(id => { const f = $(id); if (f) f.classList.remove('gone','faint','rb-wall-reflect','rb-wall-screen','rb-wall-veil'); });   // 前試合のひんし退場/壁パネルを解除
+  clearHazardFx('self'); clearHazardFx('opp');   // P2: 前試合の設置物アイコンも全クリア(2026-07-18)
   window._idSnap = null;   // 表示個体スナップも初期化(初回登場から素直に描く)
   hideResultBanner();   // 前試合の勝敗バナーを消す
   buildSide('self', orderedIds('self'));   // 1番目に選んだ子を先頭に
@@ -4196,6 +4203,37 @@ function lineWithFx(msg, opts){
     // 技で壊された場合の文言は常に「相手の場の…」表記(既存の他fx同様、subjOpp慣習=「相手の」接頭で側を読む)
     const wallBreakM = msg.match(/^相手の場の (リフレクター|ひかりのかべ|オーロラベール) が こわれて消えた！$/);
     if (wallBreakM) hideWallFx('opp', wallBreakM[1]);
+    // P2(2026-07-18・設計_特性・場エフェクト増強_2026-07-17.md §4): 設置物の常駐ミニアイコン(hazardFx)。
+    // 設置行の主語=設置される側(技を受ける側の場。エンジンはpname(def)で行を作る)なので、
+    // subjOpp(行頭「相手の」)がそのまま側になる(いかく行と同じログ文言からの側解決)。層数は「(N層)」から読む。
+    if (/の足元に とがった岩が 浮かびはじめた！$/.test(msg)) hazardFx(subjOpp ? 'opp' : 'self', 'rock', 1);
+    const spkM = msg.match(/の足元に まきびしが 散らばった！\((\d)層\)$/);
+    if (spkM) hazardFx(subjOpp ? 'opp' : 'self', 'spikes', +spkM[1]);
+    const tspkM = msg.match(/の足元に どくびしが 散らばった！\((\d)層\)$/);
+    if (tspkM) hazardFx(subjOpp ? 'opp' : 'self', 'toxic', +tspkM[1]);
+    if (/の足元に ねばねばネットが 広がった！$/.test(msg)) hazardFx(subjOpp ? 'opp' : 'self', 'web', 1);
+    // 消滅: こうそくスピン系「◯◯ の場の 設置物が 消えた！」=主語側の全消し / どくびし吸収=どくびしのみ消える
+    if (/の場の 設置物が 消えた！$/.test(msg)) clearHazardFx(subjOpp ? 'opp' : 'self');
+    if (/は どくびしを 吸収した！$/.test(msg)) hazardFx(subjOpp ? 'opp' : 'self', 'toxic', 0);
+    // P2小演出(2026-07-18・設計§4): やどりぎ植え付け(常駐なし・popのみ)。行の主語=植えられた側(pname(def))
+    if (/に やどりぎのタネを 植えつけた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🌱', null, 24);
+    // P2小演出: ほろびのうたカウント(3→2→1の数字pop。行は側ごとに出る=各行の主語側へ。0はひんし行と同拍)
+    const perishM = msg.match(/の ほろびのカウントが (\d)になった！/);
+    if (perishM) popText(subjOpp ? 'opp' : 'self', perishM[1], '#c084fc', 30);
+    // P2小演出: へんしん/かわりもの「◯◯ は (かわりもので )?◯◯ に へんしんした！」=白フラッシュ+renderAll
+    // (スプライトの差し替わりを見せる)。かわりもの行は_ABILITY_GENERIC_REのバナーも同じ行に乗る(そのまま)
+    if (/に へんしんした！$/.test(msg)){
+      const _hnSide = subjOpp ? 'opp' : 'self';
+      screenFlash('#ffffff');
+      renderAll();
+      flash(_hnSide, 'enter');
+      SE.status();
+    }
+    // P2小演出: 道具系。はたきおとす/どろぼう成立行=主語が攻撃側なので対象(道具が飛ぶ側)は反対側。
+    // トリックは両者交換=両側に🎒。ふうせん割れは主語側(持ち主)に💥
+    if (/を はたきおとした！$/.test(msg) || /を うばいとった！$/.test(msg)) popText(subjOpp ? 'self' : 'opp', '🎒', null, 24);
+    if (/おたがいの 道具を 入れかえた！/.test(msg)){ popText('self', '🎒', null, 22); popText('opp', '🎒', null, 22); }
+    if (/の ふうせんが 割れた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '💥', null, 26);
     // バトルスイッチ(ギルガルド): フォルムチェンジでスプライト・能力表示を更新
     if (/フォルム チェンジ！/.test(msg)){
       const side = msg.includes('相手の') ? 'opp' : 'self';

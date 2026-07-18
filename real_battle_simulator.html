@@ -2630,6 +2630,16 @@ function phaseDealDamage(atkSide, defSide, move){
       log('8', `${pname(df)} には こうかが ないようだ…`);
       return { immune: true, reason: 'こうかなし' };
     }
+    // 技固有のタイプ無効宣言(battle_data.immune の target_is_type)を読む(汎用・H13-e 2026-07-18):
+    // ぜったいれいどは「こおりタイプには効かない」(相性0.5倍なのでmoveTypeEffでは弾けない技固有ルール)。
+    // ノーガード必中とも独立(必中は命中率の話・無効は無効のまま)。出典: Bulbapedia "Sheer Cold"
+    // 「This move cannot target an Ice-type Pokémon.」。従来この宣言はAIヒューリスティック(aiStatusImmune)しか
+    // 読んでおらずダメ計算では未接続だった。
+    const _imType = ((move.battle_data && move.battle_data.immune) || []).find(im => im.type === 'target_is_type');
+    if (_imType && (_imType.values || [_imType.value]).some(t => defTypes.includes(t))){
+      log('8', `${pname(df)} には こうかが ないようだ…`);
+      return { immune: true, reason: 'こうかなし' };
+    }
     // がんじょう: 一撃必殺技を無効化(ABILITY_DESC公式準拠・段110)
     if (ohkoEf && sideAbility(df) === 'がんじょう'){
       log('8', `${pname(df)} は がんじょうで 一撃必殺が 効かない！`);

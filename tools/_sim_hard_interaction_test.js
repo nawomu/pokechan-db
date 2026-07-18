@@ -458,17 +458,38 @@ console.log('\n=== H13: ノーガード × 一撃必殺技 [出典: bulbapedia.b
   check(`H13-d 比較対照: ノーガードなしのぜったいれいどは命中率固定(こおり以外=20%)のまま(${N}回中${hitsD}回・0<hitsD<${N}であること)`,
     hitsD > 0 && hitsD < N, `hitsD=${hitsD}/${N}`);
 
-  // H13-e(範囲外メモ・skip): ぜったいれいど固有の「こおりタイプの相手には無効」宣言
-  // (battle_data.immune=[{type:'target_is_type', values:['こおり']}])は、フェーズ0c(命中判定=今回の修正箇所)にも
-  // フェーズ8(ダメ計算・moveTypeEffベースのOHKO無効判定=phaseDealDamage 2626行付近)にも接続されていない
-  //(moveTypeEff('こおり',['こおり'])=0.5倍でありimmune扱いされず、battle_data.immune配列はAIヒューリスティック
-  // (aiStatusImmune等)からしか参照されない=ダメージ適用では未使用)。実測: オニゴーリ(ノーガード)のぜったいれいど
-  // をバイバニラ(こおりタイプ)へ撃つとimmuneにならずKOする(2026-07-18確認)。
-  // これは今回の修正(命中率のみ)とは独立した既存の別ギャップ=最小差分の方針により本タスクでは未修正・報告のみ。
+  // H13-e/f(2026-07-18昇格・元はskipメモ): ぜったいれいど固有の「こおりタイプの相手には無効」。
+  // 宣言データ=battle_data.immune=[{type:'target_is_type', values:['こおり']}](ぜったいれいどのみが保持)。
+  // moveTypeEff('こおり',['こおり'])=0.5倍なので相性0倍の汎用無効では弾けず、phaseDealDamageのOHKO分岐に
+  // target_is_type宣言を読む汎用判定を追加した(従来はAIヒューリスティックのみが参照=実戦でKOしてしまうバグ)。
+  // ノーガードとも独立: 必中化されるのは命中率のみで、無効(こうかなし)は無効のまま。
   // 出典(権威仕様): https://bulbapedia.bulbagarden.net/wiki/Sheer_Cold 「This move cannot target an Ice-type Pokémon.」
-  skipCase('H13-e ぜったいれいど: こおりタイプの相手への無効判定はダメ計算側で未接続(既存の別ギャップ・本修正の範囲外)',
-    '出典: bulbapedia.bulbagarden.net/wiki/Sheer_Cold。battle_data.immune(target_is_type)がphaseDealDamageの' +
-    'OHKO分岐から未参照のため実測でも無効化されない(2026-07-18確認・本diffでは不変更)');
+  //                https://bulbapedia.bulbagarden.net/wiki/No_Guard_(Ability)(必中化しても型無効は消えない)
+  resetEnv();
+  const atkE = freshSide('オニゴーリ', 'zettaireido', { ability: 'ノーガード' });   // こおりタイプ使用者+ノーガード
+  fullHp(atkE);
+  const defE = freshSide('バイバニラ', 'hataku', { ability: 'アイスボディ' });      // 純こおりタイプ(一撃無効特性なし)
+  const defEMax = fullHp(defE);
+  E.sides.self = atkE; E.sides.opp = defE;
+  E.setRandom(mulberry32(20260718));
+  const hitE = E.phaseHitCheck(moveByKey('zettaireido'), atkE, defE);
+  const dmgE = E.phaseDealDamage('self', 'opp', moveByKey('zettaireido'));
+  check('H13-e [出典: bulbapedia.bulbagarden.net/wiki/Sheer_Cold] ぜったいれいどはこおりタイプの相手に無効(ノーガード下でも無効のまま・HP無傷)',
+    hitE.hit === true && !!(dmgE && dmgE.immune) && defE.currentHp === defEMax && !defE.fainted,
+    `hit=${hitE && hitE.hit} immune=${dmgE && dmgE.immune} hp=${defE.currentHp}/${defEMax}`);
+
+  // 比較対照(H13-f): こおりタイプでない相手には従来どおり一撃(=無効判定がこおり限定であることの確認)。
+  resetEnv();
+  const atkF = freshSide('オニゴーリ', 'zettaireido', { ability: 'ノーガード' });
+  fullHp(atkF);
+  const defF = freshSide('カビゴン', 'hataku', { ability: 'あついしぼう' });        // こおりタイプでない・一撃無効特性なし
+  fullHp(defF);
+  E.sides.self = atkF; E.sides.opp = defF;
+  E.setRandom(mulberry32(20260718));
+  const dmgF = E.phaseDealDamage('self', 'opp', moveByKey('zettaireido'));
+  check('H13-f 比較対照: こおりタイプでない相手には一撃で入る(無効判定はこおり限定)',
+    !!(dmgF && !dmgF.immune) && defF.fainted === true && defF.currentHp === 0,
+    `immune=${dmgF && dmgF.immune} fainted=${defF.fainted} hp=${defF.currentHp}`);
 }
 
 // ─────────────────────────────────────────────

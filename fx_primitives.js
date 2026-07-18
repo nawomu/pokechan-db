@@ -893,6 +893,42 @@ function abilityFx(side, abilityName){
   _fxAutoRemove(el, 1450);
   SE.status();   // SE.status系の短い音(設計§2指定)
 }
+// ===== P2: 設置物の常駐ミニアイコン(2026-07-18・設計_特性・場エフェクト増強_2026-07-17.md §4) =====
+// hazardFx(side, kind, count): 対象側(#f-<side>)の地面端に設置物の小アイコンを常駐させる。
+// kind: 'rock'(ステルスロック🪨・常に1個)/'spikes'(まきびし△・層数分1〜3個)/'toxic'(どくびし☠・1〜2個)/
+// 'web'(ねばねばネット🕸・1個)。count=0でそのkindだけ消す(どくびし吸収=どくびしのみ消える)。
+// 器=.rb-hazards(#f-<side>直下の常駐コンテナ)。renderAll等は.sprite内しか触らないので再描画に耐える
+// (壁パネルのclass常駐と同じ寿命設計)。消滅=clearHazardFx(側全消し・こうそくスピン系)/バトル開始は
+// 呼び出し元(startBattle)がclearHazardFxを両側に呼ぶ。控えめサイズ・pointer-events:noneはCSS側(.rb-hazards)。
+const _HAZARD_ICON = { rock: '🪨', spikes: '△', toxic: '☠', web: '🕸' };
+function hazardFx(side, kind, count){
+  const f = $('f-' + side);
+  if (!f || !_HAZARD_ICON[kind]) return;
+  if (window.__fxTrace) window.__fxTrace.push({k:'hazardFx', side, kind, count, t: performance.now()});
+  let box = f.querySelector('.rb-hazards');
+  if (!box){
+    box = document.createElement('div');
+    box.className = 'rb-hazards';
+    f.appendChild(box);
+  }
+  // このkindのアイコン群を作り直す(まきびし1→2層等の層数変化に追従。他kindのアイコンは触らない)
+  box.querySelectorAll('.rb-hazard-' + kind).forEach(el => el.remove());
+  const n = Math.max(0, Math.min(3, count == null ? 1 : count));
+  for (let i = 0; i < n; i++){
+    const el = document.createElement('span');
+    el.className = 'rb-hazard rb-hazard-' + kind;
+    el.textContent = _HAZARD_ICON[kind];
+    box.appendChild(el);
+  }
+}
+// その側の設置物アイコンを全消し(こうそくスピン/キラースピンの「設置物が 消えた！」・バトル開始/リセット)
+function clearHazardFx(side){
+  const f = $('f-' + side);
+  if (!f) return;
+  if (window.__fxTrace) window.__fxTrace.push({k:'clearHazardFx', side, t: performance.now()});
+  const box = f.querySelector('.rb-hazards');
+  if (box) box.innerHTML = '';
+}
 // S6: 背景プリセット切替 ---------------------------------------------------
 // setBackdrop(preset): #field-backdrop の data-preset 属性を切り替えるだけ。
 // CSSが data-preset 値に応じて背景グラデを適用(将来の追加はCSS1プリセット+option1行)。
