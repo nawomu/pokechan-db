@@ -1,0 +1,287 @@
+{
+ "harnessApi": "■ 共通土台(4ファイルとも同じ): `const { buildEngine, mulberry32, ROOT } = require('./_sim_engine.js'); const data = require(path.join(ROOT, process.env.PCHAM_DATA || 'pokechan_data.js')); const E = buildEngine();` — E は real_battle_simulator のエンジンを Node に載せたもの。乱数は E.setRandom(mulberry32(seed)) で決定論固定(定数関数 `()=>0` で分岐強制も可)。期待値は必ず権威ソース(Bulbapedia/ポケモンWiki)からコメントに出典を書く(sim自己出力をゴールデンにしない=羅針盤原則)。\n\n■ スタイル1: check形式(_sim_interaction_test.js / _sim_status_multiturn_test.js)。pass/failカウンタ+exit code(fail>0で1)。\n【セットアップ】\n```js\nfunction freshSide(pokeName, moveKey, opts) {   // _sim_interaction_test.js:30\n  const s = E.makeSideState();\n  s.poke = data.POKEMON_LIST.find(p => p.name === pokeName);\n  s.moves = moveKey ? [data.WAZA_MAP[moveKey]] : [];\n  s.selectedMoveIdx = 0;\n  if (opts?.ability !== undefined) s.ability = opts.ability; else s.ability = s.poke.ab1 || '';\n  if (opts?.item !== undefined) s.item = opts.item;   // 例 'focus_sash','life_orb','berry_sitrus'\n  return s;\n}\nresetEnv();                       // E.env の weather/field/trickRoom/gravity/magicRoom 等を全リセット+setLastMoveAnywhere(null)\nconst atk = freshSide('カイリュー', 'jishin', { item: 'kodawari_hachimaki' });\natk.rank.atk = 6;                 // ランク直接設定可\nfullHp(atk);                      // s.currentHp = E.realStat(s,'hp')\nE.sides.self = atk; E.sides.opp = def;   // エンジンに両サイドを差す\nE.setRandom(mulberry32(20260608));\n```\n【行動(用途で使い分け)】\n- `E.calcDamage('self','opp', move)` → `{min,max,immune,reason,orbRecoil,...}`(副作用なしのダメージレンジ検証)\n- `E.phaseDealDamage('self','opp', move)`(1回の攻撃解決: タスキ/がんじょう/接触反応/反動まで)\n- `E.phaseApplyEffects('self','opp', move)`(変化技効果: バインド/ちょうはつ/アンコール/やどりぎ付与)\n- `E.phaseSlipFor('opp')`(ターン終了スリップ: 状態異常/天候/slips配列)\n- `E.runTurn()`(1ターン丸ごと: 行動順・まひ/ねむり判定・アイテム反応・end-of-turn)\n- `E.runSingleAttack('self', moveIdx)`(片側だけ1技実行。失敗ログ検証に便利)\n- `E.phaseInitA('self')`(登場時特性: トレース/かわりもの) / `E.phaseHitCheck(move, atkSide, defSide)` / `E.decideOrder(m1,m2)` / `E.effectiveSpeed(s)` / `E.aiScoreMove('self', move)`\n【アサーション】\n```js\ncheck('S18-T1 ○○×△△: 期待挙動 [出典: Bulbapedia \"...\"]',\n  def.currentHp === 1 && !def.fainted,          // 条件(bool)\n  `hp=${def.currentHp} fainted=${def.fainted}`); // 失敗時detail\n// ログ検証: E.battleLog.some(e => /技名！ しかし うまく きまらなかった/.test(e.msg))。E.battleLog.length=0 でクリア\n// 状態は英語コード比較: 'burn'/'poison'/'badpoison'/'paralysis'/'sleep'/'freeze'、slipsは s.slips.find(sl=>sl.source==='バインド')、fraction/turns を数値検証\n```\n新ケースは末尾のブロック `{...}` を1つ足して check() を並べるだけ(ランナー登録不要・上から逐次実行)。\n\n■ スタイル2: verdict形式(_ability_interaction_test.js / _item_interaction_test.js)。TESTS配列にpush→reference/_*_result.json に implemented/missing/broken/skip を書き出す(exit codeは常に0=合否でなく実装状況の棚卸し)。\n```js\n(function() {   // 新特性ケースの型(_ability_interaction_test.js:122 のパターン)\n  const moves = movesWhere(m => m.flags && m.flags.punch && m.category === '物理' && m.power > 0);\n  const results = moves.map(mv => {\n    const base   = calcDmg('カイリキー', '',         mv, 'カビゴン', '', 9901);   // calcDmg(atkPoke, atkAb, move, defPoke, defAb, seed [, atkItem, defItem])\n    const withAb = calcDmg('カイリキー', 'てつのこぶし', mv, 'カビゴン', '', 9901);\n    const ok = ratioOk(base, withAb, 1.19, 1.21);   // 期待倍率±0.05許容\n    return { move: mv.name, base, withAb, ratio: base>0 ? +(withAb/base).toFixed(3) : null, ok };\n  });\n  TESTS.push({\n    ability: 'てつのこぶし', move_class: 'パンチ(punch)', type: 'power_multiplier', expected_ratio: 1.2,\n    verdict: results.some(r=>r.ok===true) && !results.some(r=>r.ok===false) ? 'implemented' : results.some(r=>r.ok===false) ? 'broken' : 'missing',\n    moves_tested: results, note: '出典と実装行番号'\n  });\n})();\n```\n補助: `setupBattle(atkPoke, atkAb, atkMove, defPoke, defAb, defMove [, atkItem, defItem])`(rank/status/HPを毎回初期化)、`tryContact(defAb, atkPoke, atkAb, move, checkFn, n)`(接触反応をNseed試行)、`testImmunity(defAb, move)`、`testStatusBlocked(defAb, moveName)`、`moveWith(pred)/movesWhere(pred,n)/pokeWith(ab)`。itemテストは calcDmg 第7/8引数に itemキー(items_database.jsのkey)を渡す。\n\n■ 注意: verdict形式2本は実行のたび reference/_ability_interaction_result.json / _item_interaction_result.json を上書き再生成する(sim/データ本体は無変更)。ファイル冒頭に「読み取り専用・commit禁止」の注記あり。",
+ "runCmd": "cd \"/Users/masamichi/Documents/ポケモンDB\" && node tools/_sim_interaction_test.js        # 58/58 pass (exit0)\nnode tools/_sim_status_multiturn_test.js  # 73/73 pass (exit0)\nnode tools/_ability_interaction_test.js   # 28件: implemented=20 / missing=0 / broken=0 / skip=8 (PCHAM_DATA=pokechan_data.js は省略可・reference/_ability_interaction_result.json を再生成)\nnode tools/_item_interaction_test.js      # 14件: implemented=14 / missing=0 / broken=0 / skip=0 (reference/_item_interaction_result.json を再生成)\n# check形式2本の合計 = 131/131 pass(2026-07-17 実行確認)",
+ "cases": [
+  {
+   "id": "moldbreaker-disguise",
+   "title": "かたやぶり×ばけのかわ(貫通するか)",
+   "setup": "A=かたやぶり持ちの物理アタッカー(例: オノノクス相当。未登録ならabilityOverrideで'かたやぶり'を設定)・持ち物なし・技=はたく。B=ばけのかわ持ち(ミミッキュ)・HP満タン・皮未消費。",
+   "action": "Aがはたくで1回攻撃し、BのHPとばけのかわ(皮)状態を確認する。",
+   "expected_initial": "第8世代以降の仕様では、かたやぶりはばけのかわを無視して直接ダメージが入る(皮は剥がれない=消費されない)。BのHPが通常計算どおり減り、『ばけのかわがはがれた』処理は発生しない。自信度70%。",
+   "confidence": 70,
+   "why_risky": "ばけのかわを『初回被弾を1回無効化するフラグ』として実装すると、かたやぶりの無視対象リスト(がんじょう・ふゆう・マルチスケイル等は既存テストで確認済み)に入り漏れやすい。またGen7では貫通不可・Gen8以降は貫通と世代差があり、どちらの仕様を採ったかも曖昧になりやすい。",
+   "research": {
+    "expected_final": "verdict='confirmed'。かたやぶりは ばけのかわ を貫通する(第9世代/SVでも有効)。期待結果: Aの「はたく」はばけのかわを無視して命中し、Bのミミッキュは皮を消費せず[ばけたすがた]のまま通常のダメージ計算どおりHPが減る。『ばけのかわがはがれた!』の発動処理は発生せず、皮発動時の最大HP1/8自傷ダメージも発生しない(ばけのかわが発動しないため)。皮は未消費のまま残り、以後かたやぶりでない攻撃を受ければ通常どおり発動する。注記: 初期想定の期待挙動は正しいが、「第8世代以降の仕様」という限定は不正確 — この貫通挙動は第7世代(ばけのかわ導入時)からの一貫仕様であり、第8世代でかたやぶりが無視しなくなったのはダークオーラ/フェアリーオーラのみ。第8世代以降に変わったのは「皮発動時に最大HP1/8の自傷が入る」点だが、これはかたやぶり時には無関係(発動自体しない)。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)",
+     "https://bulbapedia.bulbagarden.net/wiki/Mold_Breaker_(Ability)",
+     "https://jara-blog.com/katayaburi_sv"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "intimidate-defiant",
+   "title": "いかく×まけんき(下降トリガーでこうげき+2、ネット+1)",
+   "setup": "A=いかく持ち(ギャラドス等、なければabilityOverride)。B=まけんき持ち(abilityOverrideで'まけんき'を設定)。両者HP満タン。",
+   "action": "Aを場に出していかくを発動させ(phaseInit/交代処理)、Bのこうげきランク(stages.atk)を確認する。",
+   "expected_initial": "Bはいかくでこうげき-1を受けた直後にまけんきが反応してこうげき+2、最終的にstages.atk=+1になる。自信度65%。",
+   "confidence": 65,
+   "why_risky": "登場時特性を一括処理すると『相手起因で能力が下がった』イベントフックが発火せず、-1のままになる可能性が高い。逆に順序を誤って+2だけ・あるいは+1を直接書くショートカット実装だと、複数回いかくを受けた時に破綻する。",
+   "research": {
+    "expected_final": "verdict='confirmed'。B(まけんき持ち)の最終 stages.atk = +1。流れ: Aのいかくが場出し時に発動しBのこうげき-1 → その下降が相手起因なのでまけんきが即発動しこうげき+2 → 正味+1。第9世代(SV)でもこの挙動は不変(Bulbapedia Gen IX効果文「If the Pokémon has any stat lowered by an opposing Pokémon, its Attack stat will be boosted sharply(=2段階)」)。補足: まけんきは「下がった能力の種類ごと」に発動(1能力が一度に2段階下がっても発動は1回)・自分/味方起因の下降では発動しない。simで確認すべき値: いかく発動ログ→まけんき発動ログ→B.stages.atk === 1。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Defiant_(Ability)",
+     "https://yakkun.com/sv/zukan/search/?tokusei=128",
+     "https://wiki.pokemonwiki.com/wiki/%E3%81%BE%E3%81%91%E3%82%93%E3%81%8D",
+     "https://bulbapedia.bulbagarden.net/wiki/Intimidate_(Ability)"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "intimidate-mirrorarmor",
+   "title": "いかく×ミラーアーマー(下降を攻撃側へ跳ね返す)",
+   "setup": "A=いかく持ち。B=ミラーアーマー持ち(アーマーガア相当、なければabilityOverride)。",
+   "action": "Aを場に出していかくを発動させ、A・B両方のこうげきランクを確認する。",
+   "expected_initial": "Bのこうげきランクは0のまま(下降を受けない)、跳ね返されたAがこうげき-1になる。自信度60%。",
+   "confidence": 60,
+   "why_risky": "『ブロック』(クリアボディ)は実装されていても『反射』は別のコードパスが必要で未実装のまま-1が通りやすい。実装されていても、反射先の取り違え(Bが-1のままAは無傷)や、反射処理がいかく側の特性チェックを再帰的に呼んで例外になるリスクがある。",
+   "research": {
+    "differs_from_initial": false,
+    "expected_final": "verdict='confirmed'(初期想定どおり)。Aのいかくが発動→Bのミラーアーマーが下降効果を跳ね返す→【Bのこうげきランク=0のまま(下降を受けない)】【Aのこうげきランク=-1(跳ね返しを受ける)】。仕様根拠: ミラーアーマーは「自分が受けた能力ランク下降効果(技の追加効果・相手特性いかく含む)を受けずに発生源へ跳ね返す」(例外=オクトロック・ねばねばネット等のみで、いかくは通常どおり跳ね返る)。ポケモンWiki明記「ミラーアーマーのポケモンはいかくの効果を跳ね返します。このときいかくのポケモンのみ攻撃が1段階下がります」。表示順の目安: いかく発動メッセージ→ミラーアーマー発動→Aのこうげきが下がった。補足(ダブル時のみ): 跳ね返せるのは自分宛ての1回分だけで、味方が受けるいかくの分は跳ね返せない(シングルの本ケースには影響なし)。",
+    "sources": [
+     "https://wiki.pokemonwiki.com/wiki/ミラーアーマー",
+     "https://bulbapedia.bulbagarden.net/wiki/Mirror_Armor_(Ability)",
+     "https://game8.jp/pokemon-sv/496400",
+     "https://dic.pixiv.net/a/ミラーアーマー"
+    ]
+   }
+  },
+  {
+   "id": "contrary-intimidate",
+   "title": "あまのじゃく×いかく(下降が上昇に反転)",
+   "setup": "A=いかく持ち。B=あまのじゃく持ち(abilityOverrideで'あまのじゃく'を設定)。",
+   "action": "Aを場に出していかくを発動させ、Bのこうげきランクを確認する。",
+   "expected_initial": "あまのじゃくがランク変化の符号を反転し、Bはこうげき+1になる。自信度75%。",
+   "confidence": 75,
+   "why_risky": "あまのじゃくを『自分が使う技(オーバーヒート等)の自己ランク変化のみ反転』と実装すると、相手起因のいかくルート(登場時処理)を通らない。ランク変更の適用箇所が複数(自己技・相手技・登場時特性)に分散しているエンジンほど反転漏れが出やすい。",
+   "research": {
+    "differs_from_initial": false,
+    "expected_final": "Aのいかく発動時、Bのあまのじゃくがランク変化の符号を反転し、Bのこうげきランクは-1でなく+1になる(初期想定どおり)。根拠: いかくは「隣接する相手のこうげきランクを1段階下げる」効果(Bulbapedia Intimidate)、あまのじゃくは「自身のランク変化を適用時に反転(下げは上げに)」する(Bulbapedia Contrary: \"inverts all changes to the stat stages... if an effect would lower a stat, it is increased instead\")。ランクを介さない実数値補正(こんじょう/まひ等)のみ反転対象外で、いかくはランク変化なので対象。日本語ソースでも「いかくの-1が反転してこうげき+1」と明記。世代差なし(SVでも同仕様)。注意点: かたやぶり系の技による変化は反転をバイパスするが本設定には無関係。verdict='confirmed'。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Contrary_(Ability)",
+     "https://bulbapedia.bulbagarden.net/wiki/Intimidate_(Ability)",
+     "https://jara-blog.com/ikaku_taisaku",
+     "https://gamewith.jp/pokemon-sv/article/show/375336"
+    ]
+   }
+  },
+  {
+   "id": "unaware-vs-boosts",
+   "title": "てんねん×つるぎのまい+2(攻撃側ランク無視)",
+   "setup": "A=物理アタッカー・技=つるぎのまい+はたく。B=てんねん持ち(ヌオー相当、なければabilityOverride)・十分なHP。比較対照としてB'=通常特性の同種を用意。",
+   "action": "Aがつるぎのまいを1回積んで(+2)からはたくで攻撃。B(てんねん)への与ダメを、ランク0時の与ダメおよびB'(通常特性)への与ダメと比較する。",
+   "expected_initial": "てんねん側への被ダメは攻撃側のこうげきランク+2を無視した値=ランク0時とほぼ同等(比0.9〜1.1)。通常特性のB'には約2倍入る。自信度80%。",
+   "confidence": 80,
+   "why_risky": "ダメージ計算式で攻撃側のランク補正を一律に掛け込み、防御側特性による無視チェックを挟んでいない実装が典型的。またてんねんは『自分が攻撃する時は相手の回避・防御ランクを無視』という逆方向の効果もあり、方向を取り違えて実装しているとこのテストだけ通って逆方向が壊れている可能性もある。",
+   "research": {
+    "expected_final": "verdict=confirmed(初期想定どおり)。第9世代仕様: てんねん持ちのB'が攻撃を受けるとき、攻撃側Aの「こうげき/とくこう」(および命中率)のランク補正を無視して計算する(すばやさは無視できない)。よってAがつるぎのまい+2後にはたくを撃っても、B(てんねん)への与ダメはランク0時と同一の計算(乱数幅0.85〜1.00を除けば比1.0。試行ごとの乱数を考慮しても比0.9〜1.1の初期想定は妥当)。比較対照のB'(通常特性)には攻撃実数値が2倍(+2ランク=×2)となり約2倍のダメージが入る。補足仕様: (1)ランク変化自体は消えず、てんねんが絡む計算に反映されないだけ(パワートリップ/アシストパワーの威力計算やめざましビンタ等には+2が効く)。(2)急所・持ち物・ちからもち等の特性による補正は無視対象外。(3)てんねん側が攻撃するときは相手の防御/特防/回避のランク補正を無視する(本テストでは非該当)。Bulbapedia Gen IX原文: \"The Pokémon ignores the target's stat changes when attacking, and ignores the attacker's stat changes when being attacked. It cannot ignore changes to the Speed stat, however.\" / 徹底攻略効果文: 相手の『こうげき』『ぼうぎょ』『とくこう』『とくぼう』『回避率』『命中率』ランク変化の影響を受けない(すばやさは除く)。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Unaware_(Ability)",
+     "https://yakkun.com/sv/zukan/search/?tokusei=109",
+     "https://wiki.pokemonwiki.com/wiki/%E3%81%A6%E3%82%93%E3%81%AD%E3%82%93"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "sapsipper-spore",
+   "title": "そうしょく×キノコのほうし(くさ変化技を吸収)",
+   "setup": "A=キノコのほうし(くさタイプ・粉技・催眠)を使えるポケモン(なければ技を差し替えて付与)。B=そうしょく持ち(abilityOverrideで'そうしょく'を設定)・状態異常なし。",
+   "action": "AがBにキノコのほうしを使い、Bのstatus・こうげきランク・失敗メッセージを確認する。",
+   "expected_initial": "くさタイプの技なのでそうしょくが吸収し、ねむり付与なし+Bのこうげき+1。技は『効果がない』扱い。自信度75%。",
+   "confidence": 75,
+   "why_risky": "吸収特性(タイプ免疫)をダメージ計算・命中チェック段にだけ実装すると、変化技の状態付与ルート(phaseの別枝)を素通りしてねむりが通る。さらにキノコのほうしは『くさタイプには無効』『ぼうじんに無効』の粉技ルールとも重なり、どの判定が先に走るかで挙動がぶれやすい。",
+   "research": {
+    "expected_final": "AがBにキノコのほうし(くさタイプ変化技)を使うと、Bの特性そうしょくが発動して技を吸収する。結果: B.status = なし(ねむりは付与されない)、Bのこうげきランク = +1。技はBに対して効果を発揮しない(ダメージも追加効果もなし)。メッセージは『こうかが ない ようだ…』等の失敗文ではなく、そうしょくの特性発動表示に続き「(Bの名前)の こうげきが あがった！」が表示される。verdict=confirmed(そうしょくはくさタイプの変化技も含めて無効化+攻撃+1。Gen6以降アロマセラピーで味方のそうしょくが発動する仕様が変化技対象の裏付け)。補足: キノコのほうしの粉技無効(くさタイプ/ぼうじん/ぼうじんゴーグル)とは独立に、そうしょく側の吸収として処理される。",
+    "sources": [
+     "https://yakkun.com/bbs/brain/q14516",
+     "https://yakkun.com/sv/zukan/search/?tokusei=157",
+     "https://bulbapedia.bulbagarden.net/wiki/Sap_Sipper_(Ability)",
+     "https://bulbapedia.bulbagarden.net/wiki/Spore_(move)"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "lightningrod-thunderwave",
+   "title": "ひらいしん×でんじは(変化技も吸収してとくこう+1)",
+   "setup": "A=でんじは使い(ピカチュウ等)。B=ひらいしん持ち(abilityOverrideで'ひらいしん'を設定)・状態異常なし。",
+   "action": "AがBにでんじはを使い、Bのstatusととくこうランクを確認する。",
+   "expected_initial": "ひらいしんがでんき技を吸収し、まひは付与されず、Bのとくこう+1。自信度70%。",
+   "confidence": 70,
+   "why_risky": "ひらいしんを『でんき攻撃技のダメージ無効+SpA+1』としてダメージ経路にだけ実装しがちで、でんじは(変化技)は状態付与経路を通ってまひが成立してしまう。既存テスト群(ぼうおん×うたう等)は変化技ブロックを確認済みだが吸収特性側は未確認で、実装が対称でない可能性が高い。",
+   "research": {
+    "expected_final": "verdict='confirmed'。AがひらいしんもちのBにでんじはを使うと、技はひらいしんに吸収されて無効化される: (1) Bにまひは付与されない(B.status=なし のまま) (2) Bのとくこうランクが+1される(+6でない限り) (3) ダメージなし。第5世代以降の確定仕様で、第9世代(SV)でも同様。PokeAPI効果文「Other Pokémon's Electric moves raise this Pokémon's Special Attack one stage, negating any other effect on it」、PokemonDB「This includes the status move Thunder Wave... raises its Special Attack by one stage」、Bulbapedia「immunity to all Electric-type moves, and raises Special Attack by one stage」、ポケモンWiki「第五世代以降は変化技(でんじは/かいでんぱ等)も無効化して特攻が上がる」が全て一致。補足の境界条件: Bがマジックコート状態なら跳ね返しが優先されとくこうは上がらない(本テスト設定では非該当)。simの期待ログ例=「ひらいしんで Bの とくこうが あがった!」、まひメッセージは出ない。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Lightning_Rod_(Ability)",
+     "https://pokemondb.net/ability/lightning-rod",
+     "https://pokeapi.co/api/v2/ability/lightning-rod",
+     "https://wiki.pokemonwiki.com/wiki/%E3%81%B2%E3%82%89%E3%81%84%E3%81%97%E3%82%93"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "magicguard-leechseed",
+   "title": "マジックガード×やどりぎのタネ(削り0なら相手の回復も0)",
+   "setup": "A=やどりぎのタネ使い・HPを半分程度に減らしておく。B=マジックガード持ち(abilityOverrideで'マジックガード'を設定)・HP満タン。",
+   "action": "AがBにやどりぎを付与し、runTurnでターン終了処理を回して、BのHP減少量とAのHP回復量を確認する。",
+   "expected_initial": "やどりぎは付与自体は成功するが、マジックガードで間接ダメージ0。吸えるHPがないのでAの回復も0。自信度80%。",
+   "confidence": 80,
+   "why_risky": "既存実装(J-1〜4)は『floor(maxHP/8)削り+同量回復』を対で処理しているため、マジックガード分岐をslipダメージ側にだけ入れると『Bは無傷なのにAが1/8回復する』無からのHP生成バグになりやすい。逆に分岐が全くなければダメージも通る。",
+   "research": {
+    "expected_final": "verdict='confirmed'(初期想定どおり)。やどりぎのタネの「付与」自体はマジックガード持ちにも成功する(マジックガードはダメージのみ防ぐ特性で、状態変化の付与は防がない)。ターン終了処理では: (1) B(マジックガード持ち)のやどりぎ削りダメージ=0(HP満タンのまま減少なし)。(2) ダメージが無効化されるため吸収も発生せず、A(やどりぎ使い側の位置にいるポケモン)のHP回復=0(半分程度のまま)。日本語ポケモンWikiの原文: 「やどりぎのタネ: ダメージを無効化するため、使用者の位置にいるポケモンを回復させることもない。」/ Bulbapedia Seeding: \"If the seeded Pokémon has Magic Guard, they won't take damage, and the seeder (or the Pokémon who replaced it in the same spot) also won't be healed.\" なお、やどりぎ状態フラグ自体はBに残る(特性が無効化/上書きされれば以後は通常どおり削り+回復が発生する)。simの検証観点: 付与成功メッセージは出る・runTurn後に両者のHPが一切変動しないことが正。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Magic_Guard_(Ability)",
+     "https://bulbapedia.bulbagarden.net/wiki/Seeding",
+     "https://wiki.ポケモン.com/wiki/マジックガード"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "magicguard-rockyhelmet",
+   "title": "マジックガード×ゴツゴツメット(接触反動を受けない)",
+   "setup": "A=マジックガード持ち(abilityOverride)・接触物理技(はたく)持ち・HP満タン。B=ゴツゴツメット所持の耐久型。",
+   "action": "AがBを接触技で攻撃し、AのHPを確認する(比較対照: 通常特性のA'で同攻撃=1/6反動あり)。",
+   "expected_initial": "マジックガードは間接ダメージを全て防ぐので、ゴツメの1/6反動を受けずAのHPは満タンのまま(技自体のダメージはBに通る)。自信度75%。",
+   "confidence": 75,
+   "why_risky": "ゴツメは接触フェーズの独立処理として実装済み(itemテストで確認)で、そこにマジックガード判定を通していない可能性が高い。S13-T3でいのちのたま反動は防げているが、ゴツメ・さめはだ・てつのトゲの被接触反動は別コードパスで、間接ダメージの網羅性が崩れやすい典型ポイント。",
+   "research": {
+    "expected_final": "verdict='confirmed'(初期想定どおり)。第9世代(SV)でマジックガード持ちのAがゴツゴツメット所持のBに接触物理技(はたく)を当てても、Aはゴツゴツメットの反動(最大HPの1/6)を受けず、AのHPは満タンのまま。技のダメージはBに通常どおり入る。比較対照の通常特性A'は同じ攻撃で最大HPの1/6を失う。根拠: ①ゴツゴツメット=接触技の攻撃側に最大HP1/6のダメージ(Bulbapedia Rocky Helmet) ②マジックガード=技の直接ダメージ以外の間接ダメージを全て防ぐ(Bulbapedia/Serebii、日本語圏のポケモンWiki・ポケモン徹底攻略も「ゴツメのダメージを受けない」で一致) ③Showdown実装でも magicguard の onDamage が effectType!=='Move' のダメージを全ブロックし、rockyhelmet のダメージは Item 由来なので阻止される(機械的裏付け)。世代差なし(第5世代の登場以来同挙動)。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Magic_Guard_(Ability)",
+     "https://bulbapedia.bulbagarden.net/wiki/Rocky_Helmet",
+     "https://www.serebii.net/abilitydex/magicguard.shtml",
+     "https://wiki.pokemonwiki.com/wiki/%E3%83%9E%E3%82%B8%E3%83%83%E3%82%AF%E3%82%AC%E3%83%BC%E3%83%89",
+     "https://yakkun.com/sv/zukan/search/?tokusei=98",
+     "https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data/abilities.ts",
+     "https://raw.githubusercontent.com/smogon/pokemon-showdown/master/data/items.ts"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "sturdy-multihit",
+   "title": "がんじょう×連続技(1発目だけHP1で耐え、2発目でひんし)",
+   "setup": "A=可変連続技(タネマシンガン/ロックブラスト等)持ちの高火力アタッカー・1ヒットあたりが相手の満タンHPを超えるようレベル/種族値を調整。B=がんじょう持ち・HP満タン。",
+   "action": "Aが連続技を使い(2ヒット以上のseedを選ぶ)、Bの最終HPと生死を確認する。",
+   "expected_initial": "1発目: 満タンからの致死打をがんじょうでHP1で耐える→2発目: HP1(満タンでない)なのでがんじょう不発でひんし。最終結果はひんし。自信度70%。",
+   "confidence": 70,
+   "why_risky": "連続技を合計ダメージ一括適用にしていると『合計致死をがんじょうで耐えてHP1生存』と誤る。逆にヒット毎判定でも『HP満タン条件』のチェックをヒット前に再評価しないと2発目もHP1で耐え続ける無敵バグになる。きあいのタスキ(S3)との条件差(タスキも同様に1発目のみ)も混線しやすい。",
+   "research": {
+    "expected_final": "verdict=confirmed(初期想定どおり)。Aの連続技(タネマシンガン等・2ヒット以上)がBのがんじょう持ち(HP満タン)に命中した場合: 1発目は致死ダメージでもがんじょうが発動しHP1で耐える(発動メッセージ表示)。がんじょうの耐え効果はHP満タン時のみ・連続技ではヒットごとに発動判定されるため、2発目時点ではHP1(非満タン)でがんじょう不発→2発目のダメージでBはひんし。最終結果=Bはひんし(最終HP0)。この挙動は第5世代以降共通でSV(第9世代)でも同一。Bulbapedia原文: \"When a multistrike move hits a Pokémon with Sturdy, Sturdy's effect can only activate for hits while the user has full HP. ... the subsequent hit will still deal damage and therefore cause the Pokémon to faint.\"",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Sturdy_(Ability)",
+     "https://pokemondb.net/ability/sturdy",
+     "https://wiki.pokemonwiki.com/wiki/%E3%81%8C%E3%82%93%E3%81%98%E3%82%87%E3%81%86"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "multiscale-multihit",
+   "title": "マルチスケイル×連続技(半減は1発目だけ)",
+   "setup": "A=可変連続技(非致死威力)持ち。B=マルチスケイル持ちカイリュー・HP満タン・連続技全弾でも落ちない耐久。",
+   "action": "Aが連続技を使い(2ヒット以上のseed)、各ヒットのダメージ量(ログ or HP差分)を確認する。",
+   "expected_initial": "1発目はHP満タンなので約0.5倍、被弾後はHPが減るので2発目以降は等倍。1発目のダメージ≈2発目の半分(比0.4〜0.6)。自信度75%。",
+   "confidence": 75,
+   "why_risky": "技の開始時にダメージ倍率を一括決定してから全ヒットに同じ倍率を掛ける実装だと、全弾半減になる。マルチスケイルの『HP満タンか』をヒット毎に再評価する必要があり、S5(単発)のテストでは検出できない。",
+   "research": {
+    "expected_final": "初期想定は正しい(verdict=confirmed)。第9世代(SV)でもマルチスケイルは「ダメージ計算の各ヒット時点でHPが満タンなら半減」という判定であり、連続技(multistrike move)に対しては、HP満タンで受けた1発目のみ半減され、2発目以降はHPが減っているため等倍。Bulbapediaの原文: \"When hit with a multistrike move at maximum HP, only the first hit will have its damage reduced.\" (all further hits deal full damage)。Gen 9での仕様変更なし。従って期待観測=1発目ダメージ≈2発目の約半分(乱数0.85〜1.00を各ヒット独立に振るため、比は約0.425〜0.588の範囲=想定の0.4〜0.6とほぼ一致)。注意すべき例外(仕様の本質は「ヒットごとのHP満タン判定」): 連続技の途中でHPが満タンに戻った場合(みがわりが1発防いだ直後・回復きのみ発動後など)は2発目以降も半減されうる(ポケモンWiki)。テスト設計上は回復アイテムなし・みがわりなしのBで検証すれば「1発目のみ半減」が安定して観測できるはず。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Multiscale_(Ability)",
+     "https://wiki.pokemonwiki.com/wiki/マルチスケイル (旧 wiki.ポケモン.com、WebSearch要約で確認: 連続技はHP満タン時の1発分のみ半減・途中でHPが満タンに戻れば2発目以降も半減可)",
+     "https://pokemondb.net/pokebase/433288/multi-moves-activate-shadow-shield-multiscale-hits-just-first"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "roughskin-multihit-count",
+   "title": "さめはだ×連続技(反動はヒット数ぶん発生)",
+   "setup": "A=接触の可変連続技(スイープビンタ/ダブルアタック等、なければ接触フラグ付き連続技を用意)・HP満タン・十分な耐久。B=さめはだ持ち(abilityOverride)。",
+   "action": "AがBを接触連続技でNヒット攻撃し(N≥3のseedを選ぶ)、Aの被反動合計を確認する。",
+   "expected_initial": "さめはだ反動は接触『ヒット毎』に発生するので、Aの被反動=floor(maxHP/8)×Nヒット。自信度65%。",
+   "confidence": 65,
+   "why_risky": "接触反動処理は『技1回につき1回』の攻撃後フェーズにフックされがちで、実機仕様(ヒット毎)と食い違う。既存テストは単発接触のみ確認。ゴツメも同じくヒット毎なので、同じ穴が道具側にもある可能性が高い。",
+   "research": {
+    "differs_from_initial": false,
+    "expected_final": "さめはだ(Rough Skin)は第9世代SVで、接触技のダメージを受けるたびに発動し、攻撃側A自身の最大HPの1/8(小数点以下切り捨て・最低1)の反動をヒット毎に与える。連続技(スイープビンタ等)ではNヒットならN回発動するため、Aの被反動合計 = N × max(1, floor(Aの最大HP/8))。初期想定「floor(maxHP/8)×N」と一致(基準はBではなくA自身の最大HP)。注意: 反動はヒット毎に即時適用され、途中でAがひんしになると残りのヒットは中断される(スキルリンク/おやこあいでも同様)。テスト設定どおりA=HP満タン・十分な耐久ならN発フルヒットでfloor(A_maxHP/8)×Nとなる。verdict=confirmed。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/Rough_Skin_(Ability)",
+     "https://bulbapedia.bulbagarden.net/wiki/Multistrike_move",
+     "https://wiki.ポケモン.com/wiki/さめはだ"
+    ]
+   }
+  },
+  {
+   "id": "noguard-ohko",
+   "title": "ノーガード×一撃必殺技(必中化しない)",
+   "setup": "A=ノーガード持ち(abilityOverride)・技=つのドリル or じわれ・レベルは相手と同じ。B=通常特性(一撃無効特性なし)・じわれの場合はふゆう/ひこうでないこと。",
+   "action": "Aが一撃必殺技を多数seed(50〜100回)で使用し、命中率を集計する。",
+   "expected_initial": "一撃必殺技はノーガードの対象外で、命中は通常の一撃式(同レベルなら約30%)のまま。多seed試行で外れが多数出るはず(命中率0.15〜0.45程度)。自信度60%。",
+   "confidence": 60,
+   "why_risky": "ノーガードを『場の全技必中』の一括フラグで実装するとOHKOも100%命中になる。仕様自体もマイナー(公式では一撃必殺はノーガード非対象)で、実装者が知らずに必中化させるのが最も起きやすい誤り。逆にOHKO自体が未実装/命中式が誤っている可能性もこのテストで露見する。",
+   "research": {
+    "differs_from_initial": true,
+    "expected_final": "verdict=confirmed(初期想定は誤り)。第9世代SVでも、ノーガード(No Guard)は一撃必殺技(つのドリル/じわれ/ハサミギロチン/ぜったいれいど)に有効で、命中判定をスキップして必中になる(Gen III以降不変)。Bulbapedia OHKOページ: \"Effects that allow moves to always hit (such as No Guard, Mind Reader and Lock-On, but not Telekinesis) still work on OHKO moves.\" / No Guardページ: \"A Pokémon with No Guard can use one-hit knockout moves without missing.\"。唯一の制約はレベル判定: 使用者のレベルが相手より低いと技自体が失敗し、ノーガードでも貫通しない(Fissureページ: \"still affect Fissure if the user's level isn't lower than the target's\")。本テスト設定(A=ノーガード・同レベル・B=一撃無効特性なし/がんじょうなし・じわれはふゆう/ひこう除外・半無敵なし)では期待命中率=100%: 多数seed(50〜100回)で全回命中・毎回一撃ひんしになるのが正。命中率が0.15〜0.45(素の一撃式=同レベル30%)に留まるならsim側のバグ(ノーガードの一撃技への適用漏れ)。参考: 通常時の命中式=(使用者Lv−相手Lv+30)%、ノーガードは30%を100%に「上げる」のではなく命中判定自体をスキップする。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/One-hit_knockout_move",
+     "https://bulbapedia.bulbagarden.net/wiki/No_Guard_(Ability)",
+     "https://bulbapedia.bulbagarden.net/wiki/Fissure_(move)",
+     "https://yakkun.com/bbs/brain/q1830"
+    ]
+   }
+  },
+  {
+   "id": "noguard-fly",
+   "title": "ノーガード×そらをとぶ中の相手(空中にも当たる)",
+   "setup": "A=ノーガード持ち(abilityOverride)・通常攻撃技(はたく等)。B=そらをとぶ持ち。",
+   "action": "Bがそらをとぶで空中に消えたターン(charging.semi='空中')、Aが通常技で攻撃し、命中するかを確認する。",
+   "expected_initial": "ノーガードは半無敵(空中/地中)状態の相手にも技を必中させるので、空中のBに命中してダメージが入る。自信度80%。",
+   "confidence": 80,
+   "why_risky": "既存実装D-5では『空中は通常技が当たらない』をphaseHitCheckで確認済み。この半無敵チェックが命中判定より前に早期returnしていると、ノーガードの必中処理(命中率100%化)を実装していても半無敵の枝を通れず外れる。チェックの順序バグの典型。",
+   "research": {
+    "expected_final": "ノーガード持ちAが通常攻撃技(はたく等)を使うと、そらをとぶで空中に消えているB(半無敵状態 charging.semi='空中')にも必ず命中し、通常どおりダメージが入る。ノーガードは命中率・回避率を無視するだけでなく、そらをとぶ/あなをほる/ダイビング/シャドーダイブ等の半無敵状態も貫通して当てる(双方向: ノーガード持ちが攻める場合も攻められる場合も適用)。第9世代(SV)でも同仕様(世代差の記載なし)。Bulbapedia原文: \"It also allows Pokémon to be hit during the semi-invulnerable turn of Fly, Bounce, Dive, Dig, Shadow Force, Sky Drop, and Phantom Force.\" / GameWith SV: 「そらをとぶ」や「あなをほる」など攻撃が当たらなくなるターン技に対しても攻撃が当たるようになる。注意: タイプ相性等は別途適用(はたく=ノーマル技には影響なし)。verdict='confirmed'。",
+    "sources": [
+     "https://bulbapedia.bulbagarden.net/wiki/No_Guard_(Ability)",
+     "https://gamewith.jp/pokemon-sv/article/show/375362",
+     "https://dic.pixiv.net/a/%E3%83%8E%E3%83%BC%E3%82%AC%E3%83%BC%E3%83%89"
+    ],
+    "differs_from_initial": false
+   }
+  },
+  {
+   "id": "choicelock-trick-reset",
+   "title": "こだわりロック×トリック(道具が入れ替わったらロック解除)",
+   "setup": "A=こだわりスカーフ所持・攻撃技2つ以上(はたく/かみつく等)。B=トリック持ち・持ち物はオボンのみ(または道具なし)。",
+   "action": "ターン1: Aがはたくを使用しchoiceLock='はたく'が付くのを確認。ターン2: BがトリックでAのスカーフを奪う。ターン3: Aのchoicealockの状態と、別の技(かみつく)を選択・実行できるかを確認する。",
+   "expected_initial": "トリックで道具が入れ替わった時点でAはこだわり道具を失うのでchoiceLockは解除され、ターン3で別の技を自由に選べる(逆にスカーフを受け取ったBは次に技を使った時点で新たにロックされる)。自信度70%。",
+   "confidence": 70,
+   "why_risky": "choiceLockは『こだわり道具所持中に技を使ったら設定』(S2で確認済み)だが、解除条件=『道具を失った/入れ替わった瞬間』のフックは別処理(トリック/はたきおとす)側に書く必要があり、実装漏れでロックが残留しやすい。残留するとAは持ってもいない道具に縛られ続け、AI選択(スコア0)まで連鎖的に壊れる。",
+   "research": {
+    "expected_final": "【第9世代SV確定仕様・こだわりロック×トリック】初期想定どおり(verdict=confirmed)。ターン1: Aがはたくを使用→PP消費し「Aの はたく!」が出た時点でchoiceLock='はたく'成立。ターン2: BのトリックでAのこだわりスカーフとBのオボンのみ(または道具なし)が入れ替わる→Aは「単にこだわり系アイテムを失っただけ」なのでこだわりは【完全に解除】される(ポケモンWiki明文: 「ぶきよう/さしおさえ/マジックルームの効果を受けていない状態で、単にこだわり系アイテムを失っただけのときは、こだわりは完全に解除される」)。ターン3: AはchoiceLock=なしで、かみつく等の別の技を自由に選択・実行できる(失敗もしない)。一方スカーフを受け取ったB: トリックでこだわり系アイテムを手に入れた場合「こだわったことにならない」(第5世代以降の明文仕様)ため、受領時点ではロックされず、スカーフ所持状態で次に技を使用・成功した時点でその技に新たにロックされる。注意すべき例外(本シナリオ非該当): ①道具の効果がぶきよう/さしおさえ/マジックルームで無効化されている間に道具を失うと、ロックが残り続ける「Choice item lock glitch」(第5世代以降〜第9世代に存在)。②技を使う前(行動前)にこだわり系アイテムを渡された場合は、その後技を使用した時点でこだわる。③第7世代以降、こだわった技以外は選択自体は可能だが使うと必ず失敗する仕様があるが、これは道具無効化中や道具なしでロックが残っているケースの話で、通常の道具喪失では①のとおり完全解除。",
+    "sources": [
+     "https://wiki.xn--rckteqa2e.com/wiki/こだわり系アイテム (=wiki.pokemonwiki.com/wiki/こだわり系アイテム 仕様§第五世代以降:「単にこだわり系アイテムを失っただけのときは、こだわりは完全に解除される」「トリック/すりかえ/ほしがる/どろぼうを使いこだわり系アイテムを手に入れた場合、こだわったことにならない」)",
+     "https://bulbapedia.bulbagarden.net/wiki/Choice_item_lock_glitch (ロック残存は道具効果無効化中に除去された場合のみの例外=通常除去は解除が正常挙動)",
+     "https://bulbapedia.bulbagarden.net/wiki/Choice_Scarf",
+     "https://bulbapedia.bulbagarden.net/wiki/Choice_Band (効果は交代でリセット・Gen5以降のlock glitch言及)"
+    ],
+    "differs_from_initial": false
+   }
+  }
+ ]
+}
