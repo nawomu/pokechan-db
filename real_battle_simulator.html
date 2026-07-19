@@ -1443,14 +1443,16 @@ function variablePower(move, atk, def){
   // けたぐり(basis=target_weight)/くさむすび(weight_thresholds): 相手の体重段階表
   // 出典: Bulbapedia "Low Kick" GenIII+ — <10kg:20 / 〜24.9:40 / 〜49.9:60 / 〜99.9:80 / 〜199.9:100 / 200以上:120
   if (ef.basis === 'target_weight' || ef.weight_thresholds){
-    const w = def.poke.weight_kg;
+    // ヘヴィメタル/ライトメタル(Phase D B1): 相手の実効おもさ(effectiveWeight)で判定する
+    const w = effectiveWeight(def);
     if (!(w > 0)) return null; // 体重未収載の個体は計算不能
     return w < 10 ? 20 : w < 25 ? 40 : w < 50 ? 60 : w < 100 ? 80 : w < 200 ? 100 : 120;
   }
   // ヘビーボンバー(basis=weight_ratio_target_over_user)/ヒートスタンプ(table/max_ratio): 相手の体重/自分の体重
   // 出典: Bulbapedia "Heavy Slam" — >1/2:40 / 〜1/2:60 / 〜1/3:80 / 〜1/4:100 / 1/5以下:120(境界は重い威力側に含む)
   if (ef.basis === 'weight_ratio_target_over_user' || (ef.table && ef.table.some(t => t.max_ratio !== undefined))){
-    const uw = atk.poke.weight_kg, tw = def.poke.weight_kg;
+    // ヘヴィメタル/ライトメタル(Phase D B1): 双方の実効おもさ(effectiveWeight)で比を取る
+    const uw = effectiveWeight(atk), tw = effectiveWeight(def);
     if (!(uw > 0 && tw > 0)) return null;
     const r = tw / uw;
     return r <= 0.2 ? 120 : r <= 0.25 ? 100 : r <= 1/3 ? 80 : r <= 0.5 ? 60 : 40;
@@ -1945,6 +1947,19 @@ function calcDamage(atkSide, defSide, move, opts){
     base = pokeRound(base, 4915);
     chips.push({label:'すてみ', factor:1.2, kind:'ability'});
   }
+  // とうそうしん(Rivalry・Phase D B1): 自分と相手の性別を比較。同性=×1.25/異性=×0.75/どちらかが
+  // 性別不明(—)なら補正なし。ダメージ技のみが通るこの経路(calcDamageはcategory===変化を弾く)を通すので
+  // 変化技には影響せず、こんらん自傷ダメージも別の直接計算式(runTurn内)を使うため対象外(第5世代以降の仕様どおり)。
+  // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Rivalry")
+  if (ab === 'とうそうしん' && (atk.gender === '♂' || atk.gender === '♀') && (def.gender === '♂' || def.gender === '♀')){
+    if (atk.gender === def.gender){
+      base = pokeRound(base, 5120);
+      chips.push({label:'とうそうしん', factor:1.25, kind:'ability'});
+    } else {
+      base = pokeRound(base, 3072);
+      chips.push({label:'とうそうしん', factor:0.75, kind:'ability'});
+    }
+  }
 
   // 3.75) 防御側 特性補正(かたやぶり=段124はこれらを無視する)
   const defAb = defAbilityVs(def, atk);
@@ -2369,6 +2384,9 @@ function phaseInitA(){
     ? ['self','opp'] : ['opp','self'];
   // 各側を速度順に発動
   for (const s of order) fireEntryAbility(s);
+  // てんきや(Phase D B1): 両者の登場処理が出そろった後にもう一度同期(自分が相手より速く、
+  // 相手の天候特性がまだ発動していない時点でこの側のてんきや判定が走った場合の取りこぼし防止)
+  syncForecastBothSides();
 }
 // 1体ぶんの「場に出た時の特性」発動(段127: バトル開始Init-Aと、メガシンカ直後からも呼ぶ。
 // 実機はメガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)がその瞬間に発動する)
@@ -2381,11 +2399,17 @@ function fireEntryAbility(s){
     const ab = sideAbility(st);
     st.disguise = (ab === 'ばけのかわ') && st.disguiseBroken !== true;   // ばけのかわ: 場に出たら皮をまとう(剥がれ済みなら戻らない=Wiki準拠)
     if (ab === 'いかく' && other.poke){
-      // H2/H3/H4(2026-07-18): 共有パイプライン経由に変更(まけんき/かちき/あまのじゃく/ミラーアーマーが反応するように)。
-      // 出典: Bulbapedia "Intimidate"/"Defiant"/"Mirror Armor"
-      applyRankStageGuarded(other, st, 'atk', -1, 'Init-A', () => {
-        log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
-      });
+      // どんかん(Oblivious・Phase D B1・第8世代以降): いかくによる攻撃ランクダウンを無効化(かたやぶりは無視)。
+      // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Oblivious")
+      if (defAbilityVs(other, st) === 'どんかん'){
+        log('Init-A', `${pname(other)} には こうかが ないようだ…（とくせい どんかんのため）`);
+      } else {
+        // H2/H3/H4(2026-07-18): 共有パイプライン経由に変更(まけんき/かちき/あまのじゃく/ミラーアーマーが反応するように)。
+        // 出典: Bulbapedia "Intimidate"/"Defiant"/"Mirror Armor"
+        applyRankStageGuarded(other, st, 'atk', -1, 'Init-A', () => {
+          log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
+        });
+      }
     } else if (ab === 'かわりもの' && other.poke){
       // かわりもの(メタモン隠れ特性): 場に出たとき正面の相手にへんしんする(ターン消費なし)。
       // 出典: ポケモンWiki「かわりもの」/ Bulbapedia "Imposter"。失敗条件はcanTransformInto(発動しないだけでログなし)
@@ -2438,6 +2462,10 @@ function fireEntryAbility(s){
       // 交代でもバトル開始/メガシンカでも同じ1関数から発動するようにした。
       log('Init-A', `${pname(st)} は おみとおしで ${pname(other)} の ${ITEM_BY_KEY[other.item].name}を 見抜いた！`);
     }
+    // てんきや(Forecast・Phase D B1): 場に出た時点の天候でタイプを確定する。
+    // 自分の入場(既存天候を見る)・相手の入場(この直前に天候特性が発動した場合)の両方をここでまとめて拾う。
+    updateForecastForm(st);
+    updateForecastForm(other);
   }
 }
 
@@ -2516,6 +2544,10 @@ function phaseHitCheck(move, atk, def){
   if (!env.magicRoom && def && def.item === 'bright_powder') acc = acc * 0.9;
   // はりきり(攻撃側): 物理技の命中率×0.8(Bulbapedia "Hustle")
   if (sideAbility(atk) === 'はりきり' && move.category === '物理') acc = acc * 0.8;
+  // ふくがん(Compound Eyes・Phase D B1): 命中率×1.3(第5世代以降の内部値5325/4096≒1.2996)。
+  // 一撃必殺技(kind=一撃必殺)には効果なし(Bulbapedia "Compound Eyes")。同じ命中補正層(はりきりと同格)。
+  // 出典: reference/_phaseD_specs_abilities1.json
+  if (sideAbility(atk) === 'ふくがん' && !_effs.some(e => e.kind === '一撃必殺')) acc = acc * (5325 / 4096);
   // 命中・回避ランク補正(段108・従来はランク0前提でかげぶんしん等が効いていなかった)
   // 実効命中 = 技の命中 × ランク補正((命中-回避)を-6..+6に丸め、+n=(3+n)/3・-n=3/(3+n))
   // ノーガード(どちらかが持つ)=必ず命中。一撃必殺(ぜったいれいど等の命中率固定=fixAcc技も含む)も対象。
@@ -2966,6 +2998,31 @@ function phaseDealDamage(atkSide, defSide, move){
       log('9', `${pname(atk)} は てつのトゲで ${_tbDmg} ダメージ！ (残HP ${atk.currentHp})`);
       if (atk.currentHp <= 0){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
     }
+    // ミイラ(Mummy・攻撃を受けた側・Phase D B1): 直接攻撃を受けたら攻撃側の特性をミイラへ書き換える。
+    // 交代/ひんし/バトル終了までの一時上書き=abilityOverride(既存のclearVolatilesOnSwitch等で自然に戻る)。
+    // 書き換え不可はABILITY_CHANGE_NG(なりきり等と同じ規約。フォルムチェンジ系はこのDBに実装なし)+ミイラ自身。
+    // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Mummy")
+    if (_cAb === 'ミイラ'){
+      const _mmAtkAb = sideAbility(atk);
+      if (_mmAtkAb && _mmAtkAb !== 'ミイラ' && !ABILITY_CHANGE_NG.includes(_mmAtkAb)){
+        atk.abilityOverride = 'ミイラ';
+        log('9', `${pname(atk)} の 特性が ミイラに なった！`);
+      }
+    }
+    // どくしゅ(Poison Touch・攻撃を仕掛けた側・Phase D B1): 直接攻撃が命中したら30%で相手をどく状態に。
+    // 技本来の追加効果(battle_data.effects)とは独立判定=ちからずくの早期return(phaseApplyEffects内)は
+    // ここには効かない(仕様書どおり・別経路)。免疫はりんぷん/リーフガード(晴れ下)/めんえき/どく・はがねタイプ。
+    // 出典: reference/_phaseD_specs_abilities1.json(Bulbapedia "Poison Touch")
+    if (sideAbility(atk) === 'どくしゅ' && def.status === 'none' && Math.random() < 0.3){
+      const _ptTypes = sideTypes(def);
+      const _ptAbI = defAbilityVs(def, atk);
+      const _ptImmune = _ptTypes.some(t => ['どく','はがね'].includes(t)) || _ptAbI === 'めんえき' ||
+        sideAbility(def) === 'りんぷん' || (_ptAbI === 'リーフガード' && env.weather === 'sunny');
+      if (!_ptImmune){
+        def.status = 'poison';
+        log('9', `${pname(def)} は どくしゅで どく 状態になった！`);
+      }
+    }
   }
   // イリュージョン解除(段138): 攻撃技のダメージを受けると本来の姿に戻る
   if (def.poke && def.illusionAs && total > 0 && !def.subAbsorbed){
@@ -2986,6 +3043,14 @@ function phaseDealDamage(atkSide, defSide, move){
     def.rank.def = Math.max(-6, (def.rank.def || 0) - 1);
     def.rank.spd = Math.min(6, (def.rank.spd || 0) + 2);
     log('9', `${pname(def)} の くだけるよろい！ ぼうぎょ-1 すばやさ+2！`);
+  }
+  // でんきにかえる(Electromorphosis・Phase D B1): 攻撃技でダメージを受けるとじゅうでん状態になる
+  // (次に出すでんきタイプの技の威力2倍。接触は問わない=非接触技でも発動)。既存のじゅうでん(技)と同じ
+  // chargeBoost機構を再利用=連続ヒットで複数回発動しても上書きのみでスタックしない。
+  // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Electromorphosis")
+  if (def.poke && !def.fainted && total > 0 && !def.subAbsorbed && sideAbility(def) === 'でんきにかえる'){
+    def.chargeBoost = { move_type: 'でんき', multiplier: 2 };
+    log('9', `${pname(def)} は でんきを ためはじめた！`);
   }
   // かいがらのすず: 技でダメージを与えたら与ダメ合計の1/8回復(items_database宣言)
   if (atk.poke && !atk.fainted && !env.magicRoom && atk.item === 'shell_bell' && total > 0){
@@ -3031,8 +3096,17 @@ function phaseDealDamage(atkSide, defSide, move){
     let heal = Math.max(1, Math.floor(total * (drainEf.fraction || 0.5)));
     // ★2026-06-19 おおきなねっこ: HP吸収量が1.3倍になる(items_database.js宣言・2026-07-18に共通ヘルパー化)
     heal = bigRootBoost(atk, heal);
-    atk.currentHp = Math.min(amax, atk.currentHp + heal);
-    log('9', `${pname(atk)} は 吸収して ${heal} 回復！ (残HP ${atk.currentHp})`);
+    // ヘドロえき(Liquid Ooze・Phase D B1): 吸収された側(def)がヘドロえき持ちなら、回復するはずだった分を
+    // 攻撃側(吸収した側=atk)へのダメージへ反転する(Big Root適用後の量が基準=heal算出済みの値をそのまま使う)。
+    // 専用の日本語ログ行は既存i18nパターンに一致するものが無いため機構のみの無音実装(ひんし判定は既存の
+    // 汎用「ひんしになった」行を流用)。報告に明記。出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Liquid Ooze")
+    if (def.poke && sideAbility(def) === 'ヘドロえき'){
+      atk.currentHp = Math.max(0, atk.currentHp - heal);
+      if (atk.currentHp <= 0 && !atk.fainted){ atk.fainted = true; log('9', `${pname(atk)} は ひんしになった！`); }
+    } else {
+      atk.currentHp = Math.min(amax, atk.currentHp + heal);
+      log('9', `${pname(atk)} は 吸収して ${heal} 回復！ (残HP ${atk.currentHp})`);
+    }
   }
   // ★ふうせん: 攻撃技でダメージを受けると割れて効果消失(items_database宣言。出典: ポケモンWiki「ふうせん」)
   // total > 0 かつ本体が受けた(分身が受けた場合は割れない)
@@ -3154,6 +3228,20 @@ function bigRootBoost(st, amount){
   return (it && it.key === 'ooki_na_nekko') ? Math.floor(amount * 1.3) : amount;
 }
 
+// ヘヴィメタル/ライトメタル(Phase D B1): 実効おもさ=×2/×0.5(下限0.1kg・小数第2位以下切り捨て)。
+// けたぐり/くさむすび/ヘビーボンバー/ヒートスタンプ等、体重を参照する技の威力計算(variablePower)で使う。
+// このDBにはじこあんじ(Autotomize)のおもさ減少が未実装なので、実装順序(じこあんじが先)の考慮は不要。
+// 出典: reference/_phaseD_specs_abilities1.json(Bulbapedia "Heavy Metal"/"Light Metal")
+function effectiveWeight(st){
+  if (!st || !st.poke) return 0;
+  const base = st.poke.weight_kg;
+  if (!(base > 0)) return base;
+  const ab = sideAbility(st);
+  if (ab === 'ヘヴィメタル') return base * 2;
+  if (ab === 'ライトメタル') return Math.max(0.1, Math.floor(base * 0.5 * 10) / 10);
+  return base;
+}
+
 // 現在のタイプ(みずびたし/ハロウィン/もえつきる等のタイプ変化を反映)。
 // typeOverride があればそれが正(空配列=タイプなし)。STAB・相性・接地・状態異常のタイプ無効など
 // バトル中のタイプ参照は全てここを通す(UI表示も同じ)。
@@ -3176,6 +3264,21 @@ function sideAbility(st){
   if (!st) return '';
   if (st.abilityOverride != null) return st.abilityOverride;
   return st.ability || '';
+}
+
+// てんきや(Forecast・Phase D B1): 天候に応じてタイプを変える(このDBはポワルンの通常フォルムしか
+// 収録がないため、フォルム/見た目の切替は行わず最小実装=タイプ変化のみ。にほんばれ=ほのお/あめ=みず/
+// ゆき=こおり/それ以外=ノーマル(元のタイプに戻す)。特性がガストロアシッド等で失われている間は
+// typeOverrideを一切触らない=その時点のタイプで固定(仕様書どおり)。
+// 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Forecast")
+function updateForecastForm(st){
+  if (!st || !st.poke || sideAbility(st) !== 'てんきや') return;
+  const _fcMap = {sunny:['ほのお'], rain:['みず'], snow:['こおり']};
+  st.typeOverride = _fcMap[env.weather] || null;
+}
+function syncForecastBothSides(){
+  updateForecastForm(sides.self);
+  updateForecastForm(sides.opp);
 }
 
 // === かたやぶり(段124) — 出典: ポケモンWiki「かたやぶり」 ===
@@ -4361,6 +4464,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         }
         env.weatherTurns = dur;
         log('9', `天気が ${ef.value} になった！`);
+        syncForecastBothSides();   // てんきや(Phase D B1): 技で天候が変わった同じターン内ですぐタイプに反映
       }
     } else if (ef.kind === 'たくわえ加算'){
       // たくわえる: カウント+1(最大は冒頭でゲート済み)。上がったランク分を記録して消費時に戻す
@@ -4408,6 +4512,13 @@ function phaseApplyEffects(atkSide, defSide, move){
       target.soundBlockedMoves = (ef.blocked_moves || []).slice();
       log('9', `${pname(target)} は ${ef.duration || 2}ターンの間 音の技が だせなくなった！`);
     } else if (ef.kind === 'ちょうはつ'){
+      // どんかん(Oblivious・Phase D B1・第6世代以降): ちょうはつを受け付けない(かたやぶりは無視)。
+      // 専用の文言が無いため既存の汎用「無効」文(id=no_effect_ability)を流用する。
+      // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Oblivious")
+      if (defAbilityVs(target, atk) === 'どんかん'){
+        log('9', `${pname(target)} には こうかが ないようだ…（とくせい どんかんのため）`);
+        continue;
+      }
       // ちょうはつ: 3ターンの間(使われたターンを含む)変化技を出せない。すでにちょうはつ状態なら失敗。
       // 出典: Bulbapedia "Taunt"(第5世代以降は3ターン)
       if ((target.tauntTurns || 0) > 0){
@@ -4806,10 +4917,19 @@ function phaseSlipFor(s){
           const oMax = realStat(other, 'hp');
           if (other.currentHp == null) other.currentHp = oMax;
           // おおきなねっこ(吸い取る側=other): やどりぎの回復量1.3倍(削り量dは不変・2026-07-18 ヤックン全数照合)
-          const healed = Math.min(oMax - other.currentHp, bigRootBoost(other, d));
-          if (healed > 0){
-            other.currentHp += healed;
-            log('10a', `${pname(other)} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
+          const _healAmt = bigRootBoost(other, d);
+          // ヘドロえき(Liquid Ooze・Phase D B1): 種を植えられている側(st)がヘドロえき持ちなら、吸い取る側(other)
+          // へのダメージに反転する(Big Root適用後の量が基準)。ログは上のドレイン反転と同じ理由で機構のみ無音実装。
+          // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Liquid Ooze")
+          if (sideAbility(st) === 'ヘドロえき'){
+            other.currentHp = Math.max(0, other.currentHp - _healAmt);
+            if (other.currentHp <= 0 && !other.fainted){ other.fainted = true; log('10a', `${pname(other)} は ひんしになった！`); }
+          } else {
+            const healed = Math.min(oMax - other.currentHp, _healAmt);
+            if (healed > 0){
+              other.currentHp += healed;
+              log('10a', `${pname(other)} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
+            }
           }
         }
       }
@@ -5115,6 +5235,16 @@ function runSingleAttack(atkSide, moveIdx){
   }
   // 失敗条件(fails_if: 相手の選択/行動状況・自分の被弾・前ターン与ダメ)。データ宣言をエンジンが読む(2026-07-05・490技監査で発覚)
   if (failsByCondition(atk, def, mv)){
+    log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
+  // しめりけ(Damp・Phase D B1): 場のどちらかが持っていると、じばく/だいばくはつ/ミストバースト等の
+  // 威力ありの自分瀕死技(自爆技)は誰も使えない(自分がしめりけ持ちでも自分の技はブロックされる)。
+  // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Damp")
+  if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '自分瀕死') &&
+      mv.power != null && mv.power !== '—' &&
+      (sideAbility(atk) === 'しめりけ' || sideAbility(def) === 'しめりけ')){
     log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
@@ -6334,6 +6464,15 @@ function runTurn(){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
       noteActionFailed(atk); continue;
     }
+    // しめりけ(Damp・Phase D B1): 場のどちらかが持っていると、じばく/だいばくはつ/ミストバースト等の
+    // 威力ありの自分瀕死技(自爆技)は誰も使えない(自分がしめりけ持ちでも自分の技はブロックされる)。
+    // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Damp")
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '自分瀕死') &&
+        mv.power != null && mv.power !== '—' &&
+        (sideAbility(atk) === 'しめりけ' || sideAbility(def) === 'しめりけ')){
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+      noteActionFailed(atk); continue;
+    }
     // なげつける: マジックルーム中は失敗(Bulbapedia "Fling" = Magic Room が Fling を封じる)
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'なげつける') && env.magicRoom){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(マジックルームで 道具が だせない)`);
@@ -6573,6 +6712,9 @@ function runTurn(){
       log('10', '天気が 元に戻った！');
     }
   }
+  // てんきや(Forecast・Phase D B1): 天候が変わったかどうかに関わらず毎ターン終了時に同期しておく
+  // (特性がガストロアシッド等から復帰した直後の取りこぼしも、この定期同期で自然に拾える)
+  syncForecastBothSides();
   // グラスフィールドの毎ターン回復(データ宣言: 回復 phase=turn_end)— 地面にいるポケモンだけ
   const _fHeal = fieldRules().find(r => r.kind === '回復' && r.phase === 'turn_end');
   if (_fHeal && _fHeal.fraction != null){
@@ -6731,6 +6873,21 @@ function runTurn(){
         const _before = st.currentHp;
         st.currentHp = Math.min(_max, st.currentHp + bigRootBoost(st, Math.max(1, Math.floor(_max / 16))));
         log('10', `${pname(st)} は アクアリングで HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+      }
+    }
+    // しゅうかく(Harvest・Phase D B1): 自分で消費したきのみ(lastConsumedItem=なげつける/しぜんのめぐみ/
+    // ほおばる/おちゃかい等の自分で食べた分のみ。奪われた/はたき落とされた分はそもそもlastConsumedItemに
+    // 入らないので自然に除外される)を、ターン終了時に一定確率で復活させる。にほんばれの間は必ず復活。
+    // すでに道具を持っていれば発動しない。専用の日本語ログ行は既存i18nパターンに一致するものが無いため
+    // 機構のみの無音実装(報告に明記)。出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Harvest")
+    if (st.poke && !st.fainted && !st.item && st.lastConsumedItem && sideAbility(st) === 'しゅうかく'){
+      const _hvIt = ITEM_BY_KEY[st.lastConsumedItem];
+      if (_hvIt && String(_hvIt.category || '').startsWith('berry')){
+        const _hvChance = env.weather === 'sunny' ? 1 : 0.5;
+        if (Math.random() < _hvChance){
+          st.item = st.lastConsumedItem;
+          st.lastConsumedItem = null;
+        }
       }
     }
     // でんじふゆうのカウントダウン(5ターンで降りる)
@@ -7909,6 +8066,7 @@ function attachEnvPanel(){
   document.getElementById('env-weather').addEventListener('change', e=>{
     env.weather = e.target.value;
     env.weatherTurns = null; // UI手動設定は無期限(技で変えた時だけ5ターンカウント)
+    syncForecastBothSides();   // てんきや(Phase D B1): 手動天候変更でも即タイプに反映
     renderBoth();
   });
   document.getElementById('env-field').addEventListener('change', e=>{

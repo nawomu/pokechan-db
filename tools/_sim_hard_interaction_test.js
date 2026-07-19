@@ -1163,10 +1163,392 @@ try {
 } catch (__e) { skipCase('H30: てだすけ/ワイドガード [出典: bulbapedia.bulbagarden.net/wiki/Helping_Hand_(move)]', (__e && __e.message) || String(__e)); }
 
 // ─────────────────────────────────────────────
+// H31: どくしゅ(Poison Touch) — 直接攻撃が命中したら30%で相手をどく状態にする(攻撃側トリガー)。
+// 出典: reference/_phaseD_specs_abilities1.json (Bulbapedia "Poison Touch")
+// ─────────────────────────────────────────────
+console.log('\n=== H31: どくしゅ [出典: bulbapedia.bulbagarden.net/wiki/Poison_Touch_(Ability)] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カイリキー', 'hataku', { ability: 'どくしゅ' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0);   // 30%ロールを必ず成功側に倒す(0 < 0.3)
+  E.phaseDealDamage('self', 'opp', moveByKey('hataku'));
+  check('H31-a [出典: bulbapedia.bulbagarden.net/wiki/Poison_Touch_(Ability)] 直接攻撃が命中→30%ロール成功でどく状態になる',
+    def.status === 'poison', `def.status=${def.status}`);
+
+  resetEnv();
+  const atk2 = freshSide('カイリキー', 'hataku', { ability: 'どくしゅ' });
+  fullHp(atk2);
+  const def2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def2);
+  E.sides.self = atk2; E.sides.opp = def2;
+  E.setRandom(() => 0.99);   // 30%ロールを必ず失敗側に倒す
+  E.phaseDealDamage('self', 'opp', moveByKey('hataku'));
+  check('H31-b ロール失敗時はどく状態にならない(比較対照)', def2.status === 'none', `def2.status=${def2.status}`);
+} catch (__e) { skipCase('H31: どくしゅ [出典: bulbapedia.bulbagarden.net/wiki/Poison_Touch_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H32: ふくがん(Compound Eyes) — 命中率×1.3(5325/4096)。一撃必殺技には効果なし。
+// 出典: reference/_phaseD_specs_abilities1.json (Bulbapedia "Compound Eyes")
+// ─────────────────────────────────────────────
+console.log('\n=== H32: ふくがん [出典: bulbapedia.bulbagarden.net/wiki/Compound_Eyes_(Ability)] ===');
+try {
+  resetEnv();
+  // かみなり(命中70)。ロール90: 素の70では外れ、ふくがんの70×5325/4096≒90.97では当たる。
+  const atk = freshSide('ピカチュウ', 'kaminari', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0.90);
+  const missNoAb = E.phaseHitCheck(moveByKey('kaminari'), atk, def);
+  check('H32-a 比較対照: ふくがん無しではロール90>命中70で外れる', missNoAb.hit === false, JSON.stringify(missNoAb));
+
+  atk.ability = 'ふくがん';
+  E.setRandom(() => 0.90);
+  const hitWithAb = E.phaseHitCheck(moveByKey('kaminari'), atk, def);
+  check('H32-b [出典: bulbapedia.bulbagarden.net/wiki/Compound_Eyes_(Ability)] ふくがんで命中70×1.3≒90.97→ロール90で命中する',
+    hitWithAb.hit === true, JSON.stringify(hitWithAb));
+
+  // じわれ(一撃必殺・命中30固定)。ロール35は素の30には外れる→ふくがん適用でも変わらないはず(補正対象外)。
+  const atk2 = freshSide('カイリキー', 'jiware', { ability: 'ふくがん' });
+  fullHp(atk2);
+  const def2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def2);
+  E.setRandom(() => 0.35);
+  const ohko = E.phaseHitCheck(moveByKey('jiware'), atk2, def2);
+  check('H32-c 一撃必殺技(じわれ)にはふくがんの補正がかからない(命中30のまま→ロール35で外れる)',
+    ohko.hit === false, JSON.stringify(ohko));
+} catch (__e) { skipCase('H32: ふくがん [出典: bulbapedia.bulbagarden.net/wiki/Compound_Eyes_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H33: しめりけ(Damp) — 場のどちらかが持っていると自爆技(威力ありの自分瀕死技)を誰も使えない。
+// 出典: reference/_phaseD_specs_abilities2.json (Bulbapedia "Damp")
+// ─────────────────────────────────────────────
+console.log('\n=== H33: しめりけ [出典: bulbapedia.bulbagarden.net/wiki/Damp_(Ability)] ===');
+try {
+  resetEnv();
+  const jibaku = moveByKey('jibaku');
+  const atk = freshSide('カビゴン', 'jibaku', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カイリキー', 'hataku', { ability: 'しめりけ' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  const hpBefore = atk.currentHp;
+  E.runSingleAttack('self', 0);
+  check('H33-a [出典: bulbapedia.bulbagarden.net/wiki/Damp_(Ability)] しめりけ持ちが場にいるとじばくが不発(自分は倒れない)',
+    atk.currentHp === hpBefore && !atk.fainted, `hp ${hpBefore}->${atk.currentHp} fainted=${atk.fainted}`);
+
+  // 比較対照: しめりけがいなければ通常どおりじばくで自分が倒れる(威力ありの自分瀕死は宣言即・使用宣言で確定)
+  resetEnv();
+  const atk2 = freshSide('カビゴン', 'jibaku', { ability: '' });
+  fullHp(atk2);
+  const def2 = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(def2);
+  E.sides.self = atk2; E.sides.opp = def2;
+  const hpBefore2 = atk2.currentHp;
+  E.runSingleAttack('self', 0);
+  check('H33-b 比較対照: しめりけが場にいなければじばくは通常どおり自分が倒れる',
+    atk2.fainted === true, `fainted=${atk2.fainted} hp=${atk2.currentHp} (before=${hpBefore2})`);
+
+  // runTurn側(もう一方の実行経路)でも同じくブロックされることを確認
+  // (defの技はまもる=非ダメージにして、atkのHP変化がじばく由来だけになるようにする)
+  resetEnv();
+  const atk3 = freshSide('カビゴン', 'jibaku', { ability: '' });
+  fullHp(atk3);
+  const def3 = freshSide('カイリキー', 'mamoru', { ability: 'しめりけ' });
+  fullHp(def3);
+  E.sides.self = atk3; E.sides.opp = def3;
+  const hpBefore3 = atk3.currentHp;
+  E.setRandom(() => 0.5);
+  E.runTurn();
+  check('H33-c runTurn経路でもしめりけでじばくが不発になる(自分は倒れない)',
+    atk3.currentHp === hpBefore3 && !atk3.fainted, `hp ${hpBefore3}->${atk3.currentHp} fainted=${atk3.fainted}`);
+} catch (__e) { skipCase('H33: しめりけ [出典: bulbapedia.bulbagarden.net/wiki/Damp_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H34: ヘヴィメタル/ライトメタル — 実効おもさ×2/×0.5。けたぐりの威力段階がその実効おもさで変わる。
+// リザードン(90.5kg・素は<100=威力80)→ヘヴィメタルで181kg(<200=100)→ライトメタルで45.2kg(<50=60)。
+// 出典: reference/_phaseD_specs_abilities1.json (Bulbapedia "Heavy Metal"/"Light Metal")
+// ─────────────────────────────────────────────
+console.log('\n=== H34: ヘヴィメタル/ライトメタル [出典: bulbapedia.bulbagarden.net/wiki/Heavy_Metal_(Ability)] ===');
+try {
+  resetEnv();
+  const ketaguri = moveByKey('ketaguri');
+  const atk = freshSide('カイリキー', 'ketaguri', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('リザードン', 'hataku', { ability: '' });
+  fullHp(def);
+  const baseP = E.variablePower(ketaguri, atk, def);
+  check('H34-a 比較対照: 素のリザードン(90.5kg<100)はけたぐり威力80', baseP === 80, `power=${baseP}`);
+
+  def.ability = 'ヘヴィメタル';
+  const heavyP = E.variablePower(ketaguri, atk, def);
+  check('H34-b [出典: bulbapedia.bulbagarden.net/wiki/Heavy_Metal_(Ability)] ヘヴィメタルで実効181kg(<200)→けたぐり威力100',
+    heavyP === 100, `power=${heavyP}`);
+
+  def.ability = 'ライトメタル';
+  const lightP = E.variablePower(ketaguri, atk, def);
+  check('H34-c [出典: bulbapedia.bulbagarden.net/wiki/Light_Metal_(Ability)] ライトメタルで実効45.2kg(<50)→けたぐり威力60',
+    lightP === 60, `power=${lightP}`);
+} catch (__e) { skipCase('H34: ヘヴィメタル/ライトメタル [出典: bulbapedia.bulbagarden.net/wiki/Heavy_Metal_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H35: とうそうしん(Rivalry) — 同性=威力×1.25/異性=×0.75/性別不明混在は補正なし。
+// 出典: reference/_phaseD_specs_abilities2.json (Bulbapedia "Rivalry")
+// ─────────────────────────────────────────────
+console.log('\n=== H35: とうそうしん [出典: bulbapedia.bulbagarden.net/wiki/Rivalry_(Ability)] ===');
+try {
+  resetEnv();
+  const atkSame = freshSide('カイリキー', 'hataku', { ability: 'とうそうしん' });
+  atkSame.gender = '♂'; fullHp(atkSame);
+  const defSame = freshSide('カビゴン', 'hataku', { ability: '' });
+  defSame.gender = '♂'; fullHp(defSame);
+  E.sides.self = atkSame; E.sides.opp = defSame;
+  const rSame = E.calcDamage('self', 'opp', moveByKey('hataku'));
+  check('H35-a [出典: bulbapedia.bulbagarden.net/wiki/Rivalry_(Ability)] 同性(♂×♂)は威力×1.25のチップが立つ',
+    rSame && rSame.chips && rSame.chips.some(c => c.label === 'とうそうしん' && c.factor === 1.25),
+    JSON.stringify(rSame && rSame.chips));
+
+  resetEnv();
+  const atkDiff = freshSide('カイリキー', 'hataku', { ability: 'とうそうしん' });
+  atkDiff.gender = '♂'; fullHp(atkDiff);
+  const defDiff = freshSide('カビゴン', 'hataku', { ability: '' });
+  defDiff.gender = '♀'; fullHp(defDiff);
+  E.sides.self = atkDiff; E.sides.opp = defDiff;
+  const rDiff = E.calcDamage('self', 'opp', moveByKey('hataku'));
+  check('H35-b 異性(♂×♀)は威力×0.75のチップが立つ',
+    rDiff && rDiff.chips && rDiff.chips.some(c => c.label === 'とうそうしん' && c.factor === 0.75),
+    JSON.stringify(rDiff && rDiff.chips));
+
+  resetEnv();
+  const atkUnk = freshSide('カイリキー', 'hataku', { ability: 'とうそうしん' });
+  atkUnk.gender = '♂'; fullHp(atkUnk);
+  const defUnk = freshSide('カビゴン', 'hataku', { ability: '' });
+  defUnk.gender = '—'; fullHp(defUnk);
+  E.sides.self = atkUnk; E.sides.opp = defUnk;
+  const rUnk = E.calcDamage('self', 'opp', moveByKey('hataku'));
+  check('H35-c 相手が性別不明(—)なら補正なし(とうそうしんチップが立たない)',
+    rUnk && rUnk.chips && !rUnk.chips.some(c => c.label === 'とうそうしん'), JSON.stringify(rUnk && rUnk.chips));
+} catch (__e) { skipCase('H35: とうそうしん [出典: bulbapedia.bulbagarden.net/wiki/Rivalry_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H36: ミイラ(Mummy) — 直接攻撃を受けたら攻撃側の特性をミイラへ書き換える(書き換え不可リストは対象外)。
+// 出典: reference/_phaseD_specs_abilities2.json (Bulbapedia "Mummy")
+// ─────────────────────────────────────────────
+console.log('\n=== H36: ミイラ [出典: bulbapedia.bulbagarden.net/wiki/Mummy_(Ability)] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カイリキー', 'hataku', { ability: 'かいりきバサミ' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: 'ミイラ' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0.99);
+  E.phaseDealDamage('self', 'opp', moveByKey('hataku'));
+  check('H36-a [出典: bulbapedia.bulbagarden.net/wiki/Mummy_(Ability)] 直接攻撃を受けたら攻撃側の特性がミイラになる',
+    E.sideAbility(atk) === 'ミイラ', `atkAbility=${E.sideAbility(atk)}`);
+
+  // 書き換え不可リスト(ABILITY_CHANGE_NG)対象は書き換わらない比較対照
+  resetEnv();
+  const atk2 = freshSide('ミミッキュ', 'hataku', { ability: 'ばけのかわ' });
+  fullHp(atk2);
+  const def2 = freshSide('カビゴン', 'hataku', { ability: 'ミイラ' });
+  fullHp(def2);
+  E.sides.self = atk2; E.sides.opp = def2;
+  E.setRandom(() => 0.99);
+  E.phaseDealDamage('self', 'opp', moveByKey('hataku'));
+  check('H36-b 比較対照: ばけのかわ(書き換え不可リスト)はミイラで上書きされない',
+    E.sideAbility(atk2) === 'ばけのかわ', `atkAbility=${E.sideAbility(atk2)}`);
+} catch (__e) { skipCase('H36: ミイラ [出典: bulbapedia.bulbagarden.net/wiki/Mummy_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H37: でんきにかえる(Electromorphosis) — 攻撃技でダメージを受けるとじゅうでん状態になる(接触は問わない)。
+// 出典: reference/_phaseD_specs_abilities2.json (Bulbapedia "Electromorphosis")
+// ─────────────────────────────────────────────
+console.log('\n=== H37: でんきにかえる [出典: bulbapedia.bulbagarden.net/wiki/Electromorphosis_(Ability)] ===');
+try {
+  resetEnv();
+  const atk = freshSide('フシギバナ', 'naminori', { ability: '' });   // なみのり=非接触技
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: 'でんきにかえる' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0.5);
+  E.phaseDealDamage('self', 'opp', moveByKey('naminori'));
+  check('H37 [出典: bulbapedia.bulbagarden.net/wiki/Electromorphosis_(Ability)] 非接触技でダメージを受けてもじゅうでん状態になる(次のでんき技威力2倍)',
+    def.chargeBoost && def.chargeBoost.move_type === 'でんき' && def.chargeBoost.multiplier === 2,
+    JSON.stringify(def.chargeBoost));
+} catch (__e) { skipCase('H37: でんきにかえる [出典: bulbapedia.bulbagarden.net/wiki/Electromorphosis_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H38: ヘドロえき(Liquid Ooze) — 吸収技/やどりぎの回復をダメージに反転する。
+// 出典: reference/_phaseD_specs_abilities2.json (Bulbapedia "Liquid Ooze")
+// ─────────────────────────────────────────────
+console.log('\n=== H38: ヘドロえき [出典: bulbapedia.bulbagarden.net/wiki/Liquid_Ooze_(Ability)] ===');
+try {
+  resetEnv();
+  // 比較対照: 通常特性ならギガドレインで回復する
+  const atkN = freshSide('フシギバナ', 'gigadorein', { ability: '' });
+  const aMaxN = fullHp(atkN);
+  atkN.currentHp = Math.floor(aMaxN / 2);
+  const beforeN = atkN.currentHp;
+  const defN = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(defN);
+  E.sides.self = atkN; E.sides.opp = defN;
+  E.setRandom(() => 0.5);
+  E.phaseDealDamage('self', 'opp', moveByKey('gigadorein'));
+  check('H38-a 比較対照: 通常特性の相手からはギガドレインで回復する', atkN.currentHp > beforeN,
+    `${beforeN}->${atkN.currentHp}`);
+
+  resetEnv();
+  const atk = freshSide('フシギバナ', 'gigadorein', { ability: '' });
+  const aMax = fullHp(atk);
+  atk.currentHp = Math.floor(aMax / 2);
+  const before = atk.currentHp;
+  const def = freshSide('カビゴン', 'hataku', { ability: 'ヘドロえき' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0.5);
+  E.phaseDealDamage('self', 'opp', moveByKey('gigadorein'));
+  check('H38-b [出典: bulbapedia.bulbagarden.net/wiki/Liquid_Ooze_(Ability)] ヘドロえき持ちからはギガドレインで回復せず逆にダメージを受ける',
+    atk.currentHp < before, `${before}->${atk.currentHp}`);
+
+  // やどりぎのタネでも同様に反転する
+  resetEnv();
+  const planter = freshSide('フシギバナ', 'yadorigi', { ability: '' });
+  const pMax = fullHp(planter);
+  planter.currentHp = Math.floor(pMax / 2);
+  const beforeP = planter.currentHp;
+  const seeded = freshSide('カビゴン', 'hataku', { ability: 'ヘドロえき' });
+  const sMax = fullHp(seeded);
+  E.sides.self = planter; E.sides.opp = seeded;
+  E.phaseApplyEffects('self', 'opp', moveByKey('yadorigi'));
+  check('H38-c やどりぎのタネの付与自体は成功する', seeded.slips && seeded.slips.some(sl => sl.source === 'やどりぎのタネ'),
+    JSON.stringify(seeded.slips));
+  const expectD = Math.max(1, Math.floor(sMax / 8));
+  E.phaseSlipFor('opp');
+  check('H38-d やどりぎ側(seeded)のHPは通常どおり削れる', seeded.currentHp === sMax - expectD,
+    `seeded.currentHp=${seeded.currentHp} expected=${sMax - expectD}`);
+  check('H38-e [出典: bulbapedia.bulbagarden.net/wiki/Liquid_Ooze_(Ability)] 種主(planter)は回復せず同量ダメージを受ける(ヘドロえき反転)',
+    planter.currentHp === beforeP - expectD, `planter.currentHp=${planter.currentHp} expected=${beforeP - expectD}`);
+} catch (__e) { skipCase('H38: ヘドロえき [出典: bulbapedia.bulbagarden.net/wiki/Liquid_Ooze_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H39: どんかん(Oblivious)の穴埋め — ちょうはつ無効(第6世代〜)・いかくによる攻撃ランクダウン無効(第8世代〜)。
+// 出典: reference/_phaseD_specs_abilities2.json (Bulbapedia "Oblivious")
+// ─────────────────────────────────────────────
+console.log('\n=== H39: どんかん(ちょうはつ/いかく無効) [出典: bulbapedia.bulbagarden.net/wiki/Oblivious_(Ability)] ===');
+try {
+  resetEnv();
+  const atk = freshSide('ゲンガー', 'chouhatsu', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: 'どんかん' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.phaseApplyEffects('self', 'opp', moveByKey('chouhatsu'));
+  check('H39-a [出典: bulbapedia.bulbagarden.net/wiki/Oblivious_(Ability)] どんかん持ちはちょうはつを受け付けない',
+    (def.tauntTurns || 0) === 0, `tauntTurns=${def.tauntTurns}`);
+
+  resetEnv();
+  const atk2 = freshSide('ギャラドス', 'hataku', { ability: 'いかく' });
+  fullHp(atk2);
+  const def2 = freshSide('カビゴン', 'hataku', { ability: 'どんかん' });
+  fullHp(def2);
+  E.sides.self = atk2; E.sides.opp = def2;
+  E.phaseInitA();
+  check('H39-b どんかん持ちはいかくによる攻撃ランクダウンを受けない(def.rank.atk===0)',
+    def2.rank.atk === 0, `def2.rank.atk=${def2.rank.atk}`);
+} catch (__e) { skipCase('H39: どんかん [出典: bulbapedia.bulbagarden.net/wiki/Oblivious_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H40: しゅうかく(Harvest) — ターン終了時、通常50%/にほんばれ下100%で消費したきのみを復活させる。
+// 出典: reference/_phaseD_specs_abilities2.json (Bulbapedia "Harvest")
+// ─────────────────────────────────────────────
+console.log('\n=== H40: しゅうかく [出典: bulbapedia.bulbagarden.net/wiki/Harvest_(Ability)] ===');
+try {
+  resetEnv();
+  const st = freshSide('カビゴン', 'hataku', { ability: 'しゅうかく' });
+  fullHp(st);
+  st.item = ''; st.lastConsumedItem = 'berry_oran';
+  const other = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(other);
+  E.sides.self = st; E.sides.opp = other;
+  E.setRandom(() => 0.6);   // 0.6 は 50%(にほんばれでない時)には外れ、100%(にほんばれ)には当たる
+  E.runTurn();
+  check('H40-a 通常天候(ロール0.6)では50%を外れて復活しない', st.item === '', `item=${st.item}`);
+
+  resetEnv();
+  const st2 = freshSide('カビゴン', 'hataku', { ability: 'しゅうかく' });
+  fullHp(st2);
+  st2.item = ''; st2.lastConsumedItem = 'berry_oran';
+  const other2 = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(other2);
+  E.sides.self = st2; E.sides.opp = other2;
+  E.env.weather = 'sunny';
+  E.setRandom(() => 0.6);   // にほんばれ下は100%なので同じロールでも必ず復活する
+  E.runTurn();
+  check('H40-b [出典: bulbapedia.bulbagarden.net/wiki/Harvest_(Ability)] にほんばれ下(ロール0.6でも100%)ではきのみが復活する',
+    st2.item === 'berry_oran' && st2.lastConsumedItem == null, `item=${st2.item} lastConsumedItem=${st2.lastConsumedItem}`);
+} catch (__e) { skipCase('H40: しゅうかく [出典: bulbapedia.bulbagarden.net/wiki/Harvest_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H41: てんきや(Forecast) — 天候に応じてポワルンのタイプが変わる(このDBはフォーム未収録のため
+// タイプ変化のみの最小実装。にほんばれ=ほのお/あめ=みず/ゆき=こおり/それ以外=ノーマル)。
+// 出典: reference/_phaseD_specs_abilities2.json (Bulbapedia "Forecast")
+// ─────────────────────────────────────────────
+console.log('\n=== H41: てんきや [出典: bulbapedia.bulbagarden.net/wiki/Forecast_(Ability)] ===');
+try {
+  resetEnv();
+  const cf = freshSide('ポワルン', 'hataku', { ability: 'てんきや' });
+  fullHp(cf);
+  const opp = freshSide('カビゴン', ['nihonbare', 'amagoi', 'yukigeshiki'], { ability: '' });
+  fullHp(opp);
+  E.sides.self = cf; E.sides.opp = opp;
+  check('H41-a 通常天候ではノーマルタイプのまま', JSON.stringify(E.sideTypes(cf)) === JSON.stringify(['ノーマル']),
+    JSON.stringify(E.sideTypes(cf)));
+
+  E.phaseApplyEffects('opp', 'self', moveByKey('nihonbare'));
+  check('H41-b [出典: bulbapedia.bulbagarden.net/wiki/Forecast_(Ability)] にほんばれでほのおタイプになる',
+    JSON.stringify(E.sideTypes(cf)) === JSON.stringify(['ほのお']), JSON.stringify(E.sideTypes(cf)));
+
+  E.phaseApplyEffects('opp', 'self', moveByKey('amagoi'));
+  check('H41-c あめでみずタイプになる', JSON.stringify(E.sideTypes(cf)) === JSON.stringify(['みず']), JSON.stringify(E.sideTypes(cf)));
+
+  E.phaseApplyEffects('opp', 'self', moveByKey('yukigeshiki'));
+  check('H41-d ゆきでこおりタイプになる', JSON.stringify(E.sideTypes(cf)) === JSON.stringify(['こおり']), JSON.stringify(E.sideTypes(cf)));
+
+  // 場に出た時点(Init-A)ですでに天候が張られているケースも正しく反映される
+  resetEnv();
+  E.env.weather = 'sunny';
+  const cf2 = freshSide('ポワルン', 'hataku', { ability: 'てんきや' });
+  fullHp(cf2);
+  const opp2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(opp2);
+  E.sides.self = cf2; E.sides.opp = opp2;
+  E.phaseInitA();
+  check('H41-e 登場時(Init-A)にすでに晴れが張られていれば、すぐほのおタイプになる',
+    JSON.stringify(E.sideTypes(cf2)) === JSON.stringify(['ほのお']), JSON.stringify(E.sideTypes(cf2)));
+} catch (__e) { skipCase('H41: てんきや [出典: bulbapedia.bulbagarden.net/wiki/Forecast_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H42: フラワーベール(Flower Veil) — 実装見送りの確認。
+// 仕様書(reference/_phaseD_specs_abilities1.json)のsingles_relevant=false:
+// 「味方(自分以外の隣接/非隣接の味方くさタイプ)を守る効果が主眼で、1vs1シングル戦(味方なし)では発動対象が
+// 存在しない。かつ効果保持者自身はくさタイプではない(全てフェアリータイプ)ため、自己防御としても機能しない」。
+// 本シミュレーターは1vs1シングル戦専用のためエンジン実装を見送る(全部版限定/シングル無意味skipCaseイディオム)。
+// ─────────────────────────────────────────────
+skipCase('H42: フラワーベール [出典: bulbapedia.bulbagarden.net/wiki/Flower_Veil_(Ability)]',
+  '仕様書のsingles_relevant=false(味方保護が主眼・保持者自身はくさタイプでない)=1vs1シングル戦では発動対象なし。実装見送り(仕様書どおり)');
+
+// ─────────────────────────────────────────────
 // 集計
 // ─────────────────────────────────────────────
 console.log('\n' + '='.repeat(60));
-console.log(`難所相互作用30件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
+console.log(`難所相互作用42件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
 if (fails.length) {
   console.log('\n--- FAIL一覧 ---');
   fails.forEach(f => console.log('  ' + f));
