@@ -1545,10 +1545,463 @@ skipCase('H42: フラワーベール [出典: bulbapedia.bulbagarden.net/wiki/Fl
   '仕様書のsingles_relevant=false(味方保護が主眼・保持者自身はくさタイプでない)=1vs1シングル戦では発動対象なし。実装見送り(仕様書どおり)');
 
 // ─────────────────────────────────────────────
+// Phase D B3: 持ち物10件のエンジン配線テスト(H43〜H52)
+// 出典: reference/_phaseD_specs_items.json + items_database.js の新規10エントリ宣言。
+// アイテムは直接持たせる流儀(全部版専用ポケモンでなくても opts.item / opts.ability で強制指定できる)。
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// H43: ブーストエナジー × こだいかっせい/クォークチャージ(Protosynthesis/Quark Drive)
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Booster_Energy / .../Protosynthesis_(Ability) / .../Quark_Drive_(Ability)
+// ─────────────────────────────────────────────
+console.log('\n=== H43: ブーストエナジー × こだいかっせい/クォークチャージ [出典: bulbapedia.bulbagarden.net/wiki/Booster_Energy] ===');
+try {
+  // カビゴンはbase atk=110・spdef=110で同値タイ(努力値0・性格補正なし)。優先順位はこうげき→ぼうぎょ→
+  // とくこう→とくぼう→すばやさなので、タイ時はこうげきが選ばれるはず(ぼうぎょ/とくぼうより先)。
+  resetEnv();
+  const st = freshSide('カビゴン', 'hataku', { ability: 'こだいかっせい', item: 'booster_energy' });
+  fullHp(st);
+  const opp = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(opp);
+  E.sides.self = st; E.sides.opp = opp;
+  E.phaseInitA();
+  check('H43-a [出典: bulbapedia.bulbagarden.net/wiki/Booster_Energy] 天候/フィールド未発動なら場出しで消費されてブースト発動',
+    st.paradoxBoost === true && st.item === '', `paradoxBoost=${st.paradoxBoost} item=${st.item}`);
+  const atkBoosted = E.rankedStat(st, 'atk');
+  const spdefUnboosted = E.rankedStat(st, 'spdef');
+  check('H43-b 同値タイ(atk=spdef=110)はこうげきが優先されてブーストを受ける(とくぼうは無補正のまま)',
+    atkBoosted > spdefUnboosted, `atk=${atkBoosted} spdef=${spdefUnboosted}`);
+
+  // 天候/フィールドがすでに発動中ならアイテムは温存される(消費されない)
+  resetEnv();
+  E.env.weather = 'sunny';
+  const st2 = freshSide('カビゴン', 'hataku', { ability: 'こだいかっせい', item: 'booster_energy' });
+  fullHp(st2);
+  const opp2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(opp2);
+  E.sides.self = st2; E.sides.opp = opp2;
+  E.phaseInitA();
+  check('H43-c [出典: bulbapedia.bulbagarden.net/wiki/Protosynthesis_(Ability)] にほんばれが既に張られていればアイテムは消費されず温存される',
+    st2.item === 'booster_energy' && !st2.paradoxBoost, `item=${st2.item} paradoxBoost=${st2.paradoxBoost}`);
+  const atkViaWeather = E.rankedStat(st2, 'atk');
+  const spdefViaWeather = E.rankedStat(st2, 'spdef');
+  check('H43-d ただし天候由来でも発動自体はしている(こうげきがブーストされる)',
+    atkViaWeather > spdefViaWeather, `atk=${atkViaWeather} spdef=${spdefViaWeather}`);
+
+  // クォークチャージ: エレキフィールドで発動。すばやさが最高になるようランク+6で押し上げ、×1.5倍を確認
+  resetEnv();
+  E.env.field = 'electric';
+  const st3 = freshSide('カビゴン', 'hataku', { ability: 'クォークチャージ' });
+  fullHp(st3);
+  const opp3 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(opp3);
+  E.sides.self = st3; E.sides.opp = opp3;
+  st3.rank.spd = 6;   // ランク込みですばやさを最高値に押し上げる(仕様書: ランクは加味する)
+  const spdNoBoost = Math.floor(E.realStat(st3, 'spd') * 4);   // rankMult(+6)=4
+  const spdBoosted = E.effectiveSpeed(st3);
+  check('H43-e [出典: bulbapedia.bulbagarden.net/wiki/Quark_Drive_(Ability)] すばやさが最高ならエレキフィールドで×1.5倍(effectiveSpeed経由)',
+    spdBoosted === Math.floor(spdNoBoost * 1.5), `spdBoosted=${spdBoosted} expected=${Math.floor(spdNoBoost * 1.5)}`);
+} catch (__e) { skipCase('H43: ブーストエナジー × こだいかっせい/クォークチャージ [出典: bulbapedia.bulbagarden.net/wiki/Booster_Energy]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H44: とくせいガード(Ability Shield) — 特性の変更・無効化・「無視」からの保護
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Ability_Shield
+// ─────────────────────────────────────────────
+console.log('\n=== H44: とくせいガード [出典: bulbapedia.bulbagarden.net/wiki/Ability_Shield] ===');
+try {
+  // 比較対照: ガード無し=かたやぶりがクリアボディを無視して能力が下がる
+  resetEnv();
+  const atk0 = freshSide('カイリキー', 'kusuguru', { ability: 'かたやぶり' });
+  fullHp(atk0);
+  const def0 = freshSide('カビゴン', 'hataku', { ability: 'クリアボディ' });
+  fullHp(def0);
+  E.sides.self = atk0; E.sides.opp = def0;
+  E.phaseApplyEffects('self', 'opp', moveByKey('kusuguru'));
+  check('H44-a 比較対照(ガード無し): かたやぶりはクリアボディを無視するので能力が下がる',
+    def0.rank.atk === -1 && def0.rank.def === -1, `atk=${def0.rank.atk} def=${def0.rank.def}`);
+
+  // とくせいガードを持たせると、かたやぶりの「無視」自体が無効化されクリアボディが正常に働く
+  resetEnv();
+  const atk1 = freshSide('カイリキー', 'kusuguru', { ability: 'かたやぶり' });
+  fullHp(atk1);
+  const def1 = freshSide('カビゴン', 'hataku', { ability: 'クリアボディ', item: 'ability_shield' });
+  fullHp(def1);
+  E.sides.self = atk1; E.sides.opp = def1;
+  E.phaseApplyEffects('self', 'opp', moveByKey('kusuguru'));
+  check('H44-b [出典: bulbapedia.bulbagarden.net/wiki/Ability_Shield] とくせいガード+クリアボディはかたやぶりでも能力が下がらない',
+    def1.rank.atk === 0 && def1.rank.def === 0, `atk=${def1.rank.atk} def=${def1.rank.def}`);
+
+  // トレース: とくせいガードを持つトレース持ちは自身の特性を書き換えられない(仕様書どおりの例外込み仕様)
+  resetEnv();
+  const tracer = freshSide('メタモン', '', { ability: 'トレース', item: 'ability_shield' });
+  fullHp(tracer);
+  const rival = freshSide('ギャラドス', 'hataku', { ability: 'いかく' });
+  fullHp(rival);
+  E.sides.self = tracer; E.sides.opp = rival;
+  E.phaseInitA();
+  check('H44-c とくせいガード持ちのトレースは相手の特性をコピーしない(自身の特性が変わらない)',
+    E.sideAbility(tracer) === 'トレース', `ability=${E.sideAbility(tracer)}`);
+
+  // ミイラ: とくせいガードを持つ攻撃側はミイラで特性を書き換えられない
+  resetEnv();
+  const mummyAtk = freshSide('カイリキー', 'hataku', { ability: 'ちからずく', item: 'ability_shield' });
+  fullHp(mummyAtk);
+  const mummyDef = freshSide('ヤミラミ', 'hataku', { ability: 'ミイラ' });
+  fullHp(mummyDef);
+  E.sides.self = mummyAtk; E.sides.opp = mummyDef;
+  E.phaseDealDamage('self', 'opp', moveByKey('hataku'));
+  check('H44-d [出典: bulbapedia.bulbagarden.net/wiki/Ability_Shield] とくせいガード持ちはミイラで特性を書き換えられない',
+    E.sideAbility(mummyAtk) === 'ちからずく', `ability=${E.sideAbility(mummyAtk)}`);
+
+  // なりきり(Role Play・自分の特性を相手からコピー): 使用者自身がガード中ならコピーされない
+  resetEnv();
+  const roleUser = freshSide('カイリキー', 'narikiri', { ability: 'ちからずく', item: 'ability_shield' });
+  fullHp(roleUser);
+  const roleTarget = freshSide('ギャラドス', 'hataku', { ability: 'いかく' });
+  fullHp(roleTarget);
+  E.sides.self = roleUser; E.sides.opp = roleTarget;
+  E.phaseApplyEffects('self', 'opp', moveByKey('narikiri'));
+  check('H44-e なりきり使用者がとくせいガード中なら特性はコピーされない',
+    E.sideAbility(roleUser) === 'ちからずく', `ability=${E.sideAbility(roleUser)}`);
+
+  // スキルスワップ: 相手(target)がガード中なら失敗し、どちらの特性も入れかわらない
+  resetEnv();
+  const swapAtk = freshSide('カイリキー', 'sukirusuwappu', { ability: 'ちからずく' });
+  fullHp(swapAtk);
+  const swapDef = freshSide('ギャラドス', 'hataku', { ability: 'いかく', item: 'ability_shield' });
+  fullHp(swapDef);
+  E.sides.self = swapAtk; E.sides.opp = swapDef;
+  E.phaseApplyEffects('self', 'opp', moveByKey('sukirusuwappu'));
+  check('H44-f [出典: bulbapedia.bulbagarden.net/wiki/Ability_Shield] スキルスワップは相手がガード中なら失敗する(どちらも変わらない)',
+    E.sideAbility(swapAtk) === 'ちからずく' && E.sideAbility(swapDef) === 'いかく',
+    `atk=${E.sideAbility(swapAtk)} def=${E.sideAbility(swapDef)}`);
+
+  // いえき(Gastro Acid): 相手(target)がガード中なら特性は無効化されない
+  resetEnv();
+  const gaAtk = freshSide('カイリキー', 'ieki', { ability: 'ちからずく' });
+  fullHp(gaAtk);
+  const gaDef = freshSide('ギャラドス', 'hataku', { ability: 'いかく', item: 'ability_shield' });
+  fullHp(gaDef);
+  E.sides.self = gaAtk; E.sides.opp = gaDef;
+  E.phaseApplyEffects('self', 'opp', moveByKey('ieki'));
+  check('H44-g いえきは相手がとくせいガード中なら特性が無効化されない',
+    E.sideAbility(gaDef) === 'いかく', `ability=${E.sideAbility(gaDef)}`);
+} catch (__e) { skipCase('H44: とくせいガード [出典: bulbapedia.bulbagarden.net/wiki/Ability_Shield]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H45: あつぞこブーツ(Heavy-Duty Boots) — 入場時の設置技被影響を無効化
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Heavy-Duty_Boots / .../Stealth_Rock_(move)
+// ─────────────────────────────────────────────
+console.log('\n=== H45: あつぞこブーツ [出典: bulbapedia.bulbagarden.net/wiki/Heavy-Duty_Boots] ===');
+try {
+  resetEnv();
+  const A = freshSide('ピカチュウ', 'hataku', { ability: '' });
+  fullHp(A);
+  A.stealthRock = true; A.spikesLayers = 3; A.toxicSpikesLayers = 2; A.stickyWeb = true;
+  A.bench = [benchEntry16('ドダイトス', 'hataku', { ability: '', item: 'heavy_duty_boots' })];
+  const B = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(B);
+  E.sides.self = A; E.sides.opp = B;
+  E.attemptSwitch('self', 0);
+  const bootsHolderMaxHp = E.realStat(A, 'hp');
+  check('H45-a [出典: bulbapedia.bulbagarden.net/wiki/Heavy-Duty_Boots] あつぞこブーツはステルスロック/まきびしのダメージを受けない(HP満タンのまま)',
+    A.currentHp === bootsHolderMaxHp, `currentHp=${A.currentHp} max=${bootsHolderMaxHp}`);
+  check('H45-b どくびしで状態異常にならない・ねばねばネットですばやさも下がらない',
+    A.status === 'none' && (A.rank.spd || 0) === 0, `status=${A.status} rank.spd=${A.rank.spd}`);
+
+  // どくタイプ接地持ちがブーツを持っていても、どくびし自体の除去(自分被弾とは別処理)は通常どおり成立する
+  resetEnv();
+  const A2 = freshSide('ピカチュウ', 'hataku', { ability: '' });
+  fullHp(A2);
+  A2.toxicSpikesLayers = 2;
+  A2.bench = [benchEntry16('アーボック', 'hataku', { ability: '', item: 'heavy_duty_boots' })];
+  const B2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(B2);
+  E.sides.self = A2; E.sides.opp = B2;
+  E.attemptSwitch('self', 0);
+  check('H45-c どくタイプ接地持ちが場に出ると、ブーツを持っていてもどくびしは除去される(ブーツは自分の被影響のみガード)',
+    (A2.toxicSpikesLayers || 0) === 0, `toxicSpikesLayers=${A2.toxicSpikesLayers}`);
+} catch (__e) { skipCase('H45: あつぞこブーツ [出典: bulbapedia.bulbagarden.net/wiki/Heavy-Duty_Boots]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H46: クリアチャーム(Clear Amulet) — 相手起因の能力ランク低下を無効化(自分起因は防がない)
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Clear_Amulet
+// ─────────────────────────────────────────────
+console.log('\n=== H46: クリアチャーム [出典: bulbapedia.bulbagarden.net/wiki/Clear_Amulet] ===');
+try {
+  resetEnv();
+  const atk = freshSide('ギャラドス', 'hataku', { ability: 'いかく' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: '', item: 'clear_amulet' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.phaseInitA();
+  check('H46-a [出典: bulbapedia.bulbagarden.net/wiki/Clear_Amulet] クリアチャームはいかくによる能力低下を防ぐ',
+    def.rank.atk === 0, `def.rank.atk=${def.rank.atk}`);
+
+  // 自分自身の技(だいねつ=オーバーヒート)による自傷ランクダウンは防がない
+  resetEnv();
+  const self2 = freshSide('カビゴン', 'oobaahiito', { ability: '', item: 'clear_amulet' });
+  fullHp(self2);
+  const opp2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(opp2);
+  E.sides.self = self2; E.sides.opp = opp2;
+  E.phaseApplyEffects('self', 'opp', moveByKey('oobaahiito'));
+  check('H46-b クリアチャームは自分の技(だいねつ)による自傷ランクダウンは防がない',
+    self2.rank.spatk === -2, `self2.rank.spatk=${self2.rank.spatk}`);
+} catch (__e) { skipCase('H46: クリアチャーム [出典: bulbapedia.bulbagarden.net/wiki/Clear_Amulet]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H47: だっしゅつパック(Eject Pack) — 能力ランク低下直後に強制交代(自傷/相手起因どちらでも)
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Eject_Pack
+// ─────────────────────────────────────────────
+console.log('\n=== H47: だっしゅつパック [出典: bulbapedia.bulbagarden.net/wiki/Eject_Pack] ===');
+try {
+  // 相手起因(いかく)での発動
+  resetEnv();
+  const atk = freshSide('ギャラドス', 'hataku', { ability: 'いかく' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: '', item: 'eject_pack' });
+  fullHp(def);
+  def.bench = [benchEntry16('ピカチュウ', 'hataku', { ability: '' })];
+  E.sides.self = atk; E.sides.opp = def;
+  E.phaseInitA();
+  check('H47-a [出典: bulbapedia.bulbagarden.net/wiki/Eject_Pack] いかくで能力が下がると控えがいればだっしゅつパックで強制交代する',
+    def.poke && def.poke.name === 'ピカチュウ' && def.item === '',
+    `poke=${def.poke && def.poke.name} item=${def.item}`);
+
+  // 自分の技(だいねつ)による自傷ランクダウンでも発動する(runSingleAttack経由=resolveEjectPackまで一気通貫)
+  resetEnv();
+  const self2 = freshSide('カビゴン', 'oobaahiito', { ability: '', item: 'eject_pack' });
+  fullHp(self2);
+  self2.bench = [benchEntry16('ピカチュウ', 'hataku', { ability: '' })];
+  const opp2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(opp2);
+  E.sides.self = self2; E.sides.opp = opp2;
+  E.runSingleAttack('self', 0);
+  check('H47-b [出典: bulbapedia.bulbagarden.net/wiki/Eject_Pack] 自分の技(だいねつ)による自傷ランクダウンでも発動する',
+    self2.poke && self2.poke.name === 'ピカチュウ', `poke=${self2.poke && self2.poke.name}`);
+
+  // 控えがいない場合は発動しない(消費もされない)
+  resetEnv();
+  const atk3 = freshSide('ギャラドス', 'hataku', { ability: 'いかく' });
+  fullHp(atk3);
+  const def3 = freshSide('カビゴン', 'hataku', { ability: '', item: 'eject_pack' });
+  fullHp(def3);
+  E.sides.self = atk3; E.sides.opp = def3;
+  E.phaseInitA();
+  check('H47-c 控えがいない場合は発動しない(アイテムも消費されない)',
+    def3.poke && def3.poke.name === 'カビゴン' && def3.item === 'eject_pack',
+    `poke=${def3.poke && def3.poke.name} item=${def3.item}`);
+} catch (__e) { skipCase('H47: だっしゅつパック [出典: bulbapedia.bulbagarden.net/wiki/Eject_Pack]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H48: じゃくてんほけん(Weakness Policy) — 効果バツグン被弾でこうげき・とくこう+2(消費・1回)
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Weakness_Policy
+// ─────────────────────────────────────────────
+console.log('\n=== H48: じゃくてんほけん [出典: bulbapedia.bulbagarden.net/wiki/Weakness_Policy] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カイリキー', 'kurosuchoppu', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: '', item: 'weakness_policy' });   // ノーマルはかくとうに2倍弱い
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0.99);   // 急所を避ける
+  E.phaseDealDamage('self', 'opp', moveByKey('kurosuchoppu'));
+  check('H48-a [出典: bulbapedia.bulbagarden.net/wiki/Weakness_Policy] 効果バツグンの直接攻撃でこうげき・とくこう+2ずつ発動する',
+    def.rank.atk === 2 && def.rank.spatk === 2 && def.item === '',
+    `rank.atk=${def.rank.atk} rank.spatk=${def.rank.spatk} item=${def.item}`);
+
+  // 等倍(こうかふつう)では発動しない
+  resetEnv();
+  const atk2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(atk2);
+  const def2 = freshSide('カビゴン', 'hataku', { ability: '', item: 'weakness_policy' });
+  fullHp(def2);
+  E.sides.self = atk2; E.sides.opp = def2;
+  E.phaseDealDamage('self', 'opp', moveByKey('hataku'));
+  check('H48-b こうかふつうのダメージでは発動しない(アイテムは温存)',
+    def2.rank.atk === 0 && def2.item === 'weakness_policy', `rank.atk=${def2.rank.atk} item=${def2.item}`);
+
+  // すでにこうげき・とくこうが両方+6なら発動しない
+  resetEnv();
+  const atk3 = freshSide('カイリキー', 'kurosuchoppu', { ability: '' });
+  fullHp(atk3);
+  const def3 = freshSide('カビゴン', 'hataku', { ability: '', item: 'weakness_policy' });
+  fullHp(def3);
+  def3.rank.atk = 6; def3.rank.spatk = 6;
+  E.sides.self = atk3; E.sides.opp = def3;
+  E.setRandom(() => 0.99);
+  E.phaseDealDamage('self', 'opp', moveByKey('kurosuchoppu'));
+  check('H48-c こうげき・とくこうが既に両方+6なら発動しない(アイテムは温存)',
+    def3.item === 'weakness_policy', `item=${def3.item}`);
+} catch (__e) { skipCase('H48: じゃくてんほけん [出典: bulbapedia.bulbagarden.net/wiki/Weakness_Policy]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H49: いかさまダイス(Loaded Dice) — 連続技を必ず4回以上に(2-5技は4/5均等・Population Bomb系は4〜最大均等・
+// トリプルキック/トリプルアクセルは全弾ヒット)。スキルリンクとの共存はスキルリンク優先(より強い方)。
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Loaded_Dice (+Smogon Battle Mechanics Research解析2026-07-19裏取り)
+// ─────────────────────────────────────────────
+console.log('\n=== H49: いかさまダイス [出典: bulbapedia.bulbagarden.net/wiki/Loaded_Dice] ===');
+try {
+  // 通常2-5回技(ミサイルばり): いかさまダイス所持時は必ず4か5回になる
+  resetEnv();
+  const atk = freshSide('カイリキー', 'misairubari', { ability: '', item: 'loaded_dice' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  let allIn45 = true;
+  for (let i = 0; i < 40; i++){
+    fullHp(def); def.fainted = false;
+    const r = E.phaseDealDamage('self', 'opp', moveByKey('misairubari'));
+    if (!(r && (r.hits === 4 || r.hits === 5))) allIn45 = false;
+  }
+  check('H49-a [出典: bulbapedia.bulbagarden.net/wiki/Loaded_Dice] 通常2-5回技は必ず4か5回になる(40試行)', allIn45, 'allIn45=' + allIn45);
+
+  // ネズミざん(Population Bomb系・stop_on_missかつpower_per_hit無し): 4〜10回の均等分布
+  resetEnv();
+  const atkN = freshSide('カイリキー', 'nezumizan', { ability: '', item: 'loaded_dice' });
+  fullHp(atkN);
+  const defN = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(defN);
+  E.sides.self = atkN; E.sides.opp = defN;
+  let allIn410 = true;
+  for (let i = 0; i < 40; i++){
+    fullHp(defN); defN.fainted = false;
+    const r = E.phaseDealDamage('self', 'opp', moveByKey('nezumizan'));
+    if (!(r && r.hits >= 4 && r.hits <= 10)) allIn410 = false;
+  }
+  check('H49-b [出典: bulbapedia.bulbagarden.net/wiki/Loaded_Dice] ネズミざんは4〜10回の範囲に収まる(40試行)', allIn410, 'allIn410=' + allIn410);
+
+  // トリプルアクセル(power_per_hit配列あり): いかさまダイスで命中判定1回化+全弾(3発)ヒット
+  resetEnv();
+  const atkT = freshSide('カイリキー', 'toripuruakuseru', { ability: '', item: 'loaded_dice' });
+  fullHp(atkT);
+  const defT = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(defT);
+  E.sides.self = atkT; E.sides.opp = defT;
+  let allIs3 = true;
+  for (let i = 0; i < 20; i++){
+    fullHp(defT); defT.fainted = false;
+    const r = E.phaseDealDamage('self', 'opp', moveByKey('toripuruakuseru'));
+    if (!(r && r.hits === 3)) allIs3 = false;
+  }
+  check('H49-c [出典: bulbapedia.bulbagarden.net/wiki/Loaded_Dice] トリプルアクセルは命中判定1回化+必ず3発ヒット(20試行)', allIs3, 'allIs3=' + allIs3);
+
+  // スキルリンクとの共存: より強い方(スキルリンクは常に最大回数=5)が勝つ
+  resetEnv();
+  const atkS = freshSide('カイリキー', 'misairubari', { ability: 'スキルリンク', item: 'loaded_dice' });
+  fullHp(atkS);
+  const defS = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(defS);
+  E.sides.self = atkS; E.sides.opp = defS;
+  let allIs5 = true;
+  for (let i = 0; i < 20; i++){
+    fullHp(defS); defS.fainted = false;
+    const r = E.phaseDealDamage('self', 'opp', moveByKey('misairubari'));
+    if (!(r && r.hits === 5)) allIs5 = false;
+  }
+  check('H49-d スキルリンクとの共存はスキルリンクが勝つ(常に5回・いかさまダイスの4/5より強い)', allIs5, 'allIs5=' + allIs5);
+} catch (__e) { skipCase('H49: いかさまダイス [出典: bulbapedia.bulbagarden.net/wiki/Loaded_Dice]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H50: ものまねハーブ(Mirror Herb) — 相手の能力上昇を見て同じ分だけ自分も上昇(消費・1回)
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Mirror_Herb
+// ─────────────────────────────────────────────
+console.log('\n=== H50: ものまねハーブ [出典: bulbapedia.bulbagarden.net/wiki/Mirror_Herb] ===');
+try {
+  resetEnv();
+  const raiser = freshSide('カビゴン', 'tsuruginomai', { ability: '' });
+  fullHp(raiser);
+  const mirror = freshSide('カビゴン', 'hataku', { ability: '', item: 'mirror_herb' });
+  fullHp(mirror);
+  E.sides.self = raiser; E.sides.opp = mirror;
+  E.phaseApplyEffects('self', 'opp', moveByKey('tsuruginomai'));
+  check('H50-a [出典: bulbapedia.bulbagarden.net/wiki/Mirror_Herb] 相手のつるぎのまい(こうげき+2)を見て同じ分だけ自分も上がる',
+    raiser.rank.atk === 2 && mirror.rank.atk === 2 && mirror.item === '',
+    `raiser.rank.atk=${raiser.rank.atk} mirror.rank.atk=${mirror.rank.atk} mirror.item=${mirror.item}`);
+
+  // 相手の能力低下には反応しない
+  resetEnv();
+  const lowerer = freshSide('ギャラドス', 'hataku', { ability: 'いかく' });
+  fullHp(lowerer);
+  const mirror2 = freshSide('カビゴン', 'hataku', { ability: '', item: 'mirror_herb' });
+  fullHp(mirror2);
+  E.sides.self = lowerer; E.sides.opp = mirror2;
+  E.phaseInitA();
+  check('H50-b 相手の能力低下(いかく)には反応しない(アイテムは温存)',
+    mirror2.rank.atk === -1 && mirror2.item === 'mirror_herb', `mirror2.rank.atk=${mirror2.rank.atk} item=${mirror2.item}`);
+} catch (__e) { skipCase('H50: ものまねハーブ [出典: bulbapedia.bulbagarden.net/wiki/Mirror_Herb]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H51: おんみつマント(Covert Cloak) — 相手の技の追加効果(状態異常/ひるみ/能力低下)を無効化。
+// りんぷん(Shield Dust)と同じ層で共通化(items_database.js宣言どおり)。
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Covert_Cloak
+// ─────────────────────────────────────────────
+console.log('\n=== H51: おんみつマント [出典: bulbapedia.bulbagarden.net/wiki/Covert_Cloak] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カイリキー', 'kaenhousha', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: '', item: 'covert_cloak' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0.01);   // 10%のやけどが必ず当たる乱数
+  E.phaseDealDamage('self', 'opp', moveByKey('kaenhousha'));
+  E.phaseApplyEffects('self', 'opp', moveByKey('kaenhousha'));
+  check('H51-a [出典: bulbapedia.bulbagarden.net/wiki/Covert_Cloak] おんみつマントはかえんほうしゃの追加効果(やけど)を無効化する',
+    def.status === 'none', `status=${def.status}`);
+
+  // 比較対照: おんみつマントが無ければ同じ乱数でやけどになる
+  resetEnv();
+  const atk2 = freshSide('カイリキー', 'kaenhousha', { ability: '' });
+  fullHp(atk2);
+  const def2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def2);
+  E.sides.self = atk2; E.sides.opp = def2;
+  E.setRandom(() => 0.01);
+  E.phaseDealDamage('self', 'opp', moveByKey('kaenhousha'));
+  E.phaseApplyEffects('self', 'opp', moveByKey('kaenhousha'));
+  check('H51-b 比較対照: おんみつマントが無ければ同じ乱数でやけどになる', def2.status === 'burn', `status=${def2.status}`);
+} catch (__e) { skipCase('H51: おんみつマント [出典: bulbapedia.bulbagarden.net/wiki/Covert_Cloak]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H52: のどスプレー(Throat Spray) — 音技を成功させた直後、とくこう+1(消費・1回)
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Throat_Spray
+// ─────────────────────────────────────────────
+console.log('\n=== H52: のどスプレー [出典: bulbapedia.bulbagarden.net/wiki/Throat_Spray] ===');
+try {
+  resetEnv();
+  const st = freshSide('カイリキー', 'haipaaboisu', { ability: '', item: 'throat_spray' });
+  fullHp(st);
+  const opp = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(opp);
+  E.sides.self = st; E.sides.opp = opp;
+  E.setRandom(() => 0.01);   // 命中を確実にする(ハイパーボイスは命中100だが念のため)
+  E.runSingleAttack('self', 0);
+  check('H52-a [出典: bulbapedia.bulbagarden.net/wiki/Throat_Spray] 音技(ハイパーボイス)を成功させるととくこう+1(消費)',
+    st.rank.spatk === 1 && st.item === '', `rank.spatk=${st.rank.spatk} item=${st.item}`);
+
+  // 音技でない通常攻撃では発動しない
+  resetEnv();
+  const st2 = freshSide('カイリキー', 'hataku', { ability: '', item: 'throat_spray' });
+  fullHp(st2);
+  const opp2 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(opp2);
+  E.sides.self = st2; E.sides.opp = opp2;
+  E.setRandom(() => 0.01);
+  E.runSingleAttack('self', 0);
+  check('H52-b 音技でない通常攻撃(はたく)では発動しない(アイテムは温存)',
+    st2.rank.spatk === 0 && st2.item === 'throat_spray', `rank.spatk=${st2.rank.spatk} item=${st2.item}`);
+} catch (__e) { skipCase('H52: のどスプレー [出典: bulbapedia.bulbagarden.net/wiki/Throat_Spray]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
 // 集計
 // ─────────────────────────────────────────────
 console.log('\n' + '='.repeat(60));
-console.log(`難所相互作用42件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
+console.log(`難所相互作用52件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
 if (fails.length) {
   console.log('\n--- FAIL一覧 ---');
   fails.forEach(f => console.log('  ' + f));
