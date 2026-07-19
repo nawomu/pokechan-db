@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title data-i18n="speed.page_title">素早さ比較(スピードライン) — PchamDB</title>
+<meta name="theme-color" content="#1F4E79">
+<meta name="description" content="全ポケモンの素早さ実数値を最速/準速/無振り/最遅の4ラインで一覧。自分の調整を入れれば誰を抜けるか一発で分かる、対戦勢向けのスピードライン早見表。">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://pchamdb.com/speed_compare.html">
+
+<link rel="stylesheet" href="site-footer.css?v=20260720">
+<script defer src="i18n/runtime.js?v=20260720"></script>
+<script src="pokechan_data.js?v=20260720"></script>
+<script src="sprite_api_ids.js?v=20260720"></script>
+
+<style>
+:root{
+  --hdr:#1F4E79;
+  --hdr2:#2A5A89;
+  --accent:#2E86C1;
+  --darkest:#0F2940;
+  --bg:#DDE3EC;
+  --card:#ffffff;
+  --border:#c3cdda;
+  --text:#1F4E79;
+  --muted:#5b6b7e;
+  --danger:#C03028;
+  --ok:#2e7d32;
+  --tie:#c9970f;
+  --chip:#eef3f9;
+  --hdr-h:48px;
+  --toolbar-h:96px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:"Hiragino Sans","Noto Sans JP",system-ui,-apple-system,sans-serif;
+  font-size:15px;line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:760px;margin:0 auto;padding:0 12px 32px}
+
+/* ===== ヘッダー ===== */
+.tc-header{
+  background:linear-gradient(135deg,var(--darkest),var(--hdr));
+  color:#fff;padding:10px 12px;
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  flex-wrap:wrap;position:sticky;top:0;z-index:30;
+  box-shadow:0 2px 6px rgba(0,0,0,.15);
+}
+.tc-header h1{font-size:15px;margin:0;font-weight:700;display:flex;align-items:center;gap:6px;min-width:0}
+.tc-home{color:#9fd0ff;font-weight:800;font-size:13px;text-decoration:none;white-space:nowrap}
+.tc-home:hover{color:#cfe8ff;text-decoration:underline}
+.tc-sep{color:#6f93b0;font-size:12px}
+.tc-page-title{color:#fff;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tc-nav{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tc-nav-btn{
+  color:#fff;background:rgba(255,255,255,.12);
+  text-decoration:none;font-size:11px;padding:5px 8px;border-radius:6px;
+  border:1px solid rgba(255,255,255,.18);white-space:nowrap;
+}
+.tc-nav-btn:hover{background:rgba(255,255,255,.22)}
+#i18n-switcher-mount{margin-left:2px;display:inline-flex;align-items:center}
+
+/* ===== セクション共通 ===== */
+.intro{padding:14px 2px 6px}
+.intro p{margin:0;font-size:12.5px;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-top:10px}
+.section{margin-top:16px}
+.section-title{
+  font-size:13px;font-weight:700;color:var(--hdr2);
+  display:flex;align-items:center;gap:6px;margin:0 0 8px;
+}
+.section-title .hint{font-weight:400;font-size:11px;color:var(--muted)}
+.notice{font-size:11px;color:var(--muted);margin-top:6px}
+
+/* ===== レギュレーション選択 ===== */
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{
+  flex:1 1 auto;min-width:120px;padding:9px 8px;border-radius:9px;
+  border:2px solid var(--border);background:#fff;color:var(--text);
+  font-size:12.5px;font-weight:700;cursor:pointer;
+}
+.seg button.active{border-color:var(--accent);background:#eaf5fd;color:var(--hdr)}
+
+/* ===== じぶんの調整 ===== */
+.search-box{position:relative;margin-top:4px}
+.search-box input{
+  width:100%;font-size:16px;padding:12px 14px;border:2px solid var(--accent);
+  border-radius:10px;background:#fff;color:var(--text);outline:none;
+}
+.search-box input:focus{border-color:var(--hdr);box-shadow:0 0 0 3px rgba(46,140,193,.18)}
+.dd{
+  position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:15;
+  background:#fff;border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 24px rgba(15,41,64,.18);max-height:280px;overflow:auto;display:none;
+}
+.dd.open{display:block}
+.dd-item{
+  display:flex;align-items:center;gap:10px;width:100%;text-align:left;
+  padding:8px 12px;border:0;background:transparent;cursor:pointer;border-bottom:1px solid #eef1f5;
+  font-size:14px;color:var(--text);
+}
+.dd-item:last-child{border-bottom:0}
+.dd-item:hover{background:#eef5fb}
+.dd-item img{width:30px;height:30px;flex:0 0 auto;object-fit:contain}
+.dd-item .nm{font-weight:700;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dd-item .types{display:flex;gap:3px}
+.dd-empty{padding:14px;text-align:center;color:var(--muted);font-size:13px}
+
+.own-selected{display:flex;align-items:center;gap:8px;margin-top:10px}
+.own-selected img{width:44px;height:44px;object-fit:contain}
+.own-selected .nm{font-weight:800;font-size:14px;flex:1 1 auto;min-width:0}
+.own-selected .types{display:flex;gap:3px}
+.own-clear{
+  border:0;background:#eaf1f8;color:var(--hdr);font-size:12px;font-weight:700;
+  padding:6px 10px;border-radius:999px;cursor:pointer;white-space:nowrap;
+}
+.own-clear:hover{background:var(--danger);color:#fff}
+.own-empty{font-size:12.5px;color:var(--muted);padding:6px 2px}
+
+.ctrl-row{margin-top:12px}
+.ctrl-label{font-size:11.5px;font-weight:700;color:var(--hdr2);display:flex;justify-content:space-between;align-items:center;margin-bottom:5px}
+.ctrl-label .val{color:var(--accent);font-weight:800}
+.nature-seg{display:flex;gap:6px}
+.nature-seg button{
+  flex:1 1 0;padding:8px 4px;border-radius:8px;border:2px solid var(--border);
+  background:#fff;color:var(--text);font-size:12px;font-weight:700;cursor:pointer;
+}
+.nature-seg button.active{border-color:var(--accent);background:#eaf5fd;color:var(--hdr)}
+input[type="range"]{width:100%;accent-color:var(--accent)}
+.rank-stepper{display:flex;align-items:center;gap:8px}
+.rank-stepper button{
+  width:34px;height:34px;border-radius:8px;border:2px solid var(--border);background:#fff;
+  color:var(--hdr);font-size:16px;font-weight:800;cursor:pointer;
+}
+.rank-stepper button:disabled{opacity:.35;cursor:default}
+.rank-stepper .rv{flex:1 1 auto;text-align:center;font-weight:800;font-size:14px}
+.toggle-row{display:flex;flex-wrap:wrap;gap:8px}
+.toggle-chip{
+  display:flex;align-items:center;gap:6px;background:#fff;border:2px solid var(--border);
+  border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700;color:var(--text);cursor:pointer;
+  user-select:none;
+}
+.toggle-chip input{margin:0}
+.toggle-chip.on{border-color:var(--accent);background:#eaf5fd;color:var(--hdr)}
+
+.your-speed{
+  margin-top:14px;background:linear-gradient(135deg,var(--hdr),var(--accent));
+  color:#fff;border-radius:12px;padding:14px;text-align:center;
+}
+.your-speed .lbl{font-size:11.5px;opacity:.9;font-weight:700}
+.your-speed .num{font-size:34px;font-weight:800;line-height:1.2}
+.your-speed .sub{font-size:11px;opacity:.85;margin-top:2px}
+
+/* ===== 一覧テーブル ===== */
+.tbl-toolbar{position:sticky;z-index:20;top:var(--hdr-h);background:var(--bg);padding:8px 0 6px}
+.tbl-search{
+  width:100%;font-size:14px;padding:9px 12px;border:2px solid var(--border);
+  border-radius:9px;background:#fff;color:var(--text);outline:none;
+}
+.tbl-search:focus{border-color:var(--accent)}
+.legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;font-size:11px;color:var(--muted)}
+.legend .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:3px;vertical-align:-1px}
+.sw.green{background:#bfe6c4}
+.sw.tie{background:#f3e2a9}
+.sw.red{background:#f3c6c2}
+
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+table.speedtbl{border-collapse:collapse;width:100%;min-width:300px;table-layout:fixed;font-size:12px}
+table.speedtbl thead th{
+  position:sticky;top:var(--toolbar-h);z-index:10;
+  background:#1c2740;color:#9ec5ff;font-weight:700;
+  padding:6px 3px;text-align:center;white-space:normal;line-height:1.15;font-size:10.5px;
+  cursor:pointer;border-bottom:1px solid #233;
+}
+table.speedtbl thead th.sorted{color:#fff}
+table.speedtbl thead th:first-child,
+table.speedtbl tbody td:first-child{
+  position:sticky;left:0;z-index:6;background:#1c2740;
+}
+table.speedtbl tbody td:first-child{background:#fff;z-index:5;box-shadow:2px 0 3px rgba(0,0,0,.06)}
+table.speedtbl tbody tr.own-row td:first-child{background:#eaf5fd}
+table.speedtbl tbody td{padding:5px 4px;border-bottom:1px solid #eef1f5;text-align:center;white-space:nowrap}
+table.speedtbl tbody tr:last-child td{border-bottom:0}
+td.name-cell{display:flex;align-items:center;gap:3px;text-align:left;overflow:hidden}
+td.name-cell .rk{flex:0 0 auto;width:14px;font-weight:700;color:var(--muted);font-size:9.5px;text-align:right}
+td.name-cell img{width:20px;height:20px;object-fit:contain;flex:0 0 auto}
+td.name-cell .nm{font-weight:700;flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px}
+td.name-cell .types{display:flex;gap:2px;flex:0 0 auto;overflow:hidden}
+.type-badge{
+  display:inline-block;color:#fff;font-size:8px;font-weight:700;
+  padding:1px 3px;border-radius:4px;line-height:1.4;white-space:nowrap;
+}
+@media(max-width:360px){
+  td.name-cell .types span.type-badge:nth-child(2){display:none}
+}
+td.stat-cell{font-weight:700}
+td.stat-cell.green{background:#e3f6e5;color:var(--ok)}
+td.stat-cell.tie{background:#fbf1d3;color:#8a6a06}
+td.stat-cell.red{background:#fbe7e5;color:var(--danger)}
+tr.own-row td.own-cell{font-weight:800;color:var(--hdr);background:#eaf5fd}
+.tbl-empty{padding:20px;text-align:center;color:var(--muted);font-size:12.5px}
+
+/* ===== 下部リンク ===== */
+.links{margin-top:24px;display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
+.links a{
+  display:inline-block;background:var(--card);border:1px solid var(--border);
+  color:var(--hdr);text-decoration:none;font-size:12.5px;font-weight:700;
+  padding:8px 12px;border-radius:8px;
+}
+.links a:hover{border-color:var(--accent);background:#eef5fb}
+
+@media(max-width:420px){
+  .tc-nav-btn{padding:4px 6px;font-size:10.5px}
+  .your-speed .num{font-size:28px}
+}
+</style>
+</head>
+<body>
+
+<header class="tc-header">
+  <h1>
+    <a href="index.html" class="tc-home" title="PchamDB トップに戻る" data-i18n="speed.home" data-i18n-attr="title:speed.home_title">🏠 PchamDB</a>
+    <span class="tc-sep">›</span>
+    <span class="tc-page-title" data-i18n="speed.header_title">⚡ 素早さ比較</span>
+  </h1>
+  <nav class="tc-nav">
+    <a class="tc-nav-btn" href="party_checker.html" target="_blank" rel="noopener" data-i18n="speed.nav_builder">🎯 ビルダー</a>
+    <a class="tc-nav-btn" href="real_battle.html" target="_blank" rel="noopener" data-i18n="speed.nav_battle">🎮 バトル</a>
+    <a class="tc-nav-btn" href="battle_lab.html" target="_blank" rel="noopener" data-i18n="speed.nav_lab">🧪 バトルラボ</a>
+    <span id="i18n-switcher-mount"></span>
+  </nav>
+</header>
+
+<div class="wrap">
+  <div class="intro">
+    <p data-i18n="speed.intro">全ポケモンの素早さの実数値を、最速・準速・無振り・最遅の4本のラインでまとめました。自分の調整を入れると、誰を抜けて誰に抜かれるかがすぐ分かります。</p>
+  </div>
+
+  <!-- レギュレーション選択 -->
+  <div class="card">
+    <div class="section-title"><span data-i18n="speed.regu_label">📋 レギュレーション</span></div>
+    <div class="seg" id="regu-seg">
+      <button type="button" data-regu="all" class="active" data-i18n="speed.regu_all">現行(全部)</button>
+      <button type="button" data-regu="no_mega" data-i18n="speed.regu_no_mega">メガなし</button>
+    </div>
+    <p class="notice" data-i18n="speed.regu_note">※シーズン別のロースター絞り込みには対応していません(データにシーズン情報が無いため)。メガシンカ姿は「現行(全部)」でのみ一覧に含まれます。</p>
+  </div>
+
+  <!-- じぶんの調整 -->
+  <div class="card">
+    <div class="section-title"><span data-i18n="speed.builder_title">🛠 じぶんの調整</span></div>
+    <div class="search-box">
+      <input id="own-search" type="text" autocomplete="off" placeholder="ポケモン名で検索（ひらがなOK）"
+        data-i18n-attr="placeholder:speed.search_placeholder">
+      <div class="dd" id="own-dropdown" role="listbox"></div>
+    </div>
+    <div id="own-selected-wrap"></div>
+
+    <div class="ctrl-row">
+      <div class="ctrl-label"><span data-i18n="speed.nature_label">性格の素早さ補正</span></div>
+      <div class="nature-seg" id="nature-seg">
+        <button type="button" data-dir="1" data-i18n="speed.nature_up">▲上昇(×1.1)</button>
+        <button type="button" data-dir="0" class="active" data-i18n="speed.nature_neutral">ー無補正</button>
+        <button type="button" data-dir="-1" data-i18n="speed.nature_down">▼下降(×0.9)</button>
+      </div>
+    </div>
+
+    <div class="ctrl-row">
+      <div class="ctrl-label">
+        <span data-i18n="speed.effort_label">素早さ 努力値ポイント</span>
+        <span class="val"><span id="effort-val">0</span> / 32</span>
+      </div>
+      <input type="range" id="effort-range" min="0" max="32" step="1" value="0">
+      <p class="notice" data-i18n="speed.effort_note">※このゲームは1能力ごと最大32・合計66ポイント制です(いわゆる252振りではありません)。1ポイント＝実数値+1として計算します。</p>
+    </div>
+
+    <div class="ctrl-row">
+      <div class="ctrl-label"><span data-i18n="speed.rank_label">素早さランク</span></div>
+      <div class="rank-stepper">
+        <button type="button" id="rank-dec">−</button>
+        <span class="rv" id="rank-val">±0</span>
+        <button type="button" id="rank-inc">+</button>
+      </div>
+    </div>
+
+    <div class="ctrl-row toggle-row">
+      <label class="toggle-chip" id="chip-scarf"><input type="checkbox" id="tg-scarf"><span data-i18n="speed.toggle_scarf">こだわりスカーフ ×1.5</span></label>
+      <label class="toggle-chip" id="chip-tailwind"><input type="checkbox" id="tg-tailwind"><span data-i18n="speed.toggle_tailwind">おいかぜ ×2</span></label>
+      <label class="toggle-chip" id="chip-paralysis"><input type="checkbox" id="tg-paralysis"><span data-i18n="speed.toggle_paralysis">まひ ×0.5</span></label>
+    </div>
+
+    <div class="your-speed" id="your-speed">
+      <div class="lbl" data-i18n="speed.your_speed_label">きみの実効すばやさ</div>
+      <div class="num" id="your-speed-num">—</div>
+      <div class="sub" id="your-speed-sub"></div>
+    </div>
+  </div>
+
+  <!-- 一覧テーブル -->
+  <div class="section">
+    <div class="section-title"><span data-i18n="speed.table_title">📊 全ポケモン 素早さライン</span></div>
+    <div class="tbl-toolbar">
+      <input id="tbl-search" class="tbl-search" type="text" autocomplete="off"
+        placeholder="表内をポケモン名で絞り込み" data-i18n-attr="placeholder:speed.filter_placeholder">
+      <div class="legend">
+        <span><span class="sw green"></span><span data-i18n="speed.legend_outspeed">抜ける</span></span>
+        <span><span class="sw tie"></span><span data-i18n="speed.legend_tie">同速</span></span>
+        <span><span class="sw red"></span><span data-i18n="speed.legend_outsped">抜かれる</span></span>
+      </div>
+    </div>
+    <div class="tbl-wrap">
+      <table class="speedtbl" id="speed-table">
+        <colgroup>
+          <col style="width:48%">
+          <col style="width:13%">
+          <col style="width:13%">
+          <col style="width:13%">
+          <col style="width:13%">
+        </colgroup>
+        <thead>
+          <tr>
+            <th data-col="name" data-i18n="speed.col_pokemon">ポケモン</th>
+            <th data-col="max" data-i18n="speed.col_max">最速</th>
+            <th data-col="sub" data-i18n="speed.col_sub">準速</th>
+            <th data-col="zero" data-i18n="speed.col_zero">無振り</th>
+            <th data-col="min" data-i18n="speed.col_min">最遅</th>
+          </tr>
+        </thead>
+        <tbody id="speed-tbody"></tbody>
+      </table>
+    </div>
+    <p class="notice" data-i18n="speed.table_hint">最速=素早さ32ポイント+性格↑ / 準速=素早さ32ポイント+性格無補正 / 無振り=0ポイント+性格無補正 / 最遅=0ポイント+性格↓(個体値はどの行もすべて31で統一)。見出しをタップすると、その列で並べ替えます。</p>
+  </div>
+
+  <!-- 他ページへのリンク -->
+  <div class="links">
+    <a href="party_checker.html" data-i18n="speed.link_builder">🎯 チームビルダー</a>
+    <a href="real_battle.html" data-i18n="speed.link_battle">🎮 リアルバトル</a>
+    <a href="battle_lab.html" data-i18n="speed.link_lab">🧪 バトルラボ</a>
+    <a href="pokemon_db_v9.html" data-i18n="speed.link_db">🗄️ ポケモンDB</a>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <p class="unofficial" data-i18n="footer.unofficial">⚠️ 当サイトは非公式ファンサイトです</p>
+  <p data-i18n="footer.not_affiliated">任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズなど関連企業とは一切関係ありません。</p>
+  <div class="footer-links">
+    <a href="making.html" data-i18n="nav.making">制作の裏側</a> ·
+    <a href="terms.html" target="_blank" rel="noopener" data-i18n="nav.terms">利用規約</a> ·
+    <a href="privacy.html" target="_blank" rel="noopener" data-i18n="nav.privacy">プライバシーポリシー</a> ·
+    <a href="disclaimer.html" target="_blank" rel="noopener" data-i18n="nav.disclaimer">免責事項</a> ·
+    <a href="contact.html" data-i18n="nav.contact">お問い合わせ</a> ·
+    <a href="sitemap.html" data-i18n="nav.sitemap">サイトマップ</a>
+  </div>
+  <p class="copyright">
+    ポケモン・Pokémon・ポケットモンスター・モンスターボール・ポケモンチャンピオンズ等の<br>
+    商標および著作権は、任天堂株式会社・株式会社ポケモン・ゲームフリーク株式会社・<br>
+    株式会社クリーチャーズに帰属します。<br><br>
+    © 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc.<br>
+    © 2026 PchamDB
+  </p>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ 実数値の計算式(SSOT: real_battle_simulator.html) ============
+     出典:
+       - real_battle_simulator.html:1058           LEVEL = 50 (Lv50固定)
+       - real_battle_simulator.html:1292-1298       calcRealStat(key, base, ep, natureMult)
+           HP  以外: floor( (floor((base*2+31)/2) + 5 + ep) * natureMult )
+           個体値は全ポケモン共通で31固定(Championsは可変IV無し)
+       - real_battle_simulator.html:1300-1305       getNatureMult (↑=1.1 / 無補正=1.0 / ↓=0.9)
+       - real_battle.html:1305-1313 clampEffortRB   努力値は「Championsポイント制」
+           1能力につき 0〜32pt・全体合計 66pt が上限(旧来の 252/510 ではない)。
+           1pt = 実数値 +1(4で割らない)。party_checker.html の ev-budget(「/ 66」表示)にも一致。
+       - real_battle_simulator.html:1267-1270 rankMult / 2288-2296 effectiveSpeed
+           ランク補正→まひ(×0.5)→こだわりスカーフ(×1.5)→おいかぜ(×2) の順で実効素早さを算出。
+     このページは上記と同じ式を使う(独自の式を作らない)。
+  */
+  var EFFORT_MAX_PER_STAT = 32; // real_battle.html:1305 clampEffortRB
+  function calcStat(base, pts, natureMult){
+    var inner = Math.floor((base * 2 + 31) / 2) + 5;
+    return Math.floor((inner + pts) * natureMult);
+  }
+  function rankMult(n){
+    if (n === 0) return 1;
+    return n > 0 ? (2 + n) / 2 : 2 / (2 - n);
+  }
+  function speedLines(p){
+    return {
+      max:  calcStat(p.spd, EFFORT_MAX_PER_STAT, 1.1),
+      sub:  calcStat(p.spd, EFFORT_MAX_PER_STAT, 1.0),
+      zero: calcStat(p.spd, 0, 1.0),
+      min:  calcStat(p.spd, 0, 0.9)
+    };
+  }
+
+  /* ============ i18n ヘルパ(real_battle.html/suggest_partner.htmlの作法) ============ */
+  function t(key, fb){ return (window.I18N && I18N.t) ? I18N.t(key, fb) : fb; }
+  function tPokeName(nm){ return (window.I18N && I18N.pokemon) ? I18N.pokemon(nm) : nm; }
+  function tTypeName(ty, fmt){ return (window.I18N && I18N.type) ? I18N.type(ty, fmt) : ty; }
+  function tTypeShort(ty){ return tTypeName(ty, 'short3'); }
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+  function toKata(s){ return (s || '').replace(/[ぁ-ゟ]/g, function(c){ return String.fromCharCode(c.charCodeAt(0) + 0x60); }); }
+
+  /* ============ スプライト(suggest_partner.html作法) ============ */
+  function apiIdOf(nm){
+    if (typeof SPRITE_API_ID === 'undefined') return null;
+    if (SPRITE_API_ID[nm]) return SPRITE_API_ID[nm];
+    if (nm && nm.indexOf('メガ') === 0){
+      var base = nm.replace(/^メガ/, '').replace(/[XY♂♀]$/, '');
+      if (SPRITE_API_ID[base]) return SPRITE_API_ID[base];
+    }
+    return null;
+  }
+  function pokeIconSrc(nm){
+    var id = apiIdOf(nm);
+    return id ? ('images/poke/' + id + '.png') : ('images/sim/' + encodeURIComponent(nm) + '.svg');
+  }
+  function pokeIconHtml(nm){
+    return '<img loading="lazy" src="' + pokeIconSrc(nm) + '" alt="" onerror="this.remove()">';
+  }
+  function typeColor(ty){ return (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[ty]) ? TYPE_COLORS[ty] : '#888'; }
+  function typeBadge(ty){ return '<span class="type-badge" style="background:' + typeColor(ty) + '">' + esc(tTypeShort(ty)) + '</span>'; }
+  function pokeTypes(p){
+    var out = typeBadge(p.type1);
+    if (p.type2) out += typeBadge(p.type2);
+    return out;
+  }
+
+  /* ============ データ ============ */
+  var ALL = (typeof POKEMON_LIST !== 'undefined') ? POKEMON_LIST.slice() : [];
+  var regu = 'all'; // 'all' | 'no_mega'
+  function poolFor(){ return regu === 'no_mega' ? ALL.filter(function(p){ return !p.mega; }) : ALL; }
+
+  /* ============ じぶんの調整・状態 ============ */
+  var own = { poke: null, dir: 0, pts: 0, rank: 0, scarf: false, tailwind: false, paralysis: false };
+
+  function ownRawStat(){
+    if (!own.poke) return 0;
+    var mult = own.dir > 0 ? 1.1 : (own.dir < 0 ? 0.9 : 1.0);
+    return calcStat(own.poke.spd, own.pts, mult);
+  }
+  function ownEffectiveStat(){
+    if (!own.poke) return 0;
+    var s = Math.floor(ownRawStat() * rankMult(own.rank));
+    if (own.paralysis) s = Math.floor(s / 2);
+    if (own.scarf) s = Math.floor(s * 1.5);
+    if (own.tailwind) s = s * 2;
+    return s;
+  }
+
+  /* ============ レギュレーション選択 ============ */
+  var reguSeg = document.getElementById('regu-seg');
+  reguSeg.addEventListener('click', function(e){
+    var btn = e.target.closest('button[data-regu]');
+    if (!btn) return;
+    regu = btn.getAttribute('data-regu');
+    Array.prototype.forEach.call(reguSeg.querySelectorAll('button'), function(b){ b.classList.toggle('active', b === btn); });
+    renderTable();
+  });
+
+  /* ============ じぶんのポケモン検索 ============ */
+  var ownSearch = document.getElementById('own-search');
+  var ownDropdown = document.getElementById('own-dropdown');
+  function matchQuery(p, q){
+    var disp = tPokeName(p.name).toLowerCase();
+    var ja = p.name;
+    var qk = toKata(q);
+    if (!q) return false;
+    if (disp.indexOf(q) >= 0) return true;
+    if (ja.indexOf(q) >= 0) return true;
+    if (qk && ja.indexOf(qk) >= 0) return true;
+    if (qk && toKata(disp).indexOf(qk) >= 0) return true;
+    return false;
+  }
+  function findByName(nm){ for (var i=0;i<ALL.length;i++){ if (ALL[i].name === nm) return ALL[i]; } return null; }
+  function renderOwnDropdown(){
+    var q = ownSearch.value.trim().toLowerCase();
+    if (!q){ ownDropdown.classList.remove('open'); ownDropdown.innerHTML=''; return; }
+    var hits = [];
+    for (var i=0;i<ALL.length;i++){
+      if (matchQuery(ALL[i], q)) hits.push(ALL[i]);
+      if (hits.length >= 30) break;
+    }
+    if (hits.length === 0){
+      ownDropdown.innerHTML = '<div class="dd-empty">' + esc(t('speed.search_no_match','見つかりません')) + '</div>';
+      ownDropdown.classList.add('open');
+      return;
+    }
+    var html = '';
+    for (var j=0;j<hits.length;j++){
+      var pp = hits[j];
+      html += '<button type="button" class="dd-item" data-n="' + esc(pp.name) + '">'
+        + pokeIconHtml(pp.name)
+        + '<span class="nm">' + esc(tPokeName(pp.name)) + '</span>'
+        + '<span class="types">' + pokeTypes(pp) + '</span>'
+        + '</button>';
+    }
+    ownDropdown.innerHTML = html;
+    ownDropdown.classList.add('open');
+  }
+  ownSearch.addEventListener('input', renderOwnDropdown);
+  ownSearch.addEventListener('focus', renderOwnDropdown);
+  document.addEventListener('click', function(e){
+    if (!e.target.closest('.search-box')) { ownDropdown.classList.remove('open'); }
+  });
+  ownDropdown.addEventListener('click', function(e){
+    var btn = e.target.closest('.dd-item');
+    if (!btn) return;
+    var p = findByName(btn.getAttribute('data-n'));
+    if (p){
+      own.poke = p;
+      ownSearch.value = '';
+      ownDropdown.classList.remove('open');
+      renderOwnSelected();
+      renderYourSpeed();
+      renderTable();
+    }
+  });
+
+  function renderOwnSelected(){
+    var wrap = document.getElementById('own-selected-wrap');
+    if (!own.poke){
+      wrap.innerHTML = '<p class="own-empty" data-i18n="speed.builder_empty">ポケモンを選ぶと、実効すばやさが計算されます。</p>';
+      if (window.I18N && I18N.apply) I18N.apply(wrap);
+      return;
+    }
+    wrap.innerHTML =
+      '<div class="own-selected">' +
+        pokeIconHtml(own.poke.name) +
+        '<span class="nm">' + esc(tPokeName(own.poke.name)) + '</span>' +
+        '<span class="types">' + pokeTypes(own.poke) + '</span>' +
+        '<button type="button" class="own-clear" id="own-clear-btn" data-i18n="speed.clear_button">✕ 選び直す</button>' +
+      '</div>';
+    if (window.I18N && I18N.apply) I18N.apply(wrap);
+    document.getElementById('own-clear-btn').addEventListener('click', function(){
+      own.poke = null;
+      renderOwnSelected();
+      renderYourSpeed();
+      renderTable();
+    });
+  }
+
+  /* ============ 性格・努力値・ランク・トグル ============ */
+  var natureSeg = document.getElementById('nature-seg');
+  natureSeg.addEventListener('click', function(e){
+    var btn = e.target.closest('button[data-dir]');
+    if (!btn) return;
+    own.dir = parseInt(btn.getAttribute('data-dir'), 10);
+    Array.prototype.forEach.call(natureSeg.querySelectorAll('button'), function(b){ b.classList.toggle('active', b === btn); });
+    renderYourSpeed(); renderTable();
+  });
+
+  var effortRange = document.getElementById('effort-range');
+  var effortVal = document.getElementById('effort-val');
+  effortRange.addEventListener('input', function(){
+    own.pts = parseInt(effortRange.value, 10) || 0;
+    effortVal.textContent = own.pts;
+    renderYourSpeed(); renderTable();
+  });
+
+  var rankVal = document.getElementById('rank-val');
+  document.getElementById('rank-inc').addEventListener('click', function(){
+    if (own.rank < 6){ own.rank++; updateRankUI(); renderYourSpeed(); renderTable(); }
+  });
+  document.getElementById('rank-dec').addEventListener('click', function(){
+    if (own.rank > -6){ own.rank--; updateRankUI(); renderYourSpeed(); renderTable(); }
+  });
+  function updateRankUI(){
+    rankVal.textContent = (own.rank > 0 ? '+' : (own.rank === 0 ? '±' : '')) + own.rank;
+    document.getElementById('rank-inc').disabled = own.rank >= 6;
+    document.getElementById('rank-dec').disabled = own.rank <= -6;
+  }
+
+  function bindToggle(chkId, chipId, prop){
+    var chk = document.getElementById(chkId);
+    var chip = document.getElementById(chipId);
+    chk.addEventListener('change', function(){
+      own[prop] = chk.checked;
+      chip.classList.toggle('on', chk.checked);
+      renderYourSpeed(); renderTable();
+    });
+  }
+  bindToggle('tg-scarf', 'chip-scarf', 'scarf');
+  bindToggle('tg-tailwind', 'chip-tailwind', 'tailwind');
+  bindToggle('tg-paralysis', 'chip-paralysis', 'paralysis');
+
+  function renderYourSpeed(){
+    var numEl = document.getElementById('your-speed-num');
+    var subEl = document.getElementById('your-speed-sub');
+    if (!own.poke){
+      numEl.textContent = '—';
+      subEl.textContent = '';
+      return;
+    }
+    var eff = ownEffectiveStat();
+    var raw = Math.floor(ownRawStat() * rankMult(own.rank));
+    numEl.textContent = eff;
+    if (eff === raw){
+      subEl.textContent = '';
+    } else {
+      var tpl = t('speed.your_speed_raw_label', 'ランク・道具・状態の補正前: {n}');
+      subEl.textContent = tpl.replace('{n}', raw);
+    }
+  }
+
+  /* ============ テーブル描画 ============ */
+  var sortCol = 'max';
+  var sortDir = -1; // -1: 降順(既定) / 1: 昇順
+  var tblSearch = document.getElementById('tbl-search');
+  var tbody = document.getElementById('speed-tbody');
+  var theadRow = document.querySelector('table.speedtbl thead tr');
+
+  theadRow.addEventListener('click', function(e){
+    var th = e.target.closest('th[data-col]');
+    if (!th) return;
+    var col = th.getAttribute('data-col');
+    if (col === sortCol){
+      sortDir = -sortDir;
+    } else {
+      sortCol = col;
+      sortDir = (col === 'name') ? 1 : -1;
+    }
+    renderTable();
+  });
+
+  tblSearch.addEventListener('input', renderTable);
+
+  function colorClass(cellVal){
+    if (!own.poke) return '';
+    var eff = ownEffectiveStat();
+    if (eff > cellVal) return 'green';
+    if (eff === cellVal) return 'tie';
+    return 'red';
+  }
+
+  function renderTable(){
+    var pool = poolFor();
+    var q = tblSearch.value.trim().toLowerCase();
+    var qk = toKata(q);
+    var rows = pool.map(function(p){
+      return { p: p, s: speedLines(p) };
+    }).filter(function(row){
+      if (!q) return true;
+      var disp = tPokeName(row.p.name).toLowerCase();
+      return disp.indexOf(q) >= 0 || row.p.name.indexOf(q) >= 0 ||
+        (qk && (row.p.name.indexOf(qk) >= 0 || toKata(disp).indexOf(qk) >= 0));
+    });
+
+    // 見出しの並べ替え状態を反映
+    Array.prototype.forEach.call(theadRow.querySelectorAll('th'), function(th){
+      th.classList.toggle('sorted', th.getAttribute('data-col') === sortCol);
+    });
+
+    if (sortCol === 'name'){
+      rows.sort(function(a, b){ return sortDir * tPokeName(a.p.name).localeCompare(tPokeName(b.p.name), 'ja'); });
+    } else {
+      rows.sort(function(a, b){
+        var d = (b.s[sortCol] - a.s[sortCol]) * (sortDir === 1 ? -1 : 1);
+        if (d !== 0) return d;
+        return a.p.no.localeCompare(b.p.no);
+      });
+    }
+
+    if (rows.length === 0){
+      tbody.innerHTML = '<tr><td colspan="5"><div class="tbl-empty">' + esc(t('speed.no_match','見つかりません')) + '</div></td></tr>';
+      return;
+    }
+
+    // 同着順位(1,2,2,4...)。ソート列が数値の時のみ意味を持つ
+    var ranks = new Array(rows.length);
+    if (sortCol === 'name'){
+      for (var ri=0; ri<rows.length; ri++) ranks[ri] = ri + 1;
+    } else {
+      var curRank = 1;
+      for (var i=0;i<rows.length;i++){
+        if (i > 0 && rows[i].s[sortCol] === rows[i-1].s[sortCol]){
+          ranks[i] = ranks[i-1];
+        } else {
+          ranks[i] = curRank;
+        }
+        curRank++;
+      }
+    }
+
+    // 自分の行を「最速」列基準で挿入する位置を決める(自分の実効すばやさ vs 各行の最速ライン)
+    var ownEff = own.poke ? ownEffectiveStat() : null;
+    var insertAt = -1;
+    if (own.poke){
+      insertAt = rows.length;
+      for (var k=0;k<rows.length;k++){
+        if (ownEff >= rows[k].s.max){ insertAt = k; break; }
+      }
+    }
+
+    var html = '';
+    var cols = ['max','sub','zero','min'];
+    for (var idx=0; idx<=rows.length; idx++){
+      if (idx === insertAt){
+        html += ownRowHtml(ownEff);
+      }
+      if (idx === rows.length) break;
+      var row = rows[idx];
+      html += '<tr' + (row.p === own.poke ? ' class="cur-own"' : '') + '>' +
+        '<td class="name-cell">' +
+          '<span class="rk">' + ranks[idx] + '</span>' +
+          pokeIconHtml(row.p.name) +
+          '<span class="nm">' + esc(tPokeName(row.p.name)) + '</span>' +
+          '<span class="types">' + pokeTypes(row.p) + '</span>' +
+        '</td>';
+      for (var ci=0; ci<cols.length; ci++){
+        var v = row.s[cols[ci]];
+        var cls = colorClass(v);
+        html += '<td class="stat-cell' + (cls ? ' ' + cls : '') + '">' + v + '</td>';
+      }
+      html += '</tr>';
+    }
+    tbody.innerHTML = html;
+  }
+
+  function ownRowHtml(ownEff){
+    return '<tr class="own-row">' +
+      '<td class="name-cell">' +
+        '<span class="rk">★</span>' +
+        (own.poke ? pokeIconHtml(own.poke.name) : '') +
+        '<span class="nm">' + esc(t('speed.you_row_label','あなた')) + (own.poke ? '（' + esc(tPokeName(own.poke.name)) + '）' : '') + '</span>' +
+      '</td>' +
+      '<td class="own-cell" colspan="4">' + ownEff + '</td>' +
+    '</tr>';
+  }
+
+  /* ============ 初期化 ============ */
+  function updateStickyOffsets(){
+    var hdr = document.querySelector('.tc-header');
+    var toolbar = document.querySelector('.tbl-toolbar');
+    if (hdr) document.documentElement.style.setProperty('--hdr-h', hdr.offsetHeight + 'px');
+    if (hdr && toolbar) document.documentElement.style.setProperty('--toolbar-h', (hdr.offsetHeight + toolbar.offsetHeight) + 'px');
+  }
+  window.addEventListener('resize', updateStickyOffsets);
+
+  function init(){
+    renderOwnSelected();
+    renderYourSpeed();
+    renderTable();
+    updateStickyOffsets();
+    setTimeout(updateStickyOffsets, 300);
+  }
+  ['i18n:changed', 'i18n:ready'].forEach(function(ev){
+    document.addEventListener(ev, function(){
+      renderOwnSelected();
+      renderTable();
+      setTimeout(updateStickyOffsets, 50);
+    });
+  });
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
