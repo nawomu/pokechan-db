@@ -1,0 +1,8741 @@
+{
+  "generated": "2026-07-19T07:19:17.597Z",
+  "total": 920,
+  "engine_kinds": [
+    "2ターン目に攻撃",
+    "HPが減る",
+    "いたみわけ",
+    "いちゃもん",
+    "かなしばり",
+    "こらえる",
+    "こんらん",
+    "じゅうりょく",
+    "たくわえ加算",
+    "たくわえ消費",
+    "ちょうはつ",
+    "なげつける",
+    "ひるみ",
+    "ふういん",
+    "へんしん",
+    "ほろびのうた",
+    "まもり",
+    "まもり解除",
+    "みがわり設置",
+    "みがわり貫通",
+    "みちづれ",
+    "やけど低下無視",
+    "やどりぎ",
+    "アンコール",
+    "カテゴリ封じ",
+    "タイプ一時無効",
+    "タイプ上書き",
+    "タイプ追加",
+    "タイプ除去",
+    "トリックルーム",
+    "フィールド展開",
+    "フィールド除去",
+    "メロメロ付与",
+    "ランクコピー",
+    "ランクリセット",
+    "ランク数威力加算",
+    "ランク無視",
+    "ランダム技",
+    "ロックオン",
+    "一撃必殺",
+    "倍返し",
+    "優先技無効",
+    "全員逃走不可",
+    "別能力ダメージ",
+    "別防御参照ダメージ",
+    "半無敵命中",
+    "反動",
+    "吸収",
+    "命中率固定",
+    "回復",
+    "固定ダメージ",
+    "場の威力補正",
+    "壁設置",
+    "壁除去",
+    "天候変化",
+    "天候必中",
+    "失敗ダメージ",
+    "威力倍率",
+    "威力可変",
+    "威力段階増加",
+    "実数値折半",
+    "強制交代(吹き飛ばし)",
+    "強制交代(攻撃)",
+    "必中",
+    "技タイプ変更",
+    "技タイプ追加",
+    "技強制再使用",
+    "拘束",
+    "拘束解除",
+    "持ち物交換",
+    "持ち物奪取",
+    "持ち物復活",
+    "持ち物排除",
+    "接触反動",
+    "暴れる(混乱)",
+    "木の実奪取食",
+    "木の実強制",
+    "条件付き優先",
+    "条件威力倍率",
+    "次のターン行動不能",
+    "次ターン使用不可",
+    "次技威力倍化",
+    "物理特殊自動",
+    "特性上書き",
+    "特性交換",
+    "特性無効化",
+    "状態付与",
+    "状態異常予防",
+    "状態異常回復",
+    "直前技模倣",
+    "相性上書き",
+    "相手技タイプ変更",
+    "相手能力ダメージ",
+    "継続削り",
+    "能力ランク変化",
+    "能力入替",
+    "自分交代",
+    "自分拘束",
+    "自分瀕死",
+    "設置",
+    "設置除去",
+    "連続強制(混乱なし)",
+    "連続攻撃",
+    "遅延攻撃",
+    "部屋系"
+  ],
+  "method": "engine_kinds = unique `X.kind === '...'` string comparisons grepped from real_battle_simulator.html (pattern: kind === '[^']+'), excluding damage-chip kinds 'eff-up'/'eff-down' (a separate UI-chip kind namespace, not move effects). A move's effect kind counts as supported iff that exact string literal appears as a kind===  comparison somewhere in the engine source.",
+  "caveats": [
+    "急所率上昇 (high-crit-rate effect) is never read via kind==='急所率上昇' anywhere in the engine; instead the engine reads a separate top-level field move.battle_data.crit_stage (see line ~2678: `_a.critBoost + (move.battle_data.crit_stage||0) + _lens`). Of the 29 moves carrying kind '急所率上昇' in this data, 15 ALSO carry a redundant crit_stage:1/0 field and so DO get high-crit in practice (e.g. ゴッドバード, クラブハンマー, クロスチョップ, リーフブレード, ストーンエッジ...); the remaining ~13 have no crit_stage field at all and so get NO high-crit bonus in the engine despite carrying the effect (e.g. からてチョップ, かまいたち, はっぱカッター, きりさく, エアロブラスト, ポイズンテール, こうげきしれい, あくうせつだん, とぎすます, １０００まんボルト, ねらいうち, オーラウイング, ツタこんぼう). This report still marks all 29 as partial/unsupported-kind because the kind string itself has no generic handler; readers should check crit_stage per-move before assuming a fix is needed.",
+    "みがわり貫通 (substitute-pierce) IS additionally readable via a parallel top-level flag move.battle_data.substitute_pierce===true (line ~3334), so some substitute-piercing moves may work even if not listed here as using kind 'みがわり貫通'. No equivalent parallel field exists for まもり貫通 (protect-piercing, 11 moves e.g. フェイント/なみだめ/シャドーダイブ) - grep for protect_pierce/ignores_protect/bypasses_protect found zero hits, so those 11 are a genuine, unmitigated gap.",
+    "すなあらし (Sandstorm, the move) shows unsupported kinds 能力倍率/全体継続ダメージ, but the actual in-battle mechanics (sand rock-spdef boost, per-turn sand chip damage) are implemented separately via a global env.weather==='sand' system (phaseSlip, damage calc), not by reading these per-move effect kinds. The move itself works (weather-set via kind 天候変化, which IS engine-supported); the two flagged kinds are descriptive/redundant, not a functional gap."
+  ],
+  "byStatus": {
+    "full": 780,
+    "partial": 87,
+    "effects_empty": 53,
+    "no_battle_data": 0
+  },
+  "entries": [
+    {
+      "name": "はたく",
+      "key": "pound",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "からてチョップ",
+      "key": "karate-chop",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "おうふくビンタ",
+      "key": "double-slap",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "れんぞくパンチ",
+      "key": "comet-punch",
+      "status": "full",
+      "kinds": [
+        "連続攻撃",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "メガトンパンチ",
+      "key": "mega-punch",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ネコにこばん",
+      "key": "pay-day",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほのおのパンチ",
+      "key": "fire-punch",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "れいとうパンチ",
+      "key": "ice-punch",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かみなりパンチ",
+      "key": "thunder-punch",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ひっかく",
+      "key": "scratch",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はさむ",
+      "key": "vice-grip",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハサミギロチン",
+      "key": "guillotine",
+      "status": "full",
+      "kinds": [
+        "一撃必殺"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かまいたち",
+      "key": "razor-wind",
+      "status": "partial",
+      "kinds": [
+        "2ターン目に攻撃",
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "つるぎのまい",
+      "key": "swords-dance",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いあいぎり",
+      "key": "cut",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かぜおこし",
+      "key": "gust",
+      "status": "full",
+      "kinds": [
+        "半無敵命中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つばさでうつ",
+      "key": "wing-attack",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふきとばし",
+      "key": "whirlwind",
+      "status": "full",
+      "kinds": [
+        "強制交代(吹き飛ばし)"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "そらをとぶ",
+      "key": "fly",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しめつける",
+      "key": "bind",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たたきつける",
+      "key": "slam",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つるのムチ",
+      "key": "vine-whip",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふみつけ",
+      "key": "stomp",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "必中",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "にどげり",
+      "key": "double-kick",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "メガトンキック",
+      "key": "mega-kick",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とびげり",
+      "key": "jump-kick",
+      "status": "full",
+      "kinds": [
+        "失敗ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "まわしげり",
+      "key": "rolling-kick",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "すなかけ",
+      "key": "sand-attack",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ずつき",
+      "key": "headbutt",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つのでつく",
+      "key": "horn-attack",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みだれづき",
+      "key": "fury-attack",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つのドリル",
+      "key": "horn-drill",
+      "status": "full",
+      "kinds": [
+        "一撃必殺"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たいあたり",
+      "key": "tackle",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "のしかかり",
+      "key": "body-slam",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "必中",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "まきつく",
+      "key": "wrap",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とっしん",
+      "key": "take-down",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あばれる",
+      "key": "thrash",
+      "status": "full",
+      "kinds": [
+        "暴れる(混乱)",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "すてみタックル",
+      "key": "double-edge",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しっぽをふる",
+      "key": "tail-whip",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どくばり",
+      "key": "poison-sting",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダブルニードル",
+      "key": "twineedle",
+      "status": "full",
+      "kinds": [
+        "連続攻撃",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ミサイルばり",
+      "key": "pin-missile",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "にらみつける",
+      "key": "leer",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かみつく",
+      "key": "bite",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "なきごえ",
+      "key": "growl",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほえる",
+      "key": "roar",
+      "status": "full",
+      "kinds": [
+        "強制交代(吹き飛ばし)"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "うたう",
+      "key": "sing",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ちょうおんぱ",
+      "key": "supersonic",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ソニックブーム",
+      "key": "sonic-boom",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かなしばり",
+      "key": "disable",
+      "status": "full",
+      "kinds": [
+        "かなしばり"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ようかいえき",
+      "key": "acid",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ひのこ",
+      "key": "ember",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かえんほうしゃ",
+      "key": "flamethrower",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しろいきり",
+      "key": "mist",
+      "status": "partial",
+      "kinds": [
+        "ランク低下防御"
+      ],
+      "unsupported_kinds": [
+        "ランク低下防御"
+      ]
+    },
+    {
+      "name": "みずでっぽう",
+      "key": "water-gun",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハイドロポンプ",
+      "key": "hydro-pump",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "なみのり",
+      "key": "surf",
+      "status": "full",
+      "kinds": [
+        "半無敵命中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "れいとうビーム",
+      "key": "ice-beam",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふぶき",
+      "key": "blizzard",
+      "status": "full",
+      "kinds": [
+        "天候必中",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイケこうせん",
+      "key": "psybeam",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "バブルこうせん",
+      "key": "bubble-beam",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "オーロラビーム",
+      "key": "aurora-beam",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はかいこうせん",
+      "key": "hyper-beam",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つつく",
+      "key": "peck",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドリルくちばし",
+      "key": "drill-peck",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じごくぐるま",
+      "key": "submission",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "けたぐり",
+      "key": "low-kick",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "カウンター",
+      "key": "counter",
+      "status": "full",
+      "kinds": [
+        "倍返し"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ちきゅうなげ",
+      "key": "seismic-toss",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かいりき",
+      "key": "strength",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "すいとる",
+      "key": "absorb",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "メガドレイン",
+      "key": "mega-drain",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "やどりぎのタネ",
+      "key": "leech-seed",
+      "status": "full",
+      "kinds": [
+        "やどりぎ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "せいちょう",
+      "key": "growth",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はっぱカッター",
+      "key": "razor-leaf",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "ソーラービーム",
+      "key": "solar-beam",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どくのこな",
+      "key": "poison-powder",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しびれごな",
+      "key": "stun-spore",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねむりごな",
+      "key": "sleep-powder",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はなびらのまい",
+      "key": "petal-dance",
+      "status": "full",
+      "kinds": [
+        "暴れる(混乱)",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いとをはく",
+      "key": "string-shot",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "りゅうのいかり",
+      "key": "dragon-rage",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほのおのうず",
+      "key": "fire-spin",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "でんきショック",
+      "key": "thunder-shock",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "10まんボルト",
+      "key": "thunderbolt",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "でんじは",
+      "key": "thunder-wave",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かみなり",
+      "key": "thunder",
+      "status": "full",
+      "kinds": [
+        "天候必中",
+        "半無敵命中",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いわおとし",
+      "key": "rock-throw",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じしん",
+      "key": "earthquake",
+      "status": "full",
+      "kinds": [
+        "半無敵命中",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じわれ",
+      "key": "fissure",
+      "status": "full",
+      "kinds": [
+        "一撃必殺"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あなをほる",
+      "key": "dig",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どくどく",
+      "key": "toxic",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねんりき",
+      "key": "confusion",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコキネシス",
+      "key": "psychic",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "さいみんじゅつ",
+      "key": "hypnosis",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ヨガのポーズ",
+      "key": "meditate",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こうそくいどう",
+      "key": "agility",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "でんこうせっか",
+      "key": "quick-attack",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いかり",
+      "key": "rage",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "テレポート",
+      "key": "teleport",
+      "status": "full",
+      "kinds": [
+        "自分交代"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ナイトヘッド",
+      "key": "night-shade",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ものまね",
+      "key": "mimic",
+      "status": "full",
+      "kinds": [
+        "直前技模倣"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いやなおと",
+      "key": "screech",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かげぶんしん",
+      "key": "double-team",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じこさいせい",
+      "key": "recover",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かたくなる",
+      "key": "harden",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ちいさくなる",
+      "key": "minimize",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "えんまく",
+      "key": "smokescreen",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あやしいひかり",
+      "key": "confuse-ray",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "からにこもる",
+      "key": "withdraw",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "まるくなる",
+      "key": "defense-curl",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "バリアー",
+      "key": "barrier",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ひかりのかべ",
+      "key": "light-screen",
+      "status": "full",
+      "kinds": [
+        "壁設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "くろいきり",
+      "key": "haze",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "リフレクター",
+      "key": "reflect",
+      "status": "full",
+      "kinds": [
+        "壁設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きあいだめ",
+      "key": "focus-energy",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "がまん",
+      "key": "bide",
+      "status": "full",
+      "kinds": [
+        "倍返し",
+        "連続強制(混乱なし)"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ゆびをふる",
+      "key": "metronome",
+      "status": "full",
+      "kinds": [
+        "ランダム技"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "オウムがえし",
+      "key": "mirror-move",
+      "status": "full",
+      "kinds": [
+        "直前技模倣"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じばく",
+      "key": "self-destruct",
+      "status": "full",
+      "kinds": [
+        "自分瀕死"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "タマゴばくだん",
+      "key": "egg-bomb",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "したでなめる",
+      "key": "lick",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スモッグ",
+      "key": "smog",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ヘドロこうげき",
+      "key": "sludge",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ホネこんぼう",
+      "key": "bone-club",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "だいもんじ",
+      "key": "fire-blast",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たきのぼり",
+      "key": "waterfall",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "からではさむ",
+      "key": "clamp",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スピードスター",
+      "key": "swift",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ロケットずつき",
+      "key": "skull-bash",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "2ターン目に攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とげキャノン",
+      "key": "spike-cannon",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "からみつく",
+      "key": "constrict",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドわすれ",
+      "key": "amnesia",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スプーンまげ",
+      "key": "kinesis",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "タマゴうみ",
+      "key": "soft-boiled",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とびひざげり",
+      "key": "high-jump-kick",
+      "status": "full",
+      "kinds": [
+        "失敗ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "へびにらみ",
+      "key": "glare",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ゆめくい",
+      "key": "dream-eater",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どくガス",
+      "key": "poison-gas",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たまなげ",
+      "key": "barrage",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きゅうけつ",
+      "key": "leech-life",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あくまのキッス",
+      "key": "lovely-kiss",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ゴッドバード",
+      "key": "sky-attack",
+      "status": "partial",
+      "kinds": [
+        "2ターン目に攻撃",
+        "急所率上昇",
+        "状態付与"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "へんしん",
+      "key": "transform",
+      "status": "full",
+      "kinds": [
+        "へんしん"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あわ",
+      "key": "bubble",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ピヨピヨパンチ",
+      "key": "dizzy-punch",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "キノコのほうし",
+      "key": "spore",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フラッシュ",
+      "key": "flash",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコウェーブ",
+      "key": "psywave",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はねる",
+      "key": "splash",
+      "status": "partial",
+      "kinds": [
+        "効果なし"
+      ],
+      "unsupported_kinds": [
+        "効果なし"
+      ]
+    },
+    {
+      "name": "とける",
+      "key": "acid-armor",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "クラブハンマー",
+      "key": "crabhammer",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "だいばくはつ",
+      "key": "explosion",
+      "status": "full",
+      "kinds": [
+        "自分瀕死"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みだれひっかき",
+      "key": "fury-swipes",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ホネブーメラン",
+      "key": "bonemerang",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねむる",
+      "key": "rest",
+      "status": "full",
+      "kinds": [
+        "回復",
+        "状態異常回復",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いわなだれ",
+      "key": "rock-slide",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ひっさつまえば",
+      "key": "hyper-fang",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かくばる",
+      "key": "sharpen",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "テクスチャー",
+      "key": "conversion",
+      "status": "full",
+      "kinds": [
+        "タイプ上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トライアタック",
+      "key": "tri-attack",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いかりのまえば",
+      "key": "super-fang",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きりさく",
+      "key": "slash",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "みがわり",
+      "key": "substitute",
+      "status": "full",
+      "kinds": [
+        "HPが減る",
+        "みがわり設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "わるあがき",
+      "key": "struggle",
+      "status": "full",
+      "kinds": [
+        "HPが減る"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スケッチ",
+      "key": "sketch",
+      "status": "full",
+      "kinds": [
+        "直前技模倣"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トリプルキック",
+      "key": "triple-kick",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どろぼう",
+      "key": "thief",
+      "status": "full",
+      "kinds": [
+        "持ち物奪取"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "クモのす",
+      "key": "spider-web",
+      "status": "full",
+      "kinds": [
+        "拘束"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こころのめ",
+      "key": "mind-reader",
+      "status": "full",
+      "kinds": [
+        "ロックオン"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あくむ",
+      "key": "nightmare",
+      "status": "full",
+      "kinds": [
+        "継続削り"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かえんぐるま",
+      "key": "flame-wheel",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いびき",
+      "key": "snore",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "のろい",
+      "key": "curse",
+      "status": "full",
+      "kinds": [
+        "HPが減る",
+        "状態付与",
+        "能力ランク変化",
+        "継続削り"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じたばた",
+      "key": "flail",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "テクスチャー２",
+      "key": "conversion-2",
+      "status": "full",
+      "kinds": [
+        "タイプ上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "エアロブラスト",
+      "key": "aeroblast",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "わたほうし",
+      "key": "cotton-spore",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きしかいせい",
+      "key": "reversal",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "うらみ",
+      "key": "spite",
+      "status": "partial",
+      "kinds": [
+        "PP減少"
+      ],
+      "unsupported_kinds": [
+        "PP減少"
+      ]
+    },
+    {
+      "name": "こなゆき",
+      "key": "powder-snow",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "まもる",
+      "key": "protect",
+      "status": "full",
+      "kinds": [
+        "まもり"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マッハパンチ",
+      "key": "mach-punch",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こわいかお",
+      "key": "scary-face",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "だましうち",
+      "key": "feint-attack",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "てんしのキッス",
+      "key": "sweet-kiss",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はらだいこ",
+      "key": "belly-drum",
+      "status": "full",
+      "kinds": [
+        "HPが減る",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ヘドロばくだん",
+      "key": "sludge-bomb",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どろかけ",
+      "key": "mud-slap",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "オクタンほう",
+      "key": "octazooka",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "まきびし",
+      "key": "spikes",
+      "status": "full",
+      "kinds": [
+        "設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "でんじほう",
+      "key": "zap-cannon",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みやぶる",
+      "key": "foresight",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "相性上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みちづれ",
+      "key": "destiny-bond",
+      "status": "full",
+      "kinds": [
+        "みちづれ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほろびのうた",
+      "key": "perish-song",
+      "status": "full",
+      "kinds": [
+        "ほろびのうた"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こごえるかぜ",
+      "key": "icy-wind",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みきり",
+      "key": "detect",
+      "status": "full",
+      "kinds": [
+        "まもり"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ボーンラッシュ",
+      "key": "bone-rush",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ロックオン",
+      "key": "lock-on",
+      "status": "full",
+      "kinds": [
+        "ロックオン"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "げきりん",
+      "key": "outrage",
+      "status": "full",
+      "kinds": [
+        "暴れる(混乱)",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "すなあらし",
+      "key": "sandstorm",
+      "status": "partial",
+      "kinds": [
+        "天候変化",
+        "能力倍率",
+        "全体継続ダメージ"
+      ],
+      "unsupported_kinds": [
+        "能力倍率",
+        "全体継続ダメージ"
+      ]
+    },
+    {
+      "name": "ギガドレイン",
+      "key": "giga-drain",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こらえる",
+      "key": "endure",
+      "status": "full",
+      "kinds": [
+        "こらえる"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あまえる",
+      "key": "charm",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ころがる",
+      "key": "rollout",
+      "status": "full",
+      "kinds": [
+        "自分拘束",
+        "威力可変",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みねうち",
+      "key": "false-swipe",
+      "status": "partial",
+      "kinds": [
+        "瀕死回避"
+      ],
+      "unsupported_kinds": [
+        "瀕死回避"
+      ]
+    },
+    {
+      "name": "いばる",
+      "key": "swagger",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ミルクのみ",
+      "key": "milk-drink",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スパーク",
+      "key": "spark",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "れんぞくぎり",
+      "key": "fury-cutter",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はがねのつばさ",
+      "key": "steel-wing",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "くろいまなざし",
+      "key": "mean-look",
+      "status": "full",
+      "kinds": [
+        "拘束"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "メロメロ",
+      "key": "attract",
+      "status": "full",
+      "kinds": [
+        "メロメロ付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねごと",
+      "key": "sleep-talk",
+      "status": "full",
+      "kinds": [
+        "ランダム技"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いやしのすず",
+      "key": "heal-bell",
+      "status": "full",
+      "kinds": [
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おんがえし",
+      "key": "return",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "プレゼント",
+      "key": "present",
+      "status": "full",
+      "kinds": [
+        "威力可変",
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "やつあたり",
+      "key": "frustration",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しんぴのまもり",
+      "key": "safeguard",
+      "status": "full",
+      "kinds": [
+        "壁設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いたみわけ",
+      "key": "pain-split",
+      "status": "full",
+      "kinds": [
+        "いたみわけ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "せいなるほのお",
+      "key": "sacred-fire",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マグニチュード",
+      "key": "magnitude",
+      "status": "full",
+      "kinds": [
+        "威力可変",
+        "半無敵命中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ばくれつパンチ",
+      "key": "dynamic-punch",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "メガホーン",
+      "key": "megahorn",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "りゅうのいぶき",
+      "key": "dragon-breath",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "バトンタッチ",
+      "key": "baton-pass",
+      "status": "full",
+      "kinds": [
+        "自分交代"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アンコール",
+      "key": "encore",
+      "status": "full",
+      "kinds": [
+        "アンコール"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おいうち",
+      "key": "pursuit",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こうそくスピン",
+      "key": "rapid-spin",
+      "status": "full",
+      "kinds": [
+        "状態異常回復",
+        "能力ランク変化",
+        "設置除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あまいかおり",
+      "key": "sweet-scent",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アイアンテール",
+      "key": "iron-tail",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "メタルクロー",
+      "key": "metal-claw",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あてみなげ",
+      "key": "vital-throw",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あさのひざし",
+      "key": "morning-sun",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こうごうせい",
+      "key": "synthesis",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つきのひかり",
+      "key": "moonlight",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "めざめるパワー",
+      "key": "hidden-power",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "クロスチョップ",
+      "key": "cross-chop",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "たつまき",
+      "key": "twister",
+      "status": "full",
+      "kinds": [
+        "ひるみ",
+        "半無敵命中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あまごい",
+      "key": "rain-dance",
+      "status": "full",
+      "kinds": [
+        "天候変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "にほんばれ",
+      "key": "sunny-day",
+      "status": "full",
+      "kinds": [
+        "天候変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かみくだく",
+      "key": "crunch",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ミラーコート",
+      "key": "mirror-coat",
+      "status": "full",
+      "kinds": [
+        "倍返し"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じこあんじ",
+      "key": "psych-up",
+      "status": "full",
+      "kinds": [
+        "ランクコピー"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しんそく",
+      "key": "extreme-speed",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "げんしのちから",
+      "key": "ancient-power",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シャドーボール",
+      "key": "shadow-ball",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みらいよち",
+      "key": "future-sight",
+      "status": "full",
+      "kinds": [
+        "遅延攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いわくだき",
+      "key": "rock-smash",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "うずしお",
+      "key": "whirlpool",
+      "status": "full",
+      "kinds": [
+        "半無敵命中",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふくろだたき",
+      "key": "beat-up",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねこだまし",
+      "key": "fake-out",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "さわぐ",
+      "key": "uproar",
+      "status": "full",
+      "kinds": [
+        "みがわり貫通",
+        "連続強制(混乱なし)",
+        "状態異常予防"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たくわえる",
+      "key": "stockpile",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "たくわえ加算"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はきだす",
+      "key": "spit-up",
+      "status": "full",
+      "kinds": [
+        "威力可変",
+        "たくわえ消費"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "のみこむ",
+      "key": "swallow",
+      "status": "full",
+      "kinds": [
+        "回復",
+        "たくわえ消費"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねっぷう",
+      "key": "heat-wave",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あられ",
+      "key": "hail",
+      "status": "full",
+      "kinds": [
+        "天候変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いちゃもん",
+      "key": "torment",
+      "status": "full",
+      "kinds": [
+        "いちゃもん"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おだてる",
+      "key": "flatter",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おにび",
+      "key": "will-o-wisp",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おきみやげ",
+      "key": "memento",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "自分瀕死"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "からげんき",
+      "key": "facade",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "やけど低下無視"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きあいパンチ",
+      "key": "focus-punch",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きつけ",
+      "key": "smelling-salts",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "このゆびとまれ",
+      "key": "follow-me",
+      "status": "partial",
+      "kinds": [
+        "引き寄せ"
+      ],
+      "unsupported_kinds": [
+        "引き寄せ"
+      ]
+    },
+    {
+      "name": "しぜんのちから",
+      "key": "nature-power",
+      "status": "partial",
+      "kinds": [
+        "地形依存技"
+      ],
+      "unsupported_kinds": [
+        "地形依存技"
+      ]
+    },
+    {
+      "name": "じゅうでん",
+      "key": "charge",
+      "status": "full",
+      "kinds": [
+        "次技威力倍化",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ちょうはつ",
+      "key": "taunt",
+      "status": "full",
+      "kinds": [
+        "ちょうはつ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "てだすけ",
+      "key": "helping-hand",
+      "status": "partial",
+      "kinds": [
+        "味方威力上昇"
+      ],
+      "unsupported_kinds": [
+        "味方威力上昇"
+      ]
+    },
+    {
+      "name": "トリック",
+      "key": "trick",
+      "status": "full",
+      "kinds": [
+        "持ち物交換"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "なりきり",
+      "key": "role-play",
+      "status": "full",
+      "kinds": [
+        "特性上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねがいごと",
+      "key": "wish",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねこのて",
+      "key": "assist",
+      "status": "full",
+      "kinds": [
+        "ランダム技"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねをはる",
+      "key": "ingrain",
+      "status": "partial",
+      "kinds": [
+        "回復",
+        "自分拘束",
+        "地面技被弾化"
+      ],
+      "unsupported_kinds": [
+        "地面技被弾化"
+      ]
+    },
+    {
+      "name": "ばかぢから",
+      "key": "superpower",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マジックコート",
+      "key": "magic-coat",
+      "status": "partial",
+      "kinds": [
+        "跳ね返し"
+      ],
+      "unsupported_kinds": [
+        "跳ね返し"
+      ]
+    },
+    {
+      "name": "リサイクル",
+      "key": "recycle",
+      "status": "full",
+      "kinds": [
+        "持ち物復活"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "リベンジ",
+      "key": "revenge",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かわらわり",
+      "key": "brick-break",
+      "status": "full",
+      "kinds": [
+        "壁除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あくび",
+      "key": "yawn",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はたきおとす",
+      "key": "knock-off",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "持ち物排除"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "がむしゃら",
+      "key": "endeavor",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふんか",
+      "key": "eruption",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スキルスワップ",
+      "key": "skill-swap",
+      "status": "full",
+      "kinds": [
+        "特性交換"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふういん",
+      "key": "imprison",
+      "status": "full",
+      "kinds": [
+        "ふういん"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "リフレッシュ",
+      "key": "refresh",
+      "status": "full",
+      "kinds": [
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おんねん",
+      "key": "grudge",
+      "status": "partial",
+      "kinds": [
+        "おんねん"
+      ],
+      "unsupported_kinds": [
+        "おんねん"
+      ]
+    },
+    {
+      "name": "よこどり",
+      "key": "snatch",
+      "status": "partial",
+      "kinds": [
+        "よこどり"
+      ],
+      "unsupported_kinds": [
+        "よこどり"
+      ]
+    },
+    {
+      "name": "ひみつのちから",
+      "key": "secret-power",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイビング",
+      "key": "dive",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つっぱり",
+      "key": "arm-thrust",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほごしょく",
+      "key": "camouflage",
+      "status": "full",
+      "kinds": [
+        "タイプ上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほたるび",
+      "key": "tail-glow",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ラスターパージ",
+      "key": "luster-purge",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ミストボール",
+      "key": "mist-ball",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フェザーダンス",
+      "key": "feather-dance",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フラフラダンス",
+      "key": "teeter-dance",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブレイズキック",
+      "key": "blaze-kick",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇",
+        "状態付与"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "どろあそび",
+      "key": "mud-sport",
+      "status": "full",
+      "kinds": [
+        "場の威力補正"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アイスボール",
+      "key": "ice-ball",
+      "status": "full",
+      "kinds": [
+        "自分拘束",
+        "威力可変",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ニードルアーム",
+      "key": "needle-arm",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "なまける",
+      "key": "slack-off",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハイパーボイス",
+      "key": "hyper-voice",
+      "status": "full",
+      "kinds": [
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どくどくのキバ",
+      "key": "poison-fang",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブレイククロー",
+      "key": "crush-claw",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブラストバーン",
+      "key": "blast-burn",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハイドロカノン",
+      "key": "hydro-cannon",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "コメットパンチ",
+      "key": "meteor-mash",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おどろかす",
+      "key": "astonish",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ウェザーボール",
+      "key": "weather-ball",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更",
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アロマセラピー",
+      "key": "aromatherapy",
+      "status": "partial",
+      "kinds": [
+        "状態異常回復",
+        "まもり貫通"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "うそなき",
+      "key": "fake-tears",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "エアカッター",
+      "key": "air-cutter",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "オーバーヒート",
+      "key": "overheat",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かぎわける",
+      "key": "odor-sleuth",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "相性上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "がんせきふうじ",
+      "key": "rock-tomb",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぎんいろのかぜ",
+      "key": "silver-wind",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きんぞくおん",
+      "key": "metal-sound",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "くさぶえ",
+      "key": "grass-whistle",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "くすぐる",
+      "key": "tickle",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "コスモパワー",
+      "key": "cosmic-power",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しおふき",
+      "key": "water-spout",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シグナルビーム",
+      "key": "signal-beam",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シャドーパンチ",
+      "key": "shadow-punch",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じんつうりき",
+      "key": "extrasensory",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スカイアッパー",
+      "key": "sky-uppercut",
+      "status": "full",
+      "kinds": [
+        "半無敵命中",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "すなじごく",
+      "key": "sand-tomb",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぜったいれいど",
+      "key": "sheer-cold",
+      "status": "full",
+      "kinds": [
+        "一撃必殺",
+        "命中率固定"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "だくりゅう",
+      "key": "muddy-water",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "タネマシンガン",
+      "key": "bullet-seed",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つばめがえし",
+      "key": "aerial-ace",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つららばり",
+      "key": "icicle-spear",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "てっぺき",
+      "key": "iron-defense",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とおせんぼう",
+      "key": "block",
+      "status": "full",
+      "kinds": [
+        "拘束"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とおぼえ",
+      "key": "howl",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドラゴンクロー",
+      "key": "dragon-claw",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハードプラント",
+      "key": "frenzy-plant",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ビルドアップ",
+      "key": "bulk-up",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とびはねる",
+      "key": "bounce",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マッドショット",
+      "key": "mud-shot",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ポイズンテール",
+      "key": "poison-tail",
+      "status": "partial",
+      "kinds": [
+        "状態付与",
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "ほしがる",
+      "key": "covet",
+      "status": "full",
+      "kinds": [
+        "持ち物奪取"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ボルテッカー",
+      "key": "volt-tackle",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マジカルリーフ",
+      "key": "magical-leaf",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みずあそび",
+      "key": "water-sport",
+      "status": "full",
+      "kinds": [
+        "場の威力補正"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "めいそう",
+      "key": "calm-mind",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "リーフブレード",
+      "key": "leaf-blade",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "りゅうのまい",
+      "key": "dragon-dance",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ロックブラスト",
+      "key": "rock-blast",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "でんげきは",
+      "key": "shock-wave",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みずのはどう",
+      "key": "water-pulse",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はめつのねがい",
+      "key": "doom-desire",
+      "status": "full",
+      "kinds": [
+        "遅延攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコブースト",
+      "key": "psycho-boost",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はねやすめ",
+      "key": "roost",
+      "status": "full",
+      "kinds": [
+        "回復",
+        "タイプ一時無効"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じゅうりょく",
+      "key": "gravity",
+      "status": "full",
+      "kinds": [
+        "じゅうりょく"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ミラクルアイ",
+      "key": "miracle-eye",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "相性上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "めざましビンタ",
+      "key": "wake-up-slap",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アームハンマー",
+      "key": "hammer-arm",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ジャイロボール",
+      "key": "gyro-ball",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いやしのねがい",
+      "key": "healing-wish",
+      "status": "full",
+      "kinds": [
+        "自分瀕死",
+        "回復",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しおみず",
+      "key": "brine",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しぜんのめぐみ",
+      "key": "natural-gift",
+      "status": "full",
+      "kinds": [
+        "威力可変",
+        "技タイプ変更"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フェイント",
+      "key": "feint",
+      "status": "partial",
+      "kinds": [
+        "まもり解除",
+        "まもり貫通"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "ついばむ",
+      "key": "pluck",
+      "status": "full",
+      "kinds": [
+        "木の実奪取食"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おいかぜ",
+      "key": "tailwind",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つぼをつく",
+      "key": "acupressure",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "メタルバースト",
+      "key": "metal-burst",
+      "status": "full",
+      "kinds": [
+        "倍返し"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とんぼがえり",
+      "key": "u-turn",
+      "status": "full",
+      "kinds": [
+        "自分交代"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "インファイト",
+      "key": "close-combat",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しっぺがえし",
+      "key": "payback",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダメおし",
+      "key": "assurance",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "さしおさえ",
+      "key": "embargo",
+      "status": "partial",
+      "kinds": [
+        "道具封じ"
+      ],
+      "unsupported_kinds": [
+        "道具封じ"
+      ]
+    },
+    {
+      "name": "なげつける",
+      "key": "fling",
+      "status": "full",
+      "kinds": [
+        "なげつける"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコシフト",
+      "key": "psycho-shift",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きりふだ",
+      "key": "trump-card",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かいふくふうじ",
+      "key": "heal-block",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しぼりとる",
+      "key": "wring-out",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "パワートリック",
+      "key": "power-trick",
+      "status": "full",
+      "kinds": [
+        "能力入替"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いえき",
+      "key": "gastro-acid",
+      "status": "full",
+      "kinds": [
+        "特性無効化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おまじない",
+      "key": "lucky-chant",
+      "status": "partial",
+      "kinds": [
+        "急所無効"
+      ],
+      "unsupported_kinds": [
+        "急所無効"
+      ]
+    },
+    {
+      "name": "さきどり",
+      "key": "me-first",
+      "status": "partial",
+      "kinds": [
+        "さきどり"
+      ],
+      "unsupported_kinds": [
+        "さきどり"
+      ]
+    },
+    {
+      "name": "まねっこ",
+      "key": "copycat",
+      "status": "full",
+      "kinds": [
+        "直前技模倣"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "パワースワップ",
+      "key": "power-swap",
+      "status": "full",
+      "kinds": [
+        "能力入替"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ガードスワップ",
+      "key": "guard-swap",
+      "status": "full",
+      "kinds": [
+        "能力入替"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おしおき",
+      "key": "punishment",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とっておき",
+      "key": "last-resort",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "なやみのタネ",
+      "key": "worry-seed",
+      "status": "full",
+      "kinds": [
+        "特性上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふいうち",
+      "key": "sucker-punch",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どくびし",
+      "key": "toxic-spikes",
+      "status": "full",
+      "kinds": [
+        "設置",
+        "設置除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハートスワップ",
+      "key": "heart-swap",
+      "status": "full",
+      "kinds": [
+        "能力入替"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アクアリング",
+      "key": "aqua-ring",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "でんじふゆう",
+      "key": "magnet-rise",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フレアドライブ",
+      "key": "flare-blitz",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復",
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はっけい",
+      "key": "force-palm",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はどうだん",
+      "key": "aura-sphere",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ロックカット",
+      "key": "rock-polish",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どくづき",
+      "key": "poison-jab",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あくのはどう",
+      "key": "dark-pulse",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つじぎり",
+      "key": "night-slash",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "アクアテール",
+      "key": "aqua-tail",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "タネばくだん",
+      "key": "seed-bomb",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "エアスラッシュ",
+      "key": "air-slash",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シザークロス",
+      "key": "x-scissor",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "むしのさざめき",
+      "key": "bug-buzz",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "りゅうのはどう",
+      "key": "dragon-pulse",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドラゴンダイブ",
+      "key": "dragon-rush",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "威力倍率",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "パワージェム",
+      "key": "power-gem",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドレインパンチ",
+      "key": "drain-punch",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しんくうは",
+      "key": "vacuum-wave",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きあいだま",
+      "key": "focus-blast",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "エナジーボール",
+      "key": "energy-ball",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブレイブバード",
+      "key": "brave-bird",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "だいちのちから",
+      "key": "earth-power",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "すりかえ",
+      "key": "switcheroo",
+      "status": "full",
+      "kinds": [
+        "持ち物交換"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ギガインパクト",
+      "key": "giga-impact",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "わるだくみ",
+      "key": "nasty-plot",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "バレットパンチ",
+      "key": "bullet-punch",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ゆきなだれ",
+      "key": "avalanche",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こおりのつぶて",
+      "key": "ice-shard",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シャドークロー",
+      "key": "shadow-claw",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "かみなりのキバ",
+      "key": "thunder-fang",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こおりのキバ",
+      "key": "ice-fang",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほのおのキバ",
+      "key": "fire-fang",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かげうち",
+      "key": "shadow-sneak",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どろばくだん",
+      "key": "mud-bomb",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコカッター",
+      "key": "psycho-cut",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "しねんのずつき",
+      "key": "zen-headbutt",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ミラーショット",
+      "key": "mirror-shot",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ラスターカノン",
+      "key": "flash-cannon",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ロッククライム",
+      "key": "rock-climb",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きりばらい",
+      "key": "defog",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "壁除去",
+        "設置除去",
+        "フィールド除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トリックルーム",
+      "key": "trick-room",
+      "status": "full",
+      "kinds": [
+        "トリックルーム"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "りゅうせいぐん",
+      "key": "draco-meteor",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほうでん",
+      "key": "discharge",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふんえん",
+      "key": "lava-plume",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "リーフストーム",
+      "key": "leaf-storm",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "パワーウィップ",
+      "key": "power-whip",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "がんせきほう",
+      "key": "rock-wrecker",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "クロスポイズン",
+      "key": "cross-poison",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇",
+        "状態付与"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "ダストシュート",
+      "key": "gunk-shot",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アイアンヘッド",
+      "key": "iron-head",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マグネットボム",
+      "key": "magnet-bomb",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ストーンエッジ",
+      "key": "stone-edge",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "ゆうわく",
+      "key": "captivate",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ステルスロック",
+      "key": "stealth-rock",
+      "status": "full",
+      "kinds": [
+        "設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "くさむすび",
+      "key": "grass-knot",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おしゃべり",
+      "key": "chatter",
+      "status": "partial",
+      "kinds": [
+        "状態付与",
+        "みがわり貫通",
+        "使用者限定"
+      ],
+      "unsupported_kinds": [
+        "使用者限定"
+      ]
+    },
+    {
+      "name": "さばきのつぶて",
+      "key": "judgment",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "むしくい",
+      "key": "bug-bite",
+      "status": "full",
+      "kinds": [
+        "木の実強制"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "チャージビーム",
+      "key": "charge-beam",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ウッドハンマー",
+      "key": "wood-hammer",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アクアジェット",
+      "key": "aqua-jet",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こうげきしれい",
+      "key": "attack-order",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "ぼうぎょしれい",
+      "key": "defend-order",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かいふくしれい",
+      "key": "heal-order",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "もろはのずつき",
+      "key": "head-smash",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダブルアタック",
+      "key": "double-hit",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ときのほうこう",
+      "key": "roar-of-time",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あくうせつだん",
+      "key": "spacial-rend",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "みかづきのまい",
+      "key": "lunar-dance",
+      "status": "full",
+      "kinds": [
+        "自分瀕死",
+        "回復",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "にぎりつぶす",
+      "key": "crush-grip",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マグマストーム",
+      "key": "magma-storm",
+      "status": "full",
+      "kinds": [
+        "拘束",
+        "継続削り"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダークホール",
+      "key": "dark-void",
+      "status": "partial",
+      "kinds": [
+        "状態付与",
+        "使用者限定"
+      ],
+      "unsupported_kinds": [
+        "使用者限定"
+      ]
+    },
+    {
+      "name": "シードフレア",
+      "key": "seed-flare",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あやしいかぜ",
+      "key": "ominous-wind",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シャドーダイブ",
+      "key": "shadow-force",
+      "status": "partial",
+      "kinds": [
+        "2ターン目に攻撃",
+        "まもり貫通"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "つめとぎ",
+      "key": "hone-claws",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ワイドガード",
+      "key": "wide-guard",
+      "status": "partial",
+      "kinds": [
+        "範囲まもり"
+      ],
+      "unsupported_kinds": [
+        "範囲まもり"
+      ]
+    },
+    {
+      "name": "ガードシェア",
+      "key": "guard-split",
+      "status": "full",
+      "kinds": [
+        "実数値折半"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "パワーシェア",
+      "key": "power-split",
+      "status": "full",
+      "kinds": [
+        "実数値折半"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ワンダールーム",
+      "key": "wonder-room",
+      "status": "full",
+      "kinds": [
+        "部屋系"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコショック",
+      "key": "psyshock",
+      "status": "full",
+      "kinds": [
+        "別防御参照ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ベノムショック",
+      "key": "venoshock",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ボディパージ",
+      "key": "autotomize",
+      "status": "partial",
+      "kinds": [
+        "能力ランク変化",
+        "おもさ変化"
+      ],
+      "unsupported_kinds": [
+        "おもさ変化"
+      ]
+    },
+    {
+      "name": "いかりのこな",
+      "key": "rage-powder",
+      "status": "partial",
+      "kinds": [
+        "引き寄せ"
+      ],
+      "unsupported_kinds": [
+        "引き寄せ"
+      ]
+    },
+    {
+      "name": "テレキネシス",
+      "key": "telekinesis",
+      "status": "partial",
+      "kinds": [
+        "テレキネシス"
+      ],
+      "unsupported_kinds": [
+        "テレキネシス"
+      ]
+    },
+    {
+      "name": "マジックルーム",
+      "key": "magic-room",
+      "status": "full",
+      "kinds": [
+        "部屋系"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "うちおとす",
+      "key": "smack-down",
+      "status": "full",
+      "kinds": [
+        "状態異常回復",
+        "半無敵命中",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "やまあらし",
+      "key": "storm-throw",
+      "status": "partial",
+      "kinds": [
+        "必ず急所"
+      ],
+      "unsupported_kinds": [
+        "必ず急所"
+      ]
+    },
+    {
+      "name": "はじけるほのお",
+      "key": "flame-burst",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ヘドロウェーブ",
+      "key": "sludge-wave",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ちょうのまい",
+      "key": "quiver-dance",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ヘビーボンバー",
+      "key": "heavy-slam",
+      "status": "full",
+      "kinds": [
+        "威力可変",
+        "必中",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シンクロノイズ",
+      "key": "synchronoise",
+      "status": "partial",
+      "kinds": [
+        "同タイプ限定"
+      ],
+      "unsupported_kinds": [
+        "同タイプ限定"
+      ]
+    },
+    {
+      "name": "エレキボール",
+      "key": "electro-ball",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みずびたし",
+      "key": "soak",
+      "status": "full",
+      "kinds": [
+        "タイプ上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ニトロチャージ",
+      "key": "flame-charge",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とぐろをまく",
+      "key": "coil",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ローキック",
+      "key": "low-sweep",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アシッドボム",
+      "key": "acid-spray",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "イカサマ",
+      "key": "foul-play",
+      "status": "full",
+      "kinds": [
+        "相手能力ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シンプルビーム",
+      "key": "simple-beam",
+      "status": "full",
+      "kinds": [
+        "特性上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "なかまづくり",
+      "key": "entrainment",
+      "status": "full",
+      "kinds": [
+        "特性上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おさきにどうぞ",
+      "key": "after-you",
+      "status": "partial",
+      "kinds": [
+        "直後に行動"
+      ],
+      "unsupported_kinds": [
+        "直後に行動"
+      ]
+    },
+    {
+      "name": "りんしょう",
+      "key": "round",
+      "status": "partial",
+      "kinds": [
+        "威力可変",
+        "行動順繰上げ",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": [
+        "行動順繰上げ"
+      ]
+    },
+    {
+      "name": "エコーボイス",
+      "key": "echoed-voice",
+      "status": "full",
+      "kinds": [
+        "威力可変",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "なしくずし",
+      "key": "chip-away",
+      "status": "full",
+      "kinds": [
+        "ランク無視"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "クリアスモッグ",
+      "key": "clear-smog",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "ランクリセット"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アシストパワー",
+      "key": "stored-power",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ファストガード",
+      "key": "quick-guard",
+      "status": "full",
+      "kinds": [
+        "まもり"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイドチェンジ",
+      "key": "ally-switch",
+      "status": "partial",
+      "kinds": [
+        "位置入替"
+      ],
+      "unsupported_kinds": [
+        "位置入替"
+      ]
+    },
+    {
+      "name": "ねっとう",
+      "key": "scald",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "からをやぶる",
+      "key": "shell-smash",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いやしのはどう",
+      "key": "heal-pulse",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たたりめ",
+      "key": "hex",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フリーフォール",
+      "key": "sky-drop",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ギアチェンジ",
+      "key": "shift-gear",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ともえなげ",
+      "key": "circle-throw",
+      "status": "full",
+      "kinds": [
+        "強制交代(攻撃)"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "やきつくす",
+      "key": "incinerate",
+      "status": "full",
+      "kinds": [
+        "持ち物排除"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "さきおくり",
+      "key": "quash",
+      "status": "partial",
+      "kinds": [
+        "最後に行動"
+      ],
+      "unsupported_kinds": [
+        "最後に行動"
+      ]
+    },
+    {
+      "name": "アクロバット",
+      "key": "acrobatics",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ミラータイプ",
+      "key": "reflect-type",
+      "status": "full",
+      "kinds": [
+        "タイプ上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かたきうち",
+      "key": "retaliate",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いのちがけ",
+      "key": "final-gambit",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ",
+        "自分瀕死"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ギフトパス",
+      "key": "bestow",
+      "status": "partial",
+      "kinds": [
+        "道具譲渡"
+      ],
+      "unsupported_kinds": [
+        "道具譲渡"
+      ]
+    },
+    {
+      "name": "れんごく",
+      "key": "inferno",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みずのちかい",
+      "key": "water-pledge",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほのおのちかい",
+      "key": "fire-pledge",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "くさのちかい",
+      "key": "grass-pledge",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ボルトチェンジ",
+      "key": "volt-switch",
+      "status": "full",
+      "kinds": [
+        "自分交代"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "むしのていこう",
+      "key": "struggle-bug",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じならし",
+      "key": "bulldoze",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こおりのいぶき",
+      "key": "frost-breath",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "ドラゴンテール",
+      "key": "dragon-tail",
+      "status": "full",
+      "kinds": [
+        "強制交代(攻撃)"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふるいたてる",
+      "key": "work-up",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "エレキネット",
+      "key": "electroweb",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ワイルドボルト",
+      "key": "wild-charge",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドリルライナー",
+      "key": "drill-run",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "ダブルチョップ",
+      "key": "dual-chop",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハートスタンプ",
+      "key": "heart-stamp",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ウッドホーン",
+      "key": "horn-leech",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "せいなるつるぎ",
+      "key": "sacred-sword",
+      "status": "full",
+      "kinds": [
+        "ランク無視"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シェルブレード",
+      "key": "razor-shell",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ヒートスタンプ",
+      "key": "heat-crash",
+      "status": "full",
+      "kinds": [
+        "威力可変",
+        "威力倍率",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "グラスミキサー",
+      "key": "leaf-tornado",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハードローラー",
+      "key": "steamroller",
+      "status": "full",
+      "kinds": [
+        "ひるみ",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "コットンガード",
+      "key": "cotton-guard",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ナイトバースト",
+      "key": "night-daze",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコブレイク",
+      "key": "psystrike",
+      "status": "full",
+      "kinds": [
+        "別防御参照ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スイープビンタ",
+      "key": "tail-slap",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぼうふう",
+      "key": "hurricane",
+      "status": "full",
+      "kinds": [
+        "天候必中",
+        "半無敵命中",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アフロブレイク",
+      "key": "head-charge",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ギアソーサー",
+      "key": "gear-grind",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かえんだん",
+      "key": "searing-shot",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "テクノバスター",
+      "key": "techno-blast",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いにしえのうた",
+      "key": "relic-song",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しんぴのつるぎ",
+      "key": "secret-sword",
+      "status": "full",
+      "kinds": [
+        "別防御参照ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こごえるせかい",
+      "key": "glaciate",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "らいげき",
+      "key": "bolt-strike",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あおいほのお",
+      "key": "blue-flare",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほのおのまい",
+      "key": "fiery-dance",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フリーズボルト",
+      "key": "freeze-shock",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "コールドフレア",
+      "key": "ice-burn",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "バークアウト",
+      "key": "snarl",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つららおとし",
+      "key": "icicle-crash",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "Ｖジェネレート",
+      "key": "v-create",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "クロスフレイム",
+      "key": "fusion-flare",
+      "status": "full",
+      "kinds": [
+        "状態異常回復",
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "クロスサンダー",
+      "key": "fusion-bolt",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フライングプレス",
+      "key": "flying-press",
+      "status": "full",
+      "kinds": [
+        "技タイプ追加",
+        "必中",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たたみがえし",
+      "key": "mat-block",
+      "status": "partial",
+      "kinds": [
+        "範囲まもり"
+      ],
+      "unsupported_kinds": [
+        "範囲まもり"
+      ]
+    },
+    {
+      "name": "ゲップ",
+      "key": "belch",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たがやす",
+      "key": "rototiller",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねばねばネット",
+      "key": "sticky-web",
+      "status": "full",
+      "kinds": [
+        "設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とどめばり",
+      "key": "fell-stinger",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ゴーストダイブ",
+      "key": "phantom-force",
+      "status": "partial",
+      "kinds": [
+        "2ターン目に攻撃",
+        "まもり貫通"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "ハロウィン",
+      "key": "trick-or-treat",
+      "status": "full",
+      "kinds": [
+        "タイプ追加"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おたけび",
+      "key": "noble-roar",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "プラズマシャワー",
+      "key": "ion-deluge",
+      "status": "full",
+      "kinds": [
+        "相手技タイプ変更"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "パラボラチャージ",
+      "key": "parabolic-charge",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "もりののろい",
+      "key": "forests-curse",
+      "status": "full",
+      "kinds": [
+        "タイプ追加"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はなふぶき",
+      "key": "petal-blizzard",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フリーズドライ",
+      "key": "freeze-dry",
+      "status": "full",
+      "kinds": [
+        "相性上書き",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "チャームボイス",
+      "key": "disarming-voice",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "すてゼリフ",
+      "key": "parting-shot",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "みがわり貫通",
+        "自分交代"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ひっくりかえす",
+      "key": "topsy-turvy",
+      "status": "partial",
+      "kinds": [
+        "ランク反転"
+      ],
+      "unsupported_kinds": [
+        "ランク反転"
+      ]
+    },
+    {
+      "name": "ドレインキッス",
+      "key": "draining-kiss",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トリックガード",
+      "key": "crafty-shield",
+      "status": "partial",
+      "kinds": [
+        "範囲まもり"
+      ],
+      "unsupported_kinds": [
+        "範囲まもり"
+      ]
+    },
+    {
+      "name": "フラワーガード",
+      "key": "flower-shield",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "グラスフィールド",
+      "key": "grassy-terrain",
+      "status": "full",
+      "kinds": [
+        "フィールド展開",
+        "場の威力補正",
+        "回復",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ミストフィールド",
+      "key": "misty-terrain",
+      "status": "full",
+      "kinds": [
+        "フィールド展開",
+        "状態異常予防",
+        "場の威力補正",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "そうでん",
+      "key": "electrify",
+      "status": "full",
+      "kinds": [
+        "相手技タイプ変更"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じゃれつく",
+      "key": "play-rough",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ようせいのかぜ",
+      "key": "fairy-wind",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ムーンフォース",
+      "key": "moonblast",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ばくおんぱ",
+      "key": "boomburst",
+      "status": "full",
+      "kinds": [
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フェアリーロック",
+      "key": "fairy-lock",
+      "status": "full",
+      "kinds": [
+        "全員逃走不可"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "キングシールド",
+      "key": "kings-shield",
+      "status": "full",
+      "kinds": [
+        "まもり",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "なかよくする",
+      "key": "play-nice",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ないしょばなし",
+      "key": "confide",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイヤストーム",
+      "key": "diamond-storm",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スチームバースト",
+      "key": "steam-eruption",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いじげんホール",
+      "key": "hyperspace-hole",
+      "status": "partial",
+      "kinds": [
+        "まもり貫通",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "みずしゅりけん",
+      "key": "water-shuriken",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マジカルフレイム",
+      "key": "mystical-fire",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ニードルガード",
+      "key": "spiky-shield",
+      "status": "partial",
+      "kinds": [
+        "まもり",
+        "まもり貫通",
+        "接触反動"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "アロマミスト",
+      "key": "aromatic-mist",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かいでんぱ",
+      "key": "eerie-impulse",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ベノムトラップ",
+      "key": "venom-drench",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふんじん",
+      "key": "powder",
+      "status": "full",
+      "kinds": [
+        "失敗ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ジオコントロール",
+      "key": "geomancy",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じばそうさ",
+      "key": "magnetic-flux",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハッピータイム",
+      "key": "happy-hour",
+      "status": "partial",
+      "kinds": [
+        "賞金倍"
+      ],
+      "unsupported_kinds": [
+        "賞金倍"
+      ]
+    },
+    {
+      "name": "エレキフィールド",
+      "key": "electric-terrain",
+      "status": "full",
+      "kinds": [
+        "フィールド展開",
+        "状態異常予防",
+        "場の威力補正",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マジカルシャイン",
+      "key": "dazzling-gleam",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おいわい",
+      "key": "celebrate",
+      "status": "partial",
+      "kinds": [
+        "効果なし"
+      ],
+      "unsupported_kinds": [
+        "効果なし"
+      ]
+    },
+    {
+      "name": "てをつなぐ",
+      "key": "hold-hands",
+      "status": "partial",
+      "kinds": [
+        "効果なし"
+      ],
+      "unsupported_kinds": [
+        "効果なし"
+      ]
+    },
+    {
+      "name": "つぶらなひとみ",
+      "key": "baby-doll-eyes",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほっぺすりすり",
+      "key": "nuzzle",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "てかげん",
+      "key": "hold-back",
+      "status": "partial",
+      "kinds": [
+        "瀕死回避"
+      ],
+      "unsupported_kinds": [
+        "瀕死回避"
+      ]
+    },
+    {
+      "name": "まとわりつく",
+      "key": "infestation",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "グロウパンチ",
+      "key": "power-up-punch",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "デスウイング",
+      "key": "oblivion-wing",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サウザンアロー",
+      "key": "thousand-arrows",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サウザンウェーブ",
+      "key": "thousand-waves",
+      "status": "full",
+      "kinds": [
+        "拘束"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "グランドフォース",
+      "key": "lands-wrath",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はめつのひかり",
+      "key": "light-of-ruin",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こんげんのはどう",
+      "key": "origin-pulse",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "だんがいのつるぎ",
+      "key": "precipice-blades",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ガリョウテンセイ",
+      "key": "dragon-ascent",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いじげんラッシュ",
+      "key": "hyperspace-fury",
+      "status": "partial",
+      "kinds": [
+        "まもり貫通",
+        "みがわり貫通",
+        "能力ランク変化",
+        "使用者限定"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通",
+        "使用者限定"
+      ]
+    },
+    {
+      "name": "ウルトラダッシュアタック",
+      "key": "breakneck-blitz--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ウルトラダッシュアタック",
+      "key": "breakneck-blitz--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぜんりょくむそうげきれつけん",
+      "key": "all-out-pummeling--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぜんりょくむそうげきれつけん",
+      "key": "all-out-pummeling--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ファイナルダイブクラッシュ",
+      "key": "supersonic-skystrike--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ファイナルダイブクラッシュ",
+      "key": "supersonic-skystrike--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アシッドポイズンデリート",
+      "key": "acid-downpour--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アシッドポイズンデリート",
+      "key": "acid-downpour--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ライジングランドオーバー",
+      "key": "tectonic-rage--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ライジングランドオーバー",
+      "key": "tectonic-rage--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ワールズエンドフォール",
+      "key": "continental-crush--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ワールズエンドフォール",
+      "key": "continental-crush--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぜったいほしょくかいてんざん",
+      "key": "savage-spin-out--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぜったいほしょくかいてんざん",
+      "key": "savage-spin-out--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "むげんあんやへのいざない",
+      "key": "never-ending-nightmare--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "むげんあんやへのいざない",
+      "key": "never-ending-nightmare--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ちょうぜつらせんれんげき",
+      "key": "corkscrew-crash--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ちょうぜつらせんれんげき",
+      "key": "corkscrew-crash--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイナミックフルフレイム",
+      "key": "inferno-overdrive--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイナミックフルフレイム",
+      "key": "inferno-overdrive--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スーパーアクアトルネード",
+      "key": "hydro-vortex--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スーパーアクアトルネード",
+      "key": "hydro-vortex--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブルームシャインエクストラ",
+      "key": "bloom-doom--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブルームシャインエクストラ",
+      "key": "bloom-doom--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スパーキングギガボルト",
+      "key": "gigavolt-havoc--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スパーキングギガボルト",
+      "key": "gigavolt-havoc--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マキシマムサイブレイカー",
+      "key": "shattered-psyche--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マキシマムサイブレイカー",
+      "key": "shattered-psyche--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "レイジングジオフリーズ",
+      "key": "subzero-slammer--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "レイジングジオフリーズ",
+      "key": "subzero-slammer--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アルティメットドラゴンバーン",
+      "key": "devastating-drake--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アルティメットドラゴンバーン",
+      "key": "devastating-drake--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブラックホールイクリプス",
+      "key": "black-hole-eclipse--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブラックホールイクリプス",
+      "key": "black-hole-eclipse--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ラブリースターインパクト",
+      "key": "twinkle-tackle--physical",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ラブリースターインパクト",
+      "key": "twinkle-tackle--special",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ひっさつのピカチュート",
+      "key": "catastropika",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "すなあつめ",
+      "key": "shore-up",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "であいがしら",
+      "key": "first-impression",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トーチカ",
+      "key": "baneful-bunker",
+      "status": "full",
+      "kinds": [
+        "まもり",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かげぬい",
+      "key": "spirit-shackle",
+      "status": "full",
+      "kinds": [
+        "拘束"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "DDラリアット",
+      "key": "darkest-lariat",
+      "status": "full",
+      "kinds": [
+        "ランク無視"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "うたかたのアリア",
+      "key": "sparkling-aria",
+      "status": "full",
+      "kinds": [
+        "状態異常回復",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アイスハンマー",
+      "key": "ice-hammer",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フラワーヒール",
+      "key": "floral-healing",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "10まんばりき",
+      "key": "high-horsepower",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ちからをすいとる",
+      "key": "strength-sap",
+      "status": "full",
+      "kinds": [
+        "回復",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ソーラーブレード",
+      "key": "solar-blade",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "このは",
+      "key": "leafage",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スポットライト",
+      "key": "spotlight",
+      "status": "partial",
+      "kinds": [
+        "引き寄せ"
+      ],
+      "unsupported_kinds": [
+        "引き寄せ"
+      ]
+    },
+    {
+      "name": "どくのいと",
+      "key": "toxic-thread",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とぎすます",
+      "key": "laser-focus",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "アシストギア",
+      "key": "gear-up",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じごくづき",
+      "key": "throat-chop",
+      "status": "full",
+      "kinds": [
+        "カテゴリ封じ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かふんだんご",
+      "key": "pollen-puff",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アンカーショット",
+      "key": "anchor-shot",
+      "status": "full",
+      "kinds": [
+        "拘束"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコフィールド",
+      "key": "psychic-terrain",
+      "status": "full",
+      "kinds": [
+        "フィールド展開",
+        "優先技無効",
+        "場の威力補正",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とびかかる",
+      "key": "lunge",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほのおのムチ",
+      "key": "fire-lash",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "つけあがる",
+      "key": "power-trip",
+      "status": "full",
+      "kinds": [
+        "ランク数威力加算"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "もえつきる",
+      "key": "burn-up",
+      "status": "full",
+      "kinds": [
+        "タイプ除去",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スピードスワップ",
+      "key": "speed-swap",
+      "status": "full",
+      "kinds": [
+        "能力入替"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スマートホーン",
+      "key": "smart-strike",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じょうか",
+      "key": "purify",
+      "status": "full",
+      "kinds": [
+        "状態異常回復",
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "めざめるダンス",
+      "key": "revelation-dance",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "コアパニッシャー",
+      "key": "core-enforcer",
+      "status": "full",
+      "kinds": [
+        "特性無効化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トロピカルキック",
+      "key": "trop-kick",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "さいはい",
+      "key": "instruct",
+      "status": "full",
+      "kinds": [
+        "技強制再使用"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "くちばしキャノン",
+      "key": "beak-blast",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スケイルノイズ",
+      "key": "clanging-scales",
+      "status": "full",
+      "kinds": [
+        "みがわり貫通",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドラゴンハンマー",
+      "key": "dragon-hammer",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぶんまわす",
+      "key": "brutal-swing",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "オーロラベール",
+      "key": "aurora-veil",
+      "status": "full",
+      "kinds": [
+        "壁設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シャドーアローズストライク",
+      "key": "sinister-arrow-raid",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハイパーダーククラッシャー",
+      "key": "malicious-moonsault",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "わだつみのシンフォニア",
+      "key": "oceanic-operetta",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ガーディアン・デ・アローラ",
+      "key": "guardian-of-alola",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しちせいだっこんたい",
+      "key": "soul-stealing-7-star-strike",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ライトニングサーフライド",
+      "key": "stoked-sparksurfer",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほんきをだす　こうげき",
+      "key": "pulverizing-pancake",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ナインエボルブースト",
+      "key": "extreme-evoboost",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "オリジンズスーパーノヴァ",
+      "key": "genesis-supernova",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "フィールド展開"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トラップシェル",
+      "key": "shell-trap",
+      "status": "partial",
+      "kinds": [
+        "トラップ反撃"
+      ],
+      "unsupported_kinds": [
+        "トラップ反撃"
+      ]
+    },
+    {
+      "name": "フルールカノン",
+      "key": "fleur-cannon",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコファング",
+      "key": "psychic-fangs",
+      "status": "full",
+      "kinds": [
+        "壁除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じだんだ",
+      "key": "stomping-tantrum",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シャドーボーン",
+      "key": "shadow-bone",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アクセルロック",
+      "key": "accelerock",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アクアブレイク",
+      "key": "liquidation",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "プリズムレーザー",
+      "key": "prismatic-laser",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シャドースチール",
+      "key": "spectral-thief",
+      "status": "full",
+      "kinds": [
+        "ランクコピー",
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "メテオドライブ",
+      "key": "sunsteel-strike",
+      "status": "full",
+      "kinds": [
+        "特性無効化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シャドーレイ",
+      "key": "moongeist-beam",
+      "status": "full",
+      "kinds": [
+        "特性無効化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "なみだめ",
+      "key": "tearful-look",
+      "status": "partial",
+      "kinds": [
+        "必中",
+        "能力ランク変化",
+        "まもり貫通"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "びりびりちくちく",
+      "key": "zing-zap",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しぜんのいかり",
+      "key": "natures-madness",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マルチアタック",
+      "key": "multi-attack",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "１０００まんボルト",
+      "key": "10-000-000-volt-thunderbolt",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "ビックリヘッド",
+      "key": "mind-blown",
+      "status": "full",
+      "kinds": [
+        "HPが減る"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "プラズマフィスト",
+      "key": "plasma-fists",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "相手技タイプ変更"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "フォトンゲイザー",
+      "key": "photon-geyser",
+      "status": "full",
+      "kinds": [
+        "物理特殊自動",
+        "特性無効化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "てんこがすめつぼうのひかり",
+      "key": "light-that-burns-the-sky",
+      "status": "full",
+      "kinds": [
+        "物理特殊自動",
+        "必中",
+        "特性無効化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サンシャインスマッシャー",
+      "key": "searing-sunraze-smash",
+      "status": "full",
+      "kinds": [
+        "特性無効化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ムーンライトブラスター",
+      "key": "menacing-moonraze-maelstrom",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "特性無効化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぽかぼかフレンドタイム",
+      "key": "lets-snuggle-forever",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ラジアルエッジストーム",
+      "key": "splintered-stormshards",
+      "status": "full",
+      "kinds": [
+        "フィールド除去",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブレイジングソウルビート",
+      "key": "clangorous-soulblaze",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "みがわり貫通",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ばちばちアクセル",
+      "key": "zippy-zap",
+      "status": "partial",
+      "kinds": [
+        "必ず急所"
+      ],
+      "unsupported_kinds": [
+        "必ず急所"
+      ]
+    },
+    {
+      "name": "ざぶざぶサーフ",
+      "key": "splishy-splash",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふわふわフォール",
+      "key": "floaty-fall",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ピカピカサンダー",
+      "key": "pika-papow",
+      "status": "full",
+      "kinds": [
+        "威力可変",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いきいきバブル",
+      "key": "bouncy-bubble",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "びりびりエレキ",
+      "key": "buzzy-buzz",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "めらめらバーン",
+      "key": "sizzly-slide",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どばどばオーラ",
+      "key": "glitzy-glow",
+      "status": "full",
+      "kinds": [
+        "壁設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "わるわるゾーン",
+      "key": "baddy-bad",
+      "status": "full",
+      "kinds": [
+        "壁設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "すくすくボンバー",
+      "key": "sappy-seed",
+      "status": "full",
+      "kinds": [
+        "やどりぎ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こちこちフロスト",
+      "key": "freezy-frost",
+      "status": "full",
+      "kinds": [
+        "ランクリセット"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きらきらストーム",
+      "key": "sparkly-swirl",
+      "status": "full",
+      "kinds": [
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブイブイブレイク",
+      "key": "veevee-volley",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダブルパンツァー",
+      "key": "double-iron-bash",
+      "status": "full",
+      "kinds": [
+        "連続攻撃",
+        "ひるみ",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイウォール",
+      "key": "max-guard",
+      "status": "full",
+      "kinds": [
+        "まもり"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイマックスほう",
+      "key": "dynamax-cannon",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねらいうち",
+      "key": "snipe-shot",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "くらいつく",
+      "key": "jaw-lock",
+      "status": "full",
+      "kinds": [
+        "拘束"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほおばる",
+      "key": "stuff-cheeks",
+      "status": "full",
+      "kinds": [
+        "木の実強制",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はいすいのじん",
+      "key": "no-retreat",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "自分拘束"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "タールショット",
+      "key": "tar-shot",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "相性上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "まほうのこな",
+      "key": "magic-powder",
+      "status": "full",
+      "kinds": [
+        "タイプ上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドラゴンアロー",
+      "key": "dragon-darts",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おちゃかい",
+      "key": "teatime",
+      "status": "full",
+      "kinds": [
+        "木の実強制"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たこがため",
+      "key": "octolock",
+      "status": "full",
+      "kinds": [
+        "拘束",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "でんげきくちばし",
+      "key": "bolt-beak",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "エラがみ",
+      "key": "fishious-rend",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "コートチェンジ",
+      "key": "court-change",
+      "status": "partial",
+      "kinds": [
+        "場入れ替え"
+      ],
+      "unsupported_kinds": [
+        "場入れ替え"
+      ]
+    },
+    {
+      "name": "ダイバーン",
+      "key": "max-flare",
+      "status": "full",
+      "kinds": [
+        "天候変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイワーム",
+      "key": "max-flutterby",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイサンダー",
+      "key": "max-lightning",
+      "status": "full",
+      "kinds": [
+        "フィールド展開",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイアタック",
+      "key": "max-strike",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイナックル",
+      "key": "max-knuckle",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイホロウ",
+      "key": "max-phantasm",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイアイス",
+      "key": "max-hailstorm",
+      "status": "full",
+      "kinds": [
+        "天候変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイアシッド",
+      "key": "max-ooze",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイストリーム",
+      "key": "max-geyser",
+      "status": "full",
+      "kinds": [
+        "天候変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイジェット",
+      "key": "max-airstream",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイフェアリー",
+      "key": "max-starfall",
+      "status": "full",
+      "kinds": [
+        "フィールド展開",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイドラグーン",
+      "key": "max-wyrmwind",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイサイコ",
+      "key": "max-mindstorm",
+      "status": "full",
+      "kinds": [
+        "フィールド展開",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイロック",
+      "key": "max-rockfall",
+      "status": "full",
+      "kinds": [
+        "天候変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイアース",
+      "key": "max-quake",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイアーク",
+      "key": "max-darkness",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイソウゲン",
+      "key": "max-overgrowth",
+      "status": "full",
+      "kinds": [
+        "フィールド展開",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダイスチル",
+      "key": "max-steelspike",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ソウルビート",
+      "key": "clangorous-soul",
+      "status": "full",
+      "kinds": [
+        "HPが減る",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ボディプレス",
+      "key": "body-press",
+      "status": "full",
+      "kinds": [
+        "別能力ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "デコレーション",
+      "key": "decorate",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドラムアタック",
+      "key": "drum-beating",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トラバサミ",
+      "key": "snap-trap",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かえんボール",
+      "key": "pyro-ball",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きょじゅうざん",
+      "key": "behemoth-blade",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きょじゅうだん",
+      "key": "behemoth-bash",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "オーラぐるま",
+      "key": "aura-wheel",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ワイドブレイカー",
+      "key": "breaking-swipe",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "えだづき",
+      "key": "branch-poke",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "オーバードライブ",
+      "key": "overdrive",
+      "status": "full",
+      "kinds": [
+        "みがわり貫通"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "りんごさん",
+      "key": "apple-acid",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "Gのちから",
+      "key": "grav-apple",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ソウルクラッシュ",
+      "key": "spirit-break",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ワンダースチーム",
+      "key": "strange-steam",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いのちのしずく",
+      "key": "life-dew",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブロッキング",
+      "key": "obstruct",
+      "status": "partial",
+      "kinds": [
+        "まもり",
+        "まもり貫通",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "どげざつき",
+      "key": "false-surrender",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スターアサルト",
+      "key": "meteor-assault",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ムゲンダイビーム",
+      "key": "eternabeam",
+      "status": "full",
+      "kinds": [
+        "次のターン行動不能"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "てっていこうせん",
+      "key": "steel-beam",
+      "status": "full",
+      "kinds": [
+        "HPが減る"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ワイドフォース",
+      "key": "expanding-force",
+      "status": "partial",
+      "kinds": [
+        "威力倍率",
+        "対象範囲変更"
+      ],
+      "unsupported_kinds": [
+        "対象範囲変更"
+      ]
+    },
+    {
+      "name": "アイアンローラー",
+      "key": "steel-roller",
+      "status": "full",
+      "kinds": [
+        "フィールド除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スケイルショット",
+      "key": "scale-shot",
+      "status": "full",
+      "kinds": [
+        "連続攻撃",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "メテオビーム",
+      "key": "meteor-beam",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シェルアームズ",
+      "key": "shell-side-arm",
+      "status": "full",
+      "kinds": [
+        "物理特殊自動",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ミストバースト",
+      "key": "misty-explosion",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "自分瀕死"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "グラススライダー",
+      "key": "grassy-glide",
+      "status": "full",
+      "kinds": [
+        "条件付き優先"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ライジングボルト",
+      "key": "rising-voltage",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "だいちのはどう",
+      "key": "terrain-pulse",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更",
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はいよるいちげき",
+      "key": "skitter-smack",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しっとのほのお",
+      "key": "burning-jealousy",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "うっぷんばらし",
+      "key": "lash-out",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ポルターガイスト",
+      "key": "poltergeist",
+      "status": "partial",
+      "kinds": [
+        "相手持ち物威力"
+      ],
+      "unsupported_kinds": [
+        "相手持ち物威力"
+      ]
+    },
+    {
+      "name": "ふしょくガス",
+      "key": "corrosive-gas",
+      "status": "full",
+      "kinds": [
+        "持ち物排除"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "コーチング",
+      "key": "coaching",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "クイックターン",
+      "key": "flip-turn",
+      "status": "full",
+      "kinds": [
+        "自分交代"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トリプルアクセル",
+      "key": "triple-axel",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダブルウイング",
+      "key": "dual-wingbeat",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねっさのだいち",
+      "key": "scorching-sands",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ジャングルヒール",
+      "key": "jungle-healing",
+      "status": "full",
+      "kinds": [
+        "回復",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "あんこくきょうだ",
+      "key": "wicked-blow",
+      "status": "partial",
+      "kinds": [
+        "必ず急所",
+        "威力倍率"
+      ],
+      "unsupported_kinds": [
+        "必ず急所"
+      ]
+    },
+    {
+      "name": "すいりゅうれんだ",
+      "key": "surging-strikes",
+      "status": "partial",
+      "kinds": [
+        "連続攻撃",
+        "必ず急所",
+        "威力倍率"
+      ],
+      "unsupported_kinds": [
+        "必ず急所"
+      ]
+    },
+    {
+      "name": "サンダープリズン",
+      "key": "thunder-cage",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドラゴンエナジー",
+      "key": "dragon-energy",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いてつくしせん",
+      "key": "freezing-glare",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "もえあがるいかり",
+      "key": "fiery-wrath",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "らいめいげり",
+      "key": "thunderous-kick",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブリザードランス",
+      "key": "glacial-lance",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アストラルビット",
+      "key": "astral-barrage",
+      "status": "effects_empty",
+      "kinds": [],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぶきみなじゅもん",
+      "key": "eerie-spell",
+      "status": "partial",
+      "kinds": [
+        "PP減少"
+      ],
+      "unsupported_kinds": [
+        "PP減少"
+      ]
+    },
+    {
+      "name": "フェイタルクロー",
+      "key": "dire-claw",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "バリアーラッシュ",
+      "key": "psyshield-bash",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "パワーシフト",
+      "key": "power-shift",
+      "status": "full",
+      "kinds": [
+        "能力入替"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "がんせきアックス",
+      "key": "stone-axe",
+      "status": "full",
+      "kinds": [
+        "設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はるのあらし",
+      "key": "springtide-storm",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しんぴのちから",
+      "key": "mystical-power",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "だいふんげき",
+      "key": "raging-fury",
+      "status": "full",
+      "kinds": [
+        "暴れる(混乱)",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ウェーブタックル",
+      "key": "wave-crash",
+      "status": "full",
+      "kinds": [
+        "反動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "クロロブラスト",
+      "key": "chloroblast",
+      "status": "full",
+      "kinds": [
+        "HPが減る"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ひょうざんおろし",
+      "key": "mountain-gale",
+      "status": "full",
+      "kinds": [
+        "ひるみ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しょうりのまい",
+      "key": "victory-dance",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ぶちかまし",
+      "key": "headlong-rush",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "どくばりセンボン",
+      "key": "barb-barrage",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "オーラウイング",
+      "key": "esper-wing",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "うらみつらみ",
+      "key": "bitter-malice",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "たてこもる",
+      "key": "shelter",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "3ぼんのや",
+      "key": "triple-arrows",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇",
+        "能力ランク変化",
+        "ひるみ"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "ひゃっきやこう",
+      "key": "infernal-parade",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ひけん・ちえなみ",
+      "key": "ceaseless-edge",
+      "status": "full",
+      "kinds": [
+        "設置"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "こがらしあらし",
+      "key": "bleakwind-storm",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化",
+        "天候必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かみなりあらし",
+      "key": "wildbolt-storm",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "天候必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ねっさのあらし",
+      "key": "sandsear-storm",
+      "status": "full",
+      "kinds": [
+        "天候必中",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みかづきのいのり",
+      "key": "lunar-blessing",
+      "status": "full",
+      "kinds": [
+        "回復",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブレイブチャージ",
+      "key": "take-heart",
+      "status": "full",
+      "kinds": [
+        "状態異常回復",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "テラバースト",
+      "key": "tera-blast",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更",
+        "物理特殊自動"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "スレッドトラップ",
+      "key": "silk-trap",
+      "status": "full",
+      "kinds": [
+        "まもり",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かかとおとし",
+      "key": "axe-kick",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "失敗ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おはかまいり",
+      "key": "last-respects",
+      "status": "full",
+      "kinds": [
+        "威力段階増加"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ルミナコリジョン",
+      "key": "lumina-crash",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "いっちょうあがり",
+      "key": "order-up",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ジェットパンチ",
+      "key": "jet-punch",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハバネロエキス",
+      "key": "spicy-extract",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ホイールスピン",
+      "key": "spin-out",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ネズミざん",
+      "key": "population-bomb",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アイススピナー",
+      "key": "ice-spinner",
+      "status": "full",
+      "kinds": [
+        "フィールド除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "きょけんとつげき",
+      "key": "glaive-rush",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "さいきのいのり",
+      "key": "revival-blessing",
+      "status": "full",
+      "kinds": [
+        "回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しおづけ",
+      "key": "salt-cure",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "継続削り"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トリプルダイブ",
+      "key": "triple-dive",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "キラースピン",
+      "key": "mortal-spin",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "拘束解除",
+        "設置除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "うつしえ",
+      "key": "doodle",
+      "status": "full",
+      "kinds": [
+        "特性上書き"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みをけずる",
+      "key": "fillet-away",
+      "status": "full",
+      "kinds": [
+        "HPが減る",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドゲザン",
+      "key": "kowtow-cleave",
+      "status": "full",
+      "kinds": [
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "トリックフラワー",
+      "key": "flower-trick",
+      "status": "partial",
+      "kinds": [
+        "必ず急所",
+        "必中"
+      ],
+      "unsupported_kinds": [
+        "必ず急所"
+      ]
+    },
+    {
+      "name": "フレアソング",
+      "key": "torch-song",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アクアステップ",
+      "key": "aqua-step",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "レイジングブル",
+      "key": "raging-bull",
+      "status": "full",
+      "kinds": [
+        "技タイプ変更",
+        "壁除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ゴールドラッシュ",
+      "key": "make-it-rain",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコブレイド ",
+      "key": "psyblade",
+      "status": "full",
+      "kinds": [
+        "威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハイドロスチーム",
+      "key": "hydro-steam",
+      "status": "full",
+      "kinds": [
+        "威力倍率",
+        "状態異常回復"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "カタストロフィ",
+      "key": "ruination",
+      "status": "full",
+      "kinds": [
+        "固定ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アクセルブレイク",
+      "key": "collision-course",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "イナズマドライブ",
+      "key": "electro-drift",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "しっぽきり",
+      "key": "shed-tail",
+      "status": "full",
+      "kinds": [
+        "HPが減る",
+        "状態付与",
+        "自分交代"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "さむいギャグ",
+      "key": "chilly-reception",
+      "status": "full",
+      "kinds": [
+        "自分交代",
+        "天候変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "おかたづけ",
+      "key": "tidy-up",
+      "status": "full",
+      "kinds": [
+        "状態異常回復",
+        "能力ランク変化",
+        "設置除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ゆきげしき",
+      "key": "snowscape",
+      "status": "full",
+      "kinds": [
+        "天候変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "とびつく",
+      "key": "pounce",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "くさわけ",
+      "key": "trailblaze",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ひやみず",
+      "key": "chilling-water",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハイパードリル",
+      "key": "hyper-drill",
+      "status": "partial",
+      "kinds": [
+        "まもり貫通"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "ツインビーム",
+      "key": "twin-beam",
+      "status": "full",
+      "kinds": [
+        "連続攻撃"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ふんどのこぶし",
+      "key": "rage-fist",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アーマーキャノン",
+      "key": "armor-cannon",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "むねんのつるぎ",
+      "key": "bitter-blade",
+      "status": "full",
+      "kinds": [
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "でんこうそうげき",
+      "key": "double-shock",
+      "status": "full",
+      "kinds": [
+        "タイプ除去"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "デカハンマー",
+      "key": "gigaton-hammer",
+      "status": "full",
+      "kinds": [
+        "次ターン使用不可"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ほうふく",
+      "key": "comeuppance",
+      "status": "full",
+      "kinds": [
+        "倍返し"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "アクアカッター",
+      "key": "aqua-cutter",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "バーンアクセル",
+      "key": "blazing-torque",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ダークアクセル",
+      "key": "wicked-torque",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ポイズンアクセル",
+      "key": "noxious-torque",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ファイトアクセル",
+      "key": "combat-torque",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "マジカルアクセル",
+      "key": "magical-torque",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ブラッドムーン",
+      "key": "blood-moon",
+      "status": "full",
+      "kinds": [
+        "次ターン使用不可"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "シャカシャカほう",
+      "key": "matcha-gotcha",
+      "status": "full",
+      "kinds": [
+        "状態付与",
+        "状態異常回復",
+        "吸収"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "みずあめボム",
+      "key": "syrup-bomb",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ツタこんぼう",
+      "key": "ivy-cudgel",
+      "status": "partial",
+      "kinds": [
+        "技タイプ変更",
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "エレクトロビーム",
+      "key": "electro-shot",
+      "status": "full",
+      "kinds": [
+        "2ターン目に攻撃",
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "テラクラスター",
+      "key": "tera-starstorm",
+      "status": "partial",
+      "kinds": [
+        "対象範囲変更",
+        "技タイプ追加",
+        "物理特殊自動",
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": [
+        "対象範囲変更"
+      ]
+    },
+    {
+      "name": "きまぐレーザー",
+      "key": "fickle-beam",
+      "status": "full",
+      "kinds": [
+        "条件威力倍率"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "かえんのまもり",
+      "key": "burning-bulwark",
+      "status": "full",
+      "kinds": [
+        "まもり",
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じんらい",
+      "key": "thunderclap",
+      "status": "partial",
+      "kinds": [
+        "攻撃技条件先制"
+      ],
+      "unsupported_kinds": [
+        "攻撃技条件先制"
+      ]
+    },
+    {
+      "name": "パワフルエッジ",
+      "key": "mighty-cleave",
+      "status": "partial",
+      "kinds": [
+        "まもり貫通"
+      ],
+      "unsupported_kinds": [
+        "まもり貫通"
+      ]
+    },
+    {
+      "name": "タキオンカッター",
+      "key": "tachyon-cutter",
+      "status": "full",
+      "kinds": [
+        "連続攻撃",
+        "必中"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ハードプレス",
+      "key": "hard-press",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "ドラゴンエール",
+      "key": "dragon-cheer",
+      "status": "partial",
+      "kinds": [
+        "急所率上昇"
+      ],
+      "unsupported_kinds": [
+        "急所率上昇"
+      ]
+    },
+    {
+      "name": "みわくのボイス",
+      "key": "alluring-voice",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "やけっぱち",
+      "key": "temper-flare",
+      "status": "full",
+      "kinds": [
+        "威力可変"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サンダーダイブ",
+      "key": "supercell-slam",
+      "status": "full",
+      "kinds": [
+        "必中",
+        "威力倍率",
+        "失敗ダメージ"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "サイコノイズ",
+      "key": "psychic-noise",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "はやてがえし",
+      "key": "upper-hand",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "じゃどくのくさり",
+      "key": "malignant-chain",
+      "status": "full",
+      "kinds": [
+        "状態付与"
+      ],
+      "unsupported_kinds": []
+    },
+    {
+      "name": "コインビーム",
+      "key": "koinbeam",
+      "status": "full",
+      "kinds": [
+        "能力ランク変化"
+      ],
+      "unsupported_kinds": []
+    }
+  ]
+}

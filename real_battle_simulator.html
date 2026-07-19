@@ -985,7 +985,19 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
   </div>
 </div>
 
-<script src="pokechan_data.js?v=20260705a"></script>
+<script>
+// ★Phase E(2026-07-19): battle_lab.htmlのallモードからは自身のURLに&data=allが付いて開かれる
+// (エンジンは自分のiframe URLだけを見る=battle_lab側のlocalStorageは参照しない・伝搬のみ)。
+// real_battle.html/online_battle.htmlはdata=allを付けないため常にchampions(pokechan_data.js)のまま。
+// document.write()での<script src>挿入(battle_lab.htmlの先頭ローダーと同じ方式=検証時に判明した
+// 「同期XHR+間接evalだとトップレベルconst/letが後続scriptから見えない」問題を回避するため)。
+(function(){
+  var mode = 'champions';
+  try { if (new URLSearchParams(location.search).get('data') === 'all') mode = 'all'; } catch (e) {}
+  var src = (mode === 'all') ? 'pokechan_data_all.js?v=20260626a' : 'pokechan_data.js?v=20260705a';
+  document.write('<script src="' + src + '"><' + '/script>');
+})();
+</script>
 <script src="items_database.js"></script>
 <script src="battle_log_i18n.js?v=20260716b"></script>
 <script>

@@ -6,7 +6,30 @@
 <title data-i18n="battle_lab.page_title">バトルラボ — PchamDB</title>
 <meta name="robots" content="noindex, nofollow">
 <script defer src="i18n/runtime.js?v=20260705"></script>
-<script src="pokechan_data.js?v=20260705a"></script>
+<script>
+(function(){
+  // ★Phase E(2026-07-19): チャンピオンズ版⇔全部版データ切替(設計_全部版バトル切替_2026-07-18.md §1/§4)。
+  // モード解決: URL?data=all|champions を最優先(指定時はlocalStorageへも同期=共有URLで一貫)→
+  // localStorage(rb_lab_data_mode)→既定champions。ラボ以外(real_battle/online)はこのスクリプトを使わないので無関係。
+  var urlMode = null;
+  try { urlMode = new URLSearchParams(location.search).get('data'); } catch (e) {}
+  var mode;
+  if (urlMode === 'all' || urlMode === 'champions') {
+    mode = urlMode;
+    try { localStorage.setItem('rb_lab_data_mode', mode); } catch (e) {}
+  } else {
+    try { mode = localStorage.getItem('rb_lab_data_mode') || 'champions'; } catch (e) { mode = 'champions'; }
+  }
+  window.RB_LAB_MODE = mode;
+  // 後続の<script src>群(battle_log_i18n.js等)より確実に先に完了させる必要がある。
+  // ★検証時に判明: 同期XHR+間接eval(0,eval)だと、pokechan_data*.jsのトップレベルconst/letが
+  // そのeval呼び出しのスコープに閉じ込められ、後続の別<script>タグからは見えない(=POKEMON_LIST等が
+  // undefinedになる実行時バグ)。document.write()での<script src>挿入はパーサーを同期的に一時停止させ、
+  // 本物のグローバルスクリプトとして実行順を保証するため、こちらを採用する(意図的にdocument.write)。
+  var src = (mode === 'all') ? 'pokechan_data_all.js?v=20260626a' : 'pokechan_data.js?v=20260705a';
+  document.write('<script src="' + src + '"><' + '/script>');
+})();
+</script>
 <script src="battle_log_i18n.js?v=20260718b"></script>
 <script src="sprite_api_ids.js?v=20260706b"></script>
 <script src="preset_builds.js?v=20260711b"></script>
@@ -1046,6 +1069,7 @@ body.in-battle #lab-ai-row{display:flex}
 </style>
 </head>
 <body>
+<script>document.body.dataset.mode = window.RB_LAB_MODE || 'champions';</script>
 <header>
   <div class="hdr-left">
     <a href="index.html" class="hdr-home" title="PchamDB トップに戻る" data-i18n="checker.nav_pchamdb_home" data-i18n-attr="title:checker.nav_pchamdb_home_title">🏠 PchamDB</a>
@@ -1074,6 +1098,9 @@ body.in-battle #lab-ai-row{display:flex}
         <input type="checkbox" id="allow-dupes">
         <span data-i18n="battle_lab.allow_dupes">おなじポケモンも えらべる</span>
       </label>
+      <!-- ★Phase E(2026-07-19): チャンピオンズ版⇔全部版データ切替トグル(設計_全部版バトル切替_2026-07-18.md §1)。
+           クリックで localStorage(rb_lab_data_mode)更新→再読込(champions=battle_lab.html / all=?data=all)。 -->
+      <button type="button" id="lab-data-mode" style="margin-left:12px;background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer;font-size:12px" data-i18n="battle_lab.data_mode_champions" data-i18n-attr="title:battle_lab.data_mode_hint" title="タップで切り替え">チャンピオンズ版</button>
     </div>
     <div id="setup-cols">
       <div id="setup-left">
@@ -1296,7 +1323,15 @@ body.in-battle #lab-ai-row{display:flex}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260718e" style="display:none"></iframe>
+<iframe id="engine-frame" style="display:none"></iframe>
+<script>
+// ★Phase E(2026-07-19): エンジンiframeのsrcはモードに応じてここで確定する(HTMLのsrc属性は外して二重ロード防止)。
+// allモードは&data=allを付けてエンジン側(real_battle_simulator.html)にも同じデータ源を伝搬する。
+(function(){
+  var base = 'real_battle_simulator.html?v=20260719a';
+  document.getElementById('engine-frame').src = (window.RB_LAB_MODE === 'all') ? (base + '&data=all') : base;
+})();
+</script>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1374,6 +1409,24 @@ function pushMsgLine(text){ const ml = document.getElementById('msg-lines'); if 
 function clearMsg(){ const ml = document.getElementById('msg-lines'); if (ml) ml.innerHTML = ''; }
 
 const $ = id => document.getElementById(id);
+
+// ★Phase E(2026-07-19): チャンピオンズ版⇔全部版トグル(エンジン読込を待たず・DOM準備済みなら即配線)。
+// data-i18nの初期値はJS側でモードに合わせて上書き(i18n:ready/changedで通常のdata-i18n配線が追従する)。
+function initDataModeToggle(){
+  const btn = $('lab-data-mode');
+  if (!btn) return;
+  const mode = (window.RB_LAB_MODE === 'all') ? 'all' : 'champions';
+  const key = mode === 'all' ? 'battle_lab.data_mode_all' : 'battle_lab.data_mode_champions';
+  const fallback = mode === 'all' ? '🧪全部版' : 'チャンピオンズ版';
+  btn.dataset.i18n = key;
+  btn.textContent = (window.I18N && window.I18N.t) ? window.I18N.t(key, fallback) : fallback;
+  btn.addEventListener('click', () => {
+    const next = mode === 'all' ? 'champions' : 'all';
+    try { localStorage.setItem('rb_lab_data_mode', next); } catch (e) {}
+    location.href = location.pathname + (next === 'all' ? '?data=all' : '');
+  });
+}
+initDataModeToggle();
 
 // I18N 表示ヘルパー(マスターDBの固有名詞は直書きせずDB辞書から描画。jaや未登録はjaにフォールバック)
 const tPokeName = nm => (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(nm) : nm;
@@ -1862,6 +1915,9 @@ function renderSelDetail(id){
 }
 // 編成の保存/復元(localStorage): ポケモン名・技名・持ち物キー・人数(リロードしても残る)
 // ★バトルラボ: 保存キーはreal_battleの`rb_team`と完全分離(自分/相手それぞれ別キー=設計§4)
+// ★Phase E(2026-07-19): allモードはキー名前空間を分ける(_all_)。championsモードは既存キー名を維持=
+// 既存の保存編成をそのまま読める(設計_全部版バトル切替_2026-07-18.md 契約7)。
+function labTeamKey(side){ return (window.RB_LAB_MODE === 'all') ? ('rb_team_lab_all_' + side) : ('rb_team_lab_' + side); }
 function saveTeam(){
   try {
     // ★2026-07-16バグ修正: 以前は`ids === selfIds()`で比較していたが、selfIds()は毎回新しい配列を
@@ -1878,14 +1934,14 @@ function saveTeam(){
       effort: Object.fromEntries(ids.map(id => [id, slotEffort[id]])),
       moves: Object.fromEntries(ids.map(id => [id, (slotMoves[id] || []).map(m => m && m.name)])),
     });
-    localStorage.setItem('rb_team_lab_self', JSON.stringify(pack(selfIds(), 'self')));
-    localStorage.setItem('rb_team_lab_opp', JSON.stringify(pack(oppIds(), 'opp')));
+    localStorage.setItem(labTeamKey('self'), JSON.stringify(pack(selfIds(), 'self')));
+    localStorage.setItem(labTeamKey('opp'), JSON.stringify(pack(oppIds(), 'opp')));
   } catch (e) {}
 }
 function loadTeam(){
   try {
-    const dSelf = JSON.parse(localStorage.getItem('rb_team_lab_self') || 'null');
-    const dOpp = JSON.parse(localStorage.getItem('rb_team_lab_opp') || 'null');
+    const dSelf = JSON.parse(localStorage.getItem(labTeamKey('self')) || 'null');
+    const dOpp = JSON.parse(localStorage.getItem(labTeamKey('opp')) || 'null');
     if (!dSelf || !dSelf.val || !dSelf.val.s1) return false;
     teamSize = dSelf.size || 3;
     leadSlot = {
@@ -4306,7 +4362,7 @@ function initGodHand(){
   const fr = $('gh-full-reset');
   if (fr) fr.addEventListener('click', () => {
     if (!confirm(I18N.t('battle_lab.confirm_full_reset', '編成もふくめて すべて リセットします。よろしいですか？'))) return;
-    try { localStorage.removeItem('rb_team_lab_self'); localStorage.removeItem('rb_team_lab_opp'); } catch (e) {}
+    try { localStorage.removeItem(labTeamKey('self')); localStorage.removeItem(labTeamKey('opp')); } catch (e) {}
     location.reload();
   });
 }
