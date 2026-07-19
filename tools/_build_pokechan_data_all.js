@@ -21,6 +21,21 @@ let MFIX={}; try{ MFIX=require('../reference/moves_battle_data_fix.json'); }catc
 let MDESC={}; try{ MDESC=require('../reference/moves_desc_override.json'); }catch(e){} // ★説明文オーバーレイ(最優先): 121kind語彙で表現できない技(穴/空)をヤックン由来の独自マザー流文で埋める(2026-06-28)
 let MFLAGS={}; try{ MFLAGS=require('../reference/_move_flags.json'); }catch(e){} // ★技フラグ(音/風/切る/弾/噛み/踊り/パンチ等)=構築WFが付与。composeが「音系の技」等を発声(2026-06-29)
 let SD_MOVES={}; try{ SD_MOVES=require('../reference/_showdown/moves.json'); }catch(e){} // ★P8: Showdown moves.json(gen/isNonstandard)
+// ★2026-07-19: ABILITY_DESC欠落119件+ヘドロえきの穴埋め(PokeAPI公式ja説明・Champions版は肥大化させない=全部版側でだけマージ)
+//   マージ順: Champions ABILITY_DESC(既存キー) > fill(reference/_ability_desc_fill_2026-07-19.json)。既存キーは上書きしない。
+let ABILITY_DESC_FILL=null;
+try{ ABILITY_DESC_FILL = require('../reference/_ability_desc_fill_2026-07-19.json'); }
+catch(e){ console.warn('[warn] reference/_ability_desc_fill_2026-07-19.json が見つからないため、ABILITY_DESCはChampions版のみ(欠落穴埋めなし)。'); }
+const ABILITY_DESC = Object.assign({}, C.ABILITY_DESC);
+let _abFillMerged = 0;
+if(ABILITY_DESC_FILL && Array.isArray(ABILITY_DESC_FILL.entries)){
+  ABILITY_DESC_FILL.entries.forEach(e=>{
+    if(!e || !e.name_ja || !e.desc_ja) return;
+    if(ABILITY_DESC[e.name_ja] != null) return; // Championsの独自説明を常に優先(上書きしない)
+    ABILITY_DESC[e.name_ja] = e.desc_ja;
+    _abFillMerged++;
+  });
+}
 const { compose } = require('./_waza_compose.js'); // effects→効果文(ルール: 元データから説明を生成)
 
 // === P8: availability 導出ヘルパ ===
@@ -284,7 +299,7 @@ const POKEMON_LIST = ${J(POKEMON_LIST)};
 const DATA = POKEMON_LIST;
 const WAZA_MAP = ${J(WAZA_MAP)};
 const POKEMON_WAZA = ${J(POKEMON_WAZA)};
-const ABILITY_DESC = ${J(C.ABILITY_DESC)};
+const ABILITY_DESC = ${J(ABILITY_DESC)};
 const STAT_RANK = ${J(C.STAT_RANK)};
 const NATURES = ${J(C.NATURES)};
 if (typeof module !== 'undefined' && module.exports) {
@@ -296,3 +311,4 @@ const overlaidW=MV.filter(m=>curByName[MVJA[m.slug]]).length;
 const overlaidP=POKEMON_LIST.filter(p=>p.weight_kg!=null).length;
 console.log(`pokechan_data_all.js 生成: POKEMON_LIST=${POKEMON_LIST.length}(全${PALL.length}から見た目フォーム${PALL.length-P2.length}件間引き) / WAZA_MAP=${Object.keys(WAZA_MAP).length} / POKEMON_WAZA=${Object.keys(POKEMON_WAZA).length}`);
 console.log(`overlay: 技説明/battle_data=${overlaidW}件 / 体重=${overlaidP}件`);
+console.log(`ABILITY_DESC: Champions=${Object.keys(C.ABILITY_DESC).length}件 + fillマージ=${_abFillMerged}件 → 全部版計=${Object.keys(ABILITY_DESC).length}件`);
