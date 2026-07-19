@@ -1,0 +1,229 @@
+{
+  "_meta": {
+    "purpose": "pchamdb.com 記事戦略調査: 本家ポケモン対戦『知識ゲームとしての骨格』のトピック・記事構成マップ。文言/表/データの転載は一切なし。抽出したのは『どんなトピックがあるか・どんな見出し構成か・どれくらい深く踏み込んでいるか』という構造情報のみ。",
+    "constraint": "本番ファイル編集禁止・新規referenceファイルのみ・git操作なし。攻略サイトの文言/表/数値データはコピーしていない(見出し名・分類方法の要約のみ)。",
+    "date": "2026-07-20",
+    "context": "読者=対戦を既にやっている人。『誰よりも詳しい』と思わせる記事戦略。うちのバトルエンジン(real_battle_simulator.html等)で実際に計算・再現できるトピックに engine_computable フラグを付与。",
+    "fetch_failed": [
+      {
+        "url": "https://www.smogon.com/dex/sv/formats/ou/",
+        "reason": "JSレンダリングのSPA(React)。WebFetchはHTML→markdown変換のみでJS実行不可のため『Loading...』のまま中身が取れず。構造把握できず(でっち上げ回避のため空扱い)。"
+      },
+      {
+        "url": "https://www.smogon.com/ingame/guides/damage_calculator_guide",
+        "reason": "HTTP 404。ページが存在しない/URL変更済みの可能性。"
+      },
+      {
+        "url": "https://bulbapedia.bulbagarden.net/wiki/Non-volatile_status_condition",
+        "reason": "HTTP 404。正しいタイトルは『Status condition』(こちらは取得成功、下記に反映)。"
+      },
+      {
+        "url": "https://bulbapedia.bulbagarden.net/wiki/Glossary_of_gameplay_terms",
+        "reason": "HTTP 404。同内容と思われる用語集ページは『Sweeper』『Wall』の各URLが実質同一の用語ガイド記事にリダイレクトされて取得できた(下記 role_theory トピックに反映)。正確なページタイトル/URLは未確定のため個別リンクは避け、取得元URLをそのまま記録。"
+      }
+    ]
+  },
+  "topics": [
+    {
+      "id": "damage_calculation",
+      "topic_ja": "ダメージ計算式(乱数幅・確定数の考え方の土台)",
+      "sources": [
+        { "title": "Bulbapedia: Damage", "url": "https://bulbapedia.bulbagarden.net/wiki/Damage", "status": "fetched" }
+      ],
+      "structure_summary": [
+        "イントロ(ダメージ=HP損失という定義)",
+        "コアシリーズのダメージ計算式(第1〜4世代は世代別に別立て、第5世代以降は統一式)",
+        "レジェンズアルセウス版/レジェンズZ-A版の独自システム",
+        "スピンオフ(GO/マスターズEX)の別建てダメージ式",
+        "トリビア(歴代仕様・バグ)",
+        "多言語表記"
+      ],
+      "depth": "数式レベル(攻撃側レベル・攻撃/防御実数値・技威力・タイプ相性・急所・天候・乱数[0.85〜1.00相当の16通り]等、変数を全部定義して式を明示)。ただし『確定数』(何%の乱数で何回で倒せるか)という対戦者目線の実用計算までは踏み込んでおらず、素材(式)の提示止まり。",
+      "engine_computable": true,
+      "engine_note": "うちのバトルエンジンは実際にこの式でダメージ乱数16通りを計算しているはずなので、『この技は何%の乱数区間で何回でH1の相手を落とせるか(確定数)』を実際に数値で見せる記事が作れる。攻略サイトの一般論止まりより一段深く『自分のPTのこの技の確定数は何%か』を即答できるのが差別化ポイント。"
+    },
+    {
+      "id": "type_effectiveness",
+      "topic_ja": "タイプ相性表・複合タイプ計算",
+      "sources": [
+        { "title": "Bulbapedia: Type", "url": "https://bulbapedia.bulbagarden.net/wiki/Type", "status": "fetched" }
+      ],
+      "structure_summary": [
+        "Summary(単タイプ/複合タイプ・タイプ一致ボーナスの基本定義)",
+        "List of types(世代別インデックス番号・表示順序)",
+        "Type effectiveness: Type chart(効果抜群×2・いまひとつ×0.5・効果なし×0)",
+        "複合タイプの乗算計算(4倍・1/4倍等)・例外技(フライングプレス等)",
+        "第1世代の複合タイプダメージ誤情報バグ",
+        "Type-affected game mechanics(カテゴリ変更の世代差・タイプ変更技・タイプなし概念)",
+        "アイコン/スピンオフ/TCGでの扱い"
+      ],
+      "depth": "相性表(数値倍率)自体は載せるが、実戦での『どの4タイプ構成が何タイプに抜群を取れるか』という範囲計算(コベレッジ理論)までは踏み込んでいない。",
+      "engine_computable": true,
+      "engine_note": "複合タイプの相性乗算はうちのDBの持ち技/耐性データからそのまま自動計算できる。『このパーティの技範囲は全18タイプ中何タイプに抜群が取れるか』を実データで自動生成できれば攻略サイトより具体的。"
+    },
+    {
+      "id": "critical_hit",
+      "topic_ja": "急所(クリティカルヒット)確率・ランク",
+      "sources": [
+        { "title": "Bulbapedia: Critical hit", "url": "https://bulbapedia.bulbagarden.net/wiki/Critical_hit", "status": "fetched" }
+      ],
+      "structure_summary": [
+        "コア本編での急所(第1世代:速さ依存の特殊計算/第2世代以降:ステージ制)",
+        "サイドシリーズ(スタジアム/コロシアム)",
+        "スピンオフ(ダンジョン/マスターズEX/ユナイト)",
+        "アニメでの描写",
+        "確率テーブル(+0〜+3ステージでの確率)",
+        "ステージ上昇要因(急所ランク上昇技・道具・特性)"
+      ],
+      "depth": "世代別確率テーブルまで数値化。ただし『急所が絡んだ時に受け出しが崩壊する確率』のような対戦運用視点の掘り下げはなし。",
+      "engine_computable": true,
+      "engine_note": "うちのsimは急所を確率制で採用済み(sim-sprint-complete-2026-06-11メモ参照)。『このポケモンの受け構築は急所1発で何%事故るか』を実際にシミュレーションで示せる。"
+    },
+    {
+      "id": "priority",
+      "topic_ja": "優先度(先制技)システムと素早さの関係",
+      "sources": [
+        { "title": "Bulbapedia: Priority", "url": "https://bulbapedia.bulbagarden.net/wiki/Priority", "status": "fetched" }
+      ],
+      "structure_summary": [
+        "Mechanics(技ごとに-7〜+5の隠れ優先度値)",
+        "Special priority(交代/道具使用など優先度システム外の要素)",
+        "優先度を上げる特性(いたずらごころ/はやてのつばさ/トリアージ等)",
+        "優先度を無効化/変動/決定する効果",
+        "Move priority(世代別・優先度階層ごとの技リスト)",
+        "アニメ/漫画での表現・トリビア"
+      ],
+      "depth": "『同一優先度内は素早さで順序決定』『トリックルームは優先度内順序のみ反転し優先度自体には影響しない』という階層構造まで明示。かなり深い。",
+      "engine_computable": true,
+      "engine_note": "優先度階層×素早さ実数値の行動順決定はバトルエンジンのターン処理そのもの。『このパーティ、先制技+速度操作でどこまで詰められるか』を実際に組んで見せられる。"
+    },
+    {
+      "id": "status_conditions",
+      "topic_ja": "状態異常(まひ/やけど/どく/こおり/ねむり)の仕組み",
+      "sources": [
+        { "title": "Bulbapedia: Status condition", "url": "https://bulbapedia.bulbagarden.net/wiki/Status_condition", "status": "fetched" }
+      ],
+      "structure_summary": [
+        "非揮発性状態異常(やけど/こおり/まひ/どく/ねむり) — 各状態のダメージ量・行動不能確率・世代差",
+        "揮発性状態異常(こんらん等、戦闘終了で解除・複数同時発生可) — 使用者対象/場対象で分類"
+      ],
+      "depth": "各状態の効果値(まひ=素早さ50%低下[第7世代以降]・25%で行動不能、やけど=物理半減+毎ターン1/16等)を数値で明示。ただし『状態異常が対面・素早さ操作の駆け引きにどう絡むか』という戦術面の解説はこの記事単体にはない。",
+      "engine_computable": true,
+      "engine_note": "まひの素早さ50%低下・行動不能25%、やけどの物理半減等はエンジンで実装済みのはず。『まひ撒き構築が相手の素早さ順位を実際にどう入れ替えるか』を実数値ラインで見せられる。"
+    },
+    {
+      "id": "weather_terrain",
+      "topic_ja": "天候(はれ/あめ/すな/ゆき)の技・特性補正",
+      "sources": [
+        { "title": "Bulbapedia: Weather", "url": "https://bulbapedia.bulbagarden.net/wiki/Weather", "status": "fetched" }
+      ],
+      "structure_summary": [
+        "List of weather(各天候の基本効果=タイプ別技威力補正・特殊ダメージ・状態異常への影響)",
+        "Moves affected by weather(天候で効果が変わる技の個別解説)",
+        "Activated Abilities(各天候で発動する特性一覧)",
+        "Castform/天候ボールの特殊挙動",
+        "天候の発生条件・場での視覚表現"
+      ],
+      "depth": "各天候の倍率・ダメージ量まで数値化。すなあらしの特防1.5倍・天候ダメージ1/16等。",
+      "engine_computable": true,
+      "engine_note": "天候×タイプ補正×特性の掛け合わせをエンジンで実際に再現・検算できる。"
+    },
+    {
+      "id": "ev_stat_calc",
+      "topic_ja": "努力値・実数値計算式",
+      "sources": [
+        { "title": "Bulbapedia: Effort values", "url": "https://bulbapedia.bulbagarden.net/wiki/Effort_values", "status": "fetched" },
+        { "title": "Bulbapedia: Stat", "url": "https://bulbapedia.bulbagarden.net/wiki/Stat", "status": "fetched" }
+      ],
+      "structure_summary": [
+        "[Effort values] Stat experience(第1-2世代の旧仕様)",
+        "[Effort values] Modern system(第3世代以降・1体倒すごとに1-3EV加算・総上限510/個別上限252)",
+        "[Effort values] Measuring EVs(第6世代以降のグラフ表示・努力値リボン)",
+        "[Effort values] Fully Trained Pokémon",
+        "[Stat] Terminology/List of stats(恒久ステータスvs戦闘中ステータスの区別)",
+        "[Stat] Determination of stats: 種族値・レベル・性格・個体値・努力値・Formula(世代別計算式、Champions版の式も別立てで存在)",
+        "[Stat] In battle(命中率/回避率の計算)",
+        "[Stat] Stat modifiers(戦闘中の能力ランク変動)"
+      ],
+      "depth": "実数値計算式(HP式/その他ステータス式)を完全に数式化。Champions版の式が独立枠であることが判明=Bulbapediaがすでにポケモンチャンピオンズの仕様差を追っている。",
+      "engine_computable": true,
+      "engine_note": "『この性格・努力値・個体値でこの実数値になる』計算はDBで即再現可能。『相手の最速想定ラインに乗せるには努力値何振り必要か』を実数値表で自動生成できる=素早さ調整記事の土台。"
+    },
+    {
+      "id": "speed_tiers_ev_lines",
+      "topic_ja": "素早さ調整・実数値ライン(Speed Tiers)",
+      "sources": [
+        { "title": "Smogon Forums: Champions OU Speed Tiers", "url": "https://www.smogon.com/forums/threads/champions-ou-speed-tiers.3780503/", "status": "fetched" },
+        { "title": "Smogon University: Overused Speed Tiers (DP)", "url": "https://www.smogon.com/dp/articles/ou_speed_tiers", "status": "fetched" },
+        { "title": "Smogon Forums: SV OU Speed Tiers", "url": "https://www.smogon.com/forums/threads/sv-ou-speed-tiers.3711207/", "status": "found_via_search_not_fetched" },
+        { "title": "Smogon University: BW OU Speed Tiers", "url": "https://www.smogon.com/bw/articles/ouspeed_tiers", "status": "found_via_search_not_fetched" },
+        { "title": "Smogon University: GSC Speed Tiers", "url": "https://www.smogon.com/gs/articles/gsc_speedtiers", "status": "found_via_search_not_fetched" },
+        { "title": "Smogon University: RS Speed Tiers", "url": "https://www.smogon.com/rs/articles/speed_tiers", "status": "found_via_search_not_fetched" }
+      ],
+      "structure_summary": [
+        "[フォーラム版・Champions OU Speed Tiers] 実現速度値(降順)を軸に、ポケモンスプライト・名前・素早さ種族値・EVと性格・能力上昇/道具補正(スカーフ等)の列で一覧化。同速はグループ横並び。",
+        "[記事版・DP Speed Tiers] Getting Started(自分の最速個体を確認→対策したい脅威の速さと比較→逆算でEV配分)→ Magic Speed Numbers(いたずらごころ/こだわりスカーフ等の重要な速さの節目) → Tier 0〜4(種族値帯ごとの実数値ライン一覧)",
+        "速度上昇技の計算注記(こうそくいどう[Agility]は対象速度+1を2で割り上げ、など上昇幅ごとの計算式)",
+        "めざめるパワー(Hidden Power)採用時は素早さIV低下による実数値-1の注記"
+      ],
+      "depth": "非常に実用寄り。『何EV振れば誰を抜けるか』の逆算方式を明文化し、かつ道具(スカーフ)・特性(いたずらごころ)・積み技補正まで含めた『実際に対戦で使う数値』まで踏み込んでいる。Champions版のスレッドが既に存在=このジャンルは競合が薄くない。",
+      "engine_computable": true,
+      "engine_note": "★最重要トピック。うちのDB+バトルエンジンなら『現行構築でよく見るポケモンの実数値素早さを全部自動計算→降順ソート→どのEVラインが何を抜くか』をSmogon式より自動更新・網羅的に出せる。Champions固有(メガ/Z/ダイマックス/テラスタルでの一時的素早さ変化)を組み込めば独自の強み。"
+    },
+    {
+      "id": "role_theory",
+      "topic_ja": "役割理論(スイーパー/受け/対面構築の用語体系)",
+      "sources": [
+        { "title": "Bulbapedia用語ガイド(Sweeper項目経由)", "url": "https://bulbapedia.bulbagarden.net/wiki/Sweeper", "status": "fetched" },
+        { "title": "Bulbapedia用語ガイド(Wall項目経由・同一記事の可能性)", "url": "https://bulbapedia.bulbagarden.net/wiki/Wall", "status": "fetched" }
+      ],
+      "structure_summary": [
+        "General terms(BST・タイプ一致・天候等の全体用語)",
+        "Pokémon sets(個別の役割・型の分類)",
+        "See also",
+        "役割語彙: Sweeper(セットアップスイーパー=能力上昇技→掃討) / Cleaner / Revenge killer(独立項目として並記、物理特殊での細分類はなし)",
+        "受け系語彙: Wall / Stone Wall(高耐久低火力の純壁) / Tank(バランス耐久) / Bulky(HP+防御系の耐久型全般)",
+        "機能別語彙: Check(有利対面で対抗) / Counter(交代で有利) / Pivot(攻撃しつつ交代) / Cleric(回復支援)",
+        "対ハザード語彙: Hazard blocker / Hazard remover / Spinner・Defogger"
+      ],
+      "depth": "用語の定義止まり(1〜2文/語)。『この役割の型はどういうEV配分・どの技構成が定番か』『受け出し時の実際の被ダメ計算』という実戦的深掘りはこの記事にはない。",
+      "engine_computable": "partial",
+      "engine_note": "用語自体はエンジン計算対象ではないが、『このポケモンが定番のCheck/Counterに何%で勝てるか』をダメージ計算+素早さ比較で自動判定する記事(役割理論×実計算のハイブリッド)は攻略サイトの用語解説より一段実用的になる。"
+    },
+    {
+      "id": "entry_hazards",
+      "topic_ja": "設置技(まきびし系)の分類",
+      "sources": [
+        { "title": "Bulbapedia: Entry hazard", "url": "https://bulbapedia.bulbagarden.net/wiki/Entry_hazard", "status": "fetched" }
+      ],
+      "structure_summary": [
+        "Mechanics(除去方法・発動条件)",
+        "List of traps(まきびし/ステルスロック/どくびし/やまあらし/おうえん[Sharp Steel]の6種一覧表)",
+        "アニメ/漫画での表現・トリビア・多言語表記・関連記事"
+      ],
+      "depth": "技の基本機能・発動メカニズムの説明止まり。『積み技との戦略的関係』『素早さ操作との組み合わせ戦術』は明示的に含まれていない(要調査による確認済み=このサイトの手薄ポイント)。",
+      "engine_computable": true,
+      "engine_note": "手薄ポイント=差別化の余地。うちのエンジンで『やまあらし込みでスカーフ持ちが何%減った状態からどこまで削れるか』のような設置技×ダメージ計算の複合シミュレーションを見せれば、Bulbapediaの単体説明より深い記事になる。"
+    },
+    {
+      "id": "type_coverage_range",
+      "topic_ja": "技範囲・コベレッジの考え方",
+      "sources": [
+        { "title": "Smogon Forums (検索結果のみ、未フェッチ): Most Effective Type Coverage / Two Type Move Combos 等", "url": "https://www.smogon.com/forums/threads/most-effective-type-coverage.19354/", "status": "found_via_search_not_fetched" }
+      ],
+      "structure_summary": [
+        "検索結果からの構造推定(未フェッチのため深い構成は未確認): フォーラムスレッド形式での『2技/3技/4技でN種族を効果抜群で殴れるか』という組み合わせ論議が中心。単一の公式まとめ記事は見当たらず、コミュニティのスレッドが分散している。"
+      ],
+      "depth": "未確認(フェッチ未実施)。Bulbapedia/Smogon University側に単体の体系記事が見つからず、フォーラム議論に散在している= 体系化されていないジャンルの可能性。",
+      "engine_computable": true,
+      "engine_note": "体系記事が薄いジャンル=差別化のチャンス。うちの技DB(タイプ・威力・命中)から『このパーティの持ち技全体で18タイプ中何タイプに抜群を取れるか』を自動集計する記事は、既存サイトに『まとまった一本』が無い分そのまま独自コンテンツになりうる。要:実際にSmogonフォーラムスレッドを個別フェッチして構成を確認してから着手(今回は検索結果までで時間配分の都合により深掘りしていない)。"
+    }
+  ],
+  "cross_cutting_observations": [
+    "Bulbapediaの『Stat』記事にChampions(ポケモンチャンピオンズ)専用の実数値計算式が独立枠で既に存在することを確認。攻略サイト側も追いかけ始めている領域=乗り遅れずChampions固有仕様(メガ進化/Z技/ダイマックス/テラスタルの一時的素早さ変化)を組み合わせた素早さライン記事は先行者優位が取れる可能性。",
+    "『素早さ調整記事』(speed_tiers_ev_lines)はSmogonが世代ごとに継続更新している定番ジャンルで、かつ『実現速度値からの逆算』という実務的フォーマットが確立している。うちのDB+エンジンで自動生成・自動更新できれば、手作業更新のSmogonフォーラムより鮮度で勝てる可能性がある。",
+    "『確定数』(何%の乱数で何回で倒せるか)という対戦者が実際に一番知りたい情報は、Bulbapediaのダメージ計算式記事ですら明示的な体系記事になっておらず、素材(式)止まり。ここをエンジンで実際に計算して見せる記事は独自性が高い。",
+    "『役割理論の用語集』(role_theory)は定義止まりで実戦計算と結びついていない。用語解説+実際のダメージ/速度計算のハイブリッド記事にすると深さで差がつけられる。",
+    "設置技(entry_hazards)・技範囲(type_coverage_range)は既存サイト側の記事が薄い/散在している=手薄ポイントとして記事戦略の狙い目候補。"
+  ]
+}
