@@ -50,7 +50,7 @@
     // <script src="..."> の src 属性から相対パスを推測
     const scripts = document.getElementsByTagName('script');
     for (let s of scripts) {
-      const src = s.getAttribute('src') || '';
+      const src = (s.getAttribute('src') || '').split('?')[0]; // ?v=クエリ付きsrcでもBASE検出できるように(2026-07-19修正)
       if (src.endsWith('runtime.js') || src.endsWith('i18n/runtime.js')) {
         // src が "i18n/runtime.js" なら base は "i18n/"
         // src が "../i18n/runtime.js" なら base は "../i18n/"
