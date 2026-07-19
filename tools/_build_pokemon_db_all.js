@@ -1,15 +1,25 @@
 // 全部入りポケモンDB(メインシリーズ全世代)公開ページ生成。Champions専用DBとは別。
-// 元データ=reference/pokeapi_master.json(全1302variety)。スプライト=PokeAPI。
+// 元データ=reference/pokeapi_master.json(全1302variety)。
+// 絵=自作オリジナル絵(images/sim)既定(AdSense対策・案A・2026-07-20 阿部さん確定)。PokeAPI公式絵は初期表示に出さない。
 // 実行: node tools/_build_pokemon_db_all.js → pokemon_db_all.html
 const fs=require('fs');
 const D=JSON.parse(fs.readFileSync('reference/pokeapi_master.json','utf8'));
 const ABJA={};JSON.parse(fs.readFileSync('reference/abilities_master.json','utf8')).forEach(a=>{ABJA[a.slug]=a.names.ja||a.names.en||a.slug;});
 const abj=s=>ABJA[s]||s;
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const enc=s=>encodeURIComponent(s);
 const TYPE_JA={normal:'ノーマル',fire:'ほのお',water:'みず',electric:'でんき',grass:'くさ',ice:'こおり',fighting:'かくとう',poison:'どく',ground:'じめん',flying:'ひこう',psychic:'エスパー',bug:'むし',rock:'いわ',ghost:'ゴースト',dragon:'ドラゴン',dark:'あく',steel:'はがね',fairy:'フェアリー'};
 const TC={normal:'#9fa19f',fire:'#e62829',water:'#2980ef',electric:'#fac000',grass:'#3fa129',ice:'#3dcef3',fighting:'#ff8000',poison:'#9141cb',ground:'#915121',flying:'#81b9ef',psychic:'#ef4179',bug:'#91a119',rock:'#afa981',ghost:'#704170',dragon:'#5060e1',dark:'#624d4e',steel:'#60a1b8',fairy:'#ef70ef'};
-// スプライトはローカル同梱(images/poke/)。本番安定化のためPokeAPI raw直リンクから脱却(2026-06-26)。
-// 万一ローカル欠けでも PokeAPI へ onerror フォールバック→それでも無ければ非表示。
+// 全国版マスター(master_pokemon.json)の id→names.ja は images/sim/{ja}.svg のファイル名と一致する
+// (pokemon/all.html 生成=tools/_gen_content_pages.js の imgCells と同じ規則。id は pokeapi_master.json と共通キー)。
+let SIM_JA={};
+try{ JSON.parse(fs.readFileSync('reference/master_pokemon.json','utf8')).forEach(e=>{ if(e&&e.names&&e.names.ja!=null) SIM_JA[e.id]=e.names.ja; }); }
+catch(e){ console.log('⚠ master_pokemon.json 無し: オリジナル絵は種族名ベースにフォールバック'); }
+// ★AdSense対策・案A(2026-07-20 阿部さん確定): 既定=自作オリジナル絵(images/sim/{ja}.svg→.png→非表示)。
+// PokeAPI公式絵(images/poke/{id}.png、無ければ raw.githubusercontent)は既定で配線しない=初期表示のネットワーク要求ゼロ。
+// 将来「公式絵切替オプション」(AdSense審査通過後)を実装する場合は、img の onerror 最終分岐(現在 this.remove())を
+// data-poke-id を使って SPRITE(id)→SPRITE_FALLBACK(id) へ差し替える形で追加する(未実装・意図的・コードは下に残置)。
+const SIM=(id,jaFallback)=>`images/sim/${enc(SIM_JA[id]||jaFallback)}`;
 const SPRITE=id=>`images/poke/${id}.png`;
 const SPRITE_FALLBACK=id=>`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
 const GENR=[[1,151],[152,251],[252,386],[387,493],[494,649],[650,721],[722,809],[810,905],[906,1025]];
@@ -20,7 +30,7 @@ const rows=D.map(v=>{const st=v.stats;const bst=(st.hp+st.atk+st.def+st.spa+st.s
   const tnames=v.types.map(t=>TYPE_JA[t]||t).join(' ');
   return `<tr data-s="${esc((v.species_names.ja||'')+' '+(v.species_names.en||'')+' '+fl+' '+tnames)}" data-gen="${genOf(v.dex)}" data-ty="${esc(v.types.join(','))}">
 <td class="dx">${v.dex||''}</td>
-<td class="sp"><img loading="lazy" src="${SPRITE(v.id)}" alt="" width="56" height="56" data-fb="${SPRITE_FALLBACK(v.id)}" onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.dataset.fb='';}else{this.style.visibility='hidden';}"></td>
+<td class="sp"><img loading="lazy" src="${SIM(v.id,v.species_names.ja||v.slug)}.svg" alt="" width="56" height="56" data-poke-id="${v.id}" onerror="if(!this.dataset.png){this.dataset.png=1;this.src='${SIM(v.id,v.species_names.ja||v.slug)}.png';}else{this.remove();}"></td>
 <td class="nm">${esc(v.species_names.ja||v.slug)}${fl?`<span class="fm">${esc(fl)}</span>`:''}<br><span class="en">${esc(v.species_names.en||'')}</span></td>
 <td class="gen"><span class="gb g${genOf(v.dex)}">第${genOf(v.dex)}</span></td>
 <td class="tys">${types}</td>
@@ -66,6 +76,6 @@ function sortBy(k){var idx={dx:0,nm:2,2.5:3,bst:11}[k]; if(idx===undefined)idx=k
  rows.sort(function(a,b){var av=a.children[idx].textContent.trim(),bv=b.children[idx].textContent.trim();var an=parseFloat(av),bn=parseFloat(bv);var x,y;if(!isNaN(an)&&!isNaN(bn)){x=an;y=bn}else{x=av;y=bv}return (x<y?-1:x>y?1:0)*(asc?1:-1)});
  TB.dataset.sk=''+k;TB.dataset.sd=asc?'asc':'desc';rows.forEach(function(r){TB.appendChild(r)});}
 run();
-</script><footer style="padding:16px;color:#7a8aa0;font-size:11px;line-height:1.7;border-top:1px solid #233;margin-top:20px">Pokémon の画像・名前は © 1995–2026 Nintendo / Game Freak / The Pokémon Company。本サイト(PchamDB)は<b>非公式・非営利</b>のファンサイトです。画像出典: <a href="https://pokeapi.co/" style="color:#9ec5ff">PokéAPI</a>(pokeapi.co)。</footer></body></html>`;
+</script><footer style="padding:16px;color:#7a8aa0;font-size:11px;line-height:1.7;border-top:1px solid #233;margin-top:20px">Pokémon の名前・データは © 1995–2026 Nintendo / Game Freak / The Pokémon Company。本サイト(PchamDB)は<b>非公式・非営利</b>のファンサイトです。ポケモンのイラストは当サイトのオリジナル作画です。データ出典: <a href="https://pokeapi.co/" style="color:#9ec5ff">PokéAPI</a>(pokeapi.co)。</footer></body></html>`;
 fs.writeFileSync('pokemon_db_all.html',html);
-console.log('pokemon_db_all.html 生成:',D.length,'variety / sprite=PokeAPI(lazy)');
+console.log('pokemon_db_all.html 生成:',D.length,'variety / 絵=自作オリジナル(images/sim・既定)・PokeAPI公式絵は初期表示に配線なし(lazy)');
