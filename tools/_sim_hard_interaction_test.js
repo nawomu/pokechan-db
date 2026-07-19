@@ -761,10 +761,412 @@ try {
 } catch (__e) { skipCase('H20: ヒメリのみ=PPが0になった技のPPを10回復 [出典: bulbapedia.bulbagarden.net/wiki/Leppa_Berry]', (__e && __e.message) || String(__e)); }
 
 // ─────────────────────────────────────────────
+// H21: kind「急所率上昇」— crit_stage欠落の技に急所+1段(からてチョップ等)/既存crit_stage併存技は二重加算しない
+// 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Critical hit" — ランク1=1/8・高急所技は基礎+1段)
+// からてチョップは全部版のみ収録(Championsには無い)なのでキーが無ければ本ケースのみskip。
+// ─────────────────────────────────────────────
+console.log('\n=== H21: 急所率上昇(kind)による急所+1段 [出典: bulbapedia.bulbagarden.net/wiki/Critical_hit] ===');
+try {
+  resetEnv();
+  const N = 300;
+  // H21-b: 急所ボーナスの無いはたく(crit_stage=0・kind無し)は、simの仕様どおり素急所(1/24)をロールしない=常に0回
+  const atkH = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(atkH);
+  const defH = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(defH);
+  E.sides.self = atkH; E.sides.opp = defH;
+  let critsHataku = 0;
+  for (let seed = 0; seed < N; seed++) {
+    fullHp(defH);
+    E.battleLog.length = 0;
+    E.setRandom(mulberry32(seed));
+    E.phaseDealDamage('self', 'opp', moveByKey('hataku'));
+    if (E.battleLog.some(e => /きゅうしょに あたった/.test(e.msg))) critsHataku++;
+  }
+  check(`H21-b 比較対照: はたく(crit_stage=0・kind無し)は素急所をロールしない仕様どおり常に急所0回(${N}回中${critsHataku}回)`,
+    critsHataku === 0, `crits=${critsHataku}/${N}`);
+
+  // H21-c: クラブハンマー(crit_stage=1 と kind「急所率上昇」stages:1 の両方を持つ・重複宣言技)は
+  // ランク1相当(約12.5%)のままで、二重加算のランク2相当(約50%)にはならない。
+  const kurabuMove = moveByKey('kurabuhanmaa');
+  if (!kurabuMove) {
+    skipCase('H21-c: クラブハンマー二重加算防止', 'クラブハンマーがWAZA_MAPに見つからない');
+  } else {
+    const atkK = freshSide('グライオン', 'kurabuhanmaa', { ability: '' });
+    fullHp(atkK);
+    const defK = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(defK);
+    E.sides.self = atkK; E.sides.opp = defK;
+    let critsKurabu = 0;
+    for (let seed = 0; seed < N; seed++) {
+      fullHp(defK);
+      E.battleLog.length = 0;
+      E.setRandom(mulberry32(seed));
+      E.phaseDealDamage('self', 'opp', kurabuMove);
+      if (E.battleLog.some(e => /きゅうしょに あたった/.test(e.msg))) critsKurabu++;
+    }
+    const rateKurabu = critsKurabu / N;
+    check(`H21-c [出典: reference/_phaseD_specs_moves.json] クラブハンマー(crit_stage=1とkind併存)は二重加算されずランク1相当(約12.5%・5〜25%の範囲)のまま(${N}回中${critsKurabu}回=${(rateKurabu*100).toFixed(1)}%)`,
+      rateKurabu >= 0.05 && rateKurabu <= 0.25, `crits=${critsKurabu}/${N} rate=${rateKurabu}`);
+  }
+
+  // H21-a: からてチョップ(crit_stage=0・kindのみでstages:1)は、kind読み取りでランク1相当(約12.5%)まで急所率が上がる。
+  const karateChop = moveByKey('karate-chop');
+  if (!karateChop) {
+    skipCase('H21-a: からてチョップの急所率上昇(kind)', 'からてチョップがWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    const atkC = freshSide('マンキー', 'karate-chop', { ability: '' });
+    fullHp(atkC);
+    const defC = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(defC);
+    E.sides.self = atkC; E.sides.opp = defC;
+    let critsChop = 0;
+    for (let seed = 0; seed < N; seed++) {
+      fullHp(defC);
+      E.battleLog.length = 0;
+      E.setRandom(mulberry32(seed));
+      E.phaseDealDamage('self', 'opp', karateChop);
+      if (E.battleLog.some(e => /きゅうしょに あたった/.test(e.msg))) critsChop++;
+    }
+    const rateChop = critsChop / N;
+    check(`H21-a [出典: reference/_phaseD_specs_moves.json] からてチョップ(crit_stage欠落・kind「急所率上昇」stages:1)は急所率が約12.5%(5〜25%の範囲)まで上がる(${N}回中${critsChop}回=${(rateChop*100).toFixed(1)}%)`,
+      rateChop >= 0.05 && rateChop <= 0.25, `crits=${critsChop}/${N} rate=${rateChop}`);
+  }
+} catch (__e) { skipCase('H21: 急所率上昇(kind) [出典: bulbapedia.bulbagarden.net/wiki/Critical_hit]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H22: kind「まもり貫通」/「まもり解除」— フェイントは相手のまもりを貫通し、まもり状態自体も解除する。
+// 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Feint")。フェイント/まもるは両データに実在。
+// ─────────────────────────────────────────────
+console.log('\n=== H22: まもり貫通/まもり解除(フェイント) [出典: bulbapedia.bulbagarden.net/wiki/Feint_(move)] ===');
+try {
+  resetEnv();
+  const mamoruMove = moveByKey('mamoru');
+  const atk22 = freshSide('ピカチュウ', 'feinto', { ability: '' });
+  fullHp(atk22);
+  const def22 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def22);
+  E.sides.self = atk22; E.sides.opp = def22;
+  def22.protecting = mamoruMove;   // 相手はまもるで守りの体勢に入っている(ブリッジ経由で直接状態を設定)
+  const hpBefore22 = def22.currentHp;
+  E.setRandom(mulberry32(20260719));
+  E.runSingleAttack('self', 0);
+  const blocked22 = E.battleLog.some(e => /で こうげきを 防いだ/.test(e.msg));
+  check('H22-a [出典: bulbapedia.bulbagarden.net/wiki/Feint_(move)] フェイントはまもるを貫通してダメージが通る(ブロック行が出ない・HPが減る)',
+    !blocked22 && def22.currentHp < hpBefore22,
+    `blocked=${blocked22} hp ${hpBefore22}→${def22.currentHp}`);
+  check('H22-b [出典: bulbapedia.bulbagarden.net/wiki/Feint_(move)] フェイントは相手のまもり状態そのものも解除する(def.protecting===null)',
+    def22.protecting === null, `protecting=${def22.protecting && def22.protecting.name}`);
+
+  // H22-c(補足・全部版専用): top-level protect:trueの技(ハイパードリル等)でも、
+  // battle_data.effectsのkind「まもり貫通」があれば通常のまもるブロックの前にバイパスされる
+  // (フェイントはprotect:false宣言で元々ブロック判定に来ないため、ここが本来の新規挙動の確認になる)。
+  const hyperDrill = moveByKey('hyper-drill');
+  if (!hyperDrill) {
+    skipCase('H22-c: protect:true技のまもり貫通バイパス(ハイパードリル)', 'ハイパードリルがWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    check('H22-c 前提: ハイパードリルはtop-level protect:trueの技である(まもり貫通kindが無ければ通常ブロックされるはずの技)',
+      hyperDrill.protect === true, `protect=${hyperDrill.protect}`);
+    resetEnv();
+    const atk22c = freshSide('ノコッチ', 'hyper-drill', { ability: '' });
+    fullHp(atk22c);
+    const def22c = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(def22c);
+    E.sides.self = atk22c; E.sides.opp = def22c;
+    def22c.protecting = mamoruMove;
+    const hpBefore22c = def22c.currentHp;
+    E.setRandom(mulberry32(20260719));
+    E.runSingleAttack('self', 0);
+    const blocked22c = E.battleLog.some(e => /で こうげきを 防いだ/.test(e.msg));
+    check('H22-c [出典: reference/_phaseD_specs_moves.json] ハイパードリル(protect:true)もkind「まもり貫通」でまもるをバイパスしダメージが通る',
+      !blocked22c && def22c.currentHp < hpBefore22c,
+      `blocked=${blocked22c} hp ${hpBefore22c}→${def22c.currentHp}`);
+  }
+} catch (__e) { skipCase('H22: まもり貫通/まもり解除 [出典: bulbapedia.bulbagarden.net/wiki/Feint_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H23: みねうち — ダメージでHPが0になる場合は必ずHPを1残す(すでに1でも1のまま)。全部版専用データ。
+// 出典: reference/_phaseD_specs_moves.json(Bulbapedia "False Swipe")
+// ─────────────────────────────────────────────
+console.log('\n=== H23: みねうち(瀕死回避) [出典: bulbapedia.bulbagarden.net/wiki/False_Swipe_(move)] ===');
+try {
+  resetEnv();
+  const falseSwipe = moveByKey('false-swipe');
+  if (!falseSwipe) {
+    skipCase('H23: みねうち', 'みねうちがWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    const atk23 = freshSide('カイリキー', 'false-swipe', { ability: '' });
+    fullHp(atk23);
+    const def23 = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(def23);
+    def23.currentHp = 5;   // 過剰打撃が確実に発生する程度まで減らしておく
+    E.sides.self = atk23; E.sides.opp = def23;
+    E.setRandom(mulberry32(20260719));
+    E.phaseDealDamage('self', 'opp', falseSwipe);
+    check('H23-a [出典: bulbapedia.bulbagarden.net/wiki/False_Swipe_(move)] みねうちはHPを0にせず必ず1残す',
+      def23.currentHp === 1 && def23.fainted !== true, `hp=${def23.currentHp} fainted=${def23.fainted}`);
+
+    // H23-b: すでにHP1の状態でも、そのまま1のまま(0にはしない)
+    resetEnv();
+    const atk23b = freshSide('カイリキー', 'false-swipe', { ability: '' });
+    fullHp(atk23b);
+    const def23b = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(def23b);
+    def23b.currentHp = 1;
+    E.sides.self = atk23b; E.sides.opp = def23b;
+    E.setRandom(mulberry32(20260719));
+    E.phaseDealDamage('self', 'opp', falseSwipe);
+    check('H23-b すでにHP1の相手にみねうちを当てても1のまま(0にならない)',
+      def23b.currentHp === 1 && def23b.fainted !== true, `hp=${def23b.currentHp} fainted=${def23b.fainted}`);
+  }
+} catch (__e) { skipCase('H23: みねうち [出典: bulbapedia.bulbagarden.net/wiki/False_Swipe_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H24: しろいきり(kind「ランク低下防御」) — 相手の技によるランク低下を防ぐ(自分の場・5ターン)。
+// mistフラグ自体はブリッジ経由で直接設定(しろいきりの技オブジェクトは全部版専用のため、
+// 「防ぐ側」のガード判定=applyRankStageGuardedを述語ベースで検証する)。
+// 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Mist")
+// ─────────────────────────────────────────────
+console.log('\n=== H24: しろいきり(ランク低下防御) [出典: bulbapedia.bulbagarden.net/wiki/Mist_(move)] ===');
+try {
+  resetEnv();
+  const iyanaoto = moveByKey('iyanaoto');   // いやなおと(Screech): 相手のぼうぎょ-2(能力ランク変化・target:opponent)
+  const atk24 = freshSide('カビゴン', 'iyanaoto', { ability: '' });
+  fullHp(atk24);
+  const def24 = freshSide('フシギバナ', 'hataku', { ability: 'しんりょく' });
+  fullHp(def24);
+  E.sides.self = atk24; E.sides.opp = def24;
+  def24.mist = true;   // しろいきりの効果が掛かっている状態(ブリッジ経由で直接設定)
+  E.phaseApplyEffects('self', 'opp', iyanaoto);
+  check('H24-a [出典: bulbapedia.bulbagarden.net/wiki/Mist_(move)] しろいきり中は相手の技でぼうぎょランクが下がらない(rank.def===0)',
+    def24.rank.def === 0, `rank.def=${def24.rank.def}`);
+
+  // 比較対照(H24-b): しろいきりが無ければ通常どおりランクが下がる
+  resetEnv();
+  const atk24b = freshSide('カビゴン', 'iyanaoto', { ability: '' });
+  fullHp(atk24b);
+  const def24b = freshSide('フシギバナ', 'hataku', { ability: 'しんりょく' });
+  fullHp(def24b);
+  E.sides.self = atk24b; E.sides.opp = def24b;
+  E.phaseApplyEffects('self', 'opp', iyanaoto);
+  check('H24-b 比較対照: しろいきりが無ければぼうぎょランクは通常どおり-2される',
+    def24b.rank.def === -2, `rank.def=${def24b.rank.def}`);
+} catch (__e) { skipCase('H24: しろいきり(ランク低下防御) [出典: bulbapedia.bulbagarden.net/wiki/Mist_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H25: テレキネシス — 3ターンの間 浮遊状態にする(じめん技が当たらなくなる/一撃必殺を除き必ず命中する)。
+// 全部版専用データ(mist同様、テレキネシス自体のkind適用はphaseApplyEffects経由で直接検証)。
+// 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Telekinesis")
+// ─────────────────────────────────────────────
+console.log('\n=== H25: テレキネシス [出典: bulbapedia.bulbagarden.net/wiki/Telekinesis_(move)] ===');
+try {
+  resetEnv();
+  const telekinesis = moveByKey('telekinesis');
+  if (!telekinesis) {
+    skipCase('H25: テレキネシス', 'テレキネシスがWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    // H25-a: kind「テレキネシス」がdef.telekinesisを3ターン分セットする(phaseApplyEffects経由)
+    const atk25 = freshSide('ピッピ', '', { ability: '' });
+    fullHp(atk25);
+    const def25 = freshSide('カビゴン', 'jishin', { ability: '' });
+    fullHp(def25);
+    E.sides.self = atk25; E.sides.opp = def25;
+    E.phaseApplyEffects('self', 'opp', telekinesis);
+    check('H25-a [出典: bulbapedia.bulbagarden.net/wiki/Telekinesis_(move)] テレキネシスは対象を3ターンの間 浮遊状態にする(def.telekinesis===3)',
+      def25.telekinesis === 3, `telekinesis=${def25.telekinesis}`);
+
+    // H25-b: 浮いている間はじめん技(じしん)が当たらない(isGrounded=falseでこうかなし)
+    const rGround = E.calcDamage('self', 'opp', moveByKey('jishin'));   // atk25がdef25(浮いている側)にじしんを撃つ
+    check('H25-b [出典: bulbapedia.bulbagarden.net/wiki/Telekinesis_(move)] 浮いている間はじめん技(じしん)が当たらない(immune)',
+      !!(rGround && rGround.immune), `immune=${rGround && rGround.immune}`);
+
+    // H25-c: 回避率+6でも、テレキネシス下では一撃必殺以外の技が必ず命中する(相手の回避率を無視)
+    def25.rank.eva = 6;
+    let hitsTele = 0;
+    const N25 = 80;
+    for (let seed = 0; seed < N25; seed++) {
+      E.setRandom(mulberry32(seed));
+      const r = E.phaseHitCheck(moveByKey('hataku'), atk25, def25);
+      if (r.hit) hitsTele++;
+    }
+    check(`H25-c [出典: bulbapedia.bulbagarden.net/wiki/Telekinesis_(move)] 浮いている相手には回避率+6でも必ず命中する(${N25}回中${hitsTele}回=100%のはず)`,
+      hitsTele === N25, `hits=${hitsTele}/${N25}`);
+
+    // 比較対照(H25-d): 一撃必殺技(つのドリル)はテレキネシス下でも必中化しない(ohko_exception)
+    let hitsOhko = 0;
+    for (let seed = 0; seed < N25; seed++) {
+      E.setRandom(mulberry32(seed));
+      const r = E.phaseHitCheck(moveByKey('tsunodoriru'), atk25, def25);
+      if (r.hit) hitsOhko++;
+    }
+    check(`H25-d 比較対照: 一撃必殺技(つのドリル)はテレキネシス下でも必中化しない(ohko_exception。${N25}回中${hitsOhko}回・0<hitsOhko<${N25}であること)`,
+      hitsOhko > 0 && hitsOhko < N25, `hitsOhko=${hitsOhko}/${N25}`);
+  }
+} catch (__e) { skipCase('H25: テレキネシス [出典: bulbapedia.bulbagarden.net/wiki/Telekinesis_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H26: ポルターガイスト — 相手が持ち物を持っていなければ失敗する(fails_if: target_has_no_item)。
+// ポルターガイストは両データに実在(ゲンガー等)。
+// 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Poltergeist")
+// ─────────────────────────────────────────────
+console.log('\n=== H26: ポルターガイスト(相手の持ち物が無いと失敗) [出典: bulbapedia.bulbagarden.net/wiki/Poltergeist_(move)] ===');
+try {
+  resetEnv();
+  // 防御側はフシギバナ(くさ/どく)を使用。カビゴン(ノーマル)だとゴースト技がタイプ相性で常時こうかなしになり、
+  // 「道具の有無による失敗」と「タイプ相性による無効」の区別がつかなくなるため避ける。
+  const atk26 = freshSide('ゲンガー', 'porutaagaisuto', { ability: '' });
+  fullHp(atk26);
+  const def26 = freshSide('フシギバナ', 'hataku', { ability: 'しんりょく', item: '' });   // 道具なし
+  fullHp(def26);
+  E.sides.self = atk26; E.sides.opp = def26;
+  const hpBefore26 = def26.currentHp;
+  E.setRandom(mulberry32(20260719));
+  E.runSingleAttack('self', 0);
+  check('H26-a [出典: bulbapedia.bulbagarden.net/wiki/Poltergeist_(move)] 相手が道具を持っていなければポルターガイストは失敗する(HP不変)',
+    def26.currentHp === hpBefore26, `hp ${hpBefore26}→${def26.currentHp}`);
+
+  // 比較対照(H26-b): 相手が道具を持っていれば通常どおりダメージが通る
+  resetEnv();
+  const atk26b = freshSide('ゲンガー', 'porutaagaisuto', { ability: '' });
+  fullHp(atk26b);
+  const def26b = freshSide('フシギバナ', 'hataku', { ability: 'しんりょく', item: 'berry_oran' });
+  fullHp(def26b);
+  E.sides.self = atk26b; E.sides.opp = def26b;
+  const hpBefore26b = def26b.currentHp;
+  E.setRandom(mulberry32(20260719));
+  E.runSingleAttack('self', 0);
+  check('H26-b 比較対照: 相手が道具を持っていれば通常どおりダメージが通る',
+    def26b.currentHp < hpBefore26b, `hp ${hpBefore26b}→${def26b.currentHp}`);
+} catch (__e) { skipCase('H26: ポルターガイスト [出典: bulbapedia.bulbagarden.net/wiki/Poltergeist_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H27: ダークホール(kind「使用者限定」) — ダークライ以外が使うと失敗する。全部版専用データ。
+// 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Dark Void")
+// ─────────────────────────────────────────────
+console.log('\n=== H27: ダークホール(使用者限定=ダークライ専用) [出典: bulbapedia.bulbagarden.net/wiki/Dark_Void_(move)] ===');
+try {
+  resetEnv();
+  const darkVoid = moveByKey('dark-void');
+  if (!darkVoid) {
+    skipCase('H27: ダークホール', 'ダークホールがWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    const atk27 = freshSide('カビゴン', 'dark-void', { ability: '' });   // ダークライ以外が使用
+    fullHp(atk27);
+    const def27 = freshSide('フシギバナ', 'hataku', { ability: 'しんりょく' });
+    fullHp(def27);
+    E.sides.self = atk27; E.sides.opp = def27;
+    E.setRandom(mulberry32(20260719));
+    E.runSingleAttack('self', 0);
+    check('H27-a [出典: bulbapedia.bulbagarden.net/wiki/Dark_Void_(move)] ダークライ以外が使うとダークホールは失敗する(眠り付与なし)',
+      def27.status === 'none' || def27.status == null, `status=${def27.status}`);
+
+    // 比較対照(H27-b): ダークライが使えば成功して眠りを付与できる(命中率固定・複数seedで確認)
+    resetEnv();
+    let slept = false;
+    for (let seed = 0; seed < 40 && !slept; seed++) {
+      const atk27b = freshSide('ダークライ', 'dark-void', { ability: '' });
+      fullHp(atk27b);
+      const def27b = freshSide('フシギバナ', 'hataku', { ability: 'しんりょく' });
+      fullHp(def27b);
+      E.sides.self = atk27b; E.sides.opp = def27b;
+      E.setRandom(mulberry32(seed));
+      E.runSingleAttack('self', 0);
+      if (def27b.status === 'sleep') slept = true;
+    }
+    check('H27-b 比較対照: ダークライが使えばダークホールは成功し眠りを付与できる',
+      slept === true, `slept=${slept}`);
+  }
+} catch (__e) { skipCase('H27: ダークホール [出典: bulbapedia.bulbagarden.net/wiki/Dark_Void_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H28: マジックコート(kind「跳ね返し」) — このターンの間、相手にかける変化技を跳ね返す
+// (既存のマジックミラー跳ね返し判定にdef.magicCoatTurnとして相乗り)。フラグはブリッジ経由で直接設定し、
+// どくどく(両データに実在)で跳ね返り自体を検証する。
+// 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Magic Coat")
+// ─────────────────────────────────────────────
+console.log('\n=== H28: マジックコート(跳ね返し) [出典: bulbapedia.bulbagarden.net/wiki/Magic_Coat_(move)] ===');
+try {
+  resetEnv();
+  const caster28 = freshSide('カイリキー', 'dokudoku', { ability: '' });   // どく/はがねでない=もうどく免除にならない
+  fullHp(caster28);
+  const bouncer28 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(bouncer28);
+  E.sides.self = caster28; E.sides.opp = bouncer28;
+  bouncer28.magicCoatTurn = true;   // マジックコートで跳ね返しの構えに入っている状態(ブリッジ経由で直接設定)
+  E.runSingleAttack('self', 0);   // caster28がどくどくをbouncer28に使う
+  check('H28-a [出典: bulbapedia.bulbagarden.net/wiki/Magic_Coat_(move)] マジックコート中はどくどくが跳ね返り、跳ね返した側(bouncer)は無傷',
+    bouncer28.status === 'none' || bouncer28.status == null, `bouncer.status=${bouncer28.status}`);
+  check('H28-b [出典: bulbapedia.bulbagarden.net/wiki/Magic_Coat_(move)] 跳ね返された効果は元の使用者(caster)に返ってもうどくになる',
+    caster28.status === 'badpoison', `caster.status=${caster28.status}`);
+} catch (__e) { skipCase('H28: マジックコート(跳ね返し) [出典: bulbapedia.bulbagarden.net/wiki/Magic_Coat_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H29: コートチェンジ(kind「場入れ替え」) — 自分の場↔相手の場の効果(壁・設置技等)をまるごと入れ替える。
+// 全部版専用データ。出典: reference/_phaseD_specs_moves.json(Bulbapedia "Court Change")
+// ─────────────────────────────────────────────
+console.log('\n=== H29: コートチェンジ(場入れ替え) [出典: bulbapedia.bulbagarden.net/wiki/Court_Change_(move)] ===');
+try {
+  resetEnv();
+  const courtChange = moveByKey('court-change');
+  if (!courtChange) {
+    skipCase('H29: コートチェンジ', 'コートチェンジがWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    const atk29 = freshSide('カイリキー', 'hataku', { ability: '' });
+    fullHp(atk29);
+    const def29 = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(def29);
+    E.sides.self = atk29; E.sides.opp = def29;
+    atk29.reflect = true; atk29.screenTurns = { reflect: 4 };
+    def29.stealthRock = true;
+    E.phaseApplyEffects('self', 'opp', courtChange);
+    check('H29-a [出典: bulbapedia.bulbagarden.net/wiki/Court_Change_(move)] コートチェンジで自分のリフレクターが相手側に移る',
+      !atk29.reflect && def29.reflect === true, `atk.reflect=${atk29.reflect} def.reflect=${def29.reflect}`);
+    check('H29-b コートチェンジで相手のステルスロックが自分側に移る',
+      atk29.stealthRock === true && !def29.stealthRock, `atk.stealthRock=${atk29.stealthRock} def.stealthRock=${def29.stealthRock}`);
+    check('H29-c screenTurns(壁の残りターン)も一緒に入れ替わる',
+      def29.screenTurns && def29.screenTurns.reflect === 4 && (!atk29.screenTurns || !atk29.screenTurns.reflect),
+      `atk.screenTurns=${JSON.stringify(atk29.screenTurns)} def.screenTurns=${JSON.stringify(def29.screenTurns)}`);
+  }
+} catch (__e) { skipCase('H29: コートチェンジ(場入れ替え) [出典: bulbapedia.bulbagarden.net/wiki/Court_Change_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H30: てだすけ/ワイドガード — シングル戦(1vs1)では発動機会が無い(てだすけ=fails_if no_allyで既存失敗
+// パターンにより不発 / ワイドガード=対応するkindハンドラが無いため無害に何もしない=クラッシュしない)ことの確認。
+// 両技とも両データに実在。出典: reference/_phaseD_specs_moves.json
+// ─────────────────────────────────────────────
+console.log('\n=== H30: てだすけ/ワイドガード(シングル戦=発動機会なしの確認) [出典: bulbapedia.bulbagarden.net/wiki/Helping_Hand_(move) / .../Wide_Guard_(move)] ===');
+try {
+  resetEnv();
+  const atk30 = freshSide('カイリキー', 'tedasuke', { ability: '' });
+  fullHp(atk30);
+  const def30 = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def30);
+  E.sides.self = atk30; E.sides.opp = def30;
+  const hpBefore30 = def30.currentHp;
+  E.setRandom(mulberry32(20260719));
+  E.runSingleAttack('self', 0);
+  check('H30-a [出典: bulbapedia.bulbagarden.net/wiki/Helping_Hand_(move)] てだすけは1vs1シングルでは味方不在の既存失敗パターンで不発(HP不変・失敗ログが出る)',
+    def30.currentHp === hpBefore30 && E.battleLog.some(e => /味方の ポケモンがいない/.test(e.msg)),
+    `hp ${hpBefore30}→${def30.currentHp} log=${JSON.stringify(E.battleLog.slice(-2).map(e=>e.msg))}`);
+
+  resetEnv();
+  const atk30b = freshSide('カイリキー', 'waidogaado', { ability: '' });
+  fullHp(atk30b);
+  const def30b = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def30b);
+  E.sides.self = atk30b; E.sides.opp = def30b;
+  E.setRandom(mulberry32(20260719));
+  let threw30b = false;
+  try { E.runSingleAttack('self', 0); } catch (_e2) { threw30b = true; }
+  check('H30-b [出典: bulbapedia.bulbagarden.net/wiki/Wide_Guard_(move)] ワイドガード(未実装kind=範囲まもり)は選択してもクラッシュせず無害(まもり体勢にも入らない)',
+    !threw30b && atk30b.protecting == null, `threw=${threw30b} protecting=${atk30b.protecting}`);
+} catch (__e) { skipCase('H30: てだすけ/ワイドガード [出典: bulbapedia.bulbagarden.net/wiki/Helping_Hand_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
 // 集計
 // ─────────────────────────────────────────────
 console.log('\n' + '='.repeat(60));
-console.log(`難所相互作用20件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
+console.log(`難所相互作用30件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
 if (fails.length) {
   console.log('\n--- FAIL一覧 ---');
   fails.forEach(f => console.log('  ' + f));

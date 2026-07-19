@@ -2479,6 +2479,9 @@ function phaseHitCheck(move, atk, def){
     return false;                                                             // 未対応条件は必中扱いしない
   };
   if (_effs.some(e => (e.kind === '必中' || e.ignores_accuracy) && _hitCondOk(e))) return {hit:true};
+  // テレキネシス(Phase D B2): 浮いている対象への技は、一撃必殺を除き相手の回避率・自分の命中率に
+  // 関係なく必ず命中する(Bulbapedia "Telekinesis")。半無敵判定(そらをとぶ中等)は既にこれより前で処理済み。
+  if (def && def.telekinesis > 0 && !_effs.some(e => e.kind === '一撃必殺')) return {hit:true};
   if (move.accuracy == null || move.accuracy === '—' || move.accuracy === 0) return {hit:true};
   // 命中率 ×ランク（acc - eva）— 簡易: ランク 0 前提
   let acc = Number(move.accuracy);
@@ -2692,7 +2695,16 @@ function phaseDealDamage(atkSide, defSide, move){
     const _a = sides[atkSide];
     // ピントレンズ: 急所ランク+1(items_database宣言。マジックルーム中は無効)
     const _lens = (!env.magicRoom && _a.item === 'scope_lens') ? 1 : 0;
-    const _stage = (_a.critBoost || 0) + ((move.battle_data && move.battle_data.crit_stage) || 0) + _lens;
+    // 急所率上昇(kind): battle_data.crit_stage が未設定(0)の技(からてチョップ/きりさく/はっぱカッター等)は
+    // effects の kind="急所率上昇"(target:self, phase:on_use, stages:N)を読んで加算する。
+    // crit_stage が既に設定済みの技(ダブルクロー等・重複宣言あり)はcrit_stageを優先し二重加算しない。
+    // 対象外: always_crit(こおりのいぶき=must_critが別途担当)/timing:next_turn(とぎすます=次ターン確定急所の
+    // 持続効果は本バッチの対象外)/target:allyの相手ランク上昇(ドラゴンおうえん=1vs1で味方不在=対象外)。
+    // 出典: reference/_phaseD_specs_moves.json(Bulbapedia裏取り) / bulbapedia.bulbagarden.net/wiki/Critical_hit
+    const _baseCritStage = (move.battle_data && move.battle_data.crit_stage) || 0;
+    const _critUpEf = !_baseCritStage && ((move.battle_data && move.battle_data.effects) || [])
+      .find(e => e.kind === '急所率上昇' && e.target === 'self' && e.phase === 'on_use' && typeof e.stages === 'number');
+    const _stage = (_a.critBoost || 0) + _baseCritStage + (_critUpEf ? _critUpEf.stages : 0) + _lens;
     if (!_a.critical && !(move.battle_data && move.battle_data.must_crit) && _stage > 0){
       critRoll = _stage >= 3 || Math.random() >= 1 - (_stage === 2 ? 0.5 : 0.125);
     }
@@ -2779,6 +2791,9 @@ function phaseDealDamage(atkSide, defSide, move){
   const _effs = (move.battle_data && move.battle_data.effects) || [];
   const atk = sides[atkSide], def = sides[defSide];
 
+  // みねうち: このダメージで相手のHPが0になる場合、必ずHPを1残す(すでに1でも1のまま)。
+  // 出典: reference/_phaseD_specs_moves.json(Bulbapedia "False Swipe")
+  const falseSwipeEf = _effs.find(e => e.kind === '瀕死回避' && e.leaves_hp === 1);
   // 連続攻撃: ヒット数を決める(2〜5は第5世代以降の確率・固定hitsはその回数。hits_by=ふくろだたきは未対応で1発)
   const multiEf = _effs.find(e => e.kind === '連続攻撃');
   let hitCount = 1;
@@ -2860,6 +2875,8 @@ function phaseDealDamage(atkSide, defSide, move){
     }
     // こらえる: 技のダメージではHPが1より下がらない(連続攻撃は1発ごとに判定。Bulbapedia "Endure")
     if (def.enduring && v >= def.currentHp){ v = def.currentHp - 1; log('8', `${pname(def)} は こうげきを こらえた！`); }
+    // みねうち: このダメージでHPが0になる場合はHP1で止める(すでに1でもそのまま1。Bulbapedia "False Swipe")
+    if (falseSwipeEf && v >= def.currentHp) v = def.currentHp - 1;
     v = sashCheck(def, v, atk);   // きあいのタスキ(満タン時のみ・消費)。atk=かたやぶり判定用
     def.currentHp = Math.max(0, def.currentHp - v);
     total += v; hits++; lastHit = v; landedHits++;
@@ -3093,9 +3110,12 @@ function fieldRules(){
   const mv = Object.values(WAZA_MAP).find(m => m.name === name);
   return (mv && mv.battle_data && mv.battle_data.effects) || [];
 }
-// 壁(自分の場に張るもの)の名前↔フラグ対応。しろいきり等の未実装壁はここに無い=壁除去で黙ってスキップされる。
+// 壁(自分の場に張るもの)の名前↔フラグ対応。
+// ★2026-07-19 Phase D B2: しろいきり(kind=ランク低下防御)は壁除去(壁設置kind)とは別kindなので_SCREEN_FLAGには
+// 乗せず、mistフラグを直接使う専用ハンドラを持つ(下記「ランク低下防御」kind参照)。ここは既存の壁除去/
+// screenTurnsカウントダウンの表示名(_SCREEN_NAME)にmistだけ追加=既存パターン(bl_65/bl_216/bl_208a)を再利用。
 const _SCREEN_FLAG = {'リフレクター':'reflect','ひかりのかべ':'lightScreen','オーロラベール':'auroraVeil','しんぴのまもり':'safeguard'};
-const _SCREEN_NAME = {reflect:'リフレクター', lightScreen:'ひかりのかべ', auroraVeil:'オーロラベール', safeguard:'しんぴのまもり'};
+const _SCREEN_NAME = {reflect:'リフレクター', lightScreen:'ひかりのかべ', auroraVeil:'オーロラベール', safeguard:'しんぴのまもり', mist:'しろいきり'};
 // じゅうりょく中に使えない「空中にいる技」(legacy/Bulbapedia "Gravity" 列挙。
 // エンコールのNGリストと同じく engine 側に保持=技側にフラグのスキーマを推測で足さない)
 const GRAVITY_BLOCKED = ['そらをとぶ', 'はねる', 'とびげり', 'とびひざげり', 'とびはねる',
@@ -3117,6 +3137,7 @@ function isGrounded(st){
   // ★2026-06-19 くろいてっきゅう: 持ち主はひこう・ふゆうでも地面にいる扱い(items_database.js宣言)
   if (st.item && ITEM_BY_KEY[st.item] && ITEM_BY_KEY[st.item].key === 'kuroi_tekkyu') return true;
   if (st.magnetRise > 0) return false; // でんじふゆう: 浮いている(ポケモンWiki「でんじふゆう」)
+  if (st.telekinesis > 0) return false; // テレキネシス: 3ターンの間 浮いている(Bulbapedia "Telekinesis")
   // ★ふうせん: 割れていない限り地面にいない扱い(じめん技無効。被弾で割れる=airBalloonBurst=true でfalse返さない)
   // airBalloonBurst フラグは phaseDealDamage で被弾時に立てる
   if (st.item && ITEM_BY_KEY[st.item] && ITEM_BY_KEY[st.item].key === 'air_balloon' && !st.airBalloonBurst) return false;
@@ -3201,6 +3222,13 @@ function applyRankStageGuarded(target, source, rk, rawStages, phase, onSuccessLo
       log(phase || '9', `${pname(target)} は ${sideAbility(target)}で 能力が下がらない！`);
       return {sg, applied:0, blocked:'clearbody'};
     }
+    // しろいきり(Phase D B2・kind=ランク低下防御): 相手の技・特性(いかく等)によるランク低下を防ぐ場効果。
+    // 自分の技による自傷ダウン(fromOpponent=false)は対象外=このガードには来ない。
+    // 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Mist")
+    if (target.mist){
+      log(phase || '9', `${pname(target)} は しろいきりで 能力が下がらない！`);
+      return {sg, applied:0, blocked:'mist'};
+    }
     // はとむね(段138・ABILITY_DESC): 敵からのぼうぎょ低下を無効化(かたやぶりは無視)
     if (rk === 'def' && defAbilityVs(target, source) === 'はとむね'){
       log(phase || '9', `${pname(target)} は はとむねで ぼうぎょが下がらない！`);
@@ -3235,6 +3263,38 @@ function protectBlocks(protMove, mv){
   if (ef.blocks_priority_only) return movePriority(mv) > 0;
   if (ef.blocks_status_moves === false && mv.category === '変化') return false;
   return true;
+}
+
+// === まもり貫通(Phase D B2・kind=まもり貫通/まもり解除) ===
+// フェイント/ゴーストダイブ/シャドーダイブ/なみだめ/アロマセラピー/いじげんホール/いじげんラッシュ/
+// ハイパードリル/パワフルエッジの11技が対象(top-level protect:trueの技でも、この判定が真ならブロックしない)。
+// データは3方式で貫通対象を宣言する: ①bypasses[]+not_bypassed[](ダイウォールだけ防がれる)
+// ②pierces_without_removing[](フェイント/アロマセラピー=ダイウォールだけ「解除はしないが貫通はする」)
+// ③pierces_without_removing[]+daiwall_blocks:true(いじげんホール/いじげんラッシュ=ダイウォールには防がれる)
+// ④どちらのフィールドも無い(パワフルエッジ)=無条件で全て貫通。
+// ニードルガード/ブロッキングが持つ target:'self' の「まもり貫通」(ダイマックス技/Zワザ攻撃を1/4で受ける)は
+// 別の意味(自分の防護がダイマックス技を軽減して受ける側)で、本simにダイマックス/Zワザ機構が無いため対象外(target!=='self'で除外)。
+// 出典: reference/_phaseD_specs_moves.json(各技のBulbapedia個別ページ)
+function protectPierces(mv, protMove){
+  if (!protMove) return false;
+  const effs = (mv.battle_data && mv.battle_data.effects) || [];
+  const pName = protMove.name;
+  const remEf = effs.find(e => e.kind === 'まもり解除');
+  if (remEf && (remEf.affected_moves || []).includes(pName)) return true;
+  const pierceEf = effs.find(e => e.kind === 'まもり貫通' && e.target !== 'self');
+  if (!pierceEf) return false;
+  if ((pierceEf.not_bypassed || []).includes(pName)) return false;
+  if (pierceEf.daiwall_blocks && pName === 'ダイウォール') return false;
+  if (pierceEf.bypasses) return pierceEf.bypasses.includes(pName);
+  if (pierceEf.pierces_without_removing) return pierceEf.pierces_without_removing.includes(pName);
+  return true;   // どちらの絞り込みも無い(パワフルエッジ)=無条件貫通
+}
+// フェイント専用: 貫通と同時に相手のまもり状態そのものを解除する(まもった側はそのターンの他の技にも無防備になる)。
+// シングル戦では同ターンに追撃する味方がいないため実害は無いが、仕様どおり状態は消す(テスト用にも観測可能にする)。
+function shouldRemoveProtection(mv, protMove){
+  if (!protMove) return false;
+  const remEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり解除' && e.removes_protection);
+  return !!(remEf && (remEf.affected_moves || []).includes(protMove.name));
 }
 
 // まもる系のおしおき: 守りの体勢に「接触技」で触れた相手に発動(データ宣言を読む)。
@@ -4643,6 +4703,41 @@ function phaseApplyEffects(atkSide, defSide, move){
         env.trickRoomTurns = ef.duration || 5; // ターン終了ごとに減り、0で元に戻る(UI手動チェックはnull=無期限)
         log('9', `${pname(atk)} は 時空を ねじまげた！`);
       }
+    } else if (ef.kind === 'ランク低下防御'){
+      // しろいきり(Phase D B2): 自分の場(team→target=atk)に5ターン、相手の技・特性によるランク低下を
+      // 防ぐ(実際の無効化はapplyRankStageGuardedのmistガードが担当)。持続管理は既存の壁(screenTurns)に相乗り。
+      // ログ文言は既存の壁設置(bl_65)/連続使用失敗(bl_216)パターンをそのまま再利用(新規ログ行は追加しない)。
+      // 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Mist")
+      if (atk.mist){
+        log('9', `しかし うまく きまらなかった！(${move.name} はすでに 張られている)`);
+      } else {
+        atk.mist = true;
+        if (!atk.screenTurns) atk.screenTurns = {};
+        atk.screenTurns.mist = ef.duration || 5;
+        log('9', `${pname(atk)} の場に ${move.name} が 張られた！`);
+      }
+    } else if (ef.kind === 'テレキネシス'){
+      // テレキネシス(Phase D B2): 3ターンの間、対象を浮遊状態にする(isGroundedがtelekinesisを見て
+      // false=じめん技無効/設置技無効。命中判定側は一撃必殺を除き必ず命中させる=phaseHitCheck側で対応)。
+      // ログは既存の「使った」汎用行(runSingleAttack/runTurnの変化技分岐)で足りるため新規ログは追加しない。
+      // 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Telekinesis")
+      target.telekinesis = ef.duration || 3;
+    } else if (ef.kind === '跳ね返し'){
+      // マジックコート(Phase D B2): このターンの間、跳ね返しの構えに入る。跳ね返す対象範囲・処理そのものは
+      // 既存のマジックミラー(特性)判定に相乗りする(runSingleAttack/runTurnのマジックミラー分岐にdef.magicCoatTurnも
+      // 見るよう追加)。ターン限りのフラグはrunTurn冒頭で他の単ターン揮発(protecting等)と同じくクリアする。
+      // 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Magic Coat")
+      target.magicCoatTurn = true;
+    } else if (ef.kind === '場入れ替え'){
+      // コートチェンジ(Phase D B2): 自分の場↔相手の場の効果(壁/しろいきり/設置技/おいかぜ)をまるごと入れ替える。
+      // 天候/フィールド/トリックルーム等の「場全体」効果(両陣営に等しくかかる)は対象外。
+      // 本simに実装のない「ちかい」系連携・Gマックス設置効果は、そもそも状態として存在しないため入れ替え不要。
+      // ログは既存の「使った」汎用行で足りるため新規ログは追加しない。
+      // 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Court Change")
+      const _COURT_SWAP_FLAGS = ['reflect', 'lightScreen', 'auroraVeil', 'safeguard', 'mist',
+        'stealthRock', 'spikesLayers', 'toxicSpikesLayers', 'stickyWeb', 'tailwindTurns'];
+      _COURT_SWAP_FLAGS.forEach(k => { const _tmp = atk[k]; atk[k] = def[k]; def[k] = _tmp; });
+      const _tmpScreens = atk.screenTurns; atk.screenTurns = def.screenTurns; def.screenTurns = _tmpScreens;
     }
   }
 }
@@ -5011,6 +5106,13 @@ function runSingleAttack(atkSide, moveIdx){
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
   }
+  // 使用者限定(kind=使用者限定・Phase D B2): ダークホール=ダークライ以外が使うと失敗(Bulbapedia "Dark Void")
+  const _userOnlyEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '使用者限定');
+  if (_userOnlyEf && atk.poke && atk.poke.name !== _userOnlyEf.value){
+    log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+    noteActionFailed(atk);
+    renderBattleLog(); renderBoth(); return;
+  }
   // 失敗条件(fails_if: 相手の選択/行動状況・自分の被弾・前ターン与ダメ)。データ宣言をエンジンが読む(2026-07-05・490技監査で発覚)
   if (failsByCondition(atk, def, mv)){
     log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
@@ -5136,7 +5238,9 @@ function runSingleAttack(atkSide, moveIdx){
   // 設置技(相手の場)も対象。かたやぶり系には跳ね返せない(defAbilityVs)。出典: ポケモンWiki「マジックミラー」
   if (mv.category === '変化' && def.poke && !def.fainted &&
       ['1体選択', 'ランダム1体', '相手全体', '自分以外全体', '相手の場'].includes(mv.target) &&
-      defAbilityVs(def, atk) === 'マジックミラー'){
+      (defAbilityVs(def, atk) === 'マジックミラー' || def.magicCoatTurn)){
+    // ★Phase D B2: マジックコート(move)はマジックミラー(ability)と対象範囲・跳ね返し処理が同じなのでここに
+    // 相乗り(def.magicCoatTurn)。かたやぶり系はマジックミラー(特性)だけを無視し、マジックコート(技)は対象外。
     log('0c', `${pname(def)} は マジックミラーで ${mv.name} を 跳ね返した！`);
     phaseApplyEffects(defSide, atkSide, mv);   // 攻守を入れ替えて効果を適用
     renderBattleLog(); renderBoth(); return;
@@ -5172,13 +5276,18 @@ function runSingleAttack(atkSide, moveIdx){
   // 命中判定
   const hit = phaseHitCheck(mv, atk, def);
   if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
+  // まもり貫通(Phase D B2): フェイント等は相手がまもり系で守っていても通常ブロックの前に貫通判定する。
+  // フェイントは貫通と同時に相手のまもり状態自体も解除する(まもった側はこのターンの他の技にも無防備になる)。
+  const _protBefore = def.protecting;
+  const _protPierce = _protBefore && protectPierces(mv, _protBefore);
+  if (_protBefore && shouldRemoveProtection(mv, _protBefore)) def.protecting = null;
   // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
-  if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
+  if (_protBefore && mv.protect === true && protectBlocks(_protBefore, mv) && !_protPierce){
     // 防がれる前に技の使用そのものを告知する(何を出そうとしたかが心理戦の情報=消してはいけない)。
     // ばけのかわブロックと同じ作法: 「◯◯の 技！」を先に出す→表示側が次行(防いだ行)を見て予告+攻撃演出を出す
     // (2026-07-16 阿部さんFB。前例: HANDOFF_SESSION_2026_07_13.md §2-I)
     log('8', `${pname(atk)} の ${mv.name}！`);
-    log('0c', `${pname(def)} は ${def.protecting.name} で こうげきを 防いだ！`);
+    log('0c', `${pname(def)} は ${_protBefore.name} で こうげきを 防いだ！`);
     noteActionFailed(atk);
     applyProtectPunishers(atk, def, mv);
     applyCrashDamage(atk, mv);
@@ -5714,6 +5823,8 @@ function failsByCondition(atk, def, mv){
         return !!(atk.tookThisTurn && atk.tookThisTurn.any > 0);
       case 'no_damage_dealt_last_turn':             // どげざつき: 前のターンに相手へダメージを与えていなければ失敗
         return !atk.dealtDamageLastTurn;
+      case 'target_has_no_item':                    // ポルターガイスト(Phase D B2): 相手が道具を持っていなければ失敗。出典: Bulbapedia "Poltergeist"
+        return !(def && def.item);
       default: return false;   // その他の型は各所の専用ゲート/未対応(監査doc参照)
     }
   });
@@ -6023,6 +6134,8 @@ function runTurn(){
   // まもる系・こらえるもそのターン限り → ターン開始でクリア(連続成功カウントは持ち越す)
   sides.self.protecting = null; sides.opp.protecting = null;
   sides.self.enduring = false; sides.opp.enduring = false;
+  // マジックコート(Phase D B2)の跳ね返し構えもそのターン限り → ターン開始でクリア
+  sides.self.magicCoatTurn = false; sides.opp.magicCoatTurn = false;
   // そうでん(技タイプ変更)もそのターン限り → ターン開始でクリア
   sides.self.electrified = null; sides.opp.electrified = null;
   // はねやすめ(タイプ一時無効)もそのターン限り → ターン開始でクリア
@@ -6199,6 +6312,12 @@ function runTurn(){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(きのみを 食べていない)`);
       noteActionFailed(atk); continue;
     }
+    // 使用者限定(kind=使用者限定・Phase D B2): ダークホール=ダークライ以外が使うと失敗(Bulbapedia "Dark Void")
+    const _userOnlyEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '使用者限定');
+    if (_userOnlyEf && atk.poke && atk.poke.name !== _userOnlyEf.value){
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+      noteActionFailed(atk); continue;
+    }
     // ★対象がひんしでいない技は不発(反動死などで先に相手が倒れた時の後攻=Bulbapedia "But there was no target")。
     // 自分/場を対象にする変化技(つるぎのまい・ステルスロック等)はそのまま出せる。
     // (2026-07-10 阿部さん報告: 反動でひんしのミミッキュに じしんが当たり「ひんしになった！」が2回出た)
@@ -6318,7 +6437,10 @@ function runTurn(){
     // マジックミラー(段128): 相手に出された変化技を受けずに跳ね返す(かたやぶり系には跳ね返せない)
     if (mv.category === '変化' && def.poke && !def.fainted &&
         ['1体選択', 'ランダム1体', '相手全体', '自分以外全体', '相手の場'].includes(mv.target) &&
-        defAbilityVs(def, atk) === 'マジックミラー'){
+        (defAbilityVs(def, atk) === 'マジックミラー' || def.magicCoatTurn)){
+      // ★Phase D B2: マジックコート(move)はマジックミラー(ability)と対象範囲・跳ね返し処理が同じなので
+      // ここに相乗り(def.magicCoatTurn)。かたやぶり系はマジックミラー(特性)だけを無視し、
+      // マジックコート(技)は対象外=defAbilityVs呼び出しの外側でORするのはそのため。
       log('0c', `${pname(def)} は マジックミラーで ${mv.name} を 跳ね返した！`);
       phaseApplyEffects(a.opp, a.side, mv);   // 攻守を入れ替えて効果を適用
       continue;
@@ -6356,13 +6478,18 @@ function runTurn(){
     // 命中判定
     const hit = phaseHitCheck(mv, atk, def);
     if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
+    // まもり貫通(Phase D B2): フェイント等は相手がまもり系で守っていても通常ブロックの前に貫通判定する。
+    // フェイントは貫通と同時に相手のまもり状態自体も解除する(まもった側はこのターンの他の技にも無防備になる)。
+    const _protBefore = def.protecting;
+    const _protPierce = _protBefore && protectPierces(mv, _protBefore);
+    if (_protBefore && shouldRemoveProtection(mv, _protBefore)) def.protecting = null;
     // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
-    if (def.protecting && mv.protect === true && protectBlocks(def.protecting, mv)){
+    if (_protBefore && mv.protect === true && protectBlocks(_protBefore, mv) && !_protPierce){
       // 防がれる前に技の使用そのものを告知する(何を出そうとしたかが心理戦の情報=消してはいけない)。
       // ばけのかわブロックと同じ作法: 「◯◯の 技！」を先に出す→表示側が次行(防いだ行)を見て予告+攻撃演出を出す
       // (2026-07-16 阿部さんFB。前例: HANDOFF_SESSION_2026_07_13.md §2-I)
       log('8', `${pname(atk)} の ${mv.name}！`);
-      log('0c', `${pname(def)} は ${def.protecting.name} で こうげきを 防いだ！`);
+      log('0c', `${pname(def)} は ${_protBefore.name} で こうげきを 防いだ！`);
       noteActionFailed(atk);
       applyProtectPunishers(atk, def, mv);
       applyCrashDamage(atk, mv);
@@ -6610,6 +6737,12 @@ function runTurn(){
     if (st.magnetRise > 0){
       st.magnetRise--;
       if (st.magnetRise <= 0){ st.magnetRise = 0; log('10', `${pname(st)} の 電磁浮遊が 解けた！`); }
+    }
+    // テレキネシスのカウントダウン(3ターンで降りる・Phase D B2)。既存の対応する専用ログ文言が無いため、
+    // ここは機構のみ(新規ログ行は追加しない=禁止事項どおり)。
+    if (st.telekinesis > 0){
+      st.telekinesis--;
+      if (st.telekinesis <= 0) st.telekinesis = 0;
     }
     // あめまみれ: 毎ターン終了時にすばやさ-1(3ターンで乾く)
     if (st.syrupTurns > 0 && st.poke && !st.fainted){
