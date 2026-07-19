@@ -1,5 +1,5 @@
-// Auto-generated from _review/items_database.json (2026-06-19 レギュMB追加で計159件)
-// メガストーン: 76件 / 通常持ち物: 83件
+// Auto-generated from _review/items_database.json (2026-06-19 レギュMB追加で計159件 / 2026-07-19 全部版持ち物10件追加で計169件)
+// メガストーン: 76件 / 通常持ち物: 93件
 // ポケチャン実装済の持ち物。party_checker.html と battle_simulator.html・real_battle_simulator.html で共有。
 window.ITEMS_DATABASE = {
   "version": "1.0",
@@ -3361,6 +3361,125 @@ window.ITEMS_DATABASE = {
       "source": "regulation_mb_2026-06 (GameWith/game8/AppMedia/Bulbapedia 等)",
       "verify": false,
       "notes": "レギュレーションM-B(2026-06-17〜09-02)で追加・実装確認済"
+    },
+    {
+      "key": "booster_energy",
+      "name": "ブーストエナジー",
+      "name_en": "Booster Energy",
+      "category": "misc",
+      "effect": "こだいかっせい・クォークチャージのポケモンが場に出た時、はれ/エレキフィールド未発動なら消費され、HP以外の最高能力を強化する(素早さが最高なら×1.5、それ以外なら×1.3)。交代で解除。",
+      "applies_to": "protosynthesis_quark_drive",
+      "trigger": "on_switch_in",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": true,
+      "notes": "効果型=ability_activator(実数値ブースト・消費型1回)。倍率2種=素早さ×1.5(q12=6144)/その他×1.3(q12=5324=本ファイルのいのちのたまと同値)のため単一q12欄は空。同値タイ優先順位: こうげき→ぼうぎょ→とくこう→とくぼう→すばやさ。コライドン/ミライドンのみアイテム移動可能。"
+    },
+    {
+      "key": "ability_shield",
+      "name": "とくせいガード",
+      "name_en": "Ability Shield",
+      "category": "misc",
+      "effect": "持ち主の特性が、いかなる効果によっても変更・無効化されなくなる。",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": false,
+      "notes": "効果型=ability_protection(常時・確率なし)。かたやぶり等の特性無視効果自体を無効化。へんしん/かわりもののコピーは例外で成立し、コピー後の特性が保護対象。はたきおとす/トリック等のアイテム奪取は防げない(特性保護であってアイテム保護ではない)。"
+    },
+    {
+      "key": "heavy_duty_boots",
+      "name": "あつぞこブーツ",
+      "name_en": "Heavy-Duty Boots",
+      "category": "misc",
+      "effect": "場に出る時、ステルスロック・まきびし・どくびし・ねばねばネットのダメージや効果を受けない。",
+      "trigger": "on_switch_in",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": true,
+      "notes": "効果型=hazard_immunity(常時・完全無効化・確率なし)。フリング威力80。毒タイプ接地持ちが場に出るとどくびし自体は場から除去される(ブーツは自分の被影響のみ無効化)。※仕様書verify_note: 4種設置技すべて個別ページでの再確認推奨(本体ページ+Stealth Rockページで確認済)。"
+    },
+    {
+      "key": "clear_amulet",
+      "name": "クリアチャーム",
+      "name_en": "Clear Amulet",
+      "category": "misc",
+      "effect": "相手の技や特性で、持ち主の能力ランクが下がるのを防ぐ。",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": false,
+      "notes": "効果型=stat_drop_immunity(常時)。自分で下げる分は防がない(相手起因のみ)。貫通例外: くろいきり(Haze)・クリアスモッグ(Clear Smog)。※仕様書の日本語技名(あやしいひかり/どくガス)は括弧内英語名(Haze/Clear Smog)と不一致のため、正しい日本語名(くろいきり/クリアスモッグ)で記載(要確認)。"
+    },
+    {
+      "key": "eject_pack",
+      "name": "だっしゅつパック",
+      "name_en": "Eject Pack",
+      "category": "misc",
+      "effect": "持ち主の能力ランクが下がった時、消費されて控えと交代する。",
+      "trigger": "stat_drop",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": true,
+      "notes": "効果型=switch_out(消費型・毎回100%)。自分の自傷ランクダウン技(だいねつ・りゅうせいぐん等)でも発動。下限で下がらなかった場合は不発。だっしゅつボタン(技受けで発動)とは別。※仕様書verify_note: 控えがいない場合の発動スキップは未明記・要確認。"
+    },
+    {
+      "key": "weakness_policy",
+      "name": "じゃくてんほけん",
+      "name_en": "Weakness Policy",
+      "category": "misc",
+      "effect": "効果バツグンの技でダメージを受けた時、こうげき・とくこうが+2ずつ上がる(消費・1回)。",
+      "trigger": "super_effective_hit",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": false,
+      "notes": "効果型=stat_boost_on_hit(消費型1回)。みがわり被弾や無効化では不発。固定ダメージ技(じわれ/ミラーコート/はめつのねがい等)は効果バツグンでも不発。こうげき・とくこうが両方+6の上限時は不発。"
+    },
+    {
+      "key": "loaded_dice",
+      "name": "いかさまダイス",
+      "name_en": "Loaded Dice",
+      "category": "misc",
+      "effect": "連続技(2〜5回)の命中回数を底上げし、必ず4回以上当たるようにする。",
+      "applies_to": "multi_hit_moves",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": true,
+      "notes": "効果型=multi_hit_boost(常時・倍率なし)。トリプルキック/トリプルアクセル/ポピュラーバズーカは命中率判定を技全体で1回化。ポピュラーバズーカは4〜10回の均等分布(各1/7)。※仕様書verify_note: 2回固定技(にどげり等)への影響は未明記・要確認。"
+    },
+    {
+      "key": "mirror_herb",
+      "name": "ものまねハーブ",
+      "name_en": "Mirror Herb",
+      "category": "misc",
+      "effect": "相手の能力ランクが上がった時、同じ分だけ自分も上げる(消費・1回)。",
+      "trigger": "foe_stat_raise",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": false,
+      "notes": "効果型=mirror_stat_boost(消費型1回)。相手の複数同時上昇もすべてコピー。相手の能力低下や自分自身の上昇には反応しない。"
+    },
+    {
+      "key": "covert_cloak",
+      "name": "おんみつマント",
+      "name_en": "Covert Cloak",
+      "category": "misc",
+      "effect": "相手の技の追加効果(状態異常・ひるみ・能力低下など)を受けない。",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": false,
+      "notes": "効果型=secondary_effect_immunity(常時)。混乱付与技(あやしいひかり等)や変化技(どくどく・でんじは等)は防げない(追加効果限定)。はたきおとすのアイテム没収・クリアスモッグの能力リセットも防げない。"
+    },
+    {
+      "key": "throat_spray",
+      "name": "のどスプレー",
+      "name_en": "Throat Spray",
+      "category": "misc",
+      "effect": "音技を出した後、とくこうが+1上がる(消費・1回)。",
+      "trigger": "after_sound_move",
+      "applies_to": "sound_moves",
+      "source_q12": "spec_pokemon_main",
+      "implemented_in_pokechan": false,
+      "verify": true,
+      "notes": "効果型=sound_move_boost(消費型1回)。技が外れ/無効化/失敗なら不発(命中成功が条件)。技使用と同時にバトルが終了しても不発。※仕様書verify_note: ダメージを与えない音技(ほえる・ちょうおんぱ等)や無対象時の発動は未明記・要確認。"
     }
   ],
   "stats": {
