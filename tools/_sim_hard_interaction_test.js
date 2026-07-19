@@ -657,10 +657,114 @@ try {
 // 全部版Phase Cのギャップ表対象として記録のみ(本ラウンドでは対応しない)。出典: bulbapedia.bulbagarden.net/wiki/Liquid_Ooze_(Ability)
 
 // ─────────────────────────────────────────────
+// H19: こんじょう(Guts)本体効果 — 状態異常時こうげき×1.5(やけど半減なし)
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Guts_(Ability)
+//   "If this Pokémon has a non-volatile status condition, its Attack is multiplied by 1.5."
+//   やけどの物理半減はこんじょう所持者は受けない(Bulbapedia "Burn"= Guts除外、第6世代以降)。
+// 2026-07-19 本番バグ発覚: real_battle_simulator.htmlに「やけど物理×0.5のこんじょう除外」だけがあり、
+// 本体の状態異常時1.5倍が丸ごと未実装だった(こんじょう出現は当該1箇所のみ)。aStatEff段階に追加して修正。
+// ─────────────────────────────────────────────
+console.log('\n=== H19: こんじょう(Guts)本体効果=状態異常時こうげき×1.5 [出典: bulbapedia.bulbagarden.net/wiki/Guts_(Ability)] ===');
+try {
+  resetEnv();
+  // カイリキー(実際の特性=こんじょう)× はたく(ノーマル物理・カイリキーはかくとうタイプでSTAB無し=倍率が
+  // こんじょうだけになるよう選定)。防御側はするどいめ(無関係な特性)のピジョット。
+  const atk19 = freshSide('カイリキー', 'hataku', { ability: 'こんじょう' });
+  fullHp(atk19);
+  const def19 = freshSide('ピジョット', 'hataku', { ability: 'するどいめ' });
+  fullHp(def19);
+  E.sides.self = atk19; E.sides.opp = def19;
+
+  // 素の場合(状態異常なし)を基準値として先に取得
+  const rNone19 = E.calcDamage('self', 'opp', moveByKey('hataku'));
+
+  // 期待値をエンジンと同じ式で手計算(H18と同じ流儀=フロア丸めまで再現)。
+  // STAB/タイプ相性/天候/急所/壁/道具いずれも無し=aStatEffの差だけが結果に効く構成。
+  const aStat19 = E.rankedStat(atk19, 'atk', { crit: false, role: 'atk', ignoreRank: false });
+  const dStat19 = E.rankedStat(def19, 'def', { crit: false, role: 'def', ignoreRank: false });
+  const wantBase = (aEff) => Math.floor((2 * E.LEVEL / 5 + 2) * 40 * aEff / dStat19 / 50) + 2;
+  const baseNone19 = wantBase(aStat19);
+  const baseGuts19 = wantBase(Math.floor(aStat19 * 1.5));
+  const wantMinNone = Math.floor(baseNone19 * 85 / 100), wantMaxNone = baseNone19;
+  const wantMinGuts = Math.floor(baseGuts19 * 85 / 100), wantMaxGuts = baseGuts19;
+
+  check('H19-0 前提: 素の場合(状態異常なし)の手計算とエンジンが一致(基準値の裏取り)',
+    rNone19.min === wantMinNone && rNone19.max === wantMaxNone,
+    `min=${rNone19.min} want=${wantMinNone} max=${rNone19.max} want=${wantMaxNone}`);
+
+  // やけど: こんじょうなら1.5倍あり・やけど半減なし
+  atk19.status = 'burn';
+  const rBurn19 = E.calcDamage('self', 'opp', moveByKey('hataku'));
+  check('H19-a [出典: bulbapedia.bulbagarden.net/wiki/Guts_(Ability)] こんじょう+やけど: ダメージが素の場合より増える(半減されない)',
+    rBurn19.min > rNone19.min && rBurn19.max > rNone19.max,
+    `burn.min=${rBurn19.min} none.min=${rNone19.min} burn.max=${rBurn19.max} none.max=${rNone19.max}`);
+  check('H19-b こんじょう+やけどのダメージが手計算どおり(1.5倍・やけど半減なし)',
+    rBurn19.min === wantMinGuts && rBurn19.max === wantMaxGuts,
+    `min=${rBurn19.min} want=${wantMinGuts} max=${rBurn19.max} want=${wantMaxGuts}`);
+
+  // どく: こんじょうなら同じく1.5倍
+  atk19.status = 'poison';
+  const rPoison19 = E.calcDamage('self', 'opp', moveByKey('hataku'));
+  check('H19-c [出典: bulbapedia.bulbagarden.net/wiki/Guts_(Ability)] こんじょう+どく: ダメージが素の場合の1.5倍(手計算どおり)',
+    rPoison19.min === wantMinGuts && rPoison19.max === wantMaxGuts,
+    `min=${rPoison19.min} want=${wantMinGuts} max=${rPoison19.max} want=${wantMaxGuts}`);
+
+  // 比較対照(H19-d): こんじょうを持たない場合はやけどで物理半減(従来どおり=退行していないことの確認)
+  const atk19b = freshSide('カイリキー', 'hataku', { ability: 'せいしんりょく' });
+  fullHp(atk19b);
+  atk19b.status = 'burn';
+  E.sides.self = atk19b;
+  const rBurnNoGuts19 = E.calcDamage('self', 'opp', moveByKey('hataku'));
+  check('H19-d 比較対照: こんじょうが無ければやけど物理半減は従来どおり(素の場合より小さい)',
+    rBurnNoGuts19.max < rNone19.max,
+    `burnNoGuts.max=${rBurnNoGuts19.max} none.max=${rNone19.max}`);
+} catch (__e) { skipCase('H19: こんじょう(Guts)本体効果=状態異常時こうげき×1.5 [出典: bulbapedia.bulbagarden.net/wiki/Guts_(Ability)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H20: ヒメリのみ(Leppa Berry) — PPが0になった技のPPを10回復して消費
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Leppa_Berry(2026-07-19取得)=
+//   "restores 10 PP to a move that drops to 0 PP"(held item時。複数該当なら技欄が先の技)。消費は1回きり。
+// 2026-07-19 本番バグ発覚: items_database.jsに trigger:pp_zero 宣言済みだが、エンジンの
+// applyBerryEffect/itemReactionsがHP系(hp_le_50pct)しか処理せずPP系が未対応だった(明示コメントあり)。
+// ─────────────────────────────────────────────
+console.log('\n=== H20: ヒメリのみ=PPが0になった技のPPを10回復 [出典: bulbapedia.bulbagarden.net/wiki/Leppa_Berry] ===');
+try {
+  resetEnv();
+  const atk20 = freshSide('カイリキー', 'hataku', { ability: 'せいしんりょく', item: 'berry_leppa' });
+  fullHp(atk20);
+  const def20 = freshSide('ピジョット', 'hataku', { ability: 'するどいめ' });
+  fullHp(def20);
+  E.sides.self = atk20; E.sides.opp = def20;
+  E.initPP(atk20); E.initPP(def20);
+  atk20.pp[0] = 1;   // この一撃でPP0に落ちる状況を作る
+  E.setRandom(mulberry32(20260719));
+  E.runSingleAttack('self', 0);
+  const ateLog20 = E.battleLog.some(e => /ヒメリのみを 食べた/.test(e.msg));
+  check('H20-a [出典: bulbapedia.bulbagarden.net/wiki/Leppa_Berry] PP0になった技のPPが10回復する',
+    atk20.pp[0] === 10, `pp=${atk20.pp[0]}`);
+  check('H20-b [出典: bulbapedia.bulbagarden.net/wiki/Leppa_Berry] ヒメリのみが消費される(1回きり)',
+    !atk20.item, `item=${JSON.stringify(atk20.item)}`);
+  check('H20-c ログにヒメリのみを食べた行が出る(既存パターンbl_107準拠)', ateLog20, `log=${JSON.stringify(E.battleLog.slice(-3))}`);
+
+  // 比較対照(H20-d): ヒメリのみを持たなければPPは0のまま(=回復がヒメリ由来であることの確認)
+  resetEnv();
+  const atk20b = freshSide('カイリキー', 'hataku', { ability: 'せいしんりょく' });
+  fullHp(atk20b);
+  const def20b = freshSide('ピジョット', 'hataku', { ability: 'するどいめ' });
+  fullHp(def20b);
+  E.sides.self = atk20b; E.sides.opp = def20b;
+  E.initPP(atk20b); E.initPP(def20b);
+  atk20b.pp[0] = 1;
+  E.setRandom(mulberry32(20260719));
+  E.runSingleAttack('self', 0);
+  check('H20-d 比較対照: ヒメリのみ無しならPPは0のまま回復しない', atk20b.pp[0] === 0, `pp=${atk20b.pp[0]}`);
+} catch (__e) { skipCase('H20: ヒメリのみ=PPが0になった技のPPを10回復 [出典: bulbapedia.bulbagarden.net/wiki/Leppa_Berry]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
 // 集計
 // ─────────────────────────────────────────────
 console.log('\n' + '='.repeat(60));
-console.log(`難所相互作用18件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
+console.log(`難所相互作用20件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
 if (fails.length) {
   console.log('\n--- FAIL一覧 ---');
   fails.forEach(f => console.log('  ' + f));

@@ -1766,6 +1766,11 @@ function calcDamage(atkSide, defSide, move, opts){
     if ((_aab === 'ちからもち' || _aab === 'ヨガパワー') && isPhys) aStatEff = aStat * 2;
     // はりきり: こうげき(物理)×1.5(命中×0.8は命中判定側)。Bulbapedia "Hustle"
     if (_aab === 'はりきり' && isPhys) aStatEff = aStat * 1.5;
+    // こんじょう(Guts): 非揮発性状態異常(やけど/どく/もうどく/まひ/ねむり/こおり)の間 こうげき(物理)×1.5
+    //   Bulbapedia "Guts"はonModifyAtk=物理のこうげき実数値のみ補正(はりきり等と同様、物理限定)。
+    //   やけど物理半減は別途除外済み(こんじょう除外、本行1855付近)。かたやぶり等の無効化対象外(自分の特性)。
+    //   出典: Bulbapedia "Guts (Ability)"(2026-07-19取得)。
+    if (_aab === 'こんじょう' && isPhys && atk.status && atk.status !== 'none') aStatEff = Math.floor(aStat * 1.5);
   }
 
   // ★こだわりハチマキ/メガネ: 攻撃・特攻の実数値に×1.5してからbaseDamage式に渡す(SD準拠)
@@ -5435,7 +5440,7 @@ function itemReactions(){
     if (!st.poke || st.fainted || !st.item || env.magicRoom) return;
     const it = ITEM_BY_KEY[st.item];
     if (!it) return;
-    // HPきのみ(オボン/オレン): HPが半分以下になっていたら回復して消費(ヒメリ=PP系は未対応)
+    // HPきのみ(オボン/オレン): HPが半分以下になっていたら回復して消費
     if (it.category === 'berry_hp_cure' && it.trigger === 'hp_le_50pct'){
       if (berryBlocked(s)) return;   // きんちょうかん(段134)
       const max = realStat(st, 'hp');
@@ -5447,6 +5452,23 @@ function itemReactions(){
           consumeItem(st);
           log('9', `${pname(st)} は ${it.name}で HPを ${heal} 回復した！ (残HP ${st.currentHp})`);
         }
+      }
+      return;
+    }
+    // ヒメリのみ: いずれかの技のPPが0になった時、そのPPを10回復して消費(1回きり)。
+    //   複数技が同時に0ならスロット順が先の技が対象(出典: Bulbapedia "Leppa Berry"=
+    //   "restores 10 PP to a move that drops to 0 PP"/複数該当時は先の技、2026-07-19取得)。
+    //   最大PPは技データのpp値(このエンジンにPP UP等の最大PP増加は未実装)。
+    //   ログ文言: battle_log_i18n.js編集禁止のため既存パターン bl_107「は{item}を 食べた！」に乗せる
+    //   (むしくい等・行3712と同一文言。PP回復量の明示は今回スコープ外=i18n対応済み文言を優先)。
+    if (it.trigger === 'pp_zero' && st.pp){
+      if (berryBlocked(s)) return;   // きんちょうかん(段134)
+      const i = st.pp.findIndex((p, idx) => p <= 0 && st.moves[idx] && st.moves[idx].pp > 0);
+      if (i >= 0){
+        const maxPP = st.moves[i].pp;
+        st.pp[i] = Math.min(maxPP, st.pp[i] + 10);
+        consumeItem(st);
+        log('9', `${pname(st)} は ${it.name}を 食べた！`);
       }
       return;
     }
