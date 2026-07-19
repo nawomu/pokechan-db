@@ -4613,6 +4613,17 @@ function splitBattleLines(msg){
   return [msg];
 }
 const _recallTimer = {};   // 交代1拍目のgone遅延タイマー(2拍目で必ずキャンセル=出た直後に消えるバグ根治)
+// ★タスク#14後半(2026-07-20・変化技の無演出穴埋め): 監査 reference/_move_fx_allmode_coverage_2026-07-20.json で
+// ホワイトリスト外と判定された変化技96件のうち、エンジンが専用メッセージを1つも出さない(=汎用「Aは ◯◯を使った！」
+// 宣言しか無い)ものだけ名前で拾うフォールバック。3ページ(battle_lab/real_battle/online_battle)で内容同一(クローン)。
+const _FX_FALLBACK_JOKE = new Set(['はねる', 'おいわい', 'てをつなぐ']);   // 効果なし(ジョーク技)=😄
+const _FX_FALLBACK_OTHER = new Set([
+  'あくむ', 'うらみ', 'みやぶる', 'かぎわける', 'ミラクルアイ', 'このゆびとまれ', 'いかりのこな', 'スポットライト',
+  'てだすけ', 'おんねん', 'よこどり', 'どろあそび', 'みずあそび', 'さしおさえ', 'おまじない', 'さきどり',
+  'ワイドガード', 'たたみがえし', 'トリックガード', 'テレキネシス', 'ハッピータイム', 'とぎすます', 'ドラゴンエール',
+  'コートチェンジ', 'ふしょくガス', 'おさきにどうぞ', 'サイドチェンジ', 'さきおくり', 'ギフトパス', 'マジックコート',
+  'しぜんのちから', 'ひっくりかえす', 'ふんじん',
+]);   // ✨(未実装効果=見た目だけ「何か起きた」を示す中立アイコン)
 // ★変化技Phase2(2026-07-18・設計_変化技演出_2026-07-16.md §2 Phase2): 変化技cueシートの抑制ウィンドウ。
 // lineWithFxはログ順に呼ばれる(flatMap)ので、ビルド時にこのフラグを立て/降ろしして各行のfxに焼き込む。
 // done:trueの変化技シートが1枚も無い現状は常にfalse=従来挙動と完全同一(回帰の要)。
@@ -4987,6 +4998,75 @@ function lineWithFx(msg, opts){
       renderAll();
       flash(subjOpp ? 'opp' : 'self', 'enter');
       SE.mega();
+    }
+    // ⑦ タスク#14後半(2026-07-20): 状態異常回復12技の「治った」演出穴埋め(既存の回復系演出=sparkleFx+
+    // 緑pop+SE.heal()の流儀に合わせる。ヤックン耳: 「治った」は良い知らせ=きらきら+緑文字で伝わる)。
+    if (!_sup){
+      const cureM = msg.match(/^(相手の )?\S+ の 状態異常が 治った！$/);
+      if (cureM){ const s = cureM[1] ? 'opp' : 'self'; popText(s, '✨', '#4ade80', 20); sparkleFx(s); SE.heal(); }
+      const cureBenchM = msg.match(/^控えの (相手の )?\S+ の 状態異常も 治った！$/);
+      if (cureBenchM){ const s = cureBenchM[1] ? 'opp' : 'self'; popText(s, '✨', '#4ade80', 18); sparkleFx(s); }
+    }
+    // ⑧ タスク#14後半(2026-07-20): ホワイトリスト外96技の演出穴埋め。監査JSON(reference/_move_fx_allmode_
+    // coverage_2026-07-20.json)のロングテールをgrepしたJA正典ログ文言に汎用アイコンpopTextを足すだけ
+    // (専用グリフは作らない=北極星「機械が漏れてない」観点で十分)。3ページ同一実装(乖離防止)。
+    // 封じ系(妨害): ちょうはつ/アンコール/かなしばり/いちゃもん/ふういん
+    if (!_sup && /は ちょうはつに のってしまった！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '💢', null, 22);
+    if (!_sup && /は アンコールを うけた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🔁', null, 22);
+    if (!_sup && /の \S+ を 封じこめた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🔒', null, 22);
+    if (!_sup && /は いちゃもんを つけられた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '😤', null, 22);
+    if (!_sup && /は あいての技を ふういんした！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🚫', null, 22);
+    // 呪い系: みちづれ/ほろびのうた(開始の宣言行。カウント表示は既存のperishMで対応済み)
+    if (!_sup && /は あいてを みちづれに しようとしている！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '💀', null, 24);
+    if (!_sup && /^ほろびのうたが ひびきわたった！$/.test(msg)){ popText('self', '🎵', null, 22); popText('opp', '🎵', null, 22); }
+    // ロックオン系: こころのめ/ロックオン
+    if (!_sup && /は \S+ に ねらいを さだめた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🎯', null, 22);
+    // 拘束系: クモのす/くろいまなざし/とおせんぼう
+    if (!_sup && /は にげられなくなった！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🕸️', null, 22);
+    // 技コピー/ランダム技/ランクコピー: ものまね/オウムがえし/スケッチ/まねっこ/じこあんじ・ゆびをふる/ねごと/ねこのて
+    if (!_sup && /を まねした！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🔄', null, 22);
+    if (!_sup && /で \S+ を くりだした！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🎲', null, 22);
+    // いたみわけ(両者に発生)
+    if (!_sup && /は いたみを 分けあった！/.test(msg)){ popText('self', '🩹', null, 20); popText('opp', '🩹', null, 20); }
+    // タイプ系: テクスチャー/テクスチャー２/みずびたし/ほごしょく/まほうのこな/ミラータイプ/ハロウィン/もりののろい/そうでん/プラズマシャワー
+    if (!_sup && /は \S+タイプに なった！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🎨', null, 22);
+    if (!_sup && /は \S+ と 同じタイプに なった！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🎨', null, 22);
+    if (!_sup && /に \S+タイプが 追加された！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🎨', null, 22);
+    if (!_sup && /の 技は このターン \S+タイプに なる！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '⚡', null, 22);
+    // 持ち物: リサイクル(トリック/すりかえは既存の🎒「おたがいの 道具を 入れかえた！」で対応済み)
+    if (!_sup && /を リサイクルした！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '♻️', null, 22);
+    // 特性系: なりきり/うつしえ(同じsource=opponent_ability経由で同文言)/なやみのタネ・シンプルビーム・なかまづくり/いえき/スキルスワップ
+    if (!_sup && /を なりきった！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🧠', null, 22);
+    if (!_sup && /の 特性が \S+に なった！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🧠', null, 22);
+    if (!_sup && /の 特性が きかなくなった！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🚫', null, 22);
+    if (!_sup && /は おたがいの 特性を 入れかえた！$/.test(msg)){ popText('self', '🧠', null, 22); popText('opp', '🧠', null, 22); }
+    // 能力入替系: パワートリック/パワーシフト(自分内)・スピードスワップ・パワースワップ/ガードスワップ/ハートスワップ・ガードシェア/パワーシェア
+    if (!_sup && /は \S+で 能力を 入れかえた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🔀', null, 22);
+    if (!_sup && /は おたがいの すばやさを 入れかえた！$/.test(msg)){ popText('self', '🔀', null, 22); popText('opp', '🔀', null, 22); }
+    if (!_sup && /は おたがいの 能力変化を 入れかえた！$/.test(msg)){ popText('self', '🔀', null, 22); popText('opp', '🔀', null, 22); }
+    if (!_sup && /は おたがいの 能力を 分けあった！$/.test(msg)){ popText('self', '🔀', null, 22); popText('opp', '🔀', null, 22); }
+    // 場・部屋系: じゅうりょく/フェアリーロック(両者)・トリックルーム・ワンダールーム/マジックルーム
+    if (!_sup && /^じゅうりょくが 強くなった！$/.test(msg)){ popText('self', '🌀', null, 22); popText('opp', '🌀', null, 22); }
+    if (!_sup && /^フェアリーロックで 誰も にげられなくなった！$/.test(msg)){ popText('self', '🔒', null, 22); popText('opp', '🔒', null, 22); }
+    if (!_sup && /は 時空を ねじまげた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '⏳', null, 24);
+    if (!_sup && /空間を つくった！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🌌', null, 22);
+    // さいはい(技強制再使用): 1vs1限定sim=指示を受ける側は常にatkの反対側
+    if (!_sup && /しじに したがい もういちど \S+ を つかう！$/.test(msg)) popText(subjOpp ? 'self' : 'opp', '📢', null, 22);
+    // おちゃかい(木の実強制。むしくい/ついばむ/ほおばる等の既存「を 食べた！」にも相乗り=害なし)
+    if (!_sup && /を 食べた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🍓', null, 20);
+    // ふきとばし/ほえる(強制交代)
+    if (!_sup && /は ふきとばされた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '💨', null, 22);
+    // しろいきり(ランク低下防御)
+    if (!_sup && /の場に しろいきり が 張られた！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🌫️', null, 22);
+    if (!_sup && /は しろいきりで 能力が下がらない！$/.test(msg)) popText(subjOpp ? 'opp' : 'self', '🌫️', null, 18);
+    // フォールバック(専用メッセージが1つも無い技=汎用「Aは ◯◯を使った！」宣言の技名だけで拾う)
+    if (!_sup){
+      const fbM = msg.match(/^(相手の )?\S+ は (\S+) を使った！$/);
+      if (fbM){
+        const fbSide = fbM[1] ? 'opp' : 'self';
+        if (_FX_FALLBACK_JOKE.has(fbM[2])) popText(fbSide, '😄', null, 22);
+        else if (_FX_FALLBACK_OTHER.has(fbM[2])) popText(fbSide, '✨', null, 18);
+      }
     }
     if (/回復/.test(msg)){ renderAll(); if (hpM && !_sup){ const hSide = subjOpp ? 'opp' : 'self'; popText(hSide, '＋', '#4ade80', 18); sparkleFx(hSide); SE.heal(); } }   // 変化技Phase2: renderAll(状態)は常に実行
   };
