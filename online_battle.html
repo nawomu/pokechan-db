@@ -216,6 +216,28 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #swap-pop .sp-yes{background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff}
 #swap-pop .sp-no{background:#cfc9ea;color:#4a4470}
 #swap-pop .sp-btns button:hover{box-shadow:0 0 0 2px #d4f542}
+/* ★友だち招待ポップ(2026-07-20・PC=navigator.share非対応環境向けの小ポップ) */
+#online-invite-pop{position:fixed;inset:0;z-index:75}
+#online-invite-pop .oip-backdrop{position:fixed;inset:0;background:#0006}
+#online-invite-pop .oip-box{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
+  background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #b9b2de;border-radius:16px;
+  padding:20px 22px;width:min(90vw,320px);display:flex;flex-direction:column;gap:9px;
+  box-shadow:0 14px 40px #00000066;text-align:center}
+#online-invite-pop .oip-title{font-weight:900;font-size:15px;color:#4638ae;margin-bottom:2px}
+#online-invite-pop .oip-url{background:#ffffffcc;border:1px dashed #b9b2de;border-radius:9px;padding:8px 10px;
+  font-size:11.5px;color:#4a4470;word-break:break-all}
+#online-invite-pop .oip-btn{padding:12px 14px;border-radius:14px;border:0;font-weight:900;font-size:13.5px;
+  cursor:pointer;color:#fff;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);font-family:inherit}
+#online-invite-pop .oip-btn:hover{box-shadow:0 0 0 2px #d4f542}
+#online-invite-pop .oip-line{background:linear-gradient(90deg,#06c755,#3ddc84)}
+#online-invite-pop .oip-mail{background:linear-gradient(90deg,#e0564a,#ff7a63)}
+#online-invite-pop .oip-x{position:absolute;top:8px;right:12px;background:none;border:none;font-size:17px;
+  color:#8a82c8;cursor:pointer;line-height:1}
+/* 招待経由(?invite=)で来た人への案内=バナー+接続ボタンを目立たせる */
+.invite-banner{width:100%;max-width:560px;background:linear-gradient(90deg,#fff2e6,#ffe4c4);border:2px dashed #f0b070;
+  border-radius:12px;padding:8px 12px;font-size:13px;font-weight:800;color:#8a5a20;text-align:center}
+.invite-glow{animation:oipPulse 1.1s ease-in-out infinite;box-shadow:0 0 0 4px #ffdd0088!important}
+@keyframes oipPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
 #sel-detail.bx{border:2px dashed #d4a4ff}
 #sel-detail .sd-bxbar{font-size:11px;font-weight:800;color:#ffe9a8;background:#00000038;border-radius:9px;padding:5px 9px;margin-bottom:8px;line-height:1.5}
 #sel-detail .sd-bxadd{display:block;width:100%;margin-top:10px;padding:10px 0;border-radius:16px;border:2px solid #ffffff55;cursor:pointer;
@@ -4610,6 +4632,77 @@ async function onlineConnect(){   // あいことば(P1)経路: ロビー内の�
     lobbySetUiConnected();
   } catch (e){ onlineStatus(_olT('online_error', 'せつぞくに しっぱいしました: ') + (e && e.message || '')); }
 }
+// ===================================================================
+// --- 友だち招待(2026-07-20 阿部さん指示・タスク#18) ---
+// P1(あいことば)の部屋名からURLを作って共有。navigator.share対応環境(スマホ)は
+// ネイティブ共有シート、非対応(PC)は小ポップ(URLコピー/LINE/メール)。
+// 受け側は ?invite=あいことば で開くと欄に自動入力+バナー案内(自動入室はしない)。
+// ===================================================================
+// URLの?inviteは起動時に一度だけ読む(location.searchはページ内で変化しない前提)
+const INVITE_ROOM = (() => { try { return new URLSearchParams(location.search).get('invite') || ''; } catch (e) { return ''; } })();
+let _inviteApplied = false;   // renderLobbyMain初回だけ自動入力+フォームを開く(以降の再描画・ユーザー操作を尊重)
+function _randomRoomCode(){   // あいことば未入力時の自動発行(紛らわしい文字は除外)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let s = '';
+  for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+function onlineInviteUrl(room){ return 'https://pchamdb.com/online_battle.html?invite=' + encodeURIComponent(room); }
+function onlineInviteText(room){ return I18N.t('online.invite_text', 'ポケモンバトルしよう！ あいことば「{room}」で まってるよ').replace('{room}', room); }
+function inviteBannerHtml(){
+  if (!INVITE_ROOM) return '';
+  return `<div class="invite-banner">📨 ${esc2(I18N.t('online.invite_banner', '「{room}」の へやに さそわれています！').replace('{room}', INVITE_ROOM))}</div>`;
+}
+async function onlineInvite(){
+  SE.select();
+  let room = ($('online-room') && $('online-room').value || '').trim();
+  if (!room){
+    room = _randomRoomCode();
+    if ($('online-room')) $('online-room').value = room;
+  }
+  const url = onlineInviteUrl(room);
+  const text = onlineInviteText(room);
+  const title = I18N.t('online.invite_share_title', 'ポケモンバトルに さそうよ');
+  if (navigator.share){
+    try { await navigator.share({ title: title, text: text, url: url }); } catch (e) { /* ユーザーが共有をキャンセル等は無視 */ }
+    return;
+  }
+  onlineInviteShowPopup(url, text, title);
+}
+function onlineInviteShowPopup(url, text, title){
+  const old = $('online-invite-pop'); if (old) old.remove();
+  const pop = document.createElement('div');
+  pop.id = 'online-invite-pop';
+  pop.innerHTML =
+    `<div class="oip-backdrop"></div>` +
+    `<div class="oip-box">` +
+    `<button type="button" class="oip-x">✕</button>` +
+    `<div class="oip-title">📨 ${esc2(title)}</div>` +
+    `<div class="oip-url">${esc2(url)}</div>` +
+    `<button id="oip-copy" type="button" class="oip-btn">📋 ${esc2(I18N.t('online.invite_copy', 'URLを コピー'))}</button>` +
+    `<button id="oip-line" type="button" class="oip-btn oip-line">💬 ${esc2(I18N.t('online.invite_line', 'LINEで おくる'))}</button>` +
+    `<button id="oip-mail" type="button" class="oip-btn oip-mail">✉️ ${esc2(I18N.t('online.invite_mail', 'メールで おくる'))}</button>` +
+    `</div>`;
+  document.body.appendChild(pop);
+  const close = () => pop.remove();
+  pop.querySelector('.oip-backdrop').addEventListener('click', close);
+  pop.querySelector('.oip-x').addEventListener('click', close);
+  $('oip-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      onlineStatus(I18N.t('online.invite_copied', 'コピーしました！'));
+      SE.select();
+    } catch (e) {}
+  });
+  $('oip-line').addEventListener('click', () => {
+    SE.select();
+    window.open('https://line.me/R/share?text=' + encodeURIComponent(text + ' ' + url), '_blank', 'noopener');
+  });
+  $('oip-mail').addEventListener('click', () => {
+    SE.select();
+    window.location.href = 'mailto:?subject=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(text + '\n' + url);
+  });
+}
 function onlineLeave(){
   document.body.classList.remove('online-names');
   actTimerStop();
@@ -5040,6 +5133,7 @@ function renderLobbyEntry(){
     `<div id="online-open" style="font-size:20px;font-weight:900;color:#4638ae;display:flex;align-items:center;gap:8px">🌐 ${esc2(_olT('online_lobby_title', 'オンラインたいせん(ロビー)'))}` +
     ` <span style="font-size:14px;color:#2e8b57;font-weight:800">🟢 <span id="lobby-count">…</span></span></div>` +
     `<div id="lobby-waitlist" style="width:100%;max-width:560px;background:#ffffff88;border:1px solid #c9c3e6;border-radius:12px;padding:8px 12px;font-size:13px;color:#4a4470;min-height:34px"></div>` +
+    inviteBannerHtml() +
     `<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
     `<input id="online-name" placeholder="${esc2(_olT('online_name_ph', 'なまえ'))}" maxlength="10" value="${esc2(savedName)}" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:130px;font-size:15px">` +
     `<button id="lobby-enter" type="button" style="padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_lobby_enter', 'ロビーに はいる'))}</button>` +
@@ -5089,6 +5183,7 @@ function renderLobbyMain(){
     `<div id="online-open" style="font-size:20px;font-weight:900;color:#4638ae;display:flex;align-items:center;gap:8px">🌐 ${esc2(_olT('online_lobby_title', 'オンラインたいせん(ロビー)'))}` +
     ` <span style="font-size:14px;color:#2e8b57;font-weight:800">🟢 <span id="lobby-count">1</span></span></div>` +
     `<div id="lobby-waitlist" style="width:100%;max-width:560px;background:#ffffff88;border:1px solid #c9c3e6;border-radius:12px;padding:8px 12px;font-size:13px;color:#4a4470;min-height:34px"></div>` +
+    inviteBannerHtml() +
     `<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
     `<button id="lobby-ready" type="button" style="${btnCss};background:linear-gradient(90deg,#e0564a,#ff7a63);box-shadow:0 4px 10px #e0564a55">⚔️ ${esc2(_olT('online_lobby_ready', 'じゅんびOK(相手を まつ)'))}</button>` +
     `<button id="lobby-code-toggle" type="button" style="${btnCss};background:#8a82c8">🔑 ${esc2(_olT('online_lobby_use_code', 'あいことばで たいせん'))}</button>` +
@@ -5098,6 +5193,7 @@ function renderLobbyMain(){
     `<span id="online-form" style="display:none;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
     `<input id="online-room" placeholder="${esc2(_olT('online_room_ph', 'あいことば'))}" maxlength="24" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:150px;font-size:15px">` +
     `<button id="online-connect" type="button" style="${btnCss};background:linear-gradient(90deg,#5a4fc4,#7b6ff0);box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_connect', 'せつぞく'))}</button>` +
+    `<button id="online-invite" type="button" style="${btnCss};background:linear-gradient(90deg,#e0a63a,#f0c060);box-shadow:0 4px 10px #e0a63a55">📨 ${esc2(I18N.t('online.invite_button', 'ともだちを さそう'))}</button>` +
     `</span>` +
     `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>`;
   $('lobby-ready').addEventListener('click', lobbyToggleReady);
@@ -5111,6 +5207,15 @@ function renderLobbyMain(){
   $('lobby-vs-ai').addEventListener('click', lobbyVsAi);
   $('online-connect').addEventListener('click', onlineConnect);
   $('online-room').addEventListener('keydown', e => { if (e.key === 'Enter') onlineConnect(); });
+  $('online-invite').addEventListener('click', onlineInvite);
+  // ★招待リンク(?invite=)経由で来た人は、あいことば欄に自動入力+フォームを開いて[せつぞく]を目立たせる
+  // (初回だけ=以降のi18n再描画やユーザーがフォームを閉じた操作を上書きしない)
+  if (INVITE_ROOM && !_inviteApplied){
+    _inviteApplied = true;
+    $('online-room').value = INVITE_ROOM;
+    $('online-form').style.display = 'flex';
+    $('online-connect').classList.add('invite-glow');
+  }
   renderLobbyList();
 }
 // 🤖AIと対戦(2026-07-10 阿部さん「誰もいなかったらAIと」): オンライン非接続のまま、
