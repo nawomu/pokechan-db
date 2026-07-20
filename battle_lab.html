@@ -1237,6 +1237,9 @@ body.in-battle #lab-ai-row{display:flex}
       </select> <span id="sprite-credit" style="display:none;font-size:10px"><a href="https://pokeapi.co/" style="color:#9ec5ff" data-i18n="real_battle.sprite_credit">画像出典: PokéAPI</a></span></span>
       <input type="range" id="snd-vol" min="0" max="1" step="0.05" title="🔊" style="margin-left:auto;width:110px;accent-color:#5a4fc4">
       <button id="snd-toggle" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
+      <!-- ★タスク#19(2026-07-20): BGM(mp3ループ)トグル。既定OFF・ON状態はlocalStorage(pcham_bgm_on)。既存🔊とは独立 -->
+      <button id="bgm-toggle" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.bgm_toggle_off">🎵 BGM</button>
+      <audio id="pb-bgm-audio" loop preload="none" style="display:none"></audio>
     </div>
     <!-- ★バトルラボ 神の手パネル(設計§3-4): 天候/フィールド(共通)+両側それぞれのHP%/状態異常/ランク直接操作 -->
     <div id="god-hand">
@@ -2245,7 +2248,8 @@ function renderPickerTypeChips(){
 }
 function openPicker(id){
   pickerSlot = id;
-  pickerBattleAddSide = null;   // 編成画面のピッカー=バトル追加モードではない
+  pickerBattleAddSide = null;   // 編成画面のピッカーはバトル追加モードではない
+  pbBgmPickerPrevScene = pbBgmScene_; pbBgmSetScene('select');   // ★タスク#19: ボックス/ピッカーを開いている間はselect曲
   $('poke-picker').style.display = 'flex';
   const q = $('pp-q');
   q.value = '';
@@ -2259,6 +2263,7 @@ function openPicker(id){
 function openBattlePicker(trueSide){
   pickerSlot = null;
   pickerBattleAddSide = trueSide;
+  pbBgmPickerPrevScene = pbBgmScene_; pbBgmSetScene('select');   // ★タスク#19
   $('poke-picker').style.display = 'flex';
   const q = $('pp-q');
   q.value = '';
@@ -2266,7 +2271,11 @@ function openBattlePicker(trueSide){
   renderPickerTypeChips();
   renderPickerList('');
 }
-function closePicker(){ $('poke-picker').style.display = 'none'; pickerSlot = null; pickerBattleAddSide = null; }
+function closePicker(){
+  const wasOpen = $('poke-picker') && $('poke-picker').style.display !== 'none';
+  $('poke-picker').style.display = 'none'; pickerSlot = null; pickerBattleAddSide = null;
+  if (wasOpen) pbBgmSetScene(pbBgmPickerPrevScene);   // ★タスク#19: 元のシーンに戻す
+}
 function renderPickerList(query){
   // 同じポケモンは1チームに1体まで(2026-07-06 阿部さん)。同サイドの他スロットで使用中の種は選択肢から外す
   // ★Lab-3-B: バトル追加モードは「その真の側の場+控え」で使用中の種を除外する(同じ考え方を流用)
@@ -2461,7 +2470,7 @@ function initSetup(){
     labUndoSnap = null;
     ['c-revive-continue', 'c-end-battle'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });
     try { closePicker(); } catch (e) {}   // バトル追加モードのピッカーが開いたままなら閉じる
-    bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+    bgmStop(); pbBgmSetScene(null); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
     try { updateLabUndoButton(); renderDmgPin(); } catch (e) {}   // ★A3/A4: バトル外=ボタン/ピンを畳む
   }
   $('c-run').addEventListener('click', exitBattleToSetup);
@@ -2469,6 +2478,18 @@ function initSetup(){
   $('btn-exit').addEventListener('click', e => { e.stopPropagation(); exitBattleToSetup(); });
   // 音オン/オフ(設定はlocalStorageに保存)
   updateSndBtn();
+  // ★BGM(タスク#19): 既定OFF・トグルはlocalStorageに保存。既存🔊(SE)とは独立
+  updateBgmBtn();
+  { const bt = $('bgm-toggle'); if (bt) bt.addEventListener('click', () => {
+      pbBgmOn = !pbBgmOn;
+      localStorage.setItem('pcham_bgm_on', pbBgmOn ? '1' : '0');
+      updateBgmBtn();
+      if (pbBgmOn) pbBgmApply(); else pbBgmStop();
+    }); }
+  // 記憶がONで復元された場合、自動再生ポリシーに従い即再生はしない。最初のジェスチャで鳴らす
+  if (pbBgmOn){ const pbBgmResumeOnGesture = () => pbBgmApply();
+    document.addEventListener('pointerdown', pbBgmResumeOnGesture, { once: true });
+    document.addEventListener('keydown', pbBgmResumeOnGesture, { once: true }); }
   // 音量スライダー(2026-07-06 阿部さん): 全SE/BGM共通のマスターゲイン。保存して次回も同じ音量
   const volEl = $('snd-vol');
   if (volEl){
@@ -2640,6 +2661,7 @@ function startBattle(){
   try { ghRenderAll(); } catch (e) {}   // ★バトルラボ: 神の手パネルも開戦時の状態で作り直す
   setWeatherFx(null);
   bgmStart();
+  pbBgmSetScene('battle');   // ★タスク#19: バトル画面=battle曲
   // ★A2(2026-07-17 阿部さんFB「最初からその場にもうでている」): 開始時も交代入場と同じ登場アニメ。
   // 両側をいったん隠し(gone+HPボックス非表示)、開始行(lineWithFxの登場fx)がenter演出つきで出す
   ['self', 'opp'].forEach(sd => {
@@ -4557,6 +4579,39 @@ function bgmStop(){
 }
 function updateSndBtn(){ const b = $('snd-toggle'); if (b) b.textContent = sndOn ? I18N.t('real_battle.snd_toggle_on','🔊 音オン') : I18N.t('real_battle.snd_toggle_off','🔇 音オフ'); }
 
+// ===== BGM(mp3ループ・タスク#19 2026-07-20 阿部さん指示) =====
+// 既定OFF(自動再生ポリシー+UX)。🎵トグルでON、状態はlocalStorage(pcham_bgm_on)に記憶。
+// 実装方式(a): 既存Web AudioのAudioContext(ac()/dest())に<audio loop>をMediaElementSourceで接続し、
+// SEに埋もれない控えめゲイン(0.35)を挟んで、既存マスター音量スライダー(masterVol)にも連動させる。
+// 既存の合成chiptune BGM(bgmStart/bgmStop・sndOn連動)とは完全に独立(壊さない・混ざっても破綻しない設計)。
+let pbBgmOn = localStorage.getItem('pcham_bgm_on') === '1';
+let pbBgmGainNode = null, pbBgmSrcNode = null, pbBgmCurTrack = null, pbBgmScene_ = null, pbBgmPickerPrevScene = null;
+function pbBgmGraph(el){
+  const ctx = ac();
+  if (!pbBgmGainNode){ pbBgmGainNode = ctx.createGain(); pbBgmGainNode.gain.value = 0.35; pbBgmGainNode.connect(dest()); }
+  if (!pbBgmSrcNode){ try { pbBgmSrcNode = ctx.createMediaElementSource(el); pbBgmSrcNode.connect(pbBgmGainNode); } catch (e) {} }
+}
+function pbBgmApply(){
+  const el = $('pb-bgm-audio'); if (!el) return;
+  if (!pbBgmScene_){ el.pause(); return; }
+  pbBgmGraph(el);
+  try { ac().resume(); } catch (e) {}
+  if (pbBgmCurTrack !== pbBgmScene_){ pbBgmCurTrack = pbBgmScene_; el.src = 'assets/bgm/pb_' + pbBgmScene_ + '.mp3'; }
+  el.play().catch(() => {});
+}
+function pbBgmStop(){ const el = $('pb-bgm-audio'); if (el) el.pause(); }
+// scene = 'battle' | 'select' | null(そのシーンでは無音)。ON/OFFに関係なく常に呼んでよい(内部でpbBgmOnを見る)
+function pbBgmSetScene(scene){
+  pbBgmScene_ = scene;
+  if (pbBgmOn) pbBgmApply(); else pbBgmStop();
+}
+function updateBgmBtn(){
+  const b = $('bgm-toggle'); if (!b) return;
+  b.textContent = pbBgmOn ? I18N.t('real_battle.bgm_toggle_on', '🎵 BGMオン') : I18N.t('real_battle.bgm_toggle_off', '🎵 BGMオフ');
+  b.style.opacity = pbBgmOn ? '1' : '0.55';
+  b.style.background = pbBgmOn ? '#eaf7e6' : '#fff';
+}
+
 // ===== ステージ演出v3のヘルパー =====
 let lastTgt = null;   // 直前のダメージ対象(「こうかは…」「きゅうしょ」は直後の行で飛んでくる)
 let _hitFxDelay = 0;  // Wave1: 直前の飛翔体の飛翔ms(こうか/きゅうしょ行のflash/soundを着弾と同じ拍に重ねる用)
@@ -5114,7 +5169,7 @@ function endOfTurn(){
   renderAll();
   try { ghRenderAll(); } catch (e) {}
   if (labSideDead('opp') || labSideDead('self')){
-    bgmStop();
+    bgmStop(); pbBgmSetScene(null);
     // ★相打ち(両者全滅)の勝敗規則(A.4 2026-07-11・権威=ポケモンWiki「ターン」「だいばくはつ」「みちづれ」。
     // 詳細=reference/_aizuchi_win_rule_2026-07-11.md。従来はdead('opp')だけ見て相打ち=常に勝ち扱いだった):
     // ・反動(フレアドライブ等)での相打ち=最後に技を出した側(攻撃側)の勝ち
@@ -5203,7 +5258,7 @@ function labRunForcedQueue(){
   if (labSideDead(side) && !labReviveFlow){
     labForcedQueue = [];
     labChoicePending = true;
-    bgmStop();
+    bgmStop(); pbBgmSetScene(null);
     showLabGameOverChoice();
     return;
   }
@@ -5267,6 +5322,7 @@ function labReviveContinue(){
   ['c-fight','c-party'].forEach(id => { const b = $(id); if (b) b.style.display = ''; });
   // ★M2(2026-07-17): つづける=バトル続行なのでBGMも再開(snd-toggleの流儀=sndOnの時だけ)
   if (sndOn) bgmStart();
+  pbBgmSetScene('battle');   // ★タスク#19: mp3 BGMは独立トグルなのでsndOnと無関係に続行
   if (labSwapped) labSwapSides();   // 判定は非swap前提
   labReviveFlow = true;   // ★H4: この死に出しは復活経由=全滅側でも♻ふっかつ付き交代画面を出してよい
   labForcedQueue = [];
@@ -5420,7 +5476,7 @@ function onlineAfterGame(){
 }
 function onlineOppGone(resigned){
   if (gameOver) return;
-  gameOver = true; bgmStop(); SE.win();
+  gameOver = true; bgmStop(); pbBgmSetScene(null); SE.win();
   // scene:win(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
   { const _wlSheet2 = resolveSceneSheet('win'); if (_wlSheet2) playSceneCueSheet(_wlSheet2, { won: true }); else showResultBanner(true); }
   const ja = resigned ? '相手は こうさんした！ きみの かち！' : '相手が たいせんから 抜けた。きみの かち！';

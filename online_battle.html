@@ -1213,6 +1213,9 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
       </select> <span id="sprite-credit" style="display:none;font-size:10px"><a href="https://pokeapi.co/" style="color:#9ec5ff" data-i18n="real_battle.sprite_credit">画像出典: PokéAPI</a></span></span>
       <input type="range" id="snd-vol" min="0" max="1" step="0.05" title="🔊" style="margin-left:auto;width:110px;accent-color:#5a4fc4">
       <button id="snd-toggle" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
+      <!-- ★タスク#19(2026-07-20): BGM(mp3ループ)トグル。既定OFF・ON状態はlocalStorage(pcham_bgm_on)。既存🔊とは独立 -->
+      <button id="bgm-toggle" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.bgm_toggle_off">🎵 BGM</button>
+      <audio id="pb-bgm-audio" loop preload="none" style="display:none"></audio>
     </div>
     </div><!-- /battle-main -->
     <div id="battle-log-panel">
@@ -2119,6 +2122,7 @@ function renderPickerTypeChips(){
 }
 function openPicker(id){
   pickerSlot = id;
+  pbBgmPickerPrevScene = pbBgmScene_; pbBgmSetScene('select');   // ★タスク#19: ボックス/ピッカーを開いている間はselect曲
   $('poke-picker').style.display = 'flex';
   const q = $('pp-q');
   q.value = '';
@@ -2127,7 +2131,11 @@ function openPicker(id){
   renderPickerList('');
   // 自動フォーカスしない(キーボードが勝手に出ない=2026-07-07 阿部さん)
 }
-function closePicker(){ $('poke-picker').style.display = 'none'; pickerSlot = null; }
+function closePicker(){
+  const wasOpen = $('poke-picker') && $('poke-picker').style.display !== 'none';
+  $('poke-picker').style.display = 'none'; pickerSlot = null;
+  if (wasOpen) pbBgmSetScene(pbBgmPickerPrevScene);   // ★タスク#19: 元のシーンに戻す
+}
 function renderPickerList(query){
   // 同じポケモンは1チームに1体まで(2026-07-06 阿部さん)。同サイドの他スロットで使用中の種は選択肢から外す
   const side = pickerSlot && pickerSlot.startsWith('s') ? selfIds() : oppIds();
@@ -2485,7 +2493,7 @@ function initSetup(){
       if (RB_ONLINE.started && !gameOver && window.RBOnline){ try { RBOnline.resign(); } catch(e) {} }
       setTimeout(() => onlineLeave(), 600);
     }
-    bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+    bgmStop(); pbBgmSetScene('lobby'); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
   });
   // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
   $('btn-exit').addEventListener('click', e => {
@@ -2494,10 +2502,17 @@ function initSetup(){
       if (RB_ONLINE.started && !gameOver && window.RBOnline){ try { RBOnline.resign(); } catch (e2) {} }
       setTimeout(() => onlineLeave(), 600);
     }
-    bgmStop(); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+    bgmStop(); pbBgmSetScene('lobby'); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
   });
   // 音オン/オフ(設定はlocalStorageに保存)
   updateSndBtn();
+  // ★BGM(タスク#19): 既定OFF・トグルはlocalStorageに保存。既存🔊(SE)とは独立
+  updateBgmBtn();
+  { const bt = $('bgm-toggle'); if (bt) bt.addEventListener('click', pbBgmToggle); }
+  // 記憶がONで復元された場合、自動再生ポリシーに従い即再生はしない。最初のジェスチャで鳴らす
+  if (pbBgmOn){ const pbBgmResumeOnGesture = () => pbBgmApply();
+    document.addEventListener('pointerdown', pbBgmResumeOnGesture, { once: true });
+    document.addEventListener('keydown', pbBgmResumeOnGesture, { once: true }); }
   // 音量スライダー(2026-07-06 阿部さん): 全SE/BGM共通のマスターゲイン。保存して次回も同じ音量
   const volEl = $('snd-vol');
   if (volEl){
@@ -2666,6 +2681,7 @@ function startBattle(){
   renderAll();   // renderAll内でrenderSideBarsも呼ばれる(へんしん済みのすがたで描画)
   setWeatherFx(null);
   bgmStart();
+  pbBgmSetScene('battle');   // ★タスク#19: 対戦開始後=battle曲
   say([I18N.t('real_battle.battle_start_self','バトルスタート！ いけっ！ {n}！').replace('{n}', selfName0), I18N.t('real_battle.battle_start_opp','相手は {n} を くりだした！').replace('{n}', oppName0)].concat(initLines), () => showActionUI());
 }
 
@@ -3894,6 +3910,49 @@ function bgmStop(){
 }
 function updateSndBtn(){ const b = $('snd-toggle'); if (b) b.textContent = sndOn ? I18N.t('real_battle.snd_toggle_on','🔊 音オン') : I18N.t('real_battle.snd_toggle_off','🔇 音オフ'); }
 
+// ===== BGM(mp3ループ・タスク#19 2026-07-20 阿部さん指示) =====
+// 既定OFF(自動再生ポリシー+UX)。🎵トグルでON、状態はlocalStorage(pcham_bgm_on)に記憶。
+// 実装方式(a): 既存Web AudioのAudioContext(ac()/dest())に<audio loop>をMediaElementSourceで接続し、
+// SEに埋もれない控えめゲイン(0.35)を挟んで、既存マスター音量スライダー(masterVol)にも連動させる。
+// 既存の合成chiptune BGM(bgmStart/bgmStop・sndOn連動)とは完全に独立(壊さない・混ざっても破綻しない設計)。
+// online_battle固有: ロビー画面(#setup)=lobby曲・対戦開始後(#battle)=battle曲。
+let pbBgmOn = localStorage.getItem('pcham_bgm_on') === '1';
+let pbBgmGainNode = null, pbBgmSrcNode = null, pbBgmCurTrack = null, pbBgmScene_ = null, pbBgmPickerPrevScene = null;
+function pbBgmGraph(el){
+  const ctx = ac();
+  if (!pbBgmGainNode){ pbBgmGainNode = ctx.createGain(); pbBgmGainNode.gain.value = 0.35; pbBgmGainNode.connect(dest()); }
+  if (!pbBgmSrcNode){ try { pbBgmSrcNode = ctx.createMediaElementSource(el); pbBgmSrcNode.connect(pbBgmGainNode); } catch (e) {} }
+}
+function pbBgmApply(){
+  const el = $('pb-bgm-audio'); if (!el) return;
+  if (!pbBgmScene_){ el.pause(); return; }
+  pbBgmGraph(el);
+  try { ac().resume(); } catch (e) {}
+  if (pbBgmCurTrack !== pbBgmScene_){ pbBgmCurTrack = pbBgmScene_; el.src = 'assets/bgm/pb_' + pbBgmScene_ + '.mp3'; }
+  el.play().catch(() => {});
+}
+function pbBgmStop(){ const el = $('pb-bgm-audio'); if (el) el.pause(); }
+// scene = 'battle' | 'lobby' | 'select' | null(そのシーンでは無音)。ON/OFFに関係なく常に呼んでよい(内部でpbBgmOnを見る)
+function pbBgmSetScene(scene){
+  pbBgmScene_ = scene;
+  if (pbBgmOn) pbBgmApply(); else pbBgmStop();
+}
+function updateBgmBtn(){
+  // バトル画面の #bgm-toggle とロビーの #bgm-toggle-lobby の両方を更新(★#19: ロビーからも切替可)
+  ['bgm-toggle', 'bgm-toggle-lobby'].forEach(id => {
+    const b = $(id); if (!b) return;
+    b.textContent = pbBgmOn ? I18N.t('real_battle.bgm_toggle_on', '🎵 BGMオン') : I18N.t('real_battle.bgm_toggle_off', '🎵 BGMオフ');
+    b.style.opacity = pbBgmOn ? '1' : '0.55';
+    b.style.background = pbBgmOn ? '#eaf7e6' : '#fff';
+  });
+}
+function pbBgmToggle(){
+  pbBgmOn = !pbBgmOn;
+  localStorage.setItem('pcham_bgm_on', pbBgmOn ? '1' : '0');
+  updateBgmBtn();
+  if (pbBgmOn) pbBgmApply(); else pbBgmStop();
+}
+
 // ===== ステージ演出v3のヘルパー =====
 let lastTgt = null;   // 直前のダメージ対象(「こうかは…」「きゅうしょ」は直後の行で飛んでくる)
 let _hitFxDelay = 0;  // Wave1: 直前の飛翔体の飛翔ms(こうか/きゅうしょ行のflash/soundを着弾と同じ拍に重ねる用)
@@ -4449,7 +4508,7 @@ function endOfTurn(){
   };
   if (dead('opp') || dead('self')){
     gameOver = true;
-    bgmStop();
+    bgmStop(); pbBgmSetScene('lobby');
     // ★相打ち(両者全滅)の勝敗規則(A.4 2026-07-11・権威=ポケモンWiki「ターン」「だいばくはつ」「みちづれ」。
     // 詳細=reference/_aizuchi_win_rule_2026-07-11.md。従来はdead('opp')だけ見て相打ち=常に勝ち扱いだった):
     // ・反動(フレアドライブ等)での相打ち=最後に技を出した側(攻撃側)の勝ち
@@ -5011,7 +5070,7 @@ function onlineAfterGame(){
 }
 function onlineOppGone(resigned){
   if (gameOver) return;
-  gameOver = true; bgmStop(); SE.win();
+  gameOver = true; bgmStop(); pbBgmSetScene('lobby'); SE.win();
   // scene:win(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
   { const _wlSheet2 = resolveSceneSheet('win'); if (_wlSheet2) playSceneCueSheet(_wlSheet2, { won: true }); else showResultBanner(true); }
   const ja = resigned ? '相手は こうさんした！ きみの かち！' : '相手が たいせんから 抜けた。きみの かち！';
@@ -5122,6 +5181,7 @@ function onlineInitUI(){
     + 'box-shadow:0 6px 20px #5a4fc455';
   btns.parentNode.insertBefore(wrap, btns.nextSibling);
   renderLobbyEntry();
+  pbBgmSetScene('lobby');   // ★タスク#19: ロビー画面=lobby曲(既定シーン)
 }
 // 入口: なまえ+[ロビーに はいる]
 function renderLobbyEntry(){
@@ -5139,9 +5199,12 @@ function renderLobbyEntry(){
     `<button id="lobby-enter" type="button" style="padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_lobby_enter', 'ロビーに はいる'))}</button>` +
     `<button id="lobby-vs-ai" type="button" style="padding:13px 20px;border-radius:22px;border:0;background:linear-gradient(90deg,#2e8b57,#4aab77);color:#fff;font-weight:900;font-size:15px;cursor:pointer">🤖 ${esc2(_olT('online_lobby_vs_ai', 'AIと たいせん'))}</button>` +
     `</span>` +
-    `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>`;
+    `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>` +
+    `<button id="bgm-toggle-lobby" type="button" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer;font-size:12px" data-i18n="real_battle.bgm_toggle_off">🎵 BGM</button>`;
   $('lobby-enter').addEventListener('click', lobbyEnter);
   $('lobby-vs-ai').addEventListener('click', lobbyVsAi);
+  { const bl = $('bgm-toggle-lobby'); if (bl) bl.addEventListener('click', pbBgmToggle); }
+  updateBgmBtn();
   $('online-name').addEventListener('keydown', e => { if (e.key === 'Enter') lobbyEnter(); });
   renderLobbyList();
   lobbyObserve();   // 一覧を購読(まだ自分は載らない)
