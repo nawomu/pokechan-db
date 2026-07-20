@@ -78,25 +78,15 @@ const spriteIdOf = id => {
   return m ? String(parseInt(m[1], 10)) : null;
 };
 
-// 画像3列セル(オリジナル絵 + 公式ドット絵 + 公式3D)。名前の左に置く。No は別途先頭(children[0]=No前提)。
+// 画像セル(オリジナル絵のみ)。名前の左に置く。No は別途先頭(children[0]=No前提)。
 // ・オリジナル絵: images/sim/{ja}.svg → .png → remove(real_battle_simulator.html と同パターン)
-// ・公式ドット絵: images/poke/{id}.png → GitHub raw フォールバック → 非表示(pokemon_db_all.html と同パターン)
-// ・公式3D(Pokémon HOME): GitHub raw のみ。ローカルコピーは無いので onerror で要素 remove。
-// c-NNN は spriteIdOf でベース種 id に解決し、ドット絵/3D ともベースの姿で表示(代用・区別マークは付けない)。
+// ※ 公式ドット絵/公式3D(PokeAPI)は AdSense 方針により非掲載(2026-07-21)。
 const imgCells = (lang, jaName) => {
   const sd = up(lang) + '/images/sim', e = enc(jaName);
   const art = `<img src="${sd}/${e}.svg" alt="" loading="lazy" style="height:44px;max-width:48px;vertical-align:middle"`
     + ` onerror="if(!this.dataset.png){this.dataset.png=1;this.src='${sd}/${e}.png';}else{this.remove();}">`;
-  const id = spriteIdOf(pokeIdOf(jaName));   // null または "26"(c-026 → "26")
-  let sprite = '', home = '';
-  if (id) {
-    const pd = up(lang) + '/images/poke', fb = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${id}.png`;
-    sprite = `<img src="${pd}/${id}.png" alt="" loading="lazy" data-fb="${fb}" style="height:44px;max-width:48px;vertical-align:middle"`
-      + ` onerror="if(this.dataset.fb){this.src=this.dataset.fb;this.dataset.fb='';}else{this.style.visibility='hidden';}">`;
-    home = `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${id}.png" alt="" loading="lazy" style="height:44px;max-width:48px;vertical-align:middle"`
-      + ` onerror="this.remove();">`;
-  }
-  return `<td class="img">${art}</td><td class="img">${sprite}</td><td class="img">${home}</td>`;
+  // 公式ドット絵(PokeAPI)/公式3D(Pokémon HOME)は AdSense 方針により非掲載。自作絵(art)のみ表示。
+  return `<td class="img">${art}</td>`;
 };
 
 // ---- パス/URL ----
@@ -442,7 +432,7 @@ function genPokemonIndex(lang) {
     </div>
     <div class="table-scroll"><table class="sortable list-table" id="pkTable">
       <thead><tr>
-        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th>${esc(T(lang, 'col_home'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
+        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
         <th>${esc(T(lang, 'col_ability'))}<span style="font-weight:400;font-size:11px;color:#888">${esc(T(lang, 'col_ability_hint'))}</span></th>
         <th class="num" data-k="hp">${esc(T(lang, 'col_hp'))}</th><th class="num" data-k="atk">${esc(T(lang, 'col_atk'))}</th><th class="num" data-k="def">${esc(T(lang, 'col_def'))}</th>
         <th class="num" data-k="spatk">${esc(T(lang, 'col_spatk'))}</th><th class="num" data-k="spdef">${esc(T(lang, 'col_spdef'))}</th><th class="num" data-k="spd">${esc(T(lang, 'col_spd'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
@@ -527,7 +517,7 @@ function genPokemonAllIndex(lang) {
     </div>
     <div class="table-scroll"><table class="sortable list-table" id="pkTable">
       <thead><tr>
-        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th>${esc(T(lang, 'col_sprite'))}</th><th>${esc(T(lang, 'col_home'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
+        <th class="num" data-k="no">${esc(T(lang, 'col_no'))}</th><th>${esc(T(lang, 'col_art'))}</th><th data-k="name">${esc(T(lang, 'col_name'))}</th><th>${esc(T(lang, 'col_type'))}</th>
         <th>${esc(T(lang, 'col_ability'))}<span style="font-weight:400;font-size:11px;color:#888">${esc(T(lang, 'col_ability_hint'))}</span></th>
         <th class="num" data-k="hp">${esc(T(lang, 'col_hp'))}</th><th class="num" data-k="atk">${esc(T(lang, 'col_atk'))}</th><th class="num" data-k="def">${esc(T(lang, 'col_def'))}</th>
         <th class="num" data-k="spatk">${esc(T(lang, 'col_spatk'))}</th><th class="num" data-k="spdef">${esc(T(lang, 'col_spdef'))}</th><th class="num" data-k="spd">${esc(T(lang, 'col_spd'))}</th><th class="num" data-k="total">${esc(T(lang, 'col_total'))}</th>
