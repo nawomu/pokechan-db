@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3Y3S9N1K7H"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-3Y3S9N1K7H');
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8021399778265482" crossorigin="anonymous"></script>
+<title data-i18n="guide.battle_flow_title">バトルの計算と1ターンの流れ(エンジン開発者の解説) - PchamDB</title>
+<meta name="description" data-i18n-attr="content:guide.battle_flow_meta_desc" content="PchamDBのバトルエンジンが実際に使っているダメージ計算式と1ターンの処理順序を、実数値つきで解説。優先度・素早さ・天候・急所の掛け算の順番まで、対戦で差がつくポイントを実例で紹介します。">
+<meta name="theme-color" content="#FF7A00">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://pchamdb.com/guide_battle_flow.html">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="favicon.png">
+<link rel="manifest" href="manifest.json">
+<script defer src="i18n/runtime.js?v=20260720"></script>
+
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="PchamDB">
+<meta property="og:title" content="バトルの計算と1ターンの流れ(エンジン開発者の解説) - PchamDB">
+<meta property="og:description" content="ダメージ計算式・1ターンの処理順序・確定数の読み方を、実数値で解説する対戦勢向けガイド。">
+<meta property="og:url" content="https://pchamdb.com/guide_battle_flow.html">
+<meta property="og:image" content="https://pchamdb.com/ogp/og-default.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="https://pchamdb.com/ogp/og-default.png">
+
+<style>
+  :root {
+    --orange: #FF7A00;
+    --orange-light: #FFB347;
+    --blue: #1E5BB8;
+    --blue-dark: #103D85;
+    --yellow: #FFCB05;
+    --green: #2E8B57;
+    --red: #C0392B;
+    --purple: #8b5cf6;
+    --bg: #fafafa;
+    --text: #1a1a1a;
+    --muted: #666;
+    --card-bg: #ffffff;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Yu Gothic", system-ui, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.6;
+  }
+  a { color: inherit; text-decoration: none; }
+
+  .hero {
+    position: relative;
+    background: #ffffff;
+    padding: 16px 20px 14px;
+    text-align: center;
+    border-bottom: 3px solid var(--yellow);
+  }
+  .hero-home {
+    display: inline-block;
+    color: var(--blue);
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+  .hero-home:hover { text-decoration: underline; }
+  .hero-title {
+    font-size: 22px;
+    color: var(--blue);
+    margin: 4px 0 2px;
+    letter-spacing: 0.5px;
+    line-height: 1.35;
+  }
+  .hero-sub {
+    font-size: 12px;
+    color: var(--muted);
+    margin: 0;
+    letter-spacing: 1px;
+  }
+  #i18n-switcher-mount {
+    position: absolute;
+    top: 10px;
+    right: 16px;
+    z-index: 10;
+  }
+
+  /* ── 解説本文 ── */
+  .guide { background: var(--bg); padding: 22px 20px 48px; }
+  .guide-inner { max-width: 860px; margin: 0 auto; }
+  .guide h2 {
+    font-size: 20px; color: var(--blue);
+    margin: 38px 0 12px; padding-left: 12px;
+    border-left: 5px solid var(--orange); line-height: 1.35;
+  }
+  .guide h2:first-of-type { margin-top: 8px; }
+  .guide h3 {
+    font-size: 15.5px; color: var(--blue-dark);
+    margin: 22px 0 10px;
+  }
+  .guide p { color: #333; font-size: 14.5px; line-height: 1.9; margin: 0 0 14px; }
+  .guide .guide-lead {
+    font-size: 15px; color: #2a2a2a; background: #fff8ec;
+    border: 1px solid #ffe1b3; border-radius: 10px; padding: 14px 16px;
+    margin: 0 0 20px;
+  }
+  .guide .guide-lead strong { color: var(--orange); }
+  .guide ul, .guide ol { color: #333; font-size: 14.5px; line-height: 1.9; margin: 0 0 14px; padding-left: 22px; }
+  .guide li { margin-bottom: 4px; }
+  .guide a.guide-link { color: var(--blue); font-weight: 700; text-decoration: underline; }
+
+  /* フェーズ・流れの図 */
+  .flow-steps { list-style: none; padding: 0; margin: 0 0 16px; counter-reset: flowstep; }
+  .flow-steps li {
+    position: relative; background: var(--card-bg); border-radius: 10px;
+    padding: 12px 16px 12px 46px; margin-bottom: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.05); border-left: 4px solid var(--blue);
+    font-size: 14px; line-height: 1.75; color: #333;
+    counter-increment: flowstep;
+  }
+  .flow-steps li::before {
+    content: counter(flowstep);
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    width: 24px; height: 24px; border-radius: 50%; background: var(--blue);
+    color: #fff; font-weight: 800; font-size: 12.5px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .flow-steps li strong { color: var(--blue-dark); }
+  .flow-steps li.sub-phase { border-left-color: var(--orange); }
+  .flow-steps li.sub-phase::before { background: var(--orange); }
+
+  /* 実例ボックス */
+  .example-box {
+    background: var(--card-bg); border: 2px solid #dfe7f2; border-radius: 12px;
+    padding: 16px 18px; margin: 0 0 20px; box-shadow: 0 2px 12px rgba(0,0,0,0.05);
+  }
+  .example-box .ex-title {
+    font-size: 13.5px; font-weight: 800; color: #fff; background: var(--blue);
+    display: inline-block; padding: 3px 12px; border-radius: 999px; margin-bottom: 10px;
+  }
+  .example-box .ex-setup { font-size: 13.5px; color: var(--muted); margin-bottom: 10px; }
+  .example-box .ex-result {
+    font-size: 14.5px; color: #1a1a1a; background: #fff8ec; border-radius: 8px;
+    padding: 10px 12px; margin-top: 10px; border-left: 4px solid var(--orange);
+  }
+  .example-box .vs-row {
+    display: flex; flex-wrap: wrap; gap: 10px; margin: 8px 0;
+  }
+  .stat-chip {
+    flex: 1 1 200px; background: #f3f6fb; border-radius: 8px; padding: 8px 12px;
+    font-size: 13px; color: #333;
+  }
+  .stat-chip b { display: block; font-size: 17px; color: var(--blue-dark); }
+  .stat-chip.lose b { color: var(--red); }
+  .stat-chip.win b { color: var(--green); }
+
+  /* テーブル */
+  .table-wrap { overflow-x: auto; margin: 0 0 18px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+  table.data-table { width: 100%; border-collapse: collapse; background: #fff; font-size: 13px; min-width: 480px; }
+  table.data-table caption { text-align: left; font-size: 12.5px; color: var(--muted); padding: 6px 2px; caption-side: top; }
+  table.data-table th, table.data-table td { padding: 8px 10px; border-bottom: 1px solid #eef1f5; text-align: center; }
+  table.data-table th { background: var(--blue); color: #fff; font-weight: 700; font-size: 12.5px; white-space: nowrap; }
+  table.data-table td:first-child, table.data-table th:first-child { text-align: left; font-weight: 700; color: var(--blue-dark); }
+  table.data-table tbody tr:nth-child(even) { background: #f7f9fc; }
+  table.data-table tbody tr.hl { background: #fff3d6; }
+  table.data-table .num { font-variant-numeric: tabular-nums; }
+
+  /* 数式ボックス */
+  .formula-box {
+    background: #12213b; color: #e8f0ff; border-radius: 10px; padding: 16px 18px;
+    font-family: "SF Mono", Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.9;
+    overflow-x: auto; margin: 0 0 16px; white-space: pre;
+  }
+  .formula-box .cm { color: #8fb3ff; }
+
+  /* 誤解カード */
+  .myth-card {
+    background: var(--card-bg); border-radius: 12px; padding: 16px 18px; margin: 0 0 18px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.05); border-left: 5px solid var(--red);
+  }
+  .myth-card .myth-x {
+    display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13.5px;
+    color: var(--red); background: #fdeceb; padding: 3px 10px; border-radius: 999px; margin-bottom: 8px;
+  }
+  .myth-card .myth-o {
+    display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-size: 13.5px;
+    color: var(--green); background: #eaf6ee; padding: 3px 10px; border-radius: 999px; margin: 6px 0 8px;
+  }
+  .myth-card .myth-note { font-size: 12.5px; color: var(--muted); border-top: 1px dashed #ddd; padding-top: 8px; margin-top: 10px; }
+
+  .cta-box {
+    background: linear-gradient(135deg, #103D85, #1E5BB8); color: #fff; border-radius: 12px;
+    padding: 18px 20px; margin: 24px 0; display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 12px;
+  }
+  .cta-box .cta-text { font-size: 14px; line-height: 1.7; }
+  .cta-box .cta-text strong { font-size: 15.5px; display: block; margin-bottom: 3px; }
+  .cta-box a.cta-btn {
+    background: var(--yellow); color: #4a3600; font-weight: 800; font-size: 13.5px;
+    padding: 10px 18px; border-radius: 999px; white-space: nowrap;
+  }
+  .cta-box a.cta-btn:hover { background: #ffd94d; }
+
+  .guide .guide-note {
+    font-size: 12.5px; color: var(--muted);
+    border-top: 1px dashed #ddd; padding-top: 14px; margin-top: 22px;
+  }
+
+  footer {
+    background: #1a1a1a; color: #aaa;
+    padding: 40px 20px; text-align: center;
+    font-size: 13px; line-height: 1.8;
+  }
+  footer .unofficial { color: var(--yellow); font-weight: 700; font-size: 14px; margin-bottom: 12px; }
+  footer .copyright { color: #888; font-size: 12px; margin-top: 16px; }
+  footer a { color: var(--orange-light); }
+  footer .footer-links { margin: 16px 0 12px; font-size: 12px; }
+  footer .footer-links a { margin: 0 8px; text-decoration: none; }
+  footer .footer-links a:hover { text-decoration: underline; }
+
+  #back-to-top {
+    position: fixed; bottom: 28px; right: 20px;
+    width: 48px; height: 48px; border-radius: 50%;
+    background: rgba(255, 122, 0, 0.95); color: #fff; border: none;
+    font-size: 22px; font-weight: bold; cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    opacity: 0; pointer-events: none;
+    transition: opacity 0.3s, transform 0.2s, box-shadow 0.2s;
+    z-index: 9997; display: flex; align-items: center; justify-content: center;
+    line-height: 1; padding: 0;
+  }
+  #back-to-top.visible { opacity: 1; pointer-events: auto; }
+  #back-to-top:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(0,0,0,0.5); }
+
+  @media (max-width: 600px) {
+    .hero-title { font-size: 18px; }
+    .guide { padding: 16px 16px 40px; }
+    .stat-chip { flex: 1 1 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <span id="i18n-switcher-mount"></span>
+  <a href="index.html" class="hero-home">🏠 PchamDB</a>
+  <h1 class="hero-title" data-i18n="guide.battle_flow_h1">バトルの計算と1ターンの流れ</h1>
+  <p class="hero-sub" data-i18n="guide.battle_flow_sub">エンジン開発者の解説 — ダメージ計算式とターン処理の順番</p>
+</header>
+
+<section class="guide" aria-label="バトルの計算と1ターンの流れ">
+  <div class="guide-inner">
+
+    <p class="guide-lead">この記事の数字は、当サイトのバトルエンジン(<a class="guide-link" href="battle_simulator.html">バトルシミュレータ</a>・<a class="guide-link" href="real_battle.html">リアルバトル</a>と<strong>全対戦機能と同一の計算式</strong>)で実際に計算した値です。前提(努力ポイントの振り方・性格・持ち物)はすべて明示しています。数字を丸めた説明や記憶ベースの「だいたいこう」は書いていません。</p>
+
+    <p>「なんで先制技じゃないのに先に動いたの?」「同じ相手なのにダメージが毎回違う」——対戦を始めたばかりだと、この2つでつまずくことが多いはずです。原因はどちらも「バトルは決まった順番で、決まった式で処理されている」というシンプルな事実にあります。この記事では、PchamDBのバトルエンジンが実際にどう計算しているかを、実数値つきで最後まで見ていきます。</p>
+
+    <h2>① 1ターンの完全な流れ</h2>
+    <p>1ターンは、実は「技を出す」だけではありません。両者が行動を選んだあと、決まった大枠の順番で処理が進みます。</p>
+    <ol class="flow-steps">
+      <li><strong>行動選択</strong> — 両者が「技・交代・道具・逃げる」を同時に、相手に見えない状態で選ぶ。</li>
+      <li><strong>交代・道具・逃げる</strong> — 技よりも先にすべて処理される。素早さがどれだけ低くても、交代は技より先に完了する。</li>
+      <li class="sub-phase"><strong>メガシンカ / ダイマックス / テラスタル</strong> — 交代のあと、技を出す直前に発動する。</li>
+      <li><strong>技フェーズ</strong> — 優先度 → 素早さ(補正込み) → トリックルーム(発動時は逆転)の順で、1体ずつ技を実行する。</li>
+      <li><strong>ターン終了処理</strong> — 天候ダメージ → 状態異常ダメージ(どく→やけど) → バインド継続 → 場・壁のカウント、という決まった順で処理される。</li>
+    </ol>
+    <p class="guide-note" style="margin-top:0">出典: <a class="guide-link" href="https://bulbapedia.bulbagarden.net/wiki/Priority" target="_blank" rel="noopener">Bulbapedia: Priority</a> / <a class="guide-link" href="https://www.dragonflycave.com/battle.aspx" target="_blank" rel="noopener">The Cave of Dragonflies: Battle Mechanics</a>。当サイトの実装根拠は社内資料「バトルの流れ_実機リファレンス.md」にまとめています。</p>
+
+    <h3>技フェーズの中の順番(誰が先に動くか)</h3>
+    <p>同じターンに両者が技を出す場合、上から順に判定されます。<strong>素早さは4番目</strong>で、優先度より下位の判定材料でしかありません。</p>
+    <ol>
+      <li>技の優先度ブラケット(+5〜-7。高いほど先)</li>
+      <li>せんせいのツメ・イバンのみ・クイックドロウなど、同ブラケット内の割り込み</li>
+      <li>こうこうのしっぽ・あとだしなど、行動を遅らせる効果</li>
+      <li>補正込みの素早さ(トリックルーム時は逆順)</li>
+      <li>同速なら乱数</li>
+    </ol>
+
+    <div class="table-wrap">
+      <table class="data-table">
+        <caption>優先度ブラケット表(抜粋)</caption>
+        <thead><tr><th>優先度</th><th>技・効果の例</th></tr></thead>
+        <tbody>
+          <tr><td class="num">+2</td><td>しんそく、であいがしら、フェイント、このゆびとまれ</td></tr>
+          <tr class="hl"><td class="num">+1</td><td>でんこうせっか、アクアジェット、バレットパンチ、マッハパンチ、かげうち</td></tr>
+          <tr><td class="num">0</td><td>上記以外の通常技(じしん・だいもんじ・ムーンフォース など)</td></tr>
+          <tr><td class="num">-6</td><td>ほえる、ふきとばし、ドラゴンテール、ともえなげ</td></tr>
+          <tr><td class="num">-7</td><td>トリックルーム</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>実例1: 優先度は、素早さの差をまるごと無視して勝つ</h3>
+    <div class="example-box">
+      <span class="ex-title">検算済み</span>
+      <p class="ex-setup"><strong>メタグロス</strong>(意地っ張り・こうげき32pt)が優先度+2の「しんそく」を、<strong>オンバーン</strong>(臆病・すばやさ32pt=最速)が優先度0の通常技を選んだ場合。</p>
+      <div class="vs-row">
+        <div class="stat-chip lose"><b>90</b>メタグロスの実効すばやさ</div>
+        <div class="stat-chip win"><b>192</b>オンバーンの実効すばやさ</div>
+      </div>
+      <p style="margin:6px 0 0;font-size:13.5px">素早さだけで比べれば、192のオンバーンが90のメタグロスの2倍以上速く、先に動くはずです。しかし実際は——</p>
+      <div class="ex-result">
+        <strong>メタグロスが先に動く。</strong>しんそくの優先度(+2)が、オンバーンの通常技(優先度0)より高いブラケットにいるため、素早さの比較にすら進まない。実際のダメージは<strong>62〜74</strong>(オンバーンの実数値HP160に対し約39〜46%)。もし素早さだけで順番が決まる技だったら、この一撃はメタグロスに届かなかった。
+      </div>
+    </div>
+
+    <h3>実例2: 「壁」は張るタイミングが1ターン遅れると、結果がまるごと変わる</h3>
+    <div class="example-box">
+      <span class="ex-title">検算済み</span>
+      <p class="ex-setup"><strong>バンギラス</strong>(無振り)が「リフレクター」を、<strong>ガブリアス</strong>(意地っ張り・こうげき32pt)が「じしん」(物理・威力100)を選んだ同じターン。バンギラスの実効すばやさ(81)はガブリアス(122)より遅いので、リフレクターは技フェーズの中で<strong>ガブリアスより後</strong>に処理される。</p>
+      <div class="vs-row">
+        <div class="stat-chip lose"><b>174〜206</b>このターン(リフレクター未展開)のダメージ</div>
+        <div class="stat-chip win"><b>87〜103</b>次ターン以降(リフレクター展開後)のダメージ</div>
+      </div>
+      <div class="ex-result">
+        バンギラスの実数値HPは175。<strong>このターンは壁が間に合わず、乱数16通りのうち15通りで瀕死になる</strong>(最小ロールの174だけが1残ってぎりぎり耐える)。壁が先に張られていれば87〜103で悠々と耐えられたのに、「張るのが1テンポ遅れた」だけで生死が入れ替わる。壁技を先に使うなら、自分の方が速いか(あるいは相手が交代してくる隙を突けるか)を必ず確認する必要がある。
+      </div>
+    </div>
+
+    <h2>② ダメージ計算の仕組み</h2>
+    <p>ダメージ計算は、次の順で1つずつ掛け算・端数処理をしていく積み上げ式です。</p>
+    <div class="formula-box"><span class="cm">// 基礎ダメージ</span>
+基礎ダメージ = floor( (2×レベル÷5+2) × 威力 × 攻撃 ÷ 防御 ÷ 50 + 2 )
+
+<span class="cm">// そこに以下を左から順に掛けていく(各ステップごとに端数処理)</span>
+× 複数対象(ダブル0.75) × 天候 × 急所(1.5倍、スナイパー2.25倍)
+× 乱数(85〜100%を16刻み) × タイプ一致(STAB) × タイプ相性
+× やけど(物理0.5倍) × その他(いのちのたま等)</div>
+    <p><strong>端数処理は2種類が混在</strong>していて、ここを勘違いすると自分で計算した数字とサイトの数字がずれます。</p>
+    <ul>
+      <li><strong>基礎ダメージの中の各割り算</strong>: その都度<strong>切り捨て</strong></li>
+      <li><strong>基礎ダメージ以降の各補正</strong>: 原則<strong>五捨五超入</strong>(0.5ちょうどは切り捨て、0.5を超えたら切り上げ)</li>
+      <li><strong>例外で切り捨て</strong>: 乱数を掛けたあと・タイプ相性を掛けたあとの2箇所だけは切り捨て</li>
+    </ul>
+
+    <h3>実例3: 実在する組み合わせの16通り(乱数85〜100%)</h3>
+    <div class="table-wrap">
+      <table class="data-table">
+        <caption>ガブリアス(意地っ張り・こうげき32pt)の「じしん」(物理100・タイプ一致) → マスカーニャ(無振り・くさ/あく=じめん半減0.5倍)。攻撃実数値200・防御実数値90・HP実数値151</caption>
+        <thead><tr><th>乱数%</th><th>85</th><th>86</th><th>87</th><th>88</th><th>89</th><th>90</th><th>91</th><th>92</th><th>93</th><th>94</th><th>95</th><th>96</th><th>97</th><th>98</th><th>99</th><th>100</th></tr></thead>
+        <tbody>
+          <tr><td>ダメージ</td><td class="num">63</td><td class="num">63</td><td class="num">64</td><td class="num">65</td><td class="num">66</td><td class="num">66</td><td class="num">67</td><td class="num">68</td><td class="num">69</td><td class="num">69</td><td class="num">70</td><td class="num">71</td><td class="num">72</td><td class="num">72</td><td class="num">73</td><td class="num">74</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>最小63〜最大74の16通り。HP151に対しては最大でも74なので1発では倒れず、最小63を2発重ねても126で足りない。<strong>3発で確定して倒せる</strong>(3発目は63〜74のどのロールでも151を上回る)。これが後述する「確定数」の考え方です。</p>
+
+    <h3>実例4: 天候・急所を重ねると、どの順で掛かるか</h3>
+    <p>威力補正(天候など)は基礎ダメージの「威力」段階で、急所は基礎ダメージが出たあとの補正段階で掛かります。同じ技でも重なる補正の数だけ結果が変わることを、実データで比べてみます。</p>
+    <div class="table-wrap">
+      <table class="data-table">
+        <caption>ラウドボーン(臆病・とくこう32pt)の「だいもんじ」(特殊110・ほのお) → キラフロル(無振り・どく/いわ=ほのお等倍)。HP実数値158</caption>
+        <thead><tr><th>条件</th><th>ダメージ(乱数16通り)</th><th>HP158に対する割合</th></tr></thead>
+        <tbody>
+          <tr><td>通常(晴れなし)</td><td class="num">50〜59</td><td class="num">32〜37%</td></tr>
+          <tr class="hl"><td>晴れ(威力1.5倍が乗る)</td><td class="num">75〜88</td><td class="num">47〜56%</td></tr>
+          <tr><td>晴れ + 急所(1.5倍)</td><td class="num">112〜132</td><td class="num">71〜84%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>晴れだけで通常時の約1.5倍、そこに急所が重なるとさらに1.5倍。3つの補正がすべて掛け算で積み上がるので、「たった1個の補正」でも最終的な結果は大きく動きます。</p>
+
+    <h2>③「確定数」と乱数%の正しい読み方</h2>
+    <p>対戦勢が「3確」「2確1」のように言う<strong>確定数</strong>とは、「乱数16通りのうち<em>最も不利な出目(85%)</em>でも、その回数までにHPを上回れるか」を指します。逆に言うと、確定数が3なら「2発で終わる可能性はゼロ」ということです。</p>
+    <div class="example-box">
+      <span class="ex-title">検算済み</span>
+      <p class="ex-setup"><strong>カイリュー</strong>(意地っ張り・こうげき32pt)の「ドレインパンチ」(物理75・かくとう) → <strong>ゲッコウガ</strong>(HP32pt)。かくとうはあく複合(みず/あく)に効果ばつぐんで、実質2倍が乗る。</p>
+      <div class="vs-row">
+        <div class="stat-chip"><b>134〜158</b>ダメージ(乱数16通り)</div>
+        <div class="stat-chip"><b>179</b>ゲッコウガの実数値HP</div>
+      </div>
+      <div class="ex-result">
+        最小ロール(134)を2発重ねても268で179を超え、最大ロール(158)を2発重ねても316で超える。<strong>乱数16通りのどの出目でも2発で倒れる=「確定2発」</strong>。逆に1発で倒れることは無い(最大158でもHP179には届かない)。
+      </div>
+    </div>
+    <p>ここで注意したいのは、「80%くらい削れた」という感覚と「確定数」は別物だということです。ダメージが80%前後でも、相手のHPと詰めの悪い乱数が重なれば1発足りずに次のターンに回されることがあります。感覚ではなく、実数値とダメージ範囲を突き合わせて確認するのが安全です。<strong><a class="guide-link" href="damage_calc.html">ダメージ計算ツール</a></strong>を使えば、自分の育成したポケモン同士の確定数を、この記事と同じ計算式でそのまま調べられます。</p>
+
+    <div class="cta-box">
+      <div class="cta-text"><strong>自分の育成で確定数を確かめる</strong>実数値・持ち物・急所条件を入れて、確定何発かをそのまま計算できます。</div>
+      <a class="cta-btn" href="damage_calc.html">ダメージ計算ツールを開く →</a>
+    </div>
+
+    <h2>④ よくある誤解 3つ</h2>
+    <p>ここからは、対戦の会話でもよく話題に出るのに、実は正確に説明できる人が少ないポイントを3つ、エンジンの実装をもとに整理します。</p>
+
+    <div class="myth-card">
+      <span class="myth-x">✕ よくある誤解</span>
+      <p style="margin:0 0 6px">「やけどは、こんじょう(Guts)持ちにはただの弱点隠しにしかならない」</p>
+      <span class="myth-o">◯ 実際は</span>
+      <p style="margin:0">こんじょうは<strong>状態異常の間、物理こうげき実数値そのものを1.5倍</strong>にする特性です。やけどによる物理ダメージ半減を無効化するのは、そのうちの<em>一部の効果</em>にすぎません。つまり「やけど+こんじょう」は弱点を隠す組み合わせではなく、<strong>状態異常の中でも一番相性が良い組み合わせ</strong>です。</p>
+      <div class="table-wrap" style="margin-top:10px">
+        <table class="data-table">
+          <caption>カビゴン(意地っ張り・こうげき32pt)の「ドレインパンチ」(物理75) → ガブリアス(無振り)</caption>
+          <thead><tr><th>状態</th><th>攻撃実数値</th><th>ダメージ(16通り)</th></tr></thead>
+          <tbody>
+            <tr><td>通常時</td><td class="num">178</td><td class="num">45〜53</td></tr>
+            <tr><td>やけど(こんじょうなし)</td><td class="num">178</td><td class="num">22〜26<span style="font-size:11px;color:#999"> (物理0.5倍)</span></td></tr>
+            <tr class="hl"><td>やけど + こんじょう</td><td class="num">267</td><td class="num">66〜78<span style="font-size:11px;color:#999"> (半減を無効化+1.5倍)</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="myth-note">当サイトのエンジンでも、こんじょうの「1.5倍ブースト本体」は2026-07-19に実装した機能です(Bulbapedia「Guts (Ability)」裏取り済み)。それまではやけど半減の無効化しか実装しておらず、本来の火力ブーストが丸ごと欠けていました。特性ひとつでも、細部まで実装されているかどうかで結果が大きく変わる例です。</p>
+    </div>
+
+    <div class="myth-card">
+      <span class="myth-x">✕ よくある誤解</span>
+      <p style="margin:0 0 6px">「いかくを無効化できるのは『どんかん』だけ」</p>
+      <span class="myth-o">◯ 実際は</span>
+      <p style="margin:0">いかくは技ではなく「相手からの能力ランク低下」の一種として処理されるため、<strong>ランク低下を防ぐ特性・道具はすべていかくにも効きます</strong>。当サイトのエンジンで実装している範囲だけでも、これだけの種類があります。</p>
+      <ul style="margin-top:10px">
+        <li><strong>どんかん</strong> — いかくそのものを無効化(専用の分岐)</li>
+        <li><strong>クリアボディ / しろいけむり</strong> — 相手起因のランク低下を丸ごと無効化</li>
+        <li><strong>はとむね</strong> — ぼうぎょのランク低下だけを無効化(いかくの対象がぼうぎょ以外なら通る)</li>
+        <li><strong>ミラーアーマー</strong> — 無効化ではなく<strong>発動源(相手)へ跳ね返す</strong></li>
+        <li><strong>クリアチャーム</strong>(持ち物) — 相手起因のランク低下を無効化</li>
+        <li><strong>まけんき / かちき</strong> — 無効化<em>しない</em>。むしろいかくを受けると、こうげき(まけんき)・とくこう(かちき)が+2される</li>
+      </ul>
+      <p class="myth-note">まけんき・かちきは「いかくが効かない」のではなく「いかくを受けると得をする」特性です。無効化系と混同すると、実際の対面で誤った読みをしてしまいます。</p>
+    </div>
+
+    <div class="myth-card">
+      <span class="myth-x">✕ よくある誤解</span>
+      <p style="margin:0 0 6px">「急所は当たれば必ずダメージ1.5倍」「急所率はどの技でも1/16くらい」</p>
+      <span class="myth-o">◯ 実際は</span>
+      <p style="margin:0">急所の<strong>発生確率</strong>はランク制で、技やアイテムでランクを上げるほど上がります。<strong>倍率</strong>も一律1.5倍ではなく、スナイパー(Sniper)持ちは2.25倍になります。</p>
+      <div class="table-wrap" style="margin-top:10px">
+        <table class="data-table">
+          <caption>急所ランクと発生確率</caption>
+          <thead><tr><th>急所ランク</th><th>発生確率</th><th>主な要因</th></tr></thead>
+          <tbody>
+            <tr><td class="num">0</td><td class="num">1/24</td><td>通常時</td></tr>
+            <tr><td class="num">1</td><td class="num">1/8</td><td>きあいだめ・ピントレンズ・高急所技(つじぎり等)</td></tr>
+            <tr><td class="num">2</td><td class="num">1/2</td><td>上記の組み合わせ</td></tr>
+            <tr><td class="num">3以上</td><td class="num">確定</td><td>複数条件の重複</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-wrap">
+        <table class="data-table">
+          <caption>マニューラ(意地っ張り・こうげき32pt)の「つじぎり」(物理70) → サーフゴー(無振り)。急所倍率だけを比較</caption>
+          <thead><tr><th>条件</th><th>ダメージ(16通り)</th></tr></thead>
+          <tbody>
+            <tr><td>急所なし</td><td class="num">132〜156</td></tr>
+            <tr><td>通常急所(1.5倍)</td><td class="num">198〜234</td></tr>
+            <tr class="hl"><td>スナイパー急所(2.25倍)</td><td class="num">296〜350</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <p class="guide-note">この記事の計算はすべて、当サイトのバトルエンジン(real_battle_simulator.htmlのcalcDamage関数)を Node.js から直接呼び出して算出しています。表示上の数字と食い違いがあれば、育成条件(努力ポイント・性格・持ち物・特性)の違いが原因です。ダメージ計算の細部をもっと自由に試したい方は<a class="guide-link" href="damage_calc.html">ダメージ計算ツール</a>、素早さの実数値ラインは<a class="guide-link" href="guide_speed_control.html">素早さ調整の考え方</a>もあわせてどうぞ。</p>
+
+  </div>
+</section>
+
+<footer>
+  <p class="unofficial" data-i18n="footer.unofficial">⚠️ 当サイトは非公式ファンサイトです</p>
+  <p data-i18n="footer.not_affiliated">
+    任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズなど関連企業とは一切関係ありません。
+  </p>
+  <div class="footer-links">
+    <a href="making.html" data-i18n="nav.making">制作の裏側</a> ·
+    <a href="terms.html" target="_blank" rel="noopener" data-i18n="nav.terms">利用規約</a> ·
+    <a href="privacy.html" target="_blank" rel="noopener" data-i18n="nav.privacy">プライバシーポリシー</a> ·
+    <a href="disclaimer.html" target="_blank" rel="noopener" data-i18n="nav.disclaimer">免責事項</a> ·
+    <a href="contact.html" data-i18n="nav.contact">お問い合わせ</a> ·
+    <a href="sitemap.html" data-i18n="nav.sitemap">サイトマップ</a> ·
+    <a href="https://x.com/PchamDB" target="_blank" rel="noopener noreferrer">𝕏 @PchamDB</a>
+  </div>
+  <p class="copyright">
+    ポケモン・Pokémon・ポケットモンスター・モンスターボール・ポケモンチャンピオンズ等の<br>
+    商標および著作権は、任天堂株式会社・株式会社ポケモン・ゲームフリーク株式会社・<br>
+    株式会社クリーチャーズに帰属します。<br><br>
+    © 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc.<br>
+    © 2026 PchamDB
+  </p>
+</footer>
+
+<button id="back-to-top" title="ページトップに戻る" aria-label="ページトップに戻る" data-i18n-attr="title:index.back_to_top,aria-label:index.back_to_top">↑</button>
+<script>
+(function() {
+  const btn = document.getElementById('back-to-top');
+  if (!btn) return;
+  const toggle = () => {
+    if (window.scrollY > 300) btn.classList.add('visible');
+    else btn.classList.remove('visible');
+  };
+  window.addEventListener('scroll', toggle, { passive: true });
+  btn.addEventListener('click', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+})();
+</script>
+</body>
+</html>
