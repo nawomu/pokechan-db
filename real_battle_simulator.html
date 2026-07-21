@@ -3295,7 +3295,12 @@ const GRAVITY_BLOCKED = ['そらをとぶ', 'はねる', 'とびげり', 'とび
 const ABILITY_CHANGE_NG = ['ふしぎなまもり', 'バトルスイッチ', 'ばけのかわ', 'なまけ'];
 // さいはい(技強制再使用)で繰り返させられない技(Bulbapedia "Instruct": 溜め技・反動技・
 // 呼び出し技・さいはい自身・まもり系などは指示できない)。技名でなく effect kind での近似
-const INSTRUCT_NG_KINDS = ['2ターン目に攻撃', '次のターン行動不能', 'ランダム技', '直前技模倣', '技強制再使用', '遅延攻撃', 'まもり', 'こらえる'];
+const INSTRUCT_NG_KINDS = ['2ターン目に攻撃', '次のターン行動不能', 'ランダム技', '直前技模倣', 'さきどり', '技強制再使用', '遅延攻撃', 'まもり', 'こらえる'];
+// さきどり(Me First)がコピーできない技(Gen VII確定リスト。呼び出し技/固定ダメ・変則ダメ技のうち
+// コピー不可のもの+さきどり自身)。技名でなく専用名前リストで保持(まねっこ系のNGリストと同じ方式=
+// スキーマを推測で足さない)。出典: Bulbapedia "Me First"(2回取得一致分のみ採用)/ ポケモンWiki「さきどり」
+const ME_FIRST_NG = new Set(['カウンター', 'ミラーコート', 'メタルバースト', 'わるあがき', 'おしゃべり',
+                              'ほしがる', 'どろぼう', 'きあいパンチ', 'ゲップ', 'くちばしキャノン', 'トラップシェル', 'さきどり']);
 // 「地面にいる」判定: ひこうタイプ/とくせいふゆうは地面にいない → フィールドの効果を受けない
 // じゅうりょく中は全員が地面にいる扱い(Bulbapedia "Gravity")
 function isGrounded(st){
@@ -5470,6 +5475,29 @@ function runSingleAttack(atkSide, moveIdx){
     log('0c', `${pname(atk)} は ${mv.name} で ${lastMoveAnywhere.name} を まねした！`);
     mv = lastMoveAnywhere;
   }
+  // さきどり(Me First): 相手が選んでいる攻撃技を、自分のステータスで威力1.5倍にして先取りする。
+  // 失敗: 相手が変化技を選択/相手が既に行動済み(後攻)/相手が交代/コピー不可技(ME_FIRST_NG)。
+  // ふいうちの target_not_selecting_attacking_move 条件と同じ形(failsByCondition ~6144)。
+  // 優先度は継承しない(さきどり自身の優先度0のまま実行=行動順はすでに確定済み)。
+  // PPはさきどり自身の分のみ消費(このブロックより前段のconsumePPで既に消費済み)。
+  // 出典: Bulbapedia "Me First" / ポケモンWiki「さきどり」(Gen VII準拠=最終世代挙動)
+  if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'さきどり')){
+    const dmv = def.moves[def.selectedMoveIdx];
+    if (!def || def.movedThisTurn || def.switchedThisTurn || !dmv || dmv.category === '変化' || ME_FIRST_NG.has(dmv.name)){
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+      noteActionFailed(atk);
+      renderBattleLog(); renderBoth(); return;
+    }
+    // 威力×1.5(そのターン限りのpowerMod・元データ非破壊=クローンに反映)。固定ダメ技/威力可変技は対象外(power未確定)。
+    const _mfPower = (dmv.power == null || dmv.power === '—') ? dmv.power : Math.floor(Number(dmv.power) * 1.5);
+    // 命中判定バイパス(必中フラグを追加)。半無敵(そらをとぶ等)は phaseHitCheck の既存処理がこれより先に判定する。
+    const _mfEffects = (((dmv.battle_data && dmv.battle_data.effects) || [])).concat([{kind: '必中'}]);
+    log('0c', `${pname(atk)} は ${mv.name} で ${dmv.name} を くりだした！`);
+    mv = Object.assign({}, dmv, {
+      power: _mfPower,
+      battle_data: Object.assign({}, dmv.battle_data, {effects: _mfEffects})
+    });
+  }
   // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
   if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){
     log('0c', `${pname(atk)} の ${mv.name}！ しかし たくわえたものが ない！`);
@@ -6706,6 +6734,28 @@ function runTurn(){
       }
       log('0c', `${pname(atk)} は ${mv.name} で ${lastMoveAnywhere.name} を まねした！`);
       mv = lastMoveAnywhere;
+    }
+    // さきどり(Me First): 相手が選んでいる攻撃技を、自分のステータスで威力1.5倍にして先取りする。
+    // 失敗: 相手が変化技を選択/相手が既に行動済み(後攻)/相手が交代/コピー不可技(ME_FIRST_NG)。
+    // ふいうちの target_not_selecting_attacking_move 条件と同じ形(failsByCondition ~6144)。
+    // 優先度は継承しない(さきどり自身の優先度0のまま実行=行動順はすでに確定済み)。
+    // PPはさきどり自身の分のみ消費(このブロックより前段のconsumePPで既に消費済み)。
+    // 出典: Bulbapedia "Me First" / ポケモンWiki「さきどり」(Gen VII準拠=最終世代挙動)
+    if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'さきどり')){
+      const dmv = def.moves[def.selectedMoveIdx];
+      if (!def || def.movedThisTurn || def.switchedThisTurn || !dmv || dmv.category === '変化' || ME_FIRST_NG.has(dmv.name)){
+        log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+        noteActionFailed(atk); continue;
+      }
+      // 威力×1.5(そのターン限りのpowerMod・元データ非破壊=クローンに反映)。固定ダメ技/威力可変技は対象外(power未確定)。
+      const _mfPower = (dmv.power == null || dmv.power === '—') ? dmv.power : Math.floor(Number(dmv.power) * 1.5);
+      // 命中判定バイパス(必中フラグを追加)。半無敵(そらをとぶ等)は phaseHitCheck の既存処理がこれより先に判定する。
+      const _mfEffects = (((dmv.battle_data && dmv.battle_data.effects) || [])).concat([{kind: '必中'}]);
+      log('0c', `${pname(atk)} は ${mv.name} で ${dmv.name} を くりだした！`);
+      mv = Object.assign({}, dmv, {
+        power: _mfPower,
+        battle_data: Object.assign({}, dmv.battle_data, {effects: _mfEffects})
+      });
     }
     // たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'たくわえ消費') && !(atk.stockpile || 0)){

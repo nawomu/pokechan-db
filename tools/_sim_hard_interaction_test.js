@@ -1998,10 +1998,113 @@ try {
 } catch (__e) { skipCase('H52: のどスプレー [出典: bulbapedia.bulbagarden.net/wiki/Throat_Spray]', (__e && __e.message) || String(__e)); }
 
 // ─────────────────────────────────────────────
+// H53: さきどり(Me First) — 相手が選んでいる攻撃技を、自分のステータスで威力1.5倍にして先取りする。
+// national専用(Championsデータには存在しない)なので me-first がWAZA_MAPに無ければ本ケース全体をskip。
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Me_First_(move) / ポケモンWiki「さきどり」(Gen VII準拠)
+// 設計: 設計_さきどり_2026-07-21.md(エンジン実装=kind内在。ME_FIRST_NG=Bulbapedia2回取得一致の11技+
+//       変化技+さきどり自身を除外)
+// ─────────────────────────────────────────────
+console.log('\n=== H53: さきどり(Me First) [出典: bulbapedia.bulbagarden.net/wiki/Me_First_(move)] ===');
+try {
+  const meFirstMv = moveByKey('me-first');
+  if (!meFirstMv) {
+    skipCase('H53: さきどり', 'さきどり(me-first)がWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    // H53-a: 相手が攻撃技(はたく)を選択+自分が先攻(相手movedThisTurn=false)→コピー発動・威力1.5倍
+    resetEnv();
+    const atkA = freshSide('カイリキー', 'me-first', { ability: '' });
+    fullHp(atkA);
+    const defA = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(defA);
+    E.sides.self = atkA; E.sides.opp = defA;
+    E.setRandom(() => 0.5);   // 素急所(stage0)はロールされない=急所を踏まず、ダメージ乱数だけvariations[8]に固定できる
+    const hatakuMv = moveByKey('hataku');
+    const wantBoosted = E.calcDamage('self', 'opp', hatakuMv, { powerOverride: Math.floor(hatakuMv.power * 1.5) });
+    const wantBase = E.calcDamage('self', 'opp', hatakuMv);
+    const idxA = Math.floor(0.5 * 16);
+    const beforeA = defA.currentHp;
+    E.runSingleAttack('self', 0);
+    const dealtA = beforeA - defA.currentHp;
+    check('H53-a [出典: bulbapedia.bulbagarden.net/wiki/Me_First_(move)] 相手が攻撃技選択+自分先攻→コピー発動、ダメージは威力1.5倍の期待値と一致',
+      dealtA === wantBoosted.variations[idxA],
+      `dealt=${dealtA} wantBoosted=${wantBoosted.variations[idxA]} wantBase=${wantBase.variations[idxA]}`);
+    check('H53-a-2 威力1.5倍のダメージは無boost基準より大きい(倍率が実際に効いている確認)',
+      wantBoosted.variations[idxA] > wantBase.variations[idxA],
+      `boosted=${wantBoosted.variations[idxA]} base=${wantBase.variations[idxA]}`);
+    check('H53-a-3 ログに技コピー行(くりだした)が出る',
+      E.battleLog.some(e => /くりだした/.test(e.msg)), `log=${JSON.stringify(E.battleLog.slice(-3))}`);
+
+    // H53-b: 相手が変化技(つるぎのまい)を選択 → 失敗
+    resetEnv();
+    const atkB = freshSide('カイリキー', 'me-first', { ability: '' });
+    fullHp(atkB);
+    const defB = freshSide('カビゴン', 'tsuruginomai', { ability: '' });
+    fullHp(defB);
+    E.sides.self = atkB; E.sides.opp = defB;
+    E.setRandom(() => 0.5);
+    const beforeB = defB.currentHp;
+    E.runSingleAttack('self', 0);
+    check('H53-b [出典: ポケモンWiki「さきどり」] 相手が変化技(つるぎのまい)を選択→さきどりは失敗(ダメージなし)',
+      defB.currentHp === beforeB && E.battleLog.some(e => /しかし うまく きまらなかった/.test(e.msg)),
+      `hp=${defB.currentHp} before=${beforeB} log=${JSON.stringify(E.battleLog.slice(-3))}`);
+
+    // H53-c: 相手が既に行動済み(自分後攻) → 失敗
+    resetEnv();
+    const atkC = freshSide('カイリキー', 'me-first', { ability: '' });
+    fullHp(atkC);
+    const defC = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(defC);
+    defC.movedThisTurn = true;   // 相手はもう行動済み(自分が後攻)
+    E.sides.self = atkC; E.sides.opp = defC;
+    E.setRandom(() => 0.5);
+    const beforeC = defC.currentHp;
+    E.runSingleAttack('self', 0);
+    check('H53-c [出典: bulbapedia.bulbagarden.net/wiki/Me_First_(move)] 相手が既に行動済み(自分後攻)→さきどりは失敗(ダメージなし)',
+      defC.currentHp === beforeC && E.battleLog.some(e => /しかし うまく きまらなかった/.test(e.msg)),
+      `hp=${defC.currentHp} before=${beforeC} log=${JSON.stringify(E.battleLog.slice(-3))}`);
+
+    // H53-d: 相手がカウンター(コピー不可リストME_FIRST_NG)を選択 → 失敗
+    const kauntaaMv = moveByKey('kauntaa');
+    if (!kauntaaMv) {
+      skipCase('H53-d: カウンター除外', 'カウンター(kauntaa)がWAZA_MAPに見つからない');
+    } else {
+      resetEnv();
+      const atkD = freshSide('カイリキー', 'me-first', { ability: '' });
+      fullHp(atkD);
+      const defD = freshSide('カビゴン', 'kauntaa', { ability: '' });
+      fullHp(defD);
+      E.sides.self = atkD; E.sides.opp = defD;
+      E.setRandom(() => 0.5);
+      const beforeD = defD.currentHp;
+      E.runSingleAttack('self', 0);
+      check('H53-d [出典: ポケモンWiki「さきどり」] 相手がカウンター(コピー不可リスト)を選択→さきどりは失敗',
+        defD.currentHp === beforeD && E.battleLog.some(e => /しかし うまく きまらなかった/.test(e.msg)),
+        `hp=${defD.currentHp} before=${beforeD} log=${JSON.stringify(E.battleLog.slice(-3))}`);
+    }
+
+    // H53-e: PP消費はさきどり自身のみ・コピー技(相手のはたく)のPPは不変
+    resetEnv();
+    const atkE = freshSide('カイリキー', 'me-first', { ability: '' });
+    fullHp(atkE);
+    const defE = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(defE);
+    E.sides.self = atkE; E.sides.opp = defE;
+    E.initPP(atkE); E.initPP(defE);
+    const ppBeforeAtk = atkE.pp[0], ppBeforeDef = defE.pp[0];
+    E.setRandom(() => 0.5);
+    E.runSingleAttack('self', 0);
+    check('H53-e [出典: bulbapedia.bulbagarden.net/wiki/Me_First_(move)] さきどり自身のPPが1減る',
+      atkE.pp[0] === ppBeforeAtk - 1, `pp=${atkE.pp[0]} before=${ppBeforeAtk}`);
+    check('H53-e-2 相手(コピー元)のはたくのPPは不変(コピーはPPを消費しない)',
+      defE.pp[0] === ppBeforeDef, `pp=${defE.pp[0]} before=${ppBeforeDef}`);
+  }
+} catch (__e) { skipCase('H53: さきどり(Me First) [出典: bulbapedia.bulbagarden.net/wiki/Me_First_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
 // 集計
 // ─────────────────────────────────────────────
 console.log('\n' + '='.repeat(60));
-console.log(`難所相互作用52件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
+console.log(`難所相互作用53件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
 if (fails.length) {
   console.log('\n--- FAIL一覧 ---');
   fails.forEach(f => console.log('  ' + f));
