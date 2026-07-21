@@ -3730,11 +3730,20 @@ function disruptRampage(atk){
 // 近似: 実機の「さわぎ始めに眠っているポケモンを起こす」は未実装(データに宣言なし・付与予防のみ)
 // みがわりを素通りする技か(音技等)。正キー=battle_data.substitute_pierce(全DB調査で21技が宣言)。
 // kind みがわり貫通(7技)は冗長な併記=互換で読む。出典: Bulbapedia "Substitute"(第6世代以降、音技は素通り)
+// 2026-07-21 敵対的シナリオテストWave1(B・出典=設計_敵対的シナリオテスト_2026-07-21.md): move.flags.sound を
+// 一般則として追加。理由=全国版くさぶえ(grass-whistle)がbattle_data.substitute_pierce未宣言のまま
+// (effect個別のbypasses_substitute:trueをこのエンジンはどこでも読んでいない=未参照の宣言)相手単体を眠らせる
+// 音技のため、データの宣言漏れ1件がそのままみがわり誤ブロックの実バグになっていた。出典: bulbapedia.bulbagarden.net/
+// wiki/Substitute_(doll)「starting in Generation VI, this includes almost all sound-based moves (the only
+// exception being Howl, after it started to affect allies in Generation VIII)」/ ポケモンWiki「みがわり」
+// (第六世代以降の音技はみがわり対策として貫通する、との記載)。とおぼえは味方対象専用(target:'ally'は
+// このエンジンで対相手判定に来ないため実質除外=Bulbapediaの例外と整合)。
 function piercesSub(move, atk){
   // すりぬけ(段132・ABILITY_DESC公式準拠): みがわりを無視して攻撃できる
   if (atk && sideAbility(atk) === 'すりぬけ') return true;
   const bd = (move && move.battle_data) || {};
-  return bd.substitute_pierce === true || (bd.effects || []).some(e => e.kind === 'みがわり貫通');
+  return bd.substitute_pierce === true || (move && move.flags && move.flags.sound === true)
+    || (bd.effects || []).some(e => e.kind === 'みがわり貫通');
 }
 function uproarActive(){
   return ['self', 'opp'].some(k => {
@@ -5253,6 +5262,19 @@ function snapshotBattleState(){
     spikesLayers: st.spikesLayers || 0,
     toxicSpikesLayers: st.toxicSpikesLayers || 0,
     stickyWeb: !!st.stickyWeb,
+    // 2026-07-21 敵対的シナリオテストWave1(A・出典=設計_敵対的シナリオテスト_2026-07-21.md): undoBattleの
+    // 復元漏れスイープで発見した単ターン揮発+こだわり+ばけのかわ+てんきやの巻き戻し漏れを追加。
+    disguise: !!st.disguise,                             // ばけのかわ(剥がれ状態)も一手戻せるように
+    protectStreak: st.protectStreak || 0,                // まもる/こらえるの連続成功カウントも一手戻せるように
+    choiceLock: st.choiceLock || null,                   // こだわりロック(段135)も一手戻せるように
+    mustRecharge: !!st.mustRecharge,                     // はかいこうせん系の反動硬直も一手戻せるように
+    protecting: st.protecting || null,                   // まもる中の技も一手戻せるように
+    enduring: !!st.enduring,                             // こらえるも一手戻せるように
+    charging: st.charging ? {...st.charging} : null,     // 溜め技(2ターン技)の溜め状態も一手戻せるように
+    attracted: !!st.attracted,                           // メロメロ状態も一手戻せるように
+    snatchArmed: !!st.snatchArmed,                       // よこどりの構えも一手戻せるように
+    magicCoatTurn: !!st.magicCoatTurn,                   // マジックコートの構えも一手戻せるように
+    forecastForm: st.forecastForm || null,               // てんきや(ポワルン)の天候見た目も一手戻せるように(typeOverrideと対で戻す)
     // パーティ(控え)A-1: 交代も一手戻せるように(ポケモン本体・技・控えごと)
     poke: st.poke || null,
     moves: [...(st.moves || [])],
@@ -5350,6 +5372,18 @@ function undoBattle(){
     st.spikesLayers = src.spikesLayers || 0;
     st.toxicSpikesLayers = src.toxicSpikesLayers || 0;
     st.stickyWeb = !!src.stickyWeb;
+    // 2026-07-21 敵対的シナリオテストWave1(A)の復元漏れ追加分の巻き戻し(snapshotBattleStateと対)
+    st.disguise = !!src.disguise;                        // ばけのかわ(剥がれ状態)の巻き戻し
+    st.protectStreak = src.protectStreak || 0;           // まもる/こらえるの連続成功カウントの巻き戻し
+    st.choiceLock = src.choiceLock || null;              // こだわりロックの巻き戻し
+    st.mustRecharge = !!src.mustRecharge;                // 反動硬直の巻き戻し
+    st.protecting = src.protecting || null;              // まもる中の技の巻き戻し
+    st.enduring = !!src.enduring;                        // こらえるの巻き戻し
+    st.charging = src.charging ? {...src.charging} : null; // 溜め状態の巻き戻し
+    st.attracted = !!src.attracted;                      // メロメロ状態の巻き戻し
+    st.snatchArmed = !!src.snatchArmed;                  // よこどりの構えの巻き戻し
+    st.magicCoatTurn = !!src.magicCoatTurn;              // マジックコートの構えの巻き戻し
+    st.forecastForm = src.forecastForm || null;          // てんきやの天候見た目の巻き戻し
     // パーティ(控え)A-1: 交代の巻き戻し(ポケモン本体・技・控えごと)
     st.poke = src.poke || null;
     st.moves = [...(src.moves || [])];
@@ -5379,6 +5413,15 @@ function undoBattle(){
   renderBoth();
   updateUndoButton();
 }
+
+// 2026-07-21 敵対的シナリオテストWave1(A)テストブリッジ: tools/_sim_engine.js のNode vmは固定キーの
+// __engine オブジェクトしか返さない(undoBattle/pushHistory/battleHistoryを含まない)ため、既に __engine で
+// 公開済みの sides に相乗りしてテストから呼べるようにする。本番UI(ブラウザ)には影響しない=誰も読まない追加キー。
+sides.__undoTestHooks = {
+  undoBattle, pushHistory,
+  getHistoryLength: () => battleHistory.length,
+  piercesSub, syncForecastBothSides,
+};
 
 // === 片側攻撃 (技横の ⚔ 実行ボタン) ===
 function runSingleAttack(atkSide, moveIdx){
@@ -5535,7 +5578,22 @@ function runSingleAttack(atkSide, moveIdx){
   // PPはさきどり自身の分のみ消費(このブロックより前段のconsumePPで既に消費済み)。
   // 出典: Bulbapedia "Me First" / ポケモンWiki「さきどり」(Gen VII準拠=最終世代挙動)
   if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'さきどり')){
-    const dmv = def.moves[def.selectedMoveIdx];
+    // 2026-07-21 敵対的シナリオテストWave1(D・出典=設計_敵対的シナリオテスト_2026-07-21.md): defが実際にこの
+    // ターン出す技を解決する(生のdef.moves[selectedMoveIdx]のままだと、defが溜め技/あばれ/アンコール/こだわり
+    // ロック中や、選択技がPP0でわるあがき強制のケースを見落とす実バグだった=ME_FIRST_NGの'わるあがき'宣言が
+    // 事実上一度も発火しない死んだガードになっていた)。charging→rampage→encore→choiceLockの優先順位は
+    // runSingleAttack冒頭の技確定チェーン(段135)と同じにする。
+    let dmv = def.moves[def.selectedMoveIdx];
+    if (def.charging) dmv = def.charging.move;
+    else if (def.rampage) dmv = def.rampage.move;
+    else if (def.encore) dmv = def.encore.move;
+    else if (def.choiceLock && def.item && ITEM_BY_KEY[def.item] && ITEM_BY_KEY[def.item].restriction === '選択技固定') dmv = def.choiceLock;
+    // struggleIfNoPPを直接呼ぶとPP0のログ("技はPPがなくなった！")がこの下見の時点で先に出てしまい、
+    // 実際にdefが行動する時にもう一度出て二重ログになるため、ここではPP判定のみ複製してログなしで確定する。
+    if (dmv && def.pp){
+      const _dmvI = (def.moves || []).findIndex(m => m && m.name === dmv.name);
+      if (_dmvI >= 0 && def.pp[_dmvI] <= 0) dmv = STRUGGLE_MOVE;
+    }
     if (!def || def.movedThisTurn || def.switchedThisTurn || !dmv || dmv.category === '変化' || ME_FIRST_NG.has(dmv.name)){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
       noteActionFailed(atk);
@@ -5861,6 +5919,13 @@ function clearVolatilesOnSwitch(st){
   st.transformBase = null;  // へんしん状態も揮発(revertTransformが先に元へ戻している前提の保険)
   st.proteanUsed = false;   // へんげんじざい(段122): 1回場に出るごとに1回 → 交代でリセット
   st.choiceLock = null;     // こだわりロック(段135): 交代で解除
+  // 2026-07-21 敵対的シナリオテストWave1(D・出典=設計_敵対的シナリオテスト_2026-07-21.md): よこどり/マジック
+  // コートの構えは「そのターン限り」の単ターン揮発(runTurn冒頭=6571-6573で毎ターンクリアされる)なのに、
+  // clearVolatilesOnSwitch(交代時の揮発クリア。同じ単ターン揮発のprotecting/enduring等は既にここでクリアしている)
+  // には無かった=場を離れる控えが「よこどりの構えあり」のまま持ち越り、次にこの側が場に出た直後(同一ターン内の
+  // 強制交代/とんぼがえり等)に誤って発動しうる実バグだったため、他の単ターン揮発と同じ扱いに揃える。
+  st.snatchArmed = false;   // よこどりの構え: 交代でも解除(次ターン開始まで待たない)
+  st.magicCoatTurn = false; // マジックコートの構え: 同上
   st.cudChew = null;        // はんすう(段138): 交代で発動しなくなる
   st.illusionAs = null;     // イリュージョン(段138): 引っ込めば解除(次の登場で再判定)
   st.attracted = false;     // メロメロ(段139): 交代で解除(本人ぶん)
@@ -6815,7 +6880,17 @@ function runTurn(){
     // PPはさきどり自身の分のみ消費(このブロックより前段のconsumePPで既に消費済み)。
     // 出典: Bulbapedia "Me First" / ポケモンWiki「さきどり」(Gen VII準拠=最終世代挙動)
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'さきどり')){
-      const dmv = def.moves[def.selectedMoveIdx];
+      // 2026-07-21 敵対的シナリオテストWave1(D)。runSingleAttack側(段135手前)と同じ理由・同じ解決チェーン。
+      let dmv = def.moves[def.selectedMoveIdx];
+      if (def.charging) dmv = def.charging.move;
+      else if (def.rampage) dmv = def.rampage.move;
+      else if (def.encore) dmv = def.encore.move;
+      else if (def.choiceLock && def.item && ITEM_BY_KEY[def.item] && ITEM_BY_KEY[def.item].restriction === '選択技固定') dmv = def.choiceLock;
+      // struggleIfNoPPを直接呼ぶと二重ログになるためPP判定のみ複製(runSingleAttack側と同じ理由)
+      if (dmv && def.pp){
+        const _dmvI = (def.moves || []).findIndex(m => m && m.name === dmv.name);
+        if (_dmvI >= 0 && def.pp[_dmvI] <= 0) dmv = STRUGGLE_MOVE;
+      }
       if (!def || def.movedThisTurn || def.switchedThisTurn || !dmv || dmv.category === '変化' || ME_FIRST_NG.has(dmv.name)){
         log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
         noteActionFailed(atk); continue;

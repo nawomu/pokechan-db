@@ -1392,7 +1392,7 @@ body.in-battle #lab-ai-row{display:flex}
 // ★Phase E(2026-07-19): エンジンiframeのsrcはモードに応じてここで確定する(HTMLのsrc属性は外して二重ロード防止)。
 // allモードは&data=allを付けてエンジン側(real_battle_simulator.html)にも同じデータ源を伝搬する。
 (function(){
-  var base = 'real_battle_simulator.html?v=20260721d';
+  var base = 'real_battle_simulator.html?v=20260721e';
   document.getElementById('engine-frame').src = (window.RB_LAB_MODE === 'all') ? (base + '&data=all') : base;
 })();
 </script>
@@ -2534,6 +2534,11 @@ function initSetup(){
     labChoicePending = false;
     labReviveFlow = false; labForcedQueue = [];
     labUndoSnap = null;
+    // ★S1(2026-07-21 敵対的シナリオテストで発見): メッセージ再生中に退出すると busy=true と
+    // sayQueue残留・#msgbox開きっぱなしが残る(次バトルの凍結リスク)→退出時に完全リセット
+    if (autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+    sayQueue.length = 0; sayDone = null; busy = false;
+    { const mb = $('msgbox'); if (mb) mb.style.display = 'none'; }
     ['c-revive-continue', 'c-end-battle'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });
     try { closePicker(); } catch (e) {}   // バトル追加モードのピッカーが開いたままなら閉じる
     pbBgmSetScene('lobby'); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
@@ -3353,6 +3358,10 @@ function swBattleCapsuleHtml(entry, opts){
 // real_battle_simulator.html 6774付近の控えリセット処理と同型)。
 function labRevive(entry){
   if (!entry || !entry.poke) return;
+  // ★S9(2026-07-21 敵対的シナリオテストで発見): メガ進化→ひんし→ふっかつでメガのまま永続していた。
+  // 実ゲーム仕様=ひんしでメガはベースに戻る(エンジンのバトルリセット同型 real_battle_simulator 7622)。
+  // 特性は進化前の選択が保存されていないためベース種のab1で復帰(ラボの実験用途では十分・要改善なら別途)。
+  if (entry.megaBase){ entry.poke = entry.megaBase; entry.ability = entry.poke.ab1 || ''; entry.megaBase = null; }
   entry.currentHp = null;
   entry.fainted = false;
   entry.status = 'none';
@@ -4195,7 +4204,9 @@ function initLabAI(){
 let labUndoSnap = null;
 function updateLabUndoButton(){
   const b = $('lab-undo-btn'); if (!b) return;
-  const show = !!labUndoSnap && document.body.classList.contains('in-battle') && !gameOver;
+  // ★S8(2026-07-21): 全滅選択中(labChoicePending)は押しても無効(labUndoTurnがガード)なのに
+  // 表示されていた=「押せるのに死んでいる」ボタン→選択中は隠す
+  const show = !!labUndoSnap && document.body.classList.contains('in-battle') && !gameOver && !labChoicePending;
   b.style.display = show ? '' : 'none';
   b.textContent = I18N.t('battle_lab.undo', '↩ 1手もどす');
 }
@@ -5360,6 +5371,7 @@ function endOfTurn(){
     // gameOverは「おわる」を選ぶまで一度も立てない(立てた後の巻き戻しはしない=設計§3)。選択待ち中は
     // labChoicePendingでdoTurn/オート進行/あばれ継続を止める。
     labChoicePending = true;
+    try { updateLabUndoButton(); } catch (e) {}   // ★S8: 選択中はundoボタンを隠す
     say([lineWithFx(won ? winJa : '😵 自分のポケモンは ぜんぶ たおれた… まけてしまった…')]
         .concat(won ? [] : [lineWithFx('「にげる」から 編成にもどって もういちど あそべます')]),
         () => showLabGameOverChoice());
@@ -5423,6 +5435,7 @@ function labRunForcedQueue(){
   if (labSideDead(side) && !labReviveFlow){
     labForcedQueue = [];
     labChoicePending = true;
+    try { updateLabUndoButton(); } catch (e) {}   // ★S8: 選択中はundoボタンを隠す
     pbBgmSetScene(null);
     showLabGameOverChoice();
     return;

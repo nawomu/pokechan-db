@@ -1,9 +1,14 @@
-/* 難所相互作用15件テスト(check形式)
- * 目的: 権威ソース(Bulbapedia/ポケモンWiki等)で裏取り済みの「難しい相互作用」15件を、
+/* 難所相互作用テスト(check形式)
+ * 目的(H1〜H55): 権威ソース(Bulbapedia/ポケモンWiki等)で裏取り済みの「難しい相互作用」を、
  *       エンジン(real_battle_simulator.html)にそのまま投げて実挙動を判定する。
- * ★★エンジン(real_battle_simulator.html)は絶対に修正しない。落ちたケース=エンジンの実挙動と
+ * ★★H1〜H55はエンジン(real_battle_simulator.html)は絶対に修正しない方式。落ちたケース=エンジンの実挙動と
  *   権威仕様の不一致=このテストの収穫(バトル再現_羅針盤.md=sim自己出力をゴールデンにしない原則)。
  * 期待値は必ず research.expected_final(scratchpad/hard_cases.json)に従う。expected_initialではない。
+ *
+ * H56〜(2026-07-21 敵対的シナリオテストWave1・出典=設計_敵対的シナリオテスト_2026-07-21.md): 上記と方式が
+ * 異なる。ここは「壊れそうな裏」を狙い撃ちしてエンジンの実バグを見つけ、権威裏取り(Bulbapedia/ポケモンWiki等)
+ * 済みのものはその場でエンジンを修正するテスト群(修正内容はcheckのdetailに出典つきで明記)。
+ *
  * 実行: cd "/Users/masamichi/Documents/ポケモンDB" && node tools/_sim_hard_interaction_test.js
  * 関連: tools/_sim_interaction_test.js (check形式の手本) / バトル再現_羅針盤.md
  */
@@ -33,6 +38,10 @@ function skipCase(id, reason) {
 const E = buildEngine();
 const pokeByName = n => pokeByNameHelper(data, n);
 const moveByKey  = k => moveByChampKey(data, k);
+// 2026-07-21 敵対的シナリオテストWave1テストブリッジ(real_battle_simulator.html側でsidesに相乗り公開)。
+// undoBattle/pushHistory/piercesSub/syncForecastBothSidesはtools/_sim_engine.jsの固定__engineキーに
+// 無いため、エンジン本体(sides)経由で参照する(H56以降で使用)。
+const U = E.sides.__undoTestHooks;
 
 function freshSide(pokeName, moveKeys, opts) {
   opts = opts || {};
@@ -2305,11 +2314,434 @@ try {
   }
 } catch (__e) { skipCase('H55: よこどり(Snatch) [出典: bulbapedia.bulbagarden.net/wiki/Snatch_(move)]', (__e && __e.message) || String(__e)); }
 
+// ═════════════════════════════════════════════
+// Wave1(敵対的シナリオテスト・出典=設計_敵対的シナリオテスト_2026-07-21.md) ここから
+// ═════════════════════════════════════════════
+
+// ─────────────────────────────────────────────
+// H56: undo(1手もどす)復元漏れの機械的網羅チェック(A)
+// 方針: makeSideState()の全フィールド(81個・real_battle_simulator.html:1116)を「復元される」
+// (snapshotBattleState/undoBattleのソースを解析し、両方に書かれているか)か「意図的除外(理由つき)」の
+// どちらかに機械分類し、どちらでもない未分類フィールドが1つでもあれば fail にする。
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md A「stateの全揮発フィールドを列挙し
+// 「復元される or 意図的除外(コメント)」のどちらかであることを機械検査」
+// ─────────────────────────────────────────────
+console.log('\n=== H56: undoBattle 復元漏れ 機械的網羅チェック [出典: 設計_敵対的シナリオテスト_2026-07-21.md A] ===');
+try {
+  const fsMod = require('fs');
+  const htmlSrc = fsMod.readFileSync(path.join(ROOT, 'real_battle_simulator.html'), 'utf8');
+  const snapStart = htmlSrc.indexOf('function snapshotBattleState(){');
+  const snapEnd = htmlSrc.indexOf('function pushHistory(){');
+  const restoreStart = htmlSrc.indexOf('function undoBattle(){');
+  const restoreEnd = htmlSrc.indexOf('sides.__undoTestHooks');
+  check('H56-setup ソース中にsnapshotBattleState/undoBattleの関数境界を検出できる',
+    snapStart >= 0 && snapEnd > snapStart && restoreStart >= 0 && restoreEnd > restoreStart,
+    `snapStart=${snapStart} snapEnd=${snapEnd} restoreStart=${restoreStart} restoreEnd=${restoreEnd}`);
+  const snapSrc = htmlSrc.slice(snapStart, snapEnd);
+  const restoreSrc = htmlSrc.slice(restoreStart, restoreEnd);
+  // snap()のオブジェクトリテラルの「  fieldName:」形(4スペースインデント)/restore()の「st.fieldName =」形を抽出。
+  const snapFields = new Set([...snapSrc.matchAll(/^\s{4}([A-Za-z_][A-Za-z0-9_]*)\s*:/gm)].map(m => m[1]));
+  const restoreFields = new Set([...restoreSrc.matchAll(/st\.([A-Za-z_][A-Za-z0-9_]*)\s*=/g)].map(m => m[1]));
+  const isRestored = f => snapFields.has(f) && restoreFields.has(f);
+
+  const universe = Object.keys(E.makeSideState());
+  check('H56-a makeSideState()の全フィールド数(構造drift検知・変わったら分類を見直す合図)',
+    universe.length === 81, `count=${universe.length}`);
+
+  // UI専用(手動チェックボックス/表示カーソル/並び替え等): 全文grep確認済みでmove効果からは一度もセットされない
+  // (`.critical =`等の書き込みが無い)=undo対象外でも戦闘結果に影響しない。
+  const EXCLUDED_UI_ONLY = new Set(['critical', 'lifeOrb', 'rockyHelmet', 'selectedStatKey', 'poolSort', 'poolFilter', 'moveSearch']);
+  // 2026-07-21のWave1全数調査で発見した「同種の未復元」だが、設計doc(Wave1)が名指ししたのはdisguise/
+  // protectStreak/choiceLock/mustRecharge+単ターン揮発グループ(protecting/enduring/charging/attracted/
+  // snatchArmed/magicCoatTurn)+forecastFormのみ。壁(リフレクター等)/カウンター集計等は同種の実バグ候補として
+  // 発見したが、Wave1の名指し範囲外のため今回は意図的に見送り、次波(Wave2)へ引き継ぐ(阿部さんへの報告参照)。
+  const EXCLUDED_KNOWN_GAP_DEFERRED = new Set(['reflect', 'lightScreen', 'auroraVeil', 'safeguard', 'screenTurns', 'tookThisTurn', 'movedThisTurn', 'usedMoveNames']);
+  // restore側が常に固定値へ強制リセットする一過性フラグ(このターンの分身ダメージ肩代わり判定用の中間フラグ・
+  // phaseDealDamageが立ててphaseApplyEffectsが読むだけ=次の攻撃までに必ず作り直される)。snapshotから復元する
+  // 意味がないため、undoBattle内で常時 `st.subAbsorbed = false;` と決め打ちしている(既存の意図的な設計・
+  // real_battle_simulator.html undoBattleのrestore関数を参照)。
+  const EXCLUDED_ALWAYS_FORCE_RESET = new Set(['subAbsorbed']);
+
+  const unclassified = [];
+  const restoredOk = [];
+  const restoredMissing = [];
+  for (const f of universe) {
+    if (EXCLUDED_UI_ONLY.has(f) || EXCLUDED_KNOWN_GAP_DEFERRED.has(f) || EXCLUDED_ALWAYS_FORCE_RESET.has(f)) continue;
+    if (isRestored(f)) restoredOk.push(f);
+    else unclassified.push(f);
+  }
+  check('H56-b makeSideState()の全フィールドが「復元される」か「意図的除外(理由つき)」のどちらかに分類できる(未分類=fail)',
+    unclassified.length === 0, `unclassified=${JSON.stringify(unclassified)}`);
+  console.log(`  (内訳: 復元確認=${restoredOk.length}件 / UI専用除外=${EXCLUDED_UI_ONLY.size}件 / 既知ギャップ次波送り=${EXCLUDED_KNOWN_GAP_DEFERRED.size}件 / 強制リセット除外=${EXCLUDED_ALWAYS_FORCE_RESET.size}件)`);
+
+  // Wave1で名指しされた単ターン揮発グループ+ばけのかわ+こだわり+てんきや(dynamic-only=makeSideStateの
+  // 初期値には無いが戦闘中にセットされるフィールド)は、makeSideStateの81件には含まれないため個別に確認する。
+  const dynamicOnlyMustRestore = ['choiceLock', 'magicCoatTurn', 'snatchArmed', 'forecastForm'];
+  for (const f of dynamicOnlyMustRestore) {
+    check(`H56-c dynamic-onlyフィールド「${f}」もsnap/restoreの両方に書かれている(makeSideStateの初期値には無い揮発)`,
+      isRestored(f), `snap=${snapFields.has(f)} restore=${restoreFields.has(f)}`);
+  }
+} catch (__e) { skipCase('H56: undoBattle 復元漏れ 機械的網羅チェック', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H57: undo × ばけのかわ(disguise) — 剥がれた後に1手戻すと皮が復元されるか(A・最有力候補)
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md A-1「disguise(ばけのかわ) — 剥がれ→undo→剥がれたまま?」
+// 修正: real_battle_simulator.html snapshotBattleState/undoBattleにdisguiseを追加(2026-07-21)
+// ─────────────────────────────────────────────
+console.log('\n=== H57: undo × ばけのかわ(disguise) [出典: 設計_敵対的シナリオテスト_2026-07-21.md A-1] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カイロス', 'naminori', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('ミミッキュ', 'hataku');   // ab1=ばけのかわ(デフォルトのまま)
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.phaseInitA();
+  check('H57-a 場出し時にばけのかわを装備している(前提)', def.disguise === true, `disguise=${def.disguise}`);
+  E.runSingleAttack('self', 0);   // なみのりでばけのかわが剥がれる(ダメージは肩代わりされ通らない)
+  check('H57-b 攻撃を受けてばけのかわが剥がれる(disguise=false)', def.disguise === false, `disguise=${def.disguise}`);
+  U.undoBattle();
+  check('H57-c [出典: 設計_敵対的シナリオテスト_2026-07-21.md A-1] 1手もどすとばけのかわが復元される(修正前は剥がれたまま=実バグだった)',
+    def.disguise === true, `disguise=${def.disguise}`);
+} catch (__e) { skipCase('H57: undo × ばけのかわ(disguise)', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H58: undo × まもるの連続成功カウント(protectStreak) — まもる×2→undo→連続カウントは1手前に戻るか(A)
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md A-2「まもる×2→undo→まもる: 失敗率が古いカウントで計算される?
+// (=阿部さん例の「まもる連打」そのもの)」
+// ─────────────────────────────────────────────
+console.log('\n=== H58: undo × まもるの連続成功カウント(protectStreak) [出典: 設計_敵対的シナリオテスト_2026-07-21.md A-2] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カビゴン', 'mamoru', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0);   // まもるの成功ロールを常に成功側に固定(rate=mult^streak・0<rateなら必ず成功)
+  E.runSingleAttack('self', 0);   // 1回目: streak 0→1(成功率100%)
+  check('H58-a 1回目のまもるでprotectStreak=1', atk.protectStreak === 1, `protectStreak=${atk.protectStreak}`);
+  E.runSingleAttack('self', 0);   // 2回目: streak 1→2(成功率1/3・setRandomで成功側に固定)
+  check('H58-b 2回目のまもるでprotectStreak=2', atk.protectStreak === 2, `protectStreak=${atk.protectStreak}`);
+  U.undoBattle();   // 2回目の直前(=1回目の直後・protectStreak=1)へ戻すはず
+  check('H58-c [出典: 設計_敵対的シナリオテスト_2026-07-21.md A-2] 1手もどすとprotectStreakが1(2回目使用前)に戻る(修正前は2のまま=次のまもるの成功率が実際より低く誤計算される実バグだった)',
+    atk.protectStreak === 1, `protectStreak=${atk.protectStreak}`);
+} catch (__e) { skipCase('H58: undo × まもるの連続成功カウント(protectStreak)', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H59: undo × こだわりロック(choiceLock) — こだわり技を1回使った直後に1手戻すとロックが解除されるか(A-3)
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md A-3「choiceLock — こだわりロック→undo→別技が選べる/
+// 選べないの不整合?」
+// ─────────────────────────────────────────────
+console.log('\n=== H59: undo × こだわりロック(choiceLock) [出典: 設計_敵対的シナリオテスト_2026-07-21.md A-3] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カビゴン', ['hataku', 'ketaguri'], { ability: '', item: 'kodawari_scarf' });
+  fullHp(atk);
+  const def = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  check('H59-a 攻撃前はこだわりロックが未成立', !atk.choiceLock, `choiceLock=${JSON.stringify(atk.choiceLock)}`);
+  E.runSingleAttack('self', 0);   // はたくを選んで使用→こだわりスカーフでロック成立
+  check('H59-b 使用後ははたくにロックされる', !!atk.choiceLock && atk.choiceLock.name === 'はたく', `choiceLock=${atk.choiceLock && atk.choiceLock.name}`);
+  U.undoBattle();
+  check('H59-c [出典: 設計_敵対的シナリオテスト_2026-07-21.md A-3] 1手もどすとロック成立前(未ロック)に戻る(修正前はロックされたままで、まだ使っていないはずの技がUI上選べない実バグだった)',
+    !atk.choiceLock, `choiceLock=${JSON.stringify(atk.choiceLock)}`);
+} catch (__e) { skipCase('H59: undo × こだわりロック(choiceLock)', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H60: undo × はかいこうせん系の反動硬直(mustRecharge) — 成功直後に1手戻すと硬直が解除されるか(A)
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md A「mustRecharge(はかいこうせん硬直)」
+// 出典(反動仕様): bulbapedia.bulbagarden.net/wiki/Hyper_Beam_(move)
+// ─────────────────────────────────────────────
+console.log('\n=== H60: undo × はかいこうせん系の反動硬直(mustRecharge) [出典: 設計_敵対的シナリオテスト_2026-07-21.md A] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カビゴン', 'hakaikousen', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0);   // 命中/急所ロールを固定して確実に成功させる
+  check('H60-a 攻撃前はmustRecharge=false', atk.mustRecharge === false, `mustRecharge=${atk.mustRecharge}`);
+  E.runSingleAttack('self', 0);
+  check('H60-b [出典: bulbapedia.bulbagarden.net/wiki/Hyper_Beam_(move)] はかいこうせん成功直後はmustRecharge=true(次ターン反動で動けない)',
+    atk.mustRecharge === true, `mustRecharge=${atk.mustRecharge} log=${JSON.stringify(E.battleLog.slice(-2))}`);
+  U.undoBattle();
+  check('H60-c [出典: 設計_敵対的シナリオテスト_2026-07-21.md A] 1手もどすと反動硬直が解除される(修正前は攻撃を取り消したのに硬直だけ残る実バグだった)',
+    atk.mustRecharge === false, `mustRecharge=${atk.mustRecharge}`);
+} catch (__e) { skipCase('H60: undo × はかいこうせん系の反動硬直(mustRecharge)', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H61: undo × 単ターン揮発グループ(protecting/enduring/charging/attracted/snatchArmed/magicCoatTurn)
+// +てんきや(forecastForm) 一括確認(A-4・item5)
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md A-4「単ターン揮発系: mustRecharge/protecting/enduring/
+// charging/attracted/snatchArmed/magicCoatTurn → テスト形: 状態を作る→undoBattle()→各フィールドをassert」
+// + 5「ポワルンforecastForm×undoの整合」。状態は技経由でなく直接生成する(設計docが明示的にこの方式を許容)。
+// ─────────────────────────────────────────────
+console.log('\n=== H61: undo × 単ターン揮発グループ+forecastForm [出典: 設計_敵対的シナリオテスト_2026-07-21.md A-4/5] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  // ベースライン(全部falsy)を作ってからpushHistory→そのあと全部ONにして、undoでベースラインへ戻るか見る
+  atk.protecting = null; atk.enduring = false; atk.charging = null; atk.attracted = false;
+  atk.snatchArmed = false; atk.magicCoatTurn = false; atk.forecastForm = null; atk.typeOverride = null;
+  U.pushHistory();
+  atk.protecting = moveByKey('mamoru');
+  atk.enduring = true;
+  atk.charging = { move: moveByKey('sorawotobu'), semi: 'flying', vulnerableTo: [] };
+  atk.attracted = true;
+  atk.snatchArmed = true;
+  atk.magicCoatTurn = true;
+  atk.forecastForm = 'sunny';
+  atk.typeOverride = ['ほのお'];
+  U.undoBattle();
+  check('H61-a protecting復元(まもり中の技はnullに戻る)', atk.protecting === null, `protecting=${JSON.stringify(atk.protecting)}`);
+  check('H61-b enduring復元', atk.enduring === false, `enduring=${atk.enduring}`);
+  check('H61-c charging復元(溜め技の溜め状態はnullに戻る)', atk.charging === null, `charging=${JSON.stringify(atk.charging)}`);
+  check('H61-d attracted復元(メロメロ状態)', atk.attracted === false, `attracted=${atk.attracted}`);
+  check('H61-e snatchArmed復元(よこどりの構え)', atk.snatchArmed === false, `snatchArmed=${atk.snatchArmed}`);
+  check('H61-f magicCoatTurn復元(マジックコートの構え)', atk.magicCoatTurn === false, `magicCoatTurn=${atk.magicCoatTurn}`);
+  check('H61-g [出典: 設計_敵対的シナリオテスト_2026-07-21.md item5] forecastForm(てんきやの見た目)復元・typeOverrideと対で戻る',
+    atk.forecastForm === null && atk.typeOverride === null, `forecastForm=${atk.forecastForm} typeOverride=${JSON.stringify(atk.typeOverride)}`);
+} catch (__e) { skipCase('H61: undo × 単ターン揮発グループ+forecastForm', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H62: 音技×みがわり貫通 全数スイープ(B) — 実エンジンpiercesSubを全音技(flags.sound)に対して直接呼ぶ
+// 出典: bulbapedia.bulbagarden.net/wiki/Substitute_(doll)「starting in Generation VI, this includes almost
+// all sound-based moves (the only exception being Howl, after it started to affect allies in Generation VIII)」
+// / ポケモンWiki「みがわり」(第六世代以降の音技や、すりぬけなど、みがわり対策となる技・特性は世代を経るごとに
+// 強化されている)。とおぼえ(Howl)は味方対象専用(このエンジンではtarget:'ally'は対相手判定に来ないため
+// 実質除外)なので唯一の例外扱いは自然に整合する。
+// 修正: real_battle_simulator.html piercesSub(~3733)にmove.flags.sound===trueを追加(2026-07-21)。
+// ─────────────────────────────────────────────
+console.log('\n=== H62: 音技×みがわり貫通 全数スイープ [出典: bulbapedia.bulbagarden.net/wiki/Substitute_(doll)] ===');
+try {
+  const soundMoves = Object.values(data.WAZA_MAP).filter(m => m && m.flags && m.flags.sound);
+  check('H62-setup 現在のデータセットに音技(flags.sound)が1つ以上ある', soundMoves.length > 0, `count=${soundMoves.length}`);
+  const gaps = soundMoves.filter(m => !U.piercesSub(m, null));
+  check(`H62 [出典: bulbapedia.bulbagarden.net/wiki/Substitute_(doll)] 音技(flags.sound=true・全${soundMoves.length}技)は例外なくpiercesSub===true(全国版くさぶえ等のデータ宣言漏れ1件を機械的に一般則で吸収)`,
+    gaps.length === 0, `gaps=${JSON.stringify(gaps.map(m => m.name))}`);
+} catch (__e) { skipCase('H62: 音技×みがわり貫通 全数スイープ', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H63: 音技×みがわり貫通 — ダメージ技(ばくおんぱ)がみがわりの上からダメージを通す(B)
+// 出典: bulbapedia.bulbagarden.net/wiki/Substitute_(doll)(第六世代以降、音技はみがわりを貫通)
+// ─────────────────────────────────────────────
+console.log('\n=== H63: 音技×みがわり貫通(ダメージ技=ばくおんぱ) [出典: bulbapedia.bulbagarden.net/wiki/Substitute_(doll)] ===');
+try {
+  resetEnv();
+  const atk = freshSide('ドラパルト', 'bakuonpa', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def);
+  def.subHp = Math.max(1, Math.floor(E.realStat(def, 'hp') / 4));   // みがわり展開済み状態を作る
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0);
+  const beforeHp = def.currentHp, beforeSub = def.subHp;
+  E.runSingleAttack('self', 0);
+  check('H63 [出典: bulbapedia.bulbagarden.net/wiki/Substitute_(doll)] 音技(ばくおんぱ)はみがわりを貫通して本体のHPが減る(みがわりのHPでなく本体を削る)',
+    def.currentHp < beforeHp, `before=${beforeHp} after=${def.currentHp} subHp=${def.subHp} log=${JSON.stringify(E.battleLog.slice(-2))}`);
+} catch (__e) { skipCase('H63: 音技×みがわり貫通(ダメージ技=ばくおんぱ)', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H64: 音技×みがわり貫通 — 状態異常技(うたう)がみがわりの上から状態異常を通す(B)
+// 出典: ポケモンWiki「みがわり」/ bulbapedia.bulbagarden.net/wiki/Substitute_(doll)
+// ─────────────────────────────────────────────
+console.log('\n=== H64: 音技×みがわり貫通(状態異常技=うたう) [出典: ポケモンWiki「みがわり」] ===');
+try {
+  resetEnv();
+  const atk = freshSide('ピクシー', 'utau', { ability: '' });
+  fullHp(atk);
+  const def = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(def);
+  def.subHp = Math.max(1, Math.floor(E.realStat(def, 'hp') / 4));
+  E.sides.self = atk; E.sides.opp = def;
+  E.setRandom(() => 0);
+  E.runSingleAttack('self', 0);
+  check('H64 [出典: ポケモンWiki「みがわり」] 音技(うたう)はみがわりを貫通して相手をねむり状態にする',
+    def.status === 'sleep', `status=${def.status} log=${JSON.stringify(E.battleLog.slice(-2))}`);
+} catch (__e) { skipCase('H64: 音技×みがわり貫通(状態異常技=うたう)', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H65: 音技×みがわり貫通 — 全国版くさぶえ(grass-whistle)の実データギャップ修正確認(B・national専用)
+// 出典: bulbapedia.bulbagarden.net/wiki/Substitute_(doll) / 発見経緯=grass-whistleはbattle_data.
+// substitute_pierceが未宣言(effect個別のbypasses_substitute:trueをこのエンジンはどこでも読んでいない=未参照
+// の宣言だった)。flags.soundを一般則にしたpiercesSubの修正で、このデータ宣言漏れ1件も自動的に解消する。
+// ─────────────────────────────────────────────
+console.log('\n=== H65: くさぶえ(grass-whistle)のみがわり貫通 実データギャップ修正確認 [出典: bulbapedia.bulbagarden.net/wiki/Substitute_(doll)・national専用] ===');
+try {
+  const gwMv = moveByKey('grass-whistle');
+  if (!gwMv) {
+    skipCase('H65: くさぶえ', 'くさぶえ(grass-whistle)がWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    check('H65-setup くさぶえはbattle_data.substitute_pierceが未宣言のまま(データ側のギャップそのものは残っている=エンジン側の一般則で吸収している確認)',
+      gwMv.battle_data && gwMv.battle_data.substitute_pierce !== true, `substitute_pierce=${gwMv.battle_data && gwMv.battle_data.substitute_pierce}`);
+    resetEnv();
+    const atk = freshSide('フシギダネ', 'grass-whistle', { ability: '' });
+    fullHp(atk);
+    const def = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(def);
+    def.subHp = Math.max(1, Math.floor(E.realStat(def, 'hp') / 4));
+    E.sides.self = atk; E.sides.opp = def;
+    E.setRandom(() => 0);
+    E.runSingleAttack('self', 0);
+    check('H65 [出典: bulbapedia.bulbagarden.net/wiki/Substitute_(doll)] くさぶえはみがわりを貫通してねむり状態にする(修正前はデータ宣言漏れでみがわりに阻まれる実バグだった)',
+      def.status === 'sleep', `status=${def.status} log=${JSON.stringify(E.battleLog.slice(-2))}`);
+  }
+} catch (__e) { skipCase('H65: くさぶえ(grass-whistle)のみがわり貫通 実データギャップ修正確認', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H66: こだわりロック×アンコール×とんぼがえり(pivot交代)の優先順位/交代時クリア(C)
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md C。優先順位= charging→rampage→encore→choiceLock
+// (runSingleAttack/runTurn ~5405-5412相当)。交代でchoiceLock/encoreが解除されるのは標準仕様
+// (出典: bulbapedia.bulbagarden.net/wiki/Choice_Band_(item)「if the Pokémon switches out, ...the
+// move lock is removed」)。
+// ─────────────────────────────────────────────
+console.log('\n=== H66: こだわりロック×アンコール×交代の優先順位/クリア [出典: 設計_敵対的シナリオテスト_2026-07-21.md C / bulbapedia.bulbagarden.net/wiki/Choice_Band_(item)] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カビゴン', ['hataku', 'ketaguri'], { ability: '', item: 'kodawari_scarf' });
+  fullHp(atk);
+  const benchMon = freshSide('ゲンガー', 'hataku', { ability: '' });
+  fullHp(benchMon);
+  atk.bench = [{ poke: benchMon.poke, moves: benchMon.moves, effort: benchMon.effort, natureIdx: 0, ability: benchMon.ability, currentHp: benchMon.currentHp, item: '', status: 'none' }];
+  const def = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.runSingleAttack('self', 0);   // はたく使用→こだわりロック成立(lastMove=はたく)
+  check('H66-a こだわりロック成立直後はlastMoveとchoiceLockが一致する(優先順位チェーンの前提)',
+    !!atk.choiceLock && !!atk.lastMove && atk.choiceLock.name === atk.lastMove.name,
+    `choiceLock=${atk.choiceLock && atk.choiceLock.name} lastMove=${atk.lastMove && atk.lastMove.name}`);
+  E.attemptSwitch('self', 0);   // とんぼがえり相当のpivot交代(状態遷移はattemptSwitchで代表)
+  check('H66-b [出典: bulbapedia.bulbagarden.net/wiki/Choice_Band_(item)] 交代でこだわりロックが解除される(標準仕様どおり)',
+    atk.choiceLock === null, `choiceLock=${JSON.stringify(atk.choiceLock)}`);
+  check('H66-c 交代でlastMove/encoreも解除される(次に出た個体が誤ってロック/アンコールを引き継がない)',
+    atk.lastMove === null && atk.encore === null, `lastMove=${JSON.stringify(atk.lastMove)} encore=${JSON.stringify(atk.encore)}`);
+} catch (__e) { skipCase('H66: こだわりロック×アンコール×交代の優先順位/クリア', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H67: よこどり armed中に交代 → snatchArmed/magicCoatTurnがクリアされるか(D)
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md D「よこどり: armed中に交代→クリアされるか」
+// 修正: clearVolatilesOnSwitch(real_battle_simulator.html)にsnatchArmed/magicCoatTurnのクリアを追加(2026-07-21)。
+// 単ターン揮発の他フィールド(protecting/enduring等)は元々ここでクリアされていた=同じ扱いに揃えた。
+// ─────────────────────────────────────────────
+console.log('\n=== H67: よこどり armed中に交代→クリア確認 [出典: 設計_敵対的シナリオテスト_2026-07-21.md D] ===');
+try {
+  resetEnv();
+  const atk = freshSide('カビゴン', 'hataku', { ability: '' });
+  fullHp(atk);
+  const benchMon = freshSide('ゲンガー', 'hataku', { ability: '' });
+  fullHp(benchMon);
+  atk.bench = [{ poke: benchMon.poke, moves: benchMon.moves, effort: benchMon.effort, natureIdx: 0, ability: benchMon.ability, currentHp: benchMon.currentHp, item: '', status: 'none' }];
+  const def = freshSide('カイリキー', 'hataku', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  atk.snatchArmed = true; atk.magicCoatTurn = true;   // よこどり/マジックコートで構えた直後の状態を模す
+  E.attemptSwitch('self', 0);
+  check('H67-a [出典: 設計_敵対的シナリオテスト_2026-07-21.md D] よこどりの構え(snatchArmed)は交代でクリアされる(修正前は次の個体に持ち越る実バグだった)',
+    E.sides.self.snatchArmed === false, `snatchArmed=${E.sides.self.snatchArmed}`);
+  check('H67-b マジックコートの構え(magicCoatTurn)も同様にクリアされる',
+    E.sides.self.magicCoatTurn === false, `magicCoatTurn=${E.sides.self.magicCoatTurn}`);
+} catch (__e) { skipCase('H67: よこどり armed中に交代→クリア確認', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H68: さきどり(Me First) × 対象がこだわりロック中/PP0わるあがき強制(D・national専用)
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md D「さきどり: 対象がこだわりロック中/PP0でわるあがき強制の
+// とき(NGリスト整合)」。修正前は def.moves[def.selectedMoveIdx] を生で読んでいたためロック/PP0の実際の
+// 挙動を見落とし(ME_FIRST_NGの'わるあがき'宣言が事実上一度も発火しない死んだガードになっていた)。
+// 修正: real_battle_simulator.html runSingleAttack/runTurn 両方のさきどり分岐でdef実際の解決チェーン
+// (charging→rampage→encore→choiceLock→PP0判定)を複製(2026-07-21)。
+// ─────────────────────────────────────────────
+console.log('\n=== H68: さきどり×こだわりロック/PP0強制 [出典: 設計_敵対的シナリオテスト_2026-07-21.md D・national専用] ===');
+try {
+  const meFirstMv = moveByKey('me-first');
+  if (!meFirstMv) {
+    skipCase('H68: さきどり×こだわりロック/PP0強制', 'さきどり(me-first)がWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    // H68-a: defがUI選択上は「からてチョップ」だが、こだわりロックで実際は「はたく」に固定されている食い違い状態。
+    // さきどりは「実際にdefが出す技(はたく)」をコピーすべき(UI選択のからてチョップではない)。
+    resetEnv();
+    const atkA = freshSide('カイリキー', 'me-first', { ability: '' });
+    fullHp(atkA);
+    const defA = freshSide('カビゴン', ['hataku', 'ketaguri'], { ability: '' });
+    fullHp(defA);
+    defA.selectedMoveIdx = 1;          // UI上は からてチョップ を選んでいる
+    defA.choiceLock = defA.moves[0];   // しかしこだわりロックで はたく に固定されている
+    E.sides.self = atkA; E.sides.opp = defA;
+    E.setRandom(() => 0.5);
+    E.runSingleAttack('self', 0);
+    check('H68-a [出典: 設計_敵対的シナリオテスト_2026-07-21.md D] こだわりロック中の相手には、UI選択でなくロックされている技(はたく)をコピーする',
+      E.battleLog.some(e => /くりだした/.test(e.msg) && /はたく/.test(e.msg)),
+      `log=${JSON.stringify(E.battleLog.slice(-3))}`);
+
+    // H68-b: defの選択技がPP0(わるあがき強制)→ME_FIRST_NGの'わるあがき'に一致して失敗するはず
+    resetEnv();
+    const atkB = freshSide('カイリキー', 'me-first', { ability: '' });
+    fullHp(atkB);
+    const defB = freshSide('カビゴン', 'hataku', { ability: '' });
+    fullHp(defB);
+    E.sides.self = atkB; E.sides.opp = defB;
+    E.initPP(atkB); E.initPP(defB);
+    defB.pp[0] = 0;   // 選択技のPPが尽きている=わるあがき強制
+    E.setRandom(() => 0.5);
+    const beforeB = defB.currentHp;
+    E.runSingleAttack('self', 0);
+    check('H68-b [出典: 設計_敵対的シナリオテスト_2026-07-21.md D] 相手がPP0でわるあがき強制のときはさきどりが失敗する(ME_FIRST_NGの「わるあがき」が実際に効く)',
+      defB.currentHp === beforeB && E.battleLog.some(e => /しかし うまく きまらなかった/.test(e.msg)),
+      `hp=${defB.currentHp} before=${beforeB} log=${JSON.stringify(E.battleLog.slice(-3))}`);
+  }
+} catch (__e) { skipCase('H68: さきどり×こだわりロック/PP0強制', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H69: すなあらし5ターン切れ×ポワルンforecastFormの整合確認(D)
+// 出典: 設計_敵対的シナリオテスト_2026-07-21.md D「すなあらし5T切れ×ポワルンフォルム戻り」
+// すなあらしはポワルンのフォルム変化対象外(にほんばれ/あめ/ゆきのみ・_fcMap ~3416)なので、そもそも
+// forecastFormへ影響しない=天候切れの一般ロジック(にほんばれで確認)がそのまま正しく戻ることを確認する。
+// ─────────────────────────────────────────────
+console.log('\n=== H69: 天気5ターン切れ×ポワルンforecastForm整合 [出典: 設計_敵対的シナリオテスト_2026-07-21.md D] ===');
+try {
+  resetEnv();
+  const atk = freshSide('ポワルン', 'mamoru', { ability: 'てんきや' });
+  fullHp(atk);
+  const def = freshSide('カイリキー', 'mamoru', { ability: '' });
+  fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  E.env.weather = 'sunny'; E.env.weatherTurns = 1;   // このターン終了で切れる設定
+  atk.forecastForm = 'sunny'; atk.typeOverride = ['ほのお'];   // 天候発動中の見た目(通常はsyncForecastBothSidesが作る)
+  E.setRandom(() => 0);
+  E.runTurn();
+  check('H69-a 天気が5ターン(このケースは1ターン)で元に戻る', E.env.weather === 'none', `weather=${E.env.weather}`);
+  check('H69-b [出典: 設計_敵対的シナリオテスト_2026-07-21.md D] 天気切れと同時にポワルンのforecastForm/typeOverrideもnullへ戻る(syncForecastBothSidesがrunTurn終了時に毎ターン走る=既存実装で正しい)',
+    atk.forecastForm === null && atk.typeOverride === null, `forecastForm=${atk.forecastForm} typeOverride=${JSON.stringify(atk.typeOverride)}`);
+
+  // 対照: すなあらしはそもそもポワルンのフォルム対象外(_fcMapに無い)なので、5ターン切れでも影響しない
+  resetEnv();
+  const atk2 = freshSide('ポワルン', 'mamoru', { ability: 'てんきや' });
+  fullHp(atk2);
+  const def2 = freshSide('カイリキー', 'mamoru', { ability: '' });
+  fullHp(def2);
+  E.sides.self = atk2; E.sides.opp = def2;
+  E.env.weather = 'sand'; E.env.weatherTurns = 1;
+  E.setRandom(() => 0);
+  E.runTurn();
+  check('H69-c 対照: すなあらしはポワルンのフォルムに影響しない(切れる前もforecastFormはnullのまま)',
+    atk2.forecastForm === null, `forecastForm=${atk2.forecastForm}`);
+} catch (__e) { skipCase('H69: 天気5ターン切れ×ポワルンforecastForm整合', (__e && __e.message) || String(__e)); }
+
+// ═════════════════════════════════════════════
+// Wave1(敵対的シナリオテスト) ここまで
+// ═════════════════════════════════════════════
+
 // ─────────────────────────────────────────────
 // 集計
 // ─────────────────────────────────────────────
 console.log('\n' + '='.repeat(60));
-console.log(`難所相互作用55件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
+console.log(`難所相互作用テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
 if (fails.length) {
   console.log('\n--- FAIL一覧 ---');
   fails.forEach(f => console.log('  ' + f));
