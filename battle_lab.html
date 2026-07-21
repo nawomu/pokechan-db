@@ -1252,8 +1252,8 @@ body.in-battle #lab-ai-row{display:flex}
         <option value="home" data-i18n="real_battle.sprite_src_home">3D(Pokémon HOME)</option>
       </select> <span id="sprite-credit" style="display:none;font-size:10px"><a href="https://pokeapi.co/" style="color:#9ec5ff" data-i18n="real_battle.sprite_credit">画像出典: PokéAPI</a></span></span>
       <input type="range" id="snd-vol" min="0" max="1" step="0.05" title="🔊" style="margin-left:auto;width:110px;accent-color:#5a4fc4">
-      <button id="snd-toggle" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.snd_toggle_on">🔊 音オン</button>
-      <!-- ★タスク#19(2026-07-20): BGM(mp3ループ)トグル。既定OFF・ON状態はlocalStorage(pcham_bgm_on)。既存🔊とは独立 -->
+      <!-- ★タスク#19(2026-07-20): BGM(mp3ループ)トグル。既定OFF・ON状態はlocalStorage(pcham_bgm_on)。
+           ★2026-07-21(阿部さん): 🔊音オン/オフボタンは廃止(スライダーがミュート操作を兼ねる)。BGMはスライダー直後の同じ行に配置 -->
       <button id="bgm-toggle" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer" data-i18n="real_battle.bgm_toggle_off">🎵 BGM</button>
       <audio id="pb-bgm-audio" loop preload="none" style="display:none"></audio>
     </div>
@@ -2457,7 +2457,8 @@ function initSetup(){
   // CH: msgboxが盤面内に入ったので、盤面のどこをタップしてもメッセージ送りできるようにする
   // (busy時のみ作用。msgbox個別のリスナーは二重発火するため廃止)
   $('field').addEventListener('click', advanceMsg);
-  document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter') advanceMsg(); });
+  // ★2026-07-21: preventDefault必須=フォーカスが残ったボタンをSpace/Enterが再発火する「幽霊クリック」防止(BGM勝手オフの根)+Spaceのページスクロール抑止。入力欄では効かせない
+  document.addEventListener('keydown', e => { if (e.key === ' ' || e.key === 'Enter'){ const t = e.target; if (t && t.matches && t.matches('input,textarea,select,[contenteditable="true"]')) return; e.preventDefault(); advanceMsg(); } });
   // ★2026-07-17 阿部さんFB: 両側HPボックスの⚙。#field子孫なのでstopPropagation必須
   // (#fieldのclick=advanceMsgへバブると誤ってメッセージ送りが起きる=既知の罠・fx-editor-cue-integration参照)
   // ★A1(2026-07-17午後 阿部さんFB): 導線をstatsモーダルから交代画面(中央エディタ)に変更=編集画面を一本化
@@ -2493,9 +2494,7 @@ function initSetup(){
   $('c-run').addEventListener('click', exitBattleToSetup);
   // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
   $('btn-exit').addEventListener('click', e => { e.stopPropagation(); exitBattleToSetup(); });
-  // 音オン/オフ(設定はlocalStorageに保存)
-  updateSndBtn();
-  // ★BGM(タスク#19): 既定OFF・トグルはlocalStorageに保存。既存🔊(SE)とは独立
+  // ★BGM(タスク#19): 既定OFF・トグルはlocalStorageに保存。SEは常時オン(スライダーがミュート操作を兼ねる=2026-07-21)
   updateBgmBtn();
   // ★2026-07-21(阿部さん): 編成画面(セットアップ)にもBGM。バトル画面の#bgm-toggleと
   // セットアップ画面の#bgm-toggle-setupの両方から同じpbBgmToggleでON/OFFできる(online_battleのロビー流用)
@@ -2523,12 +2522,6 @@ function initSetup(){
     el.addEventListener('change', () => setSpriteSrc(el.value));
   });
   setSpriteSrc(spriteSrc);   // クレジット表示等の初期反映
-  $('snd-toggle').addEventListener('click', () => {
-    sndOn = !sndOn;
-    localStorage.setItem('rb_snd', sndOn ? 'on' : 'off');
-    updateSndBtn();
-    if (sndOn) SE.select();
-  });
   // 同じポケモンを1チームに2体引かない(重複すると交代リストで「HP満タンの同名」が出て混乱する=2026-07-05 阿部さん)
   function sampleUnique(n){
     const arr = pokes.slice();
@@ -4419,7 +4412,7 @@ function initGodHand(){
 
 // ===== サウンド(Web Audio合成・ファミコン風 — ファイル不要・全部自作波形=権利フリー) =====
 // 2026-06-12 阿部さん「音とBGM入れたらそれっぽくなる」。autoplay制限があるので初回クリックで解錠。
-let AC = null, sndOn = localStorage.getItem('rb_snd') !== 'off';
+let AC = null, sndOn = true;   // ★2026-07-21(阿部さん): 🔊トグル廃止。SEは常時オン=ミュートは音量スライダー(0で無音)のみが担う
 let masterVol = null, sndVol = Math.min(1, Math.max(0, parseFloat(localStorage.getItem('rb_vol') || '0.7')));
 function dest(){   // 全SE/BGMの出口(音量スライダーが効くマスターゲイン)
   const ctx = ac();
@@ -4446,6 +4439,9 @@ function ac(){
   if (AC.state === 'suspended') AC.resume();
   return AC;
 }
+// ★SE解錠(2026-07-21・阿部さん): 🔊音オン/オフボタン廃止に伴い、旧ボタンのクリックが担っていた
+// ユーザージェスチャ解錠を、最初のタップ/クリック全般で肩代わりする(以降SEは無音警告なく鳴る)
+document.addEventListener('pointerdown', () => { try { ac(); } catch (e) {} }, { capture: true, once: true });
 // 単音(波形・周波数・長さ・音量・ピッチスライド先)
 function tone(type, freq, dur, vol, slideTo, when){
   if (!sndOn) return;
@@ -4566,7 +4562,6 @@ const SE = {
     (fns[key] || (() => {}))();
   },
 };
-function updateSndBtn(){ const b = $('snd-toggle'); if (b) b.textContent = sndOn ? I18N.t('real_battle.snd_toggle_on','🔊 音オン') : I18N.t('real_battle.snd_toggle_off','🔇 音オフ'); }
 
 // ===== BGM(mp3ループ・タスク#19 2026-07-20 阿部さん指示) =====
 // 既定OFF(自動再生ポリシー+UX)。🎵トグルでON、状態はlocalStorage(pcham_bgm_on)に記憶。
@@ -4596,6 +4591,11 @@ function pbBgmSetScene(scene){
   if (pbBgmOn) pbBgmApply(); else pbBgmStop();
 }
 function pbBgmToggle(){
+  // ★2026-07-21(阿部さん報告=バトル中にBGMが勝手に止まる): クリック直後もこのボタンにフォーカスが残ると、
+  // メッセージ送りのSpace/Enter(下のdocument keydown)がブラウザ既定動作で「フォーカス中のボタン」にも
+  // clickを飛ばし、意図せずこの関数が再度呼ばれてpbBgmOnが再トグルされてしまう(=UIが勝手にBGMオフに戻る)。
+  // クリック直後にフォーカスを外し、以降のキー操作で再クリック相当が起きないようにする(根治)。
+  if (document.activeElement && typeof document.activeElement.blur === 'function') document.activeElement.blur();
   pbBgmOn = !pbBgmOn;
   localStorage.setItem('pcham_bgm_on', pbBgmOn ? '1' : '0');
   updateBgmBtn();
