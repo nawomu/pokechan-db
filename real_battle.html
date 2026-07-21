@@ -2043,10 +2043,10 @@ function initSetup(){
       if (RB_ONLINE.started && !gameOver && window.RBOnline){ try { RBOnline.resign(); } catch(e) {} }
       setTimeout(() => onlineLeave(), 600);
     }
-    bgmStop(); pbBgmSetScene(null); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+    pbBgmSetScene(null); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
   });
   // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
-  $('btn-exit').addEventListener('click', e => { e.stopPropagation(); bgmStop(); pbBgmSetScene(null); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
+  $('btn-exit').addEventListener('click', e => { e.stopPropagation(); pbBgmSetScene(null); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block'; });
   // 音オン/オフ(設定はlocalStorageに保存)
   updateSndBtn();
   // ★BGM(タスク#19): 既定OFF・トグルはlocalStorageに保存。既存🔊(SE)とは独立
@@ -2083,8 +2083,7 @@ function initSetup(){
     sndOn = !sndOn;
     localStorage.setItem('rb_snd', sndOn ? 'on' : 'off');
     updateSndBtn();
-    if (sndOn){ SE.select(); if ($('battle').style.display !== 'none' && !gameOver) bgmStart(); }
-    else bgmStop();
+    if (sndOn) SE.select();
   });
   // 同じポケモンを1チームに2体引かない(重複すると交代リストで「HP満タンの同名」が出て混乱する=2026-07-05 阿部さん)
   function sampleUnique(n){
@@ -2217,7 +2216,6 @@ function startBattle(){
   logPos = S.battleLog.length;
   renderAll();   // renderAll内でrenderSideBarsも呼ばれる(へんしん済みのすがたで描画)
   setWeatherFx(null);
-  bgmStart();
   pbBgmSetScene('battle');   // ★タスク#19: バトル画面=battle曲
   say([I18N.t('real_battle.battle_start_self','バトルスタート！ いけっ！ {n}！').replace('{n}', selfName0), I18N.t('real_battle.battle_start_opp','相手は {n} を くりだした！').replace('{n}', oppName0)].concat(initLines), () => showActionUI());
 }
@@ -3194,7 +3192,6 @@ function executeTurn(){
 // ===== サウンド(Web Audio合成・ファミコン風 — ファイル不要・全部自作波形=権利フリー) =====
 // 2026-06-12 阿部さん「音とBGM入れたらそれっぽくなる」。autoplay制限があるので初回クリックで解錠。
 let AC = null, sndOn = localStorage.getItem('rb_snd') !== 'off';
-let bgmTimer = null, bgmStep = 0, masterBgm = null;
 let masterVol = null, sndVol = Math.min(1, Math.max(0, parseFloat(localStorage.getItem('rb_vol') || '0.7')));
 function dest(){   // 全SE/BGMの出口(音量スライダーが効くマスターゲイン)
   const ctx = ac();
@@ -3341,49 +3338,13 @@ const SE = {
     (fns[key] || (() => {}))();
   },
 };
-// バトルBGM: 8bit風2小節ループ(Am)。スケジューラで16分音符を先読み再生
-const BGM_BASS = [110, 0, 110, 0, 165, 0, 110, 0, 131, 0, 131, 0, 98, 0, 98, 123];           // A E C G…
-const BGM_LEAD = [440, 0, 523, 587, 659, 0, 587, 523, 440, 0, 392, 440, 523, 440, 392, 330]; // 戦闘っぽい旋律
-function bgmStart(){
-  if (!sndOn || bgmTimer) return;
-  const ctx = ac();
-  masterBgm = ctx.createGain(); masterBgm.gain.value = 0.10; masterBgm.connect(dest());
-  let next = ctx.currentTime + 0.05;
-  const SPB = 0.13;   // 16分音符の長さ(≒115bpmの16ビート)
-  bgmStep = 0;
-  bgmTimer = setInterval(() => {
-    if (!sndOn){ bgmStop(); return; }
-    while (next < ctx.currentTime + 0.2){
-      const i = bgmStep % 16;
-      const b = BGM_BASS[i], l = BGM_LEAD[i];
-      if (b){ const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'triangle'; o.frequency.value = b;
-        g.gain.setValueAtTime(0.9, next); g.gain.exponentialRampToValueAtTime(0.001, next + SPB * 0.9);
-        o.connect(g); g.connect(masterBgm); o.start(next); o.stop(next + SPB); }
-      if (l){ const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'square'; o.frequency.value = l;
-        g.gain.setValueAtTime(0.35, next); g.gain.exponentialRampToValueAtTime(0.001, next + SPB * 0.85);
-        o.connect(g); g.connect(masterBgm); o.start(next); o.stop(next + SPB); }
-      if (i % 4 === 0){ // ハイハット代わりのノイズチック
-        const len = Math.floor(ctx.sampleRate * 0.03), buf = ctx.createBuffer(1, len, ctx.sampleRate);
-        const d = buf.getChannelData(0); for (let k = 0; k < len; k++) d[k] = (Math.random() * 2 - 1) * (1 - k / len);
-        const s = ctx.createBufferSource(); s.buffer = buf;
-        const g = ctx.createGain(); g.gain.value = 0.12; s.connect(g); g.connect(masterBgm); s.start(next); }
-      next += SPB; bgmStep++;
-    }
-  }, 40);
-}
-function bgmStop(){
-  if (bgmTimer){ clearInterval(bgmTimer); bgmTimer = null; }
-  if (masterBgm){ try { masterBgm.disconnect(); } catch (e) {} masterBgm = null; }
-}
 function updateSndBtn(){ const b = $('snd-toggle'); if (b) b.textContent = sndOn ? I18N.t('real_battle.snd_toggle_on','🔊 音オン') : I18N.t('real_battle.snd_toggle_off','🔇 音オフ'); }
 
 // ===== BGM(mp3ループ・タスク#19 2026-07-20 阿部さん指示) =====
 // 既定OFF(自動再生ポリシー+UX)。🎵トグルでON、状態はlocalStorage(pcham_bgm_on)に記憶。
 // 実装方式(a): 既存Web AudioのAudioContext(ac()/dest())に<audio loop>をMediaElementSourceで接続し、
 // SEに埋もれない控えめゲイン(0.35)を挟んで、既存マスター音量スライダー(masterVol)にも連動させる。
-// 既存の合成chiptune BGM(bgmStart/bgmStop・sndOn連動)とは完全に独立(壊さない・混ざっても破綻しない設計)。
+// ★2026-07-21: 旧合成chiptune BGM(bgmStart/bgmStop)は二重再生バグのため撤去。BGMはこのmp3系統に一本化。
 let pbBgmOn = localStorage.getItem('pcham_bgm_on') === '1';
 let pbBgmGainNode = null, pbBgmSrcNode = null, pbBgmCurTrack = null, pbBgmScene_ = null, pbBgmPickerPrevScene = null;
 function pbBgmGraph(el){
@@ -3982,7 +3943,7 @@ function endOfTurn(){
   };
   if (dead('opp') || dead('self')){
     gameOver = true;
-    bgmStop(); pbBgmSetScene(null);
+    pbBgmSetScene(null);
     // ★相打ち(両者全滅)の勝敗規則(A.4 2026-07-11・権威=ポケモンWiki「ターン」「だいばくはつ」「みちづれ」。
     // 詳細=reference/_aizuchi_win_rule_2026-07-11.md。従来はdead('opp')だけ見て相打ち=常に勝ち扱いだった):
     // ・反動(フレアドライブ等)での相打ち=最後に技を出した側(攻撃側)の勝ち
@@ -4178,7 +4139,7 @@ function onlineAfterGame(){
 }
 function onlineOppGone(resigned){
   if (gameOver) return;
-  gameOver = true; bgmStop(); pbBgmSetScene(null); SE.win();
+  gameOver = true; pbBgmSetScene(null); SE.win();
   // scene:win(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
   { const _wlSheet2 = resolveSceneSheet('win'); if (_wlSheet2) playSceneCueSheet(_wlSheet2, { won: true }); else showResultBanner(true); }
   const ja = resigned ? '相手は こうさんした！ きみの かち！' : '相手が たいせんから 抜けた。きみの かち！';

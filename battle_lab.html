@@ -1128,6 +1128,8 @@ body.in-battle #lab-ai-row{display:flex}
     <div class="btns">
       <button class="sub" id="btn-random" data-i18n="real_battle.btn_random">🎲 おまかせ編成</button>
       <button id="btn-start" data-i18n="real_battle.btn_start">▶ バトルスタート！</button>
+      <!-- ★2026-07-21(阿部さん): セットアップ画面にもBGMトグル(バトル画面の#bgm-toggleと同じlocalStorage/pbBgmToggleを共有) -->
+      <button id="bgm-toggle-setup" type="button" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer;font-size:12px" data-i18n="real_battle.bgm_toggle_off">🎵 BGM</button>
     </div>
   </div>
 
@@ -2470,7 +2472,7 @@ function initSetup(){
     labUndoSnap = null;
     ['c-revive-continue', 'c-end-battle'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });
     try { closePicker(); } catch (e) {}   // バトル追加モードのピッカーが開いたままなら閉じる
-    bgmStop(); pbBgmSetScene(null); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+    pbBgmSetScene('lobby'); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
     try { updateLabUndoButton(); renderDmgPin(); } catch (e) {}   // ★A3/A4: バトル外=ボタン/ピンを畳む
   }
   $('c-run').addEventListener('click', exitBattleToSetup);
@@ -2480,12 +2482,10 @@ function initSetup(){
   updateSndBtn();
   // ★BGM(タスク#19): 既定OFF・トグルはlocalStorageに保存。既存🔊(SE)とは独立
   updateBgmBtn();
-  { const bt = $('bgm-toggle'); if (bt) bt.addEventListener('click', () => {
-      pbBgmOn = !pbBgmOn;
-      localStorage.setItem('pcham_bgm_on', pbBgmOn ? '1' : '0');
-      updateBgmBtn();
-      if (pbBgmOn) pbBgmApply(); else pbBgmStop();
-    }); }
+  // ★2026-07-21(阿部さん): 編成画面(セットアップ)にもBGM。バトル画面の#bgm-toggleと
+  // セットアップ画面の#bgm-toggle-setupの両方から同じpbBgmToggleでON/OFFできる(online_battleのロビー流用)
+  ['bgm-toggle', 'bgm-toggle-setup'].forEach(id => { const bt = $(id); if (bt) bt.addEventListener('click', pbBgmToggle); });
+  pbBgmSetScene('lobby');   // ★2026-07-21: 初期表示はセットアップ画面=lobby曲(既定シーン)
   // 記憶がONで復元された場合、自動再生ポリシーに従い即再生はしない。最初のジェスチャで鳴らす
   if (pbBgmOn){ const pbBgmResumeOnGesture = () => pbBgmApply();
     document.addEventListener('pointerdown', pbBgmResumeOnGesture, { once: true });
@@ -2512,8 +2512,7 @@ function initSetup(){
     sndOn = !sndOn;
     localStorage.setItem('rb_snd', sndOn ? 'on' : 'off');
     updateSndBtn();
-    if (sndOn){ SE.select(); if ($('battle').style.display !== 'none' && !gameOver) bgmStart(); }
-    else bgmStop();
+    if (sndOn) SE.select();
   });
   // 同じポケモンを1チームに2体引かない(重複すると交代リストで「HP満タンの同名」が出て混乱する=2026-07-05 阿部さん)
   function sampleUnique(n){
@@ -2660,7 +2659,6 @@ function startBattle(){
   try { updateLabAIButtons(); } catch (e) {}
   try { ghRenderAll(); } catch (e) {}   // ★バトルラボ: 神の手パネルも開戦時の状態で作り直す
   setWeatherFx(null);
-  bgmStart();
   pbBgmSetScene('battle');   // ★タスク#19: バトル画面=battle曲
   // ★A2(2026-07-17 阿部さんFB「最初からその場にもうでている」): 開始時も交代入場と同じ登場アニメ。
   // 両側をいったん隠し(gone+HPボックス非表示)、開始行(lineWithFxの登場fx)がenter演出つきで出す
@@ -4407,7 +4405,6 @@ function initGodHand(){
 // ===== サウンド(Web Audio合成・ファミコン風 — ファイル不要・全部自作波形=権利フリー) =====
 // 2026-06-12 阿部さん「音とBGM入れたらそれっぽくなる」。autoplay制限があるので初回クリックで解錠。
 let AC = null, sndOn = localStorage.getItem('rb_snd') !== 'off';
-let bgmTimer = null, bgmStep = 0, masterBgm = null;
 let masterVol = null, sndVol = Math.min(1, Math.max(0, parseFloat(localStorage.getItem('rb_vol') || '0.7')));
 function dest(){   // 全SE/BGMの出口(音量スライダーが効くマスターゲイン)
   const ctx = ac();
@@ -4554,49 +4551,13 @@ const SE = {
     (fns[key] || (() => {}))();
   },
 };
-// バトルBGM: 8bit風2小節ループ(Am)。スケジューラで16分音符を先読み再生
-const BGM_BASS = [110, 0, 110, 0, 165, 0, 110, 0, 131, 0, 131, 0, 98, 0, 98, 123];           // A E C G…
-const BGM_LEAD = [440, 0, 523, 587, 659, 0, 587, 523, 440, 0, 392, 440, 523, 440, 392, 330]; // 戦闘っぽい旋律
-function bgmStart(){
-  if (!sndOn || bgmTimer) return;
-  const ctx = ac();
-  masterBgm = ctx.createGain(); masterBgm.gain.value = 0.10; masterBgm.connect(dest());
-  let next = ctx.currentTime + 0.05;
-  const SPB = 0.13;   // 16分音符の長さ(≒115bpmの16ビート)
-  bgmStep = 0;
-  bgmTimer = setInterval(() => {
-    if (!sndOn){ bgmStop(); return; }
-    while (next < ctx.currentTime + 0.2){
-      const i = bgmStep % 16;
-      const b = BGM_BASS[i], l = BGM_LEAD[i];
-      if (b){ const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'triangle'; o.frequency.value = b;
-        g.gain.setValueAtTime(0.9, next); g.gain.exponentialRampToValueAtTime(0.001, next + SPB * 0.9);
-        o.connect(g); g.connect(masterBgm); o.start(next); o.stop(next + SPB); }
-      if (l){ const o = ctx.createOscillator(), g = ctx.createGain();
-        o.type = 'square'; o.frequency.value = l;
-        g.gain.setValueAtTime(0.35, next); g.gain.exponentialRampToValueAtTime(0.001, next + SPB * 0.85);
-        o.connect(g); g.connect(masterBgm); o.start(next); o.stop(next + SPB); }
-      if (i % 4 === 0){ // ハイハット代わりのノイズチック
-        const len = Math.floor(ctx.sampleRate * 0.03), buf = ctx.createBuffer(1, len, ctx.sampleRate);
-        const d = buf.getChannelData(0); for (let k = 0; k < len; k++) d[k] = (Math.random() * 2 - 1) * (1 - k / len);
-        const s = ctx.createBufferSource(); s.buffer = buf;
-        const g = ctx.createGain(); g.gain.value = 0.12; s.connect(g); g.connect(masterBgm); s.start(next); }
-      next += SPB; bgmStep++;
-    }
-  }, 40);
-}
-function bgmStop(){
-  if (bgmTimer){ clearInterval(bgmTimer); bgmTimer = null; }
-  if (masterBgm){ try { masterBgm.disconnect(); } catch (e) {} masterBgm = null; }
-}
 function updateSndBtn(){ const b = $('snd-toggle'); if (b) b.textContent = sndOn ? I18N.t('real_battle.snd_toggle_on','🔊 音オン') : I18N.t('real_battle.snd_toggle_off','🔇 音オフ'); }
 
 // ===== BGM(mp3ループ・タスク#19 2026-07-20 阿部さん指示) =====
 // 既定OFF(自動再生ポリシー+UX)。🎵トグルでON、状態はlocalStorage(pcham_bgm_on)に記憶。
 // 実装方式(a): 既存Web AudioのAudioContext(ac()/dest())に<audio loop>をMediaElementSourceで接続し、
 // SEに埋もれない控えめゲイン(0.35)を挟んで、既存マスター音量スライダー(masterVol)にも連動させる。
-// 既存の合成chiptune BGM(bgmStart/bgmStop・sndOn連動)とは完全に独立(壊さない・混ざっても破綻しない設計)。
+// ★2026-07-21: 旧合成chiptune BGM(bgmStart/bgmStop)は二重再生バグのため撤去。BGMはこのmp3系統に一本化。
 let pbBgmOn = localStorage.getItem('pcham_bgm_on') === '1';
 let pbBgmGainNode = null, pbBgmSrcNode = null, pbBgmCurTrack = null, pbBgmScene_ = null, pbBgmPickerPrevScene = null;
 function pbBgmGraph(el){
@@ -4613,16 +4574,26 @@ function pbBgmApply(){
   el.play().catch(() => {});
 }
 function pbBgmStop(){ const el = $('pb-bgm-audio'); if (el) el.pause(); }
-// scene = 'battle' | 'select' | null(そのシーンでは無音)。ON/OFFに関係なく常に呼んでよい(内部でpbBgmOnを見る)
+// scene = 'battle' | 'lobby' | 'select' | null(そのシーンでは無音)。ON/OFFに関係なく常に呼んでよい(内部でpbBgmOnを見る)
+// 'lobby'=セットアップ(編成)画面・'select'=ポケモン/技ピッカーを開いている間・'battle'=バトル画面(2026-07-21)
 function pbBgmSetScene(scene){
   pbBgmScene_ = scene;
   if (pbBgmOn) pbBgmApply(); else pbBgmStop();
 }
+function pbBgmToggle(){
+  pbBgmOn = !pbBgmOn;
+  localStorage.setItem('pcham_bgm_on', pbBgmOn ? '1' : '0');
+  updateBgmBtn();
+  if (pbBgmOn) pbBgmApply(); else pbBgmStop();
+}
+// バトル画面の #bgm-toggle とセットアップ画面の #bgm-toggle-setup の両方を更新(2026-07-21: 2画面から切替可)
 function updateBgmBtn(){
-  const b = $('bgm-toggle'); if (!b) return;
-  b.textContent = pbBgmOn ? I18N.t('real_battle.bgm_toggle_on', '🎵 BGMオン') : I18N.t('real_battle.bgm_toggle_off', '🎵 BGMオフ');
-  b.style.opacity = pbBgmOn ? '1' : '0.55';
-  b.style.background = pbBgmOn ? '#eaf7e6' : '#fff';
+  ['bgm-toggle', 'bgm-toggle-setup'].forEach(id => {
+    const b = $(id); if (!b) return;
+    b.textContent = pbBgmOn ? I18N.t('real_battle.bgm_toggle_on', '🎵 BGMオン') : I18N.t('real_battle.bgm_toggle_off', '🎵 BGMオフ');
+    b.style.opacity = pbBgmOn ? '1' : '0.55';
+    b.style.background = pbBgmOn ? '#eaf7e6' : '#fff';
+  });
 }
 
 // ===== ステージ演出v3のヘルパー =====
@@ -5197,7 +5168,7 @@ function endOfTurn(){
   renderAll();
   try { ghRenderAll(); } catch (e) {}
   if (labSideDead('opp') || labSideDead('self')){
-    bgmStop(); pbBgmSetScene(null);
+    pbBgmSetScene(null);
     // ★相打ち(両者全滅)の勝敗規則(A.4 2026-07-11・権威=ポケモンWiki「ターン」「だいばくはつ」「みちづれ」。
     // 詳細=reference/_aizuchi_win_rule_2026-07-11.md。従来はdead('opp')だけ見て相打ち=常に勝ち扱いだった):
     // ・反動(フレアドライブ等)での相打ち=最後に技を出した側(攻撃側)の勝ち
@@ -5286,7 +5257,7 @@ function labRunForcedQueue(){
   if (labSideDead(side) && !labReviveFlow){
     labForcedQueue = [];
     labChoicePending = true;
-    bgmStop(); pbBgmSetScene(null);
+    pbBgmSetScene(null);
     showLabGameOverChoice();
     return;
   }
@@ -5348,8 +5319,7 @@ function labReviveContinue(){
   const rc = $('c-revive-continue'); if (rc) rc.style.display = 'none';
   const eb = $('c-end-battle'); if (eb) eb.style.display = 'none';
   ['c-fight','c-party'].forEach(id => { const b = $(id); if (b) b.style.display = ''; });
-  // ★M2(2026-07-17): つづける=バトル続行なのでBGMも再開(snd-toggleの流儀=sndOnの時だけ)
-  if (sndOn) bgmStart();
+  // ★M2(2026-07-17): つづける=バトル続行なのでBGMも再開
   pbBgmSetScene('battle');   // ★タスク#19: mp3 BGMは独立トグルなのでsndOnと無関係に続行
   if (labSwapped) labSwapSides();   // 判定は非swap前提
   labReviveFlow = true;   // ★H4: この死に出しは復活経由=全滅側でも♻ふっかつ付き交代画面を出してよい
@@ -5504,7 +5474,7 @@ function onlineAfterGame(){
 }
 function onlineOppGone(resigned){
   if (gameOver) return;
-  gameOver = true; bgmStop(); pbBgmSetScene(null); SE.win();
+  gameOver = true; pbBgmSetScene(null); SE.win();
   // scene:win(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
   { const _wlSheet2 = resolveSceneSheet('win'); if (_wlSheet2) playSceneCueSheet(_wlSheet2, { won: true }); else showResultBanner(true); }
   const ja = resigned ? '相手は こうさんした！ きみの かち！' : '相手が たいせんから 抜けた。きみの かち！';
