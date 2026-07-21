@@ -52,6 +52,16 @@ async function screenshot(page, name){
   try { await page.screenshot({ path: path.join(SHOT_DIR, name + '.png') }); } catch (e) {}
 }
 
+// ★2026-07-21: ▶バトルスタートは直接開戦でなく、まず選出(pick)画面(#lab-pick-screen)を挟むようになった。
+// ハーネスは「6たいぜんぶでバトル」(#lpk-gofull=常に押せる・選出ゼロなら編成順そのまま=旧来のstartBattle相当)
+// を選んで素通りさせる。決定的シナリオ台本の性質(乱数不使用)を崩さない最短経路。
+async function passLabPickScreen(page){
+  const shown = await waitUntil(page, () => !!document.getElementById('lab-pick-screen'), 8000);
+  if (!shown) return false;
+  await page.evaluate(() => { const b = document.getElementById('lpk-gofull'); if (b) b.click(); });
+  return true;
+}
+
 async function newTrackedPage(browser){
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const errors = [];
@@ -87,6 +97,7 @@ async function freshBattle(page){
     window.__TEAM = { selfNames, oppNames, megaCapName: megaCap.name };
   });
   await page.evaluate(() => document.getElementById('btn-start').click());
+  await passLabPickScreen(page);
   await waitUntil(page, () => document.body.classList.contains('in-battle'), 15000);
   await waitUntil(page, () => (typeof busy !== 'undefined') && !busy && document.getElementById('moves').style.display === 'flex', 20000);
 }
@@ -102,6 +113,7 @@ async function canStartNewBattle(page){
   await page.evaluate(() => { const b = document.getElementById('btn-random'); if (b) b.click(); });
   await page.waitForTimeout(300);
   await page.evaluate(() => document.getElementById('btn-start').click());
+  await passLabPickScreen(page);
   const started = await waitUntil(page, () => document.body.classList.contains('in-battle'), 15000);
   if (!started) return { ok: false, reason: 'in-battleクラスが付かない(startBattleが効いていない)' };
   const movesShown = await waitUntil(page, () => !busy && document.getElementById('moves').style.display === 'flex', 20000);

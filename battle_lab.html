@@ -125,6 +125,28 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .team-row .slot .cap-lead.on{background:linear-gradient(135deg,#c9a227,#e8c84a);color:#3a2c00;border-color:#ffe98a}
 .team-row .slot .cap-lead:hover{border-color:#d4f542;color:#d4f542}
 .team-row .slot .cap-lead.on:hover{color:#3a2c00}
+/* ===== ★選出(pick)画面: ▶バトルスタートで開く事前選出オーバーレイ(2026-07-21)。
+   online_battle.htmlの#pick-screen/.pk-badgeデザインを踏襲(自分=青紫/相手=クリムゾン・①②③バッジ)。
+   ラボは両側とも編集可=左右とも同じクリックトグルで選出する(online版は相手が非公開の読取専用・ラボは実験室なので相手側も操作可)。 */
+#lab-pick-screen{position:fixed;inset:0;z-index:45;background:#2a2350ee;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow:auto}
+#lab-pick-screen .lpk-card{background:#f6f5fc;border-radius:16px;padding:14px 16px;max-width:760px;width:100%;max-height:94vh;overflow:auto}
+#lab-pick-screen .lpk-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+#lab-pick-screen .lpk-head h3{margin:0;color:#4638ae;font-size:15px;flex:1 1 auto}
+#lab-pick-screen .lpk-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+@media(max-width:600px){#lab-pick-screen .lpk-cols{grid-template-columns:1fr}}
+/* 選出セル=編成カプセルを流用(.team-row .slotの既存CSSを継承・両側ともクリック可なのでcursor:pointerのまま) */
+#lab-pk-self .slot{background:linear-gradient(135deg,#4638ae,#6a5be0);width:100%;box-sizing:border-box}
+#lab-pk-opp .slot{background:linear-gradient(135deg,#a02150,#d63c78);width:100%;box-sizing:border-box}
+#lab-pk-self .slot.picked,#lab-pk-opp .slot.picked{border-color:#d4f542;box-shadow:inset 0 0 0 2px #d4f54255,0 2px 7px #0006}
+#lab-pick-screen .pk-badge{display:none;position:absolute;top:-9px;left:-4px;background:#e0564a;color:#fff;font-weight:900;border-radius:50%;
+  width:28px;height:28px;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 6px #0006;border:2px solid #fff;z-index:2}
+#lab-pick-screen .lpk-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;justify-content:center}
+#lab-pick-screen button.lpk-go{padding:10px 18px;border-radius:20px;border:0;background:#6a5be0;color:#fff;font-weight:900;font-size:14px;cursor:pointer;font-family:inherit;box-shadow:0 2px 8px #0004}
+#lab-pick-screen button.lpk-go:disabled{opacity:.5;cursor:default}
+#lab-pick-screen button.lpk-go.full{background:linear-gradient(135deg,#1f8f3a,#3fc45c)}
+#lab-pick-screen button.lpk-back{padding:10px 18px;border-radius:20px;border:2px solid #c9c3e6;background:#fff;color:#4638ae;font-weight:800;font-size:14px;cursor:pointer;font-family:inherit}
+#lab-pick-screen button.lpk-back:hover{border-color:#6a5be0}
+#lab-pick-screen .lpk-status{display:block;text-align:center;margin-top:8px;color:#6a5fa0;font-weight:700;font-size:12px}
 /* 中央=選択中ポケモンの詳細パネル(本家の能力タブ風) */
 #sel-detail{background:linear-gradient(150deg,#41369fee 0%,#5d4fd6dd 100%);border:1px solid #ffffff26;border-radius:16px;
   padding:14px;color:#fff;min-height:280px;box-shadow:0 4px 14px #0007;transition:background .25s}
@@ -1533,6 +1555,8 @@ const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_C
       // ボックスを開いたまま言語切替された場合もチップ/一覧を作り直す
       if ($('poke-picker').style.display === 'flex'){ renderPickerTypeChips(); renderPickerList($('pp-q').value); }
       if ($('move-picker').style.display === 'flex' && movePick){ renderMoveCatChips(); renderMovePickList($('mp-q').value); }
+      // ★選出(pick)画面が開いたままなら作り直す(選出状態LAB_PICKはグローバルなので保持されたまま再描画=同じ罠の対策)
+      if ($('lab-pick-screen')) renderLabPickScreen();
     } catch(e) {}
   }
   if (document.body.classList.contains('in-battle')) {
@@ -2504,7 +2528,8 @@ function initSetup(){
   else if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
   setSelectedSlot('s1');   // CH: 初期選択=自分の先頭(中央に詳細パネルを出す)
   $('btn-random').addEventListener('click', () => { randomize(); setSelectedSlot(selectedSlot); });
-  $('btn-start').addEventListener('click', startBattle);
+  // ★2026-07-21: いきなり開戦でなく、まず選出(pick)画面を挟む(★1番目バッジの差し替えが面倒という阿部さんFB対応)
+  $('btn-start').addEventListener('click', showLabPickScreen);
   // CH: msgboxが盤面内に入ったので、盤面のどこをタップしてもメッセージ送りできるようにする
   // (busy時のみ作用。msgbox個別のリスナーは二重発火するため廃止)
   $('field').addEventListener('click', advanceMsg);
@@ -2544,6 +2569,8 @@ function initSetup(){
     { const mb = $('msgbox'); if (mb) mb.style.display = 'none'; }
     ['c-revive-continue', 'c-end-battle'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });
     try { closePicker(); } catch (e) {}   // バトル追加モードのピッカーが開いたままなら閉じる
+    try { closeLabPickScreen(); } catch (e) {}   // ★選出画面が開いたままなら閉じる(通常は届かない経路だが状態機械の衛生として)
+    window._labPickOverride = null;   // ★前回の選出順を持ち越さない(次の▶バトルスタートは必ず選出画面から作り直す)
     pbBgmSetScene('lobby'); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
     try { updateLabUndoButton(); renderDmgPin(); } catch (e) {}   // ★A3/A4: バトル外=ボタン/ピンを畳む
   }
@@ -2641,10 +2668,113 @@ function autoMoves(poke){
 // 初手(1番目)に出すスロット。self/opp両方選べる(2026-07-06 阿部さん)。既定=各サイド先頭
 let leadSlot = {self: 's1', opp: 'o1'};
 function orderedIds(side){
+  // ★選出(pick)画面で決めた順番(_labPickOverride)があれば最優先(online_battleの_pickOverrideと同じ考え方)。
+  // 無ければ従来どおり★1番目バッジ(leadSlot)で先頭だけ差し替える(選出画面をまだ使っていない状態=互換維持)
+  if (window._labPickOverride && _labPickOverride[side]) return _labPickOverride[side];
   const ids = side === 'self' ? selfIds() : oppIds();
   const lead = leadSlot[side];
   if (!ids.includes(lead) || !slotVal[lead]) return ids;
   return [lead].concat(ids.filter(id => id !== lead));
+}
+// ===== ★選出(pick)画面(2026-07-21): ▶バトルスタートを押すと開く事前選出オーバーレイ。
+// ラボは両側とも自分で編成する実験室なので、online_battleと違い自分/相手の両方をここで選出する(阿部さん設計)。
+// 「たたかう(3たい)」=両側ちょうど3体選出時のみ→その3体・その順番だけで開戦。
+// 「(6たい)ぜんぶでバトル」=いつでも押せる→選出した子を先頭にして残りは編成順のままフル人数で開戦
+// (選出ゼロなら従来どおり編成順そのまま=★1番目バッジの挙動を包含)。
+let LAB_PICK = {self: [], opp: []};   // 選出画面で選んだ順(スロットid配列・最大3)
+let labPickPrevScene = null;          // 選出画面を開く前のBGMシーン(閉じたら復元)
+// 選出セル=編成カプセル(slotCapsuleHtml)をそのまま流用+①②③バッジ(online_battleのpickCellMineと同じ発想)
+function labPickCellHtml(id){
+  const nm = slotVal[id]; if (!nm) return '';
+  return `<button type="button" class="slot" data-id="${id}">` + slotCapsuleHtml(id) + `<span class="pk-badge"></span></button>`;
+}
+function labPickBadgesFor(side, ov){
+  const row = ov.querySelector(side === 'self' ? '#lab-pk-self' : '#lab-pk-opp'); if (!row) return;
+  row.querySelectorAll('.slot').forEach(c => {
+    const n = LAB_PICK[side].indexOf(c.dataset.id);
+    const b = c.querySelector('.pk-badge');
+    if (b){ b.style.display = n >= 0 ? 'flex' : 'none'; if (n >= 0) b.textContent = String(n + 1); }
+    c.classList.toggle('picked', n >= 0);
+  });
+}
+function labRefreshPickUI(ov){
+  ov = ov || $('lab-pick-screen'); if (!ov) return;
+  labPickBadgesFor('self', ov);
+  labPickBadgesFor('opp', ov);
+  const go3 = $('lpk-go3');
+  if (go3) go3.disabled = !(LAB_PICK.self.length === 3 && LAB_PICK.opp.length === 3);
+}
+function labBindPickClicks(ov){
+  [['self', 'lab-pk-self'], ['opp', 'lab-pk-opp']].forEach(([side, rowId]) => {
+    const row = ov.querySelector('#' + rowId); if (!row) return;
+    row.querySelectorAll('.slot').forEach(el => el.addEventListener('click', () => {
+      SE.select();
+      const id = el.dataset.id, arr = LAB_PICK[side], i = arr.indexOf(id);
+      if (i >= 0) arr.splice(i, 1);            // もう一度クリック=かいじょ(online-style)
+      else if (arr.length < 3) arr.push(id);   // 3体まで順番に追加
+      labRefreshPickUI(ov);
+    }));
+  });
+}
+// 「6たいぜんぶ」用: 選出した子を先頭順に並べ、残りは編成(スロット)順のまま続ける。選出ゼロなら編成順そのまま
+function labFrontOrder(side){
+  const ids = side === 'self' ? selfIds() : oppIds();
+  const picked = LAB_PICK[side].filter(id => ids.includes(id) && slotVal[id]);
+  const rest = ids.filter(id => slotVal[id] && !picked.includes(id));
+  return picked.concat(rest);
+}
+function labPickFullBtnLabel(){
+  return teamSize === 3 ? I18N.t('battle_lab.pick_go_full3', '⚔ ぜんぶでバトル')
+                         : I18N.t('battle_lab.pick_go_full6', '⚔ 6たいぜんぶでバトル');
+}
+// 中身だけ作り直す(言語切替時のi18n:changed再描画・LAB_PICKの選出状態は保ったまま=labBindPickClicks等で再取得)
+function renderLabPickScreen(){
+  const ov = $('lab-pick-screen'); if (!ov) return;
+  const card = ov.querySelector('.lpk-card'); if (!card) return;
+  card.innerHTML =
+    `<div class="lpk-head"><h3>${I18N.t('battle_lab.pick_title', 'せんしゅつ！ りょうがわとも じゅんばんに えらんでね')}</h3></div>` +
+    `<div class="lpk-cols">` +
+      `<div class="lpk-col"><div class="col-title self">${I18N.t('real_battle.team_label_self', '自分')}</div>` +
+        `<div id="lab-pk-self" class="team-row">${selfIds().map(labPickCellHtml).join('')}</div></div>` +
+      `<div class="lpk-col"><div class="col-title opp">${I18N.t('real_battle.team_label_opp', '相手')}</div>` +
+        `<div id="lab-pk-opp" class="team-row">${oppIds().map(labPickCellHtml).join('')}</div></div>` +
+    `</div>` +
+    `<div class="lpk-btns">` +
+      `<button type="button" id="lpk-back" class="lpk-back">${I18N.t('battle_lab.pick_back', '← もどる')}</button>` +
+      `<button type="button" id="lpk-go3" class="lpk-go" disabled>${I18N.t('battle_lab.pick_go3', '⚔ たたかう(3たい)')}</button>` +
+      `<button type="button" id="lpk-gofull" class="lpk-go full">${labPickFullBtnLabel()}</button>` +
+    `</div>` +
+    `<span class="lpk-status">${I18N.t('battle_lab.pick_hint', 'タップで じゅんばんを えらぶよ(もう一度で かいじょ)')}</span>`;
+  labBindPickClicks(ov);
+  labRefreshPickUI(ov);
+  $('lpk-back').addEventListener('click', () => { SE.select(); closeLabPickScreen(); });
+  $('lpk-go3').addEventListener('click', () => { SE.select(); labApplyPickAndStart('pick3'); });
+  $('lpk-gofull').addEventListener('click', () => { SE.select(); labApplyPickAndStart('full'); });
+}
+function showLabPickScreen(){
+  if ($('lab-pick-screen')) return;   // 二重オープン防止
+  LAB_PICK = {self: [], opp: []};     // ★毎回かならず空から(前回の選出が残らない=状態機械の衛生)
+  labPickPrevScene = pbBgmScene_; pbBgmSetScene('select');   // ボックス/ピッカーと同じ扱い(openPickerの流儀・2026-07-21)
+  const ov = document.createElement('div');
+  ov.id = 'lab-pick-screen';
+  ov.innerHTML = `<div class="lpk-card"></div>`;
+  document.body.appendChild(ov);
+  renderLabPickScreen();
+}
+function closeLabPickScreen(){
+  const ov = $('lab-pick-screen'); if (!ov) return;
+  ov.remove();
+  pbBgmSetScene(labPickPrevScene);   // 開く前のシーン(通常はlobby)へ復元
+}
+function labApplyPickAndStart(mode){
+  if (mode === 'pick3'){
+    if (LAB_PICK.self.length !== 3 || LAB_PICK.opp.length !== 3) return;   // ガード(ボタンはdisabledだが二重防御)
+    window._labPickOverride = {self: LAB_PICK.self.slice(), opp: LAB_PICK.opp.slice()};
+  } else {
+    window._labPickOverride = {self: labFrontOrder('self'), opp: labFrontOrder('opp')};
+  }
+  closeLabPickScreen();
+  startBattle();
 }
 // 既定の特性: 基本は特性1。メタモンは隠れ特性かわりもの(シングル実戦の確定特性・チャンピオンズWiki準拠。
 // じゅうなん既定だと1ターン目にへんしんするだけの的になるため)

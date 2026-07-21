@@ -19,6 +19,12 @@ function ok(name, pass, note){ results.push({ name, pass }); console.log((pass ?
     return false;
   }
   const movesVisibleFn = () => { const m = document.getElementById('moves'); return !!m && m.style.display === 'flex' && !!m.querySelector('button[data-i]'); };
+  // ★2026-07-21: ▶バトルスタートは直接開戦でなく、まず選出(pick)画面(#lab-pick-screen)を挟むようになった。
+  // 「6たいぜんぶでバトル」(#lpk-gofull=常に押せる・選出ゼロなら編成順そのまま=旧来のstartBattle相当)で素通りさせる。
+  async function passLabPickScreen(){
+    await waitEl(() => !!document.getElementById('lab-pick-screen'), 8000);
+    await ev(() => { const b = document.getElementById('lpk-gofull'); if (b) b.click(); });
+  }
 
   async function startFresh(){
     await page.goto(URL, { waitUntil: 'domcontentloaded' });
@@ -27,6 +33,7 @@ function ok(name, pass, note){ results.push({ name, pass }); console.log((pass ?
     await ev(() => document.getElementById('btn-random').click());
     await page.waitForTimeout(500);
     await ev(() => document.getElementById('btn-start').click());
+    await passLabPickScreen();
     await waitEl(() => document.body.classList.contains('in-battle'), 15000);
     await waitEl(movesVisibleFn, 25000);
   }
@@ -44,6 +51,7 @@ function ok(name, pass, note){ results.push({ name, pass }); console.log((pass ?
   await ev(() => document.getElementById('btn-random').click());
   await page.waitForTimeout(600);
   await ev(() => document.getElementById('btn-start').click());
+  await passLabPickScreen();
   await waitEl(() => document.body.classList.contains('in-battle'), 15000);
   await waitEl(() => { const m = document.getElementById('moves'); return !!m && m.style.display === 'flex'; }, 25000);
 
