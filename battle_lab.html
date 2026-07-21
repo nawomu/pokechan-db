@@ -127,17 +127,24 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .team-row .slot .cap-lead.on:hover{color:#3a2c00}
 /* ===== ★選出(pick)画面: ▶バトルスタートで開く事前選出オーバーレイ(2026-07-21)。
    online_battle.htmlの#pick-screen/.pk-badgeデザインを踏襲(自分=青紫/相手=クリムゾン・①②③バッジ)。
-   ラボは両側とも編集可=左右とも同じクリックトグルで選出する(online版は相手が非公開の読取専用・ラボは実験室なので相手側も操作可)。 */
+   ラボは両側とも編集可=左右とも同じクリックトグルで選出する(online版は相手が非公開の読取専用・ラボは実験室なので相手側も操作可)。
+   ★2026-07-21夜(阿部さんFB=commit 3b8cea5b直後): 素の2カラムでなくonline_battle.htmlの選出画面と同じ3カラム
+   (左=自分/中央=選択中の詳細=setup画面の#sel-detailをノードごと移動して流用/右=相手)に統一。 */
 #lab-pick-screen{position:fixed;inset:0;z-index:45;background:#2a2350ee;display:flex;align-items:flex-start;justify-content:center;padding:14px;overflow:auto}
-#lab-pick-screen .lpk-card{background:#f6f5fc;border-radius:16px;padding:14px 16px;max-width:760px;width:100%;max-height:94vh;overflow:auto}
+#lab-pick-screen .lpk-card{background:#f6f5fc;border-radius:16px;padding:14px 16px;max-width:960px;width:100%;max-height:94vh;overflow:auto}
 #lab-pick-screen .lpk-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
 #lab-pick-screen .lpk-head h3{margin:0;color:#4638ae;font-size:15px;flex:1 1 auto}
-#lab-pick-screen .lpk-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
-@media(max-width:600px){#lab-pick-screen .lpk-cols{grid-template-columns:1fr}}
+#lab-pick-screen .lpk-cols{display:grid;grid-template-columns:232px minmax(250px,300px) 232px;gap:14px;align-items:start;justify-content:center}
+@media(max-width:760px){#lab-pick-screen .lpk-cols{grid-template-columns:1fr}}
 /* 選出セル=編成カプセルを流用(.team-row .slotの既存CSSを継承・両側ともクリック可なのでcursor:pointerのまま) */
 #lab-pk-self .slot{background:linear-gradient(135deg,#4638ae,#6a5be0);width:100%;box-sizing:border-box}
 #lab-pk-opp .slot{background:linear-gradient(135deg,#a02150,#d63c78);width:100%;box-sizing:border-box}
 #lab-pk-self .slot.picked,#lab-pk-opp .slot.picked{border-color:#d4f542;box-shadow:inset 0 0 0 2px #d4f54255,0 2px 7px #0006}
+/* 中央詳細に表示中(選出トグルとは別軸)=onlineの#pick-mine .slot.selectedと同じ緑で区別 */
+#lab-pk-self .slot.selected,#lab-pk-opp .slot.selected{border-color:#7ac142;box-shadow:0 0 0 3px #d4f54277,0 2px 7px #0006}
+/* ★阿部さんFB(2026-07-21夜): pick画面では①②③バッジが選出順の唯一の権威。★1番目/1番目にバッジは
+   ノイズなので選出画面だけ非表示にする(setup画面側のslotCapsuleHtml/CSSは現状維持=触らない)。 */
+#lab-pick-screen .cap-lead{display:none}
 #lab-pick-screen .pk-badge{display:none;position:absolute;top:-9px;left:-4px;background:#e0564a;color:#fff;font-weight:900;border-radius:50%;
   width:28px;height:28px;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 6px #0006;border:2px solid #fff;z-index:2}
 #lab-pick-screen .lpk-btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;justify-content:center}
@@ -2007,6 +2014,7 @@ function renderSelDetail(id){
       slotItem[id] = normMegaKeyRB(k);   // ★2026-07-18: 念のため書き込み口でも正規化(ピッカーは汎用のみだが統一)
       if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
       saveTeam(); renderSelDetail(id);
+      labRefreshPickCards();   // 選出画面(#lab-pick-screen)が開いていれば左右カプセルのもちもの表示も同期(online同様2026-07-13流儀)
     }, e.currentTarget, usedItemsRB(id));
   });
 }
@@ -2701,20 +2709,40 @@ function labRefreshPickUI(ov){
   ov = ov || $('lab-pick-screen'); if (!ov) return;
   labPickBadgesFor('self', ov);
   labPickBadgesFor('opp', ov);
+  // 中央詳細に表示中のセル=緑ハイライト(online #pick-mine .slot.selectedと同じ発想。data-idベースなので
+  // setSelectedSlot本体のid属性照合(b.id===id)は素通りする=ここで別軸として付け直す)
+  ov.querySelectorAll('#lab-pk-self .slot, #lab-pk-opp .slot').forEach(c => {
+    c.classList.toggle('selected', typeof selectedSlot !== 'undefined' && selectedSlot === c.dataset.id);
+  });
   const go3 = $('lpk-go3');
   if (go3) go3.disabled = !(LAB_PICK.self.length === 3 && LAB_PICK.opp.length === 3);
 }
+// ★2026-07-21夜(阿部さんFB): クリックで①中央に詳細を出す+②選出順トグル、を同時にやる(online
+// bindPickMineClicksと同じ挙動)。ラボは相手側も編集対象なのでself/opp両方に同じ配線をする。
 function labBindPickClicks(ov){
   [['self', 'lab-pk-self'], ['opp', 'lab-pk-opp']].forEach(([side, rowId]) => {
     const row = ov.querySelector('#' + rowId); if (!row) return;
     row.querySelectorAll('.slot').forEach(el => el.addEventListener('click', () => {
       SE.select();
-      const id = el.dataset.id, arr = LAB_PICK[side], i = arr.indexOf(id);
+      const id = el.dataset.id;
+      setSelectedSlot(id);   // 中央パネル(#sel-detail=編成画面と同じ編集UI)に表示
+      const arr = LAB_PICK[side], i = arr.indexOf(id);
       if (i >= 0) arr.splice(i, 1);            // もう一度クリック=かいじょ(online-style)
       else if (arr.length < 3) arr.push(id);   // 3体まで順番に追加
       labRefreshPickUI(ov);
     }));
   });
+}
+// もちもの変更等セルの見た目に影響する編集をした時、選出画面の左右カプセルを作り直して同期する
+// (online refreshPickMineCardsと同じ発想。中央パネルはノードを移動して使い回しているだけなので中身は自動追従、
+// カプセル側だけ静的HTMLとして最初に焼き込まれているため明示的な作り直しが要る)
+function labRefreshPickCards(){
+  const ov = $('lab-pick-screen'); if (!ov) return;
+  const selfRow = ov.querySelector('#lab-pk-self'), oppRow = ov.querySelector('#lab-pk-opp');
+  if (selfRow) selfRow.innerHTML = selfIds().map(labPickCellHtml).join('');
+  if (oppRow) oppRow.innerHTML = oppIds().map(labPickCellHtml).join('');
+  labBindPickClicks(ov);
+  labRefreshPickUI(ov);
 }
 // 「6たいぜんぶ」用: 選出した子を先頭順に並べ、残りは編成(スロット)順のまま続ける。選出ゼロなら編成順そのまま
 function labFrontOrder(side){
@@ -2727,15 +2755,20 @@ function labPickFullBtnLabel(){
   return teamSize === 3 ? I18N.t('battle_lab.pick_go_full3', '⚔ ぜんぶでバトル')
                          : I18N.t('battle_lab.pick_go_full6', '⚔ 6たいぜんぶでバトル');
 }
-// 中身だけ作り直す(言語切替時のi18n:changed再描画・LAB_PICKの選出状態は保ったまま=labBindPickClicks等で再取得)
+// 中身だけ作り直す(言語切替時のi18n:changed再描画・LAB_PICKの選出状態は保ったまま=labBindPickClicks等で再取得)。
+// ★2026-07-21夜: 中央=online_battle.htmlの選出画面と同じく#sel-detail(setup画面の編集パネル)をノードごと
+// 移動して流用する3カラム構成。card.innerHTMLを丸ごと作り直す前に必ず退避し、作り直し後に新しい中央枠へ戻す
+// (退避しないと#sel-detailごとDOMから消えて二度と戻らない=online closePickScreen/showPickScreenと同じ手口)。
 function renderLabPickScreen(){
   const ov = $('lab-pick-screen'); if (!ov) return;
   const card = ov.querySelector('.lpk-card'); if (!card) return;
+  const det = $('sel-detail');   // 作り直し前に退避(setup側 or 前回のlab-pk-centerのどちらかに居る)
   card.innerHTML =
     `<div class="lpk-head"><h3>${I18N.t('battle_lab.pick_title', 'せんしゅつ！ りょうがわとも じゅんばんに えらんでね')}</h3></div>` +
     `<div class="lpk-cols">` +
       `<div class="lpk-col"><div class="col-title self">${I18N.t('real_battle.team_label_self', '自分')}</div>` +
         `<div id="lab-pk-self" class="team-row">${selfIds().map(labPickCellHtml).join('')}</div></div>` +
+      `<div class="lpk-col" id="lab-pk-center"></div>` +
       `<div class="lpk-col"><div class="col-title opp">${I18N.t('real_battle.team_label_opp', '相手')}</div>` +
         `<div id="lab-pk-opp" class="team-row">${oppIds().map(labPickCellHtml).join('')}</div></div>` +
     `</div>` +
@@ -2745,6 +2778,8 @@ function renderLabPickScreen(){
       `<button type="button" id="lpk-gofull" class="lpk-go full">${labPickFullBtnLabel()}</button>` +
     `</div>` +
     `<span class="lpk-status">${I18N.t('battle_lab.pick_hint', 'タップで じゅんばんを えらぶよ(もう一度で かいじょ)')}</span>`;
+  const center = $('lab-pk-center');
+  if (det && center) center.appendChild(det);   // ノードごと移動=技/特性/もちもの/EV編集はそのままチーム保存に反映される
   labBindPickClicks(ov);
   labRefreshPickUI(ov);
   $('lpk-back').addEventListener('click', () => { SE.select(); closeLabPickScreen(); });
@@ -2759,10 +2794,16 @@ function showLabPickScreen(){
   ov.id = 'lab-pick-screen';
   ov.innerHTML = `<div class="lpk-card"></div>`;
   document.body.appendChild(ov);
+  setSelectedSlot(selfIds()[0]);   // 中央詳細の既定表示=自分の先頭(online showPickScreenと同じ既定)。
+                                    // renderLabPickScreenより先に呼ぶ=中のlabRefreshPickUIが最新selectedSlotで
+                                    // 選出カプセルの.selectedハイライトを正しく付けられる
   renderLabPickScreen();
 }
 function closeLabPickScreen(){
   const ov = $('lab-pick-screen'); if (!ov) return;
+  // 中央パネル(#sel-detail)をsetup画面へ返す(online closePickScreenと同じ手口)
+  const det = $('sel-detail'), center = $('setup-center');
+  if (det && center && det.parentElement !== center) center.appendChild(det);
   ov.remove();
   pbBgmSetScene(labPickPrevScene);   // 開く前のシーン(通常はlobby)へ復元
 }
