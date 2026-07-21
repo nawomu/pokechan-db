@@ -3360,15 +3360,18 @@ function sideAbility(st){
   return st.ability || '';
 }
 
-// てんきや(Forecast・Phase D B1): 天候に応じてタイプを変える(このDBはポワルンの通常フォルムしか
-// 収録がないため、フォルム/見た目の切替は行わず最小実装=タイプ変化のみ。にほんばれ=ほのお/あめ=みず/
-// ゆき=こおり/それ以外=ノーマル(元のタイプに戻す)。特性がガストロアシッド等で失われている間は
-// typeOverrideを一切触らない=その時点のタイプで固定(仕様書どおり)。
+// てんきや(Forecast・Phase D B1): 天候に応じてタイプ・見た目(フォルム)を変える。にほんばれ=ほのお/
+// たいようのすがた・あめ=みず/あまみずのすがた・ゆき=こおり/ゆきぐものすがた・それ以外=ノーマル
+// (元のタイプ)/通常のすがた。見た目はst.forecastForm(sunny/rain/snow/null)に載せ、各ページのspriteHtml
+// が読んで差し替える(2026-07-21実装。images/sim/{たいようの,あまみずの,ゆきぐもの}すがた.svgを使用)。
+// 特性がガストロアシッド等で失われている間はtypeOverride/forecastFormを一切触らない=その時点のタイプ・
+// 見た目で固定(仕様書どおり)。
 // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Forecast")
 function updateForecastForm(st){
   if (!st || !st.poke || sideAbility(st) !== 'てんきや') return;
   const _fcMap = {sunny:['ほのお'], rain:['みず'], snow:['こおり']};
   st.typeOverride = _fcMap[env.weather] || null;
+  st.forecastForm = ({sunny:'sunny', rain:'rain', snow:'snow'})[env.weather] || null;
 }
 function syncForecastBothSides(){
   updateForecastForm(sides.self);
@@ -8392,7 +8395,9 @@ function renderStage(){
     }
     nameEl.textContent = tPokeName(st.poke.name);
     const color = (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[st.poke.type1]) || '#3a4660';
-    const _enc = encodeURIComponent(st.poke.name);   // 画像ファイル名は内部キー(ja)のまま
+    // てんきや(2026-07-21): ポワルンは天候フォルム(st.forecastForm)で絵を差し替える(3ページのspriteHtmlと同じ方式)
+    const _fcJa = {sunny:'たいようのすがた', rain:'あまみずのすがた', snow:'ゆきぐものすがた'};
+    const _enc = encodeURIComponent((st.forecastForm && st.poke.name === 'ポワルン' && _fcJa[st.forecastForm]) || st.poke.name);   // 画像ファイル名は内部キー(ja)のまま
     art.innerHTML = `<img src="images/sim/${_enc}.svg" alt="" style="display:none"
         onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'"
         onerror="if(!this.dataset.png){this.dataset.png=1;this.src='images/sim/${_enc}.png';}else{this.remove();}">

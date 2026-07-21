@@ -1266,7 +1266,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260719e" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260721a" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -2772,13 +2772,19 @@ function spriteHtml(poke, st){
   // st.disguise は登場でtrue・剥がれてfalse(エンジン)。未定義(他ポケ)は===falseにならない
   const _BUSTED = { 'ミミッキュ': { ja: 'ばれたすがた', apiId: '10143' } };
   const _bust = (st && st.disguise === false && _BUSTED[poke.name]) ? _BUSTED[poke.name] : null;
-  const enc = encodeURIComponent(_bust ? _bust.ja : poke.name);
+  // てんきやポワルンは天候でフォルム(見た目)が変わる(st.forecastForm=sunny/rain/snow・エンジンupdateForecastForm
+  // が算出)。ミミッキュのばれたすがたと同じ「name→ja/apiId差し替え」方式(2026-07-21実装)。
+  // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Forecast")
+  const _FORECAST = { sunny: { ja: 'たいようのすがた', apiId: '10013' }, rain: { ja: 'あまみずのすがた', apiId: '10014' }, snow: { ja: 'ゆきぐものすがた', apiId: '10015' } };
+  const _fc = (!_bust && st && st.forecastForm && poke.name === 'ポワルン') ? _FORECAST[st.forecastForm] : null;
+  const _swap = _bust || _fc;   // ミミッキュとポワルンが同時に化けることは無いのでどちらか一方
+  const enc = encodeURIComponent(_swap ? _swap.ja : poke.name);
   // APIモード: 対応表(sprite_api_ids.js=フォーム/メガ込み274体)にある名前はPokeAPI画像。
   // ローカルpoke画像→PokeAPI本家→自作SVG→サークルの順でフォールバック
-  let _apiId = _bust ? _bust.apiId : apiIdOf(poke.name);
+  let _apiId = _swap ? _swap.apiId : apiIdOf(poke.name);
   // Champions独自メガ(メガマフォクシー等)は公式画像が存在しない(3Dもドットも)→自作SVGへ(2026-07-11 阿部さん)。
   // apiIdOfはメガ名→ベース種へフォールバックするため、メガなのに自身のIDが無い=独自メガと判定
-  if (poke.mega && !_bust && typeof SPRITE_API_ID !== 'undefined' && !SPRITE_API_ID[poke.name]) _apiId = null;
+  if (poke.mega && !_swap && typeof SPRITE_API_ID !== 'undefined' && !SPRITE_API_ID[poke.name]) _apiId = null;
   if (spriteSrc === 'home' && _apiId){
     const n = _apiId;
     return `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${n}.png" alt="" style="display:none;height:150px" data-step="0"
@@ -2818,9 +2824,12 @@ function renderAll(){
     // ばけのかわの絵: リプレイ中(busy)は表示スナップ(_dgSnap)基準=「はがれた」の拍まで皮のまま。
     // 非リプレイ時はエンジン状態(engine先読みの絵バレ防止=2026-07-10 阿部さん)
     const bustShown = (busy && window._dgSnap) ? (_dgSnap[side] === false) : (st.disguise === false);
-    const shownKey = (subActive ? 'SUB' : spriteSrc) + ':' + shown.name + (bustShown ? ':busted' : '');
+    // てんきやの見た目(2026-07-21): st.forecastFormをそのまま読む(天候切替はばけのかわほど拍がシビア
+    // でないため、_dgSnapのような専用スナップは作らずライブ状態を見る=仕様書どおり)
+    const fcShown = (st && st.forecastForm && shown.name === 'ポワルン') ? st.forecastForm : null;
+    const shownKey = (subActive ? 'SUB' : spriteSrc) + ':' + shown.name + (bustShown ? ':busted' : '') + (fcShown ? ':fc-' + fcShown : '');
     if (spriteEl.dataset.shown !== shownKey){
-      spriteEl.innerHTML = subActive ? substituteSpriteHtml() : spriteHtml(shown, { disguise: bustShown ? false : true });
+      spriteEl.innerHTML = subActive ? substituteSpriteHtml() : spriteHtml(shown, { disguise: bustShown ? false : true, forecastForm: fcShown });
       spriteEl.dataset.shown = shownKey;
     }
     // 名前はへんしん中も自分の名前(実機のニックネーム表示準拠=すがたは変身先・名前はメタモン)
@@ -4173,6 +4182,21 @@ function lineWithFx(msg, opts){
         _spr.innerHTML = spriteHtml(_shown, _st);
         _spr.dataset.shown = spriteSrc + ':' + _shown.name + ':busted';
       }
+    }
+    // ②e てんきや: 天候の切り替わりログでポワルンの見た目を即差し替え(renderAllを待たない=ばけのかわと
+    // 同じ作法)。天候は場全体に効くので両サイドまとめて見直す(エンジンupdateForecastFormは同じターン内で
+    // 既に完了済み=st.forecastFormを素直に読めばよい・2026-07-21実装)
+    if (/日差しが強くなった！$|あめが降り始めた！$|すなあらしが舞い始めた！$|ゆきが降り始めた！$|天気が.*になった！$|天気が 元に戻った！$/.test(msg)){
+      ['self', 'opp'].forEach(side => {
+        const _wst = S.sides[side], _wf = $('f-' + side);
+        const _wspr = _wf && _wf.querySelector('.sprite');
+        if (_wst && _wst.poke && _wspr && !((_wst.subHp || 0) > 0)){
+          const _wshown = _wst.illusionAs || _wst.poke;
+          const _wfc = (_wst.forecastForm && _wshown.name === 'ポワルン') ? _wst.forecastForm : null;
+          _wspr.innerHTML = spriteHtml(_wshown, _wst);
+          _wspr.dataset.shown = spriteSrc + ':' + _wshown.name + (_wst.disguise === false ? ':busted' : '') + (_wfc ? ':fc-' + _wfc : '');
+        }
+      });
     }
     // ②c みがわり: 出現で人形化・被弾でエフェクト・破壊で元のすがたに戻す(2026-07-06 阿部さん)
     const subAppear = msg.match(/^(相手の )?\S+ の みがわりが あらわれた！/);
