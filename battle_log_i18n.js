@@ -463,6 +463,7 @@
     bl_257: { "en":"⚔ Fight the next opponent! (Win streak: {n})", "fr":"⚔ Affronte l'adversaire suivant ! (Série de victoires : {n})", "de":"⚔ Kämpfe gegen den nächsten Gegner! (Siegesserie: {n})", "es":"⚔ ¡Lucha contra el próximo rival! (Racha de victorias: {n})", "it":"⚔ Affronta il prossimo avversario! (Serie di vittorie: {n})", "ko":"⚔ 다음 상대와 싸운다! (연승: {n})", "zh-Hans":"⚔ 与下一位对手战斗！（连胜：{n}）", "zh-Hant":"⚔ 與下一位對手戰鬥！（連勝：{n}）" },
     bl_258: { "en":"{p}'s Disguise was busted!", "fr":"Le Fantômasque de {p} a été détruit !", "de":"Die Kostümspuk-Hülle von {p} wurde zerstört!", "es":"¡El Disfraz de {p} se ha roto!", "it":"Il Fantasmanto di {p} è stato distrutto!", "ko":"{p}의 탈바꿈이 벗겨졌다!", "zh-Hans":"{p}的画皮剥落了！", "zh-Hant":"{p}的畫皮剝落了！" },
     bl_259: { "en":"{p} was hurt by its busted Disguise! ({n} damage, HP remaining: {n2})", "fr":"{p} a été blessé par son Fantômasque détruit ! ({n} PV perdus, PV restants : {n2})", "de":"{p} wurde durch die zerstörte Kostümspuk-Hülle verletzt! ({n} KP Schaden, verbleibende KP: {n2})", "es":"¡{p} se hirió por su Disfraz roto! ({n} de daño, PS restantes: {n2})", "it":"{p} si è ferito per il Fantasmanto distrutto! ({n} danni, PS rimanenti: {n2})", "ko":"{p}은(는) 벗겨진 탈바꿈으로 데미지를 입었다! ({n} 데미지・남은 HP {n2})", "zh-Hans":"{p}因画皮剥落受到了伤害！（{n}点伤害・剩余HP {n2}）", "zh-Hant":"{p}因畫皮剝落受到了傷害！（{n}點傷害・剩餘HP {n2}）" },
+    bl_260: { "en":"{p} snatched {move}!", "fr":"{p} a volé {move} !", "de":"{p} hat sich {move} geschnappt!", "es":"¡{p} robó {move}!", "it":"{p} ha rubato {move}!", "ko":"{p}은(는) {move}을(를) 가로챘다!", "zh-Hans":"{p}横取了{move}！", "zh-Hant":"{p}橫取了{move}！" },
   };
 
   // ─── パターン(順に試す)。slots: テンプレ名→{g:捕捉番号, kind} ───
@@ -634,6 +635,7 @@
     { id: 'bl_257', re: /^⚔ つぎの相手と たたかう！\(連勝: (\d+)\)$/, slots: { "n": { g: 1, kind: "num" } } },
     { id: 'bl_258', re: /^((?:相手の )?\S+) の ばけのかわが はがれた！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'bl_259', re: /^((?:相手の )?\S+) は ばけのかわで (\d+) ダメージ！ \(残HP (\d+)\)$/, slots: { "p": { g: 1, kind: "poke" }, "n": { g: 2, kind: "num" }, "n2": { g: 3, kind: "num" } } },
+    { id: 'bl_260', re: /^((?:相手の )?\S+) は (\S+) を よこどりした！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_151', re: /^((?:相手の )?\S+) は じゅうりょくが強くて (\S+) が だせない！$/, slots: { "p": { g: 1, kind: "poke" }, "move": { g: 2, kind: "move" } } },
     { id: 'bl_219', re: /^しかし うまく きまらなかった！\(すでに (\S+)\)$/, slots: { "n": { g: 1, kind: "cond" } } },
     { id: 'bl_208a', re: /^((?:相手の )?\S+) の場の (\S+) の効果が なくなった！$/, slots: { "p": { g: 1, kind: "poke" }, "sc": { g: 2, kind: "screen" } } },

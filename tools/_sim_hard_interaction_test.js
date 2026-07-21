@@ -2200,10 +2200,116 @@ try {
 } catch (__e) { skipCase('H54: すなあらし(天気)の仕様バグ修正 [出典: ポケモンWiki「すなあらし(天気)」/ bulbapedia.bulbagarden.net/wiki/Sandstorm]', (__e && __e.message) || String(__e)); }
 
 // ─────────────────────────────────────────────
+// H55: よこどり(Snatch) — 優先度+4で先制し、このターン中に相手が使った「横取り対象の変化技」を
+// 自分に対して代わりに発動する(相手の技は不発)。national専用(Championsデータには存在しない)なので
+// snatch がWAZA_MAPに無ければ本ケース全体をskip。
+// 出典: https://bulbapedia.bulbagarden.net/wiki/Snatch_(move) / ポケモンWiki「よこどり」
+// 設計: 実装はエンジンkind内在(runSingleAttack/runTurn両方にマジックミラーと同じ「相乗り」方式で追加)。
+// SNATCHABLE=Bulbapedia "Moves affected by Snatch"表のGen VII欄が✔の技のみ(つぼをつく/じこあんじは
+// Gen III-IVのみ対象で除外)。Pokemon Showdown現行データのflags.snatchとも突き合わせ済み。
+// ─────────────────────────────────────────────
+console.log('\n=== H55: よこどり(Snatch) [出典: bulbapedia.bulbagarden.net/wiki/Snatch_(move)] ===');
+try {
+  const snatchMv = moveByKey('snatch');
+  if (!snatchMv) {
+    skipCase('H55: よこどり', 'よこどり(snatch)がWAZA_MAPに見つからない(全部版専用データのため未収録データセット=skip)');
+  } else {
+    // H55-a: 相手のつるぎのまいを横取り → よこどり使用者がこうげき+2・相手は何も得ない(PPだけ減る)
+    resetEnv();
+    const atkA = freshSide('カビゴン', 'snatch', { ability: '' });
+    fullHp(atkA);
+    const defA = freshSide('カイリキー', 'tsuruginomai', { ability: '' });
+    fullHp(defA);
+    E.sides.self = atkA; E.sides.opp = defA;
+    E.initPP(atkA); E.initPP(defA);
+    const ppBeforeAtkA = atkA.pp[0], ppBeforeDefA = defA.pp[0];
+    E.setRandom(() => 0);
+    E.runTurn();
+    check('H55-a [出典: bulbapedia.bulbagarden.net/wiki/Snatch_(move)] よこどり使用者がつるぎのまいを横取り→こうげき+2',
+      atkA.rank.atk === 2, `atkA.rank.atk=${atkA.rank.atk}`);
+    check('H55-a-2 [出典: ポケモンWiki「よこどり」] 横取りされた側(元のつるぎのまい使用者)は能力ランクが変化しない',
+      defA.rank.atk === 0, `defA.rank.atk=${defA.rank.atk}`);
+    check('H55-a-3 ログに横取り行(よこどりした)が出る',
+      E.battleLog.some(e => /よこどりした/.test(e.msg)), `log=${JSON.stringify(E.battleLog.slice(-4))}`);
+
+    // H55-b: 相手がダメージ技(はたく)を使う → よこどりは何もせず、攻撃は通常どおり通る
+    resetEnv();
+    const atkB = freshSide('カビゴン', 'snatch', { ability: '' });
+    fullHp(atkB);
+    const defB = freshSide('カイリキー', 'hataku', { ability: '' });
+    fullHp(defB);
+    E.sides.self = atkB; E.sides.opp = defB;
+    E.setRandom(() => 0.5);
+    const hatakuMv = moveByKey('hataku');
+    const wantB = E.calcDamage('opp', 'self', hatakuMv);
+    const idxB = Math.floor(0.5 * 16);
+    const beforeB = atkB.currentHp;
+    E.setRandom(() => 0.5);
+    const logLenBeforeB = E.battleLog.length;   // resetEnv()はbattleLogを消さないので前ケース分と混ざらないよう新規分だけ見る
+    E.runTurn();
+    const dealtB = beforeB - atkB.currentHp;
+    const newLinesB = E.battleLog.slice(logLenBeforeB).map(e => e.msg);
+    check('H55-b [出典: bulbapedia.bulbagarden.net/wiki/Snatch_(move)] 相手がダメージ技を使う→よこどりは何もせず攻撃が通常どおり通る',
+      dealtB === wantB.variations[idxB], `dealt=${dealtB} want=${wantB.variations[idxB]}`);
+    check('H55-b-2 横取り行(よこどりした)は出ない(横取り対象でないため)',
+      !newLinesB.some(m => /よこどりした/.test(m)), `log=${JSON.stringify(newLinesB)}`);
+
+    // H55-c: 相手が横取り対象外の変化技(でんじは=相手を対象とする状態異常技)を使う → 横取りされない
+    const denjihaMv = moveByKey('denjiha');
+    if (!denjihaMv) {
+      skipCase('H55-c: でんじは除外', 'でんじは(denjiha)がWAZA_MAPに見つからない');
+    } else {
+      resetEnv();
+      const atkC = freshSide('カビゴン', 'snatch', { ability: '' });
+      fullHp(atkC);
+      const defC = freshSide('カイリキー', 'denjiha', { ability: '' });
+      fullHp(defC);
+      E.sides.self = atkC; E.sides.opp = defC;
+      E.setRandom(() => 0);   // でんじは命中(90%)を確実に成功させる
+      const logLenBeforeC = E.battleLog.length;   // resetEnv()はbattleLogを消さないので前ケース分と混ざらないよう新規分だけ見る
+      E.runTurn();
+      const newLinesC = E.battleLog.slice(logLenBeforeC).map(e => e.msg);
+      check('H55-c [出典: ポケモンWiki「よこどり」] 相手を対象とする状態異常技(でんじは)は横取り対象外→通常どおりまひを付与',
+        atkC.status === 'paralysis', `status=${atkC.status}`);
+      check('H55-c-2 横取り行(よこどりした)は出ない(でんじははSNATCHABLEに含まれない)',
+        !newLinesC.some(m => /よこどりした/.test(m)), `log=${JSON.stringify(newLinesC)}`);
+    }
+
+    // H55-d: 優先度+4により、相手がすばやさで勝っていても必ずよこどりが先に発動する
+    resetEnv();
+    const atkD = freshSide('カビゴン', 'snatch', { ability: '' });   // すばやさ種族値30(低速)
+    fullHp(atkD);
+    const defD = freshSide('サンダース', 'tsuruginomai', { ability: '' });   // すばやさ種族値130(高速)
+    fullHp(defD);
+    E.sides.self = atkD; E.sides.opp = defD;
+    E.setRandom(() => 0);
+    E.runTurn();
+    check('H55-d [出典: bulbapedia.bulbagarden.net/wiki/Snatch_(move)] すばやさで劣っていても優先度+4でよこどりが先に発動し横取りが成立する',
+      atkD.rank.atk === 2 && defD.rank.atk === 0, `atkD.rank.atk=${atkD.rank.atk} defD.rank.atk=${defD.rank.atk}`);
+
+    // H55-e: PP消費は双方1ずつ(よこどり使用者自身の分+横取りされた側の元の技の分)。コピー実行によるPP追加消費はない
+    resetEnv();
+    const atkE = freshSide('カビゴン', 'snatch', { ability: '' });
+    fullHp(atkE);
+    const defE = freshSide('カイリキー', 'tsuruginomai', { ability: '' });
+    fullHp(defE);
+    E.sides.self = atkE; E.sides.opp = defE;
+    E.initPP(atkE); E.initPP(defE);
+    const ppBeforeAtkE = atkE.pp[0], ppBeforeDefE = defE.pp[0];
+    E.setRandom(() => 0);
+    E.runTurn();
+    check('H55-e [出典: ポケモンWiki「よこどり」] よこどり使用者自身のPPが1減る',
+      atkE.pp[0] === ppBeforeAtkE - 1, `pp=${atkE.pp[0]} before=${ppBeforeAtkE}`);
+    check('H55-e-2 横取りされた側(元のつるぎのまい使用者)のPPも1減る(技を選択・使用しようとした分)',
+      defE.pp[0] === ppBeforeDefE - 1, `pp=${defE.pp[0]} before=${ppBeforeDefE}`);
+  }
+} catch (__e) { skipCase('H55: よこどり(Snatch) [出典: bulbapedia.bulbagarden.net/wiki/Snatch_(move)]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
 // 集計
 // ─────────────────────────────────────────────
 console.log('\n' + '='.repeat(60));
-console.log(`難所相互作用54件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
+console.log(`難所相互作用55件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
 if (fails.length) {
   console.log('\n--- FAIL一覧 ---');
   fails.forEach(f => console.log('  ' + f));
