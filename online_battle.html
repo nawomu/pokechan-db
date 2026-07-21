@@ -3728,7 +3728,7 @@ function executeTurn(){
   const lines = [];
   for (let i = 0; i < fresh.length; i++){
     const e = fresh[i];
-    const am = e.msg.match(/^((?:相手の )?)(\S+) の \S+！/);
+    const am = e.msg.match(/^((?:相手の )?)(\S+) の (\S+)！/);
     // ばけのかわブロック: 「◯◯の 技！」の直後に「…ばけのかわが はがれた！」が続く形で判別する
     // (かたやぶり等の入場宣言も同じ「◯◯の 特性名！」の裸行なので、次の行の内容で狙い撃ちする=2026-07-13 阿部さん報告)
     const nextIsDisguiseBreak = !!(fresh[i + 1] && /ばけのかわが はがれた！$/.test(fresh[i + 1].msg));
@@ -3737,11 +3737,11 @@ function executeTurn(){
     const nextIsProtectBlock = !!(fresh[i + 1] && /こうげきを 防いだ！$/.test(fresh[i + 1].msg));
     const nextIsBlockAnnounce = nextIsDisguiseBreak || nextIsProtectBlock;
     if (am && (/ダメージ！/.test(e.msg) || nextIsBlockAnnounce)){
-      const introJa = `${am[1]}${am[2]} の こうげき！`;
+      // ★2026-07-21 阿部さんFB: 予告=技名入り(used_moveパターンで9言語)+相手の攻撃は一拍長く(1600ms)
+      const introJa = `${am[1]}${am[2]} の ${am[3]}！`;
       const introSide = am[1] ? 'opp' : 'self';
-      // 予告のぴょんぴょん(.7s)+一拍だけ待って技を出す(送り速度=ふつうの約2.9秒だと予告後に間が空きすぎる=2026-07-13)
       lines.push({ text: (window.translateLogLine ? translateLogLine(introJa) : introJa),
-        fx: () => flash(introSide, 'preattack'), noLog: true, hold: 850 });
+        fx: () => flash(introSide, 'preattack'), noLog: true, hold: introSide === 'opp' ? 1600 : 850 });
     }
     // ★2026-07-16連続技演出: エンジンのlog entry(e)が持つmultiHit/hitIndex/hitCountをそのままoptsへ渡す
     // (real_battle_simulator.htmlのphaseDealDamageが各ヒット行に載せたメタ)。表示側はこれを見て
@@ -4605,6 +4605,7 @@ function endOfTurn(){
         won = suicide ? lm.side !== 'self' : lm.side === 'self';
       }
     }
+    pbBgmSetScene(won ? 'champion' : 'lose');   // ★2026-07-21 阿部さん: 勝ち=チャンピオン曲/負け=lose曲(ロビー復帰でlobby)
     if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
     // scene:win/scene:lose(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
     const _wlSheet = resolveSceneSheet(won ? 'win' : 'lose');
@@ -5037,6 +5038,8 @@ function closePickScreen(){
 }
 function showPickScreen(){
   if ($('pick-screen') || RB_ONLINE.started) return;
+  pbBgmSetScene('versus');   // ★選出画面=対戦前曲(「これから始まるぜ」2026-07-21 阿部さん)。開戦でbattleへ・離脱はonlineLeaveがlobbyへ戻す
+
   const ov = document.createElement('div');
   ov.id = 'pick-screen';
   ov.innerHTML = `<div class="pk-card">` +
@@ -5152,7 +5155,7 @@ function onlineAfterGame(){
 }
 function onlineOppGone(resigned){
   if (gameOver) return;
-  gameOver = true; pbBgmSetScene('lobby'); SE.win();
+  gameOver = true; pbBgmSetScene('champion'); SE.win();   // ★2026-07-21: 勝ち曲(ロビー復帰でlobbyへ)
   // scene:win(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
   { const _wlSheet2 = resolveSceneSheet('win'); if (_wlSheet2) playSceneCueSheet(_wlSheet2, { won: true }); else showResultBanner(true); }
   const ja = resigned ? '相手は こうさんした！ きみの かち！' : '相手が たいせんから 抜けた。きみの かち！';

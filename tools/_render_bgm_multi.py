@@ -39,6 +39,12 @@ SONGS = {
     # lobby: カフェ/ラウンジ/ボサノバ風(2026-07-21 阿部さんFB第2弾。maj7コード・シンコペベース・リムクリック・まったり)
     'lobby':   {'bpm':80,'prog':['CM7','CM7','Dm7','G7','Em7','Am7','Dm7','G7','FM7','Em7','Dm7','CM7'],'beats':48,
                 'scale':'major','tonic':60,'drum':'bossa','bass':'bossa','ch':'bossa','lead':'bossa','mood':0.6},
+    # versus: 選出画面=「これから始まるぜ」の対戦前緊張(2026-07-21 阿部さん)。マイナー・駆け上がりアンセム
+    'versus':  {'bpm':152,'prog':['Am','Am','F','G','Am','Am','F','E','Am','F','G','E'],'beats':48,
+                'scale':'minor','tonic':69,'drum':'four','bass':'pump','ch':'pulse','lead':'anthem','mood':0.9},
+    # lose: 敗北後(2026-07-21 阿部さん)。しんみりしすぎない・静かな余韻(マイナー・ゆっくり・打楽器最小)
+    'lose':    {'bpm':80,'prog':['Am','F','C','G','Am','F','E','E'],'beats':32,
+                'scale':'minor','tonic':69,'drum':'lull','bass':'soft','ch':'pad','lead':'calm','mood':0.5},
     'select':  {'bpm':140,'prog':['C','G','Am','F','C','G','F','C','F','G','C','Am','F','G','C','C'],
                 'scale':'major','tonic':72,'drum':'four','bass':'off','ch':'pulse','lead':'calm','mood':0.85},
     'champion':{'bpm':150,'prog':['G','D','Em','C','G','D','C','G','C','D','G','Em','C','D','G','G'],

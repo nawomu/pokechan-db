@@ -2786,7 +2786,7 @@ function renderLabPickScreen(){
 function showLabPickScreen(){
   if ($('lab-pick-screen')) return;   // 二重オープン防止
   LAB_PICK = {self: [], opp: []};     // ★毎回かならず空から(前回の選出が残らない=状態機械の衛生)
-  labPickPrevScene = pbBgmScene_; pbBgmSetScene('select');   // ボックス/ピッカーと同じ扱い(openPickerの流儀・2026-07-21)
+  labPickPrevScene = pbBgmScene_; pbBgmSetScene('versus');   // ★選出画面=対戦前曲(「これから始まるぜ」2026-07-21 阿部さん)
   const ov = document.createElement('div');
   ov.id = 'lab-pick-screen';
   ov.innerHTML = `<div class="lpk-card"></div>`;
@@ -4536,9 +4536,9 @@ function executeTurn(){
       // 変化技cueフックは誤発火しない(本物の行だけが発火する)。
       const introJa = `${am[1]}${am[2]} の ${am[3]}！`;
       const introSide = am[1] ? 'opp' : 'self';
-      // 予告のぴょんぴょん(.7s)+一拍だけ待って技を出す(送り速度=ふつうの約2.9秒だと予告後に間が空きすぎる=2026-07-13)
+      // ★2026-07-21 阿部さんFB「テンポ速すぎ」: 相手の攻撃は予告で一拍長く(1600ms)区切ってからバーン。自分は850のまま
       lines.push({ text: (window.translateLogLine ? translateLogLine(introJa) : introJa),
-        fx: () => flash(introSide, 'preattack'), noLog: true, hold: 850 });
+        fx: () => flash(introSide, 'preattack'), noLog: true, hold: introSide === 'opp' ? 1600 : 850 });
     }
     // ★2026-07-16連続技演出: エンジンのlog entry(e)が持つmultiHit/hitIndex/hitCountをそのままoptsへ渡す
     // (real_battle_simulator.htmlのphaseDealDamageが各ヒット行に載せたメタ)。表示側はこれを見て
@@ -5543,6 +5543,7 @@ function endOfTurn(){
         won = suicide ? lm.side !== 'self' : lm.side === 'self';
       }
     }
+    pbBgmSetScene(won ? 'champion' : 'lose');   // ★2026-07-21 阿部さん: 勝ち=チャンピオン曲/負け=lose曲(ロビー復帰でlobby)
     if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
     // scene:win/scene:lose(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
     const _wlSheet = resolveSceneSheet(won ? 'win' : 'lose');
@@ -5836,7 +5837,7 @@ function onlineAfterGame(){
 }
 function onlineOppGone(resigned){
   if (gameOver) return;
-  gameOver = true; pbBgmSetScene(null); SE.win();
+  gameOver = true; pbBgmSetScene('champion'); SE.win();   // ★2026-07-21: 勝ち曲
   // scene:win(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のshowResultBannerのまま(挙動不変)。
   { const _wlSheet2 = resolveSceneSheet('win'); if (_wlSheet2) playSceneCueSheet(_wlSheet2, { won: true }); else showResultBanner(true); }
   const ja = resigned ? '相手は こうさんした！ きみの かち！' : '相手が たいせんから 抜けた。きみの かち！';
