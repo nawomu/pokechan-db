@@ -225,9 +225,10 @@ function main() {
   ].join('\n');
   const body = 'const SPRITE_API_ID = ' + JSON.stringify(result) + ';';
   // ★HOME絵の右向き例外(2026-07-21 阿部さん報告→全278体を目視分類・生PNG二重確認済み)。
-  //   ほぼ全HOME絵は左向き=自分側だけCSSでscaleX(-1)反転する設計だが、この6体は素材が右向き
-  //   → ページ側で .fr クラスを付け「自分=無反転/相手=反転」に逆転させ向き合わせる。
-  //   追加報告があればここにidを足して再生成(判定は生PNG目視で二重確認してから)。
+  //   ほぼ全HOME絵は左向き=自分側だけCSSでscaleX(-1)反転する設計。この6体は素材が右向きなので、
+  //   ★阿部さん方針=例外CSSでなく「あらかじめ左向きに反転したローカル画像」(images/home_flip/{id}.png・
+  //   ffmpeg hflipで生成)をページ側がsrcとして配る=素材の前提が全部左向きに統一され、反転規則は一様のまま。
+  //   追加報告があれば: ①生PNG目視で二重確認 ②idをここに追記して再生成 ③ffmpeg -vf hflip でimages/home_flip/へ。
   const facesRight = 'const HOME_FACES_RIGHT = new Set([197,257,10050,750,970,981]);';
   const text = header + '\n' + body + '\n' + facesRight + '\n';
 

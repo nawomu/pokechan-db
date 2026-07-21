@@ -354,9 +354,6 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #f-self{bottom:64px;left:44px;transform:scale(1.2);transform-origin:center bottom}
 /* 味方は右向き(全スプライトが左向き素材なので反転して相手の方を向かせる=2026-07-06 阿部さん) */
 #f-self .sprite img{transform:scaleX(-1)}
-/* ★HOME右向き素材の例外(.fr): 自分=無反転(素で右向き)/相手=反転して左向き(2026-07-21) */
-#f-self .sprite img.fr{transform:none}
-#f-opp .sprite img.fr{transform:scaleX(-1)}
 #f-opp .platform{width:150px;height:24px}
 #f-self .platform{width:236px;height:40px}
 /* CH: バトル終了ボタン(左上・実機のexitアイコン風。ch-busyでも消えない=いつでも離脱できる) */
@@ -2302,13 +2299,14 @@ function spriteHtml(poke, st){
   if (poke.mega && !_swap && typeof SPRITE_API_ID !== 'undefined' && !SPRITE_API_ID[poke.name]) _apiId = null;
   if (spriteSrc === 'home' && _apiId){
     const n = _apiId;
-    // ★HOME右向き例外(2026-07-21): 素材が右向きの6体(HOME_FACES_RIGHT)は .fr で反転規則を逆転
-    //   (自分=無反転で右向きのまま/相手=反転して左向き=向き合う)。homeが404でドット絵へ
-    //   フォールバックする時はドット絵=左向き素材なので .fr を外す
-    const _fr = (typeof HOME_FACES_RIGHT !== 'undefined' && HOME_FACES_RIGHT.has(Number(n))) ? 'fr' : '';
-    return `<img src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${n}.png" alt="" class="${_fr}" style="display:none;height:150px" data-step="0"
+    // ★HOME右向き素材の6体は「あらかじめ左向きに反転したローカル画像」を配る(2026-07-21 阿部さん方針:
+    //   例外CSSでなく画像を反転して素材の前提=全部左向きに統一する。生成=images/home_flip/・ffmpeg hflip)
+    const _homeSrc = (typeof HOME_FACES_RIGHT !== 'undefined' && HOME_FACES_RIGHT.has(Number(n)))
+      ? `images/home_flip/${n}.png`
+      : `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/home/${n}.png`;
+    return `<img src="${_homeSrc}" alt="" style="display:none;height:150px" data-step="0"
         onload="this.style.display='inline';if(this.nextElementSibling)this.nextElementSibling.style.display='none'"
-        onerror="if(this.dataset.step==='0'){this.dataset.step='1';this.classList.remove('fr');this.style.imageRendering='pixelated';this.style.height='112px';this.src='images/poke/${n}.png';}else if(this.dataset.step==='1'){this.dataset.step='2';this.style.imageRendering='auto';this.src='images/sim/${enc}.svg';}else{this.remove();}">
+        onerror="if(this.dataset.step==='0'){this.dataset.step='1';this.style.imageRendering='pixelated';this.style.height='112px';this.src='images/poke/${n}.png';}else if(this.dataset.step==='1'){this.dataset.step='2';this.style.imageRendering='auto';this.src='images/sim/${enc}.svg';}else{this.remove();}">
       <span class="circ" style="background:${color};font-size:${short.length > 4 ? 11 : 13}px">${short}</span>`;
   }
   if (spriteSrc === 'api' && _apiId){
