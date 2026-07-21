@@ -2414,6 +2414,24 @@ function revertTransform(st){
   st.transformBase = null;
 }
 
+// H54(2026-07-21・出典: ポケモンWiki各天候特性ページ/Bulbapedia Drought・Drizzle・Sand Stream・Snow Warning):
+// 特性で立った天候(ひでり/あめふらし/すなおこし/ゆきふらし)の持続ターンを、技版(kind==='天候変化'・上の
+// あついいわ/しめったいわ/さらさらいわ/つめたいいわ延長ロジックと同じ規約)に合わせる。第6世代以降は
+// 特性天候も5ターンで自然に切れ、対応する「いわ」持ちなら8ターンに伸びる(旧: weatherTurnsを立てておらず
+// カウントダウン(約6966行)がスキップされ無期限=バグだった)。
+function abilityWeatherDuration(st, w){
+  let dur = 5;
+  const _wItem = ITEM_BY_KEY[st.item];
+  if (_wItem) {
+    if ((w === 'sunny' && _wItem.key === 'atsui_iwa') ||
+        (w === 'rain' && _wItem.key === 'shimetta_iwa') ||
+        (w === 'sand' && _wItem.key === 'sarasara_iwa') ||
+        (w === 'snow' && _wItem.key === 'tsumetai_iwa')) {
+      dur = 8;
+    }
+  }
+  return dur;
+}
 // === フェーズ: Init-A 場に出た時の特性発動 ===
 function phaseInitA(){
   const order = (effectiveSpeed(sides.self) >= effectiveSpeed(sides.opp))
@@ -2473,15 +2491,19 @@ function fireEntryAbility(s){
       }
     } else if (ab === 'ひでり'){
       env.weather = 'sunny';
+      env.weatherTurns = abilityWeatherDuration(st, 'sunny');
       log('Init-A', `${pname(st)} の ひでりで 日差しが強くなった！`);
     } else if (ab === 'あめふらし'){
       env.weather = 'rain';
+      env.weatherTurns = abilityWeatherDuration(st, 'rain');
       log('Init-A', `${pname(st)} の あめふらしで あめが降り始めた！`);
     } else if (ab === 'すなおこし'){
       env.weather = 'sand';
+      env.weatherTurns = abilityWeatherDuration(st, 'sand');
       log('Init-A', `${pname(st)} の すなおこしで すなあらしが舞い始めた！`);
     } else if (ab === 'ゆきふらし' || ab === 'ゆきふらし'){
       env.weather = 'snow';
+      env.weatherTurns = abilityWeatherDuration(st, 'snow');
       log('Init-A', `${pname(st)} の ${ab}で ゆきが降り始めた！`);
     } else if (ab === 'エレキメイカー'){
       env.field = 'electric';
@@ -5081,13 +5103,20 @@ function phaseSlipFor(s){
     st.fainted = true;
     log('10a', `${pname(st)} は ひんしになった！`);
   }
-  // 砂嵐継続ダメ (いわ/じめん/はがね/ふゆう/すながくれ/すなのちから/マジックガード/ぼうじん除外)
-  if (env.weather === 'sand' && !st.fainted){
+  // 砂嵐継続ダメ (いわ/じめん/はがね/すなかき/すなのちから/すながくれ/マジックガード/ぼうじん除外)。
+  // H54(2026-07-21・出典: ポケモンWiki「すなあらし(天気)」/ Bulbapedia "Sandstorm"): ふゆう(Levitate)は
+  // すなあらしのダメージを防がない(両ソース一致=以前ここに入っていたのは誤り)ため免除リストから削除し、
+  // 代わりにすなかき(Sand Rush)を追加(こちらが正しい免除特性)。ぼうじんゴーグルはDB未収録アイテムのため
+  // 未実装のまま(捏造禁止・実装は別途アイテム追加後)。
+  // 半無敵状態(あなをほる=地中/ダイビング=水中)は物理的に砂嵐の届かない場所にいるため免除する一方、
+  // そらをとぶ/とびはねる(空中)は上空でも砂を浴びるため免除しない(両ソース一致)。
+  const _sandSemiImmune = st.charging && st.charging.semi && ['地中', '水中'].includes(st.charging.semi);
+  if (env.weather === 'sand' && !st.fainted && !_sandSemiImmune){
     if (!sideTypes(st).some(t => ['いわ','じめん','はがね'].includes(t)) &&
-        !['ふゆう','すなのちから','すながくれ','マジックガード','ぼうじん'].includes(sideAbility(st))){
+        !['すなかき','すなのちから','すながくれ','マジックガード','ぼうじん'].includes(sideAbility(st))){
       const d = Math.max(1, Math.floor(max / 16));
       st.currentHp = Math.max(0, st.currentHp - d);
-      log('10c', `${pname(st)} は すなあらしで ${d} ダメージ！`);
+      log('10c', `${pname(st)} は すなあらしで ${d} ダメージ！ (残HP ${st.currentHp})`);
       if (st.currentHp <= 0){ st.fainted = true; log('10c', `${pname(st)} は ひんしになった！`); }
     }
   }

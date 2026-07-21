@@ -2101,10 +2101,109 @@ try {
 } catch (__e) { skipCase('H53: さきどり(Me First) [出典: bulbapedia.bulbagarden.net/wiki/Me_First_(move)]', (__e && __e.message) || String(__e)); }
 
 // ─────────────────────────────────────────────
+// H54: すなあらし(天気)の仕様バグ修正5点セット(2026-07-21)
+// 出典: ポケモンWiki「すなあらし(天気)」/ https://bulbapedia.bulbagarden.net/wiki/Sandstorm (両ソース一致)
+// a) すなかき(Sand Rush)はすなあらしのダメージを免除される(免除特性リストの抜け・追加)
+// b) ふゆう(Levitate)はすなあらしのダメージを免除されない(以前の免除リストが誤り・削除)
+// c) チップのログ行が他のスリップ(やけど/どく等)と同じ (残HP N) を伴う(FX連動に必要)
+// d) すなおこし(Sand Stream)で立った天気は無期限でなく5ターンで自然に切れる(さらさらいわ持ちは8ターン)
+// e) あなをほる(地中)の半無敵ターンはすなあらしのダメージを受けない(そらをとぶ=空中は受ける・対照はH14と同じ流儀)
+// 使用ポケモン(すべてChampions=pokechan_data.jsに実在・全部版でも通る): ハカドッグ(すなかき・ゴースト単=
+// いわ/じめん/はがねでない)・ロトム(ふゆう実在持ち・でんき/ゴースト)・フシギバナ(対照=無免除)・
+// カバルドン(すなおこし実在持ち)・ハガネール(はがね/じめん=チップ免除・戦闘の巻き添え防止用の相手)・
+// リザードン(あなをほる習得・ほのお/ひこうで免除特性なし)
+// ─────────────────────────────────────────────
+console.log('\n=== H54: すなあらし(天気)の仕様バグ修正 [出典: ポケモンWiki「すなあらし(天気)」/ bulbapedia.bulbagarden.net/wiki/Sandstorm] ===');
+try {
+  // H54-a: すなかき保持者はチップ免除(ハカドッグ=ゴースト単・タイプ免除に該当しない)
+  resetEnv();
+  E.env.weather = 'sand';
+  const a54a = freshSide('ハカドッグ', 'mamoru');   // ab1='すなかき'
+  fullHp(a54a);
+  const hp0_54a = a54a.currentHp;
+  E.sides.self = a54a; E.sides.opp = freshSide('フシギバナ', 'mamoru'); fullHp(E.sides.opp);
+  E.phaseSlipFor('self');
+  check('H54-a [出典: ポケモンWiki「すなあらし(天気)」/ bulbapedia.bulbagarden.net/wiki/Sandstorm] すなかき保持者はすなあらしのダメージを受けない',
+    a54a.currentHp === hp0_54a, `hp0=${hp0_54a} hp後=${a54a.currentHp}`);
+
+  // H54-b: ふゆう保持者はチップ免除されない(1/16・最低1)
+  resetEnv();
+  E.env.weather = 'sand';
+  const b54b = freshSide('ロトム', 'mamoru');   // ab1='ふゆう'(実在)
+  fullHp(b54b);
+  const hp0_54b = b54b.currentHp;
+  const maxHp_54b = E.realStat(b54b, 'hp');
+  E.sides.self = b54b; E.sides.opp = freshSide('フシギバナ', 'mamoru'); fullHp(E.sides.opp);
+  E.phaseSlipFor('self');
+  const expectDmg_54b = Math.max(1, Math.floor(maxHp_54b / 16));
+  check('H54-b [出典: ポケモンWiki「すなあらし(天気)」/ bulbapedia.bulbagarden.net/wiki/Sandstorm] ふゆう保持者もすなあらしのダメージを受ける(1/16・最低1)',
+    b54b.currentHp === hp0_54b - expectDmg_54b, `hp0=${hp0_54b} hp後=${b54b.currentHp} 期待減=${expectDmg_54b}`);
+
+  // H54-c: チップのログ行が (残HP N) を伴う(FXのダメージ判定②が拾える形式・やけど等と同じ規約)
+  resetEnv();
+  E.env.weather = 'sand';
+  const c54c = freshSide('フシギバナ', 'mamoru');
+  fullHp(c54c);
+  E.sides.self = c54c; E.sides.opp = freshSide('カビゴン', 'mamoru'); fullHp(E.sides.opp);
+  const logLenBefore_54c = E.battleLog.length;
+  E.phaseSlipFor('self');
+  const newLines_54c = E.battleLog.slice(logLenBefore_54c).map(e => e.msg);
+  const sandLine_54c = newLines_54c.find(m => /すなあらしで/.test(m));
+  check('H54-c すなあらしのチップ行が (残HP N) を伴う(やけど/どく等スリップと同じ形式・FX検知の前提)',
+    !!sandLine_54c && /すなあらしで \d+ ダメージ！ \(残HP \d+\)$/.test(sandLine_54c),
+    `line=${JSON.stringify(sandLine_54c)}`);
+
+  // H54-d: すなおこしで立った天気は無期限でなく5ターン(さらさらいわ持ちは8ターン)で切れる
+  resetEnv();
+  const d54d_a = freshSide('カバルドン', 'mamoru', { ability: 'すなおこし' });
+  fullHp(d54d_a);
+  const d54d_b = freshSide('ハガネール', 'mamoru');   // はがね/じめん=チップ免除(巻き添え防止)
+  fullHp(d54d_b);
+  E.sides.self = d54d_a; E.sides.opp = d54d_b;
+  E.setRandom(mulberry32(20260721));
+  E.phaseInitA();   // 場に出た時にすなおこしが発動
+  check('H54-d-1 すなおこし発動直後は5ターン(env.weatherTurns=5・以前は未設定=無期限バグ)',
+    E.env.weather === 'sand' && E.env.weatherTurns === 5,
+    `weather=${E.env.weather} weatherTurns=${E.env.weatherTurns}`);
+  for (let i = 0; i < 5; i++) E.runTurn();   // まもるのみ撃ち合い(無ダメージ)でターン終了だけ5回進める
+  check('H54-d-2 [出典: bulbapedia.bulbagarden.net/wiki/Sand_Stream] 5ターン経過後は天気が元に戻る(env.weather=none)',
+    E.env.weather === 'none' && E.env.weatherTurns == null,
+    `weather=${E.env.weather} weatherTurns=${E.env.weatherTurns}`);
+
+  // H54-d-3: さらさらいわ持ちなら8ターン(技版の延長ロジックを特性天候にも適用したことの確認)
+  resetEnv();
+  const d54d2_a = freshSide('カバルドン', 'mamoru', { ability: 'すなおこし', item: 'sarasara_iwa' });
+  fullHp(d54d2_a);
+  E.sides.self = d54d2_a; E.sides.opp = freshSide('ハガネール', 'mamoru'); fullHp(E.sides.opp);
+  E.phaseInitA();
+  check('H54-d-3 [出典: ポケモンWiki「さらさらいわ」] さらさらいわ持ちのすなおこしは8ターンに延長',
+    E.env.weather === 'sand' && E.env.weatherTurns === 8,
+    `weather=${E.env.weather} weatherTurns=${E.env.weatherTurns}`);
+
+  // H54-e: あなをほる(地中)の半無敵ターンはすなあらしのダメージを受けない(そらをとぶ=空中は受ける対照はH14で確認済)
+  resetEnv();
+  E.env.weather = 'sand';
+  const e54e = freshSide('リザードン', 'anawohoru');   // ab1='もうか'(免除特性でない)・ほのお/ひこう(免除タイプでない)
+  fullHp(e54e);
+  e54e.charging = { move: moveByKey('anawohoru'), semi: '地中', vulnerableTo: ['じしん', 'マグニチュード'] };
+  E.sides.self = e54e; E.sides.opp = freshSide('フシギバナ', 'mamoru'); fullHp(E.sides.opp);
+  const hp0_54e = e54e.currentHp;
+  E.phaseSlipFor('self');
+  check('H54-e [出典: ポケモンWiki「すなあらし(天気)」/ bulbapedia.bulbagarden.net/wiki/Sandstorm] あなをほる(地中)の半無敵ターンはすなあらしのダメージを受けない',
+    e54e.currentHp === hp0_54e, `hp0=${hp0_54e} hp後=${e54e.currentHp}`);
+  // 対照: 半無敵でなければ同じ個体が通常どおりチップを受ける
+  e54e.charging = null;
+  const hp0_54e2 = e54e.currentHp;
+  E.phaseSlipFor('self');
+  check('H54-e-2 比較対照: 半無敵状態でなければ同じ個体が通常どおりすなあらしのダメージを受ける',
+    e54e.currentHp < hp0_54e2, `hp0=${hp0_54e2} hp後=${e54e.currentHp}`);
+} catch (__e) { skipCase('H54: すなあらし(天気)の仕様バグ修正 [出典: ポケモンWiki「すなあらし(天気)」/ bulbapedia.bulbagarden.net/wiki/Sandstorm]', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
 // 集計
 // ─────────────────────────────────────────────
 console.log('\n' + '='.repeat(60));
-console.log(`難所相互作用53件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
+console.log(`難所相互作用54件テスト結果: pass=${pass} fail=${fail} skip=${skip}`);
 if (fails.length) {
   console.log('\n--- FAIL一覧 ---');
   fails.forEach(f => console.log('  ' + f));
