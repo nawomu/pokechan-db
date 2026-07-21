@@ -4675,7 +4675,9 @@ function initGodHand(){
     // てんきや(2026-07-21): 神の手の天候直変更もタイプ/見た目に即反映(通常はエンジン内の各呼び出し点で
     // syncForecastBothSidesが走るが、神の手はS.env直書きなのでここでも明示的に呼ぶ)
     try { const _ew = engineWin(); if (_ew && _ew.syncForecastBothSides) _ew.syncForecastBothSides(); } catch (e) {}
-    setWeatherFx(_GH_WFX[wSel.value] || null); renderAll(); } });
+    setWeatherFx(_GH_WFX[wSel.value] || null);
+    fileSeWeatherSet(_GH_WFX[wSel.value] || null);   // ★リアルSE(2026-07-21): 神の手の直変更も経路非依存の共通フックを通す
+    renderAll(); } });
   const fSel = $('gh-field');
   if (fSel) fSel.addEventListener('change', () => { if (S && S.env){ S.env.field = fSel.value; S.env.fieldTurns = null; setTerrainFx(_GH_TFX[fSel.value] || null); renderAll(); } });
   const br = $('gh-battle-reset');
@@ -4841,6 +4843,93 @@ const SE = {
   },
 };
 
+
+// ===== リアル効果音(mp3ファイル・Splice素材=ユーザーDL済ロイヤリティフリー・2026-07-21) =====
+// 合成SE(SE={...})とは別レイヤーとして共存(既存hitClass等は変更しない=上書きでなく重ね鳴らし)。
+// pbBgm(直上ブロック)と同じ読み込みパターン(fetch+decodeAudioData+Mapキャッシュ)をワンショット/ループに流用。
+// 出口は必ずdest()(既存マスターゲイン=音量スライダーrb_volが効く)を経由する。
+const fileSeBufCache = new Map();   // ファイル名(拡張子抜き) → Promise<AudioBuffer|null>
+function fileSeLoadBuffer(name){
+  if (fileSeBufCache.has(name)) return fileSeBufCache.get(name);
+  const p = fetch('assets/se/' + name + '.mp3')
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer(); })
+    .then(ab => ac().decodeAudioData(ab))
+    .catch(e => { console.warn('[fileSE] load failed(オフライン等):', name, e); fileSeBufCache.delete(name); return null; });
+  fileSeBufCache.set(name, p);
+  return p;
+}
+// ワンショット再生(gain省略時=1)。dest()経由なので音量スライダー/コンプ共通。
+async function fileSePlay(name, gain){
+  const buf = await fileSeLoadBuffer(name);
+  if (!buf) return;
+  const ctx = ac();
+  const src = ctx.createBufferSource(); src.buffer = buf;
+  const g = ctx.createGain(); g.gain.value = gain != null ? gain : 1;
+  src.connect(g); g.connect(dest());
+  src.start();
+}
+// いわ技(ダメージ技のみ・変化技のロックカット/すなあらし/ワイドガード/ステルスロックは除外)→いわなだれ風の崩落音
+const FILE_SE_ROCK_MOVES = new Set([
+  'いわなだれ', 'げんしのちから', 'がんせきふうじ', 'ロックブラスト', 'パワージェム', 'がんせきほう',
+  'ストーンエッジ', 'もろはのずつき', 'うちおとす', 'アクセルロック', 'メテオビーム', 'がんせきアックス', 'しおづけ',
+]);
+// じめん技のうち「じしん」系統(揺れ)のみ(技リストにマグニチュード/じならしの実装有無を確認: じならしは実装あり)
+const FILE_SE_QUAKE_MOVES = new Set(['じしん', 'じならし']);
+// ぼうふう(Hurricane系)専用。他の風技(かぜおこし/エアカッター等)は明確な暴風系でないため対象外(保守的判断)
+const FILE_SE_STORM_MOVES = new Set(['ぼうふう']);
+// 攻撃ダメージ行(lineWithFxの①分岐)で技名がこれらに該当したら、既存のhitClass音に重ねてリアル音を鳴らす
+function fileSeOnMoveHit(mv, delayMs){
+  if (!mv || !mv.name) return;
+  const d = delayMs || 0;
+  if (FILE_SE_QUAKE_MOVES.has(mv.name)) setTimeout(() => fileSePlay('se_quake', 0.9), d);
+  else if (FILE_SE_ROCK_MOVES.has(mv.name)) setTimeout(() => fileSePlay('se_rockslide', 0.85), d);
+  else if (FILE_SE_STORM_MOVES.has(mv.name)) setTimeout(() => fileSePlay('se_storm', 0.85), d);
+}
+// 天候ループ(2026-07-21 阿部さん指示=経路非依存の共通化構造): 天候の「種類→ループSEファイル名」マップ。
+// 発生経路(特性いかく/あめふらし・技あまごい/あまいます等・神の手)に関係なく、天候がその種になったら
+// fileSeWeatherSet(kind)を呼べば開始し、変わる/終わる時に呼べば止まる(全経路が下の天候分類ブロック1箇所を通る)。
+// 値が無い天候(ファイル未整備)はfileSeLoadBufferのfetch失敗→console.warnで無音のまま安全に壊れない(pbBgmと同じ流儀)。
+// 後日ファイルをassets/se/に置くだけで、コード変更なしに鳴り始める。
+const WEATHER_SE = { sand: 'se_sandstorm_loop', rain: 'se_rain_loop' };
+let fileSeWeatherSrc = null, fileSeWeatherGain = null, fileSeWeatherWant = null;   // want=現在望まれている天候kind文字列(null=無音)
+function fileSeWeatherGraph(){
+  const ctx = ac();
+  if (!fileSeWeatherGain){ fileSeWeatherGain = ctx.createGain(); fileSeWeatherGain.gain.value = 0.5; fileSeWeatherGain.connect(dest()); }
+}
+function fileSeWeatherStopSrc(){
+  if (fileSeWeatherSrc){
+    try { fileSeWeatherSrc.stop(); } catch (e) {}
+    fileSeWeatherSrc = null;
+  }
+  fileSeUpdateDebug();   // 何もしていなくても(既に無音でも)呼び出し側の状態確認に必ず反映する
+}
+// kind: 'sand'|'rain'|'sun'|'snow'|null。WEATHER_SEに無いkind(sun/snow等ファイル未整備)は前のループを止めて
+// 無音に戻すだけ(=想定どおり)。myWantトークン比較でpbBgmApplyと同じ「待ってる間に状態が変わったら捨てる」設計。
+async function fileSeWeatherSet(kind){
+  if (fileSeWeatherWant === kind) return;   // 変化なし(二重start/二重stop防止)
+  fileSeWeatherWant = kind;
+  fileSeWeatherStopSrc();   // 前の天候ループは即停止(次のkindが無音/未対応でも必ず止まる)
+  const name = kind && WEATHER_SE[kind];
+  if (!name) return;   // 対応ファイル無し→無音のまま安全側
+  const myWant = kind;
+  const buf = await fileSeLoadBuffer(name);
+  if (!buf || fileSeWeatherWant !== myWant) return;   // 読み込み中に天候が変わった/取り消された→この結果は捨てる
+  fileSeWeatherGraph();
+  const ctx = ac();
+  const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+  src.connect(fileSeWeatherGain);
+  src.start();
+  fileSeWeatherSrc = src;
+  fileSeUpdateDebug();
+}
+function fileSeUpdateDebug(){   // テスト/検証用フック(Playwright等から再生状態を覗く)
+  window.__seDebug = {
+    weatherLoopPlaying: !!fileSeWeatherSrc,
+    weatherLoopKind: fileSeWeatherWant,
+    bufferedFileSE: Array.from(fileSeBufCache.keys()),
+  };
+}
+
 // ===== BGM(mp3ループ・タスク#19 2026-07-20 阿部さん指示 / ギャップレス化 2026-07-21) =====
 // 既定OFF(自動再生ポリシー+UX)。🎵トグルでON、状態はlocalStorage(pcham_bgm_on)に記憶。
 // ★2026-07-21(阿部さんFB=ループの継ぎ目が聞こえる): <audio loop>方式を撤去し、Web Audioで
@@ -4927,6 +5016,9 @@ function pbBgmStop(){ pbBgmApplyToken++; pbBgmStopSrc(); pbBgmUpdateDebug(); }
 function pbBgmSetScene(scene){
   pbBgmScene_ = scene;
   if (pbBgmOn) pbBgmApply(); else pbBgmStop();
+  // ★リアルSE: バトル画面(scene==='battle')以外に切り替わる=退室/勝敗確定/交代画面等は必ず
+  // 砂嵐ループを止める(2026-07-21・天候演出のライフサイクルとは独立の安全弁。冪等=既に止まっていてもOK)
+  if (scene !== 'battle') fileSeWeatherSet(null);
 }
 function pbBgmToggle(){
   // ★2026-07-21(阿部さん報告=バトル中にBGMが勝手に止まる): クリック直後もこのボタンにフォーカスが残ると、
@@ -5029,6 +5121,7 @@ function lineWithFx(msg, opts){
   // (HPバー/renderAll/みがわり姿)は抑制しない(シートが持たない場合に消えてしまうため=安全側)。
   // 境界行=次の技使用行/ダメージを含む行/外れ/交代/登場/ひんし行(=次のアクションの開始)。
   let _stPlay = null;
+  let _swordsDanceHit = false;   // ★リアルSE(2026-07-21): つるぎのまい単独限定(他の積み技へは展開しない)
   {
     const useM = !opts.forceAttackFx && msg.match(/^(相手の )?\S+ の (\S+)！$/);
     if (useM){
@@ -5038,6 +5131,7 @@ function lineWithFx(msg, opts){
       const sheet = (mv && mv.category === '変化') ? resolveStatusCueSheet(mv) : null;
       _statusCueSup = !!sheet;   // シート無しの使用行/特性宣言行はウィンドウ終了(false)
       if (sheet) _stPlay = { sheet, atkSide: s, tgtSide: s === 'self' ? 'opp' : 'self', mv };
+      if (mv && mv.name === 'つるぎのまい') _swordsDanceHit = true;
     } else if (/ダメージ|は外れた！$|は 引っ込んだ！$|^もどれ！|を 引っ込めた！$|が 場に出た！|^いけっ！|を くりだした！$|は ひんしになった！/.test(msg)){
       _statusCueSup = false;
     }
@@ -5049,6 +5143,9 @@ function lineWithFx(msg, opts){
     if (_stPlay){
       playCueSheet(_stPlay.sheet, { atkSide: _stPlay.atkSide, tgtSide: _stPlay.tgtSide, mv: _stPlay.mv });
     }
+    // ★リアルSE(2026-07-21): つるぎのまいの使用行(裸行)の拍でワンショットを鳴らす(既存rankFx等と同じ
+    // 「行が実際に表示される時=fx()内」の作法。ダメージ行が無い変化技なのでここが唯一の自然な拍)
+    if (_swordsDanceHit) fileSePlay('se_swordsdance');
     const hpM = msg.match(/\(残(?:り)?HP (\d+)(?:\/(\d+))?\)/);
     const subjOpp = msg.startsWith('相手の');   // 行の主語(先頭)が相手側か
     // ① 攻撃のダメージ行: 「A の 技！ … ダメージ！」(対象=攻撃側の反対。連続ヒット・みがわりも同じ形)
@@ -5109,12 +5206,17 @@ function lineWithFx(msg, opts){
           flash(tgt, _hitCls);
         }, _atkDur);
       }
+      // ★リアルSE(2026-07-21・Splice素材): 既存hitClass音に重ねて、技名がじしん/いわ技/ぼうふうに
+      // 該当すればファイルSEを同じ着弾拍(_hitFxDelay)で重ね鳴らす(置き換えではない=既存演出は無改変)
+      fileSeOnMoveHit(mv, _hitFxDelay);
     } else {
       // ② スリップ系の残HP行(やけど/すなあらし/さめはだ等): 主語側が減る
       if (hpM){
         const side = subjOpp ? 'opp' : 'self';
         const max = hpM[2] ? +hpM[2] : (S.realStat(S.sides[side], 'hp') || 1);
         setHpBar(side, +hpM[1], max);
+        // ★リアルSE: ステルスロックの交代出し入れダメージ行(設置音より控えめ0.7gain=2026-07-21)
+        if (/とがった岩が \S+ に 食いこんだ！/.test(msg)) fileSePlay('se_stealthrock', 0.7);
         // P0-3(2026-07-17・設計_特性・場エフェクト増強_2026-07-17.md §1): みらいよち等「Aは Bの こうげきを
         // うけた！ Nダメージ！」は「で」を挟まない形で従来のdマッチから漏れていた(バーだけ減る)→追加。
         // P0-4: やどりぎ等「HPを N 吸いとった！」(吸収回復)は「けずった」でないので漏れていた→+N緑+sparkleFxを追加。
@@ -5246,11 +5348,11 @@ function lineWithFx(msg, opts){
       pnRankMs.forEach(m => rankFx(pnSide, m[1][0] === '+', Math.abs(+m[1])));
     }
     // ⑤ 天候(開始で常時オーバーレイ・終了で消す)
-    if (/日差しが強くなった|天気が にほんばれ/.test(msg)) setWeatherFx('sun');
-    else if (/あめが降り始めた|天気が あめ に/.test(msg)) setWeatherFx('rain');
-    else if (/すなあらしが舞い始めた|天気が すなあらし/.test(msg)) setWeatherFx('sand');
-    else if (/ゆきが降り始めた|天気が ゆき に/.test(msg)) setWeatherFx('snow');
-    else if (/天気が 元に戻った/.test(msg)) setWeatherFx(null);
+    if (/日差しが強くなった|天気が にほんばれ/.test(msg)){ setWeatherFx('sun'); fileSeWeatherSet('sun'); }
+    else if (/あめが降り始めた|天気が あめ に/.test(msg)){ setWeatherFx('rain'); fileSeWeatherSet('rain'); }
+    else if (/すなあらしが舞い始めた|天気が すなあらし/.test(msg)){ setWeatherFx('sand'); fileSeWeatherSet('sand'); }
+    else if (/ゆきが降り始めた|天気が ゆき に/.test(msg)){ setWeatherFx('snow'); fileSeWeatherSet('snow'); }
+    else if (/天気が 元に戻った/.test(msg)){ setWeatherFx(null); fileSeWeatherSet(null); }
     // P0-1(2026-07-17・設計§1): フィールド(グラス/エレキ/ミスト/サイコ)演出が天候と非対称=未配線だった。
     // 技「足下が {フィールド名} になった！」+メイカー特性「足下に電気が満ちた/草が生えた/霧が満ちた/
     // 不思議な空間が広がった！」→setTerrainFx。終了「フィールドが 元に戻った/こわれて消えた！」→null解除。
@@ -5366,7 +5468,7 @@ function lineWithFx(msg, opts){
     // P2(2026-07-18・設計_特性・場エフェクト増強_2026-07-17.md §4): 設置物の常駐ミニアイコン(hazardFx)。
     // 設置行の主語=設置される側(技を受ける側の場。エンジンはpname(def)で行を作る)なので、
     // subjOpp(行頭「相手の」)がそのまま側になる(いかく行と同じログ文言からの側解決)。層数は「(N層)」から読む。
-    if (/の足元に とがった岩が 浮かびはじめた！$/.test(msg)) hazardFx(subjOpp ? 'opp' : 'self', 'rock', 1);
+    if (/の足元に とがった岩が 浮かびはじめた！$/.test(msg)){ hazardFx(subjOpp ? 'opp' : 'self', 'rock', 1); fileSePlay('se_stealthrock'); }
     const spkM = msg.match(/の足元に まきびしが 散らばった！\((\d)層\)$/);
     if (spkM) hazardFx(subjOpp ? 'opp' : 'self', 'spikes', +spkM[1]);
     const tspkM = msg.match(/の足元に どくびしが 散らばった！\((\d)層\)$/);
