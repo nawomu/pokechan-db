@@ -33,7 +33,7 @@
 })();
 </script>
 <script src="battle_log_i18n.js?v=20260718b"></script>
-<script src="sprite_api_ids.js?v=20260706b"></script>
+<script src="sprite_api_ids.js?v=20260721a"></script>
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
 <script src="battle_fx_cues.js?v=20260716c"></script>
@@ -75,6 +75,15 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #setup h2{font-size:14px;margin:0 0 10px;color:#6a5fa0}
 /* ===== CH: 選出画面=本家3カラム(左=自分/中央=詳細/右=相手。2026-07-05 阿部さん) ===== */
 #setup-top{display:flex;gap:16px;align-items:center;margin-bottom:10px;font-size:12px;color:#6a5fa0;flex-wrap:wrap}
+/* ★2026-07-21: データ版セグメントコントロール(常に両方見える・アクティブ側を塗りで強調)。
+   #setup button{...}(汎用の大ボタン=紫グラデ角丸)が id+element でこの.data-mode-segより強いため、
+   #lab-data-mode配下(id+class)で書いて確実に勝たせる。 */
+#lab-data-mode{display:inline-flex;margin-left:12px;border:1px solid #c9c3e6;border-radius:8px;overflow:hidden;flex:0 0 auto}
+#lab-data-mode .data-mode-seg{flex:0 0 auto;background:#fff;color:#3a3552;border:none;border-radius:0;box-shadow:none;padding:4px 9px;font-size:12px;font-weight:700;font-family:inherit;white-space:nowrap;cursor:pointer;transition:background .12s,color .12s}
+#lab-data-mode .data-mode-seg+.data-mode-seg{border-left:1px solid #c9c3e6}
+#lab-data-mode .data-mode-seg:hover{border-color:transparent;box-shadow:none}
+#lab-data-mode .data-mode-seg:not(.active):hover{background:#f0edfd}
+#lab-data-mode .data-mode-seg.active{background:#6a5be0;color:#fff;font-weight:800;cursor:default;border-color:transparent;box-shadow:none}
 /* 左右カラムは縮められるように(固定230pxだと狭い画面で右カラムが枠外へはみ出す=2026-07-05 阿部さん指摘) */
 #setup-cols{display:grid;grid-template-columns:minmax(170px,230px) minmax(250px,1fr) minmax(170px,230px);gap:14px;margin-bottom:12px;align-items:start}
 .col-title{font-size:12px;font-weight:900;color:#fff;text-align:center;border-radius:12px;padding:3px 0;margin-bottom:8px;
@@ -1101,8 +1110,13 @@ body.in-battle #lab-ai-row{display:flex}
         <span data-i18n="battle_lab.allow_dupes">おなじポケモンも えらべる</span>
       </label>
       <!-- ★Phase E(2026-07-19): チャンピオンズ版⇔全部版データ切替トグル(設計_全部版バトル切替_2026-07-18.md §1)。
-           クリックで localStorage(rb_lab_data_mode)更新→再読込(champions=battle_lab.html / all=?data=all)。 -->
-      <button type="button" id="lab-data-mode" style="margin-left:12px;background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer;font-size:12px" data-i18n="battle_lab.data_mode_champions" data-i18n-attr="title:battle_lab.data_mode_hint" title="タップで切り替え">チャンピオンズ版</button>
+           クリックで localStorage(rb_lab_data_mode)更新→再読込(champions=battle_lab.html / all=?data=all)。
+           ★2026-07-21(阿部さんFB): 単一ボタンだと「もう一個ある/切り替えられる/今どっち」が伝わらない
+           →常に両方見えるセグメント型に変更(非アクティブ側だけクリックで切替・アクティブ側クリックは何もしない)。 -->
+      <div id="lab-data-mode" class="data-mode-switch" role="group" data-i18n-attr="title:battle_lab.data_mode_hint" title="タップで切り替え">
+        <button type="button" class="data-mode-seg" data-mode="champions" data-i18n="battle_lab.data_mode_champions">チャンピオンズ版</button>
+        <button type="button" class="data-mode-seg" data-mode="all" data-i18n="battle_lab.data_mode_all">🧪全部版</button>
+      </div>
     </div>
     <div id="setup-cols">
       <div id="setup-left">
@@ -1335,7 +1349,7 @@ body.in-battle #lab-ai-row{display:flex}
 // ★Phase E(2026-07-19): エンジンiframeのsrcはモードに応じてここで確定する(HTMLのsrc属性は外して二重ロード防止)。
 // allモードは&data=allを付けてエンジン側(real_battle_simulator.html)にも同じデータ源を伝搬する。
 (function(){
-  var base = 'real_battle_simulator.html?v=20260721a';
+  var base = 'real_battle_simulator.html?v=20260721b';
   document.getElementById('engine-frame').src = (window.RB_LAB_MODE === 'all') ? (base + '&data=all') : base;
 })();
 </script>
@@ -1417,20 +1431,21 @@ function clearMsg(){ const ml = document.getElementById('msg-lines'); if (ml) ml
 
 const $ = id => document.getElementById(id);
 
-// ★Phase E(2026-07-19): チャンピオンズ版⇔全部版トグル(エンジン読込を待たず・DOM準備済みなら即配線)。
-// data-i18nの初期値はJS側でモードに合わせて上書き(i18n:ready/changedで通常のdata-i18n配線が追従する)。
+// ★Phase E(2026-07-19)→2026-07-21セグメント化: チャンピオンズ版⇔全部版トグル(エンジン読込を待たず・DOM準備済みなら即配線)。
+// 両セグメントのラベルは常に静的表示(data-i18n配線=i18n/runtime.jsのapplyDOMが自動で言語追従・JS側での上書き不要)。
+// JS側の仕事は「今のモードにactiveクラスを付ける」だけ。非アクティブ側クリック=切替、アクティブ側クリック=何もしない。
 function initDataModeToggle(){
-  const btn = $('lab-data-mode');
-  if (!btn) return;
+  const wrap = $('lab-data-mode');
+  if (!wrap) return;
   const mode = (window.RB_LAB_MODE === 'all') ? 'all' : 'champions';
-  const key = mode === 'all' ? 'battle_lab.data_mode_all' : 'battle_lab.data_mode_champions';
-  const fallback = mode === 'all' ? '🧪全部版' : 'チャンピオンズ版';
-  btn.dataset.i18n = key;
-  btn.textContent = (window.I18N && window.I18N.t) ? window.I18N.t(key, fallback) : fallback;
-  btn.addEventListener('click', () => {
-    const next = mode === 'all' ? 'champions' : 'all';
-    try { localStorage.setItem('rb_lab_data_mode', next); } catch (e) {}
-    location.href = location.pathname + (next === 'all' ? '?data=all' : '');
+  wrap.querySelectorAll('.data-mode-seg').forEach(seg => {
+    const segMode = seg.dataset.mode;
+    seg.classList.toggle('active', segMode === mode);
+    seg.addEventListener('click', () => {
+      if (segMode === mode) return; // 既にアクティブな側=何もしない
+      try { localStorage.setItem('rb_lab_data_mode', segMode); } catch (e) {}
+      location.href = location.pathname + (segMode === 'all' ? '?data=all' : '');
+    });
   });
 }
 initDataModeToggle();
