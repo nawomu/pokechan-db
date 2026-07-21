@@ -32,8 +32,9 @@ SCALES = {'minor':[0,2,3,5,7,8,10],'major':[0,2,4,5,7,9,11],'dorian':[0,2,3,5,7,
 SONGS = {
     'battle':  {'bpm':165,'prog':['Am','F','G','Am','Am','F','G','Am','F','G','Em','Am','F','G','E','E'],
                 'scale':'minor','tonic':69,'drum':'drive','bass':'pump','ch':'stab','lead':'run','mood':1.0},
-    'lobby':   {'bpm':126,'prog':['FM','FM','G','G','Am','Am','G','G','FM','G','Am','Am','FM','G','C','C'],
-                'scale':'lydian','tonic':65,'drum':'sparse','bass':'off','ch':'pad','lead':'calm','mood':0.75},
+    # lobby: ほのぼの・ほんわり・ゆっくり・和む(2026-07-21 阿部さんFBで再作曲。ワルツ風3拍子・サイン/トライアングル・打楽器最小)
+    'lobby':   {'bpm':84,'prog':['C','C','F','G','Am','Em','F','G','C','F','G','C'],'beats':48,
+                'scale':'major','tonic':60,'drum':'lull','bass':'soft','ch':'pad','lead':'lullaby','mood':0.6},
     'select':  {'bpm':140,'prog':['C','G','Am','F','C','G','F','C','F','G','C','Am','F','G','C','C'],
                 'scale':'major','tonic':72,'drum':'four','bass':'off','ch':'pulse','lead':'calm','mood':0.85},
     'champion':{'bpm':150,'prog':['G','D','Em','C','G','D','C','G','C','D','G','Em','C','D','G','G'],
@@ -45,7 +46,11 @@ SONGS = {
 def render(key, out):
     S = SONGS[key]
     BPM = S['bpm']; SPB = 60.0 / BPM
-    BEATS = 64; buf = [0.0] * int(BEATS * SPB * SR + SR)
+    BEATS = S.get('beats', 64)
+    # ★ループレンダー(2026-07-21): バッファ長=曲長ぴったり。曲末をはみ出す余韻は
+    #   先頭へ巻き込む(idx % LOOP)ことで、末尾無音ゼロ=どこで繋いでも継ぎ目なし。
+    #   (旧実装は +1秒 の余韻領域が末尾無音として曲に残り、ループ毎に「一回止まる」原因だった)
+    LOOP = int(BEATS * SPB * SR); buf = [0.0] * LOOP
     prog = S['prog']; g = S['mood']
 
     def add_note(pitch, sb, db, vel, kind, gain, detune=0.0):
@@ -55,19 +60,18 @@ def render(key, out):
         for i in range(n):
             e = env(i/SR, db*SPB)
             if e > 0:
-                idx = i0 + i
-                if idx < len(buf): buf[idx] += osc(kind, ph)*e*amp
+                buf[(i0 + i) % LOOP] += osc(kind, ph)*e*amp
             ph += dph
     def add_kick(sb, vel, gain=0.95):
         n = int(0.16*SR); i0 = int(sb*SPB*SR); amp=(vel/127.0)*gain
         for i in range(n):
-            t=i/SR; f=120*math.exp(-t*30)+45; e=math.exp(-t*14); idx=i0+i
-            if idx<len(buf): buf[idx]+=math.sin(2*math.pi*f*t)*e*amp
+            t=i/SR; f=120*math.exp(-t*30)+45; e=math.exp(-t*14)
+            buf[(i0+i) % LOOP]+=math.sin(2*math.pi*f*t)*e*amp
     def add_perc(sb, db, vel, gain, tone):
         random.seed(int(sb*1000)+vel); n=int(db*SPB*SR); i0=int(sb*SPB*SR); amp=(vel/127.0)*gain
         for i in range(n):
-            e=math.exp(-(i/SR)*(35.0/tone)); idx=i0+i
-            if idx<len(buf): buf[idx]+=(random.random()*2-1)*e*amp
+            e=math.exp(-(i/SR)*(35.0/tone))
+            buf[(i0+i) % LOOP]+=(random.random()*2-1)*e*amp
 
     # Drums
     for b in range(BEATS):
@@ -76,11 +80,15 @@ def render(key, out):
         elif S['drum']=='sparse':
             if b%2==0: add_kick(b,96,0.7)
             if b%4==2: add_perc(b,0.14,88,0.35,2.5)
+        elif S['drum']=='lull':
+            # ほのぼの: 小節頭にごく柔らかいキックだけ(ハイハット無し)
+            if b%4==0: add_kick(b,72,0.4)
     hat_g = 0.18*g
-    step = 1.0 if S['drum']=='sparse' else 0.5
-    t = 0.5
-    while t < BEATS:
-        add_perc(t,0.05,70,hat_g,6.0); t += step
+    if S['drum'] != 'lull':
+        step = 1.0 if S['drum']=='sparse' else 0.5
+        t = 0.5
+        while t < BEATS:
+            add_perc(t,0.05,70,hat_g,6.0); t += step
 
     # Bass
     for bar,ch in enumerate(prog):
@@ -90,6 +98,10 @@ def render(key, out):
         elif S['bass']=='off':
             add_note(root,t0,0.7,104,'tri',0.2)
             for off in [1.5,2.5,3.5]: add_note(root,t0+off,0.4,92,'tri',0.18)
+        elif S['bass']=='soft':
+            # ほのぼの: 全音符主体のやわらかい低音(サイン)
+            add_note(root,t0,3.6,88,'sine',0.22)
+            add_note(root+7,t0+2,1.6,72,'sine',0.12)
 
     # Chords
     for bar,ch in enumerate(prog):
@@ -106,7 +118,7 @@ def render(key, out):
     # Lead
     sc=SCALES[S['scale']]; tonic=S['tonic']
     def deg(o,d): return tonic+12*o+sc[d%7]+12*(d//7)
-    for ph in range(8):
+    for ph in range(BEATS//8):
         t0=ph*8
         if S['lead']=='run':
             shape=[0,2,4,4,3,2,4,5]
@@ -123,6 +135,15 @@ def render(key, out):
             seq=[0,2,4,2,5,4]
             for i,d in enumerate(seq): add_note(deg(0,d+(ph%2)),t0+i*1.25,0.9,84,'tri',0.14*g)
             add_note(deg(0,4),t0+7.5,0.5,80,'tri',0.13*g)
+        elif S['lead']=='lullaby':
+            # ほのぼの: ゆったり長い音符・小さな起伏・オルゴール風(サイン+薄いトライアングル重ね)
+            seq=[(0,2.0),(2,1.5),(4,2.5),(2,2.0),(1,1.5),(0,2.5),(2,2.0),(4,1.5),(5,2.5),(4,2.0),(2,1.5),(0,2.5)]
+            tt=t0; k=ph%2
+            for d,dur in seq:
+                if tt-t0 >= 8: break
+                add_note(deg(0,d+k),tt,dur*0.95,68,'sine',0.16*g)
+                add_note(deg(1,d+k),tt,dur*0.6,46,'tri',0.05*g)
+                tt += dur*0.67
 
     peak=max(abs(x) for x in buf) or 1.0; norm=0.85/peak
     with wave.open(out,'w') as w:
