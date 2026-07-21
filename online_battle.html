@@ -3933,11 +3933,11 @@ async function fileSePlay(name, gain){
 }
 // いわ技(ダメージ技のみ・変化技のロックカット/すなあらし/ワイドガード/ステルスロックは除外)→いわなだれ風の崩落音
 const FILE_SE_ROCK_MOVES = new Set([
-  'いわなだれ', 'げんしのちから', 'がんせきふうじ', 'ロックブラスト', 'パワージェム', 'がんせきほう',
+  'げんしのちから', 'がんせきふうじ', 'ロックブラスト', 'パワージェム', 'がんせきほう',
   'ストーンエッジ', 'もろはのずつき', 'うちおとす', 'アクセルロック', 'メテオビーム', 'がんせきアックス', 'しおづけ',
 ]);
 // じめん技のうち「じしん」系統(揺れ)のみ(技リストにマグニチュード/じならしの実装有無を確認: じならしは実装あり)
-const FILE_SE_QUAKE_MOVES = new Set(['じしん', 'じならし']);
+const FILE_SE_QUAKE_MOVES = new Set(['じしん', 'じならし', 'いわなだれ']);
 // ぼうふう(Hurricane系)専用。他の風技(かぜおこし/エアカッター等)は明確な暴風系でないため対象外(保守的判断)
 const FILE_SE_STORM_MOVES = new Set(['ぼうふう']);
 // 攻撃ダメージ行(lineWithFxの①分岐)で技名がこれらに該当したら、既存のhitClass音に重ねてリアル音を鳴らす
@@ -4280,6 +4280,7 @@ function lineWithFx(msg, opts){
         setHpBar(side, +hpM[1], max);
         // ★リアルSE: ステルスロックの交代出し入れダメージ行(設置音より控えめ0.7gain=2026-07-21)
         if (/とがった岩が \S+ に 食いこんだ！/.test(msg)) fileSePlay('se_stealthrock', 0.7);
+        if (/まきびしの ダメージを受けた！/.test(msg)) fileSePlay('se_stealthrock', 0.7);   // ★2026-07-21 阿部さん
         // P0-3(2026-07-17・設計_特性・場エフェクト増強_2026-07-17.md §1): みらいよち等「Aは Bの こうげきを
         // うけた！ Nダメージ！」は「で」を挟まない形で従来のdマッチから漏れていた(バーだけ減る)→追加。
         // P0-4: やどりぎ等「HPを N 吸いとった！」(吸収回復)は「けずった」でないので漏れていた→+N緑+sparkleFxを追加。
@@ -4531,7 +4532,7 @@ function lineWithFx(msg, opts){
     // subjOpp(行頭「相手の」)がそのまま側になる(いかく行と同じログ文言からの側解決)。層数は「(N層)」から読む。
     if (/の足元に とがった岩が 浮かびはじめた！$/.test(msg)){ hazardFx(subjOpp ? 'opp' : 'self', 'rock', 1); fileSePlay('se_stealthrock'); }
     const spkM = msg.match(/の足元に まきびしが 散らばった！\((\d)層\)$/);
-    if (spkM) hazardFx(subjOpp ? 'opp' : 'self', 'spikes', +spkM[1]);
+    if (spkM){ hazardFx(subjOpp ? 'opp' : 'self', 'spikes', +spkM[1]); fileSePlay('se_stealthrock'); }   // ★2026-07-21 阿部さん: まきびしも同じ金属破片音
     const tspkM = msg.match(/の足元に どくびしが 散らばった！\((\d)層\)$/);
     if (tspkM) hazardFx(subjOpp ? 'opp' : 'self', 'toxic', +tspkM[1]);
     if (/の足元に ねばねばネットが 広がった！$/.test(msg)) hazardFx(subjOpp ? 'opp' : 'self', 'web', 1);
