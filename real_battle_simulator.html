@@ -5265,6 +5265,10 @@ function snapshotBattleState(){
     // 2026-07-21 敵対的シナリオテストWave1(A・出典=設計_敵対的シナリオテスト_2026-07-21.md): undoBattleの
     // 復元漏れスイープで発見した単ターン揮発+こだわり+ばけのかわ+てんきやの巻き戻し漏れを追加。
     disguise: !!st.disguise,                             // ばけのかわ(剥がれ状態)も一手戻せるように
+    // H70(2026-07-21実機FB根治): disguiseだけ戻してdisguiseBrokenを戻し忘れると、剥がれた後にundoした時
+    // disguise=true(復元)だがdisguiseBroken=true(未復元)のまま矛盾し、次の被弾で再ブロック+1/8を
+    // もう一度削る二重チップになる(「一度剥がれたらバトル中は戻らない」というWiki準拠の恒久フラグとペアで戻す)。
+    disguiseBroken: !!st.disguiseBroken,                 // ばけのかわの「剥がれ済み」恒久フラグも一手戻せるように(disguiseと対)
     protectStreak: st.protectStreak || 0,                // まもる/こらえるの連続成功カウントも一手戻せるように
     choiceLock: st.choiceLock || null,                   // こだわりロック(段135)も一手戻せるように
     mustRecharge: !!st.mustRecharge,                     // はかいこうせん系の反動硬直も一手戻せるように
@@ -5374,6 +5378,7 @@ function undoBattle(){
     st.stickyWeb = !!src.stickyWeb;
     // 2026-07-21 敵対的シナリオテストWave1(A)の復元漏れ追加分の巻き戻し(snapshotBattleStateと対)
     st.disguise = !!src.disguise;                        // ばけのかわ(剥がれ状態)の巻き戻し
+    st.disguiseBroken = !!src.disguiseBroken;             // H70: 恒久フラグもdisguiseと対で巻き戻す(片方だけだと二重チップの矛盾状態になる)
     st.protectStreak = src.protectStreak || 0;           // まもる/こらえるの連続成功カウントの巻き戻し
     st.choiceLock = src.choiceLock || null;              // こだわりロックの巻き戻し
     st.mustRecharge = !!src.mustRecharge;                // 反動硬直の巻き戻し

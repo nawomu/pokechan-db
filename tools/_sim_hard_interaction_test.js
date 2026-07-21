@@ -2733,6 +2733,166 @@ try {
     atk2.forecastForm === null, `forecastForm=${atk2.forecastForm}`);
 } catch (__e) { skipCase('H69: 天気5ターン切れ×ポワルンforecastForm整合', (__e && __e.message) || String(__e)); }
 
+// ─────────────────────────────────────────────
+// H70: ばけのかわ × ステルスロック入場+被弾チップ(2026-07-21 実プレイFB=battle_lab)
+// 出典: bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)「Disguise will not protect against status moves,
+//   entry hazards, or weather damage.」/「starting in Generation VIII...it now loses HP equal to 1/8 of its
+//   maximum HP, rounded down」(1回のみ・複数回は起きない)/「Disguise activates at the first strike of a
+//   multistrike move...and will not block damage from remaining strikes」/ ポケモンWiki「ばけのかわ」
+//   「相手の攻撃技以外のダメージに対して、ばけのかわは発動しない」「1発目に対し発動しダメージを防ぐが、
+//   2発目以降のダメージは防がない」。
+// (a) ステルスロックを踏んで死に出し相当で場に出る→通常どおりSRダメージは入るが皮は無事(disguise=true)。
+// (b) その後、相手の技を1発受けると: 技のダメージは0でブロックされ、最大HPの1/8だけ(1回)削れる。
+// (c) 皮が剥がれた後の追撃(2発目)では、ブロックも1/8チップの再発生もしない(通常ダメージが素通し)。
+// ─────────────────────────────────────────────
+console.log('\n=== H70: ばけのかわ × ステルスロック入場+被弾チップ(1/8精査) [出典: bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)] ===');
+try {
+  resetEnv();
+  E.battleLog.length = 0;   // このブロック専用の判定にするためログをクリア
+  const A70 = freshSide('ピカチュウ', 'hataku', { ability: '' });
+  fullHp(A70);
+  A70.stealthRock = true;   // 自分側の場にステルスロックが設置済み(死に出しで踏む状況を再現)
+  A70.bench = [benchEntry16('ミミッキュ', 'hataku', { ability: 'ばけのかわ' })];
+  const B70 = freshSide('カビゴン', 'naminori', { ability: '' });
+  fullHp(B70);
+  E.sides.self = A70; E.sides.opp = B70;
+  E.attemptSwitch('self', 0);   // ミミッキュが場に出てステルスロックを踏む
+  const maxHp70 = E.realStat(A70, 'hp');
+  const mimikyuTypes70 = [A70.poke.type1, A70.poke.type2].filter(Boolean);
+  const srMult70 = E.moveTypeEff('いわ', mimikyuTypes70);
+  const expectedSrDmg70 = Math.floor(maxHp70 * srMult70 / 8);
+  check('H70-a [出典: bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)「Disguise will not protect against...entry hazards」] ステルスロックを踏んでも通常どおりダメージを受け、皮は無事(disguise=true)のまま',
+    A70.poke.name.startsWith('ミミッキュ') && A70.currentHp === maxHp70 - expectedSrDmg70 && A70.disguise === true,
+    `poke=${A70.poke.name} currentHp=${A70.currentHp} maxHp=${maxHp70} expectedSrDmg=${expectedSrDmg70} disguise=${A70.disguise}`);
+  const hpAfterSr70 = A70.currentHp;
+
+  E.sides.self = B70; E.sides.opp = A70;   // 攻守を入れ替えてBがAを攻撃する(runSingleAttackは'self'視点)
+  E.runSingleAttack('self', 0);   // カビゴンのなみのりでミミッキュの皮が剥がれる(1発目)
+  const chip70 = Math.max(1, Math.floor(maxHp70 / 8));
+  check('H70-b [出典: bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)「loses HP equal to 1/8 of its maximum HP」/ ポケモンWiki「1発目に対し発動しダメージを防ぐ」] 技のダメージは0でブロックされ、最大HPの1/8だけ(1回)削れる',
+    A70.disguise === false && A70.disguiseBroken === true && A70.currentHp === hpAfterSr70 - chip70,
+    `disguise=${A70.disguise} disguiseBroken=${A70.disguiseBroken} currentHp=${A70.currentHp} expected=${hpAfterSr70 - chip70}`);
+  const hpAfterBreak70 = A70.currentHp;
+
+  E.runSingleAttack('self', 0);   // 2発目(既に剥がれている状態への通常攻撃)
+  const chipLogCount70 = E.battleLog.filter(e => /ばけのかわで \d+ ダメージ/.test(e.msg)).length;
+  check('H70-c [出典: ポケモンWiki「ばけのかわ」/Bulbapedia "occurs once per battle"] 皮が剥がれた後の追撃はブロックされず通常ダメージが入り、1/8チップのログは全体で1回だけ',
+    A70.disguise === false && A70.currentHp < hpAfterBreak70 && chipLogCount70 === 1,
+    `disguise=${A70.disguise} currentHp=${A70.currentHp} hpAfterBreak=${hpAfterBreak70} chipLogCount=${chipLogCount70}`);
+} catch (__e) { skipCase('H70: ばけのかわ × ステルスロック入場+被弾チップ(1/8精査)', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H71: undo(1手戻す) × ばけのかわ「剥がれ済み」フラグ(disguiseBroken)の巻き戻し漏れ→二重チップ実バグ
+// (2026-07-21 実プレイFB=battle_lab「化けの皮で20ダメージ→もう一度同様のチップが入った」を受けての調査で発見)
+// H57(既存)はdisguise本体の巻き戻しだけを検証していたが、「一度剥がれたらバトル中は戻らない」を担う恒久
+// フラグdisguiseBrokenがsnapshotBattleState/undoBattleに含まれておらず、剥がれた後にundoすると
+// disguise=true(復元)なのにdisguiseBroken=true(未復元のまま)という矛盾状態になり、次に被弾した時
+// 「まだ皮をかぶっている」と誤判定されて再びブロック+1/8チップが二重に発生する実バグだった。
+// 修正: real_battle_simulator.html snapshotBattleState/undoBattleにdisguiseBrokenをdisguiseと対で追加。
+// 出典: bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)「occurs once per battle」/ ポケモンWiki「一度
+//   剥がれたらバトル中は戻らない」
+// ─────────────────────────────────────────────
+console.log('\n=== H71: undo × ばけのかわ「剥がれ済み」フラグの巻き戻し漏れ(二重チップ実バグ) [出典: bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)] ===');
+try {
+  resetEnv();
+  E.battleLog.length = 0;
+  const atk71 = freshSide('カイロス', 'naminori', { ability: '' });
+  fullHp(atk71);
+  const def71 = freshSide('ミミッキュ', 'naminori', { ability: 'ばけのかわ' });
+  fullHp(def71);
+  const maxHp71 = E.realStat(def71, 'hp');
+  E.sides.self = atk71; E.sides.opp = def71;
+  E.phaseInitA();
+  E.runSingleAttack('self', 0);   // 1発目: 皮が剥がれる(1/8チップ)
+  const chip71 = Math.max(1, Math.floor(maxHp71 / 8));
+  check('H71-a 1発目で皮が剥がれ、1/8チップが1回入る(前提)',
+    def71.disguise === false && def71.disguiseBroken === true && def71.currentHp === maxHp71 - chip71,
+    `disguise=${def71.disguise} disguiseBroken=${def71.disguiseBroken} currentHp=${def71.currentHp}`);
+  U.undoBattle();   // 1手戻す(ラボの「1手戻す」ボタン相当)
+  check('H71-b [出典: 設計_敵対的シナリオテスト_2026-07-21.md A-1] undo後はdisguise/disguiseBrokenとも剥がれる前の状態に揃って戻る(片方だけ戻る矛盾状態が実バグだった)',
+    def71.disguise === true && def71.disguiseBroken !== true && def71.currentHp === maxHp71,
+    `disguise=${def71.disguise} disguiseBroken=${def71.disguiseBroken} currentHp=${def71.currentHp}`);
+  E.runSingleAttack('self', 0);   // undo後にもう一度同じ攻撃→再び「1発目」としてブロック+1/8チップが正しく1回だけ入るはず
+  const chipLogCount71 = E.battleLog.filter(e => /ばけのかわで \d+ ダメージ/.test(e.msg)).length;
+  check('H71-c undoからの再攻撃はブロック+1/8チップが1回だけ(undoでHPも巻き戻る前提のもとでは金額は正しく見えるが、H71-dのほうが本質的な矛盾を検出する)',
+    def71.disguise === false && def71.disguiseBroken === true && def71.currentHp === maxHp71 - chip71 && chipLogCount71 === 1,
+    `disguise=${def71.disguise} disguiseBroken=${def71.disguiseBroken} currentHp=${def71.currentHp} expected=${maxHp71 - chip71} chipLogCount=${chipLogCount71}`);
+
+  // H71-d: H71-cの金額チェックだけでは、undo後に「再攻撃」した場合しか検出できない
+  // (undoはHPもチップ前に戻すため、disguiseBrokenが戻っていなくても再攻撃後の合計HPだけ見ると偶然辻褄が合ってしまう)。
+  // より直接的に矛盾を検出するため、undo直後(まだ攻撃していない時点)で控えに一度下げて場に戻す(交代)。
+  // disguiseBrokenが戻っていなければ、交代時の再計算(st.disguise = ability==='ばけのかわ' && disguiseBroken!==true)
+  // でdisguise=falseに巻き戻ってしまい、undo直後は disguise=true に見えていたのに交代を挟んだ瞬間に
+  // ばれたすがたへ変わる(ENTRY SPRITE GLITCHの一因にもなりうる矛盾)。disguiseBrokenも正しく戻っていれば
+  // 交代を挟んでも disguise=true のまま一貫する。
+  resetEnv();
+  E.battleLog.length = 0;
+  const atk71d = freshSide('カイロス', 'naminori', { ability: '' });
+  fullHp(atk71d);
+  const def71d = freshSide('ミミッキュ', 'naminori', { ability: 'ばけのかわ' });
+  fullHp(def71d);
+  def71d.bench = [benchEntry16('ピカチュウ', 'hataku', { ability: '' })];
+  E.sides.self = atk71d; E.sides.opp = def71d;
+  E.phaseInitA();
+  E.sides.self = def71d; E.sides.opp = atk71d;
+  E.phaseInitA();
+  E.sides.self = atk71d; E.sides.opp = def71d;
+  E.runSingleAttack('self', 0);   // 皮を剥がす
+  U.undoBattle();   // 1手戻す(攻撃前まで巻き戻す)
+  const disguiseRightAfterUndo = def71d.disguise;
+  E.sides.self = def71d; E.sides.opp = atk71d;
+  E.attemptSwitch('self', 0);   // ピカチュウに交代(いったん場を離れる)
+  E.attemptSwitch('self', 0);   // またミミッキュに戻す(交代を挟むだけ・undo後は攻撃を受けていない)
+  check('H71-d [出典: 設計_敵対的シナリオテスト_2026-07-21.md A-1] undo直後にdisguise=trueへ見えても、disguiseBrokenが戻っていないと交代を挟んだだけでばれたすがたへ矛盾して変わってしまう実バグ(修正後は交代を挟んでもdisguise=trueのまま一貫する)',
+    disguiseRightAfterUndo === true && def71d.disguise === true,
+    `disguiseRightAfterUndo=${disguiseRightAfterUndo} disguiseAfterSwitch=${def71d.disguise}`);
+} catch (__e) { skipCase('H71: undo × ばけのかわ「剥がれ済み」フラグの巻き戻し漏れ(二重チップ実バグ)', (__e && __e.message) || String(__e)); }
+
+// ─────────────────────────────────────────────
+// H72: ばけのかわ剥がれ後の退場→再登場(控え↔場マッピング) — 再生しない(戻らない)ことの確認
+// 出典: bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)「Mimikyu remains in Busted Form if it is
+//   switched out, but reverts to Disguised Form outside of battle.」/ ポケモンWiki「『ばれたすがた』で
+//   交代しても『ばれたすがた』のまま戻らない」。BENCH_FIELDSにdisguiseBrokenが含まれているため、控えに
+//   下がっても剥がれ状態が保持され、再登場時もdisguise=falseのまま(ブロックも二重チップも起きない)はず。
+// ─────────────────────────────────────────────
+console.log('\n=== H72: ばけのかわ剥がれ後の退場→再登場(控え↔場マッピング) [出典: bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)] ===');
+try {
+  resetEnv();
+  E.battleLog.length = 0;
+  const atk72 = freshSide('カイロス', 'naminori', { ability: '' });
+  fullHp(atk72);
+  const A72 = freshSide('ミミッキュ', 'naminori', { ability: 'ばけのかわ' });
+  fullHp(A72);
+  A72.bench = [benchEntry16('ピカチュウ', 'hataku', { ability: '' })];
+  const maxHp72 = E.realStat(A72, 'hp');
+  const chip72 = Math.max(1, Math.floor(maxHp72 / 8));
+  E.sides.self = A72; E.sides.opp = atk72;
+  E.phaseInitA();
+  E.sides.self = atk72; E.sides.opp = A72;
+  E.runSingleAttack('self', 0);   // 皮を剥がす
+  check('H72-a 前提: 皮が剥がれている', A72.disguise === false && A72.disguiseBroken === true,
+    `disguise=${A72.disguise} disguiseBroken=${A72.disguiseBroken}`);
+
+  E.sides.self = A72; E.sides.opp = atk72;
+  E.attemptSwitch('self', 0);   // ミミッキュを引っ込めてピカチュウに交代(ミミッキュはbench[0]へ)
+  check('H72-b 控えに回ったミミッキュのdisguiseBrokenは保持されている(BENCH_FIELDS経由)',
+    A72.bench[0] && A72.bench[0].poke && A72.bench[0].poke.name.startsWith('ミミッキュ') && A72.bench[0].disguiseBroken === true,
+    `bench0=${A72.bench[0] && JSON.stringify({name: A72.bench[0].poke && A72.bench[0].poke.name, disguiseBroken: A72.bench[0].disguiseBroken})}`);
+
+  E.attemptSwitch('self', 0);   // もう一度ミミッキュに戻す(再登場)
+  check('H72-c [出典: bulbapedia.bulbagarden.net/wiki/Disguise_(Ability)「remains in Busted Form if switched out」] 再登場してもばけのかわは戻らない(disguise=false・disguiseBroken=trueのまま)',
+    A72.poke.name.startsWith('ミミッキュ') && A72.disguise === false && A72.disguiseBroken === true,
+    `poke=${A72.poke.name} disguise=${A72.disguise} disguiseBroken=${A72.disguiseBroken}`);
+
+  const hpBefore72 = A72.currentHp;
+  E.sides.self = atk72; E.sides.opp = A72;
+  E.runSingleAttack('self', 0);   // 再登場後にもう一度攻撃を受ける
+  const chipLogCount72 = E.battleLog.filter(e => /ばけのかわで \d+ ダメージ/.test(e.msg)).length;
+  check('H72-d 再登場後の被弾はブロックされず通常ダメージが入り、1/8チップはこのブロック全体を通じて最初の1回だけ(退場→再登場→再被弾で増えない)',
+    A72.currentHp < hpBefore72 && chipLogCount72 === 1,
+    `currentHp=${A72.currentHp} hpBefore=${hpBefore72} chipLogCount=${chipLogCount72}`);
+} catch (__e) { skipCase('H72: ばけのかわ剥がれ後の退場→再登場(控え↔場マッピング)', (__e && __e.message) || String(__e)); }
+
 // ═════════════════════════════════════════════
 // Wave1(敵対的シナリオテスト) ここまで
 // ═════════════════════════════════════════════

@@ -1265,7 +1265,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260721e" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260721f" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -4378,6 +4378,12 @@ function lineWithFx(msg, opts){
       // 死に出し行は「たおれた 相手の◯◯の代わりに…」で始まる=行頭判定(subjOpp)では側を誤る
       const enterSide = (/相手の \S+ が 場に出た/.test(msg) || msg.startsWith('相手は')) ? 'opp' : 'self';
       if (window._idSnap) _idSnap[enterSide] = null;   // 表示固定を解除(この拍から新しい子)
+      // ばけのかわ表示スナップも同じ拍でこの個体の実値に更新(2026-07-21 実プレイFB根治)。
+      // _dgSnapはexecuteTurn()の先頭でしか作られない一方、死に出し(executeTurn()を経由しない交代パス)は
+      // _dgSnapを触らずrenderAllを呼ぶため、前の個体(ばけのかわを持たない子=disguise既定false)の値が
+      // 残ったまま新しいミミッキュに使われ、場に出た瞬間だけ「ばれたすがた」が一瞬(またはbusyが終わるまで
+      // ずっと)出てしまうバグだった。場に出た本人の実値へ揃え直せば以後の「はがれた」演出とも整合する。
+      if (window._dgSnap && S.sides[enterSide]) _dgSnap[enterSide] = S.sides[enterSide].disguise;
       clearTimeout(_recallTimer[enterSide]);   // 1拍目の遅延goneが登場後に発火して消すのを防ぐ
       const f = $('f-' + enterSide);
       f.classList.remove('gone', 'recall');
