@@ -5293,6 +5293,15 @@ function snapshotBattleState(){
     bench: (st.bench || []).map(e => ({...e, moves: [...(e.moves || [])], effort: {...(e.effort || {})}})),
     switchChoice: st.switchChoice != null ? st.switchChoice : null,
     switchedThisTurn: !!st.switchedThisTurn,
+    // 2026-07-22 敵対的テストWave2: H56で次波送りにした壁/場・ターン追跡系の復元漏れを閉じる
+    reflect: !!st.reflect,                                   // リフレクターも一手戻せるように
+    lightScreen: !!st.lightScreen,                           // ひかりのかべも一手戻せるように
+    auroraVeil: !!st.auroraVeil,                             // オーロラベールも一手戻せるように
+    safeguard: !!st.safeguard,                               // しんぴのまもりも一手戻せるように
+    screenTurns: {...(st.screenTurns || {})},                // 壁の残ターン(値は数値=浅いコピーで十分)
+    tookThisTurn: {...(st.tookThisTurn || {phys:0, spec:0, any:0})},  // このターンの被ダメージ記録(からげんき系)も一手戻せるように
+    movedThisTurn: !!st.movedThisTurn,                       // このターン行動済か(アナライズ等)も一手戻せるように
+    usedMoveNames: [...(st.usedMoveNames || [])],            // 実際に使った技名(とっておき用)も一手戻せるように
   });
   return {
     self: snap(sides.self),
@@ -5402,6 +5411,15 @@ function undoBattle(){
     st.bench = (src.bench || []).map(e => ({...e, moves: [...(e.moves || [])], effort: {...(e.effort || {})}}));
     st.switchChoice = src.switchChoice != null ? src.switchChoice : null;
     st.switchedThisTurn = !!src.switchedThisTurn;
+    // 2026-07-22 Wave2: snapと対で壁/場・ターン追跡系を巻き戻す(snapshotBattleStateと対)
+    st.reflect = !!src.reflect;                               // リフレクターの巻き戻し
+    st.lightScreen = !!src.lightScreen;                       // ひかりのかべの巻き戻し
+    st.auroraVeil = !!src.auroraVeil;                         // オーロラベールの巻き戻し
+    st.safeguard = !!src.safeguard;                           // しんぴのまもりの巻き戻し
+    st.screenTurns = {...(src.screenTurns || {})};            // 壁の残ターンの巻き戻し
+    st.tookThisTurn = {...(src.tookThisTurn || {phys:0, spec:0, any:0})};  // このターンの被ダメージ記録の巻き戻し
+    st.movedThisTurn = !!src.movedThisTurn;                   // このターン行動済かの巻き戻し
+    st.usedMoveNames = [...(src.usedMoveNames || [])];        // 実際に使った技名の巻き戻し
   };
   lastMoveAnywhere = s.lastMoveAny || null;   // まねっこの巻き戻し
   restore(sides.self, s.self);

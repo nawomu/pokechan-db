@@ -2354,8 +2354,11 @@ try {
   // 2026-07-21のWave1全数調査で発見した「同種の未復元」だが、設計doc(Wave1)が名指ししたのはdisguise/
   // protectStreak/choiceLock/mustRecharge+単ターン揮発グループ(protecting/enduring/charging/attracted/
   // snatchArmed/magicCoatTurn)+forecastFormのみ。壁(リフレクター等)/カウンター集計等は同種の実バグ候補として
-  // 発見したが、Wave1の名指し範囲外のため今回は意図的に見送り、次波(Wave2)へ引き継ぐ(阿部さんへの報告参照)。
-  const EXCLUDED_KNOWN_GAP_DEFERRED = new Set(['reflect', 'lightScreen', 'auroraVeil', 'safeguard', 'screenTurns', 'tookThisTurn', 'movedThisTurn', 'usedMoveNames']);
+  // 発見したが、Wave1の名指し範囲外のため今回は意図的に見送り、次波(Wave2)へ引き継いだ(阿部さんへの報告参照)。
+  // 2026-07-22 Wave2で閉じた: 壁/場・ターン追跡8フィールド(reflect/lightScreen/auroraVeil/safeguard/
+  // screenTurns/tookThisTurn/movedThisTurn/usedMoveNames)をsnapshotBattleStateのsnap()/restore()に追加し
+  // 復元対象に戻したため、この除外セットは空になった(次波送り=0件)。
+  const EXCLUDED_KNOWN_GAP_DEFERRED = new Set([]);
   // restore側が常に固定値へ強制リセットする一過性フラグ(このターンの分身ダメージ肩代わり判定用の中間フラグ・
   // phaseDealDamageが立ててphaseApplyEffectsが読むだけ=次の攻撃までに必ず作り直される)。snapshotから復元する
   // 意味がないため、undoBattle内で常時 `st.subAbsorbed = false;` と決め打ちしている(既存の意図的な設計・
