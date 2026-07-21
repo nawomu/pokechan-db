@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://pchamdb.com/online_battle.html">
 <script defer src="i18n/runtime.js?v=20260705"></script>
 <script src="pokechan_data.js?v=20260705a"></script>
-<script src="battle_log_i18n.js?v=20260721a"></script>
+<script src="battle_log_i18n.js?v=20260721b"></script>
 <script src="sprite_api_ids.js?v=20260721a"></script>
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
@@ -1265,7 +1265,7 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260721c" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260721d" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -2431,6 +2431,28 @@ let _fitTimer = null;
 function scheduleFit(){ if (_fitTimer) cancelAnimationFrame(_fitTimer); _fitTimer = requestAnimationFrame(() => { fitField(); fitSetup(); syncBoxHeight(); }); }
 window.addEventListener('resize', scheduleFit);
 window.addEventListener('orientationchange', () => setTimeout(() => { fitField(); fitSetup(); syncBoxHeight(); }, 200));
+// ★状態リセット統一(2026-07-21 阿部さんFB「AIとたいせん→逃げるで編成にもどると、選出のえらぶ数字1/2/3と
+// けっていが動かなくなる」): 「にげる」(c-run)と左上の常設終了ボタン(btn-exit)はどちらも編成画面へ戻る同じ
+// 動作のはずだったが、これまでは画面表示の切替(#battle非表示/#setup表示)だけで、試合を最後まで終えてから
+// 戻る経路(勝敗→つぎの相手/にげる)と違い、試合の"途中"で抜けた時だけ残るバトル内部状態
+// (メッセージ自動送りチェーン=busy/sayQueue/autoTimer、死に出し画面の強制フラグ=swForced/swPivot、
+// 行動タイマー=RB_ACT)が一切クリアされていなかった。試合を完走した後は自然とキューが空/busy=falseに
+// なっているため気づかれにくい非対称。exit(にげる/終了)経路は必ずこの関数を通し、完走後と同じ「まっさらな
+// 編成画面」状態に揃える。
+function resetBattleUiState(){
+  if (autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+  sayQueue = []; sayDone = null; busy = false;
+  { const mb = $('msgbox'); if (mb) mb.style.display = 'none'; }
+  actTimerStop();   // COMMANDタイマー(45秒)。in-battleクラス依存の自己ガードもあるが即時に止める
+  gameOver = false;
+  swForced = false; swPivot = false; swSelected = null;   // 死に出し/交代先えらび中に抜けた残骸
+  if (PICK.timer){ clearInterval(PICK.timer); PICK.timer = null; }
+  PICK.mine = null; PICK.theirs = null; PICK.sel = []; PICK.aiMode = false;   // 選出画面のえらぶ数字/けってい残骸
+}
+function exitBattleToSetup(){
+  resetBattleUiState();
+  pbBgmSetScene('lobby'); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+}
 function initSetup(){
   const pokes = S.pokeList().filter(isPickable);   // メガフォームは直接選ばない(ストーンで変身)
   loadSpeciesMemo();   // 種ごとのビルド記憶(入れ替えても能力値等を保持=2026-07-10 阿部さん)
@@ -2493,7 +2515,7 @@ function initSetup(){
       if (RB_ONLINE.started && !gameOver && window.RBOnline){ try { RBOnline.resign(); } catch(e) {} }
       setTimeout(() => onlineLeave(), 600);
     }
-    pbBgmSetScene('lobby'); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+    exitBattleToSetup();
   });
   // バトル終了(左上の常設ボタン=にげると同じ動作。メッセージ中でも押せる)
   $('btn-exit').addEventListener('click', e => {
@@ -2502,7 +2524,7 @@ function initSetup(){
       if (RB_ONLINE.started && !gameOver && window.RBOnline){ try { RBOnline.resign(); } catch (e2) {} }
       setTimeout(() => onlineLeave(), 600);
     }
-    pbBgmSetScene('lobby'); document.body.classList.remove('in-battle'); $('battle').style.display = 'none'; $('setup').style.display = 'block';
+    exitBattleToSetup();
   });
   // ★BGM(タスク#19): 既定OFF・トグルはlocalStorageに保存。SEは常時オン(スライダーがミュート操作を兼ねる=2026-07-21)
   updateBgmBtn();
@@ -3013,6 +3035,11 @@ function say(lines, done){
 }
 function nextSay(){
   if (autoTimer){ clearTimeout(autoTimer); autoTimer = null; }
+  // ★戦闘画面を離れた後まで自動送りタイマーが生き残って発火するケースへの保険(2026-07-21)。
+  // exitBattleToSetupが正しく呼ばれていれば本来ここに来ないが、actTimerStart(段4650付近)と同じ
+  // 「in-battleクラスで自己ガード」パターンを踏襲=残骸タイマーがsayDone(showActionUI等)を
+  // 編成画面に戻った後で誤発火させて選出画面の状態を汚す事故を構造的に防ぐ。
+  if (!document.body.classList.contains('in-battle')){ busy = false; sayQueue = []; sayDone = null; return; }
   if (!sayQueue.length){
     busy = false;
     $('msgbox').querySelector('.next').style.display = 'none';
@@ -3886,7 +3913,7 @@ const SE = {
 // online_battle固有: ロビー画面(#setup)=lobby曲・対戦開始後(#battle)=battle曲。
 let pbBgmOn = localStorage.getItem('pcham_bgm_on') === '1';
 let pbBgmGainNode = null, pbBgmSrcNode = null, pbBgmCurTrack = null, pbBgmScene_ = null, pbBgmPickerPrevScene = null;
-const PB_BGM_VER = '20260721a';
+const PB_BGM_VER = '20260721b';
 const pbBgmBufCache = new Map();   // scene名 → Promise<{buffer,loopStart,loopEnd}|null>(トラックごとに1ページ1回だけfetch)
 let pbBgmApplyToken = 0;   // シーン切替の競合防止(遅れて解決したfetchが後から古いシーンを鳴らすのを防ぐ)
 // 振幅がしきい値を超える最初/最後のサンプルをスキャンし、mp3エンコーダのpadding抜きの実音区間を[loopStart,loopEnd]にする
