@@ -224,7 +224,12 @@ function main() {
     '// キャラ画像=公式風スプライト(PokeAPI)モードで使用。無い名前=Champions独自/自作メガ等(join不成立=未収載、自作SVG継続)',
   ].join('\n');
   const body = 'const SPRITE_API_ID = ' + JSON.stringify(result) + ';';
-  const text = header + '\n' + body + '\n';
+  // ★HOME絵の右向き例外(2026-07-21 阿部さん報告→全278体を目視分類・生PNG二重確認済み)。
+  //   ほぼ全HOME絵は左向き=自分側だけCSSでscaleX(-1)反転する設計だが、この6体は素材が右向き
+  //   → ページ側で .fr クラスを付け「自分=無反転/相手=反転」に逆転させ向き合わせる。
+  //   追加報告があればここにidを足して再生成(判定は生PNG目視で二重確認してから)。
+  const facesRight = 'const HOME_FACES_RIGHT = new Set([197,257,10050,750,970,981]);';
+  const text = header + '\n' + body + '\n' + facesRight + '\n';
 
   if (!DRY_RUN) {
     fs.writeFileSync(OUT, text, 'utf8');
