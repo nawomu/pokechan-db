@@ -44,7 +44,28 @@ const TYPE_KANJI          = C.TYPE_KANJI;
 const TYPE_DISPLAY        = C.TYPE_DISPLAY;
 const TYPE_OFFENSIVE_STATS= C.TYPE_OFFENSIVE_STATS;
 const DEFAULT_TYPE_ORDER  = C.DEFAULT_TYPE_ORDER;
-const ABILITY_DESC        = C.ABILITY_DESC;
+// ★2026-07-22: ABILITY_DESC欠落特性の公式JA穴埋め(旧_build_pokechan_data_all.js L24-38から移植)。
+//   新ビルダーへの移植漏れを閉じる(旧ビルダーは素材マージしていたが、本ビルダーはC.ABILITY_DESCパススルー
+//   だけで穴埋めが無かった=再ビルドすると114件消失する回帰になっていた)。Champions ABILITY_DESC(既存キー)
+//   を優先し、未登録の空欄だけを素材(reference/_ability_desc_fill_2026-07-19.json=PokeAPI公式JA平易文)で充填
+//   =既存は上書きしない。結合はslug優先(master_abilitiesの正準JA名を使い表記ゆれを回避・name_jaと同値を確認済)。
+const _ABM_AB             = require('../reference/master_abilities.json');
+const _ABILITY_DESC_FILL  = (()=>{ try{ return require('../reference/_ability_desc_fill_2026-07-19.json'); }catch(e){ return null; } })();
+const _slugToJa           = {};
+_ABM_AB.forEach(a => { if (a && a.slug && a.names && a.names.ja) _slugToJa[a.slug] = a.names.ja; });
+const ABILITY_DESC        = Object.assign({}, C.ABILITY_DESC);
+let   _abFillMerged       = 0;
+if (_ABILITY_DESC_FILL && Array.isArray(_ABILITY_DESC_FILL.entries)) {
+  _ABILITY_DESC_FILL.entries.forEach(e => {
+    if (!e || !e.slug || !e.desc_ja) return;
+    const ja = _slugToJa[e.slug];              // slug→正準JA名(表記ゆれ回避)
+    if (!ja) return;                            // master_abilitiesに無いslug=結合不能(独自連結等)=skip
+    if (ABILITY_DESC[ja] != null) return;       // Champions既存説明を優先(上書きしない)
+    ABILITY_DESC[ja] = e.desc_ja;
+    _abFillMerged++;
+  });
+}
+console.log(`ABILITY_DESC: Champions=${Object.keys(C.ABILITY_DESC).length}件 + fillマージ=${_abFillMerged}件 → 全部版計=${Object.keys(ABILITY_DESC).length}件`);
 const STAT_RANK           = C.STAT_RANK;
 const NATURES             = C.NATURES;
 
