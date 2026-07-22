@@ -4120,9 +4120,14 @@ function phaseApplyEffects(atkSide, defSide, move){
       continue;
     }
     // 設置除去(こうそくスピン): 自分の場の設置物を取り除く。
-    // trigger付きの宣言(どくびしの「どくタイプが出ると解除」)は applyEntryHazards 側で処理するのでスキップ
+    // 宣言型(trigger付き / auto_removed_by付き=どくびしの「どくタイプが接地で出ると吸収解除」)は
+    // ここで能動クリアせず applyEntryHazards 側で処理するのでスキップ。
+    // ※2026-07-22 T3: 従来 ef.trigger だけ見ていたため、どくびしの設置除去宣言(auto_removed_by)が
+    //   すり抜けて「設置直後に自分が立てた層を即クリア」する実バグ(T185d 2fail)を修正。active除去
+    //   (こうそくスピン等=trigger/auto_removed_by 無し)は従来どおり通す。出典: Bulbapedia Rapid Spin
+    //   (自分側除去) / Toxic Spikes(設置後は吸収/除去まで残存=即消去されない)
     if (ef.kind === '設置除去'){
-      if (ef.trigger) continue;
+      if (ef.trigger || ef.auto_removed_by) continue;
       const t = ef.target === 'team' || ef.target === 'self' ? atk : def;
       if (t.stealthRock || (t.spikesLayers || 0) > 0 || (t.toxicSpikesLayers || 0) > 0 || t.stickyWeb){
         t.stealthRock = false; t.spikesLayers = 0; t.toxicSpikesLayers = 0; t.stickyWeb = false;
