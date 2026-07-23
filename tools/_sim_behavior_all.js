@@ -54,7 +54,8 @@ for(const [key,mv] of Object.entries(data.WAZA_MAP)){
     // condition付き(シード所持/性別/特性/KO等)・restrict_type・ally/team・prob低は generic setup で不発=スキップ(偽陽性回避)
     const isTwoTurn = effs.some(e=>e.kind==='2ターン目に攻撃');
     const _berryReq = effs.some(e=>e.kind==='木の実強制'); // ほおばる等=きのみ所持条件でgeneric setup不発=スキップ(偽陽性回避)
-    const rkEf=(!isTwoTurn)&&!_berryReq&&effs.find(e=>e.kind==='能力ランク変化'&&!e.reset&&(e.stat||e.stats)&&!e.condition&&!e.restrict_type&&e.target!=='ally'&&e.target!=='team'&&e.target!=='all'&&(e.prob===undefined||e.prob>=20)&&!e.on_charge_turn);
+    const _userOnly = effs.some(e=>e.kind==='使用者限定'); // いじげんラッシュ等=特定ポケ専用技。ATK=メタモンでは撃てず不発=スキップ(偽陽性回避。専用技のデータ実名一致は別途エンジン照合で担保)
+    const rkEf=(!isTwoTurn)&&!_berryReq&&!_userOnly&&effs.find(e=>e.kind==='能力ランク変化'&&!e.reset&&(e.stat||e.stats)&&!e.condition&&!e.restrict_type&&e.target!=='ally'&&e.target!=='team'&&e.target!=='all'&&(e.prob===undefined||e.prob>=20)&&!e.on_charge_turn);
     if(rkEf && !(immune && rkEf.target!=='self')){
       const who0 = (rkEf.target==='self'||rkEf.target==='team') ? 'self':'opp';
       const stats=Array.isArray(rkEf.stats)?rkEf.stats:(rkEf.stat==='all'?['attack','defense','special_attack','special_defense','speed']:[rkEf.stat]);
