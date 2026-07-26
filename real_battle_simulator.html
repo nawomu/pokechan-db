@@ -1773,6 +1773,22 @@ function calcDamage(atkSide, defSide, move, opts){
     //   やけど物理半減は別途除外済み(こんじょう除外、本行1855付近)。かたやぶり等の無効化対象外(自分の特性)。
     //   出典: Bulbapedia "Guts (Ability)"(2026-07-19取得)。
     if (_aab === 'こんじょう' && isPhys && atk.status && atk.status !== 'none') aStatEff = Math.floor(aStat * 1.5);
+    // しんりょく/もうか/げきりゅう/むしのしらせ(Overgrow/Blaze/Torrent/Swarm・第5世代以降仕様): HPが1/3以下の時、
+    // 該当タイプの技を撃つ こうげき・とくこうの"実数値"を1.5倍(Bulbapedia: "boosts the Pokémon's Attack or
+    // Special Attack by 50% during damage calculation"。第3-4世代は威力補正だったが現行は実数値補正=威力に
+    // 掛けると丸め位置がズレる。2026-07-26 実数値段階に修正・出典裏取り済み)
+    const _PINCH_AB = {'しんりょく': 'くさ', 'もうか': 'ほのお', 'げきりゅう': 'みず', 'むしのしらせ': 'むし'};
+    if (_PINCH_AB[_aab] === moveType && atk.currentHp != null && atk.currentHp <= Math.floor(realStat(atk, 'hp') / 3)){
+      aStatEff = Math.floor(aStatEff * 1.5);
+      chips.push({label: _aab, factor: 1.5, kind: 'ability'});
+    }
+  }
+  // あついしぼう(受け側・Bulbapedia "Thick Fat"): ほのお/こおり技を受ける時、攻撃側の こうげき・とくこうの
+  // "実数値"を半減("the opponent's Attack or Special Attack is reduced by 50% during damage calculation")。
+  // 威力ではなく実数値段階で掛ける(2026-07-26修正・出典裏取り済み)
+  if (defAbilityVs(def, atk) === 'あついしぼう' && (moveType === 'ほのお' || moveType === 'こおり')){
+    aStatEff = Math.floor(aStatEff * 0.5);
+    chips.push({label: 'あついしぼう', factor: 0.5, kind: 'ability'});
   }
 
   // ★こだわりハチマキ/メガネ: 攻撃・特攻の実数値に×1.5してからbaseDamage式に渡す(SD準拠)
@@ -1907,18 +1923,8 @@ function calcDamage(atkSide, defSide, move, opts){
     base = pokeRound(base, 6144);
     chips.push({label:'サンパワー', factor:1.5, kind:'ability'});
   }
-  // しんりょく/もうか/げきりゅう: HPが1/3以下のとき該当タイプの技 ×1.5(ABILITY_DESC公式準拠・段107)
-  // むしのしらせ: 同型のむし版(段122・ポケモンWiki「むしのしらせ」=第5世代以降は攻撃/特攻1.5倍≒×1.5近似)
-  const _PINCH_AB = {'しんりょく': 'くさ', 'もうか': 'ほのお', 'げきりゅう': 'みず', 'むしのしらせ': 'むし'};
-  if (_PINCH_AB[ab] === moveType && atk.currentHp != null && atk.currentHp <= Math.floor(realStat(atk, 'hp') / 3)){
-    base = pokeRound(base, 6144);
-    chips.push({label: ab, factor: 1.5, kind: 'ability'});
-  }
-  // あついしぼう(受け側): ほのお/こおり技を受ける時、相手のこうげき・とくこう半減=×0.5(ABILITY_DESC公式準拠・段107)
-  if (defAbilityVs(def, atk) === 'あついしぼう' && (moveType === 'ほのお' || moveType === 'こおり')){
-    base = pokeRound(base, 2048);
-    chips.push({label: 'あついしぼう', factor: 0.5, kind: 'ability'});
-  }
+  // しんりょく/もうか/げきりゅう/むしのしらせ・あついしぼう(2026-07-26): 実数値段階(aStatEff)へ移設済み。
+  // 詳細は上のaStatEff算出ブロック(こんじょう/はりきり等と同列)を参照。
   // ちからずく: 追加効果あり技 ×1.3（追加効果が発動しなくなる代わりに）
   const hasSecondaryEffect = !!(move.battle_data && move.battle_data.effects && move.battle_data.effects.length);
   if (ab === 'ちからずく' && hasSecondaryEffect){
@@ -7475,10 +7481,19 @@ function runTurn(){
         log('10', `${pname(st)} の ムラっけ！ ${_mJa[upK]}が ぐーんとあがった！`);
       }
     }
-    // かそく(段137・ABILITY_DESC): 毎ターン終了時すばやさ+1
-    if (st.poke && !st.fainted && sideAbility(st) === 'かそく' && (st.rank.spd || 0) < 6){
-      st.rank.spd = (st.rank.spd || 0) + 1;
-      log('10', `${pname(st)} の かそく！ すばやさが あがった！`);
+    // かそく(段137・ABILITY_DESC): 毎ターン終了時すばやさ+1。共有パイプライン(applyRankStageGuarded/
+    // rbFireEvent('stat_stage',...))経由にして、あまのじゃく(反転)/ものまねハーブ(相手側が便乗コピー)等と
+    // 連動させる(2026-07-26修正・出典: ポケモンWiki「あまのじゃく」=自分のランク補正の変動は全て反転対象/
+    // ポケモンWiki「ものまねハーブ」=技だけでなく特性による上昇も実際に上がった分をコピー対象)。
+    // 交代で場に出たターンは発動しない(出典: ポケモンWiki「かそく」/Bulbapedia "Speed Boost")。
+    // switchedThisTurnはターン開始でリセットされるフラグ=「このターン中に交代で出た」を正しく表す
+    // (バトル開始時の最初の1匹はattemptSwitchを経由しないためfalseのまま=1ターン目は通常どおり発動する)。
+    if (st.poke && !st.fainted && sideAbility(st) === 'かそく' && !st.switchedThisTurn){
+      applyRankStageGuarded(st, st, 'spd', 1, '10', (sg, applied) => {
+        if (applied !== 0){
+          log('10', `${pname(st)} の かそく！ すばやさが ${applied > 0 ? 'あがった' : 'さがった'}！`);
+        }
+      });
     }
     // かんそうはだ(段137・ABILITY_DESC): あめでターン終了時1/8回復・にほんばれで1/8ダメージ
     if (st.poke && !st.fainted && sideAbility(st) === 'かんそうはだ' && (env.weather === 'rain' || env.weather === 'sunny')){
@@ -7531,25 +7546,30 @@ function runTurn(){
     }
     // ★かえんだま: ターン終了時に持ち主をやけど状態にする(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「かえんだま」)
     // やけど免疫: ほのおタイプ / みずびたし等でほのおになっている訳ではない=現タイプで判定
+    // やけど免疫の特性はみずのベールのみ(2026-07-26修正: マグマのよろいは「こおり化無効」、どんかんは
+    // 「メロメロ状態・ちょうはつ化されない/ゆうわく無効」、たいねつは「ほのお技半減・やけどダメージ半減」で
+    // いずれもやけど付与そのものは防がない=誤って免疫扱いにしていた実バグ。出典: ABILITY_DESC原文
+    // [pokechan_data.js/pokechan_data_all.js]+Bulbapedia各該当ページ)
     if (st.poke && !st.fainted && st.item && !env.magicRoom){
       const _flameOrb = ITEM_BY_KEY[st.item];
       if (_flameOrb && _flameOrb.key === 'flame_orb'){
         const _stTypes = sideTypes(st);
-        if (st.status === 'none' && !_stTypes.includes('ほのお') && sideAbility(st) !== 'みずのベール' &&
-            sideAbility(st) !== 'マグマのよろい' && sideAbility(st) !== 'どんかん' && sideAbility(st) !== 'たいねつ'){
+        if (st.status === 'none' && !_stTypes.includes('ほのお') && sideAbility(st) !== 'みずのベール'){
           st.status = 'burn';
           log('10', `${pname(st)} は かえんだまの 効果で やけど状態になった！`);
         }
       }
     }
     // ★どくどくだま: ターン終了時に持ち主をもうどく状態にする(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「どくどくだま」)
-    // もうどく免疫: どくタイプ / はがねタイプ / めんえき / どんかん
+    // もうどく免疫: どくタイプ / はがねタイプ / めんえき
+    // どんかんは「メロメロ状態・ちょうはつ化されない/ゆうわく無効」でありもうどく付与は防がない(2026-07-26修正・
+    // 誤って免疫扱いにしていた実バグ。出典: ABILITY_DESC原文=「どく、もうどく化されない」を持つのはめんえきのみ)
     if (st.poke && !st.fainted && st.item && !env.magicRoom){
       const _toxicOrb = ITEM_BY_KEY[st.item];
       if (_toxicOrb && _toxicOrb.key === 'toxic_orb'){
         const _stTypes = sideTypes(st);
         if (st.status === 'none' && !_stTypes.includes('どく') && !_stTypes.includes('はがね') &&
-            sideAbility(st) !== 'めんえき' && sideAbility(st) !== 'どんかん'){
+            sideAbility(st) !== 'めんえき'){
           st.status = 'badpoison';
           st.badPoisonTurns = 1;  // もうどくカウンタ初期化
           log('10', `${pname(st)} は どくどくだまの 効果で もうどく状態になった！`);
