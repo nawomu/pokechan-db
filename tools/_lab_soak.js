@@ -2,6 +2,10 @@
 // 合格条件: 60ターン以上 or 8分、スタール(30秒ログ停止)なし・JSエラー0
 const { chromium } = require('playwright');
 const URL = process.env.SOAK_URL || 'https://pchamdb.com/battle_lab.html';
+// ★短縮ソーク用オーバーライド(既定=不変・環境変数を渡した時だけ短縮): 2026-07-26 3回連続安定確認を
+// フォアグラウンド同期実行でやるための時短。SOAK_DURATION_MS未指定なら従来どおり8分。
+const SOAK_DURATION_MS = process.env.SOAK_DURATION_MS ? parseInt(process.env.SOAK_DURATION_MS, 10) : 8 * 60 * 1000;
+const SOAK_MAINT_MS = process.env.SOAK_MAINT_MS ? parseInt(process.env.SOAK_MAINT_MS, 10) : 60000;
 const jsErrors = [];
 (async () => {
   const browser = await chromium.launch();
@@ -19,6 +23,18 @@ const jsErrors = [];
   await ev(() => document.getElementById('btn-random').click());
   await page.waitForTimeout(800);
   await ev(() => document.getElementById('btn-start').click());
+  // ★2026-07-21 選出画面フロー追加(3b8cea5b)で#btn-start→選出オーバーレイ(#lab-pick-screen)経由に変化。
+  // 「⚔ぜんぶ」(#lpk-gofull)を押して初めてstartBattle()が呼ばれ in-battle になる(旧ハーネスは選出画面
+  // 追加より前=2026-07-18固定のまま止まっていた)。押せるまで最大8秒ポーリング。
+  {
+    const t0 = Date.now();
+    let clicked = false;
+    while (Date.now() - t0 < 8000){
+      clicked = await ev(() => { const b = document.getElementById('lpk-gofull'); if (b){ b.click(); return true; } return false; });
+      if (clicked) break;
+      await page.waitForTimeout(300);
+    }
+  }
   await page.waitForTimeout(3000);
   // 両方AI+オート
   await ev(() => document.getElementById('lab-ai-self').click());
@@ -30,7 +46,7 @@ const jsErrors = [];
   let stalls = 0, wipes = 0, adds = 0, revives = 0, lastMaintenance = 0;
   const events = [];
 
-  while (Date.now() - t0 < 8 * 60 * 1000){
+  while (Date.now() - t0 < SOAK_DURATION_MS){
     await page.waitForTimeout(5000);
     const L = await logLen();
     // 全滅選択が出ていたら「ふっかつしてつづける」
@@ -67,11 +83,11 @@ const jsErrors = [];
         rc: document.getElementById('c-revive-continue')?.style.display,
       }));
       events.push('STALL @' + Math.round((Date.now() - t0) / 1000) + 's ' + JSON.stringify(d));
-      await page.screenshot({ path: '/private/tmp/claude-501/-Users-masamichi-Documents-----DB/fdbd23d3-7b77-44ff-84c9-17c0c24d551d/scratchpad/soak_stall_' + stalls + '.png' });
+      await page.screenshot({ path: '/private/tmp/claude-501/-Users-masamichi-Documents-----DB/51d4bd4f-aa25-4eb0-932c-34d01648e898/scratchpad/soak_stall_' + stalls + '.png' });
       break;   // スタール=即失敗で原因を見る
     }
     // 60秒ごとのメンテ: 一時停止→控えを復活+メンバー追加→再開
-    if (Date.now() - lastMaintenance > 60000){
+    if (Date.now() - lastMaintenance > SOAK_MAINT_MS){
       lastMaintenance = Date.now();
       await ev(() => { const b = document.getElementById('lab-auto-toggle'); if (b && b.style.display !== 'none') b.click(); });   // ⏸
       await page.waitForTimeout(1500);
@@ -90,7 +106,7 @@ const jsErrors = [];
   }
   const turns = await simx(S => S.turnCount || S.env?.turn || null);
   const finalLog = await logLen();
-  await page.screenshot({ path: '/private/tmp/claude-501/-Users-masamichi-Documents-----DB/fdbd23d3-7b77-44ff-84c9-17c0c24d551d/scratchpad/soak_final.png' });
+  await page.screenshot({ path: '/private/tmp/claude-501/-Users-masamichi-Documents-----DB/51d4bd4f-aa25-4eb0-932c-34d01648e898/scratchpad/soak_final.png' });
   await browser.close();
   console.log(JSON.stringify({ durationSec: Math.round((Date.now() - t0) / 1000), logLines: finalLog, turns, stalls, wipes, revives, jsErrors: jsErrors.slice(0, 10), events }, null, 1));
   process.exit(stalls || jsErrors.length ? 1 : 0);

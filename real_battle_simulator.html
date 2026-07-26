@@ -3462,56 +3462,116 @@ function defAbilityVs(def, atk){
 // ランク変化ログ用(内部キー→日本語)。RANK_KEY_JA(英語キー用)とは別に内部キー(atk/def/spatk/spdef/spd/acc/eva)
 // をそのまま渡す呼び出し(ものまねハーブ/だっしゅつパック等・Phase D B3)向け。
 const RANK_JA_BY_KEY = {atk:'こうげき', def:'ぼうぎょ', spatk:'とくこう', spdef:'とくぼう', spd:'すばやさ', acc:'命中率', eva:'回避率'};
-// 戻り値: {sg:適用を試みた変化量(あまのじゃく反転後), applied:クランプ後の実差分, blocked:'mirror'|'clearbody'|'hatomune'|'clear_amulet'|null}
-// _skipMirrorHerb(内部専用): ものまねハーブの反映呼び出し自身が再度ものまねハーブを連鎖させないためのガード。
-function applyRankStageGuarded(target, source, rk, rawStages, phase, onSuccessLog, _skipMirrorHerb){
-  if (!target || !target.poke || target.rank[rk] === undefined) return {sg:0, applied:0, blocked:null};
-  const fromOpponent = !!source && source.poke && source !== target;
-  let sg = rawStages;
-  if (sideAbility(target) === 'あまのじゃく' && sg !== 0) sg = -sg;   // あまのじゃく(段140): 変動の符号を反転
-  if (sg < 0 && fromOpponent){
-    // ミラーアーマー(段138・出典: ポケモンWiki「ミラーアーマー」/Bulbapedia "Mirror Armor"):
-    // 相手(の技・特性)からの能力低下を発生源へ跳ね返す。自分は無変化。
-    if (sideAbility(target) === 'ミラーアーマー' && source.rank[rk] !== undefined){
-      log(phase || '9', `${pname(target)} は ミラーアーマーで 能力低下を 跳ね返した！`);
-      applyRankStageGuarded(source, source, rk, rawStages, phase);   // 跳ね返り先は自己要因扱い(再度ここではガードしない)
-      return {sg, applied:0, blocked:'mirror'};
-    }
-    // クリアボディ/しろいけむり: 敵からのランク低下を無効化(段114・ABILITY_DESC公式準拠。自分で下げる分は通る)
-    if (['クリアボディ', 'しろいけむり'].includes(defAbilityVs(target, source))){
-      log(phase || '9', `${pname(target)} は ${sideAbility(target)}で 能力が下がらない！`);
-      return {sg, applied:0, blocked:'clearbody'};
-    }
-    // しろいきり(Phase D B2・kind=ランク低下防御): 相手の技・特性(いかく等)によるランク低下を防ぐ場効果。
-    // 自分の技による自傷ダウン(fromOpponent=false)は対象外=このガードには来ない。
-    // 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Mist")
-    if (target.mist){
-      log(phase || '9', `${pname(target)} は しろいきりで 能力が下がらない！`);
-      return {sg, applied:0, blocked:'mist'};
-    }
-    // はとむね(段138・ABILITY_DESC): 敵からのぼうぎょ低下を無効化(かたやぶりは無視)
-    if (rk === 'def' && defAbilityVs(target, source) === 'はとむね'){
-      log(phase || '9', `${pname(target)} は はとむねで ぼうぎょが下がらない！`);
-      return {sg, applied:0, blocked:'hatomune'};
-    }
-    // クリアチャーム(Phase D B3): 相手起因の能力ランク低下を無効化(自分の技/特性由来=fromOpponent falseは
-    // ここに来ない=素通り)。くろいきり/クリアスモッグは全ランクを直接0へリセットする別処理(この関数を
-    // 経由しない)なので、貫通例外は自然に成立する。出典: items_database.js宣言(Bulbapedia "Clear Amulet")
-    if (hasItem(target, 'clear_amulet')){
-      log(phase || '9', `${pname(target)} は クリアチャームで 能力が下がらない！`);
-      return {sg, applied:0, blocked:'clear_amulet'};
-    }
+
+// === 汎用イベントディスパッチ基盤(Phase-key architecture pilot・2026-07-26 HANDOFF_SESSION_2026_07_23 §2/
+// HANDOFF_SESSION_2026_07_26 §2.5/§2.7の第一歩)。状態遷移ごとの単一ディスパッチ点を作る土台。
+// イベント名ごとにHandlerを配列で登録し、登録順(=既存コードのif連鎖と完全同一の順序)に先頭から実行する。
+// Handlerが{handled:true, result}を返したら以降を打ち切ってresultをrbFireEvent呼び出し元へ返す
+// (=元のガード節のearly returnに相当)。{handled:false}ならctxを共有したまま次のHandlerへ進む。
+// 乱数消費順・ログ順は登録順=元の実行順そのものなので、ロックステップの決定性は変えない。
+const RB_EVENTS = {};
+function rbRegisterHandler(event, name, handler){
+  if (!RB_EVENTS[event]) RB_EVENTS[event] = [];
+  RB_EVENTS[event].push({name, handler});
+}
+function rbFireEvent(event, ctx){
+  const handlers = RB_EVENTS[event] || [];
+  for (let i = 0; i < handlers.length; i++){
+    const res = handlers[i].handler(ctx);
+    if (res && res.handled) return res.result;
   }
+  return undefined;
+}
+
+// --- 'stat_stage' Event Handlers ---
+// 以下9個は旧applyRankStageGuarded本体(単一関数)を分解しただけで、実行順序・分岐条件・ログ文言・
+// 乱数消費・再帰(ミラーアーマー/ものまねハーブ)は元のコードと1bitも変えていない(登録順=元のソース行順)。
+
+// 1) あまのじゃく(段140): 変動の符号を反転。ブロックせず常に通過。
+rbRegisterHandler('stat_stage', 'amanojaku_reflect', (ctx) => {
+  if (sideAbility(ctx.target) === 'あまのじゃく' && ctx.sg !== 0) ctx.sg = -ctx.sg;
+  return {handled:false};
+});
+
+// 2) ミラーアーマー(段138・出典: ポケモンWiki「ミラーアーマー」/Bulbapedia "Mirror Armor"):
+// 相手(の技・特性)からの能力低下を発生源へ跳ね返す。自分は無変化。
+rbRegisterHandler('stat_stage', 'mirror_armor_reflect', (ctx) => {
+  if (!(ctx.sg < 0 && ctx.fromOpponent)) return {handled:false};
+  const {target, source, rk, rawStages, phase} = ctx;
+  if (sideAbility(target) === 'ミラーアーマー' && source.rank[rk] !== undefined){
+    log(phase || '9', `${pname(target)} は ミラーアーマーで 能力低下を 跳ね返した！`);
+    applyRankStageGuarded(source, source, rk, rawStages, phase);   // 跳ね返り先は自己要因扱い(再度ここではガードしない)
+    return {handled:true, result:{sg:ctx.sg, applied:0, blocked:'mirror'}};
+  }
+  return {handled:false};
+});
+
+// 3) クリアボディ/しろいけむり: 敵からのランク低下を無効化(段114・ABILITY_DESC公式準拠。自分で下げる分は通る)
+rbRegisterHandler('stat_stage', 'clearbody_guard', (ctx) => {
+  if (!(ctx.sg < 0 && ctx.fromOpponent)) return {handled:false};
+  const {target, source, phase} = ctx;
+  if (['クリアボディ', 'しろいけむり'].includes(defAbilityVs(target, source))){
+    log(phase || '9', `${pname(target)} は ${sideAbility(target)}で 能力が下がらない！`);
+    return {handled:true, result:{sg:ctx.sg, applied:0, blocked:'clearbody'}};
+  }
+  return {handled:false};
+});
+
+// 4) しろいきり(Phase D B2・kind=ランク低下防御): 相手の技・特性(いかく等)によるランク低下を防ぐ場効果。
+// 自分の技による自傷ダウン(fromOpponent=false)は対象外=このガードには来ない。
+// 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Mist")
+rbRegisterHandler('stat_stage', 'mist_guard', (ctx) => {
+  if (!(ctx.sg < 0 && ctx.fromOpponent)) return {handled:false};
+  const {target, phase} = ctx;
+  if (target.mist){
+    log(phase || '9', `${pname(target)} は しろいきりで 能力が下がらない！`);
+    return {handled:true, result:{sg:ctx.sg, applied:0, blocked:'mist'}};
+  }
+  return {handled:false};
+});
+
+// 5) はとむね(段138・ABILITY_DESC): 敵からのぼうぎょ低下を無効化(かたやぶりは無視)
+rbRegisterHandler('stat_stage', 'hatomune_guard', (ctx) => {
+  if (!(ctx.sg < 0 && ctx.fromOpponent)) return {handled:false};
+  const {target, source, rk, phase} = ctx;
+  if (rk === 'def' && defAbilityVs(target, source) === 'はとむね'){
+    log(phase || '9', `${pname(target)} は はとむねで ぼうぎょが下がらない！`);
+    return {handled:true, result:{sg:ctx.sg, applied:0, blocked:'hatomune'}};
+  }
+  return {handled:false};
+});
+
+// 6) クリアチャーム(Phase D B3): 相手起因の能力ランク低下を無効化(自分の技/特性由来=fromOpponent falseは
+// ここに来ない=素通り)。くろいきり/クリアスモッグは全ランクを直接0へリセットする別処理(この関数を
+// 経由しない)なので、貫通例外は自然に成立する。出典: items_database.js宣言(Bulbapedia "Clear Amulet")
+rbRegisterHandler('stat_stage', 'clear_amulet_guard', (ctx) => {
+  if (!(ctx.sg < 0 && ctx.fromOpponent)) return {handled:false};
+  const {target, phase} = ctx;
+  if (hasItem(target, 'clear_amulet')){
+    log(phase || '9', `${pname(target)} は クリアチャームで 能力が下がらない！`);
+    return {handled:true, result:{sg:ctx.sg, applied:0, blocked:'clear_amulet'}};
+  }
+  return {handled:false};
+});
+
+// 7) ランク反映本体: クランプ適用・だっしゅつパック/うっぷんばらしフラグ・onSuccessLogコールバック。
+rbRegisterHandler('stat_stage', 'core_apply', (ctx) => {
+  const {target, rk, onSuccessLog} = ctx;
   const before = target.rank[rk] || 0;
-  target.rank[rk] = Math.max(-6, Math.min(6, before + sg));
-  const applied = target.rank[rk] - before;
-  if (applied < 0){
+  target.rank[rk] = Math.max(-6, Math.min(6, before + ctx.sg));
+  ctx.applied = target.rank[rk] - before;
+  if (ctx.applied < 0){
     target.statLoweredThisTurn = true;   // うっぷんばらし用(実際に下がった時だけ)
     target.pendingEjectPack = true;      // だっしゅつパック(Phase D B3): resolveEjectPackが後続で判定・消費
   }
-  if (onSuccessLog) onSuccessLog(sg, applied);
-  // かちき/まけんき: 敵に能力ランクを下げられると とくこう/こうげき+2(段114・ABILITY_DESC公式準拠)
-  if (applied < 0 && fromOpponent){
+  if (onSuccessLog) onSuccessLog(ctx.sg, ctx.applied);
+  return {handled:false};
+});
+
+// 8) かちき/まけんき: 敵に能力ランクを下げられると とくこう/こうげき+2(段114・ABILITY_DESC公式準拠)
+rbRegisterHandler('stat_stage', 'kachiki_makenki_reaction', (ctx) => {
+  const {target, phase} = ctx;
+  if (ctx.applied < 0 && ctx.fromOpponent){
     const dAb114 = sideAbility(target);
     if (dAb114 === 'かちき'){
       target.rank.spatk = Math.min(6, (target.rank.spatk || 0) + 2);
@@ -3521,15 +3581,20 @@ function applyRankStageGuarded(target, source, rk, rawStages, phase, onSuccessLo
       log(phase || '9', `${pname(target)} の まけんき！ こうげき+2！`);
     }
   }
-  // ものまねハーブ(Mirror Herb・Phase D B3): targetの対戦相手がこの上昇を見ていたら、同じ分だけ自分も
-  // 上げてアイテムを消費(1回・実際に上がった時だけ)。再帰呼び出し(_skipMirrorHerb)では連鎖させない。
-  // ログはstat_rose/stat_fell(既存i18nパターン)に乗せる=専用の「ものまねハーブで」文言は新設しない
-  // (ログ行新設禁止の方針)。出典: items_database.js宣言(Bulbapedia "Mirror Herb")
-  if (applied > 0 && !_skipMirrorHerb){
+  return {handled:false};
+});
+
+// 9) ものまねハーブ(Mirror Herb・Phase D B3): targetの対戦相手がこの上昇を見ていたら、同じ分だけ自分も
+// 上げてアイテムを消費(1回・実際に上がった時だけ)。再帰呼び出し(_skipMirrorHerb)では連鎖させない。
+// ログはstat_rose/stat_fell(既存i18nパターン)に乗せる=専用の「ものまねハーブで」文言は新設しない
+// (ログ行新設禁止の方針)。出典: items_database.js宣言(Bulbapedia "Mirror Herb")
+rbRegisterHandler('stat_stage', 'mirror_herb_reaction', (ctx) => {
+  const {target, rk, phase, _skipMirrorHerb} = ctx;
+  if (ctx.applied > 0 && !_skipMirrorHerb){
     const _mirrorSide = (target === sides.self) ? sides.opp : sides.self;
     if (_mirrorSide && _mirrorSide.poke && !_mirrorSide.fainted && _mirrorSide.rank[rk] !== undefined &&
         hasItem(_mirrorSide, 'mirror_herb')){
-      applyRankStageGuarded(_mirrorSide, _mirrorSide, rk, applied, phase, (sg2, applied2) => {
+      applyRankStageGuarded(_mirrorSide, _mirrorSide, rk, ctx.applied, phase, (sg2, applied2) => {
         if (applied2 !== 0){
           log(phase || '9', `${pname(_mirrorSide)} の ${RANK_JA_BY_KEY[rk] || rk} ランクが ${applied2 > 0 ? '+' : ''}${applied2} ${applied2 > 0 ? 'あがった' : 'さがった'}！`);
           consumeItem(_mirrorSide);
@@ -3537,7 +3602,19 @@ function applyRankStageGuarded(target, source, rk, rawStages, phase, onSuccessLo
       }, true);
     }
   }
-  return {sg, applied, blocked:null};
+  return {handled:false};
+});
+
+// 戻り値: {sg:適用を試みた変化量(あまのじゃく反転後), applied:クランプ後の実差分, blocked:'mirror'|'clearbody'|'mist'|'hatomune'|'clear_amulet'|null}
+// _skipMirrorHerb(内部専用): ものまねハーブの反映呼び出し自身が再度ものまねハーブを連鎖させないためのガード。
+// 本体は上記9個のHandlerへ委譲するだけの薄いラッパー(外部シグネチャ・戻り値は完全維持)。
+function applyRankStageGuarded(target, source, rk, rawStages, phase, onSuccessLog, _skipMirrorHerb){
+  if (!target || !target.poke || target.rank[rk] === undefined) return {sg:0, applied:0, blocked:null};
+  const fromOpponent = !!source && source.poke && source !== target;
+  const ctx = {target, source, rk, rawStages, phase, onSuccessLog, _skipMirrorHerb, fromOpponent, sg: rawStages, applied: 0, blocked: null};
+  const blockedResult = rbFireEvent('stat_stage', ctx);
+  if (blockedResult) return blockedResult;
+  return {sg: ctx.sg, applied: ctx.applied, blocked: null};
 }
 // だっしゅつパック(Eject Pack・Phase D B3): 能力ランクが下がった直後(自傷/相手起因問わず)、出せる
 // 控えがいれば消費して強制交代する。控えがいなければ発動しない(仕様書verify_noteの妥当な近似)。

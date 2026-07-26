@@ -65,6 +65,11 @@ function ok(name, pass, note){ results.push({ name, pass, note: note || '' }); c
   await clickEl('#btn-random');
   await page.waitForTimeout(800);
   await clickEl('#btn-start');
+  // ★2026-07-21 選出画面フロー追加(3b8cea5b)で#btn-start→選出オーバーレイ(#lab-pick-screen)経由に変化。
+  // 「⚔ぜんぶ」(#lpk-gofull)を押して初めてlabApplyPickAndStart→startBattle()が呼ばれ in-battle になる。
+  // このハーネスは2026-07-18(a3f66964)時点のまま=選出画面追加より前で止まっていた(harness側の陳腐化)。
+  await waitFor(() => ev(() => !!document.getElementById('lpk-gofull')), 8000);
+  await clickEl('#lpk-gofull');
   const started = await waitFor(() => ev(() => document.body.classList.contains('in-battle')), 15000);
   ok('0.開戦', started);
   await settle(25000);
