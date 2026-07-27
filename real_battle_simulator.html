@@ -2096,11 +2096,16 @@ function calcDamage(atkSide, defSide, move, opts){
       if (r === 85) chips.push({label:'パンチグローブ', factor:1.1, kind:'item'});
     }
 
-    // 8.5) 半減きのみ（防御側 item、効果バツグン時のみ ×0.5。マジックルーム中は効果なし）
-    if (eff > 1){
+    // 8.5) 半減きのみ（防御側 item ×0.5。マジックルーム中は効果なし）
+    //   他17種は効果抜群時のみ発動。ホズのみ(berry_resist_normal=ノーマル)は「ノーマル技が抜群に
+    //   なるタイプが(さかさ除き)存在しない」ため相性に関係なく発動=ばつぐんゲート対象外。
+    //   出典: ポケモンWiki「ホズのみ」「ノーマルタイプの攻撃技を受けたとき、1度だけダメージを1/2にする。」
+    {
       const defItem = (!env.magicRoom && def.item) ? ITEM_BY_KEY[def.item] : null;
       // ※データのキーは resist_type(段95で修正: 旧 poke_type はデータに存在せず18種全部不発だった)
-      if (defItem && defItem.category === 'berry_resist' && defItem.resist_type === moveType && !berryBlocked(defSide)){
+      const _chilanNormal = defItem && defItem.key === 'berry_resist_normal'; // ホズのみだけ非抜群でも発動
+      if (defItem && defItem.category === 'berry_resist' && defItem.resist_type === moveType && !berryBlocked(defSide)
+          && (eff > 1 || _chilanNormal)){
         v = pokeRound(v, 2048);   // きんちょうかん(段134)中は食べられない=半減しない
         if (r === 85) chips.push({label:defItem.name, factor:0.5, kind:'item'});
       }
@@ -3183,29 +3188,36 @@ function phaseDealDamage(atkSide, defSide, move){
       log('9', `${pname(atk)} は かいがらのすずで ${_sbHeal} 回復！ (残HP ${atk.currentHp})`);
     }
   }
-  // おうじゃのしるし: ダメージを与えた時10%の確率で相手をひるませる(まだ動いていない相手にだけ意味がある)
-  // せいしんりょく持ちはひるまない(段109)
-  if (atk.poke && !env.magicRoom && atk.item === 'kings_rock' && total > 0 && def.poke && !def.fainted && !def.flinched
-      && sideAbility(def) !== 'せいしんりょく'){
-    if (Math.random() < 0.1){
-      def.flinched = true;
-      log('9', `${pname(def)} は おうじゃのしるしで ひるんだ！`);
-    }
-  }
-  // あくしゅう(段138・ポケモンWiki): 攻撃技でダメージを与えたとき10%でひるませる(第5世代以降)
-  if (atk.poke && sideAbility(atk) === 'あくしゅう' && total > 0 && def.poke && !def.fainted && !def.flinched
+  // おうじゃのしるし / あくしゅう: ダメージを与えた「ヒット毎」に10%で相手をひるませる(第3世代以降=ヒット毎判定)。
+  //   ※両者は重複しない=ヒット毎の判定は1回(合計10%/ヒット・別々に振らない)。第5世代以降仕様。
+  //   ※まだ動いていない相手にだけ意味がある。せいしんりょく(段109)持ちはひるまない
+  //     (かたやぶりはこれを無視=defAbilityVs で判定し kings_rock/あくしゅう 共通化)。
+  //   ※着地ヒット数(landedHits=本体に当たった回数。みがわり吸収・ばけのかわ吸収は含まない)分だけ独立判定し、
+  //     1回でも成功でひるむ = 1-(0.9^n)。みがわりのみ被弾(n=0)では発動しない。
+  //   出典: ポケモンWiki「おうじゃのしるし」「あくしゅう」
+  //     「第三世代以降では1回のヒットそれぞれに10%のひるみ効果が発動する。」
+  //     「あくしゅう…おうじゃのしるし/するどいキバを持たせても効果は重複せず、ひるむ確率は10％のまま変わらない。」
+  if (atk.poke && total > 0 && landedHits > 0 && def.poke && !def.fainted && !def.flinched
       && defAbilityVs(def, atk) !== 'せいしんりょく'){
-    if (Math.random() < 0.1){
-      def.flinched = true;
-      log('9', `${pname(def)} は あくしゅうで ひるんだ！`);
+    const _kingsRock = !env.magicRoom && atk.item === 'kings_rock';
+    const _stench = sideAbility(atk) === 'あくしゅう';
+    if (_kingsRock || _stench){
+      let _flinch = false;
+      for (let i = 0; i < landedHits; i++){ if (Math.random() < 0.1){ _flinch = true; break; } }
+      if (_flinch){
+        def.flinched = true;
+        log('9', `${pname(def)} は ${_kingsRock ? 'おうじゃのしるし' : 'あくしゅう'}で ひるんだ！`);
+      }
     }
   }
   // 半減きのみ: 実際に半減が効いた攻撃(バツグン+タイプ一致+本体が受けた)で一度だけ消費。
   // ※分身(みがわり)が受けた時は消費しない(計算は半減のまま=近似・コメント宣言)。出典: ポケモンWiki「オッカのみ」等
+  // ※ホズのみ(berry_resist_normal=ノーマル)は非抜群でも発動・消費する(ばつぐんゲート対象外)。
+  //   出典: ポケモンWiki「ホズのみ」(ノーマル技は抜群になるタイプが存在しない=相性に関係なく発動)
   if (def.poke && !env.magicRoom && def.item && total > 0 && !def.subAbsorbed && !berryBlocked(defSide)){
     const _bi = ITEM_BY_KEY[def.item];
     if (_bi && _bi.category === 'berry_resist' && _bi.resist_type === result.moveType &&
-        moveTypeEff(result.moveType, sideTypes(def)) > 1){
+        (moveTypeEff(result.moveType, sideTypes(def)) > 1 || _bi.key === 'berry_resist_normal')){
       consumeItem(def);
       log('9', `${pname(def)} は ${_bi.name}で ダメージを 半減した！(きのみは なくなった)`);
     }
