@@ -1057,6 +1057,18 @@ const tStatusBadge = ja => {
 // =========================================================================
 const LEVEL = 50;
 
+// ★正典=Champions(2026-07-28 阿部さん)。まひの行動不能率は第七世代-SVの25%ではなくChampions値12.5%を使う。
+// すばやさ補正(1/2)は第七世代-SVから変わらないのでそのまま(別箇所で直接1/2をかけている)。
+// 出典: reference/_authority_corpus/rules/まひ.json 説明文「Champions 12.5%の確率で技が使えない。素早さが1/2になる。」
+const PARALYSIS_FAIL_CHANCE = 0.125;
+
+// ねむりの残りターン(sleepTurns)を決める。ねむる(技)由来はduration+1=3で固定、通常のねむりはChampions仕様で重み付け抽選。
+// 出典: reference/_authority_corpus/rules/ねむり.json 説明文「Championsではカウント2になる確率が1/3、カウント3になる確率が2/3となる」
+// (SV以前は2〜4等確率だったが、正典=ChampionsではSV/2〜4等確率ではなくカウント2/3のみ・1/3:2/3の重み)
+function rollSleepTurns(){
+  return (Math.random() < (1/3)) ? 2 : 3;
+}
+
 const STAT_KEYS = ['hp','atk','def','spatk','spdef','spd'];
 const STAT_LABELS = {hp:'HP',atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
 // ランク変化ログ用: 内部キー→日本語(生キー'special_attack'がログに出ていた=2026-07-06 阿部さんスクショで発覚)
@@ -4513,7 +4525,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       target.status = code;
       // ねむりは自然に目覚める: ねむる=固定(duration+1=3カウント) / ふつう=1〜3ターン(第5世代以降・Bulbapedia "Sleep")
       // カウントは行動時に減らし、0になったターンに目覚めて行動する(PS実装と同じ)
-      if (code === 'sleep') target.sleepTurns = (ef.duration != null) ? ef.duration + 1 : 2 + Math.floor(Math.random() * 3);
+      if (code === 'sleep') target.sleepTurns = (ef.duration != null) ? ef.duration + 1 : rollSleepTurns();
       log('9', `${pname(target)} は ${ef.value} 状態になった！`);
       // シンクロ(段131・ポケモンWiki): 相手の技で どく/もうどく/まひ/やけど にされたら、相手も同じ状態にする
       // (ねむり/こおりは対象外。相手がすでに状態異常・タイプ免疫なら返らない)
@@ -5652,7 +5664,7 @@ function runSingleAttack(atkSide, moveIdx){
     atk.status = 'none';
     log('0c', `${pname(atk)} の こおりが とけた！`);
   }
-  if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
+  if (atk.status === 'paralysis' && Math.random() < PARALYSIS_FAIL_CHANCE){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); renderBattleLog(); renderBoth(); return; }
   // メロメロ(段139): 50%で行動不能。PP消費しない(=この時点でreturnするのでconsumePPに到達しない)
   if (atk.attracted){
     log('0c', `${pname(atk)} は メロメロだ！`);
@@ -6927,7 +6939,7 @@ function runTurn(){
       atk.status = 'none';
       log('0c', `${pname(atk)} の こおりが とけた！`);
     }
-    if (atk.status === 'paralysis' && Math.random() < 0.25){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); continue; }
+    if (atk.status === 'paralysis' && Math.random() < PARALYSIS_FAIL_CHANCE){ noteActionFailed(atk); log('0c', `${pname(atk)} は からだが しびれて うごけない！`); continue; }
     // メロメロ(段139): 50%で行動不能。PP消費しない
     if (atk.attracted){
       log('0c', `${pname(atk)} は メロメロだ！`);
@@ -7307,7 +7319,7 @@ function runTurn(){
         } else if ((({sleep:['ふみん','やるき'], paralysis:['じゅうなん'], poison:['めんえき'], badpoison:['めんえき'], freeze:['マグマのよろい']})[st.pendingStatus.code] || []).includes(sideAbility(st))){
           // あくび等の遅延発動も特性で無効(段109・ABILITY_DESC公式準拠)
           log('10', `${pname(st)} は 特性で ${st.pendingStatus.label}に ならない！`);
-        } else if (st.status === 'none'){ st.status = st.pendingStatus.code; if (st.pendingStatus.code === 'sleep') st.sleepTurns = 2 + Math.floor(Math.random() * 3); log('10', `${pname(st)} は ${st.pendingStatus.label} 状態になった！`); }
+        } else if (st.status === 'none'){ st.status = st.pendingStatus.code; if (st.pendingStatus.code === 'sleep') st.sleepTurns = rollSleepTurns(); log('10', `${pname(st)} は ${st.pendingStatus.label} 状態になった！`); }
         st.pendingStatus = null;
       }
     }
