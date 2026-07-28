@@ -3688,9 +3688,26 @@ function applyThroatSpray(st, def, mv, dmgRes){
 }
 
 // === フェーズ: 9 状態異常付与（battle_data.effects から確率ロール）===
+// ★構造的ガード(2026-07-28・権威コーパス全919技照合タスクの一部): 技の対象(mv.target)が
+//   自分/味方の場/全体の場/味方系(味方全体・味方1体・自分か味方)の「変化技」は、そもそも相手(まもった側)を
+//   対象にしていない=相手のまもるは無関係でブロックされない。
+//   データ側(target/protect)は既に権威由来で正しい値になっている(reference/_authority_target_protect_fix.json)
+//   が、「データが正しければ起きない」バグ(2026-07-28朝の実バグ=まもる中の相手に自分強化技を撃つと誤ブロック)
+//   を構造的に二重化して防ぐ。target/protectの手入力・将来の技追加が誤ってprotect:trueのままでも壊れない。
+//   ★例外=がまん(bide): target='自分'であってもcategory='物理'(状態異常/能力ランク等の「変化技」ではない)。
+//   がまんは自分に宣言してから2ターン目に受けたダメージの2倍を相手へ返す技で、実際の攻撃(kind:'倍返し',
+//   effects[].target:'opponent')は相手を対象にしており、権威コーパスでも まもる:○(ブロックされる)。
+//   出典: reference/_authority_corpus/moves/がまん.json(範囲=自分・まもる=○) / reference/_target_vocabulary.json
+//   よってこのガードは category==='変化' の技だけに限定する(がまんのような自分宣言→相手に返す
+//   物理/特殊技は対象外=下のprotectBlocks通常判定にそのまま進む)。
+const SELF_ALLY_FIELD_TARGETS = new Set(['自分', '味方の場', '全体の場', '味方全体', '味方1体', '自分か味方']);
+function targetsSelfOrAllyOnly(mv){
+  return !!mv && mv.category === '変化' && SELF_ALLY_FIELD_TARGETS.has(mv.target);
+}
 // まもる系: 守っている技がこの技を防ぐか(データ宣言を読む。フェイント等 protect:false は呼び出し側で素通り)
 //   blocks_priority_only=先制技(優先度>0)だけ防ぐ(ファストガード) / blocks_status_moves:false=変化技は防がない(キングシールド/トーチカ)
 function protectBlocks(protMove, mv){
+  if (targetsSelfOrAllyOnly(mv)) return false;   // ★構造的ガード(上記コメント参照)
   const ef = ((protMove && protMove.battle_data && protMove.battle_data.effects) || []).find(e => e.kind === 'まもり');
   if (!ef) return false;
   if (ef.blocks_priority_only) return movePriority(mv) > 0;

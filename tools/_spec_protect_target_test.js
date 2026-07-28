@@ -118,6 +118,63 @@ try {
     `blockedLine=${blockedLine} beforeDef=${beforeDef} afterDef=${afterDef}`);
 } catch (e) { check('P2 実行', false, e.message); }
 
+// ─────────────────────────────────────────────
+// ★2026-07-28(権威コーパス全919技照合タスクC): エンジン構造的ガードの実証。
+//   real_battle_simulator.html の protectBlocks()(L3693)に targetsSelfOrAllyOnly() チェックを追加し、
+//   target(範囲)が 自分/味方の場/全体の場/味方系 の「変化技」は、データのprotect値に関わらず
+//   相手のまもるでブロックされないようにした(「データが正しければ起きない」バグの二重化)。
+//   P3はデータを意図的に壊して(かたくなるのprotectをtrueに強制上書き=修正前と同じ壊れた値)も、
+//   ガードだけでブロックされないことを確認する(データ側の正しさに依存しない防御であることの証明)。
+console.log('\n=== P3: データを意図的に壊しても(target=自分の変化技にprotect:trueを強制)エンジンのガードでブロックされない ===');
+try {
+  resetEnv();
+  const corruptedKatakunaru = Object.assign({}, katakunaru, { protect: true });   // ★意図的にデータを壊す(修正前の実バグ状態を再現)
+  check('前提: 意図的に壊したデータはprotect:true(まもるチェックを通ればブロックされてしまう状態)', corruptedKatakunaru.protect === true);
+  const atk = freshSide('ピカチュウ', corruptedKatakunaru, { ability: '' });
+  const def = freshSide('カビゴン', mamoru, { ability: '' });
+  fullHp(atk); fullHp(def);
+  E.sides.self = atk; E.sides.opp = def;
+  def.protecting = mamoru;
+  const beforeDef = atk.rank.def || 0;
+  E.battleLog.length = 0;
+  E.setRandom(mulberry32(1));
+  atk.selectedMoveIdx = 0;
+  E.runSingleAttack('self', 0);
+  const blockedLine = E.battleLog.some(ev => /で こうげきを 防いだ/.test(ev.msg));
+  const afterDef = atk.rank.def || 0;
+  console.log('  battleLog:', E.battleLog.map(e => e.msg));
+  check('P3 [構造的ガード実証] protect:trueに壊されたデータでも、target=自分の変化技はエンジンのガードでブロックされず、ぼうぎょランクが+1上がる',
+    blockedLine === false && afterDef === beforeDef + 1,
+    `blockedLine=${blockedLine} beforeDef=${beforeDef} afterDef=${afterDef}`);
+} catch (e) { check('P3 実行', false, e.message); }
+
+// ─────────────────────────────────────────────
+// ★P4(例外の確認・過剰適用していないことの証明): がまん(Bide)は target=自分 だが category=物理。
+//   自分に宣言してから2ターン目に受けたダメージの2倍を「相手」へ返す技で、実際の攻撃は相手を対象にしており、
+//   権威コーパス(reference/_authority_flags.json「がまん」)でも まもる:○(ブロックされる)。
+//   もしガードが「target=自分なら無条件でブロックしない」という単純すぎる実装だったら、
+//   がまんまで誤って無敵になってしまう(過剰適用のバグ)。targetsSelfOrAllyOnly/protectBlocksを直接呼び、
+//   category==='変化' 限定のガードになっていること(がまんは対象外のまま)を確認する。
+console.log('\n=== P4: がまん(target=自分・category=物理)はガードの対象外(過剰適用していないことの確認) ===');
+try {
+  const gaman = moveByName('がまん');
+  check('前提: がまんが存在する', !!gaman);
+  check('前提: がまんはtarget=自分', gaman && gaman.target === '自分', `target=${gaman && gaman.target}`);
+  check('前提: がまんはcategory=物理(変化技ではない)', gaman && gaman.category === '物理', `category=${gaman && gaman.category}`);
+  check('前提: がまんは権威由来でprotect=true(まもるで防げる。reference/_authority_corpus/moves/がまん.json)',
+    gaman && gaman.protect === true, `protect=${gaman && gaman.protect}`);
+  check('targetsSelfOrAllyOnly(がまん) === false(category=物理なのでガードの対象外)',
+    typeof E.targetsSelfOrAllyOnly === 'function' && E.targetsSelfOrAllyOnly(gaman) === false);
+  const dummyProtectMove = { battle_data: { effects: [{ kind: 'まもり' }] } };
+  check('protectBlocks(まもる中, がまん) === true(通常どおりブロック対象=ガードが過剰適用していない)',
+    typeof E.protectBlocks === 'function' && E.protectBlocks(dummyProtectMove, gaman) === true);
+  // 対照: 同じtarget=自分でもcategory=変化(かたくなる)ならガード対象になることも合わせて確認
+  check('targetsSelfOrAllyOnly(かたくなる) === true(category=変化・target=自分なのでガード対象)',
+    typeof E.targetsSelfOrAllyOnly === 'function' && E.targetsSelfOrAllyOnly(katakunaru) === true);
+  check('protectBlocks(まもる中, かたくなる) === false(ガードでブロックされない)',
+    typeof E.protectBlocks === 'function' && E.protectBlocks(dummyProtectMove, katakunaru) === false);
+} catch (e) { check('P4 実行', false, e.message); }
+
 // ===== 結果 =====
 console.log('\n========================================');
 console.log(`結果: pass=${pass} fail=${fail}`);

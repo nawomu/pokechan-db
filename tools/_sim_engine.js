@@ -95,6 +95,8 @@ function buildEngine() {
     moveTypeEff: (typeof moveTypeEff !== 'undefined') ? moveTypeEff : null,
     sideTypes: (typeof sideTypes !== 'undefined') ? sideTypes : null,
     sideAbility: (typeof sideAbility !== 'undefined') ? sideAbility : null,
+    protectBlocks: (typeof protectBlocks !== 'undefined') ? protectBlocks : null,
+    targetsSelfOrAllyOnly: (typeof targetsSelfOrAllyOnly !== 'undefined') ? targetsSelfOrAllyOnly : null,
     setLastMoveAnywhere: (typeof lastMoveAnywhere !== 'undefined') ? (m)=>{ lastMoveAnywhere = m || null; } : null,
     setRandom: (fn)=>{ Math.random = fn; },
   }; } catch(e){ globalThis.__engineErr = String(e&&e.stack||e); return null; } })();`;

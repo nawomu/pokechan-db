@@ -24,10 +24,15 @@ const ABDESC= (()=>{ try{return require(path.join(ROOT,'reference/abilities_desc
 const MTAGS = (()=>{ try{return require(path.join(ROOT,'reference/moves_tags.json'));}catch(e){return {};} })();
 const LEGEND= (()=>{ try{return require(path.join(ROOT,'reference/legend_status.json'));}catch(e){return {};} })();
 const SD_MOVES= (()=>{ try{return require(path.join(ROOT,'reference/_showdown/moves.json'));}catch(e){return {};} })(); // ★P8: Showdown moves.json(gen/isNonstandard)
-// ★2026-07-28: 権威コーパス(wiki.pokemonwiki.com)全数照合で見つかったtarget(範囲)/protect(まもる)誤りの是正オーバーレイ。
+// ★2026-07-28: 権威コーパス(wiki.pokemonwiki.com)全919技全数照合によるtarget(範囲)/protect(まもる)確定オーバーレイ。
 //   moves_master.json(PokeAPI由来)にtarget/protectフィールドが無く、Champions非curated技(cur無し)は
 //   下でtarget:'1体選択'/protect:trueに固定デフォルトしていた(実バグ=まもる中の相手に自分強化技を撃つと誤ブロックされる。
-//   実証: tools/_spec_protect_target_test.js)。curが在る技には適用しない(Champions curated優先)。
+//   実証: tools/_spec_protect_target_test.js)。
+//   ★同日中に123件版→全918件版(範囲データが権威に無いクモのす1件のみ除外)へ拡張。cur(Champions curated)が
+//   在ってもtargetは権威を優先する(全数照合でcurの語彙揺れ・実誤り=ふんえん/ゴールドラッシュ/ねごと/まねっこ が
+//   判明したため。詳細=reference/_authority_target_protect_fix.json _meta.target_changed_from_cur)。
+//   正規語彙対応表=reference/_target_vocabulary.json(文字列表記はエンジンの既存リテラル比較語彙に合わせてある)。
+//   型/場の条件分岐で単一値に落とせない技(のろい/ワイドフォース)はAUTH_FIXに含めず、cur優先のまま。
 const AUTH_FIX = (()=>{ try{return require(path.join(ROOT,'reference/_authority_target_protect_fix.json')).entries || {};}catch(e){return {};} })();
 
 // === P8: availability導出ヘルパ ===
@@ -306,9 +311,11 @@ for (const m of MV){
     : {crit_stage:0,must_crit:false,crit_changes:[],effects:[]});
   const flags = Object.assign({}, MFLAGS[m.slug]||{}, (cur&&cur.flags)||{}); // ★2026-07-02 全国版ビルダーと同一マージ(MFLAGS基盤+curated上書き)=P2/P5の新フラグをChampions viewにも波及
   const authFix = AUTH_FIX[m.slug] || null;
-  const target = cur ? cur.target : ((authFix && authFix.target) || '1体選択');
+  // ★2026-07-28: targetは権威優先(cur/デフォルトは権威が無い技=のろい/ワイドフォース/クモのす等のみのフォールバック)。
+  //   protectは権威が×(まもるで防げない)と言っている技だけfalseに倒す(権威に判定が無ければcur/デフォルトtrueを維持)。
+  const target = (authFix && authFix.target) || (cur ? cur.target : '1体選択');
   const contact = cur ? !!cur.contact : false;
-  const protect = cur ? (cur.protect!==false) : !(authFix && authFix.protect === false);
+  const protect = (authFix && authFix.protect === false) ? false : (cur ? (cur.protect!==false) : true);
   const tags = (cur&&cur.tags) ? cur.tags : [];
   // ★_build_pokechan_data_all.js 準拠: bd.priorityが未設定かつm.priorityが0以外の場合はm.priorityを設定
   // (全国版は !cur 条件限定だが、masterでは常にcompose再生成するため cur あり技でも優先度を設定する)

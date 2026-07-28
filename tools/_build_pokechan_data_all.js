@@ -21,10 +21,15 @@ let MFIX={}; try{ MFIX=require('../reference/moves_battle_data_fix.json'); }catc
 let MDESC={}; try{ MDESC=require('../reference/moves_desc_override.json'); }catch(e){} // ★説明文オーバーレイ(最優先): 121kind語彙で表現できない技(穴/空)をヤックン由来の独自マザー流文で埋める(2026-06-28)
 let MFLAGS={}; try{ MFLAGS=require('../reference/_move_flags.json'); }catch(e){} // ★技フラグ(音/風/切る/弾/噛み/踊り/パンチ等)=構築WFが付与。composeが「音系の技」等を発声(2026-06-29)
 let SD_MOVES={}; try{ SD_MOVES=require('../reference/_showdown/moves.json'); }catch(e){} // ★P8: Showdown moves.json(gen/isNonstandard)
-// ★2026-07-28: 権威コーパス(wiki.pokemonwiki.com)全数照合で見つかったtarget(範囲)/protect(まもる)誤りの是正オーバーレイ。
+// ★2026-07-28: 権威コーパス(wiki.pokemonwiki.com)全919技全数照合によるtarget(範囲)/protect(まもる)確定オーバーレイ。
 //   moves_master.json(PokeAPI由来)にtarget/protectフィールドが無く、Champions非curated技(cur無し)は
 //   下でtarget:'1体選択'/protect:trueに固定デフォルトしていた(実バグ=まもる中の相手に自分強化技を撃つと誤ブロックされる。
-//   実証: tools/_spec_protect_target_test.js)。curが在る技には適用しない(Champions curated優先)。tools/build_master.jsと同一オーバーレイ。
+//   実証: tools/_spec_protect_target_test.js)。
+//   ★同日中に123件版→全918件版(範囲データが権威に無いクモのす1件のみ除外)へ拡張。cur(Champions curated)が
+//   在ってもtargetは権威を優先する(全数照合でcurの語彙揺れ・実誤り=ふんえん/ゴールドラッシュ/ねごと/まねっこ が
+//   判明したため。詳細=reference/_authority_target_protect_fix.json _meta.target_changed_from_cur)。
+//   正規語彙対応表=reference/_target_vocabulary.json(文字列表記はエンジンの既存リテラル比較語彙に合わせてある)。
+//   型/場の条件分岐で単一値に落とせない技(のろい/ワイドフォース)はAUTH_FIXに含めず、cur優先のまま。tools/build_master.jsと同一オーバーレイ。
 let AUTH_FIX={}; try{ AUTH_FIX=(require('../reference/_authority_target_protect_fix.json').entries)||{}; }catch(e){}
 // ★2026-07-19: ABILITY_DESC欠落119件+ヘドロえきの穴埋め(PokeAPI公式ja説明・Champions版は肥大化させない=全部版側でだけマージ)
 //   マージ順: Champions ABILITY_DESC(既存キー) > fill(reference/_ability_desc_fill_2026-07-19.json)。既存キーは上書きしない。
@@ -261,10 +266,12 @@ for(const m of MV){
   // ★2026-07-02 修正: Champions技(cur あり)もcompose再生成するようになったため !cur 条件を外す(masterと統一)
   if(bd && bd.priority==null && (m.priority||0)!==0) bd.priority = m.priority;
   const authFix = AUTH_FIX[m.slug] || null;
+  // ★2026-07-28: targetは権威優先(cur/デフォルトは権威が無い技=のろい/ワイドフォース/クモのす等のみのフォールバック)。
+  //   protectは権威が×(まもるで防げない)と言っている技だけfalseに倒す(権威に判定が無ければcur/デフォルトtrueを維持)。
   const entry={
     name:nameJa, move_no:m.id, type:TYPE_JA[m.type]||m.type, category:CAT_JA[m.damage_class]||'変化',
-    target:cur?cur.target:((authFix&&authFix.target)||'1体選択'), power:m.power, accuracy:m.accuracy, pp:m.pp, priority:m.priority||0,
-    contact:cur?!!cur.contact:!!(MFLAGS[m.slug]&&MFLAGS[m.slug].contact), protect:cur?(cur.protect!==false):!(authFix&&authFix.protect===false),
+    target:(authFix&&authFix.target)||(cur?cur.target:'1体選択'), power:m.power, accuracy:m.accuracy, pp:m.pp, priority:m.priority||0,
+    contact:cur?!!cur.contact:!!(MFLAGS[m.slug]&&MFLAGS[m.slug].contact), protect:(authFix&&authFix.protect===false)?false:(cur?(cur.protect!==false):true),
     description:'', key:m.slug, learners,
     national_new:!cur && !!MJD[m.slug], // 全国版で新規追加した技(M-A/M-B以外=Champions外)
     description_legacy:cur?(cur.description_legacy||''):(MYK[m.slug]||''), // 新技はヤックン(徹底攻略)JAをlegacy参照に
