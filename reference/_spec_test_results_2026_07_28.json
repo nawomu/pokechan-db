@@ -1,0 +1,224 @@
+{
+  "meta": {
+    "task": "T7 特殊機構11種の権威仕様テスト (claude-design → glm-impl)",
+    "date": "2026-07-28",
+    "method": "各機構: 権威Wiki(pokemonwiki日本)実読→エンジン実装確認→専用テスト(tools/_spec_<slug>_test.js・最低4ケース・期待値は権威由来)→実行→failは『バグか期待値誤りか』権威再読で切り分け。修正なし。",
+    "engine_harness": "tools/_sim_engine.js (buildEngine) を流用=実エンジンをvm実行",
+    "discipline": "fail即バグ断定せず期待値側を先疑い。引用は実在文字列のみ。エンジン/既存ハーネス編集なし・commitなし。"
+  },
+  "mechanisms": [
+    {
+      "mech": "m1 イリュージョン",
+      "slug": "illusion",
+      "author": "glm-impl",
+      "implemented": true,
+      "script": "tools/_spec_illusion_test.js",
+      "authority": "https://wiki.pokemonwiki.com/wiki/イリュージョン",
+      "cases": {
+        "pass": 5,
+        "fail": 0
+      },
+      "bugs": [],
+      "note": "解除ロジック(total>0&&!subAbsorbed)は権威どおり。適用(applyIllusion)はexportなし→コード読み。こんらん自傷はrunTurn設定が必要で未検証。"
+    },
+    {
+      "mech": "m2 トレース",
+      "slug": "trace",
+      "author": "glm-impl",
+      "implemented": true,
+      "script": "tools/_spec_trace_test.js",
+      "authority": "https://wiki.pokemonwiki.com/wiki/トレース",
+      "cases": {
+        "pass": 4,
+        "fail": 0
+      },
+      "bugs": [],
+      "note": "phaseInitAで相手特性コピー(abilityOverride)。コピー不可skip=トレース/バトルスイッチ/マイティチェンジ(Wikiはより広いがChampions実在特性では概ね妥当)。スキルスワップ後の即発動は未検証。"
+    },
+    {
+      "mech": "m3 ミイラ",
+      "slug": "mummy",
+      "author": "claude-design",
+      "implemented": true,
+      "script": "tools/_spec_mummy_test.js",
+      "authority": "https://wiki.pokemonwiki.com/wiki/ミイラ + Bulbapedia Mummy",
+      "cases": {
+        "pass": 12,
+        "fail": 2
+      },
+      "bugs": [
+        {
+          "case": "C9",
+          "verdict": "実バグ候補",
+          "engine": "real_battle_simulator.html:3335 ABILITY_CHANGE_NG=[ふしぎなまもり,バトルスイッチ,ばけのかわ,なまけ]",
+          "auth_quote": "Bulbapedia Mummy除外リスト(As One/Battle Bond/.../Mummy itself)にTruant(なまけ)は含まれない",
+          "why": "なまけは本来ミイラで上書きされるがNGリストに誤登録→上書きされない"
+        },
+        {
+          "case": "C10",
+          "verdict": "期待値誤りの疑い(エンジン概ね正)",
+          "engine": "同上ABILITY_CHANGE_NGにふしぎなまもりあり",
+          "auth_quote": "Wonder Guardは『置換/複写/交換不可』(普遍的)",
+          "why": "ふしぎなまもりはMummy除外リストに明記なくとも同特性自体が不変=エンジンのNG登録は妥当。テスト期待値が過剰。要claude-design判定"
+        }
+      ]
+    },
+    {
+      "mech": "m4 すてゼリフ",
+      "slug": "sutezerifu",
+      "author": "claude-design",
+      "implemented": true,
+      "script": "tools/_spec_sutezerifu_test.js",
+      "authority": "ポケモンWiki『すてゼリフ』",
+      "cases": {
+        "pass": 17,
+        "fail": 2
+      },
+      "bugs": [
+        {
+          "case": "C4-b/C5-b",
+          "verdict": "実バグ候補",
+          "engine": "すてゼリフ交代処理",
+          "auth_quote": "第7世代以降:ランク低下を全て防がれた場合は交代しない",
+          "why": "エンジンはGen6挙動(常時交代)。Champions=Gen9なのでGen7+仕様が正→ランク全防護時は交代しないべき。要確認"
+        }
+      ]
+    },
+    {
+      "mech": "m5 みがわり",
+      "slug": "substitute",
+      "author": "claude-design",
+      "implemented": true,
+      "script": "tools/_spec_substitute_test.js",
+      "authority": "ポケモンWiki『みがわり』",
+      "cases": {
+        "pass": 21,
+        "fail": 0
+      },
+      "bugs": [],
+      "note": "音技貫通/変化技ブロック/連続技 すべて権威どおり。"
+    },
+    {
+      "mech": "m6 マルチスケイル",
+      "slug": "multiscale",
+      "author": "claude-design",
+      "implemented": true,
+      "script": "tools/_spec_multiscale_test.js",
+      "authority": "ポケモンWiki『マルチスケイル』",
+      "cases": {
+        "pass": 12,
+        "fail": 0
+      },
+      "bugs": [],
+      "note": "満タン時半減/連続技1発目のみ/かたやぶり貫通/固定ダメ貫通 すべて権威どおり。"
+    },
+    {
+      "mech": "m7 さいせいりょく+しぜんかいふく",
+      "slug": "regenerator",
+      "author": "claude-design",
+      "implemented": true,
+      "script": "tools/_spec_regenerator_test.js",
+      "authority": "ポケモンWiki『さいせいりょく』『しぜんかいふく』",
+      "cases": {
+        "pass": 9,
+        "fail": 0
+      },
+      "bugs": [],
+      "note": "交代回復/強制交代発動 ともに権威どおり。"
+    },
+    {
+      "mech": "m8 マジックガード",
+      "slug": "magicguard",
+      "author": "glm-impl",
+      "implemented": true,
+      "script": "tools/_spec_magicguard_test.js",
+      "authority": "https://wiki.pokemonwiki.com/wiki/マジックガード",
+      "cases": {
+        "pass": 7,
+        "fail": 0
+      },
+      "bugs": [],
+      "note": "砂/毒/火傷スリップ無効+いのちのたま反動無効+やけど物理半減は残る すべて権威どおり。こんらん自傷『防げない』はrunTurn設定要で未検証(コード上MGは自傷を止めない設計)。"
+    },
+    {
+      "mech": "m9 マジックミラー/マジックコート",
+      "slug": "magicmirror",
+      "author": "glm-impl",
+      "implemented": true,
+      "script": "tools/_spec_magicmirror_test.js",
+      "authority": "https://wiki.pokemonwiki.com/wiki/マジックミラー",
+      "cases": {
+        "pass": 6,
+        "fail": 1
+      },
+      "bugs": [
+        {
+          "case": "C2b",
+          "verdict": "テスト問題(エンジンバグでない)",
+          "engine": "-",
+          "auth_quote": "-",
+          "why": "かたやぶり+でんじはのCore(C2:跳ね返されない)はPASS。C2bはでんじはが命中判定で外れた(RNG)だけでマジックミラー機構の不具合ではない。"
+        }
+      ],
+      "note": "変化技跳ね返し/かたやぶり貫通/マジックコート同一/攻撃技非対象 すべて権威どおり。"
+    },
+    {
+      "mech": "m10 ばけのかわ",
+      "slug": "disguise",
+      "author": "claude-design",
+      "implemented": true,
+      "script": "tools/_spec_disguise_test.js",
+      "authority": "ポケモンWiki『ばけのかわ』",
+      "cases": {
+        "pass": 15,
+        "fail": 1
+      },
+      "bugs": [
+        {
+          "case": "C6-b",
+          "verdict": "実バグ候補",
+          "engine": "ばけのかわ被弾/解除処理",
+          "auth_quote": "こんらん時の自分への攻撃にも発動しダメージを防ぐ",
+          "why": "こんらん自傷時にばけのかわが発動せず(皮が剥がれずダメージも防がない)。要確認"
+        }
+      ]
+    },
+    {
+      "mech": "m11 きあいのタスキ+がんじょう+こらえる",
+      "slug": "endure_sash",
+      "author": "claude-design",
+      "implemented": true,
+      "script": "tools/_spec_endure_sash_test.js",
+      "authority": "ポケモンWiki『がんじょう』+Bulbapedia Sturdy/Mold Breaker",
+      "cases": {
+        "pass": 19,
+        "fail": 1
+      },
+      "bugs": [
+        {
+          "case": "S8",
+          "verdict": "実バグ候補",
+          "engine": "がんじょう(OHKO無効)処理",
+          "auth_quote": "Bulbapedia『Mold Breaker will ignore Sturdy』=一撃必殺無効も無視→KO",
+          "why": "かたやぶり持ちの一撃必殺技ががんじょうを貫通しない(がんじょうで防がれる)。要確認"
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "total_cases": 134,
+    "total_pass": 127,
+    "total_fail": 7,
+    "real_bug_candidates": [
+      "m3-ミイラ C9(なまけがミイラで上書きされない)",
+      "m4-すてゼリふ C4b/C5b(Gen7+ランク全防護で交代しない 未実装)",
+      "m10-ばけのかわ C6b(こんらん自傷で発動せず)",
+      "m11-がんじょう S8(かたやぶりの一撃必殺が貫通しない)"
+    ],
+    "expectation_errors": [
+      "m3-ミイラ C10(ふしぎなまもり=普遍不変→エンジン妥当)",
+      "m9-マジックミラー C2b(でんじはRNG外れ→テスト問題)"
+    ],
+    "test_authors": "claude-design作成: mummy/sutezerifu/substitute/multiscale/regenerator/disguise/endure_sash(7件・2026-07-27). glm-impl作成: illusion/trace/magicguard/magicmirror(4件)."
+  }
+}

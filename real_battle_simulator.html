@@ -2774,8 +2774,11 @@ function phaseDealDamage(atkSide, defSide, move){
       log('8', `${pname(df)} には こうかが ないようだ…`);
       return { immune: true, reason: 'こうかなし' };
     }
-    // がんじょう: 一撃必殺技を無効化(ABILITY_DESC公式準拠・段110)
-    if (ohkoEf && sideAbility(df) === 'がんじょう'){
+    // がんじょう: 一撃必殺技を無効化(ABILITY_DESC公式準拠・段110)。
+    // ★かたやぶり系はこれを無視して一撃必殺を通す(出典: ポケモンWiki「がんじょう」
+    //   「特性かたやぶりの効果がある一撃必殺技は防げない。」/ Bulbapedia "Mold Breaker will ignore Sturdy")。
+    //   defAbilityVs(df,a) は攻撃側aがかたやぶり系(_BREAKER)のとき がんじょう(_BREAKABLE)を無効化して返す。
+    if (ohkoEf && defAbilityVs(df, a) === 'がんじょう'){
       log('8', `${pname(df)} は がんじょうで 一撃必殺が 効かない！`);
       return { immune: true, reason: 'がんじょう' };
     }
@@ -2791,7 +2794,7 @@ function phaseDealDamage(atkSide, defSide, move){
     }
     // こらえる: 一撃必殺・固定ダメージも技のダメージなのでHP1で耐える(Bulbapedia "Endure")
     if (df.enduring && dmg >= df.currentHp && df.currentHp > 0){ dmg = df.currentHp - 1; log('8', `${pname(df)} は こうげきを こらえた！`); }
-    dmg = sashCheck(df, dmg);   // きあいのタスキ(一撃必殺にも効く=第5世代以降)
+    dmg = sashCheck(df, dmg, a);   // きあいのタスキ(一撃必殺にも効く=第5世代以降)。a=かたやぶり判定用(がんじょうの1残しも無視)
     df.currentHp = Math.max(0, df.currentHp - dmg);
     log('8', `${pname(a)} の ${move.name}！ ${pname(df)} に ${dmg} ダメージ！${ohkoEf ? '(一撃必殺！)' : ''} (残HP ${df.currentHp})`);
     if (df.currentHp <= 0){ df.fainted = true; log('8', `${pname(df)} は ひんしになった！`); applyDestinyBond(df, a); }
@@ -3131,7 +3134,8 @@ function phaseDealDamage(atkSide, defSide, move){
     if (_cAb === 'ミイラ'){
       const _mmAtkAb = sideAbility(atk);
       // とくせいガード(Phase D B3): 攻撃側がガード中ならミイラで書き換えられない
-      if (_mmAtkAb && _mmAtkAb !== 'ミイラ' && !ABILITY_CHANGE_NG.includes(_mmAtkAb) && !hasAbilityShield(atk)){
+      // ★ミイラ除外は MUMMY_EXEMPT(Bulbapedia "Mummy" リスト)。なまけ/ふしぎなまもりは上書きされる。
+      if (_mmAtkAb && _mmAtkAb !== 'ミイラ' && !MUMMY_EXEMPT.includes(_mmAtkAb) && !hasAbilityShield(atk)){
         atk.abilityOverride = 'ミイラ';
         log('9', `${pname(atk)} の 特性が ミイラに なった！`);
       }
@@ -3333,6 +3337,14 @@ const GRAVITY_BLOCKED = ['そらをとぶ', 'はねる', 'とびげり', 'とび
 // (エンコール/GRAVITY_BLOCKED と同じ方式=スキーマを推測で足さない)。
 // 出典: Bulbapedia "Role Play"/"Entrainment"/"Skill Swap"/"Gastro Acid" の対象外特性のうち sim に存在するもの
 const ABILITY_CHANGE_NG = ['ふしぎなまもり', 'バトルスイッチ', 'ばけのかわ', 'なまけ'];
+// ミイラ(Mummy)で上書き「できない」特性の専用リスト(出典: Bulbapedia "Mummy" の除外リスト)。
+// ABILITY_CHANGE_NG(スキルスワップ/なりきり等の共有)とは別管理=ミイラの除外要件は異なるため。
+// 除外リattice: As One/Battle Bond/Comatose/Commander/Disguise(ばけのかわ)/Gulp Missile(うのミサイル)/
+//   Ice Face(アイスフェイス)/Lingering Aroma(さまようたましい)/Multitype(マルチタイプ)/Power Construct(スワームチェンジ)/
+//   RKS System(ARシステム)/Schooling(ぎょぐん)/Shields Down/Zen Mode(ダルマモード)/Zero to Hero + Mummy自身。
+// ★ふしぎなまもり(Wonder Guard)・なまけ(Truant)はこのリストに無い=ミイラで上書きされる。
+//   出典: ポケモンWiki「ふしぎなまもり」「なやみのタネ/シンプルビーム/なかまづくり/ミイラにより上書きされる」。
+const MUMMY_EXEMPT = ['ばけのかわ', 'バトルスイッチ', 'さまようたましい', 'ダルマモード', 'ぎょぐん', 'スワームチェンジ', 'アイスフェイス', 'うのミサイル', 'ARシステム', 'マルチタイプ'];
 // さいはい(技強制再使用)で繰り返させられない技(Bulbapedia "Instruct": 溜め技・反動技・
 // 呼び出し技・さいはい自身・まもり系などは指示できない)。技名でなく effect kind での近似
 const INSTRUCT_NG_KINDS = ['2ターン目に攻撃', '次のターン行動不能', 'ランダム技', '直前技模倣', 'さきどり', '技強制再使用', '遅延攻撃', 'まもり', 'こらえる'];
@@ -3889,6 +3901,9 @@ function phaseApplyEffects(atkSide, defSide, move){
   if (!move || !move.battle_data || !move.battle_data.effects) return;
   const atk = sides[atkSide];
   const def = sides[defSide];
+  // すてゼりフ型(変化技・相手ランク低下+自分交代)の第7世代以降判定用: 防御側のatk/spatkランク和を記憶。
+  // 第7世代以降は『ランク低下を全て防がれた/1段階も下がらなかった』場合に交代しない(下の自分交代処理で参照)。
+  const _defAtkSpaBefore = (def.rank.atk || 0) + (def.rank.spatk || 0);
   // ちからずく時は追加効果が発動しない
   if (sideAbility(atk) === 'ちからずく') return;
   // 防御側ひんし時は付与しない
@@ -4082,6 +4097,21 @@ function phaseApplyEffects(atkSide, defSide, move){
       continue;
     }
     if (ef.kind === '自分交代'){
+      // 第7世代以降(Champions=Gen9): すてゼりフ型(変化技で相手のランク低下+自分交代)は
+      // 『ランク低下を全て防がれた/1段階も下がらなかった』(クリアボディ/しろいけむり/メタルプロテクト/
+      // しろいきり/クリアチャーム/ランク既に最低/まもる等で無効化)場合は交代しない。
+      // 出典: ポケモンWiki「すてゼりフ」『第七世代以降では交代できない。』(判定=防御側atk/spatkランク和が減っていない)
+      // ※とんぼがえり/ボルトチェンジ/クイックターン(攻撃技)・バトンタッチ(pass)は対象外=常に交代。
+      // ※音技=みがわり貫通(ランク低下は通る)=下がれば交代する(上記判定で自然に正しくなる)。
+      if (!ef.pass && move.category === '変化' &&
+          (move.battle_data.effects || []).some(e => e.kind === '能力ランク変化' && e.target === 'opponent' && (e.stages || 0) < 0)){
+        const _nowAtkSpa = (def.rank.atk || 0) + (def.rank.spatk || 0);
+        if (_nowAtkSpa >= _defAtkSpaBefore){
+          log('9', `${pname(atk)} は 相手の ランクを 下げられず 交代できなかった！`);
+          noteActionFailed(atk);
+          continue;
+        }
+      }
       const _liveIdxs = (atk.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
       const liveIdx = _liveIdxs.length ? chooseSwitchTarget(atkSide, _liveIdxs) : -1;
       if (ef.pass){
@@ -6891,6 +6921,20 @@ function runTurn(){
       atk.confusion--;
       if (atk.confusion <= 0){ atk.confusion = 0; log('0c', `${pname(atk)} の こんらんが とけた！`); }
       else if (Math.random() < 1/3){
+        // ばけのかわ(段118): こんらん自傷にも発動しダメージ式を呼ばずに防ぐ=皮が剥がれ1/8チップのみ。
+        // 出典: ポケモンWiki「ばけのかわ」『こんらん時の自分への攻撃には発動し、ダメージを防ぐ』/
+        //   Bulbapedia "Disguise" "hits itself in confusion, Disguise prevents the move from calling the damage formula."
+        if (atk.disguise){
+          atk.disguise = false; atk.disguiseBroken = true;
+          const _dk = realStat(atk, 'hp'); const _chip = Math.max(1, Math.floor(_dk / 8));
+          atk.currentHp = Math.max(0, (atk.currentHp == null ? _dk : atk.currentHp) - _chip);
+          log('0c', `${pname(atk)} は わけもわからず じぶんを こうげきした！`);
+          log('0c', `${pname(atk)} の ばけのかわが はがれた！`);
+          log('0c', `${pname(atk)} は ばけのかわで ${_chip} ダメージ！ (残HP ${atk.currentHp})`);
+          if (atk.currentHp <= 0){ atk.fainted = true; log('0c', `${pname(atk)} は ひんしになった！`); }
+          noteActionFailed(atk);
+          continue;
+        }
         const A = realStat(atk, 'atk'), D = realStat(atk, 'def');
         const dmg = Math.max(1, Math.floor((2 * LEVEL / 5 + 2) * 40 * A / D / 50) + 2);
         atk.currentHp = Math.max(0, atk.currentHp - dmg);
