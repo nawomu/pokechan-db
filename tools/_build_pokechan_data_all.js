@@ -21,6 +21,11 @@ let MFIX={}; try{ MFIX=require('../reference/moves_battle_data_fix.json'); }catc
 let MDESC={}; try{ MDESC=require('../reference/moves_desc_override.json'); }catch(e){} // ★説明文オーバーレイ(最優先): 121kind語彙で表現できない技(穴/空)をヤックン由来の独自マザー流文で埋める(2026-06-28)
 let MFLAGS={}; try{ MFLAGS=require('../reference/_move_flags.json'); }catch(e){} // ★技フラグ(音/風/切る/弾/噛み/踊り/パンチ等)=構築WFが付与。composeが「音系の技」等を発声(2026-06-29)
 let SD_MOVES={}; try{ SD_MOVES=require('../reference/_showdown/moves.json'); }catch(e){} // ★P8: Showdown moves.json(gen/isNonstandard)
+// ★2026-07-28: 権威コーパス(wiki.pokemonwiki.com)全数照合で見つかったtarget(範囲)/protect(まもる)誤りの是正オーバーレイ。
+//   moves_master.json(PokeAPI由来)にtarget/protectフィールドが無く、Champions非curated技(cur無し)は
+//   下でtarget:'1体選択'/protect:trueに固定デフォルトしていた(実バグ=まもる中の相手に自分強化技を撃つと誤ブロックされる。
+//   実証: tools/_spec_protect_target_test.js)。curが在る技には適用しない(Champions curated優先)。tools/build_master.jsと同一オーバーレイ。
+let AUTH_FIX={}; try{ AUTH_FIX=(require('../reference/_authority_target_protect_fix.json').entries)||{}; }catch(e){}
 // ★2026-07-19: ABILITY_DESC欠落119件+ヘドロえきの穴埋め(PokeAPI公式ja説明・Champions版は肥大化させない=全部版側でだけマージ)
 //   マージ順: Champions ABILITY_DESC(既存キー) > fill(reference/_ability_desc_fill_2026-07-19.json)。既存キーは上書きしない。
 let ABILITY_DESC_FILL=null;
@@ -255,10 +260,11 @@ for(const m of MV){
   // ★battle_data.priority を技の優先度から設定(composeが「優先度+Nの先制技」を出す)。0は出さない。
   // ★2026-07-02 修正: Champions技(cur あり)もcompose再生成するようになったため !cur 条件を外す(masterと統一)
   if(bd && bd.priority==null && (m.priority||0)!==0) bd.priority = m.priority;
+  const authFix = AUTH_FIX[m.slug] || null;
   const entry={
     name:nameJa, move_no:m.id, type:TYPE_JA[m.type]||m.type, category:CAT_JA[m.damage_class]||'変化',
-    target:cur?cur.target:'1体選択', power:m.power, accuracy:m.accuracy, pp:m.pp, priority:m.priority||0,
-    contact:cur?!!cur.contact:!!(MFLAGS[m.slug]&&MFLAGS[m.slug].contact), protect:cur?(cur.protect!==false):true,
+    target:cur?cur.target:((authFix&&authFix.target)||'1体選択'), power:m.power, accuracy:m.accuracy, pp:m.pp, priority:m.priority||0,
+    contact:cur?!!cur.contact:!!(MFLAGS[m.slug]&&MFLAGS[m.slug].contact), protect:cur?(cur.protect!==false):!(authFix&&authFix.protect===false),
     description:'', key:m.slug, learners,
     national_new:!cur && !!MJD[m.slug], // 全国版で新規追加した技(M-A/M-B以外=Champions外)
     description_legacy:cur?(cur.description_legacy||''):(MYK[m.slug]||''), // 新技はヤックン(徹底攻略)JAをlegacy参照に

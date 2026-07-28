@@ -24,6 +24,11 @@ const ABDESC= (()=>{ try{return require(path.join(ROOT,'reference/abilities_desc
 const MTAGS = (()=>{ try{return require(path.join(ROOT,'reference/moves_tags.json'));}catch(e){return {};} })();
 const LEGEND= (()=>{ try{return require(path.join(ROOT,'reference/legend_status.json'));}catch(e){return {};} })();
 const SD_MOVES= (()=>{ try{return require(path.join(ROOT,'reference/_showdown/moves.json'));}catch(e){return {};} })(); // ★P8: Showdown moves.json(gen/isNonstandard)
+// ★2026-07-28: 権威コーパス(wiki.pokemonwiki.com)全数照合で見つかったtarget(範囲)/protect(まもる)誤りの是正オーバーレイ。
+//   moves_master.json(PokeAPI由来)にtarget/protectフィールドが無く、Champions非curated技(cur無し)は
+//   下でtarget:'1体選択'/protect:trueに固定デフォルトしていた(実バグ=まもる中の相手に自分強化技を撃つと誤ブロックされる。
+//   実証: tools/_spec_protect_target_test.js)。curが在る技には適用しない(Champions curated優先)。
+const AUTH_FIX = (()=>{ try{return require(path.join(ROOT,'reference/_authority_target_protect_fix.json')).entries || {};}catch(e){return {};} })();
 
 // === P8: availability導出ヘルパ ===
 // SDをnum→entryで引く(num=正規技番号=moves_master.id と同一)
@@ -300,9 +305,10 @@ for (const m of MV){
     : (cur&&cur.battle_data ? cur.battle_data
     : {crit_stage:0,must_crit:false,crit_changes:[],effects:[]});
   const flags = Object.assign({}, MFLAGS[m.slug]||{}, (cur&&cur.flags)||{}); // ★2026-07-02 全国版ビルダーと同一マージ(MFLAGS基盤+curated上書き)=P2/P5の新フラグをChampions viewにも波及
-  const target = cur ? cur.target : '1体選択';
+  const authFix = AUTH_FIX[m.slug] || null;
+  const target = cur ? cur.target : ((authFix && authFix.target) || '1体選択');
   const contact = cur ? !!cur.contact : false;
-  const protect = cur ? (cur.protect!==false) : true;
+  const protect = cur ? (cur.protect!==false) : !(authFix && authFix.protect === false);
   const tags = (cur&&cur.tags) ? cur.tags : [];
   // ★_build_pokechan_data_all.js 準拠: bd.priorityが未設定かつm.priorityが0以外の場合はm.priorityを設定
   // (全国版は !cur 条件限定だが、masterでは常にcompose再生成するため cur あり技でも優先度を設定する)
