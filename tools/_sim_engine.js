@@ -79,6 +79,8 @@ function buildEngine() {
     sides, env, LEVEL, calcDamage, realStat, rankedStat, makeSideState, runTurn,
     decideOrder, phaseHitCheck, phaseDealDamage, phaseApplyEffects, phaseSlipFor, battleLog,
     runSingleAttack: (typeof runSingleAttack !== 'undefined') ? runSingleAttack : null,
+    noteMoveUsed: (typeof noteMoveUsed !== 'undefined') ? noteMoveUsed : null,
+    clearVolatilesOnSwitch: (typeof clearVolatilesOnSwitch !== 'undefined') ? clearVolatilesOnSwitch : null,
     attemptSwitch: (typeof attemptSwitch !== 'undefined') ? attemptSwitch : null,
     aiChooseMove: (typeof aiChooseMove !== 'undefined') ? aiChooseMove : null,
     phaseInitA: (typeof phaseInitA !== 'undefined') ? phaseInitA : null,

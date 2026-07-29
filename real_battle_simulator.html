@@ -2016,14 +2016,13 @@ function calcDamage(atkSide, defSide, move, opts){
   // ★2026-06-19 メトロノーム: 同じ技を連続使用で威力+20%/最大2倍(items_database.js宣言)
   // 出典: ポケモンWiki「メトロノーム(道具)」
   if (atkItem && atkItem.key === 'metronome') {
-    // 連続使用カウンター(metronomeCount)を atk に保持
-    if (atk._metronomeLastMoveKey === move.key) {
-      atk.metronomeCount = Math.min(5, (atk.metronomeCount || 0) + 1); // 最大+100%(5*0.2=1.0)
-    } else {
-      atk._metronomeLastMoveKey = move.key;
-      atk.metronomeCount = 0;
-    }
-    const boost = 1 + 0.2 * atk.metronomeCount;
+    // ★2026-07-28 根治: ここでカウンターを「書き換えて」いたのが実バグだった。calcDamage は技リストの
+    // ダメージ表示(dmgCache L8197)・AIの読み(L6712/6780)・みらいよち(L7717)からも呼ばれる純粋な計算関数で、
+    // 呼ばれるたびに連続使用回数が進む/リセットされる=画面を見ただけで威力が変わっていた。
+    // → 数えるのは「技を実際に使った」確定点(noteMetronomeUse)だけ。ここは**読むだけ**にする。
+    // 出典: ポケモンWiki「メトロノーム(道具)」Champions節『同じ技を連続で使った場合 威力が上がる。
+    //   2回目で1.2倍 3回目で1.4倍と上がり 最大で2倍まで上がる。やめると元に戻る。』(倍率は現行実装で正しい)
+    const boost = 1 + 0.2 * (atk.metronomeCount || 0);
     if (boost > 1) {
       base = Math.floor(base * boost);
       chips.push({label:`メトロノーム(${atk.metronomeCount}回目)`, factor: boost, kind:'item'});
@@ -2455,6 +2454,14 @@ function abilityWeatherDuration(st, w){
   }
   return dur;
 }
+// フィールド延長持ち物(グランドコート=Terrain Extender)所持で8ターン、 otherwise 5ターン。
+// 出典: ポケモンWiki各メイカー『グランドコートを持つポケモンが発動させた場合、継続ターンは8ターンになる。』
+// ※グランドコートは items_database.js に未収録=Championsでは常に5。収録時にここで8にする。
+function abilityFieldDuration(st){
+  const _fItem = ITEM_BY_KEY[st.item];
+  if (_fItem && _fItem.key === 'terrain_extender') return 8;
+  return 5;
+}
 // === フェーズ: Init-A 場に出た時の特性発動 ===
 function phaseInitA(){
   const order = (effectiveSpeed(sides.self) >= effectiveSpeed(sides.opp))
@@ -2528,18 +2535,17 @@ function fireEntryAbility(s){
       env.weather = 'snow';
       env.weatherTurns = abilityWeatherDuration(st, 'snow');
       log('Init-A', `${pname(st)} の ${ab}で ゆきが降り始めた！`);
-    } else if (ab === 'エレキメイカー'){
-      env.field = 'electric';
-      log('Init-A', `${pname(st)} の エレキメイカーで 足下に電気が満ちた！`);
-    } else if (ab === 'グラスメイカー'){
-      env.field = 'grassy';
-      log('Init-A', `${pname(st)} の グラスメイカーで 足下に草が生えた！`);
-    } else if (ab === 'ミストメイカー'){
-      env.field = 'misty';
-      log('Init-A', `${pname(st)} の ミストメイカーで 足下に霧が満ちた！`);
-    } else if (ab === 'サイコメイカー'){
-      env.field = 'psychic';
-      log('Init-A', `${pname(st)} の サイコメイカーで 足下に不思議な空間が広がった！`);
+    } else if (ab === 'エレキメイカー' || ab === 'グラスメイカー' || ab === 'ミストメイカー' || ab === 'サイコメイカー'){
+      // メイカー系: 場に出た時フィールドを5ターン(グランドコート所持で8T)。
+      // ★すでに同名フィールドなら上書きせずターン数もリフレッシュしない(出典: ポケモンWiki各メイカー
+      //   『すでに場が…状態になっているときは発動せず、継続ターンが書き換わることも無い。』)。
+      // ★従来 env.field のみで env.fieldTurns 未設定=直前の値を引き継ぐか null(無期限)になるバグを修正
+      //   (天候側は abilityWeatherDuration を通しているのにフィールド側だけ対になる関数が無かった)。
+      const _tmap = { 'エレキメイカー':['electric','足下に電気が満ちた'], 'グラスメイカー':['grassy','足下に草が生えた'],
+                      'ミストメイカー':['misty','足下に霧が満ちた'], 'サイコメイカー':['psychic','足下に不思議な空間が広がった'] };
+      const _tf = _tmap[ab][0];
+      if (env.field !== _tf){ env.field = _tf; env.fieldTurns = abilityFieldDuration(st); }
+      log('Init-A', `${pname(st)} の ${ab}で ${_tmap[ab][1]}！`);
     } else if (ab === 'おみとおし' && other.poke && other.item && ITEM_BY_KEY[other.item]){
       // おみとおし(段113・ABILITY_DESC公式準拠): 場に出た時、相手の持ち物を見抜く。
       // ★2026-07-18(H9件目): 元々attemptSwitch(交代)にだけ実装されていたのをここへ集約し、
@@ -2669,9 +2675,12 @@ function phaseHitCheck(move, atk, def){
   if (_accItem && _accItem.key === 'koukaku_lens') {
     acc = acc * 1.1; // 常時1.1倍
   } else if (_accItem && _accItem.key === 'focus_lens') {
-    // フォーカスレンズ: 相手より遅く攻撃したとき1.2倍
-    // 後攻判定 = atk.actedAfterTarget (ターン処理で設定)
-    if (atk.actedAfterTarget) acc = acc * 1.2;
+    // フォーカスレンズ(Zoom Lens): 相手より行動順が遅い(後攻)時に命中率1.2倍。
+    // 出典: items_database『相手より遅く攻撃したとき技の命中率が1.2倍になる』/
+    //   権威『そのターンにすでに行動している相手に対して使う技の命中率が1.2倍になる。』。
+    // 後攻判定 = atk.actedAfterTarget(runTurnの order ループで order[1]=後攻 の時に設定)。
+    // ★一撃必殺技の命中率は上がらない(ふくがん L278 と同層・出典: 権威『一撃必殺技の命中率は上がらない』)。
+    if (atk.actedAfterTarget && !_effs.some(e => e.kind === '一撃必殺')) acc = acc * 1.2;
   }
   const roll = Math.random() * 100;
   return {hit: roll < acc, reason: roll < acc ? null : `${pname(atk)} の ${move.name} は外れた！`};   // だれの技が外れたか明示(2026-07-06 阿部さん)
@@ -5676,6 +5685,7 @@ function runSingleAttack(atkSide, moveIdx){
   // PPが減らない→わるあがきに落ちない→299ターン無限バトルになっていた(検証WF #A)。ここで前倒し消費して根治。
   // ここはランダム技(ねごと)/直前技模倣(まねっこ)の置換より前=「呼び出した技自身」のPPを消費する(本家準拠)。
   if (!releasing && !atk.rampage) consumePP(atk, mv, def);
+  noteMoveUsed(atk, mv);   // ★技を実際に使った確定点(メトロノームの連続使用回数はここだけで進む)
   // 使用条件(requires: オーロラベール=ゆきの時だけ等)。満たさなければ失敗(Bulbapedia "Aurora Veil")
   const _reqW = ((mv.battle_data && mv.battle_data.requires) || []).find(rq => rq.type === 'weather');
   if (_reqW && (_WMAP[_reqW.value] || _reqW.value) !== env.weather){
@@ -6101,6 +6111,8 @@ function clearVolatilesOnSwitch(st){
   st.transformBase = null;  // へんしん状態も揮発(revertTransformが先に元へ戻している前提の保険)
   st.proteanUsed = false;   // へんげんじざい(段122): 1回場に出るごとに1回 → 交代でリセット
   st.choiceLock = null;     // こだわりロック(段135): 交代で解除
+  st.metronomeCount = 0; st._metronomeLastMoveKey = null;  // ★メトロノーム(道具)の連続使用回数は交代でリセット
+                                                           //   (従来リセットが無く、控えの別ポケモンへ回数が持ち越されていた)
   // 2026-07-21 敵対的シナリオテストWave1(D・出典=設計_敵対的シナリオテスト_2026-07-21.md): よこどり/マジック
   // コートの構えは「そのターン限り」の単ターン揮発(runTurn冒頭=6571-6573で毎ターンクリアされる)なのに、
   // clearVolatilesOnSwitch(交代時の揮発クリア。同じ単ターン揮発のprotecting/enduring等は既にここでクリアしている)
@@ -6258,10 +6270,13 @@ function itemReactions(){
       }
       return;
     }
-    // メンタルハーブ: アンコール/かなしばり/いちゃもん等の束縛を一度だけ解いて消費(メロメロは未実装=対象外)
+    // メンタルハーブ: メロメロ/ちょうはつ/いちゃもん/かなしばり(わざふうじ)/かいふくふうじ/アンコールを
+    // 一度に全て解いて消費。出典: ポケモンWiki「メンタルハーブ」『メロメロ ちょうはつ 連続不可 わざふうじ かいふくふうじ アンコール状態を回復する。1度使うと その対戦中は 無くなる。』
+    // ★従来 encore/disable/tormented の3つのみ=メロメロ(attracted)/ちょうはつ(tauntTurns)/かいふくふうじ(healBlockTurns) を回復していなかった(各状態は段139/Phase D で実装済なのに漏れ)。
     if (it.key === 'mental_herb'){
-      if (st.encore || st.disable || st.tormented){
+      if (st.encore || st.disable || st.tormented || st.tauntTurns || st.healBlockTurns || st.attracted){
         st.encore = null; st.disable = null; st.tormented = false;
+        st.tauntTurns = 0; st.healBlockTurns = 0; st.attracted = false;
         consumeItem(st);
         log('9', `${pname(st)} は メンタルハーブで 束縛を 解いた！`);
       }
@@ -6565,6 +6580,23 @@ function initPP(st){
 }
 // 技を実際に使った時のPP消費(命中・無効に関係なく1減る)。st.pp未初期化なら何もしない。
 // プレッシャー(段131・ポケモンWiki): 相手を対象にした技なら減少量+1
+// ★2026-07-28 新設: 「この技を実際に使った」ことを数える唯一の点(単一ディスパッチ点)。
+// メトロノーム(道具)の連続使用回数は、ダメージ計算(calcDamage)ではなく必ずここで進める。
+// 計算関数は表示・AIの読み・みらいよちからも呼ばれるため、そこで数えると画面を見ただけで威力が変わる。
+// 出典: ポケモンWiki「メトロノーム(道具)」Champions節『同じ技を連続で使った場合 威力が上がる。2回目で1.2倍
+//   3回目で1.4倍と上がり 最大で2倍まで上がる。やめると元に戻る。』/『途中で別のわざを使うとリセットされる。』
+// ★未確認: 技が失敗/無効化された時に回数が進むか(権威に明記なし)。現状は「出した=1回」で数える。
+function noteMoveUsed(st, mv){
+  if (!st || !mv) return;
+  const k = mv.key || mv.name;
+  if (st._metronomeLastMoveKey === k){
+    st.metronomeCount = Math.min(5, (st.metronomeCount || 0) + 1);  // 上限+100%(5×0.2)
+  } else {
+    st._metronomeLastMoveKey = k;
+    st.metronomeCount = 0;
+  }
+}
+
 function consumePP(st, mv, foeSt){
   if (!st.pp || !mv || mv.struggle) return;
   const i = (st.moves || []).findIndex(m => m && m.name === mv.name);
@@ -6894,6 +6926,9 @@ function runTurn(){
     const def = sides[a.opp];
     // 行動枠の消費を記録(しっぺがえし=行動順ベース。ねむり等で不発でも枠は先に過ぎた扱い)
     atk.movedThisTurn = true;
+    // フォーカスレンズ(Zoom Lens)用: 相手より行動順が遅い(後攻=order[1])時に命中1.2倍(phaseHitCheckが読む)。
+    // 出典: items_database『相手より遅く攻撃したとき技の命中率が1.2倍になる』。従来 actedAfterTarget 未設定=死にコード。
+    atk.actedAfterTarget = (a === order[1]);
     if (atk.fainted) continue;   // ひんしスキップは無言(実機準拠=2026-07-11 阿部さん)
     // 交代した側はこのターンの行動を消費済み(技を出さない)
     if (atk.switchedThisTurn) continue;
@@ -6988,6 +7023,7 @@ function runTurn(){
     // 従来は失敗分岐(requires/failsByCondition/なげつける等)がconsumePP(末尾)に到達せず無限バトルの温床だった。
     // 置換前(ねごと/まねっこ)なので「呼び出した技自身」のPPを消費する(本家準拠)。オフラインAI戦/ロックステップ共通。
     if (!releasing && !atk.rampage) consumePP(atk, mv, def);
+    noteMoveUsed(atk, mv);   // ★技を実際に使った確定点(メトロノームの連続使用回数はここだけで進む)
     // ねこだまし/であいがしら: 場に出た最初のターン(turnsOut===0)以外は失敗
     if (isFirstTurnOnlyMove(mv) && atk.turnsOut > 0){
       log('0c', `${pname(atk)} の ${mv.name} は 場に出た最初のターンしか出せない！`); continue;
