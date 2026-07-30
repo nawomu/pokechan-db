@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- ★内部確認用: 検索に載せない(公開しないがURLを知っていれば見られる) -->
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>データ一覧(マスターデータ確認ページ)— PchamDB</title>
+<!-- ★このページは参照元1枚 pokedb.js だけを読む(pokechan_data*.js の直読み禁止) -->
+<script src="pokedb.js?v=20260729c"></script>
+<style>
+:root{--line:#d8dae0;--head:#eef0f5;--accent:#c33}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,"Hiragino Sans",sans-serif;background:#f6f7f9;color:#1c1e22;font-size:14px}
+header{background:#fff;border-bottom:3px solid var(--accent);padding:10px 16px;position:sticky;top:0;z-index:30}
+h1{margin:0;font-size:17px}
+.sub{color:#666;font-size:12px;margin-top:2px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
+.tab{border:1px solid var(--line);background:#fff;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:13px}
+.tab.on{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:bold}
+input[type=search]{border:1px solid var(--line);border-radius:6px;padding:5px 10px;min-width:220px;font-size:13px}
+select{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:13px}
+.count{color:#666;font-size:12px}
+.wrap{padding:12px 16px 60px}
+.scroll{overflow:auto;max-height:calc(100vh - 190px);border:1px solid var(--line);border-radius:8px;background:#fff}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;white-space:nowrap}
+th,td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:5px 9px;text-align:left}
+th{background:var(--head);position:sticky;top:0;z-index:10;cursor:pointer;user-select:none}
+th:hover{background:#e2e6ef}
+th .ar{color:#999;font-size:10px}
+tbody tr:nth-child(even){background:#fafbfc}
+tbody tr:hover{background:#fff6e6}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+td.wide{white-space:normal;min-width:280px;max-width:520px}
+.pill{display:inline-block;padding:1px 7px;border-radius:10px;background:#eee;font-size:11px;margin-right:3px}
+.warn{background:#fff3cd;color:#8a6d3b}
+.err{background:#f8d7da;color:#a4212f}
+.ok{background:#d4edda;color:#155724}
+/* ★見やすさ改善(2026-07-29) */
+td.sticky,th.sticky{position:sticky;left:0;background:#fff;z-index:5;box-shadow:2px 0 0 var(--line)}
+th.sticky{z-index:20;background:var(--head)}
+tbody tr:nth-child(even) td.sticky{background:#fafbfc}
+tbody tr:hover td.sticky{background:#fff6e6}
+.ty{display:inline-block;min-width:52px;text-align:center;border-radius:4px;padding:1px 6px;color:#fff;font-size:11px;font-weight:bold}
+.bar{position:relative;display:block;min-width:44px}
+.bar i{position:absolute;left:0;top:50%;transform:translateY(-50%);height:14px;background:#cfe3ff;border-radius:3px;z-index:0}
+.bar b{position:relative;z-index:1;font-weight:normal}
+.colpick{background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 10px;margin:8px 0;font-size:12px;display:none}
+.colpick.open{display:block}
+.colpick label{display:inline-block;margin:2px 10px 2px 0;white-space:nowrap;cursor:pointer}
+
+</style>
+</head>
+<body>
+<header>
+  <h1>データ一覧(マスターデータ確認ページ)</h1>
+  <div class="sub" id="src">読み込み中…</div>
+  <div class="bar">
+    <span class="tab on" data-t="pokemon">ポケモン</span>
+    <span class="tab" data-t="moves">技</span>
+    <span class="tab" data-t="abilities">特性</span>
+    <span class="tab" data-t="items">持ち物</span>
+    <span class="tab" data-t="learnsets">覚える技</span>
+    <input type="search" id="q" placeholder="名前などで絞り込み…">
+    <select id="ver">
+      <option value="champions">Champions版</option>
+      <option value="national">全国版(全部入り)</option>
+    </select>
+    <span class="tab" id="colbtn">列の表示 ▾</span>
+    <span class="count" id="cnt"></span>
+  </div>
+  <div class="colpick" id="colpick"></div>
+</header>
+<div class="wrap"><div class="scroll"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div>
+<p class="count" id="note"></p></div>
+
+<script>
+'use strict';
+// ── 表の定義(列は「マスターデータに何が入っているか」をそのまま見せる) ──
+const VIEWS = {
+  pokemon: {
+    label:'ポケモン',
+    rows: () => PokeDB.allPokemon(),
+    cols: [
+      {k:'no',t:'No.',num:1},{k:'name',t:'名前',sticky:1},{k:'form',t:'フォーム'},
+      {k:'type1',t:'タイプ1',type:1},{k:'type2',t:'タイプ2',type:1},
+      {k:'hp',t:'HP',num:1,bar:1},{k:'atk',t:'攻撃',num:1,bar:1},{k:'def',t:'防御',num:1,bar:1},
+      {k:'spatk',t:'特攻',num:1,bar:1},{k:'spdef',t:'特防',num:1,bar:1},{k:'spd',t:'素早',num:1,bar:1},{k:'total',t:'合計',num:1,bar:1},
+      {k:'ab1',t:'特性1'},{k:'ab2',t:'特性2'},{k:'ab3',t:'隠れ特性'},
+      {k:'weight_kg',t:'重さ',num:1},{k:'mega',t:'メガ'},{k:'gen',t:'世代'},{k:'legend',t:'伝説'},
+      {k:'_waza',t:'覚える技数',num:1,calc:p=>(PokeDB.learnset(p.name)||[]).length}
+    ]
+  },
+  moves: {
+    label:'技',
+    rows: () => Object.entries(PokeDB.allMoves()).map(([k,m])=>Object.assign({_key:k},m)),
+    cols: [
+      {k:'move_no',t:'No.',num:1},{k:'name',t:'技名',sticky:1},{k:'_key',t:'キー'},
+      {k:'type',t:'タイプ',type:1},{k:'category',t:'分類'},
+      {k:'power',t:'威力',num:1,bar:1},{k:'accuracy',t:'命中',num:1,bar:1},{k:'pp',t:'PP',num:1,bar:1},
+      {k:'_pri',t:'優先度',num:1,calc:m=>PokeDB.movePriority(m)},
+      {k:'target',t:'対象'},{k:'contact',t:'接触'},{k:'protect',t:'まもる'},
+      {k:'_fx',t:'効果数',num:1,calc:m=>((m.battle_data&&m.battle_data.effects)||[]).length},
+      {k:'description',t:'説明(うち)',wide:1},
+      {k:'description_legacy',t:'説明(参照用)',wide:1},
+      {k:'_learners',t:'覚える数',num:1,calc:m=>(m.learners||[]).length}
+    ]
+  },
+  abilities: {
+    label:'特性',
+    rows: () => { const d=PokeDB.allPokemon(); const use={};
+      d.forEach(p=>['ab1','ab2','ab3'].forEach(k=>{ if(p[k]) (use[p[k]]=use[p[k]]||[]).push(p.name); }));
+      const all=new Set([...Object.keys(use)]);
+      Object.keys(window.ABILITY_DESC||{}).forEach(n=>all.add(n));
+      return [...all].sort().map(n=>({name:n, desc:PokeDB.abilityDesc(n), users:(use[n]||[]).length, sample:(use[n]||[]).slice(0,4).join('、')}));
+    },
+    cols: [
+      {k:'name',t:'特性名',sticky:1},
+      {k:'users',t:'持つポケモン数',num:1},
+      {k:'sample',t:'例'},
+      {k:'desc',t:'説明',wide:1,badge:v=>v?'':'説明なし'}
+    ]
+  },
+  items: {
+    label:'持ち物',
+    rows: () => { const I=PokeDB.items(); if(!I) return [];
+      const out=[]; (function walk(o){ if(Array.isArray(o)) return o.forEach(walk);
+        if(o&&typeof o==='object'){ if(o.name && (o.effect||o.category||o.key)) out.push(o); Object.values(o).forEach(walk); } })(I);
+      const seen=new Set(); return out.filter(x=>{ const k=x.key||x.name; if(seen.has(k))return false; seen.add(k); return true; });
+    },
+    cols: [
+      {k:'name',t:'道具名',sticky:1},{k:'key',t:'キー'},{k:'category',t:'分類'},
+      {k:'implemented_in_pokechan',t:'実装済'},
+      {k:'applies_to',t:'対象'},{k:'effect',t:'効果',wide:1}
+    ]
+  },
+  learnsets: {
+    label:'覚える技',
+    rows: () => PokeDB.allPokemon().map(p=>{ const l=PokeDB.learnset(p.name)||[];
+      const mv=PokeDB.allMoves();
+      return {name:p.name, no:p.no, count:l.length, moves:l.map(k=>(mv[k]&&mv[k].name)||k).join('、')}; }),
+    cols: [
+      {k:'no',t:'No.',num:1},{k:'name',t:'ポケモン',sticky:1},
+      {k:'count',t:'技数',num:1,badge:v=>v?'':'★データ無し'},
+      {k:'moves',t:'覚える技',wide:1}
+    ]
+  }
+};
+
+// ★タイプの色(サイト共通のTYPE_COLORSを使う。無ければ既定色)
+const TC = (typeof TYPE_COLORS!=='undefined') ? TYPE_COLORS : {};
+const typeHtml = v => v ? `<span class="ty" style="background:${TC[v]||'#888'}">${v}</span>` : '';
+const STAT_MAX = {hp:255,atk:190,def:250,spatk:194,spdef:250,spd:200,total:800,power:250,accuracy:100,pp:64};
+const barHtml = (v,k) => { const m=STAT_MAX[k]||0, n=Number(v);
+  if(!m||!isFinite(n)) return v==null?'':String(v);
+  return `<span class="bar"><i style="width:${Math.max(2,Math.min(100,n/m*100)).toFixed(0)}%"></i><b>${n}</b></span>`; };
+
+let cur='pokemon', sortK=null, sortDir=1, cache={}, hidden={};
+const $=s=>document.querySelector(s);
+
+function rowsOf(v){ if(!cache[v]) { try{ cache[v]=VIEWS[v].rows()||[]; }catch(e){ cache[v]=[]; console.error(e); } } return cache[v]; }
+function val(r,c){ return c.calc? c.calc(r) : r[c.k]; }
+
+function render(){
+  const V=VIEWS[cur], q=($('#q').value||'').trim().toLowerCase();
+  let rows=rowsOf(cur);
+  if(q) rows=rows.filter(r=>V.cols.some(c=>String(val(r,c)??'').toLowerCase().includes(q)));
+  if(sortK){ const c=V.cols.find(x=>x.k===sortK);
+    rows=[...rows].sort((a,b)=>{ let x=val(a,c),y=val(b,c);
+      if(c.num){ x=Number(x)||-Infinity; y=Number(y)||-Infinity; return (x-y)*sortDir; }
+      return String(x??'').localeCompare(String(y??''),'ja')*sortDir; }); }
+  $('#th').innerHTML='<tr>'+V.cols.filter(c=>!hidden[cur+'.'+c.k]).map(c=>`<th data-k="${c.k}" class="${c.sticky?'sticky':''}">${c.t}<span class="ar">${sortK===c.k?(sortDir>0?' ▲':' ▼'):''}</span></th>`).join('')+'</tr>';
+  const cols=V.cols.filter(c=>!hidden[cur+'.'+c.k]);
+  const frag=rows.slice(0,3000).map(r=>'<tr>'+cols.map(c=>{
+    let v=val(r,c); if(v===true)v='○'; if(v===false)v='—'; if(v==null)v='';
+    const b=c.badge?c.badge(v):'';
+    const cls=(c.num?'num ':'')+(c.wide?'wide ':'')+(c.sticky?'sticky ':'');
+    let inner;
+    if(c.type) inner=typeHtml(v);
+    else if(c.bar) inner=barHtml(v,c.k);
+    else inner=String(v).replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]));
+    return `<td class="${cls}">${b?`<span class="pill ${b.includes('★')?'err':'warn'}">${b}</span>`:''}${inner}</td>`;
+  }).join('')+'</tr>').join('');
+  $('#tb').innerHTML=frag;
+  $('#cnt').textContent=`${rows.length} 件${rows.length>3000?'(先頭3000件を表示)':''}`;
+  $('#th').querySelectorAll('th').forEach(th=>th.onclick=()=>{ const k=th.dataset.k; if(sortK===k) sortDir*=-1; else {sortK=k; sortDir=1;} render(); });
+}
+
+function boot(){
+  const h=PokeDB.healthCheck();
+  $('#src').innerHTML=`参照元=<b>pokedb.js</b> → <code>${h.source}</code>(${PokeDB.label}) ／ ポケモン ${h.pokemon} ・ 技 ${h.moves} ・ 特性の説明 ${h.abilityDesc} ・ 覚える技データ ${h.learnsets}体分`;
+  $('#note').textContent='★このページは参照元1枚(pokedb.js)だけを読んでいます。データを直接読みません。列は「マスターデータに何が入っているか」をそのまま表示しています。';
+  $('#ver').value=PokeDB.mode;
+  render();
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on')); t.classList.add('on');
+  cur=t.dataset.t; sortK=null; sortDir=1; render();
+});
+$('#q').oninput=()=>render();
+$('#colbtn').onclick=()=>{ const el=$('#colpick'); el.classList.toggle('open');
+  if(el.classList.contains('open')){
+    el.innerHTML=VIEWS[cur].cols.map(c=>`<label><input type="checkbox" data-k="${c.k}" ${hidden[cur+'.'+c.k]?'':'checked'}> ${c.t}</label>`).join('');
+    el.querySelectorAll('input').forEach(i=>i.onchange=()=>{ hidden[cur+'.'+i.dataset.k]=!i.checked; render(); });
+  }};
+$('#ver').onchange=e=>{ const u=new URL(location.href); u.searchParams.set('data', e.target.value==='national'?'all':'champions'); location.href=u.toString(); };
+window.addEventListener('DOMContentLoaded', boot);
+</script>
+<script src="internal_home.js?v=20260729a"></script>
+</body>
+</html>

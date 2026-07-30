@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>設計: バトルPhase全体表(叩き台v1) — 2026-07-23</title>
+<style>
+  :root{
+    --bg:#f6f5f2; --panel:#ffffff; --ink:#22201c; --sub:#5c5850; --line:#e4e0d8;
+    --accent:#8a5a2c; --accent-ink:#ffffff;
+    --event-bg:#fff3d9; --event-line:#e0ac4a; --event-ink:#6b4a12;
+    --gap-bg:#fdecec; --gap-line:#e08a8a; --gap-ink:#7a2727;
+    --ok-bg:#e9f3e6; --ok-line:#8fbf7a; --ok-ink:#33591f;
+    --code-bg:#efece4; --head-bg:#2c2822; --head-ink:#f3ede0;
+    --group-a:#efe6d8; --group-b:#e6ecf0; --group-c:#eee0e6; --group-d:#e2ece2; --group-e:#f0e6ee;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1b1916; --panel:#232019; --ink:#ecE6da; --sub:#b8b0a2; --line:#3a352c;
+      --accent:#d8a15f; --accent-ink:#241c0f;
+      --event-bg:#3a2f14; --event-line:#c68a2e; --event-ink:#f0cf8f;
+      --gap-bg:#3a2020; --gap-line:#a84f4f; --gap-ink:#f0b8b8;
+      --ok-bg:#1f3319; --ok-line:#5c8f45; --ok-ink:#bfe0a8;
+      --code-bg:#2a251c; --head-bg:#141210; --head-ink:#efe6d4;
+      --group-a:#2c2618; --group-b:#1e2528; --group-c:#2a2024; --group-d:#1c2620; --group-e:#26202a;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#1b1916; --panel:#232019; --ink:#ecE6da; --sub:#b8b0a2; --line:#3a352c;
+    --accent:#d8a15f; --accent-ink:#241c0f;
+    --event-bg:#3a2f14; --event-line:#c68a2e; --event-ink:#f0cf8f;
+    --gap-bg:#3a2020; --gap-line:#a84f4f; --gap-ink:#f0b8b8;
+    --ok-bg:#1f3319; --ok-line:#5c8f45; --ok-ink:#bfe0a8;
+    --code-bg:#2a251c; --head-bg:#141210; --head-ink:#efe6d4;
+    --group-a:#2c2618; --group-b:#1e2528; --group-c:#2a2024; --group-d:#1c2620; --group-e:#26202a;
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f5f2; --panel:#ffffff; --ink:#22201c; --sub:#5c5850; --line:#e4e0d8;
+    --accent:#8a5a2c; --accent-ink:#ffffff;
+    --event-bg:#fff3d9; --event-line:#e0ac4a; --event-ink:#6b4a12;
+    --gap-bg:#fdecec; --gap-line:#e08a8a; --gap-ink:#7a2727;
+    --ok-bg:#e9f3e6; --ok-line:#8fbf7a; --ok-ink:#33591f;
+    --code-bg:#efece4; --head-bg:#2c2822; --head-ink:#f3ede0;
+    --group-a:#efe6d8; --group-b:#e6ecf0; --group-c:#eee0e6; --group-d:#e2ece2; --group-e:#f0e6ee;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    line-height:1.75; font-size:15px; padding:0 0 80px;
+  }
+  .wrap{ max-width:1400px; margin:0 auto; padding:28px 20px 40px; }
+  header.top{
+    background:var(--head-bg); color:var(--head-ink); padding:34px 20px 30px;
+    border-bottom:4px solid var(--accent);
+  }
+  header.top .inner{ max-width:1400px; margin:0 auto; }
+  header.top h1{ margin:0 0 6px; font-size:1.55rem; letter-spacing:.02em; }
+  header.top .meta{ font-size:.85rem; opacity:.8; margin-bottom:14px; }
+  .badge{
+    display:inline-block; background:var(--accent); color:var(--accent-ink);
+    font-size:.72rem; font-weight:700; padding:3px 10px; border-radius:999px; letter-spacing:.05em;
+    margin-right:8px;
+  }
+  .badge.warn{ background:#b23c3c; color:#fff; }
+  section.intro{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:20px 24px; margin:22px 0; box-shadow:0 1px 3px rgba(0,0,0,.06);
+  }
+  section.intro h2{ margin-top:0; font-size:1.1rem; }
+  section.intro p{ margin:.5em 0; color:var(--ink); }
+  section.intro ul{ margin:.4em 0 .8em 1.2em; padding:0; }
+  section.intro li{ margin:.3em 0; }
+  .callout{
+    border-left:4px solid var(--accent); background:var(--code-bg); padding:10px 14px;
+    border-radius:0 8px 8px 0; margin:.8em 0; font-size:.93rem;
+  }
+  code, .code{
+    font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    background:var(--code-bg); padding:1px 5px; border-radius:4px; font-size:.86em;
+  }
+  .fileref{ color:var(--sub); font-size:.85em; }
+  .legend{ display:flex; flex-wrap:wrap; gap:10px 18px; margin:12px 0 4px; font-size:.85rem; }
+  .legend .sw{ display:inline-flex; align-items:center; gap:6px; }
+  .legend .sw i{
+    display:inline-block; width:13px; height:13px; border-radius:3px; border:1px solid var(--line);
+  }
+  .sw.event i{ background:var(--event-bg); border-color:var(--event-line); }
+  .sw.gap i{ background:var(--gap-bg); border-color:var(--gap-line); }
+  .sw.ok i{ background:var(--ok-bg); border-color:var(--ok-line); }
+
+  .tablewrap{
+    overflow-x:auto; border:1px solid var(--line); border-radius:10px;
+    box-shadow:0 1px 4px rgba(0,0,0,.08); background:var(--panel);
+  }
+  table{ border-collapse:collapse; width:100%; min-width:1280px; font-size:.86rem; }
+  thead th{
+    position:sticky; top:0; z-index:5; background:var(--head-bg); color:var(--head-ink);
+    text-align:left; padding:10px 12px; font-size:.78rem; letter-spacing:.03em;
+    border-bottom:2px solid var(--accent); white-space:nowrap;
+  }
+  tbody td{
+    padding:12px 12px; border-bottom:1px solid var(--line); vertical-align:top;
+  }
+  tbody tr.group-a td{ background:var(--group-a); }
+  tbody tr.group-b td{ background:var(--group-b); }
+  tbody tr.group-c td{ background:var(--group-c); }
+  tbody tr.group-d td{ background:var(--group-d); }
+  tbody tr.group-e td{ background:var(--group-e); }
+  tbody tr:hover td{ filter:brightness(0.97); }
+  :root[data-theme="dark"] tbody tr:hover td{ filter:brightness(1.15); }
+  @media (prefers-color-scheme: dark){ tbody tr:hover td{ filter:brightness(1.15); } }
+
+  .rownum{ font-weight:700; color:var(--sub); font-size:.8rem; white-space:nowrap; }
+  .phasekey{ white-space:nowrap; }
+  .phasekey .k{ display:block; font-family:ui-monospace,monospace; font-weight:700; color:var(--accent); font-size:.92em; }
+  .phasekey .ja{ display:block; font-size:.85em; color:var(--sub); margin-top:2px; }
+  .desc{ min-width:230px; max-width:300px; }
+  .mech{ min-width:340px; max-width:460px; }
+  .mech .item{ margin:0 0 6px; padding-left:0; }
+  .mech b{ font-weight:700; }
+  .eventflag{
+    display:inline-block; font-size:.74rem; font-weight:700; padding:3px 9px; border-radius:6px;
+    white-space:nowrap;
+  }
+  .eventflag.yes{ background:var(--event-bg); color:var(--event-ink); border:1px solid var(--event-line); }
+  .eventflag.partial{ background:var(--event-bg); color:var(--event-ink); border:1px dashed var(--event-line); opacity:.85; }
+  .eventflag.no{ background:var(--code-bg); color:var(--sub); border:1px solid var(--line); }
+  .impl{ min-width:230px; max-width:320px; }
+  .impl code{ display:block; margin-bottom:3px; }
+  .oldphase{ min-width:150px; max-width:190px; font-size:.85em; color:var(--sub); }
+  .gapnote{
+    display:block; margin-top:6px; background:var(--gap-bg); color:var(--gap-ink);
+    border:1px solid var(--gap-line); border-radius:6px; padding:5px 8px; font-size:.82em;
+  }
+  .refnote{ font-size:.78em; color:var(--sub); margin-top:4px; }
+
+  section.tail{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:20px 24px; margin:26px 0; box-shadow:0 1px 3px rgba(0,0,0,.06);
+  }
+  section.tail h2{ margin-top:0; font-size:1.15rem; border-left:5px solid var(--accent); padding-left:10px; }
+  section.tail h3{ font-size:.98rem; margin:1.1em 0 .4em; }
+  section.tail ol, section.tail ul{ margin:.3em 0 .9em 1.3em; padding:0; }
+  section.tail li{ margin:.4em 0; }
+  .qa{
+    border:1px solid var(--gap-line); background:var(--gap-bg); color:var(--gap-ink);
+    border-radius:8px; padding:12px 16px; margin:.6em 0;
+  }
+  .qa b{ display:block; margin-bottom:3px; }
+  footer.note{ text-align:center; color:var(--sub); font-size:.78rem; margin-top:30px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="inner">
+    <span class="badge">叩き台 v1</span><span class="badge warn">阿部さんレビュー前提・未確定</span>
+    <h1>バトル1ターン Phase全体表 — 特性・持ち物・技効果を「発火フェーズ」で束ねる設計フレーム</h1>
+    <div class="meta">作成: 2026-07-23 JST / 対象: <code>real_battle_simulator.html</code>(現エンジン) / 元ネタ: CEDEC 2026 ゲーフリ講演(Section→Event→EventHandler) × 阿部さん正典フェーズ順 × 設計監査(<code>HANDOFF_SESSION_2026_07_23.md</code>)</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section class="intro">
+  <h2>この文書は何か</h2>
+  <p>
+    ポケモンバトル1ターンを、上から下へ時系列で「フェーズ」に分割し、各フェーズで<b>今どの特性/持ち物/技効果が発火しているか</b>を棚卸しした一覧表。
+    CEDEC 2026 でゲーフリが公開した設計思想「<b>Section(機能単位) → Event(名前つき介入点) → EventHandler(個別仕様)</b>」を、
+    このエンジンのデータに当てはめる第一歩として作成する。
+  </p>
+  <p>
+    技(わざ)の <code>battle_data.effects[].phase</code> は既に <code>on_use</code> / <code>lasting</code> / <code>this_turn</code> / <code>delayed</code> / <code>turn_end</code> の5値を持つが、
+    これは「フェーズが5種類しかない」という意味ではなく、<b>粗すぎて実際のsim内部フェーズ(優先度判定〜攻撃前〜攻撃〜攻撃後〜ターン終了の十数段)を表現しきれていない</b>という現状を表す。
+    さらに<b>特性(ABILITY_DESC 全件)・持ち物には phase キーという概念自体が無く</b>、全てエンジン(<code>real_battle_simulator.html</code>)内の <code>if (sideAbility(x)==='◯◯')</code> という特例分岐で発火している(58箇所以上、監査B参照)。
+  </p>
+  <p><b>完成条件</b>: 全ての特性・持ち物・技効果が、下表のような「どのフェーズで発火するか」というキーで機械的に分類できるようになったら、エンジンの <code>runTurn()</code> はフェーズを順に流すだけの<b>ディスパッチャ</b>になり、新しい特性/持ち物を足すたびにコードの複数箇所を手編集する現状(監査Dで指摘した再発バグの根本原因)が構造的に無くなる。</p>
+  <p><b>この文書の位置づけ = 第1段(フレーム)</b>。行=フェーズの叩き台と、各フェーズの代表例+分類ルールまで。<b>第2段(全数割り当て)</b> = 全特性(約170)・全持ち物(約100)・全技effects(490+445)を実際にこのフェーズキーへ1件ずつ割り振る作業は、このフレームが確定してから別作業とする。</p>
+  <div class="callout">
+    根拠の付け方: 本文中の記述はすべて <code>ファイル名:行番号</code> を実コード確認の上で付す。裏取りできていない/コードが実装として存在しない箇所は<b>「未確認」「未実装」</b>と明記し、理想像(阿部さんの正典)とコードの実態を混同しない。
+  </div>
+  <div class="legend">
+    <span class="sw event"><i></i> 介入点(Event) = 複数のHandlerが相乗りする合流点</span>
+    <span class="sw gap"><i></i> gap = 理想フレームと現実装の食い違い・未実装</span>
+    <span class="sw ok"><i></i> 相対的にうまく合流できている実装(参考)</span>
+  </div>
+</section>
+
+<section class="intro">
+  <h2>フェーズ表の読み方</h2>
+  <ul>
+    <li><b>#</b> = 上から下へ時系列。同じ番号台は同時に決着する処理群。</li>
+    <li><b>phaseキー名(案)</b> = 新しい細粒度語彙の候補。<b>これは案であり阿部さんが直す前提</b>(英字keyは他の場所で再利用しやすいよう仮に置いた名前)。</li>
+    <li><b>ここで発火する機構</b> = 代表例＋分類ルール(全数列挙ではない=第2段の仕事)。<b>判断が難しい/正典的に重要な機構は必ず具体的に列挙</b>(いかく・まけんき・ミラーアーマー・あまのじゃく・てんねん・もうか・リフレクター・さめはだ/ゴツメ/せいでんき/どくしゅ/ミイラ・じゃくてんほけん/だっしゅつパック/きのみ・天候メイカー・いたずらごころ・どくびし 等)。</li>
+    <li><b>介入点(Event)か</b> = そのフェーズが「反応(Handler)が相乗りする合流点」かどうか。◎/○=はい(CEDECのEvent相当)、△=部分的(合流点はあるがHandler登録制でなくif/elseベタ書き、または合流点が複数に分裂)、✗=いいえ(単発計算・Handlerの相乗りなし)。</li>
+    <li><b>現エンジンの実装箇所</b> = 今その処理をやっている関数と行番号(2026-07-23時点の <code>real_battle_simulator.html</code>)。</li>
+    <li><b>現状phaseキー対応</b> = 技effectsの5値(on_use/lasting/this_turn/delayed/turn_end)がこの細かいフェーズのどこに相当するか。特性・持ち物にはそもそもこの5値すら無いので「該当なし(gap)」と明記する。</li>
+  </ul>
+</section>
+
+<div class="tablewrap">
+<table>
+<thead>
+<tr>
+  <th>#</th>
+  <th>phaseキー名(案)</th>
+  <th>説明</th>
+  <th>ここで発火する 特性 / 持ち物 / 技効果</th>
+  <th>介入点(Event)か</th>
+  <th>現エンジンの実装箇所</th>
+  <th>現状phaseキー対応</th>
+</tr>
+</thead>
+<tbody>
+
+<tr class="group-a">
+  <td class="rownum">0<br><span class="refnote">参考</span></td>
+  <td class="phasekey"><span class="k">switch_action</span><span class="ja">交代・道具・にげる</span></td>
+  <td class="desc">
+    技より必ず先に処理される。両者が交代を選んだ時はすばやさが速い方から(トリックルームで逆)。
+    <span class="refnote">★阿部さんの正典リスト本文には明記されていないが、実機リファレンス・現エンジン双方がここを最初の段としているため参考行として補完。</span>
+  </td>
+  <td class="mech">
+    <div class="item">交代そのものに発火する特性は無いが、交代直後に<b>設置技</b>(ステルスロック/まきびし/<b>どくびし</b>/ねばねばネット)が着弾し、続けて登場特性(下記switch_in_raceへ連続)。</div>
+    <div class="item">あつぞこブーツは設置技の被弾自体を無効化(自分の特性ではなく持ち物)。</div>
+  </td>
+  <td><span class="eventflag partial">△</span> 交代順決定はすばやさ比較のみ。直後の設置技適用は合流点(applyEntryHazards)だが4種決め打ちif分岐。</td>
+  <td class="impl">
+    <code>runTurn() 6690-6704</code>(交代順決定)<br>
+    <code>attemptSwitch() 6208-6293</code><br>
+    <code>applyEntryHazards() 6138-6180</code>(設置技本体)
+  </td>
+  <td class="oldphase">対応なし。設置技=lasting(設置状態が続く)相当だが、踏んだ時の発動はapplyEntryHazardsの専用ロジックでeffects[].phaseを読まない。</td>
+</tr>
+
+<tr class="group-a">
+  <td class="rownum">1</td>
+  <td class="phasekey"><span class="k">speed_order</span><span class="ja">すばやさ判定</span></td>
+  <td class="desc">両者の実効すばやさ(ランク・状態異常まひ・持ち物・天候特性込み)を比較。どちらが速いかを1つの関数で確定し、優先度が同じ時の行動順決定・スピード合戦(次段)双方の土台になる。</td>
+  <td class="mech">
+    <div class="item">まひ×0.5(<b>はやあし</b>で無効)/ <b>こだわりスカーフ</b>×1.5 / くろいてっきゅう×0.5 / <b>おいかぜ</b>×2</div>
+    <div class="item">天候すばやさ特性: <b>すいすい</b>(あめ)・<b>ようりょくそ</b>(晴れ)・<b>すなかき</b>(砂)・<b>ゆきかき</b>(雪) 各×2</div>
+    <div class="item"><b>かるわざ</b>(道具喪失後×2)</div>
+  </td>
+  <td><span class="eventflag partial">△</span> 複数Handlerの合成だが1関数内if連打(Handler登録制ではない)。</td>
+  <td class="impl"><code>effectiveSpeed() 2288-2303</code></td>
+  <td class="oldphase">対応なし(技effectsの5値の管轄外。すばやさ変化技自体はkind='能力ランク変化'でon_use扱い)。</td>
+</tr>
+
+<tr class="group-a">
+  <td class="rownum">2</td>
+  <td class="phasekey"><span class="k">mega_evolve</span><span class="ja">スピード合戦①メガシンカ</span></td>
+  <td class="desc">交代の後・技フェーズの直前でメガシンカ/フォルムチェンジ。阿部さん正典は「<b>速い順に</b>メガシンカ→登場特性→天候/フィールド」。</td>
+  <td class="mech">
+    <div class="item">メガストーン系持ち物(<code>mega_stone_any</code> 等)が種族値・タイプ・特性をメガフォームへ切替。</div>
+  </td>
+  <td><span class="eventflag no">✗</span> ただのforEach。Handler合流点になっていない。</td>
+  <td class="impl"><code>runTurn():6706</code> <code>['self','opp'].forEach(...)</code><br><code>megaEvolve() 6377-</code></td>
+  <td class="oldphase">対応なし。</td>
+</tr>
+<tr class="group-a">
+  <td class="rownum"></td>
+  <td></td>
+  <td colspan="5">
+    <div class="gapnote">
+      <b>gap</b>: 現在の実装は <code>['self','opp'].forEach(...)</code> という<b>固定順</b>(6706行)で、速度順になっていない。
+      阿部さん原文「速い順にメガシンカ→登場特性発動→天候/フィールド設定」との食い違い。両者が同ターンにメガシンカする状況(1vs1では稀だが将来のダブル対応で顕在化しうる)で結果が変わりうる。
+    </div>
+  </td>
+</tr>
+
+<tr class="group-a">
+  <td class="rownum">3</td>
+  <td class="phasekey"><span class="k">entry_ability</span><span class="ja">スピード合戦②登場特性発動</span></td>
+  <td class="desc">場に出た瞬間、速度順で発動する特性群。バトル開始時(<code>phaseInitA</code>)・ターン中の交代(<code>attemptSwitch</code>)・メガシンカ直後(段127コメント)の3経路すべてから<code>fireEntryAbility()</code>を呼ぶ形に統合済み(2026-07-18)。</td>
+  <td class="mech">
+    <div class="item"><b>いかく</b>: <code>applyRankStageGuarded()</code>(下段11参照)経由で相手の攻撃-1(H2〜H4修正で共有パイプ化=あまのじゃく/ミラーアーマー/まけんき/かちきが反応する)。どんかん持ちは無効。</div>
+    <div class="item">天候セット系: <b>ひでり/あめふらし/すなおこし/ゆきふらし</b>(=次項「天候/フィールド設定」は現engineでは<b>このif/elseチェーンに統合済み</b>で独立段になっていない)</div>
+    <div class="item">フィールドセット系: <b>エレキ/グラス/ミスト/サイコメイカー</b></div>
+    <div class="item">その他: かたやぶり系(宣言ログ)/<b>プレッシャー</b>/<b>トレース</b>/かわりもの/おみとおし/イリュージョン/ブーストエナジー(こだいかっせい・クォークチャージ)/てんきや同期</div>
+  </td>
+  <td><span class="eventflag yes">○</span> <code>fireEntryAbility()</code>という1関数に全登場系特性が集約済み(=合流点として機能)。ただし内部はif/elseチェーンでHandler登録制ではない。</td>
+  <td class="impl"><code>phaseInitA() 2436-2446</code>(速度順ループ)<br><code>fireEntryAbility() 2449-2540</code></td>
+  <td class="oldphase">対応なし(特性にphaseキー自体が無い=これがgapの本体)。</td>
+</tr>
+<tr class="group-a">
+  <td class="rownum"></td>
+  <td></td>
+  <td colspan="5">
+    <div class="gapnote">
+      <b>gap</b>: 阿部さん正典は「登場特性発動」「天候/フィールド設定」を<b>別の2ステップ</b>として書いているが、現engineの <code>fireEntryAbility()</code> は<b>1つのif/elseチェーン</b>の中で両方を同時に処理しており、独立したフェーズになっていない。<br>
+      2つに分けるべきか(=天候セット系だけ別Eventに切り出す)は<b>設計判断が必要</b>(下記「阿部さんに確認したい点」参照)。
+    </div>
+  </td>
+</tr>
+
+<tr class="group-b">
+  <td class="rownum">4</td>
+  <td class="phasekey"><span class="k">priority_sort</span><span class="ja">優先度判定</span></td>
+  <td class="desc">技の優先度ブラケット(+5〜-7)→同ブラケット内の割込み(せんせいのツメ)→補正込みすばやさ(トリックルームで逆転)→同速乱数、で行動順を確定する。</td>
+  <td class="mech">
+    <div class="item"><b>いたずらごころ</b>: 変化技の優先度+1(あく無効はpre_attack段で別途判定)</div>
+    <div class="item"><b>はやてのつばさ</b>: HP満タン時ひこう技+1</div>
+    <div class="item">条件付き優先度(グラススライダー等): データ宣言 <code>条件付き優先</code></div>
+    <div class="item"><b>せんせいのツメ</b>(持ち物): 同優先度内20%先制</div>
+  </td>
+  <td><span class="eventflag partial">△</span> movePriority()自体が特性ボーナスを合流させる小さな合流点。ただし実機リファレンスが言う「あとだし」「こうこうのしっぽ」「まんぷくおこう」(後攻系割り込み)は<b>未実装</b>(該当コードなし=grep確認済み)。</td>
+  <td class="impl"><code>movePriority() 2267-2285</code><br><code>decideOrder() 2312-2336</code></td>
+  <td class="oldphase"><code>battle_data.priority</code>という別フィールド(effectsの5値phaseとは独立次元)。</td>
+</tr>
+
+<tr class="group-b">
+  <td class="rownum">5</td>
+  <td class="phasekey"><span class="k">pre_attack</span><span class="ja">攻撃前の準備</span></td>
+  <td class="desc">行動可否判定(ねむり/まひ/こおり/ひるみ/こんらん/メロメロ/交代直後/反動待ち)→PP消費→使用条件(<code>requires</code>)判定→命中判定→まもる宣言・まもり貫通判定まで、ダメージ計算に入る<b>直前まで全部</b>。</td>
+  <td class="mech">
+    <div class="item">使用条件: <b>いびき/ねごと</b>(requires self_status=ねむり)/オーロラベール(requires weather)</div>
+    <div class="item">封じ系: <b>ちょうはつ・とつげきチョッキ</b>(変化技封じ)/かなしばり・いちゃもん(技封じ)/デカハンマー(次ターン使用不可)</div>
+    <div class="item">構え系: <b>まもる系・こらえる</b>(連続成功率減衰)/マジックミラー・よこどり(変化技を跳ね返しその場でcontinue)</div>
+    <div class="item">命中判定: 命中率×回避率、必中(<code>ignores</code>で回避率上昇/命中率低下を無視)・半無敵判定</div>
+  </td>
+  <td><span class="eventflag partial">△</span> 巨大なif/elseの連続(runTurn本体に約400行ベタ書き)。名前つき単一Eventではなく多数の早期return。監査Bが指摘する「特例if/else散在58箇所」の密度が最も高い区間。</td>
+  <td class="impl"><code>runTurn() 6738-7115</code>(行動可否〜構え判定)<br><code>phaseHitCheck() 2543-2657</code>(命中判定)</td>
+  <td class="oldphase">technically該当なしだが、技effectsの<code>requires</code>/<code>fails_if</code>/kind=<code>まもり</code>/<code>こらえる</code>/<code>使用者限定</code>等、<b>phaseとは別の複数フィールド</b>をここでエンジンが個別に読む(=事実上のミニphase体系だがキー名"phase"ではない)。</td>
+</tr>
+
+<tr class="group-c">
+  <td class="rownum">6</td>
+  <td class="phasekey"><span class="k">atk_calc</span><span class="ja">攻撃側の計算</span></td>
+  <td class="desc">攻撃側の素のステータス+ランク取得(急所時はマイナスランク無視)。技の威力補正(天候/フィールド/条件威力13種)は<code>calcDamage()</code>冒頭で威力へ織り込み済み(=このフェーズより前に完了)。</td>
+  <td class="mech">
+    <div class="item">別能力参照: <b>ボディプレス</b>(自分の防御を攻撃力に)/<b>イカサマ</b>(相手の攻撃を参照)</div>
+    <div class="item"><b>てんねん</b>(受け側): 攻撃側の攻撃ランクを無視させる=ここでignoreRankとして働く</div>
+  </td>
+  <td><span class="eventflag no">✗</span> 単発の数値取得(rankedStat呼び出し1行)。</td>
+  <td class="impl"><code>calcDamage(): rankedStat(atk,...) 1758-1761</code><br>威力補正ブロック全体 <code>1476-1710</code></td>
+  <td class="oldphase">対応なし(sim内部計算)。</td>
+</tr>
+
+<tr class="group-c">
+  <td class="rownum">7</td>
+  <td class="phasekey"><span class="k">atk_modify</span><span class="ja">攻撃力補正(介入点)</span></td>
+  <td class="desc">攻撃側の実数値・威力にかかる特性/持ち物の倍率をすべて合流させたい場所。<b>現engineでは実は2箇所に分裂している</b>: ①実数値倍率(base計算式に入る<b>前</b>) ②威力倍率chips(base計算式の<b>後</b>)。</td>
+  <td class="mech">
+    <div class="item">①実数値倍率: <b>ちからもち/ヨガパワー</b>(物理×2)/<b>はりきり</b>(物理×1.5)/<b>こんじょう</b>(状態異常時物理×1.5)/こだわりハチマキ・メガネ(×1.5)</div>
+    <div class="item">②威力chips: <b>てつのこぶし</b>(パンチ×1.2)/<b>ちからずく</b>(追加効果と排他で×1.3)/<b>テクニシャン</b>(威力60以下×1.5)/<b>もらいび</b>(発動後の炎技×1.5)/<b>すてみ</b>(反動技×1.2)/持ち物: いのちのたま×1.3・たつじんのおび(効果バツグン時×1.2)・ちからのハチマキ/ものしりメガネ/パンチグローブ×1.1</div>
+  </td>
+  <td><span class="eventflag partial">△</span> ○のはずが<b>2分裂</b>(gap)。</td>
+  <td class="impl">
+    ①<code>calcDamage(): 1765-1790</code>(ステ乗算)<br>
+    ②<code>calcDamage(): 1863-1963</code>("3.7 攻撃側特性補正")+<code>1985-2023</code>(3.8/3.9 持ち物)+<code>2063-2086</code>(8.3-8.4c いのちのたま等・乱数後)
+  </td>
+  <td class="oldphase">対応なし(特性の倍率値はエンジンにハードコード=そもそもデータが存在しない)。</td>
+</tr>
+<tr class="group-c">
+  <td class="rownum"></td><td></td>
+  <td colspan="5"><div class="gapnote"><b>gap</b>: 「攻撃力補正」という1つのEventであるべき処理が、コード上は<b>3箇所(1765-1790 / 1863-1963 / 1985-2086)</b>に分裂している。新しい攻撃補正特性を1つ足すたびに「base計算前か後か」を毎回判断してどこかに挿入する必要があり、監査Dの「新機能ごとに全呼び出し箇所を手編集→漏れる」構造がここにも当てはまる。</div></td>
+</tr>
+
+<tr class="group-c">
+  <td class="rownum">8</td>
+  <td class="phasekey"><span class="k">def_calc</span><span class="ja">防御側の計算</span></td>
+  <td class="desc">防御側の素のステータス+ランク取得(急所時はプラスランク無視)。</td>
+  <td class="mech">
+    <div class="item"><b>てんねん</b>(攻撃側が持つ場合): 受け側の防御ランクを無視させる</div>
+    <div class="item">ランク無視宣言(せいなるつるぎ等): データ宣言 <code>ランク無視</code></div>
+  </td>
+  <td><span class="eventflag no">✗</span> 単発の数値取得。</td>
+  <td class="impl"><code>calcDamage(): rankedStat(def,...) 1761</code></td>
+  <td class="oldphase">対応なし。</td>
+</tr>
+
+<tr class="group-c">
+  <td class="rownum">9</td>
+  <td class="phasekey"><span class="k">def_modify</span><span class="ja">防御力補正(介入点)</span></td>
+  <td class="desc">防御側の実数値・ダメージ倍率にかかる特性/持ち物。こちらも atk_modify と同じ理由で<b>2分裂</b>(実数値倍率=base計算前 / ダメージ倍率chips=base計算後)。</td>
+  <td class="mech">
+    <div class="item">①実数値倍率: <b>とつげきチョッキ</b>(特殊被弾時特防×1.5)/<b>しんかのきせき</b>(進化前ポケモンの防御・特防×1.5)</div>
+    <div class="item">②ダメージ倍率chips: <b>フィルター/ハードロック</b>(効果バツグン×0.75)/<b>マルチスケイル</b>(HP満タン×0.5)/<b>ファーコート</b>(物理×0.5)/壁: リフレクター・ひかりのかべ・オーロラベール/半減きのみ</div>
+    <div class="item"><b>かたやぶり系</b>: <code>defAbilityVs()</code>が防御側特性名を空文字にすり替えることで、def_modify全体をまとめて無効化する(=calcDamage全域で再利用される共通化ポイント。相対的にうまく合流できている例)。</div>
+  </td>
+  <td><span class="eventflag partial">△</span> 上と同じ理由で分裂。ただし<b>かたやぶりの無効化だけは1箇所(defAbilityVs)に共通化</b>できており局所的な成功例(<span class="sw ok"><i></i></span>)。</td>
+  <td class="impl">
+    ①<code>calcDamage(): 1792-1817</code>(ステ乗算)<br>
+    ②<code>1964-1983</code>("3.75 防御側特性補正")+<code>2049-2062</code>(7 壁)+<code>2093-2106</code>(8.5 半減きのみ)<br>
+    <code>defAbilityVs() 3448-3452</code>(かたやぶり共通化)
+  </td>
+  <td class="oldphase">対応なし。</td>
+</tr>
+
+<tr class="group-c">
+  <td class="rownum">10</td>
+  <td class="phasekey"><span class="k">deal_damage</span><span class="ja">実ダメージ算出・適用</span></td>
+  <td class="desc">16通り乱数→STAB→タイプ相性→その他(いのちのたま等)を経て最終ダメージを算出し、対象のHPへ適用。みがわり/こらえる/がんじょう/タスキの耐え処理を含む。急所判定(確率制)・連続攻撃(ふくろだたき等)もここ。</td>
+  <td class="mech">
+    <div class="item">耐え系: <b>がんじょう</b>(HP満タン時1で耐え)/<b>きあいのタスキ</b>/こらえる/<b>ばけのかわ</b>(初撃無効)</div>
+    <div class="item"><b>シェルアーマー</b>(急所無効)/<b>スナイパー</b>(急所2.25倍)</div>
+    <div class="item">固定・一撃技: がんじょう無効化・みがわり分身での代理被弾</div>
+  </td>
+  <td><span class="eventflag partial">△</span> HP減算そのものはEventでない(単発計算)が、この直後(post_hit_react)への<b>明確な合流の起点</b>になっている。</td>
+  <td class="impl">
+    <code>calcDamage(): 2024-2106</code>(乱数〜補正)<br>
+    <code>phaseDealDamage() 2696-3040</code>(HP減算・タスキ/こらえる/みがわり判定・ひんし判定)
+  </td>
+  <td class="oldphase">対応なし(数値計算自体はkindと独立)。</td>
+</tr>
+
+<tr class="group-d">
+  <td class="rownum">11</td>
+  <td class="phasekey"><span class="k">post_hit_react</span><span class="ja">被弾後の反応(介入点・最重要)</span></td>
+  <td class="desc">被弾直後、ダメージが実際に入った(<code>total&gt;0</code>)ことを条件に連鎖する反応群。接触判定(<code>move.contact</code>)の有無で発動対象が変わる。<b>これがCEDECの「被接触リアクションHandler」相当そのもの</b>。</td>
+  <td class="mech">
+    <div class="item">接触反応(受け側): <b>せいでんき/ほのおのからだ</b>(30%状態異常)/<b>さめはだ/てつのトゲ</b>(1/8反動、連続技はヒット毎)/<b>ゴツゴツメット</b>(1/6反動、値はatk_calc段で先に算出)/<b>ミイラ</b>(特性書き換え)/メロメロボディ(30%メロメロ)/<b>くだけるよろい</b>(物理被弾でぼうぎょ-1すばやさ+2)</div>
+    <div class="item">接触反応(攻撃側起点): <b>どくしゅ</b>(接触命中で30%どく付与)/かいがらのすず(与ダメ1/8回復)/おうじゃのしるし・あくしゅう(10%ひるみ)</div>
+    <div class="item">非接触も対象: <b>でんきにかえる</b>(被弾でじゅうでん)/のろわれボディ(30%かなしばり)/<b>いかりのつぼ</b>(急所被弾で攻撃MAX)/<b>せいぎのこころ</b>(あく技被弾で攻撃+1)/<b>じゃくてんほけん</b>(効果バツグン被弾で攻撃・特攻+2)/半減きのみ/ふうせん破裂/イリュージョン解除</div>
+  </td>
+  <td><span class="eventflag yes">◎/△</span> 概念としては◎(CEDEC「被接触Handler」の完全な該当例)。だが実装は名前つきHandler登録ではなく、<b>1関数内の連続if文</b>(3049-3234)に手書き集約=△。</td>
+  <td class="impl">
+    <code>phaseDealDamage() 3040-3234</code>(接触反応本体は<code>3076-3142</code>)<br>
+    ゴツゴツメット反動の<b>値算出</b>は<code>calcDamage(): 2132-2145</code>(atk_calc段で先に計算し、ここで初めてHPへ適用=2箇所分裂)<br>
+    だっしゅつパック消費判定は<code>resolveEjectPack() 3547-</code>(runTurn内で技実行後にまとめて<b>6箇所</b>ハードコード呼び出し=監査C参照)
+  </td>
+  <td class="oldphase">対応なし。特性/持ち物データに「このトリガーで発火する」という宣言を持たせる構造が無く、全部エンジンのif文で「この特性名なら」と直書きされている(=これがgapの中心)。</td>
+</tr>
+
+<tr class="group-d">
+  <td class="rownum">12</td>
+  <td class="phasekey"><span class="k">stat_stage</span><span class="ja">ランク変化とそれに連なる反応(介入点)</span></td>
+  <td class="desc">
+    能力ランク変化そのものの適用と、それに連なる反応(あまのじゃく反転→ミラーアーマー跳ね返し→クリアボディ/しろいけむり/しろいきり/はとむね/クリアチャーム無効化→かちき/まけんき反撃→ものまねハーブ便乗)。
+    <b>post_hit_reactからも(じゃくてんほけん等)、secondary_effectからも(つるぎのまい等)、entry_abilityからも(いかく)呼ばれる横断的な共有パイプライン</b>=時系列上は特定の1段ではなく、あらゆるフェーズから呼ばれるEvent。
+  </td>
+  <td class="mech">
+    <div class="item"><b>あまのじゃく</b>: 符号反転</div>
+    <div class="item"><b>ミラーアーマー</b>: 相手起因の低下を発生源へ跳ね返す(自己再帰呼び出し)</div>
+    <div class="item"><b>クリアボディ/しろいけむり/はとむね/クリアチャーム</b>: 相手起因の低下を無効化</div>
+    <div class="item">しろいきり(場効果): 相手起因の低下を場全体で防ぐ</div>
+    <div class="item"><b>かちき/まけんき</b>: 敵に下げられたら代わりに特攻/攻撃+2</div>
+    <div class="item">ものまねハーブ(持ち物): 相手の上昇を見て自分も便乗上昇(再帰呼び出し・二重発動防止フラグつき)</div>
+  </td>
+  <td><span class="eventflag yes">◎</span> <b>唯一の本物のEvent+Handler相当</b>。監査Eが増分リファクタの最初の一歩として名指しした場所。</td>
+  <td class="impl">
+    <code>applyRankStageGuarded() 3467-3541</code><br>
+    呼び出し元7箇所: いかく<code>2465</code> / じゃくてんほけん<code>3068,3071</code> / ミラーアーマー再帰<code>3477</code> / ものまねハーブ再帰<code>3532</code> / のどスプレー<code>3577</code> / 技の能力ランク変化kind<code>4445</code>
+  </td>
+  <td class="oldphase">技effectsのkind='能力ランク変化'がon_use/lasting扱いで呼ぶ。特性(いかく等)はphaseキー概念自体が無いが、<b>この関数だけが特性と技を同じ合流点に集約できている稀な成功例</b>。</td>
+</tr>
+
+<tr class="group-e">
+  <td class="rownum">13</td>
+  <td class="phasekey"><span class="k">secondary_effect</span><span class="ja">攻撃後の追加効果</span></td>
+  <td class="desc">攻撃が当たった後(<code>dmgRes &amp;&amp; !immune &amp;&amp; !fainted</code>)に発動する追加効果本体。技effectsのkind群(状態付与/能力ランク変化/やどりぎ/なげつける/ひるみ 等)を総なめする巨大switch。<b>ちからずく</b>時は丸ごとスキップ。</td>
+  <td class="mech">
+    <div class="item">状態異常付与(おにび等)/ひるみ付与/反動(すてみタックル)/HP吸収(ドレイン)/やどりぎ設置/能力ランク変化(stat_stageへ委譲)/場操作/なげつける道具消費</div>
+    <div class="item">変化技でも状態付与だけは実行(<code>phaseApplyEffects</code>を変化技用にも呼ぶ)</div>
+    <div class="item">タイプ吸収特性(ちょすい/ちくでん/もらいび/そうしょく/ひらいしん/でんきエンジン/かんそうはだ): 変化技の状態異常/能力ランク宣言も吸収</div>
+  </td>
+  <td><span class="eventflag partial">△</span> 関数自体は合流点(全effects kindがここを通る)だが、中身は<b>kindごとのif/else連打</b>で1300行超=Handler登録制ではない。</td>
+  <td class="impl">
+    <code>phaseApplyEffects() 3793-5109</code>(約1300行)<br>
+    呼び出し: 変化技<code>runTurn():7107</code> / 通常攻撃<code>7118</code> / マジックミラー・よこどり(攻守反転呼び出し)<code>7014, 7029</code>
+  </td>
+  <td class="oldphase"><b>これが技effectsのon_use/this_turn相当の主戦場</b>。ただし特性側の割り込み(どんかん/めんえき等の状態異常免疫)は各kindの中に個別実装されており、stat_stageのような共通合流点になっていない箇所が混在する。</td>
+</tr>
+<tr class="group-e">
+  <td class="rownum"></td><td></td>
+  <td colspan="5"><div class="gapnote"><b>gap</b>: <code>phaseApplyEffects()</code> は1300行超の単一関数で、40種類以上のkindをif/elseで振り分けている。これ自体が「Section」の内部にさらに大量の「隠れEvent」を抱えた状態で、CEDEC的には各kindごとに独立したHandler登録に切り出す余地が最も大きい箇所。</div></td>
+</tr>
+
+<tr class="group-e">
+  <td class="rownum">14</td>
+  <td class="phasekey"><span class="k">end_of_turn_slip</span><span class="ja">ターン終了①状態異常/バインドのスリップ</span></td>
+  <td class="desc">ターン終了時の状態異常/バインド系スリップダメージ(やけど1/16・どく1/8・もうどくカウンタ式・すなあらし1/16・しおづけ/やどりぎ/のろい等の<code>slips</code>配列)。ポイズンヒール/マジックガードで打ち消し。</td>
+  <td class="mech">
+    <div class="item"><b>ポイズンヒール</b>: どく/もうどくダメージ無効化+1/8回復に反転</div>
+    <div class="item"><b>マジックガード</b>: 間接ダメージ全般(状態異常/砂嵐/バインド/やどりぎ)を無効化。<b>状態異常の付与自体は防がない</b>(発症はするがスリップ0)</div>
+    <div class="item">砂嵐免除: いわ/じめん/はがねタイプ、<b>すなかき/すなのちから/すながくれ/ぼうじん</b></div>
+    <div class="item"><b>ヘドロえき</b>: やどりぎ等の吸収を反転させ吸い取る側にダメージ</div>
+    <div class="item"><b>おおきなねっこ</b>(持ち物): やどりぎ等の吸収量1.3倍</div>
+  </td>
+  <td><span class="eventflag partial">△</span> 1関数(<code>phaseSlipFor</code>)に集約されているが呼び出し順が<b>self→opp固定</b>(監査Dのgap=下記参照)。</td>
+  <td class="impl">
+    <code>phaseSlipFor() 5109-5202</code><br>
+    <code>phaseEndOfTurnSlip() 5204-5206</code>
+  </td>
+  <td class="oldphase"><code>turn_end</code>(5値のうち最少数)。</td>
+</tr>
+<tr class="group-e">
+  <td class="rownum"></td><td></td>
+  <td colspan="5"><div class="gapnote"><b>gap</b>: <code>phaseEndOfTurnSlip()</code>は<code>for (const s of ['self','opp'])</code>という<b>固定順</b>で呼ばれる(5204-5206)。実機リファレンス「バトルの流れ_実機リファレンス.md §5」は「同一カテゴリ内は素早い方から先(トリックルームの影響を受ける)」と明記しており不一致。<code>canonSides()</code>(オンライン対戦用の正準順ヘルパー、2311行)は存在するが、ここでは使われていない。</div></td>
+</tr>
+
+<tr class="group-e">
+  <td class="rownum">15</td>
+  <td class="phasekey"><span class="k">end_of_turn_field</span><span class="ja">ターン終了②場・個体の残留カウント/回復</span></td>
+  <td class="desc">天候/フィールド/壁/トリックルーム/じゅうりょく/部屋系/フェアリーロックのカウントダウンと失効ログ、遅延状態(あくび)の発症、みらいよちの着弾、グラスフィールド回復、瀕死交代、itemReactions()二度目呼び出し(きのみ)。</td>
+  <td class="mech">
+    <div class="item">回復系持ち物: <b>たべのこし</b>(1/16)/<b>くろいヘドロ</b>(どく1/16回復・非どく1/8ダメージ)</div>
+    <div class="item">状態系持ち物: かえんだま(やけど付与)/どくどくだま(もうどく付与)</div>
+    <div class="item">特性: <b>しゅうかく</b>(消費きのみ復活)/<b>かそく</b>(すばやさ+1)/<b>かんそうはだ</b>(あめ回復/晴れダメージ)/<b>サンパワー</b>(晴れダメージ)/<b>アイスボディ</b>(雪回復)/<b>ムラっけ</b>(ランダム+2/-1)</div>
+    <div class="item">場効果カウント: 天候/フィールド/リフレクター等の壁/トリックルーム/じゅうりょく/ワンダー・マジックルーム/フェアリーロック</div>
+    <div class="item">遅延: <b>あくび</b>の眠り移行(さわぐ中は不発・ふみん等で無効)/<b>みらいよち</b>の着弾(このタイミングでダメージ計算を再実行)</div>
+    <div class="item">終端: 瀕死交代(死に出し)</div>
+  </td>
+  <td><span class="eventflag partial">△</span> 巨大な<code>for (const s of ['self','opp'])</code>ループ(<code>runTurn():7245-7533</code>付近)に数十個のif文が直列に並ぶ。合流点はあるがHandler登録制ではなく、1つの持ち物/特性ごとに1つのifブロックを人力で挿入する運用。</td>
+  <td class="impl">
+    <code>runTurn() 7140-7533</code>(天候/フィールド/壁カウント〜瀕死交代)<br>
+    代表行: しゅうかく<code>7335</code> / たべのこし<code>7441</code> / くろいヘドロ<code>7483</code> / みらいよち着弾<code>7508-7532</code> / 瀕死交代<code>7540-7553</code>
+  </td>
+  <td class="oldphase"><code>turn_end</code>/<code>delayed</code>混在。</td>
+</tr>
+<tr class="group-e">
+  <td class="rownum"></td><td></td>
+  <td colspan="5"><div class="gapnote">
+    <b>訂正メモ(旧ドキュメントの陳腐化)</b>: <code>バトルの流れ_実機リファレンス.md</code>(2026-06-08作成)は「しゅうかく/たべのこし/くろいヘドロ=未実装」としているが、<b>2026-07-23時点では実装済み</b>(上記行番号)。設計ドキュメントはエンジンの進化に追従していないことがあるため、実装状況は<b>常にコード実測を優先</b>する(このリファレンスも今後同様に陳腐化しうる=読む側の注意点として明記)。
+  </div></td>
+</tr>
+
+</tbody>
+</table>
+</div>
+
+<section class="tail">
+  <h2>gap要約(1行で)</h2>
+  <ul>
+    <li><b>技(わざ)</b>: <code>effects[].phase</code> というキーを<b>持っている</b>(<code>on_use</code>/<code>lasting</code>/<code>this_turn</code>/<code>delayed</code>/<code>turn_end</code>の5値)。ただし上表が示す通り実際のsim内部フェーズは十数段あり、5値は粗すぎて上表のどのフェーズに落ちるかを一意に決められない。<span class="fileref">出典: <code>pokechan_data.js</code> grep実測=on_use 513 / lasting 84 / this_turn 23 / delayed 10 / turn_end 7件。<code>reference/moves_battle_data_fix.json</code>では on_use 446 / lasting 46 / this_turn 29 / turn_end 4 / delayed 4件(データセット版数により総数は変動するが、5値構成という粗さの構造は共通)。</span></li>
+    <li><b>特性(ABILITY_DESC)</b>: <code>pokechan_data.js:74</code> の1オブジェクトに約170件のテキスト説明のみを持ち、<b>phaseキーが一切無い</b>。全て <code>real_battle_simulator.html</code> 内の <code>if (sideAbility(x)==='◯◯')</code> という特例分岐で発火(監査B実測=58箇所以上)。</li>
+    <li><b>持ち物</b>: 同様にトリガー条件(<code>trigger</code>/<code>category</code>等)は<code>items_database.js</code>側に一部宣言があるものの(例: <code>trigger:'end_of_turn'</code>, <code>trigger:'hp_le_50pct'</code>, <code>trigger:'pp_zero'</code>)、<b>どのフェーズ(atk_modify/def_modify/post_hit_react/end_of_turn等)に属するかという横断的な分類は無く</b>、エンジン側の呼び出し位置がそのまま「どのフェーズで発火するか」を暗黙に決めている。</li>
+  </ul>
+
+  <h2>増分リファクタの最初の一歩</h2>
+  <p>
+    監査Eの結論どおり、<b><code>applyRankStageGuarded()</code>(<code>real_battle_simulator.html:3467-3541</code>)を本物の名前つきEvent+Handlerリスト化する</b>のが最小リスクの第一歩。
+    理由: ①既に単一funnel(能力ランク低下は必ずここを通る) ②反応ロジック(あまのじゃく/ミラーアーマー/クリアボディ/かちき・まけんき/ものまねハーブ)が1関数に集約済み ③コード自身のコメント(3455-3457行)が「H2/H3/H4で共有パイプ化した」と経緯を記録している=すでに1回リファクタされた実績がある。
+    <code>onStatStageChange</code> のような <code>{name, cond, apply}</code> 配列へ抽象化しても、解決順序とログ文言を維持すれば sim825/0・hard174/0 のテスト緑を壊さずに改修パターンを実証できる(次の対象=<code>calcDamage</code>の58特性if分岐、<code>phaseDealDamage</code>の接触反応ブロック)。
+  </p>
+
+  <h2>未確認事項リスト</h2>
+  <ul>
+    <li>Init-B(メガシンカ)を速度順にすべきか、現行のself→opp固定順のままダブルバトル非対応(1vs1専用)として割り切るか。</li>
+    <li>「登場特性発動」と「天候/フィールド設定」は<code>fireEntryAbility()</code>内で1ステップに統合されているが、これを2つの独立Eventへ分離すべきか(=天候上書き順のテストケースが無いため、分離してもテスト緑が保てるか未検証)。</li>
+    <li><code>phaseEndOfTurnSlip()</code>のself→opp固定順を<code>canonSides()</code>ベースの速度順へ直すべきか(実機リファレンスとの不一致だが、現状テストが緑である以上、直すと既存の乱数消費順・ログ順が変わりオンラインlockstepの互換性に影響しうる=要検証)。</li>
+    <li>「あとだし」「こうこうのしっぽ」「まんぷくおこう」(後攻系割り込み・実機リファレンス§2に記載)は現エンジンに実装が見当たらない(grep未検出)。優先度判定フェーズに追加すべき機構として認識しているが未着手。</li>
+    <li>10a〜10h という既存<code>PHASES</code>定数のラベル(<code>real_battle_simulator.html:2250-2261</code>)と、この文書が提案した<code>end_of_turn_slip</code>/<code>end_of_turn_field</code>という2区分の対応関係は厳密には未整理(既存ラベルは10a〜10hの8分割、この文書は実装の実態に合わせて2つに大づかみした)。</li>
+  </ul>
+</section>
+
+</div>
+
+<footer class="note">review/設計_バトルPhase全体表_2026-07-23.html ／ real_battle_simulator.html・データ本体は未編集(Read/Grepのみで作成)</footer>
+
+</body>
+</html>

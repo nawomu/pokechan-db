@@ -1,0 +1,64 @@
+<meta charset="utf-8"><title>データ配線 現状調査 2026-07-28</title>
+<style>body{font-family:-apple-system,sans-serif;margin:24px;line-height:1.7;color:#222}h1{border-bottom:3px solid #c33;padding-bottom:6px}h2{margin-top:32px;background:#f4f4f4;padding:8px 12px;border-left:6px solid #c33}table{border-collapse:collapse;width:100%;margin:12px 0}th,td{border:1px solid #ccc;padding:6px 10px;font-size:14px;vertical-align:top}th{background:#eee}code{background:#f0f0f0;padding:1px 5px;border-radius:3px}.bad{color:#c00;font-weight:bold}.ok{color:#080}.warn{background:#fff6e0}</style>
+<h1>データ配線 現状調査(全4,999ページ×全データ・機械走査)</h1>
+<p>作成 2026-07-28 JST / 指示=阿部さん「現状のデータとサイトの各ページ、どこを見ているのか」/ <b>推測ゼロ・全数走査</b>(<code>reference/_data_wiring_survey.json</code>)</p>
+<h2>0. 結論(3行)</h2><ul><li class="bad">データの本体は「2本」ではなく<b>実質3系統</b>ある: ①Champions版 <code>pokechan_data.js</code> ②全国版 <code>pokechan_data_all.js</code> ③<b>生成コンテンツページ4,900枚に焼き込まれた写し</b></li><li class="bad">SSOTのはずの <code>reference/master_*.json</code> は、<b>pokechan_data.js から作られている</b>(逆流)。だから「元データを直す」が成立していない</li><li>技のキー体系が2本で<b>完全に別</b>(Champions=ローマ字 <code>reitoupanchi</code> / 全国版=英語スラグ <code>karate-chop</code>)。共通キー<b>0件</b></li></ul>
+<h2>1. データの流れ(いまの実態)</h2><pre style="background:#fafafa;padding:14px;border:1px solid #ddd">[手で直す] ──▶ pokechan_data.js (Champions・498技/313体/説明195)
+                     │  │
+                     │  └──(build_master.js)──▶ reference/master_*.json  ← ★逆流(SSOTが写しになっている)
+                     │                                   │
+                     │                          (build_champions_view.js)
+                     │                                   ▼
+                     │                         pokechan_data.new.js ← ★7/4で停止・未昇格
+                     │
+                     ├──(_build_pokechan_data_all.js)──▶ pokechan_data_all.js (全国・919技/1219体/説明309)
+                     │
+                     └──(_gen_content_pages.js)──▶ 生成コンテンツ4,900枚 ← ★データが焼き込まれる(第3の写し)
+</pre>
+<h2>2. どのページが何を読んでいるか(全数)</h2><table><tr><th>ページ群</th><th>枚数</th><th>読んでいるデータ(枚数)</th></tr>
+<tr><td>言語別 生成ページ(zh-Hans/)</td><td>539</td><td><code>../i18n/runtime.js</code>×4</td></tr>
+<tr><td>言語別 生成ページ(zh-Hant/)</td><td>539</td><td><code>../i18n/runtime.js</code>×4</td></tr>
+<tr><td>言語別 生成ページ(it/)</td><td>539</td><td><code>../i18n/runtime.js</code>×4</td></tr>
+<tr><td>言語別 生成ページ(de/)</td><td>539</td><td><code>../i18n/runtime.js</code>×4</td></tr>
+<tr><td>言語別 生成ページ(ko/)</td><td>539</td><td><code>../i18n/runtime.js</code>×4</td></tr>
+<tr><td>言語別 生成ページ(fr/)</td><td>539</td><td><code>../i18n/runtime.js</code>×4</td></tr>
+<tr><td>言語別 生成ページ(es/)</td><td>539</td><td><code>../i18n/runtime.js</code>×4</td></tr>
+<tr><td>言語別 生成ページ(en/)</td><td>539</td><td><code>../i18n/runtime.js</code>×4</td></tr>
+<tr><td>生成コンテンツ(pokemon/)</td><td>315</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>生成コンテンツ(ability/)</td><td>196</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>review/</td><td>72</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>ルート直下(手作りページ)</td><td>44</td><td><code>i18n/runtime.js</code>×36 / <code>pokechan_data.js</code>×13 / <code>sprite_api_ids.js</code>×9 / <code>preset_builds.js</code>×4 / <code>waza_picker.js</code>×3 / <code>items_database.js</code>×3</td></tr>
+<tr><td>bak/</td><td>24</td><td><code>pokechan_data.js</code>×18 / <code>i18n/runtime.js</code>×16 / <code>items_database.js</code>×11 / <code>waza_picker.js</code>×4</td></tr>
+<tr><td>生成コンテンツ(type/)</td><td>18</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>i18n/</td><td>5</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>rewrite_workspace/</td><td>4</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>content_samples/</td><td>4</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>branding/</td><td>2</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>ogp/</td><td>1</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>undefined/</td><td>1</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+<tr><td>online/</td><td>1</td><td><span class="warn">(外部データを読まない=<b>データが焼き込まれている</b>)</span></td></tr>
+</table>
+<h2>3. バトル関連の配線(実測)</h2><table>
+<tr><th>画面</th><th>読むデータ</th><th>備考</th></tr>
+<tr><td>リアルバトル <code>real_battle.html</code></td><td class="bad">Champions版 固定</td><td><code>?data=all</code> を付けないため常にChampions</td></tr>
+<tr><td>オンライン対戦</td><td class="bad">Champions版 固定</td><td>同上</td></tr>
+<tr><td>バトルラボ <code>battle_lab.html</code></td><td>切替式</td><td><code>mode==='all'</code> で全国版を読む(L31)</td></tr>
+<tr><td>エンジン <code>real_battle_simulator.html</code></td><td>1本のエンジン</td><td>URLの <code>?data=all</code> で読むファイルを差し替え(L991-997)</td></tr>
+</table>
+<p class="bad">→ エンジンは1本だが、<b>読むデータが体系ごと違う2本</b>。だから「moveByChampKey / pokeByName」というブリッジ(橋)が必要だった。橋を架けて誤魔化してきたが、<b>川が2本あること自体が問題</b>。</p>
+<h2>4. 見つかっている実害(すべて実測)</h2><ol>
+<li><b>特性の説明が別物</b>: Champions版195件 / 全国版309件</li>
+<li><b><code>champions.in</code> の印が10件立っていない</b> → サーフゴーが「おうごんのからだ」を持つのに説明が出ない・エンジンも未実装(<code>うなぎのぼり/おうごんのからだ/きゅうばん/どくのトゲ/ほうし/ほのおのたてがみ/もふもふ/よちむ/エレキメイカー/カブトアーマー</code>)</li>
+<li class="bad"><b>いま <code>build_champions_view</code> を素で回すと5件の説明文が消える</b>(どくのトゲ/メイカー4種=本番にだけ手で足された分)</li>
+<li><b>名前の切り詰め</b>「フラエッテ(えいえん)」→ フラエッテナイトのメガシンカが<b>到達不能</b>(いじげんラッシュ/i18n468件と同じ型)</li>
+<li><b>同じ特性の説明文が2種類</b>(例: どくのトゲ)</li>
+<li><b>生成コンテンツ4,900枚は焼き込み</b> → SSOTを直しても<b>再生成しない限り古いまま</b></li>
+</ol>
+<h2>5. 提案(外箱はそのまま・中身だけ作り直す)</h2><ol>
+<li><b>統一版データ <code>pokechan_data_v2.js</code> を SSOT から生成</b>(Champions+それ以外=最新世代/キーは英語スラグに統一/名前は正式名称)</li>
+<li><b>切替は既存の仕組みを流用</b>: いまの <code>?data=all</code> と同じ要領で <code>?data=v2</code> を足すだけ。<b>現行を壊さずに新版で遊んで確かめられる</b></li>
+<li><b>二重公開</b> → 回帰(sim825/hard174/sweep919)+実機 → 安定したら旧を削除</li>
+<li>その後 <b>ブリッジを撤去</b>・<b>逆流(生成物→SSOT)を断つ</b>・<b>コンテンツ4,900枚を再生成</b></li>
+</ol>
+<p>やり直す範囲=<code>master_{pokemon,moves,abilities,items}.json</code> の4本。<b>技の説明文は作り直さず移送</b>(北極星で積み上げた文言を失わないため)。</p>
+<script src="../internal_home.js?v=20260729a"></script>

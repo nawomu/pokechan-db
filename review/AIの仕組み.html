@@ -1,0 +1,257 @@
+<meta charset="utf-8"><title>AIの仕組み — PchamDB</title>
+<meta name="robots" content="noindex,nofollow,noarchive">
+<style>
+body{font-family:-apple-system,"Hiragino Sans",sans-serif;margin:0;background:#f6f7f9;color:#1c1e22;line-height:1.75}
+.wrap{max-width:1000px;margin:0 auto;padding:26px 20px 90px}
+h1{border-bottom:4px solid #3a6ea5;padding-bottom:8px}
+h2{margin-top:34px;background:#fff;padding:10px 14px;border-left:8px solid #3a6ea5;border-radius:0 6px 6px 0}
+h3{margin-top:22px;font-size:15px;color:#345}
+table{border-collapse:collapse;width:100%;background:#fff;margin:10px 0;font-size:14px}
+th,td{border:1px solid #dcdee3;padding:7px 10px;vertical-align:top;text-align:left}
+th{background:#eef1f6}
+code{background:#eef0f3;padding:1px 5px;border-radius:3px;font-size:13px}
+pre{background:#1e2229;color:#e6e6e6;padding:14px;border-radius:8px;overflow:auto;font-size:12px;line-height:1.55;max-height:420px}
+.bad{color:#c00;font-weight:bold}
+.note{background:#fffbe6;border:1px solid #e8d48b;padding:12px 16px;border-radius:8px;font-size:13px}
+.big{font-size:15px}
+details{background:#fff;border:1px solid #dcdee3;border-radius:8px;padding:10px 14px;margin:10px 0}
+summary{cursor:pointer;font-weight:bold;color:#3a6ea5}
+</style><div class="wrap">
+<h1>AIの仕組み(自動生成)</h1>
+<p>生成 2026-07-29T07:47:17 JST ／ <code>node tools/_build_ai_spec.js</code> で再生成<br>
+出どころ=<code>real_battle_simulator.html</code>(<code>aiScoreMove</code> L6702 / <code>aiChooseMove</code> L6762 / <code>aiChooseAction</code> L6849)</p>
+<div class="note">★<b>数字と行番号はコードから直接抜いています</b>。コードを変えればこのページも自動で変わります。<br>
+もし「★抽出できず」と赤で出たら、<b>コードの書き方が変わってこのページが追随できなくなったサイン</b>です(生成器 <code>tools/_build_ai_spec.js</code> の修正が必要)。</div>
+<h2>0. ひとことで言うと</h2>
+<p class="big"><b>「1手先だけを見て、それぞれの技に点数をつけて、一番高い手を選ぶ」自動プレイヤー</b>です。<br>
+機械学習ではありません。<b>ルールと点数表</b>で動いています。深い読み(2手先・詰め・交代読み)はしていません。</p>
+<h2>1. 技の点数のつけ方(aiScoreMove)</h2>
+<h3>攻撃技</h3>
+<table><tr><th>項目</th><th>点数</th></tr>
+<tr><td>基本</td><td>予想ダメージの<b>平均</b>(最小と最大の真ん中)</td></tr>
+<tr><td><b>確実に倒せる</b>(最小ダメージ ≥ 相手の残HP)</td><td><b>1000</b> 点を加算 → <b>実質いちばん優先</b></td></tr>
+<tr><td>ダメージが通らない(こうかなし・0ダメージ)</td><td>0点(選ばない)</td></tr></table>
+
+<h3>変化技(「何点の価値があるか」を見積もる)</h3>
+<table><tr><th>技の種類</th><th>点数の見積もり</th><th>意味</th></tr>
+<tr><td>回復技(自分)</td><td>(最大HP − 今のHP) × <b>0.7</b></td><td>減っているほど価値が高い。<b>満タンならほぼ0点=無駄撃ちしない</b></td></tr>
+<tr><td>状態異常技(相手)</td><td>相手の残HP × <b>0.45</b></td><td>相手が<b>すでに状態異常</b>/<b>効かない</b>なら0点</td></tr>
+<tr><td>積み技(自分の能力を上げる)</td><td><b>40</b> + 段階 × <b>10</b></td><td>条件つき: <b>自分のHPが <b>3</b>分の2以上</b> かつ <b>まだ +<b>2</b> 未満</b> の時だけ</td></tr>
+<tr><td>へんしん(メタモン)</td><td><b>60</b></td><td>使える状況なら高め(使わないと他にやることがない)</td></tr>
+<tr><td>上記以外の変化技</td><td>1(最低点)</td><td>攻撃が全部通らない時だけ流れてくる保険</td></tr></table>
+<h2>2. 「撃っても無駄な技」は最初から選ばない</h2>
+<p>実プレイで「AIが無駄撃ちを繰り返す」のを見て足された除外ルールです(コードにも日付と経緯が残っています)。</p>
+<ul>
+<li><b>PP切れの技</b>は選ばない</li>
+<li><b>こだわりロック中</b>は、その技しか選べない</li>
+<li><b>不発が確定している技</b>は選ばない:
+<ul><li>たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")</li><li>遅延攻撃(みらいよち): 使ったターンは攻撃せず予知だけ。発動中の再使用は失敗(Bulbapedia "Future Sight")</li><li>ねこだまし/であいがしら: 場に出た最初のターンしか出せない。</li><li>requires 天気(オーロラベール等): 天気が合わなければ必ず失敗</li><li>requires 自分の状態(いびき/ねごと=ねむり時のみ): 満たさなければ失敗</li><li>ねこだまし/であいがしら: 場に出た最初のターン以外は失敗</li><li>たくわえ依存(はきだす/のみこむ): たくわえが無ければ失敗</li><li>fails_if(ふいうち/はやてがえし/どげざつき/とっておき/なげつける等)=相手の手/自分の状況で不発なら選ばない。</li><li>遅延攻撃(みらいよち/はめつのねがい): すでに予知中の再使用は失敗(ポケモンWiki「みらいよち」=重ねがけ不可)</li><li>ねこだまし/であいがしら: 場に出た最初のターン(turnsOut===0)以外は失敗</li><li>たくわえ依存技(はきだす/のみこむ): たくわえていないと失敗(Bulbapedia "Spit Up"/"Swallow")</li><li>遅延攻撃(みらいよち): 使ったターンは攻撃せず予知だけ。発動中の再使用は失敗(Bulbapedia "Future Sight")</li></ul></li>
+</ul>
+<h2>3. 交代の判断(aiChooseAction)</h2>
+<table><tr><th>場面</th><th>条件</th><th>行き先</th></tr>
+<tr><td><b>A</b> 手詰まり</td><td>どの技にも価値が無い(全部こうかなし等)</td><td>相手に<b>一番タイプ相性の良い控え</b></td></tr>
+<tr><td><b>B</b> 受け交代</td><td><b>相手の最大平均ダメージ ≥ 自分の残HP</b> かつ <b>自分が後攻</b> かつ <b>確定KOで倒し返せない</b></td><td>相手の技を<b>一番安く受けられる控え</b>(最良で半減以下)</td></tr>
+</table>
+<p>★<b>連続では交代しません</b>(<code>aiSwitchedLast</code> で往復ループを防止)。<br>
+★<b>確定KOできる技があるときは、交代せず必ず攻撃</b>します(点数 <b>1000</b> 以上が最優先のため)。</p>
+<h2>4. AIが見てよい情報</h2>
+<p>コードのコメントに明記されています: <b>「AIはsim内の情報(相手の技)を見てよい設計」</b>。<br>
+つまり <b>AIは相手の持っている技を知っています</b>(いわゆるカンニングあり)。<br>
+また、相手側AIは<b>プレイヤーの行動が確定してから</b>選ぶので、<b>ふいうち系(相手が攻撃技かどうかで成否が変わる技)の判定も正確</b>になります。</p>
+<h2>5. 分かっている限界(今後の改善候補)</h2>
+<ul>
+<li><b>1手先しか見ない</b>。2手先の読み・詰め・交代読みはしない</li>
+<li>変化技の価値は<b>ざっくりした見積もり</b>(壁・追い風・設置技などは「1点」の保険に流れることがある)</li>
+<li>点数づけが<b>エンジン本体に直書き</b>されている → ③バトル作り直しで<b>フェーズと同じように「どこで何を判断しているか」を見える形</b>にできる</li>
+<li>★<b>フェーズ・ビューア(1フェーズずつ止めて見る画面)</b>を作れば、<b>AIが各技に何点つけたか</b>も一緒に表示できる</li>
+</ul>
+<details><summary>aiScoreMove(技の点数) の実際のコードを見る(L6702〜)</summary><pre>function aiScoreMove(sideKey, m){
+  const st = sides[sideKey];
+  const foe = sideKey === 'self' ? 'opp' : 'self';
+  const foeSt = sides[foe];
+  const foeHp = foeSt.poke ? (foeSt.currentHp == null ? realStat(foeSt, 'hp') : foeSt.currentHp) : 0;
+  // 使用条件を満たさない技(きのみ未食のゲップ等)はAIが選ばない
+  if (((m.battle_data &amp;&amp; m.battle_data.requires) || []).some(rq =&gt; rq.type === 'user_has_eaten_berry') &amp;&amp; !ateBerry(st)) return 0;
+  // ★不発確定の技はAIが選ばない(検証WF #A.2 2026-07-11)。失敗技でもPP消費するようになった(段129)ため、
+  // AIが不発技を撃ち続けて無駄にPP/ターンを浪費するのを防ぐ。判定は既存の失敗ゲートを再利用(useMove/runTurnと同型)。
+  {
+    const bd = m.battle_data || {};
+    // requires 天気(オーロラベール等): 天気が合わなければ必ず失敗
+    const rqW = (bd.requires || []).find(rq =&gt; rq.type === 'weather');
+    if (rqW &amp;&amp; (_WMAP[rqW.value] || rqW.value) !== env.weather) return 0;
+    // requires 自分の状態(いびき/ねごと=ねむり時のみ): 満たさなければ失敗
+    const rqS = (bd.requires || []).find(rq =&gt; rq.type === 'self_status');
+    if (rqS &amp;&amp; !(rqS.value === 'ねむり' &amp;&amp; st.status === 'sleep')) return 0;
+    // ねこだまし/であいがしら: 場に出た最初のターン以外は失敗
+    if (isFirstTurnOnlyMove(m) &amp;&amp; st.turnsOut &gt; 0) return 0;
+    // たくわえ依存(はきだす/のみこむ): たくわえが無ければ失敗
+    if ((bd.effects || []).some(e =&gt; e.kind === 'たくわえ消費') &amp;&amp; !(st.stockpile || 0)) return 0;
+    // fails_if(ふいうち/はやてがえし/どげざつき/とっておき/なげつける等)=相手の手/自分の状況で不発なら選ばない。
+    // opp AIはプレイヤーの手が確定した後に選ぶので、相手依存(ふいうち=相手が攻撃技か)の判定も正確。
+    if (failsByCondition(st, foeSt, m)) return 0;
+    // 遅延攻撃(みらいよち/はめつのねがい): すでに予知中の再使用は失敗(ポケモンWiki「みらいよち」=重ねがけ不可)
+    // →予知中はAIが選ばない(2026-07-11 阿部さん実プレイでAIが無駄撃ちを繰り返した)
+    if ((bd.effects || []).some(e =&gt; e.kind === '遅延攻撃') &amp;&amp; st.futureSight) return 0;
+  }
+  if (m.category !== '変化'){
+    const r = calcDamage(sideKey, foe, m);
+    if (!r || r.immune || r.max &lt;= 0) return 0;
+    let score = (r.min + r.max) / 2;
+    if (r.min &gt;= foeHp &amp;&amp; foeHp &gt; 0) score += 1000;   // 確定で倒せる技を最優先
+    return score;
+  }
+  // 変化技の見積もり(保険の最低値=1はv1互換: 攻撃が全部無効な時だけ流れる)
+  const efs = (m.battle_data &amp;&amp; m.battle_data.effects) || [];
+  const myMax = realStat(st, 'hp');
+  const myHp = st.currentHp == null ? myMax : st.currentHp;
+  let score = 1;
+  for (const e of efs){
+    if (e.kind === '回復' &amp;&amp; e.target === 'self'){
+      score = Math.max(score, (myMax - myHp) * 0.7);   // 減ったHPの7割相当の価値(満タンならほぼ0)
+    } else if (e.kind === '状態付与' &amp;&amp; (e.target === 'opponent' || e.target === 'all_opponents')
+               &amp;&amp; (e.prob == null || e.prob &gt;= 100)
+               &amp;&amp; foeSt.poke &amp;&amp; foeSt.status === 'none' &amp;&amp; !aiStatusImmune(m, foeSt)){
+      score = Math.max(score, foeHp * 0.45);           // 健康な相手への状態異常は残HPの45%相当
+    } else if (e.kind === '能力ランク変化' &amp;&amp; e.target === 'self' &amp;&amp; (e.stages || 0) &gt; 0){
+      const k = _AI_STATMAP[e.stat] || e.stat;
+      const cur = (st.rank &amp;&amp; st.rank[k]) || 0;
+      // 自分が元気(HP2/3以上)で積み切ってない(+2未満)なら積む価値あり
+      if (myHp * 3 &gt;= myMax * 2 &amp;&amp; cur &lt; 2) score = Math.max(score, 40 + (e.stages || 1) * 10);
+    } else if (e.kind === 'へんしん'){
+      // へんしん(メタモン): 使える状況なら最優先級(使わないと他にやることがない)。使えない状況は価値なし
+      if (canTransformInto(st, foeSt)) score = Math.max(score, 60);
+    }
+  }
+  return score;
+}</pre></details>
+<details><summary>aiChooseMove(技を選ぶ) の実際のコードを見る(L6762〜)</summary><pre>function aiChooseMove(sideKey){
+  const st = sides[sideKey];
+  if (!st.poke || !st.moves || !st.moves.length) return 0;
+  // こだわりロック中はその技しか選べない(段135)
+  if (st.choiceLock &amp;&amp; st.item &amp;&amp; ITEM_BY_KEY[st.item] &amp;&amp; ITEM_BY_KEY[st.item].restriction === '選択技固定'){
+    const li = st.moves.findIndex(m =&gt; m &amp;&amp; m.name === st.choiceLock.name);
+    if (li &gt;= 0) return li;
+  }
+  let best = -1, bestScore = -1, bestPri = -99;
+  st.moves.forEach((m, i) =&gt; {
+    if (!m) return;
+    if (st.pp &amp;&amp; st.pp[i] &lt;= 0) return;   // PP切れの技は選ばない(段129)
+    const score = aiScoreMove(sideKey, m);
+    // ★2026-07-29 阿部さん:「先制技で倒せるなら、わざわざ後退せず先制技で倒す」
+    //   確定KO(score&gt;=1000)が複数あるときは**優先度の高い技**を選ぶ(後攻でも先に倒せる)。
+    const pri = movePriority(m, st);
+    if (score &gt; bestScore || (score &gt;= 1000 &amp;&amp; score === bestScore &amp;&amp; pri &gt; bestPri)){
+      bestScore = score; best = i; bestPri = pri;
+    }
+  });
+  return best &gt;= 0 ? best : 0;
+}</pre></details>
+<details><summary>aiChooseAction(技か交代か) の実際のコードを見る(L6849〜)</summary><pre>function aiChooseAction(sideKey){
+  const st = sides[sideKey];
+  st._aiReason = null;   // ★なぜその行動を選んだか(テストと将来のフェーズ・ビューア用)
+  const foe = sideKey === 'self' ? 'opp' : 'self';
+  const foeSt = sides[foe];
+  const best = aiChooseMove(sideKey);
+  const bestScore = (st.moves &amp;&amp; st.moves[best]) ? aiScoreMove(sideKey, st.moves[best]) : 0;
+  if (bestScore &gt;= 1000){ st.aiSwitchedLast = false; st._aiReason = 'move_確定KO'; return {type: 'move', index: best}; }   // 確定KOは最優先
+  // B) 被弾予測(v3)
+  if (foeSt.poke &amp;&amp; !st.aiSwitchedLast){
+    const myHp = st.currentHp == null ? realStat(st, 'hp') : st.currentHp;
+    let foeMax = 0, foeMaxMove = null;
+    (foeSt.moves || []).forEach(m =&gt; {
+      if (!m || m.category === '変化') return;
+      const r = calcDamage(foe, sideKey, m);
+      if (r &amp;&amp; !r.immune){ const avg = (r.min + r.max) / 2; if (avg &gt; foeMax){ foeMax = avg; foeMaxMove = m; } }
+    });
+    const mySpd = effectiveSpeed(st), foeSpd = effectiveSpeed(foeSt);
+    const slower = env.trickRoom ? (mySpd &gt; foeSpd) : (mySpd &lt; foeSpd);
+    if (foeMaxMove &amp;&amp; foeMax &gt;= myHp &amp;&amp; slower){
+      // 受けられる控え: 相手の主力技タイプの被ダメ倍率が最小の子(半減以下が条件)。同率なら攻撃相性が良い子
+      let swIdx = -1, swTaken = 99, swAtk = 0;
+      (st.bench || []).forEach((b, i) =&gt; {
+        if (!b || !b.poke || b.fainted || (b.currentHp != null &amp;&amp; b.currentHp &lt;= 0)) return;
+        const btypes = [b.poke.type1, b.poke.type2].filter(Boolean);
+        const taken = moveTypeEff(foeMaxMove.type, btypes);
+        let atkEff = 0;
+        (b.moves || []).forEach(m =&gt; {
+          if (!m || m.category === '変化') return;
+          const e = moveTypeEff(m.type, sideTypes(foeSt));
+          if (e &gt; atkEff) atkEff = e;
+        });
+        if (!aiSwitchAffordable(st, b)) return;   // ★設置物で死ぬ/半分以上減る控えには逃がさない
+        if (taken &lt; swTaken || (taken === swTaken &amp;&amp; atkEff &gt; swAtk)){ swTaken = taken; swIdx = i; swAtk = atkEff; }
+      });
+      if (swIdx &gt;= 0 &amp;&amp; swTaken &lt;= 0.5){ st.aiSwitchedLast = true; st._aiReason = 'switch_B_受け交代'; return {type: 'switch', index: swIdx}; }
+    }
+  }
+  // ────────────────────────────────────────────────────────────────
+  // C) ★相性による「予防の交代」(2026-07-29 阿部さん「交代をうまく使うのが上級者」)
+  //   考え方: 相手に弱点を突かれていて、こちらは有効打が無い → 受けられる控えへ逃がす。
+  //   ただし**受けられる控えがいなければ交代しない**(逃げ場が無いなら殴る)。
+  //   Bとの違い: Bは「今ターン倒される」時だけ。Cは倒されなくても**不利な組み合わせなら退く**。
+  if (foeSt.poke &amp;&amp; !st.aiSwitchedLast &amp;&amp; bestScore &lt; 1000){
+    const myHp2 = st.currentHp == null ? realStat(st, 'hp') : st.currentHp;
+    const myMax2 = realStat(st, 'hp');
+    // 1) 相手の脅威: 相手の攻撃技のうち、こちらへの平均ダメージが最大のもの
+    let thMove = null, thDmg = 0;
+    (foeSt.moves || []).forEach(m =&gt; {
+      if (!m || m.category === '変化') return;
+      const r = calcDamage(foe, sideKey, m);
+      if (r &amp;&amp; !r.immune){ const avg = (r.min + r.max) / 2; if (avg &gt; thDmg){ thDmg = avg; thMove = m; } }
+    });
+    // 2) こちらが有効打を持っているか(効果抜群=2倍以上の攻撃技があるなら、殴り合った方がよい)
+    let myBestEff = 0;
+    (st.moves || []).forEach(m =&gt; {
+      if (!m || m.category === '変化') return;
+      const e = moveTypeEff(m.type, sideTypes(foeSt));
+      if (e &gt; myBestEff) myBestEff = e;
+    });
+    // 3) 危険の条件: 相手の一撃で残HPの半分以上を持っていかれる &amp; こちらに効果抜群が無い
+    //    ★かつ「自分が後攻」の時だけ(先手を取れるなら殴る=手数を捨てない。既存契約 T282b)。
+    //      速い側が交代すると、交代ターンに一撃もらった上で相手にも主導権を渡すため。
+    const mySpd2 = effectiveSpeed(st), foeSpd2 = effectiveSpeed(foeSt);
+    const slower2 = env.trickRoom ? (mySpd2 &gt; foeSpd2) : (mySpd2 &lt; foeSpd2);
+    const danger = thMove &amp;&amp; thDmg &gt;= myHp2 * 0.5 &amp;&amp; myBestEff &lt; 2 &amp;&amp; slower2;
+    if (danger){
+      // 4) 受けられる控えを探す: 脅威技を「半減以下(特性の無効/半減も込み)」で受けられる子。
+      //    同じ受けやすさなら、相手に効果抜群を返せる子を優先(受けるだけでなく攻め返せる方が良い)。
+      let swIdx = -1, swTaken = 99, swAtk = 0;
+      (st.bench || []).forEach((b, i) =&gt; {
+        if (!b || !b.poke || b.fainted || (b.currentHp != null &amp;&amp; b.currentHp &lt;= 0)) return;
+        const taken = aiBenchTakes(b, thMove.type);
+        if (taken &gt; 0.5) return;                     // 半減以下でなければ受け役にならない
+        if (!aiSwitchAffordable(st, b)) return;      // ★設置物で死ぬ/半分以上減るなら、その子には逃がさない
+        let atkEff = 0;
+        (b.moves || []).forEach(m =&gt; {
+          if (!m || m.category === '変化') return;
+          const e = moveTypeEff(m.type, sideTypes(foeSt));
+          if (e &gt; atkEff) atkEff = e;
+        });
+        if (taken &lt; swTaken || (taken === swTaken &amp;&amp; atkEff &gt; swAtk)){ swTaken = taken; swIdx = i; swAtk = atkEff; }
+      });
+      // 5) ★受けられる控えがいなければ交代しない(逃げ場が無いなら殴る)
+      if (swIdx &gt;= 0){ st.aiSwitchedLast = true; st._aiReason = 'switch_C_相性で退く'; return {type: 'switch', index: swIdx}; }
+    }
+  }
+  if (bestScore &gt; 5){ st.aiSwitchedLast = false; st._aiReason = 'move_有効打あり'; return {type: 'move', index: best}; }
+  // A) どの技にも価値が無い(v2)
+  const ftypes = foeSt.poke ? sideTypes(foeSt) : [];
+  let swIdx = -1, swEff = 0;
+  (st.bench || []).forEach((b, i) =&gt; {
+    if (!b || !b.poke || b.fainted || (b.currentHp != null &amp;&amp; b.currentHp &lt;= 0)) return;
+    let eff = 0;
+    (b.moves || []).forEach(m =&gt; {
+      if (!m || m.category === '変化') return;
+      const e = moveTypeEff(m.type, ftypes);
+      if (e &gt; eff) eff = e;
+    });
+    if (!aiSwitchAffordable(st, b)) return;   // ★設置物で死ぬ/半分以上減る控えには逃がさない
+    if (eff &gt; swEff){ swEff = eff; swIdx = i; }
+  });
+  if (swIdx &gt;= 0 &amp;&amp; swEff &gt; 0 &amp;&amp; !st.aiSwitchedLast){ st.aiSwitchedLast = true; st._aiReason = 'switch_A_手詰まり'; return {type: 'switch', index: swIdx}; }
+  st.aiSwitchedLast = false;
+  st._aiReason = st._aiReason || 'move_通常';
+  return {type: 'move', index: best};
+}</pre></details>
+</div>
+<script src="../internal_home.js?v=20260729a"></script>

@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>Champions固有仕様_照合_2026-07-28</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #f6f5f2; --panel: #ffffff; --text: #232323; --sub: #5c5c5c; --line: #e2ddd4;
+    --accent: #b3452c; --accent-bg: #fdeeea;
+    --ok: #2e7d4f; --ok-bg: #e8f5ee;
+    --warn: #b3452c; --warn-bg: #fdeeea;
+    --miss: #8a5a00; --miss-bg: #fdf3e0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1b1a18; --panel:#242220; --text:#ecebe8; --sub:#a9a49b; --line:#3a3733;
+      --accent-bg:#3a2320; --ok-bg:#1c3327; --warn-bg:#3a2320; --miss-bg:#3a2e14; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif; background:var(--bg); color:var(--text); line-height:1.7; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 28px 20px 80px; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  .meta { color: var(--sub); font-size: .85rem; margin-bottom: 24px; }
+  h2 { font-size: 1.2rem; border-bottom: 2px solid var(--line); padding-bottom: 6px; margin-top: 40px; }
+  h3 { font-size: 1rem; color: var(--sub); margin-top: 24px; }
+  .summary-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap:10px; margin: 18px 0 8px; }
+  .stat { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; text-align:center; }
+  .stat .num { font-size:1.6rem; font-weight:700; }
+  .stat .lbl { font-size:.75rem; color:var(--sub); margin-top:2px; }
+  .stat.hot .num { color: var(--accent); }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin:14px 0; }
+  .card.mismatch { border-left: 5px solid var(--warn); }
+  .card.notimpl { border-left: 5px solid var(--miss); }
+  .card-head { display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap:wrap; }
+  .card-head .title { font-weight:700; font-size:1.05rem; }
+  .cat-tag { font-size:.7rem; background:var(--line); border-radius:6px; padding:2px 8px; color:var(--sub); }
+  .badge { font-size:.72rem; border-radius:6px; padding:2px 9px; font-weight:600; margin-left:auto; }
+  .imp-high { background: var(--warn-bg); color: var(--warn); }
+  .imp-mid { background: var(--miss-bg); color: var(--miss); }
+  .imp-low { background: var(--line); color: var(--sub); }
+  .fieldtable { width:100%; border-collapse: collapse; font-size:.88rem; }
+  .fieldtable th { text-align:left; vertical-align:top; width:110px; color:var(--sub); font-weight:600; padding:5px 10px 5px 0; }
+  .fieldtable td { padding:5px 0; }
+  .fieldtable tr + tr th, .fieldtable tr + tr td { border-top:1px dashed var(--line); padding-top:8px; }
+  .fieldtable tr + tr th { padding-top:8px; }
+  .quote { font-style: italic; color: var(--sub); }
+  .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size:.82rem; background: var(--bg); padding:2px 6px; border-radius:5px; }
+  table.plain { width:100%; border-collapse:collapse; font-size:.85rem; margin:10px 0; }
+  table.plain th, table.plain td { border-bottom:1px solid var(--line); padding:6px 8px; text-align:left; }
+  table.plain th { color:var(--sub); font-weight:600; font-size:.78rem; }
+  details { margin: 14px 0; }
+  summary { cursor:pointer; font-weight:600; color: var(--accent); padding:6px 0; }
+  .note { background: var(--accent-bg); border-radius:10px; padding:12px 16px; font-size:.88rem; color:var(--text); margin:12px 0; }
+  .toc { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:14px 20px; font-size:.88rem; }
+  .toc a { color: var(--accent); text-decoration:none; }
+  .toc li { margin: 3px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Champions固有仕様 照合レポート</h1>
+  <div class="meta">2026-07-28作成 ・ 対象コーパス: reference/_authority_corpus/(rules・moves・abilities・items) ・ 出力元データ: reference/_champions_specs.json ・ 修正は未実施(調査のみ)</div>
+
+  <div class="note">
+  <strong>方針(2026-07-28阿部さん決定)</strong>: うちの正典はChampions(SV等の従来世代ではない)。ルール=Champions準拠/データ=全部持つ/ラボ=Champions外でも遊べる、の三層。テラスタル・ダイマックス・Zワザは実装しない(データは持つが使わない)。メガシンカのみ実装対象。
+  </div>
+
+  <div class="summary-grid">
+    <div class="stat hot"><div class="num">442</div><div class="lbl">Champions言及ページ数</div></div>
+    <div class="stat"><div class="num">511</div><div class="lbl">抽出した文脈(のべ)</div></div>
+    <div class="stat hot"><div class="num">79</div><div class="lbl">仕様差候補</div></div>
+    <div class="stat hot"><div class="num" style="color:var(--warn)">14</div><div class="lbl">★食い違い</div></div>
+    <div class="stat"><div class="num" style="color:var(--miss)">18</div><div class="lbl">未実装</div></div>
+    <div class="stat"><div class="num" style="color:var(--ok)">33</div><div class="lbl">一致(既にChampions値)</div></div>
+    <div class="stat"><div class="num">14</div><div class="lbl">未確認</div></div>
+    <div class="stat"><div class="num">19</div><div class="lbl">命名のみ</div></div>
+    <div class="stat"><div class="num">6</div><div class="lbl">ノイズ(存在有無/バグ)</div></div>
+    <div class="stat"><div class="num">407</div><div class="lbl">誤検出(数値変更なし)</div></div>
+  </div>
+
+  <div class="toc">
+    <strong>目次</strong>
+    <ul>
+      <li><a href="#mismatch">① ★食い違い(修正対象・最優先) — 14件</a></li>
+      <li><a href="#notimpl">② Champions固有だが未実装 — 18件</a></li>
+      <li><a href="#match">③ 一致(参考) — 33件</a></li>
+      <li><a href="#unconfirmed">④ 未確認 — 14件</a></li>
+      <li><a href="#naming">⑤ 命名のみ(数値・挙動は不変) — 19件</a></li>
+      <li><a href="#noise">⑥ ノイズ(存在有無・バグ報告) — 6件</a></li>
+      <li><a href="#sameval">⑦ 誤検出/同一仕様の再掲(参考) — 407件</a></li>
+    </ul>
+  </div>
+
+  <h2 id="mismatch">① ★食い違い(SV等の値のまま・修正対象) — 14件</h2>
+  <p class="meta">エンジンが既にその仕様を実装しているが、値・条件がChampionsではなく旧世代(主にSV)のまま。<strong>これが最優先の修正対象</strong>。</p>
+  
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">rules</span>
+      <span class="title">ねむり</span>
+      <span class="badge imp-high">高</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>ねむりのターン数は2〜3(カウント2になる確率1/3、カウント3になる確率2/3)。スカーレット・バイオレットまでは2〜4が等確率だった</td></tr>
+      <tr><th>出典引用</th><td class="quote">「スカーレット・バイオレットまではいずれのカウントも等確率で選ばれる。Championsではカウント2になる確率が1/3、カウント3になる確率が2/3となる。」</td></tr>
+      <tr><th>うちの実装</th><td>sleepTurnsを`2 + Math.floor(Math.random() * 3)`で決定しており、2/3/4が等確率(SVのまま)。カウント2〜3への絞り込みも、1/3・2/3の重み付けも未実装</td></tr>
+      <tr><th>実装箇所</th><td class="code">real_battle_simulator.html:4516, real_battle_simulator.html:7310</td></tr>
+      <tr><th>判定理由</th><td>2箇所とも`2 + Math.floor(Math.random()*3)`のままでSV仕様(2〜4等確率)。Champions(2〜3・1/3対2/3)に未対応。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">rules</span>
+      <span class="title">ねむり</span>
+      <span class="badge imp-high">高</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>いびき・ねごと以外は使用不可。ねむり状態になってから1度目の行動は必ず技を使えず(眠り続ける)、2度目は1/3の確率で回復、3度目は必ず回復する(技ねむるは3度目まで回復しない)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「ねむり状態になってから 1度目は技が 使えない。2度目は 1/3の確率で 回復する。3度目は 回復する。技ねむるでは 3度目まで回復しない。」</td></tr>
+      <tr><th>うちの実装</th><td>上と同じsleepTurnsカウンタ方式(2〜4等確率で減算・0で覚醒)で、1度目/2度目/3度目ごとの個別の確率分岐は実装されていない(単純なカウントダウン)</td></tr>
+      <tr><th>実装箇所</th><td class="code">real_battle_simulator.html:4516,5632-5634,7310,6907-6909</td></tr>
+      <tr><th>判定理由</th><td>上記(段19)と同一の根本原因。ねむりのターン数決定ロジックがSV仕様のまま(2〜4等確率カウントダウン)で、Championsの2〜3・重み付け確率に未対応。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">rules</span>
+      <span class="title">まひ</span>
+      <span class="badge imp-high">高</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>まひによる行動不能率は12.5%(第七世代〜SVまでは25.0%)。すばやさ補正は1/2で変更なし</td></tr>
+      <tr><th>出典引用</th><td class="quote">「| Champions
+
+ | 12.5%
+ | 1/2」</td></tr>
+      <tr><th>うちの実装</th><td>`atk.status === 'paralysis' &amp;&amp; Math.random() &lt; 0.25`でSVの25%のまま行動不能判定している</td></tr>
+      <tr><th>実装箇所</th><td class="code">real_battle_simulator.html:5655, real_battle_simulator.html:6930</td></tr>
+      <tr><th>判定理由</th><td>2箇所ともMath.random() &lt; 0.25のままでChampionsの12.5%(0.125)に未対応。ユーザー提示の既知バグと一致。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">rules</span>
+      <span class="title">まひ</span>
+      <span class="badge imp-high">高</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>Champions公式説明文は『12.5%の確率で技が使えない。素早さが1/2になる。』</td></tr>
+      <tr><th>出典引用</th><td class="quote">「Champions
+12.5%の確率で技が使えない。 素早さが1/2になる。」</td></tr>
+      <tr><th>うちの実装</th><td>同上(5655/6930行のMath.random() &lt; 0.25)</td></tr>
+      <tr><th>実装箇所</th><td class="code">real_battle_simulator.html:5655, real_battle_simulator.html:6930</td></tr>
+      <tr><th>判定理由</th><td>段25と同一箇所・同一原因の重複確認(表形式と説明文の両方でChampions=12.5%と確認できたが実装は25%のまま)。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">rules</span>
+      <span class="title">アンコール (状態変化)</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>アンコールされた技の優先度は、Championsからはアンコールされた瞬間に即座に反映される(SVまでは、アンコールされたターンの行動順は選んでいた技の優先度のまま、次のターンから初めて反映されていた)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「Championsからは技の優先度はアンコールされた技が即座に反映される」</td></tr>
+      <tr><th>うちの実装</th><td>ターン行動順を決める`decideOrder(selfMove, oppMove)`は、encoreによる技の差し替え(`mv = atk.encore.move`)が行われる**前**の、プレイヤーが選択した元の技(selfMove/oppMove)で計算されている</td></tr>
+      <tr><th>実装箇所</th><td class="code">real_battle_simulator.html:6853(decideOrderの呼び出し=selfMove/oppMoveベース) / real_battle_simulator.html:6882(mv = atk.encore.move、行動順計算より後で差し替え)</td></tr>
+      <tr><th>判定理由</th><td>行動順(優先度)の計算が、アンコールで実際に繰り出す技ではなく元々選択していた技を基準にしている。Championsの『即座に反映』仕様に未対応でSVの旧仕様のまま。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">であいがしら</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>場に出て最初の行動でない場合、SVまでは技の選択自体は可能(発動時に失敗)だが、Championsでは技そのものを選択できない(他に出せる技がなければわるあがき)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「ねこだましと同様にして、条件を満たさないときでもスカーレット・バイオレットまではであいがしらを選ぶこと自体はできる。Championsでは技を選ぶこと自体ができず、他に出せる技が無い場合はわるあがきを使用することになる。」</td></tr>
+      <tr><th>うちの実装</th><td>real_battle_simulator.html: isFirstTurnOnlyMove(mv) &amp;&amp; atk.turnsOut &gt; 0 の場合、選択後に実行時点で失敗させる処理(6675行/6979行)。選択自体を禁止するUI/AIロジックは無い</td></tr>
+      <tr><th>実装箇所</th><td class="code">real_battle_simulator.html:6675, 6979 (isFirstTurnOnlyMove チェックが実行時失敗のみ)</td></tr>
+      <tr><th>判定理由</th><td>エンジンは条件未達でも技を選択させてから実行時に失敗させるSV方式のまま。Championsは選択自体を禁止し他の技を選ばせる仕様に変更されているが未実装。ただしAIスコアリングは既にこの条件で score=0 を返すため、AI同士の対戦では実害が出にくい(人間が意図的に不正選択した場合のみ差が出る)。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">とっておき</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>条件未達(他の技を全部使い切っていない)時、SVまでは選択自体は可能(発動時に失敗)だが、Championsでは選択自体ができない</td></tr>
+      <tr><th>出典引用</th><td class="quote">「スカーレット・バイオレットまでは、成功条件を満たしていなくても行動が失敗するだけであり、とっておきを選択すること自体はできる。・Championsでは条件を満たしていない場合はとっておきを選択すること自体ができなくなった。」</td></tr>
+      <tr><th>うちの実装</th><td>real_battle_simulator.html: failsByCondition()内でとっておき専用判定(6467行)。選択後、消費PP・失敗メッセージで処理(実行時失敗)</td></tr>
+      <tr><th>実装箇所</th><td class="code">real_battle_simulator.html:6467-6474 (failsByCondition内のとっておき専用ロジック)</td></tr>
+      <tr><th>判定理由</th><td>であいがしら/ねこだましと同様、実行時に失敗させるSV方式のまま。Championsの選択禁止仕様は未実装。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">ねこだまし</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>場に出て最初の行動でない場合、SVまでは選択自体は可能(発動時に失敗)だが、Championsでは選択自体ができない</td></tr>
+      <tr><th>出典引用</th><td class="quote">「Championsでは技を選ぼうとすると「この 技は だすことが できない!」というメッセージが出て選択がキャンセルされ、他の技を選択しなければいけなくなる。他に出せる技が無い場合はわるあがきを使用することになる。」</td></tr>
+      <tr><th>うちの実装</th><td>real_battle_simulator.html: isFirstTurnOnlyMove(mv) &amp;&amp; atk.turnsOut &gt; 0 チェックは実行時失敗のみ(6675行/6979行)。であいがしらと共通ロジック</td></tr>
+      <tr><th>実装箇所</th><td class="code">real_battle_simulator.html:6675, 6979</td></tr>
+      <tr><th>判定理由</th><td>idx15(であいがしら)と全く同じロジックが使われており、同様に選択禁止仕様が未実装。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">シャドークロー</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>Championsではシャドークローが「切る技」に分類され、特性きれあじで威力1.5倍の対象になる(SVでは切る技に分類されていない)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「・Championsでは切る技の1つ。特性きれあじのポケモンが使うと威力が1.5倍になる。・スカーレット・バイオレットでは切る技に分類されておらず、きれあじの効果対象ではない。」</td></tr>
+      <tr><th>うちの実装</th><td>pokechan_data.js: "シャドークロー" flags:{}(空)。real_battle_simulator.html:1916-1919 のきれあじ判定は move.flags.slicing || move.flags.slash を見る</td></tr>
+      <tr><th>実装箇所</th><td class="code">pokechan_data.js (WAZA_MAP "シャドークロー" flags:{}) / real_battle_simulator.html:1916-1919</td></tr>
+      <tr><th>判定理由</th><td>シャドークローのflagsが空で、slicing/slashどちらのフラグも立っていないため、きれあじ(1.5倍)の対象になっていない。Championsでは切る技として扱われるべきだが未反映。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">ドラゴンクロー</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>Championsではドラゴンクローが「切る技」に分類され、特性きれあじで威力1.5倍の対象になる(SVでは切る技に分類されていない)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「・Championsでは切る技の1つ。特性きれあじのポケモンが使うと威力が1.5倍になる。・スカーレット・バイオレットでは切る技に分類されておらず、きれあじの効果対象ではない。」</td></tr>
+      <tr><th>うちの実装</th><td>pokechan_data.js: "ドラゴンクロー" flags:{}(空)</td></tr>
+      <tr><th>実装箇所</th><td class="code">pokechan_data.js (WAZA_MAP "ドラゴンクロー" flags:{}) / real_battle_simulator.html:1916-1919</td></tr>
+      <tr><th>判定理由</th><td>idx61(シャドークロー)と同様、flagsが空でslicing/slashが立っておらず、きれあじの対象になっていない。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">フェイタルクロー</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>Championsではフェイタルクローが「切る技」に分類され、特性きれあじで威力1.5倍の対象になる(全体発動率の再計算=約16.7%→10%は確率変更(idx80)に伴う数値でありprob30%と整合)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「・Championsでは切る技の1つ。特性きれあじのポケモンが使用すると威力が1.5倍になる。」</td></tr>
+      <tr><th>うちの実装</th><td>pokechan_data.js: "フェイタルクロー" flags:{}(空)</td></tr>
+      <tr><th>実装箇所</th><td class="code">pokechan_data.js (WAZA_MAP "フェイタルクロー" flags:{}) / real_battle_simulator.html:1916-1919</td></tr>
+      <tr><th>判定理由</th><td>idx61/72と同様、flagsが空でslicing/slashが立っておらず、きれあじの対象になっていない。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">フリーズドライ</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>10%の確率で相手をこおり状態にする追加効果が、SVまでは有り、Championsでは廃止された</td></tr>
+      <tr><th>出典引用</th><td class="quote">「追加効果: ○ (SVまで)
+→×(Champions)」</td></tr>
+      <tr><th>うちの実装</th><td>pokechan_data.js: "フリーズドライ" description="...10%の確率で相手を「こおり」状態にする。" battle_data.effects=[...,{"kind":"状態付与","value":"こおり","prob":10}], ext:{"過去作の仕様":"ポケモンSVまでの仕様"}。real_battle_simulator.htmlをext/過去作の仕様で検索したが、この値を読んで効果を無効化する処理は見つからなかった</td></tr>
+      <tr><th>実装箇所</th><td class="code">pokechan_data.js (WAZA_MAP "フリーズドライ" エントリ、effectsに凍り付与10%が無条件で残存) / real_battle_simulator.html(ext.過去作の仕様を判定する箇所なし)</td></tr>
+      <tr><th>判定理由</th><td>データにはSV限定である旨のext注記("過去作の仕様":"ポケモンSVまでの仕様")が付いているが、実際のeffects配列には凍り付与10%がそのまま残っており、エンジンにもこの注記を読んでルールセットごとに効果をオン/オフする仕組みが存在しない。Championsでは削除されているはずの追加効果がシミュレータ上では常時有効になっている。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">フリーズドライ</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>10%の凍り付与効果が撤廃されたことに伴い、特性ちからずくの威力上昇/特性無視効果もChampionsでは発動しなくなった(SVでは発動する)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「・スカーレット・バイオレットまで、10%の確率で相手をこおり状態にする追加効果があった。Championsではこの効果は無くなった。・特性ちからずくのポケモンが使用した場合でもみずタイプにバツグンになり、SVまでは特性の効果も発動するが、Championsでは特性の効果は無い。」</td></tr>
+      <tr><th>うちの実装</th><td>idx82と同じデータ(凍り付与10%がeffectsに残存)。ちからずくとの相互作用は個別未確認</td></tr>
+      <tr><th>実装箇所</th><td class="code">pokechan_data.js (WAZA_MAP "フリーズドライ" エントリ)</td></tr>
+      <tr><th>判定理由</th><td>idx82の凍り付与撤廃が未反映であることに直接起因する派生の食い違い。凍り付与効果が残っている限り、ちからずくとの相互作用もSVのまま(発動してしまう)と推測される。</td></tr>
+    </table>
+  </div>
+
+  <div class="card mismatch">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">ブレイククロー</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>Championsではブレイククローが「切る技」に分類され、特性きれあじで威力1.5倍の対象になる(SVでは切る技に分類されていない)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「・Championsでは切る技の1つ。特性きれあじのポケモンが使うと威力が1.5倍になる。・スカーレット・バイオレットでは切る技に分類されておらず、きれあじの効果対象ではない。」</td></tr>
+      <tr><th>うちの実装</th><td>pokechan_data.js: "ブレイククロー" flags:{}(空)</td></tr>
+      <tr><th>実装箇所</th><td class="code">pokechan_data.js (WAZA_MAP "ブレイククロー" flags:{}) / real_battle_simulator.html:1916-1919</td></tr>
+      <tr><th>判定理由</th><td>idx61/72/81と同様、flagsが空でslicing/slashが立っておらず、きれあじの対象になっていない。</td></tr>
+    </table>
+  </div>
+
+  <h2 id="notimpl">② Champions固有だが未実装 — 18件</h2>
+  <p class="meta">エンジンにそもそも対応するロジックが存在せず、Champions仕様以前に未実装(SV仕様すら再現できていないケースを含む)。</p>
+  
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">rules</span>
+      <span class="title">みがわり (状態変化)</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>音技とおぼえ(Round)は、第八世代〜SVまでは味方のみがわり状態を無視できなかったが、Championsでは味方のみがわりを無視して効果を及ぼせるようになった</td></tr>
+      <tr><th>出典引用</th><td class="quote">「第八世代以降からスカーレット・バイオレットまでのとおぼえは味方のみがわりを無視できない。Championsでは味方のみがわりを無視できる。」</td></tr>
+      <tr><th>未実装の理由</th><td>味方スロット・味方みがわり判定自体がエンジンに存在しない(1vs1前提でダブル固有の対味方効果を丸ごとスキップしている)ため、Champions/SVいずれの挙動も再現できていない。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">rules</span>
+      <span class="title">メガシンカ</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>対応するメガストーン(自分の種族には非対応だが攻撃側の種族には対応するメガストーン)を相手が持っている場合、第七世代までははたきおとすが不発・威力1.5倍化もしなかったが、Championsではこの場合でもはたきおとすの効果が発動し威力も1.5倍になる</td></tr>
+      <tr><th>出典引用</th><td class="quote">「Championsではこのようなときでもはたきおとすの効果が発動し、威力も1.5倍になる。」</td></tr>
+      <tr><th>未実装の理由</th><td>メガストーンの『対応種族』を判定する仕組み自体がはたきおとすのコードパスに存在しない(そもそも通常のメガストーン免除ルールも実装されていない可能性)。SV/Champions間の裁定差以前に、この例外ケース自体が未実装。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">とおぼえ</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>音技の例外として、味方がみがわり状態のときSVまではとおぼえの攻撃上昇を無視されるが、Championsでは味方のみがわりを無視して攻撃を上げられる</td></tr>
+      <tr><th>出典引用</th><td class="quote">「スカーレット・バイオレットまでは音の技としては例外的にみがわりを無視できず、攻撃を上げられない...Championsでは味方のみがわりを無視して攻撃を上げることができる。」</td></tr>
+      <tr><th>未実装の理由</th><td>このシミュレータはシングル(1vs1)専用で、target:'ally'の効果自体を処理しない実装になっている。SV/Champions間のみがわり無視挙動の差は、ダブルバトル(味方対象効果)が実装されない限り再現不可能な状態。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">はたきおとす</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>使用者の種族と対象の持ち物が「はたきおとせない専用組み合わせ」(例:オーガポンの仮面等)のとき、SVまでは威力アップも持ち物排除も一切できないが、Championsでは対象の種族と持ち物が一致さえしていなければ可能(威力も上がる)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「Championsではこのようなときも、対象の種族と持ち物が一致さえしていなければ、はたおきおとすことができ、威力も上がる。」</td></tr>
+      <tr><th>未実装の理由</th><td>エンジンにはそもそも「種族専用道具は原則はたきおとせない」という基礎制限自体が実装されておらず、常に無条件で持ち物を落とす。SVの旧制限もChampionsの緩和後仕様も、どちらも未実装(=常にChampions寄りの緩い挙動になっているとも言えるが、専用道具の判定自体がない点で正確には未実装)。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">moves</span>
+      <span class="title">ふんどのこぶし</span>
+      <span class="badge imp-high">高</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>ふんどのこぶしの威力上昇(被弾ごとに+50)はSVまでは交代しても保持されるが、Championsでは手持ちに戻ると威力が元(50)にリセットされる</td></tr>
+      <tr><th>出典引用</th><td class="quote">「・SVまでは交代等で手持ちに戻っても手持ちに戻る前の威力が保持される仕様であったが、Championsでは手持ちに戻ると威力が元（威力50）に戻る。」</td></tr>
+      <tr><th>未実装の理由</th><td>そもそも「被弾回数に応じて威力が上がる」というふんどのこぶしの基本メカニクス自体がエンジンに実装されていない(grep で rage_accumulator/per_hit_taken を処理する箇所が見つからなかった)。さらにデータ上の説明文が「ターン終了でリセット」となっており、これはSV・Champions双方の実際の仕様(交代でのみリセットのタイミングが変わるだけで、ターンをまたいでの蓄積自体は続く)とも異なる。Champions固有の差分以前に基礎メカニクスの実装漏れがある。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">いやしのこころ</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>状態異常の味方をターン終わりに50%の確率で治す(SVまでは30%)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「ターン終わりに 状態異常の味方を 50%の確率で治す。(効果節: 50%(スカーレット・バイオレットまでは30%))」</td></tr>
+      <tr><th>未実装の理由</th><td>特性自体がsimに未実装(説明文のみ)。30%→50%への変更以前に、そもそも回復処理が組まれていない</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">かんつうドリル</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>接触技を使う時、まもる状態の相手に対し守りの効果を無視して1/4ダメージを与える(相手の守り以外の効果は発動)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「接触技を使う時 相手の守りの効果を無視して 本来の1/4のダメージを与える。 相手の守りの効果以外は発動される。」</td></tr>
+      <tr><th>未実装の理由</th><td>Champions新規特性(メガドリュウズ専用)。説明文はABILITY_DESCにあるがまもる貫通のバトルロジックが組まれていない</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">ぎゃくじょう</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>ちからずく(Sheer Force)発動技を受けてHPが半分以下になった場合でも、Championsではぎゃくじょうが発動する(第七世代からSVまでは発動しなかった)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「第七世代からSVまで、ちからずくの効果が発動した技を受けてHPが半分以下になった場合。Championsではこのときもぎゃくじょうで特攻が上がる。」</td></tr>
+      <tr><th>未実装の理由</th><td>ぎゃくじょう自体がsimに未実装のため、ちからずくとの相互作用の正誤以前の問題</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">ちからずく</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>基本効果(追加効果消滅・威力1.3倍)はSVと同じ。ただしChampionsでは相手のぎゃくじょう/わるいてぐせは、ちからずく発動技に対しても発動する(SVまでは発動しなかった)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「Championsではちからずくの技に対してもぎゃくじょう/わるいてぐせは発動する。」</td></tr>
+      <tr><th>未実装の理由</th><td>基本の1.3倍・追加効果無効化は正しく実装され一致しているが、Champions特有の防御側特性(ぎゃくじょう/わるいてぐせ)との相互作用は、その特性自体が未実装のため再現できていない</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">とびだすハバネロ</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>攻撃技でダメージを受けたとき、直接攻撃かどうかに関わらず100%の確率で相手をやけど状態にする(ほのおのからだと違い接触技限定でなく確率も100%)</td></tr>
+      <tr><th>出典引用</th><td class="quote">「とびだすハバネロは、ポケモンのとくせいの一種。攻撃技でダメージを受けたとき、攻撃してきた相手をやけど状態にする。/ Championsで新たに追加された特性である。ほのおのからだとは異なり、直接攻撃でない技に対しても発動し、発動率も100%となる。」</td></tr>
+      <tr><th>未実装の理由</th><td>Champions新規特性(メガスコヴィラン専用)。説明文はABILITY_DESCにあるがやけど付与のバトルロジックが組まれていない</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">とびだすハバネロ</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>Championsで新たに追加された特性(メガスコヴィラン専用)。ほのおのからだと異なり直接攻撃でない技にも発動し、発動率100%</td></tr>
+      <tr><th>出典引用</th><td class="quote">「・Championsで新たに追加された特性である。・ほのおのからだとは異なり、直接攻撃でない技に対しても発動し、発動率も100%となる。」</td></tr>
+      <tr><th>未実装の理由</th><td>102と同一特性の備考。新規特性のためバトルロジック未実装</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">びんじょう</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>びんじょうは相手の能力ランク上昇を同じだけコピーする基本効果はSVと同じだが、ドラゴンエールによる急所ランク上昇(SVでは最大+3段階までコピー可能)はChampionsではコピー対象外になった。</td></tr>
+      <tr><th>出典引用</th><td class="quote">「Championsではドラゴンエールにびんじょうは発動しない。」</td></tr>
+      <tr><th>未実装の理由</th><td>びんじょうの発動ロジック自体がsimに存在しないため、SVの急所ランクコピーもChampionsの除外仕様も再現できていない。土台の効果からして未実装。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">ふかしのこぶし</span>
+      <span class="badge imp-mid">中</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>接触技でまもる系(ニードルガード/トーチカ/キングシールド等)の守り効果を無視して攻撃する際、SVでは通常通りの全ダメージを与えるが、Championsでは本来のダメージの1/4に減衰する。また対象特性がSVのウーラオス専用からメガゴルーグ専用に変更された。</td></tr>
+      <tr><th>出典引用</th><td class="quote">「接触技を使う時 相手の守りの効果を無視して 本来の1/4のダメージを与える。 相手の守りの効果以外は発動される。」</td></tr>
+      <tr><th>未実装の理由</th><td>まもる無視処理自体がsimに存在しないため、SVの全ダメージ通過・Championsの1/4減衰いずれの挙動も再現できていない。データ上の説明文はChampions寄りに更新済みだが、実戦計算には未反映。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">ふかしのこぶし</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>連続攻撃技でまもる無視が発動した場合、SVでは各撃で通常通りの処理だが、Championsではダメージが減衰する(1/4になる)のは1発目のみで、2発目以降は減衰せず通常ダメージを与える。</td></tr>
+      <tr><th>出典引用</th><td class="quote">「Championsでは、このときダメージが減衰するのは1発目のみで、2発目以降は減衰することなくダメージを与える。」</td></tr>
+      <tr><th>未実装の理由</th><td>連続攻撃技×まもる無視×ダメージ減衰という複合ロジック自体が土台から存在しない。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">わるいてぐせ</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>特性ちからずくを持つ相手が追加効果のある技で攻撃してきた場合、SV(第五世代〜)ではわるいてぐせが発動しなかったが、Championsではこのときも道具を奪えるようになった。</td></tr>
+      <tr><th>出典引用</th><td class="quote">「特性ちからずくのポケモンから追加効果がある技を受けた場合、第五世代からSVではわるいてぐせは発動しない。Championsではこのときもわるいてぐせで道具を奪える。」</td></tr>
+      <tr><th>未実装の理由</th><td>道具奪取ロジック自体がsimに存在しないため、ちからずくとの相互作用以前の話として未対応。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">ドラゴンスキン</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>Championsで新規追加された特性。ノーマルタイプの技がドラゴンタイプに変化し、威力が1.2倍になる(メガオーダイル専用)。</td></tr>
+      <tr><th>出典引用</th><td class="quote">「Championsで新たに追加された特性である。」</td></tr>
+      <tr><th>未実装の理由</th><td>Champions新規特性であり、対象ポケモン(メガオーダイル)自体がうちのDBに存在しないため現状の実戦影響はほぼゼロだが、特性ロジック・対象ポケモンとも未整備。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">メガソーラー</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>Championsで新規追加された特性(メガメガニウム専用)。実際の天候に関わらず、技使用時は天気がにほんばれ状態であるものとして扱われる(ソーラービームの威力・溜め省略、ほのお技1.5倍など)。</td></tr>
+      <tr><th>出典引用</th><td class="quote">「天気が にほんばれ状態でなくても にほんばれ状態として 技を使うことができる。」</td></tr>
+      <tr><th>未実装の理由</th><td>Champions新規特性であり対象ポケモン(メガメガニウム)自体が未収録のため現状の実戦影響はほぼゼロ。</td></tr>
+    </table>
+  </div>
+
+  <div class="card notimpl">
+    <div class="card-head">
+      <span class="cat-tag">abilities</span>
+      <span class="title">メガソーラー</span>
+      <span class="badge imp-low">低</span>
+    </div>
+    <table class="fieldtable">
+      <tr><th>Champions値</th><td>メガソーラー(にほんばれ扱い)下でせいちょうを使うと、実際の場が晴れでなければ能力上昇が発生せず行動が終了するが、次のじだんだ/やけっぱちの威力は2倍になるなど、天候依存技との相互作用が細かく規定されている(新規特性の仕様詳細)。</td></tr>
+      <tr><th>出典引用</th><td class="quote">「この特性のポケモンがせいちょうを使用した場合、実際の場がにほんばれ状態であれば攻撃・特攻が2段階上がるが、晴れ状態でなければ1段階も能力が上がることなく行動が終了する。」</td></tr>
+      <tr><th>未実装の理由</th><td>特性・対象ポケモンとも未整備のため、この仕様詳細を検討する前段階。</td></tr>
+    </table>
+  </div>
+
+  <h2 id="match">③ 一致(既にChampions値) — 33件</h2>
+  <p class="meta">照合の結果、既にChampions仕様と一致していることが確認できた項目。修正不要。</p>
+  <table class="plain">
+    <tr><th>種別</th><th>項目</th><th>内容</th><th>影響度</th></tr>
+    <tr><td>rules</td><td>しおづけ (状態変化)</td><td>しおづけのダメージは、はがね/みずタイプの相手=最大HPの1/8、それ以外=1/16(SVでは1/4・1/8だった)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>rules</td><td>でんじふゆう (状態変化)</td><td>でんじふゆう状態は地面にいない扱いになり、じめんタイプの技だけでなく、まきびし・どくびし・ねばねばネットの効果も受けなくなる(Gen5〜SVでは撒き菱系は無効化できない、とされていた設置技免除がChampionsで復活)</td><td><span class="badge imp-mid">中</span></td></tr>
+<tr><td>rules</td><td>メガシンカ</td><td>パワートリック/パワーシェア/ガードシェア/スピードスワップ等で入れ替えた実数値は、第七世代まではメガシンカで元に戻っていたが、Championsではメガシンカ後も実数値が維持される(種族値変化があっても実数値変動は起きない)</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>かげぬい</td><td>威力 80(SVまで) → 90(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>くちばしキャノン</td><td>威力 100(SVまで) → 120(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>しおづけ</td><td>しおづけ状態の毎ターンダメージ 最大HPの1/8(SV) → 1/16(Champions)。はがね/みずタイプは1/4(SV)→1/8(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>せいちょう</td><td>タイプ ノーマル(SVまで) → くさ(LEGENDS Z-A/Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>であいがしら</td><td>威力 90(SVまで) → 100(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>どくのいと</td><td>相手のすばやさランク低下量 1段階(SVまで) → 2段階(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>ひゃっきやこう</td><td>威力 60(SV) → 65(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>ひょうざんおろし</td><td>威力 100(SV) → 120(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>ほおばる</td><td>きのみを持っていない状態でSVまでは技を選択できないが、Championsは選択でき、行動時点までにきのみを入手できれば成功する</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>ほのおのムチ</td><td>威力 80(SVまで) → 90(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>みずあめボム</td><td>命中率 85(SV) → 90(Champions)</td><td><span class="badge imp-mid">中</span></td></tr>
+<tr><td>moves</td><td>もえつきる</td><td>もえつきる使用時、Championsでは自分の「こおり」状態を治す効果が追加されている(SVの説明文には無い)</td><td><span class="badge imp-mid">中</span></td></tr>
+<tr><td>moves</td><td>りんごさん</td><td>威力 80(SVまで) → 90(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>アイアンヘッド</td><td>ひるみ確率 30%(SVまで) → 20%(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>アイアンヘッド</td><td>ひるみ確率 20%(Champions、idx40と同一事実の確認)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>クラブハンマー</td><td>命中率 90(第五世代〜SV) → 95(Champions)</td><td><span class="badge imp-mid">中</span></td></tr>
+<tr><td>moves</td><td>ゲップ</td><td>きのみを食べていない状態でSVまでは選択自体ができないが、Championsは選択でき、行動時点までにきのみを食べられれば成功する</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>ゴールドラッシュ</td><td>命中率 100(SVまで)→95(Champions)。成功後の自分のとくこう低下 1段階(SVまで)→2段階(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>ゴールドラッシュ</td><td>命中率95、成功後とくこう-2(idx58と同一事実の確認)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>トラバサミ</td><td>タイプ くさ(第八世代) → はがね(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>トロピカルキック</td><td>威力 70(SVまで) → 85(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>ドラゴンエール</td><td>ドラゴンエールがChampionsで音技に分類されるようになり、特性ぼうおんの味方に無効化され、特性びんじょうでコピーできなくなった</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>ナイトバースト</td><td>威力 85(SVまで) → 90(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>ナイトバースト</td><td>威力上昇(idx74と同一事実の確認。Championsで威力が上がりもえあがるいかりと同列になった)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>バリアーラッシュ</td><td>威力 70(SV) → 90(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>フェイタルクロー</td><td>どく/まひ/ねむりのいずれか付与確率 50%(SV) → 30%(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>ボーンラッシュ</td><td>威力 25(SVまで) → 30(Champions)</td><td><span class="badge imp-mid">中</span></td></tr>
+<tr><td>moves</td><td>ムーンフォース</td><td>相手のとくこう低下確率 30%(SVまで) → 10%(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>ムーンフォース</td><td>とくこう低下確率10%(idx89と同一事実の確認)</td><td><span class="badge imp-high">高</span></td></tr>
+<tr><td>moves</td><td>Ｇのちから</td><td>威力 80(SVまで) → 90(Champions)</td><td><span class="badge imp-high">高</span></td></tr>
+  </table>
+
+  <h2 id="unconfirmed">④ 未確認(自信なし・要再調査) — 14件</h2>
+  <p class="meta">仕様差はありそうだが、時間都合でエンジンとの照合まで到達できなかった項目。憶測で一致/食い違いを断定していない。</p>
+  <table class="plain">
+    <tr><th>種別</th><th>項目</th><th>内容</th><th>影響度</th></tr>
+    <tr><td>rules</td><td>みちづれ (状態変化)</td><td>みちづれ状態の相手を倒したときに発動する攻撃技のうち、どろぼう/ほしがる(相手の持ち物を奪う)・はたきおとす(相手の持ち物を失わせる)は、5-SVでは『×』(効果不発動)だったがChampionsでは『○』(効果発動)に変更。ついばむ/むしくいは両方とも『×』のまま</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>うたかたのアリア</td><td>とびだすなかみ/うのミサイル、レンブのみ、みちづれ状態で使用者が瀕死になった場合でも、Championsではやけどを治す効果が発動する(SVまでは発動しない)</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>がんせきアックス</td><td>Pokémon ChampionsのレギュレーションM-B以降では、さめはだ/みちづれ等の反動で使用者が瀕死になっても追加効果(ステルスロック設置)が発動する(M-Aでは発動しなかった)</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>こうそくスピン</td><td>さめはだ/てつのトゲ/ゆうばく/とびだすなかみ/うのミサイル、ゴツゴツメット、みちづれ状態のダメージで使用者が瀕死になった場合、SVまでは場の状態を解除できないが、Championsでは解除できる</td><td><span class="badge imp-mid">中</span></td></tr>
+<tr><td>moves</td><td>はたきおとす</td><td>さめはだ/てつのトゲ/ゆうばく/とびだすなかみ/うのミサイル、ゴツゴツメット、みちづれ状態のダメージで使用者が瀕死になった場合、SVまでは相手の持ち物を落とせないが、Championsでは落とせる</td><td><span class="badge imp-mid">中</span></td></tr>
+<tr><td>moves</td><td>もえつきる</td><td>ほのおタイプでない状態でこの技を選ぼうとすると、SVまでは選択後に失敗するだけだが、Championsでは選択自体ができない(メガシンカで取り戻せる場合でもそのターンは選べない)</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>エレクトロビーム</td><td>使用者の特性がちからずくのとき、SVでは特攻上昇効果や威力上昇が発動するが、Championsではちからずくの効果自体が発動しない</td><td><span class="badge imp-mid">中</span></td></tr>
+<tr><td>moves</td><td>ガードシェア</td><td>ガードシェアで変更した能力値は、メガシンカ発動時にSV以前(第七世代)ではリセットされるが、Championsでは維持される</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>キラースピン</td><td>キラースピン使用者が反動等で瀕死になった場合、SVでは味方の場の状態を解除できないが、Championsでは解除できる(こうそくスピンと同様の仕様)</td><td><span class="badge imp-mid">中</span></td></tr>
+<tr><td>moves</td><td>スピードスワップ</td><td>スピードスワップで変更したすばやさは、メガシンカ発動時にSV以前(第七世代)ではリセットされるが、Championsでは維持される</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>moves</td><td>パワーシェア</td><td>パワーシェアで変更した能力値は、メガシンカ発動時にSV以前(第七世代)ではリセットされるが、Championsでは維持される</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>abilities</td><td>きんちょうかん</td><td>ダブルバトル等で敵味方が同時にダメージを受けてひんしになったとき、きんちょうかんの発動終了(ひんし)後にきのみが使用可能になる、という演出通りの処理順</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>abilities</td><td>ぎたい</td><td>へんしん状態でフィールドが無いとき、Championsでは変身対象のポケモンのタイプになる(第八世代では変身前の自身のタイプになるのと異なる)</td><td><span class="badge imp-low">低</span></td></tr>
+<tr><td>abilities</td><td>さめはだ</td><td>さめはだダメージで技使用者がひんしになった場合の、どろぼう/ほしがる・はたきおとすの発動可否がSVとChampionsで異なる(表: 5-SVは×、Championsは○=第四世代の挙動に戻る)</td><td><span class="badge imp-low">低</span></td></tr>
+  </table>
+
+  <h2 id="naming">⑤ 命名のみ(数値・挙動は不変) — 19件</h2>
+  <p class="meta">Championsでの呼称・表記が変わっているだけで、ゲームの数値・挙動には影響しない項目(修正の緊急性は低い・UI表記を合わせるかは別途判断)。</p>
+  <table class="plain">
+    <tr><th>種別</th><th>項目</th></tr>
+    <tr><td>rules</td><td>あなをほる (状態変化)</td></tr>
+<tr><td>rules</td><td>あばれる (状態変化)</td></tr>
+<tr><td>rules</td><td>いちゃもん (状態変化)</td></tr>
+<tr><td>rules</td><td>うちおとす (状態変化)</td></tr>
+<tr><td>rules</td><td>かなしばり (状態変化)</td></tr>
+<tr><td>rules</td><td>そらをとぶ (状態変化)</td></tr>
+<tr><td>rules</td><td>ちいさくなる (状態変化)</td></tr>
+<tr><td>rules</td><td>ほろびのうた (状態変化)</td></tr>
+<tr><td>rules</td><td>みちづれ (状態変化)</td></tr>
+<tr><td>rules</td><td>シャドーダイブ (状態変化)</td></tr>
+<tr><td>rules</td><td>タイプ相性</td></tr>
+<tr><td>rules</td><td>ダイビング (状態変化)</td></tr>
+<tr><td>rules</td><td>パワートリック (状態変化)</td></tr>
+<tr><td>rules</td><td>パワートリック (状態変化)</td></tr>
+<tr><td>abilities</td><td>きよめのしお</td></tr>
+<tr><td>abilities</td><td>さめはだ</td></tr>
+<tr><td>abilities</td><td>でんきにかえる</td></tr>
+<tr><td>abilities</td><td>のろわれボディ</td></tr>
+<tr><td>abilities</td><td>アロマベール</td></tr>
+  </table>
+
+  <h2 id="noise">⑥ ノイズ(存在有無・バグ報告) — 6件</h2>
+  <h3>バグ報告(意図した仕様ではない) — 6件</h3>
+  <table class="plain">
+    <tr><th>種別</th><th>項目</th></tr>
+    <tr><td>rules</td><td>やどりぎのタネ (状態変化)</td></tr>
+<tr><td>rules</td><td>メガシンカ</td></tr>
+<tr><td>abilities</td><td>きんちょうかん</td></tr>
+<tr><td>abilities</td><td>きんちょうかん</td></tr>
+<tr><td>abilities</td><td>きんちょうかん</td></tr>
+<tr><td>abilities</td><td>ばけのかわ</td></tr>
+  </table>
+  <h3>存在有無のみ — 0件</h3>
+  <p class="meta">該当なし(0件)。</p>
+
+  <h2 id="sameval">⑦ 誤検出/同一仕様の再掲(参考) — 407件</h2>
+  <p class="meta">「Champions」という語を含むが、実際には従来世代(SV等)と数値・挙動が完全に同一で、単にChampions向けの簡潔な説明文が併記されているだけの箇所。仕様差ではないため深掘り調査はしていない(件数が多いため折りたたみ表示)。</p>
+  <details>
+    <summary>407件を表示</summary>
+    <table class="plain">
+      <tr><th>種別</th><th>項目</th></tr>
+      <tr><td>rules</td><td>あばれる (状態変化)</td></tr>
+<tr><td>rules</td><td>いえき (状態変化)</td></tr>
+<tr><td>rules</td><td>かいふくふうじ (状態変化)</td></tr>
+<tr><td>rules</td><td>こんらん</td></tr>
+<tr><td>rules</td><td>さわぐ (状態変化)</td></tr>
+<tr><td>rules</td><td>じごくづき (状態変化)</td></tr>
+<tr><td>rules</td><td>じゅうでん (状態変化)</td></tr>
+<tr><td>rules</td><td>たくわえる (状態変化)</td></tr>
+<tr><td>rules</td><td>ちいさくなる (状態変化)</td></tr>
+<tr><td>rules</td><td>ちょうはつ (状態変化)</td></tr>
+<tr><td>rules</td><td>ねをはる (状態変化)</td></tr>
+<tr><td>rules</td><td>のろい (状態変化)</td></tr>
+<tr><td>rules</td><td>ふういん (状態変化)</td></tr>
+<tr><td>rules</td><td>みちづれ (状態変化)</td></tr>
+<tr><td>rules</td><td>もりののろい (状態変化)</td></tr>
+<tr><td>rules</td><td>やけど</td></tr>
+<tr><td>rules</td><td>アクアリング (状態変化)</td></tr>
+<tr><td>rules</td><td>アンコール (状態変化)</td></tr>
+<tr><td>rules</td><td>ハロウィン (状態変化)</td></tr>
+<tr><td>rules</td><td>バインド状態</td></tr>
+<tr><td>rules</td><td>メガシンカ</td></tr>
+<tr><td>rules</td><td>メロメロ (状態変化)</td></tr>
+<tr><td>rules</td><td>ロックオン (状態変化)</td></tr>
+<tr><td>moves</td><td>うたかたのアリア</td></tr>
+<tr><td>moves</td><td>かげぬい</td></tr>
+<tr><td>moves</td><td>くちばしキャノン</td></tr>
+<tr><td>moves</td><td>こうそくスピン</td></tr>
+<tr><td>moves</td><td>すてみタックル</td></tr>
+<tr><td>moves</td><td>せいちょう</td></tr>
+<tr><td>moves</td><td>であいがしら</td></tr>
+<tr><td>moves</td><td>とおぼえ</td></tr>
+<tr><td>moves</td><td>とっておき</td></tr>
+<tr><td>moves</td><td>どくどく</td></tr>
+<tr><td>moves</td><td>どくのいと</td></tr>
+<tr><td>moves</td><td>ねこだまし</td></tr>
+<tr><td>moves</td><td>はたきおとす</td></tr>
+<tr><td>moves</td><td>ほおばる</td></tr>
+<tr><td>moves</td><td>ほのおのムチ</td></tr>
+<tr><td>moves</td><td>アイアンテール</td></tr>
+<tr><td>moves</td><td>アイアンローラー</td></tr>
+<tr><td>moves</td><td>アイススピナー</td></tr>
+<tr><td>moves</td><td>アイスハンマー</td></tr>
+<tr><td>moves</td><td>アクアカッター</td></tr>
+<tr><td>moves</td><td>アーマーキャノン</td></tr>
+<tr><td>moves</td><td>アームハンマー</td></tr>
+<tr><td>moves</td><td>エレクトロビーム</td></tr>
+<tr><td>moves</td><td>ガードシェア</td></tr>
+<tr><td>moves</td><td>キラースピン</td></tr>
+<tr><td>moves</td><td>クラブハンマー</td></tr>
+<tr><td>moves</td><td>ゲップ</td></tr>
+<tr><td>moves</td><td>シャドークロー</td></tr>
+<tr><td>moves</td><td>スピードスワップ</td></tr>
+<tr><td>moves</td><td>テレポート</td></tr>
+<tr><td>moves</td><td>トラバサミ</td></tr>
+<tr><td>moves</td><td>トロピカルキック</td></tr>
+<tr><td>moves</td><td>ドラゴンエール</td></tr>
+<tr><td>moves</td><td>ドラゴンクロー</td></tr>
+<tr><td>moves</td><td>ドラゴンダイブ</td></tr>
+<tr><td>moves</td><td>ナイトバースト</td></tr>
+<tr><td>moves</td><td>パワーシェア</td></tr>
+<tr><td>moves</td><td>フリーズドライ</td></tr>
+<tr><td>moves</td><td>ブレイククロー</td></tr>
+<tr><td>moves</td><td>ボーンラッシュ</td></tr>
+<tr><td>moves</td><td>メタルクロー</td></tr>
+<tr><td>moves</td><td>１０まんボルト</td></tr>
+<tr><td>moves</td><td>３ぼんのや</td></tr>
+<tr><td>moves</td><td>ＤＤラリアット</td></tr>
+<tr><td>moves</td><td>Ｇのちから</td></tr>
+<tr><td>abilities</td><td>あくしゅう</td></tr>
+<tr><td>abilities</td><td>あついしぼう</td></tr>
+<tr><td>abilities</td><td>あとだし</td></tr>
+<tr><td>abilities</td><td>あまのじゃく</td></tr>
+<tr><td>abilities</td><td>あめうけざら</td></tr>
+<tr><td>abilities</td><td>あめふらし</td></tr>
+<tr><td>abilities</td><td>いかく</td></tr>
+<tr><td>abilities</td><td>いかりのつぼ</td></tr>
+<tr><td>abilities</td><td>いしあたま</td></tr>
+<tr><td>abilities</td><td>いたずらごころ</td></tr>
+<tr><td>abilities</td><td>うるおいボイス</td></tr>
+<tr><td>abilities</td><td>うるおいボディ</td></tr>
+<tr><td>abilities</td><td>えんかく</td></tr>
+<tr><td>abilities</td><td>おうごんのからだ</td></tr>
+<tr><td>abilities</td><td>おみとおし</td></tr>
+<tr><td>abilities</td><td>おもてなし</td></tr>
+<tr><td>abilities</td><td>おやこあい</td></tr>
+<tr><td>abilities</td><td>かいりきバサミ</td></tr>
+<tr><td>abilities</td><td>かげふみ</td></tr>
+<tr><td>abilities</td><td>かそく</td></tr>
+<tr><td>abilities</td><td>かたいツメ</td></tr>
+<tr><td>abilities</td><td>かたやぶり</td></tr>
+<tr><td>abilities</td><td>かちき</td></tr>
+<tr><td>abilities</td><td>かるわざ</td></tr>
+<tr><td>abilities</td><td>かわりもの</td></tr>
+<tr><td>abilities</td><td>かんそうはだ</td></tr>
+<tr><td>abilities</td><td>かんろなミツ</td></tr>
+<tr><td>abilities</td><td>がんじょう</td></tr>
+<tr><td>abilities</td><td>がんじょうあご</td></tr>
+<tr><td>abilities</td><td>きけんよち</td></tr>
+<tr><td>abilities</td><td>きみょうなくすり</td></tr>
+<tr><td>abilities</td><td>きもったま</td></tr>
+<tr><td>abilities</td><td>きゅうばん</td></tr>
+<tr><td>abilities</td><td>きょううん</td></tr>
+<tr><td>abilities</td><td>きょうせい</td></tr>
+<tr><td>abilities</td><td>きよめのしお</td></tr>
+<tr><td>abilities</td><td>きれあじ</td></tr>
+<tr><td>abilities</td><td>きんちょうかん</td></tr>
+<tr><td>abilities</td><td>ぎたい</td></tr>
+<tr><td>abilities</td><td>ぎたい</td></tr>
+<tr><td>abilities</td><td>ぎゃくじょう</td></tr>
+<tr><td>abilities</td><td>くいしんぼう</td></tr>
+<tr><td>abilities</td><td>くだけるよろい</td></tr>
+<tr><td>abilities</td><td>げきりゅう</td></tr>
+<tr><td>abilities</td><td>こんじょう</td></tr>
+<tr><td>abilities</td><td>さいせいりょく</td></tr>
+<tr><td>abilities</td><td>さまようたましい</td></tr>
+<tr><td>abilities</td><td>さめはだ</td></tr>
+<tr><td>abilities</td><td>しぜんかいふく</td></tr>
+<tr><td>abilities</td><td>しぜんかいふく</td></tr>
+<tr><td>abilities</td><td>しめりけ</td></tr>
+<tr><td>abilities</td><td>しゅうかく</td></tr>
+<tr><td>abilities</td><td>しろいけむり</td></tr>
+<tr><td>abilities</td><td>しんりょく</td></tr>
+<tr><td>abilities</td><td>じきゅうりょく</td></tr>
+<tr><td>abilities</td><td>じしんかじょう</td></tr>
+<tr><td>abilities</td><td>じゅうなん</td></tr>
+<tr><td>abilities</td><td>じゅくせい</td></tr>
+<tr><td>abilities</td><td>じょおうのいげん</td></tr>
+<tr><td>abilities</td><td>すいすい</td></tr>
+<tr><td>abilities</td><td>すいほう</td></tr>
+<tr><td>abilities</td><td>すじがねいり</td></tr>
+<tr><td>abilities</td><td>すてみ</td></tr>
+<tr><td>abilities</td><td>すなおこし</td></tr>
+<tr><td>abilities</td><td>すなかき</td></tr>
+<tr><td>abilities</td><td>すながくれ</td></tr>
+<tr><td>abilities</td><td>すなのちから</td></tr>
+<tr><td>abilities</td><td>すなはき</td></tr>
+<tr><td>abilities</td><td>すりぬけ</td></tr>
+<tr><td>abilities</td><td>するどいめ</td></tr>
+<tr><td>abilities</td><td>せいぎのこころ</td></tr>
+<tr><td>abilities</td><td>せいしんりょく</td></tr>
+<tr><td>abilities</td><td>せいでんき</td></tr>
+<tr><td>abilities</td><td>そうしょく</td></tr>
+<tr><td>abilities</td><td>そうだいしょう</td></tr>
+<tr><td>abilities</td><td>たいねつ</td></tr>
+<tr><td>abilities</td><td>たんじゅん</td></tr>
+<tr><td>abilities</td><td>だっぴ</td></tr>
+<tr><td>abilities</td><td>ちからもち</td></tr>
+<tr><td>abilities</td><td>ちくでん</td></tr>
+<tr><td>abilities</td><td>ちどりあし</td></tr>
+<tr><td>abilities</td><td>ちょすい</td></tr>
+<tr><td>abilities</td><td>てきおうりょく</td></tr>
+<tr><td>abilities</td><td>てつのこぶし</td></tr>
+<tr><td>abilities</td><td>てんきや</td></tr>
+<tr><td>abilities</td><td>てんねん</td></tr>
+<tr><td>abilities</td><td>でんきエンジン</td></tr>
+<tr><td>abilities</td><td>とうそうしん</td></tr>
+<tr><td>abilities</td><td>とびだすなかみ</td></tr>
+<tr><td>abilities</td><td>どくげしょう</td></tr>
+<tr><td>abilities</td><td>どくしゅ</td></tr>
+<tr><td>abilities</td><td>どくのトゲ</td></tr>
+<tr><td>abilities</td><td>どしょく</td></tr>
+<tr><td>abilities</td><td>どんかん</td></tr>
+<tr><td>abilities</td><td>ぬめぬめ</td></tr>
+<tr><td>abilities</td><td>ねんちゃく</td></tr>
+<tr><td>abilities</td><td>はっこう</td></tr>
+<tr><td>abilities</td><td>はとむね</td></tr>
+<tr><td>abilities</td><td>はやあし</td></tr>
+<tr><td>abilities</td><td>はやおき</td></tr>
+<tr><td>abilities</td><td>はやてのつばさ</td></tr>
+<tr><td>abilities</td><td>はらぺこスイッチ</td></tr>
+<tr><td>abilities</td><td>はりきり</td></tr>
+<tr><td>abilities</td><td>はんすう</td></tr>
+<tr><td>abilities</td><td>ばけのかわ</td></tr>
+<tr><td>abilities</td><td>ひでり</td></tr>
+<tr><td>abilities</td><td>ひとでなし</td></tr>
+<tr><td>abilities</td><td>ひらいしん</td></tr>
+<tr><td>abilities</td><td>びんじょう</td></tr>
+<tr><td>abilities</td><td>ふくがん</td></tr>
+<tr><td>abilities</td><td>ふくつのこころ</td></tr>
+<tr><td>abilities</td><td>ふしぎなうろこ</td></tr>
+<tr><td>abilities</td><td>ふしょく</td></tr>
+<tr><td>abilities</td><td>ふみん</td></tr>
+<tr><td>abilities</td><td>ふゆう</td></tr>
+<tr><td>abilities</td><td>ぶきよう</td></tr>
+<tr><td>abilities</td><td>へんげんじざい</td></tr>
+<tr><td>abilities</td><td>ほうし</td></tr>
+<tr><td>abilities</td><td>ほおぶくろ</td></tr>
+<tr><td>abilities</td><td>ほのおのからだ</td></tr>
+<tr><td>abilities</td><td>ぼうおん</td></tr>
+<tr><td>abilities</td><td>ぼうじん</td></tr>
+<tr><td>abilities</td><td>ぼうだん</td></tr>
+<tr><td>abilities</td><td>まけんき</td></tr>
+<tr><td>abilities</td><td>むしのしらせ</td></tr>
+<tr><td>abilities</td><td>めんえき</td></tr>
+<tr><td>abilities</td><td>もうか</td></tr>
+<tr><td>abilities</td><td>ものひろい</td></tr>
+<tr><td>abilities</td><td>もふもふ</td></tr>
+<tr><td>abilities</td><td>もらいび</td></tr>
+<tr><td>abilities</td><td>もらいび</td></tr>
+<tr><td>abilities</td><td>やるき</td></tr>
+<tr><td>abilities</td><td>ゆうばく</td></tr>
+<tr><td>abilities</td><td>ゆきかき</td></tr>
+<tr><td>abilities</td><td>ゆきがくれ</td></tr>
+<tr><td>abilities</td><td>ゆきふらし</td></tr>
+<tr><td>abilities</td><td>ようりょくそ</td></tr>
+<tr><td>abilities</td><td>よちむ</td></tr>
+<tr><td>abilities</td><td>りんぷん</td></tr>
+<tr><td>abilities</td><td>わるいてぐせ</td></tr>
+<tr><td>abilities</td><td>アイスボディ</td></tr>
+<tr><td>abilities</td><td>アナライズ</td></tr>
+<tr><td>abilities</td><td>イリュージョン</td></tr>
+<tr><td>abilities</td><td>エレキメイカー</td></tr>
+<tr><td>abilities</td><td>カブトアーマー</td></tr>
+<tr><td>abilities</td><td>カーリーヘアー</td></tr>
+<tr><td>abilities</td><td>クイックドロウ</td></tr>
+<tr><td>abilities</td><td>クリアボディ</td></tr>
+<tr><td>abilities</td><td>サンパワー</td></tr>
+<tr><td>abilities</td><td>サーフテール</td></tr>
+<tr><td>abilities</td><td>シェルアーマー</td></tr>
+<tr><td>abilities</td><td>シンクロ</td></tr>
+<tr><td>abilities</td><td>スイートベール</td></tr>
+<tr><td>abilities</td><td>スカイスキン</td></tr>
+<tr><td>abilities</td><td>スキルリンク</td></tr>
+<tr><td>abilities</td><td>スナイパー</td></tr>
+<tr><td>abilities</td><td>テイルアーマー</td></tr>
+<tr><td>abilities</td><td>テクニシャン</td></tr>
+<tr><td>abilities</td><td>テレパシー</td></tr>
+<tr><td>abilities</td><td>トレース</td></tr>
+<tr><td>abilities</td><td>ノーてんき</td></tr>
+<tr><td>abilities</td><td>ノーガード</td></tr>
+<tr><td>abilities</td><td>ハードロック</td></tr>
+<tr><td>abilities</td><td>バトルスイッチ</td></tr>
+<tr><td>abilities</td><td>バリアフリー</td></tr>
+<tr><td>abilities</td><td>ファーコート</td></tr>
+<tr><td>abilities</td><td>フィルター</td></tr>
+<tr><td>abilities</td><td>フェアリーオーラ</td></tr>
+<tr><td>abilities</td><td>フェアリースキン</td></tr>
+<tr><td>abilities</td><td>フラワーベール</td></tr>
+<tr><td>abilities</td><td>フリーズスキン</td></tr>
+<tr><td>abilities</td><td>フレンドガード</td></tr>
+<tr><td>abilities</td><td>プラス</td></tr>
+<tr><td>abilities</td><td>プレッシャー</td></tr>
+<tr><td>abilities</td><td>ヘヴィメタル</td></tr>
+<tr><td>abilities</td><td>ポイズンヒール</td></tr>
+<tr><td>abilities</td><td>マイティチェンジ</td></tr>
+<tr><td>abilities</td><td>マイナス</td></tr>
+<tr><td>abilities</td><td>マイペース</td></tr>
+<tr><td>abilities</td><td>マグマのよろい</td></tr>
+<tr><td>abilities</td><td>マジシャン</td></tr>
+<tr><td>abilities</td><td>マジックガード</td></tr>
+<tr><td>abilities</td><td>マジックミラー</td></tr>
+<tr><td>abilities</td><td>マルチスケイル</td></tr>
+<tr><td>abilities</td><td>ミイラ</td></tr>
+<tr><td>abilities</td><td>ミラーアーマー</td></tr>
+<tr><td>abilities</td><td>ムラっけ</td></tr>
+<tr><td>abilities</td><td>メガソーラー</td></tr>
+<tr><td>abilities</td><td>メガランチャー</td></tr>
+<tr><td>abilities</td><td>メロメロボディ</td></tr>
+<tr><td>abilities</td><td>ヨガパワー</td></tr>
+<tr><td>abilities</td><td>ライトメタル</td></tr>
+<tr><td>abilities</td><td>リーフガード</td></tr>
+<tr><td>abilities</td><td>レシーバー</td></tr>
+<tr><td>items</td><td>あついいわ</td></tr>
+<tr><td>items</td><td>いのちのたま</td></tr>
+<tr><td>items</td><td>おおきなねっこ</td></tr>
+<tr><td>items</td><td>かいがらのすず</td></tr>
+<tr><td>items</td><td>かたいいし</td></tr>
+<tr><td>items</td><td>きあいのタスキ</td></tr>
+<tr><td>items</td><td>きあいのハチマキ</td></tr>
+<tr><td>items</td><td>きせきのタネ</td></tr>
+<tr><td>items</td><td>きれいなぬけがら</td></tr>
+<tr><td>items</td><td>ぎんのこな</td></tr>
+<tr><td>items</td><td>くろいてっきゅう</td></tr>
+<tr><td>items</td><td>くろいメガネ</td></tr>
+<tr><td>items</td><td>くろおび</td></tr>
+<tr><td>items</td><td>こうかくレンズ</td></tr>
+<tr><td>items</td><td>こだわりスカーフ</td></tr>
+<tr><td>items</td><td>しめったいわ</td></tr>
+<tr><td>items</td><td>しろいハーブ</td></tr>
+<tr><td>items</td><td>しんぴのしずく</td></tr>
+<tr><td>items</td><td>じしゃく</td></tr>
+<tr><td>items</td><td>するどいくちばし</td></tr>
+<tr><td>items</td><td>せんせいのツメ</td></tr>
+<tr><td>items</td><td>たつじんのおび</td></tr>
+<tr><td>items</td><td>たべのこし</td></tr>
+<tr><td>items</td><td>ちからのハチマキ</td></tr>
+<tr><td>items</td><td>つめたいいわ</td></tr>
+<tr><td>items</td><td>でんきだま</td></tr>
+<tr><td>items</td><td>とけないこおり</td></tr>
+<tr><td>items</td><td>どくバリ</td></tr>
+<tr><td>items</td><td>のろいのおふだ</td></tr>
+<tr><td>items</td><td>ひかりのこな</td></tr>
+<tr><td>items</td><td>ひかりのねんど</td></tr>
+<tr><td>items</td><td>まがったスプーン</td></tr>
+<tr><td>items</td><td>もくたん</td></tr>
+<tr><td>items</td><td>ものしりメガネ</td></tr>
+<tr><td>items</td><td>やわらかいすな</td></tr>
+<tr><td>items</td><td>ようせいのハネ</td></tr>
+<tr><td>items</td><td>りゅうのキバ</td></tr>
+<tr><td>items</td><td>アブソルナイト</td></tr>
+<tr><td>items</td><td>イトケのみ</td></tr>
+<tr><td>items</td><td>ウタンのみ</td></tr>
+<tr><td>items</td><td>ウツボットナイト</td></tr>
+<tr><td>items</td><td>エアームドナイト</td></tr>
+<tr><td>items</td><td>エルレイドナイト</td></tr>
+<tr><td>items</td><td>エンブオナイト</td></tr>
+<tr><td>items</td><td>オッカのみ</td></tr>
+<tr><td>items</td><td>オニゴーリナイト</td></tr>
+<tr><td>items</td><td>オボンのみ</td></tr>
+<tr><td>items</td><td>オレンのみ</td></tr>
+<tr><td>items</td><td>オーダイルナイト</td></tr>
+<tr><td>items</td><td>カイリュナイト</td></tr>
+<tr><td>items</td><td>カイロスナイト</td></tr>
+<tr><td>items</td><td>カエンジシナイト</td></tr>
+<tr><td>items</td><td>カゴのみ</td></tr>
+<tr><td>items</td><td>カシブのみ</td></tr>
+<tr><td>items</td><td>カメックスナイト</td></tr>
+<tr><td>items</td><td>カラマネナイト</td></tr>
+<tr><td>items</td><td>ガブリアスナイト</td></tr>
+<tr><td>items</td><td>ガメノデスナイト</td></tr>
+<tr><td>items</td><td>ガルーラナイト</td></tr>
+<tr><td>items</td><td>キラフロルナイト</td></tr>
+<tr><td>items</td><td>キーのみ</td></tr>
+<tr><td>items</td><td>ギャラドスナイト</td></tr>
+<tr><td>items</td><td>クチートナイト</td></tr>
+<tr><td>items</td><td>クラボのみ</td></tr>
+<tr><td>items</td><td>ケケンカニナイト</td></tr>
+<tr><td>items</td><td>ゲッコウガナイト</td></tr>
+<tr><td>items</td><td>ゲンガナイト</td></tr>
+<tr><td>items</td><td>ゴルーグナイト</td></tr>
+<tr><td>items</td><td>サメハダナイト</td></tr>
+<tr><td>items</td><td>サーナイトナイト</td></tr>
+<tr><td>items</td><td>シビルドナイト</td></tr>
+<tr><td>items</td><td>シャンデラナイト</td></tr>
+<tr><td>items</td><td>シュカのみ</td></tr>
+<tr><td>items</td><td>シルクのスカーフ</td></tr>
+<tr><td>items</td><td>ジジーロナイト</td></tr>
+<tr><td>items</td><td>ジュカインナイト</td></tr>
+<tr><td>items</td><td>ジュペッタナイト</td></tr>
+<tr><td>items</td><td>スコヴィラナイト</td></tr>
+<tr><td>items</td><td>スターミナイト</td></tr>
+<tr><td>items</td><td>スピアナイト</td></tr>
+<tr><td>items</td><td>ズルズキナイト</td></tr>
+<tr><td>items</td><td>ソクノのみ</td></tr>
+<tr><td>items</td><td>タイレーツナイト</td></tr>
+<tr><td>items</td><td>タブンネナイト</td></tr>
+<tr><td>items</td><td>タンガのみ</td></tr>
+<tr><td>items</td><td>チャーレムナイト</td></tr>
+<tr><td>items</td><td>チリーンナイト</td></tr>
+<tr><td>items</td><td>チルタリスナイト</td></tr>
+<tr><td>items</td><td>チーゴのみ</td></tr>
+<tr><td>items</td><td>デンリュウナイト</td></tr>
+<tr><td>items</td><td>ドラミドナイト</td></tr>
+<tr><td>items</td><td>ドリュウズナイト</td></tr>
+<tr><td>items</td><td>ナナシのみ</td></tr>
+<tr><td>items</td><td>ナモのみ</td></tr>
+<tr><td>items</td><td>ニャオニクスナイト</td></tr>
+<tr><td>items</td><td>ハガネールナイト</td></tr>
+<tr><td>items</td><td>ハッサムナイト</td></tr>
+<tr><td>items</td><td>ハバンのみ</td></tr>
+<tr><td>items</td><td>バクーダナイト</td></tr>
+<tr><td>items</td><td>バコウのみ</td></tr>
+<tr><td>items</td><td>バシャーモナイト</td></tr>
+<tr><td>items</td><td>バンギラスナイト</td></tr>
+<tr><td>items</td><td>ヒメリのみ</td></tr>
+<tr><td>items</td><td>ビアーのみ</td></tr>
+<tr><td>items</td><td>ピクシナイト</td></tr>
+<tr><td>items</td><td>ピジョットナイト</td></tr>
+<tr><td>items</td><td>ピントレンズ</td></tr>
+<tr><td>items</td><td>フォーカスレンズ</td></tr>
+<tr><td>items</td><td>フシギバナイト</td></tr>
+<tr><td>items</td><td>フラエッテナイト</td></tr>
+<tr><td>items</td><td>フーディナイト</td></tr>
+<tr><td>items</td><td>ブリガロナイト</td></tr>
+<tr><td>items</td><td>プテラナイト</td></tr>
+<tr><td>items</td><td>ヘラクロスナイト</td></tr>
+<tr><td>items</td><td>ヘルガナイト</td></tr>
+<tr><td>items</td><td>ペンドラナイト</td></tr>
+<tr><td>items</td><td>ホズのみ</td></tr>
+<tr><td>items</td><td>ボスゴドラナイト</td></tr>
+<tr><td>items</td><td>マフォクシナイト</td></tr>
+<tr><td>items</td><td>ミミロップナイト</td></tr>
+<tr><td>items</td><td>ムクホークナイト</td></tr>
+<tr><td>items</td><td>メガニウムナイト</td></tr>
+<tr><td>items</td><td>メタグロスナイト</td></tr>
+<tr><td>items</td><td>メトロノーム</td></tr>
+<tr><td>items</td><td>メンタルハーブ</td></tr>
+<tr><td>items</td><td>モモンのみ</td></tr>
+<tr><td>items</td><td>ヤチェのみ</td></tr>
+<tr><td>items</td><td>ヤドランナイト</td></tr>
+<tr><td>items</td><td>ヤミラミナイト</td></tr>
+<tr><td>items</td><td>ユキノオナイト</td></tr>
+<tr><td>items</td><td>ユキメノコナイト</td></tr>
+<tr><td>items</td><td>ヨプのみ</td></tr>
+<tr><td>items</td><td>ヨロギのみ</td></tr>
+<tr><td>items</td><td>ライチュウナイトX</td></tr>
+<tr><td>items</td><td>ライチュウナイトY</td></tr>
+<tr><td>items</td><td>ライボルトナイト</td></tr>
+<tr><td>items</td><td>ラグラージナイト</td></tr>
+<tr><td>items</td><td>ラムのみ</td></tr>
+<tr><td>items</td><td>リザードナイトX</td></tr>
+<tr><td>items</td><td>リザードナイトY</td></tr>
+<tr><td>items</td><td>リリバのみ</td></tr>
+<tr><td>items</td><td>リンドのみ</td></tr>
+<tr><td>items</td><td>ルカリオナイト</td></tr>
+<tr><td>items</td><td>ルチャブルナイト</td></tr>
+<tr><td>items</td><td>ロゼルのみ</td></tr>
+    </table>
+  </details>
+
+</div>
+</body>
+</html>

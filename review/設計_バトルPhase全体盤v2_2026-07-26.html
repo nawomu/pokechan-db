@@ -1,0 +1,2573 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>設計: バトルPhase全体盤v2(横型パイプライン) — 2026-07-26</title>
+<style>
+  :root{
+    --bg:#f6f5f2; --panel:#ffffff; --ink:#22201c; --sub:#5c5850; --line:#e4e0d8;
+    --accent:#8a5a2c; --accent-ink:#ffffff;
+    --event-bg:#fff3d9; --event-line:#e0ac4a; --event-ink:#6b4a12;
+    --gap-bg:#fdecec; --gap-line:#e08a8a; --gap-ink:#7a2727;
+    --ok-bg:#e9f3e6; --ok-line:#8fbf7a; --ok-ink:#33591f;
+    --code-bg:#efece4; --head-bg:#2c2822; --head-ink:#f3ede0;
+    --col-bg:#fffdf8; --lower-bg:#f2ede2;
+    --bd-impl-bg:#e9f3e6; --bd-impl-ink:#215c2c; --bd-impl-line:#8fbf7a;
+    --bd-generic-bg:#e7eef7; --bd-generic-ink:#1f4470; --bd-generic-line:#8caed8;
+    --bd-partial-bg:#fdf2df; --bd-partial-ink:#7a4f12; --bd-partial-line:#e0ac4a;
+    --bd-unknown-bg:#f0eee8; --bd-unknown-ink:#6b6558; --bd-unknown-line:#c9c2b3;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1b1916; --panel:#232019; --ink:#ecE6da; --sub:#b8b0a2; --line:#3a352c;
+      --accent:#d8a15f; --accent-ink:#241c0f;
+      --event-bg:#3a2f14; --event-line:#c68a2e; --event-ink:#f0cf8f;
+      --gap-bg:#3a2020; --gap-line:#a84f4f; --gap-ink:#f0b8b8;
+      --ok-bg:#1f3319; --ok-line:#5c8f45; --ok-ink:#bfe0a8;
+      --code-bg:#2a251c; --head-bg:#141210; --head-ink:#efe6d4;
+      --col-bg:#221f19; --lower-bg:#1e1b15;
+      --bd-impl-bg:#1f3319; --bd-impl-ink:#bfe0a8; --bd-impl-line:#5c8f45;
+      --bd-generic-bg:#182636; --bd-generic-ink:#a9c6ea; --bd-generic-line:#3f6a9c;
+      --bd-partial-bg:#332711; --bd-partial-ink:#f0cf8f; --bd-partial-line:#c68a2e;
+      --bd-unknown-bg:#2a271f; --bd-unknown-ink:#a49b89; --bd-unknown-line:#4a4436;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#1b1916; --panel:#232019; --ink:#ecE6da; --sub:#b8b0a2; --line:#3a352c;
+    --accent:#d8a15f; --accent-ink:#241c0f;
+    --event-bg:#3a2f14; --event-line:#c68a2e; --event-ink:#f0cf8f;
+    --gap-bg:#3a2020; --gap-line:#a84f4f; --gap-ink:#f0b8b8;
+    --ok-bg:#1f3319; --ok-line:#5c8f45; --ok-ink:#bfe0a8;
+    --code-bg:#2a251c; --head-bg:#141210; --head-ink:#efe6d4;
+    --col-bg:#221f19; --lower-bg:#1e1b15;
+    --bd-impl-bg:#1f3319; --bd-impl-ink:#bfe0a8; --bd-impl-line:#5c8f45;
+    --bd-generic-bg:#182636; --bd-generic-ink:#a9c6ea; --bd-generic-line:#3f6a9c;
+    --bd-partial-bg:#332711; --bd-partial-ink:#f0cf8f; --bd-partial-line:#c68a2e;
+    --bd-unknown-bg:#2a271f; --bd-unknown-ink:#a49b89; --bd-unknown-line:#4a4436;
+  }
+  :root[data-theme="light"]{
+    --bg:#f6f5f2; --panel:#ffffff; --ink:#22201c; --sub:#5c5850; --line:#e4e0d8;
+    --accent:#8a5a2c; --accent-ink:#ffffff;
+    --event-bg:#fff3d9; --event-line:#e0ac4a; --event-ink:#6b4a12;
+    --gap-bg:#fdecec; --gap-line:#e08a8a; --gap-ink:#7a2727;
+    --ok-bg:#e9f3e6; --ok-line:#8fbf7a; --ok-ink:#33591f;
+    --code-bg:#efece4; --head-bg:#2c2822; --head-ink:#f3ede0;
+    --col-bg:#fffdf8; --lower-bg:#f2ede2;
+    --bd-impl-bg:#e9f3e6; --bd-impl-ink:#215c2c; --bd-impl-line:#8fbf7a;
+    --bd-generic-bg:#e7eef7; --bd-generic-ink:#1f4470; --bd-generic-line:#8caed8;
+    --bd-partial-bg:#fdf2df; --bd-partial-ink:#7a4f12; --bd-partial-line:#e0ac4a;
+    --bd-unknown-bg:#f0eee8; --bd-unknown-ink:#6b6558; --bd-unknown-line:#c9c2b3;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:"Hiragino Kaku Gothic ProN","Yu Gothic",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+    line-height:1.7; font-size:14px; padding:0 0 80px;
+  }
+  .wrap{ max-width:1900px; margin:0 auto; padding:22px 20px 40px; }
+  header.top{ background:var(--head-bg); color:var(--head-ink); padding:30px 20px 26px; border-bottom:4px solid var(--accent); }
+  header.top .inner{ max-width:1900px; margin:0 auto; }
+  header.top h1{ margin:0 0 6px; font-size:1.45rem; letter-spacing:.02em; }
+  header.top .meta{ font-size:.82rem; opacity:.8; margin-bottom:12px; }
+  .badge{ display:inline-block; background:var(--accent); color:var(--accent-ink); font-size:.7rem; font-weight:700; padding:3px 10px; border-radius:999px; letter-spacing:.05em; margin-right:8px; }
+  .badge.warn{ background:#b23c3c; color:#fff; }
+  section.intro{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 22px; margin:18px 0; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  section.intro h2{ margin-top:0; font-size:1.05rem; }
+  section.intro p{ margin:.5em 0; }
+  section.intro ul{ margin:.4em 0 .8em 1.2em; padding:0; }
+  section.intro li{ margin:.3em 0; }
+  .callout{ border-left:4px solid var(--accent); background:var(--code-bg); padding:10px 14px; border-radius:0 8px 8px 0; margin:.8em 0; font-size:.9rem; }
+  .callout.warn2{ border-left-color:#b23c3c; }
+  code, .code{ font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:var(--code-bg); padding:1px 5px; border-radius:4px; font-size:.86em; }
+  .legend{ display:flex; flex-wrap:wrap; gap:8px 16px; margin:10px 0 4px; font-size:.82rem; }
+  .legend .sw{ display:inline-flex; align-items:center; gap:6px; }
+  .legend .sw i{ display:inline-block; width:12px; height:12px; border-radius:3px; border:1px solid var(--line); }
+
+  /* badges */
+  .bd{ display:inline-block; font-size:.68rem; font-weight:700; padding:2px 6px; border-radius:5px; white-space:nowrap; border:1px solid; }
+  .bd-impl{ background:var(--bd-impl-bg); color:var(--bd-impl-ink); border-color:var(--bd-impl-line); }
+  .bd-generic{ background:var(--bd-generic-bg); color:var(--bd-generic-ink); border-color:var(--bd-generic-line); }
+  .bd-partial{ background:var(--bd-partial-bg); color:var(--bd-partial-ink); border-color:var(--bd-partial-line); }
+  .bd-unknown{ background:var(--bd-unknown-bg); color:var(--bd-unknown-ink); border-color:var(--bd-unknown-line); }
+  .lvl{ display:inline-block; font-size:.66rem; padding:2px 6px; border-radius:5px; background:var(--code-bg); color:var(--sub); margin-left:4px; border:1px solid var(--line); }
+
+  /* ===== Upper lane: horizontal pipeline ===== */
+  .upperlanewrap{ overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--panel); box-shadow:0 1px 4px rgba(0,0,0,.08); margin:14px 0; }
+  .upperlane{ display:flex; gap:0; min-width:max-content; }
+  .phasecol{ width:330px; min-width:330px; border-right:1px solid var(--line); display:flex; flex-direction:column; background:var(--col-bg); }
+  .phasehead{ background:var(--head-bg); color:var(--head-ink); padding:10px 12px; position:sticky; top:0; z-index:3; border-bottom:2px solid var(--accent); }
+  .phk{ font-weight:700; font-size:.88rem; margin-bottom:3px; }
+  .phsd{ font-size:.72rem; opacity:.85; margin-bottom:3px; }
+  .phsd code{ background:rgba(255,255,255,.12); color:inherit; }
+  .phcount{ font-size:.72rem; opacity:.75; }
+  .phasebody{ padding:10px; max-height:78vh; overflow-y:auto; flex:1; }
+  .grouplabel{ font-size:.72rem; font-weight:700; color:var(--sub); margin:10px 0 4px; text-transform:uppercase; letter-spacing:.04em; }
+  .grouplabel:first-child{ margin-top:0; }
+  .emptynote{ font-size:.78rem; color:var(--sub); font-style:italic; padding:6px 0; }
+
+  .card{ background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:8px 10px; margin-bottom:7px; font-size:.78rem; }
+  .card-ability{ border-left:3px solid #8a5a2c; }
+  .card-item{ border-left:3px solid #4a7ba6; }
+  .card-kind{ border-left:3px solid #7a5a9a; }
+  .cname{ font-weight:700; font-size:.85rem; margin-bottom:2px; }
+  .ctype{ font-size:.66rem; font-weight:400; color:var(--sub); background:var(--code-bg); padding:1px 5px; border-radius:4px; margin-left:4px; }
+  .cdesc{ color:var(--sub); margin-bottom:4px; }
+  .cmeta{ margin-bottom:3px; }
+  .cfile{ font-family:ui-monospace,monospace; font-size:.68rem; color:var(--sub); }
+  .cgeneric{ font-size:.68rem; color:var(--bd-generic-ink); margin-top:2px; }
+  .refchip{ font-size:.68rem; color:var(--event-ink); background:var(--event-bg); border:1px solid var(--event-line); border-radius:5px; padding:2px 6px; margin-top:4px; display:inline-block; }
+  .staleflag{ color:var(--gap-ink); }
+
+  /* ===== Lower lane ===== */
+  .lowerlanewrap{ margin:22px 0; }
+  .lowerlanewrap > h2{ font-size:1.1rem; border-left:5px solid var(--accent); padding-left:10px; }
+  .lowerlane{ display:flex; flex-wrap:wrap; gap:14px; background:var(--lower-bg); border:1px solid var(--line); border-radius:10px; padding:18px; }
+  .sectionbox{ background:var(--panel); border:2px solid var(--event-line); border-radius:10px; padding:14px; flex:1 1 340px; min-width:320px; max-width:480px; }
+  .sectionbox-partial{ border-style:dashed; opacity:.92; }
+  .sechead{ margin-bottom:8px; }
+  .secname{ font-weight:700; font-size:.95rem; }
+  .evname{ color:var(--event-ink); font-weight:400; font-size:.82rem; }
+  .sechandlerlabel{ font-size:.75rem; color:var(--sub); margin:4px 0; font-family:ui-monospace,monospace; }
+  .secnote{ font-size:.74rem; color:var(--sub); margin-top:6px; background:var(--code-bg); padding:6px 8px; border-radius:6px; }
+  .sectiles{ margin-top:8px; }
+  .chainarrow{ text-align:center; font-size:.8rem; color:var(--sub); margin-top:8px; }
+
+  /* ===== counts table ===== */
+  .countstable{ border-collapse:collapse; width:100%; font-size:.82rem; margin:10px 0; }
+  .countstable th, .countstable td{ border:1px solid var(--line); padding:8px 10px; text-align:center; }
+  .countstable th{ background:var(--head-bg); color:var(--head-ink); }
+  .countstable td:first-child{ text-align:left; font-weight:700; }
+
+  /* ===== tail sections (judgment / parking) ===== */
+  section.tail{ background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:20px 24px; margin:22px 0; box-shadow:0 1px 3px rgba(0,0,0,.06); }
+  section.tail h2{ margin-top:0; font-size:1.1rem; border-left:5px solid var(--accent); padding-left:10px; }
+  section.tail h3{ font-size:.95rem; margin:1.1em 0 .4em; }
+  section.tail ol, section.tail ul{ margin:.3em 0 .9em 1.3em; padding:0; }
+  section.tail li{ margin:.4em 0; }
+  .qa{ border:1px solid var(--gap-line); background:var(--gap-bg); color:var(--gap-ink); border-radius:8px; padding:10px 14px; margin:.6em 0; }
+  .qa b{ display:block; margin-bottom:3px; }
+  .qa.new{ border-color:var(--bd-generic-line); background:var(--bd-generic-bg); color:var(--bd-generic-ink); }
+
+  .parksub{ margin:10px 0 16px; }
+  .parkgrid{ display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+  .parkitem{ background:var(--bd-unknown-bg); border:1px solid var(--bd-unknown-line); color:var(--bd-unknown-ink); border-radius:6px; padding:5px 9px; font-size:.76rem; max-width:230px; }
+  .parkitem-partial{ background:var(--bd-partial-bg); border-color:var(--bd-partial-line); color:var(--bd-partial-ink); }
+  .parkline{ font-family:ui-monospace,monospace; font-size:.68rem; opacity:.8; }
+  .parkdesc{ font-size:.68rem; opacity:.85; margin-top:2px; }
+
+  footer.note{ text-align:center; color:var(--sub); font-size:.76rem; margin-top:30px; }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="inner">
+    <span class="badge">盤 v2</span><span class="badge warn">阿部さんレビュー前提・未確定</span>
+    <h1>バトル1ターン Phase全体盤 v2 — 横型パイプライン + 下段共有Section/Eventレーン</h1>
+    <div class="meta">作成: 2026-07-26 JST / 対象: <code>real_battle_simulator.html</code>(現エンジン・9334行・?v=20260722a無改変) / 前身: <code>review/設計_バトルPhase全体表_2026-07-23.html</code>(v1・縦表) / 修正指示: <code>HANDOFF_SESSION_2026_07_26.md</code> §2/§2.5/§2.7/§3</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+<section class="intro">
+  <h2>この文書は何か・v1からの変更点</h2>
+  <p>
+    v1(<code>設計_バトルPhase全体表_2026-07-23.html</code>)は縦表で16フェーズを列挙したが、阿部さんの指示(2026-07-23夕)で<b>横型パイプライン盤</b>へ全面作り替え。
+    さらに2026-07-26のCEDEC元ネタ再検証(スクショ18枚全読+電ファミ記事再取得)で、v1に3つの間違い/不足が見つかったため、本盤(v2)はそれを反映する:
+  </p>
+  <ol>
+    <li><b>CEDECは「横一直線」ではなく「入れ子+再帰」</b>。機構が付く先は「タイムライン上の位置」ではなく「Event名」。クラボのみ等はタイムラインのどこからでも発火するため、<b>下段に「共有Section/Eventレーン」</b>を新設し、上段(時系列)と切り離した。</li>
+    <li><b>共有パイプの語彙が1本欠落(状態異常Event)</b>。v1はランク変化だけを共有パイプ扱いしていたが、状態異常付与/回復(itemReactions=毎ターン最大4回ポーリングで代替)も同格の共有Eventとして下段に追加。</li>
+    <li><b>攻撃補正の粒度=「1 Event」がCEDECスライド根拠で確定</b>(実数値系・威力系・持ち物系すべて同じ攻撃力補正Eventに合流)。設計は1キー、実装は複数箇所参照で吸収、が正解筋。</li>
+  </ol>
+  <div class="callout">
+    <b>出典の分離(2026-07-26 Fable5独立再検証で判明・重要)</b>: <b>上段(横のタイムライン)の出典はCEDECではない</b>。CEDEC電ファミ記事に「ターン全体の流れ」の記述は無い(正面から確認済み)。上段の出典=<b>阿部さん正典フェーズ順+バトルの流れ_実機リファレンス.md</b>(実機の事実・外部権威ソースに当てたもの)。<br>
+    <b>下段(共有Section/Event/Handlerの仕組み)の出典=CEDEC 2026 ゲーフリ講演</b>(電ファミ記事: Section→Event→EventHandler。「イベントハンドラーには任意のSectionを呼び出す機能も持たせている」=連鎖はHandler→Section呼び出しが一級機能)。
+  </div>
+  <div class="callout">
+    <b>データソース</b>: 特性=<code>pokechan_data_all.js</code> の <code>ABILITY_DESC</code>(全国版・309件)。持ち物=<code>items_database.js</code> の <code>ITEMS_DATABASE.items</code>(169件=通常93+メガストーン76)。技effect kind=同じく全国版 <code>WAZA_MAP</code>(919技・140 kind)。実装根拠は全て<code>real_battle_simulator.html</code>を本セッションで実grep(2026-07-26)し、v1が既に確認済みの行番号はそのまま流用・新規に引用する行番号は全て自分でgrepし直して確認した。
+  </div>
+  <div class="legend">
+    <span class="sw"><i style="background:var(--bd-impl-bg);border-color:var(--bd-impl-line)"></i> 【実装】=エンジンに機構名/kind名の直接文字列一致あり(file:line)</span>
+    <span class="sw"><i style="background:var(--bd-generic-bg);border-color:var(--bd-generic-line)"></i> 【実装(データ駆動)】=個別名でなくcategory/trigger等の汎用フィールドで分岐(file:line=汎用分岐箇所)</span>
+    <span class="sw"><i style="background:var(--bd-partial-bg);border-color:var(--bd-partial-line)"></i> 【実装(フェーズ未整理)】=エンジンに文字列は見つかったが本盤のフェーズ範囲表に未マッピング(パーキング行き)</span>
+    <span class="sw"><i style="background:var(--bd-unknown-bg);border-color:var(--bd-unknown-line)"></i> 【未確認】=エンジンにgrep 0件(未実装 or 旧仕様の可能性・断定しない)</span>
+  </div>
+  <div class="callout warn2">
+    <b>★訂正済みの注記(2026-07-26 検証で確定)</b>: <code>implemented_in_pokechan</code>フラグは「エンジン実装済みか」ではなく<b>「本家Championsアプリに解禁されているか」という別軸</b>(items_database.jsヘッダ&amp;<code>reference/_gap_priority_2026-07-19.md</code>に明記)。エンジン実grepで効果コードの存在を確認した20件(くろいヘドロ/かえんだま/どくどくだま/とつげきチョッキ/しんかのきせき/ふうせん/ゴツゴツメット/こだわりハチマキ/こだわりメガネ/パンチグローブ/ブーストエナジー/とくせいガード/あつぞこブーツ/クリアチャーム/だっしゅつパック/じゃくてんほけん/いかさまダイス/ものまねハーブ/おんみつマント/のどスプレー)は<b>「エンジンに効果コードあり・ただし本家Champions非解禁」=フラグは正しく、本番ピッカーからの除外は意図的ゲート(7477e63c・阿部さん指示の持ち物監査)</b>。フラグ変更は不要(変更すると本家に無い持ち物が出る回帰)。未解決の方針判断=全部版トグル時にこれらを出すか(_gap_priority_2026-07-19.md「要判断」のまま)。本盤の【実装】バッジ(エンジンコードの所在)自体は正しい。
+  </div>
+</section>
+
+<section class="intro">
+  <h2>件数表(全機構カバー状況)</h2>
+</section>
+
+<table class="countstable">
+<thead><tr><th>種別</th><th>全数</th><th>上段配置(実装/データ駆動)</th><th>下段配置(共有Section)</th><th>実装確認済・フェーズ未整理(パーキング)</th><th>証拠なし(パーキング・未確認)</th></tr></thead>
+<tbody>
+<tr><td>特性(ABILITY_DESC・全国版)</td><td>309</td><td>119</td><td>7</td><td>13</td><td>170</td></tr>
+<tr><td>持ち物(regular・mega_stone除く)</td><td>93</td><td>78</td><td>9</td><td>6</td><td>0</td></tr>
+<tr><td>メガストーン(persona集約1カード)</td><td>76</td><td colspan="4">mega_evolve列に集約カード1枚で配置(76種全て同一メカニズム・実装確認済)</td></tr>
+<tr><td>技effect kind(全国版WAZA_MAP)</td><td>140</td><td>112</td><td>0</td><td>2</td><td>26</td></tr>
+</tbody>
+</table>
+
+<div class="lowerlanewrap">
+<h2>上段レーン — フェーズタイムライン(左→右・横スクロール/各列は縦スクロール)</h2>
+</div>
+<div class="upperlanewrap"><div class="upperlane">
+<div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">① 交代・道具・にげる</div>
+      <div class="phsd">Showdown代表: <code>onSwitchOut / onSwitchIn(概念上)</code></div>
+      <div class="phcount">2件(特性0/持ち物2/kind0)</div>
+    </div>
+    <div class="phasebody">
+      
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">しろいハーブ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">能力ランクが下がったとき1度だけ元に戻す。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6175</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">あつぞこブーツ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">場に出る時、ステルスロック・まきびし・どくびし・ねばねばネットのダメージや効果を受けない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6222 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div>
+      
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">② すばやさ判定</div>
+      <div class="phsd">Showdown代表: <code>onModifySpe</code></div>
+      <div class="phcount">8件(特性6/持ち物2/kind0)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">すいすい <span class="ctype">特性</span></div>
+    <div class="cdesc">あめ時、すばやさが2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2298</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ようりょくそ <span class="ctype">特性</span></div>
+    <div class="cdesc">にほんばれ時、すばやさが2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2298</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">かるわざ <span class="ctype">特性</span></div>
+    <div class="cdesc">道具を持っていないとすばやさが2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2301</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">はやあし <span class="ctype">特性</span></div>
+    <div class="cdesc">状態異常時、すばやさが1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2291</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">すなかき <span class="ctype">特性</span></div>
+    <div class="cdesc">すなあらし時、すばやさが2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2298, L5231</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ゆきかき <span class="ctype">特性</span></div>
+    <div class="cdesc">あられ/ゆき時、すばやさが2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2298</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">こだわりスカーフ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">素早さが×1.5。同じ技しか出せなくなる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2293</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">くろいてっきゅう <span class="ctype">持ち物</span></div>
+    <div class="cdesc">装備者の素早さが半分になる。ひこうタイプ・ふゆう特性持ちにも地面タイプの技が当たるようになる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2295, L3350</div>
+    
+    
+  </div>
+      
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">③ スピード合戦①メガシンカ</div>
+      <div class="phsd">Showdown代表: <code>(Showdown無相当・メガ機構はGen6限定실装)</code></div>
+      <div class="phcount">0件(特性0/持ち物0/kind0)</div>
+    </div>
+    <div class="phasebody">
+      
+      
+      
+      <div class="emptynote">(該当なし)</div>
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">④ スピード合戦②登場特性発動</div>
+      <div class="phsd">Showdown代表: <code>onStart</code></div>
+      <div class="phcount">18件(特性17/持ち物1/kind0)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">あめふらし <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た時、てんきをあめ状態にする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2496</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">どんかん <span class="ctype">特性</span></div>
+    <div class="cdesc">メロメロ状態・ちょうはつ化されない。ゆうわくを無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2460, L3432, L4834, L6522, L7539, L7552</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">いかく <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出たときに、敵のこうげきを1段階低下。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2457</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">トレース <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た時、敵と同じ特性になる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2483, L2488</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">すなおこし <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た時、すなあらしにする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2500</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">エレキメイカー <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た時、足下をエレキフィールドにする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2508</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">グラスメイカー <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た時、足下をグラスフィールドにする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2511</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ミストメイカー <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た時、足下をミストフィールドにする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2514</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">サイコメイカー <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た時、足下をサイコフィールドにする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2517</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">プレッシャー <span class="ctype">特性</span></div>
+    <div class="cdesc">使用される技のPP消費+1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2480, L6496</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ひでり <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た時、天気をにほんばれ化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2492</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ゆきふらし <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た時、天気をゆき状態にする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2504</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">おみとおし <span class="ctype">特性</span></div>
+    <div class="cdesc">敵の持ち物が分かる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2520</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">かわりもの <span class="ctype">特性</span></div>
+    <div class="cdesc">場に出た直後に敵にへんしんする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2469</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">バトルスイッチ <span class="ctype">特性</span></div>
+    <div class="cdesc">使用技でギルガルドのフォルムが変化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2488, L3317, L6322, L6563</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ばけのかわ <span class="ctype">特性</span></div>
+    <div class="cdesc">1回だけ攻撃技のダメージを無効化。発動すると最大HPの1/8が減少する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2456, L3317, L6339</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">マイティチェンジ <span class="ctype">特性</span></div>
+    <div class="cdesc">手持ち復帰時、マイティフォルムに変化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2488, L6329</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">ブーストエナジー <span class="ctype">持ち物</span></div>
+    <div class="cdesc">こだいかっせい・クォークチャージのポケモンが場に出た時、はれ/エレキフィールド未発動なら消費され、HP以外の最高能力を強化する(素早さが最高なら×1.5、それ以外なら×1.3)。交代で解除。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2531 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div>
+      
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑤ 優先度判定</div>
+      <div class="phsd">Showdown代表: <code>onModifyPriority / onFractionalPriority</code></div>
+      <div class="phcount">4件(特性2/持ち物1/kind1)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">いたずらごころ <span class="ctype">特性</span></div>
+    <div class="cdesc">変化技の優先度+1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2270, L6549</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">はやてのつばさ <span class="ctype">特性</span></div>
+    <div class="cdesc">HPが満タン時、ひこう技の優先度を1高くして出せる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2272</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">せんせいのツメ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">20%の確率で同じ優先度の技の中で最初に行動できる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2320, L2321</div>
+    
+    
+  </div>
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">条件付き優先 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: グラススライダー</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2274</div>
+    
+  </div>
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑥ 攻撃前の準備</div>
+      <div class="phsd">Showdown代表: <code>onBeforeMove / onModifyMove / onTryHit</code></div>
+      <div class="phcount">26件(特性7/持ち物6/kind13)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">しめりけ <span class="ctype">特性</span></div>
+    <div class="cdesc">じばく/だいばくはつ/ビックリヘッド/ミストバースト/ゆうばくを使用不可化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5639, L6947</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">すながくれ <span class="ctype">特性</span></div>
+    <div class="cdesc">すなあらし状態なら回避率が1.25倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2611, L3433, L5231</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ふくがん <span class="ctype">特性</span></div>
+    <div class="cdesc">使用する技の命中率が1.3倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2620</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">するどいめ <span class="ctype">特性</span></div>
+    <div class="cdesc">命中率を下げられず、敵の回避率を無視できる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2635</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ふくつのこころ <span class="ctype">特性</span></div>
+    <div class="cdesc">ひるむとすばやさ+1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L6889</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ゆきがくれ <span class="ctype">特性</span></div>
+    <div class="cdesc">あられ/ゆき時、回避率が1.25倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2611, L3433</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ノーガード <span class="ctype">特性</span></div>
+    <div class="cdesc">お互いに技が命中率・回避率に関係なく必ず命中する。『そらをとぶ』『とびはねる』『フリーフォール』『あなをほる』『ダイビング』『ゴーストダイブ』『シャドーダイブ』など半無敵状態の相手にも命中する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2558, L2632</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">ひかりのこな <span class="ctype">持ち物</span></div>
+    <div class="cdesc">自分に対する相手の技の命中率を×0.9にする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2614</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">こうかくレンズ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">技の命中率が1.1倍になる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2646</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">フォーカスレンズ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">相手より遅く攻撃したとき技の命中率が1.2倍になる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2648</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">だっしゅつパック <span class="ctype">持ち物</span></div>
+    <div class="cdesc">持ち主の能力ランクが下がった時、消費されて控えと交代する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3629 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">ものまねハーブ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">相手の能力ランクが上がった時、同じ分だけ自分も上げる(消費・1回)。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3596 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">のどスプレー <span class="ctype">持ち物</span></div>
+    <div class="cdesc">音技を出した後、とくこうが+1上がる(消費・1回)。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3646 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div>
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">一撃必殺 <span class="ctype">技kind(4技)</span></div>
+    <div class="cdesc">代表技: ハサミギロチン・つのドリル・じわれ・ぜったいれいど</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2582, L2620, L2745</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">2ターン目に攻撃 <span class="ctype">技kind(17技)</span></div>
+    <div class="cdesc">代表技: かまいたち・そらをとぶ・ソーラービーム・あなをほる・ロケットずつき</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5657, L5960, L6961</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">必中 <span class="ctype">技kind(100技)</span></div>
+    <div class="cdesc">代表技: ふみつけ・のしかかり・スピードスター・だましうち・みやぶる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2579, L5710, L7006</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">天候必中 <span class="ctype">技kind(6技)</span></div>
+    <div class="cdesc">代表技: ふぶき・かみなり・ぼうふう・こがらしあらし・かみなりあらし</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2597</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">直前技模倣 <span class="ctype">技kind(4技)</span></div>
+    <div class="cdesc">代表技: ものまね・オウムがえし・スケッチ・まねっこ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5657, L5669, L5671, L6961, L6972, L6974</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ランダム技 <span class="ctype">技kind(3技)</span></div>
+    <div class="cdesc">代表技: ゆびをふる・ねごと・ねこのて</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5653, L5657, L6958, L6961</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">自分瀕死 <span class="ctype">技kind(7技)</span></div>
+    <div class="cdesc">代表技: じばく・だいばくはつ・おきみやげ・いやしのねがい・みかづきのまい</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5637, L5818, L5845, L6945, L7104, L7133</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">まもり <span class="ctype">技kind(10技)</span></div>
+    <div class="cdesc">代表技: まもる・みきり・ファストガード・キングシールド・ニードルガード</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3664, L5827, L7115</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">命中率固定 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: ぜったいれいど</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2588</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">さきどり <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: さきどり</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5685, L6987</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">使用者限定 <span class="ctype">技kind(3技)</span></div>
+    <div class="cdesc">代表技: おしゃべり・ダークホール・いじげんラッシュ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5622, L6921</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">優先技無効 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: サイコフィールド</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2568</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">次ターン使用不可 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: デカハンマー・ブラッドムーン</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5758, L7048</div>
+    
+  </div>
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑦ 攻撃側の計算</div>
+      <div class="phsd">Showdown代表: <code>onModifyAtk / onModifySpA</code></div>
+      <div class="phcount">32件(特性16/持ち物0/kind16)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">ちくでん <span class="ctype">特性</span></div>
+    <div class="cdesc">でんきタイプの技を無効化、HPを1/4回復。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1694, L2870, L3431, L3886, L3888</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ちょすい <span class="ctype">特性</span></div>
+    <div class="cdesc">みずタイプの技を無効化、HPを1/4回復。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1694, L2870, L3431, L3886, L3888</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">もらいび <span class="ctype">特性</span></div>
+    <div class="cdesc">ほのおタイプの技を無効化、その後自身がほのお技を使う時のこうげき・とくこうが1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1694, L1934, L1936, L2886, L3433, L3886, L3906</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ふゆう <span class="ctype">特性</span></div>
+    <div class="cdesc">常時浮遊状態。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1678, L3357, L3432</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ひらいしん <span class="ctype">特性</span></div>
+    <div class="cdesc">でんき技の対象を自身にし、無効化してとくこうを1段階上昇。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1694, L2880, L3432, L3886, L3900</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ぼうおん <span class="ctype">特性</span></div>
+    <div class="cdesc">音の技を無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1695, L3432, L3976</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">シェルアーマー <span class="ctype">特性</span></div>
+    <div class="cdesc">急所被弾無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1741, L2814, L3048, L3430</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">でんきエンジン <span class="ctype">特性</span></div>
+    <div class="cdesc">でんきタイプの技を無効化、すばやさ+1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1694, L2883, L3431, L3886, L3903</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">かんそうはだ <span class="ctype">特性</span></div>
+    <div class="cdesc">みずわざ被弾時、HPが1/4回復し、ほのお技を受けた時の威力は1.25倍。あめのときはHPを1/8回復し、にほんばれのときは1/8のダメージを受ける。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1694, L1881, L2870, L3433, L3886, L3888, L7484</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">てんねん <span class="ctype">特性</span></div>
+    <div class="cdesc">敵のランク補正を無視。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1756, L1757, L3431</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">きもったま <span class="ctype">特性</span></div>
+    <div class="cdesc">ゴーストタイプにノーマル/かくとう技が命中。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1655</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ぼうじん <span class="ctype">特性</span></div>
+    <div class="cdesc">すなあらし・あられや粉の技を無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1697, L4027, L5231</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">そうしょく <span class="ctype">特性</span></div>
+    <div class="cdesc">くさタイプの技を無効化、こうげき+1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1694, L2877, L3431, L3886, L3897</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ぼうだん <span class="ctype">特性</span></div>
+    <div class="cdesc">砲弾系の技を無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1696, L3433</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">フェアリースキン <span class="ctype">特性</span></div>
+    <div class="cdesc">ノーマルタイプの技がフェアリータイプになり、威力1.2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1599, L1893</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ふしぎなまもり <span class="ctype">特性</span></div>
+    <div class="cdesc">効果バツグンの技しか当たらない不思議な力。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1668, L3317, L3434</div>
+    
+  </div>
+      
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">威力倍率 <span class="ctype">技kind(57技)</span></div>
+    <div class="cdesc">代表技: れんぞくパンチ・メガトンパンチ・ほのおのパンチ・れいとうパンチ・かみなりパンチ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1517, L1526, L1539, L1543, L1547, L1551, L1555, L1559, L1565, L1625, L1629</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">半無敵命中 <span class="ctype">技kind(10技)</span></div>
+    <div class="cdesc">代表技: かぜおこし・なみのり・かみなり・じしん・マグニチュード</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1572, L2561</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">威力可変 <span class="ctype">技kind(36技)</span></div>
+    <div class="cdesc">代表技: けたぐり・じたばた・きしかいせい・マッハパンチ・ころがる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1411, L1621</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">相性上書き <span class="ctype">技kind(5技)</span></div>
+    <div class="cdesc">代表技: みやぶる・かぎわける・ミラクルアイ・フリーズドライ・タールショット</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1641</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">条件威力倍率 <span class="ctype">技kind(17技)</span></div>
+    <div class="cdesc">代表技: おいうち・きつけ・めざましビンタ・しおみず・しっぺがえし</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1521</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">技タイプ変更 <span class="ctype">技kind(12技)</span></div>
+    <div class="cdesc">代表技: めざめるパワー・ウェザーボール・しぜんのめぐみ・さばきのつぶて・テクノバスター</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1603</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">場の威力補正 <span class="ctype">技kind(6技)</span></div>
+    <div class="cdesc">代表技: どろあそび・みずあそび・グラスフィールド・ミストフィールド・エレキフィールド</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1567</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">なげつける <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: なげつける</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1414, L4543, L5646, L5904, L6952, L7198</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">別防御参照ダメージ <span class="ctype">技kind(3技)</span></div>
+    <div class="cdesc">代表技: サイコショック・サイコブレイク・しんぴのつるぎ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1744</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">相手能力ダメージ <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: イカサマ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1750</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ランク無視 <span class="ctype">技kind(3技)</span></div>
+    <div class="cdesc">代表技: なしくずし・せいなるつるぎ・ＤＤラリアット</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1753</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">技タイプ追加 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: フライングプレス・テラクラスター</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1638</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ランク数威力加算 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: つけあがる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1510</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">物理特殊自動 <span class="ctype">技kind(5技)</span></div>
+    <div class="cdesc">代表技: フォトンゲイザー・てんこがすめつぼうのひかり・シェルアームズ・テラバースト・テラクラスター</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1731</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">別能力ダメージ <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: ボディプレス</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1748</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">威力段階増加 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: おはかまいり</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1489</div>
+    
+  </div>
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑧ 攻撃力補正(介入点)</div>
+      <div class="phsd">Showdown代表: <code>onModifyAtk / onModifySpA / onBasePower</code></div>
+      <div class="phcount">49件(特性21/持ち物26/kind2)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">ちからもち <span class="ctype">特性</span></div>
+    <div class="cdesc">こうげきが2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1768</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">あついしぼう <span class="ctype">特性</span></div>
+    <div class="cdesc">自身がほのお・こおり技を受ける時の敵のこうげき・とくこうを半減させる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1918, L1920, L3430</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">はりきり <span class="ctype">特性</span></div>
+    <div class="cdesc">こうげきが1.5倍だが、命中率0.8倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1770, L2616</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">こんじょう <span class="ctype">特性</span></div>
+    <div class="cdesc">状態異常時、こうげきが1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1775, L1857</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">しんりょく <span class="ctype">特性</span></div>
+    <div class="cdesc">HPが1/3以下になると、くさタイプの技で攻撃するときのこうげき・とくこうが1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1912</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">もうか <span class="ctype">特性</span></div>
+    <div class="cdesc">HPが1/3以下になると、ほのおタイプの技で攻撃するときのこうげき・とくこうが1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1912</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">げきりゅう <span class="ctype">特性</span></div>
+    <div class="cdesc">HPが1/3以下になると、みずタイプの技で攻撃するときのこうげき・とくこうが1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1912</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">むしのしらせ <span class="ctype">特性</span></div>
+    <div class="cdesc">HPが1/3以下になると、むしタイプの技で攻撃するときのこうげき・とくこうが1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1912</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ヨガパワー <span class="ctype">特性</span></div>
+    <div class="cdesc">こうげきが2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1768</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">とうそうしん <span class="ctype">特性</span></div>
+    <div class="cdesc">敵が同性のときは技の威力が1.25倍になり、異性のときは0.75倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1954, L1957, L1960</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">てつのこぶし <span class="ctype">特性</span></div>
+    <div class="cdesc">パンチ技の威力1.2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1866, L1868</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">サンパワー <span class="ctype">特性</span></div>
+    <div class="cdesc">にほんばれ時、毎ターンHPが1/8減り、とくこうが1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1906, L1908, L7498</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">テクニシャン <span class="ctype">特性</span></div>
+    <div class="cdesc">威力が低い技の威力1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1929, L1931</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">すてみ <span class="ctype">特性</span></div>
+    <div class="cdesc">反動技の威力1.2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1946, L1948</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ちからずく <span class="ctype">特性</span></div>
+    <div class="cdesc">技の追加効果が出なくなり、その技の威力が1.3倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1924, L1926, L3875</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">アナライズ <span class="ctype">特性</span></div>
+    <div class="cdesc">最後に技を出すと威力1.3倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1876, L1878</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">すなのちから <span class="ctype">特性</span></div>
+    <div class="cdesc">すなあらし時、いわ・じめん・はがねの威力1.3倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1939, L1941, L5231</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">がんじょうあご <span class="ctype">特性</span></div>
+    <div class="cdesc">かみつき技の威力1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1896, L1898</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">メガランチャー <span class="ctype">特性</span></div>
+    <div class="cdesc">はどう技の威力1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1886, L1888</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">かたいツメ <span class="ctype">特性</span></div>
+    <div class="cdesc">使用する直接攻撃の威力1.3倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1871, L1873</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">きれあじ <span class="ctype">特性</span></div>
+    <div class="cdesc">切る技の威力1.5倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1901, L1903</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">こだわりハチマキ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">物理技の攻撃が×1.5になる。同じ技しか出せなくなる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1784, L2017 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">こだわりメガネ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">特殊技の特攻が×1.5になる。同じ技しか出せなくなる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1787, L2020 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">いのちのたま <span class="ctype">持ち物</span></div>
+    <div class="cdesc">技の威力が×1.3。攻撃時に最大HPの1/10の反動。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2065, L2144</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">たつじんのおび <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2072</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">ちからのハチマキ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">物理技の威力が×1.1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2077</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">ものしりメガネ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">特殊技の威力が×1.1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2082</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">シルクのスカーフ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ノーマルタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">もくたん <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ほのおタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">しんぴのしずく <span class="ctype">持ち物</span></div>
+    <div class="cdesc">みずタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">じしゃく <span class="ctype">持ち物</span></div>
+    <div class="cdesc">でんきタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">きせきのタネ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">くさタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">とけないこおり <span class="ctype">持ち物</span></div>
+    <div class="cdesc">こおりタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">くろおび <span class="ctype">持ち物</span></div>
+    <div class="cdesc">かくとうタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">どくバリ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">どくタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">やわらかいすな <span class="ctype">持ち物</span></div>
+    <div class="cdesc">じめんタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">するどいくちばし <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ひこうタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">まがったスプーン <span class="ctype">持ち物</span></div>
+    <div class="cdesc">エスパータイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ぎんのこな <span class="ctype">持ち物</span></div>
+    <div class="cdesc">むしタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">かたいいし <span class="ctype">持ち物</span></div>
+    <div class="cdesc">いわタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">のろいのおふだ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ゴーストタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">りゅうのキバ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ドラゴンタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">くろいメガネ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">あくタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">メタルコート <span class="ctype">持ち物</span></div>
+    <div class="cdesc">はがねタイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ようせいのハネ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">フェアリータイプの技の威力が×1.2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1989</div>
+    <div class="cgeneric">根拠: atk_modify(タイプ強化道具・持ち物データのcategory参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">でんきだま <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ピカチュウの攻撃と特攻が2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1994</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">メトロノーム <span class="ctype">持ち物</span></div>
+    <div class="cdesc">同じ技を連続で使うと威力が20%ずつ上昇。最大100%上昇(2倍)</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2000</div>
+    
+    
+  </div>
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">反動 <span class="ctype">技kind(12技)</span></div>
+    <div class="cdesc">代表技: とっしん・すてみタックル・じごくぐるま・ボルテッカー・フレアドライブ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1945, L3252</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">やけど低下無視 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: からげんき</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1858</div>
+    
+  </div>
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑨ 防御側の計算</div>
+      <div class="phsd">Showdown代表: <code>onModifyDef / onModifySpD</code></div>
+      <div class="phcount">0件(特性0/持ち物0/kind0)</div>
+    </div>
+    <div class="phasebody">
+      
+      
+      
+      <div class="emptynote">(該当なし)</div>
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑩ 防御力補正(介入点)</div>
+      <div class="phsd">Showdown代表: <code>onModifyDef / onModifySpD / onSourceModifyDamage</code></div>
+      <div class="phcount">36件(特性14/持ち物21/kind1)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">じゅうなん <span class="ctype">特性</span></div>
+    <div class="cdesc">まひ化されない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3430, L4411, L7228</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ふみん <span class="ctype">特性</span></div>
+    <div class="cdesc">ねむり化されない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3432, L4411, L7228</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">マイペース <span class="ctype">特性</span></div>
+    <div class="cdesc">こんらん化されない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3432, L4263</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">マグマのよろい <span class="ctype">特性</span></div>
+    <div class="cdesc">こおり化無効。タマゴ孵化歩数1/2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3432, L4411, L7228, L7539</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">やるき <span class="ctype">特性</span></div>
+    <div class="cdesc">ねむり化されない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3433, L4411, L7228</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">かたやぶり <span class="ctype">特性</span></div>
+    <div class="cdesc">敵の特性を無視して技を出せる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3428</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">フィルター <span class="ctype">特性</span></div>
+    <div class="cdesc">受ける効果抜群の技のダメージ0.75倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1967, L3433</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ハードロック <span class="ctype">特性</span></div>
+    <div class="cdesc">受ける効果抜群の技のダメージ0.75倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1967, L3433</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">マルチスケイル <span class="ctype">特性</span></div>
+    <div class="cdesc">HPが満タン時、受けるダメージ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1972, L1976, L3433</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">すりぬけ <span class="ctype">特性</span></div>
+    <div class="cdesc">壁技やみがわりを無視して攻撃できる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2052, L3820</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">マジックミラー <span class="ctype">特性</span></div>
+    <div class="cdesc">常時マジックコート状態。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3433, L5801, L7086</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ファーコート <span class="ctype">特性</span></div>
+    <div class="cdesc">ぼうぎょが2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1980, L1982, L3433</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ターボブレイズ <span class="ctype">特性</span></div>
+    <div class="cdesc">相手の特性にジャマされず相手に技を出すことができる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3428</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">テラボルテージ <span class="ctype">特性</span></div>
+    <div class="cdesc">相手の特性にジャマされず相手に技を出すことができる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3428</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">ホズのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ノーマルタイプの技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">オッカのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのほのお技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">イトケのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのみず技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ソクノのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのでんき技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">リンドのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのくさ技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ヤチェのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのこおり技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ヨプのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのかくとう技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ビアーのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのどく技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">シュカのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのじめん技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">バコウのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのひこう技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ウタンのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのエスパー技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">タンガのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのむし技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ヨロギのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのいわ技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">カシブのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのゴースト技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ハバンのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのドラゴン技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ナモのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのあく技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">リリバのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのはがね技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">ロゼルのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンのフェアリー技を一度だけ半減。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2099</div>
+    <div class="cgeneric">根拠: def_modify(半減きのみ・category参照)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">とつげきチョッキ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">特防が×1.5になる。変化技は使えない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1797, L5730, L7024 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">しんかのきせき <span class="ctype">持ち物</span></div>
+    <div class="cdesc">進化前ポケモンの防御・特防が×1.5になる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L1805 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">とくせいガード <span class="ctype">持ち物</span></div>
+    <div class="cdesc">持ち主の特性が、いかなる効果によっても変更・無効化されなくなる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3443 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div>
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">壁除去 <span class="ctype">技kind(4技)</span></div>
+    <div class="cdesc">代表技: かわらわり・きりばらい・サイコファング・レイジングブル</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2051, L4739</div>
+    
+  </div>
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑪ 実ダメージ算出・適用</div>
+      <div class="phsd">Showdown代表: <code>onDamage / onHit</code></div>
+      <div class="phcount">15件(特性5/持ち物3/kind7)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">がんじょう <span class="ctype">特性</span></div>
+    <div class="cdesc">一撃必殺技を無効化。HPが満タンならば一撃でひんしになるダメージでもHP1で持ちこたえる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2767, L2769, L3430, L6078</div>
+    <div class="refchip">→下段: 状態異常Section</div>
+  </div><div class="card card-ability">
+    <div class="cname">かげふみ <span class="ctype">特性</span></div>
+    <div class="cdesc">敵を逃げられなくする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L6010</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">てきおうりょく <span class="ctype">特性</span></div>
+    <div class="cdesc">タイプ一致のダメージ補正が1.5倍から2倍。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2032</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">スキルリンク <span class="ctype">特性</span></div>
+    <div class="cdesc">連続技を常に最大回数出せる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2920, L2928</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">おやこあい <span class="ctype">特性</span></div>
+    <div class="cdesc">攻撃技使用時、25%威力の2発目を追加。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2840, L2950</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">パンチグローブ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">パンチ系の技の威力UP、接触判定が消える。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2088, L2136, L3079 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">ピントレンズ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">急所ランク+1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2799</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">いかさまダイス <span class="ctype">持ち物</span></div>
+    <div class="cdesc">連続技(2〜5回)の命中回数を底上げし、必ず4回以上当たるようにする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2908 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div>
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">急所率上昇 <span class="ctype">技kind(29技)</span></div>
+    <div class="cdesc">代表技: からてチョップ・かまいたち・はっぱカッター・ゴッドバード・クラブハンマー</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2801, L2808</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">連続攻撃 <span class="ctype">技kind(32技)</span></div>
+    <div class="cdesc">代表技: おうふくビンタ・れんぞくパンチ・にどげり・みだれづき・ダブルニードル</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2821, L2839, L2900</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">固定ダメージ <span class="ctype">技kind(11技)</span></div>
+    <div class="cdesc">代表技: ソニックブーム・ちきゅうなげ・りゅうのいかり・ナイトヘッド・サイコウェーブ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2746</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">倍返し <span class="ctype">技kind(5技)</span></div>
+    <div class="cdesc">代表技: カウンター・がまん・ミラーコート・メタルバースト・ほうふく</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2712</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">瀕死回避 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: みねうち・てかげん</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2898</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">たくわえ消費 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: はきだす・のみこむ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2847, L4794, L5718, L6613, L7014</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">タイプ除去 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: もえつきる・でんこうそうげき</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2703, L4987</div>
+    
+  </div>
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑫ 被弾後の反応(介入点・最重要)</div>
+      <div class="phsd">Showdown代表: <code>onDamagingHit / onAfterMoveSecondary</code></div>
+      <div class="phcount">30件(特性23/持ち物6/kind1)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">あくしゅう <span class="ctype">特性</span></div>
+    <div class="cdesc">攻撃した敵をひるませることがある。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3190</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">せいでんき <span class="ctype">特性</span></div>
+    <div class="cdesc">直接攻撃を受けたとき、敵をまひ状態にすることがある。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L3083, L3084</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">めんえき <span class="ctype">特性</span></div>
+    <div class="cdesc">どく、もうどく化されない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3135, L3433, L4411, L6248, L7228, L7552</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">りんぷん <span class="ctype">特性</span></div>
+    <div class="cdesc">攻撃技の追加効果を無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3136, L4237</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">さめはだ <span class="ctype">特性</span></div>
+    <div class="cdesc">直接攻撃を受けたとき、敵に最大HPの1/8分のダメージを与える。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3098</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">せいしんりょく <span class="ctype">特性</span></div>
+    <div class="cdesc">ひるみ化されない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3183, L3191, L3431, L4243, L4554</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ほのおのからだ <span class="ctype">特性</span></div>
+    <div class="cdesc">直接攻撃を受けたとき、敵をやけど状態にすることがある。タマゴ孵化歩数1/2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L3083</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">メロメロボディ <span class="ctype">特性</span></div>
+    <div class="cdesc">直接攻撃を受けたとき、敵をメロメロにすることがある。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3092</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">いしあたま <span class="ctype">特性</span></div>
+    <div class="cdesc">反動技を使用してもダメージを無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3254</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">いかりのつぼ <span class="ctype">特性</span></div>
+    <div class="cdesc">急所被弾時、こうげきが最大ランクに。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3050</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">マジックガード <span class="ctype">特性</span></div>
+    <div class="cdesc">攻撃以外でのダメージを無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2140, L5193, L5231</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">リーフガード <span class="ctype">特性</span></div>
+    <div class="cdesc">にほんばれ時に状態異常にならない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3136, L3433, L4418</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">まけんき <span class="ctype">特性</span></div>
+    <div class="cdesc">敵から能力を下げられたとき、こうげき+2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3579</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">のろわれボディ <span class="ctype">特性</span></div>
+    <div class="cdesc">攻撃技被弾時、敵をかなしばりにすることがある。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3152</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">くだけるよろい <span class="ctype">特性</span></div>
+    <div class="cdesc">物理技被弾時、ぼうぎょが1段階下がりすばやさ+2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3158</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">どくしゅ <span class="ctype">特性</span></div>
+    <div class="cdesc">直接攻撃を使ったとき、敵をどく状態にすることがある。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L3132</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ミイラ <span class="ctype">特性</span></div>
+    <div class="cdesc">直接攻撃を受けたとき、敵の特性もミイラにする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3120, L3123, L3124</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">じしんかじょう <span class="ctype">特性</span></div>
+    <div class="cdesc">ポケモンを倒すとこうげき+1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3245</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">せいぎのこころ <span class="ctype">特性</span></div>
+    <div class="cdesc">あくタイプの攻撃被弾時、こうげき+1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3056</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">かちき <span class="ctype">特性</span></div>
+    <div class="cdesc">敵から能力を下げられたとき、とくこう+2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3576</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">でんきにかえる <span class="ctype">特性</span></div>
+    <div class="cdesc">攻撃技被弾時、じゅうでん状態になる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3167</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ヘドロえき <span class="ctype">特性</span></div>
+    <div class="cdesc">ヘドロ液を吸い取った相手は強烈な悪臭でダメージを受けてＨＰを減らす。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3219, L5259</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">てつのトゲ <span class="ctype">特性</span></div>
+    <div class="cdesc">自分に触った相手に鉄のトゲでダメージをあたえる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3108</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">かいがらのすず <span class="ctype">持ち物</span></div>
+    <div class="cdesc">技でダメージを与えた時、与えダメージの1/8を自分のHPとして回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3172</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">おうじゃのしるし <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ダメージを与えた時10%の確率で相手をひるませる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3182</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">ふうせん <span class="ctype">持ち物</span></div>
+    <div class="cdesc">じめんタイプの技を1度だけ無効化する。攻撃を受けると割れて効果消失。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3230, L3355 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">ゴツゴツメット <span class="ctype">持ち物</span></div>
+    <div class="cdesc">接触技で攻撃された時、攻撃側に最大HPの1/6のダメージ。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2141 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">クリアチャーム <span class="ctype">持ち物</span></div>
+    <div class="cdesc">相手の技や特性で、持ち主の能力ランクが下がるのを防ぐ。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3550, L3552, L3608 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">じゃくてんほけん <span class="ctype">持ち物</span></div>
+    <div class="cdesc">効果バツグンの技でダメージを受けた時、こうげき・とくこうが+2ずつ上がる(消費・1回)。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3066 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div>
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">吸収 <span class="ctype">技kind(13技)</span></div>
+    <div class="cdesc">代表技: すいとる・メガドレイン・ゆめくい・きゅうけつ・ギガドレイン</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3209</div>
+    
+  </div>
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑬ 攻撃後の追加効果</div>
+      <div class="phsd">Showdown代表: <code>onHit / onAfterMove / onAfterMoveSecondary</code></div>
+      <div class="phcount">70件(特性1/持ち物6/kind63)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">シンクロ <span class="ctype">特性</span></div>
+    <div class="cdesc">どく・もうどく・まひ・やけど状態になったとき、敵も同じ状態異常にする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4455</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">ひかりのねんど <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ひかりのかべ・リフレクター・オーロラベールの効果が3ターン延長される(合計8ターン)</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4732</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">あついいわ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">天気「ひでり」「にほんばれ」の効果が3ターン延長される(合計8ターン)</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2426, L4773</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">さらさらいわ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">天気「すなあらし」の効果が3ターン延長される(合計8ターン)</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2428, L4775</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">しめったいわ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">天気「あめ」の効果が3ターン延長される(合計8ターン)</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2427, L4774</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">つめたいいわ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">天気「ゆき」の効果が3ターン延長される(合計8ターン)</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2429, L4776</div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">おんみつマント <span class="ctype">持ち物</span></div>
+    <div class="cdesc">相手の技の追加効果(状態異常・ひるみ・能力低下など)を受けない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4237 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div>
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">状態付与 <span class="ctype">技kind(157技)</span></div>
+    <div class="cdesc">代表技: ほのおのパンチ・れいとうパンチ・かみなりパンチ・しめつける・ふみつけ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3726, L3795, L3943, L4240, L4259, L4288, L6636</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">能力ランク変化 <span class="ctype">技kind(209技)</span></div>
+    <div class="cdesc">代表技: つるぎのまい・すなかけ・しっぽをふる・にらみつける・なきごえ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3716, L3930, L3931, L4228, L4465, L5968, L6640</div>
+    <div class="refchip">→下段: ランク変化Section(applyRankStageGuarded経由)</div>
+  </div><div class="card card-kind">
+    <div class="cname">強制交代(吹き飛ばし) <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: ふきとばし・ほえる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3957</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">失敗ダメージ <span class="ctype">技kind(5技)</span></div>
+    <div class="cdesc">代表技: とびげり・とびひざげり・ふんじん・かかとおとし・サンダーダイブ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3771</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">暴れる(混乱) <span class="ctype">技kind(4技)</span></div>
+    <div class="cdesc">代表技: あばれる・はなびらのまい・げきりん・だいふんげき</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3834</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ひるみ <span class="ctype">技kind(17技)</span></div>
+    <div class="cdesc">代表技: かみつく・いびき・たつまき・おどろかす・じんつうりき</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4240</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">みがわり貫通 <span class="ctype">技kind(20技)</span></div>
+    <div class="cdesc">代表技: なきごえ・ちょうおんぱ・さわぐ・ハイパーボイス・おしゃべり</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3823</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">かなしばり <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: かなしばり</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4846</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">やどりぎ <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: やどりぎのタネ・すくすくボンバー</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4528</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">自分交代 <span class="ctype">技kind(8技)</span></div>
+    <div class="cdesc">代表技: テレポート・バトンタッチ・とんぼがえり・ボルトチェンジ・すてゼリフ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4066</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">回復 <span class="ctype">技kind(28技)</span></div>
+    <div class="cdesc">代表技: じこさいせい・タマゴうみ・ねむる・ミルクのみ・プレゼント</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3998, L4652, L6634, L7248</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">壁設置 <span class="ctype">技kind(6技)</span></div>
+    <div class="cdesc">代表技: ひかりのかべ・リフレクター・しんぴのまもり・オーロラベール・どばどばオーラ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4713</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">連続強制(混乱なし) <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: がまん・さわぐ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3834, L3837</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">へんしん <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: へんしん</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4055, L6645</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">状態異常回復 <span class="ctype">技kind(30技)</span></div>
+    <div class="cdesc">代表技: ねむる・かえんぐるま・いやしのすず・せいなるほのお・こうそくスピン</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4597, L5579, L6854</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">タイプ上書き <span class="ctype">技kind(6技)</span></div>
+    <div class="cdesc">代表技: テクスチャー・テクスチャー２・ほごしょく・みずびたし・ミラータイプ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4922</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">HPが減る <span class="ctype">技kind(10技)</span></div>
+    <div class="cdesc">代表技: みがわり・わるあがき・のろい・はらだいこ・ビックリヘッド</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3756, L3916, L4635, L5006</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">みがわり設置 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: みがわり</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4013, L5003</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">持ち物奪取 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: どろぼう・ほしがる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4575</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">拘束 <span class="ctype">技kind(9技)</span></div>
+    <div class="cdesc">代表技: クモのす・くろいまなざし・とおせんぼう・マグマストーム・サウザンウェーブ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4120</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ロックオン <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: こころのめ・ロックオン</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5075</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">継続削り <span class="ctype">技kind(4技)</span></div>
+    <div class="cdesc">代表技: あくむ・のろい・マグマストーム・しおづけ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4304</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">設置 <span class="ctype">技kind(6技)</span></div>
+    <div class="cdesc">代表技: まきびし・どくびし・ステルスロック・ねばねばネット・がんせきアックス</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4135</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">みちづれ <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: みちづれ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4957</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ほろびのうた <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: ほろびのうた</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4967</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">天候変化 <span class="ctype">技kind(10技)</span></div>
+    <div class="cdesc">代表技: すなあらし・あまごい・にほんばれ・あられ・ダイバーン</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L2418, L4760</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">自分拘束 <span class="ctype">技kind(4技)</span></div>
+    <div class="cdesc">代表技: ころがる・ねをはる・アイスボール・はいすいのじん</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5009</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">メロメロ付与 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: メロメロ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4248</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">いたみわけ <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: いたみわけ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4977</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">アンコール <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: アンコール</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4855</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">設置除去 <span class="ctype">技kind(5技)</span></div>
+    <div class="cdesc">代表技: こうそくスピン・どくびし・きりばらい・キラースピン・おかたづけ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4206</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ランクコピー <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: じこあんじ・シャドースチール</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4871</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">状態異常予防 <span class="ctype">技kind(3技)</span></div>
+    <div class="cdesc">代表技: さわぐ・ミストフィールド・エレキフィールド</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3793, L3828, L3947, L4269, L4428</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">たくわえ加算 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: たくわえる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4018, L4785</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">いちゃもん <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: いちゃもん</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4806</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">次技威力倍化 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: じゅうでん</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5087</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ちょうはつ <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: ちょうはつ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4830</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">持ち物交換 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: トリック・すりかえ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4585</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">特性上書き <span class="ctype">技kind(5技)</span></div>
+    <div class="cdesc">代表技: なりきり・なやみのタネ・シンプルビーム・なかまづくり・うつしえ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5019</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">持ち物復活 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: リサイクル</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4159</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">持ち物排除 <span class="ctype">技kind(3技)</span></div>
+    <div class="cdesc">代表技: はたきおとす・やきつくす・ふしょくガス</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4567</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">特性交換 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: スキルスワップ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5052</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ふういん <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: ふういん</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4815</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">まもり貫通 <span class="ctype">技kind(11技)</span></div>
+    <div class="cdesc">代表技: アロマセラピー・フェイント・シャドーダイブ・ゴーストダイブ・いじげんホール</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3687</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">タイプ一時無効 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: はねやすめ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4996</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">じゅうりょく <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: じゅうりょく</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5109</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">まもり解除 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: フェイント</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3685, L3699, L5080</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">木の実奪取食 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: ついばむ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4174</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">能力入替 <span class="ctype">技kind(6技)</span></div>
+    <div class="cdesc">代表技: パワートリック・パワースワップ・ガードスワップ・ハートスワップ・スピードスワップ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4875</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">特性無効化 <span class="ctype">技kind(8技)</span></div>
+    <div class="cdesc">代表技: いえき・コアパニッシャー・メテオドライブ・シャドーレイ・フォトンゲイザー</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5064</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">フィールド除去 <span class="ctype">技kind(4技)</span></div>
+    <div class="cdesc">代表技: きりばらい・ラジアルエッジストーム・アイアンローラー・アイススピナー</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4705</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">木の実強制 <span class="ctype">技kind(3技)</span></div>
+    <div class="cdesc">代表技: むしくい・ほおばる・おちゃかい</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3985, L4174</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">実数値折半 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: ガードシェア・パワーシェア</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4908</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">部屋系 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: ワンダールーム・マジックルーム</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L5093</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">ランクリセット <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: クリアスモッグ・こちこちフロスト</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4867</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">強制交代(攻撃) <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: ともえなげ・ドラゴンテール</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4218</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">タイプ追加 <span class="ctype">技kind(2技)</span></div>
+    <div class="cdesc">代表技: ハロウィン・もりののろい</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4947</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">相手技タイプ変更 <span class="ctype">技kind(3技)</span></div>
+    <div class="cdesc">代表技: プラズマシャワー・そうでん・プラズマフィスト</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4797</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">フィールド展開 <span class="ctype">技kind(9技)</span></div>
+    <div class="cdesc">代表技: グラスフィールド・ミストフィールド・エレキフィールド・サイコフィールド・オリジンズスーパーノヴァ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4749</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">全員逃走不可 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: フェアリーロック</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4112</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">接触反動 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: ニードルガード</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3710</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">カテゴリ封じ <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: じごくづき</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4824</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">拘束解除 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: キラースピン</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L4191</div>
+    
+  </div>
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑭ ターン終了①状態異常/バインドのスリップ</div>
+      <div class="phsd">Showdown代表: <code>onResidual</code></div>
+      <div class="phcount">8件(特性1/持ち物1/kind6)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">ポイズンヒール <span class="ctype">特性</span></div>
+    <div class="cdesc">どく・もうどく状態によるダメージを無効化し、HPを1/8回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L5198</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">おおきなねっこ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">HP吸収技で回復するHP量が1.3倍になる</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L3366</div>
+    
+    
+  </div>
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">ランク低下防御 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: しろいきり</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L5138</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">跳ね返し <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: マジックコート</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L5157</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">よこどり <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: よこどり</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L5163</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">トリックルーム <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: トリックルーム</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L5127</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">テレキネシス <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: テレキネシス</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L5151</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">場入れ替え <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: コートチェンジ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L5170</div>
+    
+  </div>
+      
+    </div>
+  </div><div class="phasecol">
+    <div class="phasehead">
+      <div class="phk">⑮ ターン終了②場・個体の残留カウント/回復</div>
+      <div class="phsd">Showdown代表: <code>onResidual / onFieldResidual</code></div>
+      <div class="phcount">11件(特性6/持ち物3/kind2)</div>
+    </div>
+    <div class="phasebody">
+      <div class="grouplabel">特性</div><div class="card card-ability">
+    <div class="cname">かそく <span class="ctype">特性</span></div>
+    <div class="cdesc">毎ターンすばやさ+1。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L7479</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">たいねつ <span class="ctype">特性</span></div>
+    <div class="cdesc">ほのお技を受けた時に威力を半減する。やけど状態のダメージを半減する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L7539</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">アイスボディ <span class="ctype">特性</span></div>
+    <div class="cdesc">あられ/ゆき時、HPが1/16回復。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L7507</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">しゅうかく <span class="ctype">特性</span></div>
+    <div class="cdesc">消費したきのみを復活させる場合あり。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L7412</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ムラっけ <span class="ctype">特性</span></div>
+    <div class="cdesc">毎ターン、ランダムにいずれかのステータスが-1、別のステータスが+2。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L7463</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">みずのベール <span class="ctype">特性</span></div>
+    <div class="cdesc">水のベールを身にまといやけど状態にならない。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L7538</div>
+    
+  </div>
+      <div class="grouplabel">持ち物</div><div class="card card-item">
+    <div class="cname">たべのこし <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ターン終了時に最大HPの1/16を回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L7446</div>
+    <div class="cgeneric">根拠: end_of_turn_field(汎用heal_fraction/trigger宣言参照・たべのこし型)</div>
+    
+  </div><div class="card card-item">
+    <div class="cname">かえんだま <span class="ctype">持ち物</span></div>
+    <div class="cdesc">持っているとターン終了時にやけど状態になる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L7536 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div><div class="card card-item">
+    <div class="cname">どくどくだま <span class="ctype">持ち物</span></div>
+    <div class="cdesc">持っているとターン終了時にもうどく状態になる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L7549 <span class="staleflag">ℹ本家Champions非解禁(implemented_in_pokechan=false・エンジンコードは存在)</span></div>
+    
+    
+  </div>
+      <div class="grouplabel">技kind</div><div class="card card-kind">
+    <div class="cname">次のターン行動不能 <span class="ctype">技kind(10技)</span></div>
+    <div class="cdesc">代表技: はかいこうせん・ブラストバーン・ハイドロカノン・ハードプラント・ギガインパクト</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L5912, L7206</div>
+    
+  </div><div class="card card-kind">
+    <div class="cname">技強制再使用 <span class="ctype">技kind(1技)</span></div>
+    <div class="cdesc">代表技: さいはい</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-turn">per-turn</span></div>
+    <div class="cfile">real_battle_simulator.html:L5879, L7167</div>
+    
+  </div>
+      
+    </div>
+  </div>
+</div></div>
+
+<div class="lowerlanewrap">
+<h2>下段レーン — 共有Section/Eventレーン(タイムライン非固定・箱→箱の矢印=連鎖)</h2>
+<p style="font-size:.85rem;color:var(--sub);margin:0 0 10px;">上段の各列から下段Sectionを呼べる(例: entry_ability列の「いかく」→下段ランク変化Section / post_hit_react列の「じゃくてんほけん」→下段ランク変化Section)。下段の箱=Section名+Event名+Handler列の3点セット。</p>
+
+<div class="lowerlane">
+  <div class="sectionbox">
+    <div class="sechead">
+      <div class="secname">ランク変化Section <span class="evname">[ランク変化E]</span></div>
+      <div class="sechandlerlabel">Handler(applyRankStageGuarded・real_battle_simulator.html:3467-3541)</div>
+      <span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span>
+      <div class="secnote">呼び出し元7箇所(v1確認済): いかく2465 / じゃくてんほけん3068,3071 / ミラーアーマー再帰3477 / ものまねハーブ再帰3532 / のどスプレー3577 / 能力ランク変化kind4445</div>
+    </div>
+    <div class="sectiles">
+      <div class="grouplabel">特性Handler</div><div class="card card-ability">
+    <div class="cname">クリアボディ <span class="ctype">特性</span></div>
+    <div class="cdesc">敵からのランク低下を無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3430, L3513</div>
+    <div class="refchip">→上段参考: ⑩ 防御力補正(介入点)</div>
+  </div><div class="card card-ability">
+    <div class="cname">しろいけむり <span class="ctype">特性</span></div>
+    <div class="cdesc">敵からのランク補正低下を無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L3431, L3513</div>
+    <div class="refchip">→上段参考: ⑩ 防御力補正(介入点)</div>
+  </div><div class="card card-ability">
+    <div class="cname">あまのじゃく <span class="ctype">特性</span></div>
+    <div class="cdesc">自身にかかるランク補正を逆にする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3492, L4513</div>
+    <div class="refchip">→上段参考: ⑬ 攻撃後の追加効果</div>
+  </div><div class="card card-ability">
+    <div class="cname">はとむね <span class="ctype">特性</span></div>
+    <div class="cdesc">敵からのぼうぎょ低下を無効化。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L3537</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">ミラーアーマー <span class="ctype">特性</span></div>
+    <div class="cdesc">敵から受けたランク低下効果を反射。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L3501</div>
+    
+  </div>
+      <div class="grouplabel">持ち物Handler</div><div class="emptynote">(該当なし)</div>
+      <div class="grouplabel">技kind(発火元)</div><div class="card card-kind">
+    <div class="cname">能力ランク変化 <span class="ctype">技kind(209技)</span></div>
+    <div class="cdesc">代表技: つるぎのまい・すなかけ・しっぽをふる・にらみつける・なきごえ</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span></div>
+    <div class="cfile">real_battle_simulator.html:L3716, L3930, L3931, L4228, L4465, L5968, L6640</div>
+    <div class="refchip">→下段: ランク変化Section(applyRankStageGuarded経由)</div>
+  </div>
+    </div>
+    <div class="chainarrow">↓ (かちき/まけんき成立時のみ)</div>
+  </div>
+
+  <div class="sectionbox">
+    <div class="sechead">
+      <div class="secname">状態異常付与/回復Section <span class="evname">[状態異常E]</span></div>
+      <div class="sechandlerlabel">Handler(itemReactions・real_battle_simulator.html:6059-6137・毎ターン最大4回ポーリングで代替=CEDEC非準拠の構造・HANDOFF_2026_07_26 §2-2)</div>
+      <span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span>
+      <div class="secnote">呼び出し4箇所: phaseDealDamage内5843 / runTurn内7111・7137(各行動後) / runTurn内7230(ターン終了後)</div>
+    </div>
+    <div class="sectiles">
+      <div class="grouplabel">持ち物Handler(クラボ系/ラム等)</div><div class="card card-item">
+    <div class="cname">クラボのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">まひ状態を回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6084</div>
+    <div class="cgeneric">根拠: itemReactions(状態異常回復きのみ・category+cure_target参照)</div>
+    <div class="refchip">下段配置: 状態異常Section</div>
+  </div><div class="card card-item">
+    <div class="cname">カゴのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ねむり状態を回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6084</div>
+    <div class="cgeneric">根拠: itemReactions(状態異常回復きのみ・category+cure_target参照)</div>
+    <div class="refchip">下段配置: 状態異常Section</div>
+  </div><div class="card card-item">
+    <div class="cname">モモンのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">どく・もうどく状態を回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6084</div>
+    <div class="cgeneric">根拠: itemReactions(状態異常回復きのみ・category+cure_target参照)</div>
+    <div class="refchip">下段配置: 状態異常Section</div>
+  </div><div class="card card-item">
+    <div class="cname">チーゴのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">やけど状態を回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6084</div>
+    <div class="cgeneric">根拠: itemReactions(状態異常回復きのみ・category+cure_target参照)</div>
+    <div class="refchip">下段配置: 状態異常Section</div>
+  </div><div class="card card-item">
+    <div class="cname">ナナシのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">こおり状態を回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6084</div>
+    <div class="cgeneric">根拠: itemReactions(状態異常回復きのみ・category+cure_target参照)</div>
+    <div class="refchip">下段配置: 状態異常Section</div>
+  </div><div class="card card-item">
+    <div class="cname">キーのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">こんらん状態を回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6084</div>
+    <div class="cgeneric">根拠: itemReactions(状態異常回復きのみ・category+cure_target参照)</div>
+    <div class="refchip">下段配置: 状態異常Section</div>
+  </div><div class="card card-item">
+    <div class="cname">ラムのみ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">すべての状態異常・こんらんを1度だけ回復する。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6084</div>
+    <div class="cgeneric">根拠: itemReactions(状態異常回復きのみ・category+cure_target参照)</div>
+    <div class="refchip">下段配置: 状態異常Section</div>
+  </div><div class="card card-item">
+    <div class="cname">きあいのタスキ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">HP満タン時に一撃ひんし技のダメージを受けるとHPを1残して耐える (1回)。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L2124, L6088</div>
+    
+    <div class="refchip">下段配置: 状態異常Section</div>
+  </div><div class="card card-item">
+    <div class="cname">きあいのハチマキ <span class="ctype">持ち物</span></div>
+    <div class="cdesc">ひんしになる技のダメージを受けると10%の確率でHP1残して耐える。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6098</div>
+    
+    <div class="refchip">下段配置: 状態異常Section</div>
+  </div>
+      <div class="grouplabel">特性Handler</div><div class="card card-ability">
+    <div class="cname">がんじょう <span class="ctype">特性</span></div>
+    <div class="cdesc">一撃必殺技を無効化。HPが満タンならば一撃でひんしになるダメージでもHP1で持ちこたえる。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-hit">per-hit</span></div>
+    <div class="cfile">real_battle_simulator.html:L2767, L2769, L3430, L6078</div>
+    <div class="refchip">→下段: 状態異常Section</div>
+  </div><div class="card card-ability">
+    <div class="cname">きんちょうかん <span class="ctype">特性</span></div>
+    <div class="cdesc">敵のきのみを使えなくする。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6134</div>
+    
+  </div><div class="card card-ability">
+    <div class="cname">はんすう <span class="ctype">特性</span></div>
+    <div class="cdesc">きのみ消費時、次ターン終了時に同きのみを再使用。</div>
+    <div class="cmeta"><span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span></div>
+    <div class="cfile">real_battle_simulator.html:L6063</div>
+    
+  </div>
+    </div>
+  </div>
+
+  <div class="sectionbox sectionbox-partial">
+    <div class="sechead">
+      <div class="secname">状態異常回復Section <span class="evname">(案・専用ポーリング関数なし)</span></div>
+      <div class="sechandlerlabel">分散実装: ポイズンヒール=phaseSlipFor(5109-5202) / ラムのみ等=itemReactions(6059-6137) / しぜんかいふく=attemptSwitch(6208-6293)手持ち復帰時</div>
+      <span class="bd bd-partial">【実装(分裂)】</span> <span class="lvl lvl-未確認">未確認</span>
+      <div class="secnote">阿部さん確認事項: 独立Sectionとして切り出すべきか、現状の分散実装のままでよいか(判断待ちセクション参照)</div>
+    </div>
+  </div>
+
+  <div class="sectionbox sectionbox-partial">
+    <div class="sechead">
+      <div class="secname">ひんし処理Section <span class="evname">(案)</span></div>
+      <div class="sechandlerlabel">分散実装: 被弾時ひんし判定=phaseDealDamage内(約3040手前) / 瀕死交代=runTurn:7540-7553</div>
+      <span class="bd bd-partial">【実装(分裂・案)】</span> <span class="lvl lvl-未確認">未確認</span>
+      <div class="secnote">CEDEC由来の独立Sectionではなく本文書での提案区分。阿部さん確認事項(判断待ち新2点参照)</div>
+    </div>
+  </div>
+
+  <div class="sectionbox sectionbox-partial">
+    <div class="sechead">
+      <div class="secname">だっしゅつパックSection <span class="evname">(道具ポーリング)</span></div>
+      <div class="sechandlerlabel">Handler(resolveEjectPack・real_battle_simulator.html:3547-3566)。呼び出し6箇所ハードコード(監査C・HANDOFF_2026_07_23 §2)</div>
+      <span class="bd bd-impl">【実装】</span> <span class="lvl lvl-per-move">per-move</span>
+    </div>
+  </div>
+
+  <div class="sectionbox sectionbox-partial">
+    <div class="sechead">
+      <div class="secname">メガストーン群 <span class="evname">(mega_evolve列の集約カード)</span></div>
+      <div class="sechandlerlabel">canMegaEvolve()/megaEvolve()(real_battle_simulator.html:6367-6406)がcategory==='mega_stone'を汎用判定。個別ストーン名の literal 比較は無い(=76種すべて同一メカニズムのデータ駆動)。</div>
+      <span class="bd bd-impl">【実装】</span> <span class="lvl lvl-未確認">未確認</span>
+      <div class="secnote">全76種の代表例: メガストーン (汎用)・ピクシナイト・ウツボットナイト・スターミナイト・カイリュナイト・メガニウムナイト・オーダイルナイト・エアームドナイト・チリーンナイト・ユキメノコナイト 等。個別のメガ後種族値/タイプ/特性は items_database.js に一次データあり(本盤では未展開=別テーブル管轄)。</div>
+    </div>
+  </div>
+</div>
+</div>
+
+
+<section class="tail">
+  <h2>未配置パーキングエリア(配置根拠が作れなかった機構・黙って落とさず全部列挙)</h2>
+  <h3>特性(ABILITY_DESC・全国版309件のうち上段/下段レーンに配置できなかったもの)</h3>
+  <div class="parksub"><b>実装確認済・フェーズ未整理(13件・engine上に文字列はあるが本盤のフェーズ範囲表に未マッピング)</b><div class="parkgrid">
+    <div class="parkitem parkitem-partial">しぜんかいふく <span class="parkline">L6313</span><div class="parkdesc">手持ち復帰時、状態異常が回復。</div></div><div class="parkitem parkitem-partial">てんきや <span class="parkline">L3415</span><div class="parkdesc">場の天気でタイプ/フォルムが変化。</div></div><div class="parkitem parkitem-partial">スナイパー <span class="parkline">L1845</span><div class="parkdesc">急所に当てたときのダメージ2.25倍。</div></div><div class="parkitem parkitem-partial">ヘヴィメタル <span class="parkline">L3378</span><div class="parkdesc">重さが2倍。</div></div><div class="parkitem parkitem-partial">ライトメタル <span class="parkline">L3379</span><div class="parkdesc">自身の重さ半減。</div></div><div class="parkitem parkitem-partial">さいせいりょく <span class="parkline">L6307</span><div class="parkdesc">手持ち復帰時、HPが1/3回復。</div></div><div class="parkitem parkitem-partial">イリュージョン <span class="parkline">L2368</span><div class="parkdesc">手持ちのポケモンに変装して登場。</div></div><div class="parkitem parkitem-partial">アロマベール <span class="parkline">L6522</span><div class="parkdesc">自身と味方がメンタル系の状態変化にならない。</div></div><div class="parkitem parkitem-partial">へんげんじざい <span class="parkline">L6539</span><div class="parkdesc">技を出す直前にその技のタイプになる。</div></div><div class="parkitem parkitem-partial">こだいかっせい <span class="parkline">L2201</span><div class="parkdesc">ブーストエナジーを持たせるか天気が晴れのときいちばん高い能力が上がる。</div></div><div class="parkitem parkitem-partial">クォークチャージ <span class="parkline">L2201</span><div class="parkdesc">ブーストエナジーを持たせるかエレキフィールドのときいちばん高い能力が上がる。</div></div><div class="parkitem parkitem-partial">なまけ <span class="parkline">L3317</span><div class="parkdesc">技を出すと次のターンは休んでしまう。</div></div><div class="parkitem parkitem-partial">リベロ <span class="parkline">L6539</span><div class="parkdesc">自分が出す技と同じタイプに変化する。</div></div>
+  </div></div><div class="parksub"><b>証拠なし(170件・engine grep 0件=未実装または旧仕様の可能性)</b><div class="parkgrid">
+    <div class="parkitem">ノーてんき<div class="parkdesc">天気効果を全無効化。</div></div><div class="parkitem">はっこう<div class="parkdesc">命中率を下げられず、敵の回避率を無視できる。</div></div><div class="parkitem">あめうけざら<div class="parkdesc">あめ時、HPが1/16回復。</div></div><div class="parkitem">はやおき<div class="parkdesc">ねむりのターンの消費量が2倍。</div></div><div class="parkitem">かいりきバサミ<div class="parkdesc">敵からのこうげき低下を無効化。</div></div><div class="parkitem">ものひろい<div class="parkdesc">敵の使ったアイテムを拾う。バトル終了後アイテムを拾うことがある。</div></div><div class="parkitem">プラス<div class="parkdesc">味方の場にプラスかマイナスのポケモンがいる時、とくこうが1.5倍。</div></div><div class="parkitem">マイナス<div class="parkdesc">味方の場にプラスかマイナスのポケモンがいる時、とくこうが1.5倍。</div></div><div class="parkitem">ねんちゃく<div class="parkdesc">持ち物を奪われない。</div></div><div class="parkitem">だっぴ<div class="parkdesc">状態異常を回復することがある。</div></div><div class="parkitem">ふしぎなうろこ<div class="parkdesc">状態異常時、ぼうぎょが1.5倍。</div></div><div class="parkitem">ちどりあし<div class="parkdesc">こんらん状態時、回避率が2倍。</div></div><div class="parkitem">くいしんぼう<div class="parkdesc">きのみを通常より早いタイミングで使用。</div></div><div class="parkitem">うるおいボディ<div class="parkdesc">あめ時、状態異常を回復。</div></div><div class="parkitem">あとだし<div class="parkdesc">自身の行動順が、同じ優先度の中で最後になる。</div></div><div class="parkitem">ぶきよう<div class="parkdesc">自身の持ち物の効果がなくなる。</div></div><div class="parkitem">きょううん<div class="parkdesc">急所ランク+1。</div></div><div class="parkitem">ゆうばく<div class="parkdesc">ひんしになったとき、敵に1/4のダメージを与える。</div></div><div class="parkitem">きけんよち<div class="parkdesc">敵が自身に効果抜群の技を持っているかわかる。</div></div><div class="parkitem">わるいてぐせ<div class="parkdesc">直接攻撃を受けたとき、敵の道具を奪う。</div></div><div class="parkitem">いやしのこころ<div class="parkdesc">味方の状態異常を回復することがある。</div></div><div class="parkitem">フレンドガード<div class="parkdesc">味方へのダメージ0.75倍。</div></div><div class="parkitem">テレパシー<div class="parkdesc">味方からの攻撃を無効化。</div></div><div class="parkitem">フラワーベール<div class="parkdesc">味方のくさタイプ: ランク低下無効化、状態異常も無効。</div></div><div class="parkitem">ほおぶくろ<div class="parkdesc">きのみを食べたとき、通常の効果に加えてHPが1/3回復。</div></div><div class="parkitem">マジシャン<div class="parkdesc">攻撃を当てたとき、敵の持ち物を奪う。</div></div><div class="parkitem">フリーズスキン<div class="parkdesc">ノーマルタイプの技がこおりタイプになり、威力1.2倍。</div></div><div class="parkitem">スイートベール<div class="parkdesc">自身と味方がねむり化無効。</div></div><div class="parkitem">きょうせい<div class="parkdesc">味方の持ち物がなくなったとき、自身の持ち物を渡す。</div></div><div class="parkitem">ぬめぬめ<div class="parkdesc">直接攻撃を受けたとき、敵のすばやさを1段階低下。</div></div><div class="parkitem">スカイスキン<div class="parkdesc">ノーマルタイプの技がひこうタイプになり、威力1.2倍。</div></div><div class="parkitem">フェアリーオーラ<div class="parkdesc">場にいるポケモンのフェアリー技の威力1.33倍。</div></div><div class="parkitem">じきゅうりょく<div class="parkdesc">攻撃技被弾時、ぼうぎょ+1。</div></div><div class="parkitem">ひとでなし<div class="parkdesc">敵がどく・もうどく状態時、自身の技が急所に当たる。</div></div><div class="parkitem">すいほう<div class="parkdesc">ほのおタイプの技被弾時、敵のこうげき・とくこうを半分にする。やけど化されない。みずタイプの技で攻撃するとき、こうげき・とくこうが2倍。</div></div><div class="parkitem">ぎゃくじょう<div class="parkdesc">HPが半分以下になったとき、とくこう+1。</div></div><div class="parkitem">えんかく<div class="parkdesc">使用する直接攻撃技が、直接攻撃でなくなる。</div></div><div class="parkitem">うるおいボイス<div class="parkdesc">音の技がみずタイプになる。</div></div><div class="parkitem">サーフテール<div class="parkdesc">場がエレキフィールド時、すばやさが2倍。</div></div><div class="parkitem">ふしょく<div class="parkdesc">はがね・どくタイプのポケモンをどく・もうどく化可能。</div></div><div class="parkitem">じょおうのいげん<div class="parkdesc">自身と味方は敵側からの先制技を受けなくなる。</div></div><div class="parkitem">とびだすなかみ<div class="parkdesc">ひんしになったとき、直前のHP分だけ敵にダメージを与える。</div></div><div class="parkitem">レシーバー<div class="parkdesc">味方ひんし化時、その特性をコピー。</div></div><div class="parkitem">すじがねいり<div class="parkdesc">攻撃を引き寄せる技や特性の効果を無視。</div></div><div class="parkitem">すなはき<div class="parkdesc">攻撃被弾時、場をすなあらし状態にする。</div></div><div class="parkitem">じゅくせい<div class="parkdesc">きのみの効果が2倍。</div></div><div class="parkitem">ぎたい<div class="parkdesc">フィールドに応じてタイプ変化。</div></div><div class="parkitem">バリアフリー<div class="parkdesc">場に出た時、お互いの壁を解除。</div></div><div class="parkitem">さまようたましい<div class="parkdesc">直接攻撃を受けたとき、敵と特性を入れ替える。</div></div><div class="parkitem">はらぺこスイッチ<div class="parkdesc">毎ターン、モルペコのフォルムが変化。</div></div><div class="parkitem">クイックドロウ<div class="parkdesc">攻撃技使用時、同優先度内で最先行動の可能性あり。</div></div><div class="parkitem">ふかしのこぶし<div class="parkdesc">直接攻撃を使ったとき、まもる状態の敵にはダメージを1/4にして与える。</div></div><div class="parkitem">きみょうなくすり<div class="parkdesc">場に出た時、味方のランク補正を元に戻す。</div></div><div class="parkitem">きよめのしお<div class="parkdesc">状態異常にならず、ゴースト技被弾時、敵のこうげき・とくこうを半減させる。</div></div><div class="parkitem">びんじょう<div class="parkdesc">敵のランク補正が上昇したとき、自身も同じだけランクを上げる。</div></div><div class="parkitem">そうだいしょう<div class="parkdesc">場に出たときに、ひんしになった味方1体につき10%ずつ攻撃技の威力アップ。</div></div><div class="parkitem">どくげしょう<div class="parkdesc">物理技を受けたとき、敵の場をどくびし状態にする。</div></div><div class="parkitem">テイルアーマー<div class="parkdesc">自身と味方は敵側からの先制技を受けなくなる。</div></div><div class="parkitem">どしょく<div class="parkdesc">じめんタイプの技を無効化、最大HPの1/4を回復。</div></div><div class="parkitem">かんろなミツ<div class="parkdesc">場に出た時、敵の回避率を1段階低下。</div></div><div class="parkitem">おもてなし<div class="parkdesc">場に出た時、味方のHPを1/4回復。</div></div><div class="parkitem">かんつうドリル<div class="parkdesc">直接攻撃を使ったとき、まもる状態の敵にはダメージを1/4にして与える。</div></div><div class="parkitem">ドラゴンスキン<div class="parkdesc">ノーマルタイプの技がドラゴンタイプになり、威力1.2倍。</div></div><div class="parkitem">メガソーラー<div class="parkdesc">技使用時、天気がにほんばれ扱いに。</div></div><div class="parkitem">とびだすハバネロ<div class="parkdesc">攻撃技を受けたとき、敵をやけど状態にする。</div></div><div class="parkitem">どくのトゲ<div class="parkdesc">直接攻撃を受けたとき、敵をどく状態にすることがある。</div></div><div class="parkitem">にげあし<div class="parkdesc">野生のポケモンから必ず逃げられる。</div></div><div class="parkitem">びびり<div class="parkdesc">あくタイプとゴーストタイプとむしタイプの技を受けるとびびって素早さが上がる。</div></div><div class="parkitem">てんのめぐみ<div class="parkdesc">天の恵みのおかげで技の追加効果がでやすい。</div></div><div class="parkitem">いろめがね<div class="parkdesc">効果がいまひとつの技を通常の威力で出すことができる。</div></div><div class="parkitem">ほうし<div class="parkdesc">攻撃で自分に触れた相手をどくやまひやねむり状態にすることがある。</div></div><div class="parkitem">カブトアーマー<div class="parkdesc">硬い甲羅に守られて相手の攻撃が急所に当たらない。</div></div><div class="parkitem">ビーストブースト<div class="parkdesc">相手を倒したとき自分のいちばん高い能力が上がる。</div></div><div class="parkitem">じりょく<div class="parkdesc">はがねタイプのポケモンを磁力で引きつけて逃げられなくする。</div></div><div class="parkitem">ひひいろのこどう<div class="parkdesc">登場したとき天気を晴れにする。日差しが強いと古代の鼓動により攻撃が高まる。</div></div><div class="parkitem">ハドロンエンジン<div class="parkdesc">登場したときエレキフィールドをはる。エレキフィールドだと未来の機関により特攻が高まる。</div></div><div class="parkitem">よびみず<div class="parkdesc">みずタイプの技を自分によせつけダメージは受けずに特攻が上がる。</div></div><div class="parkitem">はりこみ<div class="parkdesc">交代で出てきた相手に２倍のダメージで攻撃できる。</div></div><div class="parkitem">リミットシールド<div class="parkdesc">ＨＰが半分になると殻が壊れて攻撃的になる。</div></div><div class="parkitem">よちむ<div class="parkdesc">登場したとき相手の持つ技をひとつだけ読み取る。</div></div><div class="parkitem">もふもふ<div class="parkdesc">相手から受けた接触する技のダメージを半減するがほのおタイプの技のダメージは２倍になる。</div></div><div class="parkitem">ミラクルスキン<div class="parkdesc">変化技を受けにくい体になっている。</div></div><div class="parkitem">きゅうばん<div class="parkdesc">吸盤で地面に張り付きポケモンを入れ替えさせる技や道具が効かなくなる。</div></div><div class="parkitem">たんじゅん<div class="parkdesc">能力変化がいつもの２倍になる。</div></div><div class="parkitem">ダウンロード<div class="parkdesc">相手の防御と特防をくらべて低いほうの能力にあわせて自分の攻撃か特攻を上げる。</div></div><div class="parkitem">みつあつめ<div class="parkdesc">戦闘が終わったときあまいミツを拾うことがある。</div></div><div class="parkitem">ダルマモード<div class="parkdesc">ＨＰが半分以下になると姿が変化する。</div></div><div class="parkitem">おどりこ<div class="parkdesc">だれかが踊り技を使うと自分もそれに続いて踊り技を出すことができる。</div></div><div class="parkitem">きんしのちから<div class="parkdesc">変化技を出すとき必ず行動が遅くなるが相手の特性にジャマされない。</div></div><div class="parkitem">ありじごく<div class="parkdesc">戦闘で相手を逃げられなくする。</div></div><div class="parkitem">かがくへんかガス<div class="parkdesc">かがくへんかガスのポケモンが場にいるとすべてのポケモンの特性の効果が消えたり発動しなくなる。</div></div><div class="parkitem">かぜのり<div class="parkdesc">おいかぜが吹いたり風技を受けるとダメージを受けずに攻撃が上がる。</div></div><div class="parkitem">プリズムアーマー<div class="parkdesc">効果バツグンになってしまう攻撃の威力を弱めることができる。</div></div><div class="parkitem">じょうききかん<div class="parkdesc">みずタイプほのおタイプの技を受けると素早さがぐぐーんと上がる。</div></div><div class="parkitem">ねつこうかん<div class="parkdesc">ほのおタイプの技を受けると攻撃が上がる。やけど状態にならない。</div></div><div class="parkitem">どくのくさり<div class="parkdesc">毒素をふくんだ鎖の力で技を当てた相手を猛毒の状態にすることがある。</div></div><div class="parkitem">エレキスキン<div class="parkdesc">ノーマルタイプの技がでんきタイプになる。威力が少し上がる。</div></div><div class="parkitem">スワームチェンジ<div class="parkdesc">ＨＰが半分になるとセルたちが応援に駆けつけパーフェクトフォルムに姿を変える。</div></div><div class="parkitem">ノーマルスキン<div class="parkdesc">どんなタイプの技でもすべてノーマルタイプになる。威力が少し上がる。</div></div><div class="parkitem">ねつぼうそう<div class="parkdesc">やけど状態になったとき特殊技の威力が上がる。</div></div><div class="parkitem">スロースタート<div class="parkdesc">５ターンのあいだ攻撃と素早さが半分になる。</div></div><div class="parkitem">よわき<div class="parkdesc">ＨＰが半分になると弱気になって攻撃と特攻が半減する。</div></div><div class="parkitem">くさのけがわ<div class="parkdesc">グラスフィールドのとき防御が上がる。</div></div><div class="parkitem">オーラブレイク<div class="parkdesc">オーラの効果を逆転させて威力を下げる。</div></div><div class="parkitem">ぎょぐん<div class="parkdesc">ＨＰが多いときは群れて強くなる。ＨＰの残りが少なくなると群れは散り散りになってしまう。</div></div><div class="parkitem">みずがため<div class="parkdesc">みずタイプの技を受けると防御がぐーんと上がる。</div></div><div class="parkitem">わたげ<div class="parkdesc">攻撃を受けるとわたげをばらまいて自分以外のポケモンすべての素早さを下げる。</div></div><div class="parkitem">スクリューおびれ<div class="parkdesc">相手の技を引き受ける特性や技の影響を無視できる。</div></div><div class="parkitem">パンクロック<div class="parkdesc">音技の威力が上がる。受けた音技のダメージは半分になる。</div></div><div class="parkitem">こおりのりんぷん<div class="parkdesc">こおりのりんぷんに守られて特殊攻撃で受けるダメージが半減する。</div></div><div class="parkitem">アイスフェイス<div class="parkdesc">物理攻撃は頭の氷がみがわりになるが姿も変わる。氷はあられが降ると元に戻る。</div></div><div class="parkitem">ふとうのけん<div class="parkdesc">登場したときに攻撃が上がる。</div></div><div class="parkitem">ふくつのたて<div class="parkdesc">登場したときに防御が上がる。</div></div><div class="parkitem">ふうりょくでんき<div class="parkdesc">風技を受けるとじゅうでん状態になる。</div></div><div class="parkitem">ばんけん<div class="parkdesc">いかくされると攻撃が上がる。ポケモンを入れ替えさせる技や道具が効かない。</div></div><div class="parkitem">カーリーヘアー<div class="parkdesc">攻撃で自分に触れた相手の素早さを下げる。</div></div><div class="parkitem">かがくのちから<div class="parkdesc">倒された味方の特性を受け継ぎ同じ特性に変わる。</div></div><div class="parkitem">パステルベール<div class="parkdesc">自分も味方もどくの状態異常を受けなくなる。</div></div><div class="parkitem">ごりむちゅう<div class="parkdesc">攻撃は上がるが最初に選んだ技しか出せなくなる。</div></div><div class="parkitem">じんばいったい<div class="parkdesc">バドレックスのきんちょうかんとブリザポスのしろのいななきの二つの特性をあわせ持つ。</div></div><div class="parkitem">どくぼうそう<div class="parkdesc">どく状態になったとき物理技の威力が上がる。</div></div><div class="parkitem">へんしょく<div class="parkdesc">相手から受けた技のタイプに自分のタイプが変化する。</div></div><div class="parkitem">エアロック<div class="parkdesc">あらゆる天気の影響が消えてしまう。</div></div><div class="parkitem">フラワーギフト<div class="parkdesc">天気が晴れのとき自分と味方の攻撃と特防の能力が上がる。</div></div><div class="parkitem">ナイトメア<div class="parkdesc">ねむり状態の相手にダメージをあたえる。</div></div><div class="parkitem">マルチタイプ<div class="parkdesc">持っているプレートやＺクリスタルのタイプによって自分のタイプが変わる。</div></div><div class="parkitem">しょうりのほし<div class="parkdesc">自分や味方の命中率が上がる。</div></div><div class="parkitem">ダークオーラ<div class="parkdesc">全員のあくタイプの技が強くなる。</div></div><div class="parkitem">バッテリー<div class="parkdesc">味方の特殊技の威力を上げる。</div></div><div class="parkitem">ヒーリングシフト<div class="parkdesc">回復技を先制で出すことができる。</div></div><div class="parkitem">にげごし<div class="parkdesc">ＨＰが半分になるとあわてて逃げ出して手持ちに引っ込んでしまう。</div></div><div class="parkitem">ききかいひ<div class="parkdesc">ＨＰが半分になると危険を回避するため手持ちに引っ込んでしまう。</div></div><div class="parkitem">ＡＲシステム<div class="parkdesc">持っているメモリで自分のタイプが変わる。</div></div><div class="parkitem">ぜったいねむり<div class="parkdesc">つねに夢うつつの状態で絶対に目覚めない。眠ったまま攻撃ができる。</div></div><div class="parkitem">ビビッドボディ<div class="parkdesc">相手をびっくりさせてこちらにむかって先制技を出せないようにする。</div></div><div class="parkitem">はがねつかい<div class="parkdesc">はがねタイプの技の威力が上がる。</div></div><div class="parkitem">メタルプロテクト<div class="parkdesc">相手の技や特性で能力を下げられない。</div></div><div class="parkitem">ファントムガード<div class="parkdesc">ＨＰが満タンのときに受けるダメージが少なくなる。</div></div><div class="parkitem">ソウルハート<div class="parkdesc">ポケモンがひんしになるたびに特攻が上がる。</div></div><div class="parkitem">たまひろい<div class="parkdesc">道具を持っていない場合１回目に投げて失敗したモンスターボールを拾ってくる。</div></div><div class="parkitem">うのミサイル<div class="parkdesc">なみのりかダイビングをすると獲物をくわえてくる。ダメージを受けると獲物を吐きだして攻撃。</div></div><div class="parkitem">はがねのせいしん<div class="parkdesc">味方のはがねタイプの攻撃の威力が上がる。</div></div><div class="parkitem">ほろびのボディ<div class="parkdesc">接触する技を受けるとお互い３ターンたつとひんしになる。交代すると効果はなくなる。</div></div><div class="parkitem">パワースポット<div class="parkdesc">隣にいるだけで技の威力が上がる。</div></div><div class="parkitem">トランジスタ<div class="parkdesc">でんきタイプの技の威力が上がる。</div></div><div class="parkitem">りゅうのあぎと<div class="parkdesc">ドラゴンタイプの技の威力が上がる。</div></div><div class="parkitem">しろのいななき<div class="parkdesc">相手を倒すと冷たい声でいなないて攻撃が上がる。</div></div><div class="parkitem">くろのいななき<div class="parkdesc">相手を倒すと恐ろしい声でいなないて特攻が上がる。</div></div><div class="parkitem">とれないにおい<div class="parkdesc">相手に触られるととれないにおいが相手にうつってしまう。</div></div><div class="parkitem">こんがりボディ<div class="parkdesc">ほのおタイプの技を受けるとダメージを受けずに防御がぐーんと上がる。</div></div><div class="parkitem">こぼれダネ<div class="parkdesc">攻撃を受けるとグラスフィールドにする。</div></div><div class="parkitem">いかりのこうら<div class="parkdesc">相手の攻撃でHPが半分になると怒りで防御と特防が下がるが攻撃特攻素早さが上がる。</div></div><div class="parkitem">いわはこび<div class="parkdesc">いわタイプの技の威力が上がる。</div></div><div class="parkitem">きょうえん<div class="parkdesc">登場したときに味方の能力変化をコピーする。</div></div><div class="parkitem">しれいとう<div class="parkdesc">登場したとき味方にヘイラッシャがいると口の中に入ってそこから指令をだす。</div></div><div class="parkitem">おうごんのからだ<div class="parkdesc">酸化せず丈夫な黄金の体は相手からの変化技を受けない。</div></div><div class="parkitem">わざわいのおふだ<div class="parkdesc">災厄を呼ぶ木札の力で自分以外の攻撃が弱くなる。</div></div><div class="parkitem">わざわいのつるぎ<div class="parkdesc">災厄を呼ぶ剣の力で自分以外の防御が弱くなる。</div></div><div class="parkitem">わざわいのうつわ<div class="parkdesc">災厄を呼ぶ器の力で自分以外の特攻が弱くなる。</div></div><div class="parkitem">わざわいのたま<div class="parkdesc">災厄を呼ぶ勾玉の力で自分以外の特防が弱くなる。</div></div><div class="parkitem">テラスチェンジ<div class="parkdesc">登場したとき周囲のエネルギーを吸収しテラスタルフォルムに変化する。</div></div><div class="parkitem">どくくぐつ<div class="parkdesc">モモワロウの技によってどく状態になった相手はこんらん状態にもなってしまう。</div></div><div class="parkitem">はじまりのうみ<div class="parkdesc">ほのおタイプの攻撃を受けない天気にする。</div></div><div class="parkitem">おわりのだいち<div class="parkdesc">みずタイプの攻撃を受けない天気にする。</div></div><div class="parkitem">デルタストリーム<div class="parkdesc">ひこうタイプの弱点がなくなる天気にする。</div></div><div class="parkitem">きずなへんげ<div class="parkdesc">相手を倒すとトレーナーとのキズナが深まりサトシゲッコウガに変化する。みずしゅりけんが強くなる。</div></div><div class="parkitem">ブレインフォース<div class="parkdesc">効果バツグンの攻撃で威力がさらに上がる。</div></div><div class="parkitem">しんがん<div class="parkdesc">ノーマルかくとうタイプの技をゴーストタイプに当てることができる。相手の回避率の変化を無視し命中率も下げられない。</div></div><div class="parkitem">テラスシェル<div class="parkdesc">全タイプの力を秘めた甲羅はHPが満タンのときに受けるダメージをすべて今ひとつにする。</div></div><div class="parkitem">ゼロフォーミング<div class="parkdesc">テラパゴスがステラフォルムになったとき秘められた力で天気とフィールドの影響をすべてゼロにする。</div></div>
+  </div></div>
+  <h3>持ち物(items_database.js・regular93件のうち配置できなかったもの)</h3>
+  <div class="parksub"><b>実装確認済・フェーズ未整理(6件・engine上に文字列はあるが本盤のフェーズ範囲表に未マッピング)</b><div class="parkgrid">
+    <div class="parkitem parkitem-partial">オレンのみ <span class="parkline">L6057</span><div class="parkdesc">HP1/2以下になった時に最大HPの10を回復する。</div></div><div class="parkitem parkitem-partial">オボンのみ <span class="parkline">L6057</span><div class="parkdesc">HP1/2以下になった時に最大HPの1/4を回復する。</div></div><div class="parkitem parkitem-partial">ヒメリのみ <span class="parkline">L6057</span><div class="parkdesc">PPが0になった技のPPを10回復する。</div></div><div class="parkitem parkitem-partial">くろいヘドロ <span class="parkline">L7562</span><div class="parkdesc">毒タイプは毎ターン最大HPの1/16回復、それ以外は1/8減少。</div></div><div class="parkitem parkitem-partial">メンタルハーブ <span class="parkline">L6185</span><div class="parkdesc">アンコール・いちゃもん・かなしばり・どうしても・メロメロを1度だけ回復する。</div></div><div class="parkitem parkitem-partial">きれいなぬけがら <span class="parkline">L6294</span><div class="parkdesc">こうそくスピン等による交代封じを無視して必ず控えポケモンと交代できる</div></div>
+  </div></div><div class="parksub"><b>証拠なし(0件・engine grep 0件=未実装または旧仕様の可能性)</b><div class="parkgrid">
+    
+  </div></div>
+  <h3>技effect kind(全国版WAZA_MAP・140種のうち配置できなかったもの)</h3>
+  <div class="parksub"><b>実装確認済・フェーズ未整理(2件・engine上に文字列はあるが本盤のフェーズ範囲表に未マッピング)</b><div class="parkgrid">
+    <div class="parkitem parkitem-partial">こらえる(1技) <span class="parkline">L5828,7116</span><div class="parkdesc">こらえる</div></div><div class="parkitem parkitem-partial">遅延攻撃(2技) <span class="parkline">L5850,5950,6619,7138</span><div class="parkdesc">みらいよち・はめつのねがい</div></div>
+  </div></div><div class="parksub"><b>証拠なし(26件・engine grep 0件=未実装または旧仕様の可能性)</b><div class="parkgrid">
+    <div class="parkitem">効果なし(3技)<div class="parkdesc">はねる・おいわい・てをつなぐ</div></div><div class="parkitem">PP減少(2技)<div class="parkdesc">うらみ・ぶきみなじゅもん</div></div><div class="parkitem">能力倍率(1技)<div class="parkdesc">すなあらし</div></div><div class="parkitem">全体継続ダメージ(1技)<div class="parkdesc">すなあらし</div></div><div class="parkitem">引き寄せ(3技)<div class="parkdesc">このゆびとまれ・いかりのこな・スポットライト</div></div><div class="parkitem">地形依存技(1技)<div class="parkdesc">しぜんのちから</div></div><div class="parkitem">味方威力上昇(1技)<div class="parkdesc">てだすけ</div></div><div class="parkitem">地面技被弾化(1技)<div class="parkdesc">ねをはる</div></div><div class="parkitem">おんねん(1技)<div class="parkdesc">おんねん</div></div><div class="parkitem">道具封じ(1技)<div class="parkdesc">さしおさえ</div></div><div class="parkitem">急所無効(1技)<div class="parkdesc">おまじない</div></div><div class="parkitem">範囲まもり(3技)<div class="parkdesc">ワイドガード・たたみがえし・トリックガード</div></div><div class="parkitem">おもさ変化(1技)<div class="parkdesc">ボディパージ</div></div><div class="parkitem">必ず急所(5技)<div class="parkdesc">やまあらし・ばちばちアクセル・あんこくきょうだ</div></div><div class="parkitem">同タイプ限定(1技)<div class="parkdesc">シンクロノイズ</div></div><div class="parkitem">直後に行動(1技)<div class="parkdesc">おさきにどうぞ</div></div><div class="parkitem">行動順繰上げ(1技)<div class="parkdesc">りんしょう</div></div><div class="parkitem">位置入替(1技)<div class="parkdesc">サイドチェンジ</div></div><div class="parkitem">最後に行動(1技)<div class="parkdesc">さきおくり</div></div><div class="parkitem">道具譲渡(1技)<div class="parkdesc">ギフトパス</div></div><div class="parkitem">ランク反転(1技)<div class="parkdesc">ひっくりかえす</div></div><div class="parkitem">賞金倍(1技)<div class="parkdesc">ハッピータイム</div></div><div class="parkitem">トラップ反撃(1技)<div class="parkdesc">トラップシェル</div></div><div class="parkitem">対象範囲変更(2技)<div class="parkdesc">ワイドフォース・テラクラスター</div></div><div class="parkitem">相手持ち物威力(1技)<div class="parkdesc">ポルターガイスト</div></div><div class="parkitem">攻撃技条件先制(1技)<div class="parkdesc">じんらい</div></div>
+  </div></div>
+</section>
+
+<section class="tail">
+  <h2>阿部さんに確認したい点(v1の5点+v2で新規追加2点)</h2>
+  <h3>v1から継続(2026-07-23 §3)</h3>
+  <div class="qa"><b>1. 攻撃補正/防御補正の粒度</b> — 2026-07-26のCEDEC再検証で「1 Event」が確定(実数値系・威力系・持ち物系すべて同じ攻撃力補正Eventに合流)。この盤ではatk_modify/def_modifyを各1列として統合済み。<b>確定でよいか最終確認。</b></div>
+  <div class="qa"><b>2. メガシンカ速度順</b> — 実装は<code>['self','opp'].forEach(...)</code>固定順(6704行)。速い順にすべきか、1vs1専用として割り切るか。</div>
+  <div class="qa"><b>3. 「登場特性発動」と「天候/フィールド設定」の分離</b> — 実装は<code>fireEntryAbility()</code>が1関数で両方処理。2 Eventに分けるべきか。</div>
+  <div class="qa"><b>4. ターン終了スリップ順</b> — 実装はself→opp固定(5204-5206)。<code>canonSides()</code>ベースの速度順へ直すと、オンラインlockstepの乱数消費順に影響しうる=要検討。</div>
+  <div class="qa"><b>5. ターン終了の分割粒度</b> — 既存<code>PHASES</code>定数の10a〜10h(8分割)と本盤のend_of_turn_slip/end_of_turn_field(2分割)の統一。</div>
+  <h3>v2で新規追加(2026-07-26 §2.7)</h3>
+  <div class="qa new"><b>6. ディスパッチ規律: CEDEC式 即時再帰 vs MtG式 決定的トリガーキュー</b> — CEDECの「Handler→Section呼び出し」は誘発時に即座に再帰する設計に読める。一方MtG総合ルール603/APNAPは「収集→順序規則で積む→LIFO解決→状態起因処理が安定までループ」という<b>決定的キュー</b>。うちはロックステップ(乱数/順序の決定性)+undo要件があるため、リファクタ時にどちらの規律を採るか(またはハイブリッド)。どくびしT3型(自分の設置宣言が自ガードを即トリガーする実バグ)は発生源タグつき収集で構造的に防げる可能性。</div>
+  <div class="qa new"><b>7. 状態異常Event(status_pipe)を真のイベント化するか、現状のitemReactions()ポーリング(毎ターン最大4回)のままでよいか</b> — CEDEC準拠にするなら「状態異常が付与された瞬間」に即座にHandlerを呼ぶ構造が必要。増分リファクタの次の一歩の候補になり得るが、優先度・リスクは阿部さん判断。</div>
+</section>
+
+<section class="tail">
+  <h2>増分リファクタの最初の一歩(v1から継続・変更なし)</h2>
+  <p>
+    監査Eの結論どおり、<code>applyRankStageGuarded()</code>(<code>real_battle_simulator.html:3467-3541</code>)を本物の名前つきEvent+Handlerリスト化するのが最小リスクの第一歩。
+    理由: ①既に単一funnel ②反応ロジックが1関数に集約済み ③コード自身のコメント(3455-3457行)が経緯を記録。
+    <code>onStatStageChange</code>のような<code>{name, cond, apply}</code>配列へ抽象化しても、解決順序とログ文言を維持すればテスト緑を壊さずに改修パターンを実証できる。
+  </p>
+</section>
+
+<footer class="note">review/設計_バトルPhase全体盤v2_2026-07-26.html ／ real_battle_simulator.html・データ本体は未編集(Read/Grepのみで作成) ／ 前身: 設計_バトルPhase全体表_2026-07-23.html</footer>
+
+</div>
+
+</body>
+</html>

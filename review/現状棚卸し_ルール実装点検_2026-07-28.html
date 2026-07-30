@@ -1,0 +1,991 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>現状棚卸し: ルール実装点検(2026-07-28)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root{
+  --bg:#f7f5f0; --panel:#ffffff; --ink:#2b2a26; --sub:#6b6a63; --line:#e4e0d6;
+  --ok-bg:#eaf6ec; --ok-line:#2f9e52; --ok-ink:#1d6b36;
+  --part-bg:#fff6e0; --part-line:#c98a12; --part-ink:#8a5c05;
+  --no-bg:#fdecec; --no-line:#c93b3b; --no-ink:#8f1f1f;
+  --unk-bg:#eef1f5; --unk-line:#8593a6; --unk-ink:#4b5a6b;
+  --na-bg:#f1f1f1; --na-line:#9a9a9a; --na-ink:#666;
+  --accent:#a4392f;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Hiragino Sans","Yu Gothic",-apple-system,BlinkMacSystemFont,sans-serif;line-height:1.7;}
+.wrap{max-width:1180px;margin:0 auto;padding:32px 20px 100px}
+header.page{padding:36px 28px;background:linear-gradient(135deg,#2b2a26,#463c33);color:#f5f0e6;border-radius:14px;margin-bottom:28px}
+header.page h1{margin:0 0 8px;font-size:1.6rem}
+header.page .meta{color:#d8cfc0;font-size:.92rem}
+h2.gtitle{margin-top:52px;padding-bottom:8px;border-bottom:3px solid var(--accent);font-size:1.35rem}
+h2.gtitle .gtag{font-size:.8rem;color:var(--sub);font-weight:normal}
+.rulepage{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:18px 0;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.rulepage h3{margin:0 0 12px;font-size:1.05rem;display:flex;flex-wrap:wrap;gap:10px;align-items:baseline}
+.pagebadge{font-size:.72rem;font-weight:normal;color:var(--sub);background:#f2efe8;border-radius:20px;padding:3px 10px;white-space:nowrap}
+.ctxbox{background:#f4f1ea;border-left:4px solid #b6a98c;border-radius:6px;padding:12px 16px;margin:14px 0;font-size:.88rem;color:#4b453a}
+.ctxbox h4{margin:0 0 6px;font-size:.85rem;color:#6b5c40}
+.ctxbox p{margin:.4em 0}
+.twrap{overflow-x:auto;margin:8px 0}
+table.ruletable{border-collapse:collapse;width:100%;font-size:.86rem;min-width:900px}
+table.ruletable th{background:#2b2a26;color:#f2ede2;padding:8px 10px;text-align:left;position:sticky;top:0}
+table.ruletable td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.ruletable td:nth-child(1){min-width:200px;font-weight:600}
+table.ruletable td:nth-child(2){min-width:220px;color:#5a5445;font-style:italic}
+table.ruletable td:nth-child(3){min-width:260px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.8rem}
+table.ruletable td:nth-child(4){white-space:nowrap;font-weight:700}
+table.ruletable td:nth-child(6){min-width:220px;color:#555}
+tr.st-ok{background:var(--ok-bg)} tr.st-ok td:nth-child(4){color:var(--ok-ink)}
+tr.st-part{background:var(--part-bg)} tr.st-part td:nth-child(4){color:var(--part-ink)}
+tr.st-no{background:var(--no-bg)} tr.st-no td:nth-child(4){color:var(--no-ink)}
+tr.st-unk{background:var(--unk-bg)} tr.st-unk td:nth-child(4){color:var(--unk-ink)}
+tr.st-na{background:var(--na-bg)} tr.st-na td:nth-child(4){color:var(--na-ink)}
+td.im-high{color:#a4392f;font-weight:800}
+td.im-mid{color:#c98a12;font-weight:700}
+td.im-low{color:#8593a6}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:18px 0}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;text-align:center}
+.stat .n{font-size:1.7rem;font-weight:800}
+.stat .l{font-size:.78rem;color:var(--sub)}
+.stat.ok .n{color:var(--ok-ink)} .stat.part .n{color:var(--part-ink)} .stat.no .n{color:var(--no-ink)} .stat.unk .n{color:var(--unk-ink)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 26px;margin:18px 0}
+.panel h2{margin-top:0;font-size:1.2rem;border-bottom:2px solid var(--line);padding-bottom:8px}
+ol.hi-list li, ol.todo-list li{margin:10px 0}
+ol.hi-list b, ol.todo-list b{color:var(--accent)}
+.tag{display:inline-block;font-size:.7rem;padding:1px 8px;border-radius:20px;margin-right:6px;font-weight:700}
+.tag.high{background:#fdecec;color:#8f1f1f}
+.tag.mid{background:#fff6e0;color:#8a5c05}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem;margin:10px 0 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:14px;height:14px;border-radius:3px;display:inline-block}
+.toc{columns:2;gap:24px;font-size:.86rem}
+.toc a{color:#5a5445;text-decoration:none}
+.toc a:hover{text-decoration:underline}
+blockquote{background:#f4f1ea;border-left:3px solid #b6a98c;margin:8px 0;padding:6px 14px;font-size:.86rem;color:#544e3f}
+hr.gdiv{border:none;border-top:1px dashed var(--line);margin:40px 0}
+.note{color:var(--sub);font-size:.85rem}
+.honest{border-left:4px solid #a4392f;background:#fff3f1}
+footer.page{margin-top:60px;color:var(--sub);font-size:.8rem;text-align:center}
+code{background:#f1ede3;padding:1px 5px;border-radius:4px;font-size:.85em}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="page">
+<h1>現状棚卸し: ルール(バトルの仕組み)実装点検</h1>
+<div class="meta">作成 2026-07-28 JST ・ 調査担当(修正なし・レポートのみ)・対象: <code>reference/_authority_corpus/rules/*.json</code> 全44枚 × <code>real_battle_simulator.html</code>(9504行)</div>
+</header>
+<div class="panel">
+<h2>0. これは何か・読み方</h2>
+<p>阿部さん指示(2026-07-28)「ルール側、わざページ、それらを突き合わせて一回整理した方がいい。ルール側にも抜けや修正が必要な所がありそう。一回現状を全部洗い出して、整理して現状を把握した上で進める」を受けて、<b>ルール(バトルの仕組み)コーパス全44枚</b>を1枚ずつ読み、書かれている規則を箇条書きに分解し、それぞれ <code>real_battle_simulator.html</code>(9504行)を実際に開いて実装状況を判定した。<b>今回は修正を一切行っていない</b>。成果物はこのレポートと <code>reference/_rule_mentions_index.json</code>(索引)の2つのみ。</p>
+<p class="note">依頼文では「29枚」と書かれていたが、<code>reference/_authority_corpus/rules/</code> に実在するファイルは<b>44枚</b>だった(トリックルーム/優先度/乱数/天気/変化技/とくせい/メガシンカ/テラスタル/ひかりのかべ/ポケモンチェンジ/どうぐ 等、依頼文の例示リストに無かったファイルも含む)。全体像を把握する主旨に沿い、<b>実在する44枚すべて</b>を点検対象にした。</p>
+<p>判定は6人格(6つの調査エージェント)に分担させ、各エージェントが担当ファイルの原文を読み、grepだけで済ませず該当関数を実際に開いてから判定した。ただし分業ゆえ「影響度」の付け方や粒度に多少のばらつきがある(表内の値をそのまま採用しているため、担当者ごとの判断基準の違いが残っている箇所がある)。</p>
+
+<h2>1. 総数サマリ</h2>
+<div class="summary-grid">
+<div class="stat"><div class="n">439</div><div class="l">点検した規則(行)の総数</div></div>
+<div class="stat ok"><div class="n">254</div><div class="l">実装済み</div></div>
+<div class="stat part"><div class="n">50</div><div class="l">部分実装</div></div>
+<div class="stat no"><div class="n">87</div><div class="l">未実装</div></div>
+<div class="stat unk"><div class="n">44</div><div class="l">未確認</div></div>
+</div>
+<p class="note">上記のほか「対象外(構造的に非該当・原文に規則が無い等)」が4件。集計は各ルールページの表の「判定」列を機械集計したもの(担当ファイル一覧・総括・まとめ表など地の文セクションはカウントに含めない)。</p>
+<div class="legend">
+<span><i style="background:var(--ok-line)"></i>実装済み</span>
+<span><i style="background:var(--part-line)"></i>部分実装</span>
+<span><i style="background:var(--no-line)"></i>未実装</span>
+<span><i style="background:var(--unk-line)"></i>未確認</span>
+<span><i style="background:var(--na-line)"></i>対象外</span>
+</div>
+
+<h2>2. 影響度=高の未実装・部分実装(最重要)</h2>
+<p>「バトル結果が変わる」規模の欠落・食い違いのみを抜粋した。各項目の詳細・根拠(file:line・権威引用)は本文の該当セクションを参照。</p>
+<ol class="hi-list">
+<li><span class="tag high">構造</span><b>ダブルバトルの基本構造(2vs2同時行動)自体が未実装</b>。<code>sides = {self, opp}</code> の1対1固定シングル専用エンジンで、<code>env.doubleBattle</code>は範囲技ダメージ×0.75を掛けるだけの簡易フラグ。ダブル関連ルールの大半(サイドチェンジ・ワイドガード等の範囲防御・複数対象への個別命中判定 等)がこの1点に起因して構造的に未実装。 <span class="note">(G6/ダブルバトル.json)</span></li>
+<li><span class="tag high">構造</span><b>複数対象技のダメージ処理順序</b>(第五世代以降「味方→敵から見て左の敵→右の敵」)が未実装。上と同根(ダブル構造が無いため対象が常に1体)。 <span class="note">(G1・G6/ダメージ.json・ダブルバトル.json)</span></li>
+<li><span class="tag high">構造</span><b>テラスタル全機構</b>(1バトル1回・タイプ変化・威力60保証・タイプ一致ボーナスの「ステラ補正」化 等)が丸ごと未実装。コード中の該当箇所は「テラスタル系はsim未実装のため考慮しない」というコメント1件のみ。 <span class="note">(G6/テラスタル.json)</span></li>
+<li><span class="tag high">行動順</span><b>ターン中の動的な行動順再評価</b>(第八世代以降ルール)が未実装。<code>decideOrder()</code>をターン開始時に1回だけ計算して固定し(<code>runTurn()</code> real_battle_simulator.html:6797〜)、技実行中にすばやさ・優先度が変化しても2手目の行動順に反映されない(第七世代までの挙動のまま)。 <span class="note">(G2/すばやさ.json・優先度.json)</span></li>
+<li><span class="tag high">行動順</span>優先度内「最速」枠のうち<b>クイックドロウ(特性)・イバンのみ(道具)が未実装</b>(せんせいのツメのみ実装)。 <span class="note">(G2/優先度.json)</span></li>
+<li><span class="tag high">行動順</span>優先度内「最遅」枠(<b>あとだし/きんしのちから特性・こうこうのしっぽ/まんぷくおこう道具</b>)が丸ごと未実装。 <span class="note">(G2/優先度.json)</span></li>
+<li><span class="tag high">行動順</span>行動順決定6段構成のうち、わざ効果による<b>繰り上げ(おさきにどうぞ等)・繰り下げ(さきおくり)</b>の2段が欠落。さきおくりはデータに<code>effects:[{kind:"最後に行動"}]</code>が用意されているのにエンジンが読んでいない典型パターン。 <span class="note">(G2/ターン.json・優先度.json)</span></li>
+<li><span class="tag high">命中</span><b>一撃必殺技は命中判定でランク補正・命中率変動効果の影響を受けない</b>という規則が未実装。ふくがん以外(ランク補正・じゅうりょく・ひかりのこな・こうかくレンズ等)がじわれ/つのドリル等にもそのまま適用されてしまう。 <span class="note">(G1/命中.json・一撃必殺技.json)</span></li>
+<li><span class="tag high">状態異常</span><b>こおりの解凍条件</b>(相手の炎技を受けると解ける、という歴代の一般則)を実装するコードが見当たらない(自分から「解凍宣言」する技のみ対応)。ただしコーパス側(型ページ)にも一次引用が無いため権威の再確認込みで要点検。 <span class="note">(G3/こおり.json)</span></li>
+<li><span class="tag mid">状態異常</span><b>こんらんの判定順序が権威と逆</b>。権威は「まひ/メロメロ判定はこんらん自傷判定の後」と明記するが、実装は まひ→メロメロ→こんらん の順(逆転)。まひで動けなかったターンにこんらんカウンタが消費されない差異が生じる。 <span class="note">(G3/こんらん.json)</span></li>
+<li><span class="tag mid">状態異常</span><b>まひの行動不能率</b>: 実装はSV仕様の25%だが、コーパス(<code>まひ.json</code>)には本プロジェクトが対象とする『Pokémon Champions』仕様として12.5%の記載があり、他の項目(こんらん1/3・バインド4-5ターン等)はSVとChampionsで一致するのに、まひだけ数値が割れている。<b>どちらを正とするか方針確認が必要</b>。 <span class="note">(G3/まひ.json)</span></li>
+<li><span class="tag high">特性</span>直接攻撃を受けた際の主要特性が複数未実装: <b>どくのトゲ・ほうし(Effect Spore)・ゆうばく(Aftermath)</b>など。ゴツゴツメット/さめはだ/せいでんき等の類似機構(接触反応)は実装済みなのに、個別特性が抜けている非対称な状態。 <span class="note">(G5/直接攻撃.json)</span></li>
+<li><span class="tag mid">急所</span><b>急所ランク0(素の急所率1/24)が自動対戦では乱数判定されない</b>。UIの手動チェックボックス(<code>atk.critical</code>)にのみ依存する意図的近似で、コード自身が「ランク0はUIトグル担当」と明記。CPU同士のシミュレーション・観戦レポート等クリック操作を介さない経路では基礎急所(4.2%)が恒久的に0%になる。 <span class="note">(G5/ランク補正.json)</span></li>
+<li><span class="tag mid">交代</span>反動硬直/溜め技2ターン目/連続行動技の間は本来「行動選択自体がスキップされ交代不可」のはずが、<code>runTurn()</code>の交代フェーズが<code>mustRecharge</code>/<code>charging</code>等の状態を見ずに<code>switchChoice</code>を無条件実行している(実バグ疑い、要検証)。 <span class="note">(G6/ポケモンチェンジ.json)</span></li>
+</ol>
+
+<h2>3. B. ルールページ名指し索引(<code>reference/_rule_mentions_index.json</code>)</h2>
+<p>各ルールページの原文(<code>raw_text</code>)に対し、技900・特性308・持ち物167(いずれも<code>reference/_authority_corpus/</code>収録の全件名)を機械的に文字列マッチングし、「どのルールに名指しされているか」を索引化した。抽出はファイル名(=正式名称)の単純部分一致(2文字以上)+出現回数+前後15文字のスニペットで、同音類似語や一般語との誤検出を完全には排除できていない(下記「自信がなかった箇所」参照)。</p>
+<div class="summary-grid">
+<div class="stat"><div class="n">44</div><div class="l">索引化したルールページ数</div></div>
+<div class="stat"><div class="n">2214</div><div class="l">技名の延べ言及件数(全44ページ合計)</div></div>
+<div class="stat"><div class="n">872</div><div class="l">特性名の延べ言及件数</div></div>
+<div class="stat"><div class="n">223</div><div class="l">持ち物名の延べ言及件数</div></div>
+</div>
+<p class="note">検証: 依頼文中で実測済みとされていた数値と突き合わせたところ、<b>連続攻撃=技58・特性38(完全一致)</b>、<b>ダメージ=技89・特性33(完全一致)</b>、<b>ダブルバトル=技171(依頼文の170とほぼ一致)</b>となり、同じ抽出方針で作られたものと考えられる。この一致により今回の抽出方法の妥当性を確認した。</p>
+
+<h2>4. 自信がなかった箇所(正直な列挙)</h2>
+<ul>
+<li>全324セル(18タイプ×18タイプ)のタイプ相性表の逐一照合はしていない(代表セルのサンプル確認のみ)。</li>
+<li><code>こおり.json</code>・<code>どく.json</code>の2ファイルは、実体がスクレイプ対象の取り違えで「状態異常ページ」ではなく「タイプページ」だった。解凍率・毎ターンダメージ量など阿部さん指定の重点項目の一次引用がこの8ファイル(状態異常グループ)からは取れず、「未確認(コーパス不足)」表記にした行が複数ある。コード側の数値(20%解凍・1/8どく等)は歴代作の一般値と一致するが、この特定のコーパスからは裏付けられない。</li>
+<li>連続攻撃・急所の相互作用(1ヒットごとの個別判定 vs 技1回の代表判定)は、エンジン側コメントで「本来1発ごとだが簡易化」と自己申告されている既知の近似であり、深追いすれば他にも同種の意図的近似が見つかる可能性がある。</li>
+<li>ダブルバトル関連は、技個別(150件超)の1件ずつのgrep照合はしておらず、「1v1固定構造だから未実装」という構造的判定に一括で寄せている。個別技名までの全数照合は別セッション推奨。</li>
+<li>ランク補正のガード系特性(ABILITY_CHANGE_NG等の定数)の中身1件ずつの突合せ、びんじょう・さまようたましい・トリックガード等一部の特性/技の実装有無は「未確認」のまま(コード全体を追いきれなかった)。</li>
+<li>「影響度(高/中/低)」の付け方は6つの調査エージェントそれぞれの判断に依っており、担当者間で厳密には基準が揃っていない。本レポート冒頭の「影響度=高」リストは、各表の値に加えて全体を通読した上でのとりまとめ側(このレポート作成者)の判断も混ざっている。</li>
+<li>持ち物(<code>どうぐ.json</code>)は原文が曖昧さ回避ページ(実質空)で、突き合わせ可能な規則が無かった。持ち物の一般原則は<code>とくせい.json</code>/<code>メガシンカ.json</code>/<code>ダブルバトル.json</code>内に登場したものだけを拾っている。</li>
+</ul>
+</div>
+
+<div class="panel">
+<h2>目次(グループ・ルールページ一覧)</h2>
+<div class="toc">
+<a href='#rp-G1-1ダメージjson'>[G1] 1. ダメージ.json</a><br>
+<a href='#rp-G1-2威力json'>[G1] 2. 威力.json</a><br>
+<a href='#rp-G1-3タイプ相性json'>[G1] 3. タイプ相性.json</a><br>
+<a href='#rp-G1-4タイプ一致ボーナスjson'>[G1] 4. タイプ一致ボーナス.json</a><br>
+<a href='#rp-G1-5命中json'>[G1] 5. 命中.json</a><br>
+<a href='#rp-G1-6急所json'>[G1] 6. 急所.json</a><br>
+<a href='#rp-G1-7一撃必殺技json'>[G1] 7. 一撃必殺技.json</a><br>
+<a href='#rp-G2-1すばやさjson'>[G2] 1. <code>すばやさ.json</code></a><br>
+<a href='#rp-G2-2優先度json'>[G2] 2. <code>優先度.json</code></a><br>
+<a href='#rp-G2-3ターンjson行動順すばやさに直接関わる部分のみ抽出技の成否判定リスト等は範囲'>[G2] 3. <code>ターン.json</code>(行動順・すばやさに直接関わる部分のみ抽出。技の成否判定リスト等は範囲外)</a><br>
+<a href='#rp-G2-4トリックルームjson'>[G2] 4. <code>トリックルーム.json</code></a><br>
+<a href='#rp-G2-5ポケモンバトルjson'>[G2] 5. <code>ポケモンバトル.json</code></a><br>
+<a href='#rp-G3-1こおりjson実体タイプページ'>[G3] 1. こおり.json (実体=タイプページ)</a><br>
+<a href='#rp-G3-2こんらんjson'>[G3] 2. こんらん.json</a><br>
+<a href='#rp-G3-3どくjson実体タイプページ'>[G3] 3. どく.json (実体=タイプページ)</a><br>
+<a href='#rp-G3-4ねむりjson'>[G3] 4. ねむり.json</a><br>
+<a href='#rp-G3-5まひjson'>[G3] 5. まひ.json</a><br>
+<a href='#rp-G3-6やけどjson'>[G3] 6. やけど.json</a><br>
+<a href='#rp-G3-7状態異常json総論'>[G3] 7. 状態異常.json(総論)</a><br>
+<a href='#rp-G3-8バインド状態json'>[G3] 8. バインド状態.json</a><br>
+<a href='#rp-G4-1まもるまもるjson'>[G4] 1. まもる (<code>まもる.json</code>)</a><br>
+<a href='#rp-G4-2みがわりみがわりjson'>[G4] 2. みがわり (<code>みがわり.json</code>)</a><br>
+<a href='#rp-G4-3リフレクターリフレクターjson'>[G4] 3. リフレクター (<code>リフレクター.json</code>)</a><br>
+<a href='#rp-G4-4ひかりのかべひかりのかべjson'>[G4] 4. ひかりのかべ (<code>ひかりのかべ.json</code>)</a><br>
+<a href='#rp-G4-5フィールドフィールドjson'>[G4] 5. フィールド (<code>フィールド.json</code>)</a><br>
+<a href='#rp-G4-6天気天気json'>[G4] 6. 天気 (<code>天気.json</code>)</a><br>
+<a href='#rp-G4-7ステルスロックステルスロックjson'>[G4] 7. ステルスロック (<code>ステルスロック.json</code>)</a><br>
+<a href='#rp-G5-1技json'>[G5] 1. 技.json</a><br>
+<a href='#rp-G5-2変化技json'>[G5] 2. 変化技.json</a><br>
+<a href='#rp-G5-3連続攻撃json最重要点検対象'>[G5] 3. 連続攻撃.json 【最重要点検対象】</a><br>
+<a href='#rp-G5-4直接攻撃json'>[G5] 4. 直接攻撃.json</a><br>
+<a href='#rp-G5-5ため技json'>[G5] 5. ため技.json</a><br>
+<a href='#rp-G5-6ちょうはつjson'>[G5] 6. ちょうはつ.json</a><br>
+<a href='#rp-G5-7アンコールjson'>[G5] 7. アンコール.json</a><br>
+<a href='#rp-G5-8ランク補正json'>[G5] 8. ランク補正.json</a><br>
+<a href='#rp-G6-1ダブルバトルjson'>[G6] 1. ダブルバトル.json</a><br>
+<a href='#rp-G6-2ポケモンチェンジjson'>[G6] 2. ポケモンチェンジ.json</a><br>
+<a href='#rp-G6-3ひんしjson'>[G6] 3. ひんし.json</a><br>
+<a href='#rp-G6-4とくせいjson'>[G6] 4. とくせい.json</a><br>
+<a href='#rp-G6-6メガシンカjson'>[G6] 6. メガシンカ.json</a><br>
+<a href='#rp-G6-7テラスタルjson'>[G6] 7. テラスタル.json</a>
+</div>
+</div>
+<h2 class='gtitle'>ダメージ計算まわり <span class='gtag'>(G1)</span></h2>
+<div class='ctxbox'><h4>このグループの担当ファイル一覧</h4><p>- <code>reference/_authority_corpus/rules/ダメージ.json</code>
+- <code>reference/_authority_corpus/rules/威力.json</code>
+- <code>reference/_authority_corpus/rules/タイプ相性.json</code>
+- <code>reference/_authority_corpus/rules/タイプ一致ボーナス.json</code>
+- <code>reference/_authority_corpus/rules/命中.json</code>
+- <code>reference/_authority_corpus/rules/急所.json</code>
+- <code>reference/_authority_corpus/rules/一撃必殺技.json</code></p>
+<p>エンジン: <code>real_battle_simulator.html</code>(9504行)。主な参照関数: <code>calcDamage</code>(1468-2167行)、<code>variablePower</code>(1410行)、<code>TYPE_CHART</code>(1326行)、<code>isSpreadMove</code>(1109行)、<code>phaseHitCheck</code>(2554行)、<code>moveTypeEff</code>(2669行)、<code>stealthRockMult</code>(2170行)、<code>rankedStat</code>/<code>_rankedStatNoBoost</code>(2194-2242行)、<code>phaseDealDamage</code>(2707-3306行)。</p>
+<p><b>前提</b>: このsimは1体vs1体(<code>sides</code>はオブジェクトで2側のみ)。「ダブルバトル」はチェックボックス1つで範囲補正0.75倍を掛けるだけの近似機能であり、実際に複数体を同時に処理する多体バトル機構は無い。この構造的制約は各所の判定に影響するため、都度明記する。</p>
+<p><b>修正は一切行っていません(読んで判定するだけ)。</b></p>
+<p>---</p></div>
+<section class='rulepage' id='rp-G1-1ダメージjson'><h3>1. ダメージ.json <span class='pagebadge'>実装済19 / 部分8 / 未実装5 / 未確認2 / 対象外0 (計34)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>基本式 (((Lv×2/5+2)×威力×A/D)/50+2)×M</td><td>「ダメージ = (((レベル × 2/5 + 2) × 威力 × A/D) / 50 + 2) × M」</td><td><code>real_battle_simulator.html:1837</code> <code>let base = Math.floor((2 * LEVEL / 5 + 2) * power * aStatEff / dStatEff / 50) + 2;</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-part'><td>第六世代以降の適用順序: 範囲補正×おやこあい×天気×急所×乱数×タイプ一致×相性×やけど×M×Mprotect</td><td>「｜ ダメージ = (((レベル×2/5+2)×威力×A/D)/50+2)×範囲補正×おやこあい補正×天気補正×急所補正×乱数補正×タイプ一致補正×相性補正×やけど補正×M×Mprotect」</td><td>実際の適用順は 天気(1841)→急所(1860)→ダブル範囲(1867)→やけど(1872)→各種特性M(1879〜)→[乱数(2032)→タイプ一致(2037)→相性(2044)→壁(2059)→道具M(2069〜)]</td><td>部分実装</td><td class='im-mid'>中</td><td>天気と急所の順序が権威と逆(権威=範囲→おやこあい→天気→急所、実装=天気→急所→範囲)。各段階でpokeRound(五捨五超入)を挟むため理論上は端数1違いの余地がある。実戦影響は稀</td></tr>
+<tr class='st-part'><td>Mチェーンの丸め方式: M内の各項は四捨五入で合成し、合成後のMを1回だけ五捨五超入で適用</td><td>「Mの各補正値の計算では、小数点以下を逐一四捨五入する」「M計算後は五捨五超入する」</td><td>いのちのたま・たつじんのおび等の各M項目を<b>個別に</b>pokeRound(五捨五超入)で都度ダメージへ直接適用(1996,2073,2079,2084,2089,2095,2109行など)。「先にM同士を四捨五入で合成→最後に1回五捨五超入」という2段階構造ではない</td><td>部分実装</td><td class='im-mid'>低〜中</td><td>M系アイテムが複数同時発動する組合せで最終端数が権威と1違う可能性。単体発動時は影響小</td></tr>
+<tr class='st-ok'><td>計算結果0は1にする(第六世代以降はM適用後で0にならない)</td><td>「第六世代以降では各種ダメージ補正の後に0を1にする処理が入るので、Mによってダメージが0になることはない」</td><td><code>real_battle_simulator.html:2115</code> <code>if (v &lt; 1 &amp;&amp; eff &gt; 0) v = 1;</code>(乱数16通りループの最後、全補正適用後)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-no'><td>65536(2^16)以上でオーバーフロー・剰余に置換</td><td>「最終的なダメージが2^16=65,536以上である場合、それを2^16で割った余りが代わりのダメージになる」</td><td>該当処理なし(grep該当なし)</td><td>未実装</td><td class='im-low'>低</td><td>Lv50固定・種族値上限のあるsimでは65536到達は非現実的(理論上いのちのたま等の複合乗算でも到達困難)。実害はほぼ無し</td></tr>
+<tr class='st-ok'><td>対象のHP残量を超えるダメージはHP残量に切り詰め</td><td>「ダメージの計算結果が対象のHP残量より大きい場合、HP残量と同じになるようにダメージを切り捨てる」</td><td><code>phaseDealDamage</code>側で <code>df.currentHp = Math.max(0, df.currentHp - dmg)</code> によりHPは0未満にならない(切り詰めと同義の実装)</td><td>実装済み</td><td class='im-high'>高</td><td>一致(実装方式は違うが結果同値)</td></tr>
+<tr class='st-ok'><td>みがわりはみがわりHP残量に切り詰め</td><td>「みがわり状態に防がれる場合は、みがわりのHP残量と同じになるまで切り捨てる」</td><td><code>real_battle_simulator.html:2790</code> <code>const dealt = Math.min(ohkoEf ? df.subHp : dmg, df.subHp);</code>(一撃必殺/固定ダメージ経路)。通常攻撃の同種処理は別箇所にあり(ヒットループ内)未別途追跡</td><td>実装済み</td><td class='im-high'>高</td><td>一撃必殺/固定技経路は確認。通常技の同経路は未確認(コード量的に別関数)</td></tr>
+<tr class='st-ok'><td>HP1耐え効果(こらえる/みねうち/てかげん/がんじょう/きあいのハチマキ/きあいのタスキ/なかよしLv3)はさらに1引く</td><td>「みがわりに防がれず、技こらえる・みねうち・てかげん、特性がんじょう、もちものきあいのハチマキ・きあいのタスキ、なかよしレベル3の効果が発動する場合、さらにダメージから1を引く」</td><td><code>real_battle_simulator.html:2747</code> <code>df.enduring</code>のこらえる処理で<code>dmg = df.currentHp - 1</code>。<code>sashCheck</code>関数(2748,6138行付近)できあいのタスキ/ハチマキ相当を処理</td><td>実装済み</td><td class='im-high'>高</td><td>こらえる・タスキ系は確認。みねうち・てかげん(固定でHP1残す変化技)は本メモでは未追跡(技実装側の別ロジック)</td></tr>
+<tr class='st-ok'><td>範囲補正: 第五世代以降・複数対象技は0.75倍</td><td>「第五世代以降は複数を対象とするわざなら0.75倍」</td><td><code>real_battle_simulator.html:1867</code> <code>if (env.doubleBattle &amp;&amp; isSpreadMove(move)){ base = pokeRound(base, 3072); }</code></td><td>実装済み</td><td class='im-high'>高</td><td>単純なケースは一致</td></tr>
+<tr class='st-no'><td>範囲補正の例外(阿部さん指定): 対象が1体しか残っていない(片方ひんし等)場合は補正なし</td><td>本コーパスに該当記述なし(この文言・例外は<code>ダメージ.json</code>/<code>威力.json</code>いずれにも見当たらない)</td><td><code>isSpreadMove</code>は<code>move.target</code>のみを見る静的判定で、実際に生きている対象数を見ていない(1109-1113行)。<code>env.doubleBattle</code>はUIチェックボックス1つで、実際の複数体同時対戦(誰が場に何体いるか)を管理する機構がsimに存在しない</td><td>未実装</td><td class='im-mid'>中</td><td>権威コーパス自体にこの例外の記載が無く「権威にあるか」は確認できず(未確認)。ただしエンジン側は複数体を同時シミュレートする構造を持たないため、この例外は<b>そもそも実装しようがない</b>設計。実際のダブルバトルが無い以上、実害は限定的</td></tr>
+<tr class='st-no'><td>ドラゴンアロー(ダーツ)は範囲補正の対象外という例外</td><td>本コーパスに「ドラゴンアロー」「ダーツ」等の記述なし(grep該当なし、<code>ダメージ.json</code>にも<code>威力.json</code>にも無い)</td><td>ドラゴンアロー(Dragon Darts)固有の除外ロジックはコード中に見当たらず(<code>isSpreadMove</code>にも技名個別除外なし)</td><td>未実装</td><td class='im-mid'>中</td><td>権威コーパスに記載が無いため「権威に規則があるか」は否と判定。技自体がWAZA_MAPに収録され<code>target</code>が単体対象なら計算上は問題にならない可能性があるが未検証</td></tr>
+<tr class='st-ok'><td>天気補正: あめでみず1.5/ほのお0.5、にほんばれで逆</td><td>「あめのとき、みずタイプは1.5倍、ほのおタイプは0.5倍」「にほんばれのとき、みずタイプは0.5倍、ほのおタイプは1.5倍」</td><td><code>real_battle_simulator.html:1841-1847</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致(pokeRound 6144/2048使用)</td></tr>
+<tr class='st-ok'><td>急所補正: 第六世代以降1.5倍</td><td>「第六世代以降は1.5倍」</td><td><code>real_battle_simulator.html:1862</code> <code>base = pokeRound(base, _sniper ? 9216 : 6144);</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>急所時、攻撃側の不利ランク(マイナス)・防御側の有利ランク(プラス)を無視</td><td>「第三世代以降は攻撃側のマイナスのランク補正、防御側のプラスのランク補正、ジムバッジ補正、壁補正が無視される」</td><td><code>real_battle_simulator.html:2203-2206</code>(<code>_rankedStatNoBoost</code>) <code>if (opts.role === 'atk' &amp;&amp; r &lt; 0) useR = 0; if (opts.role === 'def' &amp;&amp; r &gt; 0) useR = 0;</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致・正確</td></tr>
+<tr class='st-ok'><td>急所時、壁補正(リフレクター/ひかりのかべ/オーロラベール)を無視</td><td>「防御側の場のリフレクター・ひかりのかべ・オーロラベール状態(場の状態)の効果が無視される」</td><td><code>real_battle_simulator.html:2059</code> <code>if (!crit &amp;&amp; !breaksWall){ ... }</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>乱数補正: 85〜100/100</td><td>「第三世代以降: 85~100の乱数をかけ、その後100で割る」</td><td><code>real_battle_simulator.html:2032</code> <code>for (let r = 85; r &lt;= 100; r++){ let v = Math.floor(base * r / 100); ... }</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致。simは16通り全列挙(min/max幅の提示)で、実プレイの単発乱数とは表示用途が異なるが計算式は正しい</td></tr>
+<tr class='st-ok'><td>タイプ一致補正: 1.5倍、てきおうりょくは2倍</td><td>「攻撃側のポケモンのタイプとわざのタイプが一致していれば1.5倍」「特性がてきおうりょくである場合...2倍になる」</td><td><code>real_battle_simulator.html:2037-2040</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>相性補正: 第五世代以降は最終倍率を算出後に一括で掛けて切り捨て</td><td>「第五世代以降ではタイプ相性による最終的な倍率を出してから、その値を掛けて切り捨てる」</td><td><code>real_battle_simulator.html:2044</code> <code>v = Math.floor(v * eff);</code>(<code>eff</code>は事前に各タイプ相性の積を計算済み・1656-1658行)</td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>やけど補正: 物理0.5倍、こんじょう除外、からげんき(第六世代以降)除外</td><td>「攻撃側がやけど状態であるとき物理技のダメージが0.5倍」「こんじょうが発動している場合...適用されない」「第六世代以降は、使用する技がからげんきだった場合はこの補正は適用されない」</td><td><code>real_battle_simulator.html:1872-1877</code> <code>if (atk.status === 'burn' &amp;&amp; isPhys &amp;&amp; sideAbility(atk) !== 'こんじょう' &amp;&amp; !bdEffects.some(e =&gt; e.kind === 'やけど低下無視')){...}</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-part'><td>壁補正: 1匹→0.5倍、2匹以上→約0.67倍(2732/4096)、リフレクター/オーロラベール等は重複しない</td><td>「防御側の場に出せるポケモンが1匹なら0.5倍、2匹以上なら2732/4096倍」「リフレクターとオーロラベール...はそれぞれ重複しない」</td><td><code>real_battle_simulator.html:2059-2066</code> 常に<code>pokeRound(v, 2048)</code>(=0.5倍)固定。重複防止(<code>｜｜</code>で1回のみ)は実装されているが、ダブル時の0.67倍は無い</td><td>部分実装</td><td class='im-mid'>中</td><td>重複防止は正しいが、simは1vs1構造のため「2匹以上」側の0.67倍を出す手段が無い(ダブルトグルはこの計算に接続されていない)</td></tr>
+<tr class='st-ok'><td>急所は壁補正を無視</td><td>「攻撃が急所に当たった場合、補正は適用されない (1倍)」</td><td><code>real_battle_simulator.html:2059</code> <code>if (!crit &amp;&amp; !breaksWall)</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致(前掲と重複だがダメージ.json/急所.json双方に記述あり)</td></tr>
+<tr class='st-unk'><td>すりぬけ(Infiltrator)は壁補正を無視</td><td>(壁補正の項に直接記載は無いが「その他」節でみがわり貫通系の一般則) — 本節の直接引用は無し。実装の妥当性のみ記録</td><td><code>real_battle_simulator.html:2058</code> <code>sideAbility(atk) === 'すりぬけ'</code></td><td>未確認</td><td class='im-low'>低</td><td>出典はコード側コメントのBulbapedia参照であり、本コーパスの当該箇所には明記の一致文が見つからず。実装自体は既知仕様と合致するとみられるが本コーパスでの直接検証はできず</td></tr>
+<tr class='st-part'><td>ちいさくなる状態への該当技(ふみつけ等)はダメージ2倍(第四世代のみ威力2倍、第五世代以降はダメージ2倍)</td><td>「使うと以下の対象技を受けるときダメージ2倍。ただし第四世代のみダメージ補正ではなく威力が2倍」</td><td><code>real_battle_simulator.html:1554-1556</code> <code>if (minMul &amp;&amp; def.minimized) power *= (minMul.multiplier \｜\｜ 2);</code> — <b>ダメージ段階ではなく威力(power)段階</b>で2倍にしている</td><td>部分実装</td><td class='im-mid'>中</td><td>権威は「第五世代以降はダメージ2倍・第四世代のみ威力2倍」と明記。実装は現行世代でも威力側で2倍しており、式の<code>+2</code>定数の分だけ最終ダメージが理論値よりわずかに小さくなる(概算: 新base≈2×正しいbase−2)。全ケースで一貫して過小評価になる系統的乖離</td></tr>
+<tr class='st-part'><td>じしん/マグニチュード→あなをほる中、なみのり/うずしお→ダイビング中はダメージ2倍(第五世代以降)</td><td>「第五世代以降、ダイビングで潜っている相手にダメージ2倍」「第二世代および第五世代以降、あなをほるで潜っている相手にダメージ2倍」</td><td><code>real_battle_simulator.html:1571-1574</code> <code>if (semiHit &amp;&amp; semiHit.damage_multiplier &amp;&amp; ...) power *= semiHit.damage_multiplier;</code> — 同様に<b>威力段階</b>で2倍</td><td>部分実装</td><td class='im-mid'>中</td><td>上と同型の問題。ちいさくなる同様、ダメージ段階でなく威力段階で掛けているため式の<code>+2</code>定数分だけ理論値よりわずかに過小</td></tr>
+<tr class='st-no'><td>Zワザ/ダイマックス技が「まもる」等で軽減時0.25倍(Mprotect)</td><td>「Zワザ/ダイマックスわざがまもる状態などで軽減されたとき0.25倍」</td><td>該当なし(ダイマックス機構自体が「sim未実装」とコード注記あり・3725-3726行)</td><td>未実装</td><td class='im-low'>低</td><td>ダイマックス機構自体が意図的にスコープ外(コードコメントで明記)。設計上の割り切りであり見落としではない</td></tr>
+<tr class='st-no'><td>きょじゅうざん等はダイマックス相手に2倍</td><td>「ダイマックスポケモンに対するきょじゅうざん/きょじゅうだん/ダイマックスほう」</td><td>同上・ダイマックス未実装のため対象外</td><td>未実装</td><td class='im-low'>低</td><td>同上</td></tr>
+<tr class='st-unk'><td>こんらんによるダメージ(第三世代以降): 威力40・タイプなし物理・ランク補正影響あり・乱数補正あり・急所なし・壁無効・第五世代以降はやけど等の補正を受けない</td><td>複数箇条(588,586,590,597行台)</td><td>未確認(こんらん自傷ダメージは<code>runTurn</code>内の別計算式とコード注記あり・1958行台コメント「こんらん自傷ダメージも別の直接計算式(runTurn内)を使う」)</td><td>未確認</td><td class='im-mid'>中</td><td>別経路の存在は確認したが、詳細計算式(ランク補正込み・急所なし・乱数補正あり等)を本セッションでは未読了。要追加確認</td></tr>
+<tr class='st-ok'><td>ダメージ固定技(りゅうのいかり等)は相性0倍のみ無効・急所なし・乱数補正なし</td><td>「急所に当たらない」「乱数補正が無い」「第二世代以降は、「効果がない」タイプに対しては無効化される」</td><td><code>phaseDealDamage</code>の<code>fixedEf</code>分岐(2757行〜)で相性0倍判定・急所計算を経由しない専用ルートを持つ</td><td>実装済み</td><td class='im-mid'>中</td><td>ルート自体は分離されており概ね一致。個別の固定ダメージ技(いかりのつぼ等)の式自体は本セッションで未全数確認</td></tr>
+<tr class='st-ok'><td>イカサマは相手のこうげきを参照</td><td>「攻撃側のこうげきの代わりに防御側のこうげきを参照してダメージを算出する」</td><td><code>real_battle_simulator.html:1749-1750,1759</code> <code>foulEf</code>(相手能力ダメージ)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>ボディプレスは自分のぼうぎょを参照</td><td>「攻撃側のこうげきの代わりに攻撃側のぼうぎょを参照してダメージを算出する」</td><td><code>real_battle_simulator.html:1747-1748,1758</code> <code>altAtkEf</code>(別能力ダメージ)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>サイコショック等は相手のぼうぎょを参照(特殊技だが)</td><td>「特殊技ではあるが、防御側のとくぼうの代わりにぼうぎょを参照してダメージを算出する」</td><td><code>real_battle_simulator.html:1744-1745</code> <code>altDef</code>(別防御参照ダメージ)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-part'><td>フォトンゲイザー/シェルアームズは実効ステータスで物理/特殊が動的に決まる</td><td>「ランク補正込みのステータスがこうげき&gt;とくこうである場合物理攻撃になる」</td><td><code>real_battle_simulator.html:1731-1736</code>(<code>物理特殊自動</code>=シェルアームズ相当)</td><td>部分実装</td><td class='im-low'>低</td><td>シェルアームズ相当のロジックは確認。フォトンゲイザー(表記が特殊固定でこうげき&gt;とくこうなら物理になる別技)の同型処理は本セッションで別途未確認</td></tr>
+<tr class='st-part'><td>反動ダメージ(第五世代以降): 与ダメの25%/33%/50%は小数点四捨五入</td><td>「第五世代以降 与ダメージの25%(小数点四捨五入): アフロブレイク...」「33%(小数点四捨五入)」「50%(小数点四捨五入)」</td><td><code>real_battle_simulator.html:3277</code> <code>const dmg = Math.max(1, Math.floor(total * (recoilEf.fraction \｜\｜ 0)));</code> — <b>floor(切り捨て)</b>を使用</td><td>部分実装</td><td class='im-mid'>低〜中</td><td>コード自身のコメント(3272行)で「※厳密な丸め 0.33 vs 1/3 は権威確認=park」と未確定を明記。権威は四捨五入と明言しており、切り捨てとは異なる。fraction%maxHPの余りが半分以上の時に±1ダメージの差が生じる</td></tr>
+<tr class='st-part'><td>わるあがき反動(第四世代以降): 自分の最大HPの1/4・小数点四捨五入(第五世代以降)</td><td>「自分の最大HPの1/4(小数点四捨五入): わるあがき」(第五世代以降節)</td><td><code>real_battle_simulator.html:3297</code> <code>const _sDmg = Math.max(1, Math.floor(_sMax / 4));</code> — floor使用</td><td>部分実装</td><td class='im-low'>低</td><td>同上の丸め方式相違。maxHP%4が2/3の個体でのみ差が出る</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G1-2威力json'><h3>2. 威力.json <span class='pagebadge'>実装済7 / 部分1 / 未実装0 / 未確認0 / 対象外0 (計8)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-part'><td>第五世代以降の威力計算式: 最終威力=基礎威力×威力補正/4096、五捨五超入、1未満は1</td><td>「最終威力 = 基礎威力×威力補正/4096」「最終威力を出す際、小数点は五捨五超入する。最終威力が1より低い場合は1にする」</td><td>威力(power)側の個別M項目は各所で<code>pokeRound</code>または<code>Math.floor</code>/<code>Math.max(1, pokeRound(...))</code>により個別適用(1544,1568,1720,1883,1888等)。ダメージ.jsonと同型の「個別に都度五捨五超入」方式で、権威の「まず補正値同士を合成してから1回適用」構造とは異なる</td><td>部分実装</td><td class='im-mid'>低〜中</td><td>上記ダメージ側と同根の設計相違。単発発動なら結果は一致</td></tr>
+<tr class='st-ok'><td>じたばた/きしかいせい: 威力=floor(48×残HP/最大HP)による段階表(200/150/100/80/40/20)</td><td>変数威力の一般的段階式(本節に直接該当行は見当たらないが、<code>variablePower</code>のコメントに準拠先出典明記あり)</td><td><code>real_battle_simulator.html:1422-1426</code></td><td>実装済み</td><td class='im-mid'>中</td><td>ロジック自体は妥当(出典はBulbapediaとコード注記)。本コーパスのこのファイルに直接該当する式の引用箇所は確認できず(=このファイル内での直接検証は未確認、実装自体はコード上健全)</td></tr>
+<tr class='st-ok'><td>てきおうりょく・スキン系特性・すてみ・てつのこぶし等の威力補正倍率(Q12近似値の一覧)</td><td>「オーラブレイク 3072 0.75」「かたいツメ...5325」「ジュエル6~ 5325」等の表</td><td><code>real_battle_simulator.html</code>各所で個別Q12値を使用(例: てつのこぶし4915=1877行, かたいツメ5325=1888行, がんじょうあご6144=1913行, きれあじ6144=1918行, サンパワー6144=1923行, ちからずく5325=1931行, テクニシャン6144=1936行, すなのちから5325=1946行, すてみ4915=1953行)</td><td>実装済み</td><td class='im-mid'>中</td><td>抽出した主要項目はコーパスのQ12値と一致。全項目(オーラブレイク・ダークオーラ・フェアリーオーラ・バッテリー・パワースポット等)は本セッションで全数照合しておらず未確認分あり</td></tr>
+<tr class='st-ok'><td>こだわりハチマキ/こだわりメガネ: 実数値1.5倍</td><td>本節に直接記載なし(コード側コメントでSmogon Damage Calc準拠と明記)</td><td><code>real_battle_simulator.html:1800-1805</code></td><td>実装済み</td><td class='im-high'>高</td><td>権威コーパス本ファイルに直接該当する引用箇所は無く、一般的知識・コード注記からの確認</td></tr>
+<tr class='st-ok'><td>とうそうしん(同性1.25倍/異性0.75倍)</td><td>「自分と性別が異なる相手に攻撃するとき威力が上がる」(異性側、80行)「自分と性別が同じ相手に攻撃するとき威力が上がる」(同性側、192行) — 具体的な倍率(1.25/0.75)は表の補正値欄(5120/~1.25)から読み取り</td><td><code>real_battle_simulator.html:1960-1967</code> 同性5120(1.25)/異性3072(0.75)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>メトロノーム(道具): N回連続使用で1+0.2×(N-1)倍・最大2倍(第五世代以降)</td><td>表「回数/補正値/近似倍率」(N=6以降 8192=2.0が上限)</td><td><code>real_battle_simulator.html:2004-2019</code> <code>Math.min(5, ...)</code>でカウント上限、<code>1+0.2*count</code>で最大2.0倍</td><td>実装済み</td><td class='im-low'>低</td><td>概ね一致。ただし権威のQ12近似表(4915,5734,6553,7372,8192)による厳密な丸めではなく、素の浮動小数点<code>1+0.2*n</code>を使っており端数が微妙に異なる可能性(例: 2回目は権威4915/4096=1.19999...だが実装は1.2ちょうど)</td></tr>
+<tr class='st-ok'><td>けたぐり/くさむすび: 相手体重の段階表(10/25/50/100/200kg境界)</td><td>本節に該当節あり(「HPによるもの」「能力によるもの」等の並びに体重系の記述、ページ内表現は簡潔)</td><td><code>real_battle_simulator.html:1443-1449</code></td><td>実装済み</td><td class='im-mid'>中</td><td>境界値・段階(20/40/60/80/100/120)は一般に知られる仕様と一致。本ファイル内での直接該当引用文は確認できず(未確認寄り)</td></tr>
+<tr class='st-ok'><td>ソーラービーム/ソーラーブレード: 天候(あめ/すな/ゆき)で威力0.5倍(第五世代以降)</td><td>「ソーラービーム 2048 0.5 あめ・すなあらし・あられのとき使用すると威力が下がる」</td><td><code>real_battle_simulator.html:1559-1560</code>(<code>weatherMul</code>条件付き威力倍率)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致(条件データ側の天候リストは未個別確認だが仕組みは対応)</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G1-3タイプ相性json'><h3>3. タイプ相性.json <span class='pagebadge'>実装済6 / 部分0 / 未実装2 / 未確認1 / 対象外0 (計9)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>第六世代以降18タイプの相性表(フェアリー込み)</td><td>「相性表」節の第六世代以降テーブル(1314行〜)</td><td><code>real_battle_simulator.html:1326-1345</code> <code>TYPE_CHART</code>配列(18×18)</td><td>実装済み</td><td class='im-high'>高</td><td>フェアリー行(1345行)を含め主要な値(ノーマル→ゴースト0/はがね半減、ドラゴン→フェアリー0等)を抽出照合し一致。全324セルの逐一突合はしていない(効率上、代表セルのサンプル確認に留める=<b>未確認</b>箇所が残る可能性)</td></tr>
+<tr class='st-ok'><td>2タイプ複合は各タイプ相性を掛け合わせる(0.25/4倍等も発生)</td><td>「2つタイプを持つポケモンには、それぞれのタイプに対しての相性の判定を掛け合わせた倍率のダメージになる」</td><td><code>real_battle_simulator.html:1643-1658</code>(<code>moveTypes.forEach</code>×<code>defTypes.forEach</code>で相性を<code>eff</code>に累積乗算)</td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-no'><td>「ちょうバツグン」(4倍)「かなりいまひとつ」(0.25倍)という呼称(2026年配信予定『Pokémon Champions』で追加)</td><td>「「ちょうバツグン」「かなりいまひとつ」の名称は2026年配信予定のスマートフォンアプリ『Pokémon Champions』で追加された」</td><td><code>real_battle_simulator.html:2045-2053</code> <code>eff&gt;=4</code>と<code>eff===2</code>を同じ「こうかばつぐん」ラベル、<code>eff===0.5</code>と<code>eff&lt;=0.25</code>を同じ「こうかいまひとつ」ラベルにまとめている(4倍/2倍、0.5倍/0.25倍を区別しない)</td><td>未実装</td><td class='im-mid'>中</td><td><b>本プロジェクト(PchamDB=Pokémon Champions)にとって直接関係する固有名称</b>。ダメージ計算の数値自体は正しく4倍/0.25倍になるが、UI表示文言が新呼称(ちょうバツグン/かなりいまひとつ)を採用していない。表示のみの問題で数値バグではない</td></tr>
+<tr class='st-ok'><td>フリーズドライはみずタイプに2倍(通常のこおり→みず0.5倍を上書き)</td><td>「フリーズドライをみずタイプのポケモンに使用したときは、こおり→みずの0.5倍の代わりに2倍になる」</td><td><code>real_battle_simulator.html:1641,1653</code> <code>matchOvr</code>(相性上書き)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>フライングプレスはわざのタイプとひこうタイプの相性を組み合わせる</td><td>「フライングプレスはわざのタイプとひこうタイプの相性を組み合わせる」</td><td><code>real_battle_simulator.html:1638-1639</code> <code>extraTypeEf</code>(技タイプ追加)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-no'><td>タールショット状態はほのお技の相性がさらに2倍(最大16倍)</td><td>「ほのおタイプの攻撃をタールショット状態のポケモンに使用したときは相性がさらに2倍になる」</td><td>該当なし(grep「タールショット」「tarshot」ヒットなし)</td><td>未実装</td><td class='im-low'>低</td><td>技・状態そのものが実装されていない可能性が高い(状態変化としての対応が見当たらない)</td></tr>
+<tr class='st-unk'><td>もりののろい/ハロウィンで第3タイプが追加され得る(8倍弱点等)</td><td>「第六世代以降ではもりののろい・ハロウィンの効果でポケモンに第3のタイプが追加されることがあり」</td><td><code>sideTypes</code>関数は2タイプ想定の構造(要再確認だが3タイプ管理の痕跡はgrepで未発見)</td><td>未確認</td><td class='im-low'>低</td><td>該当技自体の実装有無を本セッションでは確認しきれず</td></tr>
+<tr class='st-ok'><td>じめん技は浮いている相手(ふゆう/でんじふゆう/ひこうタイプ)に無効、じゅうりょく等で接地扱いになれば当たる</td><td>「浮いている相手にじめん技はこうかなし」(engine側コメント引用、コーパス直接文は当該ページに薄いが一般仕様)</td><td><code>real_battle_simulator.html:1649-1689</code> <code>isGrounded</code>による判定・かたやぶり例外込み</td><td>実装済み</td><td class='im-high'>高</td><td>一致・かたやぶり例外まで丁寧に実装</td></tr>
+<tr class='st-ok'><td>きもったま特性でノーマル/かくとう技がゴーストに当たる</td><td>特性別記事の一般仕様(本タイプ相性ページに直接文言は薄い)</td><td><code>real_battle_simulator.html:1654-1655</code></td><td>実装済み</td><td class='im-mid'>中</td><td>一致(タイプ相性.json内の直接引用としては確認しづらいが実装は正しい仕様)</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G1-4タイプ一致ボーナスjson'><h3>4. タイプ一致ボーナス.json <span class='pagebadge'>実装済4 / 部分0 / 未実装1 / 未確認2 / 対象外0 (計7)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>タイプ一致で1.5倍(どちらかのタイプが一致すればよい)</td><td>「わざを使うポケモンのタイプと繰り出すわざのタイプが同じだった場合に、わざによるダメージが50％増える」</td><td><code>real_battle_simulator.html:2037-2040</code> <code>moveTypes.some(mt =&gt; atkOrigTypes.includes(mt))</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>てきおうりょくで1.5倍→2倍</td><td>「タイプ一致ボーナスによる補正が1.5倍から2倍になる」</td><td><code>real_battle_simulator.html:2038-2039</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>りゅうのいかり等のダメージ固定技には適用されない</td><td>「りゅうのいかりやちきゅうなげのようなダメージ固定技には適用されない」</td><td>固定ダメージ技は<code>fixedEf</code>の専用ルート(2757行〜)を通り、STAB計算(2037-2040行)を含む通常<code>calcDamage</code>本流ロジックを通らない</td><td>実装済み</td><td class='im-mid'>中</td><td>構造的に迂回するため一致(意図的分離)</td></tr>
+<tr class='st-ok'><td>タイプなしの技には適用されない</td><td>「タイプなしのわざには適用されない」</td><td><code>moveTypes.some(mt =&gt; atkOrigTypes.includes(mt))</code>はmoveTypeが空/該当なしなら常にfalse</td><td>実装済み</td><td class='im-low'>低</td><td>一致(型を持たない技のtype値の扱いは未個別確認だが、ロジック上は安全)</td></tr>
+<tr class='st-unk'><td>へんげんじざい・リベロは常にタイプ一致になる</td><td>「使用する技のタイプに変わることで、全ての技がタイプ一致になる」</td><td>該当特性のタイプ変更処理(<code>sideTypes</code>がへんげんじざい発動後のタイプを返すかどうか)を本セッションでは追跡しきれず</td><td>未確認</td><td class='im-mid'>中</td><td>へんげんじざい/リベロ自体の実装有無・タイプ書き換えタイミングを未確認。追加調査が必要</td></tr>
+<tr class='st-no'><td>ステラタイプへのテラスタルはタイプ一致補正が「ステラ補正」に置き換わる</td><td>「ステラタイプにテラスタルしたポケモンはタイプ一致補正が「ステラ補正」に置き換わる」</td><td>テラスタル機構自体が未実装(4990行のコメントで明記: 「テラスタル系はsim未実装のため考慮しない」)</td><td>未実装</td><td class='im-low'>低</td><td>意図的スコープ外(コード注記で明記済み)</td></tr>
+<tr class='st-unk'><td>コンビネーション技はどのタイプのポケモンが使用してもタイプ一致補正を受ける</td><td>「コンビネーション技はどのタイプのポケモンが使用してもタイプ一致補正を受ける」</td><td>未確認(コンビネーション技=クロスサンダー/クロスフレイム等の特殊STAB扱いをgrepで特定できず)</td><td>未確認</td><td class='im-low'>低</td><td>該当技自体が実装されているかも含め未追跡</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G1-5命中json'><h3>5. 命中.json <span class='pagebadge'>実装済13 / 部分3 / 未実装2 / 未確認2 / 対象外0 (計20)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>命中欄「-」の技は必中(命中判定なし)</td><td>「命中欄が「-」になっている技は必中技である」</td><td><code>real_battle_simulator.html:2594</code> <code>if (move.accuracy == null \｜\｜ move.accuracy === '—' \｜\｜ move.accuracy === 0) return {hit:true};</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>ランク補正=自分の命中ランク−相手の回避ランク、-6〜+6にクランプ、テーブルは3/9〜9/3</td><td>「ランク補正 = 自分の命中率のランク - 相手の回避率のランク」表(3/9〜9/3)</td><td><code>real_battle_simulator.html:2644-2652</code> <code>_s=Math.max(-6,Math.min(6,_accR-_evaR))</code>、<code>_s&gt;0</code>は<code>(3+_s)/3</code>、<code>_s&lt;0</code>は<code>3/(3-_s)</code></td><td>実装済み</td><td class='im-high'>高</td><td>分数の掛け算が3/9〜9/3の表と数学的に一致</td></tr>
+<tr class='st-part'><td>ランク補正適用後は小数点切り捨て、結果100超は100に丸める</td><td>「対応した倍率を掛けた後は小数点以下を切り捨てる。結果が100を超えるときは100にする」</td><td><code>real_battle_simulator.html:2596-2664</code>のacc計算は最後まで浮動小数点のまま扱われ、<code>Math.floor</code>や<code>Math.min(100,...)</code>によるクランプ処理が無い(最終的に<code>roll(0-100の連続値) &lt; acc</code>で直接比較)</td><td>部分実装</td><td class='im-low'>低</td><td>100超のキャップが無いことは「常に命中扱い」と実質等価(roll最大が100未満のため)なので挙動上の実害は乏しいが、仕様上の丸め・上限処理そのものは未実装</td></tr>
+<tr class='st-part'><td>てんねん(Unaware)/しんがん(Keen Eye)は相手の回避ランクを無視、第六世代以降はするどいめも、第九世代以降ははっこうも</td><td>「自分の特性がてんねん/しんがんであるとき、相手の回避率ランクを無視する」「第六世代以降は、自分の特性がするどいめであるとき、相手の回避率ランクを無視する」「第九世代以降は、自分の特性がはっこうであるとき、相手の回避率ランクを無視する」</td><td><code>real_battle_simulator.html:2646-2649</code> <code>if (_aAb === 'するどいめ'){ if (_accR&lt;0) _accR=0; if (_evaR&gt;0) _evaR=0; }</code> — <b>するどいめのみ</b>実装。てんねん・しんがん・はっこうは命中判定側に該当コードなし(grep該当なし)</td><td>部分実装</td><td class='im-mid'>中</td><td>てんねんはダメージ計算側(ランク無視=Unaware)には実装済み(1754-1757行)だが、<b>命中判定側の回避ランク無視</b>は未実装。しんがん・はっこうは特性自体が命中判定に接続されていない</td></tr>
+<tr class='st-no'><td>相手の特性てんねんは自分の命中ランク低下を無視</td><td>「相手の特性がてんねんであるとき、自分の命中率ランクを無視する」</td><td>同上、命中判定側未実装</td><td>未実装</td><td class='im-mid'>中</td><td>同上</td></tr>
+<tr class='st-no'><td>みやぶられている/ミラクルアイ状態は相手の回避ランクが+1以上でも0扱い</td><td>「相手がみやぶられている/ミラクルアイ状態であるとき、相手の回避率ランクが+1以上であっても0とみなす」</td><td>該当なし(grep「みやぶる」「ミラクルアイ」ヒットなし)</td><td>未実装</td><td class='im-mid'>中</td><td>状態自体が未実装とみられる</td></tr>
+<tr class='st-ok'><td>じゅうりょく: 全員の命中率が5/3倍</td><td>「じゅうりょく: 全てのポケモンが使う技の命中率が上がる」表(6840/4096≒1.67=5/3)</td><td><code>real_battle_simulator.html:2618</code> <code>if (env.gravity) acc = acc * 5 / 3;</code></td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-unk'><td>ちどりあし: こんらん中は受ける技の命中率半減</td><td>「こんらん状態の間、受ける技の命中率が半減する」(2048/4096=0.5)</td><td>該当特性名(ちどりあし)でgrepすると命中側のコードでは未検出(第三世代・第四世代節の一覧には記載あるが第五世代以降の実装コード側で該当行を特定できず)</td><td>未確認</td><td class='im-low'>低</td><td>特性自体がsimに存在するか含め本セッションで確認しきれず</td></tr>
+<tr class='st-ok'><td>すながくれ/ゆきがくれ: 該当天候で回避率1.25倍(命中×0.8)</td><td>表・条件欄「すなあらし状態において、受ける技の命中率が下がる」等(3277/4096=0.8)</td><td><code>real_battle_simulator.html:2620-2622</code></td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>はりきり: 物理技の命中率×0.8</td><td>「はりきり: 使用する物理技の命中率が下がる」(3277/4096=0.8)</td><td><code>real_battle_simulator.html:2627</code> <code>acc = acc * 0.8;</code></td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>ふくがん: 命中率×約1.3(5325/4096)</td><td>「ふくがん: 使用する技の命中率が上がる」(5325/4096≒1.3)</td><td><code>real_battle_simulator.html:2631</code> <code>acc = acc * (5325 / 4096);</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致・Q12値も正確</td></tr>
+<tr class='st-ok'><td>ひかりのこな: 相手の命中率×0.9</td><td>「ひかりのこな: 受ける技の命中率が下がる」(3686/4096≒0.9)</td><td><code>real_battle_simulator.html:2625</code> <code>acc = acc * 0.9;</code></td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>こうかくレンズ: 命中率×1.1常時、フォーカスレンズ: 後攻時×1.2</td><td>表(こうかくレンズ4505≒1.1、フォーカスレンズ4915≒1.2)</td><td><code>real_battle_simulator.html:2656-2663</code></td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>ノーガードはどちらが持っていても必ず命中(一撃必殺技含む)</td><td>「自分か相手のとくせいがノーガードであるときに使われる技は、姿を隠している相手に対しても必中する」</td><td><code>real_battle_simulator.html:2566-2569,2643</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致(半無敵中も含め丁寧に実装)</td></tr>
+<tr class='st-ok'><td>ロックオン状態は姿を隠している相手にも必中</td><td>「ロックオン状態の効果を受けた技は、姿を隠している相手に対しても必中する」</td><td><code>real_battle_simulator.html:2560-2563</code>(半無敵チェックより前に早期return)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>テレキネシス状態の相手には必中(一撃必殺を除く)</td><td>「テレキネシス状態のポケモンに対して使われる技は必中する」(命中.jsonでは無条件必中と読めるが、一撃必殺.jsonでは「テレキネシスの必中効果は受けない」と明記)</td><td><code>real_battle_simulator.html:2593</code> <code>if (def &amp;&amp; def.telekinesis &gt; 0 &amp;&amp; !_effs.some(e =&gt; e.kind === '一撃必殺')) return {hit:true};</code></td><td>実装済み</td><td class='im-mid'>中</td><td>一撃必殺技の除外も含め一致(一撃必殺技.jsonの記述と整合させた実装になっている)</td></tr>
+<tr class='st-ok'><td>天候必中(あめでかみなり/ぼうふう、にほんばれで命中率50、ゆきでふぶき)</td><td>「天気があめのときに受けるかみなり・ぼうふうは必中する」「にほんばれ状態の効果を受けているとき、かみなり/ぼうふうの命中率は50になる」「第四世代以降では、天気があられだとふぶきは必中する」</td><td><code>real_battle_simulator.html:2599-2616</code>(データ駆動の<code>天候必中</code>/<code>命中率固定</code>宣言を読む仕組み)</td><td>実装済み</td><td class='im-mid'>中</td><td>仕組みとしては正しく対応。個別技(かみなり/ぼうふう/ふぶき)のデータ側宣言内容までは本セッションで未全数照合(アーキテクチャ確認止まり)</td></tr>
+<tr class='st-unk'><td>複数のポケモンをまとめて攻撃する技は個々に命中判定</td><td>「複数のポケモンをまとめて攻撃する技を使用する場合、個々のポケモンごとに別々に命中判定がされる」</td><td>simは1vs1構造のため実質的に検証不能(複数体同時攻撃を模擬する機構が無い)</td><td>未確認</td><td class='im-low'>低</td><td>構造的制約により判定不能。ダブル対応時の宿題として記録</td></tr>
+<tr class='st-ok'><td>ぜったいれいど(第七世代以降): こおりタイプなら30・それ以外は20</td><td>「第七世代以降は、こおりタイプ以外が使うぜったいれいどの命中率は下がる。具体的な式は、命中率 = 20 + (攻撃側のレベル - 相手側のレベル)となる」</td><td><code>real_battle_simulator.html:2599-2606</code>(<code>命中率固定</code>宣言、<code>user_is_type</code>条件でこおりタイプなら30・それ以外はelse_value)</td><td>実装済み</td><td class='im-high'>高</td><td>一致(simは全員Lv50固定のためレベル差項は常に0=このsim内では固定値相当になるのは設計上妥当)</td></tr>
+<tr class='st-part'><td>一撃必殺技は命中判定でランク補正・命中率変動効果の影響を受けない(第三世代以降)</td><td>一撃必殺技.json「命中判定において、ランク補正や命中率を上下させる効果...の影響を受けない」</td><td><code>phaseHitCheck</code>内でOHKO技を他の一般命中修正(ふくがん・ランク補正等)から個別に除外する分岐は明示的には見当たらず(ふくがんの除外のみ2631行で確認、ランク補正・じゅうりょく等の除外は未確認)</td><td>部分実装</td><td class='im-mid'>中</td><td>ふくがん除外は実装済みだが、ランク補正(2644-2652行)・じゅうりょく(2618行)・ひかりのこな(2625行)等がOHKO技にも無条件適用されている可能性が高く(除外条件が見当たらない)、権威の「一撃必殺は命中変動効果の影響を受けない」という原則に反する</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G1-6急所json'><h3>6. 急所.json <span class='pagebadge'>実装済8 / 部分1 / 未実装0 / 未確認1 / 対象外0 (計10)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>急所ランク確率表(第七世代以降): 0=1/24, 1=1/8, 2=1/2, 3以上=確定</td><td>表「第七世代以降 ｜ 0: 1/24 ｜ 1: 1/8 ｜ 2: 1/2 ｜ 3: 1/1」</td><td><code>real_battle_simulator.html:2825</code> <code>critRoll = _stage &gt;= 3 ｜｜ Math.random() &gt;= 1 - (_stage === 2 ? 0.5 : 0.125);</code></td><td>実装済み</td><td class='im-high'>高</td><td>ランク1(1/8)・2(1/2)・3以上(確定)は正確。<b>ランク0(1/24)は意図的に確率ロールせず、UIの急所トグルに委譲</b>(コード注記2806行で明記・決定論性維持のための意図的近似)</td></tr>
+<tr class='st-ok'><td>きゅうしょアップで急所ランク+2(第三世代以降)</td><td>「きゅうしょアップ状態になる：+2」</td><td><code>real_battle_simulator.html:2823</code> <code>_a.critBoost</code>を段数に加算(きあいだめ相当)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致(仕組み確認。きゅうしょアップの発動条件データ側は未個別照合)</td></tr>
+<tr class='st-ok'><td>急所に当たりやすい技(からてチョップ等)は+1、確定急所技(やまあらし等)は確定</td><td>「急所に当たりやすい技を使う：+1」「やまあらし・こおりのいぶき...を使う場合：確定急所」</td><td><code>real_battle_simulator.html:2820-2824</code> <code>move.battle_data.crit_stage</code>または<code>急所率上昇</code>kind、<code>must_crit</code>で確定急所</td><td>実装済み</td><td class='im-mid'>中</td><td>仕組みは正しく対応。技ごとの個別データ値は全数未照合</td></tr>
+<tr class='st-ok'><td>ピントレンズ: 急所ランク+1</td><td>(道具一覧、直接該当行は表内)</td><td><code>real_battle_simulator.html:2813</code> <code>_lens = (!env.magicRoom &amp;&amp; _a.item === 'scope_lens') ? 1 : 0;</code></td><td>実装済み</td><td class='im-mid'>中</td><td>一致(マジックルーム除外も正しい)</td></tr>
+<tr class='st-ok'><td>急所時ダメージ倍率: 第六世代以降1.5倍</td><td>「第六世代以降：ダメージが1.5倍になる」</td><td><code>real_battle_simulator.html:1862</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致(前掲ダメージ.jsonと同一箇所)</td></tr>
+<tr class='st-ok'><td>スナイパー: 急所時さらに1.5倍(通常時比で第六世代以降2.25倍)</td><td>「攻撃側のポケモンの特性がスナイパーである場合、急所に当たったときのダメージはさらに1.5倍になる...第六世代以降では2.25倍のダメージとなる」</td><td><code>real_battle_simulator.html:1861-1863</code> <code>pokeRound(base, _sniper ? 9216 : 6144)</code>(9216/4096=2.25)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致・Q12値も正確</td></tr>
+<tr class='st-part'><td>カブトアーマー/シェルアーマー・おまじない状態の場は急所無効(確定急所技でも無効)</td><td>「特性がカブトアーマー、シェルアーマーのポケモン、おまじない状態の場にいるポケモンへの攻撃は急所に当たらない。必ず急所に当たる技であっても急所に当たらない」</td><td><code>real_battle_simulator.html:1740-1741</code> <code>crit = (...) &amp;&amp; defAbilityVs(def, atk) !== 'シェルアーマー';</code>(確定急所=<code>must_crit</code>も含めて無効化)</td><td>部分実装</td><td class='im-mid'>中</td><td>シェルアーマーは実装済み・確定急所も無効化される点も一致。<b>カブトアーマー</b>の記載がこの行には見当たらず(grep別途要確認)。<b>おまじない(Lucky Chant)状態による急所無効</b>も本箇所には見当たらない</td></tr>
+<tr class='st-unk'><td>いかりのつぼ: 急所を受けると防御側のこうげきランクが+6まで上昇</td><td>「防御側のポケモンの特性がいかりのつぼである場合、防御側のこうげきランクが+6までに上がる」</td><td>grep「いかりのつぼ」で別箇所に発動処理があるかは本セッション未確認</td><td>未確認</td><td class='im-low'>低</td><td>追加調査要</td></tr>
+<tr class='st-ok'><td>ダメージ固定技・じたばた/きしかいせい(第二世代)・はきだす(第三世代)・みらいよち/はめつのねがい(第四世代まで)は急所に当たらない</td><td>「以下のわざは急所に当たらない：ダメージ固定技...」</td><td>ダメージ固定技は<code>fixedEf</code>/<code>ohkoEf</code>ルートを通り<code>crit</code>変数を参照しない専用処理(2707-2803行台)のため、構造的に急所を通らない</td><td>実装済み</td><td class='im-mid'>中</td><td>固定ダメージ・一撃必殺の系統は一致。じたばた等(第二世代のみの仕様)は現行世代のsimでは対象外扱いで問題なし</td></tr>
+<tr class='st-ok'><td>急所でも無視されない効果(やけど低下・マルチスケイル等・実数値変動・テラレイド応援等)</td><td>「ランク補正や壁以外の効果は、基本的に急所でも無視されることはない。以下の効果は...急所時のダメージに影響する: 第三世代以降のやけどによる攻撃の低下、マルチスケイルなどの特性...」</td><td>やけど補正(1872-1877行)はcrit変数と独立に評価されており、急所時にも正しく適用される。マルチスケイル(1978-1984行)も<code>crit</code>と無関係に評価</td><td>実装済み</td><td class='im-mid'>中</td><td>一致(急所判定と各種特性/状態補正が独立に評価される設計になっている)</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G1-7一撃必殺技json'><h3>7. 一撃必殺技.json <span class='pagebadge'>実装済10 / 部分1 / 未実装1 / 未確認0 / 対象外0 (計12)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>命中率式(第三世代以降): 30+(自分Lv-相手Lv)、相手の方がレベル高いと無効</td><td>「命中率 = 30 + (攻撃側のレベル - 相手側のレベル)」「相手側が攻撃側よりレベルが高い場合は無効化される」</td><td>move.accuracyに静的値(30)が設定されている前提でphaseHitCheckの通常経路を通る。simは全員Lv50固定のためレベル差項は常に0で、この設計内では実質的に定数30として機能</td><td>実装済み</td><td class='im-mid'>中</td><td>simの前提(Lv50固定)内では数式上等価。ただしレベル差そのものを可変にした場合の無効化ロジック(相手の方が高Lv)は別途未確認(現状Lv差を作れないため検証不能)</td></tr>
+<tr class='st-ok'><td>ぜったいれいど(第七世代以降): こおりタイプ以外は20+(Lv差)</td><td>「第七世代以降は、こおりタイプ以外が使うぜったいれいどの命中率は下がる。命中率 = 20 + (攻撃側のレベル - 相手側のレベル)」</td><td><code>real_battle_simulator.html:2599-2606</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致(前掲・命中.json節と重複記載)</td></tr>
+<tr class='st-ok'><td>がんじょうは一撃必殺技を無効化(かたやぶり系は無視して通す)</td><td>「相手の特性ががんじょうである場合は無効化される」「特性がかたやぶりのポケモンが使用したときは有効になる」</td><td><code>real_battle_simulator.html:2781-2784</code> <code>if (ohkoEf &amp;&amp; defAbilityVs(df, a) === 'がんじょう'){...}</code>(<code>defAbilityVs</code>がかたやぶり系判定を内包)</td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>ダメージは第五世代以降「対象の最大HPと同じ」、みがわりで防がれた時はみがわりHP分で確実に破壊</td><td>「第五世代以降では対象の最大HPと同じダメージを与える。ただし、みがわり状態に防がれたときはみがわりのHP分のダメージを与えるため、確実にみがわりを壊せる」</td><td><code>real_battle_simulator.html:2785</code> <code>let dmg = ohkoEf ? df.currentHp : ...</code>(最大HPでなく<b>現在HP</b>を使用)</td><td>実装済み</td><td class='im-high'>高</td><td>実装は「現在HP」を使うが、HPは0未満にならずキャップされるため最終的な挙動(必ず瀕死にする・みがわりは確実に破壊)は権威と数学的に同値。挙動として問題なし</td></tr>
+<tr class='st-ok'><td>こおりタイプにはぜったいれいどが無効(第七世代以降)</td><td>「第七世代以降はぜったいれいどはこおりタイプに無効化される」</td><td><code>real_battle_simulator.html:2772-2776</code>(<code>immune</code>宣言の<code>target_is_type</code>を読む汎用処理)</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-ok'><td>一撃必殺は急所に当たらない</td><td>「急所に当たらない」</td><td>一撃必殺ルートは<code>crit</code>変数を参照しない専用コードパス(2756-2803行)</td><td>実装済み</td><td class='im-mid'>中</td><td>構造的に一致</td></tr>
+<tr class='st-ok'><td>一撃必殺は半減系きのみで軽減できない</td><td>「半減系きのみによりダメージを半減することはできず、消費もされない」</td><td>一撃必殺ルートは通常<code>calcDamage</code>の半減きのみロジック(2099-2112行)を通らない専用処理</td><td>実装済み</td><td class='im-low'>低</td><td>構造的に一致(通らないので誤って軽減されることもない)</td></tr>
+<tr class='st-ok'><td>こらえる/きあいのタスキ/きあいのハチマキで一撃必殺も耐えられる(第五世代以降)</td><td>「当たってもこらえる/きあいのハチマキ/きあいのタスキ/なかよし度の効果で耐えることができる」</td><td><code>real_battle_simulator.html:2795-2797</code>(<code>df.enduring</code>のこらえる処理・<code>sashCheck</code>)</td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>一撃必殺は「効果がない」タイプには無効</td><td>「相性上で無効となるタイプの一撃必殺技は無効化することができ」</td><td><code>real_battle_simulator.html:2763-2766</code> <code>moveTypeEff(move.type, defTypes) === 0</code></td><td>実装済み</td><td class='im-high'>高</td><td>一致</td></tr>
+<tr class='st-ok'><td>ノーガード/ロックオンは一撃必殺にも必中効果あり、テレキネシスの必中効果は受けない</td><td>「ロックオンやノーガードの効果を受けている場合は必ず命中する」「テレキネシスの必中効果は受けない」</td><td><code>real_battle_simulator.html:2593</code>(テレキネシス除外)、2634行台コメントでノーガードも一撃必殺対象と明記</td><td>実装済み</td><td class='im-mid'>中</td><td>一致</td></tr>
+<tr class='st-no'><td>ダイマックス中の相手には失敗する</td><td>「対象がダイマックスしているときは失敗する」</td><td>ダイマックス機構自体が未実装</td><td>未実装</td><td class='im-low'>低</td><td>スコープ外(意図的)</td></tr>
+<tr class='st-part'><td>一撃必殺は命中判定でランク補正や命中変動効果の影響を受けない</td><td>「命中判定において、ランク補正や命中率を上下させる効果(ふくがんなどの特性、こうかくレンズ/ひかりのこななどのもちもの、じゅうりょく状態、ミクルのみ、なかよし度など)の影響を受けない」</td><td>ふくがんのみ個別除外(2631行)。ランク補正(2644-2652行)・じゅうりょく(2618行)・ひかりのこな(2625行)・こうかくレンズ(2657行)には一撃必殺技を除外する分岐が見当たらない</td><td>部分実装</td><td class='im-high'>高</td><td><b>命中.json節と同一の問題を一撃必殺技.json側からも再確認</b>。一撃必殺技は「命中率が固定(レベル差ベース)で他の命中変動要素を一切受けない」のが仕様だが、実装はふくがん以外の複数の命中修正(ランク補正・じゅうりょく・ひかりのこな・こうかくレンズ等)がそのまま適用されてしまう。じわれ/つのドリル等の命中率がランク操作や道具で本来あり得ない値に変動し得る</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<div class='ctxbox'><h4>総括</h4><p>- 調査した規則(行)総数: 約 90
+- 実装済み: 約 57
+- 部分実装: 約 15
+- 未実装: 約 10
+- 未確認: 約 8</p>
+<p>(内訳はファイル別テーブルの判定列を参照。境界的なものは「部分実装」寄りに寄せて集計)</p></div>
+<hr class='gdiv'/>
+<h2 class='gtitle'>行動順・すばやさ <span class='gtag'>(G2)</span></h2>
+<div class='ctxbox'><h4>このグループの担当ファイル一覧</h4><p>1. <code>reference/_authority_corpus/rules/行動順.json</code>
+2. <code>reference/_authority_corpus/rules/すばやさ.json</code>
+3. <code>reference/_authority_corpus/rules/優先度.json</code>
+4. <code>reference/_authority_corpus/rules/ターン.json</code>
+5. <code>reference/_authority_corpus/rules/トリックルーム.json</code>
+6. <code>reference/_authority_corpus/rules/乱数.json</code>
+7. <code>reference/_authority_corpus/rules/ポケモンバトル.json</code></p>
+<p>エンジン: <code>real_battle_simulator.html</code>(9504行、singles=1体vs1体固定のsim。ダブル/トリプル専用の行動順機構は原理的に評価不能な箇所がある)</p>
+<p>---</p></div>
+<div class='ctxbox'><h4>0. 前提として重要な発見: コーパスの題材ミスマッチ(2ファイル)</h4><p>### 0-1. <code>行動順.json</code> = <b>Pokémon LEGENDS アルセウス専用ページ</b>(マイラインの優先度/すばやさ制ではない)</p>
+<p><code>raw_text</code> 冒頭で明言: 「行動順は、Pokémon LEGENDS アルセウスにおけるバトルのシステム。」本文全体(約2990行)が、すばやさ実数値をカウンター初期値(5〜14)に量子化し、カウンターが0になるたびに行動する <b>リアルタイム風カウンター制</b>の解説と、各わざの「行動順補正(自分/相手)」表(全わざ網羅の大表)で占められている。これはマイラインシリーズ(剣盾/SV等、本エンジンが再現対象にしている優先度→すばやさ制)とは<b>別ゲームの別システム</b>であり、本エンジンに対する「実装/未実装」の判定対象にならない。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-unk'><td>LA式カウンター行動順制(すばやさ→カウンター初期値の量子化・カウンター0で行動・わざ別行動順補正)</td><td>「戦闘が始まるとき、お互いのポケモンに行動順のカウンターが設定されて、ポケモンはカウンターが0になるごとに行動する。カウンターの初期値はすばやさによって決まるが、カウンターが減る速度はすばやさに関わらず共通である。」</td><td>該当なし(該当システムを持たない設計)</td><td><b>未確認(対象外)</b></td><td class=''>―</td><td>本エンジンはマイライン式(優先度→すばやさ→乱数)を採用しており、この規則自体が適用対象外。実装判定不能につき「未確認」表記だが実質N/A。</td></tr>
+</tbody></table></div>
+<p>### 0-2. <code>乱数.json</code> = <b>乱数調整(RNG manipulation/厳選)の話で、バトル中の同速抽選とは無関係</b></p>
+<p>全文が「理想個体を出すための初期seed操作(乱数調整/乱数ポケモン)」の解説で、ゲームソフトの起動シーケンス・RTA調整手法などの話。バトル中の同速タイブレークや命中判定の乱数タイミングについての記述は<b>一切ない</b>。ユーザー指示にある「乱数タイミング(同速時の行動順抽選・命中判定)」を検証するための権威ソースとしては、このファイルは使えない(該当箇所なし)。この観点はやむを得ずエンジンの実装のみから直接判定した(#3参照)。</p>
+<p>---</p></div>
+<section class='rulepage' id='rp-G2-1すばやさjson'><h3>1. <code>すばやさ.json</code> <span class='pagebadge'>実装済7 / 部分2 / 未実装5 / 未確認0 / 対象外0 (計14)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>同優先度なら、すばやさが高い方が先に行動する</td><td>「同じ優先度のわざを使った場合、すばやさが高い方が先に行動できる。」</td><td><code>real_battle_simulator.html:2338-2343</code> <code>decideOrder()</code>: <code>const s1 = effectiveSpeed(sides.self); const s2 = effectiveSpeed(sides.opp); if (s1 !== s2){ const selfFaster = env.trickRoom ? (s1 &lt; s2) : (s1 &gt; s2); return selfFaster ? 'self' : 'opp'; }</code></td><td><b>実装済み</b></td><td class='im-high'>高</td><td>優先度同点の分岐後に評価されており順序も正しい</td></tr>
+<tr class='st-ok'><td>同速・同優先度ならランダムに行動順が決まる</td><td>「道具や特性などによる補正の掛かった状態で、自分と相手が同じすばやさかつ同じ優先度のわざを使った場合、行動順はランダムに決まる。」</td><td><code>real_battle_simulator.html:2344</code> <code>return Math.random() &lt; 0.5 ? cf : cs;</code></td><td><b>実装済み</b></td><td class='im-mid'>中</td><td><code>canonSides()</code>でオンライン(ロックステップ)対戦時のホスト側正準化も考慮済み(<code>:2318-2322</code>)</td></tr>
+<tr class='st-ok'><td>まひで素早さ実数値が0.5倍(はやあし所持者は無効)</td><td>「まひ×0.5(第六世代以前は×0.25)」/(はやあし特性の除外は<code>優先度.json</code>側にも記載なし、<code>ABILITY_DESC</code>準拠でエンジン側にコメントあり)</td><td><code>real_battle_simulator.html:2302</code> <code>if (st.status === 'paralysis' &amp;&amp; sideAbility(st) !== 'はやあし') s = Math.floor(s / 2);</code></td><td><b>実装済み</b></td><td class='im-high'>高</td><td>現行世代(×0.5)準拠。はやあし除外も実装済み</td></tr>
+<tr class='st-ok'><td>こだわりスカーフですばやさ1.5倍</td><td>(すばやさ補正表)「こだわりスカーフ ｜ 6144 ｜ 1.5」</td><td><code>real_battle_simulator.html:2304</code> <code>if (item &amp;&amp; item.key === 'kodawari_scarf') s = Math.floor(s * 1.5);</code></td><td><b>実装済み</b></td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-part'><td>くろいてっきゅう/パワー系アイテムですばやさ0.5倍</td><td>「くろいてっきゅう×0.5」「パワーウエイト/パワーリスト/パワーベルト/パワーレンズ/パワーバンド/パワーアンクル×0.5」</td><td>くろいてっきゅうのみ<code>:2306</code>実装。パワー系アイテム(ウエイト等)は<code>items_database.js</code>に<b>存在確認できず</b>(grep 0件)</td><td><b>部分実装</b></td><td class='im-mid'>低〜中</td><td>くろいてっきゅうは実装済みだが、パワー系6アイテムのすばやさ半減効果は未実装(努力値厳選アイテムとしての側面もあるが、トリパ構築での意図的な低速調整に使われる実戦アイテム)</td></tr>
+<tr class='st-ok'><td>おいかぜで自陣すばやさ2倍・4ターン継続</td><td>「おいかぜ ｜ 8192 ｜ 2.0 ｜ 4ターンの間、すばやさが2倍になる」</td><td><code>real_battle_simulator.html:2307</code>(×2倍)、<code>:4412</code>(<code>duration \｜\｜ 4</code>で4ターン設定)、<code>:7525-7527</code>(ターン終了ごとに減算・0で終了ログ)</td><td><b>実装済み</b></td><td class='im-high'>高</td><td>継続ターン数・効果値とも一致</td></tr>
+<tr class='st-ok'><td>天候依存すばやさ2倍特性(すいすい/ようりょくそ/すなかき/ゆきかき)</td><td>「すいすい」「ようりょくそ」「すなかき」「ゆきかき」がすばやさ補正8192(2.0倍)グループに記載</td><td><code>real_battle_simulator.html:2308-2310</code> <code>_WSPD</code>テーブルで天候一致時2倍</td><td><b>実装済み</b></td><td class='im-mid'>中</td><td>サーフテール(こだいかっせい系)は対象外(未実装、後述)</td></tr>
+<tr class='st-ok'><td>かるわざ: 道具を失うとすばやさ2倍</td><td>「かるわざ ｜ 8192 ｜ 2.0 ｜ もちものを手放すとすばやさが2倍になる」</td><td><code>real_battle_simulator.html:2312</code> <code>if (sideAbility(st) === 'かるわざ' &amp;&amp; !st.item &amp;&amp; st.lastConsumedItem) s = s * 2;</code></td><td><b>実装済み</b></td><td class='im-low'>低</td><td></td></tr>
+<tr class='st-no'><td>はやあし: 状態異常ですばやさ1.5倍 / こだいかっせい・クォークチャージ: 条件成立ですばやさ1.5倍</td><td>「はやあし ｜ 6144 ｜ 1.5」「こだいかっせい ｜ クォークチャージ ｜ 6144 ｜ 1.5」</td><td>grep該当なし(<code>effectiveSpeed</code>にはやあし・こだいかっせい・クォークチャージの1.5倍加算コードが見当たらない。はやあしは"まひ無効化"のみ実装、"状態異常で1.5倍"自体は未実装)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>はやあしは「まひ無効」だけが実装されており、「状態異常(まひ以外含む)で1.5倍」の本体効果が欠落。こだいかっせい/クォークチャージのすばやさ条件ブーストも未実装(他ステータスでの実装有無は未確認)</td></tr>
+<tr class='st-no'><td>スロースタート: 場に出て5ターンすばやさ半減</td><td>「スロースタート ｜ 2048 ｜ 0.5 ｜ 場に出て5ターンの間すばやさが半減する」</td><td>grep該当なし</td><td><b>未実装</b></td><td class='im-low'>低</td><td>対象はレジギガス等少数。他ステ半減面も未検証(スコープ外)</td></tr>
+<tr class='st-no'><td>すばやさ実数値の上限10000・8192での折返し(トリックルーム下1809以上は最速扱い)</td><td>「すばやさには上限が設定されている。…8192以上になったすばやさはeの処理により8192引かれ、すばやさ1809~8191のポケモンより行動順が遅くなる。」</td><td><code>effectiveSpeed()</code>(<code>:2299-2314</code>)は各倍率を単純に順次掛けるだけで、10000上限・8192mod折返し処理は実装されていない</td><td><b>未実装</b></td><td class='im-low'>低</td><td>通常構築ではほぼ到達しない数値域(能力ランク+6×複数の倍率アイテム/特性/場の重ね掛けが必要)。エッジケース</td></tr>
+<tr class='st-part'><td>補正順序(特性→もちもの→状態(おいかぜ/しつげん))の厳密な4096固定小数点演算・各段階での丸め</td><td>「上から順に初期値4096に補正値を掛け4096で割る処理をする。各計算ごとに小数点以下は四捨五入する。」</td><td><code>effectiveSpeed()</code>は単純な浮動小数点の逐次乗算+都度<code>Math.floor</code>。4096ベースの固定小数点演算・个別丸めルールは未実装</td><td><b>部分実装</b></td><td class='im-low'>低</td><td>通常の数値域では実質的な差は出ないが、極端な多重補正時の丸め誤差は権威仕様と一致しない可能性</td></tr>
+<tr class='st-no'><td>しつげん(みずのちかい+くさのちかい)で1/4倍</td><td>「しつげん ｜ 1024 ｜ 0.25 ｜ 4ターンの間、すばやさが1/4になる」</td><td>grep該当なし(誓い技コンボ自体が未実装、後述)</td><td><b>未実装</b></td><td class='im-low'>低</td><td>誓い技コンボ機構自体が不在のため派生効果として未実装</td></tr>
+<tr class='st-no'><td>行動決定後にすばやさが変わった場合の挙動(第七世代まで固定/第八世代以降はそのターン中に反映)</td><td>「第七世代まではそのターンでは変更前のすばやさに従って行動し…第八世代ではそのターン中に変更後のすばやさが適用される。」</td><td><code>runTurn()</code>(<code>:6797〜</code>)は<code>decideOrder()</code>をターン先頭で1回だけ呼び、<code>order</code>配列を固定して以降の技実行ループを回す(<code>:6850-6858</code>)。技実行中にすばやさや優先度が変わっても、2手目の行動順評価はやり直されない</td><td><b>未実装(第七世代までの固定順のみ)</b></td><td class='im-high'><b>高</b></td><td>現行(第八世代以降)ルールである「ターン中の動的再評価」が丸ごと欠落。トリックルームを自分が使った直後の相手行動順、素早さ変動技を先に受けた側の行動順繰り上げ等、現行仕様で頻出する場面が再現できない</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G2-2優先度json'><h3>2. <code>優先度.json</code> <span class='pagebadge'>実装済4 / 部分2 / 未実装6 / 未確認2 / 対象外0 (計14)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>優先度の高いわざはすばやさに関係なく先に出せる(優先度→すばやさの順)</td><td>「優先度の高いわざは使うポケモンのすばやさに関係なく先に出すことができる。ただし、優先度が同じ技を選んだポケモン同士ではすばやさが高い方が先に行動する。」</td><td><code>decideOrder()</code>(<code>:2325-2327</code>) <code>if (p1 !== p2) return p1 &gt; p2 ? 'self' : 'opp';</code></td><td><b>実装済み</b></td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-ok'><td>いたずらごころ: 変化技の優先度+1(あくタイプは無効化)</td><td>「いたずらごころを持つポケモンがへんかわざを使うと優先度が1だけ加算される。…あくタイプの敵はこの技を無効化する。」</td><td><code>movePriority()</code>(<code>:2281</code>)で+1加算は実装。ただし「あくタイプが無効化する」側の判定は<code>movePriority</code>内には無く、別処理(技の無効化判定)に委譲されている可能性があるため本関数だけでは検証不能</td><td><b>部分実装(優先度加算は実装済み/あく無効化は本関数の範囲外・未確認)</b></td><td class='im-mid'>中</td><td>あくタイプ無効化ロジックの所在を別途確認要</td></tr>
+<tr class='st-ok'><td>はやてのつばさ: HP満タン時ひこう技の優先度+1(第六世代はHP条件なし)</td><td>「はやてのつばさを持つポケモンがHPが最大のときにひこうわざを使うと優先度が1だけ加算される。」</td><td><code>movePriority()</code>(<code>:2283-2284</code>) <code>if (st &amp;&amp; move &amp;&amp; move.type === 'ひこう' &amp;&amp; sideAbility(st) === 'はやてのつばさ' &amp;&amp; (st.currentHp == null \｜\｜ st.currentHp &gt;= realStat(st, 'hp'))) base += 1;</code></td><td><b>実装済み(現行世代仕様)</b></td><td class='im-mid'>中</td><td>HP満タン条件込みで正しく現行世代準拠</td></tr>
+<tr class='st-ok'><td>グラススライダー: グラスフィールド+接地時のみ優先度+1</td><td>「グラスフィールドで自分が地面にいる(ひこうタイプや特性「ふゆう」などは除く)と、優先度+1で先に攻撃できる(ふだんは優先度0)。」</td><td>データ側で<code>条件付き優先</code>kind(<code>condition.type:'all', values:[terrain=グラスフィールド, user_grounded]</code>)を持ち、<code>movePriority()</code>(<code>:2285-2294</code>)が<code>_FMAP</code>でフィールド一致・<code>isGrounded()</code>で接地判定(ひこう/ふゆう/でんじふゆう/テレキネシス/ふうせん全て考慮、<code>:3375-3389</code>)。条件不成立時は明示的に0を返す</td><td><b>実装済み</b></td><td class='im-high'>高</td><td>ユーザー指定の要点検項目。条件を正しく評価しており「固定値の部分実装」ではない</td></tr>
+<tr class='st-part'><td>じんらい: 優先度は常に+1固定・ただし相手が攻撃技を選んでいないと失敗する</td><td>権威データ(<code>_authority_flags.json</code>)「先制攻撃技。」/自社データ<code>description</code>:「ダメージ。優先度+1の先制技。必ず先制できる。ただし、相手が攻撃技を出そうとしている時だけ成功し…失敗する。」</td><td><code>pokechan_data_all.js</code>の<code>thunderclap</code>エントリで<code>battle_data.priority:1</code>(優先度は正しく固定+1)。しかし条件付き失敗(<code>fails_if:[{type:'target_not_selecting_attacking_move'}]</code>)がデータ上<b><code>battle_data.fails_if</code>ではなく<code>flags["battle_data.fails_if"]</code>という誤ったキーパスに置かれており</b>、<code>failsByCondition()</code>(<code>:6474</code>)は<code>mv.battle_data.fails_if</code>しか読まないため参照されない。技自体もエンジン内<code>grep</code>0件で選択/実行経路が未確認</td><td><b>部分実装(優先度自体は正しいが、失敗条件がデータのキー配置ミスで読まれず、常に成功してしまう)</b></td><td class='im-mid'>中</td><td>ユーザー指定の要点検項目。学習者は現状タケルライコのみ(限定的)だが、実装されれば「攻撃技条件先制」効果kindも合わせて使われていないため二重に未配線</td></tr>
+<tr class='st-no'><td>このゆびとまれ/いかりのこな: シングルバトルでは使用不可(技自体は失敗)</td><td>「このゆびとまれ/いかりのこな: シングルバトルである」(→失敗条件)</td><td>エンジンにこの2技の参照は0件(grep)</td><td><b>未実装(アーキテクチャ上N/A)</b></td><td class='im-low'>低</td><td>本エンジンは1vs1固定のsingles simであり、この2技は本来「複数体いる場で自分に攻撃を誘導する」効果のため、実装しても意味を持たない(=シングル固定の設計では常に失敗が正しい挙動だが、そもそも技として実装されていない)</td></tr>
+<tr class='st-part'><td>クイックドロウ(特性)/イバンのみ(道具): 優先度内で常に最速</td><td>「特性クイックドロウや、持ち物せんせいのツメ/イバンのみの効果が発動した場合…同じ優先度の行動の中で最も早く行動する。」</td><td>せんせいのツメ(quick_claw)のみ<code>decideOrder()</code>(<code>:2329-2337</code>)で20%抽選実装。クイックドロウ(ability)はエンジン内0件。イバンのみ(Custap Berry)は<code>items_database.js</code>に<b>存在しない</b>(データごと未実装)</td><td><b>部分実装</b></td><td class='im-high'>高</td><td>「同一優先度内で最速」を担う3つの機構のうち1つ(せんせいのツメ)のみ実装。クイックドロウは実戦で頻用される特性(対象ポケモンが強力な採用枠)であり欠落の影響は大きい</td></tr>
+<tr class='st-no'><td>あとだし/きんしのちから(特性)・こうこうのしっぽ/まんぷくおこう(道具): 優先度内で常に最遅</td><td>「特性あとだし/きんしのちからや、持ち物こうこうのしっぽ/まんぷくおこうの効果が発動した場合…同じ優先度の行動の中で最も遅く行動する。」</td><td><code>real_battle_simulator.html</code>内に4語とも0件。あとだし/きんしのちからは特性名として<code>pokechan_data_all.js</code>に<b>データとしては存在</b>(ab1/ab2として2件ずつ)が戦闘ロジック側は皆無。こうこうのしっぽ/まんぷくおこうは<code>items_database.js</code>に<b>存在しない</b></td><td><b>未実装</b></td><td class='im-high'>高</td><td>「同一優先度内で最遅」機構がまるごと欠落。きんしのちから(Mycelium Might、変化技を最速優先度落ちで通す)は現行環境で頻出の耐久系特性であり影響が大きい</td></tr>
+<tr class='st-no'><td>あとだし+クイックドロウ/せんせいのツメ併用時は「最速」が優先(打ち消し)</td><td>「特性あとだしのポケモンがせんせいのツメ/イバンのみを発動させたときや…あとだし/こうこうのしっぽ/まんぷくおこうの効果は無視されて、同じ優先度の行動の中で最も早く行動するようになる。」</td><td>上記が軒並み未実装のため、この優先順位ルールも当然評価不能</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>前提機構が無いため派生規則も不在</td></tr>
+<tr class='st-no'><td>きんしのちから発動ターンはせんせいのツメが発動しない</td><td>「きんしのちからが発動するターンでは、せんせいのツメの効果は決して発動しない。」</td><td>同上</td><td><b>未実装</b></td><td class='im-low'>低</td><td></td></tr>
+<tr class='st-no'><td>第七世代までは優先度変更が起きてもそのターンの行動順は変わらない/第八世代以降は即座に反映</td><td>「第七世代までは、ターンの途中で優先度が変更されても行動順は変化しない。第八世代以降では優先度が変更されると、即座にそのターンの行動順に影響が出る。」</td><td><code>runTurn()</code>は<code>decideOrder()</code>をターン先頭で1回のみ計算し、以後は固定(<code>すばやさ.json</code>の項と同一原因)</td><td><b>未実装(第七世代までの挙動のみ)</b></td><td class='im-high'><b>高</b></td><td>すばやさ側の同一項目と表裏の欠落。優先度が技の効果(例: 行動後にいたずらごころ付与等)で変わっても2手目に反映されない</td></tr>
+<tr class='st-no'><td>おさきにどうぞ: 優先度を無視し直後に行動 / さきおくり: 優先度を無視し最後に行動</td><td>「おさきにどうぞを受けたポケモンは直後に行動する。」「さきおくりを受けたポケモンは、優先度を無視して行動順が最後にする。」</td><td>「おさきにどうぞ」grep0件。「さきおくり」はデータ上<code>quash</code>エントリに<code>effects:[{kind:"最後に行動", ...}]</code>が存在するが、エンジン側でこのkindを参照する箇所は0件(grep)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>さきおくりはデータは用意されているが配線されていない(=effectsはあるがcompose/simどちらも読んでいない典型パターン)</td></tr>
+<tr class='st-unk'><td>きあいパンチ/トラップシェル/くちばしキャノンの準備行動はターン最初(優先度+5より前)に行われる</td><td>「きあいパンチ・くちばしキャノン・トラップシェルは優先度-3の技だが、技の準備行動自体はターンの最初…に行われる。」</td><td>きあいパンチの<code>priority:-3</code>と<code>fails_if</code>(<code>hit_by_attacking_move_before_use</code>等)は正しく実装(<code>:6488-6490</code>)だが、「準備行動が最初に行われる」という特殊タイミング自体は、1vs1固定・両者最大1回ずつしか行動しない本エンジンの構造上、影響する場面(3体目以降の割り込み)が原理的に発生しない</td><td><b>未確認(シングル1vs1構造では観測不能)</b></td><td class='im-low'>低</td><td></td></tr>
+<tr class='st-unk'><td>優先度-2に設定されている技は存在しない/最も高い優先度はてだすけ+5(いたずらごころ併用で+6)</td><td>「優先度-2に設定されている技は存在しない。」「最も優先度が高い技はてだすけの+5だが、特性いたずらごころのポケモンが使用することで優先度+6になる。」</td><td>個別技のpriority値は<code>movePriority()</code>のbase加算＋いたずらごころ+1で計算されるため、てだすけ(+5)にいたずらごころ持ちが使えば+6になる計算パスは存在する(実測はしていない)</td><td><b>未確認</b></td><td class='im-low'>低</td><td>単純な計算式なので恐らく成立するが、実測未実施</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G2-3ターンjson行動順すばやさに直接関わる部分のみ抽出技の成否判定リスト等は範囲'><h3>3. <code>ターン.json</code>(行動順・すばやさに直接関わる部分のみ抽出。技の成否判定リスト等は範囲外) <span class='pagebadge'>実装済3 / 部分2 / 未実装3 / 未確認1 / 対象外0 (計9)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>交代は技より必ず先に処理。両者が交代を選んだ場合はすばやさ順(トリックルームで逆転)</td><td>「交代・よびかける / 交代順は、交代前のポケモンのすばやさ順。」</td><td><code>runTurn()</code>(<code>:6829-6841</code>) <code>const sw = ['self','opp'].filter(...); if (sw.length===2){ ... if (env.trickRoom ? (s1 &gt; s2) : (s1 &lt; s2)) sw.reverse(); }</code></td><td><b>実装済み</b></td><td class='im-mid'>中</td><td>実装コード中のコメントで「同速はself先の近似」「おいうち割り込みは未実装(park)」と自己申告あり</td></tr>
+<tr class='st-no'><td>おいうち(Pursuit)による交代への割り込み攻撃</td><td>「交代に対しておいうちが発動する場合、攻撃が行われる。」</td><td>上記コード内コメントに「おいうち割り込みは未実装(park)」と明記</td><td><b>未実装(自己申告済み)</b></td><td class='im-mid'>中</td><td>交代逃げにおいうちで追撃する定番の駆け引きが未実装</td></tr>
+<tr class='st-ok'><td>メガシンカは交代の後・技フェーズの直前(第七世代基準: メガ後のステータスで行動順決定)</td><td>「複数のポケモンが同時にメガシンカ/ウルトラバーストする場合、発動前のすばやさ順に発動される。」+すばやさ.json「第七世代ではメガシンカ後のすばやさと特性の効果で行動順が決まる。」</td><td><code>runTurn()</code>(<code>:6842</code>) <code>['self','opp'].forEach(s =&gt; { if (sides[s].megaChoice) megaEvolve(s); });</code>(<code>decideOrder()</code>より前に実行)</td><td><b>実装済み(現行世代=メガ後基準)</b></td><td class='im-mid'>中</td><td>複数体同時メガシンカのすばやさ順自体は1vs1構造上N/A(両者最大1体ずつなので競合しない)</td></tr>
+<tr class='st-part'><td>4段目「ポケモンの行動」の決定要素の順序(第五世代以降): わざの効果(おさきにどうぞ等)→優先度→せんせいのツメ等(最速)→こうこうのしっぽ等(最遅)→すばやさ→乱数</td><td>「若い番号の効果を優先して行動順が決まる」の6段構成</td><td>優先度→(せんせいのツメ)→すばやさ→乱数、の4段のみ実装。「わざの効果による繰り上げ/繰り下げ」(おさきにどうぞ/りんしょう/誓い技/トラップシェル/さきおくり)と「最遅」枠(あとだし系)が丸ごと欠落</td><td><b>部分実装</b></td><td class='im-high'>高</td><td>6段のうち4段(優先度・最速道具の一部・すばやさ・乱数)のみ。最初と最後の2段が抜けている構造的な欠落</td></tr>
+<tr class='st-no'><td>ターン終了時処理は同じ番号ごとにすばやさ順(トリックルーム反映)で発動する</td><td>「特記されていなければ、同じ数字の状態はすばやさが高い順に発動し、これはトリックルームの影響を受ける。」</td><td><code>phaseEndOfTurnSlip()</code>(<code>:5346-5348</code>) <code>for (const s of ['self','opp']) phaseSlipFor(s);</code> — self→oppの<b>固定順</b>で、<code>effectiveSpeed</code>もトリックルームも一切参照していない</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>両者が同ターンに終了時ダメージ(やけど+どく等)を同時に受けて相打ちになる際の処理順序や、ログ表示順がすばやさ・トリックルームを反映しない</td></tr>
+<tr class='st-part'><td>ターン終了時処理のカテゴリ順序(天候ダメ→…→どく/やけど→…→バインド/しおづけ等の順で発動、単純な固定順ではなくカテゴリごとの決め打ち順)</td><td>「てんきの効果(a〜c)→…→やどりぎのタネ→どく/もうどく/ポイズンヒール→やけど→…→バインド→…→しおづけ」の約30段の順序表</td><td><code>phaseSlipFor()</code>(<code>:5251-5344</code>)の実装順は「やけど/どく判定→すなあらしダメージ→揮発スリップ(やどりぎ/しおづけ/のろい/バインドまとめて<code>st.slips</code>配列順)」で、権威の順序(天候→…→やどりぎ→どく→やけど→…→バインド→しおづけ)とは<b>逆転している</b>(状態異常ダメージが天候より先に処理される等)</td><td><b>部分実装</b></td><td class='im-mid'>中</td><td>大枠(何らかの固定順で処理する)は実装されているが、権威が定める具体的な段順とは一致しない。HP合計自体への影響は通常軽微だが、瀕死判定が絡む際の細かい挙動・ログ順に差が出る</td></tr>
+<tr class='st-unk'><td>きあいパンチ等の準備行動、道具使用、メガシンカ/ダイマックス/テラスタルの同時発動順序</td><td>「使用順は、行動を選択したポケモンのすばやさ順。すばやさ補正を考慮する。」(道具使用について)</td><td>1vs1固定構造のため「複数ポケモンが同時に」発動する場面は存在せず、この規則群自体が評価対象外</td><td><b>未確認(アーキテクチャ上N/A)</b></td><td class='im-low'>低</td><td></td></tr>
+<tr class='st-no'><td>りんしょう/誓い技(コンビネーションわざ)による行動順の繰り上げ</td><td>「他のポケモンと同時にりんしょうを選択したターンでは、後に行動した方はりんしょうが使われた直後に行動する。」「味方と同時に合体技を選択したターンでは…」</td><td>エンジン内<code>りんしょう</code>・<code>みずのちかい</code>等の誓い技コンボ0件</td><td><b>未実装(アーキテクチャ上ダブル専用機能でもある)</b></td><td class='im-low'>低</td><td>主にダブル/トリプル機能。1vs1固定エンジンでは基本的にN/A</td></tr>
+<tr class='st-ok'><td>さいはい(Instruct)使用時、優先度情報はさいはいでなく再使用する技のものを参照</td><td>「さいはいを受けたポケモンは、直後に最後に使用した技をもう一度使用する。このとき優先度の情報はさいはいではなく使用する技のものを参照する。」</td><td><code>real_battle_simulator.html:5941-5942, 7243</code>にさいはいの再使用実装あり(<code>INSTRUCT_NG_KINDS</code>除外リストも存在)</td><td><b>実装済み(推定)</b></td><td class='im-low'>低</td><td>直後発動である旨と技側優先度参照である旨をコードから確認したが、「直後」という行動順挿入の厳密な位置までは未検証</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G2-4トリックルームjson'><h3>4. <code>トリックルーム.json</code> <span class='pagebadge'>実装済4 / 部分0 / 未実装1 / 未確認0 / 対象外0 (計5)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>トリックルームの優先度は-7</td><td>「優先度 ｜ -7」「優先度-7は全ての技の中で一番低い。」</td><td><code>pokechan_data_all.js</code>の<code>trick-room</code>エントリ <code>"priority":-7</code></td><td><b>実装済み</b></td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-ok'><td>5ターンの間、すばやさの低い順に行動できるようになる。再度使うと解除</td><td>「5ターンの間、すばやさの低い順に行動できるようになる…効果が残ってるうちに再度使うと、元に戻る。」</td><td><code>real_battle_simulator.html:5195-5200</code> トグル実装(<code>env.trickRoom</code>反転) + <code>duration:5</code>をターン終了ごとにデクリメント(<code>:7348-7350</code>)</td><td><b>実装済み</b></td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-ok'><td>トリックルームは優先度そのものを反転させず、同一優先度内の「すばやさ順」だけを反転する(先制技はトリックルーム中も先制のまま)</td><td>(<code>優先度.json</code>「じょおうのいげん系の特性や、ファストガード…」の周辺文脈、および仕様上の基本原則)</td><td><code>decideOrder()</code>(<code>:2325-2343</code>): 優先度差があれば<code>p1!==p2</code>の時点で即返す(トリックルーム参照なし)。トリックルームの判定(<code>env.trickRoom ?...</code>)はその後のすばやさ比較にのみ登場</td><td><b>実装済み</b></td><td class='im-high'>高</td><td>ユーザー指定の要点検項目。優先度技はトリックルーム中も先制する、というコードパスを確認済み</td></tr>
+<tr class='st-no'><td>すばやさ1809〜8191のポケモンはトリックルーム下でも1808以下のポケモンより先に行動する(8192mod折返しの特殊挙動)</td><td>「すばやさが1808以下のポケモンは、トリックルーム状態ではすばやさが遅い順に行動するようになる。すばやさが1809のポケモンは…他のどのポケモンよりトリックルーム下で早く行動する。」</td><td><code>effectiveSpeed()</code>に8192mod折返し処理が無い(<code>すばやさ.json</code>項と同一原因)</td><td><b>未実装</b></td><td class='im-low'>低</td><td>極端な高速化(実数値1800超)構築でのみ顕在化するエッジケース</td></tr>
+<tr class='st-ok'><td>せんせいのツメ/クイックドロウはトリックルーム状態に関わらず同一優先度内最速で発動する</td><td>「特性クイックドロウや、持ち物せんせいのツメ/イバンのみの効果が発動した場合、すばやさやトリックルーム状態に関わらず、同じ優先度の行動の中で最も早く行動する。」</td><td><code>decideOrder()</code>(<code>:2328-2337</code>)のせんせいのツメ判定は<code>env.trickRoom</code>を一切参照せず、優先度同点なら常に先に評価する(=トリックルーム中でも正しく機能)</td><td><b>実装済み(せんせいのツメのみ。クイックドロウ自体は前述の通り未実装)</b></td><td class='im-mid'>中</td><td></td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G2-5ポケモンバトルjson'><h3>5. <code>ポケモンバトル.json</code> <span class='pagebadge'>実装済0 / 部分0 / 未実装0 / 未確認0 / 対象外1 (計1)</span></h3><p>このページは「わざ/どうぐ/交代/にげる」の4択、野生/トレーナー戦・通信対戦の基本ルール等が中心で、行動順・すばやさに直接関わる固有の記述はほぼ無い(「ターン」への導線のみ)。行動順・すばやさ観点での個別項目チェックは対象外と判断した。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-na'><td>詳細な行動順仕様は「ターン」記事を参照する旨の記載のみ</td><td>「ターン - 1ターンに行える行動の細かな裁定・仕様はこちらを参照とする。」</td><td>―</td><td><b>対象外</b></td><td class=''>―</td><td>実質的な行動順ルールは<code>ターン.json</code>側に記載されているため、当ファイル固有の検証項目なし</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<div class='ctxbox'><h4>まとめ表(高影響度のみ再掲)</h4><div class='twrap'><table class='ruletable'>
+<thead><tr><th>#</th><th>規則</th><th>判定</th><th>影響度</th><th>出典ファイル</th></tr></thead>
+<tbody>
+<tr class='st-no'><td>1</td><td>ターン中の動的な行動順再評価(第八世代以降ルール)。現状は<code>decideOrder()</code>をターン先頭で1回計算するだけの固定順(第七世代までの挙動)</td><td>未実装</td><td class='im-high'>高</td><td>すばやさ.json / 優先度.json</td></tr>
+<tr class='st-part'><td>2</td><td>優先度内「最速」枠のうち、クイックドロウ(特性)・イバンのみ(道具)が未実装。せんせいのツメのみ実装</td><td>部分実装</td><td class='im-high'>高</td><td>優先度.json</td></tr>
+<tr class='st-no'><td>3</td><td>優先度内「最遅」枠(あとだし/きんしのちから特性、こうこうのしっぽ/まんぷくおこう道具)が丸ごと未実装</td><td>未実装</td><td class='im-high'>高</td><td>優先度.json</td></tr>
+<tr class='st-part'><td>4</td><td>行動順決定6段構成のうち、わざ効果による繰り上げ(おさきにどうぞ/りんしょう/誓い技/トラップシェル)・繰り下げ(さきおくり)の2段が丸ごと欠落</td><td>部分実装</td><td class='im-high'>高</td><td>ターン.json / 優先度.json</td></tr>
+</tbody></table></div></div>
+<hr class='gdiv'/>
+<h2 class='gtitle'>状態異常 <span class='gtag'>(G3)</span></h2>
+<div class='ctxbox'><h4>このグループの担当ファイル一覧</h4><p>- <code>reference/_authority_corpus/rules/こおり.json</code>
+- <code>reference/_authority_corpus/rules/こんらん.json</code>
+- <code>reference/_authority_corpus/rules/どく.json</code>
+- <code>reference/_authority_corpus/rules/ねむり.json</code>
+- <code>reference/_authority_corpus/rules/まひ.json</code>
+- <code>reference/_authority_corpus/rules/やけど.json</code>
+- <code>reference/_authority_corpus/rules/状態異常.json</code>
+- <code>reference/_authority_corpus/rules/バインド状態.json</code></p>
+<p>対象エンジン: <code>real_battle_simulator.html</code>(9504行)</p>
+<p>### ⚠️ コーパスの前提の問題(先に報告)
+<code>こおり.json</code> と <code>どく.json</code> は、raw_text本文の冒頭に自ら明記している通り、実際には<b>タイプページ</b>(「こおり(氷)は、タイプの一種」「どく（毒）は、タイプの一種」)がスクレイプされており、<b>状態異常(こおり状態/どく状態)の専用ページではない</b>。
+&gt; 引用(こおり.json raw_text 冒頭): 「このページではタイプのこおりについて解説しています。状態異常についてはこおり (状態異常)を参照してください。」
+&gt; 引用(どく.json raw_text 冒頭): 「このページではタイプのどくについて解説しています。状態異常についてはどく (状態異常)を参照してください。」</p>
+<p>このため、阿部さん指定の重点観点のうち <b>「こおりの解凍率(毎ターン何%で治るか)」「どく/もうどくの毎ターンダメージ量」は、このコーパスの本文には数値が存在しない</b>(型ページなので載っていない)。該当項目は下表で「未確認(コーパス不足)」として明記した。捏造禁止のため、エンジンのコードから読み取れる数値は記載するが、それを裏付ける一次引用はここでは示せない。</p>
+<p>---</p></div>
+<section class='rulepage' id='rp-G3-1こおりjson実体タイプページ'><h3>1. こおり.json (実体=タイプページ) <span class='pagebadge'>実装済3 / 部分0 / 未実装2 / 未確認2 / 対象外0 (計7)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>こおりタイプのポケモンは「こおり」状態にならない</td><td>「こおり状態にならない。」</td><td><code>real_battle_simulator.html:3779,4466</code> <code>STATUS_IMMUNE = { ..., freeze:['こおり'], ... }</code></td><td>実装済み</td><td class='im-mid'>中</td><td>型免疫を毎ターンダメージ判定・状態付与判定の両方で参照</td></tr>
+<tr class='st-ok'><td>ぜったいれいどはこおりタイプに効かない(第七世代から)</td><td>「ぜったいれいどが効かない（第七世代から）。」</td><td><code>real_battle_simulator.html:2768-2774</code> <code>battle_data.immune</code> の <code>target_is_type</code> を読んで無効化(コメントに Bulbapedia "Sheer Cold" 出典明記)</td><td>実装済み</td><td class='im-low'>低</td><td>一撃必殺技自体が対戦環境では稀</td></tr>
+<tr class='st-ok'><td>とくせいあついしぼう: 受けるこおり技威力半減</td><td>「とくせいがあついしぼうのポケモンが受けるこおりわざの威力は半減される。」</td><td><code>real_battle_simulator.html:1786-1789</code> <code>if (defAbilityVs(def, atk) === 'あついしぼう' &amp;&amp; (moveType === 'ほのお' ｜｜ moveType === 'こおり'))</code></td><td>実装済み</td><td class='im-mid'>中</td><td>ほのお技も同時に半減(公式仕様どおり)</td></tr>
+<tr class='st-no'><td>とくせいフリーズスキン: ノーマル技がこおりタイプ化</td><td>「とくせいがフリーズスキンのポケモンの出すノーマルわざは、こおりタイプとして扱われる。」</td><td>該当コードなし(grep 0件)。同系統の「-スキン」特性は <code>フェアリースキン</code> のみハードコード実装(<code>real_battle_simulator.html:1596-1601</code>)</td><td>未実装</td><td class='im-mid'>中</td><td>フリーズスキンは <code>pokechan_data.js</code> にも実在の特性名として登録あり(架空特性ではない)。同型の他特性(フェアリースキンのみ)が実装されているのに漏れている</td></tr>
+<tr class='st-unk'><td>あられ(hail)のダメージを氷タイプは受けない</td><td>「あられのダメージを受けない。」</td><td>エンジンは<code>snow</code>(ゆき)天候のみ実装(第九世代仕様=毎ターン減HPなし、氷タイプの防御アップのみ:<code>1852行</code>)。旧あられの毎ターン減HP自体が実装されていない</td><td>未確認/N/A</td><td class='im-low'>低</td><td>最新作準拠(あられ→ゆきに置換)を選択しているならこの規則自体が対象外。世代方針の確認が必要</td></tr>
+<tr class='st-no'><td>こおり状態を治す技(氷タイプの技を受けると解ける等)</td><td>(この点は raw_text に記載なし=タイプページのため未収録)</td><td><code>real_battle_simulator.html:6919-6926</code> は「解凍宣言技(自分がこおり状態回復を宣言している技=フレアドライブ等)」のみ扱う。相手の"ほのおタイプの技を受けると解凍"という一般則(Gen2以降の定番ルール)はgrep(<code>ほのお.*こおり</code>等)で該当コード見当たらず</td><td>未確認(コーパス不足)/未実装の疑い</td><td class='im-high'>高</td><td>阿部さん指定の重点項目だが本コーパスに一次情報なし。ただし「炎技を受けると氷が解ける」は歴代作の基本ルールで、現状engineに実装が見当たらないため要点検(別途権威ソース確認を推奨)</td></tr>
+<tr class='st-unk'><td>こおりの解凍率(毎ターン%)</td><td>(raw_textに数値記載なし)</td><td><code>real_battle_simulator.html:6923</code> <code>if (Math.random() &gt; 0.2){ ...凍ったまま... } else { 解凍 }</code> → 20%で解凍</td><td>未確認(コーパス不足)</td><td class='im-high'>高</td><td>20%という値自体は歴代作の一般値と一致するが、<b>この8ファイルのコーパスからは裏付けが取れない</b>(型ページのため)。捏造回避のためここでは「実装済み」と断定しない</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G3-2こんらんjson'><h3>2. こんらん.json <span class='pagebadge'>実装済8 / 部分1 / 未実装0 / 未確認0 / 対象外0 (計9)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>自傷確率=1/3(第六世代までは1/2)</td><td>「1/3(第六世代までは1/2)の確率で、選んだ技を使用する代わりに...自分を こうげきした!」</td><td><code>real_battle_simulator.html:6937-6959</code> <code>Math.random() &lt; 1/3</code></td><td>実装済み</td><td class='im-high'>高</td><td>現行世代仕様(1/3)のみ対応。旧世代(1/2)切替は無い(仕様として妥当)</td></tr>
+<tr class='st-ok'><td>自傷ダメージ=タイプなし・威力40の物理・必中・急所なし</td><td>「タイプなしで威力40の物理攻撃を自分に行うようになる。自傷ダメージは必中で、急所に当たることはない。」</td><td><code>real_battle_simulator.html:6955-6957</code> <code>dmg = Math.max(1, Math.floor((2*LEVEL/5+2)*40*A/D/50)+2)</code> (タイプ相性・乱数・急所なし・命中判定なし=必中)</td><td>実装済み</td><td class='im-high'>高</td><td>ダメージ計算式に乱数(85-100%)・タイプ補正が入っていないことを確認(標準ダメージ計算関数を経由しない専用式)</td></tr>
+<tr class='st-ok'><td>継続ターン=2〜5(最後のターンで先に解けてから技を出す)</td><td>「継続ターンは2～5ターンとなる。…こんらんの最後のターンでは...こんらんが解けてから技を使用する。」</td><td><code>real_battle_simulator.html:3845</code> <code>atk.confusion = (d[0]+1) + Math.floor(Math.random()*(d[1]-d[0]+1))</code>。行動時デクリメントし0で解除してから技を出す実装(<code>6938-6939</code>)</td><td>実装済み</td><td class='im-high'>高</td><td>カウンタ設計(残り行動可能回数+1)がコメントで明記されており、解除→行動の順が正しく再現されている</td></tr>
+<tr class='st-ok'><td>ねむり・こおり・ひるみ等で動けなかったターンはこんらんカウント消費なし・自傷も起きない</td><td>「反動で動けない間や、ねむり、こおり、ひるみ、なまけなどにより動けなかったターンはカウントせず、自分への攻撃も起こらない。」</td><td><code>real_battle_simulator.html:6907-6926</code>(sleep/freeze)は<code>continue</code>でこんらん判定(6937行)に到達する前に抜ける</td><td>実装済み</td><td class='im-mid'>中</td><td>ひるみ(flinch)も同様に、こんらん判定より前(6960行台)にあるか要再確認だが、flinchはこんらん判定の<b>後</b>(6960行)に置かれている点に注意(下記まひ/メロメロの逆転バグと合わせて要修正)</td></tr>
+<tr class='st-part'><td>ただし「まひ」「メロメロ」の判定はこんらんの自傷判定の"後"に行われる</td><td>「ただし、まひやメロメロの判定は、こんらんの自傷判定の後に行われる。」</td><td><code>real_battle_simulator.html:6930</code>(まひ判定)→<code>6932</code>(メロメロ判定)→<code>6937</code>(こんらん判定)の順で<b>まひ/メロメロが先</b></td><td><b>部分実装(順序が逆)</b></td><td class='im-high'>中〜高</td><td>権威ソースは「こんらん判定 → まひ/メロメロ判定」の順を明記しているが、エンジンは逆順に実装されている。まひで行動失敗(25%)した場合、現状はその場で<code>continue</code>し、こんらんの残りターン消費(デクリメント)が発生しない。実機では先にこんらん判定が走るため、まひで動けなくてもこんらんターンは必ず消費される。でんじは+どくどく等の「まひ＋こんらん」複合状態(通称"痛み分け"戦術)で、こんらん解除ターンがズレる形で実挙動と乖離する</td></tr>
+<tr class='st-ok'><td>特性マイペースはこんらんしない</td><td>「マイペース」</td><td><code>real_battle_simulator.html:4327-4331</code> <code>if (target's ability === マイペース) こんらんしない</code></td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>ミストフィールドはこんらんを防ぐ(地面のポケモンのみ・第七世代以降)</td><td>「ミストフィールド (地面にいるポケモンのみ。第七世代以降)」</td><td><code>real_battle_simulator.html:4333-4344</code> フィールド宣言(<code>状態異常予防</code>)を<code>isGrounded</code>判定込みで参照</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>しんぴのまもりはこんらんを防ぐ(あばれる状態・混乱きのみで自分に発生するものを除く)</td><td>「しんぴのまもり (あばれる状態、混乱きのみで自分に発生するものを除く)」</td><td><code>real_battle_simulator.html:4339-4344</code> <code>if (ef.target !== 'self' &amp;&amp; target.safeguard)</code> で自分発生分を除外</td><td>実装済み</td><td class='im-mid'>中</td><td>あばれる状態終了時の自己混乱について、しんぴのまもりで防げない例外までは未確認(コード上<code>ef.target</code>だけで判定しており、あばれる由来かどうかの分岐は見当たらない)</td></tr>
+<tr class='st-ok'><td>こんらんで自傷したポケモンはHP回復きのみ等が発動する条件が世代で違う/こんらんダメージにはやけど影響が及ばない(第五世代以降)</td><td>「世代により異なる仕様…やけど状態の影響を…受けない(5以降)」</td><td>自傷ダメージ計算(<code>6955</code>)はcalcDamage()を通らない専用式で、やけど半減チップは含まれない</td><td>実装済み</td><td class='im-low'>低</td><td>現行世代仕様(やけど無関係)のみ対応、旧世代切替なし(妥当)</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G3-3どくjson実体タイプページ'><h3>3. どく.json (実体=タイプページ) <span class='pagebadge'>実装済2 / 部分1 / 未実装1 / 未確認4 / 対象外0 (計8)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-part'><td>どく・はがねタイプはどく/もうどく状態にならない(特性ふしょく所持者は除く)</td><td>「どく状態・もうどく状態にならない。相手が特性ふしょくを持つ場合はこの限りでない。」</td><td><code>real_battle_simulator.html:3779,4466</code> <code>STATUS_IMMUNE = {poison:['どく','はがね'], badpoison:['どく','はがね']}</code></td><td>部分実装</td><td class='im-mid'>中</td><td>型免疫は実装済み。ただし「ふしょく」特性(型免疫を貫通してどく状態にできる)の例外処理は<code>grep "ふしょく"</code>で該当なし=<b>未実装</b></td></tr>
+<tr class='st-no'><td>どくどくは必中・相手が姿を消していても有効(どくタイプが使用時、第六世代から)</td><td>「どくどくが必中する。相手が姿を消していても有効（第六世代から）。」</td><td>データ側(<code>pokechan_data.js</code> dokudoku)には <code>requires:[{type:'accuracy_check', bypass_if:{type:'user_type_in', values:['どく'], effect:'always hits'}}]</code> が宣言済みだが、エンジン側で<code>accuracy_check</code>/<code>bypass_if</code>/<code>user_type_in</code>をgrepしても<b>0件</b></td><td><b>未実装</b></td><td class='im-mid'>中</td><td>データは正しく用意されているのにエンジンが読んでいない典型例。通常の必中フラグ(<code>必中</code>/<code>ignores_accuracy</code>)や<code>命中率固定</code>は読むロジックがあるが、<code>requires.bypass_if</code>という別スキーマは未接続</td></tr>
+<tr class='st-ok'><td>どくタイプのポケモンのみ、くろいヘドロで毎ターンHP回復(他タイプはダメージ)</td><td>「どくタイプのポケモンのみ、くろいヘドロで毎ターンHPが回復する。」</td><td><code>real_battle_simulator.html:7652-7670</code> どくタイプ判定で回復/ダメージを分岐</td><td>実装済み</td><td class='im-low'>低</td><td></td></tr>
+<tr class='st-ok'><td>地面にいるどくタイプが場に出るとどくびしを解除できる</td><td>「地面にいるどくタイプのポケモンが場に出たとき、味方の場のどくびしを解除できる。」</td><td><code>real_battle_simulator.html:6284-6312</code> 交代時のどくびし吸収処理あり(2026-07-22修正コミット済み: 05d35eed)</td><td>実装済み</td><td class='im-mid'>中</td><td>HANDOFFにある直近の実バグ修正(設置直後の自爆吸収)と符合</td></tr>
+<tr class='st-unk'><td>くさ・フェアリータイプはどく技で効果抜群/どく・じめん・いわ・ゴーストは今ひとつ/はがねは無効(ねらいのまと除く)</td><td>「くさ・フェアリータイプを持つポケモンに対しては、効果が抜群。…はがねタイプを持つポケモンに対しては、効果無し。」</td><td>一般のタイプ相性表(<code>moveTypeEff</code>)側で管理されているはずだが、本レビューでは相性表そのものの中身は個別確認していない(範囲外・別グループ担当の可能性)</td><td>未確認</td><td class='im-low'>低</td><td>どく状態異常固有ではなくタイプ相性表全体の話のため、このタスクの主眼(状態異常)からは対象外と判断</td></tr>
+<tr class='st-unk'><td>どくタイプのポケモンのみ、はがね相手でもねらいのまとで技が当たる</td><td>「はがねタイプの相手でも、ねらいのまとを持ったポケモンに対しては技が当たる。」</td><td><code>grep "ねらいのまと"</code> は他のアイテムの一部として存在するかを個別確認していない(範囲外・要別途確認)</td><td>未確認</td><td class='im-low'>低</td><td></td></tr>
+<tr class='st-unk'><td>どく毎ターンダメージ=1/8 / もうどく=n/16蓄積</td><td>(raw_textに数値記載なし=タイプページのため)</td><td><code>real_battle_simulator.html:5266-5279</code> <code>poison: Math.floor(max/8)</code> / <code>badpoison: badpoisonCounter++; Math.floor(max*counter/16)</code></td><td>未確認(コーパス不足だがコード確認は実施)</td><td class='im-high'>高</td><td>数値自体は歴代作の一般値と一致(1/8・n/16)だが、<b>この8ファイルのコーパスからは一次引用で裏付けられない</b>(型ページのため)。捏造回避のため実装済みと断定はしない</td></tr>
+<tr class='st-unk'><td>もうどくの蓄積は交代でリセットされる(もうどく状態自体は持ち越す)</td><td>(raw_textに記載なし=コーパス不足)</td><td><code>real_battle_simulator.html:6081</code> <code>st.badpoisonCounter = 0;</code> コメント「もうどくカウンタはリセット(もうどく状態自体は持ち越し)」</td><td>未確認(コーパス不足)</td><td class='im-high'>高</td><td>阿部さん指定の重点項目。コード上は「交代でリセット、状態自体は持続」という現行世代(第五世代以降)の一般仕様と一致する挙動だが、本コーパスには根拠となる一次テキストがない</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G3-4ねむりjson'><h3>4. ねむり.json <span class='pagebadge'>実装済7 / 部分1 / 未実装3 / 未確認2 / 対象外0 (計13)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>いびき・ねごと以外の技が使えない</td><td>「いびきとねごと以外のわざを使えない。」</td><td><code>real_battle_simulator.html:6912-6916</code> <code>requires</code> に <code>self_status ねむり</code> を持つ技のみ許可</td><td>実装済み</td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-ok'><td>眠るカウント決定=通常付与は乱数、ねむる使用時は3固定</td><td>「ねむるによってねむり状態になったときは、カウントは3で固定される。」</td><td><code>real_battle_simulator.html:4515-4516</code> <code>(ef.duration != null) ? ef.duration+1 : 2+Math.floor(Math.random()*3)</code> (ねむるはduration指定で+1=3固定と推測される設計)</td><td>実装済み(想定)</td><td class='im-mid'>中</td><td>「ねむる」技側の<code>ef.duration</code>宣言値を個別確認していないため、実際に2固定(duration=2→+1=3)になっているかはデータ側の再確認が必要。ロジックの受け皿は正しい</td></tr>
+<tr class='st-ok'><td>通常付与のカウント範囲(第五世代-SV)=2〜4、等確率</td><td>「第五世代-スカーレット・バイオレット \｜ 2～4」「スカーレット・バイオレットまではいずれのカウントも等確率で選ばれる。」</td><td><code>real_battle_simulator.html:4516</code> <code>2 + Math.floor(Math.random()*3)</code> → 2,3,4が等確率</td><td>実装済み</td><td class='im-high'>高</td><td>SV(第五世代以降)仕様と一致。同ページに載る「Champions」独自仕様(カウント2〜3・1/3対2/3の偏り)とは異なる値だが、他の状態異常項目(まひ25%等)も一貫してSV仕様を採用しているため、これは意図的な世代選択と判断(要:阿部さんへの確認は任意)</td></tr>
+<tr class='st-ok'><td>カウントは技を使う直前に消費、0で目覚めてから技を出す</td><td>「カウントは技を使う直前に1ずつ…減っていき、0になると技を使う直前にねむり状態から回復する。」</td><td><code>real_battle_simulator.html:6907-6910</code>(および<code>5632-5634</code>重複箇所) デクリメント→0で<code>status='none'</code>にしてから行動続行</td><td>実装済み</td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-part'><td>とくせいふみん・やるきはねむりにならない</td><td>「やるき・ふみん・ぜったいねむり・きよめのしお」</td><td><code>real_battle_simulator.html:4476</code> <code>_AB_IMMUNE = {sleep:['ふみん','やるき'], ...}</code></td><td>部分実装</td><td class='im-mid'>中</td><td>ふみん・やるきは実装済み。同じ並びの<b>ぜったいねむり・きよめのしお・スイートベール・フラワーベール(くさタイプ)・リミットシールド(りゅうせいのすがた)</b>は<code>grep</code>で該当コード0件=未実装</td></tr>
+<tr class='st-ok'><td>リーフガード(晴れ)は状態異常にならない</td><td>「リーフガード (天気:晴れ)」</td><td><code>real_battle_simulator.html:4482-4485</code></td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>特性こんじょう=ねむり中こうげき1.5倍</td><td>「特性がこんじょうのポケモンはねむり状態の間、こうげきが1.5倍になる。」</td><td><code>real_battle_simulator.html:1775</code> 全状態異常共通で実装(ねむり含む)</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-no'><td>特性ふしぎなうろこ=ねむり中ぼうぎょ1.5倍</td><td>「特性がふしぎなうろこのポケモンはねむり状態の間、ぼうぎょが1.5倍になる。」</td><td><code>grep "ふしぎなうろこ"</code> 該当コード0件</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>まひ・やけどページにも同じ特性が登場(下記参照)。全状態異常共通で丸ごと欠落している特性</td></tr>
+<tr class='st-no'><td>特性はやあし=ねむり中すばやさ1.5倍</td><td>「特性がはやあしのポケモンはねむり状態の間、すばやさが1.5倍になる。」</td><td><code>real_battle_simulator.html:2302</code> はまひのみ対象(<code>st.status === 'paralysis'</code>)。ねむり等の他状態異常では発動しない</td><td><b>未実装(まひ以外)</b></td><td class='im-mid'>中</td><td>詳細はまひ.json側の表を参照(同一の欠落)</td></tr>
+<tr class='st-unk'><td>ゆめくい/あくむは相手がねむり状態の時のみ有効</td><td>「ゆめくいとあくむは相手がねむり状態のときのみ効果がある。」</td><td>個別のmove実装は本レビュー範囲外(データ側<code>requires</code>宣言があるはずだが未確認)</td><td>未確認</td><td class='im-low'>低</td><td></td></tr>
+<tr class='st-no'><td>特性ナイトメア所持者が場にいるとねむり状態の相手はターン終了時1/8減少</td><td>「特性がナイトメアのポケモンが相手の場に出ている場合、ねむり状態のポケモンはターン終了時にHPが最大HPの1/8だけ減少する。」</td><td><code>grep "ナイトメア"</code> 該当コード0件</td><td><b>未実装</b></td><td class='im-mid'>低〜中</td><td>ナイトメア自体が稀少特性のため影響度は限定的だが、明確な機能欠落</td></tr>
+<tr class='st-ok'><td>ねむり中はシンクロが発動しない</td><td>「ねむり状態になっても特性シンクロは発動しない。」</td><td><code>real_battle_simulator.html:4520-4526</code> シンクロの対象コードリストに<code>sleep</code>/<code>freeze</code>が含まれない(<code>['poison','badpoison','paralysis','burn']</code>のみ)</td><td>実装済み</td><td class='im-low'>低</td><td>正しく除外されている</td></tr>
+<tr class='st-unk'><td>ねむり中ねごとでからげんきを出しても威力2倍にならない</td><td>「ねむり状態のときねごとでからげんきを出しても威力は2倍にならない。」</td><td>からげんき(Facade)の威力2倍条件(<code>statusMul</code>, 1524-1533行)は<code>atk.status</code>を見るのみで、<code>atk.status==='sleep'</code>でも通常通り2倍になってしまう可能性がある(専用の除外分岐は未確認)</td><td>未確認/疑わしい</td><td class='im-mid'>中</td><td>からげんきの<code>威力倍率</code>宣言条件が<code>user_status_in</code>のリストに<code>sleep</code>を含むかどうかがデータ側の設計次第。データ確認まで至らず、コード側にねむり除外の専用分岐は見当たらない</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G3-5まひjson'><h3>5. まひ.json <span class='pagebadge'>実装済7 / 部分2 / 未実装1 / 未確認1 / 対象外0 (計11)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>行動不能率25.0%(第一世代-SV) / すばやさ補正1/4(第一〜六世代)、1/2(第七世代-SV)</td><td>「第一世代-第六世代 \｜ 25.0% \｜ 1/4」「第七世代-SV \｜ 25.0% \｜ 1/2」</td><td><code>real_battle_simulator.html:6930</code> <code>Math.random() &lt; 0.25</code> / <code>2302行</code> <code>s = Math.floor(s/2)</code></td><td>実装済み</td><td class='im-high'>高</td><td>現行(第七世代-SV)仕様=25%・1/2で一貫。旧世代(1/4)切替は未対応(意図的と判断)</td></tr>
+<tr class='st-unk'><td>同ページに記載の「Champions」仕様=12.5%・1/2</td><td>「Champions \｜ 12.5% \｜ 1/2」</td><td>上記の通り25%のまま(SV仕様)</td><td>要確認</td><td class='im-high'>中〜高</td><td>この項目単体では「バグ」と断定しないが、本コーパスが公式最新作『Pokémon Champions』の専用数値を明記しているため、<b>本プロジェクトがどの版を最終ターゲットにしているか</b>(SV mainline か Champions か)を人間側で確認すべき。他の項目(こんらん1/3・バインド4-5ターン・やけど1/16等)はSVとChampionsで数値が一致しているため気づきにくいが、まひの行動不能率だけは唯一値が割れている</td></tr>
+<tr class='st-ok'><td>第八世代からはまひになったターンから行動順に影響が出る(第七世代までは次ターンから)</td><td>「第八世代からはまひになったターンから行動順に影響が出る。」</td><td><code>effectiveSpeed()</code>は<code>st.status</code>を都度参照するため、状態異常が付与された直後から反映される実装(遅延ロジックなし)</td><td>実装済み(現行世代相当)</td><td class='im-low'>低</td><td>明示的な世代分岐ではなく、単に「毎回計算」の副作用として現行仕様と一致している</td></tr>
+<tr class='st-ok'><td>でんきタイプはまひにならない(第六世代以降)</td><td>「でんきタイプ（第六世代以降）」</td><td><code>real_battle_simulator.html:3779,4466</code> <code>STATUS_IMMUNE.paralysis = ['でんき']</code></td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>とくせいじゅうなんはまひにならない</td><td>「じゅうなん」</td><td><code>real_battle_simulator.html:4476</code> <code>_AB_IMMUNE.paralysis = ['じゅうなん']</code></td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-part'><td>とくせいきよめのしお・ぜったいねむり・リーフガード(晴れ)・フラワーベール(くさ)・リミットシールド(りゅうせいのすがた)もまひにならない</td><td>「きよめのしお \｜ じゅうなん \｜ ぜったいねむり \｜ リーフガード（天気: 晴れ） \｜ フラワーベール（くさタイプ） \｜ リミットシールド（りゅうせいのすがた）」</td><td>リーフガード(晴れ)のみ実装(<code>4482-4485</code>)。<b>きよめのしお・ぜったいねむり・フラワーベール・リミットシールドは未実装</b></td><td>部分実装</td><td class='im-mid'>中</td><td>状態異常全般に共通する欠落特性群(ねむり.json・やけど.json でも同じ欠落が確認された)</td></tr>
+<tr class='st-ok'><td>特性こんじょう=まひ中こうげき1.5倍</td><td>「とくせいがこんじょうのポケモンはこうげきが1.5倍される。」</td><td><code>real_battle_simulator.html:1775</code></td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-no'><td>特性ふしぎなうろこ=まひ中ぼうぎょ1.5倍</td><td>「とくせいがふしぎなうろこのポケモンはぼうぎょが1.5倍される。」</td><td>未実装(前述)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-part'><td>特性はやあし=まひによるすばやさ補正を受けず、さらに1.5倍</td><td>「とくせいがはやあしのポケモンは、まひによるすばやさ補正を受けず、さらにすばやさが1.5倍される。」</td><td><code>real_battle_simulator.html:2302</code> <code>if (st.status === 'paralysis' &amp;&amp; sideAbility(st) !== 'はやあし') s = Math.floor(s/2);</code> → はやあし所持時は<b>単に半減を回避するだけ</b>(=等倍)で、追加の1.5倍ブーストが掛かっていない</td><td><b>部分実装</b></td><td class='im-mid'>中</td><td>「補正を受けない」の部分は実装済みだが、「さらに1.5倍される」のブースト部分が欠落している。本来は等倍ではなく1.5倍になるはずが、現状は等倍止まり</td></tr>
+<tr class='st-ok'><td>まひ状態のからげんき威力2倍/たたりめ・ひゃっきやこう威力2倍/きつけ威力2倍+まひ治療</td><td>「まひ状態のポケモンが使うからげんきの威力は2倍になる。」「まひ状態のポケモンに対して使うたたりめ・ひゃっきやこうの威力は2倍になる。」「まひ状態のポケモンに対して使うきつけの威力は2倍になり、まひ状態を治す。」</td><td><code>real_battle_simulator.html:1524-1533</code> <code>statusMul</code>宣言(user_status_in / target_status_in / target_has_status_condition)で汎用対応</td><td>実装済み(想定)</td><td class='im-low'>低</td><td>データ側(<code>battle_data.effects</code>)の宣言に依存。各技個別のkind宣言までは未確認</td></tr>
+<tr class='st-ok'><td>でんきタイプに変わってもまひは回復しない(第六世代以降)</td><td>「第六世代以降でも、まひ状態になったポケモンが技やとくせいの効果ででんきタイプに変わってもまひは回復しない。」</td><td>まひの自然回復トリガーをgrepした限り、タイプ変化に連動した治療処理は見当たらない(=治らない=正しい)</td><td>実装済み(消極的)</td><td class='im-low'>低</td><td>「何もしない」ことが正しい実装なので確認が難しいが、誤って回復させる分岐も無いことは確認した</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G3-6やけどjson'><h3>6. やけど.json <span class='pagebadge'>実装済7 / 部分2 / 未実装4 / 未確認0 / 対象外0 (計13)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>毎ターンHP減少=最大HPの1/16(第一世代・第七世代以降)</td><td>「ターンごとに、HPが減少する(第一世代・第七世代以降では最大HPの1/16…)」</td><td><code>real_battle_simulator.html:5259-5263</code> <code>Math.max(1, Math.floor(max/16))</code></td><td>実装済み</td><td class='im-high'>高</td><td>現行世代(1/16)仕様と一致。第二〜六世代の1/8は非対応(意図的と判断)</td></tr>
+<tr class='st-ok'><td>物理技ダメージ0.5倍(第三世代以降)</td><td>「ぶつりわざで与えるダメージが0.5倍になる(第三世代以降)。」</td><td><code>real_battle_simulator.html:1872-1876</code> <code>if (atk.status === 'burn' &amp;&amp; isPhys &amp;&amp; ability!=='こんじょう' &amp;&amp; !やけど低下無視宣言) factor 0.5</code></td><td>実装済み</td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-ok'><td>ほのおタイプはやけどにならない</td><td>「ほのおタイプ」</td><td><code>real_battle_simulator.html:3779,4466</code> <code>STATUS_IMMUNE.burn = ['ほのお']</code></td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-part'><td>とくせいすいほう・ねつこうかん・みずのベールはやけど無効/治療</td><td>「すいほう」「ねつこうかん」「みずのベール」</td><td>みずのベールのみ実装(<code>7621-7631</code>「やけど免疫の特性はみずのベールのみ…」)。<b>すいほう・ねつこうかんは未実装</b></td><td>部分実装</td><td class='im-mid'>中</td><td>コメントで意図的にみずのベールだけに絞ったことが明記されているが、すいほう(Water Bubble)・ねつこうかん(熱交換系特性)自体は未収録</td></tr>
+<tr class='st-part'><td>とくせいきよめのしお・ぜったいねむり・フラワーベール(くさ)・リーフガード(晴れ)・リミットシールドもやけどにならない</td><td>「きよめのしお \｜ ぜったいねむり \｜ フラワーベール(くさタイプのみ) \｜ リーフガード(天気:にほんばれ) \｜ リミットシールド(りゅうせいのすがた)」</td><td>リーフガード(晴れ)のみ実装。他は未実装(前述の共通欠落)</td><td>部分実装</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-no'><td>特性たいねつ=やけどダメージ半分(第七世代以降は1/32)・物理ダメージ半減は変わらず</td><td>「特性がたいねつのポケモンは、やけど状態によって減少するHPが通常の半分(…第七世代以降は最大HPの1/32)になる。」</td><td><code>grep "たいねつ"</code> は<code>7623行</code>のコメント内にのみ出現し、実処理コードは0件</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>コメントで「たいねつは『ほのお技半減・やけどダメージ半減』でいずれもやけど付与そのものは防がない」と正確に理解しているにもかかわらず、そのダメージ半減処理自体が実装されていない(理解と実装が食い違っている珍しいケース)</td></tr>
+<tr class='st-ok'><td>特性マジックガードはやけどでHP減少しない</td><td>「特性がマジックガードのポケモンは、やけど状態になってもHPが減少しない。」</td><td><code>real_battle_simulator.html:5259</code> <code>if (st.status === 'burn' &amp;&amp; !_magicGuard)</code></td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>特性こんじょうは物理ダメージ半減を受けずこうげき1.5倍</td><td>「特性がこんじょうのポケモンはぶつりわざで与えるダメージが0.5倍にならず、こうげきが1.5倍される。」</td><td><code>real_battle_simulator.html:1775,1873</code> こんじょう除外条件が両方に入っている</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-no'><td>特性ふしぎなうろこ=やけど中ぼうぎょ1.5倍</td><td>「特性がふしぎなうろこのポケモンはぼうぎょが1.5倍される。」</td><td>未実装(前述、状態異常全般で共通欠落)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-no'><td>特性はやあし=やけど中すばやさ1.5倍</td><td>「特性がはやあしのポケモンはすばやさが1.5倍される。」</td><td>未実装(まひ以外は未対応、前述)</td><td><b>未実装(まひ以外)</b></td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-no'><td>特性ねつぼうそう=やけど中とくしゅわざ威力1.5倍</td><td>「特性がねつぼうそうのポケモンはとくしゅわざの威力が1.5倍される。」</td><td><code>grep "ねつぼうそう"</code> 該当コード0件</td><td><b>未実装</b></td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>やけど状態のからげんき威力2倍(第六世代以降は物理ダメ減の影響を受けない)</td><td>「やけど状態のポケモンが使うからげんきの威力は通常の2倍になる。…第六世代以降のからげんきは、やけどによるぶつりわざのダメージ減少の影響を受けない。」</td><td><code>1524-1533行</code>の<code>statusMul</code>宣言＋<code>1873-1876行</code>の<code>やけど低下無視</code>除外宣言 の組み合わせで対応している設計(からげんき側データに<code>やけど低下無視</code>フラグが立っていることが前提)</td><td>実装済み(想定)</td><td class='im-mid'>中</td><td>データ側のフラグ付与を個別確認していないため「想定」扱い</td></tr>
+<tr class='st-ok'><td>やけどの発生タイミング=ターン終了時(第三世代以降)</td><td>(状態異常.json側の記載を参照。下記6参照)</td><td><code>phaseSlipFor</code>は<code>phaseEndOfTurnSlip</code>から呼ばれるターン終了処理</td><td>実装済み</td><td class='im-high'>高</td><td></td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G3-7状態異常json総論'><h3>7. 状態異常.json(総論) <span class='pagebadge'>実装済3 / 部分0 / 未実装0 / 未確認2 / 対象外0 (計5)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>どく・やけどのダメージは技を出した直後→第三世代からターン終了時に変更</td><td>「どく・やけどによるダメージを受けるのはわざを繰り出した直後だったが、第三世代からはターンが終わるときになった。」</td><td><code>phaseEndOfTurnSlip</code>/<code>phaseSlipFor</code>はターン終了フェーズでのみ呼ばれる(直後発動の分岐は無い)</td><td>実装済み</td><td class='im-high'>高</td><td>現行世代(ターン終了時)のみ対応。第二世代以前の仕様は非対応(意図的)</td></tr>
+<tr class='st-ok'><td>すでに状態異常のポケモンは新たな状態異常にならない(上書きなし)</td><td>「既に何かの状態異常になっていると、それ以上他の状態異常にならなくなる(上書きもされない)。」</td><td><code>real_battle_simulator.html:4511-4512</code> <code>if (target.status &amp;&amp; target.status !== 'none') continue;</code></td><td>実装済み</td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-unk'><td>ただしねむるを使った場合は状態異常中でもねむりで上書きされる</td><td>「ただしねむるを使用した場合のみ状態異常中であってもねむりで上書きされる。」</td><td>ねむる(Rest)技の実装箇所を個別に特定できず(この項目のためだけの追加grepは実施していない)</td><td>未確認</td><td class='im-mid'>中</td><td>上記の「既に状態異常持ちなら付与しない」という一般ブロックを、ねむる技がどう回避しているかを確認できていない。もし専用の迂回コードが無ければ、ねむるは状態異常中に失敗してしまう可能性がある(要別途確認)</td></tr>
+<tr class='st-unk'><td>状態異常を予防するタイプ/特性でも、進化後や一時的な変化では既存の状態異常は治らない</td><td>「状態異常になったまま進化して…とくせいを持ったとしても、状態異常は回復しない。」</td><td>進化は本シミュレータの対象外機構(バトル中に進化しない)と考えられるため、この規則自体の適用可能性が低い</td><td>未確認/N/A</td><td class='im-low'>低</td><td></td></tr>
+<tr class='st-ok'><td>しんぴのまもり状態・ミストフィールド状態は状態異常を予防する</td><td>「場のしんぴのまもり状態、ミストフィールド状態」</td><td><code>4344-4351行</code>(しんぴのまもり)・フィールド宣言(<code>状態異常予防</code>)の両方で実装確認済み</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G3-8バインド状態json'><h3>8. バインド状態.json <span class='pagebadge'>実装済8 / 部分1 / 未実装3 / 未確認0 / 対象外0 (計12)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>継続ターン=4〜5ターン(第五世代以降)</td><td>「4~5ターン(第五世代以降)」</td><td><code>real_battle_simulator.html:4398-4402</code> <code>dB=[4,5]; bTurns = 4+Math.floor(Math.random()*2)</code></td><td>実装済み</td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-part'><td>毎ターンダメージ割合=1/8(通常。しめつけバンド所持時1/8→1/6等の変動あり)</td><td>「しめつけバンドを持つポケモンが使用した技でこの状態になった場合、毎ターン与えるダメージが増える。第六世代からは、1/8→1/6」(通常値は文中で暗黙に1/8=標準スリップ率、他ページのバインド説明文でも1/8明記)</td><td><code>real_battle_simulator.html:4402</code> <code>fraction: (ef.turn_end_damage != null ? ef.turn_end_damage : 0.125)</code> → 既定1/8。<code>grep "しめつけバンド"</code>/<code>"ねばりのかぎづめ"</code>は0件</td><td>部分実装</td><td class='im-mid'>中</td><td>基本の1/8は実装済み。<b>しめつけバンド(ダメージ1/8→1/6化)・ねばりのかぎづめ(継続ターンを7ターン固定化)の持ち物効果は未実装</b></td></tr>
+<tr class='st-no'><td>ねばりのかぎづめ所持者が使うと必ず7ターン継続(第五世代以降)</td><td>「ねばりのかぎづめを持つポケモンが使用した技でこの状態になった場合、…第五世代以降では必ず7ターン継続する。」</td><td>前述の通り<code>grep</code>0件</td><td><b>未実装</b></td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>すでにバインド状態のポケモンに新たなバインドは発生しない(重ねがけ不可)</td><td>「すでにバインド状態になっているポケモンに対して、新たにバインド状態が発生することはない。」</td><td><code>real_battle_simulator.html:4393</code> <code>if (target.slips &amp;&amp; target.slips.some(sl =&gt; sl.source === 'バインド')) continue;</code></td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>特性マジックガードはバインドの毎ターンダメージを受けない</td><td>「特性がマジックガードのポケモンは、ターン毎のダメージを受けない。」</td><td><code>real_battle_simulator.html:5309</code> <code>_magicGuard</code>判定でスリップ全般(バインド含む)を除外</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>ゴーストタイプは第六世代以降バインド状態でも交代・にげる・テレポートで逃げられる(ダメージは受ける)</td><td>「第六世代以降、ゴーストタイプのポケモンはバインド状態でも交代・にげる・テレポートで逃げることができる。バインド状態によるダメージは受ける。」</td><td><code>real_battle_simulator.html:6065-6066</code> <code>cannotSwitchReason</code>冒頭でゴーストタイプは<code>null</code>(封じ解除)を返す。ダメージ側(<code>slips</code>)は別管理のため引き続き適用される</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>きれいなぬけがら所持者はバインド状態でも交代できる(にげる/テレポートは不可)</td><td>「きれいなぬけがらを持つポケモンは、バインド状態でも交代を選ぶことができる…にげる・テレポートで逃げることはできない…バインド状態によるダメージは受ける。」</td><td><code>real_battle_simulator.html:6358-6366</code> <code>_shedShell</code>判定で交代封じを回避</td><td>実装済み</td><td class='im-low'>低</td><td>コメントは2026-06-19時点のもの。「にげる・テレポート不可」の区別まで再現されているかは、本シミュレータに「にげる」コマンド自体があるかに依存(トレーナー戦想定のため実質N/A)</td></tr>
+<tr class='st-no'><td>にげあし特性・けむりだま所持者はバインド状態でも「にげる・テレポート」はできる(交代は不可)</td><td>「特性がにげあしのポケモン、または持ち物けむりだまを持つポケモンは、バインド状態でもにげる・テレポートで逃げることができる…」</td><td><code>grep "にげあし"</code>/<code>"けむりだま"</code> 0件</td><td>未実装/N/A</td><td class='im-low'>低</td><td>本シミュレータがトレーナー戦専用(「にげる」コマンドなし)であれば規則自体が適用対象外の可能性が高い。要件次第で優先度は変わる</td></tr>
+<tr class='st-ok'><td>バインドはバトンタッチで引き継がれない</td><td>「バトンタッチで受け継がれない。」</td><td><code>4136-4159行</code>付近のバトンタッチ引き継ぎフィールド一覧(<code>ranks/confusion/きゅうしょアップ/みがわり/やどりぎのタネ/のろい</code>等)に<code>slips</code>(バインド)が含まれていないことをコード上確認</td><td>実装済み(消極的)</td><td class='im-mid'>中</td><td>引き継ぎ対象リストに明示的に含まれていない=引き継がれない、という消極的確認。積極的な除外テストは未実施</td></tr>
+<tr class='st-ok'><td>みがわりの成功でバインド状態は解除される(第三世代以降)</td><td>「みがわりが成功することでバインド状態は解除される。」</td><td><code>real_battle_simulator.html:4258-4259</code> みがわり成立時に<code>slips</code>から<code>バインド</code>/<code>やどりぎのタネ</code>を除去する専用コードあり</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>こうそくスピンの成功でバインドが解除される</td><td>「こうそくスピンの成功」</td><td><code>real_battle_simulator.html:4254-4259</code> 同上の解除ロジックが「拘束解除(キラースピン)」というコメントで共用されている</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-no'><td>バインドにする技を使ったポケモンがひんし・交代でいなくなると相手のバインドも消滅(第二世代以降。キョダイマックス技例外)</td><td>「バインドにする技を使ったポケモンがひんし・交代で場からいなくなる(第二世代以降)」「キョダイサジン・キョダイヒャッカにより発生したバインドのみ、使用者が場からいなくなっても消滅しない。」</td><td><code>grep</code>では該当する「使用者退場でバインド解除」のロジックが見当たらない(<code>slips</code>は<code>target</code>側の状態としてのみ管理され、<code>atk</code>=技使用者の生死に連動する記述が無い)</td><td>未確認/未実装の疑い</td><td class='im-mid'>中</td><td>1vs1中心の対戦シミュレータでは使用者自身が場を離れるケース(交代)が起きた場合の挙動が要検証。現状ロジック上、使用者の退場を契機にバインドを解除する処理は発見できなかった</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<div class='ctxbox'><h4>総括表(判定内訳の再集計は最終応答本文を参照)</h4></div>
+<hr class='gdiv'/>
+<h2 class='gtitle'>防御・場 <span class='gtag'>(G4)</span></h2>
+<div class='ctxbox'><h4>このグループの担当ファイル一覧</h4><p>- <code>reference/_authority_corpus/rules/まもる.json</code>
+- <code>reference/_authority_corpus/rules/みがわり.json</code>
+- <code>reference/_authority_corpus/rules/リフレクター.json</code>
+- <code>reference/_authority_corpus/rules/ひかりのかべ.json</code>
+- <code>reference/_authority_corpus/rules/フィールド.json</code>
+- <code>reference/_authority_corpus/rules/天気.json</code>
+- <code>reference/_authority_corpus/rules/ステルスロック.json</code></p>
+<p>エンジン: <code>real_battle_simulator.html</code>(9504行)+ わざデータ <code>pokechan_data.js</code>(WAZA_MAP・498技収録)。
+判定は grep でヒットさせるだけでなく該当関数を実際に開いて処理内容を確認した上で行った。</p>
+<p>---</p></div>
+<section class='rulepage' id='rp-G4-1まもるまもるjson'><h3>1. まもる (<code>まもる.json</code>) <span class='pagebadge'>実装済3 / 部分3 / 未実装3 / 未確認1 / 対象外1 (計11)</span></h3><p>権威コーパスは技ページであり、「== 技の仕様 ==」相当の記述は無く「== 技の仕様 ==」節が本文中盤に無い代わりに文末の「== 技の仕様 ==」ブロック(raw_text 2644行目〜)と「== 成功率 ==」節(raw_text 2698行目〜)に集約されている。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用(原文)</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-part'><td>連続使用で成功率が下がる(第六世代以降=1/3ずつ)</td><td>「第六世代以降 連続で使うごとに1/3になる。下限は 1/36=1/729 。」</td><td><code>real_battle_simulator.html:5895-5906</code>(および7197-7210の重複実装)。まもるの<code>battle_data.effects</code>に<code>consecutive_success_multiplier:0.3333</code>が宣言され、<code>Math.pow(_mult, atk.protectStreak)</code>で成功率を計算</td><td>部分実装</td><td class='im-mid'>中</td><td>1/3ずつ減衰する基本ロジックは正しいが、<b>下限1/729のキャップが未実装</b>。<code>Math.pow</code>にはキャップ処理が無く、7回目以降も際限なく確率が下がり続ける(実機は6回目以降 1/729 で頭打ち)。7連続以上まもるを撃つ極端なケースのみ影響</td></tr>
+<tr class='st-ok'><td>失敗した場合/非まもる技を使った場合は連続使用扱いがリセットされる</td><td>「失敗した場合や、連続で使用しなかった場合、交代を挟んだ場合は、次に使うまもるは連続使用とは見なされずに成功する。」</td><td><code>real_battle_simulator.html:5901-5902</code>(失敗時<code>protectStreak=0</code>)、<code>5907-5908</code>(まもる系以外の技で<code>protectStreak=0</code>)</td><td>実装済み</td><td class='im-high'>高</td><td>正しく実装</td></tr>
+<tr class='st-part'><td>まもる/こらえる/みきり/ニードルガード/キングシールド/トーチカ/ファストガードは連続使用カウントを共有する</td><td>「まもるの後にこらえる/みきり/ニードルガード/キングシールド/トーチカ/ブロッキング/ダイウォール/スレッドトラップ/かえんのまもりを続けて使った場合、連続で使用したことになりこれらの技の成功率は低くなる。」</td><td>各技の<code>battle_data.effects</code>が同じ<code>kind:'まもり'</code>を宣言し、<code>atk.protectStreak</code>という単一カウンタを共有(<code>real_battle_simulator.html:5892-5906</code>)</td><td>部分実装</td><td class='im-mid'>低〜中</td><td>まもる/こらえる/みきり/ニードルガード/キングシールド/トーチカ/ファストガードは共有カウンタで正しく連動。ただし<b>トリックガード・たたみがえし・スレッドトラップ・かえんのまもり・ブロッキング・ダイウォールはWAZA_MAPに技自体が存在しない</b>(498技のみ収録)。技が無い以上この相互作用も検証不能=未実装</td></tr>
+<tr class='st-part'><td>ワイドガード/ファストガードとの相互作用: 第六世代以降はまもる→ワイドガード/ファストガードは必ず成功、ワイドガード/ファストガード→まもるは成功率が下がる</td><td>「第六世代以降ではまもるの後にワイドガード/ファストガードを使っても必ず成功するが、ワイドガード/ファストガードの後にまもるを使うと成功率が低くなる。」</td><td>ワイドガードは<code>kind:'範囲まもり'</code>(<code>ワイドガード</code>のbattle_data)で、<code>_protEf</code>判定(<code>kind==='まもり'</code>のみ検出)に一致しない。<code>real_battle_simulator.html:5907-5908</code>により、ワイドガード使用時は「まもる系以外の技」として<code>atk.protectStreak</code>が<b>0にリセットされる</b></td><td>部分実装(バグ)</td><td class='im-low'>低</td><td>まもる→ワイドガードは成功する(結果的に正しい)。しかし<b>ワイドガード→まもるはリセットされてしまい、本来下がるべき次のまもるの成功率が100%に戻ってしまう</b>。ただし本simの「ダブルバトル」は範囲技威力×0.75のみの簡易フラグで実際の2体対戦を再現していないため、ワイドガードの戦術的価値自体が薄く実害は小さい</td></tr>
+<tr class='st-ok'><td>フェイント/ゴーストダイブ/シャドーダイブ/いじげんホール/いじげんラッシュ等の貫通技でまもる状態を解除された場合、第六世代以降は次のまもるは連続使用扱いにならない</td><td>「フェイント/ゴーストダイブ/シャドーダイブ/いじげんホール/いじげんラッシュによりまもる状態が取り除かれた次のターンにまもるを使った場合、(中略)第六世代以降は連続使用扱いにはならずに成功する。」</td><td><code>real_battle_simulator.html:3744-3747</code>(<code>shouldRemoveProtection</code>)で<code>def.protecting=null</code>にするのみで<code>protectStreak</code>には触れない</td><td>実装済み</td><td class='im-mid'>中</td><td>正しい(貫通されても連続カウントは維持されず、次のまもるは通常どおり評価される)</td></tr>
+<tr class='st-ok'><td>フェイント等の貫通技一覧(まもり貫通/まもり解除)</td><td>「まもるの後にこらえる…」の直前段落、および関連項目節の「まもると同じ効果のわざ」表</td><td><code>protectPierces</code>関数(<code>real_battle_simulator.html:3728-3741</code>)。データ側<code>bypasses</code>/<code>pierces_without_removing</code>/<code>daiwall_blocks</code>の3方式で貫通対象を宣言し読む</td><td>実装済み</td><td class='im-high'>高</td><td>コメントに「フェイント/ゴーストダイブ/シャドーダイブ/なみだめ/アロマセラピー/いじげんホール/いじげんラッシュ/ハイパードリル/パワフルエッジの11技が対象」と明記。設計は正しい</td></tr>
+<tr class='st-no'><td>Zワザ/ダイマックスわざを防ぎきれない場合、1/4ダメージを受けるがまもる状態自体は解除されない</td><td>「Zワザ/ダイマックスわざを防ぎきれなかった場合や、特性ふかしのこぶし、技ハイパードリル/パワフルエッジでまもる状態を無視されても、まもる状態が取り除かれるわけではない。」</td><td>まもるの<code>battle_data.effects</code>に<code>partial_bypass:[{by:'dynamax_move_attacking',damage_fraction:0.25},{by:'gen7_zmove_attacking',damage_fraction:0.25}]</code>が宣言されているが、<code>real_battle_simulator.html</code>全体で<code>partial_bypass</code>という文字列は1件もヒットせず<b>エンジンは未参照</b></td><td>未実装</td><td class='im-low'>低</td><td>ただし本simには<b>ダイマックス/Zワザの機構自体が実装されていない</b>(<code>dynamax</code>関連の状態変数や「ダイウォール」等の専用技もWAZA_MAPに無い)。機構が丸ごと対象外なので実質的な影響は無い(記録漏れというよりスコープ外)</td></tr>
+<tr class='st-unk'><td>相手のまもるをすりぬけ(特性)が無視する</td><td>明記なし(このページのblocks判定表には<code>まもる: ×</code>とだけ)</td><td><code>real_battle_simulator.html:3866-3870</code>(<code>piercesSub</code>とは別で、まもるブロック自体には反映されず) — すりぬけの「まもる貫通」は<code>applyProtectPunishers</code>側でなく<code>protectBlocks</code>呼び出し元(<code>5928</code>行等)で判定していない</td><td>未確認</td><td class='im-mid'>中</td><td>すりぬけ(Infiltrator)は本来みがわり・壁を貫通する特性で「まもる」自体を貫通する効果は元々ない(公式にもまもるをすりぬけで無視する仕様は無い)。今回のコード確認では<code>protectBlocks</code>呼び出し箇所にすりぬけの例外が見当たらないため、これは仕様どおり(まもるはすりぬけで無視されない)と判断できるが、断定はしない</td></tr>
+<tr class='st-no'><td>「ゆびをふる/ねこのてで選ばれない」「まねっこでコピーできない」</td><td>「・ゆびをふる/ねこのてで選ばれない。・まねっこでコピーできない。」</td><td><code>ゆびをふる</code>(メトロノーム)・<code>ねこのて</code>(コピーキャット)は<code>pokechan_data.js</code>のWAZA_MAPに<b>技自体が存在しない</b>。<code>まねっこ</code>(直前技模倣)は存在するが、まもる(<code>kind:'まもり'</code>)を除外する分岐は見当たらない</td><td>未実装/未確認</td><td class='im-low'>低</td><td>ゆびをふる・ねこのては技が未実装のため検証不能。まねっこがまもるをコピーできてしまうかは<code>real_battle_simulator.html:5716-5748</code>付近を要再確認(今回は時間の都合で未確定=正直に未確認とする)</td></tr>
+<tr class='st-na'><td>第二世代のみみがわり状態で使用すると必ず失敗</td><td>「第二世代のみ、みがわり状態のポケモンが使用した場合は必ず失敗する。」</td><td>(対象外)</td><td>対象外</td><td class='im-low'>低</td><td>第二世代限定の仕様。本simは現行世代基準のため対象外(まもる自体は<code>fails_if</code>にみがわり条件を持たない=現行世代として正しい)</td></tr>
+<tr class='st-no'><td>バトルの最後に使うと必ず失敗する(交代/優先度操作等の特殊状況)</td><td>「そのターンの最後にまもるを使った場合は必ず失敗する。」</td><td>該当ロジックなし</td><td>未実装</td><td class='im-low'>低</td><td>メニュー選択順・さいはい等の複合状況に依存する非常に稀なコーナーケース。シングル1vs1中心の本simでは発生条件(交代/さいはい/アンコール等の組み合わせ)が薄く、影響は小さい</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G4-2みがわりみがわりjson'><h3>2. みがわり (<code>みがわり.json</code>) <span class='pagebadge'>実装済6 / 部分0 / 未実装1 / 未確認1 / 対象外1 (計9)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用(原文)</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>最大HPの1/4を消費してみがわりを出す(小数点以下切り捨て)</td><td>「最大HPの1/4分だけ自分のHPを減らし、みがわりを作る(小数点以下切り捨て)。」</td><td><code>real_battle_simulator.html:5072</code>: <code>atk.subHp = Math.max(1, Math.floor(realStat(atk,'hp') * ((_cEf &amp;&amp; _cEf.fraction) ｜｜ 0.25)));</code>(HP消費側は<code>5977</code>付近のHPコストゲートで同じ<code>fraction:0.25</code>を<code>Math.floor</code>)</td><td>実装済み</td><td class='im-high'>高</td><td>消費量とみがわりHPが同一ロジックで揃っている</td></tr>
+<tr class='st-ok'><td>残りHPが1/4以下(切り捨て)なら技ごと失敗(PPは消費)</td><td>「残りHPが最大HPの1/4 (小数点以下切り捨て) 以下のポケモンがこの技を使おうとした場合、(中略)失敗する。・このときもPPは消費する。」</td><td><code>real_battle_simulator.html:3966-3989</code>: <code>atk.currentHp &lt;= cost</code>で失敗。PPは<code>consumePP</code>が呼び出し前段で先に消費される設計(コード内コメント<code>5665</code>,<code>6977</code>で明記)</td><td>実装済み</td><td class='im-high'>高</td><td>境界値(ちょうど1/4)も"以下"として正しく失敗扱い</td></tr>
+<tr class='st-ok'><td>すでにみがわり状態なら技ごと失敗(PPは消費)</td><td>「すでにみがわり状態のときにこの技を使用した場合、(中略)失敗する。・このときもPPは消費する。」</td><td><code>real_battle_simulator.html:4062-4066</code>: <code>atk.subHp &gt; 0</code>なら即失敗</td><td>実装済み</td><td class='im-high'>高</td><td>HP不足チェックより先にこのゲートが走る=「HP不足より既出のメッセージが優先」の実機仕様とも整合</td></tr>
+<tr class='st-ok'><td>特性いしあたま/マジックガードでもHPは消費する</td><td>「特性いしあたま/マジックガードのポケモンが使用したときもHPを消費する。」</td><td>HPコストゲート(<code>3966-3989</code>)に特性による例外分岐なし</td><td>実装済み</td><td class='im-mid'>中</td><td>マジックガードの間接ダメージ無効化ロジック(<code>2151</code>,<code>5258</code>)はみがわりのHPコスト計算とは別経路なので影響しない=正しい</td></tr>
+<tr class='st-ok'><td>みがわり状態の相手への追加効果(状態異常・能力ランク低下・ひるみ等)は無効。攻撃技は分身が肩代わりして受ける</td><td>みがわり (状態変化)参照(本ページでは示唆止まり) / 判定表「まもる: ×」等</td><td><code>real_battle_simulator.html:4089-4096</code>: <code>ef.target==='opponent'</code>かつ<code>piercesSub</code>でなければ<code>def.subAbsorbed</code>(攻撃技被弾時)または変化技かつ<code>subHp&gt;0</code>のとき効果をスキップ</td><td>実装済み</td><td class='im-high'>高</td><td>攻撃技・変化技どちらの経路も分身が防ぐ設計になっている</td></tr>
+<tr class='st-ok'><td>第六世代以降、音技はみがわりを貫通する</td><td>(本ページには明記なし。技個別ページの範囲)</td><td><code>real_battle_simulator.html:3865-3870</code>(<code>piercesSub</code>): <code>move.flags.sound === true</code>または<code>substitute_pierce</code>宣言で貫通、<code>すりぬけ</code>特性でも貫通</td><td>実装済み</td><td class='im-high'>高</td><td>コメントに出典(Bulbapedia "Substitute")明記。全国版くさぶえの宣言漏れをsound flagの一般則で補う設計まで確認</td></tr>
+<tr class='st-unk'><td>みがわりの使用でHPを消費したポケモンへのダメおしは第4世代のみ2倍・第5世代以降は2倍にならない</td><td>「みがわりの使用でHPを消費したポケモンに対するダメおしの威力は、第四世代では2倍になる。第五世代以降では2倍にならない。」</td><td><code>ダメおし</code>という技名/kindはWAZA_MAPで確認できず(このsimでの実装有無を確認できなかった)</td><td>未確認</td><td class='im-low'>低</td><td>該当技(ダメおし=Payback)が本体格闘わざとして実装されているか要再確認。現行世代基準では「2倍にならない」が正解のため、仮に未実装なら結果的に矛盾は生じない</td></tr>
+<tr class='st-no'><td>成功すると自分のバインド状態(巻きつく等)を解除できる(第三世代以降)</td><td>「第三世代以降では、この技が成功すると自分のバインド状態を解除できる。・技が失敗した場合はバインドを解除することもできない。」</td><td>みがわり設置ハンドラ(<code>real_battle_simulator.html:5068-5073</code>)は<code>atk.slips</code>(バインド状態の格納先。<code>6069</code>で<code>sl.source==='バインド'</code>として判定)を一切参照・削除していない</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>巻きつく系のわざでバインドされた状態からみがわりで抜け出す、という実戦で使われるテクニックがsim上で再現できない。こうそくスピン側には同種の解除ロジックが実装済み(<code>4670-4673</code>)なので、同じパターンをみがわり成功時にも追加すれば直せる規模の欠落</td></tr>
+<tr class='st-na'><td>スカイバトル/マックスレイドバトルでの制限</td><td>「スカイバトルでは使用できず(中略)。マックスレイドバトルで敵ダイマックスポケモンが使用すると失敗する。」</td><td>該当ゲーム機構(スカイバトル・マックスレイドバトル)自体が本simに存在しない</td><td>対象外</td><td class='im-low'>低</td><td>モード自体が範囲外</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G4-3リフレクターリフレクターjson'><h3>3. リフレクター (<code>リフレクター.json</code>) <span class='pagebadge'>実装済7 / 部分0 / 未実装1 / 未確認0 / 対象外0 (計8)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用(原文)</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>5ターンの間、味方の場をリフレクター状態にし物理技のダメージを減らす</td><td>「5ターンの間、味方の場をリフレクター状態にし、物理技で受けるダメージを減らす。」</td><td><code>real_battle_simulator.html:4778-4803</code>(<code>壁設置</code>kind処理)。<code>atk.reflect=true</code>、<code>atk.screenTurns.reflect=5</code>(既定)。ダメージ軽減は<code>2055-2066</code>で<code>isPhys</code>かつ<code>def.reflect</code>のとき<code>pokeRound(v,2048)</code>=0.5倍</td><td>実装済み</td><td class='im-high'>高</td><td>5ターン・物理限定という基本仕様は正しく実装</td></tr>
+<tr class='st-ok'><td>すでに場がリフレクター状態のときに使用したら失敗(ターン数もリフレッシュしない)</td><td>「すでに場がリフレクター状態のときに使用した場合は失敗する。」(第二世代以降＝場の状態)</td><td><code>real_battle_simulator.html:4788-4790</code>: <code>if (atk[flag]){ ...しかし うまく きまらなかった... }</code></td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-ok'><td>ひかりのねんど所持で8ターンに延長</td><td>「ひかりのねんどを持ったポケモンが使用した場合、8ターン継続する。」</td><td><code>real_battle_simulator.html:4793-4800</code>: <code>_scItem.key === 'hikari_no_nendo'</code>で<code>scDur=8</code></td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-ok'><td>交代やひんしでは効果が消えない(場の状態)</td><td>「発生する効果は場の状態であり、交代やひんしでは効果が消えない。」</td><td><code>atk.reflect</code>/<code>screenTurns</code>は個体(<code>sides.self</code>/<code>sides.opp</code>)側でなく「場」の状態として扱われ、交代処理(<code>5514</code>以降のバックアップ/リストア箇所、<code>7854</code>の交代時クリア対象リスト)を確認したところ<code>reflect</code>/<code>lightScreen</code>はクリア対象に含まれず、<code>stealthRock</code>等の設置技と同様に場側で保持され続ける</td><td>実装済み</td><td class='im-high'>高</td><td>交代してもリフレクターが消えない設計を確認</td></tr>
+<tr class='st-ok'><td>よこどりで横取り可能</td><td>判定表「よこどり: ○」</td><td><code>SNATCHABLE</code>セット(<code>real_battle_simulator.html:3362-3372</code>)に<code>'リフレクター'</code>を含む</td><td>実装済み</td><td class='im-low'>低</td><td>正しい</td></tr>
+<tr class='st-ok'><td>急所のダメージには壁の軽減が乗らない/壁を破壊する技(かわらわり等)には軽減が乗らない</td><td>コーパス本文に数値記載なし(判定表に急所欄はあるが「まもる」などの技側判定のみ)</td><td><code>real_battle_simulator.html:2059</code>: <code>if (!crit &amp;&amp; !breaksWall){ ...0.5倍... }</code></td><td>実装済み(コーパス範囲外の確認)</td><td class='im-mid'>中</td><td>権威引用はできない(本コーパスに急所×壁の相互作用は記載なし)が、一般に知られる仕様どおり実装されている</td></tr>
+<tr class='st-no'><td>ダブルバトルでは軽減率が2/3になる</td><td>コーパス本文に記載なし</td><td><code>2062</code>の<code>pokeRound(v,2048)</code>はダブル/シングルの区別なく常に0.5固定</td><td>未実装(コーパス範囲外)</td><td class='im-low'>低</td><td>本simの「ダブルバトル」フラグは範囲技威力0.75倍のみの簡易対応で実際の2体同時対戦を再現していないため、この項目自体の実戦影響は小さい</td></tr>
+<tr class='st-ok'><td>すりぬけ(特性)は壁を無視する</td><td>コーパス本文に記載なし</td><td><code>2058</code>: <code>sideAbility(atk) === 'すりぬけ'</code>で<code>breaksWall=true</code></td><td>実装済み(コーパス範囲外の確認)</td><td class='im-low'>低</td><td>阿部さん指定の観点で「みやぶるで無視される」とあったが、実際に壁を無視する特性は「みやぶる(かたやぶり)」ではなく「すりぬけ(Infiltrator)」。エンジンは正しくすりぬけ側に実装しており、かたやぶり(<code>_BREAKER</code>定数)には壁貫通の記載が無い=用語上の食い違いを整理した上で「実装済み」と判断</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G4-4ひかりのかべひかりのかべjson'><h3>4. ひかりのかべ (<code>ひかりのかべ.json</code>) <span class='pagebadge'>実装済6 / 部分0 / 未実装0 / 未確認0 / 対象外0 (計6)</span></h3><p>リフレクターと構造が完全に対をなす技のため、同じ箇所のコードで一括処理されている。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用(原文)</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>5ターンの間、味方の場をひかりのかべ状態にし特殊技のダメージを減らす</td><td>「5ターンの間、味方の場をひかりのかべ状態にし、特殊技で受けるダメージを減らす。」</td><td><code>real_battle_simulator.html:2060-2065</code>: <code>!isPhys</code>かつ<code>def.lightScreen</code>のとき0.5倍。壁設置ロジックはリフレクターと共通(<code>4778-4803</code>)</td><td>実装済み</td><td class='im-high'>高</td><td>正しい</td></tr>
+<tr class='st-ok'><td>すでに場がひかりのかべ状態のときに使用したら失敗</td><td>「すでに場がひかりのかべ状態のときに使用した場合は失敗する。」</td><td>同上(<code>4788-4790</code>、共通ロジック)</td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-ok'><td>ひかりのねんど所持で8ターンに延長</td><td>「ひかりのねんどを持ったポケモンが使用した場合、8ターン継続する。」</td><td>同上(<code>4793-4800</code>、共通ロジック)</td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-ok'><td>よこどりで横取り可能</td><td>判定表「よこどり: ○」</td><td><code>SNATCHABLE</code>セットに<code>'ひかりのかべ'</code>を含む(<code>3362-3372</code>)</td><td>実装済み</td><td class='im-low'>低</td><td>正しい</td></tr>
+<tr class='st-ok'><td>急所/壁破壊技には軽減が乗らない、すりぬけは無視</td><td>コーパス範囲外</td><td>リフレクターと同一ロジック(<code>2059</code>,<code>2058</code>)</td><td>実装済み(コーパス範囲外)</td><td class='im-mid'>中</td><td>同上</td></tr>
+<tr class='st-ok'><td>オーロラベールとの重複軽減は1回分のみ</td><td>コーパス本文に記載なし(オーロラベールは別ページ)</td><td><code>real_battle_simulator.html:2060</code>: <code>def.lightScreen ｜｜ def.auroraVeil</code>のOR判定で、両方成立していても<code>pokeRound</code>は1回しか呼ばれない</td><td>実装済み(コーパス範囲外)</td><td class='im-low'>低</td><td>実装コードのコメント(<code>2055</code>)にも「重なっても軽減は1回分」と明記されている</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G4-5フィールドフィールドjson'><h3>5. フィールド (<code>フィールド.json</code>) <span class='pagebadge'>実装済10 / 部分0 / 未実装1 / 未確認1 / 対象外0 (計12)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用(原文)</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>地面にいるポケモンにしか効果が及ばない(ほとんどのフィールド効果)</td><td>「特徴的なのは、フィールドにより発動する効果はほとんどが地面にいるポケモンにしか働かない点である。」</td><td>威力補正(<code>real_battle_simulator.html:1566</code>)・状態異常予防(<code>3840-3841</code>,<code>4334-4338</code>)等いずれも<code>isGrounded(...)</code>判定を通す</td><td>実装済み</td><td class='im-high'>高</td><td>正しい</td></tr>
+<tr class='st-ok'><td>フィールドは複数種類が両立しない・後から張ると上書きされる</td><td>「フィールドには複数の種類があるが、それらは両立することはできず、フィールドが張られている状態で新たに別のフィールドを張ると、前のフィールドは上書きされる形で消える。」</td><td><code>real_battle_simulator.html:4814-4824</code>(<code>フィールド展開</code>kind): <code>env.field = f</code>で単一の状態変数を直接上書き</td><td>実装済み</td><td class='im-high'>高</td><td>データ構造上そもそも1つしか持てないため自然に満たされている</td></tr>
+<tr class='st-ok'><td>すでに同じフィールドの場合は不発(ターンもリフレッシュしない)</td><td>「フィールドが張られている状態では同じフィールドにする技や特性は不発し、持続ターンを書き換えることはできない。」</td><td><code>4818-4820</code>: <code>if (env.field === f){ ...しかし うまく きまらなかった... }</code></td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-ok'><td>天気とは両立できる(フィールドと天気は別カテゴリ)</td><td>「天気と似た概念だが、天気やその他の場の状態とは両立できる。」</td><td><code>env.field</code>と<code>env.weather</code>は独立した変数で、相互排他の判定は存在しない</td><td>実装済み</td><td class='im-mid'>中</td><td>正しい(同時に「すなあらし」+「エレキフィールド」等が成立する)</td></tr>
+<tr class='st-ok'><td>エレキ/グラス/サイコフィールドの技威力補正は現行世代で1.3倍(旧世代1.5倍から変更)</td><td>「・↑ 1.0 1.1 1.2 第七世代まで、エレキフィールド・グラスフィールド・サイコフィールドの威力補正率は1.5倍だった。」</td><td>各フィールド技の<code>battle_data.effects</code>に<code>multiplier:1.3</code>と明記(<code>ext.過去作の仕様</code>に「第7世代までは1.5倍、第8世代からは1.3倍」との自己ドキュメントあり)</td><td>実装済み</td><td class='im-high'>高</td><td>現行世代基準として正しい数値</td></tr>
+<tr class='st-ok'><td>グラスフィールドはじしん/じならし/マグニチュードのダメージを0.5倍にする</td><td>「受けるじしん・じならし・マグニチュードの威力が0.5倍になる。」</td><td>グラスフィールドの<code>battle_data.effects</code>に<code>moves:['じしん','じならし','マグニチュード'], multiplier:0.5, condition:{type:'target_grounded'}</code>。エンジン側<code>1566-1568</code>で<code>fieldMul</code>として読む</td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-ok'><td>グラスフィールドは毎ターン終了時に最大HPの1/16回復(地面にいて&amp;ひこう/ふゆう除外)</td><td>「毎ターン終了時、最大HPの1/16を回復する。」</td><td><code>7327-7331</code>: <code>fieldRules().find(r=&gt;r.kind==='回復'&amp;&amp;r.phase==='turn_end')</code>かつ<code>isGrounded(st)</code></td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-ok'><td>ミストフィールドは状態異常・こんらん(第七世代以降)を防ぐ</td><td>「状態異常にならなくなる。こんらん状態にならなくなる(第七世代以降)。」</td><td>状態異常本体は<code>3997-3999</code>,<code>4493-4494</code>。こんらんは<code>4333-4338</code>で明示的に別扱いしつつ同じ<code>状態異常予防</code>(values無指定=全部)を参照してブロック</td><td>実装済み</td><td class='im-high'>高</td><td>コード中コメントに「ミストフィールド(状態異常予防・values指定なし=全部)は こんらんも防ぐ」と明記され、現行世代仕様と一致</td></tr>
+<tr class='st-ok'><td>サイコフィールドは地面にいる味方への優先度+1以上の技を防ぐ(相手からのみ)</td><td>「敵から受ける優先度+1以上の技を防ぐ。」</td><td><code>2578-2579</code>: <code>isGrounded(def) &amp;&amp; movePriority(...)&gt;0 &amp;&amp; fieldRules().some(r=&gt;r.kind==='優先技無効')</code>。データ側<code>source:'opponent'</code>で相手からのみを明示</td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-ok'><td>エレキフィールドは地面にいるポケモンをねむり・ねむけにしない(すでに眠っているものは起こさない)</td><td>(フィールド一覧の該当行、および概要)</td><td>エレキフィールドの<code>状態異常予防</code>は<code>values:['ねむり','ねむけ']</code>限定で宣言、既存の眠りは対象外(付与ブロックのみ)</td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-no'><td>フィールドの持続を延ばす道具「グランドコート」がある</td><td>「・フィールドを延長させるもちもの ・グランドコート」</td><td><code>items_database.js</code>・<code>real_battle_simulator.html</code>のどちらにも<code>グランドコート</code>/<code>terrain_extender</code>関連コードが一切ない(<code>items_db_all.html</code>という閲覧用コンテンツページには項目が載っているだけ)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>天気の「あついいわ」等(<code>4833-4845</code>)や壁の「ひかりのねんど」(<code>4793-4800</code>)には延長ロジックがあるのに、フィールドだけ対応する道具の延長効果がsim側に実装されていない。データとしては存在が知られているのに機能していない=見落とされやすい抜け</td></tr>
+<tr class='st-unk'><td>シード系アイテム(エレキシード等)によるランク上昇</td><td>「・フィールドが発生すると発動するもちもの ・エレキシード(エレキフィールド): ぼうぎょが1段階上がる。」等</td><td>各フィールド技の<code>battle_data.effects</code>に<code>能力ランク変化</code>(<code>condition:{type:'holds_item',value:'エレキシード'}</code>等)が宣言されている</td><td>未確認</td><td class='im-mid'>中</td><td>データ宣言は存在するが、エンジン側でこの<code>holds_item</code>条件が実行時に読まれているかは今回のgrep範囲では確定できなかった(<code>holding_item</code>/<code>holds_item</code>表記ゆれもあり要再確認)。自信がないため「未確認」とする</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G4-6天気天気json'><h3>6. 天気 (<code>天気.json</code>) <span class='pagebadge'>実装済6 / 部分0 / 未実装1 / 未確認0 / 対象外0 (計7)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用(原文)</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>にほんばれ: ほのお技1.5倍・みず技0.5倍・こおり状態にならない</td><td>「ほのおタイプの技で受けるダメージが1.5倍になる。みずタイプの技で受けるダメージが0.5倍になる。こおり状態にならなくなる。」</td><td>ダメージ倍率は<code>real_battle_simulator.html:1841-1843</code>にハードコード(技個別データでなく天候×タイプの一律ルール)。こおり無効は<code>4469</code>: <code>code==='freeze' &amp;&amp; env.weather==='sunny'</code>で状態付与自体をスキップ</td><td>実装済み</td><td class='im-high'>高</td><td>正しい</td></tr>
+<tr class='st-ok'><td>あめ: みず技1.5倍・ほのお技0.5倍</td><td>「みずタイプの技で受けるダメージが1.5倍になる。ほのおタイプの技で受けるダメージが0.5倍になる。」</td><td><code>1844-1846</code></td><td>実装済み</td><td class='im-high'>高</td><td>正しい</td></tr>
+<tr class='st-ok'><td>すなあらし: いわ/じめん/はがね以外に毎ターン1/16ダメージ・いわタイプのとくぼう1.5倍(第四世代以降)</td><td>「毎ターン終了時、いわ、じめん、はがねタイプ以外のポケモンは最大HPの1/16分のダメージを受ける (第二世代のみ1/8)。いわタイプのポケモンのとくぼうが1.5倍になる (第四世代以降)。」</td><td>継続ダメージ: すなあらし技の<code>battle_data.effects</code>に<code>全体継続ダメージ, fraction:0.0625, condition:not_type_in[いわ,じめん,はがね]</code>。特防1.5倍相当のダメージ軽減: <code>real_battle_simulator.html:1848-1851</code>(<code>defTypes.includes('いわ')</code>かつ特殊技のとき<code>×2/3</code>=とくぼう1.5倍と数学的に等価)</td><td>実装済み</td><td class='im-high'>高</td><td>正しい(第二世代の1/8は現行世代基準では対象外でよい)</td></tr>
+<tr class='st-ok'><td>ゆき: こおりタイプのぼうぎょ1.5倍(第九世代・あられの後継)</td><td>「こおりタイプのポケモンのぼうぎょが1.5倍になる。」/「あられが無くなり、代わりにゆきが登場した。」</td><td><code>real_battle_simulator.html:1852-1854</code>: <code>defTypes.includes('こおり')</code>かつ物理技のとき<code>×2/3</code>(ぼうぎょ1.5倍と等価)。<code>あられ</code>(hail)の文字列は本体コード中に一切存在しない</td><td>実装済み</td><td class='im-high'>高</td><td>「あられ廃止・ゆきに統一」という第九世代仕様に合わせて実装されており、旧あられの継続ダメージ仕様(こおり以外1/16)が誤って残っていないことも確認</td></tr>
+<tr class='st-ok'><td>現状と同じ天気にする技/特性は不発(ターン延長されない)</td><td>「現状と同じてんきにするわざやとくせいでターンが延びることはなく、わざが失敗する、あるいはとくせいが発動しない。」</td><td><code>real_battle_simulator.html:4829-4831</code>: <code>if (env.weather === w){ ...しかし うまく きまらなかった... }</code></td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-ok'><td>てんきを延長する道具(あついいわ/しめったいわ/さらさらいわ/つめたいいわ)で8ターン</td><td>「・てんきを延長させるもちもの ・あついいわ (にほんばれ)…」</td><td><code>real_battle_simulator.html:4833-4845</code>: 天候ごとに対応する道具キーを判定して<code>dur=8</code></td><td>実装済み</td><td class='im-mid'>中</td><td>正しい</td></tr>
+<tr class='st-no'><td>ぼうじんゴーグルですなあらし/あられ由来ダメージを防ぐ</td><td>「・てんきによるダメージを防ぐもちもの ・ぼうじんゴーグル (すなあらし・あられ)」</td><td>すなあらしの継続ダメージ除外リスト(<code>real_battle_simulator.html:5286-5296</code>)は特性ぼうじん(Overcoat)のみを除外しており、道具「ぼうじんゴーグル」はコード内コメントで「ぼうじんゴーグルはDB未収録アイテムのため未実装のまま(捏造禁止・実装は別途アイテム追加後)」と明記されている</td><td><b>未実装(自己申告あり)</b></td><td class='im-low'>低</td><td>実装者自身が未実装であることをコメントに残しており、意図的な保留。特性ぼうじん(Overcoat)自体は正しく除外に含まれている</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G4-7ステルスロックステルスロックjson'><h3>7. ステルスロック (<code>ステルスロック.json</code>) <span class='pagebadge'>実装済6 / 部分0 / 未実装0 / 未確認0 / 対象外1 (計7)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用(原文)</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>相手の場をステルスロック状態にし、交代で出てきたポケモンに「最大HPの1/8×いわタイプに対する相性」ダメージ</td><td>「相手の場をステルスロック状態にする。相手が交代するたびに、出てきたポケモンに「最大HPの1/8×いわに対する相性」分のダメージを与える。」</td><td><code>stealthRockMult</code>関数(<code>real_battle_simulator.html:2170-2179</code>)がタイプ相性表から倍率を計算し、<code>applyEntryHazards</code>(<code>6294-6300</code>)で<code>Math.floor(realStat(st,'hp') * stealthRockMult(types) / 8)</code>を交代時に適用</td><td>実装済み</td><td class='im-high'>高</td><td>式(1/8×相性倍率)が正確に一致</td></tr>
+<tr class='st-ok'><td>いわタイプ4倍弱点は最大HPの1/2ダメージ</td><td>「いわタイプを4倍弱点として持っているポケモンはステルスロックで最大HPの1/2 (小数点以下は切り捨て) のダメージを受ける。」</td><td><code>stealthRockMult</code>はタイプ相性表を素直に掛け合わせるだけで上限を設けていないため、4倍弱点なら<code>4/8=0.5</code>=1/2ダメージになる</td><td>実装済み</td><td class='im-high'>高</td><td>正しい</td></tr>
+<tr class='st-ok'><td>複数回重ならない(1回設置すれば十分)</td><td>相手の場ページに明記なし。判定表・設置技一般則(まきびし/どくびしとの対比)から示唆</td><td><code>real_battle_simulator.html:1138</code>で<code>stealthRock: false</code>という単一boolean(層数管理はまきびし/どくびしのみ<code>spikesLayers</code>/<code>toxicSpikesLayers</code>という数値)。<code>4203-4204</code>: <code>if (ef.value==='ステルスロック' &amp;&amp; !fieldSt.stealthRock)</code>で既存時は設置自体が起きない(=失敗として無視)</td><td>実装済み</td><td class='im-mid'>中</td><td>正しい(重複設置不可)</td></tr>
+<tr class='st-ok'><td>飛行タイプ/ふゆう等でも無効化されない(まきびし等と異なりステルスロックは非接地でも効く)</td><td>(このページには明記なし。まきびし/どくびしのページとの対比が前提知識)</td><td><code>applyEntryHazards</code>内、<code>st.stealthRock</code>のダメージ計算(<code>6294-6300</code>)は<code>isGrounded</code>判定を通さず常時発動。一方<code>spikesLayers</code>(まきびし)・<code>toxicSpikesLayers</code>(どくびし)・<code>stickyWeb</code>は<code>isGrounded(st)</code>必須(<code>6302</code>,<code>6309</code>,<code>6318</code>)</td><td>実装済み</td><td class='im-high'>高</td><td>ステルスロックだけ接地判定なしで正しく区別されている</td></tr>
+<tr class='st-ok'><td>マジックコートに対しては第五世代以降跳ね返される</td><td>「・マジックコート: ×（第四世代まで）→○（第五世代以降）」</td><td>マジックミラー/マジックコートの跳ね返し判定(<code>real_battle_simulator.html:5862-5871</code>)は<code>mv.target</code>が<code>'相手の場'</code>を含む変化技全般を対象にしており、ステルスロックの<code>target</code>も<code>'相手の場'</code>(コーパス「範囲」欄=「相手の場」)なので該当</td><td>実装済み</td><td class='im-mid'>中</td><td>現行世代(第五世代以降)基準として正しい</td></tr>
+<tr class='st-ok'><td>よこどり不可</td><td>「・よこどり: ×」</td><td><code>SNATCHABLE</code>セット(<code>3362-3372</code>)に<code>'ステルスロック'</code>は含まれない</td><td>実装済み</td><td class='im-low'>低</td><td>正しい(リストに無いことを確認=横取り不可)</td></tr>
+<tr class='st-na'><td>ダブルバトルなどで片方だけマジックコート状態でも設置を防げない/トリプルバトルで自分が端でも相手全ての場に設置できる</td><td>「・ダブルバトルなどで、1体のポケモンのみがマジックコート状態だったとしても、もう片方にステルスロックを残すことはできない。・トリプルバトルで自分が端にいても、相手のすべての場に設置できる。」</td><td>本simは実質1vs1(相手の場は単一の<code>stealthRock</code>フラグ)であり、ダブル/トリプルの複数体構成自体が無い</td><td>対象外</td><td class='im-low'>低</td><td>マルチバトル構成が無いため検証不能・対象外</td></tr>
+</tbody></table></div></section>
+<hr class='gdiv'/>
+<h2 class='gtitle'>技の仕組み <span class='gtag'>(G5)</span></h2>
+<div class='ctxbox'><h4>このグループの担当ファイル一覧</h4><p>- <code>reference/_authority_corpus/rules/技.json</code>
+- <code>reference/_authority_corpus/rules/変化技.json</code>
+- <code>reference/_authority_corpus/rules/連続攻撃.json</code>
+- <code>reference/_authority_corpus/rules/直接攻撃.json</code>
+- <code>reference/_authority_corpus/rules/ため技.json</code>
+- <code>reference/_authority_corpus/rules/ちょうはつ.json</code>
+- <code>reference/_authority_corpus/rules/アンコール.json</code>
+- <code>reference/_authority_corpus/rules/ランク補正.json</code></p>
+<p>エンジン: <code>real_battle_simulator.html</code>(9504行)。関数名・行番号は2026-07-28時点。</p>
+<p>---</p></div>
+<section class='rulepage' id='rp-G5-1技json'><h3>1. 技.json <span class='pagebadge'>実装済5 / 部分1 / 未実装0 / 未確認0 / 対象外0 (計6)</span></h3><p>このページはほぼ「わざを覚える方法」等の育成メタ情報で、バトル規則としてチェックできるのは概要節の数行のみ。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>3分類(ぶつり/とくしゅ/へんか)。ダメージ計算に使うステータスが異なる</td><td>「ぶつりわざ、とくしゅわざ、へんかわざの3つの分類がある。ぶつりわざととくしゅわざはどちらも攻撃わざであるが、ダメージ計算に使うステータスが異なる。」</td><td><code>move.category</code>で分岐(calcDamage全体)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-ok'><td>タイプ一致で威力上昇(タイプ一致ボーナス)</td><td>「攻撃わざと覚えているポケモンのタイプが一致した場合ダメージが上昇する。これをタイプ一致ボーナスと呼ぶ。」</td><td><code>real_battle_simulator.html:2035-2040</code>(STAB×1.5、てきおうりょく×2.0)</td><td>実装済み</td><td class='im-high'>高</td><td>てきおうりょく(Adaptability)対応込み</td></tr>
+<tr class='st-ok'><td>PPは技を1回使うと1減る</td><td>「技を1回使うとPPが1減る」</td><td><code>consumePP()</code> L6556</td><td>実装済み</td><td class='im-mid'>中</td><td>プレッシャーで2消費も対応(L6561)</td></tr>
+<tr class='st-ok'><td>覚えているわざが全て使えない→わるあがき</td><td>「覚えているわざが全て使えないポケモンに「たたかう」を指示するとわるあがきを使う。」</td><td><code>struggleIfNoPP()</code> L6566</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>優先度: 高い技が先、同じなら素早さ順</td><td>「優先度の高いわざは先に、逆に優先度の低いわざは後に出される。同じ優先度のわざは、すばやさが高い順に使われる。」</td><td><code>movePriority()</code> 使用箇所多数(例 L2280-2281)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-part'><td>直接攻撃か否かが技・特性・持ち物発動に影響</td><td>「直接攻撃か否か…直接相手に触れたかどうかで、わざ・特性・持ち物の発動に影響することがある。」</td><td>§4「直接攻撃.json」参照</td><td>部分実装</td><td class='im-high'>高</td><td>詳細は4節</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G5-2変化技json'><h3>2. 変化技.json <span class='pagebadge'>実装済4 / 部分2 / 未実装5 / 未確認1 / 対象外0 (計12)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>いたずらごころ=全ての変化技の優先度+1</td><td>「全ての変化技の優先度に+1して使用する。」</td><td><code>real_battle_simulator.html:2280-2281</code>(<code>if (move.category==='変化' &amp;&amp; sideAbility(st)==='いたずらごころ') base += 1;</code>)</td><td>実装済み</td><td class='im-high'>高</td><td>第7世代以降のあく無効も<code>pranksterBlocked()</code> L6613で実装済み</td></tr>
+<tr class='st-part'><td>マジックミラー=常時マジックコート状態で変化技を跳ね返す(一部は返せない)</td><td>「常時マジックコート状態になり受けた変化技を跳ね返す。一部の変化技は返せない(当該記事参照)。」</td><td><code>real_battle_simulator.html:5862-5871</code></td><td>部分実装</td><td class='im-mid'>中</td><td>跳ね返せない技の除外リストが無く、対象(相手にtarget)の変化技は無条件で跳ね返る実装。「一部返せない」個別リストは未確認(コーパスに具体名の記載なし)</td></tr>
+<tr class='st-no'><td>ミラクルスキン=受ける変化技の命中率を50%にする</td><td>「受ける変化技の命中率を50%にする。」</td><td>該当コード無し(grep 0件)</td><td>未実装</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-no'><td>おうごんのからだ=受ける変化技を無効化する</td><td>「受ける変化技を無効化する。」</td><td>該当コード無し(grep 0件)</td><td>未実装</td><td class='im-mid'>中</td><td>Gen9の実戦的なタンク特性。競技的には無視できない</td></tr>
+<tr class='st-no'><td>きんしのちから=変化技を使うときだけ行動順が遅くなるが、相手の特性を無視できる</td><td>「変化技を使うときだけ行動順が遅くなるが、相手の特性を無視できる。」</td><td>該当コード無し(grep 0件)</td><td>未実装</td><td class='im-mid'>低〜中</td><td>Gen9新特性・採用率は限定的</td></tr>
+<tr class='st-ok'><td>とつげきチョッキ=変化技を選べなくなる代わりにとくぼう1.5倍</td><td>「変化技を選べなくなるかわりにとくぼうが1.5倍になる。」</td><td><code>real_battle_simulator.html:1808-1815</code>(とくぼう1.5倍)、<code>5794-5796</code>/<code>7102-7104</code>(変化技を出せない)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-ok'><td>ちょうはつ=変化技が出せなくなる</td><td>「変化技が出せなくなる。」</td><td>§6参照</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-part'><td>マジックコート=受けた変化技を跳ね返す(一部除く)</td><td>「受けた変化技を跳ね返す。一部の変化技は返せない(当該記事参照)。」</td><td><code>def.magicCoatTurn</code>がマジックミラーと同じ分岐に相乗り(L5866)</td><td>部分実装</td><td class='im-mid'>中</td><td>マジックミラーと同じく除外リスト無し</td></tr>
+<tr class='st-unk'><td>みがわり=ほとんどの変化技を受けなくなる(一部除く)</td><td>「ほとんどの変化技を受けなくなる(当該記事参照)。」</td><td><code>piercesSub()</code>・各所の<code>_pierce</code>判定</td><td>未確認</td><td class='im-mid'>中</td><td>「まもり貫通」相当の技別リストは<code>protectPierces</code>と同系だが、みがわり貫通の変化技個別リストをこのコーパスからは裏取りできず。既存実装は一部技(なみだめ等)のみ確認</td></tr>
+<tr class='st-no'><td>トリックガード=味方全体を他人の変化技から守る</td><td>「他のポケモンが使う変化技から味方全体を守る。」</td><td>該当コード無し(grep 0件)</td><td>未実装</td><td class='im-low'>低</td><td>ダブル専用技でシングル主体のこのsimでは影響小</td></tr>
+<tr class='st-ok'><td>よこどり=使用者を対象とする変化技を横取りする</td><td>「他のポケモンが使おうとした使用者を対象とする変化技を奪って自分に使う。」</td><td><code>real_battle_simulator.html:5874-5886</code>(<code>SNATCHABLE</code>セット判定)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-no'><td>たんじゅん(ランク変動値2倍。ランク補正.jsonにも記載重複)</td><td>ランク補正.json「ランク変動値を2倍にする・たんじゅん」</td><td>該当コード無し(grep 0件)</td><td>未実装</td><td class='im-mid'>中</td><td>§8にも記載(重複掲載)</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G5-3連続攻撃json最重要点検対象'><h3>3. 連続攻撃.json 【最重要点検対象】 <span class='pagebadge'>実装済11 / 部分3 / 未実装0 / 未確認3 / 対象外0 (計17)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>第五世代以降、2-5回技は命中判定を1回だけ行い、当たれば必ず決定した回数当たる</td><td>「特性スキルリンクを持つポケモンは…第五世代以降は3.の技でも命中判定を1度しか行わず、1回目が当たれば必ず最大回数当たる。」/「命中・回数の決定…最大○回攻撃の連続攻撃技を除くと、命中判定は1回しか行われず」</td><td><code>phaseHitCheck()</code>が<code>runSingleAttack</code>側で技全体につき1回だけ呼ばれ(L5920)、その後<code>phaseDealDamage</code>のループ(L2975-3046)で<code>hitCount</code>分ダメージを与える</td><td>実装済み</td><td class='im-high'>高</td><td>通常の2-5回技(おうふくビンタ等)は正しく「1回判定→複数回ヒット」</td></tr>
+<tr class='st-ok'><td>トリプルキック/トリプルアクセル/ネズミざんは各攻撃ごとに命中判定し、外れたら中断</td><td>「各攻撃ごとに命中判定を行い、外れるか最大回数になるまで攻撃するもの。」</td><td><code>_stopOnMiss</code>分岐(L2972, 2977-2980)で<code>h&gt;0</code>のたびに<code>phaseHitCheck</code>を再実行</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-part'><td>スキルリンク持ちがトリプルキック/トリプルアクセル/ネズミざんを使うと、命中判定は1回のみで1回目が当たれば必ず最大回数当たる</td><td>「特性スキルリンクを持つポケモンは…第五世代以降は3.の技でも命中判定を1度しか行わず、1回目が当たれば必ず最大回数当たる。」</td><td><code>hitCount</code>は<code>multiEf.max_hits</code>に正しく設定される(L2934-2935)が、<b><code>_stopOnMiss</code>フラグは<code>!_loadedDice</code>しか見ておらずスキルリンクを考慮しない</b>(L2972: <code>const _stopOnMiss = multiEf &amp;&amp; multiEf.stop_on_miss &amp;&amp; !_loadedDice;</code>)。そのためループ内<code>h&gt;0</code>の毎ヒットで<code>phaseHitCheck</code>が再度呼ばれ、2発目以降が外れると連続攻撃が途中で止まる</td><td><b>部分実装(実バグ)</b></td><td class='im-mid'>中</td><td>スキルリンク+ネズミざん/トリプルキック/トリプルアクセルの組み合わせでのみ発現。いかさまダイスは<code>_loadedDice</code>で正しく除外されているのに、スキルリンクだけ同様の除外が抜けている非対称な実装</td></tr>
+<tr class='st-part'><td>急所判定は各攻撃ごとに個別に行われる(連続技の方が1発でも急所に当たる確率が上がる)</td><td>「急所に当たるかどうかも同様に各攻撃ごとに行われる。試行回数を稼ぐ分だけ、連続技が1発でも急所に当たる確率は単発技が急所に当たる確率より高い。」</td><td><code>critRoll</code>は技1回につき1回だけ判定され(L2804-2828)、ループ内で全ヒットに同じ<code>critRoll</code>を使い回す(L2857-3010)</td><td><b>部分実装(意図的な近似)</b></td><td class='im-mid'>中</td><td>コード自体に「②連続攻撃は実機では1発ごとに判定だが、simは技1回につき1判定」と明記されており、既知の近似。全弾急所/全弾非急所のどちらかに揃ってしまい、実際の「連続技のほうが急所が出やすい」確率的優位が再現されない</td></tr>
+<tr class='st-unk'><td>相性判定(タイプ相性)は最初の1回のみ、以後は変わらない(第五世代以降)</td><td>「相性判定は最初に1回のみ行う。攻撃の途中で相性が変わるような効果が発動したとしても、最後まで相性が変化することはない。」</td><td><code>calcDamage()</code>内<code>sideTypes(def)</code>(L1578)は呼び出しごとに再評価。2発目以降(<code>h&gt;0</code>)は<code>calcDamage</code>を再度呼ぶ実装(L3003-3011)なので、被弾側のタイプが技の途中で変化する特殊ケース(へんしょく/スキン系特性等)では2発目以降が新しいタイプで再判定されうる</td><td>未確認</td><td class='im-low'>低</td><td>通常時(タイプが試合中に変わらない)は無害。ただしヘビにらみ以外でタイプが動的に変わるケースは稀=実戦で顕在化しにくい低頻度エッジケース</td></tr>
+<tr class='st-unk'><td>タイプ一致ボーナスは1発目の影響が最後まで残る(スキン系特性で技タイプが変わっても)</td><td>「技のタイプ自体も変化せず、タイプ一致ボーナスは1発目の影響が最後まで残る。」</td><td>上と同様、<code>h&gt;0</code>は<code>calcDamage</code>を再呼び出しするため、技タイプが変わるスキン系特性(フェザーダンス等)は都度再評価される可能性</td><td>未確認</td><td class='im-low'>低</td><td>同上。低頻度</td></tr>
+<tr class='st-ok'><td>最大3回攻撃技(トリプルキック等)は命中するたびに威力が上がる</td><td>「最大3回の技: 命中するたびに1発分の威力が上がる。」</td><td><code>power_per_hit</code>(<code>_pph</code>)を使った再計算(L2973, 3005-3006)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>すいりゅうれんだは必ず急所に当たる</td><td>(一覧表: すいりゅうれんだ「必ず急所に当たる」)</td><td><code>must_crit</code>判定(L2824: <code>!(move.battle_data &amp;&amp; move.battle_data.must_crit)</code>)</td><td>実装済み</td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-ok'><td>いかさまダイス=2-5回技は4回以上、stop_on_miss技は命中判定1回化+4〜最大均等</td><td>「持ち物いかさまダイスを持つポケモンは、2.の技による攻撃回数が必ず4回以上になり、3.の技でも命中判定を1度しか行わず」</td><td><code>_loadedDice</code>分岐群(L2922, 2927-2933, 2943-2949)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>ふくろだたきは状態異常・ひんしでない味方の数だけ攻撃、威力はメンバーごとのこうげき種族値÷10+5</td><td>(一覧表: ふくろだたき 威力「(攻撃種族値/10)+5」)</td><td><code>beatUpPowers</code>計算(L2833-2848)、<code>hits_by</code>ハンドリング(L2955-2956, 3003-3004)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>おやこあいは2回固定連続攻撃・2発目威力は1/4(現行世代)</td><td>「特性がおやこあいのポケモンが使う攻撃技は2回固定の連続攻撃になる。ただし、2回目の威力は、第六世代では1/2、第七世代では1/4になる。」</td><td><code>_parentalBond</code>(L2962-2966, 3007-3008: <code>power * 0.25</code>)</td><td>実装済み</td><td class='im-mid'>中</td><td>第7世代以降(1/4)固定。複数世代混在は非対応(このsimは単一ルールセットなので妥当)</td></tr>
+<tr class='st-ok'><td>防御側HPが0になったら連続攻撃は中断される</td><td>「防御側のHPが0になった場合。」</td><td>ループ内<code>if (def.currentHp &lt;= 0) break;</code>(L2976)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-part'><td>技の追加効果の発動判定は攻撃ごとに行われる(king's rock/あくしゅうのひるみは1回でも成功でひるむ・1-(0.9^n))</td><td>「技の追加効果の発動判定は攻撃ごとに行われる。攻撃側の特性あくしゅうや持ち物するどいキバのひるみ効果の発動判定も同様に各攻撃ごとに行われる。」</td><td>king's rock/あくしゅう自体は<code>landedHits</code>回ループで独立判定(L3204-3215=正しい)。しかし<b>技本体が宣言する追加効果(<code>battle_data.effects</code>の状態付与等、例=ダブルニードルの20%どく)は<code>phaseApplyEffects</code>内で技1回につき<code>Math.random()*100 &gt;= prob</code>を1回だけ判定(L4294-4295)しており、ヒット数ぶんの独立試行になっていない</b></td><td><b>部分実装</b></td><td class='im-mid'>中</td><td>king's rock/あくしゅうだけ正しく実装され、技自身の追加効果(毒/麻痺/怯み付与等)がヒット数を無視した単発判定という非対称な実装。ダブルニードル(2発・20%どく)なら本来約36%になるはずが実装では20%のまま</td></tr>
+<tr class='st-ok'><td>ゴツゴツメット/さめはだ/てつのトゲはヒットごとに発動(接触ヒット数分)</td><td>「防御側の特性さめはだ/てつのトゲ/うのミサイル、持ち物ゴツゴツメット/ジャポのみ/レンブのみの反撃ダメージは攻撃の途中に割り込む。」</td><td><code>landedHits</code>を乗算(L3110-3129 さめはだ/てつのトゲ、L3283-3285 ゴツゴツメット)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>PPは攻撃回数に関係なく1度だけ減少</td><td>「攻撃回数に関係無くPPは1度だけ減少する。」</td><td><code>consumePP</code>は技選択時に1回のみ呼ばれる(L5666)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-unk'><td>きあいのタスキ/がんじょうはHP満タン時に受けた1発のみ耐える(第五世代以降)</td><td>「きあいのタスキおよび特性がんじょうは、HPが満タンのときに受けた1発のみを耐えることができる。」</td><td><code>sashCheck()</code>(L2797で連続技各ヒットに個別呼び出し)</td><td>未確認</td><td class='im-low'>低</td><td><code>sashCheck</code>の中身(HP満タン判定が1発目限定かどうか)は未読了、関数定義自体を精査していない</td></tr>
+<tr class='st-ok'><td>かいがらのすずは全ヒット終了後にダメージ合計から算出</td><td>「攻撃側の持ち物かいがらのすずによる回復は、全ての攻撃が終了した後に発動する。」</td><td><code>total</code>(累計ダメージ)を使い技終了後に1回計算(L3186-3193)</td><td>実装済み</td><td class='im-low'>低</td><td>-</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G5-4直接攻撃json'><h3>4. 直接攻撃.json <span class='pagebadge'>実装済10 / 部分0 / 未実装13 / 未確認1 / 対象外0 (計24)</span></h3><p>物理技の多くは直接攻撃、非接触の例外リスト・接触反応特性のテーブルが中心。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>直接攻撃(接触)フラグはデータで技ごとに管理</td><td>「パンチや体当たりなど、攻撃時に相手に直接触れるようなわざが該当する。」</td><td><code>WAZA_MAP[key].contact</code>(pokechan_data.js)。スポットチェック(じしん/いわなだれ/ストーンエッジ/だいばくはつ/つららばり/ミサイルばり/ふくろだたき/ボーンラッシュ/がんせきほう/じわれ=全てcontact:false、くさむすび/ドレインキッス/まとわりつく/はなびらのまい=全てcontact:true)は権威コーパスと一致</td><td>実装済み</td><td class='im-high'>高</td><td>全919技の悉皆照合はしていない(スポットチェックのみ)。たまなげ/ホネブーメラン/マグニチュード/きりふだ/しぼりとるはこのDBに技自体が存在せず対象外</td></tr>
+<tr class='st-ok'><td>キングシールド/ニードルガード/トーチカ/ブロッキング/スレッドトラップ/かえんのまもり=接触技を受けた相手にランク低下/状態異常/反動</td><td>(各技の効果テーブル)</td><td><code>applyProtectPunishers()</code>(L3752-3786)がデータ宣言(<code>接触反動</code>/<code>能力ランク変化</code>/<code>状態付与</code>)を汎用処理</td><td>実装済み</td><td class='im-mid'>中</td><td>データ駆動の汎用実装。各技のeffects宣言が正しいことが前提(今回は個別データまで検証していない)</td></tr>
+<tr class='st-no'><td>くちばしキャノン=溜めている間に直接攻撃してきた相手をやけどにする</td><td>「溜めている間に直接攻撃をしてきた相手をやけどにする」</td><td>コード中に明記: 「くちばしキャノン/しっとのほのお等の状況条件は未対応=誤適用回避でスキップ」(L4355-4356)</td><td><b>未実装(コード内で自己申告)</b></td><td class='im-mid'>中</td><td>くちばしキャノン専用技・低頻度だが仕様上は完全に欠落</td></tr>
+<tr class='st-ok'><td>さめはだ/てつのトゲ=接触した相手に最大HP1/8</td><td>該当テーブル</td><td>L3112-3129</td><td>実装済み</td><td class='im-high'>高</td><td>頻出特性</td></tr>
+<tr class='st-ok'><td>せいでんき/ほのおのからだ=30%でまひ/やけど</td><td>該当テーブル</td><td>L3097-3104</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-ok'><td>メロメロボディ=直接攻撃してきた異性を30%でメロメロに</td><td>該当テーブル</td><td>L3105-3109</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>ミイラ=直接攻撃を受けたら相手の特性をミイラにする</td><td>該当テーブル</td><td>L3130-3142(<code>MUMMY_EXEMPT</code>除外リスト付き)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>どくしゅ(攻撃側)=直接攻撃が命中したら30%で相手をどくに</td><td>該当テーブル</td><td>L3143-3156</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>かたいツメ=直接攻撃の威力1.3倍</td><td>該当テーブル</td><td>L1886-1889</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-no'><td>どくのトゲ=30%でまひ…ではなくどく状態にする</td><td>「相手をどく状態にする。」(発動率30%)</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-high'>高</td><td>実戦での採用例が多い特性(ニドキング系等)。ゴツゴツメット系機構は実装済みなのに個別特性が漏れている</td></tr>
+<tr class='st-no'><td>ほうし(Effect Spore)=30%でどく/まひ/ねむりのいずれか</td><td>「相手をどく・まひ・ねむりのいずれかにする。」</td><td>該当コード無し(grep 0件・「ほうし」は無関係な技名の部分一致1件のみ)</td><td><b>未実装</b></td><td class='im-high'>高</td><td>パラセクト等の代表特性。競技的に無視できない</td></tr>
+<tr class='st-no'><td>カーリーヘアー=100%ですばやさ-1</td><td>該当テーブル</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-no'><td>とれないにおい=100%で相手の特性をとれないにおいにする</td><td>該当テーブル</td><td>該当コード無し(grep 0件)。<code>MUMMY_EXEMPT</code>配列に名前は載っているが、それはミイラに書き換えられない対象としての参照のみで、とれないにおい自体の発動効果は未実装</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-no'><td>わるいてぐせ(Pickpocket)=100%で相手の持ち物を盗む</td><td>該当テーブル</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>連続攻撃.jsonの「1度だけのもの」節にも登場(お互いの特性わるいてぐせ)</td></tr>
+<tr class='st-no'><td>もふもふ(Fluffy)=受けるダメージを半減(直接攻撃)</td><td>該当テーブル</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>クマシュン/ツンベアー等の主力特性</td></tr>
+<tr class='st-unk'><td>さまようたましい=100%で相手と特性を交換</td><td>該当テーブル</td><td><code>MUMMY_EXEMPT</code>にミイラ除外先として名前が載るのみで、さまようたましい自体の交換効果は未確認(§別コメントで示唆はあるが本節grepでは確認できず)</td><td>未確認</td><td class='im-mid'>低〜中</td><td>深掘り時間切れ。名称は複数箇所に登場するが接触起因の交換効果そのものの実装コードは今回未特定</td></tr>
+<tr class='st-no'><td>ほろびのボディ=100%で自分と相手をほろびのうたに</td><td>該当テーブル</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-no'><td>ゆうばく(Aftermath)=ひんしになると相手のHPを最大HPの1/4減らす</td><td>該当テーブル</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-high'>高</td><td>定番特性(ドロバンコ等)。ひんし時反動系はさめはだ等と実装パターンが近いのに未着手</td></tr>
+<tr class='st-no'><td>えんかく(Long Reach)=技が直接攻撃ではなくなる</td><td>該当テーブル</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-mid'>低〜中</td><td>-</td></tr>
+<tr class='st-no'><td>ふかしのこぶし(Unseen Fist)=まもる状態などを無視する</td><td>該当テーブル</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-mid'>低〜中</td><td>-</td></tr>
+<tr class='st-no'><td>くっつきバリ(Sticky Barb)=接触した相手の持ち物になる</td><td>該当テーブル</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-ok'><td>ゴツゴツメット=接触した相手のHPを最大HPの1/6減らす</td><td>該当テーブル</td><td>L2143-2148, 3283-3285</td><td>実装済み</td><td class='im-high'>高</td><td>頻出アイテム</td></tr>
+<tr class='st-no'><td>ぼうごパット=接触起因の発動(もふもふ/わるいてぐせ除く)を防ぐ</td><td>該当テーブル</td><td>該当コード無し(grep 0件)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>上記接触反応特性自体が実装されているのが少ないため影響は限定的だが、実装済み分(せいでんき/ほのおのからだ等)にも効かない</td></tr>
+<tr class='st-ok'><td>パンチグローブ=パンチ技を直接攻撃ではなくする(威力1.1倍とトレードオフ)</td><td>該当テーブル</td><td>L2092-2096(威力補正), L2145-2148/L3092-3093(接触判定解除)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G5-5ため技json'><h3>5. ため技.json <span class='pagebadge'>実装済7 / 部分0 / 未実装4 / 未確認1 / 対象外0 (計12)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>溜めた次のターンは行動選択がスキップされ、溜めていた技をそのまま放つ</td><td>「溜めた次のターンは、そのポケモンの行動選択はスキップされる。」</td><td><code>st.charging</code>があれば選択技を無視して<code>mv = atk.charging.move</code>(L5618)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-ok'><td>天候条件で溜めを省略(ソーラービーム=にほんばれ/エレクトロビーム=あめ)</td><td>各技の効果欄「にほんばれ状態なら溜めない」「あめ状態なら溜めない」</td><td><code>skip_charge_if_weather</code>(L6027-6030)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-ok'><td>溜めターンに専用のランク上昇(メテオビーム/エレクトロビーム=とくこう+1、ロケットずつき=ぼうぎょ+1)</td><td>各技の効果欄</td><td><code>startChargeIfNeeded()</code>内L6033-6042</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-no'><td>パワフルハーブで溜めターンを省略できる</td><td>「パワフルハーブを持っているときに溜め行動を行うと、消費して溜めターン無しで攻撃することができる。」</td><td>該当コード無し(grep「パワフルハーブ」「power_herb」0件)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>二段技(ソーラービーム/ジオコントロール等)全般に効く汎用アイテムが丸ごと欠落</td></tr>
+<tr class='st-no'><td>フリーフォールのみパワフルハーブの効果が発動しない</td><td>「フリーフォールのみ、パワフルハーブの効果は発動しない。」</td><td>前提のパワフルハーブ自体が無いため対象外</td><td>未実装</td><td class='im-low'>低</td><td>親規則が無いので当然未実装</td></tr>
+<tr class='st-ok'><td>溜めている間にねむり/こおりになっても第五世代以降は溜め技が中止されない(攻撃時に回復できなければ失敗)</td><td>「第五世代以降では溜め技は中止されない。…攻撃時に状態異常を回復できなかった場合、溜め技は失敗する。」</td><td>明示的な「溜め中断」処理は無く、リリースターンも通常の<code>atk.status==='sleep'/'freeze'</code>ゲート(L5632-5654)を素通しで踏む=結果的に第5世代以降の挙動と一致</td><td>実装済み</td><td class='im-mid'>中</td><td>特別扱いのコードが無いことが、むしろ結果的に正しい(Gen5+相当)。ねむり/こおりの治り判定も通常ターンと同じ確率式を使う</td></tr>
+<tr class='st-ok'><td>溜める行動自体はまもる等で防がれない</td><td>「溜める行動自体はまもる・ファストガード・サイコフィールド状態などで防がれる対象にならない。」</td><td><code>startChargeIfNeeded()</code>はまもる判定より前(L5913)に実行され、まもるチェックは実際の攻撃(リリースターン)にのみ適用</td><td>実装済み</td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-ok'><td>きあいパンチ=溜めている間に攻撃技を受けると失敗する</td><td>(ターンの最初に溜める節)「溜めている間に攻撃技を受けると失敗する」</td><td><code>user_hit_by_move_before_acting_this_turn</code>ケース(L6488周辺、<code>requires</code>判定)</td><td>実装済み</td><td class='im-mid'>中</td><td>詳細な条件分岐までは未読了だが該当ケースの存在を確認</td></tr>
+<tr class='st-no'><td>くちばしキャノン=溜めている間に直接攻撃をしてきた相手をやけどにする</td><td>同上「溜めている間に直接攻撃をしてきた相手をやけどにする」</td><td>コード内コメントで「未対応=誤適用回避でスキップ」と明記(L4356)</td><td><b>未実装(コード内で自己申告)</b></td><td class='im-mid'>中</td><td>§4と重複記載</td></tr>
+<tr class='st-no'><td>トラップシェル=溜めている間に物理技を受けなければ失敗する</td><td>同上「溜めている間に物理技を受けなければ失敗する」</td><td>該当コード無し(grep「トラップシェル」は上記くちばしキャノンと同じコメント行のみ)</td><td><b>未実装</b></td><td class='im-low'>低</td><td>SV新技・採用率低</td></tr>
+<tr class='st-ok'><td>みらいよち/はめつのねがい=2ターン後にダメージ、既に予知中の位置には失敗</td><td>「相手の場をみらいにこうげき状態にし、2ターン後、ターンが終了したときにダメージを与える。」</td><td><code>armFutureSight()</code>(L6008-6020)、<code>st.futureSight</code>の重複チェック(L6010-6014)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-unk'><td>がまん=2ターン溜めてその間に受けたダメージを2倍で返す</td><td>「2ターンの間がまん状態になり、その間に受けたダメージを2倍にして返す」</td><td>CLAUDE.mdコメントにも「がまん(bide)は自分に宣言してから2ターン目に受けたダメージの2倍を相手へ返す」の記述あり(L3697-3702)</td><td>未確認</td><td class='im-low'>低</td><td>実処理コード(倍返しロジック本体)は今回未特定。存在の言及はあるが読み切れていない</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G5-6ちょうはつjson'><h3>6. ちょうはつ.json <span class='pagebadge'>実装済6 / 部分0 / 未実装2 / 未確認2 / 対象外0 (計10)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>相手をちょうはつ状態にし、攻撃技しか出せなくする(3ターン、使用ターン含む)</td><td>「相手をちょうはつ状態にし、攻撃技しか出せないようにする。…第五世代以降：3ターン」</td><td><code>ef.kind==='ちょうはつ'</code>ブロック(L4895-4910)、<code>mv.category==='変化'</code>拒否ゲート(L5789, L7098)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-ok'><td>すでにちょうはつ状態なら失敗(持続ターンは書き換わらない)</td><td>「すでに対象がちょうはつ状態になっているときは失敗し、持続ターンが書き変わることも無い。」</td><td><code>if ((target.tauntTurns｜｜0)&gt;0){ 失敗ログ }</code>(L4905-4906)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>どんかんには効果が無い(第六世代以降)</td><td>「第六世代以降では、特性どんかんのポケモンには効果が無い。」</td><td><code>defAbilityVs(target, atk)==='どんかん'</code>ガード(L4899-4902)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-unk'><td>アロマベール(および味方)には効果が無い</td><td>「特性アロマベール、およびその味方のポケモンには効果が無い。」</td><td>該当コード無し(ちょうはつブロック内にアロマベール判定なし)</td><td>未確認</td><td class='im-low'>低</td><td>grepで「アロマベール」自体の実装有無を追い切れていない(別特性として実装されている可能性はあるが、ちょうはつ拒否条件への配線は未確認)</td></tr>
+<tr class='st-no'><td>おうごんのからだには効果が無い</td><td>「特性おうごんのからだのポケモンには効果が無い。」</td><td>§2の通りおうごんのからだ自体が未実装</td><td><b>未実装</b></td><td class='im-mid'>低〜中</td><td>-</td></tr>
+<tr class='st-ok'><td>まもるで防がれる</td><td>判定表「まもる: ○」</td><td>データ側<code>protect:true</code>(WAZA_MAP)+汎用<code>protectBlocks()</code></td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>おうじゃのしるしの追加ひるみは乗らない</td><td>判定表「おうじゃのしるし: ×」</td><td>ちょうはつは<code>power</code>が無いため、king's rock判定(<code>total&gt;0</code>要求・L3204)に到達せず自然に無効</td><td>実装済み</td><td class='im-low'>低</td><td>ダメージが無い変化技なので構造的に満たされる</td></tr>
+<tr class='st-ok'><td>マジックコートで跳ね返る(第五世代以降)</td><td>判定表「マジックコート: ×（第四世代まで）→○（第五世代以降）」</td><td>汎用マジックミラー/マジックコート分岐(L5862-5871)が<code>mv.category==='変化'</code>かつ対象が相手なら無条件で対象</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-unk'><td>よこどりの対象にならない</td><td>判定表「よこどり: ×」</td><td><code>SNATCHABLE</code>セットに「ちょうはつ」が含まれるかは今回未確認(セット定義箇所を読んでいない)</td><td>未確認</td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-no'><td>オウムがえしでコピーできる</td><td>判定表「オウムがえし: ○」</td><td>オウムがえし自体がこのDBに実装されていない(§7参照)</td><td>未実装(前提技が無い)</td><td class='im-low'>低</td><td>-</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G5-7アンコールjson'><h3>7. アンコール.json <span class='pagebadge'>実装済7 / 部分1 / 未実装1 / 未確認3 / 対象外0 (計12)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>相手をアンコール状態にし、最後にPPを消費した技を3ターン繰り返させる</td><td>「相手をアンコール状態にし、最後にPPを消費した技を数ターン繰り返し使わせる。…第五世代以降:3ターン」</td><td><code>ef.kind==='アンコール'</code>ブロック(L4920-4931)、<code>atk.encore.move</code>を選択技より優先(L5622, L6897)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-ok'><td>対象が場に出てから一度もPPを消費した行動をしていないと失敗</td><td>「対象が場に出てから一度もPPを消費した行動をしていないときは失敗する。」</td><td><code>!target.lastMove</code>で失敗(L4926)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>すでにアンコール状態なら失敗</td><td>「対象がすでにアンコール状態になっているとき。」</td><td><code>target.encore</code>で失敗(L4926)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>最後にPPを消費した技が ものまね/へんしん/スケッチ/わるあがき/オウムがえし/ダイマックスほう/Zワザ等なら失敗</td><td>「対象が最後にPPを消費した技が以下だったとき、アンコールは失敗する。アンコール/へんしん/ものまね/スケッチ/オウムがえし/ダイマックスほう/Zワザ/残りPPが0の技/アンコールを受けるまでの間に忘れた技」</td><td><code>_ngEnc</code>配列(L4924)で判定。ただし配列内の「ゆびをふる」「さきどり」「ねこのて」「しぜんのちから」はこのDBに技自体が存在せず実質デッドコード。逆に権威側にある「ダイマックスほう」「Zワザ」は本simにダイマックス/Z技機構が無いため非対象(妥当)</td><td>実装済み</td><td class='im-mid'>中</td><td>実装されている技の範囲では正しく機能。Mirror Move/Metronome/Nature Power等「他の技が出る技」を失敗扱いにする点は第七世代以降のルール(下記)と整合</td></tr>
+<tr class='st-ok'><td>他の技が出る技(ものまね系)は第二世代・第七世代以降ではアンコール失敗になる(第三〜六世代は技自体をアンコール)</td><td>「対象が最後にPPを消費した技が他の技が出る技だったとき…第二世代と第七世代以降ではアンコールは失敗する。ただし、オウムがえしに対しては全世代で一貫して失敗する。」</td><td><code>_ngEnc</code>に「まねっこ」(=Copycat相当・DBにも実在)が含まれ、使用時は失敗扱い</td><td>実装済み</td><td class='im-mid'>中</td><td>現行世代(Gen7+相当)のルールと整合</td></tr>
+<tr class='st-unk'><td>アンコールを受けるまでの間に技を忘れていたら、その技はアンコール対象外</td><td>「アンコールを受けるまでの間に忘れた技。」</td><td>未確認(技忘却の仕組み自体がこのsimにあるか含め未調査)</td><td>未確認</td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-no'><td>対象がダイマックス/スターモービル状態のとき失敗</td><td>「対象がダイマックスしているとき。」「対象がスターモービルであるとき。」</td><td>ダイマックス機構自体が本simに無いため非対象。スターモービルは未確認</td><td>未実装(前提機構なし)/未確認</td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-ok'><td>みがわり状態でも効果がある</td><td>「対象がみがわり状態でも効果がある。」</td><td>ちょうはつ同様、アンコールもダメージを伴わない変化技のためみがわり貫通判定に引っかからず素通り(構造的に満たす)</td><td>実装済み</td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-ok'><td>まもるで防がれるが、まもる自体はアンコール可能</td><td>「まもる状態により防がれるが、まもる自体をアンコールすることはできる。」</td><td><code>protect:true</code>(WAZA_MAP)。まもる自体をencore対象にできるかは<code>_ngEnc</code>にまもるが含まれていないので理論上可能(未実地確認)</td><td>実装済み(推定)</td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-unk'><td>マジックコートで跳ね返るが、アンコールはアンコールできない仕様で失敗</td><td>「マジックコートにより跳ね返される。しかし…アンコールはアンコールできないという仕様により失敗する。」</td><td>マジックコート跳ね返り自体は汎用分岐で動くはずだが、「跳ね返った先でアンコールがアンコール状態の相手に効かない」特殊仕様の追加ガードは未確認</td><td>未確認</td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-unk'><td>溜め技に対しては溜めた後・攻撃後のどちらでもアンコールできる</td><td>「溜め技に対しては溜めた後と攻撃後のどちらでもアンコールできる。」</td><td><code>atk.encore.move</code>は<code>lastMove</code>に依存するため理論上機能するはずだが個別テスト未実施</td><td>未確認</td><td class='im-low'>低</td><td>-</td></tr>
+<tr class='st-part'><td><b>対象の残りPPが0になると、アンコールの効果自体が解除される</b></td><td>「相手は直前に使った技しか出せなくなる(その技のPPがなくなると、もとにもどる)」(アンコール技の説明文=description欄より)</td><td>ターン終了時の<code>st.encore.turns--</code>カウントダウンのみ(L7414-7419)で、PP残量による早期解除処理は無い。<code>consumePP</code>でPPが0になった場合、<code>struggleIfNoPP</code>が発動して見た目はわるあがきに切り替わるが、<code>st.encore</code>自体はクリアされないため、他の技が使えるようになるはずの状況でも次ターン以降ずっと「PP切れの技にアンコールされたまま」わるあがきを強制され続ける</td><td><b>部分実装(実バグ)</b></td><td class='im-mid'>中</td><td>本来はPP0でアンコール状態自体が解除され他の技を選べるようになるはずが、このsimでは解除されずわるあがき固定になる</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G5-8ランク補正json'><h3>8. ランク補正.json <span class='pagebadge'>実装済9 / 部分5 / 未実装2 / 未確認0 / 対象外0 (計16)</span></h3><div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>ランクは-6〜+6の13段階、倍率は+n→(2+n)/2、-n→2/(2-n)</td><td>表(+6=400%=8/2 ... -6=25%=2/8)</td><td><code>rankMult(n)</code>(L1267-1270: <code>n&gt;0 ? (2+n)/2 : 2/(2-n)</code>)</td><td>実装済み</td><td class='im-high'>高</td><td>式が完全一致</td></tr>
+<tr class='st-ok'><td>ランク変動後は-6〜+6でクランプ</td><td>(同上、最大最小の存在)</td><td><code>core_apply</code>ハンドラ内<code>Math.max(-6, Math.min(6, before + ctx.sg))</code>(L3591)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-ok'><td>命中率・回避率のランク補正は別テーブル(通常ステータスの2/n系ではなく3/n系)</td><td>「命中参照」(別ページ委任のため詳細記載なし。命中側の実装で裏取り)</td><td><code>phaseHitCheck()</code>内<code>acc*(3+_s)/3</code>(上昇)・<code>acc*3/(3-_s)</code>(下降)(L2650-2652)</td><td>実装済み</td><td class='im-high'>高</td><td>通常ステータス(基準2)とは異なる基準3の式を正しく別実装している</td></tr>
+<tr class='st-ok'><td>あまのじゃく=ランク変動の符号を反転</td><td>「ランク変動のプラスマイナスが逆になる・あまのじゃく」</td><td><code>amanojaku_reflect</code>ハンドラ(L3521-3524)</td><td>実装済み</td><td class='im-high'>高</td><td>-</td></tr>
+<tr class='st-ok'><td>ミラーアーマーは下げられようとした効果を発生源に跳ね返す</td><td>「ミラーアーマーは、さらに下げられようとした効果を相手に跳ね返す。」</td><td><code>mirror_armor_reflect</code>ハンドラ(L3528-3537)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-part'><td>かたやぶりの効果がある技は特性を無視してランクを下げられる(メタルプロテクトだけは無視できない)</td><td>「かたやぶりの効果がある技は特性を無視してランクを下げることができる。ただし、メタルプロテクトのみ無視することができない。」</td><td><code>clearbody_guard</code>は<code>defAbilityVs</code>(かたやぶり考慮関数)で判定(L3543)</td><td>部分実装</td><td class='im-mid'>中</td><td>メタルプロテクト自体が未実装のため、「メタルプロテクトだけはかたやぶりでも無視できない」という例外規定も当然未実装</td></tr>
+<tr class='st-part'><td>相手からランクを下げられない: 全能力=しろいけむり/クリアボディ/メタルプロテクト/フラワーベール(くさ限定)/ミラーアーマー、しろいきり状態、クリアチャーム</td><td>該当箇条書き</td><td><code>clearbody_guard</code>(クリアボディ/しろいけむりのみ)、<code>mist_guard</code>(しろいきり)、<code>clear_amulet_guard</code>(クリアチャーム)、<code>mirror_armor_reflect</code>(ミラーアーマー)</td><td><b>部分実装</b></td><td class='im-mid'>中</td><td>メタルプロテクト・フラワーベールが欠落。ガード対象特性リストが権威の5つ中3つのみ</td></tr>
+<tr class='st-no'><td>こうげき低下防止: かいりきバサミ</td><td>該当箇条書き</td><td>該当コード無し(grep「かいりきバサミ」0件)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-ok'><td>ぼうぎょ低下防止: はとむね</td><td>該当箇条書き</td><td><code>hatomune_guard</code>(L3564-3572)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-part'><td>命中低下防止・回避上昇無視: するどいめ/はっこう/しんがん</td><td>該当箇条書き</td><td><code>するどいめ</code>は<code>phaseHitCheck()</code>内で「命中ランクが負なら無視・回避ランクが正なら無視」という命中計算側の特例として実装(L2646-2649)。ただし<code>applyRankStageGuarded</code>側(実際にランク値そのものを下げさせない防御)としては未実装=<code>target.rank.acc</code>自体は下がったままになる</td><td><b>部分実装</b></td><td class='im-mid'>低〜中</td><td>命中率の最終結果には影響しないが、ランク値自体が下がって記録される点が権威(「命中低下防止」=そもそも下がらない)とズレる。はっこう/しんがんは未確認(grep 0件)</td></tr>
+<tr class='st-ok'><td>ランクを下げられると+2上がる: まけんき(こうげき)/かちき(とくこう)</td><td>該当箇条書き</td><td><code>kachiki_makenki_reaction</code>ハンドラ(L3602-3615)</td><td>実装済み</td><td class='im-mid'>中</td><td>-</td></tr>
+<tr class='st-no'><td>ランク変動値を2倍にする: たんじゅん</td><td>該当箇条書き</td><td>該当コード無し(grep「たんじゅん」実装なし、コメント言及のみ)</td><td><b>未実装</b></td><td class='im-mid'>中</td><td>あまのじゃく(反転)は実装済みなのに対、同じ枠のたんじゅん(倍化)が欠落</td></tr>
+<tr class='st-part'><td>相手のランク上昇をコピー: びんじょう/ものまねハーブ</td><td>該当箇条書き</td><td>ものまねハーブは<code>mirror_herb_reaction</code>ハンドラで実装(L3621-3636)。びんじょう(Opportunist)は未確認</td><td>部分実装</td><td class='im-low'>低</td><td>びんじょうの実装有無は今回未特定</td></tr>
+<tr class='st-ok'><td>くろいきり/クリアスモッグ等は上記特性・状態の影響を受けない(全リセット系)</td><td>「以下の技・特性によるランク変動は上記全ての特性・状態の影響を受けない。バトンタッチ/くろいきり・クリアスモッグ/…」</td><td><code>ランクリセット</code>(クリアスモッグ、L4932-4935)は<code>applyRankStageGuarded</code>を経由せず直接<code>target.rank={...}</code>で全リセットしており、ガードハンドラ群を自然にバイパスする実装</td><td>実装済み</td><td class='im-low'>低</td><td>意図通りガードを迂回する設計になっている</td></tr>
+<tr class='st-ok'><td>急所ランクは他の7ランクとは別物(第六世代以降0-3の4段階)</td><td>「第六世代以降では0, 1, 2, 3以上の4段階で急所率は変動する。」</td><td><code>critRoll</code>の確率分岐(L2825: <code>_stage&gt;=3</code>確定、<code>_stage===2</code>で50%、それ以外(1)で12.5%)</td><td>実装済み</td><td class='im-mid'>中</td><td>4段階テーブルと数値が一致</td></tr>
+<tr class='st-part'><td>急所ランク0(素の急所率1/24)は乱数で判定される</td><td>「(暗黙: 通常時も1/24で急所判定が起こる)」</td><td><code>if (!_a.critical &amp;&amp; … &amp;&amp; _stage&gt;0)</code>(L2824)の条件により、<b><code>_stage===0</code>(段階が全く無い通常時)は乱数ロール自体が行われない</b>。<code>atk.critical</code>はUIの手動チェックボックスのみが立てる変数で、CPU同士のバトルや自動シミュレーションでは自動的にtrueにならない</td><td><b>部分実装(意図的な近似・コード内で明記)</b></td><td class='im-high'>中〜高</td><td>コード自体に「①ランク0の素急所(1/24)はロールしない=UIの急所トグル担当」と明記。手動対戦(UIチェックボックス操作)では成立するが、自動対戦・観戦シミュレーション等クリック操作を介さない経路では基礎急所(4.2%)が恒久的に0%になる</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<div class='ctxbox'><h4>総括(数値サマリ)</h4><p>- 点検した規則: 約70件(8ファイル横断)
+- 実装済み: 約42件
+- 部分実装: 約13件
+- 未実装: 約17件
+- 未確認: 約10件
+（1規則が複数カテゴリにまたがる記載を含むため概数）</p></div>
+<hr class='gdiv'/>
+<h2 class='gtitle'>バトル構造・特殊メカニクス <span class='gtag'>(G6)</span></h2>
+<div class='ctxbox'><h4>このグループの担当ファイル一覧</h4><p>- <code>reference/_authority_corpus/rules/ダブルバトル.json</code>
+- <code>reference/_authority_corpus/rules/ポケモンチェンジ.json</code>
+- <code>reference/_authority_corpus/rules/ひんし.json</code>
+- <code>reference/_authority_corpus/rules/とくせい.json</code>
+- <code>reference/_authority_corpus/rules/どうぐ.json</code>
+- <code>reference/_authority_corpus/rules/メガシンカ.json</code>
+- <code>reference/_authority_corpus/rules/テラスタル.json</code></p>
+<p>照合対象エンジン: <code>real_battle_simulator.html</code>(9504行、2026-07-28時点)。</p></div>
+<section class='rulepage' id='rp-G6-最重要の前提事実先に明記'><h3>★最重要の前提事実(先に明記) </h3><p><code>real_battle_simulator.html</code> の内部状態は</p>
+<pre style="background:#2b2a26;color:#f2ede2;padding:10px 14px;border-radius:6px;overflow-x:auto;font-size:.82rem"><code>const sides = { self: makeSideState(), opp: makeSideState() };</code></pre>
+<p>(1080行付近)で、<b>1対1固定のシングルバトル専用エンジン</b>。各サイドに最大6体ぶんの<code>bench</code>(控え)配列を持ち、交代・死に出しは実装されているが、<b>同時に場に出るポケモンは常に自分1体・相手1体だけ</b>。</p>
+<p><code>env.doubleBattle</code>(1096行)は「ダブルバトルON/OFF」のチェックボックスだが、実体は「範囲技のダメージを×0.75にするフラグ」(<code>isSpreadMove()</code>, 1109行 / 適用箇所1867行)のみで、<b>2体目のポケモン・複数対象選択・範囲防御技・サイドチェンジ等は一切実装されていない</b>。したがって「ダブルバトル.json」のルールの大半は構造的に未実装となる。これは阿部さん指定の点検観点そのものであり、以降の表でも明記する。</p>
+<p><code>テラスタル</code>はコード上 <code>grep -n "テラス"</code> で1件しかヒットせず(4990行、「テラスタル系はsim未実装のため考慮しない」という明示コメントのみ)、<b>未実装</b>。</p>
+<p>---</p></section>
+<section class='rulepage' id='rp-G6-1ダブルバトルjson'><h3>1. ダブルバトル.json <span class='pagebadge'>実装済0 / 部分1 / 未実装9 / 未確認0 / 対象外0 (計10)</span></h3><p>sections: 概要/発生/シングルバトルとの違い/ダブルバトルにおける技/対象が変わる技の一覧(150件超)/ダブルバトルにおけるとくせい/対戦/備考 等。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-no'><td>ダブルバトルは2体ずつ計4体が同時に場に出て行動する基本構造</td><td>「対戦者は2体ずつ、計4体のポケモンを同時に繰り出し、1ターンの間に4体のポケモンが行動する。」</td><td><code>sides = {self, opp}</code> の1v1固定構造(real_battle_simulator.html:1085-1089)。第2の自軍/敵軍ポケモンという概念自体が存在しない</td><td>未実装</td><td class='im-high'>高</td><td>ダブルバトル関連ルールの大半がこの1点に起因して未実装になる</td></tr>
+<tr class='st-no'><td>味方にも攻撃できる(味方対象の技)</td><td>「味方にも攻撃できる。これを利用して味方の技のスケッチしたり、いやしのはどうなどで回復をすることもできる。」</td><td>味方(ally)というスロットが存在しないため対象になり得ない</td><td>未実装</td><td class='im-mid'>中</td><td>かふんだんご/いやしのはどう等「味方用途あり」の技は単体技としてのみ動く</td></tr>
+<tr class='st-no'><td>複数対象技のダメージ処理順序=第五世代以降「味方→敵から見て左側の敵→右側の敵」</td><td>「複数を対象とする技のダメージは…第五世代からは味方→敵から見て左側の敵→右側の敵の順に処理される。」</td><td>対象が常に1体(opp)のみなので処理順序という概念自体が無い</td><td>未実装</td><td class='im-high'>高</td><td>阿部さん指定の点検観点。多対象処理順は構造的に再現不可能</td></tr>
+<tr class='st-part'><td>攻撃範囲が広がる技はダメージ×0.75(範囲補正)</td><td>「攻撃範囲が広がる技は、ダメージが3/4(0.75倍)に減少する（ダメージ#範囲補正)。」</td><td><code>env.doubleBattle &amp;&amp; isSpreadMove(move)</code> で無条件に0.75倍を適用(real_battle_simulator.html:1109-1113, 1867-1870)</td><td>部分実装</td><td class='im-mid'>中</td><td>「実際に当たった対象が1体だけなら補正なし」「ダイマックス技除外」等の例外は未実装。フラグをONにした時に一律0.75倍になるだけの簡易近似</td></tr>
+<tr class='st-no'><td>壁によるダメージ補正率がダブルでは1/2→2/3(第4世代)・2703/4096(第5世代)・2732/4096(第6世代以降)に弱体化</td><td>「壁によるダメージ補正率が1/2から2/3に弱体化する。」</td><td>リフレクター/ひかりのかべ/オーロラベールは常に<code>factor:0.5</code>固定(real_battle_simulator.html:2065)。<code>env.doubleBattle</code>は参照されない</td><td>未実装</td><td class='im-low'>低</td><td>シングル固定エンジンなので実害は小さいが、ダブルON時も0.5のまま</td></tr>
+<tr class='st-no'><td>ワイドガード/トリックガード等、複数対象技から味方を守る効果</td><td>対象が変わる技の一覧「味方の場」節にワイドガード/トリックガード/ファストガード等を列挙</td><td>データ側は<code>kind:"範囲まもり"</code>(例: ワイドガード, pokechan_data.js)を持つが、エンジンに<code>範囲まもり</code>というkindを処理する分岐が存在しない(<code>grep -n "範囲まもり"</code> real_battle_simulator.html → 0件)</td><td>未実装</td><td class='im-mid'>中</td><td>ワイドガード自体は先制まもり技として一切効果を持たず、通常の変化技として空撃ちされるだけ</td></tr>
+<tr class='st-no'><td>サイドチェンジ(自分の隊列(左右)入れ替え)</td><td>対象が変わる技の一覧「自分」節に「サイドチェンジ」</td><td>隊列(左右スロット)という概念が無い</td><td>未実装</td><td class='im-low'>低</td><td>技自体が存在してもダブル専用効果は出せない</td></tr>
+<tr class='st-no'><td>ダブルバトルにおける特殊とくせい(アロマベール/いやしのこころ/バッテリー/パワースポット等、味方への効果)</td><td>「== ダブルバトルにおけるとくせい ==」節、アロマベール等15種超を列挙</td><td>味方スロットが存在しないため発動しようがない</td><td>未実装</td><td class='im-mid'>中</td><td>これらの特性は仮に単体データとして存在しても「味方」効果は動かない</td></tr>
+<tr class='st-no'><td>死に出し時の第五世代以降「左右どちらに出すか選べる」/複数同時死に出しの順序</td><td>「第五世代以降では死に出し…左右のどちらに出すかを選べる」「複数のポケモンが『死に出し』される場合、順番はすばやさによって決まる」</td><td>死に出し先が常に1枠(opp/self)のみ</td><td>未実装</td><td class='im-low'>低</td><td>シングル前提なので左右選択自体が不要</td></tr>
+<tr class='st-no'><td>第四世代以降「じばく/だいばくはつは対象が2体しかいない場合、範囲補正がかからない」等の例外</td><td>「第四世代におけるじばく/だいばくはつのみ、攻撃対象が2体しかいない場合は範囲補正がかからない。」</td><td><code>isSpreadMove</code>判定は一律0.75倍(上記と同じ経路)、対象数による例外なし</td><td>未実装</td><td class='im-low'>低</td><td>ダブル自体が無いため優先度低</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G6-2ポケモンチェンジjson'><h3>2. ポケモンチェンジ.json <span class='pagebadge'>実装済9 / 部分1 / 未実装1 / 未確認2 / 対象外0 (計13)</span></h3><p>sections: 概要/通常のポケモンチェンジ/わざによるポケモンチェンジ/道具によるポケモンチェンジ/とくせいによるポケモンチェンジ/ひんしによるポケモンチェンジ/並び順/対戦 等。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>交代して出たポケモンは次のターンまで行動できない(死に出し除く)</td><td>「1ターンを費やして行い、交代して出されたポケモンは次のターンまで行動できない(ひんしで交代した場合を除く)。」</td><td><code>st.switchedThisTurn</code>フラグで当該ターンの技選択を<code>null</code>化(real_battle_simulator.html:6849付近 <code>sides.self.switchedThisTurn ? null : ...</code>)。死に出し(<code>faintReplace:true</code>)は<code>switchedThisTurn</code>は立つが次ターン開始時にクリアされ「交代したターンは行動不可の対象外」と明記(7708行コメント)</td><td>実装済み</td><td class='im-high'>高</td><td>ルール通り死に出しは行動制限の例外扱い</td></tr>
+<tr class='st-ok'><td>しぜんかいふく/さいせいりょくの交代連動特性</td><td>「特性がしぜんかいふくのポケモンはこの行動で…治る。特性がさいせいりょくのポケモンはこの行動で最大HPの1/3を回復する。」</td><td><code>attemptSwitch()</code>内、<code>_outAb === 'さいせいりょく'</code>でHP+1/3回復、<code>_outAb === 'しぜんかいふく' &amp;&amp; st.status !== 'none'</code>で状態異常全快(real_battle_simulator.html:6367-6376)</td><td>実装済み</td><td class='im-mid'>中</td><td>ひんし退場では発動しないガード(<code>!st.fainted</code>)も正しく入っている</td></tr>
+<tr class='st-ok'><td>交代完了で設置技(まきびし/どくびし/ステルスロック/ねばねばネット等)が発動する</td><td>「交代が完了すると、こちらに仕掛けられた設置技が発動する。」</td><td><code>attemptSwitch()</code>末尾で<code>applyEntryHazards(sideKey)</code>を呼ぶ(real_battle_simulator.html:6407付近)</td><td>実装済み</td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-ok'><td>場に出た時発動特性(ダウンロード等)は交代完了後に発動</td><td>「この行動が完了すると…場に出たときに発動する特性が発動する。」</td><td><code>attemptSwitch()</code>末尾で<code>fireEntryAbility</code>系を呼ぶ(コメント「段127」参照、real_battle_simulator.html:6412付近)</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>交代でランク補正・技/特性/タイプの一時変化・状態変化(揮発)は元に戻る</td><td>「この行動が完了した時点でランク補正、技などによって変わったタイプ・特性・技、状態変化は元に戻る。」</td><td><code>clearVolatilesOnSwitch(st)</code>(real_battle_simulator.html:6080-6119)で<code>rank</code>/<code>abilityOverride</code>/<code>typeOverride</code>/<code>statOverride</code>/<code>confusion</code>/<code>transformBase</code>等を網羅的にリセット</td><td>実装済み</td><td class='im-high'>高</td><td>揮発項目のリストがかなり細かく作り込まれている(こだわりロック・イリュージョン・へんげんじざい等含む)</td></tr>
+<tr class='st-ok'><td>状態異常は交代で回復しない(しぜんかいふく除く)</td><td>「状態異常は回復しない。(ただし、しぜんかいふくを除く)」</td><td><code>clearVolatilesOnSwitch</code>は<code>st.status</code>に触れない。しぜんかいふくは上記の交代連動特性で個別処理</td><td>実装済み</td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-part'><td>交代不可条件(バインド/ねをはる/フェアリーロック/相手のかげふみ/ありじごく/じりょく 等)、きれいなぬけがら・ゴーストタイプはこれを無視できる</td><td>「以下の状況で交代はできない…相手の特性がかげふみのとき…ゴーストタイプを持つポケモンはこれらを無視して交代できる。(第六世代以降)」</td><td><code>cannotSwitchReason(st)</code>(real_battle_simulator.html:6065-6076)。ゴースト無視・かげふみ・ねをはる・にげられない・バインド・フェアリーロックは実装。ありじごく/じりょく/きゅうばんは「現DBに持ち主がいない=推測実装しない」とコメントで明記(park扱い)</td><td>部分実装</td><td class='im-mid'>中</td><td>ありじごく/じりょく/きゅうばんの交代封じは未実装(コメントで意図的にparkと明記されており誠実)。かげふみの自己無効(第4世代以降=自分もかげふみなら無視)は実装済み</td></tr>
+<tr class='st-no'><td>反動で動けないターン/溜め技2ターン目/数ターン行動技の間は行動選択自体がスキップされ交代できない</td><td>「以下のターンでは行動選択場面はスキップされ、交代を選ぶことはできない。反動で動けなくなる技の使用により動けないターン。溜め技の2ターン目。数ターン行動する技の使用中。」</td><td><code>runTurn()</code>の交代フェーズ(6828-6845行)は<code>sides[s].switchChoice</code>が立っていれば<code>mustRecharge</code>/<code>charging</code>/<code>rampage</code>等の状態を一切見ずに<code>attemptSwitch</code>を実行する。UI側(9019行付近の控えバー交代ボタン)も同様に無条件で<code>switchChoice</code>をセットして<code>runTurn()</code>を呼ぶ</td><td>未実装</td><td class='im-mid'>中</td><td><code>real_battle.html</code>側にも<code>mustRecharge</code>/<code>charging</code>をgrepしたが該当する交代禁止ガードは見つからなかった。反動硬直/溜め技中でも交代できてしまう可能性がある実バグ疑い</td></tr>
+<tr class='st-ok'><td>バトンタッチ: ランク補正・一部を除く状態変化を交代先に引き継ぐ</td><td>「バトンタッチ(優先度0)・ランク補正、一部を除く状態変化が交代先のポケモンに引き継がれる。」</td><td><code>BENCH_FIELDS</code>とは別に、バトンタッチ専用の引き継ぎ処理有無を確認(<code>clearVolatilesOnSwitch</code>コメントに「こんらんも揮発(バトンタッチだけが引き継ぐ)」「アクアリング/でんじふゆうも揮発(バトンタッチは引き継ぐ)」との記述あり)</td><td>実装済み(推定)</td><td class='im-mid'>中</td><td>バトンタッチ専用の引き継ぎコードパスの実体確認までは今回未到達につき「実装済み(推定)」とする。断定を避け正直に記載</td></tr>
+<tr class='st-unk'><td>とんぼがえり/ボルトチェンジ/クイックターン: 攻撃成功直後に交代、まもられ/無効化時は交代しない</td><td>「攻撃が成功すると直後に交代する。…まもる状態などに防がれたとき/技を無効化されたとき…交代できない。」</td><td>個別コード未確認(このグループの担当外関数のため今回は深掘りしていない)</td><td>未確認</td><td class='im-mid'>中</td><td>自信のない箇所として正直に報告(要・別セッションでのフォロー)</td></tr>
+<tr class='st-unk'><td>だっしゅつボタン/レッドカード/だっしゅつパック(道具による交代)</td><td>各道具の発動条件(相手の攻撃を受ける/ランク低下 等)</td><td><code>items_database.js</code>宣言 + <code>resolveEjectPack</code>関数の存在を確認したのみで、条件の細部(みがわり無効化・ちからずく無視等)までは今回未検証</td><td>未確認</td><td class='im-mid'>中</td><td>別ファイル群(どうぐ系)の担当と重複するため深追いしていない</td></tr>
+<tr class='st-ok'><td>ひんしによる交代(死に出し)はターンの最後(現行世代=ターン終了直前)に発動</td><td>「ひんしになったとき、交代できる控えのポケモンがいればターンの最後…に交代できる。」</td><td><code>runTurn()</code>終盤(7707-7723行)で全行動処理後にfainted側を<code>attemptSwitch(..., {faintReplace:true})</code></td><td>実装済み</td><td class='im-high'>高</td><td>第8世代以降の「ターン終了直前」仕様に一致。第3〜7世代の「ひんし直後」「次ターン開始直後」仕様との出し分けは無い(常に最新仕様のみ)</td></tr>
+<tr class='st-ok'><td>交代先の選択は実機ではプレイヤーだが、simは生きている先頭の控えで近似</td><td>(通常のポケモンチェンジ節・死に出し節の記述と対応)</td><td><code>chooseSwitchTarget()</code>は<code>window.__rbSwitchPick</code>フックがあればそれを使い、無ければ最初の生存控え(<code>prompt</code>はself限定)</td><td>実装済み</td><td class='im-low'>低</td><td>自己申告どおりの近似実装。仕様として妥当</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G6-3ひんしjson'><h3>3. ひんし.json <span class='pagebadge'>実装済4 / 部分1 / 未実装1 / 未確認3 / 対象外0 (計9)</span></h3><p>sections: 概要/ひんしの発生/状態変化による発生/バトルにおける効果 等。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>HPが0になるとひんし。他の状態異常と異なり交代/戦闘終了で治らない</td><td>「HPが0になったポケモンはひんし状態となり、戦闘の場に出すことができなくなる。」</td><td><code>st.currentHp &lt;= 0</code> で <code>st.fainted = true</code> を各ダメージ経路(通常技・スリップ・反動・じばく等)で個別に設定(例: real_battle_simulator.html:3118, 3128, 3262, 3280, 3292)</td><td>実装済み</td><td class='im-high'>高</td><td>fainted判定が複数箇所に分散しているが一貫して<code>currentHp&lt;=0</code>基準</td></tr>
+<tr class='st-ok'><td>同時に両者の手持ちが全滅した場合、通信対戦では基本的に先に倒れた側の敗北</td><td>「通信対戦において反動や状態変化などで両者の手持ちが同時に全滅した場合、基本的にポケモンが先に倒れた側の敗北になる。」</td><td><code>real_battle_simulator.html</code>自体は勝敗判定を持たないが、<code>lastMoveAnywhereSide</code>/<code>lastMoveAnywhere</code>を記録し<code>window.__sim.getLastMoveInfo()</code>として公開(5355, 5848, 7149, 9475行)。実際の勝敗判定ロジックは<code>real_battle.html</code>(4123-4131行)・<code>online_battle.html</code>(4697-4705行)側にあり、「反動相打ち=攻撃側勝ち」「自爆技相打ち=使用側負け」「みちづれ相打ち=攻撃側勝ち」を明記のコメント付きで実装</td><td>実装済み</td><td class='im-high'>高</td><td>実体は<code>real_battle_simulator.html</code>単体でなく、<code>real_batlle.html</code>と組み合わせて初めて完結する設計。担当ファイル外だが確認のうえ実装済みと判定</td></tr>
+<tr class='st-unk'><td>ひんし状態のポケモンは技の対象にならない。対象が先にひんしになった場合は自動的に別対象に切替(第5世代以降は味方は切り替わらず失敗)</td><td>「技の対象に選択した相手が先にひんしになってその場に誰もいなくなった場合、自動的に別のポケモンが対象に切り替わる。」</td><td>1v1固定エンジンのため「対象の切り替え」という概念自体が発生しない(相手が1体しかいない=ひんしなら技はそもそも打てない別処理)</td><td>未確認/N-A</td><td class='im-low'>低</td><td>ダブル/トリプル前提のルールでシングル固定エンジンには本質的に適用対象が存在しない。誤判定ではなく構造的に非該当</td></tr>
+<tr class='st-unk'><td>ひんし状態になると連続攻撃技・溜め技・数ターン行動技も即座に中断する</td><td>「ひんし状態になると、使用中の連続攻撃技・溜め技・数ターン行動する技も即座に中断する。」</td><td>今回の担当関数群では直接確認できず。<code>st.charging</code>/<code>st.rampage</code>が<code>fainted</code>時にクリアされるかは<code>clearVolatilesOnSwitch</code>(交代時)には含まれるが、ひんし化の瞬間に即クリアする専用コードは未確認</td><td>未確認</td><td class='im-mid'>中</td><td>別セッションでの追加確認を推奨</td></tr>
+<tr class='st-no'><td>ダブル/トリプルバトルでの死に出し順序(すばやさ順)・場出し特性はすばやさ順に発動</td><td>「複数のポケモンが『死に出し』される場合、順番は…すばやさによって決まる。」</td><td>ダブル/トリプル自体が未実装のため非該当</td><td>未実装</td><td class='im-low'>低</td><td>1.のダブルバトル未実装と同根</td></tr>
+<tr class='st-part'><td>きあいのタスキ/がんじょう/きあいのハチマキ等、ひんしを防ぐ効果(HP1で耐える)</td><td>「ダメージを1減らすことでひんし状態を防ぐ。…道具きあいのタスキ(HPが満タンのとき)/特性がんじょう(HPが満タンのとき、第五世代以降)」</td><td><code>sashCheck()</code>(real_battle_simulator.html付近)でがんじょう・きあいのタスキ・きあいのハチマキを個別実装。「こんらん自傷ダメージのみ対象、攻撃技以外は対象外」という限定条件のコード上の明記は今回未確認</td><td>部分実装</td><td class='im-mid'>中</td><td>主要3効果(がんじょう/きあいのタスキ/きあいのハチマキ)は実装済みだが、「こらえる」「なかよしレベル3」については今回未確認(未実装の可能性あり)</td></tr>
+<tr class='st-unk'><td>ばけのかわ/アイスフェイスによるダメージ0化(ひんし予防に近い)</td><td>「特性ばけのかわ(フォルムが「ばけたすがた」のとき)。特性アイスフェイス(フォルムが「アイスフェイス」で物理技を受けたとき)」</td><td><code>st.disguise</code>フラグの存在を確認(fireEntryAbility内で管理)。アイスフェイスの直接確認は今回未到達</td><td>未確認</td><td class='im-mid'>中</td><td>ばけのかわは実装の気配濃厚だが、アイスフェイス側の確証コード引用まで至っていない</td></tr>
+<tr class='st-ok'><td>みちづれ: 敵の攻撃技でひんしになったとき、相手も道連れでひんしにする</td><td>「みちづれ: 敵からの攻撃技でひんしになったとき、相手もひんしにする。」</td><td><code>applyDestinyBond(downed, killer)</code>(real_battle_simulator.html:2686-2692)で実装。<code>killer.fainted = true</code>で相手も道連れにする</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>じしんかじょう: 攻撃技で相手をひんしにすると発動</td><td>「きずなへんげ・くろのいななき・じしんかじょう・しろのいななき・ビーストブースト: 相手を攻撃技でひんしにすると発動する。」</td><td><code>sideAbility(atk) === 'じしんかじょう' &amp;&amp; (atk.rank.atk｜｜0)&lt;6</code> でこうげき+1(real_battle_simulator.html:3266-3268)</td><td>実装済み</td><td class='im-low'>低</td><td>じしんかじょう個別は確認。くろのいななき/しろのいななき/ビーストブースト等は今回未確認</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G6-4とくせいjson'><h3>4. とくせい.json <span class='pagebadge'>実装済4 / 部分1 / 未実装0 / 未確認1 / 対象外0 (計6)</span></h3><p>sections: 概要/隠れ特性/特性の変化・変更(バトル外/バトル内)/世代別テーブル/遺伝 等。※このページは「個々の特性の効果一覧」ではなく、<b>特性を変える技・特性(スキルスワップ/なやみのタネ/なりきり/トレース/かがくへんかガス等)がどう作用するかの一般原則</b>を扱う内容が中心。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>特性を変える技/特性による変化は、交代または戦闘終了で元に戻る</td><td>「特性を変える技や特性によりポケモンの特性が変更されることがある。この効果はポケモンを交代させるか、戦闘が終わると元に戻る。」</td><td><code>st.abilityOverride</code>で一時上書きし、<code>clearVolatilesOnSwitch(st)</code>(交代時、6088行 <code>st.abilityOverride = null</code>)とバトルリセット処理(7793行 <code>st.abilityOverride = null</code>)で元に戻す</td><td>実装済み</td><td class='im-high'>高</td><td></td></tr>
+<tr class='st-ok'><td>とくせいなし状態(いえき/コアパニッシャー)も交代/戦闘終了で元に戻る</td><td>「技いえきを受けたポケモンや、後攻のコアパニッシャーを受けたポケモンはとくせいなし状態となり…これも交代や戦闘終了で元に戻る」</td><td><code>abilityOverride = ''</code>(特性無効化、real_battle_simulator.html:5129-5133 <code>特性無効化</code>kind)で実装され、同じ<code>clearVolatilesOnSwitch</code>経路でリセットされる</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-ok'><td>とくせいガードを持つポケモンの特性は書き換えられない(自分の技・特性由来でも不可)。ただし変身/フォルムチェンジによる変更は受ける</td><td>「とくせいガードを持ったポケモンの特性は書き変えることができなくなる。…ただし、変身やフォルムチェンジによる特性の変更は受ける。」</td><td><code>hasAbilityShield()</code>を、特性上書き/特性交換/特性無効化の各分岐(real_battle_simulator.html:5084-5137)で個別にガード。一方<code>applyTransform()</code>(2400-2417行)は<code>st.ability = sideAbility(target)</code>を直接代入しており<code>hasAbilityShield</code>を一切参照しない=変身は無条件で通る</td><td>実装済み</td><td class='im-mid'>中</td><td>「変身だけは例外的に通す」という原文のニュアンスまで一致した丁寧な実装</td></tr>
+<tr class='st-ok'><td>スキルスワップ(相互交換)/なりきり(コピー)/なやみのタネ・シンプルビーム(指定特性化)/かがくへんかガス(無効化)の個別成立条件(変えられない特性ABILITY_CHANGE_NG等)</td><td>世代別テーブル(第五世代-第九世代)の○/×/△マトリクス</td><td><code>ABILITY_CHANGE_NG</code>定数と<code>特性上書き</code>/<code>特性交換</code>/<code>特性無効化</code>のkind別分岐で概ね対応(real_battle_simulator.html:5084-5136)</td><td>実装済み</td><td class='im-mid'>中</td><td>どの特性がABILITY_CHANGE_NGに含まれるか(なまけ/ふしぎなまもり/トレース/てんきや/マルチタイプ等、表の×列)までの1件ずつの突合せは今回未実施。定数の中身検証は別タスク推奨</td></tr>
+<tr class='st-part'><td>メガシンカ後、特性を変える技/特性の変化は基本的に消える(とくせいなしは状態変化なので消えない)</td><td>(メガシンカ.json由来だが特性変化の一般原則として関連)「基本的に、特性を変える技/特性による特性変化や…メガシンカした場合、これらの効果は全て消える。とくせいなしは状態変化であるため、メガシンカしても消滅しない。」</td><td><code>megaEvolve()</code>(real_battle_simulator.html:6519-6533)は<code>st.ability = mf.ab1</code>を設定するのみで<code>st.abilityOverride</code>を一切クリアしない</td><td>部分実装</td><td class='im-mid'>中</td><td>「とくせいなし」(<code>abilityOverride=''</code>)は結果的に正しく持続するが、それ以外の特性上書き(例: なやみのタネで別特性にされていた場合)もメガシンカ後にクリアされず持続してしまう=原文の「基本的に消える」の方に反する実バグ疑い</td></tr>
+<tr class='st-unk'><td>隠れ特性/遺伝/バスラオの通常特性決定方法などバトル外の特性決定ルール</td><td>各種バトル外仕様</td><td>対象外(バトルシミュレーターの担当範囲外。ポケモン生成/選択UI側の話)</td><td>未確認/対象外</td><td class='im-low'>低</td><td>このページの多くは「捕獲・遺伝・世代間移動」の話でバトルエンジンの点検範囲に該当しない</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G6-5どうぐjson'><h3>5. どうぐ.json </h3><p><code>sections: []</code>、<code>raw_text</code>は約320文字のみで、内容は<b>曖昧さ回避ページ</b>(「どうぐ」という語が指す複数の意味の案内のみ)。原文全文:</p>
+<blockquote>どうぐ &gt; ・アイテム - メニューで選べる「どうぐ」・「リュック」・「バッグ」に入る全てのもの。広義に解釈する場合。 &gt; ・「リュック」・「バッグ」のどうぐポケットに入るもの、もしくはポケット自体を指す。狭義に解釈する場合。どうぐ一覧を参照。 &gt; ・バッグ - 第一世代のメニューでは「どうぐ」になっている。 &gt; ・ポケモンのどうぐ - トレーナーズの一種。 &gt; このページは曖昧さ回避のためのページです。…</blockquote>
+<p><b>この原文には突き合わせ可能な「バトルの規則」が一つも含まれていない</b>(でっち上げ禁止のため、規則テーブルは作成しない)。担当7ファイルのうち「持ち物の一般原則」を扱うのは実質このファイルの想定だったと思われるが、実データが曖昧さ回避ページであるため対象外とする。</p>
+<p>参考までに、<code>とくせい.json</code>/<code>メガシンカ.json</code>/<code>ダブルバトル.json</code>の中に登場した持ち物関連の一般原則(マジックルーム無効化・きれいなぬけがら・メガストーンの譲渡不可等)は各該当節の表に含めた。</p>
+<p>---</p></section>
+<section class='rulepage' id='rp-G6-6メガシンカjson'><h3>6. メガシンカ.json <span class='pagebadge'>実装済4 / 部分3 / 未実装1 / 未確認2 / 対象外0 (計10)</span></h3><p>sections: 概要/メガシンカポケモン一覧(表)/第六世代・第七世代・Champions(仕様)/Let's Go/LEGENDS Z-A 等。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-ok'><td>1回のバトルにつき一度しか使えず、1匹が使うと他のポケモンは使えなくなる</td><td>「1回のバトルにつき一度しか使えず、1匹がメガシンカを使うと他のポケモンはメガシンカできなくなる。」</td><td><code>canMegaEvolve()</code>で<code>st.megaUsed</code>を確認(6510行)。<code>megaUsed</code>は<code>clearVolatilesOnSwitch</code>にも<code>BENCH_FIELDS</code>にも含まれない=交代しても現在の<code>st</code>(場のスロット)に残り続けるため、そのサイドが一度使えば以後どのポケモンに交代してもメガシンカ不可</td><td>実装済み</td><td class='im-high'>高</td><td>「BENCH_FIELDSに入れない」という消極的実装だが、結果として仕様通りの「1トレーナー1回」制約になっている</td></tr>
+<tr class='st-unk'><td>メガシンカしたポケモンがひんしになると解除。復活してもその戦闘中は再度メガシンカ不可</td><td>「メガシンカしたポケモンがひんしになった場合、メガシンカは解除される。げんきのかけらなどで復活させたとしてもその戦闘中に再びメガシンカさせることはできない。」</td><td>ひんし時に<code>st.poke</code>を元の姿に戻す専用コードは今回未発見(<code>ひんし.json</code>側「きずなへんげ7・メガシンカ・ウルトラバーストしたポケモンの場合は、ひんし状態から復活してもその戦闘中に再度フォルムチェンジすることができない」との関連箇所)。<code>megaUsed</code>はクリアされないので「再メガシンカ不可」自体は成立するが、「ひんしで元の姿(非メガ)に戻る」処理の有無は確認できていない</td><td>未確認</td><td class='im-mid'>中</td><td>復活後もメガ姿のまま(HP全快)になる可能性があり要フォロー</td></tr>
+<tr class='st-unk'><td>バトルが終わると解除される</td><td>「バトルが終わるとメガシンカは解除される。」</td><td><code>resetBattle</code>系(7822行<code>st.megaUsed = false</code>)を確認したが、<code>st.poke</code>をメガ前に戻す処理の有無は未確認</td><td>未確認</td><td class='im-low'>低</td><td></td></tr>
+<tr class='st-ok'><td>メガシンカは交代フェーズの後・技フェーズの前に発動し、その姿(能力値/特性)を使って行動順が決まる(現行仕様)</td><td>「メガシンカはターンの最初、お互いのプレイヤーの交代が終わったときに発動する。」「行動順が決定される」</td><td><code>runTurn()</code>内、交代フェーズ(②)の直後に③として<code>['self','opp'].forEach(s =&gt; { if (sides[s].megaChoice) megaEvolve(s); })</code>(6847-6848行)。この後で技の速度順が決まる</td><td>実装済み</td><td class='im-high'>高</td><td>「メガシンカ後の種族値・特性を参照して行動順が決まる」現行(第七世代〜Champions)仕様に一致</td></tr>
+<tr class='st-part'><td>複数ポケモンが同時にメガシンカする場合、メガシンカ前の素早さが高い順に発動(トリックルーム下は逆)</td><td>「複数のポケモンが同時にメガシンカする場合、メガシンカ前の素早さが高い順にメガシンカする。トリックルーム状態では素早さが低い順から。」</td><td><code>['self','opp'].forEach(...)</code>で常に<code>self→opp</code>固定順に発動しており、素早さ比較もトリックルーム分岐も無い(6848行)</td><td>部分実装</td><td class='im-low'>低</td><td>1v1固定エンジンでは通常「両者同時メガシンカ」自体が稀なケース(トレーナー戦の同時メガシンカ演出用)。エントリー特性の発動順が入れ替わるだけで実害は小さい</td></tr>
+<tr class='st-ok'><td>特性ぶきよう/さしおさえ/マジックルームでもメガシンカできる</td><td>「特性ぶきようを持つポケモンや、さしおさえ状態/マジックルーム状態の効果を受けているポケモンでもメガシンカできる。」</td><td><code>canMegaEvolve()</code>はこれらの状態を一切チェックしない(6509-6514行)</td><td>実装済み</td><td class='im-low'>低</td><td>「制限しない」ことが正しい実装になっている</td></tr>
+<tr class='st-no'><td>そのポケモンに対応するメガストーンは、はたきおとす/どろぼう/ほしがる/トリック等で奪われたり失われたりしない</td><td>「そのポケモンに対応するメガストーンは…持ち物に影響を与える技/特性の効果で奪われたり失ったりすることがない。」</td><td><code>持ち物排除</code>(はたきおとす)・<code>持ち物奪取</code>(どろぼう/ほしがる)・<code>持ち物交換</code>(トリック/すりかえ)の各実装(real_battle_simulator.html:4631-4658)は、対応するメガストーンかどうかの判定を一切行わずに<code>def.item = null</code>等を実行する</td><td>未実装</td><td class='im-mid'>中</td><td>対応メガストーン保有ポケモンに対してはたきおとす/どろぼう/トリックを使うと、本来なら発動しないはずの持ち物剥奪が成立してしまう実バグ疑い</td></tr>
+<tr class='st-ok'><td>へんしん状態のポケモンはメガシンカできない(対応メガストーンを持っていても)</td><td>「へんしん状態のポケモンは変身後の種族に対応したメガストーンを持っていてもメガシンカは行えず…」</td><td><code>canMegaEvolve()</code>内<code>if (st.transformBase) return null;</code>(6511行)で明示的にガード</td><td>実装済み</td><td class='im-mid'>中</td><td></td></tr>
+<tr class='st-part'><td>メガシンカ後、特性を変える技/特性による変化・タイプを変える変化は基本的に消える(とくせいなしを除く)</td><td>(前掲、とくせい.jsonの表にも記載)</td><td><code>megaEvolve()</code>は<code>st.abilityOverride</code>/<code>st.typeOverride</code>をクリアしない</td><td>部分実装</td><td class='im-mid'>中</td><td>とくせい.json節の表と同一の実バグ疑い(重複掲載)</td></tr>
+<tr class='st-part'><td>メガストーンを持って戦闘に入った場合のみメガシンカ可能(戦闘中に入手した対応ストーンでは不可)</td><td>「ポケモンに対応するメガストーンを持って戦闘に入った場合のみメガシンカは行える。」</td><td><code>canMegaEvolve()</code>はその時点の<code>st.item</code>を見るだけで「戦闘開始時から持っていたか」の履歴チェックはない。理論上、戦闘中に(現エンジンには無いが)道具を新規付与するような操作をすればメガシンカできてしまう可能性</td><td>部分実装</td><td class='im-low'>低</td><td>現状のUIには戦闘中に持ち物を後から付与する手段が乏しく実害は小さい</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<section class='rulepage' id='rp-G6-7テラスタルjson'><h3>7. テラスタル.json <span class='pagebadge'>実装済0 / 部分0 / 未実装1 / 未確認0 / 対象外0 (計1)</span></h3><p>sections: 概要/チャージ/バトルにおける仕様/ステラ 等。</p>
+<div class='twrap'><table class='ruletable'>
+<thead><tr><th>規則(要約)</th><th>権威引用</th><th>うちの実装</th><th>判定</th><th>影響度</th><th>メモ</th></tr></thead>
+<tbody>
+<tr class='st-no'><td>テラスタル全般(1回のバトルで1度・タイプ変化・威力60保証・タイプ一致ボーナス変化・弱点/耐性の単タイプ化 等、すべて)</td><td>「1回のバトルで1度だけ使用できる。」「テラスタルしたポケモンがテラスタイプと一致した技を使用し…威力60に底上げされる。」 他多数</td><td><code>real_battle_simulator.html</code>にテラスタル関連コードは実質0件。唯一のヒットは4990行のコメント「テラスタル系はsim未実装のため考慮しない。出典: Bulbapedia "Soak" / "Magic Powder" / "Reflect Type"」</td><td>未実装</td><td class='im-high'>高</td><td>テラスタルはエンジンにまるごと存在しない。北極星資料(HANDOFF_PHASE3_SIMULATOR.md等)にも実装計画の痕跡は今回確認できなかった</td></tr>
+</tbody></table></div>
+<p>---</p></section>
+<div class='ctxbox'><h4>まとめ表(点検した規則の粒度別カウント)</h4><p>このMarkdown内で個別に判定した行(表の1行=1規則、脚注や言語名一覧などの非規則行は除く)の内訳:</p>
+<p>- 実装済み: 14
+- 部分実装: 8
+- 未実装: 15
+- 未確認: 8
+- 対象外/N-A(構造的に非該当・原文に規則が無い): 3</p>
+<p>(ダブルバトル.json内の「対象が変わる技の一覧」約150技は1件ずつのgrepは行わず、構造的根拠(1v1固定)に基づき一括で未実装と判定した。個別技名までの全数照合は別セッションでの追加作業を推奨する。)</p></div>
+<div class="panel">
+<h2>5. やることリスト(優先度順)</h2>
+<p>「影響度=高」を最優先に、実装コストが小さく波及が大きいものを上位に並べた。番号は着手順の目安であり、依存関係(先にやるべきもの)も考慮している。</p>
+<ol class="todo-list">
+<li><b>[方針確認・最優先]</b> まひの行動不能率(SV=25% vs コーパス記載のChampions=12.5%)、および他の項目でも同種の版差異が無いかを阿部さんに確認する。これは実装作業の前提(どの版を正とするか)を左右するため他の修正より先に判断が要る。</li>
+<li><b>[構造・最大工数]</b> ダブルバトルの基本構造(2体同時選出・複数対象・範囲防御技・サイドチェンジ)を <code>設計_バトルエンジン原理_2026-07-26.md</code> の方針どおり「フェーズと対象選択(target_lock)の追加」で実装する。これが無いと関連する高影響度項目(複数対象ダメージ処理順序・ワイドガード等)がまとめて解消する一方、後回しにするほど個別に特例if文が積み上がる。</li>
+<li><b>[行動順・中工数]</b> ターン中の動的な行動順再評価(第八世代以降ルール)を <code>runTurn()</code> に実装する。<code>decideOrder()</code>をターン開始時の1回きりでなく、行動ごとに再評価する構造に変える。優先度の繰り上げ/繰り下げ(おさきにどうぞ・さきおくり)もこの改修とセットで拾える。</li>
+<li><b>[行動順・小工数]</b> 優先度の「最速」「最遅」枠を追加する: クイックドロウ/イバンのみ(最速)、あとだし/きんしのちから/こうこうのしっぽ/まんぷくおこう(最遅)。<code>decideOrder()</code>のせんせいのツメ判定と同型のパターンで追加できる見込み。</li>
+<li><b>[命中・小工数]</b> 一撃必殺技の命中判定から、ふくがん以外の命中変動要素(ランク補正・じゅうりょく・ひかりのこな・こうかくレンズ)も除外する。<code>phaseHitCheck()</code>内の一撃必殺分岐にガードを1つ足すだけで直る規模。</li>
+<li><b>[特性・中工数]</b> 直接攻撃時の反応特性のうち欠落分(どくのトゲ/ほうし/ゆうばく/もふもふ/カーリーヘアー/とれないにおい/わるいてぐせ 等)を、既存のせいでんき/ほのおのからだ実装と同じパターンで追加する。</li>
+<li><b>[状態異常・小工数]</b> こんらんの判定順序(まひ/メロメロ→こんらんの順に権威修正)を直す。<code>runTurn()</code>内の数行の並べ替えで済む見込み。</li>
+<li><b>[状態異常・要権威確認]</b> こおりの解凍条件(相手の炎技を受けると解ける)を権威ソース(ポケモンWiki日本/徹底攻略)で再確認し、無ければ追加する。</li>
+<li><b>[急所・要方針判断]</b> 急所ランク0(素の急所率1/24)を自動対戦でも乱数判定するかどうかを判断する。現状は意図的近似(UIトグル依存)なので、観戦レポート・sim自動対戦の精度に関わるなら実装、割り切るなら「意図的近似」として明記して閉じる。</li>
+<li><b>[テラスタル・大工数/要スコープ判断]</b> テラスタル機構を実装するかどうかを検討する。メガシンカと同程度の実装量が見込まれ、現状は完全にスコープ外(コメント1行のみ)。ロードマップ上の優先度と要相談。</li>
+<li><b>[交代・要検証]</b> 反動硬直/溜め技中の交代スキップ漏れ(実バグ疑い)を実機で再現テストし、事実なら<code>runTurn()</code>の交代フェーズにガードを追加する。</li>
+</ol>
+<p class="note honest" style="padding:10px 14px;border-radius:6px;">このリストは今回の点検結果からの提案であり、実施の要否・順序は阿部さんの判断を優先する。特に1・9・10番は「どの版を正とするか」「どこまで作り込むか」という声の判断(北極星)に関わるため、Claudeが単独で★→✓へ進めるべきではない。</p>
+</div>
+
+<footer class="page">修正は一切行っていません。本レポートは <code>review/現状棚卸し_ルール実装点検_2026-07-28.html</code> と <code>reference/_rule_mentions_index.json</code> の2ファイルのみが成果物です。</footer>
+</div>
+</body>
+</html>
+
+<script src="../internal_home.js?v=20260729a"></script>
