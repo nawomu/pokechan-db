@@ -1,0 +1,169 @@
+{
+  "meta": {
+    "task": "T12 棚卸し4 生成系の入出力表",
+    "method": "各ビルダーのヘッダ/readFileSync・writeFileSync・require から I/O を機械抽出 + 出力mtime",
+    "note": "mtime は 2026-07-28 現在"
+  },
+  "builders": [
+    {
+      "script": "tools/build_master.js (T1 DB統一)",
+      "inputs": [
+        "pokechan_data.js (Champions overlay=生成物)",
+        "reference/_move_flags.json",
+        "reference/_showdown/moves.json",
+        "reference/abilities_desc_ja.json",
+        "reference/abilities_master.json(旧)",
+        "reference/items_master.json(旧)",
+        "reference/learnsets_master.json",
+        "reference/_authority_target_protect_fix.json"
+      ],
+      "outputs": [
+        "reference/master_pokemon.json",
+        "reference/master_moves.json",
+        "reference/master_abilities.json",
+        "reference/master_items.json"
+      ],
+      "last_run_evidence": "master_*.json=07/28 11:34",
+      "circular": true,
+      "risk": "高",
+      "note": "★★循環の根源: SSOTであるmaster_*.json を『生成物 pokechan_data.js』を入力にして作る=生成物→SSOTの逆流。これが土台の破綻(本日の説明文5件消失もこの依存関係起因)"
+    },
+    {
+      "script": "tools/build_champions_view.js (T2)",
+      "inputs": [
+        "reference/master_pokemon.json",
+        "reference/master_moves.json",
+        "reference/master_abilities.json",
+        "pokechan_data.js (overlay/diff用)"
+      ],
+      "outputs": [
+        "pokechan_data.js",
+        "(diffレポート)"
+      ],
+      "last_run_evidence": "pokechan_data.js=07/28 14:16",
+      "circular": true,
+      "risk": "高",
+      "note": "★★master→pokechan_data.js を生成するが、その pokechan_data.js を build_master が入力にする=master↔pokechan_data.js の循環。素で回すと master に無い資産(独自説明文等)が落ちる"
+    },
+    {
+      "script": "tools/build_national_view.js",
+      "inputs": [
+        "reference/master_pokemon.json",
+        "reference/master_moves.json",
+        "reference/master_abilities.json",
+        "pokechan_data.js (静的テーブル/ABILITY_DESC)",
+        "reference/learnsets_master.json",
+        "reference/pokeapi_master.json",
+        "reference/moves_battle_data_fix.json",
+        "reference/_ability_desc_fill_2026-07-19.json"
+      ],
+      "outputs": [
+        "pokechan_data_all.js"
+      ],
+      "last_run_evidence": "pokechan_data_all.js=07/28 11:35",
+      "circular": false,
+      "risk": "中",
+      "note": "master→all の一方向だが pokechan_data.js(生成物) を ABILITY_DESC/静的テーブル由来で読む=生成物依存。_build_pokechan_data_all.js の後継(参照版)"
+    },
+    {
+      "script": "tools/_build_pokechan_data_all.js (@deprecated)",
+      "inputs": [
+        "pokechan_data.js",
+        "reference/*.json(多数)",
+        "reference/learnsets_master.json",
+        "reference/_move_flags.json",
+        "reference/_showdown/moves.json"
+      ],
+      "outputs": [
+        "pokechan_data_all.js"
+      ],
+      "last_run_evidence": "superseded(後継=build_national_view.js)",
+      "circular": false,
+      "risk": "低",
+      "note": "2026-07-02 deprecated。ロールバック/参照用に残存(削除禁止)。実行すると旧経路で上書き注意"
+    },
+    {
+      "script": "tools/_gen_content_pages.js (案A 静的ページ)",
+      "inputs": [
+        "reference/master_pokemon.json",
+        "reference/master_abilities.json",
+        "pokechan_data.js",
+        "review/_weights_collected.json"
+      ],
+      "outputs": [
+        "pokemon/*.html",
+        "move/*.html",
+        "type/*.html",
+        "ability/*.html 等のコンテンツページ"
+      ],
+      "last_run_evidence": "pokemon/index.html=07/21 08:31",
+      "circular": false,
+      "risk": "中",
+      "note": "pokechan_data.js(生成物)依存。07-21で停止=本日のmaster反映が未(古いpokechan_data.js由来の可能性)"
+    },
+    {
+      "script": "tools/build_i18n_pages.js",
+      "inputs": [
+        "(コンテンツページ+i18n/*.json)"
+      ],
+      "outputs": [
+        "<lang>/<page>.html",
+        "sitemap.xml"
+      ],
+      "last_run_evidence": "sitemap.xml=07/21 08:32",
+      "circular": false,
+      "risk": "中",
+      "note": "多言語静的ページ。07-21で停止=本日master反映未"
+    },
+    {
+      "script": "tools/_build_moves_db_all.js",
+      "inputs": [
+        "reference/moves_master.json(旧06-25)"
+      ],
+      "outputs": [
+        "moves_db_all.html"
+      ],
+      "last_run_evidence": "moves_db_all.html=07/04 07:04",
+      "circular": false,
+      "risk": "中",
+      "note": "入力のmoves_master.json自体が06-25で古い(新master_moves.json=07-28とは別物・名前衝突)。出力も07-04で停滞"
+    },
+    {
+      "script": "tools/_build_pokemon_db_all.js",
+      "inputs": [
+        "reference/pokeapi_master.json",
+        "reference/master_pokemon.json",
+        "reference/abilities_master.json(旧07-03)"
+      ],
+      "outputs": [
+        "pokemon_db_all.html"
+      ],
+      "last_run_evidence": "pokemon_db_all.html=07/20 08:37",
+      "circular": false,
+      "risk": "低",
+      "note": "abilities_master.json(07-03旧)使用=新master_abilities.json(07-28)未反映"
+    }
+  ],
+  "stale_or_abandoned": [
+    {
+      "file": "pokechan_data.new.js",
+      "mtime": "07/04 10:01",
+      "note": "07-04停止。T2一時出力か。放置"
+    },
+    {
+      "file": "moves_master.json(旧)",
+      "mtime": "06/25 20:03",
+      "note": "06-25。新master_moves.json(07-28)と名前衝突"
+    },
+    {
+      "file": "abilities_master.json(旧)",
+      "mtime": "07/03 15:56",
+      "note": "07-03。新master_abilities.json(07-28)と名前衝突"
+    },
+    {
+      "file": "items_master.json(旧)",
+      "mtime": "06/25 20:03",
+      "note": "06-25。新master_items.json(07-28)と名前衝突"
+    }
+  ]
+}

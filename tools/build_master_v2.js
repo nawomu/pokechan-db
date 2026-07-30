@@ -1,0 +1,369 @@
+#!/usr/bin/env node
+/* tools/build_master_v2.js — ★マスターデータ(master/)の生成器
+ *
+ * 目的(2026-07-29 阿部さん):「データは一つ。絶対に一つ。」
+ *   一本化した大本のデータ =「**マスターデータ**」。置き場所は master/ ただ1つ。
+ *
+ * ★この生成器は「別で作ってから入れ替える」の“別で作る”側。
+ *   **既存ファイルを1バイトも変更しない**。出力は master/ の新規ファイルのみ。
+ *
+ * 器と中身(設計_データSSOT一本化_2026-07-28.md §9):
+ *   - **器(範囲)= 全国版**(1219体 / 919技 / 310特性 / 167持ち物)
+ *   - **中身(値)の正典 = Champions**。Championsに在るものはChampions版の値で上書き
+ *   - Championsに無いものは最新世代の値を入れ、source に由来を残す
+ *
+ * 入力(すべて読み取り専用):
+ *   pokechan_data.js / pokechan_data_all.js / items_database.js
+ *   reference/_authority_corpus_ch/*.json(Champions権威)
+ *   reference/_name_normalize.json(名前の正規化)
+ *
+ * 出力: master/{abilities,items,moves,pokemon,learnsets,regulations}.json
+ * 実行: node tools/build_master_v2.js
+ */
+'use strict';
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.resolve(__dirname, '..');
+const OUT = path.join(ROOT, 'master');
+const NOW = new Date().toISOString().slice(0, 10);
+const REGULATION = 'M-B';                       // 現行レギュレーション(2026-07-29 阿部さん確定)
+
+// ── 入力 ────────────────────────────────────────────────────────────
+const C = require(path.join(ROOT, 'pokechan_data.js'));        // Champions版(値の正典)
+const A = require(path.join(ROOT, 'pokechan_data_all.js'));    // 全国版(器)
+global.window = global.window || {};
+require(path.join(ROOT, 'items_database.js'));
+const ITEMS_DB = global.window.ITEMS_DATABASE;
+const J = f => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
+const AUTH = {
+  abilities: J('reference/_authority_corpus_ch/abilities_ch.json'),
+  moves:     J('reference/_authority_corpus_ch/moves_ch.json'),
+  lists:     J('reference/_authority_corpus_ch/lists_ch.json'),
+  learnsets: J('reference/_authority_corpus_ch/learnsets_ch.json'),
+};
+const NAMEMAP = (() => {
+  try {
+    const d = J('reference/_name_normalize.json');
+    const rows = Array.isArray(d) ? d : (d.rows || []);
+    const m = {};
+    // ★キーは display_name(いまのChampions表記) → official_name(正式名称)
+    //   2026-07-30: champions_name というキーは存在せず、名前の正式化が効いていなかった
+    rows.forEach(r => { if (r.display_name) m[r.display_name] = r; });
+    return m;
+  } catch (e) { return {}; }
+})();
+
+// ── 共通ヘルパ ──────────────────────────────────────────────────────
+const zen2han = s => String(s == null ? '' : s).replace(/[０-９Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+const norm = s => zen2han(s).replace(/[()（）\s]/g, '').replace(/のすがた|フォルム/g, '');
+const stamp = (src) => ({ source: src, verified_at: NOW });
+// ★決められない値は勝手に決めず null を入れて unknowns に積む(推測で埋めない)
+const unknowns = [];
+const unk = (kind, key, why) => { unknowns.push({ kind, key, why }); return null; };
+
+if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
+const write = (name, obj) => {
+  fs.writeFileSync(path.join(OUT, name), JSON.stringify(obj, null, 1) + '\n');
+  const n = Array.isArray(obj.items) ? obj.items.length : (obj.count || '?');
+  console.log(`  ✍ master/${name}  ${n}件`);
+};
+const META = (what, extra) => Object.assign({
+  what, generated_at: NOW, generator: 'tools/build_master_v2.js',
+  rule: 'データは一つ。マスターデータは master/ にしかない。修正も追加もここだけ。',
+  canon: '器=全国版の範囲 / 値の正典=Champions → 無ければ最新世代(source に由来を残す)',
+  regulation_current: REGULATION,
+}, extra || {});
+
+// ══════════════════════════════════════════════════════════════════
+// 1) abilities.json
+// ══════════════════════════════════════════════════════════════════
+function buildAbilities() {
+  const authByName = {};
+  AUTH.abilities.abilities.forEach(a => { authByName[a.name] = a; });
+  // 器 = 全国版の特性(ABILITY_DESC)+ Championsのポケモンが実際に持つ特性 + 権威
+  const names = new Set([
+    ...Object.keys(A.ABILITY_DESC || {}),
+    ...Object.keys(C.ABILITY_DESC || {}),
+    ...Object.keys(authByName),
+  ]);
+  // Championsのポケモンが実際に持つ特性(印の根拠。champions.in フラグは信用しない=2026-07-28に10件漏れていた)
+  const usedInChampions = new Set();
+  C.POKEMON_LIST.forEach(p => ['ab1', 'ab2', 'ab3'].forEach(k => { if (p[k]) { usedInChampions.add(p[k]); names.add(p[k]); } }));
+
+  const items = [...names].filter(Boolean).sort().map(name => {
+    const au = authByName[name];
+    const inCh = usedInChampions.has(name) || !!(au && au.champions_pokemon_count);
+    // ★説明文: 公式のゲーム内テキスト(Champions)を最優先 → 権威の効果文 → うちの既存
+    let effect = null, src = null;
+    if (au && au.effect) { effect = au.effect; src = 'champions_authority'; }
+    else if (C.ABILITY_DESC && C.ABILITY_DESC[name]) { effect = C.ABILITY_DESC[name]; src = 'ours_champions'; }
+    else if (A.ABILITY_DESC && A.ABILITY_DESC[name]) { effect = A.ABILITY_DESC[name]; src = 'ours_national'; }
+    else { effect = unk('ability_effect', name, '権威にもうちにも説明が無い'); src = 'unknown'; }
+    return Object.assign({
+      slug: null,                        // ★英語slugは未確定(PokeAPI照合が要る)→ unknown として残す
+      name, display_name: name,
+      effect_ja: effect,
+      champions: inCh,
+      regulation: inCh ? REGULATION : null,
+      champions_pokemon_count: au ? (au.champions_pokemon_count || 0) : null,
+      name_en: au ? (au.en || null) : null,
+    }, stamp(src));
+  });
+  items.filter(x => !x.name_en).forEach(x => unk('ability_slug', x.name, '英語名が権威に無い=slug未確定'));
+  write('abilities.json', { meta: META('特性'), count: items.length,
+    champions_count: items.filter(x => x.champions).length, items });
+  return items.length;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 2) items.json
+// ══════════════════════════════════════════════════════════════════
+// ★applies_to(持ち物の対象ポケモン名)を、マスターに実在する名前の配列へ展開する。
+//   ①完全一致があればそれ ②無ければ「基本名で始まる」ものを全部(ニャオニクス → オス/メスのすがた)
+//   ③メガ形も拾う(メガニャオニクス♀♂)。1つも見つからなければ null(推測で作らない)。
+let _pkNamesCache = null;
+function pkNames() {
+  if (!_pkNamesCache) {
+    _pkNamesCache = A.POKEMON_LIST.map(p => p.name);
+    C.POKEMON_LIST.forEach(p => { const r = NAMEMAP[p.name]; const n = (r && r.official_name) ? r.official_name : p.name; if (!_pkNamesCache.includes(n)) _pkNamesCache.push(n); });
+  }
+  return _pkNamesCache;
+}
+// 『physical_attack』のような英小文字+アンダースコアの識別子は「補正の対象」であってポケモン名ではない
+function looksLikeDescriptor(v) { return typeof v === 'string' && /^[a-z0-9_]+$/.test(v); }
+function expandAppliesTo(base) {
+  if (!base || typeof base !== 'string') return null;
+  if (looksLikeDescriptor(base)) return null;        // ★補正の対象なので、ポケモン名としては扱わない
+  const all = pkNames();
+  if (all.includes(base)) return [base];
+  const hit = all.filter(n => n === base || n.startsWith(base + '(') || n.startsWith(base + ' ') || n.startsWith('メガ' + base));
+  return hit.length ? hit : null;
+}
+
+function buildItems() {
+  const flat = [];
+  (function walk(o) {
+    if (Array.isArray(o)) return o.forEach(walk);
+    if (o && typeof o === 'object') {
+      if (o.name && (o.key || o.effect || o.category)) flat.push(o);
+      Object.values(o).forEach(walk);
+    }
+  })(ITEMS_DB);
+  const seen = new Set();
+  const ours = flat.filter(x => { const k = x.key || x.name; if (seen.has(k)) return false; seen.add(k); return true; });
+  const authNames = new Set((AUTH.lists.items.rows || []).map(r => r[0]));
+  const authEffect = {}; (AUTH.lists.items.rows || []).forEach(r => { authEffect[r[0]] = r[1]; });
+
+  const items = ours.map(it => {
+    const inCh = authNames.has(it.name);
+    return Object.assign({
+      slug: it.key || null,
+      name: it.name, display_name: it.name, name_en: it.name_en || null,
+      category: it.category || null,
+      effect_ja: inCh ? (authEffect[it.name] || it.effect || null) : (it.effect || null),
+      // ★applies_to は「基本名」で書かれていることがある(例: ニャオニクスナイト → 『ニャオニクス』)。
+      //   マスターの名前はフォーム名(『ニャオニクス(オスのすがた)』)なので、そのままでは一致せず
+      //   **メガシンカが到達不能になる**(2026-07-30 GLMの独立検算で発見。フラエッテナイトと同じ型)。
+      //   → 一致する名前の**配列**に展開しておく(照合する側は配列を見ればよい)。
+      // ★applies_to は items_database で**2つの意味**に使われている(2026-07-30 発見):
+      //   ①対象ポケモン(メガストーン)= 『ニャオニクス』『フラエッテ(えいえんのはな)』
+      //   ②補正の対象(能力・技種別)= 『physical_attack』『speed』『sound_moves』
+      //   → マスターデータでは**分ける**(同じ欄に別の意味を入れない)。
+      applies_to: it.applies_to || null,                        // 旧データそのまま(移行用に残す)
+      applies_to_pokemon: expandAppliesTo(it.applies_to),       // ①対象ポケモン(実在名の配列)
+      boosts: looksLikeDescriptor(it.applies_to) ? it.applies_to : null,   // ②補正の対象
+      implemented: it.implemented_in_pokechan === true,
+      champions: inCh,
+      regulation: inCh ? REGULATION : null,
+    }, stamp(inCh ? 'champions_authority' : 'ours_national'));
+  });
+  write('items.json', { meta: META('持ち物'), count: items.length,
+    champions_count: items.filter(x => x.champions).length, items });
+  return items.length;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 3) moves.json
+// ══════════════════════════════════════════════════════════════════
+function buildMoves() {
+  const authByName = {};
+  (AUTH.moves.moves || []).forEach(m => { authByName[m.name] = m; });
+  const chByName = {}; Object.entries(C.WAZA_MAP).forEach(([k, m]) => { chByName[m.name] = Object.assign({ _champKey: k }, m); });
+  const natByName = {}; Object.entries(A.WAZA_MAP).forEach(([k, m]) => { natByName[zen2han(m.name)] = Object.assign({ _slug: k }, m); });
+
+  // ★キーは slug(英語)。名前をキーにすると、Z技の物理版/特殊版(breakneck-blitz--physical / --special)など
+  //   **同名の別技が18件つぶれる**(2026-07-30に実際に潰れた=919→901)。設計どおり slug を主キーにする。
+  const bySlug = new Map();
+  Object.entries(A.WAZA_MAP).forEach(([slug, m]) => bySlug.set(slug, { nat: Object.assign({ _slug: slug }, m) }));
+  Object.entries(C.WAZA_MAP).forEach(([ck, m]) => {
+    const nz = zen2han(m.name);
+    // Champions技は全国版の同名slugに合流(同名が複数ある場合は最初の1つ=Championsに専用Z技は無い)
+    const hit = [...bySlug.entries()].find(([, v]) => v.nat && zen2han(v.nat.name) === nz);
+    if (hit) hit[1].ch = Object.assign({ _champKey: ck }, m);
+    else bySlug.set('champions:' + ck, { ch: Object.assign({ _champKey: ck }, m) });
+  });
+  const num = v => { const n = Number(String(v == null ? '' : v).replace(/[^0-9]/g, '')); return Number.isFinite(n) && n > 0 ? n : null; };
+
+  const items = [...bySlug.entries()].map(([slugKey, v]) => {
+    const nat = v.nat, ch = v.ch;
+    const nz = zen2han((nat && nat.name) || (ch && ch.name) || '');
+    const au = authByName[nz] || (ch && authByName[ch.name]) || (nat && authByName[nat.name]);
+    // ★コインビームは存在しない技=持ち込まない(2026-07-29 阿部さん決定)
+    if (nz === 'コインビーム') return null;
+    const inCh = !!au || (!!ch && !!authByName[(ch.name || '')]);
+    const base = inCh && au ? au : null;
+    const pri = ch ? ((ch.battle_data && ch.battle_data.priority) != null ? ch.battle_data.priority : (ch.priority || 0))
+                   : (nat ? (nat.priority || 0) : 0);
+    const src = inCh ? 'champions_authority' : (nat ? 'ours_national' : 'ours_champions');
+    return Object.assign({
+      slug: nat ? nat._slug : null,
+      champions_key: ch ? ch._champKey : null,        // ★旧キーは _aliases として残す(引っ越し完了まで)
+      name: (nat && nat.name) || (ch && ch.name) || nz,
+      display_name: (ch && ch.name) || (nat && nat.name) || nz,
+      type: base ? base.type : (ch ? ch.type : (nat ? nat.type : null)),
+      category: base ? base.category : (ch ? ch.category : (nat ? nat.category : null)),
+      power: base ? num(base.power) : (ch ? (ch.power || null) : (nat ? (nat.power || null) : null)),
+      accuracy: base ? num(base.accuracy) : (ch ? (ch.accuracy || null) : (nat ? (nat.accuracy || null) : null)),
+      pp: base ? num(base.pp) : (ch ? (ch.pp || null) : (nat ? (nat.pp || null) : null)),
+      priority: pri,                                   // ★置き場所を最上位に統一
+      target: (ch && ch.target) || (nat && nat.target) || null,
+      contact: (ch && ch.contact) != null ? ch.contact : ((nat && nat.contact) != null ? nat.contact : null),
+      protect: (ch && ch.protect) != null ? ch.protect : ((nat && nat.protect) != null ? nat.protect : null),
+      // ★説明文とeffectsは既存の資産をそのまま移送(作り直さない)
+      description: (ch && ch.description) || (nat && nat.description) || null,
+      description_legacy: (ch && ch.description_legacy) || (nat && nat.description_legacy) || null,
+      battle_data: (ch && ch.battle_data) || (nat && nat.battle_data) || null,
+      flags: (ch && ch.flags) || (nat && nat.flags) || null,
+      tags: (nat && nat.tags) || null,
+      move_no: (nat && nat.move_no) || (ch && ch.move_no) || null,
+      champions: inCh,
+      regulation: inCh ? REGULATION : null,
+    }, stamp(src));
+  }).filter(Boolean).sort((a,b)=>(a.move_no||9999)-(b.move_no||9999) || String(a.name).localeCompare(String(b.name),'ja'));
+  items.filter(x => !x.slug).forEach(x => unk('move_slug', x.name, '全国版に無い=英語slug未確定'));
+  write('moves.json', { meta: META('技'), count: items.length,
+    champions_count: items.filter(x => x.champions).length, items });
+  return items.length;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 4) pokemon.json
+// ══════════════════════════════════════════════════════════════════
+function buildPokemon() {
+  const chByName = {}; C.POKEMON_LIST.forEach(p => { chByName[p.name] = p; });
+  const natByNorm = {}; A.POKEMON_LIST.forEach(p => { natByNorm[norm(p.name)] = p; });
+  const authStats = {}; (AUTH.lists.stats.rows || []).forEach(r => { authStats[norm(r[1])] = r; });
+
+  const all = new Map();
+  A.POKEMON_LIST.forEach(p => all.set(p.name, { nat: p }));
+  C.POKEMON_LIST.forEach(p => {
+    const officialRow = NAMEMAP[p.name];
+    const official = (officialRow && officialRow.official_name) ? officialRow.official_name : p.name;
+    const key = all.has(official) ? official : (natByNorm[norm(p.name)] ? natByNorm[norm(p.name)].name : p.name);
+    const e = all.get(key) || {};
+    e.ch = p; e.display = p.name; all.set(key, e);
+  });
+
+  const items = [...all.entries()].map(([name, e]) => {
+    const p = e.ch || e.nat;
+    const inCh = !!e.ch;
+    const au = authStats[norm(name)] || (e.ch ? authStats[norm(e.ch.name)] : null);
+    const stat = k => {
+      if (inCh && au) {
+        const idx = { hp: 2, atk: 3, def: 4, spatk: 5, spdef: 6, spd: 7, total: 8 }[k];
+        const v = Number(au[idx]); if (Number.isFinite(v)) return v;
+      }
+      return p[k] != null ? p[k] : null;
+    };
+    return Object.assign({
+      slug: null,                                    // ★英語slugは未確定(PokeAPI照合が要る)
+      no: p.no != null ? Number(p.no) : null,
+      name,                                          // ★正式名称
+      display_name: e.display || name,               // ★画面用の短い名前
+      form: p.form || null, mega: !!p.mega,
+      type1: p.type1 || null, type2: p.type2 || null,
+      hp: stat('hp'), atk: stat('atk'), def: stat('def'),
+      spatk: stat('spatk'), spdef: stat('spdef'), spd: stat('spd'), total: stat('total'),
+      ab1: p.ab1 || null, ab2: p.ab2 || null, ab3: p.ab3 || null,
+      weight_kg: p.weight_kg != null ? p.weight_kg : null,
+      gen: (e.nat && e.nat.gen) || null, legend: (e.nat && e.nat.legend) || null,
+      resist: p.resist || null,
+      champions: inCh,
+      regulation: inCh ? REGULATION : null,
+    }, stamp(inCh && au ? 'champions_authority' : (inCh ? 'ours_champions' : 'ours_national')));
+  }).sort((a, b) => (a.no || 9999) - (b.no || 9999) || String(a.name).localeCompare(String(b.name), 'ja'));
+
+  write('pokemon.json', { meta: META('ポケモン'), count: items.length,
+    champions_count: items.filter(x => x.champions).length, items });
+  return items.length;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 5) learnsets.json(★没収技を confiscated として保持)
+// ══════════════════════════════════════════════════════════════════
+function buildLearnsets() {
+  const authByOurs = {};
+  AUTH.learnsets.pokemon.forEach(e => { if (e.matched_ours) authByOurs[e.matched_ours] = e; });
+  const chKeyToName = {}; Object.entries(C.WAZA_MAP).forEach(([k, m]) => { chKeyToName[k] = m.name; });
+
+  const items = C.POKEMON_LIST.map(p => {
+    const au = authByOurs[p.name];
+    const oursKeys = (C.POKEMON_WAZA && C.POKEMON_WAZA[p.name]) || null;
+    const oursNames = oursKeys ? oursKeys.map(k => chKeyToName[k] || k) : null;
+    // ★覚える技: 権威(Champions)を正典。無ければうちの既存
+    //   ★ただし「権威の抽出が明らかにおかしい」時はうちを使う(2026-07-30 メタモンで発覚)。
+    //     メタモンの権威ページは構造が違い、抽出器が「紫」「第1世代」「一般ポケモン」などを技名として拾っていた。
+    //     判定=権威の技名がうちの技リスト(WAZA_MAP)に1つも無い → 抽出失敗とみなす。
+    const authLooksBroken = (list) => {
+      if (!list || !list.length) return true;
+      const known = list.filter(n => Object.values(C.WAZA_MAP).some(m => m.name === n));
+      return known.length === 0;                        // 1つも実在の技名でなければ抽出失敗
+    };
+    let learn, learnSrc;
+    if (au && !authLooksBroken(au.learn)) { learn = au.learn; learnSrc = 'champions_authority'; }
+    else if (oursNames) { learn = oursNames; learnSrc = au ? 'ours_champions(権威の抽出が壊れていたため)' : 'ours_champions'; }
+    else { learn = unk('learnset', p.name, '権威の抽出が壊れており、うちにも学習データが無い'); learnSrc = 'unknown'; }
+    return Object.assign({
+      name: p.name, display_name: p.name, no: p.no != null ? Number(p.no) : null,
+      learn: learn || [],
+      confiscated: au ? (au.lost || []) : [],        // ★Championsで没収された技(ラボのON/OFF用)
+      champions: true, regulation: REGULATION,
+      authority_name: au ? au.name : null,
+      ours_had: oursNames ? oursNames.length : 0,
+    }, stamp(learnSrc));
+  });
+  write('learnsets.json', { meta: META('覚える技と没収技', {
+    note: 'confiscated=Championsで没収された技。本番(リアルバトル)では出さない。ラボではON/OFFを選べる。',
+  }), count: items.length,
+    total_learn: items.reduce((s, x) => s + x.learn.length, 0),
+    total_confiscated: items.reduce((s, x) => s + x.confiscated.length, 0), items });
+  return items.length;
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 6) regulations.json
+// ══════════════════════════════════════════════════════════════════
+function buildRegulations() {
+  const items = [{
+    id: REGULATION, name: 'レギュレーション M-B', current: true,
+    note: '現行レギュレーション。過去のレギュレーション(M-A等)は保持しない(後戻りしないため)。' +
+          'リアルバトルは regulation===現行 のポケモン/技/持ち物だけを出す。',
+    source: 'champions_authority', verified_at: NOW,
+  }];
+  write('regulations.json', { meta: META('レギュレーション'), count: items.length, items });
+  return items.length;
+}
+
+// ── 実行 ────────────────────────────────────────────────────────────
+console.log('=== マスターデータ生成(master/) ===');
+console.log('  ★既存ファイルは1バイトも変更しません。出力は master/ のみ。');
+const n = {
+  abilities: buildAbilities(), items: buildItems(), moves: buildMoves(),
+  pokemon: buildPokemon(), learnsets: buildLearnsets(), regulations: buildRegulations(),
+};
+fs.writeFileSync(path.join(OUT, '_unknowns.json'), JSON.stringify({
+  note: '★決められなかった値の一覧。推測で埋めていない。ここを1件ずつ潰すのが次の作業。',
+  generated_at: NOW, count: unknowns.length, items: unknowns,
+}, null, 1) + '\n');
+console.log('\n件数:', JSON.stringify(n));
+console.log('★決められなかった値:', unknowns.length, '件 → master/_unknowns.json');
