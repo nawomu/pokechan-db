@@ -80,6 +80,8 @@ function buildEngine() {
     decideOrder, phaseHitCheck, phaseDealDamage, phaseApplyEffects, phaseSlipFor, battleLog,
     runSingleAttack: (typeof runSingleAttack !== 'undefined') ? runSingleAttack : null,
     noteMoveUsed: (typeof noteMoveUsed !== 'undefined') ? noteMoveUsed : null,
+    aiHazardCost: (typeof aiHazardCost !== 'undefined') ? aiHazardCost : null,
+    aiBenchTakes: (typeof aiBenchTakes !== 'undefined') ? aiBenchTakes : null,
     clearVolatilesOnSwitch: (typeof clearVolatilesOnSwitch !== 'undefined') ? clearVolatilesOnSwitch : null,
     attemptSwitch: (typeof attemptSwitch !== 'undefined') ? attemptSwitch : null,
     aiChooseMove: (typeof aiChooseMove !== 'undefined') ? aiChooseMove : null,

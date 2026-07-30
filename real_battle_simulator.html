@@ -6767,12 +6767,17 @@ function aiChooseMove(sideKey){
     const li = st.moves.findIndex(m => m && m.name === st.choiceLock.name);
     if (li >= 0) return li;
   }
-  let best = -1, bestScore = -1;
+  let best = -1, bestScore = -1, bestPri = -99;
   st.moves.forEach((m, i) => {
     if (!m) return;
     if (st.pp && st.pp[i] <= 0) return;   // PP切れの技は選ばない(段129)
     const score = aiScoreMove(sideKey, m);
-    if (score > bestScore){ bestScore = score; best = i; }
+    // ★2026-07-29 阿部さん:「先制技で倒せるなら、わざわざ後退せず先制技で倒す」
+    //   確定KO(score>=1000)が複数あるときは**優先度の高い技**を選ぶ(後攻でも先に倒せる)。
+    const pri = movePriority(m, st);
+    if (score > bestScore || (score >= 1000 && score === bestScore && pri > bestPri)){
+      bestScore = score; best = i; bestPri = pri;
+    }
   });
   return best >= 0 ? best : 0;
 }
@@ -6783,13 +6788,72 @@ function aiChooseMove(sideKey){
 //  B) 「相手の最大平均ダメージ >= 自分の残HP(=今ターン倒される見込み) かつ 自分が後攻 かつ
 //      確定KOで倒し返せない」 → 相手の技を一番安く受けられる控え(最良で半減以下)へ受け交代(v3)。
 // 連続では交代しない(aiSwitchedLast=往復防止)。AIはsim内の情報(相手の技)を見てよい設計。
+// ★AI用: 特性でそのタイプの技を「無効化する」表(2026-07-29・Champions権威で全件裏取り)
+//   出典=ヤックン/ch/ 特性ページ(reference/_authority_corpus_ch/abilities_ch.json)
+//   ふゆう「じめんタイプの技を受けない」/ もらいび「ほのおタイプの技を受けるとダメージや効果はなくなり」
+//   ちょすい・よびみず・かんそうはだ「みずタイプの技を受けるとダメージが無効化」
+//   そうしょく「くさタイプの技を受けると技が無効化」/ ひらいしん・でんきエンジン・ちくでん「でんきタイプ〜無効化」
+const _AI_AB_IMMUNE_TYPE = {
+  'ふゆう':'じめん', 'もらいび':'ほのお',
+  'ちょすい':'みず', 'よびみず':'みず', 'かんそうはだ':'みず',
+  'そうしょく':'くさ',
+  'ひらいしん':'でんき', 'でんきエンジン':'でんき', 'ちくでん':'でんき'
+};
+// ★AI用: 特性でそのタイプの技を「半減する」表(同上・権威裏取り済み)
+const _AI_AB_HALVE_TYPE = {
+  'あついしぼう':['ほのお','こおり'], 'たいねつ':['ほのお']
+};
+// ★AI用: 交代で出てくる控えが、設置物(ステルスロック/まきびし)で受けるダメージの見積もり(読み取り専用)。
+//   2026-07-29 阿部さん:「場にまきびしとかステルスロックが撒かれてると、無駄に後退すると交代先が死ぬ。
+//   ダメージを食らいすぎる・死にそうなら無駄な交代はしない。」
+//   出典は applyEntryHazards と同じ(ポケモンWiki「ステルスロック」= 最大HP×いわ相性÷8 /
+//   「まきびし」= 接地のみ 1層1/8・2層1/6・3層1/4)。あつぞこブーツは無効化。
+//   ★どくびし/ねばねばネットはHPを削らないのでここでは数えない(状態異常・すばやさ低下は別の話)。
+function aiHazardCost(fieldSt, b){
+  if (!b || !b.poke) return 0;
+  if (b.item === 'heavy_duty_boots') return 0;                 // あつぞこブーツ=設置物の影響を受けない
+  const types = [b.poke.type1, b.poke.type2].filter(Boolean);
+  const maxHp = realStat(b, 'hp');
+  let dmg = 0;
+  if (fieldSt.stealthRock) dmg += Math.floor(maxHp * stealthRockMult(types) / 8);
+  const ab = b.ability || (b.poke && b.poke.ab1) || '';
+  const grounded = env.gravity || !(types.includes('ひこう') || ab === 'ふゆう' || b.item === 'air_balloon');
+  const layers = fieldSt.spikesLayers || 0;
+  if (grounded && layers > 0){
+    const fr = layers >= 3 ? 0.25 : layers === 2 ? (1 / 6) : 0.125;
+    dmg += Math.max(1, Math.floor(maxHp * fr));
+  }
+  return dmg;
+}
+// ★AI用: その控えに交代して「割に合うか」。設置物で死ぬ/半分以上持っていかれるなら交代しない。
+function aiSwitchAffordable(fieldSt, b){
+  const cost = aiHazardCost(fieldSt, b);
+  if (cost <= 0) return true;
+  const hp = (b.currentHp == null) ? realStat(b, 'hp') : b.currentHp;
+  if (cost >= hp) return false;              // 出た瞬間に倒れる → 絶対に交代しない
+  if (cost >= hp * 0.5) return false;        // 残りHPの半分以上を持っていかれる → 割に合わない
+  return true;
+}
+
+// 控え(場に出ていない)が、あるタイプの技をどれだけの倍率で受けるか。タイプ相性 × 特性。
+function aiBenchTakes(b, moveType){
+  if (!b || !b.poke || !moveType) return 1;
+  const types = [b.poke.type1, b.poke.type2].filter(Boolean);
+  let eff = moveTypeEff(moveType, types);
+  const ab = b.ability || (b.poke && b.poke.ab1) || '';
+  if (_AI_AB_IMMUNE_TYPE[ab] === moveType) return 0;                    // 特性で無効
+  if ((_AI_AB_HALVE_TYPE[ab] || []).includes(moveType)) eff *= 0.5;     // 特性で半減
+  return eff;
+}
+
 function aiChooseAction(sideKey){
   const st = sides[sideKey];
+  st._aiReason = null;   // ★なぜその行動を選んだか(テストと将来のフェーズ・ビューア用)
   const foe = sideKey === 'self' ? 'opp' : 'self';
   const foeSt = sides[foe];
   const best = aiChooseMove(sideKey);
   const bestScore = (st.moves && st.moves[best]) ? aiScoreMove(sideKey, st.moves[best]) : 0;
-  if (bestScore >= 1000){ st.aiSwitchedLast = false; return {type: 'move', index: best}; }   // 確定KOは最優先
+  if (bestScore >= 1000){ st.aiSwitchedLast = false; st._aiReason = 'move_確定KO'; return {type: 'move', index: best}; }   // 確定KOは最優先
   // B) 被弾予測(v3)
   if (foeSt.poke && !st.aiSwitchedLast){
     const myHp = st.currentHp == null ? realStat(st, 'hp') : st.currentHp;
@@ -6814,12 +6878,62 @@ function aiChooseAction(sideKey){
           const e = moveTypeEff(m.type, sideTypes(foeSt));
           if (e > atkEff) atkEff = e;
         });
+        if (!aiSwitchAffordable(st, b)) return;   // ★設置物で死ぬ/半分以上減る控えには逃がさない
         if (taken < swTaken || (taken === swTaken && atkEff > swAtk)){ swTaken = taken; swIdx = i; swAtk = atkEff; }
       });
-      if (swIdx >= 0 && swTaken <= 0.5){ st.aiSwitchedLast = true; return {type: 'switch', index: swIdx}; }
+      if (swIdx >= 0 && swTaken <= 0.5){ st.aiSwitchedLast = true; st._aiReason = 'switch_B_受け交代'; return {type: 'switch', index: swIdx}; }
     }
   }
-  if (bestScore > 5){ st.aiSwitchedLast = false; return {type: 'move', index: best}; }
+  // ────────────────────────────────────────────────────────────────
+  // C) ★相性による「予防の交代」(2026-07-29 阿部さん「交代をうまく使うのが上級者」)
+  //   考え方: 相手に弱点を突かれていて、こちらは有効打が無い → 受けられる控えへ逃がす。
+  //   ただし**受けられる控えがいなければ交代しない**(逃げ場が無いなら殴る)。
+  //   Bとの違い: Bは「今ターン倒される」時だけ。Cは倒されなくても**不利な組み合わせなら退く**。
+  if (foeSt.poke && !st.aiSwitchedLast && bestScore < 1000){
+    const myHp2 = st.currentHp == null ? realStat(st, 'hp') : st.currentHp;
+    const myMax2 = realStat(st, 'hp');
+    // 1) 相手の脅威: 相手の攻撃技のうち、こちらへの平均ダメージが最大のもの
+    let thMove = null, thDmg = 0;
+    (foeSt.moves || []).forEach(m => {
+      if (!m || m.category === '変化') return;
+      const r = calcDamage(foe, sideKey, m);
+      if (r && !r.immune){ const avg = (r.min + r.max) / 2; if (avg > thDmg){ thDmg = avg; thMove = m; } }
+    });
+    // 2) こちらが有効打を持っているか(効果抜群=2倍以上の攻撃技があるなら、殴り合った方がよい)
+    let myBestEff = 0;
+    (st.moves || []).forEach(m => {
+      if (!m || m.category === '変化') return;
+      const e = moveTypeEff(m.type, sideTypes(foeSt));
+      if (e > myBestEff) myBestEff = e;
+    });
+    // 3) 危険の条件: 相手の一撃で残HPの半分以上を持っていかれる & こちらに効果抜群が無い
+    //    ★かつ「自分が後攻」の時だけ(先手を取れるなら殴る=手数を捨てない。既存契約 T282b)。
+    //      速い側が交代すると、交代ターンに一撃もらった上で相手にも主導権を渡すため。
+    const mySpd2 = effectiveSpeed(st), foeSpd2 = effectiveSpeed(foeSt);
+    const slower2 = env.trickRoom ? (mySpd2 > foeSpd2) : (mySpd2 < foeSpd2);
+    const danger = thMove && thDmg >= myHp2 * 0.5 && myBestEff < 2 && slower2;
+    if (danger){
+      // 4) 受けられる控えを探す: 脅威技を「半減以下(特性の無効/半減も込み)」で受けられる子。
+      //    同じ受けやすさなら、相手に効果抜群を返せる子を優先(受けるだけでなく攻め返せる方が良い)。
+      let swIdx = -1, swTaken = 99, swAtk = 0;
+      (st.bench || []).forEach((b, i) => {
+        if (!b || !b.poke || b.fainted || (b.currentHp != null && b.currentHp <= 0)) return;
+        const taken = aiBenchTakes(b, thMove.type);
+        if (taken > 0.5) return;                     // 半減以下でなければ受け役にならない
+        if (!aiSwitchAffordable(st, b)) return;      // ★設置物で死ぬ/半分以上減るなら、その子には逃がさない
+        let atkEff = 0;
+        (b.moves || []).forEach(m => {
+          if (!m || m.category === '変化') return;
+          const e = moveTypeEff(m.type, sideTypes(foeSt));
+          if (e > atkEff) atkEff = e;
+        });
+        if (taken < swTaken || (taken === swTaken && atkEff > swAtk)){ swTaken = taken; swIdx = i; swAtk = atkEff; }
+      });
+      // 5) ★受けられる控えがいなければ交代しない(逃げ場が無いなら殴る)
+      if (swIdx >= 0){ st.aiSwitchedLast = true; st._aiReason = 'switch_C_相性で退く'; return {type: 'switch', index: swIdx}; }
+    }
+  }
+  if (bestScore > 5){ st.aiSwitchedLast = false; st._aiReason = 'move_有効打あり'; return {type: 'move', index: best}; }
   // A) どの技にも価値が無い(v2)
   const ftypes = foeSt.poke ? sideTypes(foeSt) : [];
   let swIdx = -1, swEff = 0;
@@ -6831,10 +6945,12 @@ function aiChooseAction(sideKey){
       const e = moveTypeEff(m.type, ftypes);
       if (e > eff) eff = e;
     });
+    if (!aiSwitchAffordable(st, b)) return;   // ★設置物で死ぬ/半分以上減る控えには逃がさない
     if (eff > swEff){ swEff = eff; swIdx = i; }
   });
-  if (swIdx >= 0 && swEff > 0 && !st.aiSwitchedLast){ st.aiSwitchedLast = true; return {type: 'switch', index: swIdx}; }
+  if (swIdx >= 0 && swEff > 0 && !st.aiSwitchedLast){ st.aiSwitchedLast = true; st._aiReason = 'switch_A_手詰まり'; return {type: 'switch', index: swIdx}; }
   st.aiSwitchedLast = false;
+  st._aiReason = st._aiReason || 'move_通常';
   return {type: 'move', index: best};
 }
 
