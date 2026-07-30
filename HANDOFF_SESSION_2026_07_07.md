@@ -102,3 +102,20 @@ sim 814/2既知(T185dどくびし)・playtest緑・release_check exit0(各push�
 - 07-06: ①ボックス型選出画面(→ボックスピッカー+タイプ絞り込みで概ね実現・本格的な「BOXから選ぶ」再設計は未) ②立ち位置/地平線微調整(阿部さんの目) ③#19残 ④スプライト(→38体完了/全国版残) ⑤弱点ボタン・こうかなし理由(**未実装・最有力の次タスク**)。
 - 07-05/04/03: 全国版sim分岐5点・SC sitemap再送信(阿部さん)・履歴書き換え可否・全国バトル版sim設計・耳確認(声の最終判定は阿部さん)。
 - 新規: オンライン対戦(設計完了・実装は判断待ち)・全国版オリジナル絵1017体。
+
+---
+
+## 補足: glm-impl(実装役・GLM-5.2)セッションの状態(2026-07-07時点・再開時に読む)
+- **7/1-7/2 に活動**。agmsg(`pchamdb` team)で claude-design→glm-impl の指示を受け実装。7/3以降は glm-impl 宛の agmsg 指示なし（本ハンドオフ本編の real_battle/UI/オリジナル絵/オンライン対戦 は Claude/Sonnet **別セッション**で進行）。
+- **glm-implがやったこと(7/1-7/2・全完了検証済)**:
+  1. i18n 9言語配線（`ability_all`/`index` の12キー×9言語=108値・`tools/_i18n_national_add.js`）
+  2. ポケモンWiki技28件取得（`reference/_moves_wiki.json`・`tools/_wiki_moves_fetch.js`）
+  3. sim全数スイープ＋固定ダメクラッシュ修正（ソニックブーム/りゅうのいかり=`champions_amount`化・SSOT=moves_battle_data_fix）
+  4. restrict_type実装（`target:all`+型限定ランク変化・エンジン最小改変）
+  5. guardian修正（`fixedDamageAmount`に「相手の残りHPのN/M」汎用パース）
+  6. **T1 build_master.js新規作成**（`master_{pokemon,moves,abilities,items}.json` 4種・Champions313完全保全・provenance全件）
+  7. **T4 PCHAM_DATA env var回帰ゲート**（`_sim_engine.js`/`_sim_test.js`・未指定=従来・new側でharness3本クリーン）
+  8. **T1.5(1)(2)(3)**（champions.stats=399件・表記ゆれ5技slug正結合・`build_champions_view.js` master参照化・canon sortKeys正規化でdiff unexpected=0）
+- **glm-impl未着手（他で完遂済）**: T1.5(4)・T2・P3(Max/Z)・**持ち物逆引き監査**（`_items_interaction_report.json`=7/2 18:27完了）は Claude/Sonnet 側。
+- **glm-impl再開時の手順**: ①agmsg監視をMonitorで再起動 ②最新指示をagmsg DBから取得（task通知はtruncateするので `sqlite3 ~/.agents/skills/agmsg/db/messages.db "SELECT body FROM messages WHERE team='pchamdb' AND from_agent='claude-design' ORDER BY rowid DESC LIMIT 1;"`）③**本ハンドオフ＋`次回ここから.md`で現状把握してから着手**（glm-implの文脈は7/2で古い＝触る前に必ず最新コミット/ハンドオフを確認・本番ファイルとビルダーはT5サインオフ後以外触らない）。
+- **直近の主題(7/7)**: real_battleのモバイル最適化・バトル仕様バグ根治・オリジナル絵38体(プール313網羅)・オンライン対戦設計。DB統一(T1.5)は完了済。

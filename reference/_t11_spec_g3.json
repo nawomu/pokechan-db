@@ -1,0 +1,72 @@
+[
+{
+  "name": "カブトアーマー",
+  "phase": "damage_calc",
+  "authority_cite": "他のポケモンから受ける攻撃技が急所に当たらなくなる。",
+  "cite_source_file": "reference/_authority_corpus/abilities/カブトアーマー.json",
+  "champions_desc": null,
+  "conflict": "ABILITY_DESCに『カブトアーマー』キー自体が無い(未実装以前に説明文が無い)。同効果のシェルアーマーはABILITY_DESCに『急所被弾無効化。』として存在する。Champions POKEMON_LISTにタイレーツがカブトアーマー持ちで実在するため、説明文の追加(シェルアーマーと同文言でよいか)は要判断=このセッションでは実装しない。",
+  "insert_point": "3か所+1セット。(1) calcDamage() 内の crit 判定 real_battle_simulator.html:1751-1753(`defAbilityVs(def, atk) !== 'シェルアーマー'` の条件に `&& defAbilityVs(def, atk) !== 'カブトアーマー'` を追加)。(2) phaseDealDamage() 内の critRoll 判定 real_battle_simulator.html:2839-2840(`if (critRoll && defAbilityVs(...) === 'シェルアーマー') critRoll = false;` と同型の判定を『カブトアーマー』にも拡張)。(3) phaseDealDamage() 内 いかりのつぼ用 _critHit 判定 real_battle_simulator.html:3072-3074(同様に『カブトアーマー』を追加)。(4) _BREAKABLE Set real_battle_simulator.html:3479-3483 に 'カブトアーマー' を追加(→ defAbilityVs() が自動的にかたやぶり無視を処理するため、この1行追加だけでモルドブレイカー対応も揃う)。",
+  "same_pattern_as": "シェルアーマーの同型実装そのもの: real_battle_simulator.html:1751-1753(calcDamage crit判定), 2839-2840(phaseDealDamage critRoll判定), 3072-3074(phaseDealDamage _critHit/いかりのつぼ判定), 3479-3483(_BREAKABLE Set)。defAbilityVs()(3497-3501)が_BREAKER/_BREAKABLEを見てかたやぶり無視を一元処理する設計なので、新規ロジックは不要で『シェルアーマー』と同じ判定にカブトアーマーを並記するだけ。",
+  "spec": "シェルアーマーと完全に同じ効果(相手から受ける攻撃技が急所に当たらなくなる)を、同じ3判定箇所に『カブトアーマー』としても通す。倍率変更や条件分岐は無く、既存の『=== シェルアーマー』または『!== シェルアーマー』の等値比較にカブトアーマーを並列条件として足すだけ。急所ランク+3以上(きょううん複数/ピントレンズ+とぎすます等)や確定急所技(やまあらし/こおりのいぶき/あんこくきょうだ/すいりゅうれんだ)も無効化対象(既存3箇所の判定はcrit変数・critRoll変数・_critHit変数のいずれも『確定急所込みの最終crit判定』を見ているため、これらのケースも自動的にカバーされる=シェルアーマーと同じ挙動)。",
+  "mold_breaker": true,
+  "per_hit": true,
+  "test_points": [
+    "すいりゅうれんだ(確定急所技)をカブトアーマー持ちに当てても急所に当たらない(通常ダメージ)",
+    "急所ランク+3以上(例: きょううん+とぎすます+ピントレンズ)でもカブトアーマー持ちには急所が発生しない",
+    "かたやぶり/ターボブレイズ/テラボルテージ持ちの攻撃はカブトアーマーを無視して急所が発生しうる",
+    "急所を受けた時に発動する『いかりのつぼ』はカブトアーマー持ちが急所無効化された場合は発動しない(_critHitがfalseになるため)"
+  ],
+  "unverified": [
+    "Champions版ABILITY_DESCにカブトアーマーの説明文が無い点をどう補うか(シェルアーマーと同文言で足してよいか)は未確認・要判断"
+  ]
+},
+{
+  "name": "じきゅうりょく",
+  "phase": "post_hit_react",
+  "authority_cite": "攻撃技のダメージを受けたとき、ぼうぎょが1段階上がる。",
+  "cite_source_file": "reference/_authority_corpus/abilities/じきゅうりょく.json",
+  "champions_desc": "攻撃技被弾時、ぼうぎょ+1。",
+  "conflict": null,
+  "insert_point": "phaseDealDamage() 内、せいぎのこころの被弾後ランクアップ処理(real_battle_simulator.html:3080-3084)の直後に新規ブロックを追加。挿入位置は同関数内・同じ『total>0 かつ攻撃技被弾』のタイミング。",
+  "same_pattern_as": "せいぎのこころ real_battle_simulator.html:3080-3084(『total > 0 && def.poke && !def.fainted && !def.subAbsorbed && (タイプ/条件一致) && sideAbility(def) === 'アビリティ名' && (def.rank.X || 0) < 6』の被弾後ランクアップの共通パターン)。いかりのつぼ(3075-3079)も同型。",
+  "spec": "phaseDealDamage の被弾処理内、total>0(=攻撃技のダメージが実際に入った)かつ def.poke && !def.fainted && !def.subAbsorbed の条件下で、`sideAbility(def) === 'じきゅうりょく' && (def.rank.def || 0) < 6` なら `def.rank.def = (def.rank.def || 0) + 1` してログ出力(せいぎのこころと同じ文言パターン: 『{name} の じきゅうりょく！ ぼうぎょが あがった！』)。total(=このブロックに来る時点で既に攻撃技のダメージ計算結果)を条件にすることで、権威仕様の『攻撃技以外のダメージ(反動/ゴツメ/さめはだ/スリップ/こんらん自傷)では発動しない』が自然に満たされる(これらは phaseDealDamage の total 経路を通らない別処理のため)。『HPが1のときにこらえるで攻撃を耐えた=0ダメージではない攻撃』はtotal>0のまま通るため発動する。『まもる/みがわりで無効化した場合は発動しない』もtotal===0または通過前にreturnされるため自然に満たされる想定(要:まもる/みがわりブロックがこのtotal計算より前で早期returnしているかの確認)。ランクキャップ(def.rank.def<6)で最大時は発動しない。",
+  "mold_breaker": false,
+  "per_hit": true,
+  "test_points": [
+    "通常の攻撃技(物理・特殊とも)を1発受けるとぼうぎょ+1する",
+    "連続攻撃技(みだれひっかき等)で複数ヒットした場合、ヒットごとに毎回ぼうぎょ+1する(全体で+1ではない)",
+    "まもるで攻撃を防いだ、またはみがわりが身代わりに受けた場合は発動しない",
+    "ぼうぎょが既に+6(最大)のときは発動しない"
+  ],
+  "unverified": [
+    "まもる/みがわりのブロックが total 計算より前で確実に早期returnしているか(コードを読んで確認したが、まもる自体の実装位置はこのセッションのgrep範囲外で未確認)",
+    "クリアスモッグ(ランクリセット)やコアパニッシャー(とくせいなし化)との相互作用は権威仕様どおりに『total計算後・かつ他効果の発動順を守った上で』実装されるかは、実装フェーズで個別に確認が必要(このセッションは仕様提示のみ)"
+  ]
+},
+{
+  "name": "メガソーラー",
+  "phase": "atk_modify_power",
+  "authority_cite": "この特性を持つポケモンが行動する際、天気がにほんばれ状態であるものとして技を使用できる。",
+  "cite_source_file": "reference/_authority_corpus/abilities/メガソーラー.json",
+  "champions_desc": "技使用時、天気がにほんばれ扱いに。",
+  "conflict": null,
+  "insert_point": "単一箇所では足りない横断的な機能。新規ヘルパー関数 `effectiveWeather(st)` を追加(env.weatherを直接読まず、`sideAbility(st)==='メガソーラー' ? 'sunny' : env.weather` を返す)した上で、既存の env.weather 直読み箇所のうち『技の使用者(atk)視点の判定』であるものを置換する。(a) calcDamage() 内の天候補正ブロック real_battle_simulator.html:1852-1867(ほのお1.5倍/みず半減/すなあらしのいわ特防2/3/ゆきのこおり防御2/3)の `env.weather` を `effectiveWeather(atk)` に置換。(b) calcDamage() 内のウェザーボール等『威力可変(based_on:weather)』1633-1634と『技タイプ変更(mapping型)』1623-1626の `env.weather` を `effectiveWeather(atk)` に置換。(c) startChargeIfNeeded(st, mv, releasing) 内の溜め省略判定 real_battle_simulator.html:6047(`(chargeEf.skip_charge_if_weather || []).some(w => (_WMAP[w] || w) === env.weather)`)の `env.weather` を `effectiveWeather(st)` に置換(ソーラービーム/ソーラーブレードの溜めターン省略)。(d) phaseApplyEffects() 内の回復技天候条件 real_battle_simulator.html:4780-4781(`weatherCondOk(ef.condition, env.weather)`)を、targetが自分(atk)の回復のときに限り `weatherCondOk(ef.condition, effectiveWeather(atk))` に置換(こうごうせい/つきのひかり/あさのひざしの回復量)。",
+  "same_pattern_as": "直接の同型実装は無い(env.weatherを直接読む既存複数箇所を横断的に差し替える新規パターン)。近い設計の参考例: てんきや(Forecast) real_battle_simulator.html:3456-3468 の updateForecastForm(st) が『天候を条件として読み、st(個体)ごとの見た目/タイプを決める』構造は近いが、これは【参照】のみで天候自体を書き換えない点は同じ(実際の場のenv.weatherは変えない=メガソーラーの要件と一致)。ただしメガソーラーは『天候を上書きした値』を複数の既存計算(威力/タイプ変更/溜め省略/回復量)に横流しする必要があり、単一箇所への追記では済まない。",
+  "spec": "実際の場の天候(env.weather)は変更せず、メガソーラーの持ち主が『行動する際』にのみ、天候をにほんばれ(sunny)とみなして技を解決する。具体的な適用範囲(権威の特性の仕様セクションで確認済み): ①ほのお技の威力1.5倍/みず技の威力0.5倍(実際があめでも変わらない)。②実際がすなあらしでも、いわタイプの特防補正(2/3)を無視。実際がゆきでも、こおりタイプの防御補正(2/3)を無視。③ソーラービーム/ソーラーブレードは実際の天候に関係なく溜めターンなしで即撃てる。威力もにほんばれ以外での半減を受けない(damage_calcの天候半減ブロックが本来sun以外で発動しないため、これは自然に満たされる=新規ロジック不要)。④ウェザーボールは天候に関係なく威力100・ほのおタイプになる(常時にほんばれ扱いのため)。⑤こうごうせい/つきのひかり/あさのひざしは天候に関係なく最大HPの2/3回復。⑥場をにほんばれにする効果は無い(にほんばれの技(にほんばれ)自体は使用可能で、その場合は実際の天候も変わる=別物)。⑦相手のリーフガードは発動しない(実際の天候がにほんばれでないため。これは相手側の判定なので変更不要=現状のまま)。全て『攻撃側(atk)から見た天候』の話であり、防御側(def)の天候依存効果(サンパワー等の自己特性/天候ダメージ等)には影響しない。",
+  "mold_breaker": null,
+  "per_hit": false,
+  "test_points": [
+    "実際の天候があめ(rain)の場でも、メガソーラー持ちの『かえんほうしゃ』(ほのお技)が威力1.5倍で通る",
+    "同条件でみず技(なみのり等)を使うと威力が0.5倍になる",
+    "実際の天候がすなあらしでも、いわタイプの相手へのダメージがすなあらし特防補正の影響を受けず通常通りになる",
+    "実際の天候に関係なくソーラービームが1ターンで発動し、こうごうせいが最大HPの2/3回復する"
+  ],
+  "unverified": [
+    "モルドブレイカー(かたやぶり)との関係: かたやぶりの権威コーパス(無視する特性/無視しない特性のリスト)にメガソーラーの記載が無く未確認。相手に不利益を与える『防御的特性』ではなく自分の技解決を変える特性のため、そもそもかたやぶりの対象外(無視する/しないの概念自体が適用されない)である可能性が高いが断定できない",
+    "ノーてんき(場の天候を全無効化する特性)との相互作用: 権威は『場にノーてんきのポケモンがいるときでも特性の効果を受けることができる』と明記しているが、エンジンにノーてんき自体が未実装(real_battle_simulator.htmlを『ノーてんき』でgrepして0ヒットを確認)のため検証不能",
+    "せいちょう(にほんばれなら攻撃・特攻+2、そうでなければ+0で行動終了)等、メガソーラーが絡む技側の特殊分岐がエンジンに他にも無いか(このセッションでは④番までの主要ケースのみ調査)",
+    "phaseApplyEffects の回復条件(d)が実際にどのeffects構造(単一condition vs 複数分岐)で宣言されているかは、こうごうせいの実データ(WAZA_MAP)を未確認のため置換の正確な適用箇所は実装時に要再確認"
+  ]
+}
+]

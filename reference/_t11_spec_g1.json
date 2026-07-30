@@ -1,0 +1,70 @@
+[
+  {
+    "name": "はやあし",
+    "phase": "P02 speed_order (speed_order)",
+    "authority_cite": "・すばやさがランクで変動している場合、変動後のステータスを1.5倍にする。(すばやさ#すばやさ補正も参照)。\n\n・まひ状態によるすばやさの低下は無視されるが、しびれて動けなくなる効果は無視できない。\n\n・こんらんやメロメロなどの状態変化になるだけでは効果が発動しない。",
+    "cite_source_file": "reference/_authority_corpus/abilities/はやあし.json",
+    "champions_desc": "状態異常時、すばやさが1.5倍。",
+    "conflict": null,
+    "insert_point": "effectiveSpeed() @ real_battle_simulator.html:2311-2326(まひ免除は既存L2314に実装済み)。L2314の直後に新規1行を挿入",
+    "same_pattern_as": "こんじょう(こうげき物理×1.5・状態異常判定) real_battle_simulator.html:1787 `if (_aab === 'こんじょう' && isPhys && atk.status && atk.status !== 'none') aStatEff = Math.floor(aStat * 1.5);` の状態異常判定パターン(`st.status && st.status !== 'none'`)を流用。掛け算の丸め方はこだわりスカーフ(kodawari_scarf) real_battle_simulator.html:2316 `s = Math.floor(s * 1.5);` に合わせる",
+    "spec": "effectiveSpeed()内、既存のまひ免除行(L2314: `if (st.status === 'paralysis' && sideAbility(st) !== 'はやあし') s = Math.floor(s / 2);`)の直後に、`if (sideAbility(st) === 'はやあし' && st.status && st.status !== 'none') s = Math.floor(s * 1.5);` を追加する。条件は「状態異常(status!=='none')全般」で、まひ/どく/もうどく/やけど/ねむり/こおりいずれでも発動(こんらん/メロメロ等の状態変化だけでは発動しない=st.statusはそもそも変わらないので自然に満たされる)。既存のまひ免除ロジック(まひによる×0.5を無視)はそのまま残す=まひ時はs(半減されない実数値)にさらに×1.5がかかる形で正しい。sideAbility()を使う(自分の特性なのでdefAbilityVsのかたやぶり無視対象にしない=コーパスで確認済み)。",
+    "mold_breaker": false,
+    "per_hit": null,
+    "test_points": [
+      "まひ状態ではやあし所持: すばやさが『半減されず、かつ素の実数値×1.5』になっていること(半減もされず1.5倍もされない現状バグの修正確認)",
+      "どく/やけど/ねむり/こおり状態でも1.5倍になること(現状はまひ以外で一切発動しないバグの修正確認)",
+      "こんらんのみ・メロメロのみ(非status)では発動しないこと",
+      "ジャイロボール/エレキボールの威力計算(effectiveSpeedを参照)にも1.5倍が正しく反映されること(かたやぶり相手でも無視されない=コーパス『ジャイロボール/エレキボールの威力を計算する場合でも…はやあし…の効果によるすばやさの変化は無視しない』と一致)"
+    ],
+    "unverified": [
+      "第八世代以降『ターン途中で状態異常になった場合、そのターンの行動順に反映される』という動的行動順仕様(コーパス記載)が現エンジンに実装されているか未確認(P02が行動順確定前に1回だけ評価される設計かどうかは今回の担当範囲外)"
+    ]
+  },
+  {
+    "name": "ふしぎなうろこ",
+    "phase": "P10a def_modify_stat (防御実数値の補正)",
+    "authority_cite": "状態異常のとき、ぼうぎょが1.5倍になる。",
+    "cite_source_file": "reference/_authority_corpus/abilities/ふしぎなうろこ.json",
+    "champions_desc": "状態異常時、ぼうぎょが1.5倍。",
+    "conflict": null,
+    "insert_point": "damage計算関数内のdStatEffブロック real_battle_simulator.html:1820-1845(とつげきチョッキ/しんかのきせきと同じdStatEffブロック内)に新規分岐を追加",
+    "same_pattern_as": "とつげきチョッキ real_battle_simulator.html:1824-1828 `if (_defItemForDef && _defItemForDef.key === 'assault_vest' && !isPhys && dKey === 'spdef'){ dStatEff = Math.floor(dStatEff * 1.5); ... }` と同じdStatEffブロック構造。ただし判定は`isPhys`ではなく`dKey === 'def'`を使う(下記spec参照)。特性の無視判定はかたやぶりの共通ゲート `defAbilityVs(def, atk)` real_battle_simulator.html:3490-3494 を使う(_BREAKABLE集合 real_battle_simulator.html:3472-3476 への追加が必須)",
+    "spec": "1) dStatEffブロック(L1820-1845)内に、`if (defAbilityVs(def, atk) === 'ふしぎなうろこ' && def.status && def.status !== 'none' && dKey === 'def'){ dStatEff = Math.floor(dStatEff * 1.5); chips.push({label:'ふしぎなうろこ', factor:1.5, kind:'ability'}); }` を追加する。判定に`isPhys`ではなく`dKey === 'def'`を使う理由: コーパスの特性の仕様に『サイコショック/サイコブレイク/しんぴのつるぎを受けるときも防御を1.5倍にしてダメージ計算をする』とあり、これらは特殊技だが防御(def)を参照する技(=dKeyがaltDefでdefに上書きされている技)なので、isPhys判定だと漏れる。2) かたやぶりに無視させるため、_BREAKABLE集合(L3472-3476)に'ふしぎなうろこ'を追加する必要がある(現状未追加=このままだとかたやぶり相手でも無効化されない)。3) こんらん自傷ダメージは第五世代以降は対象外(コーパス確認済み)だが、こんらん自傷が本ダメージ計算関数を通らない別処理なら自然に対象外になる(要確認・下記unverified)。",
+    "mold_breaker": true,
+    "per_hit": true,
+    "test_points": [
+      "状態異常(例:やけど)時、物理技を受けたときの被ダメージが通常時の約1/1.5(≒67%)に軽減されていること",
+      "サイコショック(特殊技・防御参照)を状態異常時に受けたとき、ぼうぎょ側の1.5倍補正が効いてダメージが軽減されること(dKey==='def'判定の確認)",
+      "かたやぶり/ターボブレイズ/テラボルテージ持ちの相手から攻撃を受けた場合、1.5倍補正が無視され通常のぼうぎょでダメージ計算されること(_BREAKABLE追加後の動作確認)",
+      "連続攻撃技の途中で追加効果により状態異常になった場合、その時点以降のヒットからダメージが即座に軽減されること(per-hit再計算の確認)"
+    ],
+    "unverified": [
+      "こんらん自傷ダメージがこのdStatEffブロックを経由する実装かどうか未確認(経由するなら第五世代以降=対象外にする追加条件が別途必要)",
+      "シェルサイドこうげき(シェルアームズ)のような分類が動的に決まる技がエンジンに実装されているか未確認(実装されていれば「分類判定には影響しない」仕様への追加対応が要る)",
+      "ワンダールーム状態でとくぼうに適用が切り替わる仕様は、現DBにワンダールーム自体が未実装のため対象外(コーパス備考どおり)"
+    ]
+  },
+  {
+    "name": "サーフテール",
+    "phase": "P02 speed_order (speed_order)",
+    "authority_cite": "・所有者が地面におらず、エレキフィールド状態の効果を受けられない場合でも、この特性の効果は発動する。\n\n・すばやさがランクで変動している場合、変動後のステータスを2倍にする。",
+    "cite_source_file": "reference/_authority_corpus/abilities/サーフテール.json",
+    "champions_desc": "場がエレキフィールド時、すばやさが2倍。",
+    "conflict": null,
+    "insert_point": "effectiveSpeed() @ real_battle_simulator.html:2311-2326。既存の天候すばやさ特性テーブル(_WSPD, L2321-2322)と並べて追加",
+    "same_pattern_as": "天候すばやさ特性 real_battle_simulator.html:2320-2322 `const _WSPD = {'すいすい': 'rain', ...}; if (_WSPD[sideAbility(st)] === env.weather) s = s * 2;` と同型(天候→天候名の判定をフィールド→フィールド名の判定に置き換えるだけ)",
+    "spec": "effectiveSpeed()内、_WSPDブロック(L2320-2322)の直後(または同ブロック内)に、`if (sideAbility(st) === 'サーフテール' && env.field === 'electric') s = s * 2;` を追加する。env.fieldの値は'electric'/'grassy'/'misty'/'psychic'/'none'(real_battle_simulator.html:811-815の<option>定義・real_battle_simulator.html:3329の_FMAP定義で確認済み)。★重要: isGrounded(st)による接地判定を条件に含めないこと(コーパス『所有者が地面におらず、エレキフィールド状態の効果を受けられない場合でも、この特性の効果は発動する』=フィールド系の他の効果(P08b威力補正等)とは違い、地面にいなくても効く例外)。sideAbility()を使う(自分の特性であり、コーパス確認済みでかたやぶりに無視されない)。",
+    "mold_breaker": false,
+    "per_hit": null,
+    "test_points": [
+      "エレキフィールド展開時、すばやさが2倍になり行動順が変わること",
+      "ひこうタイプ/ふゆう等、地面についていないポケモンでもエレキフィールド展開時に2倍が発動すること(isGrounded非依存の確認)",
+      "エレキフィールド以外(グラス/ミスト/サイコ/なし)では発動しないこと",
+      "かたやぶり持ちの相手から攻撃されても2倍が無視されないこと(ジャイロボール/エレキボール威力計算含む)"
+    ],
+    "unverified": [
+      "第七世代のみ『特性を受け取ったり失ったりした場合そのターンの行動順に影響しない』、第八世代以降は影響する、という動的行動順仕様が現エンジンに実装されているか未確認(はやあしと同種の未確認事項)"
+    ]
+  }
+]
