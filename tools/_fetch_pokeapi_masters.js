@@ -1,5 +1,19 @@
 // PokeAPI 特性/技/道具 の多言語マスターを consolidated で取得 → reference/{abilities,moves,items}_master.json
 // 裏溜め。決定的取得(再実行可)。使い方: node tools/_fetch_pokeapi_masters.js [abilities|moves|items|all]
+// ★★止め金(2026-07-31): このスクリプトは reference/*_master.json に**書き戻す**。
+//   その場所は2026-07-31に「紛らわしい旧マスター」として reference/_old_master/ へ退避した。
+//   ここを走らせると、片付けたはずのファイルが reference/ 直下に**復活し、また
+//   「どれが本物のマスターか分からない」状態に戻る**(阿部さんが実際にそう言った状態)。
+//   ★本物のマスターは master/*.json ただ1つ。生成は node tools/build_master_v2.js。
+//   どうしても取り直したい時だけ、意図を示して実行すること:
+//       ALLOW_OLD_MASTER_WRITE=1 node tools/_fetch_pokeapi_masters.js
+if (!process.env.ALLOW_OLD_MASTER_WRITE) {
+  console.error('■ 中止しました: このスクリプトは旧マスター(reference/*_master.json)に書き戻します。');
+  console.error('  本物のマスターは master/*.json です(生成= node tools/build_master_v2.js)。');
+  console.error('  どうしても必要なら ALLOW_OLD_MASTER_WRITE=1 を付けて実行してください。');
+  process.exit(2);
+}
+
 const fs=require('fs');
 const GQL='https://beta.pokeapi.co/graphql/v1beta';
 const LANGS=['ja-Hrkt','en','fr','de','es','it','ko','zh-Hans','zh-Hant'];

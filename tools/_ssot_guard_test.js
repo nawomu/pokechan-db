@@ -24,7 +24,13 @@ const BASELINE = path.join(ROOT, 'reference/_ssot_guard_baseline.json');
 
 const C = require(path.join(ROOT, 'pokechan_data.js'));
 const A = require(path.join(ROOT, 'pokechan_data_all.js'));
-const master = JSON.parse(fs.readFileSync(path.join(ROOT, 'reference/master_abilities.json'), 'utf8'));
+// ★2026-07-31: reference/master_*.json を reference/_old_master/ へ退避したので参照先を更新。
+//   ★判定ロジックは1行も変えていない(番人の意味を変えると、番人が信用できなくなるため)。
+//   ★TODO: この検査は「旧マスターの形(champions.in / names.ja)」を前提にしている。
+//     本物のマスターは master/abilities.json なので、屋台骨の入れ替えが済んだら
+//     master/ を見る形に**別途 検証つきで**作り直す。今ここで一緒に変えない。
+const OLD_MASTER_ABILITIES = 'reference/_old_master/master_abilities.json';
+const master = JSON.parse(fs.readFileSync(path.join(ROOT, OLD_MASTER_ABILITIES), 'utf8'));
 
 const findings = {};
 

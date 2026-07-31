@@ -218,8 +218,14 @@ function buildMoves() {
     return Object.assign({
       slug: nat ? nat._slug : null,
       champions_key: ch ? ch._champKey : null,        // ★旧キーは _aliases として残す(引っ越し完了まで)
-      name: (nat && nat.name) || (ch && ch.name) || nz,
-      display_name: (ch && ch.name) || (nat && nat.name) || nz,
+      // ★2026-07-31 修正(阿部さん決定: 数字は半角に揃える。「海外に全角は無いので」):
+      //   ここは正規化済みの nz を作っておきながら、出力には全国版の生の名前(=全角)を使っていた。
+      //   結果 master の中で表記が割れ、moves側『１０まんボルト』/ learnsets側『10まんボルト』となり、
+      //   名前で突き合わせる工程で **141体分の技が静かに落ちる**状態だった(実測: 10まんボルト89体・
+      //   10まんばりき47体・DDラリアット3体・3ぼんのや1体・Gのちから1体)。
+      //   ★権威(ヤックン /ch/ の moves_ch・learnsets_ch)も Champions版データも半角なので、半角が正。
+      name: nz || (nat && nat.name) || (ch && ch.name) || '',
+      display_name: zen2han((ch && ch.name) || (nat && nat.name) || '') || nz,
       type: base ? base.type : (ch ? ch.type : (nat ? nat.type : null)),
       category: base ? base.category : (ch ? ch.category : (nat ? nat.category : null)),
       power: base ? num(base.power) : (ch ? (ch.power || null) : (nat ? (nat.power || null) : null)),
@@ -354,12 +360,35 @@ function buildRegulations() {
   return items.length;
 }
 
+// ── タイプ / 性格(★静的な参照表。2026-07-31 追加) ─────────────────
+//   経緯: pokedb.js を master だけで動かそうとしたら、TYPES / TYPE_COLORS / NATURES が
+//   master に無く、旧 pokechan_data.js を読むしかないことが判明した(=データが一つになっていない穴)。
+//   ★中身は作らない・変えない。旧データに在るものを**そのまま移すだけ**。
+function buildTypes() {
+  const items = (C.TYPES || []).map((name, i) => ({
+    index: i, name,
+    color: (C.TYPE_COLORS || {})[name] || null,
+    source: 'ours_champions', verified_at: NOW,
+  }));
+  write('types.json', { meta: META('タイプ(18)', { note: '★旧データからそのまま移送。値は変えていない。resist配列の並び順もこの index に対応する。' }), count: items.length, items });
+  return items.length;
+}
+function buildNatures() {
+  const N = C.NATURES || {};
+  const items = Object.entries(N).map(([name, v]) => Object.assign({ name }, v, {
+    source: 'ours_champions', verified_at: NOW,
+  }));
+  write('natures.json', { meta: META('性格', { note: '★旧データからそのまま移送。値は変えていない。' }), count: items.length, items });
+  return items.length;
+}
+
 // ── 実行 ────────────────────────────────────────────────────────────
 console.log('=== マスターデータ生成(master/) ===');
 console.log('  ★既存ファイルは1バイトも変更しません。出力は master/ のみ。');
 const n = {
   abilities: buildAbilities(), items: buildItems(), moves: buildMoves(),
   pokemon: buildPokemon(), learnsets: buildLearnsets(), regulations: buildRegulations(),
+  types: buildTypes(), natures: buildNatures(),
 };
 fs.writeFileSync(path.join(OUT, '_unknowns.json'), JSON.stringify({
   note: '★決められなかった値の一覧。推測で埋めていない。ここを1件ずつ潰すのが次の作業。',

@@ -7,7 +7,7 @@
 <meta name="robots" content="noindex,nofollow,noarchive">
 <title>データ一覧(マスターデータ確認ページ)— PchamDB</title>
 <!-- ★このページは参照元1枚 pokedb.js だけを読む(pokechan_data*.js の直読み禁止) -->
-<script src="pokedb.js?v=20260729c"></script>
+<script src="pokedb.js?v=20260731a"></script>
 <style>
 :root{--line:#d8dae0;--head:#eef0f5;--accent:#c33}
 *{box-sizing:border-box}
@@ -77,79 +77,105 @@ tbody tr:hover td.sticky{background:#fff6e6}
 <script>
 'use strict';
 // ── 表の定義(列は「マスターデータに何が入っているか」をそのまま見せる) ──
+// ★2026-07-31: 参照元を master/*.json に切り替えた(pokedb.js が薄いローダになった)。
+//   ・「Champions版/全国版」は**別のデータを読むのではなく、同じ1本への絞り込み**になった
+//   ・「どれが確認済みか(source / verified_at)」「Champions に居るか(champions)」の列を追加
+//     = 阿部さん「バージョンとか、どれがOK、そのマスターの中で見たい」(2026-07-31)
+const SRC_LABEL = { champions_authority:'Champions権威で確認', ours_national:'全国版から(暫定)', ours_champions:'旧Champions版から(暫定)', unknown:'★未確定' };
+/** ★中身の形(配列/文字列/オブジェクト/null)を決めつけずに文字にする。
+ *  2026-07-31: boosts を配列と決めつけて .join し、持ち物タブが描画途中で止まった。 */
+const asText = v => v==null ? '' : (Array.isArray(v) ? v.join('、')
+  : (typeof v==='object' ? JSON.stringify(v) : String(v)));
+const srcCol = [
+  {k:'champions',t:'Champions'},
+  {k:'regulation',t:'レギュ'},
+  {k:'source',t:'出どころ',calc:r=>SRC_LABEL[r.source]||r.source||'',badge:v=>/未確定/.test(v)?'★未確定':''},
+  {k:'verified_at',t:'確認日'},
+];
+
 const VIEWS = {
   pokemon: {
     label:'ポケモン',
     rows: () => PokeDB.allPokemon(),
     cols: [
-      {k:'no',t:'No.',num:1},{k:'name',t:'名前',sticky:1},{k:'form',t:'フォーム'},
+      {k:'no',t:'No.',num:1},{k:'display_name',t:'名前(画面用)',sticky:1},{k:'name',t:'正式名称'},
+      {k:'form',t:'フォーム'},
       {k:'type1',t:'タイプ1',type:1},{k:'type2',t:'タイプ2',type:1},
       {k:'hp',t:'HP',num:1,bar:1},{k:'atk',t:'攻撃',num:1,bar:1},{k:'def',t:'防御',num:1,bar:1},
       {k:'spatk',t:'特攻',num:1,bar:1},{k:'spdef',t:'特防',num:1,bar:1},{k:'spd',t:'素早',num:1,bar:1},{k:'total',t:'合計',num:1,bar:1},
       {k:'ab1',t:'特性1'},{k:'ab2',t:'特性2'},{k:'ab3',t:'隠れ特性'},
       {k:'weight_kg',t:'重さ',num:1},{k:'mega',t:'メガ'},{k:'gen',t:'世代'},{k:'legend',t:'伝説'},
-      {k:'_waza',t:'覚える技数',num:1,calc:p=>(PokeDB.learnset(p.name)||[]).length}
+      {k:'slug',t:'英語キー',badge:v=>v?'':'★未確定'},
+      {k:'_waza',t:'覚える技数',num:1,calc:p=>(PokeDB.learnset(p.name)||[]).length},
+      ...srcCol
     ]
   },
   moves: {
     label:'技',
-    rows: () => Object.entries(PokeDB.allMoves()).map(([k,m])=>Object.assign({_key:k},m)),
+    rows: () => Object.values(PokeDB.allMoves()),
     cols: [
-      {k:'move_no',t:'No.',num:1},{k:'name',t:'技名',sticky:1},{k:'_key',t:'キー'},
+      {k:'move_no',t:'No.',num:1},{k:'name',t:'技名',sticky:1},{k:'slug',t:'キー(英語)'},
       {k:'type',t:'タイプ',type:1},{k:'category',t:'分類'},
       {k:'power',t:'威力',num:1,bar:1},{k:'accuracy',t:'命中',num:1,bar:1},{k:'pp',t:'PP',num:1,bar:1},
-      {k:'_pri',t:'優先度',num:1,calc:m=>PokeDB.movePriority(m)},
+      {k:'priority',t:'優先度',num:1},
       {k:'target',t:'対象'},{k:'contact',t:'接触'},{k:'protect',t:'まもる'},
       {k:'_fx',t:'効果数',num:1,calc:m=>((m.battle_data&&m.battle_data.effects)||[]).length},
       {k:'description',t:'説明(うち)',wide:1},
       {k:'description_legacy',t:'説明(参照用)',wide:1},
-      {k:'_learners',t:'覚える数',num:1,calc:m=>(m.learners||[]).length}
+      {k:'_learners',t:'覚える数',num:1,calc:m=>PokeDB.learners(m.name).length},
+      ...srcCol
     ]
   },
   abilities: {
     label:'特性',
-    rows: () => { const d=PokeDB.allPokemon(); const use={};
-      d.forEach(p=>['ab1','ab2','ab3'].forEach(k=>{ if(p[k]) (use[p[k]]=use[p[k]]||[]).push(p.name); }));
-      const all=new Set([...Object.keys(use)]);
-      Object.keys(window.ABILITY_DESC||{}).forEach(n=>all.add(n));
-      return [...all].sort().map(n=>({name:n, desc:PokeDB.abilityDesc(n), users:(use[n]||[]).length, sample:(use[n]||[]).slice(0,4).join('、')}));
+    rows: () => { const use={};
+      PokeDB.allPokemon().forEach(p=>['ab1','ab2','ab3'].forEach(k=>{ if(p[k]) (use[p[k]]=use[p[k]]||[]).push(p.display_name||p.name); }));
+      return PokeDB.allAbilities().map(a=>Object.assign({}, a, {
+        users:(use[a.name]||[]).length, sample:(use[a.name]||[]).slice(0,4).join('、') }));
     },
     cols: [
       {k:'name',t:'特性名',sticky:1},
       {k:'users',t:'持つポケモン数',num:1},
+      {k:'champions_pokemon_count',t:'Champions内',num:1},
       {k:'sample',t:'例'},
-      {k:'desc',t:'説明',wide:1,badge:v=>v?'':'説明なし'}
+      {k:'effect_ja',t:'説明',wide:1,badge:v=>v?'':'★説明なし'},
+      {k:'name_en',t:'英語名'},{k:'slug',t:'英語キー'},
+      ...srcCol
     ]
   },
   items: {
     label:'持ち物',
-    rows: () => { const I=PokeDB.items(); if(!I) return [];
-      const out=[]; (function walk(o){ if(Array.isArray(o)) return o.forEach(walk);
-        if(o&&typeof o==='object'){ if(o.name && (o.effect||o.category||o.key)) out.push(o); Object.values(o).forEach(walk); } })(I);
-      const seen=new Set(); return out.filter(x=>{ const k=x.key||x.name; if(seen.has(k))return false; seen.add(k); return true; });
-    },
+    rows: () => PokeDB.items(),
     cols: [
-      {k:'name',t:'道具名',sticky:1},{k:'key',t:'キー'},{k:'category',t:'分類'},
-      {k:'implemented_in_pokechan',t:'実装済'},
-      {k:'applies_to',t:'対象'},{k:'effect',t:'効果',wide:1}
+      {k:'name',t:'道具名',sticky:1},{k:'slug',t:'キー(英語)'},{k:'category',t:'分類'},
+      {k:'implemented',t:'実装済'},
+      // ★配列と決めつけない(2026-07-31 実機で落ちた): boosts は文字列(例 "physical_attack")、
+      //   applies_to_pokemon は配列。中身の形を確かめずに .join したのが原因。
+      {k:'applies_to_pokemon',t:'対象ポケモン',calc:i=>asText(i.applies_to_pokemon)},
+      {k:'boosts',t:'補正の対象',calc:i=>asText(i.boosts)},
+      {k:'effect_ja',t:'効果',wide:1,badge:v=>v?'':'★説明なし'},
+      ...srcCol
     ]
   },
   learnsets: {
     label:'覚える技',
-    rows: () => PokeDB.allPokemon().map(p=>{ const l=PokeDB.learnset(p.name)||[];
-      const mv=PokeDB.allMoves();
-      return {name:p.name, no:p.no, count:l.length, moves:l.map(k=>(mv[k]&&mv[k].name)||k).join('、')}; }),
+    rows: () => PokeDB.allPokemon().map(p=>{
+      const l=PokeDB.learnset(p.name)||[], c=PokeDB.confiscated(p.name);
+      return {no:p.no, name:p.display_name||p.name, _full:p.name, champions:p.champions,
+              count:l.length, conf:c.length, moves:l.join('、'), confmoves:c.join('、')}; }),
     cols: [
       {k:'no',t:'No.',num:1},{k:'name',t:'ポケモン',sticky:1},
       {k:'count',t:'技数',num:1,badge:v=>v?'':'★データ無し'},
-      {k:'moves',t:'覚える技',wide:1}
+      {k:'conf',t:'没収数',num:1},
+      {k:'moves',t:'覚える技',wide:1},
+      {k:'confmoves',t:'★没収された技',wide:1},
+      {k:'champions',t:'Champions'}
     ]
   }
 };
 
-// ★タイプの色(サイト共通のTYPE_COLORSを使う。無ければ既定色)
-const TC = (typeof TYPE_COLORS!=='undefined') ? TYPE_COLORS : {};
-const typeHtml = v => v ? `<span class="ty" style="background:${TC[v]||'#888'}">${v}</span>` : '';
+// ★タイプの色は master(types.json)から引く
+const typeHtml = v => v ? `<span class="ty" style="background:${PokeDB.typeColor(v)}">${v}</span>` : '';
 const STAT_MAX = {hp:255,atk:190,def:250,spatk:194,spdef:250,spd:200,total:800,power:250,accuracy:100,pp:64};
 const barHtml = (v,k) => { const m=STAT_MAX[k]||0, n=Number(v);
   if(!m||!isFinite(n)) return v==null?'':String(v);
@@ -158,7 +184,13 @@ const barHtml = (v,k) => { const m=STAT_MAX[k]||0, n=Number(v);
 let cur='pokemon', sortK=null, sortDir=1, cache={}, hidden={};
 const $=s=>document.querySelector(s);
 
-function rowsOf(v){ if(!cache[v]) { try{ cache[v]=VIEWS[v].rows()||[]; }catch(e){ cache[v]=[]; console.error(e); } } return cache[v]; }
+let dataReady=false;
+// ★読み込み完了前は「記憶しない」(空の結果を覚え込むと、後から直らない)
+function rowsOf(v){
+  if(!dataReady) { try{ return VIEWS[v].rows()||[]; }catch(e){ return []; } }
+  if(!cache[v]) { try{ cache[v]=VIEWS[v].rows()||[]; }catch(e){ cache[v]=[]; console.error(e); } }
+  return cache[v];
+}
 function val(r,c){ return c.calc? c.calc(r) : r[c.k]; }
 
 function render(){
@@ -187,10 +219,18 @@ function render(){
 }
 
 function boot(){
+  // ★読み込み完了前にタブを押すと、空の結果が cache に記憶されて残る(2026-07-31 実機で発覚)。
+  //   非同期(fetch)になったことで生まれた競合。boot のたびに必ず捨てる。
+  cache={}; dataReady=true;
   const h=PokeDB.healthCheck();
-  $('#src').innerHTML=`参照元=<b>pokedb.js</b> → <code>${h.source}</code>(${PokeDB.label}) ／ ポケモン ${h.pokemon} ・ 技 ${h.moves} ・ 特性の説明 ${h.abilityDesc} ・ 覚える技データ ${h.learnsets}体分`;
-  $('#note').textContent='★このページは参照元1枚(pokedb.js)だけを読んでいます。データを直接読みません。列は「マスターデータに何が入っているか」をそのまま表示しています。';
-  $('#ver').value=PokeDB.mode;
+  $('#src').innerHTML=`参照元=<b>pokedb.js</b> → <code>master/*.json</code>(★マスターそのもの・生成 ${h.generated_at||'?'})`
+    +` ／ 表示中: <b>${PokeDB.label}</b>`
+    +` ／ ポケモン <b>${h.pokemon}</b>${h.pokemon!==h.pokemon_total?`<span class="count">(全 ${h.pokemon_total})</span>`:''}`
+    +` ・ 技 <b>${h.moves}</b> ・ 特性 <b>${h.abilities}</b> ・ 持ち物 <b>${h.items}</b>`
+    +` ・ 覚える技データ ${h.learnsets}体分 ・ タイプ ${h.types} ・ 性格 ${h.natures}`;
+  $('#note').textContent='★このページは参照元1枚(pokedb.js)だけを読み、その先は master/*.json ただ1つです。'
+    +'「Champions版/全部版」は別のデータではなく、同じ1本への絞り込みです。列は加工せず、マスターに入っているものをそのまま出しています。';
+  $('#ver').value = PokeDB.mode==='champions' ? 'champions' : 'national';
   render();
 }
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
@@ -203,9 +243,14 @@ $('#colbtn').onclick=()=>{ const el=$('#colpick'); el.classList.toggle('open');
     el.innerHTML=VIEWS[cur].cols.map(c=>`<label><input type="checkbox" data-k="${c.k}" ${hidden[cur+'.'+c.k]?'':'checked'}> ${c.t}</label>`).join('');
     el.querySelectorAll('input').forEach(i=>i.onchange=()=>{ hidden[cur+'.'+i.dataset.k]=!i.checked; render(); });
   }};
-$('#ver').onchange=e=>{ const u=new URL(location.href); u.searchParams.set('data', e.target.value==='national'?'all':'champions'); location.href=u.toString(); };
-window.addEventListener('DOMContentLoaded', boot);
+// ★絞り込みの切り替えは、ページを読み直さない(データは同じ1本なので、条件を変えるだけ)
+$('#ver').onchange=e=>{ PokeDB.setMode(e.target.value==='national'?'all':'champions'); cache={}; boot(); };
+// ★master は fetch で読むので、必ず読み込み完了を待ってから使う
+PokeDB.ready.then(boot).catch(e=>{
+  $('#src').innerHTML=`<b style="color:#c33">マスターデータを読み込めませんでした:</b> ${String(e.message||e)}`;
+  $('#note').textContent='★ローカルサーバ経由で開いてください(file:// だと fetch がブロックされます)。起動= PchamDB管理ツールを開く.command';
+});
 </script>
-<script src="internal_home.js?v=20260729a"></script>
+<script src="internal_home.js?v=20260731a"></script>
 </body>
 </html>

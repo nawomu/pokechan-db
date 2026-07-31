@@ -1,134 +1,189 @@
 /* pokedb.js — ★★データの参照元は「ここだけ」。全ページはこの1枚を読む。
  *
- * 目的(2026-07-28 阿部さん):
- *   「上っ面は全部そのままでいい。どこのデータを参照するかを、ただ一本に『ここを見る』って一つにするだけ。」
+ * ★2026-07-31 全面的に作り替えた(阿部さんの指摘で設計を直した)
+ *   「別にマスターがあれば pokedb.js って別に。結局は確認用のページのためでしょ。そもそもある必要あんの?」
  *
- * これまでの問題:
- *   各ページが pokechan_data.js / pokechan_data_all.js を **バラバラに直接** 読んでいた。
- *   → 版を切り替える・データを差し替えるたびに、全ページを書き換える必要があった。
- *   → 結果、Champions版と全国版が別物になっても誰も気づけなかった(2026-07-28 発覚)。
+ *   → 指摘のとおりだった。前の版は **旧データ(pokechan_data*.js)を読み込む切替器** で、
+ *     master を読むために 2.2MB の複製(pokedb_v2.js)まで作ろうとしていた。**データが2本に増える**。
+ *   → 作り直した今の版は **データを1バイトも持たない「薄いローダ」**。
+ *     master/*.json を読んで、ページに渡すだけ。**データは master ただ1つ**。
  *
- * これから:
- *   ページは <script src="pokedb.js"></script> だけを読む。**供給元の差し替えはこのファイルの中だけで完結する。**
- *   引っ越し(統一DB v2 への移行)も、ここ1枚を変えるだけで済む。
+ * ┌──────────────────────────────────────────────────────────┐
+ * │ master/*.json  ←★唯一のデータ。直すのはここだけ            │
+ * │      ↑ fetch                                              │
+ * │ pokedb.js(この1枚・データを持たない)                      │
+ * │      ↑                                                    │
+ * │ ページ                                                     │
+ * └──────────────────────────────────────────────────────────┘
  *
  * 使い方(ページ側):
- *   1) 既存の <script src="pokechan_data.js?v=..."> を <script src="pokedb.js?v=..."> に置き換えるだけ。
- *      → POKEMON_LIST / WAZA_MAP / ABILITY_DESC / POKEMON_WAZA / NATURES / TYPES は**今までどおり**グローバルに生える。
- *        (ページのロジックは1行も変えなくてよい)
- *   2) 版を指定したい時は、読み込む前に window.POKEDB_MODE = 'national' を置くか、URLに ?data=all を付ける。
+ *   <script src="pokedb.js?v=..."></script>
+ *   PokeDB.ready.then(function () {  ... PokeDB.allPokemon() ... });
+ *   ★読み込みは非同期(fetch)なので、必ず ready を待ってから使う。
  *
- * ★禁止: ページから pokechan_data*.js を直接読むこと(参照元が増えると、また分裂する)。
- *   → 番人 tools/_ssot_guard_test.js が見張る。
+ * 絞り込み(Champions だけ / 全部):
+ *   PokeDB.setMode('champions' | 'all')  … ★データは同じ1本。違うのは絞り込み条件だけ。
+ *   URLに ?data=all / ?data=champions でも指定できる。既定は all(全部版)。
+ *
+ * ★禁止: ページから master/*.json や pokechan_data*.js を直接読むこと。
+ *   (参照元が増えると、また分裂する。番人 tools/_ssot_guard_test.js が見張る)
+ *   ※例外は「マスターの中身を検査するための道具」だけ。商品のページは必ずこの1枚を通す。
  */
 (function () {
   'use strict';
 
-  // ── 供給元の定義(★差し替えるのはここだけ) ───────────────────────────
-  var SOURCES = {
-    champions: { file: 'pokechan_data.js',     v: '20260705a', label: 'Champions版' },
-    national:  { file: 'pokechan_data_all.js', v: '20260626a', label: '全国版(全部入り)' }
-    // v2: { file: 'pokedb_v2.js', v: '…', label: '統一版' }   ← 引っ越し先。出来たらここに1行足すだけ。
-  };
-  var DEFAULT_MODE = 'champions';
-  var ITEMS_V = '20260718a';   // 持ち物データ(全版共通)
+  var FILES = ['pokemon', 'moves', 'abilities', 'items', 'learnsets', 'regulations', 'types', 'natures'];
 
-  // ── どの版を読むか(決めるのはここ1箇所) ──────────────────────────────
-  function resolveMode() {
-    if (window.POKEDB_MODE && SOURCES[window.POKEDB_MODE]) return window.POKEDB_MODE;
-    try {
-      var q = new URLSearchParams(location.search).get('data');
-      if (q === 'all' || q === 'national') return 'national';
-      if (q && SOURCES[q]) return q;
-    } catch (e) { /* file:// 等 */ }
-    return DEFAULT_MODE;
-  }
-
-  var mode = resolveMode();
-  var src  = SOURCES[mode];
-
-  // ── 読み込み ────────────────────────────────────────────────────────
-  // ★document.write を意図的に使う(既存3ページと同じ方式)。
-  //   同期XHR+間接evalだと、データ側のトップレベル const/let が後続の<script>から見えず
-  //   POKEMON_LIST 等が undefined になる実行時バグが出るため(2026-07-19 検証で判明)。
-  if (typeof document !== 'undefined' && document.write) {
-    document.write('<script src="' + src.file + '?v=' + src.v + '"><' + '/script>');
-    // ★持ち物もマスターデータの一部。参照元1枚で完結させるため、ここで一緒に読む
-    //   (2026-07-29: data_browser.html で持ち物が0件になり発覚。ページ側で個別に読ませない)
-    if (!window.__POKEDB_NO_ITEMS) {
-      document.write('<script src="items_database.js?v=' + ITEMS_V + '"><' + '/script>');
+  // ── master/ の場所を、このスクリプト自身の位置から決める ──────────────
+  //   (ルート直下のページでも review/ 配下のページでも同じように動くように)
+  function baseDir() {
+    var s = document.currentScript;
+    if (!s) {
+      var all = document.getElementsByTagName('script');
+      for (var i = all.length - 1; i >= 0; i--) {
+        if (/pokedb\.js/.test(all[i].src)) { s = all[i]; break; }
+      }
     }
+    var src = (s && s.src) || '';
+    return src.replace(/[^/]*$/, '') || '';
+  }
+  var BASE = baseDir() + 'master/';
+
+  var DB = {};        // 生の master(ファイル名 → 中身)
+  var IDX = {};       // 引きやすくした索引
+  var mode = 'all';
+
+  try {
+    var q = new URLSearchParams(location.search).get('data');
+    if (q === 'champions') mode = 'champions';
+    if (q === 'all' || q === 'national') mode = 'all';
+  } catch (e) { /* file:// 等 */ }
+
+  function load() {
+    return Promise.all(FILES.map(function (f) {
+      return fetch(BASE + f + '.json')
+        .then(function (r) {
+          if (!r.ok) throw new Error('master/' + f + '.json が読めません (' + r.status + ')');
+          return r.json();
+        })
+        .then(function (j) { DB[f] = j; });
+    })).then(buildIndex);
   }
 
-  // ── 読み取りの窓口(今後はこちらを使う。既存のグローバル参照も生き続ける) ──
+  function buildIndex() {
+    var moves = (DB.moves && DB.moves.items) || [];
+    var pokes = (DB.pokemon && DB.pokemon.items) || [];
+    var abis = (DB.abilities && DB.abilities.items) || [];
+    var lrn = (DB.learnsets && DB.learnsets.items) || [];
+
+    IDX.moveBySlug = {};
+    IDX.moveByName = {};
+    moves.forEach(function (m) {
+      IDX.moveBySlug[m.slug] = m;
+      if (!IDX.moveByName[m.name]) IDX.moveByName[m.name] = m;
+    });
+
+    IDX.abilityDesc = {};
+    abis.forEach(function (a) { IDX.abilityDesc[a.name] = a.effect_ja || ''; });
+
+    IDX.learn = {};
+    lrn.forEach(function (p) { IDX.learn[p.name] = p.learn || []; });
+
+    // ★「その技を覚えるポケモン」は master に無いので、ここで数え上げる(データは増やさない)
+    IDX.learners = {};
+    lrn.forEach(function (p) {
+      (p.learn || []).forEach(function (mv) {
+        (IDX.learners[mv] = IDX.learners[mv] || []).push(p.name);
+      });
+    });
+
+    IDX.typeColor = {};
+    ((DB.types && DB.types.items) || []).forEach(function (t) { IDX.typeColor[t.name] = t.color; });
+
+    IDX.pokeByName = {};
+    pokes.forEach(function (p) { IDX.pokeByName[p.name] = p; });
+  }
+
+  /** ★絞り込みは「同じ1本のデータに条件をかける」だけ(別のデータを読むのではない) */
+  function pick(arr) {
+    if (mode === 'champions') return arr.filter(function (x) { return !!x.champions; });
+    return arr;
+  }
+
   var g = (typeof window !== 'undefined') ? window : globalThis;
-  // ★呼ばれた時点で読む(読み込み順に依存しない)。
-  //   データ側は `const POKEMON_LIST = …` のトップレベル宣言なので **window には生えない**
-  //   (script直下の const/let は「グローバル字句環境」に入る)。そのため window[name] では取れず、
-  //   識別子を直接参照する必要がある。2026-07-28 実機確認で判明(healthCheckが全部0を返した)。
-  function L(name) {
-    switch (name) {
-      case 'POKEMON_LIST': return (typeof POKEMON_LIST !== 'undefined') ? POKEMON_LIST : g.POKEMON_LIST;
-      case 'WAZA_MAP':     return (typeof WAZA_MAP     !== 'undefined') ? WAZA_MAP     : g.WAZA_MAP;
-      case 'ABILITY_DESC': return (typeof ABILITY_DESC !== 'undefined') ? ABILITY_DESC : g.ABILITY_DESC;
-      case 'POKEMON_WAZA': return (typeof POKEMON_WAZA !== 'undefined') ? POKEMON_WAZA : g.POKEMON_WAZA;
-      case 'NATURES':      return (typeof NATURES      !== 'undefined') ? NATURES      : g.NATURES;
-      case 'TYPES':        return (typeof TYPES        !== 'undefined') ? TYPES        : g.TYPES;
-      case 'ITEMS_DATABASE': return g.ITEMS_DATABASE;   // これは window に生えている
-      default: return g[name];
-    }
-  }
 
   g.PokeDB = {
-    mode: mode,
-    source: src.file,
-    label: src.label,
+    /** ★読み込み完了を待つ約束。使う前に必ず待つ */
+    ready: load(),
 
-    /** ポケモン全件 */
-    allPokemon: function () { return L('POKEMON_LIST') || []; },
+    get mode() { return mode; },
+    get label() { return mode === 'champions' ? 'Champions版(絞り込み)' : '全部版(マスターそのまま)'; },
+    /** 絞り込みを切り替える(データは読み直さない) */
+    setMode: function (m) { mode = (m === 'champions') ? 'champions' : 'all'; return mode; },
+
+    /** ポケモン全件(絞り込み後) */
+    allPokemon: function () { return pick((DB.pokemon && DB.pokemon.items) || []); },
     /** 名前 or 図鑑番号で1体 */
     pokemon: function (key) {
-      var list = this.allPokemon();
-      return list.find(function (p) { return p.name === key || String(p.no) === String(key); }) || null;
+      return IDX.pokeByName[key]
+        || this.allPokemon().find(function (p) { return String(p.no) === String(key) || p.display_name === key; })
+        || null;
     },
 
-    /** 技 全件(キー→技) */
-    allMoves: function () { return L('WAZA_MAP') || {}; },
-    /** キー or 日本語名で1件(★キー体系が版で違うため、名前でも引けるようにしてある) */
-    move: function (key) {
-      var m = this.allMoves();
-      if (m[key]) return m[key];
-      for (var k in m) { if (m[k] && m[k].name === key) return m[k]; }
-      return null;
+    /** 技 全件(slug → 技) */
+    allMoves: function () {
+      var out = {};
+      pick((DB.moves && DB.moves.items) || []).forEach(function (m) { out[m.slug] = m; });
+      return out;
     },
-    /** 技の優先度(★Champions版は battle_data.priority、全国版は最上位 priority に入っている) */
-    movePriority: function (mv) {
-      if (!mv) return 0;
-      if (mv.battle_data && mv.battle_data.priority != null) return mv.battle_data.priority;
-      return mv.priority || 0;
-    },
+    /** slug でも日本語名でも引ける */
+    move: function (key) { return IDX.moveBySlug[key] || IDX.moveByName[key] || null; },
+    /** 技の優先度(★master では最上位 priority に統一済み) */
+    movePriority: function (mv) { return (mv && mv.priority) || 0; },
+    /** その技を覚えるポケモンの名前(数え上げた結果) */
+    learners: function (moveName) { return IDX.learners[moveName] || []; },
 
     /** 特性の説明文 */
-    abilityDesc: function (name) { return (L('ABILITY_DESC') || {})[name] || ''; },
-    /** 覚える技(体名→技リスト) */
-    learnset: function (name) { return (L('POKEMON_WAZA') || {})[name] || null; },
+    abilityDesc: function (name) { return IDX.abilityDesc[name] || ''; },
+    /** 特性 全件 */
+    allAbilities: function () { return pick((DB.abilities && DB.abilities.items) || []); },
 
-    /** 持ち物(items_database.js を読んでいるページのみ) */
-    items: function () { return L('ITEMS_DATABASE') || null; },
+    /** 覚える技(ポケモン名 → 技名の配列) */
+    learnset: function (name) { return IDX.learn[name] || null; },
+    /** ★そのポケモンで没収された技 */
+    confiscated: function (name) {
+      var p = ((DB.learnsets && DB.learnsets.items) || []).find(function (x) { return x.name === name; });
+      return (p && p.confiscated) || [];
+    },
 
-    natures: function () { return L('NATURES') || {}; },
-    types: function () { return L('TYPES') || []; },
+    /** 持ち物 全件 */
+    items: function () { return pick((DB.items && DB.items.items) || []); },
+    /** 性格 */
+    natures: function () { return (DB.natures && DB.natures.items) || []; },
+    /** タイプ(名前の配列。並び順は resist 配列と対応) */
+    types: function () { return ((DB.types && DB.types.items) || []).map(function (t) { return t.name; }); },
+    /** タイプ名 → 色 */
+    typeColor: function (name) { return IDX.typeColor[name] || '#888'; },
+    /** レギュレーション(現行) */
+    regulation: function () { return ((DB.regulations && DB.regulations.items) || [])[0] || null; },
+
+    /** 生の master をそのまま(検査用) */
+    raw: function (name) { return DB[name] || null; },
 
     /** 読み込めているかの自己診断(PDCAのCheck用) */
     healthCheck: function () {
+      var all = (DB.pokemon && DB.pokemon.items) || [];
       return {
-        mode: mode, source: src.file,
-        pokemon: (L('POKEMON_LIST') || []).length,
-        moves: Object.keys(L('WAZA_MAP') || {}).length,
-        abilityDesc: Object.keys(L('ABILITY_DESC') || {}).length,
-        learnsets: Object.keys(L('POKEMON_WAZA') || {}).length,
-        ok: !!(L('POKEMON_LIST') && L('WAZA_MAP'))
+        source: 'master/*.json', mode: mode,
+        pokemon: this.allPokemon().length, pokemon_total: all.length,
+        moves: Object.keys(this.allMoves()).length,
+        abilities: this.allAbilities().length,
+        items: this.items().length,
+        learnsets: Object.keys(IDX.learn || {}).length,
+        types: this.types().length, natures: this.natures().length,
+        generated_at: (DB.pokemon && DB.pokemon.meta && DB.pokemon.meta.generated_at) || null,
+        ok: all.length > 0 && Object.keys(IDX.moveBySlug || {}).length > 0,
       };
-    }
+    },
   };
 })();

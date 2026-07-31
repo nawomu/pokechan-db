@@ -2,6 +2,20 @@
 // 大元SSOTを汚さず別ファイルに切り出す。キー=variety slug(reference/pokeapi_master.json の slug と一致=JA名依存ゼロ)。
 // 出力: reference/learnsets_master.json = { "<variety slug>": ["<move slug>", ...] }
 // 実行: node tools/_fetch_pokeapi_learnsets.js
+// ★★止め金(2026-07-31): このスクリプトは reference/*_master.json に**書き戻す**。
+//   その場所は2026-07-31に「紛らわしい旧マスター」として reference/_old_master/ へ退避した。
+//   ここを走らせると、片付けたはずのファイルが reference/ 直下に**復活し、また
+//   「どれが本物のマスターか分からない」状態に戻る**(阿部さんが実際にそう言った状態)。
+//   ★本物のマスターは master/*.json ただ1つ。生成は node tools/build_master_v2.js。
+//   どうしても取り直したい時だけ、意図を示して実行すること:
+//       ALLOW_OLD_MASTER_WRITE=1 node tools/_fetch_pokeapi_learnsets.js
+if (!process.env.ALLOW_OLD_MASTER_WRITE) {
+  console.error('■ 中止しました: このスクリプトは旧マスター(reference/*_master.json)に書き戻します。');
+  console.error('  本物のマスターは master/*.json です(生成= node tools/build_master_v2.js)。');
+  console.error('  どうしても必要なら ALLOW_OLD_MASTER_WRITE=1 を付けて実行してください。');
+  process.exit(2);
+}
+
 const fs=require('fs');
 const GQL='https://beta.pokeapi.co/graphql/v1beta';
 async function gql(q){for(let a=0;a<5;a++){try{const r=await fetch(GQL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q})});const j=await r.json();if(j.errors)throw new Error(JSON.stringify(j.errors).slice(0,200));return j.data;}catch(e){if(a===4)throw e;await new Promise(r=>setTimeout(r,1500*(a+1)));}}}

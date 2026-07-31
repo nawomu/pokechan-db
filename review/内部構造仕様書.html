@@ -17,83 +17,3078 @@ code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:13px}
 .note{background:#fffbe6;border:1px solid #e8d48b;padding:10px 14px;border-radius:6px}
 </style><div class="wrap">
 <h1>内部構造仕様書(自動生成)</h1>
-<p>生成 2026-07-29T15:09:54 JST ／ <code>node tools/_build_internal_spec.js</code> で再生成<br>
+<p>生成 2026-07-31T06:14:57 JST ／ <code>node tools/_build_internal_spec.js</code> で再生成<br>
 ★この画面は<b>阿部さんが随時チェックする</b>ためのもの。<b>中身は毎回スキャンして生成</b>している(手書きの仕様書は腐るため)。<br>
 確認し終わったら <code>node tools/_build_internal_spec.js --reviewed</code> を実行すると、<b>「ここまで確認済み」の基準</b>が更新され、次回はそこからの差分だけが出ます。</p>
 <div class="note"><b>見るのはここだけでいい:</b> ①「まだマスターデータ経由になっていないページ」が減っているか ②「番人」が赤くなっていないか ③「前回からの差分」に<b>新しい直読みページ</b>が出ていないか。</div>
-<h2>0. ひと目で分かる数字</h2><div class="grid">
+<h2>0. ★一番のマスターは何か(いちばん大事な図)</h2>
+<div class="note" style="background:#eef6ff;border-color:#9cc3ea">
+<b>マスター(大本)= <code>master/*.json</code> だけです。JSファイルはマスターではありません。</b>
+</div>
+<table>
+<tr><th style="width:26%">層</th><th>もの</th><th>役割</th></tr>
+<tr><td><b>① マスター(大本)</b></td>
+    <td><code>master/pokemon.json</code> <code>moves.json</code> <code>abilities.json</code> <code>items.json</code> <code>learnsets.json</code></td>
+    <td class="ok"><b>★データ本体。直すのはここだけ。</b>器=全国版の範囲 / 値の正典=Champions(<code>champions</code>の印つき)</td></tr>
+<tr><td><b>② 配管(参照元1枚)</b></td>
+    <td><a href="../pokedb.js" target="_blank"><code>pokedb.js</code></a></td>
+    <td><b>データを持っていません。</b>「どこから読むか」を決めるだけの1枚。
+        ★いまの供給先 = <code>不明</code>(既定モード <code>?</code>)
+        </td></tr>
+<tr><td><b>③ 旧データ(生成物)</b></td>
+    <td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../pokechan_data_all.js" target="_blank"><code>pokechan_data_all.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td>
+    <td>①から作られる予定の生成物。<b>手で直さない。</b>いずれ捨てる</td></tr>
+<tr><td><b>④ ページ</b></td>
+    <td>5006 枚</td>
+    <td>②の配管だけを読むのが決まり。いま②経由=<b>2枚</b> / ③を直読み=<b class="bad">37枚</b></td></tr>
+</table>
+<p><small>★読み方: <b>②が①を向いた瞬間に、②を読んでいる全ページのデータが一斉に切り替わります。</b>
+だから「一箇所直せば全部変わる」。逆に③を直読みしているページは、②を直しても<b>変わりません</b>(だから直読みを0枚にする)。</small></p>
+<h2>0b. ひと目で分かる数字</h2><div class="grid">
 <div class="card"><div>ページ総数</div><div class="big">5006</div></div>
-<div class="card"><div>参照元1枚(<code>pokedb.js</code>)経由</div><div class="big ok">1</div></div>
-<div class="card"><div>データを直読み<br>(★減らす対象)</div><div class="big bad">35</div></div>
-<div class="card"><div>データ焼き込み<br>(静的な生成ページ)</div><div class="big">4968</div></div>
+<div class="card"><div>参照元1枚(<code>pokedb.js</code>)経由</div><div class="big ok">2</div></div>
+<div class="card"><div>データを直読み<br>(★減らす対象・<b>生きているページだけ</b>)</div><div class="big bad">17</div>
+<div><small>ほかに バックアップ 20 枚(数えない)</small></div></div>
+<div class="card"><div>データ焼き込み<br>(静的な生成ページ)</div><div class="big">4967</div></div>
 </div>
 <h2>1. 前回チェック以降に変わったこと <span style="font-size:14px;font-weight:normal">(基準 2026-07-29T00:27:05)</span></h2><table>
   <tr><th>項目</th><th>変化</th></tr>
   <tr><td>ページ総数</td><td>+5</td></tr>
-  <tr><td><b>データ直読みページ</b></td><td class="">+0</td></tr>
-  <tr><td class="bad">★新しく直読みを始めたページ</td><td><span class="ok">なし</span></td></tr>
+  <tr><td><b>データ直読みページ</b></td><td class="bad">+2</td></tr>
+  <tr><td class="bad">★新しく直読みを始めたページ</td><td><code>battle_lab.html</code> <code>battle_lab_OLD_tmp.html</code></td></tr>
   <tr><td class="ok">直読みをやめたページ</td><td>なし</td></tr>
   </table>
-<h2>2. どのページが、どのデータを見ているか</h2>
-<p>★決まり: <b>ページは参照元1枚 <code>pokedb.js</code> だけを読む</b>。<code>pokechan_data*.js</code> の直読みは禁止。</p>
-<table><tr><th>ページ</th><th>読んでいるもの</th><th>判定</th></tr>
-<tr><td><code>data_browser.html</code></td><td><code>pokedb.js</code></td><td class="ok">✅ マスター経由</td></tr>
-<tr><td><code>ability_all.html</code></td><td><code>pokechan_data_all.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/battle_simulator.20260517_085614.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/battle_simulator.20260517_094223.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/battle_simulator.20260517_200035.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/battle_simulator.20260518_020445.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/battle_simulator.20260518_081144.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/battle_simulator.20260521_2027.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/party_checker.20260516_064500.bak.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/party_checker.20260517_095943.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/party_checker.20260517_161202.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/party_checker.20260517_200035.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/party_checker.20260521_2027.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/pokemon_db_v9.20260517_200035.bak.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/real_battle_simulator.20260521_2027.bak.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/waza-list.20260517_112744.bak.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/waza-list.20260518_074819.bak.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/waza-list.20260518_075127.bak.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/waza-list.20260518_081144.bak.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>bak/waza-list.20260518_111908.bak.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>battle_simulator.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>damage_calc.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>fx_editor.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>online_battle.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>party_checker.html</code></td><td><code>pokechan_data.js</code> <code>items_database.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>pokemon_db_all_v9.html</code></td><td><code>pokechan_data_all.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>pokemon_db_v9.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>real_battle.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>real_battle_simulator.html</code></td><td><code>items_database.js</code> <small>(document.writeで動的読み込み)</small></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>speed_compare.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>suggest_lite.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>suggest_partner.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>waza-list.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>waza-list_all.html</code></td><td><code>pokechan_data_all.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>waza-list_backup_2026-06-18.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-<tr><td><code>waza-list_v2.html</code></td><td><code>pokechan_data.js</code></td><td class="bad">❌ 直読み</td></tr>
-</table><p><small>※データを読まないページ(4968枚)は「生成ページ=データが焼き込まれている」。元データを直したら<b>再生成が必要</b>。</small></p>
+<h2>2. どのページが、どのデータを見ているか <span style="font-size:14px;font-weight:normal">(データを読む 39 枚を全部。省略なし)</span></h2>
+<div class="note" style="background:#eef6ff;border-color:#9cc3ea"><b>★追う数字は「生きているページ 17 枚」です。</b>
+下の表の後半 20 枚は <code>bak/</code> などのバックアップで、直す対象ではありません(混ざっていて実態が見えなかったので分けました)。</div>
+<p>★決まり: <b>ページは参照元1枚 <a href="../pokedb.js" target="_blank"><code>pokedb.js</code></a> だけを読む</b>。<code>pokechan_data*.js</code> の直読みは禁止。</p>
+<div class="note"><b>「経由」は「マスターを見ている」という意味ではありません。</b>
+配管(<code>pokedb.js</code>)を通っているというだけで、<b>その配管の先はいま <code>不明</code></b> です。
+①マスターに繋ぎ替えるのはこれから(<code>?data=v2</code>)。</div>
+<table><tr><th>ページ(クリックで開く)</th><th>読んでいるもの(クリックで中身)</th><th>判定</th></tr>
+<tr><td><a href="../data_browser.html" target="_blank"><code>data_browser.html</code></a></td><td><a href="../pokedb.js" target="_blank"><code>pokedb.js</code></a> <small>→ ?</small></td><td class="ok">✅ 配管(pokedb.js)経由</td></tr>
+<tr><td><a href="../review/内部構造仕様書.html" target="_blank"><code>review/内部構造仕様書.html</code></a></td><td><a href="../pokedb.js" target="_blank"><code>pokedb.js</code></a> <small>→ ?</small> <small>(document.writeで動的読み込み)</small></td><td class="ok">✅ 配管(pokedb.js)経由</td></tr>
+<tr><td><a href="../ability_all.html" target="_blank"><code>ability_all.html</code></a></td><td><a href="../pokechan_data_all.js" target="_blank"><code>pokechan_data_all.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../battle_lab.html" target="_blank"><code>battle_lab.html</code></a></td><td><a href="../pokechan_data_all.js" target="_blank"><code>pokechan_data_all.js</code></a> <a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <small>(document.writeで動的読み込み)</small></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../battle_simulator.html" target="_blank"><code>battle_simulator.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../damage_calc.html" target="_blank"><code>damage_calc.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../fx_editor.html" target="_blank"><code>fx_editor.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../online_battle.html" target="_blank"><code>online_battle.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../party_checker.html" target="_blank"><code>party_checker.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../pokemon_db_all_v9.html" target="_blank"><code>pokemon_db_all_v9.html</code></a></td><td><a href="../pokechan_data_all.js" target="_blank"><code>pokechan_data_all.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../pokemon_db_v9.html" target="_blank"><code>pokemon_db_v9.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../real_battle.html" target="_blank"><code>real_battle.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../real_battle_simulator.html" target="_blank"><code>real_battle_simulator.html</code></a></td><td><a href="../items_database.js" target="_blank"><code>items_database.js</code></a> <a href="../pokechan_data_all.js" target="_blank"><code>pokechan_data_all.js</code></a> <a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <small>(document.writeで動的読み込み)</small></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../speed_compare.html" target="_blank"><code>speed_compare.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../suggest_lite.html" target="_blank"><code>suggest_lite.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../suggest_partner.html" target="_blank"><code>suggest_partner.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../waza-list.html" target="_blank"><code>waza-list.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../waza-list_all.html" target="_blank"><code>waza-list_all.html</code></a></td><td><a href="../pokechan_data_all.js" target="_blank"><code>pokechan_data_all.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../waza-list_v2.html" target="_blank"><code>waza-list_v2.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/battle_simulator.20260517_085614.bak.html" target="_blank"><code>bak/battle_simulator.20260517_085614.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/battle_simulator.20260517_094223.bak.html" target="_blank"><code>bak/battle_simulator.20260517_094223.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/battle_simulator.20260517_200035.bak.html" target="_blank"><code>bak/battle_simulator.20260517_200035.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/battle_simulator.20260518_020445.bak.html" target="_blank"><code>bak/battle_simulator.20260518_020445.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/battle_simulator.20260518_081144.bak.html" target="_blank"><code>bak/battle_simulator.20260518_081144.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/battle_simulator.20260521_2027.bak.html" target="_blank"><code>bak/battle_simulator.20260521_2027.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/party_checker.20260516_064500.bak.html" target="_blank"><code>bak/party_checker.20260516_064500.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/party_checker.20260517_095943.bak.html" target="_blank"><code>bak/party_checker.20260517_095943.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/party_checker.20260517_161202.bak.html" target="_blank"><code>bak/party_checker.20260517_161202.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/party_checker.20260517_200035.bak.html" target="_blank"><code>bak/party_checker.20260517_200035.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/party_checker.20260521_2027.bak.html" target="_blank"><code>bak/party_checker.20260521_2027.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/pokemon_db_v9.20260517_200035.bak.html" target="_blank"><code>bak/pokemon_db_v9.20260517_200035.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/real_battle_simulator.20260521_2027.bak.html" target="_blank"><code>bak/real_battle_simulator.20260521_2027.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <a href="../items_database.js" target="_blank"><code>items_database.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/waza-list.20260517_112744.bak.html" target="_blank"><code>bak/waza-list.20260517_112744.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/waza-list.20260518_074819.bak.html" target="_blank"><code>bak/waza-list.20260518_074819.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/waza-list.20260518_075127.bak.html" target="_blank"><code>bak/waza-list.20260518_075127.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/waza-list.20260518_081144.bak.html" target="_blank"><code>bak/waza-list.20260518_081144.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../bak/waza-list.20260518_111908.bak.html" target="_blank"><code>bak/waza-list.20260518_111908.bak.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../battle_lab_OLD_tmp.html" target="_blank"><code>battle_lab_OLD_tmp.html</code></a></td><td><a href="../pokechan_data_all.js" target="_blank"><code>pokechan_data_all.js</code></a> <a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a> <small>(document.writeで動的読み込み)</small></td><td class="bad">❌ 直読み</td></tr>
+<tr><td><a href="../waza-list_backup_2026-06-18.html" target="_blank"><code>waza-list_backup_2026-06-18.html</code></a></td><td><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></td><td class="bad">❌ 直読み</td></tr>
+</table><p><small>※データを読まないページ(4967枚)は「生成ページ=データが焼き込まれている」。元データを直したら<b>再生成が必要</b>。</small></p>
 <h2>3. マスターデータ(大本)</h2>
-<p>★呼び名=<b>マスターデータ</b>。置き場所は <code>master/</code> ただ1つにする(移行中)。<b>直すのはここだけ</b>。</p>
-<table><tr><th>ファイル</th><th>件数</th><th>サイズ</th><th>最終更新</th></tr>
-<tr><td><code>master/_unknowns.json</code></td><td>4</td><td>1 KB</td><td>2026-07-29</td></tr>
-<tr><td><code>master/abilities.json</code></td><td>4</td><td>148 KB</td><td>2026-07-29</td></tr>
-<tr><td><code>master/items.json</code></td><td>4</td><td>74 KB</td><td>2026-07-29</td></tr>
-<tr><td><code>master/learnsets.json</code></td><td>5</td><td>809 KB</td><td>2026-07-29</td></tr>
-<tr><td><code>master/moves.json</code></td><td>4</td><td>1127 KB</td><td>2026-07-29</td></tr>
-<tr><td><code>master/pokemon.json</code></td><td>4</td><td>861 KB</td><td>2026-07-29</td></tr>
-<tr><td><code>master/regulations.json</code></td><td>3</td><td>1 KB</td><td>2026-07-29</td></tr>
-<tr><td><code>reference/abilities_master.json</code></td><td>311</td><td>111 KB</td><td>2026-07-03</td></tr>
-<tr><td><code>reference/items_master.json</code></td><td>2180</td><td>593 KB</td><td>2026-06-25</td></tr>
-<tr><td><code>reference/learnsets_master.json</code></td><td>1302</td><td>1127 KB</td><td>2026-06-26</td></tr>
-<tr><td><code>reference/master_abilities.json</code></td><td>313</td><td>194 KB</td><td>2026-07-28</td></tr>
-<tr><td><code>reference/master_items.json</code></td><td>2220</td><td>989 KB</td><td>2026-07-28</td></tr>
-<tr><td><code>reference/master_moves.json</code></td><td>920</td><td>2595 KB</td><td>2026-07-28</td></tr>
-<tr><td><code>reference/master_pokemon.json</code></td><td>1365</td><td>983 KB</td><td>2026-07-28</td></tr>
-<tr><td><code>reference/moves_master.json</code></td><td>937</td><td>342 KB</td><td>2026-06-25</td></tr>
-<tr><td><code>reference/pokeapi_master.json</code></td><td>1302</td><td>698 KB</td><td>2026-07-05</td></tr>
+<p>★呼び名=<b>マスターデータ</b>。置き場所は <code>master/</code> <b>ただ1つ</b>。<b>直すのはここだけ</b>。</p>
+<div class="note" style="background:#eaf7ea;border-color:#8bc98b"><b>★本物はこの 9 本だけです。</b></div>
+<table><tr><th>ファイル(生JSON)</th><th>★確認用(人が読める形)</th><th>件数</th><th>サイズ</th><th>最終更新</th></tr>
+<tr><td><a href="../master/_unknowns.json" target="_blank"><code>master/_unknowns.json</code></a></td><td><a href="マスターデータ確認.html?f=_unknowns" target="_blank">📋 _unknowns を見る</a></td><td><b>4</b></td><td>1 KB</td><td>2026-07-31</td></tr>
+<tr><td><a href="../master/abilities.json" target="_blank"><code>master/abilities.json</code></a></td><td><a href="マスターデータ確認.html?f=abilities" target="_blank">📋 abilities を見る</a></td><td><b>313</b></td><td>148 KB</td><td>2026-07-31</td></tr>
+<tr><td><a href="../master/items.json" target="_blank"><code>master/items.json</code></a></td><td><a href="マスターデータ確認.html?f=items" target="_blank">📋 items を見る</a></td><td><b>169</b></td><td>85 KB</td><td>2026-07-31</td></tr>
+<tr><td><a href="../master/learnsets.json" target="_blank"><code>master/learnsets.json</code></a></td><td><a href="マスターデータ確認.html?f=learnsets" target="_blank">📋 learnsets を見る</a></td><td><b>313</b></td><td>809 KB</td><td>2026-07-31</td></tr>
+<tr><td><a href="../master/moves.json" target="_blank"><code>master/moves.json</code></a></td><td><a href="マスターデータ確認.html?f=moves" target="_blank">📋 moves を見る</a></td><td><b>919</b></td><td>1127 KB</td><td>2026-07-31</td></tr>
+<tr><td><a href="../master/natures.json" target="_blank"><code>master/natures.json</code></a></td><td><a href="マスターデータ確認.html?f=natures" target="_blank">📋 natures を見る</a></td><td><b>25</b></td><td>4 KB</td><td>2026-07-31</td></tr>
+<tr><td><a href="../master/pokemon.json" target="_blank"><code>master/pokemon.json</code></a></td><td><a href="マスターデータ確認.html?f=pokemon" target="_blank">📋 pokemon を見る</a></td><td><b>1257</b></td><td>861 KB</td><td>2026-07-31</td></tr>
+<tr><td><a href="../master/regulations.json" target="_blank"><code>master/regulations.json</code></a></td><td><a href="マスターデータ確認.html?f=regulations" target="_blank">📋 regulations を見る</a></td><td><b>1</b></td><td>1 KB</td><td>2026-07-31</td></tr>
+<tr><td><a href="../master/types.json" target="_blank"><code>master/types.json</code></a></td><td><a href="マスターデータ確認.html?f=types" target="_blank">📋 types を見る</a></td><td><b>18</b></td><td>3 KB</td><td>2026-07-31</td></tr>
 </table>
+<p><small>★<b>確認用</b>= <a href="マスターデータ確認.html" target="_blank"><code>review/マスターデータ確認.html</code></a>。
+マスターのJSONを<b>そのまま表にしただけ</b>(登場順・全件・列を隠さない)。加工も並べ替えもしていません。</small></p>
+<h2>3b. 使っているJSの中身(ここで読める)</h2>
+<p>★<b>プログラムが読めなくて大丈夫です。</b>各ファイルの<b>先頭に書いてある日本語の説明を、そのまま抜き出して</b>並べています(★説明は後から書き足したものではないので、実物とズレません)。<br><b>配管まわりの小さいJSは全文</b>、<b>データ本体は大きいので先頭 4,000 文字だけ</b>載せています(全文はファイル名のリンクから)。</p>
+<table><tr><th>ファイル</th><th>大きさ</th><th>行数</th><th>ここに載せた範囲</th><th>更新</th></tr>
+<tr><td><a href="#src-pokedb_js"><code>pokedb.js</code></a></td><td class="num">9 KB</td><td class="num">190</td><td class="ok">全文</td><td>2026-07-31</td></tr>
+<tr><td><a href="#src-internal_home_js"><code>internal_home.js</code></a></td><td class="num">5 KB</td><td class="num">105</td><td class="ok">全文</td><td>2026-07-31</td></tr>
+<tr><td><a href="#src-move_fx_map_js"><code>move_fx_map.js</code></a></td><td class="num">10 KB</td><td class="num">331</td><td class="ok">全文</td><td>2026-07-16</td></tr>
+<tr><td><a href="#src-battle_fx_cues_js"><code>battle_fx_cues.js</code></a></td><td class="num">8 KB</td><td class="num">323</td><td class="ok">全文</td><td>2026-07-16</td></tr>
+<tr><td><a href="#src-preset_builds_js"><code>preset_builds.js</code></a></td><td class="num">38 KB</td><td class="num">1507</td><td class="ok">全文</td><td>2026-07-11</td></tr>
+<tr><td><a href="#src-sprite_api_ids_js"><code>sprite_api_ids.js</code></a></td><td class="num">31 KB</td><td class="num">5</td><td class="ok">全文</td><td>2026-07-21</td></tr>
+<tr><td><a href="#src-items_database_js"><code>items_database.js</code></a></td><td class="num">129 KB</td><td class="num">3513</td><td class="">先頭 80 行 / 全 3513 行</td><td>2026-07-19</td></tr>
+<tr><td><a href="#src-fx_primitives_js"><code>fx_primitives.js</code></a></td><td class="num">88 KB</td><td class="num">1369</td><td class="">先頭 4,000 文字 / 全 68,836 文字</td><td>2026-07-18</td></tr>
+<tr><td><a href="#src-battle_log_i18n_js"><code>battle_log_i18n.js</code></a></td><td class="num">213 KB</td><td class="num">898</td><td class="">先頭 4,000 文字 / 全 178,889 文字</td><td>2026-07-21</td></tr>
+<tr><td><a href="#src-pokechan_data_js"><code>pokechan_data.js</code></a></td><td class="num">2310 KB</td><td class="num">112</td><td class="">先頭 4,000 文字 / 全 1,976,064 文字</td><td>2026-07-28</td></tr>
+<tr><td><a href="#src-pokechan_data_all_js"><code>pokechan_data_all.js</code></a></td><td class="num">4420 KB</td><td class="num">19</td><td class="">先頭 4,000 文字 / 全 3,145,985 文字</td><td>2026-07-28</td></tr>
+</table>
+<div class="card" id="src-pokedb_js">
+  <div><b><a href="../pokedb.js" target="_blank"><code>pokedb.js</code></a></b>
+   <span class="cols">9 KB ／ 190 行 ／ <b class="ok">全文</b></span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">pokedb.js — ★★データの参照元は「ここだけ」。全ページはこの1枚を読む。
+
+★2026-07-31 全面的に作り替えた(阿部さんの指摘で設計を直した)
+  「別にマスターがあれば pokedb.js って別に。結局は確認用のページのためでしょ。そもそもある必要あんの?」
+
+  → 指摘のとおりだった。前の版は **旧データ(pokechan_data*.js)を読み込む切替器** で、
+    master を読むために 2.2MB の複製(pokedb_v2.js)まで作ろうとしていた。**データが2本に増える**。
+  → 作り直した今の版は **データを1バイトも持たない「薄いローダ」**。
+    master/*.json を読んで、ページに渡すだけ。**データは master ただ1つ**。
+
+┌──────────────────────────────────────────────────────────┐
+│ master/*.json  ←★唯一のデータ。直すのはここだけ            │
+│      ↑ fetch                                              │
+│ pokedb.js(この1枚・データを持たない)                      │
+│      ↑                                                    │
+│ ページ                                                     │
+└──────────────────────────────────────────────────────────┘
+
+使い方(ページ側):
+  &lt;script src="pokedb.js?v=..."&gt;&lt;/script&gt;
+  PokeDB.ready.then(function () {  ... PokeDB.allPokemon() ... });
+  ★読み込みは非同期(fetch)なので、必ず ready を待ってから使う。
+
+絞り込み(Champions だけ / 全部):
+  PokeDB.setMode('champions' | 'all')  … ★データは同じ1本。違うのは絞り込み条件だけ。
+  URLに ?data=all / ?data=champions でも指定できる。既定は all(全部版)。
+
+★禁止: ページから master/*.json や pokechan_data*.js を直接読むこと。
+  (参照元が増えると、また分裂する。番人 tools/_ssot_guard_test.js が見張る)
+  ※例外は「マスターの中身を検査するための道具」だけ。商品のページは必ずこの1枚を通す。</div>
+</div>
+<div style="margin:6px 0"><b>つながっている相手(読む/書くファイル)</b><br><a href="../pokedb.js" target="_blank"><code>pokedb.js</code></a></div>
+<div style="margin:6px 0"><b>中の区切り(1)</b><ol style="margin:4px 0 0 18px;font-size:13px"><li>master/ の場所を、このスクリプト自身の位置から決める <span class="cols">(37行目)</span></li></ol></div>
+<details style="margin:6px 0"><summary><b>できること(22個 / 説明つき 20個)</b></summary><table style="margin-top:6px"><tr><th>名前</th><th>何をするか(ファイル内のコメントから)</th><th>行</th></tr><tr><td><code>baseDir</code></td><td>── master/ の場所を、このスクリプト自身の位置から決める ────────────── (ルート直下のページでも review/ 配下のページでも同じように動くように)</td><td class="num">39</td></tr><tr><td><code>load</code></td><td><span class="cols">(説明なし)</span></td><td class="num">62</td></tr><tr><td><code>buildIndex</code></td><td><span class="cols">(説明なし)</span></td><td class="num">73</td></tr><tr><td><code>pick</code></td><td>★絞り込みは「同じ1本のデータに条件をかける」だけ(別のデータを読むのではない)</td><td class="num">108</td></tr><tr><td><code>setMode</code></td><td>絞り込みを切り替える(データは読み直さない)</td><td class="num">122</td></tr><tr><td><code>allPokemon</code></td><td>ポケモン全件(絞り込み後)</td><td class="num">125</td></tr><tr><td><code>pokemon</code></td><td>名前 or 図鑑番号で1体</td><td class="num">127</td></tr><tr><td><code>allMoves</code></td><td>技 全件(slug → 技)</td><td class="num">134</td></tr><tr><td><code>move</code></td><td>slug でも日本語名でも引ける</td><td class="num">140</td></tr><tr><td><code>movePriority</code></td><td>技の優先度(★master では最上位 priority に統一済み)</td><td class="num">142</td></tr><tr><td><code>learners</code></td><td>その技を覚えるポケモンの名前(数え上げた結果)</td><td class="num">144</td></tr><tr><td><code>abilityDesc</code></td><td>特性の説明文</td><td class="num">147</td></tr><tr><td><code>allAbilities</code></td><td>特性 全件</td><td class="num">149</td></tr><tr><td><code>learnset</code></td><td>覚える技(ポケモン名 → 技名の配列)</td><td class="num">152</td></tr><tr><td><code>confiscated</code></td><td>★そのポケモンで没収された技</td><td class="num">154</td></tr><tr><td><code>items</code></td><td>持ち物 全件</td><td class="num">160</td></tr><tr><td><code>natures</code></td><td>性格</td><td class="num">162</td></tr><tr><td><code>types</code></td><td>タイプ(名前の配列。並び順は resist 配列と対応)</td><td class="num">164</td></tr><tr><td><code>typeColor</code></td><td>タイプ名 → 色</td><td class="num">166</td></tr><tr><td><code>regulation</code></td><td>レギュレーション(現行)</td><td class="num">168</td></tr><tr><td><code>raw</code></td><td>生の master をそのまま(検査用)</td><td class="num">171</td></tr><tr><td><code>healthCheck</code></td><td>読み込めているかの自己診断(PDCAのCheck用)</td><td class="num">174</td></tr></table></details>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">/* pokedb.js — ★★データの参照元は「ここだけ」。全ページはこの1枚を読む。
+ *
+ * ★2026-07-31 全面的に作り替えた(阿部さんの指摘で設計を直した)
+ *   「別にマスターがあれば pokedb.js って別に。結局は確認用のページのためでしょ。そもそもある必要あんの?」
+ *
+ *   → 指摘のとおりだった。前の版は **旧データ(pokechan_data*.js)を読み込む切替器** で、
+ *     master を読むために 2.2MB の複製(pokedb_v2.js)まで作ろうとしていた。**データが2本に増える**。
+ *   → 作り直した今の版は **データを1バイトも持たない「薄いローダ」**。
+ *     master/*.json を読んで、ページに渡すだけ。**データは master ただ1つ**。
+ *
+ * ┌──────────────────────────────────────────────────────────┐
+ * │ master/*.json  ←★唯一のデータ。直すのはここだけ            │
+ * │      ↑ fetch                                              │
+ * │ pokedb.js(この1枚・データを持たない)                      │
+ * │      ↑                                                    │
+ * │ ページ                                                     │
+ * └──────────────────────────────────────────────────────────┘
+ *
+ * 使い方(ページ側):
+ *   &lt;script src="pokedb.js?v=..."&gt;&lt;/script&gt;
+ *   PokeDB.ready.then(function () {  ... PokeDB.allPokemon() ... });
+ *   ★読み込みは非同期(fetch)なので、必ず ready を待ってから使う。
+ *
+ * 絞り込み(Champions だけ / 全部):
+ *   PokeDB.setMode('champions' | 'all')  … ★データは同じ1本。違うのは絞り込み条件だけ。
+ *   URLに ?data=all / ?data=champions でも指定できる。既定は all(全部版)。
+ *
+ * ★禁止: ページから master/*.json や pokechan_data*.js を直接読むこと。
+ *   (参照元が増えると、また分裂する。番人 tools/_ssot_guard_test.js が見張る)
+ *   ※例外は「マスターの中身を検査するための道具」だけ。商品のページは必ずこの1枚を通す。
+ */
+(function () {
+  'use strict';
+
+  var FILES = ['pokemon', 'moves', 'abilities', 'items', 'learnsets', 'regulations', 'types', 'natures'];
+
+  // ── master/ の場所を、このスクリプト自身の位置から決める ──────────────
+  //   (ルート直下のページでも review/ 配下のページでも同じように動くように)
+  function baseDir() {
+    var s = document.currentScript;
+    if (!s) {
+      var all = document.getElementsByTagName('script');
+      for (var i = all.length - 1; i &gt;= 0; i--) {
+        if (/pokedb\.js/.test(all[i].src)) { s = all[i]; break; }
+      }
+    }
+    var src = (s &amp;&amp; s.src) || '';
+    return src.replace(/[^/]*$/, '') || '';
+  }
+  var BASE = baseDir() + 'master/';
+
+  var DB = {};        // 生の master(ファイル名 → 中身)
+  var IDX = {};       // 引きやすくした索引
+  var mode = 'all';
+
+  try {
+    var q = new URLSearchParams(location.search).get('data');
+    if (q === 'champions') mode = 'champions';
+    if (q === 'all' || q === 'national') mode = 'all';
+  } catch (e) { /* file:// 等 */ }
+
+  function load() {
+    return Promise.all(FILES.map(function (f) {
+      return fetch(BASE + f + '.json')
+        .then(function (r) {
+          if (!r.ok) throw new Error('master/' + f + '.json が読めません (' + r.status + ')');
+          return r.json();
+        })
+        .then(function (j) { DB[f] = j; });
+    })).then(buildIndex);
+  }
+
+  function buildIndex() {
+    var moves = (DB.moves &amp;&amp; DB.moves.items) || [];
+    var pokes = (DB.pokemon &amp;&amp; DB.pokemon.items) || [];
+    var abis = (DB.abilities &amp;&amp; DB.abilities.items) || [];
+    var lrn = (DB.learnsets &amp;&amp; DB.learnsets.items) || [];
+
+    IDX.moveBySlug = {};
+    IDX.moveByName = {};
+    moves.forEach(function (m) {
+      IDX.moveBySlug[m.slug] = m;
+      if (!IDX.moveByName[m.name]) IDX.moveByName[m.name] = m;
+    });
+
+    IDX.abilityDesc = {};
+    abis.forEach(function (a) { IDX.abilityDesc[a.name] = a.effect_ja || ''; });
+
+    IDX.learn = {};
+    lrn.forEach(function (p) { IDX.learn[p.name] = p.learn || []; });
+
+    // ★「その技を覚えるポケモン」は master に無いので、ここで数え上げる(データは増やさない)
+    IDX.learners = {};
+    lrn.forEach(function (p) {
+      (p.learn || []).forEach(function (mv) {
+        (IDX.learners[mv] = IDX.learners[mv] || []).push(p.name);
+      });
+    });
+
+    IDX.typeColor = {};
+    ((DB.types &amp;&amp; DB.types.items) || []).forEach(function (t) { IDX.typeColor[t.name] = t.color; });
+
+    IDX.pokeByName = {};
+    pokes.forEach(function (p) { IDX.pokeByName[p.name] = p; });
+  }
+
+  /** ★絞り込みは「同じ1本のデータに条件をかける」だけ(別のデータを読むのではない) */
+  function pick(arr) {
+    if (mode === 'champions') return arr.filter(function (x) { return !!x.champions; });
+    return arr;
+  }
+
+  var g = (typeof window !== 'undefined') ? window : globalThis;
+
+  g.PokeDB = {
+    /** ★読み込み完了を待つ約束。使う前に必ず待つ */
+    ready: load(),
+
+    get mode() { return mode; },
+    get label() { return mode === 'champions' ? 'Champions版(絞り込み)' : '全部版(マスターそのまま)'; },
+    /** 絞り込みを切り替える(データは読み直さない) */
+    setMode: function (m) { mode = (m === 'champions') ? 'champions' : 'all'; return mode; },
+
+    /** ポケモン全件(絞り込み後) */
+    allPokemon: function () { return pick((DB.pokemon &amp;&amp; DB.pokemon.items) || []); },
+    /** 名前 or 図鑑番号で1体 */
+    pokemon: function (key) {
+      return IDX.pokeByName[key]
+        || this.allPokemon().find(function (p) { return String(p.no) === String(key) || p.display_name === key; })
+        || null;
+    },
+
+    /** 技 全件(slug → 技) */
+    allMoves: function () {
+      var out = {};
+      pick((DB.moves &amp;&amp; DB.moves.items) || []).forEach(function (m) { out[m.slug] = m; });
+      return out;
+    },
+    /** slug でも日本語名でも引ける */
+    move: function (key) { return IDX.moveBySlug[key] || IDX.moveByName[key] || null; },
+    /** 技の優先度(★master では最上位 priority に統一済み) */
+    movePriority: function (mv) { return (mv &amp;&amp; mv.priority) || 0; },
+    /** その技を覚えるポケモンの名前(数え上げた結果) */
+    learners: function (moveName) { return IDX.learners[moveName] || []; },
+
+    /** 特性の説明文 */
+    abilityDesc: function (name) { return IDX.abilityDesc[name] || ''; },
+    /** 特性 全件 */
+    allAbilities: function () { return pick((DB.abilities &amp;&amp; DB.abilities.items) || []); },
+
+    /** 覚える技(ポケモン名 → 技名の配列) */
+    learnset: function (name) { return IDX.learn[name] || null; },
+    /** ★そのポケモンで没収された技 */
+    confiscated: function (name) {
+      var p = ((DB.learnsets &amp;&amp; DB.learnsets.items) || []).find(function (x) { return x.name === name; });
+      return (p &amp;&amp; p.confiscated) || [];
+    },
+
+    /** 持ち物 全件 */
+    items: function () { return pick((DB.items &amp;&amp; DB.items.items) || []); },
+    /** 性格 */
+    natures: function () { return (DB.natures &amp;&amp; DB.natures.items) || []; },
+    /** タイプ(名前の配列。並び順は resist 配列と対応) */
+    types: function () { return ((DB.types &amp;&amp; DB.types.items) || []).map(function (t) { return t.name; }); },
+    /** タイプ名 → 色 */
+    typeColor: function (name) { return IDX.typeColor[name] || '#888'; },
+    /** レギュレーション(現行) */
+    regulation: function () { return ((DB.regulations &amp;&amp; DB.regulations.items) || [])[0] || null; },
+
+    /** 生の master をそのまま(検査用) */
+    raw: function (name) { return DB[name] || null; },
+
+    /** 読み込めているかの自己診断(PDCAのCheck用) */
+    healthCheck: function () {
+      var all = (DB.pokemon &amp;&amp; DB.pokemon.items) || [];
+      return {
+        source: 'master/*.json', mode: mode,
+        pokemon: this.allPokemon().length, pokemon_total: all.length,
+        moves: Object.keys(this.allMoves()).length,
+        abilities: this.allAbilities().length,
+        items: this.items().length,
+        learnsets: Object.keys(IDX.learn || {}).length,
+        types: this.types().length, natures: this.natures().length,
+        generated_at: (DB.pokemon &amp;&amp; DB.pokemon.meta &amp;&amp; DB.pokemon.meta.generated_at) || null,
+        ok: all.length &gt; 0 &amp;&amp; Object.keys(IDX.moveBySlug || {}).length &gt; 0,
+      };
+    },
+  };
+})();
+</pre>
+  </details></div>
+<div class="card" id="src-internal_home_js">
+  <div><b><a href="../internal_home.js" target="_blank"><code>internal_home.js</code></a></b>
+   <span class="cols">5 KB ／ 105 行 ／ <b class="ok">全文</b></span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">internal_home.js — 管理ツールページの共通ホームボタン
+目的(2026-07-29 阿部さん): 内部ツールから各ページを新しいタブで開くので、
+  各ページに「内部ツールに戻る」ボタンが欲しい。
+★ローカル(localhost / file://)でだけ表示する。本番では出ない。</div>
+</div>
+<div style="margin:6px 0"><b>中の区切り(1)</b><ol style="margin:4px 0 0 18px;font-size:13px"><li>★ファイル名を全部クリックで開けるようにする(2026-07-31 阿部さん) <span class="cols">(33行目)</span></li></ol></div>
+<details style="margin:6px 0"><summary><b>できること(5個 / 説明つき 1個)</b></summary><table style="margin-top:6px"><tr><th>名前</th><th>何をするか(ファイル内のコメントから)</th><th>行</th></tr><tr><td><code>add</code></td><td><span class="cols">(説明なし)</span></td><td class="num">9</td></tr><tr><td><code>linkify</code></td><td><span class="cols">(説明なし)</span></td><td class="num">42</td></tr><tr><td><code>markMissing</code></td><td>★存在しないファイルは「消す」のでなく「存在しないと書いておく」(2026-07-31 阿部さん) 「その存在しないやつは、存在しないって書いておけばいい。削除予定とか、削除検討とかね」 → 記述は残す(履歴として意味がある)。ただし**一目で分かる印**を付ける。</td><td class="num">79</td></tr><tr><td><code>esc</code></td><td><span class="cols">(説明なし)</span></td><td class="num">95</td></tr><tr><td><code>cssEsc</code></td><td><span class="cols">(説明なし)</span></td><td class="num">100</td></tr></table></details>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">/* internal_home.js — 管理ツールページの共通ホームボタン
+ * 目的(2026-07-29 阿部さん): 内部ツールから各ページを新しいタブで開くので、
+ *   各ページに「内部ツールに戻る」ボタンが欲しい。
+ * ★ローカル(localhost / file://)でだけ表示する。本番では出ない。
+ */
+(function () {
+  var local = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) || location.protocol === 'file:';
+  if (!local) return;
+  function add() {
+    if (document.getElementById('__internal_home')) return;
+    // 管理ツール.html までの相対パス(review/ 配下なら1つ上)
+    var depth = (location.pathname.replace(/^\/|\/[^/]*$/g, '').match(/\//g) || []).length;
+    var up = location.pathname.indexOf('/review/') &gt;= 0 ? '../' : '';
+    var a = document.createElement('a');
+    a.id = '__internal_home';
+    a.href = up + '管理ツール.html';
+    a.textContent = '🏠 管理ツール';
+    a.title = '管理ツールのトップに戻る';
+    a.setAttribute('style', [
+      'position:fixed', 'right:14px', 'bottom:14px', 'z-index:99999',
+      'background:#c33', 'color:#fff', 'text-decoration:none',
+      'font:bold 13px/1 -apple-system,"Hiragino Sans",sans-serif',
+      'padding:10px 14px', 'border-radius:22px',
+      'box-shadow:0 2px 10px rgba(0,0,0,.28)', 'opacity:.92'
+    ].join(';'));
+    a.onmouseenter = function () { a.style.opacity = '1'; };
+    a.onmouseleave = function () { a.style.opacity = '.92'; };
+    document.body.appendChild(a);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', add);
+  else add();
+
+  // ── ★ファイル名を全部クリックで開けるようにする(2026-07-31 阿部さん) ──────
+  //   「このページのJSとかファイルがあったら、そこ全部クリックしたらリンク開けるようにして」
+  //   ★1ページずつ直さない。この共通JSを読んでいる管理ツール系の全ページに一度で効かせる
+  //     (= 足りないときは一つのものを広げる)。
+  //   ★存在しないファイルはリンクにせず灰色+⚠にする。古い参照が残っていたら見て分かるように。
+  // \u2605\u62e1\u5f35\u5b50\u306f\u300c\u9577\u3044\u3082\u306e\u304b\u3089\u300d\u66f8\u304f(2026-07-31 \u5b9f\u6a5f\u3067\u767a\u899a)\u3002
+  //   js \u3092\u5148\u306b\u7f6e\u304f\u3068 `_survey.json` \u304c `_survey.js` \u3067\u5207\u308c\u3066\u30ea\u30f3\u30af\u5148\u304c\u58ca\u308c\u308b\u3002
+  var FILE_RE = /((?:\.\.\/)?[\w\-./\u3040-\u30ff\u4e00-\u9fff]+\.(?:command|json|html|css|txt|js|md|sh))(\?[\w=.\-]*)?/g;
+
+  function linkify() {
+    var inReview = location.pathname.indexOf('/review/') &gt;= 0;
+    var up = inReview ? '../' : '';
+    var codes = [].slice.call(document.querySelectorAll('code'));
+    var found = {};   // path → [ {el, token} ]
+
+    codes.forEach(function (el) {
+      if (el.querySelector('a') || el.closest('a')) return;   // 既にリンクなら触らない
+      var txt = el.textContent;
+      if (!FILE_RE.test(txt)) return;
+      FILE_RE.lastIndex = 0;
+      var html = '', last = 0, m;
+      while ((m = FILE_RE.exec(txt)) !== null) {
+        var raw = m[1];
+        var href = /^(\.\.\/|\/)/.test(raw) ? raw : up + raw;
+        html += esc(txt.slice(last, m.index));
+        html += '&lt;a data-f="' + esc(href) + '" href="' + esc(href) + '" target="_blank"&gt;'
+              + esc(m[0]) + '&lt;/a&gt;';
+        last = m.index + m[0].length;
+        (found[href] = found[href] || []).push(1);
+      }
+      html += esc(txt.slice(last));
+      el.innerHTML = html;
+    });
+
+    // ★実在するか確かめる(ローカルのみ。無いものはリンクを外して灰色にする)
+    Object.keys(found).forEach(function (href) {
+      fetch(href, { method: 'HEAD' }).then(function (r) {
+        if (r.ok) return;
+        markMissing(href);
+      }).catch(function () { markMissing(href); });
+    });
+  }
+
+  // ★存在しないファイルは「消す」のでなく「存在しないと書いておく」(2026-07-31 阿部さん)
+  //   「その存在しないやつは、存在しないって書いておけばいい。削除予定とか、削除検討とかね」
+  //   → 記述は残す(履歴として意味がある)。ただし**一目で分かる印**を付ける。
+  function markMissing(href) {
+    [].slice.call(document.querySelectorAll('a[data-f="' + cssEsc(href) + '"]')).forEach(function (a) {
+      var wrap = document.createElement('span');
+      var name = document.createElement('span');
+      name.textContent = a.textContent;
+      name.setAttribute('style', 'color:#999;text-decoration:line-through');
+      var tag = document.createElement('span');
+      tag.textContent = ' ⚠ 存在しません(削除検討)';
+      tag.setAttribute('style', 'color:#c33;font-size:.85em;font-weight:bold;white-space:nowrap');
+      wrap.appendChild(name); wrap.appendChild(tag);
+      wrap.title = 'このファイルは見つかりません: ' + href
+        + '\n★記述は残してあります(履歴)。不要と確認できたら消す/注記を足す。';
+      a.parentNode.replaceChild(wrap, a);
+    });
+  }
+
+  function esc(s) {
+    return String(s).replace(/[&amp;&lt;&gt;"]/g, function (c) {
+      return { '&amp;': '&amp;amp;', '&lt;': '&amp;lt;', '&gt;': '&amp;gt;', '"': '&amp;quot;' }[c];
+    });
+  }
+  function cssEsc(s) { return String(s).replace(/["\\]/g, '\\$&amp;'); }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', linkify);
+  else linkify();
+})();
+</pre>
+  </details></div>
+<div class="card" id="src-move_fx_map_js">
+  <div><b><a href="../move_fx_map.js" target="_blank"><code>move_fx_map.js</code></a></b>
+   <span class="cols">10 KB ／ 331 行 ／ <b class="ok">全文</b></span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">Auto-generated by tools/_build_move_fx_map_js.js — 手で編集しない。
+元データ: reference/move_fx_map_draft_v1.json (技→エフェクト形状=shape対応表・2026-07-11)
+設計: 設計_技エフェクト対応表_2026-07-11.md
+real_battle.html / online_battle.html の shapeOf(mv) が読む(overrides→flagOrder→defaults の順)。
+生成時パッチ: だいばくはつ/じばく = dust→explosion(専用爆発形状。2026-07-11 阿部さん確認で承認)
+生成: 2026-07-16T04:58:47.956Z</div>
+</div>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">// Auto-generated by tools/_build_move_fx_map_js.js — 手で編集しない。
+// 元データ: reference/move_fx_map_draft_v1.json (技→エフェクト形状=shape対応表・2026-07-11)
+// 設計: 設計_技エフェクト対応表_2026-07-11.md
+// real_battle.html / online_battle.html の shapeOf(mv) が読む(overrides→flagOrder→defaults の順)。
+// 生成時パッチ: だいばくはつ/じばく = dust→explosion(専用爆発形状。2026-07-11 阿部さん確認で承認)
+// 生成: 2026-07-16T04:58:47.956Z
+window.MOVE_FX_MAP = {
+  "_schema_note": "解決順序(優先度高→低): 1) overrides[技名の完全一致] 2) flagOrder(既存real_battle.htmlのmoveClassOfと同一優先順のflag/技名正規表現) 3) defaults[タイプ][分類](フォールバック=必ず埋まる)。詳細は 設計_技エフェクト対応表_2026-07-11.md ③実装方針。",
+  "defaults": {
+    "ノーマル": {
+      "物理": "fist",
+      "特殊": "star"
+    },
+    "ほのお": {
+      "物理": "flame",
+      "特殊": "flame"
+    },
+    "みず": {
+      "物理": "water",
+      "特殊": "water"
+    },
+    "でんき": {
+      "物理": "spark",
+      "特殊": "spark"
+    },
+    "くさ": {
+      "物理": "leaf",
+      "特殊": "leaf"
+    },
+    "こおり": {
+      "物理": "ice",
+      "特殊": "ice"
+    },
+    "かくとう": {
+      "物理": "fist",
+      "特殊": "psi"
+    },
+    "どく": {
+      "物理": "fang",
+      "特殊": "orb"
+    },
+    "じめん": {
+      "物理": "dust",
+      "特殊": "sand"
+    },
+    "ひこう": {
+      "物理": "feather",
+      "特殊": "gust"
+    },
+    "エスパー": {
+      "物理": "psi",
+      "特殊": "psi"
+    },
+    "むし": {
+      "物理": "sting",
+      "特殊": "web"
+    },
+    "いわ": {
+      "物理": "rock",
+      "特殊": "rock"
+    },
+    "ゴースト": {
+      "物理": "orb",
+      "特殊": "orb"
+    },
+    "ドラゴン": {
+      "物理": "dragon",
+      "特殊": "dragon"
+    },
+    "あく": {
+      "物理": "fang",
+      "特殊": "skull"
+    },
+    "はがね": {
+      "物理": "gear",
+      "特殊": "gear"
+    },
+    "フェアリー": {
+      "物理": "heart",
+      "特殊": "star"
+    }
+  },
+  "overrides": {
+    "つのドリル": "drill",
+    "ドリルライナー": "drill",
+    "ドリルくちばし": "drill",
+    "タネばくだん": "seed",
+    "タネマシンガン": "seed",
+    "かふんだんご": "seed",
+    "りんごさん": "seed",
+    "けたぐり": "foot",
+    "とびひざげり": "foot",
+    "かかとおとし": "foot",
+    "じだんだ": "foot",
+    "シャドークロー": "blade",
+    "ドラゴンクロー": "blade",
+    "ブレイククロー": "blade",
+    "フェイタルクロー": "blade",
+    "どくばりセンボン": "web",
+    "はかいこうせん": "beam",
+    "てっていこうせん": "beam",
+    "ラスターカノン": "beam",
+    "きまぐレーザー": "beam",
+    "エレクトロビーム": "beam",
+    "れいとうビーム": "beam",
+    "かえんほうしゃ": "beam",
+    "ハイドロポンプ": "beam",
+    "だいもんじ": "beam",
+    "オーバーヒート": "beam",
+    "ふんか": "beam",
+    "れんごく": "beam",
+    "ハイドロカノン": "beam",
+    "ブラストバーン": "beam",
+    "ハードプラント": "beam",
+    "ソーラービーム": "beam",
+    "ツインビーム": "beam",
+    "ヘドロウェーブ": "beam",
+    "りゅうせいぐん": "star",
+    "メテオビーム": "star",
+    "みずしゅりけん": "star",
+    "コインビーム": "star",
+    "ドレインキッス": "heart",
+    "いかりのまえば": "fang",
+    "きゅうけつ": "fang",
+    "トラバサミ": "fang",
+    "すなじごく": "sand",
+    "クリアスモッグ": "sand",
+    "ダストシュート": "orb",
+    "なげつける": "rock",
+    "ボーンラッシュ": "rock",
+    "デカハンマー": "rock",
+    "ふいうち": "fist",
+    "ふくろだたき": "fist",
+    "だいばくはつ": "explosion",
+    "じばく": "explosion",
+    "ハサミギロチン": "blade",
+    "くちばしキャノン": "feather",
+    "はやてがえし": "gust",
+    "まきつく": "web",
+    "うずしお": "psi",
+    "しんくうは": "psi",
+    "エレキネット": "web",
+    "ドラゴンアロー": "blade",
+    "3ぼんのや": "blade",
+    "はたく": "palm",
+    "はたきおとす": "palm",
+    "スイープビンタ": "palm"
+  },
+  "shapes": {
+    "fist": {
+      "desc": "拳(パンチ・体当たり全般の既定)。elemental色に染めた握りこぶしアイコン",
+      "impl": "emoji(👊)",
+      "motion": "melee"
+    },
+    "foot": {
+      "desc": "足(キック系)。爪先アイコン",
+      "impl": "emoji(🦵)",
+      "motion": "melee"
+    },
+    "fang": {
+      "desc": "牙(かみつき・毒針の一撃・トラバサミ等の「噛む」イメージ全般)。人間の歯🦷でなく狼/サメ型の鋭い牙2本(2026-07-16 阿部さんFBで専用CSS化)",
+      "impl": "css(専用グリフ.rb-burstglyph-fang・白い鋭い牙2本)",
+      "motion": "melee"
+    },
+    "palm": {
+      "desc": "手のひら(はたく・はたきおとす・スイープビンタ等の「平手」イメージ。拳👊と区別)",
+      "impl": "emoji(✋)",
+      "motion": "melee"
+    },
+    "blade": {
+      "desc": "斬線(既存 rb-burstglyph-slash を流用。白グラデ細長div×2本60msずらし)",
+      "impl": "css(既存.rb-burstglyph-slash)",
+      "motion": "melee"
+    },
+    "note": {
+      "desc": "音符(音技既定)",
+      "impl": "emoji(🎵)",
+      "motion": "beam"
+    },
+    "heart": {
+      "desc": "ハート(フェアリー系の触れ合い・魅了)",
+      "impl": "emoji(💗)",
+      "motion": "melee"
+    },
+    "star": {
+      "desc": "星(きらめき・隕石・手裏剣・光の乱舞など)",
+      "impl": "emoji(⭐)+css(白い光点3-4個の飛散)",
+      "motion": "projectile"
+    },
+    "skull": {
+      "desc": "どくろ(あく特殊の禍々しい波動)",
+      "impl": "emoji(💀)+css(紫グロー)",
+      "motion": "burst"
+    },
+    "gear": {
+      "desc": "歯車(はがねの機械質感)",
+      "impl": "emoji(⚙️)+css(金属光沢グラデ)",
+      "motion": "melee"
+    },
+    "orb": {
+      "desc": "エネルギー球(タイプ色のradial-gradient玉。既存 bullet/ball 系の発展形)",
+      "impl": "css(radial-gradient球+グロー)",
+      "motion": "projectile"
+    },
+    "psi": {
+      "desc": "渦(エスパー・波動系のスパイラル)",
+      "impl": "css(タイプ色のconic-gradientスパイラル or 既存wave流用)",
+      "motion": "beam"
+    },
+    "ice": {
+      "desc": "氷結晶",
+      "impl": "emoji(❄️/🧊)+css(角ばった結晶パーティクル)",
+      "motion": "projectile"
+    },
+    "sand": {
+      "desc": "砂/土けむり(風で流れる粒)",
+      "impl": "css(茶〜黄土色の粒子ばらまき、横流れ)",
+      "motion": "rain"
+    },
+    "web": {
+      "desc": "糸/網(むしの捕縛質感・巻きつき技にも流用)",
+      "impl": "emoji(🕸️)+css(糸線の放射)",
+      "motion": "projectile"
+    },
+    "leaf": {
+      "desc": "葉っぱ(くさタイプ既定)",
+      "impl": "emoji(🍃)+css(緑パーティクル散布)",
+      "motion": "projectile"
+    },
+    "seed": {
+      "desc": "種/木の実(タネ系・りんご等の小粒な固形物投射)",
+      "impl": "emoji(🌰)+css(小粒パーティクル複数)",
+      "motion": "rain"
+    },
+    "feather": {
+      "desc": "羽根(ひこう物理・翼はためき)",
+      "impl": "emoji(🪶)+css(白い羽根が舞う)",
+      "motion": "melee"
+    },
+    "gust": {
+      "desc": "風/突風(ひこう特殊・wind技既定)",
+      "impl": "css(既存windクラス流用・薄い渦巻ライン)",
+      "motion": "projectile"
+    },
+    "water": {
+      "desc": "水しぶき",
+      "impl": "emoji(💧)+css(水色パーティクル飛散)",
+      "motion": "projectile"
+    },
+    "flame": {
+      "desc": "炎",
+      "impl": "emoji(🔥)+css(オレンジ〜赤グラデの揺らぎ)",
+      "motion": "projectile"
+    },
+    "spark": {
+      "desc": "電撃(ジグザグの稲妻)",
+      "impl": "emoji(⚡)+svg(ジグザグ線)",
+      "motion": "beam"
+    },
+    "rock": {
+      "desc": "岩石(鈍器・投擲物全般にも流用=骨・ハンマー等)",
+      "impl": "emoji(🪨)+css(灰色の破片飛散)",
+      "motion": "projectile"
+    },
+    "dust": {
+      "desc": "土煙+地割れ(じめん物理・爆発全般)",
+      "impl": "css(茶色の爆煙+地面クラックSVG線)",
+      "motion": "burst"
+    },
+    "dragon": {
+      "desc": "竜のエネルギー(青紫のらせん状オーラ)",
+      "impl": "css(conic-gradientらせん)",
+      "motion": "beam"
+    },
+    "sting": {
+      "desc": "針/牙状の突起(むし物理既定。かみつきより鋭く小さい)",
+      "impl": "emoji(🐝→トゲ部分のみ想定。実装時は針アイコン検討)",
+      "motion": "melee"
+    },
+    "drill": {
+      "desc": "ドリル(高速回転する錐)",
+      "impl": "css(斜線を高速回転させるスパイラルdiv)",
+      "motion": "melee"
+    },
+    "beam": {
+      "desc": "極太ビーム(既存spawnBeamの発展形。中心の輝線+外側グロー)",
+      "impl": "css(既存.rb-beamを太く・グロー強化)",
+      "motion": "beam"
+    },
+    "explosion": {
+      "desc": "専用爆発(だいばくはつ/じばく限定。dust流用でなく閃光+爆風の専用グリフ。2026-07-11 阿部さん承認)",
+      "impl": "css(白閃光の中心+橙〜赤のradial-gradient爆風、dustより大きく明るい)",
+      "motion": "burst"
+    }
+  },
+  "flagOrder": [
+    {
+      "rule": "flags.sound",
+      "shape": "note"
+    },
+    {
+      "rule": "flags.punch",
+      "shape": "fist"
+    },
+    {
+      "rule": "flags.slicing|flags.slash",
+      "shape": "blade"
+    },
+    {
+      "rule": "flags.bullet|flags.ball",
+      "shape": "orb"
+    },
+    {
+      "rule": "flags.wind",
+      "shape": "gust"
+    },
+    {
+      "rule": "flags.pulse",
+      "shape": "psi"
+    },
+    {
+      "rule": "flags.bite",
+      "shape": "fang"
+    },
+    {
+      "rule": "name matches /キック|蹴/",
+      "shape": "foot"
+    }
+  ]
+};
+</pre>
+  </details></div>
+<div class="card" id="src-battle_fx_cues_js">
+  <div><b><a href="../battle_fx_cues.js" target="_blank"><code>battle_fx_cues.js</code></a></b>
+   <span class="cols">8 KB ／ 323 行 ／ <b class="ok">全文</b></span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">Auto-generated by tools/_build_battle_fx_cues_js.js — 手で編集しない。
+元データ: reference/battle_fx_cues.json (演出ツクール=fx_editor.htmlの書き出しSSOT)
+設計: 設計_演出ツクール_2026-07-11.md(1-1キューシート/1-2 cuePlayer=上書きオーバーレイ方式)
+real_battle.html / online_battle.html の resolveCueSheet/playCueSheet(fx_primitives.js)が読む。
+キー = move:技名(個別上書き) / pattern:タイプ+分類(一括既定) / __board(エディタの立ち位置・本番では無視)。
+done===true のシートだけ本番で再生される(ドラフト中は従来の自動演出のまま=挙動不変)。
+生成: 2026-07-16T04:12:15.687Z</div>
+</div>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">// Auto-generated by tools/_build_battle_fx_cues_js.js — 手で編集しない。
+// 元データ: reference/battle_fx_cues.json (演出ツクール=fx_editor.htmlの書き出しSSOT)
+// 設計: 設計_演出ツクール_2026-07-11.md(1-1キューシート/1-2 cuePlayer=上書きオーバーレイ方式)
+// real_battle.html / online_battle.html の resolveCueSheet/playCueSheet(fx_primitives.js)が読む。
+// キー = move:技名(個別上書き) / pattern:タイプ+分類(一括既定) / __board(エディタの立ち位置・本番では無視)。
+// done===true のシートだけ本番で再生される(ドラフト中は従来の自動演出のまま=挙動不変)。
+// 生成: 2026-07-16T04:12:15.687Z
+window.BATTLE_FX_CUES = {
+  "move:フレアドライブ": {
+    "dur": 2270,
+    "done": true,
+    "cues": [
+      {
+        "id": "c1",
+        "track": "atk",
+        "action": "charge",
+        "t": 0,
+        "dur": 800,
+        "params": {
+          "shape": "flame",
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c2",
+        "track": "glyph",
+        "action": "burst",
+        "t": 550,
+        "dur": 1600,
+        "params": {
+          "shape": "flame",
+          "intensity": "normal",
+          "at": "opp",
+          "offset": {
+            "x": -9,
+            "y": 24
+          },
+          "scale": 2
+        }
+      },
+      {
+        "id": "c3",
+        "track": "sound",
+        "action": "se",
+        "t": 350,
+        "dur": 100,
+        "params": {
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c4",
+        "track": "screen",
+        "action": "shake",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "mag": 1
+        }
+      },
+      {
+        "id": "c5",
+        "track": "def",
+        "action": "knockback",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "at": "opp"
+        }
+      },
+      {
+        "id": "c6",
+        "track": "text",
+        "action": "popnum",
+        "t": 600,
+        "dur": 1550,
+        "params": {
+          "at": "opp",
+          "text": "−42",
+          "scale": 1,
+          "size": 25,
+          "rise": 20,
+          "fadeMs": 2000
+        }
+      }
+    ]
+  },
+  "class:phys_contact": {
+    "dur": 2270,
+    "done": true,
+    "_note": "物理・接触(殴ってぶつかる系)の全技共通デフォルト(2026-07-16 阿部さん)。フレアドライブ基準のタイミング/位置。shapeはあえて持たず shapeOf(mv) が技ごとの絵(fist/water/fang...)を出す。resolveCueSheetの3段目(move:→pattern:→class:)。move:個別上書きが優先。",
+    "cues": [
+      {
+        "id": "c1",
+        "track": "atk",
+        "action": "charge",
+        "t": 0,
+        "dur": 800,
+        "params": {
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c2",
+        "track": "glyph",
+        "action": "burst",
+        "t": 550,
+        "dur": 1600,
+        "params": {
+          "intensity": "normal",
+          "at": "opp",
+          "offset": {
+            "x": -9,
+            "y": 24
+          },
+          "scale": 2
+        }
+      },
+      {
+        "id": "c3",
+        "track": "sound",
+        "action": "se",
+        "t": 350,
+        "dur": 100,
+        "params": {
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c4",
+        "track": "screen",
+        "action": "shake",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "mag": 1
+        }
+      },
+      {
+        "id": "c5",
+        "track": "def",
+        "action": "knockback",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "at": "opp"
+        }
+      },
+      {
+        "id": "c6",
+        "track": "text",
+        "action": "popnum",
+        "t": 600,
+        "dur": 1550,
+        "params": {
+          "at": "opp",
+          "text": "−42",
+          "scale": 1,
+          "size": 25,
+          "rise": 20,
+          "fadeMs": 2000
+        }
+      }
+    ]
+  },
+  "class:phys_ranged": {
+    "dur": 2270,
+    "done": true,
+    "_note": "物理・非接触(飛翔体で殴る系。例=いわおとし)の全技共通デフォルト(2026-07-16 阿部さん「フレアドライブ基準を全技のデフォルトにしたい」)。burst/sound/screen/def/popnumのタイミング枠はclass:phys_contactと同一(着弾拍=t350/burst t550/popnum t600)。atkだけprojectile(発射→着弾=t0 dur550でburstのt550に着弾が合うように)。shapeはあえて持たずshapeOf(mv)が技ごとの絵を出す。clsは接触系と同じ'phys'固定(汎用の物理ヒット音)。resolveCueSheetの3段目(move:→pattern:→class:)。move:個別上書きが優先。",
+    "cues": [
+      {
+        "id": "c1",
+        "track": "atk",
+        "action": "projectile",
+        "t": 0,
+        "dur": 550,
+        "params": {
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c2",
+        "track": "glyph",
+        "action": "burst",
+        "t": 550,
+        "dur": 1600,
+        "params": {
+          "intensity": "normal",
+          "at": "opp",
+          "offset": {
+            "x": -9,
+            "y": 24
+          },
+          "scale": 2
+        }
+      },
+      {
+        "id": "c3",
+        "track": "sound",
+        "action": "se",
+        "t": 350,
+        "dur": 100,
+        "params": {
+          "cls": "phys"
+        }
+      },
+      {
+        "id": "c4",
+        "track": "screen",
+        "action": "shake",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "mag": 1
+        }
+      },
+      {
+        "id": "c5",
+        "track": "def",
+        "action": "knockback",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "at": "opp"
+        }
+      },
+      {
+        "id": "c6",
+        "track": "text",
+        "action": "popnum",
+        "t": 600,
+        "dur": 1550,
+        "params": {
+          "at": "opp",
+          "text": "−42",
+          "scale": 1,
+          "size": 25,
+          "rise": 20,
+          "fadeMs": 2000
+        }
+      }
+    ]
+  },
+  "class:special": {
+    "dur": 2270,
+    "done": true,
+    "_note": "特殊(ビームで撃つ系。例=10まんボルト)の全技共通デフォルト(2026-07-16 阿部さん「特殊技はビームの発射→着弾の時間が固定で変えられない。これを長くできるようにしたい」)。burst/sound/screen/def/popnumのタイミング枠はclass:phys_contactと同一。atkだけbeam(発射→着弾=t0 dur550でburstのt550に着弾が合うように・阿部さんが後でエディタのdur欄で伸ばせる=spawnBeamのdurMs可変対応とセット)。shapeはあえて持たずshapeOf(mv)が技ごとの絵(でんき→spark等)を出す。clsは'spec'固定(soundフラグ技のhitClassも含め、class:の汎用デフォルト段ではmoveClassOfの個別flagに寄せずphys_contactと同じ考え方で固定=一括既定の一貫性)。resolveCueSheetの3段目(move:→pattern:→class:)。move:/pattern:個別上書きが優先。",
+    "cues": [
+      {
+        "id": "c1",
+        "track": "atk",
+        "action": "beam",
+        "t": 0,
+        "dur": 550,
+        "params": {
+          "cls": "spec"
+        }
+      },
+      {
+        "id": "c2",
+        "track": "glyph",
+        "action": "burst",
+        "t": 550,
+        "dur": 1600,
+        "params": {
+          "intensity": "normal",
+          "at": "opp",
+          "offset": {
+            "x": -9,
+            "y": 24
+          },
+          "scale": 2
+        }
+      },
+      {
+        "id": "c3",
+        "track": "sound",
+        "action": "se",
+        "t": 350,
+        "dur": 100,
+        "params": {
+          "cls": "spec"
+        }
+      },
+      {
+        "id": "c4",
+        "track": "screen",
+        "action": "shake",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "mag": 1
+        }
+      },
+      {
+        "id": "c5",
+        "track": "def",
+        "action": "knockback",
+        "t": 350,
+        "dur": 280,
+        "params": {
+          "at": "opp"
+        }
+      },
+      {
+        "id": "c6",
+        "track": "text",
+        "action": "popnum",
+        "t": 600,
+        "dur": 1550,
+        "params": {
+          "at": "opp",
+          "text": "−42",
+          "scale": 1,
+          "size": 25,
+          "rise": 20,
+          "fadeMs": 2000
+        }
+      }
+    ]
+  }
+};
+</pre>
+  </details></div>
+<div class="card" id="src-preset_builds_js">
+  <div><b><a href="../preset_builds.js" target="_blank"><code>preset_builds.js</code></a></b>
+   <span class="cols">38 KB ／ 1507 行 ／ <b class="ok">全文</b></span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">Auto-generated by tools/_build_preset_builds_js.js — 手で編集しない。
+元データ: reference/preset_builds_draft_v2.json (実戦58構築プリセット・2026-07-11)
+real_battle.html / online_battle.html が相手(AI)チーム生成に使う。
+生成: 2026-07-11T06:17:14.375Z</div>
+</div>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">// Auto-generated by tools/_build_preset_builds_js.js — 手で編集しない。
+// 元データ: reference/preset_builds_draft_v2.json (実戦58構築プリセット・2026-07-11)
+// real_battle.html / online_battle.html が相手(AI)チーム生成に使う。
+// 生成: 2026-07-11T06:17:14.375Z
+window.PRESET_BUILDS = [
+  {
+    "id": 1,
+    "species": "ガブリアス",
+    "ability": "さめはだ",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 0,
+      "atk": 32,
+      "def": 2,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "きあいのタスキ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "じしん",
+      "スケイルショット",
+      "ステルスロック",
+      "つるぎのまい"
+    ],
+    "role": "さめはだで直接当たってきた相手にダメージを返しつつ、きあいのタスキで一度はたえる。つるぎのまいで積んでからスケイルショットで連続こうげきする",
+    "evidence_n": 139
+  },
+  {
+    "id": 2,
+    "species": "ミミッキュ",
+    "ability": "ばけのかわ",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 29,
+      "atk": 26,
+      "def": 11,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 0
+    },
+    "item": "いのちのたま",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "じゃれつく",
+      "かげうち",
+      "つるぎのまい",
+      "シャドークロー"
+    ],
+    "role": "ばけのかわで一回だけこうげきを無効にしつつ、つるぎのまいで積んでから暴れまわる",
+    "evidence_n": 107
+  },
+  {
+    "id": 3,
+    "species": "ブリジュラス",
+    "ability": "じきゅうりょく",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 26,
+      "atk": 0,
+      "def": 1,
+      "spatk": 31,
+      "spdef": 0,
+      "spd": 8
+    },
+    "item": "ピントレンズ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "りゅうせいぐん",
+      "10まんボルト",
+      "ラスターカノン",
+      "きあいだめ"
+    ],
+    "role": "こうげき技を受けるたびぼうぎょが上がっていく特性を持ち、当てにくい技もピントレンズで命中させながら大技を連発する",
+    "evidence_n": 101
+  },
+  {
+    "id": 4,
+    "species": "カバルドン",
+    "ability": "すなおこし",
+    "nature": "わんぱく",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 18,
+      "spatk": 0,
+      "spdef": 16,
+      "spd": 0
+    },
+    "item": "たべのこし",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "じしん",
+      "あくび",
+      "なまける",
+      "まもる"
+    ],
+    "role": "場に出ただけですなあらしを起こし、なまけるでHPを半分回復しながらあくびで眠りを誘う",
+    "evidence_n": 87
+  },
+  {
+    "id": 5,
+    "species": "アシレーヌ",
+    "ability": "げきりゅう",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 26,
+      "atk": 0,
+      "def": 0,
+      "spatk": 28,
+      "spdef": 0,
+      "spd": 12
+    },
+    "item": "オボンのみ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ムーンフォース",
+      "アクアジェット",
+      "うたかたのアリア",
+      "アンコール"
+    ],
+    "role": "HPが減るとみずの技がぐんと強くなる特性を持ち、アンコールで相手の技を封じながら戦う",
+    "evidence_n": 79
+  },
+  {
+    "id": 6,
+    "species": "サザンドラ",
+    "ability": "ふゆう",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 0,
+      "atk": 0,
+      "def": 8,
+      "spatk": 26,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "こだわりスカーフ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "りゅうせいぐん",
+      "あくのはどう",
+      "とんぼがえり",
+      "かえんほうしゃ"
+    ],
+    "role": "じめん技を無効にする浮遊の特性を持ち、こだわりスカーフですばやさを上げてから幅広いタイプの技で押す",
+    "evidence_n": 54
+  },
+  {
+    "id": 7,
+    "species": "メガメタグロス",
+    "ability": "かたいツメ",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 10,
+      "atk": 25,
+      "def": 0,
+      "spatk": 8,
+      "spdef": 0,
+      "spd": 23
+    },
+    "item": "メタグロスナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "バレットパンチ",
+      "アームハンマー",
+      "かみなりパンチ",
+      "じしん"
+    ],
+    "role": "直接当てる技の威力が上がる特性を持ち、先制のバレットパンチから多彩なパンチ技を叩きこむ",
+    "evidence_n": 53
+  },
+  {
+    "id": 8,
+    "species": "マスカーニャ",
+    "ability": "へんげんじざい",
+    "nature": "ようき",
+    "ev": {
+      "hp": 0,
+      "atk": 32,
+      "def": 2,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "こだわりスカーフ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "トリックフラワー",
+      "とんぼがえり",
+      "トリプルアクセル",
+      "はたきおとす"
+    ],
+    "role": "技を出す直前にその技のタイプに変わる特性で弱点を突かれにくいまま、こだわりスカーフのすばやさで先制する",
+    "evidence_n": 48
+  },
+  {
+    "id": 9,
+    "species": "メガマフォクシー",
+    "ability": "ふゆう",
+    "nature": "おくびょう",
+    "ev": {
+      "hp": 15,
+      "atk": 0,
+      "def": 6,
+      "spatk": 28,
+      "spdef": 0,
+      "spd": 17
+    },
+    "item": "マフォクシナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "かえんほうしゃ",
+      "わるだくみ",
+      "サイコショック",
+      "みがわり"
+    ],
+    "role": "じめん技を無効にする浮遊で安全に戦いながら、わるだくみでとくこうを上げてから攻めこむ",
+    "evidence_n": 48
+  },
+  {
+    "id": 10,
+    "species": "メガギャラドス",
+    "ability": "かたやぶり",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 3,
+      "atk": 31,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "ギャラドスナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "りゅうのまい",
+      "じしん",
+      "たきのぼり",
+      "パワーウィップ"
+    ],
+    "role": "相手の特性を無視できる特性を持ち、りゅうのまいで積んでからタイプの異なる技を使い分ける",
+    "evidence_n": 43
+  },
+  {
+    "id": 11,
+    "species": "メガカイリュー",
+    "ability": "マルチスケイル",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 9,
+      "atk": 0,
+      "def": 1,
+      "spatk": 24,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "カイリュナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "りゅうせいぐん",
+      "エアスラッシュ",
+      "かえんほうしゃ",
+      "はねやすめ"
+    ],
+    "role": "HPが満タンの間はダメージを半分に抑える特性を持ち、はねやすめで回復しながら大技を連発する",
+    "evidence_n": 40
+  },
+  {
+    "id": 12,
+    "species": "メガゲッコウガ",
+    "ability": "へんげんじざい",
+    "nature": "おくびょう",
+    "ev": {
+      "hp": 16,
+      "atk": 0,
+      "def": 0,
+      "spatk": 28,
+      "spdef": 1,
+      "spd": 21
+    },
+    "item": "ゲッコウガナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ヘドロウェーブ",
+      "れいとうビーム",
+      "あくのはどう",
+      "みずしゅりけん"
+    ],
+    "role": "技を出す直前にその技のタイプに変わる特性で、幅広いタイプの技を弱点を突かれずに使い分ける",
+    "evidence_n": 34
+  },
+  {
+    "id": 13,
+    "species": "ドドゲザン",
+    "ability": "そうだいしょう",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 12,
+      "atk": 32,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 22
+    },
+    "item": "くろいメガネ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ドゲザン",
+      "ふいうち",
+      "アイアンヘッド",
+      "つるぎのまい"
+    ],
+    "role": "仲間がたおれるたびに技の威力が上がる特性を活かし、ふいうちの先制とつるぎのまいの積みを両立する",
+    "evidence_n": 33
+  },
+  {
+    "id": 14,
+    "species": "キラフロル",
+    "ability": "どくげしょう",
+    "nature": "おくびょう",
+    "ev": {
+      "hp": 1,
+      "atk": 0,
+      "def": 1,
+      "spatk": 32,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "きあいのタスキ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ステルスロック",
+      "パワージェム",
+      "マッドショット",
+      "だいちのちから"
+    ],
+    "role": "物理技を受けると相手の場にどくびしをまく特性を持ち、きあいのタスキで一度は耐えてステルスロックを置く",
+    "evidence_n": 31
+  },
+  {
+    "id": 15,
+    "species": "アーマーガア",
+    "ability": "プレッシャー",
+    "nature": "わんぱく",
+    "ev": {
+      "hp": 32,
+      "atk": 1,
+      "def": 30,
+      "spatk": 0,
+      "spdef": 2,
+      "spd": 1
+    },
+    "item": "オボンのみ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "はねやすめ",
+      "ボディプレス",
+      "とんぼがえり",
+      "てっぺき"
+    ],
+    "role": "てっぺきでぼうぎょを上げ、その高いぼうぎょをそのままダメージにできるボディプレスをぶつける",
+    "evidence_n": 27
+  },
+  {
+    "id": 16,
+    "species": "メガゲンガー",
+    "ability": "かげふみ",
+    "nature": "おくびょう",
+    "ev": {
+      "hp": 18,
+      "atk": 0,
+      "def": 0,
+      "spatk": 13,
+      "spdef": 3,
+      "spd": 32
+    },
+    "item": "ゲンガナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "シャドーボール",
+      "まもる",
+      "みちづれ",
+      "ヘドロウェーブ"
+    ],
+    "role": "相手を逃がさない特性を持ち、みちづれで相手を道連れにしたり幅広い技で攻める",
+    "evidence_n": 26
+  },
+  {
+    "id": 17,
+    "species": "メガリザードンY",
+    "ability": "ひでり",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 32,
+      "spatk": 2,
+      "spdef": 0,
+      "spd": 0
+    },
+    "item": "リザードナイトY",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ソーラービーム",
+      "かえんほうしゃ",
+      "はねやすめ",
+      "オーバーヒート"
+    ],
+    "role": "場に出ただけで天気を強い日ざしにする特性で、ソーラービームを一気に撃てるうえほのお技も強くなる",
+    "evidence_n": 26
+  },
+  {
+    "id": 18,
+    "species": "メガクチート",
+    "ability": "ちからもち",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 30,
+      "atk": 32,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 4
+    },
+    "item": "クチートナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ふいうち",
+      "じゃれつく",
+      "つるぎのまい",
+      "かみなりパンチ"
+    ],
+    "role": "こうげきが2倍になる特性を持ち、先制のふいうちとつるぎのまいの積みで一気に押しきる",
+    "evidence_n": 26
+  },
+  {
+    "id": 19,
+    "species": "メガメガニウム",
+    "ability": "メガソーラー",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 20,
+      "atk": 0,
+      "def": 0,
+      "spatk": 27,
+      "spdef": 0,
+      "spd": 19
+    },
+    "item": "メガニウムナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ソーラービーム",
+      "ウェザーボール",
+      "こうごうせい",
+      "マジカルシャイン"
+    ],
+    "role": "技を出すたびに天気が強い日ざし扱いになる特性で、ソーラービームやウェザーボールを一気に強くしながらこうごうせいで回復する",
+    "evidence_n": 24
+  },
+  {
+    "id": 20,
+    "species": "サーフゴー",
+    "ability": "おうごんのからだ",
+    "nature": "おくびょう",
+    "ev": {
+      "hp": 1,
+      "atk": 0,
+      "def": 0,
+      "spatk": 32,
+      "spdef": 1,
+      "spd": 32
+    },
+    "item": "こだわりスカーフ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ゴールドラッシュ",
+      "シャドーボール",
+      "トリック",
+      "10まんボルト"
+    ],
+    "role": "相手の変化技を受けつけない特性を持ち、こだわりスカーフのすばやさでゴールドラッシュを叩きこむ。トリックでスカーフを相手に押しつけることもできる",
+    "evidence_n": 21
+  },
+  {
+    "id": 21,
+    "species": "メガミミロップ",
+    "ability": "きもったま",
+    "nature": "ようき",
+    "ev": {
+      "hp": 1,
+      "atk": 32,
+      "def": 1,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "ミミロップナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ねこだまし",
+      "インファイト",
+      "トリプルアクセル",
+      "かみなりパンチ"
+    ],
+    "role": "ゴーストタイプにも通常・格闘技を当てられる特性で、ねこだましのひるみから一気に畳みかける",
+    "evidence_n": 20
+  },
+  {
+    "id": 22,
+    "species": "メガハッサム",
+    "ability": "テクニシャン",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 30,
+      "atk": 23,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 13,
+      "spd": 0
+    },
+    "item": "ハッサムナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "バレットパンチ",
+      "インファイト",
+      "つるぎのまい",
+      "はねやすめ"
+    ],
+    "role": "威力の低い技を底上げする特性で、先制のバレットパンチをより強くしながらつるぎのまいで積む",
+    "evidence_n": 20
+  },
+  {
+    "id": 23,
+    "species": "メガスターミー",
+    "ability": "ちからもち",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 0,
+      "atk": 32,
+      "def": 1,
+      "spatk": 0,
+      "spdef": 1,
+      "spd": 32
+    },
+    "item": "スターミナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "アクアブレイク",
+      "アクアジェット",
+      "クイックターン",
+      "アイススピナー"
+    ],
+    "role": "こうげきが2倍になる特性を持ち、先制のアクアジェットや素早い交代のクイックターンで戦う",
+    "evidence_n": 18
+  },
+  {
+    "id": 24,
+    "species": "メガバシャーモ",
+    "ability": "かそく",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 2,
+      "atk": 32,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "バシャーモナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "フレアドライブ",
+      "インファイト",
+      "まもる",
+      "つるぎのまい"
+    ],
+    "role": "毎ターンすばやさが上がっていく特性で、ターンを重ねるほど誰よりも速くなる",
+    "evidence_n": 18
+  },
+  {
+    "id": 25,
+    "species": "メガルカリオ",
+    "ability": "てきおうりょく",
+    "nature": "ようき",
+    "ev": {
+      "hp": 2,
+      "atk": 32,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "ルカリオナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "インファイト",
+      "コメットパンチ",
+      "バレットパンチ",
+      "つるぎのまい"
+    ],
+    "role": "タイプ一致の技の威力がさらに上がる特性で、つるぎのまいから多彩な技を叩きこむ",
+    "evidence_n": 17
+  },
+  {
+    "id": 26,
+    "species": "ドラパルト",
+    "ability": "すりぬけ",
+    "nature": "おくびょう",
+    "ev": {
+      "hp": 2,
+      "atk": 0,
+      "def": 0,
+      "spatk": 32,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "いのちのたま",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "シャドーボール",
+      "りゅうせいぐん",
+      "10まんボルト",
+      "のろい"
+    ],
+    "role": "みがわりや壁を無視してこうげきできる特性を持ち、とても速いすばやさで先に大技を撃つ",
+    "evidence_n": 17
+  },
+  {
+    "id": 27,
+    "species": "メガムクホーク",
+    "ability": "あまのじゃく",
+    "nature": "ようき",
+    "ev": {
+      "hp": 31,
+      "atk": 1,
+      "def": 1,
+      "spatk": 0,
+      "spdef": 1,
+      "spd": 32
+    },
+    "item": "ムクホークナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "インファイト",
+      "ブレイブバード",
+      "はねやすめ",
+      "とんぼがえり"
+    ],
+    "role": "能力ランクの上げ下げが逆になる特性を持ち、はねやすめで回復しながらブレイブバードで撃ち抜く",
+    "evidence_n": 17
+  },
+  {
+    "id": 28,
+    "species": "ブラッキー",
+    "ability": "せいしんりょく",
+    "nature": "ずぶとい",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 32,
+      "spatk": 0,
+      "spdef": 2,
+      "spd": 0
+    },
+    "item": "たべのこし",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "イカサマ",
+      "まもる",
+      "ねがいごと",
+      "あくび"
+    ],
+    "role": "ひるまなくなる特性でじっくり構え、ねがいごとで次のターンにHPを回復させながらあくびで眠りを誘う",
+    "evidence_n": 15
+  },
+  {
+    "id": 29,
+    "species": "ヒートロトム",
+    "ability": "ふゆう",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 0,
+      "spatk": 5,
+      "spdef": 29,
+      "spd": 0
+    },
+    "item": "たべのこし",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "オーバーヒート",
+      "ボルトチェンジ",
+      "おにび",
+      "ひかりのかべ"
+    ],
+    "role": "じめん技を無効にする浮遊の特性を持ち、おにびでやけどを広げつつひかりのかべで特殊技のダメージを抑える",
+    "evidence_n": 15
+  },
+  {
+    "id": 30,
+    "species": "ウルガモス",
+    "ability": "ほのおのからだ",
+    "nature": "ずぶとい",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 32,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 2
+    },
+    "item": "オボンのみ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ちょうのまい",
+      "ほのおのまい",
+      "あさのひざし",
+      "おにび"
+    ],
+    "role": "直接当ててきた相手をやけどにすることがある特性を持ち、ちょうのまいとほのおのまいで能力を積み重ねる",
+    "evidence_n": 15
+  },
+  {
+    "id": 31,
+    "species": "ソウブレイズ",
+    "ability": "もらいび",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 1,
+      "atk": 32,
+      "def": 1,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "のろいのおふだ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ポルターガイスト",
+      "むねんのつるぎ",
+      "かげうち",
+      "つるぎのまい"
+    ],
+    "role": "ほのお技を受けると自分のほのお技が強くなる特性を持ち、つるぎのまいで積んでからポルターガイストで攻める",
+    "evidence_n": 14
+  },
+  {
+    "id": 32,
+    "species": "クエスパトラ",
+    "ability": "かそく",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 1,
+      "atk": 0,
+      "def": 1,
+      "spatk": 32,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "きあいのタスキ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ルミナコリジョン",
+      "マジカルシャイン",
+      "シャドーボール",
+      "まもる"
+    ],
+    "role": "毎ターンすばやさが上がっていく特性で、きあいのタスキで一度は耐えながらどんどん速くなっていく",
+    "evidence_n": 14
+  },
+  {
+    "id": 33,
+    "species": "エルフーン",
+    "ability": "いたずらごころ",
+    "nature": "おくびょう",
+    "ev": {
+      "hp": 12,
+      "atk": 0,
+      "def": 16,
+      "spatk": 0,
+      "spdef": 6,
+      "spd": 32
+    },
+    "item": "たべのこし",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ムーンフォース",
+      "やどりぎのタネ",
+      "アンコール",
+      "みがわり"
+    ],
+    "role": "変化技を誰よりも先に出せる特性を持ち、みがわりやアンコールを素早く決めてから戦う",
+    "evidence_n": 13
+  },
+  {
+    "id": 34,
+    "species": "メガライチュウY",
+    "ability": "ノーガード",
+    "nature": "おくびょう",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 1,
+      "spatk": 9,
+      "spdef": 1,
+      "spd": 23
+    },
+    "item": "ライチュウナイトY",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "でんじほう",
+      "きあいだま",
+      "くさむすび",
+      "アンコール"
+    ],
+    "role": "自分も相手も技が必ず当たる特性を持ち、当てにくいでんじほうやきあいだまを確実に命中させる",
+    "evidence_n": 13
+  },
+  {
+    "id": 35,
+    "species": "ラウドボーン",
+    "ability": "てんねん",
+    "nature": "ずぶとい",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 32,
+      "spatk": 2,
+      "spdef": 0,
+      "spd": 0
+    },
+    "item": "オボンのみ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "フレアソング",
+      "なまける",
+      "おにび",
+      "シャドーボール"
+    ],
+    "role": "相手の能力上昇を無視してこうげきできる特性を持ち、なまけるで回復しながらフレアソングで歌い続ける",
+    "evidence_n": 13
+  },
+  {
+    "id": 36,
+    "species": "カビゴン",
+    "ability": "あついしぼう",
+    "nature": "しんちょう",
+    "ev": {
+      "hp": 32,
+      "atk": 2,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 32,
+      "spd": 0
+    },
+    "item": "たべのこし",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "じしん",
+      "じわれ",
+      "ねむる",
+      "うちおとす"
+    ],
+    "role": "ほのお・こおり技のダメージを半分に抑える特性でどっしり構え、ねむるで回復しながらじわれの一撃を狙う",
+    "evidence_n": 13
+  },
+  {
+    "id": 37,
+    "species": "ウォッシュロトム",
+    "ability": "ふゆう",
+    "nature": "ずぶとい",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 14,
+      "spatk": 0,
+      "spdef": 20,
+      "spd": 0
+    },
+    "item": "たべのこし",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ハイドロポンプ",
+      "ボルトチェンジ",
+      "おにび",
+      "いたみわけ"
+    ],
+    "role": "じめん技を無効にする浮遊の特性を持ち、おにびでやけどを広げつついたみわけでHPを分け合う",
+    "evidence_n": 12
+  },
+  {
+    "id": 38,
+    "species": "ドヒドイデ",
+    "ability": "さいせいりょく",
+    "nature": "わんぱく",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 32,
+      "spatk": 0,
+      "spdef": 2,
+      "spd": 0
+    },
+    "item": "オボンのみ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "じこさいせい",
+      "くろいきり",
+      "どくどく",
+      "まとわりつく"
+    ],
+    "role": "控えに戻るだけでHPが大きく回復する特性を持ち、どくどくでじわじわ相手を追い詰める",
+    "evidence_n": 12
+  },
+  {
+    "id": 39,
+    "species": "メガピクシー",
+    "ability": "マジックミラー",
+    "nature": "ずぶとい",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 32,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 2
+    },
+    "item": "ピクシナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ムーンフォース",
+      "つきのひかり",
+      "コスモパワー",
+      "アシストパワー"
+    ],
+    "role": "相手の変化技をすべて跳ね返す特性を持ち、つきのひかりで回復しながらコスモパワーでぼうぎょ・とくぼうを積む",
+    "evidence_n": 12
+  },
+  {
+    "id": 40,
+    "species": "ハラバリー",
+    "ability": "でんきにかえる",
+    "nature": "おだやか",
+    "ev": {
+      "hp": 31,
+      "atk": 0,
+      "def": 4,
+      "spatk": 0,
+      "spdef": 28,
+      "spd": 3
+    },
+    "item": "たべのこし",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ボルトチェンジ",
+      "みずびたし",
+      "なまける",
+      "どくどく"
+    ],
+    "role": "こうげきを受けると自分がじゅうでん状態になる特性を持ち、みずびたしで相手のほのお技を封じながら戦う",
+    "evidence_n": 11
+  },
+  {
+    "id": 41,
+    "species": "ペリッパー",
+    "ability": "あめふらし",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 2,
+      "atk": 0,
+      "def": 0,
+      "spatk": 32,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "きあいのタスキ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ぼうふう",
+      "ウェザーボール",
+      "とんぼがえり",
+      "なみのり"
+    ],
+    "role": "場に出ただけで雨を降らせる特性を持ち、雨の中で命中率が上がるぼうふうとウェザーボールで攻める",
+    "evidence_n": 11
+  },
+  {
+    "id": 42,
+    "species": "メガカメックス",
+    "ability": "メガランチャー",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 19,
+      "atk": 0,
+      "def": 0,
+      "spatk": 18,
+      "spdef": 0,
+      "spd": 29
+    },
+    "item": "カメックスナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "はどうだん",
+      "あくのはどう",
+      "れいとうビーム",
+      "からをやぶる"
+    ],
+    "role": "波動系の技だけを1.5倍の威力で放つ特性を持つ特殊なアタッカー",
+    "evidence_n": 11
+  },
+  {
+    "id": 43,
+    "species": "ニンフィア",
+    "ability": "フェアリースキン",
+    "nature": "ずぶとい",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 32,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 2
+    },
+    "item": "たべのこし",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ハイパーボイス",
+      "ねがいごと",
+      "あくび",
+      "まもる"
+    ],
+    "role": "ノーマル技までフェアリータイプに変えて強くする特性を持ち、ねがいごとで回復しながらじっくり粘る",
+    "evidence_n": 10
+  },
+  {
+    "id": 44,
+    "species": "メガフシギバナ",
+    "ability": "あついしぼう",
+    "nature": "ずぶとい",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 27,
+      "spatk": 0,
+      "spdef": 7,
+      "spd": 0
+    },
+    "item": "フシギバナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "だいちのちから",
+      "やどりぎのタネ",
+      "ギガドレイン",
+      "こうごうせい"
+    ],
+    "role": "ほのお・こおり技のダメージを半分に抑える特性を持ち、やどりぎのタネやギガドレインでHPを吸いとって粘る",
+    "evidence_n": 10
+  },
+  {
+    "id": 45,
+    "species": "メガリザードンX",
+    "ability": "かたいツメ",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 2,
+      "atk": 32,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "リザードナイトX",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "フレアドライブ",
+      "ニトロチャージ",
+      "つるぎのまい",
+      "げきりん"
+    ],
+    "role": "直接当てる技の威力が上がる特性を持ち、つるぎのまいで積みながらドラゴンと炎の両方でこうげきする",
+    "evidence_n": 10
+  },
+  {
+    "id": 46,
+    "species": "メガヤドラン",
+    "ability": "シェルアーマー",
+    "nature": "ずぶとい",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 32,
+      "spatk": 2,
+      "spdef": 0,
+      "spd": 0
+    },
+    "item": "ヤドランナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ねっとう",
+      "なまける",
+      "てっぺき",
+      "ボディプレス"
+    ],
+    "role": "急所に当たらなくなる特性でどっしり構え、てっぺきで上げたぼうぎょをそのままボディプレスにする",
+    "evidence_n": 10
+  },
+  {
+    "id": 47,
+    "species": "バイバニラ",
+    "ability": "ゆきふらし",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 27,
+      "atk": 0,
+      "def": 0,
+      "spatk": 30,
+      "spdef": 0,
+      "spd": 9
+    },
+    "item": "とけないこおり",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "フリーズドライ",
+      "ふぶき",
+      "こおりのつぶて",
+      "ちょうはつ"
+    ],
+    "role": "場に出ただけで雪を降らせる特性を持ち、雪の中で命中率が上がるふぶきとみずタイプにも効くフリーズドライで攻める",
+    "evidence_n": 8
+  },
+  {
+    "id": 48,
+    "species": "マンムー",
+    "ability": "どんかん",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 0,
+      "atk": 32,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 2,
+      "spd": 32
+    },
+    "item": "きあいのタスキ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "じしん",
+      "こおりのつぶて",
+      "がむしゃら",
+      "つららばり"
+    ],
+    "role": "メロメロやちょうはつを受けつけない特性を持ち、きあいのタスキで一度は耐えてから地面と氷の技で押す",
+    "evidence_n": 8
+  },
+  {
+    "id": 49,
+    "species": "エンペルト",
+    "ability": "かちき",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 0,
+      "spatk": 29,
+      "spdef": 4,
+      "spd": 1
+    },
+    "item": "シュカのみ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "なみのり",
+      "れいとうビーム",
+      "しんくうは",
+      "くさむすび"
+    ],
+    "role": "相手に能力を下げられるとかえってとくこうが上がる特性を持ち、幅広いタイプの技で相手をとらえる",
+    "evidence_n": 8
+  },
+  {
+    "id": 50,
+    "species": "マリルリ",
+    "ability": "ちからもち",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 29,
+      "atk": 32,
+      "def": 2,
+      "spatk": 0,
+      "spdef": 2,
+      "spd": 1
+    },
+    "item": "オボンのみ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "じゃれつく",
+      "アクアジェット",
+      "アクアブレイク",
+      "はらだいこ"
+    ],
+    "role": "こうげきが2倍になる特性を持ち、はらだいこで一気に積んでから先制のアクアジェットで押しきる",
+    "evidence_n": 8
+  },
+  {
+    "id": 51,
+    "species": "メガカエンジシ",
+    "ability": "ほのおのたてがみ",
+    "nature": "おくびょう",
+    "ev": {
+      "hp": 4,
+      "atk": 0,
+      "def": 0,
+      "spatk": 32,
+      "spdef": 0,
+      "spd": 30
+    },
+    "item": "カエンジシナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "かえんほうしゃ",
+      "オーバーヒート",
+      "あくび",
+      "ニトロチャージ"
+    ],
+    "role": "ほのお技の威力が1.5倍になる特性を持ち、あくびで眠りを誘いながら強力なほのお技で攻める",
+    "evidence_n": 8
+  },
+  {
+    "id": 52,
+    "species": "オーロンゲ",
+    "ability": "いたずらごころ",
+    "nature": "わんぱく",
+    "ev": {
+      "hp": 31,
+      "atk": 0,
+      "def": 32,
+      "spatk": 0,
+      "spdef": 3,
+      "spd": 0
+    },
+    "item": "たべのこし",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ソウルクラッシュ",
+      "イカサマ",
+      "すてゼリフ",
+      "ねこだまし"
+    ],
+    "role": "変化技を誰よりも先に出せる特性を持ち、すてゼリフで能力を下げてから交代し、味方につなげる",
+    "evidence_n": 7
+  },
+  {
+    "id": 53,
+    "species": "メガスコヴィラン",
+    "ability": "とびだすハバネロ",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 31,
+      "atk": 0,
+      "def": 32,
+      "spatk": 2,
+      "spdef": 1,
+      "spd": 0
+    },
+    "item": "スコヴィラナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "やどりぎのタネ",
+      "ギガドレイン",
+      "まもる",
+      "しっとのほのお"
+    ],
+    "role": "こうげきを受けた相手をやけどにする特性を持ち、やどりぎのタネやギガドレインでHPを吸いとって粘る",
+    "evidence_n": 7
+  },
+  {
+    "id": 54,
+    "species": "バンギラス",
+    "ability": "すなおこし",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 32,
+      "atk": 14,
+      "def": 7,
+      "spatk": 0,
+      "spdef": 13,
+      "spd": 0
+    },
+    "item": "ピントレンズ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "はたきおとす",
+      "ほえる",
+      "ストーンエッジ",
+      "ステルスロック"
+    ],
+    "role": "場に出ただけですなあらしを起こす特性を持ち、ほえるで相手を無理やり交代させてからステルスロックを置く",
+    "evidence_n": 7
+  },
+  {
+    "id": 55,
+    "species": "ミミズズ",
+    "ability": "どしょく",
+    "nature": "のんき",
+    "ev": {
+      "hp": 31,
+      "atk": 0,
+      "def": 3,
+      "spatk": 0,
+      "spdef": 32,
+      "spd": 0
+    },
+    "item": "オボンのみ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "しっぽきり",
+      "ステルスロック",
+      "てっぺき",
+      "ボディプレス"
+    ],
+    "role": "じめん技を吸収して逆に回復する特性を持ち、てっぺきで上げたぼうぎょをボディプレスにしてぶつける",
+    "evidence_n": 6
+  },
+  {
+    "id": 56,
+    "species": "エルレイド",
+    "ability": "きれあじ",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 26,
+      "atk": 32,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 8
+    },
+    "item": "いのちのたま",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "せいなるつるぎ",
+      "サイコカッター",
+      "つじぎり",
+      "かげうち"
+    ],
+    "role": "切る技の威力が上がる特性を持ち、せいなるつるぎやつじぎりなど斬る技を中心に、いのちのたまで火力を底上げしてこうげきする",
+    "evidence_n": 4
+  },
+  {
+    "id": 57,
+    "species": "ドリュウズ",
+    "ability": "かたやぶり",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 0,
+      "atk": 32,
+      "def": 2,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "こだわりスカーフ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "じしん",
+      "アイアンヘッド",
+      "つのドリル",
+      "いわなだれ"
+    ],
+    "role": "相手の特性を無視して技を出せる特性を持ち、こだわりスカーフのすばやさで一撃必殺のつのドリルなど幅広い技を繰り出す",
+    "evidence_n": 4
+  },
+  {
+    "id": 58,
+    "species": "メガサーナイト",
+    "ability": "フェアリースキン",
+    "nature": "ひかえめ",
+    "ev": {
+      "hp": 32,
+      "atk": 0,
+      "def": 18,
+      "spatk": 11,
+      "spdef": 5,
+      "spd": 0
+    },
+    "item": "サーナイトナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "ハイパーボイス",
+      "サイコノイズ",
+      "しんくうは",
+      "マジカルフレイム"
+    ],
+    "role": "ノーマル技までフェアリータイプに変えて強くする特性を持ち、ハイパーボイスやサイコノイズで一気に押しきる",
+    "evidence_n": 3
+  },
+  {
+    "id": 59,
+    "species": "ウインディ",
+    "ability": "いかく",
+    "nature": "ようき",
+    "ev": {
+      "hp": 2,
+      "atk": 32,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 32
+    },
+    "item": "オボンのみ",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "フレアドライブ",
+      "しんそく",
+      "インファイト",
+      "おにび"
+    ],
+    "role": "出た瞬間に相手のこうげきを下げ、しんそくで先制もする",
+    "evidence_n": null
+  },
+  {
+    "id": 60,
+    "species": "メガヘラクロス",
+    "ability": "スキルリンク",
+    "nature": "いじっぱり",
+    "ev": {
+      "hp": 32,
+      "atk": 32,
+      "def": 0,
+      "spatk": 0,
+      "spdef": 0,
+      "spd": 2
+    },
+    "item": "ヘラクロスナイト",
+    "item_pending": false,
+    "substitute_item": null,
+    "moves": [
+      "つるぎのまい",
+      "ミサイルばり",
+      "ロックブラスト",
+      "インファイト"
+    ],
+    "role": "連続技が必ず最大回数当たるようになり大ダメージを出す",
+    "evidence_n": null
+  }
+];
+</pre>
+  </details></div>
+<div class="card" id="src-sprite_api_ids_js">
+  <div><b><a href="../sprite_api_ids.js" target="_blank"><code>sprite_api_ids.js</code></a></b>
+   <span class="cols">31 KB ／ 5 行 ／ <b class="ok">全文</b></span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">自動生成(tools/_build_sprite_api_ids.js: reference/pokeapi_master.json(1302件)から全フォルムをjoin補完。2026-07-21)
+キャラ画像=公式風スプライト(PokeAPI)モードで使用。無い名前=Champions独自/自作メガ等(join不成立=未収載、自作SVG継続)</div>
+</div>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">// 自動生成(tools/_build_sprite_api_ids.js: reference/pokeapi_master.json(1302件)から全フォルムをjoin補完。2026-07-21)
+// キャラ画像=公式風スプライト(PokeAPI)モードで使用。無い名前=Champions独自/自作メガ等(join不成立=未収載、自作SVG継続)
+const SPRITE_API_ID = {"フシギバナ":3,"メガフシギバナ":10033,"リザードン":6,"メガリザードンX":10034,"メガリザードンY":10035,"カメックス":9,"メガカメックス":10036,"スピアー":15,"メガスピアー":10090,"ピジョット":18,"メガピジョット":10073,"アーボック":24,"ピカチュウ":25,"ライチュウ":26,"ライチュウ(アローラ)":10100,"ピクシー":36,"キュウコン":38,"キュウコン(アローラ)":10104,"ラフレシア":45,"ウインディ":59,"ウインディ(ヒスイ)":10230,"フーディン":65,"メガフーディン":10037,"カイリキー":68,"ウツボット":71,"ヤドラン":80,"ヤドラン(ガラル)":10165,"メガヤドラン":10071,"ゲンガー":94,"メガゲンガー":10038,"ガルーラ":115,"メガガルーラ":10039,"スターミー":121,"カイロス":127,"メガカイロス":10040,"ケンタロス":128,"ケンタロス(パルデア炎)":10251,"ケンタロス(パルデア水)":10252,"ケンタロス(パルデア単)":10250,"ギャラドス":130,"メガギャラドス":10041,"メタモン":132,"シャワーズ":134,"サンダース":135,"ブースター":136,"プテラ":142,"メガプテラ":10042,"カビゴン":143,"カイリュー":149,"メガニウム":154,"バクフーン":157,"バクフーン(ヒスイ)":10233,"オーダイル":160,"アリアドス":168,"デンリュウ":181,"メガデンリュウ":10045,"マリルリ":184,"ニョロトノ":186,"エーフィ":196,"ブラッキー":197,"ヤドキング":199,"ヤドキング(ガラル)":10172,"フォレトス":205,"ハガネール":208,"メガハガネール":10072,"ハリーセン":211,"ハッサム":212,"メガハッサム":10046,"ヘラクロス":214,"メガヘラクロス":10047,"エアームド":227,"ヘルガー":229,"メガヘルガー":10048,"バンギラス":248,"メガバンギラス":10049,"ジュカイン":254,"メガジュカイン":10065,"バシャーモ":257,"メガバシャーモ":10050,"メガラグラージ":10064,"ラグラージ":260,"ペリッパー":279,"サーナイト":282,"メガサーナイト":10051,"ヤミラミ":302,"メガヤミラミ":10066,"クチート":303,"メガクチート":10052,"ボスゴドラ":306,"メガボスゴドラ":10053,"チャーレム":308,"メガチャーレム":10054,"ライボルト":310,"メガライボルト":10055,"サメハダー":319,"メガサメハダー":10070,"バクーダ":323,"メガバクーダ":10087,"コータス":324,"チルタリス":334,"メガチルタリス":10067,"ミロカロス":350,"ポワルン":351,"ジュペッタ":354,"メガジュペッタ":10056,"チリーン":358,"アブソル":359,"メガアブソル":10057,"オニゴーリ":362,"メガオニゴーリ":10074,"メガメタグロス":10076,"メタグロス":376,"ドダイトス":389,"ゴウカザル":392,"エンペルト":395,"ムクホーク":398,"レントラー":405,"ロズレイド":407,"ラムパルド":409,"トリデプス":411,"ミミロップ":428,"メガミミロップ":10088,"ミカルゲ":442,"ガブリアス":445,"メガガブリアス":10058,"ルカリオ":448,"メガルカリオ":10059,"カバルドン":450,"ドクロッグ":454,"ユキノオー":460,"メガユキノオー":10060,"マニューラ":461,"ドサイドン":464,"リーフィア":470,"グレイシア":471,"グライオン":472,"マンムー":473,"エルレイド":475,"メガエルレイド":10068,"ユキメノコ":478,"ウォッシュロトム":10009,"カットロトム":10012,"スピンロトム":10011,"ヒートロトム":10008,"フロストロトム":10010,"ロトム":479,"ジャローダ":497,"エンブオー":500,"ダイケンキ":503,"ダイケンキ(ヒスイ)":10236,"ミルホッグ":505,"レパルダス":510,"ヤナッキー":512,"バオッキー":514,"ヒヤッキー":516,"ムシャーナ":518,"ドリュウズ":530,"タブンネ":531,"メガタブンネ":10069,"ローブシン":534,"ペンドラー":545,"エルフーン":547,"ワルビアル":553,"ズルズキン":560,"デスカーン":563,"ダストダス":569,"ゾロアーク":571,"ゾロアーク(ヒスイ)":10239,"ランクルス":579,"バイバニラ":584,"エモンガ":587,"シビルドン":604,"シャンデラ":609,"ツンベアー":614,"マッギョ":618,"マッギョ(ガラル)":10180,"ゴルーグ":623,"サザンドラ":635,"ウルガモス":637,"ブリガロン":652,"マフォクシー":655,"ゲッコウガ":658,"ホルード":660,"ファイアロー":663,"ビビヨン":666,"カエンジシ":668,"フラエッテ(えいえん)":10061,"フラージェス":671,"ゴロンダ":675,"トリミアン":676,"ニャオニクス♀":10025,"ニャオニクス♂":678,"ギルガルド(シールド)":681,"ギルガルド(ブレード)":10026,"フレフワン":683,"ペロリーム":685,"カラマネロ":687,"ガメノデス":689,"ドラミドロ":691,"ブロスター":693,"エレザード":695,"ガチゴラス":697,"アマルルガ":699,"ニンフィア":700,"ルチャブル":701,"デデンネ":702,"ヌメルゴン":706,"ヌメルゴン(ヒスイ)":10242,"クレッフィ":707,"オーロット":709,"パンプジン(小)":10030,"パンプジン(大)":10031,"パンプジン(特大)":10032,"パンプジン(普通)":711,"クレベース":713,"クレベース(ヒスイ)":10243,"オンバーン":715,"ジュナイパー":724,"ジュナイパー(ヒスイ)":10244,"ガオガエン":727,"アシレーヌ":730,"ドデカバシ":733,"ケケンカニ":740,"ルガルガン(まひる)":745,"ルガルガン(まよなか)":10126,"ルガルガン(たそがれ)":10152,"イルカマン(ナイーブ)":964,"イルカマン(マイティ)":10247,"ドヒドイデ":748,"バンバドロ":750,"オニシズクモ":752,"エンニュート":758,"アマージョ":763,"ヤレユータン":765,"ナゲツケサル":766,"ミミッキュ":778,"ジジーロン":780,"ジャラランガ":784,"アーマーガア":823,"アップリュー":841,"タルップル":842,"サダイジャ":844,"ポットデス":855,"ブリムオン":858,"オーロンゲ":861,"バリコオル":866,"デスバーン":867,"マホイップ":869,"タイレーツ":870,"モルペコ":877,"ドラパルト":887,"アヤシシ":899,"バサギリ":900,"イダイトウ♀":902,"イダイトウ♂":902,"オオニューラ":903,"ハリーマン":904,"マスカーニャ":908,"ラウドボーン":911,"ウェーニバル":914,"イッカネズミ":925,"キョジオーン":934,"グレンアルマ":936,"ソウブレイズ":937,"ハラバリー":939,"スコヴィラン":952,"クエスパトラ":956,"デカヌチャン":959,"ミミズズ":968,"キラフロル":970,"ハカドッグ":972,"コノヨザル":979,"リキキリン":981,"ドドゲザン":983,"サーフゴー":1000,"ヤバソチャ":1013,"ブリジュラス":1018,"カミツオロチ":1019,"アーケオス":567,"アーケン":566,"アーゴヨン":804,"アーボ":23,"アーマルド":348,"アイアント":632,"アオガラス":822,"アギルダー":617,"アクジキング":799,"アグノム":482,"アゲハント":267,"アゴジムシ":736,"アサナン":307,"アシマリ":728,"アズマオウ":119,"アチゲータ":910,"アチャモ":255,"アノクサ":946,"アノプス":347,"アノホラグサ":947,"アバゴーラ":565,"アブリー":742,"アブリボン":743,"アマカジ":761,"アママイコ":762,"アマルス":698,"アメタマ":283,"アメモース":284,"アラブルタケ":986,"アリゲイツ":159,"アルクジラ":974,"アルセウス(ノーマルタイプ)":493,"アンノーン(Ａ)":201,"イイネイヌ":1014,"イーブイ":133,"イーユイ":1004,"イエッサン(オスのすがた)":876,"イエッサン(メスのすがた)":10186,"イオルブ":826,"イキリンコ(イエローフェザー)":10261,"イキリンコ(グリーンフェザー)":931,"イキリンコ(ホワイトフェザー)":10262,"イシズマイ":557,"イシツブテ":74,"イシツブテ(アローラ)":10109,"イシヘンジン":874,"イダイトウ(オスのすがた)":902,"イダイトウ(メスのすがた)":10248,"イダイナキバ":984,"イッカネズミ(４ひきかぞく)":925,"イトマル":167,"イノムー":221,"イベルタル":717,"イルカマン(ナイーブフォルム)":964,"イルカマン(マイティフォルム)":10256,"イルミーゼ":314,"イワーク":95,"イワパレス":558,"イワンコ":744,"インテレオン":818,"ウーラオス(いちげきのかた)":892,"ウーラオス(れんげきのかた)":10191,"ウールー":831,"ウェルカモ":913,"ウォーグル":628,"ウォーグル(ヒスイ)":10240,"ウオチルドン":883,"ウオノラゴン":882,"ウガツホムラ":1020,"ウソッキー":185,"ウソハチ":438,"ウッウ":845,"ウツドン":70,"ウツロイド":793,"ウデッポウ":692,"ウネルミナモ":1009,"ウパー":194,"ウパー(パルデア)":10253,"ウミディグダ":960,"ウミトリオ":961,"ウリムー":220,"エイパム":190,"エースバーン":815,"エクスレッグ":920,"エテボース":424,"エネコ":300,"エネコロロ":301,"エビワラー":107,"エムリット":481,"エリキテル":694,"エレキッド":239,"エレキブル":466,"エレズン":848,"エレブー":125,"エンテイ":244,"オーガポン":1017,"オーガポン(いしずえのめん)":10275,"オーガポン(いどのめん)":10273,"オーガポン(かまどのめん)":10274,"オオスバメ":277,"オオタチ":162,"オーベム":606,"オクタン":224,"オコリザル":57,"オシャマリ":729,"オタチ":161,"オタマロ":535,"オドシシ":234,"オトシドリ":962,"オトスパス":853,"オドリドリ(ぱちぱちスタイル)":10123,"オドリドリ(ふらふらスタイル)":10124,"オドリドリ(まいまいスタイル)":10125,"オドリドリ(めらめらスタイル)":741,"オニスズメ":21,"オニドリル":22,"オノノクス":612,"オノンド":611,"オムスター":139,"オムナイト":138,"オラチフ":942,"オリーヴァ":930,"オリーニョ":929,"オンバット":714,"ガーディ":58,"ガーディ(ヒスイ)":10229,"ガーメイル(plant)":414,"カイオーガ":382,"カイオーガ(ゲンシカイキのすがた)":10077,"カイデン":940,"カクレオン":352,"ガケガニ":950,"カゲボウズ":353,"カジッチュ":840,"カジリガメ":834,"ガチグマ":901,"ガチグマ(アカツキ)":10272,"カチコール":712,"カヌチャン":957,"ガバイト":444,"カプ・コケコ":785,"カプ・テテフ":786,"カプ・ブルル":787,"カプ・レヒレ":788,"カプサイジ":951,"カブト":140,"カブトプス":141,"カブルモ":588,"カポエラー":237,"ガマガル":536,"ガマゲロゲ":537,"カマスジョー":847,"カミッチュ":1011,"カミツルギ":798,"カムカメ":833,"カメール":8,"カメテテ":688,"カモネギ":83,"カモネギ(ガラル)":10166,"カラカラ":104,"ガラガラ":105,"ガラガラ(アローラ)":10115,"カラサリス":266,"カラナクシ(にしのうみ)":422,"カラミンゴ":973,"カリキリ":753,"カルボウ":935,"ガントル":525,"ギアル":599,"ギガイアス":526,"ギギアル":600,"ギギギアル":601,"キチキギス":1016,"キテルグマ":760,"キノガッサ":286,"キノココ":285,"キバゴ":610,"キバニア":318,"キマワリ":192,"ギモー":860,"キモリ":252,"キャタピー":10,"キャモメ":278,"ギャロップ":78,"ギャロップ(ガラル)":10163,"キュレム":646,"キュレム(ブラックキュレム)":10022,"キュレム(ホワイトキュレム)":10023,"キュワワー":764,"キラーメ":969,"ギラティナ(アナザーフォルム)":487,"ギラティナ(オリジンフォルム)":10007,"キリキザン":625,"キリンリキ":203,"ギルガルド(シールドフォルム)":681,"ギルガルド(ブレードフォルム)":10026,"キルリア":281,"キレイハナ":182,"キングドラ":230,"キングラー":99,"クイタラン":631,"クサイハナ":44,"クスネ":827,"クズモー":690,"グソクムシャ":768,"クヌギダマ":204,"クマシュン":613,"グラードン":383,"グラードン(ゲンシカイキのすがた)":10078,"グライガー":207,"グラエナ":262,"クラブ":98,"グランブル":210,"クリムガン":621,"グルトン":915,"クルマユ":541,"クルミル":540,"クレセリア":488,"グレッグル":453,"クロバット":169,"クワガノン":738,"クワッス":912,"ケイコウオ":456,"ケーシィ":63,"ゲコガシラ":657,"ケッキング":289,"ゲッコウガ(サトシゲッコウガ)":10117,"ゲノセクト":649,"ケムッソ":265,"ケララッパ":732,"ケルディオ(いつものすがた)":647,"ケロマツ":656,"ケンタロス(パルデア・aqua-breed)":10252,"ケンタロス(パルデア・blaze-breed)":10251,"ケンタロス(パルデア・combat-breed)":10250,"ケンホロウ":521,"コアルヒー":580,"コイキング":129,"コイル":81,"ゴーゴート":673,"ゴース":92,"ゴースト":93,"ゴーリキー":67,"コオリッポ(アイスフェイス)":875,"コオリッポ(ナイスフェイス)":10185,"コクーン":14,"ゴクリン":316,"ココガラ":821,"ココドラ":304,"ココロモリ":528,"コジオ":932,"コジョフー":619,"コジョンド":620,"コスモウム":790,"コスモッグ":789,"コソクムシ":767,"コダック":54,"ゴチミル":575,"ゴチム":574,"ゴチルゼル":576,"コドラ":305,"ゴニョニョ":293,"コノハナ":274,"コバルオン":638,"ゴビット":622,"コフーライ(icy-snow)":665,"コフキムシ(icy-snow)":664,"ゴマゾウ":231,"コマタナ":624,"コモルー":372,"コライドン(かっくうけいたい)":10267,"コライドン(かんぜんけいたい)":1007,"コライドン(しっそうけいたい)":10265,"コライドン(せいげんけいたい)":10264,"コライドン(ゆうえいけいたい)":10266,"コラッタ":19,"コラッタ(アローラ)":10091,"ゴリランダー":812,"コリンク":403,"ゴルダック":55,"ゴルバット":42,"コレクレー(とほフォルム)":10263,"コレクレー(はこフォルム)":999,"ゴローニャ":76,"ゴローニャ(アローラ)":10111,"ゴローン":75,"ゴローン(アローラ)":10110,"コロトック":402,"コロボーシ":401,"コロモリ":527,"コンパン":48,"ゴンベ":446,"サイドン":112,"サイホーン":111,"サクラビス":368,"サケブシッポ":985,"ザシアン":888,"ザシアン(けんのおう)":10188,"サシカマス":846,"サッチムシ":824,"サナギラス":247,"サニーゴ":222,"サニーゴ(ガラル)":10173,"サニゴーン":864,"サボネア":331,"ザマゼンタ":889,"ザマゼンタ(たてのおう)":10189,"サマヨール":356,"ザルード":893,"サルノリ":810,"サワムラー":106,"ザングース":335,"サンダー":145,"サンダー(ガラル)":10170,"サンド":27,"サンド(アローラ)":10101,"サンドパン":28,"サンドパン(アローラ)":10102,"シードラ":117,"ジーランス":369,"シェイミ(スカイフォルム)":10006,"シェイミ(ランドフォルム)":492,"シェルダー":90,"ジオヅム":933,"ジガルデ(１０％フォルム)":10118,"ジガルデ(１０％フォルム)〈zygarde-10〉":10181,"ジガルデ(５０％フォルム)":718,"ジガルデ(５０％フォルム)〈zygarde-50-power-construct〉":10119,"ジガルデ(パーフェクトフォルム)":10120,"シガロコ":953,"シキジカ(はるのすがた)":585,"ジグザグマ":263,"ジグザグマ(ガラル)":10174,"シザリガー":342,"シシコ":667,"シズクモ":751,"ジバコイル":462,"シビシラス":602,"シビビール":603,"ジヘッド":634,"シママ":522,"ジメレオン":817,"ジャノビー":496,"ジャラコ":782,"ジャランゴ":783,"シャリタツ(そったすがた)":978,"ジュゴン":87,"シュシュプ":682,"シュバルゴ":589,"ジュプトル":253,"ジュラルドン":884,"ジラーチ":385,"シルヴァディ(タイプ：ノーマル)":773,"シルシュルー":944,"シロデスナ":770,"シンボラー":561,"スイクン":245,"ズガイドス":408,"スカタンク":435,"ズガドーン":806,"スカンプー":434,"スコルピ":451,"ストライク":123,"ストリンダー(ハイなすがた)":849,"ストリンダー(ローなすがた)":10184,"スナノケガワ":989,"スナバァ":769,"スナヘビ":843,"ズバット":41,"スバメ":276,"ズピカ":938,"スボミー":406,"スリーパー":97,"スリープ":96,"ズルッグ":559,"スワンナ":581,"セキタンザン":839,"セグレイブ":998,"ゼクロム":644,"セゴール":997,"ゼニガメ":7,"セビエ":996,"ゼブライカ":523,"ゼラオラ":807,"ゼルネアス(アクティブモード)":716,"セレビィ":251,"ゾウドウ":878,"ソーナノ":360,"ソーナンス":202,"ソルガレオ":791,"ソルロック":338,"ゾロア":570,"ゾロア(ヒスイ)":10238,"ダークライ":491,"ダーテング":275,"ダイオウドウ":879,"タイカイデン":941,"ダイノーズ":476,"タイプ：ヌル":772,"タギングル":945,"ダグトリオ":51,"ダグトリオ(アローラ)":10106,"ダクマ":891,"ダゲキ":539,"タケルライコ":1021,"タタッコ":852,"ダダリン":781,"タチフサグマ":862,"タッツー":116,"タツベイ":371,"タテトプス":410,"タネボー":273,"ダブラン":578,"タマゲタケ":590,"タマザラシ":363,"タマタマ":102,"タマンタ":458,"タマンチュラ":917,"ダルマッカ":554,"ダルマッカ(ガラル)":10176,"ダンゴロ":524,"タンドン":837,"ダンバル":374,"チェリム(ネガフォルム)":421,"チェリンボ":420,"チオンジェン":1001,"チゴラス":696,"チコリータ":152,"チャオブー":499,"チャデス(マガイモノのすがた)":1012,"チュリネ":548,"チョボマキ":616,"チョロネコ":509,"チョンチー":170,"チラーミィ":572,"チラチーノ":573,"チルット":333,"チヲハウハネ":988,"ツタージャ":495,"ツチニン":290,"ツツケラ":731,"ツボツボ":213,"ツンデツンデ":805,"ディアルガ":483,"ディアルガ(オリジンフォルム)":10245,"ディアンシー":719,"ディグダ":50,"ディグダ(アローラ)":10105,"ディンルー":1003,"テールナー":654,"デオキシス(アタックフォルム)":10001,"デオキシス(スピードフォルム)":10003,"デオキシス(ディフェンスフォルム)":10002,"デオキシス(ノーマルフォルム)":386,"デカグース":735,"デスマス":562,"デスマス(ガラル)":10179,"テッカグヤ":797,"テッカニン":291,"テッシード":597,"テツノイサハ":1010,"テツノイバラ":995,"テツノイワオ":1022,"テツノカイナ":992,"テツノカシラ":1023,"テツノコウベ":993,"テツノツツミ":991,"テツノドクガ":994,"テツノブジン":1006,"テツノワダチ":990,"テッポウオ":223,"テブリム":857,"テラキオン":639,"テラパゴス":1024,"テラパゴス(ステラフォルム)":10277,"テラパゴス(テラスタルフォルム)":10276,"デリバード":225,"デルビル":228,"デンジュモク":796,"デンヂムシ":737,"デンチュラ":596,"ドオー":980,"ドータクン":437,"ドードー":84,"ドードリオ":85,"ドーブル":235,"ドーミラー":436,"ドガース":109,"ドククラゲ":73,"ドクケイル":269,"トゲキッス":468,"トゲチック":176,"トゲデマル":777,"トゲピー":175,"ドゴーム":294,"トサキント":118,"ドジョッチ":339,"ドッコラー":532,"ドテッコツ":533,"トドグラー":364,"トドゼルガ":365,"トドロクツキ":1005,"ドラピオン":452,"ドラメシヤ":885,"トランセル":11,"トリトドン(にしのうみ)":423,"トリミアン(やせいのすがた)":676,"トルネロス(けしんフォルム)":641,"トルネロス(れいじゅうフォルム)":10019,"ドレディア":549,"ドレディア(ヒスイ)":10237,"トロッゴン":838,"ドロバンコ":749,"トロピウス":357,"ドロンチ":886,"ドンカラス":430,"ドンファン":232,"ドンメル":322,"ナエトル":387,"ナカヌチャン":958,"ナゲキ":538,"ナゾノクサ":43,"ナックラー":328,"ナッシー":103,"ナッシー(アローラ)":10114,"ナットレイ":598,"ナマケロ":287,"ナマコブシ":771,"ナマズン":340,"ナミイルカ":963,"ニダンギル":680,"ニドキング":34,"ニドクイン":31,"ニドラン♀":29,"ニドラン♂":32,"ニドリーナ":30,"ニドリーノ":33,"ニャース":52,"ニャース(アローラ)":10107,"ニャース(ガラル)":10161,"ニャイキング":863,"ニャオニクス(オスのすがた)":678,"ニャオニクス(メスのすがた)":10025,"ニャオハ":906,"ニャスパー":677,"ニャビー":725,"ニャヒート":726,"ニャルマー":431,"ニャローテ":907,"ニューラ":215,"ニューラ(ヒスイ)":10235,"ニョロゾ":61,"ニョロボン":62,"ニョロモ":60,"ヌイコグマ":759,"ヌオー":195,"ヌケニン":292,"ヌマクロー":259,"ヌメイル":705,"ヌメイル(ヒスイ)":10241,"ヌメラ":704,"ネイティ":177,"ネイティオ":178,"ネオラント":457,"ネギガナイト":865,"ネクロズマ":800,"ネクロズマ(あかつきのつばさ)":10156,"ネクロズマ(ウルトラネクロズマ)":10157,"ネクロズマ(たそがれのたてがみ)":10155,"ネッコアラ":775,"ネマシュ":755,"ネンドール":344,"ノクタス":332,"ノココッチ(ふたふしフォルム)":982,"ノコッチ":206,"ノズパス":299,"ノノクラゲ":948,"ハーデリア":507,"パーモット":923,"パールル":366,"バイウールー":832,"バウッツェル":927,"パウワウ":86,"パオジアン":1002,"バオップ":513,"ハギギシリ":779,"バクオング":295,"バクガメス":776,"ハクリュー":148,"バケッチャ(おおきいサイズ)":10028,"バケッチャ(ちいさいサイズ)":10027,"バケッチャ(とくだいサイズ)":10029,"バケッチャ(ふつうのサイズ)":710,"ハスブレロ":271,"ハスボー":270,"バスラオ(あおすじのすがた)":10016,"バスラオ(あかすじのすがた)":550,"バスラオ(しろすじのすがた)":10247,"バタフリー":12,"バチュル":595,"パチリス":417,"バチンウニ":871,"バチンキー":811,"パッチール":327,"パッチラゴン":880,"パッチルドン":881,"バッフロン":626,"ハトーボー":520,"バドレックス":898,"バドレックス(こくばじょうのすがた)":10194,"バドレックス(はくばじょうのすがた)":10193,"バニプッチ":582,"バニリッチ":583,"ハネッコ":187,"バネブー":325,"ハハコモリ":542,"ハバタクカミ":987,"ハピナス":242,"パピモッチ":926,"ハブネーク":336,"パフュートン(オスのすがた)":916,"パフュートン(メスのすがた)":10254,"パモ":921,"パモット":922,"ハヤシガメ":388,"パラス":46,"パラセクト":47,"ハリーセン(ヒスイ)":10234,"ハリテヤマ":297,"ハリボーグ":651,"ハリマロン":650,"バリヤード":122,"バリヤード(ガラル)":10168,"パルキア":484,"パルキア(オリジンフォルム)":10246,"バルキー":236,"ハルクジラ":975,"バルジーナ":630,"パルシェン":91,"パルスワン":836,"バルチャイ":629,"バルビート":313,"ハンテール":367,"パンプジン(おおきいサイズ)":10031,"パンプジン(ちいさいサイズ)":10030,"パンプジン(とくだいサイズ)":10032,"パンプジン(ふつうのサイズ)":711,"ピィ":173,"ビークイン":416,"ビーダル":400,"ヒードラン":485,"ビードル":13,"ビクティニ":494,"ヒコザル":390,"ピジョン":17,"ピチュー":172,"ビッパ":399,"ピッピ":35,"ヒドイデ":747,"ヒトカゲ":4,"ヒトツキ":679,"ヒトデマン":120,"ヒトモシ":607,"ヒノアラシ":155,"ヒノヤコマ":662,"ヒバニー":813,"ヒヒダルマ(ガラル・standard)":10177,"ヒヒダルマ(ガラル・zen)":10178,"ヒヒダルマ(ダルマモード)":10017,"ヒヒダルマ(ノーマルモード)":555,"ビビヨン(はなぞののもよう)":666,"ビブラーバ":329,"ヒポポタス":449,"ヒマナッツ":191,"ヒメグマ":216,"ヒメンカ":829,"ヒヤップ":515,"ヒラヒナ":955,"ビリジオン":640,"ビリリダマ":100,"ビリリダマ(ヒスイ)":10231,"ヒンバス":349,"ピンプク":440,"ファイヤー":146,"ファイヤー(ガラル)":10171,"フィオネ":489,"ブイゼル":418,"フーパ(いましめられしフーパ)":720,"フーパ(ときはなたれしフーパ)":10086,"ブーバー":126,"ブーバーン":467,"ブーピッグ":326,"フェローチェ":795,"フォクスライ":828,"フォッコ":653,"フカマル":443,"フクスロー":723,"プクリン":40,"フシギソウ":2,"フシギダネ":1,"フシデ":543,"フタチマル":502,"ブニャット":432,"ブビィ":240,"ププリン":174,"フラージェス(あかいはな)":671,"フライゴン":330,"フラエッテ(あかいはな)":670,"フラエッテ(えいえんのはな)":10061,"プラスル":311,"フラベベ(あかいはな)":669,"フリーザー":144,"フリーザー(ガラル)":10169,"フリージオ":615,"ブリザポス":896,"プリン":39,"ブルー":209,"プルリル":592,"ブルンゲル":593,"フローゼル":419,"プロトーガ":564,"ブロロローム":966,"ブロロン":965,"フワライド":426,"フワンテ":425,"ヘイガニ":341,"ヘイラッシャ":977,"ベイリーフ":153,"ベトベター":88,"ベトベター(アローラ)":10112,"ベトベトン":89,"ベトベトン(アローラ)":10113,"ベベノム":803,"ベラカス":954,"ペラップ":441,"ペルシアン":53,"ペルシアン(アローラ)":10108,"ペロッパフ":684,"ベロバー":859,"ベロベルト":463,"ベロリンガ":108,"ホイーガ":544,"ホウオウ":250,"ホエルオー":321,"ホエルコ":320,"ホーホー":163,"ボーマンダ":373,"ポカブ":498,"ボクレー":708,"ホゲータ":909,"ホシガリス":819,"ボチ":971,"ポチエナ":261,"ポッタイシ":394,"ポッチャマ":393,"ポットデス(がんさくフォルム)":855,"ポッポ":16,"ポニータ":77,"ポニータ(ガラル)":10162,"ポポッコ":188,"ポリゴン":137,"ポリゴン２":233,"ポリゴンＺ":474,"ボルケニオン":721,"ボルトロス(けしんフォルム)":642,"ボルトロス(れいじゅうフォルム)":10020,"ホルビー":659,"ポワルン(あまみずのすがた)":10014,"ポワルン(たいようのすがた)":10013,"ポワルン(ゆきぐものすがた)":10015,"マーイーカ":686,"マーシャドー":802,"マイナン":312,"マギアナ":801,"マグカルゴ":219,"マクノシタ":296,"マグマッグ":218,"マグマラシ":156,"マケンカニ":739,"マシェード":756,"マシマシラ":1015,"マスキッパ":455,"マダツボミ":69,"マタドガス":110,"マタドガス(ガラル)":10167,"マッシブーン":794,"マッスグマ":264,"マッスグマ(ガラル)":10175,"マナフィ":490,"マネネ":439,"マフィティフ":943,"マホイップ(ミルキィバニラ)":869,"マホミル":868,"ママンボウ":594,"マメバッタ":919,"マメパト":519,"マユルド":268,"マラカッチ":556,"マリル":183,"マルノーム":317,"マルマイン":101,"マルマイン(ヒスイ)":10232,"マルヤクデ":851,"マンキー":56,"マンタイン":226,"ミガルーサ":976,"ミジュマル":501,"ミズゴロウ":258,"ミツハニー":415,"ミニーブ":928,"ミニリュウ":147,"ミネズミ":504,"ミノマダム(くさきのミノ)":413,"ミノマダム(ゴミのミノ)":10005,"ミノマダム(すなちのミノ)":10004,"ミノムッチ(くさきのミノ)":412,"ミブリム":856,"ミミッキュ(ばけたすがた)":778,"ミミロル":427,"ミュウ":151,"ミュウツー":150,"ミライドン(グライドモード)":10271,"ミライドン(コンプリートモード)":1008,"ミライドン(ドライブモード)":10269,"ミライドン(フロートモード)":10270,"ミライドン(リミテッドモード)":10268,"ミルタンク":241,"ムウマ":200,"ムウマージ":429,"ムーランド":508,"ムクバード":397,"ムゲンダイナ":890,"ムチュール":238,"ムックル":396,"ムンナ":517,"メェークル":672,"メガディアンシー":10075,"メガボーマンダ":10089,"メガミュウツーX":10043,"メガミュウツーY":10044,"メガヤンマ":469,"メガラティアス":10062,"メガラティオス":10063,"メガレックウザ":10079,"メグロコ":551,"メタング":375,"メッソン":816,"メテノ(あおいろのコア)":10141,"メテノ(あかいろのコア)":10136,"メテノ(きいろのコア)":10138,"メテノ(だいだいいろのコア)":10137,"メテノ(みずいろのコア)":10140,"メテノ(みどりいろのコア)":10139,"メテノ(むらさきいろのコア)":10142,"メテノ(りゅうせいのすがた)":774,"メノクラゲ":72,"メブキジカ(はるのすがた)":586,"メラルバ":636,"メリープ":179,"メルタン":808,"メルメタル":809,"メレシー":703,"メロエッタ(ステップフォルム)":10018,"メロエッタ(ボイスフォルム)":648,"モウカザル":391,"モグリュー":529,"モクロー":722,"モココ":180,"モジャンボ":465,"モスノウ":873,"モトトカゲ":967,"モノズ":633,"モモワロウ":1025,"モルフォン":49,"モルペコ(まんぷくもよう)":877,"モロバレル":591,"モンジャラ":114,"モンメン":546,"ヤクデ":850,"ヤジロン":343,"ヤトウモリ":757,"ヤドン":79,"ヤドン(ガラル)":10164,"ヤナップ":511,"ヤバソチャ(ボンサクのすがた)":1013,"ヤバチャ(がんさくフォルム)":854,"ヤブクロン":568,"ヤミカラス":198,"ヤヤコマ":661,"ヤルキモノ":288,"ヤングース":734,"ヤンチャム":674,"ヤンヤンマ":193,"ユキカブリ":459,"ユキハミ":872,"ユキワラシ":361,"ユクシー":480,"ユニラン":577,"ユレイドル":346,"ユンゲラー":64,"ヨーギラス":246,"ヨーテリー":506,"ヨクバリス":820,"ヨノワール":477,"ヨマワル":355,"ヨルノズク":164,"ヨワシ(たんどくのすがた)":746,"ヨワシ(むれたすがた)":10127,"ライコウ":243,"ラクライ":309,"ラッキー":113,"ラッタ":20,"ラッタ(アローラ)":10092,"ラティアス":380,"ラティオス":381,"ラビフット":814,"ラブカス":370,"ラブトロス(けしんフォルム)":905,"ラブトロス(れいじゅうフォルム)":10249,"ラプラス":131,"ラランテス":754,"ラルトス":280,"ランターン":171,"ランドロス(けしんフォルム)":645,"ランドロス(れいじゅうフォルム)":10021,"ランプラー":608,"リーシャン":433,"リオル":447,"リククラゲ":949,"リグレー":605,"リザード":5,"リリーラ":345,"リングマ":217,"ルージュラ":124,"ルガルガン(たそがれのすがた)":10152,"ルガルガン(まひるのすがた)":745,"ルガルガン(まよなかのすがた)":10126,"ルギア":249,"ルクシオ":404,"ルナアーラ":792,"ルナトーン":337,"ルリリ":298,"ルンパッパ":272,"レアコイル":82,"レイスポス":897,"レジアイス":378,"レジエレキ":894,"レジギガス":486,"レジスチル":379,"レジドラゴ":895,"レシラム":643,"レジロック":377,"レックウザ":384,"レディアン":166,"レディバ":165,"レドームシ":825,"ロコン":37,"ロコン(アローラ)":10103,"ロゼリア":315,"ロトム(ウォッシュロトム)":10009,"ロトム(カットロトム)":10012,"ロトム(スピンロトム)":10011,"ロトム(ヒートロトム)":10008,"ロトム(フロストロトム)":10010,"ワカシャモ":256,"ワシボン":627,"ワタシラガ":830,"ワタッコ":189,"ワッカネズミ":924,"ワナイダー":918,"ワニノコ":158,"ワルビル":552,"ワンパチ":835,"ワンリキー":66};
+const HOME_FACES_RIGHT = new Set([197,257,10050,750,970,981]);
+</pre>
+  </details></div>
+<div class="card" id="src-items_database_js">
+  <div><b><a href="../items_database.js" target="_blank"><code>items_database.js</code></a></b>
+   <span class="cols">129 KB ／ 3513 行 ／ <b>先頭 80 行だけ</b>(全 3513 行)</span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">Auto-generated from _review/items_database.json (2026-06-19 レギュMB追加で計159件 / 2026-07-19 全部版持ち物10件追加で計169件)
+メガストーン: 76件 / 通常持ち物: 93件
+ポケチャン実装済の持ち物。party_checker.html と battle_simulator.html・real_battle_simulator.html で共有。</div>
+</div>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">// Auto-generated from _review/items_database.json (2026-06-19 レギュMB追加で計159件 / 2026-07-19 全部版持ち物10件追加で計169件)
+// メガストーン: 76件 / 通常持ち物: 93件
+// ポケチャン実装済の持ち物。party_checker.html と battle_simulator.html・real_battle_simulator.html で共有。
+window.ITEMS_DATABASE = {
+  "version": "1.0",
+  "updated": "2026-06-19",
+  "context": "ポケモンチャンピオンズ (ポケチャン) battle_simulator.html 用持ち物マスタ",
+  "sources": {
+    "primary": "vgc-champions-calc.pages.dev バンドル解析 (2026-05-16, /assets/index-Bt-7Kz3C.js)",
+    "secondary": [
+      "アルテマ ポケチャン持ち物一覧 https://altema.jp/pokemonchampions/itemlist",
+      "アルテマ ポケチャン未実装持ち物 https://altema.jp/pokemonchampions/mijisouitemlist",
+      "Gamerch ポケチャン道具 https://gamerch.com/pokemonchampions/980380",
+      "AppMedia ポケチャン持ち物 https://appmedia.jp/pokemonchampions/79922272",
+      "Game8 ポケチャン道具 https://game8.jp/pokemon-champions/775655",
+      "GameWith ポケチャン持ち物 https://gamewith.jp/pokemon-champions/546487"
+    ]
+  },
+  "categories": {
+    "attack_boost": "攻撃側威力補正",
+    "type_boost": "タイプ別威力補正 (×1.2 / Q12=4915)",
+    "berry_resist": "半減きのみ (×0.5 / Q12=2048, 効果バツグン時のみ発動・1回)",
+    "berry_status_cure": "状態異常回復きのみ",
+    "berry_hp_cure": "HP回復きのみ",
+    "defense_boost": "防御補正",
+    "status_inflict": "状態異常付与 (装備者デメリット系)",
+    "hp_drain": "HP回復/反動",
+    "speed_boost": "素早さ補正",
+    "survival": "生存補助 (タスキ/ハチマキ等)",
+    "misc": "その他",
+    "mega_stone": "メガストーン (メガシンカ起動)"
+  },
+  "schema_notes": {
+    "q12": "4096分のN表現の整数倍率。例: 6144 → ×1.5。null は未確定または倍率を持たない。",
+    "factor": "倍率の小数表現。q12/4096 と一致。",
+    "implemented_in_pokechan": "ポケチャンに実装されているかのフラグ。false なら本家にあるがポケチャン未解禁。",
+    "source_q12": "Q12値の出典。 'vgc-champions-calc' = バンドル解析で確認、'spec_pokemon_main' = 本家ポケモン仕様準拠 (要検証)。",
+    "verify": "true なら未確認・要追加検証。false なら確定済み。",
+    "mega_target_en": "メガストーンの対象ポケモン英語名 (key の suffix と対応)",
+    "mega_form": "メガシンカ後の名称 (例: メガリザードンX)",
+    "mega_types": "メガシンカ後のタイプ配列 (null は未収集)",
+    "mega_ability": "メガシンカ後の特性 (null は未収集)",
+    "mega_ability_desc": "メガシンカ後特性の効果説明 (null は未収集)",
+    "mega_stats": "メガシンカ後の種族値 {H,A,B,C,D,S} (null は未収集)",
+    "acquisition": "入手区分: tutorial_free / frontier_shop_2000VP / za_link / season_m1_reward / season_m1_or_giveaway",
+    "acquisition_note": "入手区分の人間可読説明"
+  },
+  "items": [
+    {
+      "key": "kodawari_hachimaki",
+      "name": "こだわりハチマキ",
+      "name_en": "Choice Band",
+      "category": "attack_boost",
+      "effect": "物理技の攻撃が×1.5になる。同じ技しか出せなくなる。",
+      "q12": 6144,
+      "factor": 1.5,
+      "applies_to": "physical_attack",
+      "restriction": "選択技固定",
+      "source_q12": "vgc-champions-calc",
+      "implemented_in_pokechan": false,
+      "verify": false,
+      "notes": "ポケチャン未実装 (アルテマ未実装一覧に掲載)"
+    },
+    {
+      "key": "kodawari_megane",
+      "name": "こだわりメガネ",
+      "name_en": "Choice Specs",
+      "category": "attack_boost",
+      "effect": "特殊技の特攻が×1.5になる。同じ技しか出せなくなる。",
+      "q12": 6144,
+      "factor": 1.5,
+      "applies_to": "special_attack",
+      "restriction": "選択技固定",
+      "source_q12": "vgc-champions-calc",
+      "implemented_in_pokechan": false,
+      "verify": false,
+      "notes": "ポケチャン未実装"
+    },
+    {
+      "key": "kodawari_scarf",</pre>
+  </details></div>
+<div class="card" id="src-fx_primitives_js">
+  <div><b><a href="../fx_primitives.js" target="_blank"><code>fx_primitives.js</code></a></b>
+   <span class="cols">88 KB ／ 1369 行 ／ <b>先頭 4,000 文字だけ</b>(全 68,836 文字 ★1行が巨大なため文字数で切った)</span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">===== fx_primitives.js =====
+演出ツクール Step2a(2026-07-11・設計_演出ツクール_2026-07-11.md 2章 Step2)。
+real_battle.html / online_battle.html に二重定義されていた「バトル演出プリミティブ」を1本化。
+純リファクタ=挙動完全不変が合格条件(切り出し元コードをそのまま移設。ロジック変更なし)。
+
+依存(この2ページで同名グローバルが既に定義されている前提。設計docの「グローバル直参照の温存」を採用=
+注入点を新設せずシンプルに保つ):
+  $(id)              … document.getElementById 相当(両ページとも `const $ = id =&gt; document.getElementById(id);`)
+  S.typeColors()      … タイプ別カラー(両ページとも `let S` のsimブリッジ経由)
+  SE.hitClass/miss    … WebAudio合成SE(両ページとも `const SE = {...}`)
+  window.MOVE_FX_MAP   … move_fx_map.js(shapeOf解決用)
+  window.BATTLE_FX_CUES … battle_fx_cues.js(演出ツクールStep4・resolveCueSheet/playCueSheet解決用)
+これらは呼び出し時(setTimeout/イベント経由)に解決されるため、&lt;script&gt;タグの読み込み順に依存しない
+(クラシックscript間はグローバル宣言環境を共有する)。
+
+トレースフック: window.__fxTrace が配列の時だけ発火記録を積む(本番は未設定=ゼロコスト)。
+バトルトレース(設計1-5)の足がかり。フォーマット: {k, mv, shape, t: performance.now()} 等。</div>
+</div>
+<div style="margin:6px 0"><b>中の区切り(10)</b><ol style="margin:4px 0 0 18px;font-size:13px"><li>fx_primitives.js <span class="cols">(1行目)</span></li><li>Wave1: 攻撃演出(技クラス別の飛翔体→着弾) 2026-07-10 阿部さん「音とエフェクトを派手に」 <span class="cols">(251行目)</span></li><li>Wave2.5: 接触技=本体クローンの突進(設計_バトル演出強化_2026-07-10.md v2 ②章) <span class="cols">(388行目)</span></li><li>Wave4 B級: インパクトフレーム(白黒反転50ms・transition:none必須・急所/KO級限定) <span class="cols">(501行目)</span></li><li>演出ツクール Step2b(2026-07-11・設計_演出ツクール_2026-07-11.md 1-4「シーン」) <span class="cols">(564行目)</span></li><li>Wave3: メガシンカ儀式演出(設計_バトル演出強化_2026-07-10.md v2 ③章・特例1.5-2.0s) <span class="cols">(609行目)</span></li><li>Wave3: 壁パネル(リフレクター/ひかりのかべ/オーロラベール・設計 v2 ③-2章) <span class="cols">(725行目)</span></li><li>特性発動バナー(2026-07-17・設計_特性・場エフェクト増強_2026-07-17.md §2 P1「本命」) <span class="cols">(876行目)</span></li><li>P2: 設置物の常駐ミニアイコン(2026-07-18・設計_特性・場エフェクト増強_2026-07-17.md §4) <span class="cols">(896行目)</span></li><li>演出ツクール Step5(2026-07-11・設計_演出ツクール_2026-07-11.md 1-4「シーン」) <span class="cols">(1274行目)</span></li></ol></div>
+<details style="margin:6px 0"><summary><b>できること(65個 / 説明つき 41個)</b></summary><table style="margin-top:6px"><tr><th>名前</th><th>何をするか(ファイル内のコメントから)</th><th>行</th></tr><tr><td><code>_fxAutoRemove</code></td><td>消えてしまわないようにする。window.__FX_SCRUB__ が真の間だけ remove() をスキップする(=フラグが立って いる間は要素をそのまま残す。フラグはfx_editor.html側がresetPreviewPositions()の頭で必ずfalseへ戻す)。 省略時(フラグ未定義=本番real_battle.html/online_battle.html)は `setTimeout(() =&gt; el.remove(), ms)` と 完全に同一(1msも挙動を変えない=絶対条件)。</td><td class="num">25</td></tr><tr><td><code>popText</code></td><td><span class="cols">(説明なし)</span></td><td class="num">37</td></tr><tr><td><code>burstFx</code></td><td><span class="cols">(説明なし)</span></td><td class="num">88</td></tr><tr><td><code>spawnBurstParticles</code></td><td>破片パーティクル(4-8pxの粒が放射状に飛び散る。疑似重力で下に膨らむ弧) scale(阿部さんFB2026-07-11 §10): 省略時=1=従来どおり(呼び出し側の互換=real_battle/online_battleの 直呼び出し箇所は3引数のままで無改変)。sizeScale(2026-07-15): 省略時=1=従来どおり。粒サイズ/拡散距離に乗算。</td><td class="num">115</td></tr><tr><td><code>spawnBurstRing</code></td><td>衝撃リング(円が拡大しながら消える)。scale=省略時1=従来どおり(real_battle/online_battleの直呼び出しは2引数のまま)。 sizeScale(2026-07-15): 省略時=1=従来どおり。リングの基準サイズ(.rb-burstringのwidth/height/margin)に効かせる。</td><td class="num">142</td></tr><tr><td><code>spawnBurstGlyph</code></td><td>burstFx経由のみだが念のため同じ既定値パターンで統一)。指定時は各shapeのCSSアニメ(既定値をコメントに明記)と setTimeout除去タイミングを比例して引き伸ばす。 sizeScale(2026-07-15): 省略時=1=従来どおり。各グリフ要素に--fx-burst-scaleを乗せ、対応CSS(width/height/ margin/font-sizeをvar(--fx-burst-scale,1)化済み)に効かせる。時間用scaleとは別軸(混同しないこと)。</td><td class="num">172</td></tr><tr><td><code>moveClassOf</code></td><td>===== Wave1: 攻撃演出(技クラス別の飛翔体→着弾) 2026-07-10 阿部さん「音とエフェクトを派手に」 ===== 技クラス判定: sound&gt;punch&gt;slash&gt;bullet&gt;wind&gt;wave(波動)&gt;bite&gt;kick&gt;物理汎用/特殊汎用(設計_バトル演出強化_2026-07-10.md の優先順)</td><td class="num">253</td></tr><tr><td><code>shapeOf</code></td><td><span class="cols">(説明なし)</span></td><td class="num">281</td></tr><tr><td><code>fxPoint</code></td><td>攻撃側/対象側のスプライト中心を画面座標(fixed基準)で返す。#fieldのzoom/scaleの影響を受けない</td><td class="num">307</td></tr><tr><td><code>spawnProjectile</code></td><td>durMs(2026-07-16 阿部さん「フレアドライブ基準を全技デフォルトに・ビーム/飛翔の発射→着弾を長くしたい」): 末尾省略可能引数。省略時=undefined=従来どおり190固定(real_battle/online_battleのattackFxAuto経由= 直呼び出し箇所は引数を増やしていないので1msも変わらない)。指定時のみ内部durを上書き(clamp 60〜2000ms= 極端値で演出が壊れる/凍りつくのを防ぐ)。呼び出し元=_dispatchCueProd(cue.durをキューシートから渡す)。</td><td class="num">317</td></tr><tr><td><code>spawnBeam</code></td><td>durMs: spawnProjectileと同じ契約(省略時=undefined=従来180固定・指定時のみclamp 60〜2000で上書き)。</td><td class="num">342</td></tr><tr><td><code>attackFx</code></td><td>Wave2.5(2026-07-10 阿部さん最優先): 接触技(mv.contact===true。データ駆動・技名推測禁止)は 飛翔体でなく本体クローンの突進(chargeFx)にする。非接触/mv不明は従来の飛翔体/ビームのまま。 speedMul(2026-07-16連続技演出): 末尾省略可能引数。省略時=undefined=1として扱う=全既存呼び出しは 1msも変わらない(不変)。連続技の各ヒットだけ呼び出し元(lineWithFx)が0.4前後を渡して尺を圧縮する。</td><td class="num">372</td></tr><tr><td><code>chargeFx</code></td><td>本体は動かさずクローンをbody直下fixedで飛ばす(#f-側のzoom/scaleの割り戻し不要=安全策)。 演出例外(交代/ひんしの割込み等)でも必ずクローン除去+本体visibility復帰する(保険タイマー併用)。 speedMul(2026-07-16連続技演出): 末尾省略可能引数。省略時=undefined→1扱い=既存呼び出しは1msも 変わらない(不変)。連続技の各ヒットは0.4前後を渡し、突進/帰還/バーストの尺をまとめて圧縮する。</td><td class="num">393</td></tr><tr><td><code>cleanup</code></td><td>2026-07-16(段階B): スクラブで止めた静止画はクローンが本体の代わりに見えている状態なので、 __FX_SCRUB__が真の間はcleanup(クローン除去+本体sprite可視化)を丸ごとスキップする(=静止画を保つ)。 フラグはfx_editor.htmlのresetPreviewPositions()の頭で必ずfalseに戻る(=次のスクラブ/リセット/ 再生開始/技切替で本掃除される)ので、doneを立てずに素通りしても取り残しにはならない。</td><td class="num">450</td></tr><tr><td><code>returnHome</code></td><td><span class="cols">(説明なし)</span></td><td class="num">452</td></tr><tr><td><code>onImpact</code></td><td><span class="cols">(説明なし)</span></td><td class="num">463</td></tr><tr><td><code>knockbackFx</code></td><td>被弾ノックバック(Wave2.5 S級): 攻撃方向へ一瞬押されて弾む。.fighter(外側)に掛けるので .sprite側のrbShake/squash&amp;stretchアニメ(別要素)と衝突しない</td><td class="num">492</td></tr><tr><td><code>impactFrameFx</code></td><td>===== Wave4 B級: インパクトフレーム(白黒反転50ms・transition:none必須・急所/KO級限定) ===== 通常打には出さない(特別感の温存)。#field.rb-impactの!importantで確実にtransitionを殺す。</td><td class="num">503</td></tr><tr><td><code>chromaticAberrationFx</code></td><td>===== Wave4 B級: 色収差風シェイク(大技+シェイク最大時のみ・drop-shadow赤/シアン2〜5px→100msで戻す) ===== #field.style.filterを直接操作(インパクトフレームのCSSクラス!importantとは別プロパティ経路で競合させない)</td><td class="num">511</td></tr><tr><td><code>_shakeTick</code></td><td><span class="cols">(説明なし)</span></td><td class="num">524</td></tr><tr><td><code>fieldShake</code></td><td>画面(盤面)シェイク。mag(Wave2.5 S級・強弱スケール): 1.0=通常/1.6=ばつぐん・急所/0.5=いまひとつ級の弱打 →trauma加算量にマップ(強いほどtrauma²の効きで揺れが跳ね上がる)。mag&gt;=1.6は色収差風シェイクも同時発火。</td><td class="num">545</td></tr><tr><td><code>flash</code></td><td>flash: 側全体(#f-self/#f-opp)にCSSクラスを一瞬付ける汎用フラッシュ(登場/退場/状態異常の合図等で使用)</td><td class="num">556</td></tr><tr><td><code>rankFx</code></td><td>1本化。Step2aと同じ判断基準(グローバル直参照温存=$/S/SE/tone/ac/_recallTimer・純リファクタで挙動不変)。 依存の補足: tone()/ac()(WebAudio合成音の下請け)・_recallTimer(交代1拍目のgone遅延タイマー・オブジェクト)は 両ページで同名同内容のグローバルとして既に定義されている前提(Step2aのSE/$と同じ扱い。注入点は新設しない)。 ランク変化: 緑↑/紫↓の粒子(段数で個数)+上昇/下降スイープ音</td><td class="num">570</td></tr><tr><td><code>sparkleFx</code></td><td>回復のキラキラ(緑の星が数個舞う)。SE.heal()(ハープ風)は既存のまま呼び出し元で鳴らす</td><td class="num">587</td></tr><tr><td><code>screenFlash</code></td><td><span class="cols">(説明なし)</span></td><td class="num">602</td></tr><tr><td><code>_megaStepPillar</code></td><td>演出ツクール Step5(2026-07-11・シーン対応): 内部の各拍(柱/オーブ/シルエット/爆発/DNA)を _megaStep*として関数化(純リファクタ=megaFx自体の呼び出し順序・引数・タイミングは1msも変えない)。 _dispatchSceneCueProd(このファイル末尾)がscene:mega_evolveのキュー再生でも同じ関数を呼ぶことで、 「自動演出(このmegaFx)」と「人間が調整したキューシート」が常に同じコードパスを通る(二重実装を作らない)。</td><td class="num">617</td></tr><tr><td><code>_megaStepOrbs</code></td><td><span class="cols">(説明なし)</span></td><td class="num">623</td></tr><tr><td><code>_megaStepSilhouetteOn</code></td><td><span class="cols">(説明なし)</span></td><td class="num">634</td></tr><tr><td><code>_megaStepClimax</code></td><td><span class="cols">(説明なし)</span></td><td class="num">635</td></tr><tr><td><code>_megaStepDna</code></td><td><span class="cols">(説明なし)</span></td><td class="num">651</td></tr><tr><td><code>megaFx</code></td><td><span class="cols">(説明なし)</span></td><td class="num">658</td></tr><tr><td><code>_koCollectAnims</code></td><td>.rb-chargeclone(突進クローン)も意図的に除外(実機PDCAで発覚・2026-07-10): chargeFxは 「lunge→(onfinish)→returnHome→(onfinish)cleanup=visibility復帰」の2段WAAPIアニメ連鎖で、 pause→playbackRate操作を挟むとonfinishの発火タイミングが崩れ、cleanupが呼ばれず本体spriteが visibility:hiddenのまま・クローンが盤面に残留するリークを実機で確認したため(=まさに巻き込み事故)。</td><td class="num">684</td></tr><tr><td><code>_koStepImpact</code></td><td>演出ツクール Step5(2026-07-11・シーン対応): 「タメ→スロー→復帰」を_koStepImpact/_koStepSlowに 関数化(純リファクタ=koSlowFx自体のタイミング・引数は1msも変えない=tameMs/slowMsの既定値200/600は 元のsetTimeoutオフセットそのまま)。_dispatchSceneCueProd(このファイル末尾)がscene:ko_slowmoの キュー再生でも_koStepSlowを呼ぶ(cue.t側で「タメ」を表現するのでtameMs=0で呼ぶ・後述コメント参照)。</td><td class="num">700</td></tr><tr><td><code>_koStepSlow</code></td><td><span class="cols">(説明なし)</span></td><td class="num">704</td></tr><tr><td><code>koSlowFx</code></td><td><span class="cols">(説明なし)</span></td><td class="num">719</td></tr><tr><td><code>showWallFx</code></td><td><span class="cols">(説明なし)</span></td><td class="num">748</td></tr><tr><td><code>hideWallFx</code></td><td><span class="cols">(説明なし)</span></td><td class="num">757</td></tr><tr><td><code>setWeatherFx</code></td><td>scene:weather_*(演出ツクール1-4)のトレース発火点(kind=null=天候解除も記録する)。</td><td class="num">764</td></tr><tr><td><code>setTerrainFx</code></td><td><span class="cols">(説明なし)</span></td><td class="num">781</td></tr><tr><td><code>spawn</code></td><td><span class="cols">(説明なし)</span></td><td class="num">794</td></tr><tr><td><code>shieldFx</code></td><td>(_dispatchCueProdへ新action追加のみ・既存cueは1msも不変)。 A. shieldFx: まもる系(まもる/みきり/ワイドガード/ファストガード/ニードルガード/キングシールド/トーチカ)。 本家風の丸っぽい半透明バリアドームが「ポンッ」と展開→軽くふるえ→フェード(計900ms)。 color省略時=#7dd3fc(まもる基準色)。キングシールド=金/トーチカ=紫等はcueのparams.colorで可変。</td><td class="num">812</td></tr><tr><td><code>noteFx</code></td><td>B. noteFx: 音技24統一(flags.sound技)。対象から音符(♪♫交互)が4個、ふわふわ波打ちながら上方向へ 飛んでいく(左右にsin揺れ・800ms前後で消える)。色はタイプ色(呼び出し元がinfo.colorを渡す)。</td><td class="num">828</td></tr><tr><td><code>bindFx</code></td><td>C. bindFx: 縛り系(バインド状態付与/拘束/自分拘束)。楕円リング2〜3本が対象に巻き付いてキュッと締まる (scale 1.4→0.9で縮む・700ms)。色既定#a78bfa(バインド)。拘束(暗色)/自分拘束(緑)等はcueのcolorで可変。</td><td class="num">860</td></tr><tr><td><code>abilityFx</code></td><td><span class="cols">(説明なし)</span></td><td class="num">885</td></tr><tr><td><code>hazardFx</code></td><td><span class="cols">(説明なし)</span></td><td class="num">904</td></tr><tr><td><code>clearHazardFx</code></td><td>その側の設置物アイコンを全消し(こうそくスピン/キラースピンの「設置物が 消えた！」・バトル開始/リセット)</td><td class="num">925</td></tr><tr><td><code>setBackdrop</code></td><td><span class="cols">(説明なし)</span></td><td class="num">937</td></tr><tr><td><code>initBackdrop</code></td><td><span class="cols">(説明なし)</span></td><td class="num">948</td></tr><tr><td><code>showResultBanner</code></td><td>勝敗を画面中央に大きく表示(WIN/LOSE)。次のバトル開始やリセットで消す。scene:win/scene:lose のトレース発火点 (won=true/falseで区別)。hideResultBanner()も両ページ同一実装だったため一緒に移設(先の調査で「online側だけ AI戦タイマー再アームを併記」と見えたのは単一行関数へのawk抽出誤検出=実際は完全同一。この段落で訂正)。</td><td class="num">963</td></tr><tr><td><code>hideResultBanner</code></td><td><span class="cols">(説明なし)</span></td><td class="num">970</td></tr><tr><td><code>sendOutFx</code></td><td>===== シーン演出(登場/引っ込め/ひんし)。real_battle.html/online_battle.htmlの行fxディスパッチャ(この2ページに 残置=msgbox/say系で state強結合)から、DOM操作のみの部分だけを切り出し(呼び出し順序は元のまま不変)。 交代/死に出し共通の登場演出。scene:send_out(演出ツクール1-4)のトレース発火点。</td><td class="num">974</td></tr><tr><td><code>recallFx</code></td><td>引っ込める演出。scene:recall(演出ツクール1-4)のトレース発火点。1拍目で縮んで消え、2拍目(登場)で _recallTimer経由でキャンセルされなければ1000ms後にgoneへ固定する(呼び出し元の交代1拍目if分岐から丸ごと移設)。</td><td class="num">981</td></tr><tr><td><code>faintFx</code></td><td>ひんし退場演出(沈んで消える)。scene:faint(演出ツクール1-4)のトレース発火点。呼び出し元(ひんし行if分岐)は このあとに続けて`_koFxDelay = koSlowFx(side)`を呼ぶ(HPバー同期setHpBarは呼び出し元に残置=state更新のため)。</td><td class="num">1001</td></tr><tr><td><code>resolveCueSheet</code></td><td>resolveCueSheet(mv): window.BATTLE_FX_CUES からこの技用のシートを解決する。 優先順=move:技名(個別上書き) → pattern:タイプ+分類(一括既定・fx_editor.htmlの'pattern:'+type+category形式と同一)。 どちらもdone===trueのシートのみ採用(ドラフト中=書き出し前の未完成シートは本番に出さない)。無ければnull (=呼び出し側は従来のattackFx/chargeFx経路のまま=シート無し技は完全不変)。</td><td class="num">1024</td></tr><tr><td><code>resolveStatusCueSheet</code></td><td>★変化技Phase2(2026-07-18・設計_変化技演出_2026-07-16.md §2 Phase2): 変化技用のシート解決。 resolveCueSheet(攻撃技用)と違い move:個別のみ(pattern:/class:フォールバック無し)= 「調整した技だけ変わる安全設計」(設計§2 Phase2の指定)。done===trueのみ採用も同じ。 現状done:trueの変化技シートは未作成=常にnull=呼び出し側は従来の正規表現fx経路のまま(完全不変)。</td><td class="num">1046</td></tr><tr><td><code>_cueClassKey</code></td><td>技→大分類キー(class:の後半)。物理・接触='phys_contact'/物理・非接触='phys_ranged'/特殊='special'。 それ以外(変化技等)は空文字=classフォールバック無し。</td><td class="num">1054</td></tr><tr><td><code>_cueImpactTime</code></td><td>キューシートの「着弾拍」= 従来のattackFx/chargeFxが返していた_hitFxDelay相当(ms)。atk(突進/飛翔)以外の トラック(glyph/sound/screen/def)で最も早く発火するキューのtを着弾とみなす(1-1のサンプルもこの形= 非atkトラックが同じtに集まる設計)。無ければ総尺の半分にフォールバック。</td><td class="num">1062</td></tr><tr><td><code>_cueChargeMotionProd</code></td><td><span class="cols">(説明なし)</span></td><td class="num">1080</td></tr><tr><td><code>cleanup</code></td><td>2026-07-16(段階B): スクラブで止めた静止画はクローンが本体の代わりに見えている状態なので、 __FX_SCRUB__が真の間はcleanup(クローン除去+本体sprite可視化)を丸ごとスキップする(=静止画を保つ)。 フラグはfx_editor.htmlのresetPreviewPositions()の頭で必ずfalseに戻る(=次のスクラブ/リセット/ 再生開始/技切替で本掃除される)ので、doneを立てずに素通りしても取り残しにはならない。</td><td class="num">1126</td></tr><tr><td><code>_cueSustainedFieldShake</code></td><td>shouldContinue(演出ツクールStep6・エディタ共通化2026-07-11): 省略時=undefined=従来どおり最後まで 続く(本番の挙動は1msも変わらない=絶対条件)。指定時のみ毎ステップでfalseを返すと即座に打ち切る (fx_editor.htmlのSTOP押下時=ループ再生停止に使う。fx_editor.html自身のsustainedFieldShakeは この関数へ委譲するために廃止=重複実装の解消)。</td><td class="num">1144</td></tr><tr><td><code>_dispatchCueProd</code></td><td>onDef/shouldContinue(演出ツクールStep6・エディタ共通化2026-07-11): 省略時=undefined=本番の挙動は 1msも変わらない(絶対条件)。fx_editor.htmlがこの同じ関数を再利用するための差分吸収フック (onDef=def/textトラック発火のたびに呼ぶコールバック=エディタのHPバーpulse演出用。 shouldContinue=screenトラックshakeの持続を毎ステップ問い合わせる関数=エディタのSTOP即時反映用)。</td><td class="num">1163</td></tr><tr><td><code>playCueSheet</code></td><td>__board(エディタの立ち位置)は見ない=本番の配置は本番のまま(設計4章の指定どおり)。 ctx.scale(2026-07-16連続技演出): 省略時=undefined→1扱い=既存呼び出しは1msも変わらない(不変)。 連続技の各ヒットはlineWithFxが0.4前後を渡し、キューのt(スケジュール)とdur(各アクションの尺)を まとめて縮める(_dispatchCueProd自体は無改変=個々のプリミティブの意味は変えず時間だけ圧縮)。</td><td class="num">1252</td></tr><tr><td><code>resolveSceneSheet</code></td><td>faintFx/koSlowFx/showResultBannerの直接呼び出しのまま=挙動完全不変)。 resolveSceneSheet(key): window.BATTLE_FX_CUES から 'scene:'+key のシートを解決する。 resolveCueSheet(mv)と同じ形(done===trueのみ採用・無ければnull=呼び出し側は従来関数のまま)。</td><td class="num">1283</td></tr><tr><td><code>_dispatchSceneCueProd</code></td><td>mega/koのglyph・screenアクションはmegaFx/koSlowFxからStep5で切り出した_megaStep*/_koStep*を再利用 (=自動演出と同じ関数を呼ぶので二重実装にならない)。send_out/recall/faintのdef/soundアクションは sendOutFx/recallFx/faintFxのDOM操作をそのまま複製(これらは元々数行の単純な処理で、関数を分割する ほどの内部タイミングを持たないため=設計docの「他は1〜3キューの簡素なもの」に対応)。</td><td class="num">1295</td></tr><tr><td><code>playSceneCueSheet</code></td><td>'def'/'gone'キューはrecallFx()と同じ安全装置(_recallTimer)へタイマーを登録する(交代1拍目→ すぐ2拍目の死に出しが来た場合に「1000ms後のgone」を打ち消すため。real_battle.html/online_battle.html の「場に出た」ハンドラが既存のclearTimeout(_recallTimer[enterSide])でそのまま拾える=呼び出し元の 安全装置を変えずに済む)。_recallTimerは両ページの既存グローバル(fx_primitives.jsの他関数と同じ前提)。</td><td class="num">1358</td></tr></table></details>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">// ===== fx_primitives.js =====
+// 演出ツクール Step2a(2026-07-11・設計_演出ツクール_2026-07-11.md 2章 Step2)。
+// real_battle.html / online_battle.html に二重定義されていた「バトル演出プリミティブ」を1本化。
+// 純リファクタ=挙動完全不変が合格条件(切り出し元コードをそのまま移設。ロジック変更なし)。
+//
+// 依存(この2ページで同名グローバルが既に定義されている前提。設計docの「グローバル直参照の温存」を採用=
+// 注入点を新設せずシンプルに保つ):
+//   $(id)              … document.getElementById 相当(両ページとも `const $ = id =&gt; document.getElementById(id);`)
+//   S.typeColors()      … タイプ別カラー(両ページとも `let S` のsimブリッジ経由)
+//   SE.hitClass/miss    … WebAudio合成SE(両ページとも `const SE = {...}`)
+//   window.MOVE_FX_MAP   … move_fx_map.js(shapeOf解決用)
+//   window.BATTLE_FX_CUES … battle_fx_cues.js(演出ツクールStep4・resolveCueSheet/playCueSheet解決用)
+// これらは呼び出し時(setTimeout/イベント経由)に解決されるため、&lt;script&gt;タグの読み込み順に依存しない
+// (クラシックscript間はグローバル宣言環境を共有する)。
+//
+// トレースフック: window.__fxTrace が配列の時だけ発火記録を積む(本番は未設定=ゼロコスト)。
+// バトルトレース(設計1-5)の足がかり。フォーマット: {k, mv, shape, t: performance.now()} 等。
+
+// _fxAutoRemove: 演出要素の自己remove用ヘルパー(2026-07-16・設計_ツクール強化_炎サイズ配線とスクラブ_
+// 2026-07-15.md §3-2 段階B「本物のシーク」)。fx_editor.htmlがスクラブで止めた静止画が、このタイマーで
+// 消えてしまわないようにする。window.__FX_SCRUB__ が真の間だけ remove() をスキップする(=フラグが立って
+// いる間は要素をそのまま残す。フラグはfx_editor.html側がresetPreviewPositions()の頭で必ずfalseへ戻す)。
+// 省略時(フラグ未定義=本番real_battle.html/online_battle.html)は `setTimeout(() =&gt; el.remove(), ms)` と
+// 完全に同一(1msも挙動を変えない=絶対条件)。
+function _fxAutoRemove(el, ms){
+  setTimeout(() =&gt; { if (window.__FX_SCRUB__) return; el.remove(); }, ms);
+}
+
+// popText: variant('crit'=急所/'se'=ばつぐん)指定でポップイン強化(傾き復帰・金色glow等・Wave3 A級)
+// durMs(阿部さんFB2026-07-11 §10・演出ツクールのバーduration配線): 省略時=従来どおり固定1s(本番の挙動は
+// 1msも変わらない=絶対条件)。指定時のみ.popnumのCSSアニメ(既定rbPop 1s)をdurMsへ引き伸ばす。
+// opts(2026-07-15・設計_演出ツクール本格化_2026-07-15.md §2-1・不満B「数字の大きさ/消え方」):
+// {holdMs, fadeMs, rise}のいずれかが指定された時だけWAAPI 3相(ポップイン180ms固定→ホールド→フェード)へ
+// 切替える。省略時(=本番の既存呼び出し・cueシート無し技)は従来のCSS rbPop経由のまま1msも変えない。
+// variant(crit/se)指定時は新パラメータを無視して従来経路(まず通常数字だけ・§2-1点3)。
+const _POPTEXT_POPIN_MS = 180;   // rbPopの0〜18%(ポップイン)を再現する固定尺
+function popText(side, text, color, size, variant, durMs, opts){
+  const f = $('f-' + side);
+  const el = document.createElement('div');
+  el.className = 'popnum' + (variant ? ' popnum-' + variant : '');
+  el.textContent = text;
+  if (color) el.style.color = color;
+  if (size) el.style.fontSize = size + 'px';
+  const useWaapi = !variant &amp;&amp; opts &amp;&amp; (opts.holdMs != null || opts.fadeMs != null || opts.rise != null) &amp;&amp; typeof el.animate === 'function';
+  if (useWaapi){
+    const holdMs = opts.holdMs != null ? opts.holdMs : 0;
+    const fadeMs = opts.fadeMs != null ? opts.fadeMs : 800;
+    const rise = opts.rise != null ? opts.rise : 46;
+    const total = _POPTEXT_POPIN_MS + holdMs + fadeMs;
+    const popInFrac = _POPTEXT_POPIN_MS / total;
+    const holdEndFrac = (_POPTEXT_POPIN_MS + holdMs) / total;
+    el.style.animation = 'none';   // CSSのrbPop(既定1s)とWAAPIの二重適用を防ぐ
+    f.appendChild(el);
+    // ★罠: rbPopは全キーフレームにtranslateX(-50%)を含む(centering)。WAAPI側でも毎キーフレームに
+    // 明記しないと横位置が飛ぶ(設計docの罠として明記済み)。
+    try {
+      el.animate([
+        { opacity: 0, transform: 'translateX(-50%) translateY(6px) scale(.6)', offset: 0 },
+        { opacity: 1, transform: 'translateX(-50%) translateY(-6px) scale(1.18)', offset: popInFrac },
+        { opacity: 1, transform: 'translateX(-50%) translateY(-6px) scale(1.18)', offset: holdEndFrac },
+        { opacity: 0, transform: `translateX(-50%) translateY(${-(6 + rise)}px) scale(1)`, offset: 1 },
+      ], { duration: total, easing: 'ease', fill: 'forwards' });
+    } catch (e) {}
+    _fxAutoRemove(el, total + 100);
+    return;
+  }
+  if (durMs) el.style.animationDuration = durMs + 'ms';
+  f.appendChild(el);
+  _fxAutoRemove(el, durMs ? durMs + 100 : 1100);
+}
+// burstFx: 多層バースト(Wave2.5 S級)。既存radial-gradientの上に破片パーティクル+衝撃リング+形状(shape)別グリフを重ねる。
+// intensity: 'normal'(既定)/'up'(ばつぐん=粒子2倍+2重リング)/'crit'(急所=同様)/'down'(いまひとつ=粒子半減)
+// shape(タスクC 2026-07-11): shapeOf(mv)の解決結果(fist/blade/flame/...等28種)。省略時はグリフ無し(従来どおり)
+// durMs(阿部さんFB2026-07-11 §10): 省略時=従来どおり固定タイミング(本番の挙動は1msも変わらない=絶対条件)。
+// 指定時の</pre>
+  </details></div>
+<div class="card" id="src-battle_log_i18n_js">
+  <div><b><a href="../battle_log_i18n.js" target="_blank"><code>battle_log_i18n.js</code></a></b>
+   <span class="cols">213 KB ／ 898 行 ／ <b>先頭 4,000 文字だけ</b>(全 178,889 文字 ★1行が巨大なため文字数で切った)</span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">バトルログ多言語化(案X=表示時翻訳・演出は触らない)。
+real_battle.html / real_battle_simulator.html の両方が読み込む共有モジュール。
+- エンティティ(ポケ/技/特性/道具)は **ポケモンDBと共通の I18N(SSOT)** から訳す。
+- 固定句は TPL(パターンid→言語別テンプレ)。パターンの正規表現は PATTERNS。
+- 未登録言語/未対応パターンは ja(原文)フォールバック=壊れない・英語混在なし。演出は呼び元が ja msg を使うので無影響。
+依存: window.I18N(runtime.js)・WAZA_MAP(pokechan_data.js)。両方ロード後に使う。
+★段階導入: 高頻度パターン~16。残りパターン・翻訳は順次 TPL/PATTERNS に追加(並列WF)。</div>
+</div>
+<div style="margin:6px 0"><b>中の区切り(4)</b><ol style="margin:4px 0 0 18px;font-size:13px"><li>語彙(状態/効果/壁=COND, 溜め=SEMI)。entity以外の固定語彙を訳す。 <span class="cols">(88行目)</span></li><li>翻訳テンプレ(id → 言語別)。en 完成・他言語は並列WFで順次。未登録は ja フォールバック。 <span class="cols">(133行目)</span></li><li>パターン(順に試す)。slots: テンプレ名→{g:捕捉番号, kind} <span class="cols">(469行目)</span></li><li>言語切替時の再翻訳サポート(2026-07-03) <span class="cols">(820行目)</span></li></ol></div>
+<details style="margin:6px 0"><summary><b>できること(18個 / 説明つき 2個)</b></summary><table style="margin-top:6px"><tr><th>名前</th><th>何をするか(ファイル内のコメントから)</th><th>行</th></tr><tr><td><code>moveKey</code></td><td><span class="cols">(説明なし)</span></td><td class="num">14</td></tr><tr><td><code>I18N</code></td><td><span class="cols">(説明なし)</span></td><td class="num">22</td></tr><tr><td><code>tPokeToken</code></td><td><span class="cols">(説明なし)</span></td><td class="num">37</td></tr><tr><td><code>tSlot</code></td><td><span class="cols">(説明なし)</span></td><td class="num">46</td></tr><tr><td><code>tStat</code></td><td><span class="cols">(説明なし)</span></td><td class="num">75</td></tr><tr><td><code>tStatus</code></td><td>状態語(共有語彙 common.status_* があれば使う)</td><td class="num">82</td></tr><tr><td><code>tCond</code></td><td><span class="cols">(説明なし)</span></td><td class="num">115</td></tr><tr><td><code>tType</code></td><td><span class="cols">(説明なし)</span></td><td class="num">121</td></tr><tr><td><code>tSemi</code></td><td><span class="cols">(説明なし)</span></td><td class="num">122</td></tr><tr><td><code>tScreen</code></td><td><span class="cols">(説明なし)</span></td><td class="num">123</td></tr><tr><td><code>tWeather</code></td><td><span class="cols">(説明なし)</span></td><td class="num">128</td></tr><tr><td><code>tField</code></td><td><span class="cols">(説明なし)</span></td><td class="num">129</td></tr><tr><td><code>tForm</code></td><td><span class="cols">(説明なし)</span></td><td class="num">130</td></tr><tr><td><code>tRawfrag</code></td><td><span class="cols">(説明なし)</span></td><td class="num">131</td></tr><tr><td><code>_rememberSrc</code></td><td><span class="cols">(説明なし)</span></td><td class="num">826</td></tr><tr><td><code>translateLogLine</code></td><td><span class="cols">(説明なし)</span></td><td class="num">832</td></tr><tr><td><code>_translateCore</code></td><td><span class="cols">(説明なし)</span></td><td class="num">839</td></tr><tr><td><code>retranslateLogDom</code></td><td>対象: #log-scroll .log-line(流れるログ)と #msg-lines .ml-line(メッセージ欄)。 ja原文の復元順: ①行が覚えているdata-bl-src ②訳文→原文マップ ③textContentそのもの(ja表示中の行)。 S4対応: log-line-small(効果行)は内部の &lt;small&gt; 要素のテキストを書き換えてタグ構造を維持する。 log-line(通常行)は textContent で全書き換え(strong は失われるが再翻訳時は平文で可)。</td><td class="num">869</td></tr></table></details>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">/* バトルログ多言語化(案X=表示時翻訳・演出は触らない)。
+ * real_battle.html / real_battle_simulator.html の両方が読み込む共有モジュール。
+ * - エンティティ(ポケ/技/特性/道具)は **ポケモンDBと共通の I18N(SSOT)** から訳す。
+ * - 固定句は TPL(パターンid→言語別テンプレ)。パターンの正規表現は PATTERNS。
+ * - 未登録言語/未対応パターンは ja(原文)フォールバック=壊れない・英語混在なし。演出は呼び元が ja msg を使うので無影響。
+ * 依存: window.I18N(runtime.js)・WAZA_MAP(pokechan_data.js)。両方ロード後に使う。
+ * ★段階導入: 高頻度パターン~16。残りパターン・翻訳は順次 TPL/PATTERNS に追加(並列WF)。
+ */
+(function (global) {
+  'use strict';
+
+  // 技名(ja)→ローマ字キー(I18N.move はキー要求)。初回アクセスで構築。WAZA_MAP は const(非window)→bare参照。
+  var _moveKey = null;
+  function moveKey(jaName) {
+    if (!_moveKey) {
+      _moveKey = {};
+      var W = (typeof WAZA_MAP !== 'undefined') ? WAZA_MAP : (global.WAZA_MAP || null);
+      if (W) for (var k in W) { if (W[k] &amp;&amp; W[k].name) _moveKey[W[k].name] = W[k].key || k; }
+    }
+    return _moveKey[jaName];
+  }
+  function I18N() { return global.I18N; }
+
+  // 「相手の 」接頭の言語別テンプレ({n}=訳した名前)
+  var OPP = {
+    ja: '相手の {n}', en: 'the opposing {n}', fr: '{n} adverse', de: 'das gegnerische {n}',
+    es: 'el {n} rival', it: 'il {n} avversario', ko: '상대의 {n}',
+    'zh-Hans': '对手的{n}', 'zh-Hant': '對手的{n}',
+  };
+  // 「じぶんの 」接頭の言語別テンプレ(2026-07-18: ミラーマッチの先攻行でどちらか分かるように。
+  // 人称は本ファイル既存の流儀=tu/ton/dein系のくだけた二人称に合わせる)
+  var SELF = {
+    ja: 'じぶんの {n}', en: 'your {n}', fr: 'ton {n}', de: 'dein {n}',
+    es: 'tu {n}', it: 'il tuo {n}', ko: '내 {n}',
+    'zh-Hans': '我方的{n}', 'zh-Hant': '我方的{n}',
+  };
+  function tPokeToken(raw, lang) {
+    var opp = false, self = false, n = raw;
+    if (n.indexOf('相手の ') === 0) { opp = true; n = n.slice(4); }
+    else if (n.indexOf('じぶんの ') === 0) { self = true; n = n.slice(5); }
+    var tr = (I18N() &amp;&amp; I18N().pokemon) ? I18N().pokemon(n) : n;
+    if (opp) return (OPP[lang] || OPP.en).replace('{n}', tr);
+    if (self) return (SELF[lang] || SELF.en).replace('{n}', tr);
+    return tr;
+  }
+  function tSlot(raw, kind, lang) {
+    if (raw == null) return '';
+    if (kind === 'num' || kind === 'raw') return raw;
+    if (kind === 'poke') return tPokeToken(raw, lang);
+    if (kind === 'move') return (I18N() &amp;&amp; I18N().move) ? I18N().move(moveKey(raw) || raw, raw) : raw;
+    if (kind === 'ability') return (I18N() &amp;&amp; I18N().ability) ? I18N().ability(raw) : raw;
+    if (kind === 'item') return (I18N() &amp;&amp; I18N().item) ? I18N().item(raw) : raw;
+    return raw;
+  }
+  // 能力名(ログ中は英語rawの場合がある=attack 等)→ 言語別
+  var STAT = {
+    attack:   { en: 'Attack', fr: 'Attaque', de: 'Angriff', es: 'Ataque', it: 'Attacco', ko: '공격', 'zh-Hans': '攻击', 'zh-Hant': '攻擊' },
+    defense:  { en: 'Defense', fr: 'Défense', de: 'Verteidigung', es: 'Defensa', it: 'Difesa', ko: '방어', 'zh-Hans': '防御', 'zh-Hant': '防禦' },
+    'sp. attack':  { en: 'Sp. Atk', fr: 'Att. Spé', de: 'Sp.-Ang', es: 'At. Esp', it: 'Att. Sp', ko: '특수공격', 'zh-Hans': '特攻', 'zh-Hant': '特攻' },
+    'sp. defense': { en: 'Sp. Def', fr: 'Déf. Spé', de: 'Sp.-Vert', es: 'Def. Esp', it: 'Dif. Sp', ko: '특수방어', 'zh-Hans': '特防', 'zh-Hant': '特防' },
+    speed:    { en: 'Speed', fr: 'Vitesse', de: 'Initiative', es: 'Velocidad', it: 'Velocità', ko: '스피드', 'zh-Hans': '速度', 'zh-Hant': '速度' },
+    accuracy: { en: 'accuracy', fr: 'Précision', de: 'Genauigkeit', es: 'Precisión', it: 'Precisione', ko: '명중률', 'zh-Hans': '命中率', 'zh-Hant': '命中率' },
+    evasion:  { en: 'evasiveness', fr: 'Esquive', de: 'Fluchtwert', es: 'Evasión', it: 'Elusione', ko: '회피율', 'zh-Hans': '闪避率', 'zh-Hant': '閃避率' },
+  };
+  var STAT_JA = {
+    // 日本語ひらがな名
+    'こうげき': 'attack', 'ぼうぎょ': 'defense', 'とくこう': 'sp. attack', 'とくぼう': 'sp. defense',
+    'すばやさ': 'speed', 'めいちゅう': 'accuracy', 'めいちゅうりつ': 'accuracy', 'かいひ': 'evasion', 'かいひりつ': 'evasion',
+    // simulatorが出力する英語内部キー名(例: "special_attack ランクが +1 あがった！")
+    'special_attack': 'sp. attack', 'special_defense': 'sp. defense',
+    'sp_attack': 'sp. attack', 'sp_defense': 'sp. defense',
+    'spatk': 'sp. attack', 'spdef': 'sp. defense',
+    'atk': 'attack', 'def': 'defense', 'spd': 'speed', 'acc': 'accuracy', 'eva': 'evasion',
+  };
+  function tStat(raw, lang) {
+    if (raw ==</pre>
+  </details></div>
+<div class="card" id="src-pokechan_data_js">
+  <div><b><a href="../pokechan_data.js" target="_blank"><code>pokechan_data.js</code></a></b>
+   <span class="cols">2310 KB ／ 112 行 ／ <b>先頭 4,000 文字だけ</b>(全 1,976,064 文字 ★1行が巨大なため文字数で切った)</span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">============================================================
+pokechan_data.new.js
+T2(DB統一リビルド)生成ファイル — tools/build_champions_view.js
+入力: reference/master_{pokemon,moves,abilities}.json (T1出力)
+生成日: 2026-07-02T07:52:23.090Z
+注意: このファイルは自動生成。直接編集しない。
+============================================================</div>
+</div>
+<div style="margin:6px 0"><b>中の区切り(9)</b><ol style="margin:4px 0 0 18px;font-size:13px"><li>= <span class="cols">(1行目)</span></li><li>= <span class="cols">(7行目)</span></li><li>タイプ系 <span class="cols">(9行目)</span></li><li>ポケモン本体データ <span class="cols">(63行目)</span></li><li>わざデータ <span class="cols">(67行目)</span></li><li>ポケモン別わざリスト <span class="cols">(70行目)</span></li><li>特性説明 <span class="cols">(73行目)</span></li><li>種族値ランク <span class="cols">(76行目)</span></li><li>性格 <span class="cols">(79行目)</span></li></ol></div>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">// ============================================================
+// pokechan_data.new.js
+// T2(DB統一リビルド)生成ファイル — tools/build_champions_view.js
+// 入力: reference/master_{pokemon,moves,abilities}.json (T1出力)
+// 生成日: 2026-07-02T07:52:23.090Z
+// 注意: このファイルは自動生成。直接編集しない。
+// ============================================================
+
+// ── タイプ系 ─────────────────────────────────────────────────
+const TYPES = ["ノーマル","ほのお","みず","でんき","くさ","こおり","かくとう","どく","じめん","ひこう","エスパー","むし","いわ","ゴースト","ドラゴン","あく","はがね","フェアリー"];
+const TYPE_COLORS = {"ノーマル":"#A8A878","ほのお":"#F08030","みず":"#6890F0","でんき":"#F8D030","くさ":"#78C850","こおり":"#98D8D8","かくとう":"#C03028","どく":"#A040A0","じめん":"#E0C068","ひこう":"#A890F0","エスパー":"#F85888","むし":"#A8B820","いわ":"#B8A038","ゴースト":"#705898","ドラゴン":"#7038F8","あく":"#705848","はがね":"#B8B8D0","フェアリー":"#EE99AC"};
+const TYPE_KANJI = {
+  "ノーマル":"ノ",
+  "ほのお":"炎",
+  "みず":"水",
+  "でんき":"電",
+  "くさ":"草",
+  "こおり":"氷",
+  "かくとう":"闘",
+  "どく":"毒",
+  "じめん":"地",
+  "ひこう":"飛",
+  "エスパー":"超",
+  "むし":"虫",
+  "いわ":"岩",
+  "ゴースト":"霊",
+  "ドラゴン":"竜",
+  "あく":"悪",
+  "はがね":"鋼",
+  "フェアリー":"妖"
+};
+const TYPE_DISPLAY = {
+  "ノーマル":"ノーマ",
+  "かくとう":"かくと",
+  "エスパー":"エスパ",
+  "ゴースト":"ゴース",
+  "ドラゴン":"ドラゴ",
+  "フェアリー":"フェア"
+};
+const TYPE_OFFENSIVE_STATS = {
+  "ノーマル":{"p":0,"m":2,"x":1},
+  "ほのお":{"p":4,"m":4,"x":0},
+  "みず":{"p":3,"m":3,"x":0},
+  "でんき":{"p":2,"m":3,"x":1},
+  "くさ":{"p":3,"m":7,"x":0},
+  "こおり":{"p":4,"m":4,"x":0},
+  "かくとう":{"p":5,"m":5,"x":1},
+  "どく":{"p":2,"m":4,"x":1},
+  "じめん":{"p":5,"m":2,"x":1},
+  "ひこう":{"p":3,"m":3,"x":0},
+  "エスパー":{"p":2,"m":2,"x":1},
+  "むし":{"p":3,"m":7,"x":0},
+  "いわ":{"p":4,"m":3,"x":0},
+  "ゴースト":{"p":2,"m":1,"x":1},
+  "ドラゴン":{"p":1,"m":1,"x":1},
+  "あく":{"p":2,"m":3,"x":0},
+  "はがね":{"p":3,"m":4,"x":0},
+  "フェアリー":{"p":3,"m":3,"x":0}
+};
+
+const DEFAULT_TYPE_ORDER = ["かくとう","じめん","こおり","ひこう","はがね","でんき","あく","ほのお","いわ","みず","フェアリー","ノーマル","どく","くさ","ゴースト","ドラゴン","むし","エスパー"];
+
+// ── ポケモン本体データ ────────────────────────────────────────
+const POKEMON_LIST = [{"no":"003","name":"フシギバナ","weight_kg":100,"form":"通常","mega":false,"type1":"くさ","type2":"どく","hp":80,"atk":82,"def":83,"spatk":100,"spdef":100,"spd":80,"total":525,"ab1":"しんりょく","ab2":"ようりょくそ","ab3":"","resist":[1,2,0.5,0.5,0.25,2,0.5,1,1,2,2,1,1,1,1,1,1,0.5],"cnt4":0,"cnt2":4,"cnt1":9,"cnthf":4,"cntqf":1,"cnt0":0,"cnt42":4,"cnthfqf":5,"chouhatsu":false,"jikosaisei":false,"aquaring":false,"asanohizashi":false,"itamiwake":false,"inochinoshizuku":false,"iyashinosuzu":false,"iyashinonegai":false,"iyashinohadou":false,"kougousei":true,"chikarawosuitoru":false,"tsukinohikari":false,"namakeru":false,"negaigoto":false,"nemuru":true,"newoharu":true,"nomikomu":false,"haneyasume":false,"yadorigi":true,"tochika":false,"cottonguard":false,"takuwaeru":false,"tatekomoru":false,"dekoreeshon":false,"okatazuke":0,"saihai":false,"henshin":false,"rokkuon":false,"otakebi":false,"dokunoito":false,"kingusiirudo":false,"habaneroekisu":false,"jibasousa":false,"chounomai":false,"karawoyaburu":false,"rokkukatto":false,"togurowomaku":false,"kosumopawaa":false,"aromamisuto":false,"itowohaku":false,"tsuburanahitomi":false,"tsubowotsuku":false,"namidame":false,"fezadansu":false,"watahoushi":false,"ikarinokona":false,"konoyubitomare":false,"sakiokuri":false,"utau":false,"hebinirami":false,"supiidosuwappu":false,"horobinouta":false,"nebanebanetto":false,"oororaberu":false,"waidogaado":false,"fasutogaado":false,"ryuunomai":false,"amaikaori":true,"kaidenpa":false,"kinzokuon":false,"kusuguru":false,"osakinidouzo":false,"koochingu":false,"saidochenji":false,"tooboe":false,"doragoneeru":false,"niidorugaado":false,"mikiri":false,"tokeru":false,"dowasure":true,"makibishi":false,"dokubishi":false,"birudoappu":false,"kiaidame":false,"iyanaoto":false,"juuden":false,"shibiregona":false,"dokunokona":true,"nemurigona":true,"gaadoshea":false,"gaadosuwappu":false,"kiribarai":false,"denjifuyuu":false,"pawaashea":false,"pawaasuwappu":false,"pawaatorikku":false,"manekko":false,"nihonbare":true,"amagoi":false,"sunaarashi":false,"</pre>
+  </details></div>
+<div class="card" id="src-pokechan_data_all_js">
+  <div><b><a href="../pokechan_data_all.js" target="_blank"><code>pokechan_data_all.js</code></a></b>
+   <span class="cols">4420 KB ／ 19 行 ／ <b>先頭 4,000 文字だけ</b>(全 3,145,985 文字 ★1行が巨大なため文字数で切った)</span></div>
+  <div style="background:#f4f8ff;border-left:4px solid #6a9fd8;padding:10px 14px;margin:8px 0;border-radius:0 6px 6px 0">
+<div style="font-weight:bold;margin-bottom:4px">このファイルは何をするもの?</div>
+<div style="white-space:pre-wrap;font-size:13px;line-height:1.6">AUTO-GENERATED by tools/_build_pokechan_data_all.js — 編集しない。元データ=reference/*.json + learnsets_master.json
+全国版(全部版)共通DB。pokechan_data.js と同一schema。新ポケ/技追加時は reference 再生成→本ビルダー再実行のみ。</div>
+</div>
+  <details><summary>プログラムのそのままの中身を見る(読めなくて大丈夫)</summary>
+  <pre style="background:#1e1e22;color:#e6e6e6;padding:12px;border-radius:6px;overflow:auto;max-height:70vh;font-size:12px;line-height:1.5">// AUTO-GENERATED by tools/_build_pokechan_data_all.js — 編集しない。元データ=reference/*.json + learnsets_master.json
+// 全国版(全部版)共通DB。pokechan_data.js と同一schema。新ポケ/技追加時は reference 再生成→本ビルダー再実行のみ。
+const TYPES = ["ノーマル","ほのお","みず","でんき","くさ","こおり","かくとう","どく","じめん","ひこう","エスパー","むし","いわ","ゴースト","ドラゴン","あく","はがね","フェアリー"];
+const TYPE_COLORS = {"ノーマル":"#A8A878","ほのお":"#F08030","みず":"#6890F0","でんき":"#F8D030","くさ":"#78C850","こおり":"#98D8D8","かくとう":"#C03028","どく":"#A040A0","じめん":"#E0C068","ひこう":"#A890F0","エスパー":"#F85888","むし":"#A8B820","いわ":"#B8A038","ゴースト":"#705898","ドラゴン":"#7038F8","あく":"#705848","はがね":"#B8B8D0","フェアリー":"#EE99AC"};
+const TYPE_KANJI = {"ノーマル":"ノ","ほのお":"炎","みず":"水","でんき":"電","くさ":"草","こおり":"氷","かくとう":"闘","どく":"毒","じめん":"地","ひこう":"飛","エスパー":"超","むし":"虫","いわ":"岩","ゴースト":"霊","ドラゴン":"竜","あく":"悪","はがね":"鋼","フェアリー":"妖"};
+const TYPE_DISPLAY = {"ノーマル":"ノーマ","かくとう":"かくと","エスパー":"エスパ","ゴースト":"ゴース","ドラゴン":"ドラゴ","フェアリー":"フェア"};
+const TYPE_OFFENSIVE_STATS = {"ノーマル":{"p":0,"m":2,"x":1},"ほのお":{"p":4,"m":4,"x":0},"みず":{"p":3,"m":3,"x":0},"でんき":{"p":2,"m":3,"x":1},"くさ":{"p":3,"m":7,"x":0},"こおり":{"p":4,"m":4,"x":0},"かくとう":{"p":5,"m":5,"x":1},"どく":{"p":2,"m":4,"x":1},"じめん":{"p":5,"m":2,"x":1},"ひこう":{"p":3,"m":3,"x":0},"エスパー":{"p":2,"m":2,"x":1},"むし":{"p":3,"m":7,"x":0},"いわ":{"p":4,"m":3,"x":0},"ゴースト":{"p":2,"m":1,"x":1},"ドラゴン":{"p":1,"m":1,"x":1},"あく":{"p":2,"m":3,"x":0},"はがね":{"p":3,"m":4,"x":0},"フェアリー":{"p":3,"m":3,"x":0}};
+const DEFAULT_TYPE_ORDER = ["かくとう","じめん","こおり","ひこう","はがね","でんき","あく","ほのお","いわ","みず","フェアリー","ノーマル","どく","くさ","ゴースト","ドラゴン","むし","エスパー"];
+const POKEMON_LIST = [{"no":"001","name":"フシギダネ","gen":1,"season":[],"legend":"","form":"通常","mega":false,"weight_kg":null,"type1":"くさ","type2":"どく","hp":45,"atk":49,"def":49,"spatk":65,"spdef":65,"spd":45,"total":318,"ab1":"しんりょく","ab2":"ようりょくそ","ab3":"","resist":[1,2,0.5,0.5,0.25,2,0.5,1,1,2,2,1,1,1,1,1,1,0.5]},{"no":"002","name":"フシギソウ","gen":1,"season":[],"legend":"","form":"通常","mega":false,"weight_kg":null,"type1":"くさ","type2":"どく","hp":60,"atk":62,"def":63,"spatk":80,"spdef":80,"spd":60,"total":405,"ab1":"しんりょく","ab2":"ようりょくそ","ab3":"","resist":[1,2,0.5,0.5,0.25,2,0.5,1,1,2,2,1,1,1,1,1,1,0.5]},{"no":"003","name":"フシギバナ","gen":1,"season":["M-A","M-B"],"legend":"","form":"通常","mega":false,"weight_kg":100,"type1":"くさ","type2":"どく","hp":80,"atk":82,"def":83,"spatk":100,"spdef":100,"spd":80,"total":525,"ab1":"しんりょく","ab2":"ようりょくそ","ab3":"","resist":[1,2,0.5,0.5,0.25,2,0.5,1,1,2,2,1,1,1,1,1,1,0.5]},{"no":"004","name":"ヒトカゲ","gen":1,"season":[],"legend":"","form":"通常","mega":false,"weight_kg":null,"type1":"ほのお","type2":"","hp":39,"atk":52,"def":43,"spatk":60,"spdef":50,"spd":65,"total":309,"ab1":"もうか","ab2":"サンパワー","ab3":"","resist":[1,0.5,2,1,0.5,0.5,1,1,2,1,1,0.5,2,1,1,1,0.5,0.5]},{"no":"005","name":"リザード","gen":1,"season":[],"legend":"","form":"通常","mega":false,"weight_kg":null,"type1":"ほのお","type2":"","hp":58,"atk":64,"def":58,"spatk":80,"spdef":65,"spd":80,"total":405,"ab1":"もうか","ab2":"サンパワー","ab3":"","resist":[1,0.5,2,1,0.5,0.5,1,1,2,1,1,0.5,2,1,1,1,0.5,0.5]},{"no":"006","name":"リザードン","gen":1,"season":["M-A","M-B"],"legend":"","form":"通常","mega":false,"weight_kg":90.5,"type1":"ほのお","type2":"ひこう","hp":78,"atk":84,"def":78,"spatk":109,"spdef":85,"spd":100,"total":534,"ab1":"もうか","ab2":"サンパワー","ab3":"","resist":[1,0.5,2,2,0.25,1,0.5,1,0,1,1,0.25,4,1,1,1,0.5,0.5]},{"no":"007","name":"ゼニガメ","gen":1,"season":[],"legend":"","form":"通常","mega":false,"weight_kg":null,"type1":"みず","type2":"","hp":44,"atk":48,"def":65,"spatk":50,"spdef":64,"spd":43,"total":314,"ab1":"げきりゅう","ab2":"あめうけざら","ab3":"","resist":[1,0.5,0.5,2,2,0.5,1,1,1,1,1,1,1,1,1,1,0.5,1]},{"no":"008","name":"カメール","gen":1,"season":[],"legend":"","form":"通常","mega":false,"weight_kg":null,"type1":"みず","type2":"","hp":59,"atk":63,"def":80,"spatk":65,"spdef":80,"spd":58,"total":405,"ab1":"げきりゅう","ab2":"あめうけざら","ab3":"","resist":[1,0.5,0.5,2,2,0.5,1,1,1,1,1,1,1,1,1,1,0.5,1]},{"no":"009","name":"カメックス","gen":1,"season":["M-A","M-B</pre>
+  </details></div>
 <h2>4. 権威(外の情報源から取ってきた正典)</h2>
 <table><tr><th>ファイル</th><th>件数</th><th>取得日</th></tr>
 <tr><td><code>reference/_authority_corpus_ch/abilities_ch.json</code></td><td>315</td><td>2026-07-28</td></tr>
@@ -105,6 +3100,7 @@ code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:13px}
 <p>★<b>逆流(生成物→マスターデータ)は禁止</b>。赤は循環しているもの。</p>
 <table><tr><th>スクリプト</th><th>入力</th><th>出力</th><th>判定</th></tr>
 <tr><td><code>tools/_master_diff.js</code></td><td><code>pokechan_data.js</code><br><code>pokechan_data_all.js</code><br><code>items_database.js</code></td><td><code>reference/_master_diff.json</code><br><code>review/マスターデータ差分.html</code></td><td class="bad">❌ 循環</td></tr>
+<tr><td><code>tools/_verify_master_glm.js</code></td><td><code>pokechan_data.js</code><br><code>pokechan_data_all.js</code><br><code>items_database.js</code></td><td><code>reference/_verify_master.json</code></td><td class="bad">❌ 循環</td></tr>
 <tr><td><code>tools/build_master.js</code></td><td><code>pokechan_data.js</code><br><code>reference/pokeapi_master.json</code><br><code>reference/moves_master.json</code><br><code>reference/abilities_master.json</code><br><code>reference/items_master.json</code><br><code>reference/moves_battle_data_fix.json</code></td><td><code>master_pokemon.json</code><br><code>master_moves.json</code><br><code>master_abilities.json</code><br><code>master_items.json</code></td><td class="bad">❌ 循環</td></tr>
 <tr><td><code>tools/_apply_built_effects.js</code></td><td><code>../reference/_move_flags.json</code><br><code>../pokechan_data_all.js</code></td><td><code>./reference/moves_battle_data_fix.json</code><br><code>./reference/_move_flags.json</code><br><code>./reference/_build_holes.json</code></td><td class="ok">✅</td></tr>
 <tr><td><code>tools/_apply_yakkun_scrape.js</code></td><td><code>../pokechan_data_all.js</code><br><code>../reference/_yk_scraped.json</code><br><code>../reference/moves_yakkun.json</code></td><td><code>./reference/moves_yakkun.json</code><br><code>./reference/_yk_missing.json</code></td><td class="ok">✅</td></tr>
@@ -123,7 +3119,6 @@ code{background:#f0f0f0;padding:1px 5px;border-radius:3px;font-size:13px}
 <tr><td><code>tools/_fix_ssot_types.js</code></td><td><code>pokechan_data.js</code></td><td><code>pokechan_data.js</code></td><td class="ok">✅</td></tr>
 <tr><td><code>tools/_repro_lang_switch_en.js</code></td><td>-</td><td><code>${SHOT_DIR}/lang_switch_repro_result.json</code></td><td class="ok">✅</td></tr>
 <tr><td><code>tools/_repro_midbattle_switch.js</code></td><td>-</td><td><code>${SHOT_DIR}/midbattle_switch_result.json</code></td><td class="ok">✅</td></tr>
-<tr><td><code>tools/_sim_behavior_all.js</code></td><td><code>pokechan_data_all.js</code></td><td><code>reference/_sim_behavior_result.json</code></td><td class="ok">✅</td></tr>
 </table>
 <h2>6. 番人(破ったら落ちる検査)</h2>
 <p><code>node tools/_ssot_guard_test.js</code> ／ 基準より悪化したら赤。★<b>基準を上げて通すのは禁止</b>。</p>

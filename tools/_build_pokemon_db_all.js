@@ -3,8 +3,8 @@
 // 絵=自作オリジナル絵(images/sim)既定(AdSense対策・案A・2026-07-20 阿部さん確定)。PokeAPI公式絵は初期表示に出さない。
 // 実行: node tools/_build_pokemon_db_all.js → pokemon_db_all.html
 const fs=require('fs');
-const D=JSON.parse(fs.readFileSync('reference/pokeapi_master.json','utf8'));
-const ABJA={};JSON.parse(fs.readFileSync('reference/abilities_master.json','utf8')).forEach(a=>{ABJA[a.slug]=a.names.ja||a.names.en||a.slug;});
+const D=JSON.parse(fs.readFileSync('reference/_old_master/pokeapi_master.json','utf8'));
+const ABJA={};JSON.parse(fs.readFileSync('reference/_old_master/abilities_master.json','utf8')).forEach(a=>{ABJA[a.slug]=a.names.ja||a.names.en||a.slug;});
 const abj=s=>ABJA[s]||s;
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const enc=s=>encodeURIComponent(s);
@@ -13,7 +13,7 @@ const TC={normal:'#9fa19f',fire:'#e62829',water:'#2980ef',electric:'#fac000',gra
 // 全国版マスター(master_pokemon.json)の id→names.ja は images/sim/{ja}.svg のファイル名と一致する
 // (pokemon/all.html 生成=tools/_gen_content_pages.js の imgCells と同じ規則。id は pokeapi_master.json と共通キー)。
 let SIM_JA={};
-try{ JSON.parse(fs.readFileSync('reference/master_pokemon.json','utf8')).forEach(e=>{ if(e&&e.names&&e.names.ja!=null) SIM_JA[e.id]=e.names.ja; }); }
+try{ JSON.parse(fs.readFileSync('reference/_old_master/master_pokemon.json','utf8')).forEach(e=>{ if(e&&e.names&&e.names.ja!=null) SIM_JA[e.id]=e.names.ja; }); }
 catch(e){ console.log('⚠ master_pokemon.json 無し: オリジナル絵は種族名ベースにフォールバック'); }
 // ★AdSense対策・案A(2026-07-20 阿部さん確定): 既定=自作オリジナル絵(images/sim/{ja}.svg→.png→非表示)。
 // PokeAPI公式絵(images/poke/{id}.png、無ければ raw.githubusercontent)は既定で配線しない=初期表示のネットワーク要求ゼロ。
