@@ -196,13 +196,26 @@ function buildItems() {
   const authNames = new Set((AUTH.lists.items.rows || []).map(r => r[0]));
   const authEffect = {}; (AUTH.lists.items.rows || []).forEach(r => { authEffect[r[0]] = r[1]; });
 
+  // ★メガストーンの「戦闘中1回だけ」復元(2026-08-01 阿部さん決定「残していい」)
+  //   権威(/ch/)の一覧文には無いが、旧データが持っていた事実(メガシンカは戦闘中1回)を失わない。
+  //   ・「にメガシンカさせる。」の直後に差し込む(入手方法の文は一字も変えない=足さず減らさず)
+  //   ・定型「2000VPで購入する。」だけは承認済みの「(2000VPで購入)」形式に
+  const restoreOncePerBattle = (t) => {
+    if (!t || t.includes('戦闘中1回') || !t.includes('にメガシンカさせる。')) return t;
+    let s = t.replace(/『(メガ[^』]+)』にメガシンカさせる。/, '$1にメガシンカさせる。'); // 『』の表記ゆれ統一
+    s = s.replace('にメガシンカさせる。', 'にメガシンカさせる。戦闘中1回だけ。');
+    s = s.replace(/戦闘中1回だけ。2000VPで購入する。$/, '戦闘中1回だけ。(2000VPで購入)');
+    return s;
+  };
+
   const items = ours.map(it => {
     const inCh = authNames.has(it.name);
+    const rawEffect = inCh ? (authEffect[it.name] || it.effect || null) : (it.effect || null);
     return Object.assign({
       slug: it.key || null,
       name: it.name, display_name: it.name, name_en: it.name_en || null,
       category: it.category || null,
-      effect_ja: inCh ? (authEffect[it.name] || it.effect || null) : (it.effect || null),
+      effect_ja: (it.category === 'mega_stone') ? restoreOncePerBattle(rawEffect) : rawEffect,
       // ★applies_to は「基本名」で書かれていることがある(例: ニャオニクスナイト → 『ニャオニクス』)。
       //   マスターの名前はフォーム名(『ニャオニクス(オスのすがた)』)なので、そのままでは一致せず
       //   **メガシンカが到達不能になる**(2026-07-30 GLMの独立検算で発見。フラエッテナイトと同じ型)。
