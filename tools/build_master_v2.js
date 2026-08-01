@@ -57,12 +57,44 @@ const NAMEMAP = (() => {
 const zen2han = s => String(s == null ? '' : s).replace(/[０-９Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 const norm = s => zen2han(s).replace(/[()（）\s]/g, '').replace(/のすがた|フォルム/g, '');
 const stamp = (src) => ({ source: src, verified_at: NOW });
+// ★世代の控え: 全国版に行が無い(メガ/Champions権威由来)場合は図鑑No.から種の世代を出す
+//   慣例に合わせる: 地方のすがたも元の種の世代(コラッタ(アローラ)=1・メガフシギバナ=1)
+const genFromNo = (no) => {
+  const n = Number(no);
+  if (!Number.isFinite(n) || n < 1) return null;
+  if (n <= 151) return 1; if (n <= 251) return 2; if (n <= 386) return 3;
+  if (n <= 493) return 4; if (n <= 649) return 5; if (n <= 721) return 6;
+  if (n <= 809) return 7; if (n <= 905) return 8; if (n <= 1025) return 9;
+  return null;
+};
 // ★決められない値は勝手に決めず null を入れて unknowns に積む(推測で埋めない)
 const unknowns = [];
 const unk = (kind, key, why) => { unknowns.push({ kind, key, why }); return null; };
 
 if (!fs.existsSync(OUT)) fs.mkdirSync(OUT, { recursive: true });
+// ★verified_at の保全: 中身が1バイトも変わらない行は前回の日付を保つ
+//   (再ビルドのたびに919件の日付だけが書き変わり、本当の差分が埋もれていた 2026-07-31 宿題)
+const keepDates = (name, obj) => {
+  try {
+    // ★J()はROOT起点の相対パス専用。ここは絶対パスなので fs を直接使う
+    const prev = JSON.parse(fs.readFileSync(path.join(OUT, name), 'utf8'));
+    if (!Array.isArray(obj.items) || !Array.isArray(prev.items)) return;
+    const keyOf = it => `${it.slug ?? ''}|${it.no ?? ''}|${it.name ?? ''}|${it.form ?? ''}`;  // slug=同名Zワザ(物理/特殊)の区別
+    const bodyOf = it => JSON.stringify(Object.assign({}, it, { verified_at: null }));
+    const prevMap = new Map();
+    prev.items.forEach(it => {
+      const k = keyOf(it);
+      prevMap.set(k, prevMap.has(k) ? null : it);  // キー重複は安全側=保全しない
+    });
+    obj.items.forEach(it => {
+      if (!('verified_at' in it)) return;
+      const old = prevMap.get(keyOf(it));
+      if (old && old.verified_at && bodyOf(old) === bodyOf(it)) it.verified_at = old.verified_at;
+    });
+  } catch (e) { /* 前回ファイルが無ければそのまま */ }
+};
 const write = (name, obj) => {
+  keepDates(name, obj);
   fs.writeFileSync(path.join(OUT, name), JSON.stringify(obj, null, 1) + '\n');
   const n = Array.isArray(obj.items) ? obj.items.length : (obj.count || '?');
   console.log(`  ✍ master/${name}  ${n}件`);
@@ -292,7 +324,7 @@ function buildPokemon() {
       spatk: stat('spatk'), spdef: stat('spdef'), spd: stat('spd'), total: stat('total'),
       ab1: p.ab1 || null, ab2: p.ab2 || null, ab3: p.ab3 || null,
       weight_kg: p.weight_kg != null ? p.weight_kg : null,
-      gen: (e.nat && e.nat.gen) || null, legend: (e.nat && e.nat.legend) || null,
+      gen: (e.nat && e.nat.gen) || genFromNo(p.no), legend: (e.nat && e.nat.legend) || null,
       resist: p.resist || null,
       champions: inCh,
       regulation: inCh ? REGULATION : null,
