@@ -316,7 +316,14 @@ function buildPokemon() {
   const authStats = {}; (AUTH.lists.stats.rows || []).forEach(r => { authStats[norm(r[1])] = r; });
 
   const all = new Map();
-  A.POKEMON_LIST.forEach(p => all.set(p.name, { nat: p }));
+  // ★全国版側にも正式名称変換(NAMEMAP)をかける(2026-08-01)。
+  //   これが無いと『ケンタロス(パルデア・combat-breed)』(全国版の英語名残骸)と
+  //   『ケンタロス(パルデア単)』(Champions)が別キーになり、同じポケモンが二重に載る。
+  //   両方を同じ正式名称に変換すれば、この合流Mapが自然に1行へ統合する。
+  A.POKEMON_LIST.forEach(p => {
+    const off = (NAMEMAP[p.name] && NAMEMAP[p.name].official_name) || p.name;
+    all.set(off, { nat: p });
+  });
   C.POKEMON_LIST.forEach(p => {
     const officialRow = NAMEMAP[p.name];
     const official = (officialRow && officialRow.official_name) ? officialRow.official_name : p.name;
@@ -398,12 +405,70 @@ function buildLearnsets() {
       ours_had: oursNames ? oursNames.length : 0,
     }, stamp(learnSrc));
   });
+  // ★全国版(非Champions)の覚える技を追加(2026-08-01 阿部さん決定)
+  //   目的=Championsに新ポケモンが追加されたら即対応できる下ごしらえ。
+  //   出典=PokeAPI(tools/_fetch_national_learnsets.js の生データ)。canonルール②「無ければ最新世代」。
+  //   ・learn        = その体が入っている最新の作品(version group)で覚えられる技
+  //   ・learn_legacy = それより前の世代にしか無い技(★9世代までに廃止=含めて廃止マーク方式)
+  //   ・Championsに追加されたら: 9世代との差分を champions_diff として記録→権威値で上書き(canonルール③)
+  const nationalRows = buildNationalLearnsets(new Set(items.map(x => x.name)));
+  const all = items.concat(nationalRows);
   write('learnsets.json', { meta: META('覚える技と没収技', {
     note: 'confiscated=Championsで没収された技。本番(リアルバトル)では出さない。ラボではON/OFFを選べる。',
-  }), count: items.length,
-    total_learn: items.reduce((s, x) => s + x.learn.length, 0),
-    total_confiscated: items.reduce((s, x) => s + x.confiscated.length, 0), items });
-  return items.length;
+    note_national: 'champions=false の行は PokeAPI由来の暫定(source=pokeapi_provisional)。learn=最新作品の技 / learn_legacy=過去世代のみ(廃止)。',
+  }), count: all.length,
+    champions_count: items.length,
+    total_learn: all.reduce((s, x) => s + x.learn.length, 0),
+    total_confiscated: all.reduce((s, x) => s + (x.confiscated || []).length, 0), items: all });
+  return all.length;
+}
+
+// 全国版の覚える技(PokeAPI生データ → master行)。生データが無ければ空(段階導入)
+function buildNationalLearnsets(championsNames) {
+  let raw;
+  try { raw = J('reference/_pokeapi_learnsets_raw.json'); } catch (e) { return []; }
+  // version group → 順序(新しいほど大きい)。PokeAPIの版名
+  const VG_ORDER = ['red-blue','yellow','gold-silver','crystal','ruby-sapphire','colosseum','xd','emerald',
+    'firered-leafgreen','diamond-pearl','platinum','heartgold-soulsilver','black-white','black-2-white-2',
+    'x-y','omega-ruby-alpha-sapphire','sun-moon','ultra-sun-ultra-moon','lets-go-pikachu-lets-go-eevee',
+    'sword-shield','brilliant-diamond-and-shining-pearl','legends-arceus','scarlet-violet'];
+  const vgRank = {}; VG_ORDER.forEach((v, i) => { vgRank[v] = i; });
+  // 技slug → うちの技名(master moves)
+  const moveJa = {}; // buildMoves と同じ元(全国版WAZA_MAP)から
+  Object.entries(A.WAZA_MAP).forEach(([slug, m]) => { moveJa[slug] = zen2han(m.name); });
+
+  // ★名前はslug経由で「いまの」master/pokemon.json から引く(取得時の名前は古くなり得る=名前替えに強く)
+  let nameBySlug = {};
+  try {
+    const pk = JSON.parse(fs.readFileSync(path.join(OUT, 'pokemon.json'), 'utf8'));
+    pk.items.forEach(p => { if (p.slug) nameBySlug[p.slug] = p.name; });
+  } catch (e) {}
+
+  const rows = [];
+  Object.entries(raw.fetched || {}).forEach(([slug, d0]) => {
+    const d = Object.assign({}, d0, { name: nameBySlug[slug] || d0.name });
+    if (championsNames.has(d.name)) return;   // Champions行が正典(上書きしない)
+    // その体が入っている最新の作品
+    let latest = -1;
+    (d.moves || []).forEach(mv => mv.vgs.forEach(v => { if ((vgRank[v] ?? -1) > latest) latest = vgRank[v]; }));
+    const latestVg = latest >= 0 ? VG_ORDER[latest] : null;
+    const learn = [], legacy = [], unmapped = [];
+    (d.moves || []).forEach(mv => {
+      const ja = moveJa[mv.move];
+      const inLatest = latestVg && mv.vgs.includes(latestVg);
+      if (!ja) { unmapped.push(mv.move); return; }   // うちの919技に無い(でっち上げない)
+      (inLatest ? learn : legacy).push(ja);
+    });
+    rows.push({
+      slug, name: d.name, display_name: d.name, no: d.no != null ? Number(d.no) : null,
+      learn: learn.sort(), learn_legacy: legacy.sort(),
+      unmapped_moves: unmapped.sort(),                  // 正直に残す(Zワザ等・後で精査)
+      latest_version_group: latestVg,
+      confiscated: [], champions: false, regulation: null,
+      source: 'pokeapi_provisional', verified_at: NOW,
+    });
+  });
+  return rows.sort((a, b) => (a.no || 9999) - (b.no || 9999) || String(a.name).localeCompare(String(b.name), 'ja'));
 }
 
 // ══════════════════════════════════════════════════════════════════

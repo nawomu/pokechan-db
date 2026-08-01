@@ -150,6 +150,18 @@ for name in list(pending.keys()):
                          'method': 'ours_champions_mega'}  # ★PokeAPIに無い独自slug
         del pending[name]
 
+# ── 手動の上書き(理由必須。安易に増やさない) ──────────────────────
+OVERRIDES = {
+    # PokeAPIが雌雄でエントリを分割済み(旧snapshotの 'frillish'/'jellicent' は現APIで404。
+    # 2026-08-01 実測: species frillish の varieties = ['frillish-male'])。既定=オスを採る
+    'プルリル': ('frillish-male', 'pokeapi_split_gender'),
+    'ブルンゲル': ('jellicent-male', 'pokeapi_split_gender'),
+}
+for ja, (slug, why) in OVERRIDES.items():
+    if ja in matched or ja in pending:
+        matched[ja] = {'slug': slug, 'method': f'override({why})'}
+        pending.pop(ja, None)
+
 # ── 最終検査: slugの重複(照合ミスの兆候)──────────────────────────
 cnt = Counter(v['slug'] for v in matched.values())
 dups = {s for s, n in cnt.items() if n > 1}
