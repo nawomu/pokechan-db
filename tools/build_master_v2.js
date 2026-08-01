@@ -359,9 +359,30 @@ function buildPokemon() {
       champions: inCh,
       regulation: inCh ? REGULATION : null,
     }, stamp(inCh && au ? 'champions_authority' : (inCh ? 'ours_champions' : 'ours_national')));
-  }).sort((a, b) => (a.no || 9999) - (b.no || 9999) || String(a.name).localeCompare(String(b.name), 'ja'));
+  });
 
-  write('pokemon.json', { meta: META('ポケモン'), count: items.length,
+  // ★手動追加(器を広げる時の入力。旧生成物に手書きしない・2026-08-01 新設)
+  try {
+    const adds = J('reference/_pokemon_additions.json');
+    const have = new Set(items.map(x => x.name));
+    (adds.items || []).forEach(a => {
+      if (have.has(a.name)) return;                 // すでに居れば足さない(二重防止)
+      items.push(Object.assign({}, a, { verified_at: NOW }));
+    });
+  } catch (e) {}
+
+  // ★備考欄(阿部さん指示 2026-08-01「マスターに説明欄を絶対入れる。Claudeのため」)
+  //   特殊なポケモン(見た目だけの色違いフォルム/バトル中しかならない姿/内部で別フォルム等)の意味を持たせる
+  try {
+    const notes = J('reference/_pokemon_notes.json').notes || {};
+    items.forEach(x => { if (x.slug && notes[x.slug]) x.note = notes[x.slug]; });
+  } catch (e) {}
+
+  items.sort((a, b) => (a.no || 9999) - (b.no || 9999) || String(a.name).localeCompare(String(b.name), 'ja'));
+
+  write('pokemon.json', { meta: META('ポケモン', {
+    note_field: 'note=備考(そのポケモンの特殊事情。見た目だけのフォルム違い/バトル中限定の姿など。元=reference/_pokemon_notes.json)',
+  }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
 }
