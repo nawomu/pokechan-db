@@ -53,6 +53,16 @@ const NAMEMAP = (() => {
   } catch (e) { return {}; }
 })();
 
+// ★英語slug対応表(tools/_match_pokemon_slugs.py が生成。種族値+タイプ+特性の一致で検証済み)
+const SLUGMAP = (() => {
+  try {
+    const d = J('reference/_pokemon_slug_map.json');
+    const m = {};
+    (d.matched || []).forEach(r => { m[r.name] = r.slug; });
+    return m;
+  } catch (e) { return {}; }
+})();
+
 // ── 共通ヘルパ ──────────────────────────────────────────────────────
 const zen2han = s => String(s == null ? '' : s).replace(/[０-９Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
 const norm = s => zen2han(s).replace(/[()（）\s]/g, '').replace(/のすがた|フォルム/g, '');
@@ -314,7 +324,7 @@ function buildPokemon() {
       return p[k] != null ? p[k] : null;
     };
     return Object.assign({
-      slug: null,                                    // ★英語slugは未確定(PokeAPI照合が要る)
+      slug: SLUGMAP[name] || null,                   // ★検証済み対応表から(無ければ null のまま=推測で埋めない)
       no: p.no != null ? Number(p.no) : null,
       name,                                          // ★正式名称
       display_name: e.display || name,               // ★画面用の短い名前
@@ -361,8 +371,13 @@ function buildLearnsets() {
     if (au && !authLooksBroken(au.learn)) { learn = au.learn; learnSrc = 'champions_authority'; }
     else if (oursNames) { learn = oursNames; learnSrc = au ? 'ours_champions(権威の抽出が壊れていたため)' : 'ours_champions'; }
     else { learn = unk('learnset', p.name, '権威の抽出が壊れており、うちにも学習データが無い'); learnSrc = 'unknown'; }
+    // ★名前はポケモン本体(pokemon.json)と同じ正式名称に揃える(NAMEMAP)。
+    //   これまで Champions表記(イダイトウ♂ 等)のままで、名前照合が30体分切れていた(2026-08-01 発見)
+    const officialRow = NAMEMAP[p.name];
+    const official = (officialRow && officialRow.official_name) ? officialRow.official_name : p.name;
     return Object.assign({
-      name: p.name, display_name: p.name, no: p.no != null ? Number(p.no) : null,
+      slug: SLUGMAP[official] || SLUGMAP[p.name] || null,
+      name: official, display_name: p.name, no: p.no != null ? Number(p.no) : null,
       learn: learn || [],
       confiscated: au ? (au.lost || []) : [],        // ★Championsで没収された技(ラボのON/OFF用)
       champions: true, regulation: REGULATION,
