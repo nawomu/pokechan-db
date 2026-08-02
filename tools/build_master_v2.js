@@ -232,7 +232,19 @@ function buildItems() {
       regulation: inCh ? REGULATION : null,
     }, stamp(inCh ? 'champions_authority' : 'ours_national'));
   });
-  write('items.json', { meta: META('持ち物'), count: items.length,
+  // ★監査で確定した修正を適用(reference/_items_fixes.json・全件根拠つき。2026-08-02 阿部さん承認)
+  try {
+    const fx = J('reference/_items_fixes.json').fixes || {};
+    items.forEach(it => {
+      const f = fx[it.name];
+      if (!f) return;
+      ['name_en', 'category', 'effect_ja'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
+    });
+  } catch (e) {}
+
+  write('items.json', { meta: META('持ち物', {
+    fixes: '監査確定の修正は reference/_items_fixes.json(根拠つき)から適用',
+  }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
 }
