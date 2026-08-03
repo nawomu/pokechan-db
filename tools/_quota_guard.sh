@@ -11,6 +11,11 @@
 #    → 閾値は大きめにし、**アプリの「現在のセッション %」が正**。ガードは"暴走検知"用の粗い保険と位置づける。
 #    → 既定を cost150 / tokens 8M に引き上げ(2026-07-28)。危なくなったら阿部さんの画面表示で判断する。
 # ★週間枠(金曜21:59リセット)は本ガードで測れない。週後半に44%超なら重いファンアウトはGLMへ移すこと。
+#  2026-08-02 ★重大な校正発見: ccusageは**Workflowサブエージェント(Sonnet)の消費を写さない**。
+#    実測: Sonnet 5.7M焼いて上限到達した直後に、本ガードの読みは57万token(fableのみ)だった。
+#    → ワークフロー型キャンペーンの残量管理には本ガードは使えない。
+#    → 正= 各Workflow完了通知の <usage>subagent_tokens</usage> を帳簿づけし、1窓4.5M(≒80%)手前で自主停止。
+#      帳簿と規則は scratchpad/audit_campaign_state.json 側に持つ。
 set -o pipefail
 export QG_MAX_COST="${QG_MAX_COST:-150}"
 export QG_MAX_TOKENS="${QG_MAX_TOKENS:-8000000}"
