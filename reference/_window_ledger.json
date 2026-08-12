@@ -3,9 +3,9 @@
  "why": "ccusage は Workflowサブエージェント(Sonnet)の消費を写さない(2026-08-02実測)。帳簿を足さないと過小評価になり、tools/_usage_monitor.sh の --warn 通知が『鳴らないまま窓が死ぬ』。帳簿がセッション専用scratchpadにあると他の窓から見えない=同じ穴が空く(2026-08-13 0812-2窓が実測で発見)。",
  "rule_no_guess": "★推測値を confirmed に混ぜない(CLAUDE.md『推測で埋めない』/unknownを一級市民に)。走行中で実測がまだ無いものは running[] に estimate として置き、完了通知の subagent_tokens が出たら confirmed[] へ移して estimate を消す。監視ツールは confirmed_pct と estimated_pct の2本立てで出す(2026-08-13 0812-2窓の指摘で是正)。",
  "how": "重い並列作業を起動した窓が running[] に {run, who, what, estimate, basis} を書く → 完了通知が来たら confirmed[] に実測 tokens で移す。窓が変わったら(block_end_jstを跨いだら) confirmed/running を空にし spent_subagent_tokens=0・window_start と block_end_jst を新窓に reset。",
- "cap_tokens": 9000000,
- "budget_tokens": 5400000,
- "calibration": "2026-08-12 阿部さんの使用量画面: 帳簿4.28M+メイン消費 = アプリ表示47%(Max 5x) → 1窓の実容量≈9M(subagent換算)・予算80%≈7M",
+ "cap_tokens": 35155572,
+ "budget_tokens": 21093343,
+ "calibration": "★2026-08-13 09:20頃 阿部さんの使用量画面=40% の瞬間に実測: 帳簿7,128,763+ccusage6,933,466=14,062,229 → cap≈35,155,572(=100%)。予算60%=21,093,343",
  "calibration_todo": "★1点校正のまま。次に阿部さんの使用量画面を見られる時、その瞬間の (画面の%, ccusage_tokens, confirmed合計, estimate合計) を calibration_points に足すと多点校正になる(2026-08-13 0812-2窓の提案)",
  "calibration_points": [
   {
@@ -49,6 +49,14 @@
     }
    },
    "note": "0812-2窓が `npx ccusage session --json`(period=セッションUUID)で分離。★重いのは2窓運用ではなく監査ワークフロー(検証窓は全体の8%)。両窓とも総トークンの9割がcacheRead"
+  },
+  {
+   "at_jst": "2026-08-13 09:20頃",
+   "app_pct": 40,
+   "ledger_confirmed": 7128763,
+   "ccusage_tokens": 6933466,
+   "total": 14062229,
+   "note": "★真値。この点でcapを引き直した(9M→35M)。旧校正では同じ状態を156%と誤報していた"
   }
  ],
  "ccusage_scope_note": "★ccusage blocks はマシンのローカルログ全体を集計するため、2窓を走らせている時は両窓のメインループ消費が合算されて見える(2026-08-13 両窓の同時刻読みがほぼ一致した実測)。→ 監視ツールの ccusage_tokens は『このマシン全体のメイン消費』と読むのが正しく、二重計上の心配は不要(むしろ合算されている方が枠の実態に近い)。ただしサブエージェント消費は依然として写らないので帳簿は必要。",
@@ -69,7 +77,16 @@
    "note": "実測。推測6,318,000に対し実測7,128,763(+12.8%)=1件あたり132k。推測は下限寄りだった"
   }
  ],
- "running": [],
- "budget_note": "★2026-08-13 阿部さん指示『60%までは作業していい』→ 予算=cap(9M)の60%=5.4M。旧80%(7M)から引き下げ。level判定もこの値から自動算出する(stop=予算到達・warn=その3/4)",
- "batch_size_guide": "1件≈132k(R3実測)+親のメインループ約1M → 1窓あたり30件が安全圏(30×132k=4.0M+1M=5.0M<5.4M)。40件だと予算ぎりぎりなので超えない"
+ "running": [
+  {
+   "run": "wf_713bfeb4-160",
+   "who": "0812(監査)",
+   "what": "R3バッチ4(45件)",
+   "estimate": 5940000,
+   "basis": "45件×132k。★推測=完了通知で実測に置き換える"
+  }
+ ],
+ "budget_note": "★2026-08-13 阿部さん『60%までは作業していい』。cap実測から60%=上記budget_tokens。★注意: 予算を下げるのでなく、正しいcapで60%まで使い切る",
+ "batch_size_guide": "1件≈132k(R3実測)。予算21.1M − 現在消費 の残りで割った件数を1バッチにする。親のメインループ分は _collect_audit_round.js 導入で大幅に減った",
+ "calibration_old": "(破棄)2026-08-12の『帳簿4.28M+メイン消費=47%』はccusage側を控えておらず、メイン消費を過小に見た1点校正だった。cap=9Mは実態の約1/4で、計器が『満杯』と誤報し作業を止めていた。★校正は必ず(画面%, ccusage, 帳簿)の3つを同時に記録する"
 }
