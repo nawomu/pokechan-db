@@ -28,9 +28,33 @@
    "ledger_confirmed": 0,
    "ccusage_tokens": 4084244,
    "note": "0812(監査)窓での同時刻の読み。両窓がほぼ同じ値=★ccusage blocks は ~/.claude のログ全体を読むので窓ごとに分かれず合算されている、が有力(0812-2の『対話だけで2.7M伸びた』は自窓の消費とは限らない)。断定はしていない"
+  },
+  {
+   "at_jst": "2026-08-13 06:24 窓ごと内訳",
+   "app_pct": null,
+   "per_window": {
+    "0812-2(検証・対話のみ)": {
+     "total": 3032125,
+     "cacheWrite": 357776,
+     "cacheRead": 2648210,
+     "out": 21658,
+     "usd": 7.63
+    },
+    "0812(監査)": {
+     "total": 37686144,
+     "cacheWrite": 1881289,
+     "cacheRead": 35674014,
+     "out": 130500,
+     "usd": 71.37
+    }
+   },
+   "note": "0812-2窓が `npx ccusage session --json`(period=セッションUUID)で分離。★重いのは2窓運用ではなく監査ワークフロー(検証窓は全体の8%)。両窓とも総トークンの9割がcacheRead"
   }
  ],
  "ccusage_scope_note": "★ccusage blocks はマシンのローカルログ全体を集計するため、2窓を走らせている時は両窓のメインループ消費が合算されて見える(2026-08-13 両窓の同時刻読みがほぼ一致した実測)。→ 監視ツールの ccusage_tokens は『このマシン全体のメイン消費』と読むのが正しく、二重計上の心配は不要(むしろ合算されている方が枠の実態に近い)。ただしサブエージェント消費は依然として写らないので帳簿は必要。",
+ "why_ccusage_misses_subagents": "★機構的な理由が確定(2026-08-13 0812-2窓が調査): セッションログ ~/.claude/projects/…/<session>.jsonl に \"isSidechain\":true の行が0件 = サブエージェントのターンはセッションログに一切書かれない。ccusageはこのjsonlを集計するので、写らないのは経験則ではなく必然。完了通知の subagent_tokens だけが本文テキストとして残る → 帳簿(このファイル)が唯一の記録である。",
+ "caveat_unit_mismatch": "★未決着(unknownのまま置く): ccusage側は cacheRead を除外して数えている(input+output+cacheCreation)が、帳簿側の subagent_tokens が cacheRead を含むかは不明。分解できる資料がディスク上に残っていない(transcriptDir/journal.jsonl/agent-*.jsonl を探索して0件)。数字からの推定は『1体132k・tool_uses6.6回』がcacheRead込みなら低すぎ抜きなら高すぎで決着しない。→ 推測で埋めない。決着させる実験案(0812-2窓が窓明け後に実施予定): 1体のみのワークフローを2本(A=ツール0回 / B=同文脈でツール10回)流し、差がターン数に比例して伸びるかを見る。cacheReadはターン数にほぼ比例し、input+output+cacheCreationはしない。",
+ "monitor_tool_note": "★_usage_monitor.sh の ccusage_tokens は cacheRead を除外済み(input+output+cacheCreation のみ・_quota_guard.sh から継承)。cap=9M の校正は cacheRead を1:1で数えてはいない。",
  "per_item_tokens": 132000,
  "per_item_basis": "R3バッチ3実測 54件=7,128,763 → 1件≈132k。R2バッチ6(31件=3.64M→117k)より重いのはラウンド3のレンズが『詳細な仕様』節の精読を要求するため。★見積りは新しい方(132k)を使う",
  "window_start_jst": "2026-08-13 06:00",
