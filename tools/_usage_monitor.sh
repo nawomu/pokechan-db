@@ -86,11 +86,20 @@ try:
         now = datetime.datetime.now(datetime.timezone.utc)
         mins = max(0, int((end - now).total_seconds() // 60))
         jst = end.astimezone(datetime.timezone(datetime.timedelta(hours=9))).strftime('%H:%M')
-        # ★閾値は帳簿の budget_tokens から自動算出(2026-08-13 阿部さん指示で予算60%=5.4Mに変更)。
-        #   ツール側に数字を焼き込まない = 予算を変えたら帳簿1本を直すだけで両窓に効く。
+        # ★capが検証されていない間は pct で判定しない(2026-08-13)。
+        #   理由: capのローカル逆算は原理的に不可能と判明した(別マシン/クラウドの消費が見えない=MULTI_MACHINE_LIMIT)。
+        #   前提が崩れた閾値で赤/緑を出すと、赤は「跨いでよい赤」に成り下がり、計器そのものが死ぬ。
+        #   → level="unknown" を返し、判断は人(阿部さんの使用量画面)に返す。数字として信用できるのは
+        #     ledger_confirmed / ccusage の実数とその伸び方だけ。
+        cap_verified = str(shared.get('cap_verified', '')).lower() == 'true'
         stop_pct = round(BUDGET / CAP * 100)
         warn_pct = round(stop_pct * 0.75)
-        if pct >= stop_pct: level, advice = "stop", f"予算({BUDGET//1000}k={stop_pct}%)到達。次のバッチを起動しない。{jst}の窓明けまで待つ"
+        if not cap_verified:
+            level = "unknown"
+            advice = (f"★capが未検証なので%では判断できない(このマシンだけの下限値)。実消費 帳簿{ledger:,}+ccusage{cc:,}"
+                      f"={ledger+cc:,}。重い作業の前に阿部さんの画面(現在のセッション%/週間%)を確認すること。"
+                      f"参考: cap={CAP:,}と仮定すれば{pct}%")
+        elif pct >= stop_pct: level, advice = "stop", f"予算({BUDGET//1000}k={stop_pct}%)到達。次のバッチを起動しない。{jst}の窓明けまで待つ"
         elif pct >= warn_pct: level, advice = "warn", f"予算{stop_pct}%まで残りわずか。小さめのバッチに切り替える"
         else:               level, advice = "ok", f"まだ余裕(予算は{stop_pct}%まで)。通常サイズのバッチでよい"
         if estimate:
