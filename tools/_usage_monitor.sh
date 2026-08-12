@@ -86,9 +86,13 @@ try:
         now = datetime.datetime.now(datetime.timezone.utc)
         mins = max(0, int((end - now).total_seconds() // 60))
         jst = end.astimezone(datetime.timezone(datetime.timedelta(hours=9))).strftime('%H:%M')
-        if pct >= 80:   level, advice = "stop", f"予算({BUDGET//1000}k)到達。次のバッチを起動しない。{jst}の窓明けまで待つ"
-        elif pct >= 60: level, advice = "warn", "残り2〜3割。小さめのバッチ(20件以下)に切り替える"
-        else:           level, advice = "ok", "まだ余裕。通常サイズのバッチでよい"
+        # ★閾値は帳簿の budget_tokens から自動算出(2026-08-13 阿部さん指示で予算60%=5.4Mに変更)。
+        #   ツール側に数字を焼き込まない = 予算を変えたら帳簿1本を直すだけで両窓に効く。
+        stop_pct = round(BUDGET / CAP * 100)
+        warn_pct = round(stop_pct * 0.75)
+        if pct >= stop_pct: level, advice = "stop", f"予算({BUDGET//1000}k={stop_pct}%)到達。次のバッチを起動しない。{jst}の窓明けまで待つ"
+        elif pct >= warn_pct: level, advice = "warn", f"予算{stop_pct}%まで残りわずか。小さめのバッチに切り替える"
+        else:               level, advice = "ok", f"まだ余裕(予算は{stop_pct}%まで)。通常サイズのバッチでよい"
         if estimate:
             advice = f"★走行中{running_n}件の推測込みで{estimated_pct}%(実測確定分は{confirmed_pct}%)。完了通知が来たら帳簿のrunningをconfirmedへ移すこと。" + advice
         # 共有帳簿が古い窓のまま残っていると過大にも過小にも振れる → 窓の終わり時刻で鮮度を検査

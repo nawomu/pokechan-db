@@ -4,7 +4,7 @@
  "rule_no_guess": "★推測値を confirmed に混ぜない(CLAUDE.md『推測で埋めない』/unknownを一級市民に)。走行中で実測がまだ無いものは running[] に estimate として置き、完了通知の subagent_tokens が出たら confirmed[] へ移して estimate を消す。監視ツールは confirmed_pct と estimated_pct の2本立てで出す(2026-08-13 0812-2窓の指摘で是正)。",
  "how": "重い並列作業を起動した窓が running[] に {run, who, what, estimate, basis} を書く → 完了通知が来たら confirmed[] に実測 tokens で移す。窓が変わったら(block_end_jstを跨いだら) confirmed/running を空にし spent_subagent_tokens=0・window_start と block_end_jst を新窓に reset。",
  "cap_tokens": 9000000,
- "budget_tokens": 7000000,
+ "budget_tokens": 5400000,
  "calibration": "2026-08-12 阿部さんの使用量画面: 帳簿4.28M+メイン消費 = アプリ表示47%(Max 5x) → 1窓の実容量≈9M(subagent換算)・予算80%≈7M",
  "calibration_todo": "★1点校正のまま。次に阿部さんの使用量画面を見られる時、その瞬間の (画面の%, ccusage_tokens, confirmed合計, estimate合計) を calibration_points に足すと多点校正になる(2026-08-13 0812-2窓の提案)",
  "calibration_points": [
@@ -69,5 +69,7 @@
    "note": "実測。推測6,318,000に対し実測7,128,763(+12.8%)=1件あたり132k。推測は下限寄りだった"
   }
  ],
- "running": []
+ "running": [],
+ "budget_note": "★2026-08-13 阿部さん指示『60%までは作業していい』→ 予算=cap(9M)の60%=5.4M。旧80%(7M)から引き下げ。level判定もこの値から自動算出する(stop=予算到達・warn=その3/4)",
+ "batch_size_guide": "1件≈132k(R3実測)+親のメインループ約1M → 1窓あたり30件が安全圏(30×132k=4.0M+1M=5.0M<5.4M)。40件だと予算ぎりぎりなので超えない"
 }
