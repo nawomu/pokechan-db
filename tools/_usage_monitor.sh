@@ -49,11 +49,21 @@ try:
     CAP    = int(shared.get('cap_tokens')    or CAP)
 except Exception:
     pass
+# ★確定分と推測分を分ける(推測を確定に混ぜない)。confirmed=完了通知の実測、running=走行中の見積り。
+estimate, running_n = 0, 0
 arg = os.environ.get('UM_LEDGER') or ''
 if arg:
     ledger, ledger_src = int(arg), "--ledger 引数(手動上書き)"
 elif shared:
-    ledger, ledger_src = int(shared.get('spent_subagent_tokens') or 0), "reference/_window_ledger.json(共有)"
+    ledger_src = "reference/_window_ledger.json(共有)"
+    conf = shared.get('confirmed')
+    if conf is None:                              # 旧形式(spent_subagent_tokensだけ)にも一応対応
+        ledger = int(shared.get('spent_subagent_tokens') or 0)
+    else:
+        ledger = sum(int(e.get('tokens') or 0) for e in conf)
+    running = shared.get('running') or []
+    running_n = len(running)
+    estimate = sum(int(e.get('estimate') or 0) for e in running)
 else:
     ledger = 0
 warn = os.environ.get('UM_WARN') or ''
@@ -68,8 +78,10 @@ try:
         b = blocks[0]; tc = b['tokenCounts']
         cc = tc['inputTokens'] + tc['outputTokens'] + tc['cacheCreationInputTokens']
         # 帳簿(subagent)とccusage(メインループ)は別勘定なので足す
-        total = ledger + cc
-        pct = round(total / CAP * 100)
+        # confirmed_pct = 実測だけの下限値 / estimated_pct = 走行中の見積りも含む上限寄りの値
+        confirmed_pct = round((ledger + cc) / CAP * 100)
+        estimated_pct = round((ledger + cc + estimate) / CAP * 100)
+        pct = estimated_pct                      # ★判定は必ず推測込み(安全側)で行う
         end = datetime.datetime.fromisoformat(b['endTime'].replace('Z', '+00:00'))
         now = datetime.datetime.now(datetime.timezone.utc)
         mins = max(0, int((end - now).total_seconds() // 60))
@@ -77,12 +89,16 @@ try:
         if pct >= 80:   level, advice = "stop", f"予算({BUDGET//1000}k)到達。次のバッチを起動しない。{jst}の窓明けまで待つ"
         elif pct >= 60: level, advice = "warn", "残り2〜3割。小さめのバッチ(20件以下)に切り替える"
         else:           level, advice = "ok", "まだ余裕。通常サイズのバッチでよい"
+        if estimate:
+            advice = f"★走行中{running_n}件の推測込みで{estimated_pct}%(実測確定分は{confirmed_pct}%)。完了通知が来たら帳簿のrunningをconfirmedへ移すこと。" + advice
         # 共有帳簿が古い窓のまま残っていると過大にも過小にも振れる → 窓の終わり時刻で鮮度を検査
         stale = bool(shared) and shared.get('block_end_jst') not in ('', None, jst)
         if stale:
             advice = f"★共有帳簿が古い窓のまま(帳簿:{shared.get('block_end_jst')} / 実際:{jst})。reference/_window_ledger.json を新しい窓にresetすること。" + advice
-        out = {"pct": pct, "level": level, "ledger_tokens": ledger, "ledger_src": ledger_src,
-               "ledger_stale": stale, "ccusage_tokens": cc,
+        out = {"pct": pct, "confirmed_pct": confirmed_pct, "estimated_pct": estimated_pct,
+               "has_estimate": bool(estimate), "running_jobs": running_n,
+               "level": level, "ledger_confirmed_tokens": ledger, "ledger_estimate_tokens": estimate,
+               "ledger_src": ledger_src, "ledger_stale": stale, "ccusage_tokens": cc,
                "budget": BUDGET, "minutes_left": mins, "block_end_jst": jst, "advice": advice}
     if warn and out["pct"] < int(warn):
         raise SystemExit(0)          # --warn 指定時は閾値未満なら何も出さない(通知を減らす)

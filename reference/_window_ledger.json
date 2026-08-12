@@ -1,14 +1,18 @@
 {
  "what": "★5時間セッション枠の共有帳簿(データは一つ)。どの窓(セッション)からも同じ数字が見えるように、repo内のここ1本だけに置く。",
  "why": "ccusage は Workflowサブエージェント(Sonnet)の消費を写さない(2026-08-02実測)。帳簿を足さないと過小評価になり、tools/_usage_monitor.sh の --warn 通知が『鳴らないまま窓が死ぬ』。帳簿がセッション専用scratchpadにあると他の窓から見えない=同じ穴が空く(2026-08-13 0812-2窓が実測で発見)。",
- "how": "重い並列作業(Workflow)を回した窓が、完了通知の <usage>subagent_tokens</usage> を entries に追記し spent_subagent_tokens を更新する。窓が変わったら(block_end_jstを跨いだら)reset する: entries=[] / spent_subagent_tokens=0 / window_start を新しい窓に。",
+ "rule_no_guess": "★推測値を confirmed に混ぜない(CLAUDE.md『推測で埋めない』/unknownを一級市民に)。走行中で実測がまだ無いものは running[] に estimate として置き、完了通知の subagent_tokens が出たら confirmed[] へ移して estimate を消す。監視ツールは confirmed_pct と estimated_pct の2本立てで出す(2026-08-13 0812-2窓の指摘で是正)。",
+ "how": "重い並列作業を起動した窓が running[] に {run, who, what, estimate, basis} を書く → 完了通知が来たら confirmed[] に実測 tokens で移す。窓が変わったら(block_end_jstを跨いだら) confirmed/running を空にし spent_subagent_tokens=0・window_start と block_end_jst を新窓に reset。",
  "cap_tokens": 9000000,
  "budget_tokens": 7000000,
  "calibration": "2026-08-12 阿部さんの使用量画面: 帳簿4.28M+メイン消費 = アプリ表示47%(Max 5x) → 1窓の実容量≈9M(subagent換算)・予算80%≈7M",
+ "per_item_tokens": 117000,
+ "per_item_basis": "R2バッチ6実測 31件=3,641,796 → 1件≈117k(照合+反証の2エージェント込み)",
  "window_start_jst": "2026-08-13 06:00",
  "block_end_jst": "11:00",
- "spent_subagent_tokens": 4283336,
- "entries": [
-  {"run": "wf_f4d3f5d4-fa0", "who": "0812(監査)", "what": "R3バッチ3(54件)", "tokens": 4283336, "note": "★暫定値=前窓の実績で仮置き。完了通知が来たら実測に置き換える"}
+ "spent_subagent_tokens": 0,
+ "confirmed": [],
+ "running": [
+  {"run": "wf_f4d3f5d4-fa0", "who": "0812(監査)", "what": "R3バッチ3(54件)", "estimate": 6318000, "basis": "54件 × 117k(R2バッチ6実測の1件あたり)。★これは推測=完了通知の subagent_tokens が出たら confirmed へ移して実測に置き換える"}
  ]
 }
