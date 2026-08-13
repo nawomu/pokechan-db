@@ -194,7 +194,11 @@ function expandAppliesTo(base) {
   if (looksLikeDescriptor(base)) return null;        // ★補正の対象なので、ポケモン名としては扱わない
   const all = pkNames();
   if (all.includes(base)) return [base];
-  const hit = all.filter(n => n === base || n.startsWith(base + '(') || n.startsWith(base + ' ') || n.startsWith('メガ' + base));
+  // ★『メガ+base』は拾わない(2026-08-13 R4で発見)。メガストーンは**まだメガ進化していない**
+  //   ポケモンに持たせる道具なので、applies_to_pokemon に既にメガ進化した姿を入れるのは誤り。
+  //   実害: ニャオニクスナイトに『メガニャオニクス♀/♂』が入っていた(=メガ済みにも持たせられると
+  //   読めてしまう)。★base 自身が『メガ』で始まる名前(メガニウム等)は正当なので除外しない。
+  const hit = all.filter(n => n === base || n.startsWith(base + '(') || n.startsWith(base + ' '));
   return hit.length ? hit : null;
 }
 
