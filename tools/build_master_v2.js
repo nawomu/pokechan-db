@@ -173,6 +173,22 @@ function pkNames() {
 }
 // 『physical_attack』のような英小文字+アンダースコアの識別子は「補正の対象」であってポケモン名ではない
 function looksLikeDescriptor(v) { return typeof v === 'string' && /^[a-z0-9_]+$/.test(v); }
+
+// ★boosts(=何が上がるか)の是正表(2026-08-13 監査ラウンド3・Wiki+徹底攻略の二重チェック済み)
+//   旧実装は applies_to(=発動条件)をそのまま boosts に複写していたため、条件と上昇対象が違う持ち物で
+//   意味が壊れていた。ここは「条件」ではなく「上がるもの」だけを書く。basis は権威の引用。
+const BOOSTS_FIX = {
+  'のどスプレー': { value: 'special_attack',
+    basis: 'Wiki効果節「音のわざを使用した後、自分のとくこうを1段階上げる。」/ 徹底攻略SV「…を使ったときに『とくこう』ランクが1段階上がる。」→ 条件=音技(sound_moves)・上がるのは とくこう' },
+  'ブーストエナジー': { value: 'highest_stat_except_hp',
+    basis: 'Wiki効果節「ランク補正込みで最も高い能力を上げる。…上げる能力にHPは含めない。」(攻/防/特攻/特防=1.3倍・素早さ=1.5倍)→ 条件=こだいかっせい/クォークチャージ・上がるのは HP以外の最高能力' },
+  'いかさまダイス': { value: 'multi_hit_count',
+    basis: 'Wiki効果節「2~5回当たる連続攻撃技を使用したとき、攻撃回数が必ず4回以上になる。」→ 条件=連続攻撃技・上がるのは 攻撃回数' },
+  'パンチグローブ': { value: 'punch_move_power',
+    basis: 'Wiki効果節「持たせたポケモンが以下のパンチ技を使用したとき威力が1.1倍になり、直接攻撃ではなくなる。」→ 上がるのは パンチ技の威力(ちからのハチマキ=physical_damage と同じ粒度に揃える)' },
+  'ひかりのこな': { value: 'opponent_accuracy_down',
+    basis: 'Wiki効果節「持たせたポケモンに対するわざの命中率が0.9倍になる」→ 自分の回避率が上がるのではなく、相手の命中率が下がる機構。evasion(回避ランク)と同一視すると誤実装になる' },
+};
 function expandAppliesTo(base) {
   if (!base || typeof base !== 'string') return null;
   if (looksLikeDescriptor(base)) return null;        // ★補正の対象なので、ポケモン名としては扱わない
@@ -226,7 +242,12 @@ function buildItems() {
       //   → マスターデータでは**分ける**(同じ欄に別の意味を入れない)。
       applies_to: it.applies_to || null,                        // 旧データそのまま(移行用に残す)
       applies_to_pokemon: expandAppliesTo(it.applies_to),       // ①対象ポケモン(実在名の配列)
-      boosts: looksLikeDescriptor(it.applies_to) ? it.applies_to : null,   // ②補正の対象
+      // ★②補正の対象。旧実装は applies_to をそのまま複写していたが、applies_to は「発動条件」で
+      //   ある場合が多く、「何が上がるか」を表していなかった(2026-08-13 監査ラウンド3で発見)。
+      //   例: のどスプレー = 条件『音技を使った』/ 上がるのは『とくこう』。旧値は sound_moves で、
+      //   sim がこの欄を読むと上昇対象を取り違える。→ BOOSTS_FIX で1件ずつ権威裏取りして上書きする。
+      boosts: BOOSTS_FIX[it.name] !== undefined ? BOOSTS_FIX[it.name].value
+            : (looksLikeDescriptor(it.applies_to) ? it.applies_to : null),
       implemented: it.implemented_in_pokechan === true,
       champions: inCh,
       regulation: inCh ? REGULATION : null,
