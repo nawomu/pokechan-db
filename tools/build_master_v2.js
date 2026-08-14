@@ -119,15 +119,32 @@ const META = (what, extra) => Object.assign({
 // ══════════════════════════════════════════════════════════════════
 // 1) abilities.json
 // ══════════════════════════════════════════════════════════════════
+// ★ナビ欄(「関連する項目…」)を効果文から落とす(2026-08-15 特性監査の前処理で59件を機械検出)。
+//   出どころ= ヤックン/ch/ のスクレイプが、ページ下部の関連リンク欄まで効果文に取り込んでいた(コーパス側62件)。
+//   コーパスは生の記録なので触らず、master生成時に落とす。
+//   ★なぜ落とすか= 説明文はわざと短い設計([[pokemon-text-is-deliberately-short]])。関連リンクを説明文に
+//   混ぜると「その特性の効果」だと誤読される(2026-07-30に同じ型のバグを26件直した実績あり)。
+//   全59件の切り取り位置を機械検査済み(切った後が短すぎるものは0件)。
+function stripNavi(s) {
+  if (typeof s !== 'string') return s;
+  return s.split(/関連する項目|関連項目/)[0].trim();
+}
+
 function buildAbilities() {
   const authByName = {};
   AUTH.abilities.abilities.forEach(a => { authByName[a.name] = a; });
   // 器 = 全国版の特性(ABILITY_DESC)+ Championsのポケモンが実際に持つ特性 + 権威
+  // ★名前は半角に正規化してから集める(2026-08-15)。全国版に『ＡＲシステム』(全角)があり、権威の
+  //   『ARシステム』(半角)と別項目として2行に分かれていた=同じ特性の重複。英数字は半角が家のルール
+  //   ([[hankaku-alphanumeric-rule]]・全角は名寄せを静かに壊す)。
   const names = new Set([
     ...Object.keys(A.ABILITY_DESC || {}),
     ...Object.keys(C.ABILITY_DESC || {}),
     ...Object.keys(authByName),
-  ]);
+  ].map(zen2han));
+  // 全国版の説明は半角キーで引けるようにしておく(元データに全角キー『ＡＲシステム』がある)
+  const natDesc = {};
+  Object.entries(A.ABILITY_DESC || {}).forEach(([k, v]) => { natDesc[zen2han(k)] = v; });
   // Championsのポケモンが実際に持つ特性(印の根拠。champions.in フラグは信用しない=2026-07-28に10件漏れていた)
   const usedInChampions = new Set();
   C.POKEMON_LIST.forEach(p => ['ab1', 'ab2', 'ab3'].forEach(k => { if (p[k]) { usedInChampions.add(p[k]); names.add(p[k]); } }));
@@ -139,12 +156,12 @@ function buildAbilities() {
     let effect = null, src = null;
     if (au && au.effect) { effect = au.effect; src = 'champions_authority'; }
     else if (C.ABILITY_DESC && C.ABILITY_DESC[name]) { effect = C.ABILITY_DESC[name]; src = 'ours_champions'; }
-    else if (A.ABILITY_DESC && A.ABILITY_DESC[name]) { effect = A.ABILITY_DESC[name]; src = 'ours_national'; }
+    else if (natDesc[name]) { effect = natDesc[name]; src = 'ours_national'; }
     else { effect = unk('ability_effect', name, '権威にもうちにも説明が無い'); src = 'unknown'; }
     return Object.assign({
       slug: null,                        // ★英語slugは未確定(PokeAPI照合が要る)→ unknown として残す
       name, display_name: name,
-      effect_ja: effect,
+      effect_ja: stripNavi(effect),
       champions: inCh,
       regulation: inCh ? REGULATION : null,
       champions_pokemon_count: au ? (au.champions_pokemon_count || 0) : null,
