@@ -29,7 +29,7 @@ Object.values(chFull.tables).forEach(rows => rows.forEach(([name, effect]) => {
 // 過去ラウンドの台帳 → 名前→指摘リスト(verdictがmatch以外のchecks+反証のmissed/overturned)
 const prevByName = {};
 const addFinding = (name, f) => { (prevByName[name] = prevByName[name] || []).push(f); };
-for (const ledger of ['reference/_item_audit_pilot.json', 'reference/_item_audit_round1.json', 'reference/_item_audit_round2.json']) {
+for (const ledger of ['reference/_item_audit_pilot.json', 'reference/_item_audit_round1.json', 'reference/_item_audit_round2.json', 'reference/_item_audit_round3.json', 'reference/_item_audit_round4.json']) {
   let d; try { d = J(ledger); } catch (e) { continue; }
   const entries = Array.isArray(d) ? d : (d.results || []);
   entries.forEach(e => {
