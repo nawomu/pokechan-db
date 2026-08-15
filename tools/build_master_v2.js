@@ -146,8 +146,21 @@ function buildAbilities() {
   const natDesc = {};
   Object.entries(A.ABILITY_DESC || {}).forEach(([k, v]) => { natDesc[zen2han(k)] = v; });
   // Championsのポケモンが実際に持つ特性(印の根拠。champions.in フラグは信用しない=2026-07-28に10件漏れていた)
+  // ★champions_pokemon_count は Champions のポケモン一覧から**自分で数える**(2026-08-15)。
+  //   以前は権威コーパスの同名フィールドを写していたが、2026-08-15にコーパスを取り直した際に
+  //   このフィールドを落としてしまい、311件すべてが0になる退行を起こした(特性監査R1が検出)。
+  //   → 外部の値を写すのをやめ、うちのポケモンデータから数える(自己完結=同じ事故が起きない)。
   const usedInChampions = new Set();
-  C.POKEMON_LIST.forEach(p => ['ab1', 'ab2', 'ab3'].forEach(k => { if (p[k]) { usedInChampions.add(p[k]); names.add(p[k]); } }));
+  const chCount = {};
+  C.POKEMON_LIST.forEach(p => {
+    const seen = new Set();                          // 同じポケモンが同じ特性を2枠持つ場合の二重計上を防ぐ
+    ['ab1', 'ab2', 'ab3'].forEach(k => {
+      if (!p[k] || seen.has(p[k])) return;
+      seen.add(p[k]);
+      usedInChampions.add(p[k]); names.add(p[k]);
+      chCount[p[k]] = (chCount[p[k]] || 0) + 1;
+    });
+  });
 
   const items = [...names].filter(Boolean).sort().map(name => {
     const au = authByName[name];
@@ -164,7 +177,7 @@ function buildAbilities() {
       effect_ja: stripNavi(effect),
       champions: inCh,
       regulation: inCh ? REGULATION : null,
-      champions_pokemon_count: au ? (au.champions_pokemon_count || 0) : null,
+      champions_pokemon_count: chCount[name] || 0,
       name_en: au ? (au.en || null) : null,
     }, stamp(src));
   });
