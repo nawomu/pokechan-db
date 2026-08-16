@@ -182,7 +182,23 @@ function buildAbilities() {
     }, stamp(src));
   });
   items.filter(x => !x.name_en).forEach(x => unk('ability_slug', x.name, '英語名が権威に無い=slug未確定'));
-  write('abilities.json', { meta: META('特性'), count: items.length,
+  // ★監査で確定した修正を適用(reference/_abilities_fixes.json・全件根拠つき。持ち物と同じ仕組み)
+  //   これが無いと、master/abilities.json を手で直しても再ビルドで静かに元に戻る(2026-08-16に気づいた)。
+  //   effect_ja は上で「権威の効果文をそのまま」入れているので、権威側の誤り・未検証メモまで写る。
+  //   ここで1件ずつ根拠つきに上書きする。
+  try {
+    const fx = J('reference/_abilities_fixes.json').fixes || {};
+    items.forEach(it => {
+      const f = fx[it.name];
+      if (!f) return;
+      ['effect_ja', 'name_en'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
+      if (f.effect_ja != null) it.source = 'audited';
+    });
+  } catch (e) {}
+
+  write('abilities.json', { meta: META('特性', {
+    fixes: '監査確定の修正は reference/_abilities_fixes.json(根拠つき)から適用',
+  }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
 }
