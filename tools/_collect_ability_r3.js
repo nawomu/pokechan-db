@@ -41,6 +41,7 @@ let unlinked = 0;
 // → master の正式名に正規化する。masterに無い name はそのまま残す(勝手に同一視しない)。
 const masterNames = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'master/abilities.json'), 'utf8')).items.map(a => a.name));
 function normName(n) {
+  n = String(n).replace(/^["'「『]+|["'」』]+$/g, '').trim();  // 実例: 『"ほろびのボディ"』と引用符ごと返した照合エージェントがいた
   if (masterNames.has(n)) return n;
   let s = n.replace(/_R\d+$/, '').replace(/[((]R\d+[^))]*[))]$/, '').trim();
   s = s.replace(/\s*R\d+[((][^))]*[))](照合)?$/, '').trim();   // 実例: 「じりょく R3(相互作用と例外)照合」
