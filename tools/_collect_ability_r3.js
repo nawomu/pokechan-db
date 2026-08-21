@@ -42,7 +42,8 @@ let unlinked = 0;
 const masterNames = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'master/abilities.json'), 'utf8')).items.map(a => a.name));
 function normName(n) {
   if (masterNames.has(n)) return n;
-  const s = n.replace(/_R\d+$/, '').replace(/[((]R\d+[^))]*[))]$/, '').trim();
+  let s = n.replace(/_R\d+$/, '').replace(/[((]R\d+[^))]*[))]$/, '').trim();
+  s = s.replace(/\s*R\d+[((][^))]*[))](照合)?$/, '').trim();   // 実例: 「じりょく R3(相互作用と例外)照合」
   return masterNames.has(s) ? s : n;
 }
 
