@@ -37,6 +37,15 @@ const foundMap = new Map();     // name -> found result(後勝ち)
 const rebuttalMap = new Map();  // name -> rebuttal result(後勝ち)
 let unlinked = 0;
 
+// エージェントが name にラウンド注記を付けることがある(実例: 「いかりのこうら_R3」「さいせいりょく(R3=相互作用と例外)」)
+// → master の正式名に正規化する。masterに無い name はそのまま残す(勝手に同一視しない)。
+const masterNames = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'master/abilities.json'), 'utf8')).items.map(a => a.name));
+function normName(n) {
+  if (masterNames.has(n)) return n;
+  const s = n.replace(/_R\d+$/, '').replace(/[((]R\d+[^))]*[))]$/, '').trim();
+  return masterNames.has(s) ? s : n;
+}
+
 for (const runId of runIds) {
   const dir = findRunDir(runId);
   if (!dir) { console.error(`✗ run が見つからない: ${runId}`); process.exit(1); }
@@ -46,7 +55,7 @@ for (const runId of runIds) {
     let j; try { j = JSON.parse(line); } catch (e) { continue; }
     if (j.type !== 'result' || !j.result || typeof j.result !== 'object') continue;
     const r = j.result;
-    if (Array.isArray(r.checks) && r.name) { foundMap.set(r.name, r); continue; }
+    if (Array.isArray(r.checks) && r.name) { r.name = normName(r.name); foundMap.set(r.name, r); continue; }
     if (typeof r.agreed === 'boolean') {
       let name = r.name || null;
       if (!name && j.agentId) {
@@ -58,7 +67,7 @@ for (const runId of runIds) {
           if (m) name = m[1];
         } catch (e) {}
       }
-      if (name) rebuttalMap.set(name, r); else unlinked++;
+      if (name) rebuttalMap.set(normName(name), r); else unlinked++;
     }
   }
 }
