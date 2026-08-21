@@ -45,6 +45,7 @@ function normName(n) {
   if (masterNames.has(n)) return n;
   let s = n.replace(/_R\d+$/, '').replace(/[((]R\d+[^))]*[))]$/, '').trim();
   s = s.replace(/\s*R\d+[((][^))]*[))](照合)?$/, '').trim();   // 実例: 「じりょく R3(相互作用と例外)照合」
+  s = s.replace(/[_\s]*R\d+[_\s][^ ]*$/, '').trim();            // 実例: 「パワースポット_R3_相互作用と例外」
   return masterNames.has(s) ? s : n;
 }
 
