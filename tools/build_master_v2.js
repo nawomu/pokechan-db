@@ -461,10 +461,23 @@ function buildPokemon() {
     items.forEach(x => { if (x.slug && notes[x.slug]) x.note = notes[x.slug]; });
   } catch (e) {}
 
+  // ★監査で確定した修正を適用(reference/_pokemon_fixes.json・全件根拠つき。持ち物/特性と同じ仕組み)
+  //   第1弾(2026-08-21)=隠れ特性スロット系統バグ: 全国版取得が「通常1+隠れ1」を ab1+ab2 に詰めていて、
+  //   336体の隠れ特性が「特性2」欄に表示され「隠れ特性」欄が空だった(PokeAPI全数照合=reference/_pokemon_ability_slot_check.json)。
+  try {
+    const fx = J('reference/_pokemon_fixes.json').fixes || {};
+    items.forEach(it => {
+      const f = fx[it.name];
+      if (!f || !f.set) return;
+      Object.entries(f.set).forEach(([k, v]) => { it[k] = v; });
+    });
+  } catch (e) {}
+
   items.sort((a, b) => (a.no || 9999) - (b.no || 9999) || String(a.name).localeCompare(String(b.name), 'ja'));
 
   write('pokemon.json', { meta: META('ポケモン', {
     note_field: 'note=備考(そのポケモンの特殊事情。見た目だけのフォルム違い/バトル中限定の姿など。元=reference/_pokemon_notes.json)',
+    fixes: '監査確定の修正は reference/_pokemon_fixes.json(根拠つき)から適用',
   }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
