@@ -74,8 +74,14 @@ for (const runId of runIds) {
       if (!['数値', '条件', '除外'].includes(r.kind)) { rejected.push({ ability: name, fact: r.fact, why: 'kind不正: ' + r.kind }); continue; }
       const q = squash(r.authority_quote || '');
       if (q.length < 10) { rejected.push({ ability: name, fact: r.fact, why: '引用が短すぎ/空' }); continue; }
-      if (!raw) { rejected.push({ ability: name, fact: r.fact, why: 'quote_unverifiable(Wiki生ページ無し)' }); continue; }
-      if (!raw.includes(q)) { rejected.push({ ability: name, fact: r.fact, quote: (r.authority_quote || '').slice(0, 120), why: '引用がWiki原文に一字一句実在しない' }); continue; }
+      // 引用の実在: まず当該特性のページ、無ければ source に書かれた別ページ(同効果特性のページ等)も見る
+      let found = !!(raw && raw.includes(q));
+      if (!found && r.source) {
+        const m = String(r.source).match(/ポケモンWiki\s*([^『\s]+)/);
+        if (m && m[1] !== name) { const alt = wikiRaw(m[1]); if (alt && alt.includes(q)) found = true; }
+      }
+      if (!raw && !found) { rejected.push({ ability: name, fact: r.fact, why: 'quote_unverifiable(Wiki生ページ無し)' }); continue; }
+      if (!found) { rejected.push({ ability: name, fact: r.fact, quote: (r.authority_quote || '').slice(0, 120), source: r.source || '', why: '引用がWiki原文に一字一句実在しない(source指定ページも確認)' }); continue; }
       if (existQuotes.has(q)) { dupSkipped++; continue; }
       existQuotes.add(q);
       existing.push({ kind: r.kind, fact: r.fact, authority_quote: r.authority_quote, source: r.source || '',
