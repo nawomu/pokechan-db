@@ -1,252 +1,265 @@
 {
-  "what": "★5時間セッション枠の共有帳簿(データは一つ)。どの窓(セッション)からも同じ数字が見えるように、repo内のここ1本だけに置く。",
-  "why": "ccusage は Workflowサブエージェント(Sonnet)の消費を写さない(2026-08-02実測)。帳簿を足さないと過小評価になり、tools/_usage_monitor.sh の --warn 通知が『鳴らないまま窓が死ぬ』。帳簿がセッション専用scratchpadにあると他の窓から見えない=同じ穴が空く(2026-08-13 0812-2窓が実測で発見)。",
-  "rule_no_guess": "★推測値を confirmed に混ぜない(CLAUDE.md『推測で埋めない』/unknownを一級市民に)。走行中で実測がまだ無いものは running[] に estimate として置き、完了通知の subagent_tokens が出たら confirmed[] へ移して estimate を消す。監視ツールは confirmed_pct と estimated_pct の2本立てで出す(2026-08-13 0812-2窓の指摘で是正)。",
-  "how": "重い並列作業を起動した窓が running[] に {run, who, what, estimate, basis} を書く → 完了通知が来たら confirmed[] に実測 tokens で移す。窓が変わったら(block_end_jstを跨いだら) confirmed/running を空にし spent_subagent_tokens=0・window_start と block_end_jst を新窓に reset。",
-  "cap_tokens": 9000000,
-  "budget_tokens": 5400000,
-  "calibration": "★2026-08-13 09:20頃 阿部さんの使用量画面=40% の瞬間に実測: 帳簿7,128,763+ccusage6,933,466=14,062,229 → cap≈35,155,572(=100%)。予算60%=21,093,343",
-  "calibration_todo": "★校正点には必ず5つ記録: (1)meter='session'|'weekly-all'|'weekly-fable' (2)画面の% (3)ccusage_tokens (4)帳簿confirmed (5)★その時に動いていたマシン/窓(このMacの窓数・HPのPC・クラウドのルーティン)。どれか欠けた点は校正に使えない。",
-  "calibration_points": [
-    {
-      "at_jst": "2026-08-12 21:00頃",
-      "app_pct": 47,
-      "ledger_confirmed": 4283336,
-      "ccusage_tokens": null,
-      "note": "阿部さんの画面。ccusage側を控えていなかったのが心残り=次は必ず同時に記録する",
-      "meter": "session(と推定・2026-08-12の画面には『現在のセッション47%』『週間 すべてのモデル12%/Fable11%』が併記されていた)"
+ "what": "★5時間セッション枠の共有帳簿(データは一つ)。どの窓(セッション)からも同じ数字が見えるように、repo内のここ1本だけに置く。",
+ "why": "ccusage は Workflowサブエージェント(Sonnet)の消費を写さない(2026-08-02実測)。帳簿を足さないと過小評価になり、tools/_usage_monitor.sh の --warn 通知が『鳴らないまま窓が死ぬ』。帳簿がセッション専用scratchpadにあると他の窓から見えない=同じ穴が空く(2026-08-13 0812-2窓が実測で発見)。",
+ "rule_no_guess": "★推測値を confirmed に混ぜない(CLAUDE.md『推測で埋めない』/unknownを一級市民に)。走行中で実測がまだ無いものは running[] に estimate として置き、完了通知の subagent_tokens が出たら confirmed[] へ移して estimate を消す。監視ツールは confirmed_pct と estimated_pct の2本立てで出す(2026-08-13 0812-2窓の指摘で是正)。",
+ "how": "重い並列作業を起動した窓が running[] に {run, who, what, estimate, basis} を書く → 完了通知が来たら confirmed[] に実測 tokens で移す。窓が変わったら(block_end_jstを跨いだら) confirmed/running を空にし spent_subagent_tokens=0・window_start と block_end_jst を新窓に reset。",
+ "cap_tokens": 9000000,
+ "budget_tokens": 5400000,
+ "calibration": "★2026-08-13 09:20頃 阿部さんの使用量画面=40% の瞬間に実測: 帳簿7,128,763+ccusage6,933,466=14,062,229 → cap≈35,155,572(=100%)。予算60%=21,093,343",
+ "calibration_todo": "★校正点には必ず5つ記録: (1)meter='session'|'weekly-all'|'weekly-fable' (2)画面の% (3)ccusage_tokens (4)帳簿confirmed (5)★その時に動いていたマシン/窓(このMacの窓数・HPのPC・クラウドのルーティン)。どれか欠けた点は校正に使えない。",
+ "calibration_points": [
+  {
+   "at_jst": "2026-08-12 21:00頃",
+   "app_pct": 47,
+   "ledger_confirmed": 4283336,
+   "ccusage_tokens": null,
+   "note": "阿部さんの画面。ccusage側を控えていなかったのが心残り=次は必ず同時に記録する",
+   "meter": "session(と推定・2026-08-12の画面には『現在のセッション47%』『週間 すべてのモデル12%/Fable11%』が併記されていた)"
+  },
+  {
+   "at_jst": "2026-08-13 06:22",
+   "app_pct": null,
+   "ledger_confirmed": 0,
+   "ccusage_tokens": 3600000,
+   "note": "0812-2窓の観測: 対話のみ15分で926k→3.60M。ワークフロー未起動"
+  },
+  {
+   "at_jst": "2026-08-13 06:24",
+   "app_pct": null,
+   "ledger_confirmed": 0,
+   "ccusage_tokens": 4084244,
+   "note": "0812(監査)窓での同時刻の読み。両窓がほぼ同じ値=★ccusage blocks は ~/.claude のログ全体を読むので窓ごとに分かれず合算されている、が有力(0812-2の『対話だけで2.7M伸びた』は自窓の消費とは限らない)。断定はしていない"
+  },
+  {
+   "at_jst": "2026-08-13 06:24 窓ごと内訳",
+   "app_pct": null,
+   "per_window": {
+    "0812-2(検証・対話のみ)": {
+     "total": 3032125,
+     "cacheWrite": 357776,
+     "cacheRead": 2648210,
+     "out": 21658,
+     "usd": 7.63
     },
-    {
-      "at_jst": "2026-08-13 06:22",
-      "app_pct": null,
-      "ledger_confirmed": 0,
-      "ccusage_tokens": 3600000,
-      "note": "0812-2窓の観測: 対話のみ15分で926k→3.60M。ワークフロー未起動"
-    },
-    {
-      "at_jst": "2026-08-13 06:24",
-      "app_pct": null,
-      "ledger_confirmed": 0,
-      "ccusage_tokens": 4084244,
-      "note": "0812(監査)窓での同時刻の読み。両窓がほぼ同じ値=★ccusage blocks は ~/.claude のログ全体を読むので窓ごとに分かれず合算されている、が有力(0812-2の『対話だけで2.7M伸びた』は自窓の消費とは限らない)。断定はしていない"
-    },
-    {
-      "at_jst": "2026-08-13 06:24 窓ごと内訳",
-      "app_pct": null,
-      "per_window": {
-        "0812-2(検証・対話のみ)": {
-          "total": 3032125,
-          "cacheWrite": 357776,
-          "cacheRead": 2648210,
-          "out": 21658,
-          "usd": 7.63
-        },
-        "0812(監査)": {
-          "total": 37686144,
-          "cacheWrite": 1881289,
-          "cacheRead": 35674014,
-          "out": 130500,
-          "usd": 71.37
-        }
-      },
-      "note": "0812-2窓が `npx ccusage session --json`(period=セッションUUID)で分離。★重いのは2窓運用ではなく監査ワークフロー(検証窓は全体の8%)。両窓とも総トークンの9割がcacheRead"
-    },
-    {
-      "at_jst": "2026-08-13 07:35頃(★訂正: 09:20と誤記していた。実測は07:35頃)",
-      "app_pct": 40,
-      "ledger_confirmed": 7128763,
-      "ccusage_tokens": 6933466,
-      "total": 14062229,
-      "note": "★真値。この点でcapを引き直した(9M→35M)。旧校正では同じ状態を156%と誤報していた",
-      "meter": "unknown(★未確認=この点は校正に使えない。session か weekly かで意味が変わる)",
-      "status": "撤回。この点から出した cap=35.2M は使わない"
-    },
-    {
-      "at_jst": "2026-08-15 09:20頃",
-      "meter": "session(現在のセッション)",
-      "app_pct": 94,
-      "app_weekly_all_pct": 20,
-      "app_weekly_fable_pct": 0,
-      "ccusage_tokens": 16420085,
-      "ledger_confirmed": 0,
-      "machines": "このMacの2窓のみ(HPのPCは停止中と阿部さん証言)。★モデルはOpus 5に自動切替されていた(セーフガードのモデル切替がON)ためFableの週間枠は0%",
-      "note": "★5つ揃った校正点。セッション94%でリセットまで4時間28分。週間はまだ20%なので、詰まっているのは5時間枠の方"
-    },
-    {
-      "at_jst": "2026-08-15 14:04",
-      "meter": "session(現在のセッション)",
-      "app_pct": 2,
-      "app_weekly_all_pct": 20,
-      "app_weekly_fable_pct": 0,
-      "app_reset_in": "4時間53分後(=19:00 JST。ccusageのアクティブブロック 05:00Z→10:00Z と一致)",
-      "ccusage_active_block_total": 2430452,
-      "ledger_confirmed": 0,
-      "machines": "このMacのみ(この窓1つ)。HPは停止中",
-      "note": "★5つ揃った校正点。ただし2%は粒度が粗すぎてcap逆算には使えない(1.5〜2.5%で cap 97M〜162M に振れる)"
-    },
-    {
-      "at_jst": "2026-08-15 14:34",
-      "meter": "session(現在のセッション)",
-      "app_pct": 54,
-      "app_weekly_all_pct": 25,
-      "app_weekly_fable_pct": 0,
-      "app_reset_in": "4時間26分後(=19:00 JST)",
-      "ccusage_active_block_total": 38531625,
-      "machines": "このMacのこの窓1つのみ",
-      "note": "★5つ揃った校正点。R1バッチ2(55件)+バッチ3(28件)=83件を消化した直後"
-    },
-    {
-      "at_jst": "2026-08-16 朝(セッション90%の画面)",
-      "meter": "session",
-      "app_pct": 90,
-      "app_weekly_all_pct": 58,
-      "app_weekly_fable_pct": 0,
-      "app_reset_in": "1時間1分後",
-      "ccusage_active_block_total": 96758699,
-      "machines": "このMacのみ",
-      "note": "★赤。週間も58%まで来た(金22:00リセット)。重い作業は窓明けまで待つ"
+    "0812(監査)": {
+     "total": 37686144,
+     "cacheWrite": 1881289,
+     "cacheRead": 35674014,
+     "out": 130500,
+     "usd": 71.37
     }
-  ],
-  "ccusage_scope_note": "★ccusage blocks はマシンのローカルログ全体を集計するため、2窓を走らせている時は両窓のメインループ消費が合算されて見える(2026-08-13 両窓の同時刻読みがほぼ一致した実測)。→ 監視ツールの ccusage_tokens は『このマシン全体のメイン消費』と読むのが正しく、二重計上の心配は不要(むしろ合算されている方が枠の実態に近い)。ただしサブエージェント消費は依然として写らないので帳簿は必要。",
-  "why_ccusage_misses_subagents": "★機構的な理由が確定(2026-08-13 0812-2窓が調査): セッションログ ~/.claude/projects/…/<session>.jsonl に \"isSidechain\":true の行が0件 = サブエージェントのターンはセッションログに一切書かれない。ccusageはこのjsonlを集計するので、写らないのは経験則ではなく必然。完了通知の subagent_tokens だけが本文テキストとして残る → 帳簿(このファイル)が唯一の記録である。",
-  "caveat_unit_mismatch": "★未決着(unknownのまま置く): ccusage側は cacheRead を除外して数えている(input+output+cacheCreation)が、帳簿側の subagent_tokens が cacheRead を含むかは不明。分解できる資料がディスク上に残っていない(transcriptDir/journal.jsonl/agent-*.jsonl を探索して0件)。数字からの推定は『1体132k・tool_uses6.6回』がcacheRead込みなら低すぎ抜きなら高すぎで決着しない。→ 推測で埋めない。決着させる実験案(0812-2窓が窓明け後に実施予定): 1体のみのワークフローを2本(A=ツール0回 / B=同文脈でツール10回)流し、差がターン数に比例して伸びるかを見る。cacheReadはターン数にほぼ比例し、input+output+cacheCreationはしない。",
-  "monitor_tool_note": "★_usage_monitor.sh の ccusage_tokens は cacheRead を除外済み(input+output+cacheCreation のみ・_quota_guard.sh から継承)。cap=9M の校正は cacheRead を1:1で数えてはいない。",
-  "per_item_tokens": 132000,
-  "per_item_basis": "R3バッチ3実測 54件=7,128,763 → 1件≈132k。R2バッチ6(31件=3.64M→117k)より重いのはラウンド3のレンズが『詳細な仕様』節の精読を要求するため。★見積りは新しい方(132k)を使う",
-  "window_start_jst": "2026-08-13 11:10",
-  "block_end_jst": "16:10",
-  "spent_subagent_tokens": 0,
-  "confirmed": [
-    {
-      "run": "wf_f4d3f5d4-fa0",
-      "who": "0812(監査)",
-      "what": "R3バッチ3(54件)",
-      "tokens": 7128763,
-      "note": "実測。推測6,318,000に対し実測7,128,763(+12.8%)=1件あたり132k。推測は下限寄りだった"
-    },
-    {
-      "run": "wf_e2b6e7d8-c10",
-      "who": "0812(監査)",
-      "what": "R3バッチ5(15件)",
-      "tokens": 1852580,
-      "note": "実測。見積り1,980,000に対し-6%(1件123k)。★要約のみ返す方式+収集器に切り替えた初回で、親のメインループ消費も大きく減った"
-    },
-    {
-      "run": "wf_1417ce04-7bf",
-      "who": "0812(監査)",
-      "what": "R3残り72件(★上限で中断)",
-      "tokens": 4268160,
-      "note": "140体中68体完了・72体が session limit で失敗(照合は大半完了・反証がほぼ全滅)。11:10の窓明けに resumeFromRunId で再開すれば完了分はキャッシュ再生=損失ゼロ。★教訓: 80%の窓で大バッチを始めない(阿部さん指摘)"
-    },
-    {
-      "run": "wf_1417ce04-7bf(再開)",
-      "who": "0812(監査)",
-      "what": "R3残り72件・完走",
-      "tokens": 4525418,
-      "note": "11:10窓明けに resumeFromRunId で再開→144体全成功。中断分(4.27M)と合わせて実質8.79M。★キャッシュ再開は本当に損失ゼロだった"
-    },
-    {
-      "run": "wf_a6ece4f1-1b7",
-      "who": "0812(監査)",
-      "what": "R4前半93件",
-      "tokens": 12262407,
-      "note": "完走。是正2件(モモンのみ/くろいてっきゅう)"
-    },
-    {
-      "run": "wf_1a047f86-f05",
-      "who": "0812(監査)",
-      "what": "R4後半76件(★上限で中断)",
-      "tokens": 2511686,
-      "note": "115体中39体完了。16:10の窓明けに resumeFromRunId で再開"
-    }
-  ],
-  "running": {
-    "campaign": "特性監査",
-    "progress": "R1・R2とも312/312完走。次=指摘の精査とmaster適用",
-    "blocked_by": "セッション90%(赤)。LLMを使う作業は窓明け(約1時間後)まで待つ",
-    "weekly": "すべてのモデル58%・金22:00リセット。★夜の自走はここを見てから"
+   },
+   "note": "0812-2窓が `npx ccusage session --json`(period=セッションUUID)で分離。★重いのは2窓運用ではなく監査ワークフロー(検証窓は全体の8%)。両窓とも総トークンの9割がcacheRead"
   },
-  "budget_note": "★2026-08-13 阿部さん『60%までは作業していい』。cap実測から60%=上記budget_tokens。★注意: 予算を下げるのでなく、正しいcapで60%まで使い切る",
-  "batch_size_guide": "1件≈132k(R3実測)。予算21.1M − 現在消費 の残りで割った件数を1バッチにする。親のメインループ分は _collect_audit_round.js 導入で大幅に減った",
-  "calibration_old": "(破棄)2026-08-12の『帳簿4.28M+メイン消費=47%』はccusage側を控えておらず、メイン消費を過小に見た1点校正だった。cap=9Mは実態の約1/4で、計器が『満杯』と誤報し作業を止めていた。★校正は必ず(画面%, ccusage, 帳簿)の3つを同時に記録する",
-  "cap_status": {
-    "verified_at": "2026-08-15 14:34",
-    "cap_block_tokens": 71300000,
-    "how": "★独立2点が一致した。①今回: ブロック38.53M ↔ セッション54% → cap≈71.3M ②8/15朝: 94%に達した窓のブロック合計71.8M → cap≈76.4M。誤差7%以内で一致するので、この単位(ccusageアクティブブロックの総トークン)でcapを語ってよい",
-    "unit": "ccusage blocks の アクティブブロック総トークン(input+output+cacheCreation+cacheRead)。★subagent_tokens とは別単位(約3.5倍)",
-    "budget_60pct": 42800000,
-    "operating_ceiling": 42000000,
-    "caveat": "★この換算が成り立つのは「このMacの窓だけが動いている」間。別マシンが動くとccusageは写さないので、その時はcap_verifiedを落とす"
+  {
+   "at_jst": "2026-08-13 07:35頃(★訂正: 09:20と誤記していた。実測は07:35頃)",
+   "app_pct": 40,
+   "ledger_confirmed": 7128763,
+   "ccusage_tokens": 6933466,
+   "total": 14062229,
+   "note": "★真値。この点でcapを引き直した(9M→35M)。旧校正では同じ状態を156%と誤報していた",
+   "meter": "unknown(★未確認=この点は校正に使えない。session か weekly かで意味が変わる)",
+   "status": "撤回。この点から出した cap=35.2M は使わない"
   },
-  "contradiction_2026_08_13": "0812-2窓の検算(ccusage blocks の過去ブロックをJST変換): 08-12 12:00ブロック cc=4,521,820 / 08-12 17:00ブロック cc=7,200,972 / 08-13 06:00ブロック cc=7,996,876。8/12 21:00の47%は17:00ブロック内で、総量は最大でも 4,283,336+7,200,972=11,484,308 → cap≦24.4M。一方8/13朝の点は14,062,229で40% → cap=35.2M。★消費が増えて%が下がる=同じ物を測っていない。解決するまでcapは動かさない",
-  "MULTI_MACHINE_LIMIT": "★★根本的な限界(2026-08-13 阿部さんの証言で判明): 枠はアカウント単位だが、ccusage は『そのマシンのローカルログ』しか読めない。実際この朝は (1)このMacの2窓 (2)HPのPCの朝の定期スケジュール(Cowork/Opus 4.7)が同時に動いていた。→ HP側の消費は私からは原理的に見えない。★ローカルの数字から cap を逆算する道は閉じている(『消費が増えたのに%が下がる』矛盾の正体はこれ)。計器は『このマシンで何を使ったか』の記録に徹し、真値は阿部さんの画面の%だけ。重い作業の前は画面の%を聞く。",
-  "known_baseline": "2026-08-12 21:00頃の画面(スクショ): 現在のセッション47% / 週間すべてのモデル12% / 週間Fable11%。→ もし『8/13朝の40%』が週間なら 12%→40% の急増、セッションなら新窓で40%。どちらもあり得るため未確定。",
-  "cap_verified": false,
-  "cap_verified_note": "2026-08-15 14:34に true へ。根拠=独立2点の一致(上記cap_status.how)。★別マシンが同時稼働したら false に戻すこと",
-  "incident_2026_08_13_red_crossed": "★私(0812窓)が level=stop のまま15件バッチを再開した。理由づけは『40%だったからまだ空いている』だったが、その40%はメーター種別が未確認=未確定の数字を確定のように使った。今朝ずっと戒めてきたことを自分でやった。0812-2窓が指摘。→ 対処: cap_verified を導入し、検証されていないcapでは赤/緑を出さない(level=unknown)。★赤を跨ぐ運用を一度作ると次のセッションはそれを標準だと思う(CLAUDE.md)。",
-  "lesson_batch_timing": "★窓の残りが少ない時に大バッチを始めない(2026-08-13 阿部さん)。1バッチ=72件は約9.5M必要で、80%消費済みの窓では確実に途中で死ぬ。窓明け直後に始めるか、残量に見合う件数に割る。★中断しても resumeFromRunId で完了分はキャッシュ再生されるので損失は時間だけ",
-  "finding_2026_08_15_block_vs_recorded": {
-    "what": "8/15 09:20 の校正点に控えた ccusage_tokens=16,420,085 は、5時間ブロックの合計ではなかった",
-    "measured": "ccusage blocks で見ると、94%に達した窓(JST 08:00-13:00 = 23:00Z-04:00Z)のブロック合計は 71,806,926。その前の窓(JST 03:00-08:00)は 110,325,782",
-    "why_it_matters": "ブロック合計と控えた値が4倍以上ちがう=09:20の点から cap を引くと大外しする。★この不一致が解けるまで cap_verified は false のまま",
-    "operational_workaround": "capを当てにせず「1窓=1バッチ」で運用する。94%に達した窓が 71.8M だったので、60%相当 ≈ 43M。安全側に倒して 1窓あたり ccusageブロック 40M を上限の目安にする(=あくまで目安・真値は阿部さんの画面)"
+  {
+   "at_jst": "2026-08-15 09:20頃",
+   "meter": "session(現在のセッション)",
+   "app_pct": 94,
+   "app_weekly_all_pct": 20,
+   "app_weekly_fable_pct": 0,
+   "ccusage_tokens": 16420085,
+   "ledger_confirmed": 0,
+   "machines": "このMacの2窓のみ(HPのPCは停止中と阿部さん証言)。★モデルはOpus 5に自動切替されていた(セーフガードのモデル切替がON)ためFableの週間枠は0%",
+   "note": "★5つ揃った校正点。セッション94%でリセットまで4時間28分。週間はまだ20%なので、詰まっているのは5時間枠の方"
   },
-  "auto_run_2026_08_15": {
-    "authorized": "2026-08-15 阿部さん「回す(夜間も含めて自動)」。60%までで作業→5時間後の窓明けに自動で次バッチ",
-    "design": "1窓=1バッチ(55件)。94%に達した窓のccusageブロック合計が71.8Mだったので、60%相当≈43M。安全側に倒して1窓 40M で打ち止め",
-    "windows": "JST 14:00-19:00 / 19:00-24:00 / 24:00-05:00 / 05:00-10:00。残り232件=約4窓",
-    "safety": "①claude --continueの無人自動再起動はしない(2026-07-12事故) ②週間すべてのモデルが50%を超えたら停止して報告 ③R1完走で停止 ④阿部さんの停止が最優先",
-    "recalibrate": "★バッチ2完了時に阿部さんへ使用量画面の数字を依頼し、55件=何%を実測する。それまでの55件/窓は推定値"
+  {
+   "at_jst": "2026-08-15 14:04",
+   "meter": "session(現在のセッション)",
+   "app_pct": 2,
+   "app_weekly_all_pct": 20,
+   "app_weekly_fable_pct": 0,
+   "app_reset_in": "4時間53分後(=19:00 JST。ccusageのアクティブブロック 05:00Z→10:00Z と一致)",
+   "ccusage_active_block_total": 2430452,
+   "ledger_confirmed": 0,
+   "machines": "このMacのみ(この窓1つ)。HPは停止中",
+   "note": "★5つ揃った校正点。ただし2%は粒度が粗すぎてcap逆算には使えない(1.5〜2.5%で cap 97M〜162M に振れる)"
   },
-  "measured_2026_08_15": {
-    "per_item_block_tokens": 445000,
-    "basis": "バッチ2=55件で24.5M / バッチ3=28件で11.6M(ccusageアクティブブロック差分)。★subagent_tokens(6.7M/3.4M)の約3.5倍がブロックに乗る=cacheReadぶん",
-    "window_capacity": "cap≈71.3M。60%=42.8M → 運用上限42M。1件445kなので 42M ÷ 445k ≈ 94件/窓(ただし親のメインループ分を含むので実効は83〜90件)",
-    "small_batch_overhead": "★小さいバッチは1件あたりが高い: 55件=445k/件・28件=414k/件だが 7件=581k/件。親のメインループ+台帳化の固定費が効く。→ 窓の端数を埋める時は「件数×445k」で見積もると足りなくなる"
+  {
+   "at_jst": "2026-08-15 14:34",
+   "meter": "session(現在のセッション)",
+   "app_pct": 54,
+   "app_weekly_all_pct": 25,
+   "app_weekly_fable_pct": 0,
+   "app_reset_in": "4時間26分後(=19:00 JST)",
+   "ccusage_active_block_total": 38531625,
+   "machines": "このMacのこの窓1つのみ",
+   "note": "★5つ揃った校正点。R1バッチ2(55件)+バッチ3(28件)=83件を消化した直後"
   },
-  "authorized_exception_2026_08_15_1745": {
-    "what": "60%の上限を意図的に超えてバッチ5(50件)を投入した",
-    "who": "阿部さん明示指示「もうやっていいよ、止まっても再開するでしょうし」(2026-08-15 17:45)",
-    "state_at_launch": "ブロック44.44M ≈ 62%(既に60%超)。19:00の窓明けまで75分",
-    "rationale": "①19:00に窓が明けて新しい枠が来るので、この窓を使い切っても翌窓の作業は減らない ②上限に当たっても resumeFromRunId でキャッシュ再開=損失は時間だけ",
-    "result": "50件完走(失敗0/100エージェント)。ブロック 44.44M → 66.28M ≈ 93%。上限には当たらなかった",
-    "run": "wf_e5a190a7-8a6",
-    "discipline_note": "★これは「黙って赤を跨いだ」2026-08-13の事故とは別物。指示・根拠・見込みを事前に記録した上での例外。★次のセッションはこれを標準と誤解しないこと=既定は60%"
+  {
+   "at_jst": "2026-08-16 朝(セッション90%の画面)",
+   "meter": "session",
+   "app_pct": 90,
+   "app_weekly_all_pct": 58,
+   "app_weekly_fable_pct": 0,
+   "app_reset_in": "1時間1分後",
+   "ccusage_active_block_total": 96758699,
+   "machines": "このMacのみ",
+   "note": "★赤。週間も58%まで来た(金22:00リセット)。重い作業は窓明けまで待つ"
   },
-  "round1_tally": {
-    "checks_total": 3005,
-    "verdicts": {
-      "match": 1705,
-      "missing_in_ours": 545,
-      "mismatch": 161,
-      "unknown": 550,
-      "extra_in_ours": 44
-    },
-    "rebuttal_disagreed": 164,
-    "rebuttal_points": 628,
-    "champions_meta_hits": 131,
-    "effect_hits": 619,
-    "note": "★champions印/champions_pokemon_count 系が131件=明らかに系統的。1件ずつでなくまとめて根治する。unknown 550件は「権威ページに書いていない」ので推測で埋めない(正直な保留)"
-  },
-  "cap_contradiction_2026_08_15_1952": {
-    "what": "★cap≈71.3M の見立てが外れた。19:00-24:00の窓でブロック82.13M(推定capの115%)に達しても上限に当たっていない",
-    "implication": "ccusageのブロック総トークンと アプリの% は単純比例しない。おそらくモデル/キャッシュ種別で重みが違う(cacheReadが9割を占めるため、生の合計では実消費を写せない)",
-    "action": "cap_verified を true → false に戻した。%の断定はしない。★2026-08-13の教訓「跨ぎたくなったら計器を正直にする」に従う",
-    "what_still_holds": "相対的な目安としては使える(1件あたり445k〜650k)。窓の中で「あとどれくらい入るか」の当たりを付けるのには足りる",
-    "next_calibration": "朝に阿部さんの画面で「この窓の%」を聞き、82M超がどの%だったかを記録する。それでcapの単位を選び直す"
-  },
-  "round2_tally": {
-    "checks": 2488,
-    "verdicts": {
-      "match": 1543,
-      "missing_in_ours": 480,
-      "mismatch": 37,
-      "unknown": 414,
-      "extra_in_ours": 14
-    },
-    "rebuttal_disagreed": 191,
-    "rebuttal_points": 529,
-    "mismatch_plus_extra": 51,
-    "dare_check": "★枯れ判定は不成立。持ち物の推移が140→11→4→2→0→0だったのに対し、特性はR1=89(stale除く)→R2=51。まだ減り方が緩い=R3が要る"
+  {
+   "at": "2026-08-27T18:54 JST",
+   "source": "阿部さんの使用量画面(スクショ)",
+   "session_pct": 2,
+   "weekly_all_pct": 53,
+   "weekly_fable_pct": 25,
+   "weekly_reset": "金 22:00",
+   "note": "★プロモで週間制限+50%(8/31まで)。阿部さん指示=朝までフル自走(技監査R1ほか)"
   }
+ ],
+ "ccusage_scope_note": "★ccusage blocks はマシンのローカルログ全体を集計するため、2窓を走らせている時は両窓のメインループ消費が合算されて見える(2026-08-13 両窓の同時刻読みがほぼ一致した実測)。→ 監視ツールの ccusage_tokens は『このマシン全体のメイン消費』と読むのが正しく、二重計上の心配は不要(むしろ合算されている方が枠の実態に近い)。ただしサブエージェント消費は依然として写らないので帳簿は必要。",
+ "why_ccusage_misses_subagents": "★機構的な理由が確定(2026-08-13 0812-2窓が調査): セッションログ ~/.claude/projects/…/<session>.jsonl に \"isSidechain\":true の行が0件 = サブエージェントのターンはセッションログに一切書かれない。ccusageはこのjsonlを集計するので、写らないのは経験則ではなく必然。完了通知の subagent_tokens だけが本文テキストとして残る → 帳簿(このファイル)が唯一の記録である。",
+ "caveat_unit_mismatch": "★未決着(unknownのまま置く): ccusage側は cacheRead を除外して数えている(input+output+cacheCreation)が、帳簿側の subagent_tokens が cacheRead を含むかは不明。分解できる資料がディスク上に残っていない(transcriptDir/journal.jsonl/agent-*.jsonl を探索して0件)。数字からの推定は『1体132k・tool_uses6.6回』がcacheRead込みなら低すぎ抜きなら高すぎで決着しない。→ 推測で埋めない。決着させる実験案(0812-2窓が窓明け後に実施予定): 1体のみのワークフローを2本(A=ツール0回 / B=同文脈でツール10回)流し、差がターン数に比例して伸びるかを見る。cacheReadはターン数にほぼ比例し、input+output+cacheCreationはしない。",
+ "monitor_tool_note": "★_usage_monitor.sh の ccusage_tokens は cacheRead を除外済み(input+output+cacheCreation のみ・_quota_guard.sh から継承)。cap=9M の校正は cacheRead を1:1で数えてはいない。",
+ "per_item_tokens": 132000,
+ "per_item_basis": "R3バッチ3実測 54件=7,128,763 → 1件≈132k。R2バッチ6(31件=3.64M→117k)より重いのはラウンド3のレンズが『詳細な仕様』節の精読を要求するため。★見積りは新しい方(132k)を使う",
+ "window_start_jst": "2026-08-13 11:10",
+ "block_end_jst": "16:10",
+ "spent_subagent_tokens": 0,
+ "confirmed": [
+  {
+   "run": "wf_f4d3f5d4-fa0",
+   "who": "0812(監査)",
+   "what": "R3バッチ3(54件)",
+   "tokens": 7128763,
+   "note": "実測。推測6,318,000に対し実測7,128,763(+12.8%)=1件あたり132k。推測は下限寄りだった"
+  },
+  {
+   "run": "wf_e2b6e7d8-c10",
+   "who": "0812(監査)",
+   "what": "R3バッチ5(15件)",
+   "tokens": 1852580,
+   "note": "実測。見積り1,980,000に対し-6%(1件123k)。★要約のみ返す方式+収集器に切り替えた初回で、親のメインループ消費も大きく減った"
+  },
+  {
+   "run": "wf_1417ce04-7bf",
+   "who": "0812(監査)",
+   "what": "R3残り72件(★上限で中断)",
+   "tokens": 4268160,
+   "note": "140体中68体完了・72体が session limit で失敗(照合は大半完了・反証がほぼ全滅)。11:10の窓明けに resumeFromRunId で再開すれば完了分はキャッシュ再生=損失ゼロ。★教訓: 80%の窓で大バッチを始めない(阿部さん指摘)"
+  },
+  {
+   "run": "wf_1417ce04-7bf(再開)",
+   "who": "0812(監査)",
+   "what": "R3残り72件・完走",
+   "tokens": 4525418,
+   "note": "11:10窓明けに resumeFromRunId で再開→144体全成功。中断分(4.27M)と合わせて実質8.79M。★キャッシュ再開は本当に損失ゼロだった"
+  },
+  {
+   "run": "wf_a6ece4f1-1b7",
+   "who": "0812(監査)",
+   "what": "R4前半93件",
+   "tokens": 12262407,
+   "note": "完走。是正2件(モモンのみ/くろいてっきゅう)"
+  },
+  {
+   "run": "wf_1a047f86-f05",
+   "who": "0812(監査)",
+   "what": "R4後半76件(★上限で中断)",
+   "tokens": 2511686,
+   "note": "115体中39体完了。16:10の窓明けに resumeFromRunId で再開"
+  }
+ ],
+ "running": {
+  "campaign": "特性監査",
+  "progress": "R1・R2とも312/312完走。次=指摘の精査とmaster適用",
+  "blocked_by": "セッション90%(赤)。LLMを使う作業は窓明け(約1時間後)まで待つ",
+  "weekly": "すべてのモデル58%・金22:00リセット。★夜の自走はここを見てから"
+ },
+ "budget_note": "★2026-08-13 阿部さん『60%までは作業していい』。cap実測から60%=上記budget_tokens。★注意: 予算を下げるのでなく、正しいcapで60%まで使い切る",
+ "batch_size_guide": "1件≈132k(R3実測)。予算21.1M − 現在消費 の残りで割った件数を1バッチにする。親のメインループ分は _collect_audit_round.js 導入で大幅に減った",
+ "calibration_old": "(破棄)2026-08-12の『帳簿4.28M+メイン消費=47%』はccusage側を控えておらず、メイン消費を過小に見た1点校正だった。cap=9Mは実態の約1/4で、計器が『満杯』と誤報し作業を止めていた。★校正は必ず(画面%, ccusage, 帳簿)の3つを同時に記録する",
+ "cap_status": {
+  "verified_at": "2026-08-15 14:34",
+  "cap_block_tokens": 71300000,
+  "how": "★独立2点が一致した。①今回: ブロック38.53M ↔ セッション54% → cap≈71.3M ②8/15朝: 94%に達した窓のブロック合計71.8M → cap≈76.4M。誤差7%以内で一致するので、この単位(ccusageアクティブブロックの総トークン)でcapを語ってよい",
+  "unit": "ccusage blocks の アクティブブロック総トークン(input+output+cacheCreation+cacheRead)。★subagent_tokens とは別単位(約3.5倍)",
+  "budget_60pct": 42800000,
+  "operating_ceiling": 42000000,
+  "caveat": "★この換算が成り立つのは「このMacの窓だけが動いている」間。別マシンが動くとccusageは写さないので、その時はcap_verifiedを落とす"
+ },
+ "contradiction_2026_08_13": "0812-2窓の検算(ccusage blocks の過去ブロックをJST変換): 08-12 12:00ブロック cc=4,521,820 / 08-12 17:00ブロック cc=7,200,972 / 08-13 06:00ブロック cc=7,996,876。8/12 21:00の47%は17:00ブロック内で、総量は最大でも 4,283,336+7,200,972=11,484,308 → cap≦24.4M。一方8/13朝の点は14,062,229で40% → cap=35.2M。★消費が増えて%が下がる=同じ物を測っていない。解決するまでcapは動かさない",
+ "MULTI_MACHINE_LIMIT": "★★根本的な限界(2026-08-13 阿部さんの証言で判明): 枠はアカウント単位だが、ccusage は『そのマシンのローカルログ』しか読めない。実際この朝は (1)このMacの2窓 (2)HPのPCの朝の定期スケジュール(Cowork/Opus 4.7)が同時に動いていた。→ HP側の消費は私からは原理的に見えない。★ローカルの数字から cap を逆算する道は閉じている(『消費が増えたのに%が下がる』矛盾の正体はこれ)。計器は『このマシンで何を使ったか』の記録に徹し、真値は阿部さんの画面の%だけ。重い作業の前は画面の%を聞く。",
+ "known_baseline": "2026-08-12 21:00頃の画面(スクショ): 現在のセッション47% / 週間すべてのモデル12% / 週間Fable11%。→ もし『8/13朝の40%』が週間なら 12%→40% の急増、セッションなら新窓で40%。どちらもあり得るため未確定。",
+ "cap_verified": false,
+ "cap_verified_note": "2026-08-15 14:34に true へ。根拠=独立2点の一致(上記cap_status.how)。★別マシンが同時稼働したら false に戻すこと",
+ "incident_2026_08_13_red_crossed": "★私(0812窓)が level=stop のまま15件バッチを再開した。理由づけは『40%だったからまだ空いている』だったが、その40%はメーター種別が未確認=未確定の数字を確定のように使った。今朝ずっと戒めてきたことを自分でやった。0812-2窓が指摘。→ 対処: cap_verified を導入し、検証されていないcapでは赤/緑を出さない(level=unknown)。★赤を跨ぐ運用を一度作ると次のセッションはそれを標準だと思う(CLAUDE.md)。",
+ "lesson_batch_timing": "★窓の残りが少ない時に大バッチを始めない(2026-08-13 阿部さん)。1バッチ=72件は約9.5M必要で、80%消費済みの窓では確実に途中で死ぬ。窓明け直後に始めるか、残量に見合う件数に割る。★中断しても resumeFromRunId で完了分はキャッシュ再生されるので損失は時間だけ",
+ "finding_2026_08_15_block_vs_recorded": {
+  "what": "8/15 09:20 の校正点に控えた ccusage_tokens=16,420,085 は、5時間ブロックの合計ではなかった",
+  "measured": "ccusage blocks で見ると、94%に達した窓(JST 08:00-13:00 = 23:00Z-04:00Z)のブロック合計は 71,806,926。その前の窓(JST 03:00-08:00)は 110,325,782",
+  "why_it_matters": "ブロック合計と控えた値が4倍以上ちがう=09:20の点から cap を引くと大外しする。★この不一致が解けるまで cap_verified は false のまま",
+  "operational_workaround": "capを当てにせず「1窓=1バッチ」で運用する。94%に達した窓が 71.8M だったので、60%相当 ≈ 43M。安全側に倒して 1窓あたり ccusageブロック 40M を上限の目安にする(=あくまで目安・真値は阿部さんの画面)"
+ },
+ "auto_run_2026_08_15": {
+  "authorized": "2026-08-15 阿部さん「回す(夜間も含めて自動)」。60%までで作業→5時間後の窓明けに自動で次バッチ",
+  "design": "1窓=1バッチ(55件)。94%に達した窓のccusageブロック合計が71.8Mだったので、60%相当≈43M。安全側に倒して1窓 40M で打ち止め",
+  "windows": "JST 14:00-19:00 / 19:00-24:00 / 24:00-05:00 / 05:00-10:00。残り232件=約4窓",
+  "safety": "①claude --continueの無人自動再起動はしない(2026-07-12事故) ②週間すべてのモデルが50%を超えたら停止して報告 ③R1完走で停止 ④阿部さんの停止が最優先",
+  "recalibrate": "★バッチ2完了時に阿部さんへ使用量画面の数字を依頼し、55件=何%を実測する。それまでの55件/窓は推定値"
+ },
+ "measured_2026_08_15": {
+  "per_item_block_tokens": 445000,
+  "basis": "バッチ2=55件で24.5M / バッチ3=28件で11.6M(ccusageアクティブブロック差分)。★subagent_tokens(6.7M/3.4M)の約3.5倍がブロックに乗る=cacheReadぶん",
+  "window_capacity": "cap≈71.3M。60%=42.8M → 運用上限42M。1件445kなので 42M ÷ 445k ≈ 94件/窓(ただし親のメインループ分を含むので実効は83〜90件)",
+  "small_batch_overhead": "★小さいバッチは1件あたりが高い: 55件=445k/件・28件=414k/件だが 7件=581k/件。親のメインループ+台帳化の固定費が効く。→ 窓の端数を埋める時は「件数×445k」で見積もると足りなくなる"
+ },
+ "authorized_exception_2026_08_15_1745": {
+  "what": "60%の上限を意図的に超えてバッチ5(50件)を投入した",
+  "who": "阿部さん明示指示「もうやっていいよ、止まっても再開するでしょうし」(2026-08-15 17:45)",
+  "state_at_launch": "ブロック44.44M ≈ 62%(既に60%超)。19:00の窓明けまで75分",
+  "rationale": "①19:00に窓が明けて新しい枠が来るので、この窓を使い切っても翌窓の作業は減らない ②上限に当たっても resumeFromRunId でキャッシュ再開=損失は時間だけ",
+  "result": "50件完走(失敗0/100エージェント)。ブロック 44.44M → 66.28M ≈ 93%。上限には当たらなかった",
+  "run": "wf_e5a190a7-8a6",
+  "discipline_note": "★これは「黙って赤を跨いだ」2026-08-13の事故とは別物。指示・根拠・見込みを事前に記録した上での例外。★次のセッションはこれを標準と誤解しないこと=既定は60%"
+ },
+ "round1_tally": {
+  "checks_total": 3005,
+  "verdicts": {
+   "match": 1705,
+   "missing_in_ours": 545,
+   "mismatch": 161,
+   "unknown": 550,
+   "extra_in_ours": 44
+  },
+  "rebuttal_disagreed": 164,
+  "rebuttal_points": 628,
+  "champions_meta_hits": 131,
+  "effect_hits": 619,
+  "note": "★champions印/champions_pokemon_count 系が131件=明らかに系統的。1件ずつでなくまとめて根治する。unknown 550件は「権威ページに書いていない」ので推測で埋めない(正直な保留)"
+ },
+ "cap_contradiction_2026_08_15_1952": {
+  "what": "★cap≈71.3M の見立てが外れた。19:00-24:00の窓でブロック82.13M(推定capの115%)に達しても上限に当たっていない",
+  "implication": "ccusageのブロック総トークンと アプリの% は単純比例しない。おそらくモデル/キャッシュ種別で重みが違う(cacheReadが9割を占めるため、生の合計では実消費を写せない)",
+  "action": "cap_verified を true → false に戻した。%の断定はしない。★2026-08-13の教訓「跨ぎたくなったら計器を正直にする」に従う",
+  "what_still_holds": "相対的な目安としては使える(1件あたり445k〜650k)。窓の中で「あとどれくらい入るか」の当たりを付けるのには足りる",
+  "next_calibration": "朝に阿部さんの画面で「この窓の%」を聞き、82M超がどの%だったかを記録する。それでcapの単位を選び直す"
+ },
+ "round2_tally": {
+  "checks": 2488,
+  "verdicts": {
+   "match": 1543,
+   "missing_in_ours": 480,
+   "mismatch": 37,
+   "unknown": 414,
+   "extra_in_ours": 14
+  },
+  "rebuttal_disagreed": 191,
+  "rebuttal_points": 529,
+  "mismatch_plus_extra": 51,
+  "dare_check": "★枯れ判定は不成立。持ち物の推移が140→11→4→2→0→0だったのに対し、特性はR1=89(stale除く)→R2=51。まだ減り方が緩い=R3が要る"
+ },
+ "auto_run_2026_08_27": {
+  "directive": "朝まで自走(ループ/ゴール/WF・省エネ)。やること=①却下12+2行引用取り直し ②技919件監査R1 ③説明文書き足しサンプル",
+  "started": "2026-08-27T18:55 JST"
+ }
 }
