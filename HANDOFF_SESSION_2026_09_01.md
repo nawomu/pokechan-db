@@ -23,7 +23,7 @@
 - 番人 `node tools/_ssot_guard_test.js` ✅悪化なし / data_browser.html 実機(Playwright)=5体表示・JSエラー0・healthCheck ok。
 - 出典は各行の `source`/`根拠` に全部書いた。値の裏取り=ヤックン/ch/(「まだ実装されていません」参考情報)=ヤックン/za/=Bulbapedia=PokeAPI の一致。
 
-# 1. ★9/9(水)にやること(レギュ切替の手順)
+# 1. ★(済)レギュ切替=2026-09-01に先行で現行化した(阿部さん「切替は要らない・もう公開」)。以下は当時の手順(参考)
 ★前提(阿部さん 2026-09-01 確定): **レギュは累積**=M-Bで使えたものは全部M-Cでも使える+新規26体(確定5・残り21は公式待ち)。バトル(real_battle)も現行レギュ=累積の集合を使う。builderは REGULATION を変えるだけで seasons が伸びる規則にしてある。
 1. `reference/_regulations.json`: M-B の `current:false` → M-C を `current:true`(順番も M-C を先頭に。pokedb.js の `regulation()` は items[0])
 2. `tools/build_master_v2.js` の `REGULATION = 'M-B'` → `'M-C'`(レギュは累積=M-Bの行は全部M-Cになる)
@@ -59,3 +59,8 @@
 - **X投稿文面** `宣伝_X投稿文面_M-C対応_2026-09-01.md`(推奨X-6=272字・dry-run済み)。投稿は阿部さん。
 - 教訓: 並走エージェントが `git stash` を使い、もう1本の作業ファイルを一時的に戻した(復旧済み)。**並走中の blanket stash/checkout 禁止**(agent-file-commit-lockout と同型)。
 - 残: 段H(9/9切替)/21体の公式発表待ち/全国限定 learners 残差51件/非ja孤児ページ39×8/waza-list_all のフーパ直書き/未実装特性70件(凍結)。
+
+# 7. 同日: レギュM-C 先行現行化(push済み)
+- `reference/_regulations.json` は M-C のみ(current)。builder `REGULATION='M-C'`。累積で318体/技497/持ち物151が全部M-C。新規5体は `champions_added_in:'M-C'` を**データに明示**(additions/fixes)=🆕M-C印。
+- 9/9当日にやることは**無し**(公式開始後にヤックン/ch/で3体の値・ナイトZの入手法(VP)を突き合わせて上書き=canon③のみ)。残り21体は公式発表後に additions へ。
+- X文面は「先に使えます」の体(X-8推奨・dry-run済み)。
