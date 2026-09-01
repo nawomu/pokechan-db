@@ -16,6 +16,7 @@
    - **わざ説明文を作る/直す** → **`review/rules.html`**(元 `tools/_rules.js`)+ **`ヤックン耳_判断ログ.md`**(具体例)
    - **★特性(とくせい)を触る** → **`設計_特性の扱い_2026-08-16.md`(必読)**。技の流儀(effects→compose)をそのまま持ち込むと大工事になる。**特性はエンジンにコードで実装済み(155/312が生の名前で出現)=effects化しない**。代わりに「バトルが判断に使う事実の表」を持つ(かたやぶりの対象一覧が第1号)。説明文の長さ制限は2026-08-16に撤回・ただし出どころの禁止(ナビ欄/NPCセリフ/背景/戦術論)は残る。**`master/abilities.json` を手で直すと再ビルドで消える → `reference/_abilities_fixes.json` に根拠つきで書く**
    - **データ(ポケモン/技/特性/持ち物)を触る・追加する・最新化する** → **★`設計_データSSOT一本化_2026-07-28.md`(必読)**
+     - **★器を広げる(新ポケモン/新特性/新持ち物/次のレギュ)入口 = `reference/_pokemon_additions.json` / `_abilities_additions.json` / `_items_additions.json` / `_regulations.json`(2026-09-01 レギュM-C予告分で整備)+ 修正は `_*_fixes.json`(★同名キーは必ずマージ・上書きで消すな)。書いたら `node tools/build_master_v2.js` → `node tools/_ssot_guard_test.js`**
      - **★SSOT = `master/{pokemon,moves,abilities,items,learnsets,regulations}.json`。ここ「だけ」を直す**(2026-07-31 訂正。★以前ここには `reference/master_*.json` と書いてあったが**それは古い場所**。`reference/` に似た名前の旧ファイルが**10本**残っていて、実際に「どれが本物か分からない」状態を生んだ)。`pokechan_data.js`(Champions版)/`pokechan_data_all.js`(全国版)/`items_database.js` は**生成物=直接編集しない**。
      - **一箇所を見る・一箇所を変えれば全部変わる**(多言語もバトル仕様書もここから引く)。★2026-07-28に**Champions版と全国版が別物になっている**ことが実測で判明(説明文195件 vs 309件・`champions.in`の印が10件未設定・再ビルドで5件消える状態)。**両方を手で直すな**。
      - **名前は正式名称**(略さない・切り詰めない)。✗「フラエッテ(えいえん)」→ ✓「フラエッテ(えいえんのはな)」。英語もPokeAPIの**完全名**。名前の不一致は**機能が到達不能になる実バグ**を生む(フラエッテナイト/いじげんラッシュ/i18n468件=全部同じ型)。

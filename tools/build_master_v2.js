@@ -161,6 +161,18 @@ function buildAbilities() {
       chCount[p[k]] = (chCount[p[k]] || 0) + 1;
     });
   });
+  // ★手動追加ポケモン(reference/_pokemon_additions.json)で champions=true の行も数える(2026-09-01・レギュM-C予告分:
+  //   メガルカリオZ→はどうのぼうご 等)。ここで名前を足しておけば、下の additions で実体(効果文)に置き換わる。
+  try {
+    (J('reference/_pokemon_additions.json').items || []).filter(p => p.champions).forEach(p => {
+      const seen = new Set();
+      ['ab1', 'ab2', 'ab3'].forEach(k => {
+        if (!p[k] || seen.has(p[k])) return;
+        seen.add(p[k]); usedInChampions.add(p[k]); names.add(p[k]);
+        chCount[p[k]] = (chCount[p[k]] || 0) + 1;
+      });
+    });
+  } catch (e) {}
 
   const items = [...names].filter(Boolean).sort().map(name => {
     const au = authByName[name];
@@ -194,6 +206,21 @@ function buildAbilities() {
       ['effect_ja', 'name_en'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
       if (f.effect_ja != null) it.source = 'audited';
     });
+  } catch (e) {}
+
+  // ★手動追加(器を広げる時の入力・2026-09-01 新設。第1号=レギュM-Cの新特性『はどうのぼうご』)
+  //   同名が既に居れば上書き(上で names に足された分は効果文が unknown の空行なので、実体に置き換える)
+  try {
+    const adds = J('reference/_abilities_additions.json');
+    (adds.items || []).forEach(a => {
+      const i = items.findIndex(x => x.name === a.name);
+      const row = Object.assign({}, a, { verified_at: a.verified_at || NOW });
+      if (i >= 0) items[i] = Object.assign({}, items[i], row); else items.push(row);
+      for (let k = unknowns.length - 1; k >= 0; k--) {          // 空行ぶんの unknown は取り下げる
+        if (unknowns[k].kind === 'ability_effect' && unknowns[k].key === a.name) unknowns.splice(k, 1);
+      }
+    });
+    items.sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
   } catch (e) {}
 
   write('abilities.json', { meta: META('特性', {
@@ -310,6 +337,16 @@ function buildItems() {
       const f = fx[it.name];
       if (!f) return;
       ['name_en', 'category', 'effect_ja'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
+    });
+  } catch (e) {}
+
+  // ★手動追加(器を広げる時の入力・2026-09-01 新設。第1号=レギュM-Cのメガストーン『○○ナイトZ』3つ)
+  try {
+    const adds = J('reference/_items_additions.json');
+    const have = new Set(items.map(x => x.name));
+    (adds.items || []).forEach(a => {
+      if (have.has(a.name)) return;                 // すでに居れば足さない(二重防止)
+      items.push(Object.assign({}, a, { verified_at: a.verified_at || NOW }));
     });
   } catch (e) {}
 
@@ -530,6 +567,24 @@ function buildLearnsets() {
   //   ・Championsに追加されたら: 9世代との差分を champions_diff として記録→権威値で上書き(canonルール③)
   const nationalRows = buildNationalLearnsets(new Set(items.map(x => x.name)));
   const all = items.concat(nationalRows);
+  // ★手動追加ポケモン(reference/_pokemon_additions.json)で learnset_from を持つ行は、その元の行を複写して1行足す
+  //   (2026-09-01 新設・第1号=レギュM-C予告のメガシンカZ 3体)。メガシンカは元のポケモンと同じ技を覚える=
+  //   既存の85メガ行のうち ルカリオ/アブソル/ガブリアス と各メガ行の learn が全一致することを確認して採った。
+  //   Champions解禁後は権威(ヤックン/ch/)の値で上書き確認すること(canonルール③)。
+  try {
+    const adds = J('reference/_pokemon_additions.json');
+    const have = new Set(all.map(x => x.name));
+    (adds.items || []).filter(a => a.learnset_from && !have.has(a.name)).forEach(a => {
+      const src = all.find(x => x.name === a.learnset_from);
+      if (!src) { unk('learnset_from', a.name, '複写元 ' + a.learnset_from + ' の行が無い'); return; }
+      all.push(Object.assign({}, src, {
+        slug: a.slug || null, name: a.name, display_name: a.display_name || a.name, no: a.no != null ? a.no : src.no,
+        learn: src.learn.slice(), confiscated: (src.confiscated || []).slice(),
+        champions: !!a.champions, regulation: a.regulation || null, authority_name: null, ours_had: null,
+        source: 'copied_from:' + a.learnset_from + '(メガシンカは元と同じ技。Champions解禁後に権威で確認)', verified_at: NOW,
+      }));
+    });
+  } catch (e) {}
   write('learnsets.json', { meta: META('覚える技と没収技', {
     note: 'confiscated=Championsで没収された技。本番(リアルバトル)では出さない。ラボではON/OFFを選べる。',
     note_national: 'champions=false の行は PokeAPI由来の暫定(source=pokeapi_provisional)。learn=最新作品の技 / learn_legacy=過去世代のみ(廃止)。',
@@ -592,6 +647,15 @@ function buildNationalLearnsets(championsNames) {
 // 6) regulations.json
 // ══════════════════════════════════════════════════════════════════
 function buildRegulations() {
+  // ★2026-09-01: 一覧は reference/_regulations.json が正(次のレギュ M-C の予告を持てるように)。無ければ従来の1件
+  try {
+    const reg = J('reference/_regulations.json');
+    const items = (reg.items || []).map(r => Object.assign({}, r, { verified_at: r.verified_at || NOW }));
+    if (items.length) {
+      write('regulations.json', { meta: META('レギュレーション', { note: reg.rule || null }), count: items.length, items });
+      return items.length;
+    }
+  } catch (e) {}
   const items = [{
     id: REGULATION, name: 'レギュレーション M-B', current: true,
     note: '現行レギュレーション。過去のレギュレーション(M-A等)は保持しない(後戻りしないため)。' +
