@@ -610,7 +610,6 @@ function buildPokemon() {
   });
   // ★段C差し戻し対応 資産⑥(続き): M-C予告分(regulation:'M-C')は旧に無いので凍結ファイルに無い。
   //   コーディネーター指示どおり'M-C'を直接入れる(手動追加・_pokemon_additions.json由来の行のみ対象)。
-  items.forEach(x => { if (x.regulation === 'M-C' && !x.champions_added_in) x.champions_added_in = 'M-C'; });
 
   // ★備考欄(阿部さん指示 2026-08-01「マスターに説明欄を絶対入れる。Claudeのため」)
   //   特殊なポケモン(見た目だけの色違いフォルム/バトル中しかならない姿/内部で別フォルム等)の意味を持たせる
@@ -630,6 +629,16 @@ function buildPokemon() {
       Object.entries(f.set).forEach(([k, v]) => { it[k] = v; });
     });
   } catch (e) {}
+  // ★2026-09-01: 次レギュ(M-C予定)の印は fixes 適用の**後**で付ける(ゴリランダー/セグレイブは fixes で regulation:'M-C' になるため。
+  //   以前はこの前に走っていて、その2体の seasons/champions_added_in に M-C が入らず、ページのSSN列が「M-A M-B」と誤表示した)。
+  //   規則: regulation が seasons に無ければ足す / 現行(REGULATION)より後のレギュで初登場なら champions_added_in にそのレギュ。
+  items.forEach(x => {
+    if (!x.regulation) return;
+    if (!Array.isArray(x.seasons)) x.seasons = [];
+    if (x.regulation === REGULATION) return;             // 現行レギュの行は旧の履歴のまま(旧に季なし[]の行=バトル中限定の姿など を変えない)
+    if (!x.seasons.includes(x.regulation)) x.seasons.push(x.regulation);
+    if (!x.champions_added_in) x.champions_added_in = x.regulation;
+  });
 
   items.sort((a, b) => (a.no || 9999) - (b.no || 9999) || String(a.name).localeCompare(String(b.name), 'ja'));
 

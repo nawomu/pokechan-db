@@ -361,6 +361,7 @@ tbody tr:hover td { background: #FFF3C4 !important; }
 .td-ssn .sbg { display: inline-block; padding: 0 4px; border-radius: 4px; font-size: 9px; font-weight: 700; margin: 0 1px; }
 .td-ssn .sbg.s-ma { background: #2b4a6b; color: #fff; }
 .td-ssn .sbg.s-mb { background: #FF7A00; color: #fff; }
+.td-ssn .sbg.s-mc { background: #6b3fa0; color: #fff; }
 /* ★2026-07-03: SSNフィルタを隣のフィルタ(ms-btn/name-srch)とデザイン統一(白ネイティブ→ダーク) */
 .th-ssn .ssn-sel {
   font-size: 10px; padding: 1px; max-width: 68px; width: 100%;
@@ -2262,7 +2263,7 @@ COLUMNS.push({
     th.className = 'th-ssn';
     const selId = `ssn-sel-${ctx.prefix}`;
     th.innerHTML = `<div class="hdr2">
-      <div class="hdr2-top"><select class="ssn-sel" id="${selId}"><option value="">${_tDB('db.gen_all', '全')}</option><option value="M-A">${_tDB('db.season_ma_cont', 'M-A継続')}</option><option value="M-B">🆕M-B</option></select></div>
+      <div class="hdr2-top"><select class="ssn-sel" id="${selId}"><option value="">${_tDB('db.gen_all', '全')}</option><option value="M-A">${_tDB('db.season_ma_cont', 'M-A継続')}</option><option value="M-B">🆕M-B</option><option value="M-C">🔜M-C</option></select></div>
       <div class="hdr2-bot" data-sort="season" style="justify-content:center">SSN<span class="si2" data-skey="season"></span></div>
     </div>`;
     th.querySelector('.ssn-sel').onchange = () => ctx.onFilter();
@@ -2270,17 +2271,21 @@ COLUMNS.push({
     return th;
   },
   buildTd: (p) => {
-    const html = p.added_in === 'M-B'
+    // ★2026-09-01: added_in は「初登場レギュ」。M-C(次レギュ・未開始)は 🔜 で「これから出る」印(データ駆動・文字列はレギュID)
+    const html = p.added_in === 'M-C'
+      ? '<span class="sbg s-mc">🔜M-C</span>'
+      : p.added_in === 'M-B'
       ? '<span class="sbg s-mb">🆕M-B</span>'
       : '<span class="sbg s-ma">M-A</span><span class="sbg s-mb">M-B</span>';
     return `<td class="td-ssn">${html}</td>`;
   },
-  getVal: (p) => p.added_in === 'M-B' ? 2 : 1,
+  getVal: (p) => p.added_in === 'M-C' ? 3 : (p.added_in === 'M-B' ? 2 : 1),
   applyFilter: (arr, ctx) => {
     const v = document.getElementById(`ssn-sel-${ctx.prefix}`)?.value;
     if (!v) return arr;
+    if (v === 'M-C') return arr.filter(p => p.added_in === 'M-C');   // M-C予定のみ
     if (v === 'M-B') return arr.filter(p => p.added_in === 'M-B');   // M-B新規のみ
-    return arr.filter(p => p.added_in !== 'M-B');                     // M-A継続のみ
+    return arr.filter(p => p.added_in !== 'M-B' && p.added_in !== 'M-C'); // M-A継続のみ
   },
 });
 
