@@ -632,10 +632,17 @@ function buildPokemon() {
   // ★2026-09-01: 次レギュ(M-C予定)の印は fixes 適用の**後**で付ける(ゴリランダー/セグレイブは fixes で regulation:'M-C' になるため。
   //   以前はこの前に走っていて、その2体の seasons/champions_added_in に M-C が入らず、ページのSSN列が「M-A M-B」と誤表示した)。
   //   規則: regulation が seasons に無ければ足す / 現行(REGULATION)より後のレギュで初登場なら champions_added_in にそのレギュ。
+  //   ★レギュは累積(2026-09-01 阿部さん確定: 「M-Bだったやつは全部M-Cでも適用される前提で、プラス26体」)。
+  //     → 現行レギュ(REGULATION)の行: 旧の季履歴が非空なら現行を足す(9/9に REGULATION='M-C' にすると
+  //       ["M-A","M-B"] → ["M-A","M-B","M-C"] に自動で伸びる)。季なし[]の行(バトル中限定の姿など)は[]のまま。
+  //     → 現行より後のレギュ(予告分)の行: 空でも足す + champions_added_in にそのレギュ(初登場の印)。
   items.forEach(x => {
     if (!x.regulation) return;
     if (!Array.isArray(x.seasons)) x.seasons = [];
-    if (x.regulation === REGULATION) return;             // 現行レギュの行は旧の履歴のまま(旧に季なし[]の行=バトル中限定の姿など を変えない)
+    if (x.regulation === REGULATION) {
+      if (x.seasons.length && !x.seasons.includes(REGULATION)) x.seasons.push(REGULATION);
+      return;
+    }
     if (!x.seasons.includes(x.regulation)) x.seasons.push(x.regulation);
     if (!x.champions_added_in) x.champions_added_in = x.regulation;
   });

@@ -24,9 +24,10 @@
 - 出典は各行の `source`/`根拠` に全部書いた。値の裏取り=ヤックン/ch/(「まだ実装されていません」参考情報)=ヤックン/za/=Bulbapedia=PokeAPI の一致。
 
 # 1. ★9/9(水)にやること(レギュ切替の手順)
+★前提(阿部さん 2026-09-01 確定): **レギュは累積**=M-Bで使えたものは全部M-Cでも使える+新規26体(確定5・残り21は公式待ち)。バトル(real_battle)も現行レギュ=累積の集合を使う。builderは REGULATION を変えるだけで seasons が伸びる規則にしてある。
 1. `reference/_regulations.json`: M-B の `current:false` → M-C を `current:true`(順番も M-C を先頭に。pokedb.js の `regulation()` は items[0])
 2. `tools/build_master_v2.js` の `REGULATION = 'M-B'` → `'M-C'`(レギュは累積=M-Bの行は全部M-Cになる)
-3. 再ビルド → 番人 → **ヤックン/ch/ の3体ページが「実装済み」になったら値を突き合わせて上書き**(canonルール③。技=Champions固有の没収があり得る→`learnsets` の `copied_from` 行を権威で差し替え)
+3. 再ビルド → `node tools/build_views.js` → `_views_diff` → `_views_pdca_playwright` → 番人 → **ヤックン/ch/ の3体ページが「実装済み」になったら値を突き合わせて上書き**(canonルール③。技=Champions固有の没収があり得る→`learnsets` の `copied_from` 行を権威で差し替え)
 4. ナイトZ 3つの入手方法(VP価格)を `/ch/item.htm` で確認して `_items_additions.json` の effect_ja を更新
 5. 残り21体(26−5)は**公式の追加発表を待って**から足す(ネットの予想リストは採らない)
 
