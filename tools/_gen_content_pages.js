@@ -1,17 +1,28 @@
-/* コンテンツ静的ページ生成(SEO用・多言語=案A)。pokechan_data.js + i18n/*.json から自動生成。
+/* コンテンツ静的ページ生成(SEO用・多言語=案A)。pokechan_data_all.js(全国版=エンティティの母集団)
+ * + pokechan_data.js(Champions=Champions専用情報の出所) + i18n/*.json から自動生成。
  * 生成物:
  *   ja : /ability/<特性名>.html /pokemon/<slug>.html /type/<タイプ名>.html (既存パス不変)
  *   非ja: /<lang>/ability/<en-slug>.html  /<lang>/pokemon/<slug>.html  /<lang>/type/<en-slug>.html
  *   各ページに hreflang alternate。データ(名前/効果/タイプ)は SSOT(i18n/*.json)から引く=手書きゼロ。
+ * ★2026-09-01(段F・阿部さん「全国版も広げて」): エンティティの母集団を pokechan_data_all.js
+ *   (全国版1273体/313特性)へ拡張。pokemon/ability の個別ページは全国版まで全部作る。
+ *   pokemon/index.html(チャンピオンズ一覧)だけは従来どおり pokechan_data.js(318体)のまま=
+ *   既存の「(チャンピオンズ)」ページの内容は変えない。技の学習リスト(movesTable)は
+ *   Champions登場ポケモン(champions:true)だけ従来どおり Champions側のデータ(champions_key)を
+ *   使い続け、全国版限定ポケモンだけ全国版の学習データを使う=既存ページの内容を変えない。
  * 実行: node tools/_gen_content_pages.js
  * 固定UIラベル・アクセサ = tools/_content_i18n.js。法務フッタ本文は ja 維持(2026-06-24 決定)。
  */
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.join(__dirname, '..');
-const d = require(path.join(ROOT, 'pokechan_data.js'));
+const d = require(path.join(ROOT, 'pokechan_data_all.js'));   // 全国版=エンティティの母集団
+const dCh = require(path.join(ROOT, 'pokechan_data.js'));     // Champions=Champions専用データの出所
 const I = require('./_content_i18n.js');
 const W = d.WAZA_MAP, POKE = d.POKEMON_LIST, PWAZA = d.POKEMON_WAZA, ABID = d.ABILITY_DESC;
+const POKE_CH = dCh.POKEMON_LIST;                              // チャンピオンズ一覧(pokemon/index.html)専用
+const champPokeSet = new Set(POKE_CH.map(p => p.name));        // 名前は両ファイルで一意・完全一致(2026-09-01実測)
+const isChampionPoke = name => champPokeSet.has(name);
 
 // ★生成する言語(段階導入。まず ja+en パイロット → 他言語のラベルを埋めて全言語へ)
 const GEN_LANGS = process.env.GEN_LANGS ? process.env.GEN_LANGS.split(',') : ['ja', 'en'];
@@ -46,37 +57,33 @@ function buildSlugMap(jaList, enName) {
 const abilSlugMap = buildSlugMap(ALL_ABIL, ja => tAbName('en', ja));
 const typeSlugMap = buildSlugMap(TYPES, ja => tType('en', ja));
 // pokemon slug(既存=英語フォーム名・図鑑Noフォールバック)
+// ★2026-09-01: 全国版1273体ぶんへ広げる。既存(チャンピオンズ318体)の slug を1文字も変えないため、
+//   まず POKE_CH(チャンピオンズ・従来と同じ順序)を先に割り当ててから、残り(全国版限定)を割り当てる
+//   (同じ name には割り当て済みなら触らない=既存URLを完全維持。全数シミュレーションで差分0を確認済み)。
 let weights = {};
 try { require(path.join(ROOT, 'review', '_weights_collected.json')).weights.forEach(x => { weights[x.name] = x.api; }); }
 catch (e) { console.log('⚠ 体重JSON無し: slugは図鑑Noベース'); }
 const slugUsed = new Set(), pokeSlugMap = new Map();
-for (const p of POKE) { let base = weights[p.name] || ('p' + p.no), s = base, i = 2; while (slugUsed.has(s)) { s = base + '-' + (i++); } slugUsed.add(s); pokeSlugMap.set(p.name, s); }
+function assignPokeSlug(p) {
+  if (pokeSlugMap.has(p.name)) return;
+  let base = weights[p.name] || ('p' + p.no), s = base, i = 2;
+  while (slugUsed.has(s)) { s = base + '-' + (i++); }
+  slugUsed.add(s); pokeSlugMap.set(p.name, s);
+}
+POKE_CH.forEach(assignPokeSlug);
+POKE.forEach(assignPokeSlug);
 
 const abilSlug = ja => abilSlugMap.get(ja) || kebab(ja);
 const typeSlug = ja => typeSlugMap.get(ja) || kebab(ja);
 const pokeSlug = name => pokeSlugMap.get(name);
 
-// ---- 全国版マスター(master_pokemon.json) + ja名→PokeAPI id マップ ----
-// POKEMON_LIST(Champions 313体)には PokeAPI id が無いため、APIスプライト表示に必要な id を
-// master の names.ja → id から引く(313体は champions!=null で対応取れる・存在確認済み)。
-const MASTER = (() => { try { return require(path.join(ROOT, 'reference', 'master_pokemon.json')); } catch (e) { console.log('⚠ master_pokemon.json 無し: APIスプライトは非表示'); return []; } })();
-const jaToId = new Map(), champNames = new Set();
-for (const _e of MASTER) { if (_e && _e.names && _e.names.ja != null) { jaToId.set(_e.names.ja, _e.id); if (_e.champions != null) champNames.add(_e.names.ja); } }
-// 全国版一覧の特性チップ用: master_abilities(9言語名+effect_ja/en)。ja名→エントリ(2026-07-10)
-const MASTER_AB = (() => { try { return require(path.join(ROOT, 'reference', 'master_abilities.json')); } catch (e) { return []; } })();
-const abByJa = new Map();
-for (const _a of MASTER_AB) { if (_a && _a.names && _a.names.ja != null) abByJa.set(_a.names.ja, _a); }
-const pokeIdOf = jaName => jaToId.get(jaName);
-// 公式スプライト描画用の id を解決。数値 id はそのまま文字列化。
-// "c-026"(独自メガ等の合成id・PokeAPIに絵が無い)は数値部 26 をベース種のPokeAPI id として代用描画する。
-// 戻り値: 数値id文字列(例 "26") / 合成idはベース種 id に解決 / 解決不能なら null。
-const spriteIdOf = id => {
-  if (id == null) return null;
-  const s = String(id);
-  if (/^\d+$/.test(s)) return s;
-  const m = s.match(/^c-(\d+)$/);
-  return m ? String(parseInt(m[1], 10)) : null;
-};
+// ★2026-09-01: reference/master_pokemon.json・reference/master_abilities.json は段E(逆流を断つ)
+// で消えた中間ファイル(SSOTは master/*.json だが、ページ生成は SSOT を直接読まず pokechan_data*.js
+// という「views」だけを読む=CLAUDE.md「ページはpokedb.js(相当)だけを読む」の踏襲)。以前はここで
+// 全国版一覧(pokemon/all.html)の行データ・特性チップの補完・スプライトid解決に読みに行っていたが、
+// 今は POKE(=pokechan_data_all.js の全国版1273体)と ABID(全国版313特性)がそのまま全域をカバーする
+// ため不要。公式スプライト(PokeAPI id)は AdSense方針によりオリジナル絵のみ表示(2026-07-21)なので
+// id解決ロジックも不要。
 
 // 画像セル(オリジナル絵のみ)。名前の左に置く。No は別途先頭(children[0]=No前提)。
 // ・オリジナル絵: images/sim/{ja}.svg → .png → remove(real_battle_simulator.html と同パターン)
@@ -329,11 +336,17 @@ function weaknessTable(lang, p) {
   return `<table>${row('weak_4x', 4)}${row('weak_2x', 2)}${row('weak_half', 0.5)}${row('weak_quarter', 0.25)}${row('weak_zero', 0)}</table>`;
 }
 const statRow = (label, v) => `<tr><th style="width:26%">${esc(label)}</th><td>${v} <span class="stat-bar"><i style="width:${Math.min(100, Math.round(v / 150 * 100))}%"></i></span></td></tr>`;
+// ★2026-09-01: Champions登場ポケモン(champions:true)は従来どおり Champions側の学習データ
+//   (dCh.POKEMON_WAZA/dCh.WAZA_MAP・champions_keyキー)を使う=既存ページの技リストを1件も変えない。
+//   全国版限定ポケモンだけ全国版の学習データ(d.POKEMON_WAZA/d.WAZA_MAP・PokeAPIスラッグキー)を使う。
 function movesTable(lang, name) {
-  const keys = PWAZA[name] || [];
+  const champ = isChampionPoke(name);
+  const srcPWAZA = champ ? dCh.POKEMON_WAZA : PWAZA;
+  const srcW = champ ? dCh.WAZA_MAP : W;
+  const keys = srcPWAZA[name] || [];
   if (!keys.length) return `<p style="color:var(--muted)">${esc(T(lang, 'no_move_data'))}</p>`;
   const catRank = { '物理': 0, '特殊': 1, '変化': 2 };
-  const mv = keys.map(k => Object.values(W).find(x => x.key === k) || { name: k })
+  const mv = keys.map(k => Object.values(srcW).find(x => x.key === k) || { name: k })
     .sort((a, b) => (catRank[a.category] ?? 9) - (catRank[b.category] ?? 9) || ((b.power || -1) - (a.power || -1)) || a.name.localeCompare(b.name, 'ja'));
   const mvName = m => (I.dict[lang] && I.dict[lang].moves && I.dict[lang].moves[m.key] && I.dict[lang].moves[m.key].name) || m.name;
   const CAT_KEY = { '物理': 'cat_phys', '特殊': 'cat_spec', '変化': 'cat_stat' };
@@ -397,8 +410,10 @@ function genPokemonDetail(lang, p) {
   <script>${MOVE_JS}</script>` + FOOT(lang);
   writePage(lang, `pokemon/${pokeSlug(p.name)}.html`, body);
 }
+// ★チャンピオンズ一覧(pokemon/index.html)は従来どおり POKE_CH(Champions 318体)だけを使う。
+// 全国版1273体は genPokemonAllIndex(pokemon/all.html)+個別ページ側で扱う。
 function genPokemonIndex(lang) {
-  const rows = POKE.map(p => {
+  const rows = POKE_CH.map(p => {
     const types = [p.type1, p.type2].filter(Boolean), total = p.hp + p.atk + p.def + p.spatk + p.spdef + p.spd;
     const abCell = [p.ab1, p.ab2, p.ab3].filter(Boolean).map(a => `<a href="${abilHref(lang, a)}" class="ab-chip" data-tip="${esc(tAbDesc(lang, a, ABID[a] || ''))}">${esc(tAbName(lang, a))}</a>`).join('');
     return `      <tr data-name="${esc(tPoke(lang, p.name))}" data-types="${esc(types.join(','))}">`
@@ -410,8 +425,8 @@ function genPokemonIndex(lang) {
   }).join('\n');
   const typeBtns = TYPES.map(t => `<button class="tf t-${esc(t)}" data-type="${esc(t)}">${esc(tType(lang, t))}</button>`).join('');
   const body = head(lang,
-    T(lang, 'pokemon_list_title').replace('{n}', POKE.length),
-    T(lang, 'pokemon_list_desc').replace('{n}', POKE.length),
+    T(lang, 'pokemon_list_title').replace('{n}', POKE_CH.length),
+    T(lang, 'pokemon_list_desc').replace('{n}', POKE_CH.length),
     indexUrl(lang, 'pokemon'), hreflang('index', 'pokemon')
   ) + `
   <style>/* 一覧は画像3列+種族値で幅が要る(2026-07-10)。サイド広告(固定160px)と被らないよう
@@ -423,7 +438,7 @@ function genPokemonIndex(lang) {
   <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <b>${esc(T(lang, 'pokemon_list'))}</b></nav>
   <article class="card">
     <h1>${esc(T(lang, 'pokemon_list'))}</h1>
-    <p class="lead">${T(lang, 'pokemon_list_lead').replace('{n}', POKE.length)}</p>
+    <p class="lead">${T(lang, 'pokemon_list_lead').replace('{n}', POKE_CH.length)}</p>
     <p class="to-all"><a href="all.html">${esc(T(lang, 'link_to_all'))}</a></p>
     <div class="list-controls">
       <input class="search" id="pkSearch" type="search" placeholder="${esc(T(lang, 'pk_search_ph'))}">
@@ -450,47 +465,36 @@ ${rows}
   writePage(lang, 'pokemon/index.html', body);
 }
 
-// ---- 全国版一覧(all.html): master_pokemon.json 全エントリ(ja名で重複間引き=約1330行) ----
-// 列: No / 絵(オリジナル) / 公式スプライト / 名前 / タイプ / 合計種族値。
-// 個別ページへのリンクは Champions 登場ポケモン(champions!=null)のみ(全国版に個別ページは無い)。
+// ---- 全国版一覧(all.html): pokechan_data_all.js(POKE)全エントリ(1273行) ----
+// 列: No / 絵(オリジナル) / 名前 / タイプ / 合計種族値。
+// ★2026-09-01(段F): 以前は reference/master_pokemon.json(段Eで消滅済み中間ファイル)を直接
+// 読んでいたため実際には0行しか出ていなかった。今は POKE(全国版・生成物)から直接作る=SSOTの
+// 流れ(master→build_views→pokechan_data_all.js→ここ)に乗る。全ページ個別ページを持つようになった
+// ので、行の名前は「全部」個別ページへリンクする(以前は Champions登場ポケモンだけリンクしていた)。
 // No を先頭(children[0])に置くことで listJs の 'no' ソート前提を維持。
 function genPokemonAllIndex(lang) {
-  // ja名で重複フォームを間引いてから図鑑No順に並べる(2026-07-10 阿部さん: デフォルトはナンバー順。
-  // master順だとフォーム違いが末尾にまとまっていた。sortは安定=同Noはmaster順(デフォルトの姿が先))
-  const seen = new Set(), entries = [];
-  for (const e of MASTER) {
-    const ja = e.names && e.names.ja;
-    if (ja == null || seen.has(ja)) continue;   // ja名で重複フォームは初出のみ(約1330行)
-    seen.add(ja);
-    entries.push(e);
-  }
-  entries.sort((a, b) => (a.dex != null ? a.dex : 99999) - (b.dex != null ? b.dex : 99999));
+  // 図鑑No順(2026-07-10 阿部さん: デフォルトはナンバー順)。sortは安定=同Noは元の並び順のまま。
+  const entries = POKE.slice().sort((a, b) => (parseInt(a.no, 10) || 99999) - (parseInt(b.no, 10) || 99999));
   const rows = [];
-  for (const e of entries) {
-    const ja = e.names.ja;
-    const types = (e.types || []).filter(Boolean), s = e.stats || {};
-    const total = (s.hp || 0) + (s.atk || 0) + (s.def || 0) + (s.spa || 0) + (s.spd || 0) + (s.spe || 0);
-    // master は9言語内蔵→辞書不要。ja名の「(gmax)」は正式名「(キョダイマックス)」で表示
-    // (2026-07-10 阿部さん。画像ファイル名はja原名(gmax)のままなので imgCells には ja を渡す=参照不変)
-    const nm = (e.names[lang] != null ? e.names[lang] : ja).replace(/\(gmax\)/i, '(キョダイマックス)');
-    const slug = champNames.has(ja) ? (pokeSlug(ja) || '') : '';   // Champions のみ個別ページへ
+  for (const p of entries) {
+    const ja = p.name;
+    const types = [p.type1, p.type2].filter(Boolean);
+    const total = p.hp + p.atk + p.def + p.spatk + p.spdef + p.spd;
+    const nm = tPoke(lang, ja);
+    const slug = pokeSlug(ja) || '';   // 全国版1273体すべて個別ページを持つ→全行リンク
     const nameCell = slug ? `<a href="${esc(slug)}.html">${esc(nm)}</a>` : esc(nm);
-    const dex = e.dex != null ? e.dex : '';
+    const dex = p.no != null ? parseInt(p.no, 10) : '';
     // 特性チップ(チャンピオンズ一覧と同仕様=乗せると説明・2026-07-10 阿部さん「同じテーブルに」)。
-    // Champions特性=個別ページへリンク(tAbDesc)。それ以外=リンク無しspan(master_abilitiesの名前/効果・非jaはeffect_en)
-    const abCell = (e.abilities || []).filter(Boolean).map(a => {
-      if (ABID[a] != null) return `<a href="${abilHref(lang, a)}" class="ab-chip" data-tip="${esc(tAbDesc(lang, a, ABID[a] || ''))}">${esc(tAbName(lang, a))}</a>`;
-      const m = abByJa.get(a);
-      const nmA = m ? (m.names[lang] || a) : a;
-      const tip = m ? (lang === 'ja' ? (m.effect_ja || '') : (m.effect_en || m.effect_ja || '')) : '';
-      return `<span class="ab-chip" data-tip="${esc(tip)}">${esc(nmA)}</span>`;
-    }).join('');
+    // ABID(全国版313特性)が全域をカバーするので全チップが個別ページへリンクする。
+    const abCell = [p.ab1, p.ab2, p.ab3].filter(Boolean).map(a =>
+      `<a href="${abilHref(lang, a)}" class="ab-chip" data-tip="${esc(tAbDesc(lang, a, ABID[a] || ''))}">${esc(tAbName(lang, a))}</a>`
+    ).join('');
     rows.push(`      <tr data-name="${esc(nm)}" data-types="${esc(types.join(','))}">`
       + `<td class="num">${esc(dex)}</td>${imgCells(lang, ja)}`
       + `<td class="name">${nameCell}</td>`
       + `<td>${types.map(t => badge(lang, t)).join('')}</td><td class="abils">${abCell}</td>`
-      + `<td class="num" data-v="${s.hp || 0}">${s.hp || 0}</td><td class="num" data-v="${s.atk || 0}">${s.atk || 0}</td><td class="num" data-v="${s.def || 0}">${s.def || 0}</td>`
-      + `<td class="num" data-v="${s.spa || 0}">${s.spa || 0}</td><td class="num" data-v="${s.spd || 0}">${s.spd || 0}</td><td class="num" data-v="${s.spe || 0}">${s.spe || 0}</td>`
+      + `<td class="num" data-v="${p.hp}">${p.hp}</td><td class="num" data-v="${p.atk}">${p.atk}</td><td class="num" data-v="${p.def}">${p.def}</td>`
+      + `<td class="num" data-v="${p.spatk}">${p.spatk}</td><td class="num" data-v="${p.spdef}">${p.spdef}</td><td class="num" data-v="${p.spd}">${p.spd}</td>`
       + `<td class="num" data-v="${total}"><b>${total}</b></td></tr>`);
   }
   const n = rows.length;
