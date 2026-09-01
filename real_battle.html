@@ -192,6 +192,10 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 #pp-list .pp-types span{font-size:7.5px;font-weight:800;color:#fff;border-radius:6px;padding:1px 4px;border:1px solid #ffffff44}
 #pp-list button:hover{border-color:#5a4fc4;background:#fff;box-shadow:0 0 0 2px #d4f542}
 #pp-list img{width:44px;height:44px;object-fit:contain}/* 6列コンパクト(2026-07-07 阿部さん) */
+/* ★2026-09-01(M-C対応): 次レギュ(まだ開始前)の新顔に付ける印。pokemon_db_v9.htmlの.sbg.s-mcと同じ配色 */
+#pp-list .pp-mc{position:absolute;top:1px;right:1px;background:#6b3fa0;color:#fff;font-size:7.5px;font-weight:800;
+  border-radius:5px;padding:1px 3px;line-height:1.2}
+#pp-list button{position:relative}
 #pp-close{margin-top:10px;background:#8a82c8;border:1px solid #ffffff66;border-radius:20px;color:#fff;font-weight:700;padding:8px;cursor:pointer}
 /* ===== 能力値コンパクトエディタ(中央パネル下段に一体・2026-07-05 阿部さん) =====
  * ルール=ビルダー準拠(66pt/32上限/性格)。UI=名前なし・4目盛りメーター・MIN⇔MAXトグル1個・自動確定(適用ボタンなし)。
@@ -1126,7 +1130,7 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 </div>
 
 <!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変) -->
-<iframe id="engine-frame" src="real_battle_simulator.html?v=20260729a" style="display:none"></iframe>
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260901a" style="display:none"></iframe>
 
 <script>
 let S = null;           // __sim ブリッジ
@@ -1447,7 +1451,14 @@ function itemChoicesRB(){
   // ★2026-07-18: ポケチャン未実装の持ち物(こだわりハチマキ/メガネ/パンチグローブ/くろいヘドロ/とつげきチョッキ/
   // しんかのきせき/ふうせん/ゴツゴツメット/かえんだま/どくどくだま)はリアルバトルでは選べない(実機準拠)。
   // ラボ(battle_lab.html)はサンドボックス仕様なのでこのフィルタを入れない=🧪印だけ付けて選択可のまま。
-  return S.itemsList().filter(it => (it.category !== 'mega_stone' || it.key === 'mega_stone_any') && it.implemented_in_pokechan !== false);
+  // ★2026-09-01(M-C対応): メガシンカZ専用ストーン(ルカリオナイトZ等・mega_formが"Z"終わり)だけは例外的に
+  // 個別出品する。理由=対象(アブソル/ルカリオ/ガブリアス)は既に通常メガも持つため、汎用ストーンのままだと
+  // canMegaEvolve()のフォールバック(名前パターン'メガ'+種族名)が必ず非Z側を拾ってしまい、Zフォームへ到達する
+  // 手段が無くなる(engine側の対応=canMegaEvolve内のapplies_to+mega_form解決・real_battle_simulator.html)。
+  // X/Y(リザードン等)は従来どおり汎用ストーン止まり=挙動を変えない。
+  return S.itemsList().filter(it =>
+    (it.category !== 'mega_stone' || it.key === 'mega_stone_any' || /Z$/.test(it.mega_form || '')) &&
+    it.implemented_in_pokechan !== false);
 }
 // ★2026-07-18: 保存ビルド/プリセット/受信データ由来の未実装アイテムが装備されていたらnull(既定=もちものなし)へ矯正
 // (normMegaKeyRBと同じ自己修復の流儀。ピッカーはitemChoicesRBで既に未実装を除外しているが、外部由来データは素通りするため)
@@ -1634,7 +1645,7 @@ function renderSelDetail(id){
   box.querySelector('.sd-ab').addEventListener('click', e => {
     SE.select();
     // メガシンカ後の特性も情報表示(選べない=バトル中にストーンで変身するだけ・2026-07-10 阿部さん)
-    const megas = S.pokeList().filter(x => x.mega && x.name.replace(/[XY]$/, '') === 'メガ' + nm);
+    const megas = S.pokeList().filter(x => x.mega && x.name.replace(/[XYZ]$/, '') === 'メガ' + nm);
     const megaGroup = megas.length ? [{ label: I18N.t('online_battle.mega_ab_group', '⬡ メガシンカすると(バトル中に変身)'),
       rows: megas.map(mp => ({ info: true, key: '',
         name: `${tPokeName(mp.name)}: ${(window.I18N && I18N.ability) ? I18N.ability(mp.ab1) : mp.ab1}`,
@@ -1676,7 +1687,7 @@ function loadTeam(){
       // 保存チームにメガのすがたが残っていたら基本のすがたへ矯正(メガはバトル中のみ=2026-07-05 阿部さん)
       const _p0 = d.val[id] && S.pokeByName(d.val[id]);
       if (_p0 && (_p0.mega || _p0.form === 'メガ進化')){
-        const _base = d.val[id].replace(/^メガ/, '').replace(/[XY]$/, '');
+        const _base = d.val[id].replace(/^メガ/, '').replace(/[XYZ]$/, '');
         if (S.pokeByName(_base)) d.val[id] = _base;
       }
       if (!d.val[id] || !S.pokeByName(d.val[id])) return;
@@ -1940,7 +1951,10 @@ function renderPickerList(query){
     const src = (spriteSrc !== 'original' && apiId) ? `images/poke/${apiId}.png` : `images/sim/${enc}.svg`;
     const types = [p.type1, p.type2].filter(Boolean).map(t =>
       `<span style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
-    return `<button data-n="${p.name}"><img loading="lazy" src="${src}" onerror="this.remove()">${tPokeName(p.name)}<span class="pp-types">${types}</span></button>`;
+    // ★2026-09-01(M-C対応): まだ開始前のレギュ(added_in='M-C')は先出しの印。「M-C」はレギュID(翻訳しない・
+    // pokemon_db_v9.htmlのSSN列と同じ表記)。データ駆動=added_in以外のポケモンには出さない
+    const mcBadge = p.added_in === 'M-C' ? '<span class="pp-mc">🔜M-C</span>' : '';
+    return `<button data-n="${p.name}">${mcBadge}<img loading="lazy" src="${src}" onerror="this.remove()">${tPokeName(p.name)}<span class="pp-types">${types}</span></button>`;
   }).join('') || `<div style="color:#8b94a7;padding:10px">${I18N.t('real_battle.poke_not_found','みつからない…')}</div>`;
   $('pp-list').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
     // モンキーテスト発見バグ(2026-07-17・battle_labでスタック確定→3ページ共通の同型ハンドラに同じガード):
@@ -2229,7 +2243,7 @@ function apiIdOf(nm){
   if (SPRITE_API_ID[nm]) return SPRITE_API_ID[nm];
   // Champions独自メガ(公式画像なし・自作SVGも未描画の38体)はベースの姿で代用
   if (nm && nm.startsWith('メガ')){
-    const base = nm.replace(/^メガ/, '').replace(/[XY♂♀]$/, '');
+    const base = nm.replace(/^メガ/, '').replace(/[XYZ♂♀]$/, '');
     if (SPRITE_API_ID[base]) return SPRITE_API_ID[base];
   }
   return null;
@@ -2850,7 +2864,7 @@ function swOppHtml(){
   // 常にこちらのフォールバック分岐を通る(online_battle.htmlと構造をそろえるためガードはそのまま残す)。
   // real_battleは相手が見えるページ=右列は相手チームをそのまま公開表示(2026-07-11 阿部さん)
   if (window.RB_ONLINE && RB_ONLINE.started && RB_ONLINE.fullTeams){
-    const normNm = n => String(n || '').replace(/^メガ/, '').replace(/[XY]$/, '');
+    const normNm = n => String(n || '').replace(/^メガ/, '').replace(/[XYZ]$/, '');
     const baseOf = e => normNm((e.transformBase ? e.transformBase.poke : e.poke).name);
     const team = [opp].concat(opp.bench || []).filter(e => e && e.poke);
     const revealed = RB_ONLINE.revealed ? RB_ONLINE.revealed.opp : new Set();

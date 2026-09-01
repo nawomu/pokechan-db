@@ -2038,6 +2038,19 @@ function calcDamage(atkSide, defSide, move, opts){
     chips.push({label:'こだわりメガネ', factor:1.5, kind:'item'});
   }
 
+  // はどうのぼうご(Aura Guard・M-C新特性=メガルカリオZ専用・段P10b def_modify_damage): 接触技(直接攻撃)の
+  // 受けるダメージが半減する。出典: master/abilities.json effect_ja(Champions権威・2026-09-01追加)
+  // 「接触技(直接攻撃)で受けるダメージが半減する」。ファーコート(物理技×0.5・段3.75)と同じ置き場だが
+  // 判定軸は「物理/特殊」ではなく「接触/非接触」= 特殊接触技(ボディプレス等ではなく、けたぐり系の物理でも
+  // 非接触の技もある)なので、ここでは move.contact / パンチグローブ無効化を先に判定する(段P12のゴツゴツメット
+  // 判定=_isContact と同型。atkItem はこの時点で確定済みなので流用する)。
+  const _auraGuardNoContact = atkItem && atkItem.key === 'punching_glove' && move.flags && move.flags.punch;
+  const _auraGuardContact = !_auraGuardNoContact && ((move.contact === true) || isPhys);
+  if (defAb === 'はどうのぼうご' && _auraGuardContact){
+    base = pokeRound(base, 2048);
+    chips.push({label:'はどうのぼうご', factor:0.5, kind:'ability-def'});
+  }
+
   // 4) 16通り乱数 [85..100] / 100（ここから先は variation 毎に）
   const variations = [];
   for (let r = 85; r <= 100; r++){
@@ -3092,6 +3105,14 @@ function phaseDealDamage(atkSide, defSide, move){
     def.rank.atk = (def.rank.atk || 0) + 1;
     log('9', `${pname(def)} の せいぎのこころ！ こうげきが あがった！`);
   }
+  // ねつこうかん(Thermal Exchange・M-C新特性=セグレイブ専用・段P12 post_hit_react): ほのおタイプの攻撃技で
+  // ダメージを受けるとこうげき+1(せいぎのこころと同型・接触は問わない)。やけど無効の側は_AB_IMMUNE(段S02a)で別途処理。
+  // 出典: master/abilities.json effect_ja(Champions権威・2026-09-01追加)
+  if (total > 0 && def.poke && !def.fainted && !def.subAbsorbed &&
+      result.moveType === 'ほのお' && sideAbility(def) === 'ねつこうかん' && (def.rank.atk || 0) < 6){
+    def.rank.atk = (def.rank.atk || 0) + 1;
+    log('9', `${pname(def)} の ねつこうかん！ こうげきが あがった！`);
+  }
   // じゃくてんほけん(Weakness Policy・Phase D B3): 効果バツグンの直接ダメージを受けた時、こうげき・
   // とくこうが+2ずつ(消費・1回)。みがわり被弾/固定ダメージ・倍返し等(この関数に来ない別経路)では
   // 発動しない=result.effを見るこの位置に来ている時点で自然に満たす。両方すでに+6なら不発。
@@ -3482,7 +3503,9 @@ const _BREAKABLE = new Set(['あついしぼう', 'がんじょう', 'クリア�
   'しろいけむり', 'せいしんりょく', 'そうしょく', 'ちくでん', 'ちょすい', 'でんきエンジン', 'てんねん',
   'どんかん', 'ひらいしん', 'ふみん', 'ふゆう', 'ぼうおん', 'マイペース', 'マグマのよろい',
   'マルチスケイル', 'めんえき', 'もらいび', 'やるき', 'ファーコート', 'フィルター', 'ハードロック', 'マジックミラー', 'ゆきがくれ', 'すながくれ', 'ぼうだん', 'リーフガード', 'かんそうはだ',
-  'ふしぎなまもり'/* かたやぶりで貫通可(Bulbapedia "Mold Breaker") */]);
+  'ふしぎなまもり',/* かたやぶりで貫通可(Bulbapedia "Mold Breaker") */
+  'はどうのぼうご', 'ねつこうかん'/* ★未確認(2026-09-01追加のM-C新特性・専用のChampions記述なし):
+    ファーコート/フィルター等の既存の「防御に働く特性」と同型のためBREAKABLEに倣って追加(類推・要再確認) */]);
 // === Phase D B3: 持ち物10件の共通ヘルパー ===
 // マジックルーム中はすべての持ち物効果が無効(既存の道具チェックと同じ規約)。
 function hasItem(st, key){
@@ -4494,7 +4517,8 @@ function phaseApplyEffects(atkSide, defSide, move){
       }
       // 特性による状態異常の無効(ふみん/やるき=ねむり・じゅうなん=まひ・めんえき=どく系・マグマのよろい=こおり)
       // ABILITY_DESC公式準拠・段109。ねむる(self対象)もふみんなら失敗する
-      const _AB_IMMUNE = { sleep:['ふみん','やるき'], paralysis:['じゅうなん'], poison:['めんえき'], badpoison:['めんえき'], freeze:['マグマのよろい'] };
+      // burn:['ねつこうかん'] = M-C新特性(2026-09-01追加)。「やけど状態にならない」(master/abilities.json effect_ja)
+      const _AB_IMMUNE = { sleep:['ふみん','やるき'], paralysis:['じゅうなん'], poison:['めんえき'], badpoison:['めんえき'], freeze:['マグマのよろい'], burn:['ねつこうかん'] };
       const _abI = (target !== atk) ? defAbilityVs(target, atk) : sideAbility(target);   // かたやぶり(段124)は相手の免疫特性を無視
       if ((_AB_IMMUNE[code] || []).includes(_abI)){
         log('9', `${pname(target)} は ${_abI}で ${ef.value}に ならない！`);
