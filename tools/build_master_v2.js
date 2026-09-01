@@ -41,6 +41,15 @@ const AUTH = {
   lists:     J('reference/_authority_corpus_ch/lists_ch.json'),
   learnsets: J('reference/_authority_corpus_ch/learnsets_ch.json'),
 };
+// ★段B(計画_マスターからページへ流す_2026-09-01.md): 旧生成物にしか無い資産を master へ運ぶ。
+//   ★ここは凍結ファイル(reference/_legacy_*.json)を読む。pokechan_data*.js を直接読まない
+//   (段Eで旧生成物入力を切る準備。C/Aは他の既存ロジックでまだ使うので requireは残っている)。
+//   凍結の作り方= tools/_freeze_legacy_seasons.js 等(一度だけ実行してrepoにコミットする)。
+const LEGACY = {
+  seasons: (() => { try { return J('reference/_legacy_seasons.json').seasons || {}; } catch (e) { return {}; } })(),
+  moveAvailability: (() => { try { return J('reference/_legacy_move_availability.json').availability || {}; } catch (e) { return {}; } })(),
+  abilityDesc: (() => { try { return J('reference/_legacy_ability_desc.json'); } catch (e) { return { national: {}, champions: {} }; } })(),
+};
 const NAMEMAP = (() => {
   try {
     const d = J('reference/_name_normalize.json');
@@ -145,6 +154,10 @@ function buildAbilities() {
   // 全国版の説明は半角キーで引けるようにしておく(元データに全角キー『ＡＲシステム』がある)
   const natDesc = {};
   Object.entries(A.ABILITY_DESC || {}).forEach(([k, v]) => { natDesc[zen2han(k)] = v; });
+  // ★段B資産④: desc_house(旧ページの「家の流儀」短文=ABILITY_DESC)を凍結ファイルから引く。
+  //   effect_ja(権威長文)とは別欄。優先順=Champions版のABILITY_DESC → 無ければ全国版。
+  const houseChamp = {}; Object.entries(LEGACY.abilityDesc.champions || {}).forEach(([k, v]) => { houseChamp[zen2han(k)] = v; });
+  const houseNat = {}; Object.entries(LEGACY.abilityDesc.national || {}).forEach(([k, v]) => { houseNat[zen2han(k)] = v; });
   // Championsのポケモンが実際に持つ特性(印の根拠。champions.in フラグは信用しない=2026-07-28に10件漏れていた)
   // ★champions_pokemon_count は Champions のポケモン一覧から**自分で数える**(2026-08-15)。
   //   以前は権威コーパスの同名フィールドを写していたが、2026-08-15にコーパスを取り直した際に
@@ -183,10 +196,16 @@ function buildAbilities() {
     else if (C.ABILITY_DESC && C.ABILITY_DESC[name]) { effect = C.ABILITY_DESC[name]; src = 'ours_champions'; }
     else if (natDesc[name]) { effect = natDesc[name]; src = 'ours_national'; }
     else { effect = unk('ability_effect', name, '権威にもうちにも説明が無い'); src = 'unknown'; }
+    // ★desc_house: 旧ページの「家の流儀」短文(旧ABILITY_DESC)。effect_ja(権威長文)とは別文章・別欄。
+    let descHouse = null, descHouseSrc = null;
+    if (houseChamp[name] !== undefined) { descHouse = houseChamp[name]; descHouseSrc = 'champions'; }
+    else if (houseNat[name] !== undefined) { descHouse = houseNat[name]; descHouseSrc = 'national'; }
     return Object.assign({
       slug: null,                        // ★英語slugは未確定(PokeAPI照合が要る)→ unknown として残す
       name, display_name: name,
       effect_ja: stripNavi(effect),
+      desc_house: descHouse,             // ★旧ページ(pokechan_data*.js)のABILITY_DESC。verbatim(stripNaviしない=別物として保存)
+      desc_house_source: descHouseSrc,   // 'champions' | 'national' | null(旧に説明が無かった)
       champions: inCh,
       regulation: inCh ? REGULATION : null,
       champions_pokemon_count: chCount[name] || 0,
@@ -225,6 +244,9 @@ function buildAbilities() {
 
   write('abilities.json', { meta: META('特性', {
     fixes: '監査確定の修正は reference/_abilities_fixes.json(根拠つき)から適用',
+    desc_house_field: 'desc_house=旧ページ(pokechan_data.js/pokechan_data_all.js)のABILITY_DESC(家の流儀の短文)を' +
+      'reference/_legacy_ability_desc.jsonから移送(段B資産④)。effect_ja(Champions権威コーパス由来の長文)とは別文章・別欄。' +
+      '優先順=Championsの旧ABILITY_DESC→無ければ全国版。desc_house_sourceに由来。両方に無ければnull(=旧にも説明が無かった特性)。',
   }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
@@ -328,6 +350,38 @@ function buildItems() {
       implemented: it.implemented_in_pokechan === true,
       champions: inCh,
       regulation: inCh ? REGULATION : null,
+      // ★段B資産⑥: items_database.js が持つ「構造化フィールド(≈25種)」をverbatimで移送する
+      //   (棚卸し=reference/_plans/棚卸し_生成物にしか無い資産_2026-09-01.md §3で legacy_only と判定された欄)。
+      //   items_database.js は build_master_v2.js の**元々の入力**(ITEMS_DB)なので、旧生成物のように
+      //   凍結ファイルを別途作らず、ここで直接パススルーする(pokechan_data*.js とは扱いが違う)。
+      //   ★値は一切加工しない。undefinedのキーは省く(空欄で埋めない=Object.assignでundefinedは飛ばす)。
+      acquisition: it.acquisition !== undefined ? it.acquisition : undefined,
+      acquisition_note: it.acquisition_note !== undefined ? it.acquisition_note : undefined,
+      restriction: it.restriction !== undefined ? it.restriction : undefined,
+      notes: it.notes !== undefined ? it.notes : undefined,
+      verify: it.verify !== undefined ? it.verify : undefined,
+      q12: it.q12 !== undefined ? it.q12 : undefined,
+      factor: it.factor !== undefined ? it.factor : undefined,
+      source_q12: it.source_q12 !== undefined ? it.source_q12 : undefined,
+      boost_type: it.boost_type !== undefined ? it.boost_type : undefined,
+      vp_cost: it.vp_cost !== undefined ? it.vp_cost : undefined,
+      resist_type: it.resist_type !== undefined ? it.resist_type : undefined,
+      trigger: it.trigger !== undefined ? it.trigger : undefined,
+      cure_target: it.cure_target !== undefined ? it.cure_target : undefined,
+      is_default: it.is_default !== undefined ? it.is_default : undefined,
+      heal_amount_fixed: it.heal_amount_fixed !== undefined ? it.heal_amount_fixed : undefined,
+      heal_fraction: it.heal_fraction !== undefined ? it.heal_fraction : undefined,
+      heal_fraction_of_damage: it.heal_fraction_of_damage !== undefined ? it.heal_fraction_of_damage : undefined,
+      heal_fraction_for_poison: it.heal_fraction_for_poison !== undefined ? it.heal_fraction_for_poison : undefined,
+      damage_fraction_for_others: it.damage_fraction_for_others !== undefined ? it.damage_fraction_for_others : undefined,
+      damage_fraction_to_attacker: it.damage_fraction_to_attacker !== undefined ? it.damage_fraction_to_attacker : undefined,
+      proc_chance: it.proc_chance !== undefined ? it.proc_chance : undefined,
+      self_inflict: it.self_inflict !== undefined ? it.self_inflict : undefined,
+      drawback: it.drawback !== undefined ? it.drawback : undefined,
+      pokeapi_slug: it.pokeapi_slug !== undefined ? it.pokeapi_slug : undefined,
+      // ★棚卸しには明記されていないが同種の legacy_only 構造化欄(acquisitionの出典citation)。
+      //   acquisition/acquisition_note と同じ90件グループに属する(段B時点で発見・追加で運ぶ)。
+      legacy_source_note: it.source !== undefined ? it.source : undefined,
     }, stamp(inCh ? 'champions_authority' : 'ours_national'));
   });
   // ★監査で確定した修正を適用(reference/_items_fixes.json・全件根拠つき。2026-08-02 阿部さん承認)
@@ -352,6 +406,12 @@ function buildItems() {
 
   write('items.json', { meta: META('持ち物', {
     fixes: '監査確定の修正は reference/_items_fixes.json(根拠つき)から適用',
+    legacy_fields: '段B資産⑥: items_database.js のみが持つ構造化フィールド(acquisition/acquisition_note/restriction/notes/' +
+      'verify/q12/factor/source_q12/boost_type/vp_cost/resist_type/trigger/cure_target/is_default/heal_*/damage_fraction_*/' +
+      'proc_chance/self_inflict/drawback/pokeapi_slug/legacy_source_note)をverbatimで移送。値が無い品目はキー自体を省く。' +
+      'legacy_source_note=旧データの`source`欄(出典citation文字列)。stamp()が書く provenance の`source`欄と名前が' +
+      '衝突するため改名した(値は変えていない)。mega_form/mega_ability等のメガ関連派生欄はcomputed_via_join' +
+      '(applies_to_pokemon経由でpokemon.json/abilities.jsonを引けば再現可能)のため運ばない。',
   }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
@@ -410,6 +470,10 @@ function buildMoves() {
       target: (ch && ch.target) || (nat && nat.target) || null,
       contact: (ch && ch.contact) != null ? ch.contact : ((nat && nat.contact) != null ? nat.contact : null),
       protect: (ch && ch.protect) != null ? ch.protect : ((nat && nat.protect) != null ? nat.protect : null),
+      // ★段B資産③: 旧生成物 pokechan_data_all.js の WAZA_MAP[*].availability を凍結ファイルから引く。
+      //   キー=nat._slug(=A.WAZA_MAPのキー=このmaster行のslug)。Championsにしか居ない技(nat無し)は
+      //   全国版のShowdown由来データが無いので null のまま(推測で埋めない)。
+      availability: (nat && LEGACY.moveAvailability[nat._slug] !== undefined) ? LEGACY.moveAvailability[nat._slug] : null,
       // ★説明文とeffectsは既存の資産をそのまま移送(作り直さない)
       description: (ch && ch.description) || (nat && nat.description) || null,
       description_legacy: (ch && ch.description_legacy) || (nat && nat.description_legacy) || null,
@@ -422,7 +486,10 @@ function buildMoves() {
     }, stamp(src));
   }).filter(Boolean).sort((a,b)=>(a.move_no||9999)-(b.move_no||9999) || String(a.name).localeCompare(String(b.name),'ja'));
   items.filter(x => !x.slug).forEach(x => unk('move_slug', x.name, '全国版に無い=英語slug未確定'));
-  write('moves.json', { meta: META('技'), count: items.length,
+  write('moves.json', { meta: META('技', {
+    availability_field: 'availability=旧生成物pokechan_data_all.jsのWAZA_MAP[*].availabilityをreference/_legacy_move_availability.jsonから移送' +
+      '(段B資産③。出どころ=Pokemon Showdown由来。Championsにしか居ない技はnull=推測で埋めない)。',
+  }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
 }
@@ -478,6 +545,11 @@ function buildPokemon() {
       resist: p.resist || null,
       champions: inCh,
       regulation: inCh ? REGULATION : null,
+      // ★段B資産②: 旧生成物 pokechan_data_all.js の POKEMON_LIST.season(履歴配列)を凍結ファイルから引く。
+      //   キーは e.nat(=A.POKEMON_LIST の生の行オブジェクト。既存のNAMEMAP解決ロジックで既に
+      //   このmaster行に紐付いている)の生の名前。これで名前の食い違い(全角/英語slug残骸)があっても、
+      //   既存の名前解決(off = NAMEMAP[p.name].official_name)がそのまま効く(2026-09-01 実測: 14件全て解決)。
+      seasons: (e.nat && LEGACY.seasons[e.nat.name] !== undefined) ? LEGACY.seasons[e.nat.name].slice() : undefined,
     }, stamp(inCh && au ? 'champions_authority' : (inCh ? 'ours_champions' : 'ours_national')));
   });
 
@@ -490,6 +562,17 @@ function buildPokemon() {
       items.push(Object.assign({}, a, { verified_at: NOW }));
     });
   } catch (e) {}
+
+  // ★段B資産②(続き): 旧に無い行(手動追加分)や、旧の名前解決から漏れた行を埋める。
+  //   規約(計画_マスターからページへ流す_2026-09-01.md 段B): regulationが立っていれば[regulation]、
+  //   無ければ[](推測で過去のレギュを埋めない)。
+  let seasonsFilled = 0;
+  items.forEach(x => {
+    if (x.seasons === undefined) {
+      x.seasons = x.regulation ? [x.regulation] : [];
+      seasonsFilled++;
+    }
+  });
 
   // ★備考欄(阿部さん指示 2026-08-01「マスターに説明欄を絶対入れる。Claudeのため」)
   //   特殊なポケモン(見た目だけの色違いフォルム/バトル中しかならない姿/内部で別フォルム等)の意味を持たせる
@@ -515,6 +598,9 @@ function buildPokemon() {
   write('pokemon.json', { meta: META('ポケモン', {
     note_field: 'note=備考(そのポケモンの特殊事情。見た目だけのフォルム違い/バトル中限定の姿など。元=reference/_pokemon_notes.json)',
     fixes: '監査確定の修正は reference/_pokemon_fixes.json(根拠つき)から適用',
+    seasons_field: 'seasons=旧生成物pokechan_data_all.jsのPOKEMON_LIST.season(過去+現在のレギュ履歴配列)を' +
+      `reference/_legacy_seasons.json から移送(段B資産②)。旧に対応行が無い/名前解決から漏れた行は` +
+      `regulationがあれば[regulation]、無ければ[](推測で埋めない)。今回 ${seasonsFilled} 件がこのフォールバックで埋まった。`,
   }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
@@ -676,7 +762,33 @@ function buildTypes() {
     color: (C.TYPE_COLORS || {})[name] || null,
     source: 'ours_champions', verified_at: NOW,
   }));
-  write('types.json', { meta: META('タイプ(18)', { note: '★旧データからそのまま移送。値は変えていない。resist配列の並び順もこの index に対応する。' }), count: items.length, items });
+  // ★段B(計画_マスターからページへ流す_2026-09-01.md): 旧生成物にしか無い資産7項目の①。
+  //   TYPE_KANJI/TYPE_DISPLAY/TYPE_OFFENSIVE_STATS/DEFAULT_TYPE_ORDER の静的4テーブルを追加する。
+  //   ★中身は作らない・変えない。旧データに在るものをそのまま移すだけ(items配列と同じ流儀)。
+  //   ★両ファイル(pokechan_data.js/pokechan_data_all.js)で完全一致を検証済み(2026-09-01)なので
+  //   どちらから取っても同じ。Championsを基準側(C)に揃えて統一する。
+  const tablesEqualToNational =
+    JSON.stringify(C.TYPE_KANJI) === JSON.stringify(A.TYPE_KANJI) &&
+    JSON.stringify(C.TYPE_DISPLAY) === JSON.stringify(A.TYPE_DISPLAY) &&
+    JSON.stringify(C.TYPE_OFFENSIVE_STATS) === JSON.stringify(A.TYPE_OFFENSIVE_STATS) &&
+    JSON.stringify(C.DEFAULT_TYPE_ORDER) === JSON.stringify(A.DEFAULT_TYPE_ORDER);
+  if (!tablesEqualToNational) {
+    unk('types_static_tables', 'TYPE_KANJI/TYPE_DISPLAY/TYPE_OFFENSIVE_STATS/DEFAULT_TYPE_ORDER',
+      'pokechan_data.js と pokechan_data_all.js で値が食い違う(Championsの値を採用した)');
+  }
+  const tables = {
+    TYPE_KANJI: C.TYPE_KANJI || {},
+    TYPE_DISPLAY: C.TYPE_DISPLAY || {},
+    TYPE_OFFENSIVE_STATS: C.TYPE_OFFENSIVE_STATS || {},
+    DEFAULT_TYPE_ORDER: C.DEFAULT_TYPE_ORDER || [],
+  };
+  write('types.json', { meta: META('タイプ(18)', {
+    note: '★旧データからそのまま移送。値は変えていない。resist配列の並び順もこの index に対応する。' +
+          ' meta.tables に静的4テーブル(TYPE_KANJI/TYPE_DISPLAY/TYPE_OFFENSIVE_STATS/DEFAULT_TYPE_ORDER)を格納' +
+          '(items配列は18タイプの行データなので、items[].フィールドではなく meta 側に置いた)。' +
+          `両ファイル(pokechan_data.js/pokechan_data_all.js)間で一致検証: ${tablesEqualToNational ? '一致(差分なし)' : '不一致(要確認・master/_unknowns.jsonに記録)'}。`,
+    tables,
+  }), count: items.length, items });
   return items.length;
 }
 function buildNatures() {
@@ -687,6 +799,21 @@ function buildNatures() {
   write('natures.json', { meta: META('性格', { note: '★旧データからそのまま移送。値は変えていない。' }), count: items.length, items });
   return items.length;
 }
+
+// ── STAT_RANK(段B資産⑤・master には追加しない=computed) ─────────────────────
+//   棚卸し(reference/_plans/棚卸し_生成物にしか無い資産_2026-09-01.md §「STAT_RANK」)の結論:
+//   旧生成物のSTAT_RANKはmaster/pokemon.jsonの種族値(hp/atk/def/spatk/spdef/spd)から
+//   Lv50計算式で完全再現できる=一意のコンテンツを持たない(masterに欄自体を足す必要が無い)。
+//   ★検証済みの式(フシギバナ base_hp=80 → 187 で実測一致。2026-09-01):
+//     HP実数値(Lv50・個体値31・努力値63):  hp_a  = floor((2*base_hp             + 31 + 63) * 0.5) + 60
+//     HP以外の実数値(Lv50・個体値31・努力値63・性格補正なしの基準値):
+//                                         stat_a = floor((2*base_stat           + 31 + 63) * 0.5) + 5
+//     (性格上昇/下降がある場合は stat_a に ×1.1 / ×0.9 をかけてfloorする。旧STAT_RANKの各行は
+//      性格ごとの実数値ではなく無補正の基準値+ランク(百分位)を持つ形だったため、生成器(段C)では
+//      上式で実数値を出したうえで、同じ POKEMON_LIST 母集団内でのパーセンタイル順位を計算し直す
+//      =rank自体は「どの集団を母数にするか」に依存するため、母集団の定義(全1219 or Champions313等)を
+//      段Cで明示的に決めること。★旧STAT_RANKは実は1219件中275件(=Champions分のみ)しか埋まっておらず、
+//      全国版専用ポケモンにはそもそも旧データにもrankが無かった=作り直しても「元の値の再現漏れ」にはならない)。
 
 // ── 実行 ────────────────────────────────────────────────────────────
 console.log('=== マスターデータ生成(master/) ===');
