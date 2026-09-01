@@ -640,7 +640,9 @@ function buildPokemon() {
     if (!x.regulation) return;
     if (!Array.isArray(x.seasons)) x.seasons = [];
     if (x.regulation === REGULATION) {
-      if (x.seasons.length && !x.seasons.includes(REGULATION)) x.seasons.push(REGULATION);
+      // 旧の季が空[]でもChampions収録(champions:true)なら現行を入れる(2026-09-01 検算: 空の33行は全部
+      // ロトム/ケンタロス種/ルガルガン等=旧データの名寄せ違いで季が付かなかっただけ。M-Aにいたかは推測になるので入れない)
+      if (!x.seasons.includes(REGULATION)) x.seasons.push(REGULATION);
       return;
     }
     if (!x.seasons.includes(x.regulation)) x.seasons.push(x.regulation);

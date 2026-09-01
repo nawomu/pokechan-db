@@ -192,6 +192,11 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
         report.allowlisted.push({ entity: label, key: k, field: f });
         return;
       }
+      // (e'') 旧の季が空だったChampions収録の姿(名寄せ違い由来の33行)に現行レギュを入れた差
+      if (label === 'pokemon_all' && f === 'season' && Array.isArray(lv) && lv.length === 0 && Array.isArray(nv) && nv.length === 1 && nRow.champions !== false) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '旧の季[]はChampions名寄せ違い由来。champions収録の姿に現行レギュを付与(2026-09-01)' });
+        return;
+      }
       // (e') 次レギュ予定の印: season が 旧∪['M-C'] になっただけの差(2026-09-01 M-C予告分=ゴリランダー/セグレイブ)
       if (label === 'pokemon_all' && f === 'season' && Array.isArray(lv) && Array.isArray(nv)
           && nv.length === lv.length + 1 && nv[nv.length - 1] === 'M-C' && lv.every((v, i) => nv[i] === v)) {
