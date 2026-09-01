@@ -49,6 +49,12 @@ const LEGACY = {
   seasons: (() => { try { return J('reference/_legacy_seasons.json').seasons || {}; } catch (e) { return {}; } })(),
   moveAvailability: (() => { try { return J('reference/_legacy_move_availability.json').availability || {}; } catch (e) { return {}; } })(),
   abilityDesc: (() => { try { return J('reference/_legacy_ability_desc.json'); } catch (e) { return { national: {}, champions: {} }; } })(),
+  // ★段C差し戻し対応(2026-09-01・コーディネーター指摘)資産4〜7: tools/_freeze_legacy_assets_r2.js が凍結
+  moveSubcategory: (() => { try { return J('reference/_legacy_move_subcategory.json').subcategory || {}; } catch (e) { return {}; } })(),
+  moveChampionsFlags: (() => { try { return J('reference/_legacy_move_champions_flags.json'); } catch (e) { return { added: {}, mode: {} }; } })(),
+  pokemonChampionsAddedIn: (() => { try { return J('reference/_legacy_pokemon_champions_added_in.json').added_in || {}; } catch (e) { return {}; } })(),
+  itemEffect: (() => { try { return J('reference/_legacy_item_effect.json').effect || {}; } catch (e) { return {}; } })(),
+  itemMegaAbilityDesc: (() => { try { return J('reference/_legacy_item_mega_ability_desc.json').mega_ability_desc || {}; } catch (e) { return {}; } })(),
 };
 const NAMEMAP = (() => {
   try {
@@ -331,6 +337,14 @@ function buildItems() {
       name: it.name, display_name: it.name, name_en: it.name_en || null,
       category: it.category || null,
       effect_ja: (it.category === 'mega_stone') ? restoreOncePerBattle(rawEffect) : rawEffect,
+      // ★段C差し戻し対応(2026-09-01)資産⑦: 旧items_database.js items[*].effect(家の流儀の短文)を
+      //   凍結ファイル(reference/_legacy_item_effect.json)から移送。effect_ja(Champions権威の長文)とは
+      //   別文章・別欄(155/169件が既に別文言=ABILITY_DESCのdesc_houseと同型)。キー=it.key||it.name。
+      //   新規追加(ナイトZ等11件)は旧に無いのでnull(生成器がその時だけeffect_jaにフォールバックする)。
+      effect_house: (() => { const k = it.key || it.name; return LEGACY.itemEffect[k] !== undefined ? LEGACY.itemEffect[k] : null; })(),
+      // ★段C差し戻し対応(2026-09-01・3回目)資産②: 旧items_database.js items[*].mega_ability_desc
+      //   (独自の短い言い換え文・57件)を凍結ファイルから移送。effect_ja/desc_houseとは別欄。
+      mega_ability_desc_house: (() => { const k = it.key || it.name; return LEGACY.itemMegaAbilityDesc[k] !== undefined ? LEGACY.itemMegaAbilityDesc[k] : null; })(),
       // ★applies_to は「基本名」で書かれていることがある(例: ニャオニクスナイト → 『ニャオニクス』)。
       //   マスターの名前はフォーム名(『ニャオニクス(オスのすがた)』)なので、そのままでは一致せず
       //   **メガシンカが到達不能になる**(2026-07-30 GLMの独立検算で発見。フラエッテナイトと同じ型)。
@@ -412,6 +426,11 @@ function buildItems() {
       'legacy_source_note=旧データの`source`欄(出典citation文字列)。stamp()が書く provenance の`source`欄と名前が' +
       '衝突するため改名した(値は変えていない)。mega_form/mega_ability等のメガ関連派生欄はcomputed_via_join' +
       '(applies_to_pokemon経由でpokemon.json/abilities.jsonを引けば再現可能)のため運ばない。',
+    effect_house_field: '段C差し戻し対応(2026-09-01)資産⑦: effect_house=旧items_database.jsのeffect(家の流儀の短文)を' +
+      'reference/_legacy_item_effect.jsonから移送。effect_ja(Champions権威の長文)とは別欄。新規11件はnull。',
+    mega_ability_desc_house_field: '段C差し戻し対応(2026-09-01・3回目)資産②: mega_ability_desc_house=旧items_database.jsの' +
+      'mega_ability_desc(独自の短い言い換え文・57件)をreference/_legacy_item_mega_ability_desc.jsonから移送。' +
+      '無い品目(空欄だった/新規)はnull=生成器がmaster/abilities.jsonのdesc_houseにフォールバックする。',
   }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
@@ -474,6 +493,12 @@ function buildMoves() {
       //   キー=nat._slug(=A.WAZA_MAPのキー=このmaster行のslug)。Championsにしか居ない技(nat無し)は
       //   全国版のShowdown由来データが無いので null のまま(推測で埋めない)。
       availability: (nat && LEGACY.moveAvailability[nat._slug] !== undefined) ? LEGACY.moveAvailability[nat._slug] : null,
+      // ★段C差し戻し対応(2026-09-01)資産④: 旧生成物pokechan_data_all.jsのWAZA_MAP[*].subcategory
+      //   (技のグループ分け=作り直し禁止の資産)を凍結ファイルから移送。キー=nat._slug。新規技はnull。
+      subcategory: (nat && LEGACY.moveSubcategory[nat._slug] !== undefined) ? LEGACY.moveSubcategory[nat._slug] : null,
+      // ★段C差し戻し対応 資産⑤: 旧pokechan_data.js(Champions版)WAZA_MAP[*].added / .mode。キー=ch._champKey。
+      champions_added: (ch && LEGACY.moveChampionsFlags.added[ch._champKey] !== undefined) ? LEGACY.moveChampionsFlags.added[ch._champKey] : null,
+      champions_mode: (ch && LEGACY.moveChampionsFlags.mode[ch._champKey] !== undefined) ? LEGACY.moveChampionsFlags.mode[ch._champKey] : null,
       // ★説明文とeffectsは既存の資産をそのまま移送(作り直さない)
       description: (ch && ch.description) || (nat && nat.description) || null,
       description_legacy: (ch && ch.description_legacy) || (nat && nat.description_legacy) || null,
@@ -489,6 +514,10 @@ function buildMoves() {
   write('moves.json', { meta: META('技', {
     availability_field: 'availability=旧生成物pokechan_data_all.jsのWAZA_MAP[*].availabilityをreference/_legacy_move_availability.jsonから移送' +
       '(段B資産③。出どころ=Pokemon Showdown由来。Championsにしか居ない技はnull=推測で埋めない)。',
+    subcategory_field: '段C差し戻し対応(2026-09-01)資産④: subcategory=旧pokechan_data_all.jsのWAZA_MAP[*].subcategoryを' +
+      'reference/_legacy_move_subcategory.jsonから移送(271件。技グループ分けの資産・作り直し禁止)。新規技はnull。',
+    champions_flags_field: '段C差し戻し対応 資産⑤: champions_added/champions_mode=旧pokechan_data.js(Champions版)WAZA_MAP[*].added/.mode を' +
+      'reference/_legacy_move_champions_flags.jsonから移送。Champions版生成器がadded/modeとして復元する。',
   }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
@@ -550,6 +579,9 @@ function buildPokemon() {
       //   このmaster行に紐付いている)の生の名前。これで名前の食い違い(全角/英語slug残骸)があっても、
       //   既存の名前解決(off = NAMEMAP[p.name].official_name)がそのまま効く(2026-09-01 実測: 14件全て解決)。
       seasons: (e.nat && LEGACY.seasons[e.nat.name] !== undefined) ? LEGACY.seasons[e.nat.name].slice() : undefined,
+      // ★段C差し戻し対応(2026-09-01)資産⑥: 旧pokechan_data.js(Champions版)POKEMON_LIST[*].added_in を
+      //   凍結ファイルから移送。キーはe.ch.name(=Champions版の生の行名。旧の短縮表記のまま)。
+      champions_added_in: (e.ch && LEGACY.pokemonChampionsAddedIn[e.ch.name] !== undefined) ? LEGACY.pokemonChampionsAddedIn[e.ch.name] : null,
     }, stamp(inCh && au ? 'champions_authority' : (inCh ? 'ours_champions' : 'ours_national')));
   });
 
@@ -573,6 +605,9 @@ function buildPokemon() {
       seasonsFilled++;
     }
   });
+  // ★段C差し戻し対応 資産⑥(続き): M-C予告分(regulation:'M-C')は旧に無いので凍結ファイルに無い。
+  //   コーディネーター指示どおり'M-C'を直接入れる(手動追加・_pokemon_additions.json由来の行のみ対象)。
+  items.forEach(x => { if (x.regulation === 'M-C' && !x.champions_added_in) x.champions_added_in = 'M-C'; });
 
   // ★備考欄(阿部さん指示 2026-08-01「マスターに説明欄を絶対入れる。Claudeのため」)
   //   特殊なポケモン(見た目だけの色違いフォルム/バトル中しかならない姿/内部で別フォルム等)の意味を持たせる
@@ -601,6 +636,8 @@ function buildPokemon() {
     seasons_field: 'seasons=旧生成物pokechan_data_all.jsのPOKEMON_LIST.season(過去+現在のレギュ履歴配列)を' +
       `reference/_legacy_seasons.json から移送(段B資産②)。旧に対応行が無い/名前解決から漏れた行は` +
       `regulationがあれば[regulation]、無ければ[](推測で埋めない)。今回 ${seasonsFilled} 件がこのフォールバックで埋まった。`,
+    champions_added_in_field: '段C差し戻し対応(2026-09-01)資産⑥: champions_added_in=旧pokechan_data.js(Champions版)POKEMON_LIST[*].added_inを' +
+      'reference/_legacy_pokemon_champions_added_inから移送。M-C予告分(regulation:M-C)は凍結に無いため直接"M-C"を入れる。',
   }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
