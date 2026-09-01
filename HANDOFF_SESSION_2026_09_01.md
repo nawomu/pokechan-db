@@ -64,3 +64,8 @@
 - `reference/_regulations.json` は M-C のみ(current)。builder `REGULATION='M-C'`。累積で318体/技497/持ち物151が全部M-C。新規5体は `champions_added_in:'M-C'` を**データに明示**(additions/fixes)=🆕M-C印。
 - 9/9当日にやることは**無し**(公式開始後にヤックン/ch/で3体の値・ナイトZの入手法(VP)を突き合わせて上書き=canon③のみ)。残り21体は公式発表後に additions へ。
 - X文面は「先に使えます」の体(X-8推奨・dry-run済み)。
+
+# 8. 同日: 使用量80%まで継続(阿部さん指示)
+- **技監査R1 バッチ5(100技)投入** run=`wf_b30034b7-1c7`(scriptPath=…ef5ab492…/move-audit-round-wf_b5f42e01-f39.js・材料=scratchpad/audit_moves_r1・バッチ割=`reference/_move_r1_batches_rest_2026-09-01.json`(100×5+11)。回収= `node tools/_collect_move_audit_round.js <runId> reference/_move_audit_round1.json`。
+- コンテンツページURL退行を修正(`_gen_content_pages.js` が master の slug を使う。全国限定≈1,000体×9言語が p001.html 形式だった→bulbasaur.html 等に)。仮名9,279削除・旧slug92枚(floette-mega/ar 等)はmeta-refreshリダイレクト。sitemap 14,541。
+- フーパ専用チップ(waza_picker.js)を9言語テンプレ化 `waza.tag_signature_only`。
