@@ -1,0 +1,135 @@
+{
+  "meta": {
+    "purpose": "Field-level inventory: which data in legacy generated pages (pokechan_data.js / pokechan_data_all.js / items_database.js) cannot be derived from master/*.json today.",
+    "generated_at": "2026-09-01",
+    "method": "node full-count scripts against live repo files (no sampling). Repo not modified.",
+    "master_files_checked": ["master/pokemon.json(1259)", "master/moves.json(919)", "master/abilities.json(313)", "master/items.json(172)", "master/learnsets.json", "master/regulations.json(2)", "master/types.json(18)", "master/natures.json(25)"]
+  },
+  "pokechan_data_all_js": {
+    "TYPES": { "status": "derivable", "master": "master/types.json[].name (order = index field)" },
+    "TYPE_COLORS": { "status": "derivable", "master": "master/types.json[].color" },
+    "TYPE_KANJI": { "status": "legacy_only", "count": 18, "note": "1-char kanji abbreviation per type (ノ/炎/水/...). Not in master/types.json (only name+color). Static 18-row table, easy to add." },
+    "TYPE_DISPLAY": { "status": "legacy_only", "count": 6, "note": "Truncated display label for 6 long type names (ノーマル→ノーマ etc). Not in master/types.json. Static table." },
+    "TYPE_OFFENSIVE_STATS": { "status": "legacy_only", "count": 18, "note": "Per-type {p,m,x} counters (physical/special/mixed move-count stats used by a UI widget). Not in master/types.json. Static table, values unchanged since Champions data." },
+    "DEFAULT_TYPE_ORDER": { "status": "legacy_only", "count": 18, "note": "Fixed display order of the 18 types for a UI selector. Not in master. Static array." },
+    "POKEMON_LIST": {
+      "row_count": { "legacy": 1219, "master_pokemon": 1259, "master_only_not_in_legacy": 54, "legacy_only_not_in_master": 14 },
+      "master_only_by_source": { "champions_authority": 37, "ours_national": 10, "ours_champions": 2, "manual_addition(M-C_preview_2026-09-01)": 5 },
+      "legacy_only_examples": ["ポリゴン２(全角2、master側は「ポリゴン2」半角のため名寄せ落ち)", "ジガルデ(５０％フォルム)(全角%)", "イッカネズミ(４ひきかぞく)(全角4)", "ケンタロス(パルデア・combat-breed)(英語残骸フォーム名)"],
+      "legacy_only_root_cause": "hankaku-alphanumeric-rule violations + English form-slug residue not covered by reference/_name_normalize.json (NAMEMAP). Not a data gap, a name-matching gap.",
+      "fields": {
+        "no": "derivable — master.no",
+        "name": "derivable — master.name (already merged/official)",
+        "weight_kg": "derivable — master.weight_kg (many null in both; same coverage)",
+        "form": "derivable — master.form",
+        "mega": "derivable — master.mega",
+        "type1/type2": "derivable — master.type1/type2",
+        "hp/atk/def/spatk/spdef/spd/total": "derivable — master.hp..total",
+        "ab1/ab2/ab3": "derivable — master.ab1..3",
+        "resist": "derivable — master.resist (or computed from type1/type2 x TYPE_CHART, verified formula reproduces stored array)",
+        "gen": "derivable — master.gen",
+        "legend": "derivable — master.legend",
+        "season": {
+          "status": "legacy_only",
+          "count_nonempty": 245,
+          "value_distribution": { "[]": 974, "[M-A,M-B]": 218, "[M-B]": 27 },
+          "note": "Array = which past+current regulations this Pokémon appeared under. master/pokemon.json has no season field, only a single current-tense 'regulation' (M-B or null) and 'champions' bool. master/regulations.json explicitly does NOT retain history ('過去レギュの行は残さない'/'後戻りしないため' — see regulations.json meta.note). The M-A leg of the [M-A,M-B] history (218 rows) is not reconstructable from master today."
+        }
+      }
+    },
+    "WAZA_MAP": {
+      "row_count": { "legacy": 919, "master_moves": 919, "slug_mismatch": 0 },
+      "key_order": { "status": "derivable", "rule": "ascending move_no — verified: legacy object insertion order and master/moves.json array order both strictly non-decreasing by move_no." },
+      "fields": {
+        "name/type/category/target/power/accuracy/pp/priority/contact/protect": "derivable — 1:1 master fields",
+        "description": "derivable — regenerate via tools/_waza_compose.js compose(entry) from master.battle_data (composeDescH logic already ports 1:1; see tools/build_national_view.js:194-218)",
+        "description_legacy": "derivable — master.description_legacy",
+        "battle_data": "derivable — master.battle_data (already the exact same object, built by direct passthrough)",
+        "flags": "derivable — master.flags",
+        "tags": "derivable — master.tags",
+        "key/slug": "derivable — master.slug (primary key already aligned)",
+        "move_no": "derivable — master.move_no",
+        "learners": { "status": "computed", "note": "reverse-index of master/learnsets.json[].learn by move JA name. Not stored in master/moves.json itself (by design — avoids duplicate data direction)." },
+        "national_new": { "status": "computed", "note": "= !champions && has legacy description_ja; equivalent logic: !master.champions && !!master.description" },
+        "subcategory": {
+          "status": "computed",
+          "count_nonempty_legacy": 271,
+          "note": "Not stored in master/moves.json. Derivable via subcatFromEffects(battle_data) (ported verbatim from tools/build_national_view.js:221-252) for rows where master doesn't already carry one — but master has NO subcategory field at all today (0/919), so this must be recomputed at generate-time, not read."
+        },
+        "availability": {
+          "status": "legacy_only",
+          "count_nonempty": 919,
+          "example": "{gen_introduced:1, gens:[1..9]} / {is_lgpe:true} / {is_nonstandard:'Past'|'CAP'|'Unobtainable'|'Gigantamax'}",
+          "note": "NOT in master/moves.json (0/919 have it). Derived in legacy from an external file reference/_showdown/moves.json (Pokemon Showdown moves.json gen+isNonstandard fields) joined by move id/slug, via deriveAvailabilityAll() in tools/_build_pokechan_data_all.js:52-64. That external Showdown-derived source itself is not part of master/*.json and was never migrated in. Needed for gen-availability badges."
+        }
+      }
+    },
+    "ABILITY_DESC": {
+      "row_count": { "national_legacy": 309, "master_abilities": 313, "master_only_not_in_national": 118 },
+      "text_diff_vs_master.effect_ja": {
+        "same": 1, "diff": 308,
+        "note": "National ABILITY_DESC is 'house-style' short JA text (compressed, e.g. '毎ターンすばやさ+1。'). master/abilities.json.effect_ja is intentionally sourced from the Champions authority scrape (yakkun /ch/) when available — longer, game-accurate official wording (e.g. '毎ターン、『すばやさ』ランクが1段階ずつ上がる。'). See tools/build_master_v2.js:180-185 (`if (au && au.effect) effect = au.effect`). This is a DELIBERATE content upgrade per CLAUDE.md ('ABILITY_DESC は公式準拠なのでそのまま可'), not a bug — but it means the OLD verbatim house-style wording cannot be reproduced from master; a new generator using master will change ~99% of ability text on the page."
+      },
+      "champions_diff": { "checked": 195, "same": 0, "diff": 195, "missing_in_master": 0 }
+    },
+    "STAT_RANK": {
+      "status": "computed",
+      "row_count": { "legacy_national": 275, "legacy_champions": 275, "note": "STAT_RANK is NOT expanded to the full 1219 in pokechan_data_all.js — it is Champions' 275-entry table passed through unchanged (tools/build_national_view.js:69 `const STAT_RANK = C.STAT_RANK;`). So ~78% of national-only Pokémon have NO STAT_RANK entry in the legacy data either." },
+      "master_presence": "NOT in master/*.json at all (no file, no field).",
+      "formula_verified": "hp_a (level-50, max EV/IV) = floor((2*base_hp+31+63)*0.5)+60 — verified exact match for フシギバナ base_hp=80 → 187 (matches stored value). atk/def/etc use the standard Lv50 stat formula with nature multiplier; base_rank fields are percentile ranks of the stat within the same POKEMON_LIST population (also recomputable, order-dependent on which population you rank against).",
+      "conclusion": "Fully computable from master/pokemon.json stats (hp/atk/def/spatk/spdef/spd/total) via the documented Lv50 formula — no unique legacy content, but must be reimplemented (formula + ranking logic) since master stores none of it."
+    },
+    "NATURES": { "status": "derivable", "master": "master/natures.json (25/25, name+up+down)" },
+    "cosmetic_form_filtering_rule": { "status": "derivable_logic_but_not_data", "note": "isCosmetic() filter (COSM regex + signature match against default-form dex-mate) that trims 1302→1219 lives only in the builder JS (tools/build_national_view.js:100-112), not as a stored master field. Reproducible by re-running the same regex/signature logic against master/pokemon.json, but the *decision* per-row is not persisted (no is_cosmetic field in master)." },
+    "POKEMON_LIST_row_order": {
+      "status": "legacy_only / unverified reproducibility",
+      "note": "Order is NOT simple no-ascending (see multi-form dex-no groups e.g. ビリリダマ appears at idx99 (no100, 通常) AND again at idx1177 (no100, ヒスイ) far apart). Empirically the array is: [pass1: one row per dex-no 1..1025 in ascending order, using each species' PokeAPI-default variety] + [pass2: idx~1025-1055: extra non-region/non-mega formes (Deoxys/Wormadam/Shaymin/Arceus/etc), ascending by no] + [pass3: idx~1056-1123: all Mega forms, ascending by no] + [pass4: idx~1124+: region-variant forms GROUPED by region label in order アローラ→ガラル→ヒスイ→パルデア, each group ascending by no]. This bucket order is inherited from the raw input array order of reference/pokeapi_master.json / reference/master_pokemon.json (i.e. PokeAPI's own varieties fetch order), NOT computed by a documented sort key. master/pokemon.json instead sorts (no, then name localeCompare) — flat, no bucketing — so master's current order does NOT reproduce the legacy display order. A new generator must either (a) preserve/restore the original fetch-order field, or (b) explicitly re-implement the 4-pass bucket rule, or (c) adopt a new (flat no+name) order as an intentional page redesign."
+    }
+  },
+  "pokechan_data_js_champions_only_fields": {
+    "note": "pokechan_data.js POKEMON_LIST rows (313) carry everything pokechan_data_all.js rows carry PLUS 170 extra boolean/numeric columns not present in the national schema.",
+    "cnt4/cnt2/cnt1/cnthf/cntqf/cnt0/cnt42/cnthfqf": {
+      "status": "computed, and already dead weight",
+      "note": "Pure aggregate counts over the `resist` array (count of 4x/2x/1x/0.5x/0.25x/0x weaknesses+resists; cnt42=cnt4+cnt2, cnthfqf=cnthf+cntqf). Verified byte-exact reproduction from resist[] for sample row. CRUCIALLY: pokemon_db_v9.html itself IGNORES the stored JSON values and recomputes them client-side on load via recalcResistCounts() (pokemon_db_v9.html:1561-1574), so these 8 stored fields are already functionally unused/redundant in production."
+    },
+    "okatazuke": { "status": "legacy_only, unclear semantics", "note": "Only non-boolean 'move flag' column (numeric, always 0 in sampled rows). Needs a follow-up look at what non-zero values (if any exist) mean before deciding derivability." },
+    "170_per_move_boolean_flags": {
+      "status": "partially legacy_only",
+      "keys_total": 169,
+      "purpose": "Used by pokemon_db_v9.html's per-move filter-checkbox columns (buildWazaTh / wazaFilterGet, lines ~2144-2987) — 'does this Pokémon learn move X' for a curated subset of (mostly status) moves. Keys are move `key` (romaji slug) values from WAZA_MAP.",
+      "runtime_note": "At page init(), pokemon_db_v9.html additively re-derives these from POKEMON_WAZA (`moveKeys.forEach(k=>{p[k]=true})`, pokemon_db_v9.html:4149-4155) — but only ADDS true, never resets to false. So the baked JSON value is the floor.",
+      "cross_check_vs_C.POKEMON_WAZA(legacy_learnset)": { "total_true_flags": 6866, "true_but_not_in_legacy_POKEMON_WAZA": 867, "false_but_in_legacy_POKEMON_WAZA": 20 },
+      "cross_check_vs_master_learnsets_json": {
+        "of_the_867_mismatches": { "resolved_by_master_learn_array": 699, "still_unresolved": 168 },
+        "unresolved_concentrated_in": "34 Pokémon, nearly all Champions-custom Mega forms not backed by an official movepool (メガライチュウX/Y, メガラグラージ, メガシビルドン, メガタイレーツ, メガクチート, メガカラマネロ, etc. — see full per-name breakdown available on request).",
+        "conclusion": "master/learnsets.json is MORE complete than legacy C.POKEMON_WAZA for real Pokémon (resolves 699/867 = 81% of the gap), but for ~34 bespoke Champions Mega forms, the pre-baked legacy flags encode learnset knowledge not present anywhere in master today — genuinely legacy_only (168 flag-instances)."
+      }
+    }
+  },
+  "items_database_js": {
+    "row_count": { "legacy": 169, "master_items": 172, "master_only": 3, "legacy_only": 0 },
+    "master_only_items": ["アブソルナイトZ", "ルカリオナイトZ", "ガブリアスナイトZ (all manual_addition 2026-09-01, M-C preview mega stones)"],
+    "field_map": {
+      "key→slug, name, name_en, category, effect→effect_ja, applies_to, implemented_in_pokechan→implemented": "derivable — direct field rename, 1:1 in master",
+      "acquisition/acquisition_note": { "status": "legacy_only", "count_nonempty": 90, "note": "How the item is obtained (shop/VP cost/route). Not in master/items.json. No equivalent field at all." },
+      "restriction": { "status": "legacy_only", "count_nonempty": 81, "note": "Free-text usage restriction (e.g. 'ピクシー のみ装備可能' for mega stones). Not in master; master.applies_to_pokemon captures the mega-stone-target subset of this but not restrictions on non-mega items." },
+      "notes": { "status": "legacy_only", "count_nonempty": 83, "note": "Free-text curator notes/caveats. Not in master (master has a generic 'note' field used for pokemon.json, not items.json)." },
+      "q12/factor/source_q12": { "status": "legacy_only", "count_nonempty": "q12:51, factor:53, source_q12:67", "note": "Internal calc-tool identifiers (q12 = presumably a lookup index into a damage-calc spreadsheet 'vgc-champions-calc'; factor = numeric multiplier). Not represented in master (master.boosts is a category string like 'physical_attack', not a numeric factor)." },
+      "verify": { "status": "legacy_only", "count_nonempty": 169, "note": "Boolean QA flag (all 169 items have this key set true/false). No equivalent in master." },
+      "boost_type/vp_cost/resist_type/trigger/cure_target/is_default": { "status": "legacy_only", "counts": { "boost_type": 18, "vp_cost": 48, "resist_type": 18, "trigger": 39, "cure_target": 7, "is_default": 9 }, "note": "Structured battle-mechanic sub-fields (analogous to moves' battle_data) for specific item categories (berries/type-resist berries/status-cure berries/VP shop items). No equivalent structured field in master/items.json at all — master only has a single free-text effect_ja plus the generic applies_to/applies_to_pokemon/boosts triplet." },
+      "heal_amount_fixed/heal_fraction/heal_fraction_of_damage/heal_fraction_for_poison/damage_fraction_for_others/proc_chance/damage_fraction_to_attacker/self_inflict/drawback": { "status": "legacy_only", "counts": { "heal_amount_fixed": 1, "heal_fraction": 2, "heal_fraction_of_damage": 1, "heal_fraction_for_poison": 1, "damage_fraction_for_others": 1, "proc_chance": 3, "damage_fraction_to_attacker": 1, "self_inflict": 2, "drawback": 1 }, "note": "Sparse (1-3 items each) but genuinely structured sim-mechanic numbers with zero master representation. If a new items sim/battle_data field is ever added to master (mirroring moves.battle_data), these are the seed values to carry over." },
+      "mega_form/mega_target_en/mega_types/mega_ability/mega_ability_desc/mega_stats": {
+        "status": "computed_via_join (not stored, but reconstructable)",
+        "counts": { "mega_form": 75, "mega_target_en": 75, "mega_types": 75, "mega_ability": 57, "mega_ability_desc": 57, "mega_stats": 75 },
+        "note": "For the 75 mega-stone items, these fields duplicate what's already derivable by joining item.applies_to_pokemon → the matching mega-form row in master/pokemon.json (mega_form≈that row's name, mega_types≈type1/type2, mega_stats≈hp/atk/def/spatk/spdef/spd) and mega_ability/mega_ability_desc → master.ab1..3 + master/abilities.json.effect_ja. mega_ability_desc specifically is a short paraphrase (e.g. 'マジックコートで跳ね返せる変化技を相手に跳ね返す') that will NOT text-match master/abilities.json's authority-sourced effect_ja (same house-style-vs-authority mismatch documented above for ABILITY_DESC)."
+      },
+      "pokeapi_slug": { "status": "legacy_only, sparse", "count_nonempty": 18, "note": "18 items only. Likely redundant with master item slug in most cases; worth a follow-up 1:1 diff before declaring truly unique." }
+    }
+  },
+  "cross_check_counts_summary": {
+    "pokemon": { "legacy_all": 1219, "master": 1259, "master_only": 54, "legacy_only": 14, "legacy_only_cause": "full-width digit/percent normalization gaps + English form-slug residue (hankaku-alphanumeric-rule)" },
+    "moves": { "legacy_all": 919, "master": 919, "mismatch": 0 },
+    "abilities": { "legacy_national": 309, "legacy_champions": 195, "master": 313, "master_only_vs_national": 118 },
+    "items": { "legacy": 169, "master": 172, "master_only": 3, "legacy_only": 0 }
+  }
+}
