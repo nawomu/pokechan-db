@@ -2,8 +2,17 @@
 /**
  * build_i18n_entities.js
  *
- * reference/master_{pokemon,moves,abilities,items}.json から
- * i18n/{lang}.json (8言語) を冪等に再生成するビルドスクリプト。
+ * master/{pokemon,moves,abilities,items}.json (SSOT) から
+ * i18n/{lang}.json (8言語) を冪等に同期するビルドスクリプト。
+ *
+ * ★2026-09-01 修正: 旧 reference/master_*.json (names={ja,en,fr,...} を持つ多言語オブジェクト)
+ * はもう存在しない。SSOTは master/*.json だが、そのスキーマは ja中心(name=ja名, slug,
+ * abilities/itemsのみ name_en あり)で、多言語名は持たない。
+ * → このスクリプトの役目は「master にある正典キー(name/slug)の集合と、各言語辞書の
+ *   キー集合を突き合わせ、無いキーには ja フォールバック(abilities/itemsのenだけ name_en
+ *   があれば使う)を入れて欠落を可視化する」こと。実際の翻訳(fr/de/es/it/ko/zh の名前)は
+ *   別途 PokeAPI 等から埋める(このスクリプトはそこまではやらない=データが無い)。
+ * 既存の翻訳は絶対に上書きしない(--overwrite指定時を除く)。
  *
  * 使い方:
  *   node tools/build_i18n_entities.js [--dry-run] [--lang=en,fr,de,...] [--overwrite]
@@ -21,7 +30,7 @@ const path = require('path');
 
 // ── パス定義 ─────────────────────────────────────────────────────────────────
 const ROOT = path.resolve(__dirname, '..');
-const REF_DIR = path.join(ROOT, 'reference');
+const MASTER_DIR = path.join(ROOT, 'master');
 const I18N_DIR = path.join(ROOT, 'i18n');
 
 // ── CLI 引数パース ────────────────────────────────────────────────────────────
@@ -78,15 +87,19 @@ function mergeEntries(existing, incoming) {
   return { merged, added, updated };
 }
 
-// ── マスターデータ読み込み ──────────────────────────────────────────────────
+// ── マスターデータ読み込み(master/{name}.json の .items 配列) ──────────────
 function loadMaster(name) {
-  const filePath = path.join(REF_DIR, `master_${name}.json`);
+  const filePath = path.join(MASTER_DIR, `${name}.json`);
   const data = readJson(filePath);
   if (!data) {
-    console.warn(`[WARN] master_${name}.json not found at ${filePath} — skipping`);
+    console.warn(`[WARN] master/${name}.json not found at ${filePath} — skipping`);
     return null;
   }
-  return data;
+  if (!Array.isArray(data.items)) {
+    console.warn(`[WARN] master/${name}.json has no .items array — skipping`);
+    return null;
+  }
+  return data.items;
 }
 
 const masterPokemon   = loadMaster('pokemon');
@@ -113,60 +126,45 @@ for (const lang of TARGET_LANGS) {
   const output = {};
   const diffCounts = {};
 
-  // ── 1. pokemon ────────────────────────────────────────────────────────────
+  // ── 1. pokemon (master: name=ja名のみ。多言語名は無いので新規キーはjaフォールバック) ──
   let pokemonMissing = 0;
   const incomingPokemon = {};
-  const synthesizedJa = new Set(); // ★2026-07-03: name_synthesized=trueのja名(合成名=パイプライン所有・常に最新化)
   if (masterPokemon) {
     for (const entry of masterPokemon) {
-      const ja = entry.names && entry.names.ja;
+      const ja = entry.name;
       if (!ja) continue; // ja 名なしはスキップ
-      if (entry.name_synthesized) synthesizedJa.add(ja);
-      const langName = entry.names[lang];
-      if (!langName) {
-        // ja フォールバック
+      // master に多言語名は無い。既存訳があればそれを維持、無ければ ja フォールバック
+      // (実際の翻訳は別途 PokeAPI 等で埋める。ここは「新規キーを欠落なく存在させる」だけ)
+      if (existing.pokemon && Object.prototype.hasOwnProperty.call(existing.pokemon, ja)) {
+        incomingPokemon[ja] = existing.pokemon[ja];
+      } else {
         incomingPokemon[ja] = ja;
         pokemonMissing++;
-      } else {
-        incomingPokemon[ja] = langName;
       }
     }
   }
   const existingPokemon = existing.pokemon || {};
   const pokemonResult = mergeEntries(existingPokemon, incomingPokemon);
-  // ★2026-07-03(expectedルール): 以下はOVERWRITE指定なしでも更新する(名前変更=expected扱い):
-  //   ①既存が純粋なjaフォールバック(値===キー)でmasterに非ja名が入った(穴埋め・手動修正は壊さない)
-  //   ②masterでname_synthesized:true(合成名=パイプライン所有。旧merge由来の壊れ名'Male'/'Shield Forme'等を置換)
-  let fallbackRefreshed = 0;
-  for (const [ja, incomingName] of Object.entries(incomingPokemon)) {
-    const cur = pokemonResult.merged[ja];
-    if (cur === incomingName) continue;
-    if (cur === ja || synthesizedJa.has(ja)) {
-      pokemonResult.merged[ja] = incomingName;
-      fallbackRefreshed++;
-    }
-  }
   output.pokemon = pokemonResult.merged;
-  diffCounts.pokemon = { added: pokemonResult.added, updated: pokemonResult.updated + fallbackRefreshed };
-  if (fallbackRefreshed) console.log(`  [pokemon] jaフォールバック穴埋め更新: ${fallbackRefreshed}件`);
+  diffCounts.pokemon = { added: pokemonResult.added, updated: pokemonResult.updated };
 
-  // ── 2. moves ──────────────────────────────────────────────────────────────
+  // ── 2. moves (master: name=ja名, slug=キー。多言語名は無い) ──────────────
   let movesMissing = 0;
   const incomingMoves = {};
   if (masterMoves) {
     for (const entry of masterMoves) {
-      const ja = entry.names && entry.names.ja;
+      const ja = entry.name;
       if (!ja) continue; // ja 名なしはスキップ(仕様通り)
-      const key = entry.key || entry.slug;
+      const key = entry.slug;
       if (!key) continue;
-      const langName = entry.names[lang];
+      const existingEntry0 = (existing.moves || {})[key];
       let name;
-      if (!langName) {
-        // en フォールバック
-        name = entry.names.en || ja;
-        movesMissing++;
+      if (existingEntry0 && typeof existingEntry0.name === 'string' && existingEntry0.name) {
+        name = existingEntry0.name;
       } else {
-        name = langName;
+        // master に多言語名は無いので ja フォールバック(実訳は別途PokeAPI等で埋める)
+        name = ja;
+        movesMissing++;
       }
       // desc: ja のみ独自管理。他言語は空文字。en の場合、既存 desc があれば保持。
       const existingEntry = (existing.moves || {})[key];
@@ -190,36 +188,30 @@ for (const lang of TARGET_LANGS) {
   output.moves = movesResult.merged;
   diffCounts.moves = { added: movesResult.added, updated: movesResult.updated };
 
-  // ── 3. abilities ──────────────────────────────────────────────────────────
+  // ── 3. abilities (master: name=ja名。name_en は en のみ利用可) ────────────
   let abilitiesMissing = 0;
   const incomingAbilities = {};
   if (masterAbilities) {
     for (const entry of masterAbilities) {
-      const ja = entry.names && entry.names.ja;
+      const ja = entry.name;
       if (!ja) continue;
-      const langName = entry.names[lang];
+      const existingEntry = (existing.abilities || {})[ja];
       let name;
-      if (!langName) {
-        name = entry.names.en || ja;
+      if (existingEntry && typeof existingEntry.name === 'string' && existingEntry.name) {
+        name = existingEntry.name;
+      } else if (lang === 'en' && entry.name_en) {
+        name = entry.name_en;
         abilitiesMissing++;
       } else {
-        name = langName;
+        // master に他言語名は無いので ja フォールバック(実訳は別途PokeAPI等で埋める)
+        name = ja;
+        abilitiesMissing++;
       }
-      // short_effect: en のみ effect_en から取得(短縮なし・そのまま)、他言語は空文字
-      // 既存エントリの short_effect は保持
-      const existingEntry = (existing.abilities || {})[ja];
-      let short_effect = '';
-      if (lang === 'en') {
-        if (existingEntry && typeof existingEntry.short_effect === 'string' && existingEntry.short_effect) {
-          short_effect = existingEntry.short_effect;
-        } else {
-          short_effect = entry.effect_en || '';
-        }
-      } else {
-        short_effect = (existingEntry && typeof existingEntry.short_effect === 'string')
-          ? existingEntry.short_effect
-          : '';
-      }
+      // short_effect: master には effect_en が無い(effect_ja のみ)。既存訳は保持、
+      // 新規は空文字(でっち上げ禁止=機械翻訳しない)。
+      let short_effect = (existingEntry && typeof existingEntry.short_effect === 'string')
+        ? existingEntry.short_effect
+        : '';
       incomingAbilities[ja] = { name, short_effect };
     }
   }
@@ -228,35 +220,30 @@ for (const lang of TARGET_LANGS) {
   output.abilities = abilitiesResult.merged;
   diffCounts.abilities = { added: abilitiesResult.added, updated: abilitiesResult.updated };
 
-  // ── 4. items ──────────────────────────────────────────────────────────────
+  // ── 4. items (master: name=ja名。name_en は en のみ利用可) ────────────────
   let itemsMissing = 0;
   const incomingItems = {};
   if (masterItems) {
     for (const entry of masterItems) {
-      const ja = entry.names && entry.names.ja;
+      const ja = entry.name;
       if (!ja) continue;
-      const langName = entry.names[lang];
+      const existingEntry = (existing.items || {})[ja];
       let name;
-      if (!langName) {
-        name = entry.names.en || ja;
+      if (existingEntry && typeof existingEntry.name === 'string' && existingEntry.name) {
+        name = existingEntry.name;
+      } else if (lang === 'en' && entry.name_en) {
+        name = entry.name_en;
         itemsMissing++;
       } else {
-        name = langName;
+        // master に他言語名は無いので ja フォールバック(実訳は別途PokeAPI等で埋める)
+        name = ja;
+        itemsMissing++;
       }
-      // effect: 既存を保持。en の場合は effect_en を使用(既存優先)
-      const existingEntry = (existing.items || {})[ja];
-      let effect = '';
-      if (lang === 'en') {
-        if (existingEntry && typeof existingEntry.effect === 'string' && existingEntry.effect) {
-          effect = existingEntry.effect;
-        } else {
-          effect = entry.effect_en || '';
-        }
-      } else {
-        effect = (existingEntry && typeof existingEntry.effect === 'string')
-          ? existingEntry.effect
-          : '';
-      }
+      // effect: master には effect_en が無い(effect_ja/effect_house のみ)。
+      // 既存訳は保持、新規は空文字(でっち上げ禁止=機械翻訳しない)。
+      let effect = (existingEntry && typeof existingEntry.effect === 'string')
+        ? existingEntry.effect
+        : '';
       incomingItems[ja] = { name, effect };
     }
   }
@@ -301,7 +288,7 @@ for (const lang of TARGET_LANGS) {
   const prevMeta = existing._meta || {};
   output._meta = Object.assign({}, prevMeta, {
     // generated_at廃止(2026-07-03): タイムスタンプは冪等性を壊す(ビルド2回=差分0がゲート)。生成元はgit履歴で追える。
-    source: 'reference/master_{pokemon,moves,abilities,items}.json via build_i18n_entities.js',
+    source: 'master/{pokemon,moves,abilities,items}.json via build_i18n_entities.js',
     lang,
     build_script: 'tools/build_i18n_entities.js',
     entry_counts,
