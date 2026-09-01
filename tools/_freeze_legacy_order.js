@@ -24,8 +24,8 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
-const A = require(path.join(ROOT, 'pokechan_data_all.js'));
-const C = require(path.join(ROOT, 'pokechan_data.js'));
+const A = require(path.join(ROOT, 'reference', '_legacy_snapshot', 'pokechan_data_all.js'));
+const C = require(path.join(ROOT, 'reference', '_legacy_snapshot', 'pokechan_data.js'));
 
 const payload = {
   meta: {

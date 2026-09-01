@@ -18,7 +18,7 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
-const C = require(path.join(ROOT, 'pokechan_data.js'));
+const C = require(path.join(ROOT, 'reference', '_legacy_snapshot', 'pokechan_data.js'));
 const M = JSON.parse(fs.readFileSync(path.join(ROOT, 'master/moves.json'), 'utf8'));
 
 const KNOWN_NON_FLAG_KEYS = new Set([

@@ -119,18 +119,18 @@ function diffLearners(entity, legacyMap, newMap, champByName, onlyChampionPossib
 }
 
 function loadLegacy() {
-  const A = require(path.join(ROOT, 'pokechan_data_all.js'));
-  const C = require(path.join(ROOT, 'pokechan_data.js'));
+  const A = require(path.join(ROOT, 'reference', '_legacy_snapshot', 'pokechan_data_all.js'));
+  const C = require(path.join(ROOT, 'reference', '_legacy_snapshot', 'pokechan_data.js'));
   global.window = global.window || {};
-  require(path.join(ROOT, 'items_database.js'));
+  require(path.join(ROOT, 'reference', '_legacy_snapshot', 'items_database.js'));
   const I = global.window.ITEMS_DATABASE;
   return { A, C, I };
 }
 function loadNew() {
-  const A = require(path.join(ROOT, 'pokechan_data_all.new.js'));
-  const C = require(path.join(ROOT, 'pokechan_data.new.js'));
+  const A = require(path.join(ROOT, 'pokechan_data_all.js'));
+  const C = require(path.join(ROOT, 'pokechan_data.js'));
   global.window = {};
-  require(path.join(ROOT, 'items_database.new.js'));
+  require(path.join(ROOT, 'items_database.js'));
   const I = global.window.ITEMS_DATABASE;
   return { A, C, I };
 }

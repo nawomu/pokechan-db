@@ -22,8 +22,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const BASELINE = path.join(ROOT, 'reference/_ssot_guard_baseline.json');
 
-const C = require(path.join(ROOT, 'pokechan_data.js'));
-const A = require(path.join(ROOT, 'pokechan_data_all.js'));
+const C = require(path.join(ROOT, 'reference', '_legacy_snapshot', 'pokechan_data.js'));
+const A = require(path.join(ROOT, 'reference', '_legacy_snapshot', 'pokechan_data_all.js'));
 // ★2026-07-31: reference/master_*.json を reference/_old_master/ へ退避したので参照先を更新。
 //   ★判定ロジックは1行も変えていない(番人の意味を変えると、番人が信用できなくなるため)。
 //   ★TODO: この検査は「旧マスターの形(champions.in / names.ja)」を前提にしている。

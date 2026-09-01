@@ -2,12 +2,12 @@
 /* tools/build_views.js — 段C(計画_マスターからページへ流す_2026-09-01.md)
  *
  * master/*.json だけから、旧生成物と同一schemaの3ファイルを作る。
- *   pokechan_data_all.new.js (全国版) / pokechan_data.new.js (Champions版) / items_database.new.js
+ *   pokechan_data_all.js (全国版) / pokechan_data.js (Champions版) / items_database.js
  *
  * ★絶対ルール: この生成器は pokechan_data*.js / items_database.js を一切 require しない。
  *   入力は master/*.json と、段Bで凍結した reference/_legacy_*.json だけ。
  *
- * 出力は *.new.js(本番ファイルは触らない・入れ替えは段D)。
+ * 出力はルート直下の本番名(2026-09-01 段Dで入れ替え済み)。旧版は reference/_legacy_snapshot/ に凍結。
  *
  * 実行: node tools/build_views.js
  */
@@ -587,7 +587,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = { TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER, POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES };
 }
 `;
-  fs.writeFileSync(path.join(ROOT, 'pokechan_data_all.new.js'), out);
+  fs.writeFileSync(path.join(ROOT, 'pokechan_data_all.js'), out);
   return { pokemonCount: POKEMON_LIST.length, wazaCount: Object.keys(WAZA_MAP).length, pkUnmatched };
 }
 
@@ -617,7 +617,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = { TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER, POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES };
 }
 `;
-  fs.writeFileSync(path.join(ROOT, 'pokechan_data.new.js'), out);
+  fs.writeFileSync(path.join(ROOT, 'pokechan_data.js'), out);
   return { pokemonCount: POKEMON_LIST.length, wazaCount: Object.keys(WAZA_MAP).length, pkUnmatched, noKeyCount, unmatchedOrderCount };
 }
 
@@ -635,16 +635,16 @@ function writeItemsView() {
   "regulation_mb": ${J2(ITEMS_STATIC.regulation_mb)}
 };
 `;
-  fs.writeFileSync(path.join(ROOT, 'items_database.new.js'), out);
+  fs.writeFileSync(path.join(ROOT, 'items_database.js'), out);
   return { itemsCount: items.length, unresolvedMega };
 }
 
 // ── 実行 ────────────────────────────────────────────────────────────
-console.log('=== build_views.js: master/ → *.new.js ===');
+console.log('=== build_views.js: master/ → pokechan_data_all.js / pokechan_data.js / items_database.js ===');
 const r1 = writeNationalView();
-console.log('pokechan_data_all.new.js: POKEMON_LIST=%d(order-unmatched=%d) / WAZA_MAP=%d', r1.pokemonCount, r1.pkUnmatched, r1.wazaCount);
+console.log('pokechan_data_all.js: POKEMON_LIST=%d(order-unmatched=%d) / WAZA_MAP=%d', r1.pokemonCount, r1.pkUnmatched, r1.wazaCount);
 const r2 = writeChampionsView();
-console.log('pokechan_data.new.js: POKEMON_LIST=%d(order-unmatched=%d) / WAZA_MAP=%d(no champions_key=%d件除外・order-unmatched=%d)', r2.pokemonCount, r2.pkUnmatched, r2.wazaCount, r2.noKeyCount, r2.unmatchedOrderCount);
+console.log('pokechan_data.js: POKEMON_LIST=%d(order-unmatched=%d) / WAZA_MAP=%d(no champions_key=%d件除外・order-unmatched=%d)', r2.pokemonCount, r2.pkUnmatched, r2.wazaCount, r2.noKeyCount, r2.unmatchedOrderCount);
 const r3 = writeItemsView();
-console.log('items_database.new.js: items=%d unresolvedMega=%d', r3.itemsCount, r3.unresolvedMega.length);
+console.log('items_database.js: items=%d unresolvedMega=%d', r3.itemsCount, r3.unresolvedMega.length);
 if (r3.unresolvedMega.length) console.log(JSON.stringify(r3.unresolvedMega));

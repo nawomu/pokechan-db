@@ -13,7 +13,7 @@
  *   - Championsに無いものは最新世代の値を入れ、source に由来を残す
  *
  * 入力(すべて読み取り専用):
- *   pokechan_data.js / pokechan_data_all.js / items_database.js
+ *   reference/_legacy_snapshot/{pokechan_data.js, pokechan_data_all.js, items_database.js}(凍結・2026-09-01 段E)
  *   reference/_authority_corpus_ch/*.json(Champions権威)
  *   reference/_name_normalize.json(名前の正規化)
  *
@@ -29,10 +29,13 @@ const NOW = new Date().toISOString().slice(0, 10);
 const REGULATION = 'M-B';                       // 現行レギュレーション(2026-07-29 阿部さん確定)
 
 // ── 入力 ────────────────────────────────────────────────────────────
-const C = require(path.join(ROOT, 'pokechan_data.js'));        // Champions版(値の正典)
-const A = require(path.join(ROOT, 'pokechan_data_all.js'));    // 全国版(器)
+// ★2026-09-01 段E: 入力は「凍結スナップショット」(reference/_legacy_snapshot/)。ルート直下の同名ファイルは
+//   tools/build_views.js が master/ から生成するビューになったので、それを読むと循環する(生成物→master→生成物)。
+const SNAP = path.join(ROOT, 'reference', '_legacy_snapshot');
+const C = require(path.join(SNAP, 'pokechan_data.js'));        // Champions版(値の正典・凍結)
+const A = require(path.join(SNAP, 'pokechan_data_all.js'));    // 全国版(器・凍結)
 global.window = global.window || {};
-require(path.join(ROOT, 'items_database.js'));
+require(path.join(SNAP, 'items_database.js'));
 const ITEMS_DB = global.window.ITEMS_DATABASE;
 const J = f => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 const AUTH = {
