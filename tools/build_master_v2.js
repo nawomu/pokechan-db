@@ -26,7 +26,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'master');
 const NOW = new Date().toISOString().slice(0, 10);
-const REGULATION = 'M-B';                       // 現行レギュレーション(2026-07-29 阿部さん確定)
+const REGULATION = 'M-C';                       // 現行レギュレーション(2026-09-01 阿部さん決定: 公式開始9/9を待たず先行で現行化。M-Bまでは 2026-07-29 確定)
 
 // ── 入力 ────────────────────────────────────────────────────────────
 // ★2026-09-01 段E: 入力は「凍結スナップショット」(reference/_legacy_snapshot/)。ルート直下の同名ファイルは
