@@ -61,12 +61,16 @@ const typeSlugMap = buildSlugMap(TYPES, ja => tType('en', ja));
 //   まず POKE_CH(チャンピオンズ・従来と同じ順序)を先に割り当ててから、残り(全国版限定)を割り当てる
 //   (同じ name には割り当て済みなら触らない=既存URLを完全維持。全数シミュレーションで差分0を確認済み)。
 let weights = {};
+const MASTER_SLUG = {};
+try { require(path.join(ROOT, 'master', 'pokemon.json')).items.forEach(x => { if (x.slug) MASTER_SLUG[x.name] = x.slug; }); } catch (e) {}
 try { require(path.join(ROOT, 'review', '_weights_collected.json')).weights.forEach(x => { weights[x.name] = x.api; }); }
 catch (e) { console.log('⚠ 体重JSON無し: slugは図鑑Noベース'); }
 const slugUsed = new Set(), pokeSlugMap = new Map();
 function assignPokeSlug(p) {
   if (pokeSlugMap.has(p.name)) return;
-  let base = weights[p.name] || ('p' + p.no), s = base, i = 2;
+  // ★2026-09-01: URLの主キーは master の英語slug(正式名称化で weights の旧名キーが外れ、rotom-heat.html 等の
+  //   索引済みURLが p479-2.html に退行していた)。優先= master slug > weights(旧対応表) > 'p'+no
+  let base = MASTER_SLUG[p.name] || weights[p.name] || ('p' + p.no), s = base, i = 2;
   while (slugUsed.has(s)) { s = base + '-' + (i++); }
   slugUsed.add(s); pokeSlugMap.set(p.name, s);
 }

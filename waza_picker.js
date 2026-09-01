@@ -885,7 +885,10 @@ function getMoveFilterTags(m) {
     if (k === 'トラップ反撃') push('tag-misc', '🛡️ 相手の物理技を受けると反撃する'); // トラップシェル
     if (k === '攻撃技条件先制') push('tag-flag', '⚡ 相手が攻撃技の時だけ成功する先制技'); // じんらい
     if (k === 'おもさ変化') push('tag-misc', '⚖️ 自分のおもさが変わる'); // ボディパージ
-    if (k === '使用者限定') push('tag-other', `🔒 「${e.value}」専用の技`); // ダークホール/おしゃべり/いじげんラッシュ
+    if (k === '使用者限定') { // ダークホール/おしゃべり/いじげんラッシュ ★2026-09-01 i18n化(文ごとテンプレ・名前は辞書から)
+      const _pn = (window.I18N && I18N.pokemon) ? I18N.pokemon(e.value) : e.value;
+      push('tag-other', _t('waza.tag_signature_only', '🔒 「{n}」専用の技').replace('{n}', _pn));
+    }
     if (k === '引き寄せ') push('tag-misc', e.target === 'opponent' ? '🧲 その相手に攻撃を集める' : '🧲 相手の攻撃を自分に引き寄せる'); // スポットライト/このゆびとまれ
     if (k === 'テレキネシス') push('tag-misc', '🎈 相手をうかせて必ず当たるようにする');
     if (k === '場入れ替え') push('tag-field', '🔄 おたがいの場の状態を入れかえる'); // コートチェンジ
