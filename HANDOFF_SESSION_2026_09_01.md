@@ -52,3 +52,10 @@
 - 段F=コンテンツ静的ページを全国版へ(14,463枚)。`GEN_LANGS=ja,en,fr,de,es,it,ko,zh-Hans,zh-Hant node tools/_gen_content_pages.js` → `node tools/_gen_content_sitemap.js`(★既定は ja,en だけ=hreflang が2言語分になるので必ず9言語指定)。
 - レギュ累積(阿部さん確定)= builder が REGULATION 切替だけで seasons を伸ばす。Champions版DB SSN列に🔜M-C(絞り込み可)。
 - 残宿題: 段G(i18n辞書の旧名キー穴=ジガルデ(50%フォルム)等が8言語無し・build_i18n_entities.js の入力を master へ)/段H(9/9)/全国限定ポケモンの learners 残差51件/非ja孤児ページ39枚×8言語。
+
+# 6. 同日深夜: 段G(英語版)・バトルM-C対応・X文面(全部push済み)
+- **段G** `93888b44`: `build_i18n_entities.js` の入力を master/ へ。旧名キーの穴(ポケモン13/特性2/持ち物11×8言語)を解消。合成した名前は各辞書 `_meta.synthesized`。監査=データ名の残ja 0(残るのは waza-list_all の🔒フーパ専用チップの直書き=既存・別件、はどうのぼうご非jaは公式文なし=設計どおり)。
+- **バトル** `(このコミット)`: 阿部さん指示でM-C分だけ③凍結の例外。P10b はどうのぼうご/P12 ねつこうかん/持ち物→mega_form解決/🔜M-C印/スプライト3枚。検査 `node tools/_mc_engine_check.js`(19/19)。未実装特性の残り≈70件は凍結のまま。
+- **X投稿文面** `宣伝_X投稿文面_M-C対応_2026-09-01.md`(推奨X-6=272字・dry-run済み)。投稿は阿部さん。
+- 教訓: 並走エージェントが `git stash` を使い、もう1本の作業ファイルを一時的に戻した(復旧済み)。**並走中の blanket stash/checkout 禁止**(agent-file-commit-lockout と同型)。
+- 残: 段H(9/9切替)/21体の公式発表待ち/全国限定 learners 残差51件/非ja孤児ページ39×8/waza-list_all のフーパ直書き/未実装特性70件(凍結)。
