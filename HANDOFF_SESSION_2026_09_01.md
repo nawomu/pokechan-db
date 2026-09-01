@@ -47,3 +47,8 @@
 - ★以後の運用: master入力を直す → build_master_v2 → build_views → _views_diff → 実機。**生成物3本は手で直さない**(CLAUDE.md に追記済み)。
 - 残り: 段F(コンテンツページ4,900枚の再生成・全国版まで広げるかは阿部さん判断)/段G(i18n入力をmasterへ)/段H(9/9)。
 - **未push**(阿部さん確認後)。
+
+# 5. 同日夜: 段F完了・累積レギュ・M-C列(全部push済み)
+- 段F=コンテンツ静的ページを全国版へ(14,463枚)。`GEN_LANGS=ja,en,fr,de,es,it,ko,zh-Hans,zh-Hant node tools/_gen_content_pages.js` → `node tools/_gen_content_sitemap.js`(★既定は ja,en だけ=hreflang が2言語分になるので必ず9言語指定)。
+- レギュ累積(阿部さん確定)= builder が REGULATION 切替だけで seasons を伸ばす。Champions版DB SSN列に🔜M-C(絞り込み可)。
+- 残宿題: 段G(i18n辞書の旧名キー穴=ジガルデ(50%フォルム)等が8言語無し・build_i18n_entities.js の入力を master へ)/段H(9/9)/全国限定ポケモンの learners 残差51件/非ja孤児ページ39枚×8言語。
