@@ -196,7 +196,7 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
       if (label === 'pokemon_all' && f === 'season' && Array.isArray(lv) && Array.isArray(nv)
           && nv.length === lv.length + 1 && nv[nv.length - 1] === 'M-C' && lv.every((v, i) => nv[i] === v)) {
         report.allowlisted.push({ entity: label, key: k, field: f, reason: '次レギュ(M-C)予定の印を season に追加(規則=現行より後のレギュのみ足す)' });
-        continue;
+        return;
       }
       if (label === 'items' && EMPTY_TO_FILLED_ALLOWED_FIELDS.has(f) && isEmptyVal(lv) && !isEmptyVal(nv)) {
         report.allowlisted.push({ entity: label, key: k, field: f, reason: '旧は未実装スケルトンで空欄・新はjoinで補完(改善)' });
