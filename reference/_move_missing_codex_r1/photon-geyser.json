@@ -1,0 +1,87 @@
+{
+ "slug": "photon-geyser",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "効果文・同値時の分類",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「物理特殊自動」に比較方式と同値時分類を追加する（compare=rank_adjusted_attack_vs_sp_attack、physical_if=attack>sp_attack、tie_category=特殊）。",
+   "quote": "自分のランク補正込みのステータスがこうげき≦とくこうなら特殊技、こうげき>とくこうなら物理技となる。",
+   "why": "descriptionは「ダメージが大きいほう」、effects.ruleも「higher category」としか定めず、同値なら特殊技になる条件を復元できない。分類により参照する防御、リフレクター、カウンター、やけどなどの処理が変わる。"
+  },
+  {
+   "no": 2,
+   "aspect": "効果文・分類判定に含む補正",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「物理特殊自動」にincluded_adjustments=[ランク補正,パワートリック,パワーシェア]を追加する。",
+   "quote": "分類の判定に、ランク補正/パワートリック/パワーシェアの効果は考慮する。",
+   "why": "descriptionにもeffectsにも、分類比較に含める補正が定義されていない。現在の「ダメージが大きいほう」という表現では、権威が指定する攻撃・特攻の比較規則と一致しない。"
+  },
+  {
+   "no": 3,
+   "aspect": "効果文・分類判定から除外する補正",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「物理特殊自動」にexcluded_from_category_check=[特性,持ち物]とapply_after_category=[特性,持ち物]を追加する。",
+   "quote": "分類の判定に、特性 (こんじょう/ちからもち/スロースタートなど) や持ち物 (こだわりハチマキ/こだわりメガネなど) の効果は無視する。分類が判定された後に特性/持ち物の効果を加味したダメージ計算を行う。",
+   "why": "descriptionにもeffectsにも、分類判定時には特性・持ち物を除外し、分類決定後のダメージ計算で適用する順序がない。分類と最終ダメージが変わり得る。"
+  },
+  {
+   "no": 4,
+   "aspect": "効果文・他の技から出た場合",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「特性無効化」にcondition=directly_selectedを追加し、他の技から呼び出された場合は発動しないことを説明文生成にも反映する。",
+   "quote": "他のわざが出るわざによりフォトンゲイザーが出た場合、特性を無視する効果は無くなる。",
+   "why": "descriptionは通常使用時の特性無視だけを記し、呼び出し技経由の例外を復元できない。発動条件が変わる実戦仕様である。"
+  },
+  {
+   "no": 5,
+   "aspect": "battle_data.effects・特性無効化の対象と例外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「特性無効化」にscope=かたやぶり対象、exceptions=[ファントムガード,プリズムアーマー]を追加する。",
+   "quote": "無視できる特性はかたやぶりの効果対象のものと同じ。ファントムガード/プリズムアーマーは無視できない。",
+   "why": "effectsにはtarget=opponentしかなく、無効化対象の範囲と例外が構造化されていない。全特性を無効化するとダメージや発動結果を誤る。"
+  },
+  {
+   "no": 6,
+   "aspect": "battle_data.effects・他の技から出た場合の条件",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「特性無効化」にcondition=directly_selectedまたはdisabled_when=called_by_other_moveを追加する。",
+   "quote": "他のわざが出るわざによりフォトンゲイザーが出た場合、特性を無視する効果は無くなる。",
+   "why": "特性無効化effectに呼び出し元を判定する条件がなく、他の技を介した発動でも無効化を適用する構造になっている。"
+  },
+  {
+   "no": 7,
+   "aspect": "世代依存・使用者自身の特性無視",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "使用者の特性がかたやぶりで無視できる特性であるとき、第七世代のみ使用者自身の特性も無視する。第八世代では自身の特性は無視しない。",
+   "why": "この技はChampionsに存在せず、指摘は第七世代と第八世代の差を再現する歴史世代限定仕様である。最新世代を権威とする全国版R1の技データには、第七世代専用の分岐を技側へ収録する必要がない。"
+  },
+  {
+   "no": 8,
+   "aspect": "世代依存・スロースタート",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "使用者の特性スロースタートが発動している場合、第七世代のみ物理技になっても特性の影響を受けずにダメージ計算を行う。第八世代では物理技になると特性の影響でダメージが減る。",
+   "why": "この技はChampionsに存在せず、欠落とされた特殊処理は第七世代だけの過去仕様である。最新世代を権威とする全国版R1では、第八世代以降の通常のスロースタート適用が現行仕様となるため技固有の世代分岐は対象外である。"
+  }
+ ],
+ "summary": "1〜6は現行の分類判定または特性無効化の挙動に影響するreal_gap。7〜8はChampions非収録技の歴史世代限定仕様なのでout_of_scope。",
+ "source": "codex"
+}

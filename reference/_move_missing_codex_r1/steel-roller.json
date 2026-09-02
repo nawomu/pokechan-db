@@ -1,0 +1,137 @@
+{
+ "slug": "steel-roller",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "effects構造:失敗判定の時点",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "fails_ifに行動時判定を示すtiming:\"on_action\"と、条件未成立時も選択可能であることを追加する。",
+   "quote": "Wiki生ページ「行動するときにフィールドが発生していないときは失敗する。行動選択したときはフィールドがあったが、行動する前に解除されていた場合は成功しない。フィールドが発生していないときでも技を選択すること自体はできる。」",
+   "why": "fails_ifにはフィールド不在条件だけがあり、選択時ではなく行動時に判定することと、不在時にも技を選択できることがdescriptionにもeffectsにもない。"
+  },
+  {
+   "no": 2,
+   "aspect": "effects構造:命中・防御・無効化された場合は解除しない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「フィールド除去」に、命中して防御・無効化されなかった後だけ発動する条件と適用phaseを追加する。",
+   "quote": "Wiki生ページ「技が外れたり、防がれたり、無効化されたりしたときはフィールドを解除できない。」",
+   "why": "「フィールド除去」はphase=\"on_use\"だけで、攻撃の命中成功後に限る発動条件がないため、外れ・まもる・タイプ等による無効化時にも解除され得る。"
+  },
+  {
+   "no": 3,
+   "aspect": "effects構造:みがわりに命中した場合も解除する",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「フィールド除去」にsubstitute_blocks:falseまたはallow_on_substitute_hit:trueを追加する。",
+   "quote": "Wiki生ページ「みがわり状態で技を受けられたときはフィールドを解除できる。」",
+   "why": "descriptionにもeffectsにも、ダメージをみがわりが受けた場合でもフィールド除去は発動するという例外がない。"
+  },
+  {
+   "no": 4,
+   "aspect": "effects構造:フィールド除去は追加効果ではない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「フィールド除去」にsecondary:falseを追加し、追加効果を変更・遮断する特性や持ち物の対象外と明示する。",
+   "quote": "Wiki生ページ「技の効果は追加効果とはみなされない。使用者の特性ちからずくの効果は発動せずにフィールドを解除でき、対象が特性りんぷんや持ち物おんみつマントを持つ場合であってもフィールドを解除できる。」",
+   "why": "「フィールド除去」という効果自体はあるが、追加効果ではないという分類がdescriptionにもeffectsにもなく、ちからずく・りんぷん等との相互作用を確定できない。"
+  },
+  {
+   "no": 5,
+   "aspect": "effects構造:使用者がひんしになっても解除する",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「フィールド除去」にcontinues_if_user_faints:trueを追加し、接触反応・いのちのたま等の反動処理後にも実行されるphaseを指定する。",
+   "quote": "Wiki生ページ「対象の特性てつのトゲや持ち物ゴツゴツメット、または自分の持ち物いのちのたまの効果を受けて使用者のHPが0になった場合でも、ひんしになった後にフィールドを解除できる。」",
+   "why": "使用者が攻撃後の反動等でひんしになった後も除去を続行する保証がない。Champions対象のmasterには「いのちのたま」がchampions=trueで存在するため、引用された処理の少なくとも一部は現環境でも到達可能である。"
+  },
+  {
+   "no": 6,
+   "aspect": "effects構造:使用者・対象の接地状態を問わず解除する",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].target=\"field\"",
+   "proposal": "",
+   "quote": "Wiki生ページ「使用者や対象が地面にいなくてもフィールドを解除することができる。」",
+   "why": "除去対象は使用者や対象ポケモンではなくfieldとして構造化されている。接地中のポケモンだけを対象にする効果ではないことはtarget=\"field\"で表現済みであり、個別の接地無視属性は不要。"
+  },
+  {
+   "no": 7,
+   "aspect": "effects構造:フィールド発生特性との処理順",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「フィールド除去」を、ひんしに伴うレシーバーと引き継いだ場発生特性の処理後に実行する専用phaseへ置く。",
+   "quote": "Wiki生ページ「この技でミストメイカーなどフィールドを発生させる特性を持つポケモンを倒し、その味方がレシーバーで特性を引き継ぐ場合、レシーバーで引き継いだフィールドが発生した後に技の効果が発動することでフィールドを完全に解除できる。」",
+   "why": "phase=\"on_use\"だけでは、ひんし、レシーバー、引き継いだ場発生特性、フィールド除去の順序を確定できない。Champions対象のmasterにはレシーバーとエレキメイカーがchampions=trueで存在し、同型の処理が到達可能である。"
+  },
+  {
+   "no": 8,
+   "aspect": "effects構造:かがくへんかガス解除時の処理順",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "Wiki生ページ「この技でかがくへんかガスのポケモンを倒したことでフィールドを発生させる特性が有効になる場合、特性でフィールドが発動した後に技の効果が発動することでフィールドを完全に解除できる。」／masterの「かがくへんかガス」はchampions=false",
+   "why": "引用自体はWiki原文にあるが、前提となるかがくへんかガスが現在のChampions対象外であるため、Champions正典技の現行effectsに持たせる要件ではない。"
+  },
+  {
+   "no": 9,
+   "aspect": "effects構造:レッドカードとの処理順",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "Wiki生ページ「対象の持ち物レッドカードが発動した場合、フィールドを解除した後に交代先が引きずり出される。」／masterの「レッドカード」はchampions=false",
+   "why": "引用自体はWiki原文にあるが、レッドカードは現在のChampions対象外なので、この技のChampions用effectsに処理順を追加する対象ではない。"
+  },
+  {
+   "no": 10,
+   "aspect": "effects構造:にげごし・ききかいひとの処理順",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "Wiki生ページ「対象の特性にげごし・ききかいひが発動した場合、フィールドを解除した後に交代先が繰りだされる。」／masterでは「にげごし」「ききかいひ」ともにchampions=false",
+   "why": "引用された交代特性はいずれも現在のChampions対象外であり、現行Champions simで到達しない世代側の相互作用である。"
+  },
+  {
+   "no": 11,
+   "aspect": "effects構造:だっしゅつパックとの処理順",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "Wiki生ページ「対象の特性カーリーヘアー・ぬめぬめ・わたげによりだっしゅつパックが発動する場合、フィールドを解除した後にだっしゅつパックが発動し交代先が繰りだされる。」／masterの「だっしゅつパック」はchampions=false",
+   "why": "ぬめぬめ自体はChampions対象だが、引用された交代を起こす必須要素のだっしゅつパックが現在のChampions対象外であるため、この相互作用は到達しない。"
+  },
+  {
+   "no": 12,
+   "aspect": "effects構造:そうでん・エレキフィールド時の処理順",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「フィールド除去」をダメージ計算・命中処理後のphaseに置き、威力計算時には解除前のフィールドを参照させる。",
+   "quote": "Wiki生ページ「そうでん状態ででんきタイプになった場合、エレキフィールドなら技の威力を上げて使用した後にエレキフィールドを解除できる。」",
+   "why": "phase=\"on_use\"では威力補正より先にフィールドを消す解釈を排除できない。masterでは「そうでん」と「エレキメイカー」がchampions=trueであり、Championsでも到達可能な組み合わせである。"
+  },
+  {
+   "no": 13,
+   "aspect": "effects構造:自然発生フィールドの例外",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "Wiki生ページ「ワイルドエリアの豪雨や霧天候によりフィールドが自然発生している場合、技は成功するがフィールドを解除できない。逆に言えば、常に技が成功する。」／Champions正典行「場にフィールドがない場合 失敗する。フィールドを解除する。」",
+   "why": "ワイルドエリアの自然発生フィールドに限定された第八世代本編の環境仕様であり、Champions正典行にはその環境も例外もない。Championsでは「場にフィールドがない場合は失敗」が正典なので対象外。"
+  }
+ ],
+ "summary": "real_gap 7件、already_in_ours 1件、out_of_scope 5件。",
+ "source": "codex"
+}

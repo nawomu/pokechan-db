@@ -1,0 +1,117 @@
+{
+ "slug": "chloroblast",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "端数処理",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "「HPが減る」にrounding:\"ceil\"を追加する。",
+   "quote": "自分も最大HPの1/2のダメージを受ける (小数点以下切り上げ)。",
+   "why": "descriptionは「最大HPの半分」、effectsはfraction:0.5までで、奇数HP時の切り上げを決める情報がない。"
+  },
+  {
+   "no": 2,
+   "aspect": "反動の発生条件：無効・失敗・命中失敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして、攻撃が対象に有効かつ命中した場合だけ固定自傷を発動する成功条件を表す。",
+   "quote": "まもる状態やそうしょくなどの特性に技が無効化された場合や、命中しなかった場合、姿を隠していて当たらなかった場合は反動ダメージを受けない (ビックリヘッドやてっていこうせんとは仕様が異なる)。",
+   "why": "effectsのphase:on_useには成功・命中条件がなく、無効化時や命中失敗時にもHPを減らす解釈を排除できない。"
+  },
+  {
+   "no": 3,
+   "aspect": "反動の発生条件：成功時の与ダメージ0",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして、与ダメージ量ではなく技の成功を発動条件にする固定自傷を表す。",
+   "quote": "対象がHP1でこらえるを使用したときや、ばけのかわが発動したときなど、技は成功したが与えたダメージが0だったときは反動ダメージを受ける。",
+   "why": "effectsには「成功していれば与ダメージ0でも発動する」という条件がなく、ダメージ連動の実装では自傷が欠落する。"
+  },
+  {
+   "no": 4,
+   "aspect": "反動を防ぐ特性",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして、この固定自傷がいしあたま・マジックガードで無効になる反動属性を表す。",
+   "quote": "使用者の特性がいしあたま/マジックガードのときは反動ダメージを受けない。",
+   "why": "descriptionにもeffectsにも両特性による無効化を示す情報がない。「HPが減る」だけでは、この技固有の自傷が両特性の対象であると判定できない。"
+  },
+  {
+   "no": 5,
+   "aspect": "すてみの適用外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして、反動属性を持つがすてみの威力補正対象外である例外を表す。",
+   "quote": "使用者の特性がすてみであっても与えるダメージは増えない。",
+   "why": "effectsにはすてみ対象外の情報がなく、反動技として一括判定する実装では威力が変わる。"
+  },
+  {
+   "no": 6,
+   "aspect": "しめりけ・爆発技判定",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "flagsに爆発技フラグが存在しない。",
+   "proposal": "",
+   "quote": "爆発する技には含まれず、特性しめりけのポケモンが場にいるときも成功する。",
+   "why": "爆発技でないことは既定状態であり、爆発技だけを明示的に識別する一般機構なら技側に否定フラグは不要。flags={}を爆発技として扱う根拠もない。"
+  },
+  {
+   "no": 7,
+   "aspect": "HP半分以下での使用とひんし",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "「HPが減る」にallow_faint:trueを追加し、使用前のHP不足条件を持たない固定自傷として扱う。",
+   "quote": "使用者のHPが半分以下であるときも使用することができ、成功すると使用者はひんしになる。",
+   "why": "fraction:0.5だけでは、HP不足でも使用可能であり、自傷がHP0まで減らせることを確定できない。"
+  },
+  {
+   "no": 8,
+   "aspect": "同時にHP0になった場合のひんし順・勝敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして、攻撃対象のひんし確定後に使用者の自傷とひんしを解決する順序を表す。全滅時の勝敗はその順序を参照する共通対戦ルールで処理する。",
+   "quote": "使用者と対象のHPがどちらも0になった場合、対象が先にひんしになる。お互いのポケモンが全滅した場合、対人戦では使用者側の勝ちとなる。",
+   "why": "effectsのphase:on_useだけでは対象先行のひんし順を決められず、その順序に依存する同時全滅時の勝者も確定できない。"
+  },
+  {
+   "no": 9,
+   "aspect": "反動タイミング：うのミサイル・レンブのみ後",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして、うのミサイル・レンブのみの解決後に固定自傷を置くイベント順序を表す。",
+   "quote": "相手のうのミサイルや、レンブのみが発動した後に反動ダメージを受ける。",
+   "why": "phase:on_useには攻撃成功後イベント内の前後関係がなく、途中のHPやひんし判定が変わり得る。"
+  },
+  {
+   "no": 10,
+   "aspect": "反動タイミング：レッドカード・いのちのたま・かいがらのすず前",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして、固定自傷をレッドカード・いのちのたま・かいがらのすずより前に解決するイベント順序を表す。",
+   "quote": "相手のレッドカード、自身のいのちのたまの反動、かいがらのすずの回復効果より前に反動ダメージを受ける。",
+   "why": "phase:on_useだけでは交代・追加反動・回復との順序を確定できず、ひんしや後続効果の発動結果が変わり得る。"
+  },
+  {
+   "no": 11,
+   "aspect": "説明文の基本効果",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "description「ダメージ。自分のHPが最大HPの半分減る。」およびbattle_data.effects[0]のkind:\"HPが減る\", target:\"self\", fraction:0.5",
+   "proposal": "",
+   "quote": "自分も最大HPの1/2のダメージを受ける (小数点以下切り上げ)。",
+   "why": "攻撃ダメージと最大HPの半分の自傷という基本効果は既に入っている。欠けている切り上げ規則は指摘1の独立したreal_gapである。"
+  }
+ ],
+ "summary": "10件を個別確認し、real_gap 9件、already_in_ours 1件、out_of_scope 1件に仕分けた。",
+ "source": "codex"
+}

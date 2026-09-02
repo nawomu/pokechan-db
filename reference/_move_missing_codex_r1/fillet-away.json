@@ -1,0 +1,87 @@
+{
+ "slug": "fillet-away",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "効果文: HPを減らす対象と基準量",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "descriptionは最大HPの半分まで記載。battle_data.effects[0]はkind=\"HPが減る\", target=\"self\", fraction=0.5だが、端数処理の指定がない。",
+   "proposal": "既存kind「HPが減る」にrounding=\"floor\"を追加する。",
+   "quote": "自分の最大HPの1/2 (小数点以下切り捨て) を消費して",
+   "why": "自分の最大HPの1/2を減らす中心部分は入っているが、奇数HPで消費量を決める小数点以下切り捨てがdescriptionにもeffectsにもない。"
+  },
+  {
+   "no": 2,
+   "aspect": "効果文: HP不足時の失敗条件",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionに失敗条件はなく、battle_data.effectsにも現在HPを検査して技全体を失敗させる構造がない。",
+   "proposal": "new_kind: 技失敗条件としてself_current_hp <= self_max_hp * 0.5を構造化する。",
+   "quote": "HPが1/2以下のときに使用すると失敗する。",
+   "why": "技の発動可否を変える条件が完全に欠けている。"
+  },
+  {
+   "no": 3,
+   "aspect": "効果文: ダメおしとの相互作用",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0]のkind=\"HPが減る\"として、ダメージ系effectではなく自己HP消費として区別されている。",
+   "proposal": "",
+   "quote": "この技でHPを消費した後に受けるダメおしの威力は2倍にならない。",
+   "why": "引用は原文にあるが、うちのeffectsはこの処理を被ダメージではなく「HPが減る」として持っている。ダメおし側が被ダメージ履歴だけを見る一般ルールなら、技固有の例外構造は不要。"
+  },
+  {
+   "no": 4,
+   "aspect": "効果文・選出制約: ゆびをふる",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "descriptionに記載がなく、flagsは空で、battle_data.effectsにも抽選対象外を示す情報がない。",
+   "proposal": "flagsにmetronome_selectable=false相当の選出制約を追加する。",
+   "quote": "ゆびをふるで選ばれない。",
+   "why": "この技固有の抽選対象外指定がどこにも保持されていない。"
+  },
+  {
+   "no": 5,
+   "aspect": "effects: HP不足時の失敗判定",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effectsには無条件のHP減少と能力ランク変化しかなく、使用前のHP条件判定がない。",
+   "proposal": "new_kind: 技失敗条件をHP減少・能力上昇より前に評価し、self_current_hp <= self_max_hp * 0.5なら技全体を失敗させる。",
+   "quote": "HPが1/2以下のときに使用すると失敗する。",
+   "why": "現在の構造では、本来失敗するHP帯でも後続effectsを実行し得る。"
+  },
+  {
+   "no": 6,
+   "aspect": "effects: 全対象能力最大時のHP非消費",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0]のHP減少とeffects[1]の能力ランク変化は無条件の独立effectsで、3能力がすべて最大の場合の分岐がない。",
+   "proposal": "new_kind: 複合能力上昇可否条件を設け、attack・special_attack・speedがすべて最大ならHP消費を実行しない。",
+   "quote": "すでに攻撃・特攻・素早さが最大まで上がっている場合、HPは減らない。",
+   "why": "能力が一つも上がらない場合にHPを消費しない発動条件が欠け、実際のHP残量が変わり得る。"
+  },
+  {
+   "no": 7,
+   "aspect": "effects: ダメおしの倍化条件からの除外",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0]はkind=\"HPが減る\"であり、攻撃によるダメージや被ダメージを表すeffectとして登録されていない。",
+   "proposal": "",
+   "quote": "この技でHPを消費した後に受けるダメおしの威力は2倍にならない。",
+   "why": "自己HP消費と被ダメージは既存のkindで別の事象として表現済み。ダメおし側が両者を混同するなら技データ欠落ではなく、被ダメージ履歴を作る一般処理側の問題になる。"
+  },
+  {
+   "no": 8,
+   "aspect": "flags/effects: ゆびをふる抽選対象外",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "flagsは空で、battle_data.effectsにもゆびをふるの候補から除外する構造がない。",
+   "proposal": "flagsにmetronome_selectable=false相当の制約を構造化し、抽選候補生成時に除外する。",
+   "quote": "ゆびをふるで選ばれない。",
+   "why": "抽選対象外という技固有の選出制約が未保持で、候補生成に使える情報がない。"
+  }
+ ],
+ "summary": "real_gapは6件（1、2、4、5、6、8）。3と7は自己HP消費が既存のkind「HPが減る」で被ダメージと区別されているためalready_in_ours。",
+ "source": "codex"
+}

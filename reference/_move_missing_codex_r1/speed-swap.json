@@ -1,0 +1,77 @@
+{
+ "slug": "speed-swap",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "effects: みがわり貫通(相手のみがわり状態を無視)",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "description・battle_data.effects・flagsのいずれにも無い。",
+   "proposal": "既存属性 battle_data.substitute_pierce=true を追加する。",
+   "quote": "・相手のみがわり状態を無視する。",
+   "why": "みがわりによって能力入替を防げるかが変わる技固有の発動条件であり、現在の「能力入替」effectだけでは表現されていない。"
+  },
+  {
+   "no": 2,
+   "aspect": "effects: マジックコートで跳ね返らない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "description・battle_data.effects・flagsのいずれにもマジックコート反射可否が無い。",
+   "proposal": "共通技フラグとして flags.magic_coat_reflectable=false 相当を追加する。",
+   "quote": "・マジックコート状態では跳ね返されない。",
+   "why": "変化技を反射する一般処理に対する技固有の例外であり、反射先と効果対象が変わる発動条件に影響する。"
+  },
+  {
+   "no": 3,
+   "aspect": "effects: 交代でリセットされる(能力入替の持続仕様)",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "descriptionには入替だけがあり、battle_data.effectsの「能力入替」に解除条件は無い。",
+   "proposal": "new_kind: 能力入替の状態に reset_on_switch=true を持たせる。",
+   "quote": "・スピードスワップで変更した能力値は交代でリセットされる。",
+   "why": "交代後に交換済みのすばやさ実数値を保持するか元へ戻すかを、既存effectのphase:on_useだけでは判断できない。"
+  },
+  {
+   "no": 4,
+   "aspect": "effects: フォルムチェンジ/ウルトラバーストでリセット",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "description・battle_data.effectsの「能力入替」のどちらにも、フォルム変化時の解除条件が無い。",
+   "proposal": "new_kind: reset_on_form_change を追加し、ウルトラバーストを対象に含める。",
+   "quote": "・スピードスワップで能力を変更されたポケモンがフォルムチェンジを発動させた場合、スピードスワップの効果は消えてすばやさはリセットされる。\n・ウルトラバーストを発動させた場合も同様となる。\n\n・メガシンカとは異なり、Championsでも同様にリセットされる。",
+   "why": "Wikiはフォルムチェンジ時のリセットをChampionsにも明記しているが、現在のデータには解除契機が無い。"
+  },
+  {
+   "no": 5,
+   "aspect": "effects: メガシンカ時の扱い(Championsでは維持=世代差の逆転)",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "description・battle_data.effectsにメガシンカ時のChampions固有挙動が無い。",
+   "proposal": "new_kind: mega_evolution_speed_swap_policy を追加し、Championsでは swapped_valueを維持、種族値変化による実数値再計算をしないと指定する。",
+   "quote": "・スピードスワップで能力を変更されたポケモンがメガシンカを発動させた場合、世代によって異なる。\n・第七世代ではすばやさはリセットされる。\n\n・Championsではスピードスワップで得たすばやさが維持される。このとき、メガシンカによりすばやさ種族値が変わるポケモンであってもすばやさ実数値は変わらない。",
+   "why": "Championsで維持されることと、メガシンカ後も交換済み実数値を再計算しないことが明記されている。単なる能力入替effectではこの世代分岐を再現できない。"
+  },
+  {
+   "no": 6,
+   "aspect": "effects: へんしんとの相互作用",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "description・battle_data.effectsにへんしん時の解除およびコピー元の扱いが無い。",
+   "proposal": "new_kind: transform_interaction を追加し、変更済み側がへんしんした場合は解除、変更済み側へへんしんした場合は変更後の実数値をコピーすると指定する。",
+   "quote": "・スピードスワップで能力値が変わったポケモンがへんしん状態になった場合、スピードスワップの効果は消える。スピードスワップで能力値が変わったポケモンに対してへんしんした場合、変更された後の能力値をコピーする。",
+   "why": "へんしんする側と、へんしんされる側で処理が異なる双方向の相互作用であり、現在の能力入替effectには含まれない。"
+  },
+  {
+   "no": 7,
+   "aspect": "effects: ダイマックス/テラスタルではリセットされない(例外あり)",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "description・battle_data.effectsにダイマックス、キョダイマックス、テラスタル時の保持規則とフォルムチェンジ併発時の例外が無い。",
+   "proposal": "new_kind: battle_form_transition_policy を追加し、通常のダイマックス・キョダイマックス・テラスタルでは維持、同時にフォルムチェンジする場合はリセットと指定する。",
+   "quote": "・スピードスワップで変更した能力値は、基本的にダイマックス/キョダイマックス/テラスタルではリセットされない。\n・ダイマックス/テラスタルと同時にフォルムチェンジするポケモンの場合は能力値がリセットされる。",
+   "why": "保持が基本でありながら、同時フォルムチェンジ時だけ解除される分岐を既存effectから判定できない。"
+  }
+ ],
+ "summary": "7件すべてreal_gap。1・2は発動対象や反射先を変えるためhigh、3〜7は能力入替の解除・保持・相互作用に関する細則のためmid。",
+ "source": "codex"
+}

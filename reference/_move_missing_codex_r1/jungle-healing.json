@@ -1,0 +1,157 @@
+{
+ "slug": "jungle-healing",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "HP回復の端数処理",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「回復」にrounding:\"floor\"を追加する。",
+   "quote": "自分と味方ポケモンを最大HPの1/4ずつ回復し、状態異常を治す (小数点以下は切り捨て)。",
+   "why": "fraction:0.25とbasis:\"max_hp\"はあるが、端数を切り捨てる指定がdescriptionにもeffectにも無い。最大HPが4の倍数でない場合の回復量が変わる。"
+  },
+  {
+   "no": 2,
+   "aspect": "控えの味方を状態異常回復しない条件",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「状態異常回復」のtargetを、控えを含まない場の自分と味方に限定できる値へ拡張する。",
+   "quote": "場に出ていない控えの味方の状態異常は回復しない。",
+   "why": "target:\"team\"だけでは場の味方と手持ち全体を区別できず、控えを除外する構造も説明も無い。"
+  },
+  {
+   "no": 3,
+   "aspect": "状態変化は回復しない例外",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "descriptionの「状態異常をすべて治す」と、battle_data.effects[1].kind=\"状態異常回復\"。",
+   "proposal": "",
+   "quote": "こんらん状態などの状態変化は回復しない。",
+   "why": "うちの対象は一貫して「状態異常」であり、「状態変化」や全状態を解除する構造にはなっていない。引用は既存表現の範囲を確認する説明で、別の解除対象は追加していない。"
+  },
+  {
+   "no": 4,
+   "aspect": "HP満タン時の状態異常回復",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0]の「回復」とeffects[1]の「状態異常回復」が独立した別要素として並んでいる。",
+   "proposal": "",
+   "quote": "HPが満タンのポケモンに対しても、状態異常を回復できる。",
+   "why": "状態異常回復effectはHP回復effectの成功を条件にしておらず、HP満タンでも後者を適用できる構造になっている。"
+  },
+  {
+   "no": 5,
+   "aspect": "みがわり貫通",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "両effectに既存キーbypasses_substitute:trueを追加する。",
+   "quote": "みがわり状態の味方も回復できる。",
+   "why": "flags={}であり、HP回復と状態異常回復がみがわりを無視する指定はdescriptionにもeffectsにも無い。"
+  },
+  {
+   "no": 6,
+   "aspect": "守り状態の味方への適用",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "master_row.protect=false。",
+   "proposal": "",
+   "quote": "まもる状態の味方や、トリックガード・ダイウォールを使用した味方も回復できる。",
+   "why": "protect=falseが、この技はまもる系の防御判定で遮断されないことを技単位で表している。ダイウォールだけを個別に持つ必要はなく、第八世代限定のダイマックス周辺仕様でもある。"
+  },
+  {
+   "no": 7,
+   "aspect": "姿を隠している味方への命中例外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして対象適用可否を設け、姿を隠す状態の味方を除外する。",
+   "quote": "必中技だが、姿を隠している味方には当たらず、回復できない。",
+   "why": "accuracy:nullは通常の命中判定を行わないことしか表さず、姿を隠した対象だけを除外する構造が無い。"
+  },
+  {
+   "no": 8,
+   "aspect": "そうしょくとの相互作用",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして対象別の特性無効化を設け、allyのそうしょくには防がれ、selfでは発動しない条件を持たせる。",
+   "quote": "くさタイプの技なので、味方の特性がそうしょくである場合、特性が発動して技の効果は防がれる。 使用者自身の特性がそうしょくである場合は、特性は発動せずに技の効果で回復できる。",
+   "why": "type=\"くさ\"はあるが、同じteam内で使用者と味方に異なるそうしょく判定を行う構造が無い。"
+  },
+  {
+   "no": 9,
+   "aspect": "そうでん時のタイプ吸収特性との相互作用",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして変更後タイプに基づく対象別特性判定を追加し、ちくでん・でんきエンジン・ひらいしんによる味方側の無効化と、敵ひらいしんによる引き寄せ対象外を表す。",
+   "quote": "そうでん状態で技がでんきタイプに変わった場合は、ちくでん・でんきエンジン・ひらいしんに防がれるようになる。敵の場にひらいしんがいても技が引き寄せられることはない。",
+   "why": "タイプ変更後の吸収・無効特性判定も、敵のひらいしんによる対象変更を禁止する例外もeffectsとflagsに無い。"
+  },
+  {
+   "no": 10,
+   "aspect": "おうごんのからだとの相互作用",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして対象別の特性無効化を設け、allyのおうごんのからだには防がれ、selfでは発動しない条件を持たせる。",
+   "quote": "変化技なので、味方の特性がおうごんのからだであるときは技を防がれる。 使用者自身の特性がおうごんのからだである場合、自身の特性は発動せずに技の効果で回復できる。",
+   "why": "category=\"変化\"だけでは、使用者には通り味方には防がれる対象別例外を表せない。"
+  },
+  {
+   "no": 11,
+   "aspect": "効果適用順",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "両kindをself用とally用に分け、effectへ明示的なorderを付けてselfのHP回復・状態異常回復をallyより先に処理する。",
+   "quote": "すばやさや位置に関係なく、使用者のHPと状態異常を回復した後に、味方のHPと状態異常を回復する。",
+   "why": "現在はtarget:\"team\"かつphase:\"on_use\"で一括され、使用者先行の順序を復元できない。処理順に伴う特性発動や判定結果が変わり得る。"
+  },
+  {
+   "no": 12,
+   "aspect": "失敗条件",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして技全体の成功条件を設け、場の対象全員がHP満タンかつ状態異常なしなら失敗とし、個別の効果なし対象ではメッセージを出さない条件も持たせる。",
+   "quote": "HPがすでに満タンで、状態異常でもないポケモンに対してジャングルヒールのメッセージは出ない。味方の場に回復できるポケモンがいない場合、「しかし うまく 決まらなかった!!」とメッセージが出て失敗する。",
+   "why": "回復可能な対象の有無を調べる成功条件が無く、現状のeffectsだけでは技全体の失敗と対象別メッセージ抑制を判定できない。"
+  },
+  {
+   "no": 13,
+   "aspect": "ヒーリングシフトによる優先度補正",
+   "class": "unclear",
+   "severity": "",
+   "where_in_ours": "master_row.priority=0かつsubcategory=\"回復\"。",
+   "proposal": "",
+   "quote": "特性ヒーリングシフトのポケモンが使用した場合、優先度が+3される。",
+   "why": "基本優先度0は正しく、回復技であることもsubcategoryにある。ヒーリングシフトをsimの共通特性処理がsubcategoryから判定するかは提示資料から確認できないため、技側の構造欠落とは断定できない。"
+  },
+  {
+   "no": 14,
+   "aspect": "ゆびをふるの選出対象外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "flagsにゆびをふる選出禁止を表す属性を追加する。",
+   "quote": "ゆびをふるで選ばれない。",
+   "why": "flags={}で、ゆびをふるの候補プールからこの技を除外する情報がdescriptionにもeffectsにも無い。選出可否が変わる。"
+  },
+  {
+   "no": 15,
+   "aspect": "ねごとで選ばれた場合の処理",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kindとして呼び出し元がねごとの場合の適用順を持たせ、selfのねむり回復後にallyへ各効果を適用する。",
+   "quote": "ねごとで選ばれた場合、使用者のねむり状態を回復した後に味方も回復できる。",
+   "why": "target:\"team\"の2 effectsには、ねごと経由でも使用者のねむりを先に解除し、その後の味方処理を継続する順序と例外が無い。"
+  }
+ ],
+ "summary": "real_gap 11件、already_in_ours 3件、unclear 1件。引用はいずれもWiki生ページで確認した。",
+ "source": "codex"
+}

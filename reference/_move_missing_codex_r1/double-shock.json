@@ -1,0 +1,87 @@
+{
+ "slug": "double-shock",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "失敗・無効・命中失敗時にはタイプを失わない条件",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionは「攻撃したあと」のみ。battle_data.effects[0]はkind=タイプ除去、phase=on_useで、攻撃成功を条件にする構造がない。",
+   "proposal": "既存kind「タイプ除去」のphaseを攻撃成功後に置き、conditionに命中・相性・特性・まもるによって無効化されていないことを持たせる。",
+   "quote": "相性・特性・まもる状態により技を無効化されたときや、命中しなかったときはでんきタイプを失わない。",
+   "why": "Wikiの成功条件がdescriptionにもeffectsにもない。現状のon_useをそのまま処理すると、不発時にもタイプを除去し得る。"
+  },
+  {
+   "no": 2,
+   "aspect": "交代時に失ったタイプが戻る",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effects[0]にも、タイプ除去の持続期限や交代時の復元がない。",
+   "proposal": "既存kind「タイプ除去」にduration=\"per_switch\"を持たせ、交代時に元のタイプへ復元する。",
+   "quote": "交代するとタイプは元に戻る。",
+   "why": "交代後のタイプ、タイプ一致補正、相性判定が変わり得る仕様だが、現状は永続除去として扱われるおそれがある。"
+  },
+  {
+   "no": 3,
+   "aspect": "でんきタイプへのテラスタル中はタイプを消さない例外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionとbattle_data.effects[0]のどちらにも、でんきテラスタル中はタイプ除去を抑止する条件がない。",
+   "proposal": "既存kind「タイプ除去」にconditionとして「でんきテラスタル中は除去しない」を追加する。",
+   "quote": "でんきタイプにテラスタルしたポケモンが使用した場合、「<使用者>は 電気を 使いきった!」とメッセージが出るものの、でんきタイプは消えない。",
+   "why": "技は成功してメッセージも出る一方、タイプ除去だけは起きない例外であり、現状の無条件なタイプ除去では再現できない。"
+  },
+  {
+   "no": 4,
+   "aspect": "でんきタイプを持った状態でテラスタルした場合は元のタイプも消えない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionとbattle_data.effects[0]に、テラスタル後の元タイプ保持およびタイプ一致補正維持の構造がない。",
+   "proposal": "既存kind「タイプ除去」にテラスタル中は元タイプを変更しない条件を加え、タイプ一致計算側も元のでんきタイプを保持して2.0倍を適用する。",
+   "quote": "でんきタイプを持った状態でテラスタルした場合、使うことで元のタイプが消えることも無い。以降もでんき技のタイプ一致ボーナスは2.0のままになる。",
+   "why": "単なる現在タイプの除去では、テラスタル中に保持される元タイプと、その後のでんき技のタイプ一致補正を再現できない。"
+  },
+  {
+   "no": 5,
+   "aspect": "元々でんきタイプでなくても、でんきテラスタル中なら成功する例外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0].fails_if_type_absent=trueはあるが、使用条件の判定対象にテラスタイプを含める指定がない。descriptionにも例外がない。",
+   "proposal": "既存kind「タイプ除去」のfails_if_type_absent判定に、でんきテラスタル中はでんきタイプ所持として扱うconditionを追加する。",
+   "quote": "元々でんきタイプを持たないポケモンがものまねやまねっこででんこうそうげきを使った場合でも、でんきタイプにテラスタルしているなら成功する。",
+   "why": "元タイプだけで使用可否を判定すると、本来成功するでんきテラスタル中の使用を失敗にしてしまう。"
+  },
+  {
+   "no": 6,
+   "aspect": "でんき以外へのテラスタル中は元々でんきタイプでも失敗する",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0].fails_if_type_absent=trueはあるが、テラスタル中はテラスタイプを基準に使用可否を決める条件がない。descriptionにもない。",
+   "proposal": "既存kind「タイプ除去」の使用前判定に、テラスタル中は現在のテラスタイプがでんきかを参照するconditionを追加する。",
+   "quote": "でんきタイプ以外にテラスタルした場合、元々でんきタイプを持っていたとしてもでんこうそうげきは失敗するようになる。",
+   "why": "元タイプのでんきだけを参照すると、でんき以外へテラスタルした使用者が本来失敗する技を成功させ得る。"
+  },
+  {
+   "no": 7,
+   "aspect": "ステラテラスタル中の例外と再使用",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionとbattle_data.effects[0]に、ステラ中のタイプ維持、タイプ除去後扱いにしないこと、再使用許可、ステラ補正の一度限りの消費がない。",
+   "proposal": "既存kind「タイプ除去」にステラ中は除去しないconditionを追加し、new_kindとしてステラ補正を初回使用時だけ消費する状態を持たせる。",
+   "quote": "自分がでんきタイプで、ステラタイプにテラスタルしたポケモンが使用した場合、「<使用者>は 電気を 使いきった!」とメッセージが出るものの、ステラタイプは維持され、2回目以降も撃つことができる。ただし、2回目以降はステラ補正は乗らない。",
+   "why": "現状のタイプ除去とfails_if_type_absentだけでは、ステラ維持、再使用成功、2回目以降のダメージ補正消費をいずれも表現できない。"
+  },
+  {
+   "no": 8,
+   "aspect": "ゆびをふるで選ばれない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "description、battle_data.effects、tagsのいずれにも、ゆびをふるの抽選候補から除外する印がない。",
+   "proposal": "new_kindとして「技選出禁止」を設けsource=\"ゆびをふる\"を指定するか、同等の構造化タグを追加して抽選処理が参照する。",
+   "quote": "ゆびをふるで選ばれない。",
+   "why": "Wikiに選出禁止が明記されている。提示されたmaster_rowには候補除外を判断できる構造がなく、抽選機構がこの技を選んでしまうおそれがある。"
+  }
+ ],
+ "summary": "8件とも、Wikiに明記された第九世代仕様がmaster_rowのdescriptionおよびbattle_data.effectsに存在せず、simの発動可否・タイプ状態・ダメージ計算・技抽選に影響するreal_gap。",
+ "source": "codex"
+}

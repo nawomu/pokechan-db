@@ -1,0 +1,237 @@
+{
+ "slug": "mind-blown",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "効果文: HP減少量と端数処理",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionは「最大HPの半分」、battle_data.effects[0]はfraction=0.5のみで、切り上げ指定が無い。",
+   "proposal": "既存kind「HPが減る」にrounding=\"up\"を追加し、composeでも切り上げを説明する。",
+   "quote": "自分のHPを、最大HPの1/2分だけ減らしてから攻撃する (小数点以下切り上げ)。",
+   "why": "奇数の最大HPでは切り上げの有無で減少量が1変わり、descriptionとsim土台の双方から復元できない。"
+  },
+  {
+   "no": 2,
+   "aspect": "効果文: HP減少の発生順",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effects[0]にphase=\"on_use\"はあるが、実装上のHP支払いはダメージ処理後に呼ばれており、descriptionも攻撃前とは示していない。",
+   "proposal": "既存kind「HPが減る」を攻撃前専用phaseへ置く。適切な既存phaseが無ければnew_kind相当の攻撃前コスト処理を設ける。",
+   "quote": "自分のHPを、最大HPの1/2分だけ減らしてから攻撃する (小数点以下切り上げ)。",
+   "why": "正典はHP減少後に攻撃すると明記する。現在のphase表記だけではその順序を保証せず、実装も攻撃後になっている。"
+  },
+  {
+   "no": 3,
+   "aspect": "効果文: 特性で無効化された場合",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].always_pays_even_if_blocked=true。simのapplyHpCostは、もらいび等によるダメージ無効後にも呼ばれる。descriptionにも「まもるなどで防いでも」とある。",
+   "proposal": "",
+   "quote": "技をまもるで防がれたり、もらいびなどの特性で無効化されたりした場合でも使用者のHPは減る。",
+   "why": "説明文の列挙は省略されているが、機構はalways_pays_even_if_blockedと無効後の支払い経路に入っているため、missing_in_oursではない。"
+  },
+  {
+   "no": 4,
+   "aspect": "効果文: 外れ・姿を隠した相手への不命中",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].always_pays_even_if_blocked=true。simはphaseHitCheckが通常の外れや姿を隠した相手への不命中を返した経路でもapplyHpCostを呼ぶ。",
+   "proposal": "",
+   "quote": "技が外れた場合や、姿を隠している相手に使用して技が当たらなかった場合も使用者のHPは減る。",
+   "why": "descriptionには明記されないが、effectsの常時支払い指定と実際の不命中経路に機構が存在する。"
+  },
+  {
+   "no": 5,
+   "aspect": "効果文: 攻撃対象が場にいない場合",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもeffectsにも対象不在時の支払い除外が無い。always_pays_even_if_blocked=trueには除外条件が付いていない。",
+   "proposal": "既存kind「HPが減る」にskip_if=[\"no_targets\"]を追加する。",
+   "quote": "攻撃対象全員がすでにひんしになり場に誰もいない場合、技が外れたときとは異なり、ビックリヘッドを使ってもHPは減らない。",
+   "why": "通常の命中失敗とは異なる不発例外であり、無条件の支払い指定だけでは表せない。"
+  },
+  {
+   "no": 6,
+   "aspect": "効果文: おおあめで技がかき消された場合",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもeffectsにも、おおあめによる攻撃消去時の支払い除外が無い。",
+   "proposal": "既存kind「HPが減る」にskip_if=[\"move_nullified_by_heavy_rain\"]を追加する。",
+   "quote": "場がおおあめ状態で攻撃がかき消された場合、HPは減らない。",
+   "why": "おおあめによる不発ではHPを減らさないという発動条件が欠落しており、sim結果が変わる。"
+  },
+  {
+   "no": 7,
+   "aspect": "効果文: ふんじん状態",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "description、effects、flagsのいずれにも、ふんじんの先行発動や技本体のHPコスト停止を示す情報が無い。",
+   "proposal": "new_kind「ふんじん反応」を設け、ほのお技の攻撃前に最大HPの1/4ダメージを与えて技本体を中止する。",
+   "quote": "自身がふんじん状態である場合、ふんじんの効果が先に発動してHP減少は1/4に留まる。",
+   "why": "ふんじんの1/4ダメージが先に発生し、この技自身の1/2支払いは起きないという順序と中止条件が欠落している。"
+  },
+  {
+   "no": 8,
+   "aspect": "効果文: 爆発する技・しめりけ",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "flags={}で、effectsにも爆発する技であることや、しめりけによる不発・HP支払い停止が無い。既存simのしめりけ判定はkind=\"自分瀕死\"だけを対象にするため、この技には作用しない。",
+   "proposal": "new_kind「爆発技」を追加し、しめりけ存在時は攻撃とkind「HPが減る」の双方を不発にする。",
+   "quote": "爆発する技の1つ。場に特性しめりけのポケモンがいる場合、攻撃は不発してHPは減らない。",
+   "why": "爆発技属性を参照できないため、しめりけによる使用阻止を再現できない。"
+  },
+  {
+   "no": 9,
+   "aspect": "効果文: HP0まで減少可能",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].can_faint_self=true。simのapplyHpCostも支払い後のHPを0まで下げ、0以下なら使用者をひんしにする。",
+   "proposal": "",
+   "quote": "技の反動によりHPが0になるときでも使用できる。",
+   "why": "使用者がひんしになる支払いを許可する構造が既にある。"
+  },
+  {
+   "no": 10,
+   "aspect": "効果文: 同時全滅時の勝敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_dataにも、この技による同時全滅時の勝者を決める規則が無い。",
+   "proposal": "new_kind「同時全滅敗北」を追加し、value=\"user_side\"として勝敗解決時に参照する。",
+   "quote": "この技を使ってお互いのポケモンが全滅した場合は、技の使用者側の負けとなる。",
+   "why": "通常のひんし処理だけでは使用者側敗北という技固有の勝敗規則を決定できない。"
+  },
+  {
+   "no": 11,
+   "aspect": "効果文: マジックガード",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionとeffectsにマジックガード例外が無い。simのapplyHpCostも使用者の特性を確認せずHPを減らす。",
+   "proposal": "既存kind「HPが減る」にprevented_by_ability=[\"マジックガード\"]を追加する。",
+   "quote": "使用者の特性がマジックガードのときは反動ダメージを受けない。",
+   "why": "現在はマジックガードでもHPコストを支払うため、正典とsim結果が異なる。"
+  },
+  {
+   "no": 12,
+   "aspect": "効果文: いしあたま",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "HP減少はkind=\"反動\"ではなくkind=\"HPが減る\"として格納されている。simのいしあたま判定はkind=\"反動\"だけを防ぎ、applyHpCostは防がない。",
+   "proposal": "",
+   "quote": "使用者の特性がいしあたまであっても反動ダメージを受ける。",
+   "why": "kindの区別により、いしあたまでは防げない挙動が既に成立している。"
+  },
+  {
+   "no": 13,
+   "aspect": "効果文: すてみ",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "effectsはkind=\"HPが減る\"でありkind=\"反動\"を持たない。simのすてみ威力補正はkind=\"反動\"を持つ技だけを対象にする。",
+   "proposal": "",
+   "quote": "使用者の特性がすてみであっても技の威力は上がらない。",
+   "why": "反動技kindに分類されていないため、すてみの補正対象外という機構は既に表現されている。"
+  },
+  {
+   "no": 14,
+   "aspect": "効果文: おやこあい",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "一般のおやこあい処理が対象となる攻撃技を2回攻撃にし、battle_data.effects[0]のHPコストは技1回につきapplyHpCostで1回だけ処理される。",
+   "proposal": "",
+   "quote": "使用者の特性がおやこあいのときは2回攻撃になるが、HPは1回分のみ減る。",
+   "why": "技側に専用キーは無いが、一般の2回攻撃処理と技単位のHP支払いの組合せで正典の回数制御が成立する。"
+  },
+  {
+   "no": 15,
+   "aspect": "効果文: ダメおしとの相互作用",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもeffectsにも、このHP減少を当該ターンの被ダメージとして記録する指定が無い。simにもダメおしへ接続する記録機構を確認できない。",
+   "proposal": "new_kind「被ダメージ記録」を追加し、kind「HPが減る」にassurance_damage=trueを持たせる。",
+   "quote": "この技の反動ダメージを受けたポケモンが、そのターンに受けるダメおしの威力は2倍となる。",
+   "why": "被ダメージ事実がダメおしの威力判定へ渡らず、威力が変わる相互作用を再現できない。"
+  },
+  {
+   "no": 16,
+   "aspect": "battle_data.effects: HP減少の端数処理",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0]はfraction=0.5だがrounding指定が無い。simの既定処理はMath.floorである。",
+   "proposal": "既存kind「HPが減る」にrounding=\"up\"を追加する。",
+   "quote": "自分のHPを、最大HPの1/2分だけ減らしてから攻撃する (小数点以下切り上げ)。",
+   "why": "最大HPが奇数のとき、現在の既定切り捨ては正典より減少量が1少なくなる。"
+  },
+  {
+   "no": 17,
+   "aspect": "battle_data.effects: 外れ・特性無効でも支払う",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].always_pays_even_if_blocked=true。simは通常の命中失敗、姿隠れ不命中、まもる、タイプ・吸収特性による無効の各終了経路でapplyHpCostを呼ぶ。",
+   "proposal": "",
+   "quote": "技をまもるで防がれたり、もらいびなどの特性で無効化されたりした場合でも使用者のHPは減る。／技が外れた場合や、姿を隠している相手に使用して技が当たらなかった場合も使用者のHPは減る。",
+   "why": "キー名はblockedだが、実際のsim配線では指摘された各失敗経路を包含しているため欠落ではない。"
+  },
+  {
+   "no": 18,
+   "aspect": "battle_data.effects: HPを減らさない不発条件",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsには対象不在・おおあめ・しめりけを示すskip_ifや例外条件が無い。",
+   "proposal": "既存kind「HPが減る」にskip_if=[\"no_targets\",\"move_nullified_by_heavy_rain\",\"blocked_by_damp\"]を追加する。",
+   "quote": "攻撃対象全員がすでにひんしになり場に誰もいない場合、技が外れたときとは異なり、ビックリヘッドを使ってもHPは減らない。／場がおおあめ状態で攻撃がかき消された場合、HPは減らない。／場に特性しめりけのポケモンがいる場合、攻撃は不発してHPは減らない。",
+   "why": "always_pays_even_if_blocked=trueだけでは、支払いを止める3種類の不発を区別できない。"
+  },
+  {
+   "no": 19,
+   "aspect": "battle_data.effects: ふんじんの先行処理",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsにふんじんとの相互作用、攻撃前の割り込み、技本体のHPコスト中止を表す構造が無い。",
+   "proposal": "new_kind「ふんじん反応」を攻撃前phaseで処理し、発動時は技を中止してHPが減るeffectを適用しない。",
+   "quote": "自身がふんじん状態である場合、ふんじんの効果が先に発動してHP減少は1/4に留まる。",
+   "why": "先行する1/4ダメージと、その後の1/2支払いを発生させない分岐が必要である。"
+  },
+  {
+   "no": 20,
+   "aspect": "battle_data.effects: 爆発する技フラグ",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "flags={}で、effectsにも爆発技属性が無い。既存のしめりけ処理が検索するkind=\"自分瀕死\"も持たない。",
+   "proposal": "new_kind「爆発技」を追加する。",
+   "quote": "爆発する技の1つ。場に特性しめりけのポケモンがいる場合、攻撃は不発してHPは減らない。",
+   "why": "しめりけがこの技を識別できる属性がなく、不発判定に到達できない。"
+  },
+  {
+   "no": 21,
+   "aspect": "battle_data.effects: 特性相互作用",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "マジックガードによるHP減少無効はeffectsになく、simも未対応。一方、いしあたま・すてみはkind=\"HPが減る\"とkind=\"反動\"の区別で対象外になり、おやこあい時の支払い1回も一般処理との組合せで成立する。",
+   "proposal": "既存kind「HPが減る」にprevented_by_ability=[\"マジックガード\"]を追加する。いしあたま・すてみ・おやこあい用の重複指定は不要。",
+   "quote": "使用者の特性がマジックガードのときは反動ダメージを受けない。／使用者の特性がいしあたまであっても反動ダメージを受ける。／使用者の特性がすてみであっても技の威力は上がらない。／使用者の特性がおやこあいのときは2回攻撃になるが、HPは1回分のみ減る。",
+   "why": "4特性すべてが欠落という指摘は過大だが、マジックガードだけは実際に欠落し、HPが変わるため指摘全体にはreal_gapが残る。"
+  },
+  {
+   "no": 22,
+   "aspect": "battle_data.effects: 同時全滅の勝敗規則",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_dataに同時全滅時の使用者側敗北を示す効果・勝敗属性が無い。",
+   "proposal": "new_kind「同時全滅敗北」を追加し、loser=\"user_side\"を勝敗判定で参照する。",
+   "quote": "この技を使ってお互いのポケモンが全滅した場合は、技の使用者側の負けとなる。",
+   "why": "技固有の同時全滅規則が無いため、一般の勝敗処理だけでは正典の敗者を保証できない。"
+  },
+  {
+   "no": 23,
+   "aspect": "battle_data.effects: ダメおし用の被ダメージ記録",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsに被ダメージ記録指定がなく、このHP減少をダメおしの倍化条件へ接続する構造も無い。",
+   "proposal": "new_kind「被ダメージ記録」を追加するか、既存kind「HPが減る」にcounts_as_damage_for_assurance=trueを追加する。",
+   "quote": "この技の反動ダメージを受けたポケモンが、そのターンに受けるダメおしの威力は2倍となる。",
+   "why": "HP減少を単なるコストとして処理するだけでは、そのターンにダメージを受けた事実としてダメおしが参照できない。"
+  }
+ ],
+ "summary": "23件を個別確認。real_gapは16件、already_in_oursは7件。特に端数切り上げ、攻撃前支払い、不発時の3例外、ふんじん、爆発技・しめりけ、マジックガード、同時全滅、ダメおし連携がsim結果に影響する。ファイル変更なし。",
+ "source": "codex"
+}

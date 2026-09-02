@@ -1,0 +1,187 @@
+{
+ "slug": "burning-bulwark",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "連続使用判定を共有する技",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0]のkind=\"まもり\"にconsecutive_success_multiplier=0.3333はあるが、前ターン側・次ターン側の共有対象技一覧と非対称な範囲はない。",
+   "proposal": "kind=\"まもり\"にconsecutive_counter_sourcesとconsecutive_counter_targetsを追加する。",
+   "quote": "「まもる/みきり/こらえる/ニードルガード/トーチカ/スレッドトラップ/かえんのまもり/ワイドガード/ファストガードが成功した次のターン、まもる/みきり/こらえる/ニードルガード/トーチカ/スレッドトラップ/かえんのまもりの成功率は下がる。」",
+   "why": "倍率だけでは、別の守り技から引き継ぐ判定と、ワイドガード・ファストガードが低下対象側に含まれない非対称性を復元できない。"
+  },
+  {
+   "no": 2,
+   "aspect": "連続使用失敗時・非連続時のリセット",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionには「失敗するともとにもどる」があるが、非連続時のリセットはなく、battle_data.effectsにもリセット条件がない。",
+   "proposal": "kind=\"まもり\"にconsecutive_reset_on_failure=trueとconsecutive_reset_on_nonconsecutive=trueを追加する。",
+   "quote": "「失敗した場合や連続で使用しなかった場合は、成功率はリセットされ必ず成功するようになる。」",
+   "why": "失敗時は説明文だけに一部あるが、非連続時を含むsim用のリセット機構は存在しない。"
+  },
+  {
+   "no": 3,
+   "aspect": "ターン最後に使用した場合の失敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "kind=\"まもり\"にfails_if_no_later_action=trueを追加する。",
+   "quote": "「そのターンの最後にかえんのまもりを使った場合は失敗する。」",
+   "why": "descriptionにもeffectsにも、行動順によって技そのものが失敗する条件がない。"
+  },
+  {
+   "no": 4,
+   "aspect": "決まらなかった接触技へのやけど",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[1].condition.type=\"hit_by_contact_move_while_protecting\"は接触だけを示し、攻撃技が成立したことを要求していない。",
+   "proposal": "kind=\"状態付与\"のconditionにrequires_attack_execution=trueを追加する。",
+   "quote": "「ふいうちなど、直接攻撃技であっても決まらない技を仕掛けてきた相手をやけど状態にすることはできない。」",
+   "why": "接触技を選択しただけの場合と、実際に技が決まって守りで防がれた場合を区別できない。"
+  },
+  {
+   "no": 5,
+   "aspect": "タイプ相性・特性で無効になった接触技",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[1]にはダメージ成立と独立して発動する指定がない。",
+   "proposal": "kind=\"状態付与\"のconditionにtriggers_on_type_or_ability_immunity=trueを追加する。",
+   "quote": "「タイプ相性や特性で効果がない直接攻撃技を受けた場合でも、相手をやけど状態にできる。」",
+   "why": "通常の命中・ダメージ成立後処理に置くと、タイプ相性または特性で無効になった接触技に対するやけどを落とす。"
+  },
+  {
+   "no": 6,
+   "aspect": "連続攻撃技のやけど判定回数",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "battle_data.effects[1]に多段技での発動単位がない。",
+   "proposal": "kind=\"状態付与\"にtrigger_frequency=\"once_per_move\"を追加する。",
+   "quote": "「連続攻撃技かつ直接攻撃を防いだときも、やけどの判定は1回だけ行われる。」",
+   "why": "1ヒット単位か1回の技単位かをeffectsから決定できない細則が欠けている。"
+  },
+  {
+   "no": 7,
+   "aspect": "使用者・攻撃者のみがわりとやけど",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[1]には使用者側・攻撃者側いずれのみがわりも無視する指定がない。",
+   "proposal": "kind=\"状態付与\"にbypasses_user_substitute=trueとbypasses_target_substitute=trueを追加する。",
+   "quote": "「使用者がみがわり状態である場合でもやけど状態にできる。」「相手がみがわり状態である場合でもやけど状態にできる。」",
+   "why": "双方のみがわり状態でも攻撃者本体へやけどを付与する例外を復元できない。"
+  },
+  {
+   "no": 8,
+   "aspect": "やけど耐性",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[1]はvalue=\"やけど\"の通常の状態付与として表現されている。",
+   "proposal": "",
+   "quote": "「相手がやけど状態に抵抗を持つ場合は、やけど状態にすることができない。」",
+   "why": "やけどになれるかの判定は状態異常「やけど」全体の共通ルールであり、この技固有のeffectsへ重ねて保持する必要はない。"
+  },
+  {
+   "no": 9,
+   "aspect": "ぼうごパット",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "kind=\"状態付与\"にblocked_by_item=\"ぼうごパット\"とsuppress_blocking_item_message=trueを追加する。",
+   "quote": "「相手がぼうごパットを持つ場合はやけど状態にならない。このとき持ち物に関するメッセージは出ない。」",
+   "why": "技固有の接触反応に対する無効化条件と、その際に持ち物メッセージを出さない表示規則がともにない。"
+  },
+  {
+   "no": 10,
+   "aspect": "守りを解除する技",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0]のkind=\"まもり\"に解除技と、解除時に攻撃を通してやけどを発動しない分岐がない。",
+   "proposal": "kind=\"まもり\"にbreakers、breaker_damage_passes=true、contact_reaction_on_break=falseを追加する。",
+   "quote": "「フェイント/ゴーストダイブ/シャドーダイブ/いじげんホール/いじげんラッシュを受けた場合、かえんのまもり状態は取り除かれてダメージを受ける。これらの内直接攻撃の技に対してもやけど状態にすることができない。」",
+   "why": "指定技による守り解除、攻撃通過、接触技でもやけど不発という一連の処理を表せない。"
+  },
+  {
+   "no": 11,
+   "aspect": "タイプ相性で無効だった守り解除技",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "kind=\"まもり\"のbreakersにremove_only_if_type_effective=trueとcontact_reaction_on_immune_breaker=falseを追加する。",
+   "quote": "「攻撃がタイプ相性により効果が無かった場合は、かえんのまもり状態は取り除かれない。このときでも攻撃者をやけど状態にすることはできない。」",
+   "why": "タイプ無効なら守りを維持する一方、接触反応のやけども発生しないという二つの結果が欠けている。"
+  },
+  {
+   "no": 12,
+   "aspect": "守り解除後の連続使用判定",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "kind=\"まもり\"のbreakersにreset_consecutive_counter_on_remove=trueを追加する。",
+   "quote": "「これらによりかえんのまもり状態を取り除かれた場合、次のターンのかえんのまもりは連続使用とは見なされず、必ず成功する。」",
+   "why": "守りを解除された時点で連続使用カウンターをリセットする機構がない。"
+  },
+  {
+   "no": 13,
+   "aspect": "守りを無視する特性・技",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "kind=\"まもり\"にbypassed_by_ability=[\"ふかしのこぶし\"]、bypassed_by_moves=[\"ハイパードリル\",\"パワフルエッジ\"]、contact_reaction_on_bypass=falseを追加する。",
+   "quote": "「特性ふかしのこぶしのポケモンが使用する直接攻撃や、ハイパードリル/パワフルエッジを受けたときは守りは無視され、相手をやけど状態にすることもできない。」",
+   "why": "指定特性・技による守り無視と、その際のやけど不発を表すデータがない。"
+  },
+  {
+   "no": 14,
+   "aspect": "守り無視後の連続使用判定",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "kind=\"まもり\"のbypass分岐にremove_protect_state=falseとpreserve_consecutive_counter=trueを追加する。",
+   "quote": "「ふかしのこぶし/ハイパードリル/パワフルエッジで守りを無視された場合でも、かえんのまもり状態が取り除かれるわけではない。次のターンのかえんのまもりは連続使用扱いとなり、成功率が下がる。」",
+   "why": "守り解除の場合とは異なり、守り状態と連続使用判定を維持する分岐がない。"
+  },
+  {
+   "no": 15,
+   "aspect": "接触反応特性・持ち物との優先関係",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "kind=\"まもり\"にsuppress_other_contact_reactions_when_blocked=trueとallow_other_contact_reactions_when_bypassed=trueを追加する。",
+   "quote": "「技を防いだときは直接攻撃に反応する特性や持ち物は発動しない。かえんのまもりの効果のみが優先される。」「ゴーストダイブ/ふかしのこぶしなどにより技を防げなかった場合は、これら特性や持ち物の効果は発動する。」",
+   "why": "防御成立時だけ他の接触反応を止め、防御解除・無視時には通常どおり発動させる条件分岐がない。"
+  },
+  {
+   "no": 16,
+   "aspect": "複数対象攻撃での処理順",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[1]に、やけど付与を同じ攻撃の残り対象へのダメージ計算より先に処理する指定がない。",
+   "proposal": "new_kind: 複数対象攻撃中の対象間割り込みとして、状態付与後に残り対象のダメージとこんじょう補正を再評価する処理を表す。",
+   "quote": "「ぶんまわす/ワイドブレイカー/キラースピンを防いだ場合、攻撃者をやけど状態にした後に他のポケモンへのダメージが計算される。ダメージはやけどの影響を受けて減衰する。」「攻撃者の特性がこんじょうであるときは特性の効果が発動し、攻撃を1.5倍にして他のポケモンへのダメージが計算される。」",
+   "why": "状態付与と対象ごとのダメージ計算の順序がなく、残り対象へのやけど補正またはこんじょう補正を即時反映できない。"
+  },
+  {
+   "no": 17,
+   "aspect": "まねっこ",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "flagsは空で、battle_data.effectsにもコピー候補から除外する指定がない。",
+   "proposal": "flagsにcopycat_eligible=falseを追加する。",
+   "quote": "「この技はまねっこでコピーすることができない。」",
+   "why": "まねっこの選択可否を決める技固有の除外情報がない。"
+  },
+  {
+   "no": 18,
+   "aspect": "ゆびをふる",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "flagsは空で、battle_data.effectsにもゆびをふるの抽選候補に含める指定がない。",
+   "proposal": "flagsにmetronome_eligible=trueを追加する。",
+   "quote": "「この技はゆびをふるで出現する。」",
+   "why": "この技をゆびをふるの候補に含めるための明示情報がない。"
+  }
+ ],
+ "summary": "18件を個別照合。real_gapは17件、out_of_scopeは共通のやけど耐性処理1件。already_in_ours・auditor_error・unclearは0件。",
+ "source": "codex"
+}

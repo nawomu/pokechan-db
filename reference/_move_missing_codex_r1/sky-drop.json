@@ -1,0 +1,67 @@
+{
+ "slug": "sky-drop",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "体重条件は第六世代以降限定",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0].fails_if_target_weight_kg_at_least=200 はあるが、availability.gens=[5,6,7,8]に対して世代条件が付いていない。descriptionとdescription_legacyも世代を限定していない。",
+   "proposal": "既存kind「2ターン目に攻撃」の体重失敗条件に since_generation:6 を付け、第五世代では適用しない。",
+   "quote": "対象のおもさが200.0kg以上であるとき(第六世代以降)。",
+   "why": "権威は体重による失敗を第六世代以降に限定しているが、現行effectsは第五世代にも一律適用される形になっている。"
+  },
+  {
+   "no": 2,
+   "aspect": "連れ去られている間、対象は交代を一切できない(強制交代技も無効)",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionには「相手は行動できない」、effects[0]には carries_target:true があるだけで、通常交代・ゴーストタイプの自由交代・強制交代技・交代道具・交代特性をすべて無効にする明示的な機構はない。",
+   "proposal": "new_kind: 連れ去り拘束状態を付与し、prevents_all_switch:true として通常交代、強制交代、交代道具、交代特性、ゴーストタイプの交代例外を無効化する。",
+   "quote": "連れ去られている間、対象が交代しようとしても「<対象>は フリーフォールで 自由に ならない!」とメッセージが出て交代できない。このとき控えのポケモンを見ることもできないなど、にげられない状態や特性かげふみによるものとは異なる。ゴーストタイプの性質、技ほえる/ふきとばし/ドラゴンテール/ともえなげ、道具きれいなぬけがら/だっしゅつボタンの効果、特性にげごし/ききかいひの効果は全て発動せず、いかなる手段をもってしても交代することができない。",
+   "why": "carries_target は連れ去る事実しか表さず、あらゆる交代経路を無効化する強い拘束条件をsimが判定できない。"
+  },
+  {
+   "no": 3,
+   "aspect": "1ターン目の『連れ去り』は命中率/回避率を無視して必中(命中判定は2ターン目の攻撃時のみ)",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "accuracy=100はあるが、description、description_legacy、battle_data.effectsのいずれにも命中判定を2ターン目だけ行う指定や、1ターン目の連れ去りを必中にする指定がない。",
+   "proposal": "既存kind「2ターン目に攻撃」に accuracy_check_phase:\"second_turn_attack\" と first_turn_capture_ignores_accuracy:true を追加する。",
+   "quote": "命中判定は落下時にのみ行われる。対象を連れ去る行動は命中率/回避率に依らず必中する。",
+   "why": "現在のaccuracy値だけでは、連れ去りと落下攻撃で異なる命中判定の有無とタイミングを表現できない。"
+  },
+  {
+   "no": 4,
+   "aspect": "じゅうりょく状態では技を選択できない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "description、description_legacy、battle_data.effects、battle_dataの他の条件欄のいずれにも、じゅうりょく中の選択禁止がない。",
+   "proposal": "new_kind: 技選択禁止条件として field_state:\"じゅうりょく\" を持たせ、実行時失敗ではなく選択段階で使用不能にする。",
+   "quote": "じゅうりょく状態では技を選択することができない。",
+   "why": "権威は技の実行失敗ではなく選択そのものを禁止しているが、その入力制約を表すデータがない。"
+  },
+  {
+   "no": 5,
+   "aspect": "対象がみがわり状態のとき失敗(すりぬけでも突破不可)",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "description、description_legacy、effectsにみがわり失敗条件はなく、battle_data.fails_ifにも target_has_substitute がない。",
+   "proposal": "既存の battle_data.fails_if に {\"type\":\"target_has_substitute\",\"bypass_abilities\":[]} を追加し、すりぬけでも例外にしない。",
+   "quote": "対象がみがわり状態であるとき。使用者の特性がすりぬけである場合でも失敗する。",
+   "why": "みがわりの有無で技の発動可否が変わり、通常のすりぬけ処理も明示的に無効化する必要がある。"
+  },
+  {
+   "no": 6,
+   "aspect": "対象が姿を隠している(ダイビング等の潜伏状態)とき失敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "description、description_legacy、battle_data.effects、battle_dataの失敗条件に、対象の半無敵・潜伏状態を調べる指定がない。",
+   "proposal": "new_kind: battle_data.fails_if に target_semi_invulnerable を追加し、対象が姿を隠している場合は連れ去り前に失敗させる。",
+   "quote": "対象が姿を隠しているとき。使用者や対象がノーガードか、使用者がロックオン状態であってもこのときのフリーフォールは失敗する。",
+   "why": "対象の潜伏状態によって発動可否が変わるが、現行データにはその判定がなく、ノーガードやロックオンでも覆らない例外も保持できない。"
+  }
+ ],
+ "summary": "6件とも権威本文に明記され、現行のdescriptionとbattle_data.effectsでは必要な世代分岐または機構を表現できていないためreal_gap。",
+ "source": "codex"
+}

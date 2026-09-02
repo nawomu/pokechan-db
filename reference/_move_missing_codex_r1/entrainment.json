@@ -1,0 +1,97 @@
+{
+ "slug": "entrainment",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "交代で元の特性に戻る(効果の持続性)",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "battle_data.effects[0].kind=\"特性上書き\"には持続期限・解除条件がない。descriptionにも交代・フォルムチェンジ時の復元説明がない",
+   "proposal": "既存kind「特性上書き」にtemporary:trueとreset_on:[\"switch\",\"ability_form_change\"]を追加する",
+   "quote": "なかまづくりにより変えられた特性は交代で元の特性に戻る。メガシンカ/ウルトラバーストにより本来の特性に上書きされる。フォルムチェンジで特性が変わるポケモンは、本来の特性に上書きされる。",
+   "why": "現在のsimはabilityOverrideを交代時に消すため交代リセット自体は実装されているが、masterのeffectsとdescriptionからは一時的な上書きだと復元できず、フォルムチェンジ時の解除条件も表現されていない"
+  },
+  {
+   "no": 2,
+   "aspect": "対象の特性が「なまけ」または上書き不可特性のとき失敗",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].kind=\"特性上書き\"。simの同kind共通処理がABILITY_CHANGE_NGで対象特性を検査し、なまけも同一覧に含めている",
+   "proposal": "",
+   "quote": "対象の特性がなまけか、上書きできない特性であるときは失敗する。",
+   "why": "技固有条件ではなく、特性上書き処理に共通する対象特性のプロパティである。個別技のeffectsへ重複記載する必要はない"
+  },
+  {
+   "no": 3,
+   "aspect": "自身の特性がコピー不可特性のとき失敗",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].kind=\"特性上書き\", value=\"自分の特性\"。simの同kind共通処理がコピー元特性をABILITY_CHANGE_NGで検査する",
+   "proposal": "",
+   "quote": "自身の特性がコピーできない特性であるときは失敗する。",
+   "why": "コピー元特性に関する共通の特性プロパティであり、なかまづくり固有のmove側effectsへ重複して持たせる事項ではない"
+  },
+  {
+   "no": 4,
+   "aspect": "自分と相手が同じ特性のとき失敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0].kind=\"特性上書き\", value=\"自分の特性\"はあるが、同一特性時の失敗条件はない。simの当該分岐にも同一判定がない",
+   "proposal": "既存kind「特性上書き」にfails_if:\"same_ability\"を追加する",
+   "quote": "自分と相手が同じ特性である場合。",
+   "why": "技の発動成否が変わる条件であり、description・effects・現在の同kind実装のいずれにも保持されていない"
+  },
+  {
+   "no": 5,
+   "aspect": "対象がスターモービルのとき失敗",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "対象がスターモービルである場合。",
+   "why": "スターモービルはmaster/pokemon.jsonにも現行simにも存在せず、Championsで通常の対象として扱う要素ではないため、Champions用の技データへ免疫条件を追加する対象外"
+  },
+  {
+   "no": 6,
+   "aspect": "みがわり状態に防がれる",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].target=\"opponent\"。simのphaseApplyEffects共通処理が、相手対象の変化技をdef.subHp>0かつ非貫通なら遮断する",
+   "proposal": "",
+   "quote": "みがわり状態に防がれる。",
+   "why": "相手対象の変化技に対するみがわりの一般ルールで正しく導出されるため、なかまづくり固有のimmuneやeffectsは不要"
+  },
+  {
+   "no": 7,
+   "aspect": "マジックコートで跳ね返される(反射時は跳ね返した側の特性に書き換わる特殊挙動)",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "category=\"変化\", target=\"1体選択\"とbattle_data.effects[0].value=\"自分の特性\"。simのマジックコート共通処理が攻守を入れ替えてphaseApplyEffectsを呼ぶため、反射後は跳ね返した側の特性がコピー元になる",
+   "proposal": "",
+   "quote": "マジックコート状態に跳ね返される。このとき、なかまづくりを使った側の特性が、跳ね返した側の特性（マジックミラーなど) に書き換えられることになる。",
+   "why": "反射対象の一般判定と攻守反転後の既存「特性上書き」処理の組み合わせで、技固有の逆転挙動まで成立する。move側フラグの追加は不要"
+  },
+  {
+   "no": 8,
+   "aspect": "世代依存: 第五・六世代はダルマモードにも有効、第七世代以降は無効",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "第五世代・第六世代ではダルマモードに対しては有効だった。第七世代以降では無効になった。",
+   "why": "第5・第6世代だけの旧仕様であり、現行Champions基準では第7世代以降の上書き不可特性として共通処理すべき事項。技側に世代履歴を持たせる必要はない"
+  },
+  {
+   "no": 9,
+   "aspect": "世代依存(SV内バージョン差): しれいとう/ハドロンエンジン/ひひいろのこどう、クォークチャージ/こだいかっせいへの無効→有効化のバージョン変遷",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "スカーレット・バイオレットでは、Ver.1.3.2まではしれいとう/ハドロンエンジン/ひひいろのこどうに対しては無効だったが、Ver.2.0.1からは有効になった。Ver.2.0.1まではクォークチャージ/こだいかっせいに対しては無効だったが、Ver.3.0.0からは有効になった。",
+   "why": "いずれもSV途中版から現行版までの履歴で、最新仕様ではなかまづくりが有効である。現行Championsの技データに旧版限定の失敗条件を追加すると逆に誤りになり、上書き可否は特性側の共通プロパティで管理すべきである"
+  }
+ ],
+ "summary": "real_gapは2件(持続性、同一特性時の失敗)。残る7件は共通処理・Championsに存在しない対象・旧世代または旧バージョン限定仕様としてout_of_scope。",
+ "source": "codex"
+}

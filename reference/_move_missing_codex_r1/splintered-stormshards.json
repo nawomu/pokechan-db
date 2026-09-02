@@ -1,0 +1,77 @@
+{
+ "slug": "splintered-stormshards",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "効果文・effects：成功時のみ解除",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionはフィールドを消す結果のみ。battle_data.effects[0]はkind=\"フィールド除去\", phase=\"on_use\"で、技の成功を要求する条件がない。",
+   "proposal": "既存kind「フィールド除去」にrequires_move_success:trueを追加し、命中・無効判定後に実行する。",
+   "quote": "「成功すると場のフィールドを解除する。」「技を無効化されたときはフィールドを解除できない。」",
+   "why": "解除の成否条件がdescriptionにもeffectsにもなく、on_useのままでは無効化された技でも解除し得る。発動条件が変わるためhigh。"
+  },
+  {
+   "no": 2,
+   "aspect": "効果文・effects：地面にいるかを問わない",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].target=\"field\"。使用者・対象ポケモンではなく場そのものを対象にしており、接地条件も付いていない。",
+   "proposal": "",
+   "quote": "「使用者や対象が地面にいないときでもフィールドを解除することができる。」",
+   "why": "既存effectはポケモンの接地状態を参照せずfieldへ作用する形なので、この仕様と一致する。共通実装でもtarget=\"field\"に接地判定を掛けないのが正しい。"
+  },
+  {
+   "no": 3,
+   "aspect": "効果文・effects：追加効果ではない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0]にkind=\"フィールド除去\"はあるが、追加効果ではないことを示すキーがない。",
+   "proposal": "既存kind「フィールド除去」にsecondary:falseを追加するか、new_kindとして「追加効果ではない命中成功後の場効果」を設ける。",
+   "quote": "「技の効果は追加効果とはみなされない。使用者の特性ちからずくの効果は発動せずにフィールドを解除でき、対象の特性がりんぷんであってもフィールドを解除できる。」",
+   "why": "追加効果との区別が構造化されておらず、ちからずくによる威力変更・効果抑止や、りんぷんによる抑止を誤適用し得る。ダメージと発動の双方が変わるためhigh。"
+  },
+  {
+   "no": 4,
+   "aspect": "効果文・effects：使用者が途中でひんしになった場合",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effects[0]にも、解除処理時点で使用者が生存していることを要求する条件がない。",
+   "proposal": "既存kind「フィールド除去」にrequires_user_alive:trueを追加し、ジャポのみ・とびだすなかみ・みちづれ等の被弾後処理後に判定する。",
+   "quote": "「対象の持ち物ジャポのみ、特性とびだすなかみ、みちづれ状態などの効果で使用者がひんしになったときはフィールドを解除できない。」",
+   "why": "攻撃命中後から解除までの間に使用者がひんしになる分岐が未表現で、解除の発動条件が変わるためhigh。"
+  },
+  {
+   "no": 5,
+   "aspect": "effects：かがくのちから・レシーバーとの発動順",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0]はphase=\"on_use\"だけで、対象のひんし、特性継承、継承したフィールド発生特性、フィールド解除の順序を持たない。",
+   "proposal": "new_kindとして「撃破後特性継承・登場時特性解決後のフィールド除去」段を設け、フィールド除去をその段で実行する。",
+   "quote": "「この技でミストメイカーなどのフィールドを発生させる特性を持つポケモンを倒し、その味方がかがくのちから/レシーバーによって特性を引き継ぐ場合、引き継がれた特性が発動した後に技の効果が発動することで、フィールドを完全に解除できる。」",
+   "why": "発動順によって最終的なフィールドの有無が逆転するが、その順序がeffectsに存在しないためhigh。"
+  },
+  {
+   "no": 6,
+   "aspect": "effects：レッドカードとの発動順",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0]はphase=\"on_use\"だけで、フィールド解除、レッドカードによる交代、交代先の登場時特性という順序を持たない。",
+   "proposal": "new_kindとして命中後の順序段を設け、「フィールド除去」→レッドカード交代→交代先の登場時特性の順に解決する。",
+   "quote": "「対象の持ち物レッドカードが発動した場合、フィールドを解除した後に交代先が引きずり出される。フィールドを発生させる特性を持つポケモンが出てきた場合、新たにフィールドが発生する。」",
+   "why": "順序を誤ると交代先が発生させたフィールドまで消してしまい、最終状態が変わるためhigh。"
+  },
+  {
+   "no": 7,
+   "aspect": "使用条件：ルガルガン専用Zワザ",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "descriptionに「ルガルガンの専用Zワザ」、flags.z.user=\"ルガルガン\"、flags.z.crystal=\"lycaniumz\"まではある。元技習得条件はない。",
+   "proposal": "",
+   "quote": "「ストーンエッジを覚えたルガルガンにルガルガンZを持たせると出すことができる。」",
+   "why": "不足自体は確認できるが、これは技が命中した後の効果ではなく、Championsに存在しないZワザの生成・選択条件という周辺仕様なので今回のeffects監査範囲外。"
+  }
+ ],
+ "summary": "real_gapは1・3・4・5・6、already_in_oursは2、out_of_scopeは7。引用はいずれもWiki生ページで確認済み。",
+ "source": "codex"
+}

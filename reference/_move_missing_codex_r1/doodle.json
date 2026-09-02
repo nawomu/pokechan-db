@@ -1,0 +1,97 @@
+{
+ "slug": "doodle",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "effects・対象のみがわり",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsの「特性上書き」にも、対象のみがわりによる失敗条件はない。",
+   "proposal": "既存kind「特性上書き」にfails_if_target_state:\"みがわり\"を追加する。",
+   "quote": "みがわり状態の相手には防がれる。",
+   "why": "対象のみがわり時の発動条件が変わり、現状構造では特性変更を実行し得る。"
+  },
+  {
+   "no": 2,
+   "aspect": "effects・味方側のみがわりとまもる",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsの「特性上書き」にも、変更される味方のみがわり・まもるを無視する指定はない。",
+   "proposal": "既存kind「特性上書き」にrecipient_bypasses:[\"みがわり\",\"まもる\"]を追加する。",
+   "quote": "味方がみがわり状態やまもる状態であっても特性を変えることはできる。",
+   "why": "味方側の防御状態にかかわらず効果を適用する例外であり、発動可否に影響する。"
+  },
+  {
+   "no": 3,
+   "aspect": "effects・コピー不能な対象特性",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsの「特性上書き」にも、コピー元の特性による失敗条件やexceptionsはない。",
+   "proposal": "既存kind「特性上書き」にsource_ability_copyable:falseなら技全体を失敗させる条件を追加する。",
+   "quote": "対象がコピーできない特性であるときは失敗する。",
+   "why": "コピー元が不適格な場合の技全体の発動条件が欠けており、不正な特性上書きにつながる。"
+  },
+  {
+   "no": 4,
+   "aspect": "effects・上書き不能または同一特性の個別除外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsの「特性上書き」にも、受け手ごとの上書き可否・同一判定・部分成功・非表示指定はない。",
+   "proposal": "既存kind「特性上書き」にper_recipient_skip_if:[\"ability_not_overwritable\",\"already_same_ability\"]、continue_other_recipients:true、silent_on_skip:trueを追加する。",
+   "quote": "自分か味方のどちらかが上書きできない特性であるときか、すでに対象と同じ特性であるときは、無視してもう片方の特性だけ変更する。上書きできなかった特性の表示は出ない。",
+   "why": "一方だけ変更できる場合の部分成功という発動結果が現行構造から決まらず、表示規則も欠けている。"
+  },
+  {
+   "no": 5,
+   "aspect": "effects・とくせいガード",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsの「特性上書き」にも、とくせいガードを持つ受け手だけを除外して他方へ継続する条件や発動表示はない。",
+   "proposal": "既存kind「特性上書き」にper_recipient_blocking_item:\"とくせいガード\"、continue_other_recipients:true、show_item_activation:trueを追加する。",
+   "quote": "どちらかがとくせいガードを持っているときは、持っていない方の特性だけ変更できる。このときとくせいガードが発動したことがメッセージで表示される。",
+   "why": "持ち物によって受け手単位の成否が変わるため、技の適用結果に直接影響する。"
+  },
+  {
+   "no": 6,
+   "aspect": "effects・全員変更不能時の失敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsの「特性上書き」にも、変更可能な受け手が0体なら技全体を失敗させる集約条件はない。",
+   "proposal": "既存kind「特性上書き」にfails_if_no_eligible_recipient:trueを追加する。",
+   "quote": "自分と味方の特性がどちらも上書きできないか、すでに対象と同じであるとき、技は失敗する。",
+   "why": "個別除外後の技全体の成否を決める条件であり、現行構造では成功扱いになる可能性がある。"
+  },
+  {
+   "no": 7,
+   "aspect": "effects・おうごんのからだの非対称処理",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsの「特性上書き」にも、コピー元と変更先で異なるおうごんのからだの扱いはない。",
+   "proposal": "既存kind「特性上書き」にfails_if_source_ability:\"おうごんのからだ\"とrecipient_overwrite_exceptions:{\"おうごんのからだ\":\"overwritable\"}を追加する。",
+   "quote": "対象の特性がおうごんのからだであるときは失敗する。味方のおうごんのからだは対象の特性に変えることができる。",
+   "why": "コピー元なら失敗する一方、変更される側なら上書きできる技固有の非対称な発動条件が欠けている。"
+  },
+  {
+   "no": 8,
+   "aspect": "effects・味方が複数いる場合の処理順",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "descriptionにもbattle_data.effectsの「特性上書き」にも、複数の味方を左から処理する順序指定はない。",
+   "proposal": "既存kind「特性上書き」にrecipient_order:\"trainer_left_to_right\"を追加する。",
+   "quote": "味方側のポケモンが複数いる場合、トレーナーから見て左側のポケモンから特性を変更する。",
+   "why": "複数の味方が存在する環境で特性変更処理とログの順序を決める技固有の細則である。"
+  },
+  {
+   "no": 9,
+   "aspect": "選出禁止・ゆびをふる",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "flagsは空で、descriptionとbattle_data.effectsにも、ゆびをふるの抽選対象外を示す情報はない。",
+   "proposal": "new_kind: 「ランダム技選出除外」を追加し、source_move:\"ゆびをふる\"を指定する。",
+   "quote": "ゆびをふるで選ばれない。",
+   "why": "ゆびをふるからこの技が発動するかどうかを変える抽選条件であり、技側の除外情報が必要である。"
+  }
+ ],
+ "summary": "9件を個別に照合し、すべてreal_gapと判定した。",
+ "source": "codex"
+}

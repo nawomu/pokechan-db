@@ -1,0 +1,97 @@
+{
+ "slug": "multi-attack",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "メモリごとの変更先タイプの対応表",
+   "class": "unclear",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0] に kind=\"技タイプ変更\"、condition.value=\"メモリ\"、default_type=\"ノーマル\"はあるが、対応表はない。",
+   "proposal": "",
+   "quote": "「タイプは使用者の持つメモリにより決まる。」",
+   "why": "引用はメモリによってタイプが決まる機構を示すだけで、各メモリと変更先タイプの具体的な対応を列挙していない。このページだけでは対応表の内容を確定できない。"
+  },
+  {
+   "no": 2,
+   "aspect": "さしおさえ・マジックルーム中はメモリを無視してノーマルになること",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、持ち物効果が無効な場合の例外条件はない。",
+   "proposal": "既存kind「技タイプ変更」に held_item_effective 条件を追加し、無効時はdefault_type=\"ノーマル\"へ戻す。",
+   "quote": "「さしおさえ/マジックルーム状態の場合、マルチアタックのタイプは持っているメモリに依らずノーマルタイプになる。」",
+   "why": "技タイプが変わるため、タイプ相性・タイプ一致・ダメージが変化する実戦上の欠落。"
+  },
+  {
+   "no": 3,
+   "aspect": "さしおさえ・マジックルーム中もシルヴァディ自身のタイプは変わらないこと",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].kind=\"技タイプ変更\"。構造上、変更対象は技のタイプであり、使用者本体のタイプを変更するeffectはない。",
+   "proposal": "",
+   "quote": "「シルヴァディ自身のタイプは変わらない。」",
+   "why": "使用者のタイプ変更機構は記録されておらず、既存kindが技タイプだけを扱うため、この例外の意味はすでに構造上満たしている。"
+  },
+  {
+   "no": 4,
+   "aspect": "ダイマックスわざのタイプ",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "「ダイマックスわざにすると、メモリに合わせたタイプのダイマックスわざになる。」",
+   "why": "マルチアタックはChampions非収録であり、この指摘はさらに第八世代のダイマックスという周辺仕様に限定されるため、今回のChampions向け技effects監査の対象外。"
+  },
+  {
+   "no": 5,
+   "aspect": "ダイマックス技選択画面の相性予測",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "「ただし技の選択画面では持っているメモリに依らずダイアタックとして相性予測が行われる。」",
+   "why": "第八世代のダイマックス選択UIだけに関する表示仕様であり、Championsの技効果・バトルsim土台には含めない周辺仕様。"
+  },
+  {
+   "no": 6,
+   "aspect": "スキン系特性のタイプ変更を受けないこと",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、スキン系特性からの除外指定はない。",
+   "proposal": "new_kind：type_change_immunityとして対象特性群を列挙し、タイプ変更と付随する威力補正を無効化する。",
+   "quote": "「ノーマルスキン/フェアリースキン/フリーズスキン/スカイスキン/エレキスキンの影響を受けない。」",
+   "why": "適用すると技タイプや威力補正が変わり、ダメージ計算を誤るため。"
+  },
+  {
+   "no": 7,
+   "aspect": "メモリでタイプ変更済みの場合のプラズマシャワー耐性",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、メモリで変更済みの場合にプラズマシャワーを無視する条件はない。",
+   "proposal": "new_kind：type_change_precedenceで、メモリによる変更後はplasma_showerを適用しない条件を持たせる。",
+   "quote": "「タイプが変わったマルチアタックはプラズマシャワー状態の影響を受けない。」",
+   "why": "欠落すると変更済みの技を誤ってでんきタイプとして処理し、タイプ相性やダメージが変わる。"
+  },
+  {
+   "no": 8,
+   "aspect": "ノーマルタイプの場合のプラズマシャワー適用",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、ノーマルのままの場合だけプラズマシャワーを適用する分岐はない。",
+   "proposal": "new_kind：type_change_precedenceで、メモリによる変更が成立せず最終タイプがノーマルならplasma_showerを適用する。",
+   "quote": "「ノーマルタイプのマルチアタックは、プラズマシャワー状態の影響を受ける。」",
+   "why": "最終タイプに応じた条件分岐がないと、でんきタイプ化の発動可否とダメージ計算を誤る。"
+  },
+  {
+   "no": 9,
+   "aspect": "そうでんによるタイプ上書き",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、そうでん状態による最終タイプの上書きや適用順序はない。",
+   "proposal": "new_kind：type_change_precedenceで、メモリによるタイプ決定後にそうでんを適用し、最終タイプをでんきへ上書きする。",
+   "quote": "「タイプが変わったマルチアタックはそうでん状態によりでんきタイプとなる。」",
+   "why": "そうでんがメモリ由来タイプを上書きする優先関係が欠けており、タイプ相性・タイプ一致・ダメージが変わる。"
+  }
+ ],
+ "summary": "real_gap=5、already_in_ours=1、out_of_scope=2、unclear=1",
+ "source": "codex"
+}

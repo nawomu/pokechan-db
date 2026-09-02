@@ -1,0 +1,117 @@
+{
+ "slug": "obstruct",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "非連続使用時の成功率リセット",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionには失敗時のリセットだけが「失敗するともとにもどる」とある。effectsのkind「まもり」には倍率しかなく、別の技を挟んだ場合のリセット条件はない。",
+   "proposal": "kind「まもり」にreset_on_nonconsecutive_use:trueとreset_on_failure:trueを追加する。",
+   "quote": "失敗した場合や連続で使用しなかった場合は、成功率はリセットされ必ず成功するようになる。",
+   "why": "別の技を挟んだ場合に必ず成功へ戻る条件がdescriptionにもeffectsにも表現されておらず、成功判定が変わる。"
+  },
+  {
+   "no": 2,
+   "aspect": "連続成功率の下限",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsのkind「まもり」にはconsecutive_success_multiplier:0.3333があるが、下限値はない。descriptionにも下限の記述はない。",
+   "proposal": "kind「まもり」にminimum_success_rate:0.0013717421124828531（1/729）を追加する。",
+   "quote": "成功するごとに、次の成功率は1/3になる。下限は1/36 = 1/729。",
+   "why": "倍率だけでは成功率が1/729を下回って低下し続けるため、成功判定が変わる。"
+  },
+  {
+   "no": 3,
+   "aspect": "連続判定を共有する守り技",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsのkind「まもり」には共有カウンターの対象技一覧がなく、descriptionもブロッキングを続けて使う場合しか示していない。",
+   "proposal": "kind「まもり」にnew_kind相当のshared_streak_after_success配列を設け、引用中の守り技を方向別に列挙する。ダイウォールは世代適用条件を付ける。",
+   "quote": "まもる/みきり/こらえる/ニードルガード/トーチカ/キングシールド/ブロッキング/ワイドガード/ファストガード/ダイウォールが成功した次のターン、まもる/みきり/こらえる/ニードルガード/トーチカ/キングシールド/ブロッキング/ダイウォールの成功率は下がる。",
+   "why": "前ターンに別の守り技が成功した場合もブロッキングの成功率が下がる機構をmaster_rowから判定できない。"
+  },
+  {
+   "no": 4,
+   "aspect": "ワイドガード・ファストガードとの非対称な連続判定",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsにもdescriptionにも、使用順によって連続判定の方向が異なることを示す情報はない。",
+   "proposal": "kind「まもり」にnew_kind相当のstreak_transitionを追加し、ワイドガード/ファストガード成功後→ブロッキングは低下、ブロッキング成功後→両技は低下なし、と方向別に定義する。",
+   "quote": "この逆の順であれば成功率は下がらない。例えばブロッキングの後のファストガードは必ず成功する。",
+   "why": "単純な共有対象一覧だけでは非対称性を表せず、技の順序によって成功判定を誤る。"
+  },
+  {
+   "no": 5,
+   "aspect": "ターン最後に使用した場合の失敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsのkind「まもり」に行動順依存の失敗条件はなく、descriptionにもない。",
+   "proposal": "kind「まもり」にnew_kind相当のfails_if:{type:\"acts_last_in_turn\"}を追加する。",
+   "quote": "そのターンの最後にブロッキングを使った場合は失敗する。",
+   "why": "ターン最後に行動した場合の発動条件が欠けており、成功・失敗が変わる。"
+  },
+  {
+   "no": 6,
+   "aspect": "守り状態を解除された場合の次回成功率",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsには守り状態の解除と連続成功カウンターのリセットを結び付ける条件がなく、descriptionにもない。",
+   "proposal": "kind「まもり」にnew_kind相当のreset_streak_when_protection_removed_by:[\"フェイント\",\"ゴーストダイブ\",\"シャドーダイブ\"]を追加する。",
+   "quote": "フェイント/ゴーストダイブ/シャドーダイブによりブロッキング状態が取り除かれた場合、次のターン使用するブロッキングは必ず成功する。",
+   "why": "守り状態が実際に解除された後の次回成功率リセットをmaster_rowから判定できない。"
+  },
+  {
+   "no": 7,
+   "aspect": "解除技が無効化された場合の連続判定",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsには解除技が無効になって守り状態が残った場合のカウンター維持条件がなく、descriptionにもない。",
+   "proposal": "kind「まもり」にnew_kind相当のkeep_streak_if_removal_move_nullified:trueを追加し、状態が実際に解除されたかで分岐させる。",
+   "quote": "これらの技を相性などで無効化してブロッキング状態が取り除かれなかった場合、次のターンに使用するブロッキングの成功率は下がる。",
+   "why": "解除技を使った事実ではなく守り状態が除去されたか否かで次回判定が分かれるが、その条件がない。"
+  },
+  {
+   "no": 8,
+   "aspect": "ダイマックスわざ・ふかしのこぶしによる貫通後の連続判定",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "kind「まもり貫通」はダイマックス技の貫通と1/4ダメージを示すが、貫通後も連続使用扱いを維持する情報はない。ふかしのこぶしによる無視もこの技のeffectsにはない。",
+   "proposal": "kind「まもり」にnew_kind相当のkeep_streak_when_bypassed_by:[\"ダイマックスわざ\",\"ふかしのこぶし\"]を世代適用条件付きで追加する。",
+   "quote": "ダイマックスわざを防ぎきれなかった場合や、ふかしのこぶしでブロッキング状態を無視された場合、次のターン使用するブロッキングは連続使用扱いになり成功率が下がる。",
+   "why": "ダイマックスは旧世代要素だが、ブロッキング自体が属する最新の使用可能世代で成立する正典仕様であり、ふかしのこぶしの場合も含めて次回成功判定に影響する。"
+  },
+  {
+   "no": 9,
+   "aspect": "さいはいで選ばれない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "flagsは空で、effectsとdescriptionにもさいはいによる再使用の対象外であることを示す情報はない。",
+   "proposal": "new_kindとして「技選択制約」を追加し、selector:\"さいはい\",selectable:falseを持たせる。",
+   "quote": "さいはい/ゆびをふるで選ばれない。",
+   "why": "さいはいがブロッキングを再使用できるかという発動条件をmaster_rowから判定できない。"
+  },
+  {
+   "no": 10,
+   "aspect": "ゆびをふるで選ばれない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "flagsは空で、effectsとdescriptionにもゆびをふるの抽選対象外であることを示す情報はない。",
+   "proposal": "new_kindとして「技選択制約」を追加し、selector:\"ゆびをふる\",selectable:falseを持たせる。",
+   "quote": "さいはい/ゆびをふるで選ばれない。",
+   "why": "ゆびをふるの抽選対象に含めるかという発動条件をmaster_rowから判定できない。"
+  },
+  {
+   "no": 11,
+   "aspect": "まねっこでコピー可能",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "flagsは空で、effectsとdescriptionにもまねっこによるコピー可否を示す情報はない。",
+   "proposal": "new_kindとして「技コピー可否」を追加し、copier:\"まねっこ\",copyable:trueを持たせる。",
+   "quote": "まねっこでコピーできる。",
+   "why": "まねっこがブロッキングを実行できるかという発動条件をmaster_rowから判定できない。"
+  }
+ ],
+ "summary": "11件を個別に照合し、全件real_gap。引用はいずれもWiki生ページの「技の仕様」に存在する。",
+ "source": "codex"
+}

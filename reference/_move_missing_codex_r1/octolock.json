@@ -1,0 +1,127 @@
+{
+ "slug": "octolock",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "効果文: ゴースト無効を貫通できない例外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "description末尾にゴースト無効はあるが、「ねらいのまと」「きもったま」でも無効を解除できない例外はない。effectsにも優先関係がない。",
+   "proposal": "new_kind: 技固有タイプ無効を追加し、通常のタイプ相性無効解除より優先する。",
+   "quote": "ねらいのまとや特性きもったまの効果でゴーストタイプにかくとう技が当たる状況でもたこがためはゴーストタイプに効かない。",
+   "why": "通常のゴースト無効だけでなく、その無効を解除する仕組みでも効かないことが権威に明記されている。現状のtarget_type=ゴーストだけでは優先関係が表現されていない。"
+  },
+  {
+   "no": 2,
+   "aspect": "効果文: 効果付与後にゴーストタイプが追加された場合",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].immuneは付与時のtarget_type判定で、拘束のdurationは「自分が場を離れるまで」。effects[1]とeffects[2]のturn_end処理にも継続中のゴースト判定やタイプ変化による解除条件がない。",
+   "proposal": "",
+   "quote": "既にたこがためを受けているポケモンにハロウィンでゴーストタイプを追加した場合、にげられない状態もたこがため状態も解除されず、通常通り防御/特防が低下する。",
+   "why": "現構造はゴースト判定を付与時に行い、付与後のタイプ変化を解除条件にしていないため、引用の挙動をすでに表している。説明文への細則追記がなくてもsim上の意味は欠けていない。"
+  },
+  {
+   "no": 3,
+   "aspect": "効果文: 既に逃げられない相手への失敗条件",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、既存の「にげられない状態」を参照する失敗条件がない。",
+   "proposal": "new_kind: 使用失敗条件として、対象が既ににげられない状態なら技全体を失敗させる。",
+   "quote": "既ににげられない状態のポケモンに使用した場合は失敗し、たこがため状態にすることができない。",
+   "why": "技の成否と全効果の付与可否を変える条件であり、現状では拘束と能力低下を誤って付与し得る。"
+  },
+  {
+   "no": 4,
+   "aspect": "効果文: みがわりによる付与阻止",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "master_row.category=変化、target=1体選択で、みがわり貫通を示す指定はない。",
+   "proposal": "",
+   "quote": "たこがためはみがわり状態で防がれる。",
+   "why": "対象への変化技をみがわりが防ぐこと自体は一般ルールであり、この技固有のeffectsに重ねて持たせる必要はない。固有差分は、付与後の継続処理とすりぬけの扱いにある。"
+  },
+  {
+   "no": 5,
+   "aspect": "効果文: 付与後のみがわりによる能力低下停止",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[1]とeffects[2]にphase=turn_end、per_turn=trueはあるが、対象のみがわり中の抑止条件がない。descriptionにもない。",
+   "proposal": "new_kind: 継続能力低下の実行条件に、対象がみがわり中なら停止する条件を追加する。",
+   "quote": "たこがため状態のポケモンがみがわり状態になった場合、みがわりが出ている間はたこがためで防御/特防が下がらない。",
+   "why": "付与後にみがわりを出した場合の毎ターン処理を変える技固有の細則で、現状の無条件のper_turn処理では誤って能力を下げる。"
+  },
+  {
+   "no": 6,
+   "aspect": "効果文: すりぬけとみがわりの例外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもeffectsにも使用者の特性「すりぬけ」を参照する条件がなく、付与時と継続時の双方の例外を表せない。",
+   "proposal": "new_kind: みがわり阻止条件に使用者がすりぬけなら無視する例外を設け、継続能力低下にも効果の付与元を保持して同じ例外を適用する。",
+   "quote": "使用者の特性がすりぬけである場合はみがわり状態を無視する。みがわり状態の相手の防御/特防を下げることもできる。",
+   "why": "単なる付与時の一般的なみがわり貫通だけでなく、付与後の毎ターン能力低下にも使用者の特性が影響する。現構造にはその参照元と条件がない。"
+  },
+  {
+   "no": 7,
+   "aspect": "effects構造: 既に逃げられない相手への失敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effectsに既存の「にげられない状態」を検査して技全体を失敗させる構造がない。",
+   "proposal": "new_kind: move_fail_ifとして対象のにげられない状態を参照し、全effects適用前に失敗させる。",
+   "quote": "既ににげられない状態のポケモンに使用した場合は失敗し、たこがため状態にすることができない。",
+   "why": "拘束だけでなく、たこがため状態に相当する能力低下効果も付与しない条件なので、個別effectではなく技全体の発動条件として必要になる。"
+  },
+  {
+   "no": 8,
+   "aspect": "effects構造: みがわりによる付与阻止",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "master_row.category=変化、target=1体選択で、みがわりを貫通する指定はない。",
+   "proposal": "",
+   "quote": "たこがためはみがわり状態で防がれる。",
+   "why": "対象への変化技をみがわりが防ぐ通常処理で扱えるため、たこがため専用のeffects構造は不要。"
+  },
+  {
+   "no": 9,
+   "aspect": "effects構造: 付与後のみがわり中は能力低下を停止",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[1]とeffects[2]はturn_endかつper_turn=trueだが、対象のみがわり状態を参照する実行条件がない。",
+   "proposal": "new_kind: turn_endの能力ランク変化に、対象がみがわり中なら抑止する条件を追加する。",
+   "quote": "たこがため状態のポケモンがみがわり状態になった場合、みがわりが出ている間はたこがためで防御/特防が下がらない。",
+   "why": "現在の構造ではみがわりの有無にかかわらず毎ターン防御・特防を下げるため、発動条件が変わる。"
+  },
+  {
+   "no": 10,
+   "aspect": "effects構造: すりぬけ例外",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsに使用者の特性を参照する条件がなく、継続effectにも付与元の使用者を保持してすりぬけを判定する構造がない。",
+   "proposal": "new_kind: substitute_ignore_if_source_abilityとして「すりぬけ」を指定し、付与時とturn_endの両方に適用する。",
+   "quote": "使用者の特性がすりぬけである場合はみがわり状態を無視する。みがわり状態の相手の防御/特防を下げることもできる。",
+   "why": "みがわり越しの初回付与に加え、継続中の能力低下にも例外が及ぶ。現effectsでは使用者特性との関係を再現できない。"
+  },
+  {
+   "no": 11,
+   "aspect": "effects構造: 付与後のゴーストタイプ追加では解除しない",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].immuneは拘束付与時のtarget_type=ゴースト判定で、durationは「自分が場を離れるまで」。effects[1]とeffects[2]にも継続中のタイプ条件やタイプ変化による解除指定がない。",
+   "proposal": "",
+   "quote": "既にたこがためを受けているポケモンにハロウィンでゴーストタイプを追加した場合、にげられない状態もたこがため状態も解除されず、通常通り防御/特防が低下する。",
+   "why": "解除条件を列挙する構造でタイプ変化が指定されておらず、turn_end効果にもゴースト条件がないため、付与済み状態を維持して能力低下を続ける意味は現effectsにある。"
+  },
+  {
+   "no": 12,
+   "aspect": "effects構造: ねらいのまと・きもったまでもゴースト無効",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effects[0].immuneにtarget_type=ゴーストはあるが、ねらいのまと・きもったまによる通常のタイプ相性無効解除より優先する指定がない。",
+   "proposal": "new_kind: unbypassable_move_immunityとしてtarget_type=ゴーストを指定し、タイプ相性貫通処理の対象外にする。",
+   "quote": "ねらいのまとや特性きもったまの効果でゴーストタイプにかくとう技が当たる状況でもたこがためはゴーストタイプに効かない。",
+   "why": "現状のimmuneが通常のかくとう技のタイプ無効と同じ経路で評価される場合、ねらいのまとやきもったまで解除される余地がある。技固有無効の優先関係が不足している。"
+  }
+ ],
+ "summary": "12件を個別確認。real_gapは8件、already_in_oursは2件、out_of_scopeは2件。",
+ "source": "codex"
+}

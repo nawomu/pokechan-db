@@ -1,0 +1,47 @@
+{
+ "slug": "ruination",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "効果・端数処理",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].kind=\"固定ダメージ\" と amount=\"相手の残りHPの半分\"。simの固定ダメージ解釈はこのamountを Math.floor(def.currentHp / 2) として処理する。",
+   "proposal": "",
+   "quote": "相手の残りHP×1/2 (切り捨て) の固定ダメージを与える。",
+   "why": "descriptionには切り捨ての明記がないが、effectsの既存表現はsim上で切り捨てとして実装済み。real_gapの条件である「descriptionにもeffectsにも無い」には当たらない。"
+  },
+  {
+   "no": 2,
+   "aspect": "効果・残りHP1の例外",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].kind=\"固定ダメージ\" と amount=\"相手の残りHPの半分\"。simの固定ダメージ解釈は Math.max(effects.minimum || 1, Math.floor(...)) により、minimum省略時も最低1ダメージにする。",
+   "proposal": "",
+   "quote": "相手の残りHPが1の場合は1ダメージを与える。",
+   "why": "descriptionには例外の明記がないが、このeffectsはsimで残りHP1の相手に1ダメージを与える。機構は既存の固定ダメージ処理に入っている。"
+  },
+  {
+   "no": 3,
+   "aspect": "effects・切り捨て構造",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].kind=\"固定ダメージ\" と amount=\"相手の残りHPの半分\"。この既存の組み合わせをsimが Math.floor(def.currentHp * 1 / 2) と解釈する。",
+   "proposal": "",
+   "quote": "相手の残りHP×1/2 (切り捨て) の固定ダメージを与える。",
+   "why": "独立したroundingフィールドはないが、既存の固定ダメージamount解釈そのものが切り捨てを確定しているため、simは奇数HP時の値を決定できる。"
+  },
+  {
+   "no": 4,
+   "aspect": "effects・最小1ダメージ構造",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].kind=\"固定ダメージ\" と amount=\"相手の残りHPの半分\"。simでは固定ダメージのHP割合式に最低値1が既定適用される。",
+   "proposal": "",
+   "quote": "相手の残りHPが1の場合は1ダメージを与える。",
+   "why": "effectsにminimum:1は明示されていないが、固定ダメージ処理の既定値が1であり、Math.maxによって0ダメージにはならない。残りHP1の相手を倒せないという指摘は現行simには当たらない。"
+  }
+ ],
+ "summary": "4件とも、description上の明記は不足しているものの、battle_data.effectsの既存表現と固定ダメージ処理によってsim上の切り捨て・最低1ダメージが実装済みのためalready_in_ours。",
+ "source": "codex"
+}

@@ -1,0 +1,117 @@
+{
+ "slug": "raging-bull",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "フォルム別タイプの対応関係",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「技タイプ変更」に、コンバット種→かくとう、ブレイズ種→ほのお、ウォーター種→みずの明示的なform_type_mapを追加する。",
+   "quote": "Wiki「・コンバット種 : かくとうタイプ」「・ブレイズ種 : ほのおタイプ」「・ウォーター種 : みずタイプ」",
+   "why": "descriptionとeffects.valuesは3タイプを列挙するだけで、各フォルムとの対応を復元できない。対応を誤ると技タイプとダメージ計算が変わる。"
+  },
+  {
+   "no": 2,
+   "aspect": "通常の姿でのタイプ",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "master_row.type=\"ノーマル\"。技タイプ変更effectはcondition.type=\"user_species_form\", value=\"ケンタロス(パルデア)\"の場合だけ適用される。",
+   "proposal": "",
+   "quote": "Wiki「・通常の姿 : ノーマルタイプ」",
+   "why": "通常の姿は技固有の変更条件に該当せず、技の基本タイプであるノーマルがそのまま使われる。一般的な基本タイプへの復帰処理を重ねて技側に記録する必要はない。"
+  },
+  {
+   "no": 3,
+   "aspect": "使用者自身の現在タイプを参照しない仕様",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].condition.by=\"form\"",
+   "proposal": "",
+   "quote": "Wiki「みずびたしやテラスタルなどでケンタロス自身のタイプが変更されても、この技のタイプは変更されない。」",
+   "why": "技タイプの決定元として使用者の現在タイプではなくformを明示している。フォルム別対応表の不足は別途no.1のgapだが、参照元自体の読み違いではない。"
+  },
+  {
+   "no": 4,
+   "aspect": "へんしんした使用者のフォルム参照",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kind。技使用時の実効フォルム（へんしん先を含む）を参照してタイプを決める仕組みを追加し、「技タイプ変更」からその値を参照する。",
+   "quote": "Wiki「他のポケモンがケンタロスにへんしんしたときは、変身対象のフォルムに従って技のタイプが変わる。」",
+   "why": "現effectはuser_species_form条件だけで、へんしん後の実効種族・フォルムを参照する指定がない。元種族だけを見れば技タイプが変わる。"
+  },
+  {
+   "no": 5,
+   "aspect": "ケンタロス以外が使用した場合",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "master_row.type=\"ノーマル\"と、battle_data.effects[0].condition.value=\"ケンタロス(パルデア)\"の条件付き変更",
+   "proposal": "",
+   "quote": "Wiki「ケンタロスの姿ではないポケモンがものまね/まねっこなどによって使用したときは、元の使用者や自分のタイプに関係なくノーマルタイプになる。」",
+   "why": "ケンタロスの姿でない使用者には条件付きのタイプ変更が発動せず、技本来のノーマルタイプが残る。呼び出した技にも基本タイプを適用することは一般処理であり、この技専用のeffectは不要。"
+  },
+  {
+   "no": 6,
+   "aspect": "タイプ変更特性との相互作用",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kind。実効姿がケンタロスなら技タイプ変更特性を無効化し、それ以外なら通常どおり適用する条件分岐を追加する。",
+   "quote": "Wiki「ケンタロスの姿ではないポケモンがものまね/まねっこなどによって使用したときは、…技のタイプを変える特性の効果を受けて別のタイプに変わる。」「ケンタロスが使用したときは技のタイプを変える特性の効果を受けない。」",
+   "why": "現データには使用者の姿に応じてタイプ変更特性の適用可否を切り替える情報がなく、最終的な技タイプとダメージが変わり得る。"
+  },
+  {
+   "no": 7,
+   "aspect": "技が無効化された場合の壁解除",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「壁除去」に、命中し、まもる・相性・特性などで技全体が無効化されなかった場合だけ発動する成功条件を追加する。必要なら攻撃成立後かつダメージ計算前のnew_kindフェーズを設ける。",
+   "quote": "Wiki「相性/特性/まもる状態などに技が無効化されたときは壁を解除できない。」",
+   "why": "現effectはphase=\"on_use\"で無条件に読めるため、攻撃が外れた場合や無効化された場合にも壁を解除するおそれがある。"
+  },
+  {
+   "no": 8,
+   "aspect": "壁によるダメージ軽減を受けない仕様",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "descriptionの「相手の…壁をこわしてから攻撃する」と、battle_data.effects[1].phase=\"on_use\"",
+   "proposal": "",
+   "quote": "Wiki「技のダメージはリフレクター/オーロラベール状態の影響で減衰しない。」",
+   "why": "壁を攻撃前のon_useで除去する順序と、説明文の「こわしてから攻撃する」により、当該ダメージへ壁補正を掛けない意味はすでに表現されている。無効時にも解除する問題はno.7の別gap。"
+  },
+  {
+   "no": 9,
+   "aspect": "壁解除は追加効果ではない",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存kind「壁除去」にis_additional_effect=false相当の属性を追加し、りんぷん・おんみつマント・ちからずくの追加効果判定から除外する。",
+   "quote": "Wiki「壁を解除する効果は追加効果ではないので、りんぷん/おんみつマントでは防げず、使用者の特性ちからずくの効果も発動しない。」",
+   "why": "壁除去effectに追加効果ではないことを示す属性がない。誤って追加効果扱いすると壁解除の可否だけでなく、ちからずくによる威力にも影響する。"
+  },
+  {
+   "no": 10,
+   "aspect": "ゆびをふるによる選択可否",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "",
+   "proposal": "flagsにmetronome_selectable=false相当の除外指定を追加する。",
+   "quote": "Wiki「ゆびをふるで選ばれない。」",
+   "why": "battle_data、flags、tagsのいずれにも候補除外情報がなく、ゆびをふるの抽選結果が変わる。"
+  },
+  {
+   "no": 11,
+   "aspect": "effects全体の構造充足",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "no.1、4、6、7、9、10の各機構を別々に構造化する。加えて既存kind「壁除去」のtargetをopponent_team固定から、実際に選択された対象側の場を示すselected_target_team相当に変更する。",
+   "quote": "Wiki「技のタイプはケンタロスのフォルムによって決まる。」「相性/特性/まもる状態などに技が無効化されたときは壁を解除できない。」「味方に使用したときは味方の場の壁を解除する。」「ゆびをふるで選ばれない。」",
+   "why": "effectsの2件だけでは個別に確認した機構を再現できず、特に壁除去のtarget=\"opponent_team\"は、味方を対象にした場合も相手側の壁を指してしまう。複数の独立した機構を一つの曖昧なeffectへまとめず、個別に保持する必要がある。"
+  }
+ ],
+ "summary": "real_gapは7件、already_in_oursは4件。フォルムとタイプの明示対応、へんしん後フォルム、タイプ変更特性、攻撃成立時だけの壁解除、非追加効果属性、ゆびをふる除外、選択対象側の壁指定が不足している。",
+ "source": "codex"
+}

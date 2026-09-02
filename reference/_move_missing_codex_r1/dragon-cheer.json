@@ -1,0 +1,67 @@
+{
+ "slug": "dragon-cheer",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "タイプ判定の時点",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].condition.type=ally_type_not と stages=1、effects[1].condition.type=ally_type と stages=2。descriptionにも「時」「とき」として使用時の分岐がある。",
+   "proposal": "",
+   "quote": "「テラスタルなどでドラゴンタイプとなっているときは急所ランクが+2される。逆に、テラスタルやみずびたしなどの効果でドラゴンタイプを失っているときは急所ランクが+1される。」「技の使用後に味方のタイプが変わっても急所ランクは変化しない。」",
+   "why": "使用時の現在タイプによって別々のeffectを選び、それぞれ具体的なstages値をlasting効果として適用する形で入っている。適用済みstagesを後からタイプ条件で再計算しないことはlasting状態の実装規則であり、この技に固定用フィールドを重ねる必要はない。"
+  },
+  {
+   "no": 2,
+   "aspect": "みがわり無視",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "既存キー battle_data.substitute_pierce=true を追加し、必要なら各「急所率上昇」effectにも bypasses_substitute=true を付ける。",
+   "quote": "「みがわり状態の味方にも効果がある。」「この技が音の技に含まれないSVの頃から一貫してみがわり状態を無視できる。」",
+   "why": "description、battle_data.effects、battle_data.substitute_pierceのいずれにも貫通がない。flags.sound=trueだけでは固有の貫通性を直接保持せず、このデータ体系では他の音技もsubstitute_pierceを明示しているため、みがわり中の味方への発動可否が変わる。"
+  },
+  {
+   "no": 3,
+   "aspect": "姿を隠している対象には当たらない",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "「必中技だが、姿を隠しているポケモンには当たらない。」",
+   "why": "姿を隠す状態では通常の技を外し、例外的に当たる技だけを「半無敵命中」のhits_stateで列挙する共通命中規則の側で扱う内容。accuracy=nullは命中率判定を行わないことを表すが、半無敵状態への命中許可までは意味しない。この技には命中を許可する例外がないため、技側へ除外フィールドを足す必要はない。"
+  },
+  {
+   "no": 4,
+   "aspect": "バトンタッチによる引き継ぎ",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "「きゅうしょアップ状態になったポケモンは、バトンタッチで交代先に効果を引き継ぐことができる。」",
+   "why": "原文が「他の要因によるきゅうしょアップ状態と同じく」と位置付ける、きゅうしょアップ状態そのものの共通仕様。バトンタッチ側が引継対象の状態種別として扱うべきで、ドラゴンエール行への個別指定は不要。"
+  },
+  {
+   "no": 5,
+   "aspect": "じこあんじ・きょうえん・へんしんによるコピー",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "「きゅうしょアップ状態になったポケモンに対するじこあんじ/きょうえん/へんしんにより、急所ランクをコピーすることができる。タイプに関係無く、対象の急所ランクがそのままコピーされる。」",
+   "why": "きゅうしょアップ状態に保存された実量を、コピーする技・特性・へんしん側が読む共通仕様。ドラゴンエール側にはstages=1または2が既にあり、コピー処理を各付与技へ重複記載する必要はない。"
+  },
+  {
+   "no": 6,
+   "aspect": "びんじょうによるコピー不可",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "",
+   "proposal": "",
+   "quote": "「ドラゴンエールの効果はびんじょうでコピーできなくなった。」",
+   "why": "ChampionsではSVに存在したドラゴンエール固有のコピー例外が廃止され、通常どおり、びんじょうがコピーする能力ランク変化には含まれない状態へ戻っている。master_rowにもコピー可能とする例外指定はないため、禁止を技側へ重ねて記録する必要はなく、びんじょう側の共通コピー対象判定で処理する。"
+  }
+ ],
+ "summary": "real_gapは、既存データ体系で専用キーを必要とする「みがわり無視」の1件。タイプ分岐は既存effectsにあり、残る4件は状態・命中・コピー処理側の共通規則として仕分けた。",
+ "source": "codex"
+}

@@ -1,0 +1,187 @@
+{
+ "slug": "assist",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "急所判定/命中判定/追加効果は選ばれた技に依存",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effectsにはkind=\"ランダム技\"と抽選元だけがあり、選ばれた技の急所・命中・追加効果へ処理を委譲する指定がない。descriptionにも明記されていない",
+   "proposal": "new_kind「選択技実行」を設け、delegate=[\"crit\",\"accuracy\",\"secondary_effects\"]として選ばれた技の処理へ委譲する",
+   "quote": "・急所: 攻撃したわざに依存する\n\n・命中判定: 攻撃したわざに依存する\n\n・追加効果: 攻撃したわざに依存する",
+   "why": "Wikiの判定欄に直接記載があり、ダメージ・命中・追加効果の発動を変える中核機構だが、現在のeffectsから委譲範囲を復元できない"
+  },
+  {
+   "no": 2,
+   "aspect": "選ばれた技は優先度に関係なく(ねこのて自体の優先度=0で)繰り出される",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "master_row.priority=0はねこのて自体の値だけで、選ばれた技のpriorityを行動順に使わない指定はdescriptionにもeffectsにもない",
+   "proposal": "new_kind「呼出技優先度無視」を追加し、priority_source=\"caller\"を保持する",
+   "quote": "・選ばれた技の優先度に関係無く技を繰り出せる。",
+   "why": "選ばれた技が先制技でも行動順はねこのての優先度で決まるため、行動順計算に影響する未構造化の機構"
+  },
+  {
+   "no": 3,
+   "aspect": "使用者がいたずらごころの場合、選ばれた技も含め優先度+1",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、いたずらごころとの相互作用や優先度補正がない",
+   "proposal": "new_kind「呼出技優先度補正」を追加し、ability=\"いたずらごころ\",delta=1,applies_to=\"called_move\"を保持する",
+   "quote": "・使用者がいたずらごころだった場合は優先度+1で技を出せる。",
+   "why": "行動順および先制技を防ぐ効果との相互作用を変えるが、現データから判定できない"
+  },
+  {
+   "no": 4,
+   "aspect": "相手の場にじょおうのいげん/ビビッドボディがいると失敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、この相手側特性による失敗条件がない",
+   "proposal": "new_kind「特性による技失敗」を追加し、opposing_abilities=[\"じょおうのいげん\",\"ビビッドボディ\"],scope=\"called_move\"を保持する",
+   "quote": "・相手の場に特性じょおうのいげん/ビビッドボディのポケモンがいる場合、ねこのてで出される技は失敗する。",
+   "why": "技が発動するか否かを直接変える明示的な失敗条件"
+  },
+  {
+   "no": 5,
+   "aspect": "こだわり系アイテムは出た技でなくねこのて自体でロックする",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsのpp_cost=\"this_move_only\"はPP消費対象だけを表し、こだわり固定の対象はdescriptionにもeffectsにもない",
+   "proposal": "new_kind「こだわり固定対象」を追加し、lock_move=\"caller\"を保持する",
+   "quote": "・こだわり系アイテムを持って使った場合、出た技ではなくねこのてでこだわる。",
+   "why": "次ターン以降に選択できる技を変えるアイテム相互作用であり、pp_costからは表現できない"
+  },
+  {
+   "no": 6,
+   "aspect": "選出プールから除外される技の分類(他の技を出す技/他者の技を覚える技/持ち物系技/まもる系/1ターン隠れる溜め技/優先度技の一部/その他特別枠)",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effects[0].pool=\"party_others\"は技の取得元だけを指定しており、除外規則・世代別個別リストを持たない。descriptionにも除外規則はない",
+   "proposal": "既存kind「ランダム技」にexcluded_movesとgeneration_rulesを追加し、Wikiの世代別可否表を技slug単位で保持する",
+   "quote": "・ねこのてで以下の技は選ばれない。出せる技が無い場合、ねこのては失敗する。\n\n大まかに他の技が出る技、他者の技を覚える技、もちものに関する技、まもる状態になる技、1ターン姿を隠す溜め技6-、優先度がある技の一部、その他特別な技が挙げられる。",
+   "why": "抽選結果と技の成否を大きく変える規則で、分類だけでは例外を確定できないため個別の世代別除外データが必要"
+  },
+  {
+   "no": 7,
+   "aspect": "出せる技が無い場合は失敗する",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもeffectsにも、抽選可能な技が0件の場合の失敗条件がない",
+   "proposal": "既存kind「ランダム技」にfails_if=\"no_eligible_move\"を追加する",
+   "quote": "出せる技が無い場合、ねこのては失敗する。",
+   "why": "候補がない場合に技が発動するか否かを決める明示的な失敗条件"
+  },
+  {
+   "no": 8,
+   "aspect": "ダブル/トリプルでは場に出ている味方の技も選ばれるが、マルチバトルの相方の技は選ばれない",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "effects[0].pool=\"party_others\"のみで、バトル形式ごとの区別はない",
+   "proposal": "",
+   "quote": "・ダブルバトル/トリプルバトルでは場に出ている味方の技も選ばれる。\n\n・マルチバトルでの相方のポケモンの技は選ばれない。",
+   "why": "トリプルバトルおよびマルチバトル固有の旧世代フォーマット仕様であり、現行Championsに存在しない形式の周辺仕様。通常の技効果としての欠落には数えない"
+  },
+  {
+   "no": 9,
+   "aspect": "ノーマルZ所持時はZワザとして繰り出せる",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "descriptionにもbattle_data.effectsにもZワザ化の指定はない",
+   "proposal": "",
+   "quote": "・使用者にノーマルZを持たせた場合、ねこのてで繰り出す技をZワザにして繰り出すことができる。",
+   "why": "ノーマルZおよびZワザは第七世代限定の周辺仕様で、Championsに存在しない要素"
+  },
+  {
+   "no": 1,
+   "aspect": "急所判定/命中判定/追加効果は選ばれた技に依存",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "battle_data.effectsにはkind=\"ランダム技\"と抽選元だけがあり、選ばれた技の急所・命中・追加効果へ処理を委譲する指定がない。descriptionにも明記されていない",
+   "proposal": "new_kind「選択技実行」を設け、delegate=[\"crit\",\"accuracy\",\"secondary_effects\"]として選ばれた技の処理へ委譲する",
+   "quote": "・急所: 攻撃したわざに依存する\n\n・命中判定: 攻撃したわざに依存する\n\n・追加効果: 攻撃したわざに依存する",
+   "why": "Wikiの判定欄に直接記載があり、ダメージ・命中・追加効果の発動を変える中核機構だが、現在のeffectsから委譲範囲を復元できない"
+  },
+  {
+   "no": 2,
+   "aspect": "選ばれた技は優先度に関係なく(ねこのて自体の優先度=0で)繰り出される",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "master_row.priority=0はねこのて自体の値だけで、選ばれた技のpriorityを行動順に使わない指定はdescriptionにもeffectsにもない",
+   "proposal": "new_kind「呼出技優先度無視」を追加し、priority_source=\"caller\"を保持する",
+   "quote": "・選ばれた技の優先度に関係無く技を繰り出せる。",
+   "why": "選ばれた技が先制技でも行動順はねこのての優先度で決まるため、行動順計算に影響する未構造化の機構"
+  },
+  {
+   "no": 3,
+   "aspect": "使用者がいたずらごころの場合、選ばれた技も含め優先度+1",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、いたずらごころとの相互作用や優先度補正がない",
+   "proposal": "new_kind「呼出技優先度補正」を追加し、ability=\"いたずらごころ\",delta=1,applies_to=\"called_move\"を保持する",
+   "quote": "・使用者がいたずらごころだった場合は優先度+1で技を出せる。",
+   "why": "行動順および先制技を防ぐ効果との相互作用を変えるが、現データから判定できない"
+  },
+  {
+   "no": 4,
+   "aspect": "相手の場にじょおうのいげん/ビビッドボディがいると失敗",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもbattle_data.effectsにも、この相手側特性による失敗条件がない",
+   "proposal": "new_kind「特性による技失敗」を追加し、opposing_abilities=[\"じょおうのいげん\",\"ビビッドボディ\"],scope=\"called_move\"を保持する",
+   "quote": "・相手の場に特性じょおうのいげん/ビビッドボディのポケモンがいる場合、ねこのてで出される技は失敗する。",
+   "why": "技が発動するか否かを直接変える明示的な失敗条件"
+  },
+  {
+   "no": 5,
+   "aspect": "こだわり系アイテムは出た技でなくねこのて自体でロックする",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effectsのpp_cost=\"this_move_only\"はPP消費対象だけを表し、こだわり固定の対象はdescriptionにもeffectsにもない",
+   "proposal": "new_kind「こだわり固定対象」を追加し、lock_move=\"caller\"を保持する",
+   "quote": "・こだわり系アイテムを持って使った場合、出た技ではなくねこのてでこだわる。",
+   "why": "次ターン以降に選択できる技を変えるアイテム相互作用であり、pp_costからは表現できない"
+  },
+  {
+   "no": 6,
+   "aspect": "選出プールから除外される技の分類(他の技を出す技/他者の技を覚える技/持ち物系技/まもる系/1ターン隠れる溜め技/優先度技の一部/その他特別枠)",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "effects[0].pool=\"party_others\"は技の取得元だけを指定しており、除外規則・世代別個別リストを持たない。descriptionにも除外規則はない",
+   "proposal": "既存kind「ランダム技」にexcluded_movesとgeneration_rulesを追加し、Wikiの世代別可否表を技slug単位で保持する",
+   "quote": "・ねこのてで以下の技は選ばれない。出せる技が無い場合、ねこのては失敗する。\n\n大まかに他の技が出る技、他者の技を覚える技、もちものに関する技、まもる状態になる技、1ターン姿を隠す溜め技6-、優先度がある技の一部、その他特別な技が挙げられる。",
+   "why": "抽選結果と技の成否を大きく変える規則で、分類だけでは例外を確定できないため個別の世代別除外データが必要"
+  },
+  {
+   "no": 7,
+   "aspect": "出せる技が無い場合は失敗する",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "descriptionにもeffectsにも、抽選可能な技が0件の場合の失敗条件がない",
+   "proposal": "既存kind「ランダム技」にfails_if=\"no_eligible_move\"を追加する",
+   "quote": "出せる技が無い場合、ねこのては失敗する。",
+   "why": "候補がない場合に技が発動するか否かを決める明示的な失敗条件"
+  },
+  {
+   "no": 8,
+   "aspect": "ダブル/トリプルでは場に出ている味方の技も選ばれるが、マルチバトルの相方の技は選ばれない",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "effects[0].pool=\"party_others\"のみで、バトル形式ごとの区別はない",
+   "proposal": "",
+   "quote": "・ダブルバトル/トリプルバトルでは場に出ている味方の技も選ばれる。\n\n・マルチバトルでの相方のポケモンの技は選ばれない。",
+   "why": "トリプルバトルおよびマルチバトル固有の旧世代フォーマット仕様であり、現行Championsに存在しない形式の周辺仕様。通常の技効果としての欠落には数えない"
+  },
+  {
+   "no": 9,
+   "aspect": "ノーマルZ所持時はZワザとして繰り出せる",
+   "class": "out_of_scope",
+   "severity": "",
+   "where_in_ours": "descriptionにもbattle_data.effectsにもZワザ化の指定はない",
+   "proposal": "",
+   "quote": "・使用者にノーマルZを持たせた場合、ねこのてで繰り出す技をZワザにして繰り出すことができる。",
+   "why": "ノーマルZおよびZワザは第七世代限定の周辺仕様で、Championsに存在しない要素"
+  }
+ ],
+ "summary": "7件はWikiに根拠がありdescription/effectsの双方に無いreal_gap、旧世代の特殊対戦形式とZワザに限られる2件はout_of_scope。",
+ "source": "codex"
+}

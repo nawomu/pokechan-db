@@ -1,0 +1,77 @@
+{
+ "slug": "bolt-beak",
+ "items": [
+  {
+   "no": 1,
+   "aspect": "効果文・相手が技を出せなかった場合",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kind：対象の「技を出したか」ではなく、そのターンの行動消費済み状態を判定する。状態異常・状態変化・なまけで不発でも行動済みなら倍率を付けない。",
+   "quote": "相手が先に動いたが状態異常・状態変化・なまけで技が出せなかった場合では、行動したとみなされ威力は2倍にならない。",
+   "why": "descriptionは「相手が技を出す前」、condition.typeもused_before_target_movesであり、技が出なかった行動済み対象を除外する意味がない。倍率の発動条件が変わる。"
+  },
+  {
+   "no": 2,
+   "aspect": "効果文・交代で出た相手",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "",
+   "proposal": "new_kind：交代で新たに場へ出た対象は未行動として条件判定することを表す。",
+   "quote": "相手が交代で出てきたと同時に当てたときも威力が2倍になる。",
+   "why": "descriptionにもeffectsにも、交代直後の対象を未行動として扱う規定が明示されていない。used_before_target_movesという名前だけでは、交代時の状態継承・初期化まで確定できない。"
+  },
+  {
+   "no": 3,
+   "aspect": "効果文・技や持ち物による交代",
+   "class": "real_gap",
+   "severity": "mid",
+   "where_in_ours": "",
+   "proposal": "new_kind：交代技または持ち物で出た交代先について、元の対象の行動済み状態を引き継がず、交代先自身の未行動状態を参照する。",
+   "quote": "先に行動した相手が交代する技の効果で交代したり、レッドカードなど持ち物の効果を受けて交代した場合、それにより出てきたポケモンに当てたときも威力が2倍になる。",
+   "why": "元の対象が行動済みでも交代先には2倍となる機構が、descriptionにもeffectsにもない。交代前後の行動状態を区別しない実装では倍率が変わり得る。"
+  },
+  {
+   "no": 4,
+   "aspect": "効果文・ダブルバトルの判定対象",
+   "class": "already_in_ours",
+   "severity": "",
+   "where_in_ours": "battle_data.effects[0].target=\"opponent\" および condition.type=\"used_before_target_moves\"",
+   "proposal": "",
+   "quote": "ダブルバトルにおいて、他のポケモンが先に動いた場合でも、攻撃する対象がまだ動いていなければ威力は2倍になる。",
+   "why": "効果のtargetが攻撃対象で、conditionもtarget_movesを基準としているため、他のポケモンではなく対象の行動を判定する構造は既にある。"
+  },
+  {
+   "no": 5,
+   "aspect": "効果文・準備行動",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kind：きあいパンチ・トラップシェルの準備行動を本行動の消費と区別し、準備だけの対象は未行動として倍率を付ける。",
+   "quote": "きあいパンチ・トラップシェルの準備行動をしただけで、攻撃をしていない相手に使用した場合は威力は2倍になる。",
+   "why": "descriptionにもeffectsにも準備行動と本行動を区別する情報がない。used_before_target_movesだけでは準備開始を技使用済みと数えるか決まらず、倍率判定に影響する。"
+  },
+  {
+   "no": 6,
+   "aspect": "battle_data.effects・条件構造",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kind：conditionを対象のターン内行動消費状態に基づく判定へ置き換え、不発でも行動済み、準備行動のみなら未行動として扱う。",
+   "quote": "そのターンまだ行動していないポケモンに対して使うと威力が2倍になる。相手が先に動いたが状態異常・状態変化・なまけで技が出せなかった場合では、行動したとみなされ威力は2倍にならない。",
+   "why": "権威が判定するのは対象の行動済み状態だが、現状はcondition.type=\"used_before_target_moves\"で技の前後として表現されている。不発行動を正しく除外できる構造がない。"
+  },
+  {
+   "no": 7,
+   "aspect": "battle_data.effects・交代先の行動状態",
+   "class": "real_gap",
+   "severity": "high",
+   "where_in_ours": "",
+   "proposal": "new_kind：現在の攻撃対象となった交代先自身のターン内行動状態を参照し、交代元の状態を引き継がない条件を追加する。",
+   "quote": "相手が交代で出てきたと同時に当てたときも威力が2倍になる。先に行動した相手が交代する技の効果で交代したり、レッドカードなど持ち物の効果を受けて交代した場合、それにより出てきたポケモンに当てたときも威力が2倍になる。",
+   "why": "effectsには交代先の行動状態や交代元との切り分けを表すキーがない。condition名だけから交代時の状態管理は確定できず、交代元が行動済みの場合に倍率を誤るおそれがある。"
+  }
+ ],
+ "summary": "1、2、3、5、6、7はreal_gap。4は攻撃対象を基準とする既存のtargetとconditionに含まれる。",
+ "source": "codex"
+}
