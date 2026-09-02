@@ -36,3 +36,10 @@
 4. **データを足す時の型**: additions/fixesに書く→`build_master_v2`→`build_views`→`_views_diff`(未説明0)→番人2本→`_views_pdca_playwright`。生成物を手で書かない。
 5. 枠ヒット時は**リトライせず resumeFromRunId**(今回2回とも無損失)。帳簿=`reference/_window_ledger.json`。
 6. i18nの名前は公式のみ(PokeAPI en/fr等)。無い言語は「公式の種名+その言語の公式接頭辞」の合成までで、`_meta.synthesized` に記録。でっち上げ禁止。
+
+---
+# 4. 9/2午後〜夜: 技監査R1全数完走+Codex実験の実測(全部push済み)
+- **R1=919/919完走**。残り211技はCodex(gpt-5.3系)で実施し台帳へ合流(`source:"codex"`)。検収でランナーの一時ファイル競合による汚染12件を検出→撤去→再実行→根治(tmp名にバッチ番号+書き込み前slug照合)。**教訓: ①並走ランナーの一時ファイルは完全分離 ②走行中のシェルスクリプトを編集しない(bashは実行中に再読みして壊れる)**
+- **Codex実測**: 品質=Claude同等(二段構え機能・mismatch検出は本物)/速度=2.9分/技(直列)×並列3本/消費=ChatGPT Pro週間枠で監査217技+ページ1枚≈10数%(Spark枠は週27技分と極小=量産に不向き)/**単独委任テスト合格**(相棒探しページ=ブランチ codex/buddy-finder・採用は阿部さん判断)
+- Claude側の軽作業: mismatch triage 212件抽出 + 数値系109件の検証(master誤り93/監査側誤り16)。**修正はまだ適用していない**(champions外はヤックン/svの二重チェックを通してから)
+- モデル使い分けの結論: 量産=既定(Terra相当)/Sol=重い設計・レビュー/Spark・Luna=下調べ(枠極小に注意)
