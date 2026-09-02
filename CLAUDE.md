@@ -134,14 +134,13 @@
 
 ---
 
-## ポケモンデータの参照ルール
+## ポケモンデータの参照ルール(★2026-09-02 更新: 旧記述を訂正。発見者=Codex単独読解テスト)
 
-**マスターDB (SSOT)**: `pokechan_data.js`
+**マスターDB (SSOT)**: `master/*.json`(修正はさらに上流の `reference/_*_additions.json` / `_*_fixes.json` / `_regulations.json`)。
+`pokechan_data.js`(Champions版)/`pokechan_data_all.js`(全国版)/`items_database.js` は **`tools/build_views.js` が master から生成するビュー**(直接編集しない)。各ページはこの生成物(将来的には `pokedb.js`)を読むだけで、データ本体は持たない。旧版スナップショット= `reference/_legacy_snapshot/`。
 
-ポケモン本体は `pokechan_data.js` の `const POKEMON_LIST`(同ファイル内で `const DATA = POKEMON_LIST` のエイリアスあり)。技は `WAZA_MAP`、性格は `NATURES`、タイプは `TYPES`/`TYPE_COLORS`。`pokemon_db_v9.html` など各ページはこの定数を読み込んで参照しているだけで、データ本体は持たない。
-
-タイプ・種族値・特性・技学習などは **このDBが正**。記憶ベースの「公式情報」を優先しない。  
-不一致を見つけたら、まず **マスターDB を信頼** して、自分の記憶が間違っている前提で対応する。
+タイプ・種族値・特性・技学習などは **master が正**。記憶ベースの「公式情報」を優先しない。  
+不一致を見つけたら、まず **master を信頼** して、自分の記憶が間違っている前提で対応する(masterそのものの疑義は権威ソースの二重チェックで確かめて fixes に書く)。
 
 ---
 
