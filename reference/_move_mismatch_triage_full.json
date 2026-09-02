@@ -1,0 +1,2907 @@
+{
+ "what": "R1全919台帳のmismatch全量triage(2026-09-02夜)。already_verified=数値系109件検証済み",
+ "total": 290,
+ "unverified": 183,
+ "unverified_moves": 133,
+ "items": [
+  {
+   "slug": "rage-fist",
+   "name": "ふんどのこぶし",
+   "aspect": "蓄積のリセット条件",
+   "ours": "\"ターンが終わると蓄積はリセットされる\"(description/description_legacy両方) / effects.reset_at_turn_end=true",
+   "authority_quote": "手持ちに戻ると、リセットされる(ポケモンSVではリセットされない)。(yakkun_ch_row.effect) / ・SVまでは交代等で手持ちに戻っても手持ちに戻る前の威力が保持される仕様であったが、Championsでは手持ちに戻ると威力が元（威力50）に戻る。(wiki 技の仕様)",
+   "note": "Champions正典・Wiki両方とも『ターン終了でリセット』とは一言も言っていない。正しくは『手持ちに戻る(交代/瀕死からの再出場)時にリセット』。ourのreset_at_turn_end=trueは実際の挙動と逆で、sim上『ターンをまたぐと威力が消える/交代しても威力が残ってしまう』という真逆のバグを生む。description/description_legacyの文言も同じ誤りを含む(2箇所とも修正要)。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "breakneck-blitz--physical",
+   "name": "ウルトラダッシュアタック",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "PP | -",
+   "note": "wikiの表はPPを『-』(数値なし)としている。master_row.pp=1は他のZワザ慣習(Z技はPP1という一般知識)からの補完の可能性があり、このページ単体の引用では裏付けが取れない。要調査(他Z技との整合含め)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "gust",
+   "name": "かぜおこし",
+   "aspect": "対象(target)",
+   "ours": "1体選択",
+   "authority_quote": "| 範囲\n\n | 1体選択 (遠隔)",
+   "note": "Wikiは「1体選択(遠隔)」=トリプルバトルで隣接していない相手にも使える性質を持つ。技の仕様にも「トリプルバトルでは、自分と隣り合っていないポケモンにも使うことが出来る。」と明記。master_rowのtargetは「1体選択」のみで「遠隔」性が記述に無い(全国版に三体戦は無いため実害は小さいが、記述としては欠落)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "gust",
+   "name": "かぜおこし",
+   "aspect": "半無敵状態(そらをとぶ)への命中とダメージ倍加の仕組み",
+   "ours": "battle_data.effectsのdamage_multiplier=2として実装。descriptionも「ダメージが2倍になる」と記述",
+   "authority_quote": "・第四世代以降では威力が2倍される。\n・テクニシャンの判定前に2倍されるため、威力が2倍になるとテクニシャンによる1.5倍補正がかからない。",
+   "note": "現行世代(第四世代以降)の仕様は『最終ダメージの2倍』ではなく『威力(base power)がテクニシャン判定前に2倍される』という機構。master_rowはdamage_multiplier(最終ダメージ倍率相当)として実装しておりdescription/description_legacyも「ダメージが2倍」と表現。通常は結果が同じでも、テクニシャン所持ポケモンが使った場合は最終ダメージ計算が変わりうる(sim影響: テクニシャンの1.5倍補正がかからない挙動を再現できない可能性)。第二世代のみ『ダメージ計算の最後に2倍』という記述もあり、世代依存",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "bide",
+   "name": "がまん",
+   "aspect": "効果文: ダブルバトルでの返しダメージ量",
+   "ours": "ダブルバトルでは、最後に受けた技のダメージだけを返す",
+   "authority_quote": "その間に受けた合計ダメージを2倍にして、相手に返す(ダメージ固定技)",
+   "note": "Wikiは終始『2ターン間に受けた合計ダメージ』を返すとしており、ダブルでも量が『最後の1発分だけ』に縮小するとは書かれていない。Wiki第四世代の『攻撃対象は最後に攻撃してきたポケモンが対象になる』は反撃を『誰に向けるか(対象選定)』の話であり、『いくら返すか(ダメージ量)』の話ではない。masterのdescriptionはこの2つを混同し、量そのものが最後の1発に限定されるという誤った主張になっている。さらにmaster_row.battle_data.effects[0].doubles_noteは『2ターンの間ためこみ、その間に受けたダメージ…の合計の2倍を相手に与える』と正しく書いており、description本体とeffects内部の記述が自己矛盾している",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "bide",
+   "name": "がまん",
+   "aspect": "効果文: 失敗条件(ダメージを受けていないと失敗)",
+   "ours": "そのターンにダメージを受けていないと失敗する",
+   "authority_quote": "がまん状態の間、ダメージのある攻撃技を受けなかった場合は失敗する。",
+   "note": "Wikiの失敗条件は『がまん状態の間(2ターン全体)』を通じて一度もダメージを受けなかった場合であり、『そのターン』(単一ターン)に限定した記述ではない。masterの言い回しは単一ターンの判定であるかのように読め、意味がわずかにずれている(小さいが要修正)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "amnesia",
+   "name": "ドわすれ",
+   "aspect": "内部整合性(rank_changes vs effects の stat表記)",
+   "ours": "rank_changes[0].stat=\"spd\" / effects[0].stat=\"special_defense\"",
+   "note": "権威との照合ではなくmaster_row内部の不整合。\"spd\"は一般にspeed(素早さ)の略記として使われやすく、rank_changesのstatフィールドが\"spd\"=とくぼう(special_defense)を指しているのかspeedを指しているのか字面から判別できない。effects側は\"special_defense\"と明記されており正しいが、rank_changes側の略記が誤読・誤配線のリスクを持つため要確認(simがrank_changes.statをどう解釈するか次第で実害の有無が変わる)。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "mind-reader",
+   "name": "こころのめ",
+   "aspect": "効果の持続期間(「1ターン限り」という限定の妥当性)",
+   "ours": "「次のターンにこの相手へ使う技が、必ず当たるようになる(1ターン限り)。」(descriptionが明示的に1ターン限りと限定)",
+   "authority_quote": "相手がひんしになるか場を離れるとロックオン状態は解除されるため、続けてこころのめを使ったときも成功する。/自分がすでにロックオン状態の場合、こころのめは失敗する。こころのめを使った次のターン、狙いを定めた別の相手にこころのめを使ったときが該当する。",
+   "note": "Wikiの「技の仕様」節によれば、ロックオン状態は『次の1ターンだけ』で自動的に切れるのではなく、相手がひんし/交代するまで持続する(=次のターンにこの技以外の行動をとって攻撃しなくても、ロックオンは残ったまま次の機会に必中する)。masterのdescriptionが「(1ターン限り)」と明記しているのは、この永続性(相手が場に居る限り有効)と食い違う可能性がある。battle_data.effectsのapplies_on:'next_turn'も同じ前提。sim影響あり=ロックオンの解除条件をnext_turnのみで実装していると、2ターン目以降に必中判定が誤って外れる恐れ",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "sketch",
+   "name": "スケッチ",
+   "aspect": "効果文の意味(通信対戦での揮発)",
+   "ours": "description: 'この技を忘れて、相手が最後に使った技を覚える(戦闘が終わってももとにもどらない)。'",
+   "authority_quote": "通信対戦や、経験値が手に入らない対戦施設でスケッチを使用した場合…第三世代以降では、スケッチを使用することはできるが、バトルが終わると習得した技を忘れてスケッチに戻る。ただし、対戦施設であっても経験値が入る場合はバトルが終わった後も技を覚えたままにできる。",
+   "note": "master_row.description は『戦闘が終わっても元に戻らない』と無条件断定しているが、権威(Wiki)では経験値が入らない通信対戦・一部対戦施設では戦闘後にスケッチへ戻る、という条件付き。description_legacy(『戦闘終了後も元に戻らない。(通信対戦などでは元に戻る)』)とeffects[0].noteには例外が書かれているのに、表示用description本文だけがその例外を落としている。子どもがdescriptionだけ読むとlegacyの意味に戻れない。sim影響: 中(表示文のみの欠落、effects側は既に例外を保持)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "foresight",
+   "name": "みやぶる",
+   "aspect": "相性上書き効果のphase(持続性)",
+   "ours": "effects[1].kind=相性上書き, phase=on_use",
+   "authority_quote": "使用者が交代しても効果は続くため、みねうちを覚えた捕獲要員と組んでも活用できる。",
+   "note": "「みやぶられている」状態は使用者が交代しても続く持続状態(こんなときに使おうセクション参照)で、タイプ無効化もその状態の一部。effects[0]はphase=lastingなのにeffects[1]がphase=on_useなのは非対称で、sim上は「使用したそのターンだけ」型無効解除が働くように読める可能性がある。実際は状態が続く限りゴースト×ノーマル/かくとうの無効化解除も持続するはず",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "safeguard",
+   "name": "しんぴのまもり",
+   "aspect": "effects: source(誰の技として設置するか)",
+   "ours": "\"source\": \"opponent\"",
+   "authority_quote": "5ターンの間、味方の場を『しんぴのまもり』状態にして、自分と味方のポケモンは状態異常と『こんらん』状態にならなくなる",
+   "note": "sim影響: 効果文は使用者側の場を守る自己バフ技であり、設置者は使用者(self)のはず。masterのeffects[0].sourceが\"opponent\"になっているのは意味と矛盾する(相手が設置したことになってしまう)。壁を破る側の判定に影響しうるため要確認",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "psych-up",
+   "name": "じこあんじ",
+   "aspect": "効果文の意味(master_row.description・新版説明)",
+   "ours": "相手の上がっている能力ランクだけをすべて奪って自分のものにする(下がっているランクはそのまま残る。相手のその上昇分は元にもどる)。そのあと攻撃のダメージを与える。",
+   "authority_quote": "yakkun_ch_row.effect=\"相手の能力ランクの変化を、すべて自分にコピーする。\" / Wiki第四〜九世代説明=「じぶんに あんじを かけることで のうりょく へんかの じょうたいを あいてと おなじにする。」",
+   "note": "重大な事実誤り。権威は『相手のランク変化(プラスもマイナスも)を丸ごと自分にコピー』であり、『上昇分だけ奪って下降分は相手に残す』『相手の上昇は元に戻る』という選別コピーの記述は権威のどこにも無い(でっち上げ)。さらに『そのあと攻撃のダメージを与える』は完全な誤り=このわざはcategory=変化・power=nullの状態異常わざでダメージは与えない(yakkun_ch_row.category=\"変化\"、power=\"-\")。battle_data.effectsは『copies: all stat ranks, onto: self』でCh行と正しく整合しているのに、descriptionフィールドだけが別の(誤った)わざであるかのような記述になっている",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "odor-sleuth",
+   "name": "かぎわける",
+   "aspect": "効果文: 回避率を無視する範囲",
+   "ours": "このあと、相手の回避率の変化に関係なく、攻撃が当たるようになる。",
+   "authority_quote": "相手をみやぶられている状態にし、相手の回避率ランク上昇を無視して攻撃が当たるようにする。",
+   "note": "権威は「回避率ランク上昇のみ」を無視すると明記(回避率が下がっている場合はそのボーナスは無視されず有効)。うちのdescriptionは「回避率の変化に関係なく」と書いており、下降側まで無視するように読めて意味が広い(不正確)。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "metal-burst",
+   "name": "メタルバースト",
+   "aspect": "description(独自文)の「無効タイプの相手には当たらない」という追記",
+   "ours": "(ダメージの量はタイプ相性で変わらないが、まったく効かないタイプ(無効)の相手には当たらない)",
+   "authority_quote": "はがね技なので、基本的に相性で無効化されることはない。",
+   "note": "ch行effectにもwikiの「効果」欄にも「無効タイプに当たらない」という記述は無い。むしろwikiの技の仕様節は逆に『はがね技なので基本的に相性で無効化されることはない』と述べており、鋼タイプを無効化する標準タイプは存在しない。この一文は権威で確認できない/趣旨が食い違う独自追記=要確認(extra_in_ours寄り)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "psycho-shift",
+   "name": "サイコシフト",
+   "aspect": "battle_data.effects: コピー可能な状態異常の種類にこおりを含めている",
+   "ours": "detail note: \"やけど/どく/もうどく/まひ/ねむり/こおりのいずれか、自分がかかっているもの\"",
+   "authority_quote": "・こおり状態では使用できる術がないため、移すことはできない。",
+   "note": "sim影響あり。Wiki技の仕様節が明確に「こおり状態では使用できる術がないため、移すことはできない」と否定しており、Wiki効果文の状態異常列挙(どく/もうどく/ねむり/まひ/やけど)にも「こおり」は含まれていない。うちのeffects.noteはこおりを移せる対象に含めてしまっており過剰(overinclusive)。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "brave-bird",
+   "name": "ブレイブバード",
+   "aspect": "battle_data.effects(反動の構造化)",
+   "ours": "effects: [{kind:\"反動\", target:\"self\", phase:\"on_use\", fraction:0.33}], battle_data.recoil:\"1/3\"",
+   "authority_quote": "effect: \"相手に与えたダメージの33%を自分も受ける。\"(yakkun_ch_row) / Wiki「与えたダメージの1/3を自分も受ける(第四世代)。→与えたダメージの33%を自分も受ける(第五世代以降)。」",
+   "note": "sim影響: recoilフィールドは文字列\"1/3\"(=0.3333…)なのにeffects.fractionは0.33(=ちょうど33%)で内部不一致。実機の反動計算は端数処理込みの1/3ダメージ計算であり、0.33という小数近似はダメージ端数で実際の反動値とズレる可能性がある。recoilとeffects.fractionのどちらをsimが読むか要確認・統一が必要",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "mud-bomb",
+   "name": "どろばくだん",
+   "aspect": "世代availability(gens)",
+   "ours": "gen_introduced:4, gens:[4,5,6,7,8]",
+   "authority_quote": "第四世代\n\n | ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+   "note": "Wikiは『ソード・シールドで使用不可』『BDSPで使用不可』を明記(いずれも第八世代の作品)。第八世代のたたかうわざ説明も『この技は つかえません』というプレースホルダ文言(遺伝/思い出し以外で入手不可の意)。masterのgensに8が含まれているのは要再確認(第八世代の一部作品=SwSh/BDSPでは使用不可で、gen9=SVも使用不可はgensに9を含めない点と整合)。sim影響は無いがavailabilityメタデータの精度に関わる",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "lava-plume",
+   "name": "ふんえん",
+   "aspect": "対象(target)",
+   "ours": "相手全体 / effects.target=all_opponents",
+   "authority_quote": "yakkun_ch_row.target=\"自分以外全体\" / wiki: \"| 範囲\n\n | 自分以外の全員\"",
+   "note": "sim影響大。『こんなときに使おう』節に『ダブルバトルでは味方を巻き込み全体にも当たる。味方の特性をもらいび・テレパシー・じょうききかんにしたりまもるを使わせるといった対策が必要』とあり、味方(自分以外の味方)も巻き込む技と確定。master/effectsとも「相手」のみを対象にしており、味方を除外する誤り。target/effectsのtargetを『自分以外全体(all_but_self)』へ修正が必要。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "magnet-bomb",
+   "name": "マグネットボム",
+   "aspect": "世代(availability.gens)にGen8を含めていること",
+   "ours": "gens:[4,5,6,7,8]",
+   "authority_quote": "第八世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+   "note": "Wikiは第八世代(ソード・シールド)で「このわざは つかえません」=使用不可と明記。冒頭にも「ソード・シールドで使用不可」「BDSPで使用不可」「SVで使用不可」とあり、Gen8以降の主要タイトルでは技として使えない。masterのgensに8を含めているのは要見直し(9は元から未収載で整合)。champions=falseなのでWikiが権威。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "captivate",
+   "name": "ゆうわく",
+   "aspect": "使用可能世代(availability.gens)",
+   "ours": "gens:[4,5,6,7,8](gen8含む)",
+   "authority_quote": "| ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+   "note": "Wikiは『第八世代 このわざは つかえません』とも明記=SwSh以降そもそも技として使用できない(技マシン/レベルアップ表もGen7=USUMまでしか記載無し)。masterのgens配列にgen8を含めているのは誤り。gen4〜7が正しい可能性が高い(要修正・データ側の話なのでここではmismatchとして記録のみ)。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "heal-order",
+   "name": "かいふくしれい",
+   "aspect": "世代可否(availability.gens)",
+   "ours": "gens:[4,5,6,7,8]",
+   "authority_quote": "ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+   "note": "Wikiはソード・シールド(第八世代)・BDSP(第八世代)・SV(第九世代)すべて使用不可と明記。masterのgensに8が含まれているのは第八世代で使用不可という記述と食い違う。sim影響は薄いが図鑑上の学習可否データとしては要確認。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "chatter",
+   "name": "おしゃべり",
+   "aspect": "「ほかのポケモンが使うと失敗する」という説明文の主張",
+   "ours": "description: 「『ペラップ』しか使えない(ほかのポケモンが使うと失敗する)」",
+   "authority_quote": "第六世代以降…・へんしん/オウムがえしにより、ペラップ以外のポケモンがおしゃべりを使用したときでもこんらん効果が付く。",
+   "note": "Wikiによれば、へんしん/オウムがえしで非ペラップがおしゃべりを使用しても技自体は普通に発動しダメージも出る(失敗しない)。第五世代までは『音声を吹き込んでも鳴き声は変わらず、こんらん状態にする効果も付かない』=追加効果(こんらん)だけが付かないのであって技が失敗するわけではない。第六世代以降はこんらん効果すら付く。『使うと失敗する』はWikiの記述と矛盾する誤った断定。sim影響あり(Transform/オウムがえしで習得した場合の挙動が違ってくる)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "ominous-wind",
+   "name": "あやしいかぜ",
+   "aspect": "availability.gens(使用可能世代)",
+   "ours": "gen_introduced=4, gens=[4,5,6,7,8]",
+   "authority_quote": "ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+   "note": "Wikiはイントロ表とセクション『説明文』の両方で、ソード・シールド(第8世代)・BDSP・SVで使用不可と明記している。masterのgens配列に8が含まれているのは誤り。sim影響なし(availabilityはR1の必須チェック観点外だが権威との明確な食い違いのため記録)。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "crush-grip",
+   "name": "にぎりつぶす",
+   "aspect": "威力可変の計算式(最新世代=第五世代以降)の端数処理",
+   "ours": "formula: floor(120 * target_current_HP / target_max_HP)",
+   "authority_quote": "威力=120×相手の残りHP÷相手の最大HP(第五世代以降)",
+   "note": "技の仕様節で明記: 「第五世代以降では、威力=120×相手の残りHP÷相手の最大HP (五捨五超入)。威力1～120。」=四捨五入相当の丸め。masterはfloor(切り捨て)を採用しており端数処理が異なる。sim影響=威力が最大1違う可能性(端数.5超のケースで切り捨てだとWikiの丸めより1低く出る)。第四世代のみ別式(1+floor(...)、威力1～121)だが、champions=false→最新世代の値を採用すべき方針上、gen5+の五捨五超入式が正となる。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "crush-grip",
+   "name": "にぎりつぶす",
+   "aspect": "威力可変の最低保証値(下限)",
+   "ours": "formula上は残りHP比率が極小だと理論上0になり得る(floor使用・+1補正なし)",
+   "authority_quote": "威力1～120",
+   "note": "Wikiの技の仕様節: 第五世代以降は威力1～120(0にならない)。masterのfloor式には下限保証の記述がなくtarget_current_HPが極小の場合理論上0になり得る。sim影響=威力0は実機に反する(最低1)。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "flame-burst",
+   "name": "はじけるほのお",
+   "aspect": "gen可用性(第8世代で使用可能か)",
+   "ours": "availability.gens に 8 を含む(第8世代で習得・使用可能扱い)",
+   "authority_quote": "| ソード・シールドで使用不可\n\n… 第八世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+   "note": "Wikiによれば第八世代(ソード・シールド)ではこの技は使用不可(思い出しても忘れることを推奨される=実質使用不可)。masterのavailability.gens=[5,6,7,8]は第8世代を含めており、Wikiの記述と食い違う。要確認事項として記録(SVでも使用不可との記載あり=第9世代含め要精査だがmaster.gensは5-8止まりなのでSVは対象外)。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "telekinesis",
+   "name": "テレキネシス",
+   "aspect": "gen8(SwSh)/gen9(SV)で技マシン等の入手なし=実質使用不可(現行世代では非採用)",
+   "ours": "availability.gens: [5,6,7,8]",
+   "authority_quote": "ソード・シールドで使用不可 | BDSPで使用不可 | SVで使用不可",
+   "note": "master_row.availability.gensに8が含まれているが、Wikiは第八世代(SwSh)の項で『この技は つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします』(未実装)と明記。champions=falseなので現行/最新世代の利用可否として注意すべき差異。R1観点(基本諸元)には直接関与しないためnoteに留める。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "smack-down",
+   "name": "うちおとす",
+   "aspect": "フリーフォール中の相手にも『うちおとす状態』が付与されるかのような記述",
+   "ours": "description: 「相手が『そらをとぶ・とびはねる・フリーフォール』で空中にいる時でも当てられる。相手が場にいるあいだ、相手を『うちおとす』状態にする。」effects『半無敵命中』note: 「そらをとぶ/とびはねる/フリーフォールの最中にも命中して、地面に撃ち落とす」",
+   "authority_quote": "・フリーフォールを中断させることはできない。フリーフォールを使用したり受けたりしているときの相手は、地面にいないポケモンであってもうちおとす状態にできない。(Wiki 技の仕様)",
+   "note": "Wiki技の仕様によれば、フリーフォール中/使用中の相手はダメージこそ通るが『うちおとす』状態にはならず、技の中断もできない(そらをとぶ/とびはねるとは扱いが違う例外)。ours側はそらをとぶ・とびはねる・フリーフォールを一括りにして『撃ち落とす』『うちおとす状態にする』と書いており、フリーフォールがこの例外である旨が抜けている。sim実装(半無敵命中effect)にもフリーフォール専用の除外フラグが無く、機構としても欠落=missing_in_ours相当(sim影響: フリーフォール中にうちおとす状態を誤付与する恐れ)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "synchronoise",
+   "name": "シンクロノイズ",
+   "aspect": "世代適用範囲(gens配列にgen8を含む)",
+   "ours": "gens: [5,6,7,8]",
+   "authority_quote": "ソード・シールドで使用不可 / BDSPで使用不可 / SVで使用不可 / 第八世代 このわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+   "note": "第八世代以降(SwSh/BDSP/SV)は技マシン・思い出し共に使用不可(実質廃止)。masterのgensに8が含まれているのはWikiの記述と食い違う。sim影響=第8世代環境で本技が選択可能になってしまう恐れ",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "chip-away",
+   "name": "なしくずし",
+   "aspect": "世代適用範囲(gen8=SwSh)",
+   "ours": "availability.gens=[5,6,7,8]",
+   "authority_quote": "ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可\n\n第八世代・第九世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+   "note": "Wikiは『ソード・シールドで使用不可』『BDSPで使用不可』『SVで使用不可』と明記。第五〜第七世代のみ使用可能で、第八世代(SwSh)は技自体は存在するが技マシン/思い出し不可で実質使用不能(『この技は使えません』の記述)。master.gensに8が含まれているのは要確認。第九世代(SV)は技自体が存在しない。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "quick-guard",
+   "name": "ファストガード",
+   "aspect": "「続けて使うと失敗しやすくなる」の記述",
+   "ours": "続けて使うと失敗しやすくなる(description本文に明記)",
+   "authority_quote": "第六世代以降: ・ファストガードを連続で使用しても失敗しない。…ファストガードが成功した後にまもる/みきり/こらえる/キングシールド/ニードルガード/トーチカ/ブロッキング/ダイウォール/スレッドトラップを使うと成功率が1/3になる。",
+   "note": "wikiの『連続で使うと失敗しやすい』は第五世代のみの仕様。第六世代以降(現行=Championsが準拠する最新世代)はファストガード自体の連続使用は失敗しない。失敗率が下がる(1/3)のはファストガードの後に『別の守り技(まもる/みきり/こらえる等)』を使った場合のみで、ファストガードを連続で出す場合ではない。ch行(effect文)にもこの記述は無い。masterのdescriptionが独自に付け足した『続けて使うと失敗しやすくなる』は現行世代の実際の仕様と食い違う可能性が高い(古い第五世代仕様を一般化して書いてしまっている)。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "sky-drop",
+   "name": "フリーフォール",
+   "aspect": "利用可能世代(gens配列)",
+   "ours": "gens: [5,6,7,8]",
+   "authority_quote": "| 第五世代\n\n | ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+   "note": "Wikiは第8世代(剣盾)・BDSP・SVで使用不可と明記。masterは第8世代を含めており矛盾",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "sky-drop",
+   "name": "フリーフォール",
+   "aspect": "2ターン目、対象は行動できない(description/effects両方の主張)",
+   "ours": "description: 『そのあいだ相手は行動できない』/ description_legacy: 『相手は行動できない』/ effects.note: 『相手はそのあいだ行動できない』",
+   "authority_quote": "技が使われた次のターン、空中にいる間でも対象は行動を選択できる。使用者よりすばやさが遅ければこのターンに技を使うことができる。優先度の高い技など、フリーフォールの攻撃より早く使おうとした技はキャンセルされ、このターンは行動できない。",
+   "note": "sim影響: Wikiの『技の流れ』によれば1ターン目のみ完全に行動不能で、2ターン目は対象が行動を選択できる(使用者より遅ければ実際に技を使える。使用者の攻撃より早く動こうとした場合のみキャンセルされる)。うちの記述は2ターン目も含め終始『行動できない』と断定しており過大表現",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "bestow",
+   "name": "ギフトパス",
+   "aspect": "第八世代での使用可否",
+   "ours": "availability.gens=[5,6,7,8]",
+   "authority_quote": "ソード・シールドで使用不可\n\n(略)\n第八世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+   "note": "Wikiは『ソード・シールドで使用不可』(思い出しのみ可能な扱い)と明記。gens配列にそのまま8を含めるとSwSh現役習得可能と誤読される恐れがある",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "steamroller",
+   "name": "ハードローラー",
+   "aspect": "世代別の使用可否(gens配列)",
+   "ours": "availability.gens: [5,6,7,8]",
+   "authority_quote": "| ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+   "note": "Wikiは『ソード・シールドで使用不可』『BDSPで使用不可』『SVで使用不可』と明記し、たたかうわざセクションの第八世代欄も『このわざは つかえません(思い出すことができなくなりますが技を忘れることをおすすめします)』という技マシン説明とは異なる特殊文言。レベルアップ習得表もBW/B2W2・XY/ORAS・SM/USUMの3世代分のみでSwSh以降の列が無い。第八世代(gen8)がgensに含まれているのは誤りの可能性が高い(正しくは[5,6,7]の疑い)。ただし『使用不可』表記の解釈(第八世代に技自体が存在するが技マシン/思い出しでは習得不可、なのかmoveが完全に削除されたのか)は断定できないため要確認。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "fusion-flare",
+   "name": "クロスフレイム",
+   "aspect": "効果文-威力2倍の発動条件",
+   "ours": "「同じターンに」クロスサンダーが使われていると威力2倍(description/description_legacy/effects condition=ally_or_foe_used_move_this_turnとも『同じターン』表現)",
+   "authority_quote": "直前に成功した技がクロスサンダーだったとき、威力が2倍になる。\n…同じターン中で直前に成功した技がクロスサンダーだった場合、クロスフレイムの威力は2倍になると共にエフェクトも変わる。",
+   "note": "権威(Wiki概要欄・技の仕様セクション)は『同じターンに味方/相手が使った』ではなく『直前に成功した技(=このクロスフレイムの直前に成功した技)がクロスサンダーだった場合』という、より限定された条件。master描述・description_legacyともに『同じターンに使われていると』という広い表現になっており、直前性(immediately preceding)の要件が欠落している。effectsのcondition.type=ally_or_foe_used_move_this_turnも『そのターン中に使われた』かどうかしか見ておらず、直前の1手であることを表現していない可能性がある(sim影響: ターン中に他の技が間に挟まった場合の判定が実機と食い違う恐れ)。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "ion-deluge",
+   "name": "プラズマシャワー",
+   "aspect": "世代適用範囲(availability.gens)",
+   "ours": "gens:[6,7,8]",
+   "authority_quote": "| 第六世代\n\n | ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+   "note": "Wiki冒頭表は『ソード・シールド(第八世代)で使用不可/BDSP・SVで使用不可』と明記。たたかうわざ節も『第八世代: このわざは つかえません』とあり、第八世代以降は技として存在しない扱いに読める。masterはgen8を含めているが根拠が対立する。要確認",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "freeze-dry",
+   "name": "フリーズドライ",
+   "aspect": "追加効果『10%でこおり』の現行(Champions)有効性 — description記載",
+   "ours": "description: 「10%の確率で相手を『こおり』状態にする。」(無条件の記載、SV限定の注記なし)",
+   "authority_quote": "・スカーレット・バイオレットまで、10%の確率で相手をこおり状態にする追加効果があった。Championsではこの効果は無くなった。(wiki技の仕様) / ポケモンSVまでは、さらに10%の確率で相手を『こおり』状態にする。(yakkun_ch_row.effect)",
+   "note": "yakkun_ch_row.effectの文言自体が『SVまでは』と限定しており、Championsページの記述としては現在は付与されないことを示唆。wikiの技の仕様節は『Championsではこの効果は無くなった』と明記。master_row.descriptionはこの限定を欠いたまま無条件表記でChampionsの現行仕様と矛盾する。description_legacyは『ポケモンSVまでは』と正しく限定表記されており一致",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "draining-kiss",
+   "name": "ドレインキッス",
+   "aspect": "battle_data.drainフィールド(トップレベル)",
+   "ours": "\"drain\": \"1/2\"",
+   "authority_quote": "効果 | 相手に与えたダメージの3/4だけ、自分のHPを回復する。",
+   "note": "sim影響: 同じmaster_row内でeffects配列のfraction=0.75(=3/4)・description/description_legacyも3/4と明記しているのに、トップレベルのdrainフィールドだけ\"1/2\"になっている内部矛盾。もしsimがこのdrainフィールドを参照する実装であれば回復量が本来の2/3(75%のところ50%)しか出ない実害バグになる。3/4に修正すべき",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "crafty-shield",
+   "name": "トリックガード",
+   "aspect": "効果文:防ぐ対象の範囲(『相手の』変化技という限定)",
+   "ours": "description=「自分と味方が受ける相手の変化技(状態へんか技)を防ぐ」/ description_legacy=「すべての味方への変化技を無効化する」",
+   "authority_quote": "・味方が味方を対象にする技も無効となる。",
+   "note": "うちのdescriptionは『相手の』変化技に限定しているが、実際には味方が味方を対象に使う変化技(自軍発)も無効化される。相手発に限定する記述は誤った範囲の絞り込み。description_legacyは『相手の』と書いておらずこちらは正しい。sim(effects)にも発動元による分岐は入っておらず同じ穴。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "hyperspace-hole",
+   "name": "いじげんホール",
+   "aspect": "まもる系統を『取り除く』かどうか(sim影響)",
+   "ours": "kind『まもり貫通』の実装名が pierces_without_removing で『取り除かずに貫通』を意味する構造になっている",
+   "authority_quote": "・対象がまもる系統の状態である場合、それを取り除いてから攻撃する。\n・ワイドガード・ファストガード・トリックガードなどこの技を防ぐ効果が無い状態でも、それらを取り除いて攻撃できる。",
+   "note": "Wikiの『技の仕様』節は、いじげんホールが命中した場合、対象のまもる系統の状態(まもる/みきり/トーチカ等だけでなくワイドガード等も含む)を実際に取り除いてから攻撃すると明記している。master_row.battle_data.effectsの `pierces_without_removing` という構造・命名は『取り除かずに貫通する』意味に読め、Wikiの記述と逆。ただしdaiwallで無効化された場合や、あくタイプ等でダメージ無効の場合は取り除かない、という条件付きの挙動もWikiにあり、これも構造に未反映。sim影響=ダブルバトルで味方も守っているワイドガード等が誤って残存/消失する可能性。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "magnetic-flux",
+   "name": "じばそうさ",
+   "aspect": "top-level rank_changesのtarget",
+   "ours": "rank_changes: [{target:\"self\", stat:\"def\"...}, {target:\"self\", stat:\"spd\"...}]",
+   "authority_quote": "自分と味方全体の特性が…ランクが1段階ずつ上がる(yakkun_ch_row.effect)",
+   "note": "この技は味方全体(team)対象なのに、battle_data.rank_changesのtargetが'self'のみになっている。effects配列側はtarget:'team'で正しいが、rank_changesという別フィールドが不整合。rank_changesがsim/表示に使われる場合、味方への効果が反映されない恐れがあるため要確認。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "all-out-pummeling--special",
+   "name": "ぜんりょくむそうげきれつけん",
+   "aspect": "世代(availability.gens)",
+   "ours": "[7,8]",
+   "authority_quote": "| ぜんりょくむそうげきれつけん\n\n | 第七世代",
+   "note": "Wikiのページ見出し・説明文セクションとも『第七世代』のみを明記(Zワザは本編第8世代=ソード・シールドで廃止のため)。masterのgens=[7,8]は根拠不明。gen_introduced=7自体は一致。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "breakneck-blitz--special",
+   "name": "ウルトラダッシュアタック",
+   "aspect": "説明文『タイプが変わる』の記述",
+   "ours": "もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。",
+   "authority_quote": "タイプ\n\n | ノーマル\n\n | 分類\n\n | 不定\n\n | 威力\n\n | 不定",
+   "note": "Wikiの情報欄はタイプ=ノーマルで固定表記、可変(不定)なのは分類と威力のみ。ノーマルZクリスタルを使う以上ベース技も常にノーマルタイプなのでタイプ自体は変化しない。description_legacyも『威力や分類は元の技で変化』とだけ書きタイプ変化には触れていない。masterのdescriptionだけがタイプも変わると記述しており、権威(Wiki情報欄)およびlegacyと食い違う=extra/誤った記述の可能性",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "supersonic-skystrike--physical",
+   "name": "ファイナルダイブクラッシュ",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "PP\n\n | -",
+   "note": "WikiはPPを『-』(不定/元技依存)としているが、masterはpp=1固定。1固定である根拠がWiki本文に無い。sim影響: 元技のPPを消費する挙動なら固定1は不正確な可能性。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "supersonic-skystrike--physical",
+   "name": "ファイナルダイブクラッシュ",
+   "aspect": "description『タイプ…が変わる』の記述",
+   "ours": "『威力やタイプ・物理特殊の分類が変わるZワザ』",
+   "authority_quote": "分類および威力は元となったわざに依存する。",
+   "note": "Wikiの『分類・威力』節は分類(物理/特殊)と威力のみが元技依存と説明しており、タイプが変わるとは書いていない。ヒコウZ由来のZ技はタイプ=ひこうで固定というのが一般的挙動(使用ポケモン節: ひこうタイプの攻撃技を覚えているポケモンにヒコウZを持たせると出せる、から示唆される)。masterのdescriptionが『タイプが変わる』と明言しているのはextra_in_ours(Wiki未確認の主張)。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "acid-downpour--special",
+   "name": "アシッドポイズンデリート",
+   "aspect": "効果文の意味(description)",
+   "ours": "ダメージ。相手の回避率や自分の命中率に関係なく、必ず命中する。もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。",
+   "authority_quote": "元となるわざで分類・威力が変化する。 / 分類および威力は元となったわざに依存する。",
+   "note": "Wikiは『分類・威力』のみが元技依存と明記し、タイプが変わるとは一切書いていない(表の全エントリがどくタイプ技のみで、Z技のタイプはZクリスタルにより固定=どくで不変というのが一般仕様)。master自身のdescription_legacy『威力や分類は元の技で変化する』もタイプに言及なし。ours descriptionの『タイプ…が変わる』はWiki本文にもlegacyにも無い記述で、Z技の一般仕様と矛盾する誤記の疑いが強い=extra_in_ours(誤り)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "supersonic-skystrike--special",
+   "name": "ファイナルダイブクラッシュ",
+   "aspect": "説明文(description)の『タイプが変わる』という記述",
+   "ours": "「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "分類および威力は元となったわざに依存する。",
+   "note": "Wikiの『分類・威力』節は分類(物理/特殊)と威力のみが元の技依存で変化すると明記し、タイプが変わるとはどこにも書かれていない。ファイナルダイブクラッシュはヒコウZ専用でタイプは常にひこう固定。『タイプ...が変わる』は事実誤り(過剰記述)。description_legacyは『威力や分類は元の技で変化する』のみでタイプに触れておらず正しい。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "all-out-pummeling--physical",
+   "name": "ぜんりょくむそうげきれつけん",
+   "aspect": "description本文『タイプが変わる』の記述",
+   "ours": "もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。",
+   "authority_quote": "効果\n\n | 元となるわざで分類・威力が変化する。",
+   "note": "Wikiの効果欄・分類/威力セクションともに『分類』と『威力』が元の技で変わるとしか書かれておらず、タイプ(かくとう)は表の最上部で固定表記(このページ自体『タイプ|かくとう』の1行のみ=可変ではない)。description_legacyも『威力や分類は元の技で変化する』のみでタイプ変化には触れていない。ours descriptionが独自に『タイプ』を追加しているのは事実誤り(extra_in_ours/誤情報)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "all-out-pummeling--physical",
+   "name": "ぜんりょくむそうげきれつけん",
+   "aspect": "availability(登場世代)",
+   "ours": "gen_introduced=7, gens=[7,8]",
+   "authority_quote": "| ぜんりょくむそうげきれつけん\n\n | 第七世代",
+   "note": "Wikiのイントロ表はこの技を『第七世代』としか記載しておらず、第八世代への言及が無い(Zワザは剣盾で撤廃済みという一般知識とも符合するが、このページ単独では第八世代を裏付ける記述は無いためgens内の8は根拠不明)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "acid-downpour--physical",
+   "name": "アシッドポイズンデリート",
+   "aspect": "description本文『威力やタイプ・物理特殊の分類が変わる』のタイプ言及",
+   "ours": "威力やタイプ・物理特殊の分類が変わるZワザ、と記述",
+   "authority_quote": "分類および威力は元となったわざに依存する。",
+   "note": "Wikiではタイプの変動には一切触れておらず、intro表でもタイプ=どく固定。variantを分けているならなおさら『タイプが変わる』はこの技(ドクZ系列)に関しては誤り。sim影響はtypeフィールド自体がどくで固定のため無いが、説明文の意味として権威に無い/矛盾する記述",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "hyperspace-fury",
+   "name": "いじげんラッシュ",
+   "aspect": "まもり貫通の挙動=『取り除かず貫通』か『取り除いて攻撃』か",
+   "ours": "kind『まもり貫通』pierces_without_removing:[まもる,みきり,トーチカ,キングシールド,ニードルガード,ブロッキング,かえんのまもり,スレッドトラップ](=貫通するが除去はしない、という実装)",
+   "authority_quote": "まもる系統の状態を取り除いて攻撃する。/ 対象がまもる系統の技で身を守っている場合、それを取り除いてから攻撃することができる。",
+   "note": "Wikiは明確に『取り除いて(除去して)から攻撃』と記述しており、うちの実装名(pierces_without_removing=除去しない前提)と逆。sim影響: 除去の有無はダブルバトルで同ターン中に他の攻撃が同じ相手に当たるかに影響しうる。要修正候補。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "hyperspace-fury",
+   "name": "いじげんラッシュ",
+   "aspect": "availability.gens に第8世代を含む",
+   "ours": "gens: [6,7,8,9]",
+   "authority_quote": "| ソード・シールドで使用不可\n\n | BDSPで使用不可",
+   "note": "Wiki冒頭でソード・シールド及びBDSPでの使用不可が明記されている。学習方法表もORAS/SM・USUM/SVの列のみでSwSh列が無い。第8世代内での使用可否(HOME経由等)を要再確認。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "tectonic-rage--physical",
+   "name": "ライジングランドオーバー",
+   "aspect": "description本文『タイプ…が変わる』の記述",
+   "ours": "「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "分類および威力は元となったわざに依存する。",
+   "note": "★重要。Wikiは『分類および威力』のみが元技依存と明記しており、タイプが変わるとは一切書いていない(タイプは常にじめん=クリスタルのタイプで固定)。description_legacyも「威力や分類は元の技で変化する」でタイプに言及していない。新版descriptionが『タイプ』を追加したのは事実誤認=extra_in_ours。Zワザの一般ルール(タイプはクリスタル固定)に反する可能性が高く、修正が必要",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "savage-spin-out--physical",
+   "name": "ぜったいほしょくかいてんざん",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "| PP\n\n | -",
+   "note": "Wikiは「PP: -」(Z技自体は固有PPを持たず元技のPPを1消費する挙動)。master固定値pp=1はUI上の便宜的表記の可能性があるが、Wikiの表記とは字面が異なるためnote/要確認",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "savage-spin-out--physical",
+   "name": "ぜったいほしょくかいてんざん",
+   "aspect": "description(新版)の「タイプが変わる」という記述",
+   "ours": "「威力やタイプ・物理特殊の分類が変わるZワザ」",
+   "authority_quote": "| タイプ\n\n | むし(可変欄の「不定」は分類・威力欄のみで、タイプ欄は固定値むしと明記)。分類・威力節も「分類および威力はもととなったわざに依存する」",
+   "note": "Wikiはタイプが変わるとは一切書いていない(タイプは固定でむしZの色=むし)。description_legacyも「威力や分類は元の技で変化する」でタイプには触れていない。masterのdescriptionだけがタイプも変わると誤って主張しており、権威に無い記述=extra_in_ours(誤り)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "tectonic-rage--special",
+   "name": "ライジングランドオーバー",
+   "aspect": "description: 「タイプ・物理特殊の分類が変わる」という記述",
+   "ours": "もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。",
+   "authority_quote": "分類および威力は元となったわざに依存する。(タイプ欄は | タイプ\\n\\n | じめん で固定表示、可変とは書かれていない)",
+   "note": "Wikiは元技によって変わるのは威力と分類のみ。タイプはじめん固定(ジメンZクリスタルで型が決まる=Zワザの一般則)。masterのdescriptionが「タイプが変わる」と書いているのは誤り(extra_in_ours=権威に無い/矛盾する主張)。description_legacyは『威力や分類は元の技で変化する』と正しく書けており、新版descriptionだけがタイプを誤って追加している",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "continental-crush--physical",
+   "name": "ワールズエンドフォール",
+   "aspect": "description本文:「タイプが元の技で変わる」の記述",
+   "ours": "「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "分類および威力はもととなったわざに依存する。\n\n | わざ\n\n | 威力\n\n | 分類\n\n | いわおとし\n\n | 100\n\n | 物理\n\n | げんしのちから\n\n | 120\n\n | 特殊",
+   "note": "Wikiの分類・威力表は威力と分類(物理/特殊)のみが元技依存で変化すると明記しており、タイプは常にいわ(イワZ由来で固定)。ourのdescriptionが「タイプ…が変わる」と述べているのは誤り(extra/誤情報)。description_legacyは「威力や分類は元の技で変化する」のみでタイプに触れておらず正しい。sim影響: 現行effects/_z_variableフラグにタイプ変動ロジックは無い(実装自体は正しい)のでcompose(説明文)側だけの誤記。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "continental-crush--special",
+   "name": "ワールズエンドフォール",
+   "aspect": "description本文の「タイプが変わる」という記述",
+   "ours": "「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "分類および威力はもととなったわざに依存する。",
+   "note": "Wikiの冒頭表ではタイプは「いわ」で固定表記されており(分類・威力表にタイプ列は存在しない)、依存するのは分類と威力のみ。description_legacyも「威力や分類は元の技で変化する」とタイプには触れていない。masterのdescriptionが「タイプ」まで元技依存であるかのように書いているのは権威と食い違う(いわZワザである以上タイプはいわ固定のはず)。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "corkscrew-crash--special",
+   "name": "ちょうぜつらせんれんげき",
+   "aspect": "効果文=タイプも変わる、という記述",
+   "ours": "description: 「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "元となるわざで分類・威力が変化する。",
+   "note": "Wikiの効果欄・分類威力表(わざ/威力/分類の3列のみ、タイプ列なし)ともに『タイプが変わる』とは述べていない。ハガネZを使う以上タイプは常にはがね固定で、可変なのは威力と分類(物理/特殊)だけ。description_legacyにも「タイプ」の言及は無い('Z技。威力や分類は元の技で変化する。自分の命中率、相手の回避率に関係なく必ず命中する。')。新版descriptionだけがタイプ可変という誤情報を追加しており、事実誤認=extra_in_ours(かつWiki不一致でmismatch)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "never-ending-nightmare--special",
+   "name": "むげんあんやへのいざない",
+   "aspect": "分類(category)",
+   "ours": "特殊(固定値で格納)",
+   "authority_quote": "| 分類\n\n | 不定",
+   "note": "Wikiは『不定』=元になった技で物理/特殊が変わる(分類・威力表参照: ナイトヘッド=特殊、したでなめる=物理、シャドーボール=特殊…どちらも実在)。masterはcategoryを固定で『特殊』と格納しており、実際は可変。_z_variable:trueフラグはあるが、category自体の値が固定表記なのは誤解を招く。",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "never-ending-nightmare--special",
+   "name": "むげんあんやへのいざない",
+   "aspect": "効果文の意味(威力・分類が元技依存)",
+   "ours": "description: 『もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ』",
+   "authority_quote": "元となるわざで分類・威力が変化する。 / 元になった 技で 威力が 変わる。",
+   "note": "Wikiは『分類・威力』が元技で変わるとのみ記載。タイプが変わるとは一切書かれておらず、Z技のタイプはゴースト固定(元技ゴースト技限定で使用可能、分類・威力表の全技もゴーストタイプ)。masterの説明文が『タイプ…が変わる』と書いているのはextra_in_ours(権威に無い主張)であり、description_legacy『威力や分類は元の技で変化する』(タイプ言及なし)とも食い違う。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "never-ending-nightmare--physical",
+   "name": "むげんあんやへのいざない",
+   "aspect": "効果文(タイプが変わるという記述)",
+   "ours": "description:「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ」",
+   "authority_quote": "| タイプ\n\n | ゴースト",
+   "note": "wikiのタイプ欄は「不定」ではなく固定値「ゴースト」。分類・威力は元技依存(不定)だが、タイプは常にゴースト(ゴーストZクリスタル由来)で変化しない。master_row.description_legacy(「威力や分類は元の技で変化する」)はタイプに言及せず正しいが、現行descriptionは『タイプも変わる』という誤った主張を追加しており、権威に無い誤情報=extra_in_ours。sim影響は無い(タイプ判定に使われていなければ)が説明文としては事実誤認",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "savage-spin-out--special",
+   "name": "ぜったいほしょくかいてんざん",
+   "aspect": "説明文(description)の『タイプ』変化記述",
+   "ours": "もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。",
+   "authority_quote": "分類および威力はもととなったわざに依存する。\n\n | わざ\n\n | 威力\n\n | 分類\n\n | ダブルニードル\n\n | 100\n\n | 物理 ... (以下いずれもタイプ欄なし、すべてむしタイプ固定)",
+   "note": "ぜったいほしょくかいてんざんはムシZ(むしタイプZクリスタル)由来のZワザで、タイプは常にむし固定(元技もすべてむしタイプの技のみ対応)。Wikiの『分類・威力』表もタイプは示さず『分類および威力が変わる』とのみ記載。description_legacyも『威力や分類は元の技で変化する』とタイプには触れていない。master_rowのdescriptionだけが『タイプ...が変わる』と書いており、権威(Wiki/legacy)にもゲーム仕様にも無い誤った追加記述(extra_in_ours=事実誤認の疑い)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "inferno-overdrive--special",
+   "name": "ダイナミックフルフレイム",
+   "aspect": "description: タイプが元技で変わるという記述",
+   "ours": "『もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ』",
+   "authority_quote": "| タイプ\n\n | ほのお\n\n | 分類\n\n | 不定\n\n | 威力\n\n | 不定",
+   "note": "Wikiのタイプ欄は『ほのお』固定表記で『不定』ではない(可変なのは分類と威力のみ・ホノオZ限定のためタイプは常にほのお)。description_legacyも『威力や分類は元の技で変化する』とだけ述べ、タイプ変化には触れていない。今回のdescriptionが独自に『タイプ…が変わる』を書き足しており、事実誤り(extra_in_ours兼mismatch)。修正要",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "hydro-vortex--special",
+   "name": "スーパーアクアトルネード",
+   "aspect": "分類(category)",
+   "ours": "特殊(固定値として格納)",
+   "authority_quote": "| 分類\n\n | 不定",
+   "note": "Wikiは「分類および威力は元となったわざに依存する」とし、分類・威力表には物理技(たきのぼり/クラブハンマー等)も並ぶ。masterのcategoryが固定'特殊'なのは実態(元技次第で物理にもなる)と食い違う。subcategoryもnullで可変を表現していない",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "hydro-vortex--special",
+   "name": "スーパーアクアトルネード",
+   "aspect": "description本文の『タイプが変わる』という記述",
+   "ours": "「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ」",
+   "authority_quote": "分類および威力は元となったわざに依存する。",
+   "note": "Wikiは分類と威力のみが元技依存と明記し、タイプが変わるとはどこにも書かれていない。むしろWikiのタイプ欄は『みず』固定でmaster.typeもみず固定。descriptionの『タイプ…が変わる』は誤り(このZワザはミズZから出す以上タイプは常にみずで変化しない)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "bloom-doom--physical",
+   "name": "ブルームシャインエクストラ",
+   "aspect": "description: タイプが変わるという記述",
+   "ours": "『もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。』",
+   "authority_quote": "タイプ\n\n | くさ ／ 分類および威力は元となったわざに依存する。",
+   "note": "Wikiの表ではタイプは『くさ』固定で不定表記なし。可変なのは分類(物理/特殊)と威力のみ。description_legacyは『威力や分類は元の技で変化する』とタイプに触れておらず正しい。現行descriptionが『タイプも変わる』と書いているのは権威に無い誤情報=extra_in_ours",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "bloom-doom--physical",
+   "name": "ブルームシャインエクストラ",
+   "aspect": "availability.gens=[7,8]",
+   "ours": "gen_introduced:7, gens:[7,8]",
+   "authority_quote": "第七世代",
+   "note": "Z技は第八世代(ソード・シールド)で仕様上廃止されており、Wikiのヘッダーも『第七世代』のみを示す。gensに8を含めるのは要確認(他のZワザ全般に共通する構造的な値の可能性もあるため、この技個別のエラーというより設計の確認事項として記録)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "hydro-vortex--physical",
+   "name": "スーパーアクアトルネード",
+   "aspect": "説明文の意味(元技依存で何が変わるか)",
+   "ours": "ダメージ。相手の回避率や自分の命中率に関係なく、必ず命中する。もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。",
+   "authority_quote": "分類および威力は元となったわざに依存する。",
+   "note": "★重要な誤り。Wikiのタイプ欄は固定『みず』であり『不定』なのは分類と威力の2つだけ(表の各元技の行にもタイプ列は無く威力・分類の2列のみ)。master_row.descriptionは『タイプ…が変わる』と書いているが、ミズZから出す以上タイプは常にみずで変化しない。description_legacy(『威力や分類は元の技で変化する』)はタイプに言及しておらず正しい。descriptionだけがextraな誤情報(タイプ可変)を追加してしまっている=修正要",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "corkscrew-crash--physical",
+   "name": "ちょうぜつらせんれんげき",
+   "aspect": "説明文のタイプ可変記述",
+   "ours": "description: 『もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。』",
+   "authority_quote": "分類および威力はもととなったわざに依存する。",
+   "note": "wikiの『分類・威力』節は表題どおり分類と威力の可変のみを述べ、タイプの可変には一切触れていない。ページ冒頭の基本諸元表でもタイプは『はがね』固定で記載されている。ちょうぜつらせんれんげきはハガネZ専用の派生技(はがねタイプの攻撃技+ハガネZ限定)なので、タイプは常にはがね固定のはずで、descriptionの『タイプ…が変わる』は権威ソースが述べていない過剰記述(extra寄りのmismatch)。description_legacy『威力や分類は元の技で変化する』はタイプに触れておらずwikiと整合している。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "inferno-overdrive--physical",
+   "name": "ダイナミックフルフレイム",
+   "aspect": "description内『タイプが変わる』という記述",
+   "ours": "「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "分類および威力はもととなったわざに依存する。",
+   "note": "Wikiの『分類・威力』節は威力と分類(物理/特殊)のみが元技依存と明記し、タイプへの言及が一切ない。ホノオZは常にほのおタイプ固定(そもそも元技もほのおタイプの技しか対象にならない)であり、タイプが可変であるかのような記述は誤り。description_legacyは『威力や分類は元の技で変化する』とだけ書いており型に触れておらず正しい。descriptionが独自に誤った情報を足した形でextra_in_ours兼factual mismatch。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "gigavolt-havoc--special",
+   "name": "スパーキングギガボルト",
+   "aspect": "description(非legacy)の『タイプ...が変わる』という記述",
+   "ours": "description: 「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "分類および威力はもととなったわざに依存する。",
+   "note": "Wikiは『分類』と『威力』のみが元技依存と明記し、タイプへの言及は無い(そもそも電気Zワザなのでタイプは常にでんき固定=同じ表の全ての元技も電気タイプ限定)。description_legacyも『威力や分類は元の技で変化する』とタイプには触れていない。ours descriptionだけがタイプも変わるかのように書いており、extra_in_ours(誤情報の可能性)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "gigavolt-havoc--physical",
+   "name": "スパーキングギガボルト",
+   "aspect": "効果文『タイプも変わる』の記述(master.description固有)",
+   "ours": "description: 『もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。』",
+   "authority_quote": "分類・威力\n\n分類および威力はもととなったわざに依存する。",
+   "note": "Wikiの表・ヘッダともタイプ列は存在せず、このZ技のタイプは常に『でんき』固定(でんきタイプの技+でんきZが前提、電気Zクリスタルのタイプに一致)。『元の技によってタイプが変わる』は誤り(実際は分類と威力のみが変わる)。description_legacyには『タイプ』の言及が無く正しい。masterのdescriptionだけが誤情報を追加している=extra/誤記",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "bloom-doom--special",
+   "name": "ブルームシャインエクストラ",
+   "aspect": "効果文の意味(description)",
+   "ours": "「ダメージ。相手の回避率や自分の命中率に関係なく、必ず命中する。もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "| タイプ\n\n | くさ　/　分類および威力は元となったわざに依存する。",
+   "note": "masterのdescriptionは『タイプ』まで元の技で変わると書いているが、WikiのintroテーブルはタイプをくさZクリスタル使用により『くさ』固定と明示し、分類・威力表にもタイプ列は存在しない(変わるのは威力と分類のみ)。同じmaster_row内のdescription_legacy(『威力や分類は元の技で変化する』)はタイプに言及しておらず正しい。description側の『タイプ』言及は事実誤り=extra_in_ours(誤情報)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "shattered-psyche--special",
+   "name": "マキシマムサイブレイカー",
+   "aspect": "説明文の『タイプが変わる』という記述",
+   "ours": "「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "分類および威力は元となったわざに依存する。",
+   "note": "Wikiの分類・威力テーブルは『分類』と『威力』のみが元の技依存で、タイプ欄は表ヘッダで固定エスパー(可変とされていない)。実際、テーブルに載る元技(サイケこうせん・ねんりき・サイコキネシス等)は全てエスパータイプの技(エスパーZの要件がエスパータイプの攻撃技であるため)。master_row.description_legacy自身も『威力や分類は元の技で変化する』とだけ書いており、タイプ変化には触れていない。現行descriptionが『タイプ』変化を追加しているのは権威にもlegacyにも無い誤情報(extra_in_ours兼事実誤り)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "devastating-drake--physical",
+   "name": "アルティメットドラゴンバーン",
+   "aspect": "効果文: 元の技で分類・威力が変わる",
+   "ours": "description: 'もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。'",
+   "authority_quote": "元となるわざで分類・威力が変化する。",
+   "note": "『分類・威力』が変わるとしか書かれていない。ours descriptionは『タイプ』も変わると書いているが、これは誤り(=extra_in_ours)。ドラゴンZクリスタルを使うZワザは常にドラゴンタイプ固定であり、master_row.type='ドラゴン'固定であること自体がそれを裏付ける(タイプが変わるなら固定値で持てない)。description_legacyも『威力や分類は元の技で変化する』でタイプには触れていない。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "shattered-psyche--physical",
+   "name": "マキシマムサイブレイカー",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "PP\n\n | -",
+   "note": "WikiはPP欄を『-』とし、Z技は元技のPPを消費するのみで固有PPを持たない性質を示す。master_row.pp=1は固有PP値として書かれており、Wikiの『固有PP無し』という性質と表現が食い違う。sim実装上『1回で使い切る』ことを表す便宜値の可能性はあるが、根拠(Wiki)とは不一致なのでnoteに残す",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "shattered-psyche--physical",
+   "name": "マキシマムサイブレイカー",
+   "aspect": "description内『タイプが変わる』という記述",
+   "ours": "「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "タイプ\n\n | エスパー",
+   "note": "extra_in_ours。Wikiのintro表でタイプは『エスパー』の固定単一値(威力・分類の欄だけが『不定』表記)。エスパーZ結晶はエスパータイプの攻撃技にしか使えない仕様のため、変換後のタイプは常にエスパー固定で元技によって変わらない。masterのdescriptionが『タイプ…が変わる』と書くのはWikiに支持されない誤り。description_legacyは『威力や分類は元の技で変化する』とのみ述べておりタイプに言及していない=descriptionだけの追加記述",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "twinkle-tackle--special",
+   "name": "ラブリースターインパクト",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "| PP\n\n | -",
+   "note": "WikiはPP欄が「-」(Zワザは元技のPPを消費し固有PPを持たない)。masterのpp=1は根拠となる記述がWikiに無い。champions=falseのためWikiが権威=数値の裏取りが必要",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "twinkle-tackle--special",
+   "name": "ラブリースターインパクト",
+   "aspect": "description本文の『タイプが変わる』という記述",
+   "ours": "「もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。」",
+   "authority_quote": "| タイプ\n\n | フェアリー(不定ではなく固定)／使用ポケモン: フェアリータイプの攻撃技を覚えているポケモンにフェアリーZを持たせると出すことができる。",
+   "note": "フェアリーZは常にタイプ=フェアリー固定(元技もフェアリータイプのみが対象なので実質常にフェアリー)。分類・威力表もタイプ列を持たず威力/分類のみ元技依存。『タイプが変わる』は誤り。description_legacyには型変化の言及なし=独自description作成時に混入した誤記述と見られる。sim影響は無いと思われるが説明文の意味誤りとして要修正",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "twinkle-tackle--physical",
+   "name": "ラブリースターインパクト",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "| PP\n\n | -",
+   "note": "WikiはPP欄を『-』とし、Zワザは元の技のPPを1消費する仕様(固定PPを持たない)。masterはpp=1と固定値で記録しており、Wiki原典の表記とは一致しない(結果として『1回使える』という挙動自体は近いが定義が異なる)",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "devastating-drake--special",
+   "name": "アルティメットドラゴンバーン",
+   "aspect": "description内『タイプが変わる』という記述",
+   "ours": "『もとの技によって、威力やタイプ・物理特殊の分類が変わるZワザ。』",
+   "authority_quote": "分類および威力はもととなったわざに依存する。 / | タイプ\n\n | ドラゴン",
+   "note": "Wikiの説明はタイプではなく威力(と分類)のみが元技依存と明記。イントロ表でもタイプ欄は『ドラゴン』固定(不定ではない)。Z技はクリスタル(ドラゴニウムZ)のタイプ固定であり、タイプが変わるという記述は誤り。description_legacy(『威力や分類は元の技で変化する』)はタイプに触れておらず正しい。ours descriptionにのみ誤った『タイプ』への言及があり、訂正が必要。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "sparkling-aria",
+   "name": "うたかたのアリア",
+   "aspect": "やけど回復の対象範囲(cure_status.target=\"opp\" と effects[0]『状態異常回復』target=\"all_but_self\" の食い違い、および説明文の記述)",
+   "ours": "battle_data.cure_status[0].target=\"opp\"(相手のみ)だが、effects[0].targetは\"all_but_self\"(自分以外全員=味方も含む)。description本文も『自分以外の全員の「やけど」状態を解除する』と味方を含む書き方",
+   "authority_quote": "相手の『やけど』状態を治す。(yakkun_ch_row.effect) / Champions\\n相手のやけど状態を治す｡(wiki たたかうわざ節のChampions行)",
+   "note": "Champions正典の効果文は一貫して『相手の』やけどを治す、と書かれておりダブルで味方のやけども治る、とは書いていない。master内部でもcure_status(target=opp)とeffects[0](target=all_but_self)が矛盾しており、どちらか一方が誤り。sim影響大=ダブルバトルで味方の熱傷を治すかどうかが変わる。Wiki『技の仕様』節はりんぷん/おんみつマント所持ポケモンの例外規則を詳述しており(『ダメージを与えたポケモンのやけどを治す』という旧世代仕様の細則)、Champions版がそれと同一仕様かは文面からは断定できないため、この一点は事実確認(Championsで味方のやけども治るのか)を要する",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "sparkling-aria",
+   "name": "うたかたのアリア",
+   "aspect": "説明文の意味網羅(description本体)",
+   "ours": "ダメージ。自分以外の全員の「やけど」状態を解除する。相手の「みがわり」をすりぬけて当たる。音系の技。",
+   "authority_quote": "相手の『やけど』状態を治す。音系の技。相手の『みがわり』状態を貫通する。",
+   "note": "上のやけど対象範囲の食い違いと同一論点(『自分以外の全員』vs『相手の』)。description_legacyはyakkun_ch_row.effectとverbatim一致で問題なし。description(独自文)の方だけが範囲を広げて書いている",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "baneful-bunker",
+   "name": "トーチカ",
+   "aspect": "守る対象=攻撃技だけでなく変化技(状態異常技)も防ぐか",
+   "ours": "battle_data.effects[0].blocks_status_moves:false、description本文にも『(変化技はふせげない)』と明記=変化技は防げない扱い",
+   "authority_quote": "トーチカの使用者がそのターン受ける攻撃技・変化技を無効化する。さらに直接攻撃をしてきた相手をどく状態にする。(wikiセクション『トーチカ状態』)",
+   "note": "Wikiは明確に『攻撃技・変化技』の両方を無効化すると記載(通常のまもる系と同じ挙動。無効化されないのは『場を対象とする技や一部の技』のみで、変化技全般が防げないわけではない)。masterのblocks_status_moves:falseとdescriptionの『変化技はふせげない』はこれと矛盾。yakkun_ch_row.effectは『相手の攻撃を防ぐ』とのみ記述し攻撃/変化の区別に踏み込んでいないため、この点はWikiの技術仕様セクションが唯一の一次情報。sim影響あり(blocks_status_movesフラグがfalseだと相手の変化技をふせげない誤ったsim挙動になる)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "toxic-thread",
+   "name": "どくのいと",
+   "aspect": "effects内の2効果の実行順序",
+   "ours": "配列順=①状態付与(どく)→②能力ランク変化(すばやさ-2)",
+   "authority_quote": "2つの効果は互いに独立している。相手のすばやさのランク補正を下げる効果の後にどく状態にする効果が発動する。",
+   "note": "Wiki『技の仕様』節によれば実際の発動順は①すばやさ低下→②どく付与で、うちのeffects配列は逆順。順序自体はsimのメッセージ順序/失敗判定順に影響しうる(sim影響)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "spotlight",
+   "name": "スポットライト",
+   "aspect": "可用性(Gen8で使用可否)",
+   "ours": "gens=[7,8](Gen7導入・Gen7/8で使用可能扱い)",
+   "authority_quote": "ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+   "note": "世代注記: 第七世代で登場したが、第八世代(SwSh/BDSP/SV)では『このわざは つかえません』(たたかうわざ節)とあり実質使用不可。gensに8を含めるなら『Gen8では使用不可』の注記が必要",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "spotlight",
+   "name": "スポットライト",
+   "aspect": "使用可能フォーマット(ダブル限定か)",
+   "ours": "battle_data.effects[0].battle_format=\"double\" / description_legacyも「ダブルバトル用」",
+   "authority_quote": "バトルロイヤルでは自分への攻撃を逸らしたり、倒したい相手に攻撃を集中させたりすることができる。",
+   "note": "Wikiの『こんなときに使おう』節はダブルバトルとバトルロイヤル両方の用途を挙げており、バトルロイヤルでも機能する旨が明記されている。masterのbattle_format:\"double\"限定・legacyの『ダブルバトル用』はこの点で食い違う(ただしシングルでは対象不要のため事実上ダブル/ロイヤル専用という趣旨自体は妥当)",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "malicious-moonsault",
+   "name": "ハイパーダーククラッシャー",
+   "aspect": "世代(availability.gens)",
+   "ours": "gens:[7,8]",
+   "authority_quote": "| ハイパーダーククラッシャー\n\n | 第七世代",
+   "note": "Wikiの見出しは『第七世代』のみでgen8(ソード・シールド)の記載が無い。ソード・シールドではZワザ自体が廃止されているためgens:[7,8]は不整合の疑い。ただしLet's Go系列を第7世代扱いする分類の可能性もあり断定はせず要確認",
+   "auditor": "claude",
+   "already_verified": false
+  },
+  {
+   "slug": "pulverizing-pancake",
+   "name": "ほんきをだす　こうげき",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "| PP\n\n | -",
+   "note": "WikiはPP欄を『-』表記(Zワザは専用PPを持たずベース技=ギガインパクトのPPを消費する仕組み)。master_rowは1と数値化しており、Zワザ全般に共通する表現方式の差。champions側の裏付けは無い(champions_key=null)ので、他のZワザ全体で統一表記にすべきか要検討。",
+   "auditor": "claude",
+   "already_verified": true
+  },
+  {
+   "slug": "prismatic-laser",
+   "name": "プリズムレーザー",
+   "aspect": "効果文",
+   "ours": "ダメージ。使った次のターンは、動けなくなる。",
+   "authority_quote": "成功した次のターン、使用者は反動で動けなくなる。",
+   "note": "次のターンに動けなくなる点は一致するが、権威は発動条件を「成功した」と限定し、動けない主体を「使用者」、原因を「反動」と明記している。oursの「使った次のターン」は失敗時も動けなくなるように読め、成功条件の意味を保持していない。第七世代・第八世代・第九世代の説明文にも「次の ターンは 動けなくなる」とある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "sunsteel-strike",
+   "name": "メテオドライブ",
+   "aspect": "効果文・「この技を出すときだけ」",
+   "ours": "この技を出すときだけ",
+   "authority_quote": "他のわざが出るわざによりメテオドライブを出した場合、特性を無視する効果は無い。",
+   "note": "権威は「他のわざが出るわざ」によって出た場合という具体的条件を示すが、oursの「この技を出すときだけ」だけでは、メテオドライブが実際に出ても無視効果が無い例外を一意に復元できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "natures-madness",
+   "name": "しぜんのいかり",
+   "aspect": "効果・固定ダメージ量",
+   "ours": "相手に、相手の残りHPの半分のダメージを与える",
+   "authority_quote": "相手の残りHP×1/2(切り捨て)の固定ダメージを与える。",
+   "note": "残りHPの1/2を固定ダメージとして与える大枠は一致するが、oursは端数を切り捨てる規則を書いていないため、一字一句の意味照合では一致にできない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "10-000-000-volt-thunderbolt",
+   "name": "1000まんボルト",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "PP | -",
+   "note": "権威ではPPなしだが、こちらは数値1を保持している。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "10-000-000-volt-thunderbolt",
+   "name": "1000まんボルト",
+   "aspect": "効果文・使用条件となるポケモン",
+   "ours": "「ピカチュウ(オリジナルキャップ)」の専用Zワザ。",
+   "authority_quote": "10まんボルトを覚えたサトシのピカチュウにサトピカZを持たせると出すことができる。",
+   "note": "権威は「サトシのピカチュウ」としており、「オリジナルキャップ」だけに限定する記述ではない。flags.z.userも同じ限定を持つため、使用可否判定に使う場合はsim影響がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "plasma-fists",
+   "name": "プラズマフィスト",
+   "aspect": "effectsの作用範囲",
+   "ours": "kind=相手技タイプ変更、target=opponent、normal_only=true、value=でんき",
+   "authority_quote": "このターンに出される全てのノーマルタイプのわざをでんきタイプに変える。",
+   "note": "effectsは相手の技だけを対象にしており、権威の「全て」より狭い。使用者側のノーマル技も変える場全体の状態として構造化する必要があり、現状はsimで使用者側の技を変換できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "plasma-fists",
+   "name": "プラズマフィスト",
+   "aspect": "effectsの発動条件",
+   "ours": "condition.type=used_before_target_moves",
+   "authority_quote": "成功した後、場の状態をプラズマシャワー状態にする。",
+   "note": "現在の条件は後続技より先に使用したことだけを表し、命中・無効化・まもる・使用者のひんしを含む「成功した後」の条件を表現していない。simで失敗時にも誤発動するおそれがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "photon-geyser",
+   "name": "フォトンゲイザー",
+   "aspect": "効果文・物理特殊の選択基準",
+   "ours": "物理と特殊のうち、ダメージが大きいほうで攻撃する。",
+   "authority_quote": "「自分のランク補正込みのステータスがこうげき≦とくこうなら特殊技、こうげき>とくこうなら物理技となる。」",
+   "note": "権威は最終的な物理・特殊ダメージを比較せず、ランク補正込みの攻撃と特攻を比較する。相手の防御・特防などで結果が変わり得る『ダメージが大きいほう』とは意味が異なる。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "photon-geyser",
+   "name": "フォトンゲイザー",
+   "aspect": "効果文・特性無視の範囲",
+   "ours": "この技を出すときだけ、相手の特性を無視して攻撃する。",
+   "authority_quote": "「無視できる特性はかたやぶりの効果対象のものと同じ。」「ファントムガード/プリズムアーマーは無視できない。」",
+   "note": "『相手の特性』全般を無視するように読めるが、権威ではかたやぶり対象の特性に限定され、ファントムガードとプリズムアーマーは例外。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "photon-geyser",
+   "name": "フォトンゲイザー",
+   "aspect": "battle_data.effects・物理特殊自動",
+   "ours": "{\"kind\":\"物理特殊自動\",\"target\":\"self\",\"phase\":\"on_use\",\"rule\":\"compare Physical and Special damage, use the higher category\"}",
+   "authority_quote": "「自分のランク補正込みのステータスがこうげき≦とくこうなら特殊技、こうげき>とくこうなら物理技となる。」「分類の判定に、ランク補正/パワートリック/パワーシェアの効果は考慮する。」「分類の判定に、特性…や持ち物…の効果は無視する。」",
+   "note": "構造は存在するが、ruleが物理・特殊のダメージ比較を指定しており権威と異なる。simではランク補正等を反映した攻撃・特攻の比較、同値時は特殊、特性・持ち物補正は比較から除外、という判定が必要。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "light-that-burns-the-sky",
+   "name": "てんこがすめつぼうのひかり",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "PP\n\n | -",
+   "note": "第七世代Wikiの基本諸元はPP「-」。oursの1とは一字一句一致しない。Zワザの使用回数を内部的に1と表す仕様かは、この権威本文だけでは確認できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "light-that-burns-the-sky",
+   "name": "てんこがすめつぼうのひかり",
+   "aspect": "効果文・物理特殊判定",
+   "ours": "物理と特殊のうち、ダメージが大きいほうで攻撃する。",
+   "authority_quote": "自分のランク補正込みのステータスがこうげき≦とくこうなら特殊技、こうげき>とくこうなら物理技となる。",
+   "note": "権威はダメージ量ではなく、ランク補正込みのこうげき・とくこうのステータスを比較する。さらに同値では特殊技になる。oursは比較対象と同値時の条件を正しく伝えていない。第七世代仕様。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "light-that-burns-the-sky",
+   "name": "てんこがすめつぼうのひかり",
+   "aspect": "effects・物理特殊判定",
+   "ours": "{\"kind\":\"物理特殊自動\",\"target\":\"self\",\"phase\":\"on_use\",\"rule\":\"compare Physical and Special damage, use the higher category\"}",
+   "authority_quote": "自分のランク補正込みのステータスがこうげき≦とくこうなら特殊技、こうげき>とくこうなら物理技となる。",
+   "note": "effectsも物理・特殊のダメージ比較を規則としており、権威のランク補正込みステータス比較と異なる。同値なら特殊という分岐も構造化されていないため、simの技分類とダメージ計算に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "light-that-burns-the-sky",
+   "name": "てんこがすめつぼうのひかり",
+   "aspect": "効果文・使用者条件",
+   "ours": "「ネクロズマ」の専用Zワザ。",
+   "authority_quote": "ウルトラネクロズマでなければてんこがすめつぼうのひかりを発動させることはできない。",
+   "note": "oursはネクロズマ全般の専用技と読めるが、権威は使用時の姿をウルトラネクロズマに限定する。第七世代仕様。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "searing-sunraze-smash",
+   "name": "サンシャインスマッシャー",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "PP | -",
+   "note": "第七世代のWikiはPPを「-」としており、oursの数値1とは一字一句一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "menacing-moonraze-maelstrom",
+   "name": "ムーンライトブラスター",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "「PP｜-」",
+   "note": "第七世代のWiki表はPPを「-」としており、oursの1を裏付ける記載がない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "menacing-moonraze-maelstrom",
+   "name": "ムーンライトブラスター",
+   "aspect": "世代",
+   "ours": "availability.gen_introduced=7、gens=[7,8]",
+   "authority_quote": "「ムーンライトブラスター｜第七世代」",
+   "note": "Wiki生ページが示す諸元は第七世代のみ。oursが第八世代にも存在するとしている点を裏付ける記載はこの権威ページにない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "lets-snuggle-forever",
+   "name": "ぽかぼかフレンドタイム",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "PP\n\n | -",
+   "note": "第七世代の権威表記は「-」であり、oursの1とは一字一句一致しない。内部消費値として1を置く仕様かは資料から確認できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "splintered-stormshards",
+   "name": "ラジアルエッジストーム",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "PP\n\n | -",
+   "note": "Wikiの第七世代欄はPP「-」。oursの1とは一字一句一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "splintered-stormshards",
+   "name": "ラジアルエッジストーム",
+   "aspect": "世代依存：使用可能世代",
+   "ours": "availability.gen_introduced=7, gens=[7,8]",
+   "authority_quote": "第八世代ではこの技は使えない",
+   "note": "第七世代で登場。Wikiは第八世代では使用不可と明記するが、oursはgensに8を含む。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "clangorous-soulblaze",
+   "name": "ブレイジングソウルビート",
+   "aspect": "PP",
+   "ours": "1",
+   "authority_quote": "PP\n\n | -",
+   "note": "Wikiでは第七世代のZワザ固有のPPは「-」。oursの1とは一字一句一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "zippy-zap",
+   "name": "ばちばちアクセル",
+   "aspect": "威力",
+   "ours": "80",
+   "authority_quote": "威力\n\n | 50",
+   "note": "Champions非収録のためWikiを権威とする。第七世代の権威値50に対し、oursは80。ダメージ計算へ影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "zippy-zap",
+   "name": "ばちばちアクセル",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP\n\n | 15",
+   "note": "Champions非収録のためWikiを権威とする。第七世代の権威値15に対し、oursは10。使用可能回数へ影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "pika-papow",
+   "name": "ピカピカサンダー",
+   "aspect": "効果文: 威力が上がる条件",
+   "ours": "ポケモンがなついているほど威力が高くなる",
+   "authority_quote": "ピカチュウの トレーナーへの 大好きな 気持ちが 強いほど 威力が あがる 電撃。",
+   "note": "権威は相棒ピカチュウのトレーナーへの「だいすき度」を条件としているが、oursは対象を一般のポケモンに広げ、条件を「なついているほど」と記している。第七世代Let's Go!固有の条件表現が一致していない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "pika-papow",
+   "name": "ピカピカサンダー",
+   "aspect": "effects構造: 威力可変の条件と最大値",
+   "ours": "{\"kind\":\"威力可変\",\"target\":\"opponent\",\"phase\":\"on_use\",\"basis\":\"friendship\",\"max_power\":148,\"note\":\"なついているほど威力が高くなる。最大148\"}",
+   "authority_quote": "だいすき度が高いほど威力が上がる。\n\n・最大威力は148[1][2]。",
+   "note": "威力可変と最大148は構造化されているが、basisがfriendshipであり、権威の第七世代Let's Go!固有の「だいすき度」を明示する構造になっていない。simが別の親密度指標を参照するおそれがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "bouncy-bubble",
+   "name": "いきいきバブル",
+   "aspect": "威力",
+   "ours": "60",
+   "authority_quote": "威力\n\n | 90",
+   "note": "Champions未収録技のためWikiを権威とする。第七世代（Let's Go! ピカチュウ・Let's Go! イーブイ）の威力は90だが、うちは60。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "bouncy-bubble",
+   "name": "いきいきバブル",
+   "aspect": "PP",
+   "ours": "20",
+   "authority_quote": "PP\n\n | 15",
+   "note": "Champions未収録技のためWikiを権威とする。第七世代（Let's Go! ピカチュウ・Let's Go! イーブイ）のPPは15だが、うちは20。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "buzzy-buzz",
+   "name": "びりびりエレキ",
+   "aspect": "威力",
+   "ours": "60",
+   "authority_quote": "威力\n\n | 90",
+   "note": "Champions非収録技のためWikiの第七世代値90が権威。oursは60で不一致。ダメージ計算に直接影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "buzzy-buzz",
+   "name": "びりびりエレキ",
+   "aspect": "PP",
+   "ours": "20",
+   "authority_quote": "PP\n\n | 15",
+   "note": "Champions非収録技のためWikiの第七世代値15が権威。oursは20で不一致。使用可能回数に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "sizzly-slide",
+   "name": "めらめらバーン",
+   "aspect": "威力",
+   "ours": "60",
+   "authority_quote": "「威力\\n\\n | 90」",
+   "note": "Championsに無い技のため、Wiki記載の第七世代（Let's Go! ピカチュウ・Let's Go! イーブイ）値90が権威。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "sizzly-slide",
+   "name": "めらめらバーン",
+   "aspect": "PP",
+   "ours": "20",
+   "authority_quote": "「PP\\n\\n | 15」",
+   "note": "Championsに無い技のため、Wiki記載の第七世代（Let's Go! ピカチュウ・Let's Go! イーブイ）値15が権威。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "sizzly-slide",
+   "name": "めらめらバーン",
+   "aspect": "効果文・やけどの対象と確率条件",
+   "ours": "「必ず相手を『やけど』状態にする。」",
+   "authority_quote": "「当たった相手を必ずやけどにする。」",
+   "note": "100%でやけどにする点は一致するが、権威は命中した相手だけが対象。oursは「当たった」の条件を欠き、外れた場合にも付与すると読める。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "sizzly-slide",
+   "name": "めらめらバーン",
+   "aspect": "effects・やけど付与構造",
+   "ours": "{\"kind\":\"状態付与\",\"target\":\"opponent\",\"phase\":\"on_use\",\"value\":\"やけど\",\"prob\":100}",
+   "authority_quote": "「当たった相手を必ずやけどにする。」",
+   "note": "状態、対象、確率100%は入っているが、権威の「当たった」条件が構造化されておらずphaseがon_use。on_useが命中前または命中失敗時にも処理される実装なら、simで技が外れてもやけどを付与する影響がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "glitzy-glow",
+   "name": "どばどばオーラ",
+   "aspect": "威力",
+   "ours": "80",
+   "authority_quote": "「威力 90」",
+   "note": "第七世代（ピカブイ）の権威値は90。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "glitzy-glow",
+   "name": "どばどばオーラ",
+   "aspect": "命中",
+   "ours": "95",
+   "authority_quote": "「命中率 100」",
+   "note": "第七世代（ピカブイ）の権威値は100。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "glitzy-glow",
+   "name": "どばどばオーラ",
+   "aspect": "攻撃ダメージ",
+   "ours": "description:「ダメージ。」／power:80の特殊攻撃",
+   "authority_quote": "「分類 特殊」「威力 90」「攻撃が成功すると、自分の場にひかりのかべを張る。」",
+   "note": "攻撃技である構造と意味はあるが、ダメージ計算に使う威力が権威値90ではなく80。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "baddy-bad",
+   "name": "わるわるゾーン",
+   "aspect": "威力",
+   "ours": "80",
+   "authority_quote": "「威力｜90」",
+   "note": "Championsには無いため、Wikiに記載された第七世代の値90を権威とする。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "baddy-bad",
+   "name": "わるわるゾーン",
+   "aspect": "命中",
+   "ours": "95",
+   "authority_quote": "「命中率｜100」",
+   "note": "Championsには無いため、Wikiに記載された第七世代の値100を権威とする。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "sappy-seed",
+   "name": "すくすくボンバー",
+   "aspect": "威力",
+   "ours": "100",
+   "authority_quote": "「威力 90」",
+   "note": "第七世代の権威値は90。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "sappy-seed",
+   "name": "すくすくボンバー",
+   "aspect": "命中率",
+   "ours": "90",
+   "authority_quote": "「命中率 100」",
+   "note": "第七世代の権威値は100。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "sappy-seed",
+   "name": "すくすくボンバー",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "「PP 15」",
+   "note": "第七世代の権威値は15。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "freezy-frost",
+   "name": "こちこちフロスト",
+   "aspect": "威力",
+   "ours": "100",
+   "authority_quote": "威力 | 90",
+   "note": "Champions未収録のためWikiに記載された第七世代の値90が権威。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "freezy-frost",
+   "name": "こちこちフロスト",
+   "aspect": "命中",
+   "ours": "90",
+   "authority_quote": "命中率 | 100",
+   "note": "Champions未収録のためWikiに記載された第七世代の値100が権威。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "freezy-frost",
+   "name": "こちこちフロスト",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP | 15",
+   "note": "Champions未収録のためWikiに記載された第七世代の値15が権威。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "freezy-frost",
+   "name": "こちこちフロスト",
+   "aspect": "battle_data.effects・ランクリセット機構",
+   "ours": "{\"kind\":\"ランクリセット\",\"target\":\"all\",\"phase\":\"on_use\"}",
+   "authority_quote": "攻撃が成功すると、自分と相手のステータス変化をすべて元にもどす。",
+   "note": "全員のランクリセット自体は構造化されているが、phaseがon_useで、攻撃成功時だけ発動する条件が構造にない。simでは外れた場合や攻撃が成功しなかった場合にもリセットするおそれがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "sparkly-swirl",
+   "name": "きらきらストーム",
+   "aspect": "威力",
+   "ours": "120",
+   "authority_quote": "威力\\n\\n | 90",
+   "note": "第七世代の権威値は90。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "sparkly-swirl",
+   "name": "きらきらストーム",
+   "aspect": "命中",
+   "ours": "85",
+   "authority_quote": "命中率\\n\\n | 100",
+   "note": "第七世代の権威値は100。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "sparkly-swirl",
+   "name": "きらきらストーム",
+   "aspect": "PP",
+   "ours": "5",
+   "authority_quote": "PP\\n\\n | 15",
+   "note": "第七世代の権威値は15。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "veevee-volley",
+   "name": "ブイブイブレイク",
+   "aspect": "効果文:威力の変動条件",
+   "ours": "ポケモンがなついているほど威力が高くなる",
+   "authority_quote": "だいすき度が高いほど威力が上がる。／イーブイの トレーナーへの 大好きな 気持ちが 強いほど 威力が あがる",
+   "note": "第七世代の相棒イーブイにおける権威記述は「だいすき度」および「トレーナーへの大好きな気持ち」。oursの「なついている」「なつき度」は別の指標を示すため、一字一句の意味照合では一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "veevee-volley",
+   "name": "ブイブイブレイク",
+   "aspect": "effects:威力可変機構",
+   "ours": "{\"kind\":\"威力可変\",\"target\":\"opponent\",\"phase\":\"on_use\",\"scales_with\":\"なつき度\",\"power_max\":148,\"formula\":\"なつき度が高いほど威力が上がる(最大148)\"}",
+   "authority_quote": "だいすき度が高いほど威力が上がる。／最大威力は148[1][2]。",
+   "note": "威力可変と最大148は構造化されているが、scales_withとformulaが「なつき度」になっている。権威の条件は「だいすき度」であり、simが別の指標を参照すると威力計算が誤る。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-guard",
+   "name": "ダイウォール",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "「PP 不定」",
+   "note": "第八世代の権威記載は不定であり、固定値10とは一致しない。元の変化技によって使用可能回数が決まる機構を表現できているか確認が必要。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-guard",
+   "name": "ダイウォール",
+   "aspect": "効果・防御の基本範囲",
+   "ours": "そのターン、相手の技をふせぐ。",
+   "authority_quote": "「ダイマックスわざを含む、ほぼ全てのわざを無効化する。」",
+   "note": "「相手の技をふせぐ」は全技を防ぐように読めるが、権威は「ほぼ全て」と明記しており例外がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "dynamax-cannon",
+   "name": "ダイマックスほう",
+   "aspect": "効果を受ける量",
+   "ours": "description:「威力が2倍になる」／effects.kind:「条件威力倍率」",
+   "authority_quote": "相手がダイマックスしているとダメージが2倍になる。",
+   "note": "権威資料は「ダメージ」が2倍と明記しているが、こちらは「威力」の倍率として記述・構造化している。一字一句および機構上は同一と扱えない。simではダメージ計算後の倍率と威力倍率で、丸め位置や他の補正との相互作用が異なる可能性がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "dynamax-cannon",
+   "name": "ダイマックスほう",
+   "aspect": "effectsの条件構造",
+   "ours": "{\"kind\":\"条件威力倍率\",\"target\":\"opponent\",\"phase\":\"on_use\",\"multiplier\":2,\"condition\":{\"type\":\"target_dynamaxed\"}}",
+   "authority_quote": "相手がダイマックスしているとダメージが2倍になる。",
+   "note": "target=opponent、condition=target_dynamaxed、multiplier=2は権威の対象・条件・倍率を構造化できているが、kindがダメージ倍率ではなく威力倍率になっているため、効果全体の構造としては不一致。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "jaw-lock",
+   "name": "くらいつく",
+   "aspect": "効果の終了条件",
+   "ours": "description:「自分か相手のどちらかがひんしになるまでの間」、effects[0].duration=\"自分か相手のどちらかがひんしになるまで\"",
+   "authority_quote": "どちらかの ポケモンが いなくなると こうかはきえる。／お互いにげられない状態になった後、片方のポケモンが場から去った場合、もう片方のにげられない状態も解除される。",
+   "note": "oursは終了条件を「どちらかがひんし」だけに限定している。第八世代・第九世代では、ひんしに限らず片方が場から去った場合にも残った側の状態が解除されるため、説明文とeffects.durationの意味が不足している。simでは例外的な交代・強制交代などで片方が場を去った後、もう片方の拘束を解除できないおそれがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "stuff-cheeks",
+   "name": "ほおばる",
+   "aspect": "防御上昇ときのみ消費の処理順",
+   "ours": "effects配列は木の実強制→能力ランク変化の順。",
+   "authority_quote": "・ぼうぎょランクが4-5段階のときにリュガのみ/アッキのみを持ってほおばるを使うと、先にほおばるの効果でぼうぎょが6段階になるので、きのみとほおぶくろの効果は発動しないが、きのみは消費される。このときもゲップは使用できるようになる。",
+   "note": "権威は防御上昇を先に処理すると明記するが、effectsの配列順はきのみ使用が先。simではリュガのみ・アッキのみの発動可否が逆転し得る。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "magic-powder",
+   "name": "まほうのこな",
+   "aspect": "effects・交代時のタイプ復元",
+   "ours": "duration=「どちらかが場を離れるまで」",
+   "authority_quote": "Wiki生ページ: 「状態異常ではないため、交代により本来のタイプに戻る。」",
+   "note": "権威記述が復元を示すのは効果を受けたポケモンの交代時であり、使用者が場を離れただけで対象のタイプを戻す根拠はない。simでは使用者の交代でも効果を解除するおそれがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "dragon-darts",
+   "name": "ドラゴンアロー",
+   "aspect": "効果・片方へ2回攻撃する条件",
+   "ours": "「片方に当たらない時はもう片方に2回。」",
+   "authority_quote": "「ただし、技『まもる』やタイプ相性などでダメージを与えられない時は片方に2回攻撃する。」",
+   "note": "正典の条件は『命中しない時』に限定されず、まもるやタイプ相性などでダメージを与えられない場合を含む。「当たらない」では命中失敗だけとも読め、無効化条件の意味を一字一句戻せない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "octolock",
+   "name": "たこがため",
+   "aspect": "効果文: 能力低下の発生時点",
+   "ours": "毎ターン、相手のぼうぎょ-1。毎ターン、相手のとくぼう-1。",
+   "authority_quote": "たこがため状態の相手は、毎ターン終了時にぼうぎょととくぼうが1段階ずつ低下する。",
+   "note": "oursの効果文は「毎ターン」とだけ書き、発生時点が「毎ターン終了時」であることを明記していない。effectsにはphase=turn_endがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "bolt-beak",
+   "name": "でんげきくちばし",
+   "aspect": "効果文・倍率",
+   "ours": "「相手が技を出す前に使った時、威力が2倍になる。」",
+   "authority_quote": "「そのターンまだ行動していないポケモンに対して使うと威力が2倍になる。」",
+   "note": "2倍と対象相手は一致するが、判定条件が「技を出す前」ではなく「そのターンまだ行動していない」。相手が技を出せなかった場合などに意味が分かれる。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "fishious-rend",
+   "name": "エラがみ",
+   "aspect": "威力2倍の条件",
+   "ours": "「相手が技を出す前に使った時」／effects.condition.type=\"used_before_target_moves\"",
+   "authority_quote": "「そのターンまだ行動していないポケモンに対して使うと威力が2倍になる。」「相手が先に動いたが状態異常・状態変化・なまけで技が出せなかった場合では、行動したとみなされ威力は2倍にならない。」",
+   "note": "権威が判定するのは相手が技を出したかではなく、そのターンに行動済みかどうか。相手が先に行動したものの技を出せなかった場合、oursの「技を出す前」およびused_before_target_movesでは2倍と解釈・処理され得るが、権威では2倍にならない。第八世代仕様。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-flare",
+   "name": "ダイバーン",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類 | 不定",
+   "note": "第八世代では分類が不定。元の攻撃技に応じて変わる値を「物理」に固定している。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-flare",
+   "name": "ダイバーン",
+   "aspect": "威力",
+   "ours": "100",
+   "authority_quote": "威力 | 不定",
+   "note": "第八世代では威力が不定。元の攻撃技に応じて変わる値を100に固定している。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-flare",
+   "name": "ダイバーン",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP | 不定",
+   "note": "第八世代ではPPが不定。10への固定は正典と一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-flutterby",
+   "name": "ダイワーム",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類 | 不定",
+   "note": "第八世代では元の技により分類が変わるため、物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-flutterby",
+   "name": "ダイワーム",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力 | 不定",
+   "note": "第八世代では固定値10ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-flutterby",
+   "name": "ダイワーム",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP | 不定",
+   "note": "第八世代では固定値10ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-lightning",
+   "name": "ダイサンダー",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類\n\n | 不定",
+   "note": "第八世代では元の技に応じて変わるため、物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-lightning",
+   "name": "ダイサンダー",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力\n\n | 不定",
+   "note": "第八世代では元の技に応じる不定値であり、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-lightning",
+   "name": "ダイサンダー",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP\n\n | 不定",
+   "note": "第八世代では元の技に応じる不定値であり、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-strike",
+   "name": "ダイアタック",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類 | 不定",
+   "note": "第八世代では元にした攻撃技によって分類が決まるため、物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-strike",
+   "name": "ダイアタック",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力 | 不定",
+   "note": "第八世代では威力は不定であり、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-strike",
+   "name": "ダイアタック",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP | 不定",
+   "note": "第八世代ではPPは不定であり、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-phantasm",
+   "name": "ダイホロウ",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類 不定",
+   "note": "第八世代では元の攻撃技に応じて分類が決まるため、物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-phantasm",
+   "name": "ダイホロウ",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力 不定",
+   "note": "第八世代では威力は固定値ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-phantasm",
+   "name": "ダイホロウ",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP 不定",
+   "note": "第八世代ではPPは固定値ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-phantasm",
+   "name": "ダイホロウ",
+   "aspect": "battle_data.effects: 防御1段階低下",
+   "ours": "{\"kind\":\"能力ランク変化\",\"target\":\"opponent\",\"stat\":\"defense\",\"stages\":-1,\"phase\":\"on_use\"}",
+   "authority_quote": "相手全体のぼうぎょを1段階下げる。",
+   "note": "statとstagesは一致するが、targetがopponent単体で相手全体を構造化していない。複数戦のsimでは対象外の相手に防御低下が適用されない影響がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-hailstorm",
+   "name": "ダイアイス",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "「分類 | 不定」",
+   "note": "元になる攻撃技に応じて変わる項目を、物理に固定している。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-hailstorm",
+   "name": "ダイアイス",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "「威力 | 不定」",
+   "note": "Wikiでは不定。固定値10とは一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-hailstorm",
+   "name": "ダイアイス",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "「PP | 不定」",
+   "note": "Wikiでは不定。固定値10とは一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-geyser",
+   "name": "ダイストリーム",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "「分類｜不定」",
+   "note": "第八世代では元にした攻撃技により分類が変わるため、物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-geyser",
+   "name": "ダイストリーム",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "「威力｜不定」",
+   "note": "第八世代では元の技に応じて変わる値であり、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-geyser",
+   "name": "ダイストリーム",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "「PP｜不定」",
+   "note": "第八世代の権威表は不定としており、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-airstream",
+   "name": "ダイジェット",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類 | 不定",
+   "note": "第八世代では元にしたひこうタイプの攻撃技に応じて分類が決まるため、物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-airstream",
+   "name": "ダイジェット",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力 | 不定",
+   "note": "第八世代では元の技に応じて威力が決まるため、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-airstream",
+   "name": "ダイジェット",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP | 不定",
+   "note": "第八世代では元の技に依存するため、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-starfall",
+   "name": "ダイフェアリー",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類\n\n | 不定",
+   "note": "第八世代では分類は固定の物理ではなく不定。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-starfall",
+   "name": "ダイフェアリー",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力\n\n | 不定",
+   "note": "第八世代では威力は固定値ではなく不定。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-starfall",
+   "name": "ダイフェアリー",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP\n\n | 不定",
+   "note": "第八世代ではPPは固定値ではなく不定。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-wyrmwind",
+   "name": "ダイドラグーン",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類\n\n | 不定",
+   "note": "第八世代では元にしたドラゴンタイプの攻撃技に応じるため分類は不定。固定の「物理」ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-wyrmwind",
+   "name": "ダイドラグーン",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力\n\n | 不定",
+   "note": "第八世代Wikiは威力を不定としており、固定値10とは一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-wyrmwind",
+   "name": "ダイドラグーン",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP\n\n | 不定",
+   "note": "第八世代WikiはPPを不定としており、固定値10とは一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-wyrmwind",
+   "name": "ダイドラグーン",
+   "aspect": "こうげき低下の対象範囲",
+   "ours": "説明文は「相手」、effectsはtarget=\"opponent\"",
+   "authority_quote": "相手全体のこうげきを1段階下げる。",
+   "note": "権威は相手全体。こちらは単体対象として表現・構造化されている。ダブルバトルでは隣接する相手全員への能力低下をsimが再現できない可能性がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-wyrmwind",
+   "name": "ダイドラグーン",
+   "aspect": "effects:こうげき低下",
+   "ours": "{\"kind\":\"能力ランク変化\",\"target\":\"opponent\",\"stat\":\"attack\",\"stages\":-1,\"phase\":\"on_use\"}",
+   "authority_quote": "相手全体のこうげきを1段階下げる。",
+   "note": "stat=attack、stages=-1は一致するが、targetが相手全体を表していない。ダブルバトルのsimに影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-mindstorm",
+   "name": "ダイサイコ",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "「分類 不定」",
+   "note": "第八世代では元にした攻撃技に応じるため分類は固定ではない。物理固定のままでは特殊技を元にした場合のsim判定に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-mindstorm",
+   "name": "ダイサイコ",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "「威力 不定」",
+   "note": "第八世代では威力は固定値ではない。10固定ではダメージ計算に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-mindstorm",
+   "name": "ダイサイコ",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "「PP 不定」",
+   "note": "第八世代Wikiでは固定PPではなく不定。10固定では使用回数のsim処理に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-rockfall",
+   "name": "ダイロック",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類\\n\\n | 不定",
+   "note": "第八世代では元にした攻撃技に依存するため、権威側は「不定」。固定の「物理」と一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-rockfall",
+   "name": "ダイロック",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力\\n\\n | 不定",
+   "note": "第八世代では元の技に応じて変わるため、権威側は「不定」。固定値10と一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-rockfall",
+   "name": "ダイロック",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP\\n\\n | 不定",
+   "note": "権威側は「不定」。固定値10と一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-quake",
+   "name": "ダイアース",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "「分類 | 不定」",
+   "note": "第八世代では元にした攻撃技により分類が変わるため、物理固定ではない。simで特殊技由来のダイアースを物理技として扱う影響がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-quake",
+   "name": "ダイアース",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "「威力 | 不定」",
+   "note": "第八世代では威力は固定値ではない。simのダメージ計算に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-quake",
+   "name": "ダイアース",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "「PP | 不定」",
+   "note": "第八世代ではPPは固定10ではない。simで使用可能回数を誤る影響がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-darkness",
+   "name": "ダイアーク",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "「分類｜不定」",
+   "note": "第八世代では元にする攻撃技に依存するため、物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-darkness",
+   "name": "ダイアーク",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "「威力｜不定」",
+   "note": "第八世代では威力は固定値ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-darkness",
+   "name": "ダイアーク",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "「PP｜不定」",
+   "note": "第八世代ではPPは固定値ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-darkness",
+   "name": "ダイアーク",
+   "aspect": "効果文・とくぼう低下の対象範囲",
+   "ours": "「相手のとくぼう-1。」",
+   "authority_quote": "「相手全体のとくぼうを1段階下げる。」",
+   "note": "うちの文は単数の「相手」としか書かず、「相手全体」という第八世代の範囲を復元できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-darkness",
+   "name": "ダイアーク",
+   "aspect": "battle_data.effects・とくぼう低下の機構",
+   "ours": "{\"kind\":\"能力ランク変化\",\"target\":\"opponent\",\"stat\":\"special_defense\",\"stages\":-1,\"phase\":\"on_use\"}",
+   "authority_quote": "「相手全体のとくぼうを1段階下げる。」",
+   "note": "能力と段数は構造化されているが、targetが単数のopponentであり相手全体を表せない。simではダブルバトル時に一方の相手だけを下げる可能性がある。権威本文だけではphaseがon_useで正しいかは確定できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-overgrowth",
+   "name": "ダイソウゲン",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類\n\n | 不定",
+   "note": "第八世代では元のくさタイプ攻撃技に応じるため分類は不定であり、物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-overgrowth",
+   "name": "ダイソウゲン",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力\n\n | 不定",
+   "note": "第八世代の権威記載は不定であり、威力10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-overgrowth",
+   "name": "ダイソウゲン",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP\n\n | 不定",
+   "note": "第八世代の権威記載は不定であり、PP10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-steelspike",
+   "name": "ダイスチル",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "「分類 | 不定」",
+   "note": "第八世代では元にした攻撃技により分類が変わるため、物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-steelspike",
+   "name": "ダイスチル",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "「威力 | 不定」",
+   "note": "第八世代では元の技に応じて威力が変わるため、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "max-steelspike",
+   "name": "ダイスチル",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "「PP | 不定」",
+   "note": "第八世代では元の技に依存する扱いであり、10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": true
+  },
+  {
+   "slug": "clangorous-soul",
+   "name": "ソウルビート",
+   "aspect": "HP消費割合（effects）",
+   "ours": "{\"kind\":\"HPが減る\",\"target\":\"self\",\"fraction\":0.3333,\"phase\":\"on_use\"}",
+   "authority_quote": "「自分のHPを最大HPの1/3だけ減らし」",
+   "note": "0.3333は厳密な1/3ではない。simがmaxHP×fractionを切り捨てる場合、最大HP300なら100ではなく99となるため計算結果に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "snap-trap",
+   "name": "トラバサミ",
+   "aspect": "effects:ゴースト例外の作用範囲",
+   "ours": "バインド効果オブジェクト全体に immune:[{\"type\":\"target_type\",\"value\":\"ゴースト\"}]",
+   "authority_quote": "「相手を『バインド』状態にして、4～5ターンの間、毎ターン終了後最大HPの1/8のダメージを与え、その間『ゴースト』タイプではない相手は逃げたり交代できない」",
+   "note": "正典の文構造ではゴースト例外は「逃げたり交代できない」にだけ掛かる。一方、immuneが状態付与オブジェクト全体に掛かる構造は、ゴースト相手へのバインド付与や1/8継続ダメージまで無効にする可能性がある。simでimmuneを効果全体の不発条件として読む場合、ゴースト相手の継続ダメージが欠落する。交代禁止だけに例外を限定できる構造か、実装側の解釈確認が必要。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "behemoth-blade",
+   "name": "きょじゅうざん",
+   "aspect": "ダイマックス時の倍率対象",
+   "ours": "description=\"威力が2倍になる\"、effects.kind=\"威力倍率\"、multiplier=2",
+   "authority_quote": "相手がダイマックスしているとダメージが2倍になる。",
+   "note": "権威は「ダメージが2倍」、oursは「威力が2倍」。一字一句かつ機構上も同一とは断定できない。simで威力倍率として計算すると、丸め処理などによりダメージ倍率と異なる結果になる可能性がある。第8世代依存。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "behemoth-blade",
+   "name": "きょじゅうざん",
+   "aspect": "effectsのダイマックス機構",
+   "ours": "[{\"kind\":\"威力倍率\",\"target\":\"opponent\",\"phase\":\"on_use\",\"multiplier\":2,\"condition\":{\"type\":\"target_is_dynamax\"}}]",
+   "authority_quote": "相手がダイマックスしているとダメージが2倍になる。",
+   "note": "対象・条件・2倍という構造は入っているが、権威の機構はダメージ2倍であるのにeffectsは威力倍率として表現している。simの計算段階と丸め順に影響し得る。第8世代依存。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "false-surrender",
+   "name": "どげざつき",
+   "aspect": "命中",
+   "ours": "accuracy=100",
+   "authority_quote": "命中率\n\n | -",
+   "note": "第八世代・第九世代の権威記載は数値100ではなく必中。通常の命中率100として処理すると、命中率・回避率の変化などによって外れる可能性があり、sim結果に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "false-surrender",
+   "name": "どげざつき",
+   "aspect": "優先度",
+   "ours": "priority=1 / battle_data.priority=1",
+   "authority_quote": "優先度\n\n | 0",
+   "note": "権威記載は優先度0。基本諸元とbattle_dataの両方が+1になっており、simの行動順に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "eternabeam",
+   "name": "ムゲンダイビーム",
+   "aspect": "効果文:発動条件",
+   "ours": "使った次のターン",
+   "authority_quote": "成功した次のターン、使用者は反動で動けなくなる。",
+   "note": "権威は技が成功した場合に限定しているが、こちらは単に「使った」場合としており、失敗・命中しなかった場合を区別できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "eternabeam",
+   "name": "ムゲンダイビーム",
+   "aspect": "効果文:効果対象",
+   "ours": "動けなくなる（主語の明記なし）",
+   "authority_quote": "使用者は反動で動けなくなる。",
+   "note": "権威が明記する対象「使用者」が説明文では省略されている。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "steel-beam",
+   "name": "てっていこうせん",
+   "aspect": "効果文・HP減少の処理順",
+   "ours": "「ダメージ。」の後に「自分のHPが最大HPの半分減る」と記載",
+   "authority_quote": "Wiki生ページ: 「自分のHPを、最大HPの1/2分だけ減らしてから攻撃する」",
+   "note": "第八・第九世代Wikiでは自分のHPを減らしてから攻撃する。現文面の順序は攻撃ダメージ後に自分のHPが減る意味に読める。effectsのphase:\"on_use\"は使用時処理を表すが、攻撃前であることをこの行だけから確定できるかは実装依存。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "grassy-glide",
+   "name": "グラススライダー",
+   "aspect": "優先度の基本値と条件付き変化",
+   "ours": "master_row.priority=1、battle_data.priority=1。effectsにもグラスフィールドかつ使用者が地面にいる場合のpriority=1がある。descriptionは「ふだんは優先度0」と記載。",
+   "authority_quote": "yakkun_ch_row: 「場の状態が『グラスフィールド』で、自分が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、必ず先制できる(優先度:+1)。」／Wiki: 「優先度 +1(グラスフィールド状態) 0 (その他)」",
+   "note": "正典では+1は条件成立時だけで、通常時は優先度0。無条件に見えるmaster_row.priority=1とbattle_data.priority=1が条件付きeffectsと競合しており、simが通常時にも+1として扱う可能性がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "jungle-healing",
+   "name": "ジャングルヒール",
+   "aspect": "状態異常回復の対象",
+   "ours": "説明文は「味方みんなの状態異常をすべて治す」。effects=[{\"kind\":\"状態異常回復\",\"target\":\"team\",\"phase\":\"on_use\"}]",
+   "authority_quote": "自分と味方ポケモンを最大HPの1/4ずつ回復し、状態異常を治す (小数点以下は切り捨て)。",
+   "note": "effectsのtarget=teamは自分を含む対象を表せるが、説明文の状態異常回復部分は「自分」を明記せず「味方みんな」とだけ書いており、Wikiの「自分と味方ポケモン」より対象が曖昧。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "wicked-blow",
+   "name": "あんこくきょうだ",
+   "aspect": "効果文：必ず急所",
+   "ours": "必ず急所に当たる。",
+   "authority_quote": "効果：必ず急所に当たる。／技の仕様：必ず急所に当たるが、特性カブトアーマー・シェルアーマーのポケモンに使用した場合は急所に当たらない。",
+   "note": "確定急所そのものは一致するが、カブトアーマー・シェルアーマーには急所に当たらないという例外が効果文に無く、現文は無条件と読める。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "wicked-blow",
+   "name": "あんこくきょうだ",
+   "aspect": "effects構造：確定急所",
+   "ours": "effects=[{\"kind\":\"必ず急所\",\"target\":\"opponent\",\"phase\":\"on_use\"}] だが battle_data.must_crit=false",
+   "authority_quote": "効果：必ず急所に当たる。",
+   "note": "effectsには確定急所機構がある一方、同じbattle_data内のmust_crit=falseが権威と矛盾する。simがmust_critを参照する経路では確定急所にならない可能性がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "surging-strikes",
+   "name": "すいりゅうれんだ",
+   "aspect": "効果文・確定急所",
+   "ours": "必ず急所に当たる。",
+   "authority_quote": "・全ての攻撃が必ず急所に当たる。",
+   "note": "oursは「全ての攻撃」が明記されず、3回の各攻撃すべてが確定急所になる意味を一字一句では保持していない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "surging-strikes",
+   "name": "すいりゅうれんだ",
+   "aspect": "effects・確定急所構造",
+   "ours": "effectsに{\"kind\":\"必ず急所\",\"target\":\"opponent\",\"phase\":\"on_use\"}がある一方、battle_data.must_crit=false",
+   "authority_quote": "・全ての攻撃が必ず急所に当たる。",
+   "note": "effectsには確定急所の機構があるが、同じbattle_dataのmust_crit=falseと矛盾する。simがmust_critを参照する経路では確定急所が発動しないおそれがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "eerie-spell",
+   "name": "ぶきみなじゅもん",
+   "aspect": "PP減少の発動時機と相手をひんしにした場合の不発",
+   "ours": "effects[0].phase=\"on_use\"で、相手のひんし後に不発とする条件なし",
+   "authority_quote": "追加効果としては例外的に、ひんし判定の後に技の効果が発動する。この技で相手をひんしにさせたときはPPを減らさない。",
+   "note": "Wikiの第八世代・第九世代仕様ではひんし判定後に発動する。現構造のon_useは発動順が異なり、simが倒した相手の技のPPまで減らすおそれがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "dire-claw",
+   "name": "フェイタルクロー",
+   "aspect": "effectsの発動タイミング",
+   "ours": "phase=on_use",
+   "authority_quote": "Wiki基本表: 「追加効果として、30%の確率で相手をどく・まひ・ねむり状態のいずれかにする (Champions)。」",
+   "note": "権威は攻撃の「追加効果」と明記しているのに、構造上は使用時を示すon_useになっている。命中・ダメージ成立後の追加効果として扱うphaseでない場合、外れ・無効・みがわり等でも状態付与判定へ進むsim差の原因になる。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "power-shift",
+   "name": "パワーシフト",
+   "aspect": "初出世代",
+   "ours": "availability.gen_introduced=9",
+   "authority_quote": "| パワーシフト\n\n | 第八世代",
+   "note": "パワーシフトは第8世代のPokémon LEGENDS アルセウスに存在するため、初出を第9世代とする値は一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "mystical-power",
+   "name": "しんぴのちから",
+   "aspect": "効果文：発動確率",
+   "ours": "確率の明記なし",
+   "authority_quote": "「追加効果として、100%の確率で自分のとくこうを1段階上げる。」",
+   "note": "説明文だけでは100%で発動することを一字一句復元できない。省略表現を暗黙に100%と解釈せず、権威にある確率の意味が欠けていると判定。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "mystical-power",
+   "name": "しんぴのちから",
+   "aspect": "効果文：追加効果であること",
+   "ours": "「ダメージ。自分のとくこう+1。」と並記されるだけで、追加効果とは明記されていない",
+   "authority_quote": "「追加効果として、100%の確率で自分のとくこうを1段階上げる。」「追加効果: ○」",
+   "note": "能力上昇が攻撃命中に伴う追加効果であるという機構上の意味を、説明文から復元できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "chloroblast",
+   "name": "クロロブラスト",
+   "aspect": "登場世代",
+   "ours": "availability.gen_introduced=9、gens=[9]",
+   "authority_quote": "クロロブラスト\n\n | 第八世代",
+   "note": "Wikiでは第八世代の技。masterは登場世代を第九世代としている。Pokémon LEGENDS アルセウス固有の早業・通常・力業の値は通常対戦系とは別仕様。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "victory-dance",
+   "name": "しょうりのまい",
+   "aspect": "登場世代",
+   "ours": "availability.gen_introduced=9、gens=[9]",
+   "authority_quote": "第八世代",
+   "note": "Wikiでは第八世代のPokémon LEGENDS アルセウスに登場し、同ページにスカーレット・バイオレットでの説明文もある。基本効果はスカーレット・バイオレットでは自分の攻撃・防御・素早さを上げるものだが、LEGENDS アルセウスでは「自分をパワーアップ状態にする／自分をガードアップ状態にする／自分を倍付け状態にする」という別機構。現行のeffectsはスカーレット・バイオレット型を表す。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "headlong-rush",
+   "name": "ぶちかまし",
+   "aspect": "世代依存",
+   "ours": "availability.gen_introduced=9, availability.gens=[9], champions=true",
+   "authority_quote": "Wiki生ページ: 「第八世代」および「Pokémon LEGENDS アルセウスにおけるぶちかまし」／yakkun_ch_row: \"pp\": \"8\"",
+   "note": "Wiki生ページでは第八世代のPokémon LEGENDS アルセウス初出として扱われている一方、oursは導入世代を第9世代としている。ChampionsでのPP 8とWiki本編欄のPP 5の差はChampions仕様としてmismatchには含めない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "esper-wing",
+   "name": "オーラウイング",
+   "aspect": "effects構造:すばやさ+1",
+   "ours": "{\"kind\":\"能力ランク変化\",\"target\":\"self\",\"stat\":\"speed\",\"stages\":1,\"phase\":\"on_use\",\"prob\":100}",
+   "authority_quote": "追加効果として、100%の確率で自分のすばやさを1段階上げる。",
+   "note": "対象・能力・段数・確率は一致するが、権威は「追加効果」としているのにeffectsはphaseがon_use。simで命中や追加効果成立前にも上昇を適用する解釈になるなら、外した場合などにもすばやさが上がる影響がある。追加効果用フェーズとの対応は要確認。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "infernal-parade",
+   "name": "ひゃっきやこう",
+   "aspect": "effects・威力倍率のtarget",
+   "ours": "target=self",
+   "authority_quote": "yakkun_ch_row: 「相手が状態異常の時、威力が2倍になる。」",
+   "note": "条件が参照する対象は相手だが、威力倍率effectのtargetがselfになっている。同じ条件機構を持つ「たたりめ」はtarget=opponentであり、simがtargetを効果適用先または条件参照先として使う場合、倍率が誤った側へ適用される可能性がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "bleakwind-storm",
+   "name": "こがらしあらし",
+   "aspect": "battle_data.effectsの能力ランク変化",
+   "ours": "{\"kind\":\"能力ランク変化\",\"target\":\"all_opponents\",\"stat\":\"speed\",\"stages\":-1,\"prob\":30,\"phase\":\"on_use\"}",
+   "authority_quote": "「追加効果として、30%の確率で相手のすばやさを1段階下げる。」",
+   "note": "対象・能力・段数・確率は構造化されているが、追加効果をphase:on_useとしている。権威は「追加効果」と明記しており、命中してダメージを与えた後の追加効果として扱う必要がある。現状のphaseをsimが使用時処理として解釈すると、命中前や不発時に能力低下を適用する恐れがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "bleakwind-storm",
+   "name": "こがらしあらし",
+   "aspect": "雨必中の対象ごとの条件",
+   "ours": "天気が「あめ」のときは必ず当たる。",
+   "authority_quote": "「対象があめ状態の効果を受けている場合は必中する。」",
+   "note": "権威は場が雨かどうかだけでなく、各対象が雨状態の効果を受けているかを条件にしている。oursは対象ごとの条件を表していない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "bleakwind-storm",
+   "name": "こがらしあらし",
+   "aspect": "battle_data.effectsの雨必中構造",
+   "ours": "{\"kind\":\"天候必中\",\"target\":\"all_opponents\",\"phase\":\"on_use\",\"value\":\"あめ\",\"accuracy\":\"never_miss\"}",
+   "authority_quote": "「対象があめ状態の効果を受けている場合は必中する。ただし、姿を隠している相手には当たらない。」「対象がばんのうがさを持つ場合、あめ状態でも命中が80になる。」",
+   "note": "雨で必中という中核は構造化されているが、対象ごとの天候有効性、姿を隠す状態、ノーてんき・エアロック、対象のばんのうがさを表す条件・例外がない。all_opponentsへの一律必中としてsimが処理すると誤る。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "bleakwind-storm",
+   "name": "こがらしあらし",
+   "aspect": "世代・収録範囲",
+   "ours": "availability.gen_introduced=9、gens=[9]",
+   "authority_quote": "冒頭表「第八世代」／「Pokémon LEGENDS アルセウス」では別仕様の技データを掲載／「第九世代」の説明文を掲載",
+   "note": "技自体は第八世代のPokémon LEGENDS アルセウスに存在し、第九世代にも存在するため、導入世代を9、収録世代を9だけとする構造は権威全文と一致しない。なお通常対戦用の威力100・命中80・PP10・すばやさ低下は第九世代仕様で、LEGENDS アルセウスでは威力・命中・PP・追加効果が異なる。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "wildbolt-storm",
+   "name": "かみなりあらし",
+   "aspect": "世代",
+   "ours": "availability.gen_introduced=9、gens=[9]",
+   "authority_quote": "| 第八世代",
+   "note": "Wikiは初登場を第八世代としている。第八世代のPokémon LEGENDS アルセウスでは威力・PP・追加効果確率などが別仕様で、第九世代から通常シリーズ用の現行値になる。gen_introduced=9は初登場世代として不一致。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "lunar-blessing",
+   "name": "みかづきのいのり",
+   "aspect": "世代・作品依存",
+   "ours": "availability.gen_introduced=9、gens=[9]",
+   "authority_quote": "第八世代\n\n== Pokémon LEGENDS アルセウスにおけるみかづきのいのり ==\n| みかづきのいのり",
+   "note": "Wikiでは第八世代のPokémon LEGENDS アルセウスに登場し、同作ではPP 10、自分のHPを通常50%回復、自分の状態異常を治し、煙幕状態にする別仕様。masterの基本諸元・effectsはスカーレット・バイオレットの第九世代仕様だが、登場世代を第9世代のみとするavailabilityは権威記載と一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "take-heart",
+   "name": "ブレイブチャージ",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "基本諸元「PP\\n\\n | 15」。別節「Pokémon LEGENDS アルセウスにおけるブレイブチャージ」では「PP\\n\\n | 10」",
+   "note": "第九世代本編の権威値は15。oursの10はPokémon LEGENDS アルセウスの値であり、世代・作品差を混同している。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "tera-blast",
+   "name": "テラバースト",
+   "aspect": "効果文: 物理・特殊の決定基準",
+   "ours": "「物理と特殊のうち、ダメージが大きいほうで攻撃する。」",
+   "authority_quote": "「自分のランク補正込みのステータスがこうげき>とくこうなら物理技になる。」",
+   "note": "権威はダメージ比較ではなく、ランク補正込みのこうげきととくこうの実数値比較であり、物理になるのは『こうげき>とくこう』の場合だけ。 oursでは比較対象と同値時の扱いが異なる。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "tera-blast",
+   "name": "テラバースト",
+   "aspect": "effects: 物理・特殊の決定基準",
+   "ours": "kind=物理特殊自動、rule=\"compare Physical and Special damage, use the higher category\"、condition.type=user_terastalized",
+   "authority_quote": "「分類の判定にランク補正と、パワートリック/パワーシェアによる実数値変動効果は考慮する。特性/持ち物の効果などによるステータス補正効果や、やけど/壁状態などのダメージ補正効果は分類の判定に影響しない。」",
+   "note": "effectsは物理・特殊ダメージを比較する規則になっている。権威はランク補正およびパワートリック・パワーシェア反映後のこうげき/とくこう実数値を比較し、特性・持ち物・やけど・壁などのダメージ補正は分類判定から除外する。simの分類と最終ダメージが変わり得る。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "lumina-crash",
+   "name": "ルミナコリジョン",
+   "aspect": "effects・発動条件とphase",
+   "ours": "effects.phaseはon_useで、命中・ダメージ成立を条件にする構造が見当たらない",
+   "authority_quote": "Wiki生ページ:「追加効果として、100%の確率で相手のとくぼうを2段階下げる。」「無効化されなければ確実に相手のとくぼうを2段階下げる」",
+   "note": "第九世代Wiki全文ではダメージ技の追加効果であり、無効化されないことが前提。on_useのままsimが無条件適用すると、外れ・まもる・タイプ無効などで攻撃が成立しない場合にもランクを下げる恐れがある。命中・防御判定後の成功時にだけ適用されるphase/条件の確認が必要。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "order-up",
+   "name": "いっちょうあがり",
+   "aspect": "効果文・発動条件",
+   "ours": "ダブルバトルで、口の中にいる味方シャリタツのすがたに応じて",
+   "authority_quote": "ヘイラッシャが特性しれいとうの効果でシャリタツを飲み込んでいた場合、自分の能力を1段階上げる。",
+   "note": "ダブルバトルという状況は示しているが、権威が規定する「使用者がヘイラッシャ」「特性しれいとうの効果で飲み込んでいた場合」という発動条件を効果文だけでは一字一句復元できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "order-up",
+   "name": "いっちょうあがり",
+   "aspect": "effects・note内のたれたすがた対応",
+   "ours": "note=そった姿→こうげき+1、たれた姿→とくこう+1、のびた姿→すばやさ+1。",
+   "authority_quote": "・そったすがた : 攻撃\n\n・たれたすがた : 防御\n\n・のびたすがた : 素早さ",
+   "note": "effects.noteだけ「たれた姿→とくこう+1」となっており、権威の防御および同じeffect内のstat_by_conditionと矛盾する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "order-up",
+   "name": "いっちょうあがり",
+   "aspect": "effects・命中成功後の発動条件",
+   "ours": "phase=on_use。命中・無効・失敗を条件にする構造なし。",
+   "authority_quote": "スカーレット・バイオレット (Ver.1.2.0) 以降では、相性・特性・まもる状態などに技が無効化された場合や、命中しなかった場合、失敗した場合は能力が上がらない",
+   "note": "第九世代Ver.1.2.0以降の正典では成功後に限って上昇する。on_useではsim上、命中前または無効・失敗時にも発動するおそれがある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "order-up",
+   "name": "いっちょうあがり",
+   "aspect": "effects・ひんし判定後の処理順",
+   "ours": "phase=on_use",
+   "authority_quote": "この技で相手を倒した場合、相手のひんし判定の後に能力が上がる。",
+   "note": "権威は相手のひんし判定後と明記するが、on_useはその処理順を表していない。simの発動順が変わる。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "spin-out",
+   "name": "ホイールスピン",
+   "aspect": "効果文: 発動条件",
+   "ours": "攻撃したあと",
+   "authority_quote": "「成功すると、自分のすばやさが2段階下がる。」",
+   "note": "権威は技が成功した場合という条件を明記するが、うちの文は「攻撃したあと」であり、失敗・命中しなかった場合には下がらないという条件を一字一句の意味として復元できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "ice-spinner",
+   "name": "アイススピナー",
+   "aspect": "効果発動順・ダメージ計算後",
+   "ours": "phase: on_use",
+   "authority_quote": "Wiki第九世代: 「ダメージ計算の後に技の効果でフィールドが解除される。」",
+   "note": "第九世代仕様。on_useでは攻撃成立時の適用後処理を表せないため、フィールド依存の威力・能力補正を解除前のダメージ計算に使う順序や、後続処理との順序がsimで崩れる可能性がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "glaive-rush",
+   "name": "きょけんとつげき",
+   "aspect": "効果の継続期限",
+   "ours": "説明文・effectは「次の自分のターンまで」。effectsはphase:\"lasting\", duration:1。",
+   "authority_quote": "「次に自分が行動するまでの間」",
+   "note": "第九世代。権威はターン単位ではなく使用者が次に行動するまで。duration:1だけでは終了契機が次回行動時であることを一字一句・構造の双方で確定できない。simで交代や行動順を含む解除時点がずれる可能性がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "revival-blessing",
+   "name": "さいきのいのり",
+   "aspect": "効果文:対象・選択・復活",
+   "ours": "手持ちにいる「ひんし」のポケモンを1匹えらんで、最大HPの半分だけ回復させて復活させる。",
+   "authority_quote": "ひんし状態の味方ポケモンを、最大HPの1/2 (小数点以下切り捨て) を回復して復活させる。／成功した後は、手持ち画面が開かれて復活させる味方を選ぶことになる。／ひんし状態でない味方は選択できない。",
+   "note": "ひんしの味方を1匹選んで復活させ、最大HPの半分を回復する中心的な意味は一致するが、回復量の小数点以下切り捨てが効果文にない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "revival-blessing",
+   "name": "さいきのいのり",
+   "aspect": "battle_data.effects:回復割合・基準・対象条件",
+   "ours": "kind=回復,target=ally,fraction=0.5,basis=max_hp,condition.type=target_fainted,phase=on_use",
+   "authority_quote": "ひんし状態の味方ポケモンを、最大HPの1/2 (小数点以下切り捨て) を回復して復活させる。",
+   "note": "味方・ひんし条件・最大HP基準・1/2は構造化されているが、小数点以下切り捨ての構造がない。simの奇数最大HP時の回復量に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "doodle",
+   "name": "うつしえ",
+   "aspect": "対象",
+   "ours": "1体選択",
+   "authority_quote": "範囲\n\n | 相手1体\n\n／技の対象として味方を選択することはできない。",
+   "note": "権威は選択可能範囲を「相手1体」に限定しているが、oursの「1体選択」だけでは味方を選べない制約が表現されない。simの対象選択に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "doodle",
+   "name": "うつしえ",
+   "aspect": "効果文・変更対象の人数",
+   "ours": "自分と味方を、相手と同じ特性にする。",
+   "authority_quote": "自分と味方全員のポケモンの特性を、対象の特性と同じにする。",
+   "note": "権威にある「味方全員」がoursでは「味方」となり、全員に及ぶことが明記されていない。第九世代の仕様。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "fillet-away",
+   "name": "みをけずる",
+   "aspect": "効果文: 全対象能力が最大時の例外",
+   "ours": "HPが最大HPの半分減ると無条件に記述",
+   "authority_quote": "すでに攻撃・特攻・素早さが最大まで上がっている場合、HPは減らない。",
+   "note": "権威には3能力がすべて最大のときHPを減らさない例外があるため、無条件にHPが減るという現在の効果文とは一致しない。第九世代仕様。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "aqua-step",
+   "name": "アクアステップ",
+   "aspect": "battle_data.effects・発動タイミング",
+   "ours": "phase: on_use",
+   "authority_quote": "Wiki第九世代欄: 「追加効果として、100%の確率で自分のすばやさを1段階上げる。」",
+   "note": "権威は能力上昇を攻撃の「追加効果」としているが、effectsはon_useに置かれている。on_useが命中・ダメージ成立前にも実行される実装なら、外れた時や守られた時にもすばやさが上がるsim誤動作につながる。実際のsimでon_useが追加効果成立後を意味するかは、この1件の資料だけでは確認できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "raging-bull",
+   "name": "レイジングブル",
+   "aspect": "味方を対象にした場合の壁解除先",
+   "ours": "battle_data.effects[1].targetは常に「opponent_team」。",
+   "authority_quote": "Wiki「味方に使用したときは味方の場の壁を解除する。」",
+   "note": "1体選択技なので味方も対象にできるが、現構造では味方を攻撃した場合でも相手側の壁を消す。simでは攻撃対象が属する側の場を解除する必要がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "make-it-rain",
+   "name": "ゴールドラッシュ",
+   "aspect": "対象",
+   "ours": "1体選択",
+   "authority_quote": "「target\":\"相手全体」",
+   "note": "Champions正典では相手全体。現状は単体選択になっており、複数対象戦で対象数とダメージ処理が変わる。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "hydro-steam",
+   "name": "ハイドロスチーム",
+   "aspect": "効果文・自分のこおり回復",
+   "ours": "こおっていてもこの技は使え、使うと自分の「こおり」がとける。",
+   "authority_quote": "自分がこおり状態の場合、こおり状態を治してから攻撃する。",
+   "note": "使用可能で回復する点は一致するが、権威は「治してから攻撃する」という処理順を明記している。oursの「使うと」では攻撃前に治すことが復元できず、厳密には一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "ruination",
+   "name": "カタストロフィ",
+   "aspect": "威力",
+   "ours": "1",
+   "authority_quote": "威力 | -",
+   "note": "権威では通常の威力値を持たない固定ダメージ技。oursの1は権威の「-」と一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "collision-course",
+   "name": "アクセルブレイク",
+   "aspect": "効果の倍率と作用対象",
+   "ours": "説明文: 威力が1.333倍になる。effects: kind=条件威力倍率、multiplier=1.333",
+   "authority_quote": "効果がバツグンの場合、ダメージが4/3倍になる。\n\n・正確な補正率は5461/4096倍となる。",
+   "note": "権威はダメージ補正を4/3倍、内部の正確な補正率を5461/4096倍としている。oursは威力倍率として1.333を保持しており、作用段階の表現と正確な数値が一致しない。effectsに条件付き倍率の構造自体はあるが、simでは丸め順または倍率差によりダメージがずれる可能性がある。第九世代の仕様。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "electro-drift",
+   "name": "イナズマドライブ",
+   "aspect": "効果の補正対象",
+   "ours": "威力が1.333倍になる",
+   "authority_quote": "効果がバツグンの場合、ダメージが4/3倍になる。",
+   "note": "権威は「ダメージ」の倍率と明記しているが、こちらは「威力」の倍率としている。一字一句の意味照合では同一扱いにできない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "electro-drift",
+   "name": "イナズマドライブ",
+   "aspect": "効果倍率",
+   "ours": "description=1.333倍、effects.multiplier=1.333",
+   "authority_quote": "効果がバツグンの場合、ダメージが4/3倍になる。\n\n・正確な補正率は5461/4096倍となる。",
+   "note": "1.333は5461/4096（約1.333251953125）と厳密には一致しない。effectsの数値をそのままsimが乗算する場合、権威仕様よりわずかに低いダメージ補正になる。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "electro-drift",
+   "name": "イナズマドライブ",
+   "aspect": "effectsの条件付きダメージ補正構造",
+   "ours": "effects=[{\"kind\":\"条件威力倍率\",\"target\":\"opponent\",\"phase\":\"on_use\",\"multiplier\":1.333,\"condition\":{\"type\":\"super_effective\"}}]",
+   "authority_quote": "効果がバツグンの場合、ダメージが4/3倍になる。\n\n・正確な補正率は5461/4096倍となる。",
+   "note": "効果抜群を条件に倍率を適用する構造自体は存在するが、kindが「条件威力倍率」で権威の「ダメージ」補正と表現対象が異なり、倍率も正確な5461/4096ではないため、機構全体として完全一致ではない。simのダメージ計算結果に影響する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "chilly-reception",
+   "name": "さむいギャグ",
+   "aspect": "効果文：発動順序",
+   "ours": "使ったあと、控えのポケモンと交代する。5ターンの間、天気を「ゆき」にする。",
+   "authority_quote": "Wiki技の仕様「先にゆきを降らせる効果が発動した後で交代する効果が発動し、交代先のポケモンを選ぶことになる。」",
+   "note": "第九世代の実際の処理順は『ゆき→交代』。oursは交代を先に記述しており、正しい順序を復元できない。Champions正典行の短い効果文にも処理順の明示はないため、機構の詳細は生Wiki全文で確認した。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "chilly-reception",
+   "name": "さむいギャグ",
+   "aspect": "effects：発動順序",
+   "ours": "effects配列は「自分交代」の後に「天候変化」を置き、自分交代のphaseをon_use、天候変化のphaseをlastingとしている。",
+   "authority_quote": "Wiki技の仕様「先にゆきを降らせる効果が発動した後で交代する効果が発動し、交代先のポケモンを選ぶことになる。」",
+   "note": "権威記載の『ゆき→交代』という順序が構造上逆に見える。配列順またはphase順で実行するsimでは、交代先の天候特性との競合結果が逆転し得る。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "pounce",
+   "name": "とびつく",
+   "aspect": "効果文: 発動確率",
+   "ours": "「ダメージ。相手のすばやさ-1。」",
+   "authority_quote": "「100%の確率で相手の『すばやさ』ランクを1段階下げる。」",
+   "note": "oursの効果文には「100%」という発動確率の明記がない。断定文から常時発動とは読めるが、%を一字一句照合すると正典の情報が明示されていない。battle_data側にはprob:100がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "pounce",
+   "name": "とびつく",
+   "aspect": "効果文: 追加効果であること",
+   "ours": "「ダメージ。相手のすばやさ-1。」",
+   "authority_quote": "Wiki生ページ全文:「追加効果として、100%の確率で相手のすばやさを1段階下げる。」",
+   "note": "oursは能力低下が攻撃の追加効果であることを明記していない。追加効果を防ぐ機構との関係を文章だけから復元できない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "gigaton-hammer",
+   "name": "デカハンマー",
+   "aspect": "効果文・連続使用制限",
+   "ours": "ダメージ。この技は2ターン続けて出せない。",
+   "authority_quote": "yakkun_ch_row:「この技は2回連続で出すことができない。」",
+   "note": "「2回連続」は直前の使用との連続関係を示すが、「2ターン続けて」は2ターンにわたり出せないとも読め、一字一句の意味が一致しない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "gigaton-hammer",
+   "name": "デカハンマー",
+   "aspect": "効果文・禁止される操作",
+   "ours": "この技は2ターン続けて出せない。",
+   "authority_quote": "Wiki生ページ:「デカハンマーの効果は次のターン技の選択ができなくなるだけで、使用自体は制限されない。選択画面を経ずにデカハンマーが出された場合は2回連続で使用できる。」",
+   "note": "oursは「出せない」と使用自体を禁止する表現だが、権威記述では禁止対象は技の選択だけで、強制など選択画面を経ない使用は可能。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "comeuppance",
+   "name": "ほうふく",
+   "aspect": "効果文・反撃対象",
+   "ours": "「返す」",
+   "authority_quote": "yakkun_ch_row: 「その相手に与える。」",
+   "note": "oursの説明文だけでは、最後にダメージを与えた相手へ返すという対象指定を一字一句復元できない。battle_data.effectsにはredirects_toとして構造化されている。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "comeuppance",
+   "name": "ほうふく",
+   "aspect": "effects・同一ターン最後の技ダメージを基準にする構造",
+   "ours": "\"basis\":\"last_damage_taken_this_turn\"",
+   "authority_quote": "yakkun_ch_row: 「そのターンに最後に受けた技のダメージ」",
+   "note": "「そのターン」「最後」「ダメージ」は表現できるが、basis名は原因を「技」に限定していない。simが技以外のダメージも履歴に入れる場合、誤ったダメージを基準にする影響がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "magical-torque",
+   "name": "マジカルアクセル",
+   "aspect": "effects：こんらん追加効果の構造",
+   "ours": "{\"kind\":\"状態付与\",\"target\":\"opponent\",\"phase\":\"on_use\",\"value\":\"こんらん\",\"prob\":30}",
+   "authority_quote": "「追加効果として、30%の確率で相手をこんらん状態にする。」",
+   "note": "kind・target・value・probは一致するが、権威は「追加効果」としているのにphaseがon_useで、命中・ダメージ成立後という条件が構造上明示されていない。simがon_useを無条件実行する実装なら、外れた場合やまもるで防がれた場合にもこんらんを付与する影響がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "blood-moon",
+   "name": "ブラッドムーン",
+   "aspect": "効果文：連続使用制限",
+   "ours": "この技は2ターン続けて出せない。",
+   "authority_quote": "「自分が最後にPPを消費した技がこの技だった場合、選ぶことができなくなる。」",
+   "note": "Wikiの条件は単なる『次のターン』ではなく、『自分が最後にPPを消費した技がこの技』であること。oursはPP消費を基準にする条件を欠き、ターン基準の制限として読める。第九世代。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "blood-moon",
+   "name": "ブラッドムーン",
+   "aspect": "効果文：回数表現",
+   "ours": "2ターン続けて",
+   "authority_quote": "「この技は 2回連続で だせない。」",
+   "note": "権威は『2回連続』であり、oursの『2ターン続けて』は回数をターン数へ置き換えている。技の不使用や別行動を挟む場合の意味を一字一句では保持していない。第九世代。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "tera-starstorm",
+   "name": "テラクラスター",
+   "aspect": "ステラフォルム時の技タイプ変更・説明文",
+   "ours": "「この技のタイプは『ステラ』タイプになる。」",
+   "authority_quote": "「ステラフォルムのテラパゴスが使用した場合、技のタイプがステラに変わり、相手全体が対象の技に変わる。」",
+   "note": "権威ではタイプ変更も「ステラフォルムのテラパゴスが使用した場合」という条件付きだが、oursでは直前の対象変更文から文を切って無条件の記述になっている。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "tera-starstorm",
+   "name": "テラクラスター",
+   "aspect": "ステラフォルム時の技タイプ変更・effects構造",
+   "ours": "effects: 技タイプ追加、value=ステラ、replaces=true、条件なし",
+   "authority_quote": "「ステラフォルムのテラパゴスが使用した場合、技のタイプがステラに変わり」",
+   "note": "user_form=ステラフォルムの条件がeffectsに無いため、simでは通常形態でもステラタイプへ置換される構造になっている。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "tera-starstorm",
+   "name": "テラクラスター",
+   "aspect": "物理・特殊の決定規則・説明文",
+   "ours": "「物理と特殊のうち、ダメージが大きいほうで攻撃する。」",
+   "authority_quote": "「自分のランク補正込みのステータスがこうげき>とくこうなら物理技になる。」",
+   "note": "権威はランク補正込みのこうげきととくこうを比較し、こうげきが厳密に大きい場合だけ物理技になる。oursの「ダメージが大きいほう」は相手のぼうぎょ・とくぼう等まで含む別の判定を意味する。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "tera-starstorm",
+   "name": "テラクラスター",
+   "aspect": "物理・特殊の決定規則・effects構造",
+   "ours": "effects: 物理特殊自動、rule=compare Physical and Special damage, use the higher category、条件なし",
+   "authority_quote": "「自分のランク補正込みのステータスがこうげき>とくこうなら物理技になる。」「テラスタルしていないテラパゴスが使用したときは、分類が物理技に変わる効果は無い。」",
+   "note": "比較対象がダメージになっており権威のステータス比較と異なるうえ、テラスタル状態の条件も欠ける。simでは通常形態でも分類変更が起き得る。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "burning-bulwark",
+   "name": "かえんのまもり",
+   "aspect": "連続使用時の成功率低下",
+   "ours": "説明文「続けて使うたびに、成功する確率が1/3になる」／effects.consecutive_success_multiplier=0.3333",
+   "authority_quote": "成功するごとに、次の成功率は1/3になる。下限は1/36 = 1/729。",
+   "note": "説明文の1/3は一致するが、effectsは厳密な1/3ではなく0.3333であり、さらに下限1/729の構造がない。simで連続使用確率を厳密に再現できない可能性がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "burning-bulwark",
+   "name": "かえんのまもり",
+   "aspect": "接触攻撃へのやけど付与",
+   "ours": "説明文「守っている間に接触技で攻撃された時、相手を『やけど』状態にする」／effects: {kind:状態付与,target:opponent,value:やけど,prob:100,phase:this_turn,condition:{type:hit_by_contact_move_while_protecting}}",
+   "authority_quote": "そのターンの最後にかえんのまもりを使った場合は失敗する。",
+   "note": "やけど付与の中心効果はあるが、単に接触技を受けたことを条件にしているため、技が決まらなかった場合や守りを無視された場合まで発動し得る過大な構造になっている。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-knuckle",
+   "name": "ダイナックル",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類\n\n | 不定",
+   "note": "第八世代では元となる攻撃技に依存するため、権威資料は「不定」としている。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-knuckle",
+   "name": "ダイナックル",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力\n\n | 不定",
+   "note": "第八世代では固定値ではなく、権威資料は「不定」としている。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-knuckle",
+   "name": "ダイナックル",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP\n\n | 不定",
+   "note": "第八世代では固定10ではなく、権威資料は「不定」としている。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-ooze",
+   "name": "ダイアシッド",
+   "aspect": "分類",
+   "ours": "物理",
+   "authority_quote": "分類\n\n | 不定",
+   "note": "第八世代では分類は元のどくタイプ攻撃技に依存するため、不定。物理固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-ooze",
+   "name": "ダイアシッド",
+   "aspect": "威力",
+   "ours": "10",
+   "authority_quote": "威力\n\n | 不定",
+   "note": "第八世代では威力は元技に依存するため、不定。10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "max-ooze",
+   "name": "ダイアシッド",
+   "aspect": "PP",
+   "ours": "10",
+   "authority_quote": "PP\n\n | 不定",
+   "note": "第八世代ではPPは元技に依存するため、不定。10固定ではない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "springtide-storm",
+   "name": "はるのあらし",
+   "aspect": "effects・追加効果の発動フェーズ",
+   "ours": "phase=on_use",
+   "authority_quote": "追加効果として、30%の確率で相手のこうげきを1段階下げる。",
+   "note": "権威は攻撃の「追加効果」としているため、命中してダメージが成立した後の追加効果である。on_useが使用時処理を意味するなら、外れた時や「まもる」で防がれた時にもこうげき低下を抽選するsim誤動作につながる。命中後の追加効果フェーズとの照合が必要。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "springtide-storm",
+   "name": "はるのあらし",
+   "aspect": "登場世代",
+   "ours": "availability.gen_introduced=9、gens=[9]",
+   "authority_quote": "第八世代 / Pokémon LEGENDS アルセウスにおけるはるのあらし",
+   "note": "技は第八世代のPokémon LEGENDS アルセウスに存在するため、初登場を第九世代とする値は一致しない。基本諸元と追加効果の今回の照合は第九世代SVの値を採用。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "thunder-cage",
+   "name": "サンダープリズン",
+   "aspect": "effectsのゴースト例外の構造",
+   "ours": "状態付与effect全体のimmune=[{type:\"target_type\",value:\"ゴースト\"}]",
+   "authority_quote": "「第六世代以降、ゴーストタイプのポケモンはバインド状態でも交代・にげる・テレポートで逃げることができる。バインド状態によるダメージは受ける。」",
+   "note": "immuneが状態付与effect全体に掛かる構造では、ゴーストタイプへの継続ダメージまで消えるおそれがある。simでは交代・逃走制限だけを免除し、バインド状態と毎ターンダメージは残す構造が必要。世代条件は第六世代以降。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "thunder-cage",
+   "name": "サンダープリズン",
+   "aspect": "命中・防御成立後だけバインドを付与する構造",
+   "ours": "effects.phase=\"on_use\"",
+   "authority_quote": "「命中率｜90」「命中判定: ○」「まもる: ○」「相手をバインド状態にし」",
+   "note": "引用上、この技には命中判定があり、まもるも成立する。一方、effectはon_useに置かれているため、文字どおりなら外れた場合やまもられた場合にもバインドを付与する危険がある。simでは攻撃が命中し、防御されなかった後にのみ付与される構造が必要。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "wave-crash",
+   "name": "ウェーブタックル",
+   "aspect": "効果・反動率（description）",
+   "ours": "相手に与えたダメージの1/3を、自分も受ける。",
+   "authority_quote": "yakkun_ch_row: 「相手に与えたダメージの33%を自分も受ける。」",
+   "note": "1/3は厳密には33%ではないため、一字一句・割合の厳密照合では一致にできない。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  },
+  {
+   "slug": "wave-crash",
+   "name": "ウェーブタックル",
+   "aspect": "battle_data.recoil",
+   "ours": "\"1/3\"",
+   "authority_quote": "yakkun_ch_row: 「相手に与えたダメージの33%を自分も受ける。」",
+   "note": "トップレベルのrecoil値は厳密な33%ではなく1/3。simがこの値を読む場合、正典の33%と計算結果がずれる可能性がある。",
+   "auditor": "codex(gpt-5.3)",
+   "already_verified": false
+  }
+ ]
+}

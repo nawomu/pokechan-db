@@ -513,6 +513,17 @@ function buildMoves() {
       regulation: inCh ? REGULATION : null,
     }, stamp(src));
   }).filter(Boolean).sort((a,b)=>(a.move_no||9999)-(b.move_no||9999) || String(a.name).localeCompare(String(b.name),'ja'));
+  // ★監査で確定した修正を適用(reference/_moves_fixes.json・全件根拠つき。特性/持ち物/ポケモンと同じ仕組み。2026-09-02 R1仕分けで新設)
+  //   キーは slug。set のフィールドをそのまま上書き。根拠なしで足さない・二重ソース一致のみ。
+  try {
+    const fx = J('reference/_moves_fixes.json').fixes || {};
+    items.forEach(it => {
+      const f = fx[it.slug];
+      if (!f || !f.set) return;
+      Object.entries(f.set).forEach(([k, v]) => { it[k] = v; });
+      it.source = 'audited';
+    });
+  } catch (e) {}
   items.filter(x => !x.slug).forEach(x => unk('move_slug', x.name, '全国版に無い=英語slug未確定'));
   write('moves.json', { meta: META('技', {
     availability_field: 'availability=旧生成物pokechan_data_all.jsのWAZA_MAP[*].availabilityをreference/_legacy_move_availability.jsonから移送' +
