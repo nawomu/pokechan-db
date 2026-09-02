@@ -520,7 +520,13 @@ function buildMoves() {
     items.forEach(it => {
       const f = fx[it.slug];
       if (!f || !f.set) return;
-      Object.entries(f.set).forEach(([k, v]) => { it[k] = v; });
+      // キーはパス可("battle_data.effects[0].source" / "availability.gens")。途中が無ければ作らない(推測で器を足さない)
+      Object.entries(f.set).forEach(([k, v]) => {
+        const parts = k.replace(/\[(\d+)\]/g, '.$1').split('.');
+        let o = it;
+        for (let i = 0; i < parts.length - 1; i++) { o = o[parts[i]]; if (o == null) { unk('move_fix_path', it.slug, k + ' の途中が無い'); return; } }
+        o[parts[parts.length - 1]] = v;
+      });
       it.source = 'audited';
     });
   } catch (e) {}

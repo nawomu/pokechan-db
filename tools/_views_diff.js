@@ -411,8 +411,12 @@ function main() {
     'type', 'battle_data', 'priority', 'description', ...MOVE_FLAG_KEYS]);
   const CAT_C_FIELDS = new Set(['weight_kg', 'form', 'name']);
   const CAT_D_FIELDS = new Set(['name_en', 'mega_ability', 'mega_target_en', 'category']);
-  const catCount = { a: 0, b: 0, c: 0, d: 0, e: 0 };
+  const catCount = { a: 0, b: 0, c: 0, d: 0, e: 0, g: 0 };
+  // (g) 監査確定修正(reference/_moves_fixes.json・根拠つき)= (a)の内数として別掲(2026-09-02)
+  let AUDITED_MOVE_FIXES = new Set();
+  try { AUDITED_MOVE_FIXES = new Set(Object.keys(JSON.parse(fs.readFileSync(path.join(ROOT, 'reference/_moves_fixes.json'), 'utf8')).fixes || {})); } catch (e) {}
   report.allowlisted.forEach(d => {
+    if (d.entity && d.entity.startsWith('waza') && AUDITED_MOVE_FIXES.has(d.key)) catCount.g++;
     if (d.reason && d.reason.includes('multiset')) catCount.b++;
     else if (d.reason && d.reason.includes('改善')) { catCount.d++; }
     else if (d.reason && (d.reason.includes('全角名14件') || d.reason.includes(PRE_EXISTING_MASTER_ONLY_NOTE) || d.reason.includes('champions_key欠落'))) catCount.e++;
@@ -425,6 +429,7 @@ function main() {
   const learnersACount = learnersA.reduce((s, x) => s + x.count, 0);
   report.category_summary = {
     a_authority_overwrite: catCount.a,
+    g_audited_move_fixes_within_a: catCount.g + '件(reference/_moves_fixes.json ' + AUDITED_MOVE_FIXES.size + '技・根拠つき)',
     a_learners_authority: learnersACount,
     b_ability_slot_type_order: catCount.b,
     c_official_naming: catCount.c,

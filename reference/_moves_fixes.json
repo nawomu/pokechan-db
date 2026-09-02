@@ -2,5 +2,109 @@
  "what": "master/moves.json への監査確定修正(R1仕分け・全件根拠つき)。build_master_v2.js が slug キーで適用",
  "rule": "1件ずつ根拠(二重ソースの引用)を書く。champions=true は ch行が正典。適用は検証台帳で master_wrong 確定+二重ソース一致のみ",
  "created_at": "2026-09-02",
- "fixes": {}
+ "fixes": {
+  "ruination": {
+   "set": {
+    "power": null
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "威力",
+   "quote_1": "| 威力\n\n | -\n\n | 命中率\n\n | 90\n\n | PP\n\n | 10",
+   "quote_2": "Power: — ... Accuracy: 90 ... PP: 10 (max. 16)",
+   "why": "固定ダメージ技はmaster内でpower=null(ちきゅうなげ/ナイトヘッド等と同じ規約) / champions=false のため権威=Wiki(一次)+pokemondb(二次)。両ソースとも「威力=-(固定ダメージにつき威力欄なし)」で一致。masterのpower=1は誤り。master/moves.json内の同型の固定ダメージ技(sonic-boom/seismic-toss/dragon-rage/night-shade/super-fang/endeavor/final-gambit)は全てpower=nullで統一されており、ruinationだけが数値1になっている単純な入力揺れ(既にある社内規約からの逸脱で、新たな設計判断は不要)。"
+  },
+  "take-heart": {
+   "set": {
+    "pp": 15
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "PP",
+   "quote_1": "| ブレイブチャージ\n\n | 第八世代\n\n | タイプ\n\n | エスパー\n\n | 分類\n\n | 変化\n\n | 威力\n\n | -\n\n | 命中率\n\n | -\n\n | PP\n\n | 15",
+   "quote_2": "PP: 15 (max. 24)\" ... applies to the main series games (Generation VIII onwards ... and Generation IX in Pokémon Scarlet and Violet), as distinct from Pokémon Legends: Arceus, which has a different PP value of 10.",
+   "why": "champions=falseなのでWiki(一次)本文テーブルの値が権威。masterのPP=10はPokémon LEGENDS アルセウス(別作品・別セクション)の値であり、本編(第九世代SV)の値と取り違えている。Bulbapedia(二次)も本編PP=15/LAは別値10と明記し一致。"
+  },
+  "false-surrender": {
+   "set": {
+    "priority": 0,
+    "battle_data.priority": 0
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "優先度",
+   "quote_1": "優先度\n\n | 0",
+   "quote_2": "**Priority:** \"0\"",
+   "why": "masterはpriority=1(基本諸元・battle_data両方)だが、権威二sourceとも優先度は0であり先制技ではない。descriptionの「優先度+1の先制技」という記述も誤り。"
+  },
+  "grassy-glide": {
+   "set": {
+    "priority": 0,
+    "battle_data.priority": 0
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "優先度",
+   "quote_1": "yakkun_ch_row.effect: 「場の状態が『グラスフィールド』で、自分が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、必ず先制できる(優先度:+1)。」",
+   "quote_2": "wiki intro: 「優先度 | +1(グラスフィールド状態) 0 (その他)」/ 技の仕様: 「場がグラスフィールドであっても、使用者が地面にいてその効果を受けていなければ優先度は上がらない。」",
+   "why": "基本値0。グラスフィールド時の+1は effects[0](条件付き優先)が担う。top-levelが1だと常時先制になりsim誤動作 / master_row.priority(トップレベル)とbattle_data.priorityが共に無条件の1になっている。しかしCh権威(yakkun_ch_row)・Wiki両方とも『グラスフィールド+使用者が地面にいる』時のみ優先度+1で、それ以外は優先度0の通常技であると明記している。battle_data.effects[0]は条件付き(条件を満たす時のみpriority:1を適用)で正しく実装されているのに、トップレベルpriorityフィールドとbattle_data.priorityフィールドはこの条件を無視して常に1になっており、conditional effectと矛盾する。sim側がこのトップレベルpriorityを条件判定なしに直接参照すれば、グラスフィールドが無い場面でも常に先制技として動作してしまう実害バグになる。descriptionの文言(『ふだんは優先度0』)はむしろ正しい記述であり、数値フィールドだけが実態と食い違っている。"
+  },
+  "make-it-rain": {
+   "set": {
+    "target": "相手全体"
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "対象",
+   "quote_1": "「target」:「相手全体」",
+   "quote_2": "範囲\n\n | 相手全員",
+   "why": "champions=true(champions_added=true)のためch行(一次)が正典。ch行target='相手全体'、Wiki(二次)も範囲='相手全員'(SVから変更なし)で一致。masterのtarget='1体選択'は誤り。"
+  },
+  "draining-kiss": {
+   "set": {
+    "battle_data.drain": "3/4"
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "drain",
+   "quote_1": "効果 | 相手に与えたダメージの3/4だけ、自分のHPを回復する。",
+   "quote_2": "相手に与えたダメージの3/4だけ自分のHPが回復する。",
+   "why": "effects.fraction=0.75と整合 / Champions正典(ch行)・master自身のdescription/description_legacy・同じmaster_row内のeffects配列fraction=0.75(=3/4)がすべて3/4で一致しているのに、battle_data.drainフィールドだけ\"1/2\"になっている内部矛盾。回復量を実装するsimがこのdrainフィールドを参照すれば本来の3/4でなく1/2しか回復しない実害バグ。"
+  },
+  "wicked-blow": {
+   "set": {
+    "battle_data.must_crit": true
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "確定急所",
+   "quote_1": "効果 | 必ず急所に当たる。",
+   "quote_2": "This move always lands a critical hit",
+   "why": "storm-throw/frost-breath/flower-trickと同じ規約 / effectsに『必ず急所』kind(on_use)が定義されている一方、同じbattle_data内のmust_crit=falseが矛盾する。Wiki/Bulbapediaともに本技は確定急所(This move always lands a critical hit)と明記しており、simがmust_critを参照する経路では確定急所が反映されない可能性がある内部不整合。単純にmust_critの値をtrueへ揃えれば整合が取れる(カブトアーマー/シェルアーマー例外の実装自体はeffects側の条件追加が別途必要だが、今回指摘された『必ず急所kind vs must_crit=false』の矛盾自体はブール値1件の修正で解消できる)。"
+  },
+  "surging-strikes": {
+   "set": {
+    "battle_data.must_crit": true
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "確定急所",
+   "quote_1": "技の仕様: ・全ての攻撃が必ず急所に当たる。",
+   "quote_2": "Bulbapedia: Each strike will always result in a critical hit if possible (i.e. unless the target has Battle Armor or Shell Armor).",
+   "why": "storm-throw/frost-breath/flower-trickと同じ規約 / master descriptionは『3回つづけて攻撃する。必ず急所に当たる。』で、連続攻撃を述べた直後に急所句が続く構造。description_legacy『1ターンに3回連続で攻撃する。必ず急所に当たる。』と同一パターンであり、直前で3回攻撃と明示した上で『必ず急所に当たる』と続けば、3回すべてに適用される意味は日本語の自然な読みとして保持される。説明文はわざと短く作る方針(プロジェクトのplain-language/短さ設計)であり、『全ての攻撃が』を毎回明記する必要はない。監査の『一字一句保持していない』という指摘は文言の完全一致を求めすぎており、意味の欠落ではない。"
+  },
+  "safeguard": {
+   "set": {
+    "battle_data.effects[0].source": "self"
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "source",
+   "quote_1": "5ターンの間、味方の場を『しんぴのまもり』状態にして、自分と味方のポケモンは状態異常と『こんらん』状態にならなくなる。交代しても効果は続く。(yakkun_ch_row.effect)",
+   "quote_2": "5ターンの間、味方の場をしんぴのまもり状態にし、他のポケモンから状態異常やこんらん状態にされることを防ぐ。交代しても効果は残る。(wiki 効果)",
+   "why": "しんぴのまもりは使用者自身が自分・味方の場に設置する自己バフ技。Champions正典(ch行)・Wiki権威コーパスとも『味方の場を…状態にする』とあり、設置者は使用者(self)。master_row.battle_data.effects[0].sourceが\"opponent\"になっているのは意味と逆で、simで壁の所有側(誰が破れるか等)を誤判定するバグを生む。"
+  },
+  "infernal-parade": {
+   "set": {
+    "battle_data.effects[0].target": "opponent"
+   },
+   "verified": "reference/_move_mismatch_effects_verified.json (wf_40414525-d67, 2026-09-02)",
+   "aspect": "target",
+   "quote_1": "yakkun_ch_row.effect: 「30%の確率で相手を『やけど』状態にする。相手が状態異常の時、威力が2倍になる。」",
+   "quote_2": "master/moves.json たたりめ battle_data.effects[0]: {\"kind\": \"威力倍率\", \"target\": \"opponent\", \"phase\": \"on_use\", \"multiplier\": 2, \"condition\": {\"type\": \"target_has_status_condition\"}}",
+   "why": "たたりめ(hex)の同型effectsと同じ / master(infernal-parade)のeffects[0]「威力倍率」targetが'self'になっているが、同一condition(target_has_status_condition)を持つ同効果技「たたりめ」はtarget='opponent'。ch行・Wikiとも効果文は『相手が状態異常の時、威力が2倍になる』で完全一致しており、条件参照先=相手であることと整合させるならtargetは'opponent'であるべき。infernal-paradeだけselfになっているのはデータ入力の不整合で、監査(codex)の指摘通りmasterが誤り。"
+  }
+ },
+ "updated_at": "2026-09-02"
 }

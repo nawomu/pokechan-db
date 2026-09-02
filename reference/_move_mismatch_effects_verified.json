@@ -1,0 +1,2449 @@
+{
+ "what": "技監査R1 mismatch(未検証183件/133技)の二重ソース検証。Workflow mismatch-verify-r1 (wf_40414525-d67)。1技=1Sonnetエージェント。verdict=master_wrong|auditor_error|unclear、fix_target=moves_fixes_numeric(数値・適用可)|effects_design|description_design|none",
+ "made": "2026-09-02",
+ "run": "wf_40414525-d67",
+ "results": [
+  {
+   "items": [
+    {
+     "aspect": "effects: source(誰の技として設置するか)",
+     "verdict": "master_wrong",
+     "why": "しんぴのまもりは使用者自身が自分・味方の場に設置する自己バフ技。Champions正典(ch行)・Wiki権威コーパスとも『味方の場を…状態にする』とあり、設置者は使用者(self)。master_row.battle_data.effects[0].sourceが\"opponent\"になっているのは意味と逆で、simで壁の所有側(誰が破れるか等)を誤判定するバグを生む。",
+     "quote_1": "5ターンの間、味方の場を『しんぴのまもり』状態にして、自分と味方のポケモンは状態異常と『こんらん』状態にならなくなる。交代しても効果は続く。(yakkun_ch_row.effect)",
+     "quote_2": "5ターンの間、味方の場をしんぴのまもり状態にし、他のポケモンから状態異常やこんらん状態にされることを防ぐ。交代しても効果は残る。(wiki 効果)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"battle_data.effects[0].source\":\"self\"}",
+     "correct_value": "battle_data.effects[0].source = \"self\"(現行値\"opponent\"は誤り)"
+    }
+   ],
+   "slug": "safeguard",
+   "summary": "safeguard(しんぴのまもり)の未検証mismatch1件(effects.source)を二重ソース(ch行+Wiki)で確定。master_wrong=1件、opponent→selfに修正すべき。\"よこどり相互作用の未構造化\"と\"Zワザ付加効果\"はR1の過去指摘(prev_findings.known)であり今回のtriage対象(already_verified=false)には含まれていないため対象外。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文の意味(master_row.description・新版説明)",
+     "verdict": "master_wrong",
+     "why": "champions=trueにつき権威はch行(一次)+Wiki(二次)。両者とも『相手のランク変化(プラス/マイナス問わず)を丸ごと自分にコピーする/同じ状態にする』で一致。masterのdescriptionにある『上がっているランクだけを奪う』『下がっているランクは相手に残る』『相手の上昇は元に戻る』『そのあと攻撃ダメージを与える』はいずれの権威にも根拠がなく、しかもcategory=変化・power=null(ダメージを与えない状態異常技)とも矛盾する。同ファイル内のdescription_legacyおよびbattle_data.effects(copies: all stat ranks, onto: self)はch行と正しく整合しており、descriptionフィールドだけが誤っている。",
+     "quote_1": "yakkun_ch_row.effect=\"相手の能力ランクの変化を、すべて自分にコピーする。\"",
+     "quote_2": "第四世代・第五世代・第六世代・第七世代・第八世代・第九世代\nじぶんに あんじを かけることで のうりょく へんかの じょうたいを あいてと おなじにする。",
+     "correct_value": "相手の能力ランクの変化(上がっているものも下がっているものも全て)を、そのまま自分にコピーする。ダメージは与えない(変化技)。",
+     "fix_target": "description_design"
+    }
+   ],
+   "slug": "psych-up",
+   "summary": "psych-up(じこあんじ)のR1未検証mismatch1件を検証。master_wrong確定=descriptionが権威(ch行+Wiki)に無い『選別コピー+ダメージ付与』を捏造しており、category=変化・power=nullとも矛盾。description_legacy/effectsは正しい。fix_targetはdescription_design(声の領域につき適用せず)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "蓄積のリセット条件",
+     "verdict": "master_wrong",
+     "why": "Champions正典(ch行)とWikiの技の仕様が共に『手持ちに戻る(交代/ひんし)とリセット』『ターン終了でリセットされない(むしろ交代やひんしでもリセットされないのがSVまでの仕様で、Championsは手持ちに戻るとリセット)』と一致して述べており、masterのreset_at_turn_end=true(『ターンが終わると蓄積はリセットされる』)は事実と逆。ターンをまたいでも蓄積は保持され、手持ちに戻った時のみ元の威力(50)に戻るのが正しい仕様。",
+     "correct_value": "ターン終了ではリセットされない。手持ちに戻る(交代・瀕死からの再出場)とリセットされ、威力は元(50)に戻る。",
+     "quote_1": "手持ちに戻ると、リセットされる(ポケモンSVではリセットされない)。特性『てつのこぶし』の時、威力が1.2倍になる。(yakkun_ch_row.effect)",
+     "quote_2": "・SVまでは交代等で手持ちに戻っても手持ちに戻る前の威力が保持される仕様であったが、Championsでは手持ちに戻ると威力が元（威力50）に戻る。/・ダメージを受けた回数は交代やひんしでリセットされない。(Wiki 技の仕様)",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "rage-fist",
+   "summary": "rage-fist(ふんどのこぶし)のR1未検証mismatch1件を二重ソースで確定。master_row.battle_data.effects[0].reset_at_turn_end=trueおよびdescription/description_legacyの『ターンが終わると蓄積はリセットされる』は誤り=master_wrong。Champions正典(ヤックンch行)とWiki技の仕様が一致して『手持ちに戻る(交代/瀕死からの再出場)時にリセット、ターン終了ではリセットされない』と述べている。構造(reset条件の種類)を変える必要があるためfix_target=effects_design(数値の単純書き換えでは済まない)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "battle_data.effects: コピー可能な状態異常の種類にこおりを含めている",
+     "verdict": "master_wrong",
+     "why": "champions=falseのためWikiが一次ソース。Wiki技の仕様節が「こおり状態では使用できる術がないため、移すことはできない」と明記し、効果文の列挙(どく/もうどく/ねむり/まひ/やけど)にもこおりは無い。第二ソースのBulbapediaも同じ理由(使用者が凍結中は技を使えない)で明確に否定しており、二重ソース一致。masterのbattle_data.effects[0].noteは「やけど/どく/もうどく/まひ/ねむり/こおりのいずれか」としこおりを含めており過剰(overinclusive)。",
+     "correct_value": "コピー可能な状態異常はやけど/どく/もうどく/まひ/ねむりの5種のみ。こおりは(使用者が凍結中は行動不能=技を出せないため)対象外。",
+     "quote_1": "・こおり状態では使用できる術がないため、移すことはできない。",
+     "quote_2": "As there is no way to use Psycho Shift while frozen, it is not possible to transfer this status condition.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "psycho-shift",
+   "summary": "psycho-shiftのR1未検証項目は1件のみ(こおり状態のコピー可否)。二重ソース(Wiki日本語+Bulbapedia)一致でmaster_wrongと確定。masterのeffects.noteが「こおりも移せる」としているのが誤りで、正しくは5状態異常(どく/もうどく/ねむり/まひ/やけど)のみで、こおりは使用者が凍結中は技自体を出せないため原理的に除外される。effects構造(移せる状態異常の列挙・凍結中は発動不可のロジック)を要する修正のためfix_target=effects_design、moves_fixes_numericではない。prev_findingsのその他の項目(みがわり/自分未罹患時失敗/タイプ相性例外/いたずらごころ/ねごと引継ぎ/シンクロ世代差)はすべてalready_verified=trueとして本triageの対象外(triage_fullのitemsに含まれていなかった)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文: 回避率を無視する範囲",
+     "verdict": "master_wrong",
+     "why": "一次(Wiki)・二次(Bulbapedia)とも、かぎわけるが無視するのは相手の回避率ランクの『上昇』のみであり、回避率が下がっている場合のボーナス(命中しやすさ)までは無視しないと明記している。うちのdescriptionは『相手の回避率の変化に関係なく』と書いており、下降側まで無視するように読める点で範囲が広すぎ不正確。",
+     "correct_value": "相手の回避率ランク上昇のみを無視して攻撃が当たるようになる(回避率が下がっている場合のボーナスは無視されず有効なまま)。",
+     "quote_1": "相手をみやぶられている状態にし、相手の回避率ランク上昇を無視して攻撃が当たるようにする。",
+     "quote_2": "Odor Sleuth now only causes accuracy checks against the target to ignore changes to its evasion stat stages if its evasion stat stage is greater than 0.",
+     "fix_target": "description_design"
+    }
+   ],
+   "slug": "odor-sleuth",
+   "summary": "対象1件を検証。「効果文: 回避率を無視する範囲」はmaster_wrong確定(一次=Wiki/二次=Bulbapedia一致): かぎわけるが無視するのは回避率『ランク上昇』のみで、下降側のボーナスは無視されない。うちのdescriptionは『回避率の変化に関係なく』と広く書いており不正確。fix_target=description_design(文言修正・適用は声の判断領域のため今回は未適用)。battle_data.effectsのignores構造の是非は本triage項目の対象外(prev_findingsのR1既知指摘であり今回のalready_verified=false対象には含まれず)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "相性上書き効果のphase(持続性)",
+     "verdict": "master_wrong",
+     "why": "Wiki(こんなときに使おう節)は『使用者が交代しても効果は続く』と明記し、これはみやぶられている状態(タイプ無効化解除を含む)が使用者ではなく対象に付与される持続状態であることを示す。第二ソース(Bulbapedia)も『This effect remains until the target switches out』(第2世代の記述だが効果の性質としての持続性を裏付け)と明記しており、単発(on_use)ではなく持続(lasting)効果であることが二重に確認できる。master_row.battle_data.effects[1](相性上書き)のphase='on_use'はeffects[0](必中)のphase='lasting'と非対称であり、実際の挙動(対象が場に残る限りタイプ無効化解除も続く)と食い違う。",
+     "quote_1": "使用者が交代しても効果は続くため、みねうちを覚えた捕獲要員と組んでも活用できる。(こんなときに使おう節)",
+     "quote_2": "This effect remains until the target switches out (Bulbapedia, Foresight (move))",
+     "correct_value": "effects[1](相性上書き)のphaseは'on_use'ではなく'lasting'とすべき(effects[0]の必中効果と同じ持続状態の一部として、対象が場に留まる/瀕死・交代するまでタイプ無効化解除が続く)",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "foresight",
+   "summary": "foresightのmismatch候補1件を検証。相性上書き効果のphase='on_use'はmaster側の誤りと確定(master_wrong)。Wiki一次資料(『使用者が交代しても効果は続く』)とBulbapedia二次資料(『This effect remains until the target switches out』)が一致し、タイプ無効化解除は必中効果と同じ持続状態(lasting)であるべき。effects構造の修正が必要なためfix_target=effects_design。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "半無敵状態(そらをとぶ)への命中とダメージ倍加の仕組み",
+     "verdict": "master_wrong",
+     "why": "champions=false のためWiki(一次)+Bulbapedia(二次)で確認。両ソースとも第四世代以降は『最終ダメージの2倍』ではなく『威力(base power)をテクニシャン判定前に2倍する』機構であると明記(40→80として扱う)。master_row の battle_data.effects は damage_multiplier=2 (最終ダメージ倍率相当)として実装されており、description/description_legacyも『ダメージが2倍』と表現している。通常のポケモンでは結果は同じだが、テクニシャン所持ポケモンが使うと威力80になった時点で『60以下』の条件を満たさなくなりテクニシャンの1.5倍補正が乗らない、という現行実装では再現できない挙動差が生じる。",
+     "quote_1": "・第四世代以降では威力が2倍される。\n・テクニシャンの判定前に2倍されるため、威力が2倍になるとテクニシャンによる1.5倍補正がかからない。",
+     "quote_2": "Starting in Generation IV, when used on a Pokémon during the semi-invulnerable turn of Fly or Bounce, the power is now doubled instead of the damage being doubled (resulting in virtually the same effect).",
+     "fix_target": "effects_design",
+     "correct_value": "第四世代以降の正しい機構は『最終ダメージを2倍』ではなく『威力(base power)をテクニシャン判定前に2倍する』(実質40→80として扱う)。damage_multiplierでなくpower_multiplier(もしくは相当のbase power倍加フラグ)としてeffectsを再設計し、テクニシャン等の技威力依存の特性判定より前の段階に適用する必要がある。通常結果は同じだが、テクニシャン所持ポケモンが使用した場合のみ挙動が変わる。"
+    }
+   ],
+   "slug": "gust",
+   "summary": "gust(かぜおこし)のmismatch対象1件(already_verified=false)を二重ソースで検証。Wiki(pokemonwiki)一次+Bulbapedia二次が一致し、半無敵状態への『ダメージ2倍』表現はmaster_wrongと確定。正しくは第四世代以降『威力(base power)をテクニシャン判定前に2倍』する機構で、現行のdamage_multiplier実装(最終ダメージ倍率)はテクニシャン所持ポケモン使用時に挙動差が出うる。fix_target=effects_design(単純な数値差し替えでは直せず、effects構造の再設計が必要なため)。"
+  },
+  {
+   "slug": "metal-burst",
+   "summary": "R1 mismatch指摘1件(already_verified=false)を二重ソース(ch行+Wiki)で確定。「無効タイプの相手には当たらない」という独自追記はmaster_wrong=両ソースに根拠なし・Wikiはむしろ「はがね技なので基本的に相性で無効化されることはない」と逆の趣旨を明記。fix_targetはdescription_design(声の領域なので本セッションでは適用しない)。",
+   "items": [
+    {
+     "aspect": "description(独自文)の「無効タイプの相手には当たらない」という追記",
+     "verdict": "master_wrong",
+     "why": "champions=trueのためch行(一次)+Wiki(二次)の二重ソースとも「タイプ相性の影響を受けない」とのみ述べ、「無効タイプの相手には当たらない」という限定は無い。むしろWikiの技の仕様節は逆方向の事実(はがね技なので通常は相性で無効化されない=無効タイプが実質存在しない)を明記しており、masterの独自追記はソースと食い違う",
+     "quote_1": "そのターンに最後に受けた技のダメージの1.5倍をその相手に与える。ダメージを受けていない時は失敗する。タイプ相性の影響を受けない。",
+     "quote_2": "・はがね技なので、基本的に相性で無効化されることはない。",
+     "fix_target": "description_design",
+     "correct_value": "「まったく効かないタイプ(無効)の相手には当たらない」の一文を除去し、単に「ダメージの量はタイプ相性で変わらない」で止める(両ソースに「無効タイプに当たらない」という限定は無い/むしろ逆の趣旨)"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文の意味(通信対戦での揮発)",
+     "verdict": "master_wrong",
+     "why": "表示用descriptionが『戦闘が終わってももとにもどらない』と無条件断定しているが、Wiki・Bulbapedia(第二ソース)ともに『経験値が入らない通信対戦・一部対戦施設では戦闘後にスケッチへ戻る』という条件付き挙動を明記。master自身のdescription_legacyとeffects[0].noteには既にこの例外が書かれており、descriptionフィールドだけが例外を落としている内部不整合。",
+     "correct_value": "『この技を忘れて、相手が最後に使った技を覚える。戦闘が終わっても元に戻らない(通信対戦や経験値が入らない対戦施設では元に戻る)。』のように条件付き記述にする(description_legacyと同じ意味に揃える)",
+     "quote_1": "通信対戦や、経験値が手に入らない対戦施設でスケッチを使用した場合…第三世代以降では、スケッチを使用することはできるが、バトルが終わると習得した技を忘れてスケッチに戻る。ただし、対戦施設であっても経験値が入る場合はバトルが終わった後も技を覚えたままにできる。",
+     "quote_2": "If the battle does not allow experience points to be earned (such as link battles or Battle Tower battles), any moveset changes caused by Sketch will be reverted at the end of the battle.",
+     "fix_target": "description_design"
+    }
+   ],
+   "slug": "sketch",
+   "summary": "sketchのmismatch対象は1件(効果文の意味=通信対戦での揮発条件)。Wiki(一次)とBulbapedia(二次)がともにmasterの内部データ(description_legacy/effects[0].note)と一致する条件付き挙動を明記しており、表示用description本文だけがその例外を無条件断定に落としているmaster_wrongと確定。fix_targetはdescription_design(声の領域のため未適用)。"
+  },
+  {
+   "slug": "amnesia",
+   "summary": "amnesia(ドわすれ)の未検証mismatch1件を検証。rank_changes.stat=\\\"spd\\\" vs effects.stat=\\\"special_defense\\\"の内部不一致という指摘はauditor_error(監査側の誤読)。master/moves.jsonのrank_changes.statは919技横断でspa/spd/spe(spd=special_defense, spe=speed)を明確に区別する既存規約であり、amnesiaのrank_changes[0].stat=\\\"spd\\\"はeffects[0].stat=\\\"special_defense\\\"と完全に一致している。修正不要。",
+   "items": [
+    {
+     "aspect": "内部整合性(rank_changes vs effects の stat表記)",
+     "verdict": "auditor_error",
+     "why": "master/moves.jsonのrank_changes.statは実装済みのスキーマ略記で、spa=とくこう/spd=とくぼう/spe=すばやさと明確に区別される(全919技中25件がspd、別の25件がspeで存在し、spd使用例のpsychic[opp,-1,spd]・shadow-ball[opp,-1,spd]は共に「とくぼう-1」効果でspeedではない)。amnesiaのrank_changes[0].stat=\"spd\"はこの規約どおりspecial_defenseを指しており、effects[0].stat=\"special_defense\"と完全に一致している。監査側が\"spd\"を一般的なspeedの略記と誤読しただけで、master内部に不整合はない。",
+     "quote_1": "自分の『とくぼう』ランクを2段階上げる。(ヤックンChampions行 effect)",
+     "quote_2": "master/moves.json内でspd=special_defense、spe=speedとして919技中一貫使用(例: psychic/opp/-1/spd=とくぼう-1、agility/self/2/spe=すばやさ+2)",
+     "fix_target": "none"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文: ダブルバトルでの返しダメージ量",
+     "verdict": "master_wrong",
+     "why": "masterのdescriptionは『ダブルバトルでは、最後に受けた技のダメージだけを返す』とし、ダメージ量そのものが最後の1発分に縮小されると書いている。しかしWiki(一次)・Bulbapedia(二次)ともに、ダブル/トリプルにおける『最後に攻撃してきたポケモンが対象』という記述は反撃を『誰に向けるか』という対象選定の話であり、返すダメージの量は終始『2ターンの間に受けた合計ダメージの2倍』のまま(量が減る旨の記述はどちらのソースにも存在しない)。実際master_row.battle_data.effects[0].doubles_noteは正しく『合計の2倍を相手に与える』と書いており、description本体だけが対象選定とダメージ量を混同して誤っている(自己矛盾)。",
+     "quote_1": "その間に受けた合計ダメージを2倍にして、相手に返す(ダメージ固定技)。…攻撃対象は最後に攻撃してきたポケモンが対象になる。",
+     "quote_2": "During Triple Battles, this attack will hit the last Pokémon to attack the user, including allies and non-adjacent foes.",
+     "correct_value": "ダブル/トリプルバトルでも、返すダメージの量はためた2ターン分の合計ダメージの2倍のまま変わらない。変わるのは『誰に返すか』(最後に自分を攻撃してきた相手、いなければ別の相手や味方になることもある)だけ。",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "効果文: 失敗条件(ダメージを受けていないと失敗)",
+     "verdict": "master_wrong",
+     "why": "masterのdescriptionは『そのターンにダメージを受けていないと失敗する』とし、単一ターンの判定であるかのように読める。しかしWiki(一次)は『がまん状態の間、ダメージのある攻撃技を受けなかった場合は失敗する』と、がまん状態=2ターン全体を通しての判定であると明記している。Bulbapedia(二次)も『If the user is not directly attacked during the biding period, it will fail』とbiding period(=がまん状態の全期間)全体を通じての無被弾を失敗条件としており、単一ターン限定ではない点で両ソース一致。",
+     "quote_1": "がまん状態の間、ダメージのある攻撃技を受けなかった場合は失敗する。",
+     "quote_2": "If the user is not directly attacked during the biding period, it will fail on the turn it would have released.",
+     "correct_value": "がまん状態の間(2ターンの合計)、一度もダメージを受けなかった場合に失敗する(単一ターンごとの判定ではない)。",
+     "fix_target": "description_design"
+    }
+   ],
+   "slug": "bide",
+   "summary": "bide(がまん)のR1未検証mismatch2件を二重ソース(Wiki一次+Bulbapedia二次、champions=false)で検証。2件とも master_wrong と確定。①ダブルバトルの返しダメージ量: masterは『最後に受けた技のダメージだけ返す』と誤記述。Wiki・Bulbapedia双方とも『最後に攻撃してきた相手が対象』は対象選定の話であり、返すダメージ量は常に2ターン合計の2倍のまま(effects内部のdoubles_noteは正しいのにdescription本体だけ矛盾)。②失敗条件: masterは『そのターンに』ダメージを受けなければ失敗と書くが、正しくは『がまん状態の間(2ターン全体)』を通じて無被弾の場合に失敗。両方とも生の数値フィールドではなくdescription文言の修正(fix_target=description_design、声の領域のため今回は適用しない)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果の持続期間(「1ターン限り」という限定の妥当性)",
+     "verdict": "master_wrong",
+     "correct_value": "第五世代以降、ロックオン状態は「次の1ターンだけ」で自動的に切れるのではなく、対象がひんし/場を離れるまで持続する。masterのdescription「(1ターン限り)」およびbattle_data.effectsのapplies_on:'next_turn'は誤り。",
+     "quote_1": "・第五世代以降は自分をロックオン状態にする。\n・自分がすでにロックオン状態の場合、こころのめは失敗する。こころのめを使った次のターン、狙いを定めた別の相手にこころのめを使ったときが該当する。\n・相手がひんしになるか場を離れるとロックオン状態は解除されるため、続けてこころのめを使ったときも成功する。",
+     "quote_2": "Generation V onward: The effect ends when the affected target leaves battle (faints or switches out).",
+     "fix_target": "effects_design",
+     "why": "和訳ポケモンWiki(一次)とBulbapedia Lock-On項目(二次・英語版だが同内容)が一致して『第五世代以降のロックオン状態は次ターンだけで切れず、対象がひんし/交代するまで持続する』と明記しており、masterのdescriptionの『(1ターン限り)』表記とbattle_data.effectsのapplies_on:'next_turn'という前提はこの仕様と食い違う。sim実装上、2ターン目以降に必中判定が誤って外れる恐れがあり、単純な数値修正では直せず、ロックオン状態の解除条件(対象ひんし/交代)をeffects構造に持たせる設計変更が必要なためeffects_design。文言(『1ターン限り』の削除・言い換え)はこの構造修正に伴って自動的に発生する付随変更であり、独立した声の判断ではない。"
+    }
+   ],
+   "slug": "mind-reader",
+   "summary": "こころのめ(mind-reader)R1未検証1件を二重ソース(和訳ポケモンWiki+Bulbapedia)で確定。master_wrong=1件: 「(1ターン限り)」表記とeffectsのapplies_on:'next_turn'は誤り。第五世代以降のロックオン状態は対象がひんし/交代するまで持続する仕様で、二次ソース(Bulbapedia)もGen V onward「effect ends when the affected target leaves battle (faints or switches out)」と一致確認。fix_target=effects_design(ロックオン解除条件を「対象ひんし/交代」に紐づける構造変更が必要。単純な数値修正やdescriptionの文言修正だけでは直らない)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "世代(availability.gens)にGen8を含めていること",
+     "verdict": "master_wrong",
+     "why": "Wiki一次ソースは『ソード・シールドで使用不可』『第八世代 このわざは つかえません』と明記。Bulbapedia(二次ソース)も『Magnet Bomb cannot be used』in Gen VIII (SwSh/BDSP)と独立に確認。champions=falseなのでWikiが一次権威、両ソース一致でGen8を含めるのは誤り。正しくはgens:[4,5,6,7](Gen9はLEGENDS Z-Aで復活だがmasterのgens配列に9は元々含まれておらず対象外)。",
+     "correct_value": "availability.gens: [4,5,6,7](Gen8を除外)",
+     "quote_1": "ソード・シールドで使用不可 / 第八世代\\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+     "quote_2": "Magnet Bomb cannot be used in these games [Sword/Shield, Brilliant Diamond/Shining Pearl]. According to the article, \"This move can't be used. It's recommended that this move is forgotten.\"",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability_gens\":[4,5,6,7]}"
+    }
+   ],
+   "slug": "magnet-bomb",
+   "summary": "magnet-bombのmismatch1件(gens配列にGen8を含む)を検証。Wiki一次+Bulbapedia二次ソースが一致してGen8使用不可を確認=master_wrong確定。fix_target=moves_fixes_numericでgensを[4,5,6,7]に修正すべき。"
+  },
+  {
+   "slug": "brave-bird",
+   "summary": "監査R1でmismatch判定された1項目(battle_data.effects反動構造化)を検証。二重ソース(Championsヤックン/ch行 + 権威コーパスWiki)ともに現行仕様(第五世代以降・Champions)は「与えたダメージの33%」で一致し、effects.fraction:0.33は正しい。一方battle_data.recoil:\\\"1/3\\\"は第四世代限定の旧式表記のまま残っており、現行33%と数値的に食い違う内部矛盾=master側の不備と確定(master_wrong)。",
+   "items": [
+    {
+     "aspect": "battle_data.effects(反動の構造化)",
+     "verdict": "master_wrong",
+     "why": "champions=true(ヤックンch正典は「33%」)。かつWikiの「技の仕様」節も『反動ダメージは第四世代では与ダメージ×1/3(小数点以下切り捨て)、第五世代以降では与ダメージ×0.33(小数点以下四捨五入)。』と明記=現行世代(第五世代以降・Championsも同じ)は0.33(=33%)が正。effects.fraction:0.33はこの現行式と一致=正しい。一方battle_data.recoil:\"1/3\"は第四世代限定の古い式の文字列で、現行(Champions/第五世代以降)の33%と数値的に食い違う内部矛盾=recoilフィールド側がmaster_wrong。",
+     "quote_1": "effect: \"相手に与えたダメージの33%を自分も受ける。\"(yakkun_ch_row)",
+     "quote_2": "・反動ダメージは第四世代では与ダメージ×1/3(小数点以下切り捨て)、第五世代以降では与ダメージ×0.33(小数点以下四捨五入)。(Wiki「技の仕様」節)",
+     "correct_value": "battle_data.recoil は \"1/3\" ではなく現行(第五世代以降/Champions)の33%(0.33)に統一すべき。effects.fraction:0.33はそのままでよい",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"recoil\":\"33%\"}"
+    }
+   ]
+  },
+  {
+   "slug": "mud-bomb",
+   "summary": "1件のmismatch(世代availability)を二重ソース検証。master_wrong=1。gensに8が含まれているが、SwSh/BDSP/SVいずれも「使用不可(選択不可)」のため8を含めるべきでない。Wiki一次+Bulbapedia二次で完全一致確認。",
+   "items": [
+    {
+     "aspect": "世代availability(gens)",
+     "verdict": "master_wrong",
+     "why": "masterのgensは[4,5,6,7,8]だが、Wiki(一次)は『ソード・シールドで使用不可』『BDSPで使用不可』『SVで使用不可』と明記し、たたかうわざ欄も第八世代は『このわざは つかえません』のプレースホルダ文言。Bulbapedia(二次)も『Sword and Shield: cannot be selected in a battle』『Brilliant Diamond and Shining Pearl: cannot be selected in a battle』『available in Generations IV through VII』と完全一致で裏付け。第八世代の作品(SwSh/BDSP)はいずれも技マシン/思い出し等で入手しても戦闘選択不可=使用可能世代に8を含めるべきでない。",
+     "correct_value": "gens:[4,5,6,7](8を除外。gen_introduced:4は正しい)",
+     "quote_1": "| 第四世代\n\n | ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+     "quote_2": "Pokémon Sword and Shield: \"Mud Bomb cannot be selected in a battle.\" Pokémon Brilliant Diamond and Shining Pearl: \"Mud Bomb cannot be selected in a battle.\" ... available in Generations IV through VII",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[4,5,6,7]}"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "使用可能世代(availability.gens)",
+     "verdict": "master_wrong",
+     "why": "champions=falseのためWiki(一次)+Bulbapedia(二次)の二重ソースで確認。両ソースとも一致してGen8(ソード・シールド以降)ではゆうわくは技として選択不可(使用不可)と明記している。masterのgens配列は[4,5,6,7,8]でgen8を含めており誤り。正しくは[4,5,6,7]。",
+     "quote_1": "ソード・シールドで使用不可 | BDSPで使用不可 | SVで使用不可 (…) 第八世代 このわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+     "quote_2": "Captivate cannot be selected in a battle... in Sword/Shield, Brilliant Diamond/Shining Pearl, Legends: Arceus, and Scarlet/Violet, the move description reads: \"This move can't be used. It's recommended that this move is forgotten.\"",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[4,5,6,7]}",
+     "correct_value": "gens:[4,5,6,7](gen8を含めない=SwSh以降は技として使用不可)"
+    }
+   ],
+   "slug": "captivate",
+   "summary": "captivate(ゆうわく)のmismatch対象1件を検証。available gens項目=master_wrong確定(二重ソース一致)。masterのgens配列からgen8を除去し[4,5,6,7]に修正すべき。ファイル未変更(検証担当のため書き換えなし)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "世代可否(availability.gens)",
+     "verdict": "master_wrong",
+     "why": "champions=falseのためWikiが一次権威。Wiki本文(たたかうわざ節)は『第八世代・第九世代 このわざは つかえません』と明記し、intro表も『ソード・シールドで使用不可/BDSPで使用不可/SVで使用不可』と明記。Bulbapedia(二次)も『Generation VIII onwards: Heal Order cannot be selected in a battle』『available through Generation VII』と完全一致。master_row.availability.gens=[4,5,6,7,8]はgen8を誤って含んでいる。",
+     "quote_1": "第四世代・第五世代・第六世代・第七世代\nしもべを よびだして きずを なおす。さいだい HPの はんぶん じぶんの HPを かいふく する。\n第八世代・第九世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+     "quote_2": "Generation VIII onwards: Heal Order cannot be selected in a battle.",
+     "fix_target": "moves_fixes_numeric",
+     "correct_value": "gens: [4,5,6,7](gen8を除去)",
+     "fix_set": "{\"availability.gens\":[4,5,6,7]}"
+    }
+   ],
+   "slug": "heal-order",
+   "summary": "heal-orderのmismatch対象は1件(availability.gens)。champions=falseでyakkun_ch_row=null。Wiki一次+Bulbapedia二次が完全一致で『第八世代・第九世代は使用不可(SwSh/BDSP/SV全て)』を確認。master.gens=[4,5,6,7,8]はgen8を誤って含む=master_wrong確定。正しくは[4,5,6,7]。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "availability.gens(使用可能世代)",
+     "verdict": "master_wrong",
+     "why": "champions=falseのためWiki(一次)+Bulbapedia(二次)の二重ソースで確認。両方ともソード・シールド(第8世代本編)/BDSP/SVで使用不可と明記。masterのgens配列に8を含めているのは誤り(第4〜7世代のみが正しく、Legends: Arceus/Legends: Z-Aでの復活は本編のgens配列とは別枠)。",
+     "quote_1": "ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+     "quote_2": "This move can't be used. It's recommended that this move is forgotten. (Sword/Shield); Brilliant Diamond and Shining Pearl - Same restriction as Sword/Shield; Scarlet and Violet - \"This move can't be used.\"",
+     "correct_value": "gens=[4,5,6,7](8を除外)。gen_introduced=4は変更不要",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[4,5,6,7]}"
+    }
+   ],
+   "slug": "ominous-wind",
+   "summary": "対象1件(availability.gens)を検証。champions=falseのためWiki+Bulbapedia二重ソースで確認し、master_wrongと確定。masterのgens配列に含まれる8(ソード・シールド/BDSP/SV)は両ソースとも使用不可と明記しており誤り。正=[4,5,6,7]。moves_fixes_numericで修正可能。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "「ほかのポケモンが使うと失敗する」という説明文の主張",
+     "verdict": "master_wrong",
+     "why": "masterの説明文とeffects『使用者限定』は『ペラップ以外が使うと技自体が失敗する』という趣旨だが、Wiki・Bulbapedia両ソースとも『技は普通に発動しダメージも出る、ただし追加効果(こんらん)の有無/確率が世代とユーザーで変わるだけ』と一致して記述しており、『失敗する』という記述はどちらのソースにも存在しない(むしろ確率表まで載せている=発動前提)。sim的にも誤り(Transform/オウムがえし習得時にダメージが出なくなる誤動作を招く)。",
+     "correct_value": "おしゃべりはペラップ以外が使っても技自体は失敗せず通常通り発動・ダメージも出る。第四・第五世代はペラップ以外(へんしん/ものまね等での取得)が使うとこんらんの追加効果だけが付かない(0%)。第六世代以降は使用者に関わらずこんらん効果も100%で付く。",
+     "quote_1": "へんしん/オウムがえしにより、ペラップ以外のポケモンがおしゃべりを使用したときでもこんらん効果が付く。(第六世代以降)／へんしんなどでペラップ以外のポケモンに覚えさせた場合、音声を吹き込んでも鳴き声は変わらず、こんらん状態にする効果も付かない。(第五世代まで)",
+     "quote_2": "Chatter will always have a 0% chance to confuse if used by a Pokémon other than Chatot. (Gen IV) / In Generations VI-VIII, Chatter now always confuses the target — the move itself doesn't fail, it simply has reduced or no confusion chances depending on generation and user (Bulbapedia, summarized by fetch).",
+     "fix_target": "effects_design",
+     "fix_set": ""
+    }
+   ],
+   "slug": "chatter",
+   "summary": "chatter(おしゃべり)のmismatch1件を検証。『ペラップ以外が使うと失敗する』はmaster_wrong確定。Wiki+Bulbapedia二重ソースとも『技は失敗せず発動、こんらん追加効果の有無/確率だけが世代・ユーザーで変わる』と一致。effects『使用者限定』の意味づけを設計し直す必要がありfix_target=effects_design。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "gen可用性(第8世代で使用可能か)",
+     "verdict": "master_wrong",
+     "why": "champions=falseのためWiki(一次)+Bulbapedia(二次)が拘束力を持つ。両ソース一致で『はじけるほのお』は第5〜7世代のみ使用可、第8世代(ソード・シールド)・第9世代(SV)では使用不可(思い出しても即忘れ推奨=選択不可)。master.availability.gensは[5,6,7,8]で8を誤って含めている。gen9も本来含まれない点は既にmasterで正しい(gensは8止まり)。",
+     "quote_1": "第八世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+     "quote_2": "Flame Burst can be learned in Generations V through VII (Black/White through Sun/Moon). It is not available in Generation VIII (Sword/Shield) or Generation IX (Scarlet/Violet). ... \"This move can't be used. It's recommended that this move is forgotten. Once forgotten, this move can't be remembered.\"",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[5,6,7]}",
+     "correct_value": "availability.gens = [5,6,7](第8世代・第9世代は除外。gen_introduced=5は変更不要)"
+    }
+   ],
+   "slug": "flame-burst",
+   "summary": "flame-burst(はじけるほのお)のmismatch対象1件を検証。対象=gen可用性。Wiki一次+Bulbapedia二次が一致してmaster_wrongと確定: availability.gensが[5,6,7,8]となっているが正しくは[5,6,7](第8世代ソード・シールド・第9世代SVは使用不可=技思い出し不可)。fix_target=moves_fixes_numeric、fix_set={\"availability.gens\":[5,6,7]}。ファイルは書き換えていない(検証のみ)。"
+  },
+  {
+   "slug": "chip-away",
+   "summary": "なしくずし(chip-away)のmismatch1件を二重ソース(Wiki一次+Bulbapedia二次)で検証。championsに未収録(champions=false)のため出典順位はWiki→最新世代。両ソースとも「第八世代(ソード・シールド以降)で技自体が使用不可」と明記しており、master.availability.gens=[5,6,7,8]の「8」は誤り。master_wrongと確定、correct_value=[5,6,7]。",
+   "items": [
+    {
+     "aspect": "世代適用範囲(gen8=SwSh)",
+     "verdict": "master_wrong",
+     "why": "championsに未収録のためWiki(一次)+Bulbapedia(二次)の二重ソースで確認。両者とも一致して『第八世代・第九世代ではこの技は使えません(思い出すこともできない=完全に使用不能)』と明記しており、第五〜第七世代のみ使用可能。master.availability.gensに8が含まれているのは誤り(9は元々含まれておらず正しい)。correct_value=gens:[5,6,7]。",
+     "correct_value": "availability.gens = [5,6,7] (8を除外。gen_introduced=5のまま)",
+     "quote_1": "第八世代・第九世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+     "quote_2": "Generation VIII onwards: \"Chip Away cannot be selected in a battle.\" This means the move is disabled in: Pokémon Sword and Shield, ... The move was introduced in Generation V and remained usable through Generation VII ... but became completely unusable starting with Generation VIII.",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[5,6,7]}"
+    }
+   ]
+  },
+  {
+   "slug": "telekinesis",
+   "summary": "gens=[5,6,7,8]は誤り。Wiki+Bulbapediaとも第8世代(SwSh/BDSP)以降テレキネシスは技として使用不可と明記しており、masterは第5〜7世代のみに修正すべき(master_wrong)。",
+   "items": [
+    {
+     "aspect": "gen8(SwSh)/gen9(SV)で技マシン等の入手なし=実質使用不可(現行世代では非採用)",
+     "verdict": "master_wrong",
+     "why": "champions=falseのため一次=Wiki/二次=Bulbapediaで確認。両ソースともGen8(ソード・シールド/BDSP)以降テレキネシスは技として使用不可(思い出せない)と明記しており、Gen9(SV)も同様。masterのavailability.gens=[5,6,7,8]は8を含めており誤り。正しくは第5〜7世代のみ使用可能で第8世代以降は使用不可(=gensから8を除外)。",
+     "correct_value": "availability.gens: [5,6,7](8を除外。第8世代以降は技として使用不可)",
+     "quote_1": "ソード・シールドで使用不可 | BDSPで使用不可 | SVで使用不可",
+     "quote_2": "This move can't be used. It's recommended that this move is forgotten. ... Starting in Generation VIII, Telekinesis became completely unavailable in battle and cannot be used by any Pokémon.",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[5,6,7]}"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "フリーフォール中の相手にも『うちおとす状態』が付与されるかのような記述",
+     "verdict": "master_wrong",
+     "why": "champions=true(ch行が一次)なので優先度はch行→Wiki(二次)。ch行effectはフリーフォール状態の相手にも『命中する』とは述べているが、その結果『うちおとす状態』になるかは明言していない(沈黙)。二次のWiki『技の仕様』節は『フリーフォールを中断させることはできない。フリーフォールを使用したり受けたりしているときの相手は、地面にいないポケモンであってもうちおとす状態にできない』と明確に例外を述べており、そらをとぶ/とびはねる(中断可能・うちおとす状態化する)とは扱いが異なることが分かる。master_row.description('相手が「そらをとぶ・とびはねる・フリーフォール」で空中にいる時でも当てられる。相手が場にいるあいだ、相手を「うちおとす」状態にする。')および effects[1]('半無敵命中'note)はこの3状態を一括りにしてダメージ命中と状態付与の両方が起きるかのように書いており、フリーフォールが例外(命中はするがうちおとす状態にはならない・でんじふゆう/テレキネシス解除もされない)である旨が欠落している。ch行はこの点で沈黙のためWiki(二次)を採用し、masterはWikiと食い違う=master_wrong。",
+     "quote_1": "特性『ふゆう』や、『ひこう』タイプのポケモンに『じめん』タイプの技が当たるようになる。また、空中状態の相手にも当たり、技『そらをとぶ』『とびはねる』『でんじふゆう』『テレキネシス』の効果が解除され、『でんじふゆう』『テレキネシス』は使用できなくなる。『フリーフォール』状態の相手にも命中する。",
+     "quote_2": "フリーフォールを中断させることはできない。フリーフォールを使用したり受けたりしているときの相手は、地面にいないポケモンであってもうちおとす状態にできない。",
+     "correct_value": "フリーフォール中/使用中の相手はダメージこそ通る(命中する)が、地面にいなくても『うちおとす』状態にはならず、でんじふゆう/テレキネシスの解除も起きない(そらをとぶ/とびはねるとは異なる例外)。",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "smack-down",
+   "summary": "smack-down(うちおとす)のR1 mismatch未検証1件を検証。フリーフォール中の相手に『うちおとす状態』が付与されるかのような記述はmaster_wrong(Wiki『技の仕様』節がフリーフォールを明示的な例外としている)。effects/descriptionともに構造的な修正が必要でeffects_design扱い。ch行(一次)は当該ニュアンスについて沈黙。\""
+  },
+  {
+   "items": [
+    {
+     "aspect": "battle_data.drainフィールド(トップレベル)",
+     "verdict": "master_wrong",
+     "why": "Champions正典(ch行)・master自身のdescription/description_legacy・同じmaster_row内のeffects配列fraction=0.75(=3/4)がすべて3/4で一致しているのに、battle_data.drainフィールドだけ\"1/2\"になっている内部矛盾。回復量を実装するsimがこのdrainフィールドを参照すれば本来の3/4でなく1/2しか回復しない実害バグ。",
+     "correct_value": "drain: \"3/4\"",
+     "quote_1": "効果 | 相手に与えたダメージの3/4だけ、自分のHPを回復する。",
+     "quote_2": "相手に与えたダメージの3/4だけ自分のHPが回復する。",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"drain\":\"3/4\"}"
+    }
+   ],
+   "slug": "draining-kiss",
+   "summary": "draining-kiss(ドレインキッス)の未検証mismatch1件を検証。battle_data.drainが\\\"1/2\\\"となっているが、Champions正典・master自身のdescription/description_legacy・同一行内のeffects.fraction=0.75が全て3/4で一致しており、drainフィールドのみの内部矛盾。master_wrong確定。fix_target=moves_fixes_numeric、fix_set={\\\"drain\\\":\\\"3/4\\\"}。ファイルは書き換えていない。"
+  },
+  {
+   "slug": "quick-guard",
+   "summary": "quick-guard(ファストガード)のmismatch1件を二重ソース検証。champions=true対象=ch行(一次)+Wiki(二次)。「続けて使うと失敗しやすくなる」はmaster独自記述で、ch行のeffect文にも記述なし、Wikiは第六世代以降(現行)明確に「ファストガードを連続で使用しても失敗しない」と記す。masterが第五世代限定仕様を現行仕様として誤って一般化していた=master_wrong。",
+   "items": [
+    {
+     "aspect": "「続けて使うと失敗しやすくなる」の記述",
+     "verdict": "master_wrong",
+     "why": "champions=trueのためch行(一次)+Wiki(二次)が拘束力を持つ。ch行のeffect文には『続けて使うと失敗しやすくなる』という記述が一切無く、Wikiは明確に『第六世代以降: ファストガードを連続で使用しても失敗しない』と現行仕様を記す(失敗率が1/3になるのはファストガード成功後に別の守り技=まもる/みきり/こらえる等を使った場合のみで、ファストガード自体の連続使用ではない)。masterのdescriptionはこの区別を欠き、第五世代限定だった『連続使用で失敗しやすい』を現行世代の仕様であるかのように書いてしまっている。",
+     "quote_1": "必ず先制でき(優先度:+3)、そのターンの間、自分と味方は相手の先制攻撃の技を受けない。特性の効果による先制攻撃も受けない。",
+     "quote_2": "第六世代以降\n・ファストガードを連続で使用しても失敗しない。\n・まもる/みきり/こらえる/キングシールド/ニードルガード/トーチカ/ブロッキング/ダイウォール/スレッドトラップが成功した後にファストガードを使っても失敗しないが、ファストガードが成功した後にまもる/みきり/こらえる/キングシールド/ニードルガード/トーチカ/ブロッキング/ダイウォール/スレッドトラップを使うと成功率が1/3になる。",
+     "fix_target": "description_design",
+     "correct_value": "『続けて使うと失敗しやすくなる』の一文を削除するか、正しくは『ファストガード自体を連続使用しても失敗しない。ただし成功後にまもる/みきり/こらえる等の別の守り技を使うと、その守り技の成功率が1/3になる』という趣旨に書き換える必要がある(声の判断=description_designのため本ツールでは値を適用しない)。"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "世代別の使用可否(gens配列)",
+     "verdict": "master_wrong",
+     "why": "Wiki(1次)・Bulbapedia(2次)ともに『第六世代以降ではこれに加えて必ず命中する』等の記述と共に、SwSh/BDSP/SVで使用不可(『このわざは つかえません』の特殊文言)と明記。レベルアップ習得表もBW/B2W2・XY/ORAS・SM/USUMの3世代分のみでgen8列が無い。masterのgens配列に8が含まれているのは誤り。",
+     "quote_1": "| ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+     "quote_2": "The move becomes permanently unusable starting in Generation VIII and remains unavailable through Generation IX. / This move can't be used. It's recommended that this move is forgotten.",
+     "correct_value": "availability.gens: [5,6,7](gen8以降は技自体を思い出せない永久使用不可扱い)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability_gens\":[5,6,7]}"
+    }
+   ],
+   "slug": "steamroller",
+   "summary": "steamroller(ハードローラー)のgens=[5,6,7,8]は誤り。Wiki・Bulbapediaの二重ソースでgen8(SwSh/BDSP)・gen9(SV)使用不可が確認できたため、正しくは[5,6,7]。master_wrong確定。"
+  },
+  {
+   "slug": "ion-deluge",
+   "summary": "世代適用範囲(availability.gens)のmismatch1件を検証。Wiki+Bulbapediaの二重ソース一致で、プラズマシャワーは第六・第七世代のみ使用可能・第八世代(ソード・シールド)以降は技として選択不可(欠番)と確定。masterのgens:[6,7,8]はgen8を誤って含んでいる=master_wrong。moves_fixes_numericでgens:[6,7]に修正可能。",
+   "items": [
+    {
+     "aspect": "世代適用範囲(availability.gens)",
+     "verdict": "master_wrong",
+     "why": "champions=falseのためWiki(一次)+Bulbapedia(二次)の二重ソースで確認。両者とも『プラズマシャワー/Ion Deluge』は第六・第七世代のみ使用可能で、第八世代(ソード・シールド)以降は技として選択不可(技リストから欠番)と明記。masterのgens:[6,7,8]はgen8を誤って含んでいる。",
+     "quote_1": "第八世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+     "quote_2": "Ion Deluge cannot be selected in a battle\" in Generation VIII onwards... has been completely disabled as a selectable option since Generation VIII and all subsequent generations.",
+     "correct_value": "availability.gens: [6,7](gen8を除外。gen_introduced:6は変更不要)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[6,7]}"
+    }
+   ]
+  },
+  {
+   "slug": "bestow",
+   "summary": "bestow(ギフトパス)のmismatch1件を二重ソース検証。第八世代での使用可否=master_wrong確定。Wiki(一次)『第八世代 このわざは つかえません』+Bulbapedia(二次)『Bestow cannot be selected in a battle.(Generation VIII onwards)』が一致。masterのavailability.gensに8が含まれているのは誤り(SwSh以降は思い出し専用で通常習得不可)。",
+   "items": [
+    {
+     "aspect": "第八世代での使用可否",
+     "verdict": "master_wrong",
+     "why": "masterのgens配列に8が含まれておりSwSh現役習得可能と誤読される。Wiki/Bulbapediaとも第八世代(ソード・シールド)以降は使用不可・思い出し専用と明記しており一致。BDSP/SVでも使用不可。",
+     "correct_value": "availability.gens=[5,6,7](第八世代(ソード・シールド)以降は使用不可・思い出し専用。BDSP/SVでも使用不可)",
+     "quote_1": "第八世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+     "quote_2": "Bestow cannot be selected in a battle. This appears under the \"Generation VIII onwards\" section of the move's effects, indicating the move became unavailable starting with Generation VIII games like Pokémon Sword and Shield.",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[5,6,7]}"
+    }
+   ]
+  },
+  {
+   "slug": "synchronoise",
+   "summary": "対象1件のみ(gens配列にgen8を含む問題)。master_wrongで確定。Wiki一次+Bulbapedia二次で「第八世代(SwSh)以降は使用不可(選択不可・技マシン/思い出し習得も不可)」と一致確認。正しくはgens=[5,6,7]。",
+   "items": [
+    {
+     "aspect": "世代適用範囲(gens配列にgen8を含む)",
+     "verdict": "master_wrong",
+     "why": "champions=false(yakkun_ch_row=null)につきWikiが一次権威。Wiki(冒頭表+たたかうわざ節)・Bulbapedia(二次)とも、シンクロノイズは第八世代(ソード・シールド)以降『使用不可(選択不可・技マシン/思い出し習得も不可)』と明記。第五〜第七世代のみレベルアップで習得可能。master_row.availability.gens=[5,6,7,8]はgen8を誤って含んでおり、正しくは[5,6,7]。",
+     "correct_value": "availability.gens = [5,6,7](gen8を除外)。gen_introduced=5は変更不要。",
+     "quote_1": "ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可\n\n(略)\n第八世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+     "quote_2": "Generation VIII onwards: Synchronoise cannot be selected in a battle. [...] This move can't be used. It's recommended that this move is forgotten. (Bulbapedia, Synchronoise (move))",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[5,6,7]}"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "top-level rank_changesのtarget",
+     "verdict": "master_wrong",
+     "why": "battle_data.rank_changesの2エントリ(def/spd)が両方target:'self'になっているが、この技は使用者+味方全体が対象。同じmaster_row内のeffects配列はtarget:'team'で正しく記述されており、rank_changes側だけが不整合。rank_changesがsim側で参照される場合、味方への効果が反映されない実害が出る。",
+     "quote_1": "自分と味方全体の特性が「プラス」「マイナス」のポケモンの「ぼうぎょ」「とくぼう」ランクが1段階ずつ上がる。(yakkun_ch_row.effect)",
+     "quote_2": "特性がプラス/マイナスであるポケモンのぼうぎょ・とくぼうを1段階上げる。同じ部屋にいる…味方全員のぼうぎょ・とくぼうを1段階上げる。(Wiki: たたかうわざ節「とくせい プラスと マイナスの ぼうぎょ とくぼうが あがる」/ポケモン不思議のダンジョン節「味方全員」)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"battle_data.rank_changes[0].target\":\"team\",\"battle_data.rank_changes[1].target\":\"team\"}"
+    }
+   ],
+   "slug": "magnetic-flux",
+   "summary": "対象1件を検証。battle_data.rank_changesのtargetが'self'固定なのは誤り(master_wrong)。ch行(一次)・Wiki(二次)とも使用者+味方全体が対象と明記、同じmaster_row内のeffects配列(target:'team')とも矛盾しており、rank_changes側のtargetを'team'に修正する必要がある。moves_fixes_numericで対応可能。"
+  },
+  {
+   "slug": "freeze-dry",
+   "summary": "追加効果「10%でこおり」のChampions現行有効性表記=master_wrong確定。yakkun_ch_row/Wiki技の仕様両方が「Championsではこの効果は無くなった」と一致し、masterのdescriptionは無条件表記のまま食い違う。effects側の条件付け(過去仕様フラグの反映)も必要でfix_targetはeffects_design。",
+   "items": [
+    {
+     "aspect": "追加効果『10%でこおり』の現行(Champions)有効性 — description記載",
+     "verdict": "master_wrong",
+     "why": "champions=trueなのでch行(一次)が正典。ch行のeffect文言自体『ポケモンSVまでは、さらに10%の確率で相手を「こおり」状態にする』と明記しており、これはSVまでの過去仕様であって現行Championsには適用されないことを示す限定表現。Wiki『技の仕様』節も『Championsではこの効果は無くなった』と明記し二次ソースとして一致。しかしmaster_row.descriptionは『10%の確率で相手を「こおり」状態にする。』と限定なしの無条件表記になっており、現行Champions仕様と矛盾する。description_legacyは『ポケモンSVまでは、さらに10%の確率で~』と正しく限定表記されており、legacyとdescriptionが食い違っている。battle_data.effectsの『状態付与』(こおり10%)も無条件kindのまま入っており、Championsルール下では発動しない過去仕様である旨の条件付けが構造的に欠落している。",
+     "quote_1": "ポケモンSVまでは、さらに10%の確率で相手を『こおり』状態にする。(yakkun_ch_row.effect / description_legacyも同旨)",
+     "quote_2": "・スカーレット・バイオレットまで、10%の確率で相手をこおり状態にする追加効果があった。Championsではこの効果は無くなった。(wiki『技の仕様』節) / Champions節の技解説文は『みずタイプの相手にも効果バツグンとなる｡』のみで凍り追加効果への言及なし",
+     "correct_value": "現行Championsでは追加効果『10%でこおり』は発動しない(廃止済み)。descriptionは無条件表記を改め、『ポケモンSVまでは、さらに10%の確率で相手を「こおり」状態にする(Championsでは廃止)』のように過去仕様である旨を明示する。合わせてbattle_data.effectsの『状態付与』(こおり10%)もChampionsルール下では無効化される条件付け・過去仕様フラグが必要(単純な数値差し替えでは表現できない)。",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "slug": "all-out-pummeling--special",
+   "summary": "世代(availability.gens)のmismatch1件を検証。master_wrongと確定: gens=[7,8]は誤りで正しくはgens=[7]のみ。Wiki(一次)+Bulbapedia(二次)いずれも第七世代限定・第八世代でZワザ自体が廃止され選択不可と明記。",
+   "items": [
+    {
+     "aspect": "世代(availability.gens)",
+     "verdict": "master_wrong",
+     "why": "champions=falseのためWiki(一次)+Bulbapedia(二次)の二重ソースで確認。両ソースとも『第七世代』のみで使用可能、第八世代(ソード・シールド以降)はZワザ自体が廃止され選択不可と明記。masterのgens=[7,8]は根拠なし(gen_introduced=7単独は正しいが、gens配列に8を含めるのは誤り)。",
+     "quote_1": "| ぜんりょくむそうげきれつけん\n\n | 第七世代",
+     "quote_2": "\"Introduced in [Generation VII]\" / \"All-Out Pummeling cannot be selected in a battle\" (Generation VIII以降、Z技自体が廃止)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[7]}",
+     "correct_value": "gens=[7](第七世代のみ。第八世代でZワザ自体が廃止されたため8を含めない)"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "availability(登場世代)",
+     "verdict": "master_wrong",
+     "why": "WikiはGen7としか書いておらず根拠不明とtriageは指摘していたが、二次ソースBulbapediaで確定: Zワザは第8世代(剣盾)以降『cannot be selected in a battle』=使用不可となる。masterのgens=[7,8]は誤りで、正しくはgens=[7]のみ(第7世代限定のZワザ)。",
+     "quote_1": "| ぜんりょくむそうげきれつけん\n\n | 第七世代",
+     "quote_2": "Generation VIII onwards All-Out Pummeling cannot be selected in a battle.",
+     "correct_value": "gen_introduced=7, gens=[7] (第8世代を含めない)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"gens\":[7]}"
+    }
+   ],
+   "slug": "all-out-pummeling--physical",
+   "summary": "availability(登場世代)の1件を検証。masterはgens=[7,8]だがZワザは第8世代以降使用不可(Bulbapedia確認)のためmaster_wrong。正しくはgens=[7]のみ。moves_fixes_numericでgensを修正可能。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文:防ぐ対象の範囲(『相手の』変化技という限定)",
+     "verdict": "master_wrong",
+     "why": "master descriptionは『自分と味方が受ける相手の変化技を防ぐ』と発動元を相手側に限定しているが、JP Wiki技の仕様節・Bulbapedia Effect節ともに発動元を問わず(味方が味方を対象にする技も含め)自分側の場にいる単体を対象とする変化技を防ぐと説明しており、『相手の』限定は誤り。description_legacyの『すべての味方への変化技を無効化する』の方が正しい範囲を示している。",
+     "quote_1": "・防げるのは自分や味方を対象にする変化技のみとなる。\n・味方が味方を対象にする技も無効となる。",
+     "quote_2": "Crafty Shield protects all Pokémon on the user's side of the field from status moves. It does not protect against moves that the user is using on itself or that target the user's side of the field (so an ally can still use Acupressure or Aromatherapy on itself). It also does not protect against entry hazard moves or moves that target all Pokémon such as Perish Song.",
+     "correct_value": "自分と味方が受ける、単体を対象とする変化技を防ぐ(発動元は相手・味方どちらでもよい)。ただし技の対象が使用者自身である技/場を対象とする技/自分含む全員や味方全員を対象とする技は防げない。",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "crafty-shield",
+   "summary": "検証1件: master_wrong確定。「相手の」変化技という発動元限定は誤り。JP Wiki(技の仕様節: 味方が味方を対象にする技も無効)とBulbapedia(Effect節: user's side of the fieldを対象とする単体狙い技を全て防ぐ、自己対象/場対象/全体対象のみ例外)が一致して発動元を問わないことを示す。description_legacyの表現は妥当。fix_targetはeffects_design(数値でなく防御範囲のモデル修正が必要なため)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "まもる系統を『取り除く』かどうか(sim影響)",
+     "verdict": "master_wrong",
+     "why": "WikiとBulbapediaの二次ソースが一致して、いじげんホールは『まもる』『みきり』『トーチカ』等のまもる系統の状態(ワイドガード・ファストガード・トリックガードを含む)を貫通すると同時に取り除く(効果を解除する)と明記している。masterのbattle_data.effectsは『まもり貫通』kindの中に`pierces_without_removing`という配列でこれらの技名を列挙しており、名前・構造上『取り除かずに貫通』を意味する実装になっている点がWikiの記述と逆で誤り。一方、みがわり(Substitute)については両ソースとも『貫通するが状態は取り除かない』としており、こちらは別kind『みがわり貫通』として正しく分離されているので変更不要。",
+     "correct_value": "まもる系統の状態(まもる/みきり/トーチカ/キングシールド/ニードルガード/ブロッキング/かえんのまもり/スレッドトラップ、およびワイドガード/ファストガード/トリックガード等)は、貫通して攻撃すると同時にその状態を取り除く(残りターンの効果を解除)。みがわりは貫通するが取り除かない(現行のみがわり貫通kindのまま)。あくタイプ等でダメージ自体が無効化された場合や、姿を隠していて技が外れた場合は、まもる系統の状態を取り除けない、という条件付き挙動もある。",
+     "quote_1": "・対象がまもる系統の状態である場合、それを取り除いてから攻撃する。\n・ワイドガード・ファストガード・トリックガードなどこの技を防ぐ効果が無い状態でも、それらを取り除いて攻撃できる。\n・あくタイプなどにダメージが無効化された場合や、姿を隠しているため技が当たらなかった場合、まもる系統の状態を取り除くことはできない。\n・相手のみがわり状態を無視してダメージを与えるが、みがわり状態を取り除くわけではない。",
+     "quote_2": "It will also hit the target even if it is protected by [various moves] and lifts the effects of those moves for the remainder of the turn. It hits through a substitute (bypasses it without removing it).",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "hyperspace-hole",
+   "summary": "1件検証。『まもり貫通』kindのpierces_without_removingはmaster_wrong確定(Wiki+Bulbapedia二重一致=まもる系統は取り除いて攻撃するのが正、みがわりのみ取り除かず貫通が正)。effects構造の修正が要るのでeffects_design(数値のみでは直せない)。\""
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類(category)",
+     "verdict": "master_wrong",
+     "why": "masterはcategoryを固定で「特殊」と格納しているが、Zワザ『むげんあんやへのいざない』は元になった技によって物理/特殊が変わる不定技であり、一次のWikiと二次のBulbapediaが一致してこれを裏付ける。champions=falseのためWiki一次+Bulbapedia二次で確定。",
+     "correct_value": "不定(元となった技により物理/特殊が変わる。例: ナイトヘッド=特殊、したでなめる=物理、シャドーボール=特殊、おどろかす=物理)",
+     "quote_1": "| 分類\n\n | 不定\n\n | 威力\n\n | 不定\n\n… | 効果\n\n | 元となるわざで分類・威力が変化する。",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "never-ending-nightmare--special",
+   "summary": "対象1項目(分類)を検証。Wiki一次+Bulbapedia二次が一致し、masterのcategory固定値「特殊」はmaster_wrongと確定。威力は既に_z_variable:trueで可変扱いだが、categoryフィールド自体は固定文字列のままで実態と乖離。修正は数値1個の書き換えでは対応できない(技ごとに分類対応表が要る=ダイマ技のPP/威力と同型)ためeffects_design送り。correct_valueにWikiの分類・威力表を要約引用。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "まもり貫通の挙動=『取り除かず貫通』か『取り除いて攻撃』か",
+     "verdict": "master_wrong",
+     "why": "Wiki本文・Bulbapediaともに『まもる系統の状態を取り除いてから攻撃する』と明記しており、うちの実装キー名pierces_without_removing(除去しない前提)は逆。",
+     "quote_1": "対象がまもる系統の技で身を守っている場合、それを取り除いてから攻撃することができる。",
+     "quote_2": "will also hit the target even if it is protected by Protect, Detect, Spiky Shield, King's Shield, Mat Block, or Baneful Bunker, and lifts the effects of those moves for the remainder of the turn",
+     "fix_target": "effects_design",
+     "correct_value": "まもる系統の状態(まもる/みきり/トーチカ/キングシールド/ニードルガード/ブロッキング/かえんのまもり/スレッドトラップ)を貫通するだけでなく、そのターン中はその守り効果自体を取り除く(=同ターン内の他の攻撃も通るようになる)。ただしダイウォールは防ぐ。ダメージが特性等で無効化された場合や技が外れた場合は取り除かれない。みがわりは無視してダメージを与えるが状態自体は消えない(この点は既存実装のみがわり貫通が正しい)。effectsのkind『まもり貫通』のpierces_without_removingをremoves_protection系の構造に変更する必要あり。"
+    },
+    {
+     "aspect": "availability.gens に第8世代を含む",
+     "verdict": "master_wrong",
+     "why": "Wiki冒頭・Bulbapediaともにソード・シールド及びBDSPで使用不可(第8世代の主要2作とも不可)と明記されており、gens配列に8を含めるのは誤り。",
+     "quote_1": "ソード・シールドで使用不可 / BDSPで使用不可",
+     "quote_2": "Hyperspace Fury cannot be selected in a battle. / This move can't be used. It's recommended that this move is forgotten. Once forgotten, this move can't be remembered.",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"gens\":[6,7,9]}",
+     "correct_value": "gens: [6,7,9](第8世代=ソード・シールド/BDSPともに使用不可のため除外)"
+    }
+   ],
+   "slug": "hyperspace-fury",
+   "summary": "hyperspace-fury(いじげんラッシュ)の未検証mismatch2件をWiki+Bulbapediaの二重ソースで確定。両方ともmaster_wrong。①まもり貫通の実装名pierces_without_removingが実際の挙動(取り除いてから攻撃=lifts the effects)と逆でeffects構造の見直しが必要。②availability.gensに8を含めているが、ソード・シールド/BDSPとも使用不可と両ソースで明記されており8を除外しgens:[6,7,9]に修正すべき(moves_fixes_numericで直接修正可)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "availability.gens=[7,8]",
+     "verdict": "master_wrong",
+     "why": "Z技は第七世代(サン・ムーン系)限定の仕組みで、第八世代(ソード・シールド)ではZワザ自体が廃止されダイマックスに置き換えられた。Wiki一次ソースのヘッダーも『第七世代』のみを示し、二次ソース(Bulbapedia)も『Bloom Doom cannot be selected in a battle』(第8世代以降は選択不可・忘れることを推奨)と明記し、Z-Moveシステム自体がGen7限定機能だったと確認している。masterのgens:[7,8]は誤り。",
+     "correct_value": "gens:[7](第七世代のみ。第八世代には存在しない)",
+     "quote_1": "第七世代\n\n | タイプ\n\n | くさ\n\n | 分類\n\n | 不定",
+     "quote_2": "Bloom Doom cannot be selected in a battle. / This move can't be used. It's recommended that this move is forgotten.(第8世代以降の説明文)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[7]}"
+    }
+   ],
+   "slug": "bloom-doom--physical",
+   "summary": "検証対象1件(availability.gens=[7,8])。master_wrongと確定。Z技(Zワザ)は第七世代限定の仕組みで、第八世代ではZワザ自体が廃止されダイマックスに置き換わっている。Wiki一次ソース(ヘッダー『第七世代』のみ)+Bulbapedia二次ソース(『Bloom Doom cannot be selected in a battle』/第8世代説明文で選択不可)の二重チェック一致で確定。正しい値はgens:[7]のみ。この技個別のバグというより、他のZワザ全般に共通する構造的な値の可能性が高い旨は監査ノートのとおり注意喚起として残す。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "やけど回復の対象範囲(cure_status.target=\"opp\" と effects[0]『状態異常回復』target=\"all_but_self\" の食い違い、および説明文の記述)",
+     "verdict": "master_wrong",
+     "why": "champions=trueなのでch行が正典。yakkun_ch_row.effectとwiki掲載のChampions行はどちらも『相手のやけど状態を治す』とだけ書いており、味方(自分以外の全員)まで含むとは述べていない。master内部でもcure_status[0].target=\"opp\"(相手のみ)とeffects[0].target=\"all_but_self\"(味方含む)が矛盾しており、two-source一致の『相手のみ』が正しい。effects側とdescriptionが誤って範囲を広げている。",
+     "correct_value": "やけど解除の対象は「相手」のみ(cure_status.target=\"opp\"が正)。effects[0](状態異常回復)のtargetをall_but_selfからoppへ修正し、description本文も『自分以外の全員』ではなく『相手』に限定すべき。",
+     "quote_1": "相手の『やけど』状態を治す。音系の技。相手の『みがわり』状態を貫通する。",
+     "quote_2": "Champions\n相手のやけど状態を治す｡",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "説明文の意味網羅(description本体)",
+     "verdict": "master_wrong",
+     "why": "上と同一論点。descriptionが『自分以外の全員の「やけど」状態を解除する』としているのは、ch行・wiki(Champions行)いずれの『相手のやけど状態を治す』とも食い違い、範囲を誤って味方まで広げている。description_legacyはyakkun_ch_row.effectとverbatim一致で正しく、新版descriptionだけが誤り。",
+     "correct_value": "『ダメージ。相手の「やけど」状態を解除する。相手の「みがわり」をすりぬけて当たる。音系の技。』のように対象を『相手』に限定する文言にすべき(『自分以外の全員』は誤り)。",
+     "quote_1": "相手の『やけど』状態を治す。音系の技。相手の『みがわり』状態を貫通する。",
+     "quote_2": "Champions\n相手のやけど状態を治す｡",
+     "fix_target": "description_design"
+    }
+   ],
+   "slug": "sparkling-aria",
+   "summary": "sparkling-ariaのmismatch2件はいずれもmaster_wrong(同一論点)。Championsの二重ソース(ch行+wiki Champions行)は共に『相手のやけど状態を治す』とだけ述べており味方(自分以外の全員)への言及は無い。masterはcure_status.target=oppと正しく持ちながら、effects[0].targetとdescription本文だけが誤って範囲を『自分以外の全員』に広げている内部矛盾。修正はeffects構造(effects_design)とdescription文言(description_design)の両方。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "守る対象=攻撃技だけでなく変化技(状態異常技)も防ぐか",
+     "verdict": "master_wrong",
+     "why": "champions=trueのためch行(一次)が正典だが、ch行の説明文は簡略表現(『相手の攻撃を防ぐと同時に…』)で攻撃/変化の区別に踏み込んでおらず、この点を否定していない。Wiki技術仕様セクション『トーチカ状態』は『そのターン受ける攻撃技・変化技を無効化する』と明記しており、これはまもる系統技の標準挙動(場を対象とする技や一部技のみ例外)と一致する。masterのblocks_status_moves:falseおよびdescription本文の『(変化技はふせげない)』はこれと矛盾しており誤り。",
+     "quote_1": "必ず先制でき(優先度:+4)、そのターンの間、相手の攻撃を防ぐと同時に、接触技(直接攻撃)で攻撃した相手を『どく』状態にする。",
+     "quote_2": "トーチカの使用者がそのターン受ける攻撃技・変化技を無効化する。さらに直接攻撃をしてきた相手をどく状態にする。",
+     "correct_value": "blocks_status_moves: true とすべき(変化技もトーチカで防げる)。descriptionの『(変化技はふせげない)』の一文も削除・修正が必要",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "baneful-bunker",
+   "summary": "1件のmismatchを検証。blocks_status_moves:false(=変化技は防げない)はWiki一次技術仕様(トーチカ状態=攻撃技・変化技を無効化)と矛盾し、champions正典行もこれを否定していないためmaster_wrong。修正はeffects構造(blocks_status_movesフラグ+description文言)側の設計変更が必要でmoves_fixes_numericでは直せない。"
+  },
+  {
+   "slug": "toxic-thread",
+   "summary": "1件検証。mismatch(effects順序)=master_wrong確定。Wiki技の仕様節が実行順序(速さ低下→どく付与)を明示、うちの配列は逆順。effects_design対応(構造の並べ替え、数値項目ではない)。",
+   "items": [
+    {
+     "aspect": "effects内の2効果の実行順序",
+     "verdict": "master_wrong",
+     "why": "Wiki『技の仕様』節が実行順序を明示: すばやさランク低下→どく付与の順に発動する。うちのeffects配列は①状態付与どく→②能力ランク変化speedの順で逆になっている。この順序はメッセージ順序・失敗判定順(すばやさが下がらなかった場合でもその後どくは発動する等)に影響するsim仕様であり表記上の些末事ではない。",
+     "quote_1": "相手を『どく』状態にし、さらに『すばやさ』ランクを2段階下げる。(ポケモンSVまでは1段階だった)",
+     "quote_2": "・2つの効果は互いに独立している。相手のすばやさのランク補正を下げる効果の後にどく状態にする効果が発動する。\n・相手のすばやさを下げられなかった場合、その後どく状態にする効果が発動する。",
+     "correct_value": "battle_data.effects の順序を [①能力ランク変化(speed,-2) → ②状態付与(どく)] に入れ替える(現状は逆順)",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "世代(availability.gens)",
+     "verdict": "master_wrong",
+     "why": "champions=falseのため一次はWiki、二次はBulbapedia。両方とも第七世代のみで使用可能(第八世代以降は『このわざは つかえません』=使用不可)と明記しており、masterのgens:[7,8]は誤り。他の同種Zワザ(ぜんりょくむそうげきれつけん等)と同型の誤りパターン。",
+     "quote_1": "| ハイパーダーククラッシャー\n\n | 第七世代\n\n | タイプ\n\n | あく\n\n | 分類\n\n | 物理\n\n | 威力\n\n | 180",
+     "quote_2": "Generation VIII onwards: \"This move can't be used. It's recommended that this move is forgotten.\" The move is effectively unavailable in Sword and Shield, Brilliant Diamond and Shining Pearl, Legends Arceus, and Scarlet and Violet.",
+     "correct_value": "gens: [7] (gen_introduced=7のまま、gen8を含めない)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"gens\":[7]}"
+    }
+   ],
+   "slug": "malicious-moonsault",
+   "summary": "malicious-moonsault(ハイパーダーククラッシャー)のunverified mismatch 1件を検証。availability.gensにgen8を含む点はWiki(一次)+Bulbapedia(二次)の両方が第七世代限定・第八世代以降使用不可と明記しており矛盾。master_wrongと確定、gens:[7]へ修正すべき(fix_target=moves_fixes_numeric)。ファイルは書き換えていない(検証のみ)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類(category)",
+     "verdict": "master_wrong",
+     "why": "masterはcategory=\"特殊\"を固定値として持つが、Wiki(pokemonwiki)は分類欄を『不定』とし、分類・威力表には物理技(たきのぼり180物理/クラブハンマー180物理/からではさむ/ダイビング/アクアテール/アクアジェット/シェルブレード/アクアブレイク=いずれも物理)も並記しており、元技によって物理にも特殊にもなる。Bulbapedia(第二ソース)も『Its power and whether it is a special or physical move depends on the move it is based on』『physical base moves like Aqua Jet produce a physical Hydro Vortex』と明記し、可変であることを確認。同じmaster_row内でpower/accuracyは既にnull(可変を表す値)なのに、categoryだけ固定\"特殊\"のままなのは内部的にも不整合。",
+     "quote_1": "分類\n\n | 不定 … 分類および威力は元となったわざに依存する。",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on. (Bulbapedia, Hydro Vortex (move))",
+     "correct_value": "category(分類)は固定\"特殊\"ではなく、power/accuracyと同様に可変(null、または_z_variableに準じたフラグで『元技依存』を表現)とすべき。物理技(たきのぼり/クラブハンマー等)から出せば物理になる。",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "hydro-vortex--special",
+   "summary": "hydro-vortex--specialのmismatch未検証1件(分類/category)を二重ソースで確定。master_wrong=1件、auditor_error=0件、unclear=0件。categoryが固定\\\"特殊\\\"になっているが、Wiki(一次)とBulbapedia(二次)双方が元技依存で物理/特殊が可変(たきのぼり/クラブハンマー等の物理技も対応表に含まれる)と確認。power/accuracyが既にnull(可変表現)なのにcategoryだけ固定値なのは内部不整合でもある。fix_target=effects_design(単純な数値上書きでなく、可変分類の表現方法を設計する必要があるため)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果・固定ダメージ量",
+     "verdict": "master_wrong",
+     "why": "masterのdescription/battle_data.effectsとも「相手の残りHPの半分」としか書いておらず、Wiki一次・Bulbapedia二次がともに明記する『切り捨て』の端数処理ルールが欠落している。端数処理を書かないと1/2が整数にならないケース(奇数HP)で挙動が一意に定まらず、sim実装にも影響するため effects構造の欠けとして扱う。",
+     "quote_1": "相手の残りHP×1/2(切り捨て)の固定ダメージを与える。相手の残りHPが1の場合は1ダメージを与える。",
+     "quote_2": "Nature's Madness deals damage equal to 50% of the opponent's remaining HP, rounded down.",
+     "correct_value": "相手の残りHPの1/2(切り捨て)の固定ダメージを与える。相手の残りHPが1の場合は1ダメージを与える。",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "natures-madness",
+   "summary": "natures-madness(しぜんのいかり)のmismatch1件を検証。Wiki一次+Bulbapedia二次とも『残りHPの1/2・切り捨て』『残りHP1なら1ダメージ』と明記しているのに対し、masterのdescription/battle_data.effectsは「半分」としか書かれておらず端数処理ルールが欠落=master_wrong。fix_target=effects_design(amount計算に floor 処理と端数下限1の特例を持たせる必要があるため、単純な数値上書きでは済まない)。champions=falseのためWiki+Bulbapediaの二重ソースで確定、championsの非対象扱いは無関係。ファイルは書き換えていない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文",
+     "verdict": "master_wrong",
+     "why": "champions=false（champions_key=null）なのでWiki(一次)が正典。Wikiは「成功した次のターン、使用者は反動で動けなくなる」と明記し、Bulbapedia(二次)も『the user avoids recharging if the attack misses or if the target is immune or protected』と、反動(動けなくなる)は技が成功した場合限定であることを裏付ける。masterのdescription「使った次のターンは、動けなくなる」は成功条件を落としており、外れた場合にも動けなくなるように読める点で不正確。battle_dataのeffects(kind:次のターン行動不能, target:self, phase:lasting)にもrequires等の成功条件フラグが無く、成功限定であることが構造化されていない。",
+     "quote_1": "成功した次のターン、使用者は反動で動けなくなる。",
+     "quote_2": "The user shoots powerful lasers using the power of a prism. The user can't move on the next turn. ... the user avoids recharging if the attack misses or if the target is immune or protected from the attack.",
+     "fix_target": "description_design",
+     "correct_value": "ダメージ。技が成功した次のターンは、使用者が反動で動けなくなる(外れた場合や無効化された場合は反動なし)。"
+    }
+   ],
+   "slug": "prismatic-laser",
+   "summary": "prismatic-laser(プリズムレーザー)の未検証mismatch1件を検証。aspect=効果文はmaster_wrong確定: champions非収録(champions=false)のためWiki一次ソースが正典で「成功した次のターン、使用者は反動で動けなくなる」と成功条件つきだが、masterのdescriptionは成功条件を欠き外れた場合も動けなくなるように読める。Bulbapedia(二次)も『the user avoids recharging if the attack misses or if the target is immune or protected』と成功限定を裏付け。fix_targetはdescription_design(声の領域、文言修正は適用せず)。effectsのkind自体にも成功条件フラグが無い点は要注意として記載。"
+  },
+  {
+   "slug": "sunsteel-strike",
+   "summary": "対象1件を検証。champions=false(ch行なし)のため二次ソースはWiki(一次)+Bulbapedia(二次)で確認。両ソースとも「他の技から呼び出されて出た場合は特性無視効果が発動しない」という例外を明記しており、master.descriptionの「この技を出すときだけ」という表現ではこの例外(メトロノーム/ねごと/まねっこ等の間接発動時)を子どもが読んでも復元できないと判定。さらにbattle_data.effectsにもこの例外を表す条件がなく、sim実装としても抜けている(構造変更が要る)ため fix_target=effects_design とした。master_wrong。",
+   "items": [
+    {
+     "aspect": "効果文・「この技を出すときだけ」",
+     "verdict": "master_wrong",
+     "why": "二次ソース(Wiki技の仕様/Bulbapedia)がいずれも明記する例外―『他のわざが出るわざ(メトロノーム/ねごと等)経由でメテオドライブが出た場合は特性無視効果が発動しない』―が、master.descriptionの『この技を出すときだけ』という言い回しからは一意に復元できない。さらにbattle_data.effectsにも[kind:特性無効化, phase:on_use]しかなく、直接使用か他技経由かを区別するフラグが存在しないため、sim実装としても『他技から呼ばれても常に特性無視が発動する』という誤り(権威と逆)になっている可能性が高い。単なる文言修正では直せず、effectsに『他技呼び出し時は無効』という条件を追加する構造変更が必要。",
+     "quote_1": "・他のわざが出るわざによりメテオドライブを出した場合、特性を無視する効果は無い。",
+     "quote_2": "However, it does not ignore Abilities if it is called by another move rather than directly used.",
+     "fix_target": "effects_design",
+     "correct_value": "メテオドライブを直接選択して使用した場合のみ、相手の特性を無視して攻撃する。ねごと・メトロノーム・まねっこ・おうむがえし等『他の技から呼び出されて』出した場合は、この特性無視効果は発動しない。"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "世代依存：使用可能世代",
+     "verdict": "master_wrong",
+     "why": "champions=false のためWiki(一次)+Bulbapedia(二次)の二重ソースで確定。ラジアルエッジストームはZワザで、第七世代限定。第八世代でZワザ制度自体が廃止されmasterのgens=[7,8]は誤り(正しくはgens=[7]のみ)。",
+     "quote_1": "第八世代ではこの技は使えないが、同様の効果を持つ攻撃技としてキョダイフウゲキ・アイアンローラーがある",
+     "quote_2": "Regarding Generation VIII specifically: The description states that in Sword and Shield and later games, \"This move can't be used. It's recommended that this move is forgotten.\" This means the move is not usable in Generation VIII or any subsequent generation.",
+     "correct_value": "availability.gen_introduced=7, gens=[7](8を含めない)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[7]}"
+    }
+   ],
+   "slug": "splintered-stormshards",
+   "summary": "splintered-stormshards(ラジアルエッジストーム)の未検証mismatch1件を検証。世代依存(使用可能世代)=master_wrong確定。Z技のためGen8でZワザ制度自体が廃止され使用不可。Wiki一次ソース+Bulbapedia二次ソースが一致してmasterのgens=[7,8]の8を否定。正: gens=[7]のみ。fix_target=moves_fixes_numeric。ファイルは書き換えていない(検証のみ)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文・物理特殊判定",
+     "verdict": "master_wrong",
+     "why": "oursは「ダメージが大きいほう」で攻撃技分類を決めるとしているが、権威(Wiki一次+Bulbapedia二次)はランク補正込みの実数値(こうげき・とくこう)を比較して分類を決める。同値(こうげき≦とくこう)は特殊技になる。",
+     "quote_1": "自分のランク補正込みのステータスがこうげき≦とくこうなら特殊技、こうげき>とくこうなら物理技となる。",
+     "quote_2": "If the user's Attack is greater than its Special Attack, the move will be a physical move; if its Special Attack is equal to or greater than its Attack, it will remain a special move.",
+     "correct_value": "自分のランク補正込みのこうげき・とくこうの実数値を比較し、こうげき>とくこうなら物理技、こうげき≦とくこう(同値含む)なら特殊技になる(ダメージ量の比較ではない)。",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "effects・物理特殊判定",
+     "verdict": "master_wrong",
+     "why": "effectsのrule文言も「compare Physical and Special damage」というダメージ比較になっており、権威の「ランク補正込みステータス比較・同値は特殊」というルールと一致しない。simの技分類ロジックに影響するため構造修正が必要。",
+     "quote_1": "自分のランク補正込みのステータスがこうげき≦とくこうなら特殊技、こうげき>とくこうなら物理技となる。",
+     "quote_2": "If the user's Attack is greater than its Special Attack, the move will be a physical move; if its Special Attack is equal to or greater than its Attack, it will remain a special move.",
+     "correct_value": "rule: compare rank-adjusted Attack and Special Attack stats (not damage); Attack > SpAtk → physical, otherwise (including tie) → special.",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "効果文・使用者条件",
+     "verdict": "master_wrong",
+     "why": "oursは「ネクロズマ」の専用Zワザと書いているが、権威(Wiki一次+Bulbapedia二次)はウルトラネクロズマ限定であることを明記している(通常ネクロズマでは発動不可)。",
+     "quote_1": "ウルトラネクロズマでなければてんこがすめつぼうのひかりを発動させることはできない。",
+     "quote_2": "Only Ultra Necrozma can use this move—not regular Necrozma.",
+     "correct_value": "「ウルトラネクロズマ」の専用Zワザ(通常のネクロズマでは発動できない)。",
+     "fix_target": "description_design"
+    }
+   ],
+   "slug": "light-that-burns-the-sky",
+   "summary": "3件すべてmaster_wrong確定。①②物理特殊判定=oursは「ダメージ比較」だが権威は「ランク補正込みステータス比較(同値は特殊)」で誤り(説明文・effectsの両方に波及)。③専用Zワザの対象がoursは「ネクロズマ」全般だが権威は「ウルトラネクロズマ」限定で誤り。二重ソース(Wiki一次+Bulbapedia二次)一致で確定、champions=false案件のためBulbapediaで裏取り済み。"
+  },
+  {
+   "slug": "sky-drop",
+   "summary": "sky-drop(フリーフォール)の要検証2項目を確定。①利用可能世代=master_wrong(Wiki一次+pokemondb二次とも第8世代以降使用不可で一致。masterのgens配列から8を削除しgens:[5,6,7]が正)。②2ターン目の対象行動不可の断定=unclear(Wiki一次は「すばやさが遅ければ2ターン目に技を使える」という条件付き仕様を詳細記述しmasterの断定と食い違うが、二次ソース(pokemondb/serebii/bulbapedia)は一般的な「cannot attack」表現に留まり速さ条件の裏付け/否定が取れなかったため、でっち上げ回避でunclearに倒した)。",
+   "items": [
+    {
+     "aspect": "利用可能世代(gens配列)",
+     "verdict": "master_wrong",
+     "why": "Wiki(一次)がソード・シールド/BDSP/SVで使用不可と明記。pokemondb(二次)も第8-9世代を「This move can't be used」と明記しており両ソース一致。masterのgens配列[5,6,7,8]は第8世代を誤って含んでいる。",
+     "correct_value": "availability.gens: [5, 6, 7](第8世代を除く。gen_introduced=5は正しい)",
+     "quote_1": "第五世代\n\n | ソード・シールドで使用不可\n\n | BDSPで使用不可\n\n | SVで使用不可",
+     "quote_2": "Sky Drop is listed as available in these generations: Black/White, Black 2/White 2 (Gen 5), X/Y, O.Ruby/A.Sapphire (Gen 6), Sun/Moon, Ultra Sun/Ultra Moon (Gen 7). Unavailable in Sword/Shield, B.Diamond/S.Pearl and Scarlet/Violet (Gens 8-9): \"This move can't be used.\" (pokemondb.net/move/sky-drop)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability_gens\":[5,6,7]}"
+    },
+    {
+     "aspect": "2ターン目、対象は行動できない(description/effects両方の主張)",
+     "verdict": "unclear",
+     "why": "Wiki(一次)の『技の流れ』節は非常に詳細で、2ターン目は『対象は行動を選択できる』『使用者よりすばやさが遅ければこのターンに技を使うことができる』『フリーフォールの攻撃より早く使おうとした技はキャンセルされ行動できない』という条件付き仕様を明記しており、masterの断定(そのあいだ相手は行動できない、を1・2ターン目通して)と食い違う。ただし二次ソース(pokemondb/serebii/bulbapedia、いずれもWebFetch経由)はどれも『The target cannot attack while in the sky』という一般的な表現に留まり、すばやさ条件つきの詳細挙動を確認も否定もできなかった。一次ソース自体は具体的で信頼度は高いが、二次ソースでの独立裏付けが取れないため、でっち上げ回避のためunclearとする。",
+     "correct_value": "",
+     "quote_1": "技が使われた次のターン、空中にいる間でも対象は行動を選択できる。使用者よりすばやさが遅ければこのターンに技を使うことができる。優先度の高い技など、フリーフォールの攻撃より早く使おうとした技はキャンセルされ、このターンは行動できない。",
+     "quote_2": "The user takes the target into the sky, then drops it during the next turn. The target cannot attack while in the sky. (pokemondb.net/move/sky-drop; serebii/bulbapediaも同旨だが速さ条件の記述は確認できず)",
+     "fix_target": "none"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "世代",
+     "verdict": "master_wrong",
+     "why": "champions=falseのためWikiが一次。Wiki(該当ページ)は「第七世代」のみを世代欄に記載し、gen8で選択不可・忘れることを推奨と明記。二次ソースBulbapediaも『introduced in Generation VII... not usable in Generation VIII (Sword/Shield) onwards』『Menacing Moonraze Maelstrom cannot be selected in a battle』と一致。masterのgens=[7,8]は誤り(gen8には存在しない=選択不可)。",
+     "correct_value": "availability.gen_introduced=7、gens=[7](gen8には存在しない)",
+     "quote_1": "第七世代｜...｜PP｜-｜...ムーンライトブラスターはポケモンのわざの一種。Zワザの1つ。",
+     "quote_2": "This move was introduced in Generation VII and is not usable in Generation VIII (Sword/Shield) onwards. ... 'Menacing Moonraze Maelstrom cannot be selected in a battle.'",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gens\":[7]}"
+    }
+   ],
+   "slug": "menacing-moonraze-maelstrom",
+   "summary": "1件検証。「世代」= master_wrong確定。Wiki(一次)は第七世代のみ記載・BulbapediaもGen7専用でGen8(SwSh)以降は選択不可と明記(『cannot be selected in a battle』)。master の availability.gens=[7,8] は誤りで、正しくは gens=[7] のみ(gen_introducedは7で正しい)。fix_target=moves_fixes_numeric。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文・使用条件となるポケモン",
+     "verdict": "master_wrong",
+     "why": "masterはZワザ使用可能ポケモンを「ピカチュウ(オリジナルキャップ)」1体に限定しているが、権威2ソースとも『帽子(キャップ)をかぶったピカチュウ』全般(オリジナル/ホウエン/シンオウ/イッシュ/カロス/アローラ/バディーズ/ワールド等、どのキャップ姿でも)がサトピカZ+10まんボルト習得で使用可能としており、単一フォルムへの限定はない。flags.z.userがこの誤った限定を持つため、sim側の使用可否判定にも影響する。",
+     "quote_1": "・10まんボルトを覚えたサトシのピカチュウにサトピカZを持たせると出すことができる。(関連項目: ・10まんボルト ・サトピカZ ・サトシのピカチュウ)",
+     "quote_2": "Any Pikachu in a cap, or a Pokémon transformed into one, can use 10,000,000 Volt Thunderbolt if it knows Thunderbolt",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"flags.z.user\":\"帽子をかぶったピカチュウ(いずれのキャップ姿でも可。オリジナルキャップ限定ではない)\"}",
+     "correct_value": "専用ユーザーは「ピカチュウ(オリジナルキャップ)」1体限定ではなく、「帽子(キャップ)をかぶったピカチュウ」全フォルム(オリジナル/ホウエン/シンオウ/イッシュ/カロス/アローラ/バディーズ/ワールド等)が対象。10まんボルト習得+サトピカZ所持が条件。"
+    }
+   ],
+   "slug": "10-000-000-volt-thunderbolt",
+   "summary": "技slug=10-000-000-volt-thunderbolt のmismatch1件(already_verified=false)を検証。masterはZワザ使用可能ポケモンを「ピカチュウ(オリジナルキャップ)」1体に誤限定していた。Wiki(使用ポケモン節)・Bulbapedia英語版とも「帽子をかぶったピカチュウ」全般(キャップフォルム問わず)+10まんボルト習得+サトピカZが条件と一致しており、master_wrongと確定。flags.z.userの値がsim判定に影響するため、moves_fixes_numeric扱いでflags.z.userの修正が必要(説明文の文言自体は声の領域=声担当判断)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "可用性(Gen8で使用可否)",
+     "verdict": "master_wrong",
+     "why": "champions=false技のため一次=Wiki(日本語)/二次=Bulbapedia英語版で確認。両者ともスポットライトは第七世代(SM/USUM/LPLE)限定で、第八世代以降(SwSh/BDSP/SV)は『このわざは つかえません』として選択不可と明記。masterのgens=[7,8]はGen8を使用可能世代として含めている点で誤り。",
+     "quote_1": "第八世代\nこのわざは つかえません おもいだすことが できなくなりますが わざを わすれることを おすすめします",
+     "quote_2": "Generation VIII onwards: \"Spotlight cannot be selected in a battle.\"",
+     "correct_value": "availability.gens=[7]のみ(第八世代以降は選択不可技として除外。gen_introduced=7は正しい)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability_gens\":[7]}"
+    },
+    {
+     "aspect": "使用可能フォーマット(ダブル限定か)",
+     "verdict": "unclear",
+     "why": "一次=Wiki(日本語)の『こんなときに使おう』節と『技の仕様』節はバトルロイヤルでもスポットライトが機能する旨(相手への攻撃逸らし・対象への攻撃集中)を明記しており、masterのbattle_data.effects battle_format=\"double\"(ダブル限定)と食い違う。しかし二次ソース(Bulbapedia本文・Battle Royalページ)にはバトルロイヤルでの挙動に関する記述が見つからず、二重ソースでの裏取りが成立しない。ダブル限定と言い切るmasterが誤りである可能性は高いが、二次ソース不在のため確信を持って断定できない。",
+     "quote_1": "バトルロイヤルでは自分への攻撃を逸らしたり、倒したい相手に攻撃を集中させたりすることができる。",
+     "quote_2": "The page does not mention special rules for redirection moves like Follow Me, Rage Powder, or Spotlight in Battle Royal format.(Bulbapedia Battle Royalページに該当記述なし=確認不能)",
+     "correct_value": "",
+     "fix_target": "none"
+    }
+   ],
+   "slug": "spotlight",
+   "summary": "spotlight(スポットライト)のmismatch 2件を検証。①可用性: Wiki+Bulbapedia二重確認でmaster誤り確定(gens=[7,8]→[7]が正・Gen8以降は選択不可)。②使用フォーマット(ダブル限定か): Wiki一次はバトルロイヤルでも機能すると明記するが、Bulbapedia二次で裏取りできずunclearに留めた。ファイルは書き換えていない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文・物理特殊の選択基準",
+     "verdict": "master_wrong",
+     "why": "masterの説明文は『物理と特殊のダメージを比較して大きい方』としているが、正典は最終ダメージの比較ではなく、ランク補正込みの『こうげき』と『とくこう』の実数値(ステータス)を比較して技分類を決めるという規則。防御・特防側の要因でダメージ自体は変わり得るため、記述として意味がずれている。champions非収録技(champions=false)なのでWiki一次+Bulbapedia二次で確認。",
+     "quote_1": "自分のランク補正込みのステータスがこうげき≦とくこうなら特殊技、こうげき>とくこうなら物理技となる。",
+     "quote_2": "If the user's Attack stat is higher than its Special Attack stat, Photon Geyser becomes a physical move...; otherwise it is a special move. ... stat stage modifiers are taken into account, but other effects (e.g. held items such as a Choice Band, Abilities such as Huge Power, etc.) are not.",
+     "correct_value": "自分のランク補正込みの『こうげき』と『とくこう』を比較し、こうげき>とくこうなら物理技、こうげき≦とくこうなら特殊技として攻撃する(最終ダメージの大小比較ではない)。",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "効果文・特性無視の範囲",
+     "verdict": "master_wrong",
+     "why": "masterの説明文は『相手の特性を無視』と無限定に読めるが、正典では無視できる特性はかたやぶりの効果対象に限られ、ファントムガード/プリズムアーマーは例外として無視できない。範囲の限定が抜けている。",
+     "quote_1": "・無視できる特性はかたやぶりの効果対象のものと同じ。かたやぶり#効果を参照とする。\n・ファントムガード/プリズムアーマーは無視できない。",
+     "quote_2": "During execution, Photon Geyser ignores \"ignorable Abilities\"—those that could potentially affect the success, damage, or effects of a move if possessed by the target of a move or its allies, such as Multiscale and Friend Guard.",
+     "correct_value": "無視できる特性はかたやぶりの効果対象と同じ範囲に限られ、ファントムガード・プリズムアーマーは無視できない。",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "battle_data.effects・物理特殊自動",
+     "verdict": "master_wrong",
+     "why": "effects.rule『compare Physical and Special damage, use the higher category』は最終ダメージ比較を指しているが、正典の判定はランク補正込みの攻撃・特攻の値を比較(特性・持ち物補正は判定から除外)し、同値(こうげき≦とくこう)なら特殊技にするというロジック。sim実装として比較対象・除外要素・同値時の扱いが異なるため効果構造の作り直しが必要。",
+     "quote_1": "自分のランク補正込みのステータスがこうげき≦とくこうなら特殊技、こうげき>とくこうなら物理技となる。\n・分類の判定に、ランク補正/パワートリック/パワーシェアの効果は考慮する。\n・分類の判定に、特性 (こんじょう/ちからもち/スロースタートなど) や持ち物 (こだわりハチマキ/こだわりメガネなど) の効果は無視する。",
+     "quote_2": "If the user's Attack stat is higher than its Special Attack stat, Photon Geyser becomes a physical move...; otherwise it is a special move. ... stat stage modifiers are taken into account, but other effects (e.g. held items such as a Choice Band, Abilities such as Huge Power, etc.) are not.",
+     "correct_value": "ランク補正込みの攻撃・特攻を比較(特性・持ち物補正は除外)し、攻撃>特攻なら物理・攻撃≦特攻なら特殊として分類を決定するruleに変更する必要がある(最終ダメージ比較ではない)。",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "photon-geyser",
+   "summary": "photon-geyser: R1のmismatch3件はいずれもmaster_wrong(検証確定・未修正)。①②は説明文(description_design=適用対象外)、③はbattle_data.effectsのrule構造(effects_design=別工程で修正要)。champions非収録(champions=false)のためWiki一次+Bulbapedia二次で確認、両ソースとも「ランク補正込みの攻撃/特攻の比較(特性・持ち物は除外)」「無視できる特性はかたやぶり対象と同じ範囲(ファントムガード/プリズムアーマーは例外)」で一致。ファイルは未変更。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "effects構造: 威力可変の条件と最大値",
+     "verdict": "unclear",
+     "why": "一次(ポケモンWikiJP)本文は『最大威力は148』(公式ガイドブック出典)とする一方、同じ記事の脚注は『威力は「だいすき度*2/5」により算出されるとする情報もある(Smogon)』として計算すると最大102になり、記事自身も『検証内容: 威力について』を検証中と明記している。二次(Bulbapedia)は明確に『Power=⌊Friendship/2.5⌋』『varies between 1...and 102 (at the maximum friendship value of 255)』とし、148ではなく102を最大値としている。一次内部でも一次と二次でも数値(148 vs 102)が食い違い、どちらが正か決着しない。また『basis』もJP側は『だいすき度』(LGPE固有の親愛度)、Bulbapedia側は通常の『Friendship』(なつき度)と表現がずれており、masterのbasis:\"friendship\"がどちらを指すか不明瞭。数値・基準指標のどちらも確信を持って断定できないためunclear。",
+     "quote_1": "最大威力は148[1][2]。 / 威力は「だいすき度 * 2/5」により算出されるとする情報もある(Smogon)。端数は切り下げ、0の場合は1を設定する。 / 検証内容: 威力について",
+     "quote_2": "Power=⌊Friendship/2.5⌋ ... The base power of Pika Papow varies between 1 (at the minimum friendship value of 0) and 102 (at the maximum friendship value of 255).",
+     "fix_target": "none"
+    }
+   ],
+   "slug": "pika-papow",
+   "summary": "pika-papowのmismatch1件を検証。最大威力(148 vs 102)とbasis(だいすき度 vs なつき度)が一次ソース内部でも一次/二次間でも食い違い決着せずunclear。ファイルは書き換えていない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文・やけどの対象と確率条件",
+     "verdict": "master_wrong",
+     "why": "うちのdescriptionは「必ず相手を『やけど』状態にする」とだけ書かれ、命中条件が欠けている。二重ソース(Wiki+Bulbapedia)とも「当たった/命中したときのみ」やけどを付与するという条件を明記しており、外れた場合には付与されない。",
+     "quote_1": "当たった相手を必ずやけどにする。",
+     "quote_2": "Sizzly Slide deals damage and burns its target when it hits.",
+     "correct_value": "「命中した(当たった)相手を必ず『やけど』状態にする」という、命中条件を明示した表現に直す",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "effects・やけど付与構造",
+     "verdict": "master_wrong",
+     "why": "battle_data.effectsの状態付与エントリはphase:on_useのみで『命中したときだけ』という条件が構造化されていない。二重ソースとも命中(当たった)ことを条件にやけどを付与すると明記しており、on_useのままだと外れた場合にも付与されるsim実装リスクがある。命中条件を効果構造(例: on_hit相当のフェーズや条件フラグ)に落とし込む必要があり、moves.jsonの単純な数値/フラグ修正では済まない。",
+     "quote_1": "当たった相手を必ずやけどにする。",
+     "quote_2": "This wording indicates the burn is conditional on the move successfully hitting the target.",
+     "correct_value": "やけど付与を『命中した場合のみ』発動する構造(on_hit相当のフェーズ、または命中確定後にのみ適用される条件)に変更する",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "sizzly-slide",
+   "summary": "sizzly-slide(めらめらバーン)のmismatch2件を検証。両方ともWiki(一次)+Bulbapedia(二次)で「命中した場合のみやけど付与」と確認でき、master_wrongと確定。aspect1(description文言)はdescription_design、aspect2(effects構造)はeffects_designに分類(ファイル未変更)。"
+  },
+  {
+   "slug": "freezy-frost",
+   "summary": "mismatch対象1件(battle_data.effectsのランクリセット機構)。Wiki一次+Bulbapedia二次とも「攻撃が成功(命中)すると」リセットする条件付き効果であることを確認。masterのeffectsはphase:on_useのみで攻撃成功条件を持たず無条件発動になっている=master_wrong。effects構造の修正が必要でありmoves_fixes_numericでは直せないためeffects_design。",
+   "items": [
+    {
+     "aspect": "battle_data.effects・ランクリセット機構",
+     "verdict": "master_wrong",
+     "why": "master(ours)のeffectsは{kind:ランクリセット,target:all,phase:on_use}で無条件発動になっているが、Wiki一次ソースは『攻撃が成功すると』と明記しており、命中(攻撃成功)を条件とする効果。第二ソース(Bulbapedia)も『deals damage and resets the stat stages』とダメージを与えること(=命中)とセットの効果として記述しており、無条件リセットではない。simでは外れた場合や無効化された場合にもリセットしてしまう恐れがあり、監査指摘は正当。",
+     "correct_value": "攻撃が命中(成功)した場合のみ、自分と相手の能力ランク変化をすべて元に戻す(外れた/無効化された場合はリセットしない)。effectsに命中/成功条件を持たせる必要がある。",
+     "quote_1": "効果 | 攻撃が成功すると、自分と相手のステータス変化をすべて元にもどす。",
+     "quote_2": "Freezy Frost deals damage and resets the stat stages of all active Pokémon on the field to 0.",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "slug": "max-guard",
+   "summary": "監査R1 mismatch 1件(aspect=効果・防御の基本範囲)を二重ソース検証。champions=falseのためWiki(pokemonwiki)を一次ソースとして確認。master.descriptionの「相手の技をふせぐ」は全技防御と読める断定文だが、Wikiは「ダイマックスわざを含む、ほぼ全てのわざを無効化」と明記し、フェイント/キョダイイチゲキ・レンゲキ/場対象技などの明示的な例外リストを持つ。master_wrongと判定。ただし修正は文言(声)の領域のためfix_target=description_designとし適用しない。",
+   "items": [
+    {
+     "aspect": "効果・防御の基本範囲",
+     "verdict": "master_wrong",
+     "why": "masterのdescriptionは「そのターン、相手の技をふせぐ。」とだけ書かれており全ての技を防ぐように読める。しかしWiki(非Champions技のため一次ソース)は「ダイマックスわざを含む、ほぼ全てのわざを無効化する」と明記し、技の仕様節で『フェイント/キョダイイチゲキ/キョダイレンゲキの攻撃は防げず』『場を対象とする技(ステルスロック/くろいきりなど)』は防げないと具体的な例外を列挙している。master.description_legacyは既に『ただしフェイントは貫通する』と例外を反映しているのに対し、新版description(compose生成側)だけが例外を落としている。",
+     "correct_value": "そのターン、相手のほとんどの技を防ぐ(フェイントやキョダイイチゲキ/キョダイレンゲキ、場を対象とする技などの一部は防げない)",
+     "quote_1": "効果 | ダイマックスわざを含む、ほぼ全てのわざを無効化する。連続で出すと失敗しやすくなる。",
+     "quote_2": "・フェイント/キョダイイチゲキ/キョダイレンゲキの攻撃は防げず、ダメージを軽減することもできない。",
+     "fix_target": "description_design"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "effects・交代時のタイプ復元",
+     "verdict": "master_wrong",
+     "why": "masterのduration「どちらかが場を離れるまで」は使用者の交代でも解除される読みを許すが、権威は一貫して『対象(タイプを変えられた側)が場を離れるまで』のみを条件としている。使用者側の交代でタイプが戻る根拠はソースになく、simで使用者交代時に誤って解除する実害リスクがある。",
+     "correct_value": "duration=「(まほうのこなを受けた)対象が場を離れるまで」に限定する。使用者の交代では解除されない。",
+     "quote_1": "Wiki生ページ「技の仕様」節: 「・状態異常ではないため、交代により本来のタイプに戻る。」(直前の文脈は全てまほうのこなを受けたポケモン=対象についての記述であり、フォルムチェンジ・ダイマックスの記述も対象基準)",
+     "quote_2": "Bulbapedia要約: \"The effect lasts as long as the target remains in battle; however, changing form, transforming, or Terastallizing overrides the effect.\"",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "magic-powder",
+   "summary": "magic-powderのmismatch1件を検証。master_wrong確定=durationが「どちらかが場を離れるまで」となっているが、権威(Wiki+Bulbapedia)は対象(タイプを変えられた側)の交代のみが条件で使用者側の交代とは無関係。effects_designでdurationの意味を対象基準に修正が必要。"
+  },
+  {
+   "slug": "jaw-lock",
+   "summary": "jaw-lock(くらいつく)の未検証mismatch1件を検証。master_wrongと確定=拘束の終了条件が「ひんし」のみになっているが、実際は片方が場を去った(交代した)場合にも解除される。Wiki(一次)・Bulbapedia(二次)とも一致。",
+   "items": [
+    {
+     "aspect": "効果の終了条件",
+     "verdict": "master_wrong",
+     "why": "masterのdescription/effects.durationは終了条件を「どちらかがひんしになるまで」だけに限定しているが、Wiki(一次)・Bulbapedia(二次)とも、ひんし以外に「片方が場から去った(交代した)場合」にも拘束が解除されると明記している。champions=falseのためWikiが一次・Bulbapediaが二次として一致し、監査の指摘どおりmasterは終了条件の記述が不足している。",
+     "quote_1": "お互いにげられない状態になった後、片方のポケモンが場から去った場合、もう片方のにげられない状態も解除される。・どちらかがひんしになった場合、もう片方のにげられない状態は解除される。・どちらかが交代した場合、もう片方のにげられない状態も解除される。使うと交代する技/相手を交代させる技、ききかいひ/にげごし、だっしゅつボタン/レッドカード/だっしゅつパックの効果が発動したときなどが該当する。",
+     "quote_2": "This move prevents the user and the target from switching out until either of them faints. The effect goes away if either of the Pokémon leaves the field.",
+     "correct_value": "拘束の終了条件は「どちらかがひんしになるまで」だけでなく「片方が場から去った(交代した)場合」も含める。あなをほる等で退場した場合や、ばかぢから等の交代技/だっしゅつボタン等の道具/ききかいひ等の特性で片方が場を去った時点でも、もう片方の拘束は解除される。",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "slug": "dragon-darts",
+   "summary": "1件検証。champions=true、aspect「効果・片方へ2回攻撃する条件」= master_wrong確定。two-source一致(ch行+description_legacy)で「まもる/タイプ相性などでダメージを与えられない時」の条件がmaster側(description/doubles_note)で「片方に当たらない時」に縮約されており、命中失敗以外の無効化条件が読み取れない。fix_target=effects_design(doubles_noteの条件記述を構造的に拡張する必要があり、単純な数値修正では済まない)。",
+   "items": [
+    {
+     "aspect": "効果・片方へ2回攻撃する条件",
+     "verdict": "master_wrong",
+     "why": "masterのdescription/doubles_noteは「片方に当たらない時はもう片方に2回」のみで「命中しない」としか読めないが、Champions正典(ヤックンch=一次)とdescription_legacy(二次相当・同文)は共に「まもるやタイプ相性などでダメージを与えられない時」と条件を明示しており、命中失敗以外の無効化条件(まもる/無効タイプ)も含む点が欠落している。champions=trueのためch行が拘束力を持つ一次ソース。",
+     "correct_value": "ただし、技『まもる』やタイプ相性などでダメージを与えられない時は片方に2回攻撃する(命中失敗に限らず、まもる・タイプ相性による無効化も含む)",
+     "quote_1": "ただし、技『まもる』やタイプ相性などでダメージを与えられない時は片方に2回攻撃する。",
+     "quote_2": "ただし、技『まもる』やタイプ相性などでダメージを与えられない時は片方に2回攻撃する。",
+     "fix_target": "effects_design",
+     "fix_set": ""
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "masterのcategory=物理は固定値だが、ダイマックス技(ダイワーム)の分類は元になった技(むしタイプ技)の分類に依存し不定である。二次ソース(Bulbapedia)も同じ結論。",
+     "quote_1": "分類 | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "correct_value": "分類=不定(元のむしタイプ技の分類に依存。物理技由来なら物理、特殊技由来なら特殊)",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-flutterby",
+   "summary": "対象1件(分類)を検証。Wiki(不定)+Bulbapedia(元技依存で物理/特殊が変わる)の二重ソース一致でmaster_wrong確定。masterのcategory=物理固定は誤り。数値1個の書き換えでは表現できない(元技→分類の変換表が要る)ためfix_target=effects_design。moves_fixes_numericでのcategory上書きは適用しないこと(ダイマ/Z技のPPと同様「不定」系は数値固定にしない扱いに準拠)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文: 能力低下の発生時点",
+     "verdict": "master_wrong",
+     "why": "masterのdescriptionは「毎ターン、相手のぼうぎょ-1。毎ターン、相手のとくぼう-1。」とだけ書き、能力低下が「ターン終了時」に起きることを明記していない。一次(Wiki)は明確に「毎ターン終了時」と記載しており、二次(Bulbapedia/PokemonDB)も「every turn」で低下自体は一致(タイミング明記はないが矛盾もない)。masterのeffects構造にはphase=turn_endが正しく入っているため、simの挙動自体は正しいが、説明文(description)側がその時点情報を落としている。",
+     "quote_1": "たこがため状態の相手は、毎ターン終了時にぼうぎょととくぼうが1段階ずつ低下する。",
+     "quote_2": "The user locks the target in and prevents it from fleeing. This move also lowers the target's Defense and Sp. Def every turn.",
+     "correct_value": "毎ターン終了時、相手のぼうぎょ-1。毎ターン終了時、相手のとくぼう-1。",
+     "fix_target": "description_design"
+    }
+   ],
+   "slug": "octolock",
+   "summary": "octolock(たこがため)のmismatch対象1件を検証。効果文が「毎ターン終了時」という発生時点を省いている点はmaster_wrongと確定(Wiki一次+Bulbapedia/PokemonDB二次で裏取り)。ただしeffects構造(phase=turn_end)自体は既に正しく、直すのは説明文の文言のみなのでfix_target=description_design(声の領域=適用しない)とした。ファイルは書き換えていない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "masterはダイバーンの分類を「物理」に固定しているが、Wiki(日本語wiki)・Bulbapedia(英語)とも分類は「不定」(元になった攻撃技のカテゴリに応じて物理/特殊が決まる)と明記。ダイマックス技は元技依存で可変というのがCLAUDE.mdの既知パターン(威力/PPと同型)なので、固定値に決め打ちしているmasterの現状は誤り。ただし直し方は単純な数値上書きではなく、元技のカテゴリを参照する仕組み(effects/変換表)が必要。",
+     "correct_value": "不定(ダイマックス化前の元の攻撃技のカテゴリ=物理/特殊に応じて決まる。固定値ではない)",
+     "quote_1": "分類 | 不定",
+     "quote_2": "[Category](/wiki/Move_category \"Move category\") _Varies_",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-flare",
+   "summary": "max-flare(ダイバーン)の未検証mismatch1件(分類)を検証。Wiki+Bulbapediaの二重ソースで「分類=不定(元技依存)」を確認、masterの「物理」固定はmaster_wrongと確定。ダイマ技の威力/PPと同型の\"元技依存で可変\"パターンのため、修正はmoves_fixes_numericの単純上書きではなくeffects_design(元技カテゴリを参照する仕組み)が必要と判定。ファイルは書き換えていない(検証結果の報告のみ)。"
+  },
+  {
+   "slug": "stuff-cheeks",
+   "summary": "mismatch1件を検証: master_wrong確定。effects配列は木の実強制→能力ランク変化の順だが、権威(Wiki技の仕様・防御4-5段階でリュガ/アッキ保持時の分岐事例)は防御ランク変化の判定が先で、それにより木の実効果の発動可否(消費はされる)が決まると明記。順序を反転させる必要あり(fix_target=effects_design、数値修正では対応不可)。",
+   "items": [
+    {
+     "aspect": "防御上昇ときのみ消費の処理順",
+     "verdict": "master_wrong",
+     "why": "masterのeffects配列は「木の実強制→能力ランク変化」の順だが、実機(Champions/SV)ではぼうぎょランク上昇の判定が先に確定し、その結果(既に6段階に達したか)によってきのみの効果発動可否が決まる。ぼうぎょが4-5段階でリュガのみ/アッキのみを持ってほおばるを使うと、先に防御が6段階になるためきのみ・ほおぶくろの効果は不発動になるが消費はされる、という一次情報の記述がmasterの配列順と逆転している。",
+     "quote_1": "・ぼうぎょランクが4-5段階のときにリュガのみ/アッキのみを持ってほおばるを使うと、先にほおばるの効果でぼうぎょが6段階になるので、きのみとほおぶくろの効果は発動しないが、きのみは消費される。このときもゲップは使用できるようになる。",
+     "quote_2": "持っているきのみを食べる｡ 自分の防御を2段階上げる｡ きのみを持っていないと この技は使えない｡",
+     "fix_target": "effects_design",
+     "correct_value": "effects配列の処理順を「能力ランク変化(自分ぼうぎょ+2、上限判定込み)が先に確定→その結果に応じて木の実強制消費・発動判定」に組み替える。単純な配列並べ替えだけでなく「防御が既に上限なら木の実の効果は不発動だが消費はされる」という条件分岐ロジックが必要なため数値修正では対応不可。"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果を受ける量",
+     "verdict": "master_wrong",
+     "why": "一次(Wiki)・二次(Bulbapedia)ともに一貫して『ダメージ』が2倍になると明記しており、『威力』が2倍になるとはどこにも書かれていない。master_row.descriptionの『威力が2倍になる』およびeffects.kind='条件威力倍率'は、この一致した権威の言い回しと食い違う。威力(base power)を2倍にする実装とダメージ計算後に2倍にする実装は、丸め位置や他の補正(テクニシャン等の威力依存効果)との相互作用で結果が変わりうるため、単なる言葉の差ではなくsim構造の問題。",
+     "correct_value": "『威力が2倍』ではなく『ダメージが2倍』が正しい(条件付きダメージ倍率として構造化すべき)",
+     "quote_1": "効果 | 相手がダイマックスしているとダメージが2倍になる。",
+     "quote_2": "Dynamax Cannon deals damage. If the target is Dynamaxed or Gigantamaxed, its damage is doubled.",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "effectsの条件構造",
+     "verdict": "master_wrong",
+     "why": "target=opponent/condition=target_dynamaxed/multiplier=2という対象・条件・倍率の値自体は権威の記述(相手がダイマックスしている時に2倍)と一致している。ただしkindが'条件威力倍率'(base power multiplier)になっており、一次・二次いずれの権威も明確に『ダメージ』の倍率(damage multiplier)と述べている点で、effectsの種別(kind)が実際の効果機構と不一致。数値の書き換えだけでは直せず、'条件ダメージ倍率'のような新kind(またはダメージ計算後段で適用される既存kind)への設計変更が必要。",
+     "correct_value": "kindを威力倍率でなくダメージ倍率(damage multiplier)相当の構造に変更すべき。target/condition/multiplierの値自体はそのままでよい",
+     "quote_1": "・この技はものまねでコピーできない。\n\n・この技に対するまねっこ・さいはい・アンコールは失敗する。 (技の仕様。効果欄=『相手がダイマックスしているとダメージが2倍になる。』)",
+     "quote_2": "The article does not mention interactions with Technician or other power-modifying abilities... (Bulbapedia Effect section: \"Dynamax Cannon deals damage. If the target is Dynamaxed or Gigantamaxed, its damage is doubled.\")",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "dynamax-cannon",
+   "summary": "dynamax-cannon(ダイマックスほう)のmismatch2件を検証。champions=false(非Champions収録)につきWiki(一次)+Bulbapedia(二次)で確認。両ソースとも一貫して『ダメージが2倍』と明記しており『威力が2倍』とはどこにも書かれていない。master_row.descriptionの文言(威力が2倍)およびeffects.kind='条件威力倍率'(power multiplier)は権威と不一致=master_wrong。修正はtarget/condition/multiplierの数値変更では済まず、kindをダメージ倍率相当の構造に変更する必要があるためfix_target=effects_design(両項目とも同一の根本問題)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "masterはcategory:\"物理\"固定だが、ダイマックス技(ダイサンダー)の分類は元の技に依存する不定値。Wiki一次ソースが「不定」と明記し、Bulbapedia二次ソースも同旨を確認。CLAUDE.mdの既知パターン(ダイマ技の威力/PPは元技依存=不定→effects_design)と同型の欠陥で、分類も同様に不定として扱うべき。",
+     "correct_value": "分類は固定値でなく「不定(元の技に依存)」。physical/special/statusはベースとなった元の技のカテゴリで決まる",
+     "quote_1": "分類\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-lightning",
+   "summary": "max-lightning(ダイサンダー)の未検証mismatch1件を検証。「分類」項目=master_wrong確定。masterはcategory:\\\"物理\\\"固定だが、ダイマックス技であるダイサンダーの分類は威力・PP同様に元の技依存の不定値(Wiki「分類|不定」+Bulbapedia「power and whether it is special or physical move depends on the move it is based on」で二重確認)。CLAUDE.mdの既存パターン(ダイマ技の威力/PPは不定=effects_design対象・moves_fixes_numeric不可)と同型なので、fix_targetはeffects_designとした(単純な数値/文字列上書きでは表現できず、元技参照ロジックが必要)。"
+  },
+  {
+   "slug": "max-strike",
+   "summary": "分類=1件のmismatchを検証。master(物理固定)は誤り。ウィキ(一次)・Bulbapedia(二次)とも「元にした技の分類に依存=不定」で一致。ダイマ技の威力/PPと同型の「元技依存」問題のためeffects_design扱い(数値一つで直せない)。",
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "ダイアタック(Max Strike)は元にした攻撃技の分類(物理/特殊)をそのまま引き継ぐため固定値ではない。masterのcategory='物理'固定は誤り。ダイマ技の威力/PPが元技依存=不定と同じ理由で、変換ロジック(元技のcategoryをそのまま反映)が要るためeffects_design扱い。",
+     "correct_value": "不定(元にした技の分類に依存。固定の'物理'ではない)",
+     "quote_1": "分類\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "effects:威力可変機構",
+     "verdict": "master_wrong",
+     "why": "masterのbattle_data.effectsは威力可変の基準を「なつき度」(scales_with/formula/noteとも)としているが、権威(pokemonwiki一次資料)はこの技の効果欄・LGPEゲーム内テキストとも一貫して「だいすき度」を明記しており、通常のなつき度(Gen2以降のかえす/やつあたり等が参照する一般ステータス)とは別のLGPE専用指標として書かれている。英語圏の二次ソース(Bulbapedia/PokemonDB)は総称として\"friendship\"と訳しているが、これはだいすき度・なつき度どちらの日本語表記にも当てはまる一般訳語であり、JP一次資料の「だいすき度」という具体的用語を否定する材料にはならない。masterの「なつき度」という表記は権威の実際の語と食い違っており、修正が必要。",
+     "quote_1": "だいすき度が高いほど威力が上がる。必中。",
+     "quote_2": "The more Eevee loves its Trainer, the greater the move's power.",
+     "fix_target": "effects_design",
+     "correct_value": "scales_withを「なつき度」から「だいすき度」に修正(LGPE専用の相棒イーブイのだいすき度を参照。formula/note文言も『だいすき度が高いほど威力が上がる』に合わせて修正)。なおpower_max=148は一次資料(公式ガイドブック)の値と一致しており今回の指摘対象外(ただしBulbapedia/PokemonDBはformula友情度/2.5・max102説を示しており将来的に別途要検証)。"
+    }
+   ],
+   "slug": "veevee-volley",
+   "summary": "対象1件を検証。effects:威力可変機構のscales_with/formula/noteが「なつき度」となっているが、一次資料(pokemonwiki)の効果欄・LGPEゲーム内テキストは一貫して「だいすき度」と明記しており、master_wrongと判定。fix_target=effects_design(scales_with等の文言修正)。なおpower_max=148自体は一次資料と一致し今回の指摘外だが、英語二次ソース(Bulbapedia/PokemonDB)はformula=friendship/2.5・max102説を示しており、別アスペクトとして将来要検証の余地あり(今回のtriage対象外のため未判定)。"
+  },
+  {
+   "slug": "max-hailstorm",
+   "summary": "対象1件を検証。分類=物理固定は誤り。二重ソース(Wiki+Bulbapedia)とも「元になる技依存=不定」で一致。ダイマ技のPP/威力と同じ「不定」構造の問題なので、数値上書きでなくeffects構造(元技のカテゴリを引き継ぐ仕組み)が必要=master_wrong/effects_design。",
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "masterはcategory=\"物理\"に固定しているが、ダイマックス技ダイアイスは元になる攻撃技(こおりタイプ物理/特殊いずれか)に応じて分類が変わる不定項目。ダイマ技の威力/PPが「元の技依存=不定」として扱われるのと同型の問題であり、数値の付け替えではなくbattle_data.effectsに元技のカテゴリを引き継ぐ仕組み(is_max技の共通設計)が必要。",
+     "quote_1": "分類 | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "correct_value": "物理固定ではなく「元になる攻撃技のタイプ・分類に応じて不定(その技が物理技なら物理/特殊技なら特殊)」。単一値への上書きは不可。",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "master_row.category=\"物理\"は固定値だが、ダイマックス技(ダイストリーム)の分類は元にした技(水タイプ技)により物理/特殊が変わる不定値。Wiki一次資料が「分類｜不定」と明記し、Bulbapedia二次資料も「Its power and whether it is a special or physical move depends on the move it is based on」と確認。physicalに固定しているのは誤り。",
+     "quote_1": "分類\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "correct_value": "分類は元にした技(みずタイプの技)に依存する不定値(固定の物理/特殊ではない)",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-geyser",
+   "summary": "max-geyserのmismatch triageで already_verified=false は「分類」1件のみ(威力・PPは既検証済のため対象外)。Wiki(一次)『分類｜不定』とBulbapedia(二次)『category depends on base move』の二重ソースで、master_row.category=\\\"物理\\\"固定は誤りと確定=master_wrong。ダイマックス技の分類は元技依存の可変値のため、単純な数値上書き(moves_fixes_numeric)では表現できず、effects_design(構造での可変対応)が必要。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "effectsの作用範囲",
+     "verdict": "master_wrong",
+     "why": "masterのeffectsはtarget=opponentのみを対象にノーマル技をでんき化しているが、権威ソースでは場にいる全ポケモン(使用者側含む)のノーマル技がでんきタイプに変わる。二次ソース(pokebaseの実戦リプレイ検証)でも、相手のシャックルのめぐみ・ガブリアスのたいあたり(相手側)がでんき化された実例が確認されており、範囲が『相手だけ』でないことが裏付けられる。",
+     "quote_1": "このターンに出される全てのノーマルタイプのわざをでんきタイプに変える。",
+     "quote_2": "In the remainder of the current turn, all Normal-type moves will become Electric-type moves, including status moves.",
+     "fix_target": "effects_design",
+     "correct_value": "場にいる全ポケモン(使用者側・相手側の両方)が出すノーマルタイプの技を、そのターン中でんきタイプに変える。現状のtarget=opponent限定・normal_only局所実装では表現できず、フィールド全体の状態(プラズマシャワー状態)として構造化が必要。"
+    },
+    {
+     "aspect": "effectsの発動条件",
+     "verdict": "unclear",
+     "why": "一次ソース(日本語Wiki)は『成功した後、場の状態をプラズマシャワー状態にする』と明記し、無効化/外れ/まもる等で失敗した場合は発動しないと詳細に列挙している。これ自体は具体的で信頼できるが、bulbapedia・pokemondb(pokebase)・serebiiいずれの二次ソースも、この『成功時のみ発動』という失敗条件の詳細には触れておらず(pokebaseの回答も『成功条件については明記されていない』と述べている)、二重ソースでの裏付けが取れなかった。監査の指摘(現状のused_before_target_moves条件は成功/失敗を区別しない)自体は一次ソースと整合するが、二次ソース不足のためmaster_wrongと確定はできない。",
+     "quote_1": "成功した後、場の状態をプラズマシャワー状態にする。…以下のように、技が失敗したときは場をプラズマシャワー状態にできない。・技が相性/特性によって無効化されたとき。・技が外れたとき。・まもる状態などによって無効化されたとき。",
+     "quote_2": "Regarding success conditions, the documentation doesn't explicitly state whether the conversion requires the move to successfully hit or avoid being blocked",
+     "fix_target": "none",
+     "correct_value": ""
+    }
+   ],
+   "slug": "plasma-fists",
+   "summary": "プラズマフィストのmismatch2件を検証。①作用範囲(相手限定→全ポケモン対象が正)はmaster_wrong確定(二次ソースpokebaseの実戦検証で裏付け)、effects_design対応が必要。②発動条件(成功時のみ発動すべき)は一次ソース(日本語Wiki)では明確だが、bulbapedia/pokemondb/serebiiいずれも失敗条件の詳細に触れておらず二重ソース確認が取れなかったためunclearとした。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "masterはcategory:\"物理\"で固定しているが、ダイサイコ(ダイマックス技)の分類は元にした技に依存し不定。Wiki一次資料が明記し、Bulbapedia二次資料も同じ仕組みを裏付ける。威力/PPと同様「不定」系のフィールドで、単純な数値上書きでは直せない(sim側で元技の分類を参照する仕組みが必要)。",
+     "quote_1": "分類\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "correct_value": "分類は不定(元にした技の分類に依存。固定の\"物理\"は誤り)",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-mindstorm",
+   "summary": "1件検証。分類=物理固定はmaster_wrong(正しくは不定・元技依存)。Wiki一次+Bulbapedia二次が一致。数値書き換えでは直せずeffects設計が必要(ダイマックス技の威力/PP不定と同型の課題)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "ダイマックス技(ダイホロウ)の分類は元の技(ゴーストタイプの技)に依存して物理/特殊が決まる不定枠。masterはphysical固定になっており、ダイマ技の威力/PP同様に「元技依存=不定」が正しい構造。",
+     "quote_1": "分類 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "correct_value": "不定(元のゴーストタイプ技のcategoryに依存。物理技をダイマックスすると物理、特殊技なら特殊になる)",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "battle_data.effects: 防御1段階低下",
+     "verdict": "master_wrong",
+     "why": "ダイマ技はダブルバトル前提で相手全体に効果が及ぶ。masterのeffectsはtarget:\"opponent\"(単体)になっており、複数戦simで対象外の相手に防御低下が適用されない。二次ソース(Bulbapedia)も相手側全体への低下を明記。",
+     "quote_1": "相手全体のぼうぎょを1段階下げる。",
+     "quote_2": "Max Phantasm inflicts damage and lowers the target's and its ally's Defense by one stage.",
+     "correct_value": "target: opponent_all(相手側全体)に修正",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-phantasm",
+   "summary": "2件とも二重ソース(Wiki+Bulbapedia)で確定master_wrong。分類=ダイマ技は元技依存の不定(物理固定は誤り)、防御低下effectsはtarget=opponent(単体)ではなく相手全体が正。いずれも構造/変換ロジックが要るためeffects_design(numeric一発修正では直せない)。ファイルは書き換えていない(検証担当・確定のみ)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "ダイマックス技ダイジェットの分類はmasterで「物理」固定になっているが、元にしたひこうタイプの技の分類(物理/特殊)に応じて可変。既存ルール(ダイマ技の威力/PPは元技依存=不定・effects_design)と同じ論点が分類にも当てはまる。",
+     "quote_1": "分類 | 不定\n...効果 | 味方全体のすばやさが1段階上がる。",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on. ... Physical: Acrobatics ... Special: Aeroblast",
+     "correct_value": "分類=不定(元にしたひこうタイプの技に応じて物理/特殊が決まる。威力・PPと同様に固定値を持たない)",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-airstream",
+   "summary": "対象1項目(分類)を検証。master_wrongで確定。Wiki(pokemonwiki)「分類|不定」+Bulbapedia「category depends on the base move (physical or special)」の二重ソースで一致。masterのcategory=\\\"物理\\\"固定は誤り。ダイマ技の威力/PPが「元技依存=不定」として既にeffects_design扱いされているのと同じ構造の問題なので、分類も同様にeffects_design(数値1個の書き換えでは直せない=元技に応じた分類マッピングが必要)とした。champions=false(第八世代限定・Championsに未収録)につきWiki一次+Bulbapedia二次の組み合わせで判定。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "ダイマックス技の分類(物理/特殊)は元にした技に依存する不定値。master.jsonのcategory=\"物理\"固定は誤り(威力・PPと同様に「不定」構造で、単一の数値/文字列としては直せない=effects_design対象)。",
+     "quote_1": "分類\n\n | 不定",
+     "quote_2": "Category: Varies (depends on base move) — \"Its power and whether it is a special or physical move depends on the move it is based on.\"",
+     "fix_target": "effects_design",
+     "correct_value": "分類は元にしたフェアリータイプ技依存で不定(固定の物理ではない)。威力・PP同様、moves.jsonの単一categoryフィールドでは表現できず、ダイマ技の派生元マッピング(effects_design)で扱う必要がある。"
+    }
+   ],
+   "slug": "max-starfall",
+   "summary": "対象は_move_mismatch_triage_full.jsonでmax-starfallかつ already_verified=false の1件(aspect=分類)のみ。日本語Wiki(ポケモンウィキ)+Bulbapedia英語版の二重ソースで「分類=不定(元技依存)」を確認、masterのcategory=\\\"物理\\\"固定は誤りと確定(master_wrong)。威力・PPと同型の「元技依存で不定」構造のため、単発の数値修正(moves_fixes_numeric)ではなくダイマ技の派生元マッピングを扱うeffects_design対象とした。ファイルは書き換えていない(検証のみ)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "ダイマックス技は元にした技のタイプ攻撃の物理/特殊に応じて分類が決まる可変技。masterは固定「物理」だが、Wiki一次・Bulbapedia二次とも「不定」で一致。",
+     "quote_1": "分類\n\n | 不定",
+     "quote_2": "Category: Varies (depends on base move—physical or special)",
+     "correct_value": "不定(元にした攻撃技の分類[物理/特殊]に依存。固定「物理」ではない)",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "こうげき低下の対象範囲",
+     "verdict": "master_wrong",
+     "why": "1体を選択して繰り出す技だが、こうげきを下げる追加効果自体は相手側全体(隣接する相手全員)にかかる。Wiki一次・Bulbapedia二次とも一致。masterのeffectsはtarget=opponent(単体)のみに構造化されており、ダブルバトルで相手2体分の低下を再現できない。",
+     "quote_1": "効果\n\n | 相手全体のこうげきを1段階下げる。",
+     "quote_2": "The move reduces both \"the target's and its ally's Attack by one stage.\"",
+     "correct_value": "相手側全体(選択した相手と、隣接するもう一方の相手)のこうげきを1段階下げる",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "effects:こうげき低下",
+     "verdict": "master_wrong",
+     "why": "「こうげき低下の対象範囲」と同一論点。stat=attack, stages=-1の値自体は正しいが、target=\"opponent\"(単体)が誤りで、正しくは相手側全体を指すtargetにすべき。moves.json側の単純な数値/対象コード修正では足りずeffects構造(全体対象の表現)の設計変更が必要。",
+     "quote_1": "効果\n\n | 相手全体のこうげきを1段階下げる。",
+     "quote_2": "The move reduces both \"the target's and its ally's Attack by one stage.\"",
+     "correct_value": "target=\"opponent\"ではなく相手側全体(all_opponents相当)を表すtargetに変更",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-wyrmwind",
+   "summary": "max-wyrmwind(ダイドラグーン)のmismatch3件、いずれもmaster_wrong(未修正・ファイル書き換えなし)。①分類=物理固定は誤り、正しくは元技依存で不定(Wiki+Bulbapedia一致)。②③こうげき低下は単体targetでなく相手側全体にかかる効果で、effects構造の対象範囲表現が誤り(同一論点の重複計上)。いずれもeffects_design扱い(単純な数値上書きでは直せない)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "masterはcategory=物理で固定しているが、ダイマックス技ダイロックはダイマックス前の元の技(いわタイプ物理技)の分類をそのまま引き継ぐ仕様で、単体の技として分類が定まっているわけではない。一次(Wiki)・二次(Bulbapedia)とも「不定・元にした技に依存」で一致。ダイマ技の威力/PPが「不定=元技依存」でeffects_design扱いになっているのと同型の問題であり、単純な数値/カテゴリ差し替えでは直せない(元技→分類の変換表が要る)",
+     "quote_1": "分類\\n\\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "correct_value": "不定(ダイマックス前の元の技の分類をそのまま引き継ぐ。固定の「物理」ではない)",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-rockfall",
+   "summary": "max-rockfall(ダイロック)の分類=不定mismatch1件を検証。Wiki(一次)+Bulbapedia(二次)とも「元にした技に依存」で一致=master_wrong確定。ただしダイマ技の威力/PPと同型の構造問題(元技→分類の変換表が必要)のためfix_target=effects_design(moves_fixes_numericでは直せない)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "ダイアース(Max Quake)の分類は元にした技の物理/特殊によって変わる不定型で、物理固定ではない。masterはcategory:\"物理\"で固定されており誤り。第八世代のダイマックス技は威力・PPと同様に分類も元技依存の可変値なので、単一の正しい値をmoves_fixes_numericにsetすることはできず、effects_design(元技のcategoryを引き継ぐ変換ロジック)で表現すべき事項。",
+     "quote_1": "| 分類\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "fix_target": "effects_design",
+     "correct_value": "分類は不定(元にした攻撃技の物理/特殊をそのまま引き継ぐ。例: じしんベース→物理130、だいちのちからベース→特殊130)"
+    }
+   ],
+   "slug": "max-quake",
+   "summary": "max-quake(ダイアース)の未検証mismatch1件を二重ソース(Wiki一次+Bulbapedia二次)で検証。分類=物理固定は誤り、正しくは元技依存の不定型。ダイマ技の威力/PP同様、単一値で直せずeffects_design対象と判定。\"分類\"の1項目のみでファイルは書き換えていない。"
+  },
+  {
+   "slug": "max-steelspike",
+   "summary": "分類(category)のmismatch1件を検証。Wiki(一次)+Bulbapedia(二次)ともに「元にした技の分類に依存=不定」と一致。masterの「物理」固定は誤り=master_wrong。数値1個の書き換えでは表せない(元技の分類を引く変換ロジックが要る)ためfix_target=effects_design。",
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "masterはcategory:\"物理\"で固定しているが、ダイスチルはダイマックス技(is_max:true)であり、分類は元にした鋼タイプ技の分類に依存する(不定)。champions=falseなのでWiki(一次)+Bulbapedia(二次)の二重ソースで一致確認。ダイマ技の威力/PPが元技依存=不定という既知パターン(instructions記載)が分類にも同様に適用される事例。",
+     "quote_1": "分類 | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "correct_value": "不定(元にした鋼タイプ技の分類[物理/特殊]に依存。例: フラッシュキャノン等の特殊技がベースなら特殊、それ以外の多くは物理)",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "effects:ゴースト例外の作用範囲",
+     "verdict": "master_wrong",
+     "why": "一次(ch行)・二次(Wiki バインド状態ページ)とも、ゴースト例外は『逃げたり交代したりできない』という交代制限部分のみに掛かり、バインド付与・ターン終了時ダメージ(1/8)はゴーストタイプにも適用されると明記している。masterのeffects[0].immuneは状態付与オブジェクト全体(バインド付与+turn_end_damage+prevents_switch)に掛かる構造になっており、この実装のままsimがimmuneを『効果全体の不発条件』として読むと、ゴースト相手への1/8継続ダメージまで欠落する実害バグになる。",
+     "quote_1": "相手を『バインド』状態にして、4～5ターンの間、毎ターン終了後最大HPの1/8のダメージを与え、その間『ゴースト』タイプではない相手は逃げたり交代できない。",
+     "quote_2": "第六世代以降、ゴーストタイプのポケモンはバインド状態でも交代・にげる・テレポートで逃げることができる。バインド状態によるダメージは受ける。",
+     "correct_value": "ゴースト例外はprevents_switch(交代・にげる・テレポートでの離脱制限)のみに限定する。バインド付与自体とturn_end_damage(最大HPの1/8)はゴーストタイプの対象にも通常どおり適用される(交代拒否だけが無効化される)。immuneを状態付与オブジェクト全体でなくprevents_switchのフィールドに紐づけるよう構造を分離する必要がある。",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "snap-trap",
+   "summary": "snap-trap(トラバサミ)のalready_verified=false項目1件を検証。ch行(一次)+Wikiバインド状態ページ(二次)の二重ソースとも『ゴースト例外は交代制限のみ』と明記しており、masterのimmuneが状態付与全体(バインド+継続ダメージ+交代制限)に掛かる構造は誤り=master_wrong。fix_target=effects_design(immuneのスコープをprevents_switchだけに限定する構造変更が必要)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "命中",
+     "verdict": "master_wrong",
+     "why": "masterはaccuracy=100の数値判定だが、権威二source共に「必ず命中する(命中判定:必中/回避率無視)」であり、単純な命中率100%(かいひ率・命中率変化の影響を受ける)とは仕組みが異なる。effectsに「命中率/回避率修正を無視して必中」というignores構造が必要=数値変更だけでは直らない。",
+     "quote_1": "命中率\n\n | -\n...効果\n\n | 必ず命中する。\n\n | 判定\n\n | \n・急所: ○\n\n・命中判定: 必中",
+     "quote_2": "**Accuracy:** \"—%\" (indicating no accuracy check applies, as the move never misses)\n...bypasses accuracy checks to always hit.",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "優先度",
+     "verdict": "master_wrong",
+     "why": "masterはpriority=1(基本諸元・battle_data両方)だが、権威二sourceとも優先度は0であり先制技ではない。descriptionの「優先度+1の先制技」という記述も誤り。",
+     "quote_1": "優先度\n\n | 0",
+     "quote_2": "**Priority:** \"0\"",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"priority\":0}",
+     "correct_value": "priority=0(先制技ではない)"
+    }
+   ],
+   "slug": "false-surrender",
+   "summary": "どげざつき(false-surrender)のmismatch2件を二重ソース(Wiki+Bulbapedia)で検証。champions=falseのためWiki一次+Bulbapedia二次。優先度=master誤り(1→0が正、moves_fixes_numeric)。命中=master誤り(単純accuracy=100でなく「必中=命中率/回避率無視」の構造が必要、effects_design)。descriptionの「優先度+1の先制技」も事実誤り(声の判断は別途)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "champions=false(ダイマックス技はChampions非収録)のため、Wiki(一次)+Bulbapedia(二次)で確認。masterのcategoryは「物理」固定になっているが、ダイマックス技は元にする技の分類に依存する不定カテゴリ。ダイマ技の威力/PPが不定なのと同じ構造の問題。",
+     "correct_value": "分類=不定(元にする技のカテゴリに依存。物理固定ではない)",
+     "quote_1": "分類\n\n | 不定\n\n | 威力\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "効果文・とくぼう低下の対象範囲",
+     "verdict": "master_wrong",
+     "why": "Wiki・Bulbapedia双方とも「相手全体」の特防を下げると明記しているが、masterのdescription/description_legacyは単数の「相手のとくぼう-1」としか書いておらず、ダブルバトルで両方の相手が下がるという範囲が復元できない。",
+     "correct_value": "相手全体のとくぼうを1段階下げる(選択した1体だけでなく、もう一方の相手も含む)",
+     "quote_1": "相手全体のとくぼうを1段階下げる。",
+     "quote_2": "Max Darkness inflicts damage and lowers the target's and its ally's Special Defense by one stage.",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "battle_data.effects・とくぼう低下の機構",
+     "verdict": "master_wrong",
+     "why": "能力ランク変化effectのtargetが単数のopponentになっており、Wiki・Bulbapedia双方が明記する「相手全体」の範囲を表現できない。ダブルバトルで一方の相手だけしかとくぼうが下がらないバグを生む。phase=on_useが正しいかは本文だけでは確定できないため、その点は対象外(target構造のみmaster_wrong)。",
+     "correct_value": "targetを相手側全体(all_opponents相当)にする構造変更が必要。単純なmoves_fixes_numericでは直せない",
+     "quote_1": "相手全体のとくぼうを1段階下げる。",
+     "quote_2": "Max Darkness inflicts damage and lowers the target's and its ally's Special Defense by one stage.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-darkness",
+   "summary": "3件すべてmaster_wrong。①分類=物理固定は誤り、ダイマ技は元技依存で不定(Wiki+Bulbapedia一致、威力/PPと同じ構造)。②③とくぼう低下は「相手全体」が正しいが、master description・battle_data.effectsのtargetとも単数の相手にしか対応しておらず、ダブルバトルで範囲が欠落。Wiki(一次)とBulbapedia(二次)は完全一致・矛盾なし。ファイルは未変更(検証のみ)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文:発動条件",
+     "verdict": "master_wrong",
+     "why": "Wiki一次ソースは「成功した次のターン」と明記し、外れ・タイプ無効・まもる等で失敗した場合は反動が発生しないことを示す。Bulbapedia(二次)も同様に条件付きと明記しており一致。うちのdescriptionは『使った次のターン』とし、成功条件を落としている。ただしbattle_data.effectsは phase:lasting の1エントリのみで、成功時にのみ適用される設計はエンジン側の一般的な『命中/成功時のみ後続効果を適用』処理に依存していると見られ、この項目自体は文面(description)の条件明示不足の問題。",
+     "quote_1": "成功した次のターン、使用者は反動で動けなくなる。",
+     "quote_2": "Eternabeam inflicts damage and then forces the user to recharge during the next turn, unless the move fails due to missing, type immunity, or being blocked by a protection move.",
+     "correct_value": "『技が成功した(命中し、まもる等で防がれなかった)次のターン、使用者は動けなくなる』という成功条件を明記する",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "効果文:効果対象",
+     "verdict": "master_wrong",
+     "why": "Wiki一次・Bulbapedia二次ともに『使用者(the user)』が動けなくなると明記。うちのdescriptionは主語を省略しており誰が動けなくなるか不明瞭。なおbattle_data.effectsのtargetは既に'self'になっており、simの挙動自体は正しい可能性が高い(=effects/数値の実害ではなく、descriptionの文言のみの不備)。",
+     "quote_1": "成功した次のターン、使用者は反動で動けなくなる。",
+     "quote_2": "The user can't move on the next turn.",
+     "correct_value": "『使用者は』を明記した文にする(例:使った次のターンは使用者が動けなくなる)",
+     "fix_target": "description_design"
+    }
+   ],
+   "slug": "eternabeam",
+   "summary": "ムゲンダイビーム(champions=false・Gen8のみ): mismatch2件とも二重ソース(Wiki一次+Bulbapedia二次)で一致してmaster_wrongと確定。①「成功した次のターン」という成功条件がdescriptionで欠落 ②「使用者」という主語がdescriptionで省略。いずれもbattle_data.effects(kind=次のターン行動不能, target:self)自体は妥当に見え、数値/構造の欠陥ではなく説明文(description)の文言不足のみのためfix_target=description_design(声の領域、適用対象外)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "状態異常回復の対象",
+     "verdict": "master_wrong",
+     "why": "Wikiとbulbapediaはいずれも状態異常回復が「自分と味方(the user and its allies)」の両方に及ぶと明記している。masterのeffects(kind:状態異常回復, target:team)自体は自分を含む対象を表現できておりデータ構造は正しいが、description文の状態異常回復の一文だけ「味方みんなの状態異常をすべて治す」と書かれ、直前のHP回復文が明記する「自分と」が省略されている。この非対称な書き方は、自分の状態異常は治らないかのような誤読を招く点でauthorityの記述(自分+味方の両方)と食い違う。",
+     "correct_value": "説明文の状態異常回復の一文にも「自分と」を補い、HP回復の一文と対象を揃える(例:『自分と味方みんなの状態異常をすべて治す』)。effects構造(target:team)自体の変更は不要。",
+     "quote_1": "自分と味方ポケモンを最大HPの1/4ずつ回復し、状態異常を治す (小数点以下は切り捨て)。",
+     "quote_2": "Jungle Healing restores the HP of the user and its allies by 25% of their maximum HP, and heals any non-volatile status conditions they may have.",
+     "fix_target": "description_design"
+    }
+   ],
+   "slug": "jungle-healing",
+   "summary": "対象1件を検証。verdict=master_wrong(description_design)。effects構造(target:team)自体は自分を含み正しいが、description文の状態異常回復の一文だけ「自分と」が抜けており、HP回復文との書き方が非対称。Wiki(一次: 自分と味方ポケモンを回復し状態異常を治す)とBulbapedia(二次: heals the user and its allies' status conditions)の双方が自分・味方両方を明記しており、masterのdescription文言の方が誤読を招く形で食い違う。fix_targetはdescription_design(声の領域)につき自動適用はしない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "ダイマックス時の倍率対象",
+     "verdict": "master_wrong",
+     "why": "うちの説明文/データは「威力が2倍になる」としているが、権威(日本語Wiki・Bulbapedia英語版とも)は一貫して「ダメージが2倍になる(deals twice the damage)」と明記している。威力(base power)とダメージ(最終ダメージ)は別の計算段階であり、Championsは非対象(champions=false)なのでWiki一次+Bulbapedia二次で確定。威力倍率として実装すると、他の威力補正(タイプ一致・特性等)との掛け算順序次第でダメージ倍率とは異なる結果になりうる。第8世代限定のギミック。",
+     "correct_value": "ダイマックス時、威力ではなく最終ダメージが2倍になる(「相手がダイマックスしていると威力が2倍」ではなく「ダメージが2倍」が正しい表現)",
+     "quote_1": "効果 | 相手がダイマックスしているとダメージが2倍になる。",
+     "quote_2": "This move deals twice the damage if the target is Dynamaxed.",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "effectsのダイマックス機構",
+     "verdict": "master_wrong",
+     "why": "battle_data.effectsは kind:\"威力倍率\" で表現しているが、両ソースとも文言は「ダメージが2倍」であり、simの計算段階としてはpower(基礎威力)ではなくdamage(最終ダメージ)にmultiplierをかける機構であるべき。target/condition(target_is_dynamax)/multiplier=2の骨格自体は合っているが、kindの意味付け(威力段階かダメージ段階か)が権威と食い違っており、丸め処理や他の乗算補正との順序次第で実際の数値がずれ得る。effectsスキーマにdamage倍率用のkind(またはphase指定)が無い場合は新設が必要な構造上の欠け。",
+     "correct_value": "effects.kindを「ダメージ倍率」(power計算後・最終ダメージに対する2倍)として表現し直す(現状のkind:\"威力倍率\"は誤り)",
+     "quote_1": "効果 | 相手がダイマックスしているとダメージが2倍になる。",
+     "quote_2": "This move deals twice the damage if the target is Dynamaxed.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "behemoth-blade",
+   "summary": "きょじゅうざん(behemoth-blade)のmismatch2件を検証。両方ともmaster_wrong: うちは「威力が2倍」としているが、Wiki(一次・非Champions技)とBulbapedia(二次)は一貫して「ダメージが2倍(deals twice the damage)」と明記。威力(base power)とダメージ(最終値)は計算段階が異なり、simの丸め・乗算順序に影響しうる。description文言の是正はdescription_design(声の領域=適用しない)、effects.kindの意味付け修正はeffects_design(kind:\"威力倍率\"をダメージ段階の倍率に作り直す構造変更が必要)。"
+  },
+  {
+   "slug": "steel-beam",
+   "summary": "steel-beam(てっていこうせん)のmismatch1件を二重ソースで確定。master_wrong(処理順:自分のHP減少が攻撃ダメージより先)。",
+   "items": [
+    {
+     "aspect": "効果文・HP減少の処理順",
+     "verdict": "master_wrong",
+     "why": "Champions正典(ch行)は『自分のHPを最大HPの半分だけ減らす』とだけ述べ処理順を明言していないが、二次ソースのWikiは冒頭表の『効果』欄で明確に『自分のHPを、最大HPの1/2分だけ減らしてから攻撃する』とHP減少→攻撃の順を明言している。さらに『技の仕様』節の『この技で両者のHPが0になった場合、使用者が倒れてから相手が倒れる』という記述も、自分のHP減少が攻撃ダメージ算出より先に処理されることと整合する。master_row.description(新版)は『ダメージ。自分のHPが最大HPの半分減る。』という語順で、ダメージ→自分のHP減少の順に読め、実際の処理順(HP減少が先)と逆に読める誤り。description_legacyはyakkun_ch_row.effectと一致する中立的な言い方(順序に言及せず)なので問題なし。",
+     "quote_1": "自分のHPを最大HPの半分だけ減らす。『まもる』などで技が防がれた場合も、自分のHPは減る。(yakkun_ch_row.effect)",
+     "quote_2": "自分のHPを、最大HPの1/2分だけ減らしてから攻撃する (小数点以下切り上げ)。(Wiki intro『効果』欄) / この技で両者のHPが0になった場合、使用者が倒れてから相手が倒れる。(Wiki『技の仕様』節)",
+     "fix_target": "effects_design",
+     "correct_value": "処理順は『自分のHPが先に最大HPの半分減り、その後に攻撃ダメージを与える』。description(新版)の語順を『自分のHPが最大HPの半分減る。そのあとダメージを与える(まもるなどで防がれても外れても、自分のHPは減る)。』のように反転させ、effects側にもHP減少フェーズが攻撃ダメージ算出フェーズより先であることを示す構造(phase順序または明示フラグ)を持たせる必要がある。"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "初出世代",
+     "verdict": "master_wrong",
+     "why": "masterはgen_introduced=9だが、パワーシフトは第8世代『Pokémon LEGENDS アルセウス』で初登場した技。champions=falseなのでWiki(一次)+Bulbapedia(二次)の二重ソースが一致して第8世代を示している。",
+     "quote_1": "| パワーシフト\n\n | 第八世代",
+     "quote_2": "Generation: Generation VIII (introduced in Pokémon Legends: Arceus)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gen_introduced\":8}",
+     "correct_value": "gen_introduced=8(Pokémon LEGENDS アルセウスで初登場)"
+    }
+   ],
+   "slug": "power-shift",
+   "summary": "パワーシフトのaspect=初出世代を検証。masterはgen_introduced=9だが、Wiki一次(第八世代)+Bulbapedia二次(Generation VIII, introduced in Legends: Arceus)が一致してGen8を示す。master_wrong確定、correct_value=8。moves_fixes_numericで修正可能。"
+  },
+  {
+   "slug": "max-overgrowth",
+   "summary": "max-overgrowth(ダイソウゲン)のR1 mismatch未検証1件(分類)を検証。master_wrongと確定。威力/PPは既に検証済み(already_verified=true)で今回の対象外。",
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "ダイマックス技ダイソウゲンの分類(物理/特殊)は元となるくさタイプ技に依存して変わる不定値であり、master.category=\"物理\"固定は誤り。既に確定済みの威力/PP不定と同じ性質(ダイマ技共通の仕様)。Champions非収録(champions=false)技なのでWiki(一次)+Bulbapedia(二次)の一致で判定。",
+     "quote_1": "分類\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on. ... for example, Absorb converts to 90 Special, while Frenzy Plant becomes 150 Special, and Bullet Seed becomes 130 Physical.",
+     "correct_value": "分類は元技依存で不定(固定の\"物理\"は誤り)。威力・PPと同様、単一の数値/カテゴリでは表せず元技のカテゴリを引き継ぐ可変仕様として構造化する必要がある",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "slug": "clangorous-soul",
+   "summary": "mismatch対象1件を検証。HP消費割合(fraction=0.3333)は正確な1/3の丸め誤差でmaster_wrongと確定。一次(ch)・二次(Wiki)とも「最大HPの1/3」で一致、Wikiは「小数点以下切り捨て」まで明記。他のHP割合技(みがわり0.25/はらだいこ0.5等)は全て正確な分数値なのに対し、この技だけ丸められた近似値0.3333が混入している。",
+   "items": [
+    {
+     "aspect": "HP消費割合（effects）",
+     "verdict": "master_wrong",
+     "why": "champions=trueなので一次ソース=ヤックンch行が正典。ch行effect文とauthority_quoteは共に「自分のHPを最大HPの1/3だけ減らし」=正確に1/3。二次ソースのWikiはさらに踏み込み「最大HPの1/3が減少する(小数点以下切り捨て)」と明記。masterのfraction値0.3333は1/3の近似値(0.333333...)ではなく4桁で丸めた値のため、maxHP×fractionを切り捨てる実装だとmaxHP=300で本来100減るはずが99になるなど、simの計算結果がずれる。他のHP割合技(みがわり0.25/はらだいこ0.5/わるあがき0.25等)は全て正確な分数値で統一されており、この技だけ丸められた近似値0.3333が混入している。",
+     "quote_1": "自分のHPを最大HPの1/3だけ減らし、自分のすべての『のうりょく』ランクを1段階ずつ上げる。音系の技。",
+     "quote_2": "最大HPの1/3が減少する (小数点以下切り捨て) 。",
+     "correct_value": "fractionは正確な1/3(0.3333ではなく0.333333...、または実装上は「maxHP÷3を切り捨て」という計算式そのものを持たせる)。Wikiが明記する「小数点以下切り捨て」の丸め規則も合わせて反映する必要がある。",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文：必ず急所",
+     "verdict": "master_wrong",
+     "why": "master/legacyの説明文は「必ず急所に当たる。」のみで無条件のように読めるが、Wiki一次資料の『技の仕様』節とBulbapedia(二次)がともに『対象がカブトアーマー・シェルアーマー持ちの場合は急所に当たらない』という明示の例外を記載している。この例外を欠くと効果の正確な適用条件が伝わらない(=単なる背景・NPCセリフ等の余剰情報ではなく、技の発動条件そのもの)。ただし文言の作り直しは声の領域のためdescription_designに倒し、適用はしない。",
+     "quote_1": "・必ず急所に当たるが、特性カブトアーマー・シェルアーマーのポケモンに使用した場合は急所に当たらない。",
+     "quote_2": "will always result in a critical hit if possible (i.e. unless the target has Battle Armor or Shell Armor)",
+     "fix_target": "description_design",
+     "correct_value": "『必ず急所に当たる。ただし相手の特性がカブトアーマー・シェルアーマーの場合は急所に当たらない。』の意味を盛り込む(文言はcompose/声の判断領域のため未適用)"
+    },
+    {
+     "aspect": "effects構造：確定急所",
+     "verdict": "master_wrong",
+     "why": "effectsに『必ず急所』kind(on_use)が定義されている一方、同じbattle_data内のmust_crit=falseが矛盾する。Wiki/Bulbapediaともに本技は確定急所(This move always lands a critical hit)と明記しており、simがmust_critを参照する経路では確定急所が反映されない可能性がある内部不整合。単純にmust_critの値をtrueへ揃えれば整合が取れる(カブトアーマー/シェルアーマー例外の実装自体はeffects側の条件追加が別途必要だが、今回指摘された『必ず急所kind vs must_crit=false』の矛盾自体はブール値1件の修正で解消できる)。",
+     "quote_1": "効果 | 必ず急所に当たる。",
+     "quote_2": "This move always lands a critical hit",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"must_crit\":true}"
+    }
+   ],
+   "slug": "wicked-blow",
+   "summary": "wicked-blow(あんこくきょうだ)のmismatch2件を二重ソース(Wiki一次+Bulbapedia二次)で検証。①効果文が『カブトアーマー・シェルアーマーには急所に当たらない』例外を欠く=master_wrong(ただし文言判断はdescription_design・未適用)。②effects=必ず急所kind に対しbattle_data.must_crit=falseが内部矛盾=master_wrong、must_critをtrueに揃える単純修正でmoves_fixes_numeric対応可。ファイルは変更していない(検証のみ)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "優先度の基本値と条件付き変化",
+     "verdict": "master_wrong",
+     "why": "master_row.priority(トップレベル)とbattle_data.priorityが共に無条件の1になっている。しかしCh権威(yakkun_ch_row)・Wiki両方とも『グラスフィールド+使用者が地面にいる』時のみ優先度+1で、それ以外は優先度0の通常技であると明記している。battle_data.effects[0]は条件付き(条件を満たす時のみpriority:1を適用)で正しく実装されているのに、トップレベルpriorityフィールドとbattle_data.priorityフィールドはこの条件を無視して常に1になっており、conditional effectと矛盾する。sim側がこのトップレベルpriorityを条件判定なしに直接参照すれば、グラスフィールドが無い場面でも常に先制技として動作してしまう実害バグになる。descriptionの文言(『ふだんは優先度0』)はむしろ正しい記述であり、数値フィールドだけが実態と食い違っている。",
+     "quote_1": "yakkun_ch_row.effect: 「場の状態が『グラスフィールド』で、自分が『ひこう』タイプや特性『ふゆう』などではなく地面にいる時、必ず先制できる(優先度:+1)。」",
+     "quote_2": "wiki intro: 「優先度 | +1(グラスフィールド状態) 0 (その他)」/ 技の仕様: 「場がグラスフィールドであっても、使用者が地面にいてその効果を受けていなければ優先度は上がらない。」",
+     "correct_value": "master_row.priority=0、battle_data.priority=0(基本値)。優先度+1はbattle_data.effects[0]の条件成立時のみ適用(既存のeffects[0].condition構造はそのまま維持=正しい)。",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"priority\":0}"
+    }
+   ],
+   "slug": "grassy-glide",
+   "summary": "grassy-glide(グラススライダー)の未検証mismatch1件を二重ソース(yakkun_ch_row+Wiki)で確定。優先度のトップレベルpriority/battle_data.priorityが無条件の1で、Ch権威・Wiki両方の「グラスフィールド+地面時のみ+1、それ以外は0」と矛盾=master_wrongと判定。effects[0]の条件付き実装は正しいのでそのまま、トップレベルのpriorityを0に修正すれば整合する(moves_fixes_numeric)。"
+  },
+  {
+   "slug": "chloroblast",
+   "summary": "対象1件(登場世代)を二重ソースで検証。champions=falseのためWiki(一次)+Bulbapedia(二次)で確認した結果、master_wrongと確定。クロロブラストは第八世代(Legends アルセウス)導入technicalで、masterのgen_introduced=9は誤り。第九世代(SV)でも学習可能なため両世代を含めるのが正しい。",
+   "items": [
+    {
+     "aspect": "登場世代",
+     "verdict": "master_wrong",
+     "why": "champions=falseのためWikiが一次権威。Wiki intro/レベルアップ表とも第八世代(Legends アルセウス、マルマインヒスイのすがた専用技として進化時習得)が初出で、SVでも継続して習得可能(レベルアップ表にLA/SV両列でチェックあり)。Bulbapediaも独立に『introduced during Generation VIII』と明記し二重ソース一致。masterのgen_introduced=9・gens=[9]は初出世代を1世代取り違えており、SVのみに限定しているのも誤り。",
+     "correct_value": "gen_introduced=8, gens=[8,9](第八世代Legends アルセウスで導入、第九世代SVでも継続して使用可能)",
+     "quote_1": "| クロロブラスト\n\n | 第八世代\n\n | タイプ\n\n | くさ… (wiki intro表) / レベルアップ表: マルマイン(ヒスイのすがた) 47 進 のソフト列がLA/SV両方",
+     "quote_2": "Chloroblast (Japanese: クロロブラスト Chloroblast) is a damage-dealing Grass-type move introduced during Generation VIII (Bulbapedia)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"gen_introduced\":8,\"gens\":[8,9]}"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文・確定急所",
+     "verdict": "auditor_error",
+     "why": "master descriptionは『3回つづけて攻撃する。必ず急所に当たる。』で、連続攻撃を述べた直後に急所句が続く構造。description_legacy『1ターンに3回連続で攻撃する。必ず急所に当たる。』と同一パターンであり、直前で3回攻撃と明示した上で『必ず急所に当たる』と続けば、3回すべてに適用される意味は日本語の自然な読みとして保持される。説明文はわざと短く作る方針(プロジェクトのplain-language/短さ設計)であり、『全ての攻撃が』を毎回明記する必要はない。監査の『一字一句保持していない』という指摘は文言の完全一致を求めすぎており、意味の欠落ではない。",
+     "quote_1": "技の仕様: ・全ての攻撃が必ず急所に当たる。",
+     "quote_2": "Bulbapedia: Each strike will always result in a critical hit if possible (i.e. unless the target has Battle Armor or Shell Armor).",
+     "fix_target": "none"
+    },
+    {
+     "aspect": "effects・確定急所構造",
+     "verdict": "master_wrong",
+     "why": "effects配列には『必ず急所』kindのエントリがあり技の意図は正しく捉えられているが、同じbattle_data内のmust_crit(急所判定の実フラグ、simが直接参照する可能性が高いbool)がfalseのままで内部矛盾している。Wiki(pokemonwiki)の『技の仕様』節とBulbapediaの英語記事の両方が『(命中すれば)全ての攻撃が必ず急所に当たる(カブトアーマー・シェルアーマー所持ポケモンを除く)』と明記しており、確定急所効果自体は正典で確認できる。masterはこの確定性をmust_crit=trueとして反映すべきところをfalseのまま残しており、simがeffectsでなくmust_critフラグを参照する経路では急所が発動しないおそれがある実バグ。moves.json内で他の3技(フロストブレス等)はmust_crit=trueを使っており、同じ生フィールドで直せる。",
+     "quote_1": "技の仕様: ・全ての攻撃が必ず急所に当たる。・特性カブトアーマー・シェルアーマーのポケモンに使用した場合は急所に当たらない。",
+     "quote_2": "Bulbapedia: Each strike will always result in a critical hit if possible (i.e. unless the target has Battle Armor or Shell Armor).",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"must_crit\":true}",
+     "correct_value": "battle_data.must_crit を true にする(effectsの『必ず急所』kindと整合させる)"
+    }
+   ],
+   "slug": "surging-strikes",
+   "summary": "surging-strikes(すいりゅうれんだ)のmismatch2件を検証。①効果文の『全ての攻撃』省略は説明文の短さ設計として許容範囲=auditor_error(修正不要)。②battle_data.must_crit=falseがeffectsの『必ず急所』kindおよびWiki/Bulbapediaの二重ソース(3回全打確定急所・カブトアーマー/シェルアーマー除く)と矛盾=master_wrong。moves_fixes_numericでmust_crit:trueに修正可能。"
+  },
+  {
+   "slug": "eerie-spell",
+   "summary": "対象1件(already_verified=false)を検証。「PP減少の発動時機と相手をひんしにした場合の不発」= master_wrong。Wiki『技の仕様』節にひんし判定後発動・ひんし化時不発の明記あり、master effectsのphase=on_useにはこの分岐がなく実装漏れ。ch行(やっくん)は基本効果のみで沈黙(矛盾なし)。修正は数値ではなくeffects構造(フェーズ位置+fainted条件)が要るためeffects_design判定・未適用。",
+   "items": [
+    {
+     "aspect": "PP減少の発動時機と相手をひんしにした場合の不発",
+     "verdict": "master_wrong",
+     "why": "masterのeffects[0].phase=\"on_use\"には、ひんし判定後という発動時機も、相手をひんしにした場合にPPを減らさないという除外条件も実装されていない。ぶきみなじゅもんのPP減少は「追加効果」として例外的にひんし判定の後に発動し、その技で相手を倒した場合はPP減少自体が起きないという仕様がWiki『技の仕様』節に明記されている。ch行(やっくん)の効果欄は簡潔な基本説明のみでこの時機の細則には言及していないが、これはChampionsがこの一般的な戦闘メカニクス(ひんし後発動)を変更したことを示す記述ではなく、単に基本効果欄が細則を省略しているだけ。Championsがこの種の追加効果の発動タイミング仕様を変更したという証拠はどこにもないため、現行世代(第八・第九世代)の確定仕様がChampionsにもそのまま適用されると判断する。現状の実装のままだと、simでこの技によって相手を沈めたターンにもかかわらずPPを減らしてしまう恐れがあり、実機挙動と食い違う。",
+     "quote_1": "効果 | 相手が最後に使用した技のPPを3減らす。\n音のわざ。",
+     "quote_2": "・追加効果としては例外的に、ひんし判定の後に技の効果が発動する。この技で相手をひんしにさせたときはPPを減らさない。",
+     "fix_target": "effects_design",
+     "correct_value": "PP減少はひんし判定(効果適用後の生死チェック)の後に発動するフェーズへ位置づけ、かつ「この技によって対象がひんしになった場合はPP減少を発動させない」という条件を効果に追加する。単純な数値(amount/PP等)の書き換えでは表現できず、phase設計とfainted-target条件の両方が必要なためeffects構造の拡張が要る。"
+    }
+   ]
+  },
+  {
+   "slug": "dire-claw",
+   "summary": "dire-claw(フェイタルクロー)の未検証mismatch1件を二重ソースで判定=master_wrong。追加効果の発動タイミング(phase)がon_use(使用時)になっているが、Champions正典(ch)・Wiki二次とも「追加効果」として命中判定成立後に評価される旨を明記。修正はeffectsのphase構造設計が要るためeffects_design。",
+   "items": [
+    {
+     "aspect": "effectsの発動タイミング",
+     "verdict": "master_wrong",
+     "why": "champions=true(正典=ヤックンch行+Wiki二次)ともに本効果を『追加効果』(=命中判定成立後に発動する副次効果、まもるで無効化される)として記述している。Wikiの判定表は『急所→命中判定→追加効果→まもる』の順で明示し、フェイタルクロー本文も『追加効果として、30%の確率で相手をどく・まひ・ねむり状態のいずれかにする(Champions)。』とある。masterのbattle_data.effectsはphase=on_use(使用時)になっており、命中判定を経ずに(=外れた場合や無効化された場合にも)状態異常判定へ進みうる構造で、権威記述と食い違う。ダメージ技の追加効果は命中成立後(攻撃後)に評価されるべきで、on_useという使用直後フェーズの割り当ては構造上の誤り。ただし正しいphase値の命名自体はmasterのeffectsスキーマ設計側の問題であり、数値1個を直せば済む話ではないためeffects_design送り。",
+     "quote_1": "効果: 30%の確率で、相手を『どく』『まひ』『ねむり』状態のいずれかにする。(target: 1体選択, protect: 守○)",
+     "quote_2": "追加効果として、30%の確率で相手をどく・まひ・ねむり状態のいずれかにする (Champions)。／判定: ・命中判定: ○ ・追加効果: ○ ・まもる: ○",
+     "correct_value": "battle_data.effectsの状態付与エントリのphaseを『使用時(on_use)』でなく『命中判定成立後(攻撃後/追加効果フェーズ、例: on_hit相当)』に変更し、外れ・無効化時には状態異常判定に進まない構造にする",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "slug": "headlong-rush",
+   "summary": "世代依存(1件)を検証。ぶちかまし(Headlong Rush)はPokémon LEGENDS アルセウス(第八世代)で初登場した技だが、masterはavailability.gen_introduced=9/gens=[9]としており誤り。ChampionsのPP行には世代情報が無いためこの項目の正典にはならず、Wiki(徹底攻略系wiki)とBulbapedia(英語版)の二次資料一致で判定。master_wrong確定。",
+   "items": [
+    {
+     "aspect": "世代依存",
+     "verdict": "master_wrong",
+     "why": "ぶちかまし(Headlong Rush)はPokémon LEGENDS アルセウス(第八世代)で初登場した技で、Bulbapediaも同じ結論。masterのavailability.gen_introduced=9/gens=[9]は誤り(第九世代SVにも収録されるが初出は第八世代)。champions_ch行にはPP以外の世代情報が無くこの項目の正典にはならないため、Wiki一次+Bulbapedia二次の一致で判定した。",
+     "quote_1": "| ぶちかまし\n\n | 第八世代\n\n | タイプ\n\n | じめん",
+     "quote_2": "Headlong Rush (Japanese: ぶちかまし Headlong Rush) is a damage-dealing Ground-type move introduced during Generation VIII, in Pokémon Legends: Arceus.",
+     "correct_value": "availability.gen_introduced=8, gens=[8,9](初出=第八世代LEGENDS アルセウス、以降SVにも収録)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gen_introduced\":8,\"availability.gens\":[8,9]}"
+    }
+   ]
+  },
+  {
+   "slug": "victory-dance",
+   "summary": "R1監査「登場世代」1件を検証。master(gen_introduced=9/gens=[9])はWiki一次(第八世代=LEGENDS アルセウス初出)・Bulbapedia二次(Introduced Generation VIII)双方と食い違い、master_wrongと確定。効果自体(攻撃/防御/素早さ+1ずつ)はSV仕様として正しく一致。",
+   "items": [
+    {
+     "aspect": "登場世代",
+     "verdict": "master_wrong",
+     "why": "masterはgen_introduced=9・gens=[9]だが、Wiki(一次)のヘッダーは本技を『第八世代』と明記し、説明文節でPokémon LEGENDS アルセウス版の専用効果(パワーアップ状態/ガードアップ状態/倍付け状態)を併記=LA初出の裏付け。Bulbapedia(二次)も『Introduced Generation VIII』『Pokémon Legends: Arceus』『ヒスイリリリハナの専用技』と明記し一致。SV版の効果自体(攻撃+1/防御+1/素早さ+1)はmasterのbattle_dataと一致しており正しいが、gen_introduced/gensの値のみ誤り。",
+     "correct_value": "gen_introduced=8(Pokémon LEGENDS アルセウス初出)、gens=[8,9](SVにも技として存在)",
+     "quote_1": "| しょうりのまい\n\n | 第八世代\n\n | タイプ\n\n | かくとう",
+     "quote_2": "Introduced Generation VIII ... Pokémon Legends: Arceus ... ヒスイのすがたのリリリハナの専用技",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"availability.gen_introduced\":8,\"availability.gens\":[8,9]}"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "effects構造:すばやさ+1",
+     "verdict": "master_wrong",
+     "why": "権威は明確に『追加効果』(命中後に成立する副次効果)としているが、masterのeffectsはphase='on_use'で、技を出した時点(命中判定前)で一律に適用される設計になっている。外れ・まもる等で本来上がらないはずのケースでも上昇してしまう恐れがあり、命中/追加効果成立フェーズとの対応が取れていない。",
+     "correct_value": "phaseを『命中後に成立する追加効果』を表すフェーズ(他の追加効果技と同じ、攻撃が当たった後にのみ判定されるフェーズ)に修正する。対象・能力(speed)・段数(+1)・確率(100%)自体は正しい。",
+     "quote_1": "追加効果として、100%の確率で自分のすばやさを1段階上げる。",
+     "quote_2": "This also boosts the user's Speed stat.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "esper-wing",
+   "summary": "esper-wing(オーラウイング)のmismatch1件を検証。Wiki(pokemonwiki)+Bulbapedia(二次)ともに『追加効果』(命中後に成立)と明記しており、masterのeffectsがphase=on_use(命中判定前に一律適用)になっているのは構造上の誤り=master_wrong。対象/stat/段数/確率(self/speed/+1/100%)自体は正しい。数値では直せずeffects構造(フェーズ対応)の修正が必要なのでfix_target=effects_design。ファイルは変更していない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文：発動確率",
+     "verdict": "auditor_error",
+     "why": "master/moves.jsonの一次データ確認: 自分能力上昇100%系の技(flame-charge, power-up-punch, psyshield-bash, aura-wheel, esper-wing等)は例外なく『ダメージ。自分の○○+N。』の形で確率表記を省略している(=100%は暗黙・省略が家のスタイル)。一方10%/20%/30%/50%等の非100%効果(acid, iron-tail, crunch, shadow-ball等)は必ず『N%の確率で』と明記している。このプロジェクトの一貫した書式規則(100%=省略/非100%=明記)であり、mystical-powerだけの欠落ではない。さらにbattle_data.effectsには既にprob:100が正しく格納されており、simにも正しく反映される。監査は個別技の表現だけを見て他の同型技との整合性・家のスタイルを確認しなかった読み違い。",
+     "quote_1": "ダメージ。自分のとくこう+1。",
+     "quote_2": "追加効果として、100%の確率で自分のとくこうを1段階上げる。",
+     "fix_target": "none"
+    },
+    {
+     "aspect": "効果文：追加効果であること",
+     "verdict": "auditor_error",
+     "why": "Wiki側の『追加効果として』という表現はWikiの記事フォーマット上の見出し語(判定欄の項目名『追加効果: ○』に対応する説明的な前置き)であり、これをそのまま説明文に含めるべきという規則はプロジェクト内に存在しない。同型の他技(flame-charge『自分のすばやさ+1』、power-up-punch『自分のこうげき+1』等)も同様に『追加効果として』等のメタ的な語を使わず直接『ダメージ。自分の○○+N。』と書いており、mystical-powerの説明文はこの一貫した書式に沿っている。意味(命中時に自分の特攻が上がる)はeffects構造とdescriptionの両方から正しく読み取れ、機構としての欠落はない。",
+     "quote_1": "ダメージ。自分のとくこう+1。",
+     "quote_2": "追加効果として、100%の確率で自分のとくこうを1段階上げる。",
+     "fix_target": "none"
+    }
+   ],
+   "slug": "mystical-power",
+   "summary": "mystical-power(しんぴのちから)のmismatch2件を検証。champions=false(非Champions)のためWiki一次ソース(reference/_authority_corpus/moves/しんぴのちから.json)を確認、さらにmaster/moves.json内の同型技(100%自己能力上昇の技群 vs 10-50%効果の技群)を横断照合して家のスタイル規則(100%は確率表記を省略・非100%のみ明記/『追加効果として』等のメタ語は使わない)を確定。2件とも監査側の読み違い(auditor_error)、修正不要。\""
+  },
+  {
+   "slug": "infernal-parade",
+   "summary": "infernal-parade(ひゃっきやこう)のmismatch1件を検証。effects威力倍率のtarget='self'は誤りで、同一condition(相手の状態異常)を持つ「たたりめ」がtarget='opponent'であり、ch行・Wiki双方の効果文も「相手が状態異常の時、威力2倍」で対象は相手側。master_wrongと判定。",
+   "items": [
+    {
+     "aspect": "effects・威力倍率のtarget",
+     "verdict": "master_wrong",
+     "why": "master(infernal-parade)のeffects[0]「威力倍率」targetが'self'になっているが、同一condition(target_has_status_condition)を持つ同効果技「たたりめ」はtarget='opponent'。ch行・Wikiとも効果文は『相手が状態異常の時、威力が2倍になる』で完全一致しており、条件参照先=相手であることと整合させるならtargetは'opponent'であるべき。infernal-paradeだけselfになっているのはデータ入力の不整合で、監査(codex)の指摘通りmasterが誤り。",
+     "correct_value": "target=opponent(たたりめと同じ)に修正すべき",
+     "quote_1": "yakkun_ch_row.effect: 「30%の確率で相手を『やけど』状態にする。相手が状態異常の時、威力が2倍になる。」",
+     "quote_2": "master/moves.json たたりめ battle_data.effects[0]: {\"kind\": \"威力倍率\", \"target\": \"opponent\", \"phase\": \"on_use\", \"multiplier\": 2, \"condition\": {\"type\": \"target_has_status_condition\"}}",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"effects[0].target\":\"opponent\"}"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "PP",
+     "verdict": "master_wrong",
+     "why": "champions=falseなのでWiki(一次)本文テーブルの値が権威。masterのPP=10はPokémon LEGENDS アルセウス(別作品・別セクション)の値であり、本編(第九世代SV)の値と取り違えている。Bulbapedia(二次)も本編PP=15/LAは別値10と明記し一致。",
+     "correct_value": "PP=15",
+     "quote_1": "| ブレイブチャージ\n\n | 第八世代\n\n | タイプ\n\n | エスパー\n\n | 分類\n\n | 変化\n\n | 威力\n\n | -\n\n | 命中率\n\n | -\n\n | PP\n\n | 15",
+     "quote_2": "PP: 15 (max. 24)\" ... applies to the main series games (Generation VIII onwards ... and Generation IX in Pokémon Scarlet and Violet), as distinct from Pokémon Legends: Arceus, which has a different PP value of 10.",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"pp\":15}"
+    }
+   ],
+   "slug": "take-heart",
+   "summary": "take-heart(ブレイブチャージ)のPP項目1件を検証。master PP=10はPokémon LEGENDS アルセウス限定の値を本編(SV/第九世代)の値と誤って採用したもの。Wiki本文テーブル(PP=15)とBulbapedia(PP:15、max.24。LAのみ10と明記)の二重ソースが一致し、master_wrongで確定。correct_value=PP15。moves_fixes_numericで{\"pp\":15}を反映可能。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "世代",
+     "verdict": "master_wrong",
+     "why": "champions=false(Championsに未収録)のためWikiが一次ソース。日本語Wiki(pokemonwiki)のイントロ表は本技を「第八世代」と明記し、実際にPokémon LEGENDS アルセウスで初登場、SVは第九世代での続投にすぎない。二次ソースのBulbapedia(英語版)も明確に『introduced during Generation VIII, in Pokémon Legends: Arceus』『available...in Pokémon Scarlet and Violet (Generation IX)』と述べており、両ソースが一致してGen8初出を裏付ける。master_row.availability.gen_introduced=9はこの初出世代と食い違う(SVでの利用開始を初出と誤認した可能性)。gens配列も[9]のみで、LA(第八世代)での使用実績が反映されていない。",
+     "quote_1": "| かみなりあらし\n\n | 第八世代\n\n | タイプ\n\n | でんき\n\n | 分類\n\n | 特殊\n\n | 威力\n\n | 100\n\n | 命中率\n\n | 80\n\n | PP\n\n | 10",
+     "quote_2": "introduced during Generation VIII, in Pokémon Legends: Arceus. ... available...in Pokémon Scarlet and Violet (Generation IX)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"gen_introduced\":8,\"gens\":[8,9]}",
+     "correct_value": "gen_introduced=8(Pokémon LEGENDS アルセウスで初登場)、gens=[8,9](第八世代LA・第九世代SVで使用可能)"
+    }
+   ],
+   "slug": "wildbolt-storm",
+   "summary": "wildbolt-storm(かみなりあらし)のunverified項目1件を二重ソースで確定。世代(gen_introduced)がmaster_wrong=正しくは8(LA初登場)。yakkun_ch_row=null(Champions未収録)のためWiki(一次)+Bulbapedia(二次)で照合し一致確認。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文: 物理・特殊の決定基準",
+     "verdict": "master_wrong",
+     "why": "masterの説明・effectsは『物理と特殊のダメージを比較して大きい方を採用』としているが、権威二重ソース(Wiki一次+Bulbapedia二次)はどちらも『ランク補正込みの実数値(こうげき・とくこう)を比較し、こうげき>とくこうなら物理技になる』という判定であり、実際のダメージ量の比較ではない。判定は使用時の実数値比較(ランク補正/パワートリック・パワーシェアの実数値変動は反映、特性・持ち物・やけど・壁などのダメージ補正は反映しない)であり、ダメージ計算はその後に行われる。",
+     "correct_value": "『自分のランク補正込みのこうげきの実数値がとくこうの実数値より高ければ物理技になる(ダメージ量の比較ではない)。ランク補正・パワートリック/パワーシェアの実数値変動は反映するが、特性・持ち物・やけど・壁などのダメージ補正は判定に影響しない。』",
+     "quote_1": "自分のランク補正込みのステータスがこうげき>とくこうなら物理技になる。",
+     "quote_2": "For determining which stat is higher, stat stage-modifiers are taken into account, but other effects (e.g. held items such as a Choice Band, Abilities such as Huge Power, etc.) are not.",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "effects: 物理・特殊の決定基準",
+     "verdict": "master_wrong",
+     "why": "effectsのrule=\"compare Physical and Special damage, use the higher category\"はダメージ比較のロジックだが、権威(Wiki一次+Bulbapedia二次)ではランク補正込みのこうげき/とくこう実数値の比較(パワートリック/パワーシェア反映・特性/持ち物/やけど/壁のダメージ補正は非反映)であり、分類判定後にダメージ計算を行う設計。simの分類・最終ダメージが現状のルールでは食い違い得る。effectsのrule/条件を実数値比較(かつ考慮対象を明記)する構造に作り直す必要がある。",
+     "correct_value": "kind=物理特殊自動のruleを『compare user's rank-adjusted Attack vs Special Attack stat values (including Power Trick/Power Split effects), physical if Attack > Special Attack; ability/item/burn/screen damage modifiers excluded』に変更",
+     "quote_1": "分類の判定にランク補正と、パワートリック/パワーシェアによる実数値変動効果は考慮する。特性/持ち物の効果などによるステータス補正効果や、やけど/壁状態などのダメージ補正効果は分類の判定に影響しない。",
+     "quote_2": "The move uses stat comparisons, not actual damage calculations. It will be physical if Attack exceeds Special Attack, and remains special otherwise.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "tera-blast",
+   "summary": "tera-blast: 2件ともmaster_wrong確定。masterはダメージ比較で判定しているが、権威二重ソース(Wiki一次+Bulbapedia二次、championsなしのため最新世代ルール)は共にランク補正込みの実数値(こうげき/とくこう)比較で判定し、特性・持ち物・やけど・壁などのダメージ補正は判定に影響しないと明記。ダメージ計算は分類判定後に行われる。両方effects_design(effectsのrule再設計が必要・description文言は連動して直る)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "effects・発動条件とphase",
+     "verdict": "auditor_error",
+     "why": "威力80/命中100/PP12/対象1体選択/接触×/まもる○/急所判定○/追加効果=とくぼう-2(確率100%)は、一次ソース(ch行=Champions正典)と二次ソース(Wiki)で完全一致しており、masterの数値・rank_changes・effectsの内容自体に食い違いはない。auditorが指摘する『on_useのまま命中・ダメージ成立を条件にする構造が見当たらない』という点は、このルミナコリジョン固有のデータ誤りではなく、ダメージ技+追加効果という多数の技に共通するエンジン実装(命中判定・まもる判定を別フェーズで一括処理する設計)側の論点。両ソースとも『追加効果として』100%発動すると書くのみで、on_use/hit-gate等の実装粒度には一切言及していないため、二重ソースでは検証不能な設計上の懸念であり、このmaster行のデータそのものは正しい。なお参考: Wikiのintro表はPP=10と記載しているが、これはSVリリース当初値でChampions側で12に調整された既知の型(このaspectの対象外)。",
+     "quote_1": "効果 | 追加効果として、100%の確率で相手のとくぼうを2段階下げる。",
+     "quote_2": "effect: 100%の確率で相手の『とくぼう』ランクを2段階下げる。",
+     "fix_target": "none"
+    }
+   ],
+   "slug": "lumina-crash",
+   "summary": "lumina-crash(ルミナコリジョン)のmismatch triage項目1件(effects・発動条件とphase)を二重ソース(ch行=Champions正典/Wiki)で検証。威力/命中/PP/対象/接触/まもる/ランク変化(-2,100%)は両ソースと完全一致=数値誤りなし。auditorの指摘(on_use phaseが命中/まもる成立を条件にしていない疑い)はこの技固有のデータ誤りではなく、ダメージ技+追加効果全般に共通するエンジン実装側の設計論点で、両ソースともこの実装粒度に言及していないため二重ソースでは裏付けられない→auditor_error、fix_target=none。ファイルは変更していない。\""
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文: 発動条件",
+     "verdict": "master_wrong",
+     "why": "Wikiとbulbapediaの二重ソースとも、すばやさ低下は技が成功した場合に限られる(外れた/無効化された場合は下がらない)条件付きの効果であることを示している。masterのdescription「攻撃したあと、自分のすばやさ-2」は無条件に読め、battle_data.effectsも phase:on_use・requiresなしで「成功」条件を持たないため、命中判定を無視すると誤って下がってしまうsim/説明文のバグになりうる。",
+     "quote_1": "効果 | 成功すると、自分のすばやさが2段階下がる。",
+     "quote_2": "The user spins furiously by straining its legs, inflicting damage on the target. This also harshly lowers the user's Speed stat.",
+     "fix_target": "effects_design",
+     "correct_value": "技が成功した(相手に命中しダメージを与えた)場合のみ、自分のすばやさ-2。外れた・まもられた・無効化された場合は下がらない — battle_data.effectsに成功条件(on_hit相当のphase/requires)を追加し、descriptionも「成功すると」ベースの文言に直す必要がある"
+    }
+   ],
+   "slug": "spin-out",
+   "summary": "対象1件を検証。ホイールスピンの「攻撃したあと」表記はmaster_wrong=確定。Wiki(一次)「成功すると、自分のすばやさが2段階下がる。」とBulbapedia(二次)がともに成功条件付きの効果であることを示す一方、masterのdescriptionとbattle_data.effects(phase:on_use・requiresなし)は無条件に読め、命中判定を無視した場合の誤発動につながりうる。fix_target=effects_design(成功条件をeffectsに追加した上でdescriptionも直す必要あり・数値項目ではない)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文: 全対象能力が最大時の例外",
+     "verdict": "master_wrong",
+     "why": "Wiki(みをけずる)とBulbapediaの両方が、こうげき・とくこう・すばやさが全て最大(+6)のときはHPを消費しない(技が不発になる)例外を明記している。masterのbattle_data.effectsは条件なしでHPを最大HPの半分減らす記述のみで、この例外分岐が欠けている。champions非収録技(champions=false)のため第九世代Wiki値が正典。",
+     "correct_value": "自分の攻撃・特攻・素早さが全て最大(+6段階)まで上がっている場合、この技は失敗し、HPは減らない(3能力のいずれかが最大未満なら通常通りHPを最大HPの半分減らして各+2)。",
+     "quote_1": "すでに攻撃・特攻・素早さが最大まで上がっている場合、HPは減らない。",
+     "quote_2": "Fillet Away fails if the user's current HP is less than or equal to half its maximum, or if the user's aforementioned stats are all at +6 stages.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "fillet-away",
+   "summary": "監査対象1件(効果文:全対象能力が最大時の例外)をmaster_wrongと確定。Wiki(みをけずる)+Bulbapediaの二重ソースが一致: 攻撃・特攻・素早さが全て+6段階のとき技は失敗しHPを消費しない例外があるが、master(reference/moves.json由来のbattle_data.effects)は無条件にHPを最大HPの半分減らす記述のみで例外分岐が欠落。champions=false(非Champions収録技)のためWiki最新世代値が正典。修正は数値1点の置換では済まず、能力ランク上限チェックの条件分岐をeffects構造に追加する必要があるためfix_target=effects_design(moves_fixes_numericでは表現不可)。ファイルは変更していない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "対象",
+     "verdict": "master_wrong",
+     "why": "champions=true(champions_added=true)のためch行(一次)が正典。ch行target='相手全体'、Wiki(二次)も範囲='相手全員'(SVから変更なし)で一致。masterのtarget='1体選択'は誤り。",
+     "quote_1": "「target」:「相手全体」",
+     "quote_2": "範囲\n\n | 相手全員",
+     "correct_value": "相手全体",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"target\":\"相手全体\"}"
+    }
+   ],
+   "slug": "make-it-rain",
+   "summary": "make-it-rain(ゴールドラッシュ)のmismatch1件を検証。対象=master_wrong確定(ch行+Wiki一致で「相手全体」、masterは誤って「1体選択」)。moves_fixes_numericでtarget修正可。ファイルは書き換えていない。"
+  },
+  {
+   "slug": "lunar-blessing",
+   "summary": "監査R1でlunar-blessing(みかづきのいのり)にmismatch判定されたunverified項目は1件(世代・作品依存)。Wiki一次+Bulbapedia二次で確認した結果、master_wrong(availability.gen_introducedが9のみでGen8初出を反映していない)と確定。",
+   "items": [
+    {
+     "aspect": "世代・作品依存",
+     "verdict": "master_wrong",
+     "why": "Wiki本文は本技を『第八世代』欄に掲載し、『Pokémon LEGENDS アルセウスにおけるみかづきのいのり』という専用節も持つ(PP10・自分のHP50%回復・煙幕状態という別仕様)。二次ソースのBulbapediaも明確に『Introduced during Generation VIII, in Pokémon Legends: Arceus』とし、Scarlet/VioletでPPが10→5に変更されたと記す。master_row.availability.gen_introduced=9・gens=[9]はこの技の実際の初登場(第八世代Legends Arceus)を反映しておらず、第九世代のみの技として誤って扱っている。master本体の数値(PP=5・効果内容)自体はSV仕様として正しいが、availability(登場世代)フィールドが権威と食い違う。",
+     "quote_1": "第八世代\n\n | タイプ\n\n | エスパー\n\n | 分類\n\n | 変化\n\n | 威力\n\n | -\n\n | 命中率\n\n | -\n\n | PP\n\n | 5 (…) Pokémon LEGENDS アルセウスにおけるみかづきのいのり: PP | 10 (…) 自分のHPを最大HPの50%(早業の場合は30%、力業の場合は70%)だけ回復する / 自分を煙幕状態にする",
+     "quote_2": "Introduced during Generation VIII, in Pokémon Legends: Arceus... PP was reduced to 5 (Generation IX, Scarlet/Violet).",
+     "correct_value": "gen_introduced=8, gens=[8,9](第八世代Pokémon LEGENDS アルセウスで初登場し、第九世代SVで仕様変更・PP減少)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"gen_introduced\":8,\"gens\":[8,9]}"
+    }
+   ]
+  },
+  {
+   "slug": "glaive-rush",
+   "summary": "glaive-rushの検証対象1件(効果の継続期限)。master_wrongと判定: masterは「次の自分のターンまで」という単純ターン境界で記述・実装しているが、一次(ポケモンWiki)・二次(Bulbapedia)とも「次に自分が行動する(技を使う)まで」という条件で一致しており、単純なターン到来とは意味が異なる。修正はeffects構造の再設計が必要なためeffects_design。",
+   "items": [
+    {
+     "aspect": "効果の継続期限",
+     "verdict": "master_wrong",
+     "why": "masterのdescription/description_legacyとbattle_data.effects(phase:lasting, duration:1)はいずれも「次の自分のターンまで」という単純なターン境界の効果として実装・記述しているが、一次(ポケモンWiki)・二次(Bulbapedia)とも一致して『次に自分が行動するまでの間』(=次に自分が実際に行動を起こすまで)と説明しており、単純な次ターン到来とは意味が異なる。麻痺のフルロック・ひるみ等で行動できないターンが挟まると『次のターン』では効果が切れるはずなのに『次に行動するまで』なら継続する、という違いが生じうるため、sim実装としてduration:1の単純ターンカウントでは実機の解除条件を再現できない可能性がある。",
+     "quote_1": "効果 | 成功した場合、次に自分が行動するまでの間に相手から受ける技は必中し、ダメージが2倍になる(きょけんとつげき状態)。",
+     "quote_2": "until the next time the user acts, any attacks directed at the user...deal double the damage...and bypass accuracy and evasion checks to always hit. The effect ends if a different move is used.",
+     "correct_value": "効果の解除条件は「次の自分のターン到来」ではなく「次に自分が行動する(技を使う)まで」。description/description_legacyの文言、およびeffects[0]のphase:lasting/duration:1という単純ターン数実装は、この『行動するまで』という条件を正確に表現できていない可能性がある。",
+     "fix_target": "effects_design"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "味方を対象にした場合の壁解除先",
+     "verdict": "master_wrong",
+     "why": "レイジングブルは1体選択技でダブルバトルでは味方も対象にできる。Wikiの『技の仕様』節が『味方に使用したときは味方の場の壁を解除する』と明記しており、壁除去は使用者側ではなく『実際に攻撃した対象の側』の場を解除する仕様。master_row.battle_data.effects[1]は target が常に固定文字列 'opponent_team' になっており、味方を対象にした場合でも相手側の壁を解除してしまう(逆に味方の壁は解除されない)構造的欠陥。ch行(yakkun_ch_row.effect)は『相手の技…を解除して攻撃する』とだけ書き味方選択のケースには触れていないが、これは通常想定(相手を撃つ)の説明を短く書いただけで、Wikiの技の仕様節の記述と矛盾しない(Championsが意図的にこの一般メカニクスを変えたことを示す記述はどこにもない)。よってmasterのeffects[1].targetの固定実装が誤り。",
+     "correct_value": "壁除去の対象は使用者の選択(target)が属する側の場(=攻撃対象側の場)。相手を対象にすれば相手側、味方を対象にすればその味方側の壁を解除する。固定で'opponent_team'にすべきではない",
+     "quote_1": "相手の技『リフレクター』『ひかりのかべ』『オーロラベール』を解除して攻撃する。",
+     "quote_2": "・味方に使用したときは味方の場の壁を解除する。",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "raging-bull",
+   "summary": "raging-bull(レイジングブル)のunverified 1件を二重ソースで検証。壁除去のtargetが常にopponent_team固定になっている点はmaster_wrong(Wikiの技の仕様節が味方選択時は味方側の壁を解除すると明記・ch行の記述とも矛盾しない)。effects構造の書き換えが必要なためfix_target=effects_design(数値パッチ不可)。"
+  },
+  {
+   "slug": "ice-spinner",
+   "summary": "1件のmismatch(効果発動順・ダメージ計算後)を検証。auditor_errorと判定。",
+   "items": [
+    {
+     "aspect": "効果発動順・ダメージ計算後",
+     "verdict": "auditor_error",
+     "why": "監査は「on_useではダメージ計算後の適用処理を表せない」と懸念しているが、このプロジェクトのsim実装ではダメージ技のeffects[].phase:on_useは既に『攻撃後(=ダメージ計算後)』処理として扱われる仕様がtools/_waza_compose.js内に明記されている。よってmasterのphase:on_use指定は当該仕様と矛盾しない。ch行はタイミングの明記なし(表形式のため)、Wiki(Bulbapedia)も明示的な前後関係は述べていないが、『使用者が相手の接触反撃技等で瀕死になった場合はフィールド解除が起きない』という条件付き記述があり、これはフィールド解除がダメージ処理と連動する後続処理であることと整合する。従ってmasterの記述を誤りとする根拠はない。",
+     "quote_1": "アイススピナーのch行効果文: 「場の状態『グラスフィールド』『ミストフィールド』『エレキフィールド』『サイコフィールド』を解除し、元に戻す。」(タイミング明記なし)",
+     "quote_2": "Bulbapedia (Ice Spinner): \"However, if the user faints due to its held Life Orb, the target's held Rocky Helmet, or the target having the Ability Rough Skin or Iron Barbs, ... the terrain is not removed.\" / codebase注記(tools/_waza_compose.js:340): 「sim側もphaseApplyEffects内で処理(real_battle_simulator.html L3390)=データのphase:on_useはsim実装で攻撃後扱い。」",
+     "fix_target": "none"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文:対象・選択・復活",
+     "verdict": "master_wrong",
+     "why": "champions=false(Championsに未収録)のため一次ソース=Wiki。Wikiは「最大HPの1/2 (小数点以下切り捨て)」と明記しているが、うちの説明文には切り捨ての言及がなく『最大HPの半分だけ回復させて復活させる』とだけ書かれている。二次ソース(Bulbapedia)は端数処理に言及していないが否定もしておらず(沈黙)、割合回復技のHP端数切り捨てはポケモン本編共通の基本仕様のため一次ソースの記述を優先する。",
+     "correct_value": "最大HPの1/2(小数点以下切り捨て)を回復して復活させる、という切り捨ての情報を説明文に追加すべき",
+     "quote_1": "ひんし状態の味方ポケモンを、最大HPの1/2 (小数点以下切り捨て) を回復して復活させる。",
+     "quote_2": "Revival Blessing allows the player to select a fainted Pokémon in the party; the selected Pokémon will be revived, and half of its maximum HP will be restored.",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "battle_data.effects:回復割合・基準・対象条件",
+     "verdict": "master_wrong",
+     "why": "同じくWiki(一次)が『最大HPの1/2(小数点以下切り捨て)』と明記。現状のeffectsはfraction=0.5,basis=max_hpのみで端数処理の構造(切り捨て)が無いため、最大HPが奇数のポケモンをsimで復活させた際に回復量が実機と1ずれる可能性がある。二次ソース(Bulbapedia)は端数処理に触れていないが矛盾はしておらず、HP割合技の端数切り捨ては本編共通仕様。",
+     "correct_value": "fraction=0.5の回復量計算にfloor(切り捨て)を明示する構造(例: rounding:\"floor\")を追加すべき",
+     "quote_1": "ひんし状態の味方ポケモンを、最大HPの1/2 (小数点以下切り捨て) を回復して復活させる。",
+     "quote_2": "Revival Blessing allows the player to select a fainted Pokémon in the party; the selected Pokémon will be revived, and half of its maximum HP will be restored.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "revival-blessing",
+   "summary": "revival-blessing(さいきのいのり)のmismatch2件を検証。champions未収録のためWiki(一次)+Bulbapedia(二次)で確認。両アスペクトとも『最大HPの1/2(小数点以下切り捨て)』の端数処理がうちのdescription/effectsに欠落していると確定=master_wrong。説明文側はdescription_design(声の領域=適用しない)、effects構造側はeffects_design(切り捨てを表す構造がschemaに無い)。二次ソースは端数処理に言及していない(沈黙・矛盾ではない)ため、一次ソースの明記+HP割合技の端数切り捨てが本編共通仕様である一般知識を根拠に判定。"
+  },
+  {
+   "slug": "aqua-step",
+   "summary": "1件検証。battle_data.effects・発動タイミング(phase:on_use)は auditor_error と判定。ch行・Wiki両方が「追加効果」(命中確定後の発動)と示しており、監査の「外れ/まもられ時にも発動しうる」懸念は、この案件のsim実装(tools/_waza_compose.js のコメントに明記)ではon_useが「攻撃後(=ダメージ成立後)」扱いになっているため成立しない。監査自身も「on_useの意味はこの1件の資料だけでは確認できない」と留保しており、その確認先(compose側の実装コメント)を見た結果、masterのeffects構造は正しい。修正不要。",
+   "items": [
+    {
+     "aspect": "battle_data.effects・発動タイミング",
+     "verdict": "auditor_error",
+     "why": "監査はeffects.phase='on_use'を「命中・ダメージ成立前にも実行されうるフェーズ」と解釈し、外れ・まもられ時にもすばやさが上がるsim誤動作を懸念しているが、実際にはこのプロジェクトのcomposeエンジン(tools/_waza_compose.js)のコメントに明記されている通り、sim実装(real_battle_simulator.html)ではphase:'on_use'はphaseApplyEffects内で「攻撃後(=ダメージ成立後)」に処理される取り決めになっている。つまりデータ上のキー名は'on_use'でも、実装上の意味は追加効果(命中確定後に発動)であり、Wiki・ch行が示す「追加効果として、100%の確率で自分のすばやさを1段階上げる」と整合する。監査自身も『実際のsimでon_useが追加効果成立後を意味するかは、この1件の資料だけでは確認できない』と留保しており、その未確認点をエンジン側の実装コメントで確認した結果、masterの構造(rank_changes/effectsとも phase:on_use)は正しく、修正は不要。",
+     "quote_1": "ch行effect: 「100%の確率で自分の『すばやさ』ランクが1段階上がる。」",
+     "quote_2": "Wiki「効果」欄: 「追加効果として、100%の確率で自分のすばやさを1段階上げる。」／「判定」欄: 「・追加効果: ○」",
+     "fix_target": "none"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文・発動条件",
+     "verdict": "auditor_error",
+     "why": "masterのdescriptionは短文設計(プロジェクト方針=説明文はわざと短い)で『口の中にいる味方シャリタツのすがたに応じて』と要点(シャリタツを口に含んでいること)を伝えており、これは両ソースの『特性しれいとうの効果で飲み込んでいた場合』と意味は一致する。またbattle_data.effects.noteには既に『自分(ヘイラッシャ)の口の中にいる味方シャリタツの姿によって』と主体(ヘイラッシャ)も明記済みで、監査が指摘する『一字一句復元できない』は短い説明文に対する過剰要求であり、CLAUDE.mdの説明文短文化方針(すながくれ/ナビ欄の教訓)に反する基準での指摘。修正不要。",
+     "quote_1": "ヘイラッシャが特性しれいとうの効果でシャリタツを飲み込んでいた場合、自分の能力を1段階上げる。",
+     "quote_2": "If the user has a Tatsugiri in its mouth via the Commander Ability, the move's animation will change and the user will gain a stat boost based on Tatsugiri's form",
+     "fix_target": "none"
+    },
+    {
+     "aspect": "effects・note内のたれたすがた対応",
+     "verdict": "master_wrong",
+     "why": "battle_data.effects[0].noteが『たれた姿→とくこう+1』としているが、両ソース(日本語Wiki・Bulbapedia英語版)ともに『たれたすがた=防御(Defense)』と明記しており、同じeffects内のstat_by_conditionフィールド(たれた=ぼうぎょ+1)とも矛盾する。note内の記述だけが誤り。",
+     "quote_1": "・たれたすがた : 防御",
+     "quote_2": "Droopy Form increases Defense by one stage",
+     "correct_value": "たれたすがた(たれた姿)→ぼうぎょ(防御)+1が正。とくこう+1ではない。note文中の『たれた姿→とくこう+1』を『たれた姿→ぼうぎょ+1』に訂正(stat_by_conditionフィールドとは既に整合)",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "effects・命中成功後の発動条件",
+     "verdict": "master_wrong",
+     "why": "master effectsはphase=on_useのみで、命中・無効化・失敗を条件にする構造を持たない。両ソースとも、Ver.1.2.0以降は相性・特性・まもる等で無効化・命中失敗・失敗した場合は能力が上がらない(以前はバグで上がっていたが修正済み)と明記しており、現行仕様として『成功時のみ』の条件付けが必要。sim実装では技が無効・不命中・失敗した場合に誤って能力上昇が発火するおそれがあり、effectsの条件構造(phase/条件ゲート)を足す必要がある。",
+     "quote_1": "スカーレット・バイオレット (Ver.1.2.0) 以降では、相性・特性・まもる状態などに技が無効化された場合や、命中しなかった場合、失敗した場合は能力が上がらない",
+     "quote_2": "Prior to Version 1.2.0 of Pokémon Scarlet and Violet, Order Up would increase the stats of a Dondozo with a Tatsugiri even if the move was negated (eg. via Protect). This was due to a bug and was fixed in the Version 1.2.0 update.",
+     "correct_value": "現行(Ver.1.2.0以降)仕様=技が無効化・不命中・失敗した場合は能力上昇なし。技が成功して命中した場合のみ能力上昇する条件をeffectsに構造化する必要がある",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "effects・ひんし判定後の処理順",
+     "verdict": "unclear",
+     "why": "日本語Wiki(一次ソース)には『シャリタツを飲み込んだヘイラッシャがこの技で相手を倒した場合、相手のひんし判定の後に能力が上がる』という明記があるが、第二ソースとして確認したBulbapedia(Order Up記事)・pokemondb(order-up記事)のいずれにもこの処理順(ひんし判定後に上昇)についての記述が見つからず、二重ソースで裏取りできなかった。ルールに従い、第二ソースが取れず確信が持てないため unclear とする(でっち上げ禁止)。効果自体(処理順の細部)が実在するかどうかはさらなる一次資料(公式アップデートノート等)での確認が必要。",
+     "quote_1": "シャリタツを飲み込んだヘイラッシャがこの技で相手を倒した場合、相手のひんし判定の後に能力が上がる。",
+     "quote_2": "",
+     "fix_target": "none"
+    }
+   ],
+   "slug": "order-up",
+   "summary": "order-up(いっちょうあがり) 4件中: master_wrong=2(たれた姿の対応表の誤記=とくこう→ぼうぎょが正/Ver1.2.0以降の成功限定条件が未構造化)、auditor_error=1(説明文の短文化は方針通りで修正不要)、unclear=1(ひんし判定後の処理順は一次Wikiのみで二次ソース裏取り不可)。champions=false(全国版技)につきWiki一次+Bulbapedia/pokemondb二次で確認。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "威力",
+     "verdict": "master_wrong",
+     "why": "champions=false のため権威=Wiki(一次)+pokemondb(二次)。両ソースとも「威力=-(固定ダメージにつき威力欄なし)」で一致。masterのpower=1は誤り。master/moves.json内の同型の固定ダメージ技(sonic-boom/seismic-toss/dragon-rage/night-shade/super-fang/endeavor/final-gambit)は全てpower=nullで統一されており、ruinationだけが数値1になっている単純な入力揺れ(既にある社内規約からの逸脱で、新たな設計判断は不要)。",
+     "quote_1": "| 威力\n\n | -\n\n | 命中率\n\n | 90\n\n | PP\n\n | 10",
+     "quote_2": "Power: — ... Accuracy: 90 ... PP: 10 (max. 16)",
+     "correct_value": "威力欄なし(固定ダメージ技につき\"-\"表記)。master内の他の固定ダメージ技(ソニックブーム/ちきゅうなげ/りゅうのいかり等)と同じくpower=nullに揃える",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"power\":null}"
+    }
+   ],
+   "slug": "ruination",
+   "summary": "ruination(カタストロフィ)のR1 mismatch対象1件(威力)を検証。champions非収録につきWiki+pokemondbの二重ソースで「威力=-(固定ダメージ)」を確認、masterのpower=1はmaster_wrongと確定。master内の同型固定ダメージ技(dragon-rage等)は全てpower=nullで統一されており、単純な入力揺れ。fix_target=moves_fixes_numeric, fix_set={\"power\":null}。ファイルは書き換えていない。"
+  },
+  {
+   "slug": "collision-course",
+   "summary": "R1で唯一のmismatch項目(効果の倍率と作用対象)を検証。二重ソース(Wiki一次+Bulbapedia二次)とも正確な補正率は5461/4096倍(=1.33325...)と一致し、これはmasterのmultiplier=1.333と数値として合致(4/3=1.3333という粗い近似ではなく、より精密な5461/4096の3桁丸め)。監査コメントが指摘した「作用段階(威力倍率かダメージ倍率か)」の違いは両ソースとも明記しておらず根拠不足のため、監査の読み違いと判定。",
+   "items": [
+    {
+     "aspect": "効果の倍率と作用対象",
+     "verdict": "auditor_error",
+     "why": "champions=false(yakkun_ch_row無し)につきWiki(一次)+Bulbapedia(二次)で判定。両ソースとも正確な補正率は5461/4096倍(=1.33325...)で一致し、これは通常『4/3倍(約33%)』と近似表記される。masterのeffects.multiplier=1.333および説明文『1.333倍』は5461/4096を小数第3位まで正確に丸めた値であり、数値としては誤っていない(4/3=1.3333との差もWiki自身が『正確な補正率』として5461/4096を別掲していることから許容される近似)。監査コメントが指摘した『作用段階(威力倍率か、ダメージ倍率か)』の相違は、両ソースとも『ダメージが4/3倍になる』という記述のみでsim実装上のどのフェーズで乗算するかを明記しておらず、根拠なく誤りと断定できない=監査の読み違い。",
+     "quote_1": "効果がバツグンの場合、ダメージが4/3倍になる。 / ・正確な補正率は5461/4096倍となる。",
+     "quote_2": "Collision Course inflicts damage. If the move is super effective on the target, its damage is increased by roughly 33% (or more precisely, by a factor of 5461/4096).",
+     "fix_target": "none"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "対象",
+     "verdict": "auditor_error",
+     "why": "masterのtarget='1体選択'は675技が共有する汎用値で、単体選択かどうかのみを表す設計。味方選択不可という制約はこのフィールドの粒度に元々含まれておらず(いばる/あくび/なりきり/トリック等、同様に相手専用の変化技も全て同じ'1体選択'で記録されている)、doodle固有の誤りではない。fixすると675技全てに波及する体系的な仕様の粗さであり、doodleだけを'master_wrong'として直すのは不整合。simでの対象選択制御は別レイヤー(技の性質判定)で担うべき設計問題。",
+     "fix_target": "none",
+     "quote_1": "範囲\n\n | 相手1体\n\n／技の対象として味方を選択することはできない。",
+     "quote_2": "May affect any adjacent opponent, but not allies"
+    },
+    {
+     "aspect": "効果文・変更対象の人数",
+     "verdict": "master_wrong",
+     "why": "一次(Wiki)は「自分と味方全員のポケモンの特性を、対象の特性と同じにする」と明記し、二次(Bulbapedia)も'the user and any ally'(=全味方)と一致して確認。masterのdescriptionは「自分と味方を、相手と同じ特性にする。」で『全員』が欠落し、ダブル・トリプル環境で対象範囲が曖昧に読める。ただしbattle_data.effectsのscope='self_and_ally'自体はsim動作としては正しく全味方を指しているため、ズレは説明文の文言のみ(声の領域)。",
+     "fix_target": "description_design",
+     "correct_value": "自分と味方全員を、相手と同じ特性にする。",
+     "quote_1": "自分と味方全員のポケモンの特性を、対象の特性と同じにする。",
+     "quote_2": "Doodle changes the Abilities of the user and any ally to the targeted Pokémon's Ability."
+    }
+   ],
+   "slug": "doodle",
+   "summary": "doodle(うつしえ)の未検証mismatch2件を二重ソースで確定。対象=auditor_error(target='1体選択'は675技共通の汎用値で味方選択不可を表す粒度がそもそもなく体系的仕様・doodle固有の誤りではない)。効果文の人数=master_wrong(Wiki一次+Bulbapedia二次とも『味方全員』/'any ally'と明記、masterのdescriptionは『味方』のみで全員が欠落。ただしbattle_data.effectsのscope='self_and_ally'自体は正しく、ズレは説明文言のみ=description_design=声の領域につき本エージェントでは適用しない)。ファイル未変更。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文: 発動確率",
+     "verdict": "auditor_error",
+     "why": "champions=trueでch行が正典。ch行effect(=yakkun_ch_row.effect)は「100%の確率で相手の『すばやさ』ランクを1段階下げる。」でありoursのbattle_data.rank_changes[0].prob=100と一致(sim側は正しく100%実装済み)。description本文が「100%」の文字列を省いているのは事実誤りではなく、house style(同じ100%確定ランク変化を持つ技=mud-slap「ダメージ。相手の命中率-1。」/icy-wind「ダメージ。相手全員のすばやさ-1。風系の技。」/rock-tomb/mud-shot/low-sweep等44件で確認)に一致した書式。100%固定効果は『%』を明記せず断定文(-N表記)で表す、という全体の一貫した書き方でありpounceだけが不自然に省略されているわけではない。",
+     "quote_1": "100%の確率で相手の『すばやさ』ランクを1段階下げる。",
+     "quote_2": "効果 | 100%の確率で相手の『すばやさ』ランクを1段階下げる。",
+     "fix_target": "none"
+    },
+    {
+     "aspect": "効果文: 追加効果であること",
+     "verdict": "auditor_error",
+     "why": "『追加効果』という語をdescriptionが明記しないのも、champions=trueのch行effect文自体が『追加効果として』という語を使っておらず(「100%の確率で相手の『すばやさ』ランクを1段階下げる。」とのみ)、house style上も他の100%確定ランク変化技(mud-slap/icy-wind/rock-tomb等)がいずれも『追加効果』という語を使わず「ダメージ。相手の○○-1。」の形で統一されている。battle_data.effects[0].phase=on_use・kind=能力ランク変化として構造化されておりsimは正しく攻撃に付随する効果として処理する。文言上の省略は意味の欠落ではなく確立された書式。",
+     "quote_1": "100%の確率で相手の『すばやさ』ランクを1段階下げる。",
+     "quote_2": "Wiki生ページ全文:「追加効果として、100%の確率で相手のすばやさを1段階下げる。」",
+     "fix_target": "none"
+    }
+   ],
+   "slug": "pounce",
+   "summary": "pounce(とびつく)のR1 mismatch未検証2件を二重ソースで確定。両方ともauditor_error。champions=true・ch行(yakkun_ch_row.effect=「100%の確率で相手の『すばやさ』ランクを1段階下げる。」)が正典で、oursのbattle_data(rank_changes prob:100/effects kind=能力ランク変化)は既に一致・正確。指摘は説明文(description)本文が「100%」「追加効果」の語を明示していない点だが、これは同種の100%確定ランク変化技44件(mud-slap/icy-wind/rock-tomb/mud-shot/low-sweep等)で確認される一貫したhouse style(確定効果は%語を付けず断定文-N表記で表す)であり、pounceだけが不自然に省略されているわけではない。masterのdescription/effectsとも修正不要。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "effects：こんらん追加効果の構造",
+     "verdict": "master_wrong",
+     "why": "WikiもBulbapediaも『追加効果』(damage首肯後に付随する効果)と明記しており、Wikiの判定表でも『まもる: ○』(まもるで防がれる)としている。つまり本技の30%こんらんは命中してダメージが成立した場合にのみ判定される副次効果であり、外れた場合やまもるで防がれた場合には発生しない。うちのeffectsは kind/target/value/prob は一致するが phase が on_use のみで、命中・ダメージ成立後という前提が構造上表現されていない。simがon_useを無条件(ダメージ成立可否を見ず)に実行する実装であれば、外れ技やまもる成立時にもこんらんを付与してしまう実挙動バグになる。",
+     "quote_1": "効果 | 追加効果として、30%の確率で相手をこんらん状態にする。 (判定: まもる: ○)",
+     "quote_2": "Magical Torque inflicts damage and has a 30% chance of confusing the target.",
+     "correct_value": "こんらん付与(30%)は『ダメージが命中し実際に与えられた場合』にのみ判定される追加効果とし、まもるで防がれた場合・命中しなかった場合は発生しないことをeffects構造(phase/condition)で明示する",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "magical-torque",
+   "summary": "magical-torque(マジカルアクセル)の未検証mismatch1件を検証。champions=falseのためWiki一次+Bulbapedia二次で二重確認。争点は『こんらん30%』のeffects構造(phaseがon_useで、命中・ダメージ成立/まもる非成立という前提が構造上表現されていない)。Wiki判定表は明示的に『まもる: ○』(まもるで防がれる)、Bulbapediaも『ダメージ後の追加効果』と記述しており両ソース一致。判定=master_wrong。fix_target=effects_design(数値の誤りではなく、追加効果のトリガー条件をphase/conditionとして構造化する設計が必要なため)。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文：発動順序",
+     "verdict": "master_wrong",
+     "why": "champions=trueだがch行(yakkun_ch_row)の効果文は「手持ちのポケモンと入れ替わる。また、5ターンの間、天気を『ゆき』にする」と記述順が書いてあるだけで、実際の処理順(交代/天候のどちらが先に解決するか)には言及していない=ch行はこの点について正典として拘束力を持たない。実際の処理順は権威コーパス(ポケモンwiki技の仕様)に明記されており、天候変化が先・交代が後。二次ソースのBulbapediaも「既にゆき状態でも交代は必ず発動する」という記述で、天候処理(失敗しうる)が先に解決され交代は独立して後に起きることを裏付ける。ours(description)は「交代→天候」の順で書いており、実際の処理順(天候→交代)を復元できない=誤り。",
+     "quote_1": "先にゆきを降らせる効果が発動した後で交代する効果が発動し、交代先のポケモンを選ぶことになる。",
+     "quote_2": "The user will still switch out even if there is already snow on the field when the move is used.",
+     "fix_target": "description_design",
+     "correct_value": "5ターンの間、天気を『ゆき』にする(先に天候変化が発動)。そのあと、控えのポケモンと交代する。 ※順序=天候変化が先、自分交代があと"
+    },
+    {
+     "aspect": "effects：発動順序",
+     "verdict": "master_wrong",
+     "why": "champions=trueのch行はeffectsの内部構造(phaseや配列順)について何も規定していない=拘束力なし。実際のゲームメカニクスとして権威コーパス(ポケモンwiki技の仕様)が『先にゆきを降らせる効果が発動した後で交代する効果が発動』と明記し、Bulbapediaの『既にゆき状態でも交代は必ず発動する』という記述もこれと整合する(天候処理が独立して先に解決し、その成否に関わらず交代が後で起きる)。ours(battle_data.effects)は配列順・phaseとも『自分交代(on_use)→天候変化(lasting)』となっており、実際の処理順(天候変化が先)と逆。simで配列順/phase順に実行すると、交代先の天候関連特性との競合結果が実機と逆転しうる実害がある。",
+     "quote_1": "先にゆきを降らせる効果が発動した後で交代する効果が発動し、交代先のポケモンを選ぶことになる。",
+     "quote_2": "The user will still switch out even if there is already snow on the field when the move is used.",
+     "fix_target": "effects_design",
+     "correct_value": "battle_data.effectsの並び/phaseを『天候変化(先・weather相当のphase)→自分交代(あと)』の順に組み替える。天候変化を交代より先に解決するphase(例: on_use内でも天候変化を自分交代より前に置く、または天候変化専用の先行phaseを新設)に配置し、天候変化の成否(既にゆき状態で失敗する等)に関わらず自分交代は独立して後段で必ず発動する構造にする。"
+    }
+   ],
+   "slug": "chilly-reception",
+   "summary": "2件とも master_wrong で確定。champions正典行(yakkun_ch_row)はこの技の「天候変化と交代の処理順」について何も規定していないため拘束力なし。実際の処理順は権威コーパス(ポケモンwiki技の仕様=一次相当)に明記=「天候変化が先、交代があと」。二次ソースのBulbapedia(WebFetch)も『既にゆき状態でも交代は必ず発動する』という記述で、天候処理が独立して先に解決される構造を裏付け、二重ソースで一致。①description(効果文)は交代→天候の順で書かれており実際の処理順を復元できない=description_design(文言/順序は声の領域だが誤り自体は確定)。②battle_data.effectsは配列/phaseとも自分交代(on_use)が天候変化(lasting)より先になっており実際と逆=effects_design(simの処理順に実害あり、交代先の天候特性との競合が逆転しうる)。fix_setで直接数値set可能な項目ではないためmoves_fixes_numericは使用せず。"
+  },
+  {
+   "slug": "bleakwind-storm",
+   "summary": "こがらしあらし(champions=false)の要検証4項目を二重ソース(pokemonwiki.com Wiki=一次、Bulbapedia=二次)で確定。効果構造の能力ランク変化phase指定はunclear(内部phase語彙の解釈は両ソースとも言及なし)。「あめで必ず命中」description簡略化はauditor_error(プロジェクトの短文設計方針と一致・両ソースとも同様に簡略記述)。battle_data.effectsの天候必中構造はmaster_wrong(姿を隠す/ノーてんき・エアロック/ばんのうがさの例外条件が構造化されていない=effects_design)。世代・収録範囲はmaster_wrong(Wiki・Bulbapedia双方が第八世代Legends アルセウス初出を明記、master gen_introduced=9は誤り=moves_fixes_numeric)。",
+   "items": [
+    {
+     "aspect": "battle_data.effectsの能力ランク変化",
+     "verdict": "unclear",
+     "why": "Wikiは「追加効果として、30%の確率で相手のすばやさを1段階下げる」と明記しており、対象・能力・段数・確率(all_opponents/speed/-1/30%)はmasterと一致する。監査の指摘は「phase:on_useのままだとsimが命中前や不発時にも適用してしまう恐れがある」という内部エンジン実装への懸念だが、これはWiki/Bulbapediaいずれにも記載がなく、二次資料では検証できない。このプロジェクトのphase語彙(設計_フェーズ語彙v3)の実装解釈の問題であり、事実確認では決着しない。",
+     "quote_1": "追加効果として、30%の確率で相手のすばやさを1段階下げる。",
+     "quote_2": "30% chance of lowering each target's Speed by one stage",
+     "fix_target": "none",
+     "correct_value": ""
+    },
+    {
+     "aspect": "雨必中の対象ごとの条件",
+     "verdict": "auditor_error",
+     "why": "master descriptionの「天気が「あめ」のときは必ず当たる」は、Wiki技の仕様が挙げる「対象があめ状態の効果を受けている場合は必中する」という一次条件を、例外(ノーてんき・エアロック・ばんのうがさ等)が稀なケースであることを踏まえて要約したものであり、このプロジェクトの短文設計方針(意味は戻るが例外は説明文に混ぜない)と一致する。Bulbapediaの要約も同様に単純化(「雨の間に使うと命中判定をバイパスして必ず当たる」)しており、masterの簡略化は逸脱ではない。",
+     "quote_1": "対象があめ状態の効果を受けている場合は必中する。ただし、姿を隠している相手には当たらない。",
+     "quote_2": "When used during rain, Bleakwind Storm bypasses accuracy checks to always hit",
+     "fix_target": "none",
+     "correct_value": ""
+    },
+    {
+     "aspect": "battle_data.effectsの雨必中構造",
+     "verdict": "master_wrong",
+     "why": "battle_data.effectsは説明文と違いsimが直接参照する構造化データであり、Wiki「技の仕様」節が明記する例外(姿を隠す/そらをとぶ相手には当たらない、場にノーてんき・エアロックがいると命中80に戻る、対象がばんのうがさを持つと命中80に戻る、使用者だけがばんのうがさを持つ場合は必中のまま)がeffects.天候必中に一切表現されておらず、all_opponentsへ一律必中として処理すると誤判定になる。Bulbapediaの一般記述(「雨の間は命中判定をバイパスして必ず当たる」)もこの核となる必中ルールの存在を裏付けており、例外条件を否定するものではない。",
+     "quote_1": "対象があめ状態の効果を受けている場合は必中する。ただし、姿を隠している相手には当たらない。特性ノーてんき・エアロックのポケモンが場にいる場合、あめ状態でも命中は80になる。対象がばんのうがさを持つ場合、あめ状態でも命中が80になる。使用者がばんのうがさを持っているだけのときは、あめ状態の効果で技は必中になる。",
+     "quote_2": "When used during rain, Bleakwind Storm bypasses accuracy checks to always hit",
+     "fix_target": "effects_design",
+     "correct_value": "天候必中effectに、姿を隠す/そらをとぶ状態の対象を除外する条件、場のノーてんき・エアロックで無効化される条件、対象のばんのうがさ所持で無効化される条件(使用者のみの所持は無効化しない)を構造として追加する必要がある。"
+    },
+    {
+     "aspect": "世代・収録範囲",
+     "verdict": "master_wrong",
+     "why": "Wikiの見出しは「こがらしあらし | 第八世代」であり、独立節「Pokémon LEGENDS アルセウスにおけるこがらしあらし」で第八世代仕様(威力75/95/115・命中80%/90%・PP5)を掲載している。Bulbapediaも「introduced during Generation VIII, in Pokémon Legends: Arceus」と明記し二重に一致する。master の gen_introduced=9, gens=[9] は誤りで、実際は第八世代(Legends アルセウス)で初登場し、第九世代で通常対戦仕様(威力100・命中80・PP10・すばやさ低下)に変更された。",
+     "quote_1": "こがらしあらし\n\n | 第八世代",
+     "quote_2": "introduced during Generation VIII, in Pokémon Legends: Arceus",
+     "fix_target": "moves_fixes_numeric",
+     "correct_value": "gen_introduced=8、gens=[8,9](第八世代でLEGENDS アルセウス仕様として登場、第九世代で通常対戦仕様(威力100/命中80/PP10/すばやさ低下)に変更)",
+     "fix_set": "{\"availability.gen_introduced\":8,\"availability.gens\":[8,9]}"
+    }
+   ]
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果の補正対象",
+     "verdict": "master_wrong",
+     "why": "champions=falseにつき最新世代(Wiki)が権威。Wikiは『効果がバツグンの場合、ダメージが4/3倍になる』と明記し、第二ソースのBulbapediaも『its damage is increased by roughly 33%...by a factor of 5461/4096』と、いずれも威力(base power)ではなく最終ダメージ段階での倍率と明言している。masterのdescription『威力が1.333倍になる』およびeffects.kind='条件威力倍率'は、補正が働く段階を『威力』と誤って表現しており、ダメージ計算の別段階(STAB等と合成する順序やLife Orb等の他補正との掛け算順)に影響しうる実質的な差。",
+     "correct_value": "『威力』ではなく『ダメージ』への倍率(効果抜群時、ダメージが4/3倍=正確には5461/4096倍になる)",
+     "quote_1": "効果がバツグンの場合、ダメージが4/3倍になる。",
+     "quote_2": "If the move is super effective on the target, its damage is increased by roughly 33% (or more precisely, by a factor of 5461/4096).",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "効果倍率",
+     "verdict": "master_wrong",
+     "why": "Wiki本文が『正確な補正率は5461/4096倍となる』と明記し、Bulbapediaも同じ分数5461/4096(=約1.333251953125)を明言。masterのeffects.multiplier=1.333(およびdescriptionの1.333倍表記)はこの正確な分数値と一致せず、四捨五入した近似値。simがこの値をそのまま乗算に使う場合、ダメージ計算が実機よりわずかに低く出る実害がある。",
+     "correct_value": "multiplier=5461/4096(=1.333251953125相当)。1.333という近似値ではなく正確な分数/小数で持つべき",
+     "quote_1": "・正確な補正率は5461/4096倍となる。",
+     "quote_2": "or more precisely, by a factor of 5461/4096",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "effectsの条件付きダメージ補正構造",
+     "verdict": "master_wrong",
+     "why": "上記2点(補正対象がダメージ段階であること/正確な倍率が5461/4096であること)がいずれも権威二重ソース(Wiki+Bulbapedia)で確認できる誤りであり、この項目はその2つを合わせて構造全体の不一致として指摘している。kind名『条件威力倍率』を『条件ダメージ倍率』相当に改め、multiplierを5461/4096に修正する必要がある。単純な生値の書き換えでは済まず、effects構造(kindの意味・適用段階)の設計変更が要る。",
+     "correct_value": "effects[0].kindをダメージ段階の倍率(威力ではなくダメージ)に修正し、multiplierを5461/4096(≈1.333251953125)に修正する",
+     "quote_1": "効果がバツグンの場合、ダメージが4/3倍になる。\n・正確な補正率は5461/4096倍となる。",
+     "quote_2": "its damage is increased by roughly 33% (or more precisely, by a factor of 5461/4096)",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "electro-drift",
+   "summary": "electro-drift(イナズマドライブ)の未検証3件はいずれもmaster_wrong。champions非収録(champions=false)につきWiki(一次)+Bulbapedia英語版(二次)の二重ソースで一致確認: 効果抜群時の補正は『威力』ではなく『ダメージ』段階への乗算であり、倍率は近似値1.333ではなく正確に5461/4096(≈1.333251953125)。3件はいずれも同一の根本問題(effects.kind='条件威力倍率'の段階誤りとmultiplier=1.333の精度不足)を異なる角度から指摘したもの。3件ともfix_target=effects_design(battle_data.effects構造の再設計が必要、単純な生値上書きでは済まない)。ファイルは書き換えていない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文：連続使用制限",
+     "verdict": "master_wrong",
+     "why": "masterのeffects/説明はターン基準(『次ターン使用不可』)だが、権威(Wiki一次+Bulbapedia二次)は『直前にPPを消費した技がこの技だった場合』という条件で、ターン経過ではなくPP消費履歴が基準。行動不能でPPを消費しなかったターンを挟んだ場合など、両者は異なる挙動になりうる。Bulbapediaも『unless the move failed』(不発でPP未消費なら制限対象外)と補足しており、Wikiの記述と整合する。",
+     "correct_value": "自分が直前にPPを消費した技がこの技だった場合、選べなくなる(ターン経過ではなくPP消費履歴が基準。不発でPPを消費しなかった場合は連続扱いにならない)",
+     "quote_1": "自分が最後にPPを消費した技がこの技だった場合、選ぶことができなくなる。",
+     "quote_2": "The user cannot select Blood Moon in succession unless the move failed.",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "効果文：回数表現",
+     "verdict": "master_wrong",
+     "why": "権威(Wikiのゲーム内説明文・Bulbapedia)はいずれも『2回連続で出せない/cannot select in succession』という回数(PP消費履歴)基準の表現であり、masterの『2ターン続けて』というターン数表現は上記アスペクトと同根の誤り。ターンとPP消費回数は行動不能ターンなどで食い違うため、置き換えは意味を保存していない。",
+     "correct_value": "この技は連続して出せない(直前にPPを消費した技がこの技の場合に限る、2回連続不可の意)",
+     "quote_1": "この技は 2回連続で だせない。",
+     "quote_2": "If the player attempts to use Blood Moon twice in a row, they will be prevented from doing so, and will be allowed to select another move. Once another move is used, Blood Moon can be used again.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "blood-moon",
+   "summary": "ブラッドムーンのmismatch2件を検証。両方ともmaster_wrong。masterの『次ターン使用不可』『2ターン続けて』はターン基準の表現だが、権威(pokemonwiki一次+Bulbapedia二次)は『直前にPPを消費した技がこの技だった場合に選べなくなる』というPP消費履歴基準(不発でPP未消費なら制限外)。両者は行動不能ターンを挟む等のケースで異なる挙動になりうるため、単純なターン言い換えは意味を保存していない。修正はeffects構造の変更(『次ターン使用不可』kindをPP消費履歴ベースの新kindへ)が必要でfix_target=effects_design(数値のみの修正では対応不可)。ファイルは書き換えていない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文・連続使用制限",
+     "verdict": "auditor_error",
+     "why": "champions=trueなのでch行(一次)が正典。ch行の効果文は「この技は2回連続で出すことができない」で、masterのbattle_data.effects(kind:次ターン使用不可, phase:on_use)はこの『直後の連続使用を禁止する』mechanicと技術的に一致する(Wikiの技の仕様=次のターン選択不可=事実上『2回連続で出せない』と同義)。masterのdescription文言『2ターン続けて出せない』は『2回連続』の言い換え(続けて=連続)で、通常プレイでは同じ制限(直後の1回だけ使用不可)を指し、一字一句の表記差はあるが意味は割れていない。この差は事実誤りでなく言葉選び(声)の領域で、CLAUDE.mdの平易語表現方針の範囲内。監査の『一字一句一致しないから不一致』という判定は過剰読解。",
+     "quote_1": "この技は2回連続で出すことができない。",
+     "quote_2": "使用した次のターンにデカハンマーを選ぼうとすると、「デカハンマーは 2回 続けて 出すことが できない!」というメッセージが出て選択できない。",
+     "fix_target": "none"
+    },
+    {
+     "aspect": "効果文・禁止される操作",
+     "verdict": "auditor_error",
+     "why": "champions=trueなのでch行(一次)が正典。ch行自体が『出すことができない』(使用を禁止する表現)であり、masterのdescription『出せない』はこのChampions公式効果文の言い回しをそのまま踏襲している。監査が引用したWikiの『技の仕様』節の一文(選択のみ制限・使用は非制限で強制発動時は2回連続可)は、通常のメッセージ文言レベルを超えた細則(強制技/さいはい経由等の例外ケース)であり、CLAUDE.mdの『説明文はわざと短い(pokemon-text-is-deliberately-short)』原則によりこうした細則は短い説明文に含めるべき対象ではない。masterのbattle_data.effects(次ターン使用不可)自体はWikiの核心的mechanic(次ターンの選択不可)と技術的に一致しており、sim側の実装は正しい。よって『出せない』という表現は公式文言に忠実で誤りではなく、監査は技術細則を通常説明文に求める過剰指摘。",
+     "quote_1": "この技は2回連続で出すことができない。",
+     "quote_2": "デカハンマーの効果は次のターン技の選択ができなくなるだけで、使用自体は制限されない。選択画面を経ずにデカハンマーが出された場合は2回連続で使用できる。",
+     "fix_target": "none"
+    }
+   ],
+   "slug": "gigaton-hammer",
+   "summary": "gigaton-hammer(デカハンマー)のmismatch2件を検証。両方ともauditor_error。①「2ターン続けて出せない」vs ch行「2回連続で出すことができない」= 言い換えの範囲内で意味は一致(次ターン選択不可のmechanicと合致)。②「出せない」という使用禁止表現 vs Wikiの技の仕様節にある選択のみ制限・強制発動時は2回連続可という細則 = ch行自体が「出すことができない」と同じ言い回しを使っており、Wikiの細則は短い説明文の対象外(pokemon-text-is-deliberately-short原則)。masterのbattle_data.effects(次ターン使用不可)はWikiの核心mechanicと技術的に一致しておりsim実装は正しい。fixは不要(description_design寄りだが文言修正の必要性自体なし=none)。ファイルは書き換えていない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "masterは「物理」固定だが、ダイマックス技(第八世代限定・Champions非収録)は元の技依存で不定=物理/特殊どちらもあり得る。二重ソース(Wiki+Bulbapedia)一致。ただし単純な値差し替えでは直せない(元技の分類変換表が要る)ため fix_target は effects_design。",
+     "correct_value": "不定(元となる攻撃技の分類に依存)",
+     "quote_1": "分類\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "威力",
+     "verdict": "master_wrong",
+     "why": "masterは威力10固定だが、ダイマックス技は元の技依存で威力が変動(Bulbapediaでは70〜100など)。二重ソース一致。数値1個への単純修正ではなく元技→威力の変換表が要るため effects_design。",
+     "correct_value": "不定(元となる攻撃技に依存して変動、例: 70〜100)",
+     "quote_1": "威力\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "PP",
+     "verdict": "master_wrong",
+     "why": "masterはPP10固定だが、ダイマックス技のPPは元技依存で不定(Bulbapediaも「— (max. —)」表記=固定値なし)。二重ソース一致。ダイマ技のPP不定は既知の型(注意事項に明記の通り)でnumeric一発修正でなくeffects_design側の扱い。",
+     "correct_value": "不定(元となる攻撃技のPPに依存)",
+     "quote_1": "PP\n\n | 不定",
+     "quote_2": "PP: \"— (max. —)\"",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "max-knuckle",
+   "summary": "ダイナックル(max-knuckle)のmismatch 3件(分類/威力/PP)を検証。Wiki(一次)+Bulbapedia(二次)が完全一致し、いずれも「元の技に依存する不定値」であることを確認。master(moves.json)は物理/10/10の固定値になっており master_wrong。ただし単純な数値差し替えでは直せない(元技→分類・威力・PPの変換テーブルが必要)ため、3件とも fix_target=effects_design(moves_fixes_numericではない)。指示のダイマ技既知パターンと一致。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "分類",
+     "verdict": "master_wrong",
+     "why": "ダイマックス技(ダイアシッド)の分類は元技(ベースのどく技)依存で不定。master.jsonのcategory=物理は固定値として誤り(可変を示すデータ表現が必要)。",
+     "correct_value": "不定(元のどくタイプ技の分類[物理/特殊]に依存)",
+     "quote_1": "分類\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "fix_target": "effects_design",
+     "fix_set": ""
+    },
+    {
+     "aspect": "威力",
+     "verdict": "master_wrong",
+     "why": "威力も元技依存で不定。CLAUDE.mdの既知パターン通り(ダイマ技の威力/PPは元技依存=不定が正)。固定値10は誤り。",
+     "correct_value": "不定(元のどくタイプ技の威力に応じて変化。表内例: アシッド70/ダストシュート95/ヘドロばくだん90等)",
+     "quote_1": "威力\n\n | 不定",
+     "quote_2": "Its power and whether it is a special or physical move depends on the move it is based on.",
+     "fix_target": "effects_design",
+     "fix_set": ""
+    },
+    {
+     "aspect": "PP",
+     "verdict": "master_wrong",
+     "why": "PPも元技依存で不定(固定PP無し)。固定値10は誤り。CLAUDE.mdの既知パターンに合致。",
+     "correct_value": "不定(元技のPPには依存しない固定値ダイマ技表記=「—」。=個別の固定PPを持たない仕様)",
+     "quote_1": "PP\n\n | 不定",
+     "quote_2": "PP 欄に「—」と記載されており、固定のPP値は設定されていない",
+     "fix_target": "effects_design",
+     "fix_set": ""
+    }
+   ],
+   "slug": "max-ooze",
+   "summary": "ダイアシッド(Max Ooze)の3項目(分類/威力/PP)すべてmaster_wrong確定。ダイマックス技は元のどくタイプ技依存で全て不定という仕様であり、Wiki(一次)+Bulbapedia(二次)が一致。master.jsonの固定値(物理/10/10)は誤り。CLAUDE.mdに既知パターンとして明記されている通り、数値修正(moves_fixes_numeric)ではなく、ダイマ技の可変性をeffectsに表現する設計変更(effects_design)が必要。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果・反動率（description）",
+     "verdict": "auditor_error",
+     "why": "1/3と33%は同一の割合の異なる表記に過ぎない(1/3=33.33...%)。Bulbapediaも同一技の反動を『33% of the damage done』(Gen VIII記述)と『1/3 of the damage dealt』(SV版ゲーム内説明)の両方で表現しており、両者を数学的に等価として使い分けている。masterのdescription『1/3を、自分も受ける』はChampions正典行(yakkun_ch_row)の『33%を自分も受ける』と意味上完全に一致しており、監査の『一字一句・厳密割合照合では不一致』という指摘は、意味が同じ数値の表記ゆれを不一致とみなした過検出。",
+     "quote_1": "master.description_legacy: 「相手に与えたダメージの33%を自分も受ける。」 / master.description: 「ダメージ。相手に与えたダメージの1/3を、自分も受ける。」",
+     "quote_2": "yakkun_ch_row.effect: 「相手に与えたダメージの33%を自分も受ける。」 / Bulbapedia(Wave Crash, move page): 「the user receives recoil damage equal to 33% of the damage done to the target」および「The user takes 1/3 of the damage dealt by this move.」",
+     "fix_target": "none"
+    },
+    {
+     "aspect": "battle_data.recoil",
+     "verdict": "auditor_error",
+     "why": "battle_data.recoil=\"1/3\"およびeffects[0].fraction=0.33は同じ反動割合(約33.33%)を表す数値表現であり、simでの計算結果も1/3≈0.333で33%とほぼ同一(端数処理の違いはfraction=0.33側にわずかに生じ得るが、これは監査で指摘された『正典との食い違い』ではなく実装上の丸め精度の話)。Championsのch行(yakkun)自体が『33%』という表記を使っており、masterのrecoil=\"1/3\"はその同義の分数表記であって、正典と数値的に矛盾していない。",
+     "quote_1": "master.battle_data.recoil: \"1/3\" / master.battle_data.effects[0]: {kind:反動, fraction:0.33}",
+     "quote_2": "yakkun_ch_row.effect: 「相手に与えたダメージの33%を自分も受ける。」 / Bulbapedia(Wave Crash, move page): 「The user takes 1/3 of the damage dealt by this move.」(SV版ゲーム内説明を明示的に引用)",
+     "fix_target": "none"
+    }
+   ],
+   "slug": "wave-crash",
+   "summary": "wave-crashのmismatch指摘2件はいずれもauditor_error。反動割合の『1/3』と『33%』は同一値の表記ゆれであり、Bulbapedia自身も同一技の反動を両表記で記述している(equivalent)。masterのdescription/battle_data.recoilは正典(yakkun_ch)と意味上一致しており修正不要。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "ステラフォルム時の技タイプ変更・説明文",
+     "verdict": "master_wrong",
+     "why": "masterのdescriptionは『「ステラフォルム」のとき、相手全体に当たるようになる。この技のタイプは「ステラ」タイプになる。』と2文に分けており、2文目(タイプ変更)には条件節が付いていないため無条件のタイプ変更であるかのように読める。権威(Wiki・Bulbapedia)はいずれも対象範囲変更とタイプ変更を同じ『ステラフォルムのテラパゴスが使用した場合』という単一条件文でまとめており、タイプ変更も対象範囲変更と同じくステラフォルム限定であることが明確。champions=falseで正典はWiki最新世代値。文言の構造(声)の問題なのでdescription_design扱いとし、ここでは適用しない。",
+     "quote_1": "ステラフォルムのテラパゴスが使用した場合、技のタイプがステラに変わり、相手全体が対象の技に変わる。",
+     "quote_2": "When used by Terapagos in its Stellar Form, Tera Starstorm becomes Stellar-type and targets both opponents in a Double Battle.",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "ステラフォルム時の技タイプ変更・effects構造",
+     "verdict": "master_wrong",
+     "why": "battle_data.effectsの1番目『対象範囲変更』にはcondition:{type:user_form, value:ステラフォルム}が付いているのに、2番目『技タイプ追加』(value=ステラ, replaces=true)にはcondition自体が存在しない。権威は両方の変化を同一条件(ステラフォルムのテラパゴスが使用した場合)にひもづけており、simの構造としてタイプ変更にも同じuser_form=ステラフォルム条件を付けるべき。現状の実装では通常のテラスタルフォルムや無変身のテラパゴスが使ってもステラタイプに置換されてしまう恐れがあり、実害のあるsim構造バグ。effects構造の欠けなのでeffects_design扱い(ここでは適用しない)。",
+     "quote_1": "ステラフォルムのテラパゴスが使用した場合、技のタイプがステラに変わり、相手全体が対象の技に変わる。",
+     "quote_2": "When used by Terapagos in its Stellar Form, Tera Starstorm becomes Stellar-type and targets both opponents in a Double Battle.",
+     "fix_target": "effects_design"
+    },
+    {
+     "aspect": "物理・特殊の決定規則・説明文",
+     "verdict": "master_wrong",
+     "why": "masterのdescriptionは『物理と特殊のうち、ダメージが大きいほうで攻撃する。』としているが、これは相手のぼうぎょ/とくぼうまで含めた実際のダメージ計算結果を比較する意味に読める。権威(Wiki・Bulbapedia)はいずれも自分自身のランク補正込みのこうげき・とくこうというステータス値そのものの比較(相手の能力は無関係)であると明記しており、判定対象がまったく異なる誤った説明。文言の問題なのでdescription_design扱い(ここでは適用しない)。",
+     "quote_1": "自分のランク補正込みのステータスがこうげき>とくこうなら物理技になる。",
+     "quote_2": "If the user's Attack stat is higher than its Special Attack stat, Tera Starstorm becomes a physical move when Terastallized; otherwise, it remains a special move. ... stat stage-modifiers are taken into account, but other effects (e.g. held items such as a Choice Band, Abilities such as Huge Power, etc.) are not.",
+     "fix_target": "description_design"
+    },
+    {
+     "aspect": "物理・特殊の決定規則・effects構造",
+     "verdict": "master_wrong",
+     "why": "battle_data.effectsの『物理特殊自動』はrule=\"compare Physical and Special damage, use the higher category\"となっており比較対象がダメージ量になっている点、かつcondition自体が存在しない点の2つが権威と食い違う。権威は①比較対象は自分のランク補正込みのこうげきvsとくこうというステータス値(相手の能力やダメージ計算は無関係)、②『テラスタルしていないテラパゴスが使用したときは、分類が物理技に変わる効果は無い』=使用者自身がテラスタル状態であることが必須条件、の2点を明記している(Bulbapediaも同旨: category switches when Terastallized based on stat comparison, not damage)。現状のmaster effectsはどちらも欠けており、通常フォルム/無テラスタル状態でも分類変更が起き得るsim実害バグ。ルールの入れ替えと条件追加という構造修正が要るためeffects_design扱い(ここでは適用しない)。",
+     "quote_1": "自分のランク補正込みのステータスがこうげき>とくこうなら物理技になる。/テラスタルしていないテラパゴスが使用したときは、分類が物理技に変わる効果は無い。",
+     "quote_2": "If the user's Attack stat is higher than its Special Attack stat, Tera Starstorm becomes a physical move when Terastallized; otherwise, it remains a special move.",
+     "fix_target": "effects_design"
+    }
+   ],
+   "slug": "tera-starstorm",
+   "summary": "tera-starstormの未検証4項目すべてをmaster_wrongと確定(二重ソース: JP Wiki=一次+Bulbapedia=二次、champions非収録のため)。①description: タイプ変更の条件節がステラフォルム限定であることが2文構造で読み取りにくい(description_design) ②effects: タイプ変更エフェクトに条件(user_form=ステラフォルム)が欠落しているsim実害バグ(effects_design) ③description: 物理/特殊判定を『ダメージの大小』と誤記(正しくは自分のランク補正込みこうげきvsとくこうのステータス比較)(description_design) ④effects: 物理特殊自動のruleがダメージ比較になっており、かつ使用者自身のテラスタル条件が欠落しているsim実害バグ(effects_design)。いずれもfix_target=effects_design/description_designで数値系の即時修正(moves_fixes_numeric)は不可、構造・文言の設計作業が必要。ファイルは書き換えていない。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "連続使用時の成功率低下",
+     "verdict": "master_wrong",
+     "why": "masterのeffectsは近似小数0.3333のみで、Wiki(一次)が明記する『成功するごとに1/3・下限1/36(=1/729)で頭打ち・失敗/非連続使用でリセットして必ず成功に戻る』という段階構造(1→1/3→1/9→1/27→1/81→1/243→1/729で下げ止まり、失敗でリセット)がeffectsに存在しない。Bulbapedia(二次)も『Each time, the chance of success is divided by 3』と再帰的に1/3を掛ける仕組みを裏付けており、単純な定数倍率0.3333だけでは6回目以降の下げ止まりとリセット挙動をsimが再現できない。",
+     "quote_1": "成功するごとに、次の成功率は1/3になる。下限は1/36 = 1/729。・失敗した場合や連続で使用しなかった場合は、成功率はリセットされ必ず成功するようになる。",
+     "quote_2": "Each time, the chance of success is divided by 3.",
+     "fix_target": "effects_design",
+     "correct_value": "連続成功のたびに次回成功率を1/3倍していく(1,1/3,1/9,1/27,1/81,1/243,1/729…)構造にし、1/729で下げ止まる下限を持たせる。かえんのまもりが失敗した場合、または前ターンに連続使用しなかった場合は成功率を100%にリセットする。"
+    },
+    {
+     "aspect": "接触攻撃へのやけど付与",
+     "verdict": "master_wrong",
+     "why": "masterのeffects条件『hit_by_contact_move_while_protecting』は単に『守り中に接触技を受けた』ことだけを条件にしており、Wiki(一次)が列挙する除外規則(ふいうちなど技が決まらなかった場合はやけどにできない/フェイント・ゴーストダイブ等ですり抜けられた場合は防御自体が取り除かれダメージを受けるためやけどにできない/ふかしのこぶし・ハイパードリル・パワフルエッジで守りを無視された場合もやけどにできない)を表現できない過大な条件になっている。Bulbapedia(二次)も『やけどは守りが実際に攻撃をブロックした場合』にのみ発生すると明記しており、単なる『接触技を受けた』では過剰発火し得る。",
+     "quote_1": "ふいうちなど、直接攻撃技であっても決まらない技を仕掛けてきた相手をやけど状態にすることはできない。／フェイント/ゴーストダイブ/シャドーダイブ/いじげんホール/いじげんラッシュを受けた場合、かえんのまもり状態は取り除かれてダメージを受ける。これらの内直接攻撃の技に対してもやけど状態にすることができない。",
+     "quote_2": "the attacker becomes burned (unless it is immune) if Burning Bulwark blocks an attack that would make contact with the user.",
+     "fix_target": "effects_design",
+     "correct_value": "やけど付与は『技が実際に命中し、かつかえんのまもりが実際にブロックに成功した(フェイント系のすり抜け・ふかしのこぶし等の守り無視で取り除かれていない)場合』に限定する条件構造にする。技が不発(ふいうち失敗等)の場合や守りをすり抜けられた場合はやけど付与を発生させない。"
+    }
+   ],
+   "slug": "burning-bulwark",
+   "summary": "burning-bulwark(かえんのまもり)のmismatch2件を検証。両方とも二重ソース(Wiki一次+Bulbapedia二次)でmaster_wrongと確定。①連続使用時の成功率低下=小数0.3333のみで1/729下限・失敗時リセット構造が欠落(effects_design) ②接触攻撃へのやけど付与=単純な『接触技を受けた』条件のみでふいうち不発・フェイント等のすり抜け・ふかしのこぶし系の守り無視時の除外規則を表現できていない(effects_design)。いずれも数値1件で直せるmoves_fixes_numericではなく、effects構造の拡張が必要。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "effects・追加効果の発動フェーズ",
+     "verdict": "auditor_error",
+     "why": "phase=on_useはこの型の技(ダメージ+追加効果でこうげき等を下げる)全体で使われている確立済みの表現で、はるのあらし固有の不整合ではない。master/moves.jsonを機械集計したところ、同種の「能力ランク変化・prob付き・target=opponent」効果を持つ技58件が同じphase=on_useを採用している(例: acid, bubble-beam, psychic, sand-attack, leer, smokescreen, constrict等)。命中判定・まもるの可否はphaseフィールドではなくaccuracy値とprotect:trueフィールドで別途表現されており、この技も accuracy:80, protect:true が正しく設定済み(実際に読んだmaster_rowで確認)。したがって「外れた時やまもるで防がれた時にも抽選してしまうsim誤動作」という懸念はphase設計の誤りではなく監査側の読み違い。もし本当に設計欠陥だとしても、はるのあらし1技だけの問題ではなく全58技共通のデータ設計思想の話であり、このtriage項目の対象(1技の孤立したmismatch)として切り出すのは不適切。",
+     "quote_1": "効果 | 追加効果として、30%の確率で相手のこうげきを1段階下げる。 | 判定 | ・急所: ○ ・命中判定: ○ ・追加効果: ○ ・まもる: ○",
+     "quote_2": "Additionally, \"Springtide Storm's accuracy is unaffected by rain,\" distinguishing it from similar storm-type moves. Affected by Protect. Affected by Mirror Move.",
+     "fix_target": "none"
+    },
+    {
+     "aspect": "登場世代",
+     "verdict": "master_wrong",
+     "why": "2次日本語Wiki記事の見出し(記事冒頭のインフォボックス)は本技を「第八世代」の技として掲載しており、さらに専用セクション「Pokémon LEGENDS アルセウスにおけるはるのあらし」で第八世代の外伝作品(LA)固有の詳細仕様(早業/通常/力業の3段階の威力・行動順補正・パワーアップ/ガードアップ状態など)が記載されている。これはSVの仕様(ダメージ+30%こうげき低下)とは全く別物であり、LA(第八世代)で初登場後、SVで仕様が変わって再録された技であることを示す。英語版Bulbapediaも明確に「Introduced Generation VIII」とし、「In Generation VIII, the effect varies by Enamorus's form...In Generation IX, it always has a 30% chance of lowering...」と世代ごとの仕様差を明記している。masterのavailability.gen_introduced=9・gens=[9]はこの技が第九世代のみに存在するかのような値になっており、実際の初登場世代(第八世代)と現行仕様が使える世代(第九世代)の両方を反映できていない。",
+     "quote_1": "はるのあらし | 第八世代 | タイプ | フェアリー ... (インフォボックス冒頭のラベル)。セクション見出し「Pokémon LEGENDS アルセウスにおけるはるのあらし」に第八世代(LA)固有の技仕様(早業75/通常95/力業115、パワーアップ状態/ガードアップ状態、確率30%/50%)が記載。",
+     "quote_2": "Generation Introduced: \"Introduced Generation VIII\" ... \"In Generation VIII, the effect varies by Enamorus's form—Incarnate Forme boosts the user's offensive and defensive stats, while Therian Forme lowers the target's stats. In Generation IX, it always has a 30% chance of lowering each target's Attack by one stage.\"",
+     "correct_value": "gen_introduced=8, gens=[8,9](第八世代Pokémon LEGENDS アルセウスで初登場・第九世代SVでも仕様変更の上で継続使用可能)",
+     "fix_target": "moves_fixes_numeric",
+     "fix_set": "{\"gen_introduced\":8,\"gens\":[8,9]}"
+    }
+   ],
+   "slug": "springtide-storm",
+   "summary": "はるのあらし(springtide-storm)のmismatch2件を二重ソースで確定。①effects・phase=on_useは同種58技共通の確立済み設計でauditor_error(none)。②登場世代gen_introduced=9はJP Wiki(第八世代/LAセクション)+Bulbapedia(Introduced Generation VIII)の一致でmaster_wrong=8(gens:[8,9])、moves_fixes_numericで是正可能。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "効果文・自分のこおり回復",
+     "verdict": "auditor_error",
+     "why": "masterのdescriptionは『使うと自分の「こおり」がとける』とだけ書き、Wikiの『治してから攻撃する』という処理順を明記していないが、これは事実誤認ではなく説明文の簡潔化(house styleの意図的な短さ)の範囲。masterのbattle_data.effectsは既にこの技の自分こおり回復を`phase:'on_use'`・`usable_while_frozen:true`として攻撃(ダメージ処理)より前に独立して発動する構造で持っており、simの挙動としては権威の『治してから攻撃する』を正しく再現できている。Wiki自身も技の仕様欄で『自分や相手のこおり状態を治す効果についてはねっとう(Scald)#技の仕様を参照』と明記しており、これはScald系(冷凍を治してから攻撃/命中失敗時も治る)と同型の既知メカニクスであることの裏付け。Bulbapedia/pokemondbのHydro Steam単独ページはこの効果自体の記載が薄い(ページの網羅度不足)だが、姉妹技Scaldではpokemondbが『will thaw out the Pokémon before attacking』と明記しており、メカニクス自体の実在は補強される。従って、masterの数値・構造は誤っておらず、description文言が処理順を明言しないのは短文設計の範囲内であり、修正不要(=auditor側の『厳密には一致しない』指摘は説明文の詳細度についての読み違い)。",
+     "quote_1": "自分がこおり状態の場合、こおり状態を治してから攻撃する。相手のこおり状態を治す。",
+     "quote_2": "If the user is frozen, Scald can be used and will thaw out the Pokémon before attacking.（ハイドロスチームの一次Wikiが技の仕様欄で『自分や相手のこおり状態を治す効果についてはねっとう(Scald)#技の仕様を参照』と明記している姉妹技Scaldの記述。pokemondb.net/move/scald）",
+     "correct_value": "",
+     "fix_target": "none"
+    }
+   ],
+   "slug": "hydro-steam",
+   "summary": "対象1件(効果文・自分のこおり回復)を検証。verdict=auditor_error。masterのeffects構造(on_use・usable_while_frozen)は権威の『治してから攻撃する』を既に正しく再現しており、descriptionが処理順を明言しないのはhouse styleの意図的な簡潔化。姉妹技Scaldの二次ソース(pokemondb)で同型メカニクスの実在を確認。修正不要。"
+  },
+  {
+   "items": [
+    {
+     "aspect": "effectsのゴースト例外の構造",
+     "verdict": "master_wrong",
+     "why": "masterのeffectsは状態付与effect全体(immune)にゴースト除外を掛ける構造。Wiki一次ソース(バインド解説ページ)によれば、ゴーストタイプは第六世代以降『交代・にげる・テレポートで逃げることができる』が『バインド状態によるダメージは受ける』——脱出制限のみが免除され、毎ターンダメージは免除されない。masterのimmuneがeffect全体(=turn_end_damageを含む状態付与全体)に掛かる構造だと、ゴーストタイプへの継続ダメージまで消えてしまう危険がある。Bulbapedia(二次)も『Starting in Generation VI, Ghost-type Pokémon can switch out and flee regardless of the can't escape status』とし、免除はswitch/flee(=prevents_switch相当)のみに限定されることを裏付ける。よってmasterのimmune構造は正典の意味と食い違う=構造上の誤り。",
+     "quote_1": "第六世代以降、ゴーストタイプのポケモンはバインド状態でも交代・にげる・テレポートで逃げることができる。バインド状態によるダメージは受ける。",
+     "quote_2": "Starting in Generation VI, Ghost-type Pokémon can switch out and flee regardless of the can't escape status.",
+     "fix_target": "effects_design",
+     "correct_value": "immune条件は状態付与effect全体ではなく、prevents_switch(交代・にげる・テレポート制限)にのみ適用する構造に変更する(第六世代以降の条件付き)。turn_end_damage(最大HPの1/8ダメージ)はゴーストタイプにも通常通り適用され続ける。"
+    },
+    {
+     "aspect": "命中・防御成立後だけバインドを付与する構造",
+     "verdict": "auditor_error",
+     "why": "masterのmoves.json上ではaccuracy=90、protect=trueが技本体のトップレベルフィールドとして既に独立管理されており(effects.phaseとは別の仕組み)、Wiki一次ソース(『命中率|90』『命中判定:○』『まもる:○』)・Bulbapedia二次ソース(『Affected by Protect』)双方ともこの値と一致する。すなわちmasterのデータそのもの(命中率90・まもる有効)はどちらの権威源とも矛盾していない。監査指摘はeffects.phase=\"on_use\"というキー名から『命中判定やまもる判定を経ずに付与される危険』を懸念しているが、これはエンジンの内部ディスパッチ(フェーズ語彙)の実装挙動に関する懸念であり、accuracy/protectフィールドが技レベルで別途ゲートされている設計である以上、二重ソース照合(Wiki/Bulbapedia)で判定できる『データの値の誤り』ではない。外部権威ソースはmasterのaccuracy=90・protect=trueを裏付けており、これらの値自体に誤りは無い。",
+     "quote_1": "命中率|90 | 命中判定: ○ | まもる: ○",
+     "quote_2": "Affected by Protect",
+     "fix_target": "none",
+     "correct_value": ""
+    }
+   ],
+   "slug": "thunder-cage",
+   "summary": "サンダープリズン(thunder-cage)のmismatch2件を二重ソース検証。①ゴースト例外の構造=master_wrong(effects_design): immuneがstate effect全体に掛かる構造だと継続ダメージまで消える恐れがあり、Wiki一次(バインド解説)+Bulbapedia二次いずれも『脱出のみ免除・ダメージは受ける』と明記。immuneをprevents_switchのみに限定する構造修正が必要。②on_useフェーズの命中/まもる判定=auditor_error: master top-levelのaccuracy=90/protect=trueが両ソースの値と一致しており、データ自体に誤りなし。懸念はエンジン内部のフェーズディスパッチ実装に関するもので、二重ソース照合で判定できる値の誤りではないため修正不要。"
+  }
+ ]
+}
