@@ -1,0 +1,151 @@
+{
+ "slug": "sparkly-swirl",
+ "found": {
+  "name": "きらきらストーム",
+  "slug": "sparkly-swirl",
+  "checks": [
+   {
+    "aspect": "タイプ",
+    "ours": "フェアリー",
+    "authority_quote": "タイプ\\n\\n | フェアリー",
+    "verdict": "match",
+    "note": "第七世代（Let's Go! ピカチュウ・Let's Go! イーブイ）の値と一致。"
+   },
+   {
+    "aspect": "分類",
+    "ours": "特殊",
+    "authority_quote": "分類\\n\\n | 特殊",
+    "verdict": "match",
+    "note": "第七世代の値と一致。"
+   },
+   {
+    "aspect": "威力",
+    "ours": "120",
+    "authority_quote": "威力\\n\\n | 90",
+    "verdict": "mismatch",
+    "note": "第七世代の権威値は90。"
+   },
+   {
+    "aspect": "命中",
+    "ours": "85",
+    "authority_quote": "命中率\\n\\n | 100",
+    "verdict": "mismatch",
+    "note": "第七世代の権威値は100。"
+   },
+   {
+    "aspect": "PP",
+    "ours": "5",
+    "authority_quote": "PP\\n\\n | 15",
+    "verdict": "mismatch",
+    "note": "第七世代の権威値は15。"
+   },
+   {
+    "aspect": "対象",
+    "ours": "1体選択",
+    "authority_quote": "範囲\\n\\n | 1体選択",
+    "verdict": "match",
+    "note": "第七世代の値と一致。"
+   },
+   {
+    "aspect": "接触",
+    "ours": "false",
+    "authority_quote": "直接攻撃\\n\\n | ×",
+    "verdict": "match",
+    "note": "直接攻撃ではない。"
+   },
+   {
+    "aspect": "守る",
+    "ours": "true",
+    "authority_quote": "・まもる: ○",
+    "verdict": "match",
+    "note": "「まもる」の判定対象。"
+   },
+   {
+    "aspect": "優先度",
+    "ours": "0",
+    "authority_quote": "優先度\\n\\n | 0",
+    "verdict": "match",
+    "note": "第七世代の値と一致。"
+   },
+   {
+    "aspect": "効果文・攻撃技であること",
+    "ours": "ダメージ。",
+    "authority_quote": "攻撃が成功すると、自分と味方の状態異常を治す。",
+    "verdict": "match",
+    "note": "相手を攻撃してダメージを与える技である意味は入っている。"
+   },
+   {
+    "aspect": "効果文・発動条件",
+    "ours": "状態異常回復について攻撃成功時という条件の明記なし",
+    "authority_quote": "攻撃が成功すると、自分と味方の状態異常を治す。",
+    "verdict": "missing_in_ours",
+    "note": "攻撃が命中・成功した場合にだけ回復するという条件が効果文から欠けている。"
+   },
+   {
+    "aspect": "効果文・回復対象",
+    "ours": "味方みんなの状態異常をすべて治す。",
+    "authority_quote": "攻撃が成功すると、自分と味方の状態異常を治す。",
+    "verdict": "missing_in_ours",
+    "note": "味方の回復は記載されているが、使用者自身も回復対象であることが明記されていない。第七世代の仕様。"
+   },
+   {
+    "aspect": "battle_data.effects・味方の状態異常回復",
+    "ours": "{\"kind\":\"状態異常回復\",\"target\":\"team\",\"phase\":\"on_use\"}",
+    "authority_quote": "攻撃が成功すると、自分と味方の状態異常を治す。",
+    "verdict": "match",
+    "note": "味方側の状態異常回復機構はeffectsに構造化されている。"
+   },
+   {
+    "aspect": "battle_data.effects・使用者自身の状態異常回復",
+    "ours": "{\"kind\":\"状態異常回復\",\"target\":\"team\",\"phase\":\"on_use\"}（includes_selfなし）",
+    "authority_quote": "攻撃が成功すると、自分と味方の状態異常を治す。",
+    "verdict": "missing_in_ours",
+    "note": "現行スキーマではtarget=teamは「味方みんな」、使用者を含める場合はincludes_selfで区別されるが、このeffectにはそれがない。simで使用者自身の状態異常が治らない可能性がある。"
+   },
+   {
+    "aspect": "battle_data.effects・攻撃成功条件",
+    "ours": "{\"kind\":\"状態異常回復\",\"target\":\"team\",\"phase\":\"on_use\"}（成功条件を示す構造なし）",
+    "authority_quote": "攻撃が成功すると、自分と味方の状態異常を治す。",
+    "verdict": "missing_in_ours",
+    "note": "effects内に命中・攻撃成功を条件とする構造がない。共通エンジン側の制御はこの行だけでは確認できず、simで外れ・防御時にも回復する危険がある。"
+   }
+  ],
+  "summary": "第七世代の権威値に対し、威力120→90、命中85→100、PP5→15の不一致。効果文とeffectsには「攻撃成功時」の条件および使用者自身も状態異常回復の対象になることが不足している。"
+ },
+ "rebuttal": {
+  "name": "きらきらストーム",
+  "slug": "sparkly-swirl",
+  "agreed": false,
+  "overturned": [
+   {
+    "aspect": "battle_data.effects・使用者自身の状態異常回復",
+    "why": "includes_selfが無いため説明生成では使用者が欠落するが、現行simはtarget=teamを攻撃側自身に解決しており、使用者の状態異常は回復する。「simで使用者自身が治らない可能性がある」という根拠は覆る。説明文・将来のダブル実装に対するデータ不足として分けて扱うべき。",
+    "authority_quote": "攻撃が成功すると、自分と味方の状態異常を治す。"
+   }
+  ],
+  "missed": [
+   {
+    "aspect": "battle_data.effects・相手を倒した場合の発動",
+    "why": "現行simは攻撃後に相手がひんしだとeffects自体を適用しないが、原文の条件は「攻撃が成功すると」であり、相手を倒した成功時まで回復しない実装差が疑われる。",
+    "authority_quote": "攻撃が成功すると、自分と味方の状態異常を治す。"
+   },
+   {
+    "aspect": "判定・急所",
+    "why": "生ページに急所判定可能と明記されているが、照合項目がない。標準挙動として暗黙に扱う場合でも確認記録が必要。",
+    "authority_quote": "・急所: ○"
+   },
+   {
+    "aspect": "判定・命中判定",
+    "why": "生ページに命中判定ありと明記されているが、命中率の数値確認とは別の観点として照合されていない。",
+    "authority_quote": "・命中判定: ○"
+   },
+   {
+    "aspect": "専用技・使用者制限",
+    "why": "相棒イーブイの専用技である点がavailabilityや習得条件として照合されていない。",
+    "authority_quote": "・相棒わざと呼ばれる相棒イーブイの専用技。"
+   }
+  ],
+  "summary": "威力・命中率・PPおよび説明文の不足は妥当。ただしtarget=teamは現行simでは使用者自身を回復するため、そのsim上の欠落指摘は不正確。一方、相手を倒した成功時にeffectsが実行されない可能性、急所・命中判定、相棒イーブイ専用という観点が未監査のためagreed=false。"
+ },
+ "source": "codex"
+}
