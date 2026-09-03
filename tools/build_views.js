@@ -450,6 +450,11 @@ const ITEMS_STATIC = {
     berry_resist: '半減きのみ (×0.5 / Q12=2048, 効果バツグン時のみ発動・1回)',
     berry_status_cure: '状態異常回復きのみ',
     berry_hp_cure: 'HP回復きのみ',
+    // ★R1(2026-09-03発見): ヒメリのみのcategoryがberry_hp_cure→berry_pp_cureに監査是正済み
+    //   (reference/_items_fixes.json・効果はPP回復でHP回復ではない)だが、この静的ラベル辞書に
+    //   対応語が無く、items_list.htmlのCAT_ORDERにも無かったため、行が丸ごと非表示になっていた
+    //   (2026-09-03 tools/_build_items_list.jsをmaster派生ビュー読みに切替えた際に発見・修正)。
+    berry_pp_cure: 'PP回復きのみ',
     defense_boost: '防御補正',
     status_inflict: '状態異常付与 (装備者デメリット系)',
     hp_drain: 'HP回復/反動',
@@ -458,15 +463,16 @@ const ITEMS_STATIC = {
     misc: 'その他',
     mega_stone: 'メガストーン (メガシンカ起動)',
   },
-  regulation_mb: {
-    active_period: '2026-06-17 〜 2026-09-09 10:59',
-    rules: [
-      '1回の対戦でメガシンカは1度のみ',
-      'チームに複数のメガストーンを持たせることは可能',
-      'メガシンカは技選択と同時にRボタンで発動',
-      'メガ後の形態は対戦終了まで維持',
-    ],
-  },
+  // ★R1(2026-09-03): active_period(M-B固定の期間文字列)を廃止。regulation_mb の消費元は
+  //   tools/_build_items_list.js(=このビュー自体の生成器)だけ(grep確認済み・他に無し)なので、
+  //   ハードコードでなく MASTER.regulations から出す regulations 配列に差し替える(pokechan系ビューの
+  //   REGULATIONS と同じ形)。mega_rules(4本のルール文言。監査対象外=まるごと複写のまま)だけ残す。
+  mega_rules: [
+    '1回の対戦でメガシンカは1度のみ',
+    'チームに複数のメガストーンを持たせることは可能',
+    'メガシンカは技選択と同時にRボタンで発動',
+    'メガ後の形態は対戦終了まで維持',
+  ],
 };
 const ITEMS_PASSTHROUGH_FIELDS = ['acquisition', 'acquisition_note', 'restriction', 'notes', 'verify', 'q12', 'factor',
   'source_q12', 'boost_type', 'vp_cost', 'resist_type', 'trigger', 'cure_target', 'is_default',
@@ -496,6 +502,10 @@ function buildItems() {
     row.applies_to = it.applies_to || null;
     row.implemented_in_pokechan = !!it.implemented;
     if (it.legacy_source_note !== undefined) row.source = it.legacy_source_note;
+    // ★R1(2026-09-03): pokemon系ビューの added_in/season と同じモデル(pokechan系のPOKEMON_LISTを参照)。
+    //   added_in=そのレギュで初登場した印(champions_added_inがある行だけ)。season=現行/次のうち使える方(累積)。
+    if (it.champions_added_in != null) row.added_in = it.champions_added_in;
+    row.season = Array.isArray(it.seasons) ? it.seasons.slice() : [];
     // mega_target_en: applies_to(対象の進化前の種、JA名)をi18n/en.jsonで引く
     if (it.applies_to && I18N_EN.pokemon && I18N_EN.pokemon[it.applies_to]) row.mega_target_en = I18N_EN.pokemon[it.applies_to];
     // メガストーン: applies_to_pokemon[0]のno(図鑑番号)を軸に、同じnoを持つmega:true行から選ぶ
@@ -636,6 +646,9 @@ if (typeof module !== 'undefined' && module.exports) {
 
 function writeItemsView() {
   const { items, stats, unresolvedMega } = buildItems();
+  // ★R1(2026-09-03): regulations=MASTER.regulationsから(pokechan系ビューのREGULATIONSと同じ形)。
+  //   regulation_mb.active_period(M-B固定文字列)の代わりにこれを消費元(_build_items_list.js)へ渡す。
+  const regulations = MASTER.regulations.map(r => ({ id: r.id, role: r.role || null, start_jst: r.start_jst || null, end_jst: r.end_jst || null }));
   const out = HEADER('ポケチャン実装済の持ち物。master/items.json から生成(段C)。') +
 `window.ITEMS_DATABASE = {
   "version": ${J2(ITEMS_STATIC.version)},
@@ -645,7 +658,8 @@ function writeItemsView() {
   "categories": ${J2(ITEMS_STATIC.categories)},
   "items": ${J2(items)},
   "stats": ${J2(stats)},
-  "regulation_mb": ${J2(ITEMS_STATIC.regulation_mb)}
+  "regulations": ${J2(regulations)},
+  "mega_rules": ${J2(ITEMS_STATIC.mega_rules)}
 };
 `;
   fs.writeFileSync(path.join(ROOT, 'items_database.js'), out);

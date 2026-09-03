@@ -1,35 +1,33 @@
 #!/usr/bin/env node
-// items_database.js から items_list.html を生成(2026-06-19 阿部さん依頼)
+// items_database.js(=tools/build_views.jsがmaster/items.jsonから生成したビュー)から items_list.html を生成
+// (2026-06-19 阿部さん依頼・2026-09-03 R1: データ源をmaster派生ビューへ切替。旧は_review/items_database.jsonを
+//  直読みしていたが、それは段Bの中間ファイルで、以後の監査修正(name_en等)や新規追加(M-C予告分6件)を反映しない
+//  =二重管理の温床。「データは一つ」原則によりmaster/items.json一本(のビュー)から作る)
 const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 
-function lit(t, m, start = '{') {
-  const at = t.indexOf(m); let i = t.indexOf(start, at), s = i, d = 0, S = false, e = false;
-  for (; i < t.length; i++) { const c = t[i]; if (S) { if (e) e = false; else if (c === '\\') e = true; else if (c === '"') S = false; } else { if (c === '"') S = true; else if (c === start) d++; else if (c === (start === '{' ? '}' : ']')) { d--; if (d === 0) return t.slice(s, i + 1); } } }
-}
-// items_database.json (元データ) から直接読み込む方が安全
-const db = JSON.parse(fs.readFileSync(path.join(ROOT, '_review/items_database.json'), 'utf8'));
+// items_database.js は window.ITEMS_DATABASE = {...}; という形のブラウザ用スクリプト。
+// vm/Functionで実行してオブジェクトを取り出す(ページからは<script>で読み込まれる・ここではNode側でだけ評価)。
+const itemsSrc = fs.readFileSync(path.join(ROOT, 'items_database.js'), 'utf8');
+const _w = {};
+new Function('window', itemsSrc)(_w);
+const db = _w.ITEMS_DATABASE;
 const items = db.items;
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 const CAT_LABEL = db.categories;
-const CAT_ORDER = ['attack_boost', 'type_boost', 'berry_resist', 'berry_status_cure', 'berry_hp_cure', 'defense_boost', 'status_inflict', 'hp_drain', 'speed_boost', 'survival', 'misc', 'mega_stone'];
+// ★R1(2026-09-03発見): berry_pp_cure(ヒメリのみ・監査是正でberry_hp_cureから移動)がここに無く、
+//   masterへの切替で行が丸ごと非表示になっていた。berry_hp_cureの直後に追加(きのみ系のまとまり維持)。
+const CAT_ORDER = ['attack_boost', 'type_boost', 'berry_resist', 'berry_status_cure', 'berry_hp_cure', 'berry_pp_cure', 'defense_boost', 'status_inflict', 'hp_drain', 'speed_boost', 'survival', 'misc', 'mega_stone'];
 
-// MB追加分(2026-06-19反映)
-const MB_NEW_KEYS = new Set([
-  'mega_stone_raichu_x', 'mega_stone_raichu_y', 'mega_stone_sceptile', 'mega_stone_blaziken',
-  'mega_stone_swampert', 'mega_stone_mawile', 'mega_stone_metagross', 'mega_stone_staraptor',
-  'mega_stone_scolipede', 'mega_stone_scrafty', 'mega_stone_eelektross', 'mega_stone_pyroar',
-  'mega_stone_malamar', 'mega_stone_barbaracle', 'mega_stone_dragalge', 'mega_stone_falinks',
-  'metronome', 'ooki_na_nekko', 'koukaku_lens', 'focus_lens', 'hikari_no_nendo',
-  'atsui_iwa', 'sarasara_iwa', 'shimetta_iwa', 'tsumetai_iwa', 'kireina_nukegara', 'kuroi_tekkyu',
-  'life_orb', 'expert_belt', 'muscle_band', 'wise_glasses'   // 2026-07-11 レギュMBショップ追加を確認(ヤックン)
-]);
-
-// レギュMBショップ追加4件: 🆕バッジ+versionTagは出すが row-new(黄塗)にはしない(現行items_list.htmlに合わせる)
-const SHOP_NEW_KEYS = new Set(['life_orb', 'expert_belt', 'muscle_band', 'wise_glasses']);
+// ★R1(2026-09-03): レギュ(現行/次)は db.regulations(=master/regulations.json由来)から。
+//   MB_NEW_KEYS/SHOP_NEW_KEYSのハードコードは廃止(item.added_in/item.seasonがmasterから来るのでここでは持たない)。
+const REG_CURRENT = (db.regulations || []).find(r => r.role === 'current');
+const REG_NEXT = (db.regulations || []).find(r => r.role === 'next');
+const LIVE = [REG_CURRENT, REG_NEXT].filter(Boolean).map(r => r.id);       // 現行→次の順
+const NEWEST = (REG_NEXT || REG_CURRENT).id;                              // 次が発表済みなら次・無ければ現行
 
 // 非メガアイテムの applies_to: JSONには英語キー(damage等)で入っている(2026-07-11実測)。
 // キー→JAラベルの逆引きで data-i18n="items_list.applies.<key>" + インラインJA を出す(現行ページと同型)。
@@ -47,6 +45,11 @@ const APPLIES_JA = {
   special_defense: 'とくぼう',
   evasion: 'かいひりつ',
   speed: 'すばやさ',
+  // ★R1(2026-09-03発見): master切替で初めて表示される品目(のどスプレー/いかさまダイス/ブーストエナジー)の
+  //   applies_toが未収録だった→data-poke-ja(ポケモン名翻訳)にフォールバックし英語キーがそのまま出ていた。
+  sound_moves: '音を出す技',
+  multi_hit_moves: '連続技',
+  protosynthesis_quark_drive: 'こだいかっせい・クォークチャージ',
 };
 
 const byCat = {};
@@ -66,20 +69,24 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
     if (a === 'season_m1_reward') return 'シーズン M-1 報酬';
     if (a === 'season_m1_or_giveaway') return 'シーズン M-1 報酬 / ふしぎな贈り物配布';
     if (a === 'frontier_shop_2000VP_or_campaign') return 'フロンティアショップ 2,000VP / キャンペーン無料配布';
+    // ★R1(2026-09-03): 次のレギュで初登場(added_in===次)でまだ入手方法が無い品目は「未発表」(推測しない)。
+    //   旧は「メガストーンならフロンティアショップ推定」と当て推量していた=禁止(推測で埋めない)。
+    if (REG_NEXT && it.added_in === REG_NEXT.id) return null;   // 呼び出し側でacq_tbaに差し替える
     // 入手情報なし: メガストーンならフロンティアショップ推定、その他は不明
     if (it.category === 'mega_stone') return 'フロンティアショップ(推定)';
     return '不明';
   };
   const arr = byCat[c].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
   const rows = arr.map(it => {
-    const isNew = MB_NEW_KEYS.has(it.key);
-    const isRowNew = isNew && !SHOP_NEW_KEYS.has(it.key);   // ショップ追加4件は🆕バッジのみ(row-new黄塗なし)
-    const versionTag = isNew ? ` <span class="tag-version" data-i18n="items_list.tag_version_mb">M-Bで追加</span>` : '';
+    const isNew = LIVE.includes(it.added_in);
+    const isRowNew = it.added_in === NEWEST;   // ★R1: 黄塗りは「最新レギュで追加」の品目だけ(レギュが進むと交代)
+    const versionTag = isNew ? ` <span class="tag-version" data-i18n="items_list.tag_version" data-tpl-reg="${esc(it.added_in)}">${esc(it.added_in)}で追加</span>` : '';
     // アイテム名は runtime で I18N.item() 翻訳(data-item-ja)。タグ類は別要素に分離。
     const nameSpan = `<span data-item-ja="${esc(it.name)}">${esc(it.name)}</span>`;
     const nameCell = isNew ? `<b>${nameSpan}</b> <span class="tag-new">🆕</span>${versionTag}` : nameSpan;
     const effect = esc(it.effect || '');
-    const acq = esc(acqLabel(it));
+    const acqRaw = acqLabel(it);
+    const acq = acqRaw != null ? esc(acqRaw) : `<span data-i18n="items_list.acq_tba">未発表(解禁後に確認)</span>`;
     // メガは対応ポケモン名を data-poke-ja で翻訳。非メガは applies_to(JA)→i18nキーで翻訳(未対応ならpoke-ja)。
     const applies = it.applies_to ? (() => {
       const inner = it.category === 'mega_stone'
@@ -106,7 +113,7 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
 </section>`;
 }).join('\n');
 
-const newCount = items.filter(it => MB_NEW_KEYS.has(it.key)).length;
+const newCount = items.filter(it => it.added_in === NEWEST).length;
 const sumChips = CAT_ORDER.filter(c => byCat[c]).map(c =>
   `<a class="sum-chip" href="#cat-${c}">${esc(CAT_LABEL[c] || c)}<b>${byCat[c].length}</b></a>`
 ).join('');
@@ -158,7 +165,7 @@ td.acq{font-size:11.5px;color:#5d4037;min-width:120px}
 </style></head><body>
 <div class="hdr">
 <h1 data-i18n="items_list.page_title">🎁 持ち物一覧 - PchamDB</h1>
-<div class="sub" id="items-subtitle" data-tpl-count="${items.length}" data-tpl-date="" data-tpl-season="M-B" data-tpl-n="${newCount}">全 ${items.length} アイテム (レギュMBで <b>+${newCount}件</b> 追加 🆕)</div>
+<div class="sub" id="items-subtitle" data-tpl-count="${items.length}" data-tpl-date="" data-tpl-season="${esc(NEWEST)}" data-tpl-n="${newCount}">全 ${items.length} アイテム (レギュ${esc(NEWEST)}で <b>+${newCount}件</b> 追加 🆕)</div>
 </div>
 <div class="nav">
 <a href="index.html">🏠 <span data-i18n="items_list.nav_top">トップ</span></a>
@@ -217,6 +224,11 @@ function applyItemI18n() {
   });
   document.querySelectorAll('[data-poke-ja]').forEach(el => {
     el.textContent = I18N.pokemon(el.getAttribute('data-poke-ja'));
+  });
+  // レギュ追加バッジ("{reg}で追加"のプレースホルダ入り訳文にレギュIDを差し込む)
+  document.querySelectorAll('[data-i18n="items_list.tag_version"]').forEach(el => {
+    const reg = el.getAttribute('data-tpl-reg') || '';
+    el.textContent = I18N.t('items_list.tag_version', '{reg}で追加').replace('{reg}', reg);
   });
   // サマリーチップ: href #cat-<id> から items_list.cat_<id> を引いて表示語を翻訳(件数<b>は温存)
   document.querySelectorAll('a.sum-chip[href^="#cat-"]').forEach(el => {

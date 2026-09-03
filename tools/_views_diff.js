@@ -60,6 +60,13 @@ const AUDITED_AVAILABILITY_FIXES = (() => { try {
 //   分の是正+旧が空欄だった分の補完) / mega_target_en(5件・列挙。base種がフォーム限定/X・Y無しの
 //   正確な英語名になった=i18n/en.json由来でより正確) / category(1件=berry_leppaの誤分類是正)
 const ITEMS_FIELD_ALLOWLIST = new Set(['name_en', 'mega_ability', 'mega_target_en', 'category', 'mega_form']);
+// (j) R1(2026-09-03) added_in/season の champions 判定用。items_database.js の行は champions を持たないので
+//   master/items.json(slug→champions)を直接引く(items_database.js は master 由来なので slug=key で一致)。
+const MASTER_ITEMS_CHAMPIONS_BY_KEY = (() => {
+  const m = new Map();
+  try { J('master/items.json').items.forEach(it => { if (it.slug) m.set(it.slug, it.champions === true); }); } catch (e) {}
+  return m;
+})();
 // mega_form: 1件(mega_stone_meowstic)。legacyは性別を区別しない表記'メガニャオニクス'だったが、
 //   実際は性別で特性が違う(♂いたずらごころ/♀トレース等)ため、masterはapplies_toの'オスのすがた'から
 //   正しく'メガニャオニクス♂'を導く=改善。
@@ -238,6 +245,19 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
         report.allowlisted.push({ entity: label, key: k, field: f, reason: '旧は未実装スケルトンで空欄・新はjoinで補完(改善)' });
         return;
       }
+      // (j) R1(2026-09-03): items に新設した added_in/season(旧版に無かった列。pokemon系ビューと同じモデル)。
+      //   added_in=LIVE_REGS(現行/次)のどれかであることだけ確認(値の中身は監査対象=_items_fixes.jsonが根拠)。
+      if (label === 'items' && f === 'added_in' && lv === undefined && typeof nv === 'string' && LIVE_REGS.includes(nv)) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(j) R1 items に added_in 列を新設(値∈現行/次)' });
+        return;
+      }
+      //   season=全要素がLIVE_REGSの部分集合、かつ非Championsの行(master/items.json champions===false)は[]のはず(足さない)。
+      if (label === 'items' && f === 'season' && lv === undefined && Array.isArray(nv)
+          && nv.every(v => LIVE_REGS.includes(v))
+          && (nv.length === 0 || MASTER_ITEMS_CHAMPIONS_BY_KEY.get(k) === true)) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(j) R1 items に season 列を新設(値∈現行/次・非champions行は[])' });
+        return;
+      }
       fieldDiffUnexplained++;
       report.unexplained.push({ entity: label, key: k, field: f, legacy: lv, new: nv });
     });
@@ -341,6 +361,18 @@ function main() {
   report.export_set_diff.items_legacy_only = report.export_set_diff.items_legacy_only.filter(k => {
     const ok = k === 'schema_notes' || k === 'todo';
     if (ok) report.allowlisted.push({ entity: 'items(top-level)', field: k, reason: '静的メタ情報・段Cでは非再現(ハードコードしない判断)' });
+    return !ok;
+  });
+  // ★R1(2026-09-03): regulation_mb(M-B固定文字列)→ regulations(MASTER.regulations由来)+ mega_rules に分割。
+  //   消費元(tools/_build_items_list.js)を grep で確認・他に無いことを確認済み。
+  report.export_set_diff.items_legacy_only = report.export_set_diff.items_legacy_only.filter(k => {
+    const ok = k === 'regulation_mb';
+    if (ok) report.allowlisted.push({ entity: 'items(top-level)', field: k, reason: '(j) R1 regulation_mb(M-B固定active_period)を廃止→regulations(MASTER.regulations由来)+mega_rulesに分割。消費元grep確認済み(他に無し)' });
+    return !ok;
+  });
+  report.export_set_diff.items_new_only = report.export_set_diff.items_new_only.filter(k => {
+    const ok = k === 'regulations' || k === 'mega_rules';
+    if (ok) report.allowlisted.push({ entity: 'items(top-level)', field: k, reason: '(j) R1 regulation_mbの分割先として新設' });
     return !ok;
   });
 

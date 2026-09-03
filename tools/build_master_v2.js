@@ -414,7 +414,7 @@ function buildItems() {
     items.forEach(it => {
       const f = fx[it.name];
       if (!f) return;
-      ['name_en', 'category', 'effect_ja'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
+      ['name_en', 'category', 'effect_ja', 'champions_added_in'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
     });
   } catch (e) {}
 
@@ -429,7 +429,24 @@ function buildItems() {
     });
   } catch (e) {}
 
+  // ★R1(2026-09-03): seasons=そのアイテムが「現行/次」のどちらのレギュで使えるか(ポケモンの seasons と同じ模様)。
+  //   champions:true の行だけ持つ(非Championsは器の範囲外なのでレギュの概念が無い=[])。
+  //   ルール: champions_added_in が「次」(REG_NEXT)なら次のレギュではじめて使える=現行にはまだ居ない(push しない)。
+  //   それ以外(現行で追加/最初から居る=champions_added_inがnull・M-B等)は現行にも次にも居る(レギュは累積)。
+  items.forEach(x => {
+    if (!x.champions) { x.seasons = []; return; }
+    x.seasons = [];
+    const addedInNext = x.champions_added_in === REG_NEXT;
+    if (!addedInNext && REG_CURRENT) x.seasons.push(REG_CURRENT);
+    if (!x.seasons.includes(REGULATION)) x.seasons.push(REGULATION);
+    x.seasons = x.seasons.filter(s => LIVE_REGS.includes(s)).sort((a, b) => LIVE_REGS.indexOf(a) - LIVE_REGS.indexOf(b));
+  });
+
   write('items.json', { meta: META('持ち物', {
+    seasons_field: `★R1(2026-09-03 阿部さん): seasons=そのアイテムが使える現行/次のレギュ(champions:trueの行のみ・` +
+      `pokemon.jsonのseasonsと同じモデル)。現行=${REG_CURRENT} / 次=${REG_NEXT || '(未発表)'}。` +
+      'champions_added_inが次のレギュの行(例: アブソルナイトZ等M-C予告6件)は現行にはまだ居ない=[次]だけ。' +
+      'それ以外(旧来品/現行で追加=M-B新規31件)はレギュ累積で[現行,次]。非Championsは[]。',
     fixes: '監査確定の修正は reference/_items_fixes.json(根拠つき)から適用',
     legacy_fields: '段B資産⑥: items_database.js のみが持つ構造化フィールド(acquisition/acquisition_note/restriction/notes/' +
       'verify/q12/factor/source_q12/boost_type/vp_cost/resist_type/trigger/cure_target/is_default/heal_*/damage_fraction_*/' +
