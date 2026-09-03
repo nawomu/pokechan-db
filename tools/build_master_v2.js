@@ -853,7 +853,23 @@ function buildLearnsets() {
       }));
     });
   } catch (e) {}
+  // ★監査で確定した修正を適用(reference/_learnsets_fixes.json・全件根拠つき。pokemon/abilities/items の fixes と同じ仕組み・2026-09-04 新設)
+  //   形: fixes["<正式名>"] = { learn_add:[技名], learn_remove:[技名], "根拠": "…" }
+  //   learn_add は learn に足し confiscated から外す / learn_remove は learn から外し(Champions行なら)confiscated に入れる
+  //   第1号(2026-09-04)= ランクルス パワースワップ: ヤックン/ch/ は×(没収)だが ポケモンWiki Championsのおぼえるわざ + Bulbapedia Champions learnset の2ソースが「使える」で一致
+  let learnFixed = 0;
+  try {
+    const fx = J('reference/_learnsets_fixes.json').fixes || {};
+    all.forEach(it => {
+      const f = fx[it.name]; if (!f) return;
+      const learn = new Set(it.learn), conf = new Set(it.confiscated || []);
+      (f.learn_add || []).forEach(m => { learn.add(m); conf.delete(m); });
+      (f.learn_remove || []).forEach(m => { learn.delete(m); if (it.champions) conf.add(m); });
+      it.learn = [...learn].sort(); it.confiscated = [...conf]; it.learn_fixed = true; learnFixed++;
+    });
+  } catch (e) {}
   write('learnsets.json', { meta: META('覚える技と没収技', {
+    fixes: `監査確定の修正は reference/_learnsets_fixes.json(根拠つき)から適用(learn_add/learn_remove)。今回 ${learnFixed} 行。`,
     note: 'confiscated=Championsで没収された技。本番(リアルバトル)では出さない。ラボではON/OFFを選べる。',
     note_national: 'champions=false の行は PokeAPI由来の暫定(source=pokeapi_provisional)。learn=最新作品の技 / learn_legacy=過去世代のみ(廃止)。',
   }), count: all.length,
