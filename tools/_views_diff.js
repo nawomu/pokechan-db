@@ -50,6 +50,7 @@ const WAZA_CHAMPIONS_FIELD_ALLOWLIST = new Set(['pp', 'power', 'accuracy', 'targ
 //   直した技**だけ**許す(R10 世代の扱い・2026-09-03)。それ以外の availability 差は unexplained のまま。
 const LIVE_REGS = (() => { try { return (J('reference/_regulations.json').items || []).map(r => r.id); } catch (e) { return []; } })();
 const REG_NEWEST = LIVE_REGS[LIVE_REGS.length - 1] || null;
+const NATIONAL_SEASON_BY_NAME = new Map();   // (i) 全国版の season(名前→配列)。main() で埋める
 const AUDITED_AVAILABILITY_FIXES = (() => { try {
   const fx = J('reference/_moves_fixes.json').fixes || {};
   return new Set(Object.keys(fx).filter(k => Object.keys(fx[k].set || {}).some(p => p.startsWith('availability.'))));
@@ -214,9 +215,17 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
           return;
         }
       }
+      // (i) R4(2026-09-03): Champions版にも season 列を新設(旧版に無かった列)。値は全国版の同名行と同一であることを条件に許す
+      if (label === 'pokemon_champions' && f === 'season' && lv === undefined && Array.isArray(nv)
+          && nv.every(v => LIVE_REGS.includes(v)) && NATIONAL_SEASON_BY_NAME.has(k) && eq(NATIONAL_SEASON_BY_NAME.get(k), nv)) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(i) R4 Champions版に season 列を新設(値=全国版と同一・pokemon_db_v9のSSN列が読む)' });
+        return;
+      }
       // (e'') 旧の季が空だったChampions収録の姿(名寄せ違い由来の33行)に現行レギュを入れた差
-      if (label === 'pokemon_all' && f === 'season' && Array.isArray(lv) && lv.length === 0 && Array.isArray(nv) && nv.length === 1 && nRow.champions !== false) {
-        report.allowlisted.push({ entity: label, key: k, field: f, reason: '旧の季[]はChampions名寄せ違い由来。champions収録の姿に現行レギュを付与(2026-09-01)' });
+      //   ★R4(2026-09-03): 累積なので「現行+次」(LIVE_REGS の部分集合・順序どおり)まで許す(旧=現行1件だけ)
+      if (label === 'pokemon_all' && f === 'season' && Array.isArray(lv) && lv.length === 0 && Array.isArray(nv) && nv.length >= 1
+          && nv.every(v => LIVE_REGS.includes(v)) && nRow.champions !== false) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '旧の季[]はChampions名寄せ違い由来。champions収録の姿に現行(+次)レギュを付与(2026-09-01/R4 2026-09-03 累積)' });
         return;
       }
       // (e') 次レギュ予定の印: season が 旧∪['M-C'] になっただけの差(2026-09-01 M-C予告分=ゴリランダー/セグレイブ)
@@ -255,6 +264,7 @@ function main() {
   }
   // ── POKEMON_LIST(Champions) ──
   {
+    buildAliasedIndex(neu.A.POKEMON_LIST, p => p.name).forEach((p, k) => NATIONAL_SEASON_BY_NAME.set(k, Array.isArray(p.season) ? p.season : []));
     const newIdx = buildAliasedIndex(neu.C.POKEMON_LIST, p => p.name);
     const legIdx = new Map(); legacy.C.POKEMON_LIST.forEach(p => { const k = zen2han(p.name); if (!legIdx.has(k)) legIdx.set(k, p); });
     diffRows('pokemon_champions', legIdx, newIdx, POKEMON_CHAMPIONS_FIELD_ALLOWLIST, POKEMON_MULTISET_GROUPS);

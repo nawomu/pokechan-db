@@ -424,7 +424,8 @@ function buildItems() {
     const have = new Set(items.map(x => x.name));
     (adds.items || []).forEach(a => {
       if (have.has(a.name)) return;                 // すでに居れば足さない(二重防止)
-      items.push(Object.assign({}, a, { verified_at: a.verified_at || NOW }));
+      // ★champions_added_in=初登場のレギュ(additionsの regulation 欄)。ページ(news等)が「このレギュで増えた持ち物」を大元から引くための印(2026-09-03 R1)
+      items.push(Object.assign({}, a, { champions_added_in: a.champions_added_in || a.regulation || null, verified_at: a.verified_at || NOW }));
     });
   } catch (e) {}
 
@@ -667,6 +668,12 @@ function buildPokemon() {
     if (x.regulation === REGULATION) {
       // 旧の季が空[]でもChampions収録(champions:true)なら現行を入れる(2026-09-01 検算: 空の33行は全部
       // ロトム/ケンタロス種/ルガルガン等=旧データの名寄せ違いで季が付かなかっただけ。M-Aにいたかは推測になるので入れない)
+      // ★R4修正(2026-09-03 実測): REGULATION が「次」(M-C)を指すようになってから、ここが次しか入れず
+      //   68行(ロトム5姿/ケンタロス3種/ZAメガ24体/M-B追加メガ11体…)の seasons が ["M-C"] だけ=「M-Bでは使えない」の誤表示になっていた
+      //   (公式M-B一覧 reference/_official_rosters/M-B.json にロトム/ケンタロス各姿が在る・旧Champions版にも居た行)。
+      //   規則: champions_added_in が「次」でない行(null=最初から/現行で追加)は現行にも居る → 現行+次を累積で入れる。
+      const addedInNext = REG_NEXT && x.champions_added_in === REG_NEXT;
+      if (!addedInNext && REG_CURRENT && !x.seasons.includes(REG_CURRENT)) x.seasons.push(REG_CURRENT);
       if (!x.seasons.includes(REGULATION)) x.seasons.push(REGULATION);
       return;
     }
@@ -677,8 +684,9 @@ function buildPokemon() {
   let seasonsTrimmed = 0;
   items.forEach(x => {
     if (!Array.isArray(x.seasons)) return;
-    const t = x.seasons.filter(s => LIVE_REGS.includes(s));
-    if (t.length !== x.seasons.length) { x.seasons = t; seasonsTrimmed++; }
+    const t = x.seasons.filter(s => LIVE_REGS.includes(s)).sort((a, b) => LIVE_REGS.indexOf(a) - LIVE_REGS.indexOf(b));   // 順序=現行→次
+    if (t.length !== x.seasons.length) seasonsTrimmed++;
+    x.seasons = t;
   });
 
   // ★図鑑諸元の裏溜め(2026-09-03 阿部さん「既存のポケモンのデータは全部DBに入れておいて。次の更新でいちいち取ってこなくて済むように」)

@@ -28,6 +28,7 @@ const MASTER = {
   learnsets: J('master/learnsets.json').items,
   types:     J('master/types.json'),
   natures:   J('master/natures.json').items,
+  regulations: J('master/regulations.json').items,   // ★R4: 現行+次の2件だけ(role=current/next)
 };
 const LEGACY_ORDER = J('reference/_legacy_order.json');
 const NAMEMAP_ROWS = (() => { const d = J('reference/_name_normalize.json'); return Array.isArray(d) ? d : (d.rows || []); })();
@@ -324,6 +325,9 @@ function buildPokemonChampions() {
     // ★コーディネーター指摘 B.6: added_in(旧pokechan_data.js POKEMON_LIST限定の列)を
     //   master.pokemon.champions_added_in(段Bで凍結移送済み。M-C予告分は'M-C'直書き)からそのまま復元する。
     if (p.champions_added_in != null) row.added_in = p.champions_added_in;
+    // ★R4(2026-09-03): season(遊べるレギュ=現行+次)をChampions版にも出す。
+    //   pokemon_db_v9.html の SSN列が REGULATIONS と組で読む(ページ上に M-B/M-C を直書きしない)。
+    row.season = Array.isArray(p.seasons) ? p.seasons.slice() : [];
     return row;
   });
   return sortByLegacyOrder(rows, LEGACY_ORDER.pokemon_champions);
@@ -452,7 +456,7 @@ const ITEMS_STATIC = {
     mega_stone: 'メガストーン (メガシンカ起動)',
   },
   regulation_mb: {
-    active_period: '2026-06-17 〜 2026-09-02 10:59',
+    active_period: '2026-06-17 〜 2026-09-09 10:59',
     rules: [
       '1回の対戦でメガシンカは1度のみ',
       'チームに複数のメガストーンを持たせることは可能',
@@ -583,6 +587,7 @@ const POKEMON_WAZA = ${J2(POKEMON_WAZA)};
 const ABILITY_DESC = ${J2(ABILITY_DESC)};
 const STAT_RANK = ${J2(STAT_RANK)};
 const NATURES = ${J2(NATURES)};
+const REGULATIONS = ${J2(MASTER.regulations.map(r => ({ id: r.id, role: r.role || null, start_jst: r.start_jst || null, end_jst: r.end_jst || null })))};
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER, POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES };
 }
@@ -613,6 +618,7 @@ const POKEMON_WAZA = ${J2(POKEMON_WAZA)};
 const ABILITY_DESC = ${J2(ABILITY_DESC)};
 const STAT_RANK = ${J2(STAT_RANK)};
 const NATURES = ${J2(NATURES)};
+const REGULATIONS = ${J2(MASTER.regulations.map(r => ({ id: r.id, role: r.role || null, start_jst: r.start_jst || null, end_jst: r.end_jst || null })))};
 if (typeof module !== 'undefined' && module.exports) {
   module.exports = { TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER, POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES };
 }
