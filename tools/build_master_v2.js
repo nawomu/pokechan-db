@@ -666,9 +666,41 @@ function buildPokemon() {
     if (!x.champions_added_in) x.champions_added_in = x.regulation;
   });
 
+  // ★図鑑諸元の裏溜め(2026-09-03 阿部さん「既存のポケモンのデータは全部DBに入れておいて。次の更新でいちいち取ってこなくて済むように」)
+  //   元=reference/_pokeapi_pokemon_raw.json(tools/_fetch_pokeapi_pokemon_raw.js・全1273件)。
+  //   規律=出典の優先順位: Champions正典/監査確定の値(既に入っている欄)は**上書きしない**。空の欄だけ PokeAPI(最新世代)で埋め、
+  //   埋めた欄名を provisional_fields に列挙する(=「最新世代からの暫定」の印。後でChampions/二重ソースで確定したら fixes で上書き→印が消える)。
+  //   校正(2026-09-03 実測): Champions正典の重さ333/335がPokeAPIと一致(不一致2=イッカネズミ2形態はPokeAPI側の入れ違い・うち=ヤックン/ch/を保持)。
+  //   ★特性は埋めない(ab1空の11体はPokeAPIも空=ZAメガ/M-C未発表。Wiki+Serebiiの二重一致で fixes に書く)。
+  let pokeapiFilled = 0;
+  try {
+    const raw = J('reference/_pokeapi_pokemon_raw.json').items || {};
+    let GENUS_WIKI = {}; try { GENUS_WIKI = J('reference/_pokemon_genus_wiki.json').items || {}; } catch (e) {}
+    items.forEach(x => {
+      const a = x.slug && raw[x.slug]; if (!a) return;
+      const prov = [];
+      const fill = (k, v) => { if (x[k] == null && v != null) { x[k] = v; prov.push(k); } };
+      fill('weight_kg', a.weight_kg);
+      fill('height_m', a.height_m);
+      // 性別: PokeAPI gender_rate = -1(性別不明) / 0..8(♀が8分のN)
+      if (x.gender_female_pct === undefined && a.gender_rate != null) {
+        if (a.gender_rate < 0) { x.gender_female_pct = null; x.genderless = true; }
+        else { x.gender_female_pct = a.gender_rate * 12.5; x.genderless = false; }
+        prov.push('gender');
+      }
+      fill('genus_ja', a.genus_ja);
+      // PokeAPIに日本語分類が無い(第九世代116種・2026-09-03実測) → ポケモンWikiの図鑑欄(reference/_pokemon_genus_wiki.json)で暫定補完
+      if (x.genus_ja == null) { const sp = String(x.name).replace(/[（(].*$/, ''); const w = GENUS_WIKI[sp]; if (w) fill('genus_ja', w.genus_ja); }
+      if (prov.length) { x.provisional_fields = [...new Set([...(x.provisional_fields || []), ...prov])]; pokeapiFilled++; }
+    });
+  } catch (e) {}
+
   items.sort((a, b) => (a.no || 9999) - (b.no || 9999) || String(a.name).localeCompare(String(b.name), 'ja'));
 
   write('pokemon.json', { meta: META('ポケモン', {
+    provisional_fields: 'provisional_fields=PokeAPI(最新世代)から暫定で埋めた欄名(weight_kg/height_m/gender/genus_ja)。' +
+      `Champions正典・監査確定の値は上書きしない。元=reference/_pokeapi_pokemon_raw.json。今回 ${pokeapiFilled} 件に暫定欄あり。` +
+      '確定したら reference/_pokemon_fixes.json で上書き(fixesはこの埋めより先に走る=fixesで入れた欄は空でないので埋めず provisional にも載らない。第1例=2026-09-03 オーガポン♀100/イイネイヌ系♂100/カミッチュ4.4kg)。',
     note_field: 'note=備考(そのポケモンの特殊事情。見た目だけのフォルム違い/バトル中限定の姿など。元=reference/_pokemon_notes.json)',
     fixes: '監査確定の修正は reference/_pokemon_fixes.json(根拠つき)から適用',
     seasons_field: 'seasons=旧生成物pokechan_data_all.jsのPOKEMON_LIST.season(過去+現在のレギュ履歴配列)を' +
