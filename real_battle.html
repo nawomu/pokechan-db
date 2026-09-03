@@ -1600,16 +1600,16 @@ function openNatureModal(current, onPick, anchor){
   cm.querySelectorAll('.cm-cell').forEach(b => b.addEventListener('click', () => { SE.select(); cm.style.display = 'none'; onPick(b.dataset.k); }));
 }
 // 持ち物の5ジャンル(ビルダーのモーダル同様「ジャンル+説明」で探しやすく)
-const ITEMCAT_BUCKET = {attack_boost:'attack', type_boost:'attack', speed_boost:'speed',
+const ITEMCAT_BUCKET = {mega_stone:'mega', attack_boost:'attack', type_boost:'attack', speed_boost:'speed',
   defense_boost:'defense', survival:'defense', berry_resist:'heal', berry_status_cure:'heal', berry_hp_cure:'heal', hp_drain:'heal'};
 function openItemModal(current, onPick, anchor, usedKeys, speciesName){
-  const buckets = {attack:[], speed:[], defense:[], heal:[], other:[]};
+  const buckets = {mega:[], attack:[], speed:[], defense:[], heal:[], other:[]};   // ★2026-09-03 阿部さん: メガストーンは専用の枠(先頭)
   // 同サイドで使用中の持ち物は出さない=1種類1個(メガストーンだけ共有可・2026-07-06 阿部さん)。
   // ★2026-09-03: メガストーンはspeciesNameに該当するものだけ(itemChoicesRBが絞り込み済み)
   itemChoicesRB(speciesName).filter(it => it.category === 'mega_stone' || !(usedKeys && usedKeys.has(it.key)))
     .forEach(it => { buckets[ITEMCAT_BUCKET[it.category] || 'other'].push(it); });
   const g = [{label:'', rows:[{key:'', name:I18N.t('real_battle.item_none_option','もちもの なし'), desc:'', selected:!current}]}];
-  [['attack','itemcat_attack','こうげき強化'],['speed','itemcat_speed','すばやさ'],['defense','itemcat_defense','ぼうぎょ・たいきゅう'],
+  [['mega','itemcat_mega','メガストーン'],['attack','itemcat_attack','こうげき強化'],['speed','itemcat_speed','すばやさ'],['defense','itemcat_defense','ぼうぎょ・たいきゅう'],
    ['heal','itemcat_heal','きのみ・かいふく'],['other','itemcat_other','そのほか']].forEach(([b, k, ja]) => {
     if (!buckets[b].length) return;
     g.push({label:I18N.t('real_battle.' + k, ja), rows:buckets[b].map(it => ({key:it.key, name:tItemName(it), desc:tItemDesc(it), icon:itemIconHtml(it), selected:current === it.key}))});
@@ -2273,9 +2273,9 @@ function pokeIconSrc(nm){
 // 持ち物アイコン(PokeAPI item sprites=name_enスラッグ化。無い物はonerrorで消えて文字だけ残る)
 function itemIconHtml(it){
   if (!it) return '';
-  // 汎用メガストーン(name_enなし)はキーストーン画像で代用(メガシンカの象徴)
+  // 汎用メガストーン(name_enなし)はキーストーン画像で代用(メガシンカの象徴)。ナイトZ(ZA新石・PokeAPIに画像なし)は無印の石で代用(2026-09-03)
   const slug = it.key === 'mega_stone_any' ? 'key-stone'
-    : it.name_en ? it.name_en.toLowerCase().replace(/[.'’]/g, '').replace(/ /g, '-') : '';
+    : it.name_en ? it.name_en.replace(/ Z$/, '').toLowerCase().replace(/[.'’]/g, '').replace(/ /g, '-') : '';
   if (!slug) return '';
   return `<img class="item-ic" src="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/${slug}.png" alt="" onerror="this.remove()">`;
 }
