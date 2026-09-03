@@ -46,6 +46,12 @@ const WAZA_ALL_FIELD_ALLOWLIST = new Set(['pp', 'power', 'accuracy', 'target', '
   'type', 'battle_data', 'priority', 'description']);
 const WAZA_CHAMPIONS_FIELD_ALLOWLIST = new Set(['pp', 'power', 'accuracy', 'target', 'flags', 'national_new',
   'type', 'battle_data', 'priority', 'description']);
+// (g') availability(使える世代)の差は、監査確定修正(reference/_moves_fixes.json)で availability.* を根拠つきで
+//   直した技**だけ**許す(R10 世代の扱い・2026-09-03)。それ以外の availability 差は unexplained のまま。
+const AUDITED_AVAILABILITY_FIXES = (() => { try {
+  const fx = J('reference/_moves_fixes.json').fixes || {};
+  return new Set(Object.keys(fx).filter(k => Object.keys(fx[k].set || {}).some(p => p.startsWith('availability.'))));
+} catch (e) { return new Set(); } })();
 
 // (d) items: name_en(24件・監査是正) / mega_ability(21件・列挙。旧が土台ポケモンの特性を誤表示していた
 //   分の是正+旧が空欄だった分の補完) / mega_target_en(5件・列挙。base種がフォーム限定/X・Y無しの
@@ -190,6 +196,10 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
       }
       if (fieldAllowlist && fieldAllowlist.has(f)) {
         report.allowlisted.push({ entity: label, key: k, field: f });
+        return;
+      }
+      if (label.startsWith('waza') && f === 'availability' && AUDITED_AVAILABILITY_FIXES.has(k)) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(g) 監査確定の世代修正(R10・reference/_moves_fixes.json 根拠つき)' });
         return;
       }
       // (e'') 旧の季が空だったChampions収録の姿(名寄せ違い由来の33行)に現行レギュを入れた差

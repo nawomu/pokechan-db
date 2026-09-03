@@ -533,7 +533,8 @@ function buildMoves() {
   items.filter(x => !x.slug).forEach(x => unk('move_slug', x.name, '全国版に無い=英語slug未確定'));
   write('moves.json', { meta: META('技', {
     availability_field: 'availability=旧生成物pokechan_data_all.jsのWAZA_MAP[*].availabilityをreference/_legacy_move_availability.jsonから移送' +
-      '(段B資産③。出どころ=Pokemon Showdown由来。Championsにしか居ない技はnull=推測で埋めない)。',
+      '(段B資産③。出どころ=Pokemon Showdown由来。Championsにしか居ない技はnull=推測で埋めない)。' +
+      '★R10 世代の扱い(2026-09-03 阿部さん確定): 廃止技も消さない。gen_introduced=初出世代/gens=使える世代/gen_removed=この世代から使えない(廃止世代・二重ソース確定分のみ _moves_fixes.json で付与)/note=作品限定の但し書き(Let\'s Go限定等)。値は最後に使えた世代の実機値(SwSh内部データの数値は採らない)。',
     subcategory_field: '段C差し戻し対応(2026-09-01)資産④: subcategory=旧pokechan_data_all.jsのWAZA_MAP[*].subcategoryを' +
       'reference/_legacy_move_subcategory.jsonから移送(271件。技グループ分けの資産・作り直し禁止)。新規技はnull。',
     champions_flags_field: '段C差し戻し対応 資産⑤: champions_added/champions_mode=旧pokechan_data.js(Champions版)WAZA_MAP[*].added/.mode を' +

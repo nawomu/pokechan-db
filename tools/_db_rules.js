@@ -37,6 +37,13 @@ const RULES = [
     '変更後は<b>Playwright実機でJSエラー0・件数・描画・操作を確認してから報告</b>。<b>中身まで見る</b>(効果列が埋まってるか等)=JSエラー0だけで「できた」と言わない。<br>全部ローカルで確認 → <b>阿部さんOK後に commit→push</b>。'],
   ['R9', '★効果文は effects → compose の一方通行(出発点・最重要)',
     '「<b>まずバトル(sim)を動かす目的で effects を作り、訳せば説明文</b>」。順番は必ず <b>effects(SSOT=<code>reference/moves_battle_data_fix.json</code>) → compose(<code>tools/_waza_compose.js</code> が訳すだけ)</b>。<br><b>禁止=effects空で説明文だけ手書き</b>(人間が読む文は埋まっても<b>simが動かない</b>=その技がバトルで不発=偽の完成)。<br>121kindに無いメカが出たら、<b>手書きで済ませず新kindをスキーマ＋composeに足す</b>(将来simにも)。手書き<code>reference/moves_desc_override.json</code>は新kind実装までの<b>一時しのぎ</b>(効果なし技だけが最終形)。技フラグ=<code>reference/_move_flags.json</code>。条件文=<code>tools/_cond_render.js</code>。'],
+  ['R10', '★世代の扱い(値はChampions→最新世代・昔の技も捨てずに「何世代まで」を持つ)(2026-09-03 阿部さん確定)',
+    '<b>値(威力/命中/PP/効果)の正典</b>: ①Championsに在る技=<b>Champions仕様</b> ②無い技=<b>その技が使える最新世代</b>の値(第九→第八→…)。全部版(全国版)のバトルも同じ値で動く。<br>'+
+    '<b>昔の技は捨てない</b>(ヤックンと同じ)。第八世代で廃止された技(なしくずし/シンクロノイズ/Z技など)も <code>master/moves.json</code> に<b>そのまま残す</b>。理由=<b>後から「初代のルールでバトル」のような昔の世代ルールを作れる</b>ように(データを消すと二度と作れない)。<br>'+
+    '<b>そのために技ごとに「使える世代」を持つ</b>: <code>availability.gen_introduced</code>(初出世代)/<code>availability.gens</code>(使える世代の配列)/<code>availability.gen_removed</code>(★この世代から使えない=廃止世代。例: 第八世代廃止=8)/<code>availability.note</code>(作品限定などの但し書き。例: Let\'s Go限定技)。<br>'+
+    '<b>「最新」と「昔」を分ける</b>: 廃止技の値は<b>最後に使えた世代の実機値</b>で持つ(第八世代の内部データだけの数値=誰も使えない値=採らない。実例: いきいきバブル=Let\'s Go実機は威力90/PP15、SwSh内部データは60/20→採るのは90/15)。<br>'+
+    '<b>データ上の「使える/使えない」は <code>gens</code>/<code>gen_removed</code> で判定</b>し、技を消す・表から落とすことで表現しない。Championsのレギュ(M-B/M-C)はこれとは別項目(R4=Season)。<br>'+
+    '出典=世代の可否はポケモンWiki「ソード・シールドで使用不可」+Bulbapedia「cannot be selected in a battle」の二重一致で書く(<code>reference/_moves_fixes.json</code> に根拠つき)。'],
 ];
 
 // ★失敗の教訓と注意事項(2026-06-28〜29のふりかえり)。次に同種をやる人へ。
@@ -102,7 +109,7 @@ td:first-child{font-weight:700;color:#16314f;white-space:nowrap}
 <h2>データの流れ(大元1本 → 全画面)</h2>
 <pre class="flow">${FLOW.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</pre>
 
-<h2>運用ルール R1〜R9</h2>
+<h2>運用ルール R1〜R10</h2>
 ${RULES.map(ruleCard).join('\n')}
 
 <h2>★失敗の教訓と注意事項(ふりかえり・必読)</h2>
