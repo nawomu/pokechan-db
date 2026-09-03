@@ -236,11 +236,11 @@ function applyItemI18n() {
     const label = I18N.t('items_list.cat_' + id, '');
     if (label && el.firstChild && el.firstChild.nodeType === 3) el.firstChild.nodeValue = label;
   });
-  // 件数 "N件" → N + count_unit
-  const unit = I18N.t('items_list.count_unit', '件');
+  // 件数 "N件" → count_unit の {n} テンプレートへNを差し込む(★2026-09-03: 接尾辞と誤読して連結していたバグを修正。
+  // items_list.count_unit は "{n}件"/"{n} items" 等プレースホルダ入りテンプレなので replace('{n}',...) で埋める)
   document.querySelectorAll('span.count').forEach(el => {
     const m = (el.textContent || '').match(/(\\d+)/);
-    if (m) el.textContent = m[1] + unit;
+    if (m) el.textContent = I18N.t('items_list.count_unit', '{n}件').replace('{n}', m[1]);
   });
   // サブタイトル(プレースホルダ入りテンプレート)を補間
   const st = document.getElementById('items-subtitle');
