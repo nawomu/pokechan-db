@@ -108,6 +108,13 @@
     IDX.abilityDesc = {};
     abis.forEach(function (a) { IDX.abilityDesc[a.name] = a.effect_ja || ''; });
 
+    IDX.abilityBySlug = {};
+    IDX.abilityByName = {};
+    abis.forEach(function (a) {
+      if (a.slug) IDX.abilityBySlug[a.slug] = a;
+      if (!IDX.abilityByName[a.name]) IDX.abilityByName[a.name] = a;
+    });
+
     IDX.learn = {};
     lrn.forEach(function (p) { IDX.learn[p.name] = p.learn || []; });
 
@@ -169,6 +176,8 @@
     abilityDesc: function (name) { return IDX.abilityDesc[name] || ''; },
     /** 特性 全件 */
     allAbilities: function () { return pick((DB.abilities && DB.abilities.items) || []); },
+    /** ★2026-09-03: 英語slugでもja名でも1件引ける(ability_all_v2.html向け) */
+    ability: function (key) { return IDX.abilityBySlug[key] || IDX.abilityByName[key] || null; },
 
     /** 覚える技(ポケモン名 → 技名の配列) */
     learnset: function (name) { return IDX.learn[name] || null; },

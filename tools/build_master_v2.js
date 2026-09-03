@@ -258,11 +258,44 @@ function buildAbilities() {
     items.sort((x, y) => (x.name < y.name ? -1 : x.name > y.name ? 1 : 0));
   } catch (e) {}
 
+  // ★器を広げる(2026-09-03・ability_all_v2.html向け): reference/_old_master/abilities_master.json
+  //   (PokeAPI由来の中間ファイル・311件・id/slug/9言語names/effect_en)を zen2han(ja名) で突き合わせ、
+  //   slug(英語slug)・pokeapi_id・names(9言語)・effect_en をここに合流させる。
+  //   ★これは「もう一つデータを作る」のではなく「一つのものを広げる」(CLAUDE.md「データの絶対ルール」§1の実践)。
+  //   全角キー対応(旧ファイルは『ＡＲシステム』のように全角のjaキーを持つ行がある→zen2hanで正規化しないと不一致になる)。
+  //   マッチしない3件(うなぎのぼり/はどうのぼうご/ほのおのたてがみ=レギュM-C新特性・PokeAPI未収録)は
+  //   slug=null/names=undefinedのまま(=既存のunk('ability_slug', …)運用を継続。推測で埋めない)。
+  //   ★じんばいったい(イチェカルレイ/バドレックス合体アルセウス系)はPokeAPI側に2行(as-one-glastrier/
+  //   as-one-spectrier)ある一方、こちらは1行しか無い(ja名が同じで統合済み)→最初の行を採用(どちらもeffect_en空で実害なし)。
+  try {
+    const oldMaster = J('reference/_old_master/abilities_master.json');
+    const oldByJa = {};
+    oldMaster.forEach(o => {
+      const k = zen2han(o.names && o.names.ja);
+      if (k && !(k in oldByJa)) oldByJa[k] = o;   // 先勝ち(じんばいったい重複対策)
+    });
+    let matched = 0;
+    items.forEach(it => {
+      const o = oldByJa[zen2han(it.name)];
+      if (!o) return;
+      it.slug = o.slug || it.slug;
+      it.pokeapi_id = o.id;
+      it.names = o.names;
+      it.effect_en = o.effect_en || '';
+      matched++;
+    });
+    console.log(`  ↳ abilities: 旧マスター(PokeAPI由来)と突き合わせ ${matched}/${items.length} 件(slug/pokeapi_id/names/effect_en)`);
+  } catch (e) { console.log('  ⚠ abilities: 旧マスター突き合わせに失敗', e.message); }
+
   write('abilities.json', { meta: META('特性', {
     fixes: '監査確定の修正は reference/_abilities_fixes.json(根拠つき)から適用',
     desc_house_field: 'desc_house=旧ページ(pokechan_data.js/pokechan_data_all.js)のABILITY_DESC(家の流儀の短文)を' +
       'reference/_legacy_ability_desc.jsonから移送(段B資産④)。effect_ja(Champions権威コーパス由来の長文)とは別文章・別欄。' +
       '優先順=Championsの旧ABILITY_DESC→無ければ全国版。desc_house_sourceに由来。両方に無ければnull(=旧にも説明が無かった特性)。',
+    pokeapi_fields: '★2026-09-03追加: slug(英語slug)/pokeapi_id/names(9言語名)/effect_en は' +
+      'reference/_old_master/abilities_master.json(PokeAPI由来の中間ファイル・311件)をzen2han(ja名)で突き合わせて合流。' +
+      '合流元にmasterが無い3件(うなぎのぼり/はどうのぼうご/ほのおのたてがみ=M-C新特性)はslug=null/names=undefined/effect_en=undefined(PokeAPI未収録=推測で埋めない)。' +
+      'ability_all_v2.html(全国版特性一覧・器を広げる方式)のためのフィールド。effect_ja/desc_houseのロジックには影響しない。',
   }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;

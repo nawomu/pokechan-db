@@ -269,6 +269,9 @@ function baseRow(p) {
   return {
     no: String(p.no != null ? p.no : 0).padStart(3, '0'),
     name: p.name,
+    // ★2026-09-03 阿部さん「表としては短い方が見やすい」: 一覧表の表示だけ短い名前(master.display_name=ギルガルド(シールド)等)。
+    //   識別(バトル/学習技/i18n/保存チーム)は name(正式名)のまま=データは1本。display_name が無い行は name と同じ。
+    display_name: p.display_name || p.name,
     form: p.form || '',
     mega: !!p.mega,
     weight_kg: p.weight_kg != null ? p.weight_kg : null,

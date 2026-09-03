@@ -2315,9 +2315,12 @@ COLUMNS.push({
   },
   buildTd: (p) => {
     const cls = p.form === 'メガ進化' ? 'mega-name' : p.form === 'リージョン' ? 'region-name' : '';
-    const display = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(p.name) : p.name;
+    // ★2026-09-03 阿部さん「表としては短い方が見やすい」: 日本語表示は display_name(短い表示名=ギルガルド(シールド)等)。
+    //   識別(data-pokemon-name/モーダル/わざ一覧/保存)は name(正式名)のまま=データは1本。他言語は辞書(正式名キー)。
+    const isJa = !(window.I18N && window.I18N.lang && window.I18N.lang !== 'ja');
+    const display = isJa ? (p.display_name || p.name) : ((window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(p.name) : p.name);
     // ★2026-07-03: verBadge(名前横M-Bチップ)はSSN列と重複のため削除
-    return `<td class="td-name ${cls}" title="${_tDB('db.tt_pokemon_hover', 'ホバー: わざ一覧 / クリック: モーダル')}" data-pokemon-name="${p.name}" style="cursor:pointer">${display}</td>`;
+    return `<td class="td-name ${cls}" title="${p.display_name && p.display_name !== p.name ? p.name + ' / ' : ''}${_tDB('db.tt_pokemon_hover', 'ホバー: わざ一覧 / クリック: モーダル')}" data-pokemon-name="${p.name}" style="cursor:pointer">${display}</td>`;
   },
   getVal: (p) => p.name,
   applyFilter: (arr, ctx) => {
@@ -2325,7 +2328,7 @@ COLUMNS.push({
     if (!q) return arr;
     // 内部の日本語名に加え、表示中の言語のローカライズ名でも一致判定（英語等で検索可能に）
     const loc = (window.I18N && I18N.pokemon) ? (n => I18N.pokemon(n)) : (n => n);
-    return arr.filter(p => nameMatches(p.name, q) || nameMatches(loc(p.name), q));
+    return arr.filter(p => nameMatches(p.name, q) || nameMatches(p.display_name || '', q) || nameMatches(loc(p.name), q));
   },
 });
 
