@@ -23,6 +23,8 @@
 <link rel="apple-touch-icon" href="favicon.png">
 <link rel="manifest" href="manifest.json">
 <script defer src="i18n/runtime.js?v=20260622"></script>
+<!-- ★2026-09-03: タイプ相性表(TYPES/TYPE_COLORS/TYPE_CHART)は master/types.json 由来(データは一つ)。data-files="types" で軽量読み込み -->
+<script defer src="pokedb.js?v=20260903a" data-files="types"></script>
 
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="PchamDB">
@@ -261,33 +263,22 @@ footer.site-footer .footer-links a{margin:0 8px}
 </footer>
 
 <script>
-// ========== タイプ定義 (pokechan_data.js と同じ並び順) ==========
-const TYPES = ["ノーマル","ほのお","みず","でんき","くさ","こおり","かくとう","どく","じめん","ひこう","エスパー","むし","いわ","ゴースト","ドラゴン","あく","はがね","フェアリー"];
-
-const TYPE_COLORS = {"ノーマル":"#A8A878","ほのお":"#F08030","みず":"#6890F0","でんき":"#F8D030","くさ":"#78C850","こおり":"#98D8D8","かくとう":"#C03028","どく":"#A040A0","じめん":"#E0C068","ひこう":"#A890F0","エスパー":"#F85888","むし":"#A8B820","いわ":"#B8A038","ゴースト":"#705898","ドラゴン":"#7038F8","あく":"#705848","はがね":"#B8B8D0","フェアリー":"#EE99AC"};
-
-// 攻撃タイプ(行) × 防御タイプ(列) の倍率 (2 / 1 / 0.5 / 0)
-const TYPE_CHART = [
-//   ノ  ほ   み   で  く   こ   か   ど   じ   ひ   エ   む   い   ゴ   ド   あ   は   フ
-  [1,   1,   1,   1,  1,   1,   1,   1,   1,   1,   1,   1,   0.5, 0,   1,   1,   0.5, 1  ], // ノーマル
-  [1,   0.5, 0.5, 1,  2,   2,   1,   1,   1,   1,   1,   2,   0.5, 1,   0.5, 1,   2,   1  ], // ほのお
-  [1,   2,   0.5, 1,  0.5, 1,   1,   1,   2,   1,   1,   1,   2,   1,   0.5, 1,   1,   1  ], // みず
-  [1,   1,   2,   0.5,0.5, 1,   1,   1,   0,   2,   1,   1,   1,   1,   0.5, 1,   1,   1  ], // でんき
-  [1,   0.5, 2,   1,  0.5, 1,   1,   0.5, 2,   0.5, 1,   0.5, 2,   1,   0.5, 1,   0.5, 1  ], // くさ
-  [1,   0.5, 0.5, 1,  2,   0.5, 1,   1,   2,   2,   1,   1,   1,   1,   2,   1,   0.5, 1  ], // こおり
-  [2,   1,   1,   1,  1,   2,   1,   0.5, 1,   0.5, 0.5, 0.5, 2,   0,   1,   2,   2,   0.5], // かくとう
-  [1,   1,   1,   1,  2,   1,   1,   0.5, 0.5, 1,   1,   1,   0.5, 0.5, 1,   1,   0,   2  ], // どく
-  [1,   2,   1,   2,  0.5, 1,   1,   2,   1,   0,   1,   0.5, 2,   1,   1,   1,   2,   1  ], // じめん
-  [1,   1,   1,   0.5,2,   1,   2,   1,   1,   1,   1,   2,   0.5, 1,   1,   1,   0.5, 1  ], // ひこう
-  [1,   1,   1,   1,  1,   1,   2,   2,   1,   1,   0.5, 1,   1,   1,   1,   0,   0.5, 1  ], // エスパー
-  [1,   0.5, 1,   1,  2,   1,   0.5, 0.5, 1,   0.5, 2,   1,   1,   0.5, 1,   2,   0.5, 0.5], // むし
-  [1,   2,   1,   1,  1,   2,   0.5, 1,   0.5, 2,   1,   2,   1,   1,   1,   1,   0.5, 1  ], // いわ
-  [0,   1,   1,   1,  1,   1,   1,   1,   1,   1,   2,   1,   1,   2,   1,   0.5, 1,   1  ], // ゴースト
-  [1,   1,   1,   1,  1,   1,   1,   1,   1,   1,   1,   1,   1,   1,   2,   1,   0.5, 0  ], // ドラゴン
-  [1,   1,   1,   1,  1,   1,   0.5, 1,   1,   1,   2,   1,   1,   2,   1,   0.5, 1,   0.5], // あく
-  [1,   0.5, 0.5, 0.5,1,   2,   1,   1,   1,   1,   1,   1,   2,   1,   1,   1,   0.5, 2  ], // はがね
-  [1,   0.5, 1,   1,  1,   1,   2,   0.5, 1,   1,   1,   1,   1,   1,   2,   2,   0.5, 1  ], // フェアリー
-];
+// ========== タイプ定義 ==========
+// ★2026-09-03: TYPES/TYPE_COLORS/TYPE_CHART は master/types.json 由来(データは一つ)。
+//   pokedb.js(data-files="types")から読む。ready まで null。loadTypeData() が埋める。
+let TYPES = null;
+let TYPE_COLORS = null;
+let TYPE_CHART = null;
+let typeDataReady = false;
+function loadTypeData(){
+  return PokeDB.ready.then(() => {
+    TYPES = PokeDB.types();
+    TYPE_COLORS = {};
+    TYPES.forEach(t => { TYPE_COLORS[t] = PokeDB.typeColor(t); });
+    TYPE_CHART = PokeDB.typeChart();
+    typeDataReady = true;
+  });
+}
 
 // ========== ヘルパ ==========
 const tType = (t) => (window.I18N && I18N.type) ? I18N.type(t) : t;
@@ -427,6 +418,8 @@ function renderChart(opts){
 
 // ========== 起動 ==========
 function renderAllCharts(){
+  // ★データ(pokedb.js経由)がまだ来ていなければ何もしない(loadTypeData完了後に呼び直される)
+  if (!typeDataReady) return;
   // ① 攻撃ベース: 行=攻撃、列=防御
   renderChart({
     tableId: 'chart-atk',
@@ -463,17 +456,20 @@ function renderAllCharts(){
 }
 
 function bootstrapTypeChart(){
-  // I18N.onReady は「ロード済みなら即実行・未完了ならキュー」のどちらにも対応
-  if (window.I18N && I18N.onReady) {
-    I18N.onReady(renderAllCharts);
-  } else {
-    // I18N がまだ未定義の場合: i18n:ready を待つ・無ければフォールバックで描画
-    document.addEventListener('i18n:ready', renderAllCharts, { once: true });
-    setTimeout(() => {
-      const tbl = document.getElementById('chart-atk');
-      if (tbl && !tbl.innerHTML) renderAllCharts();
-    }, 200);
-  }
+  // ★データ読み込み(pokedb.js)を待ってから、従来どおりI18N待ちに入る
+  loadTypeData().then(() => {
+    // I18N.onReady は「ロード済みなら即実行・未完了ならキュー」のどちらにも対応
+    if (window.I18N && I18N.onReady) {
+      I18N.onReady(renderAllCharts);
+    } else {
+      // I18N がまだ未定義の場合: i18n:ready を待つ・無ければフォールバックで描画
+      document.addEventListener('i18n:ready', renderAllCharts, { once: true });
+      setTimeout(() => {
+        const tbl = document.getElementById('chart-atk');
+        if (tbl && !tbl.innerHTML) renderAllCharts();
+      }, 200);
+    }
+  });
 }
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', bootstrapTypeChart);

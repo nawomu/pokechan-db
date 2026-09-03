@@ -28,15 +28,20 @@
  * ★禁止: ページから master/*.json や pokechan_data*.js を直接読むこと。
  *   (参照元が増えると、また分裂する。番人 tools/_ssot_guard_test.js が見張る)
  *   ※例外は「マスターの中身を検査するための道具」だけ。商品のページは必ずこの1枚を通す。
+ *
+ * ★軽量読み込み(オプトイン・2026-09-03): 既定は master/*.json を全部fetchする。
+ *   タイプ相性表だけ・レギュレーションだけ等、一部しか要らないページは
+ *   <script src="pokedb.js?v=..." data-files="types,regulations"></script>
+ *   のように `data-files` にカンマ区切りでファイル名(拡張子なし)を書くと、その分だけ読む。
+ *   省略時=全部(従来どおり)。★指定した名前以外は DB に入らない(raw()/allXxx() 等が空を返す)。
  */
 (function () {
   'use strict';
 
-  var FILES = ['pokemon', 'moves', 'abilities', 'items', 'learnsets', 'regulations', 'types', 'natures'];
+  var ALL_FILES = ['pokemon', 'moves', 'abilities', 'items', 'learnsets', 'regulations', 'types', 'natures'];
 
-  // ── master/ の場所を、このスクリプト自身の位置から決める ──────────────
-  //   (ルート直下のページでも review/ 配下のページでも同じように動くように)
-  function baseDir() {
+  // ── このスクリプト自身の <script> タグを特定する(base URLと data-files の両方に使う) ──
+  function findScriptEl() {
     var s = document.currentScript;
     if (!s) {
       var all = document.getElementsByTagName('script');
@@ -44,10 +49,27 @@
         if (/pokedb\.js/.test(all[i].src)) { s = all[i]; break; }
       }
     }
-    var src = (s && s.src) || '';
+    return s || null;
+  }
+  var SCRIPT_EL = findScriptEl();
+
+  // ── master/ の場所を、このスクリプト自身の位置から決める ──────────────
+  //   (ルート直下のページでも review/ 配下のページでも同じように動くように)
+  function baseDir() {
+    var src = (SCRIPT_EL && SCRIPT_EL.src) || '';
     return src.replace(/[^/]*$/, '') || '';
   }
   var BASE = baseDir() + 'master/';
+
+  // ── 読むファイルを絞る(data-files 指定があればそれだけ・無ければ全部) ──────────
+  var FILES = ALL_FILES;
+  try {
+    var wanted = SCRIPT_EL && SCRIPT_EL.getAttribute('data-files');
+    if (wanted) {
+      var picked = wanted.split(',').map(function (s) { return s.trim(); }).filter(function (s) { return ALL_FILES.indexOf(s) !== -1; });
+      if (picked.length) FILES = picked;
+    }
+  } catch (e) { /* 無指定=全部のまま */ }
 
   var DB = {};        // 生の master(ファイル名 → 中身)
   var IDX = {};       // 引きやすくした索引
@@ -164,6 +186,24 @@
     types: function () { return ((DB.types && DB.types.items) || []).map(function (t) { return t.name; }); },
     /** タイプ名 → 色 */
     typeColor: function (name) { return IDX.typeColor[name] || '#888'; },
+    /** ★2026-09-03: タイプ相性表(18×18・攻撃タイプ=行/防御タイプ=列)。未読込なら [] */
+    typeChart: function () { return (DB.types && DB.types.meta && DB.types.meta.tables && DB.types.meta.tables.TYPE_CHART) || []; },
+    /** ★攻撃タイプ1つ × 防御側の複数タイプの合成倍率(単・複合両対応)。不明なタイプ名は無視、attackTypeが不明なら1を返す */
+    typeEffectiveness: function (attackType, defenderTypes) {
+      var chart = this.typeChart();
+      var order = this.types();
+      var ai = order.indexOf(attackType);
+      if (ai < 0 || !chart.length) return 1;
+      var types = Array.isArray(defenderTypes) ? defenderTypes : [defenderTypes];
+      var mult = 1;
+      types.forEach(function (dt) {
+        var di = order.indexOf(dt);
+        if (di < 0) return; // 不明なタイプは無視(倍率に反映しない)
+        var row = chart[ai];
+        if (row && row[di] != null) mult *= row[di];
+      });
+      return mult;
+    },
     /** レギュレーション(現行=本番で遊べる)。★持つのは現行と次の2枠だけ(R4・2026-09-03) */
     regulation: function () { var a = (DB.regulations && DB.regulations.items) || []; return a.filter(function (r) { return r.role === 'current'; })[0] || a[0] || null; },
     /** 次のレギュレーション(発表済み・先行で遊べる)。未発表なら null */

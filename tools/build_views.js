@@ -97,6 +97,9 @@ function buildTypeTables() {
     TYPE_DISPLAY: tables.TYPE_DISPLAY || {},
     TYPE_OFFENSIVE_STATS: tables.TYPE_OFFENSIVE_STATS || {},
     DEFAULT_TYPE_ORDER: tables.DEFAULT_TYPE_ORDER || [],
+    // ★2026-09-03: master/types.json meta.tables.TYPE_CHART(出所=reference/_type_chart.json)。
+    //   type_chart.html/battle_simulator.html/real_battle_simulator.html のインライン重複をなくすため。
+    TYPE_CHART: tables.TYPE_CHART || [],
   };
 }
 function buildNatures() {
@@ -580,6 +583,8 @@ const TYPE_KANJI = ${J2(t.TYPE_KANJI)};
 const TYPE_DISPLAY = ${J2(t.TYPE_DISPLAY)};
 const TYPE_OFFENSIVE_STATS = ${J2(t.TYPE_OFFENSIVE_STATS)};
 const DEFAULT_TYPE_ORDER = ${J2(t.DEFAULT_TYPE_ORDER)};
+// 攻撃タイプ(行) × 防御タイプ(列) の倍率(master/types.json meta.tables.TYPE_CHART 由来)
+const TYPE_CHART = ${J2(t.TYPE_CHART)};
 const POKEMON_LIST = ${J2(POKEMON_LIST)};
 const DATA = POKEMON_LIST;
 const WAZA_MAP = ${J2(WAZA_MAP)};
@@ -589,7 +594,7 @@ const STAT_RANK = ${J2(STAT_RANK)};
 const NATURES = ${J2(NATURES)};
 const REGULATIONS = ${J2(MASTER.regulations.map(r => ({ id: r.id, role: r.role || null, start_jst: r.start_jst || null, end_jst: r.end_jst || null })))};
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER, POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES };
+  module.exports = { TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER, TYPE_CHART, POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES };
 }
 `;
   fs.writeFileSync(path.join(ROOT, 'pokechan_data_all.js'), out);
@@ -611,6 +616,8 @@ const TYPE_KANJI = ${J2(t.TYPE_KANJI)};
 const TYPE_DISPLAY = ${J2(t.TYPE_DISPLAY)};
 const TYPE_OFFENSIVE_STATS = ${J2(t.TYPE_OFFENSIVE_STATS)};
 const DEFAULT_TYPE_ORDER = ${J2(t.DEFAULT_TYPE_ORDER)};
+// 攻撃タイプ(行) × 防御タイプ(列) の倍率(master/types.json meta.tables.TYPE_CHART 由来)
+const TYPE_CHART = ${J2(t.TYPE_CHART)};
 const POKEMON_LIST = ${J2(POKEMON_LIST)};
 const DATA = POKEMON_LIST;
 const WAZA_MAP = ${J2(WAZA_MAP)};
@@ -620,7 +627,7 @@ const STAT_RANK = ${J2(STAT_RANK)};
 const NATURES = ${J2(NATURES)};
 const REGULATIONS = ${J2(MASTER.regulations.map(r => ({ id: r.id, role: r.role || null, start_jst: r.start_jst || null, end_jst: r.end_jst || null })))};
 if (typeof module !== 'undefined' && module.exports) {
-  module.exports = { TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER, POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES };
+  module.exports = { TYPES, TYPE_COLORS, TYPE_KANJI, TYPE_DISPLAY, TYPE_OFFENSIVE_STATS, DEFAULT_TYPE_ORDER, TYPE_CHART, POKEMON_LIST, DATA, WAZA_MAP, POKEMON_WAZA, ABILITY_DESC, STAT_RANK, NATURES };
 }
 `;
   fs.writeFileSync(path.join(ROOT, 'pokechan_data.js'), out);

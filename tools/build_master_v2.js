@@ -914,11 +914,34 @@ function buildTypes() {
     TYPE_OFFENSIVE_STATS: C.TYPE_OFFENSIVE_STATS || {},
     DEFAULT_TYPE_ORDER: C.DEFAULT_TYPE_ORDER || [],
   };
+  // ★2026-09-03: タイプ相性表を master に移送(4ページのインライン重複をなくす)。
+  //   出所は reference/_type_chart.json(type_chart.html/battle_simulator.html/real_battle_simulator.html の
+  //   3本のインライン const TYPE_CHART が完全一致することを検証済み・2026-09-03)。値は変えていない。
+  //   order(C.TYPES と同じ並び)がずれていたら座標が全部ズレる事故になるので、ここで厳密検査する。
+  let typeChart = null;
+  try {
+    const tc = J('reference/_type_chart.json');
+    const orderOk = JSON.stringify(tc.order) === JSON.stringify(C.TYPES || []);
+    const chart = tc.chart || [];
+    const shapeOk = Array.isArray(chart) && chart.length === 18 && chart.every(row => Array.isArray(row) && row.length === 18);
+    const validVals = new Set([0, 0.5, 1, 2]);
+    const valuesOk = shapeOk && chart.every(row => row.every(v => validVals.has(v)));
+    if (orderOk && shapeOk && valuesOk) {
+      typeChart = chart;
+    } else {
+      unk('type_chart', 'reference/_type_chart.json',
+        `検証失敗(order一致=${orderOk}/18x18=${shapeOk}/値∈{0,0.5,1,2}=${valuesOk})`);
+    }
+  } catch (e) {
+    unk('type_chart', 'reference/_type_chart.json', `読み込み失敗: ${e.message}`);
+  }
+  if (typeChart) tables.TYPE_CHART = typeChart;
   write('types.json', { meta: META('タイプ(18)', {
     note: '★旧データからそのまま移送。値は変えていない。resist配列の並び順もこの index に対応する。' +
           ' meta.tables に静的4テーブル(TYPE_KANJI/TYPE_DISPLAY/TYPE_OFFENSIVE_STATS/DEFAULT_TYPE_ORDER)を格納' +
           '(items配列は18タイプの行データなので、items[].フィールドではなく meta 側に置いた)。' +
-          `両ファイル(pokechan_data.js/pokechan_data_all.js)間で一致検証: ${tablesEqualToNational ? '一致(差分なし)' : '不一致(要確認・master/_unknowns.jsonに記録)'}。`,
+          `両ファイル(pokechan_data.js/pokechan_data_all.js)間で一致検証: ${tablesEqualToNational ? '一致(差分なし)' : '不一致(要確認・master/_unknowns.jsonに記録)'}。` +
+          ' TYPE_CHART(攻撃タイプ=行/防御タイプ=列の倍率。出典=reference/_type_chart.json)も meta.tables に格納(2026-09-03)。',
     tables,
   }), count: items.length, items });
   return items.length;
