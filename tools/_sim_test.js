@@ -6112,13 +6112,15 @@ console.log('\n=== 段117 メガシンカ(Init-B: ストーン装備→1バト�
 }
 {
   resetEnv();
-  // T253b どのメガストーンでも持ち主にメガフォームがあれば変身できる(2026-06-12 阿部さん:
-  // ポケモンごとにストーンを選ぶのは面倒→汎用化。専用ストーンはX/Y分岐用に従来どおり優先)
+  // T253b(2026-09-03改: 阿部さん「本当のゲーム通りに忠実に」でmega_stone_anyの汎用フォールバックは廃止。
+  // メガストーンは種族専用の実在アイテム=applies_to不一致のストーンではメガシンカできない)。
+  // 旧T253bは「不一致ストーンでも持ち主のメガフォームに変身できる」を検証していたが、それはシミュレーター専用の
+  // 非公式フォールバックだったため、現在は逆に「不一致ストーンでは変身できない」ことを確認する。
   E.sides.self = freshSide('フシギバナ', 'hataku');
-  E.sides.self.item = 'mega_stone_gengar';   // 不一致のストーンでもOK
+  E.sides.self.item = 'mega_stone_gengar';   // フシギバナには不一致のストーン
   E.sides.opp = freshSide('カビゴン', 'hataku');
-  check('T253b 不一致ストーンでも持ち主のメガフォームに変身できる',
-    E.megaEvolve('self') === true && E.sides.self.poke.name === 'メガフシギバナ',
+  check('T253b 不一致ストーンではメガシンカできない(2026-09-03: 種族専用の実在アイテムに忠実化)',
+    E.megaEvolve('self') === false && E.sides.self.poke.name === 'フシギバナ',
     `poke=${E.sides.self.poke.name}`);
   resetEnv();
 }

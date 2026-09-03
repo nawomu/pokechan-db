@@ -1486,8 +1486,11 @@ function captureSpecies(id){   // 保存はしない(呼び出し側でsaveSpeci
   const evTouched = Object.values(memo.effort).some(v => v > 0);
   const autoNames = poke ? autoMoves(poke).map(m => m && m.name).filter(Boolean) : [];
   const movesTouched = memo.moves.join('|') !== autoNames.join('|');
+  // ★2026-09-03: 「既定と違う持ち物か」の判定基準を、そのポケモンの既定ストーン(resolveMegaStoneKeyの
+  // 最初の1個)との比較に変更(汎用'mega_stone_any'は廃止・実ストーンが既定になったため)
+  const defaultItem = (typeof S !== 'undefined' && S.resolveMegaStoneKey) ? (S.resolveMegaStoneKey('mega_stone_any', nm) || '') : '';
   memo.custom = evTouched || movesTouched || memo.nature !== 'まじめ'
-    || (memo.item && memo.item !== 'mega_stone_any')
+    || (memo.item && memo.item !== defaultItem)
     || (poke && memo.ability !== defaultAbilityRB(poke));
   speciesMemo[nm] = memo;
 }
@@ -1497,7 +1500,7 @@ function applySpeciesMemo(id, name){
   const all = S.usableMoves(poke);
   const mvs = (m.moves || []).map(n => all.find(x => x.name === n)).filter(Boolean);
   slotMoves[id] = mvs.length ? mvs : autoMoves(poke);
-  slotItem[id] = normalizeMegaItemKey(m.item) || slotItem[id] || 'mega_stone_any';
+  slotItem[id] = normalizeMegaItemKey(m.item, name) || slotItem[id] || (S.resolveMegaStoneKey('mega_stone_any', name) || '');
   clearUnimplementedItemRB(id);   // ★2026-07-18: speciesMemoの未実装アイテムはnullへ矯正
   slotGender[id] = m.gender || genderOfRB(name);
   slotNature[id] = m.nature || 'まじめ';
@@ -1513,7 +1516,9 @@ function setSlot(id, name, keepCustom){
   const restored = (!keepCustom && id[0] === 's') ? applySpeciesMemo(id, name) : false;
   if (!restored){
     if (!keepCustom) slotMoves[id] = autoMoves(S.pokeByName(name));   // ポケモンを変えたら技は自動選定に戻す
-    if (!slotItem[id]) slotItem[id] = 'mega_stone_any';
+    // ★2026-09-03: メガストーンは種族専用の実在アイテム。未設定なら既定(その種の最初の実ストーン)、
+    // 既にあれば新しい種に合うか自己修復(normalizeMegaItemKeyが不一致/旧'mega_stone_any'を矯正)
+    slotItem[id] = slotItem[id] ? normalizeMegaItemKey(slotItem[id], name) : (S.resolveMegaStoneKey('mega_stone_any', name) || '');
     if (!keepCustom || !slotGender[id]) slotGender[id] = genderOfRB(name);   // 性別(ビルダー由来は復元側でセット)
     if (!keepCustom){ slotNature[id] = 'まじめ'; slotEffort[id] = ZERO_EV(); }   // 手動選択は無補正・努力値0
     if (!keepCustom || !slotAbility[id]) slotAbility[id] = defaultAbilityRB(S.pokeByName(name));   // ポケモンを変えたら特性も既定に
@@ -1552,8 +1557,7 @@ function applyPresetToSlot(id, build){
   const poke = S.pokeByName(speciesName);
   if (!poke) return false;
   slotVal[id] = speciesName;
-  // メガストーンは汎用(mega_stone_any)に正規化(プリセットは種専用ストーン名を持つため=FIX2 2026-07-13)
-  slotItem[id] = itDef ? normalizeMegaItemKey(itDef.key) : 'mega_stone_any';
+  slotItem[id] = itDef ? normalizeMegaItemKey(itDef.key, speciesName) : (S.resolveMegaStoneKey('mega_stone_any', speciesName) || '');   // ★2026-09-03: プリセットの個別ストーンはそのまま(種族専用ストーンが本来の仕様)
   clearUnimplementedItemRB(id);   // ★2026-07-18: プリセットの未実装アイテムはnullへ矯正
   slotAbility[id] = abilityName || defaultAbilityRB(poke);
   slotNature[id] = build.nature || 'まじめ';
@@ -1627,21 +1631,27 @@ function setSelectedSlot(id){
   if ($('box-grid')) renderBoxGrid($('box-q') ? $('box-q').value : '');
   if (typeof syncBoxHeight === 'function') syncBoxHeight();   // 詳細パネルの高さ変化にボックス下端を追従
 }
-// 選べる持ち物リスト(メガストーンは汎用のみ。旧くわしく編成と同じ絞り込み)
-function itemChoicesRB(){
-  // メガストーンは汎用(共通)1つだけ(2026-07-06 阿部さん)。バトル中のメガシンカは1体だけの制限は従来どおり
+// 選べる持ち物リスト(★2026-09-03「本当のゲーム通りに忠実に」: メガストーンは種族専用の実在アイテム。
+// speciesNameに該当するストーンだけを出す=real_battle_simulator.htmlの持ち物モーダルと同じ絞り込み)
+function itemChoicesRB(speciesName){
   // ★2026-07-18: ポケチャン未実装の持ち物(こだわりハチマキ/メガネ/パンチグローブ/くろいヘドロ/とつげきチョッキ/
   // しんかのきせき/ふうせん/ゴツゴツメット/かえんだま/どくどくだま)はリアルバトルでは選べない(実機準拠)。
   // ラボ(battle_lab.html)はサンドボックス仕様なのでこのフィルタを入れない=🧪印だけ付けて選択可のまま。
-  return S.itemsList().filter(it => (it.category !== 'mega_stone' || it.key === 'mega_stone_any') && it.implemented_in_pokechan !== false);
+  return S.itemsList().filter(it => (it.category !== 'mega_stone' || it.applies_to === speciesName) && it.implemented_in_pokechan !== false);
 }
-// 持ち物keyを汎用メガストーン規則に正規化(メガストーンは種専用でなく共通1つだけ=2026-07-06 阿部さん)。
-// おすすめビルド/保存データ/相手からの受信データ等、外部由来のitem keyは必ずここを通してから slotItem へ入れる
-// (種専用ストーン=例「マフォクシナイト」「メタグロスナイト」のkeyが漏れて手動編集メニューと矛盾するのを防ぐ)。
-function normalizeMegaItemKey(key){
-  if (!key || !S) return key;
-  const it = S.itemByKey(key);
-  return (it && it.category === 'mega_stone') ? 'mega_stone_any' : key;
+// 持ち物keyの自己修復。おすすめビルド/保存データ/相手からの受信データ等、外部由来のitem keyは必ずここを通してから
+// slotItem へ入れる。★2026-09-03改: 個別メガストーンは"そのまま"が正しい仕様(汎用集約は廃止)。ここでやるのは2つだけ:
+// ①旧'mega_stone_any'(保存済みデータ/旧バージョンの相手)をspeciesNameに合う実ストーンへ解決
+// ②持たせる種を変えた後、前の種専用ストーンが残っていたら(applies_to不一致)そのspeciesの既定へ引き直す
+function normalizeMegaItemKey(key, speciesName){
+  if (!key || !S || !S.resolveMegaStoneKey) return key;
+  const resolved = S.resolveMegaStoneKey(key, speciesName);   // 'mega_stone_any'だけ変換・他はそのまま
+  if (!resolved) return '';
+  const it = S.itemByKey(resolved);
+  if (it && it.category === 'mega_stone' && it.applies_to !== speciesName){
+    return S.resolveMegaStoneKey('mega_stone_any', speciesName) || '';   // 種違いのストーンは新しい種の既定へ
+  }
+  return resolved;
 }
 // ★2026-07-18: 保存ビルド/speciesMemo/プリセット/受信データ由来の未実装アイテムが装備されていたらnull(既定=もちものなし)へ矯正
 // (normalizeMegaItemKeyと同じ自己修復の流儀。ピッカーはitemChoicesRBで既に未実装を除外しているが、外部由来データは素通りするため)
@@ -1711,19 +1721,27 @@ function openChoiceModal(title, groups, onPick, anchor){
   if (sel) sel.scrollIntoView({ block: 'center' });
   cm.querySelectorAll('.cm-row').forEach(b => b.addEventListener('click', () => { SE.select(); cm.style.display = 'none'; onPick(b.dataset.k); }));
 }
+// キーがメガストーン(category:'mega_stone')かどうか(1種類1個ルールの除外判定用・2026-09-03改:
+// 実ストーンは種族専用のため自然に重複しないが、除外自体は既存仕様のまま維持)
+function _isMegaStoneKeyRB(k){
+  if (!k || typeof S === 'undefined' || !S.itemByKey) return false;
+  const it = S.itemByKey(k);
+  return !!(it && it.category === 'mega_stone');
+}
 // 同サイドの他スロットが使用中の持ち物キー(1種類1個ルール用。メガストーンは除外)
 function usedItemsRB(id){
   const sib = (id[0] === 'o' ? oppIds() : selfIds()).filter(x => x !== id);   // 'bx'(ボックスプレビュー)は自分側扱い
-  return new Set(sib.map(x => slotItem[x]).filter(k => k && k !== 'mega_stone_any'));
+  return new Set(sib.map(x => slotItem[x]).filter(k => k && !_isMegaStoneKeyRB(k)));
 }
-// 読込/おまかせ後の重複持ち物を矯正(先勝ち・後のスロットは汎用メガストーンへ)
+// 読込/おまかせ後の重複持ち物を矯正(先勝ち・後のスロットは持ち物なしへ。★2026-09-03改: メガストーンは
+// 種族専用なので同じ実ストーンキーが2スロットに残る=データ不整合。汎用へ引き戻す先が無いため空欄に矯正)
 function dedupeItemsRB(){
   [selfIds(), oppIds()].forEach(ids => {
     const seen = new Set();
     ids.forEach(id => {
       const k = slotItem[id];
-      if (!k || k === 'mega_stone_any') return;
-      if (seen.has(k)) slotItem[id] = 'mega_stone_any';
+      if (!k || _isMegaStoneKeyRB(k)) return;
+      if (seen.has(k)) slotItem[id] = '';
       else seen.add(k);
     });
   });
@@ -1768,10 +1786,11 @@ function openNatureModal(current, onPick, anchor){
 // 持ち物の5ジャンル(ビルダーのモーダル同様「ジャンル+説明」で探しやすく)
 const ITEMCAT_BUCKET = {attack_boost:'attack', type_boost:'attack', speed_boost:'speed',
   defense_boost:'defense', survival:'defense', berry_resist:'heal', berry_status_cure:'heal', berry_hp_cure:'heal', hp_drain:'heal'};
-function openItemModal(current, onPick, anchor, usedKeys){
+function openItemModal(current, onPick, anchor, usedKeys, speciesName){
   const buckets = {attack:[], speed:[], defense:[], heal:[], other:[]};
-  // 同サイドで使用中の持ち物は出さない=1種類1個(メガストーンだけ共有可・2026-07-06 阿部さん)
-  itemChoicesRB().filter(it => it.key === 'mega_stone_any' || !(usedKeys && usedKeys.has(it.key)))
+  // 同サイドで使用中の持ち物は出さない=1種類1個(メガストーンだけ共有可・2026-07-06 阿部さん)。
+  // ★2026-09-03: メガストーンはspeciesNameに該当するものだけ(itemChoicesRBが絞り込み済み)
+  itemChoicesRB(speciesName).filter(it => it.category === 'mega_stone' || !(usedKeys && usedKeys.has(it.key)))
     .forEach(it => { buckets[ITEMCAT_BUCKET[it.category] || 'other'].push(it); });
   const g = [{label:'', rows:[{key:'', name:I18N.t('real_battle.item_none_option','もちもの なし'), desc:'', selected:!current}]}];
   [['attack','itemcat_attack','こうげき強化'],['speed','itemcat_speed','すばやさ'],['defense','itemcat_defense','ぼうぎょ・たいきゅう'],
@@ -1847,7 +1866,7 @@ function renderSelDetail(id){
       if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
       saveTeam(); renderSelDetail(id);
       refreshPickMineCards();   // 選出画面(#pick-screen)が開いていれば左カードのもちもの表示も同期(2026-07-13)
-    }, e.currentTarget, usedItemsRB(id));
+    }, e.currentTarget, usedItemsRB(id), nm);
   });
   if (id === 'bx') decorateBoxPreview();   // ボックスプレビュー装飾(帯+「わくに いれる」ボタン)は再描画のたび付け直す
 }
@@ -1899,7 +1918,7 @@ function loadTeam(){
         if ($(id)) $(id).innerHTML = slotCapsuleHtml(id);
         return;
       }
-      slotItem[id] = d.item && d.item[id] != null ? normalizeMegaItemKey(d.item[id]) : 'mega_stone_any';
+      slotItem[id] = d.item && d.item[id] != null ? normalizeMegaItemKey(d.item[id], d.val[id]) : (S.resolveMegaStoneKey('mega_stone_any', d.val[id]) || '');
       clearUnimplementedItemRB(id);   // ★2026-07-18: 保存データの未実装アイテムはnullへ矯正
       slotGender[id] = (d.gender && d.gender[id]) || genderOfRB(d.val[id]);
       slotNature[id] = (d.nature && d.nature[id]) || 'まじめ';
@@ -1964,7 +1983,7 @@ function loadHandoff(){
       const all = S.usableMoves(poke);
       const byKey = (e.moves || []).map(k => all.find(m => m && (m.key === k || m.name === k))).filter(Boolean);
       slotMoves[id] = byKey.length ? byKey.slice(0, 4) : autoMoves(poke);
-      slotItem[id] = normalizeMegaItemKey(e.item) || 'mega_stone_any';
+      slotItem[id] = normalizeMegaItemKey(e.item, e.name) || (S.resolveMegaStoneKey('mega_stone_any', e.name) || '');
       clearUnimplementedItemRB(id);   // ★2026-07-18: ビルダーhandoffの未実装アイテムはnullへ矯正
       slotGender[id] = e.gender || genderOfRB(e.name);
       slotNature[id] = e.nature || 'まじめ';
@@ -2337,7 +2356,7 @@ function previewBoxPoke(name){
   slotVal['bx'] = name;
   if (!applySpeciesMemo('bx', name)){
     const p = S.pokeByName(name);
-    slotMoves['bx'] = autoMoves(p); slotItem['bx'] = 'mega_stone_any';
+    slotMoves['bx'] = autoMoves(p); slotItem['bx'] = S.resolveMegaStoneKey('mega_stone_any', name) || '';
     slotGender['bx'] = genderOfRB(name); slotNature['bx'] = 'まじめ'; slotEffort['bx'] = ZERO_EV();
     slotAbility['bx'] = defaultAbilityRB(p);
   }
@@ -2632,14 +2651,14 @@ function buildSide(sideKey, ids){
   st.poke = lead;
   st.moves = (slotMoves[ids[0]] || autoMoves(lead)).filter(Boolean);
   st.selectedMoveIdx = 0;
-  st.item = slotItem[ids[0]] != null ? slotItem[ids[0]] : 'mega_stone_any';   // 中央パネルで変更可(既定=汎用メガストーン)
+  st.item = normalizeMegaItemKey(slotItem[ids[0]] != null ? slotItem[ids[0]] : 'mega_stone_any', slotVal[ids[0]]);   // 中央パネルで変更可(既定=その種の実ストーン=2026-09-03)
   st.gender = slotGender[ids[0]] || genderOfRB(slotVal[ids[0]]);
   st.natureIdx = S.natureIdxOf(slotNature[ids[0]] || 'まじめ');   // 性格(ビルダー由来 or 無補正)
   st.effort = clampEffortRB(slotEffort[ids[0]]);    // 努力値(Champions点・各32/計66に矯正)
   st.bench = ids.slice(1).map(id => {
     const p = S.pokeByName(slotVal[id]);
     return { poke: p, effort: clampEffortRB(slotEffort[id]), natureIdx: S.natureIdxOf(slotNature[id] || 'まじめ'),
-      ability: slotAbility[id] || defaultAbilityRB(p), item: slotItem[id] != null ? slotItem[id] : 'mega_stone_any',
+      ability: slotAbility[id] || defaultAbilityRB(p), item: normalizeMegaItemKey(slotItem[id] != null ? slotItem[id] : 'mega_stone_any', slotVal[id]),
       moves: (slotMoves[id] || autoMoves(p)).filter(Boolean), gender: slotGender[id] || genderOfRB(slotVal[id]),
       currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null, megaBase: null };
   })
@@ -3542,12 +3561,12 @@ function openStatsModal(){
     `<button id="sm-close">${I18N.t('real_battle.mp_close_button','とじる')}</button>`;
   holder.querySelector('#sm-item').addEventListener('click', e => {
     // 控えの持ち物と重複不可(1種類1個・メガストーンは共有可)
-    const used = new Set((st.bench || []).map(x => x.item).filter(k => k && k !== 'mega_stone_any'));
+    const used = new Set((st.bench || []).map(x => x.item).filter(k => k && !_isMegaStoneKeyRB(k)));
     openItemModal(st.item, k => {
       st.item = k || null; renderAll();
       const btn = holder.querySelector('#sm-item');
       if (btn) btn.textContent = itLabel() + ' ▾';
-    }, e.currentTarget, used);
+    }, e.currentTarget, used, st.poke && st.poke.name);
   });
   renderEvEditor(holder.querySelector('.sd-ev'), {
     poke: st.poke,
@@ -4998,7 +5017,8 @@ function onlineApplyOppTeam(d){
       if ($(oid)) $(oid).innerHTML = slotCapsuleHtml(oid);
       return;
     }
-    slotItem[oid] = d.item && d.item[sid] != null ? normalizeMegaItemKey(d.item[sid]) : 'mega_stone_any';
+    // ★2026-09-03: オンライン対戦相手が旧バージョン(mega_stone_anyを送るクライアント)でも自己修復する
+    slotItem[oid] = d.item && d.item[sid] != null ? normalizeMegaItemKey(d.item[sid], nm) : (S.resolveMegaStoneKey('mega_stone_any', nm) || '');
     clearUnimplementedItemRB(oid);   // ★2026-07-18: 受信データの未実装アイテムはnullへ矯正
     slotGender[oid] = (d.gender && d.gender[sid]) || genderOfRB(nm);
     slotNature[oid] = (d.nature && d.nature[sid]) || 'まじめ';
