@@ -16,7 +16,7 @@ const NEW_CH = ['メガガブリアスZ', 'メガルカリオZ', 'メガアブ�
 const PL = 'const L=(typeof POKEMON_LIST!=="undefined")?POKEMON_LIST:((typeof DATA!=="undefined")?DATA:[]);';
 const PAGES = [
   { url: 'pokemon_db_all_v9.html', probe: PL + '({n:L.length,names:L.map(p=>p.name)})', expect: NEW_ALL },
-  { url: 'ability_all.html', probe: 'const A=(typeof ABILITY_DESC!=="undefined")?ABILITY_DESC:{};({n:Object.keys(A).length,names:Object.keys(A)})', expect: ['はどうのぼうご'] },
+  { url: 'ability_all.html', initScript: "try{localStorage.setItem('pchamdb.lang','ja')}catch(e){}", wait: 'document.querySelectorAll("#abilityBody tr").length > 100', probe: '(()=>{const rows=[...document.querySelectorAll("#abilityBody tr")].filter(tr=>tr.querySelectorAll("td").length>=4);return {n:rows.length,names:rows.map(tr=>tr.querySelector(".ab-name").textContent.trim())}})()', expect: ['はどうのぼうご'] },
   { url: 'waza-list_all.html', probe: 'const W=(typeof WAZA_MAP!=="undefined")?WAZA_MAP:{};({n:Object.keys(W).length,names:Object.values(W).map(w=>w.name)})', expect: ['10まんボルト'] },
   { url: 'pokemon_db_v9.html', probe: PL + '({n:L.length,names:L.map(p=>p.name)})', expect: NEW_CH },
   { url: 'party_checker.html', probe: PL + '({n:L.length,names:L.map(p=>p.name),items:Object.keys((typeof ITEMS_DATABASE!=="undefined")?ITEMS_DATABASE:(window.ITEMS_DATABASE||{})).length})', expect: NEW_CH },
@@ -28,8 +28,10 @@ const PAGES = [
   for (const pg of PAGES) {
     const page = await b.newPage({ viewport: { width: 1400, height: 900 } });
     const errs = []; page.on('pageerror', e => errs.push(String(e))); page.on('console', m => { if (m.type() === 'error') errs.push('console: ' + m.text()); }); page.on('response', r => { if (r.status() >= 400) errs.push('HTTP' + r.status() + ' ' + r.url().replace(BASE, '')); });
+    if (pg.initScript) { try { await page.addInitScript(pg.initScript); } catch (e) {} }
     try { await page.goto(BASE + pg.url, { waitUntil: 'networkidle', timeout: 60000 }); } catch (e) { errs.push('goto: ' + e.message); }
     await page.waitForTimeout(1500);
+    if (pg.wait) { try { await page.waitForFunction(pg.wait, { timeout: 15000 }); } catch (e) { errs.push('wait: ' + e.message); } }
     let info = {}; try { info = await page.evaluate(pg.probe); } catch (e) { errs.push('probe: ' + e.message); }
     const names = new Set(info.names || []); const missing = (pg.expect || []).filter(n => !names.has(n) && !(info.names || []).some(s => typeof s === 'string' && s.includes(n)));
     // 画像: スプライトIDが引けるか(SPRITE_API_IDを読むページのみ)
