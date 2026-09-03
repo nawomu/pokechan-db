@@ -6288,7 +6288,7 @@ console.log('\n=== 段120 バトルスイッチ(ギルガルド) ===');
 {
   resetEnv();
   // T261 シールドで攻撃技→ブレードにチェンジしてから攻撃する(ダメージはブレードの種族値で計算)
-  E.sides.self = freshSide('ギルガルド(シールド)', null);
+  E.sides.self = freshSide('ギルガルド(シールドフォルム)', null);
   E.sides.self.ability = 'バトルスイッチ';
   E.sides.self.moves = [moveByName('シャドーボール')];
   E.sides.self.selectedMoveIdx = 0;
@@ -6299,60 +6299,60 @@ console.log('\n=== 段120 バトルスイッチ(ギルガルド) ===');
   const n0 = E.battleLog.length;
   E.runSingleAttack('self', 0);
   const logs0 = E.battleLog.slice(n0).map(e => e.msg);
-  check('T261 攻撃技でブレードフォルムになる', E.sides.self.poke.name === 'ギルガルド(ブレード)',
+  check('T261 攻撃技でブレードフォルムになる', E.sides.self.poke.name === 'ギルガルド(ブレードフォルム)',
     `poke=${E.sides.self.poke.name}`);
   check('T261b チェンジのメッセージが出る', logs0.some(m => m.includes('ブレードフォルム チェンジ')), logs0.join(' / '));
   check('T261c ダメージはブレードの種族値(特攻140)で計算される',
     (oppMax - E.sides.opp.currentHp) > shieldMax,
     `dealt=${oppMax - E.sides.opp.currentHp} shield_max=${shieldMax}`);
   // T261d 攻撃がこうかなし(シャドーボール×ノーマル)でも発動してブレードになる
-  E.sides.self = freshSide('ギルガルド(シールド)', null);
+  E.sides.self = freshSide('ギルガルド(シールドフォルム)', null);
   E.sides.self.ability = 'バトルスイッチ';
   E.sides.self.moves = [moveByName('シャドーボール')];
   E.sides.self.selectedMoveIdx = 0;
   E.sides.opp = freshSide('カビゴン', 'hataku');   // ゴースト無効
   E.runSingleAttack('self', 0);
-  check('T261d こうかなしでも発動してブレードになる', E.sides.self.poke.name === 'ギルガルド(ブレード)',
+  check('T261d こうかなしでも発動してブレードになる', E.sides.self.poke.name === 'ギルガルド(ブレードフォルム)',
     `poke=${E.sides.self.poke.name}`);
   resetEnv();
 }
 {
   resetEnv();
   // T262 変化技(つるぎのまい)では発動しない
-  E.sides.self = freshSide('ギルガルド(シールド)', null);
+  E.sides.self = freshSide('ギルガルド(シールドフォルム)', null);
   E.sides.self.ability = 'バトルスイッチ';
   E.sides.self.moves = [moveByName('つるぎのまい')];
   E.sides.self.selectedMoveIdx = 0;
   E.sides.opp = freshSide('カビゴン', 'hataku');
   E.setRandom(() => 0.0);
   E.runSingleAttack('self', 0);
-  check('T262 変化技ではフォルムが変わらない', E.sides.self.poke.name === 'ギルガルド(シールド)',
+  check('T262 変化技ではフォルムが変わらない', E.sides.self.poke.name === 'ギルガルド(シールドフォルム)',
     `poke=${E.sides.self.poke.name}`);
   // T262b ブレードでキングシールド→シールドに戻る
-  E.sides.self = freshSide('ギルガルド(ブレード)', null);
+  E.sides.self = freshSide('ギルガルド(ブレードフォルム)', null);
   E.sides.self.ability = 'バトルスイッチ';
   E.sides.self.moves = [moveByName('キングシールド')];
   E.sides.self.selectedMoveIdx = 0;
   const n1 = E.battleLog.length;
   E.runSingleAttack('self', 0);
   const logs1 = E.battleLog.slice(n1).map(e => e.msg);
-  check('T262b キングシールドでシールドフォルムに戻る', E.sides.self.poke.name === 'ギルガルド(シールド)',
+  check('T262b キングシールドでシールドフォルムに戻る', E.sides.self.poke.name === 'ギルガルド(シールドフォルム)',
     `poke=${E.sides.self.poke.name}`);
   check('T262c チェンジのメッセージが出る', logs1.some(m => m.includes('シールドフォルム チェンジ')), logs1.join(' / '));
   // T262d ブレードで まもる ではフォルムが変わらない
-  E.sides.self = freshSide('ギルガルド(ブレード)', null);
+  E.sides.self = freshSide('ギルガルド(ブレードフォルム)', null);
   E.sides.self.ability = 'バトルスイッチ';
   E.sides.self.moves = [moveByName('まもる')];
   E.sides.self.selectedMoveIdx = 0;
   E.runSingleAttack('self', 0);
-  check('T262d まもるでは発動しない(ブレードのまま)', E.sides.self.poke.name === 'ギルガルド(ブレード)',
+  check('T262d まもるでは発動しない(ブレードのまま)', E.sides.self.poke.name === 'ギルガルド(ブレードフォルム)',
     `poke=${E.sides.self.poke.name}`);
   resetEnv();
 }
 {
   resetEnv();
   // T263 交代で控えに戻るとシールドフォルムに戻る
-  E.sides.self = freshSide('ギルガルド(ブレード)', null);
+  E.sides.self = freshSide('ギルガルド(ブレードフォルム)', null);
   E.sides.self.ability = 'バトルスイッチ';
   E.sides.self.moves = [moveByName('シャドーボール')];
   const sub = freshSide('フシギバナ', 'hataku');
@@ -6362,14 +6362,14 @@ console.log('\n=== 段120 バトルスイッチ(ギルガルド) ===');
   E.attemptSwitch('self', 0);
   const backEntry = E.sides.self.bench[0];
   check('T263 交代で控えのギルガルドはシールドフォルムに戻る',
-    backEntry.poke && backEntry.poke.name === 'ギルガルド(シールド)',
+    backEntry.poke && backEntry.poke.name === 'ギルガルド(シールドフォルム)',
     `bench=${backEntry.poke && backEntry.poke.name}`);
   resetEnv();
 }
 {
   resetEnv();
   // T264 行動できなかった時は発動しない(第7世代以降: ねむりで攻撃技が不発→シールドのまま)
-  E.sides.self = freshSide('ギルガルド(シールド)', null);
+  E.sides.self = freshSide('ギルガルド(シールドフォルム)', null);
   E.sides.self.ability = 'バトルスイッチ';
   E.sides.self.moves = [moveByName('シャドーボール')];
   E.sides.self.selectedMoveIdx = 0;
@@ -6378,7 +6378,7 @@ console.log('\n=== 段120 バトルスイッチ(ギルガルド) ===');
   E.sides.opp = freshSide('カビゴン', 'hataku');
   E.setRandom(() => 0.0);
   E.runSingleAttack('self', 0);
-  check('T264 ねむりで行動できない時は発動しない', E.sides.self.poke.name === 'ギルガルド(シールド)',
+  check('T264 ねむりで行動できない時は発動しない', E.sides.self.poke.name === 'ギルガルド(シールドフォルム)',
     `poke=${E.sides.self.poke.name}`);
   resetEnv();
 }
@@ -6390,7 +6390,7 @@ console.log('\n=== 段121 マイティチェンジ(イルカマン) ===');
 {
   resetEnv();
   // T265 交代で手持ちに戻るとマイティになる(戻った時点でチェンジ)
-  E.sides.self = freshSide('イルカマン(ナイーブ)', null);
+  E.sides.self = freshSide('イルカマン(ナイーブフォルム)', null);
   E.sides.self.ability = 'マイティチェンジ';
   E.sides.self.moves = [moveByName('なみのり')];
   const sub = freshSide('フシギバナ', 'hataku');
@@ -6399,7 +6399,7 @@ console.log('\n=== 段121 マイティチェンジ(イルカマン) ===');
   E.sides.opp = freshSide('カビゴン', 'hataku');
   E.attemptSwitch('self', 0);
   check('T265 交代で控えに戻るとマイティフォルムになる',
-    E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name === 'イルカマン(マイティ)',
+    E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name === 'イルカマン(マイティフォルム)',
     `bench=${E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name}`);
   // T265b 初めてマイティで場に出ると「変身して 帰ってきた！」
   const n0 = E.battleLog.length;
@@ -6407,14 +6407,14 @@ console.log('\n=== 段121 マイティチェンジ(イルカマン) ===');
   const logs0 = E.battleLog.slice(n0).map(e => e.msg);
   check('T265b 初登場時に「変身して 帰ってきた！」が出る',
     logs0.some(m => m.includes('変身して 帰ってきた！')), logs0.join(' / '));
-  check('T265c 場のイルカマンはマイティ', E.sides.self.poke.name === 'イルカマン(マイティ)',
+  check('T265c 場のイルカマンはマイティ', E.sides.self.poke.name === 'イルカマン(マイティフォルム)',
     `poke=${E.sides.self.poke.name}`);
   // T265d 2回目以降の登場ではメッセージは出ない(マイティのまま交代→再登場)
   E.attemptSwitch('self', 0);   // マイティが下がる(フォルム変わらず)
   const n1 = E.battleLog.length;
   E.attemptSwitch('self', 0);   // 再登場
   const logs1 = E.battleLog.slice(n1).map(e => e.msg);
-  check('T265d マイティは交代しても戻らない', E.sides.self.poke.name === 'イルカマン(マイティ)',
+  check('T265d マイティは交代しても戻らない', E.sides.self.poke.name === 'イルカマン(マイティフォルム)',
     `poke=${E.sides.self.poke.name}`);
   check('T265e 2回目の登場ではメッセージなし',
     !logs1.some(m => m.includes('変身して 帰ってきた！')), logs1.join(' / '));
@@ -6423,7 +6423,7 @@ console.log('\n=== 段121 マイティチェンジ(イルカマン) ===');
 {
   resetEnv();
   // T266 ひんしで場を去った時は発動しない(死に出しのpack)
-  E.sides.self = freshSide('イルカマン(ナイーブ)', null);
+  E.sides.self = freshSide('イルカマン(ナイーブフォルム)', null);
   E.sides.self.ability = 'マイティチェンジ';
   E.sides.self.moves = [moveByName('なみのり')];
   E.sides.self.currentHp = 0;
@@ -6434,7 +6434,7 @@ console.log('\n=== 段121 マイティチェンジ(イルカマン) ===');
   E.sides.opp = freshSide('カビゴン', 'hataku');
   E.attemptSwitch('self', 0, {faintReplace: true});
   check('T266 ひんしで下がった時は発動しない(ナイーブのまま)',
-    E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name === 'イルカマン(ナイーブ)',
+    E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name === 'イルカマン(ナイーブフォルム)',
     `bench=${E.sides.self.bench[0].poke && E.sides.self.bench[0].poke.name}`);
   resetEnv();
 }
@@ -6534,7 +6534,7 @@ console.log('\n=== 段122 特性5種: むしのしらせ/じしんかじょう/�
   // T274b コピー不可特性(バトルスイッチ)はコピーしない
   E.sides.self = freshSide('フシギバナ', null);
   E.sides.self.ability = 'トレース';
-  E.sides.opp = freshSide('ギルガルド(シールド)', 'hataku');
+  E.sides.opp = freshSide('ギルガルド(シールドフォルム)', 'hataku');
   E.sides.opp.ability = 'バトルスイッチ';
   E.phaseInitA();
   check('T274b バトルスイッチはコピーできない', E.sideAbility(E.sides.self) === 'トレース',

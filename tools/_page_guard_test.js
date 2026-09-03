@@ -27,9 +27,9 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const LEDGER = path.join(ROOT, 'reference/_page_ledger.json');
-
+// バックアップ・生成物・言語別ページ・取得した生素材(_genus_material=Wiki/Bulbapediaの写し)は対象外(手作りページだけを見る)
 // バックアップ・生成物・言語別ページは対象外(手作りページだけを見る)
-const SKIP_DIR = /(^|\/)(\.git|node_modules|bak|_review|backup|content|pokemon|ability|move|type|item|en|fr|de|es|it|ko|zh-Hans|zh-Hant|scratchpad)(\/|$)/;
+const SKIP_DIR = /(^|\/)(\.git|node_modules|bak|_review|backup|_genus_material|content|pokemon|ability|move|type|item|en|fr|de|es|it|ko|zh-Hans|zh-Hant|scratchpad)(\/|$)/;
 const SKIP_FILE = /\.bak\.html$|_backup|_OLD|OLD_tmp/;
 
 function handmadePages() {

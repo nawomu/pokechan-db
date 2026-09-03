@@ -133,11 +133,11 @@ try {
 // ─────────────────────────────────────────────
 console.log('\n=== C4: 書き換え不可特性(バトルスイッチ/ばけのかわ) [出典: Bulbapedia Mummy 除外リスト] ===');
 try {
-  const r1 = hitMummy('ギルガルド(シールド)', 'バトルスイッチ', 'hataku');
+  const r1 = hitMummy('ギルガルド(シールドフォルム)', 'バトルスイッチ', 'hataku');
   check('C4-a バトルスイッチ(Stance Change)はミイラで上書きされない',
     E.sideAbility(r1.atk) === 'バトルスイッチ' && r1.atk.abilityOverride === null,
     `sideAbility=${E.sideAbility(r1.atk)} override=${r1.atk.abilityOverride}`);
-  const r2 = hitMummy('ミミッキュ', 'ばけのかわ', 'hataku');
+  const r2 = hitMummy('ミミッキュ(ばけたすがた)', 'ばけのかわ', 'hataku');
   check('C4-b ばけのかわ(Disguise)はミイラで上書きされない',
     E.sideAbility(r2.atk) === 'ばけのかわ' && r2.atk.abilityOverride === null,
     `sideAbility=${E.sideAbility(r2.atk)} override=${r2.atk.abilityOverride}`);

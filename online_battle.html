@@ -1430,10 +1430,48 @@ const selfIds = () => Array.from({length: teamSize}, (_, i) => 's' + (i + 1));
 const oppIds  = () => Array.from({length: teamSize}, (_, i) => 'o' + (i + 1));
 // バトル中の変身でしか現れない姿=最初から手持ちに置けない(イルカマン=ナイーブ始動/ギルガルド=シールド始動)。
 // メガと同じく抽選・選択プールから除外する。
-const BATTLE_ONLY_FORMS = new Set(['イルカマン(マイティ)', 'ギルガルド(ブレード)']);
+const BATTLE_ONLY_FORMS = new Set(['イルカマン(マイティフォルム)', 'ギルガルド(ブレードフォルム)']);
 const isPickable = p => !p.mega && !BATTLE_ONLY_FORMS.has(p.name);
 // 変身結果の姿を「始動の姿」へ戻す(保存データ/引き継ぎに古い姿が残っていても矯正)
-const FORM_REVERT = {'イルカマン(マイティ)': 'イルカマン(ナイーブ)', 'ギルガルド(ブレード)': 'ギルガルド(シールド)'};
+const FORM_REVERT = {'イルカマン(マイティフォルム)': 'イルカマン(ナイーブフォルム)', 'ギルガルド(ブレードフォルム)': 'ギルガルド(シールドフォルム)'};
+// ★2026-09-03: build_viewsの再生成でフォルム名が正式名称化された(33体・旧→新)。旧名の保存データ
+// (チーム/URL/オンライン相手)を読み込む経路だけで、旧名→新名に正規化する(名寄せの表。新しいデータは作らない)。
+const LEGACY_FORM_NAME = {
+  'ケンタロス(パルデア炎)': 'ケンタロス(パルデアのすがた・ブレイズ種)',
+  'ケンタロス(パルデア水)': 'ケンタロス(パルデアのすがた・ウォーター種)',
+  'ケンタロス(パルデア単)': 'ケンタロス(パルデアのすがた・コンバット種)',
+  'ウォッシュロトム': 'ロトム(ウォッシュロトム)',
+  'カットロトム': 'ロトム(カットロトム)',
+  'スピンロトム': 'ロトム(スピンロトム)',
+  'ヒートロトム': 'ロトム(ヒートロトム)',
+  'フロストロトム': 'ロトム(フロストロトム)',
+  'ビビヨン': 'ビビヨン(はなぞののもよう)',
+  'フラエッテ(えいえん)': 'フラエッテ(えいえんのはな)',
+  'フラージェス': 'フラージェス(あかいはな)',
+  'トリミアン': 'トリミアン(やせいのすがた)',
+  'ニャオニクス♀': 'ニャオニクス(メスのすがた)',
+  'ニャオニクス♂': 'ニャオニクス(オスのすがた)',
+  'ギルガルド(シールド)': 'ギルガルド(シールドフォルム)',
+  'ギルガルド(ブレード)': 'ギルガルド(ブレードフォルム)',
+  'パンプジン(小)': 'パンプジン(ちいさいサイズ)',
+  'パンプジン(大)': 'パンプジン(おおきいサイズ)',
+  'パンプジン(特大)': 'パンプジン(とくだいサイズ)',
+  'パンプジン(普通)': 'パンプジン(ふつうのサイズ)',
+  'ルガルガン(たそがれ)': 'ルガルガン(たそがれのすがた)',
+  'ルガルガン(まひる)': 'ルガルガン(まひるのすがた)',
+  'ルガルガン(まよなか)': 'ルガルガン(まよなかのすがた)',
+  'ミミッキュ': 'ミミッキュ(ばけたすがた)',
+  'ポットデス': 'ポットデス(がんさくフォルム)',
+  'マホイップ': 'マホイップ(ミルキィバニラ)',
+  'モルペコ': 'モルペコ(まんぷくもよう)',
+  'イダイトウ♀': 'イダイトウ(メスのすがた)',
+  'イダイトウ♂': 'イダイトウ(オスのすがた)',
+  'イッカネズミ': 'イッカネズミ(4ひきかぞく)',
+  'イルカマン(ナイーブ)': 'イルカマン(ナイーブフォルム)',
+  'イルカマン(マイティ)': 'イルカマン(マイティフォルム)',
+  'ヤバソチャ': 'ヤバソチャ(ボンサクのすがた)',
+};
+const normLegacyName = n => LEGACY_FORM_NAME[n] || n;
 let winStreak = 0;     // 連戦モードの連勝数
 const slotVal = {};    // 各スロットの選択ポケモン名(selectをやめて検索モーダルにしたので自前で持つ)
 const slotMoves = {};  // 各スロットの技4つ(くわしく編成で変更可。ポケモンを変えると自動選定に戻る)
@@ -1455,14 +1493,16 @@ function clampEffortRB(e){
   return out;
 }
 // 無性別ポケモン(party_checkerと同じ。相手チーム=ランダム編成にも性別を割り振るため)
-const GENDERLESS_RB = new Set(["メタモン","ロトム","ヒートロトム","ウォッシュロトム","フロストロトム","スピンロトム",
-  "カットロトム","ギルガルド(シールド)","ギルガルド(ブレード)","クレッフィ","ゴルーグ","メガゴルーグ",
-  "ポットデス","ブリジュラス","ミミズズ","キョジオーン"]);
+const GENDERLESS_RB = new Set(["メタモン","ロトム","ロトム(ヒートロトム)","ロトム(ウォッシュロトム)","ロトム(フロストロトム)","ロトム(スピンロトム)",
+  "ロトム(カットロトム)","ギルガルド(シールドフォルム)","ギルガルド(ブレードフォルム)","クレッフィ","ゴルーグ","メガゴルーグ",
+  "ポットデス(がんさくフォルム)","ブリジュラス","ミミズズ","キョジオーン"]);
 function genderOfRB(name){
   if (!name) return '';
   if (GENDERLESS_RB.has(name)) return '—';
-  if (name.includes('♂')) return '♂';
-  if (name.includes('♀')) return '♀';
+  // ★2026-09-03: イダイトウ/ニャオニクスの性別固定フォルムは改名で♂/♀記号が消えた
+  // (例「イダイトウ♂」→「イダイトウ(オスのすがた)」)。新表記も見て性別を固定する。
+  if (name.includes('♂') || name.includes('(オスのすがた)')) return '♂';
+  if (name.includes('♀') || name.includes('(メスのすがた)')) return '♀';
   return Math.random() < 0.5 ? '♂' : '♀';
 }
 let pickerSlot = null;
@@ -1509,6 +1549,7 @@ function applySpeciesMemo(id, name){
   return true;
 }
 function setSlot(id, name, keepCustom){
+  name = normLegacyName(name);        // 旧名の保存データ/引き継ぎが残っていても新名へ正規化(念のための保険)
   name = FORM_REVERT[name] || name;   // 変身でしか出ない姿は始動の姿に矯正(イルカマン=ナイーブ/ギルガルド=シールド)
   if (id[0] === 's' && slotVal[id] && slotVal[id] !== name){ captureSpecies(id); saveSpeciesMemo(); }   // 出ていく種のビルドを記憶
   slotVal[id] = name;
@@ -1900,6 +1941,7 @@ function refreshBoxMemoTint(){
 function loadTeam(){
   try {
     const d = JSON.parse(localStorage.getItem('rb_team_online') || 'null');
+    if (d && d.val) Object.keys(d.val).forEach(k => { d.val[k] = normLegacyName(d.val[k]); });   // 旧名の保存データを新名へ正規化
     // 空きスロット許容(本家トグルで枠を空けられる=2026-07-10)。自分側に1体も居ない保存だけ不採用
     if (!d || !d.val || !selfIds().some(id => d.val[id] && S.pokeByName(d.val[id]))) return false;
     teamSize = 6;   // オンライン専用=常に6体固定(保存データのsizeは無視)
@@ -1963,6 +2005,7 @@ function loadHandoff(){
   try {
     const d = JSON.parse(localStorage.getItem('pokechan_realbattle_handoff_v1') || 'null');
     if (!d || !Array.isArray(d.party)) return false;
+    d.party.forEach(e => { if (e && e.name) e.name = normLegacyName(e.name); });   // 旧名の保存データを新名へ正規化
     const picks = d.party.filter(e => e && e.name && S.pokeByName(e.name)).slice(0, 6);
     if (!picks.length) return false;
     localStorage.removeItem('pokechan_realbattle_handoff_v1');
@@ -2803,7 +2846,7 @@ function spriteHtml(poke, st){
   const short = poke.name.length > 6 ? poke.name.slice(0, 6) : poke.name;
   // ばけのかわが剥がれたミミッキュは「ばれたすがた」(首カクン絵/公式id 10143)で描く(2026-07-10 阿部さん)。
   // st.disguise は登場でtrue・剥がれてfalse(エンジン)。未定義(他ポケ)は===falseにならない
-  const _BUSTED = { 'ミミッキュ': { ja: 'ばれたすがた', apiId: '10143' } };
+  const _BUSTED = { 'ミミッキュ(ばけたすがた)': { ja: 'ばれたすがた', apiId: '10143' } };
   const _bust = (st && st.disguise === false && _BUSTED[poke.name]) ? _BUSTED[poke.name] : null;
   // てんきやポワルンは天候でフォルム(見た目)が変わる(st.forecastForm=sunny/rain/snow・エンジンupdateForecastForm
   // が算出)。ミミッキュのばれたすがたと同じ「name→ja/apiId差し替え」方式(2026-07-21実装)。
@@ -5008,6 +5051,7 @@ function onlineSendTeamOnce(){
 }
 function onlineApplyOppTeam(d){
   if (!d || !d.val) return;
+  Object.keys(d.val).forEach(k => { d.val[k] = normLegacyName(d.val[k]); });   // 旧バージョンの相手クライアントが旧名を送ってきても正規化
   RB_ONLINE.applying = true;   // 適用中のsaveTeamで自分のチームを再送しない(相互再送ループ防止)
   try {
   if (d.size && d.size !== teamSize){ teamSize = d.size; renderTeamRows(); }   // オンライン専用=セレクタ無し(6固定同士なら通常起きない)

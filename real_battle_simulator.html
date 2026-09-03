@@ -6411,16 +6411,16 @@ function attemptSwitch(sideKey, benchIdx, opts){
   // 控えに戻す前に元のすがた・技・特性へ復帰させる(出典: ポケモンWiki「へんしん(状態変化)」)
   revertTransform(st);
   // バトルスイッチ(段120): 交代で控えに戻るとシールドフォルムに戻る(ポケモンWiki「バトルスイッチ」)
-  if (st.ability === 'バトルスイッチ' && st.poke && /\(ブレード\)$/.test(st.poke.name)){
-    const _sf = POKE_MAP_BY_NAME[st.poke.name.replace('(ブレード)', '(シールド)')];
+  if (st.ability === 'バトルスイッチ' && st.poke && /\(ブレードフォルム\)$/.test(st.poke.name)){
+    const _sf = POKE_MAP_BY_NAME[st.poke.name.replace('(ブレードフォルム)', '(シールドフォルム)')];
     if (_sf) st.poke = _sf;
   }
   // マイティチェンジ(段121・イルカマン): ナイーブが交代で手持ちに戻った時点でマイティへ。
   // ひんしで場を去った時は発動しない。マイティは以後ずっとマイティ(戻らない)。
   // 特性は上書き/コピー/無効化されない→st.ability直参照(出典: ポケモンWiki「マイティチェンジ」)
-  if (st.ability === 'マイティチェンジ' && st.poke && /\(ナイーブ\)$/.test(st.poke.name)
+  if (st.ability === 'マイティチェンジ' && st.poke && /\(ナイーブフォルム\)$/.test(st.poke.name)
       && !st.fainted && (st.currentHp == null || st.currentHp > 0)){
-    const _hf = POKE_MAP_BY_NAME[st.poke.name.replace('(ナイーブ)', '(マイティ)')];
+    const _hf = POKE_MAP_BY_NAME[st.poke.name.replace('(ナイーブフォルム)', '(マイティフォルム)')];
     if (_hf){ st.poke = _hf; st.heroAnnounce = true; }   // 初登場メッセージの予約(場に出た時に消費)
   }
   st.bench[benchIdx] = packBenchEntry(st);   // 出ていたポケモンの永続フィールドを控え枠へ
@@ -6674,12 +6674,12 @@ function pranksterBlocked(atk, def, mv){
 function stanceChange(sideKey, mv){
   const st = sides[sideKey];
   if (!st.poke || st.ability !== 'バトルスイッチ') return;
-  const base = st.poke.name.replace(/\((シールド|ブレード)\)$/, '');
+  const base = st.poke.name.replace(/\((シールドフォルム|ブレードフォルム)\)$/, '');
   let want = null;
-  if (mv.category !== '変化' && st.poke.name === base + '(シールド)') want = 'ブレード';
-  else if (mv.name === 'キングシールド' && st.poke.name === base + '(ブレード)') want = 'シールド';
+  if (mv.category !== '変化' && st.poke.name === base + '(シールドフォルム)') want = 'ブレード';
+  else if (mv.name === 'キングシールド' && st.poke.name === base + '(ブレードフォルム)') want = 'シールド';
   if (!want) return;
-  const f = POKE_MAP_BY_NAME[base + '(' + want + ')'];
+  const f = POKE_MAP_BY_NAME[base + '(' + want + 'フォルム)'];
   if (!f) return;
   st.poke = f;
   log('0c', `${want}フォルム チェンジ！ (${pname(st)})`);

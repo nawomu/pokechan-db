@@ -954,14 +954,16 @@ partyItems = partyItems.slice(0, PARTY_SIZE);
 // 性別 (2026-06-13 阿部さん: ビルダーで選んだ時に男女ランダム決定・無性別あり・リアルバトルへ送る)
 const LS_PARTY_GENDERS = "pokechan_party_genders_v1";  // 各スロットの性別 '♂'/'♀'/'—'(無性別)/''(未選択)
 // この roster の無性別ポケモン(ナショナル準拠。デスカーン/デスバーン等は実は有性別なので含めない)
-const GENDERLESS = new Set(["メタモン","ロトム","ヒートロトム","ウォッシュロトム","フロストロトム","スピンロトム",
-  "カットロトム","ギルガルド(シールド)","ギルガルド(ブレード)","クレッフィ","ゴルーグ","メガゴルーグ",
-  "ポットデス","ブリジュラス","ミミズズ","キョジオーン"]);
+const GENDERLESS = new Set(["メタモン","ロトム","ロトム(ヒートロトム)","ロトム(ウォッシュロトム)","ロトム(フロストロトム)","ロトム(スピンロトム)",
+  "ロトム(カットロトム)","ギルガルド(シールドフォルム)","ギルガルド(ブレードフォルム)","クレッフィ","ゴルーグ","メガゴルーグ",
+  "ポットデス(がんさくフォルム)","ブリジュラス","ミミズズ","キョジオーン"]);
 function genderOf(name){
   if (!name) return '';
   if (GENDERLESS.has(name)) return '—';
-  if (name.includes('♂')) return '♂';   // イダイトウ♂/ニャオニクス♂等=名前で性別固定
-  if (name.includes('♀')) return '♀';
+  // ★2026-09-03: イダイトウ/ニャオニクスの性別固定フォルムは改名で♂/♀記号が消えた
+  // (例「イダイトウ♂」→「イダイトウ(オスのすがた)」)。新表記も見て性別を固定する。
+  if (name.includes('♂') || name.includes('(オスのすがた)')) return '♂';   // イダイトウ/ニャオニクス等=名前で性別固定
+  if (name.includes('♀') || name.includes('(メスのすがた)')) return '♀';
   return Math.random() < 0.5 ? '♂' : '♀';
 }
 let partyGenders = JSON.parse(localStorage.getItem(LS_PARTY_GENDERS) || "[]");
