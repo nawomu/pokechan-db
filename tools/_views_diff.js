@@ -28,8 +28,8 @@ const MOVE_FLAG_KEYS = J('reference/_legacy_champions_move_flag_keys.json').keys
 
 // (c) 正式名称化: name/form/weight_kg
 const POKEMON_FIELD_ALLOWLIST = new Set(['weight_kg', 'form', 'name']);
-// (i) 器を広げて増えた列(旧生成物に無い。値の差ではなく列の追加。2026-09-03 display_name)
-const ADDED_VIEW_FIELDS = new Set(['display_name']);
+// (i) 器を広げて増えた列(旧生成物に無い。値の差ではなく列の追加。2026-09-03 display_name/性別)
+const ADDED_VIEW_FIELDS = new Set(['display_name', 'genderless', 'gender_female_pct']);
 // (b) 隠れ特性スロット修正: ab1-3・type1-2 は位置でなく集合として比較
 const POKEMON_MULTISET_GROUPS = [['ab1', 'ab2', 'ab3'], ['type1', 'type2']];
 // (c)+(a): pokemon_champions は上と同じ(c)に加え、169技フラグ列(=(a)扱い。master権威による
@@ -212,7 +212,7 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
       }
       // (i) 器を広げた列(旧生成物に無かった列が増えただけ。値の変更ではない)。旧に列が存在する場合は許容しない
       if (label.startsWith('pokemon') && ADDED_VIEW_FIELDS.has(f) && lv === undefined) {
-        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(i) 新設列(display_name=一覧表の短い表示名・2026-09-03 阿部さん)' });
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(i) 新設列(display_name=一覧表の短い表示名・2026-09-03 阿部さん、genderless/gender_female_pct=性別(2026-09-03))' });
         return;
       }
       if (label.startsWith('waza') && f === 'availability' && AUDITED_AVAILABILITY_FIXES.has(k)) {

@@ -953,13 +953,14 @@ partyItems = partyItems.slice(0, PARTY_SIZE);
 
 // 性別 (2026-06-13 阿部さん: ビルダーで選んだ時に男女ランダム決定・無性別あり・リアルバトルへ送る)
 const LS_PARTY_GENDERS = "pokechan_party_genders_v1";  // 各スロットの性別 '♂'/'♀'/'—'(無性別)/''(未選択)
-// この roster の無性別ポケモン(ナショナル準拠。デスカーン/デスバーン等は実は有性別なので含めない)
-const GENDERLESS = new Set(["メタモン","ロトム","ロトム(ヒートロトム)","ロトム(ウォッシュロトム)","ロトム(フロストロトム)","ロトム(スピンロトム)",
-  "ロトム(カットロトム)","ギルガルド(シールドフォルム)","ギルガルド(ブレードフォルム)","クレッフィ","ゴルーグ","メガゴルーグ",
-  "ポットデス(がんさくフォルム)","ブリジュラス","ミミズズ","キョジオーン"]);
 function genderOf(name){
   if (!name) return '';
-  if (GENDERLESS.has(name)) return '—';
+  // ★2026-09-03: 性別は master/pokemon.json 由来(views の genderless/gender_female_pct)。直書きSetは廃止
+  const row = POKEMON_LIST.find(r => r.name === name);
+  if (row && row.genderless === true) return '—';
+  if (row && row.gender_female_pct === 100) return '♀';
+  if (row && row.gender_female_pct === 0) return '♂';
+  if (row && row.gender_female_pct > 0 && row.gender_female_pct < 100) return Math.random() * 100 < row.gender_female_pct ? '♀' : '♂';
   // ★2026-09-03: イダイトウ/ニャオニクスの性別固定フォルムは改名で♂/♀記号が消えた
   // (例「イダイトウ♂」→「イダイトウ(オスのすがた)」)。新表記も見て性別を固定する。
   if (name.includes('♂') || name.includes('(オスのすがた)')) return '♂';   // イダイトウ/ニャオニクス等=名前で性別固定

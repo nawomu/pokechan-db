@@ -274,6 +274,8 @@ function baseRow(p) {
     display_name: p.display_name || p.name,
     form: p.form || '',
     mega: !!p.mega,
+    genderless: !!p.genderless,
+    gender_female_pct: p.gender_female_pct != null ? p.gender_female_pct : null,
     weight_kg: p.weight_kg != null ? p.weight_kg : null,
     type1: p.type1 || '',
     type2: p.type2 || '',
