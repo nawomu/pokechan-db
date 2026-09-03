@@ -4,7 +4,8 @@
 
 ## 0. 結論(30秒)
 - **push済み**: タイプ相性表SSOT(`a380b67b`)/ items_list.html SSOT化(`a30ad477`)。全ゲート緑。
-- **★未コミット・作業途中(Sonnetエージェントが実装中だった)**: **メガストーンを「本当のゲーム通り」に(案B)**。触っている4ファイル= `real_battle_simulator.html` / `real_battle.html` / `online_battle.html` / `battle_lab.html`(+196/-126 の状態)。セッションをクリアするとエージェントは止まるが**編集は作業ツリーに残る**。次回は §2 の手順で検証してから commit。**`git stash`/`git checkout -- .` は禁止**(消える)。
+- **メガストーン忠実化(案B)も完了・push済み(`56cce70d`・12:55 クリア直前に完了通知が来たので検証して入れた)**。§2 の手順は「済み」= 次回は 🙋 の確認だけ。
+- **★宿題**: `tools/_sim_test.js` が段120(ギルガルド バトルスイッチ `calcDamage(...).max` null)で落ちる=**HEADでも同じ=既存**(worktreeで実測)。技監査の数値適用(9/2〜)のどれかでシャドーボールが計算不能になった疑い。次回まずここ。
 - Spark図鑑照合は 13:52 に自動再開(pid 41625 = `sleep 12840; bash tools/_run_codex_dex_all.sh`)。見張りループは次回 `/loop` で張り直す(§4)。
 
 ## 1. 今日やったこと(push済み)
