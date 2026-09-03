@@ -48,6 +48,8 @@ const WAZA_CHAMPIONS_FIELD_ALLOWLIST = new Set(['pp', 'power', 'accuracy', 'targ
   'type', 'battle_data', 'priority', 'description']);
 // (g') availability(使える世代)の差は、監査確定修正(reference/_moves_fixes.json)で availability.* を根拠つきで
 //   直した技**だけ**許す(R10 世代の扱い・2026-09-03)。それ以外の availability 差は unexplained のまま。
+const LIVE_REGS = (() => { try { return (J('reference/_regulations.json').items || []).map(r => r.id); } catch (e) { return []; } })();
+const REG_NEWEST = LIVE_REGS[LIVE_REGS.length - 1] || null;
 const AUDITED_AVAILABILITY_FIXES = (() => { try {
   const fx = J('reference/_moves_fixes.json').fixes || {};
   return new Set(Object.keys(fx).filter(k => Object.keys(fx[k].set || {}).some(p => p.startsWith('availability.'))));
@@ -201,6 +203,16 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
       if (label.startsWith('waza') && f === 'availability' && AUDITED_AVAILABILITY_FIXES.has(k)) {
         report.allowlisted.push({ entity: label, key: k, field: f, reason: '(g) 監査確定の世代修正(R10・reference/_moves_fixes.json 根拠つき)' });
         return;
+      }
+      // (h) R4(2026-09-03 阿部さん): season は「現行」と「次」の2枠だけ。旧の季から終わったレギュ(M-A等)が外れただけの差
+      if (label === 'pokemon_all' && f === 'season' && Array.isArray(lv) && Array.isArray(nv) && LIVE_REGS.length) {
+        const lvLive = lv.filter(v => LIVE_REGS.includes(v));
+        const extra = nv.filter(v => !lvLive.includes(v));
+        if (nv.every(v => LIVE_REGS.includes(v)) && lvLive.every(v => nv.includes(v))
+            && (extra.length === 0 || (extra.length === 1 && extra[0] === REG_NEWEST && nRow.champions !== false))) {
+          report.allowlisted.push({ entity: label, key: k, field: f, reason: '(h) R4 季は現行+次の2枠だけ(終わったレギュを外した/次レギュの印を足しただけ)' });
+          return;
+        }
       }
       // (e'') 旧の季が空だったChampions収録の姿(名寄せ違い由来の33行)に現行レギュを入れた差
       if (label === 'pokemon_all' && f === 'season' && Array.isArray(lv) && lv.length === 0 && Array.isArray(nv) && nv.length === 1 && nRow.champions !== false) {

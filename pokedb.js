@@ -164,8 +164,12 @@
     types: function () { return ((DB.types && DB.types.items) || []).map(function (t) { return t.name; }); },
     /** タイプ名 → 色 */
     typeColor: function (name) { return IDX.typeColor[name] || '#888'; },
-    /** レギュレーション(現行) */
-    regulation: function () { return ((DB.regulations && DB.regulations.items) || [])[0] || null; },
+    /** レギュレーション(現行=本番で遊べる)。★持つのは現行と次の2枠だけ(R4・2026-09-03) */
+    regulation: function () { var a = (DB.regulations && DB.regulations.items) || []; return a.filter(function (r) { return r.role === 'current'; })[0] || a[0] || null; },
+    /** 次のレギュレーション(発表済み・先行で遊べる)。未発表なら null */
+    regulationNext: function () { var a = (DB.regulations && DB.regulations.items) || []; return a.filter(function (r) { return r.role === 'next'; })[0] || null; },
+    /** 現行+次(順序=現行→次) */
+    regulations: function () { return ((DB.regulations && DB.regulations.items) || []).slice(); },
 
     /** 生の master をそのまま(検査用) */
     raw: function (name) { return DB[name] || null; },

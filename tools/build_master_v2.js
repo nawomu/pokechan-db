@@ -26,7 +26,14 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'master');
 const NOW = new Date().toISOString().slice(0, 10);
-const REGULATION = 'M-C';                       // 現行レギュレーション(2026-09-01 阿部さん決定: 公式開始9/9を待たず先行で現行化。M-Bまでは 2026-07-29 確定)
+// ★レギュは「現行」と「次」の2枠だけ(2026-09-03 阿部さん決定・R4)。reference/_regulations.json の role から読む(定数を手で切り替えない)。
+//   REGULATION = 内容を入れる先(次があれば次・無ければ現行)。champions:true の行はここに入る(累積=前で使えたものは次でも使える)。
+//   LIVE_REGS = 行の seasons に残すレギュ(現行+次)。終わったレギュ(M-A等)は seasons から外す(年に何度も増えて溜まる一方になるのを防ぐ。名簿は _official_rosters/ と git に残る)。
+const REG_ITEMS = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'reference/_regulations.json'), 'utf8')).items || []; } catch (e) { return []; } })();
+const REG_CURRENT = (REG_ITEMS.find(r => r.role === 'current') || REG_ITEMS[0] || { id: 'M-C' }).id;
+const REG_NEXT = (REG_ITEMS.find(r => r.role === 'next') || {}).id || null;
+const REGULATION = REG_NEXT || REG_CURRENT;
+const LIVE_REGS = REG_ITEMS.length ? REG_ITEMS.map(r => r.id) : [REGULATION];
 
 // ── 入力 ────────────────────────────────────────────────────────────
 // ★2026-09-01 段E: 入力は「凍結スナップショット」(reference/_legacy_snapshot/)。ルート直下の同名ファイルは
@@ -666,6 +673,13 @@ function buildPokemon() {
     if (!x.seasons.includes(x.regulation)) x.seasons.push(x.regulation);
     if (!x.champions_added_in) x.champions_added_in = x.regulation;
   });
+  // ★R4(2026-09-03): seasons は「現行」と「次」だけ残す。終わったレギュは外す(履歴は reference/_legacy_seasons.json と git)。
+  let seasonsTrimmed = 0;
+  items.forEach(x => {
+    if (!Array.isArray(x.seasons)) return;
+    const t = x.seasons.filter(s => LIVE_REGS.includes(s));
+    if (t.length !== x.seasons.length) { x.seasons = t; seasonsTrimmed++; }
+  });
 
   // ★図鑑諸元の裏溜め(2026-09-03 阿部さん「既存のポケモンのデータは全部DBに入れておいて。次の更新でいちいち取ってこなくて済むように」)
   //   元=reference/_pokeapi_pokemon_raw.json(tools/_fetch_pokeapi_pokemon_raw.js・全1273件)。
@@ -706,7 +720,9 @@ function buildPokemon() {
     fixes: '監査確定の修正は reference/_pokemon_fixes.json(根拠つき)から適用',
     seasons_field: 'seasons=旧生成物pokechan_data_all.jsのPOKEMON_LIST.season(過去+現在のレギュ履歴配列)を' +
       `reference/_legacy_seasons.json から移送(段B資産②)。旧に対応行が無い/名前解決から漏れた行は` +
-      `regulationがあれば[regulation]、無ければ[](推測で埋めない)。今回 ${seasonsFilled} 件がこのフォールバックで埋まった。`,
+      `regulationがあれば[regulation]、無ければ[](推測で埋めない)。今回 ${seasonsFilled} 件がこのフォールバックで埋まった。` +
+      `★R4(2026-09-03 阿部さん): seasons は現行と次(${LIVE_REGS.join('/')})の2枠だけ残す。終わったレギュを外した行=${seasonsTrimmed}件。`,
+    regulation_model: `現行=${REG_CURRENT} / 次=${REG_NEXT || '(未発表)'}。champions:true の行の regulation は「内容を入れる先」=${REGULATION}(累積)。`,
     champions_added_in_field: '段C差し戻し対応(2026-09-01)資産⑥: champions_added_in=旧pokechan_data.js(Champions版)POKEMON_LIST[*].added_inを' +
       'reference/_legacy_pokemon_champions_added_inから移送。M-C予告分(regulation:M-C)は凍結に無いため直接"M-C"を入れる。',
   }), count: items.length,
