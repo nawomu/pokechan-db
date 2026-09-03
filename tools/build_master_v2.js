@@ -855,17 +855,21 @@ function buildLearnsets() {
   } catch (e) {}
   // ★監査で確定した修正を適用(reference/_learnsets_fixes.json・全件根拠つき。pokemon/abilities/items の fixes と同じ仕組み・2026-09-04 新設)
   //   形: fixes["<正式名>"] = { learn_add:[技名], learn_remove:[技名], "根拠": "…" }
-  //   learn_add は learn に足し confiscated から外す / learn_remove は learn から外し(Champions行なら)confiscated に入れる
+  //   learn_add は learn に足し confiscated/learn_legacy から外す / learn_remove は learn から外し Champions行=confiscated・全国行=learn_legacy に入れる
+  //   set:{latest_version_group} / source で行の印も直せる(全国行=Wiki+Bulbapedia一致で作品を最新へ・2026-09-04 A3第2部)
   //   第1号(2026-09-04)= ランクルス パワースワップ: ヤックン/ch/ は×(没収)だが ポケモンWiki Championsのおぼえるわざ + Bulbapedia Champions learnset の2ソースが「使える」で一致
   let learnFixed = 0;
   try {
     const fx = J('reference/_learnsets_fixes.json').fixes || {};
     all.forEach(it => {
       const f = fx[it.name]; if (!f) return;
-      const learn = new Set(it.learn), conf = new Set(it.confiscated || []);
-      (f.learn_add || []).forEach(m => { learn.add(m); conf.delete(m); });
-      (f.learn_remove || []).forEach(m => { learn.delete(m); if (it.champions) conf.add(m); });
-      it.learn = [...learn].sort(); it.confiscated = [...conf]; it.learn_fixed = true; learnFixed++;
+      const learn = new Set(it.learn), conf = new Set(it.confiscated || []), legacy = new Set(it.learn_legacy || []);
+      (f.learn_add || []).forEach(m => { learn.add(m); conf.delete(m); legacy.delete(m); });
+      // 外す先: Champions行=confiscated(没収) / 全国行=learn_legacy(過去作のみ=R10 廃止マーク方式・消さない)
+      (f.learn_remove || []).forEach(m => { learn.delete(m); if (it.champions) conf.add(m); else legacy.add(m); });
+      if (f.set) Object.assign(it, f.set);   // 例: latest_version_group をWiki+Bulbapedia一致の最新作品へ(PokeAPIのDLC欠け)
+      it.learn = [...learn].sort(); it.confiscated = [...conf]; if (!it.champions) it.learn_legacy = [...legacy].sort();
+      it.learn_fixed = true; if (f.source) it.source = f.source; learnFixed++;
     });
   } catch (e) {}
   write('learnsets.json', { meta: META('覚える技と没収技', {

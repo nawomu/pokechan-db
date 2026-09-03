@@ -36,8 +36,9 @@ function parseNational(txt) {
     const x = L[i];
     let m;
     if (/^Pokemon LEGENDS Z-A$/.test(x)) { block = 'ZA'; kind = null; cur = null; pending = null; continue; }   // ★Z-A(第九世代扱い)は別ブロック=SV表と混ぜない
+    if (/^Pokémon LEGENDS アルセウス$/.test(x)) { block = 'LA'; form = null; cur = null; pending = null; continue; }   // ★LA表は各種類の節の末尾に「Pokémon LEGENDS アルセウス/第八世代 (…)」で出る=タグLA・すがたは基本に戻す
     if ((m = x.match(/^(レベルアップわざ|わざマシン.*わざ|タマゴわざ|その他の場所で覚えるわざ|人から教えてもらえる ?わざ|教え技|特別なわざ)/))) {
-      kind = /レベル/.test(x) ? 'level' : /マシン/.test(x) ? 'tm' : /タマゴ/.test(x) ? 'egg' : /教え/.test(x) ? 'tutor' : 'other'; form = null; cur = null; pending = null; continue;
+      kind = /レベル/.test(x) ? 'level' : /マシン/.test(x) ? 'tm' : /タマゴ/.test(x) ? 'egg' : /教え/.test(x) ? 'tutor' : 'other'; form = null; cur = null; pending = null; if (block === 'LA') block = null; continue;
     }
     if ((m = x.match(/^(?:(SwSh|BDSP|LA|SV)[：:])?第([一二三四五六七八九])世代/))) {
       gen = GEN_NUM[m[2]]; tag = m[1] || block || null; if (pending) form = pending; pending = null;
@@ -46,7 +47,8 @@ function parseNational(txt) {
     if (kind && !cur && x && !/^(その他の世代|Lv\.|No\.|わざ|タイプ|分類|威力|命中|PP|遺伝元|わざマシン)$/.test(x) && !/も参照|太字|進化/.test(x)) pending = x; // 世代見出しの直前=フォーム見出し候補
     if (cur && isMoveRow(L, i)) cur.moves.push(x);
     // 次の表のフォーム見出し(表の途中に出る「ニャース(アローラのすがた)」など)
-    if (cur && x && !isMoveRow(L, i) && !TYPES.includes(x) && /のすがた|フォルム|^[ァ-ヶー]+[（(].*[)）]$/.test(x) && L[i + 1] && /世代/.test(L[i + 1])) { pending = x; cur = null; }
+    // ★どんな文字列でも「次の行が世代見出し」なら見出し(ときはなたれしフーパ/すなちのミノ/れんげきのかた/オス/メス 等は語形が揃わない)
+    if (cur && x && !isMoveRow(L, i) && !TYPES.includes(x) && !/太字|進化|も参照|^その他の世代/.test(x) && L[i + 1] && /^(?:(SwSh|BDSP|LA|SV)[：:])?第[一二三四五六七八九]世代/.test(L[i + 1])) { pending = x; cur = null; }
   }
   return tables;
 }
@@ -54,12 +56,24 @@ const pickForm = (groups, row, species) => {
   const f = formOf(row.name);
   if (groups.length === 1) return groups[0];
   const byLabel = lab => groups.find(g => g.label === lab || (g.form || '') === lab);
-  if (f) return groups.find(g => (g.label || g.form || '').includes(f)) || groups.find(g => (g.label || g.form || '') === row.name) || groups.find(g => { const lab = g.label || g.form || ''; return lab && f.includes(lab); }) || null;
+  if (f) {
+    const hit = groups.find(g => (g.label || g.form || '').includes(f)) || groups.find(g => (g.label || g.form || '') === row.name) || groups.find(g => { const lab = g.label || g.form || ''; return lab && f.includes(lab); });
+    if (hit) return hit;
+    // ヒヒダルマ(ノーマルモード/ダルマモード)=「ヒヒダルマ」、(ガラルのすがた ダルマモード)=「ヒヒダルマ(ガラルのすがた)」(モードで技は変わらない)
+    const f2 = f.replace(/\s*(ダルマモード|ノーマルモード)\s*/g, '').trim();
+    if (f2 !== f) return pickForm(groups, { name: f2 ? `${species}(${f2})` : species }, species);
+    // すがた専用の表が無い(バスラオ あかすじ/あおすじ・ネクロズマ各フォルム・チェリム ネガ)= 見出し無しの表が共通
+    // ★ただし地方のすがた(アローラ等)は別: その作品に居ないだけ(コラッタ(アローラ)はBDSPに居ない)→ 共通表を流用しない
+    if (/アローラ|ガラル|ヒスイ|パルデア/.test(f)) return null;
+    return groups.find(g => !g.form && !g.label) || null;
+  }
   if (/[♀♂]$/.test(row.name)) { const sx = /♀$/.test(row.name) ? 'メス' : 'オス'; const g = groups.find(g => (g.label || g.form || '') === sx || (g.label || g.form || '').includes(sx + 'のすがた')); if (g) return g; }   // メガニャオニクス♀/♂ → メス/オス
   if (/^(メガ|ゲンシ)/.test(row.name)) return byLabel(row.name) || byLabel(species) || byLabel(species + 'のすがた') || groups.find(g => !g.form && !g.label) || (groups.length ? groups[0] : null);   // メガ/ゲンシは元と同じ技=元の表
   // 基本のすがた: 種名そのもの / 「○○のすがた」 / フォーム無しの表
   return byLabel(species) || byLabel(species + 'のすがた') || groups.find(g => !g.form && !g.label) || groups.find(g => !/[（(]/.test(g.label || g.form || '')) || groups[0];
 };
+module.exports = { parseChampions, parseNational, pickForm, speciesOf, formOf, isMoveRow, VG_GEN, VG_TAG, GEN_NUM, TYPES, MOVES, DIR };
+if (require.main === module) {
 const filt = process.argv[2];
 const rows = [], sum = { rows: 0, ch_ok: 0, ch_diff: 0, ch_no_page: 0, ch_no_form: 0, nat_ok: 0, nat_diff: 0, nat_wiki_newer: 0, nat_wiki_older: 0, nat_no_page: 0, nat_no_form: 0 };
 for (const r of L) {
@@ -79,7 +93,10 @@ for (const r of L) {
   } else {
     const sp = String(r.name).replace(/[（(].*$/, ''), f = path.join(DIR, `wiki_${sp}.txt`);
     if (!fs.existsSync(f)) { sum.nat_no_page++; rows.push({ name: r.name, kind: 'national', status: 'no_page', species: sp }); continue; }
-    const tables = parseNational(fs.readFileSync(f, 'utf8')) || [];
+    const tables0 = parseNational(fs.readFileSync(f, 'utf8')) || [];
+    const tables = tables0.filter(t => t.tag !== 'ZA');   // ★Z-A(CD制・PP無し)は比べない。第九世代がZ-Aだけの種(ポッポ等)は SV表が無い= za_only
+    if (!tables.length && tables0.length) { sum.nat_za_only = (sum.nat_za_only || 0) + 1; rows.push({ name: r.name, kind: 'national', status: 'za_only', our_vg: r.latest_version_group }); continue; }
+    tables.forEach(t => { if (t.form && /共通|・/.test(t.form)) t.form = null; });
     const ourGen = VG_GEN[r.latest_version_group] || null, ourTag = VG_TAG[r.latest_version_group] || null;
     const wikiGen = Math.max(0, ...tables.filter(t => t.kind === 'level').map(t => t.gen));
     const forms = [...new Set(tables.map(t => t.form || ''))];
@@ -99,3 +116,4 @@ for (const r of L) {
 fs.writeFileSync('reference/_wiki_learnset_audit.json', JSON.stringify({ audited_at: new Date().toISOString().slice(0, 10), summary: sum, rows }, null, 1));
 console.log(JSON.stringify(sum));
 if (filt) console.log(JSON.stringify(rows, null, 1));
+}

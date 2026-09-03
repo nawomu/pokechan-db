@@ -25,3 +25,13 @@
   5. サンドパン(アローラ)等: PokeAPI SV のレベル技が部分欠け
 - ★方針(要設計・次): 全国行の出典を「PokeAPI→Wiki(最新世代表)」に替えて PokeAPI を第2ソースに回すのが筋(足りないから別を作らず、一つの器の中身を正しい方に寄せる)。
   食い違いは Bulbapedia(第3)で決める。Z-A表(第九世代扱い)は SV と混ぜない(監査器は除外済み)。`learn_legacy`(廃止技)は R10 どおり残す
+
+## 第2部(2026-09-04): 全国行 955 を「Wiki × Bulbapedia × PokeAPI」の3者投票で確定 → 245行を修正
+道具: `tools/_fetch_bulba_learnsets.js`(Bulbapedia種ページ Learnset を裏溜め→`bulba_learn_<種名>.txt`・387種)/ **`tools/_learnset_vote.js`**(投票→`reference/_learnset_vote.json`・`--apply` で `_learnsets_fixes.json` へ)
+ルール: 技ごとに **Wiki==Bulbapedia なら採用**(PokeAPIに無ければ learn_add/あれば learn_remove→`learn_legacy`=R10 廃止マーク・消さない)。**W≠B は PokeAPI のまま(保留)**。作品(第8世代の SwSh/BDSP/LA)は両サイトのタブ一致で決め、`latest_version_group` も一致した最新作品へ(`set`)。**Z-A は比べない**(CD制・PP無し)。
+集計: changed **245**(SV 145 / SwSh 52 / BDSP 17 / LA 31・`latest_version_group` 更新 27)/ agree(3者一致) 20 / 保留のみ 95 / **za_only 79**(第九世代が Z-A だけの種=ポッポ/ビードル/ズバット/ケーシィ等。Wiki種ページに SV/第8世代表が無い→現状維持)/ no_bulba 495(第1部で ok だった行=取得せず)/ no_bform 2(コラッタ(アローラ)/ラッタ(アローラ)=BDSPに居ない→現状維持)
+- 足す 1586 / 外す 409(外した技の大半= どくどく/いびき/おんがえし/ないしょばなし/めざめるパワー/やつあたり/りんしょう=第8世代で廃止・PokeAPI が USUM/LGPE 値のままだった行)
+- 保留 176 の系統: Bulbapedia だけがタマゴわざを載せる(くすぐる16/カウンター9/クロスチョップ8/プレゼント6/つじぎり6…)= PokeAPI と同じ(ゲーム内部データ由来)・Wiki は省く → 現状維持(PokeAPI 側=Bulbapedia 側)
+- 実測で直した罠: ①Wiki の フォーム見出しは語形が揃わない(ときはなたれしフーパ/すなちのミノ/オス…)→「次の行が世代見出し」で判定 ②「共通」「オス・メス」「〜で共通。」の表は見出し無し扱い ③形別はレベルだけ・TMは共通(シェイミ等)→ 無い種類だけ共通表を足す ④**G=LA は両サイトとも LA 明示の表だけ**(見出し無し=SwSh/BDSP共通表を混ぜると パラスの BDSP技が LA行に入る) ⑤地方のすがた(コラッタ(アローラ))は共通表を流用しない(その作品に居ないだけ) ⑥Bulbapedia の "Red-Striped/Blue-Striped Basculin"・"Standard Galarian Darmanitan"⊃"Galarian Darmanitan"(最長一致)
+- 検算: シェイミ/フーパ/ストリンダー/ネクロズマ各フォルムは W=B=PokeAPI が完全一致(=解析が正しい印)。コラッタ BDSP の「ひっさつまえば 外す」は Wiki/Bulbapedia とも第8世代レベル表に無い(Super Fang=**いかりのまえば**は在る。★記憶で「ひっさつまえば=Super Fang」と思い込んだが Wiki で確認したら逆=master が正・CLAUDE.md の警告どおり)
+- 🙋 方針確認(現状=採用済み): (a) 進化後にもタマゴわざを載せる(Wiki/Bulbapedia/PokeAPI 全部そう) (b) Z-A を「最新作品」に数えない(za_only 79 は第8世代=BDSP/LGPE 等の値のまま)
