@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /* tools/_freeze_legacy_move_flag_keys.js — 段C準備: pokechan_data.js(Champions版)の
- * POKEMON_LIST行が持つ「技別フラグ列」(169個。pokemon_db_v9.htmlの技フィルタチェックボックスが使う。
+ * POKEMON_LIST行が持つ「技別フラグ列」(169個。pokemon_db.htmlの技フィルタチェックボックスが使う。
  * 例: mamoru/chouhatsu/negoto…)のキー名だけを凍結する。
  *
  * ★段Bの棚卸し(reference/_plans/棚卸し_生成物にしか無い資産_2026-09-01.md)には無かった追加発見。

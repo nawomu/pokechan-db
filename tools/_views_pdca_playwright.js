@@ -15,11 +15,13 @@ const NEW_ALL = ['メガガブリアスZ', 'メガルカリオZ', 'メガアブ�
 const NEW_CH = ['メガガブリアスZ', 'メガルカリオZ', 'メガアブソルZ'];
 const PL = 'const L=(typeof POKEMON_LIST!=="undefined")?POKEMON_LIST:((typeof DATA!=="undefined")?DATA:[]);';
 const PAGES = [
-  { url: 'pokemon_db_all_v9.html', probe: PL + '({n:L.length,names:L.map(p=>p.name)})', expect: NEW_ALL },
+  // ★2026-09-05 旧版削除: pokemon_db_all_v9.html / pokemon_db_v9.html は生成物 pokechan_data*.js を
+  //   直読みするグローバル(POKEMON_LIST/DATA)をprobeしていたが、両ファイルとも転送スタブに置き換わり
+  //   データを読まなくなった(後継=pokemon_db_all_v10.html / pokemon_db.html。データはpokedb.js経由)。
+  //   このprobeの意味が失われたため2エントリを削除。
   { url: 'ability_all.html', initScript: "try{localStorage.setItem('pchamdb.lang','ja')}catch(e){}", wait: 'document.querySelectorAll("#abilityBody tr").length > 100', probe: '(()=>{const rows=[...document.querySelectorAll("#abilityBody tr")].filter(tr=>tr.querySelectorAll("td").length>=4);return {n:rows.length,names:rows.map(tr=>tr.querySelector(".ab-name").textContent.trim())}})()', expect: ['はどうのぼうご'] },
   { url: 'items_db_all_v2.html', initScript: "try{localStorage.setItem('pchamdb.lang','ja')}catch(e){}", wait: 'document.querySelectorAll("#itemBody tr").length > 300', probe: '(()=>{const rows=[...document.querySelectorAll("#itemBody tr")].filter(tr=>tr.querySelectorAll("td").length>=6);return {n:rows.length,names:rows.map(tr=>tr.querySelector(".it-name").textContent.trim())}})()', expect: ['こだわりスカーフ','たいようのいし','ミュウツナイトX'] },
   { url: 'waza-list_all.html', probe: 'const W=(typeof WAZA_MAP!=="undefined")?WAZA_MAP:{};({n:Object.keys(W).length,names:Object.values(W).map(w=>w.name)})', expect: ['10まんボルト'] },
-  { url: 'pokemon_db_v9.html', probe: PL + '({n:L.length,names:L.map(p=>p.name)})', expect: NEW_CH },
   { url: 'party_checker.html', probe: PL + '({n:L.length,names:L.map(p=>p.name),items:Object.keys((typeof ITEMS_DATABASE!=="undefined")?ITEMS_DATABASE:(window.ITEMS_DATABASE||{})).length})', expect: NEW_CH },
   { url: 'real_battle.html', probe: PL + '({n:L.length,names:L.map(p=>p.name),items:Object.keys((typeof ITEMS_DATABASE!=="undefined")?ITEMS_DATABASE:(window.ITEMS_DATABASE||{})).length})', expect: NEW_CH },
   { url: 'items_list.html', probe: '({n:document.querySelectorAll("tr").length,names:[document.body.innerText.slice(0,200000)]})', expect: [] },

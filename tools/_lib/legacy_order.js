@@ -6,7 +6,7 @@
 // tools/build_views.js 内にだけ実装があった)を1本に切り出し、
 //   ① build_views.js(生成物 pokechan_data*.js の行順・変更なし)
 //   ② tools/build_master_v2.js(master/pokemon.json の各行に display_order/champions_display_order
-//      を焼き込む。pokedb.js経由ページ<例: pokemon_db_v10.html>が reference/*.json を直接読まずに
+//      を焼き込む。pokedb.js経由ページ<例: pokemon_db.html>が reference/*.json を直接読まずに
 //      同じタイブレークを再現できるようにするため)
 // の両方が呼ぶ。CLAUDE.md「データは一つ。SSOTはmaster/*.jsonだけ」に合わせ、ページはこの結果を
 // masterのフィールドから読むだけにする(reference/*.jsonへの依存はbuilder側だけに残す)。

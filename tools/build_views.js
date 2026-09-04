@@ -307,7 +307,7 @@ function buildPokemonChampions() {
     //   master.pokemon.champions_added_in(段Bで凍結移送済み。M-C予告分は'M-C'直書き)からそのまま復元する。
     if (p.champions_added_in != null) row.added_in = p.champions_added_in;
     // ★R4(2026-09-03): season(遊べるレギュ=現行+次)をChampions版にも出す。
-    //   pokemon_db_v9.html の SSN列が REGULATIONS と組で読む(ページ上に M-B/M-C を直書きしない)。
+    //   pokemon_db.html の SSN列が REGULATIONS と組で読む(ページ上に M-B/M-C を直書きしない)。
     row.season = Array.isArray(p.seasons) ? p.seasons.slice() : [];
     return row;
   });
@@ -360,7 +360,7 @@ function buildAbilityDescChampions() {
 // ══════════════════════════════════════════════════════════════════
 // STAT_RANK(段B資産⑤=computed。master不在のため式で再現。
 //   ★コーディネーター指摘(2026-09-01)A.2: キーは旧と同じ形式に戻す
-//   (pokemon_db_v9.html:2500 / pokemon_db_all_v9.html:2490 がこの形で引く):
+//   (pokemon_db.html / pokemon_db_all_v10.html がこの形で引く):
 //     form があり '通常' でなければ `${name}(${form})`、それ以外は name。
 //   母集団は「そのファイル自身のPOKEMON_LIST」(Champions版=318 / 全国版=1273)で計算し直す
 //   =旧の全国版STAT_RANKはChampions表をそのまま写していただけだったが、ページの表記

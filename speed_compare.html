@@ -2,6 +2,24 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<!-- speed_compare.html: 素早さ比較(データは pokedb.js 1枚だけを読む)。
+     W12 2026-09-04 新設。②「ページを pokedb.js 1枚読みへ向け替える」パイロット。
+     ★2026-09-05 阿部さん確認済み→旧版(pokechan_data.js 直読み)を削除し、この新版を正典名に改名(v2→無印)。
+     旧版(pokechan_data.js を直読み・削除済み)とは二重掲載中だった
+     (CLAUDE.md「屋台骨の総入れ替え」の作法)。
+     上っ面・ロジック(見た目・計算式・UI・i18n配線)は旧版と一切変えていない。変えたのはデータの読み方だけ。
+     データ源: master/pokemon.json・master/types.json(SSOT) を pokedb.js 経由で軽量読込(data-files="pokemon,types")。
+     旧版は pokechan_data.js(Champions版・323件)を読んでいたので、新版も既定は
+     PokeDB.setMode('champions') で母集団を揃える(URLに ?data=all/national を付ければ全国版に切替可)。
+     新ページの絶対4か条(CLAUDE.md「新しいページを作る時の絶対手順」):
+       1. データは pokedb.js からしか取らない(pokechan_data*.js / master/*.json を直接読まない)
+       2. ページ専用のデータを新しく作らない(足りない項目は master/ を広げる)
+       3. JSON/JSをコピーして持ってこない
+       4. 文字列(名前・タイプ)をHTMLに直書きしない。IDでマスターから引く
+     フィールド名の読み替え(master/pokemon.json は生成物 pokechan_data.js と同じフィールド名だが型が一部違う):
+       - `no`: 旧="003"(ゼロ埋め文字列) → 新=3(数値)。ソートのタイブレーク
+         (旧: `a.p.no.localeCompare(b.p.no)`)を数値比較に変更。
+       - `type1/type2/mega/name/spd`: 同名・同型でそのまま使える(gapなし)。 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title data-i18n="speed.page_title">素早さ比較(スピードライン) — PchamDB</title>
 <meta name="theme-color" content="#1F4E79">
@@ -11,7 +29,7 @@
 
 <link rel="stylesheet" href="site-footer.css?v=20260720">
 <script defer src="i18n/runtime.js?v=20260720"></script>
-<script src="pokechan_data.js?v=20260720"></script>
+<script src="pokedb.js?v=20260905" data-files="pokemon,types"></script>
 <script src="sprite_api_ids.js?v=20260720"></script>
 
 <style>
@@ -169,7 +187,11 @@ input[type="range"]{width:100%;accent-color:var(--accent)}
 .sw.tie{background:#f3e2a9}
 .sw.red{background:#f3c6c2}
 
-.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:12px;background:#fff}
+/* ★2026-09-05 阿部さん指摘(実機): 見出し行(黒帯)が表の途中に食い込む崩れを修正。
+   原因=旧版から引き継いだ overflow-x:auto が .tbl-wrap をスクロール容器にし、thead の
+   position:sticky; top:var(--toolbar-h) が「ページ」ではなく「この枠」の上端から96px下に張り付いていた。
+   overflow:clip はスクロール容器を作らないので sticky がページ基準に戻る(横幅は table-layout:fixed+width:100% で収まる)。 */
+.tbl-wrap{overflow:clip;border:1px solid var(--border);border-radius:12px;background:#fff}
 table.speedtbl{border-collapse:collapse;width:100%;min-width:300px;table-layout:fixed;font-size:12px}
 table.speedtbl thead th{
   position:sticky;top:var(--toolbar-h);z-index:10;
@@ -342,7 +364,7 @@ tr.own-row td.own-cell{font-weight:800;color:var(--hdr);background:#eaf5fd}
     <a href="party_checker.html" data-i18n="speed.link_builder">🎯 チームビルダー</a>
     <a href="real_battle.html" data-i18n="speed.link_battle">🎮 リアルバトル</a>
     <a href="battle_lab.html" data-i18n="speed.link_lab">🧪 バトルラボ</a>
-    <a href="pokemon_db_v9.html" data-i18n="speed.link_db">🗄️ ポケモンDB</a>
+    <a href="pokemon_db.html" data-i18n="speed.link_db">🗄️ ポケモンDB</a>
   </div>
 </div>
 
@@ -427,7 +449,7 @@ tr.own-row td.own-cell{font-weight:800;color:var(--hdr);background:#eaf5fd}
   function pokeIconHtml(nm){
     return '<img loading="lazy" src="' + pokeIconSrc(nm) + '" alt="" onerror="this.remove()">';
   }
-  function typeColor(ty){ return (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[ty]) ? TYPE_COLORS[ty] : '#888'; }
+  function typeColor(ty){ return PokeDB.typeColor(ty); }
   function typeBadge(ty){ return '<span class="type-badge" style="background:' + typeColor(ty) + '">' + esc(tTypeShort(ty)) + '</span>'; }
   function pokeTypes(p){
     var out = typeBadge(p.type1);
@@ -435,8 +457,8 @@ tr.own-row td.own-cell{font-weight:800;color:var(--hdr);background:#eaf5fd}
     return out;
   }
 
-  /* ============ データ ============ */
-  var ALL = (typeof POKEMON_LIST !== 'undefined') ? POKEMON_LIST.slice() : [];
+  /* ============ データ(pokedb.js 1枚読み。PokeDB.ready を待つまでは空) ============ */
+  var ALL = [];
   var regu = 'all'; // 'all' | 'no_mega'
   function poolFor(){ return regu === 'no_mega' ? ALL.filter(function(p){ return !p.mega; }) : ALL; }
 
@@ -666,7 +688,7 @@ tr.own-row td.own-cell{font-weight:800;color:var(--hdr);background:#eaf5fd}
       rows.sort(function(a, b){
         var d = (b.s[sortCol] - a.s[sortCol]) * (sortDir === 1 ? -1 : 1);
         if (d !== 0) return d;
-        return a.p.no.localeCompare(b.p.no);
+        return Number(a.p.no) - Number(b.p.no); // master/pokemon.json の no は数値(旧pokechan_data.jsはゼロ埋め文字列)
       });
     }
 
@@ -753,18 +775,32 @@ tr.own-row td.own-cell{font-weight:800;color:var(--hdr);background:#eaf5fd}
     updateStickyOffsets();
     setTimeout(updateStickyOffsets, 300);
   }
+  var dbReady = false; // PokeDB.ready が解決してALLが埋まるまでtrueにしない(i18nイベントが先に来る対策)
   ['i18n:changed', 'i18n:ready'].forEach(function(ev){
     document.addEventListener(ev, function(){
+      if (!dbReady) return;
       renderOwnSelected();
       renderTable();
       setTimeout(updateStickyOffsets, 50);
     });
   });
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
+
+  /* ============ 初期化: DOMContentLoaded と PokeDB.ready の両方を待つ ============ */
+  var domReady = (document.readyState !== 'loading');
+  function maybeInit(){ if (domReady && dbReady) init(); }
+  if (!domReady){
+    document.addEventListener('DOMContentLoaded', function(){ domReady = true; maybeInit(); });
   }
+  PokeDB.ready.then(function(){
+    // 旧版(pokechan_data.js)は Champions版固定だったので、URLで明示的に ?data=all/national と
+    // 指定していない限り既定は champions に揃える(母集団を旧版と一致させる)。
+    var qData = null;
+    try { qData = new URLSearchParams(location.search).get('data'); } catch (e) { /* file:// 等 */ }
+    if (qData !== 'all' && qData !== 'national') PokeDB.setMode('champions');
+    ALL = PokeDB.allPokemon();
+    dbReady = true;
+    maybeInit();
+  }).catch(function (e) { PokeDB.showLoadError(e); });
 })();
 </script>
 </body>

@@ -157,7 +157,12 @@ console.log('出力先: ' + GEN_LANGS.map(l => `/${l}/`).join(', '));
 function buildSitemap() {
   const TODAY = '2026-06-02';
   const contentPr = { 'index.html': '1.0', 'how_to_use.html': '0.8', 'db_guide.html': '0.7', 'builder_guide.html': '0.7' };
-  const tools = [['pokemon_db_v9.html', '0.9'], ['party_checker.html', '0.9'], ['waza-list.html', '0.8'], ['type_chart.html', '0.7'], ['battle_simulator.html', '0.8']];
+  // ★2026-09-05: pokemon_db_v9.html→pokemon_db.html(旧版削除・正典名に改名)。
+  //   注意: この配列は実際のsitemap.xml(手で拡張済み・本関数の出力より遥かに大きい)とは既に乖離している。
+  //   buildSitemap()を実行するとsitemap.xmlが今のtools配列だけの小さい内容で丸ごと上書きされ、
+  //   手で足された多数のURLが消える(2026-09-05のページ昇格作業で実測・sitemap.xmlは手動パッチに留めた)。
+  //   このファイルを直す時はsitemap.xml側の実体と付き合わせてから実行すること。
+  const tools = [['pokemon_db.html', '0.9'], ['party_checker.html', '0.9'], ['waza-list.html', '0.8'], ['type_chart.html', '0.7'], ['battle_simulator.html', '0.8']];
   const legal = ['making', 'terms', 'privacy', 'disclaimer', 'contact'];
   const locFor = (page, lang) => pageUrl(page, lang);
   const alt = (page) => {

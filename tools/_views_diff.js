@@ -238,7 +238,7 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
       // (i) R4(2026-09-03): Champions版にも season 列を新設(旧版に無かった列)。値は全国版の同名行と同一であることを条件に許す
       if (label === 'pokemon_champions' && f === 'season' && lv === undefined && Array.isArray(nv)
           && nv.every(v => LIVE_REGS.includes(v)) && NATIONAL_SEASON_BY_NAME.has(k) && eq(NATIONAL_SEASON_BY_NAME.get(k), nv)) {
-        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(i) R4 Champions版に season 列を新設(値=全国版と同一・pokemon_db_v9のSSN列が読む)' });
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(i) R4 Champions版に season 列を新設(値=全国版と同一・pokemon_db.htmlのSSN列が読む)' });
         return;
       }
       // (e'') 旧の季が空だったChampions収録の姿(名寄せ違い由来の33行)に現行レギュを入れた差

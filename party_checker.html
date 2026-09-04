@@ -892,15 +892,85 @@ body.stats-only-mode #ev-ov.vis { display: flex !important; }
   </div>
 </div>
 
-<script src="pokechan_data.js?v=20260702u"></script>
-<script src="items_database.js"></script>
+<!-- ★このページは参照元1枚 pokedb.js だけを読む(pokechan_data*.js / items_database.js / master/*.json の直読み禁止・R1) -->
+<script src="pokedb.js?v=20260905" data-files="pokemon,moves,learnsets,abilities,items,natures,types"></script>
 <script>
+/* =====================================================================
+ * party_checker.html — チームビルダー(新版・データは pokedb.js 1枚だけを読む)
+ * W16 2026-09-04 新設。②「ページを pokedb.js 1枚読みへ向け替える」移行の5ページ目
+ * (先例=speed_compare.html / suggest_partner.html / damage_calc.html)。
+ * ★2026-09-05 阿部さん確認済み→旧版(pokechan_data.js + items_database.js 直読み)を削除し、この新版を正典名に改名(v2→無印)。
+ * 旧版(pokechan_data.js + items_database.js を直読み・削除済み)とは二重掲載中だった
+ * (CLAUDE.md「屋台骨の総入れ替え」の作法)。
+ * 上っ面・ロジック(見た目・計算式・UI・i18n配線)は旧版と一切変えていない。変えたのはデータの読み方だけ。
+ *
+ * ★同期→非同期になった分の最小限の作り替え(ロジックは変えない):
+ *   旧版は pokechan_data.js を同期スクリプトタグで読み込んでいたので、このメイン<script>の中身は
+ *   全部「データが既にあるトップレベルコード」として書けていた。pokedb.js は fetch(非同期)なので、
+ *   データに依存する「即時実行」の初期化文だけを PokeDB.ready.then() 内の _initAfterDataReady() /
+ *   最終レンダリング呼び出しへ移した(関数の中身・式は一切変えていない。移した場所は下記5箇所):
+ *     1. ITEM_BY_KEY の構築ループ(旧: window.ITEMS_DATABASE.items.forEach)
+ *     2. NATURE_NAMES = Object.keys(NATURES)
+ *     3. NATURE_GRID_INDEX = _buildNatureIndex()
+ *     4. typeOrder の初期値(localStorage復元 or DEFAULT_TYPE_ORDER)
+ *     5. POKE_MAP の構築ループ(POKEMON_LIST.forEach)
+ *   さらに末尾の「loadPcTabs(); renderPcTabs(); renderTable();」と setupStatsOnlyMode() も
+ *   PokeDB.ready.then() の中へ移動(呼ぶ順序は旧版のまま)。i18n:ready が PokeDB.ready より先に
+ *   来た場合の空撃ち対策として dbReady フラグを追加(speed_compare.html等と同じ型)。
+ *
+ * フィールド名の読み替え(master/*.json は生成物pokechan_data.js/items_database.jsと同じ意味だが
+ * 一部フィールド名/型が違う。詳細調査=review/_page_migration_inventory_2026-09-04.md §2,§3,§4-6):
+ *   - POKEMON_LIST → PokeDB.allPokemon()。フィールドは完全一致(no,name,form,type1,type2,hp,atk,...)。
+ *     ★no だけ型が違う(旧="003"のゼロ埋め文字列 / master=3の数値)。modal-list検索・表示の2箇所で
+ *     String(p.no) に変えて対応(padStart/includesは文字列メソッドなので数値のままだと例外になる)。
+ *   - WAZA_MAP → PokeDB.allMoves()(setMode('champions')済み)。キーがslug(PokeAPI英語slug、
+ *     例:はたく→"pound")に変わる(旧はchampions_key、例:"hataku")。技オブジェクトに旧のような
+ *     `.key`フィールドが無いため、`.key`を参照していた6箇所(tMoveName/tMoveDesc引数、
+ *     pf-table内の選択キー3箇所、learnsetフィルタ1箇所)を全部`.slug`に統一した(表示・保存内容は
+ *     不変。slotFiltersに保存される技識別子の"形"が変わる=既存localStorageの互換は対象外。後述)。
+ *   - POKEMON_WAZA(ポケモン名→技キー配列) → 相当windowが無いため、PokeDB.learnsetKeys(name)
+ *     (learnset(name)のslug版)で自前に1回だけ構築する。中身はslugの配列で、WAZA_MAPのキーと揃う。
+ *   - NATURES(辞書 {性格名:{up,down}}) → PokeDB.natures()(配列)を1行reduceで辞書化。
+ *   - STAT_RANK(computed) → PokeDB.statRankAll()(W15でpokedb.jsに新設。build_views.jsの
+ *     buildStatRankと完全に同じ式。deep-equal検証済み=全フィールド0差分)。
+ *   - ABILITY_DESC(辞書) → PokeDB.allAbilities()を1行reduceで {name: PokeDB.abilityDesc(name)} に。
+ *   - TYPE_COLORS/TYPE_DISPLAY/TYPE_OFFENSIVE_STATS/DEFAULT_TYPE_ORDER → PokeDB.typeColor()を
+ *     types()に対して1行reduceした辞書 / PokeDB.typeDisplay() / typeOffensiveStats() /
+ *     defaultTypeOrder()(いずれもW11でpokedb.jsに追加済み。master/types.json meta.tablesそのまま)。
+ *   - ITEMS_DATABASE(独立ファイル・181件=house category を持つ持ち物のみ) →
+ *     window.ITEMS_DATABASE を PokeDB.raw('items').items から `it.category` を持つ行だけ
+ *     フィルタして組み立て直す(181件・全数一致確認済み)。★ここだけ PokeDB.items()(モード絞り込み後)
+ *     ではなく raw() を使う: 旧items_database.jsはポケモンのChampions/全国モードとは無関係な
+ *     "別ファイル"だったため、items()のchampionsフィルタ(mode='champions'で154件に絞られる)を
+ *     通すと旧181件と一致しない。「houseカテゴリを持つ持ち物」という条件そのものが元の絞り込み条件
+ *     だったので、そこだけmode非依存で再現する。フィールドは it.key←slug, it.effect←effect_house,
+ *     it.name/it.category は同名のまま(旧版が実際に触るのはkey/name/category/effectの4つだけ)。
+ *     categories(カテゴリID→日本語ラベル)は元のitems_database.js自体が持っていた固定辞書
+ *     (tools/build_views.js の ITEMS_STATIC.categories と同一・UIラベル定数でmasterデータではない)
+ *     をそのまま複写。_ITEM_CAT_ORDER(表示順の固定配列)は旧版のバグ含め完全に同じにする
+ *     (berry_pp_cure非対応=ヒメリのみが表示されない既存の挙動も含めて変えない。旧新の見た目を
+ *     1px単位で揃えるのが目的なので、ここで直さない)。
+ *   母集団: 旧版はpokechan_data.js(Champions版・323件)固定だったので、新版も既定は
+ *   PokeDB.setMode('champions')(URLに?data=all/nationalを付ければ全国版に切替可)。
+ * ===================================================================== */
 
 
 
 
-
-
+// ── pokedb.js 経由データの入れ物(★ロジックは変えない。読み込みが同期→非同期になった分だけ、
+//    データに依存する「即時実行」の初期化を PokeDB.ready 解決後に回すよう最小限ずらした。
+//    値は _initAfterDataReady() 内、または PokeDB.ready.then() の中で埋める) ──────────────
+let POKEMON_LIST = [];
+let WAZA_MAP = {};
+let POKEMON_WAZA = {};
+let TYPES = [];
+let TYPE_COLORS = {};
+let TYPE_DISPLAY = {};
+let TYPE_OFFENSIVE_STATS = {};
+let DEFAULT_TYPE_ORDER = [];
+let NATURES = {};
+let STAT_RANK = {};
+let ABILITY_DESC = {};
 
 // ── 表示用短縮名 ───────────────────────────────────────────────────────────
 // バッジ表示時のみ短縮（内部のタイプ名は変更しない）
@@ -916,8 +986,8 @@ const tDisp = t => {
 };
 
 // ── 技名・持ち物名の表示用 (SSOT表示原則: マスターDBから現在言語へ。検索/キー用の内部ja名は変えない) ──
-const tMoveName  = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.key, m.name) : m.name;
-const tMoveDesc  = m  => ((window.I18N && window.I18N.moveDesc && window.I18N.moveDesc(m.key, m.description)) || m.description || '');
+const tMoveName  = m  => (window.I18N && window.I18N.move) ? window.I18N.move(m.slug, m.name) : m.name;
+const tMoveDesc  = m  => ((window.I18N && window.I18N.moveDesc && window.I18N.moveDesc(m.slug, m.description)) || m.description || '');
 const tItemName  = it => (window.I18N && window.I18N.item) ? window.I18N.item(it.name) : it.name;
 const tItemEffect= it => ((window.I18N && window.I18N.itemDesc && window.I18N.itemDesc(it.name)) || it.effect || '');
 
@@ -979,11 +1049,10 @@ function toggleGender(slotIdx){
   saveGenders(); renderTable();
 }
 
-// 持ち物 key → アイテム情報の逆引き（items_database.js 読み込み後に構築）
+// 持ち物 key → アイテム情報の逆引き（window.ITEMS_DATABASE は _initAfterDataReady() で組み立ててから使う）
 const ITEM_BY_KEY = {};
-if (window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){
-  window.ITEMS_DATABASE.items.forEach(it=>{ ITEM_BY_KEY[it.key] = it; });
-}
+// ↓ 旧: if (window.ITEMS_DATABASE && ...) { ... } はここに書いてあったが、pokedb.js のデータが
+//   揃うまで window.ITEMS_DATABASE が存在しないため _initAfterDataReady() へ移動(式は無改変)。
 
 function saveItems(){ localStorage.setItem(LS_PARTY_ITEMS, JSON.stringify(partyItems)); }
 
@@ -1064,7 +1133,7 @@ window._pickItemFromModal = function(key){
 };
 
 // NATURES は pokechan_data.js?v=20260702u の SSOT (公式 25 種、 中性は up/down=null) を参照
-const NATURE_NAMES = Object.keys(NATURES);
+let NATURE_NAMES = [];  // = Object.keys(NATURES) → _initAfterDataReady() で埋める(NATURESが揃うまで空)
 const STAT_KEYS_5 = ['atk','def','spatk','spdef','spd'];
 const STAT_FULL_LABEL = {atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
 
@@ -1522,7 +1591,7 @@ function _buildNatureIndex() {
   }
   return idx;
 }
-const NATURE_GRID_INDEX = _buildNatureIndex();
+let NATURE_GRID_INDEX = {};  // = _buildNatureIndex() → _initAfterDataReady() で埋める(未使用の遺物だが旧版通り残す)
 
 function openNaturePicker(slotIdx) {
   const name = party[slotIdx];
@@ -1598,13 +1667,7 @@ function _closeNat() { document.getElementById('nat-ov').classList.remove('vis')
 })();
 
 // タイプ表示順（ドラッグで変更可）
-let typeOrder = (() => {
-  try {
-    const saved = JSON.parse(localStorage.getItem(LS_ORDER) || "null");
-    if (Array.isArray(saved) && saved.length === TYPES.length) return saved;
-  } catch(e) {}
-  return [...DEFAULT_TYPE_ORDER];
-})();
+let typeOrder = [];  // → _initAfterDataReady() で埋める(TYPES/DEFAULT_TYPE_ORDERが揃うまで確定できない)
 
 // ポケモン別わざ選択フィルタ {pokemonName: [moveKey, ...]}
 // スロット別わざ選択フィルタ {slotIdx(0..PARTY_SIZE-1): [moveKey, ...]}
@@ -1638,7 +1701,8 @@ let pfFS = makeFilterSortState();
 
 // ポケモン名→オブジェクト
 const POKE_MAP = {};
-POKEMON_LIST.forEach(p => POKE_MAP[p.name] = p);
+// ↓ 旧: POKEMON_LIST.forEach(p => POKE_MAP[p.name] = p); はここにあったが、POKEMON_LIST が
+//   揃うまで空なので _initAfterDataReady() へ移動(式は無改変)。
 
 // マイグレーション: 既にチームに居るポケモンのスロットフィルタが未初期化なら {} で初期化
 // (タイプフィルタの影響をデフォルトで受けないようにする)
@@ -1783,7 +1847,7 @@ function renderPcTabs() {
   dbBtn.className = 'pc-nav-btn nav-db';
   dbBtn.textContent = '🗄️ DB';
   dbBtn.title = _tCK('checker.tip_open_db', 'ポケモンDBを別タブで開く');
-  dbBtn.onclick = () => window.open('pokemon_db_v9.html', '_blank');
+  dbBtn.onclick = () => window.open('pokemon_db.html', '_blank');
   dbBtn.style.marginRight = '6px';
   bar.appendChild(dbBtn);
 
@@ -2050,7 +2114,7 @@ function wazaCellHtml(pokeName, type, slotIdx) {
 
   if (pokeSel !== undefined) {
     // 明示的にこのタイプを設定 (空配列でも honor)
-    displayMoves = moves.filter(m => pokeSel.includes(m.key));
+    displayMoves = moves.filter(m => pokeSel.includes(m.slug));
     if (displayMoves.length === 0) moreCount = moves.length;
   } else {
     // 未設定 → カウント表示のみ
@@ -2422,10 +2486,10 @@ function closeModal() { document.getElementById("modal-ov").classList.remove("vi
 function renderModalList(q) {
   const i18nPoke = (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon : (n) => n;
   document.getElementById("modal-list").innerHTML = POKEMON_LIST
-    .filter(p => !q || fuzzyIncludes(p.name, q) || p.no.includes(q))
+    .filter(p => !q || fuzzyIncludes(p.name, q) || String(p.no).includes(q))
     .map(p => {
       const disp = i18nPoke(p.name);
-      return `<div class="m-item" onclick="selectPoke('${p.name}')">No.${p.no.padStart(3,'0')}  ${disp}${p.form&&p.form!=='通常'?' ('+p.form+')':''}</div>`;
+      return `<div class="m-item" onclick="selectPoke('${p.name}')">No.${String(p.no).padStart(3,'0')}  ${disp}${p.form&&p.form!=='通常'?' ('+p.form+')':''}</div>`;
     })
     .join("");
   if (window.I18N && I18N.apply) I18N.apply();
@@ -3070,7 +3134,7 @@ function pfRender() {
     }
     if (!pfMatchesEffect(m)) return;
 
-    const checked = pfTempSel.has(m.key);
+    const checked = pfTempSel.has(m.slug);
     const tr = document.createElement('tr');
     if (checked) tr.classList.add('row-checked');
     const color = TYPE_COLORS[m.type] || '#999';
@@ -3086,7 +3150,7 @@ function pfRender() {
     const escEff = (m.description || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
     tr.innerHTML = `
-      <td class="col-chk"><input type="checkbox" data-key="${m.key}" ${checked ? 'checked' : ''}></td>
+      <td class="col-chk"><input type="checkbox" data-key="${m.slug}" ${checked ? 'checked' : ''}></td>
       <td class="col-name">${m.name}</td>
       <td class="col-type"><span class="type-cell-i" style="background:${color}">${tDisp(m.type)}</span></td>
       <td class="col-class"><span class="cat-cell ${catClass(m.category)}">${catShortChar(m.category)}</span></td>
@@ -3102,7 +3166,7 @@ function pfRender() {
     `;
     tbody.appendChild(tr);
     visible++;
-    visibleKeys.push(m.key);
+    visibleKeys.push(m.slug);
   });
 
   pfVisibleKeys = visibleKeys;
@@ -3237,11 +3301,6 @@ document.querySelectorAll(".sv-btn").forEach(btn => {
   });
 })();
 
-// ── 初期化 ────────────────────────────────────────────────────────────────────
-loadPcTabs();
-renderPcTabs();
-renderTable();
-
 // === stats_only モード (battle_simulator など外部から iframe で開かれる時) ===
 // URL クエリ:
 //   stats_only=true   このモード起動
@@ -3249,7 +3308,9 @@ renderTable();
 //   effort=hp:0,atk:32,...  初期努力値
 //   nature=ひかえめ   初期性格
 //   slot=1            スロット番号 (postMessage で返す)
-(function setupStatsOnlyMode() {
+// ★v2: 旧版は即時実行IIFEだったが、PokeDB.ready 解決後に呼ぶ必要があるため名前付き関数に変更
+//   (中身は無改変。呼び出しタイミングだけ末尾の初期化シーケンスへ移した)。
+function setupStatsOnlyMode() {
   const q = new URLSearchParams(location.search);
   if (q.get('stats_only') !== 'true') return;
   document.body.classList.add('stats-only-mode');
@@ -3307,7 +3368,106 @@ renderTable();
     if (!silent) openStatPopup(0);   // silent=基準値だけ更新(確定後の「キャンセルで戻る先」を親が更新する用)
     return true;
   };
-})();
+}
+
+// ── pokedb.js からのデータが揃った直後に1回だけ実行する初期化(★旧版でトップレベルに
+//    書けていた5箇所を、式を一切変えずにここへ移動しただけ。詳細は冒頭のヘッダーコメント参照) ──
+function _initAfterDataReady() {
+  // 1) 持ち物 key → アイテム情報の逆引き(旧位置: ITEM_BY_KEY 宣言の直後)
+  if (window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){
+    window.ITEMS_DATABASE.items.forEach(it=>{ ITEM_BY_KEY[it.key] = it; });
+  }
+  // 2) 性格名一覧(旧位置: NATURE_NAMES 宣言の直後)
+  NATURE_NAMES = Object.keys(NATURES);
+  // 3) 性格グリッド索引(旧位置: NATURE_GRID_INDEX 宣言の直後。未使用の遺物だが旧版通り作る)
+  NATURE_GRID_INDEX = _buildNatureIndex();
+  // 4) タイプ表示順の初期値(旧位置: typeOrder 宣言の直後)
+  typeOrder = (() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LS_ORDER) || "null");
+      if (Array.isArray(saved) && saved.length === TYPES.length) return saved;
+    } catch(e) {}
+    return [...DEFAULT_TYPE_ORDER];
+  })();
+  // 5) ポケモン名→オブジェクト(旧位置: POKE_MAP 宣言の直後)
+  POKEMON_LIST.forEach(p => POKE_MAP[p.name] = p);
+}
+
+// ── データ取得 + 初期化シーケンス(PokeDB.ready を待つ。i18n:ready がこれより先に来ても
+//    空撃ちしないよう dbReady フラグを立てる=speed_compare.html 等と同じ型) ──────────
+let dbReady = false;
+PokeDB.ready.then(function () {
+  // 旧版(pokechan_data.js)は Champions版固定だったので、URLで明示的に ?data=all/national と
+  // 指定していない限り既定は champions に揃える(母集団を旧版と一致させる)。
+  let qData = null;
+  try { qData = new URLSearchParams(location.search).get('data'); } catch (e) { /* file:// 等 */ }
+  if (qData !== 'all' && qData !== 'national') PokeDB.setMode('champions');
+
+  POKEMON_LIST = PokeDB.allPokemon();
+  TYPES = PokeDB.types();
+  TYPE_COLORS = {};
+  TYPES.forEach(t => { TYPE_COLORS[t] = PokeDB.typeColor(t); });
+  TYPE_DISPLAY = PokeDB.typeDisplay();
+  TYPE_OFFENSIVE_STATS = PokeDB.typeOffensiveStats();
+  DEFAULT_TYPE_ORDER = PokeDB.defaultTypeOrder();
+  NATURES = PokeDB.natures().reduce((o, n) => { o[n.name] = { up: n.up, down: n.down }; return o; }, {});
+  ABILITY_DESC = PokeDB.allAbilities().reduce((o, a) => { o[a.name] = PokeDB.abilityDesc(a.name); return o; }, {});
+  STAT_RANK = PokeDB.statRankAll();
+
+  // WAZA_MAP: slug→技(setMode済みの絞り込みそのまま)。POKEMON_WAZA: ポケモン名→技slug配列。
+  // ★わるあがき(slug=struggle)は champions:true だが「使える技がなくなった時だけ出せる」合成技で、
+  //   プレイヤーが選ぶ技ではないため旧WAZA_MAP(496件)にも最初から含まれていない
+  //   (damage_calc.htmlと同じ理由・同じ除外)。母集団を旧版(496件)と一致させるため明示的に除外する。
+  WAZA_MAP = PokeDB.allMoves();
+  delete WAZA_MAP['struggle'];
+  // ★POKEMON_WAZAの並び順: 旧生成物(tools/build_views.js buildPokemonWazaChampions)は
+  //   学習技名をchampions_keyへ変換してから `.sort()`(champions_key文字列の昇順)している。
+  //   タイプ別わざカバレッジのセル内表示順はこの並びに従うため、識別子はslugにしつつ
+  //   並び順だけchampions_key昇順を再現する(でないと同タイプ内の技の並びが旧新でズレる)。
+  POKEMON_WAZA = {};
+  POKEMON_LIST.forEach(p => {
+    const learnNames = [...new Set(PokeDB.learnset(p.name) || [])];
+    const withKey = learnNames.map(n => PokeDB.move(n)).filter(m => m && m.champions_key);
+    withKey.sort((x, y) => (x.champions_key < y.champions_key ? -1 : x.champions_key > y.champions_key ? 1 : 0));
+    POKEMON_WAZA[p.name] = withKey.map(m => m.slug);
+  });
+
+  // window.ITEMS_DATABASE(旧・独立ファイルの形を再現。詳細はヘッダーコメント参照)。
+  // ★items() ではなく raw() を使う: 旧items_database.jsはポケモンの champions/national モードと
+  //   無関係に「houseカテゴリを持つ持ち物」だけを集めた別ファイルだったため、
+  //   pick()のchampionsフィルタ(mode='champions'で154件)を通すと旧181件と一致しない。
+  const _allItemsRaw = (PokeDB.raw('items') && PokeDB.raw('items').items) || [];
+  window.ITEMS_DATABASE = {
+    categories: {
+      attack_boost: '攻撃側威力補正',
+      type_boost: 'タイプ別威力補正 (×1.2 / Q12=4915)',
+      berry_resist: '半減きのみ (×0.5 / Q12=2048, 効果バツグン時のみ発動・1回)',
+      berry_status_cure: '状態異常回復きのみ',
+      berry_hp_cure: 'HP回復きのみ',
+      berry_pp_cure: 'PP回復きのみ',
+      defense_boost: '防御補正',
+      status_inflict: '状態異常付与 (装備者デメリット系)',
+      hp_drain: 'HP回復/反動',
+      speed_boost: '素早さ補正',
+      survival: '生存補助 (タスキ/ハチマキ等)',
+      misc: 'その他',
+      mega_stone: 'メガストーン (メガシンカ起動)',
+    },
+    items: _allItemsRaw.filter(it => it.category).map(it => ({
+      key: it.slug, name: it.name, category: it.category, effect: it.effect_house || '',
+    })),
+  };
+
+  _initAfterDataReady();
+
+  // ── 初期化 ──────────────────────────────────────────────────────────────
+  loadPcTabs();
+  renderPcTabs();
+  renderTable();
+  setupStatsOnlyMode();
+
+  dbReady = true;
+}).catch(function (e) { PokeDB.showLoadError(e); });
 </script>
 
 <!--
@@ -3457,6 +3617,10 @@ renderTable();
   //   フィルタパネルが日本語のまま残るバグの温床。
   //   今後新しい再描画を追加するときは関数内に追記すれば両方に反映される。
   function refreshAllI18nContent() {
+    // ★v2: pokedb.js のデータ取得は非同期。i18n:ready が PokeDB.ready より先に来ると
+    //   POKEMON_LIST等が空のまま空撃ちしてしまうため、dbReady(メインscriptで定義)が立つまで待つ
+    //   (speed_compare.html等と同じ型)。
+    if (typeof dbReady !== 'undefined' && !dbReady) return;
     if (typeof renderTable === 'function') renderTable();
     // タブバー (DB/わざリスト/タイプ相性 ボタン) 再描画
     if (typeof renderPcTabs === 'function') renderPcTabs();

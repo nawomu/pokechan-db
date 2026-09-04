@@ -1353,33 +1353,35 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
 /* =====================================================================
  * pokemon_db_all_v10.html — ポケモンDB全国版(新版・データは pokedb.js 1枚だけを読む)
  * W18 2026-09-04 新設。②「ページを pokedb.js 1枚読みへ向け替える」移行の7ページ目
- * (先例=speed_compare_v2.html / suggest_lite_v2.html / suggest_partner_v2.html /
- *  damage_calc_v2.html / party_checker_v2.html / pokemon_db_v10.html<直前の姉妹ページ・同じ型>)。
- *  旧版 pokemon_db_all_v9.html(pokechan_data_all.js を直読み)は二重掲載中(CLAUDE.md「屋台骨の総入れ替え」の作法)。
- *  阿部さん確認後に旧版を削除する。上っ面・ロジック(見た目・計算式・UI・i18n配線)は旧版と一切変えていない。
- *  変えたのはデータの読み方だけ(git merge-file で pokemon_db_v9.html→pokemon_db_v10.htmlの差分を
+ * (先例=speed_compare.html / suggest_partner.html /
+ *  damage_calc.html / party_checker.html / pokemon_db.html<直前の姉妹ページ・同じ型>)。
+ *  旧版 pokemon_db_all_v9.html(pokechan_data_all.js を直読み)は二重掲載中だった(CLAUDE.md「屋台骨の総入れ替え」の作法)。
+ * ★2026-09-05 阿部さん確認済み→旧版 pokemon_db_all_v9.html を削除(pokemon_db_all_v10.html への転送スタブに置き換え)。
+ * このページ自体は名前を変えていない(pokemon_db_all.html は別の更に古いページが占有しているため)。
+ *  上っ面・ロジック(見た目・計算式・UI・i18n配線)は旧版と一切変えていない。
+ *  変えたのはデータの読み方だけ(git merge-file で 旧pokemon_db_v9.html→pokemon_db.html(旧名は末尾にv10と付けていた試作)の差分を
  *  pokemon_db_all_v9.htmlへ機械的に3-way mergeし、競合3箇所<この見出し・世代/季列の違い・
  *  setupWazaHoverTipの直前コメント>だけ全国版向けに手直しした)。
  *
- * ★同期→非同期になった分の最小限の作り替え(ロジックは変えない): pokemon_db_v10.htmlと全く同じ8箇所
+ * ★同期→非同期になった分の最小限の作り替え(ロジックは変えない): pokemon_db.htmlと全く同じ8箇所
  *   (WAZA_MASTER/FN_GROUP_SETS・FN_GROUP_MOVES<SSN_REGSは全国版にSSN列自体が無いため計算そのものが不要>/
  *   相性・集計・スコア・わざ列のCOLUMNS.push一式/MEGA_CAPABLE_NOS/ADDED_WAZA_KEYS/setupWazaHoverTipの
  *   即時実行IIFE→名前付き関数化/DOMContentLoadedのdomReady・dbReady2フラグ化)を関数化してPokeDB.ready.then内
- *   から順番に呼ぶ型。詳細な理由はpokemon_db_v10.htmlのヘッダコメント参照(全ページ共通の型)。
+ *   から順番に呼ぶ型。詳細な理由はpokemon_db.htmlのヘッダコメント参照(全ページ共通の型)。
  *
  * フィールド名の読み替え(全国版固有の差分のみ記載。POKEMON_LIST基本フィールド/TYPES/TYPE_KANJI/
- * REGULATIONS/STAT_RANKの読み替えはpokemon_db_v10.htmlと同じ式のため省略):
+ * REGULATIONS/STAT_RANKの読み替えはpokemon_db.htmlと同じ式のため省略):
  *   - 母集団: 常時 PokeDB.setMode('all')固定(全国版1273体・技919件)。URLの?data=切替は無い
- *     (このページ自体が「全国版」固定ページのため。Championsに絞りたい場合はpokemon_db_v10.htmlを使う)。
+ *     (このページ自体が「全国版」固定ページのため。Championsに絞りたい場合はpokemon_db.htmlを使う)。
  *     タイブレークはmaster.display_order(全国版順)固定。
  *   - WAZA_MAP(slugキー・全919技) → master/moves.json の「slugを持つ全件」をslugキーで再構成
- *     (tools/build_views.js buildWazaNational()と完全に同じ式)。★champions_key基準のpokemon_db_v10.htmlとは
+ *     (tools/build_views.js buildWazaNational()と完全に同じ式)。★champions_key基準のpokemon_db.htmlとは
  *     ここが違う(全国版はslugが元からページ内のわざ列key)。learners(その技を覚えるポケモン)は
  *     「learn∪learn_legacy∪(championsなら没収confiscatedも含む)」という本編全体の学習者集合が必要
  *     (Championsの「いま使える技」だけのlearnとは別物)。これはpokedb.js側に無かったため
  *     W18でIDX.learnersNational(mode!=='champions'の時に使う索引)を追加した(下記🔧参照)。
  *   - POKEMON_WAZA → PokeDB.learnsetNational(name)(learn∪learn_legacy∪没収confiscated。
- *     W18でpokedb.jsに新設。learnset()はmode非依存のlearnのみという既存契約<damage_calc_v2.html等が
+ *     W18でpokedb.jsに新設。learnset()はmode非依存のlearnのみという既存契約<damage_calc.html等が
  *     明示的に依存>があるため別名にした)をPokeDB.move(n).slugに変換・filter(Boolean)・sort()
  *     (tools/build_views.js buildPokemonWazaNational()と同じ式)。
  *   - ABILITY_DESC → PokeDB.allAbilities()(全国版313件)を1行reduceで{name: PokeDB.abilityDesc(name)}に
@@ -1388,8 +1390,8 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
  * 🔧pokedb.js に加えた最小追加(2026-09-04・W18。既存ページへの影響を検証済み・両方とも改善であって退行ではない):
  *   1. IDX.abilityDesc のバグ修正: 旧実装はeffect_ja(公式の長文)だけを見ていたが、正典はdesc_house
  *      (家の流儀=短い子ども向け文・abilities 313件中309件でeffect_jaと内容が違う)。tools/build_views.js
- *      abilityText()と同じ優先順位<desc_house→effect_ja>に修正。★既存のpokemon_db_v10.html/
- *      party_checker_v2.htmlも同じPokeDB.abilityDesc()を呼んでいたため、この修正は両ページの表示内容も
+ *      abilityText()と同じ優先順位<desc_house→effect_ja>に修正。★既存のpokemon_db.html/
+ *      party_checker.htmlも同じPokeDB.abilityDesc()を呼んでいたため、この修正は両ページの表示内容も
  *      生成物と正しく一致するようになる(意図しない退行ではなく既存バグの是正)。
  *   2. IDX.learnersNational(逆引き=技→覚えるポケモン。全国版)を新設。PokeDB.learners()はmode!=='champions'の時
  *      これを返すよう変更(championsモード時の挙動は無改変)。数え上げの反復順もmaster/pokemon.jsonの
@@ -1397,7 +1399,7 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
  *      違うため学習者配列の並びが生成物とズレていた=件数/集合は合っていたが順序不一致。これも
  *      championsのWAZA_MAP.learnersに波及する潜在バグだった=全数照合で発見・今回同時に是正)。
  *   3. PokeDB.learnsetNational(name)(順引き=ポケモン→覚える技。全国版)を新設。IDX.learn/learnset()
- *      本体はmode非依存の契約(damage_calc_v2.html等が明示的に依存)のため変えず、別名で追加した
+ *      本体はmode非依存の契約(damage_calc.html等が明示的に依存)のため変えず、別名で追加した
  *      (全数照合で発見: 当初POKEMON_WAZAをPokeDB.learnset(name)<learnのみ>で作っており、フシギバナが
  *      101→57件、ピカチュウが116→60件に減っていた。learnsetNational追加で解消・全件再検証済み)。
  *      検証=Node上でtools/build_views.jsのbuildWazaNational/buildWazaChampions/
@@ -4303,7 +4305,7 @@ function init() {
 
 // ★非同期化対応: 旧版は pokechan_data.js が同期ロード済みだったので DOMContentLoaded だけを待てば
 //   良かったが、pokedb.js は fetch(非同期)。DOMContentLoaded と PokeDB.ready の両方が揃ってから
-//   init() を呼ぶ(speed_compare_v2.html等と同じ dbReady/domReady 2フラグの型)。
+//   init() を呼ぶ(speed_compare.html等と同じ dbReady/domReady 2フラグの型)。
 function maybeInit() { if (domReady && dbReady) init(); }
 window.addEventListener('DOMContentLoaded', () => { domReady = true; maybeInit(); });
 
@@ -4818,7 +4820,7 @@ document.addEventListener('keydown', e => {
   function refreshAllI18nContent() {
     // ★v10: pokedb.js のデータ取得は非同期。i18n:ready が PokeDB.ready より先に来ると
     //   POKEMON_LIST等が空のまま空撃ちしてしまうため、dbReady(メインscriptで定義)が立つまで待つ
-    //   (speed_compare_v2.html/party_checker_v2.html等と同じ型)。
+    //   (speed_compare.html/party_checker.html等と同じ型)。
     if (typeof dbReady !== 'undefined' && !dbReady) return;
     // ヘッダーは renderTable 内で初回のみ構築されるので、ラベル再翻訳のため強制削除
     document.querySelectorAll('#main-tbl thead, #compat-team-tbl thead, #compat-cand-tbl thead').forEach(el => el.remove());
@@ -4856,7 +4858,7 @@ document.addEventListener('keydown', e => {
 <script>
 PokeDB.ready.then(function () {
   // 母集団: このページは全国版固定(全1273体・技919件)。URLの?data=切替は無い
-  // (このページ自体が「全国版」固定ページのため。Championsに絞りたい場合はpokemon_db_v10.htmlを使う)。
+  // (このページ自体が「全国版」固定ページのため。Championsに絞りたい場合はpokemon_db.htmlを使う)。
   PokeDB.setMode('all');
 
   // ★同じNo.のフォーム(通常/メガ/リージョン等)の既定ソート(No.昇順時のタイブレーク)を旧ページと

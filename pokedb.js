@@ -43,7 +43,7 @@
  *   PokeDB.learnsetKeys(name) … learnset(name)のslug版(技名が引けなければ元の名前のまま残す)。
  *   PokeDB.nature(name) … natures()から名前1件で引く薄いヘルパー。
  *
- * ★窓口追加(2026-09-04・W15。party_checker_v2.html向け=派生値の計算窓口。データは持たない):
+ * ★窓口追加(2026-09-04・W15。party_checker.html向け=派生値の計算窓口。データは持たない):
  *   PokeDB.statRankAll() / statRank(key) … 種族値からのLv50実数値・全国内順位の派生表(旧生成物STAT_RANK相当)。
  *     計算式は tools/build_views.js の buildStatRank と完全に同じ(コピペでなく同じ式)。母集団は
  *     現在の allPokemon()(=setMode()の絞り込み後)。結果は遅延計算してキャッシュし、setMode()で
@@ -171,7 +171,7 @@
     // ★2026-09-04(W18・pokemon_db_all_v10.html): tools/build_views.js の abilityText() と同じ優先順位に修正。
     //   旧実装は effect_ja(公式の長文)だけを見ていたが、313件中309件は desc_house(家の流儀=短い子ども向け文)
     //   が正典で、effect_ja とは別内容(例: あくしゃく等ほぼ全件が食い違う)。旧実装のままだと
-    //   PokeDB.abilityDesc() を使う全ページ(既に移行済みのpokemon_db_v10.html/party_checker_v2.html含む)が
+    //   PokeDB.abilityDesc() を使う全ページ(既に移行済みのpokemon_db.html/party_checker.html含む)が
     //   生成物ABILITY_DESCと違う文言を表示してしまう。desc_houseがあればそれを優先(build_views.jsと同じ式)。
     abis.forEach(function (a) { IDX.abilityDesc[a.name] = (a.desc_house != null ? a.desc_house : (a.effect_ja || '')); });
 
@@ -201,7 +201,7 @@
     //   pokechan_data_all.js の WAZA_MAP.learners(旧作TM/没収技を含む本編全学習者)と食い違う。
     IDX.learnersNational = {};
     // ★2026-09-04(W18・pokemon_db_all_v10.html追加): 順方向(ポケモン名→覚える技名の配列)の全国版版。
-    //   PokeDB.learnset()は「mode非依存の生データ(learnのみ)」という既存の契約(damage_calc_v2.html等が
+    //   PokeDB.learnset()は「mode非依存の生データ(learnのみ)」という既存の契約(damage_calc.html等が
     //   明示的に依存)があるため、learnset()自体は変えず、別名PokeDB.learnsetNational()を新設する
     //   (tools/build_views.js learnByNameNationalと同じ式=learn∪learn_legacy∪没収confiscated)。
     IDX.learnNational = {};
@@ -237,7 +237,7 @@
 
   // ══════════════════════════════════════════════════════════════════
   // STAT_RANK(★W15・2026-09-04追加): tools/build_views.js の buildStatRank と
-  // 完全に同じ式(コピペではなく同じ計算を実装)。party_checker_v2.html 用の計算窓口。
+  // 完全に同じ式(コピペではなく同じ計算を実装)。party_checker.html 用の計算窓口。
   // ══════════════════════════════════════════════════════════════════
   function lv50NonHp(base, boost) {
     var raw = Math.floor((2 * base + 31 + 63) * 0.5) + 5;
@@ -331,7 +331,7 @@
     ability: function (key) { return IDX.abilityBySlug[key] || IDX.abilityByName[key] || null; },
 
     /** 覚える技(ポケモン名 → 技名の配列)。★mode非依存の生データ(learnのみ=いま実際に使える技)。
-     *  damage_calc_v2.html/party_checker_v2.html/data_browser.html/news.html等が
+     *  damage_calc.html/party_checker.html/data_browser.html/news.html等が
      *  「mode非依存」を前提に呼んでいるため、この関数自体の意味は変えない。 */
     learnset: function (name) { return IDX.learn[name] || null; },
     /** ★2026-09-04(W18・pokemon_db_all_v10.html追加): 全国版(本編で覚えられる全技)版のlearnset。

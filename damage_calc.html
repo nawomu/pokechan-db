@@ -2,9 +2,56 @@
 <html lang="ja"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<!-- damage_calc.html: ダメージ計算機(タスク#17)。real_battle_simulator.htmlのエンジンを非表示iframeで
-     読み込み、window.__sim ブリッジ経由で calcDamage をそのまま呼ぶ=バトルシミュと100%同じ数字になる
-     ことが最大の差別化(独立実装の計算式ではない)。2026-07-20 実装。 -->
+<!-- damage_calc.html: ダメージ計算機(新版・データは pokedb.js 1枚だけを読む)。
+     W14 2026-09-04 新設。②「ページを pokedb.js 1枚読みへ向け替える」移行の4ページ目
+     (先例=speed_compare.html / suggest_partner.html)。
+     ★2026-09-05 阿部さん確認済み→旧版(pokechan_data.js + sprite_api_ids.js 直読み)を削除し、この新版を正典名に改名(v2→無印)。
+     旧版(pokechan_data.js + sprite_api_ids.js を直読み・削除済み)とは二重掲載中だった
+     (CLAUDE.md「屋台骨の総入れ替え」の作法)。
+     上っ面・ロジック(見た目・計算式・UI・i18n配線)は旧版と一切変えていない。変えたのはデータの読み方だけ。
+
+     ★このページだけの特殊事情(R1「データは一つ」の暫定例外・③バトル作り直しまで解消しない):
+     このページは非表示iframeで real_battle_simulator.html(バトルエンジン本体・凍結・無改変)を読み込み、
+     window.__sim ブリッジ経由で calcDamage をそのまま呼ぶ(=バトルシミュと100%同じ数字になることが
+     最大の差別化=独立実装の計算式ではない)。エンジン側(iframe内で読み込まれる pokechan_data.js を含む)は
+     ③バトル作り直しまで凍結=一切触らない。だから新版は「ページ自身のデータ読み(検索UI・技一覧・
+     タイプ色・スプライト)= pokedb.js」+「実際の計算 = 凍結エンジン(S.pokeByName 等)経由」の
+     二経路になる。攻撃側/防御側の「ポケモン」オブジェクト自体は今まで通り S.pokeByName(name) で
+     エンジン内蔵データから引く(検索候補の母集団だけ pokedb.js から作る)。名前が両者で1:1一致する
+     ことを全数検証済み(champions 323件・差分0)なので、この二経路でも表示と計算は食い違わない。
+
+     フィールド名の読み替え(master/*.json は生成物 pokechan_data.js と同じ意味だが一部フィールド名/型が違う):
+       - `WAZA_MAP` → `PokeDB.allMoves()`(slug→技のオブジェクト)。setMode('champions')済みなので
+         497件中のわるあがき(slug='struggle')を除いた496件になる。★わるあがきは champions:true だが
+         「使える技がなくなった時だけ出せる」合成技で、旧WAZA_MAP(496件)にも最初から含まれていない
+         (プレイヤーが選ぶ技ではない)ため、全技プールから明示的に除外して母集団を旧版と一致させる。
+       - `m.key`(旧・ローマ字化した独自キー。例:はたく→"hataku") → `m.slug`(master・PokeAPI準拠の
+         英語slug。例:はたく→"pound")。<option value>とtMoveName()の引数の両方をslugに揃える。
+         ★確認済み: i18n/en.json 等の辞書は旧キー("hataku")とPokeAPI slug("pound")の両方を
+         キーに持つ(496件全一致・build_i18n_entities.jsが両対応で生成)ので、m.keyをm.slugに
+         替えても翻訳結果(英語名など)は旧版と変わらない(スクショ比較で確認済み)。
+       - `m.learners`(技オブジェクトが持つ「覚えるポケモン名の配列」。pokechan_data.js生成時に付与)は
+         master/moves.json に無い → `PokeDB.learnset(poke.name)`(ポケモン名→技名の配列)を使い、
+         現在のmode(champions)で絞り込み済みの PokeDB.allMoves() を技名で引き直して技オブジェクトを得る
+         (=学習内容だけ見て技オブジェクトを解決するので、母集団はいつも allMoves() の絞り込みに従う)。
+         ★注意: master/learnsets.json は一部ポケモン(ボーマンダ/メガボーマンダ/グソクムシャ/
+         メガグソクムシャ/ゴリランダー/セグレイブ/メガセグレイブの7体)で、旧WAZA_MAP.learnersより
+         新しい技(まだ master/moves.json 側で champions:true が立っていない技)を含んでいる。
+         allMoves()の絞り込み経由で解決するため、この7体でも「おぼえる技」プールは旧版と完全一致する
+         (未フラグの技は自然に弾かれる=全323匹で0件不一致を確認済み)。
+       - `SPRITE_API_ID[name]`(生成物・全1227件、うち新メガストーン案B追加37種が未収録) →
+         `PokeDB.pokemon(name).pokeapi_id`(master・全1273件・上記37種も収録済み)。この37種は旧版では
+         画像が出ない(サムネ非表示)が新版では正しく出る=データの鮮度が上がった副産物(ロジック変更ではない)。
+       - `TYPE_COLORS[t]` → `PokeDB.typeColor(t)`。
+       - `no`: 旧="003"(ゼロ埋め文字列)。このページでは `no` をソートや比較に使っていないため影響なし。
+     母集団(このページの検索候補): 旧版は pokechan_data.js(Champions版・323件)固定だったので、
+     新版も既定は PokeDB.setMode('champions') で揃える(URLに ?data=all/national を付ければ全国版に切替可)。
+     新ページの絶対4か条(CLAUDE.md「新しいページを作る時の絶対手順」):
+       1. データは pokedb.js からしか取らない(pokechan_data*.js / sprite_api_ids.js / master/*.json を
+          ページから直接読まない。★例外はエンジン=real_battle_simulator.html自身の内部読込のみ=凍結対象)
+       2. ページ専用のデータを新しく作らない(足りない項目は master/ を広げる)
+       3. JSON/JSをコピーして持ってこない
+       4. 文字列(名前・技名・タイプ)をHTMLに直書きしない。IDでマスターから引く -->
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-3Y3S9N1K7H"></script>
 <script>
@@ -38,8 +85,7 @@
 <meta name="twitter:description" content="バトルシミュレーターと同じ計算エンジンで正確なダメージを計算できる非公式ツール。">
 <meta name="twitter:image" content="https://pchamdb.com/ogp/og-default.png">
 
-<script src="pokechan_data.js?v=20260705a"></script>
-<script src="sprite_api_ids.js?v=20260706b"></script>
+<script src="pokedb.js?v=20260905" data-files="pokemon,moves,learnsets,types"></script>
 
 <style>
 :root{
@@ -359,7 +405,9 @@ const toKata = s => String(s||'').replace(/[ぁ-ゖ]/g, c => String.fromCharCode
 // ===== i18n表示ヘルパー(既存ページと同じ流儀。マスター固有名詞はDB辞書経由・生ja直書きしない) =====
 const tPokeName = nm => (window.I18N && window.I18N.pokemon) ? window.I18N.pokemon(nm) : nm;
 const tAbilityName = nm => (window.I18N && window.I18N.ability && nm) ? window.I18N.ability(nm) : nm;
-const tMoveName = m => (window.I18N && window.I18N.move) ? window.I18N.move(m.key, m.name) : m.name;
+// ★旧版はm.key(ローマ字化した独自キー)を渡していた。新版はm.slug(master・PokeAPI準拠)を渡すが、
+//   i18n辞書は両方のキーを持つため翻訳結果は旧版と変わらない(冒頭コメント参照)。
+const tMoveName = m => (window.I18N && window.I18N.move) ? window.I18N.move(m.slug, m.name) : m.name;
 const tItemName = it => (window.I18N && window.I18N.item && it) ? window.I18N.item(it.name) : (it ? it.name : '');
 const tItemDesc = it => ((window.I18N && window.I18N.itemDesc && it && window.I18N.itemDesc(it.name)) || (it && it.effect) || '');
 const tTypeName = ty => (window.I18N && window.I18N.type) ? window.I18N.type(ty) : ty;
@@ -397,17 +445,6 @@ const isPickablePoke = p => !BATTLE_ONLY_FORMS.has(p.name);
 // ===== エンジンブリッジ =====
 let S = null;
 let natureListCache = null;
-document.getElementById('engine-frame').addEventListener('load', () => {
-  const w = document.getElementById('engine-frame').contentWindow;
-  const wait = setInterval(() => {
-    if (w.__sim){
-      clearInterval(wait);
-      S = w.__sim;
-      natureListCache = S.natureList();
-      onEngineReady();
-    }
-  }, 100);
-});
 
 // ===== 状態 =====
 const atkState = {name:null, moveKey:null, ability:'', item:'', points:32, natureSign:'neutral', rank:0, allMoves:false};
@@ -421,9 +458,21 @@ function defaultAbilityOf(p){
 function nativeAbilities(p){
   return [p.ab1, p.ab2, p.ab3].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
 }
+// ★全技プール(「全技から選ぶ」トグル用)。PokeDB.allMoves()は setMode('champions') 済みなので
+//   champions:true の技だけに絞り込まれている。わるあがき(slug='struggle')だけは明示的に除外する
+//   (「使える技がなくなった時だけ出せる」合成技=旧WAZA_MAPにも最初から無い。冒頭コメント参照)。
+function allPoolMoves(){
+  return Object.values(PokeDB.allMoves()).filter(m => m.slug !== 'struggle');
+}
+// ★そのポケモンが覚える技のプール。PokeDB.learnset(poke.name)は技名の配列を返す(mode非依存の生データ)ので、
+//   ここで allPoolMoves()(=現在のmodeで絞り込み済み)を名前で引き直し、絞り込みに乗らない技は自然に落とす。
 function localUsableMoves(poke){
-  if (!poke || typeof WAZA_MAP === 'undefined') return [];
-  return Object.values(WAZA_MAP).filter(m => Array.isArray(m.learners) && m.learners.includes(poke.name));
+  if (!poke) return [];
+  const learn = PokeDB.learnset(poke.name);
+  if (!learn) return [];
+  const byName = {};
+  allPoolMoves().forEach(m => { if (!byName[m.name]) byName[m.name] = m; });
+  return learn.map(n => byName[n]).filter(Boolean);
 }
 function poolPowerVal(m){ const p = m.power; return (p==null||p===0||p==='—') ? -1 : Number(p) || -1; }
 function sortMovesForPicker(list){
@@ -450,7 +499,7 @@ function buildPokeSearch(mountId, onPick){
   input.placeholder = T('real_battle.poke_search_placeholder', '名前で検索...');
   function renderList(q){
     const kq = toKata(q.trim().toLowerCase());
-    const pool = (typeof POKEMON_LIST !== 'undefined' ? POKEMON_LIST : []).filter(isPickablePoke);
+    const pool = PokeDB.allPokemon().filter(isPickablePoke);
     let items = pool;
     if (kq) items = pool.filter(p => toKata(tPokeName(p.name).toLowerCase()).includes(kq) || toKata(p.name.toLowerCase()).includes(kq));
     items = items.slice(0, 40);
@@ -459,11 +508,10 @@ function buildPokeSearch(mountId, onPick){
       list.classList.add('open');
       return;
     }
-    const tc = (typeof TYPE_COLORS !== 'undefined') ? TYPE_COLORS : {};
     list.innerHTML = items.map(p => {
-      const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[p.name] : null;
+      const apiId = p.pokeapi_id;
       const img = apiId ? `<img src="images/poke/${apiId}.png" alt="" onerror="this.remove()">` : '';
-      const types = [p.type1, p.type2].filter(Boolean).map(t => `<span class="psl-type" style="background:${tc[t]||'#999'}">${tTypeName(t)}</span>`).join('');
+      const types = [p.type1, p.type2].filter(Boolean).map(t => `<span class="psl-type" style="background:${PokeDB.typeColor(t)}">${tTypeName(t)}</span>`).join('');
       return `<div class="psl-row" data-name="${p.name.replace(/"/g,'&quot;')}">${img}<span>${tPokeName(p.name)}</span>${types}</div>`;
     }).join('');
     list.classList.add('open');
@@ -478,7 +526,7 @@ function buildPokeSearch(mountId, onPick){
     const p = S.pokeByName(name);
     if (!p) return;
     input.value = tPokeName(name);
-    const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[name] : null;
+    const apiId = (PokeDB.pokemon(name) || {}).pokeapi_id;
     if (apiId){ thumb.src = `images/poke/${apiId}.png`; thumb.style.display = ''; thumb.onerror = () => { thumb.style.display = 'none'; }; }
     else thumb.style.display = 'none';
     list.classList.remove('open');
@@ -487,7 +535,7 @@ function buildPokeSearch(mountId, onPick){
   return { setPoke(p){
     if (!p) return;
     input.value = tPokeName(p.name);
-    const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[p.name] : null;
+    const apiId = (PokeDB.pokemon(p.name) || {}).pokeapi_id;
     if (apiId){ thumb.src = `images/poke/${apiId}.png`; thumb.style.display = ''; }
   }};
 }
@@ -571,16 +619,16 @@ function renderMoveOptions(){
   const p = S.pokeByName(atkState.name);
   const sel = $('atk-move');
   if (!p){ sel.innerHTML = `<option value="">${T('dmg.move_placeholder','わざを選んでね')}</option>`; return; }
-  const pool = atkState.allMoves ? Object.values(WAZA_MAP) : localUsableMoves(p);
+  const pool = atkState.allMoves ? allPoolMoves() : localUsableMoves(p);
   const sorted = sortMovesForPicker(pool);
   const opts = [`<option value="">${T('dmg.move_placeholder','わざを選んでね')}</option>`]
     .concat(sorted.map(m => {
       const pw = (m.power==null||m.power===0||m.power==='—') ? '—' : m.power;
-      return `<option value="${m.key}">${tMoveName(m)}（${tTypeName(m.type)}/${tCatName(m.category)}/${pw}）</option>`;
+      return `<option value="${m.slug}">${tMoveName(m)}（${tTypeName(m.type)}/${tCatName(m.category)}/${pw}）</option>`;
     }));
   sel.innerHTML = opts.join('');
   // 直前の選択が新しいプールにまだあれば維持
-  if (atkState.moveKey && sorted.some(m => m.key === atkState.moveKey)){
+  if (atkState.moveKey && sorted.some(m => m.slug === atkState.moveKey)){
     sel.value = atkState.moveKey;
   } else {
     atkState.moveKey = null;
@@ -589,8 +637,8 @@ function renderMoveOptions(){
   onMoveOrCategoryChange();
 }
 function currentMove(){
-  if (!atkState.moveKey || typeof WAZA_MAP === 'undefined') return null;
-  return WAZA_MAP[atkState.moveKey] || null;
+  if (!atkState.moveKey) return null;
+  return PokeDB.move(atkState.moveKey) || null;
 }
 function onMoveOrCategoryChange(){
   updatePointLabels(currentMove());
@@ -683,10 +731,9 @@ function renderResultEmpty(){
   $('result-body').innerHTML = `<div class="result-empty" data-i18n="dmg.result_prompt">${T('dmg.result_prompt','攻撃側・防御側のポケモンと わざを選んでね')}</div>`;
 }
 function renderResultStatusMove(move){
-  const tc = (typeof TYPE_COLORS !== 'undefined') ? TYPE_COLORS : {};
   $('result-body').innerHTML =
     `<div class="result-move"><span class="mv-name">${tMoveName(move)}</span>` +
-    `<span class="type-badge" style="background:${tc[move.type]||'#999'}">${tTypeName(move.type)}</span>` +
+    `<span class="type-badge" style="background:${PokeDB.typeColor(move.type)}">${tTypeName(move.type)}</span>` +
     `<span class="cat-badge">${tCatName(move.category)}</span></div>` +
     `<div class="result-empty" style="padding:8px 0" data-i18n="dmg.result_status_move">${T('dmg.result_status_move','変化技なので ダメージなし')}</div>`;
 }
@@ -718,9 +765,8 @@ function koAnalysis(variations, hp){
 }
 
 function renderResult(move, result){
-  const tc = (typeof TYPE_COLORS !== 'undefined') ? TYPE_COLORS : {};
   const head = `<div class="result-move"><span class="mv-name">${tMoveName(move)}</span>` +
-    `<span class="type-badge" style="background:${tc[move.type]||'#999'}">${tTypeName(move.type)}</span>` +
+    `<span class="type-badge" style="background:${PokeDB.typeColor(move.type)}">${tTypeName(move.type)}</span>` +
     `<span class="cat-badge">${tCatName(move.category)}</span></div>`;
 
   if (!result || result.immune){
@@ -796,5 +842,37 @@ function renderResult(move, result){
     recompute();
   } catch (e) {}
 }));
+
+// ===== 初期化: DOMContentLoaded / PokeDB.ready / エンジン(__sim到着) の3つが揃うまで待つ =====
+// (旧版はエンジン到着だけを待てば動いた=pokechan_data.jsを<script>で同期的に読んでいたため。
+//  新版はpokedb.jsがmaster/*.jsonをfetchする非同期読込なので、どれが先に来ても壊れないように3ゲート化する)
+let domReady = (document.readyState !== 'loading');
+let dbReady = false;
+let engineReady = false;
+function maybeInit(){ if (domReady && dbReady && engineReady) onEngineReady(); }
+if (!domReady){
+  document.addEventListener('DOMContentLoaded', () => { domReady = true; maybeInit(); });
+}
+PokeDB.ready.then(() => {
+  // 旧版(pokechan_data.js)はChampions版固定だったので、URLで明示的に ?data=all/national と
+  // 指定していない限り既定は champions に揃える(母集団を旧版と一致させる)。
+  let qData = null;
+  try { qData = new URLSearchParams(location.search).get('data'); } catch (e) { /* file:// 等 */ }
+  if (qData !== 'all' && qData !== 'national') PokeDB.setMode('champions');
+  dbReady = true;
+  maybeInit();
+}).catch((e) => { PokeDB.showLoadError(e); });
+document.getElementById('engine-frame').addEventListener('load', () => {
+  const w = document.getElementById('engine-frame').contentWindow;
+  const wait = setInterval(() => {
+    if (w.__sim){
+      clearInterval(wait);
+      S = w.__sim;
+      natureListCache = S.natureList();
+      engineReady = true;
+      maybeInit();
+    }
+  }, 100);
+});
 </script>
 </body></html>

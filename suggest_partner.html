@@ -2,6 +2,27 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<!-- suggest_partner.html: 相性補完サジェスト(データは pokedb.js 1枚だけを読む)。
+     W13 2026-09-04 新設。②「ページを pokedb.js 1枚読みへ向け替える」移行の3ページ目
+     (先例=speed_compare.html コミット dd86e89c / 姉妹ページ=suggest_lite.html と同じ様式)。
+     ★2026-09-05 阿部さん確認済み→旧版(pokechan_data.js 直読み)を削除し、この新版を正典名に改名(v2→無印)。
+     同時に姉妹ページ「補完ファインダー」(suggest_lite.html。旧試作のv2版含む)をこのページに統合・削除
+     (旧 suggest_lite.html は suggest_partner.html への転送スタブに置き換え)。
+     旧版(pokechan_data.js を直読み・削除済み)とは二重掲載中だった
+     (CLAUDE.md「屋台骨の総入れ替え」の作法)。
+     上っ面・ロジック(見た目・計算式・UI・i18n配線)は旧版と一切変えていない。変えたのはデータの読み方だけ。
+     データ源: master/pokemon.json・master/types.json(SSOT) を pokedb.js 経由で軽量読込(data-files="pokemon,types")。
+     旧版は pokechan_data.js(Champions版・323件)を読んでいたので、新版も既定は
+     PokeDB.setMode('champions') で母集団を揃える(URLに ?data=all/national を付ければ全国版に切替可)。
+     新ページの絶対4か条(CLAUDE.md「新しいページを作る時の絶対手順」):
+       1. データは pokedb.js からしか取らない(pokechan_data*.js / master/*.json を直接読まない)
+       2. ページ専用のデータを新しく作らない(足りない項目は master/ を広げる)
+       3. JSON/JSをコピーして持ってこない
+       4. 文字列(名前・タイプ)をHTMLに直書きしない。IDでマスターから引く
+     フィールド名の読み替え(master/pokemon.json は生成物 pokechan_data.js と同じフィールド名・同じ型):
+       - `name/type1/type2/mega/resist/total`: 同名・同型でそのまま使える(gapなし)。
+       - グローバル `TYPES` 配列 → `PokeDB.types()`、グローバル `TYPE_COLORS[ty]` → `PokeDB.typeColor(ty)`。
+       - グローバル `POKEMON_LIST` → `PokeDB.allPokemon()`(PokeDB.ready を待ってから)。 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title data-i18n="suggest.page_title">相性補完サジェスト — PchamDB</title>
 <meta name="theme-color" content="#1F4E79">
@@ -11,7 +32,7 @@
 
 <link rel="stylesheet" href="site-footer.css?v=20260716">
 <script defer src="i18n/runtime.js?v=20260716"></script>
-<script src="pokechan_data.js?v=20260716"></script>
+<script src="pokedb.js?v=20260905" data-files="pokemon,types"></script>
 <script src="sprite_api_ids.js?v=20260716"></script>
 
 <style>
@@ -239,7 +260,7 @@ body{
     <a href="party_checker.html" data-i18n="suggest.link_builder">🎯 チームビルダー</a>
     <a href="real_battle.html" data-i18n="suggest.link_battle">🎮 リアルバトル</a>
     <a href="type_chart.html" data-i18n="suggest.link_chart">📊 タイプ相性表</a>
-    <a href="pokemon_db_v9.html" data-i18n="suggest.link_db">🗄️ ポケモンDB</a>
+    <a href="pokemon_db.html" data-i18n="suggest.link_db">🗄️ ポケモンDB</a>
   </div>
 </div>
 
@@ -267,21 +288,14 @@ body{
 (function(){
   "use strict";
 
-  /* ============ データ準備 ============ */
+  /* ============ データ準備（pokedb.js 1枚読み。PokeDB.ready を待つまでは空） ============ */
   // real_battle.html:1250-1255 の編成プール作法（メガ／変身専用フォルムを除外）
   var BATTLE_ONLY_FORMS = new Set(['イルカマン(マイティフォルム)', 'ギルガルド(ブレードフォルム)']);
-  function isPickable(p){ return !!p && !p.mega && !BATTLE_ONLY_FORMS.has(p.name); }
+  // ★2026-09-05 阿部さん: メガ(メガ○○Z 含む)も候補に出す(メガでタイプが変わる)。旧版は !p.mega で除外していた=新版で意図的に変更。
+  function isPickable(p){ return !!p && !BATTLE_ONLY_FORMS.has(p.name); }
 
-  // POKEMON_LIST は Champions ロスター（313体）。その上でメガ等を除外＝real_battle と同じ編成プール。
   var POOL = [];
-  if (typeof POKEMON_LIST !== 'undefined'){
-    POOL = POKEMON_LIST.filter(isPickable);
-  }
-  // 注意: ここで `var TYPES = (typeof TYPES!=='undefined')?TYPES:[]` と書くと、
-  // var 宣言のホイスティングによりこのIIFEスコープに TYPES が巻き上げられ、
-  // typeof TYPES は常に 'undefined'(未初期化のローカル)になってグローバルの
-  // pokechan_data.js の TYPES を握りつぶす(=タイプバッジが全滅する)。
-  // グローバルの TYPES(pokechan_data.jsで定義済み)をそのまま使う。
+  var TYPES_ARR = [];
 
   /* ============ i18n ヘルパ（real_battle.html の作法） ============ */
   function t(key, fb){ return (window.I18N && I18N.t) ? I18N.t(key, fb) : fb; }
@@ -314,7 +328,7 @@ body{
   /* ============ タイプ相性（resist 配列使用） ============
      resist[攻撃i] = その攻撃タイプでこのポケモンを殴った時の被ダメ倍率
      0=無効 / 0.25=二重半減 / 0.5=半減 / 1=等倍 / 2=弱点 / 4=二重弱点
-     （TYPE_CHART[攻撃行][防御列] の複合積を事前計算したもの＝向きは pokechan_data の正）
+     （TYPE_CHART[攻撃行][防御列] の複合積を事前計算したもの＝向きは master/pokemon.json の正）
   */
   var RES = { ZERO:0, QTR:0.25, HALF:0.5, ONE:1, WEAK:2, DBL:4 };
 
@@ -351,7 +365,7 @@ body{
 
   /* ============ 状態 ============ */
   var MAX_SEL = 5;
-  var selected = []; // POKEMON_LIST オブジェクト参照の配列
+  var selected = []; // POOL オブジェクト参照の配列
   var ddActive = -1; // ドロップダウンのキーボード選択
 
   function selectedNames(){ return new Set(selected.map(function(p){ return p.name; })); }
@@ -371,7 +385,7 @@ body{
   function findInPool(name){ for (var i=0;i<POOL.length;i++){ if (POOL[i].name === name) return POOL[i]; } return null; }
 
   /* ============ タイプバッジ ============ */
-  function typeColor(ty){ return (typeof TYPE_COLORS !== 'undefined' && TYPE_COLORS[ty]) ? TYPE_COLORS[ty] : '#888'; }
+  function typeColor(ty){ return PokeDB.typeColor(ty); }
   function typeBadgeFull(ty){ return '<span class="type-badge" style="background:' + typeColor(ty) + '">' + esc(tTypeFull(ty)) + '</span>'; }
   function typeBadgeShort(ty){ return '<span class="type-badge" style="background:' + typeColor(ty) + '">' + esc(tTypeShort(ty)) + '</span>'; }
   function pokeTypes(p){
@@ -515,9 +529,9 @@ body{
     for (var k=0;k<order.length;k++){
       var ti = order[k];
       var danger = counts[ti] >= 2; // 2体以上が共通で弱い＝赤
-      html += '<div class="weak-badge' + (danger?' danger':'') + '" style="background:' + typeColor(TYPES[ti]) + '" '
-        + 'title="' + esc(tTypeFull(TYPES[ti])) + '">'
-        + '<span>' + esc(tTypeShort(TYPES[ti])) + '</span>'
+      html += '<div class="weak-badge' + (danger?' danger':'') + '" style="background:' + typeColor(TYPES_ARR[ti]) + '" '
+        + 'title="' + esc(tTypeFull(TYPES_ARR[ti])) + '">'
+        + '<span>' + esc(tTypeShort(TYPES_ARR[ti])) + '</span>'
         + '<span class="cnt">' + counts[ti] + '</span>'
         + '</div>';
     }
@@ -574,7 +588,7 @@ body{
       var coversHtml = '';
       for (var n=0;n<c.covers.length;n++){
         var ti2 = c.covers[n];
-        coversHtml += '<span class="mini-badge" style="background:' + typeColor(TYPES[ti2]) + '">' + esc(tTypeShort(TYPES[ti2])) + '</span>';
+        coversHtml += '<span class="mini-badge" style="background:' + typeColor(TYPES_ARR[ti2]) + '">' + esc(tTypeShort(TYPES_ARR[ti2])) + '</span>';
       }
       html += '<button type="button" class="rank-row" data-n="' + esc(c.p.name) + '"' + (full?' data-disabled="1"':'') + '>'
         + pokeIconHtml(c.p.name)
@@ -605,6 +619,7 @@ body{
 
   /* ============ i18n 連動（ready/changed 両方で再描画＝取りこぼし防止） ============ */
   function onI18n(){
+    if (!dbReady) return;
     // data-i18n の静的要素は runtime が applyDOM() で処理。動的部品だけ再描画。
     renderAll();
     renderDropdown(); // 表示名が言語で変わるので候補も再描画
@@ -612,14 +627,24 @@ body{
   document.addEventListener('i18n:ready', onI18n);
   document.addEventListener('i18n:changed', onI18n);
 
-  /* ============ 初期描画 ============ */
-  // runtime の準備を待たず、まず ja フォールバックで描画（i18n:ready で上書きされる）
-  if (POOL.length === 0){
-    document.getElementById('rank-list').innerHTML =
-      '<div class="rank-empty">データが読み込めませんでした（pokechan_data.js を確認してください）。</div>';
-  } else {
-    renderAll();
+  /* ============ 初期化: DOMContentLoaded と PokeDB.ready の両方を待つ ============ */
+  var domReady = (document.readyState !== 'loading');
+  var dbReady = false; // PokeDB.ready が解決してPOOLが埋まるまでtrueにしない(i18nイベントが先に来る対策)
+  function maybeInit(){ if (domReady && dbReady) renderAll(); }
+  if (!domReady){
+    document.addEventListener('DOMContentLoaded', function(){ domReady = true; maybeInit(); });
   }
+  PokeDB.ready.then(function(){
+    // 旧版(pokechan_data.js)は Champions版固定だったので、URLで明示的に ?data=all/national と
+    // 指定していない限り既定は champions に揃える(母集団を旧版と一致させる)。
+    var qData = null;
+    try { qData = new URLSearchParams(location.search).get('data'); } catch (e) { /* file:// 等 */ }
+    if (qData !== 'all' && qData !== 'national') PokeDB.setMode('champions');
+    POOL = PokeDB.allPokemon().filter(isPickable);
+    TYPES_ARR = PokeDB.types();
+    dbReady = true;
+    maybeInit();
+  }).catch(function (e) { PokeDB.showLoadError(e); });
 })();
 </script>
 </body>

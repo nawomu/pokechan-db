@@ -169,7 +169,7 @@ td.acq{font-size:11.5px;color:#5d4037;min-width:120px}
 </div>
 <div class="nav">
 <a href="index.html">🏠 <span data-i18n="items_list.nav_top">トップ</span></a>
-<a href="pokemon_db_v9.html">🗄️ <span data-i18n="items_list.nav_pokemon_db">ポケモンDB</span></a>
+<a href="pokemon_db.html">🗄️ <span data-i18n="items_list.nav_pokemon_db">ポケモンDB</span></a>
 <a href="waza-list.html">📋 <span data-i18n="items_list.nav_waza">わざ一覧</span></a>
 <a href="news.html">📰 <span data-i18n="items_list.nav_news">ニュース</span></a>
 <a href="party_checker.html">🎯 <span data-i18n="items_list.nav_team_builder">チームビルダー</span></a>
