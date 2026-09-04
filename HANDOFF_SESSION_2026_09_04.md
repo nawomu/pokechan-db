@@ -40,7 +40,9 @@ pokedb.js に今夜足した窓口: `statRankAll/statRank`, `learnsetNational(na
 ## 4. 🙋 阿部さん判断待ち(今夜ぶん・積み残し含む)
 
 1. **旧版の引退**: speed_compare / suggest_lite / suggest_partner / damage_calc / party_checker / pokemon_db_v9 / pokemon_db_all_v9 / waza-list / waza-list_all(+`waza_picker.js`)。新版で置き換えてよければ nav/canonical を新版へ向けて旧を削除(順序: 新版を正典URLに→旧削除)。
-2. **`waza-list_v2.html` / `waza_picker_v2.js`(別系統の旧試作)**: 退避か削除か。決まれば v3 を v2 に改名するかも決める(改名は機械的)。
+2. ~~**`waza-list_v2.html` / `waza_picker_v2.js`(別系統の旧試作)**: 退避か削除か。~~ → **解決(2026-09-05 朝 阿部さん「古いのは消して新しいのだけ」)**: 旧版 waza-list/waza-list_all/waza_picker.js と旧試作 _v2 を削除・v3 を正典名に改名(URL不変)。§4-1 のうち waza-list/waza-list_all ぶんは完了・残り7ページは引き続き判断待ち。
+
+**★やることリストに追加(2026-09-05 朝 阿部さん「足す方向で。まだ動かさない・他と優先順位を考える」)**: **技の性質フラグ表**(ヤックン /ch/ の8マス: 接触/まもる/みがわり/マジックコート/ゆびをふる/まねっこ/ねごと/さいはい)。master は接触・まもる=全技あり/みがわり=貫通22技のみ/残り5列=無し。①の「器を広げる」(憲法プレイブックB=事実の表)。案=`flags.{reflectable,metronome_callable,copyable,sleep_talk_usable,instruct_usable,substitute_pierce}` を919技ぶん明示(出典=ヤックン/ch/ + Wiki/Bulbapedia 二重)。Codex照合→Sonnet builder→Fable全数差分。**未着手**。
 3. **`ABILITY_TYPE_IMMUNITY`**(特性→タイプ無効の表・party_checker_v2 のページ内直書き・台帳で許容中)を master の「事実の表」第2号にしてよいか。
 4. `party_checker_v2` は持ち物を `PokeDB.raw('items')` 181件で引いている(`items()` は 154件=champions のみ)。旧版と同じ母集団を保つための措置。`items()` の定義(champions のみ)を「家の分類あり=181」に広げるか。
 5. `display_order` が2列(全国順/Champions順)である設計でよいか(旧2ページの並びが違うため)。

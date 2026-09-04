@@ -1,19 +1,34 @@
 /* ===================================================================
- * waza_picker.js — 技選択 UI 共通ロジック
+ * waza_picker.js — 技選択 UI 共通ロジック(pokedb.js 1本読み版・②W19)
  *
- * 出自: waza-list.html の inline <script> (2026-05-17 抽出)
- * 利用: waza-list.html / party_checker.html / battle_simulator.html
+ * ★2026-09-05 阿部さん確認済み→旧 waza_picker.js(pokechan_data*.js 依存)を削除し、この新版を正典名に改名(v3→無印)。
+ * ★何を変えたか(旧 waza_picker.jsからの差分。ロジック・見た目は無改変。データの取り方だけ変えた):
+ *   旧版は pokechan_data.js(Champions版)/pokechan_data_all.js(全国版)が同期ロードした
+ *   グローバル WAZA_MAP / POKEMON_LIST を「読み込まれた瞬間から在るもの」として直接参照していた
+ *   (waza_picker.js:11 のコメント「依存: pokechan_data.js を事前に読み込み必須」がそれ)。
+ *   pokedb.js は fetch(非同期)なので、この前提が崩れる。→ データに依存する「即時実行」の初期化
+ *   (WAZA_MASTER_BUILT の構築・moves 配列の構築・types/targets の集計・DOM初期描画一式)を
+ *   PokeDB.ready.then() の中に移した(pokemon_db_v10.html/pokemon_db_all_v10.html と同じ型)。
+ *   関数宣言(render/getMoveFilterTags/matchesEffectFilter 等)自体は無改変・トップレベルのまま
+ *   (onclick="..." から呼ばれるグローバル関数はここに置かないと呼べなくなるため)。
  *
- * 現状: waza-list の JS をそのまま移動 (機能等価性 fast path)。
- *       後続フェーズで mountWazaPicker(container, options) 形式に
- *       関数化して mode (browse/multi/single) を導入予定。
+ * ★WAZA_MAP の作り方(champions_key/slugキー再構成): tools/build_views.js の
+ *   buildWazaChampions()/buildWazaNational() と完全に同じ式(pokemon_db_v10.html/
+ *   pokemon_db_all_v10.html の WAZA_MAP 構築アダプタをそのまま流用)。
+ *   モードは HTML側が読み込み前に window.WAZA_PICKER_MODE = 'champions' | 'all' を立てて指定する
+ *   (waza-list.html='champions'固定・waza-list_all.html='all'固定。URLの?data=切替は無い)。
  *
- * 依存: pokechan_data.js (WAZA_MAP, POKEMON_LIST) を事前に読み込み必須
- *       i18n/runtime.js (任意)
+ * ★地雷の是正(2026-09-04・W19。棚卸しreview/_page_migration_inventory_2026-09-04.md §4-4で指摘済み):
+ *   旧 _extractPriority(desc) は技の優先度を「説明文中の『優先度:N』という文字列」から正規表現で
+ *   抜き出していた(説明文の言い回しが変わると静かに壊れる自己参照的な実装)。master には最初から
+ *   priority という数値フィールドがあるので、ここではそれをそのまま WAZA_MAP.priority として持たせ、
+ *   moves 配列もそれを使う(_extractPriority は削除)。
+ *
+ * ★PokeDB.learners()は2026-09-04のW18でmode対応済み(champions中は絞り込み後のポケモンだけを数える)
+ *   なので、waza_picker側で追加の絞り込みは不要(WAZA_MAPを作る前にPokeDB.setMode()を呼んでおけば
+ *   PokeDB.learners(m.name)がそのまま正しい集合を返す)。
  * =================================================================== */
 
-// 独立アクセス版: pokechan_data.js から動的にデータ構築
-const POKEMON_DB_URL = 'pokemon_db_v9.html';
 const WP_QUERY = new URLSearchParams(location.search);
 let INITIAL_POKEMON_FILTER = WP_QUERY.get('pokemon') || null;
 // === ピッカーモード関連 (iframe 経由で親から URL クエリで指定) ===
@@ -58,8 +73,88 @@ function wpType3(t) {
   return t;
 }
 
+
+// ── pokedb.js 経由データの入れ物(★W19: 旧版は pokechan_data*.js が同期ロードしたグローバル
+//    WAZA_MAP/POKEMON_LIST をそのまま参照していた。pokedb.jsはfetch=非同期なので、ここでは
+//    空の入れ物を先に宣言しておき、実値は PokeDB.ready.then() 内で代入する) ──────────────
+let WAZA_MAP = {};
+let POKEMON_LIST = [];
+let moves = [];
+let types = [];
+let targets = [];
+let POKEMON_DB_URL = 'pokemon_db_v10.html'; // ★PokeDB.ready.then()内でモードに応じて上書き
+
+
+// ══════════════════════════════════════════════════════════════════
+// pokedb.js(master/moves.json・master/pokemon.json)から WAZA_MAP / POKEMON_LIST を作る。
+// ★2026-09-04(W19): 生成物 pokechan_data.js(Champions版)/pokechan_data_all.js(全国版)の
+//   WAZA_MAP に相当。フィールド・既定値・フィルタ条件は tools/build_views.js
+//   buildWazaChampions()/buildWazaNational() と完全に同じ式
+//   (pokemon_db_v10.html/pokemon_db_all_v10.html の WAZA_MAP 構築アダプタと同一)。
+// ══════════════════════════════════════════════════════════════════
+function buildWazaMapFromPokeDB(mode) {
+  var out = {};
+  var allMoves = (PokeDB.raw('moves') && PokeDB.raw('moves').items) || [];
+  allMoves.forEach(function (m) {
+    var key;
+    if (mode === 'champions') {
+      // ★champions_keyがあってもchampions!==trueの技(どげざつき等)は対象外(旧496件と一致)。
+      //   わるあがきはchampions_keyがnullなので同じ条件で自動的に除外される。
+      if (!m.champions || !m.champions_key) return;
+      key = m.champions_key;
+    } else {
+      if (!m.slug) return;
+      key = m.slug;
+    }
+    var battle_data = m.battle_data || { crit_stage: 0, must_crit: false, crit_changes: [], effects: [] };
+    var entry = {
+      name: m.name, move_no: m.move_no, type: m.type, category: m.category,
+      target: m.target || '1体選択',
+      power: m.power, accuracy: m.accuracy, pp: m.pp,
+      // ★W19: master本来の数値フィールドをそのまま使う(旧: 説明文からの正規表現抽出=_extractPriority)。
+      priority: m.priority || 0,
+      contact: !!m.contact, protect: m.protect !== false,
+      description: m.description || '',
+      key: key,
+      // ★PokeDB.learners()はW18でmode対応済み(呼び出し前にPokeDB.setMode()すれば絞り込み後の集合を返す)。
+      learners: (PokeDB.learners(m.name) || []).slice(),
+      description_legacy: m.description_legacy || '',
+      battle_data: battle_data, flags: m.flags || {},
+      tags: m.tags || [],
+      availability: m.availability != null ? m.availability : null,
+    };
+    if (mode !== 'champions') entry.national_new = !m.champions && !!m.description;
+    if (m.flags && m.flags.is_max) entry.is_max = true;
+    if (m.flags && m.flags.z) entry.z = m.flags.z;
+    if (m.subcategory) entry.subcategory = m.subcategory;
+    if (mode === 'champions') {
+      if (m.champions_added != null) entry.added = m.champions_added;
+      if (m.champions_mode != null) entry.mode = m.champions_mode;
+    }
+    out[key] = entry;
+  });
+  return out;
+}
+
+// POKEMON_LIST: PokeDB.allPokemon()(setMode済み=絞り込み後)に、pokemon_db_v10.html/
+// pokemon_db_all_v10.html と同じ最小限のフィールド読み替え(no/season/added_inのみ)。
+function buildPokemonListFromPokeDB() {
+  return PokeDB.allPokemon().map(function (p) {
+    var row = Object.assign({}, p);
+    row.no = String(p.no != null ? p.no : 0).padStart(3, '0');
+    row.season = Array.isArray(p.seasons) ? p.seasons.slice() : [];
+    if (p.champions_added_in != null) row.added_in = p.champions_added_in;
+    return row;
+  });
+}
+
 // WAZA_MAP → WAZA_MASTER 変換 (pokemon_db_v9.html と同じアダプタ)
-const WAZA_MASTER_BUILT = (function () {
+// ★2026-09-04(W19): IIFEの即時実行 → 関数化(PokeDB.ready.then()内から呼ぶ。式は無改変)。
+//
+// 変換対象: WAZA_MAP 全 490 技
+//   - 変化技 170: subcategory (回復/状態異常/etc) を category に
+//   - 物理技 201 / 特殊技 119: category = "物理" / "特殊" として追加
+function _buildWazaMasterFromMap() {
   const out = [];
   for (const k in WAZA_MAP) {
     const m = WAZA_MAP[k];
@@ -79,30 +174,28 @@ const WAZA_MASTER_BUILT = (function () {
       national_new: m.national_new || false, // 全国版で新規追加した技(M-A/M-B以外)。本番Championsデータには無=常にfalse
       flags: m.flags || {},
       availability: m.availability || null, // ★P8: gen_introduced / gens / is_lgpe
+      priority: m.priority || 0, // ★W19: master本来の数値(WAZA_MAPに載せた値をそのまま持ち回す)
     });
   }
   return out;
-})();
+}
 
-// learners + priority を付与
-const _pokeTotal = {};
-POKEMON_LIST.forEach(p => { _pokeTotal[p.name] = p.total || 0; });
-const _extractPriority = (desc) => {
-  if (!desc) return 0;
-  // 「優先度:N」「優先度+N」「優先度+1の先制技」など、:省略形にも対応
-  const m = desc.match(/優先度[:：]?\s*([+-]?\d+)/);
-  return m ? parseInt(m[1], 10) : 0;
-};
-const moves = WAZA_MASTER_BUILT.map(w => {
-  const learnerNames = (WAZA_MAP[w.key] && WAZA_MAP[w.key].learners) || [];
-  const learners = learnerNames
-    .map(name => ({ name, total: _pokeTotal[name] || 0 }))
-    .sort((a, b) => b.total - a.total);
-  const legacy = (WAZA_MAP[w.key] && WAZA_MAP[w.key].description_legacy) || '';
-  const tags = (WAZA_MAP[w.key] && WAZA_MAP[w.key].tags) || [];
-  const battle_data = (WAZA_MAP[w.key] && WAZA_MAP[w.key].battle_data) || null;
-  return Object.assign({}, w, { learners, priority: _extractPriority(w.effect), _legacy_desc: legacy, tags, battle_data });
-});
+// learners + priority を付与(★W19: _extractPriorityは削除・w.priorityをそのまま使う)
+function _buildMovesFromMaster(wazaMasterBuilt) {
+  const _pokeTotal = {};
+  POKEMON_LIST.forEach(p => { _pokeTotal[p.name] = p.total || 0; });
+  return wazaMasterBuilt.map(w => {
+    const learnerNames = (WAZA_MAP[w.key] && WAZA_MAP[w.key].learners) || [];
+    const learners = learnerNames
+      .map(name => ({ name, total: _pokeTotal[name] || 0 }))
+      .sort((a, b) => b.total - a.total);
+    const legacy = (WAZA_MAP[w.key] && WAZA_MAP[w.key].description_legacy) || '';
+    const tags = (WAZA_MAP[w.key] && WAZA_MAP[w.key].tags) || [];
+    const battle_data = (WAZA_MAP[w.key] && WAZA_MAP[w.key].battle_data) || null;
+    return Object.assign({}, w, { learners, priority: w.priority || 0, _legacy_desc: legacy, tags, battle_data });
+  });
+}
+
 const typeColors ={"ノーマル": "#A8A878", "ほのお": "#F08030", "みず": "#6890F0", "でんき": "#F8D030", "くさ": "#78C850", "こおり": "#98D8D8", "かくとう": "#C03028", "どく": "#A040A0", "じめん": "#E0C068", "ひこう": "#A890F0", "エスパー": "#F85888", "むし": "#A8B820", "いわ": "#B8A038", "ゴースト": "#705898", "ドラゴン": "#7038F8", "あく": "#705848", "はがね": "#B8B8D0", "フェアリー": "#EE99AC"};
 
 // カタカナ ⇔ ひらがな 相互変換（どちらで検索してもヒット）
@@ -575,15 +668,18 @@ function analyzeStatChange(desc, stat, subject) {
 
 const STATS_LIST = ['こうげき', 'ぼうぎょ', 'とくこう', 'とくぼう', 'すばやさ'];
 // 起動時に各 move に確率 + ランク変動を計算済みで持たせる
-moves.forEach(m => {
-  m._prob = extractProbability(m.effect || '');
-  m._statSelf = {};
-  m._statOpp = {};
-  STATS_LIST.forEach(stat => {
-    m._statSelf[stat] = analyzeStatChange(m._legacy_desc || m.effect || '', stat, '自分');
-    m._statOpp[stat]  = analyzeStatChange(m._legacy_desc || m.effect || '', stat, '相手');
+// ★2026-09-04(W19): トップレベル即時実行 → 関数化(PokeDB.ready.then()内から呼ぶ。式は無改変)
+function _computeMoveDerived() {
+  moves.forEach(m => {
+    m._prob = extractProbability(m.effect || '');
+    m._statSelf = {};
+    m._statOpp = {};
+    STATS_LIST.forEach(stat => {
+      m._statSelf[stat] = analyzeStatChange(m._legacy_desc || m.effect || '', stat, '自分');
+      m._statOpp[stat]  = analyzeStatChange(m._legacy_desc || m.effect || '', stat, '相手');
+    });
   });
-});
+}
 
 // 技ごとに該当するフィルタタグ一覧を生成 (battle_data, flags, priority, effects, rank_changes ベース)
 // ★2026-06-18: 新 getMoveFilterTags (確認ページと同一実装・waza_list_confirm.js より移植)
@@ -1183,8 +1279,6 @@ document.querySelectorAll('th[data-sort]').forEach(th => {
   document.getElementById(id).addEventListener('change', render);
 });
 
-const types = [...new Set(moves.map(m => m.type))].sort();
-const targets = [...new Set(moves.map(m => m.target))].sort();
 // 対象種別オプション: 冪等に再構築可能(言語切替で再描画)。表示は targets.<ja> で翻訳・value(=絞り込みキー)はjaのまま。
 function buildTargetOptions() {
   const sel = document.getElementById('f-target');
@@ -1192,7 +1286,6 @@ function buildTargetOptions() {
   sel.querySelectorAll('option[data-dyn]').forEach(o => o.remove());
   targets.forEach(t => { const o = document.createElement('option'); o.value=t; o.dataset.dyn='1'; o.textContent=_t('targets.'+t, t); sel.appendChild(o); });
 }
-buildTargetOptions();
 
 // ===== タイプ多重選択ドロップダウンの構築 =====
 function buildTypeDropdown() {
@@ -1260,8 +1353,6 @@ document.addEventListener('click', (e) => {
   const wrap = document.getElementById('f-type-wrap');
   if (wrap && !wrap.contains(e.target)) wrap.classList.remove('open');
 });
-buildTypeDropdown();
-updateTypeBtnLabel();
 
 // 画面状態リセット (検索・フィルタ・ソートのみ初期化)
 function resetAll() {
@@ -2037,28 +2128,9 @@ function applyPokeLock() {
   trigger.parentNode.replaceChild(newClone, trigger);
 }
 
-// 初期化
-buildWpTypeBar();
-setupWpSearchAutocomplete();
-setupWpPokeDropdown();
-refreshPokemonFilterBanner();
-applyPokeLock();
-setupSelectionMode();
-adjustStickyOffsets();
-window.addEventListener('resize', adjustStickyOffsets);
-// レイアウト後 (フォント読み込み等の影響を吸収)
-setTimeout(adjustStickyOffsets, 100);
-setTimeout(adjustStickyOffsets, 400);
-
-render();
-if (WP_MODE === 'multi' || WP_MODE === 'single') {
-  // render 後にチェック状態を反映
-  refreshConfirmBar();
-  if (WP_MODE === 'multi') syncChkAll();
-}
 
 // ★2026-06-18: 旧フィルタチップ全部に「◯件」のカウント表示を追加(0件ヒットでユーザーが困らないように)
-(function annotateOldChips() {
+function _annotateOldChips() {
   const chips = document.querySelectorAll('.ef-chip');
   chips.forEach(chip => {
     const type = chip.dataset.efType;
@@ -2103,7 +2175,7 @@ if (WP_MODE === 'multi' || WP_MODE === 'single') {
       if (cnt === 0) chip.style.opacity = '0.45';
     }
   });
-})();
+}
 
 // ★2026-06-18 阿部さん指摘・第2版: 旧フィルタにある重要タグも新タグ側で見えるように除外を最小限に
 // 除外するのは「状態異常(細分%でカバー済)」「タイプ変更系(細分でカバー済)」「必中急所/必中」など
@@ -2122,7 +2194,7 @@ const OLD_FILTER_TAGS = new Set([
   // 援護/特殊=旧フィルタ「サポートW」「みがわり貫通」
   '🤝 サポートW', '👻 みがわり貫通',
 ]);
-(function setupNewTagFilter() {
+function _setupNewTagFilter() {
   const box = document.getElementById('newTagChips');
   if (!box) return;
   // 全技から新タグを集計(1技以上)→ 2技以上=フィルタ向きだけ採用 + 旧フィルタとの重複を除外
@@ -2334,4 +2406,54 @@ const OLD_FILTER_TAGS = new Set([
     const origReset = window.resetAll;
     window.resetAll = function () { active.clear(); applyNewTags(); if (origReset) origReset(); };
   }
-})();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// ★W19: 旧版はここまでの一式(WAZA_MASTER_BUILT/_pokeTotal/moves/types/targets の構築、
+//   buildTargetOptions()/buildTypeDropdown()の初回呼び出し、DOM初期化一式、旧フィルタ件数バッジ、
+//   詳細タグパネル構築)が全部トップレベルの即時実行だった(pokechan_data.jsの同期ロード前提)。
+//   pokedb.jsはfetch(非同期)なので、PokeDB.ready.then()の中に同じ順番で移した(式は無改変)。
+// ══════════════════════════════════════════════════════════════════
+PokeDB.ready.then(function () {
+  // モード: HTML側がscriptタグの前で window.WAZA_PICKER_MODE = 'champions'|'all' を立てる
+  // (waza-list.html='champions'固定・waza-list_all.html='all'固定。URLの?data=切替は無い)。
+  var mode = (window.WAZA_PICKER_MODE === 'all') ? 'all' : 'champions';
+  PokeDB.setMode(mode);
+  POKEMON_DB_URL = (mode === 'champions') ? 'pokemon_db_v10.html' : 'pokemon_db_all_v10.html';
+
+  WAZA_MAP = buildWazaMapFromPokeDB(mode);
+  POKEMON_LIST = buildPokemonListFromPokeDB();
+
+  const wazaMasterBuilt = _buildWazaMasterFromMap();
+  moves = _buildMovesFromMaster(wazaMasterBuilt);
+  _computeMoveDerived();
+
+  types = [...new Set(moves.map(m => m.type))].sort();
+  targets = [...new Set(moves.map(m => m.target))].sort();
+  buildTargetOptions();
+  buildTypeDropdown();
+  updateTypeBtnLabel();
+
+  // ---- 元「初期化」ブロック(waza_picker.js:2040-2058。式は無改変) ----
+  buildWpTypeBar();
+  setupWpSearchAutocomplete();
+  setupWpPokeDropdown();
+  refreshPokemonFilterBanner();
+  applyPokeLock();
+  setupSelectionMode();
+  adjustStickyOffsets();
+  window.addEventListener('resize', adjustStickyOffsets);
+  // レイアウト後 (フォント読み込み等の影響を吸収)
+  setTimeout(adjustStickyOffsets, 100);
+  setTimeout(adjustStickyOffsets, 400);
+
+  render();
+  if (WP_MODE === 'multi' || WP_MODE === 'single') {
+    // render 後にチェック状態を反映
+    refreshConfirmBar();
+    if (WP_MODE === 'multi') syncChkAll();
+  }
+
+  _annotateOldChips();
+  _setupNewTagFilter();
+}).catch(function (e) { PokeDB.showLoadError(e); });
