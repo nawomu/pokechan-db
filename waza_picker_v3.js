@@ -2455,4 +2455,4 @@ PokeDB.ready.then(function () {
 
   _annotateOldChips();
   _setupNewTagFilter();
-});
+}).catch(function (e) { PokeDB.showLoadError(e); });

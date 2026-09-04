@@ -90,6 +90,51 @@
   var IDX = {};       // 引きやすくした索引
   var mode = 'all';
 
+  // ── showLoadError用の状態(W21・2026-09-05) ─────────────────────────────
+  //   master/*.json が読めない時は大抵 fetch が即reject=まだ I18N の辞書fetchが終わっていない
+  //   タイミングで呼ばれる(I18N.t()はcacheが無いとjaフォールバックを返す)。1回描いて終わりだと
+  //   英語などに切り替えていても i18n が後から準備できた時に文言がjaのまま固まる。
+  //   そこで最後の呼び出し内容を覚えておき、i18n:ready / i18n:changed で自動的に描き直す。
+  var LOAD_ERROR_STATE = null; // { msg: string, targetEl: Element|null }
+  var LOAD_ERROR_LISTENER_ADDED = false;
+  var LOAD_ERROR_FALLBACK = 'データを読み込めませんでした({msg})。ページを再読み込みしてください';
+  function renderLoadError() {
+    if (!LOAD_ERROR_STATE) return;
+    var tmpl = (window.I18N && I18N.t) ? I18N.t('common.db_load_error', LOAD_ERROR_FALLBACK) : LOAD_ERROR_FALLBACK;
+    var text = tmpl.replace('{msg}', LOAD_ERROR_STATE.msg);
+    var targetEl = LOAD_ERROR_STATE.targetEl;
+    if (targetEl) {
+      var tag = (targetEl.tagName || '').toUpperCase();
+      targetEl.innerHTML = '';
+      if (tag === 'TBODY' || tag === 'THEAD' || tag === 'TABLE') {
+        var tr = document.createElement('tr');
+        var td = document.createElement('td');
+        td.setAttribute('colspan', '99');
+        td.style.cssText = 'padding:24px;color:#c00';
+        td.textContent = text;
+        tr.appendChild(td);
+        targetEl.appendChild(tr);
+      } else {
+        var div = document.createElement('div');
+        div.style.cssText = 'padding:24px;color:#c00';
+        div.textContent = text;
+        targetEl.appendChild(div);
+      }
+      return;
+    }
+    // ★同じページで複数回呼ばれても(例: news.htmlのrenderMB/renderMCがi18n:ready/i18n:changed
+    //   のたびに再実行される)バナーが積み重ならないよう、既存のバナーがあれば作り直さず更新する。
+    var banner = document.body.querySelector('[data-pokedb-load-error]');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.setAttribute('data-pokedb-load-error', '1');
+      banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#c00;color:#fff;' +
+        'padding:10px 16px;font-size:14px;line-height:1.5;text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.3)';
+      document.body.insertBefore(banner, document.body.firstChild || null);
+    }
+    banner.textContent = text;
+  }
+
   try {
     var q = new URLSearchParams(location.search).get('data');
     if (q === 'champions') mode = 'champions';
@@ -100,7 +145,7 @@
     return Promise.all(FILES.map(function (f) {
       return fetch(BASE + f + '.json')
         .then(function (r) {
-          if (!r.ok) throw new Error('master/' + f + '.json が読めません (' + r.status + ')');
+          if (!r.ok) throw new Error('master/' + f + '.json (HTTP ' + r.status + ')');
           return r.json();
         })
         .then(function (j) { DB[f] = j; });
@@ -370,6 +415,26 @@
 
     /** 生の master をそのまま(検査用) */
     raw: function (name) { return DB[name] || null; },
+
+    /** ★W21(2026-09-05): master/*.json が読めなかった時、画面に文言を出す共通部品。
+     *  それまで ability_all.html / items_db_all_v2.html の2ページだけが独自に(ja直書きで)
+     *  やっていて、他の pokedb.js 1本読みページは PokeDB.ready.then(...) に .catch() が無く
+     *  「コンソールにだけ出て画面には何も出ない」状態だった(W20レビュー所見1)。
+     *  targetEl があればその要素に差し込み(表の中(TBODY/THEAD/TABLE)ならcolspan="99"のtr/tdで
+     *  1行分・それ以外はdivで)、無ければ document.body 先頭に固定バナーを出す。
+     *  文言は i18n キー common.db_load_error(無ければ ja フォールバック)。{msg} に err.message を差す。
+     *  ★master/*.jsonのfetchはI18Nの辞書fetchより先に失敗しがちで、I18N.tがまだcache無しでjaに
+     *    フォールバックしたまま固まる恐れがある → i18n:ready/i18n:changedで自動的に描き直す
+     *    (renderLoadError参照。ページ側でi18n再描画コードを書く必要はない)。 */
+    showLoadError: function (err, targetEl) {
+      LOAD_ERROR_STATE = { msg: (err && err.message) || String(err), targetEl: targetEl || null };
+      renderLoadError();
+      if (!LOAD_ERROR_LISTENER_ADDED) {
+        LOAD_ERROR_LISTENER_ADDED = true;
+        document.addEventListener('i18n:ready', renderLoadError);
+        document.addEventListener('i18n:changed', renderLoadError);
+      }
+    },
 
     /** 読み込めているかの自己診断(PDCAのCheck用) */
     healthCheck: function () {
