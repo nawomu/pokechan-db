@@ -676,6 +676,27 @@ function writeItemsView() {
   return { itemsCount: items.length, unresolvedMega };
 }
 
+// sprite_api_ids.js(SPRITE_API_ID: 名前→PokeAPI id) — ★2026-09-04 B-4 で master 駆動に(旧=tools/_build_sprite_api_ids.js・凍結)。
+//   9/3 のフォルム正式名称化で旧名キー47件が宙に浮き、ローカルPNGがあるのに届かない形態が16件あった(ケンタロス(パルデア)3/ポリゴン2/ジガルデ4 等)。
+//   規律: 値は master.pokemon[].pokeapi_id(=PokeAPI raw の id)。ローカル画像 images/poke/<id>.png が在る行だけ載せる
+//   (無い=公式風モードでも自作SVGへ落ちる=旧来の「join不成立=未収載」と同じ扱い)。名前は master の正式名称のみ(旧名の名寄せはページ側 LEGACY_FORM_NAME)。
+function writeSpriteIdsView() {
+  const pokeDir = path.join(ROOT, 'images', 'poke');
+  const have = new Set(fs.existsSync(pokeDir) ? fs.readdirSync(pokeDir).map(f => f.replace(/\.png$/, '')) : []);
+  const map = {};
+  let noId = 0, noPng = 0;
+  MASTER.pokemon.forEach(p => {
+    if (p.pokeapi_id == null) { noId++; return; }
+    if (!have.has(String(p.pokeapi_id))) { noPng++; return; }
+    map[p.name] = p.pokeapi_id;
+  });
+  const out = '// ★生成物(tools/build_views.js が master/pokemon.json の pokeapi_id から生成・直接編集しない)。\n' +
+    '// 名前(正式名称)→PokeAPI id。images/poke/<id>.png が在る行だけ(無い形態=自作SVGへ落ちる)。旧名の名寄せはページ側 LEGACY_FORM_NAME。\n' +
+    'const SPRITE_API_ID = ' + JSON.stringify(map) + ';\n';
+  fs.writeFileSync(path.join(ROOT, 'sprite_api_ids.js'), out);
+  return { count: Object.keys(map).length, noId, noPng };
+}
+
 // ── 実行 ────────────────────────────────────────────────────────────
 console.log('=== build_views.js: master/ → pokechan_data_all.js / pokechan_data.js / items_database.js ===');
 const r1 = writeNationalView();
@@ -685,3 +706,5 @@ console.log('pokechan_data.js: POKEMON_LIST=%d(order-unmatched=%d) / WAZA_MAP=%d
 const r3 = writeItemsView();
 console.log('items_database.js: items=%d unresolvedMega=%d', r3.itemsCount, r3.unresolvedMega.length);
 if (r3.unresolvedMega.length) console.log(JSON.stringify(r3.unresolvedMega));
+const r4 = writeSpriteIdsView();
+console.log('sprite_api_ids.js: entries=%d (pokeapi_id無し=%d / ローカルPNG無し=%d)', r4.count, r4.noId, r4.noPng);

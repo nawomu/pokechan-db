@@ -831,6 +831,8 @@ function buildPokemon() {
     let GENUS_WIKI = {}; try { GENUS_WIKI = J('reference/_pokemon_genus_wiki.json').items || {}; } catch (e) {}
     items.forEach(x => {
       const a = x.slug && raw[x.slug]; if (!a) return;
+      // ★PokeAPIの数値id(=公式風スプライト images/poke/<id>.png の名前)は識別子=暫定欄ではない(2026-09-04 B-4: sprite_api_ids.js を master から生成するため)
+      if (a.id != null) x.pokeapi_id = a.id;
       const prov = [];
       const fill = (k, v) => { if (x[k] == null && v != null) { x[k] = v; prov.push(k); } };
       fill('weight_kg', a.weight_kg);

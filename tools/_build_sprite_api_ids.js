@@ -1,3 +1,6 @@
+// ★凍結(2026-09-04 B-4): sprite_api_ids.js は tools/build_views.js が master/pokemon.json の pokeapi_id から生成する(段D/Eと同じ生成物)。
+//   このビルダーは入力 reference/pokeapi_master.json が現存せず再生成不能・旧名キー47件を残す状態だったため役目を終えた。実行しないこと。
+//   阿部さん確認後に削除予定(旧を残す規律=作り直しは別で作ってから入れ替える)。
 // tools/_build_sprite_api_ids.js
 //
 // GLM タスク S1: SPRITE_API_ID 全形態ビルダー
