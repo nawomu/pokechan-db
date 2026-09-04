@@ -11,7 +11,7 @@
 - 今夜の push(順): `2996ab78` W13 → `845fe7ff` W14 → `81258ab3` 調査 → `b8819335` W15/16 → `2ead3efc` W17 → `65a6b703` W18 → `71066fa7` W19 → `2ef53ddf` どげざつき訂正。
 - Codex 第八世代照合(W4)= 50/50 can_use・fixes なし(`59586952`)。
 - **M-C「参加できるポケモン」一覧リンク: 9/5 00:05 時点でまだ無し**(`node tools/_watch_official_news.js`)。
-- W20(新版ページ群の壊す側レビュー・Sonnet・読み取り専用)を 00:20 に起動 → 結果は本書 §6 に追記(未着なら `次回ここから.md` 冒頭を見る)。
+- W20(新版ページ群の壊す側レビュー)→ §6。是正 W21 `264ac507`・特性名 W22 `d7f1c979` → §6b。**夜間ぶんの push は全部 main に載っている(最終 = W21)。**
 
 ---
 
@@ -48,6 +48,7 @@ pokedb.js に今夜足した窓口: `statRankAll/statRank`, `learnsetNational(na
 7. damage_calc_v2 の「計算だけ凍結エンジン経由」= R1 の暫定例外。③(バトル作り直し)で解消する前提でよいか。
 8. 以前からの持ち越し: `.codex/` gitignore・`reference/_dex_audit_codex/`・`_genus_material/*` の未追跡ファイル(消すか git 管理か)/ waza-list-template.html 削除 / items 入手方法 空64件 / flavor_ja 全角75件 / magnetic-flux(effects設計)/ 10-000-000-volt(文言)/ Z技28 / X投稿 / 耳チェック6件 / buddy_finder / ゲーム内ロスター画面 / ページ側「現行既定・次へ切替」UI(段H=9/9)/ 旧版 pokemon_db_all.html の全角キー(ポリゴン２)は旧版引退後に削除可。
 9. i18n 監査ハーネス `tools/i18n_audit_playwright.js` の PAGES 既定一覧に新版ページを足すか(今は `--page=` 指定で個別に回している)。nav への新版昇格も同時に。
+10. ~~pokemon_db_v10 / all_v10 で特性名が言語切替後も日本語のまま~~ → **解決 `d7f1c979`(W22)**。配線漏れではなく**辞書側の未訳プレースホルダ**(name===ja の既存エントリを builder が確定訳と誤認して固定)。builder 修正+`reference/_i18n_names_fixes.json` に6件×8言語(Wiki+Bulbapedia 二重一致)。🙋 残る判断 = **es は スペイン版を採用**(ほのおのたてがみ=Crin de Fuego / ドラゴンスキン=Piel Dragontina。中南米版 Melena de Fuego / Piel Dracónica は不採用分として fixes に記録)。中南米版が正なら差し替え。
 
 ## 5. 工数の見直し(阿部さん「一週間と言って一時間で終わる」への答え)
 
@@ -56,7 +57,19 @@ pokedb.js に今夜足した窓口: `statRankAll/statRank`, `learnsetNational(na
 
 ## 6. W20(新版ページ群の壊す側レビュー)の結果
 
-(00:20 起動・完了次第ここに追記。未追記なら `次回ここから.md` 冒頭を見る)
+00:45 完了(Sonnet・読み取り専用・14ページ×7観点・全数)。
+- **所見1(実害・条件付き)**: `master/*.json` が 404 のとき 11ページが**無言**(`.catch()` 無し・コンソールのみ)。`ability_all.html`/`items_db_all_v2.html` だけ画面に出る。→ **W21 で是正**(pokedb.js に `showLoadError()` 共通部品+ i18n `common.db_load_error` 9言語+13ページに `.catch`)。結果は §6b。
+- 所見2: damage_calc_v2 の iframe 直読み=既知の R1 暫定例外(③解禁まで)。追加対応なし。
+- 所見3/4(問題なし・確認): learners() の mode 追随=旧新全件一致(まもる 322/322・全国 1251/1251)/ abilityDesc 313件一致 / pokemon_db_v10 DATA 1273件一致(null vs "" の表記差のみ・表示影響なし)/ `?learns=` バナー件数一致。
+- 所見5: 言語切替後の残りは (a) フッター社名(翻訳対象外) (b) items_db_all_v2 の意図的JA併記(`data-i18n-audit-skip`) (c) **pokemon_db_v10/all_v10 の特性名(メガソーラー等)が未訳=v9 から在る既存問題**(移行が原因ではない)→ 🙋 §4-10。
+- 所見6: 4か条の機械検査=実行コードでの生成物/master/reference 直読み 0件。所見8: 競合(master 1.5秒遅延)=13ページ全部正常。
+- 注記: items_list.html は SSG(ビルド時に焼く)なので実行時1本読みの観点は対象外。
+
+### 6b. W21(所見1の是正)・W22(特性6件の公式名)の結果 — 01:20 完了・push 済み
+
+- **W21 `264ac507`**: `PokeDB.showLoadError(err, targetEl?)` を pokedb.js に追加(表なら colspan 行・要素なら div・指定なしなら固定バナー=重複しない)。文言 = i18n `common.db_load_error`(9言語・`{msg}`)。**master の fetch は I18N 辞書より先に失敗する**ので `i18n:ready/i18n:changed` で自動再描画(Sonnet が実機でレースを踏んで発見。指示書より一歩広いが妥当と判断して採用)。fetch 失敗の `err.message` は Fable が言語中立に直した(『が読めません』→『(HTTP 404)』。英語文の中に日本語が残っていた)。13ページに `.catch`・`?v=20260905`。実機 = 404経路で表示/通常経路 innerText 不変/pageerror 0/監査 en 0。
+- **W22 `d7f1c979`**: §4-10 参照。辞書の未訳プレースホルダが原因(配線漏れではない)。builder 1行修正+fixes 6件×8言語。
+- W20 の所見はこれで**全部消化**(所見2=既知の R1 例外、3/4/6/8=問題なし)。
 
 ## 7. 次回の入口
 
