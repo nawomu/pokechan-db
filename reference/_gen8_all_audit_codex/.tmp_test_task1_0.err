@@ -1,0 +1,1561 @@
+Reading additional input from stdin...
+OpenAI Codex v0.152.1
+--------
+workdir: /Users/masamichi/Documents/ポケモンDB
+model: gpt-5.6-sol
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: none
+session id: 01a06bfa-b748-7540-a016-14a535f5933d
+--------
+user
+あなたは検証担当。ポケモンの技「じごくぐるま」(英語名=じごくぐるま・slug=submission)が、第八世代(ポケットモンスター ソード・シールド、および同エンジンのブリリアントダイヤモンド・シャイニングパール)のバトルで「選択して使用できる技」かどうかを確認する。
+
+材料=ポケモンWikiのこの技のページの生テキスト全文(/Users/masamichi/Documents/ポケモンDB/reference/_genus_material/wiki_moves/wiki_じごくぐるま.txt)。ファイルは一切書き換えない。ページを全文読んで判断すること。記憶や一般知識だけで断定しない(ページに書いてあることを根拠にする)。ページに直接の記述が無ければ verdict は "unknown" とし、根拠にした周辺情報(例:このわざが追加された世代・削除の記述の有無等)を note に書く。
+
+参考情報(このプロジェクトのマスターデータより・未確認の仮説): この技はマスターデータ上、初出=第1世代、これまで記録されている使用可能世代=[1,2,3,4,5,6,7,8]で、**第九世代(スカーレット・バイオレット)が含まれていない**(=現行世代では選択できない可能性がある)。ただし「いつから使えなくなったか」(第八世代からか、第九世代からか)はまだ未確認。この技が第七世代までしか使えない旧技で、かつ第八世代(SwSh/BDSP)でも既に選択できなかった可能性がある、という仮説を検証してほしい。
+
+確認してほしいこと:
+1. このページに、この技の「登場作品」「対応バージョン」等の一覧(通常わざ一覧の対応マーク○×表・作品名の列挙など)があれば、そこに第八世代(ソード・シールド/ブリリアントダイヤモンド・シャイニングパール)が含まれているか含まれていないか(あれば一字一句quote)。
+2. このページに「第七世代限定」「第八世代では使用できない」「(第八世代で)技の削除」等、世代・作品限定を明示する記述があるか(あれば一字一句quote)。
+3. 上記1・2から、第八世代(SwSh/BDSP)で使用できるか。verdict="can_use"(使える)/"cannot_use"(使えない)/"unknown"(ページから判断できない)。
+
+最後のメッセージは次のJSONだけ(前後に文章を付けない): {"slug":"submission","verdict":"can_use|cannot_use|unknown","availability_quote":str,"gen_limit_quote":str,"note":str}
+warning: Skill descriptions were shortened to fit the skills context budget. Codex can still see every skill, but some descriptions are shorter. Disable unused skills or plugins to leave more room for the rest.
+hook: SessionStart
+hook: SessionStart Completed
+exec
+/bin/zsh -lc '/Users/masamichi/.agents/skills/agmsg/scripts/watch.sh 01a06bfa-b748-7540-a016-14a535f5933d.37265 $'"'/Users/masamichi/Documents/�\\203\\235�\\202��\\203��\\203�DB' claude-code" in /Users/masamichi/Documents/ポケモンDB
+ succeeded in 79ms:
+/Users/masamichi/.agents/skills/agmsg/scripts/watch.sh: line 131: /Users/masamichi/.agents/skills/agmsg/run/watch.01a06bfa-b748-7540-a016-14a535f5933d.37265.pid: Operation not permitted
+tr: Illegal byte sequence
+sed: RE error: illegal byte sequence
+agmsg watch: no available identities (all held by other sessions, or none joined); nothing to do
+
+codex
+指定の監視は起動を試みましたが、権限エラーと利用可能なIDなしで終了しました。これからプロジェクト規約と対象ページ全文を読み、ページ内の記述だけで判定します。
+exec
+/bin/zsh -lc "wc -l CLAUDE.md /Users/masamichi/.agents/skills/agmsg/SKILL.md reference/_genus_material/wiki_moves/wiki_じごくぐるま.txt && sed -n '1,240p' CLAUDE.md && sed -n '1,240p' /Users/masamichi/.agents/skills/agmsg/SKILL.md && sed -n '1,260p' reference/_genus_material/wiki_moves/wiki_じごくぐるま.txt" in /Users/masamichi/Documents/ポケモンDB
+ succeeded in 0ms:
+     202 CLAUDE.md
+     165 /Users/masamichi/.agents/skills/agmsg/SKILL.md
+     868 reference/_genus_material/wiki_moves/wiki_じごくぐるま.txt
+    1235 total
+# ポケモンDB (PchamDB) プロジェクト — 運用原則
+
+最終更新: 2026-09-03 JST
+
+---
+
+## ★★★作業を始める前に必ず読む(絶対ルール・例外なし)
+
+**何か作業する前に、必ず下記を開いて該当ルールを確認してから着手すること。**「lookslike一行だから」でも飛ばさない。
+
+0. **★`仕様書_サイト全体.md`(入口の仕様書。第1の軸=「データベースは一つ」)** ← 迷ったらまずここ
+1. **このCLAUDE.md**(本書・運用原則の全体)
+2. **`今後の計画_ロードマップ.md`**(次に何を・どの順番で=親計画。冒頭=最新の阿部さんメモ)
+3. 作業領域別の確定ルール:
+   - **全国版DB(共通SSOT・全部入り)を触る** → **`review/db_rules.html`**(元 `tools/_db_rules.js`)= R1〜R8(SSOT1本化/クローン方式/フォーム間引き/Gen・Season/伝説/タグはeffectsから/説明はマザー流/PDCA)
+   - **わざ説明文を作る/直す** → **`review/rules.html`**(元 `tools/_rules.js`)+ **`ヤックン耳_判断ログ.md`**(具体例)
+   - **★特性(とくせい)を触る** → **`設計_特性の扱い_2026-08-16.md`(必読)**。技の流儀(effects→compose)をそのまま持ち込むと大工事になる。**特性はエンジンにコードで実装済み(155/312が生の名前で出現)=effects化しない**。代わりに「バトルが判断に使う事実の表」を持つ(かたやぶりの対象一覧が第1号)。説明文の長さ制限は2026-08-16に撤回・ただし出どころの禁止(ナビ欄/NPCセリフ/背景/戦術論)は残る。**`master/abilities.json` を手で直すと再ビルドで消える → `reference/_abilities_fixes.json` に根拠つきで書く**
+   - **データ(ポケモン/技/特性/持ち物)を触る・追加する・最新化する** → **★`設計_データSSOT一本化_2026-07-28.md`(必読)**
+     - **★ページ用生成物 `pokechan_data_all.js` / `pokechan_data.js` / `items_database.js` は 2026-09-01 から `node tools/build_views.js` が `master/` から生成する(段D/E完了)。手で直さない。旧版は `reference/_legacy_snapshot/`(凍結・builderの土台入力)。手順=master入力を直す → `node tools/build_master_v2.js` → `node tools/build_views.js` → `node tools/_views_diff.js`(未説明差分0) → `node tools/_views_pdca_playwright.js`(実機)**
+     - **★器を広げる(新ポケモン/新特性/新持ち物/次のレギュ)入口 = `reference/_pokemon_additions.json` / `_abilities_additions.json` / `_items_additions.json` / `_regulations.json`(2026-09-01 レギュM-C予告分で整備)+ 修正は `_*_fixes.json`(★同名キーは必ずマージ・上書きで消すな)。書いたら `node tools/build_master_v2.js` → `node tools/_ssot_guard_test.js`**
+     - **★SSOT = `master/{pokemon,moves,abilities,items,learnsets,regulations}.json`。ここ「だけ」を直す**(2026-07-31 訂正。★以前ここには `reference/master_*.json` と書いてあったが**それは古い場所**。`reference/` に似た名前の旧ファイルが**10本**残っていて、実際に「どれが本物か分からない」状態を生んだ)。`pokechan_data.js`(Champions版)/`pokechan_data_all.js`(全国版)/`items_database.js` は**生成物=直接編集しない**。
+     - **一箇所を見る・一箇所を変えれば全部変わる**(多言語もバトル仕様書もここから引く)。★2026-07-28に**Champions版と全国版が別物になっている**ことが実測で判明(説明文195件 vs 309件・`champions.in`の印が10件未設定・再ビルドで5件消える状態)。**両方を手で直すな**。
+     - **名前は正式名称**(略さない・切り詰めない)。✗「フラエッテ(えいえん)」→ ✓「フラエッテ(えいえんのはな)」。英語もPokeAPIの**完全名**。名前の不一致は**機能が到達不能になる実バグ**を生む(フラエッテナイト/いじげんラッシュ/i18n468件=全部同じ型)。
+     - **作り直しは別で作ってから入れ替える**: 旧を残す→新版を別ファイルで生成→**全数差分**→回帰→昇格→**確認後に旧を削除**。
+     - **出典の優先順位**: ①Championsに在る=**Champions仕様が正典**(ヤックン`/ch/`) ②無ければ**最新世代** ③Champions判明後は**必ず上書き**([[champions-plus-alpha-canon-rule]])。
+   - **バトル再現/sim** → **★まず `設計_バトルエンジン原理_2026-07-26.md`(バトル設計の憲法=原理+第II部の追加プレイブック)** → `設計_フェーズ語彙v3_2026-07-26.md`(箱の一覧) → `設計_割り込みと分岐の規律_2026-07-26.md`(箱の間の飛び方) → `バトル再現_羅針盤.md` / `バトルの流れ_実機リファレンス.md`
+     - **技/特性/持ち物/ポケモン/ルールを追加する時は、必ず憲法の第II部§11「追加プレイブック」に従う**(A=技/B=特性・持ち物/C=ポケモン・フォルム/D=新ルール・ダブル)。原則=**困ったらフェーズを足す。まとめない**(分割は情報を失わないが統合は失う)。理由まで書いてあるので**なぜを消さない**。
+   - **★レギュレーションが変わった/公式の新情報を確かめる** → **`公式情報の探し方_レギュ更新手順_2026-09-03.md`**(公式の一次フィード=`champions-news.pokemon-home.com/ja/json/list.json`・公式全一覧は本文の web-view リンク・監視=`node tools/_watch_official_news.js`・反映手順6段)
+   - **多言語化** → メモリ群([[i18n-multilingual-rule]]等)
+4. 最新の引き継ぎ **`次回ここから.md`** 冒頭 → 該当 `HANDOFF_SESSION_*.md`。
+
+→ ルールが食い違う/好みでしか決まらない/事実が要る所は、**記憶で断言せず権威ソース確認 or 阿部さんに聞く**(北極星「境界線」)。
+
+---
+
+## ★★★★全体の順番(2026-07-28 阿部さん確定・これを飛ばさない)
+
+> **「まず内部データの整理・一本化。それをしっかりやる。その上でページを作り変えて、それからバトルを作り直す。」**
+
+| 順 | やること | 状態 |
+|---|---|---|
+| **①** | **内部データの一本化** — **まず調査(現状把握)** → 新DB(器=全国版の範囲 / 値の正典=Champions)を作る | ★**いまここ**。調査は`_inv1〜4`+配線調査+権威コーパス(技497/特性315)まで完了 |
+| **②** | **今のページを作り変える** — 参照元を `pokedb.js` 1枚に向け替える(上っ面・ロジックは変えない) | 道具は完成(`pokedb.js` 実機確認済) |
+| **③** | **バトルを作り直す** — フェーズ設計の実装・特性の不一致90件・未実装87件 | ★**①②が終わるまで着手しない**(データが動くと全部やり直しになるため) |
+
+★**バトルの個別修正(特性90件・未実装87件・フェーズ差し込み)は①②の完了まで凍結**。設計書と調査結果は
+`reference/_ch_ability_check_all.json` / `_phase_design_a1〜a4.json` / `_t11_spec_g1〜g4.json` に保存済み(消さない)。
+
+---
+
+## ★★★データの絶対ルール(2026-07-28 阿部さん・例外なし)
+
+> **「データは一つ。一箇所を変えれば全部変わる。」**
+
+**破ると必ず壊れる。実際に壊れた**(2026-07-28 実測): 最初は**Championsだけ**で作り、後から**全部版のデータを別に取ってきた**結果、**同じはずのデータが別物**になった。
+→ 特性の説明が Champions版195件 / 全国版309件、`champions.in`の印が**10件立っておらず**サーフゴーの「おうごんのからだ」が説明なし、再ビルドすると**5件の説明文が消える**状態、名前の切り詰め(「フラエッテ(えいえん)」)で**メガシンカが到達不能**。
+
+1. **データは一つ。絶対に一つ。★どのページにも「データは一つ」。複数持たない。各ページごとに作らない。**
+   - ★その大本を **「マスターデータ」** と呼ぶ(2026-07-29 阿部さん)。**置き場所は `master/` ただ1つ**。**直すのはマスターデータだけ**。
+   - **★SSOT = `master/*.json`。修正も追加も、必ず元データ(SSOT)を直す。**(2026-07-31 訂正: 旧記述 `reference/master_*.json` は**古い場所**。`reference/` の似た名前は全部**中間ファイル=マスターではない**)
+   - `pokechan_data.js`(Champions版)/`pokechan_data_all.js`(全国版)は**生成物**。**直接編集しない。両方を手で直さない。**
+   - **ページは参照元1枚 `pokedb.js` だけを読む**(2026-07-28新設)。**ページから `pokechan_data*.js` を直接読むのは禁止**(参照元が増えると、また分裂する)。供給元の差し替えは `pokedb.js` の中だけで完結する。
+   - **なぜ(2026-07-28 阿部さん)**: 「**一箇所直せば全部変わる**、それが大事。**ページが増えれば増えるほど、参照箇所がずれる・全部直さないといけない・チェックをやり直さないといけない**。メンテナンスと今後のことを考えてデータを一つにする」。実際にページは**4,999枚**まで増えている。
+   - ★**共通する失敗の根**: 「**足りないから、もう一つ作る**」を繰り返したこと。**足りないときは、一つのものを広げる。**
+2. **出典の優先順位(★「器」と「中身」を分ける)**: **器(全部を入れる箱)=全国版の範囲**(1219体/919技/310特性/167持ち物)。**中身(値)の正典=Champions**。
+   ①**Championsに在るものはChampions権威の値で上書き**(確認先=ヤックン`/ch/`) → ②**Championsに無いものは最新世代(第九→第八→第七…)の値を参考として入れる** → ③**後からChampionsに追加・変更されたら、その1件だけ調べ直して上書きする**(旧来の値を少し変えるだけで済む形にしておく)。
+   ★**「新しく作った方が正しい」とは限らない**: 全国版は後から取り直したが、**PPは396件が旧世代の値**だった(Championsは引き分け防止でPP・回復系を絞っている)。**全国版を土台に作り直していたら396技のPPが静かに巻き戻っていた。**
+3. **多言語版(i18n)もSSOTに追随する**。辞書を個別に手直ししない。
+4. **名前は正式名称**(略さない・切り詰めない)。✗「フラエッテ(えいえん)」→ ✓「**フラエッテ(えいえんのはな)**」。英語もPokeAPIの**完全名**。
+   ★名前の不一致は「機能が到達不能になる実バグ」を生む(フラエッテナイト/いじげんラッシュ/i18n468件=**全部同じ型**)。
+   **★英数字は半角で統一(2026-08-01 阿部さん・ルール化)**: ポケモン名・技名・フォーム名・説明文の英数字は**すべて半角**。✗「ポリゴン２」「１０％フォルム」→ ✓「ポリゴン2」「10%フォルム」。理由=全角は名寄せ照合を**静かに**壊す(実測: 『１０まんボルト』⇔『10まんボルト』の表記割れで**141体分の技が落ちていた** 2026-07-31)。新しくデータを足す時も必ず半角に正規化してから入れる(`zen2han`)。
+5. **作り直しは"別で作ってから入れ替える"**: 旧を残す → 新版を**別ファイル**で生成 → **全数差分**(消える項目を必ず洗う) → 回帰テスト → 本番へ昇格 → **動作確認してから旧を削除**。
+6. 各項目に「**Champions確認済み / 最新世代からの暫定**」の印を持たせる(後からどれを上書きすべきか分かるように)。
+7. **★世代の扱い(2026-09-03 阿部さん確定・`review/db_rules.html` R10)**: 値の正典は①Champions→②その技が使える最新世代。**昔の技(第八世代で廃止など)は消さない**(ヤックンと同じ。後から「初代ルールのバトル」を作れるように)。代わりに技ごとに `availability.gen_introduced`(初出)/`gens`(使える世代)/**`gen_removed`(この世代から使えない)**/`note`(Let's Go限定等)を持ち、**使える/使えないはデータで判定**(表から落とさない)。廃止技の値は**最後に使えた世代の実機値**(SwSh内部データの数値=誰も使えない値=採らない)。
+8. **★Season(レギュ)は「現行」と「次」の2枠だけ(2026-09-03 阿部さん確定・R4)**: `reference/_regulations.json` に `role:current`(本番で遊べる=M-B)と `role:next`(発表済み・先行で遊べる=M-C)の2件だけ。行の `seasons` もこの2つに絞る(M-Aなど終わったレギュは外す。名簿は `reference/_official_rosters/` と git に残る)。次が発表されたら公式開始を待たず next に足してよい(累積)。切替日は next→current に書き換え・前の現行は消す(builderは role を読む=定数を触らない)。ページは `pokedb.js` の `regulation()`(現行)/`regulationNext()`(次)。**R1の再確認**: バトルも含め全ページのデータは大元(master)だけ。ページ上にデータを作らない=一箇所変えれば全部変わる。
+
+→ 詳細・現状の実測・移行手順・**★§10「失敗の記録」(なぜこのルールが要るのか=何をやらかしたか)** = **`設計_データSSOT一本化_2026-07-28.md`(データを触る前に必読)**
+→ **番人**: `node tools/_ssot_guard_test.js`(消える資産/説明なし特性/名前の切り詰め/DB間の食い違いを検査。**悪化したら赤くなる。★基準を上げて通すのは禁止**)
+
+---
+
+## ★★★新しいページを作る時の絶対手順(2026-07-31 阿部さん確定・例外なし)
+
+> **「作るたびにぐちゃぐちゃになっていた。もうしょうがないな、忘れちゃうんだよね。だから絶対ルールに変えて。新しくページを作る際にそれを元にする。データは1本。**
+> **どんどん次に足すページを新しく作るたびに、読んでくるデータがみんな間違ってくるとか、データを持ってくるたびにまた新しくデータを作るとか、ページ独自の単独のデータを作ってくるとか、そうじゃなくて、データベース1本。これはずっと言ってるんですけど、どうしてもできない。」**
+
+★**なぜ守れないか**: **Claudeのセッションが入れ替わると全部読んでいない状態になる**から。だから本書(毎回読み込まれる)に置く。**「今回だけ」の例外を作った瞬間に、次のセッションがそれを標準だと思う。**
+
+**新しいページを作る/既存ページを直す時、この4つを必ず守る**:
+1. **データは `pokedb.js` からしか取らない。** `pokechan_data*.js` / `items_database.js` / `master/*.json` を**ページから直接読まない**。
+2. **ページ専用のデータを新しく作らない。** 足りない項目があったら**マスターデータ(`master/`)を広げる**。★「足りないから、もう一つ作る」が全ての失敗の根。
+3. **JSON/JSをコピーして持ってこない。** コピーした瞬間に2本目のデータが生まれる。
+4. **文字列(名前・技名・タイプ)をHTMLに直書きしない。** IDでマスターから引く([[i18n-ssot-render-rule]])。
+
+**★屋台骨の総入れ替え(2026-07-31 阿部さん決定)= 進め方はこれ**:
+> **「今の既存のページはちょっと置いといて、新しくもう別で作り直して全部入れ替える。今公開されているのは旧版、新しく作るのが新版。一回両方を掲載して、うまくいけば片方(昔の方)を消す。」**
+
+- **旧版は消さない・触らない**(動いているものを壊さない)
+- **新版を別ファイルで作る**(`*_v2.html` 等)。新版は**必ず上の4つを守る**
+- **両方を同時に掲載**して見比べる
+- **新版が確かめられてから、旧版を消す**
+- ★これは §5「作り直しは"別で作ってから入れ替える"」を**ページにも適用**したもの。データもページも同じ規律。
+
+---
+
+## ★北極星(最優先・説明文に関わる全作業に適用)
+
+全説明文を「**子どもが、うちの出力だけ読んで、ヤックン(=既存の良い説明文 `description_legacy`)と同じ"意味"に戻れる**」状態にする。**ただし文言はヤックンのコピーではなく独自に作る**(このプロジェクトの出発点＝既存サイトの丸写しでなく独自に作る)。legacy は**意味の参照**であって**文言の正解ではない**。**verbatim一致は盗用リスク＝避ける**。技の説明文は独自作成／特性(ABILITY_DESC)は公式準拠なのでそのまま可。
+**データの綺麗さ・構造の完成度・英語ゼロ・カバー率は、手段であって目的ではない。**
+
+**唯一の合否 = ヤックン耳テスト**: 何か作ったら必ず、作る姿勢を捨てて読者の姿勢に座り直し、予備知識ゼロの子のつもりで「うちの出力だけ」を読み、`description_legacy` と並べて ①**意味が戻るか**(legacyと同じ内容に戻れるか) ②**声がやさしい子ども口調か**(漢字を勝手にひらがなに開かない・過剰softening禁止) ③**機械が漏れてないか**(`true`/`0.125`/英語/キー名) ④**legacyの文言コピーになってないか**(verbatim一致=盗用リスク=NG。独自の言葉で・用語は開いて説明=独自化のレバー)。一つでもズレたら未完。grepゼロ・カバー率・"全部日本語になった"・**"legacyとそっくり"は偽の頂上**(そっくり=むしろ赤信号)。
+> **直訳テスト(独自性の確認)**: legacy を**見ずに** effects だけから「初見の他人ならどう訳すか」を生成し、それが①意味に戻れるか確かめる。legacyに寄せて作るのでなく、データから独立に作る。
+
+**必ず陥る罠**: 「機械(構造・データ)を完成させる実感」が「ヤックンに戻れるか確かめる規律」に勝つ。**作る最中のセッションは自分の漂流を感じない。** 作り直す前に必ず「**もう `description_legacy` に在るのでは?**」を問え(既存を壊すな)。
+
+**境界線(判断するな・止まってユーザーに聞け)**: 声の最終判定はユーザーの耳。SSOT(legacy/description/effects)が食い違って決着しない・好みでしか決まらない・事実が要る所では、記憶で断言せず権威ソース確認 or ユーザーに聞く。スキーマを推測で足すな。
+
+→ 具体例の山・境界線の詳細は **`ヤックン耳_判断ログ.md`** を**作業前に必ず読む**(原則を解釈せず、具体例にパターンマッチしろ)。
+
+---
+
+## ★わざリスト説明文の基準(セッションをまたいでも不変・必読)
+
+**技(わざ)の説明文を作る・直す・チェックする時は、必ず `review/rules.html`(元データ=`tools/_rules.js`)の全ルールを基準にする。** これは引き継ぎ後も**変えない確定基準**。
+- **★作業手順(セッション引き継ぎ)= `わざ説明文_開通手順.md`**: 「続きをやって」と言われたら**まずこの手順書のとおり**に1ブロック(効果kind)ずつ開通する。STEP1〜10・注意事項・コマンド早見表に加え、**§5「セッション引き継ぎの作法(汎用)」=不変/毎回更新の切り分け・引き継ぎテンプレ・終了時手順**あり。迷ったらここに戻る。
+- **ルールの集約=唯一の基準**: `review/rules.html`(書き方のルール＋言葉のルール)。二重管理しない(ルール本体はここ／`tools/_rules.js`)。
+- **確認の場**: `review/waza_list_confirm.html`(`tools/_waza_list_confirm.js`)。本番デザイン・**効果カテゴリー別セクション**で、各技の「**効果(新版・エンジン生成)↔ヤック(legacy)**」を**意味で照合**する。
+- **エンジン**: `tools/_waza_compose.js`(effects→説明文)。effects は **simと説明文の二役**。**voiced≠complete**(カバー率はデータ欠けを見ない=意味照合は人間/検証)。
+- **★★出発点＝まずバトル(sim)から考える(2026-06-07/2026-06-28 阿部さん)**: このプロジェクトの起点は「**まずバトルシミュレーターを動かすことを目的に effects を作り、それを訳せばそのまま説明文になる**」。**順番は必ず effects(sim土台) → compose(訳す)**。**禁止＝逆向き**: effects を空のまま説明文だけ手書きするのは、人間が読む文は埋まっても **sim が動かない**(その技がバトルで不発)＝偽の完成。**121kindに無いメカが出たら、説明文だけ手書きで済ませず、新kindをスキーマ＋compose(＋sim)に足して effects を作り、説明文は compose生成に戻す**(手書きオーバーレイ `reference/moves_desc_override.json` は新kind実装までの一時しのぎ)。[[effects-sim-phase-first]]
+- **★effects はバトルシミュレーター前提＝常にフェーズを意識して作る(2026-06-07 阿部さん)**: effects は**バトルシミュレーター(`real_battle_simulator.html`・Phase構造v7)が読み取る前提で作られたデータ**。説明文(compose)は「**simが読む effects をただ日本語に訳しているだけ**」。だから effects は**常に sim とセット**で考え、**sim の処理の流れ＝フェーズ(優先度→攻撃前の変化→攻撃→攻撃後[適用後]→ターン終了)を意識して構築**する。compose が"賢く"織り込み・並べ替えをしたくなったら、それは**effects の phase 設計が足りないサイン**→エンジンに特例を足すのでなく**データ(phase)を整える**。**実機バトルの流れ＝確定リファレンス: `バトルの流れ_実機リファレンス.md`**(出典つき実機調査＋sim「Phase構造v7」突き合わせ・2026-06-08作成)。原典フロー=`HANDOFF_PHASE3_SIMULATOR.md`。[[effects-sim-phase-first]]
+- **★出す前に自分でヤックン耳テスト(最優先・引き継いでも忘れるな)**: 「できました」と報告する**前に**、必ずビルド担当(Claude)自身が一度ヤックン耳テスト(直訳テスト=legacyを見ずにeffects/battle_dataから訳文を作り `description_legacy` と意味照合)をやる(2026-06-07 阿部さん・いびきで露呈)。阿部さんが確認する前に内容が違っているのは**成果物として未完=失格**。**抜けは指摘される前に自分から修正案を出す**(不足の意味を effects か compose が読む battle_data に入れて喋らせる)。「✅完結(穴ゼロ)」は機械の話＝偽の頂上(voiced≠complete)。「データ欠け」と決める前に「データに在るのにエンジンが喋ってないだけでは?」を疑う(いびき=requires/flags.sound/substitute_pierceの取りこぼし)。詳細は [[self-eartest-before-done]]・`わざ説明文_開通手順.md` STEP6。
+- **略さない(意味が要る所)**: 「短くて済む」より「意味が戻る」。例(必中・2026-06-07 阿部さん確定): ✗「必ず命中する」だけ → ✓「**相手の回避率や自分の命中率に関係なく**、必ず命中する」(かいひ上昇/命中率低下を無視して当たる肝・simにも効く→effectsにも `ignores` を入れる)。
+- **照合して抜けを丁寧に追加(各技でやる)**: 新版とヤックンを**見比べ**、新版に抜けている意味があれば、**丁寧に effects へ追加**して補完する(=略さないの実行・voiced≠completeの実践)。例(なみだめ): legacyの「守り技を貫通(ダイウォール除く)」が effects に無→`まもり貫通`追加。
+- **能力ランク=±N表記**: 能力ランクの増減は「こうげき-1、とくこう-1 / こうげき+2」で固定(✗「1段階さがる」)。急所ランクは別(「ひとつ上がる」)。
+- **役割モデル(運用)**: ①ビルド=作る ②検証=独立に試訳/データ裏取りして**事実をco-sign**(別Claudeの意見に錨を打たない) ③**声の最終判定は人間(阿部さん)の耳**。**Claudeは★→✓に上げない**(耳は人間のみ)。**台帳/ハンドオフ等 共有docのcommitは検証担当の了解**を取る(阿部さん直接指示時を除く)。
+- 判断ログ(具体例)・境界線は `ヤックン耳_判断ログ.md`。
+
+---
+
+## ポケモンデータの参照ルール(★2026-09-02 更新: 旧記述を訂正。発見者=Codex単独読解テスト)
+
+**マスターDB (SSOT)**: `master/*.json`(修正はさらに上流の `reference/_*_additions.json` / `_*_fixes.json` / `_regulations.json`)。
+`pokechan_data.js`(Champions版)/`pokechan_data_all.js`(全国版)/`items_database.js` は **`tools/build_views.js` が master から生成するビュー**(直接編集しない)。各ページはこの生成物(将来的には `pokedb.js`)を読むだけで、データ本体は持たない。旧版スナップショット= `reference/_legacy_snapshot/`。
+
+タイプ・種族値・特性・技学習などは **master が正**。記憶ベースの「公式情報」を優先しない。  
+不一致を見つけたら、まず **master を信頼** して、自分の記憶が間違っている前提で対応する(masterそのものの疑義は権威ソースの二重チェックで確かめて fixes に書く)。
+
+---
+
+## 設計資料の参照先
+
+バトルシミュレータ設計・Phase構造・タグ体系・思考パターンは:
+
+→ **`HANDOFF_PHASE3_SIMULATOR.md`** / 実機の流れ確定版 **`バトルの流れ_実機リファレンス.md`** を参照
+
+★**バトル再現の北極星(何が「正解」か・どこがゴールか)= `バトル再現_羅針盤.md`**。正解は**権威ソース(日本のWiki等)に当てて確かめる**＝sim/データの自己出力をゴールデン(正解)にしない(自己参照=偽の正解)。妄想・記憶で断言せず調べる。動く前に必ず羅針盤に戻る。
+
+## ★自動化(ループ/ゴール)で回すときの運用ルール
+
+バトルシミュレーター再現を /goal・/loop・ワークフローで自走させる作業の**"回し方"の規律**(声の書き方=rules.html とは別物)は:
+
+→ **`ループ運用ルール.md`** を参照(回しながら気づいたルールをここに**厳選して蓄積**・増やしすぎ防止の規律つき)。**引き継ぎ必読セット = CLAUDE.md(本書)→ `ループ運用ルール.md` → 最新 `HANDOFF_SESSION_*.md` → テスト結果**。
+
+---
+
+## ★自己確認(PDCA Check)を必ず回す(2026-06-23 阿部さん・全作業に適用)
+
+**どんな変更でも**(ゲーム/機能追加・バージョンアップ・技/ポケモン追加・ページ変更・多言語化 等)、**Claude自身が実際に画面を見て出来具合を確認**してから「できました」と報告する。画面確認=確認作業を人間に丸投げしない。
+
+- **やり方**: ローカルサーバ(`python3 -m http.server 8000`)を立て、**Playwrightで実機を動かして確認**する。①i18n系は監査ハーネス `tools/i18n_audit_playwright.js` で残日本語を機械検出 ②機能変更は実際にページを開き**JSエラー0・描画・操作**を確認(`node --check`等の静的検査では出ない**実行時バグを実機で捕捉**=実例: `esch未定義`をPlaywrightで発見) ③必要ならスクリーンショット。
+- **客観ゲートで自己判定**: 監査0・エラー0・期待表示 を満たすまで「**監査→修正→再監査**」をループ。満たさなければ未完(報告しない)。voiced≠complete／作る快感>確かめる規律の漂流([[verification-over-production]])への構造的対策。
+- **人間にエスカレするのは判断が要る時だけ**: 声/口調(北極星)・文言判断・方針分岐など機械で決まらない所のみ阿部さんの目に回す。「動くか/出るか」はClaudeが自分で確認して締める。
+- **★多言語化(i18n)は本番デプロイまで一任(2026-06-23 阿部さん明言)**: 阿部さんは外国語の内容を確認できないので、多言語化の変更はClaudeがハーネスで検証(残日本語0・JSエラー0・実機表示)したら**確認を待たず本番(GitHub Pages `git push origin main`)までやってよい**。出典=権威ソース(PokeAPI/公式名)or独自transl+言語QA・でっち上げ禁止は不変。JA原文の声(北極星)だけは阿部さんの領域。
+- 詳細・メモリ: `self-verify-pdca-rule` / `i18n-audit-harness`。
+
+---
+
+## ★多言語化ファースト(新規ページ・文字追加は必ず先にi18n設計してから作る・2026-06-25 阿部さん)
+
+**新しいページを作る・画面に文字(ラベル/メッセージ/ボタン文言/モーダル見出し等)を足すときは、書いてから多言語化するのでなく、最初から多言語化を前提に設計してから作る。** あとから漏れを潜らせない(漏れは"作ってから探す"と必ず取りこぼす=[[verification-over-production]])。
+
+- **書く前に問う**: その文字列はどの言語キーに入る? 名前/技/タイプ等のデータは多言語DBからID参照で出すか([[i18n-ssot-render-rule]])? ハードコードのja literal(`'相手は '`・`'【スロット】'`・`'技を選択'`等の接頭辞/接尾辞)を文字列連結していないか? → **生のja文字列をHTML/JSに直書きしない**。必ず `data-i18n` 配線 or `I18N.t(key, ja_fallback)` 経由にする。
+- **語順の罠**: 「接頭辞だけ訳す」はNG(言語で語順が違う=`相手は {名前}` は英語で `The opposing {name}`)。**文ごと `{n}`等のプレースホルダ入りテンプレ**にして全言語版を持つ。
+- **追加=9言語1セット**(ja+en/fr/de/es/it/ko/zh-Hans/zh-Hant)。キーは `i18n/ui-*.json` に同時追加。出典=PokeAPI/公式名 or 独自transl+言語QA(でっち上げ禁止)。
+- **完了前に必ず**: ハーネス `tools/i18n_audit_playwright.js`(+実機スクショ)で残ja=0・JSエラー0を確認してから報告(PDCA Check)。
+- **★JSで組み立てるUI部品は「i18n:ready / i18n:changed での再描画」までがセット(2026-07-06 阿部さん実機で発覚)**: 初回描画がi18n準備前に走る(iframe/エンジン先行のレース)+ページ内の言語切替では`data-i18n`しか自動更新されない。動的部品(例: real_battleの選出カプセル)は必ず両イベントで作り直す。auditが通っても「切替経路」の漏れは別=言語切替も実機で1回踏む。
+- **★辞書の名前はPokeAPIの「完全名」を使う(2026-07-06 発覚・468件修正)**: PokeAPIのform_names(name)は『Hisuian Form』等の**フォームラベル**で、種名の代わりに使うと壊れる。正=`pokemon_name`(完全名 'Hisuian Samurott')。完全名が無い言語(es/it/ko/zh)は公式部品の合成「種名 (ラベル)」まで(でっち上げ禁止)。実装=`tools/_fetch_pokeapi_varieties.js`(full_names)+`tools/build_master.js`。
+- **★バトルログ/msgboxに出す行は「JA正典で生成→translateLogLineパターン翻訳」までがセット(2026-07-06 阿部さん実機EN切替で発覚)**: real_battleのバトル文は**表示時にtranslateLogLine(`battle_log_i18n.js`のPATTERNS/TPL)でパターン翻訳**する設計(案X)。新しく出す行(勝敗・つぎの相手・演出文など)を`I18N.t`だけで出すと**生成時の言語で固定=言語切替に追従しない**(JAで遊んでEN切替→その行だけJA residue)。必ず①JA正典の文字列で生成 ②`battle_log_i18n.js`にPATTERN(re+slots)とTPL(9言語)を追加 ③ログは`data-bl-src`にJA原文を保存(`logLine(text,type,srcJa)`)して`retranslateLogDom`が再翻訳できるようにする。動的ボタン(つぎの相手等)は`data-bl-src`対象外なので`i18n:changed`で作り直す。
+- メモリ: `i18n-first-design`。
+
+---
+
+## macOS 障害対策
+
+ファイルが開けない症状 (Numbers/Excel ハング系) が出たら:
+
+```bash
+killall cfprefsd
+PID=$(pgrep -x ScopedBookmarkAgent) && kill -9 "$PID"
+```
+
+それでもダメな場合: `_review/html_tables/index.html` を Chrome で開く。
+---
+name: agmsg
+description: Cross-agent messaging via SQLite. Send messages between Claude Code, Codex, Gemini CLI, and other agents. No daemon, no network, no dependencies beyond bash and sqlite3.
+---
+
+Agent messaging command. **IMPORTANT: Always use the provided scripts. NEVER directly read or edit config files, DB, or team data. There is NO register.sh — use join.sh to join a team.**
+
+**Shell requirement:** All agmsg scripts are Bash scripts. Always execute them via `bash`, never via PowerShell or cmd directly. If your default shell is not Bash (e.g. PowerShell on Windows), wrap every command with `bash -lc '...'`. Example: `bash -lc '~/.agents/skills/agmsg/scripts/send.sh myteam alice bob "hello"'`. Do NOT construct DB paths manually — the scripts handle path resolution internally. If you need to redirect storage, use `AGMSG_STORAGE_PATH` (the supported override).
+
+## Identity
+
+If you already know your AGENT and TEAMS from a previous `$agmsg` call in this session, skip to **Execute** below.
+
+Otherwise, run: `~/.agents/skills/agmsg/scripts/whoami.sh "$(pwd)" codex`
+
+Four possible outputs:
+
+**A) Single identity:**
+`agent=<name> teams=<t1,t2,...> type=codex project=<path>`
+→ Remember AGENT and TEAMS, then go to **Execute**.
+
+**B) Multiple identities:**
+`multiple=true agents=<n1,n2,...> teams=<t1,t2,...> type=codex project=<path>`
+→ Ask the user which agent name to use for this session, then go to **Execute**.
+
+**C) Not in a team:**
+`not_joined=true available_teams=<t1,t2,...>` (or `available_teams=none`)
+→ Show the user the available teams from the output, then:
+
+  > **First-time setup required.**
+  > Joining a team so this agent can send and receive messages.
+  > - **Team name**: a group of agents that can message each other (available: <list from output>)
+  > - **Agent name**: this agent's identity within the team
+
+  1. Ask: "Enter a team name (joins existing or creates new)"
+  2. If the team name given already appears in `available_teams`, run `~/.agents/skills/agmsg/scripts/team.sh <team>` to see the current roster (name, type, project) and note the names already in use. Look for a naming convention already in play (e.g. a shared base name with role/number suffixes like `aggie-cc1`/`aggie-cc2`, or names derived from the team name) and, when one exists, propose 2-3 unused names that extend it; otherwise propose 2-3 short, distinctive identity names (not a bare tool-type label like `codex`/`cc`). Either way, names must not collide with the roster. Then ask: "Enter a name for this agent (suggestions: <name1>, <name2>, <name3> — or type your own)". For a brand-new team, skip the roster check and just ask: "Enter a name for this agent".
+  3. **You MUST use join.sh** — run: `~/.agents/skills/agmsg/scripts/join.sh <team> <agent_name> codex "$(pwd)"`
+  4. Show the result and explain:
+
+  > **Joined!** You can now use `$agmsg` to check and send messages.
+  > - `$agmsg` — check inbox
+  > - `$agmsg send <agent> <message>` — send a message
+  > - `$agmsg team` — list team members
+  > - `$agmsg history` — message history
+
+  5. **REQUIRED — Do NOT skip this step.** Ask the user to pick a delivery mode using exactly this prompt:
+
+     ```
+     Choose delivery mode for incoming messages:
+
+       1) turn    — Check inbox at the end of each assistant turn
+                    Stop hook pulls after each response. Recommended for Codex.
+
+       2) off     — No automatic delivery
+                    Manual $agmsg only.
+
+       3) monitor — Real-time push (BETA, advanced)
+                    Prints a `codex` shell function that routes launches through an
+                    app-server bridge. Opt in ONLY if you accept experimental behavior.
+                    See docs/codex-monitor-beta.md.
+
+     [1]:
+     ```
+
+     - **Wait for the user's answer before proceeding.** Empty input means `1` (turn).
+     - Map the chosen number to a mode (`1`→`turn`, `2`→`off`, `3`→`monitor`) and run:
+       `~/.agents/skills/agmsg/scripts/delivery.sh set <mode> codex "$(pwd)"`
+     - If monitor is chosen, tell the user: "Codex monitor is a BETA that changes how `codex` starts — it prints a shell function to add to your shell profile. Add the printed function, restart the shell, then launch future sessions with normal `codex`. If you prefer a global PATH shim, run `~/.agents/skills/agmsg/scripts/drivers/types/codex/codex-shim-install.sh install` and put `~/.agents/bin` first on PATH. You can also use `~/.agents/skills/agmsg/scripts/drivers/types/codex/codex-monitor.sh` for explicit monitor launches. The bridge starts on the **first turn** of a new Codex session (the SessionStart hook fires on your first message, not the moment Codex opens), so **restart your Codex session and send one message for monitor to take effect** — this already-running session stays unmonitored until it restarts. For more info: https://github.com/fujibee/agmsg/blob/main/docs/codex-monitor-beta.md"
+
+  6. Then check inbox for the newly joined team.
+
+**D) Suggestions for reuse:**
+`suggest=true agents=<n1,n2,...> teams=<t1,t2,...> type=codex project=<path> available_teams=<t1,t2,...>`
+→ No exact registration exists for this project, but there are same-type agent names registered elsewhere.
+
+  1. Show the suggested agent names to the user.
+  2. Ask whether to reuse one of those names or choose a new one.
+  3. Ask for the team name to join (existing or new).
+  4. Run: `~/.agents/skills/agmsg/scripts/join.sh <team> <agent_name> codex "$(pwd)"`
+  5. Then continue with the normal post-join flow above.
+
+## Execute
+
+**Only use scripts in `~/.agents/skills/agmsg/scripts/` — do not read or modify files under `teams/` or `db/` directly.**
+
+**If no arguments provided (DEFAULT action — always do this when the command is invoked without arguments):**
+1. **IMMEDIATELY** run inbox check for each TEAM: `~/.agents/skills/agmsg/scripts/inbox.sh $TEAM $AGENT`
+2. Do NOT ask the user what to do — just run the inbox check.
+3. If there are messages, read and respond appropriately. To reply:
+   `~/.agents/skills/agmsg/scripts/send.sh $TEAM $AGENT <to_agent> "<message>"`
+
+If argument is "history":
+1. Run: `~/.agents/skills/agmsg/scripts/history.sh $TEAM $AGENT`
+
+If argument is "team":
+1. For each TEAM, run: `~/.agents/skills/agmsg/scripts/team.sh $TEAM`
+
+If argument starts with "send" (e.g. "send misaki check the server"):
+1. Parse target agent and message from the arguments
+2. Determine which team the target agent belongs to, then run:
+   `~/.agents/skills/agmsg/scripts/send.sh $TEAM $AGENT <to_agent> "<message>"`
+
+If argument is "config":
+1. Run: `~/.agents/skills/agmsg/scripts/config.sh show`
+2. Show the output to the user.
+
+If argument starts with "config set" (e.g. "config set hook.check_interval 30"):
+1. Parse key and value from the arguments.
+2. Run: `~/.agents/skills/agmsg/scripts/config.sh set <key> <value>`
+
+
+If argument starts with "actas" followed by an agent name (e.g. "actas alice"):
+1. Parse the new role name. If none was given (e.g. bare "actas", or the user asks you to suggest one), run `~/.agents/skills/agmsg/scripts/team.sh <team>` for each TEAM to see the current roster. Look for a naming convention already in play (e.g. a shared base name with role/number suffixes like `aggie-cc1`/`aggie-cc2`, or names derived from the team name) and, when one exists, propose 2-3 unused names that extend it; otherwise propose 2-3 short, distinctive identity names (not a bare tool-type label). Either way, names must not collide with the roster. Ask the user to pick one or type their own before continuing.
+2. Run `~/.agents/skills/agmsg/scripts/identities.sh "$(pwd)" codex` to see whether the role is already registered for this (project, type).
+3. If the name does not appear in the output, join under the existing team. For a single team, run `~/.agents/skills/agmsg/scripts/join.sh <team> <name> codex "$(pwd)"`. For multiple teams, ask the user which team to join the new role into.
+4. Set the session's active FROM to `<name>` for every `send.sh` call until another `actas`.
+5. Record this session as the role's seat so it can be resumed later (best-effort): determine which team `<name>` belongs to (from the identities output / the join above), then run `~/.agents/skills/agmsg/scripts/drivers/types/codex/codex-record-session.sh <team> <name> "$(pwd)"`. It writes the record only when this session's codex thread id is unambiguous; otherwise it records nothing and the role simply boots fresh next time (no harm). This is what lets a later `spawn <role>` bring the role back into this conversation.
+6. Tell the user: "Now acting as `<name>`. Sends will use `<name>` as the from agent. In monitor mode, each role's incoming messages are routed only to that role's recorded Codex thread; roles without a recorded thread remain unread."
+
+If argument starts with "drop" followed by an agent name (e.g. "drop alice"):
+1. Parse the role name.
+2. Run `~/.agents/skills/agmsg/scripts/reset.sh "$(pwd)" codex <name>` to remove that role's registration.
+3. If the session's active FROM was `<name>`, clear that state.
+4. Tell the user: "Dropped role `<name>` from this project."
+
+If argument starts with "spawn" (e.g. "spawn claude-code alice", "spawn codex reviewer --window"):
+1. Parse `<type>` (must be `claude-code` or `codex`), `<name>`, and any options (`--project`, `--team`, `--window`, `--split h|v`, `--terminal`, `--no-wait`, `--ready-timeout <secs>`).
+2. Run: `~/.agents/skills/agmsg/scripts/spawn.sh <type> <name> --project "$(pwd)" [options]`
+   - spawn.sh pre-joins `<name>`, then opens a tmux pane/window (when this session is inside tmux) or a new OS terminal, and launches the target CLI with `/agmsg actas <name>` as its initial prompt.
+   - By default it BLOCKS until a spawned claude-code agent's watcher attaches (`status=ready`); `status=timeout` + exit 3 if not ready within `--ready-timeout` (default 90s). `--no-wait` for fire-and-forget. Spawning a codex agent skips the wait (codex has no Monitor).
+   - It refuses early if `<name>` is already held by another live session, if the target CLI is not installed, or if there is no tmux and no usable terminal (headless).
+3. Show the script's output.
+
+If argument starts with "despawn" (e.g. "despawn reviewer", "despawn alice --force"):
+1. Parse `<name>` and any options (`--force`, `--timeout <secs>`). `despawn` is the inverse of `spawn` — it tears down a member you previously spawned.
+2. Determine which team `<name>` belongs to (as with `send`), then run:
+   `~/.agents/skills/agmsg/scripts/despawn.sh <team> $AGENT <name> [--force] [--timeout <secs>]`
+   - Default (graceful): sends a `ctrl:despawn` control message to `<name>`. A claude-code member's watcher drops its own role and closes its own tmux pane, ending the agent. Blocks until the lock releases, up to `--timeout` (default 30s), then prints `status=ok`. On timeout it prints `status=timeout` and exits 3 — retry with `--force`. A codex member has no watcher to respond, so use `--force` for it.
+   - `--force`: skips the message and tears the member down from the placement recorded at spawn time — kills its tmux pane/window and drops its registration.
+3. Show the script's output.
+
+If argument is "mode" (no further args):
+1. Run: `~/.agents/skills/agmsg/scripts/delivery.sh status codex "$(pwd)"`
+2. Show the output to the user.
+
+If argument starts with "mode" followed by a mode name (e.g. "mode monitor"):
+1. Parse the mode. Codex supports `monitor` (beta bridge), `turn`, and `off` — reject `both` with: "Codex bridge beta supports `monitor`, `turn`, or `off`; `both` is not supported yet."
+2. Run: `~/.agents/skills/agmsg/scripts/delivery.sh set <mode> codex "$(pwd)"`
+3. If mode is `monitor`, tell the user: "Codex monitor beta is enabled. Add the printed shell function to your shell profile, restart the shell, then launch future sessions with normal `codex`. If you prefer a global PATH shim, run `~/.agents/skills/agmsg/scripts/drivers/types/codex/codex-shim-install.sh install` and put `~/.agents/bin` first on PATH. You can also use `~/.agents/skills/agmsg/scripts/drivers/types/codex/codex-monitor.sh` for explicit monitor launches. The bridge starts on the **first turn** of a new Codex session (the SessionStart hook fires on your first message, not the moment Codex opens), so **restart your Codex session and send one message for monitor to take effect** — this already-running session stays unmonitored until it restarts. For more info: https://github.com/fujibee/agmsg/blob/main/docs/codex-monitor-beta.md"
+
+If argument is "hook on" (legacy alias):
+1. Run: `~/.agents/skills/agmsg/scripts/delivery.sh set turn codex "$(pwd)"`
+2. Tell the user: "Delivery mode set to 'turn' (legacy hook on behavior)."
+
+If argument is "hook off" (legacy alias):
+1. Run: `~/.agents/skills/agmsg/scripts/delivery.sh set off codex "$(pwd)"`
+2. Tell the user: "Delivery mode set to 'off'."
+
+If argument is "version":
+1. Run: `~/.agents/skills/agmsg/scripts/version.sh`
+2. Show the output — the installed version (git-describe provenance recorded at install time).
+
+If argument is "reset":
+1. Run: `~/.agents/skills/agmsg/scripts/reset.sh "$(pwd)" codex`
+2. Tell the user the result.
+
+じごくぐるま - ポケモンWiki
+コンテンツにスキップ
+メインメニュー
+メインメニュー
+サイドバーに移動
+非表示
+案内
+メインページ
+コミュニティ・ポータル
+最近の出来事
+最近の更新
+おまかせ表示
+ヘルプ
+コンテンツ
+ポケモン一覧
+ゲームソフト一覧
+ゲームシステム
+登場人物
+アニメポケットモンスター
+ポケモンカードゲーム
+関連書籍
+関連商品
+音楽
+イベント
+関連人物
+ポケモンWiki
+検索
+検索
+表示
+アカウント作成
+ログイン
+個人用ツール
+アカウント作成
+ログイン
+ポケモンWikiでは2026年8月31日～9月4日頃に、Wikiの編集停止・閲覧停止を伴うサーバのメンテナンスを計画しております。日程は変更される可能性があります。
+ポケモンWikiでは 記事の投稿、加筆、検証、修正等 に 参加、協力 してくださる方を必要としています。方法や詳細は ポケモンWikiに投稿するには をご覧ください。
+目次
+サイドバーに移動
+非表示
+ページ先頭
+1
+説明文
+説明文サブセクションを切り替えます
+1.1
+たたかうわざ
+1.2
+コンテストわざ
+2
+使用ポケモン：覚える方法
+使用ポケモン：覚える方法サブセクションを切り替えます
+2.1
+レベルアップ
+2.2
+わざマシン
+2.3
+タマゴわざ
+2.4
+特別なわざ
+3
+こんなときに使おう
+4
+大乱闘スマッシュブラザーズにおけるじごくぐるま
+5
+ポケモン不思議のダンジョンにおけるじごくぐるま
+6
+ポケモンスクランブルにおけるじごくぐるま
+7
+Pokémon GOにおけるじごくぐるま
+8
+ポケモンクエストにおけるじごくぐるま
+9
+Pokémon UNITEにおけるじごくぐるま
+10
+ポケモンカードゲームにおけるじごくぐるま
+11
+アニメにおけるじごくぐるま
+12
+マンガにおけるじごくぐるま
+マンガにおけるじごくぐるまサブセクションを切り替えます
+12.1
+ポケットモンスターSPECIALにおけるじごくぐるま
+13
+技の仕様
+技の仕様サブセクションを切り替えます
+13.1
+第二世代以前
+14
+備考
+15
+各言語版での名称
+16
+関連項目
+目次の表示・非表示を切り替え
+じごくぐるま
+6 個の言語版
+Deutsch
+English
+Español
+Français
+Italiano
+中文
+ページ
+議論
+日本語
+閲覧
+ソースを閲覧
+履歴を表示
+ツール
+ツール
+サイドバーに移動
+非表示
+操作
+閲覧
+ソースを閲覧
+履歴を表示
+全般
+リンク元
+関連ページの更新状況
+特別ページ
+印刷用バージョン
+この版への固定リンク
+ページ情報
+このページを引用
+表示
+サイドバーに移動
+非表示
+提供: ポケモンWiki
+じごくぐるま
+第一世代
+SV で使用不可
+タイプ
+かくとう
+分類
+物理
+威力
+80
+命中率
+80
+PP
+25 ( 第五世代 まで)
+→20( 第六世代 以降)
+範囲
+1体選択
+優先度
+0
+直接攻撃
+○
+効果
+相手に与えた ダメージ の1/4を自分も受ける( 反動技 )。
+判定
+急所 : ○
+命中判定 : ○
+追加効果 : ×
+まもる : ○
+おうじゃのしるし
+第二世代 : ○
+第三世代 〜 第四世代 : ○
+第五世代 以降: ○
+マジックコート : ×
+よこどり : ×
+オウムがえし : ○
+Zワザ 威力
+160
+ダイマックスわざ 威力
+90
+わざマシン
+わざマシン17 ( 第一世代 のみ)
+パレス
+たたかう
+アピールタイプ
+かっこよさ
+アピール (RSE)
+&#x2661;&#x2661;&#x2661;&#x2661;
+&#x2661;&#x2661;
+妨害 (RSE)
+&#160;
+アピール効果 (RSE)
+妨害されると、通常の2倍ハートが減らされる。
+アピール (DPt)
+&#x2661;&#x2661;&#x2661;
+アピール効果 (DPt)
+普通にアピール。
+アピール (ORAS)
+&#x2661;&#x2661;&#x2661;&#x2661;
+&#x2661;&#x2661;
+妨害 (ORAS)
+&#160;
+アピール効果 (ORAS)
+妨害されると、通常の2倍のハートが減る。
+ショーポイント (BDSP)
+2
+アピール追加効果 (BDSP)
+ポケモンのテンションがプラスの場合、もらえるショーポイントが2増える。
+じごくぐるま は、ポケモンの技の一種。
+説明文
+たたかうわざ
+第二世代 ・ ルビー・サファイア ・ エメラルド
+じぶんごと じめんに たたきつける じぶんにも すこしダメージ
+ポケモンスタジアム金銀
+かくとうタイプの こうげきわざ。ただし あたえた ダメージの 4ぶんの1が かえってきてしまう。
+ファイアレッド・リーフグリーン
+じめんに じぶんごと あいてを なげつけて こうげきする。 じぶんも すこし ダメージを うける。
+第四世代 ・ 第五世代 ・ 第六世代 ・ 第七世代 ・ 第八世代
+じめんに じぶんごと あいてを なげつけて こうげきする。じぶんも すこし ダメージを うける。
+(漢字) 地面に 自分ごと 相手を 投げつけて 攻撃する。 自分も 少し ダメージを 受ける。
+コンテストわざ
+第三世代
+この アピールの あと びっくり しやすく なってしまう
+第四世代
+ポケモンの もつ わざを つかって きほんの えんぎ。
+第六世代
+とても アピール　できるが このあと おどろきやすく なる
+(漢字) とても アピール　できるが このあと 驚きやすく なる
+第八世代
+ポケモンの テンションが プラスの ばあい もらえる ショーポイントが 2ふえる
+(漢字) ポケモンの テンションが プラスの 場合 もらえる ショーポイントが 2増える
+使用ポケモン：覚える方法
+レベルアップ
+ポケモン名
+ソフト
+赤緑青ピ
+金銀ク
+RSE/FRLG
+DPt/HGSS
+BW/B2W2
+XY/ORAS
+SM/USUM
+ピカブイ
+SwSh/BDSP
+ニョロボン
+×
+1, 35
+1, 35
+1
+1
+1
+1, 進
+1, 進
+1, 進
+ワンリキー
+46
+49
+37
+31
+34
+34 X Y
+33 OR AS
+33
+26
+×
+ゴーリキー
+52
+61
+41
+32
+36
+36 X Y
+37 OR AS
+37
+
+exec
+/bin/zsh -lc "sed -n '1,300p' reference/_genus_material/wiki_moves/wiki_じごくぐるま.txt" in /Users/masamichi/Documents/ポケモンDB
+ succeeded in 0ms:
+
+じごくぐるま - ポケモンWiki
+コンテンツにスキップ
+メインメニュー
+メインメニュー
+サイドバーに移動
+非表示
+案内
+メインページ
+コミュニティ・ポータル
+最近の出来事
+最近の更新
+おまかせ表示
+ヘルプ
+コンテンツ
+ポケモン一覧
+ゲームソフト一覧
+ゲームシステム
+登場人物
+アニメポケットモンスター
+ポケモンカードゲーム
+関連書籍
+関連商品
+音楽
+イベント
+関連人物
+ポケモンWiki
+検索
+検索
+表示
+アカウント作成
+ログイン
+個人用ツール
+アカウント作成
+ログイン
+ポケモンWikiでは2026年8月31日～9月4日頃に、Wikiの編集停止・閲覧停止を伴うサーバのメンテナンスを計画しております。日程は変更される可能性があります。
+ポケモンWikiでは 記事の投稿、加筆、検証、修正等 に 参加、協力 してくださる方を必要としています。方法や詳細は ポケモンWikiに投稿するには をご覧ください。
+目次
+サイドバーに移動
+非表示
+ページ先頭
+1
+説明文
+説明文サブセクションを切り替えます
+1.1
+たたかうわざ
+1.2
+コンテストわざ
+2
+使用ポケモン：覚える方法
+使用ポケモン：覚える方法サブセクションを切り替えます
+2.1
+レベルアップ
+2.2
+わざマシン
+2.3
+タマゴわざ
+2.4
+特別なわざ
+3
+こんなときに使おう
+4
+大乱闘スマッシュブラザーズにおけるじごくぐるま
+5
+ポケモン不思議のダンジョンにおけるじごくぐるま
+6
+ポケモンスクランブルにおけるじごくぐるま
+7
+Pokémon GOにおけるじごくぐるま
+8
+ポケモンクエストにおけるじごくぐるま
+9
+Pokémon UNITEにおけるじごくぐるま
+10
+ポケモンカードゲームにおけるじごくぐるま
+11
+アニメにおけるじごくぐるま
+12
+マンガにおけるじごくぐるま
+マンガにおけるじごくぐるまサブセクションを切り替えます
+12.1
+ポケットモンスターSPECIALにおけるじごくぐるま
+13
+技の仕様
+技の仕様サブセクションを切り替えます
+13.1
+第二世代以前
+14
+備考
+15
+各言語版での名称
+16
+関連項目
+目次の表示・非表示を切り替え
+じごくぐるま
+6 個の言語版
+Deutsch
+English
+Español
+Français
+Italiano
+中文
+ページ
+議論
+日本語
+閲覧
+ソースを閲覧
+履歴を表示
+ツール
+ツール
+サイドバーに移動
+非表示
+操作
+閲覧
+ソースを閲覧
+履歴を表示
+全般
+リンク元
+関連ページの更新状況
+特別ページ
+印刷用バージョン
+この版への固定リンク
+ページ情報
+このページを引用
+表示
+サイドバーに移動
+非表示
+提供: ポケモンWiki
+じごくぐるま
+第一世代
+SV で使用不可
+タイプ
+かくとう
+分類
+物理
+威力
+80
+命中率
+80
+PP
+25 ( 第五世代 まで)
+→20( 第六世代 以降)
+範囲
+1体選択
+優先度
+0
+直接攻撃
+○
+効果
+相手に与えた ダメージ の1/4を自分も受ける( 反動技 )。
+判定
+急所 : ○
+命中判定 : ○
+追加効果 : ×
+まもる : ○
+おうじゃのしるし
+第二世代 : ○
+第三世代 〜 第四世代 : ○
+第五世代 以降: ○
+マジックコート : ×
+よこどり : ×
+オウムがえし : ○
+Zワザ 威力
+160
+ダイマックスわざ 威力
+90
+わざマシン
+わざマシン17 ( 第一世代 のみ)
+パレス
+たたかう
+アピールタイプ
+かっこよさ
+アピール (RSE)
+&#x2661;&#x2661;&#x2661;&#x2661;
+&#x2661;&#x2661;
+妨害 (RSE)
+&#160;
+アピール効果 (RSE)
+妨害されると、通常の2倍ハートが減らされる。
+アピール (DPt)
+&#x2661;&#x2661;&#x2661;
+アピール効果 (DPt)
+普通にアピール。
+アピール (ORAS)
+&#x2661;&#x2661;&#x2661;&#x2661;
+&#x2661;&#x2661;
+妨害 (ORAS)
+&#160;
+アピール効果 (ORAS)
+妨害されると、通常の2倍のハートが減る。
+ショーポイント (BDSP)
+2
+アピール追加効果 (BDSP)
+ポケモンのテンションがプラスの場合、もらえるショーポイントが2増える。
+じごくぐるま は、ポケモンの技の一種。
+説明文
+たたかうわざ
+第二世代 ・ ルビー・サファイア ・ エメラルド
+じぶんごと じめんに たたきつける じぶんにも すこしダメージ
+ポケモンスタジアム金銀
+かくとうタイプの こうげきわざ。ただし あたえた ダメージの 4ぶんの1が かえってきてしまう。
+ファイアレッド・リーフグリーン
+じめんに じぶんごと あいてを なげつけて こうげきする。 じぶんも すこし ダメージを うける。
+第四世代 ・ 第五世代 ・ 第六世代 ・ 第七世代 ・ 第八世代
+じめんに じぶんごと あいてを なげつけて こうげきする。じぶんも すこし ダメージを うける。
+(漢字) 地面に 自分ごと 相手を 投げつけて 攻撃する。 自分も 少し ダメージを 受ける。
+コンテストわざ
+第三世代
+この アピールの あと びっくり しやすく なってしまう
+第四世代
+ポケモンの もつ わざを つかって きほんの えんぎ。
+第六世代
+とても アピール　できるが このあと おどろきやすく なる
+(漢字) とても アピール　できるが このあと 驚きやすく なる
+第八世代
+ポケモンの テンションが プラスの ばあい もらえる ショーポイントが 2ふえる
+(漢字) ポケモンの テンションが プラスの 場合 もらえる ショーポイントが 2増える
+使用ポケモン：覚える方法
+レベルアップ
+ポケモン名
+ソフト
+赤緑青ピ
+金銀ク
+RSE/FRLG
+DPt/HGSS
+BW/B2W2
+XY/ORAS
+SM/USUM
+ピカブイ
+SwSh/BDSP
+ニョロボン
+×
+1, 35
+1, 35
+1
+1
+1
+1, 進
+1, 進
+1, 進
+ワンリキー
+46
+49
+37
+31
+34
+34 X Y
+33 OR AS
+33
+26
+×
+ゴーリキー
+52
+61
+41
+32
+36
+36 X Y
+37 OR AS
+37
+26
+×
+カイリキー
+52
+61
+41
+32
+36
+36 X Y
+37 OR AS
+37
+26
+×
+カイロス
+×
+37
+43
+42
+42 B W
+26 B2 W2
+26 X Y
+29 OR AS
+33
+26
+44
+ルチャブル
+-
+-
+-
+-
+-
+×
+×
+-
+24
+タタッコ
+-
+-
+-
+-
+
+exec
+/bin/zsh -lc "sed -n '301,600p' reference/_genus_material/wiki_moves/wiki_じごくぐるま.txt" in /Users/masamichi/Documents/ポケモンDB
+ succeeded in 0ms:
+-
+-
+-
+-
+30
+オトスパス
+-
+-
+-
+-
+-
+-
+-
+-
+30
+タチフサグマ
+-
+-
+-
+-
+-
+-
+-
+-
+1
+凡例
+進：進化時に覚える。
+わざマシン
+ポケモン名
+覚える世代
+1
+ヒトカゲ
+○
+リザード
+○
+リザードン
+○
+ゼニガメ
+○
+カメール
+○
+カメックス
+○
+ピカチュウ
+○
+ライチュウ
+○
+ライチュウ
+(アローラのすがた)
+移 7
+サンド
+○
+サンドパン
+○
+ニドクイン
+○
+ニドキング
+○
+ピッピ
+○
+ピクシー
+○
+プリン
+○
+プクリン
+○
+コダック
+○
+ゴルダック
+○
+マンキー
+○
+オコリザル
+○
+ニョロゾ
+○
+ニョロボン
+○
+ケーシィ
+○
+ユンゲラー
+○
+フーディン
+○
+ワンリキー
+○
+ゴーリキー
+○
+カイリキー
+○
+イシツブテ
+○
+ゴローン
+○
+ゴローニャ
+○
+ヤドラン
+○
+ゲンガー
+○
+スリープ
+○
+スリーパー
+○
+カラカラ
+○
+ガラガラ
+○
+ガラガラ
+(アローラのすがた)
+移 7
+サワムラー
+○
+エビワラー
+○
+ベロリンガ
+○
+サイドン
+○
+ラッキー
+○
+ガルーラ
+○
+バリヤード
+○
+ルージュラ
+○
+エレブー
+○
+ブーバー
+○
+カイロス
+○
+オムスター
+○
+カブトプス
+○
+カビゴン
+○
+ミュウツー
+○
+ミュウ
+○
+ニョロトノ
+移 2 , 7 - Sw Sh
+ハピナス
+移 2 , 7 - Sw Sh
+ベロベルト
+移 7 - Sw Sh
+ドサイドン
+移 7 - Sw Sh
+エレキブル
+移 7 - Sw Sh
+ブーバーン
+移 7 - Sw Sh
+凡例
+移:進化前のポケモンに技を覚えさせた後、該当世代に移送してから進化させることで覚える。
+タマゴわざ
+ポケモン名
+覚える世代
+進化後の継続
+2
+3
+4
+5
+6
+7
+8
+ワンリキー
+×
+×
+×
+×
+×
+×
+○
+ゴーリキー
+カイリキー
+ヒノアラシ
+○ ク
+×
+×
+×
+×
+×
+×
+マグマラシ
+バクフーン
+ヒコザル
+-
+-
+×
+○
+○
+○
+○ BD SP
+モウカザル
+ゴウカザル
+モグリュー
+-
+-
+-
+○
+○
+○
+○
+ドリュウズ
+特別なわざ
+ポケモン名
+方法
+ソフト
+赤緑青ピ
+金銀ク
+RSE/FRLG
+DPt/HGSS
+BW/B2W2
+XY/ORAS
+SM/USUM
+ピカブイ
+SwSh/BDSP
+ワニノコ
+タマゴ配布 - なぞのタマゴ
+-
+○
+×
+×
+×
+×
+×
+-
+×
+ワニノコ
+タマゴ配布 - Gotta Catch 'Em All
+-
+○※
+×
+×
+×
+×
+×
+-
+×
+凡例
+※：英語版のみ
+こんなときに使おう
+高威力技が多いかくとう技としては威力が低水準で、 命中率 も低い上に反動のデメリットまであり使いにくい。 第三世代 以降ならやや威力は劣るものの命中率が100%で 壁 破壊のメリットもある かわらわり の方が使い勝手が良い。他にも能力ダウンのデメリットこそあるものの、ダメージを受けない上に威力もより高い インファイト や ばかぢから を覚えるポケモンならそちらで十分である。
+第一世代 においてはかくとうタイプの主力技だった。かくとう技の中では とびひざげり (当時は サワムラー の 専用技 )に次いで2番目に威力が高く、かつ わざマシン17 がショップで購入可能なため容易に覚えさせることができたためである。 第二世代 では ミュウツー があくタイプ対策に使うこともあったが、現在は はどうだん や きあいだま に取って変わられている。
+大乱闘スマッシュブラザーズにおけるじごくぐるま
+大乱闘スマッシュブラザーズ シリーズでは ピカチュウ （ DX 以降）・ ピチュー の後ろ投げワザとして登場する。
+相手を掴んだまま後転した後に投げ飛ばすというモーションで、転がる部分は元ネタと思わしき「地獄車」ほぼそのままである。
+本作では使用者はダメージを受けない。
+ポケモン不思議のダンジョンにおけるじごくぐるま
+この節は ポケモン不思議のダンジョン に関連した書きかけです。 加筆、訂正 して下さる協力者を求めています。( プロジェクト )
+ポケモンスクランブルにおけるじごくぐるま
+SP
+じごくぐるま
+★★★★
+タイプ
+かくとう
+威力
+60.99675
+タメ時間
+0.88秒
+範囲
+円形（周囲）
+ヒット数
+1
+弾数
+1
+急所
+1.5%
+効果
+反動ダメージを受ける
+Pokémon GOにおけるじごくぐるま
+Pokémon GO ではスペシャルアタックとして登場する。サービス開始時から実装されている。
+じごくぐるま
+スペシャルアタック
+タイプ： かくとう
+ジムバトル ・ レイドバトル
+威力
+55
+エネルギー 消費
+50%
+秒数
+2秒
+ダメージ発生時間
+1.6〜1.8秒
+トレーナーバトル
+威力
+60
+エネルギー 消費
+50%
+フィールド効果
+コスト
+?
+使用ポケモン
+条件なし
+ゴーリキー
+すごいわざマシン スペシャル
+ニョロボン 、 カイリキー 、 カイロス
+
+exec
+/bin/zsh -lc "sed -n '601,868p' reference/_genus_material/wiki_moves/wiki_じごくぐるま.txt" in /Users/masamichi/Documents/ポケモンDB
+ succeeded in 0ms:
+GOスナップショット で覚える
+ドーブル
+シャドウポケモン が覚えている
+ライトポケモン が覚える
+現在は覚えられない
+いんせき を使用して覚える
+フォルムチェンジ で覚える
+合体 して覚える
+なし
+* が付いているのは覚えられない期間があったポケモンです。
+*印にカーソルを合わせると詳細がポップアップ表示されます。
+日付は 太平洋標準時 (PST) で表示しています。
+以下のアップデートがあった。
+ジムバトル・レイドバトル
+2017/2/16
+威力:30→60
+エネルギー消費:33→50
+秒数:2.1→2.2
+2024/10/10
+威力:60→55
+秒数:2.2→2
+ダメージ発生時間:1.8〜2→1.6〜1.8
+ポケモンクエストにおけるじごくぐるま
+じごくぐるま
+タイプ
+かくとう
+ATK
+130
+待ち時間
+5
+説明文
+前方の敵 めがけて 回転しながら 体当たりして まわりを まきこみながら ダメージを与える
+わざストーン
+はやうちストーン
+リピートストーン
+ひろがるストーン
+ふえるストーン
+けっそくストーン
+ながもちストーン
+○
+○
+×
+×
+×
+×
+Pokémon UNITEにおけるじごくぐるま
+Pokémon UNITE では、 カイリキー のわざとして登場する。
+ポケモンカードゲームにおけるじごくぐるま
+ゲーム同様、 自分 もダメージを受けてしまう攻撃ワザとなっている。
+シリーズ
+カード
+エネルギー
+ダメージ
+効果
+第1弾拡張パック ・ スターターパック
+ゴーリキー (第1弾)
+闘闘無無
+60
+自分にも20ダメージ。
+遺跡をこえて...
+ニョロボン (遺跡をこえて...)
+闘闘無無
+70
+自分 にも20ダメージ。
+ワールドチャンピオンズパック
+ワンリキー (WCP)
+闘無
+30
+自分 にも10ダメージ。
+秘境の叫び
+ニョロボン (DP5)
+闘無無
+90
+自分 にも20ダメージ。
+ライジングフィスト
+ニョロボン (XY3)
+水水無無
+130
+このポケモンにも30ダメージ。
+ポケットモンスターカードゲーム 拡張パック 20th Anniversary
+ゴーリキー (CP6)
+闘闘闘
+80
+このポケモンにも20ダメージ。
+キミを待つ島々
+カイリキー (SM2K)
+闘闘闘
+150
+このポケモンにも30ダメージ。
+アニメにおけるじごくぐるま
+ポケモン
+エフェクト
+使用者
+初出話
+備考
+リザードン
+サトシ
+無印編第59話
+わざの初出
+ニョロボン
+トキオ
+無印編第168話
+ヤスジ
+無印編第247話
+ゴーリキー
+シジマ
+無印編第209話
+ニドキング
+オスカー
+AG編第72話
+ニドクイン
+アンドリュー
+AG編第72話
+マンガにおけるじごくぐるま
+ポケットモンスターSPECIALにおけるじごくぐるま
+ポケットモンスターSPECIAL では、 グリーン の カイリキー などが使用する。
+技の仕様
+与えたダメージに応じた反動ダメージを受ける技の1つ。共通する仕様は 反動技#ダメージを受ける の項も参照。
+第二世代以前
+第一世代 のみ、 みがわり 状態の相手を攻撃してみがわりを破壊した時は反動ダメージを受けない。みがわりを攻撃したが破壊できなかった場合は反動ダメージを受ける。
+ポケモンスタジアム ・ ポケモンスタジアム2 のみ、相手のポケモンを倒した時は反動ダメージを受けない。
+ポケモンスタジアム金銀 のみ、相手の最後のポケモンを倒した時は反動ダメージを受けない。
+備考
+元ネタは 柔道一直線 に登場する技「地獄車」だと思われる。
+第一世代では技名の後に1文字分の空白があり、｢じごくぐるま　｣と表示される。ステータスや戦闘中の技一覧の画面では確認できないが、メッセージなどに表示された場合に確認できる。
+各言語版での名称
+言語
+名前
+日本語
+じごくぐるま
+ドイツ語
+Überroller
+英語
+Submission
+スペイン語
+Sumisión
+フランス語
+Sacrifice
+イタリア語
+Sottomissione 4 -
+Sottomiss. 1 - 3
+韓国語
+지옥의바퀴 Jioguibakwi
+中国語
+( 第七世代 以降の標準表記)
+簡体字
+深渊翻滚 BD SP - Shēnyuān Fāngǔn
+地狱翻滚 1 - Sw Sh Dìyù Fāngǔn
+繁体字
+地獄翻滾 Dìyù Fāngǔn
+中国語
+(主に 第六世代 以前の表記)
+大陸
+地狱滚动
+香港
+地獄式滾動
+台湾
+地獄滾動
+チェコ語
+Podrobení
+デンマーク語
+Underkastelse
+ギリシャ語
+Υποταγή
+フィンランド語
+Alistus
+Pakotus
+オランダ語
+Onderwerping
+ブラジルポルトガル語
+Submissão
+セルビア語
+Podčinjenje
+タイ語
+กงล้อนรก
+トルコ語
+Takla Atma
+ベトナム語
+Vòng Xoay Tử Thần
+関連項目
+じごくぐるまと同じ効果のわざ
+反動ダメージを受けるわざ
+反動ダメージ:
+25%:
+とっしん - じごくぐるま - ワイルドボルト - アフロブレイク
+33%:
+すてみタックル - ボルテッカー - ブレイブバード - ウッドハンマー - フレアドライブ - ウェーブタックル
+50%:
+もろはのずつき - はめつのひかり
+かくとうタイプの攻撃技
+*1威力が変更された技 *2特定の 持ち物 を持たせる必要がある *3 専用技
+*4 Zワザ *5 ダイマックスわざ *6特定の姿のみ
+物理
+威力
+特殊
+トリプルキック
+10
+つっぱり
+15
+にどげり
+30
+いわくだき *1 - グロウパンチ - マッハパンチ
+40
+しんくうは
+からてチョップ
+50
+ともえなげ - はっけい - まわしげり
+やまあらし *1 - リベンジ
+60
+めざめるパワー *1
+ローキック *1 - はやてがえし
+65
+あてみなげ - めざましビンタ *1
+70
+かわらわり - ドレインパンチ *1
+75
+じごくぐるま - ボディプレス
+80
+はどうだん *1
+スカイアッパー
+85
+しんぴのつるぎ *3
+3ぼんのや *3- せいなるつるぎ - らいめいげり *3 - レイジングブル *3*6
+90
+アームハンマー - アクセルブレイク *3 - クロスチョップ - とびげり *1
+ばくれつパンチ - ファイトアクセル *3 - フライングプレス *1*3
+100
+さばきのつぶて *2*3
+インファイト - かかとおとし - ばかぢから - マルチアタック *1*2*3
+120
+きあいだま
+とびひざげり *1
+130
+きあいパンチ - スターアサルト
+150
+きしかいせい - けたぐり *1 - しぜんのめぐみ *1*2
+ぜんりょくむそうげきれつけん *4 - ダイナックル *5
+キョダイシンゲキ *3*5
+不定
+ぜんりょくむそうげきれつけん *4 - ダイナックル *5
+キョダイシンゲキ *3*5
+カウンター - ちきゅうなげ
+ダメージ
+固定
+いのちがけ
+この項目は 定期的な更新 を必要とするページです。 ポケットモンスター スカーレット・バイオレット 藍の円盤 (Ver.3.0.1) 時点での更新が確認されています。これ以降の情報について 加筆、訂正 などをして下さる協力者を求めています。
+「 https://wiki.pokemonwiki.com/w/index.php?title=じごくぐるま&oldid=825071 」から取得
+カテゴリ : わざ
+かくとうわざ
+第一世代のわざ
+ぶつりわざ
+直接攻撃
+スカーレット・バイオレットで使用不可能なわざ
+マシンわざ
+かっこいいわざ
+たたかうわざ
+スペシャルアタック (GO)
+定期更新/9藍
+反動を受けるわざ
+PPが変更されたわざ
+細かい効果が変更されたわざ
+自分以外の1体が対象のわざ
+このページの最終更新日時は 2026年8月30日 (日) 16:03 です。
+コンテンツは、特に記載されていない限り、 帰属 - 非営利 - 継承 3.0 のもとで利用可能です。
+プライバシー・ポリシー
+ポケモンWikiについて
+免責事項
+モバイルビュー
+
+codex
+{"slug":"submission","verdict":"can_use","availability_quote":"「SwSh/BDSP」列があり、レベルアップ欄に「カイロス」「44」、「ルチャブル」「24」、「タタッコ」「30」、「オトスパス」「30」、「タチフサグマ」「1」と記載。タマゴわざの第8世代欄にも「ワンリキー」「○」、「ヒコザル」「○ BD SP」、「モグリュー」「○」と記載。","gen_limit_quote":"SV で使用不可","note":"ページは「第四世代 ・ 第五世代 ・ 第六世代 ・ 第七世代 ・ 第八世代」の戦闘用説明文を掲載し、SwSh/BDSPで実際に習得するポケモンも列挙しているため、第八世代では選択して使用できると判断した。「第七世代限定」「第八世代では使用できない」という記述はなく、使用不可と明記されているのはSV（第九世代）。"}
+hook: Stop
+hook: Stop
+hook: Stop Completed
+hook: Stop Completed
+tokens used
+33,728
