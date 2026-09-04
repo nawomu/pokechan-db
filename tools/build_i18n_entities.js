@@ -229,7 +229,11 @@ for (const lang of TARGET_LANGS) {
       if (!ja) continue;
       const existingEntry = (existing.abilities || {})[ja];
       let name;
-      if (existingEntry && typeof existingEntry.name === 'string' && existingEntry.name) {
+      // ★2026-09-05: name===ja は「まだ訳せていない」の意味の未訳プレースホルダ
+      // (name_en が後から master に追加された場合など)。実際に訳された名前ではないので
+      // 既存訳として固定せず、fixedName/name_en による再解決を許す(既存の実訳は名前がja
+      // と一致することは無いので安全=退行なし)。
+      if (existingEntry && typeof existingEntry.name === 'string' && existingEntry.name && existingEntry.name !== ja) {
         name = existingEntry.name;
       } else if (fixedName('abilities', ja, lang)) {
         name = fixedName('abilities', ja, lang);          // 出典つき手書き(reference/_i18n_names_fixes.json)
