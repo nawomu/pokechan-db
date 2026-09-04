@@ -98,7 +98,7 @@ function check(name, total, missing, mismatched, sampleBad) {
 // ── ④ abilities.desc_house ─────────────────────────────────────────
 {
   const frozen = J('reference/_legacy_ability_desc.json');
-  const zen2han = s => String(s == null ? '' : s).replace(/[０-９Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const { zen2han } = require('./_lib/zen2han'); // 2026-09-04 5箇所コピペを1本化(％＋－．も半角化)
   const master = J('master/abilities.json');
   const byName = new Map(master.items.map(x => [x.name, x]));
   // 優先順=champions→national。この合成後の「あるべき値」を1件ずつ照合する。

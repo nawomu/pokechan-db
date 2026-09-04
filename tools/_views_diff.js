@@ -14,7 +14,7 @@ const fs = require('fs');
 const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const J = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
-const zen2han = s => String(s == null ? '' : s).replace(/[０-９Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+const { zen2han } = require('./_lib/zen2han'); // 2026-09-04 5箇所コピペを1本化(％＋－．も半角化)
 
 // ══════════════════════════════════════════════════════════════════
 // ALLOWLIST(2026-09-01 コーディネーター差し戻し対応。カテゴリを厳格化した)

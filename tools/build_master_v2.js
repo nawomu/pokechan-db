@@ -89,7 +89,7 @@ const SLUGMAP = (() => {
 })();
 
 // ── 共通ヘルパ ──────────────────────────────────────────────────────
-const zen2han = s => String(s == null ? '' : s).replace(/[０-９Ａ-Ｚａ-ｚ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+const { zen2han } = require('./_lib/zen2han'); // 2026-09-04 5箇所コピペを1本化(％＋－．も半角化)
 const norm = s => zen2han(s).replace(/[()（）\s]/g, '').replace(/のすがた|フォルム/g, '');
 const stamp = (src) => ({ source: src, verified_at: NOW });
 // ★世代の控え: 全国版に行が無い(メガ/Champions権威由来)場合は図鑑No.から種の世代を出す
@@ -238,7 +238,9 @@ function buildAbilities() {
     items.forEach(it => {
       const f = fx[it.name];
       if (!f) return;
-      ['effect_ja', 'name_en'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
+      // ★2026-09-04追加: name/display_name もホワイトリストに追加
+      //   (fixes経由での名前修正=全角名の名寄せ修正に使う。review/_zenkaku_audit_2026-09-04.md 優先度2)。
+      ['effect_ja', 'name_en', 'name', 'display_name'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
       if (f.effect_ja != null) it.source = 'audited';
     });
   } catch (e) {}
@@ -280,7 +282,19 @@ function buildAbilities() {
       if (!o) return;
       it.slug = o.slug || it.slug;
       it.pokeapi_id = o.id;
-      it.names = o.names;
+      // ★2026-09-04修正: 旧ファイル(reference/_old_master/abilities_master.json)のnamesを無条件上書きすると
+      //   全角のまま残る(例=『ＡＲシステム』・review/_zenkaku_audit_2026-09-04.md 最重要2)。
+      //   代入時にzen2han正規化する(半角統一ルール・2026-08-01)。half-width化しても意味は変わらない言語(ja/zh)のみ対象。
+      //   ★キーが元々無い言語(4件=ja以外の翻訳が未収録)には空文字キーを新設しない(inチェックで温存)。
+      if (o.names) {
+        const n = Object.assign({}, o.names);
+        if ('ja' in n) n.ja = zen2han(n.ja);
+        if ('zh-Hant' in n) n['zh-Hant'] = zen2han(n['zh-Hant']);
+        if ('zh-Hans' in n) n['zh-Hans'] = zen2han(n['zh-Hans']);
+        it.names = n;
+      } else {
+        it.names = o.names;
+      }
       it.effect_en = o.effect_en || '';
       matched++;
     });

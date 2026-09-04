@@ -120,8 +120,7 @@ const masterItems     = loadMaster('items');
 //     出典つきで手書き({abilities:{ja名:{lang:name,_source:...}}, items:{...}})。
 // (c) それも無ければ 公式英語名(name_en)を仮置き(=辞書に日本語を残さない。実訳は後で埋める)。
 //     ja フォールバックは name_en すら無い時だけ。
-const zen2han = s => String(s == null ? '' : s).replace(/[Ａ-Ｚａ-ｚ０-９％]/g,
-  ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+const { zen2han } = require('./_lib/zen2han'); // 2026-09-04 共有ユーティリティへ一本化(％のみ→％＋－．に拡張)
 const pokeapiItemsRaw = readJson(path.join(ROOT, 'reference', '_pokeapi_items_raw.json'));
 const pokeapiItemBySlug = new Map();
 const pokeapiItemByEn = new Map();

@@ -37,7 +37,7 @@ async function get(url) {
 const J = p => JSON.parse(fs.readFileSync(p, 'utf8'));
 const jst = t => new Date(t * 1000).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 const hash = s => require('crypto').createHash('sha256').update(s).digest('hex').slice(0, 16);
-const zen2han = s => s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+const { zen2han } = require('./_lib/zen2han'); // 2026-09-04 5箇所コピペを1本化(％＋－．も半角化)
 const species = s => zen2han(s).replace(/\s+/g, '').replace(/[（(].*$/, '');   // 「ケンタロス (パルデアのすがた・…)」→「ケンタロス」
 const regOf = title => (title.match(/レギュレーション\s*([A-Z]-[A-Z])/) || [])[1] || null;
 
