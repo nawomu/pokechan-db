@@ -18,6 +18,7 @@ const ROOT = path.resolve(__dirname, '..');
 
 const J = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, f), 'utf8'));
 const { zen2han } = require('./_lib/zen2han'); // 2026-09-04 5箇所コピペを1本化(％＋－．も半角化)
+const { buildOrderIndex, buildAliasCandidates, sortByLegacyOrder } = require('./_lib/legacy_order'); // 2026-09-04 一本化(下記コメント参照)
 
 // ── 入力(master/ + 段Bの凍結ファイルのみ) ──────────────────────────
 const MASTER = {
@@ -36,44 +37,16 @@ const MOVE_FLAG_KEYS = J('reference/_legacy_champions_move_flag_keys.json').keys
 
 // ══════════════════════════════════════════════════════════════════
 // 行順の再現(段Bの凍結順 reference/_legacy_order.json を使う)
-// ★ルール(このファイルで確定): ①凍結順にある名前はその位置 ②リネームで直接一致しない名前は
+// ★ルール(2026-09-04・tools/_lib/legacy_order.js に一本化。build_views.jsの挙動は不変):
+//   ①凍結順にある名前はその位置 ②リネームで直接一致しない名前は
 //   reference/_name_normalize.json(entity=pokemon)の champions_name_was / display_name で逆引き
 //   ③それでも見つからない名前(=master限定で足した新規行)は「末尾に追加」。追加分の内訳は
 //   非メガを先・メガを後ろにまとめ、各グループ内は no昇順→name(ja)昇順。
 //   (計画書が例示した「メガのバケツ/その種の後ろ」の精神を保ちつつ、実装を単純化した版)
+//   ★tools/build_master_v2.js が master/pokemon.json の各行に display_order/champions_display_order
+//   を焼き込むのに同じ関数(sortByLegacyOrder)を使う(コピペでなく共有)。
 // ══════════════════════════════════════════════════════════════════
-const aliasCandidates = {}; // official_name(master.name) → [legacy時代の名前候補]
-NAMEMAP_ROWS.filter(r => r.entity === 'pokemon').forEach(r => {
-  const arr = aliasCandidates[r.official_name] || (aliasCandidates[r.official_name] = []);
-  if (r.champions_name_was) arr.push(r.champions_name_was);
-  if (r.display_name) arr.push(r.display_name);
-});
-
-function buildOrderIndex(names) {
-  const idx = new Map();
-  names.forEach((n, i) => { if (!idx.has(n)) idx.set(n, i); });
-  return idx;
-}
-function orderKeyFor(name, idx) {
-  if (idx.has(name)) return idx.get(name);
-  const alts = aliasCandidates[name] || [];
-  for (const a of alts) if (idx.has(a)) return idx.get(a);
-  return null;
-}
-function sortByLegacyOrder(rows, frozenNames) {
-  const idx = buildOrderIndex(frozenNames);
-  const matched = [], unmatched = [];
-  rows.forEach(r => {
-    const k = orderKeyFor(r.name, idx);
-    if (k == null) unmatched.push(r); else matched.push([k, r]);
-  });
-  matched.sort((a, b) => a[0] - b[0]);
-  const cmp = (a, b) => (Number(a.no) - Number(b.no)) || String(a.name).localeCompare(String(b.name), 'ja');
-  const nonMega = unmatched.filter(r => !r.mega).sort(cmp);
-  const mega = unmatched.filter(r => r.mega).sort(cmp);
-  return { rows: matched.map(x => x[1]).concat(nonMega, mega), unmatchedCount: unmatched.length, unmatchedNames: unmatched.map(r => r.name) };
-}
-function buildOrderIndexSimple(keys) { return buildOrderIndex(keys); }
+const aliasCandidates = buildAliasCandidates(NAMEMAP_ROWS, 'pokemon'); // official_name(master.name) → [legacy時代の名前候補]
 function sortByFrozenKeyList(rows, frozenKeys, keyOf, fallbackCmp) {
   const idx = buildOrderIndex(frozenKeys);
   const matched = [], unmatched = [];
@@ -290,7 +263,7 @@ function buildPokemonNational() {
     season: Array.isArray(p.seasons) ? p.seasons.slice() : [],
     legend: p.legend || '',
   }));
-  return sortByLegacyOrder(rows, LEGACY_ORDER.pokemon_all);
+  return sortByLegacyOrder(rows, LEGACY_ORDER.pokemon_all, aliasCandidates);
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -338,7 +311,7 @@ function buildPokemonChampions() {
     row.season = Array.isArray(p.seasons) ? p.seasons.slice() : [];
     return row;
   });
-  return sortByLegacyOrder(rows, LEGACY_ORDER.pokemon_champions);
+  return sortByLegacyOrder(rows, LEGACY_ORDER.pokemon_champions, aliasCandidates);
 }
 
 // ══════════════════════════════════════════════════════════════════

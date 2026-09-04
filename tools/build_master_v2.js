@@ -66,6 +66,19 @@ const LEGACY = {
   itemEffect: (() => { try { return J('reference/_legacy_item_effect.json').effect || {}; } catch (e) { return {}; } })(),
   itemMegaAbilityDesc: (() => { try { return J('reference/_legacy_item_mega_ability_desc.json').mega_ability_desc || {}; } catch (e) { return {}; } })(),
 };
+// ★2026-09-04(display_order): 「凍結された表示順」(段Bで作った reference/_legacy_order.json)+
+//   reference/_name_normalize.json を使って、master/pokemon.json の各行に display_order/
+//   champions_display_order(整数)を焼き込む。アルゴリズムは tools/build_views.js が生成物の
+//   行順を作るのに使う sortByLegacyOrder と同じ関数(tools/_lib/legacy_order.js に共通化・コピペでない)。
+//   目的: ページ(pokedb.js経由)が同じNo.のフォーム(通常/メガ等)のタイブレーク順を再現するのに
+//   reference/*.json を直接読まず、master 1本のフィールドから引けるようにする(CLAUDE.md「参照元は
+//   master 1本」)。旧設計(W17・撤回)はpokedb.jsにreference読み出し窓口を足してページ側で
+//   このアルゴリズムを再実装していたが、それは中間ファイル(reference/)をページから読むことになり
+//   「データは一つ・masterだけを直す」に反するため撤回した(2026-09-04)。
+const { buildAliasCandidates, sortByLegacyOrder } = require('./_lib/legacy_order');
+const LEGACY_ORDER = (() => { try { return J('reference/_legacy_order.json'); } catch (e) { return {}; } })();
+const NAME_NORMALIZE_ROWS = (() => { try { const d = J('reference/_name_normalize.json'); return Array.isArray(d) ? d : (d.rows || []); } catch (e) { return []; } })();
+
 const NAMEMAP = (() => {
   try {
     const d = J('reference/_name_normalize.json');
@@ -866,6 +879,17 @@ function buildPokemon() {
 
   items.sort((a, b) => (a.no || 9999) - (b.no || 9999) || String(a.name).localeCompare(String(b.name), 'ja'));
 
+  // ★display_order/champions_display_order(2026-09-04・ヘッダコメント参照): items自体の並び(no+name)は
+  //   変えず、フィールドとして「凍結順タイブレーク後」の位置(1始まり)だけ焼き込む。
+  //   display_order=全国版順(LEGACY_ORDER.pokemon_all基準・全1273行)。
+  //   champions_display_order=Champions版順(LEGACY_ORDER.pokemon_champions基準・champions:trueの行だけに付く)。
+  const orderAliasCandidates = buildAliasCandidates(NAME_NORMALIZE_ROWS, 'pokemon');
+  const natOrder = sortByLegacyOrder(items, LEGACY_ORDER.pokemon_all || [], orderAliasCandidates);
+  natOrder.rows.forEach((row, i) => { row.display_order = i + 1; });
+  const champRows = items.filter(x => x.champions);
+  const chOrder = sortByLegacyOrder(champRows, LEGACY_ORDER.pokemon_champions || [], orderAliasCandidates);
+  chOrder.rows.forEach((row, i) => { row.champions_display_order = i + 1; });
+
   write('pokemon.json', { meta: META('ポケモン', {
     provisional_fields: 'provisional_fields=PokeAPI(最新世代)から暫定で埋めた欄名(weight_kg/height_m/gender/genus_ja)。' +
       `Champions正典・監査確定の値は上書きしない。元=reference/_pokeapi_pokemon_raw.json。今回 ${pokeapiFilled} 件に暫定欄あり。` +
@@ -879,6 +903,10 @@ function buildPokemon() {
     regulation_model: `現行=${REG_CURRENT} / 次=${REG_NEXT || '(未発表)'}。champions:true の行の regulation は「内容を入れる先」=${REGULATION}(累積)。`,
     champions_added_in_field: '段C差し戻し対応(2026-09-01)資産⑥: champions_added_in=旧pokechan_data.js(Champions版)POKEMON_LIST[*].added_inを' +
       'reference/_legacy_pokemon_champions_added_inから移送。M-C予告分(regulation:M-C)は凍結に無いため直接"M-C"を入れる。',
+    display_order_field: '2026-09-04: display_order(全行・全国版タイブレーク順)/champions_display_order(champions:trueの行だけ・' +
+      'Champions版タイブレーク順)=同じNo.のフォーム(通常/メガ等)の既定ソート時タイブレークをpokedb.js経由ページが' +
+      'reference/*.jsonを直接読まずに再現するための整数(1始まり)。算出=tools/_lib/legacy_order.js sortByLegacyOrder' +
+      '(reference/_legacy_order.json + _name_normalize.json)。tools/build_views.jsが生成物の行順を作るのと同じ関数・同じ入力。',
   }), count: items.length,
     champions_count: items.filter(x => x.champions).length, items });
   return items.length;
