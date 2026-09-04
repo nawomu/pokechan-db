@@ -76,4 +76,4 @@ pokedb.js に今夜足した窓口: `statRankAll/statRank`, `learnsetNational(na
 1. `node tools/_watch_official_news.js` → M-C 一覧が出ていたら `--roster M-C` → 照合 → `reference/_regulations.json` next → `node tools/build_master_v2.js` → `node tools/build_views.js` → `_views_diff`(UNEXPLAINED 0)→ `_ssot_guard_test` → `_page_guard_test` → push(手順書 `公式情報の探し方_レギュ更新手順_2026-09-03.md`)。9/9 切替(段H)= role next→current。
 2. §4 の 🙋 を阿部さんに(特に 1・2 = 旧版引退)。
 3. W20 の指摘があれば重大度順に Sonnet へ(修正は新版だけ・旧版は触らない)。
-4. その後 ③バトル作り直しの設計に入る(`設計_バトルエンジン原理_2026-07-26.md` から)。
+4. その後 ③バトル作り直しの設計に入る(`設計_バトルエンジン原理_2026-07-26.md` から)。**★入口 = `review/_battle_rework_inventory_2026-09-05.md`(W23・01:40・読み取り専用の棚卸し)**: 特性90件は今も同名で有効・データ側(effect_ja)は全件記入済み=残るはエンジン側のみ / 「未実装87」は別集計(`review/現状棚卸し_ルール実装点検_2026-07-28.html`)/ 技の effects phase は旧5値のまま(スラグ化未実施=compose全数再照合を伴う重作業)/ `_phase_design_a1〜a4`+`_t11_spec_g1〜g4`=設計42件・実装0 / 新規5特性+6持ち物がフェーズ割当外 / effects 空52技は全部「ダメージのみ」で正当 / desc_house 空4特性(うなぎのぼり/おもかげやどし/はどうのぼうご/ほのおのたてがみ=声=阿部さん)。§6 に 🙋5点(87件側の扱い/きずなへんげ champions:false/新規11件の割当/`real_battle_simulator.html` の「凍結」の定義=9/3に M-C 対応コミットあり/198件3分類の在り処)。
