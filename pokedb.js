@@ -34,6 +34,14 @@
  *   <script src="pokedb.js?v=..." data-files="types,regulations"></script>
  *   のように `data-files` にカンマ区切りでファイル名(拡張子なし)を書くと、その分だけ読む。
  *   省略時=全部(従来どおり)。★指定した名前以外は DB に入らない(raw()/allXxx() 等が空を返す)。
+ *
+ * ★窓口追加(2026-09-04・W11。masterに在るのにpokedb.jsに窓口が無かった項目を追加):
+ *   PokeDB.typeKanji() / typeDisplay() / typeOffensiveStats() / defaultTypeOrder()
+ *     … master/types.json の meta.tables を typeChart() と同じパターンで返す。
+ *   PokeDB.move(key) … slug / champions_key / 日本語名 の順で1件引ける(champions_key対応を追加)。
+ *   PokeDB.learners(moveName) … setMode('champions') 中は絞り込み後のポケモンだけで数える。
+ *   PokeDB.learnsetKeys(name) … learnset(name)のslug版(技名が引けなければ元の名前のまま残す)。
+ *   PokeDB.nature(name) … natures()から名前1件で引く薄いヘルパー。
  */
 (function () {
   'use strict';
@@ -100,9 +108,11 @@
 
     IDX.moveBySlug = {};
     IDX.moveByName = {};
+    IDX.moveByChampKey = {};
     moves.forEach(function (m) {
       IDX.moveBySlug[m.slug] = m;
       if (!IDX.moveByName[m.name]) IDX.moveByName[m.name] = m;
+      if (m.champions_key && !IDX.moveByChampKey[m.champions_key]) IDX.moveByChampKey[m.champions_key] = m;
     });
 
     IDX.abilityDesc = {};
@@ -165,12 +175,20 @@
       pick((DB.moves && DB.moves.items) || []).forEach(function (m) { out[m.slug] = m; });
       return out;
     },
-    /** slug でも日本語名でも引ける */
-    move: function (key) { return IDX.moveBySlug[key] || IDX.moveByName[key] || null; },
+    /** slug でも champions_key でも日本語名でも引ける(★2026-09-04 champions_key対応) */
+    move: function (key) { return IDX.moveBySlug[key] || IDX.moveByChampKey[key] || IDX.moveByName[key] || null; },
     /** 技の優先度(★master では最上位 priority に統一済み) */
     movePriority: function (mv) { return (mv && mv.priority) || 0; },
-    /** その技を覚えるポケモンの名前(数え上げた結果) */
-    learners: function (moveName) { return IDX.learners[moveName] || []; },
+    /** その技を覚えるポケモンの名前(数え上げた結果)。
+     *  ★2026-09-04: Championsモードでは、絞り込み後(pick()通過)のポケモンだけに数を絞る
+     *  (以前はmode非依存で全国版の頭数をそのまま返していた=Champions表示で過大な人数になるバグ)。 */
+    learners: function (moveName) {
+      var names = IDX.learners[moveName] || [];
+      if (mode !== 'champions') return names;
+      var champNames = {};
+      pick((DB.pokemon && DB.pokemon.items) || []).forEach(function (p) { champNames[p.name] = true; });
+      return names.filter(function (n) { return !!champNames[n]; });
+    },
 
     /** 特性の説明文 */
     abilityDesc: function (name) { return IDX.abilityDesc[name] || ''; },
@@ -181,6 +199,17 @@
 
     /** 覚える技(ポケモン名 → 技名の配列) */
     learnset: function (name) { return IDX.learn[name] || null; },
+    /** ★2026-09-04: learnset()のslug版薄いヘルパー(呼び出し側の`.map(n => PokeDB.move(n).slug)`を1関数に)。
+     *  learnset()自体が名前配列を無加工で返す実装(存在チェックなし)に合わせ、
+     *  ここでも技が見つからない場合は落とさず元の名前文字列のまま残す(データを失わない=学習内容が消えない)。 */
+    learnsetKeys: function (name) {
+      var names = IDX.learn[name] || null;
+      if (!names) return null;
+      return names.map(function (n) {
+        var mv = IDX.moveByName[n];
+        return mv ? mv.slug : n;
+      });
+    },
     /** ★そのポケモンで没収された技 */
     confiscated: function (name) {
       var p = ((DB.learnsets && DB.learnsets.items) || []).find(function (x) { return x.name === name; });
@@ -191,12 +220,26 @@
     items: function () { return pick((DB.items && DB.items.items) || []); },
     /** 性格 */
     natures: function () { return (DB.natures && DB.natures.items) || []; },
+    /** ★2026-09-04: 性格を名前1件で引く薄いヘルパー(natures()から探す手間を1関数に) */
+    nature: function (name) {
+      var a = (DB.natures && DB.natures.items) || [];
+      for (var i = 0; i < a.length; i++) { if (a[i].name === name) return a[i]; }
+      return null;
+    },
     /** タイプ(名前の配列。並び順は resist 配列と対応) */
     types: function () { return ((DB.types && DB.types.items) || []).map(function (t) { return t.name; }); },
     /** タイプ名 → 色 */
     typeColor: function (name) { return IDX.typeColor[name] || '#888'; },
     /** ★2026-09-03: タイプ相性表(18×18・攻撃タイプ=行/防御タイプ=列)。未読込なら [] */
     typeChart: function () { return (DB.types && DB.types.meta && DB.types.meta.tables && DB.types.meta.tables.TYPE_CHART) || []; },
+    /** ★2026-09-04: タイプ名→1文字略称(例: "ほのお"→"炎")。master/types.json meta.tables.TYPE_KANJI そのまま */
+    typeKanji: function () { return (DB.types && DB.types.meta && DB.types.meta.tables && DB.types.meta.tables.TYPE_KANJI) || {}; },
+    /** ★2026-09-04: タイプ名→省略表示名(例: "ノーマル"→"ノーマ")。無いタイプは省略不要=このテーブルに載らない */
+    typeDisplay: function () { return (DB.types && DB.types.meta && DB.types.meta.tables && DB.types.meta.tables.TYPE_DISPLAY) || {}; },
+    /** ★2026-09-04: タイプ名→攻撃面の統計(p/m/x)。master/types.json meta.tables.TYPE_OFFENSIVE_STATS そのまま */
+    typeOffensiveStats: function () { return (DB.types && DB.types.meta && DB.types.meta.tables && DB.types.meta.tables.TYPE_OFFENSIVE_STATS) || {}; },
+    /** ★2026-09-04: 既定のタイプ表示順(配列)。master/types.json meta.tables.DEFAULT_TYPE_ORDER そのまま */
+    defaultTypeOrder: function () { return (DB.types && DB.types.meta && DB.types.meta.tables && DB.types.meta.tables.DEFAULT_TYPE_ORDER) || []; },
     /** ★攻撃タイプ1つ × 防御側の複数タイプの合成倍率(単・複合両対応)。不明なタイプ名は無視、attackTypeが不明なら1を返す */
     typeEffectiveness: function (attackType, defenderTypes) {
       var chart = this.typeChart();
