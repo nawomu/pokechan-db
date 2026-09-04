@@ -123,7 +123,12 @@
     });
 
     IDX.abilityDesc = {};
-    abis.forEach(function (a) { IDX.abilityDesc[a.name] = a.effect_ja || ''; });
+    // ★2026-09-04(W18・pokemon_db_all_v10.html): tools/build_views.js の abilityText() と同じ優先順位に修正。
+    //   旧実装は effect_ja(公式の長文)だけを見ていたが、313件中309件は desc_house(家の流儀=短い子ども向け文)
+    //   が正典で、effect_ja とは別内容(例: あくしゃく等ほぼ全件が食い違う)。旧実装のままだと
+    //   PokeDB.abilityDesc() を使う全ページ(既に移行済みのpokemon_db_v10.html/party_checker_v2.html含む)が
+    //   生成物ABILITY_DESCと違う文言を表示してしまう。desc_houseがあればそれを優先(build_views.jsと同じ式)。
+    abis.forEach(function (a) { IDX.abilityDesc[a.name] = (a.desc_house != null ? a.desc_house : (a.effect_ja || '')); });
 
     IDX.abilityBySlug = {};
     IDX.abilityByName = {};
@@ -135,11 +140,40 @@
     IDX.learn = {};
     lrn.forEach(function (p) { IDX.learn[p.name] = p.learn || []; });
 
-    // ★「その技を覚えるポケモン」は master に無いので、ここで数え上げる(データは増やさない)
+    var learnByName = {};
+    lrn.forEach(function (p) { learnByName[p.name] = p; });
+
+    // ★「その技を覚えるポケモン」は master に無いので、ここで数え上げる(データは増やさない)。
+    // ★2026-09-04(W18): 数え上げの順は master/pokemon.json の並び順で回す(learnsets.jsonの並びではない)。
+    //   tools/build_views.js の buildLearnersIndex(MASTER.pokemon.map(p=>p.name), ...) と同じ式に揃える
+    //   (pokemon.jsonとlearnsets.jsonは行の並びが違うため、順序が要る用途では取り違えると配列の並びがずれる)。
+    // IDX.learners = Champions基準(learnのみ=いま実際に使える技だけ)。
     IDX.learners = {};
-    lrn.forEach(function (p) {
-      (p.learn || []).forEach(function (mv) {
+    // ★2026-09-04(W18・pokemon_db_all_v10.html追加): 全国版(mode='all')の「その技を覚えるポケモン」は
+    //   本編の全技=learn∪learn_legacy∪(championsなら没収confiscatedも含む)。
+    //   tools/build_views.js の learnByNameNational/buildLearnersIndex と完全に同じ式(コピペでなく同じ計算)。
+    //   これが無いと mode='all' でも Champions基準(learnのみ)の学習者数になってしまい、
+    //   pokechan_data_all.js の WAZA_MAP.learners(旧作TM/没収技を含む本編全学習者)と食い違う。
+    IDX.learnersNational = {};
+    // ★2026-09-04(W18・pokemon_db_all_v10.html追加): 順方向(ポケモン名→覚える技名の配列)の全国版版。
+    //   PokeDB.learnset()は「mode非依存の生データ(learnのみ)」という既存の契約(damage_calc_v2.html等が
+    //   明示的に依存)があるため、learnset()自体は変えず、別名PokeDB.learnsetNational()を新設する
+    //   (tools/build_views.js learnByNameNationalと同じ式=learn∪learn_legacy∪没収confiscated)。
+    IDX.learnNational = {};
+    pokes.forEach(function (p) {
+      var l = learnByName[p.name];
+      if (!l) return;
+      (l.learn || []).forEach(function (mv) {
         (IDX.learners[mv] = IDX.learners[mv] || []).push(p.name);
+      });
+      var seen = {};
+      (l.learn || []).forEach(function (mv) { seen[mv] = true; });
+      (l.learn_legacy || []).forEach(function (mv) { seen[mv] = true; });
+      if (l.champions) (l.confiscated || []).forEach(function (mv) { seen[mv] = true; });
+      var union = Object.keys(seen);
+      IDX.learnNational[p.name] = union;
+      union.forEach(function (mv) {
+        (IDX.learnersNational[mv] = IDX.learnersNational[mv] || []).push(p.name);
       });
     });
 
@@ -232,10 +266,13 @@
     movePriority: function (mv) { return (mv && mv.priority) || 0; },
     /** その技を覚えるポケモンの名前(数え上げた結果)。
      *  ★2026-09-04: Championsモードでは、絞り込み後(pick()通過)のポケモンだけに数を絞る
-     *  (以前はmode非依存で全国版の頭数をそのまま返していた=Champions表示で過大な人数になるバグ)。 */
+     *  (以前はmode非依存で全国版の頭数をそのまま返していた=Champions表示で過大な人数になるバグ)。
+     *  ★2026-09-04(W18追加): mode!=='champions'(=全国版)では IDX.learnersNational
+     *  (learn∪learn_legacy∪没収confiscated=本編の全学習者)を返す。Championsは従来どおり
+     *  IDX.learners(learnのみ=いま使える技)を絞り込む。 */
     learners: function (moveName) {
+      if (mode !== 'champions') return IDX.learnersNational[moveName] || [];
       var names = IDX.learners[moveName] || [];
-      if (mode !== 'champions') return names;
       var champNames = {};
       pick((DB.pokemon && DB.pokemon.items) || []).forEach(function (p) { champNames[p.name] = true; });
       return names.filter(function (n) { return !!champNames[n]; });
@@ -248,8 +285,14 @@
     /** ★2026-09-03: 英語slugでもja名でも1件引ける(ability_all_v2.html向け) */
     ability: function (key) { return IDX.abilityBySlug[key] || IDX.abilityByName[key] || null; },
 
-    /** 覚える技(ポケモン名 → 技名の配列) */
+    /** 覚える技(ポケモン名 → 技名の配列)。★mode非依存の生データ(learnのみ=いま実際に使える技)。
+     *  damage_calc_v2.html/party_checker_v2.html/data_browser.html/news.html等が
+     *  「mode非依存」を前提に呼んでいるため、この関数自体の意味は変えない。 */
     learnset: function (name) { return IDX.learn[name] || null; },
+    /** ★2026-09-04(W18・pokemon_db_all_v10.html追加): 全国版(本編で覚えられる全技)版のlearnset。
+     *  learn∪learn_legacy∪(championsなら没収confiscatedも含む)。tools/build_views.js
+     *  learnByNameNationalと同じ式。learnset()とは別名にして既存ページの契約を壊さない。 */
+    learnsetNational: function (name) { return IDX.learnNational[name] || null; },
     /** ★2026-09-04: learnset()のslug版薄いヘルパー(呼び出し側の`.map(n => PokeDB.move(n).slug)`を1関数に)。
      *  learnset()自体が名前配列を無加工で返す実装(存在チェックなし)に合わせ、
      *  ここでも技が見つからない場合は落とさず元の名前文字列のまま残す(データを失わない=学習内容が消えない)。 */
