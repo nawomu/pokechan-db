@@ -1,6 +1,21 @@
 // PokeAPI 全ポケモン variety(基本+メガ/リージョン/フォルム ~1302)を多言語マスターで取得。
 // 「裏溜め」consolidated master(i18n/cache の per-file キャッシュを補完する一覧)。決定的取得=正確。
 // 出力: reference/pokeapi_master.json
+// ★★止め金(2026-09-04・兄弟2本 _fetch_pokeapi_masters.js/_fetch_pokeapi_learnsets.js と同型・
+//   2026-07-31に付いたガードの付け忘れ=review/_page_data_audit_r2_2026-09-04.md 指摘): このスクリプトは
+//   reference/pokeapi_master.json に**書き戻す**。その場所は2026-07-31に「紛らわしい旧マスター」として
+//   reference/_old_master/ へ退避した。ここを走らせると、片付けたはずのファイルが reference/ 直下に
+//   **復活し、また「どれが本物のマスターか分からない」状態に戻る**(阿部さんが実際にそう言った状態)。
+//   ★本物のマスターは master/*.json ただ1つ。生成は node tools/build_master_v2.js。
+//   どうしても取り直したい時だけ、意図を示して実行すること:
+//       ALLOW_OLD_MASTER_WRITE=1 node tools/_fetch_pokeapi_varieties.js
+if (!process.env.ALLOW_OLD_MASTER_WRITE) {
+  console.error('■ 中止しました: このスクリプトは旧マスター(reference/pokeapi_master.json)に書き戻します。');
+  console.error('  本物のマスターは master/*.json です(生成= node tools/build_master_v2.js)。');
+  console.error('  どうしても必要なら ALLOW_OLD_MASTER_WRITE=1 を付けて実行してください。');
+  process.exit(2);
+}
+
 const fs=require('fs');
 const GQL='https://beta.pokeapi.co/graphql/v1beta';
 const LANGS=['ja-Hrkt','en','fr','de','es','it','ko','zh-Hans','zh-Hant'];

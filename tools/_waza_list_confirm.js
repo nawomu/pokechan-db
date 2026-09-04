@@ -421,7 +421,11 @@ function buildRow(m) {
 // ★全国版で新規追加した技(M-A/M-B以外=445)も同じ確認ビューに合流(2026-06-26 阿部さん)。
 //   季列で「M-A/🆕M-B(Champions)」と「🆕新規(全国版)」を区別。効果列=master流description / ヤック列=公式effect(en)。
 const _ALL = require('../pokechan_data_all.js');
-const _MVM = require('../reference/moves_master.json');
+// ★2026-07-31 reference/moves_master.json は reference/_old_master/ へ退避済み(消滅)。
+//   SSOT master/moves.json には effect_en フィールドが無い(全国版技はいまや description_legacy が
+//   422/422件とも埋まっており、このフォールバックは実際には発火しない=2026-09-04 確認済み)。
+//   参照元だけ master/moves.json に付け替える(将来 effect_en が正式追加されればそのまま拾える)。
+const _MVM = require('../master/moves.json').items;
 const _EFFEN = {}; _MVM.forEach(x => { _EFFEN[x.slug] = x.effect_en || ''; });
 const nationalMoves = Object.values(_ALL.WAZA_MAP).filter(w => w.national_new).map(w => Object.assign({}, w, {
   _national: true,
