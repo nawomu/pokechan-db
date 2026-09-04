@@ -62,7 +62,13 @@ function readJson(filePath) {
  * JSON ファイルを整形して書き込む。
  */
 function writeJson(filePath, data) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 1) + '\n', 'utf8');
+  // 既存ファイルのインデント幅を踏襲(2スペースの辞書を1スペースで書き直すと全行差分になる 2026-09-04)
+  let indent = 1;
+  if (fs.existsSync(filePath)) {
+    const m = fs.readFileSync(filePath, 'utf8').match(/\n( +)"/);
+    if (m) indent = m[1].length;
+  }
+  fs.writeFileSync(filePath, JSON.stringify(data, null, indent) + '\n', 'utf8');
 }
 
 /**
@@ -106,6 +112,33 @@ const masterPokemon   = loadMaster('pokemon');
 const masterMoves     = loadMaster('moves');
 const masterAbilities = loadMaster('abilities');
 const masterItems     = loadMaster('items');
+
+// ── ★2026-09-04 他言語名の出どころ(でっち上げ禁止=出典のある名前だけ入れる) ─────
+// (a) PokeAPI の持ち物 raw(reference/_pokeapi_items_raw.json)は names{9言語} を持つ
+//     → slug / names.en(=master name_en)で引く。英数字は半角に正規化(zen2han ルール)。
+// (b) PokeAPI に無い新規(レギュ予告の新特性 等)は reference/_i18n_names_fixes.json に
+//     出典つきで手書き({abilities:{ja名:{lang:name,_source:...}}, items:{...}})。
+// (c) それも無ければ 公式英語名(name_en)を仮置き(=辞書に日本語を残さない。実訳は後で埋める)。
+//     ja フォールバックは name_en すら無い時だけ。
+const zen2han = s => String(s == null ? '' : s).replace(/[Ａ-Ｚａ-ｚ０-９％]/g,
+  ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0));
+const pokeapiItemsRaw = readJson(path.join(ROOT, 'reference', '_pokeapi_items_raw.json'));
+const pokeapiItemBySlug = new Map();
+const pokeapiItemByEn = new Map();
+if (pokeapiItemsRaw) {
+  const arr = Array.isArray(pokeapiItemsRaw.items || pokeapiItemsRaw)
+    ? (pokeapiItemsRaw.items || pokeapiItemsRaw) : Object.values(pokeapiItemsRaw.items || pokeapiItemsRaw);
+  for (const it of arr) {
+    if (!it || !it.names) continue;
+    if (it.slug) pokeapiItemBySlug.set(it.slug, it);
+    if (it.names.en) pokeapiItemByEn.set(it.names.en, it);
+  }
+}
+const i18nNamesFixes = readJson(path.join(ROOT, 'reference', '_i18n_names_fixes.json')) || {};
+function fixedName(section, ja, lang) {
+  const e = (i18nNamesFixes[section] || {})[ja];
+  return (e && typeof e[lang] === 'string' && e[lang]) ? e[lang] : null;
+}
 
 // ── EN ベースの「コピー専用」セクション(master に無いため en.json から流用) ──
 // 言語ごとに既存 json から持ってくるが、en.json が参照ベースになる
@@ -199,11 +232,13 @@ for (const lang of TARGET_LANGS) {
       let name;
       if (existingEntry && typeof existingEntry.name === 'string' && existingEntry.name) {
         name = existingEntry.name;
-      } else if (lang === 'en' && entry.name_en) {
-        name = entry.name_en;
-        abilitiesMissing++;
+      } else if (fixedName('abilities', ja, lang)) {
+        name = fixedName('abilities', ja, lang);          // 出典つき手書き(reference/_i18n_names_fixes.json)
+      } else if (entry.name_en) {
+        name = entry.name_en;                              // 公式英語名の仮置き(en 以外は要実訳=欠落として数える)
+        if (lang !== 'en') abilitiesMissing++;
       } else {
-        // master に他言語名は無いので ja フォールバック(実訳は別途PokeAPI等で埋める)
+        // name_en すら無い時だけ ja フォールバック
         name = ja;
         abilitiesMissing++;
       }
@@ -229,21 +264,27 @@ for (const lang of TARGET_LANGS) {
       if (!ja) continue;
       const existingEntry = (existing.items || {})[ja];
       let name;
+      const papi = pokeapiItemBySlug.get(entry.slug) || (entry.name_en ? pokeapiItemByEn.get(entry.name_en) : null);
+      const papiName = papi && papi.names && papi.names[lang] ? zen2han(papi.names[lang]) : null;
       if (existingEntry && typeof existingEntry.name === 'string' && existingEntry.name) {
         name = existingEntry.name;
-      } else if (lang === 'en' && entry.name_en) {
-        name = entry.name_en;
-        itemsMissing++;
+      } else if (fixedName('items', ja, lang)) {
+        name = fixedName('items', ja, lang);               // 出典つき手書き
+      } else if (papiName) {
+        name = papiName;                                   // PokeAPI 公式名(9言語)
+      } else if (entry.name_en) {
+        name = entry.name_en;                              // 公式英語名の仮置き
+        if (lang !== 'en') itemsMissing++;
       } else {
-        // master に他言語名は無いので ja フォールバック(実訳は別途PokeAPI等で埋める)
         name = ja;
         itemsMissing++;
       }
       // effect: master には effect_en が無い(effect_ja/effect_house のみ)。
-      // 既存訳は保持、新規は空文字(でっち上げ禁止=機械翻訳しない)。
+      // 既存訳は保持、新規は en だけ PokeAPI の flavor_en(既存 en 辞書と同じ流儀)、他言語は空文字
+      // (でっち上げ禁止=機械翻訳しない)。
       let effect = (existingEntry && typeof existingEntry.effect === 'string')
         ? existingEntry.effect
-        : '';
+        : (lang === 'en' && papi && papi.flavor_en && papi.flavor_en.text ? papi.flavor_en.text : '');
       incomingItems[ja] = { name, effect };
     }
   }

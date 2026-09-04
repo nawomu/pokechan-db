@@ -203,7 +203,25 @@ let MOVE_TAG_TR = null;
 function tTagText(ja) {
   const lang = (window.I18N && I18N.lang) || 'ja';
   if (lang === 'ja' || !MOVE_TAG_TR || !MOVE_TAG_TR[lang]) return ja;
-  return MOVE_TAG_TR[lang][ja] || ja;
+  const dict = MOVE_TAG_TR[lang];
+  if (dict[ja]) return dict[ja];
+  // ★2026-09-04 辞書に無い可変タグの型翻訳(データ由来の数値/名前が変わっても漏れないように)
+  // (1) 専用技: 🔒 「{ポケモン名}」専用の技 → UI辞書テンプレ+ポケモン名辞書
+  const sig = ja.match(/^🔒 「(.+)」専用の技$/);
+  if (sig) {
+    const pn = (window.I18N && I18N.pokemon) ? I18N.pokemon(sig[1]) : sig[1];
+    return _t('waza.tag_signature_only', '🔒 「{n}」専用の技').replace('{n}', pn);
+  }
+  // (2) 末尾が数値(1/3, 33%, 2回 等)のタグ: 同じ接頭辞で数値だけ違う辞書項目を型として流用(例 反動1/2 → 反動33%)
+  const num = ja.match(/^(.*?)(\d+(?:\/\d+|%)?)$/);
+  if (num) {
+    const prefix = num[1];
+    for (const k of Object.keys(dict)) {
+      const km = k.match(/^(.*?)(\d+(?:\/\d+|%)?)$/);
+      if (km && km[1] === prefix && dict[k].includes(km[2])) return dict[k].replace(km[2], num[2]);
+    }
+  }
+  return ja;
 }
 // 詳細タグ フィルタパネル(newTagChips)は一度きり構築=言語切替に追従しないので、表示文字列だけ再翻訳する。
 function retranslateNewTagPanel() {
@@ -885,9 +903,10 @@ function getMoveFilterTags(m) {
     if (k === 'トラップ反撃') push('tag-misc', '🛡️ 相手の物理技を受けると反撃する'); // トラップシェル
     if (k === '攻撃技条件先制') push('tag-flag', '⚡ 相手が攻撃技の時だけ成功する先制技'); // じんらい
     if (k === 'おもさ変化') push('tag-misc', '⚖️ 自分のおもさが変わる'); // ボディパージ
-    if (k === '使用者限定') { // ダークホール/おしゃべり/いじげんラッシュ ★2026-09-01 i18n化(文ごとテンプレ・名前は辞書から)
-      const _pn = (window.I18N && I18N.pokemon) ? I18N.pokemon(e.value) : e.value;
-      push('tag-other', _t('waza.tag_signature_only', '🔒 「{n}」専用の技').replace('{n}', _pn));
+    if (k === '使用者限定') { // ダークホール/おしゃべり/いじげんラッシュ
+      // ★2026-09-04: タグはJA正典で生成し表示時に tTagText がテンプレ翻訳(waza.tag_signature_only+名前辞書)。
+      //   生成時に翻訳すると詳細タグパネル(一度きり構築)が最初の言語で固定され、切替に追従しない
+      push('tag-other', `🔒 「${e.value}」専用の技`);
     }
     if (k === '引き寄せ') push('tag-misc', e.target === 'opponent' ? '🧲 その相手に攻撃を集める' : '🧲 相手の攻撃を自分に引き寄せる'); // スポットライト/このゆびとまれ
     if (k === 'テレキネシス') push('tag-misc', '🎈 相手をうかせて必ず当たるようにする');
