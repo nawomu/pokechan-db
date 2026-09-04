@@ -53,10 +53,14 @@ const WAZA_CHAMPIONS_FIELD_ALLOWLIST = new Set(['pp', 'power', 'accuracy', 'targ
 const LIVE_REGS = (() => { try { return (J('reference/_regulations.json').items || []).map(r => r.id); } catch (e) { return []; } })();
 const REG_NEWEST = LIVE_REGS[LIVE_REGS.length - 1] || null;
 const NATIONAL_SEASON_BY_NAME = new Map();   // (i) 全国版の season(名前→配列)。main() で埋める
-const AUDITED_AVAILABILITY_FIXES = (() => { try {
+// (g) reference/_moves_fixes.json(全件根拠つき・二重ソース確定)が set した列(パスの根=availability/description_legacy 等)を
+//   slug×列の単位でだけ許容する(2026-09-05 false-surrender の description_legacy 訂正で availability 限定から一般化)
+const AUDITED_MOVE_FIX_FIELDS = (() => { try {
   const fx = J('reference/_moves_fixes.json').fixes || {};
-  return new Set(Object.keys(fx).filter(k => Object.keys(fx[k].set || {}).some(p => p.startsWith('availability.'))));
-} catch (e) { return new Set(); } })();
+  const m = new Map();
+  Object.keys(fx).forEach(k => m.set(k, new Set(Object.keys(fx[k].set || {}).map(p => p.split(/[.\[]/)[0]))));
+  return m;
+} catch (e) { return new Map(); } })();
 
 // (d) items: name_en(24件・監査是正) / mega_ability(21件・列挙。旧が土台ポケモンの特性を誤表示していた
 //   分の是正+旧が空欄だった分の補完) / mega_target_en(5件・列挙。base種がフォーム限定/X・Y無しの
@@ -217,8 +221,8 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
         report.allowlisted.push({ entity: label, key: k, field: f, reason: '(i) 新設列(display_name=一覧表の短い表示名・2026-09-03 阿部さん、genderless/gender_female_pct=性別(2026-09-03))' });
         return;
       }
-      if (label.startsWith('waza') && f === 'availability' && AUDITED_AVAILABILITY_FIXES.has(k)) {
-        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(g) 監査確定の世代修正(R10・reference/_moves_fixes.json 根拠つき)' });
+      if (label.startsWith('waza') && AUDITED_MOVE_FIX_FIELDS.has(k) && AUDITED_MOVE_FIX_FIELDS.get(k).has(f)) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(g) 監査確定の修正(reference/_moves_fixes.json 根拠つき・slug×列の単位)' });
         return;
       }
       // (h) R4(2026-09-03 阿部さん): season は「現行」と「次」の2枠だけ。旧の季から終わったレギュ(M-A等)が外れただけの差
