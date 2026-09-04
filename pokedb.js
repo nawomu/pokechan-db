@@ -42,6 +42,13 @@
  *   PokeDB.learners(moveName) … setMode('champions') 中は絞り込み後のポケモンだけで数える。
  *   PokeDB.learnsetKeys(name) … learnset(name)のslug版(技名が引けなければ元の名前のまま残す)。
  *   PokeDB.nature(name) … natures()から名前1件で引く薄いヘルパー。
+ *
+ * ★窓口追加(2026-09-04・W15。party_checker_v2.html向け=派生値の計算窓口。データは持たない):
+ *   PokeDB.statRankAll() / statRank(key) … 種族値からのLv50実数値・全国内順位の派生表(旧生成物STAT_RANK相当)。
+ *     計算式は tools/build_views.js の buildStatRank と完全に同じ(コピペでなく同じ式)。母集団は
+ *     現在の allPokemon()(=setMode()の絞り込み後)。結果は遅延計算してキャッシュし、setMode()で
+ *     母集団が変わったら自動的に作り直す(キャッシュ破棄)。キーは statRankKey 形式
+ *     (formが'通常'でなければ `${name}(${form})`、それ以外は name)。
  */
 (function () {
   'use strict';
@@ -148,6 +155,50 @@
     if (mode === 'champions') return arr.filter(function (x) { return !!x.champions; });
     return arr;
   }
+
+  // ══════════════════════════════════════════════════════════════════
+  // STAT_RANK(★W15・2026-09-04追加): tools/build_views.js の buildStatRank と
+  // 完全に同じ式(コピペではなく同じ計算を実装)。party_checker_v2.html 用の計算窓口。
+  // ══════════════════════════════════════════════════════════════════
+  function lv50NonHp(base, boost) {
+    var raw = Math.floor((2 * base + 31 + 63) * 0.5) + 5;
+    return boost ? Math.floor(raw * boost) : raw;
+  }
+  function lv50Hp(base) { return Math.floor((2 * base + 31 + 63) * 0.5) + 60; }
+  function statRankKeyFor(p) { return (p.form && p.form !== '通常') ? (p.name + '(' + p.form + ')') : p.name; }
+  var STAT_RANK_FIELDS = ['hp_base', 'atk_base', 'def_base', 'spatk_base', 'spdef_base', 'spd_base', 'total_base',
+    'hp_a', 'atk_a', 'def_a', 'spatk_a', 'spdef_a', 'spd_a', 'total_a',
+    'atk_b', 'def_b', 'spatk_b', 'spdef_b', 'spd_b'];
+  function buildStatRank(pokemonListRows) {
+    var pop = pokemonListRows.filter(function (p) { return p.hp != null; });
+    var rows = pop.map(function (p) {
+      var hp_a = lv50Hp(p.hp), atk_a = lv50NonHp(p.atk), def_a = lv50NonHp(p.def),
+        spatk_a = lv50NonHp(p.spatk), spdef_a = lv50NonHp(p.spdef), spd_a = lv50NonHp(p.spd);
+      return {
+        key: statRankKeyFor(p), no: p.no,
+        hp_base: p.hp, atk_base: p.atk, def_base: p.def, spatk_base: p.spatk, spdef_base: p.spdef, spd_base: p.spd, total_base: p.total,
+        hp_a: hp_a, atk_a: atk_a, def_a: def_a, spatk_a: spatk_a, spdef_a: spdef_a, spd_a: spd_a,
+        total_a: hp_a + atk_a + def_a + spatk_a + spdef_a + spd_a,
+        atk_b: lv50NonHp(p.atk, 1.1), def_b: lv50NonHp(p.def, 1.1), spatk_b: lv50NonHp(p.spatk, 1.1),
+        spdef_b: lv50NonHp(p.spdef, 1.1), spd_b: lv50NonHp(p.spd, 1.1)
+      };
+    });
+    var rankMaps = {};
+    STAT_RANK_FIELDS.forEach(function (f) {
+      var sorted = rows.slice().sort(function (a, b) { return b[f] - a[f]; });
+      var m = new Map();
+      sorted.forEach(function (r, i) { m.set(r.key, i > 0 && sorted[i - 1][f] === r[f] ? m.get(sorted[i - 1].key) : i + 1); });
+      rankMaps[f] = m;
+    });
+    var out = {};
+    rows.forEach(function (r) {
+      var o = Object.assign({}, r); delete o.key;
+      STAT_RANK_FIELDS.forEach(function (f) { o[f + '_rank'] = rankMaps[f].get(r.key); });
+      out[r.key] = o;
+    });
+    return out;
+  }
+  var statRankCache = null, statRankCacheMode = null;
 
   var g = (typeof window !== 'undefined') ? window : globalThis;
 
@@ -262,6 +313,17 @@
     regulationNext: function () { var a = (DB.regulations && DB.regulations.items) || []; return a.filter(function (r) { return r.role === 'next'; })[0] || null; },
     /** 現行+次(順序=現行→次) */
     regulations: function () { return ((DB.regulations && DB.regulations.items) || []).slice(); },
+
+    /** ★2026-09-04(W15): 種族値からの派生表(Lv50実数値・全国内順位。旧生成物STAT_RANK相当)。
+     *  母集団=現在のallPokemon()。setMode()で母集団が変わったら自動的に作り直す(遅延計算+キャッシュ)。 */
+    statRankAll: function () {
+      if (statRankCache && statRankCacheMode === mode) return statRankCache;
+      statRankCache = buildStatRank(this.allPokemon());
+      statRankCacheMode = mode;
+      return statRankCache;
+    },
+    /** statRankAll()から1件(キー形式はstatRankKey同等: formが'通常'以外なら`${name}(${form})`) */
+    statRank: function (key) { return this.statRankAll()[key] || null; },
 
     /** 生の master をそのまま(検査用) */
     raw: function (name) { return DB[name] || null; },
