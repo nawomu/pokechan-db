@@ -1,3 +1,7 @@
+// ★凍結(2026-09-04 B-3): この生成器は動かない・動かさない。
+//   入力は reference/_old_master/{pokeapi_master,abilities_master,master_pokemon}.json(旧マスター=参照禁止)。
+//   役目は pokemon_db_all_v9.html(全国版図鑑・pokedb.js 経由)が引き継いでいる。index.html も v9 に繋がっている。
+//   生成済みの pokemon_db_all.html は導線なし。阿部さん確認後に 旧ページと本ファイルを削除する(🙋 提案中)。
 // 全部入りポケモンDB(メインシリーズ全世代)公開ページ生成。Champions専用DBとは別。
 // 元データ=reference/pokeapi_master.json(全1302variety)。
 // 絵=自作オリジナル絵(images/sim)既定(AdSense対策・案A・2026-07-20 阿部さん確定)。PokeAPI公式絵は初期表示に出さない。

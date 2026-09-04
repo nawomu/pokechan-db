@@ -64,6 +64,8 @@ const AUDITED_AVAILABILITY_FIXES = (() => { try {
 const ITEMS_FIELD_ALLOWLIST = new Set(['name_en', 'mega_ability', 'mega_target_en', 'category', 'mega_form']);
 // (j) R1(2026-09-03) added_in/season の champions 判定用。items_database.js の行は champions を持たないので
 //   master/items.json(slug→champions)を直接引く(items_database.js は master 由来なので slug=key で一致)。
+// (k) B-3(2026-09-04) pokeapi_slug 補完の照合先(PokeAPI 全どうぐの生データ・中間ファイル)
+const POKEAPI_ITEMS_RAW = (() => { try { return J('reference/_pokeapi_items_raw.json').items || {}; } catch (e) { return {}; } })();
 const MASTER_ITEMS_CHAMPIONS_BY_KEY = (() => {
   const m = new Map();
   try { J('master/items.json').items.forEach(it => { if (it.slug) m.set(it.slug, it.champions === true); }); } catch (e) {}
@@ -250,6 +252,14 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
       }
       if (label === 'items' && EMPTY_TO_FILLED_ALLOWED_FIELDS.has(f) && isEmptyVal(lv) && !isEmptyVal(nv)) {
         report.allowlisted.push({ entity: label, key: k, field: f, reason: '旧は未実装スケルトンで空欄・新はjoinで補完(改善)' });
+        return;
+      }
+      // (k) B-3(2026-09-04): 器を広げた際に PokeAPI と名寄せして埋めた pokeapi_slug(旧は18件だけ持っていた)。
+      //   許すのは「旧が空」かつ「PokeAPI生データ(reference/_pokeapi_items_raw.json)の ja名(zen2han)がこの行の name と一致」する時だけ
+      //   =名寄せの正しさをデータで確かめる(推測の slug は通さない)。
+      if (label === 'items' && f === 'pokeapi_slug' && isEmptyVal(lv) && typeof nv === 'string'
+          && POKEAPI_ITEMS_RAW[nv] && zen2han((POKEAPI_ITEMS_RAW[nv].names || {}).ja).trim() === String((newByKey.get(k) || {}).name)) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(k) B-3 pokeapi_slug を PokeAPI と ja名一致で補完(器を広げる工程・2026-09-04)' });
         return;
       }
       // (j) R1(2026-09-03): items に新設した added_in/season(旧版に無かった列。pokemon系ビューと同じモデル)。

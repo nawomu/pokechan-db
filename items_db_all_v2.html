@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<!-- items_db_all_v2: 全国版 どうぐ一覧(データは pokedb.js 1枚だけを読む)。
+     B-3 2026-09-04 新設。データ源: master/items.json(422件・SSOT) を pokedb.js 経由で1枚だけ読む。
+     旧版 items_db_all.html(reference/_old_master/items_master.json を直読みする生成器の生成物・2180件の全どうぐ)は
+     二重掲載中(CLAUDE.md「屋台骨の総入れ替え」の作法)。阿部さん確認後に旧版を削除する。
+     新ページの絶対4か条(CLAUDE.md「新しいページを作る時の絶対手順」):
+       1. データは pokedb.js からしか取らない(pokechan_data*.js / items_database.js / master/*.json を直接読まない)
+       2. ページ専用のデータを新しく作らない(足りない項目は master/ を広げる)
+       3. JSON/JSをコピーして持ってこない
+       4. 文字列(名前・カテゴリ・タイプ)をHTMLに直書きしない。IDでマスターから引く -->
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-3Y3S9N1K7H"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-3Y3S9N1K7H');
+</script>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8021399778265482" crossorigin="anonymous"></script>
+<title>全国版 どうぐ一覧(全422件) - PchamDB (非公式)</title>
+<meta name="description" content="ポケモン全世代の持てる道具(メガストーン・Zクリスタル・進化の石・きのみ等)を一覧。名前・カテゴリで検索できる非公式どうぐデータベース。">
+<meta name="theme-color" content="#1F4E79">
+<meta name="robots" content="index, follow">
+<link rel="canonical" href="https://pchamdb.com/items_db_all_v2.html">
+<link rel="icon" href="favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="favicon.png">
+<link rel="manifest" href="manifest.json">
+<script defer src="i18n/runtime.js?v=20260701"></script>
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PchamDB">
+<meta property="og:locale" content="ja_JP">
+<meta property="og:title" content="全国版 どうぐ一覧 - PchamDB">
+<meta property="og:description" content="ポケモン全世代の持てる道具を一覧。名前・カテゴリで検索できます。">
+<meta property="og:url" content="https://pchamdb.com/items_db_all_v2.html">
+<meta property="og:image" content="https://pchamdb.com/ogp/og-default.png">
+
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="全国版 どうぐ一覧 - PchamDB">
+<meta name="twitter:description" content="ポケモン全世代の持てる道具を一覧。名前・カテゴリで検索できます。">
+<meta name="twitter:image" content="https://pchamdb.com/ogp/og-default.png">
+
+<link rel="stylesheet" href="waza_picker.css">
+<style>
+/* === items_db_all_v2 固有スタイル (共通レイアウトは waza_picker.css に依存) === */
+:root { --top-bar-height: 132px; }
+
+.scope-note { margin: 6px 12px 0; padding: 6px 10px; background: #eef4fb; border: 1px solid #d3e2f0;
+  border-radius: 6px; color: #3a4a5a; font-size: 12px; line-height: 1.5; }
+
+#itemTable { font-size: 12px; }
+#itemTable th.col-icon, #itemTable td.col-icon { width: 42px; text-align: center; }
+#itemTable th.col-name, #itemTable td.col-name { width: 170px; text-align: left; }
+#itemTable th.col-cat, #itemTable td.col-cat { width: 130px; text-align: left; }
+#itemTable th.col-gen, #itemTable td.col-gen { width: 50px; text-align: center; }
+#itemTable th.col-price, #itemTable td.col-price { width: 74px; text-align: right; padding-right: 10px; }
+#itemTable th.col-effect, #itemTable td.col-effect { text-align: left; }
+
+#itemTable td.col-icon img { width: 32px; height: 32px; image-rendering: pixelated; display: inline-block; }
+#itemTable td.col-name .it-name { font-weight: 700; color: #1F4E79; }
+#itemTable td.col-name .it-en { display: block; font-size: 10px; color: #8aa3bb; font-weight: 400; }
+#itemTable td.col-name .it-ja-sub { display: block; font-size: 10px; color: #8aa3bb; font-weight: 400; }
+#itemTable td.col-cat .cat-badge { display: inline-block; color: #cfe0f5; background: #2b3a55; font-size: 10px;
+  font-weight: 700; padding: 1px 7px; border-radius: 4px; white-space: nowrap; }
+#itemTable td.col-effect { color: #333; line-height: 1.5; }
+#itemTable td.col-effect .no-desc { color: #b0b8c2; font-style: italic; }
+#itemTable td.col-effect .tag { display: inline-block; font-size: 10px; color: #8aa3bb; font-style: normal;
+  border: 1px solid #d6e2ee; border-radius: 4px; padding: 0 5px; margin-right: 5px; }
+
+.champ-badge { display: inline-block; background: #F39C12; color: #fff; font-size: 10px; font-weight: 700;
+  border-radius: 4px; padding: 1px 6px; margin-left: 5px; white-space: nowrap; }
+.champ-seasons { display: inline-block; font-size: 9px; color: #8aa3bb; margin-left: 4px; }
+
+#itemCatFilter { padding: 3px 8px; font-size: 11px; border: 1px solid #2a4a6a; border-radius: 3px;
+  background: #1a3a55; color: #fff; }
+.top-bar label.champ-only { display: inline-flex; align-items: center; gap: 4px; color: #cfe0f5; font-size: 11px;
+  cursor: pointer; user-select: none; }
+.top-bar label.champ-only input[type=checkbox] { width: auto; margin: 0; cursor: pointer; }
+
+@media (max-width: 600px) {
+  #itemTable th.col-gen, #itemTable td.col-gen { display: none; }
+  #itemTable th.col-cat, #itemTable td.col-cat { display: none; }
+}
+</style>
+<link rel="stylesheet" href="site-footer.css"></head><body>
+
+<div class="top-bar">
+  <!-- Row 1: タイトル(パンくず) + 右端ナビ -->
+  <div class="top-row top-row-1">
+    <h1>
+      <a href="index.html" class="site-home-link" title="PchamDB トップに戻る" data-i18n="checker.nav_pchamdb_home" data-i18n-attr="title:checker.nav_pchamdb_home_title">🏠 PchamDB</a>
+      <span style="color:#8aa3bb;font-size:11px;font-weight:400">›</span>
+      <span style="color:#ccc;font-size:11px;font-weight:400" data-i18n="items_db_all.nav_list">📦 全国どうぐリストDB</span>
+    </h1>
+    <nav class="top-nav">
+      <a href="pokemon_db_all.html" class="nav-db" style="text-decoration:none;padding:3px 10px;border-radius:3px;background:#2E86AB;color:#fff;font-size:11px;font-weight:700" data-i18n="items_db_all.nav_pokemon">📕ポケモン</a>
+      <a href="moves_db_all.html" class="nav-waza" style="text-decoration:none;padding:3px 10px;border-radius:3px;background:#F39C12;color:#fff;font-size:11px;font-weight:700" data-i18n="items_db_all.nav_moves">📘わざ</a>
+      <a href="items_list.html" class="nav-checker" style="text-decoration:none;padding:3px 10px;border-radius:3px;background:#27AE60;color:#fff;font-size:11px;font-weight:700" data-i18n="items_db_all.nav_champions">→ チャンピオンズどうぐ一覧</a>
+      <span id="i18n-switcher-mount" style="display:inline-flex;align-items:center;margin-left:6px"></span>
+    </nav>
+  </div>
+  <!-- Row 2: 検索・カテゴリ・Championsのみ・件数 -->
+  <div class="top-row top-row-2">
+    <input type="search" id="itemSearch" placeholder="🔍 どうぐ名で検索(日本語/英語)" autocomplete="off"
+           data-i18n-attr="placeholder:items_db_all.search_ph" oninput="ItemDBApp.onSearch(this.value)">
+    <select id="itemCatFilter" onchange="ItemDBApp.onCatChange(this.value)"></select>
+    <label class="champ-only"><input type="checkbox" id="champOnly" onchange="ItemDBApp.onChampOnly(this.checked)">
+      <span data-i18n="items_db_all.filter_champions">チャンピオンズで使える道具だけ</span></label>
+    <span class="count" id="itemCount" style="display:inline-block;min-width:120px;text-align:left"></span>
+  </div>
+</div>
+
+<p class="scope-note" data-i18n="items_db_all.scope_note">全世代の「持たせられる道具」(メガストーン・Zクリスタル・進化の石・きのみ等)を集めた一覧です。チャンピオンズで使える道具には印がついています。</p>
+
+<div class="tbl-scroll" style="max-width:100%">
+<table id="itemTable">
+<thead>
+  <tr class="head-row">
+    <th class="col-icon" data-i18n="items_db_all.th_icon">絵</th>
+    <th class="col-name" data-i18n="items_db_all.th_name">どうぐ名</th>
+    <th class="col-cat" data-i18n="items_db_all.th_category">カテゴリ</th>
+    <th class="col-gen" data-i18n="items_db_all.th_gen">世代</th>
+    <th class="col-price" data-i18n="items_db_all.th_price">値段</th>
+    <th class="col-effect" data-i18n="items_db_all.th_effect">効果</th>
+  </tr>
+</thead>
+<tbody id="itemBody"></tbody>
+</table>
+</div>
+
+<!-- ページトップへ戻るボタン -->
+<button id="back-to-top" style="position:fixed;right:20px;bottom:24px;width:42px;height:42px;border-radius:50%;background:rgba(243,156,18,0.92);color:white;border:none;font-size:18px;font-weight:700;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,0.35);z-index:9997;display:none;align-items:center;justify-content:center" title="ページトップへ戻る" data-i18n-attr="title:waza.back_to_top_title">▲</button>
+
+<!-- ★このページは参照元1枚 pokedb.js だけを読む(pokechan_data*.js / master/*.json の直読み禁止・R1) -->
+<script src="pokedb.js?v=20260903c" data-files="items,regulations"></script>
+<script>
+/* =====================================================================
+ * items_db_all_v2.html — 全国版 どうぐ一覧
+ * データ(すべて pokedb.js 経由・大本は master/items.json):
+ *   PokeDB.items() : 全422件(master/items.json の items)。フィールド=
+ *       name(JA正式名) / name_en / names{9言語・PokeAPI由来。メガストーン46件は無し} /
+ *       pokeapi_slug(スプライトファイル名にも使用。無い場合はスプライト非表示) /
+ *       category_pokeapi(PokeAPIカテゴリ。メガストーン46件はnull→houseのcategory='mega_stone'で補う) /
+ *       gen_introduced / cost / effect_ja(Champions権威の効果文) / flavor_ja(公式ゲーム内説明) /
+ *       effect_en / champions(bool) / seasons(現行/次のレギュコード配列)。
+ * 表示の優先順:
+ *   名前: ja=name(+name_enを小さく併記) / 非ja=I18N.name('item', name)(無ければ names[lang]→name)
+ *   効果: ja=effect_ja → flavor_ja(全角スペース正規化・「ゲーム内説明」ラベル付き) → '—'
+ *        非ja=I18N.desc('item', name) → effect_en → '—'
+ * ===================================================================== */
+var ItemDBApp = (function () {
+  'use strict';
+
+  var ROWS = [];      // 正規化済み行
+  var TOTAL = 0;
+  var searchTerm = '';
+  var catFilter = '';
+  var champOnly = false;
+
+  // ---- ユーティリティ ----
+  function norm(s) {
+    if (!s) return '';
+    return String(s).toLowerCase()
+      .replace(/[ァ-ヶ]/g, function (ch) { return String.fromCharCode(ch.charCodeAt(0) - 0x60); })
+      .trim();
+  }
+  function esc(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"]/g, function (c) {
+      return c === '&' ? '&amp;' : c === '<' ? '&lt;' : c === '>' ? '&gt;' : '&quot;';
+    });
+  }
+  function t(key, fb) { return (window.I18N && I18N.t) ? I18N.t(key, fb) : fb; }
+
+  function catKeyOf(row) {
+    if (row.category_pokeapi) return row.category_pokeapi;
+    if (row.category === 'mega_stone') return 'mega-stones';
+    return null;
+  }
+  function catLabel(key) {
+    if (!key) return '—';
+    return t('items_db_all.cat.' + key, key);
+  }
+
+  function nameFor(row) {
+    var lang = (window.I18N && I18N.lang) || 'ja';
+    if (lang === 'ja') return row.name;
+    if (window.I18N && I18N.name) {
+      var n = I18N.name('item', row.name);
+      if (n && n !== row.name) return n;
+    }
+    // ★非jaでJA名に落ちるのを防ぐ(en を最終フォールバックにする。ability_all.htmlと同じ方針)
+    var names = row.names || {};
+    return names[lang] || names.en || row.name_en || row.name;
+  }
+
+  function effectFor(row) {
+    var lang = (window.I18N && I18N.lang) || 'ja';
+    if (lang === 'ja') {
+      if (row.effect_ja) return { text: row.effect_ja, flavor: false };
+      if (row.flavor_ja) return { text: String(row.flavor_ja).replace(/　/g, ' '), flavor: true };
+      return null;
+    }
+    var d = (window.I18N && I18N.desc) ? I18N.desc('item', row.name) : '';
+    if (d) return { text: d, flavor: false };
+    if (row.effect_en) return { text: row.effect_en, flavor: false };
+    return null;
+  }
+
+  // ---- 行データ正規化 ----
+  function buildRows() {
+    ROWS = [];
+    var master = PokeDB.items();
+    for (var i = 0; i < master.length; i++) {
+      var it = master[i];
+      ROWS.push({
+        rowIndex: i,
+        name: it.name || '',
+        name_en: it.name_en || '',
+        names: it.names || null,
+        pokeapi_slug: it.pokeapi_slug || null,
+        category: it.category || null,
+        category_pokeapi: it.category_pokeapi || null,
+        gen_introduced: it.gen_introduced != null ? it.gen_introduced : null,
+        cost: it.cost != null ? it.cost : null,
+        effect_ja: it.effect_ja || '',
+        flavor_ja: it.flavor_ja || '',
+        effect_en: it.effect_en || '',
+        champions: !!it.champions,
+        seasons: it.seasons || []
+      });
+    }
+    TOTAL = ROWS.length;
+  }
+
+  // ---- カテゴリ選択肢の構築 ----
+  function buildCatOptions() {
+    var sel = document.getElementById('itemCatFilter');
+    if (!sel) return;
+    var seen = {};
+    ROWS.forEach(function (r) {
+      var k = catKeyOf(r);
+      if (k) seen[k] = true;
+    });
+    var keys = Object.keys(seen);
+    keys.sort(function (a, b) {
+      return catLabel(a).localeCompare(catLabel(b), 'ja');
+    });
+    var html = '<option value="">' + esc(t('items_db_all.filter_all', '全カテゴリ')) + '</option>';
+    keys.forEach(function (k) {
+      html += '<option value="' + esc(k) + '"' + (k === catFilter ? ' selected' : '') + '>' + esc(catLabel(k)) + '</option>';
+    });
+    sel.innerHTML = html;
+  }
+
+  // ---- フィルタ ----
+  function filterRows() {
+    var q = norm(searchTerm);
+    var out = [];
+    for (var i = 0; i < ROWS.length; i++) {
+      var r = ROWS[i];
+      if (champOnly && !r.champions) continue;
+      if (catFilter && catKeyOf(r) !== catFilter) continue;
+      if (q) {
+        var names = r.names || {};
+        var hay = [r.name, r.name_en, names.en, names.fr, names.de, names.es, names.it, names.ko,
+          names['zh-Hans'], names['zh-Hant'], r.effect_ja, r.effect_en]
+          .map(norm).join(' ');
+        if (hay.indexOf(q) === -1) continue;
+      }
+      out.push(r);
+    }
+    return out;
+  }
+
+  // ---- 描画 ----
+  function render() {
+    var body = document.getElementById('itemBody');
+    if (!body || !ROWS.length) return;
+
+    buildCatOptions();
+
+    var filtered = filterRows();
+    var lang = (window.I18N && I18N.lang) || 'ja';
+    var html = '';
+    for (var i = 0; i < filtered.length; i++) {
+      var r = filtered[i];
+      var name = nameFor(r);
+
+      var iconHtml = r.pokeapi_slug
+        ? '<img loading="lazy" src="images/item/' + esc(r.pokeapi_slug) + '.png" alt="" onerror="this.style.visibility=\'hidden\'">'
+        : '';
+
+      var subName = '';
+      if (lang === 'ja') {
+        if (r.name_en) subName = '<span class="it-en">' + esc(r.name_en) + '</span>';
+      } else if (name !== r.name) {
+        // ★意図的な原文併記(ヤックン/公式JA名の参照用)。i18n監査の誤検出対象から除外(data-i18n-audit-skip)
+        subName = '<span class="it-ja-sub" data-i18n-audit-skip>' + esc(r.name) + '</span>';
+      }
+
+      var champBadge = '';
+      if (r.champions) {
+        champBadge = '<span class="champ-badge">' + esc(t('items_db_all.badge_champions', 'Champions')) + '</span>' +
+          (r.seasons.length ? '<span class="champ-seasons">' + esc(r.seasons.join(' ')) + '</span>' : '');
+      }
+
+      var catKey = catKeyOf(r);
+      var catHtml = catKey ? '<span class="cat-badge">' + esc(catLabel(catKey)) + '</span>' : '—';
+
+      var genHtml = r.gen_introduced != null ? String(r.gen_introduced) : '—';
+      var priceHtml = (r.cost != null && r.cost > 0) ? r.cost.toLocaleString() : '—';
+
+      var eff = effectFor(r);
+      var effectHtml;
+      if (!eff) {
+        effectHtml = '<span class="no-desc">—</span>';
+      } else if (eff.flavor) {
+        effectHtml = '<span class="tag">' + esc(t('items_db_all.flavor_label', 'ゲーム内説明')) + '</span>' + esc(eff.text);
+      } else {
+        effectHtml = esc(eff.text);
+      }
+
+      html += '<tr>' +
+        '<td class="col-icon">' + iconHtml + '</td>' +
+        '<td class="col-name"><span class="it-name">' + esc(name) + '</span>' + champBadge + subName + '</td>' +
+        '<td class="col-cat">' + catHtml + '</td>' +
+        '<td class="col-gen">' + genHtml + '</td>' +
+        '<td class="col-price">' + priceHtml + '</td>' +
+        '<td class="col-effect">' + effectHtml + '</td>' +
+        '</tr>';
+    }
+    if (filtered.length === 0) {
+      html = '<tr><td colspan="6" style="text-align:center;padding:24px;color:#888">' +
+        esc(t('common.no_results', '該当なし')) + '</td></tr>';
+    }
+    body.innerHTML = html;
+
+    var cnt = document.getElementById('itemCount');
+    if (cnt) {
+      cnt.textContent = t('items_db_all.count_of', '{n} / {total} 件')
+        .replace('{n}', filtered.length).replace('{total}', TOTAL) + '';
+    }
+  }
+
+  // ---- イベント ----
+  function onSearch(v) { searchTerm = v || ''; render(); }
+  function onCatChange(v) { catFilter = v || ''; render(); }
+  function onChampOnly(v) { champOnly = !!v; render(); }
+
+  // ---- 初期化 ----
+  function syncBarHeight() {
+    var bar = document.querySelector('.top-bar');
+    if (bar) document.documentElement.style.setProperty('--top-bar-height', Math.ceil(bar.getBoundingClientRect().height) + 'px');
+  }
+
+  function init() {
+    syncBarHeight();
+    window.addEventListener('resize', syncBarHeight);
+
+    PokeDB.setMode('all');
+    PokeDB.ready.then(function () {
+      buildRows();
+      render();
+    }).catch(function (e) {
+      document.getElementById('itemBody').innerHTML =
+        '<tr><td colspan="6" style="padding:24px;color:#c00">データ読み込みエラー(pokedb.js): ' + esc((e && e.message) || String(e)) + '</td></tr>';
+    });
+
+    var btn = document.getElementById('back-to-top');
+    if (btn) {
+      function upd() { btn.style.display = (window.scrollY || document.documentElement.scrollTop) > 200 ? 'flex' : 'none'; }
+      window.addEventListener('scroll', upd);
+      btn.addEventListener('click', function () { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+    }
+  }
+
+  // 言語切替時に名前・説明文を再解決して再描画
+  document.addEventListener('i18n:ready', render);
+  document.addEventListener('i18n:changed', render);
+
+  return { init: init, render: render, onSearch: onSearch, onCatChange: onCatChange, onChampOnly: onChampOnly };
+})();
+
+(function () {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', ItemDBApp.init);
+  } else {
+    ItemDBApp.init();
+  }
+})();
+</script>
+
+<footer class="site-footer">
+  <p class="unofficial" data-i18n="footer.unofficial">⚠️ 当サイトは非公式ファンサイトです</p>
+  <p data-i18n="footer.not_affiliated">任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズなど関連企業とは一切関係ありません。</p>
+  <div class="footer-links">
+    <a href="making.html" data-i18n="nav.making">制作の裏側</a> ·
+    <a href="terms.html" target="_blank" rel="noopener" data-i18n="nav.terms">利用規約</a> ·
+    <a href="privacy.html" target="_blank" rel="noopener" data-i18n="nav.privacy">プライバシーポリシー</a> ·
+    <a href="disclaimer.html" target="_blank" rel="noopener" data-i18n="nav.disclaimer">免責事項</a> ·
+    <a href="contact.html" data-i18n="nav.contact">お問い合わせ</a> ·
+    <a href="sitemap.html" data-i18n="nav.sitemap">サイトマップ</a>
+  </div>
+  <p class="copyright">
+    ポケモン・Pokémon・ポケットモンスター・モンスターボール・ポケモンチャンピオンズ等の<br>
+    商標および著作権は、任天堂株式会社・株式会社ポケモン・ゲームフリーク株式会社・<br>
+    株式会社クリーチャーズに帰属します。<br><br>
+    © 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc.<br>
+    © 2026 PchamDB
+  </p>
+</footer>
+
+</body></html>

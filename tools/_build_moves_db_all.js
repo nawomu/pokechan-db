@@ -1,3 +1,7 @@
+// ★凍結(2026-09-04 B-3): この生成器は動かない・動かさない。
+//   入力 reference/moves_master.json は 2026-07-31 に reference/_old_master/ へ退避済み(旧マスター=参照禁止)。
+//   役目は waza-list_all.html(全国版わざ一覧・master/moves.json 経由)が引き継いでいる。
+//   生成済みの moves_db_all.html は sitemap.html からしか辿れない。阿部さん確認後に 旧ページと本ファイルを削除する(🙋 提案中)。
 // 全部入り技リストDB(全937技・全世代)公開ページ生成。Champions専用の waza-list とは別。
 // 元データ=reference/moves_master.json(全937技・9言語名)。英語効果文(effect_en)は北極星「英語ゼロ」のため出さない=ステータス参照リスト。
 // 実行: node tools/_build_moves_db_all.js → moves_db_all.html

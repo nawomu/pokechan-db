@@ -1,3 +1,8 @@
+// ★凍結(2026-09-04 B-3): この生成器は動かない・動かさない。
+//   入力 reference/items_master.json は 2026-07-31 に reference/_old_master/ へ退避済み(旧マスター=参照禁止)。
+//   後継 = items_db_all_v2.html(pokedb.js 1枚だけを読む・master/items.json=全世代の持てる道具422件)。
+//   生成済みの items_db_all.html は二重掲載中。阿部さんが v2 を確認したら 旧ページと本ファイルを削除する。
+//   ★直したくなっても、この生成器を修理しない(「足りないから、もう一つ作る」の逆=一つ(master)を広げる)。
 // 全部入りアイテムリストDB(全2180道具)公開ページ生成。Champions専用の items_list とは別。
 // 元データ=reference/items_master.json(全2180・9言語名)。英語効果文(effect_en)は北極星「英語ゼロ」のため出さない=参照リスト。
 // スプライト=ローカル同梱(images/item/)。欠けはPokeAPIへonerrorフォールバック。

@@ -19,6 +19,7 @@ const PAGES = [
   'waza-list_all.html',
   'ability_all.html',
   'items_db_all.html',
+  'items_db_all_v2.html',
   'moves_db_all.html',
 ];
 

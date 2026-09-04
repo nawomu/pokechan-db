@@ -493,7 +493,12 @@ function buildItems() {
   const pkByNo = new Map(); // no → mega:true な行の配列
   MASTER.pokemon.forEach(p => { if (p.mega && p.no != null) { if (!pkByNo.has(p.no)) pkByNo.set(p.no, []); pkByNo.get(p.no).push(p); } });
   const unresolvedMega = [];
-  const items = MASTER.items.map(it => {
+  // ★B-3(2026-09-04): master/items.json は「全世代の持てる道具」まで広がった(source=pokeapi_provisional の行=家の分類/説明文/実装が未確定)。
+  //   このビュー(items_database.js)は Champions版=バトルのピッカー(real_battle/party_checker/battle_simulator)と items_list.html の元なので、
+  //   provisional 行は**入れない**(未実装の道具がピッカーに流れ込む・件数がぶれる)。全部版はページが pokedb.js(master直読み)で引く。
+  //   判定は「家の分類(category)が付いているか」= items_database.js の分類グループ(_ITEM_CAT_ORDER)に置ける行だけ。
+  //   source=pokeapi_provisional の行は全部 category:null。手で足した非Championsの持てる道具(例: ケッサクのちゃわん)も同じく外れる。
+  const items = MASTER.items.filter(it => it.source !== 'pokeapi_provisional' && it.category != null).map(it => {
     const row = {
       key: it.slug || null,
       name: it.name,

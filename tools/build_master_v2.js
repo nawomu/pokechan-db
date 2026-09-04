@@ -462,6 +462,83 @@ function buildItems() {
     });
   } catch (e) {}
 
+  // ★器を広げる(B-3・2026-09-04): 持ち物masterを「全世代の持てる道具」に広げる。
+  //   元=reference/_pokeapi_items_raw.json(tools/_fetch_pokeapi_items_raw.js・PokeAPI全2180件)。
+  //   規律=出典の優先順位: Champions正典/監査確定の値(既に入っている欄)は**上書きしない**。
+  //     ①既存行: 空の欄(pokeapi_id/pokeapi_slug/names/cost/fling_power/gen_introduced/category_pokeapi/pocket/effect_en/flavor_ja/flavor_en)だけ埋め、
+  //       埋めた欄名を provisional_fields に列挙(=「最新世代からの暫定」の印。ポケモンの weight_kg 等と同じ流儀)。
+  //     ②master に無い「持てる道具」を pokeapi_provisional の行として足す(champions:false・seasons:[]・category:null=家の分類は未確定)。
+  //       ★PokeAPI の attributes(holdable)は第4世代までしか付いておらず(2026-09-04 実測: 2180件中224件のみ・とつげきチョッキ等に無い)
+  //         判定に使えない → 「持てる道具」= PokeAPI category の白表(ITEM_HELD_CATEGORIES)+ 鍵ポケットの例外(ITEM_HELD_KEY_SLUGS)で決める。
+  //         除外=わざマシン/鍵アイテム/ボール/メール/バンダナ(コンテスト)/売却用/食材/アメ/テラピース等=バトルで持たせる意味が無い物。
+  //     ③名寄せは ja名(zen2han: 『リザードナイトＸ』→『リザードナイトX』・R4 半角規則)→ pokeapi_slug → name_en の順。
+  //       ★『メガ+base』方式の推測はしない。Champions独自(アブソルナイトZ/フラエッテナイト等)は PokeAPI に無い=そのまま(印なし)。
+  //   ページ用ビュー items_database.js(Champions版・バトルの持ち物ピッカーの元)は build_views.js が source=pokeapi_provisional の行を
+  //   除いて生成する(=ピッカーに未実装の道具が流れ込まない)。全部版は pokedb.js(master直読み・items_db_all_v2.html)から引く。
+  const ITEM_HELD_CATEGORIES = new Set([
+    'held-items', 'choice', 'bad-held-items', 'type-enhancement', 'plates', 'memories', 'species-specific',
+    'mega-stones', 'z-crystals', 'jewels', 'in-a-pinch', 'type-protection', 'medicine', 'picky-healing', 'other',
+    'effort-drop', 'baking-only', 'effort-training', 'training', 'evolution',
+  ]);
+  const ITEM_HELD_KEY_SLUGS = new Set(['adamant-crystal', 'lustrous-globe', 'griseous-core']);   // だいこんごうだま/だいしらたま/だいはっきんだま(PokeAPIは鍵扱いだがSVでは持ち物)
+  let itemsPokeapiFilled = 0, itemsPokeapiAdded = 0;
+  try {
+    const raw = J('reference/_pokeapi_items_raw.json').items || {};
+    const rawByJa = {}, rawByEn = {};
+    Object.values(raw).forEach(r => {
+      const ja = zen2han(r.names && r.names.ja); if (ja && !rawByJa[ja]) rawByJa[ja] = r;
+      const en = r.names && r.names.en; if (en && !rawByEn[en]) rawByEn[en] = r;
+    });
+    const isHeld = r => (ITEM_HELD_CATEGORIES.has(r.category) && (r.pocket === 'misc' || r.pocket === 'berries' || r.category === 'z-crystals')) || ITEM_HELD_KEY_SLUGS.has(r.slug);
+    const used = new Set();
+    items.forEach(x => {
+      const r = rawByJa[zen2han(x.name)] || (x.pokeapi_slug && raw[x.pokeapi_slug]) || (x.name_en && rawByEn[x.name_en]);
+      if (!r) return;
+      used.add(r.slug);
+      const prov = [];
+      const fill = (k, v) => { if (x[k] == null && v != null) { x[k] = v; prov.push(k); } };
+      fill('pokeapi_id', r.id); fill('pokeapi_slug', r.slug);
+      // names: 無ければ PokeAPI の9言語をそのまま。あれば**足りない言語だけ**足す(既存の値=正典が勝つ。例: ケッサクのちゃわん は
+      //   PokeAPI 側の ja が誤り『ボンサクのちゃわん』なので additions の ja を残し、他言語だけ借りる)
+      { const n = Object.assign({}, r.names); n.ja = zen2han(n.ja).trim();
+        const before = x.names ? Object.keys(x.names).filter(k => x.names[k] != null).length : 0;
+        x.names = Object.assign({}, n, x.names || {});
+        Object.keys(x.names).forEach(k => { if (x.names[k] == null) x.names[k] = n[k]; });
+        if (Object.keys(x.names).filter(k => x.names[k] != null).length > before) prov.push('names'); }
+      fill('cost', r.cost); fill('fling_power', r.fling_power);
+      fill('gen_introduced', r.gen_introduced);
+      fill('category_pokeapi', r.category); fill('pocket', r.pocket);
+      fill('effect_en', r.effect_en);
+      fill('flavor_ja', r.flavor_ja && r.flavor_ja.text); fill('flavor_en', r.flavor_en && r.flavor_en.text);
+      if (prov.length) { x.provisional_fields = [...new Set([...(x.provisional_fields || []), ...prov])]; itemsPokeapiFilled++; }
+    });
+    const haveSlug = new Set(items.map(x => x.slug).filter(Boolean));
+    const haveName = new Set(items.map(x => x.name));
+    Object.values(raw).filter(r => !used.has(r.slug) && isHeld(r) && r.names && r.names.ja).forEach(r => {
+      const names = Object.assign({}, r.names); names.ja = zen2han(names.ja).trim();   // PokeAPI側の前後空白(『 つながりのヒモ』)を落とす
+      // ★PokeAPI側の重複名(masterpiece-teacup が unremarkable-teacup と同じ『ボンサクのちゃわん』になっている・2026-09-04 実測)は
+      //   推測で直さず足さない=_unknowns.json に記録(正名は Wiki+公式の二重一致で reference/_items_additions.json に書く)
+      if (haveName.has(names.ja)) { unk('item_pokeapi_dup_name', names.ja, `PokeAPI slug=${r.slug}(${names.en}) の日本語名が既存行と同名=追加しない`); return; }
+      haveName.add(names.ja);
+      let slug = r.slug.replace(/-/g, '_'); while (haveSlug.has(slug)) slug += '_pokeapi'; haveSlug.add(slug);
+      items.push(Object.assign({
+        slug, name: names.ja, display_name: names.ja, name_en: names.en || null,
+        category: null,                        // 家の分類(attack_boost等)は未確定=null。確定したら reference/_items_fixes.json で
+        category_pokeapi: r.category, pocket: r.pocket,
+        effect_ja: null,                       // 家の説明文は未作成(フレーバー=公式ゲーム内文は flavor_ja に別置き・混ぜない)
+        effect_house: null, mega_ability_desc_house: null,
+        applies_to: null, applies_to_pokemon: null, boosts: null,
+        implemented: false, champions: false, regulation: null, restriction: null, notes: null, verify: false,
+        pokeapi_id: r.id, pokeapi_slug: r.slug, names, cost: r.cost, fling_power: r.fling_power,
+        gen_introduced: r.gen_introduced,
+        effect_en: r.effect_en, flavor_ja: r.flavor_ja && r.flavor_ja.text, flavor_en: r.flavor_en && r.flavor_en.text,
+        provisional_fields: ['all'],
+      }, stamp('pokeapi_provisional')));
+      itemsPokeapiAdded++;
+    });
+    console.log(`  ↳ items: PokeAPI生データと突き合わせ 既存行の空欄を埋めた=${itemsPokeapiFilled} / 全世代の持てる道具を追加=${itemsPokeapiAdded}`);
+  } catch (e) { console.log('  ⚠ items: reference/_pokeapi_items_raw.json 無し(器を広げる工程をスキップ): ' + e.message); }
+
   // ★R1(2026-09-03): seasons=そのアイテムが「現行/次」のどちらのレギュで使えるか(ポケモンの seasons と同じ模様)。
   //   champions:true の行だけ持つ(非Championsは器の範囲外なのでレギュの概念が無い=[])。
   //   ルール: champions_added_in が「次」(REG_NEXT)なら次のレギュではじめて使える=現行にはまだ居ない(push しない)。
@@ -481,6 +558,9 @@ function buildItems() {
       'champions_added_inが次のレギュの行(例: アブソルナイトZ等M-C予告6件)は現行にはまだ居ない=[次]だけ。' +
       'それ以外(旧来品/現行で追加=M-B新規31件)はレギュ累積で[現行,次]。非Championsは[]。',
     fixes: '監査確定の修正は reference/_items_fixes.json(根拠つき)から適用',
+    pokeapi_fields: '★B-3(2026-09-04): 全世代の持てる道具=reference/_pokeapi_items_raw.json(PokeAPI)から。既存行は空欄だけ埋めて provisional_fields に欄名を列挙。' +
+      `master に無い持てる道具(PokeAPI category 白表: held-items/choice/bad-held-items/type-enhancement/plates/memories/species-specific/mega-stones/z-crystals/jewels/きのみ各種/effort-training/training/evolution + だいこんごうだま系)は source=pokeapi_provisional・category:null・effect_ja:null(flavor_ja=公式ゲーム内文は別欄)で追加(今回 ${itemsPokeapiAdded} 件)。` +
+      'items_database.js(Champions版ビュー)は provisional 行を除いて生成=バトルのピッカーに流れない。全部版は pokedb.js(master直読み)。',
     legacy_fields: '段B資産⑥: items_database.js のみが持つ構造化フィールド(acquisition/acquisition_note/restriction/notes/' +
       'verify/q12/factor/source_q12/boost_type/vp_cost/resist_type/trigger/cure_target/is_default/heal_*/damage_fraction_*/' +
       'proc_chance/self_inflict/drawback/pokeapi_slug/legacy_source_note)をverbatimで移送。値が無い品目はキー自体を省く。' +
