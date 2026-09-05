@@ -168,7 +168,7 @@
     });
 
     IDX.abilityDesc = {};
-    // ★2026-09-04(W18・pokemon_db_all_v10.html): tools/build_views.js の abilityText() と同じ優先順位に修正。
+    // ★2026-09-04(W18・pokemon_db_all.html): tools/build_views.js の abilityText() と同じ優先順位に修正。
     //   旧実装は effect_ja(公式の長文)だけを見ていたが、313件中309件は desc_house(家の流儀=短い子ども向け文)
     //   が正典で、effect_ja とは別内容(例: あくしゃく等ほぼ全件が食い違う)。旧実装のままだと
     //   PokeDB.abilityDesc() を使う全ページ(既に移行済みのpokemon_db.html/party_checker.html含む)が
@@ -194,13 +194,13 @@
     //   (pokemon.jsonとlearnsets.jsonは行の並びが違うため、順序が要る用途では取り違えると配列の並びがずれる)。
     // IDX.learners = Champions基準(learnのみ=いま実際に使える技だけ)。
     IDX.learners = {};
-    // ★2026-09-04(W18・pokemon_db_all_v10.html追加): 全国版(mode='all')の「その技を覚えるポケモン」は
+    // ★2026-09-04(W18・pokemon_db_all.html追加): 全国版(mode='all')の「その技を覚えるポケモン」は
     //   本編の全技=learn∪learn_legacy∪(championsなら没収confiscatedも含む)。
     //   tools/build_views.js の learnByNameNational/buildLearnersIndex と完全に同じ式(コピペでなく同じ計算)。
     //   これが無いと mode='all' でも Champions基準(learnのみ)の学習者数になってしまい、
     //   pokechan_data_all.js の WAZA_MAP.learners(旧作TM/没収技を含む本編全学習者)と食い違う。
     IDX.learnersNational = {};
-    // ★2026-09-04(W18・pokemon_db_all_v10.html追加): 順方向(ポケモン名→覚える技名の配列)の全国版版。
+    // ★2026-09-04(W18・pokemon_db_all.html追加): 順方向(ポケモン名→覚える技名の配列)の全国版版。
     //   PokeDB.learnset()は「mode非依存の生データ(learnのみ)」という既存の契約(damage_calc.html等が
     //   明示的に依存)があるため、learnset()自体は変えず、別名PokeDB.learnsetNational()を新設する
     //   (tools/build_views.js learnByNameNationalと同じ式=learn∪learn_legacy∪没収confiscated)。
@@ -334,7 +334,7 @@
      *  damage_calc.html/party_checker.html/data_browser.html/news.html等が
      *  「mode非依存」を前提に呼んでいるため、この関数自体の意味は変えない。 */
     learnset: function (name) { return IDX.learn[name] || null; },
-    /** ★2026-09-04(W18・pokemon_db_all_v10.html追加): 全国版(本編で覚えられる全技)版のlearnset。
+    /** ★2026-09-04(W18・pokemon_db_all.html追加): 全国版(本編で覚えられる全技)版のlearnset。
      *  learn∪learn_legacy∪(championsなら没収confiscatedも含む)。tools/build_views.js
      *  learnByNameNationalと同じ式。learnset()とは別名にして既存ページの契約を壊さない。 */
     learnsetNational: function (name) { return IDX.learnNational[name] || null; },

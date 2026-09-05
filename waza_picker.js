@@ -8,13 +8,13 @@
  *   (waza_picker.js:11 のコメント「依存: pokechan_data.js を事前に読み込み必須」がそれ)。
  *   pokedb.js は fetch(非同期)なので、この前提が崩れる。→ データに依存する「即時実行」の初期化
  *   (WAZA_MASTER_BUILT の構築・moves 配列の構築・types/targets の集計・DOM初期描画一式)を
- *   PokeDB.ready.then() の中に移した(pokemon_db.html/pokemon_db_all_v10.html と同じ型)。
+ *   PokeDB.ready.then() の中に移した(pokemon_db.html/pokemon_db_all.html と同じ型)。
  *   関数宣言(render/getMoveFilterTags/matchesEffectFilter 等)自体は無改変・トップレベルのまま
  *   (onclick="..." から呼ばれるグローバル関数はここに置かないと呼べなくなるため)。
  *
  * ★WAZA_MAP の作り方(champions_key/slugキー再構成): tools/build_views.js の
  *   buildWazaChampions()/buildWazaNational() と完全に同じ式(pokemon_db.html/
- *   pokemon_db_all_v10.html の WAZA_MAP 構築アダプタをそのまま流用)。
+ *   pokemon_db_all.html の WAZA_MAP 構築アダプタをそのまま流用)。
  *   モードは HTML側が読み込み前に window.WAZA_PICKER_MODE = 'champions' | 'all' を立てて指定する
  *   (waza-list.html='champions'固定・waza-list_all.html='all'固定。URLの?data=切替は無い)。
  *
@@ -90,7 +90,7 @@ let POKEMON_DB_URL = 'pokemon_db.html'; // ★PokeDB.ready.then()内でモード
 // ★2026-09-04(W19): 生成物 pokechan_data.js(Champions版)/pokechan_data_all.js(全国版)の
 //   WAZA_MAP に相当。フィールド・既定値・フィルタ条件は tools/build_views.js
 //   buildWazaChampions()/buildWazaNational() と完全に同じ式
-//   (pokemon_db.html/pokemon_db_all_v10.html の WAZA_MAP 構築アダプタと同一)。
+//   (pokemon_db.html/pokemon_db_all.html の WAZA_MAP 構築アダプタと同一)。
 // ══════════════════════════════════════════════════════════════════
 function buildWazaMapFromPokeDB(mode) {
   var out = {};
@@ -137,7 +137,7 @@ function buildWazaMapFromPokeDB(mode) {
 }
 
 // POKEMON_LIST: PokeDB.allPokemon()(setMode済み=絞り込み後)に、pokemon_db.html/
-// pokemon_db_all_v10.html と同じ最小限のフィールド読み替え(no/season/added_inのみ)。
+// pokemon_db_all.html と同じ最小限のフィールド読み替え(no/season/added_inのみ)。
 function buildPokemonListFromPokeDB() {
   return PokeDB.allPokemon().map(function (p) {
     var row = Object.assign({}, p);
@@ -2419,7 +2419,7 @@ PokeDB.ready.then(function () {
   // (waza-list.html='champions'固定・waza-list_all.html='all'固定。URLの?data=切替は無い)。
   var mode = (window.WAZA_PICKER_MODE === 'all') ? 'all' : 'champions';
   PokeDB.setMode(mode);
-  POKEMON_DB_URL = (mode === 'champions') ? 'pokemon_db.html' : 'pokemon_db_all_v10.html';
+  POKEMON_DB_URL = (mode === 'champions') ? 'pokemon_db.html' : 'pokemon_db_all.html';
 
   WAZA_MAP = buildWazaMapFromPokeDB(mode);
   POKEMON_LIST = buildPokemonListFromPokeDB();

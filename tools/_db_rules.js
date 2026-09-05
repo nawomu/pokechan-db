@@ -15,7 +15,7 @@ tools/_build_pokechan_data_all.js   ← アダプタ(変換・オーバーレイ
 pokechan_data_all.js   ← 共通DB(pokechan_data.js と同一schema・全1219ポケ/937技)
         ▼
 各ページは <script src> で読むだけ(ハードコード禁止):
-  pokemon_db_all_v10.html(全国版ポケDB) / waza-list_all.html(全国版わざ)`;
+  pokemon_db_all.html(全国版ポケDB) / waza-list_all.html(全国版わざ)`;
 
 // ルール(R1〜R8)
 const RULES = [
@@ -73,7 +73,7 @@ const TODO = [
 const FILES = [
   ['共通SSOTアダプタ', 'tools/_build_pokechan_data_all.js → pokechan_data_all.js'],
   ['learnset取得/QA', 'tools/_fetch_pokeapi_learnsets.js / _qa_learnsets.js / _qa_pokechan_all.js'],
-  ['全国版ポケDB', 'pokemon_db_all_v10.html'],
+  ['全国版ポケDB', 'pokemon_db_all.html'],
   ['全国版わざリスト', 'waza-list_all.html(+ waza_picker.js に national_new配線)'],
   ['新技 説明/タグ/伝説', 'reference/{moves_ja_desc,moves_tags,legend_status,learnsets_master}.json'],
   ['確認ビュー(新技合流)', 'review/waza_list_confirm.html ← tools/_waza_list_confirm.js'],

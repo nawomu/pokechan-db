@@ -17,7 +17,7 @@ const PL = 'const L=(typeof POKEMON_LIST!=="undefined")?POKEMON_LIST:((typeof DA
 const PAGES = [
   // ★2026-09-05 旧版削除: pokemon_db_all_v9.html / pokemon_db_v9.html は生成物 pokechan_data*.js を
   //   直読みするグローバル(POKEMON_LIST/DATA)をprobeしていたが、両ファイルとも転送スタブに置き換わり
-  //   データを読まなくなった(後継=pokemon_db_all_v10.html / pokemon_db.html。データはpokedb.js経由)。
+  //   データを読まなくなった(後継=pokemon_db_all.html / pokemon_db.html。データはpokedb.js経由)。
   //   このprobeの意味が失われたため2エントリを削除。
   { url: 'ability_all.html', initScript: "try{localStorage.setItem('pchamdb.lang','ja')}catch(e){}", wait: 'document.querySelectorAll("#abilityBody tr").length > 100', probe: '(()=>{const rows=[...document.querySelectorAll("#abilityBody tr")].filter(tr=>tr.querySelectorAll("td").length>=4);return {n:rows.length,names:rows.map(tr=>tr.querySelector(".ab-name").textContent.trim())}})()', expect: ['はどうのぼうご'] },
   { url: 'items_db_all_v2.html', initScript: "try{localStorage.setItem('pchamdb.lang','ja')}catch(e){}", wait: 'document.querySelectorAll("#itemBody tr").length > 300', probe: '(()=>{const rows=[...document.querySelectorAll("#itemBody tr")].filter(tr=>tr.querySelectorAll("td").length>=6);return {n:rows.length,names:rows.map(tr=>tr.querySelector(".it-name").textContent.trim())}})()', expect: ['こだわりスカーフ','たいようのいし','ミュウツナイトX'] },

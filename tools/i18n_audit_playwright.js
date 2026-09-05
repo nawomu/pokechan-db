@@ -15,7 +15,7 @@ const PAGES = [
   'contact.html', 'privacy.html', 'terms.html', 'disclaimer.html',
   'suggest_partner.html',
   // 全国版・全部入りページ
-  'pokemon_db_all.html', 'pokemon_db_all_v10.html',
+  'pokemon_db_all.html',
   'waza-list_all.html',
   'ability_all.html',
   'items_db_all.html',

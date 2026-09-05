@@ -360,7 +360,7 @@ function buildAbilityDescChampions() {
 // ══════════════════════════════════════════════════════════════════
 // STAT_RANK(段B資産⑤=computed。master不在のため式で再現。
 //   ★コーディネーター指摘(2026-09-01)A.2: キーは旧と同じ形式に戻す
-//   (pokemon_db.html / pokemon_db_all_v10.html がこの形で引く):
+//   (pokemon_db.html / pokemon_db_all.html がこの形で引く):
 //     form があり '通常' でなければ `${name}(${form})`、それ以外は name。
 //   母集団は「そのファイル自身のPOKEMON_LIST」(Champions版=318 / 全国版=1273)で計算し直す
 //   =旧の全国版STAT_RANKはChampions表をそのまま写していただけだったが、ページの表記
