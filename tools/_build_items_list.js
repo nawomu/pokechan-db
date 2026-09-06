@@ -72,9 +72,9 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
     // ★R1(2026-09-03): 次のレギュで初登場(added_in===次)でまだ入手方法が無い品目は「未発表」(推測しない)。
     //   旧は「メガストーンならフロンティアショップ推定」と当て推量していた=禁止(推測で埋めない)。
     if (REG_NEXT && it.added_in === REG_NEXT.id) return null;   // 呼び出し側でacq_tbaに差し替える
-    // 入手情報なし: メガストーンならフロンティアショップ推定、その他は不明
-    if (it.category === 'mega_stone') return 'フロンティアショップ(推定)';
-    return '不明';
+    // ★入手情報なし=空欄(2026-09-06 阿部さん「不明は"調べてない"という意味にしかならないので書かない」。
+    //   旧「フロンティアショップ(推定)」も当て推量=禁止)。調べて分かったら master(acquisition)に入れる
+    return '';
   };
   const arr = byCat[c].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ja'));
   const rows = arr.map(it => {
@@ -93,7 +93,8 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
       : (REG_NEXT && season.includes(REG_NEXT.id))
         ? `<span class="st st-next" data-i18n="items_list.status_next" data-tpl-reg="${esc(REG_NEXT.id)}">${esc(REG_NEXT.id)}から(次のレギュ・まだ使えない)</span>`
         : `<span class="st st-none" data-i18n="items_list.status_none">チャンピオンズ未対応</span>`;
-    const statusExtra = isNew ? `<br><span class="tag-new">🆕</span>${versionTag}` : '';
+    // ★🆕 絵文字は紫「{reg}で追加」バッジと二重だったので廃止(2026-09-06 阿部さん「このマークはいらない」)
+    const statusExtra = isNew ? `<br>${versionTag.trim()}` : '';
     const effect = esc(it.effect || '');
     const acqRaw = acqLabel(it);
     const acq = acqRaw != null ? esc(acqRaw) : `<span data-i18n="items_list.acq_tba">未発表(解禁後に確認)</span>`;
