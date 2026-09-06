@@ -18,9 +18,7 @@ const PAGES = [
   'pokemon_db_all.html',
   'waza-list_all.html',
   'ability_all.html',
-  'items_db_all.html',
   'items_db_all_v2.html',
-  'moves_db_all.html',
 ];
 
 // 意図的に日本語を残す許可パターン (正規表現)
