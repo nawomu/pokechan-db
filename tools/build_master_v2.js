@@ -23,6 +23,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
+const { initializeMoveFlags, finalizeMoveFlags } = require('./_lib/move_flag_schema');
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'master');
 const NOW = new Date().toISOString().slice(0, 10);
@@ -51,6 +52,12 @@ const AUTH = {
   lists:     J('reference/_authority_corpus_ch/lists_ch.json'),
   learnsets: J('reference/_authority_corpus_ch/learnsets_ch.json'),
 };
+// 全国版の段階導入は完了済み。入力欠落を空配列扱いすると957行が消えるため、
+// 出力を一つでも書く前に必須入力として検証する(2026-09-06 worktreeで実測)。
+const NATIONAL_LEARNSETS = J('reference/_pokeapi_learnsets_raw.json');
+if (!NATIONAL_LEARNSETS.fetched || !Object.keys(NATIONAL_LEARNSETS.fetched).length) {
+  throw new Error('全国版の習得技入力が空です: reference/_pokeapi_learnsets_raw.json');
+}
 // ★段B(計画_マスターからページへ流す_2026-09-01.md): 旧生成物にしか無い資産を master へ運ぶ。
 //   ★ここは凍結ファイル(reference/_legacy_*.json)を読む。pokechan_data*.js を直接読まない
 //   (段Eで旧生成物入力を切る準備。C/Aは他の既存ロジックでまだ使うので requireは残っている)。
@@ -680,7 +687,8 @@ function buildMoves() {
   }).filter(Boolean).sort((a,b)=>(a.move_no||9999)-(b.move_no||9999) || String(a.name).localeCompare(String(b.name),'ja'));
   // ★監査で確定した修正を適用(reference/_moves_fixes.json・全件根拠つき。特性/持ち物/ポケモンと同じ仕組み。2026-09-02 R1仕分けで新設)
   //   キーは slug。set のフィールドをそのまま上書き。根拠なしで足さない・二重ソース一致のみ。
-  try {
+  for (let i = 0; i < items.length; i++) items[i] = initializeMoveFlags(items[i]);
+  {
     const fx = J('reference/_moves_fixes.json').fixes || {};
     items.forEach(it => {
       const f = fx[it.slug];
@@ -694,9 +702,16 @@ function buildMoves() {
       });
       it.source = 'audited';
     });
-  } catch (e) {}
+    for (let i = 0; i < items.length; i++) {
+      items[i] = finalizeMoveFlags(items[i], { fixSet: (fx[items[i].slug] || {}).set || {} });
+    }
+  }
   items.filter(x => !x.slug).forEach(x => unk('move_slug', x.name, '全国版に無い=英語slug未確定'));
   write('moves.json', { meta: META('技', {
+    flags_field: 'flagsを技の性質の正典とする。contact/protectのトップ列はflagsから派生する互換列。' +
+      '8項目はboolean|null、null=未確認。既存値の移送は再監査済みを意味しない。' +
+      '新しい事実の修正入口はreference/_moves_fixes.jsonのflags.*(二重ソースと対象世代の確認必須)。' +
+      '既存の他のflagsは保持、ball/bulletやslash/slicingは未確認のまま同一視しない。',
     availability_field: 'availability=旧生成物pokechan_data_all.jsのWAZA_MAP[*].availabilityをreference/_legacy_move_availability.jsonから移送' +
       '(段B資産③。出どころ=Pokemon Showdown由来。Championsにしか居ない技はnull=推測で埋めない)。' +
       '★R10 世代の扱い(2026-09-03 阿部さん確定): 廃止技も消さない。gen_introduced=初出世代/gens=使える世代/gen_removed=この世代から使えない(廃止世代・二重ソース確定分のみ _moves_fixes.json で付与)/note=作品限定の但し書き(Let\'s Go限定等)。値は最後に使えた世代の実機値(SwSh内部データの数値は採らない)。',
@@ -1007,10 +1022,9 @@ function buildLearnsets() {
   return all.length;
 }
 
-// 全国版の覚える技(PokeAPI生データ → master行)。生データが無ければ空(段階導入)
+// 全国版の覚える技(PokeAPI生データ → master行)。入力は起動時に検証済み。
 function buildNationalLearnsets(championsNames) {
-  let raw;
-  try { raw = J('reference/_pokeapi_learnsets_raw.json'); } catch (e) { return []; }
+  const raw = NATIONAL_LEARNSETS;
   // version group → 順序(新しいほど大きい)。PokeAPIの版名
   const VG_ORDER = ['red-blue','yellow','gold-silver','crystal','ruby-sapphire','colosseum','xd','emerald',
     'firered-leafgreen','diamond-pearl','platinum','heartgold-soulsilver','black-white','black-2-white-2',
