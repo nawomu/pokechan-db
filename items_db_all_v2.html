@@ -141,7 +141,8 @@
  * データ(すべて pokedb.js 経由・大本は master/items.json):
  *   PokeDB.items() : 全422件(master/items.json の items)。フィールド=
  *       name(JA正式名) / name_en / names{9言語・PokeAPI由来。メガストーン46件は無し} /
- *       pokeapi_slug(スプライトファイル名にも使用。無い場合はスプライト非表示) /
+ *       pokeapi_slug(スプライトファイル名にも使用。無い場合はスプライト非表示。実在する画像の一覧= images/item/_manifest.json
+ *                    (tools/_gen_item_sprite_manifest.js が生成)。PokeAPI に無い第八/九世代の道具40件は画像を要求しない=404を出さない) /
  *       category_pokeapi(PokeAPIカテゴリ。メガストーン46件はnull→houseのcategory='mega_stone'で補う) /
  *       gen_introduced / cost / effect_ja(Champions権威の効果文) / flavor_ja(公式ゲーム内説明) /
  *       effect_en / champions(bool) / seasons(現行/次のレギュコード配列)。
@@ -289,7 +290,7 @@ var ItemDBApp = (function () {
       var r = filtered[i];
       var name = nameFor(r);
 
-      var iconHtml = r.pokeapi_slug
+      var iconHtml = (r.pokeapi_slug && (!SPRITES || SPRITES[r.pokeapi_slug]))
         ? '<img loading="lazy" src="images/item/' + esc(r.pokeapi_slug) + '.png" alt="" onerror="this.style.visibility=\'hidden\'">'
         : '';
 
@@ -356,12 +357,19 @@ var ItemDBApp = (function () {
     if (bar) document.documentElement.style.setProperty('--top-bar-height', Math.ceil(bar.getBoundingClientRect().height) + 'px');
   }
 
+  // 実在する道具スプライトの一覧(images/item/_manifest.json)。読めなければ null=従来どおり全部要求して onerror で隠す
+  var SPRITES = null;
+  var spritesReady = fetch('images/item/_manifest.json', { cache: 'no-cache' })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (list) { if (Array.isArray(list)) { SPRITES = {}; list.forEach(function (k) { SPRITES[k] = 1; }); } })
+    .catch(function () {});
+
   function init() {
     syncBarHeight();
     window.addEventListener('resize', syncBarHeight);
 
     PokeDB.setMode('all');
-    PokeDB.ready.then(function () {
+    Promise.all([PokeDB.ready, spritesReady]).then(function () {
       buildRows();
       render();
     }).catch(function (e) {

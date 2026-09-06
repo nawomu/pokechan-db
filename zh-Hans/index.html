@@ -570,7 +570,7 @@ function shareOnX() {
   <section class="top-news" id="top-news" aria-labelledby="top-news-title">
     <div class="top-news-head">
       <h2 id="top-news-title">📰 <span data-i18n="index.top_news_title">更新资讯</span></h2>
-      <a href="../news.html" data-i18n="index.top_news_all">查看全部 →</a>
+      <a href="../news.html" id="top-news-all" data-i18n="index.top_news_all">查看全部 →</a>
     </div>
     <ul id="top-news-list"><li><a href="../news.html" data-i18n="index.card_news_desc">最新更新信息。新精灵、新技能、新道具、规则变更等公告。</a></li></ul>
   </section>
@@ -883,7 +883,11 @@ function shareOnX() {
 //   データは news.html 1本(ここに見出しを書かない)。多言語は同じ data-i18n キーを引き継ぐので言語切替にも追従する。
 (function(){
   var list = document.getElementById('top-news-list'); if (!list) return;
-  fetch('news.html', { cache: 'no-cache' }).then(function(r){ return r.text(); }).then(function(html){
+  // ★news.html の場所は「すべて見る」リンクの href に合わせる(8言語 index は build_i18n_pages が ../news.html に書き換える。
+  //   ここを 'news.html' 固定にすると en/news.html を取りに行って 404 = 2026-09-06 実測)
+  var allLink = document.getElementById('top-news-all');
+  var NEWS_URL = allLink ? allLink.getAttribute('href') : 'news.html';
+  fetch(NEWS_URL, { cache: 'no-cache' }).then(function(r){ return r.text(); }).then(function(html){
     var doc = new DOMParser().parseFromString(html, 'text/html');
     var cards = Array.prototype.slice.call(doc.querySelectorAll('.news-card')).slice(0, 2);
     if (!cards.length) return;
@@ -896,7 +900,7 @@ function shareOnX() {
       var emoji = span ? t.textContent.replace(span.textContent, '').trim() : '';
       var li = document.createElement('li');
       var d = document.createElement('span'); d.className = 'tn-date'; d.textContent = date; li.appendChild(d);
-      var a = document.createElement('a'); a.href = 'news.html' + (card.id ? '#' + card.id : '');
+      var a = document.createElement('a'); a.href = NEWS_URL + (card.id ? '#' + card.id : '');
       if (emoji) a.appendChild(document.createTextNode(emoji + ' '));
       var s = document.createElement('span');
       if (span) { s.setAttribute('data-i18n', span.getAttribute('data-i18n')); s.textContent = span.getAttribute('data-i18n-default') || span.textContent.trim(); }
