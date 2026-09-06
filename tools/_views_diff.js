@@ -440,9 +440,16 @@ function main() {
   //   サイコメイカー=フィールド生成系)。legacyのChampions版ABILITY_DESCには居るが、masterの
   //   champions_pokemon_countがそれらを使うポケモンを拾えていない(既知のmasterデータの穴・段Cのスコープ外)。
   const AB_CHAMP_KNOWN_MISSING = new Set(['グラスメイカー', 'ミストメイカー', 'サイコメイカー']);
+  // (l) 退役(2026-09-06): reference/_items_fixes.json で retired=true(根拠つき)の道具だけは「新に無い」を許す
+  //   (第1号=『メガストーン (汎用)』=実在しない代表行・阿部さん「もういらない」)。それ以外の消失は unexplained のまま。
+  const ITEMS_RETIRED_NAMES = (() => { try { const fx = J('reference/_items_fixes.json').fixes || {}; return new Set(Object.keys(fx).filter(n => fx[n].retired === true)); } catch (e) { return new Set(); } })();
+  const legacyItemNameByKey = new Map((legacy.I.items || []).map(it => [it.key, it.name]));
   ['pokemon_champions', 'waza_all', 'ability_desc_all', 'items'].forEach(label => {
     const arr = report.entity_only_in_legacy[label] || [];
-    if (arr.length) arr.forEach(k => report.unexplained.push({ entity: label, key: k, field: '(entry missing in new)' }));
+    if (arr.length) arr.forEach(k => {
+      if (label === 'items' && ITEMS_RETIRED_NAMES.has(legacyItemNameByKey.get(k))) report.allowlisted.push({ entity: label, key: k, field: '(entry missing in new)', reason: '_items_fixes.json retired=true(根拠つき退役)' });
+      else report.unexplained.push({ entity: label, key: k, field: '(entry missing in new)' });
+    });
   });
   {
     const arr = report.entity_only_in_legacy.ability_desc_champions || [];

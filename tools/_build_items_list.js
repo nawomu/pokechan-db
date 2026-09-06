@@ -83,7 +83,17 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
     const versionTag = isNew ? ` <span class="tag-version" data-i18n="items_list.tag_version" data-tpl-reg="${esc(it.added_in)}">${esc(it.added_in)}で追加</span>` : '';
     // アイテム名は runtime で I18N.item() 翻訳(data-item-ja)。タグ類は別要素に分離。
     const nameSpan = `<span data-item-ja="${esc(it.name)}">${esc(it.name)}</span>`;
-    const nameCell = isNew ? `<b>${nameSpan}</b> <span class="tag-new">🆕</span>${versionTag}` : nameSpan;
+    const nameCell = isNew ? `<b>${nameSpan}</b>` : nameSpan;
+    // ★対応レギュ列(2026-09-06 阿部さん「レギュのタグは別の行にして、今のチャンピオンズで使えるのか未対応なのかを書く」)。
+    //   it.season(=master seasons・現行/次のうち使える方・累積)だけで判定する。推測しない:
+    //   現行を含む → 「{現行}で使える(現行)」/ 次だけ → 「{次}から(次のレギュ・まだ使えない)」/ 空 → 「チャンピオンズ未対応」(master champions:false=ポケチャン未実装)
+    const season = Array.isArray(it.season) ? it.season : [];
+    const statusCell = (REG_CURRENT && season.includes(REG_CURRENT.id))
+      ? `<span class="st st-cur" data-i18n="items_list.status_current" data-tpl-reg="${esc(REG_CURRENT.id)}">${esc(REG_CURRENT.id)}で使える(現行)</span>`
+      : (REG_NEXT && season.includes(REG_NEXT.id))
+        ? `<span class="st st-next" data-i18n="items_list.status_next" data-tpl-reg="${esc(REG_NEXT.id)}">${esc(REG_NEXT.id)}から(次のレギュ・まだ使えない)</span>`
+        : `<span class="st st-none" data-i18n="items_list.status_none">チャンピオンズ未対応</span>`;
+    const statusExtra = isNew ? `<br><span class="tag-new">🆕</span>${versionTag}` : '';
     const effect = esc(it.effect || '');
     const acqRaw = acqLabel(it);
     const acq = acqRaw != null ? esc(acqRaw) : `<span data-i18n="items_list.acq_tba">未発表(解禁後に確認)</span>`;
@@ -104,6 +114,7 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
     return `<tr class="${isRowNew ? 'row-new' : ''}">
 <td class="img">${imgCell}</td>
 <td class="name">${nameCell}${applies}</td>
+<td class="status">${statusCell}${statusExtra}</td>
 <td class="effect" data-itemdesc-ja="${esc(it.effect || '')}">${effect}</td>
 <td class="factor">${factor}</td>
 <td class="acq">${acq}</td>
@@ -112,7 +123,7 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
   return `<section class="cat-sec" id="cat-${c}">
 <h2><span class="cat-icon">${c === 'mega_stone' ? '✨' : '🎁'}</span> <span data-i18n="items_list.cat_${c}">${esc(CAT_LABEL[c] || c)}</span> <span class="count">${arr.length}件</span></h2>
 <table>
-<thead><tr><th class="th-img"></th><th class="th-name" data-i18n="items_list.th_name">アイテム名</th><th class="th-effect" data-i18n="items_list.th_effect">効果</th><th class="th-factor" data-i18n="items_list.th_factor">倍率</th><th class="th-acq" data-i18n="items_list.th_acq">入手</th></tr></thead>
+<thead><tr><th class="th-img"></th><th class="th-name" data-i18n="items_list.th_name">アイテム名</th><th class="th-status" data-i18n="items_list.th_status">チャンピオンズ対応</th><th class="th-effect" data-i18n="items_list.th_effect">効果</th><th class="th-factor" data-i18n="items_list.th_factor">倍率</th><th class="th-acq" data-i18n="items_list.th_acq">入手</th></tr></thead>
 <tbody>${rows}</tbody>
 </table>
 </section>`;
@@ -155,7 +166,7 @@ table{width:100%;border-collapse:collapse;font-size:12.5px}
 thead{position:sticky;top:var(--sticky2,108px);background:#1F4E79;color:#fff;z-index:30}
 thead th{padding:5px 8px;text-align:left;border-right:1px solid #173e63;font-size:11.5px;font-weight:700}
 /* ↑の thead{position:sticky} より後に書く(同じ詳細度=後勝ち) */
-@media (max-width:700px){.cat-sec{overflow-x:auto;-webkit-overflow-scrolling:touch} thead{position:static}}
+@media (max-width:700px){.cat-sec{overflow-x:auto;-webkit-overflow-scrolling:touch} thead{position:static} table{min-width:760px} /* 列が1文字ずつ折れないよう横スクロールに逃がす(2026-09-06) */}
 tbody td{padding:5px 8px;border-bottom:1px solid #EEE;vertical-align:top}
 tbody tr:hover{background:#f3f6fb}
 tbody tr:nth-child(2n){background:#fafbfd}
@@ -163,6 +174,12 @@ tbody tr.row-new{background:#FFFDE7}
 tbody tr.row-new:hover{background:#FFF9C4}
 .tag-new{display:inline-block;font-size:10px;background:#FF7A00;color:#fff;padding:1px 6px;border-radius:8px;font-weight:700;margin-left:4px}
 .tag-version{display:inline-block;font-size:10px;background:#6A1B9A;color:#fff;padding:1px 7px;border-radius:8px;font-weight:700;margin-left:3px}
+td.status,th.th-status{width:150px;font-size:11px;line-height:1.5;white-space:normal}
+.st{display:inline-block;padding:1px 7px;border-radius:8px;font-weight:700}
+.st-cur{background:#E3F6E8;color:#1B7A3A}
+.st-next{background:#EDE7F6;color:#5E35B1}
+.st-none{background:#EEF1F5;color:#7a8aa0}
+td.status .tag-new,td.status .tag-version{margin-left:0;margin-top:3px}
 td.img,th.th-img{width:34px;padding:3px 4px;text-align:center}
 td.img img{width:30px;height:30px;image-rendering:pixelated;vertical-align:middle}
 .noimg{display:inline-block;width:28px;height:28px;border:1px dashed #b7c3d3;border-radius:4px;color:#b0bccb;font-size:12px;line-height:28px;text-align:center;background:#f7f9fc;cursor:help}
@@ -238,10 +255,10 @@ function applyItemI18n() {
   document.querySelectorAll('[data-poke-ja]').forEach(el => {
     el.textContent = I18N.pokemon(el.getAttribute('data-poke-ja'));
   });
-  // レギュ追加バッジ("{reg}で追加"のプレースホルダ入り訳文にレギュIDを差し込む)
-  document.querySelectorAll('[data-i18n="items_list.tag_version"]').forEach(el => {
+  // レギュ入りバッジ("{reg}で追加"/"{reg}で使える"等のプレースホルダ入り訳文にレギュIDを差し込む。data-tpl-reg を持つ要素すべて)
+  document.querySelectorAll('[data-i18n][data-tpl-reg]').forEach(el => {
     const reg = el.getAttribute('data-tpl-reg') || '';
-    el.textContent = I18N.t('items_list.tag_version', '{reg}で追加').replace('{reg}', reg);
+    el.textContent = I18N.t(el.getAttribute('data-i18n'), el.textContent).replace('{reg}', reg);
   });
   // サマリーチップ: href #cat-<id> から items_list.cat_<id> を引いて表示語を翻訳(件数<b>は温存)
   document.querySelectorAll('a.sum-chip[href^="#cat-"]').forEach(el => {

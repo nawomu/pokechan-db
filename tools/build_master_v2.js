@@ -483,6 +483,9 @@ function buildItems() {
       if (!f) return;
       ['name_en', 'category', 'effect_ja', 'champions_added_in'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
     });
+    // ★退役(2026-09-06): fixes[name].retired=true の行は master から外す(第1号=『メガストーン (汎用)』=実在しない代表行・阿部さん「もういらない」)。
+    //   消す根拠は fixes の basis に残す。実在の道具は退役させない(R10=廃止でも消さない、はデータが実在する物の話)。
+    for (let i = items.length - 1; i >= 0; i--) { const f = fx[items[i].name]; if (f && f.retired === true) items.splice(i, 1); }
   } catch (e) {}
 
   // ★手動追加(器を広げる時の入力・2026-09-01 新設。第1号=レギュM-Cのメガストーン『○○ナイトZ』3つ)
