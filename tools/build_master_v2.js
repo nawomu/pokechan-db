@@ -321,8 +321,34 @@ function buildAbilities() {
     console.log(`  ↳ abilities: 旧マスター(PokeAPI由来)と突き合わせ ${matched}/${items.length} 件(slug/pokeapi_id/names/effect_en)`);
   } catch (e) { console.log('  ⚠ abilities: 旧マスター突き合わせに失敗', e.message); }
 
+  // ★2026-09-06(阿部さん「ちくでん/ひらいしん/もらいびも同じように・バトルでもDBでも」): 横断の事実の表・第2号
+  //   「特性による受けるタイプ相性の倍率」を reference/_ability_type_modifier_targets.json から meta.tables へ。
+  //   図鑑DB2ページの直書き const ABILITY_TYPE_IMMUNITY(ふゆう/ちょすい の2行)を廃止し、この表1つを読ませる。
+  //   名前(特性・タイプ)は master と完全一致でなければ停止(名前の不一致=再発バグ)。引用の無い行も入れない。
+  const abilityTypeModifiers = (() => {
+    const tbl = J('reference/_ability_type_modifier_targets.json');
+    const abNames = new Set(items.map(x => x.name));
+    const typeNames = new Set(C.TYPES || []);
+    const validMul = new Set([0, 0.5, 0.75, 1.25]);
+    const rows = (tbl.rows || []).map(r => {
+      if (!abNames.has(r.ability)) throw new Error(`_ability_type_modifier_targets: 特性名が master に無い: ${r.ability}`);
+      if (r.type !== null && !typeNames.has(r.type)) throw new Error(`_ability_type_modifier_targets: タイプ名が master に無い: ${r.ability}→${r.type}`);
+      if (!validMul.has(r.multiplier)) throw new Error(`_ability_type_modifier_targets: 倍率が値域外: ${r.ability} ${r.multiplier}`);
+      if (!r.authority_quote) throw new Error(`_ability_type_modifier_targets: 引用なし: ${r.ability}`);
+      if (r.type === null && r.condition !== 'super_effective') throw new Error(`_ability_type_modifier_targets: type=null は condition=super_effective のみ: ${r.ability}`);
+      const o = { ability: r.ability, type: r.type, multiplier: r.multiplier };
+      if (r.condition) o.condition = r.condition;
+      return o;
+    });
+    return rows;
+  })();
+
   write('abilities.json', { meta: META('特性', {
     fixes: '監査確定の修正は reference/_abilities_fixes.json(根拠つき)から適用',
+    tables_note: '★2026-09-06: meta.tables.ABILITY_TYPE_MODIFIERS=特性による受けるタイプ相性の倍率(横断の事実の表・第2号。' +
+      '出典と引用=reference/_ability_type_modifier_targets.json。type=受ける技のタイプ/multiplier=倍率(0=無効)/' +
+      'condition=super_effective は type=null で『こうかは ばつぐん』の技だけ)。ページは pokedb.js abilityTypeModifiers() から引く(直書き禁止)。',
+    tables: { ABILITY_TYPE_MODIFIERS: abilityTypeModifiers },
     desc_house_field: 'desc_house=旧ページ(pokechan_data.js/pokechan_data_all.js)のABILITY_DESC(家の流儀の短文)を' +
       'reference/_legacy_ability_desc.jsonから移送(段B資産④)。effect_ja(Champions権威コーパス由来の長文)とは別文章・別欄。' +
       '優先順=Championsの旧ABILITY_DESC→無ければ全国版。desc_house_sourceに由来。両方に無ければnull(=旧にも説明が無かった特性)。',

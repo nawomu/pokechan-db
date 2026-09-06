@@ -1363,7 +1363,7 @@ tbody tr:hover td.td-ch.waza-cls-特殊 { background: #C5DBE5 !important; }
 </div>
 
 <!-- ★このページは参照元1枚 pokedb.js だけを読む(pokechan_data.js / master/*.json の直読み禁止・R1) -->
-<script src="pokedb.js?v=20260905" data-files="pokemon,moves,abilities,learnsets,regulations,types"></script>
+<script src="pokedb.js?v=20260906" data-files="pokemon,moves,abilities,learnsets,regulations,types"></script>
 <script>
 /* =====================================================================
  * pokemon_db.html — ポケモンDB(新版・データは pokedb.js 1枚だけを読む)
@@ -1656,12 +1656,17 @@ function recalcResistCounts(p) {
   p.cnthfqf = chf + cqf;   // 耐計
 }
 
-// 特性によるタイプ無効化(×0)テーブル: 特性名 → 無効化するタイプ。
-//   ふゆう=じめん / ちょすい=みず。将来 もらいび(ほのお)・ちくでん/ひらいしん(でんき)・そうしょく(くさ) 等も追加可。
-const ABILITY_TYPE_IMMUNITY = {
-  'ふゆう':   'じめん',
-  'ちょすい': 'みず',
-};
+// 特性によるタイプ無効化(×0): 特性名 → [無効化するタイプ, …]。
+//   ★2026-09-06: ページ直書きの2行(ふゆう/ちょすい)を廃止し、master の事実の表(第2号)を pokedb.js から引く。
+//   ふゆう/ちょすい/よびみず/かんそうはだ/ちくでん/ひらいしん/でんきエンジン/もらいび/そうしょく の9特性(出典・引用は
+//   reference/_ability_type_modifier_targets.json)。半減(あついしぼう等)や条件付き(フィルター等)は同じ表にあるが、
+//   この列の値域{0,¼,½,1,2,4}に収まらない/条件付きなので図鑑の相性列には出さない(バトル③用)。
+//   initScores(=PokeDB.ready 後)で初めて使うので、ここでは遅延で1回だけ組む。
+let _abilityTypeImmunity = null;
+function abilityTypeImmunity() {
+  if (!_abilityTypeImmunity) _abilityTypeImmunity = PokeDB.abilityTypeImmunity();
+  return _abilityTypeImmunity;
+}
 
 // 「とくせい×0」トグル状態 (既定 on)。
 //   on (既定): 複数特性の1つで無効になるもの(ちょすい等)も×0化する。
@@ -1674,12 +1679,13 @@ let ABILITY_X0_ON = true;
 function buildImmMap(p) {
   p._immMap = {};
   const abis = [p.ab1, p.ab2, p.ab3].filter(Boolean);
+  const imm = abilityTypeImmunity();
   for (const ab of abis) {
-    const tn = ABILITY_TYPE_IMMUNITY[ab];
-    if (!tn) continue;
-    const ti = TYPES.indexOf(tn);
-    if (ti < 0 || p._resistRaw[ti] === 0) continue;
-    p._immMap[ti] = { ability: ab, certain: abis.length === 1 };
+    for (const tn of (imm[ab] || [])) {
+      const ti = TYPES.indexOf(tn);
+      if (ti < 0 || p._resistRaw[ti] === 0) continue;
+      p._immMap[ti] = { ability: ab, certain: abis.length === 1 };
+    }
   }
 }
 

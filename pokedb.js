@@ -379,6 +379,20 @@
     typeOffensiveStats: function () { return (DB.types && DB.types.meta && DB.types.meta.tables && DB.types.meta.tables.TYPE_OFFENSIVE_STATS) || {}; },
     /** ★2026-09-04: 既定のタイプ表示順(配列)。master/types.json meta.tables.DEFAULT_TYPE_ORDER そのまま */
     defaultTypeOrder: function () { return (DB.types && DB.types.meta && DB.types.meta.tables && DB.types.meta.tables.DEFAULT_TYPE_ORDER) || []; },
+    /** ★2026-09-06: 特性による「受けるタイプ相性の倍率」の表(横断の事実の表・第2号)。
+     *  行= { ability, type, multiplier, condition? }。type=受ける技のタイプ / multiplier=0(無効)・0.5・0.75・1.25 /
+     *  condition:'super_effective' は type=null で「こうかは ばつぐん」の技だけ。master/abilities.json meta.tables そのまま。
+     *  出典・引用= reference/_ability_type_modifier_targets.json。ページに直書きしない。未読込なら [] */
+    abilityTypeModifiers: function () { return (DB.abilities && DB.abilities.meta && DB.abilities.meta.tables && DB.abilities.meta.tables.ABILITY_TYPE_MODIFIERS) || []; },
+    /** ★2026-09-06: 上の表のうち「無効(×0)」だけを 特性名 → [タイプ名, …] の形で返す(図鑑DBの「特性×0」列用) */
+    abilityTypeImmunity: function () {
+      var m = {};
+      this.abilityTypeModifiers().forEach(function (r) {
+        if (r.multiplier !== 0 || !r.type) return;
+        (m[r.ability] = m[r.ability] || []).push(r.type);
+      });
+      return m;
+    },
     /** ★攻撃タイプ1つ × 防御側の複数タイプの合成倍率(単・複合両対応)。不明なタイプ名は無視、attackTypeが不明なら1を返す */
     typeEffectiveness: function (attackType, defenderTypes) {
       var chart = this.typeChart();
