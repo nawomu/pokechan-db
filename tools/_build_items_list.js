@@ -97,7 +97,12 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
       return `<br><span class="applies"><span data-i18n="items_list.applies_prefix">対応:</span> ${inner}</span>`;
     })() : '';
     const factor = it.factor != null ? `×${it.factor}` : (it.q12 != null ? `(Q12: ${it.q12})` : '');
+    // ★画像(2026-09-06 阿部さん): images/item/<pokeapi_slug>.png(PokeAPI由来)。生成時に実在を確認し、無い物は「画像なし」の枠を出して一目で分かるようにする
+    const imgCell = (it.pokeapi_slug && fs.existsSync(path.join(ROOT, 'images/item', it.pokeapi_slug + '.png')))
+      ? `<img loading="lazy" src="images/item/${esc(it.pokeapi_slug)}.png" alt="">`
+      : `<span class="noimg" title="画像なし" data-i18n-attr="title:items_list.no_image,aria-label:items_list.no_image" aria-label="画像なし">✕</span>`;
     return `<tr class="${isRowNew ? 'row-new' : ''}">
+<td class="img">${imgCell}</td>
 <td class="name">${nameCell}${applies}</td>
 <td class="effect" data-itemdesc-ja="${esc(it.effect || '')}">${effect}</td>
 <td class="factor">${factor}</td>
@@ -107,7 +112,7 @@ const sections = CAT_ORDER.filter(c => byCat[c]).map(c => {
   return `<section class="cat-sec" id="cat-${c}">
 <h2><span class="cat-icon">${c === 'mega_stone' ? '✨' : '🎁'}</span> <span data-i18n="items_list.cat_${c}">${esc(CAT_LABEL[c] || c)}</span> <span class="count">${arr.length}件</span></h2>
 <table>
-<thead><tr><th class="th-name" data-i18n="items_list.th_name">アイテム名</th><th class="th-effect" data-i18n="items_list.th_effect">効果</th><th class="th-factor" data-i18n="items_list.th_factor">倍率</th><th class="th-acq" data-i18n="items_list.th_acq">入手</th></tr></thead>
+<thead><tr><th class="th-img"></th><th class="th-name" data-i18n="items_list.th_name">アイテム名</th><th class="th-effect" data-i18n="items_list.th_effect">効果</th><th class="th-factor" data-i18n="items_list.th_factor">倍率</th><th class="th-acq" data-i18n="items_list.th_acq">入手</th></tr></thead>
 <tbody>${rows}</tbody>
 </table>
 </section>`;
@@ -139,13 +144,18 @@ body{margin:0;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",
 .sum-chip:hover{background:#FF7A00}
 .sum-chip b{background:rgba(255,255,255,.25);padding:1px 6px;border-radius:8px}
 .main{max-width:1200px;margin:0 auto;padding:14px 18px}
-.cat-sec{background:#fff;border:1px solid #d6dee8;border-radius:10px;padding:14px 18px;margin-bottom:14px;box-shadow:0 2px 4px rgba(0,0,0,.04);overflow-x:auto;-webkit-overflow-scrolling:touch}
+.cat-sec{background:#fff;border:1px solid #d6dee8;border-radius:10px;padding:14px 18px;margin-bottom:14px;box-shadow:0 2px 4px rgba(0,0,0,.04)}
+/* ★2026-09-06 阿部さん指摘(見出し行が表の途中に出る): .cat-sec の overflow-x:auto(2026-07-11 スマホ横スクロール用)がスクロール容器になり、
+   sticky の thead が「画面」でなく「セクション内」で top:155px に固定されて行の上に被っていた。
+   → 広い画面は overflow なし(thead が画面に固定)。狭い画面だけ横スクロールにし、その時は thead を固定しない */
 .cat-sec h2{margin:0 0 12px 0;font-size:16px;color:#1F4E79;display:flex;align-items:center;gap:8px;border-bottom:2px solid #FF7A00;padding-bottom:6px}
 .cat-icon{font-size:18px}
 .count{font-size:11px;background:#FF7A00;color:#fff;padding:2px 9px;border-radius:10px;font-weight:700;margin-left:auto}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 thead{position:sticky;top:var(--sticky2,108px);background:#1F4E79;color:#fff;z-index:30}
 thead th{padding:5px 8px;text-align:left;border-right:1px solid #173e63;font-size:11.5px;font-weight:700}
+/* ↑の thead{position:sticky} より後に書く(同じ詳細度=後勝ち) */
+@media (max-width:700px){.cat-sec{overflow-x:auto;-webkit-overflow-scrolling:touch} thead{position:static}}
 tbody td{padding:5px 8px;border-bottom:1px solid #EEE;vertical-align:top}
 tbody tr:hover{background:#f3f6fb}
 tbody tr:nth-child(2n){background:#fafbfd}
@@ -153,6 +163,9 @@ tbody tr.row-new{background:#FFFDE7}
 tbody tr.row-new:hover{background:#FFF9C4}
 .tag-new{display:inline-block;font-size:10px;background:#FF7A00;color:#fff;padding:1px 6px;border-radius:8px;font-weight:700;margin-left:4px}
 .tag-version{display:inline-block;font-size:10px;background:#6A1B9A;color:#fff;padding:1px 7px;border-radius:8px;font-weight:700;margin-left:3px}
+td.img,th.th-img{width:34px;padding:3px 4px;text-align:center}
+td.img img{width:30px;height:30px;image-rendering:pixelated;vertical-align:middle}
+.noimg{display:inline-block;width:28px;height:28px;border:1px dashed #b7c3d3;border-radius:4px;color:#b0bccb;font-size:12px;line-height:28px;text-align:center;background:#f7f9fc;cursor:help}
 td.name{min-width:140px;font-weight:700;color:#1F4E79}
 td.effect{font-size:12px;color:#33415c;max-width:400px}
 td.factor{width:80px;font-family:monospace;color:#E65100;text-align:center}
