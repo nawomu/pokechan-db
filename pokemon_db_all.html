@@ -4306,7 +4306,14 @@ function init() {
 // ★非同期化対応: 旧版は pokechan_data.js が同期ロード済みだったので DOMContentLoaded だけを待てば
 //   良かったが、pokedb.js は fetch(非同期)。DOMContentLoaded と PokeDB.ready の両方が揃ってから
 //   init() を呼ぶ(speed_compare.html等と同じ dbReady/domReady 2フラグの型)。
-function maybeInit() { if (domReady && dbReady) init(); }
+// ★2026-09-06: master が i18n:ready より遅く着くと refreshAllI18nContent が dbReady ガードで抜けたまま、
+//   init() が組み立てる ms ボタン(全▾/除外▾/全解除/閉じ)等が未翻訳で残る(Astra の故障注入 masterDelay で発見)。
+//   i18n が先に準備済みなら init 直後に一度取り直す(refreshAllI18nContent は再実行しても同じ結果=冪等)。
+function maybeInit() {
+  if (!(domReady && dbReady)) return;
+  init();
+  if (window.__i18nReady && typeof refreshAllI18nContent === 'function') refreshAllI18nContent();
+}
 window.addEventListener('DOMContentLoaded', () => { domReady = true; maybeInit(); });
 
 // ========== とくせい フローティングtooltip ==========
