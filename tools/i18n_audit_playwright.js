@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 // i18n 監査ハーネス: 各ページ×各言語をブラウザで開き、残った日本語(テキスト+ツールチップ属性)を検出。
-// 使い方: node tools/i18n_audit_playwright.js [lang1,lang2,...] [--page=foo.html] [--strict]
+// 使い方: node tools/i18n_audit_playwright.js [lang1,lang2,...] [--page=foo.html] [--strict] [--out=report.json]
 //   例: node tools/i18n_audit_playwright.js en
 //       node tools/i18n_audit_playwright.js en,fr,ko
 //       node tools/i18n_audit_playwright.js en,ko,zh-Hans --strict
 // 前提: ローカルサーバが http://127.0.0.1:8000 で稼働中。
-const { chromium } = require('playwright');
+const { observePage, openReadyPage } = require('./_lib/browser_audit');
 
 const BASE = 'http://127.0.0.1:8000';
 const PAGES = [
@@ -55,11 +55,6 @@ const STRICT_SKIP_PAGES = [
   'waza-list_all.html',   // 技説明文descが辞書未登録(段階的対応中)
 ];
 
-const argLangs = (process.argv[2] && !process.argv[2].startsWith('--')) ? process.argv[2].split(',') : ['en'];
-const onlyPage = (process.argv.find(a => a.startsWith('--page=')) || '').split('=')[1];
-const strictMode = process.argv.includes('--strict');
-const pages = onlyPage ? [onlyPage] : PAGES;
-
 // 許可リストに一致するテキストを除外する
 function applyAllowlist(findings) {
   // セレクトボタン等の末尾装飾(▾/▼)を剥がしてから許可リスト照合(例:「もらいびこんじょう ▾」=独自特性+開閉マーク)
@@ -96,71 +91,105 @@ function scanFn(lang) {
   return out;
 }
 
-(async () => {
-  const browser = await chromium.launch();
-  const report = {};
-  for (const lang of argLangs) {
-    report[lang] = {};
-    const ctx = await browser.newContext();
-    await ctx.addInitScript((l) => { try { localStorage.setItem('pchamdb.lang', l); } catch (e) {} }, lang);
-    const page = await ctx.newPage();
-    for (const pg of pages) {
-      try {
-        // networkidle待ちは大量lazy画像+リモートフォールバックのページ(全国図鑑等)で収束せず
-        // タイムアウト誤検出(残日本語1件フレーク)になる → i18n適用完了フラグ(__i18nReady)を直接待つ(2026-07-05)
-        await page.goto(BASE + '/' + pg, { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForFunction(() => window.__i18nReady === true, null, { timeout: 20000 }).catch(() => {});
-        await page.waitForTimeout(900); // 動的描画の残り(バトルログ等)待ち
-        const raw = await page.evaluate(scanFn, lang);
-        const leaks = applyAllowlist(raw);
-        report[lang][pg] = leaks;
-        const tag = leaks.length === 0 ? 'OK ' : leaks.length + '件';
-        console.log(`[${lang}] ${pg.padEnd(30)} ${tag}`);
-      } catch (e) {
-        report[lang][pg] = [{ text: 'ERROR: ' + e.message.slice(0, 60), where: 'load' }];
-        console.log(`[${lang}] ${pg.padEnd(28)} LOAD ERR`);
-      }
-    }
-    await ctx.close();
+// HTTP/実行時/初期化の失敗はallowlistやSTRICT_SKIP_PAGESで除外しない。
+// 外部通信・画像・フォントは翻訳監査の対象外。同一originのscript/fetch/stylesheet/documentの失敗を記録する。
+async function auditPage(page, url, lang, { timeout = 20000, settleMs = 900 } = {}) {
+  const observed = observePage(page, {
+    origin: url,
+    ignoreResponse: r => ['image', 'font', 'media'].includes(r.request().resourceType()),
+  });
+  let leaks = [];
+  try {
+    await openReadyPage(page, url, { timeout });
+    await page.waitForTimeout(settleMs);
+    leaks = applyAllowlist(await page.evaluate(scanFn, lang));
+  } catch (e) {
+    observed.add('load', 'ERROR: ' + e.message);
+  } finally {
+    observed.dispose();
   }
-  await browser.close();
-  const fs = require('fs');
-  const path = require('path');
-  const reportJson = JSON.stringify(report, null, 1);
-  // 出力先1: /tmp
-  fs.writeFileSync('/tmp/i18n_audit_report.json', reportJson);
-  // 出力先2: review/i18n_audit_latest.json (プロジェクトルート基準)
-  const projectRoot = path.resolve(__dirname, '..');
-  const reviewPath = path.join(projectRoot, 'review', 'i18n_audit_latest.json');
-  fs.writeFileSync(reviewPath, reportJson);
-  // サマリ
-  console.log('\n=== サマリ(言語別 総残日本語件数) ===');
-  let totalAll = 0;
-  for (const lang of argLangs) {
-    const total = Object.values(report[lang]).reduce((s, a) => s + a.length, 0);
-    const pagesWith = Object.values(report[lang]).filter((a) => a.length).length;
-    console.log(`  ${lang}: ${total}件 / ${pagesWith}ページ`);
-    totalAll += total;
-  }
-  console.log('詳細: /tmp/i18n_audit_report.json');
-  console.log('詳細: review/i18n_audit_latest.json');
-  if (strictMode) {
-    let strictTotal = 0;
-    for (const lang of argLangs) {
-      for (const [pg, leaks] of Object.entries(report[lang])) {
-        if (!STRICT_SKIP_PAGES.includes(pg)) {
-          strictTotal += leaks.length;
+  return [...observed.errors, ...leaks];
+}
+
+function summarize(report, strictMode) {
+  let errors = 0, leaks = 0, strictLeaks = 0;
+  for (const pages of Object.values(report)) {
+    for (const [pg, findings] of Object.entries(pages)) {
+      for (const finding of findings) {
+        if (finding.kind) errors++;
+        else {
+          leaks++;
+          if (!STRICT_SKIP_PAGES.includes(pg)) strictLeaks++;
         }
       }
     }
-    if (STRICT_SKIP_PAGES.length > 0) {
-      console.log('[STRICT] 除外ページ: ' + STRICT_SKIP_PAGES.join(', '));
-    }
-    if (strictTotal > 0) {
-      console.error('\n[STRICT] 残日本語 ' + strictTotal + '件 → exit 1');
-      process.exit(1);
-    } else {
-      console.log('\n[STRICT] 残日本語 0件 → OK');
-    }
   }
-})();
+  return { errors, leaks, strictLeaks, exitCode: errors > 0 || (strictMode && strictLeaks > 0) ? 1 : 0 };
+}
+
+async function main(args = process.argv.slice(2)) {
+  const langs = args[0] && !args[0].startsWith('--') ? args[0].split(',') : ['en'];
+  const option = key => args.find(a => a.startsWith(key + '='))?.slice(key.length + 1);
+  const onlyPage = option('--page');
+  const strictMode = args.includes('--strict');
+  const pages = onlyPage ? [onlyPage] : PAGES;
+  const { chromium } = require('playwright');
+  const browser = await chromium.launch();
+  const report = {};
+  try {
+    for (const lang of langs) {
+      report[lang] = {};
+      const ctx = await browser.newContext();
+      try {
+        await ctx.addInitScript((l) => { localStorage.setItem('pchamdb.lang', l); }, lang);
+        for (const pg of pages) {
+          // ページごとに作り直し、前ページの遅延エラー/readyフラグを引き継がない。
+          const page = await ctx.newPage();
+          try {
+            const findings = await auditPage(page, BASE + '/' + pg, lang);
+            report[lang][pg] = findings;
+            const errors = findings.filter(f => f.kind).length;
+            const leaks = findings.length - errors;
+            const tag = errors ? `ERROR ${errors}件 / 残日本語 ${leaks}件` : leaks ? leaks + '件' : 'OK';
+            console.log(`[${lang}] ${pg.padEnd(30)} ${tag}`);
+          } finally {
+            await page.close();
+          }
+        }
+      } finally {
+        await ctx.close();
+      }
+    }
+  } finally {
+    await browser.close();
+  }
+  const fs = require('fs');
+  const path = require('path');
+  const reportJson = JSON.stringify(report, null, 1);
+  // --out指定時は指定先だけに出し、故障注入テストがlatestを上書きしないようにする。
+  const destinations = option('--out') ? [path.resolve(option('--out'))] :
+    ['/tmp/i18n_audit_report.json', path.resolve(__dirname, '../review/i18n_audit_latest.json')];
+  for (const destination of destinations) {
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    fs.writeFileSync(destination, reportJson);
+  }
+  // サマリ
+  console.log('\n=== サマリ(言語別 総残日本語件数) ===');
+  for (const lang of langs) {
+    const total = Object.values(report[lang]).reduce((s, a) => s + a.filter(f => !f.kind).length, 0);
+    const pagesWith = Object.values(report[lang]).filter(a => a.some(f => !f.kind)).length;
+    console.log(`  ${lang}: ${total}件 / ${pagesWith}ページ`);
+  }
+  destinations.forEach(destination => console.log('詳細: ' + destination));
+  const result = summarize(report, strictMode);
+  console.log(`読込・実行エラー: ${result.errors}件`);
+  if (strictMode) console.log(`[STRICT] 残日本語 ${result.strictLeaks}件 (残日本語のみ除外: ${STRICT_SKIP_PAGES.join(', ')})`);
+  console.log(`exit ${result.exitCode}`);
+  return result.exitCode;
+}
+
+module.exports = { PAGES, auditPage, scanFn, applyAllowlist, summarize, main };
+if (require.main === module) main().then(code => { process.exitCode = code; }).catch(e => {
+  console.error('❌ i18n監査を完了できません: ' + e.message);
+  process.exitCode = 1;
+});
