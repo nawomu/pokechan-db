@@ -1,0 +1,59 @@
+[setup] 既存のサーバ(port 8000)を使用します。
+
+--- S1 replay中に退出→新バトル(busy残留の疑い・exitBattleToSetup ~2521) ---
+✅ PASS S1 replay中に退出→新バトル(busy残留の疑い・exitBattleToSetup ~2521)
+    busy1=true qlen1=2(期待2) afterExit={"inBattle":false,"busy":false,"sayQueueLen":0,"setupShown":true,"msgboxShown":false} newBattle={"ok":true,"reason":""} busyAfterNewBattle=true errors=[]
+
+--- S2 強制交代画面(swForced)で退出→新バトル(swForced/RB_PIVOT残留の疑い ~2534) ---
+✅ PASS S2 強制交代画面(swForced)で退出→新バトル(swForced/RB_PIVOT残留の疑い ~2534)
+    partyShown=true preExit={"swForced":true,"swPivot":false} afterExit={"inBattle":false,"swForced":true,"swPivot":false,"partyDisplay":"flex"} newBattle={"ok":true,"reason":""} partyShown2(2回目)=true picked=true backToMoves=true errors=[]
+
+--- S3 全滅選択中の退出→c-revive-continueリスナー二重化の疑い(showLabGameOverChoice ~5439) ---
+✅ PASS S3 全滅選択中の退出→c-revive-continueリスナー二重化の疑い(showLabGameOverChoice ~5439)
+    reached1=true afterExit1={"inBattle":false,"labChoicePending":false,"rcDisplay":"none"} newBattle={"ok":true,"reason":""} reached2=true revives(1クリックでの発火回数)=1(期待1) errors=[]
+
+--- S4 replay中に「＋ついか」ピッカー(openBattlePicker busy/swForcedガード無し ~2328) ---
+✅ PASS S4 replay中に「＋ついか」ピッカー(openBattlePicker busy/swForcedガード無し ~2328)
+    busyDuring=true pickerOpen=true picked=true benchLenBefore=2 afterPick={"benchLen":3,"benchOk":true,"pickerClosed":true,"busy":true} settled=true uiSane=true newBattle={"ok":true,"reason":""} errors=[]
+
+--- S5 replay中にAIトグル連打(250msポーラーlabAIResyncTimerの競合 ~4158) ---
+✅ PASS S5 replay中にAIトグル連打(250msポーラーlabAIResyncTimerの競合 ~4158)
+    timerActiveDuringBusy=true busyCleared=true converged(labAIResyncTimer→null)=true finalState={"self":true,"opp":false,"uiSelfOn":true,"uiOppOn":false} expect(self=true,opp=false) uiSane=true newBattle={"ok":true,"reason":""} errors=[]
+
+--- S6 リアルターン再生中に神の手でHP=0(ghRenderSide busyガード無し ~4416) ---
+✅ PASS S6 リアルターン再生中に神の手でHP=0(ghRenderSide busyガード無し ~4416)
+    becameBusy=true applied=true liveFaintedDuringBusy(replay中に即fainted=true)=true busyCleared=true interactable(詰みでないか)=true finalState={"fainted":true,"labChoicePending":false,"gameOver":false,"partyDisplay":"flex","movesDisplay":"none","rcDisplay":"(なし)"} newBattle={"ok":true,"reason":""} errors=[]
+
+--- S7 バトル中に言語切替(sayQueue/msgbox再翻訳の競合) ---
+✅ PASS S7 バトル中に言語切替(sayQueue/msgbox再翻訳の競合)
+    becameBusy=true switched=true postSwitch={"lang":"en","busy":true,"msgboxText":"Battle Start! Go, Venusaur!The opponent sent out Beedrill!Moves first: your Venusaur"} busyCleared=true interactable=true newBattle={"ok":true,"reason":""} errors=[]
+
+--- S8 全滅選択中の「↩1手もどす」ボタン(表示条件と動作条件の不一致疑い ~4196/4202) ---
+✅ PASS S8 全滅選択中の「↩1手もどす」ボタン(表示条件と動作条件の不一致疑い ~4196/4202)
+    【観測】labChoicePending中の undoボタン表示=false(期待=false・S8修正済み)。postState={"labChoicePending":true,"labUndoSnap":true,"partyDisplay":"none","rcDisplay":""}。hadUndoSnap=true reached=true preState={"undoBtnVisible":false,"labUndoSnap":true,"labChoicePending":true} picked=true backToMoves=true newBattle={"ok":true,"reason":""} errors=[]
+
+--- S9 メガ進化→KO→♻ふっかつ(labRevive ~3354はpoke/megaBaseを戻さない疑い) ---
+❌ FAIL S9 メガ進化→KO→♻ふっかつ(labRevive ~3354はpoke/megaBaseを戻さない疑い)
+    メガシンカ自体に失敗(S.megaEvolveがfalse): {"ok":false,"nameAfter":"フシギバナ","megaUsed":false,"item":""}
+
+--- S10 あばれロック中undo→UI自動続行の二重発火(showActionUI ~3125のsetTimeout未保存) ---
+✅ PASS S10 あばれロック中undo→UI自動続行の二重発火(showActionUI ~3125のsetTimeout未保存)
+    setupInfo={"ok":true,"moveName":"のしかかり"} afterT1={"rampageLeft":3,"turnNo":2,"executeTurnCalls":1,"selfFainted":false,"oppFainted":false} undoConsumedSnap=true finalState={"doTurnCalls":2,"executeTurnCalls":2,"turnNo":2,"gameOver":false,"labChoicePending":false,"busy":false,"selfFainted":false,"oppFainted":false}(executeTurnCalls>=3なら二重発火の疑い濃厚。2は「undo後にあばれが正当に1回自動継続」の想定内) noDoubleFire=true uiSane=true newBattle={"ok":true,"reason":""} errors=[]
+
+==== ADVERSARIAL SUMMARY: 9/10 PASS ====
+✅ S1 replay中に退出→新バトル(busy残留の疑い・exitBattleToSetup ~2521)
+✅ S2 強制交代画面(swForced)で退出→新バトル(swForced/RB_PIVOT残留の疑い ~2534)
+✅ S3 全滅選択中の退出→c-revive-continueリスナー二重化の疑い(showLabGameOverChoice ~5439)
+✅ S4 replay中に「＋ついか」ピッカー(openBattlePicker busy/swForcedガード無し ~2328)
+✅ S5 replay中にAIトグル連打(250msポーラーlabAIResyncTimerの競合 ~4158)
+✅ S6 リアルターン再生中に神の手でHP=0(ghRenderSide busyガード無し ~4416)
+✅ S7 バトル中に言語切替(sayQueue/msgbox再翻訳の競合)
+✅ S8 全滅選択中の「↩1手もどす」ボタン(表示条件と動作条件の不一致疑い ~4196/4202)
+❌ S9 メガ進化→KO→♻ふっかつ(labRevive ~3354はpoke/megaBaseを戻さない疑い)
+✅ S10 あばれロック中undo→UI自動続行の二重発火(showActionUI ~3125のsetTimeout未保存)
+
+---- FAIL詳細 ----
+❌ S9 メガ進化→KO→♻ふっかつ(labRevive ~3354はpoke/megaBaseを戻さない疑い)
+   メガシンカ自体に失敗(S.megaEvolveがfalse): {"ok":false,"nameAfter":"フシギバナ","megaUsed":false,"item":""}
+
+スクリーンショット保存先: /private/tmp/claude-501/-Users-masamichi-Documents-----DB/c66c96f4-b801-478b-9805-ec9088008d04/scratchpad/adversarial
