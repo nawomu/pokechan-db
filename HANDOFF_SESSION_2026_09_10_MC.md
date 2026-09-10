@@ -62,7 +62,8 @@
 | B064 D2 | **完了・検収済み**(前半 `047085aba`=scheduler接続/slotOf・後半 `f44577f06`=実行ループのscheduler化(追加実行=さいはい は extra キュー・フォーカスレンズ判定は hasActed)/isPresent実体化/undo機械生成版(検証用)・`3c4e29882`=**undoが復元していなかった揮発欄10件+presenceEpoch を本番に反映**(H56で恒久監視・hard 183/0))。全段 stdout diff 0(親も独立確認)。決定=おさきにどうぞ/さきおくり/りんしょうはエンジン未実装(0件)=D3で新設。本番 snapshotBattleState の完全機械生成化は H56(ソース静的解析)の作り直しが要るため保留 | 上記 |
 | B064 D3-1 | **完了・検収済み** `bb7ed3e61`(battle.format・env.doubleBattle は format の getter/setter・sides[側].slots[]・slotOf 枠読み(自己修復付き)・activeSlots・setFormat・_slots_test 5/0・シングル diff 0) | `bb7ed3e61` |
 | B064 D3-2 | **完了・検収済み** `de227d918`(fixture で4体1列+TARGET_KINDS 表+targetLock=正面既定/消失時の選び直し/ランダム1体の乱数点・_doubles_fixture_test 11/0・シングル diff 0)。★暫定=runTurn が format で旧経路/slots 経路を分岐(コピー経路)=D3-3a で一本化 | `de227d918` |
-| B064 D3-3 | **発注中**(a=シングルも slots 経路に一本化・b=味方対象の効果適用・c=引き寄せ Handler このゆびとまれ/いかりのこな/ひらいしん+すじがねいり/ねらいうち無視)。指示書= scratchpad `spec_d3_3_redirect.md` | — |
+| B064 D3-3 | **完了・検収済み** `192d9074e`(シングルも slots 経路に一本化=コピー経路ゼロ・味方対象効果(てだすけ×1.5/行動済み失敗・ミルクのみ味方・fails_if:no_ally の隠れブロッカー修正)・引き寄せ Handler(このゆびとまれ/いかりのこな=宣言順・ひらいしん=素の素早さ・すじがねいり/ignores_redirect 無視)。fixture 21/0・シングル diff 0。残=溜め技1ターン目の先送り(#35)) | `192d9074e` |
+| B064 D4-1 | **発注中**(範囲技: 対象集合(位置順)・対象ごとのループ・×0.75(実行時対象≥2・空き枠は数えない)・壁 2732/4096(format)・対象別反応と道具の後処理。ドラゴンアローは flags 次第)。指示書= scratchpad `spec_d4_1_spread.md` | — |
 | 持ち物レビュー | 壊す側Sonnetの指摘3件を修正(印の消し忘れ=変化技の自分交代が無言で不発/固定ダメージ経路/ばけのかわ)+T347〜349 → 862/0 | `5afcc7b48` |
 | T2 | 8言語の技説明は15技とも既訳あり。JAを変えた3技(ミルクのみ/フリーズドライ/ふんどのこぶし)の8言語を Sonnet が再翻訳中 | — |
 
