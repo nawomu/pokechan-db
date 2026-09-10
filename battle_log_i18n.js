@@ -133,6 +133,7 @@
   // ─── 翻訳テンプレ(id → 言語別)。en 完成・他言語は並列WFで順次。未登録は ja フォールバック。───
   var TPL = {
     attack_dmg: { "en": "{atk} used {move}! {df} took {dmg} damage!{ohko} (HP {hp}{max})", "fr": "{atk} utilise {move} ! {df} perd {dmg} PV !{ohko} (PV {hp}{max})", "de": "{atk} setzt {move} ein! {df} erleidet {dmg} Schaden!{ohko} (KP {hp}{max})", "es": "¡{atk} usó {move}! ¡{df} recibió {dmg} de daño!{ohko} (PS {hp}{max})", "it": "{atk} usa {move}! {df} subisce {dmg} danni!{ohko} (PS {hp}{max})", "ko": "{atk}의 {move}! {df}에게 {dmg}의 데미지!{ohko} (HP {hp}{max})", "zh-Hans": "{atk}使用了{move}！{df}受到了{dmg}点伤害！{ohko}（HP {hp}{max}）", "zh-Hant": "{atk}使出了{move}！{df}受到了{dmg}點傷害！{ohko}（HP {hp}{max}）" },
+    ability_announce: { "en": "{p}'s {ab}!", "fr": "{ab} de {p} !", "de": "{ab} von {p}!", "es": "¡{ab} de {p}!", "it": "{ab} di {p}!", "ko": "{p}의 {ab}!", "zh-Hans": "{p}的{ab}！", "zh-Hant": "{p}的{ab}！" },
     used_move: { "en": "{atk} used {move}!", "fr": "{atk} utilise {move} !", "de": "{atk} setzt {move} ein!", "es": "¡{atk} usó {move}!", "it": "{atk} usa {move}!", "ko": "{atk}의 {move}!", "zh-Hans": "{atk}使用了{move}！", "zh-Hant": "{atk}使出了{move}！" },
     recall_self: { "en": "Come back, {p}!", "fr": "Reviens, {p} !", "de": "Komm zurück, {p}!", "es": "¡Vuelve, {p}!", "it": "Torna indietro, {p}!", "ko": "돌아와, {p}!", "zh-Hans": "回来吧，{p}！", "zh-Hant": "回來吧，{p}！" },
     go_self: { "en": "Go, {p}!", "fr": "Vas-y, {p} !", "de": "Los, {p}!", "es": "¡Adelante, {p}!", "it": "Vai, {p}!", "ko": "가라, {p}!", "zh-Hans": "上吧，{p}！", "zh-Hant": "上吧，{p}！" },
@@ -473,6 +474,9 @@
     { id: 'attack_dmg', re: /^((?:相手の )?\S+) の (\S+)！ ((?:相手の )?\S+) に (\d+) ダメージ！(\(一撃必殺！\))? \(残HP (\d+)(?:\/(\d+))?\)$/,
       slots: { atk: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' }, df: { g: 3, kind: 'poke' }, dmg: { g: 4, kind: 'num' }, ohko: { g: 5, kind: 'raw' }, hp: { g: 6, kind: 'num' }, max: { g: 7, kind: 'raw' } },
       post: { ohko: function (v) { return v ? ' (OHKO!)' : ''; }, max: function (v) { return v ? '/' + v : ''; } } },
+    // 登場宣言「◯◯ の かたやぶり！」(かたやぶり/ターボブレイズ/テラボルテージ): 形は used_move と同じなので、
+    // 2群が技でなく特性名の時だけ先に取る(2026-09-11・ダブルのプレビューで英語切替時に特性名が日本語のまま残るのを観測。シングルも同じ経路)
+    { id: 'ability_announce', re: /^((?:相手の )?\S+) の (\S+)！$/, when: function (m) { return !moveKey(m[2]) && !!I18N() && I18N().ability && I18N().ability(m[2]) !== m[2]; }, slots: { p: { g: 1, kind: 'poke' }, ab: { g: 2, kind: 'ability' } } },
     { id: 'used_move', re: /^((?:相手の )?\S+) の (\S+)！$/, slots: { atk: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
     { id: 'missed_by', re: /^((?:相手の )?\S+) の (\S+) は外れた！$/, slots: { p: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' } } },
     { id: 'missed', re: /^(\S+) は外れた！$/, slots: { move: { g: 1, kind: 'move' } } },
@@ -840,6 +844,7 @@
     for (var i = 0; i < PATTERNS.length; i++) {
       var p = PATTERNS[i], m = msg.match(p.re);
       if (!m) continue;
+      if (p.when && !p.when(m)) continue;   // 同形の行を内容で振り分ける(ability_announce)
       var tpl = TPL[p.id] && TPL[p.id][lang];
       if (!tpl) return msg;   // その言語の訳が未登録=ja(原文)フォールバック
       return tpl.replace(/\{(\w+)\}/g, function (_, name) {
