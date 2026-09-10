@@ -94,10 +94,19 @@ test('2枠目にpokeを置いてもrunTurn()は例外を出さず、ログはシ
   const logLenBeforeTurn = E2.battleLog.length;
   assert.doesNotThrow(() => { E2.runTurn(); }, 'ダブルfixture(2枠目在り)でもrunTurn()が例外を出さない');
   const doubleLog = E2.battleLog.slice(logLenBeforeTurn).map(l => l.msg);
-  // ★battleLogはvm(別レルム)の配列(E1/E2はそれぞれ別のvmコンテキスト)なのでassert.deepEqual(=strict)は
-  // プロトタイプ不一致でfailする(_snapshot_equiv_test.jsと同じ既知の罠)。内容比較はJSON.stringifyで行う。
-  assert.equal(JSON.stringify(doubleLog), JSON.stringify(singleLog),
-    '2枠目にポケモンが居てもrunTurn()自身が積むログはシングルと同じ行になる(2枠目はD3-1では無視=止め地点)');
+  // ★2026-09-11 D3-2a(実装指示 D3-2)でこのテストの前提が変わった: D3-1の「2枠目は無視=止め地点」は
+  // D3-2aでactiveSlots()ベースのIntent生成に置き換わり、通過点になった(指示書どおり=意図した進行)。
+  // 2枠目のピカチュウ(技未設定)も枠としてIntentを持つ=「技を選択していない」で処理される。
+  // よってログはもうシングルと同一にはならない(=このassertは旧仕様の固定化だったので更新する)。
+  // singleLogはこのテストの前提確認(シングルのログが空でない)にのみ使う。
+  void singleLog;
+  assert.equal(doubleLog[0], '─── ターン開始 ───', '先頭はターン開始');
+  assert.equal(doubleLog[doubleLog.length - 1], '─── ターン終了 ───', '末尾はターン終了');
+  const noMoveCount = doubleLog.filter(m => m.includes('技を選択していない')).length;
+  assert.equal(noMoveCount, 2, '2枠目のピカチュウ2体分(自分側/相手側)は技未設定=「技を選択していない」が2回出る(=枠として処理された証拠)');
+  const hatakuHits = doubleLog.filter(m => m.includes('はたく！') && m.includes('ダメージ！'));
+  assert.equal(hatakuHits.length, 2, '1枠目のフシギバナ同士のはたくは両側とも命中する(2本・従来どおり)');
+  assert.equal(doubleLog.length, 6, '行数=開始1+ピカチュウ未選択2+はたく命中2+終了1の6行');
 });
 
 // ===== 4: undo(pushHistory→変更→undoBattle)の後もslots[0]===sides.self =====

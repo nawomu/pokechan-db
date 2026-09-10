@@ -1500,12 +1500,15 @@ function variablePower(move, atk, def){
   return null;
 }
 
-function calcDamage(atkSide, defSide, move, opts){
+// D3-2b(2026-09-11): atkIdx/defIdxは末尾の省略可能引数(既定0=slotOf(side,0)===sides[side]=シングル不変)。
+// 既存の全呼び出し箇所(idx未指定)は挙動が一切変わらない。ダブルfixtureのtarget_lock経由の呼び出しだけが
+// idxを渡す。
+function calcDamage(atkSide, defSide, move, opts, atkIdx, defIdx){
   if (!move) return null;
   if (move.category === '変化') return null;
 
-  const atk = sides[atkSide];
-  const def = sides[defSide];
+  const atk = slotOf(atkSide, atkIdx || 0);
+  const def = slotOf(defSide, defIdx || 0);
   if (!atk.poke || !def.poke) return null;
 
   let power = (move.power == null || move.power === 0 || move.power === '—') ? 0 : Number(move.power);
@@ -2460,6 +2463,176 @@ function decideOrder(move1, move2){
   return buildOrderDecision(move1, move2, () => true).sched.next().sideId;
 }
 
+// D3-2a(2026-09-11): 枠ごとの選択技を1関数に(既存のselfMove/oppMove計算=「switchedThisTurnなら
+// null・そうでなければ選択中の技」を任意の枠に一般化しただけ。ロジックは不変)。
+function moveOfSlot(side, idx){
+  const st = slotOf(side, idx);
+  if (!st || !st.poke || st.switchedThisTurn) return null;
+  return (st.moves && st.moves[st.selectedMoveIdx]) || null;
+}
+
+// D3-2a(設計_ダブルバトル_2026-09-07.md §4.1/§4.5/§5): activeSlots()ベースのIntent生成。
+// ★runTurnはslotsPerSide<=1(シングル)ではこの関数を呼ばない(絶対条件=外から見て不変のため、
+// 既存のbuildOrderDecisionをそのまま使う)。この関数はslotsPerSide>=2のダブルfixtureでのみ使う
+// 新規関数=既存コードへのリスクをゼロにする(壊れても対象はfixtureだけ)。
+// 各枠(pokeが居てfaintedでない)につき1本のIntent。actorId=side+':'+idx+':'+presenceEpoch(指示書指定の形式)。
+// 並び順=canonSidesの先→後×枠0→枠1(§4.5「位置順」・せんせいのツメ判定順もこの順)。
+function buildOrderDecisionSlots(moveOfFn, isPresentFn){
+  const list = [];
+  canonSides().forEach(function(side){
+    sides[side].slots.forEach(function(st, idx){
+      if (!st || !st.poke || st.fainted) return;   // 各枠(pokeが居てfaintedでない)につき1本
+      list.push({ side: side, idx: idx });
+    });
+  });
+  const moveOf = {};
+  list.forEach(function(sl){ moveOf[sl.side + ':' + sl.idx] = moveOfFn(sl.side, sl.idx); });
+  const intents = {};
+  const rawList = list.map(function(sl){
+    const st = slotOf(sl.side, sl.idx);
+    const key = sl.side + ':' + sl.idx;
+    const intent = BattleScheduler.createIntent({
+      actorId: sl.side + ':' + sl.idx + ':' + st.presenceEpoch,
+      presenceEpoch: st.presenceEpoch,
+      sideId: sl.side, slotId: sl.idx, kind: 'move',
+      orderingMove: moveOf[key], executionMove: moveOf[key],
+      // D3-2b: targetChoiceの入力口。D5(UI)ができるまでは枠の状態(st.targetChoice={side,idx})に
+      // テスト/将来のAIが直接書く(target_choose相当の最小の入口。選ばなければnull=既定=正面)。
+      targetChoice: st.targetChoice || null,
+    });
+    intents[key] = intent;
+    return intent;
+  });
+  quickClawSide = null;
+  let __quickClawDone = false;
+  let __quickClawSlot = null;   // {side, idx} | null(N枠への一般化=未確認・出典なし。2枠=シングル相当は下記コメントどおり厳密に一致)
+  const ctx = {
+    isPresent: isPresentFn,
+    priorityOf: function (intent) {
+      const p = movePriority(intent.orderingMove, slotOf(intent.sideId, intent.slotId));
+      return { basePriority: p, contributions: [], effectivePriority: p };
+    },
+    speedOf: function (actorId) {
+      const parts = actorId.split(':');   // side:idx:epoch
+      return effectiveSpeed(slotOf(parts[0], Number(parts[1])));
+    },
+    trickRoom: function () { return !!env.trickRoom; },
+    orderModifierOf: function (intent) {
+      // せんせいのツメ: 「自分の優先度 === 自分以外の中の最大優先度」の時だけ判定する。
+      // ★2枠(=シングル相当の[cf,cs])の場合は既存のbuildOrderDecisionと完全に同じ計算になる
+      // (others=[相手1枠]・myP!==otherPの判定・ロール順序・回数が同一=未使用だが検証済み)。
+      // N枠(ダブルfixture)への一般化は出典が無い近似=このコメントを未確認として残す。
+      const others = list.filter(function (sl) { return !(sl.side === intent.sideId && sl.idx === intent.slotId); });
+      if (!others.length) return 'normal';
+      const myP = movePriority(intent.orderingMove, slotOf(intent.sideId, intent.slotId));
+      const otherPMax = Math.max.apply(null, others.map(function (sl) {
+        return movePriority(moveOf[sl.side + ':' + sl.idx], slotOf(sl.side, sl.idx));
+      }));
+      if (myP !== otherPMax || env.magicRoom) return 'normal';
+      if (!__quickClawDone) {
+        __quickClawDone = true;
+        const hits = [];
+        list.forEach(function (sl) {
+          const st2 = slotOf(sl.side, sl.idx);
+          if (st2.item === 'quick_claw' && Math.random() < 0.2) hits.push(sl);
+        });
+        if (hits.length === 1) { quickClawSide = hits[0].side; __quickClawSlot = hits[0]; }
+      }
+      return (__quickClawSlot && __quickClawSlot.side === intent.sideId && __quickClawSlot.idx === intent.slotId) ? 'first' : 'normal';
+    },
+  };
+  const sched = BattleScheduler.createScheduler(rawList, ctx, { rng: () => Math.random(), tiePolicy: 'random' });
+  return { sched, ctx, intents: intents };
+}
+
+// D3-2b(2026-09-11・設計_ダブルバトル_2026-09-07.md §4.2): 対象語彙(13種)の解決規則を1つの表に持つ。
+// master/moves.json meta.tables.TARGET_KINDS はまだ無い(§4.2本文どおり)ので、ここではエンジン内の
+// 「関数から独立したただの定数」として置く(D4でmasterのmeta.tablesへ移す時に差し替える置き場)。
+// 各行: chooses=人が選ぶか / candidates=候補集合(D3-2実装範囲の目印。foes/ally/self/self_ally) /
+// default=既定(front=正面) / onLost=対象消失時の規則(reselect_foe/fail/self/none)。
+// 相手全体/自分以外全体/全体/味方全体/味方の場/相手の場/全体の場/不定はD4送り=候補集合の先頭1体(正面)に
+// 落として、シングルと同じ挙動にする(範囲補正・複数対象ループは実装しない)。
+const TARGET_KINDS = Object.freeze({
+  '1体選択':     { chooses: true,  candidates: 'foes_ally', default: 'front', onLost: 'reselect_foe' },
+  'ランダム1体':  { chooses: false, candidates: 'foes',      default: 'front', onLost: 'reselect_foe' },
+  '相手全体':     { chooses: false, candidates: 'foes',      default: 'front', onLost: 'reselect_foe' },   // D4: spread
+  '自分以外全体':  { chooses: false, candidates: 'foes_ally', default: 'front', onLost: 'reselect_foe' },   // D4: spread
+  '全体':        { chooses: false, candidates: 'foes_ally', default: 'front', onLost: 'reselect_foe' },   // D4: spread
+  '味方1体':     { chooses: true,  candidates: 'ally',      default: 'front', onLost: 'fail' },
+  '自分か味方':   { chooses: true,  candidates: 'self_ally', default: 'self',  onLost: 'self' },
+  '味方全体':     { chooses: false, candidates: 'ally',      default: 'front', onLost: 'fail' },           // D4: spread
+  '味方の場':     { chooses: false, candidates: 'side_self', default: 'self',  onLost: 'none' },
+  '相手の場':     { chooses: false, candidates: 'side_foe',  default: 'self',  onLost: 'none' },
+  '全体の場':     { chooses: false, candidates: 'field',     default: 'self',  onLost: 'none' },
+  '自分':        { chooses: false, candidates: 'self',      default: 'self',  onLost: 'none' },
+  '不定':        { chooses: false, candidates: 'foes_ally', default: 'front', onLost: 'reselect_foe' },   // D4: spread
+});
+
+// target_lock(P06a・§4.3 6段のうちD3-2実装範囲=0/1/4のみ。2/3=引き寄せ/無視はD3-3で登録=未実装)。
+// D3-2の実装範囲: 1体選択(targetChoice→正面既定→消失時=相手なら選び直し・味方ならfail)/自分/
+// ランダム1体(相手の生存枠から一様乱択・乱数はここの1箇所だけ)。味方1体/自分か味方/味方全体は
+// 最小限のスタブ(候補があれば拾う・無ければnull=fail)=fixtureテストの対象外・D4で正式化する。
+// 戻り値: {side, idx} | null (D3-2はTargetSetの先頭1件=単体対象だけを返す。null=fail=呼び出し側が
+// 「しかし うまく きまらなかった！」を出してcontinueする。D4でTargetSet配列に拡張)。
+function targetLock(atkSide, atkIdx, mv, targetChoice){
+  const kind = TARGET_KINDS[mv.target] || TARGET_KINDS['1体選択'];
+  const oppSide = atkSide === 'self' ? 'opp' : 'self';
+  if (kind.candidates === 'self') return { side: atkSide, idx: atkIdx };
+  if (kind.candidates === 'self_ally'){
+    // 自分か味方(§4.2・既定=自分・消失時=自分/onLost:self)
+    if (targetChoice && targetChoice.side === atkSide && targetChoice.idx !== atkIdx){
+      const st = slotOf(targetChoice.side, targetChoice.idx);
+      if (st && st.poke && !st.fainted) return { side: targetChoice.side, idx: targetChoice.idx };
+    }
+    return { side: atkSide, idx: atkIdx };
+  }
+  if (kind.candidates === 'ally'){
+    // 味方1体/味方全体(D4送り分含む・最小スタブ): 自分以外の自陣の生存枠。
+    // シングルは候補が無い=null(既存のfails_if no_allyが先に失敗させる想定=ここに来るのは通常fixtureのみ)。
+    const mySlots = sides[atkSide].slots;
+    if (targetChoice && targetChoice.side === atkSide && targetChoice.idx !== atkIdx){
+      const st = mySlots[targetChoice.idx];
+      if (!st || !st.poke || st.fainted) return null;   // onLost:fail(#26)
+      return { side: atkSide, idx: targetChoice.idx };
+    }
+    const idx2 = mySlots.findIndex(function (s, i) { return i !== atkIdx && s.poke && !s.fainted; });
+    return idx2 >= 0 ? { side: atkSide, idx: idx2 } : null;
+  }
+  // ここから単体選択系: 1体選択/ランダム1体/D4送りの複数対象技を「先頭1体(正面)」に落とす
+  if (mv.target === 'ランダム1体'){
+    const foes = sides[oppSide].slots
+      .map(function (st, i) { return { idx: i, st: st }; })
+      .filter(function (s) { return s.st.poke && !s.st.fainted; });
+    if (!foes.length) return { side: oppSide, idx: atkIdx };   // 全滅=既存の_noTgt経路に委ねる(fainted枠を返す)
+    if (foes.length === 1) return { side: oppSide, idx: foes[0].idx };   // 候補1=乱数を引かない(シングル不変)
+    const pick = foes[Math.floor(Math.random() * foes.length)];
+    return { side: oppSide, idx: pick.idx };
+  }
+  const front = { side: oppSide, idx: atkIdx };
+  if (targetChoice){
+    if (targetChoice.side === oppSide){
+      const st = slotOf(targetChoice.side, targetChoice.idx);
+      if (st && st.poke && !st.fainted) return { side: targetChoice.side, idx: targetChoice.idx };
+      // 消失時: 相手を選んでいた→残った相手へ選び直し(#25・失敗しない)
+      const altIdx = sides[oppSide].slots.findIndex(function (s) { return s.poke && !s.fainted; });
+      return altIdx >= 0 ? { side: oppSide, idx: altIdx } : front;   // 相手全滅=既存の_noTgt経路に委ねる
+    }
+    if (targetChoice.side === atkSide){
+      const st = slotOf(targetChoice.side, targetChoice.idx);
+      if (st && st.poke && !st.fainted) return { side: targetChoice.side, idx: targetChoice.idx };
+      return null;   // 味方を選んでいて味方が消えた=fail(#26)
+    }
+  }
+  // 既定=正面。正面が空席/ひんしで、他に相手候補が生存していれば選び直す(#25の最小形)。
+  // シングルは相手候補がfront自身しかない=常にfrontを返す(挙動不変)。
+  const frontSt = slotOf(front.side, front.idx);
+  if (!frontSt.poke || frontSt.fainted){
+    const altIdx = sides[oppSide].slots.findIndex(function (s, i) { return i !== front.idx && s.poke && !s.fainted; });
+    if (altIdx >= 0) return { side: oppSide, idx: altIdx };
+  }
+  return front;
+}
+
 // ターン状態 (HP・付与済みステータス等の揮発状態を sides に注入)
 function ensureBattleState(){
   activeSides().forEach(s=>{
@@ -2868,16 +3041,18 @@ function recordTaken(df, move, lastHitDmg, attacker){
 }
 
 // === フェーズ: ダメ計算 → HP 反映 (Atk-Base 〜 8) ===
-function phaseDealDamage(atkSide, defSide, move){
+// D3-2b(2026-09-11): atkIdx/defIdxは末尾の省略可能引数(既定0=シングル不変)。calcDamageと同じ規約。
+function phaseDealDamage(atkSide, defSide, move, atkIdx, defIdx){
+  atkIdx = atkIdx || 0; defIdx = defIdx || 0;
   // power非依存の特殊ダメージ(一撃必殺/固定ダメージ)を先に処理
   const _e0 = (move.battle_data && move.battle_data.effects) || [];
   // みがわり: この攻撃を分身が受けたかのフラグを毎攻撃リセット(phaseApplyEffectsが追加効果遮断に読む)
-  sides[defSide].subAbsorbed = false;
+  slotOf(defSide, defIdx).subAbsorbed = false;
 
   // もえつきる: 自分が除去対象タイプ(ほのお)でなければ技ごと失敗(Bulbapedia "Burn Up")
   const _typeRemEf = _e0.find(e => e.kind === 'タイプ除去' && e.target === 'self');
-  if (_typeRemEf && !sideTypes(sides[atkSide]).includes(_typeRemEf.value)){
-    log(`8`, `${pname(sides[atkSide])} の ${move.name}！ しかし うまく きまらなかった！`);
+  if (_typeRemEf && !sideTypes(slotOf(atkSide, atkIdx)).includes(_typeRemEf.value)){
+    log(`8`, `${pname(slotOf(atkSide, atkIdx))} の ${move.name}！ しかし うまく きまらなかった！`);
     return { failed: true };
   }
 
@@ -2886,7 +3061,7 @@ function phaseDealDamage(atkSide, defSide, move){
   // タイプ無効(ゴースト×カウンター等)は適用・相性倍率は無視。受けていなければ失敗。
   const counterEf = _e0.find(e => e.kind === '倍返し');
   if (counterEf){
-    const a = sides[atkSide], df = sides[defSide];
+    const a = slotOf(atkSide, atkIdx), df = slotOf(defSide, defIdx);
     if (!a.poke || !df.poke) return null;
     const defTypes = sideTypes(df);
     if (moveTypeEff(move.type, defTypes) === 0){
@@ -2921,7 +3096,7 @@ function phaseDealDamage(atkSide, defSide, move){
   const ohkoEf = _e0.find(e => e.kind === '一撃必殺');
   const fixedEf = _e0.find(e => e.kind === '固定ダメージ');
   if (ohkoEf || fixedEf){
-    const a = sides[atkSide], df = sides[defSide];
+    const a = slotOf(atkSide, atkIdx), df = slotOf(defSide, defIdx);
     if (!a.poke || !df.poke) return null;
     const ignores = (ohkoEf && ohkoEf.ignores_type_matchup) || (fixedEf && fixedEf.ignores_type_matchup);
     const defTypes = sideTypes(df);
@@ -2974,7 +3149,7 @@ function phaseDealDamage(atkSide, defSide, move){
   // 出典: ポケモンWiki「急所」/ Bulbapedia "Critical hit"(第7世代以降の確率表・きゅうしょアップ=+2・高急所技=+1)
   let critRoll = false;
   {
-    const _a = sides[atkSide];
+    const _a = slotOf(atkSide, atkIdx);
     // ピントレンズ: 急所ランク+1(items_database宣言。マジックルーム中は無効)
     const _lens = (!env.magicRoom && _a.item === 'scope_lens') ? 1 : 0;
     // ながねぎ(Leek・段150 M-C仕様書項4): 対象がitems_database.jsのapplies_to_pokemon配列に載っている名前
@@ -2997,7 +3172,7 @@ function phaseDealDamage(atkSide, defSide, move){
       critRoll = _stage >= 3 || Math.random() >= 1 - (_stage === 2 ? 0.5 : 0.125);
     }
     // シェルアーマー(受け側): 急所を無効化(段110)
-    if (critRoll && defAbilityVs(sides[defSide], sides[atkSide]) === 'シェルアーマー') critRoll = false;
+    if (critRoll && defAbilityVs(slotOf(defSide, defIdx), slotOf(atkSide, atkIdx)) === 'シェルアーマー') critRoll = false;
   }
   // ふくろだたき(連続攻撃 hits_by): ひんし・状態異常でない手持ち(自分を含む)1体につき1回攻撃。
   // 各ヒットの威力 = そのメンバーのこうげき種族値÷10+5(第5世代以降)。攻撃実数値・急所は使用者のもの。
@@ -3006,7 +3181,7 @@ function phaseDealDamage(atkSide, defSide, move){
   {
     const _bm = (move.battle_data && move.battle_data.effects || []).find(e => e.kind === '連続攻撃' && e.hits_by);
     if (_bm){
-      const a = sides[atkSide];
+      const a = slotOf(atkSide, atkIdx);
       beatUpPowers = [];
       if (a.poke && !a.fainted && (!a.status || a.status === 'none')) beatUpPowers.push(Math.floor(a.poke.atk / 10) + 5);
       for (const b of (a.bench || [])){
@@ -3023,37 +3198,38 @@ function phaseDealDamage(atkSide, defSide, move){
   // 一旦見送る(deferDisguise)。連続技かどうかの最終判定(hitCount)は下の連続攻撃ブロックで行うが、
   // その判定材料(multiEfの有無・おやこあい発動条件)は先取りできる=同じ条件をここでも見る。
   const _preMultiEf = _e0.find(e => e.kind === '連続攻撃');
-  const _mayParentalBond = !beatUpPowers && !_preMultiEf && sideAbility(sides[atkSide]) === 'おやこあい' &&
+  const _mayParentalBond = !beatUpPowers && !_preMultiEf && sideAbility(slotOf(atkSide, atkIdx)) === 'おやこあい' &&
     move.category !== '変化' && typeof move.power === 'number' && move.power > 0;
   const _mayMultiHit = !!_preMultiEf || _mayParentalBond;
   const result = calcDamage(atkSide, defSide, move,
-    (critRoll || beatUpPowers || _mayMultiHit) ? {crit: critRoll, powerOverride: beatUpPowers ? beatUpPowers[0] : undefined, deferDisguise: _mayMultiHit} : undefined);
+    (critRoll || beatUpPowers || _mayMultiHit) ? {crit: critRoll, powerOverride: beatUpPowers ? beatUpPowers[0] : undefined, deferDisguise: _mayMultiHit} : undefined,
+    atkIdx, defIdx);
   if (!result) return null;
   // たくわえ消費(はきだす): 撃ったら(こうかなしでも)たくわえは消え、上がったランクも戻る
-  if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(sides[atkSide]);
+  if (_e0.some(e => e.kind === 'たくわえ消費')) consumeStockpile(slotOf(atkSide, atkIdx));
   if (result.immune){
     // ばけのかわ(第8世代)は技自体は当たっている(皮が身代わりに剥がれる)ので、無効文の前に
     // 技の使用そのものを告知する(「◯◯の 技！」)。表示側(real_battle/online_battle)がこの行を
     // 拾って予告(ぴょんぴょん)+攻撃演出を出す→そのあとで「ばけのかわが はがれた！」が続く(2026-07-13 阿部さん報告)
-    if (result.disguiseBlock) log('8', `${pname(sides[atkSide])} の ${move.name}！`);
+    if (result.disguiseBlock) log('8', `${pname(slotOf(atkSide, atkIdx))} の ${move.name}！`);
     // reason は完結した無効文(「…」/「）」で終わる)なのでそのまま出す(no_effect_* にマッチ=翻訳される)。
     // ばけのかわのreasonだけ「！」で結ぶ(はがれた演出fx/i18nパターンbl_258が「はがれた！」終わりを前提のため)
     log('8', result.reason + (result.disguiseBlock ? '！' : ''));
     // ばけのかわ(第8世代): 皮が剥がれて最大HPの1/8ダメージ+以後は素通し(2026-07-07 阿部さん)
     if (result.disguiseBlock){
-      const _d = sides[defSide];
+      const _d = slotOf(defSide, defIdx);
       _d.disguise = false;
       _d.disguiseBroken = true;   // 一度剥がれたらバトル中は戻らない(交代で退場しても再生しない=Wiki準拠)
       const _m = realStat(_d, 'hp');
       const _chip = Math.max(1, Math.floor(_m / 8));
       _d.currentHp = Math.max(0, (_d.currentHp == null ? _m : _d.currentHp) - _chip);
       // ばけのかわが肩代わりした攻撃技でも だっしゅつボタン/レッドカードは発動する(Wiki『ばけのかわ…でダメージを肩代わりしたとき…発動する』)
-      markHitItemReactions(sides[atkSide], _d, move);
+      markHitItemReactions(slotOf(atkSide, atkIdx), _d, move);
       log('8', `${pname(_d)} は ばけのかわで ${_chip} ダメージ！ (残HP ${_d.currentHp})`);
     }
     // 吸収特性のおまけ発動(段111・ABILITY_DESC公式準拠): 回復1/4・ランク+1・もらいび=炎強化
     if (result.absorbAb){
-      const _d = sides[defSide];
+      const _d = slotOf(defSide, defIdx);
       const _ab = result.absorbAb;
       if (_ab === 'ちょすい' || _ab === 'ちくでん' || _ab === 'かんそうはだ'){
         const _m = realStat(_d, 'hp');
@@ -3079,7 +3255,7 @@ function phaseDealDamage(atkSide, defSide, move){
     return result;
   }
   const _effs = (move.battle_data && move.battle_data.effects) || [];
-  const atk = sides[atkSide], def = sides[defSide];
+  const atk = slotOf(atkSide, atkIdx), def = slotOf(defSide, defIdx);
 
   // みねうち: このダメージで相手のHPが0になる場合、必ずHPを1残す(すでに1でも1のまま)。
   // 出典: reference/_phaseD_specs_moves.json(Bulbapedia "False Swipe")
@@ -3175,13 +3351,13 @@ function phaseDealDamage(atkSide, defSide, move){
     // (出典: Bulbapedia "Multiscale" — multi-strike moves only get the boost on the hit where HP is still full)。
     // さめはだ/ゴツメ反動は元々ヒットループ側で別途per-hit計算されており、この変更の影響を受けない。
     const _hitRes = (beatUpPowers && h > 0)
-      ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: beatUpPowers[h]}) || result)
+      ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: beatUpPowers[h]}, atkIdx, defIdx) || result)
       : (_pph && h > 0 && _pph[h] != null)
-      ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: _pph[h]}) || result)
+      ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: _pph[h]}, atkIdx, defIdx) || result)
       : (_parentalBond && h === 1)
-      ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: Math.max(1, Math.floor(move.power * 0.25))}) || result)
+      ? (calcDamage(atkSide, defSide, move, {crit: critRoll, powerOverride: Math.max(1, Math.floor(move.power * 0.25))}, atkIdx, defIdx) || result)
       : (h > 0)
-      ? (calcDamage(atkSide, defSide, move, {crit: critRoll}) || result)
+      ? (calcDamage(atkSide, defSide, move, {crit: critRoll}, atkIdx, defIdx) || result)
       : result;
     let v = _hitRes.variations[Math.floor(Math.random() * _hitRes.variations.length)];
     // みがわり: 分身がダメージを肩代わり(超過分は消える)。連続攻撃で分身がこわれたら残りは本体に当たる
@@ -4169,10 +4345,12 @@ function noteActionFailed(atk){
   disruptRampage(atk);
 }
 
-function phaseApplyEffects(atkSide, defSide, move){
+// D3-2b(2026-09-11): atkIdx/defIdxは末尾の省略可能引数(既定0=シングル不変)。calcDamageと同じ規約。
+function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
+  atkIdx = atkIdx || 0; defIdx = defIdx || 0;
   if (!move || !move.battle_data || !move.battle_data.effects) return;
-  const atk = sides[atkSide];
-  const def = sides[defSide];
+  const atk = slotOf(atkSide, atkIdx);
+  const def = slotOf(defSide, defIdx);
   // すてゼりフ型(変化技・相手ランク低下+自分交代)の第7世代以降判定用: 防御側のatk/spatkランク和を記憶。
   // 第7世代以降は『ランク低下を全て防がれた/1段階も下がらなかった』場合に交代しない(下の自分交代処理で参照)。
   const _defAtkSpaBefore = (def.rank.atk || 0) + (def.rank.spatk || 0);
@@ -4411,6 +4589,10 @@ function phaseApplyEffects(atkSide, defSide, move){
           aquaRing: !!atk.aquaRing,                  // アクアリングも引き継ぐ(第9世代表○)
           magnetRise: atk.magnetRise || 0,           // でんじふゆうも引き継ぐ(第9世代表○)
         };
+        // ★未確認・残した箇所(D3-2の対象外): attemptSwitchは側単位(枠は対応しない=交代のslot対応はD4送り)。
+        // ダブルfixtureでatkIdx>=1のバトンタッチ(自分交代)が来ると、attemptSwitchはsides[atkSide]
+        // (=枠0)を書き換えてしまい、atkIdx側の枠には反映されない=既知の穴(fixtureテストは
+        // バトンタッチを対象にしないため未検出のまま残す)。
         if (attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true})){
           const inSt = sides[atkSide];
           inSt.rank = passed.rank;
@@ -7306,25 +7488,28 @@ function aiChooseAction(sideKey){
 function runTurn(){
   ensureBattleState();
   pushHistory();
-  // ひるみはそのターン限り → ターン開始でクリア(このターン中に先攻が後攻へ付与する)
-  slotOf('self', 0).flinched = false; slotOf('opp', 0).flinched = false;
-  // まもる系・こらえるもそのターン限り → ターン開始でクリア(連続成功カウントは持ち越す)
-  slotOf('self', 0).protecting = null; slotOf('opp', 0).protecting = null;
-  slotOf('self', 0).enduring = false; slotOf('opp', 0).enduring = false;
-  // マジックコート(Phase D B2)の跳ね返し構えもそのターン限り → ターン開始でクリア
-  slotOf('self', 0).magicCoatTurn = false; slotOf('opp', 0).magicCoatTurn = false;
-  // よこどり(Snatch)の横取りの構えもそのターン限り → ターン開始でクリア
-  slotOf('self', 0).snatchArmed = false; slotOf('opp', 0).snatchArmed = false;
-  // そうでん(技タイプ変更)もそのターン限り → ターン開始でクリア
-  slotOf('self', 0).electrified = null; slotOf('opp', 0).electrified = null;
-  // はねやすめ(タイプ一時無効)もそのターン限り → ターン開始でクリア
-  slotOf('self', 0).typeSuppressed = null; slotOf('opp', 0).typeSuppressed = null;
-  // 「このターン受けたダメージ」(倍返し用)もターン開始でリセット
-  slotOf('self', 0).tookThisTurn = {phys:0, spec:0, any:0};
-  slotOf('opp', 0).tookThisTurn = {phys:0, spec:0, any:0};
-  // 「このターン行動済み」(しっぺがえし用)もターン開始でリセット
-  slotOf('self', 0).movedThisTurn = false;
-  slotOf('opp', 0).movedThisTurn = false;
+  // D3-2a(2026-09-11): ターン開始の枠揮発リセットをactiveSlots()で全枠回す形に一般化。
+  // シングル(slotsPerSide=1)はactiveSlots()===[{self,0},{opp,0}]で今と同じ2件・同じ代入内容
+  // (単純な=false/null/{..}代入は順序に依存しない=挙動不変)。ダブルfixtureの2枠目もここで初期化される。
+  activeSlots().forEach(({st}) => {
+    // ひるみはそのターン限り → ターン開始でクリア(このターン中に先攻が後攻へ付与する)
+    st.flinched = false;
+    // まもる系・こらえるもそのターン限り → ターン開始でクリア(連続成功カウントは持ち越す)
+    st.protecting = null;
+    st.enduring = false;
+    // マジックコート(Phase D B2)の跳ね返し構えもそのターン限り → ターン開始でクリア
+    st.magicCoatTurn = false;
+    // よこどり(Snatch)の横取りの構えもそのターン限り → ターン開始でクリア
+    st.snatchArmed = false;
+    // そうでん(技タイプ変更)もそのターン限り → ターン開始でクリア
+    st.electrified = null;
+    // はねやすめ(タイプ一時無効)もそのターン限り → ターン開始でクリア
+    st.typeSuppressed = null;
+    // 「このターン受けたダメージ」(倍返し用)もターン開始でリセット
+    st.tookThisTurn = {phys:0, spec:0, any:0};
+    // 「このターン行動済み」(しっぺがえし用)もターン開始でリセット
+    st.movedThisTurn = false;
+  });
   // 「前ターンの失敗」(じだんだ用)を確定し、今ターン分をリセット
   activeSides().forEach(s => {
     sides[s].lastTurnFailed = !!sides[s].failedThisTurn;
@@ -7356,21 +7541,32 @@ function runTurn(){
   // ③ メガシンカ(Init-B): 交代の後・技フェーズの直前(実機リファレンス)。予約(megaChoice)があれば変身
   activeSides().forEach(s => { if (sides[s].megaChoice) megaEvolve(s); });
   // 交代した側はこのターン技を出さない(交代して出されたポケモンは次のターンまで行動できない)
-  const selfMove = slotOf('self', 0).switchedThisTurn ? null : slotOf('self', 0).moves[slotOf('self', 0).selectedMoveIdx];
-  const oppMove  = slotOf('opp', 0).switchedThisTurn ? null : slotOf('opp', 0).moves[slotOf('opp', 0).selectedMoveIdx];
-  // 行動順(D2-c・2026-09-10): buildOrderDecision(decideOrderの隣)で純粋scheduler(battle_scheduler.js)へ
-  // 接続する。runTurnはisPresentを実体化(sides[side].poke && !fainted && presenceEpoch一致)して渡す。
-  // ★1回目のnext()呼び出し(=下のfirstSide決定)の時点ではまだ誰も行動していない=両側は生存・在場前提
-  // (runTurn呼び出し自体が両側生存を前提にしている既存の不変条件)なので、isPresent=true固定だった
+  const selfMove = moveOfSlot('self', 0);
+  const oppMove  = moveOfSlot('opp', 0);
+  // 行動順(D2-c・2026-09-10 / D3-2a・2026-09-11): buildOrderDecision(decideOrderの隣)で純粋scheduler
+  // (battle_scheduler.js)へ接続する。runTurnはisPresentを実体化(sides[side].poke && !fainted &&
+  // presenceEpoch一致)して渡す。
+  // ★1回目のnext()呼び出し(=下のfirstAct決定)の時点ではまだ誰も行動していない=在場する全枠は生存・在場
+  // 前提(runTurn呼び出し自体が両側生存を前提にしている既存の不変条件)なので、isPresent=true固定だった
   // D2-aの決定と同じ結果になる(ゲート全部+stdout diff 0で確認)。実体化が実際に効くのは2回目以降の
   // next()呼び出し(下の実行ループの中。例: 先攻の一撃で後攻がひんしになった時に後攻の行動をscheduler側で
   // 自動キャンセルする=movedThisTurn/actedAfterTargetも設定されない。旧実装は継続doneのfor文でも
   // atk.fainted継続で無言スキップだったため、いずれもログ・数値上の可観測差は無い)だけ。
-  const _decision = buildOrderDecision(selfMove, oppMove, (actorId, epoch) => {
-    const side = actorId.split(':')[0];
-    const st = sides[side];
-    return !!(st.poke && !st.fainted && st.presenceEpoch === epoch);
-  });
+  // D3-2a: slotsPerSide<=1(シングル)は既存のbuildOrderDecision(selfMove/oppMove専用・2本のIntent)を
+  // 一切変えず使う(絶対条件=外から見て不変)。slotsPerSide>=2(ダブルfixture)だけ、下の
+  // buildOrderDecisionSlots(activeSlots()ベース・最大4本のIntent)を使う=シングルの経路には触れない。
+  const _isSingleFormat = (battle.format.slotsPerSide || 1) <= 1;
+  const _decision = _isSingleFormat
+    ? buildOrderDecision(selfMove, oppMove, (actorId, epoch) => {
+        const side = actorId.split(':')[0];
+        const st = sides[side];
+        return !!(st.poke && !st.fainted && st.presenceEpoch === epoch);
+      })
+    : buildOrderDecisionSlots(moveOfSlot, (actorId, epoch) => {
+        const parts = actorId.split(':');   // side:idx:epoch(D3-2a指定の形式)
+        const st = slotOf(parts[0], Number(parts[1]));
+        return !!(st && st.poke && !st.fainted && st.presenceEpoch === epoch);
+      });
   const sched = _decision.sched;
   const _firstAct = sched.next();
   const firstSide = _firstAct.sideId;
@@ -7378,7 +7574,8 @@ function runTurn(){
   // 先攻になった理由をログに出す(優先度 or すばやさ or トリックルーム or 同速ランダム)
   // ★両者が技を出すターンだけ(2026-07-11 阿部さんFB): 交代などで片方しか行動しないターンは
   // 先攻も後攻もない(交代側は技を出さない)し、「先攻: 交代で出た子」はすばやさ情報のリークにもなる→出さない。
-  if (selfMove && oppMove){
+  // D3-2a: 「先攻: ◯◯」はシングルの時だけ今の文言(ダブルの文言はD5=UIで決める。今はダブルでは出さない)。
+  if (_isSingleFormat && selfMove && oppMove){
     const fMove = firstSide === 'self' ? selfMove : oppMove;
     const sMove = secondSide === 'self' ? selfMove : oppMove;
     const fp = movePriority(fMove, sides[firstSide]), sp = movePriority(sMove, sides[secondSide]);
@@ -7405,16 +7602,28 @@ function runTurn(){
     const _schedAct = extra.length ? extra.shift() : sched.next();
     if (!_schedAct) break;
     const isExtraAct = !!_schedAct.__extra;
-    const a = isExtraAct ? _schedAct : { side: _schedAct.sideId, opp: (_schedAct.sideId === 'self' ? 'opp' : 'self'), move: _schedAct.executionMove };
-    const atk = sides[a.side];
-    const def = sides[a.opp];
+    const a = isExtraAct ? _schedAct : { side: _schedAct.sideId, opp: (_schedAct.sideId === 'self' ? 'opp' : 'self'), move: _schedAct.executionMove, slotIdx: _schedAct.slotId };
+    // D3-2a: atk = slotOf(a.side, a.slotIdx)(枠単位)。extra(さいはい等)にslotIdxが無い旧呼び出し形は
+    // 0にフォールバック(シングル/既存の追加実行はslotIdx=0のまま=挙動不変)。
+    const slotIdx = a.slotIdx != null ? a.slotIdx : 0;
+    const atk = slotOf(a.side, slotIdx);
+    // D3-2b: defはtarget_lockで確定する(下の_noTgtチェック直前で再解決)。ここでは今までどおりの
+    // 既定値(相手側の正面=同slotIdxの枠)を入れておく(シングルはこの値のまま最後まで変わらない=不変)。
+    let def = slotOf(a.opp, slotIdx);
+    let defIdx = slotIdx;
+    let defSideKey = a.opp;
     // 行動枠の消費を記録(しっぺがえし=行動順ベース。ねむり等で不発でも枠は先に過ぎた扱い)
     atk.movedThisTurn = true;
     // フォーカスレンズ(Zoom Lens)用: 相手(a.opp)が既にこのターン行動を終えているか(D2-c・行動順再評価§3。
     // 旧実装は a===order[1](後攻固定枠)での判定だったが、schedulerのIntent単位のhasActedに置き換える。
     // 1vs1で追加実行が無いターンは今と同値=先攻はfalse・後攻はtrue)。
     // 出典: items_database『相手より遅く攻撃したとき技の命中率が1.2倍になる』。
-    atk.actedAfterTarget = sched.hasActed(_decision.intents[a.opp].actorId);
+    // D3-2a: ダブルfixtureは_decision.intentsが{side:idx}複合キー(buildOrderDecisionSlots)なので、
+    // シングルと同じ'側だけ'キーでは引けない。ここは正面枠(同slotIdx)基準の近似値で妥協する
+    // (フォーカスレンズはfixtureテストの対象外・未確認として残す=真の対象はtarget_lock確定後でないと分からない)。
+    const _oppIntentKey = _isSingleFormat ? a.opp : (a.opp + ':' + slotIdx);
+    const _oppIntent = _decision.intents[_oppIntentKey];
+    atk.actedAfterTarget = _oppIntent ? sched.hasActed(_oppIntent.actorId) : false;
     if (atk.fainted) continue;   // ひんしスキップは無言(実機準拠=2026-07-11 阿部さん)
     // 交代した側はこのターンの行動を消費済み(技を出さない)
     if (atk.switchedThisTurn) continue;
@@ -7535,6 +7744,27 @@ function runTurn(){
     if (_userOnlyEf && atk.poke && atk.poke.name !== _userOnlyEf.value){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
       noteActionFailed(atk); continue;
+    }
+    // D3-2b(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.2/§4.3): ダブルfixtureだけ、ここでtarget_lockを
+    // 確定してdef/defIdx/defSideKeyを上書きする。シングルはdefが常に「相手側の正面(同slotIdx)」のまま
+    // (このifが実行されない)=不変。判定はmv.category(物理/特殊/変化)でなくTARGET_KINDSのcandidatesで
+    // 行う(味方1体/自分か味方は変化技だが対象解決が要る=物理/特殊と同じ扱いにする)。
+    // ★既知の未実装(残した箇所): 味方(ally)を対象にした効果の「成功時の適用」はphaseApplyEffectsの
+    // 既存コード(`if (ef.target==='ally') continue;`=1vs1前提のハードコード)がまだ握りつぶす。
+    // ここで直すのはtarget_lockの対象解決(成功/失敗の判定)だけ=D3-2cのfixtureテストは「失敗ログが出るか」
+    // だけを見る(味方が生きている場合の実際の効果適用はD4で phaseApplyEffects 側を直す)。
+    const _tgtKind = TARGET_KINDS[mv.target];
+    const _needsTargetLock = _tgtKind && (_tgtKind.candidates === 'foes_ally' || _tgtKind.candidates === 'ally' || _tgtKind.candidates === 'self_ally');
+    if (!_isSingleFormat && _needsTargetLock){
+      const _tgt = targetLock(a.side, slotIdx, mv, isExtraAct ? null : (_schedAct.targetChoice || null));
+      if (_tgt === null){
+        // 味方1体/自分か味方で、選んでいた味方が既に居ない=fail(#26)。既存の汎用失敗文言を使う。
+        log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+        noteActionFailed(atk); continue;
+      }
+      def = slotOf(_tgt.side, _tgt.idx);
+      defIdx = _tgt.idx;
+      defSideKey = _tgt.side;
     }
     // ★対象がひんしでいない技は不発(反動死などで先に相手が倒れた時の後攻=Bulbapedia "But there was no target")。
     // 自分/場を対象にする変化技(つるぎのまい・ステルスロック等)はそのまま出せる。
@@ -7788,14 +8018,16 @@ function runTurn(){
         noteActionFailed(atk);
       } else {
         log('0c', `${pname(atk)} は ${mv.name}！ ${pname(def)} は しじに したがい もういちど ${_lm.name} を つかう！`);
-        extra.push({side: a.opp, move: _lm, opp: a.side, __extra: true});   // D2-c: 追加実行はscheduler本体に登録しない別経路
+        // D3-2a: 追加実行(さいはい)のslotIdxはdefIdx(このブロックはtarget_lock対象外=常に正面)を渡す。
+        extra.push({side: a.opp, move: _lm, opp: a.side, __extra: true, slotIdx: defIdx});   // D2-c: 追加実行はscheduler本体に登録しない別経路
       }
       continue;
     }
     if (mv.category === '変化'){
       log('9', `${pname(atk)} は ${mv.name} を使った！`);
-      // 変化技でも状態異常付与だけは適用（おにび等）
-      phaseApplyEffects(a.side, a.opp, mv);
+      // 変化技でも状態異常付与だけは適用（おにび等）。D3-2b: 変化技はtarget_lock対象外=defSideKey/defIdxは
+      // 既定値(相手側の正面)のまま=シングルと同じ(a.opp, slotIdx)。
+      phaseApplyEffects(a.side, defSideKey, mv, slotIdx, defIdx);
       // おきみやげ/いやしのねがい=成功した時だけ自滅(失敗ゲートが noteActionFailed を立てた時は倒れない)
       if (_selfKO && !atk.failedThisTurn) applySelfFaint(atk);
       applyThroatSpray(atk, def, mv, null);   // のどスプレー(Phase D B3): 音の変化技でも成功時に発動
@@ -7803,13 +8035,14 @@ function runTurn(){
       resolveEjectPack('self'); resolveEjectPack('opp');   // だっしゅつパック(Phase D B3)
       continue;
     }
-    // ダメ計算とHP適用
-    const dmgRes = phaseDealDamage(a.side, a.opp, mv);
+    // ダメ計算とHP適用。D3-2b: defSideKey/defIdxはtarget_lockで確定した対象(シングルはa.opp/slotIdxのまま=不変)。
+    const dmgRes = phaseDealDamage(a.side, defSideKey, mv, slotIdx, defIdx);
     // レッドカード/だっしゅつボタン(段150 M-C仕様書項6/7): 被弾直後・P13c(自分交代=とんぼがえり等)の前に解決。
     // 同時成立時はレッドカード→だっしゅつボタンの順で固定(近似。報告に明記)。
+    // ★未確認(D3-2・残した箇所): レッドカード/だっしゅつボタンは側単位のまま(枠は対応しない=D4送り)。
     resolveRedCard(a.opp, a.side); resolveEjectButton(a.opp);
     // ★追加効果は「技が当たった」時だけ発動。こうかなし(タイプ無効)や計算不可なら発動しない(全技共通)。
-    if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, a.opp, mv);
+    if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, defSideKey, mv, slotIdx, defIdx);
     // なげつける: 命中時(守り貫通/KO問わず)に持ち物を消費。食べた扱いにしない=lastConsumedItemには入れない。
     // 出典: Bulbapedia "Fling" = 投げた道具はなくなる(守りで防がれても消費)
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === 'なげつける') && atk.item){
