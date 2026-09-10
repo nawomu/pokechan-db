@@ -28,7 +28,7 @@ async function gql(q) {
       pokemon_v2_itemattributemaps{ pokemon_v2_itemattribute{ name } }
       pokemon_v2_itemnames{ name pokemon_v2_language{ name } }
       pokemon_v2_itemeffecttexts(where:{pokemon_v2_language:{name:{_eq:"en"}}}){ short_effect effect }
-      pokemon_v2_itemflavortexts(where:{pokemon_v2_language:{name:{_in:["ja","en"]}}},order_by:{version_group_id:desc}){ flavor_text pokemon_v2_language{ name } pokemon_v2_versiongroup{ name generation_id } }
+      pokemon_v2_itemflavortexts(where:{pokemon_v2_language:{name:{_in:${JSON.stringify(LANGS)}}}},order_by:{version_group_id:desc}){ flavor_text pokemon_v2_language{ name } pokemon_v2_versiongroup{ name generation_id } }
       pokemon_v2_itemgameindices(order_by:{generation_id:asc}){ generation_id }
       pokemon_v2_itemflingeffect{ name }
     } }`;
@@ -51,6 +51,7 @@ async function gql(q) {
         names,
         effect_en: eff.short_effect || null, effect_en_long: eff.effect || null,
         flavor_ja: flavor.ja || null, flavor_en: flavor.en || null,
+        flavor,   // ★2026-09-10: 9言語のフレーバー文(i18n辞書の効果文が空の時の公式出典。レギュM-C追加どうぐ12件で必要になった)
         gen_introduced: gi.length ? gi[0] : (flavor.ja ? flavor.ja.gen : (flavor.en ? flavor.en.gen : null)),
         gen_introduced_source: gi.length ? 'game_indices' : (flavor.ja || flavor.en ? 'flavor_text_version_group' : null),
       };
@@ -62,7 +63,7 @@ async function gql(q) {
   const holdable = Object.values(out).filter(x => x.holdable).length;
   const res = { what: 'PokeAPI 全どうぐの生データ(裏溜め・中間ファイル。masterではない)', fetched: new Date().toISOString().slice(0, 10),
     source: 'https://beta.pokeapi.co/graphql/v1beta pokemon_v2_item', count: total, holdable_count: holdable,
-    note: 'holdable=attributes に holdable/holdable-active/holdable-passive のいずれかを持つ。names=9言語(ja-Hrktは除外)。flavor_*=言語ごとに最新version_groupの1本。gen_introduced=item_game_indices の最小 generation(無ければフレーバー文のVG世代=印 gen_introduced_source)。',
+    note: 'holdable=attributes に holdable/holdable-active/holdable-passive のいずれかを持つ。names=9言語(ja-Hrktは除外)。flavor_*=言語ごとに最新version_groupの1本。flavor=9言語分(2026-09-10〜・i18n辞書の効果文の公式出典)。gen_introduced=item_game_indices の最小 generation(無ければフレーバー文のVG世代=印 gen_introduced_source)。',
     items: out };
   fs.writeFileSync(path.join(ROOT, 'reference/_pokeapi_items_raw.json'), JSON.stringify(res, null, 1));
   console.log(`\nreference/_pokeapi_items_raw.json: ${total} 件(holdable ${holdable})`);

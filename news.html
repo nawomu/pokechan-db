@@ -126,9 +126,9 @@ table tr:nth-child(2n){background:#fafbfd}
 </div>
 </div>
 
-<!-- レギュMB -->
+<!-- 現行レギュの開幕カード(レギュ名/日付/期間/中身は全部 master から。2026-09-10 M-B固定文言を撤去) -->
 <div class="news-card" id="news-mb">
-<div class="news-date">2026-06-19 <span data-i18n="news.card1_date">更新 / 期間:</span> <span data-i18n="news.card1_period_dates">2026-06-17(水) 〜 2026-09-09(水) 10:59</span></div>
+<div class="news-date"><span id="mb-date" data-i18n-audit-skip>—</span> <span data-i18n="news.card1_date">更新 / 期間:</span> <span id="mb-period" data-i18n-audit-skip>—</span></div>
 <h2 class="news-title">🆕 <span id="mb-title" data-i18n="news.card1_title">レギュレーション M-B 開幕 — 38ポケモン+8技+27持ち物 追加!</span></h2>
 <div class="news-body">
 
@@ -252,6 +252,9 @@ table tr:nth-child(2n){background:#fafbfd}
     PokeDB.ready.then(() => {
       const cur = PokeDB.regulation();
       if (!cur) return;
+      // ★2026-09-10 レギュ切替(M-B→M-C): このカードは「現行レギュ」の開幕カード。日付/期間/レギュ名は全部 master(regulations) から(文字を直書きしない)
+      const dateEl = document.getElementById('mb-date'); if (dateEl) dateEl.textContent = String(cur.start_jst || '').slice(0, 10);
+      const perEl = document.getElementById('mb-period'); if (perEl) perEl.textContent = (cur.start_jst || '') + ' 〜 ' + (cur.end_jst || '');
       const pk = PokeDB.allPokemon().filter((x) => x.champions_added_in === cur.id);
       const mega = pk.filter((x) => /^メガ/.test(x.name)), normal = pk.filter((x) => !/^メガ/.test(x.name));
       fill('poke-normal', normal.map((x) => x.name), (x) => I18N.pokemon(x), 'new');
@@ -278,11 +281,13 @@ table tr:nth-child(2n){background:#fafbfd}
           tr.appendChild(td(m.power == null ? '—' : String(m.power)));
           tr.appendChild(td(m.accuracy == null ? '—' : String(m.accuracy)));
           tr.appendChild(td(m.pp == null ? '—' : String(m.pp)));
-          tr.appendChild(td(I18N.moveDesc(key, m.description) || m.description || '')); // 効果文=master description(compose生成)を辞書で翻訳
+          const descTr = I18N.moveDesc(key, m.description);
+          // 効果文=master description(compose生成)を辞書で翻訳。訳がまだ無い技(全国版から新しくChampions入りした技)は意図的にjaを出す(監査除外)=翻訳は後工程(i18n技説明の追加)
+          tr.appendChild(td(descTr || m.description || '', !descTr || descTr === m.description));
           body.appendChild(tr);
         });
       }
-      setCount('mb-title',          'news.card1_title',          'レギュレーション M-B 開幕 — {p}ポケモン+{m}技+{i}持ち物 追加!', { p: pk.length, m: moves.length, i: items.length });
+      setCount('mb-title',          'news.card1_title',          'レギュレーション {reg} 開幕 — {p}ポケモン+{m}技+{i}持ち物 追加!', { reg: cur.id, p: pk.length, m: moves.length, i: items.length });
       setCount('mb-h-pokemon',      'news.section_pokemon',      '追加ポケモン {n}体',   { n: pk.length });
       setCount('mb-l-normal',       'news.label_normal_pokemon', '通常ポケモン {n}体',   { n: normal.length });
       setCount('mb-l-mega',         'news.label_mega_pokemon',   'メガシンカポケモン {n}体', { n: mega.length });

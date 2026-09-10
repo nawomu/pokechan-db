@@ -508,6 +508,11 @@ function buildItems() {
       const f = fx[it.name];
       if (!f) return;
       ['name_en', 'category', 'effect_ja', 'champions_added_in'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
+      // ★2026-09-10 レギュM-C本番反映: 全国版の暫定行(PokeAPI由来)がChampionsのショップに追加された時、
+      //   fixes から champions/入手/備考/出典を上書きできるようにする(凍結スナップショットには無い行=fixes以外に入口が無い)。
+      //   champions を立てたら regulation は現行の内容先(REGULATION)に揃える(行の構築時と同じ規則)。
+      ['acquisition', 'acquisition_note', 'notes', 'source', 'effect_house'].forEach(k => { if (f[k] != null) it[k] = f[k]; });
+      if (f.champions != null) { it.champions = !!f.champions; it.regulation = it.champions ? REGULATION : null; }
     });
     // ★退役(2026-09-06): fixes[name].retired=true の行は master から外す(第1号=『メガストーン (汎用)』=実在しない代表行・阿部さん「もういらない」)。
     //   消す根拠は fixes の basis に残す。実在の道具は退役させない(R10=廃止でも消さない、はデータが実在する物の話)。
@@ -601,6 +606,23 @@ function buildItems() {
     });
     console.log(`  ↳ items: PokeAPI生データと突き合わせ 既存行の空欄を埋めた=${itemsPokeapiFilled} / 全世代の持てる道具を追加=${itemsPokeapiAdded}`);
   } catch (e) { console.log('  ⚠ items: reference/_pokeapi_items_raw.json 無し(器を広げる工程をスキップ): ' + e.message); }
+
+  // ★2026-09-10 レギュM-C本番反映: PokeAPI暫定で足した行(エレキシード等)がChampionsのショップに来た時、上の fixes 適用は
+  //   その行がまだ無い時点で走っている(順序)。器を広げた後にもう一度 fixes を当てる(同じ規則・同じ入口=二重管理しない)。
+  //   欄と provisional_fields: fixes で埋めた欄は「暫定」ではなくなるので印から外す(['all'] の行は fixes の欄名だけ除く=残りは暫定のまま)。
+  try {
+    const fx = J('reference/_items_fixes.json').fixes || {};
+    const FIX_FIELDS = ['name_en', 'category', 'effect_ja', 'champions_added_in', 'acquisition', 'acquisition_note', 'notes', 'source', 'effect_house'];
+    items.forEach(it => {
+      const f = fx[it.name]; if (!f || it.source !== 'pokeapi_provisional') return;   // 既存行は上で適用済み
+      FIX_FIELDS.forEach(k => { if (f[k] != null) it[k] = f[k]; });
+      if (f.champions != null) { it.champions = !!f.champions; it.regulation = it.champions ? REGULATION : null; }
+      if (Array.isArray(it.provisional_fields) && it.provisional_fields.includes('all')) {
+        const fixed = new Set(Object.keys(f).filter(k => k !== 'basis' && f[k] != null));
+        it.provisional_fields = ['pokeapi_id', 'pokeapi_slug', 'names', 'cost', 'fling_power', 'gen_introduced', 'category_pokeapi', 'pocket', 'effect_en', 'flavor_ja', 'flavor_en'].filter(k => !fixed.has(k));
+      }
+    });
+  } catch (e) {}
 
   // ★R1(2026-09-03): seasons=そのアイテムが「現行/次」のどちらのレギュで使えるか(ポケモンの seasons と同じ模様)。
   //   champions:true の行だけ持つ(非Championsは器の範囲外なのでレギュの概念が無い=[])。

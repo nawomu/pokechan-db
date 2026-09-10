@@ -70,6 +70,11 @@ const ITEMS_FIELD_ALLOWLIST = new Set(['name_en', 'mega_ability', 'mega_target_e
 //   master/items.json(slug→champions)を直接引く(items_database.js は master 由来なので slug=key で一致)。
 // (k) B-3(2026-09-04) pokeapi_slug 補完の照合先(PokeAPI 全どうぐの生データ・中間ファイル)
 const POKEAPI_ITEMS_RAW = (() => { try { return J('reference/_pokeapi_items_raw.json').items || {}; } catch (e) { return {}; } })();
+// (j') 終了レギュ(名簿が reference/_official_rosters/ に在るもの)。added_in の値がここに在れば「実在したレギュで初登場」の印として残す。
+const PAST_REGS = (() => { try { return new Set(fs.readdirSync(path.join(ROOT, 'reference/_official_rosters')).filter(f => f.endsWith('.json')).map(f => f.replace(/\.json$/, ''))); } catch (e) { return new Set(); } })();
+// (m) _items_fixes.json の根拠つき上書き欄
+const ITEMS_FIXES = (() => { try { return J('reference/_items_fixes.json').fixes || {}; } catch (e) { return {}; } })();
+const ITEMS_FIXES_FIELDS_ALLOWED = new Set(['acquisition', 'acquisition_note', 'notes', 'effect_ja', 'effect_house', 'category']);
 const MASTER_ITEMS_CHAMPIONS_BY_KEY = (() => {
   const m = new Map();
   try { J('master/items.json').items.forEach(it => { if (it.slug) m.set(it.slug, it.champions === true); }); } catch (e) {}
@@ -272,6 +277,21 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
         report.allowlisted.push({ entity: label, key: k, field: f, reason: '(j) R1 items に added_in 列を新設(値∈現行/次)' });
         return;
       }
+      // (j') レギュ切替(2026-09-10 M-B→M-C): added_in=初登場レギュの印は、そのレギュが終わって seasons から外れても消さない
+      //   (R4は seasons を「現行+次」に絞る規則で、added_in=事実の記録は別)。許すのは名簿が reference/_official_rosters/<REG>.json に在る=実在した終了レギュだけ。
+      if (label === 'items' && f === 'added_in' && lv === undefined && typeof nv === 'string' && PAST_REGS.has(nv)) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: `(j') 終了レギュ ${nv} で初登場した印(名簿 _official_rosters/${nv}.json 在り・R4で seasons からは外れる)` });
+        return;
+      }
+      // (m) レギュM-C本番反映(2026-09-10): reference/_items_fixes.json に basis(根拠)つきで書いた欄(入手/備考/効果文)の上書きは監査確定として許す。
+      //   許すのは「その道具名の fixes にその欄があり、値が一致し、basis が空でない」時だけ(fixes 以外の経路で変わった差は通さない)。
+      if (label === 'items' && ITEMS_FIXES_FIELDS_ALLOWED.has(f)) {
+        const nm = String((newByKey.get(k) || {}).name || ''); const fxRow = ITEMS_FIXES[nm];
+        if (fxRow && fxRow.basis && fxRow[f] !== undefined && eq(fxRow[f], nv)) {
+          report.allowlisted.push({ entity: label, key: k, field: f, reason: '(m) _items_fixes.json の根拠つき上書き(レギュM-C本番反映 2026-09-10)' });
+          return;
+        }
+      }
       //   season=全要素がLIVE_REGSの部分集合、かつ非Championsの行(master/items.json champions===false)は[]のはず(足さない)。
       if (label === 'items' && f === 'season' && lv === undefined && Array.isArray(nv)
           && nv.every(v => LIVE_REGS.includes(v))
@@ -401,6 +421,13 @@ function main() {
   const pkAdd = new Set(J('reference/_pokemon_additions.json').items.map(x => zen2han(x.name)));
   const itAddRaw = J('reference/_items_additions.json').items;
   const itAdd = new Set(itAddRaw.map(x => zen2han(x.slug || x.name)).concat(itAddRaw.map(x => zen2han(x.name))));
+  // (m') レギュM-C本番反映(2026-09-10): 全国版の暫定行(PokeAPI由来・master に元から在る)が _items_fixes.json の champions:true(根拠つき)で
+  //   Championsビューに昇格した行は additions.json ではなく fixes が入口。slug は master/items.json から引く(fixes のキーは道具名)。
+  try {
+    const fxi = J('reference/_items_fixes.json').fixes || {};
+    const slugByName = new Map(); J('master/items.json').items.forEach(it => { if (it.slug) slugByName.set(it.name, it.slug); });
+    Object.keys(fxi).forEach(n => { if (fxi[n].champions === true && fxi[n].basis && slugByName.has(n)) { itAdd.add(zen2han(slugByName.get(n))); itAdd.add(zen2han(n)); } });
+  } catch (e) {}
   const abAdd = new Set(J('reference/_abilities_additions.json').items.map(x => zen2han(x.name)));
   // ★2026-09-01発見: pokemon_all/pokemon_champions は additions.json(19件・段Cが直接扱った当日分)より
   //   広い master-only 集合を持つ(棚卸しドキュメント記載の「champions_authority 37 / ours_national 10 /

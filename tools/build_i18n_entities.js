@@ -88,6 +88,15 @@ function mergeEntries(existing, incoming) {
     } else if (OVERWRITE) {
       merged[key] = val;
       updated++;
+    } else if (val && typeof val === 'object' && merged[key] && typeof merged[key] === 'object') {
+      // ★2026-09-10: 既存の項目でも「空文字/null の欄」だけは入ってきた値で埋める(上書きではなく空埋め。
+      //   例: レギュM-C追加どうぐの effect が7言語で '' だった→PokeAPI公式フレーバー文で埋まる)。非空の既存値は必ず残す。
+      let filled = false;
+      for (const [f, v] of Object.entries(val)) {
+        const cur = merged[key][f];
+        if ((cur === '' || cur == null) && v !== '' && v != null) { merged[key] = Object.assign({}, merged[key], { [f]: v }); filled = true; }
+      }
+      if (filled) updated++;
     }
   }
   return { merged, added, updated };
@@ -285,9 +294,12 @@ for (const lang of TARGET_LANGS) {
       // effect: master には effect_en が無い(effect_ja/effect_house のみ)。
       // 既存訳は保持、新規は en だけ PokeAPI の flavor_en(既存 en 辞書と同じ流儀)、他言語は空文字
       // (でっち上げ禁止=機械翻訳しない)。
-      let effect = (existingEntry && typeof existingEntry.effect === 'string')
+      // ★2026-09-10: 既存訳が空文字の時も含め、PokeAPI の公式フレーバー文(9言語・reference/_pokeapi_items_raw.json .flavor[lang])で埋める
+      //   (M-B追加品と同じ出典。機械翻訳しない=公式文が無ければ空のまま)。レギュM-C追加どうぐ12件で必要になった。
+      const papiFlavor = papi && papi.flavor && papi.flavor[lang] && papi.flavor[lang].text ? papi.flavor[lang].text : '';
+      let effect = (existingEntry && typeof existingEntry.effect === 'string' && existingEntry.effect)
         ? existingEntry.effect
-        : (lang === 'en' && papi && papi.flavor_en && papi.flavor_en.text ? papi.flavor_en.text : '');
+        : (papiFlavor || (lang === 'en' && papi && papi.flavor_en && papi.flavor_en.text ? papi.flavor_en.text : ''));
       incomingItems[ja] = { name, effect };
     }
   }
