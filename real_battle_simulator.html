@@ -2436,6 +2436,8 @@ function activeSides(){ return ['self', 'opp']; }
 // ★今はまだ呼び出し箇所を増やさない(instruction通り・D3-2以降で使う)。
 function activeSlots(){
   return activeSides().flatMap(function(side){
+    // 自己修復(D3-1 の slotOf と同じ): テストや旧経路が sides[side] を .slots を持たない新オブジェクトへ丸ごと差し替えることがある
+    if (!sides[side].slots || sides[side].slots[0] !== sides[side]) slotOf(side, 0);
     return sides[side].slots.map(function(st, i){ return {side: side, idx: i, st: st}; });
   });
 }
@@ -2912,8 +2914,10 @@ function targetLock(atkSide, atkIdx, mv, targetChoice, chargeDeclare){
 
 // ターン状態 (HP・付与済みステータス等の揮発状態を sides に注入)
 function ensureBattleState(){
-  activeSides().forEach(s=>{
-    const st = sides[s];
+  // 2026-09-11 D5-1: 全枠に(シングル=枠0=sides[s] と同一オブジェクト=不変)。枠1の currentHp が未初期化のまま
+  // 0ダメージ被弾すると「(残HP null/…)」になっていた(プレビューで観測)。
+  activeSlots().forEach(sl=>{
+    const st = sl.st;
     if (st.currentHp == null && st.poke){
       st.currentHp = realStat(st, 'hp');
     }
