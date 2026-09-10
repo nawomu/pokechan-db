@@ -68,11 +68,17 @@
 | B064 D4-3 | **完了・検収済み** `819c68f68`(全枠の開始登場=速度順固定・megaEvolve(side,slot)・かげふみ等=相手いずれかの枠・溜め技#35・**交代/メガをすばやさ順**(同速のみ乱数1回。既存テストに題材なし=diff 0)。fixture 47/0) | `819c68f68` |
 | B064 レビュー | **完了・修正済み** `2d3e348cf`: 指摘=①このゆびとまれの新規ログ行がシングルにも漏れる(9言語未対応)→撤去(無音) ②undo が復元しない新設欄2件→snapshot/undo/H56/枠定数に追加 ③交代・メガの同速タイに新設した乱数点→撤去(canonSides 順・同速細則は未確認) ④台帳#5 の分岐点を名前付き定数に。問題なし=×0.75の時点/壁/ひらいしん速度/このゆびとまれ origin/死に出し上限/テストの根拠。残(既知)=checkBattleWinner はページ未接続(D5/D6)・道具後処理が単体/範囲で別経路・くろいまなざし解除は過剰解除の近似 | `2d3e348cf` |
 | B064 D5-0 | **完了・検収済み** `39b683ed7`(枠ごとの選択をエンジンが読む・megaUsed は側で共有・setChoice/getChoiceCandidates/autoChoose 公開・fixture 54/0) | `39b683ed7` |
-| B064 D5-1 | **発注中**: 開発プレビュー **新規ページ `battle_doubles_preview.html`**(noindex・導線非公開・pokedb.js のみ・9言語・対象選択UI・死に出し・勝敗・既存ログ文言のみ)+PDCA Playwright。battle_lab(5000行・1vs1密結合)の改修は避けた=統合(入口A)は D6 で。指示書= scratchpad `spec_d5_1_preview.md` | — |
+| B064 D5-1 | **完了・検収済み** `9d70f081b`(+`01255dd46` 枠1の currentHp 初期化 / `deb60dbb5` __sim 収録): 開発プレビュー **`battle_doubles_preview.html`**(noindex・導線非公開・pokedb.js のみ・9言語キー20・対象選択・枠交代・メガ・死に出し・勝敗・既存ログ文言のみ)。実機10回連続合格・i18n 8言語 残日本語0。★**ページ台帳に暫定登録(阿部さん未承認)**=下の🙋。自分側の選出は自動抽選(手動選出UIは未)。観測=かたやぶり登場ログの特性名がプレビューで未翻訳 | 上記 |
 | 持ち物レビュー | 壊す側Sonnetの指摘3件を修正(印の消し忘れ=変化技の自分交代が無言で不発/固定ダメージ経路/ばけのかわ)+T347〜349 → 862/0 | `5afcc7b48` |
 | T2 | 8言語の技説明は15技とも既訳あり。JAを変えた3技(ミルクのみ/フリーズドライ/ふんどのこぶし)の8言語を Sonnet が再翻訳中 | — |
 
 残: T6(ミルクのみ effects target=B064語彙)/ T7(新15技の effects をChampions正典で再確認=説明文は一致確認済み)/ ガブリアスナイトZ・ボーマンダナイトの入手(ヤックン未掲載)/ D1検収→D2。
+
+### 🙋 朝に判断してほしいこと(9/11 未明時点)
+1. **開発プレビューページ `battle_doubles_preview.html` の存置**(ページ台帳に「暫定・未承認・D6で入口Aへ統合後に削除」で登録して push 済み)。承認=そのまま / 不承認= `git rm battle_doubles_preview.html tools/_doubles_preview_pdca_playwright.js` + ui-*.json の `doubles_preview.*` 削除 + 台帳から行を消す。ローカルで `http://localhost:8000/battle_doubles_preview.html`(本番は https://pchamdb.com/battle_doubles_preview.html ・noindex・どこからもリンク無し)。
+2. **D6(入口A=real_battle に形式ボタン・オンライン)へ進めてよいか**。オンラインの鏡写しは Supabase 不通(`HANDOFF_SESSION_2026_09_07_DOUBLES.md` §5)が直るまで検証できない。
+3. ダブルの「先攻: ◯◯」ログ文言と、`pname` の「相手の」接頭辞(今は相手枠0だけ)=声の領域。
+4. ダブルで未確認のまま既定を置いた細則(台帳 #5 使用者途中ひんし=続行 / #7 死に出し補充順=正準順 / 交代・メガの同速=canonSides順)は実機で確かめられたら差し替え。
 
 ## 3. 残タスク(優先順・「やること整理」)
 
