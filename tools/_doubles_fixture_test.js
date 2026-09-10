@@ -890,7 +890,9 @@ test('D4-3b-3: トリックルーム下では両側交代の順が逆転する(�
     `トリックルームでは遅い方(self=カビゴン)が先に引っ込む(実際: self=${idxSelf}行目, opp=${idxOpp}行目)`);
 });
 
-test('D4-3b-4: 両側が同ターンに交代・同速→乱数を1回だけ消費してcanonSides順に順序を決める(#13)', () => {
+// 2026-09-11 壊す側レビュー指摘#3: 交代/メガの同速タイに乱数点を新設するとオフライン/undoの再現性が変わる+同速の細則は
+// 権威未確認(台帳)→乱数を引かず canonSides 順(旧実装の self→opp と同じ結果)に戻した。期待値=乱数0回・順序=canonSides。
+test('D4-3b-4: 両側が同ターンに交代・同速→乱数を引かず canonSides 順で決定的に並ぶ(#13・同速細則は未確認=台帳)', () => {
   const E = build2v2();
   placeSlot(E, 'self', 0, 'カメックス', null);   // 素早さ78(交代前=同速タイの判定対象)
   placeSlot(E, 'self', 1, null, null, { fainted: true });
@@ -906,5 +908,8 @@ test('D4-3b-4: 両側が同ターンに交代・同速→乱数を1回だけ消�
   const rng = countingRandom(42);
   E.setRandom(rng);
   E.runTurn();
-  assert.equal(rng.count(), 1, `同速タイの交代(orderSidesBySpeedForPhase)は乱数を1回だけ引く(実際=${rng.count()}回)`);
+  assert.equal(rng.count(), 0, `同速タイの交代(orderSidesBySpeedForPhase)は乱数を引かない(実際=${rng.count()}回)`);
+  const lines = E.battleLog.map(l => l.msg);
+  const iSelf = lines.findIndex(m => /^カメックス は 引っ込んだ/.test(m)), iOpp = lines.findIndex(m => /^相手の カメックス は 引っ込んだ/.test(m));
+  assert.ok(iSelf >= 0 && iOpp >= 0 && iSelf < iOpp, `canonSides順(自分→相手)で引っ込む: self=${iSelf} opp=${iOpp} log=${JSON.stringify(lines.slice(0,6))}`);
 });

@@ -2392,7 +2392,8 @@ try {
   // 初期値には無いが戦闘中にセットされるフィールド)は、makeSideStateの81件には含まれないため個別に確認する。
   // 2026-09-10 D2-d: makeSnapshotSpec との突き合わせで見つかった未復元10件を snap/restore に追加した→ここで恒久的に見張る
   const dynamicOnlyMustRestore = ['choiceLock', 'magicCoatTurn', 'snatchArmed', 'forecastForm',
-    'metronomeCount', '_metronomeLastMoveKey', 'cudChew', 'flinched', 'illusionAs', 'paradoxBoost', 'pendingEjectPack', 'pendingStatus', 'proteanUsed'];
+    'metronomeCount', '_metronomeLastMoveKey', 'cudChew', 'flinched', 'illusionAs', 'paradoxBoost', 'pendingEjectPack', 'pendingStatus', 'proteanUsed',
+    'centerOfAttention', 'helpingHandMult'];   // 2026-09-11 D3-3 の新設欄(壊す側レビュー指摘#2)
   for (const f of dynamicOnlyMustRestore) {
     check(`H56-c dynamic-onlyフィールド「${f}」もsnap/restoreの両方に書かれている(makeSideStateの初期値には無い揮発)`,
       isRestored(f), `snap=${snapFields.has(f)} restore=${restoreFields.has(f)}`);

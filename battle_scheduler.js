@@ -79,6 +79,8 @@
 
   // ① 枠の揮発(=clearVolatilesOnSwitch(st)が代入する欄。real_battle_simulator.html:6243-6284)
   var SLOT_VOLATILE_FIELDS = Object.freeze([
+    'centerOfAttention',   // このゆびとまれ/いかりのこな の宣言(D3-3c・そのターン限り)
+    'helpingHandMult',     // てだすけ倍率(D3-3b・そのターン限り)
     'presenceEpoch',   // 在場世代(枠に付く。交代で+1=枠の寿命そのもの。2026-09-10 D2-d: undo で戻す対象に加えた)
     'badpoisonCounter',      // :6244 もうどくカウンタ(もうどく状態自体はACTOR側=status)
     'charging',              // :6245 溜め技の溜め状態

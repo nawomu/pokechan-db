@@ -2477,8 +2477,9 @@ function orderSidesBySpeedForPhase(list){
   const [a, b] = list;
   const sa = effectiveSpeed(slotOf(a, 0)), sb = effectiveSpeed(slotOf(b, 0));
   if (sa === sb){
-    const canon = canonSides();
-    return Math.random() < 0.5 ? canon : canon.slice().reverse();
+    // 同速タイ: 乱数を引かない(9/11 レビュー指摘#3: 交代/メガの同速タイに新しい乱数点を作るとオフライン/undo の再現性が変わる。
+    // 権威は「交代順=すばやさ比較」までで同速の細則は未確認=台帳)。決定的に canonSides 順(旧実装の self→opp と同じ結果)。
+    return canonSides();
   }
   const bFaster = env.trickRoom ? (sa > sb) : (sa < sb);
   return bFaster ? [b, a] : [a, b];
@@ -2670,12 +2671,16 @@ function effectsExcludingSelfScoped(mv){
 // 満たす場合は「素の素早さが高い枠から」(forEachSlotItemOrder・台帳の速度順ルール)。
 // なげつける/はかいこうせん系反動/のどスプレー等の「技1回につき1回」勢は現行の範囲攻撃技データに
 // 該当が無い(2026-09-11実測)。ここでは既定どおり集約フラグで1回だけ呼ぶ形にして将来技追加に備える。
+// 使用者が対象ループの途中でひんし(さめはだ/ゴツゴツメット反動)になった時に残りの対象へ続行するか(台帳#5・C=出典なし)。
+// 既定=Showdown の並び(全対象にダメージ→対象別反応)=続行。出典が出たら差し替える(設計§4.5「分岐点だけ置く・まとめない」)。
+const CONTINUE_AFTER_USER_FAINT = true;
 function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlways){
   const atk = slotOf(atkSide, atkIdx);
   const filteredMv = effectsExcludingSelfScoped(mv);
   let anyHitSuccess = false;
   let firstTargetForSelfFx = null;
   for (const t of targetSet){
+    if (slotOf(atkSide, atkIdx).fainted && !CONTINUE_AFTER_USER_FAINT) break;   // 台帳#5 の分岐点
     const tgt = slotOf(t.side, t.idx);
     if (!tgt.poke || tgt.fainted) continue;   // ループ中に前の対象の処理で倒れた等(対象ごとに再確認)
     if (!firstTargetForSelfFx) firstTargetForSelfFx = t;
@@ -4819,7 +4824,7 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
     // seq=宣言した順の通し番号(乱数なし=競合時は先に付いた方・#31)。
     if (ef.kind === '引き寄せ'){
       atk.centerOfAttention = { isPowder: !!(move.flags && move.flags.powder), seq: ++_redirectSeq };
-      log('9', `${pname(atk)} は みんなの ちゅうもくを あつめた！`);
+      // ★ログ行新設禁止(9言語パターン翻訳)=無音実装。宣言の可視化は D5(UI・battle_log_i18n にパターン追加)で(9/11 レビュー指摘#1)
       continue;
     }
     // みがわり: 相手を対象にする効果は分身に防がれる(みがわり貫通の技は通す)。
@@ -6225,6 +6230,8 @@ function snapshotBattleState(){
     pendingStatus: st.pendingStatus || null,             // 遅延の状態異常予約(あくび等)
     proteanUsed: !!st.proteanUsed,                       // へんげんじざい/リベロの使用済み印
     presenceEpoch: st.presenceEpoch || 0,                // 在場世代(D2-a・battle_scheduler の ActionIntent 契約)
+    centerOfAttention: st.centerOfAttention ? {...st.centerOfAttention} : null,   // このゆびとまれ/いかりのこな の宣言(D3-3c・9/11 レビュー指摘#2)
+    helpingHandMult: st.helpingHandMult || null,         // てだすけ倍率(D3-3b・同上)
     // パーティ(控え)A-1: 交代も一手戻せるように(ポケモン本体・技・控えごと)
     poke: st.poke || null,
     moves: [...(st.moves || [])],
@@ -6354,6 +6361,8 @@ function undoBattle(){
     st.pendingStatus = src.pendingStatus || null;
     st.proteanUsed = !!src.proteanUsed;
     st.presenceEpoch = src.presenceEpoch || 0;
+    st.centerOfAttention = src.centerOfAttention ? {...src.centerOfAttention} : null;   // このゆびとまれ/いかりのこな の宣言(9/11 レビュー指摘#2)
+    st.helpingHandMult = src.helpingHandMult || null;                                     // てだすけ倍率(同上)
     // パーティ(控え)A-1: 交代の巻き戻し(ポケモン本体・技・控えごと)
     st.poke = src.poke || null;
     st.moves = [...(src.moves || [])];
