@@ -86,6 +86,9 @@ function buildEngine() {
     slotOf: (typeof slotOf !== 'undefined') ? slotOf : null,
     activeSides: (typeof activeSides !== 'undefined') ? activeSides : null,
     activeSlots: (typeof activeSlots !== 'undefined') ? activeSlots : null,
+    canonSlots: (typeof canonSlots !== 'undefined') ? canonSlots : null,   // D4-2b: (side,slot)の正準順
+    isSideDefeated: (typeof isSideDefeated !== 'undefined') ? isSideDefeated : null,   // D4-2c
+    checkBattleWinner: (typeof checkBattleWinner !== 'undefined') ? checkBattleWinner : null,   // D4-2c
     decideOrder, phaseHitCheck, phaseDealDamage, phaseApplyEffects, phaseSlipFor, battleLog,
     runSingleAttack: (typeof runSingleAttack !== 'undefined') ? runSingleAttack : null,
     noteMoveUsed: (typeof noteMoveUsed !== 'undefined') ? noteMoveUsed : null,

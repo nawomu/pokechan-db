@@ -1118,6 +1118,20 @@ function syncSlotsToFormat(){
     if (!Array.isArray(st.slots) || st.slots[0] !== st) st.slots = [st];
     while (st.slots.length < want) st.slots.push(makeSideState());
     if (st.slots.length > want) st.slots.length = Math.max(1, want);
+    // D4-2a(2026-09-11・設計_ダブルバトル_2026-09-07.md§3「bench = party のうち場にいないもの」):
+    // benchは「側」に置く。枠0はst自身なのでst.slots[0].bench===st.benchは自明。枠1以降は
+    // makeSideState()で作った専用の(空の)bench配列を持ってしまうため、st.bench宛のアクセサ
+    // (get/set)に張り替える。★値コピーではなくアクセサにする理由: 値コピー(st.slots[i].bench=st.bench)
+    // だと「後からsides[s].benchを丸ごと差し替える」(フルリセット/undo復元/テストのfixtureセットアップ)
+    // たびに参照が古いまま取り残される。アクセサなら常にst.benchを動的に読みに行く=いつ差し替わっても
+    // 追随する(シングルはslots.length===1なのでこのforは0回実行=挙動不変)。
+    for (let i = 1; i < st.slots.length; i++){
+      Object.defineProperty(st.slots[i], 'bench', {
+        configurable: true, enumerable: true,
+        get(){ return st.bench; },
+        set(v){ st.bench = v; },
+      });
+    }
   });
 }
 syncSlotsToFormat();
@@ -2416,6 +2430,31 @@ function activeSlots(){
     return sides[side].slots.map(function(st, i){ return {side: side, idx: i, st: st}; });
   });
 }
+// D4-2b(2026-09-11・設計_ダブルバトル_2026-09-07.md§8.1「canonSlots()」): (side, slot)の正準順=
+// canonSides()の先→後 × 枠0→枠1(§4.5「位置順」と同じ並び方)。乱数を使わない決定的な順序。
+// 複数枠が同時に空く時の死に出し補充順(台帳#7・未確認)の既定として使う。
+function canonSlots(){
+  const out = [];
+  canonSides().forEach(function(side){
+    const n = (sides[side].slots || [sides[side]]).length;
+    for (let i = 0; i < n; i++) out.push({side: side, idx: i});
+  });
+  return out;
+}
+// D4-2d(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.5末尾/§9.29「レッドカードの左右の定義」と同型):
+// 複数枠が同時に道具条件を満たす時は「素の素早さが高い枠から」処理する(Wiki レッドカード/だっしゅつボタン
+// 本文=補正抜きの実数値順。台帳での決定と同じ根拠を道具にも適用)。
+function orderSlotsBySpeedDesc(slots){
+  return slots.slice().sort(function(a, b){
+    return realStat(slotOf(b.side, b.idx), 'spd') - realStat(slotOf(a.side, a.idx), 'spd');
+  });
+}
+// D4-2d: 道具の全枠判定を回す入口。シングル(slotsPerSide===1)は既存の固定順(self→opp)のまま
+// (stdout不変)。ダブルは上のorderSlotsBySpeedDescで素早さ順にする。
+function forEachSlotItemOrder(fn){
+  if (battle.format.slotsPerSide === 1){ fn('self', 0); fn('opp', 0); return; }
+  orderSlotsBySpeedDesc(activeSlots()).forEach(function(sl){ fn(sl.side, sl.idx); });
+}
 
 // 行動順を判定: 優先度 → (せんせいのツメ20%) → 素早さ (トリックルームで逆転) → 同速ランダム
 // 戻り値: 先手の side を 'self' or 'opp' で返す
@@ -2610,7 +2649,9 @@ function effectsExcludingSelfScoped(mv){
 // 自分に向く効果(反動/自分のランク=target:self/team/party)は技1回につき1回(「対象数で重ねない」):
 // 対象ごとの呼び出しはeffectsExcludingSelfScopedで除外し、ループの外で一度だけ全効果(mvそのまま)を
 // 適用側(先頭=位置順の最初の対象)に対して呼ぶ(現行データでの該当例=スケイルノイズの自分ぼうぎょ-1のみ)。
-// レッドカード/だっしゅつボタンは対象ごとに呼ぶが★側単位のまま(枠は対応しない=D3-2から未解決のD4送り継続)。
+// D4-2d(2026-09-11): レッドカード/だっしゅつボタンは対象ごとに呼ばず、対象ループが全部終わってから
+// (§4.5末尾「道具の反応は両対象を処理し終えてから」と同じ形)まとめて解決する。複数枠が同時に条件を
+// 満たす場合は「素の素早さが高い枠から」(forEachSlotItemOrder・台帳の速度順ルール)。
 // なげつける/はかいこうせん系反動/のどスプレー等の「技1回につき1回」勢は現行の範囲攻撃技データに
 // 該当が無い(2026-09-11実測)。ここでは既定どおり集約フラグで1回だけ呼ぶ形にして将来技追加に備える。
 function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlways){
@@ -2635,14 +2676,16 @@ function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlway
     // D4-1b: spreadCount=target_lock時点(このループに入った時点)の対象数=targetSet.length。
     // 当たったか・無効化されたかは問わない=対象ごとに同じ値をそのまま渡す(#42,#43)。
     const dmgRes = phaseDealDamage(atkSide, t.side, mv, atkIdx, t.idx, targetSet.length);
-    // ★未確認(D3-2から継続のD4送り): レッドカード/だっしゅつボタンは側単位のまま(枠は対応しない)。
-    // 対象の枠がどちらでも「t.side(その対象の側)」に対して1回ずつ呼ぶ=側の道具は1個しか持てないので
-    // 同じ側の2枠が両方対象になっても実質1回分の判定にしかならない(pendingフラグの消費で自然に冪等)。
-    resolveRedCard(t.side, atkSide);
-    resolveEjectButton(t.side);
+    // D4-2d: pendingRedCard/pendingEjectButtonのフラグはここで(markHitItemReactions経由で)対象の枠に
+    // 立つだけ。実際の交代解決はループの外(下)でまとめて速度順に行う=ここでは呼ばない。
     if (dmgRes && !dmgRes.immune && !tgt.fainted) phaseApplyEffects(atkSide, t.side, filteredMv, atkIdx, t.idx);
     if (dmgRes && !dmgRes.immune && !dmgRes.failed) anyHitSuccess = true;
   }
+  // D4-2d(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.5末尾): 対象ごとの被弾がすべて終わってから、
+  // レッドカード→だっしゅつボタンの順で(既存の単体経路と同じ固定順)、同時成立は素の素早さが高い枠から
+  // (forEachSlotItemOrder)まとめて解決する。「反応の後処理」段=いかく/だっしゅつパックと同じ形。
+  forEachSlotItemOrder(function(side, idx){ resolveRedCard(side, atkSide, idx, atkIdx); });
+  forEachSlotItemOrder(function(side, idx){ resolveEjectButton(side, idx); });
   // 自分に向く効果(target:self/team/party)は技1回につき1回だけ、先頭(位置順)の対象に対して適用する
   // (defSide/defIdxはself/team/party効果では使われないので値そのものは実質関係ない=形式的に渡すだけ)。
   if (firstTargetForSelfFx){
@@ -2655,7 +2698,7 @@ function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlway
   if (selfKO && (selfKOAlways || anyHitSuccess)) applySelfFaint(atk);
   applyThroatSpray(atk, null, mv, anyHitSuccess ? {} : { failed: true });
   itemReactions();
-  resolveEjectPack('self'); resolveEjectPack('opp');
+  resolveEjectPackAllSlots();
 }
 
 // target_lock(P06a・§4.3 6段のうちD3-2実装範囲=0/1/4のみ。2/3=引き寄せ/無視はD3-3で登録=未実装)。
@@ -2889,12 +2932,16 @@ function phaseInitA(){
 }
 // 1体ぶんの「場に出た時の特性」発動(段127: バトル開始Init-Aと、メガシンカ直後からも呼ぶ。
 // 実機はメガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)がその瞬間に発動する)
-function fireEntryAbility(s){
+// D4-2a(2026-09-11・設計_ダブルバトル_2026-09-07.md§3): slotIdx省略時は0(既存呼び出しは無変更=シングル不変)。
+// attemptSwitch/megaEvolveが「その枠」の登場処理として呼ぶ。
+function fireEntryAbility(s, slotIdx){
   {
-    const st = sides[s];
+    slotIdx = slotIdx || 0;
+    const st = slotOf(s, slotIdx);
     if (!st.poke) return;
     applyIllusion(st);   // イリュージョン(段138): 登場時に化ける(バトル開始)
-    const other = s === 'self' ? slotOf('opp', 0) : slotOf('self', 0);
+    const oppSideKey0 = s === 'self' ? 'opp' : 'self';
+    const other = slotOf(oppSideKey0, slotIdx);   // かわりもの等の対面=同じslotIdx(正面)
     const ab = sideAbility(st);
     st.disguise = (ab === 'ばけのかわ') && st.disguiseBroken !== true;   // ばけのかわ: 場に出たら皮をまとう(剥がれ済みなら戻らない=Wiki準拠)
     if (ab === 'いかく'){
@@ -4190,8 +4237,10 @@ rbRegisterHandler('target_lock', 'lightning_rod', (ctx) => {
 // pendingEjectPackはapplyRankStageGuarded側で低下のたびに立てるため、判定のたびに必ずクリアして
 // 同一低下での多重発動を防ぐ。呼び出し箇所: phaseInitA/attemptSwitch/runSingleAttack/runTurn。
 // 出典: items_database.js宣言(Bulbapedia "Eject Pack")
-function resolveEjectPack(sideKey){
-  const st = sides[sideKey];
+// D4-2d(2026-09-11): slotIdx省略時は0(既存呼び出しは無変更=シングル不変)。pendingEjectPackは枠ごとの
+// 状態(slotOfが返す個体オブジェクト自身が持つ)なので、枠を指定して読むだけで自然に枠対応になる。
+function resolveEjectPack(sideKey, slotIdx){
+  const st = slotOf(sideKey, slotIdx || 0);
   if (!st || !st.pendingEjectPack) return;
   st.pendingEjectPack = false;
   if (!st.poke || st.fainted || st.switchedThisTurn) return;
@@ -4204,14 +4253,21 @@ function resolveEjectPack(sideKey){
   // ★ログ行新設禁止の方針により専用の発動メッセージは出さない(無音実装)。attemptSwitch自身が
   // 既存パターン(「Xは 引っ込んだ！ Yが 場に出た！」)で交代自体は必ずログに出るため、プレイヤーへの
   // 可視性は保たれる(「だっしゅつパックが理由」という説明だけが省略される)。
-  attemptSwitch(sideKey, idx, {ignoreTrapping: true});
+  attemptSwitch(sideKey, idx, {ignoreTrapping: true, slotIdx: slotIdx || 0});
+}
+// D4-2d: 全枠(両側)ぶんだっしゅつパックを判定する入口。呼び出し箇所(phaseInitA以外の全て)は
+// これに一本化する(forEachSlotItemOrder=シングルはself→oppの既存固定順のまま=stdout不変)。
+function resolveEjectPackAllSlots(){
+  forEachSlotItemOrder(resolveEjectPack);
 }
 // だっしゅつボタン(Eject Button・段150 M-C仕様書項6): 攻撃技のダメージを受けた直後(pendingEjectButtonは
 // phaseDealDamage側で判定済み)、ひんしでなければ出せる控えがいる時だけ消費して強制交代する。
 // 交代先は自分で選ぶ(chooseSwitchTarget)。にげられない/バインド/ねをはる等は無視(ignoreTrapping)。
 // 出典: ポケモンWiki「だっしゅつボタン」詳細な仕様 / ヤックン/ch/item.htm
-function resolveEjectButton(sideKey){
-  const st = sides[sideKey];
+// D4-2d: slotIdx省略時は0(既存呼び出しは無変更=シングル不変)。
+function resolveEjectButton(sideKey, slotIdx){
+  slotIdx = slotIdx || 0;
+  const st = slotOf(sideKey, slotIdx);
   if (!st || !st.pendingEjectButton) return;
   st.pendingEjectButton = false;
   if (!st.poke || st.fainted || st.switchedThisTurn) return;
@@ -4222,7 +4278,7 @@ function resolveEjectButton(sideKey){
   const idx = chooseSwitchTarget(sideKey, liveIdxs);
   consumeItem(st);
   // ★ログ行新設禁止の方針により専用の発動メッセージは出さない(無音実装。resolveEjectPackと同じ作法)。
-  if (attemptSwitch(sideKey, idx, {ignoreTrapping: true})) _itemForcedSwitch[sideKey] = true;
+  if (attemptSwitch(sideKey, idx, {ignoreTrapping: true, slotIdx: slotIdx})) _itemForcedSwitch[sideKey] = true;
 }
 // レッドカード(Red Card・段150 M-C仕様書項7): 相手の攻撃技のダメージを受けた直後(pendingRedCardは
 // phaseDealDamage側でちからずく除外込みで判定済み)、所持者(defSide)がひんしでなければ消費し、
@@ -4230,13 +4286,15 @@ function resolveEjectButton(sideKey){
 // 攻撃者に控えがいなければ発動しない(消費もしない)。ignoreTrappingを付けない=攻撃者がきゅうばん/ねをはる
 // 状態なら道具は消費されるが交代自体は不成立になる(attemptSwitch自身の既存メッセージのみでログ新設なし)。
 // 出典: ポケモンWiki「レッドカード」詳細な仕様 / ヤックン/ch/item.htm
-function resolveRedCard(defSide, atkSide){
-  const def = sides[defSide];
+// D4-2d: defIdx/atkIdx省略時は0(既存呼び出しは無変更=シングル不変)。攻撃者側は「その枠」を強制交代する。
+function resolveRedCard(defSide, atkSide, defIdx, atkIdx){
+  defIdx = defIdx || 0; atkIdx = atkIdx || 0;
+  const def = slotOf(defSide, defIdx);
   if (!def || !def.pendingRedCard) return;
   def.pendingRedCard = false;
   if (!def.poke || def.fainted) return;
   if (!hasItem(def, 'red_card')) return;
-  const atk = sides[atkSide];
+  const atk = slotOf(atkSide, atkIdx);
   if (!atk || !atk.poke || atk.fainted || atk.switchedThisTurn) return;   // 攻撃者がひんし等なら不発(消費もしない)
   const liveIdxs = (atk.bench || []).map((e, i) => ({e, i}))
     .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
@@ -4246,7 +4304,7 @@ function resolveRedCard(defSide, atkSide){
   // ねをはる状態/きゅうばんの攻撃者は交代させられない(道具は消費済み)。それ以外(にげられない/バインド/ありじごく等)は
   // 無視して交代させる(Wiki『ねをはる以外の状態変化 (にげられない・バインド・フェアリーロック) であれば交代させることができる』)
   const _noSwitch = !!atk.rooted || sideAbility(atk) === 'きゅうばん';
-  const _ok = _noSwitch ? attemptSwitch(atkSide, pick, {}) : attemptSwitch(atkSide, pick, {ignoreTrapping: true});
+  const _ok = _noSwitch ? attemptSwitch(atkSide, pick, {slotIdx: atkIdx}) : attemptSwitch(atkSide, pick, {ignoreTrapping: true, slotIdx: atkIdx});
   if (_ok) _itemForcedSwitch[atkSide] = true;
 }
 // 段150(仕様書項6/7): この攻撃の中でレッドカード/だっしゅつボタンが交代を起こしたか(側ごと)。
@@ -4617,7 +4675,7 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
     }
     const pick = liveIdxs[Math.floor(Math.random() * liveIdxs.length)];
     log('9', `${pname(def)} は ふきとばされた！`);
-    attemptSwitch(defSide, pick, {ignoreTrapping: true});
+    attemptSwitch(defSide, pick, {ignoreTrapping: true, slotIdx: defIdx});   // D4-2a: 対象の枠で交代
     return;
   }
   // ぼうおん: 相手対象の音技(変化技含む)は効かない(ABILITY_DESC公式準拠・段111。攻撃技はcalcDamage側で無効)
@@ -4806,12 +4864,11 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
           aquaRing: !!atk.aquaRing,                  // アクアリングも引き継ぐ(第9世代表○)
           magnetRise: atk.magnetRise || 0,           // でんじふゆうも引き継ぐ(第9世代表○)
         };
-        // ★未確認・残した箇所(D3-2の対象外): attemptSwitchは側単位(枠は対応しない=交代のslot対応はD4送り)。
-        // ダブルfixtureでatkIdx>=1のバトンタッチ(自分交代)が来ると、attemptSwitchはsides[atkSide]
-        // (=枠0)を書き換えてしまい、atkIdx側の枠には反映されない=既知の穴(fixtureテストは
-        // バトンタッチを対象にしないため未検出のまま残す)。
-        if (attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true})){
-          const inSt = sides[atkSide];
+        // D4-2a(2026-09-11): attemptSwitchに{slotIdx: atkIdx}を渡す=「その枠」で交代する。
+        // attemptSwitchはslotOf(atkSide, atkIdx)(=atkと同一オブジェクト)を書き換えるので、
+        // 交代成功後はatk自身が新しい個体のフィールドを持つ=inStはatkを使えばよい(sides[atkSide]直参照は不要)。
+        if (attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true, slotIdx: atkIdx})){
+          const inSt = atk;
           inSt.rank = passed.rank;
           inSt.confusion = passed.confusion;
           inSt.critBoost = passed.critBoost;
@@ -4826,7 +4883,7 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
         }
         continue;
       }
-      if (liveIdx >= 0) attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true});
+      if (liveIdx >= 0) attemptSwitch(atkSide, liveIdx, {ignoreTrapping: true, slotIdx: atkIdx});   // D4-2a: とんぼがえり等は「その枠」で交代
       continue;
     }
     // 全員逃走不可(フェアリーロック): 次のターンの終わりまで全員交代できない(ゴースト/技による交代は無視可)。
@@ -4943,7 +5000,7 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
       if (!liveIdxs.length || def.rooted) continue;
       const pick = liveIdxs[Math.floor(Math.random() * liveIdxs.length)];
       log('9', `${pname(def)} は ふきとばされた！`);
-      attemptSwitch(defSide, pick, {ignoreTrapping: true});
+      attemptSwitch(defSide, pick, {ignoreTrapping: true, slotIdx: defIdx});   // D4-2a: 対象の枠で交代
       continue;
     }
     // 溜めターン専用の効果(メテオビーム/エレクトロビームのとくこう+1)は攻撃時には発動しない(startChargeIfNeededが担当)
@@ -6023,6 +6080,39 @@ const HISTORY_MAX = 50;
 let lastMoveAnywhere = null;
 let lastMoveAnywhereSide = null;   // 最後に技を出した側('self'/'opp')。相打ち勝敗の判定用(2026-07-11 A.4)
 
+// D4-2c(2026-09-11・設計_ダブルバトル_2026-09-07.md§1.1「訂正3」/§7): 負け=その側のparty全員
+// (場の全枠+bench)がひんし。real_battle.htmlの既存dead()(§1体前提=[st].concat(st.bench))を
+// 枠数ぶんに一般化しただけ(シングルはslots長1=同値・不変)。
+function isSideDefeated(sideKey){
+  const side = sides[sideKey];
+  if (!side || !side.poke) return true;
+  const slots = (side.slots && side.slots.length) ? side.slots : [side];
+  const fieldDead = slots.every(function(st){ return !st || !st.poke || st.fainted || (st.currentHp != null && st.currentHp <= 0); });
+  if (!fieldDead) return false;
+  const bench = side.bench || [];
+  return bench.every(function(e){ return !e || !e.poke || e.fainted || (e.currentHp != null && e.currentHp <= 0); });
+}
+// D4-2c: 両側の勝敗を1回で判定する(faintQueueを全件処理した後=ターン終了時などに1回だけ呼ぶ想定)。
+// 両側同時0=引き分けではなく「最後に倒れた側の勝ち」(訂正3・第五世代〜・台帳#69)。
+// ★出典=real_battle.htmlの既存A.4規則(反動/自爆/みちづれの相打ち)をそのまま流用する(自己出力を
+// 期待値にしない=設計書の規則から)。lastMoveAnywhereSide/lastMoveAnywhereは「最後に行動した側」を
+// 追跡する既存の仕組みで、シングル/ダブル問わず同じ意味を持つ(ダブル用に新設していない)。
+// 自爆技(自分瀕死宣言)で相打ちになった場合だけ攻守が逆(使った側の負け=相手の勝ち)。
+function checkBattleWinner(){
+  const selfDead = isSideDefeated('self');
+  const oppDead = isSideDefeated('opp');
+  if (!selfDead && !oppDead) return { over: false, winner: null };
+  if (selfDead && oppDead){
+    let winner = null;   // 出典の無い異常系(最後の行動を追跡できない)は推測しない=未確定のまま返す
+    if (lastMoveAnywhereSide && lastMoveAnywhere){
+      const suicide = ((lastMoveAnywhere.battle_data && lastMoveAnywhere.battle_data.effects) || []).some(function(e){ return e.kind === '自分瀕死'; });
+      winner = suicide ? (lastMoveAnywhereSide === 'self' ? 'opp' : 'self') : lastMoveAnywhereSide;
+    }
+    return { over: true, winner: winner, simultaneous: true };
+  }
+  return { over: true, winner: selfDead ? 'opp' : 'self', simultaneous: false };
+}
+
 function snapshotBattleState(){
   const snap = (st)=>({
     currentHp: st.currentHp,
@@ -6262,6 +6352,10 @@ function undoBattle(){
   lastMoveAnywhere = s.lastMoveAny || null;   // まねっこの巻き戻し
   restore(slotOf('self', 0), s.self);
   restore(slotOf('opp', 0), s.opp);
+  // D4-2a: restore()がst.bench(=枠0=sides[s]自身のbench)を新しい配列に差し替えるため、
+  // 枠1以降が持つ古い参照を張り直す(ダブルのundoはまだ§8.2で正式化されていないが、参照だけは
+  // 腐らせない=シングルはslots.length===1なので無変化)。
+  syncSlotsToFormat();
   battleLog.length = 0;
   s.log.forEach(e=>battleLog.push(e));
   log('Undo', '一手戻しました');
@@ -7044,8 +7138,10 @@ function itemReactions(){
 // 交代で出てきたポケモンへの設置物の発動。発動順は ステルスロック→まきびし→どくびし→ねばねばネット(近似)。
 // 出典: ポケモンWiki「ステルスロック」(最大HP×いわ相性÷8・全員に当たる)/「まきびし」(接地のみ 1層1/8・2層1/6・3層1/4)/
 //       「どくびし」(接地のみ 1層どく・2層もうどく・どくタイプが接地で出ると解除)/「ねばねばネット」(接地のみ すばやさ-1)
-function applyEntryHazards(sideKey){
-  const st = sides[sideKey];
+// D4-2a(2026-09-11): slotIdx省略時は0(既存呼び出しは無変更=シングル不変)。attemptSwitchが
+// 「その枠」の設置技判定として呼ぶ。
+function applyEntryHazards(sideKey, slotIdx){
+  const st = slotOf(sideKey, slotIdx || 0);
   if (!st.poke || st.fainted) return;
   const types = sideTypes(st);
   // あつぞこブーツ(Heavy-Duty Boots・Phase D B3): 入場時の設置技(ステルスロック/まきびし/どくびし/
@@ -7114,8 +7210,14 @@ function chooseSwitchTarget(sideKey, liveIdxs){
 
 // 交代の実行。成功=true / 失敗(封じ・出せる控えなし)=false
 // opts.ignoreTrapping: 技による交代(とんぼがえり等)は交代封じの影響を受けない(ポケモンWiki「ポケモンチェンジ」)
+// opts.slotIdx: D4-2a(2026-09-11・設計_ダブルバトル_2026-09-07.md§3): 「その枠」の個体とbenchの1体を
+// 入れ替える。既定0(既存呼び出しは無変更=シングル不変)。benchは側(sides[sideKey].bench)に置く。
+// slotIdx>=1の枠オブジェクトもsyncSlotsToFormat()でst.benchが同じ配列を指すよう張ってあるため、
+// 下のst.bench参照はslotIdxによらず常に同じ共有プールを読み書きする(=交代の競合は「先に処理した
+// 呼び出しが取る・後は現在のbench内容で判定される」という決定的な逐次処理になる。未確認・台帳)。
 function attemptSwitch(sideKey, benchIdx, opts){
-  const st = sides[sideKey];
+  const slotIdx = (opts && opts.slotIdx) || 0;
+  const st = slotOf(sideKey, slotIdx);
   if (!st.poke) return false;
   const entry = (st.bench || [])[benchIdx];
   if (!entry || !entry.poke || entry.fainted || (entry.currentHp != null && entry.currentHp <= 0)){
@@ -7167,7 +7269,11 @@ function attemptSwitch(sideKey, benchIdx, opts){
   clearVolatilesOnSwitch(st);
   // D2-c(2026-09-10): 退場の保険。今ターンの実行中schedulerがあれば、交代前の(=intent作成時の)
   // actorIdでpendingなIntentを明示キャンセルする(実行列は不変=isPresentの実体化で既に同じ結果になる保険)。
-  if (currentTurnScheduler) currentTurnScheduler.invalidateActor(sideKey + ':' + (st.presenceEpoch || 0), 'switched_out');
+  // D4-2a: actorId形式はside+':'+idx+':'+presenceEpoch(battle_scheduler.jsの実際のactorId形式=
+  // 2465行のコメント参照)。旧コードはslotIdx区間が抜けていて実質つねに不一致(=無効化は素通り。
+  // ただしこの呼び出しは"保険"= _invalidateAbsentが同じ理由で結局cancelledにするため、この不一致自体は
+  // シングルの出力に影響していなかった=stdout不変のまま安全に修正できる)。
+  if (currentTurnScheduler) currentTurnScheduler.invalidateActor(sideKey + ':' + slotIdx + ':' + (st.presenceEpoch || 0), 'switched_out');
   st.presenceEpoch = (st.presenceEpoch || 0) + 1;   // D2-a: 交代成功(死に出し含む)で在場世代を進める
   for (const k of BENCH_FIELDS) st[k] = entry[k];
   // ばけのかわ: 入場者ごとに張り直す(ミミッキュ以外に前の皮が残るバグ根治=2026-07-10 阿部さん発見)。
@@ -7176,11 +7282,14 @@ function attemptSwitch(sideKey, benchIdx, opts){
   if (st.currentHp == null) st.currentHp = realStat(st, 'hp');   // 未設定=満タンで出す
   st.switchedThisTurn = true;
   // 拘束(くろいまなざし等)は「かけた側が場を離れるまで」→ この側のポケモンが離れたので相手の拘束を解除
+  // ★未確認・残した箇所(D4-2の対象外): 相手側は常に枠0だけを見る(ダブルで相手の枠1がかけた拘束は
+  // 対象外のまま=D3-2から未解決。かげふみ/くろいまなざしの相手枠特定はD4-2の4項目に含まれないため
+  // ここでは触らない)。
   sides[sideKey === 'self' ? 'opp' : 'self'].trapped = false;
   sides[sideKey === 'self' ? 'opp' : 'self'].attracted = false;   // メロメロ(段139): 相手が離れたら解放
   if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${pname(st)} が 場に出た！`);
   else log('9', `${outName} は 引っ込んだ！ ${pname(st)} が 場に出た！`);
-  applyEntryHazards(sideKey);   // 設置技(ステルスロック等)は交代完了後に発動
+  applyEntryHazards(sideKey, slotIdx);   // 設置技(ステルスロック等)は交代完了後に発動(その枠に対して)
   // マイティチェンジ(段121): 初めてマイティで場に出た時だけ「変身して 帰ってきた！」。
   // 設置技ダメージの後に判定=設置でひんしになったら出さない(次の登場に持ち越し。ポケモンWiki準拠)
   if (st.heroAnnounce && !st.fainted && st.currentHp > 0){
@@ -7191,9 +7300,10 @@ function attemptSwitch(sideKey, benchIdx, opts){
   // 各種メイカー/プレッシャー/おみとおし/イリュージョン/トレース/かわりもの等をInit-Aと同じ1関数から発動する。
   // 以前はここに個別実装(おみとおし/イリュージョン/トレース/かわりもの)だけがあり、交代時にいかく等の
   // Init-A特性群がまるごと発動していなかった(実機は交代のたびに毎回発動)。fireEntryAbilityへ統合して二重発動を防ぐ。
-  fireEntryAbility(sideKey);
-  // だっしゅつパック(Phase D B3): 交代直後のいかく等でランクが下がった場合にも判定する
-  resolveEjectPack('self'); resolveEjectPack('opp');
+  fireEntryAbility(sideKey, slotIdx);
+  // だっしゅつパック(Phase D B3・D4-2d): 交代直後のいかく等でランクが下がった場合にも判定する。
+  // いかくが相手複数枠に効きうる=全枠まとめて見る(forEachSlotItemOrder=シングルは従来のself→opp順のまま)。
+  resolveEjectPackAllSlots();
   // いやしのねがい: 出てきたポケモンが全回復(設置物のダメージの後=回復で帳消しにできる)。
   // 実機(第8世代以降)は「健康なポケモンには持ち越し」だが、simは最初に出たポケモンに適用する近似。
   if (st.healingWish && !st.fainted && st.poke){
@@ -7308,8 +7418,10 @@ function megaEvolve(sideKey){
   // i18nパターンbl_22は元から{p}=進化前名・{p3}=メガ名を期待して書かれているので、この修正だけで9言語とも正しく出る。
   log('0a', `${baseName} の ${stone.name}が 反応している！ ${pname(st)} に メガシンカした！`);
   // メガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)はその瞬間に発動する(段127・実機準拠)
+  // ★megaEvolve自体は枠0(sides[sideKey])だけを対象にする(D4-2の4項目=交代/複数ひんし/勝敗/道具の
+  // 対応に含まれないため未対応のまま残す=枠1のメガシンカはD4-2の対象外)。
   fireEntryAbility(sideKey);
-  resolveEjectPack('self'); resolveEjectPack('opp');   // だっしゅつパック(Phase D B3)
+  resolveEjectPackAllSlots();   // だっしゅつパック(Phase D B3・D4-2d): いかく等が相手複数枠に効きうるので全枠まとめて見る
   return true;
 }
 
@@ -8288,15 +8400,16 @@ function runTurn(){
       if (_selfKO && !atk.failedThisTurn) applySelfFaint(atk);
       applyThroatSpray(atk, def, mv, null);   // のどスプレー(Phase D B3): 音の変化技でも成功時に発動
       itemReactions();   // B案: 行動の後に道具(きのみ)の発動チェック
-      resolveEjectPack('self'); resolveEjectPack('opp');   // だっしゅつパック(Phase D B3)
+      resolveEjectPackAllSlots();   // だっしゅつパック(Phase D B3・D4-2d): 全枠まとめて見る
       continue;
     }
     // ダメ計算とHP適用。D3-2b: defSideKey/defIdxはtarget_lockで確定した対象(シングルはa.opp/slotIdxのまま=不変)。
     const dmgRes = phaseDealDamage(a.side, defSideKey, mv, slotIdx, defIdx);
-    // レッドカード/だっしゅつボタン(段150 M-C仕様書項6/7): 被弾直後・P13c(自分交代=とんぼがえり等)の前に解決。
-    // 同時成立時はレッドカード→だっしゅつボタンの順で固定(近似。報告に明記)。
-    // ★未確認(D3-2・残した箇所): レッドカード/だっしゅつボタンは側単位のまま(枠は対応しない=D4送り)。
-    resolveRedCard(a.opp, a.side); resolveEjectButton(a.opp);
+    // レッドカード/だっしゅつボタン(段150 M-C仕様書項6/7・D4-2d): 被弾直後・P13c(自分交代=とんぼがえり等)の前に解決。
+    // 同時成立時はレッドカード→だっしゅつボタンの順で固定。対象はtarget_lockで確定したdefSideKey/defIdx=その枠、
+    // 攻撃者は自分の枠(a.side/slotIdx)。単体対象なので候補は1件だけ=素早さ順の出番はない(D4-2d fixtureは
+    // 範囲技の方=runSpreadDamageLoop)。
+    resolveRedCard(defSideKey, a.side, defIdx, slotIdx); resolveEjectButton(defSideKey, defIdx);
     // ★追加効果は「技が当たった」時だけ発動。こうかなし(タイプ無効)や計算不可なら発動しない(全技共通)。
     if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, defSideKey, mv, slotIdx, defIdx);
     // なげつける: 命中時(守り貫通/KO問わず)に持ち物を消費。食べた扱いにしない=lastConsumedItemには入れない。
@@ -8318,7 +8431,7 @@ function runTurn(){
     if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
     applyThroatSpray(atk, def, mv, dmgRes);   // のどスプレー(Phase D B3)
     itemReactions();   // B案: 行動の後に道具(きのみ)の発動チェック
-    resolveEjectPack('self'); resolveEjectPack('opp');   // だっしゅつパック(Phase D B3)
+    resolveEjectPackAllSlots();   // だっしゅつパック(Phase D B3・D4-2d): 全枠まとめて見る
     if (!isExtraAct) sched.finish(_schedAct.actionId);   // D2-c: scheduler本体のIntentだけ確定させる(さいはい等のextraは対象外)
   }
   currentTurnScheduler = null;   // D2-c: ターン終了=invalidateActor用の参照を外す
@@ -8736,20 +8849,48 @@ function runTurn(){
   // 瀕死交代(死に出し): ひんしになったポケモンは、控えがいればターンの最後に次のポケモンと交代する。
   // 死に出しで出たポケモンは「交代したターンは行動不可」の対象外(switchedThisTurnは次のターン開始で消える)。
   // 控えの選択は実機ではプレイヤー=simは最初の生きている控えで近似。出典: ポケモンWiki「ポケモンチェンジ」
-  activeSides().forEach(s => {
-    const st = sides[s];
-    if (!st.poke || !st.fainted) return;
-    const _liveIdxs = (st.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
-    // リアルバトル(real_battle.html)のフック: 自分側の死に出しはターン後にプレイヤーがUIで選ぶ
-    // (生きてる控えが2匹以上の時だけ保留。1匹ならそのまま自動で出す)
-    // オンライン対戦(2026-07-10): 相手側も人間なので __rbDeferFaintReplaceOpp で同様に保留できる
-    if (_liveIdxs.length >= 2 && typeof window !== 'undefined' &&
-        ((s === 'self' && window.__rbDeferFaintReplace) ||
-         (s === 'opp' && window.__rbDeferFaintReplaceOpp))){ return; }
-    const liveIdx = _liveIdxs.length ? chooseSwitchTarget(s, _liveIdxs) : -1;
-    if (liveIdx < 0) return;
-    attemptSwitch(s, liveIdx, {ignoreTrapping: true, faintReplace: true});
-  });
+  if (battle.format.slotsPerSide === 1){
+    // ★シングルは既存コードのまま完全に不変(stdout diff 0の根拠)。ダブル用の新ロジックは下のelseへ分離。
+    activeSides().forEach(s => {
+      const st = sides[s];
+      if (!st.poke || !st.fainted) return;
+      const _liveIdxs = (st.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+      // リアルバトル(real_battle.html)のフック: 自分側の死に出しはターン後にプレイヤーがUIで選ぶ
+      // (生きてる控えが2匹以上の時だけ保留。1匹ならそのまま自動で出す)
+      // オンライン対戦(2026-07-10): 相手側も人間なので __rbDeferFaintReplaceOpp で同様に保留できる
+      if (_liveIdxs.length >= 2 && typeof window !== 'undefined' &&
+          ((s === 'self' && window.__rbDeferFaintReplace) ||
+           (s === 'opp' && window.__rbDeferFaintReplaceOpp))){ return; }
+      const liveIdx = _liveIdxs.length ? chooseSwitchTarget(s, _liveIdxs) : -1;
+      if (liveIdx < 0) return;
+      attemptSwitch(s, liveIdx, {ignoreTrapping: true, faintReplace: true});
+    });
+  } else {
+    // D4-2b(2026-09-11・設計_ダブルバトル_2026-09-07.md§7・行動順再評価§2): 枠単位で空席を埋める。
+    // 両側・複数枠が同時に空く場合の補充順=台帳#7(未確認・Wiki「倒れた側の速さ」/Showdown「速さ順」
+    // だが倒れた側/入る側のどちらの速さかが決着していない)。★出典が無いので推測しない=既定を
+    // canonSlots順(側→枠。乱数を使わない決定的な順序)にして未確認のまま進める。
+    // 死に出しの個体が設置技(ステルスロック等)で即ひんしになった場合はターンを進めず追加選出する
+    // (行動順再評価§2「次選出はターン終了」)=空席が埋まらなくなるまで繰り返す(規律②の深さ上限=10周)。
+    for (let _dieOutPass = 0; _dieOutPass < 10; _dieOutPass++){
+      let _anyDieOutReplaced = false;
+      canonSlots().forEach(function(sl){
+        const st = slotOf(sl.side, sl.idx);
+        if (!st.poke || !st.fainted) return;
+        const _liveIdxs = (st.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+        // リアルバトル(real_battle.html)のフック: 今はslotIdxを持たない(選出UIはD5送り=設計§8.3)ので
+        // 枠0だけ従来どおり保留対象にする(挙動を壊さないための既定・未確認)。
+        if (_liveIdxs.length >= 2 && typeof window !== 'undefined' &&
+            ((sl.side === 'self' && sl.idx === 0 && window.__rbDeferFaintReplace) ||
+             (sl.side === 'opp' && sl.idx === 0 && window.__rbDeferFaintReplaceOpp))){ return; }
+        const liveIdx = _liveIdxs.length ? chooseSwitchTarget(sl.side, _liveIdxs) : -1;
+        if (liveIdx < 0) return;   // 控え不足(#68): この枠は空席のまま続行
+        attemptSwitch(sl.side, liveIdx, {ignoreTrapping: true, faintReplace: true, slotIdx: sl.idx});
+        _anyDieOutReplaced = true;
+      });
+      if (!_anyDieOutReplaced) break;
+    }
+  }
   log('Turn', '─── ターン終了 ───');
   renderBattleLog();
   renderBoth();

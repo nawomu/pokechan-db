@@ -616,3 +616,141 @@ test('D4-1c-3: だっしゅつパックはいかくが両対象を処理し終�
   assert.equal(E.slotOf('opp', 0).item, '', 'だっしゅつパックは消費される');
   assert.equal(E.slotOf('opp', 1).rank.atk, -1, 'opp:1はいかくの-1を受けたまま(交代前に処理済み)');
 });
+
+// ===== D4-2a: 交代を枠単位に(2026-09-11・実装指示D4-2a・設計_ダブルバトル_2026-09-07.md§3) =====
+// benchは側(sides[side].bench)に置く。attemptSwitch(sideKey, benchIdx, {slotIdx})で「その枠」だけ入れ替わる。
+
+test('D4-2a-1: 枠1の個体がとんぼがえりで交代→枠1だけ入れ替わる(枠0は不変)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);          // 枠0は行動しない=不変であることの対照
+  placeSlot(E, 'self', 1, 'ケンタロス', 'tonbogaeri'); // 枠1がとんぼがえりで自分交代する
+  E.sides.self.bench = [benchEntry('ピカチュウ', null)];   // benchは側に置く(build2v2はまだ空)
+  placeSlot(E, 'opp', 0, 'フシギバナ', null);
+  placeSlot(E, 'opp', 1, 'カメックス', null);
+  E.setRandom(mulberry32(1));
+  assert.doesNotThrow(() => { E.runTurn(); });
+  assert.equal(E.slotOf('self', 0).poke.name, 'カビゴン', '枠0は交代していない(とんぼがえりを使ったのは枠1)');
+  assert.equal(E.slotOf('self', 1).poke.name, 'ピカチュウ', '枠1がbench(側の控え)のピカチュウに入れ替わる');
+  assert.ok(E.sides.self.bench.some(b => b && b.poke && b.poke.name === 'ケンタロス'),
+    '元の枠1の個体(ケンタロス)がbench(側の控え)に回る');
+});
+
+test('D4-2a-2: だっしゅつボタンを枠1が持つ→枠1だけ脱出する(枠0は無傷のまま)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'ケンタロス', null);
+  E.slotOf('self', 1).item = 'eject_button';   // 枠1(sides.self本体ではない方の枠オブジェクト)が持つ
+  E.sides.self.bench = [benchEntry('ピカチュウ', null)];
+  // opp:0が単体技でself:1を名指しする(枠1だけが被弾する)
+  placeSlot(E, 'opp', 0, 'リザードン', 'hataku', { targetChoice: { side: 'self', idx: 1 } });
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  const self0Max = E.realStat(E.slotOf('self', 0), 'hp');
+  E.setRandom(mulberry32(1));
+  assert.doesNotThrow(() => { E.runTurn(); });
+  assert.equal(E.slotOf('self', 0).poke.name, 'カビゴン', '枠0は無傷のまま(名指しされていない)');
+  assert.equal(E.slotOf('self', 0).currentHp, self0Max, '枠0のHPも減っていない');
+  assert.equal(E.slotOf('self', 1).poke.name, 'ピカチュウ', '枠1がだっしゅつボタンでピカチュウに脱出する');
+});
+
+// ===== D4-2b: 複数ひんしと死に出し(2026-09-11・実装指示D4-2b・設計_ダブルバトル_2026-09-07.md§7) =====
+
+test('D4-2b-1: 同ターンに相手2枠が倒れる→ターン終了で2枠とも補充・順序が正準順(側→枠)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'ゲンガー', null);
+  placeSlot(E, 'opp', 0, 'カメックス', null, { fainted: true });
+  placeSlot(E, 'opp', 1, 'フシギバナ', null, { fainted: true });
+  E.sides.opp.bench = [benchEntry('ピカチュウ', null), benchEntry('サンダース', null)];
+  E.setRandom(mulberry32(1));
+  assert.doesNotThrow(() => { E.runTurn(); });
+  assert.equal(E.slotOf('opp', 0).poke.name, 'ピカチュウ', 'opp:0がcanonSlots順(側→枠)で先に補充される');
+  assert.equal(E.slotOf('opp', 1).poke.name, 'サンダース', 'opp:1が次に補充される');
+});
+
+test('D4-2b-2: 控えが1体しか無い→片方だけ補充・以後1vs2で続行(空席のまま)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'ゲンガー', null);
+  placeSlot(E, 'opp', 0, 'カメックス', null, { fainted: true });
+  placeSlot(E, 'opp', 1, 'フシギバナ', null, { fainted: true });
+  E.sides.opp.bench = [benchEntry('ピカチュウ', null)];   // 控え1体だけ(#68)
+  E.setRandom(mulberry32(1));
+  assert.doesNotThrow(() => { E.runTurn(); });
+  assert.equal(E.slotOf('opp', 0).poke.name, 'ピカチュウ', 'opp:0はcanonSlots順で先に補充される');
+  assert.ok(E.slotOf('opp', 1).fainted, 'opp:1は控え不足で空席(ひんしのまま)続行する');
+});
+
+test('D4-2b-3: 死に出しの個体が設置技(ステルスロック)で倒れる→ターンを進めずさらに補充する', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'ゲンガー', null);
+  placeSlot(E, 'opp', 0, 'カメックス', null, { fainted: true });
+  E.slotOf('opp', 0).stealthRock = true;   // opp側の設置技(枠0=sides.opp自身が持つ側条件として設定)
+  placeSlot(E, 'opp', 1, 'フシギバナ', null);
+  const weak = benchEntry('ピジョット', null);
+  weak.currentHp = 1;   // ステルスロックのダメージでどんな相性でも確実にひんしになる
+  E.sides.opp.bench = [weak, benchEntry('ライチュウ', null)];
+  E.setRandom(mulberry32(1));
+  assert.doesNotThrow(() => { E.runTurn(); });
+  assert.equal(E.slotOf('opp', 0).poke.name, 'ライチュウ',
+    'ピジョットがステルスロックで即ひんし→ターンを進めずライチュウまで補充が連鎖する');
+});
+
+// ===== D4-2c: 勝敗(2026-09-11・実装指示D4-2c・設計_ダブルバトル_2026-09-07.md§1.1 訂正3/§7) =====
+
+test('D4-2c-1: 相手の最後の2体が同時に倒れる→勝ち', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'ゲンガー', null);
+  placeSlot(E, 'opp', 0, 'カメックス', null, { fainted: true });
+  placeSlot(E, 'opp', 1, 'フシギバナ', null, { fainted: true });
+  E.sides.opp.bench = [];
+  const result = E.checkBattleWinner();
+  assert.equal(result.over, true, 'バトルは終了している(相手の場+控えが全滅)');
+  assert.equal(result.winner, 'self', '相手が全滅=自分の勝ち');
+});
+
+test('D4-2c-2: 自分の最後の1体が相手の最後の1体をみちづれで倒す→「最後に倒れた側」の規則で判定', () => {
+  const E = build2v2();
+  // 攻撃側(self:0)が最後に技を使った側=A.4規則(自爆技でなければ最後に行動した側の勝ち)。
+  placeSlot(E, 'self', 0, 'カビゴン', 'hataku');
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  E.sides.self.bench = [];
+  placeSlot(E, 'opp', 0, 'ライチュウ', null, { hp: 1 });   // みちづれを構えて自分もひんしになる側(はたく=ノーマルが通る相性)
+  E.slotOf('opp', 0).destinyBond = true;
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  E.sides.opp.bench = [];
+  E.setRandom(mulberry32(1));
+  assert.doesNotThrow(() => { E.runTurn(); });
+  assert.ok(E.slotOf('opp', 0).fainted, 'みちづれの持ち主(opp:0)は倒れている');
+  assert.ok(E.slotOf('self', 0).fainted, 'みちづれで攻撃側(self:0)も道連れに倒れている(=両者全滅)');
+  const result = E.checkBattleWinner();
+  assert.equal(result.over, true, '両者全滅で決着している');
+  assert.equal(result.simultaneous, true, '同時全滅の分岐を通る');
+  assert.equal(result.winner, 'self',
+    '既存のみちづれ規則(real_battle.htmlのA.4)=最後に技を出した攻撃側(self)の勝ち。みちづれ使用側(opp)の負け');
+});
+
+// ===== D4-2d: 持ち物の枠対応(2026-09-11・実装指示D4-2d) =====
+
+test('D4-2d-1: 相手全体技で両枠のだっしゅつボタンが成立→素の素早さが高い方から順に脱出(両方脱出)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'majikarushain');   // 相手全体の攻撃技(D4-1a-1で使用実績あり)
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カビゴン', null);    // 素早さ30(遅い)
+  E.slotOf('opp', 0).item = 'eject_button';
+  placeSlot(E, 'opp', 1, 'ゲンガー', null);    // 素早さ110(速い)
+  E.slotOf('opp', 1).item = 'eject_button';
+  E.sides.opp.bench = [benchEntry('ピカチュウ', null), benchEntry('サンダース', null)];
+  E.setRandom(mulberry32(3));
+  assert.doesNotThrow(() => { E.runTurn(); });
+  assert.notEqual(E.slotOf('opp', 0).poke.name, 'カビゴン', 'opp:0(遅い)もだっしゅつボタンで脱出する');
+  assert.notEqual(E.slotOf('opp', 1).poke.name, 'ゲンガー', 'opp:1(速い)もだっしゅつボタンで脱出する');
+  const msgs = msgList(E.battleLog);
+  const idxFast = msgs.findIndex(m => m.includes('ゲンガー は 引っ込んだ'));
+  const idxSlow = msgs.findIndex(m => m.includes('カビゴン は 引っ込んだ'));
+  assert.ok(idxFast >= 0, 'ゲンガー(速い)の交代ログが出る');
+  assert.ok(idxSlow >= 0, 'カビゴン(遅い)の交代ログが出る');
+  assert.ok(idxFast < idxSlow,
+    `素の素早さが高い枠(ゲンガー)から先に脱出する(実際: ゲンガー=${idxFast}行目, カビゴン=${idxSlow}行目)`);
+});
