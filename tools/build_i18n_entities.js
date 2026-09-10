@@ -222,6 +222,13 @@ for (const lang of TARGET_LANGS) {
           : '';
       }
       incomingMoves[key] = { name, desc };
+      // ★2026-09-10: Champions版ページ(pokemon_db/waza-list/news 等)は champions_key(ローマ字キー)で辞書を引く。
+      //   旧496技のキーは過去の辞書に残っているが、新しく Champions 入りした技(レギュM-C の15技)には無い → slug と同じ内容の別名を作る。
+      //   既に別名があればそれを優先(手で直した訳を消さない)。
+      if (entry.champions_key && entry.champions_key !== key) {
+        const ex = (existing.moves || {})[entry.champions_key];
+        incomingMoves[entry.champions_key] = (ex && ex.name) ? ex : { name, desc };
+      }
     }
   }
   const existingMoves = existing.moves || {};

@@ -464,7 +464,18 @@ function main() {
   report.summary.waza_all_additions_check = { onlyInNewCount: report.additions.waza_all.length, names: report.additions.waza_all };
   if (report.additions.waza_all.length) report.additions.waza_all.forEach(k => report.unexplained.push({ entity: 'waza_all', key: k, field: '(entry only-in-new, unexpected)' }));
   report.summary.waza_champions_additions_check = { onlyInNewCount: report.additions.waza_champions.length, names: report.additions.waza_champions };
-  if (report.additions.waza_champions.length) report.additions.waza_champions.forEach(k => report.unexplained.push({ entity: 'waza_champions', key: k, field: '(entry only-in-new, unexpected)' }));
+  // (o) 2026-09-10 レギュM-C: 凍結スナップショットに無い Champions 技(reference/_moves_fixes.json の set.champions=true・根拠つき)は WAZA_MAP に増えてよい。
+  //   許すのは fixes に champions:true があり、master の champions_key と一致する時だけ。
+  try {
+    const mfx = J('reference/_moves_fixes.json').fixes || {};
+    const chKeyToSlug = new Map(J('master/moves.json').items.filter(m => m.champions_key).map(m => [m.champions_key, m.slug]));
+    report.additions.waza_champions.forEach(k => {
+      const slug = chKeyToSlug.get(k); const f = slug && mfx[slug];
+      if (f && f.set && f.set.champions === true) report.allowlisted.push({ entity: 'waza_champions', key: k, field: '(entry only-in-new)', reason: '(o) _moves_fixes.json で Champions 入り(根拠つき・2026-09-10 レギュM-C)' });
+      else report.unexplained.push({ entity: 'waza_champions', key: k, field: '(entry only-in-new, champions:true の根拠が fixes に無い)' });
+    });
+  } catch (e) {}
+  // (旧: 無条件で unexplained にしていた行は (o) に置き換え・2026-09-10)
 
   // ── legacy専用(のはず=0) チェック ──
   // ★2026-09-01 修正: pokemon系はNAMEMAPエイリアスでentity照合するため、全角名/リネームは

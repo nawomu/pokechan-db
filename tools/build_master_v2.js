@@ -24,6 +24,7 @@
 const fs = require('fs');
 const path = require('path');
 const { initializeMoveFlags, finalizeMoveFlags } = require('./_lib/move_flag_schema');
+const { kanaToRomaji } = require('./_lib/kana_romaji');
 const ROOT = path.resolve(__dirname, '..');
 const OUT = path.join(ROOT, 'master');
 const NOW = new Date().toISOString().slice(0, 10);
@@ -699,7 +700,10 @@ function buildMoves() {
     const src = inCh ? 'champions_authority' : (nat ? 'ours_national' : 'ours_champions');
     return Object.assign({
       slug: nat ? nat._slug : null,
-      champions_key: ch ? ch._champKey : null,        // ★旧キーは _aliases として残す(引っ越し完了まで)
+      // ★旧キーは _aliases として残す(引っ越し完了まで)。★2026-09-10: 凍結スナップショットに無い Champions 技(レギュM-C で初登場・
+      //   きりさく解禁 等16件)は同じ流儀のローマ字キーを生成する(tools/_lib/kana_romaji.js)=Champions技表(WAZA_MAP)から落とさないため。
+      //   ※わるあがき(struggle)は選んで使う技ではない(PP切れ専用・誰の習得技にも無い)=旧表と同じく表に載せない(キー無し)。
+      champions_key: ch ? ch._champKey : ((inCh && nz !== 'わるあがき') ? kanaToRomaji(nz) : null),
       // ★2026-07-31 修正(阿部さん決定: 数字は半角に揃える。「海外に全角は無いので」):
       //   ここは正規化済みの nz を作っておきながら、出力には全国版の生の名前(=全角)を使っていた。
       //   結果 master の中で表記が割れ、moves側『１０まんボルト』/ learnsets側『10まんボルト』となり、
@@ -754,10 +758,13 @@ function buildMoves() {
         o[parts[parts.length - 1]] = v;
       });
       it.source = 'audited';
+      // ★2026-09-10: fixes で Champions 入り(champions:true)した技にローマ字キーを与える(凍結スナップショットに無い技=WAZA_MAPから落ちるため)
+      if (it.champions && !it.champions_key && it.name !== 'わるあがき') it.champions_key = kanaToRomaji(zen2han(it.name));
     });
     for (let i = 0; i < items.length; i++) {
       items[i] = finalizeMoveFlags(items[i], { fixSet: (fx[items[i].slug] || {}).set || {} });
     }
+    { const seen = new Map(); items.forEach(it => { if (!it.champions_key) return; if (seen.has(it.champions_key)) unk('champions_key_dup', it.name, 'キー重複: ' + seen.get(it.champions_key)); seen.set(it.champions_key, it.name); }); }
   }
   items.filter(x => !x.slug).forEach(x => unk('move_slug', x.name, '全国版に無い=英語slug未確定'));
   write('moves.json', { meta: META('技', {
@@ -1025,6 +1032,34 @@ function buildLearnsets() {
   //   ・learn        = その体が入っている最新の作品(version group)で覚えられる技
   //   ・learn_legacy = それより前の世代にしか無い技(★9世代までに廃止=含めて廃止マーク方式)
   //   ・Championsに追加されたら: 9世代との差分を champions_diff として記録→権威値で上書き(canonルール③)
+  // ★2026-09-10 レギュM-C本番反映: 凍結スナップショット(C.POKEMON_LIST=M-B時点318体)に無いが master で champions:true の行
+  //   (M-C追加の19種25行+ボーマンダ/グソクムシャ/セグレイブ/ゴリランダー)は、権威コーパス(learnsets_ch・ヤックン/ch×Serebii二重一致)に
+  //   matched_ours があれば Champions行として権威から作る(全国行=PokeAPI暫定にフォールバックしない)。メガは additions の learnset_from で複写。
+  try {
+    const mpk = JSON.parse(fs.readFileSync(path.join(OUT, 'pokemon.json'), 'utf8')).items;
+    const haveCh = new Set(items.map(x => x.name));
+    mpk.filter(p => p.champions && !p.mega && !haveCh.has(p.name) && authByOurs[p.name]).forEach(p => {
+      const au = authByOurs[p.name];
+      items.push(Object.assign({
+        slug: p.slug || null, name: p.name, display_name: p.display_name || p.name, no: p.no != null ? Number(p.no) : null,
+        learn: au.learn.slice(), confiscated: (au.lost || []).slice(), champions: true, regulation: REGULATION,
+        authority_name: au.name, ours_had: 0,
+      }, stamp('champions_authority')));
+      haveCh.add(p.name);
+    });
+    // メガ(全国版由来で learnset_from を持たない行=例 メガボーマンダ): 元の種のChampions行を複写(メガシンカは元と同じ技=既存85メガ行で確認済みの規則)
+    mpk.filter(p => p.champions && p.mega && !haveCh.has(p.name)).forEach(p => {
+      const baseName = String(p.name).replace(/^メガ/, '').replace(/[XYZ]$/, '');
+      const src = items.find(x => x.name === baseName || x.name === String(p.name).replace(/^メガ/, ''));
+      if (!src) { unk('learnset_mega_base', p.name, '元の種のChampions行が無い'); return; }
+      items.push(Object.assign({}, src, {
+        slug: p.slug || null, name: p.name, display_name: p.display_name || p.name, no: p.no != null ? Number(p.no) : src.no,
+        learn: src.learn.slice(), confiscated: (src.confiscated || []).slice(), champions: true, regulation: REGULATION,
+        authority_name: null, ours_had: 0, source: 'copied_from:' + src.name + '(メガシンカは元と同じ技・2026-09-10)', verified_at: NOW,
+      }));
+      haveCh.add(p.name);
+    });
+  } catch (e) { console.log('  ⚠ learnsets: master 由来の Champions 追加行を作れない: ' + e.message); }
   const nationalRows = buildNationalLearnsets(new Set(items.map(x => x.name)));
   const all = items.concat(nationalRows);
   // ★手動追加ポケモン(reference/_pokemon_additions.json)で learnset_from を持つ行は、その元の行を複写して1行足す
@@ -1055,6 +1090,10 @@ function buildLearnsets() {
     const fx = J('reference/_learnsets_fixes.json').fixes || {};
     all.forEach(it => {
       const f = fx[it.name]; if (!f) return;
+      // ★2026-09-10: A3第2部(2026-09-04)の全国行向け修正(source=wiki_bulbapedia_verified=SV等の最新作品の表で投票した結果)は
+      //   全国行スコープ。その体がChampionsに来て権威(ヤックン/ch×Serebii)のChampions行になったら当てない(Championsの表は別物=
+      //   例: プクリン ころがる はSVでは覚えるがChampionsでは没収)。Champions行への修正は 根拠つきの learn_add/learn_remove だけ(ランクルス/ニョロトノ/ブリジュラス型)。
+      if (it.champions && f.source === 'wiki_bulbapedia_verified') return;
       const learn = new Set(it.learn), conf = new Set(it.confiscated || []), legacy = new Set(it.learn_legacy || []);
       (f.learn_add || []).forEach(m => { learn.add(m); conf.delete(m); legacy.delete(m); });
       // 外す先: Champions行=confiscated(没収) / 全国行=learn_legacy(過去作のみ=R10 廃止マーク方式・消さない)
