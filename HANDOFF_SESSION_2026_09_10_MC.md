@@ -61,7 +61,8 @@
 | B064 D1 | **完了・検収済み**(`battle_scheduler.js`+`tools/_scheduler_test.js` 14/0)。近似・未確認7点=コード内コメント(isPresent不成立時の理由 not_present / item・run 帯の細則 / futureSight・wish を側の場に分類した根拠弱 / forecastForm の所在 / moveToFront・Back は拡張API / rng 必須)。**D2 前半(D2-a scheduler接続・D2-b slotOf)をSonnetに発注中**(指示書= scratchpad `spec_d2_connect.md`。ゲート=全ハーネス+sim_test_report.html の stdout diff 0) | `1b13884b5` |
 | B064 D2 | **完了・検収済み**(前半 `047085aba`=scheduler接続/slotOf・後半 `f44577f06`=実行ループのscheduler化(追加実行=さいはい は extra キュー・フォーカスレンズ判定は hasActed)/isPresent実体化/undo機械生成版(検証用)・`3c4e29882`=**undoが復元していなかった揮発欄10件+presenceEpoch を本番に反映**(H56で恒久監視・hard 183/0))。全段 stdout diff 0(親も独立確認)。決定=おさきにどうぞ/さきおくり/りんしょうはエンジン未実装(0件)=D3で新設。本番 snapshotBattleState の完全機械生成化は H56(ソース静的解析)の作り直しが要るため保留 | 上記 |
 | B064 D3-1 | **完了・検収済み** `bb7ed3e61`(battle.format・env.doubleBattle は format の getter/setter・sides[側].slots[]・slotOf 枠読み(自己修復付き)・activeSlots・setFormat・_slots_test 5/0・シングル diff 0) | `bb7ed3e61` |
-| B064 D3-2 | **発注中**(fixture で4体1列+単体対象の target_lock=TARGET_KINDS表(13種)/正面既定/消失時の選び直し/ランダム1体の乱数点。範囲技は D4・引き寄せは D3-3)。指示書= scratchpad `spec_d3_2_target_lock.md` | — |
+| B064 D3-2 | **完了・検収済み** `de227d918`(fixture で4体1列+TARGET_KINDS 表+targetLock=正面既定/消失時の選び直し/ランダム1体の乱数点・_doubles_fixture_test 11/0・シングル diff 0)。★暫定=runTurn が format で旧経路/slots 経路を分岐(コピー経路)=D3-3a で一本化 | `de227d918` |
+| B064 D3-3 | **発注中**(a=シングルも slots 経路に一本化・b=味方対象の効果適用・c=引き寄せ Handler このゆびとまれ/いかりのこな/ひらいしん+すじがねいり/ねらいうち無視)。指示書= scratchpad `spec_d3_3_redirect.md` | — |
 | 持ち物レビュー | 壊す側Sonnetの指摘3件を修正(印の消し忘れ=変化技の自分交代が無言で不発/固定ダメージ経路/ばけのかわ)+T347〜349 → 862/0 | `5afcc7b48` |
 | T2 | 8言語の技説明は15技とも既訳あり。JAを変えた3技(ミルクのみ/フリーズドライ/ふんどのこぶし)の8言語を Sonnet が再翻訳中 | — |
 
