@@ -67,7 +67,8 @@
 | B064 D4-2 | **完了・検収済み** `2e5321213`(枠単位の交代=attemptSwitch slotIdx・bench 側一元化・複数ひんし/死に出し(正準順・#7未確認)・勝敗 isSideDefeated/checkBattleWinner・持ち物の枠対応。fixture 39/0・シングル diff 0) | `2e5321213` |
 | B064 D4-3 | **完了・検収済み** `819c68f68`(全枠の開始登場=速度順固定・megaEvolve(side,slot)・かげふみ等=相手いずれかの枠・溜め技#35・**交代/メガをすばやさ順**(同速のみ乱数1回。既存テストに題材なし=diff 0)。fixture 47/0) | `819c68f68` |
 | B064 レビュー | **完了・修正済み** `2d3e348cf`: 指摘=①このゆびとまれの新規ログ行がシングルにも漏れる(9言語未対応)→撤去(無音) ②undo が復元しない新設欄2件→snapshot/undo/H56/枠定数に追加 ③交代・メガの同速タイに新設した乱数点→撤去(canonSides 順・同速細則は未確認) ④台帳#5 の分岐点を名前付き定数に。問題なし=×0.75の時点/壁/ひらいしん速度/このゆびとまれ origin/死に出し上限/テストの根拠。残(既知)=checkBattleWinner はページ未接続(D5/D6)・道具後処理が単体/範囲で別経路・くろいまなざし解除は過剰解除の近似 | `2d3e348cf` |
-| B064 D5-0 | **発注中**(枠ごとの選択 selectedMoveIdx/switchChoice/megaChoice/targetChoice をエンジンが読む・公開API setChoice/getChoiceCandidates/autoChoose・メガは側で1回)。指示書= scratchpad `spec_d5_0_choices.md`。次=D5-1(battle_lab の隠し導線 ?format=double で開発プレビュー・9言語・対象選択UI・ログ) | — |
+| B064 D5-0 | **完了・検収済み** `39b683ed7`(枠ごとの選択をエンジンが読む・megaUsed は側で共有・setChoice/getChoiceCandidates/autoChoose 公開・fixture 54/0) | `39b683ed7` |
+| B064 D5-1 | **発注中**: 開発プレビュー **新規ページ `battle_doubles_preview.html`**(noindex・導線非公開・pokedb.js のみ・9言語・対象選択UI・死に出し・勝敗・既存ログ文言のみ)+PDCA Playwright。battle_lab(5000行・1vs1密結合)の改修は避けた=統合(入口A)は D6 で。指示書= scratchpad `spec_d5_1_preview.md` | — |
 | 持ち物レビュー | 壊す側Sonnetの指摘3件を修正(印の消し忘れ=変化技の自分交代が無言で不発/固定ダメージ経路/ばけのかわ)+T347〜349 → 862/0 | `5afcc7b48` |
 | T2 | 8言語の技説明は15技とも既訳あり。JAを変えた3技(ミルクのみ/フリーズドライ/ふんどのこぶし)の8言語を Sonnet が再翻訳中 | — |
 
