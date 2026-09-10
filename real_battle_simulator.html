@@ -2766,9 +2766,6 @@ function recordTaken(df, move, lastHitDmg, attacker){
 function phaseDealDamage(atkSide, defSide, move){
   // power非依存の特殊ダメージ(一撃必殺/固定ダメージ)を先に処理
   const _e0 = (move.battle_data && move.battle_data.effects) || [];
-  // レッドカード/だっしゅつボタンで「この攻撃の中で持ち物が交代を起こした」印を毎攻撃リセット(段150・仕様書項6/7:
-  // とんぼがえり等の自分交代技は、持ち物の交代が先に起きた時は技側の交代が起きない=phaseApplyEffectsの自分交代が読む)
-  _itemForcedSwitch.self = false; _itemForcedSwitch.opp = false;
   // みがわり: この攻撃を分身が受けたかのフラグを毎攻撃リセット(phaseApplyEffectsが追加効果遮断に読む)
   sides[defSide].subAbsorbed = false;
 
@@ -2812,6 +2809,7 @@ function phaseDealDamage(atkSide, defSide, move){
     log('8', `${pname(a)} の ${move.name}！ 受けたダメージを倍返し！ ${pname(df)} に ${dmg} ダメージ！ (残HP ${df.currentHp})`);
     if (df.currentHp <= 0){ df.fainted = true; log('8', `${pname(df)} は ひんしになった！`); applyDestinyBond(df, a); }
     recordTaken(df, move, dmg, a);
+    if (dmg > 0) markHitItemReactions(a, df, move);   // だっしゅつボタン/レッドカード(倍返しも攻撃技のダメージ)
     return { variation: dmg, hits: 1, special: true };
   }
 
@@ -2861,6 +2859,7 @@ function phaseDealDamage(atkSide, defSide, move){
     log('8', `${pname(a)} の ${move.name}！ ${pname(df)} に ${dmg} ダメージ！${ohkoEf ? '(一撃必殺！)' : ''} (残HP ${df.currentHp})`);
     if (df.currentHp <= 0){ df.fainted = true; log('8', `${pname(df)} は ひんしになった！`); applyDestinyBond(df, a); }
     recordTaken(df, move, dmg, a);
+    if (dmg > 0) markHitItemReactions(a, df, move);   // だっしゅつボタン/レッドカード(一撃必殺/固定ダメージも攻撃技のダメージ)
     return { variation: dmg, hits: 1, special: true };
   }
   // 急所判定(確率制・第7世代以降): 急所ランク = きゅうしょアップ状態(きあいだめ=+2) + 技の急所ランク(crit_stage=高急所技+1)。
@@ -2943,6 +2942,8 @@ function phaseDealDamage(atkSide, defSide, move){
       const _m = realStat(_d, 'hp');
       const _chip = Math.max(1, Math.floor(_m / 8));
       _d.currentHp = Math.max(0, (_d.currentHp == null ? _m : _d.currentHp) - _chip);
+      // ばけのかわが肩代わりした攻撃技でも だっしゅつボタン/レッドカードは発動する(Wiki『ばけのかわ…でダメージを肩代わりしたとき…発動する』)
+      markHitItemReactions(sides[atkSide], _d, move);
       log('8', `${pname(_d)} は ばけのかわで ${_chip} ダメージ！ (残HP ${_d.currentHp})`);
     }
     // 吸収特性のおまけ発動(段111・ABILITY_DESC公式準拠): 回復1/4・ランク+1・もらいび=炎強化
@@ -3343,12 +3344,7 @@ function phaseDealDamage(atkSide, defSide, move){
   // 呼んで解決する(連続攻撃技はここに来るのが全ヒット終了後=totalで1回だけ判定=多重発動を防ぐ)。
   // ちからずくが発動した技(追加効果ありでちからずく所持=威力1.3倍と引き換えに追加効果不発)ではレッドカードも
   // 不発とする(フラグを立てない)。出典: ポケモンWiki「だっしゅつボタン」「レッドカード」詳細な仕様 / ヤックン/ch/item.htm
-  if (def.poke && total > 0 && !def.subAbsorbed){
-    if (hasItem(def, 'eject_button')) def.pendingEjectButton = true;
-    const _atkSheerForce = sideAbility(atk) === 'ちからずく' &&
-      !!(move.battle_data && move.battle_data.effects && move.battle_data.effects.length);
-    if (hasItem(def, 'red_card') && !_atkSheerForce) def.pendingRedCard = true;
-  }
+  if (total > 0 && !def.subAbsorbed) markHitItemReactions(atk, def, move);
   // ひんし判定(防御側)
   // ★A.4残(2026-07-11・権威=ポケモンWiki/reference/_aizuchi_win_rule): 相打ち時の表示順は
   // 「被弾側のひんし告知→反動→反動側のひんし告知」。従来は反動→反動側ひんし→最後に被弾側ひんし、
@@ -3811,6 +3807,16 @@ function resolveRedCard(defSide, atkSide){
 // とんぼがえり/ボルトチェンジ/クイックターン/すてゼリフの自分交代(phaseApplyEffects '自分交代')はこの印が立っていれば起きない
 // (Wiki だっしゅつボタン『技を使った側は交代できない』/ レッドカード『とんぼがえり等はレッドカードの効果の方が優先』)。
 const _itemForcedSwitch = { self: false, opp: false };
+// 「攻撃技のダメージを受けた」印を立てる共通入口(段150・9/10 レビュー指摘#2/#3で一本化): 通常ダメージ・倍返し・一撃必殺/固定ダメージ・
+// ばけのかわ肩代わり(ダメージ0でも発動=Wiki)の全経路から呼ぶ。みがわりで防いだ時は呼ばない(呼び元が判定)。
+// ちからずくが発動した技(追加効果あり+ちからずく=威力補正と同じ既存条件)ではレッドカードは不発。
+function markHitItemReactions(atk, def, move){
+  if (!def || !def.poke) return;
+  if (hasItem(def, 'eject_button')) def.pendingEjectButton = true;
+  const _atkSheerForce = sideAbility(atk) === 'ちからずく' &&
+    !!(move && move.battle_data && move.battle_data.effects && move.battle_data.effects.length);
+  if (hasItem(def, 'red_card') && !_atkSheerForce) def.pendingRedCard = true;
+}
 // のどスプレー(Throat Spray・Phase D B3): 音技(flags.sound)を成功させた直後、とくこう+1(消費・1回)。
 // 外れ/無効化/失敗では発動しない(dmgRes.immune/failedで判定・状態異常技はdmgRes省略=無条件で成功扱い)。
 // 技の使用でバトル全体が終わる場合(相手を倒し、かつ相手に出せる控えがいない)は発動しない(仕様書どおり)。
@@ -5755,6 +5761,9 @@ sides.__undoTestHooks = {
 // === 片側攻撃 (技横の ⚔ 実行ボタン) ===
 function runSingleAttack(atkSide, moveIdx){
   ensureBattleState();
+  // レッドカード/だっしゅつボタンの「この行動で持ち物が交代を起こした」印は行動ごとにリセット(段150・9/10 レビュー指摘#1:
+  // phaseDealDamage でだけ消していると、変化技の自分交代(テレポート/すてゼリフ)が phaseDealDamage を通らず前の行動の印を読んで無言で不発になる)
+  _itemForcedSwitch.self = false; _itemForcedSwitch.opp = false;
   const defSide = atkSide === 'self' ? 'opp' : 'self';
   const atk = sides[atkSide];
   const def = sides[defSide];
@@ -7456,6 +7465,7 @@ function runTurn(){
   atk.lastMove = mv;
   lastMoveAnywhere = mv;   // まねっこ用(戦闘全体での直前技)
   lastMoveAnywhereSide = a.side;   // 相打ち勝敗の判定用(A.4 2026-07-11)
+  _itemForcedSwitch.self = false; _itemForcedSwitch.opp = false;   // 持ち物交代の印は行動ごとにリセット(段150・レビュー指摘#1。runSingleAttack と同じ)
   if (!atk.usedMoveNames) atk.usedMoveNames = [];
   if (!atk.usedMoveNames.includes(mv.name)) atk.usedMoveNames.push(mv.name);   // とっておき用(実際に使った技を記録)
     // PP消費はひるみブロック直後に前倒し済み(段129・失敗技でも消費=無限バトル根治 2026-07-11)

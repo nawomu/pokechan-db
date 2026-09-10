@@ -8172,6 +8172,44 @@ console.log('\n=== 段150 レギュM-C追加どうぐ(シード4種/グランド
     E.sides.opp.poke && E.sides.opp.poke.name === 'リザードン' && E.sides.self.item === '',
     `poke=${E.sides.opp.poke && E.sides.opp.poke.name} item=${E.sides.self.item}`);
 
+  // T347 (9/10 レビュー指摘#1) だっしゅつボタン発動の次の行動で、変化技の自分交代(テレポート)が無言で不発にならない
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'eject_button';
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);   // はたく被弾→ボタンでリザードンへ
+  const _t347a = E.sides.self.poke && E.sides.self.poke.name;
+  E.sides.self.bench = [benchEntry('ゲンガー', 'hataku')];
+  E.sides.self.moves = [moveByName('すてゼリフ')];   // 変化技の自分交代(phaseDealDamage を通らない経路)。テレポートは Champions に無い
+  E.sides.self.switchedThisTurn = false; E.sides.opp.switchedThisTurn = false;   // 次のターン(runTurn 冒頭のリセット相当)
+  E.runSingleAttack('self', 0);  // 別の行動: 変化技の自分交代
+  check('T347 だっしゅつボタン後の別行動ですてゼリフ(変化技の自分交代)が成立する',
+    _t347a === 'リザードン' && E.sides.self.poke && E.sides.self.poke.name === 'ゲンガー',
+    `after_button=${_t347a} after_teleport=${E.sides.self.poke && E.sides.self.poke.name} log=${JSON.stringify(E.battleLog.slice(-6).map(l=>l.msg))}`);
+
+  // T348 (指摘#2) 固定ダメージ技(ナイトヘッド)でも だっしゅつボタンは発動する(Wiki: 攻撃技のダメージを受けた)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'eject_button';
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('カビゴン', null); E.sides.opp.moves = [moveByName('ナイトヘッド')];
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T348 固定ダメージ(ナイトヘッド)被弾でも だっしゅつボタンが発動して交代する',
+    E.sides.self.poke && E.sides.self.poke.name === 'リザードン' && E.sides.self.item === '',
+    `poke=${E.sides.self.poke && E.sides.self.poke.name} item=${E.sides.self.item}`);
+
+  // T349 (指摘#3) ばけのかわが肩代わりした攻撃でも レッドカードは発動する(Wiki: 肩代わりでダメージ0でも発動)
+  resetEnv();
+  E.sides.self = freshSide('ミミッキュ(ばけたすがた)', 'hataku'); E.sides.self.item = 'red_card'; E.sides.self.disguise = true;   // 場に出た時の皮(ばけのかわ)
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T349 ばけのかわ肩代わり被弾でも レッドカードが発動して相手が交代する',
+    E.sides.opp.poke && E.sides.opp.poke.name === 'リザードン' && E.sides.self.item === '',
+    `poke=${E.sides.opp.poke && E.sides.opp.poke.name} item=${E.sides.self.item} disguise=${E.sides.self.disguise}`);
+
   resetEnv();
 }
 
