@@ -2467,6 +2467,22 @@ let currentTurnScheduler = null;   // D2-c(2026-09-10): 実行中ターンのsch
 // 「側に依存する乱数消費」(同速タイ・つめ両ロール等)は __rbCanonFirst(=ホスト側)基準に固定して結果を一致させる。
 // 未設定(オフライン)は従来どおり self 優先=挙動不変
 function canonSides(){ return (typeof window !== 'undefined' && window.__rbCanonFirst === 'opp') ? ['opp', 'self'] : ['self', 'opp']; }
+// D4-3b(2026-09-11・設計_ダブルバトル_2026-09-07.md§5・#13/P03): ターン開始の交代とメガシンカを
+// 両側とも行う時に速い方から先にする共通ヘルパー(交代は元々すばやさ比較していたがメガは['self','opp']
+// 固定順のgapだった=同じ鍵に揃える)。同速タイはschedulerのtieと同じ乱数点=Math.random()<0.5を
+// canonSides順で1回だけ引く(#13)。★乱数消費が増えるのは「両側が同ターンにこのフェーズを行う・
+// かつ同速」の時だけ=list.length!==2(片方だけ/0件)は従来どおり乱数を引かない(消費不変)。
+function orderSidesBySpeedForPhase(list){
+  if (list.length !== 2) return list;
+  const [a, b] = list;
+  const sa = effectiveSpeed(slotOf(a, 0)), sb = effectiveSpeed(slotOf(b, 0));
+  if (sa === sb){
+    const canon = canonSides();
+    return Math.random() < 0.5 ? canon : canon.slice().reverse();
+  }
+  const bFaster = env.trickRoom ? (sa > sb) : (sa < sb);
+  return bFaster ? [b, a] : [a, b];
+}
 // D2-c(2026-09-10・設計_ダブルバトル_2026-09-07.md§3/§5): 行動順の決定を純粋scheduler(battle_scheduler.js)
 // の呼び出しに一本化する。runTurnの実行ループと E.decideOrder(既存テスト契約=tools/_sim_test.js等が
 // 直接呼ぶ)が同じ組み立て(buildOrderDecision)を共有する。isPresentだけ呼び出し元ごとに渡す:
@@ -2707,7 +2723,7 @@ function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlway
 // 最小限のスタブ(候補があれば拾う・無ければnull=fail)=fixtureテストの対象外・D4で正式化する。
 // 戻り値: {side, idx} | null (D3-2はTargetSetの先頭1件=単体対象だけを返す。null=fail=呼び出し側が
 // 「しかし うまく きまらなかった！」を出してcontinueする。D4でTargetSet配列に拡張)。
-function targetLock(atkSide, atkIdx, mv, targetChoice){
+function targetLock(atkSide, atkIdx, mv, targetChoice, chargeDeclare){
   const kind = TARGET_KINDS[mv.target] || TARGET_KINDS['1体選択'];
   const oppSide = atkSide === 'self' ? 'opp' : 'self';
   if (kind.candidates === 'self') return { side: atkSide, idx: atkIdx };
@@ -2746,7 +2762,12 @@ function targetLock(atkSide, atkIdx, mv, targetChoice){
   // D4-spreadの間に合わせでここに来るがそれらには引き寄せは適用しない)。
   // ignore(#33): 撃つ側がすじがねいり、またはねらいうち(effects宣言 ignores_redirect:true)なら
   // Handler群を丸ごと飛ばす(直接狙った場合のタイプ無効化は別レイヤー=calcDamage側で普通に起きる)。
-  if (mv.target === '1体選択'){
+  // D4-3a(#35・出典: review/_doubles_research_2026-09-07/T4_引き寄せと保護.md#20=Showdown
+  // `!isCharging`ガード/Wiki よびみず本文「攻撃実行時によびみずがいれば引き寄せられる」): 溜め技の
+  // 宣言ターン(chargeDeclare=true・まだ攻撃せず溜めに入るだけ)は引き寄せ判定(この節=手順2)を飛ばす。
+  // 実行ターン(chargeDeclare=false)は普通に判定する=毎回このtargetLock呼び出し自体が独立しているため
+  // 自然に「実行ターン時点の宣言」だけを見る形になる。
+  if (mv.target === '1体選択' && !chargeDeclare){
     const _atkSt = slotOf(atkSide, atkIdx);
     const _ignoresRedirect = sideAbility(_atkSt) === 'すじがねいり' ||
       ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.ignores_redirect);
@@ -2919,16 +2940,23 @@ function resolveTerrainSeeds(){
   for (const s of order) _seedTryOne(sides[s]);
 }
 // === フェーズ: Init-A 場に出た時の特性発動 ===
+// D4-3a(2026-09-11・設計_ダブルバトル_2026-09-07.md§5「同時入場の登場効果=全員出揃ってから
+// すばやさ順・順は1回決めて固定」#14,#15): activeSlots()で全枠(シングル=1枠なので不変)を対象に、
+// 「全員出揃ってから」速度順で1回だけ順番を決めて発動する。canonSlots()(self→opp・枠0→1)を
+// 安定ソート(stable sort)で速度降順に並べ替える=同速タイは元の並び(self優先)のまま残るので、
+// シングル(常に2件)は旧実装の`>=`(自分優先)と完全に同じ結果になる(diff 0)。
 function phaseInitA(){
-  const order = (effectiveSpeed(slotOf('self', 0)) >= effectiveSpeed(slotOf('opp', 0)))
-    ? ['self','opp'] : ['opp','self'];
-  // 各側を速度順に発動
-  for (const s of order) fireEntryAbility(s);
+  const order = canonSlots()
+    .filter(function (sl) { return slotOf(sl.side, sl.idx).poke; })
+    .sort(function (a, b) { return effectiveSpeed(slotOf(b.side, b.idx)) - effectiveSpeed(slotOf(a.side, a.idx)); });
+  for (const sl of order) fireEntryAbility(sl.side, sl.idx);
   // てんきや(Phase D B1): 両者の登場処理が出そろった後にもう一度同期(自分が相手より速く、
   // 相手の天候特性がまだ発動していない時点でこの側のてんきや判定が走った場合の取りこぼし防止)
   syncForecastBothSides();
-  // だっしゅつパック(Phase D B3): いかく等の場出し特性でランクが下がった直後にも判定する
-  resolveEjectPack('self'); resolveEjectPack('opp');
+  // だっしゅつパック(Phase D B3): いかく等の場出し特性でランクが下がった直後にも判定する。
+  // D4-3a: 旧実装はresolveEjectPack('self')/('opp')(枠0のみ)固定だった=残った既知の「枠0のみ」箇所を
+  // ここで解消(resolveEjectPackAllSlots自身は既にD4-2dでシングル不変=self→opp固定順のまま)。
+  resolveEjectPackAllSlots();
 }
 // 1体ぶんの「場に出た時の特性」発動(段127: バトル開始Init-Aと、メガシンカ直後からも呼ぶ。
 // 実機はメガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)がその瞬間に発動する)
@@ -6874,6 +6902,17 @@ function armFutureSight(st, mv){
   st.lastMove = mv;
   log('0c', `${pname(st)} は みらいに こうげきを よちした！`);
 }
+// D4-3a(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.3・#35): このアクションが「溜め技の宣言ターン」
+// (=攻撃はせず溜めに入るだけのターン)かどうかを判定する純粋関数。startChargeIfNeededと同じ条件
+// (天候スキップなら宣言ターンではなく即攻撃)を、target_lockの引き寄せ判定を飛ばすかどうかの判定にも使う。
+function isChargeDeclareTurn(mv, releasing){
+  if (releasing || !mv) return false;
+  const effs = (mv.battle_data && mv.battle_data.effects) || [];
+  const chargeEf = effs.find(e => e.kind === '2ターン目に攻撃');
+  if (!chargeEf) return false;
+  if ((chargeEf.skip_charge_if_weather || []).some(w => (_WMAP[w] || w) === env.weather)) return false;
+  return true;
+}
 
 function startChargeIfNeeded(st, mv, releasing){
   if (releasing || !st.poke) return false;
@@ -6918,17 +6957,21 @@ function packBenchEntry(st){
   return e;
 }
 // 交代封じの判定: 封じられていれば理由の文字列、出られるなら null
-function cannotSwitchReason(st){
+// D4-3a(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.3): sideKey(呼び出し元=attemptSwitchが持つ
+// 「stが属する側」)を受け取り、相手の参照を「相手側のいずれかの枠」に広げる。シングルは相手枠が1つだけ=不変。
+function cannotSwitchReason(st, sideKey){
   if (sideTypes(st).includes('ゴースト')) return null;   // 第6世代以降: ゴーストタイプは交代封じを無視
   if (st.rooted) return 'ねをはっている';
   if (st.trapped) return 'にげられない';
   if ((st.slips || []).some(sl => sl.source === 'バインド')) return 'バインドされている';
   if (env.fairyLockTurns > 0) return 'フェアリーロック';
-  // かげふみ(特性): 相手がかげふみだと交代できない(自分もかげふみなら無効=第4世代以降)。
+  // かげふみ(特性): 相手側のいずれかの枠が持っていれば交代できない(自分もかげふみなら無効=第4世代以降)。
+  // 出典: ポケモンWiki「かげふみ」(相手のポケモン全員が対象=1体でも所持していれば発動)/「ポケモンチェンジ」。
   // ※ありじごく/じりょく/きゅうばん/きれいなぬけがらは現DBに持ち主がいない=park(推測実装しない)
-  // 出典: ポケモンWiki「ポケモンチェンジ」
-  const oppSt = (st === slotOf('self', 0)) ? slotOf('opp', 0) : slotOf('self', 0);
-  if (oppSt.poke && !oppSt.fainted && sideAbility(oppSt) === 'かげふみ' && sideAbility(st) !== 'かげふみ') return 'かげふみ';
+  const oppSideKey = sideKey === 'self' ? 'opp' : 'self';
+  const oppSlotsArr = sides[oppSideKey].slots || [sides[oppSideKey]];
+  if (sideAbility(st) !== 'かげふみ' &&
+      oppSlotsArr.some(o => o && o.poke && !o.fainted && sideAbility(o) === 'かげふみ')) return 'かげふみ';
   return null;
 }
 // 交代時の揮発リセット: resetBattle のポケモン由来項目と同じ範囲。
@@ -7226,12 +7269,12 @@ function attemptSwitch(sideKey, benchIdx, opts){
   }
   // ★2026-06-19 きれいなぬけがら: 交代封じを無視して交代できる(items_database.js宣言)
   const _shedShell = st.item && ITEM_BY_KEY[st.item] && ITEM_BY_KEY[st.item].key === 'kireina_nukegara';
-  const reason = (opts && opts.ignoreTrapping) || _shedShell ? null : cannotSwitchReason(st);
+  const reason = (opts && opts.ignoreTrapping) || _shedShell ? null : cannotSwitchReason(st, sideKey);
   if (reason){
     log('9', `${pname(st)} は にげられない！(${reason})`);
     return false;
   }
-  if (_shedShell && cannotSwitchReason(st)) {
+  if (_shedShell && cannotSwitchReason(st, sideKey)) {
     log('9', `${pname(st)} は きれいなぬけがらで にげるしたくをした！`);
   }
   const outName = pname(st);
@@ -7281,12 +7324,16 @@ function attemptSwitch(sideKey, benchIdx, opts){
   st.disguise = (sideAbility(st) === 'ばけのかわ') && st.disguiseBroken !== true;
   if (st.currentHp == null) st.currentHp = realStat(st, 'hp');   // 未設定=満タンで出す
   st.switchedThisTurn = true;
-  // 拘束(くろいまなざし等)は「かけた側が場を離れるまで」→ この側のポケモンが離れたので相手の拘束を解除
-  // ★未確認・残した箇所(D4-2の対象外): 相手側は常に枠0だけを見る(ダブルで相手の枠1がかけた拘束は
-  // 対象外のまま=D3-2から未解決。かげふみ/くろいまなざしの相手枠特定はD4-2の4項目に含まれないため
-  // ここでは触らない)。
-  sides[sideKey === 'self' ? 'opp' : 'self'].trapped = false;
-  sides[sideKey === 'self' ? 'opp' : 'self'].attracted = false;   // メロメロ(段139): 相手が離れたら解放
+  // 拘束(くろいまなざし等)は「かけた側が場を離れるまで」→ この側のポケモンが離れたので相手の拘束を解除。
+  // D4-3a(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.3): 旧実装は相手側の枠0だけを見ていた
+  // (ダブルで相手の枠1が拘束されていても解除されなかった)ので、相手側の全枠を対象に広げる。
+  // ★何が誰を拘束したか(かけた個体との対応)までは追跡していない=「この側の誰かが場を離れたら相手側
+  // 全枠の拘束/メロメロを解く」という近似(シングルは相手枠が1つだけなので既存挙動と完全に同じ=不変)。
+  const _oppSideKeyForRelease = sideKey === 'self' ? 'opp' : 'self';
+  (sides[_oppSideKeyForRelease].slots || [sides[_oppSideKeyForRelease]]).forEach(function (o) {
+    o.trapped = false;
+    o.attracted = false;   // メロメロ(段139): 相手が離れたら解放
+  });
   if (opts && opts.faintReplace) log('9', `たおれた ${outName} の代わりに ${pname(st)} が 場に出た！`);
   else log('9', `${outName} は 引っ込んだ！ ${pname(st)} が 場に出た！`);
   applyEntryHazards(sideKey, slotIdx);   // 設置技(ステルスロック等)は交代完了後に発動(その枠に対して)
@@ -7401,8 +7448,11 @@ function canMegaEvolve(st){
   if (it.applies_to === st.poke.name && it.mega_form) return POKE_MAP_BY_NAME[it.mega_form] || null;
   return null;
 }
-function megaEvolve(sideKey){
-  const st = sides[sideKey];
+// D4-3a(2026-09-11・設計_ダブルバトル_2026-09-07.md§3「メガ予約(megaChoice)は枠に」/§5「交代・
+// メガシンカも4体分を同じ鍵で並べる」): slotIdx省略時は0(既存呼び出しは無変更=シングル不変)。
+function megaEvolve(sideKey, slotIdx){
+  slotIdx = slotIdx || 0;
+  const st = slotOf(sideKey, slotIdx);
   const mf = canMegaEvolve(st);
   if (!mf) return false;
   const stone = ITEM_BY_KEY[st.item];
@@ -7418,9 +7468,7 @@ function megaEvolve(sideKey){
   // i18nパターンbl_22は元から{p}=進化前名・{p3}=メガ名を期待して書かれているので、この修正だけで9言語とも正しく出る。
   log('0a', `${baseName} の ${stone.name}が 反応している！ ${pname(st)} に メガシンカした！`);
   // メガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)はその瞬間に発動する(段127・実機準拠)
-  // ★megaEvolve自体は枠0(sides[sideKey])だけを対象にする(D4-2の4項目=交代/複数ひんし/勝敗/道具の
-  // 対応に含まれないため未対応のまま残す=枠1のメガシンカはD4-2の対象外)。
-  fireEntryAbility(sideKey);
+  fireEntryAbility(sideKey, slotIdx);
   resolveEjectPackAllSlots();   // だっしゅつパック(Phase D B3・D4-2d): いかく等が相手複数枠に効きうるので全枠まとめて見る
   return true;
 }
@@ -7862,22 +7910,23 @@ function runTurn(){
   });
   log('Turn', '─── ターン開始 ───');
   // ② 交代フェーズ: 交代は技より必ず先に処理する。両者が交代を選んだ時はすばやさが高い順
-  // (トリックルームでは遅い順)。※同速は self 先の近似。おいうち割り込みは未実装(park)。
+  // (トリックルームでは遅い順)。同速はorderSidesBySpeedForPhase内で乱数タイブレーク(D4-3b・#13)。
+  // おいうち割り込みは未実装(park)。
   // 出典: ポケモンWiki「ポケモンチェンジ」/ Bulbapedia "Priority"
   {
-    const sw = activeSides().filter(s => sides[s].switchChoice != null);
-    if (sw.length === 2){
-      const s1 = effectiveSpeed(slotOf('self', 0)), s2 = effectiveSpeed(slotOf('opp', 0));
-      if (env.trickRoom ? (s1 > s2) : (s1 < s2)) sw.reverse();
-    }
+    const sw = orderSidesBySpeedForPhase(activeSides().filter(s => sides[s].switchChoice != null));
     for (const s of sw){
       const idx = sides[s].switchChoice;
       sides[s].switchChoice = null;
       attemptSwitch(s, idx);
     }
   }
-  // ③ メガシンカ(Init-B): 交代の後・技フェーズの直前(実機リファレンス)。予約(megaChoice)があれば変身
-  activeSides().forEach(s => { if (sides[s].megaChoice) megaEvolve(s); });
+  // ③ メガシンカ(Init-B): 交代の後・技フェーズの直前(実機リファレンス)。予約(megaChoice)があれば変身。
+  // D4-3b(2026-09-11・設計_ダブルバトル_2026-09-07.md§5・P03「速い方から先に(阿部さん確定)」):
+  // 旧実装は['self','opp']固定順だった(gap)。交代と同じorderSidesBySpeedForPhaseに揃える。
+  for (const s of orderSidesBySpeedForPhase(activeSides().filter(s => sides[s].megaChoice))){
+    megaEvolve(s);
+  }
   // 交代した側はこのターン技を出さない(交代して出されたポケモンは次のターンまで行動できない)
   const selfMove = moveOfSlot('self', 0);
   const oppMove  = moveOfSlot('opp', 0);
@@ -8114,7 +8163,8 @@ function runTurn(){
       const _tgtKind = TARGET_KINDS[mv.target];
       const _needsTargetLock = _tgtKind && (_tgtKind.candidates === 'foes_ally' || _tgtKind.candidates === 'ally' || _tgtKind.candidates === 'self_ally');
       if (!_isSingleFormat && _needsTargetLock){
-        const _tgt = targetLock(a.side, slotIdx, mv, isExtraAct ? null : (_schedAct.targetChoice || null));
+        // D4-3a(#35): 溜め技の宣言ターンかどうかをtargetLockへ渡す(引き寄せ判定を飛ばすかの判定に使う)。
+        const _tgt = targetLock(a.side, slotIdx, mv, isExtraAct ? null : (_schedAct.targetChoice || null), isChargeDeclareTurn(mv, releasing));
         if (_tgt === null){
           // 味方1体/自分か味方で、選んでいた味方が既に居ない=fail(#26)。既存の汎用失敗文言を使う。
           log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);

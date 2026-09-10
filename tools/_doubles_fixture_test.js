@@ -754,3 +754,157 @@ test('D4-2d-1: 相手全体技で両枠のだっしゅつボタンが成立→�
   assert.ok(idxFast < idxSlow,
     `素の素早さが高い枠(ゲンガー)から先に脱出する(実際: ゲンガー=${idxFast}行目, カビゴン=${idxSlow}行目)`);
 });
+
+// ===== D4-3a: 全枠の開始登場・メガ・交代封じ・溜め技の引き寄せ先送り
+//              (2026-09-11・実装指示D4-3a・設計_ダブルバトル_2026-09-07.md§4.3/§5・diff 0) =====
+
+test('D4-3a-1: バトル開始の登場特性(いかく×2)は4体が出揃ってからすばやさ順で発動する(#14,#15)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カメックス', null, { ability: 'いかく' });   // 素早さ78
+  placeSlot(E, 'self', 1, 'カビゴン', null);                             // 素早さ30(最遅)
+  placeSlot(E, 'opp', 0, 'ゲンガー', null, { ability: 'いかく' });       // 素早さ110(最速)
+  placeSlot(E, 'opp', 1, 'フシギバナ', null);                            // 素早さ80
+  E.phaseInitA();
+  const msgs = msgList(E.battleLog);
+  const idxOpp0 = msgs.findIndex(m => m.includes('相手の ゲンガー の いかくで'));
+  const idxSelf0 = msgs.findIndex(m => m.includes('カメックス の いかくで'));
+  assert.ok(idxOpp0 >= 0 && idxSelf0 >= 0, 'いかくのログが両方出る');
+  assert.ok(idxOpp0 < idxSelf0,
+    `4体中最速(opp:0=ゲンガー110)のいかくが先に発動する(実際: opp:0=${idxOpp0}行目, self:0=${idxSelf0}行目)`);
+});
+
+test('D4-3a-2: megaEvolveは枠1を直接メガシンカさせられる(枠0は無傷のまま)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, 'フシギバナ', null);
+  E.slotOf('opp', 1).item = 'mega_stone_venusaur';
+  const ok = E.megaEvolve('opp', 1);
+  assert.equal(ok, true, '枠1のメガシンカが成立する');
+  assert.equal(E.slotOf('opp', 1).poke.name, 'メガフシギバナ', '枠1がメガフシギバナになる');
+  assert.equal(E.slotOf('opp', 0).poke.name, 'ゲンガー', '枠0は無関係のまま(交代していない)');
+});
+
+test('D4-3a-3: 相手の枠1がかげふみを持っていると自分は交代できない(#かげふみは相手側いずれかの枠を見る)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カメックス', null);
+  placeSlot(E, 'self', 1, 'カビゴン', null);
+  E.sides.self.bench = [benchEntry('ピカチュウ', null)];
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, 'フシギバナ', null, { ability: 'かげふみ' });
+  const ok = E.attemptSwitch('self', 0, { slotIdx: 0 });
+  assert.equal(ok, false, '相手の枠1のかげふみで自分(枠0)は交代できない');
+  assert.equal(E.slotOf('self', 0).poke.name, 'カメックス', '交代失敗=出ているポケモンは変わらない');
+});
+
+test('D4-3a-4: 溜め技(そらをとぶ)は宣言ターンは引き寄せを無視し、実行ターンにこのゆびとまれが効く(#35)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'ピジョット', 'sorawotobu');
+  // ★self:1は生存させておく(このゆびとまれ=target:自分の変化技を「相手opp:1」が使う時、既定defが
+  // slotOf('self',1)になる=phaseApplyEffects冒頭の`if(def.fainted) return;`にひっかかり自分向けの
+  // 引き寄せ宣言そのものが不発になる、という別件の既存ギャップ(D4-3aのスコープ外)を踏まないため)。
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'カビゴン', null);
+  placeSlot(E, 'opp', 1, 'フシギバナ', null);
+  const opp0Max = E.realStat(E.slotOf('opp', 0), 'hp');
+  const opp1Max = E.realStat(E.slotOf('opp', 1), 'hp');
+  E.setRandom(mulberry32(7));
+  E.runTurn();   // ターン1: 溜めに入る(攻撃しない)
+  assert.ok(E.slotOf('self', 0).charging, '1ターン目は溜めに入る');
+  assert.equal(E.slotOf('opp', 0).currentHp, opp0Max, '1ターン目は攻撃していない=ノーダメージ');
+  assert.equal(E.slotOf('opp', 1).currentHp, opp1Max, '1ターン目は攻撃していない=ノーダメージ');
+  // ターン2: opp:1がこのゆびとまれを宣言→そらをとぶの着地先が正面(opp:0)からopp:1へ引き寄せられるはず
+  const opp1 = E.slotOf('opp', 1);
+  opp1.moves = [data.WAZA_MAP['konoyubitomare']];
+  opp1.selectedMoveIdx = 0;
+  E.runTurn();
+  assert.equal(E.slotOf('opp', 0).currentHp, opp0Max, '正面(opp:0)は引き寄せで無傷のまま');
+  assert.ok(E.slotOf('opp', 1).currentHp < opp1Max,
+    `このゆびとまれの宣言者(opp:1)が引き寄せて被弾するはず(実際=${E.slotOf('opp', 1).currentHp}/${opp1Max})`);
+});
+
+// ===== D4-3b: 交代とメガの並び=すばやさ順(2026-09-11・実装指示D4-3b・
+//              設計_ダブルバトル_2026-09-07.md§5・#13・P03=意図した挙動変更) =====
+
+test('D4-3b-1: 両側が同ターンに交代を選ぶ→速い方(相手)が先に引っ込む', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);   // 素早さ30(遅い)
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);    // 素早さ110(速い)
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  E.sides.self.bench = [benchEntry('カメックス', null)];
+  E.sides.opp.bench = [benchEntry('フシギバナ', null)];
+  E.sides.self.switchChoice = 0;
+  E.sides.opp.switchChoice = 0;
+  E.setRandom(mulberry32(9));
+  E.runTurn();
+  const msgs = msgList(E.battleLog);
+  const idxOpp = msgs.findIndex(m => m.includes('ゲンガー は 引っ込んだ'));
+  const idxSelf = msgs.findIndex(m => m.includes('カビゴン は 引っ込んだ'));
+  assert.ok(idxOpp >= 0 && idxSelf >= 0, '両側とも交代ログが出る');
+  assert.ok(idxOpp < idxSelf,
+    `速い方(opp=ゲンガー)が先に引っ込む(実際: opp=${idxOpp}行目, self=${idxSelf}行目)`);
+});
+
+test('D4-3b-2: 両側が同ターンにメガを予約→速い方(相手)が先にメガシンカする(ログ順・P03)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', null);   // 素早さ80
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'スターミー', null);    // 素早さ115(速い)
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  E.slotOf('self', 0).item = 'mega_stone_venusaur';
+  E.slotOf('opp', 0).item = 'mega_stone_starmie';
+  E.sides.self.megaChoice = true;
+  E.sides.opp.megaChoice = true;
+  E.setRandom(mulberry32(9));
+  E.runTurn();
+  const msgs = msgList(E.battleLog);
+  const idxOpp = msgs.findIndex(m => m.includes('メガスターミー に メガシンカした'));
+  const idxSelf = msgs.findIndex(m => m.includes('メガフシギバナ に メガシンカした'));
+  assert.ok(idxOpp >= 0 && idxSelf >= 0, '両側ともメガシンカのログが出る');
+  assert.ok(idxOpp < idxSelf,
+    `速い方(opp=スターミー)が先にメガシンカする(実際: opp=${idxOpp}行目, self=${idxSelf}行目)`);
+  assert.equal(E.slotOf('self', 0).poke.name, 'メガフシギバナ', '自分もメガシンカが成立している');
+  assert.equal(E.slotOf('opp', 0).poke.name, 'メガスターミー', '相手もメガシンカが成立している');
+});
+
+test('D4-3b-3: トリックルーム下では両側交代の順が逆転する(遅い方=自分が先)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);   // 素早さ30(遅い)
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);    // 素早さ110(速い)
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  E.sides.self.bench = [benchEntry('カメックス', null)];
+  E.sides.opp.bench = [benchEntry('フシギバナ', null)];
+  E.sides.self.switchChoice = 0;
+  E.sides.opp.switchChoice = 0;
+  E.env.trickRoom = true;
+  E.setRandom(mulberry32(9));
+  E.runTurn();
+  const msgs = msgList(E.battleLog);
+  const idxOpp = msgs.findIndex(m => m.includes('ゲンガー は 引っ込んだ'));
+  const idxSelf = msgs.findIndex(m => m.includes('カビゴン は 引っ込んだ'));
+  assert.ok(idxOpp >= 0 && idxSelf >= 0, '両側とも交代ログが出る');
+  assert.ok(idxSelf < idxOpp,
+    `トリックルームでは遅い方(self=カビゴン)が先に引っ込む(実際: self=${idxSelf}行目, opp=${idxOpp}行目)`);
+});
+
+test('D4-3b-4: 両側が同ターンに交代・同速→乱数を1回だけ消費してcanonSides順に順序を決める(#13)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カメックス', null);   // 素早さ78(交代前=同速タイの判定対象)
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カメックス', null);    // 同速
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  // 交代先(枠0=switchedThisTurnで技フェーズはno-opだが、moveOfSlotが返すnullどうし+同速だと
+  // schedulerの行動順決定側でも別のtieが1回立ってしまい「switch-phaseの1回」を隠す=交代先は
+  // わざと異なる素早さの2種にして、switch-phase由来の乱数だけを切り出して見る)。
+  E.sides.self.bench = [benchEntry('フシギバナ', null)];   // 交代先(素早さ80)
+  E.sides.opp.bench = [benchEntry('カビゴン', null)];      // 交代先(素早さ30・自分側と異なる速さ)
+  E.sides.self.switchChoice = 0;
+  E.sides.opp.switchChoice = 0;
+  const rng = countingRandom(42);
+  E.setRandom(rng);
+  E.runTurn();
+  assert.equal(rng.count(), 1, `同速タイの交代(orderSidesBySpeedForPhase)は乱数を1回だけ引く(実際=${rng.count()}回)`);
+});
