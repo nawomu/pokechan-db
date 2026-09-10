@@ -33,7 +33,7 @@
 
 ## 2. 🙋 阿部さんに確認してほしいこと(確認用ページ= https://claude.ai/code/artifact/42b93fd2-6379-4133-8752-a84da48b75a6 ・9/10 作成)
 
-1. **持ち物12件の「家の分類(category)」と効果文(effect_ja)は私の仮置き**(シード4=defense_boost / グランドコート・しめつけバンド・だっしゅつボタン・レッドカード=misc / ながねぎ・ノーマルジュエル=attack_boost / ゴツゴツメット・ふうせん=defense_boost)。分類の変更と、文の声(耳)を見てください(items_list.html「M-Cで追加」バッジの行)。
+1. ~~持ち物12件の「家の分類」と効果文は私の仮置き~~ → **9/10夜 3サイト裏取りで矛盾なし(阿部さん「確信があれば聞かずに進めて」)**。元の文:(シード4=defense_boost / グランドコート・しめつけバンド・だっしゅつボタン・レッドカード=misc / ながねぎ・ノーマルジュエル=attack_boost / ゴツゴツメット・ふうせん=defense_boost)。分類の変更と、文の声(耳)を見てください(items_list.html「M-Cで追加」バッジの行)。
 2. ~~**イキリンコ**~~ → **決定(9/10 阿部さん)**: 4色とも使える扱いでよい(違いは隠れ特性だけ)。masterは4行 champions:true のまま。
 3. ~~**news.html**~~ → **決定(9/10 阿部さん)**: 調整内容の記事は書かなくてよい。開幕カードは master から自動表示。
 4. ガブリアスナイトZ / ボーマンダナイトの入手方法はヤックン一覧に未掲載=空欄のまま(推測で埋めない)。
@@ -48,18 +48,33 @@
 - テスト: `tools/_sim_test.js` 段150 T315〜T346(34件)。全ハーネス緑: sim **859/0** / sweep 919/0 / hard 174/0 skip11 / behavior 605/605 flag0 / engine 19/0 / lab 32/32 / adversarial **10/10**(S9 のテスト側修正 `tools/_lab_adversarial_test.js` も同梱=前回の未コミット分) / Playwright 段D 8/8 / バトル系ページ JSエラー0。
 - master: `_items_fixes.json` に implemented:true(12)+ながねぎ `applies_to_pokemon`(ガラル込み)・builder の fixes 受付欄に implemented/applies_to_pokemon・views に `applies_to_pokemon` 列(views_diff (n)/(m)別名で未説明0)。
 
+
+## 1c. 夜の自走(9/10 19:00〜・阿部さん「ネットで裏取りして確信があれば聞かずに進める/残タスクをがんがん/余ればダブル/Codexは補助程度」)
+
+| 済 | 内容 | commit |
+|---|---|---|
+| T1 | 新規29行(19種25行+ボーマンダ/グソクムシャ/セグレイブ/ゴリランダー)のChampions習得技=**ヤックン/ch × Serebii /pokedex-champions/ 26/26 完全一致**→権威コーパスに追記・builderが凍結スナップショット外の行も権威から作る(メガは元の種から複写)・A3の全国行fixはChampions行に当てない・Champions初登場の技10件(+きりさく等5)=**技表 496→511**(ローマ字キー生成 `tools/_lib/kana_romaji.js`・i18n別名)。★ヤックン `#move_list` は「◆没収された技」見出しの**前後**で分ける(past_move クラスに頼ると19技が混入) | `932220950` |
+| T4 | ヤックン/ch/move_changes.htm「威力・効果の変更された技」33件 vs master=31一致・**フリーズドライ(Championsは追加効果こおり無し)/ふんどのこぶし(蓄積は交代でリセット・最大350)**を修正(Wiki Champions欄+Serebii) | `11badb9fe` |
+| T5 | **全Champions行(非メガ266行)をヤックン/ch/から取り直し**(Chrome同一オリジンfetch・120行/回で弾かれる→400ms間隔+再試行)→235行一致・30行は「きりさく解禁」(公式#817)→learn_add(+メガ18行)・残1=ランクルス(A3決着)。記録=`reference/_yakkun_ch_learnsets_all_2026-09-10.json` | `6b3a922d8` |
+| T8 | 新種25行の図鑑諸元=**Wiki×ヤックン×master 100/100一致**→暫定の印を外す(Sonnet照合) | 同上 |
+| 持ち物12件 | **3サイト(Wiki/Bulbapedia/Serebii ItemDex)で矛盾なし**(Sonnet照合)。補記: ふうせん=まきびし/どくびし/ねばねばネットも無効・しめつけバンド=攻撃系へ。notes の「仮置き」を「確認済み」に | 同上 |
+| B064 | 前回の束(設計書/調査/D0)をcommit。**D1(行動者契約+純粋scheduler=未接続)をSonnetに発注中**(指示書= scratchpad `spec_d1_scheduler.md`。成果= `battle_scheduler.js` + `tools/_scheduler_test.js`) | `bd05f6e4e` |
+| T2 | 8言語の技説明は15技とも既訳あり。JAを変えた3技(ミルクのみ/フリーズドライ/ふんどのこぶし)の8言語を Sonnet が再翻訳中 | — |
+
+残: T6(ミルクのみ effects target=B064語彙)/ T7(新15技の effects をChampions正典で再確認=説明文は一致確認済み)/ ガブリアスナイトZ・ボーマンダナイトの入手(ヤックン未掲載)/ D1検収→D2。
+
 ## 3. 残タスク(優先順・「やること整理」)
 
 | # | やること | 入口/道具 | 規模 |
 |---|---|---|---|
-| **T1** | **M-C新規28行のChampions習得技を取り込む**(新24行+ボーマンダ/グソクムシャ/セグレイブ/ゴリランダー)。現状=`learnsets.json` の champions:false のまま=ページ/バトルは**全国版の技にフォールバック**(例: プクリン88技・グソクムシャ57技)。ヤックン/ch/zukan/nXXX の「覚える技」+「没収された技」を取り、`_authority_corpus_ch/learnsets_ch.json` 経由か `_learnsets_fixes.json` で入れる。二人目の目=ポケモンWiki「Pokémon Championsのおぼえるわざ」 | メモリ [[yakkun-ch-change-pages]] / [[yakkun-scrape-method]] / A3の流儀 `reference/_wiki_learnset_audit_summary.md` | 中(28ページ×2ソース) |
+| ~~**T1**~~ 完了(§1c) | ~~M-C新規28行のChampions習得技を取り込む~~(新24行+ボーマンダ/グソクムシャ/セグレイブ/ゴリランダー)。現状=`learnsets.json` の champions:false のまま=ページ/バトルは**全国版の技にフォールバック**(例: プクリン88技・グソクムシャ57技)。ヤックン/ch/zukan/nXXX の「覚える技」+「没収された技」を取り、`_authority_corpus_ch/learnsets_ch.json` 経由か `_learnsets_fixes.json` で入れる。二人目の目=ポケモンWiki「Pokémon Championsのおぼえるわざ」 | メモリ [[yakkun-ch-change-pages]] / [[yakkun-scrape-method]] / A3の流儀 `reference/_wiki_learnset_audit_summary.md` | 中(28ページ×2ソース) |
 | **T2** | **Champions入りした技82件の説明文(description)の多言語**(news.html/waza-list で意図的jaにしてある)。並列WFで翻訳→`i18n/*.json moves` | [[i18n-static-and-battlelog-arch]] の翻訳WF | 中 |
 | ~~**T3**~~ | ~~持ち物12件のエンジン対応~~ → **完了(9/10 §1b)**。残=近似4点の検証・きゅうばん特性の実装(③) | — | — |
-| **T4** | **ヤックン/ch/move_changes.htm「威力・効果の変更された技」全件 vs master の全数照合**(ボーンラッシュ30/であいがしら100/かげぬい90/トロピカルキック85/くちばしキャノン120/…/フリーズドライ追加効果削除/ゴールドラッシュ命中95 等=M-B以前の変更も含む。R1監査で拾えているか) | 同ページ(ブラウザfetch) | 小 |
-| **T5** | ヤックン/ch/move_changes.htm「覚える技の変更点」(ポケモン別 新規習得/没収) vs `learnsets.json` 全数照合 | 同上 | 中 |
+| ~~**T4**~~ 完了(§1c) | ~~ヤックン/ch/move_changes.htm「威力・効果の変更された技」全件 vs master の全数照合**(ボーンラッシュ30/であいがしら100/かげぬい90/トロピカルキック85/くちばしキャノン120/…/フリーズドライ追加効果削除/ゴールドラッシュ命中95 等=M-B以前の変更も含む。R1監査で拾えているか) | 同ページ(ブラウザfetch) | 小 |
+| ~~**T5**~~ 完了(§1c・全行取り直しで代替) | ~~ヤックン/ch/move_changes.htm「覚える技の変更点」(ポケモン別 新規習得/没収) vs `learnsets.json` 全数照合 | 同上 | 中 |
 | **T6** | ミルクのみの effects(battle_data)の target を「自分か味方」に追随=ダブル(B064)の語彙で。今回は master.target のみ変更 | 設計_ダブルバトル_2026-09-07.md | 小(B064内) |
 | **T7** | M-Cで新しくChampionsに来た技82件の effects/説明文は全国版由来の暫定(R2②)。Champions正典(ヤックン/ch/技ページ)で1件ずつ上書き=技監査R1の流儀 | `技監査R1_*` 台帳 | 中 |
-| **T8** | 新種19種の図鑑諸元(高さ/性別/分類)は PokeAPI暫定のまま(重さだけ一致確認済み)。ヤックン/ch/で確定→fixes | `_pokemon_fixes.json` | 小 |
+| ~~**T8**~~ 完了(§1c) | ~~新種19種の図鑑諸元(高さ/性別/分類)は PokeAPI暫定のまま(重さだけ一致確認済み)。ヤックン/ch/で確定→fixes | `_pokemon_fixes.json` | 小 |
 | **T9** | 定期watcherの結果で「M-D 発表」が出たら `role:next` で足す(R4) | 手順書 §3 | — |
 
 持ち越し(前回から): B064 ダブル(🙋4返事待ち→commit→D0残→D1)/ Supabase 不通 / AdSense 再審査・Search Console の結果待ち / `making.html:356` の古い記述 / `HANDOFF_SESSION_2026_09_04.md` §4 3〜9。
