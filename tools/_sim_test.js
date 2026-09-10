@@ -7849,6 +7849,332 @@ console.log('\n=== 段143 レギュMB新ポケモン38体 すべてsimで動作�
   resetEnv();
 }
 
+console.log('\n=== 段150 レギュM-C追加どうぐ(シード4種/グランドコート/しめつけバンド/ながねぎ/ノーマルジュエル/だっしゅつボタン/レッドカード) ===');
+{
+  // --- シード4種(電気/草/超/妖精フィールドで対応ランク+1・消費1回・出典: ポケモンWiki「フィールド#シード系アイテム」) ---
+  // (i) 相手がエレキフィールド技を使う→自分のエレキシードが消費され ぼうぎょ+1
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'electric_seed';
+  E.sides.opp = freshSide('フシギバナ', 'erekifiirudo');
+  E.phaseApplyEffects('opp', 'self', moveByName('エレキフィールド'));
+  check('T315 エレキシード: エレキフィールドでぼうぎょ+1', E.sides.self.rank.def === 1, `def=${E.sides.self.rank.def}`);
+  check('T316 エレキシード: 消費される(所持アイテムが空になる)', E.sides.self.item === '', `item=${E.sides.self.item}`);
+
+  // (ii) ひこうタイプ(地面にいない)でも発動する
+  resetEnv();
+  E.sides.self = freshSide('リザードン', 'hataku'); E.sides.self.item = 'electric_seed';
+  E.sides.opp = freshSide('フシギバナ', 'erekifiirudo');
+  E.phaseApplyEffects('opp', 'self', moveByName('エレキフィールド'));
+  check('T317 エレキシード: ひこうタイプ(接地しない)でも発動する', E.sides.self.rank.def === 1, `def=${E.sides.self.rank.def}`);
+
+  // (iii) すでにぼうぎょ+6の時は消費されない
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'electric_seed'; E.sides.self.rank.def = 6;
+  E.sides.opp = freshSide('フシギバナ', 'erekifiirudo');
+  E.phaseApplyEffects('opp', 'self', moveByName('エレキフィールド'));
+  check('T318 エレキシード: ぼうぎょ+6ならランクが変わらず消費もされない',
+    E.sides.self.rank.def === 6 && E.sides.self.item === 'electric_seed',
+    `def=${E.sides.self.rank.def} item=${E.sides.self.item}`);
+
+  // (iv) グラスシード持ちがグラスフィールド中に交代で出てきたら発動する(登場処理=fireEntryAbility経由)
+  resetEnv();
+  E.env.field = 'grassy'; E.env.fieldTurns = 5;
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  const t319Bench = benchEntry('リザードン', 'hataku'); t319Bench.item = 'grassy_seed';
+  E.sides.self.bench = [t319Bench];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.attemptSwitch('self', 0);
+  check('T319 グラスシード: グラスフィールド中に交代で出てきたらぼうぎょ+1',
+    E.sides.self.poke && E.sides.self.poke.name === 'リザードン' && E.sides.self.rank.def === 1,
+    `poke=${E.sides.self.poke && E.sides.self.poke.name} def=${E.sides.self.rank.def}`);
+  check('T320 グラスシード: 消費される', E.sides.self.item === '', `item=${E.sides.self.item}`);
+
+  // (v) フィールド不一致(ミストシード×エレキフィールド)は発動しない
+  resetEnv();
+  E.env.field = 'electric'; E.env.fieldTurns = 5;
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'misty_seed';
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.phaseInitA();
+  check('T321 ミストシード: フィールド不一致(エレキ)では発動しない',
+    (E.sides.self.rank.spdef || 0) === 0 && E.sides.self.item === 'misty_seed',
+    `spdef=${E.sides.self.rank.spdef} item=${E.sides.self.item}`);
+
+  // (vi) マジックルーム中は発動しない
+  resetEnv();
+  E.env.magicRoom = true;
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'electric_seed';
+  E.sides.opp = freshSide('フシギバナ', 'erekifiirudo');
+  E.phaseApplyEffects('opp', 'self', moveByName('エレキフィールド'));
+  check('T322 エレキシード: マジックルーム中は発動しない',
+    (E.sides.self.rank.def || 0) === 0 && E.sides.self.item === 'electric_seed',
+    `def=${E.sides.self.rank.def} item=${E.sides.self.item}`);
+  E.env.magicRoom = false;
+
+  // --- グランドコート(terrain_extender): 技で出したフィールドも8ターンになる ---
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.opp = freshSide('フシギバナ', 'erekifiirudo'); E.sides.opp.item = 'terrain_extender';
+  E.phaseApplyEffects('opp', 'self', moveByName('エレキフィールド'));
+  check('T323 グランドコート: 技で出したフィールドが8ターンになる', E.env.fieldTurns === 8, `fieldTurns=${E.env.fieldTurns}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.opp = freshSide('フシギバナ', 'erekifiirudo');
+  E.phaseApplyEffects('opp', 'self', moveByName('エレキフィールド'));
+  check('T324 グランドコート無しなら5ターンのまま', E.env.fieldTurns === 5, `fieldTurns=${E.env.fieldTurns}`);
+
+  // --- しめつけバンド(binding_band): バインド付与時に使用者が持っていれば1/8→1/6 ---
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'makitsuku'); E.sides.self.item = 'binding_band';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.5);
+  E.phaseApplyEffects('self', 'opp', moveByName('まきつく'));
+  const t325Slip = (E.sides.opp.slips || []).find(sl => sl.source === 'バインド');
+  check('T325 しめつけバンド: バインドのダメージ割合が1/6になる',
+    !!t325Slip && Math.abs(t325Slip.fraction - 1 / 6) < 1e-9, JSON.stringify(t325Slip));
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'makitsuku');
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.5);
+  E.phaseApplyEffects('self', 'opp', moveByName('まきつく'));
+  const t326Slip = (E.sides.opp.slips || []).find(sl => sl.source === 'バインド');
+  check('T326 しめつけバンド無しなら1/8のまま',
+    !!t326Slip && Math.abs(t326Slip.fraction - 0.125) < 1e-9, JSON.stringify(t326Slip));
+
+  // --- ながねぎ(stick): カモネギ/カモネギ(ガラル)/ネギガナイトが持つと急所ランク+2(常時・消費なし) ---
+  resetEnv();
+  E.sides.self = freshSide('ネギガナイト', null);
+  E.sides.self.moves = [moveByName('つじぎり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.item = 'stick';
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  E.sides.self.critical = true;
+  const t327Exp = E.calcDamage('self', 'opp', moveByName('つじぎり')).min;
+  E.sides.self.critical = false;
+  const t327Max = E.realStat(E.sides.opp, 'hp');
+  E.sides.opp.currentHp = t327Max;
+  E.setRandom(() => 0.0);   // 乱数最小=確率ロールでは急所が出ない値 → 確定急所(ランク3以上)だけが通る
+  E.runTurn();
+  check('T327 ながねぎ: ネギガナイトは急所ランク+2(つじぎり+1=3以上)で確定急所',
+    t327Max - E.sides.opp.currentHp === t327Exp,
+    `実ダメージ=${t327Max - E.sides.opp.currentHp}(急所min=${t327Exp}期待)`);
+  check('T328 ながねぎ: 消費されない(常時発動の持ち物)', E.sides.self.item === 'stick', `item=${E.sides.self.item}`);
+  resetEnv();
+
+  resetEnv();
+  E.sides.self = freshSide('ゲンガー', null);
+  E.sides.self.moves = [moveByName('つじぎり')];
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.item = 'stick';   // ながねぎ対象外のポケモンが持っても効果なし
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  const t329LogStart = E.battleLog.length;   // ログ判定はこのターンの分だけ(前テストの残留を見ない)
+  E.setRandom(() => 0.0);   // つじぎり単体(+1)なら1/8で乱数最小は急所にならない
+  E.runTurn();
+  check('T329 ながねぎ: 対象外のポケモンが持っても急所ランクは上がらない(確定急所にならない)',
+    !E.battleLog.slice(t329LogStart).some(l => l.msg.includes('きゅうしょ')),
+    `log=${JSON.stringify(E.battleLog.slice(t329LogStart).map(l => l.msg))}`);
+  resetEnv();
+
+  // --- ノーマルジュエル(normal_gem): 実効タイプがノーマルの技の威力×1.3・成功時に1回で消費 ---
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku');
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  const t330Base = E.calcDamage('self', 'opp', moveByName('はたく')).max;
+  E.sides.self.item = 'normal_gem';
+  const t330Gem = E.calcDamage('self', 'opp', moveByName('はたく')).max;
+  check('T330 ノーマルジュエル: はたくの威力が約1.3倍になる(floor誤差±1)',
+    Math.abs(t330Gem - Math.round(t330Base * 1.3)) <= 1, `base=${t330Base} gem=${t330Gem}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'normal_gem';
+  E.sides.opp = freshSide('フシギバナ', 'hataku');
+  E.setRandom(() => 0.5);
+  E.phaseDealDamage('self', 'opp', moveByName('はたく'));
+  check('T331 ノーマルジュエル: 命中して成功したら消費される', E.sides.self.item === '', `item=${E.sides.self.item}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', null);
+  E.sides.self.moves = [moveByName('メガトンキック')];   // ノーマル・命中75
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.item = 'normal_gem';
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.9);   // 0.9 > 0.75 → 外れる
+  E.runTurn();
+  check('T332 ノーマルジュエル: 外れた時は消費されない', E.sides.self.item === 'normal_gem', `item=${E.sides.self.item}`);
+
+  resetEnv();
+  E.sides.self = freshSide('リザードン', null);
+  E.sides.self.moves = [moveByName('かえんほうしゃ')];   // ほのお技=対象外
+  E.sides.self.selectedMoveIdx = 0;
+  E.sides.self.item = 'normal_gem';
+  E.sides.opp = freshSide('フシギバナ', null);
+  E.sides.opp.moves = [moveByName('はたく')];
+  E.sides.opp.selectedMoveIdx = 0;
+  E.sides.opp.status = 'sleep';
+  E.setRandom(() => 0.5);
+  E.runTurn();
+  check('T333 ノーマルジュエル: ノーマル以外の技では消費されない', E.sides.self.item === 'normal_gem', `item=${E.sides.self.item}`);
+
+  // --- だっしゅつボタン(eject_button): 攻撃技のダメージを受けた直後、控えがいれば消費して交代 ---
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'eject_button';
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T334 だっしゅつボタン: 被弾後に控えへ交代する',
+    E.sides.self.poke && E.sides.self.poke.name === 'リザードン', `poke=${E.sides.self.poke && E.sides.self.poke.name}`);
+  check('T334b だっしゅつボタン: 消費される', E.sides.self.item === '', `item=${E.sides.self.item}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'eject_button';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T335 だっしゅつボタン: 控え無しなら不発(道具は残る)',
+    E.sides.self.poke && E.sides.self.poke.name === 'フシギバナ' && E.sides.self.item === 'eject_button',
+    `poke=${E.sides.self.poke && E.sides.self.poke.name} item=${E.sides.self.item}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'eject_button';
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('カビゴン', null);
+  E.sides.opp.moves = [moveByName('でんじは')];   // 変化技
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T336 だっしゅつボタン: 変化技では不発',
+    E.sides.self.poke && E.sides.self.poke.name === 'フシギバナ' && E.sides.self.item === 'eject_button',
+    `poke=${E.sides.self.poke && E.sides.self.poke.name} item=${E.sides.self.item}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'eject_button';
+  E.sides.self.subHp = 999; E.sides.self.currentHp = 999;
+  E.sides.self.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T337 だっしゅつボタン: みがわり中の被弾では不発',
+    E.sides.self.poke && E.sides.self.poke.name === 'フシギバナ' && E.sides.self.item === 'eject_button',
+    `poke=${E.sides.self.poke && E.sides.self.poke.name} item=${E.sides.self.item}`);
+
+  // --- レッドカード(red_card): 相手の攻撃技のダメージを受けた直後、消費して攻撃者をランダムな控えへ交代させる ---
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'red_card';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T338 レッドカード: 被弾後に相手を強制交代させる',
+    E.sides.opp.poke && E.sides.opp.poke.name === 'リザードン', `poke=${E.sides.opp.poke && E.sides.opp.poke.name}`);
+  check('T338b レッドカード: 消費される', E.sides.self.item === '', `item=${E.sides.self.item}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'red_card';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T339 レッドカード: 相手に控えが無ければ不発(道具は残る)',
+    E.sides.opp.poke && E.sides.opp.poke.name === 'カビゴン' && E.sides.self.item === 'red_card',
+    `poke=${E.sides.opp.poke && E.sides.opp.poke.name} item=${E.sides.self.item}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'red_card'; E.sides.self.currentHp = 1;
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T340 レッドカード: 自分がその攻撃でひんしなら不発',
+    E.sides.opp.poke && E.sides.opp.poke.name === 'カビゴン' && E.sides.self.item === 'red_card',
+    `poke=${E.sides.opp.poke && E.sides.opp.poke.name} item=${E.sides.self.item} selfHp=${E.sides.self.currentHp}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'red_card';
+  E.sides.opp = freshSide('カビゴン', null);
+  E.sides.opp.moves = [moveByName('でんじは')];   // 変化技
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T341 レッドカード: 変化技では不発',
+    E.sides.opp.poke && E.sides.opp.poke.name === 'カビゴン' && E.sides.self.item === 'red_card',
+    `poke=${E.sides.opp.poke && E.sides.opp.poke.name} item=${E.sides.self.item}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'red_card';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp.rooted = true;   // ねをはる状態
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T342 レッドカード: 相手がねをはる状態なら消費されるが交代しない',
+    E.sides.opp.poke && E.sides.opp.poke.name === 'カビゴン' && E.sides.self.item === '',
+    `poke=${E.sides.opp.poke && E.sides.opp.poke.name} item=${E.sides.self.item}`);
+
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'red_card';
+  E.sides.opp = freshSide('カビゴン', null);
+  E.sides.opp.moves = [moveByName('ほのおのパンチ')];   // 追加効果あり(状態異常10%)の技
+  E.sides.opp.ability = 'ちからずく';
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T343 レッドカード: ちからずくが発動した技では不発(近似)',
+    E.sides.opp.poke && E.sides.opp.poke.name === 'カビゴン' && E.sides.self.item === 'red_card',
+    `poke=${E.sides.opp.poke && E.sides.opp.poke.name} item=${E.sides.self.item}`);
+
+  // T344 レッドカード vs とんぼがえり: レッドカードが優先=攻撃者はランダムに引きずり出され、技側の自分交代は起きない
+  // (出典: Wiki レッドカード『とんぼがえり…を受けた場合、技による交代効果よりもレッドカードの効果の方が優先して発動する。攻撃者は交代先を自由に選べない』)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'red_card';
+  E.sides.opp = freshSide('カビゴン', null); E.sides.opp.moves = [moveByName('とんぼがえり')];
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku'), benchEntry('ゲンガー', 'hataku')];
+  E.setRandom(() => 0.0);   // ランダム交代先=先頭(リザードン)
+  E.runSingleAttack('opp', 0);
+  const _t344live = (E.sides.opp.bench || []).filter(e => e && e.poke && !e.fainted).map(e => e.poke.name);
+  check('T344 レッドカード優先: 攻撃者(カビゴン)はリザードンに引きずり出され、とんぼがえりの自分交代は二重に起きない(控えにカビゴン+ゲンガーが残る)',
+    E.sides.opp.poke && E.sides.opp.poke.name === 'リザードン' && E.sides.self.item === '' &&
+    _t344live.includes('カビゴン') && _t344live.includes('ゲンガー'),
+    `poke=${E.sides.opp.poke && E.sides.opp.poke.name} item=${E.sides.self.item} bench=${JSON.stringify(_t344live)}`);
+
+  // T345 だっしゅつボタン vs とんぼがえり: だっしゅつボタンの交代だけ起き、技を使った側は交代できない
+  // (出典: Wiki だっしゅつボタン『相手がとんぼがえりなど…を使った場合、だっしゅつボタンによる交代のみ発動し、技を使った側は交代できない』)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'eject_button';
+  E.sides.self.bench = [benchEntry('ゲンガー', 'hataku')];
+  E.sides.opp = freshSide('カビゴン', null); E.sides.opp.moves = [moveByName('とんぼがえり')];
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T345 だっしゅつボタン優先: 自分はゲンガーに交代し道具消費・とんぼがえりを使ったカビゴンは場に残る',
+    E.sides.self.poke && E.sides.self.poke.name === 'ゲンガー' && E.sides.self.item === '' &&
+    E.sides.opp.poke && E.sides.opp.poke.name === 'カビゴン',
+    `self=${E.sides.self.poke && E.sides.self.poke.name} item=${E.sides.self.item} opp=${E.sides.opp.poke && E.sides.opp.poke.name}`);
+
+  // T346 レッドカード: 攻撃者がバインド状態でも交代させられる(ねをはる以外の状態変化は無視)
+  // (出典: Wiki レッドカード『ねをはる以外の状態変化 (にげられない・バインド・フェアリーロック) であればレッドカードで交代させることができる』)
+  resetEnv();
+  E.sides.self = freshSide('フシギバナ', 'hataku'); E.sides.self.item = 'red_card';
+  E.sides.opp = freshSide('カビゴン', 'hataku');
+  E.sides.opp.bench = [benchEntry('リザードン', 'hataku')];
+  E.sides.opp.slips = [{ source: 'バインド', fraction: 0.125, turns: 4 }];   // バインド状態(交代封じ)
+  E.setRandom(() => 0.5);
+  E.runSingleAttack('opp', 0);
+  check('T346 レッドカード: バインド状態の攻撃者も引きずり出される(道具消費)',
+    E.sides.opp.poke && E.sides.opp.poke.name === 'リザードン' && E.sides.self.item === '',
+    `poke=${E.sides.opp.poke && E.sides.opp.poke.name} item=${E.sides.self.item}`);
+
+  resetEnv();
+}
+
 // ===== 観戦レポート書き出し(review/sim_test_report.html) =====
 // テストが実際に流したバトルログを本番ログ風に並べる。Chromeで開きっぱなし→リロードで最新が見られる。
 {

@@ -2074,6 +2074,17 @@ function calcDamage(atkSide, defSide, move, opts){
       if (r === 85) chips.push({label:'いのちのたま', factor:1.3, kind:'item'});
     }
 
+    // 8.2) ノーマルジュエル(段150 M-C仕様書項5): 実効タイプ(moveType=タイプ変化特性適用後)がノーマルの技の
+    // 威力×5325/4096(=1.3倍・ちからずくと同じ丸め値)。マジックルーム中は無効。消費(1回で無くなる)は
+    // 副作用があるためcalcDamageではなくphaseDealDamage側で行う(この関数は純粋な計算・複数回呼ばれるため)。
+    // 一撃必殺/固定ダメージ技はこの関数(calcDamage)を通らない(phaseDealDamageの別処理)=自然に対象外。
+    // 出典: ポケモンWiki「ジュエル」詳細な仕様 / ヤックン/ch/item.htm
+    const _normalGemActive = atkItem && atkItem.key === 'normal_gem' && !env.magicRoom && moveType === 'ノーマル';
+    if (_normalGemActive){
+      v = pokeRound(v, 5325);
+      if (r === 85) chips.push({label:'ノーマルジュエル', factor:1.3, kind:'item'});
+    }
+
     // 8.3) たつじんのおび: 効果バツグン時に威力×1.2(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「たつじんのおび」)
     if (eff > 1 && atkItem && atkItem.key === 'expert_belt'){
       v = pokeRound(v, 4915);
@@ -2445,11 +2456,42 @@ function abilityWeatherDuration(st, w){
 }
 // フィールド延長持ち物(グランドコート=Terrain Extender)所持で8ターン、 otherwise 5ターン。
 // 出典: ポケモンWiki各メイカー『グランドコートを持つポケモンが発動させた場合、継続ターンは8ターンになる。』
-// ※グランドコートは items_database.js に未収録=Championsでは常に5。収録時にここで8にする。
+// ★2026-09-10(段150・仕様書項2): グランドコートが items_database.js に収録された(M-C)ので実際に8になる。
 function abilityFieldDuration(st){
   const _fItem = ITEM_BY_KEY[st.item];
   if (_fItem && _fItem.key === 'terrain_extender') return 8;
   return 5;
+}
+// === シード4種(エレキ/グラス/サイコ/ミストシード・段150 M-C仕様書項1) ===
+// 対応フィールドが「発生した瞬間」(フィールド展開の直後・両側の場設定箇所から呼ぶ)と、
+// 「そのフィールドが張られている場に登場した瞬間」(fireEntryAbility末尾=バトル開始/交代/メガシンカ共通)
+// に、他の処理より先に消費して対応能力ランク+1。すでに+6なら消費しない。地面にいなくても発動する
+// (isGroundedを見ない)。マジックルーム中はhasItemが内蔵で無効化する。
+// 出典: ポケモンWiki「フィールド#シード系アイテム」/ ヤックン/ch/item.htm
+const _SEED_MAP = {
+  electric_seed: ['electric', 'def'],
+  grassy_seed:   ['grassy',   'def'],
+  psychic_seed:  ['psychic',  'spdef'],
+  misty_seed:    ['misty',    'spdef'],
+};
+function _seedTryOne(st){
+  if (!st || !st.poke || st.fainted) return;
+  const cfg = st.item && _SEED_MAP[st.item];
+  if (!cfg) return;
+  const [fieldKey, statKey] = cfg;
+  if (env.field !== fieldKey) return;
+  if (!hasItem(st, st.item)) return;   // マジックルーム中は無効(hasItemが判定)
+  if ((st.rank[statKey] || 0) >= 6) return;   // すでに+6なら消費しない
+  applyRankStageGuarded(st, st, statKey, 1, '9', (sg) => {
+    log('9', `${pname(st)} の ${RANK_JA_BY_KEY[statKey]} ランクが ${sg > 0 ? '+' : ''}${sg} あがった！`);
+  });
+  consumeItem(st);
+}
+// フィールドが「発生した瞬間」用: 両側を見る。両側とも対応シードを持っていたら素の素早さ実数値が
+// 高い方から解決する(補正なし=realStat(st,'spd')。出典: 仕様書項1)。
+function resolveTerrainSeeds(){
+  const order = (realStat(sides.self, 'spd') >= realStat(sides.opp, 'spd')) ? ['self', 'opp'] : ['opp', 'self'];
+  for (const s of order) _seedTryOne(sides[s]);
 }
 // === フェーズ: Init-A 場に出た時の特性発動 ===
 function phaseInitA(){
@@ -2533,7 +2575,10 @@ function fireEntryAbility(s){
       const _tmap = { 'エレキメイカー':['electric','足下に電気が満ちた'], 'グラスメイカー':['grassy','足下に草が生えた'],
                       'ミストメイカー':['misty','足下に霧が満ちた'], 'サイコメイカー':['psychic','足下に不思議な空間が広がった'] };
       const _tf = _tmap[ab][0];
-      if (env.field !== _tf){ env.field = _tf; env.fieldTurns = abilityFieldDuration(st); }
+      if (env.field !== _tf){
+        env.field = _tf; env.fieldTurns = abilityFieldDuration(st);
+        resolveTerrainSeeds();   // シード4種(段150仕様書項1・実装案(a)): フィールドが発生した瞬間=両側を見る
+      }
       log('Init-A', `${pname(st)} の ${ab}で ${_tmap[ab][1]}！`);
     } else if (ab === 'おみとおし' && other.poke && other.item && ITEM_BY_KEY[other.item]){
       // おみとおし(段113・ABILITY_DESC公式準拠): 場に出た時、相手の持ち物を見抜く。
@@ -2554,6 +2599,10 @@ function fireEntryAbility(s){
     // 自分の入場(既存天候を見る)・相手の入場(この直前に天候特性が発動した場合)の両方をここでまとめて拾う。
     updateForecastForm(st);
     updateForecastForm(other);
+    // シード4種(段150 M-C仕様書項1・実装案(b)): このポケモン自身が今まさに登場した瞬間の判定。
+    // バトル開始(phaseInitA)・交代(attemptSwitch)・メガシンカ直後のいずれもfireEntryAbility経由なので
+    // ここ1箇所で「対応フィールドの場に繰り出された」を網羅できる。
+    _seedTryOne(st);
   }
 }
 
@@ -2717,6 +2766,9 @@ function recordTaken(df, move, lastHitDmg, attacker){
 function phaseDealDamage(atkSide, defSide, move){
   // power非依存の特殊ダメージ(一撃必殺/固定ダメージ)を先に処理
   const _e0 = (move.battle_data && move.battle_data.effects) || [];
+  // レッドカード/だっしゅつボタンで「この攻撃の中で持ち物が交代を起こした」印を毎攻撃リセット(段150・仕様書項6/7:
+  // とんぼがえり等の自分交代技は、持ち物の交代が先に起きた時は技側の交代が起きない=phaseApplyEffectsの自分交代が読む)
+  _itemForcedSwitch.self = false; _itemForcedSwitch.opp = false;
   // みがわり: この攻撃を分身が受けたかのフラグを毎攻撃リセット(phaseApplyEffectsが追加効果遮断に読む)
   sides[defSide].subAbsorbed = false;
 
@@ -2821,6 +2873,12 @@ function phaseDealDamage(atkSide, defSide, move){
     const _a = sides[atkSide];
     // ピントレンズ: 急所ランク+1(items_database宣言。マジックルーム中は無効)
     const _lens = (!env.magicRoom && _a.item === 'scope_lens') ? 1 : 0;
+    // ながねぎ(Leek・段150 M-C仕様書項4): 対象がitems_database.jsのapplies_to_pokemon配列に載っている名前
+    // (カモネギ/カモネギ(ガラル)/ネギガナイト)の時だけ急所ランク+2(名前直書き禁止=配列を読む)。
+    // 出典: ポケモンWiki「ながねぎ」/ ヤックン/ch/item.htm
+    const _stickItem = (!env.magicRoom && _a.item === 'stick') ? ITEM_BY_KEY['stick'] : null;
+    const _stick = (_stickItem && Array.isArray(_stickItem.applies_to_pokemon) && _a.poke &&
+      _stickItem.applies_to_pokemon.includes(_a.poke.name)) ? 2 : 0;
     // 急所率上昇(kind): battle_data.crit_stage が未設定(0)の技(からてチョップ/きりさく/はっぱカッター等)は
     // effects の kind="急所率上昇"(target:self, phase:on_use, stages:N)を読んで加算する。
     // crit_stage が既に設定済みの技(ダブルクロー等・重複宣言あり)はcrit_stageを優先し二重加算しない。
@@ -2830,7 +2888,7 @@ function phaseDealDamage(atkSide, defSide, move){
     const _baseCritStage = (move.battle_data && move.battle_data.crit_stage) || 0;
     const _critUpEf = !_baseCritStage && ((move.battle_data && move.battle_data.effects) || [])
       .find(e => e.kind === '急所率上昇' && e.target === 'self' && e.phase === 'on_use' && typeof e.stages === 'number');
-    const _stage = (_a.critBoost || 0) + _baseCritStage + (_critUpEf ? _critUpEf.stages : 0) + _lens;
+    const _stage = (_a.critBoost || 0) + _baseCritStage + (_critUpEf ? _critUpEf.stages : 0) + _lens + _stick;
     if (!_a.critical && !(move.battle_data && move.battle_data.must_crit) && _stage > 0){
       critRoll = _stage >= 3 || Math.random() >= 1 - (_stage === 2 ? 0.5 : 0.125);
     }
@@ -3272,6 +3330,25 @@ function phaseDealDamage(atkSide, defSide, move){
     def.item = '';               // アイテム喪失(ふうせんは一度割れると消える)
     log('9', `${pname(def)} の ふうせんが 割れた！`);
   }
+  // ノーマルジュエル(段150 M-C仕様書項5): 実効タイプがノーマルの技を成功させたら1回で消費。
+  // みがわり/ばけのかわに肩代わりされた時も消費する(air_balloonと違いsubAbsorbedでは絞らない)。
+  // 一撃必殺/固定ダメージはこの位置に来ない(上のOHKO早期returnで別処理済み=自然に対象外)。
+  // 出典: ポケモンWiki「ジュエル」詳細な仕様 / ヤックン/ch/item.htm
+  if (atk.poke && !atk.fainted && total > 0 && hasItem(atk, 'normal_gem') && result.moveType === 'ノーマル'){
+    consumeItem(atk);
+  }
+  // だっしゅつボタン/レッドカード(段150 M-C仕様書項6/7): 「攻撃技でダメージを受けた」(無効/まもる/
+  // みがわり防御では来ない=ここに到達している時点で判定済み)をここで判定し、実際の交代処理は
+  // runSingleAttack/runTurn側でP13c(とんぼがえり等の自分交代)の前にresolveEjectButton/resolveRedCardを
+  // 呼んで解決する(連続攻撃技はここに来るのが全ヒット終了後=totalで1回だけ判定=多重発動を防ぐ)。
+  // ちからずくが発動した技(追加効果ありでちからずく所持=威力1.3倍と引き換えに追加効果不発)ではレッドカードも
+  // 不発とする(フラグを立てない)。出典: ポケモンWiki「だっしゅつボタン」「レッドカード」詳細な仕様 / ヤックン/ch/item.htm
+  if (def.poke && total > 0 && !def.subAbsorbed){
+    if (hasItem(def, 'eject_button')) def.pendingEjectButton = true;
+    const _atkSheerForce = sideAbility(atk) === 'ちからずく' &&
+      !!(move.battle_data && move.battle_data.effects && move.battle_data.effects.length);
+    if (hasItem(def, 'red_card') && !_atkSheerForce) def.pendingRedCard = true;
+  }
   // ひんし判定(防御側)
   // ★A.4残(2026-07-11・権威=ポケモンWiki/reference/_aizuchi_win_rule): 相打ち時の表示順は
   // 「被弾側のひんし告知→反動→反動側のひんし告知」。従来は反動→反動側ひんし→最後に被弾側ひんし、
@@ -3687,6 +3764,53 @@ function resolveEjectPack(sideKey){
   // 可視性は保たれる(「だっしゅつパックが理由」という説明だけが省略される)。
   attemptSwitch(sideKey, idx, {ignoreTrapping: true});
 }
+// だっしゅつボタン(Eject Button・段150 M-C仕様書項6): 攻撃技のダメージを受けた直後(pendingEjectButtonは
+// phaseDealDamage側で判定済み)、ひんしでなければ出せる控えがいる時だけ消費して強制交代する。
+// 交代先は自分で選ぶ(chooseSwitchTarget)。にげられない/バインド/ねをはる等は無視(ignoreTrapping)。
+// 出典: ポケモンWiki「だっしゅつボタン」詳細な仕様 / ヤックン/ch/item.htm
+function resolveEjectButton(sideKey){
+  const st = sides[sideKey];
+  if (!st || !st.pendingEjectButton) return;
+  st.pendingEjectButton = false;
+  if (!st.poke || st.fainted || st.switchedThisTurn) return;
+  if (!hasItem(st, 'eject_button')) return;
+  const liveIdxs = (st.bench || []).map((e, i) => ({e, i}))
+    .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+  if (!liveIdxs.length) return;   // 出せる控えがいない=発動しない(道具は消費しない)
+  const idx = chooseSwitchTarget(sideKey, liveIdxs);
+  consumeItem(st);
+  // ★ログ行新設禁止の方針により専用の発動メッセージは出さない(無音実装。resolveEjectPackと同じ作法)。
+  if (attemptSwitch(sideKey, idx, {ignoreTrapping: true})) _itemForcedSwitch[sideKey] = true;
+}
+// レッドカード(Red Card・段150 M-C仕様書項7): 相手の攻撃技のダメージを受けた直後(pendingRedCardは
+// phaseDealDamage側でちからずく除外込みで判定済み)、所持者(defSide)がひんしでなければ消費し、
+// 攻撃者(atkSide)をランダムな控えへ強制交代させる(ふきとばしと同じMath.random())。
+// 攻撃者に控えがいなければ発動しない(消費もしない)。ignoreTrappingを付けない=攻撃者がきゅうばん/ねをはる
+// 状態なら道具は消費されるが交代自体は不成立になる(attemptSwitch自身の既存メッセージのみでログ新設なし)。
+// 出典: ポケモンWiki「レッドカード」詳細な仕様 / ヤックン/ch/item.htm
+function resolveRedCard(defSide, atkSide){
+  const def = sides[defSide];
+  if (!def || !def.pendingRedCard) return;
+  def.pendingRedCard = false;
+  if (!def.poke || def.fainted) return;
+  if (!hasItem(def, 'red_card')) return;
+  const atk = sides[atkSide];
+  if (!atk || !atk.poke || atk.fainted || atk.switchedThisTurn) return;   // 攻撃者がひんし等なら不発(消費もしない)
+  const liveIdxs = (atk.bench || []).map((e, i) => ({e, i}))
+    .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+  if (!liveIdxs.length) return;   // 攻撃者に控えがいなければ発動しない(消費もしない)
+  consumeItem(def);
+  const pick = liveIdxs[Math.floor(Math.random() * liveIdxs.length)];
+  // ねをはる状態/きゅうばんの攻撃者は交代させられない(道具は消費済み)。それ以外(にげられない/バインド/ありじごく等)は
+  // 無視して交代させる(Wiki『ねをはる以外の状態変化 (にげられない・バインド・フェアリーロック) であれば交代させることができる』)
+  const _noSwitch = !!atk.rooted || sideAbility(atk) === 'きゅうばん';
+  const _ok = _noSwitch ? attemptSwitch(atkSide, pick, {}) : attemptSwitch(atkSide, pick, {ignoreTrapping: true});
+  if (_ok) _itemForcedSwitch[atkSide] = true;
+}
+// 段150(仕様書項6/7): この攻撃の中でレッドカード/だっしゅつボタンが交代を起こしたか(側ごと)。
+// とんぼがえり/ボルトチェンジ/クイックターン/すてゼリフの自分交代(phaseApplyEffects '自分交代')はこの印が立っていれば起きない
+// (Wiki だっしゅつボタン『技を使った側は交代できない』/ レッドカード『とんぼがえり等はレッドカードの効果の方が優先』)。
+const _itemForcedSwitch = { self: false, opp: false };
 // のどスプレー(Throat Spray・Phase D B3): 音技(flags.sound)を成功させた直後、とくこう+1(消費・1回)。
 // 外れ/無効化/失敗では発動しない(dmgRes.immune/failedで判定・状態異常技はdmgRes省略=無条件で成功扱い)。
 // 技の使用でバトル全体が終わる場合(相手を倒し、かつ相手に出せる控えがいない)は発動しない(仕様書どおり)。
@@ -4134,6 +4258,9 @@ function phaseApplyEffects(atkSide, defSide, move){
       continue;
     }
     if (ef.kind === '自分交代'){
+      // 段150(M-C仕様書項6/7): この攻撃でレッドカード(攻撃者が既に引きずり出された)/だっしゅつボタン(相手が先に
+      // 脱出した)が交代を起こしていれば、技側の自分交代は起きない(攻撃・ランク下げは成立済み)。無音でスキップ。
+      if (_itemForcedSwitch.self || _itemForcedSwitch.opp){ _itemForcedSwitch.self = false; _itemForcedSwitch.opp = false; continue; }
       // 第7世代以降(Champions=Gen9): すてゼりフ型(変化技で相手のランク低下+自分交代)は
       // 『ランク低下を全て防がれた/1段階も下がらなかった』(クリアボディ/しろいけむり/メタルプロテクト/
       // しろいきり/クリアチャーム/ランク既に最低/まもる等で無効化)場合は交代しない。
@@ -4419,7 +4546,11 @@ function phaseApplyEffects(atkSide, defSide, move){
         const dB = Array.isArray(ef.duration) ? ef.duration : [4, 5];
         const bTurns = dB[0] + Math.floor(Math.random() * (dB[1] - dB[0] + 1));
         if (!target.slips) target.slips = [];
-        target.slips.push({ source: 'バインド', fraction: (ef.turn_end_damage != null ? ef.turn_end_damage : 0.125), turns: bTurns });
+        // しめつけバンド(Binding Band・段150 M-C仕様書項3): バインド状態にする「その瞬間」に使用者(atk)が
+        // 持っていれば毎ターンのダメージが1/8→1/6(後から持っても増えない・失っても減らない=ここで固定)。
+        // 出典: ポケモンWiki「しめつけバンド」/ ヤックン/ch/item.htm
+        const _bindFraction = hasItem(atk, 'binding_band') ? (1 / 6) : (ef.turn_end_damage != null ? ef.turn_end_damage : 0.125);
+        target.slips.push({ source: 'バインド', fraction: _bindFraction, turns: bTurns });
         log('9', `${pname(target)} は ${move.name}で バインド状態になった！`);
         continue;
       }
@@ -4568,9 +4699,11 @@ function phaseApplyEffects(atkSide, defSide, move){
             // じばそうさ: 対象の特性がプラス/マイナスの時だけ(ポケモンWiki「じばそうさ」)
             if (!(c.values || []).includes(sideAbility(target))) continue;
           } else if (c.type === 'holding_item' || c.type === 'holds_item'){
-            // シード系(グラスシード等): 対象がその道具を持っている時だけ発動
-            const itName = target.item && ITEM_BY_KEY[target.item] && ITEM_BY_KEY[target.item].name;
-            if (itName !== c.value) continue;
+            // シード系(グラスシード等): 4つのフィールド技(グラス/ミスト/エレキ/サイコ)にだけ宣言されている
+            // 簡易版で、マジックルーム無視・登場時トリガー無し・+6キャップ無し・消費(consumeItem)無しの
+            // 不完全な実装だった。段150(M-C仕様書項1)で resolveTerrainSeeds()/_seedTryOne に一本化した
+            // ので、ここは二重発動を避けるため常にスキップする(誤適用回避と同じ扱い)。
+            continue;
           } else if (c.type === 'user_not_type'){
             // のろい: ゴースト以外が使った時のランク変化(ゴースト版の自傷のろいは未対応)
             const at = sideTypes(atk);
@@ -4840,8 +4973,13 @@ function phaseApplyEffects(atkSide, defSide, move){
         log('9', `しかし うまく きまらなかった！(すでに ${ef.value})`);
       } else {
         env.field = f;
-        env.fieldTurns = ef.duration || 5; // ターン終了ごとに減り、0で元に戻る(UI手動設定はnull=無期限)
+        // グランドコート(段150 M-C仕様書項2): 使用者(atk)が持っていれば技で出したフィールドも8ターンになる。
+        // 出典: ポケモンWiki「グランドコート」『持たせたポケモンが技または特性でフィールドを発生させたとき、
+        // 継続ターンが8ターンになる』/ ヤックン/ch/item.htm
+        const _fdItem = ITEM_BY_KEY[atk.item];
+        env.fieldTurns = (!env.magicRoom && _fdItem && _fdItem.key === 'terrain_extender') ? 8 : (ef.duration || 5); // ターン終了ごとに減り、0で元に戻る(UI手動設定はnull=無期限)
         log('9', `足下が ${ef.value} になった！`);
+        resolveTerrainSeeds();   // シード4種(段150仕様書項1・実装案(a)): フィールドが発生した瞬間=両側を見る
       }
     } else if (ef.kind === '天候変化'){
       // にほんばれ/あまごい/すなあらし/ゆきげしき/さむいギャグ: 5ターンの間 天気を変える(duration=データ指定)。
@@ -5985,6 +6123,9 @@ function runSingleAttack(atkSide, moveIdx){
     applyThroatSpray(atk, def, mv, null);   // のどスプレー(Phase D B3): 音の変化技でも成功時に発動
   } else {
     const dmgRes = phaseDealDamage(atkSide, defSide, mv);
+    // レッドカード/だっしゅつボタン(段150 M-C仕様書項6/7): 被弾直後・P13c(自分交代=とんぼがえり等)の前に解決。
+    // 同時成立時はレッドカード→だっしゅつボタンの順で固定(近似。報告に明記)。
+    resolveRedCard(defSide, atkSide); resolveEjectButton(defSide);
     if (!def.fainted) phaseApplyEffects(atkSide, defSide, mv);
     // なげつける: 命中時(守り貫通/KO問わず)に持ち物を消費。食べた扱いにしない=lastConsumedItemには入れない。
     // 出典: Bulbapedia "Fling" = 投げた道具はなくなる(守りで防がれても消費)
@@ -7438,6 +7579,9 @@ function runTurn(){
     }
     // ダメ計算とHP適用
     const dmgRes = phaseDealDamage(a.side, a.opp, mv);
+    // レッドカード/だっしゅつボタン(段150 M-C仕様書項6/7): 被弾直後・P13c(自分交代=とんぼがえり等)の前に解決。
+    // 同時成立時はレッドカード→だっしゅつボタンの順で固定(近似。報告に明記)。
+    resolveRedCard(a.opp, a.side); resolveEjectButton(a.opp);
     // ★追加効果は「技が当たった」時だけ発動。こうかなし(タイプ無効)や計算不可なら発動しない(全技共通)。
     if (dmgRes && !dmgRes.immune && !def.fainted) phaseApplyEffects(a.side, a.opp, mv);
     // なげつける: 命中時(守り貫通/KO問わず)に持ち物を消費。食べた扱いにしない=lastConsumedItemには入れない。

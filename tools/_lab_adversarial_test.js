@@ -475,7 +475,12 @@ async function s8(page){
 // ===================================================================
 async function s9(page){
   await freshBattle(page);
+  // ★2026-09-03 案B(56cce70d)以降、メガシンカには種族専用の実ストーンが必須(汎用mega_stone_anyは廃止)。
+  //   freshBattleは持ち物を付けないので、ここで先頭ポケモンの実ストーンを持たせる(D0実測でS9がitem:""で落ちていた)。
   const megaInfo = await page.evaluate(() => {
+    const st = S.sides.self; const baseName = st.poke.name;
+    const stone = S.itemsList().find(it => it.category === 'mega_stone' && it.applies_to === baseName && it.mega_form);
+    if (stone) st.item = stone.key;
     const okE = !!S.megaEvolve('self');
     return { ok: okE, nameAfter: S.sides.self.poke.name, megaUsed: !!S.sides.self.megaUsed, item: S.sides.self.item };
   });

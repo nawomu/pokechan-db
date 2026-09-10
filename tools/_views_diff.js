@@ -75,6 +75,13 @@ const PAST_REGS = (() => { try { return new Set(fs.readdirSync(path.join(ROOT, '
 // (m) _items_fixes.json の根拠つき上書き欄
 const ITEMS_FIXES = (() => { try { return J('reference/_items_fixes.json').fixes || {}; } catch (e) { return {}; } })();
 const ITEMS_FIXES_FIELDS_ALLOWED = new Set(['acquisition', 'acquisition_note', 'notes', 'effect_ja', 'effect_house', 'category']);
+// (m) の別名欄: ビューの implemented_in_pokechan = master implemented(fixes のキー名は implemented)
+const ITEMS_FIXES_FIELD_ALIAS = { implemented_in_pokechan: 'implemented' };
+const MASTER_ITEMS_APPLIES_BY_KEY = (() => {
+  const m = new Map();
+  try { J('master/items.json').items.forEach(it => { if (it.slug && Array.isArray(it.applies_to_pokemon)) m.set(it.slug, it.applies_to_pokemon); }); } catch (e) {}
+  return m;
+})();
 const MASTER_ITEMS_CHAMPIONS_BY_KEY = (() => {
   const m = new Map();
   try { J('master/items.json').items.forEach(it => { if (it.slug) m.set(it.slug, it.champions === true); }); } catch (e) {}
@@ -283,11 +290,17 @@ function diffRows(label, legByKey, newByKey, fieldAllowlist, multisetGroups, ski
         report.allowlisted.push({ entity: label, key: k, field: f, reason: `(j') 終了レギュ ${nv} で初登場した印(名簿 _official_rosters/${nv}.json 在り・R4で seasons からは外れる)` });
         return;
       }
+      // (n) 2026-09-10: items に新設した applies_to_pokemon 列(master の同名配列をそのまま通す。旧版に無かった列)。master と一致する時だけ許す。
+      if (label === 'items' && f === 'applies_to_pokemon' && lv === undefined && Array.isArray(nv)
+          && eq(MASTER_ITEMS_APPLIES_BY_KEY.get(k), nv)) {
+        report.allowlisted.push({ entity: label, key: k, field: f, reason: '(n) items に applies_to_pokemon 列を新設(master と一致)' });
+        return;
+      }
       // (m) レギュM-C本番反映(2026-09-10): reference/_items_fixes.json に basis(根拠)つきで書いた欄(入手/備考/効果文)の上書きは監査確定として許す。
       //   許すのは「その道具名の fixes にその欄があり、値が一致し、basis が空でない」時だけ(fixes 以外の経路で変わった差は通さない)。
-      if (label === 'items' && ITEMS_FIXES_FIELDS_ALLOWED.has(f)) {
-        const nm = String((newByKey.get(k) || {}).name || ''); const fxRow = ITEMS_FIXES[nm];
-        if (fxRow && fxRow.basis && fxRow[f] !== undefined && eq(fxRow[f], nv)) {
+      if (label === 'items' && (ITEMS_FIXES_FIELDS_ALLOWED.has(f) || ITEMS_FIXES_FIELD_ALIAS[f])) {
+        const nm = String((newByKey.get(k) || {}).name || ''); const fxRow = ITEMS_FIXES[nm]; const ff = ITEMS_FIXES_FIELD_ALIAS[f] || f;
+        if (fxRow && fxRow.basis && fxRow[ff] !== undefined && eq(fxRow[ff], nv)) {
           report.allowlisted.push({ entity: label, key: k, field: f, reason: '(m) _items_fixes.json の根拠つき上書き(レギュM-C本番反映 2026-09-10)' });
           return;
         }

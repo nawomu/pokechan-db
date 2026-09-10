@@ -37,7 +37,16 @@
 2. ~~**イキリンコ**~~ → **決定(9/10 阿部さん)**: 4色とも使える扱いでよい(違いは隠れ特性だけ)。masterは4行 champions:true のまま。
 3. ~~**news.html**~~ → **決定(9/10 阿部さん)**: 調整内容の記事は書かなくてよい。開幕カードは master から自動表示。
 4. ガブリアスナイトZ / ボーマンダナイトの入手方法はヤックン一覧に未掲載=空欄のまま(推測で埋めない)。
-5. 持ち物12件の `implemented`(バトルのピッカーに出す印)は **false のまま**=ピッカーには出ない。うちのエンジンが各道具に対応しているか(③)を確認してから true にする(T3)。
+5. ~~持ち物12件の `implemented`~~ → **決定・実施(9/10 阿部さん「フィールド系のエンジンが無いなら作る/無いなら作って付け足す」「ながねぎはガラルも入れておく」)**: 9個をエンジンに実装(§1b)・12個とも implemented:true=ピッカーに出る。
+
+## 1b. 持ち物9個のエンジン実装(9/10 夕・阿部さん指示・Sonnet実装/Fable検証)
+
+- 仕様=二重ソース(ポケモンWiki各道具「詳細な仕様」+「フィールド#シード系アイテム」× ヤックン/ch/item.htm)。指示書= scratchpad `spec_items_mc_engine.md`(セッション限り)・分類= `reference/_phase_assign/items_batch_07.json`(10件)・語彙v3 S09 に react段(シード)を追記。
+- `real_battle_simulator.html`: シード4種(`_SEED_MAP`/`_seedTryOne`/`resolveTerrainSeeds`=フィールド発生直後(特性メイカー/技)+`fireEntryAbility`末尾の登場時・接地不要・+6なら消費しない・マジックルーム無効)/ グランドコート(技で出したフィールドも8ターン)/ しめつけバンド(バインド付与時に1/6固定)/ ながねぎ(`applies_to_pokemon` 配列で判定・急所+2)/ ノーマルジュエル(実効タイプ=ノーマルで×5325/4096・成功時に消費)/ だっしゅつボタン(`resolveEjectButton`・被弾後に自分で交代先を選ぶ・控え無しは不発)/ レッドカード(`resolveRedCard`・攻撃者をランダム交代・ねをはる/きゅうばんは消費のみ・それ以外の罠は無視)。Fable追加=`_itemForcedSwitch`(持ち物の交代が先に起きたら とんぼがえり等の自分交代は起きない)。
+- 発見: 4つのフィールド技の effects に旧・簡易版シード(holds_item 条件のランク変化・消費なし/登場時なし/+6キャップなし)が埋まっていた → その分岐を無効化して新実装に一本化(二重発動を T322 が検出)。
+- **近似(要検証)**: ①だっしゅつボタン×レッドカード同時成立=本当は素の素早さ順・今はレッドカード→だっしゅつボタン固定 ②ちからずく「発動した」判定=威力補正と同じ条件で近似 ③ばけのかわ肩代わりでダメージ0の時=本当は発動するが今は不発(`total>0` ガード) ④きゅうばんは特性自体がエンジン未実装(park)。
+- テスト: `tools/_sim_test.js` 段150 T315〜T346(34件)。全ハーネス緑: sim **859/0** / sweep 919/0 / hard 174/0 skip11 / behavior 605/605 flag0 / engine 19/0 / lab 32/32 / adversarial **10/10**(S9 のテスト側修正 `tools/_lab_adversarial_test.js` も同梱=前回の未コミット分) / Playwright 段D 8/8 / バトル系ページ JSエラー0。
+- master: `_items_fixes.json` に implemented:true(12)+ながねぎ `applies_to_pokemon`(ガラル込み)・builder の fixes 受付欄に implemented/applies_to_pokemon・views に `applies_to_pokemon` 列(views_diff (n)/(m)別名で未説明0)。
 
 ## 3. 残タスク(優先順・「やること整理」)
 
@@ -45,7 +54,7 @@
 |---|---|---|---|
 | **T1** | **M-C新規28行のChampions習得技を取り込む**(新24行+ボーマンダ/グソクムシャ/セグレイブ/ゴリランダー)。現状=`learnsets.json` の champions:false のまま=ページ/バトルは**全国版の技にフォールバック**(例: プクリン88技・グソクムシャ57技)。ヤックン/ch/zukan/nXXX の「覚える技」+「没収された技」を取り、`_authority_corpus_ch/learnsets_ch.json` 経由か `_learnsets_fixes.json` で入れる。二人目の目=ポケモンWiki「Pokémon Championsのおぼえるわざ」 | メモリ [[yakkun-ch-change-pages]] / [[yakkun-scrape-method]] / A3の流儀 `reference/_wiki_learnset_audit_summary.md` | 中(28ページ×2ソース) |
 | **T2** | **Champions入りした技82件の説明文(description)の多言語**(news.html/waza-list で意図的jaにしてある)。並列WFで翻訳→`i18n/*.json moves` | [[i18n-static-and-battlelog-arch]] の翻訳WF | 中 |
-| **T3** | 持ち物12件のエンジン対応の確認→`implemented`。effect_house(家の言い回し)。※③凍結の範囲=対応表だけ作る | `real_battle_simulator.html` の道具処理 | 小〜中 |
+| ~~**T3**~~ | ~~持ち物12件のエンジン対応~~ → **完了(9/10 §1b)**。残=近似4点の検証・きゅうばん特性の実装(③) | — | — |
 | **T4** | **ヤックン/ch/move_changes.htm「威力・効果の変更された技」全件 vs master の全数照合**(ボーンラッシュ30/であいがしら100/かげぬい90/トロピカルキック85/くちばしキャノン120/…/フリーズドライ追加効果削除/ゴールドラッシュ命中95 等=M-B以前の変更も含む。R1監査で拾えているか) | 同ページ(ブラウザfetch) | 小 |
 | **T5** | ヤックン/ch/move_changes.htm「覚える技の変更点」(ポケモン別 新規習得/没収) vs `learnsets.json` 全数照合 | 同上 | 中 |
 | **T6** | ミルクのみの effects(battle_data)の target を「自分か味方」に追随=ダブル(B064)の語彙で。今回は master.target のみ変更 | 設計_ダブルバトル_2026-09-07.md | 小(B064内) |

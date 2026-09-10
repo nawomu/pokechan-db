@@ -483,6 +483,9 @@ function buildItems() {
     };
     ITEMS_PASSTHROUGH_FIELDS.forEach(f => { if (it[f] !== undefined) row[f] = it[f]; });
     row.applies_to = it.applies_to || null;
+    // ★2026-09-10: 対象ポケモンの配列(master applies_to_pokemon)をそのまま通す。ながねぎ(カモネギ/カモネギ(ガラル)/ネギガナイト)のように
+    //   エンジンが「誰が持った時に効くか」をデータで判定するため(名前をエンジンに直書きしない)。メガストーンも同じ列を持つ。
+    if (Array.isArray(it.applies_to_pokemon) && it.applies_to_pokemon.length) row.applies_to_pokemon = it.applies_to_pokemon.slice();
     row.implemented_in_pokechan = !!it.implemented;
     if (it.legacy_source_note !== undefined) row.source = it.legacy_source_note;
     // ★R1(2026-09-03): pokemon系ビューの added_in/season と同じモデル(pokechan系のPOKEMON_LISTを参照)。
