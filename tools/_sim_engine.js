@@ -41,6 +41,10 @@ function buildEngine() {
   const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1])
     .filter(s => s.includes('function calcDamage') || s.includes('function runTurn'));
   const itemsSrc = fs.readFileSync(path.join(ROOT, 'items_database.js'), 'utf8');
+  // D2-a: battle_scheduler.js(D1の部品)も real_battle_simulator.html と同じ<script>読み込み順で
+  // 同じvmコンテキストへ載せる(ブラウザは<script src="battle_scheduler.js">、Nodeはここ)。
+  // real_battle_simulator.htmlのインラインscript(runTurn等)はこれをグローバル識別子 BattleScheduler として参照する。
+  const schedulerSrc = fs.readFileSync(path.join(ROOT, 'battle_scheduler.js'), 'utf8');
 
   const noop = () => {};
   const win = {
@@ -59,6 +63,7 @@ function buildEngine() {
   const ctx = vm.createContext(sandbox);
 
   vm.runInContext(itemsSrc, ctx, { filename: 'items_database.js' });
+  vm.runInContext(schedulerSrc, ctx, { filename: 'battle_scheduler.js' });
   const expose = `\n;try {
     // DOMContentLoadedはvmでは発火しない → ITEM_BY_KEY(道具の逆引き)を手で詰める(段94で判明)
     if (typeof ITEM_BY_KEY !== 'undefined' && window.ITEMS_DATABASE && Array.isArray(window.ITEMS_DATABASE.items)){

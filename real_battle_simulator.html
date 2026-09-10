@@ -1000,6 +1000,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 </script>
 <script src="items_database.js"></script>
 <script src="battle_log_i18n.js?v=20260716b"></script>
+<script src="battle_scheduler.js?v=20260910"></script>
 <script>
 'use strict';
 
@@ -1126,6 +1127,9 @@ function isSpreadMove(move){
 
 function makeSideState(){
   return {
+    // D2-a: 在場世代(行動順再評価§3・battle_scheduler.js の ActionIntent.presenceEpoch契約)。
+    // バトル開始で0・attemptSwitch成功(死に出し含む)のたびに+1。個体の「今の在場期間」を識別する。
+    presenceEpoch: 0,
     poke: null,                              // POKEMON_LIST の1要素 or null
     effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0},
     natureIdx: 0,
@@ -2324,6 +2328,14 @@ function effectiveSpeed(st){
   return s;
 }
 
+// D2-b(2026-09-10・設計_ダブルバトル_2026-09-07.md§3): sides.self/sides.opp への直接参照を
+// slotOf(sideId, slotIdx) 経由に置き換える(挙動は不変=シングルは今のまま sides[sideId] を返すだけ)。
+// D3で slotOf は sides[sideId].slots[slotIdx] を返す形になる(器を広げる時にここだけ直す)。
+function slotOf(sideId, slotIdx){ return sides[sideId]; }
+// 両側を固定順(self→opp)で回す時の一覧(D3で在場スロットを回す形に広げる置き場)。
+// canonSides()(オンライン鏡写し用に順序が反転し得る)とは別物=置き換えない。
+function activeSides(){ return ['self', 'opp']; }
+
 // 行動順を判定: 優先度 → (せんせいのツメ20%) → 素早さ (トリックルームで逆転) → 同速ランダム
 // 戻り値: 先手の side を 'self' or 'opp' で返す
 let quickClawSide = null;   // このターンせんせいのツメが発動した側(先攻理由ログ用)
@@ -2331,10 +2343,12 @@ let quickClawSide = null;   // このターンせんせいのツメが発動し�
 // 「側に依存する乱数消費」(同速タイ・つめ両ロール等)は __rbCanonFirst(=ホスト側)基準に固定して結果を一致させる。
 // 未設定(オフライン)は従来どおり self 優先=挙動不変
 function canonSides(){ return (typeof window !== 'undefined' && window.__rbCanonFirst === 'opp') ? ['opp', 'self'] : ['self', 'opp']; }
+// D2-a: 未使用(runTurn内はorderIntents相当のscheduler接続に置換)。D3で消す。
+// ★このE.decideOrder自体は tools/_sim_test.js 等が直接呼ぶ既存テスト契約のため関数は残す(削除しない)。
 function decideOrder(move1, move2){
   quickClawSide = null;
-  const p1 = movePriority(move1, sides.self);
-  const p2 = movePriority(move2, sides.opp);
+  const p1 = movePriority(move1, slotOf('self', 0));
+  const p2 = movePriority(move2, slotOf('opp', 0));
   if (p1 !== p2) return p1 > p2 ? 'self' : 'opp';
   const [cf, cs] = canonSides();
   // せんせいのツメ: 同じ優先度の中で20%の確率で先に動ける(両者発動なら通常判定。items_database宣言)
@@ -2346,8 +2360,8 @@ function decideOrder(move1, move2){
       return quickClawSide;
     }
   }
-  const s1 = effectiveSpeed(sides.self);
-  const s2 = effectiveSpeed(sides.opp);
+  const s1 = effectiveSpeed(slotOf('self', 0));
+  const s2 = effectiveSpeed(slotOf('opp', 0));
   if (s1 !== s2){
     const selfFaster = env.trickRoom ? (s1 < s2) : (s1 > s2);
     return selfFaster ? 'self' : 'opp';
@@ -2357,7 +2371,7 @@ function decideOrder(move1, move2){
 
 // ターン状態 (HP・付与済みステータス等の揮発状態を sides に注入)
 function ensureBattleState(){
-  ['self','opp'].forEach(s=>{
+  activeSides().forEach(s=>{
     const st = sides[s];
     if (st.currentHp == null && st.poke){
       st.currentHp = realStat(st, 'hp');
@@ -2382,7 +2396,7 @@ function log(phase, msg, meta){
 function pname(st){
   if (!st || !st.poke) return '?';
   const shown = st.illusionAs || (st.transformBase ? st.transformBase.poke : st.poke);
-  return (st === sides.opp ? '相手の ' : '') + shown.name;
+  return (st === slotOf('opp', 0) ? '相手の ' : '') + shown.name;
 }
 // イリュージョン(段138・ポケモンWiki): 場に出る時、手持ちの一番後ろの生きているポケモンに化ける。
 // 自分が最後尾(化ける相手がいない)なら化けない。攻撃技のダメージを受けると解ける(phaseDealDamage)。
@@ -2490,12 +2504,12 @@ function _seedTryOne(st){
 // フィールドが「発生した瞬間」用: 両側を見る。両側とも対応シードを持っていたら素の素早さ実数値が
 // 高い方から解決する(補正なし=realStat(st,'spd')。出典: 仕様書項1)。
 function resolveTerrainSeeds(){
-  const order = (realStat(sides.self, 'spd') >= realStat(sides.opp, 'spd')) ? ['self', 'opp'] : ['opp', 'self'];
+  const order = (realStat(slotOf('self', 0), 'spd') >= realStat(slotOf('opp', 0), 'spd')) ? ['self', 'opp'] : ['opp', 'self'];
   for (const s of order) _seedTryOne(sides[s]);
 }
 // === フェーズ: Init-A 場に出た時の特性発動 ===
 function phaseInitA(){
-  const order = (effectiveSpeed(sides.self) >= effectiveSpeed(sides.opp))
+  const order = (effectiveSpeed(slotOf('self', 0)) >= effectiveSpeed(slotOf('opp', 0)))
     ? ['self','opp'] : ['opp','self'];
   // 各側を速度順に発動
   for (const s of order) fireEntryAbility(s);
@@ -2512,7 +2526,7 @@ function fireEntryAbility(s){
     const st = sides[s];
     if (!st.poke) return;
     applyIllusion(st);   // イリュージョン(段138): 登場時に化ける(バトル開始)
-    const other = s === 'self' ? sides.opp : sides.self;
+    const other = s === 'self' ? slotOf('opp', 0) : slotOf('self', 0);
     const ab = sideAbility(st);
     st.disguise = (ab === 'ばけのかわ') && st.disguiseBroken !== true;   // ばけのかわ: 場に出たら皮をまとう(剥がれ済みなら戻らない=Wiki準拠)
     if (ab === 'いかく' && other.poke){
@@ -3539,8 +3553,8 @@ function updateForecastForm(st){
   st.forecastForm = ({sunny:'sunny', rain:'rain', snow:'snow'})[env.weather] || null;
 }
 function syncForecastBothSides(){
-  updateForecastForm(sides.self);
-  updateForecastForm(sides.opp);
+  updateForecastForm(slotOf('self', 0));
+  updateForecastForm(slotOf('opp', 0));
 }
 
 // === かたやぶり(段124) — 出典: ポケモンWiki「かたやぶり」 ===
@@ -3714,7 +3728,7 @@ rbRegisterHandler('stat_stage', 'kachiki_makenki_reaction', (ctx) => {
 rbRegisterHandler('stat_stage', 'mirror_herb_reaction', (ctx) => {
   const {target, rk, phase, _skipMirrorHerb} = ctx;
   if (ctx.applied > 0 && !_skipMirrorHerb){
-    const _mirrorSide = (target === sides.self) ? sides.opp : sides.self;
+    const _mirrorSide = (target === slotOf('self', 0)) ? slotOf('opp', 0) : slotOf('self', 0);
     if (_mirrorSide && _mirrorSide.poke && !_mirrorSide.fainted && _mirrorSide.rank[rk] !== undefined &&
         hasItem(_mirrorSide, 'mirror_herb')){
       applyRankStageGuarded(_mirrorSide, _mirrorSide, rk, ctx.applied, phase, (sg2, applied2) => {
@@ -4020,7 +4034,7 @@ function piercesSub(move, atk){
     || (bd.effects || []).some(e => e.kind === 'みがわり貫通');
 }
 function uproarActive(){
-  return ['self', 'opp'].some(k => {
+  return activeSides().some(k => {
     const st = sides[k];
     return st.rampage && (((st.rampage.move.battle_data || {}).effects) || []).some(e => e.kind === '状態異常予防' && e.value === 'ねむり');
   });
@@ -5198,7 +5212,7 @@ function phaseApplyEffects(atkSide, defSide, move){
       // ほろびのうた: 場の全員にほろびカウント。ターン終了ごとに 3→2→1 と減り0でひんし。
       // すでにカウント中のポケモンはリセットしない。交代で解除は交代未実装のため出番なし。
       // 出典: Bulbapedia "Perish Song"
-      for (const s of ['self','opp']){
+      for (const s of activeSides()){
         const st = sides[s];
         if (!st.poke || st.fainted || st.perishCount != null) continue;
         st.perishCount = (ef.duration || 3) + 1;   // ターン終了で1減って「3」になる→0でひんし
@@ -5346,7 +5360,7 @@ function phaseApplyEffects(atkSide, defSide, move){
         env.gravity = true;
         env.gravityTurns = ef.duration || 5;
         log('9', 'じゅうりょくが 強くなった！');
-        for (const s of ['self','opp']){
+        for (const s of activeSides()){
           const st = sides[s];
           if (st.charging && st.charging.move && GRAVITY_BLOCKED.includes(st.charging.move.name)){
             st.charging = null;
@@ -5509,7 +5523,7 @@ function phaseSlipFor(s){
 }
 
 function phaseEndOfTurnSlip(){
-  for (const s of ['self','opp']) phaseSlipFor(s);
+  for (const s of activeSides()) phaseSlipFor(s);
 }
 
 // === 履歴スタック (Undo 用) ===
@@ -5616,8 +5630,8 @@ function snapshotBattleState(){
     usedMoveNames: [...(st.usedMoveNames || [])],            // 実際に使った技名(とっておき用)も一手戻せるように
   });
   return {
-    self: snap(sides.self),
-    opp: snap(sides.opp),
+    self: snap(slotOf('self', 0)),
+    opp: snap(slotOf('opp', 0)),
     log: battleLog.map(e=>({phase:e.phase, msg:e.msg})),
     lastMoveAny: lastMoveAnywhere || null,   // まねっこも一手戻せるように
   };
@@ -5734,8 +5748,8 @@ function undoBattle(){
     st.usedMoveNames = [...(src.usedMoveNames || [])];        // 実際に使った技名の巻き戻し
   };
   lastMoveAnywhere = s.lastMoveAny || null;   // まねっこの巻き戻し
-  restore(sides.self, s.self);
-  restore(sides.opp, s.opp);
+  restore(slotOf('self', 0), s.self);
+  restore(slotOf('opp', 0), s.opp);
   battleLog.length = 0;
   s.log.forEach(e=>battleLog.push(e));
   log('Undo', '一手戻しました');
@@ -6243,7 +6257,7 @@ function cannotSwitchReason(st){
   // かげふみ(特性): 相手がかげふみだと交代できない(自分もかげふみなら無効=第4世代以降)。
   // ※ありじごく/じりょく/きゅうばん/きれいなぬけがらは現DBに持ち主がいない=park(推測実装しない)
   // 出典: ポケモンWiki「ポケモンチェンジ」
-  const oppSt = (st === sides.self) ? sides.opp : sides.self;
+  const oppSt = (st === slotOf('self', 0)) ? slotOf('opp', 0) : slotOf('self', 0);
   if (oppSt.poke && !oppSt.fainted && sideAbility(oppSt) === 'かげふみ' && sideAbility(st) !== 'かげふみ') return 'かげふみ';
   return null;
 }
@@ -6373,7 +6387,7 @@ function berryBlocked(sideKey){
   return !!(foe.poke && !foe.fainted && sideAbility(foe) === 'きんちょうかん');
 }
 function itemReactions(){
-  ['self','opp'].forEach(s => {
+  activeSides().forEach(s => {
     const st = sides[s];
     if (!st.poke || st.fainted || !st.item || env.magicRoom) return;
     const it = ITEM_BY_KEY[st.item];
@@ -6575,6 +6589,7 @@ function attemptSwitch(sideKey, benchIdx, opts){
   }
   st.bench[benchIdx] = packBenchEntry(st);   // 出ていたポケモンの永続フィールドを控え枠へ
   clearVolatilesOnSwitch(st);
+  st.presenceEpoch = (st.presenceEpoch || 0) + 1;   // D2-a: 交代成功(死に出し含む)で在場世代を進める
   for (const k of BENCH_FIELDS) st[k] = entry[k];
   // ばけのかわ: 入場者ごとに張り直す(ミミッキュ以外に前の皮が残るバグ根治=2026-07-10 阿部さん発見)。
   // 一度剥がれたら(disguiseBroken)バトル中は戻らない(ポケモンWiki準拠)
@@ -7112,26 +7127,26 @@ function runTurn(){
   ensureBattleState();
   pushHistory();
   // ひるみはそのターン限り → ターン開始でクリア(このターン中に先攻が後攻へ付与する)
-  sides.self.flinched = false; sides.opp.flinched = false;
+  slotOf('self', 0).flinched = false; slotOf('opp', 0).flinched = false;
   // まもる系・こらえるもそのターン限り → ターン開始でクリア(連続成功カウントは持ち越す)
-  sides.self.protecting = null; sides.opp.protecting = null;
-  sides.self.enduring = false; sides.opp.enduring = false;
+  slotOf('self', 0).protecting = null; slotOf('opp', 0).protecting = null;
+  slotOf('self', 0).enduring = false; slotOf('opp', 0).enduring = false;
   // マジックコート(Phase D B2)の跳ね返し構えもそのターン限り → ターン開始でクリア
-  sides.self.magicCoatTurn = false; sides.opp.magicCoatTurn = false;
+  slotOf('self', 0).magicCoatTurn = false; slotOf('opp', 0).magicCoatTurn = false;
   // よこどり(Snatch)の横取りの構えもそのターン限り → ターン開始でクリア
-  sides.self.snatchArmed = false; sides.opp.snatchArmed = false;
+  slotOf('self', 0).snatchArmed = false; slotOf('opp', 0).snatchArmed = false;
   // そうでん(技タイプ変更)もそのターン限り → ターン開始でクリア
-  sides.self.electrified = null; sides.opp.electrified = null;
+  slotOf('self', 0).electrified = null; slotOf('opp', 0).electrified = null;
   // はねやすめ(タイプ一時無効)もそのターン限り → ターン開始でクリア
-  sides.self.typeSuppressed = null; sides.opp.typeSuppressed = null;
+  slotOf('self', 0).typeSuppressed = null; slotOf('opp', 0).typeSuppressed = null;
   // 「このターン受けたダメージ」(倍返し用)もターン開始でリセット
-  sides.self.tookThisTurn = {phys:0, spec:0, any:0};
-  sides.opp.tookThisTurn = {phys:0, spec:0, any:0};
+  slotOf('self', 0).tookThisTurn = {phys:0, spec:0, any:0};
+  slotOf('opp', 0).tookThisTurn = {phys:0, spec:0, any:0};
   // 「このターン行動済み」(しっぺがえし用)もターン開始でリセット
-  sides.self.movedThisTurn = false;
-  sides.opp.movedThisTurn = false;
+  slotOf('self', 0).movedThisTurn = false;
+  slotOf('opp', 0).movedThisTurn = false;
   // 「前ターンの失敗」(じだんだ用)を確定し、今ターン分をリセット
-  ['self','opp'].forEach(s => {
+  activeSides().forEach(s => {
     sides[s].lastTurnFailed = !!sides[s].failedThisTurn;
     sides[s].failedThisTurn = false;
     // 「前ターンに相手へダメージを与えたか」(どげざつき用)も同じタイミングで確定
@@ -7147,9 +7162,9 @@ function runTurn(){
   // (トリックルームでは遅い順)。※同速は self 先の近似。おいうち割り込みは未実装(park)。
   // 出典: ポケモンWiki「ポケモンチェンジ」/ Bulbapedia "Priority"
   {
-    const sw = ['self','opp'].filter(s => sides[s].switchChoice != null);
+    const sw = activeSides().filter(s => sides[s].switchChoice != null);
     if (sw.length === 2){
-      const s1 = effectiveSpeed(sides.self), s2 = effectiveSpeed(sides.opp);
+      const s1 = effectiveSpeed(slotOf('self', 0)), s2 = effectiveSpeed(slotOf('opp', 0));
       if (env.trickRoom ? (s1 > s2) : (s1 < s2)) sw.reverse();
     }
     for (const s of sw){
@@ -7159,12 +7174,61 @@ function runTurn(){
     }
   }
   // ③ メガシンカ(Init-B): 交代の後・技フェーズの直前(実機リファレンス)。予約(megaChoice)があれば変身
-  ['self', 'opp'].forEach(s => { if (sides[s].megaChoice) megaEvolve(s); });
+  activeSides().forEach(s => { if (sides[s].megaChoice) megaEvolve(s); });
   // 交代した側はこのターン技を出さない(交代して出されたポケモンは次のターンまで行動できない)
-  const selfMove = sides.self.switchedThisTurn ? null : sides.self.moves[sides.self.selectedMoveIdx];
-  const oppMove  = sides.opp.switchedThisTurn ? null : sides.opp.moves[sides.opp.selectedMoveIdx];
-  // 行動順
-  const firstSide = decideOrder(selfMove, oppMove);
+  const selfMove = slotOf('self', 0).switchedThisTurn ? null : slotOf('self', 0).moves[slotOf('self', 0).selectedMoveIdx];
+  const oppMove  = slotOf('opp', 0).switchedThisTurn ? null : slotOf('opp', 0).moves[slotOf('opp', 0).selectedMoveIdx];
+  // 行動順(D2-a・2026-09-10): decideOrder(:2334付近。未使用のまま残す=D3で消す)を
+  // 純粋scheduler(battle_scheduler.js)へ接続する。乱数の消費回数・順番は今のdecideOrderと同じにする:
+  //   ①movePriorityが同値の時だけ せんせいのツメ(canonSidesの先→後の順で1回ずつ)を判定
+  //   ②同速タイはscheduler内部の1回のrng()呼び出しに委ねる(IntentをcanonSides順で渡す=D1のテスト7a/7bと同じ契約)
+  // ★ctx.isPresentは常にtrue固定にした(🙋詳細は報告に記載): 今のdecideOrderはfainted/在場状態を
+  //   見ずにselfMove/oppMoveのpriorityとsides.self/opp.speedだけで無条件に計算する。schedulerの
+  //   自動無効化(isPresent=falseで即cancelし残り1件を無条件勝者にする)を働かせると、退場側が本来なら
+  //   先攻と判定されていたケースでfirstSideの値が変わり、actedAfterTarget(フォーカスレンズの命中補正
+  //   対象)が入れ替わる恐れがある。D2-aでは今の実行ループ(order配列・for文・continue・splice)は
+  //   変更しない(下記のfirstSide/secondSideの決め方だけを差し替える)ため、退場判定はここでは働かせない。
+  const firstSide = (function(){
+    const [__cf, __cs] = canonSides();
+    const __moveOf = { self: selfMove, opp: oppMove };
+    const __intents = {};
+    activeSides().forEach(function(s){
+      __intents[s] = BattleScheduler.createIntent({
+        actorId: s + ':' + sides[s].presenceEpoch,
+        presenceEpoch: sides[s].presenceEpoch,
+        sideId: s, slotId: 0, kind: 'move',
+        orderingMove: __moveOf[s], executionMove: __moveOf[s],
+      });
+    });
+    quickClawSide = null;
+    let __quickClawDone = false;
+    const ctx = {
+      isPresent: () => true,
+      priorityOf: (intent) => {
+        const p = movePriority(intent.orderingMove, sides[intent.sideId]);
+        return { basePriority: p, contributions: [], effectivePriority: p };
+      },
+      speedOf: (actorId) => effectiveSpeed(sides[actorId.split(':')[0]]),
+      trickRoom: () => !!env.trickRoom,
+      orderModifierOf: (intent) => {
+        const otherSide = intent.sideId === 'self' ? 'opp' : 'self';
+        const myP = movePriority(intent.orderingMove, sides[intent.sideId]);
+        const otherP = movePriority(__moveOf[otherSide], sides[otherSide]);
+        if (myP !== otherP || env.magicRoom) return 'normal';
+        // せんせいのツメ: 同じ優先度の中で20%の確率で先に動ける(canonSidesの先→後の順で1回だけ判定。
+        // items_database宣言。両方発動なら通常判定=quickClawSideはnullのまま速度比較へ)
+        if (!__quickClawDone){
+          __quickClawDone = true;
+          const c1 = sides[__cf].item === 'quick_claw' && Math.random() < 0.2;
+          const c2 = sides[__cs].item === 'quick_claw' && Math.random() < 0.2;
+          if (c1 !== c2) quickClawSide = c1 ? __cf : __cs;
+        }
+        return (quickClawSide === intent.sideId) ? 'first' : 'normal';
+      },
+    };
+    const sched = BattleScheduler.createScheduler([__intents[__cf], __intents[__cs]], ctx, { rng: () => Math.random(), tiePolicy: 'random' });
+    return sched.next().sideId;
+  })();
   const secondSide = firstSide === 'self' ? 'opp' : 'self';
   const order = [
     {side:firstSide, move: firstSide==='self'?selfMove:oppMove, opp:secondSide},
@@ -7648,7 +7712,7 @@ function runTurn(){
   // グラスフィールドの毎ターン回復(データ宣言: 回復 phase=turn_end)— 地面にいるポケモンだけ
   const _fHeal = fieldRules().find(r => r.kind === '回復' && r.phase === 'turn_end');
   if (_fHeal && _fHeal.fraction != null){
-    for (const s of ['self','opp']){
+    for (const s of activeSides()){
       const st = sides[s];
       if (!st.poke || st.fainted || !isGrounded(st)) continue;
       const max = realStat(st, 'hp');
@@ -7707,7 +7771,7 @@ function runTurn(){
   }
   itemReactions();   // B案: ターン終了処理(スリップ等)の後にも道具の発動チェック
   // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
-  for (const s of ['self','opp']){
+  for (const s of activeSides()){
     const st = sides[s];
     if (!st.screenTurns) continue;
     for (const flag of Object.keys(st.screenTurns)){
@@ -7720,7 +7784,7 @@ function runTurn(){
     }
   }
   // ちょうはつ/かなしばり/アンコールのカウントダウン(使われたターンを含めて持続ターンで切れる)
-  for (const s of ['self','opp']){
+  for (const s of activeSides()){
     const st = sides[s];
     if ((st.tauntTurns || 0) > 0){
       st.tauntTurns--;
@@ -8024,12 +8088,12 @@ function runTurn(){
     }
   }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
-  sides.self.turnsOut = (sides.self.turnsOut || 0) + 1;
-  sides.opp.turnsOut = (sides.opp.turnsOut || 0) + 1;
+  slotOf('self', 0).turnsOut = (slotOf('self', 0).turnsOut || 0) + 1;
+  slotOf('opp', 0).turnsOut = (slotOf('opp', 0).turnsOut || 0) + 1;
   // 瀕死交代(死に出し): ひんしになったポケモンは、控えがいればターンの最後に次のポケモンと交代する。
   // 死に出しで出たポケモンは「交代したターンは行動不可」の対象外(switchedThisTurnは次のターン開始で消える)。
   // 控えの選択は実機ではプレイヤー=simは最初の生きている控えで近似。出典: ポケモンWiki「ポケモンチェンジ」
-  ['self','opp'].forEach(s => {
+  activeSides().forEach(s => {
     const st = sides[s];
     if (!st.poke || !st.fainted) return;
     const _liveIdxs = (st.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
@@ -8051,7 +8115,7 @@ function runTurn(){
 // === 全リセット（ポケモン選択・性格・能力P・持ち物・特性・環境を含む）===
 function fullResetBattle(){
   if (!confirm('ポケモン選択・性格・能力P・持ち物・特性・環境を含めて全てリセットします。よろしいですか？')) return;
-  ['self','opp'].forEach(s=>{
+  activeSides().forEach(s=>{
     sides[s] = makeSideState();
   });
   env.weather = 'none';
@@ -8088,7 +8152,7 @@ function fullResetBattle(){
 // === バトルリセット (バトル開始前の状態に戻す: HP/状態/壁/設置/ランクをクリア、わざ・ポケモン・能力Pは保持) ===
 function resetBattle(){
   lastMoveAnywhere = null;   // まねっこ用の直前技もリセット
-  ['self','opp'].forEach(s=>{
+  activeSides().forEach(s=>{
     const st = sides[s];
     revertTransform(st);   // へんしん状態はバトル終了で解ける(元のすがた・技に戻してからHPを引き直す)
     if (st.poke) st.currentHp = realStat(st, 'hp');
@@ -8188,10 +8252,10 @@ function startBattle(){
   ensureBattleState();
   pushHistory();
   log('Start', '─── バトル開始 ───');
-  initPP(sides.self); initPP(sides.opp);   // PP管理開始(段129)
+  initPP(slotOf('self', 0)); initPP(slotOf('opp', 0));   // PP管理開始(段129)
   // 誰が場に出たかを履歴に残す
-  if (sides.self.poke) log(`Start`, `${pname(sides.self)} が 場に出た！`);
-  if (sides.opp.poke)  log(`Start`, `${pname(sides.opp)} が 場に出た！`);
+  if (slotOf('self', 0).poke) log(`Start`, `${pname(slotOf('self', 0))} が 場に出た！`);
+  if (slotOf('opp', 0).poke)  log(`Start`, `${pname(slotOf('opp', 0))} が 場に出た！`);
   phaseInitA();
   renderBattleLog();
   renderBoth();

@@ -2345,8 +2345,10 @@ try {
   const isRestored = f => snapFields.has(f) && restoreFields.has(f);
 
   const universe = Object.keys(E.makeSideState());
+  // 2026-09-10 D2-a: presenceEpoch(battle_scheduler.jsのActionIntent契約用「在場世代」カウンタ)を
+  // makeSideState()に新設したため81→82(下記EXCLUDED_SCHEDULER_BOOKKEEPINGで理由つき除外)。
   check('H56-a makeSideState()の全フィールド数(構造drift検知・変わったら分類を見直す合図)',
-    universe.length === 81, `count=${universe.length}`);
+    universe.length === 82, `count=${universe.length}`);
 
   // UI専用(手動チェックボックス/表示カーソル/並び替え等): 全文grep確認済みでmove効果からは一度もセットされない
   // (`.critical =`等の書き込みが無い)=undo対象外でも戦闘結果に影響しない。
@@ -2364,18 +2366,26 @@ try {
   // 意味がないため、undoBattle内で常時 `st.subAbsorbed = false;` と決め打ちしている(既存の意図的な設計・
   // real_battle_simulator.html undoBattleのrestore関数を参照)。
   const EXCLUDED_ALWAYS_FORCE_RESET = new Set(['subAbsorbed']);
+  // 2026-09-10 D2-a(設計_行動順再評価_2026-09-05.md§3・battle_scheduler.js ActionIntent契約)で新設した
+  // 「在場世代」カウンタ。バトル開始で0・attemptSwitch成功(死に出し含む)のたびに+1する内部bookkeeping。
+  // このターン内だけで使い捨てるactorId文字列(`${side}:${presenceEpoch}`)の生成にのみ使う値で、
+  // 今のsnapshotBattleState/undoBattle(手書きの約60項目リスト)はこの値を戻さない=既知のギャップ。
+  // undo新形(3定数からのsnapshot自動生成)はD2の「やらないこと」に明記された別段(D2-c以降)の対応範囲。
+  // D2-aの時点では戦闘結果・ログに一切影響しない(1手戻してもactorId文字列がずれるだけで、
+  // 次のdecideOrder相当の計算はsides[s]の実体を見るだけでepoch値そのものは比較に使わない)。
+  const EXCLUDED_SCHEDULER_BOOKKEEPING = new Set(['presenceEpoch']);
 
   const unclassified = [];
   const restoredOk = [];
   const restoredMissing = [];
   for (const f of universe) {
-    if (EXCLUDED_UI_ONLY.has(f) || EXCLUDED_KNOWN_GAP_DEFERRED.has(f) || EXCLUDED_ALWAYS_FORCE_RESET.has(f)) continue;
+    if (EXCLUDED_UI_ONLY.has(f) || EXCLUDED_KNOWN_GAP_DEFERRED.has(f) || EXCLUDED_ALWAYS_FORCE_RESET.has(f) || EXCLUDED_SCHEDULER_BOOKKEEPING.has(f)) continue;
     if (isRestored(f)) restoredOk.push(f);
     else unclassified.push(f);
   }
   check('H56-b makeSideState()の全フィールドが「復元される」か「意図的除外(理由つき)」のどちらかに分類できる(未分類=fail)',
     unclassified.length === 0, `unclassified=${JSON.stringify(unclassified)}`);
-  console.log(`  (内訳: 復元確認=${restoredOk.length}件 / UI専用除外=${EXCLUDED_UI_ONLY.size}件 / 既知ギャップ次波送り=${EXCLUDED_KNOWN_GAP_DEFERRED.size}件 / 強制リセット除外=${EXCLUDED_ALWAYS_FORCE_RESET.size}件)`);
+  console.log(`  (内訳: 復元確認=${restoredOk.length}件 / UI専用除外=${EXCLUDED_UI_ONLY.size}件 / 既知ギャップ次波送り=${EXCLUDED_KNOWN_GAP_DEFERRED.size}件 / 強制リセット除外=${EXCLUDED_ALWAYS_FORCE_RESET.size}件 / schedulerブックキーピング除外=${EXCLUDED_SCHEDULER_BOOKKEEPING.size}件)`);
 
   // Wave1で名指しされた単ターン揮発グループ+ばけのかわ+こだわり+てんきや(dynamic-only=makeSideStateの
   // 初期値には無いが戦闘中にセットされるフィールド)は、makeSideStateの81件には含まれないため個別に確認する。
