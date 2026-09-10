@@ -58,7 +58,8 @@
 | T5 | **全Champions行(非メガ266行)をヤックン/ch/から取り直し**(Chrome同一オリジンfetch・120行/回で弾かれる→400ms間隔+再試行)→235行一致・30行は「きりさく解禁」(公式#817)→learn_add(+メガ18行)・残1=ランクルス(A3決着)。記録=`reference/_yakkun_ch_learnsets_all_2026-09-10.json` | `6b3a922d8` |
 | T8 | 新種25行の図鑑諸元=**Wiki×ヤックン×master 100/100一致**→暫定の印を外す(Sonnet照合) | 同上 |
 | 持ち物12件 | **3サイト(Wiki/Bulbapedia/Serebii ItemDex)で矛盾なし**(Sonnet照合)。補記: ふうせん=まきびし/どくびし/ねばねばネットも無効・しめつけバンド=攻撃系へ。notes の「仮置き」を「確認済み」に | 同上 |
-| B064 | 前回の束(設計書/調査/D0)をcommit。**D1(行動者契約+純粋scheduler=未接続)をSonnetに発注中**(指示書= scratchpad `spec_d1_scheduler.md`。成果= `battle_scheduler.js` + `tools/_scheduler_test.js`) | `bd05f6e4e` |
+| B064 D1 | **完了・検収済み**(`battle_scheduler.js`+`tools/_scheduler_test.js` 14/0)。近似・未確認7点=コード内コメント(isPresent不成立時の理由 not_present / item・run 帯の細則 / futureSight・wish を側の場に分類した根拠弱 / forecastForm の所在 / moveToFront・Back は拡張API / rng 必須)。**D2 前半(D2-a scheduler接続・D2-b slotOf)をSonnetに発注中**(指示書= scratchpad `spec_d2_connect.md`。ゲート=全ハーネス+sim_test_report.html の stdout diff 0) | `1b13884b5` |
+| 持ち物レビュー | 壊す側Sonnetの指摘3件を修正(印の消し忘れ=変化技の自分交代が無言で不発/固定ダメージ経路/ばけのかわ)+T347〜349 → 862/0 | `5afcc7b48` |
 | T2 | 8言語の技説明は15技とも既訳あり。JAを変えた3技(ミルクのみ/フリーズドライ/ふんどのこぶし)の8言語を Sonnet が再翻訳中 | — |
 
 残: T6(ミルクのみ effects target=B064語彙)/ T7(新15技の effects をChampions正典で再確認=説明文は一致確認済み)/ ガブリアスナイトZ・ボーマンダナイトの入手(ヤックン未掲載)/ D1検収→D2。
