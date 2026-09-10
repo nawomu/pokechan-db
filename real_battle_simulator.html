@@ -1131,6 +1131,15 @@ function syncSlotsToFormat(){
         get(){ return st.bench; },
         set(v){ st.bench = v; },
       });
+      // D5-0(2026-09-11・spec_d5_0_choices.md 1.「メガは1回の対戦で1度だけ(Champions ルール・§1.1)=
+      // 側単位のmegaUsedを全枠で共有」): benchと同じアクセサ方式でsides[s]に一本化する。枠1以降が
+      // 自分自身のmakeSideState()由来の別megaUsedを持ってしまうと、枠0がメガ済みでも枠1がメガできて
+      // しまう(Championsのトレーナー単位ルールに反する)。シングルはslots.length===1でこのforが0回=不変。
+      Object.defineProperty(st.slots[i], 'megaUsed', {
+        configurable: true, enumerable: true,
+        get(){ return st.megaUsed; },
+        set(v){ st.megaUsed = v; },
+      });
     }
   });
 }
@@ -2467,22 +2476,24 @@ let currentTurnScheduler = null;   // D2-c(2026-09-10): 実行中ターンのsch
 // 「側に依存する乱数消費」(同速タイ・つめ両ロール等)は __rbCanonFirst(=ホスト側)基準に固定して結果を一致させる。
 // 未設定(オフライン)は従来どおり self 優先=挙動不変
 function canonSides(){ return (typeof window !== 'undefined' && window.__rbCanonFirst === 'opp') ? ['opp', 'self'] : ['self', 'opp']; }
-// D4-3b(2026-09-11・設計_ダブルバトル_2026-09-07.md§5・#13/P03): ターン開始の交代とメガシンカを
-// 両側とも行う時に速い方から先にする共通ヘルパー(交代は元々すばやさ比較していたがメガは['self','opp']
-// 固定順のgapだった=同じ鍵に揃える)。同速タイはschedulerのtieと同じ乱数点=Math.random()<0.5を
-// canonSides順で1回だけ引く(#13)。★乱数消費が増えるのは「両側が同ターンにこのフェーズを行う・
-// かつ同速」の時だけ=list.length!==2(片方だけ/0件)は従来どおり乱数を引かない(消費不変)。
-function orderSidesBySpeedForPhase(list){
-  if (list.length !== 2) return list;
-  const [a, b] = list;
-  const sa = effectiveSpeed(slotOf(a, 0)), sb = effectiveSpeed(slotOf(b, 0));
-  if (sa === sb){
+// D5-0(2026-09-11・設計_ダブルバトル_2026-09-07.md§5・spec_d5_0_choices.md 1.): D4-3bの「側の2要素専用」
+// 実装を「枠の一覧」向けに一般化した(switchChoice/megaChoiceがD5-0で枠ごとに持てるようになったため=
+// 枠1だけが交代/メガを選ぶ場面にも対応する)。鍵は不変(すばやさ降順・トリックルームで逆転・同速は
+// 乱数を使わない決定的な順序。#13/P03)。list.length<=1はソートせずそのまま返す(従来どおり乱数を引かない)。
+// ★シングル(list は常に最大{self,idx:0}{opp,idx:0}の2件)は旧実装(orderSidesBySpeedForPhase・
+// 側の2要素専用swap+タイはcanonSides()決め打ち)と完全に同じ結果になる: 非タイは同じ不等号の並べ替え、
+// タイはcanonSlots()がslotsPerSide=1でcanonSides()と同値なのでrankIdx比較の結果も同じ順序になる。
+function orderSlotsBySpeedForPhase(list){
+  if (list.length < 2) return list;
+  const rank = canonSlots();
+  const rankIdx = function (sl) { return rank.findIndex(function (r) { return r.side === sl.side && r.idx === sl.idx; }); };
+  return list.slice().sort(function (a, b) {
+    const sa = effectiveSpeed(slotOf(a.side, a.idx)), sb = effectiveSpeed(slotOf(b.side, b.idx));
+    if (sa !== sb) return env.trickRoom ? (sa - sb) : (sb - sa);
     // 同速タイ: 乱数を引かない(9/11 レビュー指摘#3: 交代/メガの同速タイに新しい乱数点を作るとオフライン/undo の再現性が変わる。
-    // 権威は「交代順=すばやさ比較」までで同速の細則は未確認=台帳)。決定的に canonSides 順(旧実装の self→opp と同じ結果)。
-    return canonSides();
-  }
-  const bFaster = env.trickRoom ? (sa > sb) : (sa < sb);
-  return bFaster ? [b, a] : [a, b];
+    // 権威は「交代順=すばやさ比較」までで同速の細則は未確認=台帳)。決定的に canonSlots 順(旧実装の canonSides 順と同値)。
+    return rankIdx(a) - rankIdx(b);
+  });
 }
 // D2-c(2026-09-10・設計_ダブルバトル_2026-09-07.md§3/§5): 行動順の決定を純粋scheduler(battle_scheduler.js)
 // の呼び出しに一本化する。runTurnの実行ループと E.decideOrder(既存テスト契約=tools/_sim_test.js等が
@@ -2616,6 +2627,99 @@ const TARGET_KINDS = Object.freeze({
   '自分':        { chooses: false, candidates: 'self',      default: 'self',  onLost: 'none' },
   '不定':        { chooses: false, candidates: 'foes_ally', default: 'front', onLost: 'reselect_foe' },   // D4: spread
 });
+
+// ============================================================================
+// D5-0(2026-09-11・実装指示spec_d5_0_choices.md 2.〜3.・設計_ダブルバトル_2026-09-07.md§8.3):
+// 枠ごとの「選択」をページ(D5-1)が呼ぶための公開API。ここではUIを作らない(選択欄への書き込み口と、
+// 候補の算出・fixture用の最小AIだけを純関数として置く)。
+// ============================================================================
+
+// 技1本ぶんの対象候補(選択UIが使う一覧)をTARGET_KINDS(§4.2)表から算出する。
+// chooses:falseの技(相手全体等・選ばせない)はnullを返す=UIは「候補を出さない」。
+// 空席/ひんし枠は候補に入れない(指示書どおり)。並び順=「相手→味方」(§4.2表の記載順と同じ)。
+function targetCandidatesForMove(atkSide, atkIdx, mv){
+  const kind = TARGET_KINDS[(mv && mv.target)] || TARGET_KINDS['1体選択'];
+  if (!kind.chooses) return null;
+  const oppSide = atkSide === 'self' ? 'opp' : 'self';
+  const perSide = battle.format.slotsPerSide || 1;
+  const alive = function (side, idx) { const s = slotOf(side, idx); return !!(s && s.poke && !s.fainted); };
+  const out = [];
+  if (kind.candidates === 'foes_ally'){
+    // 1体選択: 相手2枠+味方1枠(#21・通常攻撃技は味方も選べる)
+    for (let i = 0; i < perSide; i++) if (alive(oppSide, i)) out.push({ side: oppSide, idx: i });
+    for (let i = 0; i < perSide; i++) if (i !== atkIdx && alive(atkSide, i)) out.push({ side: atkSide, idx: i });
+  } else if (kind.candidates === 'ally'){
+    // 味方1体: 自分以外の自陣の生存枠
+    for (let i = 0; i < perSide; i++) if (i !== atkIdx && alive(atkSide, i)) out.push({ side: atkSide, idx: i });
+  } else if (kind.candidates === 'self_ally'){
+    // 自分か味方: 自分自身+自分以外の自陣の生存枠
+    out.push({ side: atkSide, idx: atkIdx });
+    for (let i = 0; i < perSide; i++) if (i !== atkIdx && alive(atkSide, i)) out.push({ side: atkSide, idx: i });
+  }
+  return out;
+}
+// 対象候補のUI表示名(illusion/へんしんの見た目を優先する。pnameと違い「相手の」接頭辞は付けない=
+// 側の向き(左右の表示反転)はD5-1のページ側の仕事なので、エンジンは中立な種族名だけを返す)。
+function _slotDisplayName(side, idx){
+  const s = slotOf(side, idx);
+  if (!s || !s.poke) return '';
+  const shown = s.illusionAs || (s.transformBase ? s.transformBase.poke : s.poke);
+  return shown.name;
+}
+// D5-0 2.: 枠1本ぶんの選択候補をまとめて返す(ページのメニュー描画がこれ1本を読めば済むようにする)。
+// { moves:[{idx, name, targets:[{side,idx,label}]|null}], switches:[benchIdx…], canMega }
+function getChoiceCandidates(side, idx){
+  const out = { moves: [], switches: [], canMega: false };
+  const st = slotOf(side, idx);
+  if (!st || !st.poke || st.fainted) return out;
+  (st.moves || []).forEach(function (mv, mi) {
+    if (!mv) return;
+    const cand = targetCandidatesForMove(side, idx, mv);
+    out.moves.push({
+      idx: mi,
+      name: mv.name,
+      targets: cand ? cand.map(function (t) { return { side: t.side, idx: t.idx, label: _slotDisplayName(t.side, t.idx) }; }) : null,
+    });
+  });
+  (st.bench || []).forEach(function (e, bi) {
+    if (e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0)) out.switches.push(bi);
+  });
+  out.canMega = !!(typeof canMegaEvolve === 'function' && canMegaEvolve(st));
+  return out;
+}
+// D5-0 2.: ページ(target_choose含む)がこの枠の選択を書き込む唯一の入口。渡さなかった項目は変更しない
+// (小刻みに1つずつ確定させるUI操作に合わせる。target:nullは明示的に「選ばない(既定=正面)」に戻す)。
+function setChoice(side, idx, choice){
+  const st = slotOf(side, idx);
+  if (!st) return false;
+  choice = choice || {};
+  if (Object.prototype.hasOwnProperty.call(choice, 'moveIdx')) st.selectedMoveIdx = choice.moveIdx;
+  if (Object.prototype.hasOwnProperty.call(choice, 'switchIdx')) st.switchChoice = choice.switchIdx;
+  if (Object.prototype.hasOwnProperty.call(choice, 'mega')) st.megaChoice = !!choice.mega;
+  if (Object.prototype.hasOwnProperty.call(choice, 'target')) st.targetChoice = choice.target || null;
+  return true;
+}
+// D5-0 3.: fixture用の最小AI(純関数)。既存の相手AI(aiChooseMove/aiChooseAction=sides[sideKey]直読み・
+// 枠0前提)はここでは触らない=枠0はそのまま使い、枠1以降(ダブルfixtureだけに存在)は
+// 「PPが残っている技の先頭」という最小の代替で埋める(スコアリングはページ側AI=D5-1で差し替える)。
+// 対象は指定しない=targetLockの既定(正面)に任せる(§4.2「default: front」)。
+function autoChoose(side){
+  const perSide = battle.format.slotsPerSide || 1;
+  for (let idx = 0; idx < perSide; idx++){
+    const st = slotOf(side, idx);
+    if (!st || !st.poke || st.fainted) continue;
+    if (idx === 0){
+      st.selectedMoveIdx = aiChooseMove(side);
+    } else {
+      const moves = st.moves || [];
+      let mi = -1;
+      for (let i = 0; i < moves.length; i++){
+        if (moves[i] && (!st.pp || st.pp[i] > 0)){ mi = i; break; }
+      }
+      st.selectedMoveIdx = mi >= 0 ? mi : 0;
+    }
+  }
+}
 
 // D4-1a(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.2/§4.5・台帳#1決着=位置順): 範囲"攻撃"技
 // (相手全体/自分以外全体、かつダメージ技=category!=='変化')のTargetSet解決。
@@ -7919,22 +8023,26 @@ function runTurn(){
   });
   log('Turn', '─── ターン開始 ───');
   // ② 交代フェーズ: 交代は技より必ず先に処理する。両者が交代を選んだ時はすばやさが高い順
-  // (トリックルームでは遅い順)。同速はorderSidesBySpeedForPhase内で乱数タイブレーク(D4-3b・#13)。
+  // (トリックルームでは遅い順)。同速はorderSlotsBySpeedForPhase内で決定的にタイブレーク(D4-3b・#13)。
   // おいうち割り込みは未実装(park)。
   // 出典: ポケモンWiki「ポケモンチェンジ」/ Bulbapedia "Priority"
+  // D5-0(2026-09-11・spec_d5_0_choices.md 1.): switchChoiceは枠ごとに持てる(枠1のswitchChoiceで
+  // 枠1だけ交代)。activeSlots()で在場する全枠を見る(シングルは{self,0}{opp,0}の最大2件=旧実装と同じ)。
   {
-    const sw = orderSidesBySpeedForPhase(activeSides().filter(s => sides[s].switchChoice != null));
-    for (const s of sw){
-      const idx = sides[s].switchChoice;
-      sides[s].switchChoice = null;
-      attemptSwitch(s, idx);
+    const sw = orderSlotsBySpeedForPhase(activeSlots().filter(({st}) => st.switchChoice != null));
+    for (const {side, idx, st} of sw){
+      const bIdx = st.switchChoice;
+      st.switchChoice = null;
+      attemptSwitch(side, bIdx, { slotIdx: idx });
     }
   }
   // ③ メガシンカ(Init-B): 交代の後・技フェーズの直前(実機リファレンス)。予約(megaChoice)があれば変身。
   // D4-3b(2026-09-11・設計_ダブルバトル_2026-09-07.md§5・P03「速い方から先に(阿部さん確定)」):
-  // 旧実装は['self','opp']固定順だった(gap)。交代と同じorderSidesBySpeedForPhaseに揃える。
-  for (const s of orderSidesBySpeedForPhase(activeSides().filter(s => sides[s].megaChoice))){
-    megaEvolve(s);
+  // 旧実装は['self','opp']固定順だった(gap)。交代と同じorderSlotsBySpeedForPhaseに揃える。
+  // D5-0(2026-09-11): megaChoiceも枠ごとに持てる(枠1のmegaChoiceで枠1がメガ)。megaUsedは
+  // sides[side]に一本化(下のsyncSlotsToFormatのアクセサ参照)=側の1回制限は自然に守られる。
+  for (const {side, idx} of orderSlotsBySpeedForPhase(activeSlots().filter(({st}) => st.megaChoice))){
+    megaEvolve(side, idx);
   }
   // 交代した側はこのターン技を出さない(交代して出されたポケモンは次のターンまで行動できない)
   const selfMove = moveOfSlot('self', 0);

@@ -87,6 +87,9 @@ function buildEngine() {
     activeSides: (typeof activeSides !== 'undefined') ? activeSides : null,
     activeSlots: (typeof activeSlots !== 'undefined') ? activeSlots : null,
     canonSlots: (typeof canonSlots !== 'undefined') ? canonSlots : null,   // D4-2b: (side,slot)の正準順
+    setChoice: (typeof setChoice !== 'undefined') ? setChoice : null,   // D5-0: 枠ごとの選択の書き込み口
+    getChoiceCandidates: (typeof getChoiceCandidates !== 'undefined') ? getChoiceCandidates : null,   // D5-0: 選択候補の算出
+    autoChoose: (typeof autoChoose !== 'undefined') ? autoChoose : null,   // D5-0: fixture用の最小AI
     isSideDefeated: (typeof isSideDefeated !== 'undefined') ? isSideDefeated : null,   // D4-2c
     checkBattleWinner: (typeof checkBattleWinner !== 'undefined') ? checkBattleWinner : null,   // D4-2c
     decideOrder, phaseHitCheck, phaseDealDamage, phaseApplyEffects, phaseSlipFor, battleLog,

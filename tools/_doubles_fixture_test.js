@@ -913,3 +913,120 @@ test('D4-3b-4: 両側が同ターンに交代・同速→乱数を引かず cano
   const iSelf = lines.findIndex(m => /^カメックス は 引っ込んだ/.test(m)), iOpp = lines.findIndex(m => /^相手の カメックス は 引っ込んだ/.test(m));
   assert.ok(iSelf >= 0 && iOpp >= 0 && iSelf < iOpp, `canonSides順(自分→相手)で引っ込む: self=${iSelf} opp=${iOpp} log=${JSON.stringify(lines.slice(0,6))}`);
 });
+
+// ===== D5-0: 枠ごとの「選択」をエンジンに配線(UIはまだ)
+//              (2026-09-11・実装指示spec_d5_0_choices.md 1.〜4.) =====
+
+test('D5-0-1: 枠1のswitchChoiceで枠1だけ交代する(枠0は不変・switchChoice/selectedMoveIdx/targetChoiceは枠ごと)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カメックス', null);
+  placeSlot(E, 'self', 1, 'カビゴン', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  E.sides.self.bench = [benchEntry('フシギバナ', null)];
+  E.slotOf('self', 1).switchChoice = 0;
+  E.setRandom(mulberry32(1));
+  E.runTurn();
+  assert.equal(E.slotOf('self', 0).poke.name, 'カメックス', '枠0はswitchChoiceを立てていない=交代していない');
+  assert.equal(E.slotOf('self', 1).poke.name, 'フシギバナ', '枠1がswitchChoiceどおり交代する');
+});
+
+test('D5-0-2: メガは側で1回だけ=枠0がメガ済みなら枠1はメガできない(megaUsedはsides[side]に一本化して枠で共有)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', null);
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  E.slotOf('self', 0).item = 'mega_stone_venusaur';
+  E.slotOf('self', 1).item = 'mega_stone_blastoise';
+  const ok1 = E.megaEvolve('self', 0);
+  assert.equal(ok1, true, '枠0のメガシンカは成立する');
+  const ok2 = E.megaEvolve('self', 1);
+  assert.equal(ok2, false, '枠0がメガ済み(側で共有)なので枠1はメガできない');
+  assert.equal(E.slotOf('self', 1).poke.name, 'カメックス', '枠1はメガシンカしていない(canMegaEvolveがsides[side].megaUsedを見て弾く)');
+});
+
+test('D5-0-3: 枠1のmegaChoiceで枠1がメガシンカする(枠0はメガ選択なしのまま無関係)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'フシギバナ', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  E.slotOf('self', 1).item = 'mega_stone_venusaur';
+  E.slotOf('self', 1).megaChoice = true;
+  E.setRandom(mulberry32(1));
+  E.runTurn();
+  assert.equal(E.slotOf('self', 1).poke.name, 'メガフシギバナ', '枠1がmegaChoiceどおりメガシンカする');
+  assert.equal(E.slotOf('self', 0).poke.name, 'カビゴン', '枠0はmegaChoiceを立てていない=無関係のまま');
+});
+
+test('D5-0-4: setChoiceで書いたtargetがtargetLockに届く(公開API経由でも枠1(右)を狙って当てられる)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'hataku');
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カメックス', null);
+  placeSlot(E, 'opp', 1, 'カビゴン', null);
+  const ok = E.setChoice('self', 0, { moveIdx: 0, target: { side: 'opp', idx: 1 } });
+  assert.equal(ok, true, 'setChoiceが成立する');
+  const opp0Max = E.realStat(E.slotOf('opp', 0), 'hp');
+  const opp1Max = E.realStat(E.slotOf('opp', 1), 'hp');
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.ok(E.slotOf('opp', 1).currentHp < opp1Max, `setChoiceのtargetで指定したopp:1が被弾する(実際=${E.slotOf('opp', 1).currentHp}/${opp1Max})`);
+  assert.equal(E.slotOf('opp', 0).currentHp, opp0Max, '指定していないopp:0は無傷のまま');
+});
+
+test('D5-0-5: getChoiceCandidatesは空席/ひんし枠を候補に出さない(1体選択=相手2枠+味方1枠)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'hataku');
+  placeSlot(E, 'self', 1, null, null, { fainted: true });          // 空席
+  placeSlot(E, 'opp', 0, 'カメックス', null);
+  placeSlot(E, 'opp', 1, 'カビゴン', null, { fainted: true });     // ひんし(枠には残る=空席とは別扱い)
+  const cand = E.getChoiceCandidates('self', 0);
+  assert.equal(cand.moves.length, 1, 'はたく1本ぶんの候補が出る');
+  const targets = cand.moves[0].targets;
+  assert.ok(Array.isArray(targets), 'はたく(1体選択)は対象候補(配列)を持つ');
+  assert.ok(targets.some(t => t.side === 'opp' && t.idx === 0), '生存しているopp:0は候補に入る');
+  assert.ok(!targets.some(t => t.side === 'opp' && t.idx === 1), 'ひんしのopp:1は候補に入らない');
+  assert.ok(!targets.some(t => t.side === 'self' && t.idx === 1), '空席のself:1は候補に入らない');
+  assert.equal(cand.switches.length, 0, '控えが無いのでswitchesは空');
+  assert.equal(cand.canMega, false, 'メガストーンを持っていないのでcanMegaはfalse');
+});
+
+test('D5-0-6: getChoiceCandidatesはchooses:falseの技(相手全体等)はtargetsをnullで返す', () => {
+  const E = build2v2();
+  // ねっぷう= '相手全体'(chooses:false)。1体選択(はたく)と両方持たせて対比する。
+  placeSlot(E, 'self', 0, 'フシギバナ', 'hataku');
+  E.slotOf('self', 0).moves.push(data.WAZA_MAP.neppuu);
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カメックス', null);
+  placeSlot(E, 'opp', 1, 'カビゴン', null);
+  const cand = E.getChoiceCandidates('self', 0);
+  assert.equal(cand.moves.length, 2, '技2本ぶんの候補が出る');
+  assert.ok(Array.isArray(cand.moves[0].targets), 'はたく(1体選択)はtargetsを持つ');
+  assert.equal(cand.moves[1].targets, null, 'ねっぷう(相手全体=chooses:false)はtargets=null(選ばせない)');
+});
+
+test('D5-0-7: autoChooseで4体全員が(枠0=既存AI・枠1=最小フォールバックで)動く', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', null);
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, 'カビゴン', null);
+  [['self', 0], ['self', 1], ['opp', 0], ['opp', 1]].forEach(([side, idx]) => {
+    const st = E.slotOf(side, idx);
+    st.moves = [data.WAZA_MAP.hataku];
+    st.pp = [10];
+  });
+  E.autoChoose('self');
+  E.autoChoose('opp');
+  assert.equal(E.slotOf('self', 0).selectedMoveIdx, 0, '枠0(既存のaiChooseMove)が技を選ぶ');
+  assert.equal(E.slotOf('self', 1).selectedMoveIdx, 0, '枠1(PPが残る技の先頭という最小フォールバック)が技を選ぶ');
+  assert.equal(E.slotOf('opp', 0).selectedMoveIdx, 0, '相手枠0も技を選ぶ');
+  assert.equal(E.slotOf('opp', 1).selectedMoveIdx, 0, '相手枠1も技を選ぶ');
+  E.setRandom(mulberry32(5));
+  assert.doesNotThrow(() => { E.runTurn(); }, 'runTurn()が例外を出さない');
+  [['self', 0], ['self', 1], ['opp', 0], ['opp', 1]].forEach(([side, idx]) => {
+    assert.ok(E.slotOf(side, idx).movedThisTurn, `${side}:${idx} が行動する(movedThisTurn)`);
+  });
+});
