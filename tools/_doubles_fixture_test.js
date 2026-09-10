@@ -38,6 +38,7 @@ function placeSlot(E, side, idx, pokeName, moveKey, opts) {
   st.fainted = !!opts.fainted;
   if (opts.fainted) st.currentHp = 0;
   st.targetChoice = opts.targetChoice || null;
+  if (opts.ability != null) st.ability = opts.ability;   // D3-3c: 引き寄せ系テストの特性上書き用
   return st;
 }
 
@@ -270,4 +271,156 @@ test('D3-2c-7: シングル(1枠)fixtureは既存の代表ケース(同速2体�
     'フシギバナ の はたく！ 相手の フシギバナ に 17 ダメージ！ (残HP 138/155)',
     '─── ターン終了 ───',
   ], `シングルfixtureのログが既知の結果と一致しない(実際=${JSON.stringify(msgs)})`);
+});
+
+// ===== D3-3b: 味方対象の効果適用(てだすけ=味方威力上昇 / ミルクのみ=自分か味方) =====
+// 根拠: master/moves.json battle_data.effects(既存データ)+ 設計書§4.2/§4.5(#91,#92)。
+// てだすけはphaseApplyEffectsを直接呼ぶ(atkIdx=0固定でも良い=ef.target==='ally'の解決は
+// sides[atkSide].slotsから「自分以外の生存枠」を探すだけ=defSide/defIdxに依存しない実装のため)。
+test('D3-3b-A: てだすけで味方の次の攻撃威力が1.5倍になる(ダメージ比較)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'tedasuke');
+  placeSlot(E, 'self', 1, 'カメックス', 'hataku');
+  placeSlot(E, 'opp', 0, 'カビゴン', null);
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  const before = E.calcDamage('self', 'opp', data.WAZA_MAP.hataku, null, 1, 0);
+  E.phaseApplyEffects('self', 'opp', data.WAZA_MAP.tedasuke, 0);
+  assert.equal(E.slotOf('self', 1).helpingHandMult, 1.5, 'てだすけでhelpingHandMultが1.5になる');
+  const after = E.calcDamage('self', 'opp', data.WAZA_MAP.hataku, null, 1, 0);
+  assert.equal(after.min, Math.floor(before.min * 1.5), `min: 1.5倍(floor)になるはず(before=${before.min} after=${after.min})`);
+  assert.equal(after.max, Math.floor(before.max * 1.5), `max: 1.5倍(floor)になるはず(before=${before.max} after=${after.max})`);
+});
+
+test('D3-3b-B: てだすけは既に行動を終えた味方には失敗する(#91)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'tedasuke');
+  placeSlot(E, 'self', 1, 'カメックス', 'hataku');
+  E.slotOf('self', 1).movedThisTurn = true;   // 味方は既に行動済み
+  E.phaseApplyEffects('self', 'opp', data.WAZA_MAP.tedasuke, 0);
+  assert.ok(!E.slotOf('self', 1).helpingHandMult, '行動済みの味方にはhelpingHandMultが付かない');
+  const msgs = msgList(E.battleLog);
+  assert.ok(msgs.some(m => m.includes('てだすけ！ しかし うまく きまらなかった！')),
+    `失敗ログが出るはず(実際=${JSON.stringify(msgs)})`);
+});
+
+test('D3-3b-C: 自分か味方(ミルクのみ)で味方を選べる', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'mirukunomi', { targetChoice: { side: 'self', idx: 1 }, hp: 1 });
+  placeSlot(E, 'self', 1, 'カメックス', null, { hp: 1 });
+  placeSlot(E, 'opp', 0, 'カビゴン', null);
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.equal(E.slotOf('self', 0).currentHp, 1, '使用者自身(self:0)は回復しない(味方を選んだので)');
+  assert.ok(E.slotOf('self', 1).currentHp > 1, `targetChoiceで選んだ味方(self:1)がミルクのみで回復する(実際=${E.slotOf('self', 1).currentHp})`);
+});
+
+// ===== D3-3c: 引き寄せHandler(このゆびとまれ/いかりのこな/ひらいしん)+ignore =====
+// 根拠: 設計書§4.3(#28,#29,#30,#31,#33,#34)。すべて実際のダメージ/ランク変化の有無で判定する
+// (自己出力を期待値にしない)。
+
+test('D3-3c-1: このゆびとまれで相手の単体攻撃が宣言者に向く(#28)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'konoyubitomare');   // 優先度+2=先に宣言できる
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  // opp:0はself:1を名指ししているが、このゆびとまれの宣言でself:0に引き寄せられるはず
+  placeSlot(E, 'opp', 0, 'ゲンガー', 'hataku', { targetChoice: { side: 'self', idx: 1 } });
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  const self0Max = E.realStat(E.slotOf('self', 0), 'hp');
+  const self1Max = E.realStat(E.slotOf('self', 1), 'hp');
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.ok(E.slotOf('self', 0).currentHp < self0Max, `宣言者(self:0)が引き寄せて被弾するはず(実際=${E.slotOf('self', 0).currentHp}/${self0Max})`);
+  assert.equal(E.slotOf('self', 1).currentHp, self1Max, '名指しされていたself:1は無傷のまま(引き寄せられた)');
+});
+
+test('D3-3c-2: 味方(同じ側)の攻撃は引き寄せられない(#28=相手側の単体技だけ)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'konoyubitomare');
+  placeSlot(E, 'self', 1, 'カメックス', 'hataku');   // 自分の味方=opp:0を普通に狙う(正面)
+  placeSlot(E, 'opp', 0, 'カビゴン', null);
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  const self0Max = E.realStat(E.slotOf('self', 0), 'hp');
+  const opp0Max = E.realStat(E.slotOf('opp', 0), 'hp');
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.equal(E.slotOf('self', 0).currentHp, self0Max, '宣言者(self:0)は味方の攻撃までは引き寄せない=無傷');
+  assert.ok(E.slotOf('opp', 0).currentHp < opp0Max, `味方(self:1)の攻撃はopp:0へ普通に通るはず(実際=${E.slotOf('opp', 0).currentHp}/${opp0Max})`);
+});
+
+test('D3-3c-3: 範囲技(自分以外全体)は引き寄せられない(#28,#29「単体技だけ」)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'konoyubitomare');
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, null, null, { fainted: true });
+  placeSlot(E, 'opp', 1, 'ドサイドン', 'jishin');   // じしん=自分以外全体(D4のD3暫定=正面1体=self:1)
+  const self0Max = E.realStat(E.slotOf('self', 0), 'hp');
+  const self1Max = E.realStat(E.slotOf('self', 1), 'hp');
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.equal(E.slotOf('self', 0).currentHp, self0Max, '範囲技(自分以外全体)は宣言者に引き寄せられない=無傷');
+  assert.ok(E.slotOf('self', 1).currentHp < self1Max, `正面(self:1)がそのまま受けるはず(実際=${E.slotOf('self', 1).currentHp}/${self1Max})`);
+});
+
+test('D3-3c-4: いかりのこなはくさタイプが撃つと免疫で無視される(#34)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'ikarinokona');   // 宣言(粉技)
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  // opp:0(フシギバナ=くさタイプ)がself:1を名指し→いかりのこな免疫でそのままself:1に当たるはず
+  placeSlot(E, 'opp', 0, 'フシギバナ', 'hataku', { targetChoice: { side: 'self', idx: 1 } });
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  const self0Max = E.realStat(E.slotOf('self', 0), 'hp');
+  const self1Max = E.realStat(E.slotOf('self', 1), 'hp');
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.equal(E.slotOf('self', 0).currentHp, self0Max, 'くさタイプの免疫でself:0(宣言者)は引き寄せない=無傷');
+  assert.ok(E.slotOf('self', 1).currentHp < self1Max, `名指しどおりself:1が被弾するはず(実際=${E.slotOf('self', 1).currentHp}/${self1Max})`);
+});
+
+test('D3-3c-5: ひらいしん2体はランク補正・トリックルームを除いた素のすばやさが高い方に引き寄せる(#29,#32)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', '10manboruto');   // でんき単体技・targetChoiceなし=正面(opp:0)既定
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カビゴン', null, { ability: 'ひらいしん' });   // 素早さ30(遅い)
+  placeSlot(E, 'opp', 1, 'ゲンガー', null, { ability: 'ひらいしん' });   // 素早さ110(速い)
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.equal(E.slotOf('opp', 0).rank.spatk || 0, 0, '素早さが遅い方(カビゴン)は引き寄せない=とくこう変化なし');
+  assert.equal(E.slotOf('opp', 1).rank.spatk || 0, 1, `素早さが速い方(ゲンガー)に引き寄せてとくこう+1になるはず(実際=${E.slotOf('opp', 1).rank.spatk})`);
+});
+
+test('D3-3c-6: すじがねいり持ちが撃つと引き寄せを無視する(#33)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', '10manboruto', { ability: 'すじがねいり' });
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カビゴン', null);   // ひらいしん無し=正面のまま被弾するはず
+  placeSlot(E, 'opp', 1, 'ゲンガー', null, { ability: 'ひらいしん' });   // 引き寄せ資格はあるが無視されるはず
+  const opp0Max = E.realStat(E.slotOf('opp', 0), 'hp');
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.ok(E.slotOf('opp', 0).currentHp < opp0Max, `すじがねいりで引き寄せ無視=正面(opp:0)が被弾するはず(実際=${E.slotOf('opp', 0).currentHp}/${opp0Max})`);
+  assert.equal(E.slotOf('opp', 1).rank.spatk || 0, 0, 'opp:1(ひらいしん)は引き寄せられない=とくこう変化なし');
+});
+
+test('D3-3c-7: ねらいうち相当(effects宣言ignores_redirect:true)は引き寄せを無視する(#33)', () => {
+  const E = build2v2();
+  const orig = data.WAZA_MAP['10manboruto'];
+  // ★ねらいうちはChampions非搭載(設計書§1.2)=named moveのfixtureが無いため、エンジンが読む
+  // 汎用フラグ(ignores_redirect:true)を直接検証する(データが増えたらこの合成を実move参照に差し替える)。
+  const snipeShotLike = Object.assign({}, orig, {
+    battle_data: Object.assign({}, orig.battle_data, {
+      effects: (orig.battle_data.effects || []).concat([{ ignores_redirect: true }]),
+    }),
+  });
+  placeSlot(E, 'self', 0, 'フシギバナ', null);
+  E.slotOf('self', 0).moves = [snipeShotLike];
+  E.slotOf('self', 0).selectedMoveIdx = 0;
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カビゴン', null);
+  placeSlot(E, 'opp', 1, 'ゲンガー', null, { ability: 'ひらいしん' });
+  const opp0Max = E.realStat(E.slotOf('opp', 0), 'hp');
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.ok(E.slotOf('opp', 0).currentHp < opp0Max, `ignores_redirectで引き寄せ無視=正面(opp:0)が被弾するはず(実際=${E.slotOf('opp', 0).currentHp}/${opp0Max})`);
+  assert.equal(E.slotOf('opp', 1).rank.spatk || 0, 0, 'opp:1(ひらいしん)は引き寄せられない=とくこう変化なし');
 });
