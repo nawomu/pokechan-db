@@ -126,9 +126,10 @@ function buildRichBattle() {
 // 現行(legacy)のsnapshotBattleState/undoBattleは一度もこれらを復元していない
 // (=既存の未復元ギャップ。今回の機械生成で初めて全欄カバーされる。ただし本番へは未接続)。
 const EXPECTED_LEGACY_ONLY = [];
+// 2026-09-10 D2-d: 未復元だった10欄+presenceEpoch を本番 snapshotBattleState/undoBattle に追加したので、残る差=
+//   UI専用7欄(H56 EXCLUDED_UI_ONLY)+selectedMoveIdx(次の選択で必ず作り直す)+subAbsorbed(強制リセットの設計)。
 const EXPECTED_SPEC_ONLY = [
-  '_metronomeLastMoveKey', 'cudChew', 'flinched', 'illusionAs', 'metronomeCount',
-  'paradoxBoost', 'pendingEjectPack', 'pendingStatus', 'proteanUsed', 'selectedMoveIdx', 'subAbsorbed',
+  'selectedMoveIdx', 'subAbsorbed',
   'selectedStatKey', 'poolSort', 'poolFilter', 'moveSearch', 'critical', 'lifeOrb', 'rockyHelmet',
 ].sort();
 

@@ -2373,7 +2373,8 @@ try {
   // undo新形(3定数からのsnapshot自動生成)はD2の「やらないこと」に明記された別段(D2-c以降)の対応範囲。
   // D2-aの時点では戦闘結果・ログに一切影響しない(1手戻してもactorId文字列がずれるだけで、
   // 次のdecideOrder相当の計算はsides[s]の実体を見るだけでepoch値そのものは比較に使わない)。
-  const EXCLUDED_SCHEDULER_BOOKKEEPING = new Set(['presenceEpoch']);
+  // 2026-09-10 D2-d: presenceEpoch も snap/restore に入れた(交代を1手戻せば在場世代も戻る)→除外セットは空
+  const EXCLUDED_SCHEDULER_BOOKKEEPING = new Set([]);
 
   const unclassified = [];
   const restoredOk = [];
@@ -2389,7 +2390,9 @@ try {
 
   // Wave1で名指しされた単ターン揮発グループ+ばけのかわ+こだわり+てんきや(dynamic-only=makeSideStateの
   // 初期値には無いが戦闘中にセットされるフィールド)は、makeSideStateの81件には含まれないため個別に確認する。
-  const dynamicOnlyMustRestore = ['choiceLock', 'magicCoatTurn', 'snatchArmed', 'forecastForm'];
+  // 2026-09-10 D2-d: makeSnapshotSpec との突き合わせで見つかった未復元10件を snap/restore に追加した→ここで恒久的に見張る
+  const dynamicOnlyMustRestore = ['choiceLock', 'magicCoatTurn', 'snatchArmed', 'forecastForm',
+    'metronomeCount', '_metronomeLastMoveKey', 'cudChew', 'flinched', 'illusionAs', 'paradoxBoost', 'pendingEjectPack', 'pendingStatus', 'proteanUsed'];
   for (const f of dynamicOnlyMustRestore) {
     check(`H56-c dynamic-onlyフィールド「${f}」もsnap/restoreの両方に書かれている(makeSideStateの初期値には無い揮発)`,
       isRestored(f), `snap=${snapFields.has(f)} restore=${restoreFields.has(f)}`);

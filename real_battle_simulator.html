@@ -5636,6 +5636,18 @@ function snapshotBattleState(){
     snatchArmed: !!st.snatchArmed,                       // よこどりの構えも一手戻せるように
     magicCoatTurn: !!st.magicCoatTurn,                   // マジックコートの構えも一手戻せるように
     forecastForm: st.forecastForm || null,               // てんきや(ポワルン)の天候見た目も一手戻せるように(typeOverrideと対で戻す)
+    // 2026-09-10 D2-d: makeSnapshotSpec(3定数)との突き合わせで見つかった「復元していなかった揮発欄」10件(遅延初期化のため
+    //   makeSideState()の初期値には無く H56 の母集団外だった)。subAbsorbed は強制リセットの設計のまま(EXCLUDED_ALWAYS_FORCE_RESET)。
+    metronomeCount: st.metronomeCount || 0,              // メトロノーム(道具)の連続回数
+    _metronomeLastMoveKey: st._metronomeLastMoveKey || null,
+    cudChew: st.cudChew || null,                         // はんすう(きのみ再発動の予約)
+    flinched: !!st.flinched,                             // ひるみ(このターン)
+    illusionAs: st.illusionAs || null,                   // イリュージョンで化けている相手
+    paradoxBoost: !!st.paradoxBoost,                     // ブーストエナジー消費済み
+    pendingEjectPack: !!st.pendingEjectPack,             // だっしゅつパックの保留
+    pendingStatus: st.pendingStatus || null,             // 遅延の状態異常予約(あくび等)
+    proteanUsed: !!st.proteanUsed,                       // へんげんじざい/リベロの使用済み印
+    presenceEpoch: st.presenceEpoch || 0,                // 在場世代(D2-a・battle_scheduler の ActionIntent 契約)
     // パーティ(控え)A-1: 交代も一手戻せるように(ポケモン本体・技・控えごと)
     poke: st.poke || null,
     moves: [...(st.moves || [])],
@@ -5755,6 +5767,16 @@ function undoBattle(){
     st.snatchArmed = !!src.snatchArmed;                  // よこどりの構えの巻き戻し
     st.magicCoatTurn = !!src.magicCoatTurn;              // マジックコートの構えの巻き戻し
     st.forecastForm = src.forecastForm || null;          // てんきやの天候見た目の巻き戻し
+    st.metronomeCount = src.metronomeCount || 0;         // 2026-09-10 D2-d: 未復元だった揮発欄10件+在場世代
+    st._metronomeLastMoveKey = src._metronomeLastMoveKey || null;
+    st.cudChew = src.cudChew || null;
+    st.flinched = !!src.flinched;
+    st.illusionAs = src.illusionAs || null;
+    st.paradoxBoost = !!src.paradoxBoost;
+    st.pendingEjectPack = !!src.pendingEjectPack;
+    st.pendingStatus = src.pendingStatus || null;
+    st.proteanUsed = !!src.proteanUsed;
+    st.presenceEpoch = src.presenceEpoch || 0;
     // パーティ(控え)A-1: 交代の巻き戻し(ポケモン本体・技・控えごと)
     st.poke = src.poke || null;
     st.moves = [...(src.moves || [])];
