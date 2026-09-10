@@ -1102,11 +1102,46 @@ const sides = {
   opp:  makeSideState(),
 };
 
+// D3-1a(2026-09-10・設計_ダブルバトル_2026-09-07.md§3/§10): バトルの「器」。
+// slotsPerSide=1(既定)=シングル(挙動不変)。env.doubleBattle はここから導出する(下のdefineProperty)。
+const battle = {
+  format: { slotsPerSide: 1, pickCount: 3, name: 'single' },
+};
+
+// D3-1b(同上§3): 側(sides[sideId])を1個の"枠"として包む配列。slotsPerSide=1では
+// sides[sideId].slots[0] は sides[sideId] と同一オブジェクト(挙動不変)。D3-2以降で枠を回す
+// ループ(activeSlots)の土台。formatが変わるたびに呼んで枠数を合わせる(2枠目=空席fixture)。
+function syncSlotsToFormat(){
+  const want = battle.format.slotsPerSide || 1;
+  activeSides().forEach(function(s){
+    const st = sides[s];
+    if (!Array.isArray(st.slots) || st.slots[0] !== st) st.slots = [st];
+    while (st.slots.length < want) st.slots.push(makeSideState());
+    if (st.slots.length > want) st.slots.length = Math.max(1, want);
+  });
+}
+syncSlotsToFormat();
+
+// D3-1a: env.doubleBattle=trueを書く既存箇所(UI/フルリセット)との互換のための薄いsetter。
+// 書かれたらformat.slotsPerSideに反映する(false→1/true→2)。
+function setDoubleBattleFlag(v){
+  battle.format.slotsPerSide = v ? 2 : 1;
+  battle.format.name = v ? 'double' : 'single';
+  syncSlotsToFormat();
+}
+// D3-1a: テスト専用入口。既定=single(1/3/'single')。呼ばれた項目だけ上書きする。
+function setFormat(opts){
+  opts = opts || {};
+  if (typeof opts.slotsPerSide === 'number') battle.format.slotsPerSide = opts.slotsPerSide;
+  if (typeof opts.pickCount === 'number') battle.format.pickCount = opts.pickCount;
+  battle.format.name = opts.name || (battle.format.slotsPerSide === 2 ? 'double' : 'single');
+  syncSlotsToFormat();
+}
+
 // 環境（両側共通）
 const env = {
   weather: 'none',       // none / sunny / rain / sand / snow
   field:   'none',       // none / electric / grassy / misty / psychic
-  doubleBattle: false,   // ダブルバトル（範囲技 ×0.75）
   trickRoom: false,      // トリックルーム（素早さ逆転）
   trickRoomTurns: null,  // 技で展開した時のみ5ターンカウント(UI手動チェック=null は無期限)
   gravity: false,        // じゅうりょく（命中5/3倍・全員接地・空中技禁止）
@@ -1117,6 +1152,14 @@ const env = {
   magicRoomTurns: null,
   fairyLockTurns: null,  // フェアリーロック(全員逃走不可)の残りカウント(発動=2、次のターンの終わりまで)
 };
+// D3-1a: env.doubleBattle は battle.format.slotsPerSide から導出する(読み=派生値・書き=互換setter)。
+// 3.5)ダブル範囲技×0.75の判定(段1859付近)はこのgetterをそのまま読む=battle.format直読みと同値。
+Object.defineProperty(env, 'doubleBattle', {
+  enumerable: true,
+  configurable: true,
+  get(){ return battle.format.slotsPerSide === 2; },
+  set(v){ setDoubleBattleFlag(!!v); },
+});
 
 // 範囲技判定（ダブルで ×0.75 が乗る対象）
 function isSpreadMove(move){
@@ -2329,12 +2372,29 @@ function effectiveSpeed(st){
 }
 
 // D2-b(2026-09-10・設計_ダブルバトル_2026-09-07.md§3): sides.self/sides.opp への直接参照を
-// slotOf(sideId, slotIdx) 経由に置き換える(挙動は不変=シングルは今のまま sides[sideId] を返すだけ)。
-// D3で slotOf は sides[sideId].slots[slotIdx] を返す形になる(器を広げる時にここだけ直す)。
-function slotOf(sideId, slotIdx){ return sides[sideId]; }
+// slotOf(sideId, slotIdx) 経由に置き換える(挙動は不変)。
+// D3-1b: sides[sideId].slots[slotIdx] を返す形にした。slotsPerSide=1(シングル)では
+// slots[0] === sides[sideId](同一オブジェクト)なので、D2で置換済みの呼び出し箇所は無変更で通る。
+// ★自己修復: 既存の大量のテスト(tools/_*_test.js)は `E.sides.self = freshSide(...)` のように
+// sides[sideId] を丸ごと新しいオブジェクトへ差し替える(makeSideState()由来=.slotsを持たない)。
+// D3-1のスコープはこれらのテストファイルを編集しないことなので、slotOfの呼び出し時に
+// slots[0]がsides[sideId]自身でなければその場で張り直す(slotIdx=0は常にsides[sideId]自身=挙動不変)。
+function slotOf(sideId, slotIdx){
+  const s = sides[sideId];
+  if (!Array.isArray(s.slots) || s.slots[0] !== s) s.slots = [s];
+  return s.slots[slotIdx];
+}
 // 両側を固定順(self→opp)で回す時の一覧(D3で在場スロットを回す形に広げる置き場)。
 // canonSides()(オンライン鏡写し用に順序が反転し得る)とは別物=置き換えない。
 function activeSides(){ return ['self', 'opp']; }
+// D3-1b: 在場している全ての枠を{side, idx, st}で列挙(D3-2以降の対象選択/ループの土台)。
+// slotsPerSide=1では [{side:'self',idx:0,st:sides.self}, {side:'opp',idx:0,st:sides.opp}] と同値。
+// ★今はまだ呼び出し箇所を増やさない(instruction通り・D3-2以降で使う)。
+function activeSlots(){
+  return activeSides().flatMap(function(side){
+    return sides[side].slots.map(function(st, i){ return {side: side, idx: i, st: st}; });
+  });
+}
 
 // 行動順を判定: 優先度 → (せんせいのツメ20%) → 素早さ (トリックルームで逆転) → 同速ランダム
 // 戻り値: 先手の side を 'self' or 'opp' で返す
@@ -8212,6 +8272,7 @@ function fullResetBattle(){
   activeSides().forEach(s=>{
     sides[s] = makeSideState();
   });
+  syncSlotsToFormat();   // D3-1b: sides[s]が新しいオブジェクトに差し替わったので slots[0] を張り直す
   env.weather = 'none';
   env.weatherTurns = null;
   env.field = 'none';
@@ -8246,6 +8307,7 @@ function fullResetBattle(){
 // === バトルリセット (バトル開始前の状態に戻す: HP/状態/壁/設置/ランクをクリア、わざ・ポケモン・能力Pは保持) ===
 function resetBattle(){
   lastMoveAnywhere = null;   // まねっこ用の直前技もリセット
+  syncSlotsToFormat();   // D3-1b: 枠数をformatに合わせる(slotsPerSide=2のfixtureはここでslots[1]=空席が生える)
   activeSides().forEach(s=>{
     const st = sides[s];
     revertTransform(st);   // へんしん状態はバトル終了で解ける(元のすがた・技に戻してからHPを引き直す)
@@ -8344,6 +8406,7 @@ function resetBattle(){
 // バトル開始時 (Init-A) を実行
 function startBattle(){
   ensureBattleState();
+  syncSlotsToFormat();   // D3-1b: 念のため枠数をformatに合わせてから開始(通常は既に同期済み=no-op)
   pushHistory();
   log('Start', '─── バトル開始 ───');
   initPP(slotOf('self', 0)); initPP(slotOf('opp', 0));   // PP管理開始(段129)

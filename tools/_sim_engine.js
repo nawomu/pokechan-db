@@ -81,7 +81,11 @@ function buildEngine() {
     if (typeof updateUndoButton==='function') updateUndoButton = function(){};
   } catch(e){}
   ;globalThis.__engine = (function(){ try { return {
-    sides, env, LEVEL, calcDamage, realStat, rankedStat, makeSideState, runTurn,
+    sides, env, battle, LEVEL, calcDamage, realStat, rankedStat, makeSideState, runTurn,
+    setFormat: (typeof setFormat !== 'undefined') ? setFormat : null,
+    slotOf: (typeof slotOf !== 'undefined') ? slotOf : null,
+    activeSides: (typeof activeSides !== 'undefined') ? activeSides : null,
+    activeSlots: (typeof activeSlots !== 'undefined') ? activeSlots : null,
     decideOrder, phaseHitCheck, phaseDealDamage, phaseApplyEffects, phaseSlipFor, battleLog,
     runSingleAttack: (typeof runSingleAttack !== 'undefined') ? runSingleAttack : null,
     noteMoveUsed: (typeof noteMoveUsed !== 'undefined') ? noteMoveUsed : null,
