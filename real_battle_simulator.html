@@ -1875,6 +1875,18 @@ function calcDamage(atkSide, defSide, move, opts, atkIdx, defIdx){
   let base = Math.floor((2 * LEVEL / 5 + 2) * power * aStatEff / dStatEff / 50) + 2;
 
   // === 補正適用（pokeRound 段階） ===
+  // 0.5) ダブル範囲技 ×0.75(D4-1b・設計_ダブルバトル_2026-09-07.md§4.4 #42,#43,#44): 掛け順は
+  // 「範囲補正→おやこあい→天気→急所→乱数→タイプ一致→相性→やけど→壁→まもる」=範囲補正が先頭
+  // (旧実装は急所の後に置いていた=D4-1bで正しい位置へ移設。旧位置に条件無効化が効いていた期間の
+  // 唯一の呼び出し元はこのファイル自身のfixtureのみ=移設前後で挙動が変わる既存テストは無い)。
+  // spreadCount=target_lock時点(命中判定より前)の対象数をopts経由で受け取る(phaseDealDamage側で
+  // 生存枠だけ数えて渡す=空き枠は数えない・#68/#43)。当たったか・無効化されたかは問わない
+  // (この時点でまだ命中判定前=呼ばれること自体が「対象2体以上で技を使った」事実を表す)。
+  const _spreadCount = opts && opts.spreadCount;
+  if (_spreadCount >= 2){
+    base = pokeRound(base, 3072);
+    chips.push({label:'ダブル範囲', factor:0.75, kind:'env-down'});
+  }
   // 1) 天候
   if (env.weather === 'sunny'){
     if (moveType === 'ほのお'){ base = pokeRound(base, 6144); chips.push({label:'はれ', factor:1.5, kind:'env'}); }
@@ -1899,12 +1911,6 @@ function calcDamage(atkSide, defSide, move, opts, atkIdx, defIdx){
     const _sniper = sideAbility(atk) === 'スナイパー';
     base = pokeRound(base, _sniper ? 9216 : 6144);
     chips.push({label: _sniper ? '急所(スナイパー)' : '急所', factor: _sniper ? 2.25 : 1.5, kind:'crit'});
-  }
-
-  // 3.5) ダブル範囲技 ×0.75
-  if (env.doubleBattle && isSpreadMove(move)){
-    base = pokeRound(base, 3072);
-    chips.push({label:'ダブル範囲', factor:0.75, kind:'env-down'});
   }
 
   // 3.6) やけど物理 ×0.5（こんじょう除外・からげんき=データ宣言「やけど低下無視」も除外。Bulbapedia "Facade"第6世代以降）
@@ -2116,10 +2122,15 @@ function calcDamage(atkSide, defSide, move, opts, atkIdx, defIdx){
     if (!crit && !breaksWall){
       const wallActive = isPhys ? (def.reflect || def.auroraVeil) : (def.lightScreen || def.auroraVeil);
       if (wallActive){
-        v = pokeRound(v, 2048);
+        // D4-1b(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.4・台帳#2決着=2026-09-07 Wikiダブルバトル本文+
+        // Showdown activePerHalf>1の一致): ダブル(battle.format.slotsPerSide===2)は2732/4096(≒2/3・
+        // 第六世代以降)。「受け手の味方数」では引かない=味方が1体だけになっていても2/3のまま(台帳#2決着)。
+        // シングルは従来どおり2048/4096(=1/2)。
+        const _wallQ12 = battle.format.slotsPerSide === 2 ? 2732 : 2048;
+        v = pokeRound(v, _wallQ12);
         const wallLabel = isPhys ? (def.reflect ? 'リフレクター' : 'オーロラベール')
                                  : (def.lightScreen ? 'ひかりのかべ' : 'オーロラベール');
-        if (r === 85) chips.push({label: wallLabel, factor:0.5, kind:'wall'});
+        if (r === 85) chips.push({label: wallLabel, factor: _wallQ12 / 4096, kind:'wall'});
       }
     }
 
@@ -2550,6 +2561,103 @@ const TARGET_KINDS = Object.freeze({
   '不定':        { chooses: false, candidates: 'foes_ally', default: 'front', onLost: 'reselect_foe' },   // D4: spread
 });
 
+// D4-1a(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.2/§4.5・台帳#1決着=位置順): 範囲"攻撃"技
+// (相手全体/自分以外全体、かつダメージ技=category!=='変化')のTargetSet解決。
+// ★全体/味方全体は現行データ(2026-09-11実測: WAZA_MAP全体2件・味方全体6件)が全部'変化'(status)技=
+// このSPREAD_DAMAGE_KINDSに含めない(既存の「変化」単発経路=phaseApplyEffectsを1回呼ぶだけ、で不変)。
+// 相手全体60件中'変化'3件・自分以外全体20件中'変化'2件も同じ理由で対象外(=旧来の単体正面フォールバックの
+// まま。status系の範囲技を対象ごとに展開する仕事はD4-1のスコープ外として報告に明記=未実装)。
+const SPREAD_DAMAGE_KINDS = ['相手全体', '自分以外全体'];
+// 位置順(台帳#1・2026-09-07決着): 自陣(攻撃側から見た味方)側を先に・各側は枠番号の昇順
+// (0=左・1=右。既存fixtureの慣例=D3-2c-3aの「相手の枠1(右)」コメントと同じ)。乱数を使わない
+// 決定的な並び=オンライン/undoにも安全(設計書§4.5末尾)。
+function orderTargetsBySlot(atkSide, list){
+  return list.slice().sort(function(a, b){
+    if (a.side !== b.side) return a.side === atkSide ? -1 : 1;
+    return a.idx - b.idx;
+  });
+}
+// 対象集合(TargetSet)。空き枠(死んでいる/居ない枠)は候補に入れない(#43「空き枠は数えない」)。
+// 相手全体=相手の生存枠すべて/自分以外全体=相手全部+味方(自分は含まない・§4.2表どおり)。
+function resolveSpreadTargetSet(atkSide, atkIdx, mvTarget){
+  const oppSide = atkSide === 'self' ? 'opp' : 'self';
+  const out = [];
+  const pushAlive = function(side, includeSelf){
+    sides[side].slots.forEach(function(st, idx){
+      if (!st || !st.poke || st.fainted) return;
+      if (side === atkSide && idx === atkIdx && !includeSelf) return;
+      out.push({ side: side, idx: idx });
+    });
+  };
+  if (mvTarget === '相手全体') pushAlive(oppSide, true);
+  else if (mvTarget === '自分以外全体'){ pushAlive(oppSide, true); pushAlive(atkSide, false); }
+  return orderTargetsBySlot(atkSide, out);
+}
+// 自分/自陣向け効果(target:self/team/party)を除いた技オブジェクトの浅いクローンを返す(該当なしならmvのまま)。
+// D4-1a: 対象2体以上のループでphaseApplyEffectsを対象ごとに呼ぶ時、self/team向け効果
+// (現行データ該当例=スケイルノイズの自分ぼうぎょ-1)を対象の数だけ二重発動させないためのフィルタ。
+// phaseApplyEffects本体は変更しない(単体経路=対象1体以下は無改変で不変)。
+function effectsExcludingSelfScoped(mv){
+  const effs = (mv.battle_data && mv.battle_data.effects) || [];
+  const filtered = effs.filter(function(e){ return !(e.target === 'self' || e.target === 'team' || e.target === 'party'); });
+  if (filtered.length === effs.length) return mv;
+  return Object.assign({}, mv, { battle_data: Object.assign({}, mv.battle_data, { effects: filtered }) });
+}
+// D4-1a(§4.5「対象ループ」#50「1体分を全部やってから次」・#49「対象ごとに独立」): 範囲攻撃技(対象2体以上)の
+// 対象ループ本体。命中・急所・乱数・みがわり・持ち物は対象ごとに独立(phaseHitCheck/phaseDealDamageを
+// 対象ごとに呼ぶ=乱数もその中で対象ごとに引かれる)。まもるは対象ごとに判定(#55=じしん・なみのりも
+// まもるで防がれる=「範囲技はワイドガード専用」という分岐を作らず既存のprotect判定をそのまま対象ごとに通す)。
+// 自分に向く効果(反動/自分のランク=target:self/team/party)は技1回につき1回(「対象数で重ねない」):
+// 対象ごとの呼び出しはeffectsExcludingSelfScopedで除外し、ループの外で一度だけ全効果(mvそのまま)を
+// 適用側(先頭=位置順の最初の対象)に対して呼ぶ(現行データでの該当例=スケイルノイズの自分ぼうぎょ-1のみ)。
+// レッドカード/だっしゅつボタンは対象ごとに呼ぶが★側単位のまま(枠は対応しない=D3-2から未解決のD4送り継続)。
+// なげつける/はかいこうせん系反動/のどスプレー等の「技1回につき1回」勢は現行の範囲攻撃技データに
+// 該当が無い(2026-09-11実測)。ここでは既定どおり集約フラグで1回だけ呼ぶ形にして将来技追加に備える。
+function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlways){
+  const atk = slotOf(atkSide, atkIdx);
+  const filteredMv = effectsExcludingSelfScoped(mv);
+  let anyHitSuccess = false;
+  let firstTargetForSelfFx = null;
+  for (const t of targetSet){
+    const tgt = slotOf(t.side, t.idx);
+    if (!tgt.poke || tgt.fainted) continue;   // ループ中に前の対象の処理で倒れた等(対象ごとに再確認)
+    if (!firstTargetForSelfFx) firstTargetForSelfFx = t;
+    const hit = phaseHitCheck(mv, atk, tgt);
+    if (!hit.hit){ log('0c', hit.reason); continue; }
+    const _protBefore = tgt.protecting;
+    const _protPierce = _protBefore && protectPierces(mv, _protBefore);
+    if (_protBefore && shouldRemoveProtection(mv, _protBefore)) tgt.protecting = null;
+    if (_protBefore && mv.protect === true && protectBlocks(_protBefore, mv) && !_protPierce){
+      log('0c', `${pname(tgt)} は ${_protBefore.name} で こうげきを 防いだ！`);
+      applyProtectPunishers(atk, tgt, mv);
+      continue;
+    }
+    // D4-1b: spreadCount=target_lock時点(このループに入った時点)の対象数=targetSet.length。
+    // 当たったか・無効化されたかは問わない=対象ごとに同じ値をそのまま渡す(#42,#43)。
+    const dmgRes = phaseDealDamage(atkSide, t.side, mv, atkIdx, t.idx, targetSet.length);
+    // ★未確認(D3-2から継続のD4送り): レッドカード/だっしゅつボタンは側単位のまま(枠は対応しない)。
+    // 対象の枠がどちらでも「t.side(その対象の側)」に対して1回ずつ呼ぶ=側の道具は1個しか持てないので
+    // 同じ側の2枠が両方対象になっても実質1回分の判定にしかならない(pendingフラグの消費で自然に冪等)。
+    resolveRedCard(t.side, atkSide);
+    resolveEjectButton(t.side);
+    if (dmgRes && !dmgRes.immune && !tgt.fainted) phaseApplyEffects(atkSide, t.side, filteredMv, atkIdx, t.idx);
+    if (dmgRes && !dmgRes.immune && !dmgRes.failed) anyHitSuccess = true;
+  }
+  // 自分に向く効果(target:self/team/party)は技1回につき1回だけ、先頭(位置順)の対象に対して適用する
+  // (defSide/defIdxはself/team/party効果では使われないので値そのものは実質関係ない=形式的に渡すだけ)。
+  if (firstTargetForSelfFx){
+    phaseApplyEffects(atkSide, firstTargetForSelfFx.side, mv, atkIdx, firstTargetForSelfFx.idx);
+  }
+  if (anyHitSuccess) progressRampage(atk, mv); else noteActionFailed(atk);
+  if (anyHitSuccess && ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
+  if (!anyHitSuccess) applyCrashDamage(atk, mv);
+  applyHpCost(atk, mv);
+  if (selfKO && (selfKOAlways || anyHitSuccess)) applySelfFaint(atk);
+  applyThroatSpray(atk, null, mv, anyHitSuccess ? {} : { failed: true });
+  itemReactions();
+  resolveEjectPack('self'); resolveEjectPack('opp');
+}
+
 // target_lock(P06a・§4.3 6段のうちD3-2実装範囲=0/1/4のみ。2/3=引き寄せ/無視はD3-3で登録=未実装)。
 // D3-2の実装範囲: 1体選択(targetChoice→正面既定→消失時=相手なら選び直し・味方ならfail)/自分/
 // ランダム1体(相手の生存枠から一様乱択・乱数はここの1箇所だけ)。味方1体/自分か味方/味方全体は
@@ -2789,17 +2897,30 @@ function fireEntryAbility(s){
     const other = s === 'self' ? slotOf('opp', 0) : slotOf('self', 0);
     const ab = sideAbility(st);
     st.disguise = (ab === 'ばけのかわ') && st.disguiseBroken !== true;   // ばけのかわ: 場に出たら皮をまとう(剥がれ済みなら戻らない=Wiki準拠)
-    if (ab === 'いかく' && other.poke){
-      // どんかん(Oblivious・Phase D B1・第8世代以降): いかくによる攻撃ランクダウンを無効化(かたやぶりは無視)。
-      // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Oblivious")
-      if (defAbilityVs(other, st) === 'どんかん'){
-        log('Init-A', `${pname(other)} には こうかが ないようだ…（とくせい どんかんのため）`);
-      } else {
-        // H2/H3/H4(2026-07-18): 共有パイプライン経由に変更(まけんき/かちき/あまのじゃく/ミラーアーマーが反応するように)。
-        // 出典: Bulbapedia "Intimidate"/"Defiant"/"Mirror Armor"
-        applyRankStageGuarded(other, st, 'atk', -1, 'Init-A', () => {
-          log('Init-A', `${pname(st)} の いかくで ${pname(other)} のこうげきがさがった！`);
-        });
+    if (ab === 'いかく'){
+      // D4-1c(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.5末尾・#73,#74): いかくは相手全体に
+      // per-targetでrank_change(対象ごとに個別判定=片方だけどんかん/まけんき/かちき/ミラーアーマーで
+      // 反応が変わりうる)。解決順=第五世代以降「相手から見て左側から順」=idx昇順(既存fixtureの
+      // 慣例と同じ)。シングルはoppSideKeyの枠が1つしかない=従来と同じ1回だけの発動(不変)。
+      // 道具の反応(しろいハーブ→びんじょう→ものまねハーブ→だっしゅつパック)は「両対象を処理し終えてから」
+      // =この関数の外側(phaseInitA末尾)で既にresolveEjectPack('self')/('opp')が両側の発動が
+      // 出そろった後に1回だけ呼ばれている=変更不要(いかくをここでループしても後処理の呼び出し場所は動かない)。
+      const oppSideKey2 = s === 'self' ? 'opp' : 'self';
+      const perSide2 = battle.format.slotsPerSide || 1;
+      for (let _i = 0; _i < perSide2; _i++){
+        const _tgt = slotOf(oppSideKey2, _i);
+        if (!_tgt || !_tgt.poke || _tgt.fainted) continue;
+        // どんかん(Oblivious・Phase D B1・第8世代以降): いかくによる攻撃ランクダウンを無効化(かたやぶりは無視)。
+        // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Oblivious")
+        if (defAbilityVs(_tgt, st) === 'どんかん'){
+          log('Init-A', `${pname(_tgt)} には こうかが ないようだ…（とくせい どんかんのため）`);
+        } else {
+          // H2/H3/H4(2026-07-18): 共有パイプライン経由に変更(まけんき/かちき/あまのじゃく/ミラーアーマーが反応するように)。
+          // 出典: Bulbapedia "Intimidate"/"Defiant"/"Mirror Armor"
+          applyRankStageGuarded(_tgt, st, 'atk', -1, 'Init-A', () => {
+            log('Init-A', `${pname(st)} の いかくで ${pname(_tgt)} のこうげきがさがった！`);
+          });
+        }
       }
     } else if (ab === 'かわりもの' && other.poke){
       // かわりもの(メタモン隠れ特性): 場に出たとき正面の相手にへんしんする(ターン消費なし)。
@@ -3038,7 +3159,10 @@ function recordTaken(df, move, lastHitDmg, attacker){
 
 // === フェーズ: ダメ計算 → HP 反映 (Atk-Base 〜 8) ===
 // D3-2b(2026-09-11): atkIdx/defIdxは末尾の省略可能引数(既定0=シングル不変)。calcDamageと同じ規約。
-function phaseDealDamage(atkSide, defSide, move, atkIdx, defIdx){
+// D4-1b(2026-09-11): spreadCountは末尾の省略可能引数(既定undefined=単体=×0.75なし=シングル不変)。
+// target_lock時点(命中判定より前)に確定した対象数をそのまま渡す(呼び出し側=runSpreadDamageLoopが
+// 生存枠だけ数えた値=空き枠は数えない・#68/#43)。calcDamageのopts.spreadCountへそのまま橋渡しする。
+function phaseDealDamage(atkSide, defSide, move, atkIdx, defIdx, spreadCount){
   atkIdx = atkIdx || 0; defIdx = defIdx || 0;
   // power非依存の特殊ダメージ(一撃必殺/固定ダメージ)を先に処理
   const _e0 = (move.battle_data && move.battle_data.effects) || [];
@@ -3198,7 +3322,7 @@ function phaseDealDamage(atkSide, defSide, move, atkIdx, defIdx){
     move.category !== '変化' && typeof move.power === 'number' && move.power > 0;
   const _mayMultiHit = !!_preMultiEf || _mayParentalBond;
   const result = calcDamage(atkSide, defSide, move,
-    (critRoll || beatUpPowers || _mayMultiHit) ? {crit: critRoll, powerOverride: beatUpPowers ? beatUpPowers[0] : undefined, deferDisguise: _mayMultiHit} : undefined,
+    (critRoll || beatUpPowers || _mayMultiHit || spreadCount != null) ? {crit: critRoll, powerOverride: beatUpPowers ? beatUpPowers[0] : undefined, deferDisguise: _mayMultiHit, spreadCount: spreadCount} : undefined,
     atkIdx, defIdx);
   if (!result) return null;
   // たくわえ消費(はきだす): 撃ったら(こうかなしでも)たくわえは消え、上がったランクも戻る
@@ -7851,18 +7975,43 @@ function runTurn(){
     // 既存コード(`if (ef.target==='ally') continue;`=1vs1前提のハードコード)がまだ握りつぶす。
     // ここで直すのはtarget_lockの対象解決(成功/失敗の判定)だけ=D3-2cのfixtureテストは「失敗ログが出るか」
     // だけを見る(味方が生きている場合の実際の効果適用はD4で phaseApplyEffects 側を直す)。
-    const _tgtKind = TARGET_KINDS[mv.target];
-    const _needsTargetLock = _tgtKind && (_tgtKind.candidates === 'foes_ally' || _tgtKind.candidates === 'ally' || _tgtKind.candidates === 'self_ally');
-    if (!_isSingleFormat && _needsTargetLock){
-      const _tgt = targetLock(a.side, slotIdx, mv, isExtraAct ? null : (_schedAct.targetChoice || null));
-      if (_tgt === null){
-        // 味方1体/自分か味方で、選んでいた味方が既に居ない=fail(#26)。既存の汎用失敗文言を使う。
-        log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
-        noteActionFailed(atk); continue;
+    // D4-1a(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.2/§4.5): 範囲攻撃技(相手全体/自分以外全体・
+    // ダメージ技)のTargetSetをここで確定する。シングルはSPREAD_DAMAGE_KINDSの候補が最大1体
+    // (相手1枠のみ・自分以外全体の味方分は自陣が自分しかいないので0件)なので、下の_isSpreadDamageは
+    // 常にlength<=1にしかならず、この節はdef/defIdx/defSideKeyへ1件だけ書く(0件なら書かない)= 既存の
+    // 単体経路にそのまま合流する(=不変。stdout diff 0で確認)。旧targetLock()はこの2種を通さない
+    // (_isSpreadDamageがtrueの間は下のelseブロックを丸ごとスキップ=二重解決を避ける)。
+    let _spreadTargets = null;
+    const _isSpreadDamage = SPREAD_DAMAGE_KINDS.includes(mv.target) && mv.category !== '変化';
+    if (_isSpreadDamage){
+      if (!_isSingleFormat){
+        _spreadTargets = resolveSpreadTargetSet(a.side, slotIdx, mv.target);
+        if (_spreadTargets.length === 1){
+          def = slotOf(_spreadTargets[0].side, _spreadTargets[0].idx);
+          defIdx = _spreadTargets[0].idx;
+          defSideKey = _spreadTargets[0].side;
+        }
+        // _spreadTargets.length===0: defは初期値(a.opp/slotIdx=正面)のまま=下の「対象がひんしでいない
+        // 技は不発」チェックにそのまま委ねる(既存の「あいてが いなかった…」文言で失敗させる・#既存流用)。
+        // _spreadTargets.length>=2: def/defIdx/defSideKeyは書き換えない
+        // (下の専用ループrunSpreadDamageLoopが対象ごとに個別のdef/defIdxで処理する)。
       }
-      def = slotOf(_tgt.side, _tgt.idx);
-      defIdx = _tgt.idx;
-      defSideKey = _tgt.side;
+      // _isSingleFormat===true: defは初期値(a.opp/slotIdx=正面)のまま=シングルの唯一の相手枠と一致
+      // (相手全体/自分以外全体とも相手候補は1件しかないため常にfrontと同値=不変)。
+    } else {
+      const _tgtKind = TARGET_KINDS[mv.target];
+      const _needsTargetLock = _tgtKind && (_tgtKind.candidates === 'foes_ally' || _tgtKind.candidates === 'ally' || _tgtKind.candidates === 'self_ally');
+      if (!_isSingleFormat && _needsTargetLock){
+        const _tgt = targetLock(a.side, slotIdx, mv, isExtraAct ? null : (_schedAct.targetChoice || null));
+        if (_tgt === null){
+          // 味方1体/自分か味方で、選んでいた味方が既に居ない=fail(#26)。既存の汎用失敗文言を使う。
+          log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+          noteActionFailed(atk); continue;
+        }
+        def = slotOf(_tgt.side, _tgt.idx);
+        defIdx = _tgt.idx;
+        defSideKey = _tgt.side;
+      }
     }
     // ★対象がひんしでいない技は不発(反動死などで先に相手が倒れた時の後攻=Bulbapedia "But there was no target")。
     // 自分/場を対象にする変化技(つるぎのまい・ステルスロック等)はそのまま出せる。
@@ -8079,6 +8228,15 @@ function runTurn(){
     // 遅延攻撃(みらいよち): 使ったターンは攻撃せず予知だけ。発動中の再使用は失敗(Bulbapedia "Future Sight")
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '遅延攻撃')){
       armFutureSight(atk, mv);
+      continue;
+    }
+    // D4-1a(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.5・#50): 対象2体以上の範囲攻撃技はここで
+    // 専用の対象ループ(runSpreadDamageLoop)へ分岐し、以降の単体経路(命中判定〜sched.finish手前まで)は
+    // 通らない。シングル/対象1体以下は_spreadTargetsがnullか長さ1以下なので、ここを素通りして
+    // 下の単体経路(不変)へ進む。
+    if (_spreadTargets && _spreadTargets.length >= 2){
+      runSpreadDamageLoop(a.side, slotIdx, mv, _spreadTargets, _selfKO, _selfKOAlways);
+      if (!isExtraAct) sched.finish(_schedAct.actionId);
       continue;
     }
     // 命中判定

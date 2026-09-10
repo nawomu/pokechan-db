@@ -349,17 +349,21 @@ test('D3-3c-2: 味方(同じ側)の攻撃は引き寄せられない(#28=相手�
 });
 
 test('D3-3c-3: 範囲技(自分以外全体)は引き寄せられない(#28,#29「単体技だけ」)', () => {
+  // D4-1a(2026-09-11)で自分以外全体は正面1体スタブでなく本物のTargetSet(相手2+味方1)になった。
+  // このゆびとまれの宣言(self:0)は単体技だけを引く=範囲技には無関係=self:0だけに集中せず
+  // 通常のTargetSet(self側=攻撃者から見た相手側=self:0とself:1の両方)に当たることで実証する。
   const E = build2v2();
   placeSlot(E, 'self', 0, 'フシギバナ', 'konoyubitomare');
   placeSlot(E, 'self', 1, 'カメックス', null);
   placeSlot(E, 'opp', 0, null, null, { fainted: true });
-  placeSlot(E, 'opp', 1, 'ドサイドン', 'jishin');   // じしん=自分以外全体(D4のD3暫定=正面1体=self:1)
+  placeSlot(E, 'opp', 1, 'ドサイドン', 'jishin');   // じしん=自分以外全体=self:0とself:1の両方(D4-1a)
   const self0Max = E.realStat(E.slotOf('self', 0), 'hp');
   const self1Max = E.realStat(E.slotOf('self', 1), 'hp');
   E.setRandom(mulberry32(3));
   E.runTurn();
-  assert.equal(E.slotOf('self', 0).currentHp, self0Max, '範囲技(自分以外全体)は宣言者に引き寄せられない=無傷');
-  assert.ok(E.slotOf('self', 1).currentHp < self1Max, `正面(self:1)がそのまま受けるはず(実際=${E.slotOf('self', 1).currentHp}/${self1Max})`);
+  assert.ok(E.slotOf('self', 0).currentHp < self0Max,
+    `範囲技は宣言者(self:0)にも通常どおり当たる=引き寄せで免除されない(実際=${E.slotOf('self', 0).currentHp}/${self0Max})`);
+  assert.ok(E.slotOf('self', 1).currentHp < self1Max, `self:1もそのまま受ける(実際=${E.slotOf('self', 1).currentHp}/${self1Max})`);
 });
 
 test('D3-3c-4: いかりのこなはくさタイプが撃つと免疫で無視される(#34)', () => {
@@ -423,4 +427,192 @@ test('D3-3c-7: ねらいうち相当(effects宣言ignores_redirect:true)は引�
   E.runTurn();
   assert.ok(E.slotOf('opp', 0).currentHp < opp0Max, `ignores_redirectで引き寄せ無視=正面(opp:0)が被弾するはず(実際=${E.slotOf('opp', 0).currentHp}/${opp0Max})`);
   assert.equal(E.slotOf('opp', 1).rank.spatk || 0, 0, 'opp:1(ひらいしん)は引き寄せられない=とくこう変化なし');
+});
+
+// ===== D4-1a: 対象集合(TargetSet)と範囲技の対象ループ(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.2/§4.5) =====
+// マジカルシャイン(相手全体・特殊80・命中100・追加効果なし)を使う=結果の分岐要因をダメージ計算以外に持たせない。
+test('D4-1a-1: 相手全体の技が2枠に当たる(HPが両方減る)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'majikarushain');
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カビゴン', null);
+  placeSlot(E, 'opp', 1, 'ゲンガー', null);
+  const opp0Max = E.realStat(E.slotOf('opp', 0), 'hp');
+  const opp1Max = E.realStat(E.slotOf('opp', 1), 'hp');
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.ok(E.slotOf('opp', 0).currentHp < opp0Max, `opp:0がダメージを受ける(実際=${E.slotOf('opp', 0).currentHp}/${opp0Max})`);
+  assert.ok(E.slotOf('opp', 1).currentHp < opp1Max, `opp:1もダメージを受ける(実際=${E.slotOf('opp', 1).currentHp}/${opp1Max})`);
+});
+
+test('D4-1a-2: 対象順が位置順(自分以外全体=味方→相手左→相手右の順でログに現れる)', () => {
+  const E = build2v2();
+  // ぶんまわす(自分以外全体・物理60・命中100)。攻撃者=opp:1。TargetSet=self:0,self:1(相手2)+opp:0(味方)。
+  // 位置順(台帳#1)=攻撃者から見た味方側(opp側)を先に(idx昇順)→相手側(self側)をidx昇順。
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'ゲンガー', null);
+  placeSlot(E, 'opp', 0, 'カメックス', null);
+  placeSlot(E, 'opp', 1, 'ドサイドン', 'bunmawasu');
+  E.setRandom(mulberry32(11));
+  E.runTurn();
+  const hits = hitLines(E.battleLog).filter(h => h.move === 'ぶんまわす');
+  assert.equal(hits.length, 3, `3体(味方opp:0+相手self:0/self:1)に当たるはず(実際=${hits.length})`);
+  // pname()は「opp:0」に限り常に「相手の」を前置する固定のUI表示規約(D3-2から既知・攻撃者がどちらでも不変)。
+  assert.equal(hits[0].defender, '相手の カメックス', '先に味方(opp:0)へ当たる(位置順=味方が先)');
+  assert.equal(hits[1].defender, 'カビゴン', '次に相手側の左(self:0)へ当たる');
+  assert.equal(hits[2].defender, 'ゲンガー', '最後に相手側の右(self:1)へ当たる');
+});
+
+test('D4-1a-3: 片方が既にひんしなら残り1体だけに当たる(空き枠は数えない)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'majikarushain');
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カビゴン', null, { fainted: true });
+  placeSlot(E, 'opp', 1, 'ゲンガー', null);
+  const opp1Max = E.realStat(E.slotOf('opp', 1), 'hp');
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  const msgs = msgList(E.battleLog);
+  assert.ok(!msgs.some(m => m.includes('あいてが いなかった')), '残り1体がいるので不発にならない');
+  assert.ok(E.slotOf('opp', 1).currentHp < opp1Max, `残ったopp:1にだけ当たる(実際=${E.slotOf('opp', 1).currentHp}/${opp1Max})`);
+});
+
+test('D4-1a-4: 対象の集合が空なら不発になる', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'majikarushain');
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カビゴン', null, { fainted: true });
+  placeSlot(E, 'opp', 1, 'ゲンガー', null, { fainted: true });
+  E.setRandom(mulberry32(3));
+  assert.doesNotThrow(() => { E.runTurn(); }, 'runTurn()が例外を出さない');
+  const msgs = msgList(E.battleLog);
+  assert.ok(msgs.some(m => m.includes('あいてが いなかった')), '相手が全滅していれば不発ログが出る');
+});
+
+// ===== D4-1b: 範囲補正×0.75(B022/B023)と壁2/3(B020)(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.4) =====
+// マジカルシャイン(相手全体・特殊80・命中100・追加効果なし)でcalcDamageを直接呼び、乱数(命中/急所ロール)に
+// 依存しない形でopts.spreadCountの効果だけを検証する(急所はランク0では確率ロールされない=決定論的)。
+test('D4-1b-1: calcDamageはopts.spreadCount>=2の時だけダブル範囲×0.75チップが付く(対象1相当では付かない)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'majikarushain');
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カビゴン', null);
+  placeSlot(E, 'opp', 1, 'カビゴン', null);
+  const mv = E.slotOf('self', 0).moves[0];
+  const noSpread = E.calcDamage('self', 'opp', mv, undefined, 0, 0);
+  const oneTarget = E.calcDamage('self', 'opp', mv, { spreadCount: 1 }, 0, 0);
+  const twoTargets = E.calcDamage('self', 'opp', mv, { spreadCount: 2 }, 0, 0);
+  assert.ok(!noSpread.chips.some(c => c.label === 'ダブル範囲'), 'spreadCountを渡さない(単体経路)場合は補正チップが付かない');
+  assert.ok(!oneTarget.chips.some(c => c.label === 'ダブル範囲'), 'spreadCount=1(相方ひんし相当)では補正チップが付かない');
+  const chip = twoTargets.chips.find(c => c.label === 'ダブル範囲');
+  assert.ok(chip && chip.factor === 0.75, 'spreadCount=2では×0.75チップが付く');
+  assert.ok(twoTargets.max < noSpread.max, `×0.75の分だけ最大ダメージが下がる(補正あり=${twoTargets.max} / なし=${noSpread.max})`);
+  assert.equal(oneTarget.max, noSpread.max, 'spreadCount=1は補正なしと同じ最大ダメージになる');
+});
+
+test('D4-1b-2: runTurn経由でも対象2体(×0.75)は対象1体(相方ひんし=補正なし)より1発のダメージが小さい', () => {
+  // 数学的に保証される比較(乱数のロール位置に依存しない): 補正なしの最小ロール(×0.85)でも
+  // 補正ありの最大ロール(×0.75×1.00=0.75)を必ず上回る(0.85>0.75)ので、どちらの16乱数を引いても
+  // 「対象2体(補正あり)<対象1体(補正なし)」が成り立つ=同一シードでなくても安全に比較できる。
+  const E2 = build2v2();
+  placeSlot(E2, 'self', 0, 'フシギバナ', 'majikarushain');
+  placeSlot(E2, 'self', 1, null, null, { fainted: true });
+  placeSlot(E2, 'opp', 0, 'カビゴン', null);
+  placeSlot(E2, 'opp', 1, 'カビゴン', null);
+  E2.setRandom(mulberry32(3));
+  E2.runTurn();
+  const dmg2 = E2.realStat(E2.slotOf('opp', 0), 'hp') - E2.slotOf('opp', 0).currentHp;
+
+  const E1 = build2v2();
+  placeSlot(E1, 'self', 0, 'フシギバナ', 'majikarushain');
+  placeSlot(E1, 'self', 1, null, null, { fainted: true });
+  placeSlot(E1, 'opp', 0, 'カビゴン', null, { fainted: true });
+  placeSlot(E1, 'opp', 1, 'カビゴン', null);
+  E1.setRandom(mulberry32(3));
+  E1.runTurn();
+  const dmg1 = E1.realStat(E1.slotOf('opp', 1), 'hp') - E1.slotOf('opp', 1).currentHp;
+
+  assert.ok(dmg1 > dmg2, `対象1体(補正なし=${dmg1})の方が対象2体(補正あり=${dmg2})より大きいダメージになる`);
+});
+
+test('D4-1b-3: 壁の軽減率はダブルで2732/4096(≒2/3)・シングルで0.5になる(ダメージ数値で確認)', () => {
+  const EDouble = build2v2();
+  placeSlot(EDouble, 'self', 0, 'カビゴン', 'hataku');   // はたく=ノーマル物理(リフレクター対象)・1体選択
+  placeSlot(EDouble, 'self', 1, null, null, { fainted: true });
+  placeSlot(EDouble, 'opp', 0, 'フシギバナ', null);
+  placeSlot(EDouble, 'opp', 1, null, null, { fainted: true });
+  const mvD = EDouble.slotOf('self', 0).moves[0];
+  EDouble.slotOf('opp', 0).reflect = true;
+  const withWallDouble = EDouble.calcDamage('self', 'opp', mvD, undefined, 0, 0);
+  const doubleChip = withWallDouble.chips.find(c => c.kind === 'wall');
+  assert.ok(doubleChip, 'ダブル(format.slotsPerSide===2)でも壁のチップが付く');
+  assert.ok(Math.abs(doubleChip.factor - 2732 / 4096) < 1e-9, `ダブルの壁係数は2732/4096(実際=${doubleChip.factor})`);
+
+  const ESingle = buildEngine();
+  ESingle.sides.self.poke = pokeByName('カビゴン');
+  ESingle.sides.self.moves = [data.WAZA_MAP['hataku']];
+  ESingle.sides.self.currentHp = ESingle.realStat(ESingle.sides.self, 'hp');
+  ESingle.sides.opp.poke = pokeByName('フシギバナ');
+  ESingle.sides.opp.moves = [];
+  ESingle.sides.opp.currentHp = ESingle.realStat(ESingle.sides.opp, 'hp');
+  ESingle.resetBattle();
+  const mvS = ESingle.sides.self.moves[0];
+  ESingle.sides.opp.reflect = true;
+  const withWallSingle = ESingle.calcDamage('self', 'opp', mvS, undefined, 0, 0);
+  const singleChip = withWallSingle.chips.find(c => c.kind === 'wall');
+  assert.ok(singleChip, 'シングルでも壁のチップが付く');
+  assert.equal(singleChip.factor, 0.5, 'シングル(format.slotsPerSide===1)の壁係数は従来どおり0.5');
+
+  assert.ok(withWallDouble.max > withWallSingle.max,
+    `ダブル(2/3)の方がシングル(1/2)より軽減が弱い=最大ダメージが大きい(ダブル=${withWallDouble.max} / シングル=${withWallSingle.max})`);
+});
+
+// ===== D4-1c: 対象別反応と反応の後処理(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.5末尾・#73,#74) =====
+function benchEntry(pokeName, moveKey) {
+  return { poke: pokeByName(pokeName), effort: {hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0},
+    natureIdx: 0, ability: '', item: '', moves: moveKey ? [data.WAZA_MAP[moveKey]] : [],
+    currentHp: null, fainted: false, status: 'none', sleepTurns: null };
+}
+
+test('D4-1c-1: いかくは相手全体(2枠)に個別に-1をかける', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null, { ability: 'いかく' });
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カメックス', null);
+  placeSlot(E, 'opp', 1, 'フシギバナ', null);
+  E.phaseInitA();
+  assert.equal(E.slotOf('opp', 0).rank.atk, -1, 'opp:0のこうげきが-1になる');
+  assert.equal(E.slotOf('opp', 1).rank.atk, -1, 'opp:1のこうげきも-1になる');
+});
+
+test('D4-1c-2: 両方がまけんきなら両方が同じ値になる(対象ごとに独立判定・いかく-1+まけんき+2=net+1が既存仕様どおり両者に効く)', () => {
+  // まけんきは「下がった分はそのまま適用された上で」こうげき+2を追加する既存仕様(T250=_sim_test.js既存テストで
+  // 確認済み=いかくのように"下がる対象と同じ能力"を+2するケースはnet+1になるのが正しい・Bulbapedia "Defiant"
+  // 「the Pokémon's stat stage change still occurs before Defiant's stat changes take effect」)。
+  // D4-1cで検証したいのはこの数値そのものでなく「対象ごとに独立に同じ反応が起きるか」=opp:0とopp:1が
+  // 同じ値になること(位置順・片方だけ違う結果にならないこと)。
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null, { ability: 'いかく' });
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カメックス', null, { ability: 'まけんき' });
+  placeSlot(E, 'opp', 1, 'フシギバナ', null, { ability: 'まけんき' });
+  E.phaseInitA();
+  assert.equal(E.slotOf('opp', 0).rank.atk, 1, 'opp:0はいかく-1+まけんき+2=net+1(既存仕様どおり)');
+  assert.equal(E.slotOf('opp', 1).rank.atk, 1, 'opp:1も同じ反応(対象ごとに独立判定=対称)');
+});
+
+test('D4-1c-3: だっしゅつパックはいかくが両対象を処理し終えてから発動する(1回)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null, { ability: 'いかく' });
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'カメックス', null);
+  E.slotOf('opp', 0).item = 'eject_pack';
+  E.slotOf('opp', 0).bench = [benchEntry('ゲンガー', null)];
+  placeSlot(E, 'opp', 1, 'フシギバナ', null);   // だっしゅつパック無し=そのまま-1で残る(比較対象)
+  E.phaseInitA();
+  // いかくが両対象(opp:0,opp:1)を処理し終えてから、だっしゅつパック(opp:0)が発動して控えに交代する。
+  // 交代前にopp:1がまだ処理されていなければ交代後にopp:1の-1が付かない=「両対象処理後」の証拠になる。
+  assert.equal(E.slotOf('opp', 0).poke.name, 'ゲンガー', 'opp:0はだっしゅつパックでゲンガーに交代している');
+  assert.equal(E.slotOf('opp', 0).item, '', 'だっしゅつパックは消費される');
+  assert.equal(E.slotOf('opp', 1).rank.atk, -1, 'opp:1はいかくの-1を受けたまま(交代前に処理済み)');
 });
