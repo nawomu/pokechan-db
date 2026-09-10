@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title data-i18n="doubles_preview.page_title">ダブルバトル 開発プレビュー - PchamDB</title>
+<!--
+  D5-1 実装指示(spec_d5_1_preview.md・2026-09-11)。
+  ★開発プレビュー。導線非公開(index/sitemap/ナビに載せない・noindex)。
+  ★4か条(絶対・CLAUDE.md「新しいページを作る時の絶対手順」):
+    1) データは pokedb.js からだけ(下の <script data-files> 参照)。master/*.json・pokechan_data*.js を
+       このページから直接読まない(エンジンiframeの中身=real_battle_simulator.htmlは別。無改変で共有する)。
+    2) ページ専用データを作らない(名簿・技表・タイプ相性を書かない)。
+    3) JSON/JS をコピーしない。
+    4) 文字列を直書きしない(data-i18n / I18N.t(key,ja) / I18N.pokemon・move・item・ability で描画。9言語1セット)。
+  ★既存ページ(real_battle.html)・エンジン本体(real_battle_simulator.html)は無改変。
+    エンジンは非表示iframeで共有し、real_battle.html:1263 と同じ取り方(w.__sim)でアクセスする。
+  ★報告のとおり: setFormat/setChoice/getChoiceCandidates/autoChoose/slotOf/activeSlots/canonSlots/
+    checkBattleWinner/isSideDefeated は window.__sim には未収録(2026-09-11実測)。エンジンの<script>内で
+    トップレベル function 宣言されているため w.<関数名> で直接呼べる(bare global。ES仕様どおりで
+    エンジンを1文字も書き換えていない)が、real_battle.html が使う「__simだけを読む」流儀からは外れる。
+    このページでは w 直下から取って E.* にまとめている(下記)。詳細は完了報告に明記。
+-->
+<script defer src="i18n/runtime.js?v=20260911a"></script>
+<script src="pokedb.js?v=20260911a" data-files="pokemon,moves,abilities,items,learnsets,regulations,types"></script>
+<script src="battle_log_i18n.js?v=20260721b"></script>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#f3f2fa;color:#2c2a3a;font-family:'Segoe UI',Meiryo,-apple-system,sans-serif;font-size:14px;padding-bottom:40px}
+  h1,h2,h3{margin:0 0 8px}
+  #dev-banner{background:#3a2f6b;color:#fff;padding:10px 16px;font-size:13px;line-height:1.6}
+  #dev-banner .badge{display:inline-block;background:#ffd54a;color:#3a2f6b;font-weight:800;border-radius:6px;padding:2px 8px;margin-right:8px}
+  #dev-banner .row{margin-top:4px}
+  #dev-banner .lbl{font-weight:700;margin-right:6px}
+  main{max-width:960px;margin:0 auto;padding:16px}
+  section{background:#fff;border:1px solid #ddd8ee;border-radius:12px;padding:16px;margin-bottom:16px}
+  .teams{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media (max-width:640px){.teams{grid-template-columns:1fr}}
+  .team-card h3{font-size:14px}
+  .mem{border:1px solid #eee;border-radius:8px;padding:8px;margin-bottom:6px;font-size:12.5px}
+  .mem .nm{font-weight:800}
+  .mem .sub{color:#666}
+  button{font-family:inherit;font-size:13px;cursor:pointer;border-radius:8px;border:1px solid #b9aee0;background:#efeafd;padding:8px 14px;font-weight:700;color:#3a2f6b}
+  button:hover{background:#e0d6fb}
+  button:disabled{opacity:.4;cursor:default}
+  button.primary{background:#6a4fd6;color:#fff;border-color:#6a4fd6}
+  button.primary:hover{background:#5a41c0}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  #board{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .slot{border:2px solid #ddd8ee;border-radius:10px;padding:10px;min-height:88px}
+  .slot.empty{opacity:.4;display:flex;align-items:center;justify-content:center}
+  .slot.opp{border-color:#f0b8b8;background:#fff6f6}
+  .slot.self{border-color:#b8d4f0;background:#f6fbff}
+  .slot .nm{font-weight:800;font-size:13px}
+  .slot .hpwrap{background:#e4e4ee;border-radius:6px;height:8px;margin:6px 0;overflow:hidden}
+  .slot .hpbar{height:100%;background:#4caf50}
+  .slot .hpbar.mid{background:#ffb300}
+  .slot .hpbar.low{background:#e53935}
+  .slot .meta{font-size:11px;color:#555}
+  .slot .ranks{font-size:11px;color:#6a4fd6}
+  #turn-badge{font-weight:800;font-size:16px}
+  .cmd-slot{border-top:1px dashed #ddd8ee;padding-top:10px;margin-top:10px}
+  .cmd-slot h4{margin:0 0 6px;font-size:13px}
+  .grid-btns{display:flex;flex-wrap:wrap;gap:6px}
+  .grid-btns button{padding:6px 10px;font-size:12px}
+  .committed-tag{color:#2e7d32;font-weight:700;font-size:12px}
+  #log-scroll{max-height:220px;overflow-y:auto;background:#20203a;color:#e6e6f5;border-radius:8px;padding:8px 10px;font-size:12.5px;line-height:1.7}
+  #log-scroll .log-line{white-space:pre-wrap}
+  #result-banner{font-size:18px;font-weight:800;text-align:center;padding:14px;border-radius:10px;margin-bottom:12px}
+  #result-banner.win{background:#e6f6e8;color:#1b5e20}
+  #result-banner.lose{background:#fdeaea;color:#b71c1c}
+  #result-banner.draw{background:#f1f0f5;color:#3a2f6b}
+  .hint{font-size:11.5px;color:#777;margin-top:4px}
+</style>
+</head>
+<body>
+
+<div id="dev-banner">
+  <span class="badge" data-i18n="doubles_preview.dev_badge">🧪 開発プレビュー</span>
+  <span data-i18n="doubles_preview.dev_intro">この画面は開発中の確認用ページです。まだ一覧・検索には出てきません。</span>
+  <div class="row"><span class="lbl" data-i18n="doubles_preview.supported_label">対応ずみ</span><span data-i18n="doubles_preview.supported_list">単体対象・範囲技×0.75・引き寄せ(このゆびとまれ・いかりのこな・ひらいしん)・てだすけ・枠交代・死に出し・壁2/3</span></div>
+  <div class="row"><span class="lbl" data-i18n="doubles_preview.unsupported_label">未対応</span><span data-i18n="doubles_preview.unsupported_list">ドラゴンアロー・全体変化技の対象ループ・道具の同時発動順の細則・オンライン対戦</span></div>
+</div>
+
+<main>
+  <section id="setup">
+    <h2 data-i18n="doubles_preview.setup_heading">編成(自動生成・4体選出)</h2>
+    <div class="teams">
+      <div class="team-card">
+        <h3 data-i18n="real_battle.team_label_self">自分</h3>
+        <div id="team-self"></div>
+      </div>
+      <div class="team-card">
+        <h3 data-i18n="real_battle.team_label_opp">相手</h3>
+        <div id="team-opp"></div>
+      </div>
+    </div>
+    <div class="toolbar">
+      <button id="btn-reroll" data-i18n="doubles_preview.reroll_button">🎲 編成をやり直す</button>
+      <button id="btn-start" class="primary" data-i18n="real_battle.btn_start">▶ バトルスタート！</button>
+    </div>
+    <div class="hint" data-i18n="doubles_preview.self_auto_hint">開発プレビューにつき、自分側チームも相手側と同じ規則で自動抽選しています(手動選出UIは別票)。</div>
+  </section>
+
+  <section id="battle" style="display:none">
+    <h2><span data-i18n="doubles_preview.battle_heading">バトル</span> — <span id="turn-badge">Turn 1</span></h2>
+    <div id="result-banner" style="display:none"></div>
+    <div id="board"></div>
+    <div id="cmd-panel"></div>
+    <div class="toolbar">
+      <button id="btn-run-turn" class="primary" disabled data-i18n="doubles_preview.run_turn_button">▶ ターン実行</button>
+      <button id="btn-retry" style="display:none" data-i18n="doubles_preview.retry_button">🔁 もういちど</button>
+    </div>
+    <h3 style="margin-top:16px" data-i18n="doubles_preview.log_heading">バトルログ</h3>
+    <div id="log-scroll"></div>
+  </section>
+</main>
+
+<!-- エンジン共有: 検証用シミュレーターを非表示で読み込み、window.__sim を使う(エンジン無改変。real_battle.html:1263と同じ取り方) -->
+<iframe id="engine-frame" src="real_battle_simulator.html?v=20260901a" style="display:none"></iframe>
+
+<script>
+'use strict';
+
+// ============================================================================
+// 0. エンジン橋渡し(S=__sim・E=__simに無い9関数をwから直接束ねたもの。詳細はhead末尾コメント)
+// ============================================================================
+var S = null, E = null;
+var $ = function (id) { return document.getElementById(id); };
+
+document.getElementById('engine-frame').addEventListener('load', function () {
+  var w = $('engine-frame').contentWindow;
+  var wait = setInterval(function () {
+    if (w.__sim) {
+      clearInterval(wait);
+      S = w.__sim;
+      E = {
+        setFormat: w.setFormat, setChoice: w.setChoice, getChoiceCandidates: w.getChoiceCandidates,
+        autoChoose: w.autoChoose, slotOf: w.slotOf, activeSlots: w.activeSlots, canonSlots: w.canonSlots,
+        checkBattleWinner: w.checkBattleWinner, isSideDefeated: w.isSideDefeated,
+      };
+      // 死に出し(自分側・枠0だけがエンジンの保留対象=設計_ダブルバトル_2026-09-07.md§8.3の実測どおり。
+      // 枠1は保留の仕組みが無いため window.__rbSwitchPick で常に先頭を返し、ネイティブ prompt() を防ぐ
+      // (real_battle.htmlの__rbSwitchPickと同じフック。エンジン無改変)。
+      w.__rbSwitchPick = function (idxs) { return idxs[0]; };
+      w.__rbDeferFaintReplace = true;
+      onEngineReady();
+    }
+  }, 100);
+});
+
+function onEngineReady() {
+  PokeDB.ready.then(function () {
+    PokeDB.setMode('champions');
+    installWazaMapShim();
+    rerollTeams();
+    $('btn-reroll').addEventListener('click', rerollTeams);
+    $('btn-start').addEventListener('click', startBattle);
+    $('btn-run-turn').addEventListener('click', doRunTurn);
+    $('btn-retry').addEventListener('click', backToSetup);
+  }).catch(function (err) { PokeDB.showLoadError && PokeDB.showLoadError(err, $('setup')); });
+}
+
+// battle_log_i18n.js の moveKey() は「WAZA_MAP(pokechan_data.js)のbare参照」を期待するが、
+// このページは4か条によりpokechan_data.jsを読まない。ja技名→champions_keyの対応表を
+// pokedb.js(SSOT経由)から作って window.WAZA_MAP に渡す最小アダプタ(データ本体はmaster由来・
+// コピーではなく実行時に組み立てる)。moveKey()は初回呼び出しでキャッシュするため、
+// 最初の translateLogLine() より前(=ここ)で必ず用意する。
+function installWazaMapShim() {
+  var map = {};
+  var moves = PokeDB.allMoves();
+  Object.keys(moves).forEach(function (slug) {
+    var m = moves[slug];
+    var key = m.champions_key || m.slug;
+    map[key] = { name: m.name, key: key };
+  });
+  window.WAZA_MAP = map;
+}
+
+// ============================================================================
+// 1. 選出(4体・isPickable/学習技/持ち物のルールはreal_battle.htmlと同じ規則をこのページのJSに再掲)
+// ============================================================================
+// real_battle.html の isPickable/BATTLE_ONLY_FORMS と同じ規則(メガ形態・バトル限定フォルムは除外)。
+var BATTLE_ONLY_FORMS = { 'イルカマン(マイティフォルム)': true, 'ギルガルド(ブレードフォルム)': true };
+function isPickable(p) { return !p.mega && !BATTLE_ONLY_FORMS[p.name]; }
+
+function shuffle(arr) {
+  var a = arr.slice();
+  for (var i = a.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = a[i]; a[i] = a[j]; a[j] = t;
+  }
+  return a;
+}
+
+// メタモンは隠れ特性(かわりもの)を既定にする(real_battle.htmlのdefaultAbilityRBと同じ考え方)。
+function defaultAbility(p) {
+  if (p && p.name === 'メタモン') return p.ab3 || p.ab2 || p.ab1 || '';
+  return (p && p.ab1) || '';
+}
+function pickGender(p) {
+  if (!p || p.genderless) return '—';
+  if (p.gender_female_pct == null) return '';
+  return Math.random() * 100 < p.gender_female_pct ? '♀' : '♂';
+}
+// 持ち物: PokeDB.items()のimplementedのものから抽選。メガストーンは種族一致(applies_to_pokemon)のみ候補に入れる。
+function pickItemFor(p) {
+  var all = PokeDB.items().filter(function (it) { return it.implemented; });
+  var nonMega = all.filter(function (it) { return it.category !== 'mega_stone'; });
+  var mega = all.filter(function (it) {
+    return it.category === 'mega_stone' && Array.isArray(it.applies_to_pokemon) && it.applies_to_pokemon.indexOf(p.name) !== -1;
+  });
+  var pool = nonMega.concat(mega);
+  if (!pool.length) return '';
+  return pool[Math.floor(Math.random() * pool.length)].slug;
+}
+// Champions習得技(PokeDB.learnset)からランダムに最大4つ。技0本になる個体は選出プールから外す(呼び出し側でリトライ)。
+function pickMovesFor(name) {
+  var learn = PokeDB.learnset(name) || [];
+  var shuffled = shuffle(learn);
+  var out = [];
+  for (var i = 0; i < shuffled.length && out.length < 4; i++) {
+    var mv = PokeDB.move(shuffled[i]);
+    if (mv) out.push(Object.assign({}, mv, { key: mv.champions_key || mv.slug }));
+  }
+  return out;
+}
+function buildMember(p) {
+  return { poke: p, moves: pickMovesFor(p.name), item: pickItemFor(p), ability: defaultAbility(p), gender: pickGender(p) };
+}
+function buildTeam() {
+  var pool = PokeDB.allPokemon().filter(isPickable);
+  var picks = shuffle(pool);
+  var team = [];
+  for (var i = 0; i < picks.length && team.length < 4; i++) {
+    var mem = buildMember(picks[i]);
+    if (mem.moves.length) team.push(mem);   // 技が1つも解決できない個体は選出からやり直す(ダイトのへんしん専用等の保険)
+  }
+  return team;
+}
+
+var teamSelf = [], teamOpp = [];
+function rerollTeams() {
+  teamSelf = buildTeam();
+  teamOpp = buildTeam();
+  renderTeamCard('team-self', teamSelf);
+  renderTeamCard('team-opp', teamOpp);
+}
+function renderTeamCard(elId, team) {
+  var box = $(elId);
+  box.innerHTML = '';
+  team.forEach(function (mem) {
+    var div = document.createElement('div');
+    div.className = 'mem';
+    var moveNames = mem.moves.map(function (m) { return I18N.move(m.key, m.name); }).join(' / ');
+    var itemRow = PokeDB.items().filter(function (it) { return it.slug === mem.item; })[0];
+    var itemLabel = itemRow ? I18N.item(itemRow.name) : I18N.t('real_battle.item_none_option', 'もちもの なし');
+    div.innerHTML = '<div class="nm">' + esc(I18N.pokemon(mem.poke.name)) + '</div>' +
+      '<div class="sub">' + esc(I18N.ability(mem.ability)) + ' / ' + esc(itemLabel) + '</div>' +
+      '<div class="sub">' + esc(moveNames) + '</div>';
+    box.appendChild(div);
+  });
+}
+// innerHTML に差し込む前のHTMLエスケープ(real_battle.htmlの「生文字列をinnerHTMLに流さない」流儀に合わせる)。
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+  });
+}
+
+// ============================================================================
+// 2. バトル開始(枠へ直接反映。S.sides/E.slotOfは同じ生のオブジェクトを指す=real_battle.htmlの
+//    buildSide()と同じ「Sの状態を直接書き換える」流儀。ダブルは枠1が別オブジェクトなので個別に書く)
+// ============================================================================
+var neutralNatureIdx = 0;
+var turnNo = 1, logPos = 0, gameOver = false;
+var committed = {}, pendingMega = {}, pendingTargetChoice = {};
+
+function benchEntryFrom(mem) {
+  return {
+    poke: mem.poke, effort: { hp: 0, atk: 0, def: 0, spatk: 0, spdef: 0, spd: 0 }, natureIdx: neutralNatureIdx,
+    ability: mem.ability, gender: mem.gender, item: mem.item, moves: mem.moves.slice(),
+    currentHp: null, fainted: false, status: 'none', sleepTurns: null, lastConsumedItem: null,
+    megaBase: null, heroAnnounce: null, pp: mem.moves.map(function (m) { return (m && m.pp) || 0; }), disguiseBroken: false,
+  };
+}
+function applyMemberToSlot(st, mem) {
+  Object.assign(st, S.makeSideState());   // まず全フィールドを素の状態(makeSideState())へ戻す
+  // makeSideStateの雛形に無い実行時フィールド(前の対戦で足された分)も明示的に初期化する
+  st.currentHp = null; st.fainted = false; st.selectedMoveIdx = null; st.targetChoice = null;
+  st.disguiseBroken = false; st.turnsOut = 0; st.illusionAs = null; st.transformBase = null; st.heroAnnounce = null;
+  st.poke = mem.poke;
+  st.moves = mem.moves.slice();
+  st.pp = mem.moves.map(function (m) { return (m && m.pp) || 0; });
+  st.item = mem.item || '';
+  st.ability = mem.ability || '';
+  st.gender = mem.gender || '';
+  st.natureIdx = neutralNatureIdx;
+}
+
+function startBattle() {
+  neutralNatureIdx = S.natureIdxOf('まじめ');
+  E.setFormat({ slotsPerSide: 2, pickCount: 4, name: 'double' });
+  ['self', 'opp'].forEach(function (side) {
+    var team = side === 'self' ? teamSelf : teamOpp;
+    for (var i = 0; i < 2; i++) applyMemberToSlot(E.slotOf(side, i), team[i]);
+    S.sides[side].bench = [benchEntryFrom(team[2]), benchEntryFrom(team[3])];
+  });
+  S.battleLog.length = 0; logPos = 0; turnNo = 1; gameOver = false;
+  committed = {}; pendingMega = {}; pendingTargetChoice = {};
+  $('log-scroll').innerHTML = '';
+  $('result-banner').style.display = 'none';
+  $('btn-retry').style.display = 'none';
+  $('btn-run-turn').disabled = true; $('btn-run-turn').style.display = '';
+  S.phaseInitA();
+  appendLogLines();
+  $('setup').style.display = 'none';
+  $('battle').style.display = 'block';
+  updateTurnBadge();
+  renderBoard();
+  renderCommandPanel();
+}
+
+function backToSetup() {
+  $('battle').style.display = 'none';
+  $('setup').style.display = 'block';
+}
+
+// ============================================================================
+// 3. ターン進行
+// ============================================================================
+function updateTurnBadge() { $('turn-badge').textContent = 'Turn ' + turnNo; }
+
+function aliveSelfActiveIdx() {
+  var out = [];
+  [0, 1].forEach(function (i) { var st = E.slotOf('self', i); if (st && st.poke && !st.fainted) out.push(i); });
+  return out;
+}
+function readyToRunTurn() {
+  return aliveSelfActiveIdx().every(function (i) { return committed['self:' + i]; });
+}
+
+function commitChoice(side, idx, choice) {
+  E.setChoice(side, idx, choice);
+  committed[side + ':' + idx] = true;
+  delete pendingTargetChoice[side + ':' + idx];
+  $('btn-run-turn').disabled = !readyToRunTurn();
+  renderCommandPanel();
+}
+
+function doRunTurn() {
+  if (!readyToRunTurn() || gameOver) return;
+  E.autoChoose('opp');
+  S.runTurn();
+  appendLogLines();
+  turnNo++; updateTurnBadge();
+  committed = {}; pendingMega = {}; pendingTargetChoice = {};
+  var result = E.checkBattleWinner();
+  if (result.over) { showResult(result); return; }
+  handleFaintReplacement();
+  renderBoard();
+  renderCommandPanel();
+}
+
+// 死に出し(自分側・枠0のみ): エンジンが__rbDeferFaintReplaceで保留している時だけ、控えから選ばせる。
+// 枠1は保留の仕組みがエンジンに無い(2026-09-11実測・設計書§8.3コメントに明記)ため自動補充のみ
+// (__rbSwitchPickが常に先頭を返す=このページの起動時に設定済み)。
+function handleFaintReplacement() {
+  var st = E.slotOf('self', 0);
+  if (st && (!st.poke || st.fainted)) {
+    var bench = S.sides.self.bench || [];
+    var alive = [];
+    bench.forEach(function (e, i) { if (e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0)) alive.push(i); });
+    if (alive.length) { renderFaintReplaceUI(alive); return; }
+  }
+  $('cmd-panel-faint') && $('cmd-panel-faint').remove();
+}
+function chooseFaintReplacement(benchIdx) {
+  S.attemptSwitch('self', benchIdx, { slotIdx: 0 });
+  appendLogLines();
+  var result = E.checkBattleWinner();
+  renderBoard();
+  if (result.over) { showResult(result); return; }
+  handleFaintReplacement();
+  renderCommandPanel();
+}
+
+function showResult(result) {
+  gameOver = true;
+  $('btn-run-turn').style.display = 'none';
+  $('btn-retry').style.display = '';
+  var banner = $('result-banner');
+  banner.style.display = 'block';
+  if (result.winner === 'self') { banner.className = 'win'; banner.textContent = I18N.t('doubles_preview.winner_self', '🎉 きみの かち！'); }
+  else if (result.winner === 'opp') { banner.className = 'lose'; banner.textContent = I18N.t('doubles_preview.winner_opp', '😵 きみの まけ…'); }
+  else { banner.className = 'draw'; banner.textContent = I18N.t('doubles_preview.winner_draw', '引き分け(勝敗つかず)'); }
+  renderBoard();
+  renderCommandPanel();
+}
+
+// ============================================================================
+// 4. 描画
+// ============================================================================
+function statLabel(key) {
+  var map = { atk: 'common.stat_atk', def: 'common.stat_def', spatk: 'common.stat_spa', spdef: 'common.stat_spd', spd: 'common.stat_spe', acc: 'common.stat_acc', eva: 'common.stat_eva' };
+  return I18N.t(map[key] || '', key);
+}
+var STATUS_KEY = { burn: 'burn', paralysis: 'paralysis', poison: 'poison', badpoison: 'toxic', sleep: 'sleep', freeze: 'freeze' };
+function statusLabel(status) {
+  var k = STATUS_KEY[status];
+  return k ? I18N.t('common.status_' + k, status) : '';
+}
+
+function renderBoard() {
+  var board = $('board');
+  board.innerHTML = '';
+  ['opp', 'self'].forEach(function (side) {
+    for (var i = 0; i < 2; i++) {
+      board.appendChild(renderSlotCard(side, i));
+    }
+  });
+}
+function renderSlotCard(side, idx) {
+  var st = E.slotOf(side, idx);
+  var div = document.createElement('div');
+  div.className = 'slot ' + side + (!st || !st.poke ? ' empty' : '');
+  if (!st || !st.poke) { div.textContent = '―'; return div; }
+  var maxHp = S.realStat(st, 'hp');
+  var hp = st.currentHp == null ? maxHp : st.currentHp;
+  var pct = maxHp ? Math.max(0, Math.round((hp / maxHp) * 100)) : 0;
+  var barCls = pct <= 20 ? 'low' : (pct <= 50 ? 'mid' : '');
+  var name = I18N.pokemon(st.poke.name);
+  var statusTxt = st.fainted ? I18N.t('real_battle.hp_fainted', 'ひんし') : statusLabel(st.status);
+  var ranks = Object.keys(st.rank || {}).filter(function (k) { return st.rank[k]; })
+    .map(function (k) { return statLabel(k) + (st.rank[k] > 0 ? '+' : '') + st.rank[k]; }).join(' ');
+  div.innerHTML =
+    '<div class="nm">' + esc(name) + (statusTxt ? ' <span style="color:#b71c1c;font-size:11px">[' + esc(statusTxt) + ']</span>' : '') + '</div>' +
+    '<div class="hpwrap"><div class="hpbar ' + barCls + '" style="width:' + pct + '%"></div></div>' +
+    '<div class="meta">HP ' + hp + '/' + maxHp + '</div>' +
+    (ranks ? '<div class="ranks">' + esc(ranks) + '</div>' : '');
+  return div;
+}
+
+function renderCommandPanel() {
+  var box = $('cmd-panel');
+  box.innerHTML = '';
+  if (gameOver) return;
+  var idxs = aliveSelfActiveIdx();
+  idxs.forEach(function (idx) {
+    box.appendChild(renderCmdSlot(idx));
+  });
+  handleFaintReplacement();
+}
+
+function renderCmdSlot(idx) {
+  var side = 'self';
+  var st = E.slotOf(side, idx);
+  var cand = E.getChoiceCandidates(side, idx);
+  var wrap = document.createElement('div');
+  wrap.className = 'cmd-slot';
+  var h = document.createElement('h4');
+  h.textContent = I18N.pokemon(st.poke.name) + (idx === 0 ? ' (L)' : ' (R)');
+  wrap.appendChild(h);
+
+  if (committed[side + ':' + idx]) {
+    var tag = document.createElement('div');
+    tag.className = 'committed-tag';
+    tag.textContent = '✓';
+    wrap.appendChild(tag);
+    return wrap;
+  }
+
+  var pendKey = side + ':' + idx;
+  if (pendingTargetChoice[pendKey]) {
+    var mv = pendingTargetChoice[pendKey];
+    var th = document.createElement('div');
+    th.textContent = I18N.t('doubles_preview.choose_target_heading', 'だれを ねらう？');
+    wrap.appendChild(th);
+    var tgtWrap = document.createElement('div');
+    tgtWrap.className = 'grid-btns';
+    mv.targets.forEach(function (t) {
+      var tst = E.slotOf(t.side, t.idx);
+      var b = document.createElement('button');
+      b.textContent = (tst && tst.poke) ? I18N.pokemon(tst.poke.name) : t.label;
+      b.addEventListener('click', function () {
+        commitChoice(side, idx, { moveIdx: mv.idx, switchIdx: null, mega: !!pendingMega[pendKey], target: { side: t.side, idx: t.idx } });
+      });
+      tgtWrap.appendChild(b);
+    });
+    wrap.appendChild(tgtWrap);
+    return wrap;
+  }
+
+  // メガシンカ(候補があり・側でまだ未使用の時だけ)
+  if (cand.canMega) {
+    var megaLabel = document.createElement('label');
+    megaLabel.style.cssText = 'display:block;font-size:12px;margin-bottom:6px';
+    var megaCb = document.createElement('input');
+    megaCb.type = 'checkbox';
+    megaCb.checked = !!pendingMega[pendKey];
+    megaCb.addEventListener('change', function () { pendingMega[pendKey] = megaCb.checked; });
+    megaLabel.appendChild(megaCb);
+    megaLabel.appendChild(document.createTextNode(' ' + I18N.t('real_battle.cmd_mega', '⬡ メガシンカ')));
+    wrap.appendChild(megaLabel);
+  }
+
+  var moveHeading = document.createElement('div');
+  moveHeading.textContent = I18N.t('real_battle.cmd_fight', '⚔ たたかう');
+  wrap.appendChild(moveHeading);
+  var moveWrap = document.createElement('div');
+  moveWrap.className = 'grid-btns';
+  cand.moves.forEach(function (mv) {
+    var b = document.createElement('button');
+    b.textContent = I18N.move(st.moves[mv.idx].key, mv.name);
+    b.addEventListener('click', function () {
+      if (mv.targets && mv.targets.length >= 2) { pendingTargetChoice[pendKey] = mv; renderCommandPanel(); return; }
+      var t = (mv.targets && mv.targets[0]) ? { side: mv.targets[0].side, idx: mv.targets[0].idx } : null;
+      commitChoice(side, idx, { moveIdx: mv.idx, switchIdx: null, mega: !!pendingMega[pendKey], target: t });
+    });
+    moveWrap.appendChild(b);
+  });
+  wrap.appendChild(moveWrap);
+
+  if (cand.switches.length) {
+    var swHeading = document.createElement('div');
+    swHeading.style.marginTop = '6px';
+    swHeading.textContent = I18N.t('real_battle.cmd_party', '🔄 ポケモン');
+    wrap.appendChild(swHeading);
+    var swWrap = document.createElement('div');
+    swWrap.className = 'grid-btns';
+    cand.switches.forEach(function (benchIdx) {
+      var entry = S.sides.self.bench[benchIdx];
+      var b = document.createElement('button');
+      b.textContent = I18N.pokemon(entry.poke.name);
+      b.addEventListener('click', function () {
+        commitChoice(side, idx, { moveIdx: null, switchIdx: benchIdx, mega: false, target: null });
+      });
+      swWrap.appendChild(b);
+    });
+    wrap.appendChild(swWrap);
+  }
+  return wrap;
+}
+
+function renderFaintReplaceUI(aliveBenchIdxs) {
+  var box = $('cmd-panel');
+  var old = document.getElementById('cmd-panel-faint');
+  if (old) old.remove();
+  var wrap = document.createElement('div');
+  wrap.id = 'cmd-panel-faint';
+  wrap.className = 'cmd-slot';
+  var h = document.createElement('h4');
+  h.textContent = I18N.t('doubles_preview.fainted_replace_heading', 'たおれた ポケモンの 代わりを えらんでください');
+  wrap.appendChild(h);
+  var btns = document.createElement('div');
+  btns.className = 'grid-btns';
+  aliveBenchIdxs.forEach(function (benchIdx) {
+    var entry = S.sides.self.bench[benchIdx];
+    var b = document.createElement('button');
+    b.className = 'primary';
+    b.textContent = I18N.pokemon(entry.poke.name);
+    b.addEventListener('click', function () { chooseFaintReplacement(benchIdx); });
+    btns.appendChild(b);
+  });
+  wrap.appendChild(btns);
+  box.appendChild(wrap);
+  $('btn-run-turn').disabled = true;   // 死に出し確定まではターンを進めさせない
+}
+
+// ============================================================================
+// 5. ログ(JA正典→translateLogLine。data-bl-src保持=battle_log_i18n.jsのretranslateLogDomが
+//    #log-scroll .log-line を自動で再翻訳する既存の流儀にそのまま乗る。新しいログ文言は作らない)
+// ============================================================================
+function appendLogLines() {
+  var entries = S.battleLog.slice(logPos);
+  logPos = S.battleLog.length;
+  var box = $('log-scroll');
+  entries.forEach(function (e) {
+    var msg = e.msg;
+    if (msg == null || msg === '' || /^───/.test(msg)) return;
+    var div = document.createElement('div');
+    div.className = 'log-line';
+    div.setAttribute('data-bl-src', msg);
+    div.textContent = window.translateLogLine ? translateLogLine(msg) : msg;
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+// 言語切替時: 設定画面/盤面/コマンドパネルを作り直す(JSで組み立てるUI部品はi18n:ready/changedで
+// 再描画までがセット=i18n-first-design原則)。ログはbattle_log_i18n.js自身がretranslateLogDomで追従する。
+['i18n:ready', 'i18n:changed'].forEach(function (ev) {
+  document.addEventListener(ev, function () {
+    if (!S) return;
+    try {
+      renderTeamCard('team-self', teamSelf);
+      renderTeamCard('team-opp', teamOpp);
+      if (document.getElementById('battle').style.display !== 'none') { renderBoard(); renderCommandPanel(); }
+    } catch (e) {}
+  });
+});
+</script>
+</body>
+</html>
