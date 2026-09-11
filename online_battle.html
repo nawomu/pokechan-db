@@ -1439,14 +1439,14 @@ function formatSyncUrl(){             // ?format=double を URL に反映(リロ
 // ★D6-2(2026-09-11・spec_d6_2_board.md): 枠(slot)= 盤面・演出・コマンドの単位。
 //   ・枠0 の要素id は従来のまま('f-self'/'pb-self'/'sts-self')=シングルは1文字も変わらない。
 //   ・枠1 だけ '-1' が付く('f-self-1')。double のときだけ JS が作る(ensureBoardSlots)。
-//   ・この段でダブルの盤面/コマンドを出すのは AI戦だけ。オンライン対戦のロックステップ(行動の送受信)は
-//     D6-4 なので、オンライン中(RB_ONLINE.started)は double を選んでも枠は1つ=D6-1 の状態のまま。
+//   ・★D6-5(2026-09-11・spec_d6_5_lockstep.md c): オンライン対戦のダブルも解禁した(ロックステップが
+//     枠対応=onlineSubmitAction/onlineRunTurn/死に出しが枠ごとになった)。D6-2〜D6-4 で入れていた
+//     「オンライン中は枠1を出さない」分岐(RB_ONLINE.started で false を返す)をここで外す=
+//     盤面・対象板・死に出しが AI戦とまったく同じ経路で動く(ページに2本目の経路を作らない)。
 // ===================================================================
 const slotKey = (side, slotIdx) => side + (slotIdx ? '-' + slotIdx : '');
 function isDoubleBoard(){
-  if (FORMAT.slotsPerSide < 2) return false;
-  if (window.RB_ONLINE && RB_ONLINE.started) return false;   // オンラインのダブルは D6-4
-  return true;
+  return FORMAT.slotsPerSide >= 2;
 }
 function boardSlots(){ return isDoubleBoard() ? FORMAT.slotsPerSide : 1; }
 function boardSlotIdxs(){ return boardSlots() > 1 ? [0, 1] : [0]; }
@@ -1472,7 +1472,11 @@ function selfActiveSlotIdxs(){
 //     生きている枠 の順で優先する(★H-2=完全な解決は不可能。ログ行は名前しか持たないため・未確認)。
 //   ・それでも分からなければ従来どおり枠0扱い。
 // シングルでは必ず従来と同じ {side: 接頭?opp:self, slotIdx: 0} を返す(1行も変わらない)。
-function slotOfName(name, oppPrefixed){
+// ★D6-5 レビュー中-1(a)(2026-09-11): lastTgtSlot の優先は **ダメージ行の「対象」を引く時だけ** に限る
+// (forDamage=true)。それ以外の行(使用者・登場・みがわり・こんらん・いかく…)にまで効かせると、
+// 「前の行のダメージ対象の枠」という無関係な履歴で枠が決まってしまう(同名2体が場に居る時に、
+// 攻撃していない側の枠へ演出が飛ぶ)。既定=false=「生きている枠→枠0」の素直な解決。
+function slotOfName(name, oppPrefixed, forDamage){
   const side = oppPrefixed ? 'opp' : 'self';
   const base = { side: side, slotIdx: 0 };
   if (!isDoubleBoard() || !name) return base;
@@ -1485,7 +1489,7 @@ function slotOfName(name, oppPrefixed){
   // ★H-2: 同名衝突のときの選び方(候補が1つならそのまま返る=普通はここで終わり)
   const decide = hits => {
     if (hits.length === 1) return { side: side, slotIdx: hits[0] };
-    if (typeof lastTgtSlot === 'number' && lastTgt === side && hits.indexOf(lastTgtSlot) >= 0)
+    if (forDamage && typeof lastTgtSlot === 'number' && lastTgt === side && hits.indexOf(lastTgtSlot) >= 0)
       return { side: side, slotIdx: lastTgtSlot };
     const live = hits.find(i => { const st = slotStateOf(side, i); return st && st.poke && !st.fainted; });
     return { side: side, slotIdx: live != null ? live : hits[0] };
@@ -1529,7 +1533,9 @@ function ensureBoardSlots(){
     // .hp/.prevhp の width)。renderAll/setHpBar が入るまでの1拍だけ前の試合のバーが見えるので素に戻す。
     if (pre === 'pb-'){
       const ht = extra.querySelector('.hptext');
-      if (ht){ delete ht.dataset.hp; delete ht.dataset.max; ht.textContent = '—'; }
+      // ★D6-5 レビュー低-6(2026-09-11): HP欄の素の値は '—%'(この欄は常に「%」で読む欄=
+      // renderSideBars が入るまでの1拍、'—' だけだと単位が抜けた数値に見える)
+      if (ht){ delete ht.dataset.hp; delete ht.dataset.max; ht.textContent = '—%'; }
       extra.querySelectorAll('.hp, .prevhp').forEach(n => { n.style.width = ''; });
       const nmEl = extra.querySelector('.nm'); if (nmEl) nmEl.textContent = '—';
       const icn = extra.querySelector('.icn'); if (icn) icn.innerHTML = '';
@@ -1681,7 +1687,19 @@ document.getElementById('engine-frame').addEventListener('load', () => {
       // ★2026-07-10: バトンタッチ/とんぼがえり等の自分交代は事前選択方式(ロックステップ=技選択直後に選ぶ)。
       // 自分側=RB_PIVOT.selfIdx(このクライアントで選んだbench idx)/相手側=RB_PIVOT.oppIdx(オンラインで相手から受信)。
       // どちらも未設定(非対応move/デモAI)なら従来どおり先頭(idxs[0])。
+      // ★D6-5(2026-09-11・spec_d6_5_lockstep.md a-2): ダブルのオンラインは枠ごとの pivotIdx を
+      // 「配列」で受ける(selfQueue/oppQueue)。両クライアントは同じエンジン状態・同じ seed で同じ順に
+      // このフックを呼ぶので、呼ばれた順に1つずつ消費すれば両側で同じ子が出る(鏡写し)。
+      // ★両側を同じ作法にするのが肝: 片側だけ「1つの値を使い回す」ままにすると、同じターンに
+      // そのサイドで2回フックが呼ばれた時(とんぼがえり+レッドカード等)に自分側と相手側で答えが
+      // 食い違って静かにズレる。配列が立っている間は self/opp の両方を配列で解決する。
+      // シングル/AI戦では配列を立てない=下の従来2行だけが効く(1行も挙動が変わらない)。
       w.__rbSwitchPick = (idxs, side) => {
+        const q = side === 'self' ? RB_PIVOT.selfQueue : RB_PIVOT.oppQueue;
+        if (Array.isArray(q)){
+          while (q.length){ const v = q.shift(); if (v != null && idxs.includes(v)) return v; }
+          return idxs[0];
+        }
         if (side === 'self' && RB_PIVOT.selfIdx != null) return RB_PIVOT.selfIdx;
         if (side === 'opp' && RB_PIVOT.oppIdx != null) return RB_PIVOT.oppIdx;
         return idxs[0];
@@ -3061,6 +3079,11 @@ function startBattle(){
   // (real_battle_simulator.html:9055-9061)。single では立てない=従来の死に出し経路が1行も変わらない。
   // 相手(AI)側はエンジンが自動補充する=ダブルAI戦に入る時だけ __rbDeferFaintReplaceOpp を下ろす
   // (オンライン対戦を1回遊んだ後に同じページでAI戦を始めると true が残っていて相手が永久に空席になる)。
+  // ★D6-5(b-1): オンラインのダブルも isDoubleBoard()===true になった(D6-5 で解禁)ので、ここで
+  // __rbDeferFaintReplaceSlots=true が立つ=両側の空席がエンジンで保留され、ページが両者の選択で埋める。
+  // (__rbDeferFaintReplaceOpp は onlineBegin が立てたまま=下の行はオンラインでは通らない)
+  // ★D6-5: 枠ごとの pivotIdx 待ち行列は対戦をまたいで残さない(形式を切り替えても古い配列を読まない)
+  RB_PIVOT.selfQueue = null; RB_PIVOT.oppQueue = null;
   try {
     const _ew = engineWin();
     if (_ew){
@@ -3768,7 +3791,10 @@ function tbCardHtml(side, idx, mv){
     `${cand ? '' : ' disabled'}>` +
     `<img src="${pokeIconSrc(named.name)}" alt="" onerror="this.remove()">` +
     `<strong class="tb-nm">${tPokeName(named.name)}${g}</strong>` +
-    `<span class="tb-effwrap">${effBandHtml(mv, 'self', cmdSlotIdx(), side, idx)}</span>` +
+    // ★D6-5 レビュー低-3(2026-09-11): 相性ヒントは「候補の枠」だけに出す。押せない枠(使用者自身・
+    // 対象外)にまで★/◎/△/✕を描くと「そこを狙える」と読めてしまう(嘘の誘導)。
+    // 計算(S.calcDamage)も候補だけになる=押せない枠ぶんの無駄な計算も消える。
+    `<span class="tb-effwrap">${cand ? effBandHtml(mv, 'self', cmdSlotIdx(), side, idx) : ''}</span>` +
     `<span class="tb-hpwrap"><span class="tb-hpbg"><span class="${barCls}" style="width:${pct}%"></span></span>` +
     `<span class="tb-hptext">${hpTxt}</span></span>` +
     `</button>`;
@@ -3800,7 +3826,10 @@ function renderTargetBoard(){
   });
   const cl = el.querySelector('.tb-close');
   if (cl) cl.addEventListener('click', e => { e.stopPropagation(); SE.select(); closeTargetBoard(true); });
-  el.addEventListener('click', e => { e.stopPropagation(); });   // 板の外側(暗幕)クリックはメッセージ送りに渡さない
+  // ★D6-5 レビュー低-4(2026-09-11): 板の外側(暗幕)の「メッセージ送りに渡さない」ガードは onclick= で付ける。
+  // renderTargetBoard は同じ要素に対して何度も呼ばれる(カーソル移動/言語切替/HP更新)ので
+  // addEventListener だと同じハンドラが積み上がる(呼ぶたびに1本増える=リーク)。onclick は常に1本。
+  el.onclick = e => { e.stopPropagation(); };
   tbPaintCursor();
 }
 function tbPaintCursor(){
@@ -3916,11 +3945,19 @@ let swSlotIdx = 0;
 // 控え(bench)は側に1本(エンジンがslots[i].benchを側のアクセサに張り替えている)=予約の衝突が起きうる。
 function benchTakenByOtherSlot(benchIdx){
   if (!isDoubleBoard() || benchIdx == null) return false;
+  // ★D6-5(b-2): オンラインの死に出し(枠ごと)でも、もう一方の枠が先に選んだ控えは選べない
+  // (まだエンジンへ適用していない=switchChoice には出ないので pendingRep の picks を見る)
+  const P = window.RB_ONLINE && RB_ONLINE.pendingRep;
+  if (P && P.fmt === 'double' && P.picks && P.picks.self
+      && Object.keys(P.picks.self).some(k => +k !== swSlotIdx && P.picks.self[k] === benchIdx)) return true;
   return boardSlotIdxs().some(i => i !== swSlotIdx && (slotStateOf('self', i) || {}).switchChoice === benchIdx);
 }
 // selfIdx=engineへ渡す自分の事前選択bench idx / oppIdx=オンラインで相手から受信した選択(onlineRunTurnがセット)
 // pendingTarget(★D6-3): 対象板で選んだ対象を交代先選択の間だけ持ち越す({side,idx}|null)
-const RB_PIVOT = { pendingMoveIdx: null, selfIdx: null, oppIdx: null, pendingTarget: null };
+// ★D6-5: selfQueue/oppQueue = ダブルのオンラインだけ立てる「枠ごとの pivotIdx」の待ち行列
+// (onlineRunTurn が毎ターン作り直す。null=シングル/AI戦=従来の selfIdx/oppIdx を使う)
+const RB_PIVOT = { pendingMoveIdx: null, selfIdx: null, oppIdx: null, pendingTarget: null,
+  selfQueue: null, oppQueue: null };
 // 自分交代(とんぼがえり/ボルトチェンジ/クイックターン/すてゼリフ/バトンタッチ)を持つ技か
 function moveHasPivotSwitch(m){
   return !!(m && m.battle_data && Array.isArray(m.battle_data.effects) && m.battle_data.effects.some(e => e.kind === '自分交代'));
@@ -4126,7 +4163,10 @@ function wireSwEvents(){
   const no = pt.querySelector('.sw-confirm .sw-no');
   if (no) no.addEventListener('click', () => { SE.select(); swSelected = null; renderPartyScreen(); });
   const back = pt.querySelector('.sw-back');
-  if (back) back.addEventListener('click', () => { SE.select(); swPivot = false; RB_PIVOT.pendingMoveIdx = null; showMoves(); });
+  // ★D6-5 レビュー低-1(2026-09-11): 交代先選択の「もどる」で pendingTarget も捨てる。
+  // 残すと、次に選んだ技(対象板を出さない範囲技/自分対象技など)へ前の対象が持ち越されて
+  // doTurn(mi, tg) の tg として書かれてしまう(前の技で選んだ相手が次の技の対象になる)。
+  if (back) back.addEventListener('click', () => { SE.select(); swPivot = false; RB_PIVOT.pendingMoveIdx = null; RB_PIVOT.pendingTarget = null; showMoves(); });
 }
 // 自分交代技の交代先選択の確定: 選んだbench idxをRB_PIVOT.selfIdxへ(engine __rbSwitchPickが読む)、保留していた技を実行
 // (オンライン中はdoTurn→onlineSubmitActionがRB_PIVOT.selfIdxをmyActionへ載せて相手へ送る)
@@ -4144,6 +4184,12 @@ function doSwitchTo(idx){
   if (idx == null) return;
   const pt = $('party');
   if (swForced){
+    // ★D6-5(b-2): ダブルのオンラインは「枠ごとに選んで、全部そろってから1回送る」
+    if (window.RB_ONLINE && RB_ONLINE.started && RB_ONLINE.pendingRep
+        && RB_ONLINE.pendingRep.fmt === 'double'){
+      onlineRecordRepPick(swSlotIdx, idx);
+      return;
+    }
     // ★オンライン: 選択を相手へ送り、両者の選択が揃ってから決められた順で適用(ロックステップ)
     if (window.RB_ONLINE && RB_ONLINE.started && RB_ONLINE.pendingRep){
       pt.style.display = 'none';
@@ -4174,8 +4220,20 @@ function doSwitchTo(idx){
   }
   // ★D6-3(b-1): ダブルは「いま選んでいる枠」の交代としてエンジンへ書く(枠1だけ交代できる=
   // エンジンの switchChoice は枠ごと・real_battle_simulator.html:8038 が在場の全枠を見る)。
-  if (isDoubleBoard() && S.setChoice) S.setChoice('self', swSlotIdx, { switchIdx: idx });
-  else S.sides.self.switchChoice = idx;
+  // ★D6-5 レビュー中-2(2026-09-11): 交代を選んだ枠は「前のターンに選んだ技」を道連れにしない。
+  // 交代が失敗した時(かげふみ等=attemptSwitch が false)、その枠の selectedMoveIdx が残っていると
+  // 技フェーズで「プレイヤーが選んでいない技」を撃つ(エンジンは moves[selectedMoveIdx] をそのまま読む=
+  // real_battle_simulator.html:2528)。交代を選んだ=技は選んでいないので、ここで消す。
+  if (isDoubleBoard() && S.setChoice) S.setChoice('self', swSlotIdx, { switchIdx: idx, moveIdx: null, target: null });
+  else {
+    S.sides.self.switchChoice = idx;
+    // ★シングルの「オンライン中」だけは消さない: 受信側(onlineRunTurn の single 分岐)は kind:'switch' で
+    // 相手の selectedMoveIdx を触らない契約(= payload/受信処理を byte 単位で変えない=旧クライアントとの
+    // 相互運用)。ここだけ消すと自分側と相手側で食い違って静かにズレる。オフライン(AI戦)は消す=直る。
+    // → シングルのオンラインでこの穴を塞ぐには payload にも手を入れる必要がある(= D6-5 の絶対条件の外)。
+    //   報告に「残した箇所」として明記する。
+    if (!(window.RB_ONLINE && RB_ONLINE.started)) S.sides.self.selectedMoveIdx = null;
+  }
   doTurn(null);   // 交代をこのターンの行動に
 }
 // ===================================================================
@@ -4993,7 +5051,8 @@ function lineWithFx(msg, opts){
       const _atkAt = slotOfName(atkLine[2], !!atkLine[1]);
       const atkSide = _atkAt.side, _atkSlot = _atkAt.slotIdx;
       const _tgtNameM = msg.match(/(?:^|！ )(?:相手の )?(\S+) に \d+ ダメージ/);
-      const _tgtAt = _tgtNameM ? slotOfName(_tgtNameM[1], /！ 相手の \S+ に \d+ ダメージ/.test(msg))
+      // ★D6-5 レビュー中-1(a): ダメージ行の「対象」だけ lastTgtSlot の優先を使う(第3引数=true)
+      const _tgtAt = _tgtNameM ? slotOfName(_tgtNameM[1], /！ 相手の \S+ に \d+ ダメージ/.test(msg), true)
                                : { side: atkSide === 'self' ? 'opp' : 'self', slotIdx: _atkSlot };
       const tgt = _tgtAt.side, _tgtSlot = _tgtAt.slotIdx;
       lastTgt = tgt; lastTgtSlot = _tgtSlot;
@@ -5525,6 +5584,11 @@ function endOfTurn(){
     if (undecided){
       winStreak = 0;
       pbBgmSetScene('lobby');
+      // ★D6-5 レビュー低-2(2026-09-11): 勝敗が決まらない異常系(エンジンが winner:null)でも「何も出ない」のは
+      // プレイヤーには故障に見える。**既存の中立文キー**(doubles_preview.winner_draw=9言語そろっている)を
+      // 1行だけ出して、画面に「終わったこと」を伝える(新しい文言は作らない=北極星/台帳の規律)。
+      pushMsgLine(I18N.t('doubles_preview.winner_draw', '引き分け(勝敗つかず)'));
+      $('msgbox').style.display = 'block';
       showCmd(true);
       ['c-fight','c-party'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });
       if (window.RB_ONLINE && RB_ONLINE.started) onlineAfterGame();
@@ -5550,7 +5614,9 @@ function endOfTurn(){
     return;
   }
   // ★オンライン: 死に出しは両者が各自選ぶ(相手側はエンジンが保留済み=__rbDeferFaintReplaceOpp)
-  if (window.RB_ONLINE && RB_ONLINE.started && (S.sides.self.fainted || S.sides.opp.fainted)){
+  // ★D6-5(b): ダブルは枠1だけが空くこともある=全枠を見る(シングルは枠0だけ=従来の式と完全に同値)
+  if (window.RB_ONLINE && RB_ONLINE.started
+      && (isDoubleBoard() ? onlineAnyFaintSlot() : (S.sides.self.fainted || S.sides.opp.fainted))){
     onlineBeginFaintReplace();
     return;
   }
@@ -5608,10 +5674,13 @@ function actTimerRender(){
   // 交代画面は3カラムオーバーレイ(#party)の中の見出し(#sw-head)に付ける方が読みやすいので個別に扱う
   // (renderPartyScreenが選択のたびinnerHTMLを作り直す=中の#sw-headも毎回別ノードになるため、
   //  el.parentElementの一致チェックで自動的に外れて次のtickで新しいsw-headへ付け直る=自己修復)
-  const mv = $('moves'), pt = $('party');
+  // ★D6-5 レビュー高-1(2026-09-11): 対象板(#target-board)が開いている間は技メニュー/交代画面の両方が
+  // display:none=host が null になり、タイマーの札が画面から消えていた(残り時間が見えないまま時間切れ)。
+  // 対象板の中(.tb-card)にも付けられるようにする。シングルは #target-board が存在しない=1行も効かない。
+  const mv = $('moves'), pt = $('party'), tb = $('target-board');
   const host = (mv && mv.style.display !== 'none') ? mv
     : (pt && pt.style.display !== 'none') ? ($('sw-head') || pt)
-    : null;
+    : (tb ? (tb.querySelector('.tb-card') || tb) : null);
   if (el && host && el.parentElement !== host){ el.remove(); el = null; }
   if (!el){
     if (!host) return;
@@ -5638,6 +5707,14 @@ function actTimerStart(){
       actTimerStop();
       // 表示中のメニューの先頭を自動選択(技 or 交代/死に出しの先頭の生きてる子)=本家の時間切れ準拠。
       // 交代画面は行タップ=選択(即実行ではない)ので、時間切れはdoSwitchToを直接呼んで即実行する
+      // ★D6-5 レビュー高-1: 対象板が開いている時は「候補の先頭」を押して確定する(板を開いたまま
+      // 時間切れになると何も起きず、オンラインでは相手を永遠に待たせてしまう=実測)。
+      if (TB.open){
+        const cand = document.querySelector('#target-board .tb-slot[data-side]:not([disabled])');
+        if (cand){ cand.click(); return; }
+        closeTargetBoard(true);   // 候補が消えている異常系=技メニューへ戻す(次の tick で技が選ばれる)
+        return;
+      }
       const partyOn = $('party') && $('party').style.display !== 'none';
       if (partyOn){
         const row = document.querySelector('#party .sw-mine .slot[data-i]:not([disabled])');
@@ -5940,6 +6017,16 @@ function pickTimerLabel(){
   const m = Math.floor(PICK.left / 60), ss = String(PICK.left % 60).padStart(2, '0');
   return `${m}:${ss}`;
 }
+// ★D6-5 レビュー中-1(b)(2026-09-11): 同じ種を2体いっしょに選出させない(最後の関所)。
+// 編成側は既に1体に矯正される(renderPickerList:2475 が使用中の種を選択肢から外す / dedupeTeams:2257 が
+// 読込時に引き直す)が、その2つを通らない持ち込み(古い保存データ・外部からの setSlot)で同名2体が
+// 残っていると、ログ行の「名前→枠」の逆引き(slotOfName)が解けなくなり盤面と演出が入れ替わる。
+// ここで「同じ名前の子がもう選ばれていたら選べない」を足す(薄く=押しても選出に入らない)。
+function pickDupBlocked(id){
+  const nm = slotVal[id];
+  if (!nm || PICK.sel.indexOf(id) >= 0) return false;
+  return PICK.sel.some(x => slotVal[x] === nm);
+}
 function refreshPickBadges(ov){
   ov.querySelectorAll('#pick-mine .slot').forEach(c => {
     const n = PICK.sel.indexOf(c.dataset.id);
@@ -5948,6 +6035,7 @@ function refreshPickBadges(ov){
     if (n >= 0) b.textContent = n + 1;
     c.classList.toggle('picked', n >= 0);
     c.classList.toggle('selected', selectedSlot === c.dataset.id);
+    c.style.opacity = pickDupBlocked(c.dataset.id) ? '.45' : '';   // ★中-1(b): 同名2体目は薄く(新CSSなし)
   });
   const ok = $('pick-ok');
   // ★D6-1: 3固定→FORMAT.pickCount(シングル3/ダブル4)
@@ -5963,7 +6051,8 @@ function bindPickMineClicks(ov){
     if (!PICK.mine){        // けってい前だけ選出トグル(もう一度押すと外れる)
       const i = PICK.sel.indexOf(id);
       if (i >= 0) PICK.sel.splice(i, 1);
-      else if (PICK.sel.length < FORMAT.pickCount) PICK.sel.push(id);   // ★D6-1: 3固定→FORMAT.pickCount
+      // ★D6-1: 3固定→FORMAT.pickCount / ★D6-5 中-1(b): 同じ種は2体いっしょに選べない
+      else if (PICK.sel.length < FORMAT.pickCount && !pickDupBlocked(id)) PICK.sel.push(id);
     }
     refreshPickBadges(ov);
   }));
@@ -6062,7 +6151,8 @@ function showPickScreen(){
     if (PICK.left <= 0){
       clearInterval(PICK.timer); PICK.timer = null;
       if (!PICK.mine){
-        selfIds().forEach(id => { if (PICK.sel.length < FORMAT.pickCount && slotVal[id] && !PICK.sel.includes(id)) PICK.sel.push(id); });   // ★D6-1: 3固定→FORMAT.pickCount
+        // ★D6-1: 3固定→FORMAT.pickCount / ★D6-5 中-1(b): 時間切れの自動補完でも同名2体は入れない
+        selfIds().forEach(id => { if (PICK.sel.length < FORMAT.pickCount && slotVal[id] && !PICK.sel.includes(id) && !pickDupBlocked(id)) PICK.sel.push(id); });
         refreshPickBadges(ov);
         const st = $('pick-status');
         // ★D6-1レビューM3(2026-09-11): 手持ちが pickCount 未満だと補完しても足りない=confirmPick が
@@ -6143,8 +6233,54 @@ function onlineOppGone(resigned){
 }
 
 // --- ターン(ロックステップ) ---
+// ===================================================================
+// ★D6-5(2026-09-11・spec_d6_5_lockstep.md a): ダブルの行動は「枠ごとの配列」で1回だけ送る。
+//   single の payload は {kind, idx, mega, pivotIdx}(1行も変えない=旧クライアントと相互運用)。
+//   double は **別の形** {fmt:'double', slots:[{idx,kind,moveIdx,switchIdx,target,mega,pivotIdx}…]}。
+//   受信側(onlineRunTurn)は fmt を見て分岐する=single の分岐に触らない。
+//   対象(target)の側は鏡写し(送り手の self → 受け手の opp・idx はそのまま)。
+// ★「送り手が自分の枠へ書いたのと同じ項目だけ」を受け手が相手の枠へ書く(setChoice は渡した項目だけ
+//   書き換える契約=real_battle_simulator.html:2694-2702)。たとえば交代の枠は moveIdx を送らない:
+//   送り手側も doSwitchTo が moveIdx を触らない(=前ターンの値が残る)ので、触らない方が状態が一致する。
+// ===================================================================
+const ONLINE_MIRROR_SIDE = s => (s === 'self' ? 'opp' : s === 'opp' ? 'self' : s);
+function onlineMirrorTarget(t){
+  return (t && t.side != null) ? { side: ONLINE_MIRROR_SIDE(t.side), idx: t.idx } : null;
+}
+// 自分の在場の各枠の「いま書かれている選択」から payload を作る(エンジンの枠状態が唯一の出どころ)
+function onlineDoubleActionPayload(){
+  const slots = selfActiveSlotIdxs().map(i => {
+    const st = slotStateOf('self', i);
+    const kind = (st.switchChoice != null) ? 'switch' : (st.selectedMoveIdx != null ? 'move' : 'lock');
+    const e = { idx: i, kind: kind, mega: !!st.megaChoice };
+    if (kind === 'switch') e.switchIdx = st.switchChoice;
+    if (kind === 'move'){
+      e.moveIdx = st.selectedMoveIdx;
+      e.target = st.targetChoice ? { side: st.targetChoice.side, idx: st.targetChoice.idx } : null;
+      // 自分交代技の交代先(とんぼがえり等)。枠1の事前選択UIは未実装=null(エンジンが控え筆頭)
+      if (i === 0 && RB_PIVOT.selfIdx != null) e.pivotIdx = RB_PIVOT.selfIdx;
+    }
+    return e;
+  });
+  return { fmt: 'double', slots: slots };
+}
+// payload(自分/相手どちらでも)から pivotIdx の待ち行列を作る。single の形は空配列にならない=nullを返す
+function onlinePivotQueue(a){
+  if (!a || a.fmt !== 'double') return null;
+  return (a.slots || []).filter(s => s && s.pivotIdx != null).map(s => s.pivotIdx);
+}
 function onlineSubmitAction(moveIdx){
   if (RB_ONLINE.myAction) return;   // 二重送信ガード
+  // ★D6-5: ダブルは「在場の全枠の選択がそろった時点」(doTurn が枠を進め終わった直後)で1回だけ送る
+  if (isDoubleBoard()){
+    RB_ONLINE.myAction = onlineDoubleActionPayload();
+    RBOnline.sendAction(RB_ONLINE.myAction);
+    actTimerStop();
+    pushMsgLine(_olT('online_wait_action', '相手の こうどうを まっています…'));
+    $('msgbox').style.display = 'block';
+    if (RBOnline.role === 'host') onlineHostTryGo();
+    return;
+  }
   const self = S.sides.self;
   // moveIdx=null は2通り: ①交代(switchChoiceがセット済み) ②あばれる等のロック継続(エンジンが技を強制)
   // 自分交代技(とんぼがえり等)を選んだ時はRB_PIVOT.selfIdxに事前選択済み(2026-07-10)。
@@ -6174,6 +6310,23 @@ function onlineGuestGo(hostAction, seed){
 }
 function onlineRunTurn(seed){
   const opp = S.sides.opp, a = RB_ONLINE.oppAction || {};
+  // ★D6-5(a-2): ダブルは枠ごとに写す。対象の側だけ鏡写し(idx はそのまま)。
+  if (a.fmt === 'double'){
+    (a.slots || []).forEach(s => {
+      if (!s || s.idx == null || !S.setChoice) return;
+      if (s.kind === 'switch') S.setChoice('opp', s.idx, { switchIdx: s.switchIdx, moveIdx: null, target: null, mega: !!s.mega });
+      else if (s.kind === 'move') S.setChoice('opp', s.idx, { moveIdx: s.moveIdx, switchIdx: null, target: onlineMirrorTarget(s.target), mega: !!s.mega });
+      else S.setChoice('opp', s.idx, { switchIdx: null, mega: !!s.mega });   // lock(あばれる継続等)=技はエンジンが強制
+    });
+    // 自分交代技の交代先は枠ごとの待ち行列で解く(両側とも同じ作法=鏡写し。上の __rbSwitchPick 参照)
+    RB_PIVOT.selfQueue = onlinePivotQueue(RB_ONLINE.myAction) || [];
+    RB_PIVOT.oppQueue = onlinePivotQueue(a) || [];
+    RB_PIVOT.selfIdx = null; RB_PIVOT.oppIdx = null;
+    RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null;
+    onlineSeedEngine(seed);
+    executeTurn();
+    return;
+  }
   if (a.kind === 'switch') opp.switchChoice = a.idx;
   else if (a.kind === 'move' && a.idx != null) opp.selectedMoveIdx = a.idx;
   // kind:'lock'(あばれる継続等)は何もセットしない=エンジンのロックが技を強制する
@@ -6186,8 +6339,114 @@ function onlineRunTurn(seed){
   executeTurn();
 }
 
+// ===================================================================
+// ★D6-5(2026-09-11・spec_d6_5_lockstep.md b): ダブルの死に出し(枠ごと・両側同時)。
+//   ・エンジンは両側の空席を保留している(__rbDeferFaintReplace / Opp / Slots=startBattle と onlineBegin)。
+//   ・自分側は D6-4 の流れ(枠0→枠1 の交代画面)で選び、**全部選び終えてから** 1回だけ送る:
+//     sendFaintReplace({fmt:'double', picks:{枠:控えidx…}}, seed)。single は今の benchIdx(数値)のまま。
+//   ・両者そろったら canonSlots 順(側→枠。__rbCanonFirst=ホスト側が先=両クライアントで同じ並び)に適用。
+//     ★台帳#7(複数枠が同時に空く時の補充順)は未確認=エンジンの既定と同じ canonSlots 順にそろえる。
+//   ・補充が設置技(ステルスロック等)で即ひんし → もう一度両者の選択(下の onlineAfterRepApplied が再入)。
+//   ・★台帳#14/#15 の既知の制限は D6-4 と同じ: 登場効果(いかく等)は attemptSwitch の中で1体ずつ即発動=
+//     「全員出揃ってからすばやさ順」にはならない(エンジン側の deferEntry は別票)。
+// ===================================================================
+// その側で補充が要る枠(ひんし/HP0 かつ poke が居る枠)。生きた控えの数より多くは埋められないので切る。
+function onlineRepNeedSlots(side){
+  const live = (S.sides[side].bench || []).filter(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0)).length;
+  if (!live) return [];
+  const need = boardSlotIdxs().filter(i => {
+    const st = slotStateOf(side, i);
+    return st && st.poke && (st.fainted || (st.currentHp != null && st.currentHp <= 0));
+  });
+  return need.slice(0, live);   // 台帳#65 未確認: 既定=左(枠0)から埋める
+}
+// ダブルで「どこかの枠が空いた」か(endOfTurn の入口。シングルは枠0だけ=従来の式)
+function onlineAnyFaintSlot(){
+  return ['self', 'opp'].some(sd => boardSlotIdxs().some(i => {
+    const st = slotStateOf(sd, i);
+    return st && st.poke && (st.fainted || (st.currentHp != null && st.currentHp <= 0));
+  }));
+}
+// 次に自分が選ぶ枠(まだ選んでいない枠のうち先頭)。選べる控えが尽きたら null
+function onlineNextSelfRepSlot(){
+  const P = RB_ONLINE.pendingRep;
+  if (!P || P.fmt !== 'double') return null;
+  const picked = Object.keys(P.picks.self).map(k => P.picks.self[k]);
+  const leftLive = (S.sides.self.bench || []).some((e, i) => e && e.poke && !e.fainted
+    && !(e.currentHp != null && e.currentHp <= 0) && picked.indexOf(i) < 0);
+  if (!leftLive) return null;
+  const nx = P.need.self.find(i => P.picks.self[i] == null);
+  return nx == null ? null : nx;
+}
+function onlineBeginFaintReplaceSlots(){
+  const need = { self: onlineRepNeedSlots('self'), opp: onlineRepNeedSlots('opp') };
+  if (!need.self.length && !need.opp.length){ showActionUI(); return; }   // 控えが尽きている=空席のまま続行
+  RB_ONLINE.pendingRep = { fmt: 'double', need: need, picks: { self: {}, opp: {} }, seed: { self: null, opp: null } };
+  if (need.self.length) beginFaintReplaceSlot(need.self[0]);   // D6-4 の交代画面(枠を渡す)をそのまま使う
+  else {
+    pushMsgLine(_olT('online_wait_replace', '相手が つぎのポケモンを えらんでいます…'));
+    $('msgbox').style.display = 'block';
+  }
+  onlineTryApplyReplaces();   // 相手の選択が先に届いていた場合(repInbox)を回収
+}
+// 自分の枠の選択を1つ受け取る(doSwitchTo から)。全部そろったら1回だけ送る
+function onlineRecordRepPick(slotIdx, benchIdx){
+  const P = RB_ONLINE.pendingRep;
+  if (!P || P.fmt !== 'double') return;
+  P.picks.self[slotIdx] = benchIdx;
+  $('party').style.display = 'none';
+  const nx = onlineNextSelfRepSlot();
+  if (nx != null){ beginFaintReplaceSlot(nx); return; }
+  actTimerStop();
+  P.seed.self = (Math.random() * 0x7fffffff) | 0;
+  RBOnline.sendFaintReplace({ fmt: 'double', picks: P.picks.self }, P.seed.self);
+  onlineTryApplyReplaces();
+}
+function onlineTryApplyReplacesSlots(){
+  const P = RB_ONLINE.pendingRep;
+  // 相手の1通(全枠ぶんの picks)を回収
+  if (P.need.opp.length && P.seed.opp == null && RB_ONLINE.repInbox){
+    const m = RB_ONLINE.repInbox;
+    if (m.idx && m.idx.fmt === 'double'){
+      P.picks.opp = m.idx.picks || {}; P.seed.opp = m.seed; RB_ONLINE.repInbox = null;
+    }
+  }
+  if (P.need.self.length && P.seed.self == null) return;   // 自分がまだ選び終わっていない
+  if (P.need.opp.length && P.seed.opp == null){
+    pushMsgLine(_olT('online_wait_replace', '相手が つぎのポケモンを えらんでいます…'));
+    $('msgbox').style.display = 'block';
+    return;
+  }
+  RB_ONLINE.pendingRep = null;
+  logPos = S.battleLog.length;
+  const order = S.canonSlots ? S.canonSlots() : [{ side: 'self', idx: 0 }, { side: 'opp', idx: 0 }];
+  const mineSlots = [];
+  order.forEach(sl => {
+    const b = (P.picks[sl.side] || {})[sl.idx];   // JSON往復でキーは文字列=数値添字でも引ける
+    if (b == null) return;
+    onlineSeedEngine(P.seed[sl.side]);
+    S.attemptSwitch(sl.side, b, { ignoreTrapping: true, faintReplace: true, slotIdx: sl.idx });
+    if (sl.side === 'self') mineSlots.push(sl.idx);
+  });
+  // 新しい子は登場拍(いけっ！)まで隠す(D6-4 の doSwitchTo と同じ作法・枠0は従来と同じid)
+  mineSlots.forEach(i => {
+    const ff = $('f-' + slotKey('self', i)); if (ff){ ff.classList.remove('recall', 'enter'); ff.classList.add('gone'); }
+    const pb = $('pb-' + slotKey('self', i)); if (pb) pb.style.visibility = 'hidden';
+  });
+  renderAll();
+  const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
+  say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => onlineAfterRepApplied());
+}
+// 補充を適用したあと: 設置技で即ひんしになっていたらもう一度両者で選ぶ(行動順再評価§2)
+function onlineAfterRepApplied(){
+  if (S.isSideDefeated && (S.isSideDefeated('self') || S.isSideDefeated('opp'))){ endOfTurn(); return; }
+  if (onlineRepNeedSlots('self').length || onlineRepNeedSlots('opp').length){ onlineBeginFaintReplace(); return; }
+  showActionUI();
+}
+
 // --- 死に出し(各自が選ぶ→両者そろってからホスト側優先の固定順で適用=両クライアントの状態一致) ---
 function onlineBeginFaintReplace(){
+  if (isDoubleBoard()){ onlineBeginFaintReplaceSlots(); return; }   // ★D6-5(b): ダブルは枠ごと
   RB_ONLINE.pendingRep = { needSelf: !!S.sides.self.fainted, needOpp: !!S.sides.opp.fainted,
     selfIdx: null, selfSeed: null, oppIdx: null, oppSeed: null };
   if (RB_ONLINE.pendingRep.needSelf){
@@ -6204,6 +6463,7 @@ function onlineBeginFaintReplace(){
 }
 function onlineTryApplyReplaces(){
   const P = RB_ONLINE.pendingRep; if (!P) return;
+  if (P.fmt === 'double'){ onlineTryApplyReplacesSlots(); return; }   // ★D6-5(b-3)
   if (P.needOpp && P.oppIdx == null && RB_ONLINE.repInbox){
     P.oppIdx = RB_ONLINE.repInbox.idx; P.oppSeed = RB_ONLINE.repInbox.seed; RB_ONLINE.repInbox = null;
   }
@@ -6279,32 +6539,12 @@ function lobbyPushFmt(){
 function fmtOf(m){ return (m && m.fmt === 'double') ? 'double' : 'single'; }
 function fmtMatches(m){ return fmtOf(m) === FORMAT.name; }
 function fmtMismatchMsg(){ return I18N.t('online_battle.fmt_mismatch', '形式(シングル/ダブル)が ちがうよ'); }
-// ★D6-1レビューL7(2026-09-11): ダブルのオンライン対戦(ロックステップ)は D6-4 まで未対応。
-// FORMAT=double の間は「ロビーに はいる」「じゅんびOK」「🔑あいことば」を押せなくして、理由を横に出す
-// (AIと たいせん は可)。D6-4 でロックステップが枠対応になったらこの関数ごと外す。
-function doubleOnlineBlocked(){ return FORMAT.name === 'double'; }
-function doubleOnlineNoteHtml(){
-  return doubleOnlineBlocked()
-    ? `<div id="double-online-note" style="max-width:560px;background:#fff6e0;border:1px solid #e0c07a;border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700;color:#7a5a10">🚧 ${esc2(I18N.t('online_battle.double_online_soon', 'ダブルバトルの オンラインたいせんは じゅんび中だよ。いまは AIと たいせん できるよ'))}</div>`
-    : '';
-}
-// 生成後のロビーDOMに対して「オンライン側のボタンだけ」無効化する(AI戦ボタンは触らない)
-function applyDoubleOnlineLock(){
-  const off = doubleOnlineBlocked();
-  ['lobby-enter', 'lobby-ready', 'lobby-code-toggle', 'online-connect'].forEach(id => {
-    const b = $(id); if (!b) return;
-    b.disabled = off;
-    b.style.opacity = off ? '.45' : '';
-    b.style.cursor = off ? 'not-allowed' : 'pointer';
-  });
-  // ★D6-3 レビューL-7: ロック中は招待リンクの強調(invite-glow)も外す(押せないのに光る=嘘の誘導)。
-  // シングルへ戻したら、招待URL経由の人には強調を戻す。
-  const cb = $('online-connect');
-  if (cb){
-    if (off) cb.classList.remove('invite-glow');
-    else if (typeof INVITE_ROOM !== 'undefined' && INVITE_ROOM && _inviteApplied) cb.classList.add('invite-glow');
-  }
-}
+// ★D6-5(2026-09-11・spec_d6_5_lockstep.md c-1): ダブルのオンライン対戦を解禁した。
+// D6-1〜D6-4 の間あった仮の関門(doubleOnlineBlocked / doubleOnlineNoteHtml / applyDoubleOnlineLock=
+// 「ロビーに はいる」「じゅんびOK」「🔑あいことば」「せつぞく」を disabled にして 🚧 注記を出す)は
+// ここで**関数ごと撤去**した(ロックステップが枠対応になった=止める理由が無くなった)。
+// 招待URL(?invite=)の [せつぞく] 強調(invite-glow)は renderLobbyMain 側で素直に付ける。
+// 未使用になった i18n キー online_battle.double_online_soon は9言語から削除した(辞書に死んだ文を残さない)。
 function onlineInitUI(){
   if ($('online-panel')) return;
   const btns = document.querySelector('#setup .btns'); if (!btns) return;
@@ -6334,13 +6574,11 @@ function renderLobbyEntry(){
     `<button id="lobby-enter" type="button" style="padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_lobby_enter', 'ロビーに はいる'))}</button>` +
     `<button id="lobby-vs-ai" type="button" style="padding:13px 20px;border-radius:22px;border:0;background:linear-gradient(90deg,#2e8b57,#4aab77);color:#fff;font-weight:900;font-size:15px;cursor:pointer">🤖 ${esc2(_olT('online_lobby_vs_ai', 'AIと たいせん'))}</button>` +
     `</span>` +
-    doubleOnlineNoteHtml() +   // ★D6-1レビューL7: ダブルのオンラインは D6-4 まで準備中
     `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>` +
     `<button id="bgm-toggle-lobby" type="button" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer;font-size:12px" data-i18n="real_battle.bgm_toggle_off">🎵 BGM</button>`;
   $('lobby-enter').addEventListener('click', lobbyEnter);
   $('lobby-vs-ai').addEventListener('click', lobbyVsAi);
   bindFormatSeg();   // ★D6-1
-  applyDoubleOnlineLock();   // ★D6-1レビューL7
   { const bl = $('bgm-toggle-lobby'); if (bl) bl.addEventListener('click', pbBgmToggle); }
   updateBgmBtn();
   $('online-name').addEventListener('keydown', e => { if (e.key === 'Enter') lobbyEnter(); });
@@ -6398,10 +6636,8 @@ function renderLobbyMain(){
     `<button id="online-connect" type="button" style="${btnCss};background:linear-gradient(90deg,#5a4fc4,#7b6ff0);box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_connect', 'せつぞく'))}</button>` +
     `<button id="online-invite" type="button" style="${btnCss};background:linear-gradient(90deg,#e0a63a,#f0c060);box-shadow:0 4px 10px #e0a63a55">📨 ${esc2(I18N.t('online.invite_button', 'ともだちを さそう'))}</button>` +
     `</span>` +
-    doubleOnlineNoteHtml() +   // ★D6-1レビューL7
     `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>`;
   bindFormatSeg();   // ★D6-1(入室後=disabled。将来ロビーを出て戻ると有効に戻る)
-  applyDoubleOnlineLock();   // ★D6-1レビューL7
   $('lobby-ready').addEventListener('click', lobbyToggleReady);
   $('lobby-code-toggle').addEventListener('click', () => {
     SE.select();
@@ -6420,9 +6656,8 @@ function renderLobbyMain(){
     _inviteApplied = true;
     $('online-room').value = INVITE_ROOM;
     $('online-form').style.display = 'flex';
-    // ★D6-3 レビューL-7: ダブルのオンラインは D6-4 まで無効(applyDoubleOnlineLock が disabled にする)。
-    // 押せないボタンを光らせると「光っているのに反応しない」=嘘の誘導になるので、押せる時だけ光らせる。
-    if (!doubleOnlineBlocked()) $('online-connect').classList.add('invite-glow');
+    // ★D6-5(c-1): ダブルも遊べるようになったので、形式によらず [せつぞく] を光らせる
+    $('online-connect').classList.add('invite-glow');
   }
   renderLobbyList();
 }
@@ -6480,8 +6715,8 @@ function renderLobbyList(){
     // ★D6-1: 挑戦できるのは同じ形式の人だけ(違う形式の人は印つきの札のまま=押せない)
     if (!isMe && m.st === 'waiting' && LOBBY.joined && fmtMatches(m))
       return `<button type="button" class="lobby-vs" data-id="${esc2(m.id)}">${base}<span class="lv-go">▶ ${esc2(_olT('online_lobby_vs', 'たいせんする'))}</span></button>`;
-    // ★D6-1レビューL7: ダブルの間は🔑参加ボタンも出さない(オンラインのダブルは D6-4)
-    if (!isMe && m.st === 'code' && m.codeHash && LOBBY.joined && fmtMatches(m) && !doubleOnlineBlocked())   // 🔑の人を選んで合言葉を入れて参加(codeHash無し=旧クライアントはボタン非表示)
+    // ★D6-5(c-1): ダブルでも🔑参加ボタンを出す(形式が同じ人にだけ出るのは D6-1 のまま)
+    if (!isMe && m.st === 'code' && m.codeHash && LOBBY.joined && fmtMatches(m))   // 🔑の人を選んで合言葉を入れて参加(codeHash無し=旧クライアントはボタン非表示)
       // ★2026-09-11: キー `real_battle.online_lobby_key_join` は9言語とも辞書に無く、ja既定「さんか」が
       //   そのまま出ていた(ロビーに🔑の人が居る時だけ描かれる=監査ハーネスが通らない死角)。
       //   同じ文言で9言語そろっている `online_battle.key_join_go`(🔑ポップの参加ボタン)に寄せる。
