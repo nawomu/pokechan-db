@@ -79,6 +79,21 @@
 - 阿部さんから **Champions ダブルの実機スクショ6枚**(選出2枚・対戦準備・盤面・技選択・**対象選択**)→ `review/_doubles_research_2026-09-07/03_実機画面の観察_選出と対象選択_2026-09-11.md` に文字起こし。**台帳#22(対象選択UI)決着**・新規 #106〜#111。
 - 阿部さん情報: **M-C から選出画面に「つよさの表示」(相手ポケモンの ▲有利/▼不利/!要注意)がシングルにも出る**(計算式は未確認=#106)。
 
+
+### 9/11 昼〜 D6(本番=online_battle.html にダブルを載せる・阿部さん決定「ループとゴールでガンガン回して」)
+| 段 | 内容 | commit |
+|---|---|---|
+| D6-1 | 形式(シングル/ダブル)切替・`?format=double`・presence に fmt(同形式だけマッチ)・招待URLに format・選出 6→pickCount(3/4)・開戦時 `S.setFormat` | `ee947dfda` |
+| D6-2 | 盤面2×2(自分=枠0左/枠1右・相手=鏡写し 台帳#107 B)・枠ごとの技コマンド(枠0→枠1)・相手AI=autoChoose・勝敗=isSideDefeated・演出の枠対応(fx_primitives slotIdx)・pname「相手の 」全枠・D6-1 レビュー修正(H1 部屋の握手に fmt/M2 engine ?v/M3 選出ソフトロック/M4/L5/L6/L7 ダブルのオンラインは無効化) | `7e520af72` |
+| D6-3 | 対象板2×2(実機§5どおり・初期=左の相手 #110 B・対象種別だけで出す #111 B)・枠1の交代/メガ・「もどる」・枠ごとの相性帯(#108 未確認)・D6-2 レビュー修正(H-1 相手枠1の枠解決/M-1 faintFx 遅延/M-2〜M-5/L-1〜L-9) | `71243f1e4` |
+| エンジン | turnsOut 全枠(`d063d3c60`)/ 死に出し保留フック枠対応 `__rbDeferFaintReplaceSlots`(`3b4fbf952`) | |
+| D6-4 | 死に出し=枠ごとの補充選択(枠0→枠1・控え不足は左から #65 未確認・設置技で即ひんし→再選出) | `6ce0c3058` |
+| D6-5 | **未着手**: オンラインのロックステップに枠と対象(`{fmt:'double', slots:[…]}`・鏡写しの側変換・枠ごとの死に出し)・ダブルのオンライン解禁・**ループバック検証**(Supabase なし・BroadcastChannel スタブ) 指示書= scratchpad `spec_d6_5_lockstep.md` | — |
+- 各段=実装(Opus)→壊す側レビュー(Opus・読み取り)→ゲート(シングル不変・PDCA・i18n・sim diff 0)→commit/push。検証スクリプト= scratchpad `verify_d6_*.js`。
+- 本番で試せる: `https://pchamdb.com/online_battle.html?format=double` → AIと たいせん(オンライン対戦のダブルは D6-5 まで無効)。
+- 未確認台帳の新規: #106 つよさの表示の計算式 / #107 相手枠0の左右(B) / #108 範囲技の相性帯 / #109 使用者カード / #110 カーソル初期(B) / #111 対象板の出現(B) / #65 控え不足の枠 / #7 両側同時の補充順 / #14,#15 登場効果の順(ページ駆動の制限)。
+- 🙋 文言: 編成見出し「バトルチーム(3〜6体)」をダブルで「4〜6体」にするか / 死に出し画面に枠の位置(左/右)を添えるか(語彙が i18n に無い=新規キー1本の可否)。
+
 ### 🙋 朝に判断してほしいこと(9/11 未明時点)
 1. **開発プレビューページ `battle_doubles_preview.html` の存置**(ページ台帳に「暫定・未承認・D6で入口Aへ統合後に削除」で登録して push 済み)。承認=そのまま / 不承認= `git rm battle_doubles_preview.html tools/_doubles_preview_pdca_playwright.js` + ui-*.json の `doubles_preview.*` 削除 + 台帳から行を消す。ローカルで `http://localhost:8000/battle_doubles_preview.html`(本番は https://pchamdb.com/battle_doubles_preview.html ・noindex・どこからもリンク無し)。
 2. **D6(入口A=real_battle に形式ボタン・オンライン)へ進めてよいか**。オンラインの鏡写しは Supabase 不通(`HANDOFF_SESSION_2026_09_07_DOUBLES.md` §5)が直るまで検証できない。
