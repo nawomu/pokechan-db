@@ -207,6 +207,13 @@ body.in-battle #game,body.in-battle header{max-width:990px}
 .lobby-vs{display:inline-flex;align-items:center;gap:7px;background:#fff2e6;border:2px solid #f0b070;border-radius:12px;padding:3px 6px 3px 10px;margin:2px 5px 2px 0;font-weight:800;font-size:12.5px;color:#4a4470;cursor:pointer;font-family:inherit;transition:border-color .12s,box-shadow .12s}
 .lobby-vs:hover{border-color:#e0564a;box-shadow:0 0 0 2px #ff7a6355}
 .lobby-vs .lv-go{background:linear-gradient(90deg,#e0564a,#ff7a63);color:#fff;border-radius:9px;padding:2px 9px;font-size:11.5px;white-space:nowrap}
+/* ★D6-1(2026-09-11): 形式(シングル/ダブル)の2択セグメント。ロビー入室後/バトル中はdisabled */
+.fmt-seg{display:inline-flex;border:2px solid #6a5be0;border-radius:14px;overflow:hidden;background:#fff}
+.fmt-seg .fmt-seg-btn{border:0;background:transparent;color:#4638ae;font-family:inherit;font-weight:900;font-size:13.5px;padding:9px 16px;cursor:pointer}
+.fmt-seg .fmt-seg-btn+.fmt-seg-btn{border-left:2px solid #d5cff0}
+.fmt-seg .fmt-seg-btn.on{background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff}
+.fmt-seg .fmt-seg-btn[disabled]{cursor:not-allowed;opacity:.55}
+.lobby-chip .lc-fmt,.lobby-vs .lc-fmt{background:#6a5be0;color:#fff;border-radius:8px;padding:1px 7px;margin-right:5px;font-size:11px;white-space:nowrap}
 /* ★入れ替え確認ポップオーバー+ボックスプレビュー(2026-07-10 阿部さん) */
 #swap-pop{position:absolute;z-index:70;width:240px;background:linear-gradient(165deg,#f0eefa,#e2def4);border:2px solid #6a5be0;
   border-radius:12px;padding:10px 12px;box-shadow:0 10px 30px #00000055;font-size:13px;color:#3a3552}
@@ -1275,6 +1282,36 @@ let logPos = 0;         // battleLog の読み取り位置
 let gameOver = false;
 let turnNo = 1;         // ターン数(Showdown風 Turn バッジ表示用)
 function updateTurnBadge(){ const b = document.getElementById('turn-badge'); if (b) b.textContent = 'Turn ' + turnNo; }
+// ===================================================================
+// ★D6-1(2026-09-11): 形式(シングル/ダブル)= このページ唯一の持ち主。
+//   既定 single(=今までと同値・挙動不変)。URL ?format=double でダブル(?invite= と併用可)。
+//   選出数(pickCount)も エンジンへ渡す値(slotsPerSide)も 全部ここから引く=数字をページに散らさない。
+//   盤面(2×2)・対象板・死に出しは D6-2 以降。この段は setFormat をエンジンへ渡す所まで。
+// ===================================================================
+const FORMAT = { name: 'single', slotsPerSide: 1, pickCount: 3 };
+function formatApply(name){           // 'single' | 'double' → FORMAT を書き換える唯一の入口
+  const dbl = (name === 'double');
+  FORMAT.name = dbl ? 'double' : 'single';
+  FORMAT.slotsPerSide = dbl ? 2 : 1;
+  FORMAT.pickCount = dbl ? 4 : 3;
+}
+try { formatApply(new URLSearchParams(location.search).get('format')); } catch (e) {}
+// ロビー入室後/部屋接続中/バトル中は形式を変えられない(途中で変わると相手と食い違う)
+function formatLocked(){
+  try {
+    if (RB_ONLINE.active || RB_ONLINE.started) return true;
+    if (LOBBY.joined || LOBBY.matching) return true;
+  } catch (e) {}
+  return document.body.classList.contains('in-battle');
+}
+function formatSyncUrl(){             // ?format=double を URL に反映(リロード・共有でも同じ形式)
+  try {
+    const u = new URL(location.href);
+    if (FORMAT.name === 'double') u.searchParams.set('format', 'double');
+    else u.searchParams.delete('format');
+    history.replaceState(null, '', u.pathname + u.search + u.hash);
+  } catch (e) {}
+}
 // ===== 流れるバトルログ(Showdown風・右カラム。履歴が積み上がって残る) =====
 // S4: 4層マークアップ化。ターン見出し=h2.battle-history / 通常行=div.log-line.battle-history /
 //     効果行=div.log-line.log-line-small.battle-history / spacer=div.spacer.battle-history
@@ -2731,6 +2768,11 @@ function startBattle(){
   hideResultBanner();   // 前試合の勝敗バナーを消す
   buildSide('self', orderedIds('self'));   // 1番目に選んだ子を先頭に
   buildSide('opp',  orderedIds('opp'));
+  // ★D6-1(2026-09-11): 開戦のたびエンジンへ形式を渡す(AI戦・オンライン両方がここを通る)。
+  // single は既定と同値=挙動不変。エンジンの setFormat が slots(枠)/env.doubleBattle をここから導出する。
+  // ★buildSide の「あと」に呼ぶ: buildSide は S.sides[side] を新しいオブジェクトに差し替えるので、
+  //   先に呼ぶと syncSlotsToFormat が作った slots が古い側オブジェクトを指したまま取り残される。
+  try { if (S && S.setFormat) S.setFormat({ slotsPerSide: FORMAT.slotsPerSide, pickCount: FORMAT.pickCount, name: FORMAT.name }); } catch (e) {}
   // ★AI戦(選出画面経由)も交代画面の相手開示ルールをオンラインと同じ形で使う(2026-07-11 阿部さん)。
   // オンライン中(RB_ONLINE.started)はonlineBegin側で既にセット済みなので上書きしない。
   // 「つぎの相手」連戦(__randomizeOppで相手を引き直してstartBattleを直接呼ぶ経路)でも古いfullTeamsが
@@ -4894,7 +4936,7 @@ async function onlineEnsureLibs(){
   if (window.RBOnline) return;
   await _loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
   await _loadScript('online/supabase-config.js?v=20260710');
-  await _loadScript('online/rb_online.js?v=20260711a');
+  await _loadScript('online/rb_online.js?v=20260911a');   // ★D6-1: presence に fmt(形式)を通す版。キャッシュ破棄のため ?v を上げた(real_battle/battle_lab は旧?vのまま=後方互換・挙動不変)
 }
 
 // --- 接続と役割 ---
@@ -4926,15 +4968,21 @@ async function onlineConnectRoom(room, name){
 }
 // 合言葉はpresenceに生で載せずハッシュだけ共有(照合用・部屋名の名前空間にも使う)
 function codeHash(c){ let h = 5381; for (const ch of String(c || '')) h = (h * 33 + ch.codePointAt(0)) >>> 0; return h.toString(36); }
-function teamComplete(){ return selfIds().filter(id => slotVal[id]).length >= 3; }   // 最低3体でOK(本家準拠・2026-07-10 阿部さん)。選出で3体えらぶので3体未満は不可
+// 最低=選出数でOK(本家準拠・2026-07-10 阿部さん)。選出でpickCount体えらぶのでそれ未満は不可
+// ★D6-1: 3固定→FORMAT.pickCount(シングル3/ダブル4)
+function teamComplete(){ return selfIds().filter(id => slotVal[id]).length >= FORMAT.pickCount; }
+// 「さいてい{n}体そろえてね」= 数だけ形式から差し込む(文言は不変・語順は各言語の訳のまま)
+function needTeamMsg(){ return _olT('online_need_full_team', 'バトルチームは さいてい{n}体 そろえてね').replace('{n}', FORMAT.pickCount); }
 async function onlineConnect(){   // あいことば(P1)経路: ロビー内の🔑フォームから
   const room = ($('online-room') && $('online-room').value || '').trim();
   const name = LOBBY.name || 'Player';
-  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
+  if (!teamComplete()){ onlineStatus(needTeamMsg()); return; }
   if (!room){ onlineStatus(_olT('online_need_room', 'あいことばを いれてね')); return; }
   const h = codeHash(room);
   // 同じ合言葉で待っている人がロビーにいれば、その人の部屋へ(部屋名=待ち主ID+ハッシュ=世界で被っても混線しない)
+  // ★D6-1: あいことばが合っていても形式(シングル/ダブル)が違えば入室しない
   const other = LOBBY.members.find(m => m.st === 'code' && m.codeHash === h && m.id !== myLobbyId());
+  if (other && !fmtMatches(other)){ onlineStatus(fmtMismatchMsg()); return; }
   if (other){ lobbyGoRoom('c_' + other.id + '_' + h, other); return; }
   try {
     if (LOBBY.joined){ try { RBOnline.lobbySet({ st: 'code', codeHash: h, partner: null, room: null }); } catch (e2) {} }   // 🟡🔑待ち表示
@@ -4957,7 +5005,11 @@ function _randomRoomCode(){   // あいことば未入力時の自動発行(紛�
   for (let i = 0; i < 5; i++) s += chars[Math.floor(Math.random() * chars.length)];
   return s;
 }
-function onlineInviteUrl(room){ return 'https://pchamdb.com/online_battle.html?invite=' + encodeURIComponent(room); }
+// ★D6-1: ダブルで待っている時は招待URLにも形式を付ける(受け側も同じ形式で開く)
+function onlineInviteUrl(room){
+  return 'https://pchamdb.com/online_battle.html?invite=' + encodeURIComponent(room)
+    + (FORMAT.name === 'double' ? '&format=double' : '');
+}
 function onlineInviteText(room){ return I18N.t('online.invite_text', 'ポケモンバトルしよう！ あいことば「{room}」で まってるよ').replace('{room}', room); }
 function inviteBannerHtml(){
   if (!INVITE_ROOM) return '';
@@ -5029,7 +5081,7 @@ function onlineLeave(){
   if (LOBBY.name){
     onlineEnsureLibs()
       .then(() => RBOnline.lobbyJoin(LOBBY.name, lobbyOnState))
-      .then(() => { LOBBY.joined = true; renderLobbyMain(); })
+      .then(() => { LOBBY.joined = true; lobbyPushFmt(); renderLobbyMain(); })   // ★D6-1: 形式を載せ直す
       .catch(() => renderLobbyEntry());
   } else renderLobbyEntry();
 }
@@ -5151,7 +5203,8 @@ function refreshPickBadges(ov){
     c.classList.toggle('selected', selectedSlot === c.dataset.id);
   });
   const ok = $('pick-ok');
-  if (ok){ ok.disabled = PICK.sel.length !== 3; ok.style.opacity = PICK.sel.length === 3 ? '1' : '.5'; }
+  // ★D6-1: 3固定→FORMAT.pickCount(シングル3/ダブル4)
+  if (ok){ ok.disabled = PICK.sel.length !== FORMAT.pickCount; ok.style.opacity = PICK.sel.length === FORMAT.pickCount ? '1' : '.5'; }
 }
 // #pick-mine の各セルへクリック(選出トグル+中央詳細に表示)を配線。showPickScreenの初回描画と
 // refreshPickMineCards()の作り直し後の再配線で共用(2026-07-13)
@@ -5163,7 +5216,7 @@ function bindPickMineClicks(ov){
     if (!PICK.mine){        // けってい前だけ選出トグル(もう一度押すと外れる)
       const i = PICK.sel.indexOf(id);
       if (i >= 0) PICK.sel.splice(i, 1);
-      else if (PICK.sel.length < 3) PICK.sel.push(id);
+      else if (PICK.sel.length < FORMAT.pickCount) PICK.sel.push(id);   // ★D6-1: 3固定→FORMAT.pickCount
     }
     refreshPickBadges(ov);
   }));
@@ -5180,12 +5233,12 @@ function refreshPickMineCards(){
   refreshPickBadges(ov);
 }
 function confirmPick(){
-  if (PICK.sel.length !== 3 || PICK.mine) return;
-  if (PICK.aiMode){   // ★AI戦: 相手選出はランダム3体(順番もランダム)→そのまま開戦(オフライン)
+  if (PICK.sel.length !== FORMAT.pickCount || PICK.mine) return;   // ★D6-1: 3固定→FORMAT.pickCount
+  if (PICK.aiMode){   // ★AI戦: 相手選出はランダムpickCount体(順番もランダム)→そのまま開戦(オフライン)
     const aliveOpp = oppIds().filter(id => slotVal[id]);
     const shuffled = aliveOpp.slice();
     for (let i = shuffled.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]; }
-    window._pickOverride = { self: PICK.sel.slice(), opp: shuffled.slice(0, Math.min(3, shuffled.length)) };
+    window._pickOverride = { self: PICK.sel.slice(), opp: shuffled.slice(0, Math.min(FORMAT.pickCount, shuffled.length)) };   // ★D6-1: min(3,…)→min(pickCount,…)
     PICK.mine = PICK.sel.map(id => selfIds().indexOf(id));
     closePickScreen();
     PICK.aiMode = false;
@@ -5213,7 +5266,7 @@ function showPickScreen(){
   const ov = document.createElement('div');
   ov.id = 'pick-screen';
   ov.innerHTML = `<div class="pk-card">` +
-    `<div class="pk-head"><h3>${I18N.t('online_battle.pick_title', 'せんしゅつ! じぶんの3体を じゅんばんに えらんでね')}</h3>` +
+    `<div class="pk-head"><h3>${I18N.t('online_battle.pick_title', 'せんしゅつ! じぶんの{n}体を じゅんばんに えらんでね').replace('{n}', FORMAT.pickCount)}</h3>` +
     `<span id="pick-timer">⏱ 1:30</span></div>` +
     `<div class="pk-cols">` +
     `<div class="pk-col"><div class="col-title self">${esc2(LOBBY.name || I18N.t('online_battle.team_header', 'バトルチーム'))}</div>` +
@@ -5262,7 +5315,7 @@ function showPickScreen(){
     if (PICK.left <= 0){
       clearInterval(PICK.timer); PICK.timer = null;
       if (!PICK.mine){
-        selfIds().forEach(id => { if (PICK.sel.length < 3 && slotVal[id] && !PICK.sel.includes(id)) PICK.sel.push(id); });
+        selfIds().forEach(id => { if (PICK.sel.length < FORMAT.pickCount && slotVal[id] && !PICK.sel.includes(id)) PICK.sel.push(id); });   // ★D6-1: 3固定→FORMAT.pickCount
         refreshPickBadges(ov);
         const st = $('pick-status');
         if (st) st.textContent = I18N.t('online_battle.pick_timeout_auto', 'じかんぎれ！ のこりは じどうで えらんだよ');
@@ -5426,6 +5479,47 @@ function onlineTryApplyReplaces(){
 // マッチ後は既存フロー(チーム交換→見せ合い選出→ロックステップ)がそのまま動く。
 // ===================================================================
 const LOBBY = { joined: false, name: '', ready: false, matching: false, members: [], roomTimer: null };
+// ===================================================================
+// ★D6-1(2026-09-11): 形式(シングル/ダブル)の切替=ロビーの箱の中の2択セグメント。
+//   ・ロビー入室後/部屋接続中/バトル中は disabled(途中で変わると相手と食い違う)
+//   ・押すと FORMAT・URL(?format=double)・presence(fmt) の3つを同時に更新
+// ===================================================================
+function fmtLabel(name){
+  return name === 'double'
+    ? I18N.t('online_battle.format_double', 'ダブルバトル')
+    : I18N.t('online_battle.format_single', 'シングルバトル');
+}
+function fmtChipLabel(name){   // ロビー一覧のチップに出す短い印
+  return name === 'double'
+    ? I18N.t('online_battle.fmt_chip_double', 'ダブル')
+    : I18N.t('online_battle.fmt_chip_single', 'シングル');
+}
+function formatSegHtml(){
+  const lock = formatLocked();
+  const btn = n => `<button type="button" class="fmt-seg-btn${FORMAT.name === n ? ' on' : ''}" data-fmt="${n}"${lock ? ' disabled' : ''}>${esc2(fmtLabel(n))}</button>`;
+  return `<div id="fmt-seg" class="fmt-seg">${btn('single')}${btn('double')}</div>`;
+}
+function bindFormatSeg(){
+  const seg = $('fmt-seg'); if (!seg) return;
+  seg.querySelectorAll('.fmt-seg-btn').forEach(b => b.addEventListener('click', () => {
+    if (formatLocked() || b.dataset.fmt === FORMAT.name) return;
+    SE.select();
+    formatApply(b.dataset.fmt);
+    formatSyncUrl();
+    lobbyPushFmt();
+    seg.querySelectorAll('.fmt-seg-btn').forEach(x => x.classList.toggle('on', x.dataset.fmt === FORMAT.name));
+    onlineStatus('');
+  }));
+}
+// presence に自分の形式を載せる(ロビー入室中だけ。lobbyJoin直後は lobbyTrack が素の値で載せ直すので毎回呼ぶ)
+function lobbyPushFmt(){
+  if (!LOBBY.joined || !window.RBOnline) return;
+  try { RBOnline.lobbySet({ fmt: FORMAT.name }); } catch (e) {}
+}
+// 相手(presenceの1人)が自分と同じ形式か。fmt未設定の旧クライアントは single 扱い
+function fmtOf(m){ return (m && m.fmt === 'double') ? 'double' : 'single'; }
+function fmtMatches(m){ return fmtOf(m) === FORMAT.name; }
+function fmtMismatchMsg(){ return I18N.t('online_battle.fmt_mismatch', '形式(シングル/ダブル)が ちがうよ'); }
 function onlineInitUI(){
   if ($('online-panel')) return;
   const btns = document.querySelector('#setup .btns'); if (!btns) return;
@@ -5449,6 +5543,7 @@ function renderLobbyEntry(){
     ` <span style="font-size:14px;color:#2e8b57;font-weight:800">🟢 <span id="lobby-count">…</span></span></div>` +
     `<div id="lobby-waitlist" style="width:100%;max-width:560px;background:#ffffff88;border:1px solid #c9c3e6;border-radius:12px;padding:8px 12px;font-size:13px;color:#4a4470;min-height:34px"></div>` +
     inviteBannerHtml() +
+    formatSegHtml() +   // ★D6-1: 形式(シングル/ダブル)の切替
     `<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
     `<input id="online-name" placeholder="${esc2(_olT('online_name_ph', 'なまえ'))}" maxlength="10" value="${esc2(savedName)}" style="padding:12px 14px;border:2px solid #6a5be0;border-radius:12px;width:130px;font-size:15px">` +
     `<button id="lobby-enter" type="button" style="padding:13px 24px;border-radius:22px;border:0;background:linear-gradient(90deg,#5a4fc4,#7b6ff0);color:#fff;font-weight:900;font-size:16px;cursor:pointer;box-shadow:0 4px 10px #5a4fc455">${esc2(_olT('online_lobby_enter', 'ロビーに はいる'))}</button>` +
@@ -5458,6 +5553,7 @@ function renderLobbyEntry(){
     `<button id="bgm-toggle-lobby" type="button" style="background:#fff;border:1px solid #c9c3e6;border-radius:8px;color:#3a3552;padding:4px 10px;cursor:pointer;font-size:12px" data-i18n="real_battle.bgm_toggle_off">🎵 BGM</button>`;
   $('lobby-enter').addEventListener('click', lobbyEnter);
   $('lobby-vs-ai').addEventListener('click', lobbyVsAi);
+  bindFormatSeg();   // ★D6-1
   { const bl = $('bgm-toggle-lobby'); if (bl) bl.addEventListener('click', pbBgmToggle); }
   updateBgmBtn();
   $('online-name').addEventListener('keydown', e => { if (e.key === 'Enter') lobbyEnter(); });
@@ -5490,6 +5586,7 @@ async function lobbyEnter(){
     await onlineEnsureLibs();
     await RBOnline.lobbyJoin(name, lobbyOnState, false);   // 観戦済みなら内部でlobbyTrack昇格
     LOBBY.joined = true;
+    lobbyPushFmt();   // ★D6-1: lobbyTrackは素の値で載せるので、入室のたび形式を載せ直す
     renderLobbyMain();
   } catch (e){ onlineStatus(_olT('online_lobby_error', 'ロビーに はいれなかった: ') + (e && e.message || '')); }
 }
@@ -5502,6 +5599,7 @@ function renderLobbyMain(){
     ` <span style="font-size:14px;color:#2e8b57;font-weight:800">🟢 <span id="lobby-count">1</span></span></div>` +
     `<div id="lobby-waitlist" style="width:100%;max-width:560px;background:#ffffff88;border:1px solid #c9c3e6;border-radius:12px;padding:8px 12px;font-size:13px;color:#4a4470;min-height:34px"></div>` +
     inviteBannerHtml() +
+    formatSegHtml() +   // ★D6-1: 形式(シングル/ダブル)。ロビー入室後なのでここでは disabled 表示
     `<span style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center">` +
     `<button id="lobby-ready" type="button" style="${btnCss};background:linear-gradient(90deg,#e0564a,#ff7a63);box-shadow:0 4px 10px #e0564a55">⚔️ ${esc2(_olT('online_lobby_ready', 'じゅんびOK(相手を まつ)'))}</button>` +
     `<button id="lobby-code-toggle" type="button" style="${btnCss};background:#8a82c8">🔑 ${esc2(_olT('online_lobby_use_code', 'あいことばで たいせん'))}</button>` +
@@ -5514,6 +5612,7 @@ function renderLobbyMain(){
     `<button id="online-invite" type="button" style="${btnCss};background:linear-gradient(90deg,#e0a63a,#f0c060);box-shadow:0 4px 10px #e0a63a55">📨 ${esc2(I18N.t('online.invite_button', 'ともだちを さそう'))}</button>` +
     `</span>` +
     `<span id="online-status" style="color:#4a4470;font-weight:800;font-size:14px"></span>`;
+  bindFormatSeg();   // ★D6-1(入室後=disabled。将来ロビーを出て戻ると有効に戻る)
   $('lobby-ready').addEventListener('click', lobbyToggleReady);
   $('lobby-code-toggle').addEventListener('click', () => {
     SE.select();
@@ -5541,7 +5640,7 @@ function renderLobbyMain(){
 function lobbyVsAi(){
   SE.select();
   if (window.RB_ONLINE && RB_ONLINE.active) return;
-  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
+  if (!teamComplete()){ onlineStatus(needTeamMsg()); return; }
   // ★AI戦も見せ合い選出を挟む(2026-07-11 阿部さん「6体同士でいきなりでなく3体選んで開始」)
   // 相手(AI)の6体が空いていたら未使用種でランダム補充してから選出画面へ
   const usedNames = new Set(selfIds().concat(oppIds()).map(id => slotVal[id]).filter(Boolean));
@@ -5584,16 +5683,22 @@ function renderLobbyList(){
     const isMe = m.id === me;
     const lamp = m.st === 'waiting' ? '🔴 ' : m.st === 'code' ? '🟡🔑 ' : '🟢 ';   // 在室=🟢・あいことば待ち=🟡🔑・たいせん待ち=🔴
     const you = isMe ? esc2(_olT('online_lobby_you', '(あなた)')) : '';
-    const base = `${lamp}${esc2(m.name || '?')}${you}`;
-    if (!isMe && m.st === 'waiting' && LOBBY.joined)
+    // ★D6-1: 形式の短い印(シングル/ダブル)。fmt未設定の旧クライアントは single 扱い
+    const fmt = `<span class="lc-fmt">${esc2(fmtChipLabel(fmtOf(m)))}</span>`;
+    const base = `${lamp}${fmt}${esc2(m.name || '?')}${you}`;
+    // ★D6-1: 挑戦できるのは同じ形式の人だけ(違う形式の人は印つきの札のまま=押せない)
+    if (!isMe && m.st === 'waiting' && LOBBY.joined && fmtMatches(m))
       return `<button type="button" class="lobby-vs" data-id="${esc2(m.id)}">${base}<span class="lv-go">▶ ${esc2(_olT('online_lobby_vs', 'たいせんする'))}</span></button>`;
-    if (!isMe && m.st === 'code' && m.codeHash && LOBBY.joined)   // 🔑の人を選んで合言葉を入れて参加(codeHash無し=旧クライアントはボタン非表示)
-      return `<button type="button" class="lobby-vs lobby-key" data-id="${esc2(m.id)}">${base}<span class="lv-go">🔑 ${esc2(_olT('online_lobby_key_join', 'さんか'))}</span></button>`;
+    if (!isMe && m.st === 'code' && m.codeHash && LOBBY.joined && fmtMatches(m))   // 🔑の人を選んで合言葉を入れて参加(codeHash無し=旧クライアントはボタン非表示)
+      // ★2026-09-11: キー `real_battle.online_lobby_key_join` は9言語とも辞書に無く、ja既定「さんか」が
+      //   そのまま出ていた(ロビーに🔑の人が居る時だけ描かれる=監査ハーネスが通らない死角)。
+      //   同じ文言で9言語そろっている `online_battle.key_join_go`(🔑ポップの参加ボタン)に寄せる。
+      return `<button type="button" class="lobby-vs lobby-key" data-id="${esc2(m.id)}">${base}<span class="lv-go">🔑 ${esc2(I18N.t('online_battle.key_join_go', 'さんか'))}</span></button>`;
     const title = m.st === 'code' ? ` title="${esc2(_olT('online_lobby_code_mark', 'あいことばで まってるよ'))}"` : '';
     return `<span class="lobby-chip${m.st === 'waiting' ? ' waiting' : ''}"${title}>${base}</span>`;
   };
   let html = members.map(chip).join('');
-  if (!members.some(m => m.st === 'waiting' && m.id !== me))
+  if (!members.some(m => m.st === 'waiting' && m.id !== me && fmtMatches(m)))   // ★D6-1: 同じ形式の待ち人だけ数える
     html += `<div style="margin-top:4px;color:#8a82a8;font-weight:700">${esc2(_olT('online_lobby_none', 'いま たいせんまちの人は いないよ。じゅんびOKで まってみよう！'))}</div>`;
   list.innerHTML = html;
   list.querySelectorAll('.lobby-vs').forEach(b => b.addEventListener('click', () => {
@@ -5608,7 +5713,8 @@ function renderLobbyList(){
 function openKeyJoin(anchorRect, m){
   closeSwapConfirm();
   if (LOBBY.matching || (window.RB_ONLINE && RB_ONLINE.active)) return;
-  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
+  if (!teamComplete()){ onlineStatus(needTeamMsg()); return; }
+  if (!fmtMatches(m)){ onlineStatus(fmtMismatchMsg()); return; }   // ★D6-1: 形式が違う人の部屋には入らない
   const pop = document.createElement('div');
   pop.id = 'swap-pop';
   const q = I18N.t('online_battle.key_join_q', '{name} さんの あいことばを いれてね').replace('{name}', m.name || '?');
@@ -5640,7 +5746,8 @@ function openKeyJoin(anchorRect, m){
 // 待っている人を選んで挑戦(2026-07-10 阿部さん)。自分がready(waiting)でなくてもOK
 function lobbyChallenge(target){
   if (LOBBY.matching || (window.RB_ONLINE && RB_ONLINE.active)) return;
-  if (!teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
+  if (!teamComplete()){ onlineStatus(needTeamMsg()); return; }
+  if (!fmtMatches(target)){ onlineStatus(fmtMismatchMsg()); return; }   // ★D6-1: 形式が違う人とは組まない
   const me = myLobbyId(); if (!me || !target || target.id === me) return;
   const room = 'm_' + [me, target.id].sort().join('_');
   RBOnline.lobbySet({ st: 'matched', partner: target.id, room: room });
@@ -5654,7 +5761,7 @@ function lobbySyncReadyBtn(){
 function lobbyToggleReady(){
   SE.select();
   if (LOBBY.matching) return;
-  if (!LOBBY.ready && !teamComplete()){ onlineStatus(_olT('online_need_full_team', 'バトルチームは さいてい3体 そろえてね')); return; }
+  if (!LOBBY.ready && !teamComplete()){ onlineStatus(needTeamMsg()); return; }
   LOBBY.ready = !LOBBY.ready;
   RBOnline.lobbySet(LOBBY.ready ? { st: 'waiting', since: Date.now(), partner: null, room: null } : { st: 'idle', partner: null, room: null });
   lobbySyncReadyBtn();
@@ -5666,8 +5773,11 @@ function lobbyToggleReady(){
 function lobbyTryMatch(){
   if (!LOBBY.ready || LOBBY.matching || (window.RB_ONLINE && RB_ONLINE.active)) return;
   const me = myLobbyId(); if (!me) return;
-  const inviter = LOBBY.members.find(m => m.st === 'matched' && m.partner === me && m.room);
+  // ★D6-1: 形式が違う人からの指名は受けない(相手側のチップも押せないので通常起きないが、
+  //   旧クライアント/切替のすれ違い対策として受け側でも弾く)
+  const inviter = LOBBY.members.find(m => m.st === 'matched' && m.partner === me && m.room && fmtMatches(m));
   if (inviter) lobbyGoRoom(inviter.room, inviter);
+  else if (LOBBY.members.some(m => m.st === 'matched' && m.partner === me && m.room)) onlineStatus(fmtMismatchMsg());
 }
 async function lobbyGoRoom(room, partner){
   if (LOBBY.matching) return;

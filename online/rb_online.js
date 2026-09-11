@@ -194,8 +194,10 @@
 
   // ===================================================================
   // ★P2: 公開ロビー(Presenceのみ・2026-07-10)
-  // 全員が 'pcham_lobby' チャンネルの presence に {id,name,st,since,partner,room} を載せる。
+  // 全員が 'pcham_lobby' チャンネルの presence に {id,name,st,since,partner,room,fmt} を載せる。
   //   st: 'idle'(見てるだけ) | 'waiting'(準備OK=対戦待ち) | 'matched'(相手確定→部屋へ移動中)
+  //   fmt: 'single' | 'double'(★D6-1 2026-09-11・形式。ページ側がlobbySet({fmt})で載せる。
+  //        載せていない旧クライアントは一覧側で single 扱い=挙動不変)
   // マッチングはクライアント側で決定的に計算(waiting列をsince順に並べ隣同士をペア)。
   // 片方が 'matched'(partner=相手id, room)を載せれば、相手はそれを見て同じ部屋へ来られる
   // (=同期タイミングのレースでも取りこぼさない)。部屋は既存のconnect(P1と同じ仕組み)。
@@ -242,7 +244,8 @@
         (st[k] || []).forEach(function (m) {
           if (m && m.id && (!e || (m.rev || 0) > (e.rev || 0) || ((m.rev || 0) === (e.rev || 0) && (m.since || 0) >= (e.since || 0)))) e = m;
         });
-        if (e && lobbyIsFresh(e, now)) members.push({ id: e.id, name: e.name, st: e.st || 'idle', since: e.since || 0, partner: e.partner || null, room: e.room || null, codeHash: e.codeHash || null, hb: e.hb || null });
+        // ★D6-1(2026-09-11): fmt='single'|'double'(形式)も一覧へ通す。載せていない旧クライアントは single 扱い
+        if (e && lobbyIsFresh(e, now)) members.push({ id: e.id, name: e.name, st: e.st || 'idle', since: e.since || 0, partner: e.partner || null, room: e.room || null, codeHash: e.codeHash || null, fmt: e.fmt === 'double' ? 'double' : 'single', hb: e.hb || null });
       });
       try { (onState || function () {})(members); } catch (e) {}
     });
@@ -265,7 +268,7 @@
     lobby.last = { id: state.myId, name: lobby.name || 'Player', st: 'idle', since: Date.now(), rev: lobby.rev, hb: Date.now() };
     return lobby.channel.track(lobby.last).then(function () { lobby.joined = true; lobbyStartHeartbeat(); });
   }
-  function lobbySet(fields) {   // st/since/partner/room の部分更新(トラック載せ替え)
+  function lobbySet(fields) {   // st/since/partner/room/fmt の部分更新(トラック載せ替え)
     if (!lobby.channel || !lobby.joined) { try { console.warn('[lobby] set skipped (not joined)'); } catch (e) {} return; }
     lobby.last = Object.assign({}, lobby.last || { id: state.myId, name: lobby.name }, fields || {}, { rev: ++lobby.rev });
     try {
