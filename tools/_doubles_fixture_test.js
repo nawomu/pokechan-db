@@ -1029,3 +1029,281 @@ test('D5-0-7: autoChooseで4体全員が(枠0=既存AI・枠1=最小フォール
     assert.ok(E.slotOf(side, idx).movedThisTurn, `${side}:${idx} が行動する(movedThisTurn)`);
   });
 });
+
+// =====================================================================================
+// E1(2026-09-11・実装指示 spec_e1_engine_slots.md・設計_ダブルバトル_2026-09-07.md§3/§4.5):
+//   a. 「枠0しか回していない」個体単位の処理を全枠へ(ターン終了スリップ/道具の反応/ターン終了の特性ループ)
+//   b. 側の効果(おいかぜ/壁/設置物)を側へ一本化(枠1以降はアクセサでsides[s]を読む)
+//   c. 範囲技の「自分向け効果の後処理」で相手向け追加効果が先頭の対象に二重適用される穴を閉じる
+//   d. しめりけ=場の全枠 / e. ミラーアーマーは実際に下がらないなら不発 / f. いやしのすずは場の味方枠も治す
+// ★期待値は権威ソース(ポケモンWiki/Bulbapedia)の記述から立てる(エンジンの出力を写さない)。
+// ★シングル不変(862/0・stdout diff 0)は既存ゲートの担当=ここは slotsPerSide:2 のfixtureだけを見る。
+// =====================================================================================
+
+// ----- a: ターン終了の個体処理が枠1でも回る -----
+// 出典: ポケモンWiki「どく(状態異常)」= 毎ターン終了時に最大HPの1/8のダメージ(どくタイプ/はがねタイプは
+//       どく状態にならないがここでは直接 status を立てる fixture なので付与経路は問わない)。
+test('E1-a-1: ターン終了のスリップ(どく)が枠1でも処理される(枠0だけ見ていた穴)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'フシギバナ', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, 'カメックス', null);
+  const s1 = E.slotOf('self', 1);
+  s1.status = 'poison';
+  const max = E.realStat(s1, 'hp');
+  s1.currentHp = max;
+  E.setRandom(mulberry32(7));
+  E.runTurn();
+  assert.equal(s1.currentHp, max - Math.floor(max / 8),
+    `枠1のどくが最大HPの1/8(=${Math.floor(max / 8)})削られる。実際の残HP=${s1.currentHp}/${max}`);
+  assert.ok(msgList(E.battleLog).some(m => m.includes('フシギバナ') && m.includes('どくで')),
+    '枠1のどくダメージのログが出る');
+});
+
+// 出典: ポケモンWiki「たべのこし」= ターン終了時に最大HPの1/16回復。
+test('E1-a-2: ターン終了のたべのこし回復が枠1でも発動する', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'フシギバナ', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, 'カメックス', null);
+  const s1 = E.slotOf('self', 1);
+  s1.item = 'leftovers';
+  const max = E.realStat(s1, 'hp');
+  s1.currentHp = max - 40;
+  E.setRandom(mulberry32(7));
+  E.runTurn();
+  assert.equal(s1.currentHp, max - 40 + Math.max(1, Math.floor(max / 16)),
+    `枠1のたべのこしで1/16(=${Math.floor(max / 16)})回復する。実際=${s1.currentHp}`);
+});
+
+// 出典: ポケモンWiki「オボンのみ」= HPが половина… (日本語Wiki)「HPが最大HPの1/2以下になったとき
+//       最大HPの1/4回復して消費する」。道具の反応(itemReactions)が枠1でも回ることの確認。
+test('E1-a-3: 道具の反応(オボンのみ)が枠1でも発動して消費される', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'フシギバナ', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, 'カメックス', null);
+  const s1 = E.slotOf('self', 1);
+  s1.item = 'berry_sitrus';
+  const max = E.realStat(s1, 'hp');
+  s1.currentHp = Math.floor(max / 2) - 1;   // 半分以下
+  E.setRandom(mulberry32(7));
+  E.runTurn();
+  assert.ok(s1.currentHp > Math.floor(max / 2) - 1,
+    `枠1のオボンのみでHPが回復する(実際=${s1.currentHp}/${max})`);
+  assert.ok(!s1.item, '発動したオボンのみは消費される(持ち物が無くなる)');
+});
+
+// 出典: Bulbapedia "Leech Seed"= 吸い取ったHPは「タネを植えたポケモンがいた"位置"」のポケモンが受け取る。
+test('E1-a-4: やどりぎのタネは「植えた枠」がHPを吸い取る(枠1が植えたら枠1が回復する)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'フシギバナ', 'yadorigi');
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, 'カメックス', null);
+  E.setChoice('self', 1, { moveIdx: 0, target: { side: 'opp', idx: 1 } });
+  const seeder = E.slotOf('self', 1);
+  const seeded = E.slotOf('opp', 1);
+  const sMax = E.realStat(seeder, 'hp');
+  seeder.currentHp = sMax - 60;
+  const tMax = E.realStat(seeded, 'hp');
+  seeded.currentHp = tMax;
+  E.setRandom(mulberry32(11));
+  E.runTurn();
+  assert.ok(seeded.currentHp < tMax, `植えられたopp:1が削られる(実際=${seeded.currentHp}/${tMax})`);
+  assert.ok(seeder.currentHp > sMax - 60,
+    `吸い取り先は「植えた枠」=self:1(実際=${seeder.currentHp}、植えた直後=${sMax - 60})`);
+  assert.equal(E.slotOf('self', 0).currentHp, E.realStat(E.slotOf('self', 0), 'hp'),
+    '植えていない枠0は回復しない(満タンのまま)');
+});
+
+// ----- b: 側の効果は側に一本化され、両枠に効く -----
+// 出典: ポケモンWiki「おいかぜ」=「4ターンの間、味方全員のすばやさが2倍になる」(味方側全体の効果)。
+test('E1-b-1: おいかぜを枠0が張ると枠1のすばやさも2倍になる(行動順で確認)', () => {
+  const E = build2v2();
+  // self:1 フシギバナ(80) < opp:0 リザードン(100) → おいかぜ(×2=160)があれば先に動く
+  placeSlot(E, 'self', 0, 'カビゴン', 'oikaze');
+  placeSlot(E, 'self', 1, 'フシギバナ', 'hataku');
+  placeSlot(E, 'opp', 0, 'リザードン', 'hataku');
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  const before = E.effectiveSpeed(E.slotOf('self', 1));
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.equal(E.sides.self.tailwindTurns, 3, 'おいかぜが側に立ち、このターンの終わりに1減って残り3');
+  const after = E.effectiveSpeed(E.slotOf('self', 1));
+  assert.equal(after, before * 2,
+    `枠1(おいかぜを張っていない側の相方)のすばやさも2倍になる(実際 ${before}→${after})`);
+});
+
+// 出典: ポケモンWiki「リフレクター」=「5ターンの間、味方が受ける物理技のダメージを半減(ダブルバトルでは2/3)」
+//       =味方側全体の効果。ダブルの係数2732/4096は設計§4.4(第六世代〜)。
+test('E1-b-2: リフレクターを枠0が張ると枠1の物理被ダメも2732/4096になる', () => {
+  function dmg(withScreen, screenSlot) {
+    const E = build2v2();
+    placeSlot(E, 'self', 0, 'カビゴン', null);
+    placeSlot(E, 'self', 1, 'カメックス', null);
+    placeSlot(E, 'opp', 0, 'ケンタロス', 'hataku');
+    placeSlot(E, 'opp', 1, null, null, { fainted: true });
+    if (withScreen) {
+      // 技で張るのと同じ状態(側の欄に立てる)。どちらの枠から立てても側に1本だけ立つ。
+      E.slotOf('self', screenSlot).reflect = true;
+    }
+    const res = E.calcDamage('opp', 'self', data.WAZA_MAP.hataku, undefined, 0, 1);
+    return res.variations[res.variations.length - 1];   // 乱数最大値で比較(乱数を引かない)
+  }
+  const plain = dmg(false, 0);
+  const viaSlot0 = dmg(true, 0);
+  const viaSlot1 = dmg(true, 1);
+  // 壁はダメージ計算の途中(M=pokeRound段)で掛かるので、最終値は素×2732/4096の±1に入る
+  // (監査 tools/_doubles_audit/tailwind_screens_both_slots_test.js の assertTwoThirds と同じ判定)。
+  assert.ok(Math.abs(viaSlot0 - plain * 2732 / 4096) <= 1,
+    `枠0が張った壁で枠1の被ダメが2732/4096(≒${(plain * 2732 / 4096).toFixed(1)})になる(素=${plain} → 実際=${viaSlot0})`);
+  assert.ok(Math.abs(viaSlot0 - plain * 2048 / 4096) > 1,
+    `ダブルでは1/2(≒${(plain * 2048 / 4096).toFixed(1)})にはしない(実際=${viaSlot0})`);
+  assert.equal(viaSlot1, viaSlot0, '枠1から張っても同じ(側の欄に1本化されている)');
+});
+
+test('E1-b-3: 枠1が張った壁/おいかぜ/設置物は枠0からも同じ値として読める(側に1本化)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null);
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, 'フシギバナ', null);
+  const s0 = E.slotOf('self', 0), s1 = E.slotOf('self', 1);
+  s1.lightScreen = true; s1.tailwindTurns = 4; s1.spikesLayers = 2; s1.stealthRock = true;
+  assert.equal(s0.lightScreen, true, '枠1が張ったひかりのかべが枠0からも見える');
+  assert.equal(s0.tailwindTurns, 4, '枠1が張ったおいかぜが枠0からも見える');
+  assert.equal(s0.spikesLayers, 2, '枠1が撒いたまきびしが枠0からも見える');
+  assert.equal(s0.stealthRock, true, '枠1が撒いたステルスロックが枠0からも見える');
+  assert.equal(E.sides.self.lightScreen, true, '実体は sides[side](=側の欄)に1本だけ');
+  assert.equal(E.slotOf('opp', 0).lightScreen, false, '相手側には立たない(側ごとに別)');
+});
+
+// 出典: ポケモンWiki「リフレクター」=5ターン。ダブルでも「側」で1つの効果なので、
+//       2枠あってもターン終了のカウントダウンは1ターンぶんだけ進む(枠で回すと2ずつ減ってしまう)。
+test('E1-b-4: 壁の残りターンは側で1ターンぶんだけ減る(2枠あっても二重減算しない)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', 'rifurekutaa');
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  placeSlot(E, 'opp', 1, 'フシギバナ', null);
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  assert.equal(E.sides.self.reflect, true, 'リフレクターが張られている');
+  assert.equal(E.sides.self.screenTurns.reflect, 4,
+    `5ターンのうち張ったターンの終わりに1減って残り4(実際=${E.sides.self.screenTurns.reflect})`);
+  E.setRandom(mulberry32(4));
+  E.runTurn();
+  assert.equal(E.sides.self.screenTurns.reflect, 3,
+    `次のターンも1だけ減る(実際=${E.sides.self.screenTurns.reflect})`);
+});
+
+// ----- c: 範囲技の追加効果が先頭の対象に二重ロールしない -----
+// 出典: ポケモンWiki「いわなだれ」= 追加効果「30%の確率で ひるみ状態にする」/ 相手全体。
+//       対象ごとに独立に1回だけ振られる(設計§4.5 #49)。
+test('E1-c-1: いわなだれ(相手全体)のひるみは対象ごとに1回だけ振られる(先頭の対象に二重ロールしない)', () => {
+  let flinch0 = 0, flinch1 = 0, doubleLine = 0;
+  const N = 300;
+  for (let i = 0; i < N; i++) {
+    const E = build2v2();
+    placeSlot(E, 'self', 0, 'カビゴン', 'iwanadare');
+    placeSlot(E, 'self', 1, null, null, { fainted: true });
+    placeSlot(E, 'opp', 0, 'カメックス', null);
+    placeSlot(E, 'opp', 1, 'フシギバナ', null);
+    // 相手は倒れない(ひるみ判定まで到達する)ようHPを十分に持たせる
+    E.slotOf('opp', 0).currentHp = 9999; E.slotOf('opp', 1).currentHp = 9999;
+    E.setRandom(mulberry32(1000 + i));
+    E.runTurn();
+    const msgs = msgList(E.battleLog).filter(m => m.includes('は ひるんだ'));
+    const l0 = msgs.filter(m => m.includes('カメックス')).length;
+    const l1 = msgs.filter(m => m.includes('フシギバナ')).length;
+    if (l0 > 1 || l1 > 1) doubleLine++;
+    if (l0 === 1) flinch0++;
+    if (l1 === 1) flinch1++;
+  }
+  assert.equal(doubleLine, 0, `同じ対象に「ひるんだ！」が2回出ることは無い(実際=${doubleLine}/${N}回)`);
+  const r0 = flinch0 / N, r1 = flinch1 / N;
+  assert.ok(r0 > 0.18 && r0 < 0.42, `先頭の対象(opp:0)のひるみ率は30%前後(実際=${(r0 * 100).toFixed(1)}%)`);
+  assert.ok(r1 > 0.18 && r1 < 0.42, `2番目の対象(opp:1)のひるみ率も30%前後(実際=${(r1 * 100).toFixed(1)}%)`);
+});
+
+// ----- d: しめりけは場の全枠 -----
+// 出典: Bulbapedia "Damp"= 場にいるどのポケモンも じばく/だいばくはつ 等を使えなくなる。
+test('E1-d-1: しめりけは味方枠/相手の右枠に居てもじばくを止める(場の全枠を見る)', () => {
+  function selfKOHappened(dampAt) {
+    const E = build2v2();
+    placeSlot(E, 'self', 0, 'カビゴン', 'jibaku');
+    placeSlot(E, 'self', 1, 'カメックス', null, { ability: dampAt === 'self1' ? 'しめりけ' : 'ふみん' });
+    placeSlot(E, 'opp', 0, 'ゲンガー', null, { ability: dampAt === 'opp0' ? 'しめりけ' : 'ふみん' });
+    placeSlot(E, 'opp', 1, 'フシギバナ', null, { ability: dampAt === 'opp1' ? 'しめりけ' : 'ふみん' });
+    E.setRandom(mulberry32(5));
+    E.runTurn();
+    return !!E.slotOf('self', 0).fainted;
+  }
+  assert.equal(selfKOHappened('none'), true, '対照: しめりけが居なければじばくは成立して使用者はひんし');
+  assert.equal(selfKOHappened('opp0'), false, '相手の正面(opp:0)のしめりけで失敗する');
+  assert.equal(selfKOHappened('opp1'), false, '相手の右枠(opp:1)のしめりけでも失敗する');
+  assert.equal(selfKOHappened('self1'), false, '自分の味方枠(self:1)のしめりけでも失敗する');
+});
+
+// ----- e: ミラーアーマーは「実際に下がらない」なら不発 -----
+// 出典: ポケモンWiki「いかく」#特性の仕様「みがわり/しろいきり状態で防いだ場合や、すでに最低だったため
+//       攻撃が下がらなかった場合、ミラーアーマーは発動しない。」
+test('E1-e-1: こうげきが既に-6の枠ではミラーアーマーが発動しない(いかく側に返らない)', () => {
+  const E = build2v2();
+  const intim = placeSlot(E, 'self', 0, 'ケンタロス', null, { ability: 'いかく' });
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  const f0 = placeSlot(E, 'opp', 0, 'カメックス', null, { ability: 'ミラーアーマー' });
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  f0.rank.atk = -6;
+  intim.rank.atk = 0;
+  E.phaseInitA();
+  assert.equal(f0.rank.atk, -6, '前提どおり -6 のまま(これ以上下がらない)');
+  assert.equal(intim.rank.atk, 0,
+    `下がらなかったので跳ね返らない=いかく側のこうげきは0のまま(実際=${intim.rank.atk})`);
+  assert.ok(!msgList(E.battleLog).some(m => m.includes('ミラーアーマー')), '跳ね返しのログも出ない');
+});
+
+test('E1-e-2: しろいきり状態の枠ではミラーアーマーが発動しない(しろいきりが防ぐ)', () => {
+  const E = build2v2();
+  const intim = placeSlot(E, 'self', 0, 'ケンタロス', null, { ability: 'いかく' });
+  placeSlot(E, 'self', 1, null, null, { fainted: true });
+  const f0 = placeSlot(E, 'opp', 0, 'カメックス', null, { ability: 'ミラーアーマー' });
+  placeSlot(E, 'opp', 1, null, null, { fainted: true });
+  f0.rank.atk = 0; intim.rank.atk = 0;
+  f0.mist = true;   // しろいきり(側の場の効果)
+  E.phaseInitA();
+  assert.equal(f0.rank.atk, 0, 'しろいきりでこうげきは下がらない');
+  assert.equal(intim.rank.atk, 0,
+    `しろいきりで防いだ場合もミラーアーマーは発動しない=いかく側は0のまま(実際=${intim.rank.atk})`);
+  assert.ok(msgList(E.battleLog).some(m => m.includes('しろいきりで 能力が下がらない')),
+    '代わりにしろいきりのログが出る');
+  assert.ok(!msgList(E.battleLog).some(m => m.includes('ミラーアーマー')), 'ミラーアーマーのログは出ない');
+});
+
+// ----- f: いやしのすずは場の味方枠も治す -----
+// 出典: ポケモンWiki「いやしのすず」=「戦闘に出ていない手持ちポケモンも含めた、味方全員の状態異常を治す」/
+//       ヤックン /ch/「自分と味方と 手持ちのポケモン全員の 状態異常を回復する。[音]」
+test('E1-f-1: いやしのすずは使用者・場の味方枠・控えの状態異常を全部治す', () => {
+  const E = build2v2();
+  const user = placeSlot(E, 'self', 0, 'カビゴン', 'iyashinosuzu');
+  const ally = placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ゲンガー', null);
+  const foe1 = placeSlot(E, 'opp', 1, 'フシギバナ', null);
+  user.status = 'burn';
+  ally.status = 'paralysis';
+  foe1.status = 'burn';
+  E.sides.self.bench = [benchEntry('ピカチュウ', null)];
+  E.sides.self.bench[0].status = 'sleep';
+  E.setRandom(mulberry32(9));
+  E.runTurn();
+  assert.equal(user.status, 'none', '使用者(self:0)のやけどが治る');
+  assert.equal(ally.status, 'none', '場の味方枠(self:1)のまひも治る');
+  assert.equal(E.sides.self.bench[0].status, 'none', '控えのねむりも治る');
+  assert.equal(foe1.status, 'burn', '相手(opp:1)の状態異常は治らない(味方だけ)');
+  assert.ok(msgList(E.battleLog).some(m => m.includes('カメックス') && m.includes('状態異常が 治った')),
+    '場の味方枠のログは既存文言(「◯◯ の 状態異常が 治った！」)で出る');
+});

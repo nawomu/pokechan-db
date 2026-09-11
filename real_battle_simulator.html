@@ -1111,6 +1111,20 @@ const battle = {
 // D3-1b(同上§3): 側(sides[sideId])を1個の"枠"として包む配列。slotsPerSide=1では
 // sides[sideId].slots[0] は sides[sideId] と同一オブジェクト(挙動不変)。D3-2以降で枠を回す
 // ループ(activeSlots)の土台。formatが変わるたびに呼んで枠数を合わせる(2枠目=空席fixture)。
+// E1-b(2026-09-11・指示書 spec_e1_engine_slots.md b / 設計_ダブルバトル_2026-09-07.md§3
+// 「sides[sideId].conditions = 壁/しんぴのまもり/設置/おいかぜ」・監査A案): ★陣営の場★の欄の一覧。
+// この欄は sides[s](=枠0と同一オブジェクト)に1本だけ持ち、枠1以降は get/set アクセサで sides[s] を読み書きする。
+// → 枠0が張った壁/おいかぜ/設置物が相方にも効き(ダブル)、カウントダウンは側で1回だけ減る(二重減算しない)。
+// ★シングル(slotsPerSide=1)は下の for が0回実行=1bitも変わらない。
+// 出典: ポケモンWiki「リフレクター」「ひかりのかべ」「オーロラベール」「しんぴのまもり」「しろいきり」
+//       「おいかぜ」「ステルスロック」「まきびし」「どくびし」「ねばねばネット」= いずれも「味方側全体」にかかる効果。
+// ※healingWish(いやしのねがい)は「交代で出てきたその1匹」が受け取る=★枠★の予約なのでここには入れない
+//   (Bulbapedia "Healing Wish": the Pokémon that switches in)。
+const SIDE_CONDITION_SLOT_FIELDS = [
+  'reflect', 'lightScreen', 'auroraVeil', 'safeguard', 'mist', 'screenTurns',   // 壁・しんぴのまもり・しろいきり(+残りターン)
+  'tailwindTurns',                                                              // おいかぜ
+  'stealthRock', 'spikesLayers', 'toxicSpikesLayers', 'stickyWeb',              // 設置物
+];
 function syncSlotsToFormat(){
   const want = battle.format.slotsPerSide || 1;
   activeSides().forEach(function(s){
@@ -1139,6 +1153,15 @@ function syncSlotsToFormat(){
         configurable: true, enumerable: true,
         get(){ return st.megaUsed; },
         set(v){ st.megaUsed = v; },
+      });
+      // E1-b: 陣営の場(壁/しんぴのまもり/しろいきり/おいかぜ/設置物)も bench/megaUsed と同じアクセサ方式で
+      // sides[s] に1本化する。値コピーでなくアクセサにする理由も同じ(後から sides[s] を丸ごと差し替えても追随する)。
+      SIDE_CONDITION_SLOT_FIELDS.forEach(function(f){
+        Object.defineProperty(st.slots[i], f, {
+          configurable: true, enumerable: true,
+          get(){ return st[f]; },
+          set(v){ st[f] = v; },
+        });
       });
     }
   });
@@ -2460,6 +2483,16 @@ function orderSlotsBySpeedDesc(slots){
     return realStat(slotOf(b.side, b.idx), 'spd') - realStat(slotOf(a.side, a.idx), 'spd');
   });
 }
+// E1-d(2026-09-11・指示書 spec_e1_engine_slots.md d): 「場の誰かがこの特性を持っているか」(しめりけ等の
+// 場全体に効く特性)の判定を1本化する。両側の在場・生存枠を走査する。
+// ★シングル(各側1枠)は走査対象が {self,0}{opp,0} の2件=旧実装 (sideAbility(atk)===x || sideAbility(def)===x) と同値
+// (じばく系は def がひんしだと手前の「あいてが いなかった…」ゲートで必ず失敗するので、ここに生存判定を
+//  加えてもシングルの結果は変わらない=stdout diff 0 で確認済み)。
+function anySlotAbility(name){
+  return activeSlots().some(function(sl){
+    return sl.st && sl.st.poke && !sl.st.fainted && sideAbility(sl.st) === name;
+  });
+}
 // D4-2d: 道具の全枠判定を回す入口。シングル(slotsPerSide===1)は既存の固定順(self→opp)のまま
 // (stdout不変)。ダブルは上のorderSlotsBySpeedDescで素早さ順にする。
 function forEachSlotItemOrder(fn){
@@ -2765,6 +2798,18 @@ function effectsExcludingSelfScoped(mv){
   if (filtered.length === effs.length) return mv;
   return Object.assign({}, mv, { battle_data: Object.assign({}, mv.battle_data, { effects: filtered }) });
 }
+// E1-c(2026-09-11・指示書 spec_e1_engine_slots.md c): 上の対(つい)。self/team/party向けの効果「だけ」を
+// 残した技オブジェクトを返す(該当が無ければ null)。範囲技の対象ループの後に「自分向け効果を1回だけ」
+// 適用するための入口。★従来はここで未フィルタの mv を渡していたため、相手向けの追加効果
+// (いわなだれのひるみ等)が先頭の対象にもう1回ロールされていた(実測 ひるみ率 50.6% vs 期待 29.8%・
+// 同じ対象に「ひるんだ」が2本)。出典=ポケモンWiki「いわなだれ」(追加効果30%)。
+function effectsOnlySelfScoped(mv){
+  const effs = (mv.battle_data && mv.battle_data.effects) || [];
+  const only = effs.filter(function(e){ return e.target === 'self' || e.target === 'team' || e.target === 'party'; });
+  if (!only.length) return null;
+  if (only.length === effs.length) return mv;
+  return Object.assign({}, mv, { battle_data: Object.assign({}, mv.battle_data, { effects: only }) });
+}
 // D4-1a(§4.5「対象ループ」#50「1体分を全部やってから次」・#49「対象ごとに独立」): 範囲攻撃技(対象2体以上)の
 // 対象ループ本体。命中・急所・乱数・みがわり・持ち物は対象ごとに独立(phaseHitCheck/phaseDealDamageを
 // 対象ごとに呼ぶ=乱数もその中で対象ごとに引かれる)。まもるは対象ごとに判定(#55=じしん・なみのりも
@@ -2815,8 +2860,12 @@ function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlway
   forEachSlotItemOrder(function(side, idx){ resolveEjectButton(side, idx); });
   // 自分に向く効果(target:self/team/party)は技1回につき1回だけ、先頭(位置順)の対象に対して適用する
   // (defSide/defIdxはself/team/party効果では使われないので値そのものは実質関係ない=形式的に渡すだけ)。
-  if (firstTargetForSelfFx){
-    phaseApplyEffects(atkSide, firstTargetForSelfFx.side, mv, atkIdx, firstTargetForSelfFx.idx);
+  // E1-c: ★渡す技は effectsOnlySelfScoped(mv)=自分向け効果「だけ」。未フィルタの mv を渡すと
+  // 相手向けの追加効果(いわなだれのひるみ等)が先頭の対象に二重適用される(乱数も2回引く)。
+  // 自分向け効果が1つも無い技(いわなだれ/じしん等の大多数)は null=この後処理を丸ごと飛ばす。
+  const _selfFxMv = effectsOnlySelfScoped(mv);
+  if (firstTargetForSelfFx && _selfFxMv){
+    phaseApplyEffects(atkSide, firstTargetForSelfFx.side, _selfFxMv, atkIdx, firstTargetForSelfFx.idx);
   }
   if (anyHitSuccess) progressRampage(atk, mv); else noteActionFailed(atk);
   if (anyHitSuccess && ((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '次のターン行動不能')) atk.mustRecharge = true;
@@ -3051,8 +3100,11 @@ function _seedTryOne(st){
 // フィールドが「発生した瞬間」用: 両側を見る。両側とも対応シードを持っていたら素の素早さ実数値が
 // 高い方から解決する(補正なし=realStat(st,'spd')。出典: 仕様書項1)。
 function resolveTerrainSeeds(){
-  const order = (realStat(slotOf('self', 0), 'spd') >= realStat(slotOf('opp', 0), 'spd')) ? ['self', 'opp'] : ['opp', 'self'];
-  for (const s of order) _seedTryOne(sides[s]);
+  // E1-a4(2026-09-11・指示書 a.4): シード(エレキシード等)は★個体★の持ち物=全枠を見る。
+  // 解決順は従来どおり「素の素早さ実数値が高い方から」(補正なし・仕様書項1)。
+  // ★シングル(2枠)は orderSlotsBySpeedDesc の降順ソートが旧実装の `>=` 比較と同じ並びになる
+  // (同速は sort が安定=activeSlots の並び self→opp のまま=旧実装の「自分優先」と一致)=不変。
+  orderSlotsBySpeedDesc(activeSlots()).forEach(sl => _seedTryOne(slotOf(sl.side, sl.idx)));
 }
 // === フェーズ: Init-A 場に出た時の特性発動 ===
 // D4-3a(2026-09-11・設計_ダブルバトル_2026-09-07.md§5「同時入場の登場効果=全員出揃ってから
@@ -4130,8 +4182,9 @@ function updateForecastForm(st){
   st.forecastForm = ({sunny:'sunny', rain:'rain', snow:'snow'})[env.weather] || null;
 }
 function syncForecastBothSides(){
-  updateForecastForm(slotOf('self', 0));
-  updateForecastForm(slotOf('opp', 0));
+  // E1-a4(2026-09-11・指示書 a.4): てんきや(ポワルン)は★個体★の特性=全枠を同期する
+  // (updateForecastForm は特性が てんきや でない枠では何もしない)。シングルは枠0のみ=不変。
+  activeSlots().forEach(({st}) => updateForecastForm(st));
 }
 
 // === かたやぶり(段124) — 出典: ポケモンWiki「かたやぶり」 ===
@@ -4212,6 +4265,20 @@ rbRegisterHandler('stat_stage', 'amanojaku_reflect', (ctx) => {
 rbRegisterHandler('stat_stage', 'mirror_armor_reflect', (ctx) => {
   if (!(ctx.sg < 0 && ctx.fromOpponent)) return {handled:false};
   const {target, source, rk, rawStages, phase} = ctx;
+  // E1-e(2026-09-11・指示書 spec_e1_engine_slots.md e): 「実際には下がらない」なら跳ね返さない。
+  // 出典: ポケモンWiki「いかく」#特性の仕様「みがわり/しろいきり状態で防いだ場合や、すでに最低だったため
+  // 攻撃が下がらなかった場合、ミラーアーマーは発動しない。」(+ 同「第五世代以降での効果の発動順」手順=
+  // 「攻撃ランクがすでに最低なら不発」の段が「ミラーアーマーの発動」より前にある)。
+  //   ①すでに下限(or あまのじゃく反転で上限)でクランプされて1段も動かない → 不発
+  //   ②しろいきり(mist)で防がれる → 不発(後続の mist_guard が「能力が下がらない！」を出して止める)
+  // handled:false で通すので、この後の登録順(クリアボディ/しろいきり/はとむね/クリアチャーム/本体)が
+  // そのまま判定する=ログ・乱数消費の順序は変えない。
+  // ※みがわりは現行エンジンのこのパイプラインに入口が無い(変化技の肩代わりは phaseApplyEffects 側・
+  //   いかくはみがわりを貫通する実装のまま)=今回は①②だけを門にする(残りは報告の「未確認」へ)。
+  const _maBefore = target.rank[rk] || 0;
+  const _maAfter = Math.max(-6, Math.min(6, _maBefore + ctx.sg));
+  if (_maAfter === _maBefore) return {handled:false};
+  if (target.mist) return {handled:false};
   if (sideAbility(target) === 'ミラーアーマー' && source.rank[rk] !== undefined){
     log(phase || '9', `${pname(target)} は ミラーアーマーで 能力低下を 跳ね返した！`);
     applyRankStageGuarded(source, source, rk, rawStages, phase);   // 跳ね返り先は自己要因扱い(再度ここではガードしない)
@@ -4667,8 +4734,9 @@ function piercesSub(move, atk){
     || (bd.effects || []).some(e => e.kind === 'みがわり貫通');
 }
 function uproarActive(){
-  return activeSides().some(k => {
-    const st = sides[k];
+  // E1-a4(2026-09-11・指示書 spec_e1_engine_slots.md a.4): さわぐ(あばれ状態)は★個体★の状態=全枠を見る。
+  // シングルは枠0しかない=旧実装(sides['self']/sides['opp']の2件)と同値。
+  return activeSlots().some(({st}) => {
     return st.rampage && (((st.rampage.move.battle_data || {}).effects) || []).some(e => e.kind === '状態異常予防' && e.value === 'ねむり');
   });
 }
@@ -5467,7 +5535,10 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
       }
       if (!def.slips) def.slips = [];
       if (def.slips.some(sl => sl.source === 'やどりぎのタネ')) continue;   // 重ねがけ不可
-      def.slips.push({ source: 'やどりぎのタネ', fraction: (ef.fraction != null ? ef.fraction : 0.125), drains: true });
+      // E1-a1: 吸い取り先は「植えた側の位置」(Bulbapedia "Leech Seed": the Pokémon in that position)=
+      // 植えた瞬間の(atkSide, atkIdx)を記録する。シングルは常に(相手側, 0)=従来の sides[逆側] と同一オブジェクト。
+      def.slips.push({ source: 'やどりぎのタネ', fraction: (ef.fraction != null ? ef.fraction : 0.125), drains: true,
+        drainToSide: atkSide, drainToIdx: atkIdx });
       log('9', `${pname(def)} に やどりぎのタネを 植えつけた！`);
     } else if (ef.kind === 'なげつける'){
       // なげつけるの追加効果(最小限・Bulbapedia "Fling" special-effects表)。
@@ -5545,6 +5616,22 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
       // party/team(いやしのすず): 控えの状態異常も治す(パーティ波及。場が健康でも控えは治る)
       // 出典: ポケモンWiki「いやしのすず」(自分と手持ち全員の状態異常を治す)
       if (ef.target === 'party' || ef.target === 'team'){
+        // E1-f(2026-09-11・指示書 spec_e1_engine_slots.md f): ★場の味方枠★も治す。
+        // 出典の並びが「自分と味方と 手持ちのポケモン全員」(ヤックン /ch/ いやしのすず効果文・
+        // ポケモンWiki「いやしのすず」=てもち含む味方全員)なので、控え(bench)の前に「場の味方枠」を回す。
+        // cureTgt は自分の枠(= self/party/team の既定)。自分自身はこのあとの既存処理で治るので除く。
+        // ログは既存文言のみ(「◯◯ の 状態異常が 治った！」= bl の既存パターン)。
+        // ★シングルは自陣の枠が1つ=このループは0回(不変)。
+        const _cureSideKey = (cureTgt === def) ? defSide : atkSide;
+        (sides[_cureSideKey].slots || [sides[_cureSideKey]]).forEach(function(_al){
+          if (!_al || _al === cureTgt || !_al.poke || _al.fainted) return;
+          if (!_al.status || _al.status === 'none') return;
+          if (!(cureAll || _al.status === cureCode)) return;
+          _al.status = 'none';
+          _al.badpoisonCounter = 0;
+          _al.sleepTurns = null;
+          log('9', `${pname(_al)} の 状態異常が 治った！`);
+        });
         for (const b of (cureTgt.bench || [])){
           if (!b || !b.poke || b.fainted || !b.status || b.status === 'none') continue;
           if (cureAll || b.status === cureCode){
@@ -5902,8 +5989,8 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
       // ほろびのうた: 場の全員にほろびカウント。ターン終了ごとに 3→2→1 と減り0でひんし。
       // すでにカウント中のポケモンはリセットしない。交代で解除は交代未実装のため出番なし。
       // 出典: Bulbapedia "Perish Song"
-      for (const s of activeSides()){
-        const st = sides[s];
+      // E1-a4: 「場の全員」=全枠(ダブルは4体)。シングルは2枠=旧実装と同値。
+      for (const {st} of activeSlots()){
         if (!st.poke || st.fainted || st.perishCount != null) continue;
         st.perishCount = (ef.duration || 3) + 1;   // ターン終了で1減って「3」になる→0でひんし
       }
@@ -6050,8 +6137,8 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
         env.gravity = true;
         env.gravityTurns = ef.duration || 5;
         log('9', 'じゅうりょくが 強くなった！');
-        for (const s of activeSides()){
-          const st = sides[s];
+        // E1-a4: じゅうりょくで落とされる「溜め中の空中技」は★個体★の状態=全枠。シングルは2枠=不変。
+        for (const {st} of activeSlots()){
           if (st.charging && st.charging.move && GRAVITY_BLOCKED.includes(st.charging.move.name)){
             st.charging = null;
             log('9', `${pname(st)} は じゅうりょくで 空中にいられなくなった！`);
@@ -6116,9 +6203,12 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
 }
 
 // === フェーズ: 10a スリップダメ（やけど 1/16 / どく 1/8 / もうどく カウンタ式）===
-// 片側分のスリップダメージ (やけど/どく/もうどく + 砂嵐)
-function phaseSlipFor(s){
-  const st = sides[s];
+// 1枠分のスリップダメージ (やけど/どく/もうどく + 砂嵐)
+// E1-a1(2026-09-11・指示書 spec_e1_engine_slots.md a.1 / 設計_ダブルバトル_2026-09-07.md§3「個体の揮発(枠)」):
+// 第2引数 slotIdx を足して「側の枠0だけ」から「指定の枠」に一般化した。省略時=0 なので既存の呼び出し
+// (phaseSlipFor('opp') 等・tools/_sim_*_test.js の契約/runSingleAttack:6992)は無変更で従来どおり枠0を見る。
+function phaseSlipFor(s, slotIdx){
+  const st = slotOf(s, slotIdx || 0);
   if (!st.poke || st.fainted) return;
   const max = realStat(st, 'hp');
   // H8(2026-07-18): マジックガード(段111・出典 Bulbapedia "Magic Guard")は間接ダメージ全般を受けない
@@ -6173,8 +6263,12 @@ function phaseSlipFor(s){
   // turns付き(バインド=4〜5ターン)は数えて、使い切ったら とける。turnsなし(しおづけ等)は続く。
   // drains付き(やどりぎ)は削った分だけ相手側が回復する。
   if (st.slips && st.slips.length && !st.fainted){
-    const other = sides[s === 'self' ? 'opp' : 'self'];
     for (const sl of st.slips){
+      // E1-a1: 吸い取り先(やどりぎ)は「タネを植えた側の"位置"にいる個体」(Bulbapedia "Leech Seed"=
+      // HP is restored to the Pokémon in that position)。植えた時に記録した drainToSide/drainToIdx を読む。
+      // 記録の無い古いslip(undo復元前の既存データ等)は従来どおり「相手側の枠0」にフォールバック=シングル不変。
+      const other = sl.drainToSide ? slotOf(sl.drainToSide, sl.drainToIdx || 0)
+                                   : slotOf(s === 'self' ? 'opp' : 'self', 0);
       // H8(2026-07-18): マジックガードはやどりぎ/しおづけ/のろい/バインド等スリップ全般のダメージを受けない
       // (吸収側がダメージ0なので、やどりぎの吸い取り回復も0=Bulbapedia "Magic Guard"/"Seeding")。
       // トラップ継続(turns)自体は特性に関わらず進む=ダメージだけを防ぐ。
@@ -6213,7 +6307,11 @@ function phaseSlipFor(s){
 }
 
 function phaseEndOfTurnSlip(){
-  for (const s of activeSides()) phaseSlipFor(s);
+  // E1-a1(指示書 a.1「ダブルで枠1のどく/やけど/やどりぎ/たべのこし等が一切処理されない(実測 0/200)」):
+  // 個体単位の処理=全枠へ。順序は既存規約 forEachSlotItemOrder(=素の素早さ順・同速はcanonSlots)に合わせる。
+  // ★シングル(slotsPerSide===1)は forEachSlotItemOrder が fn('self',0)→fn('opp',0) の固定順に分岐する=
+  // 旧 for (const s of activeSides()) と1bitも変わらない(stdout diff 0 の根拠)。
+  forEachSlotItemOrder(phaseSlipFor);
 }
 
 // === 履歴スタック (Undo 用) ===
@@ -6698,10 +6796,11 @@ function runSingleAttack(atkSide, moveIdx){
   }
   // しめりけ(Damp・Phase D B1): 場のどちらかが持っていると、じばく/だいばくはつ/ミストバースト等の
   // 威力ありの自分瀕死技(自爆技)は誰も使えない(自分がしめりけ持ちでも自分の技はブロックされる)。
+  // E1-d(2026-09-11): 「場のどちらか」= anySlotAbility(両側の在場・生存枠)。ダブルでは味方枠・相手の右枠の
+  // しめりけも効く(Bulbapedia "Damp": 場にいるどのポケモンも使えなくなる)。
   // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Damp")
   if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '自分瀕死') &&
-      mv.power != null && mv.power !== '—' &&
-      (sideAbility(atk) === 'しめりけ' || sideAbility(def) === 'しめりけ')){
+      mv.power != null && mv.power !== '—' && anySlotAbility('しめりけ')){
     log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
     noteActionFailed(atk);
     renderBattleLog(); renderBoth(); return;
@@ -7214,13 +7313,21 @@ function applyBerryEffect(st, it){
 }
 
 // きんちょうかん(段134・ABILITY_DESC公式準拠): 相手はきのみを使えない(食べる系すべて)
+// E1-a2: ダブルでは相手の「どちらかの枠」にきんちょうかんが居ればきのみを食べられない
+// (ポケモンWiki「きんちょうかん」=相手はきのみを使えない=相手側の在場個体の特性を見る)。
+// シングルは相手側の枠が1つ=旧実装(sides[逆側]の1件)と同値。
 function berryBlocked(sideKey){
-  const foe = sides[sideKey === 'self' ? 'opp' : 'self'];
-  return !!(foe.poke && !foe.fainted && sideAbility(foe) === 'きんちょうかん');
+  const foeSide = sideKey === 'self' ? 'opp' : 'self';
+  return (sides[foeSide].slots || [sides[foeSide]]).some(foe =>
+    !!(foe && foe.poke && !foe.fainted && sideAbility(foe) === 'きんちょうかん'));
 }
 function itemReactions(){
-  activeSides().forEach(s => {
-    const st = sides[s];
+  // E1-a2(2026-09-11・指示書 spec_e1_engine_slots.md a.2): 道具の反応は個体単位=全枠へ。
+  // ダブルで枠1の道具(オボンのみ等)が一度も発動しなかった穴を閉じる。順序は既存規約
+  // forEachSlotItemOrder(=ダブルは素の素早さ降順・シングルは 'self',0 → 'opp',0 の固定順)。
+  // ★シングルは旧 activeSides().forEach と同じ2回・同じ順=stdout diff 0。
+  forEachSlotItemOrder((s, _slotIdx) => {
+    const st = slotOf(s, _slotIdx);
     if (!st.poke || st.fainted || !st.item || env.magicRoom) return;
     const it = ITEM_BY_KEY[st.item];
     if (!it) return;
@@ -8016,16 +8123,19 @@ function runTurn(){
   // ターンごとの通し番号(乱数なし・#31)。ターン開始でリセット=シングルでは使われない(不変)。
   _redirectSeq = 0;
   // 「前ターンの失敗」(じだんだ用)を確定し、今ターン分をリセット
-  activeSides().forEach(s => {
-    sides[s].lastTurnFailed = !!sides[s].failedThisTurn;
-    sides[s].failedThisTurn = false;
+  // E1-a4(指示書 a.4): ここの5欄はすべて★個体単位★(じだんだ/どげざつき/うっぷんばらし/交代直後の判定)=
+  // 全枠へ。上の activeSlots() ループ(7990)と同じ母集団。単純な代入だけなので順序には依存しない。
+  // シングルは activeSlots()===[{self,0},{opp,0}]=旧 activeSides() と同じ2件・同じ代入=不変。
+  activeSlots().forEach(({st}) => {
+    st.lastTurnFailed = !!st.failedThisTurn;
+    st.failedThisTurn = false;
     // 「前ターンに相手へダメージを与えたか」(どげざつき用)も同じタイミングで確定
-    sides[s].dealtDamageLastTurn = !!sides[s].dealtDamageThisTurn;
-    sides[s].dealtDamageThisTurn = false;
+    st.dealtDamageLastTurn = !!st.dealtDamageThisTurn;
+    st.dealtDamageThisTurn = false;
     // 「このターン能力を下げられた」(うっぷんばらし用)もターン開始でリセット
-    sides[s].statLoweredThisTurn = false;
+    st.statLoweredThisTurn = false;
     // 「このターン交代で出た」もターン開始でリセット
-    sides[s].switchedThisTurn = false;
+    st.switchedThisTurn = false;
   });
   log('Turn', '─── ターン開始 ───');
   // ② 交代フェーズ: 交代は技より必ず先に処理する。両者が交代を選んだ時はすばやさが高い順
@@ -8316,10 +8426,11 @@ function runTurn(){
     }
     // しめりけ(Damp・Phase D B1): 場のどちらかが持っていると、じばく/だいばくはつ/ミストバースト等の
     // 威力ありの自分瀕死技(自爆技)は誰も使えない(自分がしめりけ持ちでも自分の技はブロックされる)。
+    // E1-d(2026-09-11): 「場のどちらか」= anySlotAbility(両側の在場・生存枠)。ダブルでは味方枠・相手の右枠の
+    // しめりけも効く(Bulbapedia "Damp": 場にいるどのポケモンも使えなくなる)。
     // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Damp")
     if (((mv.battle_data && mv.battle_data.effects) || []).some(e => e.kind === '自分瀕死') &&
-        mv.power != null && mv.power !== '—' &&
-        (sideAbility(atk) === 'しめりけ' || sideAbility(def) === 'しめりけ')){
+        mv.power != null && mv.power !== '—' && anySlotAbility('しめりけ')){
       log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
       noteActionFailed(atk); continue;
     }
@@ -8611,8 +8722,11 @@ function runTurn(){
   // ターン終了処理
   phaseEndOfTurnSlip();
   // 遅延状態(あくび等)のカウントダウン→発動(ねむりターンのロールがあるので正準順=オンラインの状態一致)
-  canonSides().forEach(s => {
-    const st = sides[s];
+  // E1-a4(指示書 a.4): あくび等の遅延状態異常は★個体★の予約=全枠へ。ねむりターンのロールがあるので
+  // 順序は正準順(canonSlots=canonSidesの先→後 × 枠0→1)のまま=オンラインの状態一致。
+  // ★シングルは canonSlots() が canonSides() と同値(枠1つ)=乱数消費の順番も回数も不変。
+  canonSlots().forEach(({side: s, idx: _slotIdx}) => {
+    const st = slotOf(s, _slotIdx);
     if (st.pendingStatus){
       if (st.pendingStatus.turns > 0) st.pendingStatus.turns--;
       else {
@@ -8641,15 +8755,17 @@ function runTurn(){
   // グラスフィールドの毎ターン回復(データ宣言: 回復 phase=turn_end)— 地面にいるポケモンだけ
   const _fHeal = fieldRules().find(r => r.kind === '回復' && r.phase === 'turn_end');
   if (_fHeal && _fHeal.fraction != null){
-    for (const s of activeSides()){
-      const st = sides[s];
-      if (!st.poke || st.fainted || !isGrounded(st)) continue;
+    // E1-a4: グラスフィールドの毎ターン回復は★個体★(接地している個体だけ)=全枠へ。
+    // 順序は既存規約 forEachSlotItemOrder(シングルは 'self',0 → 'opp',0 の固定順=旧ループと同一)。
+    forEachSlotItemOrder((s, _slotIdx) => {
+      const st = slotOf(s, _slotIdx);
+      if (!st.poke || st.fainted || !isGrounded(st)) return;
       const max = realStat(st, 'hp');
-      if (st.currentHp == null || st.currentHp >= max) continue;
+      if (st.currentHp == null || st.currentHp >= max) return;
       const heal = Math.max(1, Math.floor(max * _fHeal.fraction));
       st.currentHp = Math.min(max, st.currentHp + heal);
       log('10', `${pname(st)} は フィールドで HPを ${heal} 回復！ (残HP ${st.currentHp})`);
-    }
+    });
   }
   // 技で展開したフィールドのカウントダウン(5ターン目の終わりに元に戻る。UI手動設定=null は無期限)
   if (env.fieldTurns != null && env.field !== 'none'){
@@ -8700,6 +8816,9 @@ function runTurn(){
   }
   itemReactions();   // B案: ターン終了処理(スリップ等)の後にも道具の発動チェック
   // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
+  // E1-b(2026-09-11・指示書 spec_e1_engine_slots.md b / 設計_ダブルバトル_2026-09-07.md§3「Side.sideConditions」):
+  // 壁は★側の欄★=側ごとに1回だけ減らす(枠で回すと2枠ぶん二重減算になる)。sides[s] は枠0と同一オブジェクト
+  // なので、枠1のアクセサ(下の syncSlotsToFormat)から読んでも同じ残りターンが見える。
   for (const s of activeSides()){
     const st = sides[s];
     if (!st.screenTurns) continue;
@@ -8713,8 +8832,15 @@ function runTurn(){
     }
   }
   // ちょうはつ/かなしばり/アンコールのカウントダウン(使われたターンを含めて持続ターンで切れる)
-  for (const s of activeSides()){
-    const st = sides[s];
+  // E1-a3(2026-09-11・指示書 spec_e1_engine_slots.md a.3): このループの中身は全部★個体単位★
+  // (ちょうはつ/かなしばり/アンコール/ほろびのうた/ロックオン/じごくづき/ねがいごと/ねをはる/アクアリング/
+  //  しゅうかく/でんじふゆう/テレキネシス/あめまみれ/かいふくふうじ/はんすう/ムラっけ/かそく/かんそうはだ/
+  //  サンパワー/アイスボディ/たべのこし/かえんだま/どくどくだま/くろいヘドロ/みらいよち)=全枠へ。
+  // ★側の欄だった「おいかぜ(tailwindTurns)」だけはこのループから出して、下の側ループで1回だけ減らす
+  // (枠で回すと2枠ぶん二重減算になる=壁のカウントダウンと同じ理由)。
+  // 順序は既存規約 forEachSlotItemOrder(シングルは 'self',0 → 'opp',0 の固定順=旧ループと同一)。
+  forEachSlotItemOrder((s, _slotIdx) => {
+    const st = slotOf(s, _slotIdx);
     if ((st.tauntTurns || 0) > 0){
       st.tauntTurns--;
       if (st.tauntTurns <= 0 && st.poke) log('10', `${pname(st)} の ちょうはつの 効果が切れた！`);
@@ -8836,11 +8962,7 @@ function runTurn(){
       st.healBlockTurns--;
       if (st.healBlockTurns <= 0){ st.healBlockTurns = 0; log('10', `${pname(st)} の 回復封じが 解けた！`); }
     }
-    // おいかぜのカウントダウン(4ターンでやむ)
-    if (st.tailwindTurns > 0){
-      st.tailwindTurns--;
-      if (st.tailwindTurns <= 0){ st.tailwindTurns = 0; log('10', `${pname(st)} 側の 追い風が やんだ！`); }
-    }
+    // (おいかぜ=側の欄のカウントダウンは E1-b でこのループの外=側ループへ移した)
     // はんすう(段138): きのみを食べた次のターン終了時に同じきのみをもう一度食べる(道具は復活しない)
     if (st.poke && !st.fainted && st.cudChew){
       st.cudChew.n--;
@@ -8996,12 +9118,16 @@ function runTurn(){
         const _fsMove = st.futureSight.move;
         st.futureSight = null;
         const _tk = s === 'self' ? 'opp' : 'self';
-        const _tgt = sides[_tk];
+        // E1-a3: ダブルでは「予知した時に狙っていた枠」を記録していない(futureSightは{turns,move}だけ)。
+        // 既存コードの「相手側」をこのエンジンの既存の対面規約=正面(同じslotIdx・3087行 かわりものと同じ)
+        // で読む。シングルは枠0しかないので従来の sides[_tk] と同一オブジェクト=不変。
+        // ★ダブルで「左右どちらに落ちるか」の出典は未取得=台帳(設計§11)扱い。正式化は対象選択の記録とセット。
+        const _tgt = slotOf(_tk, _slotIdx);
         if (st.poke && _tgt.poke && !_tgt.fainted){
           if (_tgt.protecting && _fsMove.protect === true && protectBlocks(_tgt.protecting, _fsMove)){
             log('10', `${pname(_tgt)} は ${_tgt.protecting.name} で ${_fsMove.name} を 防いだ！`);
           } else {
-            const _res = calcDamage(s, _tk, _fsMove);
+            const _res = calcDamage(s, _tk, _fsMove, undefined, _slotIdx, _slotIdx);
             if (_res.immune){
               log('10', `${pname(_tgt)} は ${_fsMove.name} の こうげきを うけた！ しかし こうかが ないようだ…`);
             } else {
@@ -9014,6 +9140,17 @@ function runTurn(){
           }
         }
       }
+    }
+  });
+  // E1-b(指示書 b・設計§3「Side.sideConditions」): 側の欄のカウントダウンは側ごとに1回。
+  // おいかぜは sides[s](=枠0と同一オブジェクト)に1本化されているので、ここで1回減らせば
+  // 枠1のアクセサからも同じ残りターンが見える(枠で回すと二重減算)。ログ文言は既存のまま。
+  for (const s of activeSides()){
+    const st = sides[s];
+    // おいかぜのカウントダウン(4ターンでやむ)
+    if (st.tailwindTurns > 0){
+      st.tailwindTurns--;
+      if (st.tailwindTurns <= 0){ st.tailwindTurns = 0; log('10', `${pname(st)} 側の 追い風が やんだ！`); }
     }
   }
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
@@ -9115,8 +9252,10 @@ function fullResetBattle(){
 function resetBattle(){
   lastMoveAnywhere = null;   // まねっこ用の直前技もリセット
   syncSlotsToFormat();   // D3-1b: 枠数をformatに合わせる(slotsPerSide=2のfixtureはここでslots[1]=空席が生える)
-  activeSides().forEach(s=>{
-    const st = sides[s];
+  // E1-a4(2026-09-11・指示書 a.4): バトルリセットで消す欄はほぼ全部★個体★の揮発=全枠へ
+  // (枠1だけ前のバトルのHP/状態/ランクが残る穴を閉じる)。側の欄(壁/設置/おいかぜ)は枠1のアクセサが
+  // sides[s]を指すので同じ値を2回入れるだけ=結果は同じ。シングルは slots.length===1=旧ループと同値。
+  activeSlots().forEach(({st})=>{
     revertTransform(st);   // へんしん状態はバトル終了で解ける(元のすがた・技に戻してからHPを引き直す)
     if (st.poke) st.currentHp = realStat(st, 'hp');
     st.fainted = false;
@@ -9216,10 +9355,11 @@ function startBattle(){
   syncSlotsToFormat();   // D3-1b: 念のため枠数をformatに合わせてから開始(通常は既に同期済み=no-op)
   pushHistory();
   log('Start', '─── バトル開始 ───');
-  initPP(slotOf('self', 0)); initPP(slotOf('opp', 0));   // PP管理開始(段129)
+  // E1-a4(2026-09-11・指示書 a.4): PP管理(段129)と「場に出た！」は★個体★単位=全枠へ。
+  // シングルは activeSlots()===[{self,0},{opp,0}]=旧コードと同じ順・同じ2件(ログ文言も既存のまま)=不変。
+  activeSlots().forEach(({st}) => initPP(st));
   // 誰が場に出たかを履歴に残す
-  if (slotOf('self', 0).poke) log(`Start`, `${pname(slotOf('self', 0))} が 場に出た！`);
-  if (slotOf('opp', 0).poke)  log(`Start`, `${pname(slotOf('opp', 0))} が 場に出た！`);
+  activeSlots().forEach(({st}) => { if (st.poke) log(`Start`, `${pname(st)} が 場に出た！`); });
   phaseInitA();
   renderBattleLog();
   renderBoth();
