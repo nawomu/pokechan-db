@@ -74,6 +74,11 @@
 
 残: T6(ミルクのみ effects target=B064語彙)/ T7(新15技の effects をChampions正典で再確認=説明文は一致確認済み)/ ガブリアスナイトZ・ボーマンダナイトの入手(ヤックン未掲載)/ D1検収→D2。
 
+### 9/11 朝の阿部さん確認(追記)
+- 阿部さん: 開発プレビューはそのまま本番にしない。**本番=リアルバトルと同じ流れ(6体編成・おまかせ編成・能力値 → 6→4選出 → 2体並ぶバトル画面)で、トップページに「ダブルバトル」**。実機画面を参考にする。
+- 阿部さんから **Champions ダブルの実機スクショ6枚**(選出2枚・対戦準備・盤面・技選択・**対象選択**)→ `review/_doubles_research_2026-09-07/03_実機画面の観察_選出と対象選択_2026-09-11.md` に文字起こし。**台帳#22(対象選択UI)決着**・新規 #106〜#111。
+- 阿部さん情報: **M-C から選出画面に「つよさの表示」(相手ポケモンの ▲有利/▼不利/!要注意)がシングルにも出る**(計算式は未確認=#106)。
+
 ### 🙋 朝に判断してほしいこと(9/11 未明時点)
 1. **開発プレビューページ `battle_doubles_preview.html` の存置**(ページ台帳に「暫定・未承認・D6で入口Aへ統合後に削除」で登録して push 済み)。承認=そのまま / 不承認= `git rm battle_doubles_preview.html tools/_doubles_preview_pdca_playwright.js` + ui-*.json の `doubles_preview.*` 削除 + 台帳から行を消す。ローカルで `http://localhost:8000/battle_doubles_preview.html`(本番は https://pchamdb.com/battle_doubles_preview.html ・noindex・どこからもリンク無し)。
 2. **D6(入口A=real_battle に形式ボタン・オンライン)へ進めてよいか**。オンラインの鏡写しは Supabase 不通(`HANDOFF_SESSION_2026_09_07_DOUBLES.md` §5)が直るまで検証できない。
