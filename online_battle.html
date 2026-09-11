@@ -3056,6 +3056,18 @@ function startBattle(){
   }
   // ★D6-2(a-1): 枠1(ダブルのみ)。setFormat の「あと」=エンジンが作った slots[1] へ直接載せる
   if (boardSlots() > 1){ buildSlotExtra('self', orderedIds('self')); buildSlotExtra('opp', orderedIds('opp')); }
+  // ★D6-4(2026-09-11): ダブルの死に出しは「どの枠に入れるか」をページが決める(台帳#65)ので、
+  // エンジンへ __rbDeferFaintReplaceSlots を立てて自分側の空席を枠1も含めて保留させる
+  // (real_battle_simulator.html:9055-9061)。single では立てない=従来の死に出し経路が1行も変わらない。
+  // 相手(AI)側はエンジンが自動補充する=ダブルAI戦に入る時だけ __rbDeferFaintReplaceOpp を下ろす
+  // (オンライン対戦を1回遊んだ後に同じページでAI戦を始めると true が残っていて相手が永久に空席になる)。
+  try {
+    const _ew = engineWin();
+    if (_ew){
+      _ew.__rbDeferFaintReplaceSlots = isDoubleBoard();
+      if (isDoubleBoard() && !(window.RB_ONLINE && RB_ONLINE.started)) _ew.__rbDeferFaintReplaceOpp = false;
+    }
+  } catch (e) {}
   // ★AI戦(選出画面経由)も交代画面の相手開示ルールをオンラインと同じ形で使う(2026-07-11 阿部さん)。
   // オンライン中(RB_ONLINE.started)はonlineBegin側で既にセット済みなので上書きしない。
   // 「つぎの相手」連戦(__randomizeOppで相手を引き直してstartBattleを直接呼ぶ経路)でも古いfullTeamsが
@@ -4147,13 +4159,17 @@ function doSwitchTo(idx){
     pt.style.display = 'none';
     actTimerStop();   // 交代先確定=COMMANDタイマー停止(AI戦もオンラインと同じく即停止・2026-07-11)
     logPos = S.battleLog.length;
-    S.attemptSwitch('self', idx, {ignoreTrapping: true, faintReplace: true});
+    // ★D6-4: 補充する枠を渡す(エンジンは (opts.slotIdx)||0 で受ける=real_battle_simulator.html:7381
+    // → swSlotIdx が 0(シングル/枠0)の時は slotIdx を渡さないのと完全に同値=シングル不変)。
+    const _swOk = S.attemptSwitch('self', idx, {ignoreTrapping: true, faintReplace: true, slotIdx: swSlotIdx});
     // 新しい子は登場拍(いけっ！の声)まで隠す=前触れなくポンと出るのを防ぐ(2026-07-06 阿部さん)
-    const ff = $('f-self'); if (ff){ ff.classList.remove('recall', 'enter'); ff.classList.add('gone'); }
-    const pbSelf = $('pb-self'); if (pbSelf) pbSelf.style.visibility = 'hidden';
+    // ★D6-4: 隠す対象はいま補充した枠(枠0は slotKey が 'self' を返す=従来と同じid)
+    const _fk = slotKey('self', swSlotIdx);
+    const ff = $('f-' + _fk); if (ff){ ff.classList.remove('recall', 'enter'); ff.classList.add('gone'); }
+    const pbSelf = $('pb-' + _fk); if (pbSelf) pbSelf.style.visibility = 'hidden';
     renderAll();   // 隠れたまま新しい子のスプライトを組む(表示は登場拍のenter fxが行う)
     const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
-    say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
+    say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => afterFaintReplaceDone(_swOk));
     return;
   }
   // ★D6-3(b-1): ダブルは「いま選んでいる枠」の交代としてエンジンへ書く(枠1だけ交代できる=
@@ -4161,6 +4177,59 @@ function doSwitchTo(idx){
   if (isDoubleBoard() && S.setChoice) S.setChoice('self', swSlotIdx, { switchIdx: idx });
   else S.sides.self.switchChoice = idx;
   doTurn(null);   // 交代をこのターンの行動に
+}
+// ===================================================================
+// ★D6-4(2026-09-11): ダブルの死に出し(枠ごとの補充選択)。
+// 設計=設計_ダブルバトル_2026-09-07.md §7(複数ひんし・死に出しはターン終了直前)。
+// エンジンは __rbDeferFaintReplaceSlots を見て自分側の空席を枠1も含めて保留する
+// (real_battle_simulator.html:9055-9061)ので、ページが枠0→枠1の順に1枠ずつ選ばせて
+// attemptSwitch(slotIdx) で埋める。見た目・文言は既存の交代画面のまま(新しい文言は作らない)。
+// ★台帳#65 未確認: 「空席2・生きた控えが1体」のとき どちらの枠に入れるかを選ばせるかは実機未観察
+//   → 既定=左(枠0)から埋める。埋まらない枠は空席のまま続行する(エンジンも同じ=#68)。
+// ★台帳#7/#14/#15 の既知の制限: 相手(AI)側はエンジンがターン終了時に自動で埋め、自分側はその後に
+//   画面で選ぶ=結果として「相手が先に出る」。登場効果(いかく等)も1体ずつ attemptSwitch の中で
+//   即発動するので「全員出揃ってからすばやさ順」にはならない(エンジン側の deferEntry は別票)。
+// ===================================================================
+// 次に補充する自分の枠(枠0=左 → 枠1)。生きた控えが無ければ null。
+// ★空席(st.poke が無い枠)は対象にしない: エンジンの attemptSwitch は st.poke が無い枠を拒否する
+//   (real_battle_simulator.html:7383)=ページが求めても埋められない(ふっかつのいのり等で控えが
+//   生き返った後の空席は、エンジンの自動補充と同じく空席のまま続行する)。
+function nextSelfFaintReplaceSlot(){
+  if (!isDoubleBoard()) return null;
+  const liveBench = (S.sides.self.bench || []).some(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
+  if (!liveBench) return null;
+  const need = boardSlotIdxs().filter(i => {
+    const st = slotStateOf('self', i);
+    return st && st.poke && (st.fainted || (st.currentHp != null && st.currentHp <= 0));
+  });
+  return need.length ? need[0] : null;   // 台帳#65 未確認: 既定=左(枠0)から
+}
+// その枠の補充を求める(文言は既存の faint_replace_prompt と既存の交代画面=新規キーなし)。
+// どの枠かは「倒れた子の名前」で分かる(枠の位置を表す既存の語彙は i18n に無いので添えない)。
+function beginFaintReplaceSlot(slotIdx){
+  const st = slotStateOf('self', slotIdx);
+  if (st && st.poke){
+    pushMsgLine(`${tPokeName((st.illusionAs || st.poke).name)} ${I18N.t('real_battle.faint_replace_prompt','は たおれてしまった… つぎのポケモンを えらんでね')}`);
+    $('msgbox').style.display = 'block';   // CH: sayを経由しない案内なので明示的に出す
+  }
+  showParty(true, false, slotIdx);
+  actTimerStop(); RB_ACT.turn = -1; actTimerStart();   // 死に出しに45秒(枠0と同じ)
+  // 案内は一度見せたら引っ込める(交代リストに文字が被る=2026-07-06 阿部さん)
+  setTimeout(() => { if ($('party').style.display !== 'none') $('msgbox').style.display = 'none'; }, 2200);
+}
+// 死に出しの交代が1件終わった後: 次の空席があればもう一度選ばせる(設置技で即ひんしになった枠も
+// ここで再度求める=行動順再評価§2)。シングルは従来どおり showActionUI() だけ(1行も変わらない)。
+function afterFaintReplaceDone(swOk){
+  if (isDoubleBoard()){
+    // 交代が失敗した(出せない)時は同じ枠を求め直さない=無限ループを作らない
+    if (swOk !== false){
+      const nx = nextSelfFaintReplaceSlot();
+      if (nx != null){ beginFaintReplaceSlot(nx); return; }
+    }
+    // 補充の途中で勝敗が付いた(設置技で全滅等)なら既存の勝敗判定へ返す(ページで判定を作らない)
+    if (S.isSideDefeated && (S.isSideDefeated('self') || S.isSideDefeated('opp'))){ endOfTurn(); return; }
+  }
+  showActionUI();
 }
 function showParty(forced, pivot, slotIdx){
   $('cmd').style.display = 'none';
@@ -5485,10 +5554,20 @@ function endOfTurn(){
     onlineBeginFaintReplace();
     return;
   }
+  // ★D6-4(2026-09-11): ダブルの死に出し=空席を枠0→枠1の順に1つずつ、既存の交代画面で選ばせる
+  // (エンジンは __rbDeferFaintReplaceSlots で自分側の空席を枠1も含めて保留済み)。
+  // 勝敗は上で先に見ているので「勝敗が付いていれば補充しない」は満たされている。
+  // 生きた控えが無い/空席のままにする枠は null が返る=下の従来コードへ落ちる(ダブルは _liveBenchSelf が
+  // false なので素通り=枠を空席のまま続行)。シングルはこの if に入らない=従来の経路が1行も変わらない。
+  if (isDoubleBoard()){
+    const _repSlot = nextSelfFaintReplaceSlot();
+    if (_repSlot != null){ beginFaintReplaceSlot(_repSlot); return; }
+  }
   // 死に出し(自分側): エンジンが保留した交代先をプレイヤーが選ぶ(控え2匹以上の時だけ保留される)。
   // ★D6-2(c-2): ダブルで控えが1体も生き残っていない場合は枠0を空席のまま続行する(エンジンもそうする)。
   // この保険が無いと「選べる控えが無い交代画面」が出たまま進めなくなる(シングルでは控えゼロ=負け確定
-  // なので上の dead() で先に抜ける=この条件は1行も効かない)。枠1の死に出し選択UIは D6-4。
+  // なので上の dead() で先に抜ける=この条件は1行も効かない)。
+  // ★D6-4: 枠ごとの補充選択は上の if で済んでいる=ダブルがここへ来るのは「生きた控えが無い」時だけ。
   const _liveBenchSelf = (S.sides.self.bench || []).some(e => e && e.poke && !e.fainted && !(e.currentHp != null && e.currentHp <= 0));
   if (S.sides.self.fainted && (!isDoubleBoard() || _liveBenchSelf)){
     pushMsgLine(`${tPokeName(S.sides.self.poke.name)} ${I18N.t('real_battle.faint_replace_prompt','は たおれてしまった… つぎのポケモンを えらんでね')}`);
