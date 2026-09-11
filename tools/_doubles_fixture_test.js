@@ -1874,3 +1874,183 @@ test('E2-x-1: ものまねハーブは相手枠の上昇だけをコピーする
     `味方の上昇はコピーしない(実際=${herbAlly.rank.atk})`);
   assert.equal(String(herbAlly.item), 'mirror_herb', 'ものまねハーブは消費されない');
 });
+
+// ============================================================================
+// E3(2026-09-12・spec_e3_ally_moves.md): ダブル専用の技
+//   機構1 ワイドガード(側の欄 sideProtect / kind=範囲まもり)
+//   機構2 ファストガード(同じ側の欄・先制技だけ)
+//   機構3 サイドチェンジ(位置入替)
+// ★出典つきの主張(Wiki逐語)の検査は tools/_doubles_audit/wide_guard_quick_guard_test.js /
+//   ally_switch_test.js(監査=期待値は権威ソース)が持つ。ここは「実装の土台が壊れていないか」
+//   (側の欄のアクセサ・ターン境界・解除・入替の不変条件・予約された行動の追随)を見る。
+// ============================================================================
+
+// ===== E3-1: 側のまもりは「側の欄」=枠1が張っても枠0の味方が守られる =====
+// 出典: ポケモンWiki「ワイドガード」効果「そのターンの間、味方全体を複数のポケモンが対象になる技から守る。」
+test('E3-1: 枠1(右)が張ったワイドガードで枠0(左)の味方も範囲技から守られる', () => {
+  const E = build2v2();
+  const ally = placeSlot(E, 'self', 0, 'カメックス', null);              // 守られるべき味方(行動しない)
+  placeSlot(E, 'self', 1, 'フシギバナ', 'waidogaado');                   // ★枠1が張る(側の欄アクセサ経由)
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'jishin');                        // 相手の範囲技
+  placeSlot(E, 'opp', 1, null, null);
+  const hp0 = ally.currentHp;
+  E.setRandom(mulberry32(5));
+  E.runTurn();
+  assert.equal(ally.currentHp, hp0,
+    `枠1が張っても側全体が守られる(枠0のHP ${hp0}→${ally.currentHp})\n` + msgList(E.battleLog).join('\n'));
+});
+
+// ===== E3-2: ファストガードは優先度0の技を防がない(過剰ブロックの負のコントロール) =====
+// 出典: ポケモンWiki「ファストガード」効果「そのターンの間、味方全体を優先度が高いわざから守る。」
+test('E3-2: ファストガード中でも優先度0の単体技は味方に通る', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'fasutogaado');
+  const ally = placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'hataku', { targetChoice: { side: 'self', idx: 1 } });
+  placeSlot(E, 'opp', 1, null, null);
+  const hp0 = ally.currentHp;
+  E.setRandom(mulberry32(5));
+  E.runTurn();
+  assert.ok(ally.currentHp < hp0,
+    `優先度0の技は防がない(味方HP ${hp0}→${ally.currentHp})\n` + msgList(E.battleLog).join('\n'));
+});
+
+// ===== E3-3: 側のまもりは「そのターンの間」だけ=次のターンには残らない =====
+test('E3-3: ワイドガードは次のターンには残らない(ターン境界でクリア)', () => {
+  const E = build2v2();
+  const user = placeSlot(E, 'self', 0, 'フシギバナ', 'waidogaado');
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'jishin');
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(5));
+  E.runTurn();                                   // 1ターン目: 守る
+  const hp1 = user.currentHp;
+  assert.equal(hp1, E.realStat(user, 'hp'), '1ターン目は無傷');
+  user.moves = []; user.selectedMoveIdx = null;   // 2ターン目はワイドガードを使わない
+  E.runTurn();
+  assert.ok(user.currentHp < hp1,
+    `2ターン目はワイドガードが残っていないのでじしんが通る(HP ${hp1}→${user.currentHp})\n` + msgList(E.battleLog).join('\n'));
+});
+
+// ===== E3-4: フェイントは側のまもりを取り除く(1体に当たれば味方全員ぶん解除) =====
+// 出典: ポケモンWiki「ワイドガード」技の仕様「フェイント/…を受けるとワイドガードは取り除かれる。」
+//       「1体のポケモンに当たればその味方全員のワイドガード状態が解除される。」
+test('E3-4: フェイントでワイドガードが解除され、後から来た範囲技が味方にも通る', () => {
+  const E = build2v2();
+  const user = placeSlot(E, 'self', 0, 'フシギバナ', 'waidogaado');      // 優先度+3
+  const ally = placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'feinto', { targetChoice: { side: 'self', idx: 0 } });   // 優先度+2
+  placeSlot(E, 'opp', 1, 'カメックス', 'jishin');                        // 優先度0(フェイントの後)
+  const allyHp0 = ally.currentHp;
+  E.setRandom(mulberry32(9));
+  E.runTurn();
+  assert.ok(ally.currentHp < allyHp0,
+    `フェイントを1体が受けたら味方全員ぶんのワイドガードが消える(味方HP ${allyHp0}→${ally.currentHp})\n`
+    + msgList(E.battleLog).join('\n'));
+  assert.equal(user.sideProtect, null, '側の欄(sideProtect)が消えている');
+});
+
+// ===== E3-5: 位置入替のあとも「予約した個体」が自分の行動をする =====
+// 入替は枠オブジェクトの中身の交換なので、予約(Intent)を枠番号のまま引くと別個体の行動になる。
+test('E3-5: サイドチェンジの後、まだ行動していない味方は自分の技を自分で出す', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カメックス', 'hataku', { targetChoice: { side: 'opp', idx: 0 } });
+  placeSlot(E, 'self', 1, 'フーディン', 'saidochenji');   // 優先度+2=先に入替
+  placeSlot(E, 'opp', 0, 'ケンタロス', null);
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(11));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.equal(E.slotOf('self', 0).poke.name, 'フーディン', '前提: 入替が成立している');
+  assert.ok(log.some(m => /^カメックス の はたく！/.test(m)),
+    `はたくを出したのは予約した個体(カメックス)であるべき\n` + log.join('\n'));
+  assert.ok(!log.some(m => /^フーディン の はたく！/.test(m)),
+    `入替で枠に来たフーディンが味方の技を出してはいけない\n` + log.join('\n'));
+});
+
+// ===== E3-6: 入替で「対象位置」に使用者自身が来た技は失敗する =====
+// 出典: ポケモンWiki「サイドチェンジ」技の仕様「…自分以外の1体が対象の技/味方1体が対象の技の対象位置に
+//   技の使用者自身が移動していた場合、その技は失敗する。」(Wikiの例=いやしのはどうと同じ形)
+test('E3-6: 味方が使用者の位置へ撃った味方1体対象の技は、入替で自分自身の位置になり失敗する', () => {
+  const E = build2v2();
+  const ally = placeSlot(E, 'self', 0, 'フレフワン', 'aromamisuto', { targetChoice: { side: 'self', idx: 1 } });
+  placeSlot(E, 'self', 1, 'フーディン', 'saidochenji');
+  placeSlot(E, 'opp', 0, 'ケンタロス', null);
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(11));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.equal(E.slotOf('self', 0).poke.name, 'フーディン', '前提: 入替が成立している');
+  assert.equal(ally.rank.spdef, 0,
+    `対象位置に自分自身が来たのでアロマミストは失敗する(とくぼう=${ally.rank.spdef})\n` + log.join('\n'));
+  assert.ok(log.some(m => /アロマミスト！ しかし うまく きまらなかった！$/.test(m)),
+    `既存の失敗文言で失敗する\n` + log.join('\n'));
+});
+
+// ===== E3-7: 入替の不変条件(slots[0] === sides[s] と 側の欄のアクセサ)が壊れていない =====
+test('E3-7: サイドチェンジの後も枠0===側のオブジェクトで、枠1の側の欄アクセサが生きている', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カメックス', null);
+  placeSlot(E, 'self', 1, 'フーディン', 'saidochenji');
+  placeSlot(E, 'opp', 0, 'ケンタロス', null);
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(11));
+  E.runTurn();
+  assert.equal(E.slotOf('self', 0).poke.name, 'フーディン', '前提: 入替が成立している');
+  assert.equal(E.sides.self.slots[0], E.sides.self, '枠0は側のオブジェクトそのもの(自己修復で枠1が消える条件を踏んでいない)');
+  assert.equal(E.sides.self.slots.length, 2, '枠が2つのまま残っている');
+  // 側の欄(壁)のアクセサ: 枠1に書くと枠0(=側)でも読める
+  E.slotOf('self', 1).reflect = true;
+  assert.equal(E.sides.self.reflect, true, '枠1の側の欄アクセサが sides[s] を指したまま');
+  E.slotOf('self', 1).reflect = false;
+  // 個体の欄(HP)は枠ごとに独立したまま
+  assert.notEqual(E.slotOf('self', 0), E.slotOf('self', 1), '枠0と枠1は別オブジェクトのまま');
+});
+
+// ============================================================================
+// E3 追加(2026-09-12・オンライン ロックステップ監査): forEachSlotItemOrder の正準化
+//   旧実装は ①シングル枝が fn('self',0); fn('opp',0) の側ラベル決め打ち
+//            ②ダブル枝の同速タイが安定ソート=入力順(self先)
+//   のどちらも「側ラベル依存」で、A/Bのクライアント(self/oppが鏡写し)で処理順が逆になり
+//   この順を通る乱数点(ターン終了のしゅうかく/ムラっけ 等)が desync していた。
+//   正しくは canonSides()/canonSlots()(=ホスト基準の正準順)で回す。
+// ★ここでは「__rbCanonFirst='opp' を立てた鏡写しのエンジン」と「立てないエンジン」で、
+//   同じ seed から★同じ実体★(鏡写しで対応する枠)が同じ乱数を引くことを確認する。
+// ============================================================================
+// vm(別レルム)の window へ触るための入口。エンジン関数は vm 内で作られているので、その Function
+// コンストラクタ経由で vm の globalThis を取れる(_sim_engine.js は window を公開していないため)。
+function vmWindowOf(E) {
+  return E.runTurn.constructor('return this')().window;
+}
+// 同速(同種)の2体に ムラっけ(ターン終了に乱数2回)を持たせて1ターン回し、両者のランクを返す。
+// canonFirst='opp' を立てると canonSides() が ['opp','self'] になる=鏡写しのクライアント側。
+function moodyRanksAfterTurn(canonFirst) {
+  const E = buildEngine();
+  const win = vmWindowOf(E);
+  if (canonFirst) win.__rbCanonFirst = canonFirst; else delete win.__rbCanonFirst;
+  E.setFormat({ slotsPerSide: 1 });
+  for (const s of ['self', 'opp']) {
+    const st = E.slotOf(s, 0);
+    st.poke = pokeByName('フシギバナ');      // 同種=素の素早さが必ず同値=タイを踏む
+    st.ability = 'ムラっけ';
+    st.moves = []; st.selectedMoveIdx = null;
+    st.currentHp = E.realStat(st, 'hp');
+    st.fainted = false;
+  }
+  E.setRandom(mulberry32(2026));
+  E.runTurn();
+  const pick = st => ({ atk: st.rank.atk, def: st.rank.def, spatk: st.rank.spatk, spdef: st.rank.spdef, spd: st.rank.spd });
+  return { self: pick(E.slotOf('self', 0)), opp: pick(E.slotOf('opp', 0)) };
+}
+
+test('E3-canon-1: ムラっけの乱数消費順が側ラベルに依存しない(鏡写しの2クライアントで同じ実体が同じ結果)', () => {
+  const A = moodyRanksAfterTurn(null);     // クライアントA(ホスト側=正準の先頭が self)
+  const B = moodyRanksAfterTurn('opp');    // クライアントB(鏡写し=自分から見た opp がホスト)
+  // 非自明であることの確認(2体の結果が同じなら、この検査は何も言っていない)
+  assert.notDeepEqual(A.self, A.opp, '前提: 先に引いた方と後に引いた方で結果が違う(=順序が観測できる)');
+  // 鏡写しの対応: Aの self ⇔ Bの opp が同じ実体。
+  assert.deepEqual(B.opp, A.self,
+    `鏡写しの相手枠(=Aの自分)が同じ乱数を引くはず A.self=${JSON.stringify(A.self)} B.opp=${JSON.stringify(B.opp)}`);
+  assert.deepEqual(B.self, A.opp,
+    `鏡写しの自分枠(=Aの相手)が同じ乱数を引くはず A.opp=${JSON.stringify(A.opp)} B.self=${JSON.stringify(B.self)}`);
+});

@@ -1124,6 +1124,13 @@ const SIDE_CONDITION_SLOT_FIELDS = [
   'reflect', 'lightScreen', 'auroraVeil', 'safeguard', 'mist', 'screenTurns',   // 壁・しんぴのまもり・しろいきり(+残りターン)
   'tailwindTurns',                                                              // おいかぜ
   'stealthRock', 'spikesLayers', 'toxicSpikesLayers', 'stickyWeb',              // 設置物
+  // E3(2026-09-12・spec_e3_ally_moves.md 機構1/2): ワイドガード/ファストガードの「側のまもり」。
+  // {kind:'wide'|'quick', move} / null。★このターンだけの揮発(runTurn冒頭で protecting と同じ場所でクリア)
+  // だが、置き場所は★側★(枠0=sides[s]の1本)。理由=Wiki「そのターンの間、味方全体を…守る」=
+  // 守られるのは使用者だけでなく側の全枠。枠1以降は上の bench/megaUsed と同じ get/set アクセサで
+  // sides[s] を読み書きする(枠1が張っても枠0が守られる/その逆も同じ1本を見る)。
+  // ★シングル(slots.length===1)は下の for が0回実行=この欄は sides[s] の素の値のまま=挙動不変。
+  'sideProtect',
 ];
 function syncSlotsToFormat(){
   const want = battle.format.slotsPerSide || 1;
@@ -1261,6 +1268,13 @@ function makeSideState(){
     enduring: false,
     // まもる系・こらえる共通の連続成功カウント(成功のたび+1。失敗 or 別の行動で0に戻る=成功率が1/3ずつ下がる)
     protectStreak: 0,
+    // E3(2026-09-12・機構1/2): 側のまもり(ワイドガード/ファストガード)= {kind:'wide'|'quick', move} / null。
+    // 枠0(=sides[s])に1本だけ持ち、枠1以降は SIDE_CONDITION_SLOT_FIELDS のアクセサでここを読み書きする。
+    sideProtect: null,
+    // E3(機構3): サイドチェンジの連続使用カウント。★まもる系(protectStreak)とは別勘定。
+    // 出典: ポケモンWiki「サイドチェンジ」第九世代「まもる系の技の成功率とは区別され、これらの技と
+    //       サイドチェンジを交互に使用するときならどちらも必ず成功する。」
+    allySwitchStreak: 0,
     // 揮発スリップ状態(しおづけ/のろい): {source, fraction} の配列。毎ターン終了時に最大HP×fractionを削る。
     slips: [],
     // ねむりの残り行動カウント(技で眠った時のみ。null=UI手動のねむり=眠り続ける)。行動時に減り、0で目覚める。
@@ -2562,9 +2576,21 @@ function canonSlots(){
 // D4-2d(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.5末尾/§9.29「レッドカードの左右の定義」と同型):
 // 複数枠が同時に道具条件を満たす時は「素の素早さが高い枠から」処理する(Wiki レッドカード/だっしゅつボタン
 // 本文=補正抜きの実数値順。台帳での決定と同じ根拠を道具にも適用)。
+// E3(2026-09-12・オンライン ロックステップ監査): 同速タイの決着を★正準順(canonSlots)★にする。
+// 旧実装は比較関数が同値を返すだけ=Array#sortの安定性で「入力順」(activeSlots()=常にself先)になり、
+// A/Bのクライアントで self/opp のラベルが鏡写しなので★処理順が逆になる=desyncの源★だった
+// (この順を通る乱数点: ターン終了の個体ループのしゅうかく/ムラっけ・レッドカードの控えランダム・
+//  順序依存のスリップ/やどりぎ)。orderSlotsBySpeedForPhase が同速タイに使っている方式と同じ
+// (乱数を引かない・canonSlots()のrankIdx比較)に揃える。
+// ★オフライン(window.__rbCanonFirst 未設定)では canonSides()=['self','opp'] なので canonSlots() の順は
+//   activeSlots() と同じ並び=旧実装と1bitも変わらない(stdout diff 0 で確認)。
 function orderSlotsBySpeedDesc(slots){
+  const rank = canonSlots();
+  const rankIdx = function(sl){ return rank.findIndex(function(r){ return r.side === sl.side && r.idx === sl.idx; }); };
   return slots.slice().sort(function(a, b){
-    return realStat(slotOf(b.side, b.idx), 'spd') - realStat(slotOf(a.side, a.idx), 'spd');
+    const sa = realStat(slotOf(a.side, a.idx), 'spd'), sb = realStat(slotOf(b.side, b.idx), 'spd');
+    if (sa !== sb) return sb - sa;
+    return rankIdx(a) - rankIdx(b);
   });
 }
 // E1-d(2026-09-11・指示書 spec_e1_engine_slots.md d): 「場の誰かがこの特性を持っているか」(しめりけ等の
@@ -2640,6 +2666,93 @@ function veilGuardAbility(target, atk, name){
   }
   return '';
 }
+// ============================================================================
+// E3(2026-09-12・spec_e3_ally_moves.md 機構3): 位置入替(サイドチェンジ)の土台
+// ============================================================================
+// ★不変条件(壊さない方法を選んだ理由): sides[s].slots[0] は sides[s] と★同一オブジェクト★。
+//   slotOf()/syncSlotsToFormat() は `slots[0] !== sides[s]` を見つけたら slots を [sides[s]] に
+//   作り直す自己修復をするので、この条件が崩れると★枠1が丸ごと消える★。さらに枠1以降の
+//   bench / megaUsed / 側の場の欄(SIDE_CONDITION_SLOT_FIELDS)は sides[s] を指す get/set アクセサ
+//   (defineProperty)で張ってあるので、オブジェクトごと入れ替えると「側の欄のアクセサ」が個体について
+//   移動してしまう(枠0に来た個体が側の欄の実体を持たない)。
+//   → だから入替は★中身(フィールドの値)の交換★で行い、枠オブジェクトの identity は動かさない。
+// 交換しないもの:
+//   ① SIDE_CONDITION_SLOT_FIELDS(壁/しんぴのまもり/おいかぜ/設置物/側のまもり)= 側に属する欄
+//   ② bench(控えは側で共有) ③ megaUsed(メガは側で1回) ④ slots(枠の配列そのもの)
+//   ⑤ presenceEpoch(在場世代)= この実装では「位置」に紐づく値。Intent の actorId が
+//      `side:idx:epoch`(位置キー)で、attemptSwitch の invalidateActor も同じ形で引くため、
+//      位置に置いたままにするのが既存設計と整合する(個体に付けて回すと片側だけズレる)。
+const POSITION_SWAP_EXCLUDE_FIELDS = new Set(
+  ['slots', 'bench', 'megaUsed', 'presenceEpoch'].concat(SIDE_CONDITION_SLOT_FIELDS));
+function swapSlotContents(a, b){
+  if (!a || !b || a === b) return;
+  const keys = {};
+  Object.keys(a).forEach(function(k){ keys[k] = true; });
+  Object.keys(b).forEach(function(k){ keys[k] = true; });
+  Object.keys(keys).forEach(function(k){
+    if (POSITION_SWAP_EXCLUDE_FIELDS.has(k)) return;
+    const tmp = a[k]; a[k] = b[k]; b[k] = tmp;
+  });
+}
+// 予約された行動(Intent)は★枠★(slotId)で引く=位置が入れ替わると「別の個体」を指してしまう。
+// 「予約した個体が自分の行動をする」を保つため、ターンごとに『予約時の枠 → 今その個体が居る枠』の
+// 対応表を持つ。★シングルは常に恒等([0])=読み出すだけで1bitも変わらない。
+// (対象=targetChoice/targetLock は「位置」を指すのが設計(D3・#36)なので、こちらは remap しない)
+let _actorSlotPos = null;
+function resetActorSlotPos(){
+  _actorSlotPos = {};
+  activeSides().forEach(function(s){
+    _actorSlotPos[s] = (sides[s].slots || [sides[s]]).map(function(_x, i){ return i; });
+  });
+}
+function currentSlotOfScheduled(sideKey, slotId){
+  const m = _actorSlotPos && _actorSlotPos[sideKey];
+  return (m && m[slotId] != null) ? m[slotId] : slotId;
+}
+function swapActorSlotPos(sideKey, i, j){
+  const m = _actorSlotPos && _actorSlotPos[sideKey];
+  if (!m) return;
+  for (let k = 0; k < m.length; k++){
+    if (m[k] === i) m[k] = j;
+    else if (m[k] === j) m[k] = i;
+  }
+}
+// 位置入替(サイドチェンジ)の1段。変化技の実行点で phaseApplyEffects より★前★に1回呼ぶ。
+// 返り値: 'skip' = この技ではない / 味方が居ない(=既存の fails_if no_ally ゲートに任せる。
+//                  シングルは必ずここ=従来の失敗ログがそのまま出る=不変)
+//        'failed' = 味方は居るが連続使用の判定に落ちた / 'done' = 入れ替えた。
+// 出典(ポケモンWiki「サイドチェンジ」技の仕様):
+//   ・「シングルバトル/…で使用すると失敗する。」→ 味方の枠が無い=fails_if no_ally で失敗(既存)
+//   ・「入れ替わる先の場所にポケモンがいない場合や、すでにひんしになっている場合は失敗する。」
+//   ・「自分が対象の技なので、命中判定は行われずに成功する。」→ 命中判定は通さない
+//   ・第九世代「技が成功した後、次に使うサイドチェンジの成功率は約1/3ずつ低下していく。」
+//     「サイドチェンジが失敗した直後に、もう一度サイドチェンジを使った場合は必ず成功する。」
+//     「まもる系の技の成功率とは区別され」→ カウンタは protectStreak と別勘定(allySwitchStreak)。
+// 乱数点=まもる系と同じ流儀(`Math.random() < 倍率^連続回数` を1回引く)。
+function phaseSwapPosition(atkSide, atkIdx, mv){
+  const _ef = ((mv && mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '位置入替');
+  if (!_ef) return 'skip';
+  const _slots = sides[atkSide].slots || [sides[atkSide]];
+  const allyIdx = _slots.findIndex((s, i) => i !== atkIdx && s && s.poke && !s.fainted);
+  if (allyIdx < 0) return 'skip';   // 味方不在(シングル含む)=既存の fails_if no_ally が失敗させる
+  const atk = slotOf(atkSide, atkIdx);
+  const _mult = _ef.consecutive_success_multiplier;
+  const _rate = (_mult != null) ? Math.pow(_mult, atk.allySwitchStreak || 0) : 1;
+  if (!(Math.random() < _rate)){
+    atk.allySwitchStreak = 0;
+    log('9', `しかし うまく きまらなかった！`);
+    noteActionFailed(atk);
+    return 'failed';
+  }
+  atk.allySwitchStreak = (atk.allySwitchStreak || 0) + 1;   // ★入替の前に書く=カウンタは個体について移動する
+  swapSlotContents(_slots[atkIdx], _slots[allyIdx]);
+  swapActorSlotPos(atkSide, atkIdx, allyIdx);
+  return 'done';
+}
+// 「自分以外の1体が対象の技 / 味方1体が対象の技」= 対象位置に技の使用者自身が来ていたら失敗する技の範囲。
+// 出典: ポケモンWiki「サイドチェンジ」技の仕様「サイドチェンジにより、自分以外の1体が対象の技/
+//   味方1体が対象の技の対象位置に技の使用者自身が移動していた場合、その技は失敗する。」
+const SELF_EXCLUDING_SINGLE_TARGETS = new Set(['1体選択', '味方1体']);
 // E2 機構10: アロマベールが防ぐ状態変化かどうか(メロメロは applyAttract 側の専用入口が担当=ここには入れない)。
 // 出典: ポケモンWiki『アロマベール』効果節の列挙「メロメロ」「アンコール」「いちゃもん」「かなしばり」
 //   「ちょうはつ」「かいふくふうじ」。エンジン側の表現は ef.kind が4種 + 「状態付与(value=かいふくふうじ)」の1種。
@@ -2679,10 +2792,15 @@ function faintedAllyCountOf(side, idx){
   }
   return n;
 }
-// D4-2d: 道具の全枠判定を回す入口。シングル(slotsPerSide===1)は既存の固定順(self→opp)のまま
-// (stdout不変)。ダブルは上のorderSlotsBySpeedDescで素早さ順にする。
+// D4-2d: 道具の全枠判定を回す入口。ダブルは上のorderSlotsBySpeedDescで素の素早さ順(同速は正準順)にする。
+// E3(2026-09-12・オンライン ロックステップ監査): シングル枝の側ラベル決め打ち fn('self',0); fn('opp',0)
+// を canonSides() 順に直す。A/Bのクライアントでは self/opp が鏡写しなので、ラベル決め打ちのままだと
+// この順を通る乱数点(ターン終了のしゅうかく/ムラっけ・レッドカードの控えランダム・順序依存のスリップ/
+// やどりぎ)が左右で逆順に消費され desync する。
+// ★オフライン(window.__rbCanonFirst 未設定)は canonSides()===['self','opp'] に落ちるので
+//   既存のテスト/ログは1bitも変わらない(stdout diff 0 で確認)。オンラインの時だけ正準化される。
 function forEachSlotItemOrder(fn){
-  if (battle.format.slotsPerSide === 1){ fn('self', 0); fn('opp', 0); return; }
+  if (battle.format.slotsPerSide === 1){ canonSides().forEach(function(side){ fn(side, 0); }); return; }
   orderSlotsBySpeedDesc(activeSlots()).forEach(function(sl){ fn(sl.side, sl.idx); });
 }
 
@@ -3023,9 +3141,11 @@ function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlway
     if (!firstTargetForSelfFx) firstTargetForSelfFx = t;
     const hit = phaseHitCheck(mv, atk, tgt);
     if (!hit.hit){ log('0c', hit.reason); continue; }
-    const _protBefore = tgt.protecting;
+    // E3(機構1/2): 個体のまもる(protecting)が無くても、対象の★側★にワイドガード/ファストガードが
+    // 立っていればそれで守る。判定・ログ・解除は個体のまもると同じ門をそのまま通す(分岐を増やさない)。
+    const _protBefore = tgt.protecting || sideProtectMoveOf(t.side);
     const _protPierce = _protBefore && protectPierces(mv, _protBefore);
-    if (_protBefore && shouldRemoveProtection(mv, _protBefore)) tgt.protecting = null;
+    if (_protBefore && shouldRemoveProtection(mv, _protBefore)) clearProtectionFor(t.side, t.idx, _protBefore);
     if (_protBefore && mv.protect === true && protectBlocks(_protBefore, mv) && !_protPierce){
       log('0c', `${pname(tgt)} は ${_protBefore.name} で こうげきを 防いだ！`);
       applyProtectPunishers(atk, tgt, mv);
@@ -3087,6 +3207,13 @@ function targetLock(atkSide, atkIdx, mv, targetChoice, chargeDeclare){
     // 味方1体/味方全体(D4送り分含む・最小スタブ): 自分以外の自陣の生存枠。
     // シングルは候補が無い=null(既存のfails_if no_allyが先に失敗させる想定=ここに来るのは通常fixtureのみ)。
     const mySlots = sides[atkSide].slots;
+    // E3(2026-09-12・機構3): 選んだ「位置」に技の使用者自身が来ていたら失敗する(選び直さない)。
+    // サイドチェンジで自分と味方が入れ替わると、選んでおいた味方の位置が自分自身になることがある。
+    // 出典: ポケモンWiki「サイドチェンジ」技の仕様「…味方1体が対象の技の対象位置に技の使用者自身が
+    //   移動していた場合、その技は失敗する。例えば…サイドチェンジ使用者Aに対し、味方Bがいやしのはどうを
+    //   使用したとき、…いやしのはどうは使用者を対象にできない技なので失敗する。」
+    // ★対象は「位置」に固定(D3の設計・#36)=ここで別の味方へ選び直してはいけない。
+    if (targetChoice && targetChoice.side === atkSide && targetChoice.idx === atkIdx) return null;   // onLost:fail
     if (targetChoice && targetChoice.side === atkSide && targetChoice.idx !== atkIdx){
       const st = mySlots[targetChoice.idx];
       if (!st || !st.poke || st.fainted) return null;   // onLost:fail(#26)
@@ -4957,11 +5084,50 @@ const SELF_ALLY_FIELD_TARGETS = new Set(['自分', '味方の場', '全体の場
 function targetsSelfOrAllyOnly(mv){
   return !!mv && mv.category === '変化' && SELF_ALLY_FIELD_TARGETS.has(mv.target);
 }
+// === E3(2026-09-12・spec_e3_ally_moves.md 機構1/2): 側のまもり(ワイドガード/ファストガード) ===
+// データの印は battle_data のトップ列 protect_wide / protect_fast。★kind だけで拾わない理由:
+// 同じ kind '範囲まもり' を持つ たたみがえし(mat-block)/トリックガード(crafty-shield)は「防ぐ範囲」が
+// 別物(たたみがえし=全ダメージ技・出た最初のターンのみ / トリックガード=相手の変化技)で、
+// この2技の印(protect_wide/protect_fast)は持たない。ここで一緒くたにすると誤ブロックになるので
+// 拾わない(=従来どおり未実装のまま。報告に明記)。2026-09-12 実測: 両DBともこの印を持つ技は
+// ワイドガード/ファストガードの2件だけ。
+function sideProtectKindOf(mv){
+  const bd = mv && mv.battle_data;
+  if (!bd) return null;
+  if (bd.protect_wide) return 'wide';
+  if (bd.protect_fast) return 'quick';
+  return null;
+}
+// 側に立っている「側のまもり」の技オブジェクト(無ければnull)。守る/守らないの判定は protectBlocks が
+// 技のデータ宣言(範囲まもり / blocks_priority_only)から決める=ここは「立っているか」だけを返す。
+function sideProtectMoveOf(sideKey){
+  const sp = sides[sideKey] && sides[sideKey].sideProtect;
+  return (sp && sp.move) || null;
+}
+// 守っている技を1本取り除く(フェイント等の「まもり解除」用)。個体のまもる(protecting)と
+// 側のまもり(sideProtect)のどちらに載っていても、載っている方だけを消す。
+// 出典: ポケモンWiki「ワイドガード」技の仕様「1体のポケモンに当たればその味方全員のワイドガード状態が
+//       解除される」=側の1本を消せば味方全員ぶん消える(この置き場所なら自然に成立する)。
+function clearProtectionFor(sideKey, slotIdx, protMove){
+  const st = slotOf(sideKey, slotIdx || 0);
+  if (st && st.protecting === protMove) st.protecting = null;
+  const sp = sides[sideKey] && sides[sideKey].sideProtect;
+  if (sp && sp.move === protMove) sides[sideKey].sideProtect = null;
+}
 // まもる系: 守っている技がこの技を防ぐか(データ宣言を読む。フェイント等 protect:false は呼び出し側で素通り)
 //   blocks_priority_only=先制技(優先度>0)だけ防ぐ(ファストガード) / blocks_status_moves:false=変化技は防がない(キングシールド/トーチカ)
+//   E3: 範囲まもり(ワイドガード)=「複数のポケモンが対象になる技」だけ防ぐ。単体技は防がない。
+//   出典: ポケモンWiki「ワイドガード」技の仕様「効果対象になる技は相手全員が対象の技と自分以外の
+//   全員が対象の技であり、これはシングルバトルでも防ぐことができる。」/ Showdown wideguard
+//   `if (move?.target !== 'allAdjacent' && move.target !== 'allAdjacentFoes') { return; }`
+//   ★対象の"種別"(mv.target)だけで決める=攻撃技/変化技は問わない(第七世代以降は全体攻撃の変化技も防ぐ)。
 function protectBlocks(protMove, mv){
   if (targetsSelfOrAllyOnly(mv)) return false;   // ★構造的ガード(上記コメント参照)
-  const ef = ((protMove && protMove.battle_data && protMove.battle_data.effects) || []).find(e => e.kind === 'まもり');
+  const efs = ((protMove && protMove.battle_data && protMove.battle_data.effects) || []);
+  if (sideProtectKindOf(protMove) === 'wide' && efs.some(e => e.kind === '範囲まもり')){
+    return SPREAD_DAMAGE_KINDS.includes(mv.target);
+  }
+  const ef = efs.find(e => e.kind === 'まもり');
   if (!ef) return false;
   if (ef.blocks_priority_only) return movePriority(mv) > 0;
   if (ef.blocks_status_moves === false && mv.category === '変化') return false;
@@ -6544,6 +6710,17 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
         target.protecting = null;
         log('9', `${pname(target)} の 守りが やぶられた！`);
       }
+      // E3(機構1/2): 側のまもり(ワイドガード/ファストガード)も同じ解除対象(feintoのaffected_movesに
+      // 両方とも載っている)。出典: ポケモンWiki「ワイドガード」技の仕様「フェイント/…を受けると
+      // ワイドガードは取り除かれる」「1体のポケモンに当たればその味方全員のワイドガード状態が解除される」
+      // → 側の1本を消せば味方全員ぶん消える。★シングルでも従来と同じ1行が出る(置き場所が個体から側へ
+      //   移っただけ。ファストガードは以前 protecting に載っていた)。
+      const _tPos = slotPosOf(target);
+      const _tSideProtMv = _tPos ? sideProtectMoveOf(_tPos.side) : null;
+      if (_tSideProtMv && (ef.affected_moves || []).includes(_tSideProtMv.name)){
+        sides[_tPos.side].sideProtect = null;
+        log('9', `${pname(target)} の 守りが やぶられた！`);
+      }
     } else if (ef.kind === '次技威力倍化'){
       // じゅうでん: 次に使う指定タイプ(でんき)のダメージ技の威力が2倍。指定タイプの技を使うまで
       // 持続し、使うと消費される(第9世代)。出典: Bulbapedia "Charge"
@@ -6897,6 +7074,10 @@ function snapshotBattleState(){
     choiceLock: st.choiceLock || null,                   // こだわりロック(段135)も一手戻せるように
     mustRecharge: !!st.mustRecharge,                     // はかいこうせん系の反動硬直も一手戻せるように
     protecting: st.protecting || null,                   // まもる中の技も一手戻せるように
+    // E3(機構1/2・指示書「スナップショットにも」): 側のまもり(ワイドガード/ファストガード)も一手戻せるように。
+    // 中身は{kind,move}=moveは技オブジェクト参照(protectingと同じ扱い)なので浅いコピーで足りる。
+    sideProtect: st.sideProtect ? {...st.sideProtect} : null,
+    allySwitchStreak: st.allySwitchStreak || 0,          // E3(機構3): サイドチェンジの連続カウントも一手戻せるように
     enduring: !!st.enduring,                             // こらえるも一手戻せるように
     charging: st.charging ? {...st.charging} : null,     // 溜め技(2ターン技)の溜め状態も一手戻せるように
     attracted: !!st.attracted,                           // メロメロ状態も一手戻せるように
@@ -7030,6 +7211,8 @@ function undoBattle(){
     st.choiceLock = src.choiceLock || null;              // こだわりロックの巻き戻し
     st.mustRecharge = !!src.mustRecharge;                // 反動硬直の巻き戻し
     st.protecting = src.protecting || null;              // まもる中の技の巻き戻し
+    st.sideProtect = src.sideProtect ? {...src.sideProtect} : null;   // E3: 側のまもりの巻き戻し
+    st.allySwitchStreak = src.allySwitchStreak || 0;      // E3: サイドチェンジ連続カウントの巻き戻し
     st.enduring = !!src.enduring;                        // こらえるの巻き戻し
     st.charging = src.charging ? {...src.charging} : null; // 溜め状態の巻き戻し
     st.attracted = !!src.attracted;                      // メロメロ状態の巻き戻し
@@ -7465,13 +7648,20 @@ function runSingleAttack(atkSide, moveIdx){
     renderBattleLog(); renderBoth(); return;
   }
   // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ(runTurnと同じ規則。単発実行でも連続カウントは進む)
-  const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
+  // E3: 側のまもり(ワイドガード/ファストガード)の扱いは runTurn 側と同じ(上のコメント参照)。
+  const _sideProtKind = sideProtectKindOf(mv);
+  const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり')
+    || (_sideProtKind ? ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '範囲まもり') : null);
   const _enduEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'こらえる');
   if (_protEf || _enduEf){
-    const _mult = _protEf ? _protEf.consecutive_success_multiplier : (1 / 3);   // こらえるはfails_if宣言どおり1/3
+    const _mult = _sideProtKind ? null : (_protEf ? _protEf.consecutive_success_multiplier : (1 / 3));   // こらえるはfails_if宣言どおり1/3
     const _rate = (_mult != null) ? Math.pow(_mult, atk.protectStreak) : 1;
     if (Math.random() < _rate){
-      if (_protEf){ atk.protecting = mv; log('0c', `${pname(atk)} は ${mv.name} で 守りの体勢に入った！`); }
+      if (_protEf){
+        if (_sideProtKind) sides[atkSide].sideProtect = {kind: _sideProtKind, move: mv};
+        else atk.protecting = mv;
+        log('0c', `${pname(atk)} は ${mv.name} で 守りの体勢に入った！`);
+      }
       else { atk.enduring = true; log('0c', `${pname(atk)} は こらえる体勢に入った！`); }
       atk.protectStreak++;
     } else {
@@ -7497,9 +7687,10 @@ function runSingleAttack(atkSide, moveIdx){
   if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); renderBattleLog(); renderBoth(); return; }
   // まもり貫通(Phase D B2): フェイント等は相手がまもり系で守っていても通常ブロックの前に貫通判定する。
   // フェイントは貫通と同時に相手のまもり状態自体も解除する(まもった側はこのターンの他の技にも無防備になる)。
-  const _protBefore = def.protecting;
+  // E3(機構1/2): 側のまもり(ワイドガード/ファストガード)も同じ門で見る(runTurn側と同じ・上のコメント参照)。
+  const _protBefore = def.protecting || sideProtectMoveOf(defSide);
   const _protPierce = _protBefore && protectPierces(mv, _protBefore);
-  if (_protBefore && shouldRemoveProtection(mv, _protBefore)) def.protecting = null;
+  if (_protBefore && shouldRemoveProtection(mv, _protBefore)) clearProtectionFor(defSide, 0, _protBefore);
   // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
   if (_protBefore && mv.protect === true && protectBlocks(_protBefore, mv) && !_protPierce){
     // 防がれる前に技の使用そのものを告知する(何を出そうとしたかが心理戦の情報=消してはいけない)。
@@ -7677,6 +7868,11 @@ function clearVolatilesOnSwitch(st){
   st.badpoisonCounter = 0;   // もうどくカウンタはリセット(もうどく状態自体は持ち越し)
   st.charging = null; st.mustRecharge = false;
   st.protecting = null; st.enduring = false; st.protectStreak = 0;
+  // E3: サイドチェンジの連続カウントは★個体★の揮発=交代で0に戻す(protectStreakと同じ扱い)。
+  // ★側のまもり(sideProtect)はここでは触らない: 側に残る効果で、使用者がひんし/交代でも解除されない
+  //   (出典: ポケモンWiki「ワイドガード」技の仕様「技が成功した場合、使用者がひんしになっても
+  //    ワイドガードは解除されない。」)。
+  st.allySwitchStreak = 0;
   st.slips = [];
   st.rampage = null; st.minimized = false; st.chargeBoost = null;
   st.stockpile = 0; st.stockpileBoost = {def: 0, spdef: 0};
@@ -8725,6 +8921,9 @@ function runTurn(){
     // まもる系・こらえるもそのターン限り → ターン開始でクリア(連続成功カウントは持ち越す)
     st.protecting = null;
     st.enduring = false;
+    // E3(機構1/2): 側のまもり(ワイドガード/ファストガード)も「そのターンの間」だけ → 同じ場所でクリア。
+    // 枠1以降はアクセサで sides[s] を指すので同じ1本に null を入れるだけ(二重クリアで壊れない)。
+    st.sideProtect = null;
     // マジックコート(Phase D B2)の跳ね返し構えもそのターン限り → ターン開始でクリア
     st.magicCoatTurn = false;
     // よこどり(Snatch)の横取りの構えもそのターン限り → ターン開始でクリア
@@ -8838,6 +9037,9 @@ function runTurn(){
   // scheduler本体に登録しない別経路(extra配列。行動順再評価§3「追加実行は別経路」)= 既に取得済みの
   // firstActもextraの先頭に積んでおき、以後は「extraが有れば先に消費・無ければsched.next()」に統一する。
   currentTurnScheduler = sched;   // attemptSwitch からの invalidateActor 用(退場の保険。実行列は不変)
+  // E3(機構3): 位置入替(サイドチェンジ)で枠が入れ替わっても、予約した個体が自分の行動をするための
+  // 位置表をこのターンぶん初期化する(恒等)。★シングルは [0] 固定=以後の読み出しも常に恒等。
+  resetActorSlotPos();
   const extra = [_firstAct];
   while (true){
     const _schedAct = extra.length ? extra.shift() : sched.next();
@@ -8846,7 +9048,12 @@ function runTurn(){
     const a = isExtraAct ? _schedAct : { side: _schedAct.sideId, opp: (_schedAct.sideId === 'self' ? 'opp' : 'self'), move: _schedAct.executionMove, slotIdx: _schedAct.slotId };
     // D3-2a: atk = slotOf(a.side, a.slotIdx)(枠単位)。extra(さいはい等)にslotIdxが無い旧呼び出し形は
     // 0にフォールバック(シングル/既存の追加実行はslotIdx=0のまま=挙動不変)。
-    const slotIdx = a.slotIdx != null ? a.slotIdx : 0;
+    // E3(機構3): schedulerが返す slotId は「予約時の枠」。位置入替(サイドチェンジ)があったターンは
+    // 位置表を通して「今その個体が居る枠」に読み替える(通さないと、入替後に未行動だった味方の予約が
+    // 入れ替わってきた別個体の行動として実行されてしまう)。extra(さいはい等)のslotIdxは実行時点の
+    // 現在枠なので読み替えない。★シングル/入替なしのターンは恒等=不変。
+    const _rawSlotIdx = a.slotIdx != null ? a.slotIdx : 0;
+    const slotIdx = isExtraAct ? _rawSlotIdx : currentSlotOfScheduled(a.side, _rawSlotIdx);
     const atk = slotOf(a.side, slotIdx);
     // D3-2b: defはtarget_lockで確定する(下の_noTgtチェック直前で再解決)。ここでは今までどおりの
     // 既定値(相手側の正面=同slotIdxの枠)を入れておく(シングルはこの値のまま最後まで変わらない=不変)。
@@ -9032,6 +9239,17 @@ function runTurn(){
         defIdx = _tgt.idx;
         defSideKey = _tgt.side;
       }
+    }
+    // E3(機構3): サイドチェンジで「自分以外の1体が対象の技/味方1体が対象の技」の対象位置に
+    // 技の使用者自身が移動していたら、その技は失敗する(対象は『位置』に固定されるため)。
+    // 出典: ポケモンWiki「サイドチェンジ」技の仕様「…対象位置に技の使用者自身が移動していた場合、
+    //   その技は失敗する。例えばダブルバトルでサイドチェンジ使用者Aに対し、味方Bがいやしのはどうを
+    //   使用したとき、サイドチェンジが成功するといやしのはどうの対象位置にいるポケモンがB自身に変わるが、
+    //   いやしのはどうは使用者を対象にできない技なので失敗する。」
+    // ★シングルは _isSingleFormat で丸ごと素通り(そもそも位置入替が起きない)=不変。
+    if (!_isSingleFormat && def === atk && SELF_EXCLUDING_SINGLE_TARGETS.has(mv.target)){
+      log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`);
+      noteActionFailed(atk); continue;
     }
     // ★対象がひんしでいない技は不発(反動死などで先に相手が倒れた時の後攻=Bulbapedia "But there was no target")。
     // 自分/場を対象にする変化技(つるぎのまい・ステルスロック等)はそのまま出せる。
@@ -9222,15 +9440,32 @@ function runTurn(){
       continue;
     }
     // まもる系(kind=まもり)/こらえる: 使用宣言した瞬間に体勢へ。連続使用は成功率が1/3ずつ下がり、
-    // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure"。
-    // ファストガードはmultiplierなし=連続でも失敗しない)
-    const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり');
+    // 失敗 or 別の行動でカウントが戻る=まもる系と共通カウント(Bulbapedia "Protect"/"Endure")。
+    // E3(2026-09-12・spec_e3_ally_moves.md 機構1/2): ワイドガード(kind=範囲まもり)/ファストガード
+    // (kind=まもり・target:'team')も★同じ入口★で拾う(まもりの入口を1つに保つ=分岐を増やさない)。
+    //  ・成立先は★側の欄★ sides[側].sideProtect(=味方全体が守られる)。個体の atk.protecting は立てない。
+    //    シングルは側=自分1体なので、従来「自分だけ守る」だったファストガードの守備範囲と同値(不変)。
+    //  ・自分自身は連続使用で失敗しない(第六世代以降)。ただし★成功するとカウンター(protectStreak)は進む★
+    //    =その後に使うまもる系の成功率が1/3になる。
+    //    出典: ポケモンWiki「ワイドガード」技の仕様「第六世代以降は連続で使用しても失敗しない。」
+    //         「…ワイドガードが成功した後にまもる/みきり/こらえる/キングシールド/…を使うと成功率が
+    //          1/3になる。」/「ファストガード」§第六世代以降 も同文。
+    //    → データの consecutive_success_multiplier(ファストガード=0.3333)はここでは掛けない
+    //      (データはまもる系の列に載る印として保持=_sim_interaction_test S16-T8 の宣言検査はそのまま通る)。
+    //  ・★乱数は従来どおり1回引く(rateを1に固定するだけ)=シングルの乱数列・stdoutは1bitも動かない。
+    const _sideProtKind = sideProtectKindOf(mv);
+    const _protEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'まもり')
+      || (_sideProtKind ? ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === '範囲まもり') : null);
     const _enduEf = ((mv.battle_data && mv.battle_data.effects) || []).find(e => e.kind === 'こらえる');
     if (_protEf || _enduEf){
-      const _mult = _protEf ? _protEf.consecutive_success_multiplier : (1 / 3);   // こらえるはfails_if宣言どおり1/3
+      const _mult = _sideProtKind ? null : (_protEf ? _protEf.consecutive_success_multiplier : (1 / 3));   // こらえるはfails_if宣言どおり1/3
       const _rate = (_mult != null) ? Math.pow(_mult, atk.protectStreak) : 1;
       if (Math.random() < _rate){
-        if (_protEf){ atk.protecting = mv; log('0c', `${pname(atk)} は ${mv.name} で 守りの体勢に入った！`); }
+        if (_protEf){
+          if (_sideProtKind) sides[a.side].sideProtect = {kind: _sideProtKind, move: mv};
+          else atk.protecting = mv;
+          log('0c', `${pname(atk)} は ${mv.name} で 守りの体勢に入った！`);
+        }
         else { atk.enduring = true; log('0c', `${pname(atk)} は こらえる体勢に入った！`); }
         atk.protectStreak++;
       } else {
@@ -9265,9 +9500,10 @@ function runTurn(){
     if (!hit.hit){ log('0c', hit.reason); noteActionFailed(atk); applyCrashDamage(atk, mv); applyHpCost(atk, mv); if (_selfKOAlways) applySelfFaint(atk); continue; }
     // まもり貫通(Phase D B2): フェイント等は相手がまもり系で守っていても通常ブロックの前に貫通判定する。
     // フェイントは貫通と同時に相手のまもり状態自体も解除する(まもった側はこのターンの他の技にも無防備になる)。
-    const _protBefore = def.protecting;
+    // E3(機構1/2): 側のまもり(ワイドガード/ファストガード)も同じ門で見る(上のコメント参照)。
+    const _protBefore = def.protecting || sideProtectMoveOf(defSideKey);
     const _protPierce = _protBefore && protectPierces(mv, _protBefore);
-    if (_protBefore && shouldRemoveProtection(mv, _protBefore)) def.protecting = null;
+    if (_protBefore && shouldRemoveProtection(mv, _protBefore)) clearProtectionFor(defSideKey, defIdx, _protBefore);
     // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
     if (_protBefore && mv.protect === true && protectBlocks(_protBefore, mv) && !_protPierce){
       // 防がれる前に技の使用そのものを告知する(何を出そうとしたかが心理戦の情報=消してはいけない)。
@@ -9302,6 +9538,14 @@ function runTurn(){
     }
     if (mv.category === '変化'){
       log('9', `${pname(atk)} は ${mv.name} を使った！`);
+      // E3(2026-09-12・機構3): 位置入替(サイドチェンジ)は phaseApplyEffects より★前★の独立した1段。
+      // ★入替が成立したら、この行動の局所変数 atk / def は「枠オブジェクト」を掴んだまま=中身が
+      //   入れ替わって★別個体を指す★ので、以降の後処理(自分瀕死/のどスプレー/道具の反応)には進まない。
+      //   サイドチェンジ自身はダメージも能力変化も道具消費も起こさないので、ここで終わって欠落は無い。
+      // ★'skip'(味方不在=シングル)のときは何もせず下の phaseApplyEffects へ進む=既存の
+      //   fails_if no_ally ゲートが従来どおりの失敗ログを出す(シングル不変)。
+      const _swapRes = phaseSwapPosition(a.side, slotIdx, mv);
+      if (_swapRes === 'done' || _swapRes === 'failed') continue;
       // 変化技でも状態異常付与だけは適用（おにび等）。D3-2b: 変化技はtarget_lock対象外=defSideKey/defIdxは
       // 既定値(相手側の正面)のまま=シングルと同じ(a.opp, slotIdx)。
       phaseApplyEffects(a.side, defSideKey, mv, slotIdx, defIdx);
@@ -9899,6 +10143,8 @@ function resetBattle(){
     st.protecting = null;
     st.enduring = false;
     st.protectStreak = 0;
+    st.sideProtect = null;        // E3: 側のまもり(ワイドガード/ファストガード)もバトルリセットで消す
+    st.allySwitchStreak = 0;      // E3: サイドチェンジの連続カウントも消す
     st.slips = [];
     st.sleepTurns = null;
     st.rampage = null;

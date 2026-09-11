@@ -2347,8 +2347,12 @@ try {
   const universe = Object.keys(E.makeSideState());
   // 2026-09-10 D2-a: presenceEpoch(battle_scheduler.jsのActionIntent契約用「在場世代」カウンタ)を
   // makeSideState()に新設したため81→82(下記EXCLUDED_SCHEDULER_BOOKKEEPINGで理由つき除外)。
+  // 2026-09-12 E3: 側のまもり sideProtect(ワイドガード/ファストガード・側の欄)と
+  // サイドチェンジの連続カウント allySwitchStreak を makeSideState() に新設したため82→84。
+  // ★この合図どおり分類を見直した結果 = 2件とも snapshotBattleState/undoBattle の両方に追加済み
+  //   (=下の H56-b で「復元される」に分類される。除外セットには入れていない)。
   check('H56-a makeSideState()の全フィールド数(構造drift検知・変わったら分類を見直す合図)',
-    universe.length === 82, `count=${universe.length}`);
+    universe.length === 84, `count=${universe.length}`);
 
   // UI専用(手動チェックボックス/表示カーソル/並び替え等): 全文grep確認済みでmove効果からは一度もセットされない
   // (`.critical =`等の書き込みが無い)=undo対象外でも戦闘結果に影響しない。
