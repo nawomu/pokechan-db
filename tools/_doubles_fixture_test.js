@@ -732,7 +732,14 @@ test('D4-2c-2: 自分の最後の1体が相手の最後の1体をみちづれで
 
 // ===== D4-2d: 持ち物の枠対応(2026-09-11・実装指示D4-2d) =====
 
-test('D4-2d-1: 相手全体技で両枠のだっしゅつボタンが成立→素の素早さが高い方から順に脱出(両方脱出)', () => {
+// ★E5 中-6(2026-09-12)で期待値を訂正した。訂正の理由:
+//   D4-2d の時点では「両枠とも脱出し、素の素早さが高い方から順に処理する」を期待値にしていたが、
+//   ポケモンWiki「だっしゅつボタン」詳細な仕様 =「複数のポケモンが同時に条件を満たした場合、
+//   すばやさ(補正を除いた実数値)がもっとも高い1体だけが交代する」(E5 レビューが引用)。
+//   = 2体目以降は★発動しない・道具も消費しない★。よって「両方脱出」は誤った期待値だった。
+//   順序(素の素早さ実数値・補正抜き)の根拠は D4-2d から変わっていないので、ここは
+//   「勝つのは速い方」「遅い方は場に残り道具を持ったまま」を固定する形に書き換える。
+test('D4-2d-1: 相手全体技で両枠のだっしゅつボタンが成立→素の素早さが最も高い1体だけ脱出(他は道具も消費しない)', () => {
   const E = build2v2();
   placeSlot(E, 'self', 0, 'フシギバナ', 'majikarushain');   // 相手全体の攻撃技(D4-1a-1で使用実績あり)
   placeSlot(E, 'self', 1, null, null, { fainted: true });
@@ -743,15 +750,15 @@ test('D4-2d-1: 相手全体技で両枠のだっしゅつボタンが成立→�
   E.sides.opp.bench = [benchEntry('ピカチュウ', null), benchEntry('サンダース', null)];
   E.setRandom(mulberry32(3));
   assert.doesNotThrow(() => { E.runTurn(); });
-  assert.notEqual(E.slotOf('opp', 0).poke.name, 'カビゴン', 'opp:0(遅い)もだっしゅつボタンで脱出する');
-  assert.notEqual(E.slotOf('opp', 1).poke.name, 'ゲンガー', 'opp:1(速い)もだっしゅつボタンで脱出する');
   const msgs = msgList(E.battleLog);
-  const idxFast = msgs.findIndex(m => m.includes('ゲンガー は 引っ込んだ'));
-  const idxSlow = msgs.findIndex(m => m.includes('カビゴン は 引っ込んだ'));
-  assert.ok(idxFast >= 0, 'ゲンガー(速い)の交代ログが出る');
-  assert.ok(idxSlow >= 0, 'カビゴン(遅い)の交代ログが出る');
-  assert.ok(idxFast < idxSlow,
-    `素の素早さが高い枠(ゲンガー)から先に脱出する(実際: ゲンガー=${idxFast}行目, カビゴン=${idxSlow}行目)`);
+  assert.notEqual(E.slotOf('opp', 1).poke.name, 'ゲンガー',
+    `素の素早さが最も高い opp:1(ゲンガー)だけが脱出する\n` + msgs.join('\n'));
+  assert.equal(E.slotOf('opp', 0).poke.name, 'カビゴン',
+    `opp:0(遅い)は脱出しない\n` + msgs.join('\n'));
+  assert.equal(E.slotOf('opp', 0).item, 'eject_button',
+    `発動しなかった側は道具を消費しない\n` + msgs.join('\n'));
+  assert.ok(msgs.findIndex(m => m.includes('ゲンガー は 引っ込んだ')) >= 0, 'ゲンガー(速い)の交代ログが出る');
+  assert.equal(msgs.findIndex(m => m.includes('カビゴン は 引っ込んだ')), -1, 'カビゴンの交代ログは出ない');
 });
 
 // ===== D4-3a: 全枠の開始登場・メガ・交代封じ・溜め技の引き寄せ先送り
@@ -2167,4 +2174,251 @@ test('E4-A-4: シングルで両者が同時にひんし→「場に出た」行
   assert.ok(entOpp < iOpp && entOpp < iSelf, '2体とも出揃ってから登場効果が回る');
   assert.ok(iOpp < iSelf,
     `登場効果は側の順ではなくすばやさ順(速い 相手の ゲンガー が先)。実際: opp=${iOpp} / self=${iSelf}`);
+});
+
+// ============================================================================
+// E5(2026-09-12・指示書 spec_e5_review_fixes.md): E1〜E3 壊す側レビューの修正ぶん
+// ============================================================================
+
+// ===== E5 高-1: サイドチェンジ後に「旧枠」を倒されても、生き残った味方の行動は消えない =====
+// 予約(Intent)は「予約時の枠」で登録されるので、在場判定(isPresent)も退場の保険(invalidateActor)も
+// 『予約枠→現在枠』の対応表を通さないと、入替後の旧枠が倒れた時に別個体の行動まで取り消される。
+test('E5-1: サイドチェンジの後に相手が旧枠を倒しても、生き残った味方は自分の行動をする', () => {
+  const E = build2v2();
+  // self0 = コータス(はたく・遅い) / self1 = フーディン(サイドチェンジ・優先度+2)
+  placeSlot(E, 'self', 0, 'コータス', 'hataku', { targetChoice: { side: 'opp', idx: 0 } });
+  placeSlot(E, 'self', 1, 'フーディン', 'saidochenji', { hp: 1 });
+  // 相手は「自陣枠0」を狙う=入替後はフーディンがそこに居る(位置を狙うのが設計・D3 #36)
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'hataku', { targetChoice: { side: 'self', idx: 0 } });
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(11));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.equal(E.slotOf('self', 0).poke.name, 'フーディン', '前提: 入替が成立している');
+  // ★入替は「枠オブジェクトの中身の交換」なので、placeSlot が返した枠オブジェクトは
+  //   入替後は別個体を指す。個体は必ず slotOf(側,枠) で引き直す。
+  assert.equal(E.slotOf('self', 0).fainted, true, '前提: 入替で枠0に来たフーディンが倒されている');
+  assert.equal(E.slotOf('self', 1).poke.name, 'コータス', '前提: 生き残りは枠1に居る');
+  assert.equal(E.slotOf('self', 1).fainted, false, '前提: 生き残りは生きている');
+  assert.ok(log.some(m => /^コータス の はたく！/.test(m)),
+    `生き残った味方(コータス)の予約行動は実行されるべき\n` + log.join('\n'));
+});
+
+// ===== E5 高-2: ターン終了の処理順は「効果すばやさ」降順・トリックルームで反転 =====
+// 出典: ポケモンWiki「ターン」ターン終了時の処理の総則「同じ数字の状態はすばやさが高い順に発動し、
+//   これはトリックルームの影響を受ける」(かそく/ムラっけ/しゅうかく の各記事も同文)。
+// ★道具の反応(レッドカード/だっしゅつボタン)の「補正抜きの素の素早さ実数値順」とは別物なので、
+//   順序関数も別(forEachSlotEndOfTurnOrder / forEachSlotItemOrder)。
+function _poisonSlipOrder(opts) {
+  const E = build2v2();
+  const a = placeSlot(E, 'self', 0, 'フーディン', null);    // 素のすばやさが速い
+  const b = placeSlot(E, 'self', 1, 'ケンタロス', null);    // 素のすばやさが遅い
+  placeSlot(E, 'opp', 0, 'フシギバナ', null);
+  placeSlot(E, 'opp', 1, null, null);
+  a.status = 'poison';
+  b.status = 'poison';
+  if (opts.trickRoom) E.env.trickRoom = true;
+  if (opts.scarfSlow) b.item = 'kodawari_scarf';
+  E.setRandom(mulberry32(3));
+  E.runTurn();
+  return msgList(E.battleLog).filter(m => /どくで /.test(m)).map(m => m.split(' ')[0]);
+}
+test('E5-2a: ターン終了のスリップは効果すばやさ降順(速い方が先)', () => {
+  assert.deepEqual(_poisonSlipOrder({}), ['フーディン', 'ケンタロス']);
+});
+test('E5-2b: トリックルーム下ではターン終了のスリップ順が反転する', () => {
+  assert.deepEqual(_poisonSlipOrder({ trickRoom: true }), ['ケンタロス', 'フーディン']);
+});
+test('E5-2c: こだわりスカーフ(効果すばやさの補正)でもターン終了の順が変わる', () => {
+  // 素の実数値だけを見る forEachSlotItemOrder のままなら順は変わらない=この2件が順序関数の違いの証拠。
+  assert.deepEqual(_poisonSlipOrder({ scarfSlow: true }), ['ケンタロス', 'フーディン']);
+});
+
+// ===== E5 中-3: ファストガードは「特性で上がった優先度」も防ぐ =====
+// 出典: ポケモンWiki「ファストガード」技の仕様(優先度が1以上の技を防ぐ。いたずらごころで優先度が
+//   上がった変化技も防ぐ)+ 徹底攻略の解説が一致(E5 レビューが引用)。
+test('E5-3a: ファストガードは いたずらごころ の変化技(優先度+1)を防ぐ', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'ニョロトノ', 'fasutogaado');
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ヤミラミ', 'denjiha',
+    { ability: 'いたずらごころ', targetChoice: { side: 'self', idx: 1 } });
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(9));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.equal(E.slotOf('self', 1).status, 'none',
+    `いたずらごころ由来の先制でんじははファストガードで防がれる\n` + log.join('\n'));
+  assert.ok(log.some(m => /ファストガード で こうげきを 防いだ！$/.test(m)),
+    `既存の「防いだ」行が出る\n` + log.join('\n'));
+});
+test('E5-3b: ファストガードは特性なしの優先度0の変化技は防がない(過剰ブロックの負のコントロール)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'ニョロトノ', 'fasutogaado');
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ヤミラミ', 'denjiha', { targetChoice: { side: 'self', idx: 1 } });
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(9));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.equal(E.slotOf('self', 1).status, 'paralysis',
+    `優先度0のでんじはは防がれない\n` + log.join('\n'));
+});
+test('E5-3c: シングルでも同じ門を通る(ファストガード×いたずらごころ でんじは)', () => {
+  // ★シングルの挙動も変わる項目。sim 862 の母集団にこの配置が無いので diff 0 だったが、
+  //   変わったことをここで固定しておく(指示書「シングルも変わる=差分全行」)。
+  const E = buildEngine();
+  E.setFormat({ slotsPerSide: 1 });
+  const me = E.slotOf('self', 0);
+  me.poke = pokeByName('ニョロトノ'); me.moves = [data.WAZA_MAP.fasutogaado]; me.selectedMoveIdx = 0;
+  me.currentHp = E.realStat(me, 'hp'); me.fainted = false;
+  const foe = E.slotOf('opp', 0);
+  foe.poke = pokeByName('ヤミラミ'); foe.moves = [data.WAZA_MAP.denjiha]; foe.selectedMoveIdx = 0;
+  foe.currentHp = E.realStat(foe, 'hp'); foe.fainted = false; foe.ability = 'いたずらごころ';
+  E.setRandom(mulberry32(9));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.equal(me.status, 'none', `シングルでも防ぐ\n` + log.join('\n'));
+});
+
+// ===== E5 中-5: 範囲技の「自分向け効果」は実際に当たった対象が1体も無ければ発動しない =====
+// 単体経路の門(`dmgRes && !dmgRes.immune` のときだけ phaseApplyEffects)と同じ条件に揃えた。
+test('E5-5a: 相手2体ともタイプ相性0なら、範囲技の自分向けランク低下は起きない', () => {
+  const E = build2v2();
+  // スケイルノイズ=ドラゴン/相手全体/自分ぼうぎょ-1。フェアリーには無効(ドラゴン→フェアリー=0倍)
+  const user = placeSlot(E, 'self', 0, 'ヌメルゴン', 'sukeirunoizu');
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'フレフワン', null);
+  placeSlot(E, 'opp', 1, 'ニンフィア', null);
+  E.setRandom(mulberry32(5));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.equal(user.rank.def, 0, `全対象が無効なら自分のぼうぎょは下がらない\n` + log.join('\n'));
+});
+test('E5-5b: 1体でも当たれば自分向けランク低下は1回だけ起きる(無効の相方で二重にならない)', () => {
+  const E = build2v2();
+  const user = placeSlot(E, 'self', 0, 'ヌメルゴン', 'sukeirunoizu');
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'フレフワン', null);     // 無効
+  placeSlot(E, 'opp', 1, 'カメックス', null);      // 通る
+  E.setRandom(mulberry32(5));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.equal(user.rank.def, -1, `当たった対象があるので1回だけ下がる\n` + log.join('\n'));
+});
+
+// ===== E5 低-1: 守りを破られたら連続成功カウントが戻る / 「守りが やぶられた！」は1行だけ =====
+test('E5-9a: フェイントで守りを破られると protectStreak が 0 に戻る', () => {
+  const E = build2v2();
+  const guard = placeSlot(E, 'self', 0, 'カメックス', 'mamoru');
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'feinto', { targetChoice: { side: 'self', idx: 0 } });
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(5));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  // ★この経路(単体のフェイント×個体のまもる)では、守りの解除は命中判定の直前の
+  //   shouldRemoveProtection → clearProtectionFor で無音に行われる(「守りが やぶられた！」の行は
+  //   phaseApplyEffects 側の まもり解除 ハンドラが出すが、そこへ来る前に既に消えているため出ない)。
+  //   この「無音」は E5 の対象外(ログ行を増やすと sim 862 の stdout が動く)=台帳送り。
+  //   ここで固定するのは★連続成功カウントが戻ること★だけ。
+  assert.ok(log.some(m => /フェイント！/.test(m)), `フェイントが当たっている\n` + log.join('\n'));
+  assert.equal(guard.protecting, null, `守りは解除されている\n` + log.join('\n'));
+  assert.equal(guard.protectStreak, 0,
+    `破られたら連続成功カウントは戻る(実際=${guard.protectStreak})\n` + log.join('\n'));
+});
+test('E5-9b: まもる+ワイドガードが同時に破られても「守りが やぶられた！」は1行だけ', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カメックス', 'mamoru');
+  placeSlot(E, 'self', 1, 'ニョロトノ', 'waidogaado');
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'feinto', { targetChoice: { side: 'self', idx: 0 } });
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(5));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  const broke = log.filter(m => /守りが やぶられた！$/.test(m));
+  assert.equal(broke.length, 1,
+    `同時に破られても1行だけ(実際=${broke.length}行)\n` + log.join('\n'));
+  assert.equal(E.sides.self.sideProtect, null, '側のまもりも消えている');
+  assert.equal(E.slotOf('self', 0).protecting, null, '個体のまもりも消えている');
+});
+
+// ===== E5 低-2: テレパシーの無効化は「技名の行」の後に出る =====
+test('E5-11: テレパシーの無効化行は、その技の技名行より後に出る', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'ゲンガー', 'jibaku');                  // 自分以外全体
+  placeSlot(E, 'self', 1, 'カメックス', null, { ability: 'テレパシー' });
+  placeSlot(E, 'opp', 0, 'フシギバナ', null);
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(2));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  const iName = log.findIndex(m => /^ゲンガー の じばく！/.test(m));
+  const iImmune = log.findIndex(m => /^カメックス は 味方からの 攻撃を 受けない！$/.test(m));
+  assert.ok(iName >= 0 && iImmune >= 0, `両方の行が出る\n` + log.join('\n'));
+  assert.ok(iName < iImmune,
+    `技名の行が先(実際: 技名=${iName}行目 / 無効化=${iImmune}行目)\n` + log.join('\n'));
+});
+
+// ===== E5 中-2: サイドチェンジの連続カウントは「他の行動」で 0 に戻る =====
+// 出典: ポケモンWiki「サイドチェンジ」技の仕様 = 連続使用で成功率が下がり、失敗/他の行動をはさむと
+//   元に戻る(まもる系の連続使用と同じ作法。E5 レビューが引用)。
+test('E5-4: サイドチェンジ→別の技→サイドチェンジで連続カウントが1に戻る(2連続なら2)', () => {
+  const mk = (secondMoveKey) => {
+    const E = build2v2();
+    placeSlot(E, 'self', 0, 'カメックス', null);
+    const user = placeSlot(E, 'self', 1, 'フーディン', 'saidochenji');
+    // placeSlot は技1本ぶんしか置けないので、2本目(はたく)は直接足す
+    user.moves = [data.WAZA_MAP.saidochenji, data.WAZA_MAP.hataku];
+    if (E.initPP) E.initPP(user);
+    placeSlot(E, 'opp', 0, 'ケンタロス', null);
+    placeSlot(E, 'opp', 1, null, null);
+    E.setRandom(() => 0);   // 連続使用の判定は必ず成功させる(カウントだけを見る)
+    E.runTurn();
+    // ★入替で枠が動くので、使用者は「今どの枠に居るか」で引き直す
+    const whereIs = () => (E.slotOf('self', 0).poke.name === 'フーディン' ? 0 : 1);
+    let idx = whereIs();
+    const after1 = E.slotOf('self', idx).allySwitchStreak;
+    E.slotOf('self', idx).selectedMoveIdx = secondMoveKey === 'saidochenji' ? 0 : 1;
+    E.slotOf('self', idx).targetChoice = secondMoveKey === 'saidochenji' ? null : { side: 'opp', idx: 0 };
+    E.runTurn();
+    idx = whereIs();
+    return { after1, after2: E.slotOf('self', idx).allySwitchStreak };
+  };
+  const cons = mk('saidochenji');
+  assert.equal(cons.after1, 1, '1ターン目の成功でカウント1');
+  assert.equal(cons.after2, 2, '2ターン連続ならカウント2(成功率が下がっていく)');
+  const broken = mk('hataku');
+  assert.equal(broken.after1, 1, '1ターン目の成功でカウント1');
+  assert.equal(broken.after2, 0, '別の技(PPを消費した行動)をはさんだらカウントは0に戻る');
+});
+
+// ===== E5 中-2(続き): まもる系とサイドチェンジを交互に使うとどちらも必ず成功する =====
+// 出典: ポケモンWiki「サイドチェンジ」技の仕様 第九世代「まもる系の技の成功率とは区別され、
+//   これらの技とサイドチェンジを交互に使用するときならどちらも必ず成功する。」
+test('E5-4b: まもる→サイドチェンジ→まもる と交互に使うと、どちらの連続カウントも溜まらない', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カメックス', null);
+  const user = placeSlot(E, 'self', 1, 'フーディン', 'saidochenji');
+  user.moves = [data.WAZA_MAP.saidochenji, data.WAZA_MAP.mamoru];
+  if (E.initPP) E.initPP(user);
+  placeSlot(E, 'opp', 0, 'ケンタロス', null);
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(() => 0);
+  const whereIs = () => (E.slotOf('self', 0).poke.name === 'フーディン' ? 0 : 1);
+  const pick = (moveIdx) => {
+    const i = whereIs();
+    E.slotOf('self', i).selectedMoveIdx = moveIdx;
+    E.slotOf('self', i).targetChoice = null;
+    E.runTurn();
+    return E.slotOf('self', whereIs());
+  };
+  let st = pick(0);   // サイドチェンジ
+  assert.equal(st.allySwitchStreak, 1, '1回目のサイドチェンジ成功=カウント1');
+  st = pick(1);       // まもる
+  assert.equal(st.allySwitchStreak, 0, 'まもる(PP消費)でサイドチェンジのカウントは0に戻る');
+  assert.equal(st.protectStreak, 1, 'まもるの成功でまもる系のカウントは1');
+  st = pick(0);       // サイドチェンジ
+  assert.equal(st.allySwitchStreak, 1, '交互なのでサイドチェンジは必ず成功=カウントは1から数え直し');
+  assert.equal(st.protectStreak, 0, 'サイドチェンジ(まもる系以外の行動)でまもる系のカウントも0に戻る');
 });

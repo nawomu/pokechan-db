@@ -88,7 +88,6 @@
     'protecting',            // :6246 まもる系
     'enduring',              // :6246 こらえる
     'protectStreak',         // :6246 まもる/こらえるの連続成功カウント
-    'sideProtect',           // E3(2026-09-12): ワイドガード/ファストガード(側のまもり・枠0=側・そのターン限り)
     'allySwitchStreak',      // E3(2026-09-12): サイドチェンジの連続使用カウント(まもる系とは別勘定)
     'pendingEntries',        // E4(2026-09-12): 死に出しで積んだ「登場処理まち」の枠一覧(側の欄・枠0=側)。
                              // flushDeferredEntries() が「全員出揃ってから」すばやさ順で1回だけ回して空にする
@@ -153,6 +152,9 @@
     'lightScreen',       // ひかりのかべ
     'auroraVeil',        // オーロラベール
     'safeguard',         // しんぴのまもり
+    'mist',              // E5 中-9(2026-09-12): しろいきり。壁と同じ「側の場」(screenTurns に相乗り)。
+                         //   real_battle_simulator.html の SIDE_CONDITION_SLOT_FIELDS にも載っている欄なので
+                         //   3分類では側の場に入る(本番 snapshot/undo にも E5 で追加した)。
     'screenTurns',       // 壁の残りターン({flag:残数})
     'stealthRock',       // ステルスロック
     'spikesLayers',      // まきびし層数
@@ -164,6 +166,12 @@
                          // 予知した攻撃は「その場に居る個体」に発火する型(healingWishと同型)
                          // と読んで側の場に置く(台帳化推奨・根拠が弱い旨をここに明記)
     'wish',              // ねがいごと。futureSightと同じ理由・同じ未確認扱い
+    // E5 中-10(2026-09-12・指示書 spec_e5_review_fixes.md 中-10): ワイドガード/ファストガードの
+    // 「側のまもり」。E3 では枠の揮発(SLOT_VOLATILE_FIELDS)に置いたが、置き場所は sides[s] の1本
+    // (real_battle_simulator.html の SIDE_CONDITION_SLOT_FIELDS に載っている=枠1以降はアクセサ)
+    // なので分類は「側の場」。★そのターン限りの揮発である点は変わらない(runTurn 冒頭でクリア)=
+    // 「交代でリセットしない」という側の場の一般則とは別に、ターン境界で消える欄。
+    'sideProtect',       // ワイドガード/ファストガード({kind,move} / null)
   ]);
 
   // ③ 個体に付く欄(交代してベンチへ戻ってもその個体のデータとして保持)
