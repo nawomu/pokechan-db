@@ -465,12 +465,26 @@
     bl_258: { "en":"{p}'s Disguise was busted!", "fr":"Le Fantômasque de {p} a été détruit !", "de":"Die Kostümspuk-Hülle von {p} wurde zerstört!", "es":"¡El Disfraz de {p} se ha roto!", "it":"Il Fantasmanto di {p} è stato distrutto!", "ko":"{p}의 탈바꿈이 벗겨졌다!", "zh-Hans":"{p}的画皮剥落了！", "zh-Hant":"{p}的畫皮剝落了！" },
     bl_259: { "en":"{p} was hurt by its busted Disguise! ({n} damage, HP remaining: {n2})", "fr":"{p} a été blessé par son Fantômasque détruit ! ({n} PV perdus, PV restants : {n2})", "de":"{p} wurde durch die zerstörte Kostümspuk-Hülle verletzt! ({n} KP Schaden, verbleibende KP: {n2})", "es":"¡{p} se hirió por su Disfraz roto! ({n} de daño, PS restantes: {n2})", "it":"{p} si è ferito per il Fantasmanto distrutto! ({n} danni, PS rimanenti: {n2})", "ko":"{p}은(는) 벗겨진 탈바꿈으로 데미지를 입었다! ({n} 데미지・남은 HP {n2})", "zh-Hans":"{p}因画皮剥落受到了伤害！（{n}点伤害・剩余HP {n2}）", "zh-Hant":"{p}因畫皮剝落受到了傷害！（{n}點傷害・剩餘HP {n2}）" },
     bl_260: { "en":"{p} snatched {move}!", "fr":"{p} a volé {move} !", "de":"{p} hat sich {move} geschnappt!", "es":"¡{p} robó {move}!", "it":"{p} ha rubato {move}!", "ko":"{p}은(는) {move}을(를) 가로챘다!", "zh-Hans":"{p}横取了{move}！", "zh-Hant":"{p}橫取了{move}！" },
+    // ─── E4-B(2026-09-12): 味方を読む特性4件の「実機メッセージ」(JA正典は real_battle_simulator.html の log() 側) ───
+    // en の出典: bl_261 = Bulbapedia "Telepathy (Ability)" の in-battle message「<name> avoids attacks by its ally Pokémon!」
+    //            bl_262/263/264 = Showdown data/text/abilities.ts(hospitality.heal / symbiosis.activate / supremeoverlord.activate)
+    // 他7言語: 各特性の公式ローカライズ文が権威ソースから取れなかったため、既存 TPL(bl_82/bl_110/bl_126 等)の
+    //            語彙・語順・人称に合わせた独自訳(事実は足していない=JA/EN と同じ内容しか言っていない)。
+    bl_261: { "en":"{p} avoids attacks by its ally Pokémon!", "fr":"{p} évite les attaques de ses alliés !", "de":"{p} weicht den Angriffen seiner Verbündeten aus!", "es":"¡{p} evita los ataques de sus aliados!", "it":"{p} evita gli attacchi dei suoi alleati!", "ko":"{p}은(는) 아군의 공격을 받지 않는다!", "zh-Hans":"{p}不会受到我方的攻击！", "zh-Hant":"{p}不會受到我方的攻擊！" },
+    bl_262: { "en":"{p2} drank down all the matcha that {p} made!", "fr":"{p2} a bu tout le matcha préparé par {p} !", "de":"{p2} trank den ganzen Matcha, den {p} zubereitet hat!", "es":"¡{p2} se bebió todo el matcha que preparó {p}!", "it":"{p2} ha bevuto tutto il matcha preparato da {p}!", "ko":"{p}이(가) 우려낸 차를 {p2}은(는) 다 마셨다!", "zh-Hans":"{p2}喝光了{p}沏的茶！", "zh-Hant":"{p2}喝光了{p}沏的茶！" },
+    bl_263: { "en":"{p} shared its {item} with {p2}!", "fr":"{p} a partagé son {item} avec {p2} !", "de":"{p} teilte sein {item} mit {p2}!", "es":"¡{p} compartió su {item} con {p2}!", "it":"{p} ha condiviso il suo {item} con {p2}!", "ko":"{p}은(는) {item}을(를) {p2}에게 건넸다!", "zh-Hans":"{p}把{item}交给了{p2}！", "zh-Hant":"{p}把{item}交給了{p2}！" },
+    bl_264: { "en":"{p} gained strength from the fallen!", "fr":"{p} a puisé de la force chez ses alliés tombés au combat !", "de":"{p} schöpfte Kraft aus den Gefallenen!", "es":"¡{p} obtuvo fuerza de sus aliados caídos!", "it":"{p} ha tratto forza dai compagni caduti!", "ko":"{p}은(는) 쓰러진 동료에게서 힘을 받았다!", "zh-Hans":"{p}从倒下的伙伴身上获得了力量！", "zh-Hant":"{p}從倒下的夥伴身上獲得了力量！" },
   };
 
   // ─── パターン(順に試す)。slots: テンプレ名→{g:捕捉番号, kind} ───
   var PATTERNS = [
     // 表示専用の攻撃予告行(汎用の技使用パターンより先に判定させる=順序重要)
     { id: 'attack_intro', re: /^((?:相手の )?\S+) の こうげき！$/, slots: { p: { g: 1, kind: 'poke' } } },
+    // E4-B(2026-09-12): 味方を読む特性4件の実機メッセージ。汎用パターンに食われないよう前方に置く(完全アンカー済み)。
+    { id: 'bl_261', re: /^((?:相手の )?\S+) は 味方からの 攻撃を 受けない！$/, slots: { "p": { g: 1, kind: "poke" } } },
+    { id: 'bl_262', re: /^((?:相手の )?\S+) が たてた お茶を ((?:相手の )?\S+) は 飲みほした！$/, slots: { "p": { g: 1, kind: "poke" }, "p2": { g: 2, kind: "poke" } } },
+    { id: 'bl_263', re: /^((?:相手の )?\S+) は (\S+)を ((?:相手の )?\S+) に 持たせた！$/, slots: { "p": { g: 1, kind: "poke" }, "item": { g: 2, kind: "item" }, "p2": { g: 3, kind: "poke" } } },
+    { id: 'bl_264', re: /^((?:相手の )?\S+) は 倒された 仲間から 力を もらった！$/, slots: { "p": { g: 1, kind: "poke" } } },
     { id: 'attack_dmg', re: /^((?:相手の )?\S+) の (\S+)！ ((?:相手の )?\S+) に (\d+) ダメージ！(\(一撃必殺！\))? \(残HP (\d+)(?:\/(\d+))?\)$/,
       slots: { atk: { g: 1, kind: 'poke' }, move: { g: 2, kind: 'move' }, df: { g: 3, kind: 'poke' }, dmg: { g: 4, kind: 'num' }, ohko: { g: 5, kind: 'raw' }, hp: { g: 6, kind: 'num' }, max: { g: 7, kind: 'raw' } },
       post: { ohko: function (v) { return v ? ' (OHKO!)' : ''; }, max: function (v) { return v ? '/' + v : ''; } } },

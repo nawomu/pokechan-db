@@ -101,6 +101,8 @@ function buildEngine() {
     attemptSwitch: (typeof attemptSwitch !== 'undefined') ? attemptSwitch : null,
     aiChooseMove: (typeof aiChooseMove !== 'undefined') ? aiChooseMove : null,
     phaseInitA: (typeof phaseInitA !== 'undefined') ? phaseInitA : null,
+    // E4(2026-09-12): 死に出しの登場効果を「全員出揃ってから すばやさ順」で回す入口(ダブルfixtureが呼ぶ)
+    flushDeferredEntries: (typeof flushDeferredEntries !== 'undefined') ? flushDeferredEntries : null,
     initPP: (typeof initPP !== 'undefined') ? initPP : null,
     aiChooseAction: (typeof aiChooseAction !== 'undefined') ? aiChooseAction : null,
     aiScoreMove: (typeof aiScoreMove !== 'undefined') ? aiScoreMove : null,

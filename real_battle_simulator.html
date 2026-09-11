@@ -999,7 +999,7 @@ select:focus,.styled-input:focus{outline:none;border-color:#58a6ff;background:#1
 })();
 </script>
 <script src="items_database.js"></script>
-<script src="battle_log_i18n.js?v=20260911b"></script>
+<script src="battle_log_i18n.js?v=20260912e4"></script>
 <script src="battle_scheduler.js?v=20260910"></script>
 <script>
 'use strict';
@@ -3585,11 +3585,15 @@ function fireEntryAbility(s, slotIdx, opts){
       //   「<ポケモン>は 倒された 仲間から 力を もらった!」とメッセージが出る。」
       //   / 「その戦闘でひんしになった味方がいないときは特性バーとメッセージは現れない。」
       //   → n===0 ではログを出さない(0体でも値は0で上書きしておく=前の個体の値が残らない)。
-      // ★ログ行新設禁止(指示書 絶対条件): 実機の「倒された 仲間から 力を もらった!」は新しい行になるので、
-      //   既存の特性発動宣言の型(3177行 かたやぶり系と同じ `${pname(st)} の ${ab}！`)で出す。
-      //   実機文言は台帳に「未対応(文言)」として残す。
+      // E4-B(2026-09-12): 実機文言へ。出典= ポケモンWiki『そうだいしょう』特性の仕様節
+      //   「その戦闘で味方がひんしになってから場に出たときに発動し、特性バーと
+      //    「<ポケモン>は 倒された 仲間から 力を もらった!」とメッセージが出る。」
+      //   (E2 の時点では「ログ行新設禁止」で `${pname(st)} の ${ab}！` を流用していた。E4 で9言語 TPL を
+      //    足したので実機文言に置き換えた= battle_log_i18n.js id='bl_264')
+      // ★この行はシングルでも到達しうる(faintedAllyCountOf は控えのひんしも数えるため)。
+      //   実測: sim 862/0・sim_test_report.html の diff 0(ドドゲザン+控えひんしの列が母集団に無い)。
       st.overlordFainted = faintedAllyCountOf(s, slotIdx);
-      if (st.overlordFainted > 0) log('Init-A', `${pname(st)} の ${ab}！`);
+      if (st.overlordFainted > 0) log('Init-A', `${pname(st)} は 倒された 仲間から 力を もらった！`);
     } else if (ab === 'おみとおし' && other.poke && other.item && ITEM_BY_KEY[other.item]){
       // おみとおし(段113・ABILITY_DESC公式準拠): 場に出た時、相手の持ち物を見抜く。
       // ★2026-07-18(H9件目): 元々attemptSwitch(交代)にだけ実装されていたのをここへ集約し、
@@ -3641,11 +3645,14 @@ function fireLowPriorityEntryAbility(s, slotIdx){
   // みがわり中の味方も対象(master effect_ja『『みがわり』状態や姿を隠しているポケモンのランクも戻る』は
   //   きみょうなくすり側の記述だが、おもてなしはHP回復=みがわりは肩代わりしない性質のものなので
   //   そのまま本体のHPを回復する。みがわりを見る判定は足さない)。
-  // ★ログ行新設禁止(指示書 絶対条件): 実機の「<所持者>が たてた お茶を <味方>は 飲みほした!」は新しい行に
-  //   なるので出さない。既存の型2本で出す:
-  //     ①`${pname(st)} の ${ab}！`            = battle_log_i18n.js PATTERNS id='ability_announce'(9言語済み)
-  //     ②`${pname(al)} は HPを 回復した！ (残HP N)` = 同 id='bl_110'(9言語済み・7488行と同じ文字列)
-  //   実機文言は台帳に「未対応(文言)」として残す。
+  // E4-B(2026-09-12): 発動宣言を実機文言へ。出典= ポケモンWiki『おもてなし』特性の仕様節
+  //   「発動時、「<特性所持者>が たてた お茶を <味方>は 飲みほした!」というメッセージが出る。」
+  //   (E2 の時点では「ログ行新設禁止」で id='ability_announce' を流用していた。E4 で9言語 TPL を
+  //    足したので実機文言に置き換えた= battle_log_i18n.js id='bl_262')
+  // ★②の回復量の行(`${pname(al)} は HPを 回復した！ (残HP N)` = 既存 id='bl_110')は残す。
+  //   実機はHPバーが動くだけで数字の行は出ないが、このエンジンは回復量を必ず1行で見せる流儀
+  //   (きのみ/たべのこし等と同じ)なので、そこだけ家の作法に合わせた(意図的・報告に明記)。
+  // ★シングル: allySlotsOf が常に空=この段は丸ごと無音(到達しない)。
   allySlotsOf(s, slotIdx).forEach(function(_al){
     const _a = _al.st;
     const _max = realStat(_a, 'hp');
@@ -3653,7 +3660,7 @@ function fireLowPriorityEntryAbility(s, slotIdx){
     if (_a.currentHp >= _max) return;                 // 満タン=不発(ログも出さない)
     const _heal = Math.floor(_max / 4);               // 小数点以下切り捨て
     if (_heal <= 0) return;
-    log('Init-A', `${pname(st)} の ${ab}！`);
+    log('Init-A', `${pname(st)} が たてた お茶を ${pname(_a)} は 飲みほした！`);
     _a.currentHp = Math.min(_max, _a.currentHp + _heal);
     log('Init-A', `${pname(_a)} は HPを 回復した！ (残HP ${_a.currentHp})`);
   });
@@ -3845,10 +3852,12 @@ function phaseDealDamage(atkSide, defSide, move, atkIdx, defIdx, spreadCount){
   if (atkSide === defSide && atkIdx !== defIdx && move.category !== '変化'){
     const _tpDf = slotOf(defSide, defIdx), _tpAtk = slotOf(atkSide, atkIdx);
     if (_tpDf && _tpDf.poke && !_tpDf.fainted && defAbilityVs(_tpDf, _tpAtk) === 'テレパシー'){
-      // ★ログ行新設禁止(指示書 絶対条件)。実機の「◯◯は 味方からの 攻撃を 受けない!」は新しい行になるので、
-      // 既存の「特性で無効化」型(battle_log_i18n.js PATTERNS id='no_effect_ability' = 9言語済み)を使う。
-      // 実機文言は台帳に「未対応(文言)」として残す。
-      log('8', `${pname(_tpDf)} には こうかが ないようだ…（とくせい テレパシーのため）`);
+      // E4-B(2026-09-12): 実機文言へ。出典= ポケモンWiki『テレパシー』特性の仕様節
+      //   「・発動すると特性バーが現れ、「<所持者>は 味方からの 攻撃を 受けない!」とメッセージが流れる。」
+      //   (E2 の時点では「ログ行新設禁止」で no_effect_ability 型を流用していた。E4 で9言語 TPL を
+      //    足したので実機文言に置き換えた= battle_log_i18n.js id='bl_261')
+      // ★シングルでは atkSide===defSide かつ atkIdx!==defIdx になる経路が無い=この行は到達しない(diff 0)。
+      log('8', `${pname(_tpDf)} は 味方からの 攻撃を 受けない！`);
       return { immune: true, reason: 'こうかなし' };
     }
   }
@@ -7078,6 +7087,10 @@ function snapshotBattleState(){
     // 中身は{kind,move}=moveは技オブジェクト参照(protectingと同じ扱い)なので浅いコピーで足りる。
     sideProtect: st.sideProtect ? {...st.sideProtect} : null,
     allySwitchStreak: st.allySwitchStreak || 0,          // E3(機構3): サイドチェンジの連続カウントも一手戻せるように
+    // E4(2026-09-12): 死に出しの「登場処理まち」。1つの補充ラウンド内でしか存在しない(pushHistory時は常に空)が、
+    // makeSnapshotSpec(SLOT_VOLATILE_FIELDS)に登録した欄なので欄の集合を legacy 側とも揃える(_snapshot_equiv_test)。
+    // 中身は{side,idx,epoch}の素の配列=_cloneSnapshotFieldの既定(配列の浅いコピー)と同じ扱いにする。
+    pendingEntries: st.pendingEntries ? [...st.pendingEntries] : null,
     enduring: !!st.enduring,                             // こらえるも一手戻せるように
     charging: st.charging ? {...st.charging} : null,     // 溜め技(2ターン技)の溜め状態も一手戻せるように
     attracted: !!st.attracted,                           // メロメロ状態も一手戻せるように
@@ -7213,6 +7226,7 @@ function undoBattle(){
     st.protecting = src.protecting || null;              // まもる中の技の巻き戻し
     st.sideProtect = src.sideProtect ? {...src.sideProtect} : null;   // E3: 側のまもりの巻き戻し
     st.allySwitchStreak = src.allySwitchStreak || 0;      // E3: サイドチェンジ連続カウントの巻き戻し
+    st.pendingEntries = src.pendingEntries ? [...src.pendingEntries] : null;   // E4: 登場処理まちの巻き戻し(通常は空)
     st.enduring = !!src.enduring;                        // こらえるの巻き戻し
     st.charging = src.charging ? {...src.charging} : null; // 溜め状態の巻き戻し
     st.attracted = !!src.attracted;                      // メロメロ状態の巻き戻し
@@ -8104,10 +8118,13 @@ function resolveSymbiosis(){
       if (_rv.item) return;                 // 受け取る側がもう道具を持っている=渡す先が無い
       if (!symbiosisCanGiveItem(donor, _rv, donor.item)) return;
       const _give = donor.item;
-      // ★ログ行新設禁止(指示書 絶対条件): 実機の「<きょうせい>は <道具名>を <味方>に 持たせた!」は
-      //   新しい行になるので出さない。既存の型(id='ability_announce')で発動だけ告げる。
-      //   実機文言は台帳に「未対応(文言)」として残す。
-      log('9', `${pname(donor)} の きょうせい！`);
+      // E4-B(2026-09-12): 実機文言へ。出典= ポケモンWiki『きょうせい』特性の仕様節
+      //   「「<きょうせいのポケモン>は <道具名>を <味方のポケモン>に 持たせた!」というメッセージが出る。」
+      //   (E2 の時点では「ログ行新設禁止」で id='ability_announce' を流用していた。E4 で9言語 TPL を
+      //    足したので実機文言に置き換えた= battle_log_i18n.js id='bl_263')
+      // 道具名の書式は既存の おみとおし行(`${ITEM_BY_KEY[...].name}を 見抜いた！`)に合わせて「名前+を」。
+      // ★シングル: allySlotsOf が常に空=この段は丸ごと無音(到達しない)。
+      log('9', `${pname(donor)} は ${(ITEM_BY_KEY[_give] && ITEM_BY_KEY[_give].name) || _give}を ${pname(_rv)} に 持たせた！`);
       donor.item = '';
       _rv.item = _give;
       // 「渡した道具が消費できる条件を満たしている場合、即座に消費する」= その枠だけ道具判定をやり直す
@@ -8372,6 +8389,28 @@ function attemptSwitch(sideKey, benchIdx, opts){
     st.heroAnnounce = false;
     log('9', `${pname(st)} は 変身して 帰ってきた！`);
   }
+  // E4(2026-09-12・指示書 spec_e4_defer_entry_and_messages.md A): 「登場処理」= この1関数にまとめた。
+  // opts.deferEntry を渡すと、ここでは走らせずに側の欄 pendingEntries に積み、flushDeferredEntries() が
+  // 「全員出揃ってから」すばやさ順で1回だけ回す(同時死に出しの登場効果の順序を1回決めて固定する)。
+  // deferEntry 未指定 = 従来どおり即実行(既存呼び出しは1bitも変わらない=シングル不変の根拠)。
+  if (opts && opts.deferEntry){
+    const _sdE = sides[sideKey];
+    if (!Array.isArray(_sdE.pendingEntries)) _sdE.pendingEntries = [];
+    // epoch も一緒に積む=積んだ後にその枠がさらに交代したら(別個体に入れ替わったら)発火させない保険。
+    _sdE.pendingEntries.push({side: sideKey, idx: slotIdx, epoch: st.presenceEpoch || 0});
+  } else {
+    runEntrySequence(sideKey, slotIdx);
+  }
+  return true;
+}
+// E4: 1枠ぶんの「登場処理」(attemptSwitch の末尾にあった4つをそのままの順で切り出しただけ。
+// 中身・順番・条件は1文字も変えていない=非deferの経路は完全に従来どおり)。
+// ★applyEntryHazards(設置技)と heroAnnounce はここに入れない: 設計_ダブルバトル_2026-09-07.md の
+//   「入場者ごとに switch_in → entry_hazard を逐次で回し、全員が出揃ってから…entry_ability」(§ 入場と登場効果は2段)
+//   に従い、設置技は入場のたびに即時・登場特性だけを「出揃ってから」に回す。
+function runEntrySequence(sideKey, slotIdx){
+  const st = slotOf(sideKey, slotIdx);
+  if (!st || !st.poke) return;
   // 場に出た時の特性発動(段127・H9件目=2026-07-18修正): いかく/ひでり/あめふらし/すなおこし/ゆきふらし/
   // 各種メイカー/プレッシャー/おみとおし/イリュージョン/トレース/かわりもの等をInit-Aと同じ1関数から発動する。
   // 以前はここに個別実装(おみとおし/イリュージョン/トレース/かわりもの)だけがあり、交代時にいかく等の
@@ -8390,7 +8429,38 @@ function attemptSwitch(sideKey, benchIdx, opts){
     st.healingWish = false;
     log('9', `いやしのねがいが かなった！ ${pname(st)} は 元気になった！`);
   }
-  return true;
+}
+// E4(指示書 A.2・設計_ダブルバトル_2026-09-07.md §5「同時入場の登場効果=全員出揃ってから
+// すばやさ順・順は1回決めて固定」台帳#14/#15/#66): 積んである登場処理を1回だけ順序決定して実行する。
+// 順序の鍵 = orderSlotsBySpeedForPhase(効果すばやさ降順・トリックルームで反転・同速は canonSlots の
+//   正準順=乱数を引かない)。★交代/メガの並べ替えと同じ既存関数を共用する(鍵を2本作らない)。
+// ★順序の鍵(2026-09-12 決定): ポケモンWiki『おもてなし』特性の仕様節「補正抜きの素早さ実数値が高い順に
+//   発動する。ランク補正、こだわりスカーフなどの持ち物、トリックルームなどの場の状態は考慮しない。」に従い、
+//   同時入場の登場特性は **素の素早さ降順(トリックルーム不問・同速は canonSlots)** = orderSlotsBySpeedDesc。
+//   (指示書 E4 A.2 の「トリックルーム反転」は権威と逆だったので採らない。)
+//   バトル開始の phaseInitA は effectiveSpeed 降順のまま(開始時は補正が乗らないので実質同じ・シングル stdout を動かさない)。
+// 戻り値 = 実際に登場処理を走らせた枠の数(ページ側が「flushする意味があったか」を見られるように)。
+function flushDeferredEntries(){
+  const list = [];
+  activeSides().forEach(function(s){
+    const sd = sides[s];
+    if (!sd || !Array.isArray(sd.pendingEntries) || !sd.pendingEntries.length) return;
+    sd.pendingEntries.forEach(function(e){ list.push(e); });
+    sd.pendingEntries = [];
+  });
+  if (!list.length) return 0;
+  let n = 0;
+  orderSlotsBySpeedDesc(list).forEach(function(sl){
+    const st = slotOf(sl.side, sl.idx);
+    if (!st || !st.poke) return;
+    if ((st.presenceEpoch || 0) !== sl.epoch) return;   // 積んだ後にさらに交代した枠=別個体になっている
+    // 設置技(ステルスロック等)で入場した瞬間にひんしになった枠は登場特性を発動しない
+    // (設計§「設置技で入場即ひんし→空席が残る→同じ段をもう1周」= その枠はもう場に居ない扱い)。
+    if (st.fainted || (st.currentHp != null && st.currentHp <= 0)) return;
+    runEntrySequence(sl.side, sl.idx);
+    n++;
+  });
+  return n;
 }
 
 // === Init-B: メガシンカ(段117) ===
@@ -10051,8 +10121,13 @@ function runTurn(){
            (s === 'opp' && window.__rbDeferFaintReplaceOpp))){ return; }
       const liveIdx = _liveIdxs.length ? chooseSwitchTarget(s, _liveIdxs) : -1;
       if (liveIdx < 0) return;
-      attemptSwitch(s, liveIdx, {ignoreTrapping: true, faintReplace: true});
+      // E4(2026-09-12・指示書A.2「エンジン内部の自動補充も同じ流儀で全部埋めてから1回flush」):
+      // 登場処理を積んでおき、両側ぶんの死に出しが済んでから flushDeferredEntries() ですばやさ順に回す。
+      // ★シングルでも「両者が同時にひんし」(相討ち)になると2件積まれる=順序が side 固定順から
+      //   すばやさ順に変わりうる。stdout diff 0 で実測して確認した(下の報告参照)。
+      attemptSwitch(s, liveIdx, {ignoreTrapping: true, faintReplace: true, deferEntry: true});
     });
+    flushDeferredEntries();
   } else {
     // D4-2b(2026-09-11・設計_ダブルバトル_2026-09-07.md§7・行動順再評価§2): 枠単位で空席を埋める。
     // 両側・複数枠が同時に空く場合の補充順=台帳#7(未確認・Wiki「倒れた側の速さ」/Showdown「速さ順」
@@ -10077,9 +10152,13 @@ function runTurn(){
         }
         const liveIdx = _liveIdxs.length ? chooseSwitchTarget(sl.side, _liveIdxs) : -1;
         if (liveIdx < 0) return;   // 控え不足(#68): この枠は空席のまま続行
-        attemptSwitch(sl.side, liveIdx, {ignoreTrapping: true, faintReplace: true, slotIdx: sl.idx});
+        // E4(指示書A.2): 登場処理は積むだけ。この周で埋まる枠を全部入れてから1回 flush する。
+        attemptSwitch(sl.side, liveIdx, {ignoreTrapping: true, faintReplace: true, slotIdx: sl.idx, deferEntry: true});
         _anyDieOutReplaced = true;
       });
+      // E4: 「全員出揃ってから」登場効果をすばやさ順で1回だけ(この周ぶん)。設置技で入場即ひんしになった
+      // 枠は flush 側で除外され、次の周でまた補充される(設計§「もう1周」)。
+      flushDeferredEntries();
       if (!_anyDieOutReplaced) break;
     }
   }
@@ -11860,6 +11939,10 @@ window.__sim = {
   aiChooseMove, aiChooseAction, aiScoreMove, attemptSwitch, megaEvolve, canMegaEvolve, resetBattle,
   resolveMegaStoneKey,   // メガストーン互換解決(2026-09-03): 'mega_stone_any'→実ストーンkey('':該当なし)。他キーは素通し
   phaseInitA,   // バトル開始時の登場特性(いかく/天候/かわりもの等)をリアルバトル側からも発動できるように
+  // E4(2026-09-12): 死に出しの登場効果を「全員出揃ってから すばやさ順」で回すための入口。
+  // ページは各枠を attemptSwitch(..., {faintReplace:true, slotIdx, deferEntry:true}) で埋め、
+  // 全部埋め終わってから S.flushDeferredEntries() を1回呼ぶ。
+  flushDeferredEntries,
   pokeByName: n => (POKE_MAP_BY_NAME[n] || null),
   pokeList: () => POKEMON_LIST,
   natureIdxOf: name => { const i = NATURE_LIST.findIndex(n => n[0] === name); return i < 0 ? NATURE_LIST.findIndex(n => n[0] === 'まじめ') : i; },

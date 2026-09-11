@@ -1367,8 +1367,10 @@ test('E2-2-1: テレパシーは味方の攻撃技だけを無効化する(変�
   assert.ok(ctrl.hp < ctrl.maxHp, `対照(テレパシー無し)では味方のはたくで減る(${ctrl.hp}/${ctrl.maxHp})`);
   const tp = run('hataku', 'テレパシー', '');
   assert.equal(tp.hp, tp.maxHp, `攻撃技は無効化=HP満タンのまま(実際=${tp.hp}/${tp.maxHp})`);
-  assert.ok(tp.msgs.some(m => m.includes('こうかが ないようだ') && m.includes('テレパシー')),
-    `無効化は既存の型(「◯◯ には こうかが ないようだ…（とくせい テレパシーのため）」)で出る。実際=${JSON.stringify(tp.msgs)}`);
+  // E4-B(2026-09-12): 実機文言に置き換えた。出典= ポケモンWiki『テレパシー』特性の仕様節
+  //   「「<所持者>は 味方からの 攻撃を 受けない!」とメッセージが流れる。」
+  assert.ok(tp.msgs.some(m => /は 味方からの 攻撃を 受けない！$/.test(m) && m.includes('サーナイト')),
+    `無効化は実機文言(「◯◯ は 味方からの 攻撃を 受けない！」)で出る。実際=${JSON.stringify(tp.msgs)}`);
   const statusMove = run('denjiha', 'テレパシー', '');
   assert.equal(statusMove.status, 'paralysis', '変化技(でんじは)は無効化できない=まひする');
   const breaker = run('hataku', 'テレパシー', 'かたやぶり');
@@ -1449,8 +1451,10 @@ test('E2-4-1: そうだいしょうは登場時のひんし数で威力補正が
     const chip = r.chips.find(c => String(c.label).includes('そうだいしょう'));
     assert.ok(chip, `ひんし${n}体で補正チップが付く(実際=${JSON.stringify(r.chips)})`);
     assert.equal(chip.factor, Q12[n] / 4096, `ひんし${n}体の補正は ×${Q12[n] / 4096}`);
-    assert.ok(msgList(E.battleLog).some(m => m.includes('そうだいしょう')),
-      `ひんし${n}体では発動ログ(既存の型「◯◯ の そうだいしょう！」)が出る`);
+    // E4-B(2026-09-12): 実機文言に置き換えた。出典= ポケモンWiki『そうだいしょう』特性の仕様節
+    //   「「<ポケモン>は 倒された 仲間から 力を もらった!」とメッセージが出る。」
+    assert.ok(msgList(E.battleLog).some(m => /は 倒された 仲間から 力を もらった！$/.test(m)),
+      `ひんし${n}体では発動ログ(実機文言「◯◯ は 倒された 仲間から 力を もらった！」)が出る`);
   }
   // 上限: ひんし6体でも ×1.5 のまま
   const capped = mkHolder(6, false).calcDamage('self', 'opp', mv, {}, 0, 0);
@@ -1471,6 +1475,9 @@ test('E2-4-1: そうだいしょうは登場時のひんし数で威力補正が
 // 出典: ポケモンWiki『おもてなし』効果節「場に出たときに、味方のHPを最大HPの1/4分だけ回復する
 //       (小数点以下切り捨て)。」/ 特性の仕様節「味方がいないときや、味方のHPが満タンのときは発動しない。」
 //       「いかくやかわりものなど、他の多くの場に出たときに発動する特性より発動の優先順位が低い。」
+// E4-B(2026-09-12): おもてなしの発動行=実機文言。出典= ポケモンWiki『おもてなし』特性の仕様節
+//   「発動時、「<特性所持者>が たてた お茶を <味方>は 飲みほした!」というメッセージが出る。」
+const TEA_RE = /が たてた お茶を .* は 飲みほした！$/;
 test('E2-5-1: おもてなしは登場時に味方のHPを1/4(切り捨て)回復し、満タン/味方不在では発動せず、いかくより後に発動する', () => {
   // (a) 回復量 = 味方の最大HP÷4 の切り捨て / 自分は回復しない
   const E = build2v2();
@@ -1494,7 +1501,9 @@ test('E2-5-1: おもてなしは登場時に味方のHPを1/4(切り捨て)回�
   placeSlot(full, 'opp', 0, 'フシギバナ', null);
   placeSlot(full, 'opp', 1, null, null);
   full.phaseInitA();
-  assert.ok(!msgList(full.battleLog).some(m => m.includes('おもてなし')), '満タンの味方には発動しない');
+  // E4-B(2026-09-12): 発動行は実機文言「◯◯が たてた お茶を △△は 飲みほした！」に置き換えた
+  //   (出典= ポケモンWiki『おもてなし』特性の仕様節)。発動の有無はこの行で見る。
+  assert.ok(!msgList(full.battleLog).some(m => TEA_RE.test(m)), '満タンの味方には発動しない');
 
   const solo = build2v2();
   const h2 = placeSlot(solo, 'self', 0, 'ヤバソチャ(ボンサクのすがた)', null, { ability: 'おもてなし' });
@@ -1504,7 +1513,7 @@ test('E2-5-1: おもてなしは登場時に味方のHPを1/4(切り捨て)回�
   h2.currentHp = 1;
   solo.phaseInitA();
   assert.equal(h2.currentHp, 1, '味方がいないときは発動しない(自分も回復しない)');
-  assert.ok(!msgList(solo.battleLog).some(m => m.includes('おもてなし')), '味方不在では発動ログも出ない');
+  assert.ok(!msgList(solo.battleLog).some(m => TEA_RE.test(m)), '味方不在では発動ログも出ない');
 
   // (c) いかくより後に発動する(おもてなし側が速い配置でも順序が逆転しない)
   const ord = build2v2();
@@ -1518,7 +1527,7 @@ test('E2-5-1: おもてなしは登場時に味方のHPを1/4(切り捨て)回�
   ord.phaseInitA();
   const m = msgList(ord.battleLog);
   const iIntim = m.findIndex(x => x.includes('いかく'));
-  const iHosp = m.findIndex(x => x.includes('おもてなし'));
+  const iHosp = m.findIndex(x => TEA_RE.test(x));
   assert.ok(iIntim >= 0 && iHosp >= 0, `両方の発動ログが出る(実際=${JSON.stringify(m)})`);
   assert.ok(iIntim < iHosp, `いかく(${iIntim})が おもてなし(${iHosp})より先(発動の優先順位が低い)`);
 });
@@ -1690,7 +1699,10 @@ test('E2-9-1: きょうせいは味方が道具を消費した時だけ自分の
     E.runTurn();
     assert.equal(String(ally.item), 'leftovers', `味方の持ち物が leftovers になる(実際=${ally.item})`);
     assert.equal(String(symb.item), '', `きょうせい側の持ち物は無くなる(実際=${symb.item})`);
-    assert.ok(msgList(E.battleLog).some(m => m.includes('きょうせい')), '発動ログが既存の型で出る');
+    // E4-B(2026-09-12): 実機文言に置き換えた。出典= ポケモンWiki『きょうせい』特性の仕様節
+    //   「「<きょうせいのポケモン>は <道具名>を <味方のポケモン>に 持たせた!」というメッセージが出る。」
+    assert.ok(msgList(E.battleLog).some(m => /^.+ は .+を .+ に 持たせた！$/.test(m)),
+      `発動ログが実機文言(「◯◯ は □□を △△ に 持たせた！」)で出る`);
   }
   // (b) はたきおとすで「失った」時は発動しない(consumeItemを通らない=構造的に除外)
   {
@@ -2053,4 +2065,106 @@ test('E3-canon-1: ムラっけの乱数消費順が側ラベルに依存しな�
     `鏡写しの相手枠(=Aの自分)が同じ乱数を引くはず A.self=${JSON.stringify(A.self)} B.opp=${JSON.stringify(B.opp)}`);
   assert.deepEqual(B.self, A.opp,
     `鏡写しの自分枠(=Aの相手)が同じ乱数を引くはず A.opp=${JSON.stringify(A.opp)} B.self=${JSON.stringify(B.self)}`);
+});
+
+// ===== E4-A: deferEntry(同時入場の登場効果=全員出揃ってからすばやさ順・順は1回決めて固定) =====
+// 2026-09-12・指示書 spec_e4_defer_entry_and_messages.md A / 設計_ダブルバトル_2026-09-07.md §5(台帳#14/#15/#66)
+//   「同時入場の登場効果=全員出揃ってから すばやさ順・順は1回決めて固定」
+//   「入場者ごとに switch_in → entry_hazard を逐次で回し、全員が出揃ってから…entry_ability」
+// 順序の鍵は orderSlotsBySpeedForPhase(効果すばやさ降順・トリックルームで反転・同速は canonSlots)。
+// いかく持ちを両側の控えに置き、どちらの「いかく」の行が先に出るかで順序を観測する。
+function intimidateBench(pokeName) {
+  const e = benchEntry(pokeName, null);
+  e.ability = 'いかく';   // BENCH_FIELDS に 'ability' が入っているので入場時に枠へ引き継がれる
+  return e;
+}
+// 両側の枠1が同時にひんし → ターン終了で両側が死に出し。控えは いかく持ち2体(速度差あり)。
+function dieOutBothSides(trickRoom) {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', null);
+  placeSlot(E, 'self', 1, 'カメックス', null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'フシギバナ', null);
+  placeSlot(E, 'opp', 1, 'カメックス', null, { fainted: true });
+  E.sides.self.bench = [intimidateBench('ゲンガー')];    // すばやさ110(速い)
+  E.sides.opp.bench = [intimidateBench('カビゴン')];     // すばやさ30(遅い)
+  if (trickRoom) E.env.trickRoom = true;
+  E.setRandom(mulberry32(7));
+  E.runTurn();
+  const msgs = msgList(E.battleLog);
+  return {
+    E, msgs,
+    fast: msgs.findIndex(m => /^ゲンガー の いかくで /.test(m)),
+    slow: msgs.findIndex(m => /^相手の カビゴン の いかくで /.test(m)),
+  };
+}
+
+test('E4-A-1: 両側同時の死に出しで いかく持ち2体が出る→速い方のいかくが先(全員出揃ってからすばやさ順)', () => {
+  const r = dieOutBothSides(false);
+  assert.equal(r.E.slotOf('self', 1).poke.name, 'ゲンガー', '前提: self:1 が ゲンガー で補充される');
+  assert.equal(r.E.slotOf('opp', 1).poke.name, 'カビゴン', '前提: opp:1 が カビゴン で補充される');
+  assert.ok(r.fast >= 0 && r.slow >= 0, `両方のいかくの行が出る(実際=${JSON.stringify(r.msgs)})`);
+  assert.ok(r.fast < r.slow,
+    `速い ゲンガー(110) のいかくが 遅い カビゴン(30) より先(実際: fast=${r.fast}行目 / slow=${r.slow}行目)`);
+  // 「全員出揃ってから」= 2体とも場に出た後に登場効果が回る。=2本の「場に出た」行が2本のいかく行より前。
+  const lastEntry = Math.max(
+    r.msgs.findIndex(m => /代わりに ゲンガー が 場に出た！$/.test(m)),
+    r.msgs.findIndex(m => /代わりに 相手の カビゴン が 場に出た！$/.test(m)));
+  assert.ok(lastEntry >= 0 && lastEntry < r.fast,
+    `2体とも出揃ってから登場効果が回る(最後の登場行=${lastEntry} / 最初のいかく=${r.fast})`);
+});
+
+test('E4-A-2: トリックルーム下でも同じ順序(登場特性の順は補正抜きの素早さ実数値=場の状態を考慮しない・Wiki おもてなし)', () => {
+  const r = dieOutBothSides(true);
+  assert.ok(r.fast >= 0 && r.slow >= 0, `両方のいかくの行が出る(実際=${JSON.stringify(r.msgs)})`);
+  assert.ok(r.fast < r.slow,
+    `トリックルームでも速い ゲンガー(110) が先(実際: fast=${r.fast}行目 / slow=${r.slow}行目)`);
+});
+
+test('E4-A-3: deferEntry 未指定の attemptSwitch は従来どおりその場で登場効果を発動する(既存呼び出しは無変更)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', null);
+  placeSlot(E, 'self', 1, 'カメックス', null, { fainted: true });
+  placeSlot(E, 'opp', 0, 'フシギバナ', null);
+  placeSlot(E, 'opp', 1, null, null);
+  E.sides.self.bench = [intimidateBench('ゲンガー')];
+  const from = E.battleLog.length;
+  E.setRandom(mulberry32(3));
+  assert.equal(E.attemptSwitch('self', 0, { ignoreTrapping: true, faintReplace: true, slotIdx: 1 }), true,
+    '交代自体は成功する');
+  const msgs = msgList(E.battleLog).slice(from);
+  assert.ok(msgs.some(m => /^ゲンガー の いかくで /.test(m)),
+    `deferEntry を渡さなければ attemptSwitch の中でいかくが発動する(実際=${JSON.stringify(msgs)})`);
+  assert.equal(E.flushDeferredEntries(), 0, '積まれていないので flush は何もしない(0件)');
+});
+
+test('E4-A-4: シングルで両者が同時にひんし→「場に出た」行は従来の side 順のまま・登場効果だけがすばやさ順', () => {
+  // ★シングルの絶対条件(sim 862/0・sim_test_report.html の diff 0)は別ゲートで担保済み。
+  //   ここは「相討ち(両者同時ひんし)」という既存テスト母集団に無い配置での挙動を固定する。
+  const E = buildEngine();
+  E.setFormat({ slotsPerSide: 1 });
+  // 相討ちの作り方: 両者ともHP1のどく状態で、ダメージの出ない変化技(つるぎのまい)を撃たせる。
+  // ターン終了のスリップで両者が同時にひんしになり、そのまま両側の死に出しへ入る。
+  const put = (side, name) => {
+    const st = E.slotOf(side, 0);
+    st.poke = pokeByName(name); st.moves = [data.WAZA_MAP.tsuruginomai]; st.selectedMoveIdx = 0;
+    st.currentHp = 1; st.fainted = false; st.status = 'poison';
+    return st;
+  };
+  put('self', 'カメックス');
+  put('opp', 'カメックス');
+  E.sides.self.bench = [intimidateBench('カビゴン')];    // 自分側=遅い(30)
+  E.sides.opp.bench = [intimidateBench('ゲンガー')];     // 相手側=速い(110)
+  E.setRandom(mulberry32(11));
+  E.runTurn();
+  const msgs = msgList(E.battleLog);
+  const entSelf = msgs.findIndex(m => /代わりに カビゴン が 場に出た！$/.test(m));
+  const entOpp = msgs.findIndex(m => /代わりに 相手の ゲンガー が 場に出た！$/.test(m));
+  assert.ok(entSelf >= 0 && entOpp >= 0, `両側とも死に出しの行が出る(実際=${JSON.stringify(msgs)})`);
+  assert.ok(entSelf < entOpp, '入場そのものの順は従来どおり self→opp(activeSides順)で不変');
+  const iSelf = msgs.findIndex(m => /^カビゴン の いかくで /.test(m));
+  const iOpp = msgs.findIndex(m => /^相手の ゲンガー の いかくで /.test(m));
+  assert.ok(iSelf >= 0 && iOpp >= 0, `両方のいかくの行が出る(実際=${JSON.stringify(msgs)})`);
+  assert.ok(entOpp < iOpp && entOpp < iSelf, '2体とも出揃ってから登場効果が回る');
+  assert.ok(iOpp < iSelf,
+    `登場効果は側の順ではなくすばやさ順(速い 相手の ゲンガー が先)。実際: opp=${iOpp} / self=${iSelf}`);
 });
