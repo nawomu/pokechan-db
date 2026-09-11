@@ -547,6 +547,51 @@ async function run(args) {
       const canonB = await B.page.evaluate(() => engineWin().__rbCanonFirst);
       ok(board.canon === 'self' && canonB === 'opp', '正準サイド=ホスト側(A:self / B:opp)', board.canon + '/' + canonB);
 
+      // ---- ★D6-6(2026-09-12): 枠1の交代先も payload に載り、受け手で同じ行列になるか ----
+      // 枠1の「だれに かわる?」で選んだ指名は RB_PIVOT.selfBySlot に入る。それが
+      //   ① onlineDoubleActionPayload の slots[i].pivotIdx として **両枠ぶん** 載るか
+      //   ② 受け手(B)が同じ payload から作る行列が送り手(A)のものと1バイト違わないか(鏡写し)
+      // を、本番の関数をそのまま呼んで確かめる(ページは1文字も変えない)。
+      // ★ここ(開戦直後)で見るのは、4枠が全部生きていて「両枠ぶん」が必ず作れる唯一の地点だから
+      //   (ターンを回した後だと片方が空席で slots が1枠しか出ず、両枠の確認にならない)。
+      const d66 = await A.page.evaluate(() => {
+        const save = Object.assign({}, RB_PIVOT.selfBySlot);
+        RB_PIVOT.selfBySlot = { 0: 1, 1: 0 };            // 枠0=控え1 / 枠1=控え0 を指名した状態を作る
+        const payload = onlineDoubleActionPayload();
+        const queue = onlinePivotQueue(payload);
+        RB_PIVOT.selfBySlot = { 1: 1 };                  // 枠1だけが指名(枠0は既定=載せない)
+        const only1 = onlinePivotQueue(onlineDoubleActionPayload());
+        RB_PIVOT.selfBySlot = save;
+        return { payload: payload, queue: queue, only1: only1, active: selfActiveSlotIdxs(),
+          kinds: payload.slots.map(s => s.kind) };
+      });
+      log('  D6-6 payload の直接確認: ' + JSON.stringify(d66));
+      const pivOnPayload = (d66.payload.slots || []).filter(s => s.pivotIdx != null).map(s => [s.idx, s.pivotIdx]);
+      ok(d66.active.length === 2 && d66.kinds.every(k => k === 'move'),
+        '(D6-6) 確認に使う2枠がどちらも在場で技を選んでいる(前提)', JSON.stringify([d66.active, d66.kinds]));
+      ok(pivOnPayload.length === 2, '(D6-6) 両枠の pivotIdx が payload に載る(枠1も送られる)', JSON.stringify(pivOnPayload));
+      ok(JSON.stringify(d66.queue) === JSON.stringify([{ slot: 0, benchIdx: 1 }, { slot: 1, benchIdx: 0 }]),
+        '(D6-6) 送り手の行列が {枠0:控え1, 枠1:控え0} になる', JSON.stringify(d66.queue));
+      ok(JSON.stringify(d66.only1) === JSON.stringify([{ slot: 1, benchIdx: 1 }]),
+        '(D6-6) 枠1だけの指名も落とさず載る(枠0は既定=載せない)', JSON.stringify(d66.only1));
+      // 受け手(B)が同じ payload から作る行列 = 送り手のものと完全一致(鏡写し)
+      const d66b = await B.page.evaluate(p => onlinePivotQueue(p), d66.payload);
+      ok(JSON.stringify(d66b) === JSON.stringify(d66.queue),
+        '(D6-6) 受け手が同じ payload から作る行列が送り手と一致(鏡写し)', JSON.stringify(d66b));
+      // 同じ控えを両枠が指名できない(ページ側の帳面を見る benchTakenByOtherSlot)
+      const taken = await A.page.evaluate(() => {
+        const save = Object.assign({}, RB_PIVOT.selfBySlot);
+        RB_PIVOT.selfBySlot = { 0: 0 };                   // 枠0が控え0を予約済み
+        const out = { otherSlotSees: benchTakenByOtherSlot(0, 1), sameSlotSees: benchTakenByOtherSlot(0, 0),
+          free: benchTakenByOtherSlot(1, 1) };
+        RB_PIVOT.selfBySlot = save;
+        return out;
+      });
+      log('  D6-6 二重指名の関所: ' + JSON.stringify(taken));
+      ok(taken.otherSlotSees === true, '(D6-6) 枠0が予約した控えは枠1から選べない', String(taken.otherSlotSees));
+      ok(taken.sameSlotSees === false, '(D6-6) 自分の枠の予約は自分では選べる(取り消し・選び直し)', String(taken.sameSlotSees));
+      ok(taken.free === false, '(D6-6) 予約されていない控えはどちらの枠からも選べる', String(taken.free));
+
       // ★死に出しに関わるページ関数の「呼ばれ方」を記録する実行時パッチ(ページは1文字も変えない)。
       //   不一致や固まりの原因を**推測でなく記録で**言えるようにする(どの経路が走ったか/誰が選んだか)。
       for (const p of [A, B]) {
@@ -565,6 +610,23 @@ async function run(args) {
               return o.apply(this, arguments);
             };
           });
+          // ★E4(2026-09-12): ページが積んだ「登場処理」を、全部の枠を埋めてから1回だけ流しているか。
+          //   S.attemptSwitch / S.flushDeferredEntries は __sim の公開プロパティ=ここを包むと
+          //   **ページからの呼び出しだけ**が写る(エンジン内部の呼び出しはローカル名なので影響しない)。
+          window.__e4 = [];
+          const _as = S.attemptSwitch, _fd = S.flushDeferredEntries;
+          S.attemptSwitch = function (side, idx, opts) {
+            const r = _as.apply(this, arguments);
+            window.__e4.push({ k: 'switch', side: side, bench: idx, slot: (opts && opts.slotIdx) || 0,
+              faintReplace: !!(opts && opts.faintReplace), defer: !!(opts && opts.deferEntry), ok: r,
+              log: S.battleLog.length });
+            return r;
+          };
+          S.flushDeferredEntries = function () {
+            const n = _fd.apply(this, arguments);
+            window.__e4.push({ k: 'flush', n: n, log: S.battleLog.length });
+            return n;
+          };
         });
       }
 
@@ -720,6 +782,55 @@ async function run(args) {
       ok(sawSwitch, '枠1の交代を通るターンがあった');
       ok(sawRep >= 1, `死に出しを通るターンがあった(${sawRep}回)`, String(sawRep));
       ok(sawBothRep >= 1, `両側同時の死に出しを通った(${sawBothRep}回)`, String(sawBothRep));
+
+      // ---- ★E4(2026-09-12): 死に出しの登場効果は「全員出揃ってから1回だけ」 ----
+      // 見るもの: ページが呼ぶ S.attemptSwitch(faintReplace) が全部 deferEntry:true で、
+      //   そのひとまとまり(連続した補充)の**あと**に flush が1回だけ来ているか。
+      //   (= いかく等が「埋めた順」でなく「素の素早さ順」で出る。順は flush が1回で決める)
+      const e4A = await A.page.evaluate(() => window.__e4 || []);
+      const e4B = await B.page.evaluate(() => window.__e4 || []);
+      const e4check = rows => {
+        const reps = rows.filter(r => r.k !== 'switch' || r.faintReplace);
+        const noDefer = reps.filter(r => r.k === 'switch' && !r.defer);
+        // 連続した補充のまとまりごとに flush が1回ずつ続くか
+        const groups = []; let cur = null;
+        reps.forEach(r => {
+          if (r.k === 'switch') { if (!cur) { cur = { n: 0, flush: 0 }; groups.push(cur); } cur.n++; }
+          else if (cur) { cur.flush++; cur = null; }
+        });
+        return { switches: reps.filter(r => r.k === 'switch').length, flushes: reps.filter(r => r.k === 'flush').length,
+          noDefer: noDefer.length, groups: groups, badGroups: groups.filter(g => g.flush !== 1).length,
+          multi: groups.filter(g => g.n >= 2).length };
+      };
+      const cA = e4check(e4A), cB = e4check(e4B);
+      log('  E4 呼び出しの記録 A: ' + JSON.stringify(cA));
+      log('  E4 呼び出しの記録 B: ' + JSON.stringify(cB));
+      ok(cA.switches >= 1 && cB.switches >= 1, '(E4) ページ経由の死に出し補充を実際に通った', `A=${cA.switches} B=${cB.switches}`);
+      ok(cA.noDefer === 0 && cB.noDefer === 0, '(E4) 死に出しの補充は全部 deferEntry:true(登場処理を積む)', `A=${cA.noDefer} B=${cB.noDefer}`);
+      ok(cA.badGroups === 0 && cB.badGroups === 0, '(E4) 補充のまとまりごとに flush はちょうど1回', JSON.stringify([cA.groups, cB.groups]));
+      ok(cA.multi >= 1 || cB.multi >= 1, '(E4) 2枠以上をまとめて埋めてから流すまとまりがあった(両側同時の死に出し)', `A=${cA.multi} B=${cB.multi}`);
+      // ログの並び: 「場に出た」がまとまって先・登場特性(いかく等)はその後
+      const order = await A.page.evaluate(() => {
+        const msgs = S.battleLog.map(e => e.msg || '');
+        const out = [];
+        msgs.forEach((m, i) => {
+          if (/の代わりに .* が 場に出た！/.test(m)) out.push({ i: i, k: 'enter', m: m });
+          else if (/の いかく！/.test(m) || /いかくで/.test(m)) out.push({ i: i, k: 'intimidate', m: m });
+        });
+        return out;
+      });
+      const enters = order.filter(o => o.k === 'enter');
+      log(`  ログの並び: 場に出た=${enters.length}行 / いかく=${order.length - enters.length}行`);
+      if (order.some(o => o.k === 'intimidate')) {
+        // 同じまとまりの中で「いかく」の後に「場に出た」が来ていないか(=埋めた順に発動している証拠)
+        let bad = 0;
+        for (let i = 1; i < order.length; i++) {
+          if (order[i].k === 'enter' && order[i - 1].k === 'intimidate' && order[i].i - order[i - 1].i <= 2) bad++;
+        }
+        ok(bad === 0, '(E4) 「いかく」の直後に別の子の「場に出た」が来ない(全員出揃ってから)', String(bad));
+      } else {
+        log('  (参考)このチームには いかく持ちが居ない=順序の実例は AI戦の検証(_d6_6_e4.js)で見る');
+      }
       log('  メガシンカのログ: ' + (sawMega ? 'あり' : 'なし(そのチームにメガ対象が居なかった)'));
 
       const errs = [...A.audit.errors, ...B.audit.errors];
@@ -934,6 +1045,7 @@ async function run(args) {
         '(中-1) 指名された枠の交代は、その枠あての1通だけを消費する', JSON.stringify(pv.slot0));
       ok(pv.unknown.v === 2 && pv.unknown.left === 0,
         '(中-1) 枠が特定できない時は従来どおり先頭から消費(フォールバック)', JSON.stringify(pv.unknown));
+
 
       ok(mis3 === 0, `② 鏡写しの不一致0(${cmp3}ターン比較・送り速度 A1700/B3800)`, String(mis3));
       ok(turnBad === 0, '② 毎ターン Turnバッジが1つ進み COMMAND が45秒に戻る(中-2)', String(turnBad));

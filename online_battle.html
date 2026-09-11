@@ -8,7 +8,7 @@
 <link rel="canonical" href="https://pchamdb.com/online_battle.html">
 <script defer src="i18n/runtime.js?v=20260705"></script>
 <script src="pokechan_data.js?v=20260910"></script>
-<script src="battle_log_i18n.js?v=20260911b"></script>
+<script src="battle_log_i18n.js?v=20260912e4"></script>
 <script src="sprite_api_ids.js?v=20260721a"></script>
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
@@ -564,8 +564,12 @@ body.doubles #f-self{bottom:72px;left:-16px;transform:scale(1.02)}
 body.doubles #f-self-1{bottom:116px;left:150px;transform:scale(.84);transform-origin:center bottom}
 body.doubles #f-opp{top:58px;right:76px;transform:scale(.88)}
 body.doubles #f-opp-1{top:32px;right:234px;transform:scale(.78);transform-origin:center bottom}
-/* HP箱=2枠ぶんを横並び(幅を詰めるだけ・中の作りは枠0と同じクラスのまま) */
-body.doubles .pbox{width:198px;padding:4px 10px 18px}
+/* HP箱=2枠ぶんを横並び(幅を詰めるだけ・中の作りは枠0と同じクラスのまま)
+ * ★D6-6(2026-09-12): 幅 198→184px。理由=自分の枠1のHP箱(#pb-self-1)の右端が命令パネル
+ *   (#moves = 内部座標 x401.4〜)の下敷きになっていた(実測 26px ぶん重なり=HPと名前が読めない)。
+ *   箱は skewX(-10deg) のぶん実寸より 9.8px 広く場所を取る(高さ55.8×tan10°)ので、
+ *   2枠ぶん = (184+9.8)×2 = 387.6 ≤ 393(左端8〜パネル左端401)で収まる幅にした。 */
+body.doubles .pbox{width:184px;padding:4px 10px 18px}
 body.doubles .pbox .icn{width:42px;height:42px}
 body.doubles .pbox .icn img{width:40px;height:40px}
 body.doubles .pbox .row1{padding-left:46px}
@@ -573,15 +577,15 @@ body.doubles .pbox .hpbar{width:calc(100% - 46px);margin-left:46px !important}
 body.doubles .pbox .hptext{font-size:13px;top:10px}
 body.doubles .pbox .nm{font-size:12px}
 body.doubles .pbox .held{right:74px;max-width:68px}
-body.doubles #pb-self{left:16px;bottom:10px}
-body.doubles #pb-self-1{left:224px;bottom:10px;top:auto;right:auto;
+body.doubles #pb-self{left:12px;bottom:10px}
+body.doubles #pb-self-1{left:208px;bottom:10px;top:auto;right:auto;
   background:linear-gradient(135deg,#4638ae 0%,#6a5be0 100%);border:1px solid #ffffff33}
 body.doubles #pb-opp{right:16px;top:10px}
 body.doubles #pb-opp-1{right:224px;top:10px;bottom:auto;left:auto;
   background:linear-gradient(135deg,#b02458 0%,#d63c78 100%);border:1px solid #ffffff33}
 /* 状態フロートは各枠のHP箱の外側(枠0=従来の左下/右上寄り・枠1=その隣) */
 body.doubles #sts-self{bottom:62px}
-body.doubles #sts-self-1{left:230px;bottom:62px;right:auto;top:auto;flex-direction:column-reverse;align-items:flex-start}
+body.doubles #sts-self-1{left:214px;bottom:62px;right:auto;top:auto;flex-direction:column-reverse;align-items:flex-start}
 body.doubles #sts-opp{top:62px}
 body.doubles #sts-opp-1{right:230px;top:62px;left:auto;bottom:auto;flex-direction:column;align-items:flex-end}
 /* ★D6-2(b-1): ダブルの技メニュー見出し=どの枠の行動を選んでいるか(9言語キー online_battle.cmd_for) */
@@ -598,6 +602,37 @@ body.doubles #moves .mega-side{position:static;left:auto;bottom:auto;width:auto;
 body.doubles #moves .mega-side.mega-armed{transform:none}
 body.doubles #moves .mega-side .ms-icon{font-size:15px}
 body.doubles #moves .mega-side .ms-label{font-size:11px}
+/* ===== ★D6-6(2026-09-12): ダブルの命令パネルが相手のHP箱と重なるのを止める =====
+ * 何が起きていたか(実測・内部座標640×360): ダブルの #moves は「枠見出し(mv-slot-head)」と
+ * 「横長メガカプセル」の2段ぶん **52.5px** 背が高くなり、パネル上端が y=21.6 まで伸びて
+ * 相手のHP箱(#pb-opp = y 10.6〜66.4・x 420〜628)と同じ場所に重なっていた。
+ *   ・シングルは上端 y=74.1(HP箱の下端 73.4 のすぐ下)= ぴったり重ならない値だった。
+ *   ・デスクトップ= #moves(z-index:10)が上に乗る → 相手のHPが読めない。
+ *   ・モバイル(≤989px)= タスクD2の `.pbox{z-index:11}` が上に乗る → 枠見出しとメガボタンが
+ *     **押せない・読めない**(iPhone横 844×390 の実測で elementFromPoint が #pb-opp を返す)。
+ * #field は内部640×360固定で fitField() の zoom が相似拡大するだけ=重なりは画面の大きさに
+ * 関係なく同じ。だから直しもモバイル限定にせず body.doubles 全体に置く(シングルは1pxも変わらない)。
+ * 直し方(3段構え):
+ *   ① 上端をシングルと同じ y=74px で止める(HP箱の下=物理的に重なれない)
+ *   ② その高さに入るよう「余白だけ」詰める(文字の大きさは変えない=読めるまま)
+ *   ③ それでも溢れる異常系(言語で行が増える等)は縦スクロールで逃がす=はみ出して重ならない */
+/* Turnバッジ(上の真ん中)は、ダブルだと相手の枠1のHP箱(#pb-opp-1 = 内部x226〜420)の下敷きになる
+ * (バッジ z-index:7 < .pbox 9)。左の空き(非常口ボタン 内部x18〜66 の右・HP箱の左)へ寄せる。 */
+body.doubles #turn-badge{left:96px;transform:none}
+body.doubles #moves{top:74px;gap:2px;overflow-y:auto;overflow-x:hidden;scrollbar-width:none}
+body.doubles #moves::-webkit-scrollbar{display:none}
+body.doubles #moves > *{flex:0 0 auto}   /* 縮めずに(=読める高さのまま)溢れたらスクロール */
+body.doubles #moves .mega-side{padding:1px 12px}
+/* 枠見出しは「押すもの」ではないラベル。D1(≤989px)の `#moves .mv-top button::after{inset:-30px…}`
+ * (指で押しやすいよう上へ30px広げた当たり判定)がダブルでは見出しの上まで届き、見出しを狙った指が
+ * 👀様子を見るを開いてしまう(iPhone横の実測 elementFromPoint=BUTTON.weak-open)。
+ * 見出しを前に出して受け止める=押しても何も起きない(正しい挙動)。D1の当たり判定自体は縮めない。 */
+body.doubles #moves .mv-slot-head{padding:1px 8px;position:relative;z-index:1}
+body.doubles #moves .mv-top button{padding:1px 4px}
+body.doubles #moves #act-timer{padding:0 8px;font-size:12px}
+body.doubles #moves button.tcol{padding:1px 14px 1px 12px}
+body.doubles #moves .mv-name{line-height:1.15}
+body.doubles #moves button.back{padding:3px}
 /* ===== ★D6-3(2026-09-11・spec_d6_3_target_board.md a): 対象板(target_choose) =====
  * 実機(review/_doubles_research_2026-09-07/03_実機画面の観察_選出と対象選択_2026-09-11.md §5)の写し:
  * 盤面に重ねる2×2。上段=相手2枠(赤帯)・下段=自分2枠(青帯)・左右は盤面と同じ並び。
@@ -1169,6 +1204,21 @@ body.online-names #pb-opp::after{content:attr(data-pname);position:absolute;bott
   .pbox{z-index:11}
   /* D1: 技パネル補助ボタン(👀様子を見る/🎯弱点/📖技の説明/⚙)はピル見た目を変えずに当たり判定だけ拡張(44px目安) */
   #moves .mv-top button::after{content:'';position:absolute;inset:-30px -5px -4px -5px}
+  /* ★D6-6(2026-09-12・ダブルだけ): スマホは fitField() の zoom が 0.8 前後まで縮むので、
+     ダブルで増えた小さい文字が実寸で読めなくなる(iPhone横844×390の実測 zoom=0.816):
+       ・枠見出し(どの子の行動を選んでいるか) 10.5px → 8.6px
+       ・対象板のカード名 11.5px → 9.4px / HP文字 9.5px → 7.8px
+     デスクトップ(zoom 1.54)では十分大きいので、モバイルのときだけ実寸9px以上へ底上げする。
+     シングルには body.doubles が付かない=1pxも変わらない。
+     ★必要な下限は 9 ÷ 0.8167 = 11.02px。11px だと実寸 8.99px で**足りない**(iPhone横で実測)ので
+       帯(あいて/じぶん)は 11.5px にする=実寸 9.39px(2026-09-12 実測で修正)。 */
+  body.doubles #moves .mv-slot-head{font-size:12px}
+  body.doubles #target-board .tb-slot .tb-nm{font-size:13px}
+  body.doubles #target-board .tb-slot .tb-hptext{font-size:11.5px}
+  body.doubles #target-board .tb-slot .tb-effwrap .mv-eff{font-size:11.5px}
+  body.doubles #target-board .tb-title{font-size:12.5px}
+  body.doubles #target-board .tb-band{font-size:11.5px}
+  body.doubles #target-board .tb-close{font-size:13px;padding:7px}
 }
 @media(max-width:989px) and (orientation:landscape){
   /* D2続き: 横向きは相手スプライトが技パネルの下敷きになりやすいので少し上・左に逃がして視認性を底上げ(重なり自体は仕様として残す) */
@@ -1895,7 +1945,10 @@ function pickPresetBuildsRB(n){
 // 特性は進化前の種の既定特性(defaultAbilityRB)に差し替え、技は元データ(メガ名)の学習リストから検索する
 // (進化前の種の学習リストだけではメガ専用技=例クチートの「ふいうち」等が見つからないため)。
 // ★opp(o*)専用: 自分側(s*)のspeciesMemo復元(captureSpecies/applySpeciesMemo)には触れない。
-function applyPresetToSlot(id, build){
+// ★D6-6(2026-09-12): 第3引数 rejectSpecies(name)=true を返したら **何も書かずに** false を返す。
+//   「このビルドを当てると図鑑No.が重なる」を、スロットを汚す前に断るための関所(メガ名→進化前の種の
+//   読み替えはこの関数の中でしか分からないので、外に同じ計算をもう1本作らない=データも計算も1本)。
+function applyPresetToSlot(id, build, rejectSpecies){
   if (!build || !build.species) return false;
   const srcPoke = S.pokeByName(build.species);   // JSON上の種(メガ名の場合あり=技検索の基準)
   if (!srcPoke) return false;
@@ -1908,6 +1961,7 @@ function applyPresetToSlot(id, build){
   }
   const poke = S.pokeByName(speciesName);
   if (!poke) return false;
+  if (rejectSpecies && rejectSpecies(speciesName)) return false;   // ★D6-6: 重複(図鑑No.)は当てずに次のビルドへ
   slotVal[id] = speciesName;
   slotItem[id] = itDef ? normalizeMegaItemKey(itDef.key, speciesName) : (S.resolveMegaStoneKey('mega_stone_any', speciesName) || '');   // ★2026-09-03: プリセットの個別ストーンはそのまま(種族専用ストーンが本来の仕様)
   clearUnimplementedItemRB(id);   // ★2026-07-18: プリセットの未実装アイテムはnullへ矯正
@@ -2961,27 +3015,46 @@ function initSetup(){
     b.addEventListener('click', () => { SE.select(); setSpriteSrc(b.dataset.v); }));
   setSpriteSrc(spriteSrc);   // クレジット表示・ボタン強調等の初期反映
   // 同じポケモンを1チームに2体引かない(重複すると交代リストで「HP満タンの同名」が出て混乱する=2026-07-05 阿部さん)
+  // ★D6-6(2026-09-12): 「同じ」は名前でなく **図鑑No.**(dexKeyOf)で数える。公式「竜王戦レギュレーション
+  //   ゲーム編」=『図鑑No.が同じポケモンは、2匹以上エントリーすることができません。』(形式に依らない)。
+  //   名前で数えていたので、図鑑Noが同じフォルム違い(ロトム6種/ケンタロス パルデア3種/リージョンフォーム等)が
+  //   おまかせ編成で同時に入り、選出画面(pickDupBlocked)で片方が選べない=6体そろわない編成ができていた。
   function sampleUnique(n){
     const arr = pokes.slice();
     for (let i = arr.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; }
-    return arr.slice(0, n).map(p => p.name);
+    const out = [], seen = new Set();
+    for (const p of arr){
+      const k = dexKeyOf(p.name);
+      if (seen.has(k)) continue;
+      seen.add(k); out.push(p.name);
+      if (out.length >= n) break;
+    }
+    return out;
   }
   function randomize(){
     const mine = sampleUnique(teamSize);
     selfIds().forEach((id, i) => setSlot(id, mine[i]));
     randomizeOppTeam();
   }
+  window.__randomizeAll = randomize;   // 検証用(tools/_d6_6_* が50回引いて図鑑No.重複0を数える)。本番の動線からは呼ばない
   // 相手(AI)チーム=実戦プリセット58ビルドを優先して埋める(タスクB②)。
   // プリセットが尽きた/種の解決に失敗した枠だけランダム種+自動技でフォールバック補充する
   // (フォールバック分もプリセットで既に使った種と重ならないよう除外する)。
+  // ★D6-6(2026-09-12): 重複判定を名前→**図鑑No.**へ(公式=竜王戦レギュレーション ゲーム編)。
+  //   プリセットは「メガ名のビルド→進化前の種」に読み替わる(メガカイリュー→カイリュー)ので、
+  //   別々のビルドが同じ図鑑No.に着地しうる。当てる前に関所(第3引数)で断り、次のビルドを試す
+  //   =当ててから消す(スロットに前のビルドのもちもの等が残る)を避ける。
   function randomizeOppTeam(){
-    const builds = pickPresetBuildsRB(teamSize);
-    const usedNames = new Set();
-    oppIds().forEach((id, i) => {
-      if (applyPresetToSlot(id, builds[i])){ usedNames.add(slotVal[id]); return; }
-      const fallback = pokes.filter(p => !usedNames.has(p.name));
+    const builds = pickPresetBuildsRB(teamSize * 4);   // 断られたぶんを次から補えるよう多めに引く(順番はシャッフル済み)
+    const usedKeys = new Set();
+    let bi = 0;
+    oppIds().forEach(id => {
+      while (bi < builds.length){
+        if (applyPresetToSlot(id, builds[bi++], nm => usedKeys.has(dexKeyOf(nm)))){ usedKeys.add(dexKeyOf(slotVal[id])); return; }
+      }
+      const fallback = pokes.filter(p => !usedKeys.has(dexKeyOf(p.name)));
       const pick = fallback.length ? fallback[Math.floor(Math.random() * fallback.length)].name : sampleUnique(1)[0];
-      usedNames.add(pick);
+      usedKeys.add(dexKeyOf(pick));
       setSlot(id, pick);
     });
   }
@@ -3131,7 +3204,8 @@ function startBattle(){
   // __rbDeferFaintReplaceSlots=true が立つ=両側の空席がエンジンで保留され、ページが両者の選択で埋める。
   // (__rbDeferFaintReplaceOpp は onlineBegin が立てたまま=下の行はオンラインでは通らない)
   // ★D6-5: 枠ごとの pivotIdx 待ち行列は対戦をまたいで残さない(形式を切り替えても古い配列を読まない)
-  RB_PIVOT.selfQueue = null; RB_PIVOT.oppQueue = null;
+  // ★D6-6: 枠ごとの指名(selfBySlot)も同じ=前の対戦の値を新しい対戦に持ち込まない
+  RB_PIVOT.selfQueue = null; RB_PIVOT.oppQueue = null; RB_PIVOT.selfBySlot = {};
   try {
     const _ew = engineWin();
     if (_ew){
@@ -3791,8 +3865,9 @@ function showMoves(){
     // null の技(範囲/自分/場/味方側)はここで false が返る=即決定(D6-2 の流れのまま)。
     if (!allOut && openTargetBoard(mi)) return;
     // 自分交代技(とんぼがえり等): 控えに生きてる子が2匹以上いる時だけ「だれに かわる?」を先に聞く
-    // ★D6-2: 交代先の事前選択UIは枠0だけ(枠1は従来どおり自動=控え筆頭。D6-3でも据え置き=報告に明記)
-    if (!allOut && cmdSlotIdx() === 0 && moveHasPivotSwitch(st.moves[mi])){ maybeStartPivot(mi); return; }
+    // ★D6-6(2026-09-12): 枠1でも同じ画面で選べる(D6-2/D6-3 で据え置いていた制限を解除)。
+    //   枠を maybeStartPivot へ渡すだけ=シングルは cmdSlotIdx()===0 で従来と同じ引数になる。
+    if (!allOut && moveHasPivotSwitch(st.moves[mi])){ maybeStartPivot(mi, cmdSlotIdx()); return; }
     doTurn(mi);
   }));
   actTimerStart();   // 本家準拠の45秒COMMANDタイマー(オンライン/AI戦問わずバトル中は常時=actTimerStart内でin-battleを見て自己ガード・2026-07-11)
@@ -3973,19 +4048,29 @@ function tbConfirm(side, idx){
   const mv = st && st.moves ? st.moves[mi] : null;
   const tg = { side: side, idx: idx };
   closeTargetBoard(false);
-  if (cmdSlotIdx() === 0 && moveHasPivotSwitch(mv)){ RB_PIVOT.pendingTarget = tg; maybeStartPivot(mi); return; }
+  // ★D6-6(2026-09-12): 枠1でも交代先を選べる(枠を渡すだけ=画面は同じ「だれに かわる?」)
+  if (moveHasPivotSwitch(mv)){ RB_PIVOT.pendingTarget = tg; maybeStartPivot(mi, cmdSlotIdx()); return; }
   doTurn(mi, tg);
 }
 // 自分交代技の交代先選択(事前選択方式): 控えが2匹以上生きていれば選択UIを出す。1匹以下は従来どおり自動(先頭)
-function maybeStartPivot(moveIdx){
+// ★D6-6(2026-09-12): 第2引数=いまの枠(ダブルの枠1も選べるようになった。シングルは常に0=従来と同値)。
+//   もう一方の枠が先に指名した控えは「選べる数」にも入れない(2枠が同じ子を指名できない=既存の taken と同じ規律)。
+function maybeStartPivot(moveIdx, slotIdx){
+  const sl = (isDoubleBoard() && slotIdx) ? slotIdx : 0;
   const st = S.sides.self;
   const liveIdxs = (st.bench || []).map((e, i) => ({e, i}))
-    .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
+    .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i)
+    .filter(i => !benchTakenByOtherSlot(i, sl));   // ★D6-6: 他の枠が予約済みの控えは除く(シングルは常にfalse)
   RB_PIVOT.selfIdx = liveIdxs.length ? liveIdxs[0] : null;   // 既定=控え筆頭(選択UIを出さない場合のフォールバック)
+  // ★D6-6: ダブルは「枠ごとの指名」も持つ(payload の pivotIdx と AI戦の待ち行列の出どころ)
+  if (isDoubleBoard()){
+    if (RB_PIVOT.selfIdx == null) delete RB_PIVOT.selfBySlot[sl];
+    else RB_PIVOT.selfBySlot[sl] = RB_PIVOT.selfIdx;
+  }
   // ★D6-3(a-4): 対象板で選んだ対象を落とさない(シングルは pendingTarget が常に null=従来と同値)
   if (liveIdxs.length < 2){ const _tg = RB_PIVOT.pendingTarget; RB_PIVOT.pendingTarget = null; doTurn(moveIdx, _tg); return; }
   RB_PIVOT.pendingMoveIdx = moveIdx;
-  showParty(false, true);   // pivot=true(3カラム交代画面を選択モードで流用。やめる=技選択に戻る)
+  showParty(false, true, sl);   // pivot=true(3カラム交代画面を選択モードで流用。やめる=技選択に戻る)
 }
 // ===== 交代画面(本家チャンピオンズ実機準拠3カラム) 2026-07-10 阿部さん =====
 // 左=じぶんのチーム(場に出ている子含む・タップで選択→行の下に交代する/やめる確認)/
@@ -3999,21 +4084,32 @@ let swPivot = false;       // 今開いている交代画面が自分交代の�
 let swSlotIdx = 0;
 // ★D6-3(b-1): 同じ控え個体を両枠が選べない(もう一方の枠が予約済みの bench idx は選べない)。
 // 控え(bench)は側に1本(エンジンがslots[i].benchを側のアクセサに張り替えている)=予約の衝突が起きうる。
-function benchTakenByOtherSlot(benchIdx){
+// ★D6-6(2026-09-12): 第2引数=「どの枠から見て」(既定=いま開いている交代画面の枠 swSlotIdx)。
+//   maybeStartPivot は画面を開く前に呼ぶので swSlotIdx がまだ前の枠のまま=枠を明示で渡す。
+function benchTakenByOtherSlot(benchIdx, slotIdx){
   if (!isDoubleBoard() || benchIdx == null) return false;
+  const me = slotIdx == null ? swSlotIdx : slotIdx;
   // ★D6-5(b-2): オンラインの死に出し(枠ごと)でも、もう一方の枠が先に選んだ控えは選べない
   // (まだエンジンへ適用していない=switchChoice には出ないので pendingRep の picks を見る)
   const P = window.RB_ONLINE && RB_ONLINE.pendingRep;
   if (P && P.fmt === 'double' && P.picks && P.picks.self
-      && Object.keys(P.picks.self).some(k => +k !== swSlotIdx && P.picks.self[k] === benchIdx)) return true;
-  return boardSlotIdxs().some(i => i !== swSlotIdx && (slotStateOf('self', i) || {}).switchChoice === benchIdx);
+      && Object.keys(P.picks.self).some(k => +k !== me && P.picks.self[k] === benchIdx)) return true;
+  // ★D6-6: もう一方の枠が「とんぼがえり等の交代先」として先に指名した控えも選べない
+  // (この指名はまだエンジンに書かない=技を撃った後に __rbSwitchPick が読む値なので、ページ側の帳面を見る)
+  if (Object.keys(RB_PIVOT.selfBySlot).some(k => +k !== me && RB_PIVOT.selfBySlot[k] === benchIdx)) return true;
+  return boardSlotIdxs().some(i => i !== me && (slotStateOf('self', i) || {}).switchChoice === benchIdx);
 }
 // selfIdx=engineへ渡す自分の事前選択bench idx / oppIdx=オンラインで相手から受信した選択(onlineRunTurnがセット)
 // pendingTarget(★D6-3): 対象板で選んだ対象を交代先選択の間だけ持ち越す({side,idx}|null)
 // ★D6-5: selfQueue/oppQueue = ダブルのオンラインだけ立てる「枠ごとの pivotIdx」の待ち行列
 // (onlineRunTurn が毎ターン作り直す。null=シングル/AI戦=従来の selfIdx/oppIdx を使う)
+// ★D6-6(2026-09-12): selfBySlot = ダブルで「どの枠が どの控えを指名したか」({枠: bench idx})。
+//   枠1でも交代先を選べるようにしたので、1つの値(selfIdx)では2枠ぶんを持てない。
+//   ・オンライン= payload の slots[i].pivotIdx の出どころ
+//   ・AI戦= doTurn が executeTurn の直前に selfQueue({slot,benchIdx}の待ち行列)へ写す
+//   ・両方とも「1ターンぶん」= 送った/流した時点で空にする(前のターンの指名を持ち越さない)
 const RB_PIVOT = { pendingMoveIdx: null, selfIdx: null, oppIdx: null, pendingTarget: null,
-  selfQueue: null, oppQueue: null };
+  selfQueue: null, oppQueue: null, selfBySlot: {} };
 // 自分交代(とんぼがえり/ボルトチェンジ/クイックターン/すてゼリフ/バトンタッチ)を持つ技か
 function moveHasPivotSwitch(m){
   return !!(m && m.battle_data && Array.isArray(m.battle_data.effects) && m.battle_data.effects.some(e => e.kind === '自分交代'));
@@ -4222,7 +4318,12 @@ function wireSwEvents(){
   // ★D6-5 レビュー低-1(2026-09-11): 交代先選択の「もどる」で pendingTarget も捨てる。
   // 残すと、次に選んだ技(対象板を出さない範囲技/自分対象技など)へ前の対象が持ち越されて
   // doTurn(mi, tg) の tg として書かれてしまう(前の技で選んだ相手が次の技の対象になる)。
-  if (back) back.addEventListener('click', () => { SE.select(); swPivot = false; RB_PIVOT.pendingMoveIdx = null; RB_PIVOT.pendingTarget = null; showMoves(); });
+  // ★D6-6(2026-09-12): 交代先えらびを「もどる」で抜けたら、その枠の指名も捨てる。
+  //   残すと、次にその枠で選んだ普通の技に pivotIdx が付いたまま送られ、だっしゅつボタン等の
+  //   別の交代がその指名を食う(プレイヤーが取り消した選択が生き続ける)。
+  if (back) back.addEventListener('click', () => { SE.select();
+    if (swPivot) delete RB_PIVOT.selfBySlot[swSlotIdx];
+    swPivot = false; RB_PIVOT.pendingMoveIdx = null; RB_PIVOT.pendingTarget = null; showMoves(); });
 }
 // 自分交代技の交代先選択の確定: 選んだbench idxをRB_PIVOT.selfIdxへ(engine __rbSwitchPickが読む)、保留していた技を実行
 // (オンライン中はdoTurn→onlineSubmitActionがRB_PIVOT.selfIdxをmyActionへ載せて相手へ送る)
@@ -4231,6 +4332,7 @@ function finishPivotPick(idx){
   swPivot = false;
   $('party').style.display = 'none';
   RB_PIVOT.selfIdx = idx;
+  if (isDoubleBoard()) RB_PIVOT.selfBySlot[swSlotIdx] = idx;   // ★D6-6: この枠の指名(枠1も持てる)
   const mi = RB_PIVOT.pendingMoveIdx; RB_PIVOT.pendingMoveIdx = null;
   const tg = RB_PIVOT.pendingTarget; RB_PIVOT.pendingTarget = null;   // ★D6-3: 対象板で選んだ対象を渡す
   doTurn(mi, tg);
@@ -4263,7 +4365,16 @@ function doSwitchTo(idx){
     logPos = S.battleLog.length;
     // ★D6-4: 補充する枠を渡す(エンジンは (opts.slotIdx)||0 で受ける=real_battle_simulator.html:7381
     // → swSlotIdx が 0(シングル/枠0)の時は slotIdx を渡さないのと完全に同値=シングル不変)。
-    const _swOk = S.attemptSwitch('self', idx, {ignoreTrapping: true, faintReplace: true, slotIdx: swSlotIdx});
+    // ★E4(2026-09-12・real_battle_simulator.html:8396/8443): ダブルの死に出しは「登場処理」を
+    //   いったん積んで(deferEntry)、**全部の枠が出揃ってから**すばやさ順で1回だけ回す
+    //   (いかく等が「埋めた順」でなく「素の素早さ順」で出る=台帳#14/#15 の既知の制限をこの側だけ解消)。
+    //   シングルは deferEntry=false=渡さないのと同値(engineは opts.deferEntry の真偽しか見ない)=1bitも変わらない。
+    const _swOk = S.attemptSwitch('self', idx, {ignoreTrapping: true, faintReplace: true, slotIdx: swSlotIdx,
+      deferEntry: isDoubleBoard()});
+    // ★E4: この枠で終わり(次に埋める空席が無い/この枠の交代に失敗して afterFaintReplaceDone が
+    //   求め直さない)なら、ここで積んだぶんを流す。**logPos を取ったあと・renderAll の前**に呼ぶので、
+    //   登場効果のログも下の say() の同じ再生に入る(別の拍に分かれない)。
+    if (isDoubleBoard() && S.flushDeferredEntries && (_swOk === false || nextSelfFaintReplaceSlot() == null)) S.flushDeferredEntries();
     // 新しい子は登場拍(いけっ！の声)まで隠す=前触れなくポンと出るのを防ぐ(2026-07-06 阿部さん)
     // ★D6-4: 隠す対象はいま補充した枠(枠0は slotKey が 'self' を返す=従来と同じid)
     const _fk = slotKey('self', swSlotIdx);
@@ -4547,6 +4658,16 @@ function doTurn(moveIdx, target){
   } else if (moveIdx != null) self.selectedMoveIdx = moveIdx;
   // ★オンライン対戦(ロックステップ): 自分の行動を相手へ送り、両者の行動+共有シードが揃ってから実行
   if (window.RB_ONLINE && RB_ONLINE.started){ onlineSubmitAction(moveIdx); return; }
+  // ★D6-6(2026-09-12): ダブル(AI戦)も自分交代技の交代先を「枠ごと」に解く。
+  //   オンライン(onlineRunTurn)と同じ形の待ち行列({slot,benchIdx})へ写して __rbSwitchPick に渡す
+  //   =枠1の指名が枠0の交代に食われない(中-1 と同じ規律を AI戦にも通す)。
+  //   シングルは配列を立てない(selfQueue は null のまま)=従来の selfIdx 1値の経路=1行も変わらない。
+  if (isDoubleBoard()){
+    RB_PIVOT.selfQueue = Object.keys(RB_PIVOT.selfBySlot)
+      .filter(k => RB_PIVOT.selfBySlot[k] != null)
+      .map(k => ({ slot: +k, benchIdx: RB_PIVOT.selfBySlot[k] }));
+    RB_PIVOT.selfBySlot = {};   // 1ターンぶん=ここで空に(前のターンの指名を持ち越さない)
+  }
   // 相手はAI v2(段118): 技だけでなく不利な時の交代も選ぶ
   // (デモ/非オンライン時はopp側の交代先は選べないのでAI任意=先頭。前回オンライン戦の受信値が残っていたら捨てる)
   RB_PIVOT.oppIdx = null;
@@ -6339,8 +6460,9 @@ function onlineDoubleActionPayload(){
     if (kind === 'move'){
       e.moveIdx = st.selectedMoveIdx;
       e.target = st.targetChoice ? { side: st.targetChoice.side, idx: st.targetChoice.idx } : null;
-      // 自分交代技の交代先(とんぼがえり等)。枠1の事前選択UIは未実装=null(エンジンが控え筆頭)
-      if (i === 0 && RB_PIVOT.selfIdx != null) e.pivotIdx = RB_PIVOT.selfIdx;
+      // 自分交代技の交代先(とんぼがえり等)。★D6-6(2026-09-12): 枠1も事前選択できるようになったので
+      // 「枠ごとの指名」(RB_PIVOT.selfBySlot)から引く(指名の無い枠は載せない=エンジンが控え筆頭)。
+      if (RB_PIVOT.selfBySlot[i] != null) e.pivotIdx = RB_PIVOT.selfBySlot[i];
     }
     return e;
   });
@@ -6379,6 +6501,7 @@ function onlineSubmitAction(moveIdx){
   // ★D6-5: ダブルは「在場の全枠の選択がそろった時点」(doTurn が枠を進め終わった直後)で1回だけ送る
   if (isDoubleBoard()){
     RB_ONLINE.myAction = onlineDoubleActionPayload();
+    RB_PIVOT.selfBySlot = {};   // ★D6-6: 指名は payload に写した=1ターンぶんで空に(持ち越さない)
     RBOnline.sendAction(RB_ONLINE.myAction);
     actTimerStop();
     pushMsgLine(_olT('online_wait_action', '相手の こうどうを まっています…'));
@@ -6568,9 +6691,13 @@ function onlineTryApplyReplacesSlots(){
     const b = (P.picks[sl.side] || {})[sl.idx];   // JSON往復でキーは文字列=数値添字でも引ける
     if (b == null) return;
     onlineSeedEngine(P.seed[sl.side]);
-    S.attemptSwitch(sl.side, b, { ignoreTrapping: true, faintReplace: true, slotIdx: sl.idx });
+    // ★E4(2026-09-12): 登場処理は積むだけ(deferEntry)。両側の枠を全部埋めてから下で1回だけ流す
+    //   =いかく等が「埋めた順(canonSlots)」でなく「素の素早さ順」で出る(両クライアントで同じ順)。
+    S.attemptSwitch(sl.side, b, { ignoreTrapping: true, faintReplace: true, slotIdx: sl.idx, deferEntry: true });
     if (sl.side === 'self') mineSlots.push(sl.idx);
   });
+  // ★E4: 両側の補充が済んだ=ここで登場効果をすばやさ順に1回だけ回す(logPos の後・renderAll の前)
+  if (S.flushDeferredEntries) S.flushDeferredEntries();
   // 新しい子は登場拍(いけっ！)まで隠す(D6-4 の doSwitchTo と同じ作法・枠0は従来と同じid)
   mineSlots.forEach(i => {
     const ff = $('f-' + slotKey('self', i)); if (ff){ ff.classList.remove('recall', 'enter'); ff.classList.add('gone'); }
@@ -6812,12 +6939,19 @@ function lobbyVsAi(){
   if (!teamComplete()){ onlineStatus(needTeamMsg()); return; }
   // ★AI戦も見せ合い選出を挟む(2026-07-11 阿部さん「6体同士でいきなりでなく3体選んで開始」)
   // 相手(AI)の6体が空いていたら未使用種でランダム補充してから選出画面へ
-  const usedNames = new Set(selfIds().concat(oppIds()).map(id => slotVal[id]).filter(Boolean));
-  const pool = S.pokeList().filter(isPickable).filter(pk => !usedNames.has(pk.name));
+  // ★D6-6(2026-09-12): 「使用中」は名前でなく **図鑑No.**(dexKeyOf)で数える(公式=竜王戦レギュレーション
+  //   ゲーム編『図鑑No.が同じポケモンは、2匹以上エントリーすることができません。』)。1体引くたびに
+  //   同じ図鑑No.の別フォルムも候補から外す(引いた後の抽選でフォルム違いが入ってくるのを止める)。
+  const usedKeys = new Set(selfIds().concat(oppIds()).map(id => dexKeyOf(slotVal[id])).filter(Boolean));
+  const pool = S.pokeList().filter(isPickable).filter(pk => !usedKeys.has(dexKeyOf(pk.name)));
   oppIds().forEach(id => {
     if (!slotVal[id] && pool.length){
       const i = Math.floor(Math.random() * pool.length);
-      setSlot(id, pool.splice(i, 1)[0].name);
+      const nm = pool.splice(i, 1)[0].name;
+      const k = dexKeyOf(nm);
+      usedKeys.add(k);
+      for (let j = pool.length - 1; j >= 0; j--) if (dexKeyOf(pool[j].name) === k) pool.splice(j, 1);
+      setSlot(id, nm);
     }
   });
   RB_ONLINE.oppName = 'AI';   // 選出画面右の見出し/バトル中プレートに表示(言語中立)
