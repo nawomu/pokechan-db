@@ -13,7 +13,10 @@
 <script src="preset_builds.js?v=20260711b"></script>
 <script src="move_fx_map.js?v=20260716d"></script>
 <script src="battle_fx_cues.js?v=20260716c"></script>
-<script src="fx_primitives.js?v=20260718c"></script>
+<!-- ★D6-3(2026-09-11): fx_primitives.js を更新(megaFx に slotIdx / faintFx の1500ms遅延を枠別タイマー化+
+     cancelFaintFx)=このページはキャッシュを踏まないよう ?v を上げる。real_battle.html / battle_lab.html は
+     新引数が既定値つき=古いキャッシュのままでも挙動が変わらないので ?v を触らない(編集対象外のため) -->
+<script src="fx_primitives.js?v=20260911a"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -585,6 +588,69 @@ body.doubles #sts-opp-1{right:230px;top:62px;left:auto;bottom:auto;flex-directio
 #moves .mv-slot-head{font-size:10.5px;font-weight:900;color:#d4f542;text-align:center;
   background:#22283add;border:1px solid #d4f54266;border-radius:10px;padding:3px 8px;
   text-shadow:0 1px 2px #000c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* ★D6-3(b-1): ダブルのメガボタンは技リストの中の横長カプセルにする。
+ * 理由(D6-2の報告で残した cosmetic): 丸ボタンの既定位置(left:-86px)が自分枠1のスプライト(#f-self-1)に
+ * 重なる。位置をずらす手もあるが、盤面(640×360)の左側は枠1のスプライト・HP箱・状態フロートで埋まっており
+ * 「空いている場所」が無い=リストの中に入れるのが唯一の衝突しない置き場。枠ごとに出す必要もある(枠1のメガ)。
+ * シングルは body.doubles が付かない=丸ボタンのまま1pxも変わらない(絶対条件)。 */
+body.doubles #moves .mega-side{position:static;left:auto;bottom:auto;width:auto;height:auto;
+  border-radius:18px;flex-direction:row;gap:6px;padding:3px 12px;justify-content:flex-start;transform:none}
+body.doubles #moves .mega-side.mega-armed{transform:none}
+body.doubles #moves .mega-side .ms-icon{font-size:15px}
+body.doubles #moves .mega-side .ms-label{font-size:11px}
+/* ===== ★D6-3(2026-09-11・spec_d6_3_target_board.md a): 対象板(target_choose) =====
+ * 実機(review/_doubles_research_2026-09-07/03_実機画面の観察_選出と対象選択_2026-09-11.md §5)の写し:
+ * 盤面に重ねる2×2。上段=相手2枠(赤帯)・下段=自分2枠(青帯)・左右は盤面と同じ並び。
+ * 中央上に技名バナー(タイプ色)。候補でない枠は暗くして押せない。右下「とじる」で技メニューへ。
+ * 要素 #target-board は JS(tbEl)が double の対象選択の時だけ作って閉じたら消す
+ *   = シングルでは一度も存在しない(DOMが1つも増えない=絶対条件)。 */
+#target-board{position:absolute;inset:0;z-index:13;display:none;align-items:center;justify-content:center;
+  background:#070b14b0}
+#target-board.show{display:flex}
+#target-board .tb-card{width:420px;max-width:92%;background:#171c2bf2;border:1px solid #ffffff26;
+  border-radius:16px;padding:7px 9px 9px;box-shadow:0 6px 20px #000a;color:#eef2fb}
+#target-board .tb-mvbanner{display:flex;align-items:center;gap:6px;border-radius:14px;padding:3px 10px;
+  border:2px solid #ffffff44;box-shadow:0 2px 6px #0007}
+#target-board .tb-mvbanner strong{font-size:13px;font-weight:900;text-shadow:0 1px 3px #0009;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#target-board .tb-mvbanner .t-pill{display:inline-block;font-size:9px;padding:2px 7px;border-radius:9px;
+  color:#fff;border:1px solid #ffffff55;white-space:nowrap}
+#target-board .tb-title{font-size:11px;font-weight:900;color:#d4f542;text-align:center;margin:4px 0 2px;
+  text-shadow:0 1px 2px #000c}
+#target-board .tb-band{font-size:9.5px;font-weight:900;color:#fff;text-align:center;border-radius:10px;
+  padding:2px 0;margin:4px 0 3px;transform:skewX(-8deg);text-shadow:0 1px 2px #0007}
+#target-board .tb-band.opp{background:linear-gradient(135deg,#b02458,#d63c78)}
+#target-board .tb-band.self{background:linear-gradient(135deg,#4638ae,#6a5be0)}
+#target-board .tb-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+#target-board .tb-slot{position:relative;display:grid;grid-template-columns:40px 1fr;grid-auto-rows:auto;
+  gap:1px 6px;align-items:center;text-align:left;padding:4px 7px;border-radius:12px;border:2px solid #ffffff2e;
+  color:#fff;font-family:inherit;cursor:pointer;min-height:56px;box-shadow:0 2px 6px #0006}
+#target-board .tb-slot.opp{background:linear-gradient(135deg,#a02150,#d63c78)}
+#target-board .tb-slot.self{background:linear-gradient(135deg,#4638ae,#6a5be0)}
+#target-board .tb-slot img{grid-column:1;grid-row:1/4;width:40px;height:40px;object-fit:contain}
+#target-board .tb-slot .tb-nm{grid-column:2;font-size:11.5px;font-weight:800;line-height:1.2;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#target-board .tb-slot .tb-g{font-weight:900;margin-left:3px}
+#target-board .tb-slot .tb-g.m{color:#a8d4ff}
+#target-board .tb-slot .tb-g.f{color:#ffd0e0}
+#target-board .tb-slot .tb-effwrap{grid-column:2;display:block;min-height:15px;line-height:15px}
+#target-board .tb-slot .tb-effwrap .mv-eff{font-size:9.5px;padding:1px 6px;margin-right:0}
+#target-board .tb-slot .tb-hpwrap{grid-column:2;display:flex;align-items:center;gap:5px}
+#target-board .tb-slot .tb-hpbg{flex:1 1 auto;height:6px;background:#00000055;border-radius:3px;overflow:hidden}
+#target-board .tb-slot .tb-hp{display:block;height:100%;border-radius:3px;background:#7ac142}
+#target-board .tb-slot .tb-hp.mid{background:#e0c020}
+#target-board .tb-slot .tb-hp.low{background:#e0564a}
+#target-board .tb-slot .tb-hptext{font-size:9.5px;font-weight:800;color:#ffffffdd;white-space:nowrap}
+#target-board .tb-slot.tb-off{opacity:.32;filter:grayscale(.85);cursor:default;pointer-events:none;box-shadow:none}
+#target-board .tb-slot.tb-empty{background:#00000038;border-style:dashed;min-height:56px}
+#target-board .tb-slot.on{border-color:#d4f542;box-shadow:0 0 0 3px #d4f54288,0 2px 8px #0006}
+#target-board .tb-slot:hover:not(.tb-off){border-color:#d4f542}
+#target-board .tb-close{display:block;width:100%;margin-top:8px;text-align:center;color:#e6edf3;font-weight:700;
+  padding:5px;font-size:12px;background:#22283add;border:1px solid #ffffff33;border-radius:16px;
+  cursor:pointer;font-family:inherit}
+#target-board .tb-close:hover{border-color:#d4f542}
+/* ★D6-3(b-1): 同じ控え個体を両枠が選べない=もう一方の枠が予約済みの行は薄く・押せない */
+#party .sw-mine .slot.taken{opacity:.45;filter:grayscale(.6);cursor:default}
 
 /* ===== CH: leftbar / rightbar (残りポケモンのボールマーク列=statbarに隣接) ===== */
 /* 相手=statbar直下(右上) / 自分=statbar直上(左下)。実機のボールマーク行に対応 */
@@ -1393,30 +1459,42 @@ function slotStateOf(side, slotIdx){
 function selfActiveSlotIdxs(){
   return boardSlotIdxs().filter(i => { const st = slotStateOf('self', i); return st && st.poke && !st.fainted; });
 }
-// ★名前→枠の逆引き(ダブルのみ)。エンジンの pname() は「相手の」接頭を相手の枠0にしか付けない
-// (real_battle_simulator.html:2944 `st === slotOf('opp', 0) ? '相手の ' : ''`)ので:
-//   ・接頭あり → 相手の枠0で確定。
-//   ・接頭なし → 「自分の枠0/枠1・相手の枠1」のどれか=表示名で引く(同名は編成で重複不可)。
+// ★名前→枠の逆引き(ダブルのみ)。
+// ★D6-3 レビューH-1(2026-09-11): エンジンの pname() は「相手の 」を相手側の**全枠**に付ける
+// (real_battle_simulator.html:2944-2946 `oppSlots.indexOf(st) >= 0 ? '相手の ' : ''`・D6-2で変更済み)。
+// 旧実装は「接頭あり → 即 {opp,0}」で返していたため、相手枠1の行が全部相手枠0に解決されていた
+// (相手枠0のHP箱が枠1の値で動く/相手枠1が倒れると生きている枠0が消える=実測)。
+// 直し= **側を接頭で切ってから、その側の枠を名前で引く**:
+//   ・接頭あり → 相手側の枠0/枠1から名前で引く。
+//   ・接頭なし → 自分側の枠0/枠1から名前で引く。
 //   ・場から消えた個体(交代/ひんし)は _idSnap(ターン開始時の表示個体)からも引く。
-//   ・それでも分からなければ従来どおり(接頭の有無だけで決める)枠0扱い。
+//   ・同名が2枠ある時(イリュージョン/同名の自動補充)は直前のダメージ対象の枠(lastTgtSlot)→
+//     生きている枠 の順で優先する(★H-2=完全な解決は不可能。ログ行は名前しか持たないため・未確認)。
+//   ・それでも分からなければ従来どおり枠0扱い。
 // シングルでは必ず従来と同じ {side: 接頭?opp:self, slotIdx: 0} を返す(1行も変わらない)。
 function slotOfName(name, oppPrefixed){
-  const base = { side: oppPrefixed ? 'opp' : 'self', slotIdx: 0 };
-  if (!isDoubleBoard() || oppPrefixed || !name) return base;
-  const cand = [['self', 0], ['self', 1], ['opp', 1]];
+  const side = oppPrefixed ? 'opp' : 'self';
+  const base = { side: side, slotIdx: 0 };
+  if (!isDoubleBoard() || !name) return base;
+  const idxs = boardSlotIdxs();
   const shownNameOf = st => {
     if (!st || !st.poke) return null;
     const s = st.illusionAs || (st.transformBase ? st.transformBase.poke : st.poke);
     return s && s.name;
   };
-  for (let i = 0; i < cand.length; i++){
-    if (shownNameOf(slotStateOf(cand[i][0], cand[i][1])) === name) return { side: cand[i][0], slotIdx: cand[i][1] };
-  }
+  // ★H-2: 同名衝突のときの選び方(候補が1つならそのまま返る=普通はここで終わり)
+  const decide = hits => {
+    if (hits.length === 1) return { side: side, slotIdx: hits[0] };
+    if (typeof lastTgtSlot === 'number' && lastTgt === side && hits.indexOf(lastTgtSlot) >= 0)
+      return { side: side, slotIdx: lastTgtSlot };
+    const live = hits.find(i => { const st = slotStateOf(side, i); return st && st.poke && !st.fainted; });
+    return { side: side, slotIdx: live != null ? live : hits[0] };
+  };
+  const now = idxs.filter(i => shownNameOf(slotStateOf(side, i)) === name);
+  if (now.length) return decide(now);
   if (window._idSnap){
-    for (let i = 0; i < cand.length; i++){
-      const p = _idSnap[slotKey(cand[i][0], cand[i][1])];
-      if (p && p.name === name) return { side: cand[i][0], slotIdx: cand[i][1] };
-    }
+    const snap = idxs.filter(i => { const p = _idSnap[slotKey(side, i)]; return p && p.name === name; });
+    if (snap.length) return decide(snap);
   }
   return base;
 }
@@ -1442,9 +1520,22 @@ function ensureBoardSlots(){
       'lunge-self', 'lunge-opp', 'endure', 'rb-wall-reflect', 'rb-wall-screen', 'rb-wall-veil');
     extra.style.visibility = '';
     delete extra.dataset.pname;   // プレイヤー名プレート(body.online-names)は枠0だけ
-    extra.querySelectorAll('.rb-hazards, .popnum, .burst, .rb-rankp, .rb-sparkle, .rb-ability-banner').forEach(n => n.remove());
+    // ★D6-3 レビューL-8: 演出の残骸は「前方一致」で落とす(rb-mega-ring / rb-wall-panel / rb-status-pop 等、
+    // クラス名を1つずつ並べると必ず取りこぼす=クローンに前の対戦の演出が残る)。
+    extra.querySelectorAll('[class^="rb-"], [class*=" rb-"], .popnum, .burst').forEach(n => n.remove());
     if (pre === 'f-'){ const sp = extra.querySelector('.sprite'); if (sp){ sp.innerHTML = ''; delete sp.dataset.shown; } }
     if (pre === 'sts-') extra.innerHTML = '';
+    // ★D6-3 レビューL-9: HP箱のクローンは「前の対戦の数値」をそのまま抱えている(.hptext の data-hp/data-max と
+    // .hp/.prevhp の width)。renderAll/setHpBar が入るまでの1拍だけ前の試合のバーが見えるので素に戻す。
+    if (pre === 'pb-'){
+      const ht = extra.querySelector('.hptext');
+      if (ht){ delete ht.dataset.hp; delete ht.dataset.max; ht.textContent = '—'; }
+      extra.querySelectorAll('.hp, .prevhp').forEach(n => { n.style.width = ''; });
+      const nmEl = extra.querySelector('.nm'); if (nmEl) nmEl.textContent = '—';
+      const icn = extra.querySelector('.icn'); if (icn) icn.innerHTML = '';
+      const held = extra.querySelector('.held'); if (held) held.innerHTML = '';
+      const sts = extra.querySelector('.sts'); if (sts) sts.innerHTML = '';
+    }
   });
 }
 // ===== 流れるバトルログ(Showdown風・右カラム。履歴が積み上がって残る) =====
@@ -1563,6 +1654,12 @@ const catBadge = c => `<span class="cat-badge ${_CAT_CLS[c] || 'cat-stat'}">${_C
     } catch(e) {}
   }
   if (document.body.classList.contains('in-battle')) { try { renderAll(); } catch(e) {} }
+  // ★D6-3: 対象板(JS組み立て)は開いたまま言語が変わることがある=作り直す(i18n-first: 動的部品は
+  // i18n:ready/changed の再描画までがセット・2026-07-06 阿部さん)。シングルでは板が存在しない=何もしない。
+  {
+    const _tb = document.getElementById('target-board');
+    if (_tb && _tb.classList.contains('show')) { try { renderTargetBoard(); } catch(e) {} }
+  }
   // 弱点/様子パネルは開くたびに最新言語で再生成する設計=言語切替時は一旦閉じて古い言語を残さない(B1)
   ['weak-panel', 'watch-panel'].forEach(id => { const _p = document.getElementById(id); if (_p) _p.style.display = 'none'; });
   // つぎの相手ボタンは動的生成=data-bl-src対象外。言語切替で作り直す(2026-07-06 阿部さん)
@@ -2508,7 +2605,10 @@ function removeFromTeam(id){
   // ★D6-1レビューM3(2026-09-11): ロビーで「じゅんびOK」中/部屋に接続中は編成を減らさせない。
   // ここで pickCount 未満に割れると、選出画面に入った後どの体も選べず(けってい不可)時間切れでも
   // 抜けられない状態になる(実測)。SEだけ鳴らして何もしない=操作の反応は返す。
-  if ((typeof LOBBY !== 'undefined' && LOBBY.ready) || (window.RB_ONLINE && RB_ONLINE.active)){
+  // ★D6-3 レビューM-5: 選出中(AI戦の選出画面も含む)も減らさせない。AI戦は RB_ONLINE.active も
+  // LOBBY.ready も立たないので、旧ガードだけでは選出画面を開いたまま編成を割れた(=同じソフトロック)。
+  if ((typeof LOBBY !== 'undefined' && LOBBY.ready) || (window.RB_ONLINE && RB_ONLINE.active)
+      || (typeof PICK !== 'undefined' && PICK.aiMode) || !!$('pick-screen')){
     SE.select();
     onlineStatus(needTeamMsg());
     return;
@@ -2946,9 +3046,13 @@ function startBattle(){
   //   先に呼ぶと syncSlotsToFormat が作った slots が古い側オブジェクトを指したまま取り残される。
   try { if (S && S.setFormat) S.setFormat({ slotsPerSide: FORMAT.slotsPerSide, pickCount: FORMAT.pickCount, name: FORMAT.name }); } catch (e) {}
   // ★D6-2(M2): double なのにエンジンが古い(setFormat が無い)時は黙って劣化させず見える形で知らせる
+  // ★D6-3 レビューL-6: onlineStatus は #setup の中=バトル画面に入ると見えない(実測)。開幕メッセージに
+  // 混ぜてバトル内で見せる(下の say に noLog:true で差し込む=ログには入れない=言語切替の取り残しを作らない)。
+  let _engineOldMsg = null;
   if (FORMAT.slotsPerSide > 1 && !(S && S.setFormat)){
     console.warn('[D6] このエンジンには setFormat が無い(古いキャッシュ?)=ダブルにできません');
-    onlineStatus(I18N.t('online_battle.engine_old_single', 'エンジンが ふるいため シングルで はじめます(ページを 再よみこみ してね)'));
+    _engineOldMsg = I18N.t('online_battle.engine_old_single', 'エンジンが ふるいため シングルで はじめます(ページを 再よみこみ してね)');
+    onlineStatus(_engineOldMsg);   // 編成画面に戻った時にも残るよう従来どおり出す
   }
   // ★D6-2(a-1): 枠1(ダブルのみ)。setFormat の「あと」=エンジンが作った slots[1] へ直接載せる
   if (boardSlots() > 1){ buildSlotExtra('self', orderedIds('self')); buildSlotExtra('opp', orderedIds('opp')); }
@@ -2980,7 +3084,8 @@ function startBattle(){
   renderAll();   // renderAll内でrenderSideBarsも呼ばれる(へんしん済みのすがたで描画)
   setWeatherFx(null);
   pbBgmSetScene('battle');   // ★タスク#19: 対戦開始後=battle曲
-  say([I18N.t('real_battle.battle_start_self','バトルスタート！ いけっ！ {n}！').replace('{n}', selfName0), I18N.t('real_battle.battle_start_opp','相手は {n} を くりだした！').replace('{n}', oppName0)].concat(initLines), () => showActionUI());
+  say((_engineOldMsg ? [{ text: _engineOldMsg, noLog: true }] : [])   // ★L-6: バトル内で見える警告(ログには入れない)
+      .concat([I18N.t('real_battle.battle_start_self','バトルスタート！ いけっ！ {n}！').replace('{n}', selfName0), I18N.t('real_battle.battle_start_opp','相手は {n} を くりだした！').replace('{n}', oppName0)]).concat(initLines), () => showActionUI());
 }
 
 // ===== 描画 =====
@@ -3411,49 +3516,84 @@ const CMD = { slotIdx: 0 };
 function cmdSlotIdx(){ return isDoubleBoard() ? CMD.slotIdx : 0; }
 function cmdSlotState(){ return slotStateOf('self', cmdSlotIdx()); }
 function cmdResetSlot(){ const a = selfActiveSlotIdxs(); CMD.slotIdx = a.length ? a[0] : 0; }
+// ★D6-3(b-2): 枠1のメニューの「もどる」= 前の枠の選択を消して前の枠の技メニューへ戻る。
+// (メガの予約 megaChoice は消さない=戻った枠のメニューでもう一度押せば外せる)
+function cmdBackSlot(){
+  const order = selfActiveSlotIdxs();
+  const pos = order.indexOf(cmdSlotIdx());
+  if (pos <= 0) return;
+  const prev = order[pos - 1];
+  if (S.setChoice) S.setChoice('self', prev, { moveIdx: null, switchIdx: null, target: null });
+  CMD.slotIdx = prev;
+  showMoves();
+}
+// ★D6-3(a-2): 相性ヒント帯(★/◎/△/✕)の計算器。技メニューの帯と対象板のカードが同じ1本を使う
+// (「足りないからもう一つ作る」を作らない)。引数の既定= 自分の枠0 → 相手の枠0 =
+// シングルの従来式 S.calcDamage('self','opp',m) と完全に同値(1文字も挙動が変わらない)。
+function effBandHtml(m, atkSide, atkIdx, defSide, defIdx){
+  if (!m || m.category === '変化') return '';
+  atkSide = atkSide || 'self'; defSide = defSide || 'opp';
+  atkIdx = atkIdx || 0; defIdx = defIdx || 0;
+  // CH: 相性ヒント(実機の★/◎/△/✕帯)。エンジンのcalcDamageで判定=DB同様に特性込み
+  // (ちょすい/ふゆう等の無効も✕になる=2026-07-05 阿部さん「DBの特性×0をそのままバトルで」)。
+  // calcDamageが使えない場合は素の相性表(typeEffPreview)にフォールバック
+  const defSt = slotStateOf(defSide, defIdx);
+  const defTypes = (S.sideTypes && defSt && defSt.poke) ? S.sideTypes(defSt) : [];
+  let eff = 1, immune = false;
+  try {
+    const r = S.calcDamage(atkSide, defSide, m, undefined, atkIdx, defIdx);
+    // ばけのかわ(disguiseBlock)は「タイプ相性のこうかなし」ではない(技は当たって皮が剥がれる)
+    // →素のタイプ相性で帯を出す(2026-07-10 阿部さん発見・ポケモンWiki準拠)
+    if (r && r.immune && r.disguiseBlock){
+      const e2 = S.typeEffPreview ? S.typeEffPreview(m.type, defTypes) : 1;
+      eff = e2; immune = (e2 === 0);
+    }
+    else if (r && r.immune){ immune = true; }
+    else if (r && r.chips){
+      const c = r.chips.find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
+      eff = c ? c.factor : 1;
+    }
+  } catch(e){
+    eff = S.typeEffPreview ? S.typeEffPreview(m.type, defTypes) : 1;
+    immune = eff === 0;
+  }
+  if (immune || eff === 0) return `<span class="mv-eff eff-no">✕ ${I18N.t('real_battle.no_effect','こうかなし')}</span>`;
+  // 4倍=★ちょうばつぐん(チャンピオンズ実機準拠。en公式=Extremely effective / Game8・Kotaku裏取り済み)
+  if (eff >= 4) return `<span class="mv-eff eff-hyper">★ ${I18N.t('real_battle.eff_hyper','ちょうばつぐん')}</span>`;
+  if (eff > 1)  return `<span class="mv-eff eff-super">◎ ${I18N.t('real_battle.chip_super_effective','こうかばつぐん')}</span>`;
+  if (eff < 1)  return `<span class="mv-eff eff-weak">△ ${I18N.t('real_battle.chip_not_very_effective','こうかいまひとつ')}</span>`;
+  return '';
+}
 function showMoves(){
   const st = cmdSlotState();
+  // ★D6-3 レビューL-1: 空席/個体なしの枠でメニューを組もうとしたら何もしない(ダブルで枠が空く経路あり)。
+  // シングルでは st=S.sides.self で必ず個体が居る(doTurn 側が fainted を見て止めている)=到達しない。
+  if (!st || !st.poke) return;
   const tc = S.typeColors();
   $('cmd').style.display = 'none';
   $('party').style.display = 'none';        // 相互排他(重なるとクリックが食われて固まる=2026-07-06)
   $('watch-panel').style.display = 'none';
   $('weak-panel').style.display = 'none';
+  closeTargetBoard(false);                  // ★D6-3: 対象板とも相互排他(シングルは板が存在しない=何もしない)
   const mv = $('moves');
   mv.style.display = 'flex';   // CH: 縦カプセルリスト
   const ppOf = i => (st.pp ? st.pp[i] : null);
   const lockName = st.choiceLock ? st.choiceLock.name : null;   // こだわりロック(段135)
   const allOut = st.pp && st.moves.every((m, i) => !m || st.pp[i] <= 0);
-  // CH: 相性ヒント(実機の★/◎/△/✕帯)。エンジンのcalcDamageで判定=DB同様に特性込み
-  // (ちょすい/ふゆう等の無効も✕になる=2026-07-05 阿部さん「DBの特性×0をそのままバトルで」)。
-  // calcDamageが使えない場合は素の相性表(typeEffPreview)にフォールバック
-  const oppTypes = (S.sideTypes && S.sides.opp && S.sides.opp.poke) ? S.sideTypes(S.sides.opp) : [];
-  const effBand = m => {
-    if (!m || m.category === '変化') return '';
-    let eff = 1, immune = false;
-    try {
-      const r = S.calcDamage('self', 'opp', m);
-      // ばけのかわ(disguiseBlock)は「タイプ相性のこうかなし」ではない(技は当たって皮が剥がれる)
-      // →素のタイプ相性で帯を出す(2026-07-10 阿部さん発見・ポケモンWiki準拠)
-      if (r && r.immune && r.disguiseBlock){
-        const e2 = S.typeEffPreview ? S.typeEffPreview(m.type, oppTypes) : 1;
-        eff = e2; immune = (e2 === 0);
-      }
-      else if (r && r.immune){ immune = true; }
-      else if (r && r.chips){
-        const c = r.chips.find(c => c.kind === 'eff-up' || c.kind === 'eff-down');
-        eff = c ? c.factor : 1;
-      }
-    } catch(e){
-      eff = S.typeEffPreview ? S.typeEffPreview(m.type, oppTypes) : 1;
-      immune = eff === 0;
-    }
-    if (immune || eff === 0) return `<span class="mv-eff eff-no">✕ ${I18N.t('real_battle.no_effect','こうかなし')}</span>`;
-    // 4倍=★ちょうばつぐん(チャンピオンズ実機準拠。en公式=Extremely effective / Game8・Kotaku裏取り済み)
-    if (eff >= 4) return `<span class="mv-eff eff-hyper">★ ${I18N.t('real_battle.eff_hyper','ちょうばつぐん')}</span>`;
-    if (eff > 1)  return `<span class="mv-eff eff-super">◎ ${I18N.t('real_battle.chip_super_effective','こうかばつぐん')}</span>`;
-    if (eff < 1)  return `<span class="mv-eff eff-weak">△ ${I18N.t('real_battle.chip_not_very_effective','こうかいまひとつ')}</span>`;
-    return '';
-  };
+  // 相性ヒントは effBandHtml(1本の計算器・対象板と共用)で出す。
+  // ★D6-3(c): ダブルの帯は「正面(左右同じ側)の相手」で計算する=エンジンの既定対象 front({相手側, 自分と
+  // 同じ枠番号}・real_battle_simulator.html:2890)と同じ基準。正面が不在(ひんし/空席)なら在場の相手枠。
+  // 相手全体/自分以外全体の範囲技は「2体で相性が違う時にどう1語でまとめるか」の出典が無い
+  // // 台帳#108 未確認(review/_doubles_research_2026-09-07/03_…§4)→ 正面1体で計算したまま変えない。
+  // シングルは常に 枠0 → 枠0 = 従来の S.calcDamage('self','opp',m) と完全に同値。
+  const _effAtkIdx = cmdSlotIdx();
+  const _effDefIdx = (() => {
+    const front = slotStateOf('opp', _effAtkIdx);
+    if (front && front.poke && !front.fainted) return _effAtkIdx;
+    const alt = boardSlotIdxs().find(i => { const s = slotStateOf('opp', i); return s && s.poke && !s.fainted; });
+    return alt == null ? 0 : alt;
+  })();
+  const effBand = m => effBandHtml(m, 'self', _effAtkIdx, 'opp', _effDefIdx);
   // CH: 技カプセル(チャンピオンズ準拠)
   // - 上段: タイプバッジ + 技名 / 右上: PP大きめ / 下段: 相性帯 + 威力/命中
   // - カプセル背景はタイプ色グラデ・disabled時(PP切れ/こだわり外)はグレーアウト
@@ -3465,8 +3605,12 @@ function showMoves(){
     `<button class="desc-toggle${detailOn ? ' on' : ''}">${I18N.t('real_battle.movedesc_button','📖 技の説明')}</button>` +
     `<button class="stats-open">⚙</button></div>`;
   // メガシンカ=技リストの左横の丸ボタン(実機のRボタン位置=2026-07-06 阿部さん)。使える時だけ出す
-  // ★D6-2: メガは枠0だけ(ダブルの枠1のメガは D6-3。シングルは cmdSlotIdx()===0=従来どおり)
-  const megaSide = (cmdSlotIdx() === 0 && (S.canMegaEvolve(st) || st.megaChoice))
+  // ★D6-3(b-1): メガは枠ごとに押せる(D6-2では枠0だけだった)。ただし側で1回=エンジンの megaUsed は
+  // 側に一本化されている(real_battle_simulator.html:1138 アクセサ)ので、もう一方の枠が予約(megaChoice)
+  // していたらボタン自体を出さない=入力の時点で「側で1回」を守る。シングルは枠1が無い=従来と同一条件。
+  const _megaOther = isDoubleBoard()
+    && boardSlotIdxs().some(i => i !== cmdSlotIdx() && !!(slotStateOf('self', i) || {}).megaChoice);
+  const megaSide = (!_megaOther && (S.canMegaEvolve(st) || st.megaChoice))
     ? `<button class="mega-side${st.megaChoice ? ' mega-armed' : ''}"><span class="ms-icon">⬡</span><span class="ms-label">${I18N.t('real_battle.cmd_mega','⬡ メガシンカ').replace('⬡ ', '')}</span></button>`
     : '';
   // ★D6-2(b-1): ダブルだけ「{n} の こうどう」の見出しを出す(9言語キー online_battle.cmd_for)。
@@ -3507,7 +3651,11 @@ function showMoves(){
           (ppTxt ? `<span class="${ppCls}">${ppTxt}</span>` : '') +
           `</button>`;
       }).join(''))
-    + `<button class="back party-open">${I18N.t('real_battle.cmd_party','🔄 ポケモン')}</button>`;
+    + `<button class="back party-open">${I18N.t('real_battle.cmd_party','🔄 ポケモン')}</button>`
+    // ★D6-3(b-2): 2番目以降の枠のメニューだけ「← もどる」(前の枠の選択をやり直す)。
+    // シングルは isDoubleBoard()===false=1つも増えない(DOM不変)。
+    + ((isDoubleBoard() && selfActiveSlotIdxs().indexOf(cmdSlotIdx()) > 0)
+        ? `<button class="back slot-back">${I18N.t('real_battle.move_back_button','← もどる')}</button>` : '');
   // 技の説明ON: ホバーした技の「左横」にフロート(威力/命中/分類/優先度+説明文を集約=2026-07-06 阿部さん)
   if (detailOn){
     const tip = $('mv-tip');
@@ -3551,14 +3699,185 @@ function showMoves(){
       showMoves(); return;
     }
     if (b.classList.contains('mega-side')){ toggleMega(); return; }
-    if (b.classList.contains('party-open')){ showParty(); return; }   // 交代へ(もどるで技リストに帰る)
+    // ★D6-3(b-1): 交代は「いま入力中の枠」の交代(シングルは cmdSlotIdx()===0=従来と同じ引数)
+    if (b.classList.contains('party-open')){ showParty(false, false, cmdSlotIdx()); return; }   // 交代へ(もどるで技リストに帰る)
+    if (b.classList.contains('slot-back')){ cmdBackSlot(); return; }   // ★D6-3(b-2): 前の枠へ戻る
     const mi = +b.dataset.i;
+    // ★D6-3(a-1): 対象を選ぶ技(エンジン getChoiceCandidates の targets が null でない)は対象板を出す。
+    // 候補が1つでも出す(候補数は見ない=台帳#111 区分B・Showdown battle-choices.ts の choosableTargets と同じ)。
+    // null の技(範囲/自分/場/味方側)はここで false が返る=即決定(D6-2 の流れのまま)。
+    if (!allOut && openTargetBoard(mi)) return;
     // 自分交代技(とんぼがえり等): 控えに生きてる子が2匹以上いる時だけ「だれに かわる?」を先に聞く
-    // ★D6-2: 交代先の事前選択UIは枠0だけ(ダブルの枠1の交代は D6-3。枠1は従来どおり自動=控え筆頭)
+    // ★D6-2: 交代先の事前選択UIは枠0だけ(枠1は従来どおり自動=控え筆頭。D6-3でも据え置き=報告に明記)
     if (!allOut && cmdSlotIdx() === 0 && moveHasPivotSwitch(st.moves[mi])){ maybeStartPivot(mi); return; }
     doTurn(mi);
   }));
   actTimerStart();   // 本家準拠の45秒COMMANDタイマー(オンライン/AI戦問わずバトル中は常時=actTimerStart内でin-battleを見て自己ガード・2026-07-11)
+}
+// ===================================================================
+// ★D6-3(2026-09-11・spec_d6_3_target_board.md a): 対象板(target_choose・設計§8.3)
+//   出どころ= 実機6枚目の観察 review/_doubles_research_2026-09-07/03_実機画面の観察_選出と対象選択_2026-09-11.md §5
+//     ・盤面に重ねる 2×2 のカード。上段=相手2枠(赤帯)・下段=自分2枠(青帯)・左右は盤面と同じ並び。
+//     ・各カード= スプライト(小アイコン pokeIconSrc)・名前(I18N)・HPバー(相手=%・自分=実数/最大)・性別・相性ヒント。
+//     ・中央上に技名バナー(タイプ色)。右下「とじる」で技メニューへ戻る(実機の B 閉じる)。
+//   ・出すか出さないかは「技の対象種別だけ」で決める(候補数は見ない=台帳#111 区分B・
+//     Showdown battle-choices.ts の choosableTargets と同じ設計)。エンジンの targets===null が「選ばせない」。
+//   ・候補でない枠(使用者自身など)は暗くして押せない(台帳#109「使用者カードが選べるか」は未確認=
+//     実機では表示されているので「出すが押せない」で実装)。
+//   ・シングルは isDoubleBoard()===false=openTargetBoard が必ず false を返す=この板は一度も作られない。
+// ===================================================================
+const TB = { open: false, moveIdx: null, targets: [], cur: null };
+// 要素は使う時だけ作り、閉じたら消す(シングルではDOMが1つも増えない=絶対条件)
+function tbEl(){
+  let el = $('target-board');
+  if (!el){ el = document.createElement('div'); el.id = 'target-board'; $('field').appendChild(el); }
+  return el;
+}
+// 画面の左右の並び(盤面CSSと同じ): 自分=枠0が左→枠1が右 / 相手=枠1が左→枠0が右(鏡写し・台帳#107)
+function tbScreenOrder(side){
+  const a = boardSlotIdxs();
+  return side === 'opp' ? a.slice().reverse() : a.slice();
+}
+function tbIsCand(side, idx){ return TB.targets.some(t => t.side === side && t.idx === idx); }
+// 1枠ぶんのカード。相性ヒントは技メニューと同じ effBandHtml(使用者の枠 → この対象)で計算する
+function tbCardHtml(side, idx, mv){
+  const st = slotStateOf(side, idx);
+  const named = st.illusionAs || (st.transformBase ? st.transformBase.poke : st.poke);
+  const max = S.realStat(st, 'hp') || 1;
+  const hp = st.currentHp == null ? max : Math.max(0, st.currentHp);
+  const pct = Math.max(0, Math.round(hp / max * 100));
+  const barCls = 'tb-hp' + (pct <= 25 ? ' low' : pct <= 50 ? ' mid' : '');
+  // HPの見せ方は盤面と同じ(相手=%・自分=実数/最大。実機 03_…§3)
+  const hpTxt = side === 'opp' ? pct + '%' : hp + '/' + max;
+  const g = (st.gender && st.gender !== '—')
+    ? `<span class="tb-g ${st.gender === '♂' ? 'm' : 'f'}">${st.gender}</span>` : '';
+  const cand = tbIsCand(side, idx);
+  return `<button type="button" class="tb-slot ${side}${cand ? '' : ' tb-off'}" data-side="${side}" data-idx="${idx}"` +
+    `${cand ? '' : ' disabled'}>` +
+    `<img src="${pokeIconSrc(named.name)}" alt="" onerror="this.remove()">` +
+    `<strong class="tb-nm">${tPokeName(named.name)}${g}</strong>` +
+    `<span class="tb-effwrap">${effBandHtml(mv, 'self', cmdSlotIdx(), side, idx)}</span>` +
+    `<span class="tb-hpwrap"><span class="tb-hpbg"><span class="${barCls}" style="width:${pct}%"></span></span>` +
+    `<span class="tb-hptext">${hpTxt}</span></span>` +
+    `</button>`;
+}
+function renderTargetBoard(){
+  const st = cmdSlotState();
+  const mv = st && st.moves ? st.moves[TB.moveIdx] : null;
+  if (!mv) return;
+  const col = (S.typeColors()[mv.type]) || '#3a4660';
+  const rowHtml = side => `<div class="tb-row">` + tbScreenOrder(side).map(i => {
+    const s = slotStateOf(side, i);
+    if (!s || !s.poke || s.fainted) return `<div class="tb-slot tb-off tb-empty" aria-hidden="true"></div>`;
+    return tbCardHtml(side, i, mv);
+  }).join('') + `</div>`;
+  const el = tbEl();
+  el.innerHTML = `<div class="tb-card">` +
+    `<div class="tb-mvbanner" style="background:linear-gradient(135deg,${col}ee,${col}99)">` +
+      `<span class="t-pill" style="background:${col}">${tTypeName(mv.type)}</span><strong>${tMoveName(mv)}</strong></div>` +
+    `<div class="tb-title">${I18N.t('online_battle.target_title','だれを ねらう？')}</div>` +
+    `<div class="tb-band opp">${I18N.t('real_battle.pbox_label_opp','あいて')}</div>` + rowHtml('opp') +
+    `<div class="tb-band self">${I18N.t('real_battle.pbox_label_self','じぶん')}</div>` + rowHtml('self') +
+    `<button type="button" class="tb-close">${I18N.t('real_battle.mp_close_button','とじる')}</button>` +
+    `</div>`;
+  // ★e.stopPropagation()必須(#moves と同じ理由・2026-07-13): #target-board は #field の子孫なので、
+  // このクリックが doTurn→say() の直後に #field の click(advanceMsg)へバブルして1コマ目を先送りしてしまう。
+  el.querySelectorAll('.tb-slot[data-side]').forEach(b => {
+    if (b.disabled) return;
+    b.addEventListener('click', e => { e.stopPropagation(); SE.select(); tbConfirm(b.dataset.side, +b.dataset.idx); });
+  });
+  const cl = el.querySelector('.tb-close');
+  if (cl) cl.addEventListener('click', e => { e.stopPropagation(); SE.select(); closeTargetBoard(true); });
+  el.addEventListener('click', e => { e.stopPropagation(); });   // 板の外側(暗幕)クリックはメッセージ送りに渡さない
+  tbPaintCursor();
+}
+function tbPaintCursor(){
+  const el = $('target-board');
+  if (!el) return;
+  el.querySelectorAll('.tb-slot[data-side]').forEach(b => b.classList.toggle('on',
+    !!TB.cur && b.dataset.side === TB.cur.side && +b.dataset.idx === TB.cur.idx));
+}
+// 初期フォーカス= 候補のうち「自分から見て左の相手」(台帳#110 区分B: SV基準のプレイヤー記録
+// 「対象を選ぶ技の初期位置は(選ぶ側から見て)左側」cubone104105.hatenablog.com 2026-04-06 /
+// 実機1枚の観察(カーソル=上段左)とも矛盾しない。Champions実機での複数パターン確認は未了)。
+// 左の相手が候補でなければ候補の先頭(エンジンの targets 順=相手→味方・枠昇順)。
+function tbInitialCursor(){
+  const leftOpp = tbScreenOrder('opp')[0];
+  const hit = TB.targets.find(t => t.side === 'opp' && t.idx === leftOpp);
+  const pick = hit || TB.targets[0];
+  return pick ? { side: pick.side, idx: pick.idx } : null;
+}
+// 2×2のます目(row 0=相手・1=自分 / col=画面の左右)。候補でないますは飛ばす(押せない枠は選ばせない)
+function tbCellAt(row, col){
+  const side = row === 0 ? 'opp' : 'self';
+  const order = tbScreenOrder(side);
+  if (col < 0 || col >= order.length) return null;
+  const idx = order[col];
+  return tbIsCand(side, idx) ? { side, idx } : null;
+}
+function tbMoveCursor(dr, dc){
+  if (!TB.cur) return;
+  const row = TB.cur.side === 'opp' ? 0 : 1;
+  let r = row, c = tbScreenOrder(TB.cur.side).indexOf(TB.cur.idx);
+  for (let n = 0; n < 4; n++){
+    r += dr; c += dc;
+    if (r < 0 || r > 1 || c < 0 || c > 1) return;
+    const cell = tbCellAt(r, c);
+    if (cell){ TB.cur = cell; SE.select(); tbPaintCursor(); return; }
+  }
+}
+// キーボード: ←→↑↓で移動・Enter(スペース)決定・Escで技メニューへ戻る。
+// ★capture段で捕まえて stopPropagation する: document には「Enter/スペース=メッセージ送り(advanceMsg)」の
+// bubble リスナーが先に登録されている(2753行)=板が開いている間はそちらへ渡さない。
+function tbKey(e){
+  if (!TB.open) return;
+  const k = e.key;
+  if (k === 'Escape'){ e.preventDefault(); e.stopPropagation(); SE.select(); closeTargetBoard(true); return; }
+  if (k === 'Enter' || k === ' '){
+    e.preventDefault(); e.stopPropagation();
+    if (TB.cur) tbConfirm(TB.cur.side, TB.cur.idx);
+    return;
+  }
+  const dir = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[k];
+  if (!dir) return;
+  e.preventDefault(); e.stopPropagation();
+  tbMoveCursor(dir[0], dir[1]);
+}
+// 技を押した時に呼ぶ。対象板を出したら true(呼び出し側は何もしない)・出さないなら false(即決定)
+function openTargetBoard(moveIdx){
+  if (!isDoubleBoard() || !S.getChoiceCandidates) return false;
+  let targets = null;
+  try {
+    const c = S.getChoiceCandidates('self', cmdSlotIdx());
+    const e = (c.moves || []).find(x => x.idx === moveIdx);
+    targets = e ? e.targets : null;
+  } catch (err) { return false; }
+  if (!targets || !targets.length) return false;   // null=選ばせない技 / []=候補が居ない(エンジンのonLostに任せる)
+  TB.open = true; TB.moveIdx = moveIdx; TB.targets = targets;
+  TB.cur = tbInitialCursor();
+  ['cmd', 'moves', 'party', 'watch-panel', 'weak-panel', 'mv-tip'].forEach(id => { const x = $(id); if (x) x.style.display = 'none'; });
+  tbEl().classList.add('show');
+  renderTargetBoard();
+  document.addEventListener('keydown', tbKey, true);
+  return true;
+}
+function closeTargetBoard(backToMoves){
+  TB.open = false; TB.moveIdx = null; TB.targets = []; TB.cur = null;
+  document.removeEventListener('keydown', tbKey, true);
+  const el = $('target-board');
+  if (el) el.remove();
+  if (backToMoves) showMoves();
+}
+// 決定: この枠の選択を {moveIdx, target} で書き込んで次へ(doTurn が枠の進行/実行を受け持つ)。
+// とんぼがえり等の自分交代技は従来どおり先に交代先を聞く(対象は RB_PIVOT.pendingTarget で持ち越す)。
+function tbConfirm(side, idx){
+  const mi = TB.moveIdx;
+  const st = cmdSlotState();
+  const mv = st && st.moves ? st.moves[mi] : null;
+  const tg = { side: side, idx: idx };
+  closeTargetBoard(false);
+  if (cmdSlotIdx() === 0 && moveHasPivotSwitch(mv)){ RB_PIVOT.pendingTarget = tg; maybeStartPivot(mi); return; }
+  doTurn(mi, tg);
 }
 // 自分交代技の交代先選択(事前選択方式): 控えが2匹以上生きていれば選択UIを出す。1匹以下は従来どおり自動(先頭)
 function maybeStartPivot(moveIdx){
@@ -3566,7 +3885,8 @@ function maybeStartPivot(moveIdx){
   const liveIdxs = (st.bench || []).map((e, i) => ({e, i}))
     .filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
   RB_PIVOT.selfIdx = liveIdxs.length ? liveIdxs[0] : null;   // 既定=控え筆頭(選択UIを出さない場合のフォールバック)
-  if (liveIdxs.length < 2){ doTurn(moveIdx); return; }
+  // ★D6-3(a-4): 対象板で選んだ対象を落とさない(シングルは pendingTarget が常に null=従来と同値)
+  if (liveIdxs.length < 2){ const _tg = RB_PIVOT.pendingTarget; RB_PIVOT.pendingTarget = null; doTurn(moveIdx, _tg); return; }
   RB_PIVOT.pendingMoveIdx = moveIdx;
   showParty(false, true);   // pivot=true(3カラム交代画面を選択モードで流用。やめる=技選択に戻る)
 }
@@ -3578,15 +3898,25 @@ let swForced = false;      // 今開いている交代画面が死に出し強�
 let swSelected = null;     // 選択中の控えindex(st.bench基準)。null=未選択(中央は場に出ている子を表示)
 // ★2026-07-10 阿部さん: バトンタッチ/とんぼがえり等の自分交代の交代先選択(事前選択方式=ロックステップの技選択直後に選ぶ)
 let swPivot = false;       // 今開いている交代画面が自分交代の交代先選択モードか(もどるで技リストに帰れる=swForcedと違う)
+// ★D6-3(b-1): いま交代先を選んでいる自分の枠(ダブルのみ0以外になる)。シングル/死に出しは常に0=従来と同一。
+let swSlotIdx = 0;
+// ★D6-3(b-1): 同じ控え個体を両枠が選べない(もう一方の枠が予約済みの bench idx は選べない)。
+// 控え(bench)は側に1本(エンジンがslots[i].benchを側のアクセサに張り替えている)=予約の衝突が起きうる。
+function benchTakenByOtherSlot(benchIdx){
+  if (!isDoubleBoard() || benchIdx == null) return false;
+  return boardSlotIdxs().some(i => i !== swSlotIdx && (slotStateOf('self', i) || {}).switchChoice === benchIdx);
+}
 // selfIdx=engineへ渡す自分の事前選択bench idx / oppIdx=オンラインで相手から受信した選択(onlineRunTurnがセット)
-const RB_PIVOT = { pendingMoveIdx: null, selfIdx: null, oppIdx: null };
+// pendingTarget(★D6-3): 対象板で選んだ対象を交代先選択の間だけ持ち越す({side,idx}|null)
+const RB_PIVOT = { pendingMoveIdx: null, selfIdx: null, oppIdx: null, pendingTarget: null };
 // 自分交代(とんぼがえり/ボルトチェンジ/クイックターン/すてゼリフ/バトンタッチ)を持つ技か
 function moveHasPivotSwitch(m){
   return !!(m && m.battle_data && Array.isArray(m.battle_data.effects) && m.battle_data.effects.some(e => e.kind === '自分交代'));
 }
 function partyRowsMine(st){
   const rows = [];
-  if (st && st.poke) rows.push({ entry: st, idx: null, active: true });
+  // ★D6-3: 場に出ている枠は全部「場に出ている」行にする(シングルは boardSlotIdxs()=[0]=従来と同一)
+  boardSlotIdxs().forEach(i => { const e = slotStateOf('self', i); if (e && e.poke) rows.push({ entry: e, idx: null, active: true }); });
   (st.bench || []).forEach((e, i) => { if (e && e.poke) rows.push({ entry: e, idx: i, active: false }); });
   return rows;
 }
@@ -3615,8 +3945,10 @@ function swBattleCapsuleHtml(entry, opts){
   const hpHtml = dead ? '' : `<span class="sw-hpwrap"><span class="sw-hpbar-bg"><span class="${barCls}" style="width:${pct}%"></span></span>` +
     `<span class="sw-hptext">${pct}% (${hp}/${max})</span></span>`;
   const selected = !opts.active && swSelected === opts.idx;
-  const disabled = opts.active || dead;
-  const cls = ['slot', opts.active ? 'active' : '', dead ? 'dead' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
+  // ★D6-3(b-1): taken=もう一方の枠が交代先に予約済み=この枠では選べない(薄く・押せない)
+  const taken = !!opts.taken;
+  const disabled = opts.active || dead || taken;
+  const cls = ['slot', opts.active ? 'active' : '', dead ? 'dead' : '', taken ? 'taken' : '', selected ? 'selected' : ''].filter(Boolean).join(' ');
   return `<button type="button" class="${cls}" ${opts.active ? '' : `data-i="${opts.idx}"`} ${disabled ? 'disabled' : ''}>` +
     `<strong class="cap-name">${tPokeName(named.name)}${gHtml}</strong>` +
     `<span class="cap-mid"><span class="cap-types">${types}</span><small class="cap-item">${itemHtml}</small></span>` +
@@ -3636,19 +3968,22 @@ function swMineHtml(st){
   const sel = (window._pickOverride && _pickOverride.self && _pickOverride.self.length) ? _pickOverride.self : null;
   if (!sel){   // 選出フロー未経由(保険): 従来どおり場に出ている子+控えだけを表示
     return partyRowsMine(st).map(row => {
-      const html = swBattleCapsuleHtml(row.entry, { active: row.active, idx: row.idx });
+      const html = swBattleCapsuleHtml(row.entry, { active: row.active, idx: row.idx, taken: benchTakenByOtherSlot(row.idx) });
       return (!row.active && swSelected === row.idx) ? html + swConfirmHtml() : html;
     }).join('');
   }
+  // ★D6-3: 選出順→(場の枠 / 控え)の対応は枠数で決まる。ダブルは選出1・2番目が場(枠0/枠1)で3番目から控え
+  // (buildSide の `ids.slice(boardSlots())` と同じ規則)。シングルは nSlots=1=従来と完全に同じ式。
+  const nSlots = boardSlots();
   return ids.map(id => {
     if (!slotVal[id]) return '';
     const pos = sel.indexOf(id);
     if (pos === -1) return swGhostCapsuleHtml(id);
-    const entry = pos === 0 ? st : (st.bench || [])[pos - 1];
+    const active = pos < nSlots;
+    const entry = active ? slotStateOf('self', pos) : (st.bench || [])[pos - nSlots];
     if (!entry || !entry.poke) return swGhostCapsuleHtml(id);   // 保険(データ不整合時は薄表示に逃がす)
-    const active = pos === 0;
-    const idx = active ? null : pos - 1;
-    const html = swBattleCapsuleHtml(entry, { active, idx });
+    const idx = active ? null : pos - nSlots;
+    const html = swBattleCapsuleHtml(entry, { active, idx, taken: benchTakenByOtherSlot(idx) });
     return (!active && swSelected === idx) ? html + swConfirmHtml() : html;
   }).join('');
 }
@@ -3739,7 +4074,7 @@ function swOppHtml(){
   return team.map(e => swOppSlotHtml((e.illusionAs || e.poke).name, e, true)).join('');
 }
 function renderPartyScreen(){
-  const st = S.sides.self;
+  const st = slotStateOf('self', swSlotIdx);   // ★D6-3(b-1): 交代する枠(シングル/死に出しは常に枠0=S.sides.self)
   const pt = $('party');
   pt.innerHTML = `<div class="sw-card"><div class="sw-head" id="sw-head"><h3>${swPivot
       ? I18N.t('real_battle.party_screen_title_pivot', 'だれに かわる？')
@@ -3789,7 +4124,8 @@ function finishPivotPick(idx){
   $('party').style.display = 'none';
   RB_PIVOT.selfIdx = idx;
   const mi = RB_PIVOT.pendingMoveIdx; RB_PIVOT.pendingMoveIdx = null;
-  doTurn(mi);
+  const tg = RB_PIVOT.pendingTarget; RB_PIVOT.pendingTarget = null;   // ★D6-3: 対象板で選んだ対象を渡す
+  doTurn(mi, tg);
 }
 // 「交代する」の実処理: 旧showPartyのボタンclickハンドラと同じ経路を厳密に踏襲(data-iに相当するidxを引数化しただけ)
 function doSwitchTo(idx){
@@ -3820,16 +4156,20 @@ function doSwitchTo(idx){
     say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
     return;
   }
-  S.sides.self.switchChoice = idx;
+  // ★D6-3(b-1): ダブルは「いま選んでいる枠」の交代としてエンジンへ書く(枠1だけ交代できる=
+  // エンジンの switchChoice は枠ごと・real_battle_simulator.html:8038 が在場の全枠を見る)。
+  if (isDoubleBoard() && S.setChoice) S.setChoice('self', swSlotIdx, { switchIdx: idx });
+  else S.sides.self.switchChoice = idx;
   doTurn(null);   // 交代をこのターンの行動に
 }
-function showParty(forced, pivot){
+function showParty(forced, pivot, slotIdx){
   $('cmd').style.display = 'none';
   $('moves').style.display = 'none';        // 相互排他
   $('watch-panel').style.display = 'none';
   $('weak-panel').style.display = 'none';
   swForced = !!forced;
   swPivot = !!pivot;
+  swSlotIdx = (isDoubleBoard() && slotIdx) ? slotIdx : 0;   // ★D6-3(b-1): 交代する枠(既定0=従来どおり)
   swSelected = null;
   const pt = $('party');
   pt.style.display = 'flex';   // CH: フルスクリーン3カラム(選出画面pick-screen準拠)
@@ -3984,15 +4324,19 @@ function toggleWeaknessPanel(btn){
   w.onclick = () => { w.style.display = 'none'; };
 }
 function toggleMega(){
-  const st = S.sides.self;
+  // ★D6-3(b-1): メガの予約はいま入力中の枠に付ける(シングルは cmdSlotState()===S.sides.self=従来と同一)
+  const st = cmdSlotState();
   if (st.megaChoice){ st.megaChoice = false; }
   else if (S.canMegaEvolve(st)){ st.megaChoice = true; }
   showMoves();
 }
 
 // ===== ターン実行→ログを1行ずつ実機テンポで再生 =====
-function doTurn(moveIdx){
+// target(★D6-3): 対象板で選んだ対象 {side,idx}。省略/null=対象を選ばない技=エンジンの既定(正面)に任せる
+// = シングルの全呼び出し(引数1つ)は従来と完全に同値。
+function doTurn(moveIdx, target){
   if (busy || gameOver) return;
+  closeTargetBoard(false);   // ★D6-3: 対象板が開いたままターンへ進まない(キー配線も外す)
   // シングル: 枠0がひんし=死に出しの選択待ち中はターンを進めない(従来どおり)。
   // ★D6-2(c-2): ダブルは「枠0が空席(控えも尽きた)+枠1は元気」でも戦い続けられる(エンジンが空席のまま
   // 続行する)。ここで枠0のひんしだけを見て止めると、枠1の技を押しても何も起きない=操作不能になる
@@ -4002,12 +4346,14 @@ function doTurn(moveIdx){
   ['cmd', 'moves', 'party', 'watch-panel', 'weak-panel', 'mv-tip'].forEach(id => { $(id).style.display = 'none'; });
   actTimerStop();   // 行動確定=COMMANDタイマー停止(AI戦もオンラインと同じ挙動に揃える・オンラインはonlineSubmitAction側でも停止=二重停止だが無害)
   const self = S.sides.self, opp = S.sides.opp;
-  // ★D6-2(b-1): ダブル(AI戦)は枠ごとに選択を積む。対象はこの段では既定(候補の先頭=正面)=
-  // setChoice(side, idx, {moveIdx, target:null})。対象板(だれを ねらう?)は D6-3。
+  // ★D6-2(b-1): ダブル(AI戦)は枠ごとに選択を積む。
+  // ★D6-3(a-4): 対象板で選んだ対象をここで書き込む(target=null=選ばない技=エンジンの既定=正面)。
+  // エンジンは targetChoice をターン終わりに消さない(setChoice が唯一の入口=
+  // real_battle_simulator.html:2701)ので、技を選ぶたびに必ず上書きする=前のターンの対象が残らない。
   // 在場する自分の枠が全部そろうまで executeTurn せず、次の枠の技メニューを出す。
   if (isDoubleBoard()){
     const _idx = cmdSlotIdx();
-    if (moveIdx != null && S.setChoice) S.setChoice('self', _idx, { moveIdx: moveIdx, switchIdx: null, target: null });
+    if (moveIdx != null && S.setChoice) S.setChoice('self', _idx, { moveIdx: moveIdx, switchIdx: null, target: target || null });
     const _order = selfActiveSlotIdxs();
     const _pos = _order.indexOf(_idx);
     if (_pos >= 0 && _pos + 1 < _order.length){
@@ -4032,6 +4378,9 @@ function doTurn(moveIdx){
 }
 // 1ターンを実行して差分ログを再生する本体(オフライン=doTurnから直接/オンライン=両者の行動が揃ってから)
 function executeTurn(){
+  // ★D6-3 レビューL-4: 「直前のダメージ対象」はターン境界でリセットする(前のターンの対象が残ると
+  // ターン頭の「こうかは ばつぐんだ！」等が前ターンの枠へ飛ぶ。シングルは側だけの値=実害が小さいが同じ筋)。
+  lastTgt = null; lastTgtSlot = 0;
   // 演出用HPスナップショット: 交代で出た瞬間のバーは「攻撃前のHP」を出す
   // (renderAllはエンジン最終状態=被弾後を入れてしまい、登場した瞬間に減って見えていた=2026-07-06 阿部さん)
   window._hpSnap = {};
@@ -4867,8 +5216,12 @@ function lineWithFx(msg, opts){
       // ずっと)出てしまうバグだった。場に出た本人の実値へ揃え直せば以後の「はがれた」演出とも整合する。
       if (window._dgSnap && slotStateOf(enterSide, _enSlot)) _dgSnap[_enKey] = slotStateOf(enterSide, _enSlot).disguise;
       clearTimeout(_recallTimer[_enKey]);   // 1拍目の遅延goneが登場後に発火して消すのを防ぐ
+      // ★D6-3 レビューM-1: ひんし演出の1500ms遅延(gone+HP箱hidden)も取り消す。ダブルの枠1は
+      // エンジンが同じターンの中で自動補充するので、取り消さないと遅延コールバックが新しく出てきた子を
+      // 追い越して「出てきたのに見えない(opacity 0・HP箱hidden)」で固定されてしまう(実測)。
+      if (typeof cancelFaintFx === 'function') cancelFaintFx(enterSide, _enSlot);
       const f = $('f-' + _enKey);
-      if (f) f.classList.remove('gone', 'recall');
+      if (f) f.classList.remove('gone', 'recall', 'faint');
       const pbEl = $('pb-' + _enKey); if (pbEl) pbEl.style.visibility = '';
       renderAll();
       // 出た瞬間は「攻撃前のHP」を表示(この後のダメージ行fxが正しいタイミングで減らす)
@@ -4886,15 +5239,16 @@ function lineWithFx(msg, opts){
       if (_soSheet) playSceneCueSheet(_soSheet, { side: enterSide, slotIdx: _enSlot }); else sendOutFx(enterSide, _enSlot);
     }
     if (/メガシンカした！/.test(msg)){
-      // ★D6-2: メガシンカはこの段では枠0だけ(ダブルの枠1のメガは D6-3)=側だけ名前から正す
-      const mgSide = _ss;
-      if (window._idSnap) _idSnap[mgSide] = S.sides[mgSide].poke;   // メガの姿はこの拍から表示
+      // ★D6-3: メガシンカも枠で解決する(枠1のメガが通る)。主語=進化前の名前(エンジン7580行)なので
+      // slotOfName は現在の姿で引けず _idSnap(ターン開始時の表示個体)側で当たる=枠が正しく出る。
+      const mgSide = _ss, mgSlot = _sx;
+      if (window._idSnap) _idSnap[slotKey(mgSide, mgSlot)] = slotStateOf(mgSide, mgSlot).poke;   // メガの姿はこの拍から表示
       // Wave3: 儀式演出(収束→シルエット→爆発・特例1.5-2.0s)。dur戻り値で次行のsay自動送りをホールドする
       // scene:mega_evolve(演出ツクールStep5・上書きオーバーレイ): シート無し=従来のmegaFxのまま(挙動不変)。
       const _meSheet = resolveSceneSheet('mega_evolve');
-      const _mDur = _meSheet ? playSceneCueSheet(_meSheet, { side: mgSide }) : megaFx(mgSide);
+      const _mDur = _meSheet ? playSceneCueSheet(_meSheet, { side: mgSide, slotIdx: mgSlot }) : megaFx(mgSide, mgSlot);
       _megaFxDelay = _mDur;
-      setTimeout(() => { renderAll(); flash(mgSide, 'enter'); }, 700);   // t=700: シルエットのうちにスプライト差し替え(変身の瞬間を見せない)
+      setTimeout(() => { renderAll(); flash(mgSide, 'enter', mgSlot); }, 700);   // t=700: シルエットのうちにスプライト差し替え(変身の瞬間を見せない)
       SE.mega();
     }
     // Wave3: 壁パネル(リフレクター/ひかりのかべ/オーロラベール)の出し入れ。エンジン状態は読まずログ行だけで判定
@@ -5085,12 +5439,27 @@ function endOfTurn(){
     // ・みちづれ相打ちは「最後の技=倒した側の攻撃」なので攻撃側の勝ち=みちづれ使用側の負け(公式と同結果)
     // ロックステップでも決定的(両クライアントが同じエンジン状態から同じ判定になる)
     let won = dead('opp');
-    if (dead('opp') && dead('self') && S.getLastMoveInfo){
-      const lm = S.getLastMoveInfo();
+    // ★D6-3 レビューL-5: 両者同時全滅で「最後の技」が追えない異常系は、エンジンが winner:null(未確定)を
+    // 返す(real_battle_simulator.html:6249「出典の無い異常系は推測しない」)。ページが勝ちを出すのは推測。
+    // → バナーも勝ち名乗りも出さず(新しいログ文言は作らない)、ターンを閉じて操作を返すだけにする。
+    let undecided = false;
+    if (dead('opp') && dead('self')){
+      const lm = S.getLastMoveInfo ? S.getLastMoveInfo() : null;
       if (lm && lm.side && lm.move){
         const suicide = ((lm.move.battle_data && lm.move.battle_data.effects) || []).some(e => e.kind === '自分瀕死');
         won = suicide ? lm.side !== 'self' : lm.side === 'self';
+      } else undecided = true;
+      if (S.checkBattleWinner){
+        try { const r = S.checkBattleWinner(); if (r && r.over) undecided = (r.winner == null); } catch (e) {}
       }
+    }
+    if (undecided){
+      winStreak = 0;
+      pbBgmSetScene('lobby');
+      showCmd(true);
+      ['c-fight','c-party'].forEach(id => { const b = $(id); if (b) b.style.display = 'none'; });
+      if (window.RB_ONLINE && RB_ONLINE.started) onlineAfterGame();
+      return;
     }
     pbBgmSetScene(won ? 'champion' : 'lose');   // ★2026-07-21 阿部さん: 勝ち=チャンピオン曲/負け=lose曲(ロビー復帰でlobby)
     if (won){ SE.win(); winStreak++; } else { SE.lose(); winStreak = 0; }
@@ -5350,7 +5719,11 @@ function onlineInviteShowPopup(url, text, title){
     window.location.href = 'mailto:?subject=' + encodeURIComponent(title) + '&body=' + encodeURIComponent(text + '\n' + url);
   });
 }
-function onlineLeave(){
+// statusMsg(★D6-3 レビューM-4): 離脱の理由を出す文。ロビーの再描画(#online-status を作り直す)の
+// 「あと」に出す=非同期の lobbyJoin→renderLobbyMain が後から走って文が消える実測バグ(1.2秒後に空)を防ぐ。
+// 省略時は何も出さない=従来と同じ。
+function onlineLeave(statusMsg){
+  const _say = () => { if (statusMsg) onlineStatus(statusMsg); };
   document.body.classList.remove('online-names');
   actTimerStop();
   try { if (window.RBOnline) RBOnline.disconnect(); } catch (e) {}
@@ -5366,9 +5739,9 @@ function onlineLeave(){
   if (LOBBY.name){
     onlineEnsureLibs()
       .then(() => RBOnline.lobbyJoin(LOBBY.name, lobbyOnState))
-      .then(() => { LOBBY.joined = true; lobbyPushFmt(); renderLobbyMain(); })   // ★D6-1: 形式を載せ直す
-      .catch(() => renderLobbyEntry());
-  } else renderLobbyEntry();
+      .then(() => { LOBBY.joined = true; lobbyPushFmt(); renderLobbyMain(); _say(); })   // ★D6-1: 形式を載せ直す / ★M-4: 再描画の「あと」に理由を出す
+      .catch(() => { renderLobbyEntry(); _say(); });
+  } else { renderLobbyEntry(); _say(); }
 }
 
 // --- チーム交換(自分のs枠→相手のo枠。saveTeamと同じ形) ---
@@ -5394,8 +5767,9 @@ function onlineApplyOppTeam(d){
   // ★D6-1レビューH1: 形式が違う相手とは始めない(古いクライアント=fmt無し は single とみなす)。
   // 静かにズレるより、その場で切って理由を出す(fmt_mismatch は D6-1 の既存キー)。
   if ((d.fmt || 'single') !== FORMAT.name){
-    onlineLeave();   // RBOnline.disconnect()+lobbyLeave()+状態リセット(このページの正規の離脱処理)
-    onlineStatus(fmtMismatchMsg());   // ★離脱の「あと」に出す(onlineLeave がロビーを描き直して #online-status を作り直すため)
+    // ★D6-3 レビューM-4: 理由は onlineLeave に渡す(ロビーの「非同期」再描画の後に出す。
+    // 直後に onlineStatus を呼ぶ旧実装は lobbyJoin→renderLobbyMain が後から走って文を消していた=実測)
+    onlineLeave(fmtMismatchMsg());   // RBOnline.disconnect()+lobbyLeave()+状態リセット(このページの正規の離脱処理)
     return;
   }
   Object.keys(d.val).forEach(k => { d.val[k] = normLegacyName(d.val[k]); });   // 旧バージョンの相手クライアントが旧名を送ってきても正規化
@@ -5844,6 +6218,13 @@ function applyDoubleOnlineLock(){
     b.style.opacity = off ? '.45' : '';
     b.style.cursor = off ? 'not-allowed' : 'pointer';
   });
+  // ★D6-3 レビューL-7: ロック中は招待リンクの強調(invite-glow)も外す(押せないのに光る=嘘の誘導)。
+  // シングルへ戻したら、招待URL経由の人には強調を戻す。
+  const cb = $('online-connect');
+  if (cb){
+    if (off) cb.classList.remove('invite-glow');
+    else if (typeof INVITE_ROOM !== 'undefined' && INVITE_ROOM && _inviteApplied) cb.classList.add('invite-glow');
+  }
 }
 function onlineInitUI(){
   if ($('online-panel')) return;
@@ -5960,7 +6341,9 @@ function renderLobbyMain(){
     _inviteApplied = true;
     $('online-room').value = INVITE_ROOM;
     $('online-form').style.display = 'flex';
-    $('online-connect').classList.add('invite-glow');
+    // ★D6-3 レビューL-7: ダブルのオンラインは D6-4 まで無効(applyDoubleOnlineLock が disabled にする)。
+    // 押せないボタンを光らせると「光っているのに反応しない」=嘘の誘導になるので、押せる時だけ光らせる。
+    if (!doubleOnlineBlocked()) $('online-connect').classList.add('invite-glow');
   }
   renderLobbyList();
 }

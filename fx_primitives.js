@@ -676,10 +676,12 @@ function _megaStepDna(f){
   f.appendChild(dna);
   _fxAutoRemove(dna, 260);
 }
-// ★D6-2: メガシンカはこの段では枠0だけ(ダブルの枠1のメガは D6-3)=枠引数を持たない(報告に明記)。
-function megaFx(side){
-  if (window.__fxTrace) window.__fxTrace.push({k:'megaFx', side, t: performance.now()});
-  const f = $('f-' + side);
+// ★D6-3: slotIdx は既定値引数(=megaFx.length は 1 のまま。関数の length を見るゲートがある=
+// tools/_lab_verify_v2.js Gate6 の _megaStepClimax.length===4 と同じ流儀)。
+// 省略/0=枠0=従来の 'f-<side>' そのまま(1msも・1pxも変わらない)。枠1だけ 'f-<side>-1' を引く。
+function megaFx(side, slotIdx = 0){
+  if (window.__fxTrace) window.__fxTrace.push({k:'megaFx', side, slotIdx, t: performance.now()});
+  const f = _fxSlotEl('f-', side, slotIdx);
   if (!f) return 0;
   const DUR = 1700;
   screenFlash('#835BA5', true);   // t=0: 紫オーバーレイ(既存rbMega keyframeを流用)
@@ -688,7 +690,7 @@ function megaFx(side){
   const sp = f.querySelector('.sprite');
   setTimeout(() => _megaStepSilhouetteOn(sp), 500);   // t=500: シルエット化
   // t=700: スプライト差し替えは呼び出し元(renderAll)に任せる(変身の瞬間を見せない=見た目はシルエットのまま)
-  setTimeout(() => _megaStepClimax(side, f, sp), 900);   // t=900: 爆発(収束玉→拡散)+虹リング+桃霧玉
+  setTimeout(() => _megaStepClimax(side, f, sp, null, slotIdx), 900);   // t=900: 爆発(収束玉→拡散)+虹リング+桃霧玉
   setTimeout(() => fieldShake(1.6), 1000);   // t=1000: filter解除+shake
   setTimeout(() => _megaStepDna(f), 1300);   // t=1300: 仕上げ(独自のDNA型シンボル・公式アセット複製なし)
   // 全要素は各自のtimeoutで一括remove(失敗しても盤面を壊さない=class常駐なし)
@@ -1028,6 +1030,13 @@ function recallFx(side, slotIdx){
 // ひんし退場演出(沈んで消える)。scene:faint(演出ツクール1-4)のトレース発火点。呼び出し元(ひんし行if分岐)は
 // このあとに続けて`_koFxDelay = koSlowFx(side)`を呼ぶ(HPバー同期setHpBarは呼び出し元に残置=state更新のため)。
 // slotIdx(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。
+// ★D6-3 レビューM-1(2026-09-11): 1500ms後の gone/HP箱hidden を**枠キー別のタイマー**に持たせる。
+// ダブルの枠1はエンジンが同じターンの中で自動補充するので、この遅延コールバックが「新しく出てきた子」を
+// 追い越して opacity 0・HP箱 hidden のまま固定してしまう(=出てきた子が永久に見えない実測バグ)。
+// 登場行の側(online_battle.html の交代/登場の拍)が cancelFaintFx(side, slotIdx) で取り消せるようにする
+// (_recallTimer と同じ方式・枠0のキーは '' + side = 従来と同じ1本=シングルは1msも変わらない)。
+const _faintTimer = {};
+function cancelFaintFx(side, slotIdx){ clearTimeout(_faintTimer[_fxSlotId('', side, slotIdx)]); }
 function faintFx(side, slotIdx){
   if (window.__fxTrace) window.__fxTrace.push({k:'faintFx', side, slotIdx: slotIdx || 0, t: performance.now()});
   const ff = _fxSlotEl('f-', side, slotIdx);
@@ -1036,7 +1045,9 @@ function faintFx(side, slotIdx){
     void ff.offsetWidth;
     ff.classList.add('faint');   // rbFaint .95s forwards=沈んで消える
     // 沈み切ったらgoneで固定。flash()を使うと800msでfaintが外れ100ms素に戻って再表示=ちらつく(2026-07-06 阿部さん)ため自前で。
-    setTimeout(() => { ff.classList.add('gone'); ff.classList.remove('faint');
+    const _fkey = _fxSlotId('', side, slotIdx);
+    clearTimeout(_faintTimer[_fkey]);
+    _faintTimer[_fkey] = setTimeout(() => { ff.classList.add('gone'); ff.classList.remove('faint');
       const pbF = _fxSlotEl('pb-', side, slotIdx); if (pbF) pbF.style.visibility = 'hidden'; }, 1500);
   }
   SE.faint();
