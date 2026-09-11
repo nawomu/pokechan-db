@@ -320,6 +320,14 @@ function buildAbilities() {
       matched++;
     });
     console.log(`  ↳ abilities: 旧マスター(PokeAPI由来)と突き合わせ ${matched}/${items.length} 件(slug/pokeapi_id/names/effect_en)`);
+    // ★2026-09-12: fixes の effect_en は PokeAPI 合流の後に適用(PokeAPI の effect_en は旧世代値のことがある=いやしのこころ 30%→Champions 50%)。
+    //   上のホワイトリスト(effect_ja/name_en/name/display_name)は合流前に走るため effect_en はここで別に当てる。
+    try {
+      const fx2 = J('reference/_abilities_fixes.json').fixes || {};
+      let n2 = 0;
+      items.forEach(it => { const f = fx2[it.name]; if (f && f.effect_en != null){ it.effect_en = f.effect_en; n2++; } });
+      if (n2) console.log(`  ↳ abilities: fixes の effect_en を ${n2} 件適用(PokeAPI 合流後)`);
+    } catch (e) {}
   } catch (e) { console.log('  ⚠ abilities: 旧マスター突き合わせに失敗', e.message); }
 
   // ★2026-09-06(阿部さん「ちくでん/ひらいしん/もらいびも同じように・バトルでもDBでも」): 横断の事実の表・第2号

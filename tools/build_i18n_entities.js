@@ -261,16 +261,26 @@ for (const lang of TARGET_LANGS) {
         name = ja;
         abilitiesMissing++;
       }
-      // short_effect: master には effect_en が無い(effect_ja のみ)。既存訳は保持、
-      // 新規は空文字(でっち上げ禁止=機械翻訳しない)。
-      let short_effect = (existingEntry && typeof existingEntry.short_effect === 'string')
+      // short_effect: 既存訳は保持、新規は空文字(でっち上げ禁止=機械翻訳しない)。
+      // ★2026-09-12: en だけは master の effect_en(SSOT・fixes で Champions 正典に直せる=いやしのこころ 50%)を正とする。
+      //   他言語は既存訳のまま(データは一つ=en の元は master 1本)。
+      const masterEn = (lang === 'en' && typeof entry.effect_en === 'string' && entry.effect_en.trim()) ? entry.effect_en : '';
+      let short_effect = masterEn || ((existingEntry && typeof existingEntry.short_effect === 'string')
         ? existingEntry.short_effect
-        : '';
+        : '');
       incomingAbilities[ja] = { name, short_effect };
     }
   }
   const existingAbilities = existing.abilities || {};
   const abilitiesResult = mergeEntries(existingAbilities, incomingAbilities);
+  // ★2026-09-12: en の short_effect は master.effect_en(SSOT)を正として上書き(mergeEntries は非空の既存値を残すため別に当てる)。
+  if (lang === 'en' && masterAbilities) {
+    for (const entry of masterAbilities) {
+      const ja = entry.name; const en = (typeof entry.effect_en === 'string' && entry.effect_en.trim()) ? entry.effect_en : '';
+      if (!ja || !en || !abilitiesResult.merged[ja]) continue;
+      if (abilitiesResult.merged[ja].short_effect !== en) { abilitiesResult.merged[ja] = Object.assign({}, abilitiesResult.merged[ja], { short_effect: en }); abilitiesResult.updated++; }
+    }
+  }
   output.abilities = abilitiesResult.merged;
   diffCounts.abilities = { added: abilitiesResult.added, updated: abilitiesResult.updated };
 
