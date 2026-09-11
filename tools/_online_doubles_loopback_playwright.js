@@ -207,6 +207,10 @@ const snap = page => page.evaluate(() => {
     rng: window.__rng || 0,
     myAction: (window.RB_ONLINE && RB_ONLINE.myAction) || null,
     act: { left: RB_ACT.left, turn: RB_ACT.turn, running: !!RB_ACT.t },
+    // ★2026-09-12(壊す側レビュー 高-1): 死に出しの「ラウンド番号」と、未消化で残った受信キューの数。
+    // ラウンドが片側だけ進んでいないか / 1通も取りこぼしていないかを外から見るための窓。
+    rep: { round: (window.RB_ONLINE && RB_ONLINE.repRound) | 0,
+      queue: ((window.RB_ONLINE && RB_ONLINE.repQueue) || []).length },
     // ★いま場/控えに居る「表示名」を全部集める(メガシンカ等で名前が変わるので鏡写し変換の辞書に足す)
     nameSelf: [0, 1].map(i => S.slotOf('self', i)).concat(S.sides.self.bench || [])
       .map(e => e && e.poke && e.poke.name).filter(Boolean),
@@ -264,6 +268,29 @@ function toPeerView(line, myNames, theirNames) {
   return s.replace(/(\d+)/g, (_, i) => toks[+i]);
 }
 
+// A のスナップショットを「B の視点」へ変換して全数比較する(ログ/HP/控え/乱数消費)。
+// ①の中に直書きされている比較と同じ内容を、③でも使えるように関数にしたもの。
+function mirrorDiffs(a, b, myNames, theirNames) {
+  const diffs = [];
+  const aAsB = a.log.map(l => toPeerView(l, myNames, theirNames));
+  if (aAsB.length !== b.log.length) diffs.push(`ログの行数が違う A=${aAsB.length} B=${b.log.length}`);
+  for (let i = 0; i < Math.min(aAsB.length, b.log.length); i++) {
+    if (aAsB[i] !== b.log[i]) {
+      diffs.push(`ログ不一致 #${i + 1}\n      A(B視点へ変換): ${aAsB[i]}\n      B(実物)       : ${b.log[i]}\n      A(原文)       : ${a.log[i]}`);
+    }
+  }
+  [0, 1].forEach(i => {
+    const x = JSON.stringify(a.self[i]), y = JSON.stringify(b.opp[i]);
+    if (x !== y) diffs.push(`A.self[${i}] != B.opp[${i}]: ${x} / ${y}`);
+    const p = JSON.stringify(a.opp[i]), q = JSON.stringify(b.self[i]);
+    if (p !== q) diffs.push(`A.opp[${i}] != B.self[${i}]: ${p} / ${q}`);
+  });
+  if (JSON.stringify(a.benchSelf) !== JSON.stringify(b.benchOpp)) diffs.push(`控え(A自分 vs B相手)が違う: ${JSON.stringify(a.benchSelf)} / ${JSON.stringify(b.benchOpp)}`);
+  if (JSON.stringify(a.benchOpp) !== JSON.stringify(b.benchSelf)) diffs.push(`控え(A相手 vs B自分)が違う: ${JSON.stringify(a.benchOpp)} / ${JSON.stringify(b.benchSelf)}`);
+  if (a.rng !== b.rng) diffs.push(`乱数消費回数が違う A=${a.rng} B=${b.rng}`);
+  return diffs;
+}
+const sentActions = page => page.evaluate(() => window.__LB.sent.filter(m => m.type === 'action').length);
 // ===================================================================
 // 1試合ぶんの駆動
 // ===================================================================
@@ -424,10 +451,10 @@ const needMyReplace = page => page.evaluate(() => {
   if (!live) return false;
   return [0, 1].some(i => { const s = S.slotOf('self', i); return s && s.poke && (s.fainted || (s.currentHp != null && s.currentHp <= 0)); });
 });
-async function resolveReplaces(page, log, label) {
+async function resolveReplaces(page, log, label, ms) {
   for (let g = 0; g < 4; g++) {
     if (!await needMyReplace(page)) return g;   // 補充の要る空席が無い=この側は選ばない
-    await waitParty(page, 30000);               // 交代画面が開くまで待つ(演出の分)
+    await waitParty(page, ms || 30000);         // 交代画面が開くまで待つ(演出の分)
     const r = await page.evaluate(() => {
       const rows = [...document.querySelectorAll('#party .sw-mine .slot[data-i]:not([disabled])')];
       if (!rows.length) return null;
@@ -702,11 +729,227 @@ async function run(args) {
     }
 
     // =============================================================
-    // 試合2: シングル(payload と受信処理が不変であることの確認)
+    // 試合2: 壊す側レビュー(2026-09-12)で実測再現した穴の回帰テスト
+    //   (a) 時間切れ経路   = COMMAND 45→0 の自動確定だけでターンを回す。
+    //       ★狙い(高-2): 時間切れが押した技が「対象板を出す技」だったとき、板を開いた側で
+    //         タイマーが復活せず、自動確定が二度と走らない(=相手を永久に待たせる)穴。
+    //         判定材料= openTargetBoard が返った瞬間の {残り時間, タイマーが動いているか}。
+    //   (b) 送り速度差+2ラウンド死に出し = A=はやい(1700ms)/B=ゆっくり(3800ms)で、
+    //       ステルスロックを両側に置き、控え先頭を HP1 にして「補充した子が出た瞬間に倒れる」を作る。
+    //       ★狙い(高-1): 相手のラウンド2の通知が、こちらのラウンド1の通知を上書きして
+    //         「2回目の選択を1回目として適用する」desync。送り速度差だけで実際に起きる。
+    //       ★狙い(中-2): 死に出しのあったターンで turnNo が進まず、次の COMMAND が
+    //         45秒に戻らない(残り時間の続きになる)。
+    //   (c) ムラっけ等(エンジン側 E3 の修正待ち)は今回の対象外=ここでは触らない。
+    // =============================================================
+    if (args.only !== 'single') {
+      log('');
+      log('================= ② 時間切れ・送り速度差・2ラウンド死に出し =================');
+      const SLOW = 200000;   // B の送り速度が 3800ms/行=1ターンが長い。待ちは全部これで取る
+      const { context, pages } = await openPair(browser, url,
+        [{ role: 'host', label: 'A', query: '?format=double' }, { role: 'guest', label: 'B', query: '?format=double' }],
+        async (page, spec) => {
+          const r = await setTeam(page, spec.role === 'host' ? 0 : 1, 'double');
+          if (r.error) throw new Error(spec.label + ': ' + r.error);
+          // ★左右で送り速度を変える(画面の既存セレクタの実値: はやい=1700 / ゆっくり=3800)。
+          // これで「相手はもう次のラウンドに居るのに、こちらはまだ前のラウンドを再生中」が実際に起きる。
+          const sp = spec.role === 'host' ? '1700' : '3800';
+          await page.evaluate(v => {
+            const s = document.getElementById('msg-speed'); if (s) s.value = v;
+            // ★持ち物を空にする: あつぞこブーツ(設置技を無効化)が混ざると (b) のお膳立てが成立しない
+            selfIds().forEach(id => { slotItem[id] = ''; });
+          }, sp);
+          log(`[${spec.label}] チーム: ${r.names.join(' / ')} / 送り速度=${sp}ms / 持ち物なし`);
+        }, log);
+      const [A, B] = pages;
+      const nmA = await names6(A.page), nmB = await names6(B.page);
+      const room = 'lb_dbl3_' + Date.now().toString(36);
+      await A.page.evaluate(r => onlineConnectRoom(r, 'A'), room);
+      await B.page.evaluate(r => onlineConnectRoom(r, 'B'), room);
+      for (const p of [A, B]) await p.page.waitForFunction(() => window.RB_ONLINE && RB_ONLINE.myTeamSent && RB_ONLINE.oppTeamReady, null, { timeout: 20000 });
+      for (const p of [A, B]) {
+        await p.page.waitForFunction(() => !!document.getElementById('pick-screen'), null, { timeout: 20000 });
+        await p.page.evaluate(() => { PICK.sel = selfIds().slice(0, FORMAT.pickCount); confirmPick(); });
+      }
+      for (const p of [A, B]) await p.page.waitForFunction(() => window.RB_ONLINE && RB_ONLINE.started, null, { timeout: 20000 });
+      await waitIdle(A.page, SLOW); await waitIdle(B.page, SLOW);
+
+      // 実行時パッチ(ページのファイルは1文字も変えない)
+      //  ①__tbOpen = 対象板が「どういう状態で開いたか」(高-2の判定材料)
+      //  ②__cmd    = 各ターンで**最初に**タイマーを掛けた時の残り時間(中-2の判定材料)。
+      //    ターンの頭で採ると、送り速度の遅い側を待っている間に秒が減って判定がブレる
+      //    (実測: A{COMMAND:41})。「掛け直した瞬間の値」をページの中で採れば速度差に左右されない。
+      for (const p of [A, B]) {
+        await p.page.evaluate(() => {
+          window.__tbOpen = [];
+          const o = window.openTargetBoard;
+          window.openTargetBoard = function () {
+            const r = o.apply(this, arguments);
+            if (r) window.__tbOpen.push({ left: RB_ACT.left, running: !!RB_ACT.t, turn: turnNo });
+            return r;
+          };
+          window.__cmd = {};
+          const s = window.actTimerStart;
+          window.actTimerStart = function () {
+            const k = 'T' + turnNo;
+            const r = s.apply(this, arguments);
+            if (window.__cmd[k] === undefined) window.__cmd[k] = RB_ACT.left;
+            return r;
+          };
+        });
+      }
+
+      const TURNS3 = 5;
+      // ★順番の理由: (b) を先に置く。(a) の時間切れは「表示中のメニューの先頭」=枠0の技0=じしん(範囲)を
+      //   押すので、味方の枠1まで巻き込んで倒してしまい、控えを先に使い切る(実測)。
+      //   (b) は控えが2体そろっていないと2ラウンド目が作れないので、控えが減る前にやる。
+      //   ついでに (a) が (b) の**次のターン**に来る=「死に出しのあった次のターン」の
+      //   Turnバッジ/COMMAND45秒(中-2)をそのまま踏む。
+      const HAZARD_TURN = 1, TIMEOUT_TURN = 2;
+      let mis3 = 0, cmp3 = 0, turnBad = 0, sawTimeoutBoard = false, repRoundsSeen = 0;
+      const plain3 = { 0: { kind: 'move', i: 1, target: { side: 'opp', idx: 0 } }, 1: { kind: 'move', i: 0, target: { side: 'opp', idx: 1 } } };
+
+      for (let t = 1; t <= TURNS3; t++) {
+        if ((await snap(A.page)).over) { log(`ターン${t}: すでに決着 → 打ち切り`); break; }
+        await waitMoves(A.page, SLOW); await waitMoves(B.page, SLOW);
+        // ★中-2の判定材料: ターンの頭で「Turn番号」と「COMMANDの残り時間」を両ページから採る。
+        //   死に出しのあった次のターンでも turnNo が1つ進み、残りが45秒に戻っていること。
+        const head = await Promise.all([A, B].map(p => p.page.evaluate(k => ({
+          turn: turnNo, left: RB_ACT.left, fresh: window.__cmd[k] }), 'T' + t)));
+        log(`  ターン${t} 開始: A{turn:${head[0].turn},掛け直し時=${head[0].fresh}} B{turn:${head[1].turn},掛け直し時=${head[1].fresh}}`);
+        if (head[0].turn !== t || head[1].turn !== t) { turnBad++; log(`    - Turnバッジが進んでいない(期待 ${t})`); }
+        // ターン1 は「掛け直し」の記録より前に開戦しているので undefined(=計測対象外)。
+        // 中-2 が効くのは「前のターンの続き」になる2ターン目以降なので、そこだけを見れば足りる。
+        if (t > 1 && (head[0].fresh !== 45 || head[1].fresh !== 45)) { turnBad++; log(`    - COMMANDが45秒に戻っていない(A=${head[0].fresh} B=${head[1].fresh})`); }
+
+        if (t === TIMEOUT_TURN) {
+          // (a) こちらからは1回も押さない。45→0 の自動確定だけで両者の行動が決まるか。
+          log('  (a) 時間切れ経路: 両者とも入力せず COMMAND を 0 へ落とす');
+          const n0 = await Promise.all([sentActions(A.page), sentActions(B.page)]);
+          await A.page.evaluate(() => { RB_ACT.left = 1; });
+          await B.page.evaluate(() => { RB_ACT.left = 1; });
+          for (const [i, p] of [A, B].entries()) {
+            await p.page.waitForFunction(n => window.__LB.sent.filter(m => m.type === 'action').length > n, n0[i], { timeout: 60000 })
+              .catch(() => {});
+          }
+          const n1 = await Promise.all([sentActions(A.page), sentActions(B.page)]);
+          ok(n1[0] > n0[0] && n1[1] > n0[1], '(a) 時間切れだけで両者の行動が送られた(相手を永久に待たせない)',
+            `A ${n0[0]}→${n1[0]} / B ${n0[1]}→${n1[1]}`);
+          const tb = await Promise.all([A, B].map(p => p.page.evaluate(() => window.__tbOpen || [])));
+          const hit = tb.flat().filter(x => x.left === 0);
+          log('  対象板が開いた記録: A=' + JSON.stringify(tb[0]) + ' / B=' + JSON.stringify(tb[1]));
+          sawTimeoutBoard = hit.length > 0 && hit.every(x => x.running);
+          ok(hit.length > 0, '(a) 時間切れ(残0秒)が対象板を出す技を押した=この経路を実際に通った', String(hit.length));
+          ok(sawTimeoutBoard, '(a) その板を開いた直後もタイマーが動いている(次のtickで候補先頭が確定できる)',
+            JSON.stringify(hit));
+        } else {
+          if (t === HAZARD_TURN) {
+            // (b) 両側にステルスロック+控え先頭を HP1 = 補充した子が出た瞬間に倒れる(=2ラウンド目)
+            log('  (b) お膳立て: 両側にステルスロック / 在場の枠1と控え先頭を HP1');
+            const setup = p => p.evaluate(() => {
+              ['self', 'opp'].forEach(sd => {
+                S.sides[sd].stealthRock = true;   // 側の欄(枠0=枠1で共有)
+                const s1 = S.slotOf(sd, 1); if (s1 && s1.poke) s1.currentHp = 1;
+                let n = 0;
+                (S.sides[sd].bench || []).forEach(e => {
+                  if (e && e.poke && !e.fainted && n < 1) { e.currentHp = 1; n++; }
+                });
+              });
+              return ['self', 'opp'].map(sd => (S.sides[sd].bench || [])
+                .map(e => e && e.poke ? e.poke.name + ':' + e.currentHp : '-').join(','));
+            });
+            log('    A の控え: ' + JSON.stringify(await setup(A.page)));
+            log('    B の控え: ' + JSON.stringify(await setup(B.page)));
+          }
+          const aP = (t === HAZARD_TURN)
+            ? { 0: { kind: 'move', i: 0 }, 1: { kind: 'move', i: 0, target: { side: 'opp', idx: 1 } } }   // 技0=じしん(味方の枠1も巻き込む)
+            : plain3;
+          await keepTimer(A.page); await keepTimer(B.page);
+          await inputTurn(A.page, aP, true);
+          await inputTurn(B.page, plain3, true);
+        }
+
+        const rep0 = await Promise.all([A, B].map(p => p.page.evaluate(() => (window.RB_ONLINE.repRound | 0))));
+        const settle3 = async (p, label) => {
+          await waitIdle(p.page, SLOW);
+          await keepTimer(p.page);
+          return resolveReplaces(p.page, log, label, SLOW);
+        };
+        await Promise.all([settle3(A, 'A'), settle3(B, 'B')]);
+        await Promise.all([waitIdle(A.page, SLOW), waitIdle(B.page, SLOW)]);
+        await A.page.waitForTimeout(400); await B.page.waitForTimeout(400);
+
+        const a = await snap(A.page), b = await snap(B.page);
+        cmp3++;
+        const myNames = [...new Set(nmA.self.concat(a.nameSelf, b.nameOpp))];
+        const theirNames = [...new Set(nmB.self.concat(a.nameOpp, b.nameSelf))];
+        const diffs = mirrorDiffs(a, b, myNames, theirNames);
+        if (diffs.length) { mis3++; diffs.forEach(d => log('    - ' + d)); }
+        log(`  ターン${t}: ${diffs.length ? '不一致' + diffs.length + '件' : '一致'}`
+          + ` (log ${a.log.length}行 / 死に出しラウンド A=${a.rep.round}(${rep0[0]}→) B=${b.rep.round}(${rep0[1]}→)`
+          + ` / 未消化キュー A=${a.rep.queue} B=${b.rep.queue} / rng=${a.rng})`);
+
+        if (t === HAZARD_TURN) {
+          const dA = a.rep.round - rep0[0], dB = b.rep.round - rep0[1];
+          repRoundsSeen = Math.min(dA, dB);
+          ok(dA >= 2 && dB >= 2, '(b) 設置技で死に出しが2ラウンド以上まわった(両側とも)', `A +${dA} / B +${dB}`);
+          ok(a.rep.round === b.rep.round, '(b) 死に出しのラウンド番号が両者で一致(片側だけ先に進まない)',
+            `A=${a.rep.round} B=${b.rep.round}`);
+          ok(a.rep.queue === 0 && b.rep.queue === 0, '(b) 受信キューに未消化の補充通知が残らない',
+            `A=${a.rep.queue} B=${b.rep.queue}`);
+        }
+        if (a.over || b.over) { log(`  ターン${t}で決着 → 打ち切り`); break; }
+        await topUp(A.page); await topUp(B.page);
+      }
+      // ---- 中-1: pivotIdx の待ち行列が「枠つき」で解けるか(合成入力の直接確認) ----
+      // 実戦の とんぼがえり×ダブル を毎回起こすお膳立ては安定しないので、行列とフックの契約だけを
+      // 直接叩いて確かめる(エンジンに入れたフック __rbSwitchPick をそのまま呼ぶ=本番と同じ関数)。
+      // 「いまどの枠か」を返す onlinePivotSlotGuess は、この確認の間だけ固定値に差し替える。
+      const pv = await A.page.evaluate(() => {
+        const orig = window.onlinePivotSlotGuess;
+        const run = (pairs, slot, idxs) => {
+          RB_PIVOT.selfQueue = pairs.map(x => ({ slot: x[0], benchIdx: x[1] }));
+          window.onlinePivotSlotGuess = () => slot;
+          const v = engineWin().__rbSwitchPick(idxs, 'self');
+          return { v: v, left: RB_PIVOT.selfQueue.length };
+        };
+        const out = {
+          queue: onlinePivotQueue({ fmt: 'double', slots: [{ idx: 0, pivotIdx: 2 }, { idx: 1, pivotIdx: 1 }] }),
+          single: onlinePivotQueue({ kind: 'move', idx: 0, mega: false, pivotIdx: 2 }),
+          slot1: run([[0, 2]], 1, [0, 1, 2]),      // 枠1の交代 = 枠0あての指名(控え2)を食わない
+          slot0: run([[0, 2]], 0, [0, 1, 2]),      // 枠0の交代 = 控え2を使って行列から消える
+          unknown: run([[0, 2]], null, [0, 1, 2]), // 枠が特定できない = 従来どおり先頭から消費
+        };
+        window.onlinePivotSlotGuess = orig;
+        RB_PIVOT.selfQueue = null;
+        return out;
+      });
+      log('  中-1 待ち行列の直接確認: ' + JSON.stringify(pv));
+      ok(JSON.stringify(pv.queue) === JSON.stringify([{ slot: 0, benchIdx: 2 }, { slot: 1, benchIdx: 1 }]),
+        '(中-1) payload から作る待ち行列が {slot,benchIdx} になっている', JSON.stringify(pv.queue));
+      ok(pv.single === null, '(中-1) single の payload では待ち行列を立てない(null=従来の1値経路)', String(pv.single));
+      ok(pv.slot1.v === 0 && pv.slot1.left === 1,
+        '(中-1) 別の枠の交代は、その枠あてでない指名を食わない(既定=控え筆頭・行列は残る)', JSON.stringify(pv.slot1));
+      ok(pv.slot0.v === 2 && pv.slot0.left === 0,
+        '(中-1) 指名された枠の交代は、その枠あての1通だけを消費する', JSON.stringify(pv.slot0));
+      ok(pv.unknown.v === 2 && pv.unknown.left === 0,
+        '(中-1) 枠が特定できない時は従来どおり先頭から消費(フォールバック)', JSON.stringify(pv.unknown));
+
+      ok(mis3 === 0, `② 鏡写しの不一致0(${cmp3}ターン比較・送り速度 A1700/B3800)`, String(mis3));
+      ok(turnBad === 0, '② 毎ターン Turnバッジが1つ進み COMMAND が45秒に戻る(中-2)', String(turnBad));
+      ok(repRoundsSeen >= 2, `② 2ラウンドの死に出しを実際に通した`, String(repRoundsSeen));
+      const errs3 = [...A.audit.errors, ...B.audit.errors];
+      if (errs3.length) errs3.forEach(e => log(`  JSエラー/HTTP: [${e.kind}] ${e.text}`));
+      ok(errs3.length === 0, 'JSエラー0(A+B・②)', String(errs3.length));
+      await context.close();
+    }
+
+    // =============================================================
+    // 試合3: シングル(payload と受信処理が不変であることの確認)
     // =============================================================
     if (args.only !== 'double') {
       log('');
-      log('================= ② シングルのループバック(不変の確認) =================');
+      log('================= ③ シングルのループバック(不変の確認) =================');
       const { context, pages } = await openPair(browser, url,
         [{ role: 'host', label: 'A', query: '' }, { role: 'guest', label: 'B', query: '' }],
         async (page, spec) => {

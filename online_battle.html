@@ -1397,6 +1397,19 @@ let logPos = 0;         // battleLog の読み取り位置
 let gameOver = false;
 let turnNo = 1;         // ターン数(Showdown風 Turn バッジ表示用)
 function updateTurnBadge(){ const b = document.getElementById('turn-badge'); if (b) b.textContent = 'Turn ' + turnNo; }
+// ★D6-5 レビュー中-2(2026-09-12): 「次のターンの行動UIへ戻る」唯一の入口。
+// 素の endOfTurn は最後に turnNo++ → showActionUI() をするが、**死に出しがあったターンは
+// その手前で return する**(オンライン5624 / ダブル5636 / シングル5644)ので、死に出しから
+// 戻る経路だけ turnNo が進まなかった。結果: ①Turn バッジが止まる ②次のターンの COMMAND が
+// 45秒に戻らない(actTimerStart は RB_ACT.turn !== turnNo でしか巻き直さない=残り時間の続き)。
+// 戻り口をこの1本にまとめる(ページに2本目の「次のターン」を作らない)。
+// RB_ACT.turn=-1 は「次の actTimerStart で必ず45秒から」の印。素の経路(turnNo++ 済み)では
+// turn !== turnNo が既に成り立つので、この2行を足しても結果は同じ=シングルの既存経路と同値。
+function nextTurnUI(){
+  turnNo++; updateTurnBadge();
+  actTimerStop(); RB_ACT.turn = -1;
+  showActionUI();
+}
 // ===================================================================
 // ★D6-1(2026-09-11): 形式(シングル/ダブル)= このページ唯一の持ち主。
 //   既定 single(=今までと同値・挙動不変)。URL ?format=double でダブル(?invite= と併用可)。
@@ -1694,10 +1707,20 @@ document.getElementById('engine-frame').addEventListener('load', () => {
       // そのサイドで2回フックが呼ばれた時(とんぼがえり+レッドカード等)に自分側と相手側で答えが
       // 食い違って静かにズレる。配列が立っている間は self/opp の両方を配列で解決する。
       // シングル/AI戦では配列を立てない=下の従来2行だけが効く(1行も挙動が変わらない)。
+      // ★D6-5 レビュー中-1(2026-09-12): 待ち行列は {slot, benchIdx} の配列(枠つき)になった。
+      // まず「いまどの枠の交代か」を当て(onlinePivotSlotGuess)、当たればその枠あての1通だけを取る。
+      // ・その枠に指名が無い(だっしゅつボタン/レッドカード/枠1の事前選択UI未実装)= 既定(控え筆頭)。
+      //   行列には手を付けない=あとで来る本来の枠が自分の指名をちゃんと受け取れる。
+      // ・枠が特定できない時だけ、従来どおり先頭から消費する(フォールバック=挙動を退行させない)。
       w.__rbSwitchPick = (idxs, side) => {
         const q = side === 'self' ? RB_PIVOT.selfQueue : RB_PIVOT.oppQueue;
         if (Array.isArray(q)){
-          while (q.length){ const v = q.shift(); if (v != null && idxs.includes(v)) return v; }
+          const sl = onlinePivotSlotGuess(side);
+          if (sl != null){
+            const k = q.findIndex(e => e && e.slot === sl && e.benchIdx != null && idxs.includes(e.benchIdx));
+            return k >= 0 ? q.splice(k, 1)[0].benchIdx : idxs[0];
+          }
+          while (q.length){ const v = q.shift(); if (v && v.benchIdx != null && idxs.includes(v.benchIdx)) return v.benchIdx; }
           return idxs[0];
         }
         if (side === 'self' && RB_PIVOT.selfIdx != null) return RB_PIVOT.selfIdx;
@@ -2271,7 +2294,30 @@ function loadTeam(){
     return true;
   } catch (e) { return false; }
 }
-// 同じポケモンは1チーム1体まで(2026-07-06 阿部さん)。重複していた2体目以降をランダムな未使用種に引き直す
+// ★D6-5 レビュー中-3(2026-09-12): 「同じポケモンは1匹まで」を数えるときのキー。
+// 判定基準は **名前(フォルム)ではなく 全国図鑑No.**。権威ソースの二重チェック:
+//   ①ポケモンWiki「リージョンフォーム」 https://wiki.pokemonwiki.com/wiki/リージョンフォーム
+//     『種族名や図鑑ナンバー上はあくまでも同一のポケモンとして扱われる。そのためバトルタワーや
+//       ランクバトルなどでは姿が異なっていても種族名が同じポケモンは複数参加させられない。』
+//   ②公式(株式会社ポケモン)「竜王戦レギュレーション ゲーム編」
+//     https://www.pokemon.co.jp/ex/pokemonryuoh/rule/game.html
+//     『図鑑No.が同じポケモンは、2匹以上エントリーすることができません。』
+//   ③Champions 公式サポート https://app-pcs.pokemon-support.com/hc/ja/articles/59011747365145
+//     『ルール上は不可能なのに、同じポケモンを2匹選出された。』(イリュージョンで化けている場合の説明)
+//     = Champions でも「同じポケモンを2匹」はルール上不可、と公式が言っている。
+//   ④Champions 公式の参加ポケモン一覧の生データは id が『図鑑No-フォルムNo』(例 0479-000〜0479-005=ロトム)
+//     = フォルム違いは同じ図鑑No.を共有する。
+// → 名前で数えていたので、図鑑Noが同じフォルム違い(ロトム6種/ケンタロス パルデア3種/ヒスイ・ガラル・
+//    アローラのリージョンフォーム/性別フォルム等、Champions版DBで22組)が同時に選べてしまっていた。
+// 番号は master 由来の `no`(pokechan_data.js)から引く=ページに番号表を作らない。
+// no を持たない個体は従来どおり名前で切る(今までより緩くならない)。
+function dexKeyOf(name){
+  if (!name) return null;
+  const p = S.pokeByName ? S.pokeByName(name) : null;
+  return (p && p.no) || name;
+}
+// 同じポケモンは1チーム1体まで(2026-07-06 阿部さん / ★中-3で図鑑No.基準に)。
+// 重複していた2体目以降をランダムな未使用種に引き直す
 function dedupeTeams(){
   const all = S.pokeList().filter(isPickable).map(p => p.name);
   [selfIds(), oppIds()].forEach(ids => {
@@ -2279,11 +2325,11 @@ function dedupeTeams(){
     ids.forEach(id => {
       const nm = slotVal[id];
       if (!nm) return;
-      if (seen.has(nm)){
-        const pool = all.filter(n => !seen.has(n) && !ids.some(x => slotVal[x] === n));
+      if (seen.has(dexKeyOf(nm))){
+        const pool = all.filter(n => !seen.has(dexKeyOf(n)) && !ids.some(x => slotVal[x] && dexKeyOf(slotVal[x]) === dexKeyOf(n)));
         if (pool.length) setSlot(id, pool[Math.floor(Math.random() * pool.length)]);
       }
-      seen.add(slotVal[id]);
+      seen.add(dexKeyOf(slotVal[id]));
     });
   });
 }
@@ -2488,10 +2534,12 @@ function closePicker(){
   if (wasOpen) pbBgmSetScene(pbBgmPickerPrevScene);   // ★タスク#19: 元のシーンに戻す
 }
 function renderPickerList(query){
-  // 同じポケモンは1チームに1体まで(2026-07-06 阿部さん)。同サイドの他スロットで使用中の種は選択肢から外す
+  // 同じポケモンは1チームに1体まで(2026-07-06 阿部さん)。同サイドの他スロットで使用中の種は選択肢から外す。
+  // ★D6-5 レビュー中-3(2026-09-12): 「同じ」は**図鑑No.**で数える(dexKeyOf の出典コメント参照)。
+  // 名前で切っていた頃は、ロトム各種/ケンタロス(パルデア)/リージョンフォームが同じチームに並べられた。
   const side = pickerSlot && pickerSlot.startsWith('s') ? selfIds() : oppIds();
-  const used = new Set(side.filter(id => id !== pickerSlot).map(id => slotVal[id]).filter(Boolean));
-  let pokes = S.pokeList().filter(isPickable).filter(p => !used.has(p.name));
+  const used = new Set(side.filter(id => id !== pickerSlot).map(id => dexKeyOf(slotVal[id])).filter(Boolean));
+  let pokes = S.pokeList().filter(isPickable).filter(p => !used.has(p.no || p.name));
   // 並び替え(ボックス化=2026-07-06 阿部さん): ずかん順(既定)/なまえ順(表示言語で)
   const sortSel = $('pp-sort');
   if (sortSel && sortSel.value === 'name'){
@@ -3900,6 +3948,14 @@ function openTargetBoard(moveIdx){
   tbEl().classList.add('show');
   renderTargetBoard();
   document.addEventListener('keydown', tbKey, true);
+  // ★D6-5 レビュー高-2(2026-09-12): 板を開いたら必ずタイマーを掛け直す(showMoves:3750 と同じ作法)。
+  // これが無いと「時間切れ→先頭の技を自動で押す」経路で詰む: timeout は先に actTimerStop() を呼んで
+  // から技ボタンを click するので、その click が開いたこの板の上ではもう tick が来ない
+  // = TB.open の自動確定(actTimerStart:5712)が一度も走らない → myAction を送れないまま
+  //   相手を永久に待たせる(実測)。ここで掛け直すと RB_ACT.left は 0 のままなので**次の tick**で
+  //   既存の「候補の先頭を押す」分岐がそのまま確定する(新しい確定ロジックを作らない)。
+  // シングルは先頭の isDoubleBoard() で必ず false を返している=この行に到達しない(1行も効かない)。
+  actTimerStart();
   return true;
 }
 function closeTargetBoard(backToMoves){
@@ -4287,7 +4343,7 @@ function afterFaintReplaceDone(swOk){
     // 補充の途中で勝敗が付いた(設置技で全滅等)なら既存の勝敗判定へ返す(ページで判定を作らない)
     if (S.isSideDefeated && (S.isSideDefeated('self') || S.isSideDefeated('opp'))){ endOfTurn(); return; }
   }
-  showActionUI();
+  nextTurnUI();   // ★中-2: 死に出しで抜けたターンぶんの turnNo++/バッジ/45秒をここで取り戻す
 }
 function showParty(forced, pivot, slotIdx){
   $('cmd').style.display = 'none';
@@ -5644,8 +5700,7 @@ function endOfTurn(){
     setTimeout(() => { if (S.sides.self.fainted) $('msgbox').style.display = 'none'; }, 2200);
     return;
   }
-  turnNo++; updateTurnBadge();   // 次のターンへ(Showdown風 Turnバッジ)
-  showActionUI();   // 実機準拠=技リスト直行
+  nextTurnUI();   // 次のターンへ(Turnバッジ+COMMAND45秒)→ 実機準拠=技リスト直行
 }
 
 // ===================================================================
@@ -5656,8 +5711,15 @@ function endOfTurn(){
 //   - 死に出しは各自が選び、選択+シードを共有して「ホスト側から」の固定順で両者が適用
 // 通信: online/rb_online.js(Supabase Realtime)。設計=設計_オンライン対戦_2026-07-07.md
 // ===================================================================
+// ★D6-5 レビュー高-1(2026-09-12): 死に出しは「ラウンド」で数える(補充が設置技で即ひんし→もう一度、が
+// 何周でも起きうる)。repInbox は**1通しか置けない箱**なので、相手が2ラウンド目を先に送ってくると
+// 1ラウンド目を黙って上書きし、受け手は2回目の選択を1回目として適用する=desync(実測)。
+//   ・repQueue = ダブル専用の**キュー**(上書きしない)。single は従来の repInbox(1枠)のまま=経路不変。
+//   ・repRound = このバトルの死に出しラウンド番号。送る1通に載せ、受け手は**自分のラウンドに一致する
+//     1通だけ**を消費する(順番が前後して届いても取り違えない)。
 const RB_ONLINE = { active: false, started: false, myAction: null, oppAction: null,
-  myTeamSent: false, oppTeamReady: false, myReadySent: false, peerReady: false, pendingRep: null, repInbox: null };
+  myTeamSent: false, oppTeamReady: false, myReadySent: false, peerReady: false, pendingRep: null, repInbox: null,
+  repQueue: [], repRound: 0, repWaitT: null };
 // ★constはwindowプロパティにならない(window.RB_ONLINEはundefined)ため、ガードで参照できるよう明示的に載せる
 window.RB_ONLINE = RB_ONLINE;
 function m32(a){ return function(){ a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -5718,7 +5780,14 @@ function actTimerStart(){
       const partyOn = $('party') && $('party').style.display !== 'none';
       if (partyOn){
         const row = document.querySelector('#party .sw-mine .slot[data-i]:not([disabled])');
-        if (row) doSwitchTo(+row.dataset.i);
+        // ★D6-5 レビュー低-4(2026-09-12): いま開いているのが「交代先えらび」(とんぼがえり/バトンタッチ等の
+        // 事前選択=swPivot)なら、時間切れは **技+交代先** として確定する。doSwitchTo に渡すと
+        // swForced でも swPivot でもない最後の分岐に落ちて「ただの交代」になり、選んだ技が消えるうえ
+        // RB_PIVOT.pendingMoveIdx/pendingTarget が残って次の技へ持ち越される(前の技の対象が刺さる)。
+        // finishPivotPick は pending* を必ず掃除してから doTurn(技, 対象) に入る=人が押したのと同じ経路。
+        // 控えの行が1つも出せない異常系は selfIdx=null(=エンジンの既定=控え筆頭)で確定する。
+        if (swPivot) finishPivotPick(row ? +row.dataset.i : (RB_PIVOT.selfIdx != null ? RB_PIVOT.selfIdx : null));
+        else if (row) doSwitchTo(+row.dataset.i);
       } else {
         const b = document.querySelector('#moves button[data-i]:not([disabled])');
         if (b) b.click();
@@ -5762,7 +5831,15 @@ function ensureRBHooks(){
     onOpponentAction: a => { RB_ONLINE.oppAction = a; onlineHostTryGo(); },
     onTurnGo: (a, seed) => onlineGuestGo(a, seed),
     onStart: seed => onlineBegin(seed),
-    onFaintReplace: (idx, seed) => { RB_ONLINE.repInbox = { idx: idx, seed: seed }; onlineTryApplyReplaces(); },
+    onFaintReplace: (idx, seed) => {
+      const isDbl = !!(idx && idx.fmt === 'double');
+      // ★D6-5 レビュー低-3(2026-09-12): 形式の食い違った補充通知は捨てる(古い/別形式のクライアント)。
+      // 黙って適用すると single の数値 idx を picks として読む等で静かにズレる。理由は既存キーで出す。
+      if (isDoubleBoard() !== isDbl){ onlineStatus(fmtMismatchMsg()); return; }
+      // ★高-1: ダブルはキューに積む(上書きしない)。single は従来どおり1枠=この行はbyte不変。
+      if (isDbl){ RB_ONLINE.repQueue.push({ idx: idx, seed: seed }); onlineTryApplyReplaces(); return; }
+      RB_ONLINE.repInbox = { idx: idx, seed: seed }; onlineTryApplyReplaces();
+    },
     onPeerReady: () => { RB_ONLINE.peerReady = true; onlineMaybeReady(); },
     onPeerPick: order => { PICK.theirs = order; const st = $('pick-status'); if (st && !PICK.mine) st.textContent = ''; onlineTryStartPicked(); },
     onResign: () => onlineOppGone(true),
@@ -5886,6 +5963,7 @@ function onlineLeave(statusMsg){
   try { if (window.RBOnline) RBOnline.lobbyLeave(); } catch (e) {}
   RB_ONLINE.active = false; RB_ONLINE.started = false; RB_ONLINE.fullTeams = null; RB_ONLINE.oppName = null;
   RB_ONLINE.myAction = null; RB_ONLINE.oppAction = null; RB_ONLINE.pendingRep = null; RB_ONLINE.repInbox = null;
+  RB_ONLINE.repQueue = []; RB_ONLINE.repRound = 0; onlineRepWaitStop();   // ★高-1
   RB_ONLINE.myTeamSent = false; RB_ONLINE.oppTeamReady = false; RB_ONLINE.myReadySent = false; RB_ONLINE.peerReady = false;
   PICK.mine = null; PICK.theirs = null; PICK.sel = [];
   LOBBY.joined = false; LOBBY.ready = false; LOBBY.matching = false; LOBBY.members = [];
@@ -6022,10 +6100,13 @@ function pickTimerLabel(){
 // 読込時に引き直す)が、その2つを通らない持ち込み(古い保存データ・外部からの setSlot)で同名2体が
 // 残っていると、ログ行の「名前→枠」の逆引き(slotOfName)が解けなくなり盤面と演出が入れ替わる。
 // ここで「同じ名前の子がもう選ばれていたら選べない」を足す(薄く=押しても選出に入らない)。
+// ★D6-5 レビュー中-3(2026-09-12): 名前でなく**図鑑No.**で数える(dexKeyOf の出典コメント参照)。
+// 名前一致だけを見ていたので、図鑑Noが同じフォルム違い(Champions版DBで22組)は素通りしていた。
 function pickDupBlocked(id){
   const nm = slotVal[id];
   if (!nm || PICK.sel.indexOf(id) >= 0) return false;
-  return PICK.sel.some(x => slotVal[x] === nm);
+  const k = dexKeyOf(nm);
+  return PICK.sel.some(x => slotVal[x] && dexKeyOf(slotVal[x]) === k);
 }
 function refreshPickBadges(ov){
   ov.querySelectorAll('#pick-mine .slot').forEach(c => {
@@ -6209,6 +6290,7 @@ function onlineBegin(seed){
     $('pb-opp').dataset.pname = '👤 ' + (RB_ONLINE.oppName || I18N.t('real_battle.pbox_label_opp', 'あいて'));
   } catch (e) {}
   RB_ONLINE.pendingRep = null; RB_ONLINE.repInbox = null;
+  RB_ONLINE.repQueue = []; RB_ONLINE.repRound = 0; onlineRepWaitStop();   // ★高-1: 死に出しラウンドは試合ごとに0から
   const w = engineWin();
   if (w){
     w.__rbDeferFaintReplace = true; w.__rbDeferFaintReplaceOpp = true;
@@ -6265,9 +6347,32 @@ function onlineDoubleActionPayload(){
   return { fmt: 'double', slots: slots };
 }
 // payload(自分/相手どちらでも)から pivotIdx の待ち行列を作る。single の形は空配列にならない=nullを返す
+// ★D6-5 レビュー中-1(2026-09-12): 行列の要素は **枠つき** {slot, benchIdx}。
+// 素の数値配列(先頭から消費)だと「先に解決した枠が、別の枠あての指名を食う」。
+// 例: 枠0が とんぼがえり(交代先=控え2)を選び、枠1が だっしゅつボタンで先に飛ぶと、
+//     枠1の交代が控え2を食って、枠0は控え筆頭で出てしまう(プレイヤーの選択が消える)。
 function onlinePivotQueue(a){
   if (!a || a.fmt !== 'double') return null;
-  return (a.slots || []).filter(s => s && s.pivotIdx != null).map(s => s.pivotIdx);
+  return (a.slots || []).filter(s => s && s.pivotIdx != null).map(s => ({ slot: s.idx, benchIdx: s.pivotIdx }));
+}
+// ★中-1: フックが呼ばれた「いまどの枠の交代か」を、公開APIで読める事実だけから当てる。
+// エンジンの chooseSwitchTarget(sideKey, liveIdxs) は枠を渡さない(real_battle_simulator.html:8264)ので、
+// ①その側が直前に技を出している(getLastMoveInfo)②在場でまだこのターン交代していない
+// ③その技を選んでいる枠 —— の3つで絞る。1つに決まらなければ null(=呼び出し側が従来の先頭消費へ)。
+// ★両クライアントで同じ答えになる(読む材料が全部 鏡写しの状態=selectedMoveIdx は onlineRunTurn が
+//   相手の枠へ写す/switchedThisTurn は同じエンジンの同じ実行で立つ)=ロックステップを壊さない。
+function onlinePivotSlotGuess(side){
+  try {
+    const info = (S.getLastMoveInfo && S.getLastMoveInfo()) || {};
+    if (info.side !== side || !info.move) return null;
+    const hits = boardSlotIdxs().filter(i => {
+      const st = slotStateOf(side, i);
+      if (!st || !st.poke || st.fainted || st.switchedThisTurn) return false;
+      const mv = (st.moves || [])[st.selectedMoveIdx];
+      return !!mv && mv.name === info.move.name;
+    });
+    return hits.length === 1 ? hits[0] : null;
+  } catch (e) { return null; }
 }
 function onlineSubmitAction(moveIdx){
   if (RB_ONLINE.myAction) return;   // 二重送信ガード
@@ -6316,7 +6421,11 @@ function onlineRunTurn(seed){
       if (!s || s.idx == null || !S.setChoice) return;
       if (s.kind === 'switch') S.setChoice('opp', s.idx, { switchIdx: s.switchIdx, moveIdx: null, target: null, mega: !!s.mega });
       else if (s.kind === 'move') S.setChoice('opp', s.idx, { moveIdx: s.moveIdx, switchIdx: null, target: onlineMirrorTarget(s.target), mega: !!s.mega });
-      else S.setChoice('opp', s.idx, { switchIdx: null, mega: !!s.mega });   // lock(あばれる継続等)=技はエンジンが強制
+      // lock(あばれる継続等)=技はエンジンが強制。★D6-5 レビュー低-1(2026-09-12): moveIdx:null を明示する。
+      // 送り手の 'lock' の枠は selectedMoveIdx が null だから lock になった(onlineDoubleActionPayload:6254)。
+      // 受け手が moveIdx を渡さないと「渡した項目だけ書き換える」契約(real_battle_simulator.html:3031)で
+      // 前のターンの値が残り、自分側(null)と相手側(前の技)で食い違ったままロックが解けた瞬間にズレる。
+      else S.setChoice('opp', s.idx, { switchIdx: null, moveIdx: null, mega: !!s.mega });
     });
     // 自分交代技の交代先は枠ごとの待ち行列で解く(両側とも同じ作法=鏡写し。上の __rbSwitchPick 参照)
     RB_PIVOT.selfQueue = onlinePivotQueue(RB_ONLINE.myAction) || [];
@@ -6380,14 +6489,28 @@ function onlineNextSelfRepSlot(){
 }
 function onlineBeginFaintReplaceSlots(){
   const need = { self: onlineRepNeedSlots('self'), opp: onlineRepNeedSlots('opp') };
-  if (!need.self.length && !need.opp.length){ showActionUI(); return; }   // 控えが尽きている=空席のまま続行
-  RB_ONLINE.pendingRep = { fmt: 'double', need: need, picks: { self: {}, opp: {} }, seed: { self: null, opp: null } };
+  // 控えが尽きている=空席のまま続行。★中-2: 死に出しの分岐で抜けたターンぶんを nextTurnUI で取り戻す
+  if (!need.self.length && !need.opp.length){ nextTurnUI(); return; }
+  // ★高-1: ラウンド番号。両者が同じ条件(鏡写しの盤面)で同じ回数だけここへ来る=番号もそろう。
+  RB_ONLINE.repRound = (RB_ONLINE.repRound | 0) + 1;
+  RB_ONLINE.pendingRep = { fmt: 'double', round: RB_ONLINE.repRound, need: need,
+    picks: { self: {}, opp: {} }, seed: { self: null, opp: null } };
   if (need.self.length) beginFaintReplaceSlot(need.self[0]);   // D6-4 の交代画面(枠を渡す)をそのまま使う
   else {
+    // ★高-1: 空席の無い側も「空の picks」を1通返す。返さないと相手は「こちらを待たない側」になり、
+    // 次のラウンドへ独りで進んでしまう(=このページが1ラウンド遅れたまま次の通知を受け取る)。
+    // ラウンドごとに必ず1往復する=死に出しもターンと同じロックステップになる。
+    onlineSendRepPicks(RB_ONLINE.pendingRep);
     pushMsgLine(_olT('online_wait_replace', '相手が つぎのポケモンを えらんでいます…'));
     $('msgbox').style.display = 'block';
   }
-  onlineTryApplyReplaces();   // 相手の選択が先に届いていた場合(repInbox)を回収
+  onlineTryApplyReplaces();   // 相手の選択が先に届いていた場合(repQueue)を回収
+}
+// このラウンドの自分の picks を1回だけ送る(空でも送る=上のロックステップの片側)
+function onlineSendRepPicks(P){
+  if (!P || P.fmt !== 'double' || P.seed.self != null) return;   // 二重送信ガード
+  P.seed.self = (Math.random() * 0x7fffffff) | 0;
+  RBOnline.sendFaintReplace({ fmt: 'double', round: P.round, picks: P.picks.self }, P.seed.self);
 }
 // 自分の枠の選択を1つ受け取る(doSwitchTo から)。全部そろったら1回だけ送る
 function onlineRecordRepPick(slotIdx, benchIdx){
@@ -6398,25 +6521,45 @@ function onlineRecordRepPick(slotIdx, benchIdx){
   const nx = onlineNextSelfRepSlot();
   if (nx != null){ beginFaintReplaceSlot(nx); return; }
   actTimerStop();
-  P.seed.self = (Math.random() * 0x7fffffff) | 0;
-  RBOnline.sendFaintReplace({ fmt: 'double', picks: P.picks.self }, P.seed.self);
+  onlineSendRepPicks(P);
   onlineTryApplyReplaces();
 }
+// ★低-3: 相手の補充待ちに上限をつける(既存の「15秒でロビーへ戻す」仕組み lobbyEnterRoom:6839 と
+// 同じ長さ・同じ文言=新しいキーを作らない)。待ち続けても画面には「相手が えらんでいます…」しか
+// 出ず、止まったのか待っているのかプレイヤーに分からない。15秒たったら理由を出す。
+// ★勝敗はこちらで決めない: 片側だけ状態を進めるとロックステップが壊れる(相手が遅れているだけなら
+// あとから届いて正しく続く)。抜けたいプレイヤーは既存の「にげる」で抜けられる。
+// 文は msgbox に出す(バトル中は online-status の箱が画面に出ていない)。
+function onlineRepWaitStart(){
+  if (RB_ONLINE.repWaitT) return;
+  RB_ONLINE.repWaitT = setTimeout(() => {
+    RB_ONLINE.repWaitT = null;
+    if (!RB_ONLINE.started || !RB_ONLINE.pendingRep) return;
+    pushMsgLine(_olT('online_lobby_room_timeout', 'あいてと つながらなかった… もういちど まってみてね'));
+    $('msgbox').style.display = 'block';
+    onlineStatus(_olT('online_lobby_room_timeout', 'あいてと つながらなかった… もういちど まってみてね'));
+  }, 15000);
+}
+function onlineRepWaitStop(){ if (RB_ONLINE.repWaitT){ clearTimeout(RB_ONLINE.repWaitT); RB_ONLINE.repWaitT = null; } }
 function onlineTryApplyReplacesSlots(){
   const P = RB_ONLINE.pendingRep;
-  // 相手の1通(全枠ぶんの picks)を回収
-  if (P.need.opp.length && P.seed.opp == null && RB_ONLINE.repInbox){
-    const m = RB_ONLINE.repInbox;
-    if (m.idx && m.idx.fmt === 'double'){
-      P.picks.opp = m.idx.picks || {}; P.seed.opp = m.seed; RB_ONLINE.repInbox = null;
+  // ★高-1: 相手の1通(このラウンドぶん)をキューから取り出す。**ラウンド番号が一致する1通だけ**を
+  // 消費するので、相手が先に次のラウンドを送ってきても取り違えない(古い実装は1枠の箱=上書きされた)。
+  if (P.seed.opp == null && RB_ONLINE.repQueue.length){
+    const k = RB_ONLINE.repQueue.findIndex(m => m && m.idx && (m.idx.round | 0) === (P.round | 0));
+    if (k >= 0){
+      const m = RB_ONLINE.repQueue.splice(k, 1)[0];
+      P.picks.opp = m.idx.picks || {}; P.seed.opp = m.seed;
     }
   }
-  if (P.need.self.length && P.seed.self == null) return;   // 自分がまだ選び終わっていない
-  if (P.need.opp.length && P.seed.opp == null){
+  if (P.seed.self == null) return;   // 自分がまだ送っていない(空席が無い側も空 picks を送る=必ず送る)
+  if (P.seed.opp == null){
     pushMsgLine(_olT('online_wait_replace', '相手が つぎのポケモンを えらんでいます…'));
     $('msgbox').style.display = 'block';
+    onlineRepWaitStart();
     return;
   }
+  onlineRepWaitStop();
   RB_ONLINE.pendingRep = null;
   logPos = S.battleLog.length;
   const order = S.canonSlots ? S.canonSlots() : [{ side: 'self', idx: 0 }, { side: 'opp', idx: 0 }];
@@ -6441,7 +6584,7 @@ function onlineTryApplyReplacesSlots(){
 function onlineAfterRepApplied(){
   if (S.isSideDefeated && (S.isSideDefeated('self') || S.isSideDefeated('opp'))){ endOfTurn(); return; }
   if (onlineRepNeedSlots('self').length || onlineRepNeedSlots('opp').length){ onlineBeginFaintReplace(); return; }
-  showActionUI();
+  nextTurnUI();   // ★中-2: 死に出しで抜けたターンぶんの turnNo++/バッジ/45秒をここで取り戻す
 }
 
 // --- 死に出し(各自が選ぶ→両者そろってからホスト側優先の固定順で適用=両クライアントの状態一致) ---
@@ -6485,7 +6628,7 @@ function onlineTryApplyReplaces(){
   }
   renderAll();
   const fresh = reorderEndure(S.battleLog.slice(logPos).filter(e => !/^───/.test(e.msg)));
-  say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => showActionUI());
+  say(fresh.flatMap(e => splitBattleLines(e.msg).map(lineWithFx)), () => nextTurnUI());   // ★中-2
 }
 
 // ===================================================================
