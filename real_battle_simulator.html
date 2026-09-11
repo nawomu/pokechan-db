@@ -3221,7 +3221,12 @@ function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlway
     // 立っていればそれで守る。判定・ログ・解除は個体のまもると同じ門をそのまま通す(分岐を増やさない)。
     const _protBefore = tgt.protecting || sideProtectMoveOf(t.side);
     const _protPierce = _protBefore && protectPierces(mv, _protBefore);
-    if (_protBefore && shouldRemoveProtection(mv, _protBefore)) clearProtectionFor(t.side, t.idx, _protBefore);
+    // E6 c(2026-09-12・指示書 spec_e6_end_of_turn_order.md c): ここで「無音」に解除していたのをやめた。
+    // まもり解除(フェイント)の解除+「◯◯ の 守りが やぶられた！」の1行は phaseApplyEffects の
+    // 'まもり解除' ハンドラ(1箇所・E5 低-1 で個体のまもりと側のまもりを1行に束ねた所)だけが行う。
+    // ★ここで先に消すと、ハンドラに来た時には既に消えていて「守りが やぶられた！」が出なかった(E6 c の穴)。
+    // ★ログをこの門で出すのは不可(技名の行より前に出てしまう=E5 低-2 と同じ型の不具合)。
+    // 解除が遅れても同じ行動の中(ダメージ→追加効果)なので、このターンの後続の味方の技には間に合う。
     if (_protBefore && mv.protect === true && protectBlocks(_protBefore, mv, atk) && !_protPierce){
       log('0c', `${pname(tgt)} は ${_protBefore.name} で こうげきを 防いだ！`);
       applyProtectPunishers(atk, tgt, mv);
@@ -5217,6 +5222,28 @@ function sideProtectKindOf(mv){
   if (bd.protect_fast) return 'quick';
   return null;
 }
+// === E6 b(2026-09-12・指示書 spec_e6_end_of_turn_order.md b): 「そのターンの最後に行動するか」 ===
+// ワイドガード/ファストガードの「そのターンの最後に使用した場合は失敗する」の判定にだけ使う。
+// 出典(2026-09-12 に curl で原文取得):
+//   ポケモンWiki「ワイドガード」技の仕様「そのターンの最後にワイドガードを使用した場合は失敗する。」
+//   ポケモンWiki「ファストガード」技の仕様「そのターンの最後にファストガードを使用した場合は失敗する。」
+//   Bulbapedia Wide Guard / Quick Guard "If the user goes last in the turn, the move will fail."
+// ★scheduler の sched.isLastToAct(actorId) は「他に pending の Intent が1つも無いか」しか見ない=
+//   ひんし/交代で場を去った個体の pending(次の sched.next() 冒頭 _invalidateAbsent で消える分)まで
+//   数えてしまう。指示書「行動しない個体(ひんし・交代済み)は数えない」に合わせ、残キューを在場で絞る。
+//   ★枠の読み替え(サイドチェンジ)は本流と同じ1本の表 currentSlotOfScheduled を通す(E5 高-1 と同じ規律)。
+function isLastToActThisTurn(sched, actorId){
+  if (!sched || actorId == null) return false;
+  if (typeof sched.isLastToAct === 'function' && sched.isLastToAct(actorId)) return true;   // pending が他に無い=最後
+  const pend = (typeof sched.pending === 'function') ? sched.pending() : [];
+  for (const it of pend){
+    if (it.actorId === actorId) continue;
+    const parts = String(it.actorId).split(':');   // 'side:idx:epoch'(D3-2a の actorId 形式)
+    const st = slotOf(parts[0], currentSlotOfScheduled(parts[0], Number(parts[1])));
+    if (st && st.poke && !st.fainted) return false;   // 自分より後に行動する生きた個体が残っている
+  }
+  return true;
+}
 // 側に立っている「側のまもり」の技オブジェクト(無ければnull)。守る/守らないの判定は protectBlocks が
 // 技のデータ宣言(範囲まもり / blocks_priority_only)から決める=ここは「立っているか」だけを返す。
 function sideProtectMoveOf(sideKey){
@@ -6854,9 +6881,14 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
       // ②個体のまもると側のまもりが同時に破られても「守りが やぶられた！」は★1行だけ★出す
       //   (旧実装は2つの if が別々に log していたので、ダブルで A=まもる + B=ワイドガードに
       //    フェイントが当たると同じ行が2本出ていた)。
+      // E6 c(2026-09-12・指示書 spec_e6_end_of_turn_order.md c): 単体経路/範囲経路の「門」が先に無音で
+      //   解除していたのをやめた(門は shouldRemoveProtection で判定して clearProtectionFor を呼んでいた)。
+      //   解除と「守りが やぶられた！」の1行は★この1箇所だけ★が行う=
+      //   ①個体のまもる(単体のフェイント)でも行が出る ②個体+側が同時でも1行(E5 低-1 の1本化を維持)。
+      //   判定は門と同じ述語 shouldRemoveProtection(removes_protection の印+affected_moves)を通す。
       let _protBroken = false;
       const _tPos0 = slotPosOf(target);
-      if (target.protecting && (ef.affected_moves || []).includes(target.protecting.name)){
+      if (target.protecting && shouldRemoveProtection(move, target.protecting)){
         if (_tPos0) clearProtectionFor(_tPos0.side, _tPos0.idx, target.protecting);
         else { target.protecting = null; target.protectStreak = 0; }   // 位置が引けない呼び出し(保険)
         _protBroken = true;
@@ -6868,7 +6900,7 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
       //   移っただけ。ファストガードは以前 protecting に載っていた)。
       const _tPos = _tPos0;
       const _tSideProtMv = _tPos ? sideProtectMoveOf(_tPos.side) : null;
-      if (_tSideProtMv && (ef.affected_moves || []).includes(_tSideProtMv.name)){
+      if (_tSideProtMv && shouldRemoveProtection(move, _tSideProtMv)){
         clearProtectionFor(_tPos.side, _tPos.idx, _tSideProtMv);   // 側の1本を消す+張った枠の streak を戻す
         _protBroken = true;
       }
@@ -6975,8 +7007,117 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
 // E1-a1(2026-09-11・指示書 spec_e1_engine_slots.md a.1 / 設計_ダブルバトル_2026-09-07.md§3「個体の揮発(枠)」):
 // 第2引数 slotIdx を足して「側の枠0だけ」から「指定の枠」に一般化した。省略時=0 なので既存の呼び出し
 // (phaseSlipFor('opp') 等・tools/_sim_*_test.js の契約/runSingleAttack:6992)は無変更で従来どおり枠0を見る。
+// E6 a: 中身は eotStatusDamageFor(11/12) / eotSandstormFor(1-b) / eotSlipsFor(10/14/15/17) の3本に
+// 割った(下の新設セクション参照)。この関数は「3本を元と同じ順で呼ぶだけ」=外から見た振る舞いは不変。
 function phaseSlipFor(s, slotIdx){
-  const st = slotOf(s, slotIdx || 0);
+  const _i = slotIdx || 0;
+  const st = slotOf(s, _i);
+  if (!st.poke || st.fainted) return;
+  eotStatusDamageFor(st, s, _i);
+  eotSandstormFor(st, s, _i);
+  eotSlipsFor(st, s, _i, null);
+}
+
+// === E2 機構7: フェーズ「ターン終了・味方の状態異常回復」(いやしのこころ) ===
+// ★新しい段を足す(まとめない)。置き場は phaseEndOfTurnSlip(スリップダメージ)の「直前」。
+// 出典: ポケモンWiki『いやしのこころ』特性の仕様節
+//   「・発動のタイミングはターンの終了時になる。」
+//   「・どく/もうどく/やけど/あくむ/ナイトメアのダメージ判定より前であるため、いやしのこころが発動する
+//     ターンはこれらのダメージを受けない。」
+//   → スリップより前に置くことで「治ったターンはダメージを受けない」が条件分岐なしで成立する
+//     (憲法: 順序そのものが仕様の段)。
+// 出典(効果): 同 効果節「ターン終了時に、自分に隣接する味方の状態異常が50％ (スカーレット・バイオレットまでは
+//   30%) の確率で回復する。」/ 説明文節(Champions)「ターン終わりに 状態異常の味方を 50%の確率で治す。」
+//   → 確率の正典は Champions の 50%([[champions-plus-alpha-canon-rule]] ①Championsに在る値が正典)。
+//     master/abilities.json effect_ja も「50%の確率で」。★effect_en だけ旧世代の 30% のまま=台帳に報告。
+// 出典(除外): 同 特性の仕様節「・こんらんなどの状態変化は治せない。」
+//   → st.status(状態異常)だけ見る。st.confusion(こんらん=状態変化)は触らない(構造的に対象外)。
+// 出典(除外): 同「・いやしのこころのポケモン自身の状態異常は治せない。」→ allySlotsOf が自分を除く。
+// 出典(除外): 同「・場に出ていない控えの味方には効果がない。」→ allySlotsOf は在場の枠だけ返す(bench を見ない)。
+// 出典(備考): 同「自分の状態異常は治せないため、シングルバトルで発動することはない。」
+//   → ★シングルは allySlotsOf が常に空 = この段は1周して何もしない。
+// ★新しい乱数点: 「味方に状態異常が在る時だけ」Math.random() を1回引く。
+//   シングルでは味方が居ないので 0回・ダブルで味方が健康なら 0回 = 既存の乱数列は一切ずれない
+//   (sim 862件の stdout diff 0 の根拠)。消費順は既存規約 forEachSlotItemOrder
+//   (ダブル=素の素早さ降順・シングル='self',0 → 'opp',0 の固定順)に揃える=オンラインでも決定的。
+function phaseEndOfTurnAllyHeal(){
+  // E5 高-2: ターン終了の段なので順序は forEachSlotEndOfTurnOrder(効果すばやさ降順・トリックルームで反転)。
+  // E6 a: 1枠ぶんの本体は eotHealerFor(表の (6-c))へ切り出した。この関数は全枠ループの入口として残す
+  // (既存の呼び出し契約を壊さない)。ターン終了の本線は END_OF_TURN_ORDER 経由で eotHealerFor を呼ぶ。
+  forEachSlotEndOfTurnOrder(function(s, slotIdx){ eotHealerFor(slotOf(s, slotIdx), s, slotIdx); });
+}
+
+// E6 a: ★ターン終了の本線はここを通らなくなった★(表 END_OF_TURN_ORDER が (1-b)(10)(11)(12)(14)(15)(17)
+// として別々の番号で呼ぶ)。この関数は「1側ぶんのスリップを全枠に回す」既存の入口として残す
+// (phaseSlipFor と同じく外部から呼べる形を壊さない)。新しい呼び出しはここに足さない=表に足す。
+function phaseEndOfTurnSlip(){
+  // E1-a1(指示書 a.1「ダブルで枠1のどく/やけど/やどりぎ/たべのこし等が一切処理されない(実測 0/200)」):
+  // 個体単位の処理=全枠へ。順序は E5 高-2 で forEachSlotEndOfTurnOrder(効果すばやさ降順・
+  // トリックルームで反転・同速は canonSlots)に直した(旧=forEachSlotItemOrder)。
+  // ★シングル(slotsPerSide===1)は forEachSlotItemOrder が fn('self',0)→fn('opp',0) の固定順に分岐する=
+  // 旧 for (const s of activeSides()) と1bitも変わらない(stdout diff 0 の根拠)。
+  // E5 高-2(2026-09-12): 順序は「効果すばやさ」順=forEachSlotEndOfTurnOrder(トリックルームで反転)。
+  // 旧 forEachSlotItemOrder は「道具の反応」用の素の素早さ実数値順+シングルは側の固定順だった。
+  forEachSlotEndOfTurnOrder(phaseSlipFor);
+}
+
+// ===========================================================================
+// === E6 a(2026-09-12・指示書 spec_e6_end_of_turn_order.md a): ターン終了の内訳順 ===
+// ===========================================================================
+// 権威: ポケモンWiki「ターン」5.ターン終了時の処理 第五世代以降(2026-09-12 に curl で原文取得)
+//   「ターン終了時、以下の表の状態が数字の順に発動する。」
+//   「同じ数字の処理はアルファベット順に発動」
+//   「特記されていなければ、同じ数字の状態はすばやさが高い順に発動し、これはトリックルームの影響を受ける。」
+//   (例)「2匹のポケモンAとBがいるとする。すばやさはAの方が高い。場がグラスフィールド状態で、お互い
+//     持ち物がたべのこしでアクアリング状態である。このとき ①Aがグラスフィールドで回復 ②Aがたべのこしで回復
+//     ③Bがグラスフィールドで回復 ④Bがたべのこしで回復 ⑤Aがアクアリングで回復 ⑥Bがアクアリングで回復」
+//   → ★同じ番号の中は「1体ずつまとめて」(=個体が外側のループ・アルファベットが内側)。
+//     番号が違う機構はブロック順(番号ごとに全個体を1周する)。
+//   「以下に示すはターン終了時にのみ発動する効果のみ。常時発動する特性/持ち物(てんきや/きのみなど)は
+//     同じ番号の処理より優先して処理。」
+//
+// 憲法(設計_バトルエンジン原理_2026-07-26.md §「困ったらフェーズを足す。まとめない」/
+//   [[phase-key-architecture-north-star]] 単一ディスパッチ点)に従い、
+//   ①番号→機構の対応は表 END_OF_TURN_ORDER ただ1つに置く
+//   ②runTurn は runEndOfTurnPhases() を1回呼ぶだけ(ターン終了の順序を知っているのは表だけ)
+//   ③各機構の本体は元の関数/ブロックをそのまま切り出しただけ(中身は1文字も変えていない)
+// ★この票はシングルの挙動も意図して変える(ログ行の順番が Wiki の番号順になる)。
+// ★死に出し(38)とターン終了ログ(40)の位置は runTurn のまま(指示書 a 末尾「今のまま」)。
+//
+// E1-a3(2026-09-11・指示書 spec_e1_engine_slots.md a.3)からの引き継ぎ: 下の eot*For は全部★個体単位★
+//   (ちょうはつ/かなしばり/アンコール/ほろびのうた/ロックオン/じごくづき/ねがいごと/ねをはる/アクアリング/
+//    しゅうかく/でんじふゆう/テレキネシス/あめまみれ/かいふくふうじ/はんすう/ムラっけ/かそく/かんそうはだ/
+//    サンパワー/アイスボディ/たべのこし/かえんだま/どくどくだま/くろいヘドロ/みらいよち)=全枠に回す。
+//   ★側の欄(壁/おいかぜ)と★場全体(天気/フィールド/部屋)は枠で回さない(2枠ぶん二重減算になる)=
+//     表の scope で 'side'/'global' と書き分ける。これが「枠で回すもの/側で回すもの/場で1回」の唯一の台帳。
+// E5 高-2(2026-09-12)からの引き継ぎ: 枠を回す順は forEachSlotEndOfTurnOrder(効果すばやさ降順・
+//   トリックルームで反転・同速は canonSlots)。道具の反応(レッドカード等)の forEachSlotItemOrder
+//   (補正抜きの素の実数値順)とは★別物★なので混ぜない。
+
+function eotWeatherEnd(){
+  // 技で変えた天気のカウントダウン(5ターン目の終わりに元に戻る。UI手動設定=null は無期限)
+  if (env.weatherTurns != null && env.weather !== 'none'){
+    env.weatherTurns--;
+    if (env.weatherTurns <= 0){
+      env.weather = 'none'; env.weatherTurns = null;
+      log('10', '天気が 元に戻った！');
+    }
+  }
+}
+
+
+// --- (1-b)(11)(12) / (10)(14)(15)(17): phaseSlipFor を3つの本体に割った ---
+// ★外から見える phaseSlipFor(s, slotIdx) の振る舞いは1文字も変えない(3つを同じ順に呼ぶだけ)=
+//   既存のテスト契約(tools/_sim_status_multiturn_test.js / _spec_magicguard_test.js /
+//   _sim_hard_interaction_test.js が直接呼ぶ)と runSingleAttack(攻撃側のターン終了スリップ)はそのまま通る。
+// 割った理由: Wiki「ターン」では
+//   (1-b) すなあらし/あられのダメージ / (10) やどりぎのタネ / (11) どく/もうどく/ポイズンヒール /
+//   (12) やけど / (14) のろい / (15) バインド / (17) しおづけ
+//   が★別々の番号★に散っている。1つの関数にまとめたままでは番号順に置けない(憲法「まとめない」)。
+// (11)と(12)を1つの関数にしているのは、st.status が排他(burn か poison か badpoison のどれか1つ)で
+//   ★実行順が観測できない★ため(11と12の間に他の番号は入らない)=割っても1bitも変わらない。
+
+function eotStatusDamageFor(st, s, _slotIdx){
   if (!st.poke || st.fainted) return;
   const max = realStat(st, 'hp');
   // H8(2026-07-18): マジックガード(段111・出典 Bulbapedia "Magic Guard")は間接ダメージ全般を受けない
@@ -7010,6 +7151,11 @@ function phaseSlipFor(s, slotIdx){
     st.fainted = true;
     log('10a', `${pname(st)} は ひんしになった！`);
   }
+}
+
+function eotSandstormFor(st, s, _slotIdx){
+  if (!st.poke || st.fainted) return;
+  const max = realStat(st, 'hp');
   // 砂嵐継続ダメ (いわ/じめん/はがね/すなかき/すなのちから/すながくれ/マジックガード/ぼうじん除外)。
   // H54(2026-07-21・出典: ポケモンWiki「すなあらし(天気)」/ Bulbapedia "Sandstorm"): ふゆう(Levitate)は
   // すなあらしのダメージを防がない(両ソース一致=以前ここに入っていたのは誤り)ため免除リストから削除し、
@@ -7027,101 +7173,775 @@ function phaseSlipFor(s, slotIdx){
       if (st.currentHp <= 0){ st.fainted = true; log('10c', `${pname(st)} は ひんしになった！`); }
     }
   }
-  // 揮発スリップ状態(しおづけ=1/16またはみず/はがね1/8・のろい=1/4・バインド=1/8・やどりぎ=1/8吸い取り): 毎ターン終了時に最大HPの宣言割合を削る。
-  // turns付き(バインド=4〜5ターン)は数えて、使い切ったら とける。turnsなし(しおづけ等)は続く。
-  // drains付き(やどりぎ)は削った分だけ相手側が回復する。
-  if (st.slips && st.slips.length && !st.fainted){
-    for (const sl of st.slips){
-      // E1-a1: 吸い取り先(やどりぎ)は「タネを植えた側の"位置"にいる個体」(Bulbapedia "Leech Seed"=
-      // HP is restored to the Pokémon in that position)。植えた時に記録した drainToSide/drainToIdx を読む。
-      // 記録の無い古いslip(undo復元前の既存データ等)は従来どおり「相手側の枠0」にフォールバック=シングル不変。
-      const other = sl.drainToSide ? slotOf(sl.drainToSide, sl.drainToIdx || 0)
-                                   : slotOf(s === 'self' ? 'opp' : 'self', 0);
-      // H8(2026-07-18): マジックガードはやどりぎ/しおづけ/のろい/バインド等スリップ全般のダメージを受けない
-      // (吸収側がダメージ0なので、やどりぎの吸い取り回復も0=Bulbapedia "Magic Guard"/"Seeding")。
-      // トラップ継続(turns)自体は特性に関わらず進む=ダメージだけを防ぐ。
-      if (!_magicGuard){
-        const d = Math.max(1, Math.floor(max * sl.fraction));
-        st.currentHp = Math.max(0, st.currentHp - d);
-        log('10a', `${pname(st)} は ${sl.source}で ${d} ダメージ！ (残HP ${st.currentHp})`);
-        if (sl.drains && other.poke && !other.fainted){
-          const oMax = realStat(other, 'hp');
-          if (other.currentHp == null) other.currentHp = oMax;
-          // おおきなねっこ(吸い取る側=other): やどりぎの回復量1.3倍(削り量dは不変・2026-07-18 ヤックン全数照合)
-          const _healAmt = bigRootBoost(other, d);
-          // ヘドロえき(Liquid Ooze・Phase D B1): 種を植えられている側(st)がヘドロえき持ちなら、吸い取る側(other)
-          // へのダメージに反転する(Big Root適用後の量が基準)。ログは上のドレイン反転と同じ理由で機構のみ無音実装。
-          // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Liquid Ooze")
-          if (sideAbility(st) === 'ヘドロえき'){
-            other.currentHp = Math.max(0, other.currentHp - _healAmt);
-            if (other.currentHp <= 0 && !other.fainted){ other.fainted = true; log('10a', `${pname(other)} は ひんしになった！`); }
-          } else {
-            const healed = Math.min(oMax - other.currentHp, _healAmt);
-            if (healed > 0){
-              other.currentHp += healed;
-              log('10a', `${pname(other)} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
-            }
-          }
+}
+
+// slips(1つの配列)に同居している4種を Wiki の番号で仕分ける表。
+// pred=null は「全部」(phaseSlipFor の従来どおりの1周)。
+const SLIP_WIKI_NO = { 'やどりぎのタネ': 10, 'のろい': 14, 'バインド': 15, 'しおづけ': 17 };
+function slipWikiNo(src){ const n = SLIP_WIKI_NO[src]; return n != null ? n : null; }
+function eotSlipsFor(st, s, _slotIdx, pred){
+  if (!st.poke || st.fainted) return;
+  if (!st.slips || !st.slips.length) return;
+  const max = realStat(st, 'hp');
+  const _magicGuard = sideAbility(st) === 'マジックガード';
+  const _list = pred ? st.slips.filter(pred) : st.slips.slice();
+  if (!_list.length) return;
+  {
+    for (const sl of _list){
+  // E1-a1: 吸い取り先(やどりぎ)は「タネを植えた側の"位置"にいる個体」(Bulbapedia "Leech Seed"=
+  // HP is restored to the Pokémon in that position)。植えた時に記録した drainToSide/drainToIdx を読む。
+  // 記録の無い古いslip(undo復元前の既存データ等)は従来どおり「相手側の枠0」にフォールバック=シングル不変。
+  const other = sl.drainToSide ? slotOf(sl.drainToSide, sl.drainToIdx || 0)
+                               : slotOf(s === 'self' ? 'opp' : 'self', 0);
+  // H8(2026-07-18): マジックガードはやどりぎ/しおづけ/のろい/バインド等スリップ全般のダメージを受けない
+  // (吸収側がダメージ0なので、やどりぎの吸い取り回復も0=Bulbapedia "Magic Guard"/"Seeding")。
+  // トラップ継続(turns)自体は特性に関わらず進む=ダメージだけを防ぐ。
+  if (!_magicGuard){
+    const d = Math.max(1, Math.floor(max * sl.fraction));
+    st.currentHp = Math.max(0, st.currentHp - d);
+    log('10a', `${pname(st)} は ${sl.source}で ${d} ダメージ！ (残HP ${st.currentHp})`);
+    if (sl.drains && other.poke && !other.fainted){
+      const oMax = realStat(other, 'hp');
+      if (other.currentHp == null) other.currentHp = oMax;
+      // おおきなねっこ(吸い取る側=other): やどりぎの回復量1.3倍(削り量dは不変・2026-07-18 ヤックン全数照合)
+      const _healAmt = bigRootBoost(other, d);
+      // ヘドロえき(Liquid Ooze・Phase D B1): 種を植えられている側(st)がヘドロえき持ちなら、吸い取る側(other)
+      // へのダメージに反転する(Big Root適用後の量が基準)。ログは上のドレイン反転と同じ理由で機構のみ無音実装。
+      // 出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Liquid Ooze")
+      if (sideAbility(st) === 'ヘドロえき'){
+        other.currentHp = Math.max(0, other.currentHp - _healAmt);
+        if (other.currentHp <= 0 && !other.fainted){ other.fainted = true; log('10a', `${pname(other)} は ひんしになった！`); }
+      } else {
+        const healed = Math.min(oMax - other.currentHp, _healAmt);
+        if (healed > 0){
+          other.currentHp += healed;
+          log('10a', `${pname(other)} は HPを ${healed} 吸いとった！ (残HP ${other.currentHp})`);
         }
       }
-      if (sl.turns != null){
-        sl.turns--;
-        if (sl.turns <= 0) log('10a', `${pname(st)} は ${sl.source}から 解放された！`);
-      }
-      if (st.currentHp <= 0){ st.fainted = true; log('10a', `${pname(st)} は ひんしになった！`); break; }
+    }
+  }
+  if (sl.turns != null){
+    sl.turns--;
+    if (sl.turns <= 0) log('10a', `${pname(st)} は ${sl.source}から 解放された！`);
+  }
+  if (st.currentHp <= 0){ st.fainted = true; log('10a', `${pname(st)} は ひんしになった！`); break; }
     }
     st.slips = st.slips.filter(sl => sl.turns == null || sl.turns > 0);
   }
 }
 
-// === E2 機構7: フェーズ「ターン終了・味方の状態異常回復」(いやしのこころ) ===
-// ★新しい段を足す(まとめない)。置き場は phaseEndOfTurnSlip(スリップダメージ)の「直前」。
-// 出典: ポケモンWiki『いやしのこころ』特性の仕様節
-//   「・発動のタイミングはターンの終了時になる。」
-//   「・どく/もうどく/やけど/あくむ/ナイトメアのダメージ判定より前であるため、いやしのこころが発動する
-//     ターンはこれらのダメージを受けない。」
-//   → スリップより前に置くことで「治ったターンはダメージを受けない」が条件分岐なしで成立する
-//     (憲法: 順序そのものが仕様の段)。
-// 出典(効果): 同 効果節「ターン終了時に、自分に隣接する味方の状態異常が50％ (スカーレット・バイオレットまでは
-//   30%) の確率で回復する。」/ 説明文節(Champions)「ターン終わりに 状態異常の味方を 50%の確率で治す。」
-//   → 確率の正典は Champions の 50%([[champions-plus-alpha-canon-rule]] ①Championsに在る値が正典)。
-//     master/abilities.json effect_ja も「50%の確率で」。★effect_en だけ旧世代の 30% のまま=台帳に報告。
-// 出典(除外): 同 特性の仕様節「・こんらんなどの状態変化は治せない。」
-//   → st.status(状態異常)だけ見る。st.confusion(こんらん=状態変化)は触らない(構造的に対象外)。
-// 出典(除外): 同「・いやしのこころのポケモン自身の状態異常は治せない。」→ allySlotsOf が自分を除く。
-// 出典(除外): 同「・場に出ていない控えの味方には効果がない。」→ allySlotsOf は在場の枠だけ返す(bench を見ない)。
-// 出典(備考): 同「自分の状態異常は治せないため、シングルバトルで発動することはない。」
-//   → ★シングルは allySlotsOf が常に空 = この段は1周して何もしない。
-// ★新しい乱数点: 「味方に状態異常が在る時だけ」Math.random() を1回引く。
-//   シングルでは味方が居ないので 0回・ダブルで味方が健康なら 0回 = 既存の乱数列は一切ずれない
-//   (sim 862件の stdout diff 0 の根拠)。消費順は既存規約 forEachSlotItemOrder
-//   (ダブル=素の素早さ降順・シングル='self',0 → 'opp',0 の固定順)に揃える=オンラインでも決定的。
-function phaseEndOfTurnAllyHeal(){
-  // E5 高-2: ターン終了の段なので順序は forEachSlotEndOfTurnOrder(効果すばやさ降順・トリックルームで反転)。
-  forEachSlotEndOfTurnOrder(function(s, slotIdx){
-    const st = slotOf(s, slotIdx);
-    if (!st || !st.poke || st.fainted) return;
-    if (sideAbility(st) !== 'いやしのこころ') return;
-    allySlotsOf(s, slotIdx).forEach(function(_al){
-      const _a = _al.st;
-      if (!_a.status || _a.status === 'none') return;   // 状態異常なし=ロールしない(乱数を無駄に消費しない)
-      if (Math.random() >= 0.5) return;                 // 50%(Champions正典)
-      _a.status = 'none'; _a.badpoisonCounter = 0; _a.sleepTurns = null;
-      // ★ログ行新設禁止: 既存の型(id='bl_59'・5897/7577行と同じ文字列・9言語済み)を使う。
-      log('10a', `${pname(_a)} の 状態異常が 治った！`);
-    });
+// --- (6-c) うるおいボディ/だっぴ/いやしのこころ: 実装は いやしのこころ だけ ---
+// ★E2 機構7 の phaseEndOfTurnAllyHeal(全枠ループ)の「1枠ぶん」をそのまま切り出した(中身は不変)。
+//   権威の「どく/もうどく/やけど/あくむ/ナイトメアのダメージ判定より前」は、6-c が (11)(12) より
+//   前の番号であることで引き続き成立する(順序そのものが仕様の段)。
+function eotHealerFor(st, s, slotIdx){
+  if (!st || !st.poke || st.fainted) return;
+  if (sideAbility(st) !== 'いやしのこころ') return;
+  allySlotsOf(s, slotIdx).forEach(function(_al){
+    const _a = _al.st;
+    if (!_a.status || _a.status === 'none') return;   // 状態異常なし=ロールしない(乱数を無駄に消費しない)
+    if (Math.random() >= 0.5) return;                 // 50%(Champions正典)
+    _a.status = 'none'; _a.badpoisonCounter = 0; _a.sleepTurns = null;
+    // ★ログ行新設禁止: 既存の型(id='bl_59'・5897/7577行と同じ文字列・9言語済み)を使う。
+    log('10a', `${pname(_a)} の 状態異常が 治った！`);
   });
 }
 
-function phaseEndOfTurnSlip(){
-  // E1-a1(指示書 a.1「ダブルで枠1のどく/やけど/やどりぎ/たべのこし等が一切処理されない(実測 0/200)」):
-  // 個体単位の処理=全枠へ。順序は E5 高-2 で forEachSlotEndOfTurnOrder(効果すばやさ降順・
-  // トリックルームで反転・同速は canonSlots)に直した(旧=forEachSlotItemOrder)。
-  // ★シングル(slotsPerSide===1)は forEachSlotItemOrder が fn('self',0)→fn('opp',0) の固定順に分岐する=
-  // 旧 for (const s of activeSides()) と1bitも変わらない(stdout diff 0 の根拠)。
-  // E5 高-2(2026-09-12): 順序は「効果すばやさ」順=forEachSlotEndOfTurnOrder(トリックルームで反転)。
-  // 旧 forEachSlotItemOrder は「道具の反応」用の素の素早さ実数値順+シングルは側の固定順だった。
-  forEachSlotEndOfTurnOrder(phaseSlipFor);
+// --- (6-b) グラスフィールド(回復) ---
+// グラスフィールドの毎ターン回復(データ宣言: 回復 phase=turn_end)— 地面にいるポケモンだけ
+// E1-a4: ★個体★(接地している個体だけ)=全枠へ。
+// 順序は E5 高-2 で forEachSlotItemOrder(素の実数値順・シングルは側の固定順)から
+// ★forEachSlotEndOfTurnOrder(効果すばやさ降順・トリックルームで反転)★へ直した。
+function eotGrassHealFor(st, s, _slotIdx){
+  const _fHeal = fieldRules().find(r => r.kind === '回復' && r.phase === 'turn_end');
+  if (!_fHeal || _fHeal.fraction == null) return;
+  if (!st.poke || st.fainted || !isGrounded(st)) return;
+  const max = realStat(st, 'hp');
+  if (st.currentHp == null || st.currentHp >= max) return;
+  const heal = Math.max(1, Math.floor(max * _fHeal.fraction));
+  st.currentHp = Math.min(max, st.currentHp + heal);
+  log('10', `${pname(st)} は フィールドで HPを ${heal} 回復！ (残HP ${st.currentHp})`);
+}
+
+// --- (26) ねむけ(あくび等の遅延状態異常の発動) ---
+// 遅延状態(あくび等)のカウントダウン→発動(ねむりターンのロールがある)
+// E1-a4(指示書 a.4): あくび等の遅延状態異常は★個体★の予約=全枠へ。
+// ★シングルは canonSlots() が canonSides() と同値(枠1つ)=乱数消費の順番も回数も不変。
+// E5 中-7(2026-09-12・指示書 spec_e5_review_fixes.md 高-2 末尾): あくび等の遅延状態異常も
+// 「ターン終了時の処理」なので、他のターン終了の段と同じ順序関数(効果すばやさ降順・トリックルームで
+// 反転・同速は canonSlots)に揃える。canonSlots 決め打ちは決定的ではあったが順序が権威と違った。
+// E6 a: Wiki の番号は (26) ねむけ=ちょうはつ〜かいふくふうじの期限切れ(18〜24)より後・ほろびのうた(27)より前。
+function eotDrowsyFor(st, s, _slotIdx){
+  if (st.pendingStatus){
+    if (st.pendingStatus.turns > 0) st.pendingStatus.turns--;
+    else {
+      // さわぐ最中はねむけ(あくび)からも眠らない(発動だけ不発・Bulbapedia "Uproar")
+      if (st.pendingStatus.code === 'sleep' && uproarActive()){
+        log('10', `さわがしくて ${pname(st)} は ねむれない！`);
+      } else if ((({sleep:['ふみん','やるき'], paralysis:['じゅうなん'], poison:['めんえき'], badpoison:['めんえき'], freeze:['マグマのよろい']})[st.pendingStatus.code] || []).includes(sideAbility(st))){
+        // あくび等の遅延発動も特性で無効(段109・ABILITY_DESC公式準拠)
+        log('10', `${pname(st)} は 特性で ${st.pendingStatus.label}に ならない！`);
+      } else if (st.status === 'none'){ st.status = st.pendingStatus.code; if (st.pendingStatus.code === 'sleep') st.sleepTurns = rollSleepTurns(); log('10', `${pname(st)} は ${st.pendingStatus.label} 状態になった！`); }
+      st.pendingStatus = null;
+    }
+  }
+}
+
+function eotFieldEnd(){
+  // 技で展開したフィールドのカウントダウン(5ターン目の終わりに元に戻る。UI手動設定=null は無期限)
+  if (env.fieldTurns != null && env.field !== 'none'){
+    env.fieldTurns--;
+    if (env.fieldTurns <= 0){
+      env.field = 'none'; env.fieldTurns = null;
+      log('10', 'フィールドが 元に戻った！');
+    }
+  }
+}
+
+function eotTrickRoomEnd(){
+  // 技で展開したトリックルームのカウントダウン(5ターン目の終わりに元に戻る。UI手動チェック=null は無期限)
+  if (env.trickRoomTurns != null && env.trickRoom){
+    env.trickRoomTurns--;
+    if (env.trickRoomTurns <= 0){
+      env.trickRoom = false; env.trickRoomTurns = null;
+      log('10', 'ねじれた時空が 元に戻った！');
+    }
+  }
+}
+
+function eotGravityEnd(){
+  // じゅうりょくのカウントダウン(5ターン目の終わりに元に戻る)
+  if (env.gravityTurns != null && env.gravity){
+    env.gravityTurns--;
+    if (env.gravityTurns <= 0){
+      env.gravity = false; env.gravityTurns = null;
+      log('10', 'じゅうりょくが もとに もどった！');
+    }
+  }
+}
+
+function eotWonderRoomEnd(){
+  // 部屋系(ワンダールーム/マジックルーム)のカウントダウン(5ターン目の終わりに元に戻る)
+  if (env.wonderRoomTurns != null && env.wonderRoom){
+    env.wonderRoomTurns--;
+    if (env.wonderRoomTurns <= 0){
+      env.wonderRoom = false; env.wonderRoomTurns = null;
+      log('10', 'ぼうぎょと とくぼうが 元に戻った！');
+    }
+  }
+}
+
+function eotMagicRoomEnd(){
+  if (env.magicRoomTurns != null && env.magicRoom){
+    env.magicRoomTurns--;
+    if (env.magicRoomTurns <= 0){
+      env.magicRoom = false; env.magicRoomTurns = null;
+      log('10', 'マジックルームの 効果が なくなった！');
+    }
+  }
+}
+
+function eotFairyLockEnd(){
+  // フェアリーロックのカウントダウン(次のターンの終わりに解除)
+  if (env.fairyLockTurns != null && env.fairyLockTurns > 0){
+    env.fairyLockTurns--;
+    if (env.fairyLockTurns <= 0){
+      env.fairyLockTurns = null;
+      log('10', 'フェアリーロックが 解けた！');
+    }
+  }
+}
+
+// --- 常時発動する持ち物(きのみ)の反応polling ---
+// 権威「常時発動する特性/持ち物(てんきや/きのみなど)は同じ番号の処理より優先して処理。」
+// = 本来は番号ごとに即時発動。このエンジンは「HPが動く番号(1-b/1-c/4/5/6-b/6-d/8/9/10/11/12/14/15/17)が
+//   全部終わった直後」に1回だけポーリングする近似(従来も「スリップの後・期限切れブロックの前」の
+//   1回だけだった=位置取りは同じ思想)。★近似であることを表に書いて残す(報告に明記)。
+function eotReactionPolling(){
+  itemReactions();   // B案: ターン終了処理(スリップ等)の後にも道具の発動チェック
+  resolveAllyFaintAbility();   // E2 機構8: 味方のひんしに反応する段(かがくのちから/レシーバー)。既存の反応polling(itemReactions)と同じ反応点。
+  resolveSymbiosis();          // E2 機構9: 味方の道具消費に反応する段(きょうせい)。同じ反応点(道具の反応=itemReactionsの直後)。
+}
+
+// --- (30) 片側の場の状態の継続/終了 ---
+// 権威の内訳(アルファベット順): a リフレクター / b ひかりのかべ / c しんぴのまもり / d しろいきり /
+//   e おいかぜ / f おまじない / g にじ / h ひのうみ / i しつげん / j オーロラベール
+//   → f〜i(おまじない/にじ/ひのうみ/しつげん)は本エンジン未実装。
+// E1-b(2026-09-11・指示書 spec_e1_engine_slots.md b / 設計_ダブルバトル_2026-09-07.md§3「Side.sideConditions」):
+// 壁/おいかぜは★側の欄★=側ごとに1回だけ減らす(枠で回すと2枠ぶん二重減算になる)。sides[s] は枠0と
+// 同一オブジェクトなので、枠1のアクセサ(syncSlotsToFormat)から読んでも同じ残りターンが見える。
+// E5 低-4(2026-09-12・指示書 spec_e5_review_fixes.md 低-4): 側の欄のカウントダウン/解除を回す順は
+// canonSides()(=オンラインではホスト側が先)。activeSides() の 'self' 決め打ちだと、鏡写しの
+// 2クライアントで「どちらの側の解除ログが先か」が逆になる(ログ順の desync)。
+// 出典: ポケモンWiki「ターン」5.ターン終了時の処理「片側の場の状態の継続/終了: ホスト側の状態が
+//   先にすべて解除された後に、ホストでない側の状態が解除される。コートチェンジされていても
+//   関係なくホスト側から消える。」/ 同 1.ポケモンを繰り出す「例えば両者のリフレクターが同じターンに
+//   消える場合、使用された順番に関係なくホスト側から先にリフレクターが消えたことがメッセージで
+//   流れる」(2026-09-12 に原文を取得して確認)。__rbCanonFirst がホスト側を指す。
+// ★オフライン(window.__rbCanonFirst 未設定)では canonSides()===['self','opp'] = 1bitも変わらない。
+// ★おいかぜ(30-e)は E1-b で「側の欄」として big loop の外に出ていた(ターン終了の最後)。
+//   Wiki では壁と同じ (30) の中の e なので、ここへ一緒に入れた(= 31/32 より前に来る)。
+// ★表に無いキー(将来の壁追加・_SCREEN_FLAG のフォールバックで和名キーが入る場合)も落とさない=
+//   宣言順の後で Object.keys の残りをまとめて処理する。
+const SIDE_CONDITION_EOT_ORDER = ['reflect', 'lightScreen', 'safeguard', 'mist', '__tailwind', 'auroraVeil'];
+function eotSideConditionsFor(s){
+  const st = sides[s];
+  const _tickScreen = function(flag){
+    if (!st.screenTurns || st.screenTurns[flag] == null) return;
+    st.screenTurns[flag]--;
+    if (st.screenTurns[flag] <= 0){
+      delete st.screenTurns[flag];
+      st[flag] = false;
+      log('10', `${st.poke ? pname(st) + ` の場の ` : ``}${_SCREEN_NAME[flag] || flag} の効果が なくなった！`);
+    }
+  };
+  for (const flag of SIDE_CONDITION_EOT_ORDER){
+    if (flag === '__tailwind'){
+      // おいかぜのカウントダウン(4ターンでやむ)
+      if (st.tailwindTurns > 0){
+        st.tailwindTurns--;
+        if (st.tailwindTurns <= 0){ st.tailwindTurns = 0; log('10', `${pname(st)} 側の 追い風が やんだ！`); }
+      }
+      continue;
+    }
+    _tickScreen(flag);
+  }
+  for (const flag of Object.keys(st.screenTurns || {})){
+    if (SIDE_CONDITION_EOT_ORDER.indexOf(flag) !== -1) continue;
+    _tickScreen(flag);
+  }
+}
+
+function eotTauntEndFor(st, s, _slotIdx){
+  if ((st.tauntTurns || 0) > 0){
+    st.tauntTurns--;
+    if (st.tauntTurns <= 0 && st.poke) log('10', `${pname(st)} の ちょうはつの 効果が切れた！`);
+  }
+}
+
+function eotDisableEndFor(st, s, _slotIdx){
+  if (st.disable){
+    st.disable.turns--;
+    if (st.disable.turns <= 0){
+      st.disable = null;
+      if (st.poke) log('10', `${pname(st)} の かなしばりが とけた！`);
+    }
+  }
+}
+
+function eotEncoreEndFor(st, s, _slotIdx){
+  if (st.encore){
+    st.encore.turns--;
+    if (st.encore.turns <= 0){
+      st.encore = null;
+      if (st.poke) log('10', `${pname(st)} の アンコール状態が とけた！`);
+    }
+  }
+}
+
+function eotPerishSongFor(st, s, _slotIdx){
+  // ほろびのうた: カウントが減り0でひんし(Bulbapedia "Perish Song")
+  if (st.perishCount != null && !st.fainted && st.poke){
+    st.perishCount--;
+    if (st.perishCount <= 0){
+      st.currentHp = 0;
+      st.fainted = true;
+      st.perishCount = null;
+      log('10', `${pname(st)} の ほろびのカウントが 0になった！ ${pname(st)} は ひんしになった！`);
+    } else {
+      log('10', `${pname(st)} の ほろびのカウントが ${st.perishCount}になった！`);
+    }
+  }
+}
+
+function eotLockOnEndFor(st, s, _slotIdx){
+  // ロックオン: 次のターンの終わりまで有効(ターン終了ごとに1減る・0で切れる)
+  if (st.lockOn > 0){
+    st.lockOn--;
+    if (st.lockOn <= 0 && st.poke) log('10', `${pname(st)} の ねらいが はずれた！`);
+  }
+}
+
+function eotThroatChopEndFor(st, s, _slotIdx){
+  // じごくづき(カテゴリ封じ): 当たったターンを含め2ターン(ターン終了ごとに1減る・0で解除)
+  if (st.soundBlocked > 0){
+    st.soundBlocked--;
+    if (st.soundBlocked <= 0){
+      st.soundBlockedMoves = null;
+      if (st.poke) log('10', `${pname(st)} は また 音の技が だせるようになった！`);
+    }
+  }
+}
+
+function eotWishFor(st, s, _slotIdx){
+  // ねがいごと: カウントが0になったターンの終わりに、仕込んだ量(使った時の最大HPの半分)回復。
+  // 出典: Bulbapedia "Wish"(1v1=交代なしでは使った本人が受け取る)
+  if (st.wish){
+    st.wish.turns--;
+    if (st.wish.turns <= 0){
+      const _amt = st.wish.amount;
+      st.wish = null;
+      if (st.poke && !st.fainted){
+        const _max = realStat(st, 'hp');
+        if (st.currentHp == null) st.currentHp = _max;
+        if (st.currentHp < _max){
+          const _before = st.currentHp;
+          st.currentHp = Math.min(_max, st.currentHp + _amt);
+          log('10', `${pname(st)} の ねがいごとが かなった！ HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+        }
+      }
+    }
+  }
+}
+
+function eotIngrainFor(st, s, _slotIdx){
+  // ねをはる: ターン終了ごとに最大HPの1/16回復(データのfraction 0.0625=1/16。出典: Bulbapedia "Ingrain")
+  // おおきなねっこ所持で1.3倍(ヤックン明記・2026-07-18)
+  if (st.rooted && st.poke && !st.fainted){
+    const _max = realStat(st, 'hp');
+    if (st.currentHp == null) st.currentHp = _max;
+    if (st.currentHp < _max){
+      const _before = st.currentHp;
+      st.currentHp = Math.min(_max, st.currentHp + bigRootBoost(st, Math.max(1, Math.floor(_max / 16))));
+      log('10', `${pname(st)} は ねをはって HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+    }
+  }
+}
+
+function eotAquaRingFor(st, s, _slotIdx){
+  // アクアリング: ターン終了ごとに最大HPの1/16回復(ポケモンWiki「アクアリング」)
+  // おおきなねっこ所持で1.3倍(ヤックン明記・2026-07-18)
+  if (st.aquaRing && st.poke && !st.fainted){
+    const _max = realStat(st, 'hp');
+    if (st.currentHp == null) st.currentHp = _max;
+    if (st.currentHp < _max){
+      const _before = st.currentHp;
+      st.currentHp = Math.min(_max, st.currentHp + bigRootBoost(st, Math.max(1, Math.floor(_max / 16))));
+      log('10', `${pname(st)} は アクアリングで HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+    }
+  }
+}
+
+function eotHarvestFor(st, s, _slotIdx){
+  // しゅうかく(Harvest・Phase D B1): 自分で消費したきのみ(lastConsumedItem=なげつける/しぜんのめぐみ/
+  // ほおばる/おちゃかい等の自分で食べた分のみ。奪われた/はたき落とされた分はそもそもlastConsumedItemに
+  // 入らないので自然に除外される)を、ターン終了時に一定確率で復活させる。にほんばれの間は必ず復活。
+  // すでに道具を持っていれば発動しない。専用の日本語ログ行は既存i18nパターンに一致するものが無いため
+  // 機構のみの無音実装(報告に明記)。出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Harvest")
+  if (st.poke && !st.fainted && !st.item && st.lastConsumedItem && sideAbility(st) === 'しゅうかく'){
+    const _hvIt = ITEM_BY_KEY[st.lastConsumedItem];
+    if (_hvIt && String(_hvIt.category || '').startsWith('berry')){
+      const _hvChance = env.weather === 'sunny' ? 1 : 0.5;
+      if (Math.random() < _hvChance){
+        st.item = st.lastConsumedItem;
+        st.lastConsumedItem = null;
+      }
+    }
+  }
+}
+
+function eotMagnetRiseEndFor(st, s, _slotIdx){
+  // でんじふゆうのカウントダウン(5ターンで降りる)
+  if (st.magnetRise > 0){
+    st.magnetRise--;
+    if (st.magnetRise <= 0){ st.magnetRise = 0; log('10', `${pname(st)} の 電磁浮遊が 解けた！`); }
+  }
+}
+
+function eotTelekinesisEndFor(st, s, _slotIdx){
+  // テレキネシスのカウントダウン(3ターンで降りる・Phase D B2)。既存の対応する専用ログ文言が無いため、
+  // ここは機構のみ(新規ログ行は追加しない=禁止事項どおり)。
+  if (st.telekinesis > 0){
+    st.telekinesis--;
+    if (st.telekinesis <= 0) st.telekinesis = 0;
+  }
+}
+
+function eotSyrupFor(st, s, _slotIdx){
+  // あめまみれ: 毎ターン終了時にすばやさ-1(3ターンで乾く)
+  if (st.syrupTurns > 0 && st.poke && !st.fainted){
+    st.rank.spd = Math.max(-6, (st.rank.spd || 0) - 1);
+    log('10', `${pname(st)} は あめまみれで すばやさ-1！`);
+    st.syrupTurns--;
+    if (st.syrupTurns <= 0){ st.syrupTurns = 0; log('10', `${pname(st)} の あめが 乾いた！`); }
+  }
+}
+
+function eotHealBlockEndFor(st, s, _slotIdx){
+  // かいふくふうじのカウントダウン
+  if (st.healBlockTurns > 0){
+    st.healBlockTurns--;
+    if (st.healBlockTurns <= 0){ st.healBlockTurns = 0; log('10', `${pname(st)} の 回復封じが 解けた！`); }
+  }
+}
+
+function eotCudChewFor(st, s, _slotIdx){
+  // はんすう(段138): きのみを食べた次のターン終了時に同じきのみをもう一度食べる(道具は復活しない)
+  if (st.poke && !st.fainted && st.cudChew){
+    st.cudChew.n--;
+    if (st.cudChew.n <= 0){
+      const _cc = ITEM_BY_KEY[st.cudChew.key];
+      st.cudChew = null;
+      if (_cc){
+        log('10', `${pname(st)} は はんすうで ${_cc.name}を もう一度 食べた！`);
+        applyBerryEffect(st, _cc);
+      }
+    }
+  }
+}
+
+function eotMoodyFor(st, s, _slotIdx){
+  // ムラっけ(段140・ABILITY_DESC): ターン終了時、1つの能力+2・別の1つ-1(こうげき/ぼうぎょ/とくこう/とくぼう/すばやさ)
+  if (st.poke && !st.fainted && sideAbility(st) === 'ムラっけ'){
+    const _mStats = ['atk','def','spatk','spdef','spd'];
+    const _mJa = {atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
+    const _up = _mStats.filter(k => (st.rank[k] || 0) < 6);
+    const upK = (_up.length ? _up : _mStats)[Math.floor(Math.random() * (_up.length ? _up.length : _mStats.length))];
+    st.rank[upK] = Math.min(6, (st.rank[upK] || 0) + 2);
+    const _dn = _mStats.filter(k => k !== upK && (st.rank[k] || 0) > -6);
+    if (_dn.length){
+      const dnK = _dn[Math.floor(Math.random() * _dn.length)];
+      st.rank[dnK] = Math.max(-6, (st.rank[dnK] || 0) - 1);
+      log('10', `${pname(st)} の ムラっけ！ ${_mJa[upK]}が ぐーんとあがり ${_mJa[dnK]}が さがった！`);
+    } else {
+      log('10', `${pname(st)} の ムラっけ！ ${_mJa[upK]}が ぐーんとあがった！`);
+    }
+  }
+}
+
+function eotSpeedBoostFor(st, s, _slotIdx){
+  // かそく(段137・ABILITY_DESC): 毎ターン終了時すばやさ+1。共有パイプライン(applyRankStageGuarded/
+  // rbFireEvent('stat_stage',...))経由にして、あまのじゃく(反転)/ものまねハーブ(相手側が便乗コピー)等と
+  // 連動させる(2026-07-26修正・出典: ポケモンWiki「あまのじゃく」=自分のランク補正の変動は全て反転対象/
+  // ポケモンWiki「ものまねハーブ」=技だけでなく特性による上昇も実際に上がった分をコピー対象)。
+  // 交代で場に出たターンは発動しない(出典: ポケモンWiki「かそく」/Bulbapedia "Speed Boost")。
+  // switchedThisTurnはターン開始でリセットされるフラグ=「このターン中に交代で出た」を正しく表す
+  // (バトル開始時の最初の1匹はattemptSwitchを経由しないためfalseのまま=1ターン目は通常どおり発動する)。
+  if (st.poke && !st.fainted && sideAbility(st) === 'かそく' && !st.switchedThisTurn){
+    applyRankStageGuarded(st, st, 'spd', 1, '10', (sg, applied) => {
+      if (applied !== 0){
+        log('10', `${pname(st)} の かそく！ すばやさが ${applied > 0 ? 'あがった' : 'さがった'}！`);
+      }
+    });
+  }
+}
+
+function eotDrySkinFor(st, s, _slotIdx){
+  // かんそうはだ(段137・ABILITY_DESC): あめでターン終了時1/8回復・にほんばれで1/8ダメージ
+  if (st.poke && !st.fainted && sideAbility(st) === 'かんそうはだ' && (env.weather === 'rain' || env.weather === 'sunny')){
+    const _dsMax = realStat(st, 'hp');
+    if (st.currentHp == null) st.currentHp = _dsMax;
+    if (env.weather === 'rain' && st.currentHp < _dsMax){
+      st.currentHp = Math.min(_dsMax, st.currentHp + Math.max(1, Math.floor(_dsMax / 8)));
+      log('10', `${pname(st)} は かんそうはだで HPを 回復！ (残HP ${st.currentHp})`);
+    } else if (env.weather === 'sunny'){
+      const _dsDmg = Math.max(1, Math.floor(_dsMax / 8));
+      st.currentHp = Math.max(0, st.currentHp - _dsDmg);
+      log('10', `${pname(st)} は かんそうはだで ${_dsDmg} ダメージ！ (残HP ${st.currentHp})`);
+      if (st.currentHp <= 0){ st.fainted = true; log('10', `${pname(st)} は ひんしになった！`); }
+    }
+  }
+}
+
+function eotSunPowerFor(st, s, _slotIdx){
+  // サンパワー(段132): にほんばれの間、ターン終了時に最大HPの1/8を失う(ABILITY_DESC公式準拠)
+  if (st.poke && !st.fainted && sideAbility(st) === 'サンパワー' && env.weather === 'sunny'){
+    const _spMax = realStat(st, 'hp');
+    if (st.currentHp == null) st.currentHp = _spMax;
+    const _spDmg = Math.max(1, Math.floor(_spMax / 8));
+    st.currentHp = Math.max(0, st.currentHp - _spDmg);
+    log('10', `${pname(st)} は サンパワーで ${_spDmg} ダメージ！ (残HP ${st.currentHp})`);
+    if (st.currentHp <= 0){ st.fainted = true; log('10', `${pname(st)} は ひんしになった！`); }
+  }
+}
+
+function eotIceBodyFor(st, s, _slotIdx){
+  // アイスボディ(段132): ゆきの間、ターン終了時に最大HPの1/16回復(ABILITY_DESC公式準拠)
+  if (st.poke && !st.fainted && sideAbility(st) === 'アイスボディ' && env.weather === 'snow'){
+    const _ibMax = realStat(st, 'hp');
+    if (st.currentHp == null) st.currentHp = _ibMax;
+    if (st.currentHp < _ibMax){
+      const _ibHeal = Math.max(1, Math.floor(_ibMax / 16));
+      st.currentHp = Math.min(_ibMax, st.currentHp + _ibHeal);
+      log('10', `${pname(st)} は アイスボディで HPを 回復！ (残HP ${st.currentHp})`);
+    }
+  }
+}
+
+function eotLeftoversFor(st, s, _slotIdx){
+  // たべのこし(B案: trigger end_of_turn 宣言の持ち物): ターン終了時に最大HPの1/16回復(消費しない)。
+  // 出典: items_database.js 宣言(trigger/heal_fraction)/ポケモンWiki「たべのこし」。マジックルーム中は無効。
+  if (st.poke && !st.fainted && st.item && !env.magicRoom){
+    const _it = ITEM_BY_KEY[st.item];
+    if (_it && _it.trigger === 'end_of_turn' && _it.heal_fraction){
+      const _fr = String(_it.heal_fraction).split('/');
+      const _frac = _fr.length === 2 ? Number(_fr[0]) / Number(_fr[1]) : Number(_it.heal_fraction);
+      const _max = realStat(st, 'hp');
+      if (st.currentHp == null) st.currentHp = _max;
+      if (_frac > 0 && st.currentHp < _max){
+        const _before = st.currentHp;
+        st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max * _frac)));
+        log('10', `${pname(st)} は ${_it.name}で HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
+      }
+    }
+  }
+}
+
+function eotFlameOrbFor(st, s, _slotIdx){
+  // ★かえんだま: ターン終了時に持ち主をやけど状態にする(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「かえんだま」)
+  // やけど免疫: ほのおタイプ / みずびたし等でほのおになっている訳ではない=現タイプで判定
+  // やけど免疫の特性はみずのベールのみ(2026-07-26修正: マグマのよろいは「こおり化無効」、どんかんは
+  // 「メロメロ状態・ちょうはつ化されない/ゆうわく無効」、たいねつは「ほのお技半減・やけどダメージ半減」で
+  // いずれもやけど付与そのものは防がない=誤って免疫扱いにしていた実バグ。出典: ABILITY_DESC原文
+  // [pokechan_data.js/pokechan_data_all.js]+Bulbapedia各該当ページ)
+  if (st.poke && !st.fainted && st.item && !env.magicRoom){
+    const _flameOrb = ITEM_BY_KEY[st.item];
+    if (_flameOrb && _flameOrb.key === 'flame_orb'){
+      const _stTypes = sideTypes(st);
+      if (st.status === 'none' && !_stTypes.includes('ほのお') && sideAbility(st) !== 'みずのベール'){
+        st.status = 'burn';
+        log('10', `${pname(st)} は かえんだまの 効果で やけど状態になった！`);
+      }
+    }
+  }
+}
+
+function eotToxicOrbFor(st, s, _slotIdx){
+  // ★どくどくだま: ターン終了時に持ち主をもうどく状態にする(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「どくどくだま」)
+  // もうどく免疫: どくタイプ / はがねタイプ / めんえき
+  // どんかんは「メロメロ状態・ちょうはつ化されない/ゆうわく無効」でありもうどく付与は防がない(2026-07-26修正・
+  // 誤って免疫扱いにしていた実バグ。出典: ABILITY_DESC原文=「どく、もうどく化されない」を持つのはめんえきのみ)
+  if (st.poke && !st.fainted && st.item && !env.magicRoom){
+    const _toxicOrb = ITEM_BY_KEY[st.item];
+    if (_toxicOrb && _toxicOrb.key === 'toxic_orb'){
+      const _stTypes = sideTypes(st);
+      if (st.status === 'none' && !_stTypes.includes('どく') && !_stTypes.includes('はがね') &&
+          sideAbility(st) !== 'めんえき'){
+        st.status = 'badpoison';
+        st.badPoisonTurns = 1;  // もうどくカウンタ初期化
+        log('10', `${pname(st)} は どくどくだまの 効果で もうどく状態になった！`);
+      }
+    }
+  }
+}
+
+function eotBlackSludgeFor(st, s, _slotIdx){
+  // ★くろいヘドロ: ターン終了時に毒タイプは1/16回復、それ以外は1/8ダメージ(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「くろいヘドロ」)
+  if (st.poke && !st.fainted && st.item && !env.magicRoom){
+    const _blackSludge = ITEM_BY_KEY[st.item];
+    if (_blackSludge && _blackSludge.key === 'black_sludge'){
+      const _bsMax = realStat(st, 'hp');
+      if (st.currentHp == null) st.currentHp = _bsMax;
+      const _bsTypes = sideTypes(st);
+      if (_bsTypes.includes('どく')){
+        // 毒タイプ: 1/16回復
+        if (st.currentHp < _bsMax){
+          const _heal = Math.max(1, Math.floor(_bsMax / 16));
+          st.currentHp = Math.min(_bsMax, st.currentHp + _heal);
+          log('10', `${pname(st)} は くろいヘドロで HPを ${_heal} 回復！ (残HP ${st.currentHp})`);
+        }
+      } else {
+        // 非毒タイプ: 1/8ダメージ
+        const _dmg = Math.max(1, Math.floor(_bsMax / 8));
+        st.currentHp = Math.max(0, st.currentHp - _dmg);
+        log('10', `${pname(st)} は くろいヘドロで ${_dmg} ダメージ！ (残HP ${st.currentHp})`);
+        if (st.currentHp <= 0){ st.fainted = true; log('10', `${pname(st)} は ひんしになった！`); }
+      }
+    }
+  }
+}
+
+function eotFutureSightFor(st, s, _slotIdx){
+  // みらいよち(遅延攻撃): カウントが0になったターンの終わりに相手へ当たる。
+  // 当たる時にダメージ計算(その時点の能力・タイプ相性で計算/まもる・こらえるは当たるターンに有効)。
+  // 出典: Bulbapedia "Future Sight"(第5世代以降)
+  if (st.futureSight){
+    st.futureSight.turns--;
+    if (st.futureSight.turns <= 0){
+      const _fsMove = st.futureSight.move;
+      st.futureSight = null;
+      const _tk = s === 'self' ? 'opp' : 'self';
+      // E1-a3: ダブルでは「予知した時に狙っていた枠」を記録していない(futureSightは{turns,move}だけ)。
+      // 既存コードの「相手側」をこのエンジンの既存の対面規約=正面(同じslotIdx・3087行 かわりものと同じ)
+      // で読む。シングルは枠0しかないので従来の sides[_tk] と同一オブジェクト=不変。
+      // ★ダブルで「左右どちらに落ちるか」の出典は未取得=台帳(設計§11)扱い。正式化は対象選択の記録とセット。
+      const _tgt = slotOf(_tk, _slotIdx);
+      if (st.poke && _tgt.poke && !_tgt.fainted){
+        // E5 中-3: 攻撃側の枠は「予知した枠」(st)。今その枠に別個体が居ることもあるが、
+        // みらいよちの「誰が撃ったか」を記録していない(台帳)ので、既存の近似(同じ枠)をそのまま渡す。
+        if (_tgt.protecting && _fsMove.protect === true && protectBlocks(_tgt.protecting, _fsMove, st)){
+          log('10', `${pname(_tgt)} は ${_tgt.protecting.name} で ${_fsMove.name} を 防いだ！`);
+        } else {
+          const _res = calcDamage(s, _tk, _fsMove, undefined, _slotIdx, _slotIdx);
+          if (_res.immune){
+            log('10', `${pname(_tgt)} は ${_fsMove.name} の こうげきを うけた！ しかし こうかが ないようだ…`);
+          } else {
+            let _v = _res.variations[Math.floor(Math.random() * _res.variations.length)];
+            if (_tgt.enduring && _v >= _tgt.currentHp){ _v = _tgt.currentHp - 1; log('10', `${pname(_tgt)} は こうげきを こらえた！`); }
+            _tgt.currentHp = Math.max(0, _tgt.currentHp - _v);
+            log('10', `${pname(_tgt)} は ${_fsMove.name} の こうげきを うけた！ ${_v} ダメージ！ (残HP ${_tgt.currentHp}/${_res.hp})`);
+            if (_tgt.currentHp <= 0){ _tgt.fainted = true; log('10', `${pname(_tgt)} は ひんしになった！`); }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+// ===========================================================================
+// === 表: Wiki「ターン」5.ターン終了時の処理 の番号 → このエンジンの機構 ===
+// ===========================================================================
+// scope: 'global'=場に1回 / 'side'=側ごと1回(canonSides順) / 'slot'=個体ごと(効果すばやさ順・TRで反転)
+// steps が空 = このエンジンに無い番号(未実装。飛ばす)。
+// ★同じ番号の中で連続する 'slot' の step は「1体ずつまとめて」回す(Wikiの例のとおり)。
+const END_OF_TURN_ORDER = [
+  { no: 1,  label: 'てんきの効果', steps: [
+    { letter: 'a', key: 'weather_end',      scope: 'global', fn: eotWeatherEnd },
+    { letter: '-', key: 'forecast_sync',    scope: 'global', fn: syncForecastBothSides, note: '常時発動の特性(てんきや)=番号の処理より優先' },
+    { letter: 'b', key: 'sandstorm_damage', scope: 'slot',   fn: eotSandstormFor, note: 'あられ/ゆきのダメージは第九世代に無い=すなあらしのみ' },
+    { letter: 'c', key: 'dry_skin',         scope: 'slot',   fn: eotDrySkinFor },
+    { letter: 'c', key: 'sun_power',        scope: 'slot',   fn: eotSunPowerFor },
+    { letter: 'c', key: 'ice_body',         scope: 'slot',   fn: eotIceBodyFor },
+    // c あめうけざら=未実装(持ち物がDB未収録)
+  ]},
+  { no: 2,  label: 'ききかいひ/にげごしによる交代先の選択・繰り出し(1)', steps: [], unimpl: 'ききかいひ/にげごし未実装' },
+  { no: 3,  label: 'なかよし度による状態異常の回復', steps: [], unimpl: 'なかよし度は対戦に無い' },
+  { no: 4,  label: 'みらいよち/はめつのねがい', steps: [
+    { letter: '-', key: 'future_sight', scope: 'slot', fn: eotFutureSightFor, note: 'はめつのねがい=未実装' },
+  ]},
+  { no: 5,  label: 'ねがいごと', steps: [
+    { letter: '-', key: 'wish', scope: 'slot', fn: eotWishFor },
+  ]},
+  { no: 6,  label: 'イベントブロック(その1)', steps: [
+    // a ひのうみ/キョダイ系のダメージ=未実装
+    { letter: 'b', key: 'grassy_terrain_heal', scope: 'slot', fn: eotGrassHealFor },
+    { letter: 'c', key: 'healer',              scope: 'slot', fn: eotHealerFor, note: 'うるおいボディ/だっぴ=未実装' },
+    { letter: 'd', key: 'leftovers',           scope: 'slot', fn: eotLeftoversFor },
+    { letter: 'd', key: 'black_sludge',        scope: 'slot', fn: eotBlackSludgeFor },
+  ]},
+  { no: 7,  label: 'ききかいひ/にげごしによる交代先の選択・繰り出し(2)', steps: [], unimpl: 'ききかいひ/にげごし未実装' },
+  { no: 8,  label: 'アクアリング', steps: [
+    { letter: '-', key: 'aqua_ring', scope: 'slot', fn: eotAquaRingFor },
+  ]},
+  { no: 9,  label: 'ねをはる', steps: [
+    { letter: '-', key: 'ingrain', scope: 'slot', fn: eotIngrainFor },
+  ]},
+  { no: 10, label: 'やどりぎのタネ', steps: [
+    { letter: '-', key: 'leech_seed', scope: 'slot', fn: function(st, s, i){ eotSlipsFor(st, s, i, sl => slipWikiNo(sl.source) === 10); } },
+  ]},
+  { no: 11, label: 'どく/もうどく/ポイズンヒール', steps: [
+    { letter: '-', key: 'status_damage', scope: 'slot', fn: eotStatusDamageFor, note: '(12)やけども同じ関数。st.statusが排他=実行順は観測できない' },
+  ]},
+  { no: 12, label: 'やけど', steps: [], unimpl: '(11)の status_damage に同梱(st.statusが排他)' },
+  { no: 13, label: 'あくむ', steps: [], unimpl: 'あくむ(状態)未実装' },
+  { no: 14, label: 'のろい', steps: [
+    { letter: '-', key: 'curse', scope: 'slot', fn: function(st, s, i){ eotSlipsFor(st, s, i, sl => slipWikiNo(sl.source) === 14); } },
+  ]},
+  { no: 15, label: 'バインド', steps: [
+    { letter: '-', key: 'bind', scope: 'slot', fn: function(st, s, i){ eotSlipsFor(st, s, i, sl => slipWikiNo(sl.source) === 15); } },
+  ]},
+  { no: 16, label: 'たこがため', steps: [], unimpl: 'たこがため未実装' },
+  { no: 17, label: 'しおづけ', steps: [
+    { letter: '-', key: 'salt_cure',   scope: 'slot', fn: function(st, s, i){ eotSlipsFor(st, s, i, sl => slipWikiNo(sl.source) === 17); } },
+    { letter: 'z', key: 'other_slips', scope: 'slot', fn: function(st, s, i){ eotSlipsFor(st, s, i, sl => slipWikiNo(sl.source) == null); },
+      note: '★表に無い source のスリップを落とさないための受け皿(現行データでは該当0件)' },
+  ]},
+  { no: '17+', label: '常時発動する持ち物(きのみ)の反応polling', steps: [
+    { letter: '-', key: 'item_reactions', scope: 'global', fn: eotReactionPolling,
+      note: '★番号ではない=「HPが動く番号が全部終わった直後に1回」の近似(上のコメント参照)' },
+  ]},
+  { no: 18, label: 'ちょうはつの終了', steps: [
+    { letter: '-', key: 'taunt_end', scope: 'slot', fn: eotTauntEndFor },
+  ]},
+  { no: 19, label: 'いちゃもんの終了', steps: [], unimpl: 'いちゃもんは本エンジンでは永続(ターン経過で解除しない)' },
+  { no: 20, label: 'アンコールの終了', steps: [
+    { letter: '-', key: 'encore_end', scope: 'slot', fn: eotEncoreEndFor },
+  ]},
+  { no: 21, label: 'かなしばりの終了', steps: [
+    { letter: '-', key: 'disable_end', scope: 'slot', fn: eotDisableEndFor },
+  ]},
+  { no: 22, label: 'でんじふゆうの終了', steps: [
+    { letter: '-', key: 'magnet_rise_end', scope: 'slot', fn: eotMagnetRiseEndFor },
+  ]},
+  { no: 23, label: 'テレキネシスの終了', steps: [
+    { letter: '-', key: 'telekinesis_end', scope: 'slot', fn: eotTelekinesisEndFor },
+    { letter: 'z', key: 'syrup_bomb',      scope: 'slot', fn: eotSyrupFor,
+      note: '★あめまみれ(みずあめボム)は Wiki「ターン」の表に無い(第九世代の追加)=番号未確定。従来の位置(テレキネシスの後・かいふくふうじの前)を保つ' },
+  ]},
+  { no: 24, label: 'かいふくふうじの終了', steps: [
+    { letter: '-', key: 'heal_block_end', scope: 'slot', fn: eotHealBlockEndFor },
+  ]},
+  { no: 25, label: 'さしおさえの終了', steps: [], unimpl: 'さしおさえ未実装' },
+  { no: 26, label: 'ねむけ', steps: [
+    { letter: '-', key: 'drowsy', scope: 'slot', fn: eotDrowsyFor },
+  ]},
+  { no: 27, label: 'ほろびのうた', steps: [
+    { letter: '-', key: 'perish_song',    scope: 'slot', fn: eotPerishSongFor },
+    { letter: 'z', key: 'lock_on_end',    scope: 'slot', fn: eotLockOnEndFor,
+      note: '★ロックオンは Wiki「ターン」の表に無い=番号未確定。従来の位置(ほろびのうたの後)を保つ' },
+    { letter: 'z', key: 'throat_chop_end', scope: 'slot', fn: eotThroatChopEndFor,
+      note: '★じごくづきも表に無い(第七世代の追加)=番号未確定。従来の位置を保つ' },
+  ]},
+  { no: 28, label: 'はねやすめを使用していたひこうタイプは地面から離れる', steps: [], unimpl: 'はねやすめのタイプ復帰はターン開始でクリア(9181行)' },
+  { no: 29, label: 'ききかいひ/にげごしによる交代先の選択・繰り出し(3)', steps: [], unimpl: 'ききかいひ/にげごし未実装' },
+  { no: 30, label: '片側の場の状態の継続/終了', steps: [
+    { letter: 'a-j', key: 'side_conditions', scope: 'side', fn: eotSideConditionsFor,
+      note: 'a リフレクター/b ひかりのかべ/c しんぴのまもり/d しろいきり/e おいかぜ/j オーロラベール。f〜i(おまじない/にじ/ひのうみ/しつげん)は未実装' },
+  ]},
+  { no: 31, label: '全体の場の状態の継続/終了', steps: [
+    { letter: 'a', key: 'trick_room_end',  scope: 'global', fn: eotTrickRoomEnd },
+    { letter: 'b', key: 'gravity_end',     scope: 'global', fn: eotGravityEnd },
+    // c みずあそび / d どろあそび=未実装
+    { letter: 'e', key: 'wonder_room_end', scope: 'global', fn: eotWonderRoomEnd },
+    { letter: 'f', key: 'magic_room_end',  scope: 'global', fn: eotMagicRoomEnd },
+    { letter: 'g', key: 'terrain_end',     scope: 'global', fn: eotFieldEnd },
+    { letter: 'z', key: 'fairy_lock_end',  scope: 'global', fn: eotFairyLockEnd,
+      note: '★フェアリーロックは Wiki「ターン」の表に無い=番号未確定。従来の位置(場の状態の最後)を保つ' },
+  ]},
+  { no: 32, label: 'イベントブロック(その2)', steps: [
+    // a さわぐ / b ねむりによるあばれるの中断 = 本エンジンは行動時にカウントする(ターン終了では扱わない)
+    { letter: 'c', key: 'cud_chew',    scope: 'slot', fn: eotCudChewFor },
+    { letter: 'c', key: 'moody',       scope: 'slot', fn: eotMoodyFor },
+    { letter: 'c', key: 'speed_boost', scope: 'slot', fn: eotSpeedBoostFor, note: 'スロースタート/ナイトメア=未実装' },
+    { letter: 'd', key: 'flame_orb',   scope: 'slot', fn: eotFlameOrbFor },
+    { letter: 'd', key: 'toxic_orb',   scope: 'slot', fn: eotToxicOrbFor, note: 'くっつきバリ=未実装' },
+    { letter: 'e', key: 'harvest',     scope: 'slot', fn: eotHarvestFor, note: 'ものひろい/たまひろい=未実装' },
+    // f しろいハーブ=道具の反応polling(itemReactions)側で処理=ここには置かない
+  ]},
+  { no: 33, label: 'ききかいひ/にげごしによる交代先の選択・繰り出し(4)', steps: [], unimpl: 'ききかいひ/にげごし未実装' },
+  { no: 34, label: 'ダルマモード等によるフォルムチェンジ', steps: [], unimpl: 'ターン終了のフォルムチェンジ未実装' },
+  { no: 35, label: 'イベントブロック(その3)', steps: [], unimpl: 'はらぺこスイッチ/ターン終了のだっしゅつパック未実装(だっしゅつパックは行動の直後だけ)' },
+  { no: 36, label: 'だっしゅつパックによる交代先の選択・繰り出し', steps: [], unimpl: '同上' },
+  { no: 37, label: '仲間呼び', steps: [], unimpl: '野生戦のみ=対戦に無い' },
+  { no: 38, label: 'ひんしになったポケモンの代わりのポケモンを繰り出す', steps: [], unimpl: '★runTurn に残す(指示書 a「死に出し(最後)の位置は今のまま」)' },
+  { no: 39, label: 'ダイマックスの終了判定', steps: [], unimpl: 'ダイマックス未実装' },
+  { no: 40, label: '2.行動選択に戻る', steps: [], unimpl: '★runTurn の「─── ターン終了 ───」ログ=位置は今のまま' },
+];
+
+// ★ターン終了処理の単一ディスパッチ点(憲法: フェーズ順ディスパッチだけをする)。
+// 「番号 for → その番号の機構を個体ごと(すばやさ順)に」。同じ番号の中で連続する slot の step は
+// 1体ずつまとめて回す(Wikiの例: Aグラス→Aたべのこし→Bグラス→Bたべのこし)。
+function runEndOfTurnPhases(){
+  for (const group of END_OF_TURN_ORDER){
+    const steps = group.steps || [];
+    let i = 0;
+    while (i < steps.length){
+      const step = steps[i];
+      if (!step.fn){ i++; continue; }
+      if (step.scope === 'global'){ step.fn(); i++; continue; }
+      if (step.scope === 'side'){ for (const sd of canonSides()) step.fn(sd); i++; continue; }
+      // scope==='slot': 同じ番号で連続している slot の step をひとまとめにして、個体が外側のループ
+      let j = i;
+      while (j < steps.length && steps[j].scope === 'slot' && steps[j].fn) j++;
+      const run = steps.slice(i, j);
+      forEachSlotEndOfTurnOrder(function(sd, idx){
+        const st = slotOf(sd, idx);
+        for (const s2 of run) s2.fn(st, sd, idx);
+      });
+      i = j;
+    }
+  }
 }
 
 // === 履歴スタック (Undo 用) ===
@@ -7873,7 +8693,7 @@ function runSingleAttack(atkSide, moveIdx){
   // E3(機構1/2): 側のまもり(ワイドガード/ファストガード)も同じ門で見る(runTurn側と同じ・上のコメント参照)。
   const _protBefore = def.protecting || sideProtectMoveOf(defSide);
   const _protPierce = _protBefore && protectPierces(mv, _protBefore);
-  if (_protBefore && shouldRemoveProtection(mv, _protBefore)) clearProtectionFor(defSide, 0, _protBefore);
+  // E6 c: 解除+「守りが やぶられた！」は phaseApplyEffects の 'まもり解除' ハンドラだけが行う(上の門と同じ理由)。
   // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
   if (_protBefore && mv.protect === true && protectBlocks(_protBefore, mv, atk) && !_protPierce){
     // 防がれる前に技の使用そのものを告知する(何を出そうとしたかが心理戦の情報=消してはいけない)。
@@ -9724,9 +10544,25 @@ function runTurn(){
       //   (逆向き=サイドチェンジで protectStreak が戻ることは、この下の「まもる系以外の行動」の
       //    既存の1行でもともと成立している)
       atk.allySwitchStreak = 0;
+      // E6 b(2026-09-12・指示書 spec_e6_end_of_turn_order.md b): ワイドガード/ファストガードは
+      // 「そのターンの最後に使用した場合は失敗する」。
+      //   出典(2026-09-12 に curl で原文取得):
+      //     ポケモンWiki「ワイドガード」技の仕様「そのターンの最後にワイドガードを使用した場合は失敗する。」
+      //     ポケモンWiki「ファストガード」技の仕様「そのターンの最後にファストガードを使用した場合は失敗する。」
+      //     Bulbapedia Wide Guard / Quick Guard ともに "If the user goes last in the turn, the move will fail."
+      //   → 「自分より後に行動する Intent が残っているか」を scheduler に聞く(sched.isLastToAct)。
+      //     行動しない個体(ひんし/交代で退場)の Intent は pending から外れている
+      //     (sched.next() 冒頭の _invalidateAbsent + attemptSwitch からの invalidateActor)=数に入らない。
+      //   ★追加実行(さいはい/おどりこ)は scheduler に載らない別経路=actorId を持たないので判定しない
+      //     (そもそも まもる系は INSTRUCT_NG_KINDS で さいはい の対象外)。
+      //   ★runSingleAttack(単発実行の経路・テスト用)には scheduler が無いので従来どおり判定しない=未確認として残す。
+      const _wgLastToAct = !!(_sideProtKind && !isExtraAct &&
+                              isLastToActThisTurn(sched, _schedAct && _schedAct.actorId));
       const _mult = _sideProtKind ? null : (_protEf ? _protEf.consecutive_success_multiplier : (1 / 3));   // こらえるはfails_if宣言どおり1/3
       const _rate = (_mult != null) ? Math.pow(_mult, atk.protectStreak) : 1;
-      if (Math.random() < _rate){
+      // ★乱数は従来どおり必ず1回引く(E6 b で失敗しても回数・順番を変えない=乱数点は不変)
+      const _protRollOk = Math.random() < _rate;
+      if (_protRollOk && !_wgLastToAct){
         if (_protEf){
           // E5 低-1: by=張った枠(破られた時にその枠の protectStreak だけ戻すため)
           if (_sideProtKind) sides[a.side].sideProtect = {kind: _sideProtKind, move: mv, by: slotIdx};
@@ -9736,8 +10572,13 @@ function runTurn(){
         else { atk.enduring = true; log('0c', `${pname(atk)} は こらえる体勢に入った！`); }
         atk.protectStreak++;
       } else {
+        // カウントは失敗で 0 に戻す。★ターン最後で失敗した時も 0 に戻すのが権威:
+        //   ポケモンWiki「ワイドガード」技の仕様「ターンの最後にワイドガードを使って失敗したとき、
+        //   次に使うこれらの技は失敗しない」= 連続成功カウントが残っていない。
         atk.protectStreak = 0;
-        log('0c', `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
+        // ログ行は既存の2型だけを使う(新設禁止)。ターン最後の失敗は理由なしの既存型(8586行/10561行と同文)。
+        log('0c', _wgLastToAct ? `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！`
+                               : `${pname(atk)} の ${mv.name}！ しかし うまく きまらなかった！(連続使用)`);
       }
       continue;
     }
@@ -9779,7 +10620,7 @@ function runTurn(){
     // E3(機構1/2): 側のまもり(ワイドガード/ファストガード)も同じ門で見る(上のコメント参照)。
     const _protBefore = def.protecting || sideProtectMoveOf(defSideKey);
     const _protPierce = _protBefore && protectPierces(mv, _protBefore);
-    if (_protBefore && shouldRemoveProtection(mv, _protBefore)) clearProtectionFor(defSideKey, defIdx, _protBefore);
+    // E6 c: 解除+「守りが やぶられた！」は phaseApplyEffects の 'まもり解除' ハンドラだけが行う(上の門と同じ理由)。
     // 相手が まもる系で守っている: 防がれる技なら不発(+接触技ならおしおき)。protect:false の技(フェイント等)は素通り。
     if (_protBefore && mv.protect === true && protectBlocks(_protBefore, mv, atk) && !_protPierce){
       // 防がれる前に技の使用そのものを告知する(何を出そうとしたかが心理戦の情報=消してはいけない)。
@@ -9869,461 +10710,12 @@ function runTurn(){
   }
   currentTurnScheduler = null;   // D2-c: ターン終了=invalidateActor用の参照を外す
   // ターン終了処理
-  // E2 機構7: いやしのこころ(味方の状態異常を50%で治す)は★スリップの前★の独立した段
-  // (Wiki「どく/もうどく/やけど…のダメージ判定より前」=治ったターンはダメージを受けない)。
-  phaseEndOfTurnAllyHeal();
-  phaseEndOfTurnSlip();
-  // 遅延状態(あくび等)のカウントダウン→発動(ねむりターンのロールがあるので正準順=オンラインの状態一致)
-  // E1-a4(指示書 a.4): あくび等の遅延状態異常は★個体★の予約=全枠へ。ねむりターンのロールがあるので
-  // 順序は正準順(canonSlots=canonSidesの先→後 × 枠0→1)のまま=オンラインの状態一致。
-  // ★シングルは canonSlots() が canonSides() と同値(枠1つ)=乱数消費の順番も回数も不変。
-  // E5 中-7(2026-09-12・指示書 spec_e5_review_fixes.md 高-2 末尾): あくび等の遅延状態異常も
-  // 「ターン終了時の処理」なので、他のターン終了の段と同じ順序関数(効果すばやさ降順・トリックルームで
-  // 反転・同速は canonSlots)に揃える。canonSlots 決め打ちは決定的ではあったが順序が権威と違った。
-  forEachSlotEndOfTurnOrder((s, _slotIdx) => {
-    const st = slotOf(s, _slotIdx);
-    if (st.pendingStatus){
-      if (st.pendingStatus.turns > 0) st.pendingStatus.turns--;
-      else {
-        // さわぐ最中はねむけ(あくび)からも眠らない(発動だけ不発・Bulbapedia "Uproar")
-        if (st.pendingStatus.code === 'sleep' && uproarActive()){
-          log('10', `さわがしくて ${pname(st)} は ねむれない！`);
-        } else if ((({sleep:['ふみん','やるき'], paralysis:['じゅうなん'], poison:['めんえき'], badpoison:['めんえき'], freeze:['マグマのよろい']})[st.pendingStatus.code] || []).includes(sideAbility(st))){
-          // あくび等の遅延発動も特性で無効(段109・ABILITY_DESC公式準拠)
-          log('10', `${pname(st)} は 特性で ${st.pendingStatus.label}に ならない！`);
-        } else if (st.status === 'none'){ st.status = st.pendingStatus.code; if (st.pendingStatus.code === 'sleep') st.sleepTurns = rollSleepTurns(); log('10', `${pname(st)} は ${st.pendingStatus.label} 状態になった！`); }
-        st.pendingStatus = null;
-      }
-    }
-  });
-  // 技で変えた天気のカウントダウン(5ターン目の終わりに元に戻る。UI手動設定=null は無期限)
-  if (env.weatherTurns != null && env.weather !== 'none'){
-    env.weatherTurns--;
-    if (env.weatherTurns <= 0){
-      env.weather = 'none'; env.weatherTurns = null;
-      log('10', '天気が 元に戻った！');
-    }
-  }
-  // てんきや(Forecast・Phase D B1): 天候が変わったかどうかに関わらず毎ターン終了時に同期しておく
-  // (特性がガストロアシッド等から復帰した直後の取りこぼしも、この定期同期で自然に拾える)
-  syncForecastBothSides();
-  // グラスフィールドの毎ターン回復(データ宣言: 回復 phase=turn_end)— 地面にいるポケモンだけ
-  const _fHeal = fieldRules().find(r => r.kind === '回復' && r.phase === 'turn_end');
-  if (_fHeal && _fHeal.fraction != null){
-    // E1-a4: グラスフィールドの毎ターン回復は★個体★(接地している個体だけ)=全枠へ。
-    // 順序は E5 高-2 で forEachSlotItemOrder(素の実数値順・シングルは側の固定順)から
-    // ★forEachSlotEndOfTurnOrder(効果すばやさ降順・トリックルームで反転)★へ直した。
-    forEachSlotEndOfTurnOrder((s, _slotIdx) => {
-      const st = slotOf(s, _slotIdx);
-      if (!st.poke || st.fainted || !isGrounded(st)) return;
-      const max = realStat(st, 'hp');
-      if (st.currentHp == null || st.currentHp >= max) return;
-      const heal = Math.max(1, Math.floor(max * _fHeal.fraction));
-      st.currentHp = Math.min(max, st.currentHp + heal);
-      log('10', `${pname(st)} は フィールドで HPを ${heal} 回復！ (残HP ${st.currentHp})`);
-    });
-  }
-  // 技で展開したフィールドのカウントダウン(5ターン目の終わりに元に戻る。UI手動設定=null は無期限)
-  if (env.fieldTurns != null && env.field !== 'none'){
-    env.fieldTurns--;
-    if (env.fieldTurns <= 0){
-      env.field = 'none'; env.fieldTurns = null;
-      log('10', 'フィールドが 元に戻った！');
-    }
-  }
-  // 技で展開したトリックルームのカウントダウン(5ターン目の終わりに元に戻る。UI手動チェック=null は無期限)
-  if (env.trickRoomTurns != null && env.trickRoom){
-    env.trickRoomTurns--;
-    if (env.trickRoomTurns <= 0){
-      env.trickRoom = false; env.trickRoomTurns = null;
-      log('10', 'ねじれた時空が 元に戻った！');
-    }
-  }
-  // じゅうりょくのカウントダウン(5ターン目の終わりに元に戻る)
-  if (env.gravityTurns != null && env.gravity){
-    env.gravityTurns--;
-    if (env.gravityTurns <= 0){
-      env.gravity = false; env.gravityTurns = null;
-      log('10', 'じゅうりょくが もとに もどった！');
-    }
-  }
-  // 部屋系(ワンダールーム/マジックルーム)のカウントダウン(5ターン目の終わりに元に戻る)
-  if (env.wonderRoomTurns != null && env.wonderRoom){
-    env.wonderRoomTurns--;
-    if (env.wonderRoomTurns <= 0){
-      env.wonderRoom = false; env.wonderRoomTurns = null;
-      log('10', 'ぼうぎょと とくぼうが 元に戻った！');
-    }
-  }
-  if (env.magicRoomTurns != null && env.magicRoom){
-    env.magicRoomTurns--;
-    if (env.magicRoomTurns <= 0){
-      env.magicRoom = false; env.magicRoomTurns = null;
-      log('10', 'マジックルームの 効果が なくなった！');
-    }
-  }
-  // フェアリーロックのカウントダウン(次のターンの終わりに解除)
-  if (env.fairyLockTurns != null && env.fairyLockTurns > 0){
-    env.fairyLockTurns--;
-    if (env.fairyLockTurns <= 0){
-      env.fairyLockTurns = null;
-      log('10', 'フェアリーロックが 解けた！');
-    }
-  }
-  itemReactions();   // B案: ターン終了処理(スリップ等)の後にも道具の発動チェック
-  resolveAllyFaintAbility();   // E2 機構8: 味方のひんしに反応する段(かがくのちから/レシーバー)。既存の反応polling(itemReactions)と同じ反応点。
-  resolveSymbiosis();          // E2 機構9: 味方の道具消費に反応する段(きょうせい)。同じ反応点(道具の反応=itemReactionsの直後)。
-  // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
-  // E1-b(2026-09-11・指示書 spec_e1_engine_slots.md b / 設計_ダブルバトル_2026-09-07.md§3「Side.sideConditions」):
-  // 壁は★側の欄★=側ごとに1回だけ減らす(枠で回すと2枠ぶん二重減算になる)。sides[s] は枠0と同一オブジェクト
-  // なので、枠1のアクセサ(下の syncSlotsToFormat)から読んでも同じ残りターンが見える。
-  // E5 低-4(2026-09-12・指示書 spec_e5_review_fixes.md 低-4): 側の欄のカウントダウン/解除を回す順は
-  // canonSides()(=オンラインではホスト側が先)。activeSides() の 'self' 決め打ちだと、鏡写しの
-  // 2クライアントで「どちらの側の解除ログが先か」が逆になる(ログ順の desync)。
-  // 出典: ポケモンWiki「ターン」5.ターン終了時の処理「片側の場の状態の継続/終了: ホスト側の状態が
-  //   先にすべて解除された後に、ホストでない側の状態が解除される。コートチェンジされていても
-  //   関係なくホスト側から消える。」/ 同 1.ポケモンを繰り出す「例えば両者のリフレクターが同じターンに
-  //   消える場合、使用された順番に関係なくホスト側から先にリフレクターが消えたことがメッセージで
-  //   流れる」(2026-09-12 に原文を取得して確認)。__rbCanonFirst がホスト側を指す。
-  // ★オフライン(window.__rbCanonFirst 未設定)では canonSides()===['self','opp'] = 1bitも変わらない。
-  for (const s of canonSides()){
-    const st = sides[s];
-    if (!st.screenTurns) continue;
-    for (const flag of Object.keys(st.screenTurns)){
-      st.screenTurns[flag]--;
-      if (st.screenTurns[flag] <= 0){
-        delete st.screenTurns[flag];
-        st[flag] = false;
-        log('10', `${st.poke ? pname(st) + ` の場の ` : ``}${_SCREEN_NAME[flag] || flag} の効果が なくなった！`);
-      }
-    }
-  }
-  // ちょうはつ/かなしばり/アンコールのカウントダウン(使われたターンを含めて持続ターンで切れる)
-  // E1-a3(2026-09-11・指示書 spec_e1_engine_slots.md a.3): このループの中身は全部★個体単位★
-  // (ちょうはつ/かなしばり/アンコール/ほろびのうた/ロックオン/じごくづき/ねがいごと/ねをはる/アクアリング/
-  //  しゅうかく/でんじふゆう/テレキネシス/あめまみれ/かいふくふうじ/はんすう/ムラっけ/かそく/かんそうはだ/
-  //  サンパワー/アイスボディ/たべのこし/かえんだま/どくどくだま/くろいヘドロ/みらいよち)=全枠へ。
-  // ★側の欄だった「おいかぜ(tailwindTurns)」だけはこのループから出して、下の側ループで1回だけ減らす
-  // (枠で回すと2枠ぶん二重減算になる=壁のカウントダウンと同じ理由)。
-  // 順序は E5 高-2 で forEachSlotItemOrder(素の実数値順・シングルは側の固定順)から
-  // ★forEachSlotEndOfTurnOrder(効果すばやさ降順・トリックルームで反転)★へ直した。
-  forEachSlotEndOfTurnOrder((s, _slotIdx) => {
-    const st = slotOf(s, _slotIdx);
-    if ((st.tauntTurns || 0) > 0){
-      st.tauntTurns--;
-      if (st.tauntTurns <= 0 && st.poke) log('10', `${pname(st)} の ちょうはつの 効果が切れた！`);
-    }
-    if (st.disable){
-      st.disable.turns--;
-      if (st.disable.turns <= 0){
-        st.disable = null;
-        if (st.poke) log('10', `${pname(st)} の かなしばりが とけた！`);
-      }
-    }
-    if (st.encore){
-      st.encore.turns--;
-      if (st.encore.turns <= 0){
-        st.encore = null;
-        if (st.poke) log('10', `${pname(st)} の アンコール状態が とけた！`);
-      }
-    }
-    // ほろびのうた: カウントが減り0でひんし(Bulbapedia "Perish Song")
-    if (st.perishCount != null && !st.fainted && st.poke){
-      st.perishCount--;
-      if (st.perishCount <= 0){
-        st.currentHp = 0;
-        st.fainted = true;
-        st.perishCount = null;
-        log('10', `${pname(st)} の ほろびのカウントが 0になった！ ${pname(st)} は ひんしになった！`);
-      } else {
-        log('10', `${pname(st)} の ほろびのカウントが ${st.perishCount}になった！`);
-      }
-    }
-    // ロックオン: 次のターンの終わりまで有効(ターン終了ごとに1減る・0で切れる)
-    if (st.lockOn > 0){
-      st.lockOn--;
-      if (st.lockOn <= 0 && st.poke) log('10', `${pname(st)} の ねらいが はずれた！`);
-    }
-    // じごくづき(カテゴリ封じ): 当たったターンを含め2ターン(ターン終了ごとに1減る・0で解除)
-    if (st.soundBlocked > 0){
-      st.soundBlocked--;
-      if (st.soundBlocked <= 0){
-        st.soundBlockedMoves = null;
-        if (st.poke) log('10', `${pname(st)} は また 音の技が だせるようになった！`);
-      }
-    }
-    // ねがいごと: カウントが0になったターンの終わりに、仕込んだ量(使った時の最大HPの半分)回復。
-    // 出典: Bulbapedia "Wish"(1v1=交代なしでは使った本人が受け取る)
-    if (st.wish){
-      st.wish.turns--;
-      if (st.wish.turns <= 0){
-        const _amt = st.wish.amount;
-        st.wish = null;
-        if (st.poke && !st.fainted){
-          const _max = realStat(st, 'hp');
-          if (st.currentHp == null) st.currentHp = _max;
-          if (st.currentHp < _max){
-            const _before = st.currentHp;
-            st.currentHp = Math.min(_max, st.currentHp + _amt);
-            log('10', `${pname(st)} の ねがいごとが かなった！ HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
-          }
-        }
-      }
-    }
-    // ねをはる: ターン終了ごとに最大HPの1/16回復(データのfraction 0.0625=1/16。出典: Bulbapedia "Ingrain")
-    // おおきなねっこ所持で1.3倍(ヤックン明記・2026-07-18)
-    if (st.rooted && st.poke && !st.fainted){
-      const _max = realStat(st, 'hp');
-      if (st.currentHp == null) st.currentHp = _max;
-      if (st.currentHp < _max){
-        const _before = st.currentHp;
-        st.currentHp = Math.min(_max, st.currentHp + bigRootBoost(st, Math.max(1, Math.floor(_max / 16))));
-        log('10', `${pname(st)} は ねをはって HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
-      }
-    }
-    // アクアリング: ターン終了ごとに最大HPの1/16回復(ポケモンWiki「アクアリング」)
-    // おおきなねっこ所持で1.3倍(ヤックン明記・2026-07-18)
-    if (st.aquaRing && st.poke && !st.fainted){
-      const _max = realStat(st, 'hp');
-      if (st.currentHp == null) st.currentHp = _max;
-      if (st.currentHp < _max){
-        const _before = st.currentHp;
-        st.currentHp = Math.min(_max, st.currentHp + bigRootBoost(st, Math.max(1, Math.floor(_max / 16))));
-        log('10', `${pname(st)} は アクアリングで HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
-      }
-    }
-    // しゅうかく(Harvest・Phase D B1): 自分で消費したきのみ(lastConsumedItem=なげつける/しぜんのめぐみ/
-    // ほおばる/おちゃかい等の自分で食べた分のみ。奪われた/はたき落とされた分はそもそもlastConsumedItemに
-    // 入らないので自然に除外される)を、ターン終了時に一定確率で復活させる。にほんばれの間は必ず復活。
-    // すでに道具を持っていれば発動しない。専用の日本語ログ行は既存i18nパターンに一致するものが無いため
-    // 機構のみの無音実装(報告に明記)。出典: reference/_phaseD_specs_abilities2.json(Bulbapedia "Harvest")
-    if (st.poke && !st.fainted && !st.item && st.lastConsumedItem && sideAbility(st) === 'しゅうかく'){
-      const _hvIt = ITEM_BY_KEY[st.lastConsumedItem];
-      if (_hvIt && String(_hvIt.category || '').startsWith('berry')){
-        const _hvChance = env.weather === 'sunny' ? 1 : 0.5;
-        if (Math.random() < _hvChance){
-          st.item = st.lastConsumedItem;
-          st.lastConsumedItem = null;
-        }
-      }
-    }
-    // でんじふゆうのカウントダウン(5ターンで降りる)
-    if (st.magnetRise > 0){
-      st.magnetRise--;
-      if (st.magnetRise <= 0){ st.magnetRise = 0; log('10', `${pname(st)} の 電磁浮遊が 解けた！`); }
-    }
-    // テレキネシスのカウントダウン(3ターンで降りる・Phase D B2)。既存の対応する専用ログ文言が無いため、
-    // ここは機構のみ(新規ログ行は追加しない=禁止事項どおり)。
-    if (st.telekinesis > 0){
-      st.telekinesis--;
-      if (st.telekinesis <= 0) st.telekinesis = 0;
-    }
-    // あめまみれ: 毎ターン終了時にすばやさ-1(3ターンで乾く)
-    if (st.syrupTurns > 0 && st.poke && !st.fainted){
-      st.rank.spd = Math.max(-6, (st.rank.spd || 0) - 1);
-      log('10', `${pname(st)} は あめまみれで すばやさ-1！`);
-      st.syrupTurns--;
-      if (st.syrupTurns <= 0){ st.syrupTurns = 0; log('10', `${pname(st)} の あめが 乾いた！`); }
-    }
-    // かいふくふうじのカウントダウン
-    if (st.healBlockTurns > 0){
-      st.healBlockTurns--;
-      if (st.healBlockTurns <= 0){ st.healBlockTurns = 0; log('10', `${pname(st)} の 回復封じが 解けた！`); }
-    }
-    // (おいかぜ=側の欄のカウントダウンは E1-b でこのループの外=側ループへ移した)
-    // はんすう(段138): きのみを食べた次のターン終了時に同じきのみをもう一度食べる(道具は復活しない)
-    if (st.poke && !st.fainted && st.cudChew){
-      st.cudChew.n--;
-      if (st.cudChew.n <= 0){
-        const _cc = ITEM_BY_KEY[st.cudChew.key];
-        st.cudChew = null;
-        if (_cc){
-          log('10', `${pname(st)} は はんすうで ${_cc.name}を もう一度 食べた！`);
-          applyBerryEffect(st, _cc);
-        }
-      }
-    }
-    // ムラっけ(段140・ABILITY_DESC): ターン終了時、1つの能力+2・別の1つ-1(こうげき/ぼうぎょ/とくこう/とくぼう/すばやさ)
-    if (st.poke && !st.fainted && sideAbility(st) === 'ムラっけ'){
-      const _mStats = ['atk','def','spatk','spdef','spd'];
-      const _mJa = {atk:'こうげき',def:'ぼうぎょ',spatk:'とくこう',spdef:'とくぼう',spd:'すばやさ'};
-      const _up = _mStats.filter(k => (st.rank[k] || 0) < 6);
-      const upK = (_up.length ? _up : _mStats)[Math.floor(Math.random() * (_up.length ? _up.length : _mStats.length))];
-      st.rank[upK] = Math.min(6, (st.rank[upK] || 0) + 2);
-      const _dn = _mStats.filter(k => k !== upK && (st.rank[k] || 0) > -6);
-      if (_dn.length){
-        const dnK = _dn[Math.floor(Math.random() * _dn.length)];
-        st.rank[dnK] = Math.max(-6, (st.rank[dnK] || 0) - 1);
-        log('10', `${pname(st)} の ムラっけ！ ${_mJa[upK]}が ぐーんとあがり ${_mJa[dnK]}が さがった！`);
-      } else {
-        log('10', `${pname(st)} の ムラっけ！ ${_mJa[upK]}が ぐーんとあがった！`);
-      }
-    }
-    // かそく(段137・ABILITY_DESC): 毎ターン終了時すばやさ+1。共有パイプライン(applyRankStageGuarded/
-    // rbFireEvent('stat_stage',...))経由にして、あまのじゃく(反転)/ものまねハーブ(相手側が便乗コピー)等と
-    // 連動させる(2026-07-26修正・出典: ポケモンWiki「あまのじゃく」=自分のランク補正の変動は全て反転対象/
-    // ポケモンWiki「ものまねハーブ」=技だけでなく特性による上昇も実際に上がった分をコピー対象)。
-    // 交代で場に出たターンは発動しない(出典: ポケモンWiki「かそく」/Bulbapedia "Speed Boost")。
-    // switchedThisTurnはターン開始でリセットされるフラグ=「このターン中に交代で出た」を正しく表す
-    // (バトル開始時の最初の1匹はattemptSwitchを経由しないためfalseのまま=1ターン目は通常どおり発動する)。
-    if (st.poke && !st.fainted && sideAbility(st) === 'かそく' && !st.switchedThisTurn){
-      applyRankStageGuarded(st, st, 'spd', 1, '10', (sg, applied) => {
-        if (applied !== 0){
-          log('10', `${pname(st)} の かそく！ すばやさが ${applied > 0 ? 'あがった' : 'さがった'}！`);
-        }
-      });
-    }
-    // かんそうはだ(段137・ABILITY_DESC): あめでターン終了時1/8回復・にほんばれで1/8ダメージ
-    if (st.poke && !st.fainted && sideAbility(st) === 'かんそうはだ' && (env.weather === 'rain' || env.weather === 'sunny')){
-      const _dsMax = realStat(st, 'hp');
-      if (st.currentHp == null) st.currentHp = _dsMax;
-      if (env.weather === 'rain' && st.currentHp < _dsMax){
-        st.currentHp = Math.min(_dsMax, st.currentHp + Math.max(1, Math.floor(_dsMax / 8)));
-        log('10', `${pname(st)} は かんそうはだで HPを 回復！ (残HP ${st.currentHp})`);
-      } else if (env.weather === 'sunny'){
-        const _dsDmg = Math.max(1, Math.floor(_dsMax / 8));
-        st.currentHp = Math.max(0, st.currentHp - _dsDmg);
-        log('10', `${pname(st)} は かんそうはだで ${_dsDmg} ダメージ！ (残HP ${st.currentHp})`);
-        if (st.currentHp <= 0){ st.fainted = true; log('10', `${pname(st)} は ひんしになった！`); }
-      }
-    }
-    // サンパワー(段132): にほんばれの間、ターン終了時に最大HPの1/8を失う(ABILITY_DESC公式準拠)
-    if (st.poke && !st.fainted && sideAbility(st) === 'サンパワー' && env.weather === 'sunny'){
-      const _spMax = realStat(st, 'hp');
-      if (st.currentHp == null) st.currentHp = _spMax;
-      const _spDmg = Math.max(1, Math.floor(_spMax / 8));
-      st.currentHp = Math.max(0, st.currentHp - _spDmg);
-      log('10', `${pname(st)} は サンパワーで ${_spDmg} ダメージ！ (残HP ${st.currentHp})`);
-      if (st.currentHp <= 0){ st.fainted = true; log('10', `${pname(st)} は ひんしになった！`); }
-    }
-    // アイスボディ(段132): ゆきの間、ターン終了時に最大HPの1/16回復(ABILITY_DESC公式準拠)
-    if (st.poke && !st.fainted && sideAbility(st) === 'アイスボディ' && env.weather === 'snow'){
-      const _ibMax = realStat(st, 'hp');
-      if (st.currentHp == null) st.currentHp = _ibMax;
-      if (st.currentHp < _ibMax){
-        const _ibHeal = Math.max(1, Math.floor(_ibMax / 16));
-        st.currentHp = Math.min(_ibMax, st.currentHp + _ibHeal);
-        log('10', `${pname(st)} は アイスボディで HPを 回復！ (残HP ${st.currentHp})`);
-      }
-    }
-    // たべのこし(B案: trigger end_of_turn 宣言の持ち物): ターン終了時に最大HPの1/16回復(消費しない)。
-    // 出典: items_database.js 宣言(trigger/heal_fraction)/ポケモンWiki「たべのこし」。マジックルーム中は無効。
-    if (st.poke && !st.fainted && st.item && !env.magicRoom){
-      const _it = ITEM_BY_KEY[st.item];
-      if (_it && _it.trigger === 'end_of_turn' && _it.heal_fraction){
-        const _fr = String(_it.heal_fraction).split('/');
-        const _frac = _fr.length === 2 ? Number(_fr[0]) / Number(_fr[1]) : Number(_it.heal_fraction);
-        const _max = realStat(st, 'hp');
-        if (st.currentHp == null) st.currentHp = _max;
-        if (_frac > 0 && st.currentHp < _max){
-          const _before = st.currentHp;
-          st.currentHp = Math.min(_max, st.currentHp + Math.max(1, Math.floor(_max * _frac)));
-          log('10', `${pname(st)} は ${_it.name}で HPを ${st.currentHp - _before} 回復！ (残HP ${st.currentHp})`);
-        }
-      }
-    }
-    // ★かえんだま: ターン終了時に持ち主をやけど状態にする(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「かえんだま」)
-    // やけど免疫: ほのおタイプ / みずびたし等でほのおになっている訳ではない=現タイプで判定
-    // やけど免疫の特性はみずのベールのみ(2026-07-26修正: マグマのよろいは「こおり化無効」、どんかんは
-    // 「メロメロ状態・ちょうはつ化されない/ゆうわく無効」、たいねつは「ほのお技半減・やけどダメージ半減」で
-    // いずれもやけど付与そのものは防がない=誤って免疫扱いにしていた実バグ。出典: ABILITY_DESC原文
-    // [pokechan_data.js/pokechan_data_all.js]+Bulbapedia各該当ページ)
-    if (st.poke && !st.fainted && st.item && !env.magicRoom){
-      const _flameOrb = ITEM_BY_KEY[st.item];
-      if (_flameOrb && _flameOrb.key === 'flame_orb'){
-        const _stTypes = sideTypes(st);
-        if (st.status === 'none' && !_stTypes.includes('ほのお') && sideAbility(st) !== 'みずのベール'){
-          st.status = 'burn';
-          log('10', `${pname(st)} は かえんだまの 効果で やけど状態になった！`);
-        }
-      }
-    }
-    // ★どくどくだま: ターン終了時に持ち主をもうどく状態にする(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「どくどくだま」)
-    // もうどく免疫: どくタイプ / はがねタイプ / めんえき
-    // どんかんは「メロメロ状態・ちょうはつ化されない/ゆうわく無効」でありもうどく付与は防がない(2026-07-26修正・
-    // 誤って免疫扱いにしていた実バグ。出典: ABILITY_DESC原文=「どく、もうどく化されない」を持つのはめんえきのみ)
-    if (st.poke && !st.fainted && st.item && !env.magicRoom){
-      const _toxicOrb = ITEM_BY_KEY[st.item];
-      if (_toxicOrb && _toxicOrb.key === 'toxic_orb'){
-        const _stTypes = sideTypes(st);
-        if (st.status === 'none' && !_stTypes.includes('どく') && !_stTypes.includes('はがね') &&
-            sideAbility(st) !== 'めんえき'){
-          st.status = 'badpoison';
-          st.badPoisonTurns = 1;  // もうどくカウンタ初期化
-          log('10', `${pname(st)} は どくどくだまの 効果で もうどく状態になった！`);
-        }
-      }
-    }
-    // ★くろいヘドロ: ターン終了時に毒タイプは1/16回復、それ以外は1/8ダメージ(マジックルーム中は無効。items_database宣言。出典: ポケモンWiki「くろいヘドロ」)
-    if (st.poke && !st.fainted && st.item && !env.magicRoom){
-      const _blackSludge = ITEM_BY_KEY[st.item];
-      if (_blackSludge && _blackSludge.key === 'black_sludge'){
-        const _bsMax = realStat(st, 'hp');
-        if (st.currentHp == null) st.currentHp = _bsMax;
-        const _bsTypes = sideTypes(st);
-        if (_bsTypes.includes('どく')){
-          // 毒タイプ: 1/16回復
-          if (st.currentHp < _bsMax){
-            const _heal = Math.max(1, Math.floor(_bsMax / 16));
-            st.currentHp = Math.min(_bsMax, st.currentHp + _heal);
-            log('10', `${pname(st)} は くろいヘドロで HPを ${_heal} 回復！ (残HP ${st.currentHp})`);
-          }
-        } else {
-          // 非毒タイプ: 1/8ダメージ
-          const _dmg = Math.max(1, Math.floor(_bsMax / 8));
-          st.currentHp = Math.max(0, st.currentHp - _dmg);
-          log('10', `${pname(st)} は くろいヘドロで ${_dmg} ダメージ！ (残HP ${st.currentHp})`);
-          if (st.currentHp <= 0){ st.fainted = true; log('10', `${pname(st)} は ひんしになった！`); }
-        }
-      }
-    }
-    // みらいよち(遅延攻撃): カウントが0になったターンの終わりに相手へ当たる。
-    // 当たる時にダメージ計算(その時点の能力・タイプ相性で計算/まもる・こらえるは当たるターンに有効)。
-    // 出典: Bulbapedia "Future Sight"(第5世代以降)
-    if (st.futureSight){
-      st.futureSight.turns--;
-      if (st.futureSight.turns <= 0){
-        const _fsMove = st.futureSight.move;
-        st.futureSight = null;
-        const _tk = s === 'self' ? 'opp' : 'self';
-        // E1-a3: ダブルでは「予知した時に狙っていた枠」を記録していない(futureSightは{turns,move}だけ)。
-        // 既存コードの「相手側」をこのエンジンの既存の対面規約=正面(同じslotIdx・3087行 かわりものと同じ)
-        // で読む。シングルは枠0しかないので従来の sides[_tk] と同一オブジェクト=不変。
-        // ★ダブルで「左右どちらに落ちるか」の出典は未取得=台帳(設計§11)扱い。正式化は対象選択の記録とセット。
-        const _tgt = slotOf(_tk, _slotIdx);
-        if (st.poke && _tgt.poke && !_tgt.fainted){
-          // E5 中-3: 攻撃側の枠は「予知した枠」(st)。今その枠に別個体が居ることもあるが、
-          // みらいよちの「誰が撃ったか」を記録していない(台帳)ので、既存の近似(同じ枠)をそのまま渡す。
-          if (_tgt.protecting && _fsMove.protect === true && protectBlocks(_tgt.protecting, _fsMove, st)){
-            log('10', `${pname(_tgt)} は ${_tgt.protecting.name} で ${_fsMove.name} を 防いだ！`);
-          } else {
-            const _res = calcDamage(s, _tk, _fsMove, undefined, _slotIdx, _slotIdx);
-            if (_res.immune){
-              log('10', `${pname(_tgt)} は ${_fsMove.name} の こうげきを うけた！ しかし こうかが ないようだ…`);
-            } else {
-              let _v = _res.variations[Math.floor(Math.random() * _res.variations.length)];
-              if (_tgt.enduring && _v >= _tgt.currentHp){ _v = _tgt.currentHp - 1; log('10', `${pname(_tgt)} は こうげきを こらえた！`); }
-              _tgt.currentHp = Math.max(0, _tgt.currentHp - _v);
-              log('10', `${pname(_tgt)} は ${_fsMove.name} の こうげきを うけた！ ${_v} ダメージ！ (残HP ${_tgt.currentHp}/${_res.hp})`);
-              if (_tgt.currentHp <= 0){ _tgt.fainted = true; log('10', `${pname(_tgt)} は ひんしになった！`); }
-            }
-          }
-        }
-      }
-    }
-  });
-  // E1-b(指示書 b・設計§3「Side.sideConditions」): 側の欄のカウントダウンは側ごとに1回。
-  // おいかぜは sides[s](=枠0と同一オブジェクト)に1本化されているので、ここで1回減らせば
-  // 枠1のアクセサからも同じ残りターンが見える(枠で回すと二重減算)。ログ文言は既存のまま。
-  // E5 低-4: おいかぜも「側の欄」のカウントダウン=同じ canonSides() 順に揃える(上のコメント参照)。
-  for (const s of canonSides()){
-    const st = sides[s];
-    // おいかぜのカウントダウン(4ターンでやむ)
-    if (st.tailwindTurns > 0){
-      st.tailwindTurns--;
-      if (st.tailwindTurns <= 0){ st.tailwindTurns = 0; log('10', `${pname(st)} 側の 追い風が やんだ！`); }
-    }
-  }
+  // E6 a(2026-09-12・指示書 spec_e6_end_of_turn_order.md a): ここに並んでいた機構ごとのブロックは
+  // ★番号ごとの表 END_OF_TURN_ORDER + 単一ディスパッチ runEndOfTurnPhases()★ に移した
+  // (ポケモンWiki「ターン」5.ターン終了時の処理の番号順・同じ番号の中は個体のすばやさ順)。
+  // 順序を知っているのは表だけ=ここは「ターン終了の段を回す」と言うだけにする(憲法: 単一ディスパッチ点)。
+  // ★死に出し(Wiki 38)とターン終了ログ(Wiki 40)は指示書どおりここに残す(位置は今のまま)。
+  runEndOfTurnPhases();
   // 場に出てからのターン数を進める(ねこだまし等の最初のターン限定判定用)
   // D6-2 レビュー(2026-09-11): 枠0だけ進めていた=ダブルの枠1は turnsOut が 0 のままで ねこだまし が毎ターン撃てた → 全枠(シングル=枠0のみ=不変)
   activeSlots().forEach(sl => { sl.st.turnsOut = (sl.st.turnsOut || 0) + 1; });

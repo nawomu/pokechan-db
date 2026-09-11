@@ -192,7 +192,14 @@ test('C5: ファストガードを3ターン連続で使っても自分は失敗
   const E = build2v2();
   placeSlot(E, 'self', 0, 'フシギバナ', 'fasutogaado');
   placeSlot(E, 'self', 1, 'カメックス', null);
-  placeSlot(E, 'opp', 0, 'ケンタロス', null);
+  // ★E6 b(2026-09-12): 前提の訂正。相手に「自分より後に行動する」行動(はたく=優先度0 < FGの+3)を持たせる。
+  //   JP Wiki ファストガード 技の仕様 逐語:「そのターンの最後にファストガードを使用した場合は失敗する。」
+  //   Bulbapedia Quick Guard 逐語: "If the user goes last in the turn, the move will fail."
+  //   → この主張(連続使用では失敗しない)を見るには「ターンの最後ではない」前提が必要。
+  //   ★事実の注記: 技を選んでいない枠も このエンジンでは Intent を1つ持って行動枠を消費するので、
+  //     訂正前(相手が moveKey=null)でも「最後ではない」と判定され本テストは緑だった。前提を
+  //     ★実機に在り得る形★(後に行動する相手が実際に技を出す)に明示しておくための訂正=意味の固定。
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'hataku', { targetChoice: { side: 'self', idx: 1 } });
   placeSlot(E, 'opp', 1, 'カメックス', null);
   // まもる系の「連続使用で成功率が下がる」実装があれば必ず踏むよう、乱数を常に 0.99 に固定する
   // (成功率が 1 未満になった瞬間に失敗する = 連続使用ペナルティの有無を決定的に可視化できる)。
@@ -210,7 +217,9 @@ test('C5b: ワイドガードを3ターン連続で使っても自分は失敗�
   const E = build2v2();
   placeSlot(E, 'self', 0, 'フシギバナ', 'waidogaado');
   placeSlot(E, 'self', 1, 'カメックス', null);
-  placeSlot(E, 'opp', 0, 'ケンタロス', null);
+  // ★E6 b: C5 と同じ前提の訂正(JP Wiki ワイドガード 逐語「そのターンの最後にワイドガードを使用した
+  //   場合は失敗する。」/ Bulbapedia Wide Guard "If the user goes last in the turn, the move will fail.")。
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'hataku', { targetChoice: { side: 'self', idx: 1 } });
   placeSlot(E, 'opp', 1, 'カメックス', null);
   E.setRandom(() => 0.99);
   for (let t = 0; t < 3; t++) E.runTurn();

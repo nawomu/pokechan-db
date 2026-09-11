@@ -2317,12 +2317,13 @@ test('E5-9a: フェイントで守りを破られると protectStreak が 0 に�
   E.setRandom(mulberry32(5));
   E.runTurn();
   const log = msgList(E.battleLog);
-  // ★この経路(単体のフェイント×個体のまもる)では、守りの解除は命中判定の直前の
-  //   shouldRemoveProtection → clearProtectionFor で無音に行われる(「守りが やぶられた！」の行は
-  //   phaseApplyEffects 側の まもり解除 ハンドラが出すが、そこへ来る前に既に消えているため出ない)。
-  //   この「無音」は E5 の対象外(ログ行を増やすと sim 862 の stdout が動く)=台帳送り。
-  //   ここで固定するのは★連続成功カウントが戻ること★だけ。
+  // ★E6 c(2026-09-12)で解消: 旧実装は命中判定の直前の門(shouldRemoveProtection → clearProtectionFor)が
+  //   無音に解除していたので「守りが やぶられた！」の行が出なかった(E5 の時点では台帳送り)。
+  //   E6 c で門の解除をやめ、phaseApplyEffects の まもり解除 ハンドラ1箇所だけが解除+1行を出すようにした。
+  //   → この経路でも1行出る(行が出ることの固定は E6-c1 で行う)。ここは従来どおりカウントを見る。
   assert.ok(log.some(m => /フェイント！/.test(m)), `フェイントが当たっている\n` + log.join('\n'));
+  assert.equal(log.filter(m => /守りが やぶられた！$/.test(m)).length, 1,
+    `E6 c: 単体経路でも「守りが やぶられた！」が1行出る\n` + log.join('\n'));
   assert.equal(guard.protecting, null, `守りは解除されている\n` + log.join('\n'));
   assert.equal(guard.protectStreak, 0,
     `破られたら連続成功カウントは戻る(実際=${guard.protectStreak})\n` + log.join('\n'));
@@ -2421,4 +2422,194 @@ test('E5-4b: まもる→サイドチェンジ→まもる と交互に使うと
   st = pick(0);       // サイドチェンジ
   assert.equal(st.allySwitchStreak, 1, '交互なのでサイドチェンジは必ず成功=カウントは1から数え直し');
   assert.equal(st.protectStreak, 0, 'サイドチェンジ(まもる系以外の行動)でまもる系のカウントも0に戻る');
+});
+
+// ===========================================================================
+// ===== E6(2026-09-12・指示書 spec_e6_end_of_turn_order.md)=====
+// ===========================================================================
+// a: ターン終了の内訳順を ポケモンWiki「ターン」5.ターン終了時の処理 の番号順に
+// b: ワイドガード/ファストガードは「そのターンの最後に使用した場合は失敗する」
+// c: フェイント×個体のまもる(単体経路)で「守りが やぶられた！」が1行出る
+// ★権威の原文は 2026-09-12 に curl で取得(報告に貼付)。期待値は逐語引用から立てる(自己出力を正解にしない)。
+
+// ----- a: Wiki の例そのままの内訳順 -----
+// 逐語(ポケモンWiki「ターン」5.ターン終了時の処理 第五世代以降):
+//   「(例)2匹のポケモンAとBがいるとする。すばやさはAの方が高い。場がグラスフィールド状態で、お互い
+//     持ち物がたべのこしでアクアリング状態である。このとき ①Aがグラスフィールドで回復 ②Aがたべのこしで回復
+//     ③Bがグラスフィールドで回復 ④Bがたべのこしで回復 ⑤Aがアクアリングで回復 ⑥Bがアクアリングで回復
+//     という順番で発動する。」
+test('E6-a1: Wiki「ターン」の例どおり (6-b)グラス→(6-d)たべのこし を1体ずつ、(8)アクアリングは全員の後', () => {
+  const E = build2v2();
+  // A=ケンタロス(すばやさ110) / B=カメックス(78)。相手の枠は空席にして自陣2体だけで見る。
+  const A = placeSlot(E, 'self', 0, 'ケンタロス', null, { hp: 50 });
+  const B = placeSlot(E, 'self', 1, 'カメックス', null, { hp: 50 });
+  placeSlot(E, 'opp', 0, 'フシギバナ', null);
+  placeSlot(E, 'opp', 1, null, null);
+  for (const st of [A, B]) { st.item = 'leftovers'; st.aquaRing = true; }
+  E.env.field = 'grassy'; E.env.fieldTurns = 5;   // グラスフィールド(回復=6-b)
+  E.setRandom(mulberry32(61));
+  E.runTurn();
+  const log = msgList(E.battleLog).filter(m => /フィールドで HPを|たべのこしで HPを|アクアリングで HPを/.test(m));
+  const kind = m => (/フィールドで/.test(m) ? 'grass' : (/たべのこし/.test(m) ? 'leftovers' : 'aqua'));
+  const who = m => (/ケンタロス/.test(m) ? 'A' : 'B');
+  const seq = log.map(m => who(m) + ':' + kind(m));
+  assert.deepEqual(seq,
+    ['A:grass', 'A:leftovers', 'B:grass', 'B:leftovers', 'A:aqua', 'B:aqua'],
+    'Wikiの例の順(6-bと6-dは1体ずつまとめて→8は全員の後)\n' + msgList(E.battleLog).join('\n'));
+});
+
+// 逐語: (1) a.「にほんばれ/あめ/すなあらし/あられ/ゆきの終了」 → b.「すなあらし/あられのダメージ」
+//   → 天気が終わるターンは a(終了)が b(ダメージ)より前なので、そのターンのダメージは出ない。
+test('E6-a2: すなあらしが終わるターンは(1-a 終了が 1-b ダメージより前なので)砂ダメージが出ない', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'ケンタロス', null);
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'カメックス', null);
+  placeSlot(E, 'opp', 1, null, null);
+  E.env.weather = 'sand'; E.env.weatherTurns = 2;
+  E.setRandom(mulberry32(62));
+  E.runTurn();   // 残り2→1: ダメージが出る
+  const log1 = msgList(E.battleLog);
+  assert.ok(log1.some(m => /すなあらしで \d+ ダメージ/.test(m)), '継続ターンは砂ダメージが出る\n' + log1.join('\n'));
+  E.battleLog.length = 0;
+  E.runTurn();   // 残り1→0: 天気が終わる=この終わりのターンはダメージが出ない
+  const log2 = msgList(E.battleLog);
+  assert.ok(log2.some(m => /天気が 元に戻った/.test(m)), '天気が終わっている\n' + log2.join('\n'));
+  assert.ok(!log2.some(m => /すなあらしで \d+ ダメージ/.test(m)),
+    '終わるターンは(1-a)の終了が先なので砂ダメージは出ない\n' + log2.join('\n'));
+});
+
+// 逐語: (6) d.「たべのこし/くろいヘドロ」 / (11)「どく/もうどく/ポイズンヒール」 / (12)「やけど」
+test('E6-a3: たべのこし(6-d)はどく(11)/やけど(12)より前に発動する', () => {
+  const E = build2v2();
+  const A = placeSlot(E, 'self', 0, 'ケンタロス', null, { hp: 100 });
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'カメックス', null);
+  placeSlot(E, 'opp', 1, null, null);
+  A.item = 'leftovers'; A.status = 'poison';
+  E.setRandom(mulberry32(63));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  const iLeft = log.findIndex(m => /たべのこしで HPを/.test(m));
+  const iPois = log.findIndex(m => /どくで \d+ ダメージ/.test(m));
+  assert.ok(iLeft >= 0 && iPois >= 0, '両方出ている\n' + log.join('\n'));
+  assert.ok(iLeft < iPois, 'たべのこし(6-d)が どく(11)より前\n' + log.join('\n'));
+});
+
+// 逐語: (30) e.「おいかぜ」(片側の場の状態) / (32) c.「かそく…」(イベントブロック その2)
+test('E6-a4: おいかぜ(30-e)の終了は かそく(32-c)より前に出る', () => {
+  const E = build2v2();
+  const A = placeSlot(E, 'self', 0, 'ケンタロス', null);
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'カメックス', null);
+  placeSlot(E, 'opp', 1, null, null);
+  A.ability = 'かそく';
+  E.sides.self.tailwindTurns = 1;
+  E.setRandom(mulberry32(64));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  const iTail = log.findIndex(m => /追い風が やんだ/.test(m));
+  const iBoost = log.findIndex(m => /かそく！/.test(m));
+  assert.ok(iTail >= 0 && iBoost >= 0, '両方出ている\n' + log.join('\n'));
+  assert.ok(iTail < iBoost, 'おいかぜ(30-e)が かそく(32-c)より前\n' + log.join('\n'));
+});
+
+// ----- b: WG/FG は「そのターンの最後に使用した場合は失敗する」 -----
+// 逐語(ポケモンWiki「ワイドガード」技の仕様):「そのターンの最後にワイドガードを使用した場合は失敗する。」
+// 逐語(ポケモンWiki「ファストガード」技の仕様):「そのターンの最後にファストガードを使用した場合は失敗する。」
+// 逐語(Bulbapedia Wide Guard / Quick Guard): "If the user goes last in the turn, the move will fail."
+// ★このエンジンでは「技を選択していない」枠も Intent を1つ持って行動枠を消費する(ログに
+//   「…は技を選択していない」の行が出る)=「後に行動する Intent」に数える。実機に「技を選ばない」は
+//   無いので、fixture は★空席★(poke なし=Intent を作らない)と「自分より速い+3の技」で
+//   「自分が最後に行動する」状況を作る。
+test('E6-b1: 自分より後に行動する個体が居ないターンのワイドガードは失敗する(守りは立たない)', () => {
+  const E = build2v2();
+  const user = placeSlot(E, 'self', 0, 'フシギバナ', 'waidogaado');   // すばやさ80
+  placeSlot(E, 'self', 1, null, null);                                // 空席=Intentなし
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'fasutogaado');                // すばやさ110・同じ優先度+3=先に行動する
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(65));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.ok(log.some(m => /ワイドガード！ しかし うまく きまらなかった！$/.test(m)),
+    'ターンの最後に使ったので失敗する\n' + log.join('\n'));
+  assert.equal(E.sides.self.sideProtect, null, '側のまもりは立たない\n' + log.join('\n'));
+  assert.equal(user.protectStreak, 0,
+    'Wiki「ターンの最後にワイドガードを使って失敗したとき、次に使うこれらの技は失敗しない」=カウントは0\n' + log.join('\n'));
+});
+
+test('E6-b2: 後に行動する相手が居ればワイドガードは成功する(負のコントロール)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'waidogaado');
+  placeSlot(E, 'self', 1, 'カメックス', null);
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'jishin');   // 優先度0 < ワイドガードの+3 = 後に行動する
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(66));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.ok(log.some(m => /ワイドガード で 守りの体勢に入った/.test(m)),
+    '後に行動する相手が居るので成功する\n' + log.join('\n'));
+});
+
+test('E6-b3: ファストガードも同じ(後に行動する個体が居ない=失敗/居る=成功)', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'フシギバナ', 'fasutogaado');
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'waidogaado');   // すばやさ110・優先度+3=先に行動する
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(67));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.ok(log.some(m => /ファストガード！ しかし うまく きまらなかった！$/.test(m)),
+    'ターンの最後のファストガードは失敗する\n' + log.join('\n'));
+
+  const E2 = build2v2();
+  placeSlot(E2, 'self', 0, 'フシギバナ', 'fasutogaado');
+  placeSlot(E2, 'self', 1, 'カメックス', 'hataku', { targetChoice: { side: 'opp', idx: 0 } });   // 味方が後に行動
+  placeSlot(E2, 'opp', 0, 'ケンタロス', null);
+  placeSlot(E2, 'opp', 1, null, null);
+  E2.setRandom(mulberry32(68));
+  E2.runTurn();
+  const log2 = msgList(E2.battleLog);
+  assert.ok(log2.some(m => /ファストガード で 守りの体勢に入った/.test(m)),
+    '後に行動するのが味方でも「最後ではない」ので成功する\n' + log2.join('\n'));
+});
+
+test('E6-b4: シングルでも「そのターンの最後」に使ったファストガードは失敗する', () => {
+  // フシギバナ(80) が ファストガード、相手 ケンタロス(110) が ワイドガード。どちらも優先度+3で
+  // ケンタロスが速い=ケンタロスが先に行動し、後のファストガードは「ターンの最後」=失敗する。
+  // ★ダメージ技や ねこだまし(ひるみ)を使うと「行動できない」で流れてしまうので、
+  //   相手側も「自分より後に行動する個体が居る=成功する」側のまもりにしておく。
+  const E = buildEngine();
+  const self = E.sides.self, opp = E.sides.opp;
+  self.poke = pokeByName('フシギバナ'); self.moves = [data.WAZA_MAP['fasutogaado']]; self.selectedMoveIdx = 0;
+  self.currentHp = E.realStat(self, 'hp');
+  opp.poke = pokeByName('ケンタロス'); opp.moves = [data.WAZA_MAP['waidogaado']]; opp.selectedMoveIdx = 0;
+  opp.currentHp = E.realStat(opp, 'hp');
+  E.setRandom(mulberry32(69));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  assert.ok(log.some(m => /ファストガード！ しかし うまく きまらなかった！$/.test(m)),
+    'シングルでも「ターンの最後」なら失敗する\n' + log.join('\n'));
+});
+
+// ----- c: フェイント×個体のまもる(単体経路)で「守りが やぶられた！」が1行出る -----
+// 出典: ポケモンWiki「ワイドガード」技の仕様「フェイント/シャドーダイブ/ゴーストダイブ/いじげんホール/
+//   いじげんラッシュを受けるとワイドガードは取り除かれる。」/ Bulbapedia "Feint"(守りを解除する)
+test('E6-c1: 単体のフェイント×個体のまもるでも「守りが やぶられた！」が1行出る(技名の行より後)', () => {
+  const E = build2v2();
+  const guard = placeSlot(E, 'self', 0, 'カメックス', 'mamoru');
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'feinto', { targetChoice: { side: 'self', idx: 0 } });
+  placeSlot(E, 'opp', 1, null, null);
+  E.setRandom(mulberry32(70));
+  E.runTurn();
+  const log = msgList(E.battleLog);
+  const broke = log.filter(m => /守りが やぶられた！$/.test(m));
+  assert.equal(broke.length, 1, '1行だけ出る\n' + log.join('\n'));
+  const iMove = log.findIndex(m => /フェイント！/.test(m));
+  const iBroke = log.findIndex(m => /守りが やぶられた！$/.test(m));
+  assert.ok(iMove >= 0 && iMove < iBroke, '技名の行より後に出る\n' + log.join('\n'));
+  assert.equal(guard.protecting, null, '守りは解除されている\n' + log.join('\n'));
+  assert.equal(guard.protectStreak, 0, '連続成功カウントも戻る(E5 低-1)\n' + log.join('\n'));
 });
