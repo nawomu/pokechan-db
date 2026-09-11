@@ -9051,11 +9051,15 @@ function runTurn(){
         const st = slotOf(sl.side, sl.idx);
         if (!st.poke || !st.fainted) return;
         const _liveIdxs = (st.bench || []).map((e, i) => ({e, i})).filter(x => x.e && x.e.poke && !x.e.fainted && !(x.e.currentHp != null && x.e.currentHp <= 0)).map(x => x.i);
-        // リアルバトル(real_battle.html)のフック: 今はslotIdxを持たない(選出UIはD5送り=設計§8.3)ので
-        // 枠0だけ従来どおり保留対象にする(挙動を壊さないための既定・未確認)。
-        if (_liveIdxs.length >= 2 && typeof window !== 'undefined' &&
-            ((sl.side === 'self' && sl.idx === 0 && window.__rbDeferFaintReplace) ||
-             (sl.side === 'opp' && sl.idx === 0 && window.__rbDeferFaintReplaceOpp))){ return; }
+        // ページのフック(__rbDeferFaintReplace/Opp): 枠0は従来どおり「控えが2体以上=選ぶ意味がある時」だけ保留(シングル不変)。
+        // D6-4(2026-09-11): ダブルでは枠1も保留する(控え1体でも「どの枠に入れるか」をページが決める=台帳#65)。
+        // ページが __rbDeferFaintReplaceSlots=true を立てた時だけ(=枠対応済みのページ)。立てていないページ(real_battle/battle_lab)は従来の枠0だけ。
+        if (typeof window !== 'undefined'){
+          const _deferFlag = sl.side === 'self' ? window.__rbDeferFaintReplace : window.__rbDeferFaintReplaceOpp;
+          if (_deferFlag && sl.idx === 0 && _liveIdxs.length >= 2) return;
+          if (_deferFlag && window.__rbDeferFaintReplaceSlots && _liveIdxs.length >= 1 &&
+              (battle.format.slotsPerSide || 1) > 1) return;
+        }
         const liveIdx = _liveIdxs.length ? chooseSwitchTarget(sl.side, _liveIdxs) : -1;
         if (liveIdx < 0) return;   // 控え不足(#68): この枠は空席のまま続行
         attemptSwitch(sl.side, liveIdx, {ignoreTrapping: true, faintReplace: true, slotIdx: sl.idx});
