@@ -1307,3 +1307,570 @@ test('E1-f-1: いやしのすずは使用者・場の味方枠・控えの状態
   assert.ok(msgList(E.battleLog).some(m => m.includes('カメックス') && m.includes('状態異常が 治った')),
     '場の味方枠のログは既存文言(「◯◯ の 状態異常が 治った！」)で出る');
 });
+
+// =============================================================================
+// E2(2026-09-11・指示書 spec_e2_ally_abilities.md): 「味方を読む」特性群(Champions搭載分)
+//   期待値はすべて権威ソース(ポケモンWiki / master/abilities.json の Champions 効果文 /
+//   reference/_ability_facts.json)の引用から立てる。エンジンの出力を写していない。
+//   ★土台 = allySlotsOf(side, idx)(同じ側の自分以外の在場・生存枠)。シングルは常に空=全機構が不発。
+// =============================================================================
+
+// ----- 機構1: フレンドガード(監査 friend_guard) -----
+// 出典: ポケモンWiki『フレンドガード』効果節「自分以外の味方ポケモンが受ける攻撃技のダメージが3/4倍になる。」
+//       備考節「自身へのダメージは減らせないので、シングルバトルで発動することはない。」
+test('E2-1-1: フレンドガードは味方が受ける攻撃技のダメージを3/4にし、保持者自身のダメージは減らさない', () => {
+  const mv = data.WAZA_MAP['hataku'];
+  // (a) 味方(self:1)が受ける: 保持者(self:0)の特性だけを入れ替えて比べる
+  const mk = (holderAb) => {
+    const E = build2v2();
+    placeSlot(E, 'self', 0, 'イッカネズミ(4ひきかぞく)', null, { ability: holderAb });
+    placeSlot(E, 'self', 1, 'カメックス', null, { ability: 'げきりゅう' });
+    placeSlot(E, 'opp', 0, null, null);
+    placeSlot(E, 'opp', 1, 'ケンタロス', null, { ability: '' });
+    return E;
+  };
+  const ally = mk('フレンドガード').calcDamage('opp', 'self', mv, {}, 1, 1);
+  const allyCtrl = mk('テクニシャン').calcDamage('opp', 'self', mv, {}, 1, 1);
+  assert.ok(ally.chips.some(c => c.label === 'フレンドガード' && c.factor === 0.75),
+    `味方が受ける側に フレンドガード ×0.75 のチップが付く(実際=${JSON.stringify(ally.chips)})`);
+  assert.ok(ally.max < allyCtrl.max,
+    `味方の被ダメージが減る(FGあり=${ally.max} / 対照=${allyCtrl.max})`);
+  // 3/4 は「最終ダメージ補正」の鎖=壁と同じ位置。16通りの乱数列のすべてで pokeRound(v,3072) と一致する
+  const q = (n) => { const x = n * 3072; return Math.floor(x / 4096) + ((x % 4096) > 2048 ? 1 : 0); };
+  for (let i = 0; i < 16; i++){
+    assert.equal(ally.variations[i], q(allyCtrl.variations[i]),
+      `乱数${i}番: 3/4(pokeRound(v,3072))と一致するはず(対照=${allyCtrl.variations[i]} → 期待=${q(allyCtrl.variations[i])} / 実際=${ally.variations[i]})`);
+  }
+  // (b) 保持者自身(self:0)が受ける分は減らない(備考節)
+  const self = mk('フレンドガード').calcDamage('opp', 'self', mv, {}, 1, 0);
+  const selfCtrl = mk('テクニシャン').calcDamage('opp', 'self', mv, {}, 1, 0);
+  assert.equal(self.max, selfCtrl.max,
+    `保持者自身のダメージは対照と同値(FGあり=${self.max} / 対照=${selfCtrl.max})`);
+});
+
+// ----- 機構2: テレパシー(監査 telepathy) -----
+// 出典: ポケモンWiki『テレパシー』効果節「味方から受ける攻撃技を無効化する。」
+//       特性の仕様節「・変化技は無効化できない。」「・かたやぶりの効果を持つ技に対してテレパシーは発動しない。」
+test('E2-2-1: テレパシーは味方の攻撃技だけを無効化する(変化技は通る・かたやぶりの味方には発動しない)', () => {
+  const run = (moveKey, holderAb, attackerAb) => {
+    const E = build2v2();
+    placeSlot(E, 'self', 0, 'カビゴン', moveKey, { ability: attackerAb, targetChoice: { side: 'self', idx: 1 } });
+    const holder = placeSlot(E, 'self', 1, 'サーナイト', null, { ability: holderAb });
+    placeSlot(E, 'opp', 0, null, null, { fainted: true });
+    placeSlot(E, 'opp', 1, null, null, { fainted: true });
+    const maxHp = E.realStat(holder, 'hp');
+    E.setRandom(mulberry32(5));
+    E.runTurn();
+    return { hp: holder.currentHp, maxHp, status: String(holder.status), msgs: msgList(E.battleLog) };
+  };
+  const ctrl = run('hataku', 'シンクロ', '');
+  assert.ok(ctrl.hp < ctrl.maxHp, `対照(テレパシー無し)では味方のはたくで減る(${ctrl.hp}/${ctrl.maxHp})`);
+  const tp = run('hataku', 'テレパシー', '');
+  assert.equal(tp.hp, tp.maxHp, `攻撃技は無効化=HP満タンのまま(実際=${tp.hp}/${tp.maxHp})`);
+  assert.ok(tp.msgs.some(m => m.includes('こうかが ないようだ') && m.includes('テレパシー')),
+    `無効化は既存の型(「◯◯ には こうかが ないようだ…（とくせい テレパシーのため）」)で出る。実際=${JSON.stringify(tp.msgs)}`);
+  const statusMove = run('denjiha', 'テレパシー', '');
+  assert.equal(statusMove.status, 'paralysis', '変化技(でんじは)は無効化できない=まひする');
+  const breaker = run('hataku', 'テレパシー', 'かたやぶり');
+  assert.ok(breaker.hp < breaker.maxHp,
+    `かたやぶりを持つ味方の攻撃技にはテレパシーが発動しない(実際=${breaker.hp}/${breaker.maxHp})`);
+});
+
+// ----- 機構3: プラス/マイナス(監査 plus_minus) -----
+// 出典: master/abilities.json『プラス』effect_ja「特性『プラス』か『マイナス』のポケモンが戦闘にいると
+//       『とくこう』が1.5倍になる。(自分の味方が対象で、相手の場にいるだけでは発動しない)」
+//       reference/_ability_facts.json facts.プラス「・プラスやマイナスのポケモンが相手の場にいるだけでは発動しない。」
+// 倍率の独立オラクル: とくこうランク+1 = ×1.5(rankMult(+1)=(2+1)/2)。
+test('E2-3-1: 味方にプラス/マイナスが居るとプラス持ちのとくこうが1.5倍(=ランク+1と同値)・物理と相手側は無関係', () => {
+  const mv = data.WAZA_MAP['pawaajiemu'];   // パワージェム(特殊80)
+  const mk = (opts) => {
+    const E = build2v2();
+    const atk = placeSlot(E, 'self', 0, 'デンリュウ', null, { ability: 'プラス' });
+    placeSlot(E, 'self', 1, opts.ally ? 'ライボルト' : null, null, opts.ally ? { ability: opts.allyAbility } : {});
+    placeSlot(E, 'opp', 0, 'カビゴン', null, { ability: 'どんかん' });
+    placeSlot(E, 'opp', 1, opts.oppAlly ? 'ライボルト' : null, null, opts.oppAlly ? { ability: opts.oppAllyAbility } : {});
+    if (opts.spatkRank) atk.rank = Object.assign({}, atk.rank, { spatk: opts.spatkRank });
+    return E;
+  };
+  const withMinus = mk({ ally: true, allyAbility: 'マイナス' }).calcDamage('self', 'opp', mv, {}, 0, 0);
+  const oracle15  = mk({ ally: true, allyAbility: 'どんかん', spatkRank: 1 }).calcDamage('self', 'opp', mv, {}, 0, 0);
+  const plain     = mk({ ally: true, allyAbility: 'どんかん' }).calcDamage('self', 'opp', mv, {}, 0, 0);
+  assert.deepEqual(Array.from(withMinus.variations), Array.from(oracle15.variations),
+    'とくこう1.5倍は「とくこうランク+1」と同じ実数値・同じ丸めになる(16通り全部一致)');
+  assert.notDeepEqual(Array.from(withMinus.variations), Array.from(plain.variations),
+    '補正なしとは違う値になる(=特性が発動している)');
+  // 味方が「プラス」でも発動する(第五世代以降=どちらの味方でも可)
+  const allyPlus = mk({ ally: true, allyAbility: 'プラス' }).calcDamage('self', 'opp', mv, {}, 0, 0);
+  assert.deepEqual(Array.from(allyPlus.variations), Array.from(oracle15.variations),
+    '味方がプラス(同じ特性)でも1.5倍になる');
+  // 相手の場のマイナスでは発動しない
+  const oppMinus = mk({ ally: true, allyAbility: 'どんかん', oppAlly: true, oppAllyAbility: 'マイナス' })
+    .calcDamage('self', 'opp', mv, {}, 0, 0);
+  assert.deepEqual(Array.from(oppMinus.variations), Array.from(plain.variations),
+    '相手の場のマイナスでは発動しない');
+  // 物理技には乗らない(とくこう限定)
+  const physMv = data.WAZA_MAP['hataku'];
+  const physWith = mk({ ally: true, allyAbility: 'マイナス' }).calcDamage('self', 'opp', physMv, {}, 0, 0);
+  const physPlain = mk({ ally: true, allyAbility: 'どんかん' }).calcDamage('self', 'opp', physMv, {}, 0, 0);
+  assert.deepEqual(Array.from(physWith.variations), Array.from(physPlain.variations),
+    '物理技のダメージは変わらない(とくこうだけが上がる)');
+});
+
+// ----- 機構4: そうだいしょう(監査 supreme_overlord) -----
+// 出典: ポケモンWiki『そうだいしょう』効果節「…ひんし1匹につき10%ずつ補正率が上がる。最大補正率は+50%。」
+//       特性の仕様節「威力の補正率は特性が発動した時点で決まる。」
+//       「特性が発動した後に味方がひんしになっても補正率は上昇しない。」
+//       「その戦闘でひんしになった味方がいないときは特性バーとメッセージは現れない。」
+test('E2-4-1: そうだいしょうは登場時のひんし数で威力補正が確定し、その後味方が倒れても上がらない', () => {
+  const mv = data.WAZA_MAP['aianheddo'];
+  // Q12 = [1.0,1.1,1.2,1.3,1.4,1.5](@smogon/calc gen789 powMod と同じ表)
+  const Q12 = [4096, 4506, 4915, 5325, 5734, 6144];
+  const mkHolder = (benchFainted, allyFainted) => {
+    const E = build2v2();
+    placeSlot(E, 'self', 0, 'ドドゲザン', null, { ability: 'そうだいしょう' });
+    placeSlot(E, 'self', 1, 'カメックス', null, allyFainted ? { fainted: true } : {});
+    placeSlot(E, 'opp', 0, 'ケンタロス', null, { ability: '' });
+    placeSlot(E, 'opp', 1, null, null);
+    E.sides.self.bench = [];
+    for (let i = 0; i < benchFainted; i++){
+      const b = benchEntry('カメックス', null); b.fainted = true; b.currentHp = 0;
+      E.sides.self.bench.push(b);
+    }
+    E.phaseInitA();
+    return E;
+  };
+  const base = mkHolder(0, false).calcDamage('self', 'opp', mv, {}, 0, 0);
+  assert.ok(!base.chips.some(c => String(c.label).includes('そうだいしょう')),
+    'ひんし0体では補正チップが付かない(=発動しない)');
+  // ひんし1〜5体で ×1.1〜×1.5(5体で打ち止め)
+  for (let n = 1; n <= 5; n++){
+    const E = mkHolder(n, false);
+    const r = E.calcDamage('self', 'opp', mv, {}, 0, 0);
+    const chip = r.chips.find(c => String(c.label).includes('そうだいしょう'));
+    assert.ok(chip, `ひんし${n}体で補正チップが付く(実際=${JSON.stringify(r.chips)})`);
+    assert.equal(chip.factor, Q12[n] / 4096, `ひんし${n}体の補正は ×${Q12[n] / 4096}`);
+    assert.ok(msgList(E.battleLog).some(m => m.includes('そうだいしょう')),
+      `ひんし${n}体では発動ログ(既存の型「◯◯ の そうだいしょう！」)が出る`);
+  }
+  // 上限: ひんし6体でも ×1.5 のまま
+  const capped = mkHolder(6, false).calcDamage('self', 'opp', mv, {}, 0, 0);
+  assert.equal(capped.chips.find(c => String(c.label).includes('そうだいしょう')).factor, 1.5,
+    '最大補正率は+50%(ひんし6体でも1.5倍で打ち止め)');
+  // 「発動した後に味方がひんしになっても上がらない」: 登場後に隣の枠を倒す
+  const E2 = mkHolder(1, false);
+  const before = E2.calcDamage('self', 'opp', mv, {}, 0, 0);
+  const ally = E2.slotOf('self', 1);
+  ally.currentHp = 0; ally.fainted = true;            // 登場後に味方が倒れた
+  const after = E2.calcDamage('self', 'opp', mv, {}, 0, 0);
+  assert.equal(after.chips.find(c => String(c.label).includes('そうだいしょう')).factor,
+    before.chips.find(c => String(c.label).includes('そうだいしょう')).factor,
+    '登場後に味方が倒れても補正率は登場時点の値のまま');
+});
+
+// ----- 機構5: おもてなし(監査 hospitality) -----
+// 出典: ポケモンWiki『おもてなし』効果節「場に出たときに、味方のHPを最大HPの1/4分だけ回復する
+//       (小数点以下切り捨て)。」/ 特性の仕様節「味方がいないときや、味方のHPが満タンのときは発動しない。」
+//       「いかくやかわりものなど、他の多くの場に出たときに発動する特性より発動の優先順位が低い。」
+test('E2-5-1: おもてなしは登場時に味方のHPを1/4(切り捨て)回復し、満タン/味方不在では発動せず、いかくより後に発動する', () => {
+  // (a) 回復量 = 味方の最大HP÷4 の切り捨て / 自分は回復しない
+  const E = build2v2();
+  const host = placeSlot(E, 'self', 0, 'ヤバソチャ(ボンサクのすがた)', null, { ability: 'おもてなし' });
+  const ally = placeSlot(E, 'self', 1, 'カメックス', null, { hp: 1 });
+  placeSlot(E, 'opp', 0, 'フシギバナ', null);
+  placeSlot(E, 'opp', 1, null, null);
+  const hostMax = E.realStat(host, 'hp');
+  host.currentHp = Math.max(1, Math.floor(hostMax / 2));
+  const hostBefore = host.currentHp;
+  const allyMax = E.realStat(ally, 'hp');
+  E.phaseInitA();
+  assert.equal(ally.currentHp, 1 + Math.floor(allyMax / 4),
+    `味方は 1 → 1+floor(${allyMax}/4) になる(実際=${ally.currentHp})`);
+  assert.equal(host.currentHp, hostBefore, '自分(保持者)は回復しない');
+
+  // (b) 味方が満タン/味方不在では発動しない(ログも出ない)
+  const full = build2v2();
+  placeSlot(full, 'self', 0, 'ヤバソチャ(ボンサクのすがた)', null, { ability: 'おもてなし' });
+  placeSlot(full, 'self', 1, 'カメックス', null);   // 満タン
+  placeSlot(full, 'opp', 0, 'フシギバナ', null);
+  placeSlot(full, 'opp', 1, null, null);
+  full.phaseInitA();
+  assert.ok(!msgList(full.battleLog).some(m => m.includes('おもてなし')), '満タンの味方には発動しない');
+
+  const solo = build2v2();
+  const h2 = placeSlot(solo, 'self', 0, 'ヤバソチャ(ボンサクのすがた)', null, { ability: 'おもてなし' });
+  placeSlot(solo, 'self', 1, null, null);
+  placeSlot(solo, 'opp', 0, 'フシギバナ', null);
+  placeSlot(solo, 'opp', 1, null, null);
+  h2.currentHp = 1;
+  solo.phaseInitA();
+  assert.equal(h2.currentHp, 1, '味方がいないときは発動しない(自分も回復しない)');
+  assert.ok(!msgList(solo.battleLog).some(m => m.includes('おもてなし')), '味方不在では発動ログも出ない');
+
+  // (c) いかくより後に発動する(おもてなし側が速い配置でも順序が逆転しない)
+  const ord = build2v2();
+  placeSlot(ord, 'self', 0, 'ヤバソチャ(ボンサクのすがた)', null, { ability: 'おもてなし' });
+  const kuchiito = placeSlot(ord, 'self', 1, 'クチート', null, { hp: 1, ability: 'いかく' });
+  placeSlot(ord, 'opp', 0, 'フシギバナ', null);
+  placeSlot(ord, 'opp', 1, null, null);
+  assert.ok(ord.effectiveSpeed(ord.slotOf('self', 0)) > ord.effectiveSpeed(kuchiito),
+    '前提: おもてなし側の方が速い(素早さ順なら先に発動してしまう配置)');
+  ord.setRandom(mulberry32(1));
+  ord.phaseInitA();
+  const m = msgList(ord.battleLog);
+  const iIntim = m.findIndex(x => x.includes('いかく'));
+  const iHosp = m.findIndex(x => x.includes('おもてなし'));
+  assert.ok(iIntim >= 0 && iHosp >= 0, `両方の発動ログが出る(実際=${JSON.stringify(m)})`);
+  assert.ok(iIntim < iHosp, `いかく(${iIntim})が おもてなし(${iHosp})より先(発動の優先順位が低い)`);
+});
+
+// ----- 機構6: きみょうなくすり(監査 curious_medicine) -----
+// 出典: master/abilities.json slug=curious-medicine effect_ja「戦闘に出た時、味方のポケモンの能力ランクの
+//       変化をもとに戻す。上がったランクも戻る。(ダブルバトル用)『クリアボディ』などランクの低下を防ぐ
+//       特性や『しろいきり』の効果を無視して元に戻す。」
+//       reference/_ability_facts.json「・味方のランクが変化していないときは発動しない。」
+//       「…きみょうなくすりを持つポケモン自身のランクは戻らない。」
+test('E2-6-1: きみょうなくすりは登場時に味方のランクだけを0に戻す(クリアボディ/しろいきりを無視・自分と相手は戻らない)', () => {
+  const E = build2v2();
+  const ally = placeSlot(E, 'self', 0, 'メタグロス', null, { ability: 'クリアボディ' });
+  placeSlot(E, 'self', 1, 'ケンタロス', null, { ability: '' });
+  const foe0 = placeSlot(E, 'opp', 0, 'カメックス', null, { ability: '' });
+  placeSlot(E, 'opp', 1, 'フシギバナ', null, { ability: '' });
+  ally.rank = { atk: 2, def: 0, spatk: 2, spdef: 0, spd: -1, acc: 0, eva: 3 };
+  ally.mist = true;                                   // しろいきり状態も無視する
+  foe0.rank = { atk: 2, def: 0, spatk: 0, spdef: 0, spd: 1, acc: 0, eva: 0 };
+  E.sides.self.bench = [benchEntry('ヤドキング(ガラル)', null)];
+  E.sides.self.bench[0].ability = 'きみょうなくすり';
+  assert.notEqual(E.attemptSwitch('self', 0, { slotIdx: 1 }), false, '枠1へ きみょうなくすり持ちが出られる');
+  const holder = E.slotOf('self', 1);
+  holder.rank.atk = -1;                               // 自分のランク(戻らないことの確認用)
+  // ★E.slotOf(...).rank は vm(別レルム)のオブジェクト=deepEqualは prototype 違いで落ちる(既知の罠)。
+  //   この場(Nodeレルム)のプレーンオブジェクトに詰め直してから比べる。
+  const rankOf = (st) => { const r = st.rank || {}; const o = {};
+    for (const k of ['atk','def','spatk','spdef','spd','acc','eva']) o[k] = Number(r[k] || 0); return o; };
+  assert.deepEqual(rankOf(ally), { atk: 0, def: 0, spatk: 0, spdef: 0, spd: 0, acc: 0, eva: 0 },
+    `味方(self:0)の全ランクが0に戻る(上がった分も)。実際=${JSON.stringify(rankOf(ally))}`);
+  assert.equal(holder.rank.atk, -1, 'きみょうなくすり持ち自身のランクは戻らない');
+  assert.deepEqual(rankOf(foe0), { atk: 2, def: 0, spatk: 0, spdef: 0, spd: 1, acc: 0, eva: 0 },
+    '相手側のランクは戻らない(対象は味方だけ)');
+  const msgs = msgList(E.battleLog);
+  assert.ok(msgs.some(m => m.includes('きみょうなくすり')), '発動ログが既存の型で出る');
+  assert.ok(!msgs.some(m => m.includes('能力が下がらない')),
+    'クリアボディ/しろいきりの無効化ログは出ない(無視して0に戻す)');
+});
+
+test('E2-6-2: 味方のランクが±0なら きみょうなくすり は発動しない', () => {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カビゴン', null, { ability: '' });   // ランクは全部0
+  placeSlot(E, 'self', 1, 'ケンタロス', null, { ability: '' });
+  placeSlot(E, 'opp', 0, 'カメックス', null, { ability: '' });
+  placeSlot(E, 'opp', 1, 'フシギバナ', null, { ability: '' });
+  E.sides.self.bench = [benchEntry('ヤドキング(ガラル)', null)];
+  E.sides.self.bench[0].ability = 'きみょうなくすり';
+  E.attemptSwitch('self', 0, { slotIdx: 1 });
+  assert.ok(!msgList(E.battleLog).some(m => m.includes('きみょうなくすり')),
+    '味方のランクが変化していないときは発動しない(ログも出ない)');
+});
+
+// ----- 機構7: いやしのこころ(監査 healer) -----
+// 出典: ポケモンWiki『いやしのこころ』効果節「ターン終了時に、自分に隣接する味方の状態異常が50％
+//       (スカーレット・バイオレットまでは30%) の確率で回復する。」
+//       説明文節(Champions)「ターン終わりに 状態異常の味方を 50%の確率で治す。」
+//       特性の仕様節「・こんらんなどの状態変化は治せない。」「・いやしのこころのポケモン自身の状態異常は治せない。」
+//       「・どく/…のダメージ判定より前であるため、いやしのこころが発動するターンはこれらのダメージを受けない。」
+test('E2-7-1: いやしのこころは味方の状態異常だけを50%で治し、自分とこんらんは治さない', () => {
+  const N = 200;
+  let allyCured = 0, selfCured = 0, confusionCleared = 0;
+  for (let seed = 1; seed <= N; seed++){
+    const E = build2v2();
+    const healer = placeSlot(E, 'self', 0, 'タブンネ', 'tsuruginomai', { ability: 'いやしのこころ' });
+    const ally = placeSlot(E, 'self', 1, 'カメックス', 'tsuruginomai', { ability: 'げきりゅう' });
+    placeSlot(E, 'opp', 0, 'ケンタロス', 'tsuruginomai', { ability: 'どんかん' });
+    placeSlot(E, 'opp', 1, 'ケンタロス', 'tsuruginomai', { ability: 'どんかん' });
+    healer.status = 'burn';
+    ally.status = 'burn';
+    ally.confusion = 5;
+    E.setRandom(mulberry32(seed));
+    E.runTurn();
+    if (String(ally.status) === 'none') allyCured++;
+    if (String(healer.status) === 'none') selfCured++;
+    if (Number(ally.confusion || 0) === 0) confusionCleared++;
+  }
+  // 50%なら期待値100・σ≈7.07 → ±3.5σ=75〜125(旧世代値30%の約60件はこの帯の外)
+  assert.ok(allyCured >= 75 && allyCured <= 125,
+    `味方が治る確率は50%の帯(75〜125/200)に入る。実際=${allyCured}/${N}`);
+  assert.equal(selfCured, 0, `いやしのこころ本人の状態異常は1度も治らない。実際=${selfCured}/${N}`);
+  assert.equal(confusionCleared, 0, `こんらん(状態変化)は治らない。実際=${confusionCleared}/${N}`);
+});
+
+test('E2-7-2: いやしのこころが治したターンは味方がスリップダメージを受けない(スリップより前の段)', () => {
+  let cured = 0, curedButDamaged = 0, notCured = 0, notCuredUndamaged = 0;
+  for (let seed = 3001; seed <= 3200; seed++){
+    const E = build2v2();
+    const ally = placeSlot(E, 'self', 0, 'カメックス', 'tsuruginomai', { ability: 'げきりゅう', hp: 100 });
+    placeSlot(E, 'self', 1, 'タブンネ', 'tsuruginomai', { ability: 'いやしのこころ' });
+    placeSlot(E, 'opp', 0, 'ケンタロス', 'tsuruginomai', { ability: 'どんかん' });
+    placeSlot(E, 'opp', 1, 'ケンタロス', 'tsuruginomai', { ability: 'どんかん' });
+    ally.status = 'poison';
+    const before = ally.currentHp;
+    E.setRandom(mulberry32(seed));
+    E.runTurn();
+    const damaged = ally.currentHp < before;
+    if (String(ally.status) === 'none'){ cured++; if (damaged) curedButDamaged++; }
+    else { notCured++; if (!damaged) notCuredUndamaged++; }
+  }
+  assert.ok(cured > 0, `治ったターンが在る(実際=${cured})`);
+  assert.equal(curedButDamaged, 0, `治ったターンはどくダメージを受けない。実際=${curedButDamaged}/${cured}`);
+  assert.equal(notCuredUndamaged, 0, `治らなかったターンはどくダメージを受ける。実際=${notCuredUndamaged}/${notCured}`);
+});
+
+// ----- 機構8: かがくのちから/レシーバー(監査 power_of_alchemy_receiver) -----
+// 出典: ポケモンWiki『レシーバー』効果節「味方のポケモンがひんしになったとき、そのポケモンの特性と同じ
+//       特性になる。」「コピーできない特性を持つ味方がひんしになったときは発動しない。」
+//       ポケモンWiki『かがくのちから』特性の仕様節「場に出た時に発動する特性をコピーした場合、
+//       コピーした直後にその特性の効果が発動する。」
+//       master/abilities.json slug=receiver: コピー不可リストに『ばけのかわ』を含む30件。
+test('E2-8-1: レシーバーは倒れた味方の特性を引き継ぎ(コピー不可なら不発)、登場特性ならその場で発動する', () => {
+  const scene = (allyAbility, seed) => {
+    const E = build2v2();
+    const receiver = placeSlot(E, 'self', 0, 'ナゲツケサル', 'kiaidame', { ability: 'レシーバー' });
+    const ally = placeSlot(E, 'self', 1, 'フシギバナ', 'kiaidame', { hp: 1, ability: allyAbility });
+    const oppA = placeSlot(E, 'opp', 0, 'ケンタロス', 'kiaidame', { ability: '' });
+    const oppB = placeSlot(E, 'opp', 1, 'リザードン', 'hataku', { ability: '' });
+    E.setRandom(mulberry32(seed == null ? 3 : seed));
+    E.runTurn();
+    return { E, receiver, ally, oppA, oppB };
+  };
+  // コピー可(ようりょくそ)
+  const ok = scene('ようりょくそ');
+  assert.equal(ok.ally.fainted, true, '前提: 味方がひんしになっている');
+  assert.equal(ok.E.sideAbility(ok.receiver), 'ようりょくそ', '倒れた味方の特性を引き継ぐ');
+  // コピー不可(ばけのかわ=master のコピー不可リスト所載)
+  const ng = scene('ばけのかわ');
+  assert.equal(ng.ally.fainted, true, '前提: 不可の側でも味方がひんしになっている');
+  assert.equal(ng.E.sideAbility(ng.receiver), 'レシーバー', 'コピー不可の特性は引き継がない(レシーバーのまま)');
+  // 登場特性(いかく)をコピーしたら、その場で相手2枠のこうげきが-1
+  const intim = scene('いかく', 11);
+  assert.equal(intim.E.sideAbility(intim.receiver), 'いかく', 'いかくを引き継ぐ');
+  assert.equal(intim.oppA.rank.atk, -1, 'コピー直後にいかくが発動して opp:0 のこうげき-1');
+  assert.equal(intim.oppB.rank.atk, -1, '同じく opp:1 も-1(ダブルのいかくは相手全体)');
+});
+
+test('E2-8-2: 相手が倒れてもレシーバーは引き継がない(味方限定)', () => {
+  const E = build2v2();
+  const receiver = placeSlot(E, 'self', 0, 'ナゲツケサル', 'kiaidame', { ability: 'レシーバー' });
+  placeSlot(E, 'self', 1, 'リザードン', 'hataku', { ability: '' });
+  placeSlot(E, 'opp', 0, 'ケンタロス', 'kiaidame', { ability: '' });
+  const oppB = placeSlot(E, 'opp', 1, 'フシギバナ', 'kiaidame', { hp: 1, ability: 'ようりょくそ' });
+  E.setRandom(mulberry32(5));
+  E.runTurn();
+  assert.equal(oppB.fainted, true, '前提: 相手(opp:1)がひんしになっている');
+  assert.equal(E.sideAbility(receiver), 'レシーバー', '相手が倒れても引き継がない');
+});
+
+// ----- 機構9: きょうせい(監査 symbiosis) -----
+// 出典: ポケモンWiki『きょうせい』効果節「味方のポケモンが持ち物を消費した際、自身の持ち物をその味方に渡す。」
+//       特性の仕様節「きょうせいによって渡した道具が消費できる条件を満たしている場合、即座に消費する。」
+//       「味方がはたきおとす・ふしょくガス・やきつくすを受けて持ち物を失った場合、きょうせいは発動しない。」
+test('E2-9-1: きょうせいは味方が道具を消費した時だけ自分の道具を渡す(失った時・相手の消費では渡さない)', () => {
+  const fixture = (oppMove) => {
+    const E = build2v2();
+    const ally = placeSlot(E, 'self', 0, 'カメックス', 'tsuruginomai');
+    const symb = placeSlot(E, 'self', 1, 'ヤレユータン', 'tsuruginomai', { ability: 'きょうせい' });
+    const o0 = placeSlot(E, 'opp', 0, 'フシギバナ', oppMove || 'tsuruginomai');
+    placeSlot(E, 'opp', 1, 'フシギバナ', 'tsuruginomai');
+    return { E, ally, symb, o0 };
+  };
+  // (a) 味方がオボンのみを消費 → たべのこしが渡る
+  {
+    const { E, ally, symb } = fixture();
+    ally.item = 'berry_sitrus';
+    ally.currentHp = Math.floor(E.realStat(ally, 'hp') / 2);
+    symb.item = 'leftovers';
+    E.setRandom(mulberry32(101));
+    E.runTurn();
+    assert.equal(String(ally.item), 'leftovers', `味方の持ち物が leftovers になる(実際=${ally.item})`);
+    assert.equal(String(symb.item), '', `きょうせい側の持ち物は無くなる(実際=${symb.item})`);
+    assert.ok(msgList(E.battleLog).some(m => m.includes('きょうせい')), '発動ログが既存の型で出る');
+  }
+  // (b) はたきおとすで「失った」時は発動しない(consumeItemを通らない=構造的に除外)
+  {
+    const { E, ally, symb } = fixture('hatakiotosu');
+    ally.item = 'leftovers';
+    symb.item = 'berry_sitrus';     // HP満タン=自分では消費しない
+    E.setRandom(mulberry32(104));
+    E.runTurn();
+    assert.ok(msgList(E.battleLog).some(m => m.includes('はたきおとした')), '前提: はたきおとすが決まる');
+    assert.equal(String(symb.item), 'berry_sitrus', 'きょうせい側の持ち物は残る');
+    assert.notEqual(String(ally.item), 'berry_sitrus', '味方は受け取らない');
+  }
+  // (c) 相手側の消費では発動しない(味方限定)
+  {
+    const { E, symb, o0 } = fixture();
+    o0.item = 'berry_sitrus';
+    o0.currentHp = Math.floor(E.realStat(o0, 'hp') / 2);
+    symb.item = 'leftovers';
+    E.setRandom(mulberry32(105));
+    E.runTurn();
+    assert.equal(String(symb.item), 'leftovers', '相手の消費では渡さない');
+    assert.notEqual(String(o0.item), 'leftovers', '相手にきょうせいの持ち物は渡らない');
+  }
+});
+
+test('E2-9-2: きょうせいで渡した道具は条件を満たしていれば即座に消費される', () => {
+  const E = build2v2();
+  const ally = placeSlot(E, 'self', 0, 'カメックス', 'tsuruginomai');
+  const symb = placeSlot(E, 'self', 1, 'ヤレユータン', 'tsuruginomai', { ability: 'きょうせい' });
+  placeSlot(E, 'opp', 0, 'フシギバナ', 'tsuruginomai');
+  placeSlot(E, 'opp', 1, 'フシギバナ', 'tsuruginomai');
+  ally.item = 'berry_sitrus';
+  ally.currentHp = 1;
+  symb.item = 'berry_sitrus';
+  const max = E.realStat(ally, 'hp');
+  assert.ok(1 + Math.floor(max / 4) <= Math.floor(max / 2),
+    `前提: 1個目の回復後もHPは1/2以下(max=${max})=2個目の発動条件を満たす`);
+  E.setRandom(mulberry32(103));
+  E.runTurn();
+  const heals = msgList(E.battleLog).filter(m => /オボンのみで HPを \d+ 回復した/.test(m));
+  assert.equal(heals.length, 2, `自分のぶん+渡されたぶんの2回消費する。実際=${JSON.stringify(heals)}`);
+  assert.equal(String(ally.item), '', '受け取ったオボンのみは手元に残らない(即座に消費)');
+  assert.equal(String(symb.item), '', 'きょうせい側の持ち物は渡して無くなる');
+});
+
+// ----- 機構10: スイートベール/アロマベール/フラワーベール(監査 veils) -----
+// 出典: ポケモンWiki『スイートベール』効果節「自分を含めた味方のポケモンはねむり・ねむけ状態にならなくなる。」
+//       『アロマベール』効果節「自分を含めた味方のポケモンは、以下の状態変化にならなくなる。」
+//         →「メロメロ」「アンコール」「いちゃもん」「かなしばり」「ちょうはつ」「かいふくふうじ」
+//       『フラワーベール』効果節「味方の場にいるすべてのくさタイプのポケモンは、他のポケモンからランク補正を
+//         下げられず、状態異常・ねむけにもされない。」
+//         同 特性の仕様節「自発的にランクを下げたり…に対しては発動しない。」→「リーフストームなど…」
+function veilScene(opts) {
+  const E = build2v2();
+  placeSlot(E, 'self', 0, opts.attacker, opts.moveKey,
+    { ability: opts.attackerAbility || '', targetChoice: { side: 'opp', idx: 0 } });
+  placeSlot(E, 'self', 1, null, null);
+  const victim = placeSlot(E, 'opp', 0, opts.victim, null, { ability: opts.victimAbility || '' });
+  const ally = placeSlot(E, 'opp', 1, opts.ally, null, { ability: opts.allyAbility });
+  if (opts.attackerGender) E.slotOf('self', 0).gender = opts.attackerGender;
+  if (opts.victimGender) victim.gender = opts.victimGender;
+  if (opts.allyGender) ally.gender = opts.allyGender;
+  E.setRandom(mulberry32(opts.seed == null ? 1 : opts.seed));
+  E.runTurn();
+  return { E, victim, ally, msgs: msgList(E.battleLog) };
+}
+
+test('E2-10-1: スイートベールの味方はねむり・ねむけ(あくび)にならない', () => {
+  const base = { attacker: 'カメックス', victim: 'リザードン', victimAbility: 'もうか', ally: 'ペロリーム' };
+  // ねむりごな(命中75): 対照が当たる seed を先に探してから同じ seed をベール有りに使う
+  let seed = null, ctrlStatus = null;
+  for (let s = 1; s <= 200 && seed == null; s++){
+    const r = veilScene(Object.assign({}, base, { moveKey: 'nemurigona', allyAbility: 'かるわざ', seed: s }));
+    if (String(r.victim.status) === 'sleep'){ seed = s; ctrlStatus = String(r.victim.status); }
+  }
+  assert.ok(seed, '対照(ベール無し)でねむりごなが当たる seed が在る');
+  assert.equal(ctrlStatus, 'sleep', '対照ではねむる');
+  const veil = veilScene(Object.assign({}, base, { moveKey: 'nemurigona', allyAbility: 'スイートベール', seed }));
+  assert.equal(String(veil.victim.status), 'none',
+    `味方のスイートベールでねむらない(実際=${veil.victim.status} / ログ=${JSON.stringify(veil.msgs)})`);
+  // あくび(ねむけ)=命中判定なし
+  const ctrlY = veilScene(Object.assign({}, base, { moveKey: 'akubi', allyAbility: 'かるわざ' }));
+  assert.ok(ctrlY.victim.pendingStatus && String(ctrlY.victim.pendingStatus.code) === 'sleep',
+    `対照ではねむけが入る(ログ=${JSON.stringify(ctrlY.msgs)})`);
+  const veilY = veilScene(Object.assign({}, base, { moveKey: 'akubi', allyAbility: 'スイートベール' }));
+  assert.ok(!veilY.victim.pendingStatus,
+    `味方のスイートベールでねむけにもならない(ログ=${JSON.stringify(veilY.msgs)})`);
+});
+
+test('E2-10-2: アロマベールの味方はちょうはつ・いちゃもん・メロメロにならない', () => {
+  const base = { attacker: 'カメックス', victim: 'リザードン', victimAbility: 'もうか', ally: 'フレフワン' };
+  // ちょうはつ / いちゃもん
+  const cases = [
+    { moveKey: 'chouhatsu', label: 'ちょうはつ', landed: v => (v.tauntTurns || 0) > 0 },
+    { moveKey: 'ichamon', label: 'いちゃもん', landed: v => v.tormented === true },
+  ];
+  for (const c of cases){
+    const ctrl = veilScene(Object.assign({}, base, { moveKey: c.moveKey, allyAbility: 'いやしのこころ' }));
+    assert.ok(c.landed(ctrl.victim), `対照では ${c.label} が入る(ログ=${JSON.stringify(ctrl.msgs)})`);
+    const veil = veilScene(Object.assign({}, base, { moveKey: c.moveKey, allyAbility: 'アロマベール' }));
+    assert.ok(!c.landed(veil.victim),
+      `味方のアロマベールで ${c.label} を防ぐ(ログ=${JSON.stringify(veil.msgs)})`);
+    assert.ok(veil.msgs.some(m => m.includes('アロマベール')),
+      `既存の型「◯◯ は アロマベールで △△に ならない！」が出る(ログ=${JSON.stringify(veil.msgs)})`);
+  }
+  // メロメロ(異性同士で成立)
+  const mero = { attacker: 'カメックス', attackerGender: '♂', moveKey: 'meromero',
+                 victim: 'リザードン', victimAbility: 'もうか', victimGender: '♀',
+                 ally: 'フレフワン', allyGender: '♀' };
+  const ctrlM = veilScene(Object.assign({}, mero, { allyAbility: 'いやしのこころ' }));
+  assert.equal(ctrlM.victim.attracted, true, `対照ではメロメロになる(ログ=${JSON.stringify(ctrlM.msgs)})`);
+  const veilM = veilScene(Object.assign({}, mero, { allyAbility: 'アロマベール' }));
+  assert.notEqual(veilM.victim.attracted, true,
+    `味方のアロマベールでメロメロにならない(ログ=${JSON.stringify(veilM.msgs)})`);
+});
+
+test('E2-10-3: フラワーベールの味方(くさタイプ)は相手からのランク低下・状態異常を受けないが、自傷は防がない', () => {
+  const base = { attacker: 'カメックス', victim: 'フシギバナ', victimAbility: 'しんりょく',
+                 ally: 'フラージェス(あかいはな)' };
+  // (a) 相手の技によるランク低下(あまえる=こうげき-2)
+  const ctrlA = veilScene(Object.assign({}, base, { moveKey: 'amaeru', allyAbility: 'きょうせい' }));
+  assert.equal(ctrlA.victim.rank.atk, -2, 'あまえるは こうげき-2(対照)');
+  const veilA = veilScene(Object.assign({}, base, { moveKey: 'amaeru', allyAbility: 'フラワーベール' }));
+  assert.equal(veilA.victim.rank.atk, 0,
+    `くさタイプの味方はランクを下げられない(実際=${veilA.victim.rank.atk} / ログ=${JSON.stringify(veilA.msgs)})`);
+  assert.ok(veilA.msgs.some(m => m.includes('フラワーベール') && m.includes('能力が下がらない')),
+    `既存の型「◯◯ は フラワーベールで 能力が下がらない！」が出る(ログ=${JSON.stringify(veilA.msgs)})`);
+  // (b) 相手の技による状態異常(でんじは=まひ)
+  let seed = null;
+  for (let s = 1; s <= 200 && seed == null; s++){
+    const r = veilScene(Object.assign({}, base, { moveKey: 'denjiha', allyAbility: 'きょうせい', seed: s }));
+    if (String(r.victim.status) === 'paralysis') seed = s;
+  }
+  assert.ok(seed, '対照(ベール無し)で でんじは が当たる seed が在る');
+  const veilB = veilScene(Object.assign({}, base, { moveKey: 'denjiha', allyAbility: 'フラワーベール', seed }));
+  assert.equal(String(veilB.victim.status), 'none',
+    `くさタイプの味方は状態異常にもならない(実際=${veilB.victim.status} / ログ=${JSON.stringify(veilB.msgs)})`);
+  // (c) 自分の技による自傷のランク低下は防がない(リーフストーム=とくこう-2)
+  const E = build2v2();
+  placeSlot(E, 'self', 0, 'カメックス', null, { ability: 'げきりゅう' });
+  placeSlot(E, 'self', 1, null, null);
+  const shooter = placeSlot(E, 'opp', 0, 'フシギバナ', 'riifusutoomu',
+    { ability: 'しんりょく', targetChoice: { side: 'self', idx: 0 } });
+  placeSlot(E, 'opp', 1, 'フラージェス(あかいはな)', null, { ability: 'フラワーベール' });
+  E.setRandom(mulberry32(1));
+  E.runTurn();
+  assert.equal(shooter.rank.spatk, -2,
+    `自発的なランク低下(リーフストーム)は防がない(実際=${shooter.rank.spatk})`);
+});
+
+// ----- E2 付随: ものまねハーブの全枠化(E1残件・指示書「前提」) -----
+// 出典: items_database.js宣言 / Bulbapedia "Mirror Herb"(相手の能力上昇をコピーして消費)。
+// 旧実装は slotOf('self',0)/slotOf('opp',0) 決め打ちで、ダブルでは「味方」の上昇をコピーする実バグだった。
+test('E2-x-1: ものまねハーブは相手枠の上昇だけをコピーする(味方の上昇はコピーしない)', () => {
+  // (a) 相手の枠1(idx=1)が持っていても、相手側の上昇をコピーする
+  const E = build2v2();
+  const riser = placeSlot(E, 'self', 0, 'カメックス', 'tsuruginomai');   // つるぎのまい=こうげき+2
+  placeSlot(E, 'self', 1, null, null);
+  placeSlot(E, 'opp', 0, 'フシギバナ', null);
+  const herb1 = placeSlot(E, 'opp', 1, 'ケンタロス', null, { ability: '' });
+  herb1.item = 'mirror_herb';
+  E.setRandom(mulberry32(7));
+  E.runTurn();
+  assert.equal(riser.rank.atk, 2, '前提: つるぎのまいで こうげき+2');
+  assert.equal(herb1.rank.atk, 2,
+    `相手の右枠(opp:1)のものまねハーブも同じ分だけ上がる(実際=${herb1.rank.atk})`);
+  assert.equal(String(herb1.item), '', 'ものまねハーブは消費される');
+
+  // (b) 「味方」の上昇はコピーしない(旧実装のバグ: target=self:1 の時に self:0 を相手と誤認していた)
+  const E2 = build2v2();
+  placeSlot(E2, 'self', 0, 'カメックス', null);
+  const allyRiser = placeSlot(E2, 'self', 1, 'フシギバナ', 'tsuruginomai');
+  placeSlot(E2, 'opp', 0, null, null);
+  placeSlot(E2, 'opp', 1, null, null);
+  const herbAlly = E2.slotOf('self', 0);
+  herbAlly.item = 'mirror_herb';
+  E2.setRandom(mulberry32(7));
+  E2.runTurn();
+  assert.equal(allyRiser.rank.atk, 2, '前提: 味方(self:1)が こうげき+2');
+  assert.equal(herbAlly.rank.atk, 0,
+    `味方の上昇はコピーしない(実際=${herbAlly.rank.atk})`);
+  assert.equal(String(herbAlly.item), 'mirror_herb', 'ものまねハーブは消費されない');
+});

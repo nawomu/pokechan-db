@@ -1807,6 +1807,32 @@ function calcDamage(atkSide, defSide, move, opts, atkIdx, defIdx){
                 factor: mul, kind: mul >= 1 ? 'env' : 'env-down'});
   }
 
+  // === E2 機構4: そうだいしょう = 「威力」補正の段(攻撃側の味方由来・登場時に確定した値を読むだけ) ===
+  // 置き場: 威力段階(上のフィールド威力補正と同じ段)。@smogon/calc gen789.js calculateBPModsSMSSSV が
+  //   `if (attacker.hasAbility('Supreme Overlord') && attacker.alliesFainted) bpMods.push(powMod[...])` と
+  //   BP(威力)modに積んでいるのと同じ位置。Q12表も同じ [4096,4506,4915,5325,5734,6144]
+  //   (= ×1.0/1.1/1.2/1.3/1.4/1.5・ひんし5体で打ち止め)。
+  // 出典: ポケモンWiki『そうだいしょう』効果節「場に出たとき、その戦闘でひんしになった味方ポケモンの数に
+  //   応じて、使用する攻撃技の威力が上昇する効果が発動する。ひんし1匹につき10%ずつ補正率が上がる。
+  //   最大補正率は+50%。」/ 説明文節(Champions)「登場した時 その戦闘で倒された手持ちの ポケモン1匹につき
+  //   技の威力が10%上がる。最大で50%まで上がる。」
+  // ★値は fireEntryAbility(登場時)で確定して枠に保存した st.overlordFainted を読むだけ。ここで数え直さない。
+  //   出典: 特性の仕様節「威力の補正率は特性が発動した時点で決まる。」「特性が発動した後に味方がひんしに
+  //   なっても補正率は上昇しない。」→ 数え直すとダブルで隣の枠が倒れた瞬間に上がってしまう(A4が落ちる)。
+  // 特性が後から失われた場合(いえき/ガストロアシッド)は補正も消えるよう、発火時に sideAbility も見る
+  //   (持ち物と同じ「発火時ライブ確認」の規約)。
+  // ★シングル: st.overlordFainted は bench のひんし数(=おはかまいりと同じ値)になり、0 でなければ
+  //   シングルでも補正が掛かる。これは Wiki が「その戦闘でひんしになった味方」としか書いておらず
+  //   ダブル限定ではないため(フレンドガード等の「ダブルでしか発動しない」勢とは別)。
+  //   ★既存のシングル回帰(sim 862件)に そうだいしょう を持つ個体(ドドゲザン)が出る手持ちひんし有りのケースは
+  //   無いので stdout は変わらない(実測 diff 0)。
+  if (sideAbility(atk) === 'そうだいしょう' && (atk.overlordFainted || 0) > 0){
+    const _OVERLORD_Q12 = [4096, 4506, 4915, 5325, 5734, 6144];
+    const _ovN = Math.min(5, atk.overlordFainted);
+    power = Math.max(1, pokeRound(power, _OVERLORD_Q12[_ovN]));
+    chips.push({label: `そうだいしょう(${_ovN}体)`, factor: _OVERLORD_Q12[_ovN] / 4096, kind: 'ability-ally'});
+  }
+
   // 攻撃側・防御側の能力値（ランク補正反映、急所時は攻撃-/防御+ を無視）
   let isPhys = move.category === '物理';
   // シェルアームズ(物理特殊自動): 物理(こうげき/ぼうぎょ)と特殊(とくこう/とくぼう)で仮ダメージを
@@ -1867,6 +1893,36 @@ function calcDamage(atkSide, defSide, move, opts, atkIdx, defIdx){
       chips.push({label: _aab, factor: 1.5, kind: 'ability'});
     }
   }
+  // === E2 機構3: プラス/マイナス = 攻撃側の「味方」を読む実数値補正の段(ダブル専用) ===
+  // 置き場: 直上の「攻撃側 自身の特性による実数値補正」(ちからもち/はりきり/こんじょう/しんりょく系)の
+  //  直後・別の段。見る個体が違う(自分 vs 隣の枠)ので混ぜない(憲法「困ったらフェーズを足す。まとめない」)。
+  //  ★ここ(実数値 aStatEff 段階)に置く理由: 権威の倍率が「とくこうが1.5倍」= 威力ではなく能力値への補正。
+  //   ランク+1(=×1.5・rankMult(1))とまったく同じ丸め(Math.floor(stat*1.5))になる位置に置く
+  //   (しんりょく/もうか系を2026-07-26に威力段階から実数値段階へ直したのと同じ理由)。
+  // 出典: master/abilities.json『プラス』『マイナス』(champions:true) effect_ja
+  //   「特性『プラス』か『マイナス』のポケモンが戦闘にいると『とくこう』が1.5倍になる。
+  //    (自分の味方が対象で、相手の場にいるだけでは発動しない)」
+  //   → ①上がるのは「とくこう」だけ(物理は対象外=!isPhys) ②対象は自分の味方だけ(allySlotsOf が
+  //     同じ側しか返さない=相手の場のプラス/マイナスは構造的に見えない)
+  // 出典: reference/_ability_facts.json facts.プラス(出典=ポケモンWiki「プラス」第五世代以降節)
+  //   「・プラスやマイナスのポケモンが相手の場にいるだけでは発動しない。」
+  //   「トリプルバトル/マックスレイドバトル/テラレイドバトルで複数のプラス/マイナスのポケモンが味方に
+  //    いる場合でも効果は累積せず、特攻は1.5倍のまま変わらない。」→ ★重複なし= some() で1回だけ掛ける
+  //    (forEach で回すと3枠以上のルールが来た時に累積してしまう)
+  // 第五世代以降は「プラス/マイナスどちらの味方でも可」(対になっている必要がない)
+  //   出典: review/_doubles_research_2026-09-07/T6_特性と持ち物_verify.md 151行
+  //   「#19の世代: シングルで発動しなくなったのは第四世代から。第五世代の変更は
+  //    『プラス/マイナスどちらの味方でも可』。」
+  // ★シングル: allySlotsOf が常に空 → some() が false → 丸ごと不発(挙動不変)。
+  {
+    const _PLUS_MINUS = ['プラス', 'マイナス'];
+    if (!isPhys && _PLUS_MINUS.includes(sideAbility(atk)) &&
+        allySlotsOf(atkSide, atkIdx || 0).some(function(_al){ return _PLUS_MINUS.includes(sideAbility(_al.st)); })){
+      aStatEff = Math.floor(aStatEff * 1.5);
+      chips.push({label: sideAbility(atk), factor: 1.5, kind: 'ability-ally'});
+    }
+  }
+
   // あついしぼう(受け側・Bulbapedia "Thick Fat"): ほのお/こおり技を受ける時、攻撃側の こうげき・とくこうの
   // "実数値"を半減("the opponent's Attack or Special Attack is reduced by 50% during damage calculation")。
   // 威力ではなく実数値段階で掛ける(2026-07-26修正・出典裏取り済み)
@@ -2180,6 +2236,34 @@ function calcDamage(atkSide, defSide, move, opts, atkIdx, defIdx){
       }
     }
 
+    // 7.5) 防御側の「味方」の特性補正(E2・ダブル専用の段。指示書 spec_e2_ally_abilities.md 機構1)
+    // ★3.75(防御側 自身の特性)とは別の段にする: 見る個体が違う(自分 vs 隣の枠)=憲法「困ったらフェーズを
+    //   足す。まとめない」。allySlotsOf がシングルでは常に空 → この段は丸ごと不発(シングル不変の構造的な根拠)。
+    // ★置き場が「7) 壁」の直後で 3.75 の隣ではない理由(指示書の「3.75 の直後」から意図的にずらした点):
+    //   実機のダメージ式でフレンドガードは壁(リフレクター/ひかりのかべ)と同じ「最終ダメージ補正」の鎖に入る
+    //   = 乱数・タイプ一致・相性を掛けた「後」に掛かる。@smogon/calc(node_modules/@smogon/calc/dist/mechanics/
+    //   gen789.js calculateFinalModsSMSSSV)が `if (field.defenderSide.isFriendGuard) finalMods.push(3072)` を
+    //   Reflect/LightScreen/AuroraVeil・Filter/SolidRock と同じ finalMods 配列に積んでいる(=本エンジンの
+    //   「7) 壁」と同じ段)。3.75(乱数前)に置くと丸めが二重に入り、実測で 24→16/25→18 のように
+    //   3/4 から最大 0.03 ずれる(権威の「3/4倍」を再現できない)ため、権威どおりの鎖の位置に合わせた。
+    // フレンドガード: 自分以外の味方ポケモンが受ける攻撃技のダメージ ×3/4 (pokeRound(v, 3072))
+    // 出典: ポケモンWiki『フレンドガード』
+    //   効果節「自分以外の味方ポケモンが受ける攻撃技のダメージが3/4倍になる。」
+    //   備考節「自身へのダメージは減らせないので、シングルバトルで発動することはない。」
+    //     → allySlotsOf が自分(defIdx)を除くので構造的に成立(除外の判定を足さない)。
+    //   特性の仕様節「味方から受けた攻撃技によるダメージも減らせる。」
+    //     → 攻撃側が誰かを見ない(防御側の味方だけを見る)ので、保持者自身の範囲技でも成立。
+    //   特性の仕様節「ダメージ固定技によるダメージは減らない。」
+    //     → 固定ダメージ/一撃必殺は phaseDealDamage の別経路(calcDamage を通らない)=構造的に対象外。
+    //       こんらん自傷も runTurn 内の別計算式=同じく対象外。
+    // かたやぶり: reference/_mold_breaker_targets.json(事実の表 第1号・出典=ポケモンWiki「かたやぶり」)の
+    //   ignored 83件に「フレンドガード」が載っている → _BREAKABLE に追加済み。門は既存の defAbilityVs を通す。
+    allySlotsOf(defSide, defIdx || 0).forEach(function(_al){
+      if (defAbilityVs(_al.st, atk) !== 'フレンドガード') return;
+      v = pokeRound(v, 3072);
+      if (r === 85) chips.push({label:'フレンドガード', factor:0.75, kind:'ability-ally'});
+    });
+
     // 8) いのちのたま ×1.3（マジックルーム中は効果なし）
     // チェックボックスフラグ(atk.lifeOrb)またはアイテムkey(life_orb)どちらでも発動(items_database宣言)
     const _lifeOrbActive = (atk.lifeOrb || (atkItem && atkItem.key === 'life_orb')) && !env.magicRoom;
@@ -2492,6 +2576,108 @@ function anySlotAbility(name){
   return activeSlots().some(function(sl){
     return sl.st && sl.st.poke && !sl.st.fainted && sideAbility(sl.st) === name;
   });
+}
+// E2(2026-09-11・指示書 spec_e2_ally_abilities.md「土台」): 「同じ側の自分以外の枠」= 味方の一覧。
+// 味方を読む特性(フレンドガード/テレパシー/プラス・マイナス/そうだいしょう/おもてなし/きみょうなくすり/
+// いやしのこころ/かがくのちから・レシーバー/きょうせい/スイートベール・アロマベール・フラワーベール)は
+// 必ずここを通す = 枠管理をこれ以外に作らない(憲法§11-B「同じ判定は1箇所」/設計_特性の扱い §3「同じ事実を2箇所に書かない」)。
+// 返すのは在場・生存・個体ありの枠だけ{side, idx, st}。ダブルでは最大1件。
+// ★シングル(各側1枠)は自分以外の枠が存在しない=常に空配列 → 「味方由来」の段は丸ごと不発になる。
+//   これが「シングル不変(stdout diff 0)」の構造的な根拠(条件分岐で後から除外するのではなく、回す対象が無い)。
+// 自己修復(slotOf/activeSlotsと同じ作法): テストや旧経路が sides[side] を .slots を持たない新オブジェクトへ
+// 丸ごと差し替えることがあるので、読む前に slotOf(side,0) で張り直す。
+function allySlotsOf(side, idx){
+  idx = idx || 0;
+  const s = sides[side];
+  if (!s) return [];
+  if (!Array.isArray(s.slots) || s.slots[0] !== s) slotOf(side, 0);
+  const n = (s.slots || [s]).length;
+  const out = [];
+  for (let i = 0; i < n; i++){
+    if (i === idx) continue;
+    const st = slotOf(side, i);
+    if (!st || !st.poke || st.fainted) continue;
+    out.push({side: side, idx: i, st: st});
+  }
+  return out;
+}
+// E2 機構10の土台: 枠オブジェクトから (side, idx) を逆引きする。allySlotsOf は (side, idx) を要求するが、
+// 能力ランクの共有パイプライン(applyRankStageGuarded)や状態異常の付与列は「枠オブジェクト」しか
+// 持っていないため、ここで1回だけ橋渡しする(逆引きをあちこちに書かない)。見つからなければ null。
+// ★シングル: slots[0] は sides[side] 自身なので、sides.self / sides.opp はそれぞれ {self,0}/{opp,0} に解決する。
+function slotPosOf(st){
+  if (!st) return null;
+  const _sides = activeSides();
+  for (let k = 0; k < _sides.length; k++){
+    const side = _sides[k];
+    if (!sides[side]) continue;
+    if (!Array.isArray(sides[side].slots) || sides[side].slots[0] !== sides[side]) slotOf(side, 0);
+    const i = (sides[side].slots || [sides[side]]).indexOf(st);
+    if (i >= 0) return {side: side, idx: i};
+  }
+  return null;
+}
+// E2 機構10の土台: 「ベール系」予防特性を引く共通入口。自分自身 + 味方(allySlotsOf)を同じ門で見る。
+//   出典: ポケモンWiki『スイートベール』効果節「自分を含めた味方のポケモンはねむり・ねむけ状態に
+//         ならなくなる。」/『アロマベール』効果節「自分を含めた味方のポケモンは、以下の状態変化に
+//         ならなくなる。」/『フラワーベール』特性の仕様節「自身や隣接していない味方もくさタイプならば
+//         効果対象となる。」= 3つとも「自分も味方も」守る同じ形 → 1つの入口にまとめる。
+//   ★「隣接」は見ない: Wiki『スイートベール』特性の仕様節「トリプルバトルにおいては隣接していない味方にも
+//     効果がある。」/『フラワーベール』同「隣接していない味方も…効果対象となる。」= 同じ側なら全部対象。
+//   ★かたやぶりの門: 相手(atk)からの付与なら defAbilityVs を通す(3特性はいずれも
+//     reference/_mold_breaker_targets.json の ignored に所載=_BREAKABLE に追加済み)。
+//     自分が自分にかける時(target === atk・ねむる等)は相手が居ないので sideAbility をそのまま見る
+//     (既存の ふみん/やるき 判定 _abI と同じ作法)。
+//   戻り値: 発動した特性名 / 無ければ ''。
+function veilGuardAbility(target, atk, name){
+  const pos = slotPosOf(target);
+  if (!pos) return '';
+  const _read = function(st){ return (atk && st !== atk) ? defAbilityVs(st, atk) : sideAbility(st); };
+  if (_read(target) === name) return name;                      // 自分自身(「自分を含めた味方」)
+  const allies = allySlotsOf(pos.side, pos.idx);                // 味方(シングルは常に空)
+  for (let i = 0; i < allies.length; i++){
+    if (_read(allies[i].st) === name) return name;
+  }
+  return '';
+}
+// E2 機構10: アロマベールが防ぐ状態変化かどうか(メロメロは applyAttract 側の専用入口が担当=ここには入れない)。
+// 出典: ポケモンWiki『アロマベール』効果節の列挙「メロメロ」「アンコール」「いちゃもん」「かなしばり」
+//   「ちょうはつ」「かいふくふうじ」。エンジン側の表現は ef.kind が4種 + 「状態付与(value=かいふくふうじ)」の1種。
+// ★ここに並べた5つは上の列挙をそのまま写したもの(足していない・減らしていない)。
+const AROMA_VEIL_EFFECT_KINDS = ['いちゃもん', 'ちょうはつ', 'かなしばり', 'アンコール'];
+function _isAromaVeilBlocked(ef){
+  if (!ef) return false;
+  if (AROMA_VEIL_EFFECT_KINDS.includes(ef.kind)) return true;
+  return ef.kind === '状態付与' && ef.value === 'かいふくふうじ';
+}
+// ログに出す状態名(既存の「〜に ならない！」型に入れる語)。
+function _aromaVeilLabel(ef){
+  return (ef.kind === '状態付与') ? (ef.value || '状態変化') : ef.kind;
+}
+// E2 機構4の土台: 「その戦闘でひんしになった味方(手持ち)の数」。自分(side, idx)は数に入れない。
+// 手持ちの在りかは2箇所しかない = ①控え(bench の各エントリ) ②場の自分以外の枠(ダブルで倒れたまま
+// 死に出しの控えが居ない枠は、ひんしの個体がその枠に残る)。この2つを足す。
+// ★重複しない理由: attemptSwitch が `st.bench[benchIdx] = packBenchEntry(st)`(退場者を控え枠へ)→
+//   `for (const k of BENCH_FIELDS) st[k] = entry[k]`(入場者を枠へ)の順で入れ替えるので、同じ個体が
+//   控えと枠の両方に同時に居ることはない。
+// ★シングル: 自分以外の枠が無い ので ②が常に0 = 既存の おはかまいり(1575行の bench 数え上げ)と同じ値。
+function faintedAllyCountOf(side, idx){
+  idx = idx || 0;
+  const s = sides[side];
+  if (!s) return 0;
+  if (!Array.isArray(s.slots) || s.slots[0] !== s) slotOf(side, 0);
+  // ① 控え
+  let n = (s.bench || []).filter(function(b){
+    return b && b.poke && (b.fainted || (b.currentHp != null && b.currentHp <= 0));
+  }).length;
+  // ② 場の自分以外の枠(ひんしのまま残っている枠)
+  const len = (s.slots || [s]).length;
+  for (let i = 0; i < len; i++){
+    if (i === idx) continue;
+    const st = slotOf(side, i);
+    if (st && st.poke && (st.fainted || (st.currentHp != null && st.currentHp <= 0))) n++;
+  }
+  return n;
 }
 // D4-2d: 道具の全枠判定を回す入口。シングル(slotsPerSide===1)は既存の固定順(self→opp)のまま
 // (stdout不変)。ダブルは上のorderSlotsBySpeedDescで素早さ順にする。
@@ -2874,6 +3060,8 @@ function runSpreadDamageLoop(atkSide, atkIdx, mv, targetSet, selfKO, selfKOAlway
   if (selfKO && (selfKOAlways || anyHitSuccess)) applySelfFaint(atk);
   applyThroatSpray(atk, null, mv, anyHitSuccess ? {} : { failed: true });
   itemReactions();
+  resolveAllyFaintAbility();   // E2 機構8: 味方のひんしに反応する段(かがくのちから/レシーバー)。既存の反応polling(itemReactions)と同じ反応点。
+  resolveSymbiosis();          // E2 機構9: 味方の道具消費に反応する段(きょうせい)。同じ反応点(道具の反応=itemReactionsの直後)。
   resolveEjectPackAllSlots();
 }
 
@@ -3117,6 +3305,13 @@ function phaseInitA(){
     .filter(function (sl) { return slotOf(sl.side, sl.idx).poke; })
     .sort(function (a, b) { return effectiveSpeed(slotOf(b.side, b.idx)) - effectiveSpeed(slotOf(a.side, a.idx)); });
   for (const sl of order) fireEntryAbility(sl.side, sl.idx);
+  // E2 機構5: 「登場特性のうち発動の優先順位が低いもの」= 2周目(同じ速度順)。
+  // 出典: ポケモンWiki『おもてなし』特性の仕様節「いかくやかわりものなど、他の多くの場に出たときに
+  //   発動する特性より発動の優先順位が低い。」
+  //   → 速度順の1周に混ぜると、おもてなし持ちが速い時にいかくより先に発動してしまう(権威と逆)。
+  //   憲法「困ったらフェーズを足す。まとめない」に従い、1周目(通常)と2周目(低優先)に段を分けた。
+  // ★シングル: おもてなしは味方(allySlotsOf)が居ないと何もしない=2周目は丸ごと無音(挙動不変)。
+  for (const sl of order) fireLowPriorityEntryAbility(sl.side, sl.idx);
   // てんきや(Phase D B1): 両者の登場処理が出そろった後にもう一度同期(自分が相手より速く、
   // 相手の天候特性がまだ発動していない時点でこの側のてんきや判定が走った場合の取りこぼし防止)
   syncForecastBothSides();
@@ -3129,16 +3324,23 @@ function phaseInitA(){
 // 実機はメガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)がその瞬間に発動する)
 // D4-2a(2026-09-11・設計_ダブルバトル_2026-09-07.md§3): slotIdx省略時は0(既存呼び出しは無変更=シングル不変)。
 // attemptSwitch/megaEvolveが「その枠」の登場処理として呼ぶ。
-function fireEntryAbility(s, slotIdx){
+// E2 機構8(2026-09-11): 第3引数 opts.abilityOnly = 「特性の登場効果だけを発動する」モード。
+//   かがくのちから/レシーバーが味方の特性を引き継いだ瞬間に使う。権威は「コピーした直後にその特性の効果が
+//   発動する」(=特性の効果だけ)としか言っていないので、登場そのものに紐づく処理
+//   (イリュージョンで化ける/ばけのかわの皮/ブーストエナジー消費/てんきやの同期/シード消費)は走らせない。
+//   ★そこまで走らせるとシード(エレキシード等)の二重消費や化け直しという「権威に無い副作用」が出る。
+//   既定(未指定)は従来どおり全部走る=既存の3つの呼び出し箇所は1bitも変わらない。
+function fireEntryAbility(s, slotIdx, opts){
   {
     slotIdx = slotIdx || 0;
+    const _abilityOnly = !!(opts && opts.abilityOnly);
     const st = slotOf(s, slotIdx);
     if (!st.poke) return;
-    applyIllusion(st);   // イリュージョン(段138): 登場時に化ける(バトル開始)
+    if (!_abilityOnly) applyIllusion(st);   // イリュージョン(段138): 登場時に化ける(バトル開始)
     const oppSideKey0 = s === 'self' ? 'opp' : 'self';
     const other = slotOf(oppSideKey0, slotIdx);   // かわりもの等の対面=同じslotIdx(正面)
     const ab = sideAbility(st);
-    st.disguise = (ab === 'ばけのかわ') && st.disguiseBroken !== true;   // ばけのかわ: 場に出たら皮をまとう(剥がれ済みなら戻らない=Wiki準拠)
+    if (!_abilityOnly) st.disguise = (ab === 'ばけのかわ') && st.disguiseBroken !== true;   // ばけのかわ: 場に出たら皮をまとう(剥がれ済みなら戻らない=Wiki準拠)
     if (ab === 'いかく'){
       // D4-1c(2026-09-11・設計_ダブルバトル_2026-09-07.md§4.5末尾・#73,#74): いかくは相手全体に
       // per-targetでrank_change(対象ごとに個別判定=片方だけどんかん/まけんき/かちき/ミラーアーマーで
@@ -3217,6 +3419,50 @@ function fireEntryAbility(s, slotIdx){
         resolveTerrainSeeds();   // シード4種(段150仕様書項1・実装案(a)): フィールドが発生した瞬間=両側を見る
       }
       log('Init-A', `${pname(st)} の ${ab}で ${_tmap[ab][1]}！`);
+    } else if (ab === 'きみょうなくすり'){
+      // === E2 機構6: きみょうなくすり = 登場時に「味方」のランクを全部0に戻す ===
+      // 置き場: Init-A(1周目・速度順)。★2周目(低優先)に入れない理由=権威に「優先順位が低い」と書いて
+      //   あるのは おもてなし だけ。きみょうなくすりには順位の記述が無いので既定(1周目)に置く(推測しない)。
+      // 出典: master/abilities.json slug=curious-medicine effect_ja(Champions のゲーム内テキスト)
+      //   「戦闘に出た時、味方のポケモンの能力ランクの変化をもとに戻す。上がったランクも戻る。(ダブルバトル用)
+      //    『クリアボディ』などランクの低下を防ぐ特性や『しろいきり』の効果を無視して元に戻す。
+      //    『みがわり』状態や姿を隠しているポケモンのランクも戻る。」
+      // 出典: reference/_ability_facts.json facts.きみょうなくすり(出典=ポケモンWiki『きみょうなくすり』特性の仕様節)
+      //   「・特性クリアボディ/しろいけむり/メタルプロテクト/かいりきバサミ/はとむね/するどいめ/フラワーベール/
+      //    ミラーアーマー、しろいきり状態を無視してランク補正をリセットする。」
+      //   「・同時に繰りだされたいかくを受けたときや…きみょうなくすりを持つポケモン自身のランクは戻らない。」
+      //   「・味方のランクが変化していないときは発動しない。」
+      // → ①対象は味方だけ(allySlotsOf=同じ側の自分以外。自分も相手も構造的に対象外)
+      //   ②無効化系の特性/しろいきり/あまのじゃくを無視 = ★共有パイプライン applyRankStageGuarded を
+      //     通さず st.rank を直接0にする(通すとクリアボディの「能力が下がらない！」が出てしまう=C4が落ちる)。
+      //     「ランク変化」ではなく「ランクのリセット」= くろいきり(5698行 すべての能力変化が 元に戻った！)と
+      //     同じ種類の操作なので、同じようにパイプラインを経由しないのが正しい。
+      //   ③味方のランクが全部0なら発動しない(ログも出さない)
+      // ★ログ行新設禁止: 既存の型2本で出す。①`${pname(st)} の ${ab}！`(id='ability_announce')
+      //   ②`${pname(al)} の 能力変化が 元に戻った！`(id='bl_63'・6125行と同じ文字列)。どちらも9言語済み。
+      // ★シングル: allySlotsOf が常に空=何も起こらない(挙動不変)。
+      allySlotsOf(s, slotIdx).forEach(function(_al){
+        const _a = _al.st;
+        const _r = _a.rank || {};
+        if (!Object.keys(_r).some(function(k){ return (_r[k] || 0) !== 0; })) return;   // ±0=不発
+        log('Init-A', `${pname(st)} の ${ab}！`);
+        _a.rank = {atk:0, def:0, spatk:0, spdef:0, spd:0, acc:0, eva:0};
+        log('Init-A', `${pname(_a)} の 能力変化が 元に戻った！`);
+      });
+    } else if (ab === 'そうだいしょう'){
+      // === E2 機構4: そうだいしょう の「登場時に補正率を確定する」段 ===
+      // 出典: ポケモンWiki『そうだいしょう』特性の仕様節「威力の補正率は特性が発動した時点で決まる。」
+      //   「特性が発動した後に味方がひんしになっても補正率は上昇しない。」
+      //   → 数え上げはここ(登場時)の1回だけ。威力補正の段(calcDamage)は保存した値を読むだけにする。
+      // 出典: 同 特性の仕様節「その戦闘で味方がひんしになってから場に出たときに発動し、特性バーと
+      //   「<ポケモン>は 倒された 仲間から 力を もらった!」とメッセージが出る。」
+      //   / 「その戦闘でひんしになった味方がいないときは特性バーとメッセージは現れない。」
+      //   → n===0 ではログを出さない(0体でも値は0で上書きしておく=前の個体の値が残らない)。
+      // ★ログ行新設禁止(指示書 絶対条件): 実機の「倒された 仲間から 力を もらった!」は新しい行になるので、
+      //   既存の特性発動宣言の型(3177行 かたやぶり系と同じ `${pname(st)} の ${ab}！`)で出す。
+      //   実機文言は台帳に「未対応(文言)」として残す。
+      st.overlordFainted = faintedAllyCountOf(s, slotIdx);
+      if (st.overlordFainted > 0) log('Init-A', `${pname(st)} の ${ab}！`);
     } else if (ab === 'おみとおし' && other.poke && other.item && ITEM_BY_KEY[other.item]){
       // おみとおし(段113・ABILITY_DESC公式準拠): 場に出た時、相手の持ち物を見抜く。
       // ★2026-07-18(H9件目): 元々attemptSwitch(交代)にだけ実装されていたのをここへ集約し、
@@ -3228,6 +3474,7 @@ function fireEntryAbility(s, slotIdx){
     // ★ログ行新設禁止の方針により専用の発動メッセージは出さない(無音実装。既存パターンに乗せられる
     // 一般化した「アイテム消費+実数値ブースト」の文言が無いため)。効果自体はrankedStat経由で反映される。
     // 出典: items_database.js宣言(Bulbapedia "Booster Energy")
+    if (_abilityOnly) return;   // E2 機構8: 以下は「登場そのもの」に紐づく処理=コピー時は走らせない
     if (_PARADOX_ABILITY[ab] && !paradoxActive(st) && hasItem(st, 'booster_energy')){
       st.paradoxBoost = true;
       consumeItem(st);
@@ -3241,6 +3488,48 @@ function fireEntryAbility(s, slotIdx){
     // ここ1箇所で「対応フィールドの場に繰り出された」を網羅できる。
     _seedTryOne(st);
   }
+}
+
+// === E2: フェーズ Init-A2 「発動の優先順位が低い登場特性」(1体ぶん) ===
+// fireEntryAbility(Init-A・1周目)とは別の段。同時入場では phaseInitA が全枠ぶんの1周目を終えてから
+// 同じ速度順でこの2周目を回す。単独入場(交代/メガシンカ)では fireEntryAbility の直後に1回呼ぶ。
+// 出典: ポケモンWiki『おもてなし』特性の仕様節「いかくやかわりものなど、他の多くの場に出たときに発動する
+//   特性より発動の優先順位が低い。」
+// ★この段に入れるのは「権威が明示的に『優先順位が低い』と書いている特性」だけ。書いていないものを
+//   ここへ移すのは推測(設計_特性の扱い §9-4)。きみょうなくすりは権威に順位の記述が無いので1周目に置いた。
+// ★シングル: おもてなしは allySlotsOf(=常に空)しか見ないので何も起こらない(挙動不変)。
+function fireLowPriorityEntryAbility(s, slotIdx){
+  slotIdx = slotIdx || 0;
+  const st = slotOf(s, slotIdx);
+  if (!st.poke || st.fainted) return;
+  const ab = sideAbility(st);
+  if (ab !== 'おもてなし') return;
+  // === 機構5: おもてなし ===
+  // 出典: ポケモンWiki『おもてなし』効果節「場に出たときに、味方のHPを最大HPの1/4分だけ回復する
+  //   (小数点以下切り捨て)。」/ 説明文(Champions)「登場した時 味方のHPを その味方の最大HPの1/4回復する。」
+  //   / 特性の仕様節「味方がいないときや、味方のHPが満タンのときは発動しない。」
+  //   / master/abilities.json effect_ja「自分を除く味方全体のHPをそれぞれ最大HPの1/4ずつ回復する。」
+  // → ①回復量は「その味方の」最大HP÷4の切り捨て(自分の最大HPではない) ②自分は回復しない
+  //   (allySlotsOf が自分を除く=構造的に成立) ③味方不在/満タンなら不発(ログも出さない)
+  // みがわり中の味方も対象(master effect_ja『『みがわり』状態や姿を隠しているポケモンのランクも戻る』は
+  //   きみょうなくすり側の記述だが、おもてなしはHP回復=みがわりは肩代わりしない性質のものなので
+  //   そのまま本体のHPを回復する。みがわりを見る判定は足さない)。
+  // ★ログ行新設禁止(指示書 絶対条件): 実機の「<所持者>が たてた お茶を <味方>は 飲みほした!」は新しい行に
+  //   なるので出さない。既存の型2本で出す:
+  //     ①`${pname(st)} の ${ab}！`            = battle_log_i18n.js PATTERNS id='ability_announce'(9言語済み)
+  //     ②`${pname(al)} は HPを 回復した！ (残HP N)` = 同 id='bl_110'(9言語済み・7488行と同じ文字列)
+  //   実機文言は台帳に「未対応(文言)」として残す。
+  allySlotsOf(s, slotIdx).forEach(function(_al){
+    const _a = _al.st;
+    const _max = realStat(_a, 'hp');
+    if (_a.currentHp == null) _a.currentHp = _max;
+    if (_a.currentHp >= _max) return;                 // 満タン=不発(ログも出さない)
+    const _heal = Math.floor(_max / 4);               // 小数点以下切り捨て
+    if (_heal <= 0) return;
+    log('Init-A', `${pname(st)} の ${ab}！`);
+    _a.currentHp = Math.min(_max, _a.currentHp + _heal);
+    log('Init-A', `${pname(_a)} は HPを 回復した！ (残HP ${_a.currentHp})`);
+  });
 }
 
 // === フェーズ: 0c 命中判定 (一撃必殺・必中・追加効果は別計算) ===
@@ -3406,6 +3695,36 @@ function recordTaken(df, move, lastHitDmg, attacker){
 // 生存枠だけ数えた値=空き枠は数えない・#68/#43)。calcDamageのopts.spreadCountへそのまま橋渡しする。
 function phaseDealDamage(atkSide, defSide, move, atkIdx, defIdx, spreadCount){
   atkIdx = atkIdx || 0; defIdx = defIdx || 0;
+  // === E2 機構2: テレパシー(味方からの攻撃技を無効化)=ダメージ適用の「先頭」の段 ===
+  // 置き場の理由(指示書 spec_e2_ally_abilities.md 機構2 / 憲法「困ったらフェーズを足す。まとめない」):
+  //  ・みがわり処理(直下の subAbsorbed リセット)・一撃必殺/固定ダメージ・倍返し の「どれよりも前」に置く
+  //    = 味方からの攻撃は種類を問わず1箇所で弾く(経路ごとに判定を散らさない)。
+  //  ・命中判定(phaseHitCheck)の「後」= ここに来た時点で技は当たっている。だから「回避」ではなく
+  //    ダメージの無効化として処理され、からぶりほけん(外れた時の持ち物)は構造的に発動しない。
+  //    出典: ポケモンWiki『テレパシー』備考節「第七世代以降の特性の説明文には「技を 回避する」とあるが、
+  //    テレパシーによる無効化は命中判定とは関係しない。例えばテレパシーで技が無効化されてもからぶりほけんは
+  //    発動しない。」
+  //  ・範囲技(なみのり=自分以外全体)の巻き込みも runSpreadDamageLoop が対象ごとに phaseDealDamage を
+  //    呼ぶので、同じこの入口で弾かれる(範囲技用の分岐を作らない)。
+  //    出典: 同Wiki こんなときに使おう節「なみのりのような、味方を巻き込む攻撃技から身を守れる。」
+  // 条件: 攻撃側と防御側が同じ側・別枠(=味方)/ 攻撃技(変化技は対象外)/ 防御側が在場・生存。
+  //  出典: 効果節「味方から受ける攻撃技を無効化する。」 特性の仕様節「・テレパシーのポケモンを選択して
+  //  使用された1体を選択する攻撃技も無効化する。」「・変化技は無効化できない。」
+  // かたやぶり: テレパシーを _BREAKABLE に追加済み(上記・事実の表 第1号 ignored 所載)=既存の門
+  //  defAbilityVs(df, a) が「かたやぶり系の攻撃側なら '' を返す」ので、ここに追加の判定を書かない。
+  //  出典: 特性の仕様節「・かたやぶりの効果を持つ技に対してテレパシーは発動しない。」
+  // ★シングル: atkSide===defSide になる経路(自分が自分を殴る)が無く、あっても atkIdx===defIdx なので
+  //  この段は必ず素通り=挙動不変。
+  if (atkSide === defSide && atkIdx !== defIdx && move.category !== '変化'){
+    const _tpDf = slotOf(defSide, defIdx), _tpAtk = slotOf(atkSide, atkIdx);
+    if (_tpDf && _tpDf.poke && !_tpDf.fainted && defAbilityVs(_tpDf, _tpAtk) === 'テレパシー'){
+      // ★ログ行新設禁止(指示書 絶対条件)。実機の「◯◯は 味方からの 攻撃を 受けない!」は新しい行になるので、
+      // 既存の「特性で無効化」型(battle_log_i18n.js PATTERNS id='no_effect_ability' = 9言語済み)を使う。
+      // 実機文言は台帳に「未対応(文言)」として残す。
+      log('8', `${pname(_tpDf)} には こうかが ないようだ…（とくせい テレパシーのため）`);
+      return { immune: true, reason: 'こうかなし' };
+    }
+  }
   // power非依存の特殊ダメージ(一撃必殺/固定ダメージ)を先に処理
   const _e0 = (move.battle_data && move.battle_data.effects) || [];
   // みがわり: この攻撃を分身が受けたかのフラグを毎攻撃リセット(phaseApplyEffectsが追加効果遮断に読む)
@@ -4071,6 +4390,23 @@ const GRAVITY_BLOCKED = ['そらをとぶ', 'はねる', 'とびげり', 'とび
 // (エンコール/GRAVITY_BLOCKED と同じ方式=スキーマを推測で足さない)。
 // 出典: Bulbapedia "Role Play"/"Entrainment"/"Skill Swap"/"Gastro Acid" の対象外特性のうち sim に存在するもの
 const ABILITY_CHANGE_NG = ['ふしぎなまもり', 'バトルスイッチ', 'ばけのかわ', 'なまけ'];
+// E2 機構8: かがくのちから/レシーバー が「引き継げない」味方の特性(30件)。
+// ★ABILITY_CHANGE_NG(なりきり/スキルスワップ用・Bulbapedia "Role Play"等の別リスト)を流用しない:
+//   除外要件が違う(ミイラが MUMMY_EXEMPT を別に持っているのと同じ理由)。
+// 出典: master/abilities.json slug=receiver / power-of-alchemy の effect_ja(Champions権威の効果文)
+//   「味方の特性が『ARシステム』『アイスフェイス』『イリュージョン』『おもかげやどし』『かがくのちから』
+//    『かがくへんかガス』『かわりもの』『きずなへんげ』『ぎょぐん』『クォークチャージ』『こだいかっせい』
+//    『しれいとう』『じんばいったい』『スワームチェンジ』『ぜったいねむり』『ゼロフォーミング』
+//    『ダルマモード』『テラスシェル』『てんきや』『どくくぐつ』『トレース』『ばけのかわ』
+//    『バトルスイッチ』『はらぺこスイッチ』『ふしぎなまもり』『フラワーギフト』『マイティチェンジ』
+//    『マルチタイプ』『リミットシールド』『レシーバー』の場合は効果がない。」
+// ★ここに並べた30件は上の引用を1件ずつそのまま写したもの(足していない・減らしていない)。
+const RECEIVER_NO_COPY = new Set(['ARシステム', 'アイスフェイス', 'イリュージョン', 'おもかげやどし',
+  'かがくのちから', 'かがくへんかガス', 'かわりもの', 'きずなへんげ', 'ぎょぐん', 'クォークチャージ',
+  'こだいかっせい', 'しれいとう', 'じんばいったい', 'スワームチェンジ', 'ぜったいねむり', 'ゼロフォーミング',
+  'ダルマモード', 'テラスシェル', 'てんきや', 'どくくぐつ', 'トレース', 'ばけのかわ', 'バトルスイッチ',
+  'はらぺこスイッチ', 'ふしぎなまもり', 'フラワーギフト', 'マイティチェンジ', 'マルチタイプ',
+  'リミットシールド', 'レシーバー']);
 // ミイラ(Mummy)で上書き「できない」特性の専用リスト(出典: Bulbapedia "Mummy" の除外リスト)。
 // ABILITY_CHANGE_NG(スキルスワップ/なりきり等の共有)とは別管理=ミイラの除外要件は異なるため。
 // 除外リattice: As One/Battle Bond/Comatose/Commander/Disguise(ばけのかわ)/Gulp Missile(うのミサイル)/
@@ -4197,6 +4533,20 @@ const _BREAKABLE = new Set(['あついしぼう', 'がんじょう', 'クリア�
   'どんかん', 'ひらいしん', 'ふみん', 'ふゆう', 'ぼうおん', 'マイペース', 'マグマのよろい',
   'マルチスケイル', 'めんえき', 'もらいび', 'やるき', 'ファーコート', 'フィルター', 'ハードロック', 'マジックミラー', 'ゆきがくれ', 'すながくれ', 'ぼうだん', 'リーフガード', 'かんそうはだ',
   'ふしぎなまもり',/* かたやぶりで貫通可(Bulbapedia "Mold Breaker") */
+  // E2 機構10(2026-09-11): ベール系3件。いずれも reference/_mold_breaker_targets.json の ignored 所載
+  // (裏取り=@smogon/calc gen789.js defenderAbilityIgnored に 'Sweet Veil'/'Aroma Veil'/'Flower Veil')。
+  // ★_BREAKABLE の方針コメント「新しい防御特性を実装したらここにも足すこと」に従った追加。
+  // ★アロマベールは従来 attractGuard(8239行)が defAbilityVs 経由で見ていたが _BREAKABLE に無かったため
+  //   「かたやぶりはメロメロ付与を貫通できる」というコメントが実際には効いていなかった=ここで成立する。
+  'スイートベール', 'アロマベール', 'フラワーベール',
+  // E2(2026-09-11): 味方を読む防御特性2件。どちらも reference/_mold_breaker_targets.json(事実の表 第1号・
+  // 出典=ポケモンWiki「かたやぶり」の『無視する特性』83件)の ignored に載っている=推測ではない。
+  // テレパシー: Wiki『テレパシー』特性の仕様節「・かたやぶりの効果を持つ技に対してテレパシーは発動しない。」
+  //   + Wiki『かたやぶり』特性の仕様節「かたやぶりのポケモンが使う技を、味方はふゆう/テレパシーなどの特性で
+  //   無効化できない。」(=味方の特性も無視する第五世代以降の細則)。
+  // フレンドガード: Wiki『かたやぶり』の ignored 一覧に所載。裏取り=@smogon/calc gen789.js の
+  //   defenderAbilityIgnored 一覧にも 'Friend Guard'/'Telepathy' が在る([[two-source-verify-then-commit]])。
+  'テレパシー', 'フレンドガード',
   'はどうのぼうご', 'ねつこうかん'/* ★未確認(2026-09-01追加のM-C新特性・専用のChampions記述なし):
     ファーコート/フィルター等の既存の「防御に働く特性」と同型のためBREAKABLEに倣って追加(類推・要再確認) */]);
 // === Phase D B3: 持ち物10件の共通ヘルパー ===
@@ -4298,6 +4648,30 @@ rbRegisterHandler('stat_stage', 'clearbody_guard', (ctx) => {
   return {handled:false};
 });
 
+// 3.5) E2 機構10: フラワーベール(Flower Veil) — 味方の場の★くさタイプ★は相手からランク補正を下げられない。
+// 出典: ポケモンWiki『フラワーベール』効果節「味方の場にいるすべてのくさタイプのポケモンは、他のポケモンから
+//   ランク補正を下げられず、状態異常・ねむけにもされない。」/ 説明文節(Champions)「味方のくさタイプの
+//   ポケモンは 能力が下がらず 状態異常にもならない。」
+//   特性の仕様節「自身や隣接していない味方もくさタイプならば効果対象となる。」= 自分も味方も(veilGuardAbility)。
+// ★「自発的な低下は防がない」は ctx.fromOpponent で成立する(クリアボディ/しろいきり/はとむね/クリアチャームと
+//   同じガード条件)。出典: 同 特性の仕様節「自発的にランクを下げたり状態異常になったりする技/特性/もちものに
+//   対しては発動しない。以下の効果はフラワーベールで防げない。」→「リーフストームなど自分のランク補正を下げる技」。
+// ★くろいきり/クリアスモッグ(=rank を直接0へ書き戻す別処理)はこの関数を通らない=貫通が自然に成立する。
+// ★置き場: クリアボディ(3)の直後。同じ「特性によるランク低下の無効」なので隣に置く(見る個体だけが違う)。
+// ★シングル: 保持者自身がくさタイプなら効く(Wikiの「自身も…効果対象」どおり)。Championsの搭載個体
+//   (フラージェス系)はフェアリー単なので実戦では自己防御にならない=従来のシングル挙動と変わらない(diff 0)。
+rbRegisterHandler('stat_stage', 'flower_veil_guard', (ctx) => {
+  if (!(ctx.sg < 0 && ctx.fromOpponent)) return {handled:false};
+  const {target, source, phase} = ctx;
+  if (!sideTypes(target).includes('くさ')) return {handled:false};
+  const _fvAb = veilGuardAbility(target, source, 'フラワーベール');
+  if (_fvAb){
+    log(phase || '9', `${pname(target)} は ${_fvAb}で 能力が下がらない！`);
+    return {handled:true, result:{sg:ctx.sg, applied:0, blocked:'flower_veil'}};
+  }
+  return {handled:false};
+});
+
 // 4) しろいきり(Phase D B2・kind=ランク低下防御): 相手の技・特性(いかく等)によるランク低下を防ぐ場効果。
 // 自分の技による自傷ダウン(fromOpponent=false)は対象外=このガードには来ない。
 // 出典: reference/_phaseD_specs_moves.json(Bulbapedia "Mist")
@@ -4369,18 +4743,33 @@ rbRegisterHandler('stat_stage', 'kachiki_makenki_reaction', (ctx) => {
 // 上げてアイテムを消費(1回・実際に上がった時だけ)。再帰呼び出し(_skipMirrorHerb)では連鎖させない。
 // ログはstat_rose/stat_fell(既存i18nパターン)に乗せる=専用の「ものまねハーブで」文言は新設しない
 // (ログ行新設禁止の方針)。出典: items_database.js宣言(Bulbapedia "Mirror Herb")
+// E2(2026-09-11・指示書 spec_e2_ally_abilities.md 前提「ものまねハーブ(約4375)が2体前提」): 旧実装は
+//   `(target === slotOf('self',0)) ? slotOf('opp',0) : slotOf('self',0)` = シングル(1対1)専用の決め打ちで、
+//   ダブルでは★実バグ★だった: target が self:1 の時に「相手」として slotOf('self',0)=自分の味方 を選び、
+//   味方の上昇を自分がコピーしていた(ものまねハーブは相手の上昇をコピーする道具)。
+//   → target が居る側を求め、その★反対側の全枠★を回す形に直す。
+//   出典: items_database.js宣言 / Bulbapedia "Mirror Herb"(相手(opposing)の能力上昇をコピーして消費)。
+//   解決順: 複数の相手枠が同時に持っている場合は idx 昇順(いかくの per-target 解決=D4-1c と同じ
+//   「相手から見て左側から順」の慣例に揃える。乱数を使わない決定的な順序)。
+// ★シングル不変: target は self:0 か opp:0 のどちらか → 反対側の枠は1つだけ(opp:0 / self:0)=
+//   旧実装が選んでいた枠とまったく同じ(diff 0 で確認済み)。
 rbRegisterHandler('stat_stage', 'mirror_herb_reaction', (ctx) => {
   const {target, rk, phase, _skipMirrorHerb} = ctx;
   if (ctx.applied > 0 && !_skipMirrorHerb){
-    const _mirrorSide = (target === slotOf('self', 0)) ? slotOf('opp', 0) : slotOf('self', 0);
-    if (_mirrorSide && _mirrorSide.poke && !_mirrorSide.fainted && _mirrorSide.rank[rk] !== undefined &&
-        hasItem(_mirrorSide, 'mirror_herb')){
-      applyRankStageGuarded(_mirrorSide, _mirrorSide, rk, ctx.applied, phase, (sg2, applied2) => {
-        if (applied2 !== 0){
-          log(phase || '9', `${pname(_mirrorSide)} の ${RANK_JA_BY_KEY[rk] || rk} ランクが ${applied2 > 0 ? '+' : ''}${applied2} ${applied2 > 0 ? 'あがった' : 'さがった'}！`);
-          consumeItem(_mirrorSide);
-        }
-      }, true);
+    const _tgtSide = ((sides.self.slots || [sides.self]).indexOf(target) >= 0) ? 'self' : 'opp';
+    const _foeSide = _tgtSide === 'self' ? 'opp' : 'self';
+    const _foeN = ((sides[_foeSide].slots) || [sides[_foeSide]]).length;
+    for (let _mi = 0; _mi < _foeN; _mi++){
+      const _mirrorSide = slotOf(_foeSide, _mi);
+      if (_mirrorSide && _mirrorSide.poke && !_mirrorSide.fainted && _mirrorSide.rank[rk] !== undefined &&
+          hasItem(_mirrorSide, 'mirror_herb')){
+        applyRankStageGuarded(_mirrorSide, _mirrorSide, rk, ctx.applied, phase, (sg2, applied2) => {
+          if (applied2 !== 0){
+            log(phase || '9', `${pname(_mirrorSide)} の ${RANK_JA_BY_KEY[rk] || rk} ランクが ${applied2 > 0 ? '+' : ''}${applied2} ${applied2 > 0 ? 'あがった' : 'さがった'}！`);
+            consumeItem(_mirrorSide);
+          }
+        }, true);
+      }
     }
   }
   return {handled:false};
@@ -4978,6 +5367,29 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
       target = def;
     }
     if (target.fainted) continue;
+    // === E2 機構10: アロマベール = 「心を乱す状態変化」をまとめて弾く1箇所の門 ===
+    // 置き場の理由: Wiki が列挙する6つ(メロメロ/アンコール/いちゃもん/かなしばり/ちょうはつ/かいふくふうじ)は
+    //   エンジンでは別々の ef.kind 分岐(いちゃもん 6133/ちょうはつ 6157/かなしばり 6173/アンコール 6182/
+    //   状態付与 value=かいふくふうじ 5671)に散っている。6箇所に同じ判定を書くと必ず取りこぼす
+    //   (=設計_特性の扱い §3「同じ事実を2箇所に書かない」)。対象(target)が確定した直後のここ1箇所で弾く。
+    // 出典: ポケモンWiki『アロマベール』効果節「自分を含めた味方のポケモンは、以下の状態変化にならなくなる。」
+    //   →「メロメロ」「アンコール」「いちゃもん」「かなしばり」「ちょうはつ」「かいふくふうじ」
+    //   説明文節(Champions)「自分と味方は メロメロ ちょうはつ 連続不可 わざふうじ かいふくふうじ
+    //   アンコール状態にならない。」
+    // ★メロメロだけはこの門を通らない: 既存の applyAttract/attractGuard(8239行・どんかんと同居)が
+    //   専用の入口を持っているので、そちら側に味方判定を足した(二重に書かない)。
+    // 出典: 同 特性の仕様節「すでに状態変化になったポケモンを治すことはできない(マイペース/どんかんなどとは
+    //   異なる)。」→ 予防だけ。既になっている状態を解除する処理は足さない。
+    // ★target === atk(自分が自分にかける)は対象外=権威は「状態変化にならなくなる」=相手からの付与を
+    //   防ぐ話であり、自分で自分にかける技(該当なし)を壊さないための安全側。
+    if (target !== atk && _isAromaVeilBlocked(ef)){
+      const _avAb = veilGuardAbility(target, atk, 'アロマベール');
+      if (_avAb){
+        // ★ログ行新設禁止: 既存の型(id='bl_97' = `〜 は 〜で 〜に ならない！`・5715行と同じ形)を使う。
+        log('9', `${pname(target)} は ${_avAb}で ${_aromaVeilLabel(ef)}に ならない！`);
+        continue;
+      }
+    }
     // てだすけ(Helping Hand・D3-3b・設計_ダブルバトル_2026-09-07.md§4.5・#91): 味方1体・威力1.5倍(this_turn)。
     // 「既に行動を終えた味方には失敗」= sched(currentTurnScheduler).hasActed で判定(A・master effects宣言)。
     // 重ねがけは乗算(target.helpingHandMultへ既存倍率と掛け合わせる)。シングルはef.target==='ally'の
@@ -5413,6 +5825,33 @@ function phaseApplyEffects(atkSide, defSide, move, atkIdx, defIdx){
       if (_abI === 'リーフガード' && env.weather === 'sunny'){
         log('9', `${pname(target)} は リーフガードで ${ef.value}に ならない！`);
         continue;
+      }
+      // === E2 機構10: 「味方の特性ガード」の段(ベール系) ===
+      // ★上の _AB_IMMUNE/リーフガード(=その個体自身の特性しか見ない段)の直後に置く別の段。
+      //   見る個体が違う(自分だけ vs 自分+隣の枠)ので混ぜない(憲法「困ったらフェーズを足す。まとめない」)。
+      //   この位置に置くと「遅延付与(あくび=ねむけ)」の分岐より前なので、ねむり と ねむけ の両方を
+      //   1箇所で弾ける(=Wikiの「ねむり・ねむけ状態にならなくなる」が条件分岐1つで成立する)。
+      // スイートベール: 自分を含めた味方は ねむり・ねむけ にならない
+      //   出典: ポケモンWiki『スイートベール』効果節「自分を含めた味方のポケモンはねむり・ねむけ状態に
+      //   ならなくなる。」/ 説明文節(Champions)「自分と味方は ねむり ねむけ状態にならない。」
+      if (code === 'sleep'){
+        const _svAb = veilGuardAbility(target, (target !== atk) ? atk : null, 'スイートベール');
+        if (_svAb){
+          log('9', `${pname(target)} は ${_svAb}で ${ef.value}に ならない！`);
+          continue;
+        }
+      }
+      // フラワーベール: 味方の場のくさタイプは(他のポケモンから)状態異常・ねむけにされない
+      //   出典: ポケモンWiki『フラワーベール』効果節「味方の場にいるすべてのくさタイプのポケモンは、
+      //   他のポケモンからランク補正を下げられず、状態異常・ねむけにもされない。」
+      //   ★「他のポケモンから」= 自分でかける状態異常(ねむる等)は防がない → ef.target !== 'self' で絞る
+      //     (同 特性の仕様節「自発的に…状態異常になったりする技/特性/もちものに対しては発動しない。」)。
+      if (ef.target !== 'self' && sideTypes(target).includes('くさ')){
+        const _fvAb = veilGuardAbility(target, atk, 'フラワーベール');
+        if (_fvAb){
+          log('9', `${pname(target)} は ${_fvAb}で ${ef.value}に ならない！`);
+          continue;
+        }
       }
       // さわぐ最中は場の誰も眠れない(ねむる自身も含む。Bulbapedia "Uproar")
       if (code === 'sleep' && uproarActive()){
@@ -6306,6 +6745,44 @@ function phaseSlipFor(s, slotIdx){
   }
 }
 
+// === E2 機構7: フェーズ「ターン終了・味方の状態異常回復」(いやしのこころ) ===
+// ★新しい段を足す(まとめない)。置き場は phaseEndOfTurnSlip(スリップダメージ)の「直前」。
+// 出典: ポケモンWiki『いやしのこころ』特性の仕様節
+//   「・発動のタイミングはターンの終了時になる。」
+//   「・どく/もうどく/やけど/あくむ/ナイトメアのダメージ判定より前であるため、いやしのこころが発動する
+//     ターンはこれらのダメージを受けない。」
+//   → スリップより前に置くことで「治ったターンはダメージを受けない」が条件分岐なしで成立する
+//     (憲法: 順序そのものが仕様の段)。
+// 出典(効果): 同 効果節「ターン終了時に、自分に隣接する味方の状態異常が50％ (スカーレット・バイオレットまでは
+//   30%) の確率で回復する。」/ 説明文節(Champions)「ターン終わりに 状態異常の味方を 50%の確率で治す。」
+//   → 確率の正典は Champions の 50%([[champions-plus-alpha-canon-rule]] ①Championsに在る値が正典)。
+//     master/abilities.json effect_ja も「50%の確率で」。★effect_en だけ旧世代の 30% のまま=台帳に報告。
+// 出典(除外): 同 特性の仕様節「・こんらんなどの状態変化は治せない。」
+//   → st.status(状態異常)だけ見る。st.confusion(こんらん=状態変化)は触らない(構造的に対象外)。
+// 出典(除外): 同「・いやしのこころのポケモン自身の状態異常は治せない。」→ allySlotsOf が自分を除く。
+// 出典(除外): 同「・場に出ていない控えの味方には効果がない。」→ allySlotsOf は在場の枠だけ返す(bench を見ない)。
+// 出典(備考): 同「自分の状態異常は治せないため、シングルバトルで発動することはない。」
+//   → ★シングルは allySlotsOf が常に空 = この段は1周して何もしない。
+// ★新しい乱数点: 「味方に状態異常が在る時だけ」Math.random() を1回引く。
+//   シングルでは味方が居ないので 0回・ダブルで味方が健康なら 0回 = 既存の乱数列は一切ずれない
+//   (sim 862件の stdout diff 0 の根拠)。消費順は既存規約 forEachSlotItemOrder
+//   (ダブル=素の素早さ降順・シングル='self',0 → 'opp',0 の固定順)に揃える=オンラインでも決定的。
+function phaseEndOfTurnAllyHeal(){
+  forEachSlotItemOrder(function(s, slotIdx){
+    const st = slotOf(s, slotIdx);
+    if (!st || !st.poke || st.fainted) return;
+    if (sideAbility(st) !== 'いやしのこころ') return;
+    allySlotsOf(s, slotIdx).forEach(function(_al){
+      const _a = _al.st;
+      if (!_a.status || _a.status === 'none') return;   // 状態異常なし=ロールしない(乱数を無駄に消費しない)
+      if (Math.random() >= 0.5) return;                 // 50%(Champions正典)
+      _a.status = 'none'; _a.badpoisonCounter = 0; _a.sleepTurns = null;
+      // ★ログ行新設禁止: 既存の型(id='bl_59'・5897/7577行と同じ文字列・9言語済み)を使う。
+      log('10a', `${pname(_a)} の 状態異常が 治った！`);
+    });
+  });
+}
+
 function phaseEndOfTurnSlip(){
   // E1-a1(指示書 a.1「ダブルで枠1のどく/やけど/やどりぎ/たべのこし等が一切処理されない(実測 0/200)」):
   // 個体単位の処理=全枠へ。順序は既存規約 forEachSlotItemOrder(=素の素早さ順・同速はcanonSlots)に合わせる。
@@ -7085,6 +7562,8 @@ function runSingleAttack(atkSide, moveIdx){
     if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
     applyThroatSpray(atk, def, mv, dmgRes);   // のどスプレー(Phase D B3)
     itemReactions();   // B案: 行動の後に道具(きのみ)の発動チェック
+    resolveAllyFaintAbility();   // E2 機構8: 味方のひんしに反応する段(かがくのちから/レシーバー)。既存の反応polling(itemReactions)と同じ反応点。
+    resolveSymbiosis();          // E2 機構9: 味方の道具消費に反応する段(きょうせい)。同じ反応点(道具の反応=itemReactionsの直後)。
   }
   resolveEjectPack('self'); resolveEjectPack('opp');   // だっしゅつパック(Phase D B3): 行動後にまとめて判定
   // 攻撃側のターン終了スリップ（片側攻撃でも自分側のみ処理）
@@ -7233,6 +7712,9 @@ function clearVolatilesOnSwitch(st){
   st.usedMoveNames = [];      // とっておきの使用履歴も交代でリセット(Bulbapedia "Last Resort")
   st.turnsOut = 0;            // 場に出た直後扱い(ねこだましがまた使える)
   st.selectedMoveIdx = null;  // 新しいポケモンの技選択はUI/呼び出し側がやり直す
+  st.overlordFainted = 0;     // E2 機構4: そうだいしょうの補正率は「登場のたびに確定し直す」per_switch の値
+                              // (fireEntryAbility が入場時に上書きするが、そうだいしょう以外の個体が
+                              //  この枠に入った時に前の値が残らないようここでも0に戻す)
   st.paradoxBoost = false;    // ブーストエナジー由来のこだいかっせい/クォークチャージ発動も交代で解除(Phase D B3)
   st.pendingEjectPack = false;   // だっしゅつパックの保留フラグも交代で持ち越さない(Phase D B3)
 }
@@ -7247,6 +7729,14 @@ function consumeItem(st){
   if (_ci && String(_ci.category || '').startsWith('berry') && sideAbility(st) === 'はんすう'){
     st.cudChew = { key: st.item, n: 2 };
   }
+  // E2 機構9(きょうせい): 「この枠が道具を消費した」印を立てる。ここが道具消費の単一ディスパッチ点。
+  // ★「消費した」と「失った」を区別できるのがこの置き場の肝: はたきおとす/ふしょくガス/やきつくす・
+  //   どろぼう/ほしがる・なげつける は st.item を直接 null にしていて consumeItem を通らない
+  //   → 条件分岐を1つも書かずに権威の除外が成立する。
+  //   出典: ポケモンWiki『きょうせい』特性の仕様節「味方がはたきおとす・ふしょくガス・やきつくすを受けて
+  //   持ち物を失った場合、きょうせいは発動しない。」
+  // 実際の受け渡しは resolveSymbiosis()(既存の反応点)が後でまとめて行う=ここでは印だけ。
+  st.symbiosisConsumed = true;
   st.item = '';
 }
 function _itemFrac(s){
@@ -7321,12 +7811,129 @@ function berryBlocked(sideKey){
   return (sides[foeSide].slots || [sides[foeSide]]).some(foe =>
     !!(foe && foe.poke && !foe.fainted && sideAbility(foe) === 'きんちょうかん'));
 }
+// === E2 機構8: かがくのちから/レシーバー = 「味方がひんしになった」に反応する段 ===
+// 出典: ポケモンWiki『レシーバー』効果節「味方のポケモンがひんしになったとき、そのポケモンの特性と同じ
+//   特性になる。」「コピーできない特性を持つ味方がひんしになったときは発動しない。」
+//   こんなときに使おう節「シングルバトルでは意味がない、ダブルバトル専用の特性。」
+//   特性の仕様節「かがくのちからと全く同じ効果を持つ。」→ 2つの特性名を同じ段で扱う。
+// 出典: ポケモンWiki『かがくのちから』特性の仕様節「場に出た時に発動する特性をコピーした場合、
+//   コピーした直後にその特性の効果が発動する。」→ コピー後に fireEntryAbility(abilityOnly) を1回。
+// 出典: master/abilities.json effect_ja「場から離れると元に戻る」→ abilityOverride に入れる
+//   (clearVolatilesOnSwitch が交代で null に戻す=既存のトレース/なりきりと同じ寿命 per_switch)。
+//
+// ★なぜ「ひんしになった瞬間」ではなく polling(見張り)なのか:
+//   エンジンには「ひんしになった」を1箇所で通る単一ディスパッチ点が無い(`は ひんしになった！` のログを
+//   出す箇所が実測29箇所ある)。そこへ29個の呼び出しを足すのは憲法の「単一ディスパッチ点」に反するうえ
+//   取りこぼしが必ず出る。そこで既存の反応polling(itemReactions / resolveEjectPackAllSlots)と
+//   まったく同じ形にして、同じ反応点から呼ぶ。
+//   ★べき等(何度呼んでも同じ): コピーに成功すると sideAbility(st) が レシーバー でなくなる=次の poll では
+//     条件に入らない。だから同じ faint で二度コピーすることはない。
+// ★allySlotsOf は「生存枠」しか返さないので、ここだけは「ひんしの味方枠」を自前で走査する
+//   (allySlotsOf の定義=在場・生存 を曲げない。定義を曲げると他の9機構が狂う)。
+// ★シングル: 自分以外の枠が存在しない=for が1度も回らない(挙動不変)。
+// ★とくせいガード(持ち物): 自分の特性が書き換わらない=既存の hasAbilityShield で弾く
+//   (なりきり/スキルスワップ/いえきと同じ扱い)。
+// ★きのみ(itemReactions)との前後関係は権威に記述が無い=既存の反応点の直後に置く(未確認として台帳へ)。
+function resolveAllyFaintAbility(){
+  forEachSlotItemOrder(function(s, slotIdx){
+    const st = slotOf(s, slotIdx);
+    if (!st || !st.poke || st.fainted) return;
+    const ab = sideAbility(st);
+    if (ab !== 'レシーバー' && ab !== 'かがくのちから') return;
+    if (hasAbilityShield(st)) return;
+    const _len = ((sides[s] && sides[s].slots) || [sides[s]]).length;
+    for (let i = 0; i < _len; i++){
+      if (i === slotIdx) continue;
+      const _dead = slotOf(s, i);
+      if (!_dead || !_dead.poke) continue;
+      if (!(_dead.fainted || (_dead.currentHp != null && _dead.currentHp <= 0))) continue;
+      const _dAb = sideAbility(_dead);
+      if (!_dAb || RECEIVER_NO_COPY.has(_dAb)) continue;   // コピー不可=発動しない(ログも出さない)
+      st.abilityOverride = _dAb;
+      // ★ログ行新設禁止: 既存の型2本。①`${pname(st)} の ${ab}！`(id='ability_announce')
+      //   ②`${pname(st)} の 特性が ${_dAb}に なった！`(id='bl_61'・6333/6344行と同じ文字列)。9言語済み。
+      log('9', `${pname(st)} の ${ab}！`);
+      log('9', `${pname(st)} の 特性が ${_dAb}に なった！`);
+      fireEntryAbility(s, slotIdx, {abilityOnly: true});   // コピーした直後にその特性の効果が発動する
+      return;   // 引き継ぐのは1体ぶん
+    }
+  });
+}
+// === E2 機構9: きょうせい(Symbiosis) = 「味方が道具を消費した」に反応して自分の道具を渡す段 ===
+// 出典: ポケモンWiki『きょうせい』効果節「味方のポケモンが持ち物を消費した際、自身の持ち物をその味方に渡す。」
+//   説明文節(Champions)「味方が道具を消費すると 自分の持っている道具を味方に渡す。」
+//   特性の仕様節「きょうせいによって渡した道具が消費できる条件を満たしている場合、即座に消費する。」
+//   特性の仕様節「味方が持ち物を消費した瞬間にきょうせいのポケモンが場にいなければ発動しない。
+//                 シングルバトルでは発動しない。」
+// 出典: reference/_ability_facts.json facts.きょうせい(事実の表・出典=同Wiki『特性の仕様』/『第七世代以降』節)
+//   除外「・以下の持ち物は渡すことはできず、きょうせいは発動しない。・自身か相手のポケモンに対応した
+//         メガストーン。どちらとも無関係のメガストーンであれば渡せる。…特性こだいかっせい・クォークチャージで
+//         あるときのブーストエナジー。…・Zクリスタル」
+//   条件「・道具を消費した味方か、きょうせいのポケモンがひんしになったときは発動しない。」
+//   条件「・みがわり状態の味方や、姿を隠している味方にもきょうせいで持ち物を渡すことはできる。」
+//        → みがわり/イリュージョンを見る判定を足さない(=そのまま渡る)。
+// ★シングル: allySlotsOf が常に空=この段は1周して何もしない(挙動不変)。
+// ★「渡せるか」の判定は data(items_database.js の category/applies_to_pokemon)を読む。名前の直書きをしない。
+function symbiosisCanGiveItem(donor, receiver, itemKey){
+  const it = ITEM_BY_KEY[itemKey];
+  if (!it) return false;
+  // メガストーン: 渡す側/受け取る側のどちらかに対応するものは渡せない(無関係なストーンは渡せる)
+  if (it.category === 'mega_stone'){
+    const _names = Array.isArray(it.applies_to_pokemon) ? it.applies_to_pokemon
+                 : (it.applies_to ? [it.applies_to] : []);
+    const _base = function(st){ return (st && ((st.megaBase && st.megaBase.name) || (st.poke && st.poke.name))) || ''; };
+    if (_names.includes(_base(donor)) || _names.includes(_base(receiver))) return false;
+  }
+  // ブーストエナジー: こだいかっせい/クォークチャージ持ちが絡むと渡せない
+  if (it.key === 'booster_energy'){
+    if (_PARADOX_ABILITY[sideAbility(donor)] || _PARADOX_ABILITY[sideAbility(receiver)]) return false;
+  }
+  // ★あいいろのたま/べにいろのたま/はっきんだま/プレート/カセット/メモリ/くちたけん/くちたたて/Zクリスタルは
+  //   Champions の持ち物データ(items_database.js 190件)に存在しない=判定を書く対象が無い(推測で名前を並べない)。
+  //   将来これらが追加されたらここに1行ずつ足す。台帳に「未対応(データに無い)」として記録。
+  return true;
+}
+function resolveSymbiosis(){
+  forEachSlotItemOrder(function(s, slotIdx){
+    const donor = slotOf(s, slotIdx);
+    if (!donor || !donor.poke) return;
+    if (sideAbility(donor) !== 'きょうせい') return;
+    if (donor.fainted) return;              // きょうせい自身がひんし=発動しない
+    if (!donor.item || env.magicRoom) return;
+    allySlotsOf(s, slotIdx).forEach(function(_al){
+      const _rv = _al.st;
+      if (!_rv.symbiosisConsumed) return;
+      _rv.symbiosisConsumed = false;        // 1回の消費につき1回だけ(べき等)
+      if (!donor.item) return;              // 同一解決内で既に別の味方へ渡していたら終わり
+      if (_rv.item) return;                 // 受け取る側がもう道具を持っている=渡す先が無い
+      if (!symbiosisCanGiveItem(donor, _rv, donor.item)) return;
+      const _give = donor.item;
+      // ★ログ行新設禁止(指示書 絶対条件): 実機の「<きょうせい>は <道具名>を <味方>に 持たせた!」は
+      //   新しい行になるので出さない。既存の型(id='ability_announce')で発動だけ告げる。
+      //   実機文言は台帳に「未対応(文言)」として残す。
+      log('9', `${pname(donor)} の きょうせい！`);
+      donor.item = '';
+      _rv.item = _give;
+      // 「渡した道具が消費できる条件を満たしている場合、即座に消費する」= その枠だけ道具判定をやり直す
+      itemReactionsFor(_al.side, _al.idx);
+    });
+  });
+}
 function itemReactions(){
   // E1-a2(2026-09-11・指示書 spec_e1_engine_slots.md a.2): 道具の反応は個体単位=全枠へ。
   // ダブルで枠1の道具(オボンのみ等)が一度も発動しなかった穴を閉じる。順序は既存規約
   // forEachSlotItemOrder(=ダブルは素の素早さ降順・シングルは 'self',0 → 'opp',0 の固定順)。
   // ★シングルは旧 activeSides().forEach と同じ2回・同じ順=stdout diff 0。
-  forEachSlotItemOrder((s, _slotIdx) => {
+  forEachSlotItemOrder(itemReactionsFor);
+}
+// E2 機構9(2026-09-11): itemReactions() の「1枠ぶん」を関数として切り出した(既存の
+// phaseEndOfTurnSlip → phaseSlipFor と同じ形)。中身・判定・順序は1文字も変えていない
+// (itemReactions は forEachSlotItemOrder(itemReactionsFor) を呼ぶだけ=呼ばれる順・回数とも不変)。
+// 切り出した理由: きょうせいが道具を渡した直後に「その枠だけ」道具の発動判定をやり直す必要がある
+// (権威「きょうせいによって渡した道具が消費できる条件を満たしている場合、即座に消費する。」)。
+// 全枠ぶんの itemReactions() をもう一度呼ぶと他の枠のきのみまで二度判定することになる。
+function itemReactionsFor(s, _slotIdx){
+  {
     const st = slotOf(s, _slotIdx);
     if (!st.poke || st.fainted || !st.item || env.magicRoom) return;
     const it = ITEM_BY_KEY[st.item];
@@ -7401,7 +8008,7 @@ function itemReactions(){
         log('9', `${pname(st)} は ${it.name}で 状態異常を 治した！`);
       }
     }
-  });
+  }
 }
 
 // 交代で出てきたポケモンへの設置物の発動。発動順は ステルスロック→まきびし→どくびし→ねばねばネット(近似)。
@@ -7574,6 +8181,8 @@ function attemptSwitch(sideKey, benchIdx, opts){
   // 以前はここに個別実装(おみとおし/イリュージョン/トレース/かわりもの)だけがあり、交代時にいかく等の
   // Init-A特性群がまるごと発動していなかった(実機は交代のたびに毎回発動)。fireEntryAbilityへ統合して二重発動を防ぐ。
   fireEntryAbility(sideKey, slotIdx);
+  // E2 機構5: 低優先の登場特性(おもてなし)は1周目の直後に。単独入場なので順番の競合は起きない。
+  fireLowPriorityEntryAbility(sideKey, slotIdx);
   // だっしゅつパック(Phase D B3・D4-2d): 交代直後のいかく等でランクが下がった場合にも判定する。
   // いかくが相手複数枠に効きうる=全枠まとめて見る(forEachSlotItemOrder=シングルは従来のself→opp順のまま)。
   resolveEjectPackAllSlots();
@@ -7695,6 +8304,7 @@ function megaEvolve(sideKey, slotIdx){
   log('0a', `${baseName} の ${stone.name}が 反応している！ ${pname(st)} に メガシンカした！`);
   // メガシンカで得た登場特性(ひでり/ゆきふらし/トレース等)はその瞬間に発動する(段127・実機準拠)
   fireEntryAbility(sideKey, slotIdx);
+  fireLowPriorityEntryAbility(sideKey, slotIdx);   // E2 機構5: 低優先の登場特性(おもてなし)も同じ入口から
   resolveEjectPackAllSlots();   // だっしゅつパック(Phase D B3・D4-2d): いかく等が相手複数枠に効きうるので全枠まとめて見る
   return true;
 }
@@ -7760,15 +8370,30 @@ function isOppositeGender(a, b){
   return ga !== gb;
 }
 // メロメロ予防特性(どんかん/アロマベール)。かたやぶりはメロメロ付与を貫通できる
+// E2 機構10(2026-09-11): アロマベールは「自分を含めた味方」を守るので、味方枠(allySlotsOf)も見る。
+//   出典: ポケモンWiki『アロマベール』効果節「自分を含めた味方のポケモンは、以下の状態変化にならなくなる。」
+//   →「メロメロ」を含む。/ 同 特性の仕様節「特性メロメロボディ/のろわれボディの効果も防ぐことができる。」
+//   ★どんかんは「自分だけ」型なので従来どおり自分の特性しか見ない(Wikiが『マイペース/どんかんなどとは
+//     異なる』と明記して区別している)。ここを混ぜない。
+//   ★シングル: veilGuardAbility は allySlotsOf が空なので自分の特性しか見ない=従来と同じ結果(不変)。
 function attractGuard(st, atk){
   const ab = defAbilityVs(st, atk);
-  return ab === 'どんかん' || ab === 'アロマベール';
+  if (ab === 'どんかん' || ab === 'アロマベール') return true;
+  return !!veilGuardAbility(st, atk, 'アロマベール');
+}
+// E2 機構10: attractGuard が true を返した「理由の特性名」を返す(ログ用)。
+// 従来は log 側が defAbilityVs(target, source) を再評価していたが、味方のアロマベールで防いだ時に
+// 自分の特性名(=無関係)が出てしまうため、判定と同じ経路で名前を引く。
+function attractGuardAbility(st, atk){
+  const ab = defAbilityVs(st, atk);
+  if (ab === 'どんかん' || ab === 'アロマベール') return ab;
+  return veilGuardAbility(st, atk, 'アロマベール');
 }
 // メロメロを付与(条件を満たせば)。戻り値=付与できたか
 function applyAttract(target, source){
   if (!target.poke || target.attracted) return false;
   if (!isOppositeGender(target, source)) return false;
-  if (attractGuard(target, source)) { log('9', `${pname(target)} は ${defAbilityVs(target, source)}で メロメロに ならない！`); return false; }
+  if (attractGuard(target, source)) { log('9', `${pname(target)} は ${attractGuardAbility(target, source)}で メロメロに ならない！`); return false; }
   target.attracted = true;
   log('9', `${pname(target)} は ${pname(source)} に メロメロに なった！`);
   return true;
@@ -8684,6 +9309,8 @@ function runTurn(){
       if (_selfKO && !atk.failedThisTurn) applySelfFaint(atk);
       applyThroatSpray(atk, def, mv, null);   // のどスプレー(Phase D B3): 音の変化技でも成功時に発動
       itemReactions();   // B案: 行動の後に道具(きのみ)の発動チェック
+      resolveAllyFaintAbility();   // E2 機構8: 味方のひんしに反応する段(かがくのちから/レシーバー)。既存の反応polling(itemReactions)と同じ反応点。
+      resolveSymbiosis();          // E2 機構9: 味方の道具消費に反応する段(きょうせい)。同じ反応点(道具の反応=itemReactionsの直後)。
       resolveEjectPackAllSlots();   // だっしゅつパック(Phase D B3・D4-2d): 全枠まとめて見る
       continue;
     }
@@ -8715,11 +9342,16 @@ function runTurn(){
     if (_selfKO && (_selfKOAlways || (dmgRes && !dmgRes.immune))) applySelfFaint(atk);
     applyThroatSpray(atk, def, mv, dmgRes);   // のどスプレー(Phase D B3)
     itemReactions();   // B案: 行動の後に道具(きのみ)の発動チェック
+    resolveAllyFaintAbility();   // E2 機構8: 味方のひんしに反応する段(かがくのちから/レシーバー)。既存の反応polling(itemReactions)と同じ反応点。
+    resolveSymbiosis();          // E2 機構9: 味方の道具消費に反応する段(きょうせい)。同じ反応点(道具の反応=itemReactionsの直後)。
     resolveEjectPackAllSlots();   // だっしゅつパック(Phase D B3・D4-2d): 全枠まとめて見る
     if (!isExtraAct) sched.finish(_schedAct.actionId);   // D2-c: scheduler本体のIntentだけ確定させる(さいはい等のextraは対象外)
   }
   currentTurnScheduler = null;   // D2-c: ターン終了=invalidateActor用の参照を外す
   // ターン終了処理
+  // E2 機構7: いやしのこころ(味方の状態異常を50%で治す)は★スリップの前★の独立した段
+  // (Wiki「どく/もうどく/やけど…のダメージ判定より前」=治ったターンはダメージを受けない)。
+  phaseEndOfTurnAllyHeal();
   phaseEndOfTurnSlip();
   // 遅延状態(あくび等)のカウントダウン→発動(ねむりターンのロールがあるので正準順=オンラインの状態一致)
   // E1-a4(指示書 a.4): あくび等の遅延状態異常は★個体★の予約=全枠へ。ねむりターンのロールがあるので
@@ -8815,6 +9447,8 @@ function runTurn(){
     }
   }
   itemReactions();   // B案: ターン終了処理(スリップ等)の後にも道具の発動チェック
+  resolveAllyFaintAbility();   // E2 機構8: 味方のひんしに反応する段(かがくのちから/レシーバー)。既存の反応polling(itemReactions)と同じ反応点。
+  resolveSymbiosis();          // E2 機構9: 味方の道具消費に反応する段(きょうせい)。同じ反応点(道具の反応=itemReactionsの直後)。
   // 技で張った壁(リフレクター等)のカウントダウン(5ターン目の終わりに消える。UI手動チェック=カウンタなし は無期限)
   // E1-b(2026-09-11・指示書 spec_e1_engine_slots.md b / 設計_ダブルバトル_2026-09-07.md§3「Side.sideConditions」):
   // 壁は★側の欄★=側ごとに1回だけ減らす(枠で回すと2枠ぶん二重減算になる)。sides[s] は枠0と同一オブジェクト
@@ -10971,7 +11605,7 @@ function attachBattleControl(){
 // const宣言はwindowに載らないため、必要なものをここで明示的に公開する。
 window.__sim = {
   sides, env, battleLog,
-  // B064 ダブル(D3〜D5・2026-09-11): 枠/形式/選択の公開API(battle_doubles_preview.html が使う。real_battle の「__sim だけを読む」流儀に揃える)
+  // B064 ダブル(D3〜D5・2026-09-11): 枠/形式/選択の公開API(online_battle.html のダブルが使う。real_battle の「__sim だけを読む」流儀に揃える)
   battle, setFormat, slotOf, activeSlots, canonSlots, setChoice, getChoiceCandidates, autoChoose, checkBattleWinner, isSideDefeated,
   // 相打ち(両者全滅)の勝敗判定用(A.4 2026-07-11): 最後に技を出した側とその技
   getLastMoveInfo: () => ({ side: lastMoveAnywhereSide, move: lastMoveAnywhere }),
