@@ -89,13 +89,12 @@ test('D3-2c-1: 4体(優先度同値・速度4通り)が素早さ降順で1ター
   const hits = hitLines(E.battleLog);
   assert.equal(hits.length, 4, '4本のダメージ行が出る(4体全員が行動した証拠)');
   const order = hits.map(h => h.attacker);
-  // pname()は「相手側の枠0だけ」に「相手の 」を前置する(opp:1にはまだ付かない=D5前のUI表示ギャップ・
-  // D3-2の対象外)。opp:0(リザードン)はここに該当するので前置きされる。
-  assert.equal(JSON.stringify(order), JSON.stringify(['ケンタロス', '相手の リザードン', 'フシギバナ', 'カメックス']),
+  // pname()は相手側の全枠に「相手の 」を前置する(D6-2 2026-09-11 で枠0だけ→全枠に修正。それ以前は opp:1 に付かないギャップだった)
+  assert.equal(JSON.stringify(order), JSON.stringify(['ケンタロス', '相手の リザードン', 'フシギバナ', '相手の カメックス']),
     `速度降順(110>100>80>78)で行動する。実際の順=${JSON.stringify(order)}`);
   // 正面(同slotId)が既定対象: ケンタロス(self:0)→リザードン(opp:0)/フシギバナ(self:1)→カメックス(opp:1)
   assert.equal(hits[0].defender, '相手の リザードン', 'self:0(ケンタロス)の既定対象はopp:0(リザードン)=正面');
-  assert.equal(hits[2].defender, 'カメックス', 'self:1(フシギバナ)の既定対象はopp:1(カメックス)=正面');
+  assert.equal(hits[2].defender, '相手の カメックス', 'self:1(フシギバナ)の既定対象はopp:1(カメックス)=正面');
 });
 
 // ===== 2: 同速集団3体以上で乱数消費が1回(setRandom呼び出し回数を数える) =====

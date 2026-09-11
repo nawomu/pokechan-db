@@ -2941,7 +2941,9 @@ function log(phase, msg, meta){
 function pname(st){
   if (!st || !st.poke) return '?';
   const shown = st.illusionAs || (st.transformBase ? st.transformBase.poke : st.poke);
-  return (st === slotOf('opp', 0) ? '相手の ' : '') + shown.name;
+  // B064 D6-2(2026-09-11): 「相手の 」は相手側の全枠に付ける(枠0だけだと相手枠1の行が自分の声になる)。シングル=枠0だけ=不変
+  const oppSlots = (sides.opp && sides.opp.slots) || [sides.opp];
+  return (oppSlots.indexOf(st) >= 0 ? '相手の ' : '') + shown.name;
 }
 // イリュージョン(段138・ポケモンWiki): 場に出る時、手持ちの一番後ろの生きているポケモンに化ける。
 // 自分が最後尾(化ける相手がいない)なら化けない。攻撃技のダメージを受けると解ける(phaseDealDamage)。

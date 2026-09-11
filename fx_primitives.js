@@ -26,6 +26,16 @@ function _fxAutoRemove(el, ms){
   setTimeout(() => { if (window.__FX_SCRUB__) return; el.remove(); }, ms);
 }
 
+// ★D6-2(2026-09-11・spec_d6_2_board.md c-3): ダブルバトルの「枠(slot)」対応。
+// 各プリミティブの末尾に任意引数 slotIdx(既定0)を足し、要素を `$('f-' + side + (slotIdx ? '-' + slotIdx : ''))`
+// で引く。枠0(=slotIdx省略/0)は従来の id('f-self'/'pb-self'/'sts-self')そのまま=シングルは1msも・1pxも
+// 変わらない(絶対条件)。枠1だけ '-1' が付く('f-self-1')。枠1の要素はページ側(online_battle.html の
+// ensureBoardSlots)が double のときだけ作る=シングルでは存在しないので、引けない時は何もしない。
+// ★側に付く演出(設置物 hazardFx/clearHazardFx・壁 showWallFx/hideWallFx)は「枠」ではなく「側」のものなので
+// 意図的に枠0の要素に付けたまま(= 側の表示場所。ダブルでも正しい)。
+function _fxSlotId(prefix, side, slotIdx){ return prefix + side + (slotIdx ? '-' + slotIdx : ''); }
+function _fxSlotEl(prefix, side, slotIdx){ return $(_fxSlotId(prefix, side, slotIdx)); }
+
 // popText: variant('crit'=急所/'se'=ばつぐん)指定でポップイン強化(傾き復帰・金色glow等・Wave3 A級)
 // durMs(阿部さんFB2026-07-11 §10・演出ツクールのバーduration配線): 省略時=従来どおり固定1s(本番の挙動は
 // 1msも変わらない=絶対条件)。指定時のみ.popnumのCSSアニメ(既定rbPop 1s)をdurMsへ引き伸ばす。
@@ -34,8 +44,10 @@ function _fxAutoRemove(el, ms){
 // 切替える。省略時(=本番の既存呼び出し・cueシート無し技)は従来のCSS rbPop経由のまま1msも変えない。
 // variant(crit/se)指定時は新パラメータを無視して従来経路(まず通常数字だけ・§2-1点3)。
 const _POPTEXT_POPIN_MS = 180;   // rbPopの0〜18%(ポップイン)を再現する固定尺
-function popText(side, text, color, size, variant, durMs, opts){
-  const f = $('f-' + side);
+// slotIdx(★D6-2): 末尾省略可能引数。省略/0=枠0=従来の'f-<side>'(1msも変わらない)。
+function popText(side, text, color, size, variant, durMs, opts, slotIdx){
+  const f = _fxSlotEl('f-', side, slotIdx);
+  if (!f) return;
   const el = document.createElement('div');
   el.className = 'popnum' + (variant ? ' popnum-' + variant : '');
   el.textContent = text;
@@ -85,8 +97,9 @@ function popText(side, text, color, size, variant, durMs, opts){
 // =従来どおりintensity由来のn(呼び出し側=real_battle/online_battleの直呼び出し箇所は7引数のままで無改変)。
 // clampはこの関数の外(_dispatchCueProd)で行う=sizeScaleと同じ方針(直接呼び出し側は素通し)。
 const _BURST_DEFAULT_MS = 650;
-function burstFx(side, color, shape, intensity, durMs, sizeScale, offset, particles){
-  const f = $('f-' + side);
+// slotIdx(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。
+function burstFx(side, color, shape, intensity, durMs, sizeScale, offset, particles, slotIdx){
+  const f = _fxSlotEl('f-', side, slotIdx);
   if (!f) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'burstFx', shape, intensity, t: performance.now()});
   const scale = durMs ? (durMs / _BURST_DEFAULT_MS) : 1;
@@ -304,8 +317,9 @@ const _RB_BEAM_SHAPE_CLASS = { psi: 'rb-beam-wave', dragon: 'rb-beam-dragon', gu
 // 飛翔体で「ボール(css)」として見せる形状(絵文字を持たない=既存bullet/ball系の発展形)。drillは回転縞バリアント付き
 const _RB_PROJ_DOT_SHAPES = { orb:1, sand:1, dust:1, explosion:1, drill:1 };
 // 攻撃側/対象側のスプライト中心を画面座標(fixed基準)で返す。#fieldのzoom/scaleの影響を受けない
-function fxPoint(side){
-  const f = $('f-' + side);
+// slotIdx(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。
+function fxPoint(side, slotIdx){
+  const f = _fxSlotEl('f-', side, slotIdx) || $('f-' + side);
   const sp = (f && f.querySelector('.sprite')) || f;
   const r = sp.getBoundingClientRect();
   return { x: r.left + r.width / 2, y: r.top + r.height * 0.5 };
@@ -369,14 +383,15 @@ function spawnBeam(from, to, cls, color, hitFrac, shape, durMs){
 // 飛翔体でなく本体クローンの突進(chargeFx)にする。非接触/mv不明は従来の飛翔体/ビームのまま。
 // speedMul(2026-07-16連続技演出): 末尾省略可能引数。省略時=undefined=1として扱う=全既存呼び出しは
 // 1msも変わらない(不変)。連続技の各ヒットだけ呼び出し元(lineWithFx)が0.4前後を渡して尺を圧縮する。
-function attackFx(atkSide, tgtSide, mv, hit, speedMul){
+// atkSlot/tgtSlot(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり1msも変わらない)。
+function attackFx(atkSide, tgtSide, mv, hit, speedMul, atkSlot, tgtSlot){
   const _sm = speedMul != null ? speedMul : 1;
-  if (mv && mv.contact === true) return chargeFx(atkSide, tgtSide, mv, hit, _sm);
+  if (mv && mv.contact === true) return chargeFx(atkSide, tgtSide, mv, hit, _sm, atkSlot, tgtSlot);
   const cls = moveClassOf(mv);
   const shape = shapeOf(mv);
   if (window.__fxTrace) window.__fxTrace.push({k:'attackFx', mv: mv && mv.name, shape, t: performance.now()});
   const color = (S.typeColors() && mv && S.typeColors()[mv.type]) || '#9fb4d8';
-  const from = fxPoint(atkSide), to = fxPoint(tgtSide);
+  const from = fxPoint(atkSide, atkSlot), to = fxPoint(tgtSide, tgtSlot);
   const hitFrac = hit ? 1 : 0.55;
   const useBeam = _RB_BEAM_CLS[cls] || (shape && _RB_BEAM_SHAPES[shape]);
   const _durMs = _sm !== 1 ? Math.round((useBeam ? 180 : 190) * _sm) : undefined;
@@ -390,23 +405,24 @@ function attackFx(atkSide, tgtSide, mv, hit, speedMul){
 // 演出例外(交代/ひんしの割込み等)でも必ずクローン除去+本体visibility復帰する(保険タイマー併用)。
 // speedMul(2026-07-16連続技演出): 末尾省略可能引数。省略時=undefined→1扱い=既存呼び出しは1msも
 // 変わらない(不変)。連続技の各ヒットは0.4前後を渡し、突進/帰還/バーストの尺をまとめて圧縮する。
-function chargeFx(atkSide, tgtSide, mv, hit, speedMul){
+// atkSlot/tgtSlot(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。
+function chargeFx(atkSide, tgtSide, mv, hit, speedMul, atkSlot, tgtSlot){
   const _sm = speedMul != null ? speedMul : 1;
   const cls = moveClassOf(mv);
   const shape = shapeOf(mv);
   if (window.__fxTrace) window.__fxTrace.push({k:'chargeFx', mv: mv && mv.name, shape, t: performance.now()});
   const color = (S.typeColors() && mv && S.typeColors()[mv.type]) || '#9fb4d8';
-  const atkEl = $('f-' + atkSide);
+  const atkEl = _fxSlotEl('f-', atkSide, atkSlot);
   const sp = atkEl && atkEl.querySelector('.sprite');
   if (!sp || typeof sp.animate !== 'function'){
     // 保険: クローン化できない環境は従来の飛翔体にフォールバック(技名推測はしない=形状別演出は維持)
-    const from = fxPoint(atkSide), to = fxPoint(tgtSide);
+    const from = fxPoint(atkSide, atkSlot), to = fxPoint(tgtSide, tgtSlot);
     const _durMs = _sm !== 1 ? Math.round(190 * _sm) : undefined;
     const dur = spawnProjectile(from, to, cls, color, hit ? 1 : 0.55, shape, _durMs);
     if (hit) setTimeout(() => { fieldShake(1); SE.hitClass(cls); }, dur); else setTimeout(() => SE.miss(), Math.round(dur * 0.7));
     return dur;
   }
-  const from = fxPoint(atkSide), to = fxPoint(tgtSide);
+  const from = fxPoint(atkSide, atkSlot), to = fxPoint(tgtSide, tgtSlot);
   const hitFrac = hit ? 0.92 : 0.70;
   const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
   const back = (dx >= 0 ? -1 : 1) * 10;   // アンティシペーション: 相手と逆方向へ少し引く
@@ -464,12 +480,12 @@ function chargeFx(atkSide, tgtSide, mv, hit, speedMul){
     if (hit){
       // フレアドライブの尺(burst=1950ms)をdone:trueシート未対応の全技デフォルトに(2026-07-13 阿部さん)。
       // 連続技(_sm<1)はburstもまとめて圧縮=1発ずつの残像が重ならないようにする(2026-07-16)
-      burstFx(tgtSide, color, shape, 'normal', Math.round(1950 * _sm));
+      burstFx(tgtSide, color, shape, 'normal', Math.round(1950 * _sm), undefined, undefined, undefined, tgtSlot);
       const icon = _SHAPE_ICON[shape] || _RB_CLS_ICON[cls];
-      if (icon) popText(tgtSide, icon, null, 26);
+      if (icon) popText(tgtSide, icon, null, 26, undefined, undefined, undefined, tgtSlot);
       SE.hitClass(cls);
       fieldShake(1);
-      knockbackFx(tgtSide, dx, dy);
+      knockbackFx(tgtSide, dx, dy, tgtSlot);
       // ヒットストップ簡易版: 帰還アニメの開始を60-80ms遅らせる(周辺演出は止めない)
       setTimeout(returnHome, Math.round((60 + Math.round(Math.random() * 20)) * _sm));
     } else {
@@ -489,8 +505,9 @@ function chargeFx(atkSide, tgtSide, mv, hit, speedMul){
 }
 // 被弾ノックバック(Wave2.5 S級): 攻撃方向へ一瞬押されて弾む。.fighter(外側)に掛けるので
 // .sprite側のrbShake/squash&stretchアニメ(別要素)と衝突しない
-function knockbackFx(side, dx, dy){
-  const f = $('f-' + side);
+// slotIdx(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。
+function knockbackFx(side, dx, dy, slotIdx){
+  const f = _fxSlotEl('f-', side, slotIdx);
   if (!f) return;
   const cls = side === 'self' ? 'rb-knockback-self' : 'rb-knockback-opp';
   f.classList.remove(cls);
@@ -553,8 +570,10 @@ function fieldShake(mag){
   if (m >= 1.6) chromaticAberrationFx();   // Wave4 B級: 大技+シェイク最大時のみ
 }
 // flash: 側全体(#f-self/#f-opp)にCSSクラスを一瞬付ける汎用フラッシュ(登場/退場/状態異常の合図等で使用)
-function flash(side, cls){
-  const f = $('f-' + side);
+// slotIdx(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。
+function flash(side, cls, slotIdx){
+  const f = _fxSlotEl('f-', side, slotIdx);
+  if (!f) return;
   f.classList.remove(cls);
   void f.offsetWidth;
   f.classList.add(cls);
@@ -567,8 +586,9 @@ function flash(side, cls){
 // 依存の補足: tone()/ac()(WebAudio合成音の下請け)・_recallTimer(交代1拍目のgone遅延タイマー・オブジェクト)は
 // 両ページで同名同内容のグローバルとして既に定義されている前提(Step2aのSE/$と同じ扱い。注入点は新設しない)。
 // ランク変化: 緑↑/紫↓の粒子(段数で個数)+上昇/下降スイープ音
-function rankFx(side, up, stage){
-  const f = $('f-' + side);
+// slotIdx(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。
+function rankFx(side, up, stage, slotIdx){
+  const f = _fxSlotEl('f-', side, slotIdx);
   if (!f) return;
   const n = Math.min(3, Math.max(1, stage || 1));
   for (let i = 0; i < n; i++){
@@ -584,8 +604,9 @@ function rankFx(side, up, stage){
   up ? SE.rankUp() : SE.rankDown();
 }
 // 回復のキラキラ(緑の星が数個舞う)。SE.heal()(ハープ風)は既存のまま呼び出し元で鳴らす
-function sparkleFx(side){
-  const f = $('f-' + side);
+// slotIdx(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。
+function sparkleFx(side, slotIdx){
+  const f = _fxSlotEl('f-', side, slotIdx);
   if (!f) return;
   for (let i = 0; i < 5; i++){
     setTimeout(() => {
@@ -632,9 +653,9 @@ function _megaStepOrbs(f){
   }
 }
 function _megaStepSilhouetteOn(sp){ if (sp) sp.classList.add('rb-mega-silhouette'); }
-function _megaStepClimax(side, f, sp, color){
+function _megaStepClimax(side, f, sp, color, slotIdx = 0){   // slotIdx(★D6-2): 既定0=枠0(既定値引数=length 4 のまま・lab_verify Gate6)
   if (sp) sp.classList.remove('rb-mega-silhouette');
-  burstFx(side, color || '#ffd96b', null, 'up');
+  burstFx(side, color || '#ffd96b', null, 'up', undefined, undefined, undefined, undefined, slotIdx);
   const ring = document.createElement('div');
   ring.className = 'rb-mega-ring';
   f.appendChild(ring);
@@ -655,6 +676,7 @@ function _megaStepDna(f){
   f.appendChild(dna);
   _fxAutoRemove(dna, 260);
 }
+// ★D6-2: メガシンカはこの段では枠0だけ(ダブルの枠1のメガは D6-3)=枠引数を持たない(報告に明記)。
 function megaFx(side){
   if (window.__fxTrace) window.__fxTrace.push({k:'megaFx', side, t: performance.now()});
   const f = $('f-' + side);
@@ -683,7 +705,9 @@ function megaFx(side){
 // visibility:hiddenのまま・クローンが盤面に残留するリークを実機で確認したため(=まさに巻き込み事故)。
 function _koCollectAnims(koSide){
   const otherSide = koSide === 'self' ? 'opp' : 'self';
-  const sel = `#f-${otherSide},#f-${otherSide} *,.rb-proj,.rb-proj-dot,.rb-beam,.rb-beam-wave,` +
+  // ★D6-2: 倒れなかった側の .fighter は、ダブルでは枠0/枠1の2つある。前方一致の属性セレクタで
+  // 'f-opp' と 'f-opp-1' の両方を拾う(シングルは要素が1つしか無いので結果は従来と同一)。
+  const sel = `[id^="f-${otherSide}"],[id^="f-${otherSide}"] *,.rb-proj,.rb-proj-dot,.rb-beam,.rb-beam-wave,` +
     `.popnum,.burst,.rb-burstp,.rb-burstring,[class*="rb-burstglyph"],[class*="rb-mega-"]`;
   const seen = new Set(), anims = [];
   document.querySelectorAll(sel).forEach(el => {
@@ -701,7 +725,7 @@ function _koStepImpact(){
   impactFrameFx();   // Wave4 B級①: 白黒反転50ms(急所/KO級限定)
   SE.explosion();    // Wave4 B級⑥: 爆発音(大技/KO限定=KOは無条件)
 }
-function _koStepSlow(koSide, tameMs, slowMs){
+function _koStepSlow(koSide, tameMs, slowMs, slotIdx){   // slotIdx(★D6-2): 受け取るだけ(KOスローは側単位)
   tameMs = tameMs != null ? tameMs : 200;
   slowMs = slowMs != null ? slowMs : 600;
   const bg = $('field-backdrop');
@@ -716,8 +740,10 @@ function _koStepSlow(koSide, tameMs, slowMs){
     }, slowMs);
   }, tameMs);
 }
-function koSlowFx(koSide){
-  if (window.__fxTrace) window.__fxTrace.push({k:'koSlowFx', koSide, t: performance.now()});
+// slotIdx(★D6-2): 受け取るが内部処理は「倒れた側/倒れなかった側」の側単位なのでそのまま
+// (どの枠が倒れても画面全体のKOスロー=実機と同じ扱い)。引数の並びを他のプリミティブと揃えるために置く。
+function koSlowFx(koSide, slotIdx){
+  if (window.__fxTrace) window.__fxTrace.push({k:'koSlowFx', koSide, slotIdx: slotIdx || 0, t: performance.now()});
   _koStepImpact();
   _koStepSlow(koSide, 200, 600);
   return 950;   // dur=200(タメ)+600(スロー)+150(復帰バッファ)。次拍と衝突させない(_koFxDelayでホールド)
@@ -809,8 +835,8 @@ function setTerrainFx(kind){
 // A. shieldFx: まもる系(まもる/みきり/ワイドガード/ファストガード/ニードルガード/キングシールド/トーチカ)。
 // 本家風の丸っぽい半透明バリアドームが「ポンッ」と展開→軽くふるえ→フェード(計900ms)。
 // color省略時=#7dd3fc(まもる基準色)。キングシールド=金/トーチカ=紫等はcueのparams.colorで可変。
-function shieldFx(side, color){
-  const f = $('f-' + side);
+function shieldFx(side, color, slotIdx){   // slotIdx(★D6-2): 既定0=枠0=従来どおり
+  const f = _fxSlotEl('f-', side, slotIdx);
   if (!f) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'shieldFx', side, color, t: performance.now()});
   const c = color || '#7dd3fc';
@@ -825,8 +851,8 @@ function shieldFx(side, color){
 }
 // B. noteFx: 音技24統一(flags.sound技)。対象から音符(♪♫交互)が4個、ふわふわ波打ちながら上方向へ
 // 飛んでいく(左右にsin揺れ・800ms前後で消える)。色はタイプ色(呼び出し元がinfo.colorを渡す)。
-function noteFx(side, color){
-  const f = $('f-' + side);
+function noteFx(side, color, slotIdx){   // slotIdx(★D6-2): 既定0=枠0=従来どおり
+  const f = _fxSlotEl('f-', side, slotIdx);
   if (!f) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'noteFx', side, color, t: performance.now()});
   const c = color || '#fbbf24';
@@ -857,8 +883,8 @@ function noteFx(side, color){
 }
 // C. bindFx: 縛り系(バインド状態付与/拘束/自分拘束)。楕円リング2〜3本が対象に巻き付いてキュッと締まる
 // (scale 1.4→0.9で縮む・700ms)。色既定#a78bfa(バインド)。拘束(暗色)/自分拘束(緑)等はcueのcolorで可変。
-function bindFx(side, color){
-  const f = $('f-' + side);
+function bindFx(side, color, slotIdx){   // slotIdx(★D6-2): 既定0=枠0=従来どおり
+  const f = _fxSlotEl('f-', side, slotIdx);
   if (!f) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'bindFx', side, color, t: performance.now()});
   const c = color || '#a78bfa';
@@ -882,8 +908,8 @@ function bindFx(side, color){
 // アニメのtransform(translateX/scale)が counter-skew を上書きして表示が歪む罠があるため、
 // 他の全fx(popText/rankFx/shieldFx等)と同じ$('f-'+side)に統一する(=HPボックスのすぐ外側・同じ側)。
 const _ABILITY_FX_CLASS = { self: 'rb-ability-banner-self', opp: 'rb-ability-banner-opp' };
-function abilityFx(side, abilityName){
-  const f = $('f-' + side);
+function abilityFx(side, abilityName, slotIdx){   // slotIdx(★D6-2): 既定0=枠0=従来どおり
+  const f = _fxSlotEl('f-', side, slotIdx);
   if (!f || !abilityName) return;
   if (window.__fxTrace) window.__fxTrace.push({k:'abilityFx', side, abilityName, t: performance.now()});
   const el = document.createElement('div');
@@ -971,16 +997,19 @@ function hideResultBanner(){ const el = $('result-banner'); if (el) el.className
 // ===== シーン演出(登場/引っ込め/ひんし)。real_battle.html/online_battle.htmlの行fxディスパッチャ(この2ページに
 // 残置=msgbox/say系で state強結合)から、DOM操作のみの部分だけを切り出し(呼び出し順序は元のまま不変)。
 // 交代/死に出し共通の登場演出。scene:send_out(演出ツクール1-4)のトレース発火点。
-function sendOutFx(side){
-  if (window.__fxTrace) window.__fxTrace.push({k:'sendOutFx', side, t: performance.now()});
-  flash(side, 'enter');
+function sendOutFx(side, slotIdx){
+  if (window.__fxTrace) window.__fxTrace.push({k:'sendOutFx', side, slotIdx: slotIdx || 0, t: performance.now()});
+  flash(side, 'enter', slotIdx);
   SE.enter();
 }
 // 引っ込める演出。scene:recall(演出ツクール1-4)のトレース発火点。1拍目で縮んで消え、2拍目(登場)で
 // _recallTimer経由でキャンセルされなければ1000ms後にgoneへ固定する(呼び出し元の交代1拍目if分岐から丸ごと移設)。
-function recallFx(side){
-  if (window.__fxTrace) window.__fxTrace.push({k:'recallFx', side, t: performance.now()});
-  const f0 = $('f-' + side);
+// slotIdx(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。_recallTimer のキーも枠ごとに分ける
+// (枠0は従来どおり 'self'/'opp' のまま=呼び出し元の clearTimeout(_recallTimer[enterSide]) が通る)。
+function recallFx(side, slotIdx){
+  if (window.__fxTrace) window.__fxTrace.push({k:'recallFx', side, slotIdx: slotIdx || 0, t: performance.now()});
+  const _key = _fxSlotId('', side, slotIdx);
+  const f0 = _fxSlotEl('f-', side, slotIdx);
   if (f0){
     // flash()は800ms後に自前でclsを外す仕様だが、rbRecallは1s(forwards)かけて沈み切る演出。
     // 800ms時点でflash()がrecallを剥がすと、沈みきる前に素の姿(不透明度1・原位置)へ一瞬ポップして戻り、
@@ -992,22 +1021,23 @@ function recallFx(side){
     void f0.offsetWidth;
     f0.classList.add('recall');   // rbRecall 1s forwards=浮いてから沈んで消える
   }
-  const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
-  clearTimeout(_recallTimer[side]);
-  _recallTimer[side] = setTimeout(() => { const f = $('f-' + side); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 1000);
+  const pbEl = _fxSlotEl('pb-', side, slotIdx); if (pbEl) pbEl.style.visibility = 'hidden';
+  clearTimeout(_recallTimer[_key]);
+  _recallTimer[_key] = setTimeout(() => { const f = _fxSlotEl('f-', side, slotIdx); if (f){ f.classList.remove('recall'); f.classList.add('gone'); } }, 1000);
 }
 // ひんし退場演出(沈んで消える)。scene:faint(演出ツクール1-4)のトレース発火点。呼び出し元(ひんし行if分岐)は
 // このあとに続けて`_koFxDelay = koSlowFx(side)`を呼ぶ(HPバー同期setHpBarは呼び出し元に残置=state更新のため)。
-function faintFx(side){
-  if (window.__fxTrace) window.__fxTrace.push({k:'faintFx', side, t: performance.now()});
-  const ff = $('f-' + side);
+// slotIdx(★D6-2): 末尾省略可能引数(既定0=枠0=従来どおり)。
+function faintFx(side, slotIdx){
+  if (window.__fxTrace) window.__fxTrace.push({k:'faintFx', side, slotIdx: slotIdx || 0, t: performance.now()});
+  const ff = _fxSlotEl('f-', side, slotIdx);
   if (ff){
     ff.classList.remove('recall', 'enter', 'hit', 'lunge-self', 'lunge-opp');
     void ff.offsetWidth;
     ff.classList.add('faint');   // rbFaint .95s forwards=沈んで消える
     // 沈み切ったらgoneで固定。flash()を使うと800msでfaintが外れ100ms素に戻って再表示=ちらつく(2026-07-06 阿部さん)ため自前で。
     setTimeout(() => { ff.classList.add('gone'); ff.classList.remove('faint');
-      const pbF = $('pb-' + side); if (pbF) pbF.style.visibility = 'hidden'; }, 1500);
+      const pbF = _fxSlotEl('pb-', side, slotIdx); if (pbF) pbF.style.visibility = 'hidden'; }, 1500);
   }
   SE.faint();
 }
@@ -1077,8 +1107,8 @@ const _CHARGE_EASING = {
   sharp: 'cubic-bezier(.5,0,.15,1)',     // 鋭く踏み込む
   heavy: 'cubic-bezier(.7,.05,.3,1)',    // 重い助走
 };
-function _cueChargeMotionProd(atkSide, tgtSide, dur, params){
-  const sp = document.querySelector('#f-' + atkSide + ' .sprite');
+function _cueChargeMotionProd(atkSide, tgtSide, dur, params, atkSlot, tgtSlot){   // atkSlot/tgtSlot(★D6-2): 既定0=枠0
+  const sp = document.querySelector('#' + _fxSlotId('f-', atkSide, atkSlot) + ' .sprite');
   if (!sp || typeof sp.animate !== 'function') return;
   const p = params || {};
   let impactFrac = p.impactFrac != null ? p.impactFrac : 0.55;
@@ -1088,7 +1118,7 @@ function _cueChargeMotionProd(atkSide, tgtSide, dur, params){
   let reachFrac = p.reachFrac != null ? p.reachFrac : 0.85;
   reachFrac = Math.min(1.2, Math.max(0.3, reachFrac));
   const chargeEasing = _CHARGE_EASING[p.easing] || _CHARGE_EASING.standard;
-  const from = fxPoint(atkSide), to = fxPoint(tgtSide);
+  const from = fxPoint(atkSide, atkSlot), to = fxPoint(tgtSide, tgtSlot);
   const hitFrac = reachFrac;
   const dx = (to.x - from.x) * hitFrac, dy = (to.y - from.y) * hitFrac;
   // #f-<atkSide>の奥行きscale(自分側1.2/相手側0.95)+#field側のzoom(fitField()で画面幅に応じ可変)を
@@ -1167,13 +1197,16 @@ function _dispatchCueProd(cue, info){
   const cls = p.cls || moveClassOf(mv);
   const color = info.color;
   const atSide = (p.at === 'self') ? info.atkSide : info.tgtSide;
+  // ★D6-2: 側と同じ規則で「枠」も解決する(at:'self'=攻撃側の枠 / 既定=標的の枠)。
+  // info.atkSlot/tgtSlot は playCueSheet が ctx から受け取る(省略時0=枠0=従来どおり)。
+  const atSlot = (p.at === 'self') ? info.atkSlot : info.tgtSlot;
   try {
     if (cue.track === 'atk'){
       // cue.dur(2026-07-16 阿部さん): キューシートにdurがあれば発射→着弾の飛翔尺として渡す
       // (spawnProjectile/spawnBeamの末尾省略可能引数。無ければundefinedのまま渡り従来どおり190/180固定)。
-      if (cue.action === 'projectile') spawnProjectile(fxPoint(info.atkSide), fxPoint(info.tgtSide), cls, color, 1, shape, cue.dur);
-      else if (cue.action === 'beam') spawnBeam(fxPoint(info.atkSide), fxPoint(info.tgtSide), cls, color, 1, shape, cue.dur);
-      else if (cue.action === 'charge') _cueChargeMotionProd(info.atkSide, info.tgtSide, cue.dur, p);
+      if (cue.action === 'projectile') spawnProjectile(fxPoint(info.atkSide, info.atkSlot), fxPoint(info.tgtSide, info.tgtSlot), cls, color, 1, shape, cue.dur);
+      else if (cue.action === 'beam') spawnBeam(fxPoint(info.atkSide, info.atkSlot), fxPoint(info.tgtSide, info.tgtSlot), cls, color, 1, shape, cue.dur);
+      else if (cue.action === 'charge') _cueChargeMotionProd(info.atkSide, info.tgtSide, cue.dur, p, info.atkSlot, info.tgtSlot);
     } else if (cue.track === 'glyph' && cue.action === 'burst'){
       // sizeScale(2026-07-15・設計_ツクール強化_炎サイズ配線とスクラブ_2026-07-15.md §2-1): 見た目倍率。
       // clamp(0.1〜6)=SSOT残存値(scale:100等)や入力事故で画面が壊れるのを防ぐ。省略時=1=従来どおり。
@@ -1182,13 +1215,13 @@ function _dispatchCueProd(cue, info){
       // burstFx側でintensity由来のnのまま(従来どおり)。
       const sizeScale = p.scale != null ? Math.min(6, Math.max(0.1, p.scale)) : 1;
       const particles = p.particles != null ? Math.min(24, Math.max(0, p.particles)) : undefined;
-      burstFx(atSide, color, shape, p.intensity || 'normal', cue.dur, sizeScale, p.offset, particles);
+      burstFx(atSide, color, shape, p.intensity || 'normal', cue.dur, sizeScale, p.offset, particles, atSlot);
     } else if (cue.track === 'glyph' && cue.action === 'rank'){
       // 変化技演出Phase1(2026-07-16): 能力ランク変化(つるぎのまい等)。up省略時=true(上昇)扱い=
       // 未指定でも矢印だけは出る安全側デフォルト(自動生成は必ずup/stageを明示するので実運用では常に指定される)。
-      rankFx(atSide, p.up !== false, Math.min(3, Math.max(1, p.stage || 1)));
+      rankFx(atSide, p.up !== false, Math.min(3, Math.max(1, p.stage || 1)), atSlot);
     } else if (cue.track === 'glyph' && cue.action === 'sparkle'){
-      sparkleFx(atSide);   // 変化技演出Phase1: 回復(じこさいせい等)のキラキラ
+      sparkleFx(atSide, atSlot);   // 変化技演出Phase1: 回復(じこさいせい等)のキラキラ
     } else if (cue.track === 'glyph' && cue.action === 'wall'){
       // 変化技演出Phase1: 壁設置(リフレクター/ひかりのかべ/オーロラベール)。show省略時=true(張る)。
       if (p.show !== false) showWallFx(atSide, p.name); else hideWallFx(atSide, p.name);
@@ -1197,11 +1230,11 @@ function _dispatchCueProd(cue, info){
     } else if (cue.track === 'glyph' && cue.action === 'weather'){
       setWeatherFx(p.kind || null);   // 変化技演出Phase1: 天候変化(あまごい等)。scene側と同形をmove側にも
     } else if (cue.track === 'glyph' && cue.action === 'shield'){
-      shieldFx(atSide, p.color);   // エフェクト絵の体系整理(2026-07-16)新規A: まもる系バリアドーム
+      shieldFx(atSide, p.color, atSlot);   // エフェクト絵の体系整理(2026-07-16)新規A: まもる系バリアドーム
     } else if (cue.track === 'glyph' && cue.action === 'note'){
-      noteFx(atSide, p.color || info.color);   // 新規B: 音技24統一の音符ウェーブ
+      noteFx(atSide, p.color || info.color, atSlot);   // 新規B: 音技24統一の音符ウェーブ
     } else if (cue.track === 'glyph' && cue.action === 'bind'){
-      bindFx(atSide, p.color || info.color);   // 新規C: 縛り系の巻き付きリング
+      bindFx(atSide, p.color || info.color, atSlot);   // 新規C: 縛り系の巻き付きリング
     } else if (cue.track === 'sound' && cue.action === 'se'){
       // 変化技演出Phase1: p.nameがあればSE[name]()(scene側_dispatchSceneCueProdと同形=rankUp/rankDown等の
       // 専用SEを鳴らせる)。p.name無し=従来どおりSE.hitClass(cls)(攻撃技の後方互換=1msも変えない)。
@@ -1210,12 +1243,12 @@ function _dispatchCueProd(cue, info){
       _cueSustainedFieldShake(p.mag != null ? p.mag : 1, cue.dur, info.shouldContinue);
     } else if (cue.track === 'def'){
       if (cue.action === 'knockback'){
-        const from = fxPoint(info.atkSide), to = fxPoint(info.tgtSide);
+        const from = fxPoint(info.atkSide, info.atkSlot), to = fxPoint(info.tgtSide, info.tgtSlot);
         const dx = (to.x - from.x) * 0.15, dy = (to.y - from.y) * 0.15;
-        knockbackFx(atSide, atSide === info.tgtSide ? -dx : dx, atSide === info.tgtSide ? -dy : dy);
+        knockbackFx(atSide, atSide === info.tgtSide ? -dx : dx, atSide === info.tgtSide ? -dy : dy, atSlot);
       } else if (cue.action === 'hitreact'){
         // hitCls(実際のダメージ%由来。呼び出し側=lineWithFxが計算した値)を優先。無ければp.bigフラグへフォールバック。
-        flash(atSide, info.hitCls || (p.big ? 'hit-big' : 'hit'));
+        flash(atSide, info.hitCls || (p.big ? 'hit-big' : 'hit'), atSlot);
       }
       if (info.onDef) info.onDef(atSide);
     } else if (cue.track === 'text' && cue.action === 'popnum'){
@@ -1237,7 +1270,7 @@ function _dispatchCueProd(cue, info){
       const _cueTxt = p.textKey
         ? ((window.I18N && window.I18N.t) ? window.I18N.t('fxcue.' + p.textKey, p.text || '') : (p.text || ''))
         : (p.text || '');
-      popText(atSide, info.dmgText != null ? info.dmgText : _cueTxt, p.color || '#fff', sz, null, cue.dur, popOpts);
+      popText(atSide, info.dmgText != null ? info.dmgText : _cueTxt, p.color || '#fff', sz, null, cue.dur, popOpts, atSlot);
       if (info.onDef) info.onDef(atSide);
     }
   } catch (e) { console.error('[playCueSheet dispatch error]', cue, e); }
@@ -1257,6 +1290,9 @@ function playCueSheet(sheet, ctx){
     color: ctx.color || (S.typeColors() && ctx.mv && S.typeColors()[ctx.mv.type]) || '#9fb4d8',
     atkSide: ctx.atkSide,
     tgtSide: ctx.tgtSide,
+    // ★D6-2(ダブル): 枠。省略時0=枠0=従来どおり(シングルは1msも変わらない)
+    atkSlot: ctx.atkSlot || 0,
+    tgtSlot: ctx.tgtSlot || 0,
     dmgText: ctx.dmgText,
     hitCls: ctx.hitCls,
   };
@@ -1295,26 +1331,27 @@ function resolveSceneSheet(key){
 function _dispatchSceneCueProd(cue, ctx){
   ctx = ctx || {};
   const side = ctx.side || 'self';
+  const slotIdx = ctx.slotIdx || 0;   // ★D6-2(ダブル): 省略時0=枠0=従来どおり
   const p = cue.params || {};
   try {
     if (cue.track === 'def' && cue.action === 'flash'){
-      flash(side, p.cls || 'enter');
+      flash(side, p.cls || 'enter', slotIdx);
     } else if (cue.track === 'def' && cue.action === 'hidebox'){
-      const pbEl = $('pb-' + side); if (pbEl) pbEl.style.visibility = 'hidden';
+      const pbEl = _fxSlotEl('pb-', side, slotIdx); if (pbEl) pbEl.style.visibility = 'hidden';
     } else if (cue.track === 'def' && cue.action === 'gone'){
-      const f = $('f-' + side);
+      const f = _fxSlotEl('f-', side, slotIdx);
       if (f){ f.classList.remove('recall'); f.classList.add('gone'); }
     } else if (cue.track === 'def' && cue.action === 'faintstart'){
-      const ff = $('f-' + side);
+      const ff = _fxSlotEl('f-', side, slotIdx);
       if (ff){
         ff.classList.remove('recall', 'enter', 'hit', 'lunge-self', 'lunge-opp');
         void ff.offsetWidth;
         ff.classList.add('faint');
       }
     } else if (cue.track === 'def' && cue.action === 'gonefaint'){
-      const ff = $('f-' + side);
+      const ff = _fxSlotEl('f-', side, slotIdx);
       if (ff){ ff.classList.add('gone'); ff.classList.remove('faint'); }
-      const pbF = $('pb-' + side); if (pbF) pbF.style.visibility = 'hidden';
+      const pbF = _fxSlotEl('pb-', side, slotIdx); if (pbF) pbF.style.visibility = 'hidden';
     } else if (cue.track === 'sound' && cue.action === 'se'){
       const name = p.name || 'enter';
       if (SE[name]) SE[name]();
@@ -1327,19 +1364,19 @@ function _dispatchSceneCueProd(cue, ctx){
     } else if (cue.track === 'screen' && cue.action === 'slowmo'){
       // tameMs=0(このキュー自体がplaySceneCueSheetのsetTimeoutで既にcue.t分待たされている=
       // タメはスケジューリング側が担う)。slowMs=cue.dur(編集可能)。
-      _koStepSlow(side, 0, cue.dur);
+      _koStepSlow(side, 0, cue.dur, slotIdx);
     } else if (cue.track === 'glyph' && cue.action === 'pillar'){
-      const f = $('f-' + side); if (f) _megaStepPillar(f);
+      const f = _fxSlotEl('f-', side, slotIdx); if (f) _megaStepPillar(f);
     } else if (cue.track === 'glyph' && cue.action === 'orbs'){
-      const f = $('f-' + side); if (f) _megaStepOrbs(f);
+      const f = _fxSlotEl('f-', side, slotIdx); if (f) _megaStepOrbs(f);
     } else if (cue.track === 'glyph' && cue.action === 'silhouette'){
-      const f = $('f-' + side), sp = f && f.querySelector('.sprite');
+      const f = _fxSlotEl('f-', side, slotIdx), sp = f && f.querySelector('.sprite');
       _megaStepSilhouetteOn(sp);
     } else if (cue.track === 'glyph' && cue.action === 'climax'){
-      const f = $('f-' + side), sp = f && f.querySelector('.sprite');
-      _megaStepClimax(side, f, sp, p.color);
+      const f = _fxSlotEl('f-', side, slotIdx), sp = f && f.querySelector('.sprite');
+      _megaStepClimax(side, f, sp, p.color, slotIdx);
     } else if (cue.track === 'glyph' && cue.action === 'dna'){
-      const f = $('f-' + side); if (f) _megaStepDna(f);
+      const f = _fxSlotEl('f-', side, slotIdx); if (f) _megaStepDna(f);
     } else if (cue.track === 'glyph' && cue.action === 'weather'){
       setWeatherFx(p.kind || 'rain');   // ライブラリ用(本番の呼び出し箇所上書き対象外=エディタプレビュー専用)
     } else if (cue.track === 'text' && cue.action === 'banner'){
@@ -1361,7 +1398,7 @@ function playSceneCueSheet(sheet, ctx){
   (sheet.cues || []).forEach(cue => {
     const timer = setTimeout(() => _dispatchSceneCueProd(cue, ctx), Math.max(0, cue.t || 0));
     if (cue.track === 'def' && cue.action === 'gone' && ctx.side && typeof _recallTimer !== 'undefined'){
-      _recallTimer[ctx.side] = timer;
+      _recallTimer[_fxSlotId('', ctx.side, ctx.slotIdx)] = timer;   // ★D6-2: 枠0は従来どおり 'self'/'opp' キー
     }
   });
   return sheet.dur || 0;
