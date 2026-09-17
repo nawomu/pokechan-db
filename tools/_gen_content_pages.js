@@ -10,6 +10,7 @@
  *   既存の「(チャンピオンズ)」ページの内容は変えない。技の学習リスト(movesTable)は
  *   Champions登場ポケモン(champions:true)だけ従来どおり Champions側のデータ(champions_key)を
  *   使い続け、全国版限定ポケモンだけ全国版の学習データを使う=既存ページの内容を変えない。
+ * ナビだけ更新: node tools/_refresh_content_navigation.js (既存本文・redirectを維持)
  * 実行: node tools/_gen_content_pages.js
  * 固定UIラベル・アクセサ = tools/_content_i18n.js。法務フッタ本文は ja 維持(2026-06-24 決定)。
  */
@@ -162,7 +163,7 @@ ${hrefBlock}
 <link rel="stylesheet" href="${u}/content.css">
 </head>
 <body>
-<header class="hero"><a href="${u}/index.html"><div class="logo">PchamDB<small>${esc(T(lang, 'site_tagline'))}</small></div></a></header>
+<header class="hero"><a href="../index.html"><div class="logo">PchamDB<small>${esc(T(lang, 'site_tagline'))}</small></div></a></header>
 ${sideAds(lang)}
 <div class="wrap">`;
 }
@@ -172,7 +173,7 @@ function FOOT(lang) {
 <footer>
   <p class="unofficial">${esc(T(lang, 'unofficial_note'))}</p>
   <p>任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズなど関連企業とは一切関係ありません。</p>
-  <div class="links"><a href="${u}/index.html">${esc(T(lang, 'foot_home'))}</a> · <a href="${u}/making.html">${esc(T(lang, 'foot_making'))}</a> · <a href="${u}/terms.html">${esc(T(lang, 'foot_terms'))}</a> · <a href="${u}/privacy.html">${esc(T(lang, 'foot_privacy'))}</a> · <a href="${u}/disclaimer.html">${esc(T(lang, 'foot_disc'))}</a> · <a href="${u}/contact.html">${esc(T(lang, 'foot_contact'))}</a> · <a href="${u}/sitemap.html">${esc(T(lang, 'foot_sitemap'))}</a></div>
+  <div class="links"><a href="../index.html">${esc(T(lang, 'foot_home'))}</a> · <a href="${u}/making.html">${esc(T(lang, 'foot_making'))}</a> · <a href="${u}/terms.html">${esc(T(lang, 'foot_terms'))}</a> · <a href="${u}/privacy.html">${esc(T(lang, 'foot_privacy'))}</a> · <a href="${u}/disclaimer.html">${esc(T(lang, 'foot_disc'))}</a> · <a href="${u}/contact.html">${esc(T(lang, 'foot_contact'))}</a> · <a href="${u}/sitemap.html">${esc(T(lang, 'foot_sitemap'))}</a></div>
   <p>ポケモン・Pokémon等の商標および著作権は任天堂・株式会社ポケモン・ゲームフリーク・クリーチャーズに帰属します。<br>© 2026 Pokémon. © 1995-2026 Nintendo / Creatures Inc. / GAME FREAK inc. © 2026 PchamDB</p>
 </footer>
 </body>
@@ -295,7 +296,7 @@ function genAbilityDetail(lang, ab) {
     T(lang, 'ability_desc_meta').replace('{x}', abN).replace('{d}', desc),
     pageUrl(lang, 'ability', ab), hreflang('ability', ab)
   ) + `
-  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'ability_list'))}</a> &gt; <b>${esc(abN)}</b></nav>
+  <nav class="crumbs"><a href="../index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'ability_list'))}</a> &gt; <b>${esc(abN)}</b></nav>
   <article class="card">
     <h1>${esc(abN)}</h1>
     <p class="lead">${esc(desc)}</p>
@@ -316,7 +317,7 @@ function genAbilityIndex(lang) {
     T(lang, 'ability_list_desc').replace('{n}', ALL_ABIL.length),
     indexUrl(lang, 'ability'), hreflang('index', 'ability')
   ) + `
-  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <b>${esc(T(lang, 'ability_list'))}</b></nav>
+  <nav class="crumbs"><a href="../index.html">${esc(T(lang, 'home'))}</a> &gt; <b>${esc(T(lang, 'ability_list'))}</b></nav>
   <article class="card">
     <h1>${esc(T(lang, 'ability_list_h1'))}</h1>
     <p class="lead">${T(lang, 'ability_list_lead').replace('{n}', ALL_ABIL.length)}</p>
@@ -389,7 +390,7 @@ function genPokemonDetail(lang, p) {
     T(lang, 'pokemon_desc_meta').replace('{x}', pN).replace('{t}', types.map(t => tType(lang, t)).join('/')),
     pageUrl(lang, 'pokemon', p.name), hreflang('pokemon', p.name)
   ) + `
-  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'pokemon_list'))}</a> &gt; <b>${esc(pN)}</b></nav>
+  <nav class="crumbs"><a href="../index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'pokemon_list'))}</a> &gt; <b>${esc(pN)}</b></nav>
   <article class="card">
     <h1>No.${esc(p.no)} ${esc(pN)}</h1>
     <p>${types.map(t => `<a href="${typeHref(lang, t)}">${badge(lang, t)}</a>`).join('')} ／ ${esc(T(lang, 'weight'))} ${esc(p.weight_kg != null ? p.weight_kg + 'kg' : T(lang, 'unknown'))}</p>
@@ -436,7 +437,7 @@ function genPokemonIndex(lang) {
     .side-rail.left{left:12px}.side-rail.right{right:12px}
     .wrap{max-width:min(1300px, calc(100vw - 404px))}
   }</style>
-  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <b>${esc(T(lang, 'pokemon_list'))}</b></nav>
+  <nav class="crumbs"><a href="../index.html">${esc(T(lang, 'home'))}</a> &gt; <b>${esc(T(lang, 'pokemon_list'))}</b></nav>
   <article class="card">
     <h1>${esc(T(lang, 'pokemon_list'))}</h1>
     <p class="lead">${T(lang, 'pokemon_list_lead').replace('{n}', POKE_CH.length)}</p>
@@ -510,7 +511,7 @@ function genPokemonAllIndex(lang) {
     .side-rail.left{left:12px}.side-rail.right{right:12px}
     .wrap{max-width:min(1300px, calc(100vw - 404px))}
   }</style>
-  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'pokemon_list'))}</a> &gt; <b>${esc(T(lang, 'pokemon_all_list'))}</b></nav>
+  <nav class="crumbs"><a href="../index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="index.html">${esc(T(lang, 'pokemon_list'))}</a> &gt; <b>${esc(T(lang, 'pokemon_all_list'))}</b></nav>
   <article class="card">
     <h1>${esc(T(lang, 'pokemon_all_list'))}</h1>
     <p class="lead">${T(lang, 'pokemon_all_lead').replace('{n}', n)}</p>
@@ -556,7 +557,7 @@ function genTypeDetail(lang, t) {
     T(lang, 'type_desc_meta').replace(/\{x\}/g, tN),
     pageUrl(lang, 'type', t), hreflang('type', t)
   ) + `
-  <nav class="crumbs"><a href="${up(lang)}/index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="${up(lang)}/type_chart.html">${esc(T(lang, 'type_chart_nav'))}</a> &gt; <b>${esc(tN)}</b></nav>
+  <nav class="crumbs"><a href="../index.html">${esc(T(lang, 'home'))}</a> &gt; <a href="${up(lang)}/type_chart.html">${esc(T(lang, 'type_chart_nav'))}</a> &gt; <b>${esc(tN)}</b></nav>
   <article class="card">
     <h1>${badge(lang, t)} ${esc(T(lang, 'type_h1').replace('{x}', tN))}</h1>
     <h2>${esc(T(lang, 'type_attacking').replace('{x}', tN))}</h2>
