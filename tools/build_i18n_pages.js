@@ -153,47 +153,6 @@ for (const page of PAGES) {
 console.log(`生成完了: ${count} ファイル (${PAGES.length}ページ × ${GEN_LANGS.length}言語)`);
 console.log('出力先: ' + GEN_LANGS.map(l => `/${l}/`).join(', '));
 
-// ===== sitemap.xml 再生成 (多言語 hreflang 対応) =====
-function buildSitemap() {
-  const TODAY = '2026-06-02';
-  const contentPr = { 'index.html': '1.0', 'how_to_use.html': '0.8', 'db_guide.html': '0.7', 'builder_guide.html': '0.7' };
-  // ★2026-09-05: pokemon_db_v9.html→pokemon_db.html(旧版削除・正典名に改名)。
-  //   注意: この配列は実際のsitemap.xml(手で拡張済み・本関数の出力より遥かに大きい)とは既に乖離している。
-  //   buildSitemap()を実行するとsitemap.xmlが今のtools配列だけの小さい内容で丸ごと上書きされ、
-  //   手で足された多数のURLが消える(2026-09-05のページ昇格作業で実測・sitemap.xmlは手動パッチに留めた)。
-  //   このファイルを直す時はsitemap.xml側の実体と付き合わせてから実行すること。
-  const tools = [['pokemon_db.html', '0.9'], ['party_checker.html', '0.9'], ['waza-list.html', '0.8'], ['type_chart.html', '0.7'], ['battle_simulator.html', '0.8']];
-  const legal = ['making', 'terms', 'privacy', 'disclaimer', 'contact'];
-  const locFor = (page, lang) => pageUrl(page, lang);
-  const alt = (page) => {
-    let s = '';
-    for (const l of ALL_LANGS) s += `    <xhtml:link rel="alternate" hreflang="${l}" href="${locFor(page, l)}"/>\n`;
-    s += `    <xhtml:link rel="alternate" hreflang="x-default" href="${locFor(page, 'ja')}"/>\n`;
-    return s;
-  };
-  let o = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n        xmlns:xhtml="http://www.w3.org/1999/xhtml">\n';
-  o += '  <!-- コンテンツページ (各言語の静的URL + hreflang) -->\n';
-  for (const page of PAGES) for (const l of ALL_LANGS) {
-    o += '  <url>\n';
-    o += `    <loc>${locFor(page, l)}</loc>\n`;
-    o += alt(page);
-    o += `    <lastmod>${TODAY}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${l === 'ja' ? contentPr[page] : (page === 'index.html' ? '0.9' : '0.6')}</priority>\n  </url>\n`;
-  }
-  o += `  <!-- サイトマップ(人間向けHTML) -->\n  <url>\n    <loc>${SITE}/sitemap.html</loc>\n    <lastmod>${TODAY}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.3</priority>\n  </url>\n`;
-  o += '  <!-- 主要機能ページ (単一URL + ランタイム言語切替) -->\n';
-  for (const [f, pr] of tools) o += `  <url>\n    <loc>${SITE}/${f}</loc>\n    <lastmod>${TODAY}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>${pr}</priority>\n  </url>\n`;
-  o += '  <!-- 制作・法的ページ (ja + en) -->\n';
-  for (const p of legal) for (const suf of ['', '_en']) {
-    o += '  <url>\n';
-    o += `    <loc>${SITE}/${p}${suf}.html</loc>\n`;
-    o += `    <xhtml:link rel="alternate" hreflang="ja" href="${SITE}/${p}.html"/>\n`;
-    o += `    <xhtml:link rel="alternate" hreflang="en" href="${SITE}/${p}_en.html"/>\n`;
-    o += `    <xhtml:link rel="alternate" hreflang="x-default" href="${SITE}/${p}.html"/>\n`;
-    o += `    <lastmod>${TODAY}</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.4</priority>\n  </url>\n`;
-  }
-  o += '</urlset>\n';
-  fs.writeFileSync(path.join(ROOT, 'sitemap.xml'), o);
-  const urls = (o.match(/<loc>/g) || []).length;
-  console.log(`sitemap.xml 再生成: ${urls} URL`);
-}
-buildSitemap();
+// Sitemap generation is shared with the content builder. The old hard-coded
+// short list discarded thousands of valid URLs whenever i18n was regenerated.
+require('./_gen_content_sitemap.js').build();

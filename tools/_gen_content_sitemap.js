@@ -1,90 +1,92 @@
-/* 生成したコンテンツページを sitemap.xml に反映。
- * 全言語URL × hreflangクラスタ形式 (Google推奨方式)
- * <!-- CONTENT_PAGES_START/END --> マーカー間を毎回置換するので何度でも安全に再実行可。
- * 実行: node tools/_gen_content_sitemap.js
+'use strict';
+/* Canonical sitemap builder (single entry point for content + i18n builders).
+ * Read the published HTML metadata, never infer nine URLs from one filename:
+ * aliases, noindex pages and noncanonical copies must not enter the sitemap.
+ * Existing unchanged entries/lastmod dates are preserved. New URLs omit lastmod
+ * because a regeneration timestamp is not evidence of a content update.
  */
 const fs = require('fs');
 const path = require('path');
-const ROOT = path.join(__dirname, '..');
-const BASE = 'https://pchamdb.com';
-const LANGS = ['ja', 'en', 'fr', 'de', 'es', 'it', 'ko', 'zh-Hans', 'zh-Hant'];
-const NON_JA = LANGS.filter(l => l !== 'ja');
-const today = new Date().toISOString().slice(0, 10);
-
-// en/kind/slug.html のhreflang="ja"からja URLを取得
-function jaUrlFromEnPage(htmlPath) {
-  const html = fs.readFileSync(htmlPath, 'utf8');
-  const m = html.match(/hreflang="ja" href="([^"]+)"/);
-  return m ? m[1] : null;
+const cheerio = require('cheerio');
+const ROOT = path.resolve(__dirname, '..');
+const SITE = 'https://pchamdb.com';
+const LANGS = ['en', 'fr', 'de', 'es', 'it', 'ko', 'zh-Hans', 'zh-Hant'];
+const KINDS = ['pokemon', 'ability', 'type', 'move'];
+const esc = s => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+function fileOf(url) {
+  const u = new URL(url, SITE);
+  if (u.origin !== SITE) throw new Error('External canonical/alternate URL: ' + url);
+  let rel = decodeURIComponent(u.pathname).replace(/^\//, '');
+  if (!rel || rel.endsWith('/')) rel += 'index.html';
+  if (rel.split('/').includes('..')) throw new Error('Unsafe URL: ' + url);
+  return rel;
 }
-
-// ability/type: en/種別/slug.html -> クラスタ(ja URL + 全言語 URL)
-function buildCluster(kind) {
-  const dir = path.join(ROOT, 'en', kind);
-  if (!fs.existsSync(dir)) return [];
-  const slugs = fs.readdirSync(dir).filter(f => f.endsWith('.html') && f !== 'index.html').sort();
-  return slugs.map(f => {
-    const slug = f.replace('.html', '');
-    const jaUrl = jaUrlFromEnPage(path.join(dir, f));
-    if (!jaUrl) { console.warn('⚠ ja URL not found:', f); return null; }
-    const urls = { ja: jaUrl };
-    for (const l of NON_JA) urls[l] = `${BASE}/${l}/${kind}/${slug}.html`;
-    return { slug, urls };
-  }).filter(Boolean);
+function publicFiles(root = ROOT) {
+  const out = [];
+  function add(dir) {
+    const full = path.join(root, dir);
+    if (!fs.existsSync(full)) return;
+    for (const f of fs.readdirSync(full).sort())
+      if (f.endsWith('.html') && fs.statSync(path.join(full, f)).isFile()) out.push(path.posix.join(dir, f));
+  }
+  for (const prefix of ['', ...LANGS]) {
+    add(prefix);
+    for (const kind of KINDS) add(path.posix.join(prefix, kind));
+  }
+  return out;
 }
-
-// pokemon: slug共通(英語) - en/pokemon/*.html から取得
-function buildPokemonCluster() {
-  const dir = path.join(ROOT, 'en', 'pokemon');
-  const slugs = fs.readdirSync(dir).filter(f => f.endsWith('.html') && f !== 'index.html').sort();
-  return slugs.map(f => {
-    const slug = f.replace('.html', '');
-    const urls = { ja: `${BASE}/pokemon/${slug}.html` };
-    for (const l of NON_JA) urls[l] = `${BASE}/${l}/pokemon/${slug}.html`;
-    return { slug, urls };
+function readPages(root = ROOT) {
+  const pages = new Map();
+  for (const file of publicFiles(root)) {
+    const html = fs.readFileSync(path.join(root, file), 'utf8');
+    const $ = cheerio.load(html.split(/<\/head\s*>/i)[0]);
+    if ($('meta[http-equiv]').toArray().some(e => $(e).attr('http-equiv').toLowerCase() === 'refresh')) continue;
+    if ($('meta[name]').toArray().some(e => /^(robots|googlebot)$/i.test($(e).attr('name')) && /\bnoindex\b/i.test($(e).attr('content') || ''))) continue;
+    const cs = $('link[rel="canonical"]');
+    if (cs.length !== 1) throw new Error('Expected one canonical: ' + file);
+    const url = new URL(cs.attr('href'), SITE + '/' + file).href;
+    if (fileOf(url) !== file) continue;
+    const alternatives = $('link[rel="alternate"][hreflang]').toArray().map(e => ({
+      lang: $(e).attr('hreflang'), url: new URL($(e).attr('href'), SITE + '/' + file).href
+    }));
+    pages.set(file, { url, alternatives });
+  }
+  // Fail closed instead of emitting broken or redirecting hreflang targets.
+  for (const [file, p] of pages) for (const a of p.alternatives) {
+    if (!pages.has(fileOf(a.url))) throw new Error('Alternate is not canonical indexable content: ' + file + ' -> ' + a.url);
+  }
+  return pages;
+}
+function build(root = ROOT) {
+  const pages = readPages(root);
+  const sm = path.join(root, 'sitemap.xml');
+  const xml = fs.readFileSync(sm, 'utf8');
+  const used = new Set();
+  let removed = 0, changed = 0, added = 0;
+  const render = (p, previous) => {
+    const $ = cheerio.load(previous || '<url/>', { xmlMode: true });
+    const alternatives = p.alternatives.map(a => `    <xhtml:link rel="alternate" hreflang="${esc(a.lang)}" href="${esc(a.url)}"/>`).join('\n');
+    // Keep historical dates and priority; never stamp every page with today.
+    const extras = ['lastmod', 'changefreq', 'priority'].map(k => $(k).length ? `    <${k}>${esc($(k).text())}</${k}>\n` : '').join('');
+    return `  <url>\n    <loc>${esc(p.url)}</loc>\n${alternatives ? alternatives + '\n' : ''}${extras}  </url>`;
+  };
+  let result = xml.replace(/  <url>[\s\S]*?<\/url>\n?/g, old => {
+    const $ = cheerio.load(old, { xmlMode: true });
+    const file = fileOf($('loc').text());
+    const p = pages.get(file);
+    if (!p || used.has(file)) { removed++; return ''; }
+    used.add(file);
+    const alts = $('xhtml\\:link').toArray().map(e => ({ lang: $(e).attr('hreflang'), url: $(e).attr('href') }));
+    const key = xs => xs.map(x => x.lang + '=' + x.url).sort().join('\n');
+    if ($('loc').text() === p.url && key(alts) === key(p.alternatives)) return old;
+    changed++; return render(p, old) + '\n';
   });
+  const additions = [];
+  for (const [file, p] of pages) if (!used.has(file)) { additions.push(render(p)); added++; }
+  if (additions.length) result = result.replace('</urlset>', '  <!-- Canonical pages added from HTML metadata -->\n' + additions.join('\n') + '\n</urlset>');
+  if (result !== xml) fs.writeFileSync(sm, result);
+  console.log(`sitemap: ${pages.size} canonical URLs; removed ${removed}, updated ${changed}, added ${added}`);
+  return { total: pages.size, removed, changed, added };
 }
-
-// hreflangクラスタ付きXMLエントリを1言語のURLごとに生成
-function clusterEntries(cluster, pri, freq) {
-  const { urls } = cluster;
-  const xhtmlLinks = LANGS.map(l =>
-    `    <xhtml:link rel="alternate" hreflang="${l}" href="${urls[l]}"/>`
-  ).join('\n');
-  const xdef = `    <xhtml:link rel="alternate" hreflang="x-default" href="${urls['ja']}"/>`;
-
-  // 全言語URLそれぞれを<loc>として登録(Google推奨方式)
-  return LANGS.map(l =>
-    `  <url>\n    <loc>${urls[l]}</loc>\n${xhtmlLinks}\n${xdef}\n    <lastmod>${today}</lastmod>\n    <changefreq>${freq}</changefreq>\n    <priority>${pri}</priority>\n  </url>`
-  ).join('\n');
-}
-
-const blocks = [];
-
-// インデックスページ(言語別なし=jaのみ)
-for (const dir of ['pokemon', 'ability']) {
-  blocks.push(`  <url>\n    <loc>${BASE}/${dir}/</loc>\n    <lastmod>${today}</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>`);
-}
-
-// コンテンツページ(全言語 × hreflangクラスタ)
-const pokemonClusters = buildPokemonCluster();
-const abilityClusters = buildCluster('ability');
-const typeClusters = buildCluster('type');
-
-for (const c of pokemonClusters) blocks.push(clusterEntries(c, '0.6', 'monthly'));
-for (const c of abilityClusters) blocks.push(clusterEntries(c, '0.6', 'monthly'));
-for (const c of typeClusters) blocks.push(clusterEntries(c, '0.5', 'monthly'));
-
-const marker = `  <!-- CONTENT_PAGES_START -->\n${blocks.join('\n')}\n  <!-- CONTENT_PAGES_END -->`;
-const xmlPath = path.join(ROOT, 'sitemap.xml');
-let xml = fs.readFileSync(xmlPath, 'utf8');
-const re = /  <!-- CONTENT_PAGES_START -->[\s\S]*?  <!-- CONTENT_PAGES_END -->\n?/;
-if (re.test(xml)) {
-  xml = xml.replace(re, marker + '\n');
-} else {
-  xml = xml.replace('</urlset>', marker + '\n</urlset>');
-}
-fs.writeFileSync(xmlPath, xml);
-const total = pokemonClusters.length * 9 + abilityClusters.length * 9 + typeClusters.length * 9 + 2;
-console.log('✅ sitemap.xml 更新:', total, 'URL追加 (lastmod', today + ')');
-console.log('  pokemon:', pokemonClusters.length * 9, '/ ability:', abilityClusters.length * 9, '/ type:', typeClusters.length * 9);
+module.exports = { build, readPages };
+if (require.main === module) build();
