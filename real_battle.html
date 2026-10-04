@@ -14,6 +14,8 @@
 <script src="move_fx_map.js?v=20260716d"></script>
 <script src="battle_fx_cues.js?v=20260716c"></script>
 <script src="fx_primitives.js?v=20260718c"></script>
+<script src="pokedb.js?v=20261004-transfer" data-files="pokemon,moves,abilities,items,natures,learnsets,team_examples"></script>
+<script src="team_example_transfer.js?v=20261004-catalogue"></script>
 <style>
 /* 実機風バトルページ(2026-06-12 阿部さん: 検証用シミュレーターとは別ページ・実機の画面とテンポで) */
 *{box-sizing:border-box}
@@ -1289,6 +1291,9 @@ if (location.search.includes('fxtrace')){
 }
 
 // ===== チーム編成 =====
+let rbExamplePreview = !!TeamExampleTransfer.incomingId();
+let rbExampleLoading = rbExamplePreview;
+let rbExampleError = false;
 let teamSize = 3;      // 3体 or 6体(フルバトル)
 const selfIds = () => Array.from({length: teamSize}, (_, i) => 's' + (i + 1));
 const oppIds  = () => Array.from({length: teamSize}, (_, i) => 'o' + (i + 1));
@@ -1673,7 +1678,7 @@ function renderSelDetail(id){
   const tc = S.typeColors();
   const types = [p.type1, p.type2].filter(Boolean).map(t =>
     `<span class="sd-type" style="background:${tc[t] || '#3a4660'}">${tTypeName(t)}</span>`).join('');
-  const curAb = slotAbility[id] || defaultAbilityRB(p);
+  const curAb = rbExamplePreview && id[0]==='s' && slotAbility[id]===null ? null : slotAbility[id] || defaultAbilityRB(p);
   const abilities = [p.ab1, p.ab2, p.ab3].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i);
   const mvs = (slotMoves[id] || autoMoves(p)).filter(Boolean);
   const apiId = (typeof SPRITE_API_ID !== 'undefined') ? SPRITE_API_ID[nm] : null;
@@ -1689,9 +1694,11 @@ function renderSelDetail(id){
         `<span class="t-pill" style="background:${col}">${tTypeName(m.type)}</span>${tMoveName(m)}` +
         `<span class="sd-pp">${m.pp || 0}/${m.pp || 0}</span></button>`;
     }).join('') + `</div>` +
-    `<div class="sd-row"><span>${I18N.t('real_battle.sel_ability','特性')}</span><button class="sd-ab sd-pick">${(window.I18N && I18N.ability) ? I18N.ability(curAb) : curAb} ▾</button></div>` +
+    `<div class="sd-row"><span>${I18N.t('real_battle.sel_ability','特性')}</span><button class="sd-ab sd-pick">${curAb ? ((window.I18N && I18N.ability) ? I18N.ability(curAb) : curAb) : I18N.t('teamExamples.unknown')} ▾</button></div>` +
     `<div class="sd-row"><span>${I18N.t('real_battle.sel_item','もちもの')}</span><button class="sd-item sd-pick">${(S.itemByKey(slotItem[id]) ? tItemName(S.itemByKey(slotItem[id])) : I18N.t('real_battle.item_none_option','もちもの なし'))} ▾</button></div>` +
+    (rbExamplePreview && id[0]==='s' ? `<div class="sd-row"><span>${I18N.t('teamTransfer.genderLabel')}</span><button class="sd-gender sd-pick">${slotGender[id] || I18N.t('teamExamples.unknown')} ▾</button></div>` : '') +
     `<div class="sd-ev"></div>`;
+  if (box.querySelector('.sd-gender')) box.querySelector('.sd-gender').addEventListener('click',()=>chooseExampleGender(id));
   // 能力値エディタ(パネル下段に一体・自動確定=2026-07-05 阿部さん)
   renderEvEditor(box.querySelector('.sd-ev'), {
     poke: p,
@@ -1728,6 +1735,7 @@ function renderSelDetail(id){
 }
 // 編成の保存/復元(localStorage): ポケモン名・技名・持ち物キー・人数(リロードしても残る)
 function saveTeam(){
+  if (rbExamplePreview) return; // Temporary sourced team never overwrites the user's saved rb_team.
   try {
     const data = { size: teamSize, lead: leadSlot, val: slotVal, item: slotItem, ability: slotAbility, gender: slotGender, nature: slotNature, effort: slotEffort,
       moves: Object.fromEntries(Object.entries(slotMoves).map(([k, arr]) => [k, (arr || []).map(m => m && m.name)])) };
@@ -2102,7 +2110,8 @@ function initSetup(){
   $('stats-modal').addEventListener('click', e => { if (e.target === $('stats-modal')) $('stats-modal').style.display = 'none'; });
   $('choice-modal').addEventListener('click', e => { if (e.target === $('choice-modal')) $('choice-modal').style.display = 'none'; });
   document.querySelector('#choice-modal .cm-x').addEventListener('click', () => { $('choice-modal').style.display = 'none'; });
-  if (loadHandoff()) { /* ビルダーから来た自分チームを反映済み */ }
+  if (rbExamplePreview) { loadTeam(); TeamExampleTransfer.notify('loading'); }
+  else if (loadHandoff()) { /* ビルダーから来た自分チームを反映済み */ }
   else if (!loadTeam()) randomize();   // 保存済み編成があれば復元(なければおまかせ)
   setSelectedSlot('s1');   // CH: 初期選択=自分の先頭(中央に詳細パネルを出す)
   $('btn-random').addEventListener('click', () => { randomize(); setSelectedSlot(selectedSlot); });
@@ -2176,6 +2185,7 @@ function initSetup(){
     });
   }
   window.__randomizeOpp = randomizeOppTeam;   // 連戦モード: 相手チームだけ引き直す(プリセット優先・重複なし)
+  if (rbExamplePreview) importTeamExampleToBattle();
   // デモ自動バトル(?demo=1): 演出確認用。おまかせ編成で開始し、技0を選び続ける
   if (location.search.includes('demo')){
     $('auto-msg').checked = true;
@@ -2252,7 +2262,36 @@ function buildSide(sideKey, ids){
   S.sides[sideKey] = st;
 }
 
+// Validate the whole source before touching any slot. Read only the shared catalogue.
+async function importTeamExampleToBattle(){
+ const id=TeamExampleTransfer.incomingId();if(!id)return false;
+ try{
+  await PokeDB.ready;
+  const model=TeamExampleTransfer.resolve(id),members=TeamExampleTransfer.battleMembers(model,S);
+  teamSize=6;$('team-size').value='6';leadSlot.self='s1';leadSlot.opp='o1';renderTeamRows();
+  members.forEach((m,i)=>{const id='s'+(i+1);slotVal[id]=m.name;slotMoves[id]=m.moves.slice();slotItem[id]=m.item;slotAbility[id]=m.ability;slotGender[id]=m.gender;slotNature[id]=m.nature;slotEffort[id]={...m.effort};$(id).innerHTML=slotCapsuleHtml(id);});
+  if(window.__randomizeOpp)window.__randomizeOpp();setSelectedSlot('s1');rbExampleLoading=false;rbExampleError=false;
+  TeamExampleTransfer.notify('battleLoaded',TeamExampleTransfer.issues(members),model.example.title_key);return true;
+ }catch(e){rbExampleLoading=false;rbExampleError=true;TeamExampleTransfer.notify(['invalid','historicalRestricted','doubleUnsupported'].includes(e.message)?e.message:'incompatible');return false;}
+}
+function teamExampleBattleReady(){
+ if(!rbExamplePreview)return true;
+ if(rbExampleLoading||rbExampleError){TeamExampleTransfer.notify(rbExampleLoading?'loading':'incompatible');return false;}
+ const members=selfIds().map(id=>({name:slotVal[id],ability:slotAbility[id],gender:slotGender[id],item:slotItem[id]})),issues=TeamExampleTransfer.issues(members);
+ if(issues.length){TeamExampleTransfer.notify('needsReview',issues);return false;}
+ for(const id of selfIds()){
+  const p=S.pokeByName(slotVal[id]);if(!p||![p.ab1,p.ab2,p.ab3].includes(slotAbility[id])||(slotMoves[id]||[]).length!==4||normMegaKeyRB(slotItem[id],slotVal[id])!==slotItem[id]){TeamExampleTransfer.notify('incompatible');return false;}
+ }
+ return true;
+}
+function chooseExampleGender(id){
+ const p=S.pokeByName(slotVal[id]);if(!p)return;
+ const choices=p.genderless?['—']:p.gender_female_pct===100?['♀']:p.gender_female_pct===0?['♂']:['♂','♀'];
+ openChoiceModal(I18N.t('teamTransfer.genderLabel'),[{label:'',rows:choices.map(g=>({key:g,name:g,desc:''}))}],g=>{slotGender[id]=g;$(id).innerHTML=slotCapsuleHtml(id);renderSelDetail(id);},$('sel-detail'));
+}
+
 function startBattle(){
+  if (!teamExampleBattleReady()) return;
   try { window.scrollTo(0, 0); } catch (e) {}   // モバイル横: 編成下部から開始するとスクロール残りで相手HPバーが画面外(検証WF #6)
   // 前試合の残骸を掃除: 勝敗で無効化したボタンを戻し、「つぎの相手」ボタンが残っていれば消す
   // (勝利→にげる→再スタートの経路では c-next のクリックハンドラを通らないため)

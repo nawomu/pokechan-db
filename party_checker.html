@@ -893,7 +893,8 @@ body.stats-only-mode #ev-ov.vis { display: flex !important; }
 </div>
 
 <!-- ★このページは参照元1枚 pokedb.js だけを読む(pokechan_data*.js / items_database.js / master/*.json の直読み禁止・R1) -->
-<script src="pokedb.js?v=20260905" data-files="pokemon,moves,learnsets,abilities,items,natures,types"></script>
+<script src="pokedb.js?v=20261004-transfer" data-files="pokemon,moves,learnsets,abilities,items,natures,types,team_examples"></script>
+<script src="team_example_transfer.js?v=20261004-catalogue"></script>
 <script>
 /* =====================================================================
  * party_checker.html — チームビルダー(新版・データは pokedb.js 1枚だけを読む)
@@ -1040,12 +1041,13 @@ function genderOf(name){
 let partyGenders = JSON.parse(localStorage.getItem(LS_PARTY_GENDERS) || "[]");
 while (partyGenders.length < PARTY_SIZE) partyGenders.push("");
 partyGenders = partyGenders.slice(0, PARTY_SIZE);
-function saveGenders(){ localStorage.setItem(LS_PARTY_GENDERS, JSON.stringify(partyGenders)); }
+function saveGenders(){ localStorage.setItem(LS_PARTY_GENDERS, JSON.stringify(partyGenders)); savePcTabs(); }
 function toggleGender(slotIdx){
   const g = partyGenders[slotIdx];
   if (g === '♂') partyGenders[slotIdx] = '♀';
   else if (g === '♀') partyGenders[slotIdx] = '♂';
-  else return;   // 無性別は切り替え不可
+  else if (!g && partyExampleId) partyGenders[slotIdx] = '♂';
+  else return;   // Fixed-gender and ordinary unchanged slots stay unchanged
   saveGenders(); renderTable();
 }
 
@@ -1054,7 +1056,7 @@ const ITEM_BY_KEY = {};
 // ↓ 旧: if (window.ITEMS_DATABASE && ...) { ... } はここに書いてあったが、pokedb.js のデータが
 //   揃うまで window.ITEMS_DATABASE が存在しないため _initAfterDataReady() へ移動(式は無改変)。
 
-function saveItems(){ localStorage.setItem(LS_PARTY_ITEMS, JSON.stringify(partyItems)); }
+function saveItems(){ localStorage.setItem(LS_PARTY_ITEMS, JSON.stringify(partyItems)); savePcTabs(); }
 
 // 持ち物選択モーダルで現在開いているスロット
 let _itemModalSlot = null;
@@ -1719,12 +1721,18 @@ function saveSlotFilters()   { localStorage.setItem(LS_SLOT_FILTERS, JSON.string
 // ===== タブ機能 (チームを複数保持して切替) =====
 const LS_PC_TABS = "pokechan_pc_tabs_v1";
 let pcTabs = [];
+let partyAbilities = Array(PARTY_SIZE).fill(null);
+let partyExampleId = null;
 let pcActiveId = 1;
 let pcNextId = 2;
 
 function captureCurrentPcState() {
   return {
     party: party.slice(),
+    partyItems: partyItems.slice(),
+    partyGenders: partyGenders.slice(),
+    partyAbilities: partyAbilities.slice(),
+    partyExampleId,
     typeOrder: typeOrder.slice(),
     slotFilters: JSON.parse(JSON.stringify(slotFilters)),
     statVis: Object.assign({}, statVis),
@@ -1749,6 +1757,14 @@ function applyPcState(s) {
   partyEvs = (s.partyEvs || []).map(e => ({hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0,...(e||{})}));
   while (partyEvs.length < PARTY_SIZE) partyEvs.push({hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0});
   partyEvs = partyEvs.slice(0, PARTY_SIZE);
+
+  // Older tabs had global item/gender state; hydrate those before adding an imported tab.
+  if (s.partyItems) partyItems = Array.from({length:PARTY_SIZE},(_,i)=>s.partyItems[i] || '');
+  if (s.partyGenders) partyGenders = Array.from({length:PARTY_SIZE},(_,i)=>s.partyGenders[i] || '');
+  partyAbilities = Array.from({length:PARTY_SIZE},(_,i)=>(s.partyAbilities && s.partyAbilities[i]) || null);
+  partyExampleId = s.partyExampleId || null;
+  localStorage.setItem(LS_PARTY_ITEMS,JSON.stringify(partyItems));
+  localStorage.setItem(LS_PARTY_GENDERS,JSON.stringify(partyGenders));
 
   // 既存LSキーにも反映 (リロード時の整合性)
   localStorage.setItem(LS_PARTY,        JSON.stringify(party));
@@ -1787,6 +1803,23 @@ function loadPcTabs() {
   pcActiveId = 1;
   pcNextId = 2;
   savePcTabs();
+}
+
+// Catalogue transfer uses a new existing builder tab; previous tabs are never overwritten.
+function importTeamExampleToBuilder(){
+ const id=TeamExampleTransfer.incomingId();if(!id)return false;
+ try{
+  const model=TeamExampleTransfer.resolve(id),previous=captureCurrentPcState();
+  pcTabs.forEach(tab=>{if(tab.state){if(!tab.state.partyItems)tab.state.partyItems=previous.partyItems.slice();if(!tab.state.partyGenders)tab.state.partyGenders=previous.partyGenders.slice();}});
+  savePcTabs();
+  const state=TeamExampleTransfer.builderState(model,previous,PARTY_SIZE),tab={id:pcNextId++,name:window.I18N?I18N.t(model.example.title_key)+(model.example.source.original_title?' — '+model.example.source.author+' / '+(model.example.season||model.example.regulation||I18N.t('teamExamples.unknown')):''):id,state};
+  pcTabs.push(tab);pcActiveId=tab.id;applyPcState(state);savePcTabs();activeSlot=0;
+  TeamExampleTransfer.consume();TeamExampleTransfer.notify('builderLoaded',TeamExampleTransfer.issues(model.members),model.example.title_key);return true;
+ }catch(e){TeamExampleTransfer.notify(['invalid','historicalRestricted','doubleUnsupported'].includes(e.message)?e.message:'incompatible');return false;}
+}
+function choosePartyAbility(slotIdx,abilityIdx){
+ const p=POKE_MAP[party[slotIdx]],choices=p?[...new Set([p.ab1,p.ab2,p.ab3].filter(Boolean))]:[];
+ if(!choices[abilityIdx])return;partyAbilities[slotIdx]=choices[abilityIdx];savePcTabs();renderTable();
 }
 
 function renderPcTabs() {
@@ -2260,12 +2293,12 @@ function renderTable() {
     ${party.map((name, slotIdx) => {
       const p = name && POKE_MAP[name];
       if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
-      const abs = [p.ab1,p.ab2,p.ab3].filter(Boolean);
+      const abs = [...new Set([p.ab1,p.ab2,p.ab3].filter(Boolean))];
       if (abs.length === 0) return `<td class="ab-cell" ${dragAttrs(slotIdx)}>—</td>`;
-      return `<td class="ab-cell" ${dragAttrs(slotIdx)}>${abs.map(a => {
+      return `<td class="ab-cell" ${dragAttrs(slotIdx)}>${partyExampleId&&!partyAbilities[slotIdx]?'<small>'+I18N.t('teamTransfer.abilityNeeded')+'</small><br>':''}${abs.map((a,abilityIdx) => {
         const desc = ((window.I18N && window.I18N.abilityDesc && window.I18N.abilityDesc(a)) || ABILITY_DESC[a]) || _tCK('checker.ability_no_desc','（説明データ未取得）');
         const descAttr = desc.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-        return `<span class="ab-name" data-desc="${descAttr}">${(window.I18N && window.I18N.ability) ? window.I18N.ability(a) : a}</span>`;
+        return `<button type="button" class="ab-name" style="background:${partyAbilities[slotIdx]===a?'#315c48':'transparent'};color:inherit;border:1px solid #666;border-radius:4px;cursor:pointer" onclick="choosePartyAbility(${slotIdx},${abilityIdx})" aria-pressed="${partyAbilities[slotIdx]===a}" data-desc="${descAttr}">${(window.I18N && window.I18N.ability) ? window.I18N.ability(a) : a}</button>`;
       }).join(" / ")}</td>`;
     }).join("")}
   </tr>`);
@@ -2315,10 +2348,10 @@ function renderTable() {
     ${party.map((name, slotIdx) => {
       if (!name) return `<td class="empty-slot-cell"></td>`;
       let g = partyGenders[slotIdx];
-      if (!g) { g = genderOf(name); partyGenders[slotIdx] = g; }
+      if (!g && !partyExampleId) { g = genderOf(name); partyGenders[slotIdx] = g; }
       const color = g === '♂' ? '#5b8ff0' : g === '♀' ? '#f06fa0' : '#9aa3b2';
-      const clickable = (g === '♂' || g === '♀');
-      return `<td class="gender-cell" data-slot="${slotIdx}" ${clickable ? `onclick="toggleGender(${slotIdx})"` : ''} title="${clickable ? _tCK('checker.tip_gender_toggle','クリックで♂♀切替') : _tCK('checker.tip_genderless','無性別')}" style="text-align:center;vertical-align:middle;${clickable ? 'cursor:pointer' : ''}"><span style="font-weight:800;font-size:1.1rem;color:${color}">${g}</span></td>`;
+      const clickable = (g === '♂' || g === '♀' || (!g && partyExampleId));
+      return `<td class="gender-cell" data-slot="${slotIdx}" ${clickable ? `onclick="toggleGender(${slotIdx})"` : ''} title="${clickable ? _tCK('checker.tip_gender_toggle','クリックで♂♀切替') : _tCK('checker.tip_genderless','無性別')}" style="text-align:center;vertical-align:middle;${clickable ? 'cursor:pointer' : ''}"><span style="font-weight:800;font-size:1.1rem;color:${color}">${g || I18N.t('teamExamples.unknown')}</span></td>`;
     }).join("")}
   </tr>`);
 
@@ -2427,6 +2460,8 @@ function onSlotDrop(e, idx) {
     const tmp = party[dragSlotIdx];
     party[dragSlotIdx] = party[idx];
     party[idx] = tmp;
+    [partyItems,partyAbilities,partyNatures,partyEvs].forEach(arr=>{[arr[dragSlotIdx],arr[idx]]=[arr[idx],arr[dragSlotIdx]];});
+    saveItems();
     const tmpG = partyGenders[dragSlotIdx];   // 性別もポケモンに追従
     partyGenders[dragSlotIdx] = partyGenders[idx];
     partyGenders[idx] = tmpG;
@@ -2499,6 +2534,7 @@ function selectPoke(name) {
   // → グローバルタイプフィルタの影響を受けず、まっさらな状態に
   if (party[activeSlot] !== name) {
     slotFilters[activeSlot] = {};
+    partyAbilities[activeSlot] = null;
     partyGenders[activeSlot] = genderOf(name);   // 選んだ瞬間に性別を決める(男女ランダム/無性別/名前固定)
   }
   party[activeSlot] = name;
@@ -2518,6 +2554,7 @@ document.getElementById("modal-clear").addEventListener("click", () => {
   party[activeSlot] = null;
   delete slotFilters[activeSlot];
   partyGenders[activeSlot] = '';
+  partyAbilities[activeSlot] = null;
   saveParty(); saveSlotFilters(); saveGenders(); renderTable(); closeModal();
 });
 document.getElementById("modal-ov").addEventListener("click", e => {
@@ -3462,6 +3499,7 @@ PokeDB.ready.then(function () {
 
   // ── 初期化 ──────────────────────────────────────────────────────────────
   loadPcTabs();
+  importTeamExampleToBuilder();
   renderPcTabs();
   renderTable();
   setupStatsOnlyMode();

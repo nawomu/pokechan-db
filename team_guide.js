@@ -30,7 +30,7 @@ let TEAM_GUIDE_SETS = [];
   });
   document.querySelectorAll('[data-home]').forEach(a=>a.href=prefix+'index.html');
   document.querySelectorAll('[data-local-page]').forEach(a=>a.href=a.dataset.localPage+'?lang='+encodeURIComponent(I18N.lang));
-  document.querySelectorAll('[data-tool]').forEach(a=>a.href=a.dataset.tool+'?lang='+encodeURIComponent(I18N.lang));
+  document.querySelectorAll('[data-tool]').forEach(a=>a.href=a.dataset.tool+'?lang='+encodeURIComponent(I18N.lang)+(a.dataset.tool==='party_checker.html'?'&team-example=s-mb-m5-291':''));
   const ab=PokeDB.ability('clear-body'),a=document.getElementById('ability-link');
   a.textContent=I18N.ability(ab.name);a.href=prefix+'ability/'+(I18N.lang==='ja'?encodeURIComponent(ab.name):ab.slug)+'.html';
   document.getElementById('ability-explanation').textContent=I18N.lang==='ja'?ab.effect_ja:I18N.abilityDesc(ab.name);

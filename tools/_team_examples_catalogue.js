@@ -9,7 +9,7 @@ function build(root){
  for(const e of source.items){
   assert(e.slug&&!ids.has(e.slug),'Duplicate/missing example ID');ids.add(e.slug);
   assert(['single','double'].includes(e.format));assert(/^https:\/\//.test(e.source.url));
-  assert(e.source.author&&e.source.checked_at&&e.regulation);assert(e.season===null||typeof e.season==='string');
+  assert(e.source.author&&e.source.checked_at&&(e.regulation===null||typeof e.regulation==='string'));assert(e.season===null||typeof e.season==='string');
   assert(e.members.length===6);assert.equal(new Set(e.members.map(s=>s.pokemon)).size,6);
   for(const s of e.members){
    assert(Object.keys(s).every(k=>['ability','item','moves','nature','points','pokemon','gender','mega','notes'].includes(k)));
