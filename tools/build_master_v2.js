@@ -1281,11 +1281,17 @@ function buildNatures() {
 // ── 実行 ────────────────────────────────────────────────────────────
 console.log('=== マスターデータ生成(master/) ===');
 console.log('  ★既存ファイルは1バイトも変更しません。出力は master/ のみ。');
+// Scoped generation avoids rewriting unrelated in-progress master work.
+if (process.argv.includes('--team-examples-only')) {
+  require('./_team_examples_catalogue').build(ROOT);
+  process.exit(0);
+}
 const n = {
   abilities: buildAbilities(), items: buildItems(), moves: buildMoves(),
   pokemon: buildPokemon(), learnsets: buildLearnsets(), regulations: buildRegulations(),
   types: buildTypes(), natures: buildNatures(),
 };
+n.team_examples = require('./_team_examples_catalogue').build(ROOT);
 fs.writeFileSync(path.join(OUT, '_unknowns.json'), JSON.stringify({
   note: '★決められなかった値の一覧。推測で埋めていない。ここを1件ずつ潰すのが次の作業。',
   generated_at: NOW, count: unknowns.length, items: unknowns,

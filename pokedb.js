@@ -53,7 +53,7 @@
 (function () {
   'use strict';
 
-  var ALL_FILES = ['pokemon', 'moves', 'abilities', 'items', 'learnsets', 'regulations', 'types', 'natures'];
+  var ALL_FILES = ['pokemon', 'moves', 'abilities', 'items', 'learnsets', 'regulations', 'types', 'natures', 'team_examples'];
 
   // ── このスクリプト自身の <script> タグを特定する(base URLと data-files の両方に使う) ──
   function findScriptEl() {
@@ -77,7 +77,8 @@
   var BASE = baseDir() + 'master/';
 
   // ── 読むファイルを絞る(data-files 指定があればそれだけ・無ければ全部) ──────────
-  var FILES = ALL_FILES;
+  // Catalogue is opt-in: existing pages retain their original eight-file load.
+  var FILES = ALL_FILES.filter(function (f) { return f !== 'team_examples'; });
   try {
     var wanted = SCRIPT_EL && SCRIPT_EL.getAttribute('data-files');
     if (wanted) {
@@ -284,6 +285,10 @@
   g.PokeDB = {
     /** ★読み込み完了を待つ約束。使う前に必ず待つ */
     ready: load(),
+
+    /** Canonical construction examples: settings/IDs and source metadata, never entity copies. */
+    teamExamples: function () { return ((DB.team_examples && DB.team_examples.items) || []).slice(); },
+    teamExample: function (slug) { return this.teamExamples().find(function (e) { return e.slug === slug; }) || null; },
 
     get mode() { return mode; },
     get label() { return mode === 'champions' ? 'Champions版(絞り込み)' : '全部版(マスターそのまま)'; },

@@ -69,7 +69,7 @@ function localize($, lang) {
 }
 
 // /<lang>/ 配下に置くため、ルート資産への相対パスへ ../ を付与
-function rewritePaths($) {
+function rewritePaths($, lang) {
   $('[href],[src]').each((i, el) => {
     for (const attr of ['href', 'src']) {
       const val = $(el).attr(attr);
@@ -77,7 +77,9 @@ function rewritePaths($) {
       if (/^(https?:|mailto:|tel:|data:|#|\/|\.\.\/)/i.test(val)) continue; // 絶対/特殊/既に../
       const base = val.split(/[?#]/)[0].split('/').pop();
       if (KEEP_RELATIVE.has(base)) continue; // 同一言語ディレクトリ内のページ
-      $(el).attr(attr, '../' + val);
+      // Shared runtime-localized construction pages keep the language selected by this top page.
+      const suffix = attr === 'href' && ['team_examples.html', 'guide_team_roles.html'].includes(base) ? '?lang=' + encodeURIComponent(lang) : '';
+      $(el).attr(attr, '../' + val + suffix);
     }
   });
 }
@@ -129,7 +131,7 @@ for (const page of PAGES) {
       $(el).html('\n' + JSON.stringify(json, null, 2) + '\n');
     });
 
-    rewritePaths($);
+    rewritePaths($, lang);
 
     // canonical / hreflang を再構築
     $('link[rel="canonical"]').remove();
