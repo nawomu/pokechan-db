@@ -14,16 +14,37 @@ function jsonFromStorage(x){return JSON.parse(x);}
 function query(ctx,id){ctx.location.href='https://example.test/party_checker.html?lang=en'+(id?'&team-example='+id:'');ctx.location.search=new URL(ctx.location.href).search;}
 (async()=>{
  const {ctx,storage,events}=await context(),T=ctx.TeamExampleTransfer,allIds=ctx.PokeDB.teamExamples().map(x=>x.slug),historical=allIds.filter(id=>{try{T.resolve(id);return false;}catch(e){assert.match(e.message,/historicalRestricted/);return true;}}),ids=allIds.filter(id=>!historical.includes(id)),singles=ids.filter(id=>T.resolve(id).example.format==='single'),doubles=ids.filter(id=>T.resolve(id).example.format==='double');
- assert.equal(allIds.length,30);assert.equal(historical.length,3);assert.equal(doubles.length,10);
+ assert.equal(allIds.length,json('reference/_team_examples.json').items.length);assert.equal(historical.length,3);assert.equal(doubles.length,ctx.PokeDB.teamExamples().filter(e=>e.format==='double').length);
  assert(!storage.size);events['i18n:ready']();assert(!storage.size);
  assert.throws(()=>T.resolve('invalid'),/invalid/);
- const pc=read('party_checker.html');ctx.renderTable=()=>{};ctx.renderPcTabs=()=>{};ctx._tCK=(key,fallback)=>fallback;
+ const pc=read('party_checker.html');
+ const waitCode=pc.slice(pc.indexOf('await new Promise(resolve => {'),pc.indexOf('// 旧版(pokechan_data.js)',pc.indexOf('await new Promise(resolve => {')));
+ assert(waitCode.includes('onReady'),'Initialization must wait for the existing translation runtime');
+ for(const order of ['runtime-first','data-first']){
+  let callback,completed=false;const c={window:{},document:{addEventListener(e,fn){assert.equal(e,'i18n:ready');callback=fn;}}};
+  if(order==='runtime-first')c.window.I18N={onReady(fn){callback=fn;}};
+  vm.createContext(c);const waiting=vm.runInContext('(async()=>{'+waitCode+'})()',c).then(()=>{completed=true;});
+  await Promise.resolve();assert(!completed,'Do not initialize while dictionary loading');callback();await waiting;assert(completed);
+ }
+ ctx.renderTable=()=>{};ctx.renderPcTabs=()=>{};ctx._tCK=(key,fallback)=>fallback;
  vm.runInContext(`const PARTY_SIZE=24,LS_PARTY='pokechan_party_v3',LS_ORDER='order',LS_SLOT_FILTERS='filters',LS_STAT_VIS='stats',LS_PARTY_ITEMS='pokechan_party_items_v1',LS_PARTY_GENDERS='pokechan_party_genders_v1',LS_PC_TABS='tabs';const TYPES=['a'],DEFAULT_TYPE_ORDER=['a'],STAT_VIS_DEFAULT={base:true};let party=Array(24).fill(null),partyItems=Array(24).fill(''),partyGenders=Array(24).fill(''),partyAbilities=Array(24).fill(null),partyExampleId=null,partyNatures=Array(24).fill('まじめ'),partyEvs=Array.from({length:24},()=>({hp:0,atk:0,def:0,spatk:0,spdef:0,spd:0})),slotFilters={},typeOrder=['a'],statVis={base:true},activeSlot=0,pcTabs=[],pcActiveId=1,pcNextId=2;const POKE_MAP={};party[0]='ピカチュウ';partyItems[0]='light_ball';partyGenders[0]='♀';partyAbilities[0]='せいでんき';partyEvs[0].spd=12;`,ctx);
  vm.runInContext(chunk(pc,'function captureCurrentPcState()','function loadPcTabs()')+chunk(pc,'function loadPcTabs()','// Catalogue transfer')+chunk(pc,'function importTeamExampleToBuilder()','function renderPcTabs()'),ctx);
  const genderAt=pc.indexOf('data-i18n="checker.row_gender"'),genderCode=pc.slice(pc.lastIndexOf('rows.push(',genderAt),pc.indexOf('// 持ち物 (',genderAt));
  vm.runInContext('function actualGenderRow(){const rows=[];'+genderCode+'return rows[0];}',ctx);
  vm.runInContext(chunk(pc,'function switchPcTab(id)', 'function addPcTab()'),ctx);
  vm.runInContext('loadPcTabs();',ctx);const original=plain(vm.runInContext('captureCurrentPcState()',ctx));
+ // The actual unknown-field rows must also render when the runtime has not executed yet.
+ const abilityAt=pc.indexOf('data-i18n="checker.row_ability"'),abilityCode=pc.slice(pc.lastIndexOf('rows.push(',abilityAt),pc.indexOf('// タイプ相性',abilityAt));
+ vm.runInContext('const ABILITY_DESC={};function dragAttrs(){return "";}function actualAbilityRow(){const rows=[];'+abilityCode+'return rows[0];}',ctx);
+ query(ctx,'popocco-mc-monthly-september');assert(ctx.importTeamExampleToBuilder());
+ vm.runInContext('party.forEach(n=>{if(n)POKE_MAP[n]=S.pokeByName(n);});',ctx);
+ const savedI18n=ctx.I18N;ctx.window.I18N=null;delete ctx.I18N;
+ assert.doesNotThrow(()=>vm.runInContext('actualGenderRow();actualAbilityRow();',ctx));
+ assert(vm.runInContext('actualAbilityRow()',ctx).includes('出典で特性が未確認'));
+ ctx.I18N=ctx.window.I18N=savedI18n;
+ // Reset test fixture only, never production browser storage.
+ storage.clear();vm.runInContext("pcTabs=[];pcActiveId=1;pcNextId=2;applyPcState("+JSON.stringify(original)+");loadPcTabs();",ctx);
+
  for(const id of ids){query(ctx,id);assert(ctx.importTeamExampleToBuilder());const m=T.resolve(id),state=plain(vm.runInContext('captureCurrentPcState()',ctx));assert.equal(state.partyExampleId,id);m.members.forEach((s,i)=>{assert.equal(state.party[i],s.pokemon.name);assert.deepEqual(state.slotFilters[i]._all,s.moves.map(m=>m.slug));assert.equal(state.partyAbilities[i],s.ability?s.ability.name:null);assert.equal(state.partyItems[i],s.item.slug);assert.equal(state.partyNatures[i],s.nature.name);assert.deepEqual(state.partyEvs[i],plain(s.effort));assert.equal(state.partyGenders[i],s.gender);});const genders=plain(vm.runInContext('partyGenders',ctx));vm.runInContext('actualGenderRow()',ctx);assert.deepEqual(plain(vm.runInContext('partyGenders',ctx)),genders,'Rendering must not randomize unknown source genders');assert(!T.incomingId());assert(!ctx.importTeamExampleToBuilder());}
  assert.deepEqual(plain(vm.runInContext('pcTabs[0].state',ctx)),original);
  vm.runInContext('partyEvs[0].hp=17;savePcTabs();',ctx);query(ctx,ids[0]);assert(ctx.importTeamExampleToBuilder());assert.equal(vm.runInContext('pcTabs['+ids.length+'].state.partyEvs[0].hp',ctx),17);vm.runInContext('switchPcTab(1);',ctx);assert.deepEqual(plain(vm.runInContext('captureCurrentPcState()',ctx)),original);
@@ -47,5 +68,5 @@ function query(ctx,id){ctx.location.href='https://example.test/party_checker.htm
  vm.runInContext('rbExamplePreview=false;',ctx);assert(ctx.teamExampleBattleReady());ctx.saveTeam();assert.notEqual(storage.get('rb_team'),saved);
  for(const lang of ['ja','en','fr','de','es','it','ko','zh-Hans','zh-Hant']){const d=json('i18n/ui-'+lang+'.json');assert.deepEqual(Object.keys(d.teamTransfer),Object.keys(ui.teamTransfer));assert(Object.values(d.teamTransfer).every(x=>typeof x==='string'&&x));}
  ctx.PokeDB.setMode('champions');for(const id of ids)T.resolve(id);
- console.log('PASS: actual PokeDB/catalogue and real engine API; 30 catalogue teams; 27 builder imports, 17 single-battle imports, ten doubles rejected by singles engine and three historical movesets rejected; all settings, unknown fields retained; existing builder state preserved in new tabs; repeated clicks/consumed reload/invalid ID/switch to another example; six-member engine side with selected abilities/nature; saved battle team unchanged in preview, ordinary save/start gate unchanged; nine dictionaries. Browser rendering not verified.');
+ console.log('PASS: actual PokeDB/catalogue and real engine API; all catalogue teams; all current-compatible builder imports and single-battle imports, all doubles rejected by singles engine and three historical movesets rejected; all settings, unknown fields retained; existing builder state preserved in new tabs; repeated clicks/consumed reload/invalid ID/switch to another example; six-member engine side with selected abilities/nature; saved battle team unchanged in preview, ordinary save/start gate unchanged; nine dictionaries. Browser rendering not verified.');
 })().catch(e=>{console.error(e);process.exitCode=1});

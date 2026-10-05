@@ -2295,7 +2295,7 @@ function renderTable() {
       if (!p) return `<td class="empty-slot-cell" ${dragAttrs(slotIdx)} onclick="openModal(${slotIdx})"></td>`;
       const abs = [...new Set([p.ab1,p.ab2,p.ab3].filter(Boolean))];
       if (abs.length === 0) return `<td class="ab-cell" ${dragAttrs(slotIdx)}>—</td>`;
-      return `<td class="ab-cell" ${dragAttrs(slotIdx)}>${partyExampleId&&!partyAbilities[slotIdx]?'<small>'+I18N.t('teamTransfer.abilityNeeded')+'</small><br>':''}${abs.map((a,abilityIdx) => {
+      return `<td class="ab-cell" ${dragAttrs(slotIdx)}>${partyExampleId&&!partyAbilities[slotIdx]?'<small>'+_tCK('teamTransfer.abilityNeeded','出典で特性が未確認です。特性を選んでください。')+'</small><br>':''}${abs.map((a,abilityIdx) => {
         const desc = ((window.I18N && window.I18N.abilityDesc && window.I18N.abilityDesc(a)) || ABILITY_DESC[a]) || _tCK('checker.ability_no_desc','（説明データ未取得）');
         const descAttr = desc.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         return `<button type="button" class="ab-name" style="background:${partyAbilities[slotIdx]===a?'#315c48':'transparent'};color:inherit;border:1px solid #666;border-radius:4px;cursor:pointer" onclick="choosePartyAbility(${slotIdx},${abilityIdx})" aria-pressed="${partyAbilities[slotIdx]===a}" data-desc="${descAttr}">${(window.I18N && window.I18N.ability) ? window.I18N.ability(a) : a}</button>`;
@@ -2351,7 +2351,7 @@ function renderTable() {
       if (!g && !partyExampleId) { g = genderOf(name); partyGenders[slotIdx] = g; }
       const color = g === '♂' ? '#5b8ff0' : g === '♀' ? '#f06fa0' : '#9aa3b2';
       const clickable = (g === '♂' || g === '♀' || (!g && partyExampleId));
-      return `<td class="gender-cell" data-slot="${slotIdx}" ${clickable ? `onclick="toggleGender(${slotIdx})"` : ''} title="${clickable ? _tCK('checker.tip_gender_toggle','クリックで♂♀切替') : _tCK('checker.tip_genderless','無性別')}" style="text-align:center;vertical-align:middle;${clickable ? 'cursor:pointer' : ''}"><span style="font-weight:800;font-size:1.1rem;color:${color}">${g || I18N.t('teamExamples.unknown')}</span></td>`;
+      return `<td class="gender-cell" data-slot="${slotIdx}" ${clickable ? `onclick="toggleGender(${slotIdx})"` : ''} title="${clickable ? _tCK('checker.tip_gender_toggle','クリックで♂♀切替') : _tCK('checker.tip_genderless','無性別')}" style="text-align:center;vertical-align:middle;${clickable ? 'cursor:pointer' : ''}"><span style="font-weight:800;font-size:1.1rem;color:${color}">${g || _tCK('teamExamples.unknown','未確認')}</span></td>`;
     }).join("")}
   </tr>`);
 
@@ -3433,7 +3433,13 @@ function _initAfterDataReady() {
 // ── データ取得 + 初期化シーケンス(PokeDB.ready を待つ。i18n:ready がこれより先に来ても
 //    空撃ちしないよう dbReady フラグを立てる=speed_compare.html 等と同じ型) ──────────
 let dbReady = false;
-PokeDB.ready.then(function () {
+PokeDB.ready.then(async function () {
+  // Data and translation downloads can finish in either order. Preserve stored tabs,
+  // then render only after the existing runtime has loaded its first dictionary.
+  await new Promise(resolve => {
+    if (window.I18N && window.I18N.onReady) window.I18N.onReady(resolve);
+    else document.addEventListener('i18n:ready', resolve, { once: true });
+  });
   // 旧版(pokechan_data.js)は Champions版固定だったので、URLで明示的に ?data=all/national と
   // 指定していない限り既定は champions に揃える(母集団を旧版と一致させる)。
   let qData = null;

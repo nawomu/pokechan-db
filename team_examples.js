@@ -35,7 +35,8 @@ function buildTeamExampleModel(example) {
   badge.style.color=(rgb[0]*.299+rgb[1]*.587+rgb[2]*.114)>155?'#172536':'#fff';return badge;
  }
  function controls(examples){
-  if(filterLang===I18N.lang)return;filterLang=I18N.lang;
+  const labels=JSON.stringify([I18N.lang,...['filterFormat','filterRules','filterSeason','search','all','single','double','unknown'].map(t)]);
+  if(filterLang===labels)return;filterLang=labels;
   const host=document.getElementById('example-controls');host.replaceChildren();
   for(const [key,labelKey] of [['format','filterFormat'],['regulation','filterRules'],['season','filterSeason']]){
    const label=el('label',t(labelKey)),select=el('select');select.setAttribute('aria-label',t(labelKey));select.id='example-filter-'+key;
@@ -68,11 +69,11 @@ function buildTeamExampleModel(example) {
   for(const example of matches){
    const model=buildTeamExampleModel(example),card=el('article',null,'example card');card.id=example.slug;
    let summary=I18N.t(example.summary_key);model.members.forEach((m,i)=>{summary=summary.replaceAll('{p'+i+'}',I18N.pokemon(m.pokemon.name));if(m.mega)summary=summary.replaceAll('{g'+i+'}',I18N.pokemon(m.mega.name));});
-   summary=summary.replace(/\{m:([^}]+)\}/g,(_,id)=>{const move=PokeDB.move(id);return move?I18N.move(move.slug,move.name):'';});
-   summary=summary.replace(/\{i:([^}]+)\}/g,(_,id)=>{const item=PokeDB.items().find(item=>item.slug===id);return item?I18N.item(item.name):'';});
+   summary=summary.replace(/\{m:([^}]+)\}/g,(_,id)=>{const move=PokeDB.move(id);if(!move)throw new Error('Unresolved summary move: '+id);return I18N.move(move.slug,move.name);});
+   summary=summary.replace(/\{i:([^}]+)\}/g,(_,id)=>{const item=PokeDB.items().find(item=>item.slug===id);if(!item)throw new Error('Unresolved summary item: '+id);return I18N.item(item.name);});
    card.append(el('h2',I18N.t(example.title_key)+(example.title_key==='teamExamples.curatedTitle'?' — '+example.source.author:'')),el('p',summary,'example-summary'));
    card.append(el('p',t(example.format)+' / '+t('rules')+': '+(example.regulation||t('unknown'))+' / '+(example.season||t('unknown')),'meta'));
-   if(example.result&&example.result.verification==='author_reported')card.append(el('p',resultText(example.result),'note result-note'));
+   if(example.result)card.append(el('p',resultText(example.result),'note result-note'));
    if(example.status==='source_incomplete')card.append(el('p',t('incomplete'),'note'));
    card.append(el('p',t('checked')+': '+example.verified_at+' / '+(example.published_at||t('unknownDate')),'meta'));
    const source=el('p',t('source')+': ','source-line'),a=link([example.source.author,example.source.author_id,example.source.original_title].filter(Boolean).join(' / '),example.source.url);a.rel='noopener noreferrer';source.append(a);card.append(source);
