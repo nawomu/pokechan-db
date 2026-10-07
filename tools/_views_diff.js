@@ -76,7 +76,9 @@ const PAST_REGS = (() => { try { return new Set(fs.readdirSync(path.join(ROOT, '
 const ITEMS_FIXES = (() => { try { return J('reference/_items_fixes.json').fixes || {}; } catch (e) { return {}; } })();
 const ITEMS_FIXES_FIELDS_ALLOWED = new Set(['acquisition', 'acquisition_note', 'notes', 'effect_ja', 'effect_house', 'category']);
 // (m) の別名欄: ビューの implemented_in_pokechan = master implemented(fixes のキー名は implemented)
-const ITEMS_FIXES_FIELD_ALIAS = { implemented_in_pokechan: 'implemented' };
+// The generated item view calls canonical effect_house "effect". Keep the
+// existing exact-value + nonempty-basis check for that projection as well.
+const ITEMS_FIXES_FIELD_ALIAS = { implemented_in_pokechan: 'implemented', effect: 'effect_house' };
 const MASTER_ITEMS_APPLIES_BY_KEY = (() => {
   const m = new Map();
   try { J('master/items.json').items.forEach(it => { if (it.slug && Array.isArray(it.applies_to_pokemon)) m.set(it.slug, it.applies_to_pokemon); }); } catch (e) {}

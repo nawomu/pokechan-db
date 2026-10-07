@@ -84,6 +84,31 @@ function rewritePaths($, lang) {
   });
 }
 
+// Narrow copy updates must not publish unrelated navigation from the root
+// template. Regenerate only requested plain-text keys in existing outputs.
+// Example: PCHAM_I18N_KEYS_ONLY=index.card_real_battle_desc node tools/build_i18n_pages.js
+if (process.env.PCHAM_I18N_KEYS_ONLY) {
+  const keys = new Set(process.env.PCHAM_I18N_KEYS_ONLY.split(',').filter(Boolean));
+  for (const lang of GEN_LANGS) {
+    const found = new Set();
+    for (const page of PAGES) {
+      const file = path.join(ROOT, lang, page);
+      const original = fs.readFileSync(file, 'utf8');
+      const output = original.replace(/<([a-zA-Z0-9]+)([^>]*\bdata-i18n="([^"]+)"[^>]*)>([\s\S]*?)<\/\1>/g, (all,tag,attrs,key,inner) => {
+        if (!keys.has(key)) return all;
+        const value = get(dict[lang],key);
+        if (typeof value !== 'string' || /[<>]/.test(inner)) throw new Error('Key-only generation requires an existing plain-text key: '+key);
+        found.add(key);
+        const escaped = value.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+        return '<'+tag+attrs+'>'+escaped+'</'+tag+'>';
+      });
+      if (output !== original) fs.writeFileSync(file,output);
+    }
+    if ([...keys].some(key=>!found.has(key))) throw new Error('Requested key not found for '+lang);
+  }
+  console.log('Generated requested plain-text keys in eight languages');
+  process.exit(0);
+}
 let count = 0;
 for (const page of PAGES) {
   const srcHtml = fs.readFileSync(path.join(ROOT, page), 'utf8');

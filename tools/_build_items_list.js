@@ -143,12 +143,13 @@ const html = `<!DOCTYPE html>
 <link rel="canonical" href="https://pchamdb.com/items_list.html">
 <link rel="icon" href="favicon.png" type="image/png">
 <script defer src="i18n/runtime.js?v=20260703d"></script>
+<script src="pokedb.js?v=20261007" data-files="regulations"></script>
 <style>
 body{margin:0;font-family:-apple-system,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;background:#f5f7fa;color:#222;font-size:14px;padding:0 0 60px}
 .hdr{padding:14px 18px;background:linear-gradient(135deg,#FF7A00,#FFC107);color:#fff;position:sticky;top:0;z-index:50}
 .hdr h1{font-size:18px;margin:0}
 .hdr .sub{font-size:12px;color:#fff;margin-top:4px;opacity:.92}
-.nav{padding:7px 18px;background:#1F4E79;color:#fff;display:flex;gap:10px;font-size:12px}
+.nav{flex-wrap:wrap;padding:7px 18px;background:#1F4E79;color:#fff;display:flex;gap:10px;font-size:12px}
 .nav a{color:#cfe0f0;text-decoration:none}.nav a:hover{color:#fff;text-decoration:underline}
 .bar{padding:9px 18px;background:#eef3fa;border-bottom:1px solid #C5D2E5;display:flex;gap:6px;align-items:center;flex-wrap:wrap;position:sticky;top:var(--hdr-h,74px);z-index:40}
 .bar input{padding:5px 12px;border-radius:8px;border:1px solid #C5D2E5;font-size:13px;width:220px}
@@ -210,7 +211,7 @@ td.acq{font-size:11.5px;color:#5d4037;min-width:120px}
 ${sumChips}
 </div>
 <div class="main">
-<div class="update-note">📅 <span data-i18n="items_list.update_note_text">メガストーン16種 + 通常持ち物11種 追加・1対戦でメガシンカ1度ルール・期間 2026/6/17〜9/2 10:59</span> (<a href="news.html" data-i18n="items_list.update_note_news_link">詳しくはニュース</a>)</div>
+<div class="update-note">📅 <span id="current-reg-note">—</span> (<a href="news.html" data-i18n="items_list.update_note_news_link">詳しくはニュース</a>)</div>
 ${sections}
 </div>
 <a href="#" class="bn-cat" data-i18n="items_list.btn_scroll_top">↑ トップへ</a>
@@ -295,6 +296,7 @@ function _fixSticky(){var h=document.querySelector('.hdr'),b=document.querySelec
 window.addEventListener('DOMContentLoaded',_fixSticky);window.addEventListener('resize',_fixSticky);window.addEventListener('load',_fixSticky);
 document.addEventListener('i18n:changed',function(){setTimeout(_fixSticky,50);});
 </script>
+<script src="current_info.js?v=20261007"></script>
 </body></html>`;
 
 fs.writeFileSync(path.join(ROOT, 'items_list.html'), html);
