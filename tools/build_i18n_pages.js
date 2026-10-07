@@ -84,6 +84,24 @@ function rewritePaths($, lang) {
   });
 }
 
+// Synchronize the shared news loader without regenerating unrelated navigation.
+// PCHAM_I18N_TOP_NEWS_ONLY=1 node tools/build_i18n_pages.js
+if (process.env.PCHAM_I18N_TOP_NEWS_ONLY === '1') {
+  const rootHtml = fs.readFileSync(path.join(ROOT,'index.html'),'utf8');
+  const source = rootHtml.match(/<!-- generated-top-news:start -->[\s\S]*?<!-- generated-top-news:end -->/);
+  if (!source) throw new Error('Missing canonical top-news script block');
+  for (const lang of GEN_LANGS) {
+    const file = path.join(ROOT,lang,'index.html');
+    const original = fs.readFileSync(file,'utf8');
+    let matches = 0;
+    const block = source[0].replace(/src="/g,'src="../');
+    const output = original.replace(/<script>\n\/\/ ★トップのアップデート情報:[\s\S]*?<\/script>|<!-- generated-top-news:start -->[\s\S]*?<!-- generated-top-news:end -->/g,()=>{matches++;return block;});
+    if (matches !== 1) throw new Error('Expected one top-news block: '+lang);
+    if (output !== original) fs.writeFileSync(file,output);
+  }
+  console.log('Generated shared top-news loader in eight languages');
+  process.exit(0);
+}
 // Narrow copy updates must not publish unrelated navigation from the root
 // template. Regenerate only requested plain-text keys in existing outputs.
 // Example: PCHAM_I18N_KEYS_ONLY=index.card_real_battle_desc node tools/build_i18n_pages.js

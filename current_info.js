@@ -15,6 +15,26 @@
       return kind === 'pokemon' ? I18N.pokemon(entry.name) : I18N.item(entry.name);
     }).join(' / ');
   }
+  function renderTopNews(reg) {
+    const list = document.getElementById('top-news-list');
+    if (!list || !reg.ranked_season) return;
+    const allLink = document.getElementById('top-news-all');
+    const url = allLink ? allLink.getAttribute('href') : 'news.html';
+    const season = reg.ranked_season;
+    const rows = [
+      {date:season.start_jst+' – '+season.end_jst+' (JST)',key:'season_title',values:{season:season.id},anchor:'news-current-season'},
+      {date:String(reg.start_jst).slice(0,10),key:'regulation_period',values:{reg:reg.id,start:reg.start_jst,end:reg.end_jst},anchor:'news-mb'}
+    ];
+    const entries = rows.map(row => {
+      const li = document.createElement('li');
+      const date = document.createElement('span');date.className='tn-date';date.textContent=row.date;
+      const link = document.createElement('a');link.href=url+'#'+row.anchor;
+      let label=I18N.t('currentInfo.'+row.key);
+      Object.keys(row.values).forEach(key=>{label=label.replaceAll('{'+key+'}',row.values[key]);});
+      link.textContent=label;li.append(date,link);return li;
+    });
+    list.replaceChildren(...entries);
+  }
   async function render() {
     if (!window.PokeDB || !window.I18N) return;
     try {
@@ -22,6 +42,7 @@
       await new Promise(resolve => I18N.onReady(resolve));
       const reg = PokeDB.regulation();
       if (reg) {
+        renderTopNews(reg);
         put('current-reg-note', 'regulation_period', {reg:reg.id,start:reg.start_jst,end:reg.end_jst});
         const season = reg.ranked_season;
         const card = document.getElementById('news-current-season');

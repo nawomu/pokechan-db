@@ -7,7 +7,7 @@ function chunk(s,start,end){return s.slice(s.indexOf(start),s.indexOf(end,s.inde
 async function context(){
  const storage=new Map(),nodes=new Map(),events={};const node=id=>{if(!nodes.has(id))nodes.set(id,{innerHTML:'',style:{},value:'',children:[],append(...c){this.children.push(...c)},replaceChildren(){this.children=[]},setAttribute(){}});return nodes.get(id);};
  const files=['pokemon','moves','abilities','items','natures','learnsets','team_examples','types'];
- const ctx={window:{I18N:null},console,URL,URLSearchParams,location:{href:'https://example.test/party_checker.html',search:''},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},history:{replaceState(a,b,u){ctx.location.href=u;ctx.location.search=new URL(u).search;}},fetch:async url=>({ok:true,json:async()=>json('master/'+url.match(/([^/]+)\.json$/)[1]+'.json')}),document:{body:null,currentScript:{src:'https://example.test/pokedb.js',getAttribute:()=>files.join(',')},getElementsByTagName:()=>[],getElementById:node,createElement:()=>node('new'+nodes.size),addEventListener:(e,fn)=>events[e]=fn,querySelectorAll:()=>[]},S};
+ const ctx={window:{I18N:null},console,URL,URLSearchParams,location:{href:'https://example.test/party_checker.html',search:''},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},history:{replaceState(a,b,u){ctx.location.href=u;ctx.location.search=new URL(u).search;}},fetch:async url=>({ok:true,json:async()=>json('master/'+url.match(/([^/]+)\.json$/)[1]+'.json')}),document:{body:null,currentScript:{src:'https://example.test/pokedb.js',getAttribute:()=>files.join(',')},getElementsByTagName:()=>[],getElementById:node,createElement:()=>node('new'+nodes.size),addEventListener:(e,fn)=>events[e]=fn,querySelectorAll:()=>[]},S};
  const i18n={lang:'ja',t:k=>k.split('.').reduce((o,k)=>o&&o[k],ui)||k,item:n=>n,pokemon:n=>n};ctx.window.I18N=ctx.I18N=i18n;vm.createContext(ctx);vm.runInContext(read('pokedb.js'),ctx);ctx.PokeDB=ctx.window.PokeDB;await ctx.PokeDB.ready;vm.runInContext(read('team_example_transfer.js'),ctx);ctx.TeamExampleTransfer=ctx.window.TeamExampleTransfer;return {ctx,storage,events,node};
 }
 function jsonFromStorage(x){return JSON.parse(x);}
@@ -53,7 +53,7 @@ function query(ctx,id){ctx.location.href='https://example.test/party_checker.htm
  for(const id of historical){query(ctx,id);const before=plain(vm.runInContext('pcTabs',ctx));assert(!ctx.importTeamExampleToBuilder());assert.deepEqual(plain(vm.runInContext('pcTabs',ctx)),before);}
  // Reuse the actual engine API, and the real page's import/save/start-gate/side construction functions.
  const rb=read('real_battle.html');ctx.$=id=>ctx.document.getElementById(id);ctx.renderTeamRows=()=>{};ctx.slotCapsuleHtml=()=>'';ctx.setSelectedSlot=()=>{};ctx.window.__randomizeOpp=()=>{};ctx.defaultAbilityRB=p=>p.ab1;ctx.autoMoves=p=>S.usableMoves(p).slice(0,4);ctx.clampEffortRB=x=>x;
- vm.runInContext(`let rbExamplePreview=true,rbExampleLoading=true,rbExampleError=false,teamSize=3;const slotVal={},slotItem={},slotAbility={},slotGender={},slotNature={},slotEffort={},slotMoves={},leadSlot={self:'s1',opp:'o1'};const selfIds=()=>Array.from({length:teamSize},(_,i)=>'s'+(i+1));`,ctx);
+ vm.runInContext(`let rbHandoffError=false,rbExamplePreview=true,rbExampleLoading=true,rbExampleError=false,teamSize=3;const slotVal={},slotItem={},slotAbility={},slotGender={},slotNature={},slotEffort={},slotMoves={},leadSlot={self:'s1',opp:'o1'};const selfIds=()=>Array.from({length:teamSize},(_,i)=>'s'+(i+1));`,ctx);
  vm.runInContext(chunk(rb,'function normMegaKeyRB(', 'function clearUnimplementedItemRB(')+chunk(rb,'function saveTeam(){','function loadTeam(){')+chunk(rb,'async function importTeamExampleToBattle()','function startBattle(){')+chunk(rb,'function buildSide(sideKey, ids){','// Validate the whole source'),ctx);
  const saved='existing-user-team';storage.set('rb_team',saved);
  for(const id of singles){query(ctx,id);assert(await ctx.importTeamExampleToBattle());const m=T.resolve(id);assert.equal(vm.runInContext('teamSize',ctx),6);const actual=plain(vm.runInContext('selfIds().map(id=>({name:slotVal[id],ability:slotAbility[id],item:slotItem[id],nature:slotNature[id],gender:slotGender[id],effort:slotEffort[id],moves:slotMoves[id].map(m=>m.name)}))',ctx));m.members.forEach((s,i)=>{assert.equal(actual[i].name,s.pokemon.name);assert.equal(actual[i].ability,s.ability?s.ability.name:null);assert.equal(actual[i].item,s.item.slug);assert.equal(actual[i].nature,s.nature.name);assert.equal(actual[i].gender,s.gender);assert.deepEqual(actual[i].effort,plain(s.effort));assert.deepEqual(actual[i].moves,s.moves.map(m=>m.name));});ctx.saveTeam();assert.equal(storage.get('rb_team'),saved);assert.equal(ctx.teamExampleBattleReady(),T.issues(m.members).length===0);
@@ -66,6 +66,32 @@ function query(ctx,id){ctx.location.href='https://example.test/party_checker.htm
  query(ctx,'invalid');const prior=plain(vm.runInContext('slotVal',ctx));assert(!await ctx.importTeamExampleToBattle());assert.deepEqual(plain(vm.runInContext('slotVal',ctx)),prior);assert.equal(storage.get('rb_team'),saved);
  vm.runInContext("slotVal.s1=null;slotAbility.s1=null;slotGender.s1='';",ctx);assert(!ctx.teamExampleBattleReady(),'Cleared slot is blocked without an exception');
  vm.runInContext('rbExamplePreview=false;',ctx);assert(ctx.teamExampleBattleReady());ctx.saveTeam();assert.notEqual(storage.get('rb_team'),saved);
+
+ // Exercise the actual ordinary builder serializer and real-battle handoff receiver.
+ vm.runInContext(chunk(pc,'  function buildHandoff(){','  // 🔧 簡易シミュレーター'),ctx);
+ ctx.genderOf=()=> '♂';ctx.normLegacyName=n=>n;ctx.isPickable=()=>true;ctx.genderOfRB=()=> '♂';ctx.clearUnimplementedItemRB=()=>{};ctx.dedupeItemsRB=()=>{};ctx.dedupeTeams=()=>{};
+ vm.runInContext(rb.match(/const FORM_REVERT = [^;]+;/)[0],ctx);ctx.ZERO_EV=()=>({});
+ vm.runInContext(chunk(rb,'function setSlot(id, name, keepCustom){','// ===== 相手(AI)'),ctx);
+ vm.runInContext('rbExamplePreview=false;',ctx);
+ vm.runInContext("const oppIds=()=>Array.from({length:teamSize},(_,i)=>'o'+(i+1));",ctx);
+ vm.runInContext(chunk(rb,'function loadHandoff(){','// ===== 能力値'),ctx);
+ for(const id of singles){
+  query(ctx,id);assert(ctx.importTeamExampleToBuilder());const model=T.resolve(id),handoff=plain(ctx.buildHandoff());
+  storage.set('rb_team',saved);storage.set('pokechan_realbattle_handoff_v1',JSON.stringify(handoff));assert(ctx.loadHandoff());
+  const actual=plain(vm.runInContext('selfIds().map(id=>({name:slotVal[id],item:slotItem[id],nature:slotNature[id],effort:slotEffort[id],ability:slotAbility[id],moves:slotMoves[id].map(m=>m.name)}))',ctx));
+  model.members.forEach((m,i)=>{assert.equal(actual[i].name,m.pokemon.name);assert.deepEqual(actual[i].moves,m.moves.map(x=>x.name));assert.equal(actual[i].item,m.item.slug);assert.equal(actual[i].nature,m.nature.name);assert.deepEqual(actual[i].effort,plain(m.effort));});
+  assert.notEqual(storage.get('rb_team'),saved,'Existing explicit handoff save behavior remains');assert(!storage.has('pokechan_realbattle_handoff_v1'));
+  storage.set('rb_team',saved);
+ }
+
+ for(const mode of ['name','key','empty']){
+  const legacy=plain(ctx.buildHandoff());legacy.party.filter(Boolean).forEach(e=>{const all=S.usableMoves(S.pokeByName(e.name));e.moves=mode==='empty'?[]:e.moves.map(k=>{const move=all.find(m=>m.name===ctx.PokeDB.move(k).name);return move[mode];});});
+  storage.set('pokechan_realbattle_handoff_v1',JSON.stringify(legacy));assert(ctx.loadHandoff(),'Legacy '+mode+' handoff remains supported');
+ }
+ storage.set('rb_team',saved);
+ const bad=plain(ctx.buildHandoff());bad.party[0].moves=['missing-move'];const serialized=JSON.stringify(bad),slotsBefore=plain(vm.runInContext('slotMoves',ctx));storage.set('pokechan_realbattle_handoff_v1',serialized);
+ assert(!ctx.loadHandoff());assert.deepEqual(plain(vm.runInContext('slotMoves',ctx)),slotsBefore);assert.equal(storage.get('pokechan_realbattle_handoff_v1'),serialized);assert.equal(storage.get('rb_team'),saved);assert(!ctx.teamExampleBattleReady());
+ console.log('PASS: ordinary builder → real battle, all '+singles.length+' singles × six members: canonical moves, items, nature, points through actual setSlot/saveTeam; invalid move rejected before consuming handoff or mutating team/storage.');
  for(const lang of ['ja','en','fr','de','es','it','ko','zh-Hans','zh-Hant']){const d=json('i18n/ui-'+lang+'.json');assert.deepEqual(Object.keys(d.teamTransfer),Object.keys(ui.teamTransfer));assert(Object.values(d.teamTransfer).every(x=>typeof x==='string'&&x));}
  ctx.PokeDB.setMode('champions');for(const id of ids)T.resolve(id);
  console.log('PASS: actual PokeDB/catalogue and real engine API; all catalogue teams; all current-compatible builder imports and single-battle imports, all doubles rejected by singles engine and three historical movesets rejected; all settings, unknown fields retained; existing builder state preserved in new tabs; repeated clicks/consumed reload/invalid ID/switch to another example; six-member engine side with selected abilities/nature; saved battle team unchanged in preview, ordinary save/start gate unchanged; nine dictionaries. Browser rendering not verified.');

@@ -1801,6 +1801,7 @@ function dedupeTeams(){
 }
 // チームビルダー(party_checker.html)からの受け取り(2026-06-13)。自分チームだけ反映・相手はランダム。
 // 一度読んだら handoff キーは消す(リロードで毎回上書きしないため。rb_teamには保存される)
+let rbHandoffError = false;
 function loadHandoff(){
   try {
     const d = JSON.parse(localStorage.getItem('pokechan_realbattle_handoff_v1') || 'null');
@@ -1808,6 +1809,18 @@ function loadHandoff(){
     d.party.forEach(e => { if (e && e.name) e.name = normLegacyName(e.name); });   // 旧名の保存データを新名へ正規化
     const picks = d.party.filter(e => e && e.name && S.pokeByName(e.name)).slice(0, 6);
     if (!picks.length) return false;
+    // Canonical move IDs are resolved through the shared master before engine lookup.
+    // Validate all explicitly selected moves before changing any slot or consuming storage.
+    const resolved = picks.map(e => {
+      const all = S.usableMoves(S.pokeByName(e.name));
+      const requested = Array.isArray(e.moves) ? e.moves.slice(0, 4) : [];
+      const moves = requested.map(k => {
+        const master = PokeDB.move(k);
+        return all.find(m => m && (m.key === k || m.name === k || (master && m.name === master.name)));
+      });
+      if (moves.some(m => !m)) throw new Error('incompatible');
+      return moves;
+    });
     localStorage.removeItem('pokechan_realbattle_handoff_v1');
     teamSize = picks.length > 3 ? 6 : 3;
     $('team-size').value = String(teamSize);
@@ -1826,15 +1839,14 @@ function loadHandoff(){
       const e = picks[i];
       if (!e){ setSlot(id, rnd()); return; }
       const poke = S.pokeByName(e.name);
-      const all = S.usableMoves(poke);
-      const byKey = (e.moves || []).map(k => all.find(m => m && (m.key === k || m.name === k))).filter(Boolean);
+      const byKey = resolved[i];
       slotMoves[id] = byKey.length ? byKey.slice(0, 4) : autoMoves(poke);
       slotItem[id] = normMegaKeyRB(e.item || 'mega_stone_any', e.name);   // ★2026-09-03: ビルダーhandoffの個別ストーンを自己修復
       clearUnimplementedItemRB(id);   // ★2026-07-18: ビルダーhandoffの未実装アイテムはnullへ矯正
       slotGender[id] = e.gender || genderOfRB(e.name);
       slotNature[id] = e.nature || 'まじめ';
       slotEffort[id] = clampEffortRB(e.effort || {});
-      slotAbility[id] = null;   // ビルダーhandoffは特性を持たない→setSlot(keepCustom)内で既定を補完
+      slotAbility[id] = null;   // 既存v1受渡しの特性既定処理を維持
       setSlot(id, e.name, true);
     });
     dedupeItemsRB();
@@ -1842,7 +1854,7 @@ function loadHandoff(){
     oppIds().forEach(id => setSlot(id, rnd()));
     dedupeTeams();   // ビルダー側に同種が居ても1チーム1体に矯正
     return true;
-  } catch (e) { return false; }
+  } catch (e) { rbHandoffError = true; TeamExampleTransfer.notify('incompatible'); return false; }
 }
 // ===== 能力値コンパクトエディタ(中央パネル直下に一体化・2026-07-05 阿部さん) =====
 // ルールはビルダー準拠(合計66pt/1能力32pt/1pt=実数値+1・性格補正)。UIは指示どおりコンパクト独自:
@@ -2275,6 +2287,7 @@ async function importTeamExampleToBattle(){
  }catch(e){rbExampleLoading=false;rbExampleError=true;TeamExampleTransfer.notify(['invalid','historicalRestricted','doubleUnsupported'].includes(e.message)?e.message:'incompatible');return false;}
 }
 function teamExampleBattleReady(){
+ if(rbHandoffError){TeamExampleTransfer.notify('incompatible');return false;}
  if(!rbExamplePreview)return true;
  if(rbExampleLoading||rbExampleError){TeamExampleTransfer.notify(rbExampleLoading?'loading':'incompatible');return false;}
  const members=selfIds().map(id=>({name:slotVal[id],ability:slotAbility[id],gender:slotGender[id],item:slotItem[id]})),issues=TeamExampleTransfer.issues(members);
